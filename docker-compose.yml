@@ -1,0 +1,7 @@
+services:
+  api:
+    container_name: api
+    build:
+      context: ./FreStyle
+    ports:
+      - 8080:8080

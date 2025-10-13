@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS room_members (
 );
 
 -- ユーザーが参加しているルームを効率的に検索するためのインデックス
-CREATE INDEX idx_room_member_user_id ON room_members (user_id);
+-- CREATE INDEX idx_room_member_user_id ON room_members (user_id);
 
 CREATE TABLE IF NOT EXISTS unread_counts (
     id INT PRIMARY KEY AUTO_INCREMENT,

@@ -1,12 +1,18 @@
-git cloneの手順（frontendディレクトリ）
-1.npm install でpackage.jsonに記載されているのでnode_modulesディレクトリを作成する
+## フロントエンドセットアップ手順
 
-2.npm dev run で動作確認
+1. リポジトリをクローンして `frontend` ディレクトリに移動します。
 
-3.tailwindcssの動作も確認（使用しているnode.jsのバージョンとの安定板のtailwindcssの動作しない可能性がある為）
+2. `npm install` を実行し、`package.json` に記載されている依存パッケージをインストールして `node_modules` を作成します。
 
-4.もし動作しない場合はnpm uninstall tailwindcss
+3. `npm run dev` で動作確認を行います。
 
-5.npm install -D tailwindcss@指定バージョン
+4. Tailwind CSSの動作も確認してください。  
+   ※ 使用しているNode.jsのバージョンによっては、Tailwind CSSが正常に動作しない可能性があります。
 
-6.npx tailwindcss  init -p
+5. 動作しない場合は、一度 Tailwind CSSをアンインストールします。  
+   ```bash
+   npm uninstall tailwindcss
+   
+6. そのあとにもう一度インストールをします。`npm install -D tailwindcss@バージョン指定`
+
+7.　`npx tailwindcss init -p` で初期設定をします。

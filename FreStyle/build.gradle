@@ -32,6 +32,12 @@ dependencies {
 	// Security: Cognito JWT検証用
 	implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
 	
+	// Spring Security
+	implementation 'org.springframework.boot:spring-boot-starter-security'
+	
+	// JWT（id_token）のデコードするためのライブラリ
+	implementation 'com.nimbusds:nimbus-jose-jwt:9.38'
+	
 	// Database Drivers
 	runtimeOnly 'com.mysql:mysql-connector-j'
 
@@ -47,6 +53,8 @@ dependencies {
 	
 	// S3 (アイコンなどのファイルストレージ用)
 	implementation 'software.amazon.awssdk:s3'
+	
+	implementation 'org.springframework.boot:spring-boot-starter-webflux'
 
 	// 補足: CognitoのJWT検証に必要な公開鍵の自動取得は
 	// Spring Security OAuth2 Resource Serverが標準で処理するため、

@@ -8,9 +8,10 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "tailwind:init": "tailwindcss init -p",
+    "tailwind:init": "tailwindcss init -p"
   },
   "dependencies": {
+    "@fontsource/roboto": "^5.2.8",
     "@tanstack/react-query-devtools": "^5.90.2",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",

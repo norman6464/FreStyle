@@ -13,6 +13,8 @@
    ```bash
    npm uninstall tailwindcss
    
-6. そのあとにもう一度インストールをします。`npm install -D tailwindcss@バージョン指定`
+6. そのあとにもう一度インストールをします。
+   ```bash
+   `npm install -D tailwindcss@バージョン指定`
 
-7.　`npx tailwindcss init -p` で初期設定をします。
+7.  `npx tailwindcss init -p` で初期設定をします。

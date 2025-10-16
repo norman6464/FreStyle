@@ -1,12 +1,25 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
-
+import LoginCallback from './pages/LoginCallback';
+import HomePage from './components/HomePage';
+import { useSelector } from 'react-redux';
+import ChatPage from './pages/ChatPage';
+import MenuPage from './pages/MenuPage';
+import AskAiPage from './pages/AskAiPage';
 export default function App() {
+  const accessToken = useSelector((state) => state.auth.accessToken);
+  console.log(accessToken);
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/login" />} />
+      <Route
+        path="/"
+        element={accessToken ? <MenuPage /> : <Navigate to="/login" />}
+      />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/login/callback" element={<LoginCallback />} />
+      <Route path="/chat" element={<ChatPage />} />
+      <Route path="/ask-ai" element={<AskAiPage />} />
       <Route path="/signup" element={<SignupPage />} />
       {/* 404 redirect */}
       <Route

@@ -1,18 +1,23 @@
 package com.example.FreStyle.controller;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.*;
-import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import com.example.FreStyle.form.ConfirmSignupForm;
+import com.example.FreStyle.form.LoginForm;
+import com.example.FreStyle.form.SignupForm;
+import com.example.FreStyle.service.CognitoLoginService;
+import com.example.FreStyle.service.CognitoSignupService;
+import com.example.FreStyle.service.UserService;
 import com.example.FreStyle.utils.JwtUtils;
 import com.nimbusds.jwt.JWTClaimsSet;
 
-import reactor.core.publisher.Mono;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -37,14 +42,21 @@ public class CognitoAuthController {
     private String tokenUri;
 
     private final WebClient webClient;
+    private final CognitoSignupService signupService;
+    private final CognitoLoginService loginService;
+    private final UserService userService;
 
-    public CognitoAuthController(WebClient.Builder webClientBuilder) {
+    public CognitoAuthController(WebClient.Builder webClientBuilder, CognitoSignupService signupService, CognitoLoginService loginService, UserService userService) {
         this.webClient = webClientBuilder.build();
+        this.signupService = signupService;
+        this.loginService = loginService;
+        this.userService = userService;
     }
 
     @PostMapping("/callback")
-    public Mono<ResponseEntity<Map<String, String>>> callback(@RequestBody Map<String, String> body,
-            ServerHttpResponse response) {
+    public ResponseEntity<Map<String, String>> callback(@RequestBody Map<String, String> body) {
+        System.out.println("リクエストを受け付けました。");
+
         String code = body.get("code");
 
         String basicAuthValue = Base64.getEncoder()
@@ -56,85 +68,102 @@ public class CognitoAuthController {
         formData.add("redirect_uri", redirectUri);
         formData.add("client_id", clientId);
 
-        return webClient.post()
+        Map<String, Object> tokenResponse = webClient.post()
                 .uri(tokenUri)
                 .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_FORM_URLENCODED_VALUE)
                 .header(HttpHeaders.AUTHORIZATION, "Basic " + basicAuthValue)
                 .body(BodyInserters.fromFormData(formData))
                 .retrieve() // 取得する(Cognitoが発行するアクセストークンidトークンが返ってくる)
-                .bodyToMono(Map.class) // JSONをMAPで受け取る
-                .flatMap(tokenResponse -> {
-                    
-                    String idToken = (String) tokenResponse.get("id_token");
-                    
-                    String accessToken = (String) tokenResponse.get("access_token");
-                    // String refreshToken = (String) tokenResponse.get("refresh_token");
+                .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {}) // JSONをMAPで受け取る
+                .block(); // Monoをブロックして同期処理（Spring MVCなので）
 
-                    // IDトークンのクレームをパース
-                    Optional<JWTClaimsSet> claimsOpt = JwtUtils.decode(idToken);
+        if (tokenResponse == null) {
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", "トークン取得に失敗しました。");
 
-                    if (claimsOpt.isEmpty()) {
-                        Map<String, String> errorResponse = new HashMap<>();
-                        errorResponse.put("error", "IDトークンの解析に失敗しました。");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorResponse);
+        }
 
-                        // 401へのステータスコードが返され、そのままreactが/loginへNavigateする
-                        return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                                .body(errorResponse));
-                    }
+        String idToken = (String) tokenResponse.get("id_token");
 
-                    JWTClaimsSet claims = claimsOpt.get();
+        String accessToken = (String) tokenResponse.get("access_token");
+        // String refreshToken = (String) tokenResponse.get("refresh_token");
+        
+        // IDトークンのクレームをパース
+        Optional<JWTClaimsSet> claimsOpt = JwtUtils.decode(idToken);
 
-                    Map<String, String> responseData = new HashMap<>();
+        if (claimsOpt.isEmpty()) {
 
-                    // scopeで取得したidトークンの中身を分解
-                    try {
-                        String name = claims.getStringClaim("name");
-                        String email = claims.getStringClaim("email");
-                        String sub = claims.getSubject();
-                        
-                        System.out.println("ユーザー情報");
-                        System.out.println("Name：" + name);
-                        System.out.println("Email：" + email);
-                        System.out.println("Sub：" + sub);
-                        
+            System.out.println("1番目のエラー");
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", "IDトークンの解析に失敗しました。");
 
-                        responseData.put("name", name);
-                        responseData.put("email", email);
-                        responseData.put("sub", sub);
-                        // accessTokenはデコードしない状態で保存する
-                        responseData.put("accessToken", accessToken);
+            // 401へのステータスコードが返され、そのままreactが/loginへNavigateする
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorResponse);
+        }
 
-                        // 必要であればユーザーDBに登録 or セッション管理しようなど
-                        // 今回はアクセストークンをHttpOnly Cookieに保存する
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
+        JWTClaimsSet claims = claimsOpt.get();
 
-                    return Mono.just(ResponseEntity.ok(responseData));
+        Map<String, String> responseData = new HashMap<>();
 
-                })
-                .onErrorResume(e -> {
-                    Map<String, String> errorResponse = new HashMap<>();
-                    errorResponse.put("error", "IDトークンの解析に失敗しました。");
+        // scopeで取得したidトークンの中身を分解
+        try {
+            String name = claims.getStringClaim("name");
+            String email = claims.getStringClaim("email");
+            String sub = claims.getSubject();
+            
+            responseData.put("name", name);
+            responseData.put("email", email);
+            responseData.put("sub", sub);
+            // accessTokenはデコードしない状態で保存する
+            responseData.put("accessToken", accessToken);
 
-                    return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorResponse));
-                });
+            // 必要であればユーザーDBに登録 or セッション管理しようなど
+            // 今回はアクセストークンをHttpOnly Cookieに保存する
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return ResponseEntity.ok(responseData);
     }
     
-    
-    @PostMapping("/logout")
-    public ResponseEntity<Void> logout(ServerHttpResponse response) {
-        ResponseCookie cookie = ResponseCookie.from("SESSION", "")
-        .httpOnly(true)
-        .secure(false) // 本番はtrueにする
-        .sameSite("Lax")
-        .maxAge(0) // すぐに期限切れ
-        .path("/")
-        .build();
-        
-        response.addCookie(cookie);
-        
-        return ResponseEntity.noContent().build();
+    // Cognitoへサインアップ
+    @PostMapping("/signup")
+    public ResponseEntity<?> signup(@RequestBody SignupForm form) {
+        try {
+            // Cognitoに登録
+            signupService.signUpUser(form.getEmail(), form.getPassword(), form.getName());
+            // DBに保存
+            userService.registerUser(form);
+            
+            return ResponseEntity.ok(Map.of("message", "サインアップ成功。確認メールを送信しました。"));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
     }
     
+    // メールで検証する
+    @PostMapping("/confirm")
+    public ResponseEntity<?> confirm(@RequestBody ConfirmSignupForm form) {
+        try {
+            signupService.confirmUserSignup(form.getEmail(), form.getCode());
+            return ResponseEntity.ok(Map.of("message", "確認に成功しました。ログインできます。"));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+    
+    // ログイン
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@RequestBody LoginForm form) {
+        try {
+            Map<String, String> tokens = loginService.login(form.getEmail(), form.getPassword());
+            
+            // access_tokenのみを返却 or Cookieに保存も可能
+            return ResponseEntity.ok(Map.of("access_token", tokens.get("access_token")));
+            
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
 }

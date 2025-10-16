@@ -1,17 +1,29 @@
 import { useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { accessTokenState } from '../recoil/authAtom';
-import { useSetRecoilState } from 'recoil';
+import { useDispatch, useSelector } from 'react-redux';
+import { setAuthData } from '../store/authSlice';
 
 export default function LoginCallback() {
+  // ReduxのaccessTokenを取得する
+  const accessToken = useSelector((state) => state.auth.accessToken);
+
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const setAccessToken = useSetRecoilState(accessTokenState);
+
+  const dispatch = useDispatch();
+
+  const code = searchParams.get('code');
+  const error = searchParams.get('error');
 
   useEffect(() => {
-    const code = searchParams.get('code');
-    const error = searchParams.get('error');
+    // すでにログイン済みなら、認証処理をスキップしてホームへ
+    if (accessToken) {
+      console.log('ログイン済み');
+      navigate('/');
+      return;
+    }
 
+    console.log('認可コードフロー開始');
     if (error) {
       alert('認証エラーが発生しました。' + error);
       navigate('/login');
@@ -25,15 +37,19 @@ export default function LoginCallback() {
         body: JSON.stringify({ code }),
       })
         .then((res) => {
-          if (!res.ok) throw new Error('認証に失敗');
+          console.log(res.ok);
+          if (!res.ok) throw new Error('認証に失敗しました。');
           return res.json();
         })
         .then((data) => {
-          const token = data.access_token;
-          setAccessToken(token); // Recoilに保存
+          const token = data.accessToken;
+          console.log(data);
+          console.log(token);
+          dispatch(setAuthData(data));
           navigate('/');
         })
         .catch(() => {
+          console.log(2);
           alert('認証に失敗しました。');
           navigate('/login');
         });
@@ -41,7 +57,7 @@ export default function LoginCallback() {
       // codeパラメーターがなければログイン画面へ戻す
       navigate('/login');
     }
-  }, [searchParams, navigate]);
+  }, [code, error, dispatch, navigate, accessToken]);
 
   return <div className="text-center mt-20">認証処理中...</div>;
 }

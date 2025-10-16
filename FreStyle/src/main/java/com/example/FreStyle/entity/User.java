@@ -15,6 +15,7 @@ import jakarta.persistence.Table;
 @Entity
 @Table(name = "users")
 @Data
+@NoArgsConstructor
 public class User {
 
     @Id
@@ -29,9 +30,6 @@ public class User {
 
     @Column(name = "password_hash", length = 128, nullable = false)
     private String passwordHash;
-
-    @Column(name = "display_name", length = 150, nullable = false)
-    private String displayName;
 
     @Column(name = "icon_url", length = 255)
     private String iconUrl;

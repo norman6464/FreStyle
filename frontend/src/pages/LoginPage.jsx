@@ -4,6 +4,7 @@ import InputField from '../components/InputField';
 import PrimaryButton from '../components/PrimaryButton';
 import SNSSignInButton from '../components/SNSSignInButton';
 import LinkText from '../components/LinkText';
+import { getCognitoAuthUrl } from '../utils/auth';
 
 export default function LoginPage() {
   const [form, setForm] = useState({ email: '', password: '' });
@@ -50,7 +51,9 @@ export default function LoginPage() {
       </div>
       <SNSSignInButton
         provider="google"
-        onClick={() => console.log('Google login')}
+        onClick={() => {
+          window.location.href = getCognitoAuthUrl('Google');
+        }}
       />
       <SNSSignInButton
         provider="facebook"

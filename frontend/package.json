@@ -12,12 +12,14 @@
   },
   "dependencies": {
     "@fontsource/roboto": "^5.2.8",
+    "@heroicons/react": "^2.2.0",
+    "@reduxjs/toolkit": "^2.9.0",
     "@tanstack/react-query-devtools": "^5.90.2",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-hook-form": "^7.65.0",
-    "react-router-dom": "^7.9.4",
-    "recoil": "^0.7.7"
+    "react-redux": "^9.2.0",
+    "react-router-dom": "^7.9.4"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",

@@ -1,4 +1,6 @@
 export default function SNSSignInButton({ provider, onClick }) {
+  // window.location.href を使うと、SPAのルーティングを飛び越えて、完全にページがリロードされる。
+
   const providerIcons = {
     google: 'https://developers.google.com/identity/images/g-logo.png',
     facebook:

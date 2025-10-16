@@ -24,10 +24,18 @@ repositories {
 	mavenCentral()
 }
 
+bootRun {
+    jvmArgs = ['-Dfile.encoding=UTF-8']
+}
+
+
 dependencies {
 	// Spring Boot Core and Web
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
+	
+	// Validation
+	 implementation 'org.springframework.boot:spring-boot-starter-validation'
 
 	// Security: Cognito JWT検証用
 	implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
@@ -54,6 +62,11 @@ dependencies {
 	// S3 (アイコンなどのファイルストレージ用)
 	implementation 'software.amazon.awssdk:s3'
 	
+	// Cognito
+	implementation 'software.amazon.awssdk:cognitoidentityprovider'
+  implementation 'software.amazon.awssdk:auth'
+	
+	// Httpクライアント
 	implementation 'org.springframework.boot:spring-boot-starter-webflux'
 
 	// 補足: CognitoのJWT検証に必要な公開鍵の自動取得は

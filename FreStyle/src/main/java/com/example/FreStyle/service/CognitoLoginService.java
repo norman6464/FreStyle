@@ -69,9 +69,9 @@ public class CognitoLoginService {
         AuthenticationResultType result = response.authenticationResult();
         
         Map<String, String> tokens = new HashMap<>();
-        tokens.put("access_token", result.accessToken());
-        tokens.put("id_token", result.idToken());
-        tokens.put("refresh_token", result.refreshToken());
+        tokens.put("accessToken", result.accessToken());
+        tokens.put("idToken", result.idToken());
+        tokens.put("refreshToken", result.refreshToken());
         
         return tokens;
         

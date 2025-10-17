@@ -98,13 +98,13 @@ public class CognitoAuthController {
         try {
             Map<String, String> tokens = loginService.login(form.getEmail(), form.getPassword());
 
-            String id_token = tokens.get("id_token");
+            String idToken = tokens.get("idToken");
             
-            System.out.println("id_token value " + id_token);
-            String access_token = tokens.get("access_token");
+            String accessToken = tokens.get("accessToken");
+            System.out.println("accessToken " + accessToken);
 
             // デコードをしてクライアントに情報をわたす。
-            Optional<JWTClaimsSet> claimsOpt = JwtUtils.decode(id_token);
+            Optional<JWTClaimsSet> claimsOpt = JwtUtils.decode(idToken);
             if (claimsOpt.isEmpty()) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "failed id_token parse"));
             }
@@ -118,14 +118,14 @@ public class CognitoAuthController {
                 responseData.put("email", claims.getStringClaim("email"));
                 responseData.put("name", claims.getStringClaim("name"));
                 responseData.put("sub", claims.getSubject());
-                responseData.put("access_token", access_token);
+                responseData.put("accessToken", accessToken);
                 // このメソッドをCognitoLoginServiceで記述するか模索中
                 // userService.checkUserIsActiveByEmail(form.getEmail());
 
             } catch (Exception e) {
                 e.printStackTrace();
             }
-            // access_tokenのみを返却 or Cookieに保存も可能
+            // アクセストークンのみを返却 or Cookieに保存も可能
             return ResponseEntity.ok(responseData);
 
         } catch (RuntimeException e) {
@@ -170,6 +170,7 @@ public class CognitoAuthController {
 
         String idToken = (String) tokenResponse.get("id_token");
 
+        // Web_clientで外部からのJSONレスポンスのためaccessTokenではなくaccess_tokenで合わせる
         String accessToken = (String) tokenResponse.get("access_token");
         // String refreshToken = (String) tokenResponse.get("refresh_token");
 

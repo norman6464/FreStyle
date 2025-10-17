@@ -1,6 +1,10 @@
 package com.example.FreStyle.service;
 
 import java.security.InvalidParameterException;
+import java.util.Base64;
+
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -20,14 +24,20 @@ import software.amazon.awssdk.services.cognitoidentityprovider.model.SignUpRespo
 import software.amazon.awssdk.services.cognitoidentityprovider.model.UserNotFoundException;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.UsernameExistsException;
 
+
+// クライアントシークレットを有効にしている場合は、HMAC-SHA256で署名をつけてclient_id、client_secret、emailを計算してリクエストに付与するようになる
+
 @Service
 public class CognitoSignupService {
   
   // AWS Cognitoにリクエストをするためのクライアント
   private final CognitoIdentityProviderClient cognitoClient;
   
-  @Value("{cognito.client-id}")
+  @Value("${cognito.client-id}")
   private String clientId;
+  
+  @Value("${cognito.client-secret}")
+  private String clientSecret;
   
   // クライアントの設定
   public CognitoSignupService(
@@ -57,6 +67,7 @@ public class CognitoSignupService {
             
     SignUpRequest request = SignUpRequest.builder()
             .clientId(clientId)
+            .secretHash(calculateHash(email)) // Cognitoのクライアントシークレットで暗号化し
             .username(email)
             .password(password)
             .userAttributes(emailAttr, nameAttr)
@@ -76,14 +87,16 @@ public class CognitoSignupService {
     } catch (InvalidParameterException e) {
       throw new RuntimeException("入力値が無効です。");
     } catch (Exception e) {
-      throw new RuntimeException("サインアップ処理中にエラーが発生しました。");
-    }         
+      System.out.println(e.getMessage());
+      throw new RuntimeException("サインアップ処理中にエラーが発生しました。" + e.getMessage());
+    }
   }
   
   // サインアップ後のメール検証
   public void confirmUserSignup(String email, String confirmationCode) {
       ConfirmSignUpRequest request = ConfirmSignUpRequest.builder()
             .clientId(clientId)
+            .secretHash(calculateHash(email))
             .username(email)
             .confirmationCode(confirmationCode)
             .build();
@@ -100,6 +113,22 @@ public class CognitoSignupService {
       } catch (Exception e) {
         throw new RuntimeException("ユーザー確認中にエラーが発生しました。" + e.getMessage());
       }       
+  }
+  
+  
+  // クライアントシークレットでの計算
+  // SECRET_HASHを計算してサインアップリクエストに付与するには、HMAC-SHA256アルゴリズムで
+  public String calculateHash(String username) {
+    try {
+      String message = username + clientId;
+      Mac mac = Mac.getInstance("HmacSHA256");
+      SecretKeySpec keySpec = new SecretKeySpec(clientSecret.getBytes("UTF-8"),"HmacSHA256");
+      mac.init(keySpec);
+      byte[] rawHmac = mac.doFinal(message.getBytes("UTF-8"));
+      return Base64.getEncoder().encodeToString(rawHmac);
+    } catch (Exception e) {
+      throw new RuntimeException("Error while calculating SECRET_HASH", e);
+    }
   }
   
 }

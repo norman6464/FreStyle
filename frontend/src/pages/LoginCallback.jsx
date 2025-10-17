@@ -18,7 +18,6 @@ export default function LoginCallback() {
   useEffect(() => {
     // すでにログイン済みなら、認証処理をスキップしてホームへ
     if (accessToken) {
-      console.log('ログイン済み');
       navigate('/');
       return;
     }
@@ -37,19 +36,15 @@ export default function LoginCallback() {
         body: JSON.stringify({ code }),
       })
         .then((res) => {
-          console.log(res.ok);
           if (!res.ok) throw new Error('認証に失敗しました。');
           return res.json();
         })
         .then((data) => {
           const token = data.accessToken;
-          console.log(data);
-          console.log(token);
           dispatch(setAuthData(data));
           navigate('/');
         })
         .catch(() => {
-          console.log(2);
           alert('認証に失敗しました。');
           navigate('/login');
         });

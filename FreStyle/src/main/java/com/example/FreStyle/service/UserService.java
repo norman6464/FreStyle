@@ -7,7 +7,6 @@ import org.springframework.transaction.annotation.Transactional;
 import com.example.FreStyle.entity.*;
 import com.example.FreStyle.form.SignupForm;
 import com.example.FreStyle.repository.UserRepository;
-import com.example.FreStyle.utils.PasswordUtils;
 
 @Service
 public class UserService {
@@ -24,7 +23,7 @@ public class UserService {
         throw new RuntimeException("このメールアドレスは既に登録されています。");
       }
       
-      if (userRepository.existsByUserName(form.getName())) {
+      if (userRepository.existsByUsername(form.getName())) {
         throw new RuntimeException("このユーザー名は既に使用されています。");
       }
       
@@ -32,7 +31,7 @@ public class UserService {
       user.setUsername(form.getName());
       user.setEmail(form.getEmail());
       // Bcryptで暗号化したパスワードを保存する
-      user.setPasswordHash(PasswordUtils.hash(form.getPassword()));
+      // user.setPasswordHash(PasswordUtils.hash(form.getPassword()));
       // ほかのフィールドはデフォルト値のままでOKになる
       
       userRepository.save(user);
@@ -45,12 +44,21 @@ public class UserService {
         .orElseThrow(() -> new RuntimeException("指定されたメールアドレスのユーザーが見つかりません。"));
         
       if (Boolean.TRUE.equals(user.getIsActive())) {
-        // すでにアクティブ
-        return; 
+        System.out.println("this email  is verified");
+        return;
       }
       
       user.setIsActive(true);
       userRepository.save(user);
+    }
+    
+    @Transactional(readOnly = true)
+    public void checkUserIsActiveByEmail(String email) {
+      User user = userRepository.findByEmail(email)
+          .orElseThrow(() -> new RuntimeException("ユーザーは存在しません。"));
+      if (!Boolean.TRUE.equals(user.getIsActive())) {
+        throw new RuntimeException("メール認証は完了していないため、ログインできません。");
+      }
     }
   
 }

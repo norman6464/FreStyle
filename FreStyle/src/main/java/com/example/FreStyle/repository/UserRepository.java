@@ -10,6 +10,6 @@ import com.example.FreStyle.entity.User;
 @Repository
 public interface UserRepository extends JpaRepository<User, Integer>{
   boolean existsByEmail(String email);
-  boolean existsByUserName(String username);
+  boolean existsByUsername(String username);
   Optional<User> findByEmail(String email);
 }

@@ -7,9 +7,10 @@ import { useSelector } from 'react-redux';
 import ChatPage from './pages/ChatPage';
 import MenuPage from './pages/MenuPage';
 import AskAiPage from './pages/AskAiPage';
+import ConfirmPage from './pages/ConfirmPage';
 export default function App() {
   const accessToken = useSelector((state) => state.auth.accessToken);
-  console.log(accessToken);
+
   return (
     <Routes>
       <Route
@@ -21,6 +22,7 @@ export default function App() {
       <Route path="/chat" element={<ChatPage />} />
       <Route path="/ask-ai" element={<AskAiPage />} />
       <Route path="/signup" element={<SignupPage />} />
+      <Route path="/confirm" element={<ConfirmPage />} />
       {/* 404 redirect */}
       <Route
         path="*"

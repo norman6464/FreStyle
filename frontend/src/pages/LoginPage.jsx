@@ -1,13 +1,80 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import AuthLayout from '../components/AuthLayout';
 import InputField from '../components/InputField';
 import PrimaryButton from '../components/PrimaryButton';
 import SNSSignInButton from '../components/SNSSignInButton';
 import LinkText from '../components/LinkText';
 import { getCognitoAuthUrl } from '../utils/auth';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import { setAuthData } from '../store/authSlice';
 
 export default function LoginPage() {
   const [form, setForm] = useState({ email: '', password: '' });
+  // フラッシュメッセージ
+  const [loginMessage, setLoginMessage] = useState(null);
+
+  // SignupPageで登録成功時のメッセージが表示される
+  const location = useLocation();
+  const navigate = useNavigate();
+  const message = location.state?.message;
+  const dispatch = useDispatch();
+
+  // useEffect(() => {
+  //   if (location.state?.message) {
+  //     // stateを空にする（メッセージを１回表示したら消す）
+  //     const timer = setTimeout(() => {
+  //       navigate(location.pathname, { replace: true });
+  //     }, 100); // すぐにリセット
+
+  //     return () => clearTimeout(timer);
+  //   }
+  // }, [location, navigate]);
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+
+    try {
+      console.log(
+        JSON.stringify({
+          email: form.email,
+          password: form.password,
+        })
+      );
+      const response = await fetch(
+        'http://localhost:8080/api/auth/cognito/login',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: form.email,
+            password: form.password,
+          }),
+        }
+      );
+
+      const data = await response.json();
+      if (response.ok) {
+        console.log('email: ' + data.email);
+        console.log('name: ' + data.name);
+        console.log('token: ' + data.access_token);
+
+        // dispatch(setAuthData(data));
+        navigate('/', {
+          message: 'ログイン成功しました。',
+        });
+      } else {
+        setLoginMessage({
+          type: 'error',
+          text: data.error || 'ログインに失敗しました。',
+        });
+      }
+    } catch (error) {
+      setLoginMessage({ type: 'error', text: '通信エラーが発生しました。' });
+    }
+  };
 
   const handleChange = (e) => {
     setForm({
@@ -16,13 +83,15 @@ export default function LoginPage() {
     });
   };
 
-  const handleLogin = (e) => {
-    e.preventDefault();
-    console.log('ログイン情報送信', form);
-  };
-
   return (
     <AuthLayout>
+      {/* flash Message */}
+      <div>
+        {message && <p className="text-green-600 text-center">{message}</p>}
+        {loginMessage?.type === 'error' && (
+          <p className="text-red-600 text-center">{loginMessage.text}</p>
+        )}
+      </div>
       <h2 className="text-2xl font-bold mb-6 text-center">ログイン</h2>
       <form onSubmit={handleLogin}>
         <InputField

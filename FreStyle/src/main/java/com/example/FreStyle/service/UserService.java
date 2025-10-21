@@ -1,5 +1,7 @@
 package com.example.FreStyle.service;
 
+import java.util.Optional;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -84,6 +86,14 @@ public class UserService {
     
     user.setCognitoSub(sub);
     userRepository.save(user);
+  }
+  
+  // subからidを探す
+  public Integer findUserIdByCognitoSub(String sub) {
+     
+    return userRepository.findIdByCognitoSub(sub)
+    .orElseThrow(() -> new RuntimeException("このリクエストは無効です。"));
+    
   }
 
 }

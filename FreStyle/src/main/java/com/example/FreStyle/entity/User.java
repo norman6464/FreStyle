@@ -22,6 +22,7 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
     
+    // グローバルでユーザーを一位に識別するにはこの属性を使う
     @Column(length = 36, unique = true, name = "cognito_sub")
     private String cognitoSub;
 

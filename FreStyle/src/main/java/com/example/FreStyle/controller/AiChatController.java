@@ -1,6 +1,8 @@
 package com.example.FreStyle.controller;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -13,7 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.FreStyle.dto.AiChatMessageDto;
 import com.example.FreStyle.service.AiChatService;
 
-@RestController
+@RestController 
 @RequestMapping("/api/chat/ai")
 public class AiChatController {
   
@@ -31,14 +33,18 @@ public class AiChatController {
       String senderId = jwt.getSubject();
       
       if (senderId == null || senderId.trim().isEmpty()) {
-        return ResponseEntity.badRequest().body("無効なリクエストです。");
+        Map<String, String> errorData = new HashMap<>();
+        errorData.put("error", "無効なリクエストです。");
+        return ResponseEntity.badRequest().body(errorData);
       }
       
       List<AiChatMessageDto> history = aiChatService.getChatHistory(senderId);
       return ResponseEntity.ok().body(history);
       
     } catch (Exception e) {
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("内部のサーバーエラーです。");
+      Map<String, String> errorData = new HashMap<>();
+        errorData.put("error", "内部のサーバーエラーです。");
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorData);
     }
   }
   

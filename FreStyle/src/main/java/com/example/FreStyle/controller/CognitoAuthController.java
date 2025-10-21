@@ -56,10 +56,6 @@ public class CognitoAuthController {
     // Cognitoへサインアップ
     @PostMapping("/signup")
     public ResponseEntity<?> signup(@RequestBody SignupForm form) {
-        System.out.println(form.getName());
-        System.out.println(form.getEmail());
-        System.out.println(form.getPassword());
-
         try {
             // Cognitoに登録
             signupService.signUpUser(form.getEmail(), form.getPassword(),
@@ -81,7 +77,7 @@ public class CognitoAuthController {
             signupService.confirmUserSignup(form.getEmail(), form.getCode());
 
             // DBユーザーを有効化
-            userService.activeUserByEmail(form.getEmail());
+            userService.activeUser(form.getEmail());
             return ResponseEntity.ok(Map.of("message", "確認に成功しました。ログインできます。"));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -92,35 +88,34 @@ public class CognitoAuthController {
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginForm form) {
 
-        // System.out.println(form.getEmail());
-        // System.out.println(form.getPassword());
-
         try {
+            
+            userService.checkUserIsActive(form.getEmail());
             Map<String, String> tokens = loginService.login(form.getEmail(), form.getPassword());
 
             String idToken = tokens.get("idToken");
             
             String accessToken = tokens.get("accessToken");
-            System.out.println("accessToken " + accessToken);
 
             // デコードをしてクライアントに情報をわたす。
             Optional<JWTClaimsSet> claimsOpt = JwtUtils.decode(idToken);
             if (claimsOpt.isEmpty()) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "failed id_token parse"));
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "無効なアクセスです。"));
             }
 
             JWTClaimsSet claims = claimsOpt.get();
 
             Map<String, String> responseData = new HashMap<>();
-
+            
             try {
                 
+                // 取得したCognito id_tokenからsubjectを格納
+                userService.registerCognitoSubject(claims.getSubject(), form.getEmail());
                 responseData.put("email", claims.getStringClaim("email"));
                 responseData.put("name", claims.getStringClaim("name"));
                 responseData.put("sub", claims.getSubject());
                 responseData.put("accessToken", accessToken);
-                // このメソッドをCognitoLoginServiceで記述するか模索中
-                // userService.checkUserIsActiveByEmail(form.getEmail());
+                
 
             } catch (Exception e) {
                 e.printStackTrace();
@@ -136,10 +131,7 @@ public class CognitoAuthController {
     // OIDCフロー
     @PostMapping("/callback")
     public ResponseEntity<Map<String, String>> callback(@RequestBody Map<String, String> body) {
-
-        System.out.println(body);
-        // System.out.println("リクエストを受け付けました。");
-
+        
         String code = body.get("code");
 
         String basicAuthValue = Base64.getEncoder()
@@ -169,18 +161,14 @@ public class CognitoAuthController {
         }
 
         String idToken = (String) tokenResponse.get("id_token");
-
-        // Web_clientで外部からのJSONレスポンスのためaccessTokenではなくaccess_tokenで合わせる
         String accessToken = (String) tokenResponse.get("access_token");
-        // String refreshToken = (String) tokenResponse.get("refresh_token");
 
-        // IDトークンのクレームをパース
         Optional<JWTClaimsSet> claimsOpt = JwtUtils.decode(idToken);
 
         if (claimsOpt.isEmpty()) {
 
             Map<String, String> errorResponse = new HashMap<>();
-            errorResponse.put("error", "failed id_token parse");
+            errorResponse.put("error", "無効なリクエストです。");
 
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorResponse);
         }
@@ -188,21 +176,24 @@ public class CognitoAuthController {
         JWTClaimsSet claims = claimsOpt.get();
 
         Map<String, String> responseData = new HashMap<>();
-
-        // scopeで取得したidトークンの中身を分解
+        
         try {
+            
             String name = claims.getStringClaim("name");
             String email = claims.getStringClaim("email");
             String sub = claims.getSubject();
+            
+            System.out.println("email:" + email);
+            System.out.println("sub:" + sub);
+            userService.registerUserOIDC( "guest", email, sub);
 
+            
             responseData.put("name", name);
             responseData.put("email", email);
             responseData.put("sub", sub);
-            // accessTokenはデコードしない状態で保存する
+            responseData.put("idToken", idToken);
             responseData.put("accessToken", accessToken);
-
-            // 必要であればユーザーDBに登録 or セッション管理しようなど
-            // 今回はアクセストークンをHttpOnly Cookieに保存する
+            
         } catch (Exception e) {
             e.printStackTrace();
         }

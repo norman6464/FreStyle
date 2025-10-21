@@ -35,12 +35,6 @@ export default function LoginPage() {
     e.preventDefault();
 
     try {
-      console.log(
-        JSON.stringify({
-          email: form.email,
-          password: form.password,
-        })
-      );
       const response = await fetch(
         'http://localhost:8080/api/auth/cognito/login',
         {
@@ -57,11 +51,7 @@ export default function LoginPage() {
 
       const data = await response.json();
       if (response.ok) {
-        console.log('email: ' + data.email);
-        console.log('name: ' + data.name);
-        console.log('token: ' + data.access_token);
-
-        // dispatch(setAuthData(data));
+        dispatch(setAuthData(data));
         navigate('/', {
           message: 'ログイン成功しました。',
         });

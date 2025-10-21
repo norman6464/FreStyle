@@ -18,6 +18,8 @@ export default function ConfirmPage() {
   };
 
   const handleConfirm = async (e) => {
+    e.preventDefault();
+
     try {
       const response = await fetch(
         'http://localhost:8080/api/auth/cognito/confirm',

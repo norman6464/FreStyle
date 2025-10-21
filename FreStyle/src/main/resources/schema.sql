@@ -1,8 +1,8 @@
 CREATE TABLE IF NOT EXISTS users (
     id INT PRIMARY KEY AUTO_INCREMENT,
-    username VARCHAR(150) UNIQUE NOT NULL,
+    cognito_sub VARCHAR(36) UNIQUE,
+    username VARCHAR(255) UNIQUE NOT NULL,
     email VARCHAR(254) UNIQUE NOT NULL,
-    password_hash VARCHAR(128), 
     icon_url VARCHAR(255), -- S3などに対してアイコンを保存できるようにする --
     bio TEXT,
     is_active BOOLEAN DEFAULT FALSE,
@@ -46,3 +46,10 @@ CREATE TABLE IF NOT EXISTS unread_counts (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (room_id) REFERENCES chat_rooms(id) ON DELETE CASCADE
 );
+
+-- 実行する前に必ず見る
+-- DROP TABLE IF EXISTS 
+--     unread_counts,
+--     room_members,
+--     chat_rooms,
+--     users;

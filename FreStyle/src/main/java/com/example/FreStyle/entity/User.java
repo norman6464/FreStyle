@@ -21,16 +21,16 @@ public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
+    
+    @Column(length = 36, unique = true, name = "cognito_sub")
+    private String cognitoSub;
 
-    @Column(length = 150, nullable = false, unique = true)
+    @Column(length = 255, nullable = false, unique = true)
     private String username;
 
     @Column(length = 254, nullable = false, unique = true)
     private String email;
-
-    @Column(name = "password_hash", length = 128, nullable = false)
-    private String passwordHash;
-
+    
     @Column(name = "icon_url", length = 255)
     private String iconUrl;
 

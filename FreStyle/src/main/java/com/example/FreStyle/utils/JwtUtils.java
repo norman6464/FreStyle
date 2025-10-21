@@ -16,8 +16,6 @@ import com.nimbusds.jwt.SignedJWT;
 //   "iat": 1699999999          ← 発行時刻（Issued At）
 // }
 
-
-
 public class JwtUtils {
   
   public static Optional<JWTClaimsSet> decode(String idToken) {

@@ -2,12 +2,14 @@ import { useState, useEffect, useRef } from 'react';
 import MessageBubble from '../components/MessageBubble';
 import MessageInput from '../components/MessageInput';
 import { useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 
 export default function AskAiPage() {
   const [messages, setMessages] = useState([]);
   const senderId = useSelector((state) => state.auth.sub); // subをsenderIdにする
   const wsRef = useRef(null);
   const token = useSelector((state) => state.auth.accessToken); // アクセストークン
+  const navigate = useNavigate();
 
   // --- WebSocket & 履歴取得 ---
   useEffect(() => {
@@ -24,8 +26,10 @@ export default function AskAiPage() {
           }
         );
 
-        if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
-
+        if (response.status === 401) {
+          navigate('/login');
+          return;
+        }
         const data = await response.json();
 
         const formattedMessages = data.map((item) => ({

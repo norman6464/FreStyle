@@ -2,10 +2,13 @@ package com.example.FreStyle.service;
 
 import java.util.List;
 
+import org.springframework.stereotype.Service;
+
 import com.example.FreStyle.entity.User;
 import com.example.FreStyle.repository.RoomMemberRepository;
 
 // ユーザー同士のチャットの管理
+@Service
 public class RoomMemberService {
   
   private final RoomMemberRepository roomMemberRepository;

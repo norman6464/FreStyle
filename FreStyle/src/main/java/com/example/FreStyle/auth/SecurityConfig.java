@@ -4,6 +4,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
 import static org.springframework.security.config.Customizer.withDefaults;
 
@@ -29,9 +31,30 @@ public class SecurityConfig {
                 .httpBasic(basic -> basic.disable()) 
                 .oauth2ResourceServer(oauth2 -> oauth2
                     .jwt(jwt -> jwt
+                        .jwtAuthenticationConverter(jwtAuthenticationConverter()) // カスタムコンバーターを作成をする
                         .jwkSetUri(jwkUri)));
 
         return http.build();
+    }
+    
+    // カスタムでAuthenticationConverterをつくり、audience = client_idでの検証をする
+    // これによりIdp、ユーザープールでのログインが実相をできるようになる
+    private JwtAuthenticationConverter jwtAuthenticationConverter() {
+        // 権限（Scope/Groups）を抽出するコンバーター
+        // Cognitoの場合は、通常は'scope'クレームから権限を取得をする
+        // またはカスタムクレームからグループを取得
+        JwtGrantedAuthoritiesConverter authoritiesConverter = new JwtGrantedAuthoritiesConverter();
+        authoritiesConverter.setAuthoritiesClaimName("cognito:groups");
+        authoritiesConverter.setAuthorityPrefix("ROLE_");
+        
+        JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
+        converter.setJwtGrantedAuthoritiesConverter(authoritiesConverter);
+        converter.setPrincipalClaimName("username");
+        
+        
+        return converter;
+        
+        // Jwtを認証オブジェクトに変換をし、@AuthenticationPrincipalがnullじゃなくなる
     }
 
 }

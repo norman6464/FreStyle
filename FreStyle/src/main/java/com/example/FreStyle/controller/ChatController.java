@@ -10,6 +10,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.FreStyle.entity.User;
@@ -34,7 +35,7 @@ public class ChatController {
   // GET api/chat/members
   // 現在のユーザーの友達一覧を表示するためのデータを返す
   @GetMapping("/members")
-  public ResponseEntity<?> members(@AuthenticationPrincipal Jwt jwt) {
+  public ResponseEntity<?> members(@AuthenticationPrincipal Jwt jwt, @RequestParam(name = "query") String query) {
 
     // Jwtからsubを取得をする
     String cognitoSub = jwt.getSubject();

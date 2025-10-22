@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import MessageBubble from '../components/MessageBubble';
 import MessageInput from '../components/MessageInput';
+import HamburgerMenu from '../components/HamburgerMenu';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 
@@ -116,13 +117,16 @@ export default function AskAiPage() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gray-100 text-black">
-      <div className="flex-1 overflow-y-auto px-4 py-6 space-y-2 max-w-3xl mx-auto w-full">
-        {messages.map((msg) => (
-          <MessageBubble key={msg.id} {...msg} />
-        ))}
+    <>
+      <HamburgerMenu title="AIチャット" />
+      <div className="flex flex-col h-screen bg-gray-100 text-black">
+        <div className="flex-1 overflow-y-auto px-4 py-6 space-y-2 max-w-3xl mx-auto w-full">
+          {messages.map((msg) => (
+            <MessageBubble key={msg.id} {...msg} />
+          ))}
+        </div>
+        <MessageInput onSend={handleSend} />
       </div>
-      <MessageInput onSend={handleSend} />
-    </div>
+    </>
   );
 }

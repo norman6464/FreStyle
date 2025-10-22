@@ -35,8 +35,10 @@ public class ChatController {
   // GET api/chat/members
   // 現在のユーザーの友達一覧を表示するためのデータを返す
   @GetMapping("/members")
-  public ResponseEntity<?> members(@AuthenticationPrincipal Jwt jwt, @RequestParam(name = "query") String query) {
-
+  public ResponseEntity<?> members(@AuthenticationPrincipal Jwt jwt, @RequestParam(name = "query", required = false) String query) {
+    
+    
+    
     // Jwtからsubを取得をする
     String cognitoSub = jwt.getSubject();
 

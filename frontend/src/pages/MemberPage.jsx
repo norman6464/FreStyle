@@ -4,6 +4,7 @@ import { debounce } from 'lodash';
 import { useNavigate } from 'react-router-dom';
 import MemberList from '../components/MemberList';
 import SearchBox from '../components/SearchBox';
+import HamburgerMenu from '../components/HamburgerMenu';
 
 // 今回の場合は検索ボックスを使っているのでloadashライブラリのdebounceでユーザーが入力を終えたらリクエストを送るようにする
 export default function MemberPage() {
@@ -73,22 +74,23 @@ export default function MemberPage() {
   }, [token, debounceQuery, navigate]);
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4">
-      <h1 className="flex justify-center text-2xl font-bold mb-4">友達一覧</h1>
+    <>
+      <HamburgerMenu />
+      <div className="min-h-screen bg-gray-100 p-4 mt-16">
+        <div className="mb-4">
+          <SearchBox
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="名前で検索"
+          />
+        </div>
 
-      <div className="mb-4">
-        <SearchBox
-          value={searchQuery}
-          onChange={setSearchQuery}
-          placeholder="名前で検索"
-        />
+        {error ? (
+          <div className="text-red-500">{error}</div>
+        ) : (
+          <MemberList members={members} />
+        )}
       </div>
-
-      {error ? (
-        <div className="text-red-500">{error}</div>
-      ) : (
-        <MemberList members={members} />
-      )}
-    </div>
+    </>
   );
 }

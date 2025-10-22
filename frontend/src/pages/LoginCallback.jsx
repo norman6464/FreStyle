@@ -41,9 +41,9 @@ export default function LoginCallback() {
           return res.json();
         })
         .then((data) => {
-          console.log('RESPONSE BODY:', data);
+          // console.log('RESPONSE BODY:', data);
           const token = data.accessToken;
-          console.log('id_token: ', data.idToken);
+          // console.log('id_token: ', data.idToken);
           // localStorage + Sliceに保存する
           dispatch(setAuthData(data));
 

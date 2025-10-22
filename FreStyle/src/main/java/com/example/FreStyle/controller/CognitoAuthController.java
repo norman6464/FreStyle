@@ -191,7 +191,7 @@ public class CognitoAuthController {
             responseData.put("name", name);
             responseData.put("email", email);
             responseData.put("sub", sub);
-            responseData.put("idToken", idToken);
+            // responseData.put("idToken", idToken);
             responseData.put("accessToken", accessToken);
             
         } catch (Exception e) {

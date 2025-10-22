@@ -26,14 +26,13 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
-                        .anyRequest().authenticated()) 
+                        .anyRequest().authenticated())
                 .formLogin(form -> form.disable())
-                .httpBasic(basic -> basic.disable()) 
+                .httpBasic(basic -> basic.disable())
                 .oauth2ResourceServer(oauth2 -> oauth2
                     .jwt(jwt -> jwt
                         .jwtAuthenticationConverter(jwtAuthenticationConverter()) // カスタムコンバーターを作成をする
                         .jwkSetUri(jwkUri)));
-
         return http.build();
     }
     

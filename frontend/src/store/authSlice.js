@@ -25,12 +25,8 @@ const authSlice = createSlice({
       localStorage.setItem('email', email);
     },
 
-    clearAuthData(state) {
-      state.accessToken = null;
-      state.sub = null;
-      state.name = null;
-      state.email = null;
-
+    clearAuthData() {
+      // Reduxのスライスのほうはメモリなのでログアウトをしたらページが移るのでそのまま勝手に消える
       localStorage.removeItem('accessToken');
       localStorage.removeItem('sub');
       localStorage.removeItem('name');

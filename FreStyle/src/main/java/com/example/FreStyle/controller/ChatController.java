@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -16,9 +17,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.FreStyle.dto.UserDto;
-import com.example.FreStyle.entity.User;
-
-import com.example.FreStyle.service.RoomMemberService;
+import com.example.FreStyle.service.ChatService;
 import com.example.FreStyle.service.UserService;
 
 // members（友達追加をしている状態）
@@ -27,12 +26,13 @@ import com.example.FreStyle.service.UserService;
 @RequestMapping("/api/chat/")
 public class ChatController {
 
-  private final RoomMemberService roomMemberService;
+  
   private final UserService userService;
+  private final ChatService chatService;
 
-  public ChatController(RoomMemberService roomMemberService, UserService userService) {
-    this.roomMemberService = roomMemberService;
+  public ChatController(UserService userService,ChatService chatService) {
     this.userService = userService;
+    this.chatService = chatService;
   }
 
   // GET api/chat/members
@@ -75,16 +75,16 @@ public class ChatController {
   @GetMapping("/users")
   public ResponseEntity<?> users(@AuthenticationPrincipal Jwt jwt,
       @RequestParam(name = "query", required = false) String query) {
-    String cognito_sub = jwt.getSubject();
+    String cognitoSub = jwt.getSubject();
 
-    if (cognito_sub == null || cognito_sub.isEmpty()) {
+    if (cognitoSub == null || cognitoSub.isEmpty()) {
       return ResponseEntity.badRequest().body(Map.of("error", "無効なリクエストです。"));
     }
 
-    Integer userId = userService.findUserIdByCognitoSub(cognito_sub);
-    
+    Integer userId = userService.findUserIdByCognitoSub(cognitoSub);
+
     List<UserDto> users = userService.findUsersWithRoomId(userId, query);
-    
+
     Map<String, List<UserDto>> responseData = new HashMap<>();
 
     for (UserDto user : users) {
@@ -95,11 +95,44 @@ public class ChatController {
     return ResponseEntity.ok().body(responseData);
   }
 
-  @GetMapping("/members/{id}/")
-  public ResponseEntity<?> chat(@AuthenticationPrincipal Jwt jwt, @PathVariable(name = "id") String id) {
+  @PostMapping("/users/{id}/create")
+  public ResponseEntity<?> create(@AuthenticationPrincipal Jwt jwt, @PathVariable(name = "id") Integer id) {
+    
+    String cognitoSub = jwt.getSubject();
+    if (cognitoSub == null || cognitoSub.isEmpty()) {
+      return ResponseEntity.badRequest().body(Map.of("error", "無効なリクエストです。"));
+    }
+    
+    try{
+      
+      Integer userId = userService.findUserIdByCognitoSub(cognitoSub);
+      
+      Integer roomId = chatService.createOrGetRoom(userId, id);
+      
+      return ResponseEntity.ok(Map.of(
+            "roomId", roomId,
+            "status", "success"
+      ));
+  } catch (IllegalStateException e) {
+    return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+  } catch (Exception e) {
+    e.printStackTrace();
+    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+              .body(Map.of("error", "ルーム作成中にエラーが発生しました。"));
+  } 
+}
 
-    return ResponseEntity.ok("200 OK テストテスト");
-
+  
+  @GetMapping("/users/{roomId}/history")
+  public ResponseEntity<?> history(@AuthenticationPrincipal Jwt jwt, @PathVariable(name = "roomId")) {
+    String cognitoSub = jwt.getSubject();
+    
+    if (cognitoSub == null | cognitoSub.isEmpty()) {
+      return ResponseEntity.badRequest().body(Map.of("error", "無効なリクエストです。"));
+    }
+    
+    
+    
   }
 
 }

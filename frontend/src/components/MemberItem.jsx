@@ -5,48 +5,53 @@ export default function MemberItem({ id, name, roomId, token }) {
 
   const handleClick = async () => {
     try {
-      // ① すでにルームが存在する場合は、そのままチャットへ遷移
+      // --- ① 既存ルームがある場合 ---
       if (roomId) {
         console.log(`✅ 既存ルームあり: roomId = ${roomId}`);
-        navigate(`/chat/${roomId}`);
+        navigate(`/chat/users/${roomId}`);
         return;
       }
 
-      // ② なければ新しくルームを作成する
-      console.log(`🆕 新規ルーム作成: userId = ${id}`);
+      // --- ② ルームが存在しない場合は新規作成 ---
+      console.log(`🆕 新規ルーム作成リクエスト送信: userId = ${id}`);
 
       const res = await fetch(
-        `http://localhost:8080/api/chat/members/${id}/create`,
+        `http://localhost:8080/api/chat/users/${id}/create`,
         {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ id }),
         }
       );
 
+      // --- 認証切れ ---
       if (res.status === 401) {
         navigate('/login');
         return;
       }
 
+      // --- 失敗処理 ---
       if (!res.ok) {
-        throw new Error('ルーム作成に失敗しました');
+        const errText = await res.text();
+        throw new Error(`ルーム作成に失敗しました: ${errText}`);
       }
 
       const data = await res.json();
-      console.log('🆗 ルーム作成完了:', data);
+      console.log('🆗 ルーム作成成功:', data);
 
-      // API から新しい roomId を受け取った前提
+      // --- ③ 新しいルームIDが返ってきたらチャットへ遷移 ---
       if (data.roomId) {
-        navigate(`/chat/${data.roomId}`);
+        console.log(`➡️ チャット画面へ遷移: /chat/${data.roomId}`);
+        navigate(`/chat/users/${data.roomId}`);
       } else {
-        console.error('❌ roomId が返ってきませんでした');
+        console.error('❌ APIレスポンスに roomId が含まれていません:', data);
+        alert('ルーム作成は成功しましたが、roomIdが取得できませんでした。');
       }
     } catch (err) {
-      console.error('❌ エラー:', err);
+      console.error('❌ ルーム作成中にエラー発生:', err);
+      alert('ルーム作成中にエラーが発生しました。');
       navigate('/');
     }
   };

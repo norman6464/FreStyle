@@ -5,10 +5,9 @@ public class UserDto {
     private String email;
     private Integer roomId; // 新しく追加
 
-    public UserDto(Integer id, String email, Integer roomId) {
+    public UserDto(Integer id, String email) {
         this.id = id;
         this.email = email;
-        this.roomId = roomId;
     }
 
     public UserDto() {}

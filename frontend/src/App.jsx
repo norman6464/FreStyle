@@ -23,7 +23,7 @@ export default function App() {
       <Route path="/login/callback" element={<LoginCallback />} />
       <Route path="/chat/members" element={<MemberPage />} />
       <Route path="/chat/users" element={<AddUserPage />} />
-      {/* <Route path="/chat" element={<ChatPage />} /> */}
+      <Route path="/chat/users/:roomId" element={<ChatPage />} />
       <Route path="/chat/ask-ai" element={<AskAiPage />} />
       <Route path="/signup" element={<SignupPage />} />
       <Route path="/confirm" element={<ConfirmPage />} />

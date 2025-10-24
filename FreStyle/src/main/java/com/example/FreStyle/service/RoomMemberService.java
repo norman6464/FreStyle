@@ -3,7 +3,6 @@ package com.example.FreStyle.service;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
-
 import com.example.FreStyle.entity.User;
 import com.example.FreStyle.repository.RoomMemberRepository;
 
@@ -31,5 +30,4 @@ public class RoomMemberService {
     List<User> users = roomMemberRepository.findUsersByUserId(userId);
     return users;
   }
-  
 }

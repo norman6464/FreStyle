@@ -9,10 +9,12 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import lombok.Data;
 
 @Entity
 @Table(name = "room_members",
 uniqueConstraints = @UniqueConstraint(name = "uk_room_member", columnNames = {"room_id", "user_id"}))
+@Data
 public class RoomMember {
   
   @Id

@@ -1,23 +1,28 @@
 import { useState, useEffect, useRef } from 'react';
+import { useParams } from 'react-router-dom';
 import MessageBubble from '../components/MessageBubble';
 import MessageInput from '../components/MessageInput';
 import HamburgerMenu from '../components/HamburgerMenu';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 
-export default function ChatPage({ id }) {
+export default function ChatPage() {
   const [messages, setMessages] = useState([]);
   const wsRef = useRef(null);
-
+  const { roomId } = useParams(); // URLパス変数を取得
   const senderId = useSelector((state) => state.auth.sub);
   const token = useSelector((state) => state.auth.accessToken);
   const navigate = useNavigate();
+
+  if (!token || !senderId) {
+    navigate('/login');
+  }
 
   // --- チャット履歴取得 ---
   const fetchHistory = async () => {
     try {
       const response = await fetch(
-        `http://localhost:8080/api/chat/${id}/history`,
+        `http://localhost:8080/api/chat/${roomId}/history`,
         {
           headers: {
             Authorization: `Bearer ${token}`,

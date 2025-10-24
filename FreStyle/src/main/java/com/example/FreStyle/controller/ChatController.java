@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.FreStyle.dto.ChatMessageDto;
 import com.example.FreStyle.dto.UserDto;
 import com.example.FreStyle.service.ChatService;
 import com.example.FreStyle.service.UserService;
@@ -124,14 +125,23 @@ public class ChatController {
 
   
   @GetMapping("/users/{roomId}/history")
-  public ResponseEntity<?> history(@AuthenticationPrincipal Jwt jwt, @PathVariable(name = "roomId")) {
+  public ResponseEntity<?> history(@AuthenticationPrincipal Jwt jwt, @PathVariable(name = "roomId") Integer roomId) {
+    System.out.println("Request receive");
+    
     String cognitoSub = jwt.getSubject();
     
-    if (cognitoSub == null | cognitoSub.isEmpty()) {
+    if (cognitoSub == null || cognitoSub.isEmpty()) {
       return ResponseEntity.badRequest().body(Map.of("error", "無効なリクエストです。"));
     }
     
-    
+    try {
+      
+      List<ChatMessageDto> history = chatService.getChatHistory(roomId, cognitoSub);
+      return ResponseEntity.ok().body(history);
+      
+    } catch (Exception e) {
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "サーバーエラーです。"));
+    }
     
   }
 

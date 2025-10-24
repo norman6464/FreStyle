@@ -52,7 +52,7 @@ export default function AskAiPage() {
 
     wsRef.current = new WebSocket(
       `${
-        import.meta.env.VITE_WEB_SOCKET_URL
+        import.meta.env.VITE_WEB_SOCKET_URL_AI_CHAT
       }?user_id=${senderId}&room_id=default`
     );
 
@@ -119,7 +119,7 @@ export default function AskAiPage() {
   return (
     <>
       <HamburgerMenu title="AIチャット" />
-      <div className="flex flex-col h-screen bg-gray-100 text-black">
+      <div className="flex flex-col h-screen bg-gray-100 text-black mt-16">
         <div className="flex-1 overflow-y-auto px-4 py-6 space-y-2 max-w-3xl mx-auto w-full">
           {messages.map((msg) => (
             <MessageBubble key={msg.id} {...msg} />

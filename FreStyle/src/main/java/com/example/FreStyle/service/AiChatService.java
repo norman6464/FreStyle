@@ -50,8 +50,11 @@ public class AiChatService {
               .build();
     }
     
-    
-    // sender_idとcognito_subが紐づいて保存されている。
+    // dynamoDBテーブルのアイテム
+    // room_id (文字列)
+    // timestamp (数値)
+    // content
+    // sender_id（sub）
     public List<AiChatMessageDto> getChatHistory(String senderId) {
       
       // sender_idに基づいてScanリクエストをし、条件一致した項目を全部取得をしている

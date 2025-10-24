@@ -1,6 +1,4 @@
 package com.example.FreStyle.controller;
-
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -32,19 +30,15 @@ public class AiChatController {
       // Jwtからsubを取得する
       String senderId = jwt.getSubject();
       
-      if (senderId == null || senderId.trim().isEmpty()) {
-        Map<String, String> errorData = new HashMap<>();
-        errorData.put("error", "無効なリクエストです。");
-        return ResponseEntity.badRequest().body(errorData);
+      if (senderId == null || senderId.isEmpty()) {
+        return ResponseEntity.badRequest().body(Map.of("error", "無効なリクエストです。"));
       }
       
       List<AiChatMessageDto> history = aiChatService.getChatHistory(senderId);
       return ResponseEntity.ok().body(history);
       
     } catch (Exception e) {
-      Map<String, String> errorData = new HashMap<>();
-        errorData.put("error", "内部のサーバーエラーです。");
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorData);
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "サーバーのエラーです。"));
     }
   }
   

@@ -1,9 +1,17 @@
 import MemberItem from './MemberItem';
 
-export default function MemberList({ members }) {
-  <div className="space-y-2">
-    {members.map((name, index) => {
-      <MemberItem key={index} name={name} />;
-    })}
-  </div>;
+export default function MemberList({ users, token }) {
+  return (
+    <div className="space-y-2">
+      {users.map((user) => (
+        <MemberItem
+          key={user.id}
+          id={user.id}
+          name={user.email}
+          roomId={user.roomId}
+          token={token}
+        />
+      ))}
+    </div>
+  );
 }

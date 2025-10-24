@@ -24,7 +24,7 @@ export default function MenuPage() {
           </div>
 
           <div
-            // onClick={() => navigate('/create/members')}
+            onClick={() => navigate('/chat/users')}
             className="bg-white shadow-md rounded-lg p-6 cursor-pointer hover:bg-gray-50 transition"
           >
             <h2 className="text-xl font-bold mb-2">ユーザーを追加</h2>

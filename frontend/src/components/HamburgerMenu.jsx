@@ -15,7 +15,7 @@ export default function HamburgerMenu() {
 
   const menuItems = [
     { label: 'チャットを開く', onClick: () => navigate('/chat/members') },
-    { label: 'ユーザーを追加', onClick: () => navigate('/create/members') },
+    { label: 'ユーザーを追加', onClick: () => navigate('/chat/create') },
     { label: 'AIに聞いてみる', onClick: () => navigate('/chat/ask-ai') },
     { label: 'ログアウト', onClick: handleLogout },
   ];

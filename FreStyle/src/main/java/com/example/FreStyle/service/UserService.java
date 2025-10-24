@@ -1,20 +1,25 @@
 package com.example.FreStyle.service;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.FreStyle.dto.UserDto;
 import com.example.FreStyle.entity.*;
 import com.example.FreStyle.form.SignupForm;
+import com.example.FreStyle.repository.ChatRoomRepository;
 import com.example.FreStyle.repository.UserRepository;
 
 @Service
 public class UserService {
   private final UserRepository userRepository;
+  private final ChatRoomRepository chatRoomRepository;
 
-  public UserService(UserRepository userRepository) {
+  public UserService(UserRepository userRepository, ChatRoomRepository chatRoomRepository) {
     this.userRepository = userRepository;
+    this.chatRoomRepository = chatRoomRepository;
   }
 
   // ユーザー情報登録
@@ -95,5 +100,24 @@ public class UserService {
     .orElseThrow(() -> new RuntimeException("このリクエストは無効です。"));
     
   }
-
+  
+  // 部分一致でユーザーのemailを検索をする
+  public List<UserDto> findUsersWithRoomId(Integer id, String email) {
+    List<UserDto> users;
+    
+    if (email == null || email.isEmpty()) {
+        users = userRepository.findAllUserDtos(id);
+      } else {
+        String queryEmail = "%" + email + "%";
+        users = userRepository.findIdAndEmailByEmailLikeDtos(id, queryEmail);
+    }
+    
+    for(UserDto user: users) {
+      Integer roomId = chatRoomRepository.findRoomIdByUserIds(id, user.getId());
+      user.setRoomId(roomId); // まだルームがない場合は null
+    }
+    
+    return users;
+  }
+  
 }

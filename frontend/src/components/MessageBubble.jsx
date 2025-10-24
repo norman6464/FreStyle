@@ -1,4 +1,6 @@
-// src/components/MessageBubble.jsx
+// isSenderではAIとのチャットでは人間かAIか判断して
+// ChatPageでは自分かそ例外の人かを判断する
+
 export default function MessageBubble({ isSender, type = 'text', content }) {
   const baseStyle =
     'max-w-[70%] px-4 py-2 rounded-lg text-sm whitespace-pre-wrap';

@@ -14,6 +14,7 @@ export default function MemberPage() {
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [debounceQuery, setDebounceQuery] = useState('');
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   // useMemo（関数自体をメモ化）
   // useMemoでdebounce関数をメモ化して毎回作らないようにする
@@ -41,7 +42,7 @@ export default function MemberPage() {
       ? `?query=${encodeURIComponent(debounceQuery)}`
       : '';
 
-    fetch(`http://localhost:8080/api/chat/members${queryParam}`, {
+    fetch(`${API_BASE_URL}/api/chat/members${queryParam}`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },

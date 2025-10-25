@@ -9,6 +9,7 @@ export default function ConfirmPage() {
   const [form, setForm] = useState({ email: '', code: '' });
   const [message, setMessage] = useState(null);
   const navigate = useNavigate();
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   const handleChange = (e) => {
     setForm({
@@ -21,16 +22,13 @@ export default function ConfirmPage() {
     e.preventDefault();
 
     try {
-      const response = await fetch(
-        'http://localhost:8080/api/auth/cognito/confirm',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(form),
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/api/auth/cognito/confirm`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(form),
+      });
 
       const data = await response.json();
 

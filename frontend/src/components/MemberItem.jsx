@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 
 export default function MemberItem({ id, name, roomId, token }) {
   const navigate = useNavigate();
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   const handleClick = async () => {
     try {
@@ -15,16 +16,13 @@ export default function MemberItem({ id, name, roomId, token }) {
       // --- ② ルームが存在しない場合は新規作成 ---
       console.log(`🆕 新規ルーム作成リクエスト送信: userId = ${id}`);
 
-      const res = await fetch(
-        `http://localhost:8080/api/chat/users/${id}/create`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
+      const res = await fetch(`${API_BASE_URL}/api/chat/users/${id}/create`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
       // --- 認証切れ ---
       if (res.status === 401) {

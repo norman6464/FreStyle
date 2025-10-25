@@ -9,6 +9,7 @@ import HamburgerMenu from '../components/HamburgerMenu';
 export default function AddUserPage() {
   const token = useSelector((state) => state.auth.accessToken);
   const navigate = useNavigate();
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   // メールアドレス一覧を取得する
   const [users, setUsers] = useState([]);
@@ -42,7 +43,7 @@ export default function AddUserPage() {
 
     console.log('検索開始');
 
-    fetch(`http://localhost:8080/api/chat/users${queryParam}`, {
+    fetch(`${API_BASE_URL}/api/chat/users${queryParam}`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },

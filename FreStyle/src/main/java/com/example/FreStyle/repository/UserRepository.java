@@ -19,6 +19,8 @@ public interface UserRepository extends JpaRepository<User, Integer> {
   boolean existsByUsername(String username);
 
   Optional<User> findByEmail(String email);
+  
+  Optional<User> findByCognitoSub(String cognitoSub);
 
   @Query("SELECT u.id FROM User u WHERE u.cognitoSub = :sub")
   Optional<Integer> findIdByCognitoSub(@Param("sub") String sub);

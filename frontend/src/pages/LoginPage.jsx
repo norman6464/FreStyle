@@ -19,6 +19,7 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const message = location.state?.message;
   const dispatch = useDispatch();
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   // useEffect(() => {
   //   if (location.state?.message) {
@@ -35,19 +36,16 @@ export default function LoginPage() {
     e.preventDefault();
 
     try {
-      const response = await fetch(
-        'http://localhost:8080/api/auth/cognito/login',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            email: form.email,
-            password: form.password,
-          }),
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/api/auth/cognito/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: form.email,
+          password: form.password,
+        }),
+      });
 
       const data = await response.json();
       if (response.ok) {

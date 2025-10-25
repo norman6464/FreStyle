@@ -6,12 +6,10 @@ import { setAuthData } from '../store/authSlice';
 export default function LoginCallback() {
   // ReduxのaccessTokenを取得する
   const accessToken = useSelector((state) => state.auth.accessToken);
-
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-
   const dispatch = useDispatch();
-
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
   const code = searchParams.get('code');
   const error = searchParams.get('error');
 
@@ -29,7 +27,7 @@ export default function LoginCallback() {
     }
 
     if (code) {
-      fetch('http://localhost:8080/api/auth/cognito/callback', {
+      fetch(`${API_BASE_URL}/api/auth/cognito/callback`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }, // 空白は開けない
         body: JSON.stringify({ code }),

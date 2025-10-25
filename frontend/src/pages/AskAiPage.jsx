@@ -6,6 +6,7 @@ import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 
 export default function AskAiPage() {
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
   const [messages, setMessages] = useState([]);
   const senderId = useSelector((state) => state.auth.sub); // subをsenderIdにする
   const wsRef = useRef(null);
@@ -17,15 +18,12 @@ export default function AskAiPage() {
     // ① 履歴取得（Spring Boot 経由）
     const fetchHistory = async () => {
       try {
-        const response = await fetch(
-          'http://localhost:8080/api/chat/ai/history',
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-          }
-        );
+        const response = await fetch(`${API_BASE_URL}/api/chat/ai/history`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
 
         if (response.status === 401) {
           navigate('/login');

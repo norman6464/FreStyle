@@ -15,7 +15,11 @@ public class CorsConfig {
       @Override
       public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**") // すべてのエンドポイントに適用
-            .allowedOrigins("http://localhost:5173") // Reactアプリケーションでの適用
+            .allowedOrigins(
+                "http://fre-style-bucket.s3-website-ap-northeast-1.amazonaws.com",
+                "https://dcd3m6lwt0z8u.cloudfront.net",
+                "http://localhost:5173"
+            )
             .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
             .allowedHeaders("*")
             .allowCredentials(true); // Cookieや認証情報を扱う場合はtrue

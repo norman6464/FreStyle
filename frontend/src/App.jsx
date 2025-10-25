@@ -10,6 +10,7 @@ import AskAiPage from './pages/AskAiPage';
 import ConfirmPage from './pages/ConfirmPage';
 import MemberPage from './pages/MemberPage';
 import AddUserPage from './pages/AddUserPage';
+import ProfilePage from './pages/ProfilePage';
 export default function App() {
   const accessToken = useSelector((state) => state.auth.accessToken);
 
@@ -21,6 +22,7 @@ export default function App() {
       />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/login/callback" element={<LoginCallback />} />
+      <Route path="/profile/me" element={<ProfilePage />} />
       <Route path="/chat/members" element={<MemberPage />} />
       <Route path="/chat/users" element={<AddUserPage />} />
       <Route path="/chat/users/:roomId" element={<ChatPage />} />

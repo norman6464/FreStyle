@@ -12,8 +12,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import com.example.FreStyle.form.ConfirmSignupForm;
 import com.example.FreStyle.form.LoginForm;
 import com.example.FreStyle.form.SignupForm;
-import com.example.FreStyle.service.CognitoLoginService;
-import com.example.FreStyle.service.CognitoSignupService;
+import com.example.FreStyle.service.CognitoAuthService;
 import com.example.FreStyle.service.UserService;
 import com.example.FreStyle.utils.JwtUtils;
 import com.nimbusds.jwt.JWTClaimsSet;
@@ -41,16 +40,13 @@ public class CognitoAuthController {
     private String tokenUri;
 
     private final WebClient webClient;
-    private final CognitoSignupService signupService;
-    private final CognitoLoginService loginService;
     private final UserService userService;
+    private final CognitoAuthService cognitoAuthService;
 
-    public CognitoAuthController(WebClient.Builder webClientBuilder, CognitoSignupService signupService,
-            CognitoLoginService loginService, UserService userService) {
+    public CognitoAuthController(WebClient.Builder webClientBuilder,UserService userService, CognitoAuthService cognitoAuthService) {
         this.webClient = webClientBuilder.build();
-        this.signupService = signupService;
-        this.loginService = loginService;
         this.userService = userService;
+        this.cognitoAuthService = cognitoAuthService;
     }
 
     // Cognitoへサインアップ
@@ -58,7 +54,7 @@ public class CognitoAuthController {
     public ResponseEntity<?> signup(@RequestBody SignupForm form) {
         try {
             // Cognitoに登録
-            signupService.signUpUser(form.getEmail(), form.getPassword(),
+            cognitoAuthService.signUpUser(form.getEmail(), form.getPassword(),
                     form.getName());
             // DBに保存
             userService.registerUser(form);
@@ -74,7 +70,7 @@ public class CognitoAuthController {
     public ResponseEntity<?> confirm(@RequestBody ConfirmSignupForm form) {
         try {
             // Cognitoで確認
-            signupService.confirmUserSignup(form.getEmail(), form.getCode());
+            cognitoAuthService.confirmUserSignup(form.getEmail(), form.getCode());
 
             // DBユーザーを有効化
             userService.activeUser(form.getEmail());
@@ -91,7 +87,7 @@ public class CognitoAuthController {
         try {
             
             userService.checkUserIsActive(form.getEmail());
-            Map<String, String> tokens = loginService.login(form.getEmail(), form.getPassword());
+            Map<String, String> tokens = cognitoAuthService.login(form.getEmail(), form.getPassword());
 
             String idToken = tokens.get("idToken");
             

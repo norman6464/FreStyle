@@ -13,6 +13,7 @@ export default function ChatPage() {
   const senderId = useSelector((state) => state.auth.sub);
   const token = useSelector((state) => state.auth.accessToken);
   const navigate = useNavigate();
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   // ログインチェック
   useEffect(() => {
@@ -26,7 +27,7 @@ export default function ChatPage() {
     try {
       console.log('リクエスト開始');
       const response = await fetch(
-        `http://localhost:8080/api/chat/users/${roomId}/history`,
+        `${API_BASE_URL}/api/chat/users/${roomId}/history`,
         {
           headers: {
             Authorization: `Bearer ${token}`,

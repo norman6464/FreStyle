@@ -9,6 +9,7 @@ export default function SignupPage() {
   const [form, setForm] = useState({ email: '', password: '', name: '' });
   const [message, setMessage] = useState(null);
   const navigate = useNavigate();
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   const handleChange = (e) => {
     setForm({
@@ -21,20 +22,17 @@ export default function SignupPage() {
     e.preventDefault(); // フォームのデフォルト送信を防止
 
     try {
-      const response = await fetch(
-        'http://localhost:8080/api/auth/cognito/signup',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            email: form.email,
-            password: form.password,
-            name: form.name, // Spring boot側ではnameで受け取る
-          }),
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/api/auth/cognito/signup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: form.email,
+          password: form.password,
+          name: form.name, // Spring boot側ではnameで受け取る
+        }),
+      });
 
       const data = await response.json();
 

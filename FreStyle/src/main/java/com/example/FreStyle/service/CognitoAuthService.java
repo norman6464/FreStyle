@@ -1,0 +1,189 @@
+package com.example.FreStyle.service;
+
+import java.security.InvalidParameterException;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.cognitoidentityprovider.CognitoIdentityProviderClient;
+import software.amazon.awssdk.services.cognitoidentityprovider.model.*;
+
+/**
+ * AWS Cognito 認証系サービス
+ * - サインアップ
+ * - メール確認
+ * - ログイン
+ */
+@Service
+public class CognitoAuthService {
+
+    private final CognitoIdentityProviderClient cognitoClient;
+
+    @Value("${cognito.client-id}")
+    private String clientId;
+
+    @Value("${cognito.client-secret}")
+    private String clientSecret;
+
+    public CognitoAuthService(
+            @Value("${aws.access-key}") String accessKey,
+            @Value("${aws.secret-key}") String secretKey,
+            @Value("${aws.region}") String region) {
+
+        this.cognitoClient = CognitoIdentityProviderClient.builder()
+                .credentialsProvider(StaticCredentialsProvider.create(
+                        AwsBasicCredentials.create(accessKey, secretKey)))
+                .region(Region.of(region))
+                .build();
+    }
+    
+    
+    public void updateUserProfile(String accessToken, String name, String email) {
+      try {
+        // 更新対象属性をリストアップ
+        List<AttributeType> attrsBuilder = new ArrayList<>();
+        if (name != null && !name.isEmpty()) {
+          attrsBuilder.add(AttributeType.builder().name("name").value(name).build());
+        }
+        
+        if (email != null && !email.isEmpty()) {
+          attrsBuilder.add(AttributeType.builder().name("email").value(email).build());
+        }
+        
+        
+        if (attrsBuilder.isEmpty()) {
+          throw new IllegalArgumentException("更新する属性が指定されていません。");
+        }
+         
+        // CognitoのUpdateUserAttributes APIの呼び出し
+        UpdateUserAttributesRequest request = UpdateUserAttributesRequest.builder()
+                  .accessToken(accessToken)
+                  .userAttributes(attrsBuilder)
+                  .build();
+                  
+        cognitoClient.updateUserAttributes(request);
+        System.out.println("Profile update");
+      } catch (NotAuthorizedException e) {
+        throw new RuntimeException("アクセストークンが無効です。再ログインしてください。");
+      } catch (InvalidParameterException e) {
+        throw new RuntimeException("入力パラメータが不正です。");
+      } catch (InvalidUserPoolConfigurationException e) {
+        throw new RuntimeException("ユーザーの設定が不正です。");
+      } catch (Exception e) {
+        throw new RuntimeException("プロフィール更新中にエラーが発生しました。");
+      }
+    }
+
+    // サインアップ
+    public void signUpUser(String email, String password, String name) {
+        AttributeType emailAttr = AttributeType.builder()
+                .name("email").value(email).build();
+
+        AttributeType nameAttr = AttributeType.builder()
+                .name("name").value(name).build();
+
+        SignUpRequest request = SignUpRequest.builder()
+                .clientId(clientId)
+                .secretHash(calculateSecretHash(email))
+                .username(email)
+                .password(password)
+                .userAttributes(emailAttr, nameAttr)
+                .build();
+
+        try {
+            SignUpResponse response = cognitoClient.signUp(request);
+            if (response.userConfirmed()) {
+                System.out.println("ユーザーは既に確認済みです。");
+            } else {
+                System.out.println("確認コードを送信しました。");
+            }
+        } catch (UsernameExistsException e) {
+            throw new RuntimeException("このメールアドレスは既に登録されています。");
+        } catch (InvalidPasswordException e) {
+            throw new RuntimeException("パスワードが要件を満たしていません。");
+        } catch (InvalidParameterException e) {
+            throw new RuntimeException("入力値が無効です。");
+        } catch (Exception e) {
+            throw new RuntimeException("サインアップ中にエラーが発生しました: " + e.getMessage(), e);
+        }
+    }
+
+    // ユーザー確認（メール認証）
+    public void confirmUserSignup(String email, String confirmationCode) {
+        ConfirmSignUpRequest request = ConfirmSignUpRequest.builder()
+                .clientId(clientId)
+                .secretHash(calculateSecretHash(email))
+                .username(email)
+                .confirmationCode(confirmationCode)
+                .build();
+
+        try {
+            ConfirmSignUpResponse response = cognitoClient.confirmSignUp(request);
+            System.out.println("ユーザー確認に成功しました: " + response);
+        } catch (UserNotFoundException e) {
+            throw new RuntimeException("ユーザーが見つかりません。");
+        } catch (CodeMismatchException e) {
+            throw new RuntimeException("確認コードが正しくありません。");
+        } catch (ExpiredCodeException e) {
+            throw new RuntimeException("確認コードの有効期限が切れています。");
+        } catch (Exception e) {
+            throw new RuntimeException("ユーザー確認中にエラーが発生しました: " + e.getMessage(), e);
+        }
+    }
+
+    // ログイン
+    public Map<String, String> login(String email, String password) {
+        Map<String, String> authParams = new HashMap<>();
+        authParams.put("USERNAME", email);
+        authParams.put("PASSWORD", password);
+        authParams.put("SECRET_HASH", calculateSecretHash(email));
+
+        InitiateAuthRequest authRequest = InitiateAuthRequest.builder()
+                .authFlow(AuthFlowType.USER_PASSWORD_AUTH)
+                .clientId(clientId)
+                .authParameters(authParams)
+                .build();
+
+        try {
+            InitiateAuthResponse response = cognitoClient.initiateAuth(authRequest);
+            AuthenticationResultType result = response.authenticationResult();
+
+            Map<String, String> tokens = new HashMap<>();
+            tokens.put("accessToken", result.accessToken());
+            tokens.put("idToken", result.idToken());
+            tokens.put("refreshToken", result.refreshToken());
+            return tokens;
+
+        } catch (NotAuthorizedException e) {
+            throw new RuntimeException("メールアドレスまたはパスワードが間違っています。");
+        } catch (UserNotConfirmedException e) {
+            throw new RuntimeException("メール確認が完了していません。");
+        } catch (Exception e) {
+            throw new RuntimeException("ログイン中にエラーが発生しました: " + e.getMessage(), e);
+        }
+    }
+    
+    private String calculateSecretHash(String username) {
+        try {
+            String message = username + clientId;
+            Mac mac = Mac.getInstance("HmacSHA256");
+            SecretKeySpec keySpec = new SecretKeySpec(clientSecret.getBytes("UTF-8"), "HmacSHA256");
+            mac.init(keySpec);
+            byte[] rawHmac = mac.doFinal(message.getBytes("UTF-8"));
+            return Base64.getEncoder().encodeToString(rawHmac);
+        } catch (Exception e) {
+            throw new RuntimeException("SECRET_HASHの計算中にエラーが発生しました。", e);
+        }
+    }
+}

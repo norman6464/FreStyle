@@ -18,10 +18,10 @@ import com.nimbusds.jwt.SignedJWT;
 
 public class JwtUtils {
   
-  public static Optional<JWTClaimsSet> decode(String idToken) {
+  public static Optional<JWTClaimsSet> decode(String token) {
     try {
       
-      SignedJWT signedJWT = SignedJWT.parse(idToken);
+      SignedJWT signedJWT = SignedJWT.parse(token);
       
       return Optional.of(signedJWT.getJWTClaimsSet());
       

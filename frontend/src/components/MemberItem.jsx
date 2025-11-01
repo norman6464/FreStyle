@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 
-export default function MemberItem({ id, name, roomId, token }) {
+export default function MemberItem({ id, name, roomId }) {
   const navigate = useNavigate();
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -19,9 +19,9 @@ export default function MemberItem({ id, name, roomId, token }) {
       const res = await fetch(`${API_BASE_URL}/api/chat/users/${id}/create`, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
       });
 
       // --- 認証切れ ---

@@ -6,7 +6,6 @@ import HamburgerMenu from '../components/HamburgerMenu';
 export default function MenuPage() {
   const [message, setMessage] = useState(null);
   const navigate = useNavigate();
-  const token = useSelector((state) => state.auth.accessToken);
 
   return (
     <>

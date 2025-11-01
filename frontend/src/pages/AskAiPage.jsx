@@ -10,7 +10,6 @@ export default function AskAiPage() {
   const [messages, setMessages] = useState([]);
   const senderId = useSelector((state) => state.auth.sub); // subをsenderIdにする
   const wsRef = useRef(null);
-  const token = useSelector((state) => state.auth.accessToken); // アクセストークン
   const navigate = useNavigate();
 
   // --- WebSocket & 履歴取得 ---
@@ -20,9 +19,9 @@ export default function AskAiPage() {
       try {
         const response = await fetch(`${API_BASE_URL}/api/chat/ai/history`, {
           headers: {
-            Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
+          credentials: 'include',
         });
 
         if (response.status === 401) {

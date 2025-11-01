@@ -21,17 +21,6 @@ export default function LoginPage() {
   const dispatch = useDispatch();
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-  // useEffect(() => {
-  //   if (location.state?.message) {
-  //     // stateを空にする（メッセージを１回表示したら消す）
-  //     const timer = setTimeout(() => {
-  //       navigate(location.pathname, { replace: true });
-  //     }, 100); // すぐにリセット
-
-  //     return () => clearTimeout(timer);
-  //   }
-  // }, [location, navigate]);
-
   const handleLogin = async (e) => {
     e.preventDefault();
 
@@ -45,6 +34,7 @@ export default function LoginPage() {
           email: form.email,
           password: form.password,
         }),
+        credentials: 'include',
       });
 
       const data = await response.json();

@@ -11,16 +11,8 @@ export default function ChatPage() {
   const wsRef = useRef(null);
   const { roomId } = useParams();
   const senderId = useSelector((state) => state.auth.sub);
-  const token = useSelector((state) => state.auth.accessToken);
   const navigate = useNavigate();
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-
-  // ログインチェック
-  useEffect(() => {
-    if (!token || !senderId) {
-      navigate('/login');
-    }
-  }, [token, senderId]);
 
   // --- チャット履歴取得 ---
   const fetchHistory = async () => {
@@ -30,9 +22,9 @@ export default function ChatPage() {
         `${API_BASE_URL}/api/chat/users/${roomId}/history`,
         {
           headers: {
-            Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
+          credentials: 'include',
         }
       );
 

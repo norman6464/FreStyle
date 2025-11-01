@@ -1,6 +1,6 @@
 import MemberItem from './MemberItem';
 
-export default function MemberList({ users, token }) {
+export default function MemberList({ users }) {
   return (
     <div className="space-y-2">
       {users.map((user) => (
@@ -9,7 +9,6 @@ export default function MemberList({ users, token }) {
           id={user.id}
           name={user.email}
           roomId={user.roomId}
-          token={token}
         />
       ))}
     </div>

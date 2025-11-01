@@ -7,7 +7,6 @@ import SearchBox from '../components/SearchBox';
 import HamburgerMenu from '../components/HamburgerMenu';
 
 export default function AddUserPage() {
-  const token = useSelector((state) => state.auth.accessToken);
   const navigate = useNavigate();
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -30,11 +29,6 @@ export default function AddUserPage() {
   }, [searchQuery, debounceSearch]);
 
   useEffect(() => {
-    if (!token) {
-      navigate('/login');
-      return;
-    }
-
     // abort（中止）
     const controller = new AbortController();
     const queryParam = debounceQuery
@@ -44,9 +38,7 @@ export default function AddUserPage() {
     console.log('検索開始');
 
     fetch(`${API_BASE_URL}/api/chat/users${queryParam}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      credentials: 'include',
       // これは途中でリクエストを送るかどうかを決めるためのシグナル
       signal: controller.signal,
     })
@@ -74,7 +66,7 @@ export default function AddUserPage() {
 
     // リクエスト中止
     return () => controller.abort();
-  }, [token, debounceQuery, navigate]);
+  }, [debounceQuery, navigate]);
 
   return (
     <>
@@ -89,12 +81,12 @@ export default function AddUserPage() {
             placeholder="名前で検索"
           />
         </div>
-        {/* {error ? (
+        {error ? (
           <div className="text-red-500">{error}</div>
         ) : (
           <MemberList members={users} />
-        )} */}
-        <MemberList users={users} token={token} />
+        )}
+        <MemberList users={users} />
       </div>
     </>
   );

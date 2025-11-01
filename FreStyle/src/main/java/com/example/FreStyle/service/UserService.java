@@ -1,18 +1,21 @@
 package com.example.FreStyle.service;
 
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.PostMapping;
 
-import com.example.FreStyle.dto.ProfileDto;
 import com.example.FreStyle.dto.UserDto;
 import com.example.FreStyle.entity.*;
 import com.example.FreStyle.form.ProfileForm;
 import com.example.FreStyle.form.SignupForm;
 import com.example.FreStyle.repository.ChatRoomRepository;
 import com.example.FreStyle.repository.UserRepository;
+
+import jakarta.servlet.http.Cookie;
 
 @Service
 public class UserService {

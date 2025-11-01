@@ -17,7 +17,11 @@ import com.example.FreStyle.service.UserService;
 import com.example.FreStyle.utils.JwtUtils;
 import com.nimbusds.jwt.JWTClaimsSet;
 
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletResponse;
+
 import java.nio.charset.StandardCharsets;
+import java.text.ParseException;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
@@ -43,7 +47,8 @@ public class CognitoAuthController {
     private final UserService userService;
     private final CognitoAuthService cognitoAuthService;
 
-    public CognitoAuthController(WebClient.Builder webClientBuilder,UserService userService, CognitoAuthService cognitoAuthService) {
+    public CognitoAuthController(WebClient.Builder webClientBuilder, UserService userService,
+            CognitoAuthService cognitoAuthService) {
         this.webClient = webClientBuilder.build();
         this.userService = userService;
         this.cognitoAuthService = cognitoAuthService;
@@ -82,15 +87,15 @@ public class CognitoAuthController {
 
     // ログイン
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody LoginForm form) {
+    public ResponseEntity<?> login(@RequestBody LoginForm form, HttpServletResponse response) {
 
         try {
-            
+
             userService.checkUserIsActive(form.getEmail());
             Map<String, String> tokens = cognitoAuthService.login(form.getEmail(), form.getPassword());
 
             String idToken = tokens.get("idToken");
-            
+
             String accessToken = tokens.get("accessToken");
 
             // デコードをしてクライアントに情報をわたす。
@@ -100,24 +105,27 @@ public class CognitoAuthController {
             }
 
             JWTClaimsSet claims = claimsOpt.get();
+            userService.registerCognitoSubject(claims.getSubject(), form.getEmail());
 
-            Map<String, String> responseData = new HashMap<>();
-            
+            // Http only Cookie にアクセストークンを設定をする
+            Cookie accessTokenCookie = new Cookie("ACCESS_TOKEN", accessToken);
+            accessTokenCookie.setHttpOnly(true);
+            accessTokenCookie.setSecure(false); // HTTPSでのみ送信をする
+            accessTokenCookie.setPath("/"); // サイト全体で有効
+            accessTokenCookie.setMaxAge(60 * 60);
+            response.addCookie(accessTokenCookie);
+
             try {
-                
-                // 取得したCognito id_tokenからsubjectを格納
-                userService.registerCognitoSubject(claims.getSubject(), form.getEmail());
-                responseData.put("email", claims.getStringClaim("email"));
-                responseData.put("name", claims.getStringClaim("name"));
-                responseData.put("sub", claims.getSubject());
-                responseData.put("accessToken", accessToken);
-                
-
-            } catch (Exception e) {
-                e.printStackTrace();
+                Map<String, Object> responseData = Map.of(
+                        "email", claims.getStringClaim("email"),
+                        "name", claims.getStringClaim("name"),
+                        "sub", claims.getSubject(),
+                        "message", "ログイン成功");
+                return ResponseEntity.ok(responseData);
+            } catch (ParseException e) {
+                return ResponseEntity.internalServerError()
+                        .body(Map.of("error", "サーバーのエラーです。"));
             }
-            // アクセストークンのみを返却 or Cookieに保存も可能
-            return ResponseEntity.ok(responseData);
 
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -126,8 +134,8 @@ public class CognitoAuthController {
 
     // OIDCフロー
     @PostMapping("/callback")
-    public ResponseEntity<Map<String, String>> callback(@RequestBody Map<String, String> body) {
-        
+    public ResponseEntity<?> callback(@RequestBody Map<String, String> body, HttpServletResponse response) {
+
         String code = body.get("code");
 
         String basicAuthValue = Base64.getEncoder()
@@ -171,29 +179,41 @@ public class CognitoAuthController {
 
         JWTClaimsSet claims = claimsOpt.get();
 
-        Map<String, String> responseData = new HashMap<>();
-        
         try {
-            
+
             String name = claims.getStringClaim("name");
             String email = claims.getStringClaim("email");
             String sub = claims.getSubject();
-            
-            System.out.println("email:" + email);
-            System.out.println("sub:" + sub);
-            userService.registerUserOIDC( "guest", email, sub);
 
-            
-            responseData.put("name", name);
-            responseData.put("email", email);
-            responseData.put("sub", sub);
-            // responseData.put("idToken", idToken);
-            responseData.put("accessToken", accessToken);
-            
+            userService.registerUserOIDC("guest", email, sub);
+
+            Cookie accessTokenCookie = new Cookie("ACCESS_TOKEN", accessToken);
+            accessTokenCookie.setHttpOnly(true);
+            accessTokenCookie.setSecure(false);
+            accessTokenCookie.setPath("/");
+            accessTokenCookie.setMaxAge(60 * 60);
+
+            Map<String, Object> responseData = Map.of(
+                    "email", email,
+                    "name", name,
+                    "sub", sub);
+
+            return ResponseEntity.ok(responseData);
+
         } catch (Exception e) {
             e.printStackTrace();
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", "サーバーのエラーが発生しました。"));
         }
+    }
 
-        return ResponseEntity.ok(responseData);
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout(HttpServletResponse response) {
+        Cookie cookie = new Cookie("ACCESS_TOKEN", null);
+        cookie.setHttpOnly(true);
+        cookie.setSecure(false);
+        cookie.setPath("/");
+        cookie.setMaxAge(60 * 60);
+        return ResponseEntity.ok(Map.of("message", "ログアウトしました。"));
     }
 }

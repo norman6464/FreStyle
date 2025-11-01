@@ -7,6 +7,8 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
 import static org.springframework.security.config.Customizer.withDefaults;
 
 @Configuration
@@ -16,7 +18,12 @@ public class SecurityConfig {
     // Spring Security は access_token を自動で decode & validate & set Authentication してくれる
     @Value("${cognito.jwk-set-uri}")
     private String jwkUri;
+    
+    private final JwtCookieFilter jwtCookieFilter;
 
+    public SecurityConfig(JwtCookieFilter jwtCookieFilter) {
+        this.jwtCookieFilter = jwtCookieFilter;
+    }
     
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -29,6 +36,8 @@ public class SecurityConfig {
                         .anyRequest().authenticated())
                 .formLogin(form -> form.disable())
                 .httpBasic(basic -> basic.disable())
+                // Cookie → Authorization変換フィルターを追加する
+                .addFilterBefore(jwtCookieFilter, UsernamePasswordAuthenticationFilter.class)
                 .oauth2ResourceServer(oauth2 -> oauth2
                     .jwt(jwt -> jwt
                         .jwtAuthenticationConverter(jwtAuthenticationConverter()) // カスタムコンバーターを作成をする

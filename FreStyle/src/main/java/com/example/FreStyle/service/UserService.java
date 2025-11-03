@@ -1,21 +1,18 @@
 package com.example.FreStyle.service;
 
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.bind.annotation.PostMapping;
 
+import com.example.FreStyle.dto.LoginUserDto;
 import com.example.FreStyle.dto.UserDto;
 import com.example.FreStyle.entity.*;
 import com.example.FreStyle.form.ProfileForm;
 import com.example.FreStyle.form.SignupForm;
 import com.example.FreStyle.repository.ChatRoomRepository;
 import com.example.FreStyle.repository.UserRepository;
-
-import jakarta.servlet.http.Cookie;
 
 @Service
 public class UserService {
@@ -111,6 +108,17 @@ public class UserService {
     return userRepository.findIdByCognitoSub(sub)
         .orElseThrow(() -> new RuntimeException("このリクエストは無効です。"));
 
+  }
+  
+  // subからログイン済かどうかを返す
+  public LoginUserDto findLoginUserByCognitoSub(String sub) {
+    User user = userRepository.findByCognitoSub(sub)
+    .orElseThrow(() -> new RuntimeException("ユーザーが存在しません。"));
+    LoginUserDto dto = new LoginUserDto();
+    dto.setSub(user.getCognitoSub());
+    dto.setName(user.getUsername());
+    dto.setEmail(user.getEmail());
+    return dto;
   }
 
   // 部分一致でユーザーのemailを検索をする

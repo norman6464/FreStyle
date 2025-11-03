@@ -3,7 +3,6 @@ import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import LoginCallback from './pages/LoginCallback';
 import HomePage from './components/HomePage';
-import { useSelector } from 'react-redux';
 import ChatPage from './pages/ChatPage';
 import MenuPage from './pages/MenuPage';
 import AskAiPage from './pages/AskAiPage';
@@ -11,30 +10,73 @@ import ConfirmPage from './pages/ConfirmPage';
 import MemberPage from './pages/MemberPage';
 import AddUserPage from './pages/AddUserPage';
 import ProfilePage from './pages/ProfilePage';
-export default function App() {
-  const accessToken = useSelector((state) => state.auth.accessToken);
+import AppWrapper from './utils/AppWrapper';
 
+export default function App() {
   return (
     <Routes>
-      <Route
-        path="/"
-        element={accessToken ? <MenuPage /> : <Navigate to="/login" />}
-      />
+      {/* 誰でもアクセス可能なルート */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/login/callback" element={<LoginCallback />} />
-      <Route path="/profile/me" element={<ProfilePage />} />
-      <Route path="/chat/members" element={<MemberPage />} />
-      <Route path="/chat/users" element={<AddUserPage />} />
-      <Route path="/chat/users/:roomId" element={<ChatPage />} />
-      <Route path="/chat/ask-ai" element={<AskAiPage />} />
       <Route path="/signup" element={<SignupPage />} />
       <Route path="/confirm" element={<ConfirmPage />} />
-      {/* 404 redirect */}
+
+      {/* 認証が必要なルートを AppWrapper でラップ */}
+      <Route
+        path="/"
+        element={
+          <AppWrapper>
+            <MenuPage />
+          </AppWrapper>
+        }
+      />
+      <Route
+        path="/profile/me"
+        element={
+          <AppWrapper>
+            <ProfilePage />
+          </AppWrapper>
+        }
+      />
+      <Route
+        path="/chat/members"
+        element={
+          <AppWrapper>
+            <MemberPage />
+          </AppWrapper>
+        }
+      />
+      <Route
+        path="/chat/users"
+        element={
+          <AppWrapper>
+            <AddUserPage />
+          </AppWrapper>
+        }
+      />
+      <Route
+        path="/chat/users/:roomId"
+        element={
+          <AppWrapper>
+            <ChatPage />
+          </AppWrapper>
+        }
+      />
+      <Route
+        path="/chat/ask-ai"
+        element={
+          <AppWrapper>
+            <AskAiPage />
+          </AppWrapper>
+        }
+      />
+
+      {/* 404 */}
       <Route
         path="*"
         element={
           <div className="text-center mt-20 text-xl">
-            ページが見つかりません1
+            ページが見つかりません
           </div>
         }
       />

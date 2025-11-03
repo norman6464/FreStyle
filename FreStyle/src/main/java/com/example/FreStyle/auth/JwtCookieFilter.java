@@ -20,20 +20,20 @@ public class JwtCookieFilter extends OncePerRequestFilter {
       FilterChain filterChain)
       throws ServletException, IOException {
 
-    HttpServletRequest modifiedRequest = request;
+    HttpServletRequest wrappedRequest = request;
 
-    // すでにAuthorizationヘッダーがある場合は何もしない（念のため）
-    if (request.getHeader("Authorization") == null && request.getCookies() != null) {
+    if (request.getCookies() != null) {
       for (Cookie cookie : request.getCookies()) {
         if ("ACCESS_TOKEN".equals(cookie.getName())) {
           String bearerToken = "Bearer " + cookie.getValue();
-          modifiedRequest = new HttpServletRequestWrapperWithHeader(request, "Authorization", bearerToken);
+          wrappedRequest = new HttpServletRequestWrapperWithHeader(request, "Authorization", bearerToken);
+          System.out.println("JwtCookieFilter: wrapped request with Authorization header");
           break;
         }
       }
     }
 
-    // 次のフィルターにラップ済みのリクエストをわたす
-    filterChain.doFilter(modifiedRequest, response);
+    filterChain.doFilter(wrappedRequest, response);
   }
+
 }

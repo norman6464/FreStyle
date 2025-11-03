@@ -20,9 +20,9 @@ public class CorsConfig {
                 "https://dcd3m6lwt0z8u.cloudfront.net",
                 "http://localhost:5173"
             )
+            .allowCredentials(true) // Cookieや認証情報を扱う場合はtrue
             .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
-            .allowedHeaders("*")
-            .allowCredentials(true); // Cookieや認証情報を扱う場合はtrue
+            .allowedHeaders("*");
       }
 
     };

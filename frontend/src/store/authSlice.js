@@ -1,9 +1,9 @@
 import { createSlice } from '@reduxjs/toolkit';
 
 const initialState = {
-  sub: localStorage.getItem('sub') || null,
-  name: localStorage.getItem('name') || null,
-  email: localStorage.getItem('email') || null,
+  sub: null,
+  name: null,
+  email: null,
 };
 
 const authSlice = createSlice({
@@ -16,20 +16,12 @@ const authSlice = createSlice({
       state.sub = sub;
       state.name = name;
       state.email = email;
-
-      localStorage.setItem('sub', sub);
-      localStorage.setItem('name', name);
-      localStorage.setItem('email', email);
     },
 
     clearAuthData(state) {
       state.sub = null;
       state.name = null;
       state.email = null;
-
-      localStorage.removeItem('sub');
-      localStorage.removeItem('name');
-      localStorage.removeItem('email');
     },
   },
 });

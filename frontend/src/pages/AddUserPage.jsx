@@ -29,7 +29,6 @@ export default function AddUserPage() {
   }, [searchQuery, debounceSearch]);
 
   useEffect(() => {
-    // abort（中止）
     const controller = new AbortController();
     const queryParam = debounceQuery
       ? `?query=${encodeURIComponent(debounceQuery)}`
@@ -70,7 +69,7 @@ export default function AddUserPage() {
 
   return (
     <>
-      <HamburgerMenu />
+      <HamburgerMenu title="ユーザーチャット" />
       <div className="min-h-screen bg-gray-100 p-4 mt-16">
         <h2 className="text-xl font-semibold mb-4">ユーザー追加</h2>
 
@@ -84,7 +83,7 @@ export default function AddUserPage() {
         {error ? (
           <div className="text-red-500">{error}</div>
         ) : (
-          <MemberList members={users} />
+          <MemberList users={users} />
         )}
         <MemberList users={users} />
       </div>

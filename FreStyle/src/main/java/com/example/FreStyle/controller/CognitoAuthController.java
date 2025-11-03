@@ -3,12 +3,13 @@ package com.example.FreStyle.controller;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.*;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
-
+import org.springframework.security.oauth2.jwt.Jwt;
 import com.example.FreStyle.form.ConfirmSignupForm;
 import com.example.FreStyle.form.LoginForm;
 import com.example.FreStyle.form.SignupForm;
@@ -107,13 +108,14 @@ public class CognitoAuthController {
             JWTClaimsSet claims = claimsOpt.get();
             userService.registerCognitoSubject(claims.getSubject(), form.getEmail());
 
-            // Http only Cookie にアクセストークンを設定をする
-            Cookie accessTokenCookie = new Cookie("ACCESS_TOKEN", accessToken);
-            accessTokenCookie.setHttpOnly(true);
-            accessTokenCookie.setSecure(false); // HTTPSでのみ送信をする
-            accessTokenCookie.setPath("/"); // サイト全体で有効
-            accessTokenCookie.setMaxAge(60 * 60);
-            response.addCookie(accessTokenCookie);
+            ResponseCookie cookie = ResponseCookie.from("ACCESS_TOKEN", accessToken)
+                    .httpOnly(true)
+                    .secure(false) // HTTPS 開発環境なら false
+                    .path("/")
+                    .maxAge(3600)
+                    .sameSite("Lax") // クロスオリジンでも送信
+                    .build();
+            response.addHeader("Set-Cookie", cookie.toString());
 
             try {
                 Map<String, Object> responseData = Map.of(
@@ -187,11 +189,14 @@ public class CognitoAuthController {
 
             userService.registerUserOIDC("guest", email, sub);
 
-            Cookie accessTokenCookie = new Cookie("ACCESS_TOKEN", accessToken);
-            accessTokenCookie.setHttpOnly(true);
-            accessTokenCookie.setSecure(false);
-            accessTokenCookie.setPath("/");
-            accessTokenCookie.setMaxAge(60 * 60);
+            ResponseCookie cookie = ResponseCookie.from("ACCESS_TOKEN", accessToken)
+                    .httpOnly(true)
+                    .secure(false) // HTTPS 開発環境なら false
+                    .path("/")
+                    .maxAge(3600)
+                    .sameSite("Lax") // クロスオリジンでも送信
+                    .build();
+            response.addHeader("Set-Cookie", cookie.toString());
 
             Map<String, Object> responseData = Map.of(
                     "email", email,
@@ -208,7 +213,14 @@ public class CognitoAuthController {
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<?> logout(HttpServletResponse response) {
+    public ResponseEntity<?> logout(@AuthenticationPrincipal Jwt jwt, HttpServletResponse response) {
+        String sub = jwt.getSubject();
+        System.out.println("request GET /api/auth/cognito/logout");
+        
+        if (sub == null || sub.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "無効なリクエストです。"));
+        }
+        
         Cookie cookie = new Cookie("ACCESS_TOKEN", null);
         cookie.setHttpOnly(true);
         cookie.setSecure(false);

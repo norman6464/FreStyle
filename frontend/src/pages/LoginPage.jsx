@@ -38,8 +38,12 @@ export default function LoginPage() {
       });
 
       const data = await response.json();
+
+      console.log('ステータスコード', response.status);
+
       if (response.ok) {
         dispatch(setAuthData(data));
+        console.log('ログインに成功しました。');
         navigate('/', {
           message: 'ログイン成功しました。',
         });

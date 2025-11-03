@@ -6,8 +6,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
 
 import static org.springframework.security.config.Customizer.withDefaults;
 
@@ -37,7 +38,7 @@ public class SecurityConfig {
                 .formLogin(form -> form.disable())
                 .httpBasic(basic -> basic.disable())
                 // Cookie → Authorization変換フィルターを追加する
-                .addFilterBefore(jwtCookieFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(jwtCookieFilter, org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter.class)
                 .oauth2ResourceServer(oauth2 -> oauth2
                     .jwt(jwt -> jwt
                         .jwtAuthenticationConverter(jwtAuthenticationConverter()) // カスタムコンバーターを作成をする

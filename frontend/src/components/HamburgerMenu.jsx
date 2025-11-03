@@ -3,14 +3,22 @@ import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { clearAuthData } from '../store/authSlice';
 
-export default function HamburgerMenu() {
+export default function HamburgerMenu({ title }) {
   const [isOpen, setIsOpen] = useState(false);
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    dispatch(clearAuthData());
-    navigate('/login');
+  const handleLogout = async () => {
+    fetch(`${import.meta.env.VITE_API_BASE_URL}/api/auth/cognito/logout`, {
+      method: 'POST',
+      credentials: 'include',
+    }).then((res) => {
+      if (!res.ok) {
+        return alert('失敗しました');
+      }
+      dispatch(clearAuthData());
+      navigate('/login');
+    });
   };
 
   const menuItems = [
@@ -24,8 +32,9 @@ export default function HamburgerMenu() {
     <header className="w-full bg-gray-50 shadow-sm fixed top-0 left-0 z-50">
       <div className="max-w-4xl mx-auto px-3 py-5 flex justify-between items-center">
         {/* 左側ロゴ（タイトル） */}
-        <h1 className="text-lg font-semibold text-gray-800">メニュー</h1>
-
+        <button onClick={() => navigate('/')}>
+          <h1 className="text-lg font-semibold text-gray-800">{title}</h1>
+        </button>
         {/* ハンバーガーボタン（モバイル用） */}
         <button
           className="md:hidden p-2 text-gray-700 rounded-md hover:bg-gray-200 focus:outline-none"

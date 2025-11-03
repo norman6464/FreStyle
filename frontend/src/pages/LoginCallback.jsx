@@ -15,6 +15,8 @@ export default function LoginCallback() {
   useEffect(() => {
     if (error) {
       alert('認証エラーが発生しました。' + error);
+      console.log('認証エラーが発生しました。' + error);
+
       navigate('/login');
       return;
     }

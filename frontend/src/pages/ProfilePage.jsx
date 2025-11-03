@@ -11,22 +11,14 @@ export default function ProfilePage() {
   const [message, setMessage] = useState(null);
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const token = useSelector((state) => state.auth.accessToken);
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   // ページがレンダリングされたときにプロフィールを取得
   useEffect(() => {
-    if (!token) {
-      navigate('/login');
-      return;
-    }
-
     const fetchProfile = async () => {
       try {
         const response = await fetch(`${API_BASE_URL}/api/profile/me`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          credentials: 'include',
         });
         const data = await response.json();
         if (response.ok) {

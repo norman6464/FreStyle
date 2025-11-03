@@ -77,8 +77,12 @@ public class ChatController {
   public ResponseEntity<?> users(@AuthenticationPrincipal Jwt jwt,
       @RequestParam(name = "query", required = false) String query) {
     String cognitoSub = jwt.getSubject();
+    
+    System.out.println("Request now");
+    System.out.println("jwt token value" + jwt);
 
     if (cognitoSub == null || cognitoSub.isEmpty()) {
+      System.out.println("request bad request");
       return ResponseEntity.badRequest().body(Map.of("error", "無効なリクエストです。"));
     }
 
@@ -91,7 +95,7 @@ public class ChatController {
     for (UserDto user : users) {
       System.out.println("User_id" + user.getId() + "User_Email" + user.getEmail());
     }
-
+    System.out.println("request ok");
     responseData.put("users", users);
     return ResponseEntity.ok().body(responseData);
   }
@@ -101,7 +105,8 @@ public class ChatController {
     
     String cognitoSub = jwt.getSubject();
     if (cognitoSub == null || cognitoSub.isEmpty()) {
-      return ResponseEntity.badRequest().body(Map.of("error", "無効なリクエストです。"));
+      System.out.println("request bad request");
+      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "無効なリクエストです。"));
     }
     
     try{
@@ -109,7 +114,7 @@ public class ChatController {
       Integer userId = userService.findUserIdByCognitoSub(cognitoSub);
       
       Integer roomId = chatService.createOrGetRoom(userId, id);
-      
+      System.out.println("request ok");
       return ResponseEntity.ok(Map.of(
             "roomId", roomId,
             "status", "success"

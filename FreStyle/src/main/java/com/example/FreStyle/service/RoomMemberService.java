@@ -14,7 +14,7 @@ public class RoomMemberService {
   
   public RoomMemberService(RoomMemberRepository roomMemberRepository) {
     this.roomMemberRepository = roomMemberRepository;
-  }
+  } 
   
   public boolean existsRoom(Integer roomId, Integer userId) {
     return roomMemberRepository.existsByRoom_IdAndUser_Id(roomId, userId);

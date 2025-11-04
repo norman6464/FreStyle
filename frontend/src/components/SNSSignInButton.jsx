@@ -5,7 +5,7 @@ export default function SNSSignInButton({ provider, onClick }) {
     google: 'https://developers.google.com/identity/images/g-logo.png',
     facebook:
       'https://upload.wikimedia.org/wikipedia/commons/0/05/Facebook_Logo_%282019%29.png',
-    x: 'https://abs.twimg.com/icons/apple-touch-icon-192x192.png',
+    x: 'https://cdn.cms%E2%80%91twdigitalassets.com/content/dam/about-twitter/x/brand-toolkit/x-white-logo.png',
   };
 
   const providerLabels = {

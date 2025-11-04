@@ -106,11 +106,6 @@ export default function LoginPage() {
           window.location.href = getCognitoAuthUrl('Google');
         }}
       />
-      <SNSSignInButton
-        provider="facebook"
-        onClick={() => console.log('Facebook login')}
-      />
-      <SNSSignInButton provider="x" onClick={() => console.log('X login')} />
     </AuthLayout>
   );
 }

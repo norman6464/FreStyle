@@ -1,36 +1,23 @@
 package com.example.FreStyle.form;
 
+import org.hibernate.validator.constraints.Length;
 
-// lombokの依存関係を追加しているがなぜか機能しなくなったので自分でコードを実装をしている
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
 public class LoginForm {
+
+    @NotBlank(message = "メールアドレスを入力してください")
+    @Email(message = "メールアドレスは正しい形式で入力してください。")
     private String email;
+
+    @NotBlank(message = "パスワードを入力してください")
+    @Length(min = 8, message = "正しい桁数を入力してください")
     private String password;
-
-    // コンストラクタ（引数あり）
-    public LoginForm(String email, String password) {
-        this.email = email;
-        this.password = password;
-    }
-    
-    public LoginForm() {
-      
-    }
-
-    // ゲッター
-    public String getEmail() {
-        return email;
-    }
-
-    public String getPassword() {
-        return password;
-    }
-
-    // セッター
-    public void setEmail(String email) {
-        this.email = email;
-    }
-
-    public void setPassword(String password) {
-        this.password = password;
-    }
 }

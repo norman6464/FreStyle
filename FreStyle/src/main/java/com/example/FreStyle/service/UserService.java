@@ -146,7 +146,6 @@ public class UserService {
         .orElseThrow(() -> new RuntimeException("ユーザーが見つかりません。"));
         
     user.setUsername(form.getUsername());
-    user.setEmail(form.getEmail());
     user.setBio(form.getBio());
     
     userRepository.save(user);

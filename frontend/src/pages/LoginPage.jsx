@@ -93,7 +93,7 @@ export default function LoginPage() {
         <PrimaryButton type="submit">ログイン</PrimaryButton>
       </form>
       <div className="flex justify-between mt-4">
-        <LinkText to="/forget-password">パスワードをお忘れですか？</LinkText>
+        <LinkText to="/forgot-password">パスワードをお忘れですか？</LinkText>
         <LinkText to="/signup">アカウントを作成</LinkText>
       </div>
       <hr />

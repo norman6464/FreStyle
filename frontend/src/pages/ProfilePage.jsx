@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import HamburgerMenu from '../components/HamburgerMenu';
 
 export default function ProfilePage() {
-  const [form, setForm] = useState({ username: '', email: '', bio: '' });
+  const [form, setForm] = useState({ username: '', bio: '' });
   const [message, setMessage] = useState(null);
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -24,7 +24,6 @@ export default function ProfilePage() {
         if (response.ok) {
           setForm({
             username: data.username || '',
-            email: data.email || '',
             bio: data.bio || '',
           });
         } else {
@@ -59,8 +58,8 @@ export default function ProfilePage() {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
         },
+        credentials: 'include',
         body: JSON.stringify(form),
       });
       const data = await response.json();
@@ -115,13 +114,6 @@ export default function ProfilePage() {
             label="ニックネーム"
             name="username"
             value={form.username}
-            onChange={handleChange}
-          />
-          <InputField
-            label="メールアドレス"
-            name="email"
-            type="email"
-            value={form.email}
             onChange={handleChange}
           />
           <InputField

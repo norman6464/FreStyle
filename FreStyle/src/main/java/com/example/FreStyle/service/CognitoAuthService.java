@@ -9,7 +9,6 @@ import java.util.Map;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
-
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -49,18 +48,13 @@ public class CognitoAuthService {
     }
     
     
-    public void updateUserProfile(String accessToken, String name, String email) {
+    public void updateUserProfile(String accessToken, String name) {
       try {
         // 更新対象属性をリストアップ
         List<AttributeType> attrsBuilder = new ArrayList<>();
         if (name != null && !name.isEmpty()) {
           attrsBuilder.add(AttributeType.builder().name("name").value(name).build());
         }
-        
-        if (email != null && !email.isEmpty()) {
-          attrsBuilder.add(AttributeType.builder().name("email").value(email).build());
-        }
-        
         
         if (attrsBuilder.isEmpty()) {
           throw new IllegalArgumentException("更新する属性が指定されていません。");
@@ -75,13 +69,16 @@ public class CognitoAuthService {
         cognitoClient.updateUserAttributes(request);
         System.out.println("Profile update");
       } catch (NotAuthorizedException e) {
-        throw new RuntimeException("アクセストークンが無効です。再ログインしてください。");
+        System.out.println("NotAuthorizedException");
+        throw new RuntimeException("invalid parameter retry login");
       } catch (InvalidParameterException e) {
-        throw new RuntimeException("入力パラメータが不正です。");
+        System.out.println("InvalidParameterException");
+        throw new RuntimeException("invalid parameter");
       } catch (InvalidUserPoolConfigurationException e) {
-        throw new RuntimeException("ユーザーの設定が不正です。");
+        System.out.println("InvalidUserPoolConfigurationException");
+        throw new RuntimeException("user configuration setting");
       } catch (Exception e) {
-        throw new RuntimeException("プロフィール更新中にエラーが発生しました。");
+        throw new RuntimeException("proceed update profile error");
       }
     }
 
@@ -174,6 +171,52 @@ public class CognitoAuthService {
         }
     }
     
+    
+    public void forgotPassword(String email) {
+        ForgotPasswordRequest request = ForgotPasswordRequest.builder()
+        .clientId(clientId)
+        .username(email)
+        .secretHash(calculateSecretHash(email))
+        .build();
+        
+        try {
+            cognitoClient.forgotPassword(request);
+            System.out.println("send confirm code" + email);
+        } catch (UserNotFoundException e) {
+            System.out.println("this mail not register");
+            throw new RuntimeException("このメールアドレスは登録されていません。");
+        } catch (Exception e) {
+            System.out.println("password reset request failed");
+            throw new RuntimeException("パスワードリセットのリクエストに失敗しました。" + e.getMessage());
+        }
+    }
+    
+    public void confirmForgotPassword(String email, String confirmationCode, String newPassword) {
+        ConfirmForgotPasswordRequest request = ConfirmForgotPasswordRequest.builder()
+            .clientId(clientId)
+            .username(email)
+            .secretHash(calculateSecretHash(email))
+            .confirmationCode(confirmationCode)
+            .password(newPassword)
+            .build();
+            
+            try {
+                cognitoClient.confirmForgotPassword(request);
+                System.out.println("password reset finish");
+            } catch (CodeMismatchException e) {
+                System.out.println("CodeMismatchException class error");
+                throw new RuntimeException("確認コードが間違っています。");
+            } catch (ExpiredCodeException e) {
+                System.out.println("ExpiredCodeException class error");
+                throw new RuntimeException("確認コードの有効期限が切れています。");
+            } catch (Exception e) {
+                System.out.println("password reset processing error");
+                throw new RuntimeException("パスワードがリセット中にエラーが発生しました。");
+            }
+    }
+    
+    // ハッシュ値を計算をする
+    // Cognitoのアプリクライアントでシークレットが有効になっている場合はすべてにSecret_Hashを付与する必要がある
     private String calculateSecretHash(String username) {
         try {
             String message = username + clientId;

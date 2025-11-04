@@ -11,6 +11,8 @@ import MemberPage from './pages/MemberPage';
 import AddUserPage from './pages/AddUserPage';
 import ProfilePage from './pages/ProfilePage';
 import AppWrapper from './utils/AppWrapper';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ConfirmForgotPasswordPage from './pages/ConfirmForgotPasswordPage';
 
 export default function App() {
   return (
@@ -20,6 +22,11 @@ export default function App() {
       <Route path="/login/callback" element={<LoginCallback />} />
       <Route path="/signup" element={<SignupPage />} />
       <Route path="/confirm" element={<ConfirmPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route
+        path="/confirm-forgot-password"
+        element={<ConfirmForgotPasswordPage />}
+      />
 
       {/* 認証が必要なルートを AppWrapper でラップ */}
       <Route

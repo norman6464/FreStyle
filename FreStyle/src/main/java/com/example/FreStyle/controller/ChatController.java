@@ -76,13 +76,10 @@ public class ChatController {
   @GetMapping("/users")
   public ResponseEntity<?> users(@AuthenticationPrincipal Jwt jwt,
       @RequestParam(name = "query", required = false) String query) {
+    System.out.println("GET /api/chat/users");
     String cognitoSub = jwt.getSubject();
-    
-    System.out.println("Request now");
-    System.out.println("jwt token value" + jwt);
 
     if (cognitoSub == null || cognitoSub.isEmpty()) {
-      System.out.println("request bad request");
       return ResponseEntity.badRequest().body(Map.of("error", "無効なリクエストです。"));
     }
 
@@ -95,7 +92,6 @@ public class ChatController {
     for (UserDto user : users) {
       System.out.println("User_id" + user.getId() + "User_Email" + user.getEmail());
     }
-    System.out.println("request ok");
     responseData.put("users", users);
     return ResponseEntity.ok().body(responseData);
   }

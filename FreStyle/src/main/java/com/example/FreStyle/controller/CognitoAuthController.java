@@ -6,11 +6,13 @@ import org.springframework.http.*;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.security.oauth2.jwt.Jwt;
 import com.example.FreStyle.form.ConfirmSignupForm;
+import com.example.FreStyle.form.ForgotPasswordForm;
 import com.example.FreStyle.form.LoginForm;
 import com.example.FreStyle.form.SignupForm;
 import com.example.FreStyle.service.CognitoAuthService;
@@ -228,4 +230,33 @@ public class CognitoAuthController {
         cookie.setMaxAge(60 * 60);
         return ResponseEntity.ok(Map.of("message", "ログアウトしました。"));
     }
+    
+    // パスワードリセットリクエスト
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@Validated @RequestBody Map<String, String> body) {
+        
+        String email = body.get("email");
+        try {
+            cognitoAuthService.forgotPassword(email);
+            return ResponseEntity.ok(Map.of("message", "確認コードを送信しました。"));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }    
+    }
+    
+    // パスワード更新
+    @PostMapping("/confirm-forgot-password")
+    public ResponseEntity<?> confirmForgotPassword(@Validated @RequestBody ForgotPasswordForm form) {
+        String email = form.getEmail();
+        String code = form.getCode();
+        String newPassword = form.getNewPassword();
+        
+        try {
+            cognitoAuthService.confirmForgotPassword(email, code, newPassword);
+            return ResponseEntity.ok(Map.of("message", "パスワードをリセットしました。"));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+    
 }

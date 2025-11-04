@@ -46,7 +46,6 @@ public class ProfileController {
     
     ProfileDto profileDto = new ProfileDto(
       user.getUsername(),
-      user.getEmail(),
       user.getBio());
     
     return ResponseEntity.ok().body(profileDto);
@@ -56,27 +55,43 @@ public class ProfileController {
     
   }
   
-  @PutMapping("/me/update")
-  public ResponseEntity<?> updateProfile(
-      @AuthenticationPrincipal Jwt jwt,
-      @RequestBody ProfileForm form) {
-    
-    String sub = jwt.getSubject();
-    
-    if (sub == null || sub.isEmpty()) {
-      return ResponseEntity.badRequest().body(Map.of("error", "無効なリクエストです。"));
-    }
-    
-    try {
-    String accessToken = jwt.getTokenValue();
-    cognitoAuthService.updateUserProfile(accessToken, form.getUsername(), form.getEmail()); 
-    userService.updateUser(form, sub);
-    } catch (Exception e) {
-      return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-    }
-    return ResponseEntity.ok().body(Map.of());
-    
+@PutMapping("/me/update")
+public ResponseEntity<?> updateProfile(
+    @AuthenticationPrincipal Jwt jwt,
+    @RequestBody ProfileForm form) {
+
+  System.out.println("PUT /api/profile/me/update");
+  String sub = jwt.getSubject();
+
+  if (sub == null || sub.isEmpty()) {
+    return ResponseEntity.badRequest().body(Map.of("error", "無効なリクエストです。"));
   }
+
+  try {
+    // ==== 分岐ポイント ====
+    // 外部IDプロバイダでログインしたユーザーには "cognito:groups" が含まれる
+    boolean isOidcUser = jwt.hasClaim("cognito:groups");
+
+    if (isOidcUser) {
+      // OIDC（Google、Appleなど外部IDP）経由 → DBのみ更新
+      System.out.println("request user is OIDC user no cognito update db only update");
+      userService.updateUser(form, sub);
+
+    } else {
+      // 通常のCognitoユーザー → Cognito + DBを更新
+      String accessToken = jwt.getTokenValue();
+      cognitoAuthService.updateUserProfile(accessToken, form.getUsername());
+      userService.updateUser(form, sub);
+    }
+
+  } catch (Exception e) {
+    System.out.println("プロフィール更新エラー: " + e.getMessage());
+    return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+  }
+
+  return ResponseEntity.ok().body(Map.of("message", "プロフィールを更新しました。"));
+}
+
   
   
   

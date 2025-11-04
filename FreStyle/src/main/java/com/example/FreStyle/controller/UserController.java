@@ -25,7 +25,11 @@ public class UserController {
   
     @GetMapping("/me")
     public ResponseEntity<?> getUserInfo(@AuthenticationPrincipal Jwt jwt) {
+      
+      System.out.println("GET /api/user/me");
+      
       String sub = jwt.getSubject();
+      System.out.println("request sub " + sub);
         if (sub == null || sub.isEmpty()) {
           return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "未ログイン"));
         }

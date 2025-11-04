@@ -85,7 +85,6 @@ export default function AddUserPage() {
         ) : (
           <MemberList users={users} />
         )}
-        <MemberList users={users} />
       </div>
     </>
   );

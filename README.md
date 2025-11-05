@@ -1,6 +1,5 @@
 # FreStyle
 ユーザー、AIとのチャットで手軽にコミュニケーションが取れるようにしたアプリです
-
 AWS上にデプロイをしました
 
 ## 🧰 使用技術
@@ -52,13 +51,13 @@ AWS上にデプロイをしました
 
 以下は本アプリケーションのAWS構成図です。
 
-![AWSアーキテクチャ構成図](./architecture/aws-architecture.png)
+![AWSアーキテクチャ構成図](./architecture/aws/aws-architecture.png)
 
 
 ###　ユーザー同士のチャット
-![ユーザー同士のチャット](./architecture/aws-architecture-chat.png)
+![ユーザー同士のチャット](./architecture/aws/aws-architecture-chat.png)
 
 
 ## AIとユーザーのチャット
-![AIとユーザーのチャット](./architecture/aws-architecture-ai-chat.png)
+![AIとユーザーのチャット](./architecture/aws/aws-architecture-ai-chat.png)
 

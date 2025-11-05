@@ -20,8 +20,15 @@
 7.  `npx tailwindcss init -p` で初期設定をします。
 
 
-## 🏗️ AWSアーキテクチャ構成図
+## AWSアーキテクチャ構成図
 
 以下は本アプリケーションのAWS構成図です。
 
 ![AWSアーキテクチャ構成図](./architecture/aws-architecture.png)
+
+
+![ユーザー同士のチャット](./architecture/aws-architecture-chat.png)
+
+
+![AI同士のチャット](./architecture/aws-architecture-ai-chat.png)
+

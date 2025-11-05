@@ -1,6 +1,11 @@
 # FreStyle
-ユーザー、AIとのチャットで手軽にコミュニケーションが取れるようにしたアプリです
-AWS上にデプロイをしました
+ユーザーやAIと手軽にコミュニケーションが取れるチャットアプリです。  
+私自身、日常の中で「気軽にコミュニケーションを取れる場」が必要だと感じていました。  
+そのため、フォローやフレンド登録をしなくてもユーザー検索だけで会話を始められ、  
+さらにAIが会話をサポートしてくれるアプリを開発しました。  
+
+本アプリはAWS上にデプロイしています。
+
 
 ## 🧰 使用技術
 - **Frontend:** React / Tailwind CSS  
@@ -23,6 +28,23 @@ AWS上にデプロイをしました
 - JWT認証をHttpOnly Cookieにし、バックエンド側でフィルターを用いてヘッダーにJWTトークンをセットをしセキュリティー面を考慮した
 - OIDCを実現したいため、CloudFrontでHttps化,グローバル化をした
 
+
+## 🧠 苦労した点・学び
+- WebSocketを使ったアプリの実装が初めてだったのでECSで実装するかAPI Gateway + lambdaで実装をするか迷いました。  
+  → API Gatewayのカスタムオーソライザーを活用して統一的に解決しました。
+- Spring BootのSpring SecurityでJWKを使った認証はAuthorizationヘッダーで行うのでHttpOnly CookieからAuthorizationヘッダーに変換するのが大変だった
+- ALBでの設定でTLS/SSLアクセラレータとしてバックエンドのECSはHttp化をするのかを考慮しました
+
+
+## 🚀 今後の展望
+
+### 技術的な目標
+- AWS Solution Architect Professional（SAP）を取得したい  
+- CloudFront＋Lambda@Edgeによる認証強化を検討中  
+
+### アプリの機能拡張
+- 音声でもコミュニケーションできるようにする  
+- AIとの音声応答にPollyを活用する
 
 
 ## フロントエンドセットアップ手順
@@ -54,7 +76,7 @@ AWS上にデプロイをしました
 ![AWSアーキテクチャ構成図](./architecture/aws/aws-architecture.png)
 
 
-###　ユーザー同士のチャット
+## ユーザー同士のチャット
 ![ユーザー同士のチャット](./architecture/aws/aws-architecture-chat.png)
 
 

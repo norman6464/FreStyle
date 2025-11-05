@@ -1,105 +1,105 @@
-name: Deploy Spring Boot on ECS
+# name: Deploy Spring Boot on ECS
 
-on:
-  push:
-    branches: ["main"]
-    paths:
-      - "FreStyle/**"
+# on:
+#   push:
+#     branches: ["main"]
+#     paths:
+#       - "FreStyle/**"
     
-env:
-  AWS_REGION: ap-northeast-1
-  ECS_SERVICE: fre-style-service
-  ECS_CLUSTER: fre-style-cluster
-  ECS_TASK_DEFINITION: .aws/task-definition.json
+# env:
+#   AWS_REGION: ap-northeast-1
+#   ECS_SERVICE: fre-style-service
+#   ECS_CLUSTER: fre-style-cluster
+#   ECS_TASK_DEFINITION: .aws/task-definition.json
 
-permissions:
-  contents: read
+# permissions:
+#   contents: read
   
-jobs:
-  test-build-image:
-    name: Spring boot Test and Build
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    defaults:
-      run:
-        working-directory: web
-    steps:
-      # このステップでGitHubのリポジトリをアクションの実行環境でコピーする
-      - uses: actions/checkout@v4
+# jobs:
+#   test-build-image:
+#     name: Spring boot Test and Build
+#     runs-on: ubuntu-latest
+#     timeout-minutes: 10
+#     defaults:
+#       run:
+#         working-directory: web
+#     steps:
+#       # このステップでGitHubのリポジトリをアクションの実行環境でコピーする
+#       - uses: actions/checkout@v4
       
-      - name: Build an Image and Run Tests
-      # dockerイメージのビルドコマンドを打つ
-        run: |
-          docker image build --target production -t temp_api_image_name:latest .
-      # AWSの認証情報（IAMユーザーで作成したアクセスキー、シークレットアクセスキー）を設定をしている
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID}}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+#       - name: Build an Image and Run Tests
+#       # dockerイメージのビルドコマンドを打つ
+#         run: |
+#           docker image build --target production -t temp_api_image_name:latest .
+#       # AWSの認証情報（IAMユーザーで作成したアクセスキー、シークレットアクセスキー）を設定をしている
+#       - name: Configure AWS credentials
+#         uses: aws-actions/configure-aws-credentials@v4
+#         with:
+#           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID}}
+#           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+#           aws-region: ${{ env.AWS_REGION }}
           
-      # ECRレジストリ、リポジトリの情報を取得する
-      # さっきのid値を設定したが各ジョブは違う環境にあるのでまた同じ設定をし直す必要がある
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+#       # ECRレジストリ、リポジトリの情報を取得する
+#       # さっきのid値を設定したが各ジョブは違う環境にあるのでまた同じ設定をし直す必要がある
+#       - name: Login to Amazon ECR
+#         id: login-ecr
+#         uses: aws-actions/amazon-ecr-login@v2
         
-      # さっきのログインしたECRリポジトリの中にイメージをプッシュする
-      - name: Push the image mto Amazon ECR
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY:  ${{ secrets.AWS_ECR_API_SERVER_REPOSITORY }}
-        run: |
-          docker image tag temp_api_image_name:latest $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+#       # さっきのログインしたECRリポジトリの中にイメージをプッシュする
+#       - name: Push the image mto Amazon ECR
+#         env:
+#           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+#           ECR_REPOSITORY:  ${{ secrets.AWS_ECR_API_SERVER_REPOSITORY }}
+#         run: |
+#           docker image tag temp_api_image_name:latest $ECR_REGISTRY/$ECR_REPOSITORY:latest
+#           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
           
-  deploy:
-    name: Deploy
-    runs-on: ubuntu-latest
-    needs: [test-build-image]
+#   deploy:
+#     name: Deploy
+#     runs-on: ubuntu-latest
+#     needs: [test-build-image]
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+#       - name: Configure AWS credentials
+#         uses: aws-actions/configure-aws-credentials@v4
+#         with:
+#           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+#           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+#       - name: Login to Amazon ECR
+#         id: login-ecr
+#         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Render new ECS task definition
-        id: render-task
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:
-          task-definition: ${{ env.ECS_TASK_DEFINITION }}
-          container-name: api
-          image: ${{ steps.login-ecr.outputs.registry }}/${{ secrets.AWS_ECR_API_SERVER_REPOSITORY }}:latest
-          environment-variables: |
-            DB_URL=${{ secrets.DB_URL }}
-            DB_USER=${{ secrets.DB_USER }}
-            DB_PASS=${{ secrets.DB_PASS }}
-            AWS_ACCESS_KEY=${{ secrets.AWS_ACCESS_KEY }}
-            AWS_SECRET_KEY=${{ secrets.AWS_SECRET_KEY }}
-            AWS_REGION=${{ env.AWS_REGION }}
-            COGNITO_CLIENT_ID=${{ secrets.COGNITO_CLIENT_ID }}
-            COGNITO_CLIENT_SECRET=${{ secrets.COGNITO_CLIENT_SECRET }}
-            COGNITO_REDIRECT_URI=${{ secrets.COGNITO_REDIRECT_URI }}
-            COGNITO_TOKEN_URI=${{ secrets.COGNITO_TOKEN_URI }}
-            COGNITO_JWK_SET_URI=${{ secrets.COGNITO_JWK_SET_URI }}
-            DYNAMODB_AI_CHAT_TABLE=${{ secrets.DYNAMODB_AI_CHAT_TABLE }}
-            DYNAMODB_CHAT_TABLE=${{ secrets.DYNAMODB_CHAT_TABLE }}
+#       - name: Render new ECS task definition
+#         id: render-task
+#         uses: aws-actions/amazon-ecs-render-task-definition@v1
+#         with:
+#           task-definition: ${{ env.ECS_TASK_DEFINITION }}
+#           container-name: api
+#           image: ${{ steps.login-ecr.outputs.registry }}/${{ secrets.AWS_ECR_API_SERVER_REPOSITORY }}:latest
+#           environment-variables: |
+#             DB_URL=${{ secrets.DB_URL }}
+#             DB_USER=${{ secrets.DB_USER }}
+#             DB_PASS=${{ secrets.DB_PASS }}
+#             AWS_ACCESS_KEY=${{ secrets.AWS_ACCESS_KEY }}
+#             AWS_SECRET_KEY=${{ secrets.AWS_SECRET_KEY }}
+#             AWS_REGION=${{ env.AWS_REGION }}
+#             COGNITO_CLIENT_ID=${{ secrets.COGNITO_CLIENT_ID }}
+#             COGNITO_CLIENT_SECRET=${{ secrets.COGNITO_CLIENT_SECRET }}
+#             COGNITO_REDIRECT_URI=${{ secrets.COGNITO_REDIRECT_URI }}
+#             COGNITO_TOKEN_URI=${{ secrets.COGNITO_TOKEN_URI }}
+#             COGNITO_JWK_SET_URI=${{ secrets.COGNITO_JWK_SET_URI }}
+#             DYNAMODB_AI_CHAT_TABLE=${{ secrets.DYNAMODB_AI_CHAT_TABLE }}
+#             DYNAMODB_CHAT_TABLE=${{ secrets.DYNAMODB_CHAT_TABLE }}
 
-      - name: Deploy Amazon ECS task definition
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
-        with:
-          task-definition: ${{ steps.render-task.outputs.task-definition-file }}
-          service: ${{ env.ECS_SERVICE }}
-          cluster: ${{ env.ECS_CLUSTER }}
-          wait-for-service-stability: true        
+#       - name: Deploy Amazon ECS task definition
+#         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+#         with:
+#           task-definition: ${{ steps.render-task.outputs.task-definition-file }}
+#           service: ${{ env.ECS_SERVICE }}
+#           cluster: ${{ env.ECS_CLUSTER }}
+#           wait-for-service-stability: true        

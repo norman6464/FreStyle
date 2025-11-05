@@ -18,3 +18,10 @@
    `npm install -D tailwindcss@バージョン指定`
 
 7.  `npx tailwindcss init -p` で初期設定をします。
+
+
+## 🏗️ AWSアーキテクチャ構成図
+
+以下は本アプリケーションのAWS構成図です。
+
+![AWSアーキテクチャ構成図](./architecture/aws-architecture.png)

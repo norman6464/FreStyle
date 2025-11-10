@@ -26,7 +26,7 @@ public class User {
     @Column(length = 36, unique = true, name = "cognito_sub")
     private String cognitoSub;
 
-    @Column(length = 255, nullable = false, unique = true)
+    @Column(length = 255, nullable = false)
     private String username;
 
     @Column(length = 254, nullable = false, unique = true)

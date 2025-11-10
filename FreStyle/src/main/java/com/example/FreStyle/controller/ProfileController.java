@@ -85,7 +85,7 @@ public ResponseEntity<?> updateProfile(
     }
 
   } catch (Exception e) {
-    System.out.println("プロフィール更新エラー: " + e.getMessage());
+    System.out.println("profile update error" + e.getMessage());
     return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
   }
 

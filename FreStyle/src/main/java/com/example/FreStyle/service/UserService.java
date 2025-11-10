@@ -1,7 +1,6 @@
 package com.example.FreStyle.service;
 
 import java.util.List;
-import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -140,6 +139,7 @@ public class UserService {
     return users;
   }
 
+
   @Transactional
   public void updateUser(ProfileForm form, String sub) {
     User user = userRepository.findByCognitoSub(sub)
@@ -150,5 +150,6 @@ public class UserService {
     
     userRepository.save(user);
   }
+
 
 }

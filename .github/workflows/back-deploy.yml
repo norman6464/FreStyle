@@ -22,7 +22,7 @@ jobs:
     timeout-minutes: 10
     defaults:
       run:
-        working-directory: web
+        working-directory: FreStyle
     steps:
       # このステップでGitHubのリポジトリをアクションの実行環境でコピーする
       - uses: actions/checkout@v4

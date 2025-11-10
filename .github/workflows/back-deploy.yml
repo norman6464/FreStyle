@@ -85,8 +85,8 @@ jobs:
             DB_URL=${{ secrets.DB_URL }}
             DB_USER=${{ secrets.DB_USER }}
             DB_PASS=${{ secrets.DB_PASS }}
-            AWS_ACCESS_KEY=${{ secrets.AWS_ACCESS_KEY }}
-            AWS_SECRET_KEY=${{ secrets.AWS_SECRET_KEY }}
+            AWS_ACCESS_KEY=${{ secrets.SPRING_AWS_ACCESS_KEY }}
+            AWS_SECRET_KEY=${{ secrets.SPRING_AWS_SECRET_KEY }}
             AWS_REGION=${{ env.AWS_REGION }}
             COGNITO_CLIENT_ID=${{ secrets.COGNITO_CLIENT_ID }}
             COGNITO_CLIENT_SECRET=${{ secrets.COGNITO_CLIENT_SECRET }}

@@ -1,50 +1,50 @@
-# name: Deploy React app to S3
+name: Deploy React app to S3
 
-# on:
-#   push:
-#     branches:
-#       - main
-#     paths:
-#       - frontend/**
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - frontend/**
 
-# jobs:
-#   deploy:
-#     runs-on: ubuntu-latest
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
 
-#     defaults:
-#       run:
-#         working-directory: ./frontend
+    defaults:
+      run:
+        working-directory: ./frontend
 
-#     env:
-#       VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
-#       VITE_WEB_SOCKET_URL_AI_CHAT: ${{ secrets.VITE_WEB_SOCKET_URL_AI_CHAT }}
-#       VITE_WEB_SOCKET_URL_CHAT: ${{ secrets.VITE_WEB_SOCKET_URL_CHAT }}
-#       VITE_COGNITO_DOMAIN: ${{ secrets.VITE_COGNITO_DOMAIN }}
-#       VITE_CLIENT_ID: ${{ secrets.VITE_CLIENT_ID }}
-#       VITE_REDIRECT_URI: ${{ secrets.VITE_REDIRECT_URI }}
-#       VITE_RESPONSE_TYPE: ${{ secrets.VITE_RESPONSE_TYPE }}
-#       VITE_SCOPE: ${{ secrets.VITE_SCOPE }}
+    env:
+      VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+      VITE_WEB_SOCKET_URL_AI_CHAT: ${{ secrets.VITE_WEB_SOCKET_URL_AI_CHAT }}
+      VITE_WEB_SOCKET_URL_CHAT: ${{ secrets.VITE_WEB_SOCKET_URL_CHAT }}
+      VITE_COGNITO_DOMAIN: ${{ secrets.VITE_COGNITO_DOMAIN }}
+      VITE_CLIENT_ID: ${{ secrets.VITE_CLIENT_ID }}
+      VITE_REDIRECT_URI: ${{ secrets.VITE_REDIRECT_URI }}
+      VITE_RESPONSE_TYPE: ${{ secrets.VITE_RESPONSE_TYPE }}
+      VITE_SCOPE: ${{ secrets.VITE_SCOPE }}
 
-#     steps:
-#       - uses: actions/checkout@v3
+    steps:
+      - uses: actions/checkout@v3
 
-#       - name: Use Node.js
-#         uses: actions/setup-node@v3
-#         with:
-#           node-version: 18
+      - name: Use Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
 
-#       - name: Install dependencies
-#         run: npm ci
+      - name: Install dependencies
+        run: npm ci
 
-#       - name: Build React app
-#         run: npm run build
+      - name: Build React app
+        run: npm run build
 
-#       - name: Configure AWS credentials
-#         uses: aws-actions/configure-aws-credentials@v2
-#         with:
-#           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-#           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-#           aws-region: ap-northeast-1
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-1
 
-#       - name: Sync files to S3
-#         run: aws s3 sync dist/ s3://fre-style-bucket --delete
+      - name: Sync files to S3
+        run: aws s3 sync dist/ s3://fre-style-bucket --delete

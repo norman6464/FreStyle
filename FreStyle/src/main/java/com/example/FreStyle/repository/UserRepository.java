@@ -25,11 +25,9 @@ public interface UserRepository extends JpaRepository<User, Integer> {
   @Query("SELECT u.id FROM User u WHERE u.cognitoSub = :sub")
   Optional<Integer> findIdByCognitoSub(@Param("sub") String sub);
   
-  // 部分一致検索
   @Query("SELECT new com.example.FreStyle.dto.UserDto(u.id, u.email) FROM User u WHERE u.email LIKE :email AND u.id <> :id")
   List<UserDto> findIdAndEmailByEmailLikeDtos(@Param("id") Integer id,@Param("email") String email);
 
-  // 全件取得
   @Query("SELECT new com.example.FreStyle.dto.UserDto(u.id, u.email) FROM User u WHERE u.id <> :id")
   List<UserDto> findAllUserDtos(@Param("id") Integer id);
 

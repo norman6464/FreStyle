@@ -112,7 +112,7 @@ public class CognitoAuthController {
 
             ResponseCookie cookie = ResponseCookie.from("ACCESS_TOKEN", accessToken)
                     .httpOnly(true)
-                    .secure(false) // HTTPS 開発環境なら false
+                    .secure(true) // HTTPS 開発環境なら false
                     .path("/")
                     .maxAge(3600)
                     .sameSite("Lax") // クロスオリジンでも送信
@@ -193,7 +193,7 @@ public class CognitoAuthController {
 
             ResponseCookie cookie = ResponseCookie.from("ACCESS_TOKEN", accessToken)
                     .httpOnly(true)
-                    .secure(false) // HTTPS 開発環境なら false
+                    .secure(true) // HTTPS 開発環境なら false
                     .path("/")
                     .maxAge(3600)
                     .sameSite("Lax") // クロスオリジンでも送信

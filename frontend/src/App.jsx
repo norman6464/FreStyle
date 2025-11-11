@@ -32,9 +32,9 @@ export default function App() {
       <Route
         path="/"
         element={
-          // <AppWrapper>
-          <MenuPage />
-          // </AppWrapper>
+          <AppWrapper>
+            <MenuPage />
+          </AppWrapper>
         }
       />
       <Route

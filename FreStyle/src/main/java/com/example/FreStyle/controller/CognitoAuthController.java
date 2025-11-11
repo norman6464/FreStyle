@@ -109,6 +109,8 @@ public class CognitoAuthController {
 
             JWTClaimsSet claims = claimsOpt.get();
             userService.registerCognitoSubject(claims.getSubject(), form.getEmail());
+            
+            System.out.println("accessToken = " + accessToken);
 
             ResponseCookie cookie = ResponseCookie.from("ACCESS_TOKEN", accessToken)
                     .httpOnly(true)
@@ -125,6 +127,7 @@ public class CognitoAuthController {
                         "name", claims.getStringClaim("name"),
                         "sub", claims.getSubject(),
                         "message", "ログイン成功");
+                        System.out.println("success");
                 return ResponseEntity.ok(responseData);
             } catch (ParseException e) {
                 return ResponseEntity.internalServerError()

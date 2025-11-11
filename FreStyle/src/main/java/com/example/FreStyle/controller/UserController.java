@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -24,8 +25,9 @@ public class UserController {
   }
   
     @GetMapping("/me")
-    public ResponseEntity<?> getUserInfo(@AuthenticationPrincipal Jwt jwt) {
-      
+    public ResponseEntity<?> getUserInfo(@AuthenticationPrincipal Jwt jwt,@RequestHeader Map<String, String> headers) {
+      // デバック用のヘッダーをつけている
+      headers.forEach((k, v) -> System.out.println(k + " = " + v));
       System.out.println("GET /api/user/me");
       
       String sub = jwt.getSubject();

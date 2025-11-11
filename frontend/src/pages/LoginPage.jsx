@@ -44,11 +44,7 @@ export default function LoginPage() {
       if (response.ok) {
         dispatch(setAuthData(data));
         console.log('ログインに成功しました。');
-        navigate('/', {
-          state: {
-            message: 'ログインに成功しました。',
-          },
-        });
+        navigate('/');
       } else {
         setLoginMessage({
           type: 'error',

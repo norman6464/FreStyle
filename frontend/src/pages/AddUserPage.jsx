@@ -42,6 +42,7 @@ export default function AddUserPage() {
       signal: controller.signal,
     })
       .then((res) => {
+        console.log(res.status);
         if (res.status === 401) {
           navigate('/login');
           return;

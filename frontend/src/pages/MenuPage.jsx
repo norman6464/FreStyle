@@ -2,12 +2,10 @@ import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { use, useState } from 'react';
 import HamburgerMenu from '../components/HamburgerMenu';
-import { useLocation } from 'react-router-dom';
 
 export default function MenuPage() {
   const navigate = useNavigate();
-  const location = useLocation();
-  const message = location.state?.message;
+  const message = useSelector((state) => state.flash?.message);
 
   return (
     <>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { useDispatch } from 'react-redux';
+import { useDispatch, setFlashMessage } from 'react-redux';
 import { setAuthData } from '../store/authSlice';
 
 export default function AppWrapper({ children }) {
@@ -19,6 +19,7 @@ export default function AppWrapper({ children }) {
       })
       .then((data) => {
         setUser(data);
+        // dispatch(setFlashMessage('ログインに成功しました.'));
         dispatch(setAuthData(data));
       })
       .catch(() => setUser(null))

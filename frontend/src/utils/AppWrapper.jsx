@@ -13,6 +13,7 @@ export default function AppWrapper({ children }) {
       credentials: 'include',
     })
       .then((res) => {
+        console.log('未ログインかまたは正しくトークンが渡されていない。');
         if (!res.ok) throw new Error('未ログイン');
         return res.json();
       })

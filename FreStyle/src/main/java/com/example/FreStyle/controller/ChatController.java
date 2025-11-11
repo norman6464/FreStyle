@@ -21,8 +21,6 @@ import com.example.FreStyle.dto.UserDto;
 import com.example.FreStyle.service.ChatService;
 import com.example.FreStyle.service.UserService;
 
-// members（友達追加をしている状態）
-// users（友達追加をしていない状態）
 @RestController
 @RequestMapping("/api/chat/")
 public class ChatController {
@@ -35,42 +33,6 @@ public class ChatController {
     this.userService = userService;
     this.chatService = chatService;
   }
-
-  // GET api/chat/members
-  // 現在のユーザーの友達一覧を表示するためのデータを返す
-  // @GetMapping("/members")
-  // public ResponseEntity<?> members(@AuthenticationPrincipal Jwt jwt,
-  // @RequestParam(name = "query", required = false) String query) {
-
-  // String cognitoSub = jwt.getSubject();
-
-  // if (cognitoSub == null || cognitoSub.trim().isEmpty()) {
-  // Map<String, String> errorData = new HashMap<>();
-  // errorData.put("error", "無効なリクエストです。");
-  // return ResponseEntity.badRequest().body(errorData);
-  // }
-
-  // try {
-
-  // List<String> usersName = new ArrayList<>();
-  // Integer userId = userService.findUserIdByCognitoSub(cognitoSub);
-  // List<Integer> roomId = roomMemberService.findRoomId(userId);
-  // if (!roomId.isEmpty()) {
-  // List<User> users = roomMemberService.findUsers(userId);
-  // for (User user : users) {
-  // usersName.add(user.getUsername());
-  // }
-  // }
-
-  // Map<String, List<String>> responseData = new HashMap<>();
-  // responseData.put("name", usersName);
-  // return ResponseEntity.ok().body(responseData);
-
-  // } catch (Exception e) {
-  // return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-  // }
-
-  // }
 
   // ユーザー登録一覧
   @GetMapping("/users")

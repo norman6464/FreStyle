@@ -117,7 +117,7 @@ public class CognitoAuthController {
                     .secure(true) // HTTPS 開発環境なら false
                     .path("/")
                     .maxAge(3600)
-                    .sameSite("Lax") // クロスオリジンでも送信
+                    .sameSite("None") // クロスオリジンでも送信
                     .build();
             response.addHeader("Set-Cookie", cookie.toString());
 
@@ -199,7 +199,7 @@ public class CognitoAuthController {
                     .secure(true) // HTTPS 開発環境なら false
                     .path("/")
                     .maxAge(3600)
-                    .sameSite("Lax") // クロスオリジンでも送信
+                    .sameSite("None") // クロスオリジンでも送信
                     .build();
             response.addHeader("Set-Cookie", cookie.toString());
 
@@ -228,9 +228,9 @@ public class CognitoAuthController {
         
         Cookie cookie = new Cookie("ACCESS_TOKEN", null);
         cookie.setHttpOnly(true);
-        cookie.setSecure(false);
+        cookie.setSecure(true);
         cookie.setPath("/");
-        cookie.setMaxAge(60 * 60);
+        cookie.setMaxAge(0);
         return ResponseEntity.ok(Map.of("message", "ログアウトしました。"));
     }
     

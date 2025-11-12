@@ -42,7 +42,7 @@ public class ChatController {
     String cognitoSub = jwt.getSubject();
 
     if (cognitoSub == null || cognitoSub.isEmpty()) {
-      return ResponseEntity.badRequest().body(Map.of("error", "無効なリクエストです。"));
+      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "タイムアウトをしたか、または未ログインです。"));
     }
 
     Integer userId = userService.findUserIdByCognitoSub(cognitoSub);

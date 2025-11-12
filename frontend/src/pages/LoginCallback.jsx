@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { setAuthData } from '../store/authSlice';
+import AuthLayout from '../components/AuthLayout';
 
 export default function LoginCallback() {
   // ReduxのaccessTokenを取得する
@@ -46,5 +47,9 @@ export default function LoginCallback() {
     }
   }, [code, error, dispatch, navigate]);
 
-  return <div className="text-center mt-20">認証処理中...</div>;
+  return (
+    <AuthLayout>
+      <p className="text-center">読み込み中...</p>
+    </AuthLayout>
+  );
 }

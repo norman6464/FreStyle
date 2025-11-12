@@ -1,8 +1,13 @@
 import { useNavigate } from 'react-router-dom';
+import { useSelector, useDispatch } from 'react-redux';
+import { setAuthData, clearAuthData } from '../store/authSlice';
 
 export default function MemberItem({ id, name, roomId }) {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+  const accessToken = useSelector((state) => state.auth.accessToken);
+  const email = useSelector((state) => state.auth.email);
 
   const handleClick = async () => {
     try {
@@ -13,24 +18,65 @@ export default function MemberItem({ id, name, roomId }) {
         return;
       }
 
-      // --- ② ルームが存在しない場合は新規作成 ---
       console.log(`🆕 新規ルーム作成リクエスト送信: userId = ${id}`);
 
-      const res = await fetch(`${API_BASE_URL}/api/chat/users/${id}/create`, {
+      // --- ② APIリクエスト ---
+      let res = await fetch(`${API_BASE_URL}/api/chat/users/${id}/create`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
         },
         credentials: 'include',
       });
 
-      // --- 認証切れ ---
+      // --- ③ トークン期限切れの場合、リフレッシュを試みる ---
       if (res.status === 401) {
-        navigate('/login');
-        return;
+        console.warn('⚠️ アクセストークン期限切れ。リフレッシュ試行中...');
+
+        const refreshRes = await fetch(
+          `${API_BASE_URL}/api/auth/cognito/refresh-token?email=${encodeURIComponent(
+            email
+          )}`,
+          {
+            method: 'POST',
+            credentials: 'include', // Cookie送信
+          }
+        );
+
+        if (!refreshRes.ok) {
+          console.error('❌ リフレッシュ失敗。ログインへリダイレクト。');
+          dispatch(clearAuthData());
+          navigate('/login');
+          return;
+        }
+
+        const refreshData = await refreshRes.json();
+        const newAccessToken = refreshData.accessToken;
+
+        if (!newAccessToken) {
+          console.error('❌ 新アクセストークンが取得できませんでした。');
+          dispatch(clearAuthData());
+          navigate('/login');
+          return;
+        }
+
+        // Reduxに保存
+        dispatch(setAuthData({ accessToken: newAccessToken }));
+        console.log('✅ 新アクセストークン取得成功。リクエスト再試行。');
+
+        // --- 再試行 ---
+        res = await fetch(`${API_BASE_URL}/api/chat/users/${id}/create`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${newAccessToken}`,
+          },
+          credentials: 'include',
+        });
       }
 
-      // --- 失敗処理 ---
+      // --- ④ エラーハンドリング ---
       if (!res.ok) {
         const errText = await res.text();
         throw new Error(`ルーム作成に失敗しました: ${errText}`);
@@ -39,9 +85,9 @@ export default function MemberItem({ id, name, roomId }) {
       const data = await res.json();
       console.log('🆗 ルーム作成成功:', data);
 
-      // --- ③ 新しいルームIDが返ってきたらチャットへ遷移 ---
+      // --- ⑤ 新しいルームへ遷移 ---
       if (data.roomId) {
-        console.log(`➡️ チャット画面へ遷移: /chat/${data.roomId}`);
+        console.log(`➡️ チャット画面へ遷移: /chat/users/${data.roomId}`);
         navigate(`/chat/users/${data.roomId}`);
       } else {
         console.error('❌ APIレスポンスに roomId が含まれていません:', data);

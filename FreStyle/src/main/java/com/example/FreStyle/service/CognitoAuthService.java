@@ -229,4 +229,33 @@ public class CognitoAuthService {
             throw new RuntimeException("SECRET_HASHの計算中にエラーが発生しました。", e);
         }
     }
+    
+    // リフレッシュトークンでJWTトークンの再発行をする
+    public Map<String, String> refreshAccessToken(String refreshToken) {
+        Map<String, String> authParams = new HashMap<>();
+        authParams.put("REFRESH_TOKEN", refreshToken);
+        authParams.put("SECRET_HASH", calculateSecretHash(null)); // usernameは空文字でもOK
+        
+        InitiateAuthRequest authRequest = InitiateAuthRequest.builder()
+            .authFlow(AuthFlowType.REFRESH_TOKEN)
+            .clientId(clientId)
+            .authParameters(authParams)
+            .build();
+            
+        try {
+            InitiateAuthResponse response = cognitoClient.initiateAuth(authRequest);
+            AuthenticationResultType result = response.authenticationResult();
+            
+            Map<String, String> tokens = new HashMap<>();
+            
+            tokens.put("accessToken", result.accessToken());
+            tokens.put("idToken", result.idToken());
+            tokens.put("refreshToken", result.refreshToken());
+            return tokens;
+        } catch (NotAuthorizedException e) {
+            throw new RuntimeException("リフレッシュトークンが無効です。再ログインしてください。");
+        } catch (Exception e) {
+            throw new RuntimeException("アクセストークン再発行中にエラーが発生しました。");
+        }
+    }
 }

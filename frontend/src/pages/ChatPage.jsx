@@ -1,51 +1,109 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import MessageBubble from '../components/MessageBubble';
 import MessageInput from '../components/MessageInput';
 import HamburgerMenu from '../components/HamburgerMenu';
-import { useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { useSelector, useDispatch } from 'react-redux';
+import { setAuthData, clearAuthData } from '../store/authSlice';
 
 export default function ChatPage() {
   const [messages, setMessages] = useState([]);
   const wsRef = useRef(null);
   const { roomId } = useParams();
   const senderId = useSelector((state) => state.auth.sub);
+  const accessToken = useSelector((state) => state.auth.accessToken);
+  const email = useSelector((state) => state.auth.email);
   const navigate = useNavigate();
+  const dispatch = useDispatch();
+
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-  // --- チャット履歴取得 ---
+  // --- チャット履歴取得（JWT認証＋リフレッシュ対応） ---
   const fetchHistory = async () => {
     try {
-      console.log('リクエスト開始');
-      const response = await fetch(
+      console.log('📡 履歴リクエスト開始');
+      const res = await fetch(
         `${API_BASE_URL}/api/chat/users/${roomId}/history`,
         {
           headers: {
             'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
           },
-          credentials: 'include',
+          credentials: 'include', // Cookie（Refresh Token）送信
         }
       );
 
-      if (response.status === 401) {
-        navigate('/login');
+      // アクセストークン期限切れ
+      if (res.status === 401) {
+        console.warn('アクセストークン期限切れ。リフレッシュを試行します。');
+
+        const refreshRes = await fetch(
+          `${API_BASE_URL}/api/auth/cognito/refresh-token`,
+          {
+            method: 'POST',
+            credentials: 'include',
+          }
+        );
+
+        if (!refreshRes.ok) {
+          console.error('リフレッシュ失敗。再ログインへ遷移。');
+          dispatch(clearAuthData());
+          navigate('/login');
+          return;
+        }
+
+        const refreshData = await refreshRes.json();
+        const newAccessToken = refreshData.accessToken;
+
+        if (!newAccessToken) {
+          console.warn('新しいアクセストークンが取得できませんでした。');
+          dispatch(clearAuthData());
+          navigate('/login');
+          return;
+        }
+
+        // Redux更新
+        dispatch(setAuthData({ accessToken: newAccessToken }));
+        console.log('✅ アクセストークン更新成功。再リクエストを実行します。');
+
+        // 再試行
+        const retryRes = await fetch(
+          `${API_BASE_URL}/api/chat/users/${roomId}/history`,
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${newAccessToken}`,
+            },
+            credentials: 'include',
+          }
+        );
+
+        if (!retryRes.ok) throw new Error('再リクエスト失敗');
+
+        const retryData = await retryRes.json();
+        const formattedMessages = retryData.map((msg) => ({
+          id: msg.timestamp,
+          content: msg.content,
+          isSender: msg.isUser,
+        }));
+        setMessages(formattedMessages);
+        console.log('✅ 履歴再取得成功');
         return;
       }
 
-      const data = await response.json();
+      // 通常成功時
+      if (!res.ok) throw new Error(`履歴取得失敗: ${res.status}`);
 
+      const data = await res.json();
       const formattedMessages = data.map((msg) => ({
         id: msg.timestamp,
         content: msg.content,
-        isSender: msg.isUser, // Spring 側の isUser をそのまま使用
+        isSender: msg.isUser,
       }));
-
       setMessages(formattedMessages);
       console.log('✅ 履歴取得成功');
-      console.log(data);
     } catch (err) {
-      console.error('❌ 履歴取得失敗:', err);
+      console.error('❌ 履歴取得中エラー:', err);
     }
   };
 
@@ -89,7 +147,7 @@ export default function ChatPage() {
     return () => {
       if (wsRef.current) wsRef.current.close();
     };
-  }, [roomId, senderId]);
+  }, [roomId, senderId, accessToken]);
 
   // --- メッセージ送信 ---
   const handleSend = (text) => {

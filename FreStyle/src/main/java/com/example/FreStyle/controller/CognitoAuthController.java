@@ -19,8 +19,6 @@ import com.example.FreStyle.service.CognitoAuthService;
 import com.example.FreStyle.service.UserService;
 import com.example.FreStyle.utils.JwtUtils;
 import com.nimbusds.jwt.JWTClaimsSet;
-
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.nio.charset.StandardCharsets;
@@ -100,6 +98,8 @@ public class CognitoAuthController {
             String idToken = tokens.get("idToken");
 
             String accessToken = tokens.get("accessToken");
+            
+            String refreshToken = tokens.get("refreshToken");
 
             // デコードをしてクライアントに情報をわたす。
             Optional<JWTClaimsSet> claimsOpt = JwtUtils.decode(idToken);
@@ -111,8 +111,9 @@ public class CognitoAuthController {
             userService.registerCognitoSubject(claims.getSubject(), form.getEmail());
             
             System.out.println("accessToken = " + accessToken);
+            System.out.println("refreshToken = " + refreshToken);
 
-            ResponseCookie cookie = ResponseCookie.from("ACCESS_TOKEN", accessToken)
+            ResponseCookie cookie = ResponseCookie.from("REFRESH_TOKEN", refreshToken)
                     .httpOnly(true)
                     .secure(true) // HTTPS 開発環境なら false
                     .path("/")
@@ -124,9 +125,9 @@ public class CognitoAuthController {
             try {
                 Map<String, Object> responseData = Map.of(
                         "email", claims.getStringClaim("email"),
-                        "name", claims.getStringClaim("name"),
+                        "name", claims.getStringClaim(  "name"),
                         "sub", claims.getSubject(),
-                        "message", "ログイン成功");
+                        "accessToken", accessToken);
                         System.out.println("success");
                 return ResponseEntity.ok(responseData);
             } catch (ParseException e) {
@@ -173,6 +174,7 @@ public class CognitoAuthController {
 
         String idToken = (String) tokenResponse.get("id_token");
         String accessToken = (String) tokenResponse.get("access_token");
+        String refreshToken = (String) tokenResponse.get("refresh_token");
 
         Optional<JWTClaimsSet> claimsOpt = JwtUtils.decode(idToken);
 
@@ -194,7 +196,7 @@ public class CognitoAuthController {
 
             userService.registerUserOIDC("guest", email, sub);
 
-            ResponseCookie cookie = ResponseCookie.from("ACCESS_TOKEN", accessToken)
+            ResponseCookie cookie = ResponseCookie.from("REFRESH_TOKEN", refreshToken)
                     .httpOnly(true)
                     .secure(true) // HTTPS 開発環境なら false
                     .path("/")
@@ -206,7 +208,8 @@ public class CognitoAuthController {
             Map<String, Object> responseData = Map.of(
                     "email", email,
                     "name", name,
-                    "sub", sub);
+                    "sub", sub,
+                    "accessToken", accessToken);
 
             return ResponseEntity.ok(responseData);
 
@@ -226,11 +229,15 @@ public class CognitoAuthController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "無効なリクエストです。"));
         }
         
-        Cookie cookie = new Cookie("ACCESS_TOKEN", null);
-        cookie.setHttpOnly(true);
-        cookie.setSecure(true);
-        cookie.setPath("/");
-        cookie.setMaxAge(0);
+        ResponseCookie cookie = ResponseCookie.from("REFRESH_TOKEN", null)
+        .httpOnly(true)
+        .secure(true)
+        .path("/")
+        .maxAge(0)
+        .sameSite("None")
+        .build();
+        response.addHeader("Set-Cookie", cookie.toString());
+        
         return ResponseEntity.ok(Map.of("message", "ログアウトしました。"));
     }
     
@@ -245,6 +252,26 @@ public class CognitoAuthController {
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }    
+    }
+    
+    // リフレッシュトークンを使用しJWTトークンの再発行
+    @PostMapping("/refresh-token")
+    public ResponseEntity<?> refreshToken(@CookieValue(name = "REFRESH_TOKEN",required = false) String refreshToken) {
+        
+        if (refreshToken == null || refreshToken.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(Map.of("error", "リフレッシュトークンが存在しません。"));
+        }
+        
+        try {
+            Map<String, String> tokens = cognitoAuthService.refreshAccessToken(refreshToken);
+            
+            // 新しいアクセストークンを返す（リフレッシュトークンはCookieにそのまま）
+            Map<String, String> responseData = Map.of("accessToken", tokens.get("accessToken"));
+            return ResponseEntity.ok(responseData);
+        } catch(RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", e.getMessage()));
+        }
     }
     
     // パスワード更新

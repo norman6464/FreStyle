@@ -2,87 +2,195 @@ import { useState, useEffect } from 'react';
 import AuthLayout from '../components/AuthLayout';
 import InputField from '../components/InputField';
 import PrimaryButton from '../components/PrimaryButton';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import HamburgerMenu from '../components/HamburgerMenu';
+import { setAuthData, clearAuthData } from '../store/authSlice';
 
 export default function ProfilePage() {
   const [form, setForm] = useState({ username: '', bio: '' });
   const [message, setMessage] = useState(null);
-  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
 
-  // ページがレンダリングされたときにプロフィールを取得
-  useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/profile/me`, {
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+  const accessToken = useSelector((state) => state.auth.accessToken);
+  const email = useSelector((state) => state.auth.email);
+
+  // ----------------------------
+  // プロフィール取得 (アクセストークン + リフレッシュ対応)
+  // ----------------------------
+  const fetchProfile = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/profile/me`, {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        credentials: 'include', // RefreshToken送信
+      });
+
+      // トークン期限切れならリフレッシュを試みる
+      if (res.status === 401) {
+        console.warn('アクセストークン期限切れ、リフレッシュ試行');
+        const refreshRes = await fetch(
+          `${API_BASE_URL}/api/auth/cognito/refresh-token`,
+          {
+            method: 'POST',
+            credentials: 'include',
+          }
+        );
+
+        if (!refreshRes.ok) {
+          console.error('リフレッシュ失敗、ログインへリダイレクト');
+          dispatch(clearAuthData());
+          navigate('/login');
+          return;
+        }
+
+        const refreshData = await refreshRes.json();
+        const newAccessToken = refreshData.accessToken;
+
+        if (!newAccessToken) {
+          dispatch(clearAuthData());
+          navigate('/login');
+          return;
+        }
+
+        // Redux更新
+        dispatch(setAuthData({ accessToken: newAccessToken }));
+        console.log('✅ アクセストークン更新済み、再試行');
+
+        const retryRes = await fetch(`${API_BASE_URL}/api/profile/me`, {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${newAccessToken}`,
+          },
           credentials: 'include',
         });
-        const data = await response.json();
-        if (response.ok) {
-          setForm({
-            username: data.username || '',
-            bio: data.bio || '',
-          });
-        } else {
-          setMessage({
-            type: 'error',
-            text: data.error || 'プロフィール取得に失敗しました。',
-          });
-        }
-      } catch (error) {
-        console.error(error);
-        setMessage({ type: 'error', text: '通信エラーが発生しました。' });
-      } finally {
+
+        const retryData = await retryRes.json();
+        if (!retryRes.ok)
+          throw new Error(
+            retryData.error || 'プロフィール再取得に失敗しました。'
+          );
+
+        setForm({
+          username: retryData.username || '',
+          bio: retryData.bio || '',
+        });
         setLoading(false);
+        return;
       }
-    };
 
-    fetchProfile();
-  }, []);
+      const data = await res.json();
+      if (!res.ok)
+        throw new Error(data.error || 'プロフィール取得に失敗しました。');
 
-  const handleChange = (e) => {
-    setForm({
-      ...form,
-      [e.target.name]: e.target.value,
-    });
+      setForm({
+        username: data.username || '',
+        bio: data.bio || '',
+      });
+    } catch (err) {
+      console.error('❌ プロフィール取得失敗:', err);
+      setMessage({ type: 'error', text: err.message });
+    } finally {
+      setLoading(false);
+    }
   };
 
+  useEffect(() => {
+    fetchProfile();
+  }, [accessToken, email]);
+
+  // ----------------------------
+  // プロフィール更新
+  // ----------------------------
   const handleUpdate = async (e) => {
     e.preventDefault();
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_BASE_URL}/api/profile/me/update`, {
+      const res = await fetch(`${API_BASE_URL}/api/profile/me/update`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
         },
         credentials: 'include',
         body: JSON.stringify(form),
       });
-      const data = await response.json();
-      if (response.ok) {
+
+      // 401 → トークン更新を試みる
+      if (res.status === 401) {
+        console.warn('アクセストークン期限切れ、リフレッシュ試行');
+        const refreshRes = await fetch(
+          `${API_BASE_URL}/api/auth/cognito/refresh-token?email=${encodeURIComponent(
+            email
+          )}`,
+          {
+            method: 'POST',
+            credentials: 'include',
+          }
+        );
+
+        if (!refreshRes.ok) {
+          dispatch(clearAuthData());
+          navigate('/login');
+          return;
+        }
+
+        const refreshData = await refreshRes.json();
+        const newAccessToken = refreshData.accessToken;
+        if (!newAccessToken) {
+          dispatch(clearAuthData());
+          navigate('/login');
+          return;
+        }
+
+        // Redux更新
+        dispatch(setAuthData({ accessToken: newAccessToken }));
+
+        console.log('✅ アクセストークン更新済み、再試行');
+        const retryRes = await fetch(`${API_BASE_URL}/api/profile/me/update`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${newAccessToken}`,
+          },
+          credentials: 'include',
+          body: JSON.stringify(form),
+        });
+
+        const retryData = await retryRes.json();
+        if (!retryRes.ok)
+          throw new Error(
+            retryData.error || 'プロフィール更新に失敗しました。'
+          );
+
         setMessage({
           type: 'success',
-          text: data.success || 'プロフィールを更新しました。',
+          text: retryData.success || 'プロフィールを更新しました。',
         });
-      } else if (response.status === 401) {
-        navigate('/login');
         return;
-      } else {
-        setMessage({
-          type: 'error',
-          text: data.error || 'プロフィール更新に失敗しました。',
-        });
       }
+
+      const data = await res.json();
+      if (!res.ok)
+        throw new Error(data.error || 'プロフィール更新に失敗しました。');
+
+      setMessage({
+        type: 'success',
+        text: data.success || 'プロフィールを更新しました。',
+      });
     } catch (error) {
       console.error(error);
       setMessage({ type: 'error', text: '通信エラーが発生しました。' });
     }
   };
 
+  // ----------------------------
+  // ローディング時
+  // ----------------------------
   if (loading) {
     return (
       <AuthLayout>
@@ -91,6 +199,9 @@ export default function ProfilePage() {
     );
   }
 
+  // ----------------------------
+  // 表示
+  // ----------------------------
   return (
     <>
       <HamburgerMenu title="プロフィール編集" />
@@ -114,13 +225,17 @@ export default function ProfilePage() {
             label="ニックネーム"
             name="username"
             value={form.username}
-            onChange={handleChange}
+            onChange={(e) =>
+              setForm((prev) => ({ ...prev, username: e.target.value }))
+            }
           />
           <InputField
             label="自己紹介"
             name="bio"
             value={form.bio}
-            onChange={handleChange}
+            onChange={(e) =>
+              setForm((prev) => ({ ...prev, bio: e.target.value }))
+            }
           />
           <PrimaryButton type="submit">更新</PrimaryButton>
         </form>

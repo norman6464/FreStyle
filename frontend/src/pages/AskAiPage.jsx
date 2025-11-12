@@ -2,56 +2,123 @@ import { useState, useEffect, useRef } from 'react';
 import MessageBubble from '../components/MessageBubble';
 import MessageInput from '../components/MessageInput';
 import HamburgerMenu from '../components/HamburgerMenu';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
+import { setAuthData, clearAuthData } from '../store/authSlice';
 
 export default function AskAiPage() {
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+  const WS_URL = import.meta.env.VITE_WEB_SOCKET_URL_AI_CHAT;
+
   const [messages, setMessages] = useState([]);
-  const senderId = useSelector((state) => state.auth.sub); // subをsenderIdにする
   const wsRef = useRef(null);
   const navigate = useNavigate();
+  const dispatch = useDispatch();
 
-  // --- WebSocket & 履歴取得 ---
+  const accessToken = useSelector((state) => state.auth.accessToken);
+  const senderId = useSelector((state) => state.auth.sub);
+
+  // --- チャット履歴取得 ---
   useEffect(() => {
-    // ① 履歴取得（Spring Boot 経由）
     const fetchHistory = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/chat/ai/history`, {
+        const res = await fetch(`${API_BASE_URL}/api/chat/ai/history`, {
           headers: {
             'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
           },
-          credentials: 'include',
+          credentials: 'include', // Cookie送信
         });
 
-        if (response.status === 401) {
-          navigate('/login');
+        if (res.status === 401) {
+          console.warn('アクセストークン期限切れ。リフレッシュ試行開始。');
+
+          // アクセストークン再発行
+          const refreshRes = await fetch(
+            `${API_BASE_URL}/api/auth/cognito/refresh-token`,
+            {
+              method: 'POST',
+              credentials: 'include',
+            }
+          );
+
+          if (!refreshRes.ok) {
+            console.error('リフレッシュ失敗。再ログインへ遷移。');
+            dispatch(clearAuthData());
+            navigate('/login');
+            return;
+          }
+
+          const refreshData = await refreshRes.json();
+          const newAccessToken = refreshData.accessToken;
+
+          if (!newAccessToken) {
+            console.warn('新しいアクセストークン取得失敗。再ログインへ。');
+            dispatch(clearAuthData());
+            navigate('/login');
+            return;
+          }
+
+          // Redux に新トークン反映
+          dispatch(setAuthData({ accessToken: newAccessToken }));
+
+          console.log('アクセストークン更新完了。再リクエストします。');
+
+          // --- 再試行 ---
+          const retryRes = await fetch(`${API_BASE_URL}/api/chat/ai/history`, {
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${newAccessToken}`,
+            },
+            credentials: 'include',
+          });
+
+          if (!retryRes.ok) {
+            throw new Error('再リクエスト失敗');
+          }
+
+          const retryData = await retryRes.json();
+          const formattedMessages = retryData.map((item) => ({
+            id: item.timestamp,
+            content: item.content,
+            isSender: item.user === true || item.isUser === true,
+          }));
+
+          setMessages(formattedMessages);
           return;
         }
-        const data = await response.json();
 
+        if (!res.ok) {
+          throw new Error(`履歴取得失敗: ${res.status}`);
+        }
+
+        const data = await res.json();
         const formattedMessages = data.map((item) => ({
           id: item.timestamp,
           content: item.content,
-          isSender: item.user === true || item.isUser === true, // DTO次第で両対応
+          isSender: item.user === true || item.isUser === true,
         }));
-
-        console.log('リクエスト成功', response.status);
         setMessages(formattedMessages);
       } catch (err) {
-        console.error('履歴取得失敗:', err);
+        console.error('履歴取得中にエラー:', err);
       }
     };
 
-    fetchHistory(); // 最初に呼び出し
+    // アクセストークンがある時だけ実行
+    if (accessToken) {
+      fetchHistory();
+    } else {
+      console.warn('アクセストークンがありません。ログインへ遷移');
+      navigate('/login');
+    }
+  }, [API_BASE_URL, accessToken, dispatch, navigate]);
 
-    // ② WebSocket 接続
+  // --- WebSocket接続 ---
+  useEffect(() => {
+    if (!senderId) return;
 
-    wsRef.current = new WebSocket(
-      `${
-        import.meta.env.VITE_WEB_SOCKET_URL_AI_CHAT
-      }?user_id=${senderId}&room_id=default`
-    );
+    const socketUrl = `${WS_URL}?user_id=${senderId}&room_id=default`;
+    wsRef.current = new WebSocket(socketUrl);
 
     wsRef.current.onopen = () => {
       console.log('✅ WebSocket connected');
@@ -79,29 +146,21 @@ export default function AskAiPage() {
       console.log('❎ WebSocket closed');
     };
 
-    // ③ クリーンアップ
     return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
+      if (wsRef.current) wsRef.current.close();
     };
-  }, [senderId]);
+  }, [WS_URL, senderId]);
 
   // --- メッセージ送信 ---
   const handleSend = (text) => {
     const timestampNow = Date.now();
 
-    // ① UI即時反映
+    // 即時UI反映
     setMessages((prev) => [
       ...prev,
-      {
-        id: timestampNow,
-        content: text,
-        isSender: true,
-      },
+      { id: timestampNow, content: text, isSender: true },
     ]);
 
-    // ② WebSocket 送信
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       const payload = {
         sender_id: senderId,

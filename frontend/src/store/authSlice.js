@@ -1,26 +1,36 @@
 import { createSlice } from '@reduxjs/toolkit';
 
 const initialState = {
-  sub: null,
-  name: null,
-  email: null,
+  accessToken: localStorage.getItem('accessToken') || null,
+  sub: localStorage.getItem('sub') || null,
+  name: localStorage.getItem('name') || null,
+  email: localStorage.getItem('email') || null,
 };
+
 const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
     setAuthData(state, action) {
-      const { sub, name, email } = action.payload;
+      const { accessToken, sub, name, email } = action.payload;
 
+      state.accessToken = accessToken;
       state.sub = sub;
       state.name = name;
       state.email = email;
+
+      localStorage.setItem('accessToken', accessToken);
+      localStorage.setItem('sub', sub);
+      localStorage.setItem('name', name);
+      localStorage.setItem('email', email);
     },
 
-    clearAuthData(state) {
-      state.sub = null;
-      state.name = null;
-      state.email = null;
+    clearAuthData() {
+      // Reduxのスライスのほうはメモリなのでログアウトをしたらページが移るのでそのまま勝手に消える
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('sub');
+      localStorage.removeItem('name');
+      localStorage.removeItem('email');
     },
   },
 });

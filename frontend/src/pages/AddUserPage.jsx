@@ -1,23 +1,25 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import { debounce } from 'lodash';
 import { useNavigate } from 'react-router-dom';
 import MemberList from '../components/MemberList';
 import SearchBox from '../components/SearchBox';
 import HamburgerMenu from '../components/HamburgerMenu';
+import { setAuthData, clearAuthData } from '../store/authSlice';
 
 export default function AddUserPage() {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-  // メールアドレス一覧を取得する
+  const accessToken = useSelector((state) => state.auth.accessToken);
+  const email = useSelector((state) => state.auth.email); // refresh-token API用
+
   const [users, setUsers] = useState([]);
   const [error, setError] = useState(null);
-  // 検索ボックスに含めるもの
   const [searchQuery, setSearchQuery] = useState('');
   const [debounceQuery, setDebounceQuery] = useState('');
 
-  // debounceで検索入力後にリクエストを送る
   const debounceSearch = useMemo(
     () => debounce((query) => setDebounceQuery(query), 500),
     []
@@ -29,44 +31,94 @@ export default function AddUserPage() {
   }, [searchQuery, debounceSearch]);
 
   useEffect(() => {
+    if (!accessToken) {
+      console.warn('アクセストークンがありません。ログイン画面へ');
+      navigate('/login');
+      return;
+    }
+
     const controller = new AbortController();
     const queryParam = debounceQuery
       ? `?query=${encodeURIComponent(debounceQuery)}`
       : '';
 
-    console.log('検索開始');
+    const fetchWithAuth = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/chat/users${queryParam}`, {
+          credentials: 'include', // Cookie（リフレッシュトークン）送信
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+          signal: controller.signal,
+        });
 
-    fetch(`${API_BASE_URL}/api/chat/users${queryParam}`, {
-      credentials: 'include',
-      // これは途中でリクエストを送るかどうかを決めるためのシグナル
-      signal: controller.signal,
-    })
-      .then((res) => {
-        console.log(res.status);
         if (res.status === 401) {
-          navigate('/login');
+          console.log('アクセストークン期限切れ。再発行試行');
+          const refreshRes = await fetch(
+            `${API_BASE_URL}/api/auth/cognito/refresh-token`,
+            {
+              method: 'POST',
+              credentials: 'include', // Cookieを送る
+            }
+          );
+
+          if (!refreshRes.ok) {
+            console.log('リフレッシュ失敗。再ログインへ');
+            dispatch(clearAuthData());
+            navigate('/login');
+            return;
+          }
+
+          const refreshData = await refreshRes.json();
+          const newAccessToken = refreshData.accessToken;
+
+          if (!newAccessToken) {
+            dispatch(clearAuthData());
+            navigate('/login');
+            return;
+          }
+
+          // Redux + localStorage 更新
+          dispatch(setAuthData({ accessToken: newAccessToken }));
+
+          console.log('アクセストークン更新済み。再試行します。');
+
+          // 再試行
+          const retryRes = await fetch(
+            `${API_BASE_URL}/api/chat/users${queryParam}`,
+            {
+              credentials: 'include',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${newAccessToken}`,
+              },
+              signal: controller.signal,
+            }
+          );
+
+          if (!retryRes.ok) {
+            throw new Error('再試行でも失敗しました。');
+          }
+
+          const retryData = await retryRes.json();
+          setUsers(retryData.users || []);
           return;
         }
-        return res.json();
-      })
-      .then((data) => {
-        // 今回はメールアドレスで検索をかける
-        if (data?.users && data.users.length > 0) {
-          console.log(data.users);
-          setUsers(data.users);
-        } else if (data?.users.length === 0) {
-          console.log('ログ');
-        }
-      })
-      .catch((err) => {
+
+        const data = await res.json();
+        setUsers(data.users || []);
+      } catch (err) {
         if (err.name !== 'AbortError') {
           setError(err.message);
         }
-      });
+      }
+    };
 
-    // リクエスト中止
+    fetchWithAuth();
+
     return () => controller.abort();
-  }, [debounceQuery, navigate]);
+  }, [debounceQuery, navigate, accessToken, email, dispatch, API_BASE_URL]);
 
   return (
     <>

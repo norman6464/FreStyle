@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import { use, useState } from 'react';
+import { use, useState, useEffect } from 'react';
 import HamburgerMenu from '../components/HamburgerMenu';
 
 export default function MenuPage() {
@@ -8,9 +8,11 @@ export default function MenuPage() {
   const message = useSelector((state) => state.flash?.message);
   const accessToken = useSelector((state) => state.auth.accessToken);
 
-  if (!accessToken) {
-    navigate('/login');
-  }
+  useEffect(() => {
+    if (!accessToken) {
+      navigate('/login');
+    }
+  }, []);
 
   return (
     <>

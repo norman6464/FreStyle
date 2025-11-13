@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { clearAuthData } from '../store/authSlice';
 
@@ -7,18 +7,32 @@ export default function HamburgerMenu({ title }) {
   const [isOpen, setIsOpen] = useState(false);
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const accessToken = useSelector((state) => state.auth.accessToken);
 
   const handleLogout = async () => {
-    fetch(`${import.meta.env.VITE_API_BASE_URL}/api/auth/cognito/logout`, {
-      method: 'POST',
-      credentials: 'include',
-    }).then((res) => {
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/api/auth/cognito/logout`,
+        {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
       if (!res.ok) {
-        return alert('失敗しました');
+        return alert('ログアウトに失敗しました');
       }
+
       dispatch(clearAuthData());
       navigate('/login');
-    });
+    } catch (err) {
+      console.error('ログアウトエラー:', err);
+      alert('ログアウト中にエラーが発生しました');
+    }
   };
 
   const menuItems = [
@@ -31,11 +45,9 @@ export default function HamburgerMenu({ title }) {
   return (
     <header className="w-full bg-gray-50 shadow-sm fixed top-0 left-0 z-50">
       <div className="max-w-4xl mx-auto px-3 py-5 flex justify-between items-center">
-        {/* 左側ロゴ（タイトル） */}
         <button onClick={() => navigate('/')}>
           <h1 className="text-lg font-semibold text-gray-800">{title}</h1>
         </button>
-        {/* ハンバーガーボタン（モバイル用） */}
         <button
           className="md:hidden p-2 text-gray-700 rounded-md hover:bg-gray-200 focus:outline-none"
           onClick={() => setIsOpen(!isOpen)}
@@ -64,7 +76,6 @@ export default function HamburgerMenu({ title }) {
           </svg>
         </button>
 
-        {/* デスクトップ用ナビゲーション */}
         <nav className="hidden md:flex flex-1 justify-center space-x-10">
           {menuItems.map((item, index) => (
             <button
@@ -76,12 +87,9 @@ export default function HamburgerMenu({ title }) {
             </button>
           ))}
         </nav>
-
-        {/* 右側の空スペースでバランスを取る */}
         <div className="hidden md:block w-10" />
       </div>
 
-      {/* モバイル用ドロップダウン（オーバーレイ） */}
       {isOpen && (
         <div className="absolute top-full left-0 w-full bg-white shadow-lg z-50">
           {menuItems.map((item, index) => (

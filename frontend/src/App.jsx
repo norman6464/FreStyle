@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import LoginCallback from './pages/LoginCallback';
@@ -10,7 +10,6 @@ import ConfirmPage from './pages/ConfirmPage';
 import MemberPage from './pages/MemberPage';
 import AddUserPage from './pages/AddUserPage';
 import ProfilePage from './pages/ProfilePage';
-import AppWrapper from './utils/AppWrapper';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ConfirmForgotPasswordPage from './pages/ConfirmForgotPasswordPage';
 
@@ -28,55 +27,13 @@ export default function App() {
         element={<ConfirmForgotPasswordPage />}
       />
 
-      {/* 認証が必要なルートを AppWrapper でラップ */}
-      <Route
-        path="/"
-        element={
-          <AppWrapper>
-            <MenuPage />
-          </AppWrapper>
-        }
-      />
-      <Route
-        path="/profile/me"
-        element={
-          <AppWrapper>
-            <ProfilePage />
-          </AppWrapper>
-        }
-      />
-      <Route
-        path="/chat/members"
-        element={
-          <AppWrapper>
-            <MemberPage />
-          </AppWrapper>
-        }
-      />
-      <Route
-        path="/chat/users"
-        element={
-          <AppWrapper>
-            <AddUserPage />
-          </AppWrapper>
-        }
-      />
-      <Route
-        path="/chat/users/:roomId"
-        element={
-          <AppWrapper>
-            <ChatPage />
-          </AppWrapper>
-        }
-      />
-      <Route
-        path="/chat/ask-ai"
-        element={
-          <AppWrapper>
-            <AskAiPage />
-          </AppWrapper>
-        }
-      />
+      {/* 認証が必要なルート */}
+      <Route path="/" element={<MenuPage />} />
+      <Route path="/profile/me" element={<ProfilePage />} />
+      <Route path="/chat/members" element={<MemberPage />} />
+      <Route path="/chat/users" element={<AddUserPage />} />
+      <Route path="/chat/users/:roomId" element={<ChatPage />} />
+      <Route path="/chat/ask-ai" element={<AskAiPage />} />
 
       {/* 404 */}
       <Route

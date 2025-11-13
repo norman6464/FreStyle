@@ -6,6 +6,11 @@ import HamburgerMenu from '../components/HamburgerMenu';
 export default function MenuPage() {
   const navigate = useNavigate();
   const message = useSelector((state) => state.flash?.message);
+  const accessToken = useSelector((state) => state.auth?.accessToken);
+
+  if (!accessToken) {
+    navigate('/login');
+  }
 
   return (
     <>

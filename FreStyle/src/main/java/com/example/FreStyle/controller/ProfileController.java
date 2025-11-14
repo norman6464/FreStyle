@@ -15,6 +15,7 @@ import com.example.FreStyle.dto.ProfileDto;
 import com.example.FreStyle.entity.User;
 import com.example.FreStyle.form.ProfileForm;
 import com.example.FreStyle.service.CognitoAuthService;
+import com.example.FreStyle.service.UserIdentityService;
 import com.example.FreStyle.service.UserService;
 
 // ユーザー情報
@@ -25,10 +26,12 @@ public class ProfileController {
   
   private final CognitoAuthService cognitoAuthService;
   private final UserService userService;
+  private final UserIdentityService userIdentityService;
   
-  public ProfileController(CognitoAuthService cognitoAuthService, UserService userService) {
+  public ProfileController(CognitoAuthService cognitoAuthService, UserService userService, UserIdentityService userIdentityService) {
     this.cognitoAuthService = cognitoAuthService;
     this.userService = userService;
+    this.userIdentityService = userIdentityService;
   }
   
   @GetMapping("/me")
@@ -42,7 +45,7 @@ public class ProfileController {
     
     try {
     
-    User user = userService.findUserBySub(sub);
+    User user = userIdentityService.findUserBySub(sub);
     
     ProfileDto profileDto = new ProfileDto(
       user.getUsername(),

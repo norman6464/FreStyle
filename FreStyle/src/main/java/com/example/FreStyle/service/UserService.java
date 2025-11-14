@@ -21,8 +21,8 @@ public class UserService {
   private final ChatRoomRepository chatRoomRepository;
 
   public UserService(UserRepository userRepository,
-                     UserIdentityService userIdentityService,
-                     ChatRoomRepository chatRoomRepository) {
+      UserIdentityService userIdentityService,
+      ChatRoomRepository chatRoomRepository) {
 
     this.userRepository = userRepository;
     this.userIdentityService = userIdentityService;
@@ -49,8 +49,14 @@ public class UserService {
   // Email で検索
   // ------------------------
   public User findUserByEmail(String email) {
-    return userRepository.findByEmail(email)
+    User user = userRepository.findByEmail(email)
         .orElseThrow(() -> new RuntimeException("ユーザーが存在しません。"));
+
+    if (!Boolean.TRUE.equals(user.getIsActive())) {
+      throw new RuntimeException("メール認証は完了していないため、ログインできません。");
+    }
+
+    return user;
   }
 
   // ------------------------

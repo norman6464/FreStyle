@@ -123,8 +123,10 @@ export default function AddUserPage() {
   return (
     <>
       <HamburgerMenu title="ユーザーチャット" />
-      <div className="min-h-screen bg-gray-100 p-4 mt-16">
-        <h2 className="text-xl font-semibold mb-4">ユーザー追加</h2>
+      
+      {/* 修正点: sm:max-w-xl と sm:mx-auto で中央寄せと幅制限を適用 */}
+      <div className="min-h-screen bg-gray-100 p-4 pt-16 sm:max-w-xl sm:mx-auto">
+        <h2 className="text-2xl font-bold mb-4 text-gray-800">ユーザー追加</h2>
 
         <div className="mb-4">
           <SearchBox
@@ -133,8 +135,11 @@ export default function AddUserPage() {
             placeholder="名前で検索"
           />
         </div>
+        
         {error ? (
-          <div className="text-red-500">{error}</div>
+          <div className="text-red-500 bg-red-100 p-4 rounded-lg border border-red-300">
+            エラー: {error}
+          </div>
         ) : (
           <MemberList users={users} />
         )}

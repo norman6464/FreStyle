@@ -9,6 +9,11 @@ export default function MemberItem({ id, name, roomId }) {
   const accessToken = useSelector((state) => state.auth.accessToken);
   const email = useSelector((state) => state.auth.email);
 
+  const displayErrorAndRedirect = (message) => {
+    console.error('❌ エラー発生:', message);
+    // navigate('/'); 
+  };
+
   const handleClick = async () => {
     try {
       // --- ① 既存ルームがある場合 ---
@@ -35,9 +40,7 @@ export default function MemberItem({ id, name, roomId }) {
         console.warn('⚠️ アクセストークン期限切れ。リフレッシュ試行中...');
 
         const refreshRes = await fetch(
-          `${API_BASE_URL}/api/auth/cognito/refresh-token?email=${encodeURIComponent(
-            email
-          )}`,
+          `${API_BASE_URL}/api/auth/cognito/refresh-token`,
           {
             method: 'POST',
             credentials: 'include', // Cookie送信
@@ -90,25 +93,22 @@ export default function MemberItem({ id, name, roomId }) {
         console.log(`➡️ チャット画面へ遷移: /chat/users/${data.roomId}`);
         navigate(`/chat/users/${data.roomId}`);
       } else {
-        console.error('❌ APIレスポンスに roomId が含まれていません:', data);
-        alert('ルーム作成は成功しましたが、roomIdが取得できませんでした。');
+        displayErrorAndRedirect('APIレスポンスに roomId が含まれていません');
       }
     } catch (err) {
-      console.error('❌ ルーム作成中にエラー発生:', err);
-      alert('ルーム作成中にエラーが発生しました。');
-      navigate('/');
+      displayErrorAndRedirect(`ルーム作成中にエラー発生: ${err.message}`);
     }
   };
 
   return (
     <div
       onClick={handleClick}
-      className="flex items-center bg-white p-3 rounded shadow hover:bg-gray-100 transition cursor-pointer"
+      className="flex items-center bg-white p-3 rounded-xl shadow hover:shadow-md hover:bg-gray-50 transition cursor-pointer"
     >
-      <div className="w-10 h-10 bg-blue-400 rounded-full flex items-center justify-center text-white font-bold mr-4">
+      <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold text-lg mr-4 flex-shrink-0">
         {name.charAt(0).toUpperCase()}
       </div>
-      <span className="text-lg font-medium">{name}</span>
+      <span className="text-gray-800 text-base break-words min-w-0">{name}</span>
     </div>
   );
 }

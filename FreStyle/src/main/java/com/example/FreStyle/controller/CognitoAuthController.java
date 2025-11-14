@@ -149,7 +149,7 @@ public class CognitoAuthController {
         }
     }
 
-    // OIDCフロー
+    // OIDCログイン
     @PostMapping("/callback")
     public ResponseEntity<?> callback(@RequestBody Map<String, String> body, HttpServletResponse response) {
 

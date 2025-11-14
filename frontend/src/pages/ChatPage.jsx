@@ -95,6 +95,11 @@ export default function ChatPage() {
       if (!res.ok) throw new Error(`履歴取得失敗: ${res.status}`);
 
       const data = await res.json();
+
+      data.map((msg) => {
+        console.log(msg.isUser);
+      });
+
       const formattedMessages = data.map((msg) => ({
         id: msg.timestamp,
         content: msg.content,

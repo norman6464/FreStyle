@@ -12,7 +12,7 @@ export default function MenuPage() {
     if (!accessToken) {
       navigate('/login');
     }
-  }, []);
+  }, [accessToken]);
 
   return (
     <>

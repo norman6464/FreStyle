@@ -12,8 +12,12 @@ import AddUserPage from './pages/AddUserPage';
 import ProfilePage from './pages/ProfilePage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ConfirmForgotPasswordPage from './pages/ConfirmForgotPasswordPage';
+import { useSelector } from 'react-redux';
 
 export default function App() {
+  
+  const accessToken = useSelector((state) => state.auth.accessToken);
+  
   return (
     <Routes>
       {/* 誰でもアクセス可能なルート */}

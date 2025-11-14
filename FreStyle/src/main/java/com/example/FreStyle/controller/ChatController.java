@@ -1,6 +1,5 @@
 package com.example.FreStyle.controller;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -18,7 +17,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.FreStyle.dto.ChatMessageDto;
 import com.example.FreStyle.dto.UserDto;
+import com.example.FreStyle.entity.User;
 import com.example.FreStyle.service.ChatService;
+import com.example.FreStyle.service.UserIdentityService;
 import com.example.FreStyle.service.UserService;
 
 @RestController
@@ -28,10 +29,12 @@ public class ChatController {
   
   private final UserService userService;
   private final ChatService chatService;
+  private final UserIdentityService userIdentityService;
 
-  public ChatController(UserService userService,ChatService chatService) {
+  public ChatController(UserService userService,ChatService chatService, UserIdentityService userIdentityService) {
     this.userService = userService;
     this.chatService = chatService;
+    this.userIdentityService = userIdentityService;
   }
 
   // ユーザー登録一覧
@@ -45,9 +48,9 @@ public class ChatController {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "タイムアウトをしたか、または未ログインです。"));
     }
 
-    Integer userId = userService.findUserIdByCognitoSub(cognitoSub);
+    User myUser = userIdentityService.findUserBySub(cognitoSub);
 
-    List<UserDto> users = userService.findUsersWithRoomId(userId, query);
+    List<UserDto> users = userService.findUsersWithRoomId(myUser.getId(), query);
 
     Map<String, List<UserDto>> responseData = new HashMap<>();
 
@@ -69,17 +72,19 @@ public class ChatController {
     
     try{
       
-      Integer userId = userService.findUserIdByCognitoSub(cognitoSub);
+      User myUser = userIdentityService.findUserBySub(cognitoSub);
       
-      Integer roomId = chatService.createOrGetRoom(userId, id);
+      Integer roomId = chatService.createOrGetRoom(myUser.getId(), id);
       System.out.println("request ok");
       return ResponseEntity.ok(Map.of(
             "roomId", roomId,
             "status", "success"
       ));
   } catch (IllegalStateException e) {
-    return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+    System.out.println(e.getMessage());
+    return ResponseEntity.badRequest().body(Map.of("error", "無効なリクエストです。"));
   } catch (Exception e) {
+    System.out.println(e.getMessage());
     e.printStackTrace();
     return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
               .body(Map.of("error", "ルーム作成中にエラーが発生しました。"));
@@ -103,6 +108,7 @@ public class ChatController {
       return ResponseEntity.ok().body(history);
       
     } catch (Exception e) {
+      System.out.println(e.getMessage());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "サーバーエラーです。"));
     }
     

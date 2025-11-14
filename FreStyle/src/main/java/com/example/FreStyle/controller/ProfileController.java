@@ -42,7 +42,7 @@ public class ProfileController {
     
     try {
     
-    User user = userService.findUser(sub);
+    User user = userService.findUserBySub(sub);
     
     ProfileDto profileDto = new ProfileDto(
       user.getUsername(),

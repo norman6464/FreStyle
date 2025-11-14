@@ -14,21 +14,16 @@ import com.example.FreStyle.entity.User;
 @Repository
 public interface UserRepository extends JpaRepository<User, Integer> {
 
-  boolean existsByEmail(String email);
+    boolean existsByEmail(String email);
 
-  boolean existsByUsername(String username);
+    boolean existsByUsername(String username);
 
-  Optional<User> findByEmail(String email);
-  
-  Optional<User> findByCognitoSub(String cognitoSub);
+    Optional<User> findByEmail(String email);
 
-  @Query("SELECT u.id FROM User u WHERE u.cognitoSub = :sub")
-  Optional<Integer> findIdByCognitoSub(@Param("sub") String sub);
-  
-  @Query("SELECT new com.example.FreStyle.dto.UserDto(u.id, u.email) FROM User u WHERE u.email LIKE :email AND u.id <> :id")
-  List<UserDto> findIdAndEmailByEmailLikeDtos(@Param("id") Integer id,@Param("email") String email);
+    @Query("SELECT new com.example.FreStyle.dto.UserDto(u.id, u.email) FROM User u WHERE u.email LIKE :email AND u.id <> :id")
+    List<UserDto> findIdAndEmailByEmailLikeDtos(@Param("id") Integer id, @Param("email") String email);
 
-  @Query("SELECT new com.example.FreStyle.dto.UserDto(u.id, u.email) FROM User u WHERE u.id <> :id")
-  List<UserDto> findAllUserDtos(@Param("id") Integer id);
+    @Query("SELECT new com.example.FreStyle.dto.UserDto(u.id, u.email) FROM User u WHERE u.id <> :id")
+    List<UserDto> findAllUserDtos(@Param("id") Integer id);
 
 }

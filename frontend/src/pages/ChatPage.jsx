@@ -9,6 +9,7 @@ import { setAuthData, clearAuthData } from '../store/authSlice';
 export default function ChatPage() {
   const [messages, setMessages] = useState([]);
   const wsRef = useRef(null);
+  const messagesEndRef = useRef(null); // メッセージの最下部へスクロールするためのRef
   const { roomId } = useParams();
   const senderId = useSelector((state) => state.auth.sub);
   const accessToken = useSelector((state) => state.auth.accessToken);
@@ -17,6 +18,18 @@ export default function ChatPage() {
   const dispatch = useDispatch();
 
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
+  // メッセージリストの最下部にスクロールする関数
+  const scrollToBottom = () => {
+    // スクロール時に、アニメーションを伴ってスムーズに移動
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); 
+  };
+
+  // メッセージが更新されたらスクロール
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
 
   // --- チャット履歴取得（JWT認証＋リフレッシュ対応） ---
   const fetchHistory = async () => {
@@ -180,14 +193,29 @@ export default function ChatPage() {
 
   return (
     <>
+      {/* 画面上部の固定ヘッダー */}
       <HamburgerMenu title="個人チャット" />
-      <div className="flex flex-col h-screen bg-gray-100 text-black mt-16">
-        <div className="flex-1 overflow-y-auto px-4 py-6 space-y-2 max-w-3xl mx-auto w-full">
+      
+      {/* メインのコンテナ: ヘッダーの下、入力欄の上全体を使う */}
+      <div className="flex flex-col h-screen bg-gray-100 text-black pt-16"> 
+        
+        {/* メッセージ表示エリア: flex-1 で残りのスペースを全て使い、スクロール可能にする */}
+        {/* pb-[100px] は、可変長の入力欄が最大高さになった場合でもメッセージが隠れないようにするためのスペース */}
+        <div className="flex-1 overflow-y-auto px-4 py-6 space-y-2 max-w-3xl mx-auto w-full pb-[100px]"> 
           {messages.map((msg) => (
             <MessageBubble key={msg.id} {...msg} />
           ))}
+          {/* 最下部スクロール用エレメント */}
+          <div ref={messagesEndRef} />
         </div>
-        <MessageInput onSend={handleSend} />
+        
+        {/* メッセージ入力エリアのコンテナ: 画面下部に固定し、適切なパディングを設定 */}
+        <div className="fixed bottom-0 left-0 right-0 bg-gray-100 p-3 z-10">
+          {/* MessageInput自体の幅を max-w-3xl に制限し、メッセージバブルの幅に合わせる */}
+          <div className="max-w-3xl mx-auto w-full">
+            <MessageInput onSend={handleSend} />
+          </div>
+        </div>
       </div>
     </>
   );

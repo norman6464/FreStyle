@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS user_identities (
     id INT PRIMARY KEY AUTO_INCREMENT,
     user_id INT NOT NULL,
-    provider VARCHAR(50) NOT NULL,
+    provider VARCHAR(255) NOT NULL,
     provider_sub VARCHAR(255) NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 

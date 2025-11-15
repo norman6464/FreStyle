@@ -1,85 +1,157 @@
-# FreStyle
-ユーザーやAIと手軽にコミュニケーションが取れるチャットアプリです。  
-私自身、日常の中で「気軽にコミュニケーションを取れる場」が必要だと感じていました。  
-そのため、フォローやフレンド登録をしなくてもユーザー検索だけで会話を始められ、  
-さらにAIが会話をサポートしてくれるアプリを開発しました。  
+# FreStyle - Chat App with Users & AI
 
-本アプリはAWS上にデプロイしています。
+リアルタイムで「誰とでも気軽に会話できる場」を提供する、ユーザー同士 & AI のチャットアプリです。  
+AWS によるフルマネージドなサーバーレス／コンテナ構成・認証基盤・CI/CD を備えた、フルスタックかつ本番運用レベルのアーキテクチャを実装しています。
+
+---
+
 ## 🌐 デプロイURL
 
+👉 [https://normanblog.com](https://normanblog.com)
+
+---
+
+## 🎥 Demo
+
+👉 デモ動画（S3 Hosting）
+
+---
+
 ## 🧰 使用技術
-- **Frontend:** React / Tailwind CSS  
-- **Backend:** Spring Boot / lambda
-- **Infrastructure:** AWS (ECS, RDS, S3, Route53, DynamoDB, lambda, Cognito, API Gateway)  
-- **CI/CD:** GitHub Actions 
-- **Database:** MariaDB,DynamoDB
+
+### Frontend
+- React
+- Tailwind CSS
+
+### Backend
+- Spring Boot
+- AWS Lambda
+
+### Infrastructure
+- AWS（ECS / RDS / S3 / Route53 / DynamoDB / Lambda / Cognito / API Gateway）
+- CloudFormation（IaC）
+- CloudFront
+
+### CI/CD
+- GitHub Actions
+
+### Database
+- MariaDB（RDS）
+- DynamoDB
+
+---
 
 ## ⚙️ 主な機能
-- ユーザー登録・ログイン（JWT認証,OIDC）
-- ユーザー同士のチャット、AIとのチャット
+- ユーザー登録・ログイン（JWT 認証 / OIDC）
+- ユーザー同士のリアルタイムチャット
+- AI アシスタントとのチャット
 - プロフィール編集
-- Googleログイン
-- GitHub Actionsによる自動デプロイ
+- Google ログイン
+- GitHub Actions による自動デプロイ
 
+---
 
-## 💡 工夫した点
-- WebSocket、Httpの二つでアーキテクチャーを分断したことWebsocket通信ではAPI Gateway,lambdaでHttpではECSを使用をしている
-- CloudFormationを用いたインフラのコード管理
-- JWT認証をHttpOnly Cookieにし、バックエンド側でフィルターを用いてヘッダーにJWTトークンをセットをしセキュリティー面を考慮した
-- OIDCを実現したいため、CloudFrontでHttps化,グローバル化をした
+## 💡 Architecture Highlights（工夫した点）
 
+### ① WebSocket と HTTP API の構成を用途別に完全分離
+- **WebSocket**：API Gateway + Lambda + DynamoDB  
+- **HTTP（Rest API）**：ECS（Fargate） + Spring Boot  
+
+リアルタイム性と低コストを優先した WebSocket と、安定稼働・複雑処理に適した HTTP API を分離し、性能・コスト・可用性の最適化を実現。
+
+### ② CloudFormation による IaC（Infrastructure as Code）
+- 環境構築を完全コード化
+- 再現性・管理性・チーム開発適性を向上
+
+### ③ JWT（HttpOnly Cookie）× Spring Security の安全な認証設計
+- JWT を HttpOnly Cookie に保存（XSS 対策）
+- サーバー側フィルターで Authorization ヘッダーへ変換
+- OIDC & JWK を活用した堅牢な認証フロー
+
+### ④ CloudFront によるグローバル最適化と HTTPS 化
+- 高速配信（CDN）
+- OIDC と組み合わせてセキュアなフロント構成
+- Route53 → CloudFront → S3 Hosting の構成
+
+---
 
 ## 🧠 苦労した点・学び
-- WebSocketを使ったアプリの実装が初めてだったのでECSで実装するかAPI Gateway + lambdaで実装をするか迷いました。  
-  → API Gatewayのカスタムオーソライザーを活用して統一的に解決しました。
-- Spring BootのSpring SecurityでJWKを使った認証はAuthorizationヘッダーで行うのでHttpOnly CookieからAuthorizationヘッダーに変換するのが大変だった
-- ALBでの設定でTLS/SSLアクセラレータとしてバックエンドのECSはHttp化をするのかを考慮しました
+- WebSocket を ECS で保持するか、サーバーレスにするかの検討 → コスト/接続管理/レイテンシから Lambda + APIGW に決定
+- Spring Security の JWT / JWK / Cookie 設計
+- ALB の TLS Termination と ECS の Backend 構成
+- IaC（CloudFormation）によるすべての AWS リソースのコード化
 
+---
+
+## ✔ 技術選定理由（HTTP API / ECS Fargate）
+
+1. Docker 化した Spring Boot を安定稼働させるため
+   - サーバープロビジョニング不要
+   - OS 管理不要
+   - 24/7 常時稼働する API に最適
+
+2. ALB と連携した柔軟なルーティング
+   - パスベース
+   - ヘルスチェック
+   - 高可用性のロードバランシング
+
+3. Target Tracking による自動スケーリング
+   - CPU 使用率に基づきタスク数を増減
+   - 高負荷時に自動スケール
+   - 低負荷時にコスト最適化
+
+4. Blue/Green デプロイでゼロダウンタイムを実現
+   - CodeDeploy と連携
+   - 新バージョンのヘルスチェック後に切替
+   - 即時ロールバック可能
+
+5. HTTP API は常時稼働が必要で、Lambda より ECS が適合
+   - コールドスタート回避
+   - 重量級フレームワーク（Spring）の起動コスト削減
+   - 長時間処理が可能
+
+---
+
+## ✔ 技術選定理由（WebSocket / サーバーレス構成）
+
+1. コスト最適化（従量課金）  
+   ECS 常時稼働より大幅に低コスト。
+
+2. 低レイテンシ & シンプルな処理  
+   Lambda → DynamoDB の最短経路。
+
+3. サーバーレスで構成統一
+   - フルマネージド
+   - 自動スケーリング
+   - 運用負荷最小
+
+---
 
 ## 🚀 今後の展望
+### 技術資格
+- AWS SAP
+- 応用情報
 
-### 技術的な目標
-- AWS Solution Architect Professional（SAP）を取得したい  
-- CloudFront＋Lambda@Edgeによる認証強化を検討中  
+### 機能拡張
+- 音声チャット
+- Polly による AI 音声応答
+- CloudFront + Lambda@Edge の認証強化
 
-### アプリの機能拡張
-- 音声でもコミュニケーションできるようにする  
-- AIとの音声応答にPollyを活用する
+---
 
+## 🛠 フロントエンドセットアップ手順
 
-## フロントエンドセットアップ手順
+```bash
+# 1. リポジトリをクローンして frontend ディレクトリに移動
+cd frontend
 
-1. リポジトリをクローンして `frontend` ディレクトリに移動します。
+# 2. 依存パッケージをインストール
+npm install
 
-2. `npm install` を実行し、`package.json` に記載されている依存パッケージをインストールして `node_modules` を作成します。
+# 3. 動作確認
+npm run dev
 
-3. `npm run dev` で動作確認を行います。
-
-4. Tailwind CSSの動作も確認してください。  
-   ※ 使用しているNode.jsのバージョンによっては、Tailwind CSSが正常に動作しない可能性があります。
-
-5. 動作しない場合は、一度 Tailwind CSSをアンインストールします。  
-   ```bash
-   npm uninstall tailwindcss
-   
-6. そのあとにもう一度インストールをします。
-   ```bash
-   `npm install -D tailwindcss@バージョン指定`
-
-7.  `npx tailwindcss init -p` で初期設定をします。
-
-
-## AWSアーキテクチャ構成図
-
-以下は本アプリケーションのAWS構成図です。
-
-![AWSアーキテクチャ構成図](./architecture/aws/aws-architecture.png)
-
-
-## ユーザー同士のチャット
-![ユーザー同士のチャット](./architecture/aws/aws-architecture-chat.png)
-
-
-## AIとユーザーのチャット
-![AIとユーザーのチャット](./architecture/aws/aws-architecture-ai-chat.png)
-
+# 4. Tailwind CSS が動作しない場合
+npm uninstall tailwindcss
+npm install -D tailwindcss@バージョン指定
+npx tailwindcss init -p

@@ -129,6 +129,33 @@ AWS によるフルマネージドなサーバーレス／コンテナ構成・�
 
 ---
 
+## AWSアーキテクチャ構成図
+
+
+---
+
+以下は本アプリケーションのAWS構成図です。
+
+
+
+## AWS全体構成図
+![AWSアーキテクチャ構成図](./architecture/aws/image.png)
+
+
+
+## ユーザー同士のチャット
+![ユーザー同士のチャット](./architecture/aws/aws-architecture-chat.png)
+
+
+
+
+
+## AIとユーザーのチャット
+![AIとユーザーのチャット](./architecture/aws/aws-architecture-ai-chat.png)
+
+
+---
+
 ## 🚀 今後の展望
 ### 技術資格
 - AWS SAP

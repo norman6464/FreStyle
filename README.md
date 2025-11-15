@@ -13,7 +13,7 @@ AWS によるフルマネージドなサーバーレス／コンテナ構成・�
 
 ## 🎥 Demo
 
-👉 デモ動画（S3 Hosting）
+👉 [デモ動画](https://myapp-demo-videos.s3.ap-northeast-1.amazonaws.com/Fre-Style-demo.mp4)
 
 ---
 
@@ -65,8 +65,10 @@ AWS によるフルマネージドなサーバーレス／コンテナ構成・�
 
 ### ③ JWT（HttpOnly Cookie）× Spring Security の安全な認証設計
 - JWT を HttpOnly Cookie に保存（XSS 対策）
-- サーバー側フィルターで Authorization ヘッダーへ変換
+- アクセストークをReduxにリフレッシュトークンをHttpOnly Cookieに保存
+- アクセストークンの有効期間を短くしリフレッシュトークンで再発行をする
 - OIDC & JWK を活用した堅牢な認証フロー
+- OIDC経由でも当該アプリ経由でも同じアカウントであれば同一ユーザーとして認識
 
 ### ④ CloudFront によるグローバル最適化と HTTPS 化
 - 高速配信（CDN）

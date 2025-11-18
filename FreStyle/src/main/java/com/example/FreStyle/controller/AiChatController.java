@@ -1,4 +1,5 @@
 package com.example.FreStyle.controller;
+
 import java.util.List;
 import java.util.Map;
 
@@ -16,30 +17,28 @@ import com.example.FreStyle.service.AiChatService;
 @RestController 
 @RequestMapping("/api/chat/ai")
 public class AiChatController {
-  
-  private final AiChatService aiChatService;
-  
-  public AiChatController(AiChatService aiChatService) {
-    this.aiChatService = aiChatService;
-  }
-  
-  
-  @GetMapping("/history")
-  public ResponseEntity<?> getChatHistory(@AuthenticationPrincipal Jwt jwt) {
-    try {
-      // Jwtからsubを取得する
-      String senderId = jwt.getSubject();
-      
-      if (senderId == null || senderId.isEmpty()) {
-        return ResponseEntity.badRequest().body(Map.of("error", "無効なリクエストです。"));
-      }
-      
-      List<AiChatMessageDto> history = aiChatService.getChatHistory(senderId);
-      return ResponseEntity.ok().body(history);
-      
-    } catch (Exception e) {
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "サーバーのエラーです。"));
+
+    private final AiChatService aiChatService;
+
+    public AiChatController(AiChatService aiChatService) {
+        this.aiChatService = aiChatService;
     }
-  }
-  
+
+    @GetMapping("/history")
+    public ResponseEntity<?> getChatHistory(@AuthenticationPrincipal Jwt jwt) {
+        try {
+            // Jwt から senderId(sub) を取得
+            String senderId = jwt.getSubject();
+
+            // ロジックは変更しない
+            List<AiChatMessageDto> history = aiChatService.getChatHistory(senderId);
+
+            return ResponseEntity.ok(history);
+
+        } catch (RuntimeException e) {
+            // 予期しないアプリケーションエラー → 500
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "サーバーのエラーです。"));
+        }
+    }
 }

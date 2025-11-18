@@ -22,12 +22,19 @@ import com.example.FreStyle.service.UserIdentityService;
 import com.example.FreStyle.service.UserService;
 import com.example.FreStyle.utils.JwtUtils;
 import com.nimbusds.jwt.JWTClaimsSet;
+
 import jakarta.servlet.http.HttpServletResponse;
+import software.amazon.awssdk.services.cognitoidentityprovider.model.CodeMismatchException;
+import software.amazon.awssdk.services.cognitoidentityprovider.model.ExpiredCodeException;
+import software.amazon.awssdk.services.cognitoidentityprovider.model.InvalidPasswordException;
+import software.amazon.awssdk.services.cognitoidentityprovider.model.NotAuthorizedException;
+import software.amazon.awssdk.services.cognitoidentityprovider.model.UserNotConfirmedException;
+import software.amazon.awssdk.services.cognitoidentityprovider.model.UserNotFoundException;
+import software.amazon.awssdk.services.cognitoidentityprovider.model.UsernameExistsException;
 
 import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
 import java.util.Base64;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -60,96 +67,115 @@ public class CognitoAuthController {
         this.userIdentityService = userIdentityService;
     }
 
-    // Cognitoへサインアップ
+    // -----------------------
+    // サインアップ
+    // -----------------------
     @PostMapping("/signup")
     public ResponseEntity<?> signup(@RequestBody SignupForm form) {
         try {
-            // Cognitoに登録
-            cognitoAuthService.signUpUser(form.getEmail(), form.getPassword(),
-                    form.getName());
-            // DBに保存
+            cognitoAuthService.signUpUser(form.getEmail(), form.getPassword(), form.getName());
             userService.registerUser(form);
 
-            return ResponseEntity.ok(Map.of("message", "サインアップ成功。確認メールを送信しました。"));
+            return ResponseEntity.status(HttpStatus.CREATED)
+                    .body(Map.of("message", "サインアップ成功。確認メールを送信しました。"));
+
+        } catch (UsernameExistsException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("error", "既にユーザーが存在しています。"));
+
+        } catch (InvalidPasswordException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", "パスワードポリシーに違反しています。"));
+
         } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
         }
     }
 
-    // メールで検証する
+    // -----------------------
+    // サインアップ確認
+    // -----------------------
     @PostMapping("/confirm")
     public ResponseEntity<?> confirm(@RequestBody ConfirmSignupForm form) {
         try {
-            // Cognitoで確認
             cognitoAuthService.confirmUserSignup(form.getEmail(), form.getCode());
-
-            // ユーザーを有効化
             userService.activeUser(form.getEmail());
+
             return ResponseEntity.ok(Map.of("message", "確認に成功しました。ログインできます。"));
+
+        } catch (CodeMismatchException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", "確認コードが正しくありません。"));
+
+        } catch (ExpiredCodeException e) {
+            return ResponseEntity.status(HttpStatus.GONE)
+                    .body(Map.of("error", "確認コードの有効期限が切れています。"));
+
+        } catch (UserNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "ユーザーが存在しません。"));
+
         } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
         }
     }
 
+    // -----------------------
     // ログイン
+    // -----------------------
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginForm form, HttpServletResponse response) {
 
         try {
-
             userService.checkUserIsActive(form.getEmail());
             Map<String, String> tokens = cognitoAuthService.login(form.getEmail(), form.getPassword());
 
             String idToken = tokens.get("idToken");
-
             String accessToken = tokens.get("accessToken");
-
             String refreshToken = tokens.get("refreshToken");
 
-            // デコードをしてクライアントに情報をわたす。
             Optional<JWTClaimsSet> claimsOpt = JwtUtils.decode(idToken);
             if (claimsOpt.isEmpty()) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "無効なアクセスです。"));
             }
 
             JWTClaimsSet claims = claimsOpt.get();
-            String iss = claims.getIssuer();
-            String sub = claims.getSubject();
 
             User user = userService.findUserByEmail(form.getEmail());
-            userIdentityService.registerUserIdentity(user, iss, sub);
-
-            System.out.println("accessToken = " + accessToken);
-            System.out.println("refreshToken = " + refreshToken);
+            userIdentityService.registerUserIdentity(user, claims.getIssuer(), claims.getSubject());
 
             ResponseCookie cookie = ResponseCookie.from("REFRESH_TOKEN", refreshToken)
-                    .httpOnly(true)
-                    .secure(true) // HTTPS 開発環境なら false
-                    .path("/")
-                    .maxAge(3600)
-                    .sameSite("None") // クロスオリジンでも送信
-                    .build();
+                    .httpOnly(true).secure(true).path("/").maxAge(3600).sameSite("None").build();
             response.addHeader("Set-Cookie", cookie.toString());
 
-            try {
-                Map<String, Object> responseData = Map.of(
-                        "email", claims.getStringClaim("email"),
-                        "name", claims.getStringClaim("name"),
-                        "sub", claims.getSubject(),
-                        "accessToken", accessToken);
-                System.out.println("success");
-                return ResponseEntity.ok(responseData);
-            } catch (ParseException e) {
-                return ResponseEntity.internalServerError()
-                        .body(Map.of("error", "サーバーのエラーです。"));
-            }
+            Map<String, Object> responseData = Map.of(
+                    "email", claims.getStringClaim("email"),
+                    "name", claims.getStringClaim("name"),
+                    "sub", claims.getSubject(),
+                    "accessToken", accessToken);
+
+            return ResponseEntity.ok(responseData);
+
+        } catch (UserNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "ユーザーが存在しません。"));
+
+        } catch (NotAuthorizedException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "メールアドレスまたはパスワードが違います。"));
+
+        } catch (UserNotConfirmedException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "メールアドレスが確認されていません。"));
+
+        } catch (ParseException e) {
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", "トークンの解析中にエラーが発生しました。"));
 
         } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
         }
     }
 
-    // OIDCログイン
+    // -----------------------
+    // OIDCログイン Callback
+    // -----------------------
     @PostMapping("/callback")
     public ResponseEntity<?> callback(@RequestBody Map<String, String> body, HttpServletResponse response) {
 
@@ -169,16 +195,14 @@ public class CognitoAuthController {
                 .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_FORM_URLENCODED_VALUE)
                 .header(HttpHeaders.AUTHORIZATION, "Basic " + basicAuthValue)
                 .body(BodyInserters.fromFormData(formData))
-                .retrieve() // 取得する(Cognitoが発行するアクセストークンidトークンが返ってくる)
+                .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {
-                }) // JSONをMAPで受け取る
-                .block(); // Monoをブロックして同期処理（Spring MVCなので）
+                })
+                .block();
 
         if (tokenResponse == null) {
-            Map<String, String> errorResponse = new HashMap<>();
-            errorResponse.put("error", "トークン取得に失敗しました。");
-
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorResponse);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "トークン取得に失敗しました。"));
         }
 
         String idToken = (String) tokenResponse.get("id_token");
@@ -186,19 +210,13 @@ public class CognitoAuthController {
         String refreshToken = (String) tokenResponse.get("refresh_token");
 
         Optional<JWTClaimsSet> claimsOpt = JwtUtils.decode(idToken);
-
         if (claimsOpt.isEmpty()) {
-
-            Map<String, String> errorResponse = new HashMap<>();
-            errorResponse.put("error", "無効なリクエストです。");
-
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorResponse);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "無効なリクエストです。"));
         }
 
-        JWTClaimsSet claims = claimsOpt.get();
-
         try {
-
+            JWTClaimsSet claims = claimsOpt.get();
             String name = claims.getStringClaim("name");
             String email = claims.getStringClaim("email");
             String sub = claims.getSubject();
@@ -210,10 +228,10 @@ public class CognitoAuthController {
 
             ResponseCookie cookie = ResponseCookie.from("REFRESH_TOKEN", refreshToken)
                     .httpOnly(true)
-                    .secure(true) // HTTPS 開発環境なら false
+                    .secure(true)
                     .path("/")
                     .maxAge(3600)
-                    .sameSite("None") // クロスオリジンでも送信
+                    .sameSite("None")
                     .build();
             response.addHeader("Set-Cookie", cookie.toString());
 
@@ -226,19 +244,21 @@ public class CognitoAuthController {
             return ResponseEntity.ok(responseData);
 
         } catch (Exception e) {
-            e.printStackTrace();
             return ResponseEntity.internalServerError()
                     .body(Map.of("error", "サーバーのエラーが発生しました。"));
         }
     }
 
+    // -----------------------
+    // ログアウト
+    // -----------------------
     @PostMapping("/logout")
     public ResponseEntity<?> logout(@AuthenticationPrincipal Jwt jwt, HttpServletResponse response) {
         String sub = jwt.getSubject();
-        System.out.println("request GET /api/auth/cognito/logout");
 
         if (sub == null || sub.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "無効なリクエストです。"));
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "無効なリクエストです。"));
         }
 
         ResponseCookie cookie = ResponseCookie.from("REFRESH_TOKEN", null)
@@ -253,20 +273,30 @@ public class CognitoAuthController {
         return ResponseEntity.ok(Map.of("message", "ログアウトしました。"));
     }
 
-    // パスワードリセットリクエスト
+    // -----------------------
+    // パスワードリセット要求
+    // -----------------------
     @PostMapping("/forgot-password")
     public ResponseEntity<?> forgotPassword(@Validated @RequestBody Map<String, String> body) {
 
         String email = body.get("email");
+
         try {
             cognitoAuthService.forgotPassword(email);
             return ResponseEntity.ok(Map.of("message", "確認コードを送信しました。"));
+
+        } catch (UserNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "ユーザーが存在しません。"));
+
         } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
         }
     }
 
-    // リフレッシュトークンを使用しJWTトークンの再発行
+    // -----------------------
+    // トークンリフレッシュ
+    // -----------------------
     @PostMapping("/refresh-token")
     public ResponseEntity<?> refreshToken(@CookieValue(name = "REFRESH_TOKEN", required = false) String refreshToken) {
 
@@ -278,15 +308,17 @@ public class CognitoAuthController {
         try {
             Map<String, String> tokens = cognitoAuthService.refreshAccessToken(refreshToken);
 
-            // 新しいアクセストークンを返す（リフレッシュトークンはCookieにそのまま）
-            Map<String, String> responseData = Map.of("accessToken", tokens.get("accessToken"));
-            return ResponseEntity.ok(responseData);
+            return ResponseEntity.ok(Map.of("accessToken", tokens.get("accessToken")));
+
         } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", e.getMessage()));
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", e.getMessage()));
         }
     }
 
-    // パスワード更新
+    // -----------------------
+    // パスワードリセット確定
+    // -----------------------
     @PostMapping("/confirm-forgot-password")
     public ResponseEntity<?> confirmForgotPassword(@Validated @RequestBody ForgotPasswordForm form) {
         String email = form.getEmail();
@@ -295,10 +327,27 @@ public class CognitoAuthController {
 
         try {
             cognitoAuthService.confirmForgotPassword(email, code, newPassword);
+
             return ResponseEntity.ok(Map.of("message", "パスワードをリセットしました。"));
+
+        } catch (UserNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "ユーザーが存在しません。"));
+
+        } catch (CodeMismatchException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", "確認コードが正しくありません。"));
+
+        } catch (ExpiredCodeException e) {
+            return ResponseEntity.status(HttpStatus.GONE)
+                    .body(Map.of("error", "確認コードの有効期限が切れています。"));
+
+        } catch (InvalidPasswordException e) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "パスワードポリシーに違反しています。"));
+
         } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", e.getMessage()));
         }
     }
-
 }

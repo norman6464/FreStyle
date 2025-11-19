@@ -29,8 +29,7 @@ AWS によるフルマネージドなサーバーレス／コンテナ構成・�
 
 ### Infrastructure
 - AWS（ECS / RDS / S3 / Route53 / DynamoDB / Lambda / Cognito / API Gateway）
-- CloudFormation（IaC）
-- CloudFront
+- CloudFlare
 
 ### CI/CD
 - GitHub Actions
@@ -81,7 +80,6 @@ AWS によるフルマネージドなサーバーレス／コンテナ構成・�
 - WebSocket を ECS で保持するか、サーバーレスにするかの検討 → コスト/接続管理/レイテンシから Lambda + APIGW に決定
 - Spring Security の JWT / JWK / Cookie 設計
 - ALB の TLS Termination と ECS の Backend 構成
-- IaC（CloudFormation）によるすべての AWS リソースのコード化
 
 ---
 

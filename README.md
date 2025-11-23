@@ -5,7 +5,7 @@ AWS によるフルマネージドなサーバーレス／コンテナ構成・�
 
 ---
 
-## 🌐 デプロイURL
+## 🌐 デプロイURL（料金の関係上サービスを停止する可能性があります）
 
 👉 [https://normanblog.com](https://normanblog.com)
 

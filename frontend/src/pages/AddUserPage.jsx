@@ -123,26 +123,53 @@ export default function AddUserPage() {
   return (
     <>
       <HamburgerMenu title="ユーザーチャット" />
-      
-      {/* 修正点: sm:max-w-xl と sm:mx-auto で中央寄せと幅制限を適用 */}
-      <div className="min-h-screen bg-gray-100 p-4 pt-16 sm:max-w-xl sm:mx-auto">
-        <h2 className="text-2xl font-bold mb-4 text-gray-800">ユーザー追加</h2>
 
-        <div className="mb-4">
-          <SearchBox
-            value={searchQuery}
-            onChange={setSearchQuery}
-            placeholder="名前で検索"
-          />
-        </div>
-        
-        {error ? (
-          <div className="text-red-500 bg-red-100 p-4 rounded-lg border border-red-300">
-            エラー: {error}
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-primary-50 p-4 pt-20 pb-8">
+        <div className="max-w-2xl mx-auto">
+          {/* ヘッダーセクション */}
+          <div className="mb-8">
+            <h2 className="text-4xl font-bold text-gray-800 mb-2">
+              ユーザーを探す
+            </h2>
+            <p className="text-gray-600 text-lg">チャットを始めたい人を検索</p>
           </div>
-        ) : (
-          <MemberList users={users} />
-        )}
+
+          {/* 検索ボックス */}
+          <div className="mb-8">
+            <SearchBox
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="ユーザー名またはメールアドレスで検索..."
+            />
+          </div>
+
+          {/* エラー表示 */}
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-lg animate-fade-in">
+              <p className="text-red-700 font-semibold">
+                ⚠️ エラーが発生しました
+              </p>
+              <p className="text-red-600 text-sm mt-1">{error}</p>
+            </div>
+          )}
+
+          {/* ユーザーリスト */}
+          <div>
+            {users.length === 0 && debounceQuery && (
+              <div className="text-center py-12">
+                <p className="text-gray-400 text-lg">検索結果がありません</p>
+              </div>
+            )}
+            {users.length === 0 && !debounceQuery && (
+              <div className="text-center py-12">
+                <p className="text-gray-400 text-lg">
+                  ユーザーを検索してください
+                </p>
+              </div>
+            )}
+            <MemberList users={users} />
+          </div>
+        </div>
       </div>
     </>
   );

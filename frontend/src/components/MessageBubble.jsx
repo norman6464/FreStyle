@@ -1,21 +1,29 @@
 // isSenderではAIとのチャットでは人間かAIか判断して
-// ChatPageでは自分かそ例外の人かを判断する
+// ChatPageでは自分かそれ以外の人かを判断する
 
 export default function MessageBubble({ isSender, type = 'text', content }) {
   const baseStyle =
-    'max-w-[70%] px-4 py-2 rounded-lg text-sm whitespace-pre-wrap';
+    'max-w-[70%] px-4 py-3 rounded-2xl text-sm whitespace-pre-wrap break-words shadow-md';
   const alignment = isSender
-    ? 'self-end bg-blue-500 text-white rounded-br-none'
-    : 'self-start bg-white text-gray-800 rounded-bl-none';
+    ? 'self-end bg-gradient-primary text-white rounded-br-none'
+    : 'self-start bg-gray-100 text-gray-800 rounded-bl-none border-l-4 border-primary-400';
 
   return (
-    <div className={`flex ${isSender ? 'justify-end' : 'justify-start'} my-1`}>
+    <div
+      className={`flex ${
+        isSender ? 'justify-end' : 'justify-start'
+      } my-3 animate-fade-in`}
+    >
       <div className={`${baseStyle} ${alignment}`}>
         {type === 'text' && <p>{content}</p>}
         {type === 'image' && (
-          <img src={content} alt="画像" className="max-w-full rounded-md" />
+          <img
+            src={content}
+            alt="画像"
+            className="max-w-full rounded-lg shadow-md"
+          />
         )}
-        {type === 'bot' && <p className="italic text-gray-500">{content}</p>}
+        {type === 'bot' && <p className="italic opacity-80">{content}</p>}
       </div>
     </div>
   );

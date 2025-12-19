@@ -4,10 +4,15 @@ import InputField from '../components/InputField';
 import PrimaryButton from '../components/PrimaryButton';
 import LinkText from '../components/LinkText';
 import { useNavigate } from 'react-router-dom';
+import {
+  CheckCircleIcon,
+  ExclamationCircleIcon,
+} from '@heroicons/react/24/solid';
 
 export default function SignupPage() {
   const [form, setForm] = useState({ email: '', password: '', name: '' });
   const [message, setMessage] = useState(null);
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -19,7 +24,8 @@ export default function SignupPage() {
   };
 
   const handleSignup = async (e) => {
-    e.preventDefault(); // フォームのデフォルト送信を防止
+    e.preventDefault();
+    setLoading(true);
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/auth/cognito/signup`, {
@@ -30,7 +36,7 @@ export default function SignupPage() {
         body: JSON.stringify({
           email: form.email,
           password: form.password,
-          name: form.name, // Spring boot側ではnameで受け取る
+          name: form.name,
         }),
       });
 
@@ -38,12 +44,14 @@ export default function SignupPage() {
 
       if (response.ok) {
         setMessage({ type: 'success', text: data.message });
-        navigate('/confirm', {
-          state: {
-            message:
-              'サインアップに成功しました！メッセージを送信したので確認して下さい。',
-          },
-        });
+        setTimeout(() => {
+          navigate('/confirm', {
+            state: {
+              message:
+                '✓ サインアップに成功しました！メール確認をお願いします。',
+            },
+          });
+        }, 1500);
       } else {
         setMessage({
           type: 'error',
@@ -53,6 +61,8 @@ export default function SignupPage() {
     } catch (error) {
       console.log(error);
       setMessage({ type: 'error', text: '通信エラーが発生しました。' });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -60,14 +70,29 @@ export default function SignupPage() {
     <AuthLayout>
       <div>
         {message?.type === 'error' && (
-          <p className="text-red-600 text-center">{message.text}</p>
+          <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-lg flex items-start animate-fade-in">
+            <ExclamationCircleIcon className="w-5 h-5 text-red-600 mr-3 flex-shrink-0 mt-0.5" />
+            <p className="text-red-700 font-semibold text-sm">{message.text}</p>
+          </div>
+        )}
+        {message?.type === 'success' && (
+          <div className="mb-6 p-4 bg-green-50 border-l-4 border-green-500 rounded-lg flex items-start animate-fade-in">
+            <CheckCircleIcon className="w-5 h-5 text-green-600 mr-3 flex-shrink-0" />
+            <p className="text-green-700 font-semibold text-sm">
+              {message.text}
+            </p>
+          </div>
         )}
       </div>
-      <h2 className="text-2xl font-bold mb-6 text-center">アカウント作成</h2>
+      <h2 className="text-3xl font-bold mb-2 text-center text-gray-800">
+        アカウント作成
+      </h2>
+      <p className="text-center text-gray-600 text-sm mb-8">
+        FreStyleに参加して、友達とチャットを始めましょう
+      </p>
       <form onSubmit={handleSignup}>
         <InputField
           label="ニックネーム"
-          // typeがないのはInputFieldコンポーネントでデフォルトでの引数を使うため
           name="name"
           value={form.name}
           onChange={handleChange}
@@ -86,10 +111,15 @@ export default function SignupPage() {
           value={form.password}
           onChange={handleChange}
         />
-        <PrimaryButton type="submit">サインアップ</PrimaryButton>
+        <PrimaryButton type="submit" disabled={loading}>
+          {loading ? '作成中...' : 'アカウント作成'}
+        </PrimaryButton>
       </form>
-      <div className="mt-4 text-center">
-        <LinkText to="/login">すでにアカウントをお持ちですか？</LinkText>
+      <div className="mt-6 text-center">
+        <p className="text-gray-600 text-sm mb-2">
+          すでにアカウントをお持ちですか？
+        </p>
+        <LinkText to="/login">ログインする</LinkText>
       </div>
     </AuthLayout>
   );

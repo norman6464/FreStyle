@@ -114,4 +114,28 @@ public class ChatController {
     
   }
 
+  @GetMapping("/stats")
+  public ResponseEntity<?> stats(@AuthenticationPrincipal Jwt jwt) {
+    String cognitoSub = jwt.getSubject();
+    
+    if (cognitoSub == null || cognitoSub.isEmpty()) {
+      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "タイムアウトをしたか、または未ログインです。"));
+    }
+
+    try {
+      User myUser = userIdentityService.findUserBySub(cognitoSub);
+      Long totalUsers = userService.getTotalUserCount();
+      
+      Map<String, Object> stats = new HashMap<>();
+      stats.put("totalUsers", totalUsers);
+      stats.put("email", myUser.getEmail());
+      stats.put("username", myUser.getUsername());
+      
+      return ResponseEntity.ok().body(stats);
+    } catch (Exception e) {
+      System.out.println(e.getMessage());
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "サーバーエラーです。"));
+    }
+  }
+
 }

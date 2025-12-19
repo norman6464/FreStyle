@@ -143,7 +143,7 @@ public class CognitoAuthController {
             userIdentityService.registerUserIdentity(user, claims.getIssuer(), claims.getSubject());
 
             ResponseCookie cookie = ResponseCookie.from("REFRESH_TOKEN", refreshToken)
-                    .httpOnly(true).secure(true).path("/").maxAge(3600).sameSite("None").build();
+                    .httpOnly(true).secure(false).path("/").maxAge(3600).sameSite("None").build();
             response.addHeader("Set-Cookie", cookie.toString());
 
             Map<String, Object> responseData = Map.of(
@@ -179,7 +179,9 @@ public class CognitoAuthController {
     @PostMapping("/callback")
     public ResponseEntity<?> callback(@RequestBody Map<String, String> body, HttpServletResponse response) {
 
+        System.out.println("OIDCコールバック処理開始");
         String code = body.get("code");
+        System.out.println("認可コード: " + code);
 
         String basicAuthValue = Base64.getEncoder()
                 .encodeToString((clientId + ":" + clientSecret).getBytes(StandardCharsets.UTF_8));
@@ -201,9 +203,12 @@ public class CognitoAuthController {
                 .block();
 
         if (tokenResponse == null) {
+            System.err.println("トークン取得に失敗しました");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "トークン取得に失敗しました。"));
         }
+
+        System.out.println("トークン取得成功");
 
         String idToken = (String) tokenResponse.get("id_token");
         String accessToken = (String) tokenResponse.get("access_token");
@@ -226,9 +231,11 @@ public class CognitoAuthController {
 
             userService.registerUserOIDC("guest", email, provider, sub);
 
+            // 一時的にローカルで開発をしているためsecureをfalseにしている
             ResponseCookie cookie = ResponseCookie.from("REFRESH_TOKEN", refreshToken)
                     .httpOnly(true)
-                    .secure(true)
+                    .secure(false
+                    )
                     .path("/")
                     .maxAge(3600)
                     .sameSite("None")
@@ -244,8 +251,10 @@ public class CognitoAuthController {
             return ResponseEntity.ok(responseData);
 
         } catch (Exception e) {
+            System.err.println("OIDCコールバック処理エラー: " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.internalServerError()
-                    .body(Map.of("error", "サーバーのエラーが発生しました。"));
+                    .body(Map.of("error", "サーバーのエラーが発生しました: " + e.getMessage()));
         }
     }
 
@@ -263,7 +272,7 @@ public class CognitoAuthController {
 
         ResponseCookie cookie = ResponseCookie.from("REFRESH_TOKEN", null)
                 .httpOnly(true)
-                .secure(true)
+                .secure(false)
                 .path("/")
                 .maxAge(0)
                 .sameSite("None")

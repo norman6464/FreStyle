@@ -2,7 +2,7 @@ import MemberItem from './MemberItem';
 
 export default function MemberList({ users }) {
   return (
-    <div className="space-y-2">
+    <div className="space-y-4">
       {users.map((user) => (
         <MemberItem
           key={user.id}

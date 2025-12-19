@@ -76,21 +76,56 @@ export default function MemberPage() {
 
   return (
     <>
-      <HamburgerMenu />
-      <div className="min-h-screen bg-gray-100 p-4 mt-16">
-        <div className="mb-4">
-          <SearchBox
-            value={searchQuery}
-            onChange={setSearchQuery}
-            placeholder="名前で検索"
-          />
-        </div>
+      <HamburgerMenu title="チャットメンバー" />
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-primary-50 p-4 pt-20 pb-8">
+        <div className="max-w-2xl mx-auto">
+          {/* ヘッダー */}
+          <div className="mb-8">
+            <h2 className="text-4xl font-bold text-gray-800 mb-2">
+              あなたのチャット
+            </h2>
+            <p className="text-gray-600 text-lg">メンバーを検索または選択</p>
+          </div>
 
-        {error ? (
-          <div className="text-red-500">{error}</div>
-        ) : (
+          {/* 検索ボックス */}
+          <div className="mb-8">
+            <SearchBox
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="メンバーを検索..."
+            />
+          </div>
+
+          {/* エラー表示 */}
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-lg">
+              <p className="text-red-700 font-semibold">⚠️ {error}</p>
+            </div>
+          )}
+
+          {/* メンバーリスト */}
+          {members.length === 0 && !error && (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-gray-200 rounded-full mx-auto mb-4 flex items-center justify-center">
+                <svg
+                  className="w-8 h-8 text-gray-500"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M17 20h5v-2a3 3 0 00-5.856-1.487M15 10a3 3 0 11-6 0 3 3 0 016 0zM15 20H9m6 0h.01"
+                  />
+                </svg>
+              </div>
+              <p className="text-gray-500 text-lg">メンバーがまだいません</p>
+            </div>
+          )}
           <MemberList members={members} />
-        )}
+        </div>
       </div>
     </>
   );

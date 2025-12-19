@@ -158,4 +158,10 @@ public class UserService {
       throw new RuntimeException("メール認証は完了していないためログインできません。");
     }
   }
+
+  // ユーザー総数を取得
+  @Transactional(readOnly = true)
+  public Long getTotalUserCount() {
+    return userRepository.count();
+  }
 }

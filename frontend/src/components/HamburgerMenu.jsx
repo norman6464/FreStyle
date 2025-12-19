@@ -2,6 +2,15 @@ import { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { clearAuthData } from '../store/authSlice';
+import {
+  Bars3Icon,
+  XMarkIcon,
+  HomeIcon,
+  UserCircleIcon,
+  MagnifyingGlassIcon,
+  SparklesIcon,
+  ArrowLeftOnRectangleIcon,
+} from '@heroicons/react/24/solid';
 
 export default function HamburgerMenu({ title }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -36,74 +45,104 @@ export default function HamburgerMenu({ title }) {
   };
 
   const menuItems = [
-    { label: 'プロフィールを編集', onClick: () => navigate('/profile/me') },
-    { label: 'ユーザー検索', onClick: () => navigate('/chat/users') },
-    { label: 'AIに聞いてみる', onClick: () => navigate('/chat/ask-ai') },
-    { label: 'ログアウト', onClick: handleLogout },
+    {
+      label: 'ホーム',
+      icon: HomeIcon,
+      onClick: () => navigate('/'),
+      color: 'text-primary-600',
+    },
+    {
+      label: 'プロフィール',
+      icon: UserCircleIcon,
+      onClick: () => navigate('/profile/me'),
+      color: 'text-secondary-600',
+    },
+    {
+      label: 'ユーザー検索',
+      icon: MagnifyingGlassIcon,
+      onClick: () => navigate('/chat/users'),
+      color: 'text-blue-600',
+    },
+    {
+      label: 'AI',
+      icon: SparklesIcon,
+      onClick: () => navigate('/chat/ask-ai'),
+      color: 'text-pink-600',
+    },
+    {
+      label: 'ログアウト',
+      icon: ArrowLeftOnRectangleIcon,
+      onClick: handleLogout,
+      color: 'text-red-600',
+    },
   ];
 
   return (
-    <header className="w-full bg-gray-50 shadow-sm fixed top-0 left-0 z-50">
-      <div className="max-w-4xl mx-auto px-3 py-5 flex justify-between items-center">
-        <button onClick={() => navigate('/')}>
-          <h1 className="text-lg font-semibold text-gray-800">{title}</h1>
-        </button>
+    <header className="w-full bg-gradient-to-r from-white to-gray-50 shadow-md fixed top-0 left-0 z-50 border-b border-gray-100">
+      <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
         <button
-          className="md:hidden p-2 text-gray-700 rounded-md hover:bg-gray-200 focus:outline-none"
+          onClick={() => navigate('/')}
+          className="flex items-center space-x-2"
+        >
+          <div className="bg-gradient-primary w-10 h-10 rounded-lg flex items-center justify-center">
+            <span className="text-white font-bold text-lg">F</span>
+          </div>
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent hidden sm:block">
+            {title}
+          </h1>
+        </button>
+
+        {/* デスクトップナビゲーション */}
+        <nav className="hidden md:flex items-center space-x-1">
+          {menuItems.map((item, index) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={index}
+                onClick={item.onClick}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 hover:bg-gray-100 ${item.color} font-medium group`}
+              >
+                <Icon className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                <span className="text-gray-700">{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* モバイルメニューボタン */}
+        <button
+          className="md:hidden p-2 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
           onClick={() => setIsOpen(!isOpen)}
         >
-          <svg
-            className="w-6 h-6"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            {isOpen ? (
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M6 18L18 6M6 6l12 12"
-              />
-            ) : (
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M4 6h16M4 12h16M4 18h16"
-              />
-            )}
-          </svg>
+          {isOpen ? (
+            <XMarkIcon className="w-6 h-6" />
+          ) : (
+            <Bars3Icon className="w-6 h-6" />
+          )}
         </button>
-
-        <nav className="hidden md:flex flex-1 justify-center space-x-10">
-          {menuItems.map((item, index) => (
-            <button
-              key={index}
-              onClick={item.onClick}
-              className="text-gray-700 hover:text-blue-600 font-medium transition"
-            >
-              {item.label}
-            </button>
-          ))}
-        </nav>
-        <div className="hidden md:block w-10" />
       </div>
 
+      {/* モバイルメニュー */}
       {isOpen && (
-        <div className="absolute top-full left-0 w-full bg-white shadow-lg z-50">
-          {menuItems.map((item, index) => (
-            <button
-              key={index}
-              onClick={() => {
-                item.onClick();
-                setIsOpen(false);
-              }}
-              className="block w-full text-left px-4 py-3 border-b border-gray-200 hover:bg-gray-100 text-gray-700 font-medium"
-            >
-              {item.label}
-            </button>
-          ))}
+        <div className="md:hidden bg-white border-t border-gray-200 shadow-lg animate-fade-in">
+          {menuItems.map((item, index) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={index}
+                onClick={() => {
+                  item.onClick();
+                  setIsOpen(false);
+                }}
+                className={`flex items-center w-full px-4 py-4 border-b border-gray-100 hover:bg-gray-50 transition-colors ${item.color}`}
+              >
+                <Icon className="w-5 h-5 mr-3" />
+                <span className="font-semibold text-gray-800">
+                  {item.label}
+                </span>
+              </button>
+            );
+          })}
         </div>
       )}
     </header>

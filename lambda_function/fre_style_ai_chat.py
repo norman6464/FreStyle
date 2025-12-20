@@ -33,7 +33,70 @@ def lambda_handler(event, context):
 
   if route_key == "$default":
     body = json.loads(event.get("body", "{}"))
+    action = body.get("action")
     sender_id = body.get("sender_id")
+    
+    # --- メッセージ削除処理 ---
+    if action == "delete":
+      print("🗑️ Delete action triggered")
+      timestamp = body.get("timestamp")
+      
+      if not timestamp or not sender_id:
+        return {
+          "statusCode": 400,
+          "body": json.dumps({"error": "timestamp and sender_id required"})
+        }
+      
+      try:
+        # --- DynamoDBからメッセージを削除 ---
+        print(f'🗑️ Deleting AI message: sender_id={sender_id}, timestamp={timestamp}, type(timestamp)={type(timestamp).__name__}')
+        
+        # timestampが文字列の場合は数値に変換
+        try:
+            timestamp_num = float(timestamp) if isinstance(timestamp, str) else timestamp
+        except (ValueError, TypeError):
+            print(f'❌ タイムスタンプ変換失敗: {timestamp}')
+            return {
+              "statusCode": 400,
+              "body": json.dumps({"error": "Invalid timestamp format"})
+            }
+        
+        response = history_table.delete_item(
+          Key={
+            "sender_id": sender_id,
+            "timestamp": timestamp_num
+          }
+        )
+        
+        print(f'✅ DynamoDB削除応答: {response}')
+        
+        # --- 削除通知をクライアントに送信 ---
+        apigw_management.post_to_connection(
+          ConnectionId=connection_id,
+          Data=json.dumps({
+            "type": "message_deleted",
+            "timestamp": timestamp_num,
+            "sender_id": sender_id
+          }).encode('utf-8')
+        )
+        
+        print(f'✅ AIメッセージ削除完了: timestamp={timestamp_num}, sender_id={sender_id}')
+        return {"statusCode": 200, "body": json.dumps({"success": True})}
+      
+      except apigw_management.exceptions.GoneException:
+        conn_table.delete_item(Key={'connection_id': connection_id})
+        return {"statusCode": 410}
+      
+      except Exception as e:
+        print(f'❌ メッセージ削除エラー: {str(e)}')
+        import traceback
+        traceback.print_exc()
+        return {
+          "statusCode": 500,
+          "body": json.dumps({"error": str(e)})
+        }
+    
+    # --- 通常のメッセージ送受信処理 ---
     user_message = body.get("content")
   
     if not sender_id or not user_message:
@@ -113,5 +176,6 @@ def lambda_handler(event, context):
             "statusCode": 500,
             "body": json.dumps({"error": str(e)})
         }
+  
   else:
     return { "statusCode": 400, "body": "Invalid route" }

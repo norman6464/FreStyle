@@ -34,6 +34,7 @@ export default function ChatPage() {
   const fetchHistory = async () => {
     try {
       console.log('📡 履歴リクエスト開始');
+      console.log('🔍 senderId:', senderId, 'タイプ:', typeof senderId);
       const res = await fetch(
         `${API_BASE_URL}/api/chat/users/${roomId}/history`,
         {
@@ -93,10 +94,12 @@ export default function ChatPage() {
         if (!retryRes.ok) throw new Error('再リクエスト失敗');
 
         const retryData = await retryRes.json();
+        console.log('📋 再取得成功。user フィールドで判定します');
+
         const formattedMessages = retryData.map((msg) => ({
           id: msg.timestamp,
           content: msg.content,
-          isSender: msg.isUser,
+          isSender: msg.user === true,
         }));
         setMessages(formattedMessages);
         console.log('✅ 履歴再取得成功');
@@ -107,15 +110,14 @@ export default function ChatPage() {
       if (!res.ok) throw new Error(`履歴取得失敗: ${res.status}`);
 
       const data = await res.json();
-
-      data.map((msg) => {
-        console.log(msg.isUser);
-      });
+      console.log('📋 取得成功。user フィールドで判定します');
 
       const formattedMessages = data.map((msg) => ({
         id: msg.timestamp,
+        timestamp: msg.timestamp,
+        timestamp: msg.timestamp,
         content: msg.content,
-        isSender: msg.isUser,
+        isSender: msg.user === true,
       }));
       setMessages(formattedMessages);
       console.log('✅ 履歴取得成功');
@@ -147,6 +149,7 @@ export default function ChatPage() {
         ...prev,
         {
           id: data.timestamp ?? Date.now(),
+          timestamp: data.timestamp ?? Date.now(),
           content: data.content || data.message,
           isSender: data.sender_id === senderId,
         },
@@ -190,6 +193,58 @@ export default function ChatPage() {
     }
   };
 
+  // --- メッセージ削除処理 ---
+  const handleDeleteMessage = (messageId) => {
+    const messageToDelete = messages.find((msg) => msg.id === messageId);
+    if (!messageToDelete) return;
+
+    if (confirm('このメッセージを削除しますか？')) {
+      // ローカルstateで削除済みマークをつける
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === messageId ? { ...msg, isDeleted: true } : msg
+        )
+      );
+
+      // WebSocketで削除を送信
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(
+          JSON.stringify({
+            action: 'delete',
+            room_id: roomId,
+            timestamp: messageToDelete.timestamp,
+            sender_id: senderId,
+          })
+        );
+      }
+    }
+  };
+
+  // --- AIにフィードバックをもらう処理 ---
+  const handleAiFeedback = () => {
+    // チャット履歴をプロンプト用に整形
+    const chatHistory = messages
+      .map((msg) => {
+        const sender = msg.isSender ? '自分' : '相手';
+        return `${sender}: ${msg.content}`;
+      })
+      .join('\n');
+
+    const feedbackPrompt = `以下は私と友人との最近のチャット履歴です。この会話から、私がどのような性格・特性を持っているかを分析して教えてください。
+
+【チャット履歴】
+${chatHistory}
+
+この会話に基づいて、以下について教えてください：
+1. あなたの会話スタイル
+2. 推測される性格特性
+3. コミュニケーションの強み
+4. より良いコミュニケーションのための改善案`;
+
+    // stateを通じてプロンプトを渡してAIチャット画面へ遷移
+    navigate('/chat/ask-ai', { state: { initialPrompt: feedbackPrompt } });
+  };
+
   return (
     <>
       {/* 画面上部の固定ヘッダー */}
@@ -206,7 +261,11 @@ export default function ChatPage() {
             </div>
           )}
           {messages.map((msg) => (
-            <MessageBubble key={msg.id} {...msg} />
+            <MessageBubble
+              key={msg.id}
+              {...msg}
+              onDelete={handleDeleteMessage}
+            />
           ))}
           {/* 最下部スクロール用エレメント */}
           <div ref={messagesEndRef} />
@@ -215,7 +274,28 @@ export default function ChatPage() {
         {/* メッセージ入力エリアのコンテナ: 画面下部に固定し、適切なパディングを設定 */}
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 shadow-2xl p-4 z-10">
           {/* MessageInput自体の幅を max-w-4xl に制限し、メッセージバブルの幅に合わせる */}
-          <div className="max-w-4xl mx-auto w-full">
+          <div className="max-w-4xl mx-auto w-full space-y-3">
+            {messages.length > 0 && (
+              <button
+                onClick={handleAiFeedback}
+                className="w-full bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-300 flex items-center justify-center space-x-2 shadow-md"
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 10V3L4 14h7v7l9-11h-7z"
+                  />
+                </svg>
+                <span>AIにフィードバックしてもらう</span>
+              </button>
+            )}
             <MessageInput onSend={handleSend} />
           </div>
         </div>

@@ -3,7 +3,7 @@ import MessageBubble from '../components/MessageBubble';
 import MessageInput from '../components/MessageInput';
 import HamburgerMenu from '../components/HamburgerMenu';
 import { useSelector, useDispatch } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { setAuthData, clearAuthData } from '../store/authSlice';
 
 export default function AskAiPage() {
@@ -11,14 +11,18 @@ export default function AskAiPage() {
   const WS_URL = import.meta.env.VITE_WEB_SOCKET_URL_AI_CHAT;
 
   const [messages, setMessages] = useState([]);
+  const [initialPromptSent, setInitialPromptSent] = useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const wsRef = useRef(null);
   const messagesEndRef = useRef(null);
 
   const navigate = useNavigate();
+  const location = useLocation();
   const dispatch = useDispatch();
 
   const accessToken = useSelector((state) => state.auth.accessToken);
   const senderId = useSelector((state) => state.auth.sub);
+  const initialPrompt = location.state?.initialPrompt;
 
   // --- メッセージ最下部へスクロール ---
   const scrollToBottom = () => {
@@ -29,8 +33,17 @@ export default function AskAiPage() {
     scrollToBottom();
   }, [messages]);
 
-  // --- チャット履歴取得 ---
+  // --- チャット履歴取得（AIフィードバック時のみ） ---
   useEffect(() => {
+    // initialPromptがない場合は履歴取得をスキップ（通常のAIチャット）
+    if (!initialPrompt) {
+      console.log('📝 通常のAIチャットモード（ユーザーチャット履歴なし）');
+      setHistoryLoaded(true);
+      return;
+    }
+
+    console.log('🔄 フィードバックモード：AI履歴取得開始');
+
     const fetchHistory = async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/api/chat/ai/history`, {
@@ -77,23 +90,30 @@ export default function AskAiPage() {
           const retryData = await retryRes.json();
           const formattedMessages = retryData.map((item) => ({
             id: item.timestamp,
+            timestamp: item.timestamp,
             content: item.content,
             isSender: item.user === true || item.isUser === true,
           }));
 
           setMessages(formattedMessages);
+          setHistoryLoaded(true);
+          console.log('✅ AI履歴取得完了（フィードバックモード）');
           return;
         }
 
         const data = await res.json();
         const formattedMessages = data.map((item) => ({
           id: item.timestamp,
+          timestamp: item.timestamp,
           content: item.content,
           isSender: item.user === true || item.isUser === true,
         }));
         setMessages(formattedMessages);
+        setHistoryLoaded(true);
+        console.log('✅ AI履歴取得完了（フィードバックモード）');
       } catch (err) {
         console.error('履歴取得失敗:', err);
+        setHistoryLoaded(true);
       }
     };
 
@@ -102,16 +122,42 @@ export default function AskAiPage() {
     } else {
       navigate('/login');
     }
-  }, [API_BASE_URL, accessToken, dispatch, navigate]);
+  }, [initialPrompt, API_BASE_URL, accessToken, dispatch, navigate]);
 
   // --- WebSocket ---
   useEffect(() => {
-    if (!senderId) return;
+    if (!senderId || !historyLoaded) return;
 
     const socketUrl = `${WS_URL}?user_id=${senderId}&room_id=default`;
     wsRef.current = new WebSocket(socketUrl);
 
-    wsRef.current.onopen = () => console.log('WebSocket Connected');
+    wsRef.current.onopen = () => {
+      console.log('✅ WebSocket Connected - AI履歴取得完了後に接続');
+
+      // 初期プロンプトがあれば自動送信
+      if (initialPrompt && !initialPromptSent) {
+        console.log('📤 初期プロンプトを送信します');
+        wsRef.current.send(
+          JSON.stringify({
+            sender_id: senderId,
+            content: initialPrompt,
+          })
+        );
+
+        // ユーザー側のメッセージも表示
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: Date.now(),
+            timestamp: Date.now(),
+            content: initialPrompt,
+            isSender: true,
+          },
+        ]);
+
+        setInitialPromptSent(true);
+      }
+    };
 
     wsRef.current.onmessage = (event) => {
       const data = JSON.parse(event.data);
@@ -120,6 +166,7 @@ export default function AskAiPage() {
         ...prev,
         {
           id: data.timestamp ?? Date.now(),
+          timestamp: data.timestamp ?? Date.now(),
           content: data.reply || data.message,
           isSender: data.from === senderId,
         },
@@ -132,7 +179,33 @@ export default function AskAiPage() {
     return () => {
       wsRef.current?.close();
     };
-  }, [WS_URL, senderId]);
+  }, [WS_URL, senderId, initialPrompt, initialPromptSent, historyLoaded]);
+
+  // --- メッセージ削除処理 ---
+  const handleDeleteMessage = (messageId) => {
+    const messageToDelete = messages.find((msg) => msg.id === messageId);
+    if (!messageToDelete) return;
+
+    if (confirm('このメッセージを削除しますか？')) {
+      // ローカルstateで削除済みマークをつける
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === messageId ? { ...msg, isDeleted: true } : msg
+        )
+      );
+
+      // WebSocketで削除を送信
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(
+          JSON.stringify({
+            action: 'delete',
+            timestamp: messageToDelete.timestamp,
+            sender_id: senderId,
+          })
+        );
+      }
+    }
+  };
 
   // --- メッセージ送信 ---
   const handleSend = (text) => {
@@ -204,6 +277,7 @@ export default function AskAiPage() {
               key={msg.id}
               {...msg}
               type={msg.isSender ? 'text' : 'bot'}
+              onDelete={handleDeleteMessage}
             />
           ))}
 

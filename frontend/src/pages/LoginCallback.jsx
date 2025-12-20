@@ -1,8 +1,7 @@
 import { useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { useDispatch, useSelector } from 'react-redux';
+import { useDispatch } from 'react-redux';
 import { setAuthData } from '../store/authSlice';
-import AuthLayout from '../components/AuthLayout';
 
 export default function LoginCallback() {
   // ReduxのaccessTokenを取得する
@@ -48,8 +47,21 @@ export default function LoginCallback() {
   }, [code, error, dispatch, navigate]);
 
   return (
-    <AuthLayout>
-      <p className="text-center">読み込み中...</p>
-    </AuthLayout>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-gray-50 to-primary-50">
+      <div className="flex flex-col items-center space-y-6">
+        {/* ローディングスピナー */}
+        <div className="relative w-20 h-20">
+          <div className="absolute inset-0 rounded-full border-4 border-gray-200"></div>
+          <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-primary-600 border-r-primary-600 animate-spin"></div>
+        </div>
+        {/* ローディングテキスト */}
+        <div className="text-center">
+          <h3 className="text-2xl font-bold text-gray-800 mb-2">
+            ログイン中...
+          </h3>
+          <p className="text-gray-600">お待たせしています</p>
+        </div>
+      </div>
+    </div>
   );
 }

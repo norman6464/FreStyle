@@ -48,6 +48,78 @@ def lambda_handler(event, context):
 
         # --- 受信データを取得 ---
         body = json.loads(event.get('body', '{}'))
+        action = body.get('action')
+        
+        # --- メッセージ削除処理 ---
+        if action == 'delete':
+            print("🗑️ Delete action triggered")
+            room_id = body.get('room_id')
+            timestamp = body.get('timestamp')
+            sender_id = body.get('sender_id')
+            
+            if not all([room_id, timestamp, sender_id]):
+                return {
+                    'statusCode': 400,
+                    'body': json.dumps({'error': 'room_id, timestamp, sender_id required'})
+                }
+            
+            try:
+                # --- DynamoDBからメッセージを削除 ---
+                print(f'🗑️ Deleting message: room_id={room_id}, timestamp={timestamp}, type(timestamp)={type(timestamp).__name__}')
+                
+                # timestampが文字列の場合は数値に変換
+                try:
+                    timestamp_num = float(timestamp) if isinstance(timestamp, str) else timestamp
+                except (ValueError, TypeError):
+                    print(f'❌ タイムスタンプ変換失敗: {timestamp}')
+                    return {
+                        'statusCode': 400,
+                        'body': json.dumps({'error': 'Invalid timestamp format'})
+                    }
+                
+                response = chat_table.delete_item(
+                    Key={
+                        'room_id': int(room_id),
+                        'timestamp': timestamp_num
+                    }
+                )
+                
+                print(f'✅ DynamoDB削除応答: {response}')
+                
+                # --- 同じルームにいる全員に削除通知を送信 ---
+                response = table.scan(
+                    FilterExpression=Attr('room_id').eq(room_id)
+                )
+                
+                for item in response['Items']:
+                    target_conn_id = item['connection_id']
+                    
+                    try:
+                        apigw_management.post_to_connection(
+                            ConnectionId=target_conn_id,
+                            Data=json.dumps({
+                                'type': 'message_deleted',
+                                'room_id': room_id,
+                                'timestamp': timestamp_num,
+                                'sender_id': sender_id
+                            }).encode('utf-8')
+                        )
+                    except apigw_management.exceptions.GoneException:
+                        table.delete_item(Key={'connection_id': target_conn_id})
+                
+                print(f'✅ メッセージ削除完了: room_id={room_id}, timestamp={timestamp_num}')
+                return {'statusCode': 200, 'body': json.dumps({'success': True})}
+            
+            except Exception as e:
+                print(f'❌ メッセージ削除エラー: {str(e)}')
+                import traceback
+                traceback.print_exc()
+                return {
+                    'statusCode': 500,
+                    'body': json.dumps({'error': str(e)})
+                }
+        
+        # --- 通常のメッセージ送信処理 ---
         room_id = body.get('room_id')
         sender_id = body.get('sender_id')
         content = body.get('content')

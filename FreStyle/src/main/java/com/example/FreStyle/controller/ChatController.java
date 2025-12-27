@@ -17,25 +17,28 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.FreStyle.dto.ChatMessageDto;
 import com.example.FreStyle.dto.UserDto;
+import com.example.FreStyle.entity.ChatMessage;
+import com.example.FreStyle.entity.ChatRoom;
 import com.example.FreStyle.entity.User;
+import com.example.FreStyle.service.ChatMessageService;
+import com.example.FreStyle.service.ChatRoomService;
 import com.example.FreStyle.service.ChatService;
 import com.example.FreStyle.service.UserIdentityService;
 import com.example.FreStyle.service.UserService;
 
+import lombok.RequiredArgsConstructor;
+
 @RestController
 @RequestMapping("/api/chat/")
+@RequiredArgsConstructor
 public class ChatController {
 
   
   private final UserService userService;
   private final ChatService chatService;
+  private final ChatRoomService chatRoomService;
+  private final ChatMessageService chatMessageService; 
   private final UserIdentityService userIdentityService;
-
-  public ChatController(UserService userService,ChatService chatService, UserIdentityService userIdentityService) {
-    this.userService = userService;
-    this.chatService = chatService;
-    this.userIdentityService = userIdentityService;
-  }
 
   // ユーザー登録一覧
   @GetMapping("/users")
@@ -94,7 +97,7 @@ public class ChatController {
   
   @GetMapping("/users/{roomId}/history")
   public ResponseEntity<?> history(@AuthenticationPrincipal Jwt jwt, @PathVariable(name = "roomId") Integer roomId) {
-    System.out.println("Request receive");
+    System.out.println("Request receive: roomId=" + roomId);
     
     String cognitoSub = jwt.getSubject();
     
@@ -103,12 +106,24 @@ public class ChatController {
     }
     
     try {
+      // 自分のユーザー情報を取得
+      User myUser = userIdentityService.findUserBySub(cognitoSub);
+      System.out.println("myUser: " + myUser.getName());
       
-      List<ChatMessageDto> history = chatService.getChatHistory(roomId, cognitoSub);
-      return ResponseEntity.ok().body(history);
+      // すでにroom_idが取得されている状態なのでchatRoomServiceからChatRoomオブジェクトを取得をする
+      ChatRoom chatRoom = chatRoomService.findChatRoomById(roomId);
+      System.out.println("chatRoom found: " + chatRoom.getId());
+      
+      // 履歴の取得
+      List<ChatMessageDto> history = chatMessageService.getMessagesByRoom(chatRoom);
+      System.out.println("history count: " + history.size());
+      
+      return ResponseEntity.ok(history);
+      
       
     } catch (Exception e) {
-      System.out.println(e.getMessage());
+      System.out.println("Error in history endpoint: " + e.getMessage());
+      e.printStackTrace();
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "サーバーエラーです。"));
     }
     

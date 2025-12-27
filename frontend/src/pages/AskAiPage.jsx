@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import MessageBubble from '../components/MessageBubble';
+import MessageBubbleAi from '../components/MessageBubbleAi';
 import MessageInput from '../components/MessageInput';
 import HamburgerMenu from '../components/HamburgerMenu';
 import { useSelector, useDispatch } from 'react-redux';

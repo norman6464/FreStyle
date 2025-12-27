@@ -25,7 +25,7 @@ public class SecurityConfig {
                 .cors(withDefaults())
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/hello","/api/hello/**","/api/auth/**").permitAll()
+                        .requestMatchers("/api/hello","/api/hello/**","/api/auth/info","/ws/chat/**").permitAll()
                         .anyRequest().authenticated())
                 .formLogin(form -> form.disable())
                 .httpBasic(basic -> basic.disable())

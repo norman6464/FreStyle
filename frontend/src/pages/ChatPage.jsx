@@ -6,259 +6,215 @@ import HamburgerMenu from '../components/HamburgerMenu';
 import { useSelector, useDispatch } from 'react-redux';
 import { setAuthData, clearAuthData } from '../store/authSlice';
 
+import SockJS from 'sockjs-client';
+import { Client } from '@stomp/stompjs';
+
 export default function ChatPage() {
   const [messages, setMessages] = useState([]);
-  const wsRef = useRef(null);
-  const messagesEndRef = useRef(null); // メッセージの最下部へスクロールするためのRef
+  const stompClientRef = useRef(null);
+  const messagesEndRef = useRef(null);
+
   const { roomId } = useParams();
   const senderId = useSelector((state) => state.auth.sub);
   const accessToken = useSelector((state) => state.auth.accessToken);
-  const email = useSelector((state) => state.auth.email);
+
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-  // メッセージリストの最下部にスクロールする関数
+  // スクロール
   const scrollToBottom = () => {
-    // スクロール時に、アニメーションを伴ってスムーズに移動
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // メッセージが更新されたらスクロール
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
-  // --- チャット履歴取得（JWT認証＋リフレッシュ対応） ---
+  // --- チャット履歴取得 ---
   const fetchHistory = async () => {
     try {
-      console.log('📡 履歴リクエスト開始');
-      console.log('🔍 senderId:', senderId, 'タイプ:', typeof senderId);
       const res = await fetch(
         `${API_BASE_URL}/api/chat/users/${roomId}/history`,
         {
           headers: {
-            'Content-Type': 'application/json',
             Authorization: `Bearer ${accessToken}`,
           },
-          credentials: 'include', // Cookie（Refresh Token）送信
+          credentials: 'include',
         }
       );
 
-      // アクセストークン期限切れ
       if (res.status === 401) {
-        console.warn('アクセストークン期限切れ。リフレッシュを試行します。');
-
         const refreshRes = await fetch(
           `${API_BASE_URL}/api/auth/cognito/refresh-token`,
-          {
-            method: 'POST',
-            credentials: 'include',
-          }
+          { method: 'POST', credentials: 'include' }
         );
 
         if (!refreshRes.ok) {
-          console.error('リフレッシュ失敗。再ログインへ遷移。');
           dispatch(clearAuthData());
           navigate('/login');
           return;
         }
 
-        const refreshData = await refreshRes.json();
-        const newAccessToken = refreshData.accessToken;
+        const { accessToken: newToken } = await refreshRes.json();
+        dispatch(setAuthData({ accessToken: newToken }));
+        return fetchHistory();
+      }
 
-        if (!newAccessToken) {
-          console.warn('新しいアクセストークンが取得できませんでした。');
-          dispatch(clearAuthData());
-          navigate('/login');
-          return;
-        }
-
-        // Redux更新
-        dispatch(setAuthData({ accessToken: newAccessToken }));
-        console.log('✅ アクセストークン更新成功。再リクエストを実行します。');
-
-        // 再試行
-        const retryRes = await fetch(
-          `${API_BASE_URL}/api/chat/users/${roomId}/history`,
-          {
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${newAccessToken}`,
-            },
-            credentials: 'include',
-          }
-        );
-
-        if (!retryRes.ok) throw new Error('再リクエスト失敗');
-
-        const retryData = await retryRes.json();
-        console.log('📋 再取得成功。user フィールドで判定します');
-
-        const formattedMessages = retryData.map((msg) => ({
-          id: msg.timestamp,
-          content: msg.content,
-          isSender: msg.user === true,
-        }));
-        setMessages(formattedMessages);
-        console.log('✅ 履歴再取得成功');
+      if (!res.ok) {
+        console.error('チャット履歴取得エラー:', res.status, res.statusText);
         return;
       }
 
-      // 通常成功時
-      if (!res.ok) throw new Error(`履歴取得失敗: ${res.status}`);
-
       const data = await res.json();
-      console.log('📋 取得成功。user フィールドで判定します');
 
-      const formattedMessages = data.map((msg) => ({
-        id: msg.timestamp,
-        timestamp: msg.timestamp,
+      // レスポンスが配列でない場合のチェック
+      if (!Array.isArray(data)) {
+        console.error('レスポンスが配列ではありません:', data);
+        return;
+      }
+
+      const formatted = data.map((msg) => ({
+        id: msg.id,
+        roomId: msg.roomId,
+        senderId: msg.senderId,
+        senderName: msg.senderName,
         content: msg.content,
-        isSender: msg.user === true,
+        createdAt: msg.createdAt,
+        isSender: msg.senderId === senderId,
       }));
-      setMessages(formattedMessages);
-      console.log('✅ 履歴取得成功');
-    } catch (err) {
-      console.error('❌ 履歴取得中エラー:', err);
+
+      setMessages(formatted);
+    } catch (e) {
+      console.error('履歴取得失敗', e);
     }
   };
 
-  // --- WebSocket接続 ---
+  // --- WebSocket (STOMP) 接続 ---
   useEffect(() => {
     if (!senderId) return;
 
-    const wsUrl = `${
-      import.meta.env.VITE_WEB_SOCKET_URL_CHAT
-    }?user_id=${senderId}&room_id=${roomId}`;
+    const client = new Client({
+      webSocketFactory: () => new SockJS(`${API_BASE_URL}/ws/chat`),
+      connectHeaders: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      reconnectDelay: 5000,
 
-    wsRef.current = new WebSocket(wsUrl);
+      onConnect: () => {
+        console.log('✅ STOMP connected');
 
-    wsRef.current.onopen = () => {
-      console.log('✅ WebSocket connected');
-      fetchHistory();
-    };
+        // ルーム購読（相手ユーザーがリアルタイムでチャットをしてきたらそれを取得して表示をする）
+        client.subscribe(`/topic/chat/${roomId}`, (message) => {
+          const data = JSON.parse(message.body);
 
-    wsRef.current.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      console.log('📩 WebSocket受信:', data);
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: data.id,
+              roomId: data.roomId,
+              senderId: data.senderId,
+              senderName: data.senderName,
+              content: data.content,
+              createdAt: data.createdAt,
+              isSender: data.senderId === senderId,
+            },
+          ]);
+        });
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: data.timestamp ?? Date.now(),
-          timestamp: data.timestamp ?? Date.now(),
-          content: data.content || data.message,
-          isSender: data.sender_id === senderId,
-        },
-      ]);
-    };
+        fetchHistory();
+      },
 
-    wsRef.current.onerror = (err) => {
-      console.error('❌ WebSocket error:', err);
-    };
+      onStompError: (frame) => {
+        console.error('STOMP Error', frame);
+      },
+    });
 
-    wsRef.current.onclose = () => {
-      console.log('❎ WebSocket closed');
-    };
+    stompClientRef.current = client;
+    client.activate();
 
     return () => {
-      if (wsRef.current) wsRef.current.close();
+      client.deactivate();
     };
   }, [roomId, senderId, accessToken]);
 
   // --- メッセージ送信 ---
   const handleSend = (text) => {
-    const timestampNow = Date.now();
+    if (!stompClientRef.current?.connected) {
+      console.warn('⚠️ STOMP not connected');
+      return;
+    }
 
-    // 即時反映
+    console.log('📤 Sending message:', { roomId, senderId, content: text });
+
+    stompClientRef.current.publish({
+      destination: '/app/chat/send',
+      body: JSON.stringify({
+        roomId,
+        senderId,
+        content: text,
+      }),
+    });
+
+    // ローカルでも先に追加（楽観的 UI 更新）
     setMessages((prev) => [
       ...prev,
-      { id: timestampNow, content: text, isSender: true },
+      {
+        id: Date.now(), // 仮のID
+        roomId,
+        senderId,
+        senderName: '自分',
+        content: text,
+        createdAt: new Date().toISOString(),
+        isSender: true,
+      },
     ]);
-
-    // WebSocket送信
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(
-        JSON.stringify({
-          room_id: roomId,
-          sender_id: senderId,
-          content: text,
-        })
-      );
-    } else {
-      console.warn('⚠️ WebSocket未接続: メッセージ送信できません');
-    }
   };
 
-  // --- メッセージ削除処理 ---
+  // --- メッセージ削除（拡張用） ---
   const handleDeleteMessage = (messageId) => {
-    const messageToDelete = messages.find((msg) => msg.id === messageId);
-    if (!messageToDelete) return;
+    if (!confirm('このメッセージを削除しますか？')) return;
 
-    if (confirm('このメッセージを削除しますか？')) {
-      // ローカルstateで削除済みマークをつける
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === messageId ? { ...msg, isDeleted: true } : msg
-        )
-      );
+    setMessages((prev) =>
+      prev.map((m) => (m.id === messageId ? { ...m, isDeleted: true } : m))
+    );
 
-      // WebSocketで削除を送信
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        wsRef.current.send(
-          JSON.stringify({
-            action: 'delete',
-            room_id: roomId,
-            timestamp: messageToDelete.timestamp,
-            sender_id: senderId,
-          })
-        );
-      }
-    }
+    stompClientRef.current.publish({
+      destination: '/app/chat/delete',
+      body: JSON.stringify({
+        messageId,
+        roomId,
+        senderId,
+      }),
+    });
   };
 
-  // --- AIにフィードバックをもらう処理 ---
+  // --- AIフィードバック ---
   const handleAiFeedback = () => {
-    // チャット履歴をプロンプト用に整形
     const chatHistory = messages
-      .map((msg) => {
-        const sender = msg.isSender ? '自分' : '相手';
-        return `${sender}: ${msg.content}`;
-      })
+      .map((msg) => `${msg.isSender ? '自分' : '相手'}: ${msg.content}`)
       .join('\n');
 
-    const feedbackPrompt = `以下は私と友人との最近のチャット履歴です。この会話から、私がどのような性格・特性を持っているかを分析して教えてください。
-
-【チャット履歴】
-${chatHistory}
-
-この会話に基づいて、以下について教えてください：
-1. あなたの会話スタイル
-2. 推測される性格特性
-3. コミュニケーションの強み
-4. より良いコミュニケーションのための改善案`;
-
-    // stateを通じてプロンプトを渡してAIチャット画面へ遷移
-    navigate('/chat/ask-ai', { state: { initialPrompt: feedbackPrompt } });
+    navigate('/chat/ask-ai', {
+      state: {
+        initialPrompt: `【チャット履歴】\n${chatHistory}`,
+      },
+    });
   };
 
   return (
     <>
-      {/* 画面上部の固定ヘッダー */}
       <HamburgerMenu title="個人チャット" />
 
-      {/* メインのコンテナ: ヘッダーの下、入力欄の上全体を使う */}
       <div className="flex flex-col h-screen bg-gradient-to-br from-gray-50 to-primary-50 text-black pt-16">
-        {/* メッセージ表示エリア: flex-1 で残りのスペースを全て使い、スクロール可能にする */}
-        {/* pb-[100px] は、可変長の入力欄が最大高さになった場合でもメッセージが隠れないようにするためのスペース */}
         <div className="flex-1 overflow-y-auto px-4 py-6 space-y-2 max-w-4xl mx-auto w-full pb-[120px]">
           {messages.length === 0 && (
             <div className="flex items-center justify-center h-full">
               <p className="text-gray-400 text-lg">メッセージがありません</p>
             </div>
           )}
+
           {messages.map((msg) => (
             <MessageBubble
               key={msg.id}
@@ -266,33 +222,18 @@ ${chatHistory}
               onDelete={handleDeleteMessage}
             />
           ))}
-          {/* 最下部スクロール用エレメント */}
+
           <div ref={messagesEndRef} />
         </div>
 
-        {/* メッセージ入力エリアのコンテナ: 画面下部に固定し、適切なパディングを設定 */}
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 shadow-2xl p-4 z-10">
-          {/* MessageInput自体の幅を max-w-4xl に制限し、メッセージバブルの幅に合わせる */}
           <div className="max-w-4xl mx-auto w-full space-y-3">
             {messages.length > 0 && (
               <button
                 onClick={handleAiFeedback}
-                className="w-full bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-300 flex items-center justify-center space-x-2 shadow-md"
+                className="w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold py-3 px-4 rounded-lg"
               >
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M13 10V3L4 14h7v7l9-11h-7z"
-                  />
-                </svg>
-                <span>AIにフィードバックしてもらう</span>
+                AIにフィードバックしてもらう
               </button>
             )}
             <MessageInput onSend={handleSend} />

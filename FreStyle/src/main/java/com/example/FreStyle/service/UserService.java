@@ -13,21 +13,15 @@ import com.example.FreStyle.form.SignupForm;
 import com.example.FreStyle.repository.ChatRoomRepository;
 import com.example.FreStyle.repository.UserRepository;
 
+import lombok.RequiredArgsConstructor;
+
 @Service
+@RequiredArgsConstructor
 public class UserService {
 
   private final UserRepository userRepository;
   private final UserIdentityService userIdentityService;
   private final ChatRoomRepository chatRoomRepository;
-
-  public UserService(UserRepository userRepository,
-      UserIdentityService userIdentityService,
-      ChatRoomRepository chatRoomRepository) {
-
-    this.userRepository = userRepository;
-    this.userIdentityService = userIdentityService;
-    this.chatRoomRepository = chatRoomRepository;
-  }
 
   // ------------------------
   // 通常登録
@@ -44,7 +38,16 @@ public class UserService {
     user.setIsActive(false);
     userRepository.save(user);
   }
-
+  
+  // ------------------------
+  // Id で検索
+  // ------------------------
+  public User findUserById(Integer id) {
+    return userRepository.findById(id)
+        .orElseThrow(() -> new RuntimeException("ユーザーが見つかりません。"));
+  }
+  
+  
   // ------------------------
   // Email で検索
   // ------------------------

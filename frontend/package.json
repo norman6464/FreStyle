@@ -14,13 +14,15 @@
     "@fontsource/roboto": "^5.2.8",
     "@heroicons/react": "^2.2.0",
     "@reduxjs/toolkit": "^2.9.0",
+    "@stomp/stompjs": "^7.2.1",
     "@tanstack/react-query-devtools": "^5.90.2",
     "lodash": "^4.17.21",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-hook-form": "^7.65.0",
     "react-redux": "^9.2.0",
-    "react-router-dom": "^7.9.4"
+    "react-router-dom": "^7.9.4",
+    "sockjs-client": "^1.6.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",

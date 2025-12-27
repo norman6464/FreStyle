@@ -1,0 +1,86 @@
+package com.example.FreStyle.service;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.example.FreStyle.dto.ChatMessageDto;
+import com.example.FreStyle.entity.ChatMessage;
+import com.example.FreStyle.entity.ChatRoom;
+import com.example.FreStyle.entity.User;
+import com.example.FreStyle.repository.ChatMessageRepository;
+
+import lombok.RequiredArgsConstructor;
+
+@Service
+@RequiredArgsConstructor
+public class ChatMessageService {
+
+    private final ChatMessageRepository chatMessageRepository;
+
+    /**
+     * 指定ルームのチャット履歴取得（作成日時昇順）
+     */
+    @Transactional(readOnly = true)
+    public List<ChatMessageDto> getMessagesByRoom(ChatRoom room) {
+        return chatMessageRepository.findByRoomOrderByCreatedAtAsc(room)
+                .stream()
+                .map(this::toDto)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 新しいメッセージを保存
+     */
+    @Transactional
+    public ChatMessageDto addMessage(ChatRoom room, User sender, String content) {
+        ChatMessage message = new ChatMessage();
+        message.setRoom(room);
+        message.setSender(sender);
+        message.setContent(content);
+
+        ChatMessage saved = chatMessageRepository.save(message);
+        return toDto(saved);
+    }
+
+    /**
+     * メッセージを更新（ID指定）
+     */
+    @Transactional
+    public ChatMessageDto updateMessage(Integer messageId, String newContent) {
+        ChatMessage message = chatMessageRepository.findById(messageId)
+                .orElseThrow(() -> new RuntimeException("メッセージが見つかりません。"));
+
+        message.setContent(newContent);
+        ChatMessage updated = chatMessageRepository.save(message);
+        return toDto(updated);
+    }
+
+    /**
+     * メッセージ削除
+     */
+    @Transactional
+    public void deleteMessage(Integer messageId) {
+        if (!chatMessageRepository.existsById(messageId)) {
+            throw new RuntimeException("メッセージが見つかりません。");
+        }
+        chatMessageRepository.deleteById(messageId);
+    }
+
+    /**
+     * ChatMessage → ChatMessageDto 変換
+     */
+    private ChatMessageDto toDto(ChatMessage message) {
+        return new ChatMessageDto(
+                message.getId(),
+                message.getRoom().getId(),
+                message.getSender().getId(),
+                message.getSender().getName(),
+                message.getContent(),
+                message.getCreatedAt(),
+                message.getUpdatedAt()
+        );
+    }
+}

@@ -66,10 +66,10 @@ public class ChatService {
             .build();
     }
     
-    // チャットルームの作成
+    // チャットルームの作成かすでに存在をしていた場合はそのままチャット画面のページへ移動をする
     @Transactional
     public Integer createOrGetRoom(Integer myUserId, Integer targetUserId) {
-      // 既存ルームがあるか確認
+      
       Integer existingRoomId = chatRoomRepository.findRoomIdByUserIds(myUserId, targetUserId);
       if (existingRoomId != null) {
         return existingRoomId;
@@ -97,7 +97,7 @@ public class ChatService {
       
     }
      
-    
+  
     // dynamoDBのアイテム構成
     // room_id (文字列)
     // timestamp (数値)
@@ -106,39 +106,39 @@ public class ChatService {
 
     
     // AIと違うのがsubで比較をして相手と自分の比較をした後に、booleanで判定をする
-    public List<ChatMessageDto> getChatHistory(Integer roomId, String sub) {
+    // public List<ChatMessageDto> getChatHistory(Integer roomId, String sub) {
       
-      // room_idに基づいてScanリクエストをし、条件一致した項目を全部取得をしている
-      QueryRequest queryRequest = QueryRequest.builder()
-          .tableName(tableName)
-          .keyConditionExpression("room_id = :room_id")
-          .expressionAttributeValues(Map.of(
-                ":room_id", AttributeValue.builder().n(String.valueOf(roomId)).build())
-          )
-          .scanIndexForward(true) // 昇順
-          .build();
+    //   // room_idに基づいてScanリクエストをし、条件一致した項目を全部取得をしている
+    //   QueryRequest queryRequest = QueryRequest.builder()
+    //       .tableName(tableName)
+    //       .keyConditionExpression("room_id = :room_id")
+    //       .expressionAttributeValues(Map.of(
+    //             ":room_id", AttributeValue.builder().n(String.valueOf(roomId)).build())
+    //       )
+    //       .scanIndexForward(true) // 昇順
+    //       .build();
           
-          QueryResponse response = dynamoDbClient.query(queryRequest);
+    //       QueryResponse response = dynamoDbClient.query(queryRequest);
           
-          List<ChatMessageDto> result = new ArrayList<>();
+    //       List<ChatMessageDto> result = new ArrayList<>();
           
-          for(Map<String, AttributeValue> item : response.items()) {
-            String content = item.get("content").s();
-            boolean isUser;
+    //       for(Map<String, AttributeValue> item : response.items()) {
+    //         String content = item.get("content").s();
+    //         boolean isUser;
             
-            // 自分が送信したメッセージかの条件分岐
-            if (sub.trim().equals(item.get("sender_id").s())) {
-              isUser = true;
-            } else {
-              isUser = false;
-            }
+    //         // 自分が送信したメッセージかの条件分岐
+    //         if (sub.trim().equals(item.get("sender_id").s())) {
+    //           isUser = true;
+    //         } else {
+    //           isUser = false;
+    //         }
             
-            Long timestamp = Long.parseLong(item.get("timestamp").n());
-            ChatMessageDto dto = new ChatMessageDto(content, isUser, timestamp);
-            result.add(dto);
-          }
+    //         Long timestamp = Long.parseLong(item.get("timestamp").n());
+    //         ChatMessageDto dto = new ChatMessageDto(content, isUser, timestamp);
+    //         result.add(dto);
+    //       }
           
-          return result;
-    }
+    //       return result;
+    // }
     
 }

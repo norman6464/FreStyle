@@ -55,7 +55,7 @@ public class ChatController {
     Map<String, List<UserDto>> responseData = new HashMap<>();
 
     for (UserDto user : users) {
-      System.out.println("User_id" + user.getId() + "User_Email" + user.getEmail());
+      System.out.println("User_id" + user.getId() + "User_Email" + user.getEmail() + "User_name" + user.getName());
     }
     responseData.put("users", users);
     return ResponseEntity.ok().body(responseData);
@@ -129,7 +129,7 @@ public class ChatController {
       Map<String, Object> stats = new HashMap<>();
       stats.put("totalUsers", totalUsers);
       stats.put("email", myUser.getEmail());
-      stats.put("username", myUser.getUsername());
+      stats.put("username", myUser.getName());
       
       return ResponseEntity.ok().body(stats);
     } catch (Exception e) {

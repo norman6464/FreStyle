@@ -8,7 +8,7 @@ import HamburgerMenu from '../components/HamburgerMenu';
 import { setAuthData, clearAuthData } from '../store/authSlice';
 
 export default function ProfilePage() {
-  const [form, setForm] = useState({ username: '', bio: '' });
+  const [form, setForm] = useState({ name: '', bio: '' });
   const [message, setMessage] = useState(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
@@ -77,7 +77,7 @@ export default function ProfilePage() {
           );
 
         setForm({
-          username: retryData.username || '',
+          name: retryData.name || '',
           bio: retryData.bio || '',
         });
         setLoading(false);
@@ -89,7 +89,7 @@ export default function ProfilePage() {
         throw new Error(data.error || 'プロフィール取得に失敗しました。');
 
       setForm({
-        username: data.username || '',
+        name: data.name || '',
         bio: data.bio || '',
       });
     } catch (err) {
@@ -268,7 +268,7 @@ export default function ProfilePage() {
             <div className="text-center mb-10">
               <div className="w-24 h-24 bg-gradient-primary rounded-full mx-auto flex items-center justify-center mb-4 shadow-lg">
                 <span className="text-white text-4xl font-bold">
-                  {form.username?.charAt(0)?.toUpperCase() || 'U'}
+                  {form.name?.charAt(0)?.toUpperCase() || 'U'}
                 </span>
               </div>
               <h2 className="text-3xl font-bold text-gray-800">
@@ -282,10 +282,10 @@ export default function ProfilePage() {
             <form onSubmit={handleUpdate} className="space-y-6">
               <InputField
                 label="ニックネーム"
-                name="username"
-                value={form.username}
+                name="name"
+                value={form.name}
                 onChange={(e) =>
-                  setForm((prev) => ({ ...prev, username: e.target.value }))
+                  setForm((prev) => ({ ...prev, name: e.target.value }))
                 }
               />
               <div>

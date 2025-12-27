@@ -2,12 +2,11 @@ import { useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { setAuthData, clearAuthData } from '../store/authSlice';
 
-export default function MemberItem({ id, name, roomId }) {
+export default function MemberItem({ id, name, roomId, email }) {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
   const accessToken = useSelector((state) => state.auth.accessToken);
-  const email = useSelector((state) => state.auth.email);
 
   const displayErrorAndRedirect = (message) => {
     console.error('❌ エラー発生:', message);
@@ -111,7 +110,7 @@ export default function MemberItem({ id, name, roomId }) {
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-gray-800 text-base font-semibold break-words">
-            {name}
+            {name} {email}
           </p>
           <p className="text-gray-500 text-xs mt-1">チャットを開始</p>
         </div>

@@ -57,7 +57,7 @@ public class ProfileController {
             }
 
             ProfileDto profileDto = new ProfileDto(
-                    user.getUsername(),
+                    user.getName(),
                     user.getBio());
 
             return ResponseEntity.ok(profileDto);
@@ -97,7 +97,7 @@ public class ProfileController {
             } else {
                 // Cognitoユーザー → Cognito + DB 更新
                 String accessToken = jwt.getTokenValue();
-                cognitoAuthService.updateUserProfile(accessToken, form.getUsername());
+                cognitoAuthService.updateUserProfile(accessToken, form.getName());
                 userService.updateUser(form, sub);
             }
 

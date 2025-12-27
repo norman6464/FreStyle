@@ -7,7 +7,8 @@ export default function MemberList({ users }) {
         <MemberItem
           key={user.id}
           id={user.id}
-          name={user.email}
+          name={user.name}
+          email={user.email}
           roomId={user.roomId}
         />
       ))}

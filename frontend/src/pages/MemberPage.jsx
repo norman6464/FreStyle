@@ -16,18 +16,14 @@ export default function MemberPage() {
   const [debounceQuery, setDebounceQuery] = useState('');
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-  // useMemo（関数自体をメモ化）
-  // useMemoでdebounce関数をメモ化して毎回作らないようにする
   const debounceSearch = useMemo(
-    // debounceメソッドで500ミリ秒後二検索がかかる
     () => debounce((query) => setDebounceQuery(query), 500),
     []
   );
 
-  // searchQueryが変わったとき、debounceQueryを更新
   useEffect(() => {
     debounceSearch(searchQuery);
-    return () => debounceSearch.cancel(); // クリーンアップでキャンセル
+    return () => debounceSearch.cancel();
   }, [searchQuery, debounceSearch]);
 
   useEffect(() => {
@@ -42,7 +38,9 @@ export default function MemberPage() {
       ? `?query=${encodeURIComponent(debounceQuery)}`
       : '';
 
-    fetch(`${API_BASE_URL}/api/chat/members${queryParam}`, {
+    console.log('リクエスト開始');
+
+    fetch(`${API_BASE_URL}/api/chat/users${queryParam}`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -59,13 +57,15 @@ export default function MemberPage() {
         return res.json();
       })
       .then((data) => {
-        if (data?.name) {
-          setMembers(data.name);
+        if (data?.users) {
+          console.log('ユーザー一覧： ', data);
+          setMembers(data.users);
         } else if (data?.error) {
           setError(data.error);
         }
       })
       .catch((err) => {
+        console.log('error fetch /api/chat/members');
         if (err.name !== 'AbortError') {
           setError(err.message);
         }

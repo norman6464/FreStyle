@@ -16,14 +16,14 @@ public interface UserRepository extends JpaRepository<User, Integer> {
 
     boolean existsByEmail(String email);
 
-    boolean existsByUsername(String username);
+    boolean existsByName(String name);
 
     Optional<User> findByEmail(String email);
 
-    @Query("SELECT new com.example.FreStyle.dto.UserDto(u.id, u.email) FROM User u WHERE u.email LIKE :email AND u.id <> :id")
-    List<UserDto> findIdAndEmailByEmailLikeDtos(@Param("id") Integer id, @Param("email") String email);
+    @Query("SELECT new com.example.FreStyle.dto.UserDto(u.id, u.email, u.name) FROM User u WHERE u.email LIKE :query OR u.name LIKE :query AND u.id <> :id")
+    List<UserDto> findIdAndEmailByEmailLikeDtos(@Param("id") Integer id, @Param("email") String query);
 
-    @Query("SELECT new com.example.FreStyle.dto.UserDto(u.id, u.email) FROM User u WHERE u.id <> :id")
+    @Query("SELECT new com.example.FreStyle.dto.UserDto(u.id, u.email, u.name) FROM User u WHERE u.id <> :id")
     List<UserDto> findAllUserDtos(@Param("id") Integer id);
 
 }

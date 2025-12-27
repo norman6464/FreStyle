@@ -115,7 +115,6 @@ export default function ChatPage() {
       const formattedMessages = data.map((msg) => ({
         id: msg.timestamp,
         timestamp: msg.timestamp,
-        timestamp: msg.timestamp,
         content: msg.content,
         isSender: msg.user === true,
       }));

@@ -39,7 +39,7 @@ public class UserService {
     }
 
     User user = new User();
-    user.setUsername(form.getName());
+    user.setName(form.getName());
     user.setEmail(form.getEmail());
     user.setIsActive(false);
     userRepository.save(user);
@@ -69,7 +69,7 @@ public class UserService {
 
     if (user == null) {
       user = new User();
-      user.setUsername(name);
+      user.setName(name);
       user.setEmail(email);
       user.setIsActive(true);
       userRepository.save(user);
@@ -88,7 +88,7 @@ public class UserService {
 
     LoginUserDto dto = new LoginUserDto();
     dto.setSub(sub);
-    dto.setName(user.getUsername());
+    dto.setName(user.getName());
     dto.setEmail(user.getEmail());
 
     return dto;
@@ -101,7 +101,7 @@ public class UserService {
   public void updateUser(ProfileForm form, String sub) {
 
     User user = userIdentityService.findUserBySub(sub);
-    user.setUsername(form.getUsername());
+    user.setName(form.getName());
     user.setBio(form.getBio());
 
     userRepository.save(user);
@@ -110,14 +110,14 @@ public class UserService {
   // ------------------------
   // 一覧取得 + Room ID
   // ------------------------
-  public List<UserDto> findUsersWithRoomId(Integer id, String email) {
+  public List<UserDto> findUsersWithRoomId(Integer id, String query) {
 
     List<UserDto> users;
 
-    if (email == null || email.isEmpty()) {
+    if (query == null || query.isEmpty()) {
       users = userRepository.findAllUserDtos(id);
     } else {
-      String queryEmail = "%" + email + "%";
+      String queryEmail = "%" + query + "%";
       users = userRepository.findIdAndEmailByEmailLikeDtos(id, queryEmail);
     }
 

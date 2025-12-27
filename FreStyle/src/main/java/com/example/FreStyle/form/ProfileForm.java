@@ -11,6 +11,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class ProfileForm {
   @NotBlank(message = "ユーザー名を入力してください")
-  private String username;
+  private String name;
   private String bio;
 }

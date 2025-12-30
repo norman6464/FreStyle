@@ -178,8 +178,8 @@ public class CognitoAuthController {
     // -----------------------
     @PostMapping("/callback")
     public ResponseEntity<?> callback(@RequestBody Map<String, String> body, HttpServletResponse response) {
-
-        System.out.println("OIDCコールバック処理開始");
+        System.out.println("/api/auth/cognito/callback");
+        System.out.println("start callback to oidc");
         String code = body.get("code");
         System.out.println("認可コード: " + code);
 
@@ -203,7 +203,7 @@ public class CognitoAuthController {
                 .block();
 
         if (tokenResponse == null) {
-            System.err.println("トークン取得に失敗しました");
+            System.err.println("Failed take for token");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "トークン取得に失敗しました。"));
         }
@@ -251,10 +251,10 @@ public class CognitoAuthController {
             return ResponseEntity.ok(responseData);
 
         } catch (Exception e) {
-            System.err.println("OIDCコールバック処理エラー: " + e.getMessage());
+            System.out.println("oidc callback error " + e.getMessage());
             e.printStackTrace();
             return ResponseEntity.internalServerError()
-                    .body(Map.of("error", "サーバーのエラーが発生しました: " + e.getMessage()));
+                    .body(Map.of("error", "server error: " + e.getMessage()));
         }
     }
 

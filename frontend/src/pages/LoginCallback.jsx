@@ -15,8 +15,6 @@ export default function LoginCallback() {
   useEffect(() => {
     if (error) {
       alert('認証エラーが発生しました。' + error);
-      console.log('認証エラーが発生しました。' + error);
-
       navigate('/login');
       return;
     }
@@ -29,7 +27,9 @@ export default function LoginCallback() {
         credentials: 'include',
       })
         .then((res) => {
-          if (!res.ok) throw new Error('認証に失敗しました。');
+          if (!res.ok) {
+            throw new Error('認証に失敗しました。');
+          }
           return res.json();
         })
         .then((data) => {

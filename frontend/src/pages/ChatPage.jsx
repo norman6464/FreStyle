@@ -104,10 +104,22 @@ export default function ChatPage() {
 
       onConnect: () => {
         console.log('✅ STOMP connected');
+        console.log('Connected status:', stompClientRef.current?.connected);
+
+        // 認証メッセージを送信（接続時のみ）
+        client.publish({
+          destination: '/app/auth',
+          body: JSON.stringify({
+            token: accessToken,
+            userId: senderId,
+          }),
+        });
+        console.log('📤 Auth message sent');
 
         // ルーム購読（相手ユーザーがリアルタイムでチャットをしてきたらそれを取得して表示をする）
         client.subscribe(`/topic/chat/${roomId}`, (message) => {
           const data = JSON.parse(message.body);
+          console.log('📩 Received message from topic:', data);
 
           setMessages((prev) => [
             ...prev,

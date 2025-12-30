@@ -19,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 public class ChatMessageService {
 
     private final ChatMessageRepository chatMessageRepository;
+    private final UserIdentityService userIdentityService;
 
     /**
      * 指定ルームのチャット履歴取得（作成日時昇順）
@@ -35,8 +36,9 @@ public class ChatMessageService {
      * 新しいメッセージを保存
      */
     @Transactional
-    public ChatMessageDto addMessage(ChatRoom room, User sender, String content) {
+    public ChatMessageDto addMessage(ChatRoom room, String senderId, String content) {
         ChatMessage message = new ChatMessage();
+        User sender = userIdentityService.findUserBySub(senderId);
         message.setRoom(room);
         message.setSender(sender);
         message.setContent(content);

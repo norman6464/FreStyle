@@ -17,7 +17,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.FreStyle.dto.ChatMessageDto;
 import com.example.FreStyle.dto.UserDto;
-import com.example.FreStyle.entity.ChatMessage;
 import com.example.FreStyle.entity.ChatRoom;
 import com.example.FreStyle.entity.User;
 import com.example.FreStyle.service.ChatMessageService;

@@ -230,7 +230,10 @@ public class CognitoAuthService {
         }
     }
     
-    // リフレッシュトークンでJWTトークンの再発行をする
+    // -----------------------
+    // リフレッシュトークンでアクセストークン、IDトークンを再発行
+    // だがリフレッシュトークンのローテーションの設定をしていないのでリフレッシュトークンの取得はできない
+    // -----------------------
     public Map<String, String> refreshAccessToken(String refreshToken) {
         Map<String, String> authParams = new HashMap<>();
         authParams.put("REFRESH_TOKEN", refreshToken);
@@ -250,7 +253,6 @@ public class CognitoAuthService {
             
             tokens.put("accessToken", result.accessToken());
             tokens.put("idToken", result.idToken());
-            tokens.put("refreshToken", result.refreshToken());
             return tokens;
         } catch (NotAuthorizedException e) {
             throw new RuntimeException("リフレッシュトークンが無効です。再ログインしてください。");

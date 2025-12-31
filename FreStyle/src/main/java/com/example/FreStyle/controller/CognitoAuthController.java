@@ -17,6 +17,7 @@ import com.example.FreStyle.form.ConfirmSignupForm;
 import com.example.FreStyle.form.ForgotPasswordForm;
 import com.example.FreStyle.form.LoginForm;
 import com.example.FreStyle.form.SignupForm;
+import com.example.FreStyle.service.AccessTokenService;
 import com.example.FreStyle.service.CognitoAuthService;
 import com.example.FreStyle.service.UserIdentityService;
 import com.example.FreStyle.service.UserService;
@@ -58,13 +59,18 @@ public class CognitoAuthController {
     private final UserService userService;
     private final CognitoAuthService cognitoAuthService;
     private final UserIdentityService userIdentityService;
+    private final AccessTokenService accessTokenService;
 
-    public CognitoAuthController(WebClient.Builder webClientBuilder, UserService userService,
-            CognitoAuthService cognitoAuthService, UserIdentityService userIdentityService) {
+    public CognitoAuthController(WebClient.Builder webClientBuilder,
+        UserService userService,
+        CognitoAuthService cognitoAuthService,
+        UserIdentityService userIdentityService,
+        AccessTokenService accessTokenService) {
         this.webClient = webClientBuilder.build();
         this.userService = userService;
         this.cognitoAuthService = cognitoAuthService;
         this.userIdentityService = userIdentityService;
+        this.accessTokenService = accessTokenService;
     }
 
     // -----------------------
@@ -141,35 +147,15 @@ public class CognitoAuthController {
 
             User user = userService.findUserByEmail(form.getEmail());
             userIdentityService.registerUserIdentity(user, claims.getIssuer(), claims.getSubject());
+            
+            setAuthCookies(response, accessToken, refreshToken);
 
-            ResponseCookie cookie = ResponseCookie.from("REFRESH_TOKEN", refreshToken)
-                    .httpOnly(true).secure(false).path("/").maxAge(3600).sameSite("None").build();
-            response.addHeader("Set-Cookie", cookie.toString());
+            accessTokenService.saveTokens(user, accessToken, refreshToken);
 
-            Map<String, Object> responseData = Map.of(
-                    "email", claims.getStringClaim("email"),
-                    "name", claims.getStringClaim("name"),
-                    "sub", claims.getSubject(),
-                    "accessToken", accessToken);
-
-            return ResponseEntity.ok(responseData);
-
-        } catch (UserNotFoundException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "ユーザーが存在しません。"));
-
-        } catch (NotAuthorizedException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "メールアドレスまたはパスワードが違います。"));
-
-        } catch (UserNotConfirmedException e) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(Map.of("error", "メールアドレスが確認されていません。"));
-
-        } catch (ParseException e) {
-            return ResponseEntity.internalServerError()
-                    .body(Map.of("error", "トークンの解析中にエラーが発生しました。"));
+            return ResponseEntity.ok(Map.of("succes", "ログインできました。"));
 
         } catch (RuntimeException e) {
-            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
 
@@ -178,10 +164,7 @@ public class CognitoAuthController {
     // -----------------------
     @PostMapping("/callback")
     public ResponseEntity<?> callback(@RequestBody Map<String, String> body, HttpServletResponse response) {
-        System.out.println("/api/auth/cognito/callback");
-        System.out.println("start callback to oidc");
         String code = body.get("code");
-        System.out.println("認可コード: " + code);
 
         String basicAuthValue = Base64.getEncoder()
                 .encodeToString((clientId + ":" + clientSecret).getBytes(StandardCharsets.UTF_8));
@@ -231,24 +214,10 @@ public class CognitoAuthController {
 
             userService.registerUserOIDC("guest", email, provider, sub);
 
-            // 一時的にローカルで開発をしているためsecureをfalseにしている
-            ResponseCookie cookie = ResponseCookie.from("REFRESH_TOKEN", refreshToken)
-                    .httpOnly(true)
-                    .secure(false
-                    )
-                    .path("/")
-                    .maxAge(3600)
-                    .sameSite("None")
-                    .build();
-            response.addHeader("Set-Cookie", cookie.toString());
+            // httpOnlyCookieの設定
+            setAuthCookies(response, accessToken, refreshToken);
 
-            Map<String, Object> responseData = Map.of(
-                    "email", email,
-                    "name", name,
-                    "sub", sub,
-                    "accessToken", accessToken);
-
-            return ResponseEntity.ok(responseData);
+            return ResponseEntity.ok(Map .of("success","ログインできました"));
 
         } catch (Exception e) {
             System.out.println("oidc callback error " + e.getMessage());
@@ -304,10 +273,11 @@ public class CognitoAuthController {
     }
 
     // -----------------------
-    // トークンリフレッシュ
+    // リフレッシュトークンを使用をしてアクセストークン、IDトークンの再発行を行う
     // -----------------------
     @PostMapping("/refresh-token")
-    public ResponseEntity<?> refreshToken(@CookieValue(name = "REFRESH_TOKEN", required = false) String refreshToken) {
+    public ResponseEntity<?> refreshToken(@CookieValue(name = "REFRESH_TOKEN", required = false) String refreshToken,
+                    HttpServletResponse response) {
 
         if (refreshToken == null || refreshToken.isEmpty()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -316,8 +286,8 @@ public class CognitoAuthController {
 
         try {
             Map<String, String> tokens = cognitoAuthService.refreshAccessToken(refreshToken);
-
-            return ResponseEntity.ok(Map.of("accessToken", tokens.get("accessToken")));
+            setAuthCookies(response, tokens.get("accessToken"), refreshToken);
+            return ResponseEntity.ok(Map.of("success","更新完了"));
 
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -359,4 +329,39 @@ public class CognitoAuthController {
                     .body(Map.of("error", e.getMessage()));
         }
     }
+    
+
+
+    // -----------------------
+    // Cookie格納メソッド
+    // -----------------------
+    private void setAuthCookies(
+        HttpServletResponse response,
+        String accessToken,
+        String refreshToken
+    ) {
+    ResponseCookie accessCookie = ResponseCookie.from("ACCESS_TOKEN", accessToken)
+            .httpOnly(true)
+            .secure(false) // 本番は true
+            .path("/")
+            .maxAge(60 * 15) // 15分
+            .sameSite("None")
+            .build();
+
+    ResponseCookie refreshCookie = ResponseCookie.from("REFRESH_TOKEN", refreshToken)
+            .httpOnly(true)
+            .secure(false)
+            .path("/")
+            .maxAge(60 * 60 * 24 * 7) // 7日
+            .sameSite("None")
+            .build();
+
+    response.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
+    response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
+}
+
+
+    
+
+
 }

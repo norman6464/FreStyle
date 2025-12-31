@@ -70,10 +70,10 @@ CREATE TABLE IF NOT EXISTS unread_counts (
 
 -- アクセストークンを格納するテーブル（まだ検証段階なのでプロダクション環境に反映しない）
 CREATE TABLE IF NOT EXISTS access_tokens (
-    token VARCHAR(255) PRIMARY KEY,
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    access_token TEXT(2048) NOT NULL,
     user_id INT NOT NULL,
     refresh_token VARCHAR(255),
-    expires_at DATETIME NOT NULL,
     revoked BOOLEAN DEFAULT FALSE,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 

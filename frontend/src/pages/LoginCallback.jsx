@@ -21,7 +21,7 @@ export default function LoginCallback() {
     if (code) {
       fetch(`${API_BASE_URL}/api/auth/cognito/callback`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }, // 空白は開けない
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code }),
         credentials: 'include',
       })

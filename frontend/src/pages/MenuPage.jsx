@@ -143,9 +143,6 @@ export default function MenuPage() {
                 </h3>
                 <EnvelopeIcon className="w-6 h-6 text-purple-500" />
               </div>
-              <p className="text-sm font-mono text-purple-600 truncate">
-                {stats?.email || email || '—'}
-              </p>
             </div>
           </div>
 

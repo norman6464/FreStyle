@@ -13,41 +13,38 @@ import ProfilePage from './pages/ProfilePage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ConfirmForgotPasswordPage from './pages/ConfirmForgotPasswordPage';
 import { useSelector } from 'react-redux';
+import AuthInitializer from './utils/AuthInitializer';
+import Protected from './utils/Protected';
 
 export default function App() {
   
   const accessToken = useSelector((state) => state.auth.accessToken);
   
   return (
-    <Routes>
-      {/* 誰でもアクセス可能なルート */}
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/login/callback" element={<LoginCallback />} />
-      <Route path="/signup" element={<SignupPage />} />
-      <Route path="/confirm" element={<ConfirmPage />} />
-      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-      <Route
-        path="/confirm-forgot-password"
-        element={<ConfirmForgotPasswordPage />}
-      />
+<AuthInitializer>
+      <Routes>
+        {/* 誰でもアクセス可能 */}
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/login/callback" element={<LoginCallback />} />
+        <Route path="/signup" element={<SignupPage />} />
+        <Route path="/confirm" element={<ConfirmPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route
+          path="/confirm-forgot-password"
+          element={<ConfirmForgotPasswordPage />}
+        />
 
-      {/* 認証が必要なルート */}
-      <Route path="/" element={<MenuPage />} />
-      <Route path="/profile/me" element={<ProfilePage />} />
-      <Route path="/chat/members" element={<MemberPage />} />
-      <Route path="/chat/users" element={<AddUserPage />} />
-      <Route path="/chat/users/:roomId" element={<ChatPage />} />
-      <Route path="/chat/ask-ai" element={<AskAiPage />} />
+        {/* 認証が必要 */}
+        <Route path="/" element={<Protected><MenuPage /></Protected>} />
+        <Route path="/profile/me" element={<Protected><ProfilePage /></Protected>} />
+        <Route path="/chat/members" element={<Protected><MemberPage /></Protected>} />
+        <Route path="/chat/users" element={<Protected><AddUserPage /></Protected>} />
+        <Route path="/chat/users/:roomId" element={<Protected><ChatPage /></Protected>} />
+        <Route path="/chat/ask-ai" element={<Protected><AskAiPage /></Protected>} />
 
-      {/* 404 */}
-      <Route
-        path="*"
-        element={
-          <div className="text-center mt-20 text-xl">
-            ページが見つかりません
-          </div>
-        }
-      />
-    </Routes>
+        {/* 404 */}
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </AuthInitializer>
   );
 }

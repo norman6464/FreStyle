@@ -19,15 +19,17 @@ import lombok.RequiredArgsConstructor;
 public class ChatMessageService {
 
     private final ChatMessageRepository chatMessageRepository;
+    private final UserIdentityService userIdentityService;
 
     /**
      * 指定ルームのチャット履歴取得（作成日時昇順）
+     * 現在のユーザーIDを受け取り、isSenderフラグを設定
      */
     @Transactional(readOnly = true)
-    public List<ChatMessageDto> getMessagesByRoom(ChatRoom room) {
+    public List<ChatMessageDto> getMessagesByRoom(ChatRoom room, Integer currentUserId) {
         List<ChatMessage> messages = chatMessageRepository.findByRoomOrderByCreatedAtAsc(room);
         return messages.stream()
-                .map(this::toDto)
+                .map(msg -> toDto(msg, currentUserId))
                 .collect(Collectors.toList());
     }
 
@@ -35,14 +37,15 @@ public class ChatMessageService {
      * 新しいメッセージを保存
      */
     @Transactional
-    public ChatMessageDto addMessage(ChatRoom room, User sender, String content) {
+    public ChatMessageDto addMessage(ChatRoom room, String senderId, String content) {
         ChatMessage message = new ChatMessage();
+        User sender = userIdentityService.findUserBySub(senderId);
         message.setRoom(room);
         message.setSender(sender);
         message.setContent(content);
 
         ChatMessage saved = chatMessageRepository.save(message);
-        return toDto(saved);
+        return toDto(saved, sender.getId());
     }
 
     /**
@@ -55,7 +58,7 @@ public class ChatMessageService {
 
         message.setContent(newContent);
         ChatMessage updated = chatMessageRepository.save(message);
-        return toDto(updated);
+        return toDto(updated, updated.getSender().getId());
     }
 
     /**
@@ -70,9 +73,9 @@ public class ChatMessageService {
     }
 
     /**
-     * ChatMessage → ChatMessageDto 変換
+     * ChatMessage → ChatMessageDto 変換（isSenderフラグ付き）
      */
-    private ChatMessageDto toDto(ChatMessage message) {
+    private ChatMessageDto toDto(ChatMessage message, Integer currentUserId) {
         return new ChatMessageDto(
                 message.getId(),
                 message.getRoom().getId(),
@@ -80,7 +83,8 @@ public class ChatMessageService {
                 message.getSender().getName(),
                 message.getContent(),
                 message.getCreatedAt(),
-                message.getUpdatedAt()
+                message.getUpdatedAt(),
+                message.getSender().getId().equals(currentUserId)  // isSender判定
         );
     }
 }

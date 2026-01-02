@@ -5,13 +5,10 @@ import java.util.Map;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Controller;
 
 import com.example.FreStyle.dto.ChatMessageDto;
 import com.example.FreStyle.entity.ChatRoom;
-import com.example.FreStyle.entity.User;
 import com.example.FreStyle.service.ChatMessageService;
 import com.example.FreStyle.service.ChatRoomService;
 import com.example.FreStyle.service.UserIdentityService;
@@ -31,24 +28,19 @@ public class ChatWebSocketController {
 
     @MessageMapping("/chat/send")
     public void sendMessage(
-            @Payload Map<String, Object> payload,
-            @AuthenticationPrincipal Jwt jwt
+            @Payload Map<String, Object> payload
     ) {
         try {
             log.info("📨 Received message: {}", payload);
             
-            // JWT → User
-            String sub = jwt.getSubject();
-            User sender = userIdentityService.findUserBySub(sub);
-            log.info("Sender: {}", sender.getName());
-
-            Integer roomId = ((Number) payload.get("roomId")).intValue();
+            
+            String senderId = (String) payload.get("senderId");
+            Integer roomId = Integer.parseInt((String) payload.get("roomId"));
             String content = (String) payload.get("content");
             
             ChatRoom room = chatRoomService.findChatRoomById(roomId);
-            log.info("Room: {}", room.getId());
+            ChatMessageDto saved = chatMessageService.addMessage(room, senderId, content);
 
-            ChatMessageDto saved = chatMessageService.addMessage(room, sender, content);
             log.info("Message saved: {}", saved.getId());
 
             messagingTemplate.convertAndSend(
@@ -63,8 +55,7 @@ public class ChatWebSocketController {
 
     @MessageMapping("/chat/delete")
     public void deleteMessage(
-            @Payload Map<String, Object> payload,
-            @AuthenticationPrincipal Jwt jwt
+            @Payload Map<String, Object> payload
     ) {
         try {
             log.info("🗑️ Delete request: {}", payload);

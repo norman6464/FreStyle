@@ -7,15 +7,22 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+import lombok.RequiredArgsConstructor;
+
 import static org.springframework.security.config.Customizer.withDefaults;
 
 @Configuration
+@RequiredArgsConstructor
 public class SecurityConfig {
     
     // Cognitoの.well-known/jwk.json
     // Spring Security は access_token を自動で decode & validate & set Authentication してくれる
     @Value("${cognito.jwk-set-uri}")
-    private String jwkUri;
+    private final String jwkUri;
+
+    private final JwtCookieFilter jwtCookieFilter;
 
     
     @Bean
@@ -29,6 +36,8 @@ public class SecurityConfig {
                         .anyRequest().authenticated())
                 .formLogin(form -> form.disable())
                 .httpBasic(basic -> basic.disable())
+                // httpOnlyCookieのACCESS_TOKENを Authorization: Bearerヘッダーに変換する
+                .addFilterBefore(jwtCookieFilter, UsernamePasswordAuthenticationFilter.class)
                 .oauth2ResourceServer(oauth2 -> oauth2
                     .jwt(jwt -> jwt
                         .jwtAuthenticationConverter(jwtAuthenticationConverter()) // カスタムコンバーターを作成をする

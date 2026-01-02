@@ -68,22 +68,26 @@ CREATE TABLE IF NOT EXISTS unread_counts (
     FOREIGN KEY (room_id) REFERENCES chat_rooms(id) ON DELETE CASCADE
 ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- アクセストークンを格納するテーブル（まだ検証段階なのでプロダクション環境に反映しない）
+CREATE TABLE IF NOT EXISTS access_tokens (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    access_token TEXT(2048) NOT NULL,
+    user_id INT NOT NULL,
+    refresh_token VARCHAR(255),
+    revoked BOOLEAN DEFAULT FALSE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 
-
--- ユーザーが参加しているルームを効率的に検索するためのインデックス
--- CREATE INDEX idx_room_member_user_id ON room_members (user_id);
-
--- 実行する前に必ず見る
--- DROP TABLE IF EXISTS 
---     unread_counts,
---     room_members,
---     chat_rooms,
---     use
---     users;
-
--- 文字コードの設定をする
--- Database changed
--- MariaDB [fre_style]> ALTER TABLE users CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
--- Query OK, 0 rows affected (0.06 sec)
--- Records: 0  Duplicates: 0  Warnings: 0
+-- DynamoDB（NoSQL）テーブル設計メモ
+-- Table Name: fre_style_ai_chat
+-- sender_id (文字列)
+-- timestamp (数値)
+-- content
+-- is_user
+-- sender_id (文字列)
+-- timestamp (数値)
+-- content	
+-- is_user

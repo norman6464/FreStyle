@@ -16,7 +16,6 @@ export default function ChatPage() {
 
   const { roomId } = useParams();
   const senderId = useSelector((state) => state.auth.sub);
-  const accessToken = useSelector((state) => state.auth.accessToken);
 
   const navigate = useNavigate();
   const dispatch = useDispatch();
@@ -39,7 +38,7 @@ export default function ChatPage() {
         `${API_BASE_URL}/api/chat/users/${roomId}/history`,
         {
           headers: {
-            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
           },
           credentials: 'include',
         }
@@ -57,8 +56,6 @@ export default function ChatPage() {
           return;
         }
 
-        const { accessToken: newToken } = await refreshRes.json();
-        dispatch(setAuthData({ accessToken: newToken }));
         return fetchHistory();
       }
 
@@ -96,10 +93,8 @@ export default function ChatPage() {
     if (!senderId) return;
 
     const client = new Client({
-      webSocketFactory: () => new SockJS(`${API_BASE_URL}/ws/chat`),
-      connectHeaders: {
-        Authorization: `Bearer ${accessToken}`,
-      },
+      webSocketFactory: () =>
+        new SockJS(`${API_BASE_URL}/ws/chat`, undefined, { withCredentials: true }),
       reconnectDelay: 5000,
 
       onConnect: () => {
@@ -110,7 +105,6 @@ export default function ChatPage() {
         client.publish({
           destination: '/app/auth',
           body: JSON.stringify({
-            token: accessToken,
             userId: senderId,
           }),
         });
@@ -149,7 +143,7 @@ export default function ChatPage() {
     return () => {
       client.deactivate();
     };
-  }, [roomId, senderId, accessToken]);
+  }, [roomId, senderId]);
 
   // --- メッセージ送信 ---
   const handleSend = (text) => {

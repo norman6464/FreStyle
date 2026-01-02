@@ -20,7 +20,6 @@ export default function AskAiPage() {
   const location = useLocation();
   const dispatch = useDispatch();
 
-  const accessToken = useSelector((state) => state.auth.accessToken);
   const senderId = useSelector((state) => state.auth.sub);
   const initialPrompt = location.state?.initialPrompt;
 
@@ -49,7 +48,6 @@ export default function AskAiPage() {
         const res = await fetch(`${API_BASE_URL}/api/chat/ai/history`, {
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${accessToken}`,
           },
           credentials: 'include',
         });
@@ -68,21 +66,12 @@ export default function AskAiPage() {
             return;
           }
 
+          // アクセストークン更新だがhttpOnlyなのでReduxには保存しない
           const refreshData = await refreshRes.json();
-          const newAccessToken = refreshData.accessToken;
-
-          if (!newAccessToken) {
-            dispatch(clearAuthData());
-            navigate('/login');
-            return;
-          }
-
-          dispatch(setAuthData({ accessToken: newAccessToken }));
 
           const retryRes = await fetch(`${API_BASE_URL}/api/chat/ai/history`, {
             headers: {
               'Content-Type': 'application/json',
-              Authorization: `Bearer ${newAccessToken}`,
             },
             credentials: 'include',
           });
@@ -117,12 +106,7 @@ export default function AskAiPage() {
       }
     };
 
-    if (accessToken) {
-      fetchHistory();
-    } else {
-      navigate('/login');
-    }
-  }, [initialPrompt, API_BASE_URL, accessToken, dispatch, navigate]);
+  }, [initialPrompt, API_BASE_URL, dispatch, navigate]);
 
   // --- WebSocket ---
   useEffect(() => {

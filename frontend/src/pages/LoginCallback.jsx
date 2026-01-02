@@ -4,7 +4,6 @@ import { useDispatch } from 'react-redux';
 import { setAuthData } from '../store/authSlice';
 
 export default function LoginCallback() {
-  // ReduxのaccessTokenを取得する
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const dispatch = useDispatch();

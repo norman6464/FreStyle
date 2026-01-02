@@ -8,7 +8,6 @@ import HamburgerMenu from '../components/HamburgerMenu';
 
 // 今回の場合は検索ボックスを使っているのでloadashライブラリのdebounceでユーザーが入力を終えたらリクエストを送るようにする
 export default function MemberPage() {
-  const token = useSelector((state) => state.auth.accessToken);
   const navigate = useNavigate();
   const [members, setMembers] = useState([]);
   const [error, setError] = useState(null);

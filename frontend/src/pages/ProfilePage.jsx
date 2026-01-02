@@ -15,7 +15,6 @@ export default function ProfilePage() {
   const dispatch = useDispatch();
 
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-  const accessToken = useSelector((state) => state.auth.accessToken);
   const email = useSelector((state) => state.auth.email);
 
   // ----------------------------
@@ -26,7 +25,6 @@ export default function ProfilePage() {
       const res = await fetch(`${API_BASE_URL}/api/profile/me`, {
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
         },
         credentials: 'include', // RefreshToken送信
       });
@@ -49,23 +47,11 @@ export default function ProfilePage() {
           return;
         }
 
-        const refreshData = await refreshRes.json();
-        const newAccessToken = refreshData.accessToken;
-
-        if (!newAccessToken) {
-          dispatch(clearAuthData());
-          navigate('/login');
-          return;
-        }
-
-        // Redux更新
-        dispatch(setAuthData({ accessToken: newAccessToken }));
         console.log('✅ アクセストークン更新済み、再試行');
 
         const retryRes = await fetch(`${API_BASE_URL}/api/profile/me`, {
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${newAccessToken}`,
           },
           credentials: 'include',
         });
@@ -102,7 +88,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     fetchProfile();
-  }, [accessToken, email]);
+  }, [email]);
 
   // ----------------------------
   // プロフィール更新
@@ -114,7 +100,6 @@ export default function ProfilePage() {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
         },
         credentials: 'include',
         body: JSON.stringify(form),
@@ -140,22 +125,10 @@ export default function ProfilePage() {
         }
 
         const refreshData = await refreshRes.json();
-        const newAccessToken = refreshData.accessToken;
-        if (!newAccessToken) {
-          dispatch(clearAuthData());
-          navigate('/login');
-          return;
-        }
-
-        // Redux更新
-        dispatch(setAuthData({ accessToken: newAccessToken }));
-
-        console.log('✅ アクセストークン更新済み、再試行');
         const retryRes = await fetch(`${API_BASE_URL}/api/profile/me/update`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${newAccessToken}`,
           },
           credentials: 'include',
           body: JSON.stringify(form),

@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
+import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { clearAuthData } from '../store/authSlice';
+import { clearAuth } from '../store/authSlice';
 import {
   Bars3Icon,
   XMarkIcon,
@@ -16,7 +16,6 @@ export default function HamburgerMenu({ title }) {
   const [isOpen, setIsOpen] = useState(false);
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const accessToken = useSelector((state) => state.auth.accessToken);
 
   const handleLogout = async () => {
     try {
@@ -27,7 +26,6 @@ export default function HamburgerMenu({ title }) {
           credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${accessToken}`,
           },
         }
       );
@@ -36,7 +34,7 @@ export default function HamburgerMenu({ title }) {
         return alert('ログアウトに失敗しました');
       }
 
-      dispatch(clearAuthData());
+      dispatch(clearAuth());
       navigate('/login');
     } catch (err) {
       console.error('ログアウトエラー:', err);

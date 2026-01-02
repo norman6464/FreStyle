@@ -4,7 +4,6 @@ import { useDispatch } from 'react-redux';
 import { setAuthData } from '../store/authSlice';
 
 export default function LoginCallback() {
-  // ReduxのaccessTokenを取得する
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const dispatch = useDispatch();
@@ -22,7 +21,7 @@ export default function LoginCallback() {
     if (code) {
       fetch(`${API_BASE_URL}/api/auth/cognito/callback`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }, // 空白は開けない
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code }),
         credentials: 'include',
       })
@@ -32,8 +31,8 @@ export default function LoginCallback() {
           }
           return res.json();
         })
-        .then((data) => {
-          dispatch(setAuthData(data));
+        .then(() => {
+          dispatch(setAuthData());
 
           navigate('/');
         })

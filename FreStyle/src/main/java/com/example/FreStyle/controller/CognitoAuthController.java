@@ -164,7 +164,10 @@ public class CognitoAuthController {
     // -----------------------
     @PostMapping("/callback")
     public ResponseEntity<?> callback(@RequestBody Map<String, String> body, HttpServletResponse response) {
+        System.out.println("[CognitoAuthController /callback] Callback endpoint called");
         String code = body.get("code");
+        System.out.println("[CognitoAuthController /callback] Authorization code received: " + 
+                          (code != null ? code.substring(0, Math.min(20, code.length())) + "..." : "null"));
 
         String basicAuthValue = Base64.getEncoder()
                 .encodeToString((clientId + ":" + clientSecret).getBytes(StandardCharsets.UTF_8));
@@ -175,6 +178,7 @@ public class CognitoAuthController {
         formData.add("redirect_uri", redirectUri);
         formData.add("client_id", clientId);
 
+        System.out.println("[CognitoAuthController /callback] Requesting token from Cognito");
         Map<String, Object> tokenResponse = webClient.post()
                 .uri(tokenUri)
                 .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_FORM_URLENCODED_VALUE)
@@ -186,41 +190,49 @@ public class CognitoAuthController {
                 .block();
 
         if (tokenResponse == null) {
-            System.err.println("Failed take for token");
+            System.err.println("[CognitoAuthController /callback] ERROR: tokenResponse is null");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "トークン取得に失敗しました。"));
         }
 
-        System.out.println("トークン取得成功");
+        System.out.println("[CognitoAuthController /callback] トークン取得成功");
 
         String idToken = (String) tokenResponse.get("id_token");
         String accessToken = (String) tokenResponse.get("access_token");
         String refreshToken = (String) tokenResponse.get("refresh_token");
 
+        System.out.println("[CognitoAuthController /callback] Token types - accessToken: " + 
+                          (accessToken != null ? "✓" : "null") + 
+                          ", refreshToken: " + (refreshToken != null ? "✓" : "null"));
+
         Optional<JWTClaimsSet> claimsOpt = JwtUtils.decode(idToken);
         if (claimsOpt.isEmpty()) {
+            System.err.println("[CognitoAuthController /callback] ERROR: Failed to decode idToken");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "無効なリクエストです。"));
         }
 
         try {
             JWTClaimsSet claims = claimsOpt.get();
-            String name = claims.getStringClaim("name");
             String email = claims.getStringClaim("email");
             String sub = claims.getSubject();
+
+            System.out.println("[CognitoAuthController /callback] User info - email: " + email + ", sub: " + sub);
 
             boolean isGoogle = claims.getClaim("identities") != null;
             String provider = isGoogle ? "google" : "cognito";
 
+            System.out.println("[CognitoAuthController /callback] Registering user - provider: " + provider);
             userService.registerUserOIDC("guest", email, provider, sub);
 
             // httpOnlyCookieの設定
+            System.out.println("[CognitoAuthController /callback] Setting auth cookies");
             setAuthCookies(response, accessToken, refreshToken);
 
             return ResponseEntity.ok(Map .of("success","ログインできました"));
 
         } catch (Exception e) {
-            System.out.println("oidc callback error " + e.getMessage());
+            System.out.println("[CognitoAuthController /callback] ERROR: " + e.getClass().getSimpleName() + " - " + e.getMessage());
             e.printStackTrace();
             return ResponseEntity.internalServerError()
                     .body(Map.of("error", "server error: " + e.getMessage()));
@@ -279,17 +291,26 @@ public class CognitoAuthController {
     public ResponseEntity<?> refreshToken(@CookieValue(name = "REFRESH_TOKEN", required = false) String refreshToken,
                     HttpServletResponse response) {
 
+        System.out.println("[CognitoAuthController /refresh-token] Endpoint called");
+        System.out.println("[CognitoAuthController /refresh-token] REFRESH_TOKEN cookie: " + 
+                          (refreshToken != null ? refreshToken.substring(0, Math.min(20, refreshToken.length())) + "..." : "null"));
+
         if (refreshToken == null || refreshToken.isEmpty()) {
+            System.out.println("[CognitoAuthController /refresh-token] ERROR: REFRESH_TOKEN cookie is null or empty");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "リフレッシュトークンが存在しません。"));
         }
 
         try {
+            System.out.println("[CognitoAuthController /refresh-token] Attempting to refresh access token");
             Map<String, String> tokens = cognitoAuthService.refreshAccessToken(refreshToken);
+            System.out.println("[CognitoAuthController /refresh-token] Successfully refreshed tokens");
             setAuthCookies(response, tokens.get("accessToken"), refreshToken);
             return ResponseEntity.ok(Map.of("success","更新完了"));
 
         } catch (RuntimeException e) {
+            System.out.println("[CognitoAuthController /refresh-token] ERROR: " + e.getClass().getSimpleName() + " - " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", e.getMessage()));
         }
@@ -329,7 +350,47 @@ public class CognitoAuthController {
                     .body(Map.of("error", e.getMessage()));
         }
     }
+
+
     
+    // -----------------------
+    // Cookie格納メソッド
+    // -----------------------
+    @GetMapping("/me")
+    public ResponseEntity<?> me(@AuthenticationPrincipal Jwt jwt) {
+        System.out.println("[CognitoAuthController /me] Endpoint called");
+        
+        if (jwt == null) {
+            System.out.println("[CognitoAuthController /me] ERROR: JWT is null - user not authenticated");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "認証されていません"));
+        }
+        
+        System.out.println("[CognitoAuthController /me] JWT Principal: " + jwt.toString());
+        
+        String sub = jwt.getSubject();
+        System.out.println("[CognitoAuthController /me] JWT Subject (sub): " + sub);
+
+        if (sub == null || sub.isEmpty()) {
+            System.out.println("[CognitoAuthController /me] ERROR: JWT subject is null or empty");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "無効なリクエストです。"));
+        }
+
+        try {
+            System.out.println("[CognitoAuthController /me] Finding user with sub: " + sub);
+            User user = userIdentityService.findUserBySub(sub);
+            System.out.println("[CognitoAuthController /me] User found: " + user.getId());
+
+            return ResponseEntity.ok(Map.of("success","ログイン状態です。"));
+
+        } catch (RuntimeException e) {
+            System.out.println("[CognitoAuthController /me] ERROR: " + e.getClass().getSimpleName() + " - " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", e.getMessage()));
+        }
+    } 
 
 
     // -----------------------
@@ -342,20 +403,21 @@ public class CognitoAuthController {
     ) {
     ResponseCookie accessCookie = ResponseCookie.from("ACCESS_TOKEN", accessToken)
             .httpOnly(true)
-            .secure(false) // 本番は true
+            .secure(false) // 開発環境: false、本番環境: true
             .path("/")
             .maxAge(60 * 15) // 15分
-            .sameSite("None")
+            .sameSite("Lax") // 開発環境: Lax、本番環境: None
             .build();
 
     ResponseCookie refreshCookie = ResponseCookie.from("REFRESH_TOKEN", refreshToken)
             .httpOnly(true)
-            .secure(false)
+            .secure(false) // 開発環境: false、本番環境: true
             .path("/")
             .maxAge(60 * 60 * 24 * 7) // 7日
-            .sameSite("None")
+            .sameSite("Lax") // 開発環境: Lax、本番環境: None
             .build();
 
+    System.out.println("[setAuthCookies] Setting cookies - ACCESS_TOKEN and REFRESH_TOKEN");
     response.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
     response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
 }

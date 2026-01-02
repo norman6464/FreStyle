@@ -1,12 +1,11 @@
 import { useNavigate } from 'react-router-dom';
-import { useSelector, useDispatch } from 'react-redux';
-import { setAuthData, clearAuthData } from '../store/authSlice';
+import { useDispatch } from 'react-redux';
+import { clearAuth } from '../store/authSlice';
 
 export default function MemberItem({ id, name, roomId, email }) {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-  const accessToken = useSelector((state) => state.auth.accessToken);
 
   const displayErrorAndRedirect = (message) => {
     console.error('❌ エラー発生:', message);
@@ -48,7 +47,7 @@ export default function MemberItem({ id, name, roomId, email }) {
 
         if (!refreshRes.ok) {
           console.error('❌ リフレッシュ失敗。ログインへリダイレクト。');
-          dispatch(clearAuthData());
+          dispatch(clearAuth());
           navigate('/login');
           return;
         }
@@ -58,7 +57,7 @@ export default function MemberItem({ id, name, roomId, email }) {
 
         if (!newAccessToken) {
           console.error('❌ 新アクセストークンが取得できませんでした。');
-          dispatch(clearAuthData());
+          dispatch(clearAuth());
           navigate('/login');
           return;
         }

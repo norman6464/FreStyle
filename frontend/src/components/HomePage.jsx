@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { setAuthData, clearAuthData } from '../store/authSlice';
+import { clearAuth } from '../store/authSlice';
 import {
   ChatBubbleLeftIcon,
   UserGroupIcon,
@@ -12,7 +12,6 @@ import {
 export default function HomePage() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const accessToken = useSelector((state) => state.auth.accessToken);
   const email = useSelector((state) => state.auth.email);
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -38,7 +37,6 @@ export default function HomePage() {
         const res = await fetch(`${API_BASE_URL}/api/chat/stats`, {
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${accessToken}`,
           },
           credentials: 'include',
         });
@@ -54,7 +52,7 @@ export default function HomePage() {
           );
 
           if (!refreshRes.ok) {
-            dispatch(clearAuthData());
+            dispatch(clearAuth());
             navigate('/login');
             return;
           }
@@ -66,7 +64,6 @@ export default function HomePage() {
           const retryRes = await fetch(`${API_BASE_URL}/api/chat/stats`, {
             headers: {
               'Content-Type': 'application/json',
-              Authorization: `Bearer ${refreshData.accessToken}`,
             },
             credentials: 'include',
           });
@@ -91,7 +88,7 @@ export default function HomePage() {
     if (accessToken) {
       fetchStats();
     }
-  }, [accessToken, dispatch, navigate, API_BASE_URL]);
+  }, [dispatch, navigate, API_BASE_URL]);
 
   const formatDate = (date) => {
     return date.toLocaleDateString('ja-JP', {

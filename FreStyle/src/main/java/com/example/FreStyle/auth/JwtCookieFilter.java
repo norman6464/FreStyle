@@ -33,14 +33,26 @@ public class JwtCookieFilter extends OncePerRequestFilter {
 
         HttpServletRequest wrappedRequest = request;
 
-        if (request.getCookies() != null) {
+        // クッキーが存在するか確認
+        if (request.getCookies() == null) {
+            log.warn("JwtCookieFilter: No cookies found in request");
+        } else {
+            log.debug("JwtCookieFilter: Found {} cookies", request.getCookies().length);
             for (Cookie cookie : request.getCookies()) {
+                log.debug("JwtCookieFilter: Cookie name={}, value={}", cookie.getName(), 
+                         cookie.getValue() != null ? cookie.getValue().substring(0, Math.min(20, cookie.getValue().length())) + "..." : "null");
+                
                 if ("ACCESS_TOKEN".equals(cookie.getName())) {
                     String bearerToken = "Bearer " + cookie.getValue();
                     wrappedRequest = new HttpServletRequestWrapperWithHeader(request, "Authorization", bearerToken);
-                    log.info("JwtCookieFilter: wrapped request with Authorization header");
+                    log.info("JwtCookieFilter: Successfully wrapped request with Authorization header from ACCESS_TOKEN cookie");
                     break;
                 }
+            }
+            
+            // ACCESS_TOKENが見つからない場合
+            if (wrappedRequest == request) {
+                log.warn("JwtCookieFilter: ACCESS_TOKEN cookie not found in cookies");
             }
         }
 

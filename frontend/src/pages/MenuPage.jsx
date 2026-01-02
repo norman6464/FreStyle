@@ -1,7 +1,6 @@
 import { useNavigate } from 'react-router-dom';
-import { useSelector, useDispatch } from 'react-redux';
+import { useSelector } from 'react-redux';
 import { useState, useEffect } from 'react';
-import { setAuthData, clearAuthData } from '../store/authSlice';
 import HamburgerMenu from '../components/HamburgerMenu';
 import {
   CalendarIcon,
@@ -11,20 +10,11 @@ import {
 
 export default function MenuPage() {
   const navigate = useNavigate();
-  const dispatch = useDispatch();
   const message = useSelector((state) => state.flash?.message);
-  const accessToken = useSelector((state) => state.auth.accessToken);
-  const email = useSelector((state) => state.auth.email);
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   const [stats, setStats] = useState(null);
   const [currentTime, setCurrentTime] = useState(new Date());
-
-  useEffect(() => {
-    if (!accessToken) {
-      navigate('/login');
-    }
-  }, [accessToken, navigate]);
 
   // 時刻の自動更新
   useEffect(() => {
@@ -41,7 +31,6 @@ export default function MenuPage() {
         const res = await fetch(`${API_BASE_URL}/api/chat/stats`, {
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${accessToken}`,
           },
           credentials: 'include',
         });
@@ -57,19 +46,17 @@ export default function MenuPage() {
           );
 
           if (!refreshRes.ok) {
-            dispatch(clearAuthData());
             navigate('/login');
             return;
           }
 
+          // アクセストークンはhttpOnly cookieで管理しているのでここでは取得しない
           const refreshData = await refreshRes.json();
-          dispatch(setAuthData({ accessToken: refreshData.accessToken }));
 
           // リトライ
           const retryRes = await fetch(`${API_BASE_URL}/api/chat/stats`, {
             headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${refreshData.accessToken}`,
+              'Content-Type': 'application/json'
             },
             credentials: 'include',
           });
@@ -88,10 +75,8 @@ export default function MenuPage() {
       }
     };
 
-    if (accessToken) {
-      fetchStats();
-    }
-  }, [accessToken, dispatch, navigate, API_BASE_URL]);
+    fetchStats();
+  }, [navigate, API_BASE_URL]);
 
   const formatDate = (date) => {
     return date.toLocaleDateString('ja-JP', {
@@ -158,9 +143,6 @@ export default function MenuPage() {
                 </h3>
                 <EnvelopeIcon className="w-6 h-6 text-purple-500" />
               </div>
-              <p className="text-sm font-mono text-purple-600 truncate">
-                {stats?.email || email || '—'}
-              </p>
             </div>
           </div>
 

@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react';
 import AuthLayout from '../components/AuthLayout';
 import InputField from '../components/InputField';
 import PrimaryButton from '../components/PrimaryButton';
-import { useSelector, useDispatch } from 'react-redux';
+import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import HamburgerMenu from '../components/HamburgerMenu';
-import { setAuthData, clearAuthData } from '../store/authSlice';
+import { clearAuth } from '../store/authSlice';
 
 export default function ProfilePage() {
   const [form, setForm] = useState({ name: '', bio: '' });
@@ -15,8 +15,6 @@ export default function ProfilePage() {
   const dispatch = useDispatch();
 
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-  const accessToken = useSelector((state) => state.auth.accessToken);
-  const email = useSelector((state) => state.auth.email);
 
   // ----------------------------
   // プロフィール取得 (アクセストークン + リフレッシュ対応)
@@ -26,7 +24,6 @@ export default function ProfilePage() {
       const res = await fetch(`${API_BASE_URL}/api/profile/me`, {
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
         },
         credentials: 'include', // RefreshToken送信
       });
@@ -44,28 +41,15 @@ export default function ProfilePage() {
 
         if (!refreshRes.ok) {
           console.error('リフレッシュ失敗、ログインへリダイレクト');
-          dispatch(clearAuthData());
-          navigate('/login');
+          dispatch(clearAuth());
           return;
         }
 
-        const refreshData = await refreshRes.json();
-        const newAccessToken = refreshData.accessToken;
-
-        if (!newAccessToken) {
-          dispatch(clearAuthData());
-          navigate('/login');
-          return;
-        }
-
-        // Redux更新
-        dispatch(setAuthData({ accessToken: newAccessToken }));
         console.log('✅ アクセストークン更新済み、再試行');
 
         const retryRes = await fetch(`${API_BASE_URL}/api/profile/me`, {
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${newAccessToken}`,
           },
           credentials: 'include',
         });
@@ -102,7 +86,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     fetchProfile();
-  }, [accessToken, email]);
+  }, [email]);
 
   // ----------------------------
   // プロフィール更新
@@ -114,7 +98,6 @@ export default function ProfilePage() {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
         },
         credentials: 'include',
         body: JSON.stringify(form),
@@ -124,9 +107,7 @@ export default function ProfilePage() {
       if (res.status === 401) {
         console.warn('アクセストークン期限切れ、リフレッシュ試行');
         const refreshRes = await fetch(
-          `${API_BASE_URL}/api/auth/cognito/refresh-token?email=${encodeURIComponent(
-            email
-          )}`,
+          `${API_BASE_URL}/api/auth/cognito/refresh-token`,
           {
             method: 'POST',
             credentials: 'include',
@@ -134,28 +115,15 @@ export default function ProfilePage() {
         );
 
         if (!refreshRes.ok) {
-          dispatch(clearAuthData());
           navigate('/login');
           return;
         }
 
         const refreshData = await refreshRes.json();
-        const newAccessToken = refreshData.accessToken;
-        if (!newAccessToken) {
-          dispatch(clearAuthData());
-          navigate('/login');
-          return;
-        }
-
-        // Redux更新
-        dispatch(setAuthData({ accessToken: newAccessToken }));
-
-        console.log('✅ アクセストークン更新済み、再試行');
         const retryRes = await fetch(`${API_BASE_URL}/api/profile/me/update`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${newAccessToken}`,
           },
           credentials: 'include',
           body: JSON.stringify(form),

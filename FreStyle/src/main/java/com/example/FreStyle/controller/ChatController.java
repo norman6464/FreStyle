@@ -95,9 +95,8 @@ public class ChatController {
 
   
   @GetMapping("/users/{roomId}/history")
-  public ResponseEntity<?> history(@AuthenticationPrincipal Jwt jwt, @PathVariable(name = "roomId") Integer roomId) {
-    System.out.println("Request receive: roomId=" + roomId);
-    
+  public ResponseEntity<?> history(@AuthenticationPrincipal Jwt jwt, @PathVariable(name = "roomId", required = true) Integer roomId) {
+
     String cognitoSub = jwt.getSubject();
     
     if (cognitoSub == null || cognitoSub.isEmpty()) {
@@ -107,25 +106,23 @@ public class ChatController {
     try {
       // 自分のユーザー情報を取得
       User myUser = userIdentityService.findUserBySub(cognitoSub);
-      System.out.println("myUser: " + myUser.getName());
+      Integer myUserId = myUser.getId();
       
       // すでにroom_idが取得されている状態なのでchatRoomServiceからChatRoomオブジェクトを取得をする
       ChatRoom chatRoom = chatRoomService.findChatRoomById(roomId);
       System.out.println("chatRoom found: " + chatRoom.getId());
       
-      // 履歴の取得
-      List<ChatMessageDto> history = chatMessageService.getMessagesByRoom(chatRoom);
+      // 履歴の取得 - 現在のユーザーIDを渡す
+      List<ChatMessageDto> history = chatMessageService.getMessagesByRoom(chatRoom, myUserId);
       System.out.println("history count: " + history.size());
       
       return ResponseEntity.ok(history);
-      
       
     } catch (Exception e) {
       System.out.println("Error in history endpoint: " + e.getMessage());
       e.printStackTrace();
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "サーバーエラーです。"));
     }
-    
   }
 
   @GetMapping("/stats")

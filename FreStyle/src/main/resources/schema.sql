@@ -79,3 +79,15 @@ CREATE TABLE IF NOT EXISTS access_tokens (
 
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+
+-- DynamoDB（NoSQL）テーブル設計メモ
+-- Table Name: fre_style_ai_chat
+-- sender_id (文字列)
+-- timestamp (数値)
+-- content
+-- is_user
+-- sender_id (文字列)
+-- timestamp (数値)
+-- content	
+-- is_user

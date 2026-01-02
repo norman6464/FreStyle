@@ -1,19 +1,3 @@
-// package com.example.FreStyle.dto;
-
-// import lombok.AllArgsConstructor;
-// import lombok.Data;
-// import lombok.NoArgsConstructor;
-
-// @Data
-// @NoArgsConstructor
-// @AllArgsConstructor
-// public class ChatMessageDto {
-//   private String content;
-//   private boolean isUser;
-//   private long timestamp;
-// }
-
-
 // NoSQL → RDBを使用するので変更した
 package com.example.FreStyle.dto;
 
@@ -29,9 +13,10 @@ import lombok.NoArgsConstructor;
 public class ChatMessageDto {
     private Integer id;
     private Integer roomId;
-    private Integer senderId;
+    private Integer senderId;  // 送信者のユーザーID（内部用）
     private String senderName;
-    private String content;   // ここにメッセージ本文を入れる場合
+    private String content;
     private Timestamp createdAt;
     private Timestamp updatedAt;
+    private Boolean isSender;  // 新しく追加：自分が送ったメッセージかどうか
 }

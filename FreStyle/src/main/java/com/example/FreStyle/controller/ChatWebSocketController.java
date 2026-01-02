@@ -9,12 +9,9 @@ import org.springframework.stereotype.Controller;
 
 import com.example.FreStyle.dto.ChatMessageDto;
 import com.example.FreStyle.entity.ChatRoom;
-import com.example.FreStyle.entity.User;
-import com.example.FreStyle.entity.UserIdentity;
 import com.example.FreStyle.service.ChatMessageService;
 import com.example.FreStyle.service.ChatRoomService;
 import com.example.FreStyle.service.UserIdentityService;
-import com.example.FreStyle.service.UserService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

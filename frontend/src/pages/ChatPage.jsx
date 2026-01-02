@@ -82,7 +82,7 @@ export default function ChatPage() {
         senderName: msg.senderName,
         content: msg.content,
         createdAt: msg.createdAt,
-        isSender: msg.senderId === senderId,
+        isSender: msg.isSender, // バックエンドから直接取得
       }));
 
       setMessages(formatted);

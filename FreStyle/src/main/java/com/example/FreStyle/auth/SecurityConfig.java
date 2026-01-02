@@ -36,7 +36,7 @@ public class SecurityConfig {
                         .anyRequest().authenticated())
                 .formLogin(form -> form.disable())
                 .httpBasic(basic -> basic.disable())
-                // Cookie から Authorizationヘッダーに付加する
+                // httpOnlyCookieのACCESS_TOKENを Authorization: Bearerヘッダーに変換する
                 .addFilterBefore(jwtCookieFilter, UsernamePasswordAuthenticationFilter.class)
                 .oauth2ResourceServer(oauth2 -> oauth2
                     .jwt(jwt -> jwt

@@ -1,7 +1,6 @@
 import { useNavigate } from 'react-router-dom';
-import { useSelector, useDispatch } from 'react-redux';
+import { useSelector } from 'react-redux';
 import { useState, useEffect } from 'react';
-import { setAuthData, clearAuthData } from '../store/authSlice';
 import HamburgerMenu from '../components/HamburgerMenu';
 import {
   CalendarIcon,
@@ -11,9 +10,7 @@ import {
 
 export default function MenuPage() {
   const navigate = useNavigate();
-  const dispatch = useDispatch();
   const message = useSelector((state) => state.flash?.message);
-  const email = useSelector((state) => state.auth.email);
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   const [stats, setStats] = useState(null);
@@ -49,7 +46,6 @@ export default function MenuPage() {
           );
 
           if (!refreshRes.ok) {
-            dispatch(clearAuthData());
             navigate('/login');
             return;
           }
@@ -78,7 +74,9 @@ export default function MenuPage() {
         console.error('Error fetching stats:', err);
       }
     };
-  }, [dispatch, navigate, API_BASE_URL]);
+
+    fetchStats();
+  }, [navigate, API_BASE_URL]);
 
   const formatDate = (date) => {
     return date.toLocaleDateString('ja-JP', {

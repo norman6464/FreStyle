@@ -6,8 +6,6 @@ import SNSSignInButton from '../components/SNSSignInButton';
 import LinkText from '../components/LinkText';
 import { getCognitoAuthUrl } from '../utils/auth';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useDispatch, useSelector } from 'react-redux';
-import { setAuthData } from '../store/authSlice';
 
 export default function LoginPage() {
   const [form, setForm] = useState({ email: '', password: '' });
@@ -18,7 +16,6 @@ export default function LoginPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const message = location.state?.message;
-  const dispatch = useDispatch();
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   const handleLogin = async (e) => {
@@ -42,8 +39,7 @@ export default function LoginPage() {
       console.log('ステータスコード', response.status);
 
       if (response.ok) {
-        dispatch(setAuthData(data));
-        console.log('ログインに成功しました。');
+        dispatch(setAuthData());
         navigate('/');
       } else {
         setLoginMessage({

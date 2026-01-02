@@ -2,9 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import MessageBubbleAi from '../components/MessageBubbleAi';
 import MessageInput from '../components/MessageInput';
 import HamburgerMenu from '../components/HamburgerMenu';
-import { useSelector, useDispatch } from 'react-redux';
+import { useDispatch } from 'react-redux';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { setAuthData, clearAuthData } from '../store/authSlice';
 
 export default function AskAiPage() {
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
@@ -13,6 +12,7 @@ export default function AskAiPage() {
   const [messages, setMessages] = useState([]);
   const [initialPromptSent, setInitialPromptSent] = useState(false);
   const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [senderId, setSenderId] = useState(null);
   const wsRef = useRef(null);
   const messagesEndRef = useRef(null);
 
@@ -20,8 +20,29 @@ export default function AskAiPage() {
   const location = useLocation();
   const dispatch = useDispatch();
 
-  const senderId = useSelector((state) => state.auth.sub);
   const initialPrompt = location.state?.initialPrompt;
+
+  // ユーザー情報取得（senderId を取得）
+  useEffect(() => {
+    const fetchUserInfo = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
+          credentials: 'include',
+        });
+        if (!res.ok) {
+          navigate('/login');
+          return;
+        }
+        const data = await res.json();
+        setSenderId(data.sub);
+      } catch (error) {
+        console.error('ユーザー情報取得エラー:', error);
+        navigate('/login');
+      }
+    };
+
+    fetchUserInfo();
+  }, [API_BASE_URL, navigate]);
 
   // --- メッセージ最下部へスクロール ---
   const scrollToBottom = () => {
@@ -61,7 +82,6 @@ export default function AskAiPage() {
           );
 
           if (!refreshRes.ok) {
-            dispatch(clearAuthData());
             navigate('/login');
             return;
           }

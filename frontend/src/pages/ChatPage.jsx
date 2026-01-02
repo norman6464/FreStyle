@@ -3,24 +3,46 @@ import { useParams, useNavigate } from 'react-router-dom';
 import MessageBubble from '../components/MessageBubble';
 import MessageInput from '../components/MessageInput';
 import HamburgerMenu from '../components/HamburgerMenu';
-import { useSelector, useDispatch } from 'react-redux';
-import { setAuthData, clearAuthData } from '../store/authSlice';
+import { useDispatch } from 'react-redux';
+import { clearAuth } from '../store/authSlice';
 
 import SockJS from 'sockjs-client';
 import { Client } from '@stomp/stompjs';
 
 export default function ChatPage() {
   const [messages, setMessages] = useState([]);
+  const [senderId, setSenderId] = useState(null);
   const stompClientRef = useRef(null);
   const messagesEndRef = useRef(null);
 
   const { roomId } = useParams();
-  const senderId = useSelector((state) => state.auth.sub);
 
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
+  // ユーザー情報取得（senderId を取得）
+  useEffect(() => {
+    const fetchUserInfo = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
+          credentials: 'include',
+        });
+        if (!res.ok) {
+          navigate('/login');
+          return;
+        }
+        const data = await res.json();
+        setSenderId(data.sub);
+      } catch (error) {
+        console.error('ユーザー情報取得エラー:', error);
+        navigate('/login');
+      }
+    };
+
+    fetchUserInfo();
+  }, [API_BASE_URL, navigate]);
 
   // スクロール
   const scrollToBottom = () => {
@@ -51,8 +73,7 @@ export default function ChatPage() {
         );
 
         if (!refreshRes.ok) {
-          dispatch(clearAuthData());
-          navigate('/login');
+          dispatch(clearAuth());
           return;
         }
 

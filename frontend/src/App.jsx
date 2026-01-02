@@ -2,7 +2,6 @@ import { Routes, Route } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import LoginCallback from './pages/LoginCallback';
-import HomePage from './components/HomePage';
 import ChatPage from './pages/ChatPage';
 import MenuPage from './pages/MenuPage';
 import AskAiPage from './pages/AskAiPage';
@@ -12,16 +11,12 @@ import AddUserPage from './pages/AddUserPage';
 import ProfilePage from './pages/ProfilePage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ConfirmForgotPasswordPage from './pages/ConfirmForgotPasswordPage';
-import { useSelector } from 'react-redux';
 import AuthInitializer from './utils/AuthInitializer';
 import Protected from './utils/Protected';
 
 export default function App() {
-  
-  const accessToken = useSelector((state) => state.auth.accessToken);
-  
   return (
-<AuthInitializer>
+    <AuthInitializer>
       <Routes>
         {/* 誰でもアクセス可能 */}
         <Route path="/login" element={<LoginPage />} />
@@ -43,7 +38,7 @@ export default function App() {
         <Route path="/chat/ask-ai" element={<Protected><AskAiPage /></Protected>} />
 
         {/* 404 */}
-        <Route path="*" element={<NotFound />} />
+        <Route path="*" element={<div className="flex items-center justify-center h-screen text-center"><div><h1 className="text-4xl font-bold mb-4">404 - ページが見つかりません</h1><p>お探しのページは存在しません。</p></div></div>} />
       </Routes>
     </AuthInitializer>
   );

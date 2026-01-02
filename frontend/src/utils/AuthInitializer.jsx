@@ -17,8 +17,7 @@ export default function AuthInitializer({ children }) {
 
         if (!res.ok) throw new Error();
 
-        const user = await res.json();
-        dispatch(setAuthData(user));
+        dispatch(setAuthData());
       } catch {
         dispatch(clearAuth());
       } finally {

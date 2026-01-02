@@ -1,17 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSelector, useDispatch } from 'react-redux';
+import { useDispatch } from 'react-redux';
 import { debounce } from 'lodash';
 import { useNavigate } from 'react-router-dom';
 import MemberList from '../components/MemberList';
 import SearchBox from '../components/SearchBox';
 import HamburgerMenu from '../components/HamburgerMenu';
-import { setAuthData, clearAuthData } from '../store/authSlice';
 
 export default function AddUserPage() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-  const email = useSelector((state) => state.auth.email); // refresh-token API用
 
   const [users, setUsers] = useState([]);
   const [error, setError] = useState(null);
@@ -57,7 +55,6 @@ useEffect(() => {
 
         if (!refreshRes.ok) {
           console.log('リフレッシュ失敗。再ログインへ');
-          dispatch(clearAuthData());
           navigate('/login');
           return;
         }

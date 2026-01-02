@@ -31,8 +31,8 @@ export default function LoginCallback() {
           }
           return res.json();
         })
-        .then((data) => {
-          dispatch(setAuthData(data));
+        .then(() => {
+          dispatch(setAuthData());
 
           navigate('/');
         })

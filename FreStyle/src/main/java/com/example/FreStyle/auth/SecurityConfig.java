@@ -20,7 +20,7 @@ public class SecurityConfig {
     // Cognitoの.well-known/jwk.json
     // Spring Security は access_token を自動で decode & validate & set Authentication してくれる
     @Value("${cognito.jwk-set-uri}")
-    private final String jwkUri;
+    private String jwkUri;
 
     private final JwtCookieFilter jwtCookieFilter;
 

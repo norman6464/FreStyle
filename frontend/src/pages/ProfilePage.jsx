@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react';
 import AuthLayout from '../components/AuthLayout';
 import InputField from '../components/InputField';
 import PrimaryButton from '../components/PrimaryButton';
-import { useSelector, useDispatch } from 'react-redux';
+import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import HamburgerMenu from '../components/HamburgerMenu';
-import { setAuthData, clearAuthData } from '../store/authSlice';
+import { clearAuth } from '../store/authSlice';
 
 export default function ProfilePage() {
   const [form, setForm] = useState({ name: '', bio: '' });
@@ -15,7 +15,6 @@ export default function ProfilePage() {
   const dispatch = useDispatch();
 
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-  const email = useSelector((state) => state.auth.email);
 
   // ----------------------------
   // プロフィール取得 (アクセストークン + リフレッシュ対応)
@@ -42,8 +41,7 @@ export default function ProfilePage() {
 
         if (!refreshRes.ok) {
           console.error('リフレッシュ失敗、ログインへリダイレクト');
-          dispatch(clearAuthData());
-          navigate('/login');
+          dispatch(clearAuth());
           return;
         }
 
@@ -109,9 +107,7 @@ export default function ProfilePage() {
       if (res.status === 401) {
         console.warn('アクセストークン期限切れ、リフレッシュ試行');
         const refreshRes = await fetch(
-          `${API_BASE_URL}/api/auth/cognito/refresh-token?email=${encodeURIComponent(
-            email
-          )}`,
+          `${API_BASE_URL}/api/auth/cognito/refresh-token`,
           {
             method: 'POST',
             credentials: 'include',
@@ -119,7 +115,6 @@ export default function ProfilePage() {
         );
 
         if (!refreshRes.ok) {
-          dispatch(clearAuthData());
           navigate('/login');
           return;
         }

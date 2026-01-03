@@ -36,6 +36,7 @@ export default function ChatPage() {
         const data = await res.json();
         // このdata.idはリアルタイムで相手から送信してきた。それとも自分で送信をしたの判断をつけるためのフラグ
         setSenderId(data.id);
+        console.log('[ChatPage] Fetched user info, senderId:', data.id);
       } catch (error) {
         console.error('ユーザー情報取得エラー:', error);
         navigate('/login');
@@ -101,7 +102,7 @@ export default function ChatPage() {
         senderName: msg.senderName,
         content: msg.content,
         createdAt: msg.createdAt,
-        isSender: msg.isSender, // バックエンドから直接取得
+        isSender: msg.senderId === senderId,
       }));
 
       setMessages(formatted);
@@ -137,6 +138,8 @@ export default function ChatPage() {
           const data = JSON.parse(message.body);
           console.log('📩 Received message from topic:', data);
 
+          // バックエンドから返却された ChatMessageDto をそのまま使用
+          // data.isSender は既にバックエンドで計算されている
           setMessages((prev) => [
             ...prev,
             {
@@ -185,19 +188,9 @@ export default function ChatPage() {
       }),
     });
 
-    // ローカルでも先に追加（楽観的 UI 更新）
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: Date.now(), // 仮のID
-        roomId,
-        senderId,
-        senderName: '自分',
-        content: text,
-        createdAt: new Date().toISOString(),
-        isSender: true,
-      },
-    ]);
+    // 💡 楽観的UI更新を削除：バックエンドからの返却を待つ
+    // WebSocket経由でバックエンドが /topic/chat/{roomId} にメッセージをブロードキャストするので
+    // 自動的にメッセージが画面に追加される
   };
 
   // --- メッセージ削除（拡張用） ---
@@ -236,7 +229,7 @@ export default function ChatPage() {
       <HamburgerMenu title="個人チャット" />
 
       <div className="flex flex-col h-screen bg-gradient-to-br from-gray-50 to-primary-50 text-black pt-16">
-        <div className="flex-1 overflow-y-auto px-4 py-6 space-y-2 max-w-4xl mx-auto w-full pb-[120px]">
+        <div className="flex-1 overflow-y-auto px-2 py-6 space-y-2 max-w-full mx-auto w-full pb-[120px]">
           {messages.length === 0 && (
             <div className="flex items-center justify-center h-full">
               <p className="text-gray-400 text-lg">メッセージがありません</p>
@@ -255,7 +248,7 @@ export default function ChatPage() {
         </div>
 
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 shadow-2xl p-4 z-10">
-          <div className="max-w-4xl mx-auto w-full space-y-3">
+          <div className="max-w-full mx-auto px-2 w-full space-y-3">
             {messages.length > 0 && (
               <button
                 onClick={handleAiFeedback}

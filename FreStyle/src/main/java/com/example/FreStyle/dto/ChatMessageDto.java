@@ -18,5 +18,4 @@ public class ChatMessageDto {
     private String content;
     private Timestamp createdAt;
     private Timestamp updatedAt;
-    private Boolean isSender;  // 新しく追加：自分が送ったメッセージかどうか
 }

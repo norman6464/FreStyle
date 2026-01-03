@@ -28,7 +28,6 @@ export default function MemberItem({ id, name, roomId, email }) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
         },
         credentials: 'include',
       });
@@ -52,18 +51,8 @@ export default function MemberItem({ id, name, roomId, email }) {
           return;
         }
 
+        // アクセストークンはhttpOnly Cookieで受け取る想定のため、レスポンスボディは空でも問題ない
         const refreshData = await refreshRes.json();
-        const newAccessToken = refreshData.accessToken;
-
-        if (!newAccessToken) {
-          console.error('❌ 新アクセストークンが取得できませんでした。');
-          dispatch(clearAuth());
-          navigate('/login');
-          return;
-        }
-
-        // Reduxに保存
-        dispatch(setAuthData({ accessToken: newAccessToken }));
         console.log('✅ 新アクセストークン取得成功。リクエスト再試行。');
 
         // --- 再試行 ---
@@ -71,7 +60,6 @@ export default function MemberItem({ id, name, roomId, email }) {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${newAccessToken}`,
           },
           credentials: 'include',
         });

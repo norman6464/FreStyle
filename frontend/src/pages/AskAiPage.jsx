@@ -26,7 +26,7 @@ export default function AskAiPage() {
   useEffect(() => {
     const fetchUserInfo = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
+        const res = await fetch(`${API_BASE_URL}/api/auth/cognito/me`, {
           credentials: 'include',
         });
         if (!res.ok) {
@@ -34,7 +34,7 @@ export default function AskAiPage() {
           return;
         }
         const data = await res.json();
-        setSenderId(data.sub);
+        setSenderId(data.id);
       } catch (error) {
         console.error('ユーザー情報取得エラー:', error);
         navigate('/login');

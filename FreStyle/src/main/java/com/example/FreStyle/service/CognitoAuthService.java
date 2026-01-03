@@ -235,28 +235,44 @@ public class CognitoAuthService {
     // だがリフレッシュトークンのローテーションの設定をしていないのでリフレッシュトークンの取得はできない
     // -----------------------
     public Map<String, String> refreshAccessToken(String refreshToken) {
+        System.out.println("[CognitoAuthService refreshAccessToken] リフレッシュトークンでのアクセストークン再発行を開始");
+        System.out.println("[CognitoAuthService refreshAccessToken] REFRESH_TOKEN: " + 
+                          (refreshToken != null ? refreshToken.substring(0, Math.min(20, refreshToken.length())) + "..." : "null"));
+        
         Map<String, String> authParams = new HashMap<>();
         authParams.put("REFRESH_TOKEN", refreshToken);
-        authParams.put("SECRET_HASH", calculateSecretHash(null)); // usernameは空文字でもOK
+        
+        // SECRET_HASHの計算時に空文字列を使用（username不要）
+        String secretHash = calculateSecretHash("");
+        authParams.put("SECRET_HASH", secretHash);
+        System.out.println("[CognitoAuthService refreshAccessToken] SECRET_HASH: " + secretHash.substring(0, Math.min(20, secretHash.length())) + "...");
         
         InitiateAuthRequest authRequest = InitiateAuthRequest.builder()
             .authFlow(AuthFlowType.REFRESH_TOKEN)
             .clientId(clientId)
             .authParameters(authParams)
             .build();
-            
+        
+        System.out.println("[CognitoAuthService refreshAccessToken] Cognito initializeAuth API を呼び出し中...");
         try {
             InitiateAuthResponse response = cognitoClient.initiateAuth(authRequest);
             AuthenticationResultType result = response.authenticationResult();
+            
+            System.out.println("[CognitoAuthService refreshAccessToken] ✅ トークン再発行成功");
             
             Map<String, String> tokens = new HashMap<>();
             
             tokens.put("accessToken", result.accessToken());
             tokens.put("idToken", result.idToken());
+            System.out.println("[CognitoAuthService refreshAccessToken] accessToken: " + 
+                              (result.accessToken() != null ? result.accessToken().substring(0, Math.min(20, result.accessToken().length())) + "..." : "null"));
             return tokens;
         } catch (NotAuthorizedException e) {
+            System.out.println("[CognitoAuthService refreshAccessToken] ❌ NotAuthorizedException: " + e.getMessage());
             throw new RuntimeException("リフレッシュトークンが無効です。再ログインしてください。");
         } catch (Exception e) {
+            System.out.println("[CognitoAuthService refreshAccessToken] ❌ Exception: " + e.getClass().getSimpleName() + " - " + e.getMessage());
+            e.printStackTrace();
             throw new RuntimeException("アクセストークン再発行中にエラーが発生しました。");
         }
     }

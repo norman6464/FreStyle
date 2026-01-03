@@ -26,7 +26,7 @@ export default function ChatPage() {
   useEffect(() => {
     const fetchUserInfo = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
+        const res = await fetch(`${API_BASE_URL}/api/auth/cognito/me`, {
           credentials: 'include',
         });
         if (!res.ok) {
@@ -34,7 +34,8 @@ export default function ChatPage() {
           return;
         }
         const data = await res.json();
-        setSenderId(data.sub);
+        // このdata.idはリアルタイムで相手から送信してきた。それとも自分で送信をしたの判断をつけるためのフラグ
+        setSenderId(data.id);
       } catch (error) {
         console.error('ユーザー情報取得エラー:', error);
         navigate('/login');

@@ -66,28 +66,51 @@ public class ChatController {
   @PostMapping("/users/{id}/create")
   public ResponseEntity<?> create(@AuthenticationPrincipal Jwt jwt, @PathVariable(name = "id") Integer id) {
     
+    System.out.println("\n========== ルーム作成リクエスト開始 ==========");
+    System.out.println("📌 リクエストPathVariable id: " + id);
+    System.out.println("📌 JWT null判定: " + (jwt == null ? "NULL" : "存在"));
+    
     String cognitoSub = jwt.getSubject();
+    System.out.println("📌 cognitoSub (Cognito User ID): " + cognitoSub);
+    
     if (cognitoSub == null || cognitoSub.isEmpty()) {
-      System.out.println("request bad request");
+      System.out.println("❌ cognitoSubがnullまたは空です");
+      System.out.println("========== ルーム作成リクエスト終了(UNAUTHORIZED) ==========\n");
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "無効なリクエストです。"));
     }
     
     try{
-      
+      System.out.println("🔍 userIdentityService.findUserBySub() 実行中...");
       User myUser = userIdentityService.findUserBySub(cognitoSub);
+      System.out.println("✅ 現在のユーザー取得成功");
+      System.out.println("   - myUser.getId(): " + myUser.getId());
+      System.out.println("   - myUser.getName(): " + myUser.getName());
+      System.out.println("   - myUser.getEmail(): " + myUser.getEmail());
       
+      System.out.println("🔍 chatService.createOrGetRoom() 実行中...");
+      System.out.println("   - myUser.getId(): " + myUser.getId() + " (ログイン中のユーザーID)");
+      System.out.println("   - id (相手ユーザーID): " + id);
       Integer roomId = chatService.createOrGetRoom(myUser.getId(), id);
-      System.out.println("request ok");
+      
+      System.out.println("✅ ルーム作成/取得成功");
+      System.out.println("   - roomId: " + roomId);
+      System.out.println("========== ルーム作成リクエスト終了(OK) ==========\n");
       return ResponseEntity.ok(Map.of(
             "roomId", roomId,
             "status", "success"
       ));
   } catch (IllegalStateException e) {
-    System.out.println(e.getMessage());
+    System.out.println("⚠️ IllegalStateException発生: " + e.getMessage());
+    System.out.println("   スタックトレース:");
+    e.printStackTrace();
+    System.out.println("========== ルーム作成リクエスト終了(BAD_REQUEST) ==========\n");
     return ResponseEntity.badRequest().body(Map.of("error", "無効なリクエストです。"));
   } catch (Exception e) {
-    System.out.println(e.getMessage());
+    System.out.println("❌ 予期しない例外発生: " + e.getClass().getName());
+    System.out.println("   メッセージ: " + e.getMessage());
+    System.out.println("   スタックトレース:");
     e.printStackTrace();
+    System.out.println("========== ルーム作成リクエスト終了(INTERNAL_SERVER_ERROR) ==========\n");
     return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
               .body(Map.of("error", "ルーム作成中にエラーが発生しました。"));
   } 

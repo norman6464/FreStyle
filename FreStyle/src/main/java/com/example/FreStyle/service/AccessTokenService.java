@@ -31,4 +31,24 @@ public class AccessTokenService {
 
         accessTokenRepository.save(token);
     }
+
+    // AccessTokenエンティティのリフレッシュトークンでuserを取得
+    @Transactional(readOnly = true)
+    public AccessToken findAccessTokenByRefreshToken(String refreshToken) {
+        AccessToken token = accessTokenRepository.findByRefreshToken(refreshToken)
+                .orElseThrow(() -> new RuntimeException("無効なリフレッシュトークンです。"));
+        return token; 
+    }
+
+    // リフレッシュトークンをもとにデータ更新をする
+    // 将来的にリフレッシュトークンのローテーション対応も考慮
+    @Transactional
+    public void updateTokens(
+            AccessToken token,
+            String newAccessToken
+    ) {
+        token.setAccessToken(newAccessToken);
+        accessTokenRepository.save(token);
+    }
+
 }

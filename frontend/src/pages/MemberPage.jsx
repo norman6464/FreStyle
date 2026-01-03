@@ -41,7 +41,7 @@ export default function MemberPage() {
 
     fetch(`${API_BASE_URL}/api/chat/users${queryParam}`, {
       headers: {
-        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
       },
       signal: controller.signal,
     })

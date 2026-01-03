@@ -12,6 +12,7 @@ import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.security.oauth2.jwt.Jwt;
 
+import com.example.FreStyle.entity.AccessToken;
 import com.example.FreStyle.entity.User;
 import com.example.FreStyle.form.ConfirmSignupForm;
 import com.example.FreStyle.form.ForgotPasswordForm;
@@ -288,7 +289,7 @@ public class CognitoAuthController {
     // リフレッシュトークンを使用をしてアクセストークン、IDトークンの再発行を行う
     // -----------------------
     @PostMapping("/refresh-token")
-    public ResponseEntity<?> refreshToken(@CookieValue(name = "REFRESH_TOKEN", required = false) String refreshToken,
+    public ResponseEntity<?> refreshToken(@CookieValue(name = "REFRESH_TOKEN", required = true) String refreshToken,
                     HttpServletResponse response) {
 
         System.out.println("[CognitoAuthController /refresh-token] Endpoint called");
@@ -302,9 +303,18 @@ public class CognitoAuthController {
         }
 
         try {
+
+            AccessToken accessTokenEntity = accessTokenService.findAccessTokenByRefreshToken(refreshToken);
+
             System.out.println("[CognitoAuthController /refresh-token] Attempting to refresh access token");
             Map<String, String> tokens = cognitoAuthService.refreshAccessToken(refreshToken);
             System.out.println("[CognitoAuthController /refresh-token] Successfully refreshed tokens");
+
+            accessTokenService.updateTokens(
+                    accessTokenEntity,
+                    tokens.get("accessToken")
+            );
+            
             setAuthCookies(response, tokens.get("accessToken"), refreshToken);
             return ResponseEntity.ok(Map.of("success","更新完了"));
 
@@ -379,10 +389,10 @@ public class CognitoAuthController {
 
         try {
             System.out.println("[CognitoAuthController /me] Finding user with sub: " + sub);
-            User user = userIdentityService.findUserBySub(sub);
-            System.out.println("[CognitoAuthController /me] User found: " + user.getId());
+            Integer id = userIdentityService.findUserBySub(sub).getId();
+            System.out.println("[CognitoAuthController /me] User found: " + id);
 
-            return ResponseEntity.ok(Map.of("success","ログイン状態です。"));
+            return ResponseEntity.ok(Map.of("id",id));
 
         } catch (RuntimeException e) {
             System.out.println("[CognitoAuthController /me] ERROR: " + e.getClass().getSimpleName() + " - " + e.getMessage());

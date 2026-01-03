@@ -68,8 +68,8 @@ public class ProfileController {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
                         .body(Map.of("error", "ユーザーが存在しません。"));
             }
-
-            System.out.println("[ProfileController /me] User found - ID: " + user.getUserId() + ", Name: " + user.getName());
+            
+            System.out.println("[ProfileController /me] User found - ID: " + user.getId() + ", Name: " + user.getName());
 
             ProfileDto profileDto = new ProfileDto(
                     user.getName(),

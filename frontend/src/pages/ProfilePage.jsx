@@ -21,6 +21,7 @@ export default function ProfilePage() {
   // ----------------------------
   const fetchProfile = async () => {
     try {
+      console.log('[ProfilePage] Fetching profile');
       const res = await fetch(`${API_BASE_URL}/api/profile/me`, {
         headers: {
           'Content-Type': 'application/json',
@@ -30,7 +31,7 @@ export default function ProfilePage() {
 
       // トークン期限切れならリフレッシュを試みる
       if (res.status === 401) {
-        console.warn('アクセストークン期限切れ、リフレッシュ試行');
+        console.warn('[ProfilePage] Access token expired, attempting refresh');
         const refreshRes = await fetch(
           `${API_BASE_URL}/api/auth/cognito/refresh-token`,
           {
@@ -40,12 +41,12 @@ export default function ProfilePage() {
         );
 
         if (!refreshRes.ok) {
-          console.error('リフレッシュ失敗、ログインへリダイレクト');
+          console.error('[ProfilePage] ERROR: Token refresh failed');
           dispatch(clearAuth());
           return;
         }
 
-        console.log('✅ アクセストークン更新済み、再試行');
+        console.log('[ProfilePage] Access token refreshed successfully, retrying fetch');
 
         const retryRes = await fetch(`${API_BASE_URL}/api/profile/me`, {
           headers: {
@@ -60,6 +61,7 @@ export default function ProfilePage() {
             retryData.error || 'プロフィール再取得に失敗しました。'
           );
 
+        console.log('[ProfilePage] Profile fetch retry successful');
         setForm({
           name: retryData.name || '',
           bio: retryData.bio || '',
@@ -72,12 +74,13 @@ export default function ProfilePage() {
       if (!res.ok)
         throw new Error(data.error || 'プロフィール取得に失敗しました。');
 
+      console.log('[ProfilePage] Profile fetched successfully');
       setForm({
         name: data.name || '',
         bio: data.bio || '',
       });
     } catch (err) {
-      console.error('❌ プロフィール取得失敗:', err);
+      console.error('[ProfilePage] ERROR: Profile fetch failed -', err.message);
       setMessage({ type: 'error', text: err.message });
     } finally {
       setLoading(false);
@@ -86,7 +89,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     fetchProfile();
-  }, [email]);
+  }, []);
 
   // ----------------------------
   // プロフィール更新
@@ -94,6 +97,7 @@ export default function ProfilePage() {
   const handleUpdate = async (e) => {
     e.preventDefault();
     try {
+      console.log('[ProfilePage] Updating profile with name:', form.name);
       const res = await fetch(`${API_BASE_URL}/api/profile/me/update`, {
         method: 'PUT',
         headers: {
@@ -105,7 +109,7 @@ export default function ProfilePage() {
 
       // 401 → トークン更新を試みる
       if (res.status === 401) {
-        console.warn('アクセストークン期限切れ、リフレッシュ試行');
+        console.warn('[ProfilePage] Access token expired, attempting refresh');
         const refreshRes = await fetch(
           `${API_BASE_URL}/api/auth/cognito/refresh-token`,
           {
@@ -115,10 +119,12 @@ export default function ProfilePage() {
         );
 
         if (!refreshRes.ok) {
+          console.error('[ProfilePage] ERROR: Token refresh failed');
           navigate('/login');
           return;
         }
 
+        console.log('[ProfilePage] Access token refreshed, retrying update');
         const refreshData = await refreshRes.json();
         const retryRes = await fetch(`${API_BASE_URL}/api/profile/me/update`, {
           method: 'PUT',
@@ -135,6 +141,7 @@ export default function ProfilePage() {
             retryData.error || 'プロフィール更新に失敗しました。'
           );
 
+        console.log('[ProfilePage] Profile update successful');
         setMessage({
           type: 'success',
           text: retryData.success || 'プロフィールを更新しました。',
@@ -146,12 +153,13 @@ export default function ProfilePage() {
       if (!res.ok)
         throw new Error(data.error || 'プロフィール更新に失敗しました。');
 
+      console.log('[ProfilePage] Profile update successful');
       setMessage({
         type: 'success',
         text: data.success || 'プロフィールを更新しました。',
       });
     } catch (error) {
-      console.error(error);
+      console.error('[ProfilePage] ERROR: Profile update failed -', error.message);
       setMessage({ type: 'error', text: '通信エラーが発生しました。' });
     }
   };

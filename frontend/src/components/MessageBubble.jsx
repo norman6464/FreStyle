@@ -14,7 +14,7 @@ export default function MessageBubble({
   const [showDelete, setShowDelete] = useState(false);
 
   const baseStyle =
-    'max-w-[70%] px-4 py-3 rounded-2xl text-sm whitespace-pre-wrap break-words shadow-md relative';
+    'max-w-[85%] px-4 py-3 rounded-2xl text-sm whitespace-pre-wrap break-words shadow-md relative';
 
   const alignment = isSender
     ? 'self-end bg-gradient-primary text-white rounded-br-none'
@@ -39,7 +39,7 @@ export default function MessageBubble({
       onMouseEnter={() => isSender && !isDeleted && setShowDelete(true)}
       onMouseLeave={() => setShowDelete(false)}
     >
-      <div className="flex flex-col max-w-[70%]">
+      <div className="flex flex-col max-w-[85%]">
         {!isSender && senderName && (
           <span className="text-xs text-gray-500 mb-1 ml-1">{senderName}</span>
         )}

@@ -14,7 +14,7 @@ export default function MessageBubbleAi({
   const [showDelete, setShowDelete] = useState(false);
 
   const baseStyle =
-    'max-w-[70%] px-4 py-3 rounded-2xl text-sm whitespace-pre-wrap break-words shadow-md relative';
+    'max-w-[95%] px-4 py-3 rounded-2xl text-sm whitespace-pre-wrap break-words shadow-md relative';
 
   const alignment = isSender
     ? 'self-end bg-gradient-primary text-white rounded-br-none'

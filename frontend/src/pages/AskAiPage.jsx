@@ -126,13 +126,29 @@ export default function AskAiPage() {
       }
     };
 
+    // 関数を実行
+    fetchHistory();
+
   }, [initialPrompt, API_BASE_URL, dispatch, navigate]);
 
   // --- WebSocket ---
   useEffect(() => {
-    if (!senderId || !historyLoaded) return;
+    if (!senderId || !historyLoaded) {
+      console.log('⏳ [WebSocket useEffect] 条件未満たし:', {
+        senderId,
+        historyLoaded,
+      });
+      return;
+    }
+
+    console.log('🔗 [WebSocket useEffect] 接続開始:', {
+      senderId,
+      historyLoaded,
+    });
 
     const socketUrl = `${WS_URL}?user_id=${senderId}&room_id=default`;
+    console.log('🌐 [WebSocket] URL:', socketUrl);
+    
     wsRef.current = new WebSocket(socketUrl);
 
     wsRef.current.onopen = () => {
@@ -140,7 +156,7 @@ export default function AskAiPage() {
 
       // 初期プロンプトがあれば自動送信
       if (initialPrompt && !initialPromptSent) {
-        console.log('📤 初期プロンプトを送信します');
+        console.log('📤 初期プロンプトを送信します:', initialPrompt);
         wsRef.current.send(
           JSON.stringify({
             sender_id: senderId,
@@ -164,6 +180,7 @@ export default function AskAiPage() {
     };
 
     wsRef.current.onmessage = (event) => {
+      console.log('💬 [WebSocket onmessage] メッセージ受信:', event.data);
       const data = JSON.parse(event.data);
 
       setMessages((prev) => [
@@ -177,10 +194,16 @@ export default function AskAiPage() {
       ]);
     };
 
-    wsRef.current.onerror = (e) => console.error('WS Error:', e);
-    wsRef.current.onclose = () => console.log('WS Closed');
+    wsRef.current.onerror = (e) => {
+      console.error('❌ WS Error:', e);
+    };
+    
+    wsRef.current.onclose = () => {
+      console.log('🔌 WS Closed');
+    };
 
     return () => {
+      console.log('🧹 [WebSocket cleanup] クリーンアップ実行中');
       wsRef.current?.close();
     };
   }, [WS_URL, senderId, initialPrompt, initialPromptSent, historyLoaded]);
@@ -213,20 +236,46 @@ export default function AskAiPage() {
 
   // --- メッセージ送信 ---
   const handleSend = (text) => {
+    console.log('📤 [handleSend] メッセージ送信開始:', { text, senderId });
+    
     const timestampNow = Date.now();
 
     setMessages((prev) => [
       ...prev,
       { id: timestampNow, content: text, isSender: true },
     ]);
+    
+    console.log('📝 [handleSend] ローカルstateに追加:', {
+      id: timestampNow,
+      content: text,
+      isSender: true,
+    });
 
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(
-        JSON.stringify({
+    if (wsRef.current) {
+      console.log('🔌 [handleSend] WebSocket状態:', {
+        readyState: wsRef.current.readyState,
+        readyStateLabel: 
+          wsRef.current.readyState === WebSocket.CONNECTING
+            ? 'CONNECTING'
+            : wsRef.current.readyState === WebSocket.OPEN
+            ? 'OPEN'
+            : wsRef.current.readyState === WebSocket.CLOSING
+            ? 'CLOSING'
+            : 'CLOSED',
+      });
+
+      if (wsRef.current.readyState === WebSocket.OPEN) {
+        const payload = {
           sender_id: senderId,
           content: text,
-        })
-      );
+        };
+        console.log('✅ [handleSend] WebSocketで送信:', payload);
+        wsRef.current.send(JSON.stringify(payload));
+      } else {
+        console.warn('❌ [handleSend] WebSocket接続がOPENでない');
+      }
+    } else {
+      console.error('❌ [handleSend] wsRefが存在しない');
     }
   };
 
@@ -277,7 +326,7 @@ export default function AskAiPage() {
             </div>
           )}
           {messages.map((msg) => (
-            <MessageBubble
+            <MessageBubbleAi
               key={msg.id}
               {...msg}
               type={msg.isSender ? 'text' : 'bot'}

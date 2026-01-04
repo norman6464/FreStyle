@@ -62,7 +62,7 @@ public class AiChatService {
           .tableName(tableName)
           .keyConditionExpression("sender_id = :sender_id")
           .expressionAttributeValues(Map.of(
-            ":sender_id", AttributeValue.builder().s(senderId).build()
+            ":sender_id", AttributeValue.builder().n(senderId).build()
           ))
           .scanIndexForward(true) // 昇順
           .build();

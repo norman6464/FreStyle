@@ -228,14 +228,48 @@ export default function ChatPage() {
     <>
       <HamburgerMenu title="個人チャット" />
 
-      <div className="flex flex-col h-screen bg-gradient-to-br from-gray-50 to-primary-50 text-black pt-16">
-        <div className="flex-1 overflow-y-auto px-2 py-6 space-y-2 max-w-full mx-auto w-full pb-[120px]">
+      {/* 全体レイアウト */}
+      <div className="flex flex-col h-screen bg-gradient-to-br from-gray-50 to-pink-50 text-black pt-16">
+        {/* ヘッダー情報 */}
+        <div className="bg-white border-b border-gray-200 px-4 py-4 shadow-sm">
+          <div className="max-w-4xl mx-auto flex items-center space-x-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-purple-400 rounded-full flex items-center justify-center">
+              <svg
+                className="w-6 h-6 text-white"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+              >
+                <path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5z" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="font-bold text-gray-800">チャット</h2>
+              <p className="text-sm text-gray-600">メッセージをお送りください</p>
+            </div>
+          </div>
+        </div>
+
+        {/* メッセージエリア */}
+        <div className="flex-1 overflow-y-auto px-4 py-6 space-y-3 max-w-4xl mx-auto w-full pb-[120px]">
           {messages.length === 0 && (
-            <div className="flex items-center justify-center h-full">
-              <p className="text-gray-400 text-lg">メッセージがありません</p>
+            <div className="flex flex-col items-center justify-center h-full text-center">
+              <div className="w-16 h-16 bg-gradient-to-br from-blue-200 to-purple-200 rounded-full flex items-center justify-center mb-4">
+                <svg
+                  className="w-8 h-8 text-blue-600"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-bold text-gray-800 mb-2">
+                チャットへようこそ
+              </h3>
+              <p className="text-gray-600 max-w-sm">
+                相手とのチャットをここで行えます
+              </p>
             </div>
           )}
-
           {messages.map((msg) => (
             <MessageBubble
               key={msg.id}
@@ -244,15 +278,17 @@ export default function ChatPage() {
             />
           ))}
 
+          {/* スクロール最終地点 */}
           <div ref={messagesEndRef} />
         </div>
 
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 shadow-2xl p-4 z-10">
-          <div className="max-w-full mx-auto px-2 w-full space-y-3">
+        {/* 入力欄固定 */}
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-2xl p-4 z-10">
+          <div className="max-w-4xl mx-auto w-full space-y-3">
             {messages.length > 0 && (
               <button
                 onClick={handleAiFeedback}
-                className="w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold py-3 px-4 rounded-lg"
+                className="w-full bg-gradient-to-r from-blue-500 to-purple-500 hover:shadow-lg text-white font-semibold py-3 px-4 rounded-lg transition-all duration-150"
               >
                 AIにフィードバックしてもらう
               </button>

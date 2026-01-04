@@ -53,19 +53,13 @@ export default function AskAiPage() {
     scrollToBottom();
   }, [messages]);
 
-  // --- チャット履歴取得（AIフィードバック時のみ） ---
+  // --- チャット履歴取得（ページ遷移時に常に実行） ---
   useEffect(() => {
-    // initialPromptがない場合は履歴取得をスキップ（通常のAIチャット）
-    if (!initialPrompt) {
-      console.log('📝 通常のAIチャットモード（ユーザーチャット履歴なし）');
-      setHistoryLoaded(true);
-      return;
-    }
-
-    console.log('🔄 フィードバックモード：AI履歴取得開始');
+    console.log('🔄 AI履歴取得開始 - ページ遷移時に常に実行');
 
     const fetchHistory = async () => {
       try {
+        console.log('📥 /api/chat/ai/history にリクエスト送信');
         const res = await fetch(`${API_BASE_URL}/api/chat/ai/history`, {
           headers: {
             'Content-Type': 'application/json',
@@ -73,8 +67,10 @@ export default function AskAiPage() {
           credentials: 'include',
         });
 
+        console.log('📬 レスポンス受信 - ステータス:', res.status);
+
         if (res.status === 401) {
-          console.warn('アクセストークン期限切れ → リフレッシュします');
+          console.warn('⚠️ アクセストークン期限切れ → リフレッシュします');
 
           const refreshRes = await fetch(
             `${API_BASE_URL}/api/auth/cognito/refresh-token`,
@@ -82,12 +78,12 @@ export default function AskAiPage() {
           );
 
           if (!refreshRes.ok) {
+            console.error('❌ トークンリフレッシュ失敗');
             navigate('/login');
             return;
           }
 
-          // アクセストークン更新だがhttpOnlyなのでReduxには保存しない
-          const refreshData = await refreshRes.json();
+          console.log('✅ トークンリフレッシュ完了 - 履歴再取得');
 
           const retryRes = await fetch(`${API_BASE_URL}/api/chat/ai/history`, {
             headers: {
@@ -106,22 +102,31 @@ export default function AskAiPage() {
 
           setMessages(formattedMessages);
           setHistoryLoaded(true);
-          console.log('✅ AI履歴取得完了（フィードバックモード）');
+          console.log('✅ AI履歴取得完了 - メッセージ数:', formattedMessages.length);
+          return;
+        }
+
+        if (!res.ok) {
+          console.error('❌ 履歴取得エラー - ステータス:', res.status);
+          setHistoryLoaded(true);
           return;
         }
 
         const data = await res.json();
+        console.log('📊 API レスポンス取得 - データ数:', data.length);
+        
         const formattedMessages = data.map((item) => ({
           id: item.timestamp,
           timestamp: item.timestamp,
           content: item.content,
           isSender: item.user === true || item.isUser === true,
         }));
+
         setMessages(formattedMessages);
         setHistoryLoaded(true);
-        console.log('✅ AI履歴取得完了（フィードバックモード）');
+        console.log('✅ AI履歴取得完了 - フォーマット後メッセージ数:', formattedMessages.length);
       } catch (err) {
-        console.error('履歴取得失敗:', err);
+        console.error('❌ 履歴取得失敗:', err);
         setHistoryLoaded(true);
       }
     };
@@ -129,7 +134,7 @@ export default function AskAiPage() {
     // 関数を実行
     fetchHistory();
 
-  }, [initialPrompt, API_BASE_URL, dispatch, navigate]);
+  }, [API_BASE_URL, navigate]);
 
   // --- WebSocket ---
   useEffect(() => {

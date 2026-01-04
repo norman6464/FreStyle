@@ -55,14 +55,14 @@ public class AiChatService {
     // timestamp (数値)
     // content
     // sender_id（sub）
-    public List<AiChatMessageDto> getChatHistory(String senderId) {
+    public List<AiChatMessageDto> getChatHistory(Integer senderId) {
       
       // sender_idに基づいてScanリクエストをし、条件一致した項目を全部取得をしている
       QueryRequest queryRequest = QueryRequest.builder()
           .tableName(tableName)
           .keyConditionExpression("sender_id = :sender_id")
           .expressionAttributeValues(Map.of(
-            ":sender_id", AttributeValue.builder().n(senderId).build()
+            ":sender_id", AttributeValue.builder().n(senderId.toString()).build()
           ))
           .scanIndexForward(true) // 昇順
           .build();

@@ -4,6 +4,7 @@ import com.example.FreStyle.entity.RoomMember;
 import com.example.FreStyle.entity.User;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -36,5 +37,25 @@ public interface RoomMemberRepository extends JpaRepository<RoomMember, Integer>
                 AND rm2.user.id <> :userId
             """)
     List<User> findUsersByUserId(@Param("userId") Integer userId);
+
+    /**
+     * 自分が参加しているルームで、相手ユーザーとルームIDのペアを取得
+     * 結果: [userId, roomId] のリスト
+     */
+    @Query("""
+            SELECT rm2.user.id, rm2.room.id
+            FROM RoomMember rm2
+            WHERE rm2.room.id IN (
+                SELECT rm.room.id FROM RoomMember rm WHERE rm.user.id = :userId
+            )
+            AND rm2.user.id <> :userId
+            """)
+    List<Object[]> findPartnerUserIdAndRoomIdByUserId(@Param("userId") Integer userId);
+
+    /**
+     * 指定ルームで自分以外のユーザーを取得
+     */
+    @Query("SELECT rm.user FROM RoomMember rm WHERE rm.room.id = :roomId AND rm.user.id <> :userId")
+    Optional<User> findPartnerByRoomIdAndUserId(@Param("roomId") Integer roomId, @Param("userId") Integer userId);
 
 }

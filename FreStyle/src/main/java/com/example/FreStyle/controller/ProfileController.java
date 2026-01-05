@@ -19,19 +19,16 @@ import com.example.FreStyle.service.CognitoAuthService;
 import com.example.FreStyle.service.UserIdentityService;
 import com.example.FreStyle.service.UserService;
 
+import lombok.RequiredArgsConstructor;
+
 @RestController
+@RequiredArgsConstructor
 @RequestMapping("/api/profile")
 public class ProfileController {
 
     private final CognitoAuthService cognitoAuthService;
     private final UserService userService;
     private final UserIdentityService userIdentityService;
-
-    public ProfileController(CognitoAuthService cognitoAuthService, UserService userService, UserIdentityService userIdentityService) {
-        this.cognitoAuthService = cognitoAuthService;
-        this.userService = userService;
-        this.userIdentityService = userIdentityService;
-    }
 
     // -----------------------
     // GET /me

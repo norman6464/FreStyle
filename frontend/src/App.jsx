@@ -9,6 +9,7 @@ import ConfirmPage from './pages/ConfirmPage';
 import MemberPage from './pages/MemberPage';
 import AddUserPage from './pages/AddUserPage';
 import ProfilePage from './pages/ProfilePage';
+import UserProfilePage from './pages/UserProfilePage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ConfirmForgotPasswordPage from './pages/ConfirmForgotPasswordPage';
 import AuthInitializer from './utils/AuthInitializer';
@@ -45,6 +46,16 @@ export default function App() {
           <AuthInitializer>
             <Protected>
               <ProfilePage />
+            </Protected>
+          </AuthInitializer>
+        }
+      />
+      <Route
+        path="/profile/personality"
+        element={
+          <AuthInitializer>
+            <Protected>
+              <UserProfilePage />
             </Protected>
           </AuthInitializer>
         }

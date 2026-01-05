@@ -10,6 +10,7 @@ import {
   MagnifyingGlassIcon,
   SparklesIcon,
   ArrowLeftOnRectangleIcon,
+  LightBulbIcon,
 } from '@heroicons/react/24/solid';
 
 export default function HamburgerMenu({ title }) {
@@ -54,6 +55,12 @@ export default function HamburgerMenu({ title }) {
       icon: UserCircleIcon,
       onClick: () => navigate('/profile/me'),
       color: 'text-secondary-600',
+    },
+    {
+      label: 'パーソナリティ設定',
+      icon: LightBulbIcon,
+      onClick: () => navigate('/profile/personality'),
+      color: 'text-purple-600',
     },
     {
       label: 'ユーザー検索',

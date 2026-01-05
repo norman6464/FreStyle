@@ -20,7 +20,9 @@ export default function MessageBubble({
     ? 'self-end bg-gradient-primary text-white rounded-br-none'
     : 'self-start bg-gray-100 text-gray-800 rounded-bl-none border-l-4 border-primary-400';
 
-  const deletedStyle = 'bg-gray-200 text-gray-500 italic';
+  const deletedAlignment = isSender
+    ? 'self-end bg-gray-200 text-gray-500 italic rounded-br-none'
+    : 'self-start bg-gray-200 text-gray-500 italic rounded-bl-none border-l-4 border-gray-300';
 
   const formatTime = (dateString) => {
     if (!dateString) return '';
@@ -44,7 +46,7 @@ export default function MessageBubble({
           <span className="text-xs text-gray-500 mb-1 ml-1">{senderName}</span>
         )}
 
-        <div className={`${baseStyle} ${isDeleted ? deletedStyle : alignment}`}>
+        <div className={`${baseStyle} ${isDeleted ? deletedAlignment : alignment}`}>
           {isDeleted ? (
             <p>メッセージを削除しました</p>
           ) : (

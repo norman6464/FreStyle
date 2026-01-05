@@ -215,6 +215,7 @@ public class CognitoAuthController {
 
         try {
             JWTClaimsSet claims = claimsOpt.get();
+            String name = claims.getStringClaim("name");
             String email = claims.getStringClaim("email");
             String sub = claims.getSubject();
 
@@ -224,7 +225,7 @@ public class CognitoAuthController {
             String provider = isGoogle ? "google" : "cognito";
 
             System.out.println("[CognitoAuthController /callback] Registering user - provider: " + provider);
-            userService.registerUserOIDC("guest", email, provider, sub);
+            userService.registerUserOIDC(name, email, provider, sub);
 
             // httpOnlyCookieの設定
             System.out.println("[CognitoAuthController /callback] Setting auth cookies");

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useDispatch } from 'react-redux';
 import AuthLayout from '../components/AuthLayout';
 import InputField from '../components/InputField';
 import PrimaryButton from '../components/PrimaryButton';
@@ -6,6 +7,7 @@ import SNSSignInButton from '../components/SNSSignInButton';
 import LinkText from '../components/LinkText';
 import { getCognitoAuthUrl } from '../utils/auth';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { setAuthData } from '../store/authSlice';
 
 export default function LoginPage() {
   const [form, setForm] = useState({ email: '', password: '' });
@@ -15,11 +17,18 @@ export default function LoginPage() {
   // SignupPageで登録成功時のメッセージが表示される
   const location = useLocation();
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const message = location.state?.message;
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   const handleLogin = async (e) => {
     e.preventDefault();
+
+    console.log('\n========== ログインリクエスト開始 ==========');
+    console.log('📌 リクエスト情報:');
+    console.log('   - URL:', `${API_BASE_URL}/api/auth/cognito/login`);
+    console.log('   - email:', form.email);
+    console.log('   - credentials: include');
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/auth/cognito/login`, {
@@ -34,20 +43,46 @@ export default function LoginPage() {
         credentials: 'include',
       });
 
+      console.log('📨 レスポンス受信:');
+      console.log('   - status:', response.status);
+      console.log('   - ok:', response.ok);
+      console.log('   - statusText:', response.statusText);
+      
+      // レスポンスヘッダーをログ出力
+      console.log('📋 レスポンスヘッダー:');
+      response.headers.forEach((value, key) => {
+        console.log(`   - ${key}: ${value}`);
+      });
+
+      // Set-Cookieヘッダーの確認（通常はアクセスできないが試す）
+      const setCookie = response.headers.get('Set-Cookie');
+      console.log('🍪 Set-Cookie ヘッダー:', setCookie || '(アクセス不可 - httpOnlyのため正常)');
+
+      // 現在のCookieを確認
+      console.log('🍪 現在のdocument.cookie:', document.cookie || '(空)');
+
       const data = await response.json();
+      console.log('📄 レスポンスボディ:', data);
 
       console.log('ステータスコード', response.status);
 
       if (response.ok) {
+        console.log('✅ ログイン成功 - ホームへ遷移');
+        // 遷移前にCookieを再確認
+        console.log('🍪 遷移前のdocument.cookie:', document.cookie || '(空)');
         dispatch(setAuthData());
         navigate('/');
       } else {
+        console.log('❌ ログイン失敗:', data.error);
         setLoginMessage({
           type: 'error',
           text: data.error || 'ログインに失敗しました。',
         });
       }
+      console.log('========== ログインリクエスト終了 ==========\n');
     } catch (error) {
+      console.log('❌ 通信エラー:', error.message);
+      console.log('========== ログインリクエスト終了(エラー) ==========\n');
       setLoginMessage({ type: 'error', text: '通信エラーが発生しました。' });
     }
   };

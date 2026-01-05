@@ -98,7 +98,7 @@ CREATE TABLE IF NOT EXISTS access_tokens (
     id INT PRIMARY KEY AUTO_INCREMENT,
     access_token TEXT(2048) NOT NULL,
     user_id INT NOT NULL,
-    refresh_token VARCHAR(255),
+    refresh_token TEXT(2048) NOT NULL,
     revoked BOOLEAN DEFAULT FALSE,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 

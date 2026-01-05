@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.FreStyle.dto.AiChatMessageDto;
-import com.example.FreStyle.entity.User;
 import com.example.FreStyle.service.AiChatService;
 import com.example.FreStyle.service.UserIdentityService;
 

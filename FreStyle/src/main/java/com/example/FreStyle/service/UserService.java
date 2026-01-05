@@ -63,10 +63,10 @@ public class UserService {
   }
 
   // ------------------------
-  // OIDC ログイン時、User を作成し、Identity を追加
+  // OIDC ログイン時、User を作成し、Identity を追加そしてUserを返却し次にアクセストークンの取得に入る
   // ------------------------
   @Transactional
-  public void registerUserOIDC(String name, String email, String provider, String sub) {
+  public User registerUserOIDC(String name, String email, String provider, String sub) {
 
     User user = userRepository.findByEmail(email).orElse(null);
 
@@ -75,11 +75,12 @@ public class UserService {
       user.setName(name);
       user.setEmail(email);
       user.setIsActive(true);
-      userRepository.save(user);
+      user = userRepository.save(user);
     }
 
     // UserIdentityService に責務を委譲
     userIdentityService.registerUserIdentity(user, provider, sub);
+    return user;
   }
 
   // ------------------------

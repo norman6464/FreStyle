@@ -33,7 +33,7 @@ public class AccessToken {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(name = "refresh_token")
+    @Column(name = "refresh_token", length = 2048, nullable = false)
     private String refreshToken;
 
     @Column(nullable = false)

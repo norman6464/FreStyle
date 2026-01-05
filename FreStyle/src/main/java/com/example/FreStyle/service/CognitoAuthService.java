@@ -234,7 +234,7 @@ public class CognitoAuthService {
     // リフレッシュトークンでアクセストークン、IDトークンを再発行
     // だがリフレッシュトークンのローテーションの設定をしていないのでリフレッシュトークンの取得はできない
     // -----------------------
-    public Map<String, String> refreshAccessToken(String refreshToken) {
+    public Map<String, String> refreshAccessToken(String refreshToken, String username) {
         System.out.println("[CognitoAuthService refreshAccessToken] リフレッシュトークンでのアクセストークン再発行を開始");
         System.out.println("[CognitoAuthService refreshAccessToken] REFRESH_TOKEN: " + 
                           (refreshToken != null ? refreshToken.substring(0, Math.min(20, refreshToken.length())) + "..." : "null"));
@@ -242,8 +242,7 @@ public class CognitoAuthService {
         Map<String, String> authParams = new HashMap<>();
         authParams.put("REFRESH_TOKEN", refreshToken);
         
-        // SECRET_HASHの計算時に空文字列を使用（username不要）
-        String secretHash = calculateSecretHash("");
+        String secretHash = calculateSecretHash(username);
         authParams.put("SECRET_HASH", secretHash);
         System.out.println("[CognitoAuthService refreshAccessToken] SECRET_HASH: " + secretHash.substring(0, Math.min(20, secretHash.length())) + "...");
         

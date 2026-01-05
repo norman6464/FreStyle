@@ -211,7 +211,7 @@ public class CognitoAuthController {
             System.out.println("✅ ユーザーアイデンティティ登録成功");
             
             System.out.println("🍪 setAuthCookies() 実行中...");
-            setAuthCookies(response, accessToken, refreshToken);
+            setAuthCookies(response, accessToken, refreshToken, form.getEmail());
             System.out.println("✅ Cookie設定成功");
 
             System.out.println("💾 accessTokenService.saveTokens() 実行中...");
@@ -294,11 +294,14 @@ public class CognitoAuthController {
             String provider = isGoogle ? "google" : "cognito";
 
             System.out.println("[CognitoAuthController /callback] Registering user - provider: " + provider);
-            userService.registerUserOIDC(name, email, provider, sub);
+            User user = userService.registerUserOIDC(name, email, provider, sub);
+
+            // アクセストークン、リフレッシュトークン保存
+            accessTokenService.saveTokens(user, accessToken, refreshToken);
 
             // httpOnlyCookieの設定
             System.out.println("[CognitoAuthController /callback] Setting auth cookies");
-            setAuthCookies(response, accessToken, refreshToken);
+            setAuthCookies(response, accessToken, refreshToken, email);
 
             return ResponseEntity.ok(Map .of("success","ログインできました"));
 
@@ -381,7 +384,8 @@ public class CognitoAuthController {
     // -----------------------
     @PostMapping("/refresh-token")
     public ResponseEntity<?> refreshToken(@CookieValue(name = "REFRESH_TOKEN", required = true) String refreshToken,
-                    HttpServletResponse response) {
+                                        @CookieValue(name = "EMAIL", required = true) String email,
+                                        HttpServletResponse response) {
 
         System.out.println("[CognitoAuthController /refresh-token] Endpoint called");
         System.out.println("[CognitoAuthController /refresh-token] REFRESH_TOKEN cookie: " + 
@@ -398,15 +402,17 @@ public class CognitoAuthController {
             AccessToken accessTokenEntity = accessTokenService.findAccessTokenByRefreshToken(refreshToken);
 
             System.out.println("[CognitoAuthController /refresh-token] Attempting to refresh access token");
-            Map<String, String> tokens = cognitoAuthService.refreshAccessToken(refreshToken);
+            Map<String, String> tokens = cognitoAuthService.refreshAccessToken(refreshToken,email);
             System.out.println("[CognitoAuthController /refresh-token] Successfully refreshed tokens");
 
             accessTokenService.updateTokens(
                     accessTokenEntity,
                     tokens.get("accessToken")
             );
+
+            User user = accessTokenEntity.getUser();
             
-            setAuthCookies(response, tokens.get("accessToken"), refreshToken);
+            setAuthCookies(response, tokens.get("accessToken"), refreshToken, email);
             return ResponseEntity.ok(Map.of("success","更新完了"));
 
         } catch (RuntimeException e) {
@@ -521,7 +527,8 @@ public class CognitoAuthController {
     private void setAuthCookies(
         HttpServletResponse response,
         String accessToken,
-        String refreshToken
+        String refreshToken,
+        String email
     ) {
     ResponseCookie accessCookie = ResponseCookie.from("ACCESS_TOKEN", accessToken)
             .httpOnly(true)
@@ -539,9 +546,18 @@ public class CognitoAuthController {
             .sameSite("Lax") // 開発環境: Lax、本番環境: None
             .build();
 
+    ResponseCookie emailCookie = ResponseCookie.from("EMAIL", email)
+            .httpOnly(true)
+            .secure(false) // 開発環境: false、本番環境: true
+            .path("/")
+            .maxAge(60 * 60 * 24 * 7) // 7日
+            .sameSite("Lax") // 開発環境: Lax、本番環境: None
+            .build();
+
     System.out.println("[setAuthCookies] Setting cookies - ACCESS_TOKEN and REFRESH_TOKEN");
     response.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
     response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
+    response.addHeader(HttpHeaders.SET_COOKIE, emailCookie.toString());
 }
 
 

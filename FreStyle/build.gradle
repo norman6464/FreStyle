@@ -67,7 +67,10 @@ dependencies {
 	
 	// Cognito
 	implementation 'software.amazon.awssdk:cognitoidentityprovider'
-  implementation 'software.amazon.awssdk:auth'
+	implementation 'software.amazon.awssdk:auth'
+	
+	// Bedrock (AIチャット用)
+	implementation 'software.amazon.awssdk:bedrockruntime'
 	
 	// Httpクライアント
 	implementation 'org.springframework.boot:spring-boot-starter-webflux'

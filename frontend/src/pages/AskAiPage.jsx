@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import MessageBubbleAi from '../components/MessageBubbleAi';
 import MessageInput from '../components/MessageInput';
 import HamburgerMenu from '../components/HamburgerMenu';
+import ConfirmModal from '../components/ConfirmModal';
 import { useDispatch } from 'react-redux';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 
@@ -19,6 +20,7 @@ export default function AskAiPage() {
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [userId, setUserId] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [deleteModal, setDeleteModal] = useState({ isOpen: false, sessionId: null });
   
   const stompClientRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -295,13 +297,18 @@ export default function AskAiPage() {
   // --- セッション選択 ---
   const handleSelectSession = (sessionId) => {
     setCurrentSessionId(sessionId);
-    navigate(`/ask-ai/${sessionId}`);
+    navigate(`/chat/ask-ai/${sessionId}`);
     console.log('📂 セッション選択:', sessionId);
   };
 
   // --- セッション削除 ---
-  const handleDeleteSession = async (sessionId) => {
-    if (!confirm('このセッションを削除しますか？')) return;
+  const handleDeleteSession = (sessionId) => {
+    setDeleteModal({ isOpen: true, sessionId });
+  };
+
+  const confirmDeleteSession = async () => {
+    const sessionId = deleteModal.sessionId;
+    setDeleteModal({ isOpen: false, sessionId: null });
 
     try {
       const res = await fetch(`${API_BASE_URL}/api/chat/ai/sessions/${sessionId}`, {
@@ -314,12 +321,17 @@ export default function AskAiPage() {
         if (currentSessionId === sessionId) {
           setCurrentSessionId(null);
           setMessages([]);
+          navigate('/chat/ask-ai');
         }
         console.log('✅ セッション削除成功');
       }
     } catch (e) {
       console.error('❌ セッション削除失敗:', e);
     }
+  };
+
+  const cancelDeleteSession = () => {
+    setDeleteModal({ isOpen: false, sessionId: null });
   };
 
   // --- メッセージ送信 ---
@@ -489,6 +501,18 @@ export default function AskAiPage() {
           </div>
         </div>
       </div>
+
+      {/* セッション削除確認モーダル */}
+      <ConfirmModal
+        isOpen={deleteModal.isOpen}
+        title="セッションを削除"
+        message="このセッションを削除しますか？チャット履歴もすべて削除されます。この操作は取り消せません。"
+        confirmText="削除する"
+        cancelText="キャンセル"
+        onConfirm={confirmDeleteSession}
+        onCancel={cancelDeleteSession}
+        isDanger={true}
+      />
     </>
   );
 }

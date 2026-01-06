@@ -100,6 +100,16 @@ export default function App() {
           </AuthInitializer>
         }
       />
+      <Route
+        path="/chat/ask-ai/:sessionId"
+        element={
+          <AuthInitializer>
+            <Protected>
+              <AskAiPage />
+            </Protected>
+          </AuthInitializer>
+        }
+      />
     </Routes>
   );
 }

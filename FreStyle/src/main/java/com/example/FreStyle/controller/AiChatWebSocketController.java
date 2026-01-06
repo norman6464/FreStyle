@@ -12,6 +12,7 @@ import com.example.FreStyle.dto.AiChatSessionDto;
 import com.example.FreStyle.entity.AiChatMessage.Role;
 import com.example.FreStyle.service.AiChatMessageService;
 import com.example.FreStyle.service.AiChatSessionService;
+import com.example.FreStyle.service.BedrockService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +24,7 @@ public class AiChatWebSocketController {
 
     private final AiChatSessionService aiChatSessionService;
     private final AiChatMessageService aiChatMessageService;
+    private final BedrockService bedrockService;
     private final SimpMessagingTemplate messagingTemplate;
 
     /**
@@ -81,21 +83,42 @@ public class AiChatWebSocketController {
                 );
             }
 
-            // メッセージ保存
-            System.out.println("💾 メッセージをデータベースに保存中...");
-            AiChatMessageResponseDto saved = aiChatMessageService.addMessage(sessionId, userId, role, content);
-            System.out.println("✅ メッセージ保存成功");
-            System.out.println("   - messageId: " + saved.getId());
-            System.out.println("   - sessionId: " + saved.getSessionId());
-            System.out.println("   - role: " + saved.getRole());
+            // メッセージ保存（ユーザーメッセージ）
+            System.out.println("💾 ユーザーメッセージをデータベースに保存中...");
+            AiChatMessageResponseDto savedUserMessage = aiChatMessageService.addMessage(sessionId, userId, role, content);
+            System.out.println("✅ ユーザーメッセージ保存成功");
+            System.out.println("   - messageId: " + savedUserMessage.getId());
+            System.out.println("   - sessionId: " + savedUserMessage.getSessionId());
+            System.out.println("   - role: " + savedUserMessage.getRole());
 
-            // WebSocket トピックへ送信（セッション単位で購読）
-            System.out.println("📤 WebSocket トピック /topic/ai-chat/session/" + sessionId + " へメッセージを送信中...");
+            // WebSocket トピックへユーザーメッセージを送信
+            System.out.println("📤 WebSocket トピック /topic/ai-chat/session/" + sessionId + " へユーザーメッセージを送信中...");
             messagingTemplate.convertAndSend(
                     "/topic/ai-chat/session/" + sessionId,
-                    saved
+                    savedUserMessage
             );
-            System.out.println("✅ WebSocket 送信完了");
+            System.out.println("✅ ユーザーメッセージ WebSocket 送信完了");
+
+            // Bedrockにメッセージを送信してAI応答を取得
+            System.out.println("🤖 Bedrock にメッセージを送信中...");
+            String aiReply = bedrockService.chat(content);
+            System.out.println("✅ Bedrock から応答を取得しました");
+            System.out.println("   - AI Reply: " + (aiReply.length() > 100 ? aiReply.substring(0, 100) + "..." : aiReply));
+
+            // AI応答をデータベースに保存（role: assistant）
+            System.out.println("💾 AI応答をデータベースに保存中...");
+            AiChatMessageResponseDto savedAiMessage = aiChatMessageService.addMessage(sessionId, userId, Role.assistant, aiReply);
+            System.out.println("✅ AI応答保存成功");
+            System.out.println("   - messageId: " + savedAiMessage.getId());
+            System.out.println("   - role: " + savedAiMessage.getRole());
+
+            // WebSocket トピックへAI応答を送信
+            System.out.println("📤 WebSocket トピック /topic/ai-chat/session/" + sessionId + " へAI応答を送信中...");
+            messagingTemplate.convertAndSend(
+                    "/topic/ai-chat/session/" + sessionId,
+                    savedAiMessage
+            );
+            System.out.println("✅ AI応答 WebSocket 送信完了");
             System.out.println("========== /ai-chat/send 処理完了 ==========\n");
 
         } catch (NumberFormatException e) {

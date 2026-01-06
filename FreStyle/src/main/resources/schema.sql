@@ -133,6 +133,7 @@ CREATE TABLE IF NOT EXISTS ai_chat_messages (
     INDEX idx_session_created (session_id, created_at)
 ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+
 -- ┌─────────────────┐     ┌──────────────────────┐
 -- │     users       │────→│   ai_chat_sessions   │
 -- └─────────────────┘     └──────────────────────┘

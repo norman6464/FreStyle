@@ -1,0 +1,118 @@
+package com.example.FreStyle.service;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.example.FreStyle.dto.AiChatSessionDto;
+import com.example.FreStyle.entity.AiChatSession;
+import com.example.FreStyle.entity.ChatRoom;
+import com.example.FreStyle.entity.User;
+import com.example.FreStyle.repository.AiChatSessionRepository;
+import com.example.FreStyle.repository.ChatRoomRepository;
+import com.example.FreStyle.repository.UserRepository;
+
+import lombok.RequiredArgsConstructor;
+
+@Service
+@RequiredArgsConstructor
+public class AiChatSessionService {
+
+    private final AiChatSessionRepository aiChatSessionRepository;
+    private final UserRepository userRepository;
+    private final ChatRoomRepository chatRoomRepository;
+
+    /**
+     * 新しいセッションを作成
+     */
+    @Transactional
+    public AiChatSessionDto createSession(Integer userId, String title, Integer relatedRoomId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("ユーザーが見つかりません: " + userId));
+
+        AiChatSession session = new AiChatSession();
+        session.setUser(user);
+        session.setTitle(title);
+
+        // 関連ルームが指定されている場合は設定
+        if (relatedRoomId != null) {
+            ChatRoom relatedRoom = chatRoomRepository.findById(relatedRoomId)
+                    .orElseThrow(() -> new RuntimeException("チャットルームが見つかりません: " + relatedRoomId));
+            session.setRelatedRoom(relatedRoom);
+        }
+
+        AiChatSession saved = aiChatSessionRepository.save(session);
+        return toDto(saved);
+    }
+
+    /**
+     * 指定ユーザーのセッション一覧を取得
+     */
+    @Transactional(readOnly = true)
+    public List<AiChatSessionDto> getSessionsByUserId(Integer userId) {
+        List<AiChatSession> sessions = aiChatSessionRepository.findByUserIdOrderByCreatedAtDesc(userId);
+        return sessions.stream()
+                .map(this::toDto)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * セッションIDとユーザーIDでセッションを取得（権限チェック付き）
+     */
+    @Transactional(readOnly = true)
+    public AiChatSessionDto getSessionByIdAndUserId(Integer sessionId, Integer userId) {
+        AiChatSession session = aiChatSessionRepository.findByIdAndUserId(sessionId, userId)
+                .orElseThrow(() -> new RuntimeException("セッションが見つかりません: " + sessionId));
+        return toDto(session);
+    }
+
+    /**
+     * セッションのタイトルを更新
+     */
+    @Transactional
+    public AiChatSessionDto updateSessionTitle(Integer sessionId, Integer userId, String newTitle) {
+        AiChatSession session = aiChatSessionRepository.findByIdAndUserId(sessionId, userId)
+                .orElseThrow(() -> new RuntimeException("セッションが見つかりません: " + sessionId));
+        session.setTitle(newTitle);
+        AiChatSession saved = aiChatSessionRepository.save(session);
+        return toDto(saved);
+    }
+
+    /**
+     * セッションを削除
+     */
+    @Transactional
+    public void deleteSession(Integer sessionId, Integer userId) {
+        AiChatSession session = aiChatSessionRepository.findByIdAndUserId(sessionId, userId)
+                .orElseThrow(() -> new RuntimeException("セッションが見つかりません: " + sessionId));
+        aiChatSessionRepository.delete(session);
+    }
+
+    /**
+     * 指定ルームに関連するセッション一覧を取得
+     */
+    @Transactional(readOnly = true)
+    public List<AiChatSessionDto> getSessionsByRelatedRoomId(Integer roomId) {
+        List<AiChatSession> sessions = aiChatSessionRepository.findByRelatedRoomId(roomId);
+        return sessions.stream()
+                .map(this::toDto)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * EntityからDTOへ変換
+     */
+    private AiChatSessionDto toDto(AiChatSession session) {
+        return new AiChatSessionDto(
+                session.getId(),
+                session.getUser().getId(),
+                session.getTitle(),
+                session.getRelatedRoom() != null ? session.getRelatedRoom().getId() : null,
+                session.getCreatedAt(),
+                session.getUpdatedAt()
+        );
+    }
+
+}

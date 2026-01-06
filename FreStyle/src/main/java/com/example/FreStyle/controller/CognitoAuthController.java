@@ -534,7 +534,7 @@ public class CognitoAuthController {
             .httpOnly(true)
             .secure(false) // 開発環境: false、本番環境: true
             .path("/")
-            .maxAge(60 * 15) // 15分
+            .maxAge(60 * 60 * 2) // 2時間
             .sameSite("Lax") // 開発環境: Lax、本番環境: None
             .build();
 

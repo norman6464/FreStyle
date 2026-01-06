@@ -99,7 +99,7 @@ export default function HamburgerMenu({ title }) {
           <div className="bg-gradient-primary w-10 h-10 rounded-lg flex items-center justify-center">
             <span className="text-white font-bold text-lg">F</span>
           </div>
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent hidden sm:block">
+          <h1 className="text-xl bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent hidden sm:block">
             {title}
           </h1>
         </button>

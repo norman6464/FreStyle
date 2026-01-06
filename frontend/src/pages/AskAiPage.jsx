@@ -21,6 +21,8 @@ export default function AskAiPage() {
   const [userId, setUserId] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, sessionId: null });
+  const [editingSessionId, setEditingSessionId] = useState(null);
+  const [editingTitle, setEditingTitle] = useState('');
   
   const stompClientRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -334,6 +336,46 @@ export default function AskAiPage() {
     setDeleteModal({ isOpen: false, sessionId: null });
   };
 
+  // --- セッションタイトル編集 ---
+  const handleStartEditTitle = (e, session) => {
+    e.stopPropagation();
+    setEditingSessionId(session.id);
+    setEditingTitle(session.title || '');
+  };
+
+  const handleSaveTitle = async (sessionId) => {
+    if (!editingTitle.trim()) {
+      setEditingSessionId(null);
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/chat/ai/sessions/${sessionId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ title: editingTitle.trim() }),
+      });
+
+      if (res.ok) {
+        const updatedSession = await res.json();
+        setSessions((prev) =>
+          prev.map((s) => (s.id === sessionId ? { ...s, title: updatedSession.title } : s))
+        );
+        console.log('✅ タイトル更新成功');
+      }
+    } catch (e) {
+      console.error('❌ タイトル更新失敗:', e);
+    }
+
+    setEditingSessionId(null);
+  };
+
+  const handleCancelEditTitle = () => {
+    setEditingSessionId(null);
+    setEditingTitle('');
+  };
+
   // --- メッセージ送信 ---
   const handleSend = async (text) => {
     console.log('📤 [handleSend] メッセージ送信開始:', { text, userId, currentSessionId });
@@ -396,25 +438,73 @@ export default function AskAiPage() {
                       ? 'bg-pink-100 text-pink-700'
                       : 'hover:bg-gray-100'
                   }`}
-                  onClick={() => handleSelectSession(session.id)}
+                  onClick={() => editingSessionId !== session.id && handleSelectSession(session.id)}
                 >
-                  <div className="flex-1 truncate">
-                    <p className="text-sm font-medium truncate">{session.title || '新しいチャット'}</p>
-                    <p className="text-xs text-gray-500">
-                      {session.createdAt ? new Date(session.createdAt).toLocaleDateString('ja-JP') : ''}
-                    </p>
+                  <div className="flex-1 min-w-0">
+                    {editingSessionId === session.id ? (
+                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="text"
+                          value={editingTitle}
+                          onChange={(e) => setEditingTitle(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSaveTitle(session.id);
+                            if (e.key === 'Escape') handleCancelEditTitle();
+                          }}
+                          className="flex-1 text-sm px-2 py-1 border border-pink-300 rounded focus:outline-none focus:ring-1 focus:ring-pink-400"
+                          autoFocus
+                        />
+                        <button
+                          onClick={() => handleSaveTitle(session.id)}
+                          className="p-1 hover:bg-green-100 rounded"
+                        >
+                          <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={handleCancelEditTitle}
+                          className="p-1 hover:bg-gray-200 rounded"
+                        >
+                          <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-sm font-medium truncate">{session.title || '新しいチャット'}</p>
+                        <p className="text-xs text-gray-500">
+                          {session.createdAt ? new Date(session.createdAt).toLocaleDateString('ja-JP') : ''}
+                        </p>
+                      </>
+                    )}
                   </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteSession(session.id);
-                    }}
-                    className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 rounded transition-opacity"
-                  >
-                    <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
+                  {editingSessionId !== session.id && (
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={(e) => handleStartEditTitle(e, session)}
+                        className="p-1 hover:bg-blue-100 rounded"
+                        title="タイトルを編集"
+                      >
+                        <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteSession(session.id);
+                        }}
+                        className="p-1 hover:bg-red-100 rounded"
+                        title="削除"
+                      >
+                        <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

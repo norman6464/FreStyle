@@ -11,6 +11,7 @@ import {
   SparklesIcon,
   ArrowLeftOnRectangleIcon,
   LightBulbIcon,
+  ChatBubbleLeftRightIcon,
 } from '@heroicons/react/24/solid';
 
 export default function HamburgerMenu({ title }) {
@@ -51,6 +52,12 @@ export default function HamburgerMenu({ title }) {
       color: 'text-primary-600',
     },
     {
+      label: 'チャット一覧',
+      icon: ChatBubbleLeftRightIcon,
+      onClick: () => navigate('/chat'),
+      color: 'text-blue-600',
+    },
+    {
       label: 'プロフィール',
       icon: UserCircleIcon,
       onClick: () => navigate('/profile/me'),
@@ -66,7 +73,7 @@ export default function HamburgerMenu({ title }) {
       label: 'ユーザー検索',
       icon: MagnifyingGlassIcon,
       onClick: () => navigate('/chat/users'),
-      color: 'text-blue-600',
+      color: 'text-teal-600',
     },
     {
       label: 'AI',

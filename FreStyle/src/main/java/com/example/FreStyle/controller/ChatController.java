@@ -23,6 +23,7 @@ import com.example.FreStyle.entity.User;
 import com.example.FreStyle.service.ChatMessageService;
 import com.example.FreStyle.service.ChatRoomService;
 import com.example.FreStyle.service.ChatService;
+import com.example.FreStyle.service.RoomMemberService;
 import com.example.FreStyle.service.UserIdentityService;
 import com.example.FreStyle.service.UserService;
 
@@ -39,6 +40,7 @@ public class ChatController {
   private final ChatRoomService chatRoomService;
   private final ChatMessageService chatMessageService; 
   private final UserIdentityService userIdentityService;
+  private final RoomMemberService roomMemberService;
 
   // ユーザー登録一覧
   @GetMapping("/users")
@@ -159,10 +161,11 @@ public class ChatController {
 
     try {
       User myUser = userIdentityService.findUserBySub(cognitoSub);
-      Long totalUsers = userService.getTotalUserCount();
+      // 会話したことのあるユーザー数を取得
+      Long chatPartnerCount = roomMemberService.countChatPartners(myUser.getId());
       
       Map<String, Object> stats = new HashMap<>();
-      stats.put("totalUsers", totalUsers);
+      stats.put("chatPartnerCount", chatPartnerCount);
       stats.put("email", myUser.getEmail());
       stats.put("username", myUser.getName());
       

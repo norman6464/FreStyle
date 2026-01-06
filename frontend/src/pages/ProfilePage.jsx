@@ -1,11 +1,15 @@
 import { useState, useEffect } from 'react';
-import AuthLayout from '../components/AuthLayout';
 import InputField from '../components/InputField';
 import PrimaryButton from '../components/PrimaryButton';
 import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import HamburgerMenu from '../components/HamburgerMenu';
 import { clearAuth } from '../store/authSlice';
+import {
+  UserCircleIcon,
+  SparklesIcon,
+  ChatBubbleLeftRightIcon,
+} from '@heroicons/react/24/solid';
 
 export default function ProfilePage() {
   const [form, setForm] = useState({ name: '', bio: '' });
@@ -184,7 +188,7 @@ export default function ProfilePage() {
   // 表示
   return (
     <>
-      <HamburgerMenu title="プロフィール編集" />
+      <HamburgerMenu title="プロフィール" />
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-primary-50 pt-20 pb-8 px-4">
         <div className="max-w-2xl mx-auto">
           {/* メッセージ */}
@@ -241,17 +245,26 @@ export default function ProfilePage() {
 
           {/* プロフィールカード */}
           <div className="bg-white rounded-2xl shadow-lg p-8 border border-gray-100">
-            <div className="text-center mb-10">
-              <div className="w-24 h-24 bg-gradient-primary rounded-full mx-auto flex items-center justify-center mb-4 shadow-lg">
-                <span className="text-white text-4xl font-bold">
-                  {form.name?.charAt(0)?.toUpperCase() || 'U'}
-                </span>
+            {/* ヘッダー */}
+            <div className="text-center mb-8">
+              <div className="relative inline-block">
+                <div className="w-28 h-28 bg-gradient-to-br from-primary-400 via-secondary-400 to-pink-400 rounded-full mx-auto flex items-center justify-center shadow-xl">
+                  <span className="text-white text-5xl font-bold">
+                    {form.name?.charAt(0)?.toUpperCase() || 'U'}
+                  </span>
+                </div>
+                {/* 編集アイコン */}
+                <div className="absolute bottom-0 right-0 bg-white rounded-full p-2 shadow-lg border-2 border-gray-100">
+                  <svg className="w-5 h-5 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                  </svg>
+                </div>
               </div>
-              <h2 className="text-3xl font-bold text-gray-800">
+              <h2 className="text-2xl font-bold text-gray-800 mt-4">
                 プロフィールを編集
               </h2>
-              <p className="text-gray-600 mt-2">
-                あなたの情報を更新してください
+              <p className="text-gray-500 text-sm mt-1">
+                あなたの情報を更新してより良いコミュニケーションを
               </p>
             </div>
 
@@ -276,11 +289,43 @@ export default function ProfilePage() {
                   }
                   placeholder="あなたについて教えてください..."
                   rows="4"
-                  className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 transition-all duration-200 resize-none"
+                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 transition-all duration-200 resize-none"
                 />
               </div>
               <PrimaryButton type="submit">プロフィールを更新</PrimaryButton>
             </form>
+          </div>
+
+          {/* クイックリンク */}
+          <div className="mt-6 grid grid-cols-2 gap-4">
+            <div
+              onClick={() => navigate('/profile/personality')}
+              className="bg-white rounded-xl shadow-md p-4 cursor-pointer hover:shadow-lg transition-all border border-gray-100 hover:border-purple-300 group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="bg-gradient-to-br from-purple-400 to-pink-400 rounded-lg p-2">
+                  <SparklesIcon className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-800 text-sm group-hover:text-purple-600 transition-colors">パーソナリティ</p>
+                  <p className="text-xs text-gray-500">AI設定を編集</p>
+                </div>
+              </div>
+            </div>
+            <div
+              onClick={() => navigate('/chat')}
+              className="bg-white rounded-xl shadow-md p-4 cursor-pointer hover:shadow-lg transition-all border border-gray-100 hover:border-blue-300 group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="bg-gradient-to-br from-blue-400 to-cyan-400 rounded-lg p-2">
+                  <ChatBubbleLeftRightIcon className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-800 text-sm group-hover:text-blue-600 transition-colors">チャット一覧</p>
+                  <p className="text-xs text-gray-500">会話を見る</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

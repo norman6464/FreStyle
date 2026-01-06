@@ -238,6 +238,10 @@ public class CognitoAuthService {
         System.out.println("[CognitoAuthService refreshAccessToken] リフレッシュトークンでのアクセストークン再発行を開始");
         System.out.println("[CognitoAuthService refreshAccessToken] REFRESH_TOKEN: " + 
                           (refreshToken != null ? refreshToken.substring(0, Math.min(20, refreshToken.length())) + "..." : "null"));
+
+                          System.out.println("[CognitoAuthService refreshAccessToken] リフレッシュトークンでのアクセストークン再発行を開始");
+        System.out.println("[CognitoAuthService refreshAccessToken] USERNAME(email): '" + username + "'");  // ← これを追加
+        System.out.println("[CognitoAuthService refreshAccessToken] USERNAME length: " + (username != null ? username.length() : "null"));  // ← これも追加
         
         Map<String, String> authParams = new HashMap<>();
         authParams.put("REFRESH_TOKEN", refreshToken);

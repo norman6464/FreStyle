@@ -30,4 +30,11 @@ public class RoomMemberService {
     List<User> users = roomMemberRepository.findUsersByUserId(userId);
     return users;
   }
+
+  /**
+   * 自分が会話したことのあるユーザー数を取得
+   */
+  public Long countChatPartners(Integer userId) {
+    return roomMemberRepository.countDistinctPartnersByUserId(userId);
+  }
 }

@@ -70,8 +70,8 @@ public class AiChatWebSocketController {
             // セッションが存在しない場合は新規作成
             if (sessionId == null) {
                 System.out.println("🆕 新規セッション作成中...");
-                // タイトルはメッセージの最初の30文字を使用
-                String title = content.length() > 30 ? content.substring(0, 30) + "..." : content;
+                // デフォルトタイトルを設定（後でAIが自動でタイトルを提案する場合もある）
+                String title = "新しいチャット";
                 AiChatSessionDto newSession = aiChatSessionService.createSession(userId, title, null);
                 sessionId = newSession.getId();
                 System.out.println("✅ 新規セッション作成完了 - sessionId: " + sessionId);

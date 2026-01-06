@@ -5,6 +5,12 @@ import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import HamburgerMenu from '../components/HamburgerMenu';
 import { clearAuth } from '../store/authSlice';
+import {
+  SparklesIcon,
+  ChatBubbleLeftRightIcon,
+  LightBulbIcon,
+  UserCircleIcon,
+} from '@heroicons/react/24/solid';
 
 export default function UserProfilePage() {
   const [form, setForm] = useState({
@@ -238,7 +244,7 @@ export default function UserProfilePage() {
   if (loading) {
     return (
       <>
-        <HamburgerMenu title="パーソナリティ設定" />
+        <HamburgerMenu title="パーソナリティ" />
         <div className="min-h-screen bg-gradient-to-br from-gray-50 to-primary-50 flex items-center justify-center pt-20">
           <div className="text-center">
             <div className="animate-pulse">
@@ -253,219 +259,269 @@ export default function UserProfilePage() {
 
   return (
     <>
-      <HamburgerMenu title="パーソナリティ設定" />
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-primary-50 pt-20 pb-8 px-4">
-        <div className="max-w-2xl mx-auto">
-          {/* メッセージ */}
-          {message && (
-            <div
-              className={`mb-6 p-4 rounded-lg border-l-4 flex items-start animate-fade-in ${
-                message.type === 'error'
-                  ? 'bg-red-50 border-red-500'
-                  : 'bg-green-50 border-green-500'
-              }`}
-            >
+      <HamburgerMenu title="パーソナリティ" />
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-purple-50 pt-16 pb-8">
+        {/* ヒーローセクション */}
+        <div className="bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 px-4 py-8 mb-6">
+          <div className="max-w-2xl mx-auto text-center">
+            <div className="bg-white/20 backdrop-blur-sm rounded-full p-4 w-20 h-20 mx-auto mb-4 flex items-center justify-center">
+              <SparklesIcon className="w-10 h-10 text-white" />
+            </div>
+            <h2 className="text-2xl font-bold text-white mb-2">
+              {isNewProfile ? 'パーソナリティを設定' : 'パーソナリティを編集'}
+            </h2>
+            <p className="text-white/80 text-sm max-w-md mx-auto">
+              AIがあなたに最適なフィードバックを提供するための情報を設定してください
+            </p>
+          </div>
+        </div>
+
+        <div className="px-4">
+          <div className="max-w-2xl mx-auto">
+            {/* メッセージ */}
+            {message && (
               <div
-                className={`flex-shrink-0 mr-3 ${
-                  message.type === 'error' ? 'text-red-600' : 'text-green-600'
+                className={`mb-6 p-4 rounded-xl border-l-4 flex items-start animate-fade-in ${
+                  message.type === 'error'
+                    ? 'bg-red-50 border-red-500'
+                    : 'bg-green-50 border-green-500'
                 }`}
               >
-                {message.type === 'error' ? (
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                    <path
-                      fillRule="evenodd"
-                      d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                ) : (
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                    <path
-                      fillRule="evenodd"
-                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                )}
-              </div>
-              <p
-                className={
-                  message.type === 'error'
-                    ? 'text-red-700 font-semibold'
-                    : 'text-green-700 font-semibold'
-                }
-              >
-                {message.text}
-              </p>
-            </div>
-          )}
-
-          {/* メインカード */}
-          <div className="bg-white rounded-2xl shadow-lg p-8 border border-gray-100">
-            <div className="text-center mb-10">
-              <div className="w-24 h-24 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full mx-auto flex items-center justify-center mb-4 shadow-lg">
-                <svg
-                  className="w-12 h-12 text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+                <div
+                  className={`flex-shrink-0 mr-3 ${
+                    message.type === 'error' ? 'text-red-600' : 'text-green-600'
+                  }`}
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
-                  />
-                </svg>
+                  {message.type === 'error' ? (
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path
+                        fillRule="evenodd"
+                        d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path
+                        fillRule="evenodd"
+                        d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  )}
+                </div>
+                <p
+                  className={
+                    message.type === 'error'
+                      ? 'text-red-700 font-semibold'
+                      : 'text-green-700 font-semibold'
+                  }
+                >
+                  {message.text}
+                </p>
               </div>
-              <h2 className="text-3xl font-bold text-gray-800">
-                {isNewProfile ? 'パーソナリティを設定' : 'パーソナリティを編集'}
-              </h2>
-              <p className="text-gray-600 mt-2">
-                AIがあなたに合ったフィードバックを提供するための情報を設定してください
-              </p>
+            )}
+
+            {/* FreStyleの説明カード */}
+            <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 mb-6 border border-purple-200">
+              <div className="flex items-start gap-3">
+                <div className="text-2xl">🎯</div>
+                <div>
+                  <p className="font-semibold text-purple-800 text-sm">なぜパーソナリティ設定が大切？</p>
+                  <p className="text-xs text-purple-600 mt-1">
+                    FreStyleはあなたのコミュニケーションスタイルを理解し、チャットと対面の「印象のズレ」を分析します。より正確なフィードバックのために、あなたらしさを教えてください。
+                  </p>
+                </div>
+              </div>
             </div>
 
-            <form onSubmit={handleSave} className="space-y-6">
-              {/* 基本情報セクション */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">
-                  📝 基本情報
-                </h3>
-                <InputField
-                  label="呼ばれたい名前"
-                  name="displayName"
-                  value={form.displayName}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, displayName: e.target.value }))
-                  }
-                  placeholder="例：タロウ、たろちゃん"
-                />
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    自己紹介
-                  </label>
-                  <textarea
-                    name="selfIntroduction"
-                    value={form.selfIntroduction}
-                    onChange={(e) =>
-                      setForm((prev) => ({ ...prev, selfIntroduction: e.target.value }))
-                    }
-                    placeholder="あなた自身について自由に書いてください..."
-                    rows="3"
-                    className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 transition-all duration-200 resize-none"
-                  />
-                </div>
-              </div>
-
-              {/* コミュニケーションスタイル */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">
-                  💬 コミュニケーションスタイル
-                </h3>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    あなたのコミュニケーションスタイル
-                  </label>
-                  <select
-                    value={form.communicationStyle}
-                    onChange={(e) =>
-                      setForm((prev) => ({ ...prev, communicationStyle: e.target.value }))
-                    }
-                    className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 transition-all duration-200"
-                  >
-                    {communicationStyles.map((style) => (
-                      <option key={style.value} value={style.value}>
-                        {style.label}
-                      </option>
-                    ))}
-                  </select>
+            {/* メインカード */}
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+              <form onSubmit={handleSave} className="divide-y divide-gray-100">
+                {/* 基本情報セクション */}
+                <div className="p-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <UserCircleIcon className="w-5 h-5 text-purple-500" />
+                    <h3 className="text-lg font-bold text-gray-800">基本情報</h3>
+                  </div>
+                  <div className="space-y-4">
+                    <InputField
+                      label="呼ばれたい名前"
+                      name="displayName"
+                      value={form.displayName}
+                      onChange={(e) =>
+                        setForm((prev) => ({ ...prev, displayName: e.target.value }))
+                      }
+                      placeholder="例：タロウ、たろちゃん"
+                    />
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        自己紹介
+                      </label>
+                      <textarea
+                        name="selfIntroduction"
+                        value={form.selfIntroduction}
+                        onChange={(e) =>
+                          setForm((prev) => ({ ...prev, selfIntroduction: e.target.value }))
+                        }
+                        placeholder="あなた自身について自由に書いてください..."
+                        rows="3"
+                        className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition-all duration-200 resize-none"
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-3">
-                    性格特性（当てはまるものを選んでください）
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {personalityOptions.map((trait) => (
-                      <button
-                        key={trait}
-                        type="button"
-                        onClick={() => togglePersonalityTrait(trait)}
-                        className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
-                          form.personalityTraits.includes(trait)
-                            ? 'bg-primary-500 text-white shadow-md'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
+                {/* コミュニケーションスタイル */}
+                <div className="p-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <ChatBubbleLeftRightIcon className="w-5 h-5 text-blue-500" />
+                    <h3 className="text-lg font-bold text-gray-800">コミュニケーションスタイル</h3>
+                  </div>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        あなたのコミュニケーションスタイル
+                      </label>
+                      <select
+                        value={form.communicationStyle}
+                        onChange={(e) =>
+                          setForm((prev) => ({ ...prev, communicationStyle: e.target.value }))
+                        }
+                        className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition-all duration-200"
                       >
-                        {trait}
-                      </button>
-                    ))}
+                        {communicationStyles.map((style) => (
+                          <option key={style.value} value={style.value}>
+                            {style.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-3">
+                        性格特性（当てはまるものを選んでください）
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {personalityOptions.map((trait) => (
+                          <button
+                            key={trait}
+                            type="button"
+                            onClick={() => togglePersonalityTrait(trait)}
+                            className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
+                              form.personalityTraits.includes(trait)
+                                ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-md'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                          >
+                            {trait}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* AIフィードバック設定 */}
+                <div className="p-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <LightBulbIcon className="w-5 h-5 text-yellow-500" />
+                    <h3 className="text-lg font-bold text-gray-800">AIフィードバック設定</h3>
+                  </div>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        コミュニケーションで改善したい点・目標
+                      </label>
+                      <textarea
+                        name="goals"
+                        value={form.goals}
+                        onChange={(e) =>
+                          setForm((prev) => ({ ...prev, goals: e.target.value }))
+                        }
+                        placeholder="例：もっと簡潔に伝えられるようになりたい、相手の気持ちを考えた発言ができるようになりたい..."
+                        rows="3"
+                        className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition-all duration-200 resize-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        苦手なこと・気になっていること
+                      </label>
+                      <textarea
+                        name="concerns"
+                        value={form.concerns}
+                        onChange={(e) =>
+                          setForm((prev) => ({ ...prev, concerns: e.target.value }))
+                        }
+                        placeholder="例：話が長くなりがち、相手の反応が気になる..."
+                        rows="3"
+                        className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition-all duration-200 resize-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        フィードバックの受け取り方
+                      </label>
+                      <select
+                        value={form.preferredFeedbackStyle}
+                        onChange={(e) =>
+                          setForm((prev) => ({ ...prev, preferredFeedbackStyle: e.target.value }))
+                        }
+                        className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition-all duration-200"
+                      >
+                        {feedbackStyles.map((style) => (
+                          <option key={style.value} value={style.value}>
+                            {style.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 保存ボタン */}
+                <div className="p-6 bg-gray-50">
+                  <PrimaryButton type="submit">
+                    {isNewProfile ? '✨ パーソナリティを保存' : '✨ パーソナリティを更新'}
+                  </PrimaryButton>
+                </div>
+              </form>
+            </div>
+
+            {/* クイックリンク */}
+            <div className="mt-6 grid grid-cols-2 gap-4">
+              <div
+                onClick={() => navigate('/profile/me')}
+                className="bg-white rounded-xl shadow-md p-4 cursor-pointer hover:shadow-lg transition-all border border-gray-100 hover:border-primary-300 group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="bg-gradient-to-br from-primary-400 to-secondary-400 rounded-lg p-2">
+                    <UserCircleIcon className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-800 text-sm group-hover:text-primary-600 transition-colors">プロフィール</p>
+                    <p className="text-xs text-gray-500">基本情報を編集</p>
                   </div>
                 </div>
               </div>
-
-              {/* AIフィードバック設定 */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">
-                  🤖 AIフィードバック設定
-                </h3>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    コミュニケーションで改善したい点・目標
-                  </label>
-                  <textarea
-                    name="goals"
-                    value={form.goals}
-                    onChange={(e) =>
-                      setForm((prev) => ({ ...prev, goals: e.target.value }))
-                    }
-                    placeholder="例：もっと簡潔に伝えられるようになりたい、相手の気持ちを考えた発言ができるようになりたい..."
-                    rows="3"
-                    className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 transition-all duration-200 resize-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    苦手なこと・気になっていること
-                  </label>
-                  <textarea
-                    name="concerns"
-                    value={form.concerns}
-                    onChange={(e) =>
-                      setForm((prev) => ({ ...prev, concerns: e.target.value }))
-                    }
-                    placeholder="例：話が長くなりがち、相手の反応が気になる..."
-                    rows="3"
-                    className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 transition-all duration-200 resize-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    フィードバックの受け取り方
-                  </label>
-                  <select
-                    value={form.preferredFeedbackStyle}
-                    onChange={(e) =>
-                      setForm((prev) => ({ ...prev, preferredFeedbackStyle: e.target.value }))
-                    }
-                    className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 transition-all duration-200"
-                  >
-                    {feedbackStyles.map((style) => (
-                      <option key={style.value} value={style.value}>
-                        {style.label}
-                      </option>
-                    ))}
-                  </select>
+              <div
+                onClick={() => navigate('/chat/ask-ai')}
+                className="bg-white rounded-xl shadow-md p-4 cursor-pointer hover:shadow-lg transition-all border border-gray-100 hover:border-pink-300 group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="bg-gradient-to-br from-pink-400 to-orange-400 rounded-lg p-2">
+                    <SparklesIcon className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-800 text-sm group-hover:text-pink-600 transition-colors">AI分析</p>
+                    <p className="text-xs text-gray-500">チャットを分析</p>
+                  </div>
                 </div>
               </div>
-
-              <PrimaryButton type="submit">
-                {isNewProfile ? 'パーソナリティを保存' : 'パーソナリティを更新'}
-              </PrimaryButton>
-            </form>
+            </div>
           </div>
         </div>
       </div>

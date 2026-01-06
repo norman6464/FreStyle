@@ -3,6 +3,7 @@ import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import LoginCallback from './pages/LoginCallback';
 import ChatPage from './pages/ChatPage';
+import ChatListPage from './pages/ChatListPage';
 import MenuPage from './pages/MenuPage';
 import AskAiPage from './pages/AskAiPage';
 import ConfirmPage from './pages/ConfirmPage';
@@ -66,6 +67,16 @@ export default function App() {
           <AuthInitializer>
             <Protected>
               <MemberPage />
+            </Protected>
+          </AuthInitializer>
+        }
+      />
+      <Route
+        path="/chat"
+        element={
+          <AuthInitializer>
+            <Protected>
+              <ChatListPage />
             </Protected>
           </AuthInitializer>
         }

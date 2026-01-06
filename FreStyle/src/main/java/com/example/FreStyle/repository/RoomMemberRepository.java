@@ -58,4 +58,17 @@ public interface RoomMemberRepository extends JpaRepository<RoomMember, Integer>
     @Query("SELECT rm.user FROM RoomMember rm WHERE rm.room.id = :roomId AND rm.user.id <> :userId")
     Optional<User> findPartnerByRoomIdAndUserId(@Param("roomId") Integer roomId, @Param("userId") Integer userId);
 
+    /**
+     * 自分が参加しているルームで、自分以外のユーザー数をカウント（= 会話したことのあるユーザー数）
+     */
+    @Query("""
+            SELECT COUNT(DISTINCT rm2.user.id)
+            FROM RoomMember rm2
+            WHERE rm2.room.id IN (
+                SELECT rm.room.id FROM RoomMember rm WHERE rm.user.id = :userId
+            )
+            AND rm2.user.id <> :userId
+            """)
+    Long countDistinctPartnersByUserId(@Param("userId") Integer userId);
+
 }

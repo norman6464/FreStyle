@@ -149,19 +149,20 @@ export default function HomePage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            {/* ユーザー数 */}
+            {/* 会話した人数 */}
             <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100 hover:shadow-xl hover:scale-105 transition-all duration-300">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-800">
-                  登録ユーザー数
+                  会話した人数
                 </h3>
                 <UserGroupIcon className="w-8 h-8 text-blue-500" />
               </div>
               <p className="text-4xl font-bold text-blue-600">
-                {stats?.totalUsers || 0}
+                {stats?.chatPartnerCount ?? 0}
+                <span className="text-lg font-normal text-gray-500 ml-1">人</span>
               </p>
               <p className="text-sm text-gray-500 mt-2">
-                全体のアクティブユーザー
+                今までチャットしたユーザー
               </p>
             </div>
 

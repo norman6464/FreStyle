@@ -19,6 +19,10 @@ export default function ChatPage() {
   const [chatUsers, setChatUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedMessages, setSelectedMessages] = useState(new Set());
+  const [rangeStart, setRangeStart] = useState(null); // 範囲選択の開始点
+  const [rangeEnd, setRangeEnd] = useState(null);     // 範囲選択の終了点
   const stompClientRef = useRef(null);
   const messagesEndRef = useRef(null);
 
@@ -294,15 +298,113 @@ export default function ChatPage() {
 
   // --- AIフィードバック ---
   const handleAiFeedback = () => {
-    const chatHistory = messages
+    // 選択モードを開始
+    setSelectionMode(true);
+    setSelectedMessages(new Set());
+    setRangeStart(null);
+    setRangeEnd(null);
+  };
+
+  // 範囲選択: メッセージをクリックしたとき
+  const handleRangeClick = (messageId) => {
+    const messageIndex = messages.findIndex((msg) => msg.id === messageId);
+    
+    if (rangeStart === null) {
+      // 開始点を設定
+      setRangeStart(messageIndex);
+      setRangeEnd(null);
+      setSelectedMessages(new Set([messageId]));
+    } else if (rangeEnd === null) {
+      // 終了点を設定し、範囲内のメッセージを選択
+      setRangeEnd(messageIndex);
+      const start = Math.min(rangeStart, messageIndex);
+      const end = Math.max(rangeStart, messageIndex);
+      const rangeIds = new Set(
+        messages.slice(start, end + 1).map((msg) => msg.id)
+      );
+      setSelectedMessages(rangeIds);
+    } else {
+      // 既に範囲が選択されている場合はリセットして新しい開始点を設定
+      setRangeStart(messageIndex);
+      setRangeEnd(null);
+      setSelectedMessages(new Set([messageId]));
+    }
+  };
+
+  // クイック選択: 直近N件
+  const handleQuickSelect = (count) => {
+    const recentMessages = messages.slice(-count);
+    const recentIds = new Set(recentMessages.map((msg) => msg.id));
+    setSelectedMessages(recentIds);
+    // 範囲表示用に開始・終了を設定
+    if (recentMessages.length > 0) {
+      setRangeStart(messages.length - count);
+      setRangeEnd(messages.length - 1);
+    }
+  };
+
+  const handleSelectAll = () => {
+    const allIds = new Set(messages.map((msg) => msg.id));
+    setSelectedMessages(allIds);
+    setRangeStart(0);
+    setRangeEnd(messages.length - 1);
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedMessages(new Set());
+    setRangeStart(null);
+    setRangeEnd(null);
+  };
+
+  const handleCancelSelection = () => {
+    setSelectionMode(false);
+    setSelectedMessages(new Set());
+    setRangeStart(null);
+    setRangeEnd(null);
+  };
+
+  const handleSendToAi = () => {
+    if (selectedMessages.size === 0) {
+      alert('メッセージを選択してください');
+      return;
+    }
+
+    // 選択されたメッセージを時系列順にフィルタリング
+    const selectedMsgs = messages.filter((msg) => selectedMessages.has(msg.id));
+    const chatHistory = selectedMsgs
       .map((msg) => `${msg.isSender ? '自分' : '相手'}: ${msg.content}`)
       .join('\n');
 
+    setSelectionMode(false);
+    setSelectedMessages(new Set());
+    setRangeStart(null);
+    setRangeEnd(null);
+
     navigate('/chat/ask-ai', {
       state: {
-        initialPrompt: `【チャット履歴】\n${chatHistory}`,
+        initialPrompt: `【選択したチャット履歴】\n${chatHistory}`,
       },
     });
+  };
+
+  // メッセージが範囲内かどうかを判定
+  const isInRange = (index) => {
+    if (rangeStart === null) return false;
+    if (rangeEnd === null) return index === rangeStart;
+    const start = Math.min(rangeStart, rangeEnd);
+    const end = Math.max(rangeStart, rangeEnd);
+    return index >= start && index <= end;
+  };
+
+  // 範囲選択のラベルを取得
+  const getRangeLabel = (index) => {
+    if (rangeStart === index && rangeEnd === null) return '開始';
+    if (rangeEnd === null) return null;
+    const start = Math.min(rangeStart, rangeEnd);
+    const end = Math.max(rangeStart, rangeEnd);
+    if (index === start) return '開始';
+    if (index === end) return '終了';
+    return null;
   };
 
   // --- ユーザー選択してルームに移動 ---
@@ -480,12 +582,47 @@ export default function ChatPage() {
                 </p>
               </div>
             )}
-            {messages.map((msg) => (
-              <MessageBubble
-                key={msg.id}
-                {...msg}
-                onDelete={handleDeleteMessage}
-              />
+            {messages.map((msg, index) => (
+              <div key={msg.id} className="flex items-start gap-2">
+                {selectionMode && (
+                  <div className="flex-shrink-0 flex flex-col items-center">
+                    {/* 範囲ラベル */}
+                    {getRangeLabel(index) && (
+                      <span className={`text-xs font-bold mb-1 px-2 py-0.5 rounded ${
+                        getRangeLabel(index) === '開始' 
+                          ? 'bg-green-100 text-green-700' 
+                          : 'bg-red-100 text-red-700'
+                      }`}>
+                        {getRangeLabel(index)}
+                      </span>
+                    )}
+                    <button
+                      onClick={() => handleRangeClick(msg.id)}
+                      className={`mt-1 w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all ${
+                        isInRange(index)
+                          ? 'bg-blue-500 border-blue-500 text-white'
+                          : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50'
+                      }`}
+                    >
+                      {isInRange(index) ? (
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      ) : (
+                        <span className="text-xs text-gray-400">{index + 1}</span>
+                      )}
+                    </button>
+                  </div>
+                )}
+                <div className={`flex-1 transition-all ${
+                  selectionMode && isInRange(index) ? 'bg-blue-50 -mx-2 px-2 py-1 rounded-lg' : ''
+                }`}>
+                  <MessageBubble
+                    {...msg}
+                    onDelete={selectionMode ? null : handleDeleteMessage}
+                  />
+                </div>
+              </div>
             ))}
 
             {/* スクロール最終地点 */}
@@ -495,15 +632,94 @@ export default function ChatPage() {
           {/* 入力欄固定 */}
           <div className="fixed bottom-0 right-0 bg-white border-t border-gray-200 shadow-2xl p-4 z-10" style={{ left: sidebarOpen ? '320px' : '0' }}>
             <div className="max-w-4xl mx-auto w-full space-y-3">
-              {messages.length > 0 && (
-                <button
-                  onClick={handleAiFeedback}
-                  className="w-full bg-gradient-to-r from-blue-500 to-purple-500 hover:shadow-lg text-white font-semibold py-3 px-4 rounded-lg transition-all duration-150"
-                >
-                  AIにフィードバックしてもらう
-                </button>
+              {selectionMode ? (
+                /* 選択モードUI */
+                <div className="space-y-3">
+                  {/* ガイドメッセージ */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <p className="text-sm text-blue-700">
+                      {rangeStart === null 
+                        ? '💡 「開始」位置のメッセージをタップしてください'
+                        : rangeEnd === null
+                        ? '💡 「終了」位置のメッセージをタップしてください'
+                        : `✅ ${selectedMessages.size}件のメッセージを選択しました`
+                      }
+                    </p>
+                  </div>
+
+                  {/* クイック選択ボタン */}
+                  <div className="flex gap-2 flex-wrap">
+                    <span className="text-sm text-gray-500 self-center">クイック選択:</span>
+                    <button
+                      onClick={() => handleQuickSelect(5)}
+                      className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full transition-colors"
+                    >
+                      直近5件
+                    </button>
+                    <button
+                      onClick={() => handleQuickSelect(10)}
+                      className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full transition-colors"
+                    >
+                      直近10件
+                    </button>
+                    <button
+                      onClick={() => handleQuickSelect(20)}
+                      className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full transition-colors"
+                    >
+                      直近20件
+                    </button>
+                    <button
+                      onClick={handleSelectAll}
+                      className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full transition-colors"
+                    >
+                      すべて
+                    </button>
+                    <button
+                      onClick={handleDeselectAll}
+                      className="px-3 py-1.5 text-sm text-red-500 hover:bg-red-50 rounded-full transition-colors"
+                    >
+                      リセット
+                    </button>
+                  </div>
+
+                  {/* アクションボタン */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleCancelSelection}
+                      className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 px-4 rounded-lg transition-all duration-150"
+                    >
+                      キャンセル
+                    </button>
+                    <button
+                      onClick={handleSendToAi}
+                      disabled={selectedMessages.size === 0}
+                      className={`flex-1 font-semibold py-3 px-4 rounded-lg transition-all duration-150 ${
+                        selectedMessages.size > 0
+                          ? 'bg-gradient-to-r from-blue-500 to-purple-500 hover:shadow-lg text-white'
+                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      }`}
+                    >
+                      {selectedMessages.size > 0 
+                        ? `${selectedMessages.size}件をAIに送信`
+                        : '範囲を選択してください'
+                      }
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* 通常モードUI */
+                <>
+                  {messages.length > 0 && (
+                    <button
+                      onClick={handleAiFeedback}
+                      className="w-full bg-gradient-to-r from-blue-500 to-purple-500 hover:shadow-lg text-white font-semibold py-3 px-4 rounded-lg transition-all duration-150"
+                    >
+                      AIにフィードバックしてもらう
+                    </button>
+                  )}
+                  <MessageInput onSend={handleSend} />
+                </>
               )}
-              <MessageInput onSend={handleSend} />
             </div>
           </div>
         </div>

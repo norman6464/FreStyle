@@ -105,6 +105,45 @@ CREATE TABLE IF NOT EXISTS access_tokens (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- AIチャットセッション（会話のグループ単位）
+CREATE TABLE IF NOT EXISTS ai_chat_sessions (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    title VARCHAR(255),                    -- セッションのタイトル（自動生成 or ユーザー設定）
+    related_room_id INT,                   -- chat_roomsとの関連（会話レビューの場合）
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (related_room_id) REFERENCES chat_rooms(id) ON DELETE SET NULL,
+    INDEX idx_user_created (user_id, created_at DESC)
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- AIチャットメッセージ（個々のやり取り）
+CREATE TABLE IF NOT EXISTS ai_chat_messages (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    session_id INT NOT NULL,
+    user_id INT NOT NULL,
+    role ENUM('user', 'assistant') NOT NULL,  -- 発言者
+    content TEXT NOT NULL,                     -- メッセージ内容
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (session_id) REFERENCES ai_chat_sessions(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_session_created (session_id, created_at)
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+
+-- ┌─────────────────┐     ┌──────────────────────┐
+-- │     users       │────→│   ai_chat_sessions   │
+-- └─────────────────┘     └──────────────────────┘
+--                                   │
+--                                   ↓
+--                         ┌──────────────────────┐
+--                         │   ai_chat_messages   │
+--                         └──────────────────────┘
+
+
 
 -- DynamoDB（NoSQL）テーブル設計メモ
 -- Table Name: fre_style_ai_chat

@@ -1,5 +1,7 @@
 package com.example.FreStyle.auth;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -8,14 +10,15 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfigurationSource;
 
 import lombok.RequiredArgsConstructor;
-
-import static org.springframework.security.config.Customizer.withDefaults;
 
 @Configuration
 @RequiredArgsConstructor
 public class SecurityConfig {
+    
+    private static final Logger logger = LoggerFactory.getLogger(SecurityConfig.class);
     
     // Cognitoの.well-known/jwk.json
     // Spring Security は access_token を自動で decode & validate & set Authentication してくれる
@@ -23,13 +26,22 @@ public class SecurityConfig {
     private String jwkUri;
 
     private final JwtCookieFilter jwtCookieFilter;
+    
+    // CorsConfigから注入
+    private final CorsConfigurationSource corsConfigurationSource;
 
     
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        logger.info("========== [SecurityConfig] SecurityFilterChain 構築開始 ==========");
+        logger.info("[SecurityConfig] CorsConfigurationSource注入確認: {}", corsConfigurationSource != null ? "OK" : "NULL ⚠️");
+        
         http
-        // withDefaultsでは@Configurationで設定したCorsConfigが適用される。
-                .cors(withDefaults())
+                // 明示的にCorsConfigurationSourceを指定
+                .cors(cors -> {
+                    cors.configurationSource(corsConfigurationSource);
+                    logger.info("[SecurityConfig] CORS設定適用完了");
+                })
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/hello","/api/hello/**","/api/auth/info","/ws/chat/**","/api/auth/**","/actuator/health").permitAll()
@@ -42,6 +54,8 @@ public class SecurityConfig {
                     .jwt(jwt -> jwt
                         .jwtAuthenticationConverter(jwtAuthenticationConverter()) // カスタムコンバーターを作成をする
                         .jwkSetUri(jwkUri)));
+        
+        logger.info("========== [SecurityConfig] SecurityFilterChain 構築完了 ==========");
         return http.build();
     }
     

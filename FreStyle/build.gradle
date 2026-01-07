@@ -34,6 +34,9 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	
+	// Actuator for monitoring
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
 	// WebSocket接続・設定用
 	implementation 'org.springframework.boot:spring-boot-starter-websocket'
 	

@@ -19,7 +19,8 @@ public class CorsConfig {
                 "http://fre-style-bucket.s3-website-ap-northeast-1.amazonaws.com",
                 "https://dcd3m6lwt0z8u.cloudfront.net",
                 "http://localhost:5173",
-                "https://normanblog.com"
+                "https://normanblog.com",
+                "http://normanblog.com"
             )
             .allowCredentials(true) // Cookieや認証情報を扱う場合はtrue
             .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")

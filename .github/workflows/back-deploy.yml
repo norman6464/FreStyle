@@ -22,31 +22,16 @@ jobs:
     timeout-minutes: 10
     defaults:
       run:
-        working-directory: FreStyle # このディレクトリ設定は正しいです
+        working-directory: FreStyle
     steps:
-      # 1. コードのチェックアウト (変更なし)
+      # このステップでGitHubのリポジトリをアクションの実行環境でコピーする
       - uses: actions/checkout@v4
-
-      # 2. 【追加】JDKのセットアップ (テスト実行に必要)
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-          cache: 'gradle'
-
-      # # 3. 【追加】Spring Bootのテストを実行
-      # - name: Run Spring Boot tests
-      #   run: |
-      #     chmod +x ./gradlew
-      #     ./gradlew test
-
-      # 4. Dockerイメージのビルド (テストが成功した場合のみ実行される)
-      - name: Build an Image
+      
+      - name: Build an Image and Run Tests
+      # dockerイメージのビルドコマンドを打つ
         run: |
           docker image build --target production -t temp_api_image_name:latest .
-          
-      # 5. AWS認証
+      # AWSの認証情報（IAMユーザーで作成したアクセスキー、シークレットアクセスキー）を設定をしている
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -54,13 +39,14 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
           
-      # 6. ECRログイン
+      # ECRレジストリ、リポジトリの情報を取得する
+      # さっきのid値を設定したが各ジョブは違う環境にあるのでまた同じ設定をし直す必要がある
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
         
-      # 7. ECRへプッシュ
-      - name: Push the image to Amazon ECR
+      # さっきのログインしたECRリポジトリの中にイメージをプッシュする
+      - name: Push the image mto Amazon ECR
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY:  ${{ secrets.AWS_ECR_API_SERVER_REPOSITORY }}
@@ -116,4 +102,4 @@ jobs:
           task-definition: ${{ steps.render-task.outputs.task-definition }}
           service: ${{ env.ECS_SERVICE }}
           cluster: ${{ env.ECS_CLUSTER }}
-          # wait-for-service-stability: true
+          wait-for-service-stability: true

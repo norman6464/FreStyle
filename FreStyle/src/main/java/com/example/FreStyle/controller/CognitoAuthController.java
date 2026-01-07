@@ -532,26 +532,26 @@ public class CognitoAuthController {
     ) {
     ResponseCookie accessCookie = ResponseCookie.from("ACCESS_TOKEN", accessToken)
             .httpOnly(true)
-            .secure(false) // 開発環境: false、本番環境: true
+            .secure(true) // 開発環境: false、本番環境: true
             .path("/")
             .maxAge(60 * 60 * 2) // 2時間
-            .sameSite("Lax") // 開発環境: Lax、本番環境: None
+            .sameSite("None") // 開発環境: Lax、本番環境: None
             .build();
 
     ResponseCookie refreshCookie = ResponseCookie.from("REFRESH_TOKEN", refreshToken)
             .httpOnly(true)
-            .secure(false) // 開発環境: false、本番環境: true
+            .secure(true) // 開発環境: false、本番環境: true
             .path("/")
             .maxAge(60 * 60 * 24 * 7) // 7日
-            .sameSite("Lax") // 開発環境: Lax、本番環境: None
+            .sameSite("None") // 開発環境: Lax、本番環境: None
             .build();
 
     ResponseCookie emailCookie = ResponseCookie.from("EMAIL", email)
             .httpOnly(true)
-            .secure(false) // 開発環境: false、本番環境: true
+            .secure(true) // 開発環境: false、本番環境: true
             .path("/")
             .maxAge(60 * 60 * 24 * 7) // 7日
-            .sameSite("Lax") // 開発環境: Lax、本番環境: None
+            .sameSite("None") // 開発環境: Lax、本番環境: None
             .build();
 
     System.out.println("[setAuthCookies] Setting cookies - ACCESS_TOKEN and REFRESH_TOKEN");

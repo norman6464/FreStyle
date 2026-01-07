@@ -12,35 +12,70 @@ export default function LoginCallback() {
   const error = searchParams.get('error');
 
   useEffect(() => {
+    console.log('========== [LoginCallback] Callbackページ読み込み ==========');
+    console.log('[LoginCallback] API_BASE_URL:', API_BASE_URL);
+    console.log('[LoginCallback] code:', code ? code.substring(0, 20) + '...' : 'null');
+    console.log('[LoginCallback] error:', error);
+
     if (error) {
+      console.error('[LoginCallback] 認証エラー:', error);
       alert('認証エラーが発生しました。' + error);
       navigate('/login');
       return;
     }
 
     if (code) {
-      fetch(`${API_BASE_URL}/api/auth/cognito/callback`, {
+      const callbackUrl = `${API_BASE_URL}/api/auth/cognito/callback`;
+      console.log('[LoginCallback] POSTリクエスト送信先:', callbackUrl);
+      console.log('[LoginCallback] リクエスト設定: credentials=include, Content-Type=application/json');
+
+      fetch(callbackUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code }),
         credentials: 'include',
       })
         .then((res) => {
+          console.log('[LoginCallback] レスポンス受信:');
+          console.log('   - status:', res.status);
+          console.log('   - ok:', res.ok);
+          console.log('   - statusText:', res.statusText);
+          
+          // レスポンスヘッダーのログ
+          console.log('[LoginCallback] レスポンスヘッダー:');
+          res.headers.forEach((value, key) => {
+            console.log(`   - ${key}: ${value}`);
+          });
+
           if (!res.ok) {
-            throw new Error('認証に失敗しました。');
+            throw new Error(`認証に失敗しました。Status: ${res.status}`);
           }
           return res.json();
         })
-        .then(() => {
+        .then((data) => {
+          console.log('[LoginCallback] 認証成功:', data);
           dispatch(setAuthData());
-
           navigate('/');
         })
         .catch((err) => {
+          console.error('[LoginCallback] エラー発生:', err);
+          console.error('[LoginCallback] エラータイプ:', err.name);
+          console.error('[LoginCallback] エラーメッセージ:', err.message);
+          
+          // CORSエラーの場合の追加情報
+          if (err.message.includes('Failed to fetch') || err.name === 'TypeError') {
+            console.error('[LoginCallback] ⚠️ CORSエラーの可能性があります');
+            console.error('[LoginCallback] 確認事項:');
+            console.error('   1. バックエンドのCORS設定でOriginが許可されているか');
+            console.error('   2. ALB/CloudFrontがCORSヘッダーを削除していないか');
+            console.error('   3. プリフライト(OPTIONS)リクエストが正常に処理されているか');
+          }
+          
           alert('認証に失敗しました。');
           navigate('/login');
         });
     } else {
+      console.warn('[LoginCallback] codeパラメータがありません。/loginへリダイレクト');
       navigate('/login');
     }
   }, [code, error, dispatch, navigate]);

@@ -39,7 +39,7 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/auth/cognito")
-@CrossOrigin(origins = "*", allowCredentials = "true")
+@CrossOrigin(origins = "https://normanblog.com", allowCredentials = "true")
 public class CognitoAuthController {
 
     @Value("${cognito.client-id}")

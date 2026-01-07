@@ -38,6 +38,7 @@ import java.util.Map;
 import java.util.Optional;
 
 @RestController
+@CrossOrigin(origins = "https://normanblog.com", allowCredentials = "true")
 @RequestMapping("/api/auth/cognito")
 public class CognitoAuthController {
 
@@ -234,10 +235,31 @@ public class CognitoAuthController {
     // -----------------------
     @PostMapping("/callback")
     public ResponseEntity<?> callback(@RequestBody Map<String, String> body, HttpServletResponse response) {
-        System.out.println("[CognitoAuthController /callback] Callback endpoint called");
+        System.out.println("[CognitoAuthController /callback] Callback endpoint called (POST)");
         String code = body.get("code");
-        System.out.println("[CognitoAuthController /callback] Authorization code received: " + 
-                          (code != null ? code.substring(0, Math.min(20, code.length())) + "..." : "null"));
+        return handleCallback(code, response);
+    }
+
+    @GetMapping("/callback")
+    public ResponseEntity<?> callbackGet(@RequestParam(name = "code", required = false) String code,
+                                         HttpServletResponse response) {
+        System.out.println("[CognitoAuthController /callback] Callback endpoint called (GET)");
+        return handleCallback(code, response);
+    }
+
+    @RequestMapping(value = "/callback", method = RequestMethod.OPTIONS)
+    public ResponseEntity<?> callbackPreflight() {
+        // Preflightを明示的に許可
+        return ResponseEntity.ok().build();
+    }
+
+    private ResponseEntity<?> handleCallback(String code, HttpServletResponse response) {
+        System.out.println("[CognitoAuthController /callback] Authorization code received: " +
+                (code != null ? code.substring(0, Math.min(20, code.length())) + "..." : "null"));
+
+        if (code == null || code.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "authorization code is required"));
+        }
 
         String basicAuthValue = Base64.getEncoder()
                 .encodeToString((clientId + ":" + clientSecret).getBytes(StandardCharsets.UTF_8));
@@ -255,8 +277,7 @@ public class CognitoAuthController {
                 .header(HttpHeaders.AUTHORIZATION, "Basic " + basicAuthValue)
                 .body(BodyInserters.fromFormData(formData))
                 .retrieve()
-                .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {
-                })
+                .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
                 .block();
 
         if (tokenResponse == null) {
@@ -271,9 +292,9 @@ public class CognitoAuthController {
         String accessToken = (String) tokenResponse.get("access_token");
         String refreshToken = (String) tokenResponse.get("refresh_token");
 
-        System.out.println("[CognitoAuthController /callback] Token types - accessToken: " + 
-                          (accessToken != null ? "✓" : "null") + 
-                          ", refreshToken: " + (refreshToken != null ? "✓" : "null"));
+        System.out.println("[CognitoAuthController /callback] Token types - accessToken: " +
+                (accessToken != null ? "✓" : "null") + 
+                ", refreshToken: " + (refreshToken != null ? "✓" : "null"));
 
         Optional<JWTClaimsSet> claimsOpt = JwtUtils.decode(idToken);
         if (claimsOpt.isEmpty()) {
@@ -296,15 +317,12 @@ public class CognitoAuthController {
             System.out.println("[CognitoAuthController /callback] Registering user - provider: " + provider);
             User user = userService.registerUserOIDC(name, email, provider, sub);
 
-            // アクセストークン、リフレッシュトークン保存
             accessTokenService.saveTokens(user, accessToken, refreshToken);
 
-            // httpOnlyCookieの設定
             System.out.println("[CognitoAuthController /callback] Setting auth cookies");
             setAuthCookies(response, accessToken, refreshToken, email);
 
-            return ResponseEntity.ok(Map .of("success","ログインできました"));
-
+            return ResponseEntity.ok(Map.of("success", "ログインできました"));
         } catch (Exception e) {
             System.out.println("[CognitoAuthController /callback] ERROR: " + e.getClass().getSimpleName() + " - " + e.getMessage());
             e.printStackTrace();

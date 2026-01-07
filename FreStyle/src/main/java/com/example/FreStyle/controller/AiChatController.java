@@ -29,6 +29,7 @@ import com.example.FreStyle.service.UserIdentityService;
 
 import lombok.RequiredArgsConstructor;
 
+
 @RestController 
 @RequiredArgsConstructor
 @RequestMapping("/api/chat/ai")
@@ -39,7 +40,7 @@ public class AiChatController {
     private final AiChatSessionService aiChatSessionService;
     private final AiChatMessageService aiChatMessageService;
     private final UserIdentityService userIdentityService;
-    
+
 
     // =============================================
     // 既存のDynamoDB履歴取得API（後方互換性のため維持）

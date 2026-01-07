@@ -16,6 +16,7 @@ import ConfirmForgotPasswordPage from './pages/ConfirmForgotPasswordPage';
 import AuthInitializer from './utils/AuthInitializer';
 import Protected from './utils/Protected';
 
+
 export default function App() {
   return (
     <Routes>

@@ -39,6 +39,7 @@ public class AiChatController {
     private final AiChatSessionService aiChatSessionService;
     private final AiChatMessageService aiChatMessageService;
     private final UserIdentityService userIdentityService;
+    
 
     // =============================================
     // 既存のDynamoDB履歴取得API（後方互換性のため維持）

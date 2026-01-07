@@ -79,7 +79,7 @@ jobs:
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
           task-definition: ${{ env.ECS_TASK_DEFINITION }}
-          container-name: api
+          container-name: fre-style
           image: ${{ steps.login-ecr.outputs.registry }}/${{ secrets.AWS_ECR_API_SERVER_REPOSITORY }}:latest
           environment-variables: |
             DB_URL=${{ secrets.DB_URL }}

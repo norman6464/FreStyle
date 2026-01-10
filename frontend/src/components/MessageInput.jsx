@@ -3,6 +3,7 @@ import { PaperAirplaneIcon, PlusIcon } from '@heroicons/react/24/solid';
 
 export default function MessageInput({ onSend }) {
   const [text, setText] = useState('');
+  const [isComposing, setIsComposing] = useState(false); // IME入力中かどうか
   const textareaRef = useRef(null);
   const minRows = 1;
   const maxRows = 8; // 最大8行で高さを制限
@@ -49,8 +50,9 @@ export default function MessageInput({ onSend }) {
   };
 
   // Enterキーでの送信処理（Shift+Enterで改行を可能にする）
+  // IME入力中（isComposing）は送信しない
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
       e.preventDefault(); // Enterによるフォーム送信を防ぐ
       handleSend();
     }
@@ -76,6 +78,8 @@ export default function MessageInput({ onSend }) {
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
+          onCompositionStart={() => setIsComposing(true)}
+          onCompositionEnd={() => setIsComposing(false)}
         />
       </div>
 

@@ -385,14 +385,7 @@ export default function AskAiPage() {
       return;
     }
 
-    // ローカルに即時表示（楽観的更新）
-    const tempId = Date.now();
-    setMessages((prev) => [
-      ...prev,
-      { id: tempId, content: text, isSender: true, isTemp: true },
-    ]);
-
-    // STOMPで送信
+    // STOMPで送信（WebSocket経由でサーバーからのレスポンスを待ってから表示）
     const payload = {
       userId: userId,
       sessionId: currentSessionId,

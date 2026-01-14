@@ -19,7 +19,7 @@ FreStyleは、友達とのチャットをAIが分析し、相手にどう伝わ�
 
 ---
 
-## 🎥 Demo
+## 🎥 Demo（変更前）
 
 👉 [デモ動画](https://myapp-demo-videos.s3.ap-northeast-1.amazonaws.com/Fre-Style-demo.mp4)
 
@@ -66,26 +66,21 @@ FreStyleは、友達とのチャットをAIが分析し、相手にどう伝わ�
 
 リアルタイム性と低コストを優先した WebSocket と、安定稼働・複雑処理に適した HTTP API を分離し、性能・コスト・可用性の最適化を実現。
 
-### ② CloudFormation による IaC（Infrastructure as Code）
-- 環境構築を完全コード化
-- 再現性・管理性・チーム開発適性を向上
-
-### ③ JWT（HttpOnly Cookie）× Spring Security の安全な認証設計
+### ② JWT（HttpOnly Cookie）× Spring Security の安全な認証設計
 - JWT を HttpOnly Cookie に保存（XSS 対策）
-- アクセストークをReduxにリフレッシュトークンをHttpOnly Cookieに保存
 - アクセストークンの有効期間を短くしリフレッシュトークンで再発行をする
 - OIDC & JWK を活用した堅牢な認証フロー
 - OIDC経由でも当該アプリ経由でも同じアカウントであれば同一ユーザーとして認識
 
-### ④ CloudFront によるグローバル最適化と HTTPS 化
+### ③ CloudFront によるグローバル最適化と HTTPS 化
 - 高速配信（CDN）
 - OIDC と組み合わせてセキュアなフロント構成
-- Route53 → CloudFront → S3 Hosting の構成
+- Cognito/OIDCログインを使用しているのでHTTPSの必須になるので採用した
 
 ---
 
 ## 🧠 苦労した点・学び
-- WebSocket を ECS で保持するか、サーバーレスにするかの検討 → コスト/接続管理/レイテンシから Lambda + APIGW に決定
+- WebSocket を ECS で保持するか、サーバーレスにするかの検討 → コスト/工数削減/レイテンシから Lambda + APIGW に決定
 - Spring Security の JWT / JWK / Cookie 設計
 - ALB の TLS Termination と ECS の Backend 構成
 
@@ -96,27 +91,15 @@ FreStyleは、友達とのチャットをAIが分析し、相手にどう伝わ�
 1. Docker 化した Spring Boot を安定稼働させるため
    - サーバープロビジョニング不要
    - OS 管理不要
-   - 24/7 常時稼働する API に最適
 
 2. ALB と連携した柔軟なルーティング
-   - パスベース
-   - ヘルスチェック
-   - 高可用性のロードバランシング
+   - ホストベースルーティングで[BeStyle](https://normanblog.com)にも同じロードバランサーを使用をしコスト削減をした
+   - ヘルスチェックをしておりSpring Bootのactuatorでヘルスチェックのエンドポイントにアクセス
 
-3. Target Tracking による自動スケーリング
-   - CPU 使用率に基づきタスク数を増減
-   - 高負荷時に自動スケール
-   - 低負荷時にコスト最適化
-
-4. Blue/Green デプロイでゼロダウンタイムを実現
+3. 
    - CodeDeploy と連携
    - 新バージョンのヘルスチェック後に切替
    - 即時ロールバック可能
-
-5. HTTP API は常時稼働が必要で、Lambda より ECS が適合
-   - コールドスタート回避
-   - 重量級フレームワーク（Spring）の起動コスト削減
-   - 長時間処理が可能
 
 ---
 
@@ -126,7 +109,7 @@ FreStyleは、友達とのチャットをAIが分析し、相手にどう伝わ�
    ECS 常時稼働より大幅に低コスト。
 
 2. 低レイテンシ & シンプルな処理  
-   Lambda → DynamoDB の最短経路。
+   Lambda → DynamoDB の最短経路。（）
 
 3. サーバーレスで構成統一
    - フルマネージド
@@ -144,33 +127,46 @@ FreStyleは、友達とのチャットをAIが分析し、相手にどう伝わ�
 
 
 
-## AWS全体構成図
+## AWS全体構成図（変更前）
 ![AWSアーキテクチャ構成図](./architecture/aws/image.png)
 
 
 
-## ユーザー同士のチャット
+## ユーザー同士のチャット（変更前）
 ![ユーザー同士のチャット](./architecture/aws/aws-architecture-chat.png)
 
 
 
 
 
-## AIとユーザーのチャット
+## AIとユーザーのチャット（変更前）
 ![AIとユーザーのチャット](./architecture/aws/aws-architecture-ai-chat.png)
+
+
+### 変更後のAWSアーキテクチャー図
+![AWSアーキテクチャ構成図](./architecture/aws/AWSアーキテクチャー設計修正後.png)
+
+### なぜアーキテクチャーを変えたのか
+1. AIへのフィードバックにユーザーがより自分の性格を把握できるように複雑なクエリを実行する必要があったのでDynamoDBではサービス層が複雑になるのでRDSに変更をした
+2. lambda + API Gatewayではトラフィック量が多くなったときに捌きにくいこと
+3. 機能の拡張性を踏まえたらECS一本で使用したほうがSQSなどを設定したときに工数を割くことができる
 
 
 ---
 
-## 🚀 今後の展望
-### 技術資格
+## 🚀 今年の目標
+### 技術・資格
 - AWS SAP
-- 応用情報
+- GO言語でgRPC通信でサービス間接続
+- Ruby on Raisでの規模の大きいモノリスを作成した後(テーブルが大体50個〜70個ぐらい)モジュラーモノリスとして刷新する
+- ドメインの知識をつけるために日商簿記二級を取得をする
 
 ### 機能拡張
 - 音声チャット
-- Polly による AI 音声応答
-- CloudFront + Lambda@Edge の認証強化
+- Polly による AI 音声解答可能
+- SageMakerを使用をしチャットの内容をクラスタリングで感情分析をすること
+- 未読、既読、プッシュ通知機能の作成でSQS、SNSを使用をする
+- チャット以外にもパーソナリティーが見えるシステムを作成する
 
 ---
 

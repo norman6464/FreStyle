@@ -383,6 +383,7 @@ export default function ChatPage() {
     navigate('/chat/ask-ai', {
       state: {
         initialPrompt: `【選択したチャット履歴】\n${chatHistory}`,
+        fromChatFeedback: true, // チャットフィードバックモードフラグ
       },
     });
   };

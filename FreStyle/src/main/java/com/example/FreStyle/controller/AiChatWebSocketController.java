@@ -9,10 +9,12 @@ import org.springframework.stereotype.Controller;
 
 import com.example.FreStyle.dto.AiChatMessageResponseDto;
 import com.example.FreStyle.dto.AiChatSessionDto;
+import com.example.FreStyle.dto.UserProfileDto;
 import com.example.FreStyle.entity.AiChatMessage.Role;
 import com.example.FreStyle.service.AiChatMessageService;
 import com.example.FreStyle.service.AiChatSessionService;
 import com.example.FreStyle.service.BedrockService;
+import com.example.FreStyle.service.UserProfileService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +28,7 @@ public class AiChatWebSocketController {
     private final AiChatMessageService aiChatMessageService;
     private final BedrockService bedrockService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final UserProfileService userProfileService;
 
     /**
      * AIチャットメッセージ送信
@@ -43,6 +46,7 @@ public class AiChatWebSocketController {
             Object sessionIdObj = payload.get("sessionId");
             Object contentObj = payload.get("content");
             Object roleObj = payload.get("role"); // "user" または "assistant"
+            Object fromChatFeedbackObj = payload.get("fromChatFeedback"); // チャットフィードバックモードフラグ
 
             System.out.println("   - userId タイプ: " + (userIdObj != null ? userIdObj.getClass().getSimpleName() : "null"));
             System.out.println("   - userId 値: " + userIdObj);
@@ -50,6 +54,7 @@ public class AiChatWebSocketController {
             System.out.println("   - sessionId 値: " + sessionIdObj);
             System.out.println("   - content: " + contentObj);
             System.out.println("   - role: " + roleObj);
+            System.out.println("   - fromChatFeedback: " + fromChatFeedbackObj);
 
             // userId の変換
             Integer userId = convertToInteger(userIdObj);
@@ -61,17 +66,23 @@ public class AiChatWebSocketController {
             String roleStr = roleObj != null ? (String) roleObj : "user";
             Role role = "assistant".equalsIgnoreCase(roleStr) ? Role.assistant : Role.user;
 
+            // チャットフィードバックモードの判定
+            boolean fromChatFeedback = fromChatFeedbackObj != null && 
+                (fromChatFeedbackObj instanceof Boolean ? (Boolean) fromChatFeedbackObj : 
+                 "true".equalsIgnoreCase(String.valueOf(fromChatFeedbackObj)));
+
             System.out.println("✅ パラメータ抽出成功");
             System.out.println("   - userId (最終): " + userId);
             System.out.println("   - sessionId (最終): " + sessionId);
             System.out.println("   - content: " + content);
             System.out.println("   - role: " + role);
+            System.out.println("   - fromChatFeedback (最終): " + fromChatFeedback);
 
             // セッションが存在しない場合は新規作成
             if (sessionId == null) {
                 System.out.println("🆕 新規セッション作成中...");
-                // デフォルトタイトルを設定（後でAIが自動でタイトルを提案する場合もある）
-                String title = "新しいチャット";
+                // フィードバックモードの場合はタイトルを変更
+                String title = fromChatFeedback ? "チャットフィードバック" : "新しいチャット";
                 AiChatSessionDto newSession = aiChatSessionService.createSession(userId, title, null);
                 sessionId = newSession.getId();
                 System.out.println("✅ 新規セッション作成完了 - sessionId: " + sessionId);
@@ -100,8 +111,44 @@ public class AiChatWebSocketController {
             System.out.println("✅ ユーザーメッセージ WebSocket 送信完了");
 
             // Bedrockにメッセージを送信してAI応答を取得
-            System.out.println("🤖 Bedrock にメッセージを送信中...");
-            String aiReply = bedrockService.chat(content);
+            String aiReply;
+            if (fromChatFeedback) {
+                // チャットフィードバックモード: バックエンドでUserProfileを取得
+                System.out.println("🤖 フィードバックモード: UserProfileをバックエンドで取得中...");
+                UserProfileDto userProfile = userProfileService.getProfileByUserId(userId);
+                
+                if (userProfile != null) {
+                    System.out.println("✅ UserProfile取得成功");
+                    System.out.println("   - UserProfile情報:");
+                    System.out.println("     - displayName: " + userProfile.getDisplayName());
+                    System.out.println("     - goals: " + userProfile.getGoals());
+                    System.out.println("     - concerns: " + userProfile.getConcerns());
+                    System.out.println("     - preferredFeedbackStyle: " + userProfile.getPreferredFeedbackStyle());
+
+                    String personalityTraits = userProfile.getPersonalityTraits() != null 
+                        ? String.join(", ", userProfile.getPersonalityTraits()) 
+                        : null;
+
+                    aiReply = bedrockService.chatWithUserProfile(
+                        content,
+                        userProfile.getDisplayName(),
+                        userProfile.getSelfIntroduction(),
+                        userProfile.getCommunicationStyle(),
+                        personalityTraits,
+                        userProfile.getGoals(),
+                        userProfile.getConcerns(),
+                        userProfile.getPreferredFeedbackStyle()
+                    );
+                } else {
+                    // UserProfileが存在しない場合は通常モードで処理
+                    System.out.println("⚠️ UserProfileが見つかりません。通常モードで処理します。");
+                    aiReply = bedrockService.chat(content);
+                }
+            } else {
+                // 通常モード
+                System.out.println("🤖 Bedrock にメッセージを送信中...");
+                aiReply = bedrockService.chat(content);
+            }
             System.out.println("✅ Bedrock から応答を取得しました");
             System.out.println("   - AI Reply: " + (aiReply.length() > 100 ? aiReply.substring(0, 100) + "..." : aiReply));
 
@@ -144,7 +191,6 @@ public class AiChatWebSocketController {
 
     /**
      * AIからのレスポンスを保存してブロードキャスト
-     * Lambda等の外部サービスから呼び出される想定
      */
     @MessageMapping("/ai-chat/response")
     public void receiveAiResponse(@Payload Map<String, Object> payload) {

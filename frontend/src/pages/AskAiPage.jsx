@@ -33,6 +33,7 @@ export default function AskAiPage() {
   const { sessionId: urlSessionId } = useParams();
 
   const initialPrompt = location.state?.initialPrompt;
+  const fromChatFeedback = location.state?.fromChatFeedback || false; // チャットフィードバックモードフラグ
 
   // ユーザー情報取得（userId を取得）
   useEffect(() => {
@@ -378,7 +379,7 @@ export default function AskAiPage() {
 
   // --- メッセージ送信 ---
   const handleSend = async (text) => {
-    console.log('📤 [handleSend] メッセージ送信開始:', { text, userId, currentSessionId });
+    console.log('📤 [handleSend] メッセージ送信開始:', { text, userId, currentSessionId, fromChatFeedback });
     
     if (!stompClientRef.current?.connected) {
       console.warn('⚠️ STOMP not connected');
@@ -386,11 +387,13 @@ export default function AskAiPage() {
     }
 
     // STOMPで送信（WebSocket経由でサーバーからのレスポンスを待ってから表示）
+    // fromChatFeedbackフラグのみ送信し、UserProfileはバックエンドで取得する
     const payload = {
       userId: userId,
       sessionId: currentSessionId,
       content: text,
       role: 'user',
+      fromChatFeedback: fromChatFeedback,
     };
 
     console.log('📤 STOMP送信:', payload);

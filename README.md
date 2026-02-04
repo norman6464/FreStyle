@@ -27,24 +27,40 @@ FreStyleは、友達とのチャットをAIが分析し、相手にどう伝わ�
 
 ## 🧰 使用技術
 
-### Frontend
-- React
-- Tailwind CSS
+<h3>Frontend</h3>
+<a href="https://skillicons.dev">
+  <img src="https://skillicons.dev/icons?i=react,tailwind,vite&theme=light" alt="Frontend">
+</a>
 
-### Backend
-- Spring Boot
-- AWS Lambda
+<h3>Backend</h3>
+<a href="https://skillicons.dev">
+  <img src="https://skillicons.dev/icons?i=java,spring,gradle&theme=light" alt="Backend">
+</a>
 
-### Infrastructure
-- AWS（ECS / RDS / S3 / Route53 / DynamoDB / Lambda / Cognito / API Gateway）
-- CloudFlare
+<h3>Infrastructure</h3>
+<a href="https://skillicons.dev">
+  <img src="https://skillicons.dev/icons?i=aws,cloudflare,docker&theme=light" alt="Infrastructure">
+</a>
 
-### CI/CD
-- GitHub Actions
+<h3>Database</h3>
+<a href="https://skillicons.dev">
+  <img src="https://skillicons.dev/icons?i=mysql,dynamodb&theme=light" alt="Database">
+</a>
 
-### Database
-- MariaDB（RDS）
-- DynamoDB
+<h3>CI/CD</h3>
+<a href="https://skillicons.dev">
+  <img src="https://skillicons.dev/icons?i=githubactions&theme=light" alt="CI/CD">
+</a>
+
+### AWS サービス詳細
+
+| カテゴリ | サービス |
+|---------|----------|
+| **Compute** | ECS (Fargate), Lambda |
+| **Networking** | API Gateway, Route53, CloudFront, ALB |
+| **Database** | RDS (MariaDB), DynamoDB |
+| **Storage** | S3 |
+| **Auth** | Cognito |
 
 ---
 
@@ -70,7 +86,7 @@ FreStyleは、友達とのチャットをAIが分析し、相手にどう伝わ�
 - JWT を HttpOnly Cookie に保存（XSS 対策）
 - アクセストークンの有効期間を短くしリフレッシュトークンで再発行をする
 - OIDC & JWK を活用した堅牢な認証フロー
-- OIDC経由でも当該アプリ経由でも同じアカウントであれば同一ユーザーとして認識
+- OIDC経由でも当該アプリ経由でも同一ユーザーとして認識
 
 ### ③ CloudFront によるグローバル最適化と HTTPS 化
 - 高速配信（CDN）
@@ -96,7 +112,7 @@ FreStyleは、友達とのチャットをAIが分析し、相手にどう伝わ�
    - ホストベースルーティングで[BeStyle](https://normanblog.com)にも同じロードバランサーを使用をしコスト削減をした
    - ヘルスチェックをしておりSpring Bootのactuatorでヘルスチェックのエンドポイントにアクセス
 
-3. 
+3. Blue/Green デプロイ
    - CodeDeploy と連携
    - 新バージョンのヘルスチェック後に切替
    - 即時ロールバック可能
@@ -109,7 +125,7 @@ FreStyleは、友達とのチャットをAIが分析し、相手にどう伝わ�
    ECS 常時稼働より大幅に低コスト。
 
 2. 低レイテンシ & シンプルな処理  
-   Lambda → DynamoDB の最短経路。（）
+   Lambda → DynamoDB の最短経路。
 
 3. サーバーレスで構成統一
    - フルマネージド
@@ -118,47 +134,33 @@ FreStyleは、友達とのチャットをAIが分析し、相手にどう伝わ�
 
 ---
 
-## AWSアーキテクチャ構成図
+## 🏗️ AWSアーキテクチャ構成図
 
-
----
-
-以下は本アプリケーションのAWS構成図です。
-
-
-
-## AWS全体構成図（変更前）
+### AWS全体構成図（変更前）
 ![AWSアーキテクチャ構成図](./architecture/aws/image.png)
 
-
-
-## ユーザー同士のチャット（変更前）
+### ユーザー同士のチャット（変更前）
 ![ユーザー同士のチャット](./architecture/aws/aws-architecture-chat.png)
 
-
-
-
-
-## AIとユーザーのチャット（変更前）
+### AIとユーザーのチャット（変更前）
 ![AIとユーザーのチャット](./architecture/aws/aws-architecture-ai-chat.png)
-
 
 ### 変更後のAWSアーキテクチャー図
 ![AWSアーキテクチャ構成図](./architecture/aws/AWSアーキテクチャー設計修正後.png)
 
 ### なぜアーキテクチャーを変えたのか
 1. AIへのフィードバックにユーザーがより自分の性格を把握できるように複雑なクエリを実行する必要があったのでDynamoDBではサービス層が複雑になるのでRDSに変更をした
-2. lambda + API Gatewayではトラフィック量が多くなったときに捌きにくいこと
+2. Lambda + API Gatewayではトラフィック量が多くなったときに捌きにくいこと
 3. 機能の拡張性を踏まえたらECS一本で使用したほうがSQSなどを設定したときに工数を割くことができる
-
 
 ---
 
 ## 🚀 今年の目標
+
 ### 技術・資格
 - AWS SAP
 - GO言語でgRPC通信でサービス間接続
-- Ruby on Raisでの規模の大きいモノリスを作成した後(テーブルが大体50個〜70個ぐらい)モジュラーモノリスとして刷新する
+- Ruby on Railsでの規模の大きいモノリスを作成した後(テーブルが大体50個〜70個ぐらい)モジュラーモノリスとして刷新する
 - ドメインの知識をつけるために日商簿記二級を取得をする
 
 ### 機能拡張
@@ -186,3 +188,10 @@ npm run dev
 npm uninstall tailwindcss
 npm install -D tailwindcss@バージョン指定
 npx tailwindcss init -p
+```
+
+---
+
+## 📄 ライセンス
+
+MIT License

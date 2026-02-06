@@ -99,12 +99,12 @@ export default function LoginPage() {
       {/* flash Message */}
       <div>
         {message && (
-          <p className="text-green-600 text-center mb-4 p-3 bg-green-50 rounded-lg font-semibold animate-fade-in">
-            ✓ {message}
+          <p className="text-green-600 text-center mb-4 p-3 bg-green-50 rounded-lg font-medium">
+            {message}
           </p>
         )}
         {loginMessage?.type === 'error' && (
-          <p className="text-red-600 text-center mb-4 p-3 bg-red-50 rounded-lg font-semibold animate-fade-in">
+          <p className="text-red-600 text-center mb-4 p-3 bg-red-50 rounded-lg font-medium">
             ✕ {loginMessage.text}
           </p>
         )}

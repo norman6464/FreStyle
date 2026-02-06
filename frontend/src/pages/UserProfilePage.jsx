@@ -245,7 +245,7 @@ export default function UserProfilePage() {
     return (
       <>
         <HamburgerMenu title="パーソナリティ" />
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-primary-50 flex items-center justify-center pt-20">
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center pt-20">
           <div className="text-center">
             <div className="animate-pulse">
               <div className="w-16 h-16 bg-primary-200 rounded-full mx-auto mb-4"></div>
@@ -260,17 +260,14 @@ export default function UserProfilePage() {
   return (
     <>
       <HamburgerMenu title="パーソナリティ" />
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-purple-50 pt-16 pb-8">
-        {/* ヒーローセクション */}
-        <div className="bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 px-4 py-8 mb-6">
+      <div className="min-h-screen bg-gray-50 pt-16 pb-8">
+        {/* ヘッダーセクション */}
+        <div className="bg-primary-500 px-4 py-6 mb-6">
           <div className="max-w-2xl mx-auto text-center">
-            <div className="bg-white/20 backdrop-blur-sm rounded-full p-4 w-20 h-20 mx-auto mb-4 flex items-center justify-center">
-              <SparklesIcon className="w-10 h-10 text-white" />
-            </div>
-            <h2 className="text-2xl font-bold text-white mb-2">
+            <h2 className="text-xl font-bold text-white mb-1">
               {isNewProfile ? 'パーソナリティを設定' : 'パーソナリティを編集'}
             </h2>
-            <p className="text-white/80 text-sm max-w-md mx-auto">
+            <p className="text-white/80 text-sm">
               AIがあなたに最適なフィードバックを提供するための情報を設定してください
             </p>
           </div>
@@ -281,7 +278,7 @@ export default function UserProfilePage() {
             {/* メッセージ */}
             {message && (
               <div
-                className={`mb-6 p-4 rounded-xl border-l-4 flex items-start animate-fade-in ${
+                className={`mb-6 p-4 rounded-xl border-l-4 flex items-start ${
                   message.type === 'error'
                     ? 'bg-red-50 border-red-500'
                     : 'bg-green-50 border-green-500'
@@ -313,8 +310,8 @@ export default function UserProfilePage() {
                 <p
                   className={
                     message.type === 'error'
-                      ? 'text-red-700 font-semibold'
-                      : 'text-green-700 font-semibold'
+                      ? 'text-red-700 font-medium'
+                      : 'text-green-700 font-medium'
                   }
                 >
                   {message.text}
@@ -323,12 +320,12 @@ export default function UserProfilePage() {
             )}
 
             {/* FreStyleの説明カード */}
-            <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 mb-6 border border-purple-200">
+            <div className="bg-primary-50 rounded-xl p-4 mb-6 border border-primary-200">
               <div className="flex items-start gap-3">
                 <div className="text-2xl">🎯</div>
                 <div>
-                  <p className="font-semibold text-purple-800 text-sm">なぜパーソナリティ設定が大切？</p>
-                  <p className="text-xs text-purple-600 mt-1">
+                  <p className="font-medium text-primary-800 text-sm">なぜパーソナリティ設定が大切？</p>
+                  <p className="text-xs text-primary-600 mt-1">
                     FreStyleはあなたのコミュニケーションスタイルを理解し、チャットと対面の「印象のズレ」を分析します。より正確なフィードバックのために、あなたらしさを教えてください。
                   </p>
                 </div>
@@ -336,12 +333,12 @@ export default function UserProfilePage() {
             </div>
 
             {/* メインカード */}
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
               <form onSubmit={handleSave} className="divide-y divide-gray-100">
                 {/* 基本情報セクション */}
                 <div className="p-6">
                   <div className="flex items-center gap-2 mb-4">
-                    <UserCircleIcon className="w-5 h-5 text-purple-500" />
+                    <UserCircleIcon className="w-5 h-5 text-primary-500" />
                     <h3 className="text-lg font-bold text-gray-800">基本情報</h3>
                   </div>
                   <div className="space-y-4">
@@ -355,7 +352,7 @@ export default function UserProfilePage() {
                       placeholder="例：タロウ、たろちゃん"
                     />
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
                         自己紹介
                       </label>
                       <textarea
@@ -366,7 +363,7 @@ export default function UserProfilePage() {
                         }
                         placeholder="あなた自身について自由に書いてください..."
                         rows="3"
-                        className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition-all duration-200 resize-none"
+                        className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors duration-150 resize-none"
                       />
                     </div>
                   </div>
@@ -375,12 +372,12 @@ export default function UserProfilePage() {
                 {/* コミュニケーションスタイル */}
                 <div className="p-6">
                   <div className="flex items-center gap-2 mb-4">
-                    <ChatBubbleLeftRightIcon className="w-5 h-5 text-blue-500" />
+                    <ChatBubbleLeftRightIcon className="w-5 h-5 text-primary-500" />
                     <h3 className="text-lg font-bold text-gray-800">コミュニケーションスタイル</h3>
                   </div>
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
                         あなたのコミュニケーションスタイル
                       </label>
                       <select
@@ -388,7 +385,7 @@ export default function UserProfilePage() {
                         onChange={(e) =>
                           setForm((prev) => ({ ...prev, communicationStyle: e.target.value }))
                         }
-                        className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition-all duration-200"
+                        className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors duration-150"
                       >
                         {communicationStyles.map((style) => (
                           <option key={style.value} value={style.value}>
@@ -399,7 +396,7 @@ export default function UserProfilePage() {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-3">
+                      <label className="block text-sm font-medium text-gray-700 mb-3">
                         性格特性（当てはまるものを選んでください）
                       </label>
                       <div className="flex flex-wrap gap-2">
@@ -408,9 +405,9 @@ export default function UserProfilePage() {
                             key={trait}
                             type="button"
                             onClick={() => togglePersonalityTrait(trait)}
-                            className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
+                            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors duration-150 ${
                               form.personalityTraits.includes(trait)
-                                ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-md'
+                                ? 'bg-primary-500 text-white'
                                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                             }`}
                           >
@@ -425,12 +422,12 @@ export default function UserProfilePage() {
                 {/* AIフィードバック設定 */}
                 <div className="p-6">
                   <div className="flex items-center gap-2 mb-4">
-                    <LightBulbIcon className="w-5 h-5 text-yellow-500" />
+                    <LightBulbIcon className="w-5 h-5 text-primary-500" />
                     <h3 className="text-lg font-bold text-gray-800">AIフィードバック設定</h3>
                   </div>
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
                         コミュニケーションで改善したい点・目標
                       </label>
                       <textarea
@@ -441,12 +438,12 @@ export default function UserProfilePage() {
                         }
                         placeholder="例：もっと簡潔に伝えられるようになりたい、相手の気持ちを考えた発言ができるようになりたい..."
                         rows="3"
-                        className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition-all duration-200 resize-none"
+                        className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors duration-150 resize-none"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
                         苦手なこと・気になっていること
                       </label>
                       <textarea
@@ -457,12 +454,12 @@ export default function UserProfilePage() {
                         }
                         placeholder="例：話が長くなりがち、相手の反応が気になる..."
                         rows="3"
-                        className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition-all duration-200 resize-none"
+                        className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors duration-150 resize-none"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
                         フィードバックの受け取り方
                       </label>
                       <select
@@ -470,7 +467,7 @@ export default function UserProfilePage() {
                         onChange={(e) =>
                           setForm((prev) => ({ ...prev, preferredFeedbackStyle: e.target.value }))
                         }
-                        className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-purple-500 focus:ring-2 focus:ring-purple-100 transition-all duration-200"
+                        className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors duration-150"
                       >
                         {feedbackStyles.map((style) => (
                           <option key={style.value} value={style.value}>
@@ -495,28 +492,28 @@ export default function UserProfilePage() {
             <div className="mt-6 grid grid-cols-2 gap-4">
               <div
                 onClick={() => navigate('/profile/me')}
-                className="bg-white rounded-xl shadow-md p-4 cursor-pointer hover:shadow-lg transition-all border border-gray-100 hover:border-primary-300 group"
+                className="bg-white rounded-xl p-4 cursor-pointer border border-gray-200 hover:bg-gray-50 transition-colors duration-150"
               >
                 <div className="flex items-center gap-3">
-                  <div className="bg-gradient-to-br from-primary-400 to-secondary-400 rounded-lg p-2">
-                    <UserCircleIcon className="w-5 h-5 text-white" />
+                  <div className="bg-primary-100 rounded-lg p-2">
+                    <UserCircleIcon className="w-5 h-5 text-primary-500" />
                   </div>
                   <div>
-                    <p className="font-semibold text-gray-800 text-sm group-hover:text-primary-600 transition-colors">プロフィール</p>
+                    <p className="font-medium text-gray-800 text-sm">プロフィール</p>
                     <p className="text-xs text-gray-500">基本情報を編集</p>
                   </div>
                 </div>
               </div>
               <div
                 onClick={() => navigate('/chat/ask-ai')}
-                className="bg-white rounded-xl shadow-md p-4 cursor-pointer hover:shadow-lg transition-all border border-gray-100 hover:border-pink-300 group"
+                className="bg-white rounded-xl p-4 cursor-pointer border border-gray-200 hover:bg-gray-50 transition-colors duration-150"
               >
                 <div className="flex items-center gap-3">
-                  <div className="bg-gradient-to-br from-pink-400 to-orange-400 rounded-lg p-2">
-                    <SparklesIcon className="w-5 h-5 text-white" />
+                  <div className="bg-primary-100 rounded-lg p-2">
+                    <SparklesIcon className="w-5 h-5 text-primary-500" />
                   </div>
                   <div>
-                    <p className="font-semibold text-gray-800 text-sm group-hover:text-pink-600 transition-colors">AI分析</p>
+                    <p className="font-medium text-gray-800 text-sm">AI分析</p>
                     <p className="text-xs text-gray-500">チャットを分析</p>
                   </div>
                 </div>

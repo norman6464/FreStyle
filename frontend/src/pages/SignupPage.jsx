@@ -70,15 +70,15 @@ export default function SignupPage() {
     <AuthLayout>
       <div>
         {message?.type === 'error' && (
-          <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-lg flex items-start animate-fade-in">
+          <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-lg flex items-start">
             <ExclamationCircleIcon className="w-5 h-5 text-red-600 mr-3 flex-shrink-0 mt-0.5" />
-            <p className="text-red-700 font-semibold text-sm">{message.text}</p>
+            <p className="text-red-700 font-medium text-sm">{message.text}</p>
           </div>
         )}
         {message?.type === 'success' && (
-          <div className="mb-6 p-4 bg-green-50 border-l-4 border-green-500 rounded-lg flex items-start animate-fade-in">
+          <div className="mb-6 p-4 bg-green-50 border-l-4 border-green-500 rounded-lg flex items-start">
             <CheckCircleIcon className="w-5 h-5 text-green-600 mr-3 flex-shrink-0" />
-            <p className="text-green-700 font-semibold text-sm">
+            <p className="text-green-700 font-medium text-sm">
               {message.text}
             </p>
           </div>

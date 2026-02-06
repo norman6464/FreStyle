@@ -408,14 +408,14 @@ export default function AskAiPage() {
       <HamburgerMenu title="AIに聞く" />
 
       {/* 全体レイアウト */}
-      <div className="flex h-screen bg-gradient-to-br from-gray-50 to-pink-50 text-black pt-16">
+      <div className="flex h-screen bg-gray-50 text-black pt-16">
         
         {/* サイドバー（セッション一覧） */}
-        <div className={`${sidebarOpen ? 'w-64' : 'w-0'} transition-all duration-300 bg-white border-r border-gray-200 flex flex-col overflow-hidden`}>
+        <div className={`${sidebarOpen ? 'w-64' : 'w-0'} bg-white border-r border-gray-200 flex flex-col overflow-hidden`}>
           <div className="p-4 border-b border-gray-200">
             <button
               onClick={handleNewSession}
-              className="w-full bg-gradient-to-r from-pink-500 to-orange-400 text-white py-2 px-4 rounded-lg font-medium hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+              className="w-full bg-primary-500 text-white py-2 px-4 rounded-lg font-medium hover:bg-primary-600 transition-colors flex items-center justify-center gap-2"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -431,7 +431,7 @@ export default function AskAiPage() {
                   key={session.id}
                   className={`group flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors ${
                     currentSessionId === session.id
-                      ? 'bg-pink-100 text-pink-700'
+                      ? 'bg-primary-50 text-primary-700'
                       : 'hover:bg-gray-100'
                   }`}
                   onClick={() => editingSessionId !== session.id && handleSelectSession(session.id)}
@@ -447,7 +447,7 @@ export default function AskAiPage() {
                             if (e.key === 'Enter') handleSaveTitle(session.id);
                             if (e.key === 'Escape') handleCancelEditTitle();
                           }}
-                          className="flex-1 text-sm px-2 py-1 border border-pink-300 rounded focus:outline-none focus:ring-1 focus:ring-pink-400"
+                          className="flex-1 text-sm px-2 py-1 border border-primary-300 rounded focus:outline-none focus:ring-1 focus:ring-primary-400"
                           autoFocus
                         />
                         <button
@@ -510,7 +510,7 @@ export default function AskAiPage() {
         {/* サイドバートグルボタン */}
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="absolute left-0 top-1/2 transform -translate-y-1/2 bg-white border border-gray-200 rounded-r-lg p-2 shadow-md z-20 ml-64 transition-all duration-300"
+          className="absolute left-0 top-1/2 transform -translate-y-1/2 bg-white border border-gray-200 rounded-r-lg p-2 shadow-sm z-20"
           style={{ marginLeft: sidebarOpen ? '256px' : '0' }}
         >
           <svg
@@ -528,7 +528,7 @@ export default function AskAiPage() {
           {/* ヘッダー情報 */}
           <div className="bg-white border-b border-gray-200 px-4 py-4 shadow-sm">
             <div className="max-w-4xl mx-auto flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-pink-400 to-orange-400 rounded-full flex items-center justify-center">
+              <div className="w-10 h-10 bg-primary-500 rounded-full flex items-center justify-center">
                 <svg
                   className="w-6 h-6 text-white"
                   fill="currentColor"
@@ -548,9 +548,9 @@ export default function AskAiPage() {
           <div className="flex-1 overflow-y-auto px-4 py-6 space-y-3 max-w-4xl mx-auto w-full mb-[100px]">
             {messages.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full text-center">
-                <div className="w-16 h-16 bg-gradient-to-br from-pink-200 to-orange-200 rounded-full flex items-center justify-center mb-4">
+                <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mb-4">
                   <svg
-                    className="w-8 h-8 text-pink-600"
+                    className="w-8 h-8 text-primary-600"
                     fill="currentColor"
                     viewBox="0 0 20 20"
                   >
@@ -579,7 +579,7 @@ export default function AskAiPage() {
           </div>
 
           {/* 入力欄固定 */}
-          <div className="fixed bottom-0 right-0 bg-white border-t border-gray-200 shadow-2xl p-4 z-10"
+          <div className="fixed bottom-0 right-0 bg-white border-t border-gray-200 shadow-sm p-4 z-10"
                style={{ left: sidebarOpen ? '256px' : '0', transition: 'left 0.3s' }}>
             <div className="max-w-4xl mx-auto w-full">
               <MessageInput onSend={handleSend} />

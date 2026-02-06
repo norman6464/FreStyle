@@ -173,7 +173,7 @@ export default function ProfilePage() {
     return (
       <>
         <HamburgerMenu title="プロフィール編集" />
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-primary-50 flex items-center justify-center pt-20">
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center pt-20">
           <div className="text-center">
             <div className="animate-pulse">
               <div className="w-16 h-16 bg-primary-200 rounded-full mx-auto mb-4"></div>
@@ -189,12 +189,12 @@ export default function ProfilePage() {
   return (
     <>
       <HamburgerMenu title="プロフィール" />
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-primary-50 pt-20 pb-8 px-4">
+      <div className="min-h-screen bg-gray-50 pt-20 pb-8 px-4">
         <div className="max-w-2xl mx-auto">
           {/* メッセージ */}
           {message && (
             <div
-              className={`mb-6 p-4 rounded-lg border-l-4 flex items-start animate-fade-in ${
+              className={`mb-6 p-4 rounded-lg border-l-4 flex items-start ${
                 message.type === 'error'
                   ? 'bg-red-50 border-red-500'
                   : 'bg-green-50 border-green-500'
@@ -234,8 +234,8 @@ export default function ProfilePage() {
               <p
                 className={
                   message.type === 'error'
-                    ? 'text-red-700 font-semibold'
-                    : 'text-green-700 font-semibold'
+                    ? 'text-red-700 font-medium'
+                    : 'text-green-700 font-medium'
                 }
               >
                 {message.text}
@@ -244,17 +244,17 @@ export default function ProfilePage() {
           )}
 
           {/* プロフィールカード */}
-          <div className="bg-white rounded-2xl shadow-lg p-8 border border-gray-100">
+          <div className="bg-white rounded-2xl shadow-sm p-8 border border-gray-200">
             {/* ヘッダー */}
             <div className="text-center mb-8">
               <div className="relative inline-block">
-                <div className="w-28 h-28 bg-gradient-to-br from-primary-400 via-secondary-400 to-pink-400 rounded-full mx-auto flex items-center justify-center shadow-xl">
+                <div className="w-28 h-28 bg-primary-500 rounded-full mx-auto flex items-center justify-center">
                   <span className="text-white text-5xl font-bold">
                     {form.name?.charAt(0)?.toUpperCase() || 'U'}
                   </span>
                 </div>
                 {/* 編集アイコン */}
-                <div className="absolute bottom-0 right-0 bg-white rounded-full p-2 shadow-lg border-2 border-gray-100">
+                <div className="absolute bottom-0 right-0 bg-white rounded-full p-2 shadow-sm border border-gray-200">
                   <svg className="w-5 h-5 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                   </svg>
@@ -278,7 +278,7 @@ export default function ProfilePage() {
                 }
               />
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   自己紹介
                 </label>
                 <textarea
@@ -289,7 +289,7 @@ export default function ProfilePage() {
                   }
                   placeholder="あなたについて教えてください..."
                   rows="4"
-                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 transition-all duration-200 resize-none"
+                  className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors duration-150 resize-none"
                 />
               </div>
               <PrimaryButton type="submit">プロフィールを更新</PrimaryButton>
@@ -300,28 +300,28 @@ export default function ProfilePage() {
           <div className="mt-6 grid grid-cols-2 gap-4">
             <div
               onClick={() => navigate('/profile/personality')}
-              className="bg-white rounded-xl shadow-md p-4 cursor-pointer hover:shadow-lg transition-all border border-gray-100 hover:border-purple-300 group"
+              className="bg-white rounded-xl p-4 cursor-pointer border border-gray-200 hover:bg-gray-50 transition-colors duration-150"
             >
               <div className="flex items-center gap-3">
-                <div className="bg-gradient-to-br from-purple-400 to-pink-400 rounded-lg p-2">
-                  <SparklesIcon className="w-5 h-5 text-white" />
+                <div className="bg-primary-100 rounded-lg p-2">
+                  <SparklesIcon className="w-5 h-5 text-primary-500" />
                 </div>
                 <div>
-                  <p className="font-semibold text-gray-800 text-sm group-hover:text-purple-600 transition-colors">パーソナリティ</p>
+                  <p className="font-medium text-gray-800 text-sm">パーソナリティ</p>
                   <p className="text-xs text-gray-500">AI設定を編集</p>
                 </div>
               </div>
             </div>
             <div
               onClick={() => navigate('/chat')}
-              className="bg-white rounded-xl shadow-md p-4 cursor-pointer hover:shadow-lg transition-all border border-gray-100 hover:border-blue-300 group"
+              className="bg-white rounded-xl p-4 cursor-pointer border border-gray-200 hover:bg-gray-50 transition-colors duration-150"
             >
               <div className="flex items-center gap-3">
-                <div className="bg-gradient-to-br from-blue-400 to-cyan-400 rounded-lg p-2">
-                  <ChatBubbleLeftRightIcon className="w-5 h-5 text-white" />
+                <div className="bg-primary-100 rounded-lg p-2">
+                  <ChatBubbleLeftRightIcon className="w-5 h-5 text-primary-500" />
                 </div>
                 <div>
-                  <p className="font-semibold text-gray-800 text-sm group-hover:text-blue-600 transition-colors">チャット一覧</p>
+                  <p className="font-medium text-gray-800 text-sm">チャット一覧</p>
                   <p className="text-xs text-gray-500">会話を見る</p>
                 </div>
               </div>

@@ -90,17 +90,17 @@ export default function MemberItem({ id, name, roomId, email }) {
   return (
     <div
       onClick={handleClick}
-      className="bg-white rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer overflow-hidden group border border-gray-100 hover:border-primary-200 mb-3"
+      className="bg-white rounded-2xl cursor-pointer overflow-hidden group border border-gray-200 hover:bg-gray-50 transition-colors duration-150 mb-3"
     >
       <div className="flex items-center p-4">
         {/* アバター */}
-        <div className="w-14 h-14 bg-gradient-to-br from-primary-400 via-secondary-400 to-pink-400 rounded-full flex items-center justify-center text-white font-bold text-xl flex-shrink-0 shadow-md group-hover:shadow-lg transform group-hover:scale-105 transition-all duration-300">
+        <div className="w-14 h-14 bg-primary-500 rounded-full flex items-center justify-center text-white font-bold text-xl flex-shrink-0">
           {name?.charAt(0)?.toUpperCase() || '?'}
         </div>
         
         {/* ユーザー情報 */}
         <div className="flex-1 ml-4 min-w-0">
-          <p className="text-base font-bold text-gray-800 truncate group-hover:text-primary-600 transition-colors">
+          <p className="text-base font-bold text-gray-800 truncate">
             {name || 'Unknown'}
           </p>
           <p className="text-sm text-gray-500 truncate">

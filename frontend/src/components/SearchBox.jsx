@@ -9,7 +9,7 @@ export default function SearchBox({ value, onChange, placeholder = '検索' }) {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-lg border-2 border-gray-200 py-3 pl-12 pr-4 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 focus:outline-none transition-all duration-200 shadow-sm placeholder-gray-400 font-medium"
+        className="w-full rounded-lg border border-gray-300 py-2.5 pl-12 pr-4 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 focus:outline-none transition-colors duration-150 placeholder-gray-400"
       />
     </div>
   );

@@ -27,12 +27,12 @@ export default function ConfirmModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* オーバーレイ */}
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-fade-in"
+        className="absolute inset-0 bg-black/50 animate-fade-in"
         onClick={onCancel}
       />
 
       {/* モーダル */}
-      <div className="relative bg-white rounded-2xl shadow-2xl p-6 mx-4 max-w-sm w-full animate-scale-in">
+      <div className="relative bg-white rounded-2xl shadow-md p-6 mx-4 max-w-sm w-full animate-fade-in">
         {/* アイコン */}
         <div className="flex justify-center mb-4">
           <div
@@ -84,13 +84,13 @@ export default function ConfirmModal({
         <div className="flex gap-3">
           <button
             onClick={onCancel}
-            className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors"
+            className="flex-1 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-xl transition-colors duration-150"
           >
             {cancelText}
           </button>
           <button
             onClick={onConfirm}
-            className={`flex-1 px-4 py-3 font-semibold rounded-xl transition-colors ${
+            className={`flex-1 px-4 py-2.5 font-medium rounded-xl transition-colors duration-150 ${
               isDanger
                 ? 'bg-red-500 hover:bg-red-600 text-white'
                 : 'bg-primary-500 hover:bg-primary-600 text-white'

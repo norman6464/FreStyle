@@ -17,10 +17,10 @@ export default function SNSSignInButton({ provider, onClick }) {
   return (
     <button
       onClick={onClick}
-      className="w-full border-2 border-gray-200 rounded-lg py-3 px-4 flex items-center justify-center space-x-3 hover:bg-gradient-to-r hover:from-primary-50 hover:to-secondary-50 hover:border-primary-300 transition-all duration-200 transform hover:scale-105 shadow-sm hover:shadow-md mb-3"
+      className="w-full border border-gray-300 rounded-lg py-2.5 px-4 flex items-center justify-center space-x-3 hover:bg-gray-50 transition-colors duration-150 mb-3"
     >
       <img src={providerIcons[provider]} alt={provider} className="w-5 h-5" />
-      <span className="text-sm font-semibold text-gray-700">
+      <span className="text-sm font-medium text-gray-700">
         {providerLabels[provider]}
       </span>
     </button>

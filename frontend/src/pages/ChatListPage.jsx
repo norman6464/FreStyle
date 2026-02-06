@@ -7,7 +7,6 @@ import {
   MagnifyingGlassIcon,
   ChatBubbleLeftRightIcon,
   SparklesIcon,
-  UserCircleIcon,
 } from '@heroicons/react/24/solid';
 import { ChevronRightIcon } from '@heroicons/react/24/outline';
 
@@ -113,9 +112,9 @@ export default function ChatListPage() {
   return (
     <>
       <HamburgerMenu title="チャット" />
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-primary-50 pt-16 pb-24">
+      <div className="min-h-screen bg-gray-50 pt-16 pb-24">
         {/* ヘッダーセクション */}
-        <div className="sticky top-16 z-10 bg-white/80 backdrop-blur-md border-b border-gray-100 px-4 py-4">
+        <div className="sticky top-16 z-10 bg-white border-b border-gray-200 px-4 py-4">
           <div className="max-w-2xl mx-auto">
             {/* 検索ボックス */}
             <div className="relative">
@@ -125,7 +124,7 @@ export default function ChatListPage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="名前やメールで検索..."
-                className="w-full pl-10 pr-4 py-3 bg-gray-100 rounded-xl border-none focus:outline-none focus:ring-2 focus:ring-primary-400 transition-all"
+                className="w-full pl-10 pr-4 py-3 bg-gray-100 rounded-xl border-none focus:outline-none focus:ring-1 focus:ring-primary-500 transition-colors duration-150"
               />
             </div>
           </div>
@@ -141,7 +140,7 @@ export default function ChatListPage() {
             </div>
           ) : chatUsers.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="bg-gradient-to-br from-primary-100 to-secondary-100 rounded-full p-6 mb-6">
+              <div className="bg-primary-100 rounded-full p-6 mb-6">
                 <ChatBubbleLeftRightIcon className="w-16 h-16 text-primary-400" />
               </div>
               <h2 className="text-xl font-bold text-gray-700 mb-2">
@@ -152,7 +151,7 @@ export default function ChatListPage() {
               </p>
               <button
                 onClick={() => navigate('/chat/users')}
-                className="bg-gradient-to-r from-primary-500 to-secondary-500 text-white font-semibold px-6 py-3 rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:scale-105"
+                className="bg-primary-500 text-white font-medium px-6 py-3 rounded-xl hover:bg-primary-600 transition-colors duration-150"
               >
                 友達を追加する
               </button>
@@ -165,7 +164,7 @@ export default function ChatListPage() {
                   <div
                     key={user.roomId}
                     onClick={() => navigate(`/chat/users/${user.roomId}`)}
-                    className="bg-white rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer overflow-hidden group border border-gray-100 hover:border-primary-200"
+                    className="bg-white rounded-2xl cursor-pointer overflow-hidden group border border-gray-200 hover:bg-gray-50 transition-colors duration-150"
                   >
                     <div className="flex items-center p-4">
                       {/* アバター */}
@@ -174,10 +173,10 @@ export default function ChatListPage() {
                           <img
                             src={user.profileImage}
                             alt={user.name}
-                            className="w-14 h-14 rounded-full object-cover border-2 border-gray-100 group-hover:border-primary-300 transition-colors"
+                            className="w-14 h-14 rounded-full object-cover border border-gray-200"
                           />
                         ) : (
-                          <div className="w-14 h-14 rounded-full bg-gradient-to-br from-primary-400 to-secondary-400 flex items-center justify-center border-2 border-gray-100 group-hover:border-primary-300 transition-colors">
+                          <div className="w-14 h-14 rounded-full bg-primary-500 flex items-center justify-center">
                             <span className="text-white text-xl font-bold">
                               {user.name?.charAt(0)?.toUpperCase() || '?'}
                             </span>
@@ -190,7 +189,7 @@ export default function ChatListPage() {
                       {/* ユーザー情報 */}
                       <div className="flex-1 ml-4 min-w-0">
                         <div className="flex items-center justify-between mb-1">
-                          <h3 className="text-base font-bold text-gray-800 truncate group-hover:text-primary-600 transition-colors">
+                          <h3 className="text-base font-bold text-gray-800 truncate">
                             {user.name || 'Unknown User'}
                           </h3>
                           <span className="text-xs text-gray-400 flex-shrink-0 ml-2">
@@ -213,7 +212,7 @@ export default function ChatListPage() {
                       </div>
 
                       {/* 矢印 */}
-                      <ChevronRightIcon className="w-5 h-5 text-gray-300 group-hover:text-primary-400 transition-colors ml-2 flex-shrink-0" />
+                      <ChevronRightIcon className="w-5 h-5 text-gray-300 ml-2 flex-shrink-0" />
                     </div>
                   </div>
                 ))}
@@ -223,26 +222,21 @@ export default function ChatListPage() {
               <div className="mt-8 mb-4">
                 <div
                   onClick={() => navigate('/chat/ask-ai')}
-                  className="relative bg-gradient-to-r from-pink-500 via-orange-400 to-yellow-400 rounded-2xl shadow-lg p-5 cursor-pointer hover:shadow-xl transition-all transform hover:scale-[1.02] overflow-hidden"
+                  className="bg-white rounded-2xl p-5 cursor-pointer border border-gray-200 hover:bg-gray-50 transition-colors duration-150"
                 >
-                  {/* 背景装飾 */}
-                  <div className="absolute top-0 left-0 w-full h-full opacity-20">
-                    <div className="absolute top-2 left-6 text-xl">✨</div>
-                    <div className="absolute bottom-2 right-8 text-lg">💬</div>
-                  </div>
-                  <div className="relative flex items-center">
-                    <div className="bg-white/30 backdrop-blur-sm rounded-xl p-3 mr-4">
-                      <SparklesIcon className="w-6 h-6 text-white" />
+                  <div className="flex items-center">
+                    <div className="bg-primary-100 rounded-xl p-3 mr-4">
+                      <SparklesIcon className="w-6 h-6 text-primary-500" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="text-white font-bold text-lg">
+                      <h3 className="text-gray-800 font-bold text-lg">
                         AIにチャットを分析してもらう
                       </h3>
-                      <p className="text-white/80 text-sm">
+                      <p className="text-gray-500 text-sm">
                         印象のギャップを発見しよう
                       </p>
                     </div>
-                    <ChevronRightIcon className="w-5 h-5 text-white/70" />
+                    <ChevronRightIcon className="w-5 h-5 text-gray-400" />
                   </div>
                 </div>
               </div>
@@ -254,7 +248,7 @@ export default function ChatListPage() {
         <div className="fixed bottom-6 right-6 z-20">
           <button
             onClick={() => navigate('/chat/users')}
-            className="bg-gradient-to-r from-primary-500 to-secondary-500 text-white p-4 rounded-full shadow-lg hover:shadow-xl transition-all transform hover:scale-110"
+            className="bg-primary-500 text-white p-4 rounded-full shadow-md hover:bg-primary-600 transition-colors duration-150"
             title="新しいチャット"
           >
             <svg

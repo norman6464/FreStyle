@@ -76,7 +76,7 @@ export default function MemberPage() {
   return (
     <>
       <HamburgerMenu title="チャットメンバー" />
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-primary-50 p-4 pt-20 pb-8">
+      <div className="min-h-screen bg-gray-50 p-4 pt-20 pb-8">
         <div className="max-w-2xl mx-auto">
           {/* ヘッダー */}
           <div className="mb-8">

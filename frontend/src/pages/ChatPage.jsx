@@ -466,10 +466,10 @@ export default function ChatPage() {
       <HamburgerMenu title="個人チャット" />
 
       {/* 全体レイアウト - サイドバー付き */}
-      <div className="flex h-screen bg-gradient-to-br from-gray-50 to-pink-50 text-black pt-16">
+      <div className="flex h-screen bg-gray-50 text-black pt-16">
         
         {/* サイドバー */}
-        <div className={`${sidebarOpen ? 'w-80' : 'w-0'} transition-all duration-300 bg-white border-r border-gray-200 flex flex-col overflow-hidden`}>
+        <div className={`${sidebarOpen ? 'w-80' : 'w-0'} bg-white border-r border-gray-200 flex flex-col overflow-hidden`}>
           {/* サイドバーヘッダー */}
           <div className="p-4 border-b border-gray-100">
             <h3 className="font-bold text-gray-800 mb-3">チャット履歴</h3>
@@ -496,7 +496,7 @@ export default function ChatPage() {
                   }`}
                 >
                   {/* アバター */}
-                  <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-purple-400 rounded-full flex-shrink-0 flex items-center justify-center">
+                  <div className="w-12 h-12 bg-primary-500 rounded-full flex-shrink-0 flex items-center justify-center">
                     <span className="text-white font-bold text-lg">
                       {user.name?.charAt(0)?.toUpperCase() || 'U'}
                     </span>
@@ -528,7 +528,7 @@ export default function ChatPage() {
         {/* サイドバートグルボタン */}
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="absolute left-0 top-1/2 -translate-y-1/2 z-20 bg-white border border-gray-200 rounded-r-lg p-2 shadow-md hover:bg-gray-50 transition-colors"
+          className="absolute left-0 top-1/2 -translate-y-1/2 z-20 bg-white border border-gray-200 rounded-r-lg p-2 shadow-sm hover:bg-gray-50 transition-colors"
           style={{ left: sidebarOpen ? '320px' : '0' }}
         >
           <svg
@@ -546,7 +546,7 @@ export default function ChatPage() {
           {/* ヘッダー情報 */}
           <div className="bg-white border-b border-gray-200 px-4 py-4 shadow-sm">
             <div className="max-w-4xl mx-auto flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-purple-400 rounded-full flex items-center justify-center">
+              <div className="w-10 h-10 bg-primary-500 rounded-full flex items-center justify-center">
                 <svg
                   className="w-6 h-6 text-white"
                   fill="currentColor"
@@ -566,7 +566,7 @@ export default function ChatPage() {
           <div className="flex-1 overflow-y-auto px-4 py-6 space-y-3 max-w-4xl mx-auto w-full mb-[160px]">
             {messages.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full text-center">
-                <div className="w-16 h-16 bg-gradient-to-br from-blue-200 to-purple-200 rounded-full flex items-center justify-center mb-4">
+                <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mb-4">
                   <svg
                     className="w-8 h-8 text-blue-600"
                     fill="currentColor"
@@ -631,7 +631,7 @@ export default function ChatPage() {
           </div>
 
           {/* 入力欄固定 */}
-          <div className="fixed bottom-0 right-0 bg-white border-t border-gray-200 shadow-2xl p-4 z-10" style={{ left: sidebarOpen ? '320px' : '0' }}>
+          <div className="fixed bottom-0 right-0 bg-white border-t border-gray-200 shadow-sm p-4 z-10" style={{ left: sidebarOpen ? '320px' : '0' }}>
             <div className="max-w-4xl mx-auto w-full space-y-3">
               {selectionMode ? (
                 /* 選択モードUI */
@@ -687,16 +687,16 @@ export default function ChatPage() {
                   <div className="flex gap-2">
                     <button
                       onClick={handleCancelSelection}
-                      className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 px-4 rounded-lg transition-all duration-150"
+                      className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 px-4 rounded-lg transition-colors duration-150"
                     >
                       キャンセル
                     </button>
                     <button
                       onClick={handleSendToAi}
                       disabled={selectedMessages.size === 0}
-                      className={`flex-1 font-semibold py-3 px-4 rounded-lg transition-all duration-150 ${
+                      className={`flex-1 font-semibold py-3 px-4 rounded-lg transition-colors duration-150 ${
                         selectedMessages.size > 0
-                          ? 'bg-gradient-to-r from-blue-500 to-purple-500 hover:shadow-lg text-white'
+                          ? 'bg-primary-500 hover:bg-primary-600 text-white'
                           : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                       }`}
                     >
@@ -713,7 +713,7 @@ export default function ChatPage() {
                   {messages.length > 0 && (
                     <button
                       onClick={handleAiFeedback}
-                      className="w-full bg-gradient-to-r from-blue-500 to-purple-500 hover:shadow-lg text-white font-semibold py-3 px-4 rounded-lg transition-all duration-150"
+                      className="w-full bg-primary-500 hover:bg-primary-600 text-white font-semibold py-3 px-4 rounded-lg transition-colors duration-150"
                     >
                       AIにフィードバックしてもらう
                     </button>

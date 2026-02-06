@@ -14,15 +14,15 @@ export default function MessageBubble({
   const [showDelete, setShowDelete] = useState(false);
 
   const baseStyle =
-    'max-w-[95%] px-4 py-3 rounded-2xl text-sm whitespace-pre-wrap break-words shadow-md relative';
+    'max-w-[85%] px-4 py-2.5 rounded-2xl text-sm whitespace-pre-wrap break-words relative';
 
   const alignment = isSender
-    ? 'self-end bg-gradient-primary text-white rounded-br-none'
-    : 'self-start bg-gray-100 text-gray-800 rounded-bl-none border-l-4 border-primary-400';
+    ? 'self-end bg-primary-500 text-white rounded-br-sm'
+    : 'self-start bg-gray-100 text-gray-900 rounded-bl-sm';
 
   const deletedAlignment = isSender
-    ? 'self-end bg-gray-200 text-gray-500 italic rounded-br-none'
-    : 'self-start bg-gray-200 text-gray-500 italic rounded-bl-none border-l-4 border-gray-300';
+    ? 'self-end bg-gray-200 text-gray-500 italic rounded-br-sm'
+    : 'self-start bg-gray-200 text-gray-500 italic rounded-bl-sm';
 
   const formatTime = (dateString) => {
     if (!dateString) return '';
@@ -37,7 +37,7 @@ export default function MessageBubble({
     <div
       className={`flex ${
         isSender ? 'justify-end' : 'justify-start'
-      } my-3 animate-fade-in group`}
+      } my-3 group`}
       onMouseEnter={() => isSender && !isDeleted && setShowDelete(true)}
       onMouseLeave={() => setShowDelete(false)}
     >
@@ -66,7 +66,7 @@ export default function MessageBubble({
           {isSender && showDelete && onDelete && !isDeleted && (
             <button
               onClick={() => onDelete(id)}
-              className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-700 text-white rounded-full p-1 shadow-md transition-all"
+              className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 transition-colors duration-150"
               title="削除"
             >
               <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">

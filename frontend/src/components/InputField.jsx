@@ -18,7 +18,7 @@ export default function InputField({
   return (
     <div className="mb-6">
       <label
-        className="block text-sm font-semibold text-gray-700 mb-2"
+        className="block text-sm font-medium text-gray-700 mb-2"
         htmlFor={name}
       >
         {label}
@@ -33,7 +33,7 @@ export default function InputField({
             setInputValue(e.target.value);
             onChange(e);
           }}
-          className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 pr-10 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100 transition-all duration-200"
+          className="w-full border border-gray-300 rounded-lg px-4 py-2.5 pr-10 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors duration-150"
         />
         {inputValue && (
           <button

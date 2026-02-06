@@ -59,10 +59,10 @@ export default function MessageInput({ onSend }) {
   };
 
   return (
-    <div className="w-full bg-white flex items-end p-3 border-t-2 border-gray-100 shadow-2xl transition-all duration-300">
+    <div className="w-full bg-white flex items-end p-3 border-t border-gray-200">
       {/* ＋アイコンボタン（左端） */}
       <button
-        className="text-primary-400 hover:text-primary-600 p-2.5 rounded-full transition-all duration-150 flex-shrink-0 mb-1 hover:bg-primary-50"
+        className="text-gray-500 hover:text-gray-700 p-2.5 rounded-full transition-colors duration-150 flex-shrink-0 mb-1"
         aria-label="添付ファイル"
       >
         <PlusIcon className="h-6 w-6" />
@@ -73,7 +73,7 @@ export default function MessageInput({ onSend }) {
         <textarea
           ref={textareaRef}
           rows={minRows}
-          className="w-full bg-transparent text-gray-800 outline-none resize-none px-3 py-2 placeholder-gray-400 leading-6 font-medium"
+          className="w-full bg-transparent text-gray-800 outline-none resize-none px-3 py-2 placeholder-gray-400 leading-6"
           placeholder="メッセージを入力..."
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -86,7 +86,7 @@ export default function MessageInput({ onSend }) {
       {/* 送信ボタン（右端） */}
       <button
         onClick={handleSend}
-        className="text-white bg-gradient-primary p-2.5 rounded-full hover:shadow-lg transition-all duration-150 flex-shrink-0 disabled:bg-gray-300 disabled:shadow-none mb-1 ml-2 transform hover:scale-110"
+        className="text-white bg-primary-500 p-2.5 rounded-full hover:bg-primary-600 transition-colors duration-150 flex-shrink-0 disabled:bg-gray-300 mb-1 ml-2"
         disabled={!text.trim()}
         aria-label="送信"
       >

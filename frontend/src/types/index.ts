@@ -87,5 +87,19 @@ export interface RephraseResult {
   concise: string;
 }
 
+/** 評価軸スコア */
+export interface AxisScore {
+  axis: string;
+  score: number;
+  comment: string;
+}
+
+/** スコアカード */
+export interface ScoreCard {
+  sessionId: number;
+  scores: AxisScore[];
+  overallScore: number;
+}
+
 /** SNSプロバイダー */
 export type SnsProvider = 'google' | 'facebook' | 'x';

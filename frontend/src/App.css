@@ -18,14 +18,14 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: #f1f5f9; /* slate-100 */
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #c7d2e0;
+  background: #cbd5e1; /* slate-300 */
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #b0bfd9;
+  background: #94a3b8; /* slate-400 */
 }

@@ -3,24 +3,24 @@
 @tailwind utilities;
 @layer base {
   body {
-    @apply bg-gray-50;
+    @apply bg-slate-50;
   }
 }
 
 @layer components {
   .btn-primary {
-    @apply bg-primary-500 text-white font-medium py-2.5 rounded-lg hover:bg-primary-600 transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply bg-primary-500 text-white font-medium py-2.5 rounded-lg hover:bg-primary-600 active:bg-primary-700 transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
   .btn-secondary {
-    @apply border border-gray-300 text-gray-700 font-medium py-2.5 rounded-lg hover:bg-gray-50 transition-colors duration-150;
+    @apply border border-slate-200 text-slate-700 font-medium py-2.5 rounded-lg hover:bg-slate-50 active:bg-slate-100 transition-colors duration-150;
   }
 
   .card {
-    @apply bg-white rounded-xl shadow-sm p-6 border border-gray-200;
+    @apply bg-white rounded-xl shadow-sm p-6 border border-slate-200;
   }
 
   .input-primary {
-    @apply w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 focus:outline-none transition-colors duration-150;
+    @apply w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 focus:outline-none transition-colors duration-150 placeholder:text-slate-400;
   }
 }

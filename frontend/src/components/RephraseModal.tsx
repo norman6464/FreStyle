@@ -2,6 +2,8 @@ interface RephraseResult {
   formal: string;
   soft: string;
   concise: string;
+  questioning: string;
+  proposal: string;
 }
 
 interface RephraseModalProps {
@@ -30,6 +32,8 @@ export default function RephraseModal({ result, onClose }: RephraseModalProps) {
               { key: 'formal' as const, label: 'フォーマル版', color: 'blue' },
               { key: 'soft' as const, label: 'ソフト版', color: 'green' },
               { key: 'concise' as const, label: '簡潔版', color: 'orange' },
+              { key: 'questioning' as const, label: '質問型', color: 'purple' },
+              { key: 'proposal' as const, label: '提案型', color: 'teal' },
             ]).map(({ key, label, color }) => (
               <div key={key} className="border border-slate-200 rounded-lg p-3">
                 <div className="flex items-center justify-between mb-1">

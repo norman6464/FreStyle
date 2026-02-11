@@ -38,7 +38,7 @@ describe('RephraseModal', () => {
     render(<RephraseModal result={rephraseResult} onClose={mockOnClose} />);
 
     const copyButtons = screen.getAllByText('コピー');
-    expect(copyButtons).toHaveLength(3);
+    expect(copyButtons).toHaveLength(5);
   });
 
   it('ローディング中はスピナーが表示される', () => {

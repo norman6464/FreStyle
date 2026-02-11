@@ -440,11 +440,11 @@ export default function AskAiPage() {
       <HamburgerMenu title={isPracticeMode ? '練習モード' : 'AIに聞く'} />
 
       {/* 全体レイアウト */}
-      <div className="flex h-screen bg-gray-50 text-black pt-16">
+      <div className="flex h-screen bg-slate-50 text-black pt-16">
 
         {/* サイドバー（セッション一覧） */}
-        <div className={`${sidebarOpen ? 'w-64' : 'w-0'} bg-white border-r border-gray-200 flex flex-col overflow-hidden`}>
-          <div className="p-4 border-b border-gray-200">
+        <div className={`${sidebarOpen ? 'w-64' : 'w-0'} bg-white border-r border-slate-200 flex flex-col overflow-hidden`}>
+          <div className="p-4 border-b border-slate-200">
             <button
               onClick={handleNewSession}
               className="w-full bg-primary-500 text-white py-2 px-4 rounded-lg font-medium hover:bg-primary-600 transition-colors flex items-center justify-center gap-2"
@@ -464,7 +464,7 @@ export default function AskAiPage() {
                   className={`group flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors ${
                     currentSessionId === session.id
                       ? 'bg-primary-50 text-primary-700'
-                      : 'hover:bg-gray-100'
+                      : 'hover:bg-slate-100'
                   }`}
                   onClick={() => editingSessionId !== session.id && handleSelectSession(session.id)}
                 >
@@ -492,9 +492,9 @@ export default function AskAiPage() {
                         </button>
                         <button
                           onClick={handleCancelEditTitle}
-                          className="p-1 hover:bg-gray-200 rounded"
+                          className="p-1 hover:bg-slate-200 rounded"
                         >
-                          <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                           </svg>
                         </button>
@@ -502,7 +502,7 @@ export default function AskAiPage() {
                     ) : (
                       <>
                         <p className="text-sm font-medium truncate">{session.title || '新しいチャット'}</p>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-slate-500">
                           {session.createdAt ? new Date(session.createdAt).toLocaleDateString('ja-JP') : ''}
                         </p>
                       </>
@@ -524,10 +524,10 @@ export default function AskAiPage() {
                           e.stopPropagation();
                           handleDeleteSession(session.id);
                         }}
-                        className="p-1 hover:bg-red-100 rounded"
+                        className="p-1 hover:bg-rose-100 rounded"
                         title="削除"
                       >
-                        <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-4 h-4 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                         </svg>
                       </button>
@@ -542,11 +542,11 @@ export default function AskAiPage() {
         {/* サイドバートグルボタン */}
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="absolute left-0 top-1/2 transform -translate-y-1/2 bg-white border border-gray-200 rounded-r-lg p-2 shadow-sm z-20"
+          className="absolute left-0 top-1/2 transform -translate-y-1/2 bg-white border border-slate-200 rounded-r-lg p-2 shadow-sm z-20"
           style={{ marginLeft: sidebarOpen ? '256px' : '0' }}
         >
           <svg
-            className={`w-4 h-4 text-gray-600 transition-transform ${sidebarOpen ? 'rotate-180' : ''}`}
+            className={`w-4 h-4 text-slate-600 transition-transform ${sidebarOpen ? 'rotate-180' : ''}`}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -558,7 +558,7 @@ export default function AskAiPage() {
         {/* メインコンテンツ */}
         <div className="flex-1 flex flex-col">
           {/* ヘッダー情報 */}
-          <div className="bg-white border-b border-gray-200 px-4 py-4 shadow-sm">
+          <div className="bg-white border-b border-slate-200 px-4 py-4 shadow-sm">
             <div className="max-w-4xl mx-auto flex items-center space-x-3">
               <div className="w-10 h-10 bg-primary-500 rounded-full flex items-center justify-center">
                 <svg
@@ -570,17 +570,17 @@ export default function AskAiPage() {
                 </svg>
               </div>
               <div>
-                <h2 className="font-bold text-gray-800">
+                <h2 className="font-bold text-slate-800">
                   {isPracticeMode ? scenarioName || '練習モード' : 'AIアシスタント'}
                 </h2>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-slate-600">
                   {isPracticeMode ? 'AIが相手役を演じます' : '何でも聞いてください'}
                 </p>
               </div>
               {isPracticeMode && (
                 <button
                   onClick={() => handleSend('練習を終了して、今回の会話全体に対するフィードバックとスコアカードをお願いします。')}
-                  className="ml-auto bg-red-500 text-white text-sm px-4 py-2 rounded-lg hover:bg-red-600 transition-colors"
+                  className="ml-auto bg-rose-500 text-white text-sm px-4 py-2 rounded-lg hover:bg-rose-600 transition-colors"
                 >
                   練習終了
                 </button>
@@ -601,10 +601,10 @@ export default function AskAiPage() {
                     <path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5z" />
                   </svg>
                 </div>
-                <h3 className="text-xl font-bold text-gray-800 mb-2">
+                <h3 className="text-xl font-bold text-slate-800 mb-2">
                   AIアシスタントへようこそ
                 </h3>
-                <p className="text-gray-600 max-w-sm">
+                <p className="text-slate-600 max-w-sm">
                   質問や相談を何でも聞いてください。AIがすぐに答えます
                 </p>
               </div>
@@ -626,7 +626,7 @@ export default function AskAiPage() {
           </div>
 
           {/* 入力欄固定 */}
-          <div className="fixed bottom-0 right-0 bg-white border-t border-gray-200 shadow-sm p-4 z-10"
+          <div className="fixed bottom-0 right-0 bg-white border-t border-slate-200 shadow-sm p-4 z-10"
                style={{ left: sidebarOpen ? '256px' : '0', transition: 'left 0.3s' }}>
             <div className="max-w-4xl mx-auto w-full">
               <MessageInput onSend={handleSend} />

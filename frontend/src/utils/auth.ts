@@ -1,4 +1,4 @@
-export function getCognitoAuthUrl(provider) {
+export function getCognitoAuthUrl(provider: string): string {
   const url = new URL(
     `https://${import.meta.env.VITE_COGNITO_DOMAIN}/oauth2/authorize`
   );
@@ -18,7 +18,7 @@ export function getCognitoAuthUrl(provider) {
   return url.toString();
 }
 
-function generateRandomState(length = 32) {
+function generateRandomState(length = 32): string {
   const array = new Uint8Array(length);
   window.crypto.getRandomValues(array);
   return Array.from(array, (byte) => byte.toString(16).padStart(2, '0')).join(

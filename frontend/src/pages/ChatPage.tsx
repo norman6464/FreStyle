@@ -8,6 +8,7 @@ import { ChatUser, ChatMessage } from '../types';
 
 import ConfirmModal from '../components/ConfirmModal';
 import SceneSelector from '../components/SceneSelector';
+import RephraseModal from '../components/RephraseModal';
 import { useDispatch } from 'react-redux';
 import { clearAuth } from '../store/authSlice';
 
@@ -26,6 +27,8 @@ export default function ChatPage() {
   const [rangeStart, setRangeStart] = useState<number | null>(null); // 範囲選択の開始点
   const [rangeEnd, setRangeEnd] = useState<number | null>(null);     // 範囲選択の終了点
   const [showSceneSelector, setShowSceneSelector] = useState(false); // シーンセレクター表示
+  const [showRephraseModal, setShowRephraseModal] = useState(false);
+  const [rephraseResult, setRephraseResult] = useState<{ formal: string; soft: string; concise: string } | null>(null);
   const stompClientRef = useRef<Client | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -470,6 +473,50 @@ export default function ChatPage() {
     });
   };
 
+  // --- 言い換え提案 ---
+  const handleRephrase = async (content: string) => {
+    setRephraseResult(null);
+    setShowRephraseModal(true);
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/chat/ai/rephrase`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ originalMessage: content, scene: null }),
+      });
+
+      if (res.status === 401) {
+        const refreshRes = await fetch(
+          `${API_BASE_URL}/api/auth/cognito/refresh-token`,
+          { method: 'POST', credentials: 'include' }
+        );
+        if (!refreshRes.ok) {
+          dispatch(clearAuth());
+          return;
+        }
+        return handleRephrase(content);
+      }
+
+      if (!res.ok) {
+        console.error('言い換えエラー:', res.status);
+        setShowRephraseModal(false);
+        return;
+      }
+
+      const data = await res.json();
+      try {
+        const parsed = JSON.parse(data.result);
+        setRephraseResult(parsed);
+      } catch {
+        setRephraseResult({ formal: data.result, soft: '', concise: '' });
+      }
+    } catch (e) {
+      console.error('言い換え失敗:', e);
+      setShowRephraseModal(false);
+    }
+  };
+
   // メッセージが範囲内かどうかを判定
   const isInRange = (index: number): boolean => {
     if (rangeStart === null) return false;
@@ -710,6 +757,7 @@ export default function ChatPage() {
                   <MessageBubble
                     {...msg}
                     onDelete={selectionMode ? null : handleDeleteMessage}
+                    onRephrase={selectionMode ? null : handleRephrase}
                   />
                 </div>
               </div>
@@ -820,6 +868,14 @@ export default function ChatPage() {
         <SceneSelector
           onSelect={(sceneId) => handleSceneSelect(sceneId)}
           onCancel={() => handleSceneSelect(null)}
+        />
+      )}
+
+      {/* 言い換え提案モーダル */}
+      {showRephraseModal && (
+        <RephraseModal
+          result={rephraseResult}
+          onClose={() => setShowRephraseModal(false)}
         />
       )}
 

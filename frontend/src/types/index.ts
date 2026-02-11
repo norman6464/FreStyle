@@ -80,5 +80,12 @@ export interface AuthState {
   loading: boolean;
 }
 
+/** 言い換え提案結果 */
+export interface RephraseResult {
+  formal: string;
+  soft: string;
+  concise: string;
+}
+
 /** SNSプロバイダー */
 export type SnsProvider = 'google' | 'facebook' | 'x';

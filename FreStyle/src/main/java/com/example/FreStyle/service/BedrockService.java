@@ -295,4 +295,65 @@ public class BedrockService {
             throw new RuntimeException("AI応答の取得に失敗しました: " + e.getMessage(), e);
         }
     }
+
+    /**
+     * メッセージの言い換え提案を取得（3パターン: フォーマル版/ソフト版/簡潔版）
+     *
+     * @param originalMessage 元のメッセージ
+     * @param scene シーン識別子（null可）
+     * @return AIからの応答テキスト（JSON形式）
+     */
+    public String rephrase(String originalMessage, String scene) {
+        log.info("📤 Bedrock に言い換えリクエスト送信中... scene={}", scene);
+
+        try {
+            String systemPrompt = systemPromptBuilder.buildRephrasePrompt(scene);
+            log.debug("   - System Prompt: {}", systemPrompt);
+
+            ObjectNode requestBody = objectMapper.createObjectNode();
+            requestBody.put("anthropic_version", "bedrock-2023-05-31");
+            requestBody.put("max_tokens", 1024);
+            requestBody.put("temperature", 0.7);
+            requestBody.put("system", systemPrompt);
+
+            ArrayNode messagesArray = objectMapper.createArrayNode();
+            ObjectNode userMessageNode = objectMapper.createObjectNode();
+            userMessageNode.put("role", "user");
+
+            ArrayNode contentArray = objectMapper.createArrayNode();
+            ObjectNode textContent = objectMapper.createObjectNode();
+            textContent.put("type", "text");
+            textContent.put("text", originalMessage);
+            contentArray.add(textContent);
+
+            userMessageNode.set("content", contentArray);
+            messagesArray.add(userMessageNode);
+
+            requestBody.set("messages", messagesArray);
+
+            String requestBodyJson = objectMapper.writeValueAsString(requestBody);
+
+            InvokeModelRequest request = InvokeModelRequest.builder()
+                    .modelId(MODEL_ID)
+                    .contentType("application/json")
+                    .accept("application/json")
+                    .body(SdkBytes.fromUtf8String(requestBodyJson))
+                    .build();
+
+            InvokeModelResponse response = bedrockClient.invokeModel(request);
+
+            String responseBody = response.body().asUtf8String();
+            JsonNode responseJson = objectMapper.readTree(responseBody);
+            String aiReply = responseJson.path("content").get(0).path("text").asText();
+
+            log.info("✅ Bedrock からの言い換え応答を取得しました");
+
+            return aiReply;
+
+        } catch (Exception e) {
+            log.error("❌ Bedrock 言い換えエラー: {}", e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("言い換え提案の取得に失敗しました: " + e.getMessage(), e);
+        }
+    }
 }

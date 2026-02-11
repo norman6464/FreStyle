@@ -1,7 +1,37 @@
 services:
+  db:
+    image: mariadb:11
+    container_name: freestyle-db
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: fre_style
+      MYSQL_USER: freestyle
+      MYSQL_PASSWORD: freestyle
+    ports:
+      - "3306:3306"
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   api:
     container_name: api
     build:
       context: ./FreStyle
     ports:
-      - 8080:8080
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      DB_URL: jdbc:mysql://db:3306/fre_style
+      DB_USER: freestyle
+      DB_PASS: freestyle
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  db-data:

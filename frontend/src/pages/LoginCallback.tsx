@@ -40,8 +40,7 @@ export default function LoginCallback() {
           console.log('   - status:', res.status);
           console.log('   - ok:', res.ok);
           console.log('   - statusText:', res.statusText);
-          
-          // レスポンスヘッダーのログ
+
           console.log('[LoginCallback] レスポンスヘッダー:');
           res.headers.forEach((value, key) => {
             console.log(`   - ${key}: ${value}`);
@@ -57,12 +56,11 @@ export default function LoginCallback() {
           dispatch(setAuthData());
           navigate('/');
         })
-        .catch((err) => {
+        .catch((err: Error) => {
           console.error('[LoginCallback] エラー発生:', err);
           console.error('[LoginCallback] エラータイプ:', err.name);
           console.error('[LoginCallback] エラーメッセージ:', err.message);
-          
-          // CORSエラーの場合の追加情報
+
           if (err.message.includes('Failed to fetch') || err.name === 'TypeError') {
             console.error('[LoginCallback] ⚠️ CORSエラーの可能性があります');
             console.error('[LoginCallback] 確認事項:');
@@ -70,7 +68,7 @@ export default function LoginCallback() {
             console.error('   2. ALB/CloudFrontがCORSヘッダーを削除していないか');
             console.error('   3. プリフライト(OPTIONS)リクエストが正常に処理されているか');
           }
-          
+
           alert('認証に失敗しました。');
           navigate('/login');
         });

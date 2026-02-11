@@ -4,26 +4,31 @@ import InputField from '../components/InputField';
 import PrimaryButton from '../components/PrimaryButton';
 import { useNavigate, useLocation } from 'react-router-dom';
 
+interface FormMessage {
+  type: 'success' | 'error';
+  text: string;
+}
+
 export default function ConfirmForgotPasswordPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   const [form, setForm] = useState({
-    email: location.state?.email || '',
+    email: (location.state as { email?: string })?.email || '',
     code: '',
     newPassword: '',
   });
-  const [message, setMessage] = useState(null);
+  const [message, setMessage] = useState<FormMessage | null>(null);
 
-  const handleChange = (e) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({
       ...form,
       [e.target.name]: e.target.value,
     });
   };
 
-  const handleConfirm = async (e) => {
+  const handleConfirm = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     try {

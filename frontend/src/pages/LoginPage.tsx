@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useDispatch } from 'react-redux';
 import AuthLayout from '../components/AuthLayout';
 import InputField from '../components/InputField';
@@ -9,19 +9,22 @@ import { getCognitoAuthUrl } from '../utils/auth';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { setAuthData } from '../store/authSlice';
 
+interface LoginMessage {
+  type: 'success' | 'error';
+  text: string;
+}
+
 export default function LoginPage() {
   const [form, setForm] = useState({ email: '', password: '' });
-  // フラッシュメッセージ
-  const [loginMessage, setLoginMessage] = useState(null);
+  const [loginMessage, setLoginMessage] = useState<LoginMessage | null>(null);
 
-  // SignupPageで登録成功時のメッセージが表示される
   const location = useLocation();
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const message = location.state?.message;
+  const message = (location.state as { message?: string })?.message;
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-  const handleLogin = async (e) => {
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     console.log('\n========== ログインリクエスト開始 ==========');
@@ -47,18 +50,15 @@ export default function LoginPage() {
       console.log('   - status:', response.status);
       console.log('   - ok:', response.ok);
       console.log('   - statusText:', response.statusText);
-      
-      // レスポンスヘッダーをログ出力
+
       console.log('📋 レスポンスヘッダー:');
       response.headers.forEach((value, key) => {
         console.log(`   - ${key}: ${value}`);
       });
 
-      // Set-Cookieヘッダーの確認（通常はアクセスできないが試す）
       const setCookie = response.headers.get('Set-Cookie');
       console.log('🍪 Set-Cookie ヘッダー:', setCookie || '(アクセス不可 - httpOnlyのため正常)');
 
-      // 現在のCookieを確認
       console.log('🍪 現在のdocument.cookie:', document.cookie || '(空)');
 
       const data = await response.json();
@@ -68,7 +68,6 @@ export default function LoginPage() {
 
       if (response.ok) {
         console.log('✅ ログイン成功 - ホームへ遷移');
-        // 遷移前にCookieを再確認
         console.log('🍪 遷移前のdocument.cookie:', document.cookie || '(空)');
         dispatch(setAuthData());
         navigate('/');
@@ -81,13 +80,13 @@ export default function LoginPage() {
       }
       console.log('========== ログインリクエスト終了 ==========\n');
     } catch (error) {
-      console.log('❌ 通信エラー:', error.message);
+      console.log('❌ 通信エラー:', (error as Error).message);
       console.log('========== ログインリクエスト終了(エラー) ==========\n');
       setLoginMessage({ type: 'error', text: '通信エラーが発生しました。' });
     }
   };
 
-  const handleChange = (e) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({
       ...form,
       [e.target.name]: e.target.value,

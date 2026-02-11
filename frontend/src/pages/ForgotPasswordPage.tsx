@@ -4,13 +4,18 @@ import InputField from '../components/InputField';
 import PrimaryButton from '../components/PrimaryButton';
 import { useNavigate } from 'react-router-dom';
 
+interface FormMessage {
+  type: 'success' | 'error';
+  text: string;
+}
+
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
-  const [message, setMessage] = useState(null);
+  const [message, setMessage] = useState<FormMessage | null>(null);
   const navigate = useNavigate();
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     try {
@@ -27,7 +32,6 @@ export default function ForgotPasswordPage() {
 
       if (response.ok) {
         setMessage({ type: 'success', text: data.message });
-        // 確認コード入力ページへ遷移
         navigate('/confirm-forgot-password', { state: { email } });
       } else {
         setMessage({
@@ -55,7 +59,7 @@ export default function ForgotPasswordPage() {
           name="email"
           type="email"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
         />
         <PrimaryButton type="submit">確認コードを送信</PrimaryButton>
       </form>

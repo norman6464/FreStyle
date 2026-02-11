@@ -9,21 +9,26 @@ import {
   ExclamationCircleIcon,
 } from '@heroicons/react/24/solid';
 
+interface FormMessage {
+  type: 'success' | 'error';
+  text: string;
+}
+
 export default function SignupPage() {
   const [form, setForm] = useState({ email: '', password: '', name: '' });
-  const [message, setMessage] = useState(null);
+  const [message, setMessage] = useState<FormMessage | null>(null);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-  const handleChange = (e) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({
       ...form,
       [e.target.name]: e.target.value,
     });
   };
 
-  const handleSignup = async (e) => {
+  const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
 

@@ -5,20 +5,25 @@ import PrimaryButton from '../components/PrimaryButton';
 import LinkText from '../components/LinkText';
 import { useNavigate } from 'react-router-dom';
 
+interface FormMessage {
+  type: 'success' | 'error';
+  text: string;
+}
+
 export default function ConfirmPage() {
   const [form, setForm] = useState({ email: '', code: '' });
-  const [message, setMessage] = useState(null);
+  const [message, setMessage] = useState<FormMessage | null>(null);
   const navigate = useNavigate();
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-  const handleChange = (e) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({
       ...form,
       [e.target.name]: e.target.value,
     });
   };
 
-  const handleConfirm = async (e) => {
+  const handleConfirm = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     try {
@@ -35,7 +40,6 @@ export default function ConfirmPage() {
       if (response.ok) {
         console.log('OK');
         setMessage({ type: 'success', text: data.message });
-        // メッセージを持たせてログインページへ
         navigate('/login', {
           state: {
             message: '確認に成功しました。ログインしてください。',

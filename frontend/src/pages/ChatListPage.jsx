@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { clearAuth } from '../store/authSlice';
@@ -9,11 +9,15 @@ import {
   SparklesIcon,
 } from '@heroicons/react/24/solid';
 import { ChevronRightIcon } from '@heroicons/react/24/outline';
+import SockJS from 'sockjs-client';
+import { Client } from '@stomp/stompjs';
 
 export default function ChatListPage() {
   const [chatUsers, setChatUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState(null);
+  const stompClientRef = useRef(null);
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
@@ -57,6 +61,53 @@ export default function ChatListPage() {
       setLoading(false);
     }
   };
+
+  // ユーザーID取得
+  useEffect(() => {
+    const fetchUserId = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/auth/cognito/me`, {
+          credentials: 'include',
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setUserId(data.id);
+        }
+      } catch (e) {
+        console.error('ユーザー情報取得エラー:', e);
+      }
+    };
+    fetchUserId();
+  }, []);
+
+  // リアルタイム未読数更新のWebSocket購読
+  useEffect(() => {
+    if (!userId) return;
+
+    const client = new Client({
+      webSocketFactory: () =>
+        new SockJS(`${API_BASE_URL}/ws/chat`, undefined, { withCredentials: true }),
+      reconnectDelay: 5000,
+      onConnect: () => {
+        client.subscribe(`/topic/unread/${userId}`, (message) => {
+          const data = JSON.parse(message.body);
+          if (data.type === 'unread_update') {
+            setChatUsers((prev) =>
+              prev.map((u) =>
+                u.roomId === data.roomId
+                  ? { ...u, unreadCount: (u.unreadCount || 0) + data.increment }
+                  : u
+              )
+            );
+          }
+        });
+      },
+    });
+
+    stompClientRef.current = client;
+    client.activate();
+    return () => client.deactivate();
+  }, [userId]);
 
   // 初回ロード
   useEffect(() => {
@@ -202,12 +253,11 @@ export default function ChatListPage() {
                               ? truncateMessage(user.lastMessage)
                               : `あなた: ${truncateMessage(user.lastMessage)}`}
                           </p>
-                          {/* 未読バッジ（将来的に） */}
-                          {/* {user.unreadCount > 0 && (
+                          {user.unreadCount > 0 && (
                             <span className="bg-pink-500 text-white text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0">
-                              {user.unreadCount}
+                              {user.unreadCount > 99 ? '99+' : user.unreadCount}
                             </span>
-                          )} */}
+                          )}
                         </div>
                       </div>
 

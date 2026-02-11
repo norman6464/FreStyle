@@ -5,8 +5,11 @@ import com.example.FreStyle.entity.ChatRoom;
 import com.example.FreStyle.entity.User;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -15,5 +18,7 @@ public interface UnreadCountRepository extends JpaRepository<UnreadCount, Intege
     // user と room による検索
     Optional<UnreadCount> findByUserAndRoom(User user, ChatRoom room);
 
-    // count の合計を取得したいなどカスタムメソッドも追加可能
+    // ユーザーIDと複数ルームIDによる一括取得（N+1回避）
+    @Query("SELECT uc FROM UnreadCount uc WHERE uc.user.id = :userId AND uc.room.id IN :roomIds")
+    List<UnreadCount> findByUserIdAndRoomIds(@Param("userId") Integer userId, @Param("roomIds") List<Integer> roomIds);
 }

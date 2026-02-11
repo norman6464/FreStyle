@@ -358,6 +358,9 @@ public class AiChatWebSocketController {
             case "email": return "メール";
             case "presentation": return "プレゼン";
             case "negotiation": return "商談";
+            case "code_review": return "コードレビュー";
+            case "incident": return "障害対応";
+            case "daily_report": return "日報・週報";
             default: return "";
         }
     }

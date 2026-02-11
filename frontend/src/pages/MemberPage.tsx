@@ -72,14 +72,14 @@ export default function MemberPage() {
   return (
     <>
       <HamburgerMenu title="チャットメンバー" />
-      <div className="min-h-screen bg-gray-50 p-4 pt-20 pb-8">
+      <div className="min-h-screen bg-slate-50 p-4 pt-20 pb-8">
         <div className="max-w-2xl mx-auto">
           {/* ヘッダー */}
           <div className="mb-8">
-            <h2 className="text-4xl font-bold text-gray-800 mb-2">
+            <h2 className="text-2xl font-bold text-slate-800 mb-2">
               あなたのチャット
             </h2>
-            <p className="text-gray-600 text-lg">メンバーを検索または選択</p>
+            <p className="text-slate-600 text-sm">メンバーを検索または選択</p>
           </div>
 
           {/* 検索ボックス */}
@@ -101,9 +101,9 @@ export default function MemberPage() {
           {/* メンバーリスト */}
           {members.length === 0 && !error && (
             <div className="text-center py-12">
-              <div className="w-16 h-16 bg-gray-200 rounded-full mx-auto mb-4 flex items-center justify-center">
+              <div className="w-16 h-16 bg-slate-200 rounded-full mx-auto mb-4 flex items-center justify-center">
                 <svg
-                  className="w-8 h-8 text-gray-500"
+                  className="w-8 h-8 text-slate-500"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -116,7 +116,7 @@ export default function MemberPage() {
                   />
                 </svg>
               </div>
-              <p className="text-gray-500 text-lg">メンバーがまだいません</p>
+              <p className="text-slate-500 text-lg">メンバーがまだいません</p>
             </div>
           )}
           <MemberList users={members} />

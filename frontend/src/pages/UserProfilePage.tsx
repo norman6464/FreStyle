@@ -260,11 +260,11 @@ export default function UserProfilePage() {
     return (
       <>
         <HamburgerMenu title="パーソナリティ" />
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center pt-20">
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center pt-20">
           <div className="text-center">
             <div className="animate-pulse">
               <div className="w-16 h-16 bg-primary-200 rounded-full mx-auto mb-4"></div>
-              <p className="text-gray-600">読み込み中...</p>
+              <p className="text-slate-600">読み込み中...</p>
             </div>
           </div>
         </div>
@@ -275,33 +275,21 @@ export default function UserProfilePage() {
   return (
     <>
       <HamburgerMenu title="パーソナリティ" />
-      <div className="min-h-screen bg-gray-50 pt-16 pb-8">
-        {/* ヘッダーセクション */}
-        <div className="bg-primary-500 px-4 py-6 mb-6">
-          <div className="max-w-2xl mx-auto text-center">
-            <h2 className="text-xl font-bold text-white mb-1">
-              {isNewProfile ? 'パーソナリティを設定' : 'パーソナリティを編集'}
-            </h2>
-            <p className="text-white/80 text-sm">
-              AIがあなたに最適なフィードバックを提供するための情報を設定してください
-            </p>
-          </div>
-        </div>
-
-        <div className="px-4">
+      <div className="min-h-screen bg-slate-50 pt-16 pb-8">
+        <div className="px-4 mt-4">
           <div className="max-w-2xl mx-auto">
             {/* メッセージ */}
             {message && (
               <div
                 className={`mb-6 p-4 rounded-xl border-l-4 flex items-start ${
                   message.type === 'error'
-                    ? 'bg-red-50 border-red-500'
-                    : 'bg-green-50 border-green-500'
+                    ? 'bg-rose-50 border-rose-500'
+                    : 'bg-emerald-50 border-emerald-500'
                 }`}
               >
                 <div
                   className={`flex-shrink-0 mr-3 ${
-                    message.type === 'error' ? 'text-red-600' : 'text-green-600'
+                    message.type === 'error' ? 'text-rose-600' : 'text-emerald-600'
                   }`}
                 >
                   {message.type === 'error' ? (
@@ -325,8 +313,8 @@ export default function UserProfilePage() {
                 <p
                   className={
                     message.type === 'error'
-                      ? 'text-red-700 font-medium'
-                      : 'text-green-700 font-medium'
+                      ? 'text-rose-700 font-medium'
+                      : 'text-emerald-700 font-medium'
                   }
                 >
                   {message.text}
@@ -348,13 +336,13 @@ export default function UserProfilePage() {
             </div>
 
             {/* メインカード */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-              <form onSubmit={handleSave} className="divide-y divide-gray-100">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+              <form onSubmit={handleSave} className="divide-y divide-slate-100">
                 {/* 基本情報セクション */}
                 <div className="p-6">
                   <div className="flex items-center gap-2 mb-4">
                     <UserCircleIcon className="w-5 h-5 text-primary-500" />
-                    <h3 className="text-lg font-bold text-gray-800">基本情報</h3>
+                    <h3 className="text-lg font-bold text-slate-800">基本情報</h3>
                   </div>
                   <div className="space-y-4">
                     <InputField
@@ -367,7 +355,7 @@ export default function UserProfilePage() {
                       placeholder="例：タロウ、たろちゃん"
                     />
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
                         自己紹介
                       </label>
                       <textarea
@@ -378,7 +366,7 @@ export default function UserProfilePage() {
                         }
                         placeholder="あなた自身について自由に書いてください..."
                         rows={3}
-                        className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors duration-150 resize-none"
+                        className="w-full border border-slate-300 rounded-xl px-4 py-3 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors duration-150 resize-none"
                       />
                     </div>
                   </div>
@@ -388,11 +376,11 @@ export default function UserProfilePage() {
                 <div className="p-6">
                   <div className="flex items-center gap-2 mb-4">
                     <ChatBubbleLeftRightIcon className="w-5 h-5 text-primary-500" />
-                    <h3 className="text-lg font-bold text-gray-800">コミュニケーションスタイル</h3>
+                    <h3 className="text-lg font-bold text-slate-800">コミュニケーションスタイル</h3>
                   </div>
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
                         あなたのコミュニケーションスタイル
                       </label>
                       <select
@@ -400,7 +388,7 @@ export default function UserProfilePage() {
                         onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
                           setForm((prev) => ({ ...prev, communicationStyle: e.target.value }))
                         }
-                        className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors duration-150"
+                        className="w-full border border-slate-300 rounded-xl px-4 py-3 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors duration-150"
                       >
                         {communicationStyles.map((style) => (
                           <option key={style.value} value={style.value}>
@@ -411,7 +399,7 @@ export default function UserProfilePage() {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-3">
+                      <label className="block text-sm font-medium text-slate-700 mb-3">
                         性格特性（当てはまるものを選んでください）
                       </label>
                       <div className="flex flex-wrap gap-2">
@@ -423,7 +411,7 @@ export default function UserProfilePage() {
                             className={`px-4 py-2 rounded-full text-sm font-medium transition-colors duration-150 ${
                               form.personalityTraits.includes(trait)
                                 ? 'bg-primary-500 text-white'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                             }`}
                           >
                             {trait}
@@ -438,11 +426,11 @@ export default function UserProfilePage() {
                 <div className="p-6">
                   <div className="flex items-center gap-2 mb-4">
                     <LightBulbIcon className="w-5 h-5 text-primary-500" />
-                    <h3 className="text-lg font-bold text-gray-800">AIフィードバック設定</h3>
+                    <h3 className="text-lg font-bold text-slate-800">AIフィードバック設定</h3>
                   </div>
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
                         コミュニケーションで改善したい点・目標
                       </label>
                       <textarea
@@ -453,12 +441,12 @@ export default function UserProfilePage() {
                         }
                         placeholder="例：もっと簡潔に伝えられるようになりたい、相手の気持ちを考えた発言ができるようになりたい..."
                         rows={3}
-                        className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors duration-150 resize-none"
+                        className="w-full border border-slate-300 rounded-xl px-4 py-3 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors duration-150 resize-none"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
                         苦手なこと・気になっていること
                       </label>
                       <textarea
@@ -469,12 +457,12 @@ export default function UserProfilePage() {
                         }
                         placeholder="例：話が長くなりがち、相手の反応が気になる..."
                         rows={3}
-                        className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors duration-150 resize-none"
+                        className="w-full border border-slate-300 rounded-xl px-4 py-3 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors duration-150 resize-none"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
                         フィードバックの受け取り方
                       </label>
                       <select
@@ -482,7 +470,7 @@ export default function UserProfilePage() {
                         onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
                           setForm((prev) => ({ ...prev, preferredFeedbackStyle: e.target.value }))
                         }
-                        className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors duration-150"
+                        className="w-full border border-slate-300 rounded-xl px-4 py-3 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors duration-150"
                       >
                         {feedbackStyles.map((style) => (
                           <option key={style.value} value={style.value}>
@@ -495,7 +483,7 @@ export default function UserProfilePage() {
                 </div>
 
                 {/* 保存ボタン */}
-                <div className="p-6 bg-gray-50">
+                <div className="p-6 bg-slate-50">
                   <PrimaryButton type="submit">
                     {isNewProfile ? '✨ パーソナリティを保存' : '✨ パーソナリティを更新'}
                   </PrimaryButton>
@@ -507,29 +495,29 @@ export default function UserProfilePage() {
             <div className="mt-6 grid grid-cols-2 gap-4">
               <div
                 onClick={() => navigate('/profile/me')}
-                className="bg-white rounded-xl p-4 cursor-pointer border border-gray-200 hover:bg-gray-50 transition-colors duration-150"
+                className="bg-white rounded-xl p-4 cursor-pointer border border-slate-200 hover:bg-slate-50 transition-colors duration-150"
               >
                 <div className="flex items-center gap-3">
                   <div className="bg-primary-100 rounded-lg p-2">
                     <UserCircleIcon className="w-5 h-5 text-primary-500" />
                   </div>
                   <div>
-                    <p className="font-medium text-gray-800 text-sm">プロフィール</p>
-                    <p className="text-xs text-gray-500">基本情報を編集</p>
+                    <p className="font-medium text-slate-800 text-sm">プロフィール</p>
+                    <p className="text-xs text-slate-500">基本情報を編集</p>
                   </div>
                 </div>
               </div>
               <div
                 onClick={() => navigate('/chat/ask-ai')}
-                className="bg-white rounded-xl p-4 cursor-pointer border border-gray-200 hover:bg-gray-50 transition-colors duration-150"
+                className="bg-white rounded-xl p-4 cursor-pointer border border-slate-200 hover:bg-slate-50 transition-colors duration-150"
               >
                 <div className="flex items-center gap-3">
                   <div className="bg-primary-100 rounded-lg p-2">
                     <SparklesIcon className="w-5 h-5 text-primary-500" />
                   </div>
                   <div>
-                    <p className="font-medium text-gray-800 text-sm">AI分析</p>
-                    <p className="text-xs text-gray-500">チャットを分析</p>
+                    <p className="font-medium text-slate-800 text-sm">AI分析</p>
+                    <p className="text-xs text-slate-500">チャットを分析</p>
                   </div>
                 </div>
               </div>

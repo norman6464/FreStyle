@@ -36,6 +36,11 @@ public class BedrockService {
 
     private BedrockRuntimeClient bedrockClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final SystemPromptBuilder systemPromptBuilder;
+
+    public BedrockService(SystemPromptBuilder systemPromptBuilder) {
+        this.systemPromptBuilder = systemPromptBuilder;
+    }
 
     @PostConstruct
     public void init() {
@@ -62,26 +67,30 @@ public class BedrockService {
         log.debug("   - userMessage: {}", userMessage);
 
         try {
+            // コールセンター式コーチのシステムプロンプトを取得
+            String coachPrompt = systemPromptBuilder.buildCoachPrompt();
+
             // リクエストボディを構築
             ObjectNode requestBody = objectMapper.createObjectNode();
             requestBody.put("anthropic_version", "bedrock-2023-05-31");
             requestBody.put("max_tokens", 1024);
             requestBody.put("temperature", 0.7);
+            requestBody.put("system", coachPrompt);
 
             // messages配列を構築
             ArrayNode messagesArray = objectMapper.createArrayNode();
             ObjectNode userMessageNode = objectMapper.createObjectNode();
             userMessageNode.put("role", "user");
-            
+
             ArrayNode contentArray = objectMapper.createArrayNode();
             ObjectNode textContent = objectMapper.createObjectNode();
             textContent.put("type", "text");
             textContent.put("text", userMessage);
             contentArray.add(textContent);
-            
+
             userMessageNode.set("content", contentArray);
             messagesArray.add(userMessageNode);
-            
+
             requestBody.set("messages", messagesArray);
 
             String requestBodyJson = objectMapper.writeValueAsString(requestBody);
@@ -208,38 +217,10 @@ public class BedrockService {
         log.info("📤 Bedrock にUserProfile付きメッセージ送信中...");
 
         try {
-            // システムプロンプトを構築
-            StringBuilder systemPromptBuilder = new StringBuilder();
-            systemPromptBuilder.append("あなたはコミュニケーションのフィードバックを行う専門家です。\n");
-            systemPromptBuilder.append("以下のユーザープロフィール情報を参考にして、チャットのフィードバックを行ってください。\n\n");
-            systemPromptBuilder.append("【ユーザープロフィール】\n");
-            
-            if (displayName != null && !displayName.isEmpty()) {
-                systemPromptBuilder.append("- 名前: ").append(displayName).append("\n");
-            }
-            if (selfIntroduction != null && !selfIntroduction.isEmpty()) {
-                systemPromptBuilder.append("- 自己紹介: ").append(selfIntroduction).append("\n");
-            }
-            if (communicationStyle != null && !communicationStyle.isEmpty()) {
-                systemPromptBuilder.append("- コミュニケーションスタイル: ").append(communicationStyle).append("\n");
-            }
-            if (personalityTraits != null && !personalityTraits.isEmpty()) {
-                systemPromptBuilder.append("- 性格特性: ").append(personalityTraits).append("\n");
-            }
-            if (goals != null && !goals.isEmpty()) {
-                systemPromptBuilder.append("- 目標: ").append(goals).append("\n");
-            }
-            if (concerns != null && !concerns.isEmpty()) {
-                systemPromptBuilder.append("- 懸念事項: ").append(concerns).append("\n");
-            }
-            if (preferredFeedbackStyle != null && !preferredFeedbackStyle.isEmpty()) {
-                systemPromptBuilder.append("- 希望するフィードバックスタイル: ").append(preferredFeedbackStyle).append("\n");
-            }
-            
-            systemPromptBuilder.append("\n上記の情報を踏まえて、ユーザーのコミュニケーションについて建設的で具体的なフィードバックを提供してください。");
-            systemPromptBuilder.append("ユーザーの目標達成に役立つアドバイスを、希望するフィードバックスタイルに合わせて行ってください。");
-
-            String systemPrompt = systemPromptBuilder.toString();
+            // コールセンター式QAフィードバックのシステムプロンプトを構築
+            String systemPrompt = systemPromptBuilder.buildFeedbackPrompt(
+                    displayName, selfIntroduction, communicationStyle,
+                    personalityTraits, goals, concerns, preferredFeedbackStyle);
             log.debug("   - System Prompt: {}", systemPrompt);
 
             // リクエストボディを構築

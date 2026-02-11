@@ -164,19 +164,19 @@ export default function ChatListPage() {
   return (
     <>
       <HamburgerMenu title="チャット" />
-      <div className="min-h-screen bg-gray-50 pt-16 pb-24">
+      <div className="min-h-screen bg-slate-50 pt-16 pb-24">
         {/* ヘッダーセクション */}
-        <div className="sticky top-16 z-10 bg-white border-b border-gray-200 px-4 py-4">
+        <div className="sticky top-16 z-10 bg-white border-b border-slate-200 px-4 py-4">
           <div className="max-w-2xl mx-auto">
             {/* 検索ボックス */}
             <div className="relative">
-              <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
                 placeholder="名前やメールで検索..."
-                className="w-full pl-10 pr-4 py-3 bg-gray-100 rounded-xl border-none focus:outline-none focus:ring-1 focus:ring-primary-500 transition-colors duration-150"
+                className="w-full pl-10 pr-4 py-3 bg-slate-100 rounded-xl border-none focus:outline-none focus:ring-1 focus:ring-primary-500 transition-colors duration-150"
               />
             </div>
           </div>
@@ -188,17 +188,17 @@ export default function ChatListPage() {
           {loading ? (
             <div className="flex flex-col items-center justify-center py-16">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mb-4"></div>
-              <p className="text-gray-500">読み込み中...</p>
+              <p className="text-slate-500">読み込み中...</p>
             </div>
           ) : chatUsers.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <div className="bg-primary-100 rounded-full p-6 mb-6">
                 <ChatBubbleLeftRightIcon className="w-16 h-16 text-primary-400" />
               </div>
-              <h2 className="text-xl font-bold text-gray-700 mb-2">
+              <h2 className="text-xl font-bold text-slate-700 mb-2">
                 まだチャットがありません
               </h2>
-              <p className="text-gray-500 mb-6 max-w-xs">
+              <p className="text-slate-500 mb-6 max-w-xs">
                 新しい友達を追加して、チャットを始めましょう！
               </p>
               <button
@@ -216,7 +216,7 @@ export default function ChatListPage() {
                   <div
                     key={user.roomId}
                     onClick={() => navigate(`/chat/users/${user.roomId}`)}
-                    className="bg-white rounded-2xl cursor-pointer overflow-hidden group border border-gray-200 hover:bg-gray-50 transition-colors duration-150"
+                    className="bg-white rounded-2xl cursor-pointer overflow-hidden group border border-slate-200 hover:bg-slate-50 transition-colors duration-150"
                   >
                     <div className="flex items-center p-4">
                       {/* アバター */}
@@ -225,7 +225,7 @@ export default function ChatListPage() {
                           <img
                             src={user.profileImage}
                             alt={user.name}
-                            className="w-14 h-14 rounded-full object-cover border border-gray-200"
+                            className="w-14 h-14 rounded-full object-cover border border-slate-200"
                           />
                         ) : (
                           <div className="w-14 h-14 rounded-full bg-primary-500 flex items-center justify-center">
@@ -241,21 +241,21 @@ export default function ChatListPage() {
                       {/* ユーザー情報 */}
                       <div className="flex-1 ml-4 min-w-0">
                         <div className="flex items-center justify-between mb-1">
-                          <h3 className="text-base font-bold text-gray-800 truncate">
+                          <h3 className="text-base font-bold text-slate-800 truncate">
                             {user.name || 'Unknown User'}
                           </h3>
-                          <span className="text-xs text-gray-400 flex-shrink-0 ml-2">
+                          <span className="text-xs text-slate-400 flex-shrink-0 ml-2">
                             {formatTime(user.lastMessageAt)}
                           </span>
                         </div>
                         <div className="flex items-center justify-between">
-                          <p className="text-sm text-gray-500 truncate pr-2">
+                          <p className="text-sm text-slate-500 truncate pr-2">
                             {user.lastMessageSenderId === user.userId
                               ? truncateMessage(user.lastMessage)
                               : `あなた: ${truncateMessage(user.lastMessage)}`}
                           </p>
                           {user.unreadCount > 0 && (
-                            <span className="bg-pink-500 text-white text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0">
+                            <span className="bg-rose-500 text-white text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0">
                               {user.unreadCount > 99 ? '99+' : user.unreadCount}
                             </span>
                           )}
@@ -263,7 +263,7 @@ export default function ChatListPage() {
                       </div>
 
                       {/* 矢印 */}
-                      <ChevronRightIcon className="w-5 h-5 text-gray-300 ml-2 flex-shrink-0" />
+                      <ChevronRightIcon className="w-5 h-5 text-slate-300 ml-2 flex-shrink-0" />
                     </div>
                   </div>
                 ))}
@@ -273,21 +273,21 @@ export default function ChatListPage() {
               <div className="mt-8 mb-4">
                 <div
                   onClick={() => navigate('/chat/ask-ai')}
-                  className="bg-white rounded-2xl p-5 cursor-pointer border border-gray-200 hover:bg-gray-50 transition-colors duration-150"
+                  className="bg-white rounded-2xl p-5 cursor-pointer border border-slate-200 hover:bg-slate-50 transition-colors duration-150"
                 >
                   <div className="flex items-center">
                     <div className="bg-primary-100 rounded-xl p-3 mr-4">
                       <SparklesIcon className="w-6 h-6 text-primary-500" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="text-gray-800 font-bold text-lg">
+                      <h3 className="text-slate-800 font-bold text-lg">
                         AIにチャットを分析してもらう
                       </h3>
-                      <p className="text-gray-500 text-sm">
+                      <p className="text-slate-500 text-sm">
                         印象のギャップを発見しよう
                       </p>
                     </div>
-                    <ChevronRightIcon className="w-5 h-5 text-gray-400" />
+                    <ChevronRightIcon className="w-5 h-5 text-slate-400" />
                   </div>
                 </div>
               </div>

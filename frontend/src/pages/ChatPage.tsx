@@ -595,13 +595,13 @@ export default function ChatPage() {
       <HamburgerMenu title="個人チャット" />
 
       {/* 全体レイアウト - サイドバー付き */}
-      <div className="flex h-screen bg-gray-50 text-black pt-16">
+      <div className="flex h-screen bg-slate-50 text-black pt-16">
 
         {/* サイドバー */}
-        <div className={`${sidebarOpen ? 'w-80' : 'w-0'} bg-white border-r border-gray-200 flex flex-col overflow-hidden`}>
+        <div className={`${sidebarOpen ? 'w-80' : 'w-0'} bg-white border-r border-slate-200 flex flex-col overflow-hidden`}>
           {/* サイドバーヘッダー */}
-          <div className="p-4 border-b border-gray-100">
-            <h3 className="font-bold text-gray-800 mb-3">チャット履歴</h3>
+          <div className="p-4 border-b border-slate-100">
+            <h3 className="font-bold text-slate-800 mb-3">チャット履歴</h3>
             <SearchBox
               value={searchQuery}
               onChange={setSearchQuery}
@@ -612,7 +612,7 @@ export default function ChatPage() {
           {/* ユーザーリスト */}
           <div className="flex-1 overflow-y-auto">
             {chatUsers.length === 0 ? (
-              <div className="p-4 text-center text-gray-500">
+              <div className="p-4 text-center text-slate-500">
                 <p className="text-sm">チャット履歴がありません</p>
               </div>
             ) : (
@@ -620,7 +620,7 @@ export default function ChatPage() {
                 <button
                   key={user.roomId}
                   onClick={() => handleSelectUser(user.userId)}
-                  className={`w-full p-4 flex items-start space-x-3 hover:bg-gray-50 transition-colors border-b border-gray-100 text-left ${
+                  className={`w-full p-4 flex items-start space-x-3 hover:bg-slate-50 transition-colors border-b border-slate-100 text-left ${
                     parseInt(roomId!) === user.roomId ? 'bg-primary-50 border-l-4 border-l-primary-500' : ''
                   }`}
                 >
@@ -634,22 +634,22 @@ export default function ChatPage() {
                   {/* ユーザー情報 */}
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-start">
-                      <h4 className="font-semibold text-gray-800 truncate">
+                      <h4 className="font-semibold text-slate-800 truncate">
                         {user.name || 'Unknown'}
                       </h4>
-                      <span className="text-xs text-gray-400 flex-shrink-0 ml-2">
+                      <span className="text-xs text-slate-400 flex-shrink-0 ml-2">
                         {formatDate(user.lastMessageAt)}
                       </span>
                     </div>
                     <div className="flex items-center justify-between mt-1">
-                      <p className="text-sm text-gray-500 truncate">
+                      <p className="text-sm text-slate-500 truncate">
                         {user.lastMessageSenderId === senderId && (
-                          <span className="text-gray-400">あなた: </span>
+                          <span className="text-slate-400">あなた: </span>
                         )}
                         {user.lastMessage || 'メッセージがありません'}
                       </p>
                       {user.unreadCount > 0 && (
-                        <span className="bg-pink-500 text-white text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0 ml-2">
+                        <span className="bg-rose-500 text-white text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0 ml-2">
                           {user.unreadCount > 99 ? '99+' : user.unreadCount}
                         </span>
                       )}
@@ -664,11 +664,11 @@ export default function ChatPage() {
         {/* サイドバートグルボタン */}
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="absolute left-0 top-1/2 -translate-y-1/2 z-20 bg-white border border-gray-200 rounded-r-lg p-2 shadow-sm hover:bg-gray-50 transition-colors"
+          className="absolute left-0 top-1/2 -translate-y-1/2 z-20 bg-white border border-slate-200 rounded-r-lg p-2 shadow-sm hover:bg-slate-50 transition-colors"
           style={{ left: sidebarOpen ? '320px' : '0' }}
         >
           <svg
-            className={`w-5 h-5 text-gray-600 transition-transform ${sidebarOpen ? 'rotate-180' : ''}`}
+            className={`w-5 h-5 text-slate-600 transition-transform ${sidebarOpen ? 'rotate-180' : ''}`}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -680,7 +680,7 @@ export default function ChatPage() {
         {/* メインチャットエリア */}
         <div className="flex-1 flex flex-col">
           {/* ヘッダー情報 */}
-          <div className="bg-white border-b border-gray-200 px-4 py-4 shadow-sm">
+          <div className="bg-white border-b border-slate-200 px-4 py-4 shadow-sm">
             <div className="max-w-4xl mx-auto flex items-center space-x-3">
               <div className="w-10 h-10 bg-primary-500 rounded-full flex items-center justify-center">
                 <svg
@@ -692,8 +692,8 @@ export default function ChatPage() {
                 </svg>
               </div>
               <div>
-                <h2 className="font-bold text-gray-800">チャット</h2>
-                <p className="text-sm text-gray-600">メッセージをお送りください</p>
+                <h2 className="font-bold text-slate-800">チャット</h2>
+                <p className="text-sm text-slate-600">メッセージをお送りください</p>
               </div>
             </div>
           </div>
@@ -704,17 +704,17 @@ export default function ChatPage() {
               <div className="flex flex-col items-center justify-center h-full text-center">
                 <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mb-4">
                   <svg
-                    className="w-8 h-8 text-blue-600"
+                    className="w-8 h-8 text-primary-600"
                     fill="currentColor"
                     viewBox="0 0 20 20"
                   >
                     <path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5z" />
                   </svg>
                 </div>
-                <h3 className="text-xl font-bold text-gray-800 mb-2">
+                <h3 className="text-xl font-bold text-slate-800 mb-2">
                   チャットへようこそ
                 </h3>
-                <p className="text-gray-600 max-w-sm">
+                <p className="text-slate-600 max-w-sm">
                   相手とのチャットをここで行えます
                 </p>
               </div>
@@ -737,8 +737,8 @@ export default function ChatPage() {
                       onClick={() => handleRangeClick(msg.id)}
                       className={`mt-1 w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all ${
                         isInRange(index)
-                          ? 'bg-blue-500 border-blue-500 text-white'
-                          : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50'
+                          ? 'bg-primary-500 border-primary-500 text-white'
+                          : 'border-slate-300 hover:border-blue-400 hover:bg-primary-50'
                       }`}
                     >
                       {isInRange(index) ? (
@@ -746,13 +746,13 @@ export default function ChatPage() {
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                         </svg>
                       ) : (
-                        <span className="text-xs text-gray-400">{index + 1}</span>
+                        <span className="text-xs text-slate-400">{index + 1}</span>
                       )}
                     </button>
                   </div>
                 )}
                 <div className={`flex-1 transition-all ${
-                  selectionMode && isInRange(index) ? 'bg-blue-50 -mx-2 px-2 py-1 rounded-lg' : ''
+                  selectionMode && isInRange(index) ? 'bg-primary-50 -mx-2 px-2 py-1 rounded-lg' : ''
                 }`}>
                   <MessageBubble
                     {...msg}
@@ -768,14 +768,14 @@ export default function ChatPage() {
           </div>
 
           {/* 入力欄固定 */}
-          <div className="fixed bottom-0 right-0 bg-white border-t border-gray-200 shadow-sm p-4 z-10" style={{ left: sidebarOpen ? '320px' : '0' }}>
+          <div className="fixed bottom-0 right-0 bg-white border-t border-slate-200 shadow-sm p-4 z-10" style={{ left: sidebarOpen ? '320px' : '0' }}>
             <div className="max-w-4xl mx-auto w-full space-y-3">
               {selectionMode ? (
                 /* 選択モードUI */
                 <div className="space-y-3">
                   {/* ガイドメッセージ */}
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                    <p className="text-sm text-blue-700">
+                  <div className="bg-primary-50 border border-primary-200 rounded-lg p-3">
+                    <p className="text-sm text-primary-700">
                       {rangeStart === null
                         ? '💡 「開始」位置のメッセージをタップしてください'
                         : rangeEnd === null
@@ -787,34 +787,34 @@ export default function ChatPage() {
 
                   {/* クイック選択ボタン */}
                   <div className="flex gap-2 flex-wrap">
-                    <span className="text-sm text-gray-500 self-center">クイック選択:</span>
+                    <span className="text-sm text-slate-500 self-center">クイック選択:</span>
                     <button
                       onClick={() => handleQuickSelect(5)}
-                      className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full transition-colors"
+                      className="px-3 py-1.5 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full transition-colors"
                     >
                       直近5件
                     </button>
                     <button
                       onClick={() => handleQuickSelect(10)}
-                      className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full transition-colors"
+                      className="px-3 py-1.5 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full transition-colors"
                     >
                       直近10件
                     </button>
                     <button
                       onClick={() => handleQuickSelect(20)}
-                      className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full transition-colors"
+                      className="px-3 py-1.5 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full transition-colors"
                     >
                       直近20件
                     </button>
                     <button
                       onClick={handleSelectAll}
-                      className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full transition-colors"
+                      className="px-3 py-1.5 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full transition-colors"
                     >
                       すべて
                     </button>
                     <button
                       onClick={handleDeselectAll}
-                      className="px-3 py-1.5 text-sm text-red-500 hover:bg-red-50 rounded-full transition-colors"
+                      className="px-3 py-1.5 text-sm text-rose-500 hover:bg-rose-50 rounded-full transition-colors"
                     >
                       リセット
                     </button>
@@ -824,7 +824,7 @@ export default function ChatPage() {
                   <div className="flex gap-2">
                     <button
                       onClick={handleCancelSelection}
-                      className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 px-4 rounded-lg transition-colors duration-150"
+                      className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-3 px-4 rounded-lg transition-colors duration-150"
                     >
                       キャンセル
                     </button>
@@ -834,7 +834,7 @@ export default function ChatPage() {
                       className={`flex-1 font-semibold py-3 px-4 rounded-lg transition-colors duration-150 ${
                         selectedMessages.size > 0
                           ? 'bg-primary-500 hover:bg-primary-600 text-white'
-                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                          : 'bg-slate-300 text-slate-500 cursor-not-allowed'
                       }`}
                     >
                       {selectedMessages.size > 0

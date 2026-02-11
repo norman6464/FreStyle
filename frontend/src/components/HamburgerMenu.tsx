@@ -60,37 +60,37 @@ export default function HamburgerMenu({ title }: HamburgerMenuProps) {
       label: 'ホーム',
       icon: HomeIcon,
       onClick: () => navigate('/'),
-      color: 'text-gray-600',
+      color: 'text-slate-600',
     },
     {
       label: 'チャット一覧',
       icon: ChatBubbleLeftRightIcon,
       onClick: () => navigate('/chat'),
-      color: 'text-gray-600',
+      color: 'text-slate-600',
     },
     {
       label: 'プロフィール',
       icon: UserCircleIcon,
       onClick: () => navigate('/profile/me'),
-      color: 'text-gray-600',
+      color: 'text-slate-600',
     },
     {
       label: 'パーソナリティ設定',
       icon: LightBulbIcon,
       onClick: () => navigate('/profile/personality'),
-      color: 'text-gray-600',
+      color: 'text-slate-600',
     },
     {
       label: 'ユーザー検索',
       icon: MagnifyingGlassIcon,
       onClick: () => navigate('/chat/users'),
-      color: 'text-gray-600',
+      color: 'text-slate-600',
     },
     {
       label: 'AI',
       icon: SparklesIcon,
       onClick: () => navigate('/chat/ask-ai'),
-      color: 'text-gray-600',
+      color: 'text-slate-600',
     },
     {
       label: 'ログアウト',
@@ -101,7 +101,7 @@ export default function HamburgerMenu({ title }: HamburgerMenuProps) {
   ];
 
   return (
-    <header className="w-full bg-white shadow-sm fixed top-0 left-0 z-50 border-b border-gray-200">
+    <header className="w-full bg-white shadow-sm fixed top-0 left-0 z-50 border-b border-slate-200">
       <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
         <button
           onClick={() => navigate('/')}
@@ -110,7 +110,7 @@ export default function HamburgerMenu({ title }: HamburgerMenuProps) {
           <div className="bg-primary-500 w-10 h-10 rounded-lg flex items-center justify-center">
             <span className="text-white font-bold text-lg">F</span>
           </div>
-          <h1 className="text-xl font-bold text-gray-900 hidden sm:block">
+          <h1 className="text-xl font-bold text-slate-900 hidden sm:block">
             {title}
           </h1>
         </button>
@@ -123,10 +123,10 @@ export default function HamburgerMenu({ title }: HamburgerMenuProps) {
               <button
                 key={index}
                 onClick={item.onClick}
-                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors duration-150 hover:bg-gray-100 ${item.color} font-medium`}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors duration-150 hover:bg-slate-100 ${item.color} font-medium`}
               >
                 <Icon className="w-5 h-5" />
-                <span className="text-gray-700">{item.label}</span>
+                <span className="text-slate-700">{item.label}</span>
               </button>
             );
           })}
@@ -134,7 +134,7 @@ export default function HamburgerMenu({ title }: HamburgerMenuProps) {
 
         {/* モバイルメニューボタン */}
         <button
-          className="md:hidden p-2 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+          className="md:hidden p-2 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
           onClick={() => setIsOpen(!isOpen)}
         >
           {isOpen ? (
@@ -147,7 +147,7 @@ export default function HamburgerMenu({ title }: HamburgerMenuProps) {
 
       {/* モバイルメニュー */}
       {isOpen && (
-        <div className="md:hidden bg-white border-t border-gray-200">
+        <div className="md:hidden bg-white border-t border-slate-200">
           {menuItems.map((item, index) => {
             const Icon = item.icon;
             return (
@@ -157,10 +157,10 @@ export default function HamburgerMenu({ title }: HamburgerMenuProps) {
                   item.onClick();
                   setIsOpen(false);
                 }}
-                className={`flex items-center w-full px-4 py-4 border-b border-gray-100 hover:bg-gray-50 transition-colors ${item.color}`}
+                className={`flex items-center w-full px-4 py-4 border-b border-slate-100 hover:bg-slate-50 transition-colors ${item.color}`}
               >
                 <Icon className="w-5 h-5 mr-3" />
-                <span className="font-medium text-gray-800">
+                <span className="font-medium text-slate-800">
                   {item.label}
                 </span>
               </button>

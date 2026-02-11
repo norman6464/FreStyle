@@ -10,6 +10,9 @@ const SCENES: Scene[] = [
   { id: 'email', label: 'メール', description: '件名の明確さ・構成の読みやすさ・アクション明示' },
   { id: 'presentation', label: 'プレゼン', description: 'ストーリー構成・聞き手への配慮・質疑応答力' },
   { id: 'negotiation', label: '商談', description: 'ニーズヒアリング・価値提案・クロージング' },
+  { id: 'code_review', label: 'コードレビュー', description: '指摘の具体性・代替案の提示・相手への配慮' },
+  { id: 'incident', label: '障害対応', description: '状況報告の正確さ・エスカレーション判断・事後報告の構成' },
+  { id: 'daily_report', label: '日報・週報', description: '成果の定量化・課題の明確化・ネクストアクション' },
 ];
 
 interface SceneSelectorProps {

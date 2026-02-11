@@ -77,6 +77,19 @@ class SystemPromptBuilderTest {
             assertThat(prompt).contains("結論");
             assertThat(prompt).contains("解決策");
         }
+
+        @Test
+        @DisplayName("JSONスコア出力形式の指示が含まれる")
+        void shouldContainJsonScoreOutputInstruction() {
+            String prompt = builder.buildFeedbackPrompt(
+                    "テスト太郎", null, null, null, null, null, null);
+
+            assertThat(prompt).contains("```json");
+            assertThat(prompt).contains("\"scores\"");
+            assertThat(prompt).contains("\"axis\"");
+            assertThat(prompt).contains("\"score\"");
+            assertThat(prompt).contains("\"comment\"");
+        }
     }
 
     @Nested

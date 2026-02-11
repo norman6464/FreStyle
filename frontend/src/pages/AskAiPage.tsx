@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import MessageBubbleAi from '../components/MessageBubbleAi';
 import MessageInput from '../components/MessageInput';
-import HamburgerMenu from '../components/HamburgerMenu';
 import ConfirmModal from '../components/ConfirmModal';
 import ScoreCardComponent from '../components/ScoreCard';
+import SecondaryPanel from '../components/layout/SecondaryPanel';
 import { useDispatch } from 'react-redux';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { AiMessage, AiSession, ScoreCard } from '../types';
@@ -21,7 +21,6 @@ export default function AskAiPage() {
   const [initialPromptSent, setInitialPromptSent] = useState(false);
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [userId, setUserId] = useState<number | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; sessionId: number | null }>({ isOpen: false, sessionId: null });
   const [editingSessionId, setEditingSessionId] = useState<number | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
@@ -51,7 +50,7 @@ export default function AskAiPage() {
   const scenarioName = locationState?.scenarioName || null;
   const isPracticeMode = sessionType === 'practice';
 
-  // ユーザー情報取得（userId を取得）
+  // ユーザー情報取得
   useEffect(() => {
     const fetchUserInfo = async () => {
       try {
@@ -64,7 +63,6 @@ export default function AskAiPage() {
         }
         const data = await res.json();
         setUserId(data.id);
-        console.log('[AskAiPage] Fetched user info, userId:', data.id);
       } catch (error) {
         console.error('ユーザー情報取得エラー:', error);
         navigate('/login');
@@ -101,13 +99,11 @@ export default function AskAiPage() {
 
       const data = await res.json();
       setSessions(data || []);
-      console.log('[AskAiPage] セッション一覧取得成功:', data.length, '件');
     } catch (e) {
       console.error('セッション一覧取得失敗', e);
     }
   };
 
-  // 初回ロード時にセッション一覧を取得
   useEffect(() => {
     if (userId) {
       fetchSessions();
@@ -123,7 +119,7 @@ export default function AskAiPage() {
     scrollToBottom();
   }, [messages]);
 
-  // --- URLパラメータのセッションID変更時にメッセージ履歴を取得 ---
+  // --- URLパラメータのセッションID変更時 ---
   useEffect(() => {
     if (urlSessionId) {
       setCurrentSessionId(parseInt(urlSessionId));
@@ -139,7 +135,6 @@ export default function AskAiPage() {
     }
 
     try {
-      console.log('📥 セッションメッセージ取得開始 - sessionId:', sessionId);
       const res = await fetch(`${API_BASE_URL}/api/chat/ai/sessions/${sessionId}/messages`, {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -174,14 +169,12 @@ export default function AskAiPage() {
 
       setMessages(formattedMessages);
       setHistoryLoaded(true);
-      console.log('✅ メッセージ履歴取得完了 - 件数:', formattedMessages.length);
     } catch (err) {
-      console.error('❌ メッセージ履歴取得失敗:', err);
+      console.error('メッセージ履歴取得失敗:', err);
       setHistoryLoaded(true);
     }
   };
 
-  // currentSessionIdが変わったらメッセージを取得
   useEffect(() => {
     if (currentSessionId) {
       fetchSessionMessages(currentSessionId);
@@ -193,12 +186,7 @@ export default function AskAiPage() {
 
   // --- WebSocket (STOMP) 接続 ---
   useEffect(() => {
-    if (!userId) {
-      console.log('⏳ [WebSocket useEffect] userId未設定');
-      return;
-    }
-
-    console.log('🔗 [WebSocket useEffect] STOMP接続開始 - userId:', userId);
+    if (!userId) return;
 
     const client = new Client({
       webSocketFactory: () =>
@@ -206,28 +194,21 @@ export default function AskAiPage() {
       reconnectDelay: 5000,
 
       onConnect: () => {
-        console.log('✅ STOMP connected for AI Chat');
         stompClientRef.current = client;
 
-        // ユーザー単位のセッション更新通知を購読
         client.subscribe(`/topic/ai-chat/user/${userId}/session`, (message) => {
           const newSession = JSON.parse(message.body);
-          console.log('📩 新規セッション作成通知:', newSession);
           setSessions((prev) => [newSession, ...prev]);
           setCurrentSessionId(newSession.id);
         });
 
-        // スコアカード通知を購読
         client.subscribe(`/topic/ai-chat/user/${userId}/scorecard`, (message) => {
           const data = JSON.parse(message.body);
-          console.log('📊 スコアカード受信:', data);
           setScoreCard(data);
         });
 
-        // セッション削除通知を購読
         client.subscribe(`/topic/ai-chat/user/${userId}/session-deleted`, (message) => {
           const data = JSON.parse(message.body);
-          console.log('🗑️ セッション削除通知:', data);
           setSessions((prev) => prev.filter((s) => s.id !== data.sessionId));
           if (currentSessionId === data.sessionId) {
             setCurrentSessionId(null);
@@ -235,14 +216,11 @@ export default function AskAiPage() {
           }
         });
 
-        // 現在のセッションがあれば購読
         if (currentSessionId) {
           subscribeToSession(currentSessionId);
         }
 
-        // 初期プロンプトがあれば自動送信
         if (initialPrompt && !initialPromptSent) {
-          console.log('📤 初期プロンプトを送信します:', initialPrompt);
           handleSend(initialPrompt);
           setInitialPromptSent(true);
         }
@@ -258,7 +236,6 @@ export default function AskAiPage() {
     client.activate();
 
     return () => {
-      console.log('🧹 [WebSocket cleanup] クリーンアップ実行中');
       client.deactivate();
     };
   }, [userId]);
@@ -267,16 +244,11 @@ export default function AskAiPage() {
   const subscribeToSession = (sessionId: number): void => {
     if (!stompClientRef.current?.connected || !sessionId) return;
 
-    console.log('📡 セッション購読開始:', sessionId);
     stompClientRef.current.subscribe(`/topic/ai-chat/session/${sessionId}`, (message) => {
       const data = JSON.parse(message.body);
-      console.log('📩 AIチャットメッセージ受信:', data);
 
       setMessages((prev) => {
-        // 重複チェック
-        if (prev.some((m) => m.id === data.id)) {
-          return prev;
-        }
+        if (prev.some((m) => m.id === data.id)) return prev;
         return [
           ...prev,
           {
@@ -291,7 +263,6 @@ export default function AskAiPage() {
     });
   };
 
-  // currentSessionIdが変わったら再購読
   useEffect(() => {
     if (currentSessionId && stompClientRef.current?.connected) {
       subscribeToSession(currentSessionId);
@@ -304,7 +275,6 @@ export default function AskAiPage() {
     if (!messageToDelete) return;
 
     if (confirm('このメッセージを削除しますか？')) {
-      // ローカルstateで削除済みマークをつける
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === messageId ? { ...msg, isDeleted: true } : msg
@@ -318,7 +288,6 @@ export default function AskAiPage() {
     setCurrentSessionId(null);
     setMessages([]);
     setScoreCard(null);
-    console.log('🆕 新規セッション開始');
   };
 
   // --- セッション選択 ---
@@ -326,7 +295,6 @@ export default function AskAiPage() {
     setCurrentSessionId(sessionId);
     setScoreCard(null);
     navigate(`/chat/ask-ai/${sessionId}`);
-    console.log('📂 セッション選択:', sessionId);
   };
 
   // --- セッション削除 ---
@@ -351,10 +319,9 @@ export default function AskAiPage() {
           setMessages([]);
           navigate('/chat/ask-ai');
         }
-        console.log('✅ セッション削除成功');
       }
     } catch (e) {
-      console.error('❌ セッション削除失敗:', e);
+      console.error('セッション削除失敗:', e);
     }
   };
 
@@ -388,10 +355,9 @@ export default function AskAiPage() {
         setSessions((prev) =>
           prev.map((s) => (s.id === sessionId ? { ...s, title: updatedSession.title } : s))
         );
-        console.log('✅ タイトル更新成功');
       }
     } catch (e) {
-      console.error('❌ タイトル更新失敗:', e);
+      console.error('タイトル更新失敗:', e);
     }
 
     setEditingSessionId(null);
@@ -404,15 +370,11 @@ export default function AskAiPage() {
 
   // --- メッセージ送信 ---
   const handleSend = async (text: string): Promise<void> => {
-    console.log('📤 [handleSend] メッセージ送信開始:', { text, userId, currentSessionId, fromChatFeedback });
-
     if (!stompClientRef.current?.connected) {
-      console.warn('⚠️ STOMP not connected');
+      console.warn('STOMP not connected');
       return;
     }
 
-    // STOMPで送信（WebSocket経由でサーバーからのレスポンスを待ってから表示）
-    // fromChatFeedbackフラグのみ送信し、UserProfileはバックエンドで取得する
     const payload: Record<string, unknown> = {
       userId: userId,
       sessionId: currentSessionId,
@@ -428,7 +390,6 @@ export default function AskAiPage() {
       payload.scenarioId = scenarioId;
     }
 
-    console.log('📤 STOMP送信:', payload);
     stompClientRef.current.publish({
       destination: '/app/ai-chat/send',
       body: JSON.stringify(payload),
@@ -436,201 +397,157 @@ export default function AskAiPage() {
   };
 
   return (
-    <>
-      <HamburgerMenu title={isPracticeMode ? '練習モード' : 'AIに聞く'} />
-
-      {/* 全体レイアウト */}
-      <div className="flex h-screen bg-slate-50 text-black pt-16">
-
-        {/* サイドバー（セッション一覧） */}
-        <div className={`${sidebarOpen ? 'w-64' : 'w-0'} bg-white border-r border-slate-200 flex flex-col overflow-hidden`}>
-          <div className="p-4 border-b border-slate-200">
-            <button
-              onClick={handleNewSession}
-              className="w-full bg-primary-500 text-white py-2 px-4 rounded-lg font-medium hover:bg-primary-600 transition-colors flex items-center justify-center gap-2"
+    <div className="flex h-full">
+      {/* セカンダリパネル: セッション一覧 */}
+      <SecondaryPanel
+        title="セッション"
+        headerContent={
+          <button
+            onClick={handleNewSession}
+            className="w-full bg-primary-500 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-primary-600 transition-colors flex items-center justify-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            新しいチャット
+          </button>
+        }
+      >
+        <div className="p-2 space-y-0.5">
+          {sessions.map((session) => (
+            <div
+              key={session.id}
+              className={`group flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${
+                currentSessionId === session.id
+                  ? 'bg-primary-50 text-primary-700'
+                  : 'hover:bg-slate-50'
+              }`}
+              onClick={() => editingSessionId !== session.id && handleSelectSession(session.id)}
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              新しいチャット
+              <div className="flex-1 min-w-0">
+                {editingSessionId === session.id ? (
+                  <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="text"
+                      value={editingTitle}
+                      onChange={(e) => setEditingTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveTitle(session.id);
+                        if (e.key === 'Escape') handleCancelEditTitle();
+                      }}
+                      className="flex-1 text-xs px-2 py-1 border border-primary-300 rounded focus:outline-none focus:ring-1 focus:ring-primary-400"
+                      autoFocus
+                    />
+                    <button onClick={() => handleSaveTitle(session.id)} className="p-0.5 hover:bg-green-100 rounded">
+                      <svg className="w-3.5 h-3.5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </button>
+                    <button onClick={handleCancelEditTitle} className="p-0.5 hover:bg-slate-200 rounded">
+                      <svg className="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-sm font-medium truncate">{session.title || '新しいチャット'}</p>
+                    <p className="text-[11px] text-slate-500">
+                      {session.createdAt ? new Date(session.createdAt).toLocaleDateString('ja-JP') : ''}
+                    </p>
+                  </>
+                )}
+              </div>
+              {editingSessionId !== session.id && (
+                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={(e) => handleStartEditTitle(e, session)}
+                    className="p-1 hover:bg-blue-100 rounded"
+                    title="タイトルを編集"
+                  >
+                    <svg className="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteSession(session.id);
+                    }}
+                    className="p-1 hover:bg-rose-100 rounded"
+                    title="削除"
+                  >
+                    <svg className="w-3.5 h-3.5 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </SecondaryPanel>
+
+      {/* メインコンテンツ */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* 練習モードヘッダー */}
+        {isPracticeMode && (
+          <div className="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-800">
+                {scenarioName || '練習モード'}
+              </h2>
+              <p className="text-xs text-slate-500">AIが相手役を演じます</p>
+            </div>
+            <button
+              onClick={() => handleSend('練習を終了して、今回の会話全体に対するフィードバックとスコアカードをお願いします。')}
+              className="bg-rose-500 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-rose-600 transition-colors"
+            >
+              練習終了
             </button>
           </div>
+        )}
 
-          <div className="flex-1 overflow-y-auto">
-            <div className="p-2 space-y-1">
-              {sessions.map((session) => (
-                <div
-                  key={session.id}
-                  className={`group flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors ${
-                    currentSessionId === session.id
-                      ? 'bg-primary-50 text-primary-700'
-                      : 'hover:bg-slate-100'
-                  }`}
-                  onClick={() => editingSessionId !== session.id && handleSelectSession(session.id)}
-                >
-                  <div className="flex-1 min-w-0">
-                    {editingSessionId === session.id ? (
-                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="text"
-                          value={editingTitle}
-                          onChange={(e) => setEditingTitle(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleSaveTitle(session.id);
-                            if (e.key === 'Escape') handleCancelEditTitle();
-                          }}
-                          className="flex-1 text-sm px-2 py-1 border border-primary-300 rounded focus:outline-none focus:ring-1 focus:ring-primary-400"
-                          autoFocus
-                        />
-                        <button
-                          onClick={() => handleSaveTitle(session.id)}
-                          className="p-1 hover:bg-green-100 rounded"
-                        >
-                          <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={handleCancelEditTitle}
-                          className="p-1 hover:bg-slate-200 rounded"
-                        >
-                          <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        <p className="text-sm font-medium truncate">{session.title || '新しいチャット'}</p>
-                        <p className="text-xs text-slate-500">
-                          {session.createdAt ? new Date(session.createdAt).toLocaleDateString('ja-JP') : ''}
-                        </p>
-                      </>
-                    )}
-                  </div>
-                  {editingSessionId !== session.id && (
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={(e) => handleStartEditTitle(e, session)}
-                        className="p-1 hover:bg-blue-100 rounded"
-                        title="タイトルを編集"
-                      >
-                        <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteSession(session.id);
-                        }}
-                        className="p-1 hover:bg-rose-100 rounded"
-                        title="削除"
-                      >
-                        <svg className="w-4 h-4 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* サイドバートグルボタン */}
-        <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="absolute left-0 top-1/2 transform -translate-y-1/2 bg-white border border-slate-200 rounded-r-lg p-2 shadow-sm z-20"
-          style={{ marginLeft: sidebarOpen ? '256px' : '0' }}
-        >
-          <svg
-            className={`w-4 h-4 text-slate-600 transition-transform ${sidebarOpen ? 'rotate-180' : ''}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
-
-        {/* メインコンテンツ */}
-        <div className="flex-1 flex flex-col">
-          {/* ヘッダー情報 */}
-          <div className="bg-white border-b border-slate-200 px-4 py-4 shadow-sm">
-            <div className="max-w-4xl mx-auto flex items-center space-x-3">
-              <div className="w-10 h-10 bg-primary-500 rounded-full flex items-center justify-center">
-                <svg
-                  className="w-6 h-6 text-white"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
+        {/* メッセージエリア */}
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+          {messages.length === 0 && (
+            <div className="flex flex-col items-center justify-center h-full text-center">
+              <div className="bg-slate-100 rounded-full p-4 mb-4">
+                <svg className="w-8 h-8 text-slate-400" fill="currentColor" viewBox="0 0 20 20">
                   <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                 </svg>
               </div>
-              <div>
-                <h2 className="font-bold text-slate-800">
-                  {isPracticeMode ? scenarioName || '練習モード' : 'AIアシスタント'}
-                </h2>
-                <p className="text-sm text-slate-600">
-                  {isPracticeMode ? 'AIが相手役を演じます' : '何でも聞いてください'}
-                </p>
-              </div>
-              {isPracticeMode && (
-                <button
-                  onClick={() => handleSend('練習を終了して、今回の会話全体に対するフィードバックとスコアカードをお願いします。')}
-                  className="ml-auto bg-rose-500 text-white text-sm px-4 py-2 rounded-lg hover:bg-rose-600 transition-colors"
-                >
-                  練習終了
-                </button>
-              )}
+              <h3 className="text-base font-semibold text-slate-700 mb-1">
+                AIアシスタントへようこそ
+              </h3>
+              <p className="text-sm text-slate-500 max-w-xs">
+                質問や相談を何でも聞いてください
+              </p>
             </div>
-          </div>
-
-          {/* メッセージエリア */}
-          <div className="flex-1 overflow-y-auto px-4 py-6 space-y-3 max-w-4xl mx-auto w-full mb-[100px]">
-            {messages.length === 0 && (
-              <div className="flex flex-col items-center justify-center h-full text-center">
-                <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mb-4">
-                  <svg
-                    className="w-8 h-8 text-primary-600"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5z" />
-                  </svg>
-                </div>
-                <h3 className="text-xl font-bold text-slate-800 mb-2">
-                  AIアシスタントへようこそ
-                </h3>
-                <p className="text-slate-600 max-w-sm">
-                  質問や相談を何でも聞いてください。AIがすぐに答えます
-                </p>
-              </div>
-            )}
-            {messages.map((msg) => (
+          )}
+          {messages.map((msg) => (
+            <div key={msg.id} className="max-w-3xl mx-auto w-full">
               <MessageBubbleAi
-                key={msg.id}
                 {...msg}
                 type={msg.isSender ? 'text' : 'bot'}
                 onDelete={handleDeleteMessage}
               />
-            ))}
-
-            {/* スコアカード表示 */}
-            {scoreCard && <ScoreCardComponent scoreCard={scoreCard} />}
-
-            {/* スクロール最終地点 */}
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* 入力欄固定 */}
-          <div className="fixed bottom-0 right-0 bg-white border-t border-slate-200 shadow-sm p-4 z-10"
-               style={{ left: sidebarOpen ? '256px' : '0', transition: 'left 0.3s' }}>
-            <div className="max-w-4xl mx-auto w-full">
-              <MessageInput onSend={handleSend} />
             </div>
+          ))}
+
+          {scoreCard && (
+            <div className="max-w-3xl mx-auto w-full">
+              <ScoreCardComponent scoreCard={scoreCard} />
+            </div>
+          )}
+
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* 入力欄 */}
+        <div className="bg-white border-t border-slate-200 p-4">
+          <div className="max-w-3xl mx-auto w-full">
+            <MessageInput onSend={handleSend} />
           </div>
         </div>
       </div>
@@ -646,6 +563,6 @@ export default function AskAiPage() {
         onCancel={cancelDeleteSession}
         isDanger={true}
       />
-    </>
+    </div>
   );
 }

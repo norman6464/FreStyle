@@ -2,13 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { clearAuth } from '../store/authSlice';
-import HamburgerMenu from '../components/HamburgerMenu';
-import {
-  MagnifyingGlassIcon,
-  ChatBubbleLeftRightIcon,
-  SparklesIcon,
-} from '@heroicons/react/24/solid';
-import { ChevronRightIcon } from '@heroicons/react/24/outline';
+import SecondaryPanel from '../components/layout/SecondaryPanel';
+import EmptyState from '../components/EmptyState';
+import SearchBox from '../components/SearchBox';
+import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 import SockJS from 'sockjs-client';
 import { Client } from '@stomp/stompjs';
 import { ChatUser } from '../types';
@@ -133,24 +130,14 @@ export default function ChatListPage() {
     const oneWeek = 7 * oneDay;
 
     if (diff < oneDay && date.getDate() === now.getDate()) {
-      // 今日
-      return date.toLocaleTimeString('ja-JP', {
-        hour: '2-digit',
-        minute: '2-digit',
-      });
+      return date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
     } else if (diff < oneDay * 2 && date.getDate() === now.getDate() - 1) {
-      // 昨日
       return '昨日';
     } else if (diff < oneWeek) {
-      // 1週間以内
       const days = ['日', '月', '火', '水', '木', '金', '土'];
       return days[date.getDay()] + '曜日';
     } else {
-      // それ以外
-      return date.toLocaleDateString('ja-JP', {
-        month: 'short',
-        day: 'numeric',
-      });
+      return date.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' });
     }
   };
 
@@ -162,162 +149,87 @@ export default function ChatListPage() {
   };
 
   return (
-    <>
-      <HamburgerMenu title="チャット" />
-      <div className="min-h-screen bg-slate-50 pt-16 pb-24">
-        {/* ヘッダーセクション */}
-        <div className="sticky top-16 z-10 bg-white border-b border-slate-200 px-4 py-4">
-          <div className="max-w-2xl mx-auto">
-            {/* 検索ボックス */}
-            <div className="relative">
-              <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
-                placeholder="名前やメールで検索..."
-                className="w-full pl-10 pr-4 py-3 bg-slate-100 rounded-xl border-none focus:outline-none focus:ring-1 focus:ring-primary-500 transition-colors duration-150"
-              />
-            </div>
+    <div className="flex h-full">
+      {/* セカンダリパネル: チャットユーザー一覧 */}
+      <SecondaryPanel
+        title="チャット"
+        headerContent={
+          <SearchBox
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="名前やメールで検索..."
+          />
+        }
+      >
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-500" />
           </div>
-        </div>
-
-        {/* メインコンテンツ */}
-        <div className="max-w-2xl mx-auto px-4 pt-4">
-          {/* ユーザーがいない場合 */}
-          {loading ? (
-            <div className="flex flex-col items-center justify-center py-16">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mb-4"></div>
-              <p className="text-slate-500">読み込み中...</p>
-            </div>
-          ) : chatUsers.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="bg-primary-100 rounded-full p-6 mb-6">
-                <ChatBubbleLeftRightIcon className="w-16 h-16 text-primary-400" />
-              </div>
-              <h2 className="text-xl font-bold text-slate-700 mb-2">
-                まだチャットがありません
-              </h2>
-              <p className="text-slate-500 mb-6 max-w-xs">
-                新しい友達を追加して、チャットを始めましょう！
-              </p>
-              <button
-                onClick={() => navigate('/chat/users')}
-                className="bg-primary-500 text-white font-medium px-6 py-3 rounded-xl hover:bg-primary-600 transition-colors duration-150"
-              >
-                友達を追加する
-              </button>
-            </div>
-          ) : (
-            <>
-              {/* チャット一覧 */}
-              <div className="space-y-2">
-                {chatUsers.map((user) => (
-                  <div
-                    key={user.roomId}
-                    onClick={() => navigate(`/chat/users/${user.roomId}`)}
-                    className="bg-white rounded-2xl cursor-pointer overflow-hidden group border border-slate-200 hover:bg-slate-50 transition-colors duration-150"
-                  >
-                    <div className="flex items-center p-4">
-                      {/* アバター */}
-                      <div className="relative flex-shrink-0">
-                        {user.profileImage ? (
-                          <img
-                            src={user.profileImage}
-                            alt={user.name}
-                            className="w-14 h-14 rounded-full object-cover border border-slate-200"
-                          />
-                        ) : (
-                          <div className="w-14 h-14 rounded-full bg-primary-500 flex items-center justify-center">
-                            <span className="text-white text-xl font-bold">
-                              {user.name?.charAt(0)?.toUpperCase() || '?'}
-                            </span>
-                          </div>
-                        )}
-                        {/* オンラインインジケーター（将来的に） */}
-                        {/* <div className="absolute bottom-0 right-0 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></div> */}
-                      </div>
-
-                      {/* ユーザー情報 */}
-                      <div className="flex-1 ml-4 min-w-0">
-                        <div className="flex items-center justify-between mb-1">
-                          <h3 className="text-base font-bold text-slate-800 truncate">
-                            {user.name || 'Unknown User'}
-                          </h3>
-                          <span className="text-xs text-slate-400 flex-shrink-0 ml-2">
-                            {formatTime(user.lastMessageAt)}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <p className="text-sm text-slate-500 truncate pr-2">
-                            {user.lastMessageSenderId === user.userId
-                              ? truncateMessage(user.lastMessage)
-                              : `あなた: ${truncateMessage(user.lastMessage)}`}
-                          </p>
-                          {user.unreadCount > 0 && (
-                            <span className="bg-rose-500 text-white text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0">
-                              {user.unreadCount > 99 ? '99+' : user.unreadCount}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* 矢印 */}
-                      <ChevronRightIcon className="w-5 h-5 text-slate-300 ml-2 flex-shrink-0" />
-                    </div>
+        ) : chatUsers.length === 0 ? (
+          <div className="p-4 text-center text-sm text-slate-500">
+            チャット履歴がありません
+          </div>
+        ) : (
+          chatUsers.map((user) => (
+            <button
+              key={user.roomId}
+              onClick={() => navigate(`/chat/users/${user.roomId}`)}
+              className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50 transition-colors border-b border-slate-100 text-left"
+            >
+              {/* アバター */}
+              <div className="flex-shrink-0">
+                {user.profileImage ? (
+                  <img
+                    src={user.profileImage}
+                    alt={user.name}
+                    className="w-10 h-10 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-primary-500 flex items-center justify-center">
+                    <span className="text-white text-sm font-bold">
+                      {user.name?.charAt(0)?.toUpperCase() || '?'}
+                    </span>
                   </div>
-                ))}
+                )}
               </div>
 
-              {/* AI分析への導線 */}
-              <div className="mt-8 mb-4">
-                <div
-                  onClick={() => navigate('/chat/ask-ai')}
-                  className="bg-white rounded-2xl p-5 cursor-pointer border border-slate-200 hover:bg-slate-50 transition-colors duration-150"
-                >
-                  <div className="flex items-center">
-                    <div className="bg-primary-100 rounded-xl p-3 mr-4">
-                      <SparklesIcon className="w-6 h-6 text-primary-500" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-slate-800 font-bold text-lg">
-                        AIにチャットを分析してもらう
-                      </h3>
-                      <p className="text-slate-500 text-sm">
-                        印象のギャップを発見しよう
-                      </p>
-                    </div>
-                    <ChevronRightIcon className="w-5 h-5 text-slate-400" />
-                  </div>
+              {/* ユーザー情報 */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold text-slate-800 truncate">
+                    {user.name || 'Unknown User'}
+                  </span>
+                  <span className="text-[11px] text-slate-400 flex-shrink-0 ml-2">
+                    {formatTime(user.lastMessageAt!)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between mt-0.5">
+                  <p className="text-xs text-slate-500 truncate pr-2">
+                    {user.lastMessageSenderId === user.userId
+                      ? truncateMessage(user.lastMessage)
+                      : `あなた: ${truncateMessage(user.lastMessage)}`}
+                  </p>
+                  {user.unreadCount > 0 && (
+                    <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0">
+                      {user.unreadCount > 99 ? '99+' : user.unreadCount}
+                    </span>
+                  )}
                 </div>
               </div>
-            </>
-          )}
-        </div>
+            </button>
+          ))
+        )}
+      </SecondaryPanel>
 
-        {/* フローティングアクションボタン */}
-        <div className="fixed bottom-6 right-6 z-20">
-          <button
-            onClick={() => navigate('/chat/users')}
-            className="bg-primary-500 text-white p-4 rounded-full shadow-md hover:bg-primary-600 transition-colors duration-150"
-            title="新しいチャット"
-          >
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 4v16m8-8H4"
-              />
-            </svg>
-          </button>
-        </div>
+      {/* メインコンテンツ: 空状態 */}
+      <div className="flex-1">
+        <EmptyState
+          icon={ChatBubbleLeftRightIcon}
+          title="チャットを選択してください"
+          description="左のリストからチャット相手を選択するか、新しいチャットを始めましょう。"
+          action={{ label: 'ユーザーを検索', onClick: () => navigate('/chat/users') }}
+        />
       </div>
-    </>
+    </div>
   );
 }

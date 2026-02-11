@@ -1,0 +1,32 @@
+import { render, screen } from '@testing-library/react';
+import { describe, it, expect } from 'vitest';
+import SecondaryPanel from '../SecondaryPanel';
+
+describe('SecondaryPanel', () => {
+  it('タイトルを表示する', () => {
+    render(
+      <SecondaryPanel title="チャット">
+        <div>コンテンツ</div>
+      </SecondaryPanel>
+    );
+    expect(screen.getByText('チャット')).toBeDefined();
+  });
+
+  it('子要素を表示する', () => {
+    render(
+      <SecondaryPanel title="テスト">
+        <div>子要素コンテンツ</div>
+      </SecondaryPanel>
+    );
+    expect(screen.getByText('子要素コンテンツ')).toBeDefined();
+  });
+
+  it('ヘッダーコンテンツを表示する', () => {
+    render(
+      <SecondaryPanel title="テスト" headerContent={<input placeholder="検索" />}>
+        <div>内容</div>
+      </SecondaryPanel>
+    );
+    expect(screen.getByPlaceholderText('検索')).toBeDefined();
+  });
+});

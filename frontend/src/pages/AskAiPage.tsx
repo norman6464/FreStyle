@@ -3,9 +3,10 @@ import MessageBubbleAi from '../components/MessageBubbleAi';
 import MessageInput from '../components/MessageInput';
 import HamburgerMenu from '../components/HamburgerMenu';
 import ConfirmModal from '../components/ConfirmModal';
+import ScoreCardComponent from '../components/ScoreCard';
 import { useDispatch } from 'react-redux';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
-import { AiMessage, AiSession } from '../types';
+import { AiMessage, AiSession, ScoreCard } from '../types';
 
 import SockJS from 'sockjs-client';
 import { Client } from '@stomp/stompjs';
@@ -24,6 +25,7 @@ export default function AskAiPage() {
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; sessionId: number | null }>({ isOpen: false, sessionId: null });
   const [editingSessionId, setEditingSessionId] = useState<number | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
+  const [scoreCard, setScoreCard] = useState<ScoreCard | null>(null);
 
   const stompClientRef = useRef<Client | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -204,6 +206,13 @@ export default function AskAiPage() {
           setCurrentSessionId(newSession.id);
         });
 
+        // スコアカード通知を購読
+        client.subscribe(`/topic/ai-chat/user/${userId}/scorecard`, (message) => {
+          const data = JSON.parse(message.body);
+          console.log('📊 スコアカード受信:', data);
+          setScoreCard(data);
+        });
+
         // セッション削除通知を購読
         client.subscribe(`/topic/ai-chat/user/${userId}/session-deleted`, (message) => {
           const data = JSON.parse(message.body);
@@ -297,12 +306,14 @@ export default function AskAiPage() {
   const handleNewSession = (): void => {
     setCurrentSessionId(null);
     setMessages([]);
+    setScoreCard(null);
     console.log('🆕 新規セッション開始');
   };
 
   // --- セッション選択 ---
   const handleSelectSession = (sessionId: number): void => {
     setCurrentSessionId(sessionId);
+    setScoreCard(null);
     navigate(`/chat/ask-ai/${sessionId}`);
     console.log('📂 セッション選択:', sessionId);
   };
@@ -579,6 +590,9 @@ export default function AskAiPage() {
                 onDelete={handleDeleteMessage}
               />
             ))}
+
+            {/* スコアカード表示 */}
+            {scoreCard && <ScoreCardComponent scoreCard={scoreCard} />}
 
             {/* スクロール最終地点 */}
             <div ref={messagesEndRef} />

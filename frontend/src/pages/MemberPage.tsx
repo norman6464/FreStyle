@@ -3,10 +3,8 @@ import { debounce } from 'lodash';
 import { useNavigate } from 'react-router-dom';
 import MemberList from '../components/MemberList';
 import SearchBox from '../components/SearchBox';
-import HamburgerMenu from '../components/HamburgerMenu';
 import type { MemberUser } from '../types';
 
-// 今回の場合は検索ボックスを使っているのでloadashライブラリのdebounceでユーザーが入力を終えたらリクエストを送るようにする
 export default function MemberPage() {
   const navigate = useNavigate();
   const [members, setMembers] = useState<MemberUser[]>([]);
@@ -32,12 +30,8 @@ export default function MemberPage() {
       ? `?query=${encodeURIComponent(debounceQuery)}`
       : '';
 
-    console.log('リクエスト開始');
-
     fetch(`${API_BASE_URL}/api/chat/users${queryParam}`, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
       signal: controller.signal,
     })
@@ -53,14 +47,12 @@ export default function MemberPage() {
       })
       .then((data) => {
         if (data?.users) {
-          console.log('ユーザー一覧： ', data);
           setMembers(data.users);
         } else if (data?.error) {
           setError(data.error);
         }
       })
       .catch((err: Error) => {
-        console.log('error fetch /api/chat/members');
         if (err.name !== 'AbortError') {
           setError(err.message);
         }
@@ -70,58 +62,36 @@ export default function MemberPage() {
   }, [debounceQuery, navigate, API_BASE_URL]);
 
   return (
-    <>
-      <HamburgerMenu title="チャットメンバー" />
-      <div className="min-h-screen bg-slate-50 p-4 pt-20 pb-8">
-        <div className="max-w-2xl mx-auto">
-          {/* ヘッダー */}
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-slate-800 mb-2">
-              あなたのチャット
-            </h2>
-            <p className="text-slate-600 text-sm">メンバーを検索または選択</p>
-          </div>
-
-          {/* 検索ボックス */}
-          <div className="mb-8">
-            <SearchBox
-              value={searchQuery}
-              onChange={setSearchQuery}
-              placeholder="メンバーを検索..."
-            />
-          </div>
-
-          {/* エラー表示 */}
-          {error && (
-            <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-lg">
-              <p className="text-red-700 font-semibold">{error}</p>
-            </div>
-          )}
-
-          {/* メンバーリスト */}
-          {members.length === 0 && !error && (
-            <div className="text-center py-12">
-              <div className="w-16 h-16 bg-slate-200 rounded-full mx-auto mb-4 flex items-center justify-center">
-                <svg
-                  className="w-8 h-8 text-slate-500"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M17 20h5v-2a3 3 0 00-5.856-1.487M15 10a3 3 0 11-6 0 3 3 0 016 0zM15 20H9m6 0h.01"
-                  />
-                </svg>
-              </div>
-              <p className="text-slate-500 text-lg">メンバーがまだいません</p>
-            </div>
-          )}
-          <MemberList users={members} />
-        </div>
+    <div className="p-6 max-w-2xl mx-auto">
+      {/* ヘッダー */}
+      <div className="mb-4">
+        <h2 className="text-lg font-bold text-slate-800">チャットメンバー</h2>
+        <p className="text-sm text-slate-500">メンバーを検索または選択</p>
       </div>
-    </>
+
+      {/* 検索ボックス */}
+      <div className="mb-6">
+        <SearchBox
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder="メンバーを検索..."
+        />
+      </div>
+
+      {/* エラー表示 */}
+      {error && (
+        <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-lg">
+          <p className="text-sm text-rose-700">{error}</p>
+        </div>
+      )}
+
+      {/* メンバーリスト */}
+      {members.length === 0 && !error && (
+        <div className="text-center py-12">
+          <p className="text-sm text-slate-500">メンバーがまだいません</p>
+        </div>
+      )}
+      <MemberList users={members} />
+    </div>
   );
 }

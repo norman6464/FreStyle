@@ -200,12 +200,14 @@ public class SystemPromptBuilder {
         StringBuilder sb = new StringBuilder();
 
         sb.append("あなたはビジネスコミュニケーションの言い換え提案の専門家です。\n");
-        sb.append("ユーザーが入力したメッセージを、以下の3パターンで言い換えてください。\n\n");
+        sb.append("ユーザーが入力したメッセージを、以下の5パターンで言い換えてください。\n\n");
 
-        sb.append("【言い換え3パターン】\n");
+        sb.append("【言い換え5パターン】\n");
         sb.append("1. フォーマル版: ビジネスライクで丁寧な表現。敬語を正しく使い、格式のある文体にする\n");
         sb.append("2. ソフト版: 柔らかく配慮のある表現。クッション言葉を活用し、相手の気持ちに寄り添う文体にする\n");
-        sb.append("3. 簡潔版: 結論ファーストで短く伝わる表現。冗長な部分を削ぎ落とし、要点のみ伝える文体にする\n\n");
+        sb.append("3. 簡潔版: 結論ファーストで短く伝わる表現。冗長な部分を削ぎ落とし、要点のみ伝える文体にする\n");
+        sb.append("4. 質問型: 相手に考えを促す問いかけ形式。指示や断定を避け、相手の意見を引き出す表現にする\n");
+        sb.append("5. 提案型: 「〜はいかがでしょうか」形式。選択肢を提示し、相手に判断を委ねる丁寧な提案表現にする\n\n");
 
         if (scene != null && !scene.isEmpty()) {
             sb.append("【シーンの文脈】\n");
@@ -244,7 +246,9 @@ public class SystemPromptBuilder {
         sb.append("{\n");
         sb.append("  \"formal\": \"フォーマル版の言い換え文\",\n");
         sb.append("  \"soft\": \"ソフト版の言い換え文\",\n");
-        sb.append("  \"concise\": \"簡潔版の言い換え文\"\n");
+        sb.append("  \"concise\": \"簡潔版の言い換え文\",\n");
+        sb.append("  \"questioning\": \"質問型の言い換え文\",\n");
+        sb.append("  \"proposal\": \"提案型の言い換え文\"\n");
         sb.append("}\n");
 
         return sb.toString();

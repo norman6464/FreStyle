@@ -21,10 +21,10 @@ export default function SceneSelector({ onSelect, onCancel }: SceneSelectorProps
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 p-6">
-        <h3 className="text-lg font-bold text-gray-800 mb-2">
+        <h3 className="text-lg font-bold text-slate-800 mb-2">
           フィードバックのシーンを選択
         </h3>
-        <p className="text-sm text-gray-500 mb-4">
+        <p className="text-sm text-slate-500 mb-4">
           シーンに応じた追加評価観点でフィードバックします
         </p>
 
@@ -33,17 +33,17 @@ export default function SceneSelector({ onSelect, onCancel }: SceneSelectorProps
             <button
               key={scene.id}
               onClick={() => onSelect(scene.id)}
-              className="w-full text-left p-3 rounded-lg border border-gray-200 hover:border-primary-400 hover:bg-primary-50 transition-colors"
+              className="w-full text-left p-3 rounded-lg border border-slate-200 hover:border-primary-400 hover:bg-primary-50 transition-colors"
             >
-              <span className="font-medium text-gray-800">{scene.label}</span>
-              <p className="text-xs text-gray-500 mt-0.5">{scene.description}</p>
+              <span className="font-medium text-slate-800">{scene.label}</span>
+              <p className="text-xs text-slate-500 mt-0.5">{scene.description}</p>
             </button>
           ))}
         </div>
 
         <button
           onClick={onCancel}
-          className="w-full mt-4 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+          className="w-full mt-4 py-2 text-sm text-slate-500 hover:text-slate-700 transition-colors"
         >
           スキップ
         </button>

@@ -20,15 +20,15 @@ export default function ScoreCard({ scoreCard }: ScoreCardProps) {
   };
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4 my-3 max-w-[85%] self-start">
+    <div className="bg-white rounded-xl border border-slate-200 p-4 my-3 max-w-[85%] self-start">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-bold text-gray-700">スコアカード</h3>
+        <h3 className="text-sm font-bold text-slate-700">スコアカード</h3>
         <div className="flex items-center gap-1">
-          <span className="text-xs text-gray-500">総合</span>
+          <span className="text-xs text-slate-500">総合</span>
           <span className={`text-lg font-bold ${getOverallColor(scoreCard.overallScore)}`}>
             {scoreCard.overallScore.toFixed(1)}
           </span>
-          <span className="text-xs text-gray-400">/10</span>
+          <span className="text-xs text-slate-400">/10</span>
         </div>
       </div>
 
@@ -36,16 +36,16 @@ export default function ScoreCard({ scoreCard }: ScoreCardProps) {
         {scoreCard.scores.map((axisScore) => (
           <div key={axisScore.axis}>
             <div className="flex items-center justify-between mb-0.5">
-              <span className="text-xs text-gray-600">{axisScore.axis}</span>
-              <span className="text-xs font-bold text-gray-700">{axisScore.score}</span>
+              <span className="text-xs text-slate-600">{axisScore.axis}</span>
+              <span className="text-xs font-bold text-slate-700">{axisScore.score}</span>
             </div>
-            <div className="w-full bg-gray-100 rounded-full h-2">
+            <div className="w-full bg-slate-100 rounded-full h-2">
               <div
                 className={`h-2 rounded-full transition-all duration-500 ${getScoreColor(axisScore.score)}`}
                 style={{ width: `${axisScore.score * 10}%` }}
               />
             </div>
-            <p className="text-[10px] text-gray-400 mt-0.5">{axisScore.comment}</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">{axisScore.comment}</p>
           </div>
         ))}
       </div>

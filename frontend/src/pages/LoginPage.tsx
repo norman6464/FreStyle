@@ -98,20 +98,20 @@ export default function LoginPage() {
       {/* flash Message */}
       <div>
         {message && (
-          <p className="text-green-600 text-center mb-4 p-3 bg-green-50 rounded-lg font-medium">
+          <p className="text-emerald-600 text-center mb-4 p-3 bg-emerald-50 rounded-lg font-medium">
             {message}
           </p>
         )}
         {loginMessage?.type === 'error' && (
-          <p className="text-red-600 text-center mb-4 p-3 bg-red-50 rounded-lg font-medium">
+          <p className="text-rose-600 text-center mb-4 p-3 bg-rose-50 rounded-lg font-medium">
             ✕ {loginMessage.text}
           </p>
         )}
       </div>
-      <h2 className="text-3xl font-bold mb-2 text-center text-gray-800">
+      <h2 className="text-3xl font-bold mb-2 text-center text-slate-800">
         ログイン
       </h2>
-      <p className="text-center text-gray-500 text-sm mb-6">
+      <p className="text-center text-slate-500 text-sm mb-6">
         アカウントにアクセスしてください
       </p>
       <form onSubmit={handleLogin}>
@@ -137,10 +137,10 @@ export default function LoginPage() {
       </div>
       <div className="relative my-6">
         <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-gray-200"></div>
+          <div className="w-full border-t border-slate-200"></div>
         </div>
         <div className="relative flex justify-center text-sm">
-          <span className="px-2 bg-white text-gray-500">
+          <span className="px-2 bg-white text-slate-500">
             またはSNSでログイン
           </span>
         </div>

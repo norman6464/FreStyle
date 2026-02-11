@@ -47,6 +47,7 @@ public class AiChatWebSocketController {
             Object contentObj = payload.get("content");
             Object roleObj = payload.get("role"); // "user" または "assistant"
             Object fromChatFeedbackObj = payload.get("fromChatFeedback"); // チャットフィードバックモードフラグ
+            Object sceneObj = payload.get("scene"); // フィードバックシーン
 
             System.out.println("   - userId タイプ: " + (userIdObj != null ? userIdObj.getClass().getSimpleName() : "null"));
             System.out.println("   - userId 値: " + userIdObj);
@@ -55,6 +56,7 @@ public class AiChatWebSocketController {
             System.out.println("   - content: " + contentObj);
             System.out.println("   - role: " + roleObj);
             System.out.println("   - fromChatFeedback: " + fromChatFeedbackObj);
+            System.out.println("   - scene: " + sceneObj);
 
             // userId の変換
             Integer userId = convertToInteger(userIdObj);
@@ -67,9 +69,12 @@ public class AiChatWebSocketController {
             Role role = "assistant".equalsIgnoreCase(roleStr) ? Role.assistant : Role.user;
 
             // チャットフィードバックモードの判定
-            boolean fromChatFeedback = fromChatFeedbackObj != null && 
-                (fromChatFeedbackObj instanceof Boolean ? (Boolean) fromChatFeedbackObj : 
+            boolean fromChatFeedback = fromChatFeedbackObj != null &&
+                (fromChatFeedbackObj instanceof Boolean ? (Boolean) fromChatFeedbackObj :
                  "true".equalsIgnoreCase(String.valueOf(fromChatFeedbackObj)));
+
+            // シーンの取得
+            String scene = sceneObj != null ? String.valueOf(sceneObj) : null;
 
             System.out.println("✅ パラメータ抽出成功");
             System.out.println("   - userId (最終): " + userId);
@@ -77,13 +82,18 @@ public class AiChatWebSocketController {
             System.out.println("   - content: " + content);
             System.out.println("   - role: " + role);
             System.out.println("   - fromChatFeedback (最終): " + fromChatFeedback);
+            System.out.println("   - scene (最終): " + scene);
 
             // セッションが存在しない場合は新規作成
             if (sessionId == null) {
                 System.out.println("🆕 新規セッション作成中...");
                 // フィードバックモードの場合はタイトルを変更
                 String title = fromChatFeedback ? "チャットフィードバック" : "新しいチャット";
-                AiChatSessionDto newSession = aiChatSessionService.createSession(userId, title, null);
+                // シーンが指定されている場合はタイトルにシーン名を含める
+                if (scene != null && fromChatFeedback) {
+                    title = getSceneDisplayName(scene) + "フィードバック";
+                }
+                AiChatSessionDto newSession = aiChatSessionService.createSession(userId, title, null, scene);
                 sessionId = newSession.getId();
                 System.out.println("✅ 新規セッション作成完了 - sessionId: " + sessionId);
 
@@ -114,9 +124,9 @@ public class AiChatWebSocketController {
             String aiReply;
             if (fromChatFeedback) {
                 // チャットフィードバックモード: バックエンドでUserProfileを取得
-                System.out.println("🤖 フィードバックモード: UserProfileをバックエンドで取得中...");
+                System.out.println("🤖 フィードバックモード: UserProfileをバックエンドで取得中... scene=" + scene);
                 UserProfileDto userProfile = userProfileService.getProfileByUserId(userId);
-                
+
                 if (userProfile != null) {
                     System.out.println("✅ UserProfile取得成功");
                     System.out.println("   - UserProfile情報:");
@@ -125,12 +135,13 @@ public class AiChatWebSocketController {
                     System.out.println("     - concerns: " + userProfile.getConcerns());
                     System.out.println("     - preferredFeedbackStyle: " + userProfile.getPreferredFeedbackStyle());
 
-                    String personalityTraits = userProfile.getPersonalityTraits() != null 
-                        ? String.join(", ", userProfile.getPersonalityTraits()) 
+                    String personalityTraits = userProfile.getPersonalityTraits() != null
+                        ? String.join(", ", userProfile.getPersonalityTraits())
                         : null;
 
-                    aiReply = bedrockService.chatWithUserProfile(
+                    aiReply = bedrockService.chatWithUserProfileAndScene(
                         content,
+                        scene,
                         userProfile.getDisplayName(),
                         userProfile.getSelfIntroduction(),
                         userProfile.getCommunicationStyle(),
@@ -245,6 +256,21 @@ public class AiChatWebSocketController {
             System.out.println("❌ セッション削除エラー: " + e.getMessage());
             e.printStackTrace();
             System.out.println("========== /ai-chat/delete-session 処理失敗 ==========\n");
+        }
+    }
+
+    /**
+     * シーン識別子から表示名を取得
+     */
+    private String getSceneDisplayName(String scene) {
+        if (scene == null) return "";
+        switch (scene) {
+            case "meeting": return "会議";
+            case "one_on_one": return "1on1";
+            case "email": return "メール";
+            case "presentation": return "プレゼン";
+            case "negotiation": return "商談";
+            default: return "";
         }
     }
 

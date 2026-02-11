@@ -43,6 +43,10 @@ public class AiChatSession {
     @JoinColumn(name = "related_room_id")
     private ChatRoom relatedRoom;
 
+    // フィードバック時のシーン（meeting, one_on_one, email, presentation, negotiation）
+    @Column(name = "scene", length = 50)
+    private String scene;
+
     @Column(name = "created_at", insertable = false, updatable = false)
     private Timestamp createdAt;
 

@@ -193,16 +193,6 @@ public class BedrockService {
     /**
      * UserProfile情報を含めたチャットフィードバック用AI応答取得
      * システムプロンプトにユーザーの目標、懸念事項、フィードバックスタイルを含める
-     *
-     * @param userMessage ユーザーからのメッセージ（チャット履歴を含む）
-     * @param displayName ユーザーの表示名
-     * @param selfIntroduction 自己紹介
-     * @param communicationStyle コミュニケーションスタイル
-     * @param personalityTraits 性格特性（カンマ区切り）
-     * @param goals ユーザーの目標
-     * @param concerns 懸念事項
-     * @param preferredFeedbackStyle 希望するフィードバックスタイル
-     * @return AIからの応答テキスト
      */
     public String chatWithUserProfile(
             String userMessage,
@@ -213,13 +203,42 @@ public class BedrockService {
             String goals,
             String concerns,
             String preferredFeedbackStyle) {
-        
-        log.info("📤 Bedrock にUserProfile付きメッセージ送信中...");
+        return chatWithUserProfileAndScene(userMessage, null,
+                displayName, selfIntroduction, communicationStyle,
+                personalityTraits, goals, concerns, preferredFeedbackStyle);
+    }
+
+    /**
+     * UserProfile情報＋シーン指定を含めたチャットフィードバック用AI応答取得
+     *
+     * @param userMessage ユーザーからのメッセージ（チャット履歴を含む）
+     * @param scene フィードバックシーン（meeting, one_on_one, email, presentation, negotiation）
+     * @param displayName ユーザーの表示名
+     * @param selfIntroduction 自己紹介
+     * @param communicationStyle コミュニケーションスタイル
+     * @param personalityTraits 性格特性（カンマ区切り）
+     * @param goals ユーザーの目標
+     * @param concerns 懸念事項
+     * @param preferredFeedbackStyle 希望するフィードバックスタイル
+     * @return AIからの応答テキスト
+     */
+    public String chatWithUserProfileAndScene(
+            String userMessage,
+            String scene,
+            String displayName,
+            String selfIntroduction,
+            String communicationStyle,
+            String personalityTraits,
+            String goals,
+            String concerns,
+            String preferredFeedbackStyle) {
+
+        log.info("📤 Bedrock にUserProfile付きメッセージ送信中... scene={}", scene);
 
         try {
-            // コールセンター式QAフィードバックのシステムプロンプトを構築
-            String systemPrompt = systemPromptBuilder.buildFeedbackPrompt(
-                    displayName, selfIntroduction, communicationStyle,
+            // シーン指定がある場合はシーン別プロンプト、なければ基本プロンプト
+            String systemPrompt = systemPromptBuilder.buildFeedbackPromptWithScene(
+                    scene, displayName, selfIntroduction, communicationStyle,
                     personalityTraits, goals, concerns, preferredFeedbackStyle);
             log.debug("   - System Prompt: {}", systemPrompt);
 

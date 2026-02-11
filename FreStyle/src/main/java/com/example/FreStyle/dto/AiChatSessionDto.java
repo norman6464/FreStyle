@@ -14,6 +14,7 @@ public class AiChatSessionDto {
     private Integer userId;
     private String title;
     private Integer relatedRoomId;
+    private String scene;
     private Timestamp createdAt;
     private Timestamp updatedAt;
 }

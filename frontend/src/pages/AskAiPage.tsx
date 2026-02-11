@@ -33,8 +33,10 @@ export default function AskAiPage() {
   const dispatch = useDispatch();
   const { sessionId: urlSessionId } = useParams<{ sessionId: string }>();
 
-  const initialPrompt = (location.state as { initialPrompt?: string; fromChatFeedback?: boolean })?.initialPrompt;
-  const fromChatFeedback = (location.state as { initialPrompt?: string; fromChatFeedback?: boolean })?.fromChatFeedback || false; // チャットフィードバックモードフラグ
+  const locationState = location.state as { initialPrompt?: string; fromChatFeedback?: boolean; scene?: string } | null;
+  const initialPrompt = locationState?.initialPrompt;
+  const fromChatFeedback = locationState?.fromChatFeedback || false;
+  const scene = locationState?.scene || null;
 
   // ユーザー情報取得（userId を取得）
   useEffect(() => {
@@ -389,13 +391,16 @@ export default function AskAiPage() {
 
     // STOMPで送信（WebSocket経由でサーバーからのレスポンスを待ってから表示）
     // fromChatFeedbackフラグのみ送信し、UserProfileはバックエンドで取得する
-    const payload = {
+    const payload: Record<string, unknown> = {
       userId: userId,
       sessionId: currentSessionId,
       content: text,
       role: 'user',
       fromChatFeedback: fromChatFeedback,
     };
+    if (scene) {
+      payload.scene = scene;
+    }
 
     console.log('📤 STOMP送信:', payload);
     stompClientRef.current.publish({

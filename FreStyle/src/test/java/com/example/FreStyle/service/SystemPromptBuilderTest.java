@@ -80,6 +80,101 @@ class SystemPromptBuilderTest {
     }
 
     @Nested
+    @DisplayName("buildFeedbackPromptWithScene - シーン別フィードバックプロンプト")
+    class BuildFeedbackPromptWithSceneTest {
+
+        @Test
+        @DisplayName("会議シーンの追加評価観点が含まれる")
+        void shouldContainMeetingSceneCriteria() {
+            String prompt = builder.buildFeedbackPromptWithScene(
+                    "meeting", "テスト太郎", null, null, null, null, null, null);
+
+            assertThat(prompt).contains("会議");
+            assertThat(prompt).contains("発言のタイミング");
+            assertThat(prompt).contains("議論の建設性");
+            assertThat(prompt).contains("ファシリテーション");
+            // 基本5軸も含まれること
+            assertThat(prompt).contains("論理的構成力");
+            assertThat(prompt).contains("配慮表現");
+        }
+
+        @Test
+        @DisplayName("1on1シーンの追加評価観点が含まれる")
+        void shouldContainOneOnOneSceneCriteria() {
+            String prompt = builder.buildFeedbackPromptWithScene(
+                    "one_on_one", "テスト太郎", null, null, null, null, null, null);
+
+            assertThat(prompt).contains("1on1");
+            assertThat(prompt).contains("心理的安全性");
+            assertThat(prompt).contains("フィードバックの具体性");
+            assertThat(prompt).contains("傾聴の深さ");
+        }
+
+        @Test
+        @DisplayName("メールシーンの追加評価観点が含まれる")
+        void shouldContainEmailSceneCriteria() {
+            String prompt = builder.buildFeedbackPromptWithScene(
+                    "email", "テスト太郎", null, null, null, null, null, null);
+
+            assertThat(prompt).contains("メール");
+            assertThat(prompt).contains("件名の明確さ");
+            assertThat(prompt).contains("構成の読みやすさ");
+            assertThat(prompt).contains("アクション明示");
+        }
+
+        @Test
+        @DisplayName("プレゼンシーンの追加評価観点が含まれる")
+        void shouldContainPresentationSceneCriteria() {
+            String prompt = builder.buildFeedbackPromptWithScene(
+                    "presentation", "テスト太郎", null, null, null, null, null, null);
+
+            assertThat(prompt).contains("プレゼン");
+            assertThat(prompt).contains("ストーリー構成");
+            assertThat(prompt).contains("聞き手への配慮");
+            assertThat(prompt).contains("質疑応答力");
+        }
+
+        @Test
+        @DisplayName("商談シーンの追加評価観点が含まれる")
+        void shouldContainNegotiationSceneCriteria() {
+            String prompt = builder.buildFeedbackPromptWithScene(
+                    "negotiation", "テスト太郎", null, null, null, null, null, null);
+
+            assertThat(prompt).contains("商談");
+            assertThat(prompt).contains("ニーズヒアリング");
+            assertThat(prompt).contains("価値提案");
+            assertThat(prompt).contains("クロージング");
+        }
+
+        @Test
+        @DisplayName("シーンがnullの場合は基本5軸のみのプロンプトが返される")
+        void shouldReturnBasicPromptWhenSceneIsNull() {
+            String prompt = builder.buildFeedbackPromptWithScene(
+                    null, "テスト太郎", null, null, null, null, null, null);
+
+            assertThat(prompt).contains("論理的構成力");
+            assertThat(prompt).contains("配慮表現");
+            assertThat(prompt).contains("要約力");
+            assertThat(prompt).contains("提案力");
+            assertThat(prompt).contains("質問・傾聴力");
+            // シーン別の追加観点は含まれない
+            assertThat(prompt).doesNotContain("【シーン別追加評価観点】");
+        }
+
+        @Test
+        @DisplayName("UserProfile情報がシーン別プロンプトにも正しく埋め込まれる")
+        void shouldEmbedUserProfileInScenePrompt() {
+            String prompt = builder.buildFeedbackPromptWithScene(
+                    "meeting", "山田花子", "元気な人です", "カジュアル", "明るい", "リーダーシップ", "緊張する", "優しく");
+
+            assertThat(prompt).contains("山田花子");
+            assertThat(prompt).contains("元気な人です");
+            assertThat(prompt).contains("カジュアル");
+            assertThat(prompt).contains("リーダーシップ");
+        }
+    }
+
+    @Nested
     @DisplayName("buildCoachPrompt - ビジネスコミュニケーションコーチのプロンプト構築")
     class BuildCoachPromptTest {
 

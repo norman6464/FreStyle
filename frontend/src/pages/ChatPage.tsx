@@ -7,6 +7,7 @@ import SearchBox from '../components/SearchBox';
 import { ChatUser, ChatMessage } from '../types';
 
 import ConfirmModal from '../components/ConfirmModal';
+import SceneSelector from '../components/SceneSelector';
 import { useDispatch } from 'react-redux';
 import { clearAuth } from '../store/authSlice';
 
@@ -24,6 +25,7 @@ export default function ChatPage() {
   const [selectedMessages, setSelectedMessages] = useState<Set<number>>(new Set());
   const [rangeStart, setRangeStart] = useState<number | null>(null); // 範囲選択の開始点
   const [rangeEnd, setRangeEnd] = useState<number | null>(null);     // 範囲選択の終了点
+  const [showSceneSelector, setShowSceneSelector] = useState(false); // シーンセレクター表示
   const stompClientRef = useRef<Client | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -441,6 +443,13 @@ export default function ChatPage() {
       return;
     }
 
+    // シーンセレクターを表示
+    setShowSceneSelector(true);
+  };
+
+  const handleSceneSelect = (scene: string | null) => {
+    setShowSceneSelector(false);
+
     // 選択されたメッセージを時系列順にフィルタリング
     const selectedMsgs = messages.filter((msg) => selectedMessages.has(msg.id));
     const chatHistory = selectedMsgs
@@ -455,7 +464,8 @@ export default function ChatPage() {
     navigate('/chat/ask-ai', {
       state: {
         initialPrompt: `【選択したチャット履歴】\n${chatHistory}`,
-        fromChatFeedback: true, // チャットフィードバックモードフラグ
+        fromChatFeedback: true,
+        scene: scene,
       },
     });
   };
@@ -804,6 +814,14 @@ export default function ChatPage() {
           </div>
         </div>
       </div>
+
+      {/* シーン選択モーダル */}
+      {showSceneSelector && (
+        <SceneSelector
+          onSelect={(sceneId) => handleSceneSelect(sceneId)}
+          onCancel={() => handleSceneSelect(null)}
+        />
+      )}
 
       {/* 削除確認モーダル */}
       <ConfirmModal

@@ -8,6 +8,7 @@ import {
   SparklesIcon,
   ChatBubbleLeftRightIcon,
   LightBulbIcon,
+  AcademicCapIcon,
 } from '@heroicons/react/24/solid';
 import type { RootState } from '../store';
 
@@ -305,6 +306,39 @@ export default function MenuPage() {
                 </div>
                 <svg
                   className="w-5 h-5 text-white/70 ml-auto mt-2"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 5l7 7-7 7"
+                  />
+                </svg>
+              </div>
+            </div>
+
+            {/* 練習モード */}
+            <div
+              onClick={() => navigate('/practice')}
+              className="bg-white rounded-xl p-6 cursor-pointer border border-gray-200 hover:bg-gray-50 transition-colors duration-150"
+            >
+              <div className="flex items-start">
+                <div className="bg-primary-100 rounded-lg p-3 mr-4">
+                  <AcademicCapIcon className="w-6 h-6 text-primary-500" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-800">
+                    練習モード
+                  </h2>
+                  <p className="text-gray-500 text-sm mt-1">
+                    ビジネスシナリオでAIとロールプレイ練習
+                  </p>
+                </div>
+                <svg
+                  className="w-5 h-5 text-gray-300 ml-auto"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"

@@ -13,10 +13,13 @@ import com.example.FreStyle.dto.AiChatSessionDto;
 import com.example.FreStyle.dto.ScoreCardDto;
 import com.example.FreStyle.dto.UserProfileDto;
 import com.example.FreStyle.entity.AiChatMessage.Role;
+import com.example.FreStyle.entity.PracticeScenario;
 import com.example.FreStyle.service.AiChatMessageService;
 import com.example.FreStyle.service.AiChatSessionService;
 import com.example.FreStyle.service.BedrockService;
+import com.example.FreStyle.service.PracticeScenarioService;
 import com.example.FreStyle.service.ScoreCardService;
+import com.example.FreStyle.service.SystemPromptBuilder;
 import com.example.FreStyle.service.UserProfileService;
 
 import lombok.RequiredArgsConstructor;
@@ -33,6 +36,8 @@ public class AiChatWebSocketController {
     private final SimpMessagingTemplate messagingTemplate;
     private final UserProfileService userProfileService;
     private final ScoreCardService scoreCardService;
+    private final PracticeScenarioService practiceScenarioService;
+    private final SystemPromptBuilder systemPromptBuilder;
 
     /**
      * AIチャットメッセージ送信
@@ -52,6 +57,8 @@ public class AiChatWebSocketController {
             Object roleObj = payload.get("role"); // "user" または "assistant"
             Object fromChatFeedbackObj = payload.get("fromChatFeedback"); // チャットフィードバックモードフラグ
             Object sceneObj = payload.get("scene"); // フィードバックシーン
+            Object sessionTypeObj = payload.get("sessionType"); // セッション種別（normal, practice）
+            Object scenarioIdObj = payload.get("scenarioId"); // 練習シナリオID
 
             System.out.println("   - userId タイプ: " + (userIdObj != null ? userIdObj.getClass().getSimpleName() : "null"));
             System.out.println("   - userId 値: " + userIdObj);
@@ -79,6 +86,11 @@ public class AiChatWebSocketController {
 
             // シーンの取得
             String scene = sceneObj != null ? String.valueOf(sceneObj) : null;
+
+            // セッション種別・シナリオIDの取得
+            String sessionType = sessionTypeObj != null ? String.valueOf(sessionTypeObj) : "normal";
+            Integer scenarioId = scenarioIdObj != null ? convertToInteger(scenarioIdObj) : null;
+            boolean isPracticeMode = "practice".equals(sessionType);
 
             System.out.println("✅ パラメータ抽出成功");
             System.out.println("   - userId (最終): " + userId);
@@ -126,7 +138,15 @@ public class AiChatWebSocketController {
 
             // Bedrockにメッセージを送信してAI応答を取得
             String aiReply;
-            if (fromChatFeedback) {
+            if (isPracticeMode && scenarioId != null) {
+                // 練習モード: シナリオに基づいたロールプレイ
+                System.out.println("🎭 練習モード: scenarioId=" + scenarioId);
+                PracticeScenario scenario = practiceScenarioService.getScenarioEntityById(scenarioId);
+                String practicePrompt = systemPromptBuilder.buildPracticePrompt(
+                        scenario.getName(), scenario.getRoleName(),
+                        scenario.getDifficulty(), scenario.getSystemPrompt());
+                aiReply = bedrockService.chatInPracticeMode(content, practicePrompt);
+            } else if (fromChatFeedback) {
                 // チャットフィードバックモード: バックエンドでUserProfileを取得
                 System.out.println("🤖 フィードバックモード: UserProfileをバックエンドで取得中... scene=" + scene);
                 UserProfileDto userProfile = userProfileService.getProfileByUserId(userId);

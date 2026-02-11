@@ -297,6 +297,65 @@ public class BedrockService {
     }
 
     /**
+     * 練習モード用のAI応答取得
+     * シナリオに基づいたロールプレイ相手役として応答する
+     *
+     * @param userMessage ユーザーからのメッセージ
+     * @param practicePrompt 練習用システムプロンプト
+     * @return AIからの応答テキスト
+     */
+    public String chatInPracticeMode(String userMessage, String practicePrompt) {
+        log.info("📤 Bedrock に練習モードメッセージ送信中...");
+
+        try {
+            ObjectNode requestBody = objectMapper.createObjectNode();
+            requestBody.put("anthropic_version", "bedrock-2023-05-31");
+            requestBody.put("max_tokens", 1024);
+            requestBody.put("temperature", 0.8); // 練習モードでは少し創造的に
+            requestBody.put("system", practicePrompt);
+
+            ArrayNode messagesArray = objectMapper.createArrayNode();
+            ObjectNode userMessageNode = objectMapper.createObjectNode();
+            userMessageNode.put("role", "user");
+
+            ArrayNode contentArray = objectMapper.createArrayNode();
+            ObjectNode textContent = objectMapper.createObjectNode();
+            textContent.put("type", "text");
+            textContent.put("text", userMessage);
+            contentArray.add(textContent);
+
+            userMessageNode.set("content", contentArray);
+            messagesArray.add(userMessageNode);
+
+            requestBody.set("messages", messagesArray);
+
+            String requestBodyJson = objectMapper.writeValueAsString(requestBody);
+
+            InvokeModelRequest request = InvokeModelRequest.builder()
+                    .modelId(MODEL_ID)
+                    .contentType("application/json")
+                    .accept("application/json")
+                    .body(SdkBytes.fromUtf8String(requestBodyJson))
+                    .build();
+
+            InvokeModelResponse response = bedrockClient.invokeModel(request);
+
+            String responseBody = response.body().asUtf8String();
+            JsonNode responseJson = objectMapper.readTree(responseBody);
+            String aiReply = responseJson.path("content").get(0).path("text").asText();
+
+            log.info("✅ Bedrock からの練習モード応答を取得しました");
+
+            return aiReply;
+
+        } catch (Exception e) {
+            log.error("❌ Bedrock 練習モードエラー: {}", e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("練習モードのAI応答取得に失敗しました: " + e.getMessage(), e);
+        }
+    }
+
+    /**
      * メッセージの言い換え提案を取得（3パターン: フォーマル版/ソフト版/簡潔版）
      *
      * @param originalMessage 元のメッセージ

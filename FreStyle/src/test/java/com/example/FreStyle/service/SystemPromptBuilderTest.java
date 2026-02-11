@@ -228,6 +228,54 @@ class SystemPromptBuilderTest {
     }
 
     @Nested
+    @DisplayName("buildPracticePrompt - 練習モード用プロンプト構築")
+    class BuildPracticePromptTest {
+
+        @Test
+        @DisplayName("シナリオ名と相手役名がプロンプトに含まれる")
+        void shouldContainScenarioAndRoleName() {
+            String prompt = builder.buildPracticePrompt(
+                    "障害報告対応", "怒っている顧客（SIer企業のPM）", "intermediate",
+                    "本番環境で障害が発生し、顧客から緊急連絡が入った状況です。");
+
+            assertThat(prompt).contains("障害報告対応");
+            assertThat(prompt).contains("怒っている顧客（SIer企業のPM）");
+        }
+
+        @Test
+        @DisplayName("難易度に応じた指示が含まれる")
+        void shouldContainDifficultyInstruction() {
+            String beginnerPrompt = builder.buildPracticePrompt(
+                    "テスト", "テスト役", "beginner", "テスト状況");
+
+            String advancedPrompt = builder.buildPracticePrompt(
+                    "テスト", "テスト役", "advanced", "テスト状況");
+
+            assertThat(beginnerPrompt).contains("初級");
+            assertThat(advancedPrompt).contains("上級");
+        }
+
+        @Test
+        @DisplayName("シナリオの状況説明が含まれる")
+        void shouldContainScenarioContext() {
+            String prompt = builder.buildPracticePrompt(
+                    "テスト", "テスト役", "intermediate",
+                    "デプロイ直後に本番障害が発生した状況です。");
+
+            assertThat(prompt).contains("デプロイ直後に本番障害が発生した状況です。");
+        }
+
+        @Test
+        @DisplayName("ロールプレイの指示が含まれる")
+        void shouldContainRolePlayInstruction() {
+            String prompt = builder.buildPracticePrompt(
+                    "テスト", "テスト役", "intermediate", "テスト状況");
+
+            assertThat(prompt).contains("ロールプレイ");
+        }
+    }
+
+    @Nested
     @DisplayName("buildCoachPrompt - ビジネスコミュニケーションコーチのプロンプト構築")
     class BuildCoachPromptTest {
 

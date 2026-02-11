@@ -36,7 +36,19 @@ export interface AiSession {
   id: number;
   title?: string;
   scene?: string;
+  sessionType?: string;
+  scenarioId?: number;
   createdAt?: string;
+}
+
+/** 練習シナリオ */
+export interface PracticeScenario {
+  id: number;
+  name: string;
+  description: string;
+  category: string;
+  roleName: string;
+  difficulty: string;
 }
 
 /** AIメッセージ */

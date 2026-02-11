@@ -35,10 +35,21 @@ export default function AskAiPage() {
   const dispatch = useDispatch();
   const { sessionId: urlSessionId } = useParams<{ sessionId: string }>();
 
-  const locationState = location.state as { initialPrompt?: string; fromChatFeedback?: boolean; scene?: string } | null;
+  const locationState = location.state as {
+    initialPrompt?: string;
+    fromChatFeedback?: boolean;
+    scene?: string;
+    sessionType?: string;
+    scenarioId?: number;
+    scenarioName?: string;
+  } | null;
   const initialPrompt = locationState?.initialPrompt;
   const fromChatFeedback = locationState?.fromChatFeedback || false;
   const scene = locationState?.scene || null;
+  const sessionType = locationState?.sessionType || 'normal';
+  const scenarioId = locationState?.scenarioId || null;
+  const scenarioName = locationState?.scenarioName || null;
+  const isPracticeMode = sessionType === 'practice';
 
   // ユーザー情報取得（userId を取得）
   useEffect(() => {
@@ -412,6 +423,10 @@ export default function AskAiPage() {
     if (scene) {
       payload.scene = scene;
     }
+    if (isPracticeMode && scenarioId) {
+      payload.sessionType = 'practice';
+      payload.scenarioId = scenarioId;
+    }
 
     console.log('📤 STOMP送信:', payload);
     stompClientRef.current.publish({
@@ -422,7 +437,7 @@ export default function AskAiPage() {
 
   return (
     <>
-      <HamburgerMenu title="AIに聞く" />
+      <HamburgerMenu title={isPracticeMode ? '練習モード' : 'AIに聞く'} />
 
       {/* 全体レイアウト */}
       <div className="flex h-screen bg-gray-50 text-black pt-16">
@@ -555,9 +570,21 @@ export default function AskAiPage() {
                 </svg>
               </div>
               <div>
-                <h2 className="font-bold text-gray-800">AIアシスタント</h2>
-                <p className="text-sm text-gray-600">何でも聞いてください</p>
+                <h2 className="font-bold text-gray-800">
+                  {isPracticeMode ? scenarioName || '練習モード' : 'AIアシスタント'}
+                </h2>
+                <p className="text-sm text-gray-600">
+                  {isPracticeMode ? 'AIが相手役を演じます' : '何でも聞いてください'}
+                </p>
               </div>
+              {isPracticeMode && (
+                <button
+                  onClick={() => handleSend('練習を終了して、今回の会話全体に対するフィードバックとスコアカードをお願いします。')}
+                  className="ml-auto bg-red-500 text-white text-sm px-4 py-2 rounded-lg hover:bg-red-600 transition-colors"
+                >
+                  練習終了
+                </button>
+              )}
             </div>
           </div>
 

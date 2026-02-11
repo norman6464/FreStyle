@@ -47,6 +47,14 @@ public class AiChatSession {
     @Column(name = "scene", length = 50)
     private String scene;
 
+    // セッション種別（normal, practice）
+    @Column(name = "session_type", length = 20)
+    private String sessionType;
+
+    // 練習モードのシナリオID
+    @Column(name = "scenario_id")
+    private Integer scenarioId;
+
     @Column(name = "created_at", insertable = false, updatable = false)
     private Timestamp createdAt;
 

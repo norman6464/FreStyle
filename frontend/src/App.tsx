@@ -6,6 +6,7 @@ import ChatPage from './pages/ChatPage';
 import ChatListPage from './pages/ChatListPage';
 import MenuPage from './pages/MenuPage';
 import AskAiPage from './pages/AskAiPage';
+import PracticePage from './pages/PracticePage';
 import ConfirmPage from './pages/ConfirmPage';
 import MemberPage from './pages/MemberPage';
 import AddUserPage from './pages/AddUserPage';
@@ -98,6 +99,16 @@ export default function App() {
           <AuthInitializer>
             <Protected>
               <ChatPage />
+            </Protected>
+          </AuthInitializer>
+        }
+      />
+      <Route
+        path="/practice"
+        element={
+          <AuthInitializer>
+            <Protected>
+              <PracticePage />
             </Protected>
           </AuthInitializer>
         }

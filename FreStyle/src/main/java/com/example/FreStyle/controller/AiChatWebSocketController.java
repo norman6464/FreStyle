@@ -232,6 +232,46 @@ public class AiChatWebSocketController {
     }
 
     /**
+     * メッセージの言い換え提案
+     * クライアントから /app/ai-chat/rephrase へリクエストを送信
+     */
+    @MessageMapping("/ai-chat/rephrase")
+    public void rephraseMessage(@Payload Map<String, Object> payload) {
+        System.out.println("\n========== WebSocket /ai-chat/rephrase リクエスト受信 ==========");
+
+        try {
+            Integer userId = convertToInteger(payload.get("userId"));
+            String originalMessage = (String) payload.get("originalMessage");
+            Object sceneObj = payload.get("scene");
+            String scene = sceneObj != null ? String.valueOf(sceneObj) : null;
+
+            System.out.println("   - userId: " + userId);
+            System.out.println("   - originalMessage: " + originalMessage);
+            System.out.println("   - scene: " + scene);
+
+            // Bedrockに言い換えリクエスト
+            String rephraseResult = bedrockService.rephrase(originalMessage, scene);
+            System.out.println("✅ 言い換え結果取得: " + rephraseResult);
+
+            // WebSocket トピックへ言い換え結果を送信
+            messagingTemplate.convertAndSend(
+                    "/topic/ai-chat/user/" + userId + "/rephrase",
+                    Map.of(
+                            "originalMessage", originalMessage,
+                            "result", rephraseResult
+                    )
+            );
+            System.out.println("✅ 言い換え結果送信完了");
+            System.out.println("========== /ai-chat/rephrase 処理完了 ==========\n");
+
+        } catch (Exception e) {
+            System.out.println("❌ 言い換え処理エラー: " + e.getMessage());
+            e.printStackTrace();
+            System.out.println("========== /ai-chat/rephrase 処理失敗 ==========\n");
+        }
+    }
+
+    /**
      * セッション削除
      */
     @MessageMapping("/ai-chat/delete-session")

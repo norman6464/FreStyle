@@ -16,6 +16,7 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ConfirmForgotPasswordPage from './pages/ConfirmForgotPasswordPage';
 import AuthInitializer from './utils/AuthInitializer';
 import Protected from './utils/Protected';
+import AppShell from './components/layout/AppShell';
 
 
 export default function App() {
@@ -32,107 +33,27 @@ export default function App() {
         element={<ConfirmForgotPasswordPage />}
       />
 
-      {/* 認証が必要 */}
+      {/* 認証が必要（AppShellレイアウト内） */}
       <Route
-        path="/"
         element={
           <AuthInitializer>
             <Protected>
-              <MenuPage />
+              <AppShell />
             </Protected>
           </AuthInitializer>
         }
-      />
-      <Route
-        path="/profile/me"
-        element={
-          <AuthInitializer>
-            <Protected>
-              <ProfilePage />
-            </Protected>
-          </AuthInitializer>
-        }
-      />
-      <Route
-        path="/profile/personality"
-        element={
-          <AuthInitializer>
-            <Protected>
-              <UserProfilePage />
-            </Protected>
-          </AuthInitializer>
-        }
-      />
-      <Route
-        path="/chat/members"
-        element={
-          <AuthInitializer>
-            <Protected>
-              <MemberPage />
-            </Protected>
-          </AuthInitializer>
-        }
-      />
-      <Route
-        path="/chat"
-        element={
-          <AuthInitializer>
-            <Protected>
-              <ChatListPage />
-            </Protected>
-          </AuthInitializer>
-        }
-      />
-      <Route
-        path="/chat/users"
-        element={
-          <AuthInitializer>
-            <Protected>
-              <AddUserPage />
-            </Protected>
-          </AuthInitializer>
-        }
-      />
-      <Route
-        path="/chat/users/:roomId"
-        element={
-          <AuthInitializer>
-            <Protected>
-              <ChatPage />
-            </Protected>
-          </AuthInitializer>
-        }
-      />
-      <Route
-        path="/practice"
-        element={
-          <AuthInitializer>
-            <Protected>
-              <PracticePage />
-            </Protected>
-          </AuthInitializer>
-        }
-      />
-      <Route
-        path="/chat/ask-ai"
-        element={
-          <AuthInitializer>
-            <Protected>
-              <AskAiPage />
-            </Protected>
-          </AuthInitializer>
-        }
-      />
-      <Route
-        path="/chat/ask-ai/:sessionId"
-        element={
-          <AuthInitializer>
-            <Protected>
-              <AskAiPage />
-            </Protected>
-          </AuthInitializer>
-        }
-      />
+      >
+        <Route path="/" element={<MenuPage />} />
+        <Route path="/profile/me" element={<ProfilePage />} />
+        <Route path="/profile/personality" element={<UserProfilePage />} />
+        <Route path="/chat/members" element={<MemberPage />} />
+        <Route path="/chat" element={<ChatListPage />} />
+        <Route path="/chat/users" element={<AddUserPage />} />
+        <Route path="/chat/users/:roomId" element={<ChatPage />} />
+        <Route path="/practice" element={<PracticePage />} />
+        <Route path="/chat/ask-ai" element={<AskAiPage />} />
+        <Route path="/chat/ask-ai/:sessionId" element={<AskAiPage />} />
+      </Route>
     </Routes>
   );
 }

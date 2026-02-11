@@ -27,7 +27,11 @@ const bottomNavItems = [
   { icon: LightBulbIcon, label: 'パーソナリティ', to: '/profile/personality', matchExact: true },
 ];
 
-export default function Sidebar() {
+interface SidebarProps {
+  onNavigate?: () => void;
+}
+
+export default function Sidebar({ onNavigate }: SidebarProps) {
   const location = useLocation();
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -87,6 +91,7 @@ export default function Sidebar() {
             label={item.label}
             to={item.to}
             active={isActive(item)}
+            onClick={onNavigate}
           />
         ))}
 
@@ -99,6 +104,7 @@ export default function Sidebar() {
             label={item.label}
             to={item.to}
             active={isActive(item)}
+            onClick={onNavigate}
           />
         ))}
       </nav>
@@ -106,7 +112,7 @@ export default function Sidebar() {
       {/* ログアウト */}
       <div className="px-2 py-3 border-t border-slate-200">
         <button
-          onClick={handleLogout}
+          onClick={() => { onNavigate?.(); handleLogout(); }}
           className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors duration-150 w-full"
         >
           <ArrowLeftOnRectangleIcon className="w-5 h-5 flex-shrink-0" />

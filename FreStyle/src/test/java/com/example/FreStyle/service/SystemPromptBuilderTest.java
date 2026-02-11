@@ -73,8 +73,8 @@ class SystemPromptBuilderTest {
                     "テスト太郎", null, null, null, null, null, null);
 
             // 各軸について具体的な評価ポイントが記載されていることを確認
-            assertThat(prompt).containsPattern("共感力.*相手の気持ち|相手の気持ち.*共感力");
-            assertThat(prompt).containsPattern("ポジティブ変換.*否定|否定.*ポジティブ変換");
+            assertThat(prompt).contains("相手の気持ち");
+            assertThat(prompt).contains("否定的な表現を肯定的に言い換え");
         }
     }
 

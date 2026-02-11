@@ -57,6 +57,19 @@ public class SystemPromptBuilder {
         sb.append("各評価軸について、具体的な会話箇所を引用しながらフィードバックしてください。\n");
         sb.append("良い点は積極的に褒め、改善点には具体的な言い換え例を必ず提示してください。\n\n");
 
+        sb.append("【スコア出力】\n");
+        sb.append("フィードバックの最後に、以下のJSON形式で各軸のスコア（1〜10）を出力してください。\n");
+        sb.append("必ず```jsonと```で囲んでください。\n");
+        sb.append("```json\n");
+        sb.append("{\"scores\":[\n");
+        sb.append("  {\"axis\":\"論理的構成力\",\"score\":8,\"comment\":\"一言コメント\"},\n");
+        sb.append("  {\"axis\":\"配慮表現\",\"score\":7,\"comment\":\"一言コメント\"},\n");
+        sb.append("  {\"axis\":\"要約力\",\"score\":6,\"comment\":\"一言コメント\"},\n");
+        sb.append("  {\"axis\":\"提案力\",\"score\":5,\"comment\":\"一言コメント\"},\n");
+        sb.append("  {\"axis\":\"質問・傾聴力\",\"score\":9,\"comment\":\"一言コメント\"}\n");
+        sb.append("]}\n");
+        sb.append("```\n\n");
+
         // UserProfile情報を動的に埋め込む
         sb.append("【ユーザープロフィール】\n");
 

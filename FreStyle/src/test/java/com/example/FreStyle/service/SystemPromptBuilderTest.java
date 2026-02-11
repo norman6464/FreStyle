@@ -175,6 +175,46 @@ class SystemPromptBuilderTest {
     }
 
     @Nested
+    @DisplayName("buildRephrasePrompt - 言い換え提案プロンプト")
+    class BuildRephrasePromptTest {
+
+        @Test
+        @DisplayName("3パターン（フォーマル版/ソフト版/簡潔版）の指示が含まれる")
+        void shouldContainThreeRephrasePatterns() {
+            String prompt = builder.buildRephrasePrompt(null);
+
+            assertThat(prompt).contains("フォーマル版");
+            assertThat(prompt).contains("ソフト版");
+            assertThat(prompt).contains("簡潔版");
+        }
+
+        @Test
+        @DisplayName("JSON形式での出力指示が含まれる")
+        void shouldContainJsonOutputInstruction() {
+            String prompt = builder.buildRephrasePrompt(null);
+
+            assertThat(prompt).contains("JSON");
+        }
+
+        @Test
+        @DisplayName("シーンが指定された場合はシーンの文脈が含まれる")
+        void shouldContainSceneContextWhenSpecified() {
+            String prompt = builder.buildRephrasePrompt("meeting");
+
+            assertThat(prompt).contains("会議");
+        }
+
+        @Test
+        @DisplayName("シーンがnullの場合でもプロンプトが構築される")
+        void shouldBuildPromptWithoutScene() {
+            String prompt = builder.buildRephrasePrompt(null);
+
+            assertThat(prompt).contains("言い換え");
+            assertThat(prompt).doesNotContain("シーン");
+        }
+    }
+
+    @Nested
     @DisplayName("buildCoachPrompt - ビジネスコミュニケーションコーチのプロンプト構築")
     class BuildCoachPromptTest {
 

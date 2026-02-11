@@ -108,12 +108,12 @@ export default function PracticePage() {
   return (
     <>
       <HamburgerMenu title="練習モード" />
-      <div className="min-h-screen bg-gray-50 px-4 pt-20 pb-8">
+      <div className="min-h-screen bg-slate-50 px-4 pt-20 pb-8">
         <div className="w-full max-w-2xl mx-auto">
           {/* ヘッダー */}
           <div className="mb-6">
-            <h1 className="text-2xl font-bold text-gray-800 mb-2">ビジネスシナリオ練習</h1>
-            <p className="text-sm text-gray-600">
+            <h1 className="text-2xl font-bold text-slate-800 mb-2">ビジネスシナリオ練習</h1>
+            <p className="text-sm text-slate-600">
               AIが相手役を演じます。実践的なビジネスシーンでコミュニケーションスキルを磨きましょう。
             </p>
           </div>
@@ -127,7 +127,7 @@ export default function PracticePage() {
                 className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
                   selectedCategory === category
                     ? 'bg-primary-500 text-white'
-                    : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
                 }`}
               >
                 {category}
@@ -141,7 +141,7 @@ export default function PracticePage() {
               <div className="w-8 h-8 border-4 border-primary-200 border-t-primary-500 rounded-full animate-spin" />
             </div>
           ) : filteredScenarios.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
+            <div className="text-center py-12 text-slate-500">
               シナリオがありません
             </div>
           ) : (

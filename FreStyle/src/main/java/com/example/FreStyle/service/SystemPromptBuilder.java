@@ -88,6 +88,73 @@ public class SystemPromptBuilder {
     }
 
     /**
+     * シーン別フィードバックモード用のシステムプロンプトを構築する
+     * 基本5軸＋シーン固有の追加評価観点を含める
+     *
+     * @param scene シーン識別子（meeting, one_on_one, email, presentation, negotiation）
+     */
+    public String buildFeedbackPromptWithScene(
+            String scene,
+            String displayName,
+            String selfIntroduction,
+            String communicationStyle,
+            String personalityTraits,
+            String goals,
+            String concerns,
+            String preferredFeedbackStyle) {
+
+        // 基本5軸のフィードバックプロンプトを構築
+        String basePrompt = buildFeedbackPrompt(
+                displayName, selfIntroduction, communicationStyle,
+                personalityTraits, goals, concerns, preferredFeedbackStyle);
+
+        if (scene == null || scene.isEmpty()) {
+            return basePrompt;
+        }
+
+        StringBuilder sb = new StringBuilder(basePrompt);
+        sb.append("\n\n【シーン別追加評価観点】\n");
+
+        switch (scene) {
+            case "meeting":
+                sb.append("このチャットは「会議」でのコミュニケーションです。基本5軸に加え、以下の観点でも評価してください。\n\n");
+                sb.append("- 発言のタイミング: 適切なタイミングで発言できているか、議論の流れを妨げていないか\n");
+                sb.append("- 議論の建設性: 批判だけでなく、建設的な意見や代替案を出しているか\n");
+                sb.append("- ファシリテーション: 他の参加者の意見を引き出し、議論を前進させているか\n");
+                break;
+            case "one_on_one":
+                sb.append("このチャットは「1on1」でのコミュニケーションです。基本5軸に加え、以下の観点でも評価してください。\n\n");
+                sb.append("- 心理的安全性: 相手が安心して本音を話せる雰囲気を作れているか\n");
+                sb.append("- フィードバックの具体性: 抽象的でなく、具体的な行動や事例に基づいたフィードバックができているか\n");
+                sb.append("- 傾聴の深さ: 表面的な内容だけでなく、相手の感情や本質的な課題に寄り添えているか\n");
+                break;
+            case "email":
+                sb.append("このチャットは「メール」でのコミュニケーションです。基本5軸に加え、以下の観点でも評価してください。\n\n");
+                sb.append("- 件名の明確さ: メールの目的が件名から即座に分かるか\n");
+                sb.append("- 構成の読みやすさ: 段落分け、箇条書き、適切な改行で読みやすい構成になっているか\n");
+                sb.append("- アクション明示: 相手に期待するアクション（返信、承認、確認など）が明確に示されているか\n");
+                break;
+            case "presentation":
+                sb.append("このチャットは「プレゼン」でのコミュニケーションです。基本5軸に加え、以下の観点でも評価してください。\n\n");
+                sb.append("- ストーリー構成: 導入→本題→結論の流れが論理的で引き込まれる構成か\n");
+                sb.append("- 聞き手への配慮: 専門用語の説明、具体例の使用など、聞き手のレベルに合わせた説明ができているか\n");
+                sb.append("- 質疑応答力: 質問に対して的確かつ簡潔に回答できているか\n");
+                break;
+            case "negotiation":
+                sb.append("このチャットは「商談」でのコミュニケーションです。基本5軸に加え、以下の観点でも評価してください。\n\n");
+                sb.append("- ニーズヒアリング: 相手の課題やニーズを的確に把握するための質問ができているか\n");
+                sb.append("- 価値提案: 自社の商品・サービスの価値を相手のニーズに結びつけて説明できているか\n");
+                sb.append("- クロージング: 次のステップや意思決定を促す適切な提案ができているか\n");
+                break;
+            default:
+                // 未知のシーンの場合はシーン別観点を追加しない
+                break;
+        }
+
+        return sb.toString();
+    }
+
+    /**
      * 通常チャットモード用のシステムプロンプトを構築する
      * ビジネスコミュニケーションコーチとして応答する
      */

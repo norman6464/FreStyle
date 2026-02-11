@@ -51,27 +51,30 @@ class ChatControllerTest {
     @InjectMocks
     private ChatController chatController;
 
-    private Jwt mockJwt;
     private User testUser;
 
     @BeforeEach
     void setUp() {
-        mockJwt = mock(Jwt.class);
-        when(mockJwt.getSubject()).thenReturn("cognito-sub-123");
-
         testUser = new User();
         testUser.setId(1);
         testUser.setName("テストユーザー");
+    }
+
+    private Jwt createMockJwt() {
+        Jwt jwt = mock(Jwt.class);
+        when(jwt.getSubject()).thenReturn("cognito-sub-123");
+        return jwt;
     }
 
     @Test
     @DisplayName("markAsRead: 正常リクエスト → 200 OKとsuccessを返す")
     void markAsRead_validRequest_returnsOk() {
         // Arrange
+        Jwt jwt = createMockJwt();
         when(userIdentityService.findUserBySub("cognito-sub-123")).thenReturn(testUser);
 
         // Act
-        ResponseEntity<?> response = chatController.markAsRead(mockJwt, 10);
+        ResponseEntity<?> response = chatController.markAsRead(jwt, 10);
 
         // Assert
         assertEquals(HttpStatus.OK, response.getStatusCode());
@@ -96,10 +99,11 @@ class ChatControllerTest {
     @DisplayName("markAsRead: resetUnreadCountが正しいパラメータで呼ばれる")
     void markAsRead_callsResetWithCorrectParams() {
         // Arrange
+        Jwt jwt = createMockJwt();
         when(userIdentityService.findUserBySub("cognito-sub-123")).thenReturn(testUser);
 
         // Act
-        chatController.markAsRead(mockJwt, 25);
+        chatController.markAsRead(jwt, 25);
 
         // Assert
         verify(unreadCountService).resetUnreadCount(1, 25);

@@ -24,6 +24,7 @@ import com.example.FreStyle.service.ChatMessageService;
 import com.example.FreStyle.service.ChatRoomService;
 import com.example.FreStyle.service.ChatService;
 import com.example.FreStyle.service.RoomMemberService;
+import com.example.FreStyle.service.UnreadCountService;
 import com.example.FreStyle.service.UserIdentityService;
 import com.example.FreStyle.service.UserService;
 
@@ -41,6 +42,7 @@ public class ChatController {
   private final ChatMessageService chatMessageService; 
   private final UserIdentityService userIdentityService;
   private final RoomMemberService roomMemberService;
+  private final UnreadCountService unreadCountService;
 
   // ユーザー登録一覧
   @GetMapping("/users")
@@ -173,6 +175,35 @@ public class ChatController {
     } catch (Exception e) {
       System.out.println(e.getMessage());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "サーバーエラーです。"));
+    }
+  }
+
+  /**
+   * チャットルームの未読数をリセット（既読にする）
+   */
+  @PostMapping("/rooms/{roomId}/read")
+  public ResponseEntity<?> markAsRead(
+      @AuthenticationPrincipal Jwt jwt,
+      @PathVariable("roomId") Integer roomId) {
+
+    if (jwt == null) {
+      return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+          .body(Map.of("error", "認証されていません。"));
+    }
+
+    String cognitoSub = jwt.getSubject();
+    if (cognitoSub == null || cognitoSub.isEmpty()) {
+      return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+          .body(Map.of("error", "タイムアウトをしたか、または未ログインです。"));
+    }
+
+    try {
+      User myUser = userIdentityService.findUserBySub(cognitoSub);
+      unreadCountService.resetUnreadCount(myUser.getId(), roomId);
+      return ResponseEntity.ok(Map.of("status", "success"));
+    } catch (Exception e) {
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+          .body(Map.of("error", "サーバーエラーが発生しました。"));
     }
   }
 

@@ -1,6 +1,7 @@
 package com.example.FreStyle.controller;
 
 import java.util.Map;
+import java.util.Optional;
 
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
@@ -9,8 +10,11 @@ import org.springframework.stereotype.Controller;
 
 import com.example.FreStyle.dto.ChatMessageDto;
 import com.example.FreStyle.entity.ChatRoom;
+import com.example.FreStyle.entity.User;
+import com.example.FreStyle.repository.RoomMemberRepository;
 import com.example.FreStyle.service.ChatMessageService;
 import com.example.FreStyle.service.ChatRoomService;
+import com.example.FreStyle.service.UnreadCountService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +27,8 @@ public class ChatWebSocketController {
     private final ChatRoomService chatRoomService;
     private final ChatMessageService chatMessageService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final UnreadCountService unreadCountService;
+    private final RoomMemberRepository roomMemberRepository;
 
     @MessageMapping("/chat/send")
     public void sendMessage(
@@ -95,6 +101,23 @@ public class ChatWebSocketController {
                     saved
             );
             System.out.println("✅ WebSocket 送信完了");
+
+            // 相手ユーザーの未読数をインクリメントし、WebSocketで通知
+            Optional<User> partnerOpt = roomMemberRepository.findPartnerByRoomIdAndUserId(roomId, senderId);
+            if (partnerOpt.isPresent()) {
+                User partner = partnerOpt.get();
+                unreadCountService.incrementUnreadCount(partner.getId(), roomId);
+                messagingTemplate.convertAndSend(
+                        "/topic/unread/" + partner.getId(),
+                        Map.of(
+                                "type", "unread_update",
+                                "roomId", roomId,
+                                "increment", 1
+                        )
+                );
+                System.out.println("📤 未読数通知を /topic/unread/" + partner.getId() + " へ送信");
+            }
+
             System.out.println("========== /chat/send 処理完了 ==========\n");
             
         } catch (NumberFormatException e) {

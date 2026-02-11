@@ -261,6 +261,38 @@ class SystemPromptBuilderTest {
             assertThat(prompt).contains("言い換え");
             assertThat(prompt).doesNotContain("シーン");
         }
+
+        @Test
+        @DisplayName("質問型パターンの指示が含まれる")
+        void shouldContainQuestioningPattern() {
+            String prompt = builder.buildRephrasePrompt(null);
+
+            assertThat(prompt).contains("質問型");
+        }
+
+        @Test
+        @DisplayName("提案型パターンの指示が含まれる")
+        void shouldContainProposalPattern() {
+            String prompt = builder.buildRephrasePrompt(null);
+
+            assertThat(prompt).contains("提案型");
+        }
+
+        @Test
+        @DisplayName("JSON出力にquestioningフィールドが指定される")
+        void shouldContainQuestioningJsonField() {
+            String prompt = builder.buildRephrasePrompt(null);
+
+            assertThat(prompt).contains("\"questioning\"");
+        }
+
+        @Test
+        @DisplayName("JSON出力にproposalフィールドが指定される")
+        void shouldContainProposalJsonField() {
+            String prompt = builder.buildRephrasePrompt(null);
+
+            assertThat(prompt).contains("\"proposal\"");
+        }
     }
 
     @Nested

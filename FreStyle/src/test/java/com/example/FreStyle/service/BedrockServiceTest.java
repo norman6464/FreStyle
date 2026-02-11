@@ -54,7 +54,7 @@ class BedrockServiceTest {
     }
 
     @Test
-    @DisplayName("chat()がコールセンター式コーチのシステムプロンプト付きでリクエストを構築する")
+    @DisplayName("chat()がビジネスコミュニケーションコーチのシステムプロンプト付きでリクエストを構築する")
     void chatShouldIncludeCoachSystemPrompt() throws Exception {
         when(bedrockClient.invokeModel(any(InvokeModelRequest.class)))
                 .thenReturn(createMockResponse("テスト応答"));
@@ -70,12 +70,12 @@ class BedrockServiceTest {
         // システムプロンプトが含まれていることを確認
         assertThat(json.has("system")).isTrue();
         String systemPrompt = json.get("system").asText();
-        assertThat(systemPrompt).contains("コールセンター");
-        assertThat(systemPrompt).contains("コミュニケーションコーチ");
+        assertThat(systemPrompt).contains("ビジネスコミュニケーション");
+        assertThat(systemPrompt).contains("コーチ");
     }
 
     @Test
-    @DisplayName("chatWithUserProfile()がQA評価軸を含むフィードバックプロンプトを使用する")
+    @DisplayName("chatWithUserProfile()がビジネス評価軸を含むフィードバックプロンプトを使用する")
     void chatWithUserProfileShouldIncludeFeedbackPrompt() throws Exception {
         when(bedrockClient.invokeModel(any(InvokeModelRequest.class)))
                 .thenReturn(createMockResponse("フィードバック応答"));
@@ -90,12 +90,12 @@ class BedrockServiceTest {
         JsonNode json = objectMapper.readTree(requestBody);
 
         String systemPrompt = json.get("system").asText();
-        assertThat(systemPrompt).contains("共感力");
-        assertThat(systemPrompt).contains("クッション言葉");
-        assertThat(systemPrompt).contains("結論ファースト");
-        assertThat(systemPrompt).contains("ポジティブ変換");
-        assertThat(systemPrompt).contains("傾聴姿勢");
-        assertThat(systemPrompt).contains("コールセンター");
+        assertThat(systemPrompt).contains("論理的構成力");
+        assertThat(systemPrompt).contains("配慮表現");
+        assertThat(systemPrompt).contains("要約力");
+        assertThat(systemPrompt).contains("提案力");
+        assertThat(systemPrompt).contains("質問・傾聴力");
+        assertThat(systemPrompt).contains("ビジネス");
         assertThat(systemPrompt).contains("太郎");
     }
 

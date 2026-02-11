@@ -74,6 +74,7 @@ FreStyleは、友達とのチャットをAIが分析し、相手にどう伝わ�
 - コミュニケーションスコアカード（5軸スコア数値化・棒グラフ可視化・総合スコア表示）
 - ビジネスシナリオ練習モード（AIロールプレイ・ITエンジニア向け12シナリオ・3カテゴリ対応）
 - モダンビジネスSaaS風UIデザイン（Indigo × Slateカラーパレット・セマンティックカラー統一）
+- Docker Compose によるローカル開発環境（MariaDB 11 + Spring Boot）
 - プロフィール編集
 - Google ログイン
 - GitHub Actions による自動デプロイ
@@ -176,7 +177,25 @@ FreStyleは、友達とのチャットをAIが分析し、相手にどう伝わ�
 
 ---
 
-## 🛠 フロントエンドセットアップ手順
+## 🛠 ローカル開発環境セットアップ
+
+### バックエンド（Docker Compose）
+
+```bash
+# 1. 環境変数ファイルを作成（.env.example をコピーして値を設定）
+cp .env.example .env
+
+# 2. MariaDB + Spring Boot を起動
+docker compose up -d --build
+
+# 3. 動作確認
+docker compose ps          # コンテナ状態確認
+docker compose logs api    # Spring Boot ログ確認
+```
+
+MariaDB 11 がコンテナとして起動し、Spring Boot 起動時に `schema.sql` でテーブルが自動作成されます。
+
+### フロントエンド
 
 ```bash
 # 1. リポジトリをクローンして frontend ディレクトリに移動

@@ -49,7 +49,7 @@ export default function AppShell() {
           mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <Sidebar />
+        <Sidebar onNavigate={() => setMobileMenuOpen(false)} />
       </div>
 
       {/* メインコンテンツ */}

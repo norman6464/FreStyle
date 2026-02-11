@@ -37,6 +37,9 @@ dependencies {
 	// Actuator for monitoring
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
+	// Micrometer CloudWatch メトリクスエクスポート
+	implementation 'io.micrometer:micrometer-registry-cloudwatch2'
+
 	// WebSocket接続・設定用
 	implementation 'org.springframework.boot:spring-boot-starter-websocket'
 	

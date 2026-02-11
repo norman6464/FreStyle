@@ -5,7 +5,11 @@ import { render, screen } from '@testing-library/react';
  * UnreadBadgeコンポーネント（ChatListPage内で使用される未読バッジ）
  * テスト用に独立して抽出
  */
-function UnreadBadge({ unreadCount }) {
+interface UnreadBadgeProps {
+  unreadCount: number | null;
+}
+
+function UnreadBadge({ unreadCount }: UnreadBadgeProps) {
   if (!unreadCount || unreadCount <= 0) return null;
   return (
     <span

@@ -29,7 +29,7 @@ FreStyleは、友達とのチャットをAIが分析し、相手にどう伝わ�
 
 <h3>Frontend</h3>
 <a href="https://skillicons.dev">
-  <img src="https://skillicons.dev/icons?i=react,tailwind,vite&theme=light" alt="Frontend">
+  <img src="https://skillicons.dev/icons?i=react,ts,tailwind,vite&theme=light" alt="Frontend">
 </a>
 
 <h3>Backend</h3>

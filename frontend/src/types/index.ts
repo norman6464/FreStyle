@@ -97,6 +97,8 @@ export interface RephraseResult {
   formal: string;
   soft: string;
   concise: string;
+  questioning: string;
+  proposal: string;
 }
 
 /** 評価軸スコア */

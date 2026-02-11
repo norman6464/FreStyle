@@ -18,7 +18,7 @@ export default function PrimaryButton({
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className="w-full bg-primary-500 text-white font-medium py-2.5 rounded-lg hover:bg-primary-600 transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+      className="w-full bg-primary-500 text-white font-medium py-2.5 rounded-lg hover:bg-primary-600 active:bg-primary-700 transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
     >
       {children}
     </button>

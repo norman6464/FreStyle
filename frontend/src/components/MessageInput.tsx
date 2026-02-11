@@ -53,9 +53,9 @@ export default function MessageInput({ onSend }: MessageInputProps) {
   };
 
   return (
-    <div className="w-full bg-white flex items-end p-3 border-t border-gray-200">
+    <div className="w-full bg-white flex items-end p-3 border-t border-slate-200">
       <button
-        className="text-gray-500 hover:text-gray-700 p-2.5 rounded-full transition-colors duration-150 flex-shrink-0 mb-1"
+        className="text-slate-500 hover:text-slate-700 p-2.5 rounded-full transition-colors duration-150 flex-shrink-0 mb-1"
         aria-label="添付ファイル"
       >
         <PlusIcon className="h-6 w-6" />
@@ -65,7 +65,7 @@ export default function MessageInput({ onSend }: MessageInputProps) {
         <textarea
           ref={textareaRef}
           rows={minRows}
-          className="w-full bg-transparent text-gray-800 outline-none resize-none px-3 py-2 placeholder-gray-400 leading-6"
+          className="w-full bg-transparent text-slate-800 outline-none resize-none px-3 py-2 placeholder-slate-400 leading-6"
           placeholder="メッセージを入力..."
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -77,7 +77,7 @@ export default function MessageInput({ onSend }: MessageInputProps) {
 
       <button
         onClick={handleSend}
-        className="text-white bg-primary-500 p-2.5 rounded-full hover:bg-primary-600 transition-colors duration-150 flex-shrink-0 disabled:bg-gray-300 mb-1 ml-2"
+        className="text-white bg-primary-500 p-2.5 rounded-full hover:bg-primary-600 transition-colors duration-150 flex-shrink-0 disabled:bg-slate-300 mb-1 ml-2"
         disabled={!text.trim()}
         aria-label="送信"
       >

@@ -35,6 +35,7 @@ export interface MemberUser {
 export interface AiSession {
   id: number;
   title?: string;
+  scene?: string;
   createdAt?: string;
 }
 

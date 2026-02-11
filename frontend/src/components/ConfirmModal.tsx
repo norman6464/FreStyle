@@ -84,18 +84,18 @@ export default function ConfirmModal({
         </div>
 
         {/* タイトル */}
-        <h3 className="text-xl font-bold text-gray-800 text-center mb-2">
+        <h3 className="text-xl font-bold text-slate-800 text-center mb-2">
           {title}
         </h3>
 
         {/* メッセージ */}
-        <p className="text-gray-600 text-center mb-6">{message}</p>
+        <p className="text-slate-600 text-center mb-6">{message}</p>
 
         {/* ボタン */}
         <div className="flex gap-3">
           <button
             onClick={onCancel}
-            className="flex-1 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-xl transition-colors duration-150"
+            className="flex-1 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition-colors duration-150"
           >
             {cancelText}
           </button>

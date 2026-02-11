@@ -1,6 +1,7 @@
 import { createSlice } from '@reduxjs/toolkit';
+import type { AuthState } from '../types';
 
-const initialState = {
+const initialState: AuthState = {
   isAuthenticated: false,
   loading: true,
 };

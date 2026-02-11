@@ -1,6 +1,4 @@
-// src/store/index.js
 import { configureStore } from '@reduxjs/toolkit';
-// defaultでexportしたもの別名で定義をしてもいい
 import authReducer from './authSlice';
 
 export const store = configureStore({
@@ -8,4 +6,6 @@ export const store = configureStore({
     auth: authReducer,
   },
 });
-// reducerとはアプリケーションの状態を更新する関数意味がある
+
+export type RootState = ReturnType<typeof store.getState>;
+export type AppDispatch = typeof store.dispatch;

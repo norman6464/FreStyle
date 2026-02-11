@@ -6,14 +6,18 @@ import { useNavigate } from 'react-router-dom';
 import HamburgerMenu from '../components/HamburgerMenu';
 import { clearAuth } from '../store/authSlice';
 import {
-  UserCircleIcon,
   SparklesIcon,
   ChatBubbleLeftRightIcon,
 } from '@heroicons/react/24/solid';
 
+interface FormMessage {
+  type: 'success' | 'error';
+  text: string;
+}
+
 export default function ProfilePage() {
   const [form, setForm] = useState({ name: '', bio: '' });
-  const [message, setMessage] = useState(null);
+  const [message, setMessage] = useState<FormMessage | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const dispatch = useDispatch();
@@ -30,7 +34,7 @@ export default function ProfilePage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include', // RefreshToken送信
+        credentials: 'include',
       });
 
       // トークン期限切れならリフレッシュを試みる
@@ -84,8 +88,8 @@ export default function ProfilePage() {
         bio: data.bio || '',
       });
     } catch (err) {
-      console.error('[ProfilePage] ERROR: Profile fetch failed -', err.message);
-      setMessage({ type: 'error', text: err.message });
+      console.error('[ProfilePage] ERROR: Profile fetch failed -', (err as Error).message);
+      setMessage({ type: 'error', text: (err as Error).message });
     } finally {
       setLoading(false);
     }
@@ -98,7 +102,7 @@ export default function ProfilePage() {
   // ----------------------------
   // プロフィール更新
   // ----------------------------
-  const handleUpdate = async (e) => {
+  const handleUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
       console.log('[ProfilePage] Updating profile with name:', form.name);
@@ -129,7 +133,7 @@ export default function ProfilePage() {
         }
 
         console.log('[ProfilePage] Access token refreshed, retrying update');
-        const refreshData = await refreshRes.json();
+        await refreshRes.json();
         const retryRes = await fetch(`${API_BASE_URL}/api/profile/me/update`, {
           method: 'PUT',
           headers: {
@@ -163,7 +167,7 @@ export default function ProfilePage() {
         text: data.success || 'プロフィールを更新しました。',
       });
     } catch (error) {
-      console.error('[ProfilePage] ERROR: Profile update failed -', error.message);
+      console.error('[ProfilePage] ERROR: Profile update failed -', (error as Error).message);
       setMessage({ type: 'error', text: '通信エラーが発生しました。' });
     }
   };
@@ -273,7 +277,7 @@ export default function ProfilePage() {
                 label="ニックネーム"
                 name="name"
                 value={form.name}
-                onChange={(e) =>
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                   setForm((prev) => ({ ...prev, name: e.target.value }))
                 }
               />
@@ -284,11 +288,11 @@ export default function ProfilePage() {
                 <textarea
                   name="bio"
                   value={form.bio}
-                  onChange={(e) =>
+                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
                     setForm((prev) => ({ ...prev, bio: e.target.value }))
                   }
                   placeholder="あなたについて教えてください..."
-                  rows="4"
+                  rows={4}
                   className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors duration-150 resize-none"
                 />
               </div>

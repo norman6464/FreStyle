@@ -1,22 +1,22 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSelector } from 'react-redux';
 import { debounce } from 'lodash';
 import { useNavigate } from 'react-router-dom';
 import MemberList from '../components/MemberList';
 import SearchBox from '../components/SearchBox';
 import HamburgerMenu from '../components/HamburgerMenu';
+import type { MemberUser } from '../types';
 
 // 今回の場合は検索ボックスを使っているのでloadashライブラリのdebounceでユーザーが入力を終えたらリクエストを送るようにする
 export default function MemberPage() {
   const navigate = useNavigate();
-  const [members, setMembers] = useState([]);
-  const [error, setError] = useState(null);
+  const [members, setMembers] = useState<MemberUser[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [debounceQuery, setDebounceQuery] = useState('');
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   const debounceSearch = useMemo(
-    () => debounce((query) => setDebounceQuery(query), 500),
+    () => debounce((query: string) => setDebounceQuery(query), 500),
     []
   );
 
@@ -26,11 +26,6 @@ export default function MemberPage() {
   }, [searchQuery, debounceSearch]);
 
   useEffect(() => {
-    if (!token) {
-      navigate('/login');
-      return;
-    }
-
     const controller = new AbortController();
 
     const queryParam = debounceQuery
@@ -43,6 +38,7 @@ export default function MemberPage() {
       headers: {
         'Content-Type': 'application/json',
       },
+      credentials: 'include',
       signal: controller.signal,
     })
       .then((res) => {
@@ -63,7 +59,7 @@ export default function MemberPage() {
           setError(data.error);
         }
       })
-      .catch((err) => {
+      .catch((err: Error) => {
         console.log('error fetch /api/chat/members');
         if (err.name !== 'AbortError') {
           setError(err.message);
@@ -71,7 +67,7 @@ export default function MemberPage() {
       });
 
     return () => controller.abort();
-  }, [token, debounceQuery, navigate]);
+  }, [debounceQuery, navigate, API_BASE_URL]);
 
   return (
     <>
@@ -98,7 +94,7 @@ export default function MemberPage() {
           {/* エラー表示 */}
           {error && (
             <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-lg">
-              <p className="text-red-700 font-semibold">⚠️ {error}</p>
+              <p className="text-red-700 font-semibold">{error}</p>
             </div>
           )}
 
@@ -123,7 +119,7 @@ export default function MemberPage() {
               <p className="text-gray-500 text-lg">メンバーがまだいません</p>
             </div>
           )}
-          <MemberList members={members} />
+          <MemberList users={members} />
         </div>
       </div>
     </>

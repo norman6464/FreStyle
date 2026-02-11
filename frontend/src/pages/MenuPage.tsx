@@ -9,16 +9,27 @@ import {
   ChatBubbleLeftRightIcon,
   LightBulbIcon,
 } from '@heroicons/react/24/solid';
+import type { RootState } from '../store';
+
+interface ChatStats {
+  chatPartnerCount: number;
+}
+
+interface DailyTip {
+  emoji: string;
+  title: string;
+  content: string;
+}
 
 export default function MenuPage() {
   const navigate = useNavigate();
-  const message = useSelector((state) => state.flash?.message);
+  const message = useSelector((state: RootState) => state.flash?.message);
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-  const [stats, setStats] = useState(null);
+  const [stats, setStats] = useState<ChatStats | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
 
   // 日替わりTIPS
-  const dailyTips = [
+  const dailyTips: DailyTip[] = [
     {
       emoji: '💬',
       title: '文字だけでは伝わりにくい感情',
@@ -94,7 +105,7 @@ export default function MenuPage() {
           }
 
           // アクセストークンはhttpOnly cookieで管理しているのでここでは取得しない
-          const refreshData = await refreshRes.json();
+          await refreshRes.json();
 
           // リトライ
           const retryRes = await fetch(`${API_BASE_URL}/api/chat/stats`, {
@@ -122,7 +133,7 @@ export default function MenuPage() {
     fetchStats();
   }, [navigate, API_BASE_URL]);
 
-  const formatDate = (date) => {
+  const formatDate = (date: Date) => {
     return date.toLocaleDateString('ja-JP', {
       year: 'numeric',
       month: 'long',
@@ -131,7 +142,7 @@ export default function MenuPage() {
     });
   };
 
-  const formatTime = (date) => {
+  const formatTime = (date: Date) => {
     return date.toLocaleTimeString('ja-JP', {
       hour: '2-digit',
       minute: '2-digit',

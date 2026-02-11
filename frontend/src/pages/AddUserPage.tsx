@@ -9,19 +9,20 @@ import {
   UserPlusIcon,
   SparklesIcon,
 } from '@heroicons/react/24/solid';
+import type { MemberUser } from '../types';
 
 export default function AddUserPage() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-  const [users, setUsers] = useState([]);
-  const [error, setError] = useState(null);
+  const [users, setUsers] = useState<MemberUser[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [debounceQuery, setDebounceQuery] = useState('');
 
   const debounceSearch = useMemo(
-    () => debounce((query) => setDebounceQuery(query), 500),
+    () => debounce((query: string) => setDebounceQuery(query), 500),
     []
   );
 
@@ -74,8 +75,8 @@ useEffect(() => {
       const data = await res.json();
       setUsers(data.users || []);
     } catch (err) {
-      if (err.name !== 'AbortError') {
-        setError(err.message);
+      if ((err as Error).name !== 'AbortError') {
+        setError((err as Error).message);
       }
     }
   };
@@ -110,7 +111,7 @@ useEffect(() => {
               <input
                 type="text"
                 value={searchQuery}
-                onChange={(e) => {
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                   setSearchQuery(e.target.value);
                   debounceSearch(e.target.value);
                 }}
@@ -127,7 +128,7 @@ useEffect(() => {
           {error && (
             <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-lg">
               <p className="text-red-700 font-medium">
-                ⚠️ エラーが発生しました
+                エラーが発生しました
               </p>
               <p className="text-red-600 text-sm mt-1">{error}</p>
             </div>
@@ -145,7 +146,7 @@ useEffect(() => {
               <p className="text-gray-500 text-sm max-w-xs">
                 名前やメールアドレスを入力して、チャットしたい相手を探してください
               </p>
-              
+
               {/* ヒント */}
               <div className="mt-8 bg-yellow-50 rounded-xl p-4 border border-yellow-200 max-w-sm">
                 <div className="flex items-start gap-3">

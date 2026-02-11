@@ -12,8 +12,23 @@ import {
   UserCircleIcon,
 } from '@heroicons/react/24/solid';
 
+interface UserProfileForm {
+  displayName: string;
+  selfIntroduction: string;
+  communicationStyle: string;
+  personalityTraits: string[];
+  goals: string;
+  concerns: string;
+  preferredFeedbackStyle: string;
+}
+
+interface FormMessage {
+  type: 'success' | 'error';
+  text: string;
+}
+
 export default function UserProfilePage() {
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<UserProfileForm>({
     displayName: '',
     selfIntroduction: '',
     communicationStyle: '',
@@ -22,9 +37,9 @@ export default function UserProfilePage() {
     concerns: '',
     preferredFeedbackStyle: '',
   });
-  const [message, setMessage] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [isNewProfile, setIsNewProfile] = useState(false);
+  const [message, setMessage] = useState<FormMessage | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [isNewProfile, setIsNewProfile] = useState<boolean>(false);
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
@@ -133,8 +148,8 @@ export default function UserProfilePage() {
         });
       }
     } catch (err) {
-      console.error('[UserProfilePage] ERROR:', err.message);
-      setMessage({ type: 'error', text: err.message });
+      console.error('[UserProfilePage] ERROR:', (err as Error).message);
+      setMessage({ type: 'error', text: (err as Error).message });
     } finally {
       setLoading(false);
     }
@@ -147,7 +162,7 @@ export default function UserProfilePage() {
   // ----------------------------
   // 性格特性のトグル
   // ----------------------------
-  const togglePersonalityTrait = (trait) => {
+  const togglePersonalityTrait = (trait: string) => {
     setForm((prev) => {
       const traits = prev.personalityTraits.includes(trait)
         ? prev.personalityTraits.filter((t) => t !== trait)
@@ -159,7 +174,7 @@ export default function UserProfilePage() {
   // ----------------------------
   // プロフィール保存（upsert）
   // ----------------------------
-  const handleSave = async (e) => {
+  const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
       console.log('[UserProfilePage] Saving user profile');
@@ -207,7 +222,7 @@ export default function UserProfilePage() {
       }
 
       const data = await res.json();
-      
+
       // 既に存在する場合は更新APIを使用
       if (res.status === 400 && data.error?.includes('既に存在')) {
         const updateRes = await fetch(`${API_BASE_URL}/api/user-profile/me/upsert`, {
@@ -235,8 +250,8 @@ export default function UserProfilePage() {
       setMessage({ type: 'success', text: 'パーソナリティ設定を保存しました。' });
       setIsNewProfile(false);
     } catch (error) {
-      console.error('[UserProfilePage] ERROR:', error.message);
-      setMessage({ type: 'error', text: error.message || '通信エラーが発生しました。' });
+      console.error('[UserProfilePage] ERROR:', (error as Error).message);
+      setMessage({ type: 'error', text: (error as Error).message || '通信エラーが発生しました。' });
     }
   };
 
@@ -346,7 +361,7 @@ export default function UserProfilePage() {
                       label="呼ばれたい名前"
                       name="displayName"
                       value={form.displayName}
-                      onChange={(e) =>
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                         setForm((prev) => ({ ...prev, displayName: e.target.value }))
                       }
                       placeholder="例：タロウ、たろちゃん"
@@ -358,11 +373,11 @@ export default function UserProfilePage() {
                       <textarea
                         name="selfIntroduction"
                         value={form.selfIntroduction}
-                        onChange={(e) =>
+                        onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
                           setForm((prev) => ({ ...prev, selfIntroduction: e.target.value }))
                         }
                         placeholder="あなた自身について自由に書いてください..."
-                        rows="3"
+                        rows={3}
                         className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors duration-150 resize-none"
                       />
                     </div>
@@ -382,7 +397,7 @@ export default function UserProfilePage() {
                       </label>
                       <select
                         value={form.communicationStyle}
-                        onChange={(e) =>
+                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
                           setForm((prev) => ({ ...prev, communicationStyle: e.target.value }))
                         }
                         className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors duration-150"
@@ -433,11 +448,11 @@ export default function UserProfilePage() {
                       <textarea
                         name="goals"
                         value={form.goals}
-                        onChange={(e) =>
+                        onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
                           setForm((prev) => ({ ...prev, goals: e.target.value }))
                         }
                         placeholder="例：もっと簡潔に伝えられるようになりたい、相手の気持ちを考えた発言ができるようになりたい..."
-                        rows="3"
+                        rows={3}
                         className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors duration-150 resize-none"
                       />
                     </div>
@@ -449,11 +464,11 @@ export default function UserProfilePage() {
                       <textarea
                         name="concerns"
                         value={form.concerns}
-                        onChange={(e) =>
+                        onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
                           setForm((prev) => ({ ...prev, concerns: e.target.value }))
                         }
                         placeholder="例：話が長くなりがち、相手の反応が気になる..."
-                        rows="3"
+                        rows={3}
                         className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors duration-150 resize-none"
                       />
                     </div>
@@ -464,7 +479,7 @@ export default function UserProfilePage() {
                       </label>
                       <select
                         value={form.preferredFeedbackStyle}
-                        onChange={(e) =>
+                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
                           setForm((prev) => ({ ...prev, preferredFeedbackStyle: e.target.value }))
                         }
                         className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors duration-150"

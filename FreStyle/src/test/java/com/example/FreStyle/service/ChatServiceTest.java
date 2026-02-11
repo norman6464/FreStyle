@@ -20,7 +20,6 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -107,9 +106,10 @@ class ChatServiceTest {
     @DisplayName("findChatUsers: 未読レコードなしのルームはカウント0")
     void findChatUsers_noUnreadRecord_defaultsToZero() {
         // Arrange
-        Object[] partnerData = new Object[]{2, 10};
+        List<Object[]> partnerDataList = new ArrayList<>();
+        partnerDataList.add(new Object[]{2, 10});
         when(roomMemberRepository.findPartnerUserIdAndRoomIdByUserId(1))
-                .thenReturn(List.of(partnerData));
+                .thenReturn(partnerDataList);
         when(userRepository.findAllById(List.of(2)))
                 .thenReturn(List.of(partnerUser));
         when(chatMessageRepository.findLatestMessagesByRoomIds(List.of(10)))

@@ -27,6 +27,7 @@ public class ChatService {
     private final RoomMemberRepository roomMemberRepository;
     private final UserRepository userRepository;
     private final ChatMessageRepository chatMessageRepository;
+    private final UnreadCountService unreadCountService;
 
     
     // チャットルームの作成かすでに存在をしていた場合はそのままチャット画面のページへ移動をする
@@ -98,7 +99,10 @@ public class ChatService {
         Map<Integer, ChatMessage> roomToLatestMessage = latestMessages.stream()
                 .collect(Collectors.toMap(msg -> msg.getRoom().getId(), msg -> msg));
         
-        // 5. DTOを構築
+        // 5. 未読数を一括取得
+        Map<Integer, Integer> unreadCounts = unreadCountService.getUnreadCountsByUserAndRooms(myUserId, roomIds);
+
+        // 6. DTOを構築
         List<ChatUserDto> result = new ArrayList<>();
         
         for (Integer partnerId : partnerUserIds) {
@@ -125,7 +129,7 @@ public class ChatService {
             dto.setEmail(partner.getEmail());
             dto.setName(partner.getName());
             dto.setRoomId(roomId);
-            dto.setUnreadCount(0); // TODO: 未読数の実装
+            dto.setUnreadCount(unreadCounts.getOrDefault(roomId, 0));
             
             if (latestMsg != null) {
                 dto.setLastMessage(latestMsg.getContent());

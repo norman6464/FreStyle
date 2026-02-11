@@ -155,6 +155,57 @@ public class SystemPromptBuilder {
     }
 
     /**
+     * 言い換え提案用のシステムプロンプトを構築する
+     * 3パターン（フォーマル版/ソフト版/簡潔版）の言い換えを提案する
+     *
+     * @param scene シーン識別子（null可）
+     */
+    public String buildRephrasePrompt(String scene) {
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("あなたはビジネスコミュニケーションの言い換え提案の専門家です。\n");
+        sb.append("ユーザーが入力したメッセージを、以下の3パターンで言い換えてください。\n\n");
+
+        sb.append("【言い換え3パターン】\n");
+        sb.append("1. フォーマル版: ビジネスライクで丁寧な表現。敬語を正しく使い、格式のある文体にする\n");
+        sb.append("2. ソフト版: 柔らかく配慮のある表現。クッション言葉を活用し、相手の気持ちに寄り添う文体にする\n");
+        sb.append("3. 簡潔版: 結論ファーストで短く伝わる表現。冗長な部分を削ぎ落とし、要点のみ伝える文体にする\n\n");
+
+        if (scene != null && !scene.isEmpty()) {
+            sb.append("【シーンの文脈】\n");
+            switch (scene) {
+                case "meeting":
+                    sb.append("会議での発言として適切な言い換えを提案してください。\n\n");
+                    break;
+                case "one_on_one":
+                    sb.append("1on1面談での発言として適切な言い換えを提案してください。\n\n");
+                    break;
+                case "email":
+                    sb.append("ビジネスメールとして適切な言い換えを提案してください。\n\n");
+                    break;
+                case "presentation":
+                    sb.append("プレゼンテーションでの発言として適切な言い換えを提案してください。\n\n");
+                    break;
+                case "negotiation":
+                    sb.append("商談での発言として適切な言い換えを提案してください。\n\n");
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        sb.append("【出力形式】\n");
+        sb.append("必ず以下のJSON形式で出力してください。JSON以外の文字は一切含めないでください。\n");
+        sb.append("{\n");
+        sb.append("  \"formal\": \"フォーマル版の言い換え文\",\n");
+        sb.append("  \"soft\": \"ソフト版の言い換え文\",\n");
+        sb.append("  \"concise\": \"簡潔版の言い換え文\"\n");
+        sb.append("}\n");
+
+        return sb.toString();
+    }
+
+    /**
      * 通常チャットモード用のシステムプロンプトを構築する
      * ビジネスコミュニケーションコーチとして応答する
      */

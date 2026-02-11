@@ -4,6 +4,7 @@ import MessageBubble from '../components/MessageBubble';
 import MessageInput from '../components/MessageInput';
 import HamburgerMenu from '../components/HamburgerMenu';
 import SearchBox from '../components/SearchBox';
+import { ChatUser, ChatMessage } from '../types';
 
 import ConfirmModal from '../components/ConfirmModal';
 import { useDispatch } from 'react-redux';
@@ -13,20 +14,20 @@ import SockJS from 'sockjs-client';
 import { Client } from '@stomp/stompjs';
 
 export default function ChatPage() {
-  const [messages, setMessages] = useState([]);
-  const [senderId, setSenderId] = useState(null);
-  const [deleteModal, setDeleteModal] = useState({ isOpen: false, messageId: null });
-  const [chatUsers, setChatUsers] = useState([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [senderId, setSenderId] = useState<number | null>(null);
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; messageId: number | null }>({ isOpen: false, messageId: null });
+  const [chatUsers, setChatUsers] = useState<ChatUser[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selectionMode, setSelectionMode] = useState(false);
-  const [selectedMessages, setSelectedMessages] = useState(new Set());
-  const [rangeStart, setRangeStart] = useState(null); // 範囲選択の開始点
-  const [rangeEnd, setRangeEnd] = useState(null);     // 範囲選択の終了点
-  const stompClientRef = useRef(null);
-  const messagesEndRef = useRef(null);
+  const [selectedMessages, setSelectedMessages] = useState<Set<number>>(new Set());
+  const [rangeStart, setRangeStart] = useState<number | null>(null); // 範囲選択の開始点
+  const [rangeEnd, setRangeEnd] = useState<number | null>(null);     // 範囲選択の終了点
+  const stompClientRef = useRef<Client | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
-  const { roomId } = useParams();
+  const { roomId } = useParams<{ roomId: string }>();
 
   const navigate = useNavigate();
   const dispatch = useDispatch();
@@ -60,10 +61,10 @@ export default function ChatPage() {
   // --- チャット履歴のあるユーザー一覧取得 ---
   const fetchChatUsers = async (query = '') => {
     try {
-      const url = query 
+      const url = query
         ? `${API_BASE_URL}/api/chat/rooms?query=${encodeURIComponent(query)}`
         : `${API_BASE_URL}/api/chat/rooms`;
-      
+
       const res = await fetch(url, {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -163,7 +164,7 @@ export default function ChatPage() {
           const data = JSON.parse(message.body);
           if (data.type === 'unread_update') {
             // 現在開いているルームの場合は即座にリセット
-            if (data.roomId === parseInt(roomId, 10)) {
+            if (data.roomId === parseInt(roomId!, 10)) {
               fetch(`${API_BASE_URL}/api/chat/rooms/${roomId}/read`, {
                 method: 'POST',
                 credentials: 'include',
@@ -226,7 +227,7 @@ export default function ChatPage() {
         return;
       }
 
-      const formatted = data.map((msg) => ({
+      const formatted = data.map((msg: any) => ({
         id: msg.id,
         roomId: msg.roomId,
         senderId: msg.senderId,
@@ -313,7 +314,7 @@ export default function ChatPage() {
   }, [roomId, senderId]);
 
   // --- メッセージ送信 ---
-  const handleSend = (text) => {
+  const handleSend = (text: string) => {
     if (!stompClientRef.current?.connected) {
       console.warn('⚠️ STOMP not connected');
       return;
@@ -336,7 +337,7 @@ export default function ChatPage() {
   };
 
   // --- メッセージ削除 ---
-  const handleDeleteMessage = (messageId) => {
+  const handleDeleteMessage = (messageId: number) => {
     setDeleteModal({ isOpen: true, messageId });
   };
 
@@ -357,7 +358,7 @@ export default function ChatPage() {
       destination: '/app/chat/delete',
       body: JSON.stringify({
         messageId,
-        roomId: parseInt(roomId, 10),
+        roomId: parseInt(roomId!, 10),
         senderId,
       }),
     });
@@ -377,9 +378,9 @@ export default function ChatPage() {
   };
 
   // 範囲選択: メッセージをクリックしたとき
-  const handleRangeClick = (messageId) => {
+  const handleRangeClick = (messageId: number) => {
     const messageIndex = messages.findIndex((msg) => msg.id === messageId);
-    
+
     if (rangeStart === null) {
       // 開始点を設定
       setRangeStart(messageIndex);
@@ -403,7 +404,7 @@ export default function ChatPage() {
   };
 
   // クイック選択: 直近N件
-  const handleQuickSelect = (count) => {
+  const handleQuickSelect = (count: number) => {
     const recentMessages = messages.slice(-count);
     const recentIds = new Set(recentMessages.map((msg) => msg.id));
     setSelectedMessages(recentIds);
@@ -460,7 +461,7 @@ export default function ChatPage() {
   };
 
   // メッセージが範囲内かどうかを判定
-  const isInRange = (index) => {
+  const isInRange = (index: number): boolean => {
     if (rangeStart === null) return false;
     if (rangeEnd === null) return index === rangeStart;
     const start = Math.min(rangeStart, rangeEnd);
@@ -469,7 +470,7 @@ export default function ChatPage() {
   };
 
   // 範囲選択のラベルを取得
-  const getRangeLabel = (index) => {
+  const getRangeLabel = (index: number): string | null => {
     if (rangeStart === index && rangeEnd === null) return '開始';
     if (rangeEnd === null) return null;
     const start = Math.min(rangeStart, rangeEnd);
@@ -480,7 +481,7 @@ export default function ChatPage() {
   };
 
   // --- ユーザー選択してルームに移動 ---
-  const handleSelectUser = async (userId) => {
+  const handleSelectUser = async (userId: number) => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/chat/users/${userId}/create`, {
         method: 'POST',
@@ -515,12 +516,12 @@ export default function ChatPage() {
   };
 
   // --- 日付フォーマット ---
-  const formatDate = (dateString) => {
+  const formatDate = (dateString: string): string => {
     if (!dateString) return '';
     const date = new Date(dateString);
     const now = new Date();
-    const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
-    
+    const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+
     if (diffDays === 0) {
       return date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
     } else if (diffDays === 1) {
@@ -538,7 +539,7 @@ export default function ChatPage() {
 
       {/* 全体レイアウト - サイドバー付き */}
       <div className="flex h-screen bg-gray-50 text-black pt-16">
-        
+
         {/* サイドバー */}
         <div className={`${sidebarOpen ? 'w-80' : 'w-0'} bg-white border-r border-gray-200 flex flex-col overflow-hidden`}>
           {/* サイドバーヘッダー */}
@@ -563,7 +564,7 @@ export default function ChatPage() {
                   key={user.roomId}
                   onClick={() => handleSelectUser(user.userId)}
                   className={`w-full p-4 flex items-start space-x-3 hover:bg-gray-50 transition-colors border-b border-gray-100 text-left ${
-                    parseInt(roomId) === user.roomId ? 'bg-primary-50 border-l-4 border-l-primary-500' : ''
+                    parseInt(roomId!) === user.roomId ? 'bg-primary-50 border-l-4 border-l-primary-500' : ''
                   }`}
                 >
                   {/* アバター */}
@@ -668,8 +669,8 @@ export default function ChatPage() {
                     {/* 範囲ラベル */}
                     {getRangeLabel(index) && (
                       <span className={`text-xs font-bold mb-1 px-2 py-0.5 rounded ${
-                        getRangeLabel(index) === '開始' 
-                          ? 'bg-green-100 text-green-700' 
+                        getRangeLabel(index) === '開始'
+                          ? 'bg-green-100 text-green-700'
                           : 'bg-red-100 text-red-700'
                       }`}>
                         {getRangeLabel(index)}
@@ -717,7 +718,7 @@ export default function ChatPage() {
                   {/* ガイドメッセージ */}
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                     <p className="text-sm text-blue-700">
-                      {rangeStart === null 
+                      {rangeStart === null
                         ? '💡 「開始」位置のメッセージをタップしてください'
                         : rangeEnd === null
                         ? '💡 「終了」位置のメッセージをタップしてください'
@@ -778,7 +779,7 @@ export default function ChatPage() {
                           : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                       }`}
                     >
-                      {selectedMessages.size > 0 
+                      {selectedMessages.size > 0
                         ? `${selectedMessages.size}件をAIに送信`
                         : '範囲を選択してください'
                       }

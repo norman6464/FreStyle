@@ -11,19 +11,20 @@ import {
 import { ChevronRightIcon } from '@heroicons/react/24/outline';
 import SockJS from 'sockjs-client';
 import { Client } from '@stomp/stompjs';
+import { ChatUser } from '../types';
 
 export default function ChatListPage() {
-  const [chatUsers, setChatUsers] = useState([]);
+  const [chatUsers, setChatUsers] = useState<ChatUser[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
-  const [userId, setUserId] = useState(null);
-  const stompClientRef = useRef(null);
+  const [userId, setUserId] = useState<number | null>(null);
+  const stompClientRef = useRef<Client | null>(null);
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   // チャット履歴のあるユーザー一覧取得
-  const fetchChatUsers = async (query = '') => {
+  const fetchChatUsers = async (query = ''): Promise<void> => {
     try {
       setLoading(true);
       const url = query
@@ -123,11 +124,11 @@ export default function ChatListPage() {
   }, [searchQuery]);
 
   // 最終メッセージの時間をフォーマット
-  const formatTime = (dateString) => {
+  const formatTime = (dateString: string): string => {
     if (!dateString) return '';
     const date = new Date(dateString);
     const now = new Date();
-    const diff = now - date;
+    const diff = now.getTime() - date.getTime();
     const oneDay = 24 * 60 * 60 * 1000;
     const oneWeek = 7 * oneDay;
 
@@ -154,7 +155,7 @@ export default function ChatListPage() {
   };
 
   // メッセージを短縮表示
-  const truncateMessage = (message, maxLength = 30) => {
+  const truncateMessage = (message: string | undefined, maxLength = 30): string => {
     if (!message) return 'メッセージはありません';
     if (message.length <= maxLength) return message;
     return message.substring(0, maxLength) + '...';
@@ -173,7 +174,7 @@ export default function ChatListPage() {
               <input
                 type="text"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
                 placeholder="名前やメールで検索..."
                 className="w-full pl-10 pr-4 py-3 bg-gray-100 rounded-xl border-none focus:outline-none focus:ring-1 focus:ring-primary-500 transition-colors duration-150"
               />

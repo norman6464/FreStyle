@@ -5,6 +5,7 @@ import HamburgerMenu from '../components/HamburgerMenu';
 import ConfirmModal from '../components/ConfirmModal';
 import { useDispatch } from 'react-redux';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
+import { AiMessage, AiSession } from '../types';
 
 import SockJS from 'sockjs-client';
 import { Client } from '@stomp/stompjs';
@@ -13,27 +14,27 @@ export default function AskAiPage() {
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
   const WS_URL = import.meta.env.VITE_WEB_SOCKET_URL_AI_CHAT;
 
-  const [messages, setMessages] = useState([]);
-  const [sessions, setSessions] = useState([]);
-  const [currentSessionId, setCurrentSessionId] = useState(null);
+  const [messages, setMessages] = useState<AiMessage[]>([]);
+  const [sessions, setSessions] = useState<AiSession[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<number | null>(null);
   const [initialPromptSent, setInitialPromptSent] = useState(false);
   const [historyLoaded, setHistoryLoaded] = useState(false);
-  const [userId, setUserId] = useState(null);
+  const [userId, setUserId] = useState<number | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [deleteModal, setDeleteModal] = useState({ isOpen: false, sessionId: null });
-  const [editingSessionId, setEditingSessionId] = useState(null);
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; sessionId: number | null }>({ isOpen: false, sessionId: null });
+  const [editingSessionId, setEditingSessionId] = useState<number | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
-  
-  const stompClientRef = useRef(null);
-  const messagesEndRef = useRef(null);
+
+  const stompClientRef = useRef<Client | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const navigate = useNavigate();
   const location = useLocation();
   const dispatch = useDispatch();
-  const { sessionId: urlSessionId } = useParams();
+  const { sessionId: urlSessionId } = useParams<{ sessionId: string }>();
 
-  const initialPrompt = location.state?.initialPrompt;
-  const fromChatFeedback = location.state?.fromChatFeedback || false; // チャットフィードバックモードフラグ
+  const initialPrompt = (location.state as { initialPrompt?: string; fromChatFeedback?: boolean })?.initialPrompt;
+  const fromChatFeedback = (location.state as { initialPrompt?: string; fromChatFeedback?: boolean })?.fromChatFeedback || false; // チャットフィードバックモードフラグ
 
   // ユーザー情報取得（userId を取得）
   useEffect(() => {
@@ -59,7 +60,7 @@ export default function AskAiPage() {
   }, [API_BASE_URL, navigate]);
 
   // --- セッション一覧取得 ---
-  const fetchSessions = async () => {
+  const fetchSessions = async (): Promise<void> => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/chat/ai/sessions`, {
         headers: { 'Content-Type': 'application/json' },
@@ -99,7 +100,7 @@ export default function AskAiPage() {
   }, [userId]);
 
   // --- メッセージ最下部へスクロール ---
-  const scrollToBottom = () => {
+  const scrollToBottom = (): void => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
@@ -115,7 +116,7 @@ export default function AskAiPage() {
   }, [urlSessionId]);
 
   // --- セッション内のメッセージ履歴取得 ---
-  const fetchSessionMessages = async (sessionId) => {
+  const fetchSessionMessages = async (sessionId: number): Promise<void> => {
     if (!sessionId) {
       setMessages([]);
       setHistoryLoaded(true);
@@ -148,7 +149,7 @@ export default function AskAiPage() {
       }
 
       const data = await res.json();
-      const formattedMessages = data.map((item) => ({
+      const formattedMessages = data.map((item: any) => ({
         id: item.id,
         sessionId: item.sessionId,
         content: item.content,
@@ -241,7 +242,7 @@ export default function AskAiPage() {
   }, [userId]);
 
   // セッション購読関数
-  const subscribeToSession = (sessionId) => {
+  const subscribeToSession = (sessionId: number): void => {
     if (!stompClientRef.current?.connected || !sessionId) return;
 
     console.log('📡 セッション購読開始:', sessionId);
@@ -276,7 +277,7 @@ export default function AskAiPage() {
   }, [currentSessionId]);
 
   // --- メッセージ削除処理 ---
-  const handleDeleteMessage = (messageId) => {
+  const handleDeleteMessage = (messageId: number): void => {
     const messageToDelete = messages.find((msg) => msg.id === messageId);
     if (!messageToDelete) return;
 
@@ -291,25 +292,25 @@ export default function AskAiPage() {
   };
 
   // --- 新規セッション作成 ---
-  const handleNewSession = () => {
+  const handleNewSession = (): void => {
     setCurrentSessionId(null);
     setMessages([]);
     console.log('🆕 新規セッション開始');
   };
 
   // --- セッション選択 ---
-  const handleSelectSession = (sessionId) => {
+  const handleSelectSession = (sessionId: number): void => {
     setCurrentSessionId(sessionId);
     navigate(`/chat/ask-ai/${sessionId}`);
     console.log('📂 セッション選択:', sessionId);
   };
 
   // --- セッション削除 ---
-  const handleDeleteSession = (sessionId) => {
+  const handleDeleteSession = (sessionId: number): void => {
     setDeleteModal({ isOpen: true, sessionId });
   };
 
-  const confirmDeleteSession = async () => {
+  const confirmDeleteSession = async (): Promise<void> => {
     const sessionId = deleteModal.sessionId;
     setDeleteModal({ isOpen: false, sessionId: null });
 
@@ -333,18 +334,18 @@ export default function AskAiPage() {
     }
   };
 
-  const cancelDeleteSession = () => {
+  const cancelDeleteSession = (): void => {
     setDeleteModal({ isOpen: false, sessionId: null });
   };
 
   // --- セッションタイトル編集 ---
-  const handleStartEditTitle = (e, session) => {
+  const handleStartEditTitle = (e: React.MouseEvent, session: AiSession): void => {
     e.stopPropagation();
     setEditingSessionId(session.id);
     setEditingTitle(session.title || '');
   };
 
-  const handleSaveTitle = async (sessionId) => {
+  const handleSaveTitle = async (sessionId: number): Promise<void> => {
     if (!editingTitle.trim()) {
       setEditingSessionId(null);
       return;
@@ -372,15 +373,15 @@ export default function AskAiPage() {
     setEditingSessionId(null);
   };
 
-  const handleCancelEditTitle = () => {
+  const handleCancelEditTitle = (): void => {
     setEditingSessionId(null);
     setEditingTitle('');
   };
 
   // --- メッセージ送信 ---
-  const handleSend = async (text) => {
+  const handleSend = async (text: string): Promise<void> => {
     console.log('📤 [handleSend] メッセージ送信開始:', { text, userId, currentSessionId, fromChatFeedback });
-    
+
     if (!stompClientRef.current?.connected) {
       console.warn('⚠️ STOMP not connected');
       return;
@@ -409,7 +410,7 @@ export default function AskAiPage() {
 
       {/* 全体レイアウト */}
       <div className="flex h-screen bg-gray-50 text-black pt-16">
-        
+
         {/* サイドバー（セッション一覧） */}
         <div className={`${sidebarOpen ? 'w-64' : 'w-0'} bg-white border-r border-gray-200 flex flex-col overflow-hidden`}>
           <div className="p-4 border-b border-gray-200">
@@ -423,7 +424,7 @@ export default function AskAiPage() {
               新しいチャット
             </button>
           </div>
-          
+
           <div className="flex-1 overflow-y-auto">
             <div className="p-2 space-y-1">
               {sessions.map((session) => (

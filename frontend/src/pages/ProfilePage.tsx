@@ -177,11 +177,11 @@ export default function ProfilePage() {
     return (
       <>
         <HamburgerMenu title="プロフィール編集" />
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center pt-20">
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center pt-20">
           <div className="text-center">
             <div className="animate-pulse">
               <div className="w-16 h-16 bg-primary-200 rounded-full mx-auto mb-4"></div>
-              <p className="text-gray-600">読み込み中...</p>
+              <p className="text-slate-600">読み込み中...</p>
             </div>
           </div>
         </div>
@@ -193,20 +193,20 @@ export default function ProfilePage() {
   return (
     <>
       <HamburgerMenu title="プロフィール" />
-      <div className="min-h-screen bg-gray-50 pt-20 pb-8 px-4">
+      <div className="min-h-screen bg-slate-50 pt-20 pb-8 px-4">
         <div className="max-w-2xl mx-auto">
           {/* メッセージ */}
           {message && (
             <div
               className={`mb-6 p-4 rounded-lg border-l-4 flex items-start ${
                 message.type === 'error'
-                  ? 'bg-red-50 border-red-500'
-                  : 'bg-green-50 border-green-500'
+                  ? 'bg-rose-50 border-rose-500'
+                  : 'bg-emerald-50 border-emerald-500'
               }`}
             >
               <div
                 className={`flex-shrink-0 mr-3 ${
-                  message.type === 'error' ? 'text-red-600' : 'text-green-600'
+                  message.type === 'error' ? 'text-rose-600' : 'text-emerald-600'
                 }`}
               >
                 {message.type === 'error' ? (
@@ -238,8 +238,8 @@ export default function ProfilePage() {
               <p
                 className={
                   message.type === 'error'
-                    ? 'text-red-700 font-medium'
-                    : 'text-green-700 font-medium'
+                    ? 'text-rose-700 font-medium'
+                    : 'text-emerald-700 font-medium'
                 }
               >
                 {message.text}
@@ -248,7 +248,7 @@ export default function ProfilePage() {
           )}
 
           {/* プロフィールカード */}
-          <div className="bg-white rounded-2xl shadow-sm p-8 border border-gray-200">
+          <div className="bg-white rounded-2xl shadow-sm p-8 border border-slate-200">
             {/* ヘッダー */}
             <div className="text-center mb-8">
               <div className="relative inline-block">
@@ -258,16 +258,16 @@ export default function ProfilePage() {
                   </span>
                 </div>
                 {/* 編集アイコン */}
-                <div className="absolute bottom-0 right-0 bg-white rounded-full p-2 shadow-sm border border-gray-200">
+                <div className="absolute bottom-0 right-0 bg-white rounded-full p-2 shadow-sm border border-slate-200">
                   <svg className="w-5 h-5 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                   </svg>
                 </div>
               </div>
-              <h2 className="text-2xl font-bold text-gray-800 mt-4">
+              <h2 className="text-2xl font-bold text-slate-800 mt-4">
                 プロフィールを編集
               </h2>
-              <p className="text-gray-500 text-sm mt-1">
+              <p className="text-slate-500 text-sm mt-1">
                 あなたの情報を更新してより良いコミュニケーションを
               </p>
             </div>
@@ -282,7 +282,7 @@ export default function ProfilePage() {
                 }
               />
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-slate-700 mb-2">
                   自己紹介
                 </label>
                 <textarea
@@ -293,7 +293,7 @@ export default function ProfilePage() {
                   }
                   placeholder="あなたについて教えてください..."
                   rows={4}
-                  className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors duration-150 resize-none"
+                  className="w-full border border-slate-300 rounded-xl px-4 py-3 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors duration-150 resize-none"
                 />
               </div>
               <PrimaryButton type="submit">プロフィールを更新</PrimaryButton>
@@ -304,29 +304,29 @@ export default function ProfilePage() {
           <div className="mt-6 grid grid-cols-2 gap-4">
             <div
               onClick={() => navigate('/profile/personality')}
-              className="bg-white rounded-xl p-4 cursor-pointer border border-gray-200 hover:bg-gray-50 transition-colors duration-150"
+              className="bg-white rounded-xl p-4 cursor-pointer border border-slate-200 hover:bg-slate-50 transition-colors duration-150"
             >
               <div className="flex items-center gap-3">
                 <div className="bg-primary-100 rounded-lg p-2">
                   <SparklesIcon className="w-5 h-5 text-primary-500" />
                 </div>
                 <div>
-                  <p className="font-medium text-gray-800 text-sm">パーソナリティ</p>
-                  <p className="text-xs text-gray-500">AI設定を編集</p>
+                  <p className="font-medium text-slate-800 text-sm">パーソナリティ</p>
+                  <p className="text-xs text-slate-500">AI設定を編集</p>
                 </div>
               </div>
             </div>
             <div
               onClick={() => navigate('/chat')}
-              className="bg-white rounded-xl p-4 cursor-pointer border border-gray-200 hover:bg-gray-50 transition-colors duration-150"
+              className="bg-white rounded-xl p-4 cursor-pointer border border-slate-200 hover:bg-slate-50 transition-colors duration-150"
             >
               <div className="flex items-center gap-3">
                 <div className="bg-primary-100 rounded-lg p-2">
                   <ChatBubbleLeftRightIcon className="w-5 h-5 text-primary-500" />
                 </div>
                 <div>
-                  <p className="font-medium text-gray-800 text-sm">チャット一覧</p>
-                  <p className="text-xs text-gray-500">会話を見る</p>
+                  <p className="font-medium text-slate-800 text-sm">チャット一覧</p>
+                  <p className="text-xs text-slate-500">会話を見る</p>
                 </div>
               </div>
             </div>

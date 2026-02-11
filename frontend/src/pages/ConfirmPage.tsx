@@ -61,7 +61,7 @@ export default function ConfirmPage() {
   return (
     <AuthLayout>
       {message?.type === 'error' && (
-        <p className="text-red-600 text-center">{message.text}</p>
+        <p className="text-rose-600 text-center">{message.text}</p>
       )}
       <h2 className="text-2xl font-bold mb-6 text-center">確認コードの入力</h2>
       <form onSubmit={handleConfirm}>

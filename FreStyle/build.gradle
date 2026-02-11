@@ -40,6 +40,9 @@ dependencies {
 	// Micrometer CloudWatch メトリクスエクスポート
 	implementation 'io.micrometer:micrometer-registry-cloudwatch2'
 
+	// AOP（リクエスト処理時間計測）
+	implementation 'org.springframework.boot:spring-boot-starter-aop'
+
 	// WebSocket接続・設定用
 	implementation 'org.springframework.boot:spring-boot-starter-websocket'
 	

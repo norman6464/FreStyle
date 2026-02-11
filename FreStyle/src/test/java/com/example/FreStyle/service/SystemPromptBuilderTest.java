@@ -11,29 +11,30 @@ class SystemPromptBuilderTest {
     private final SystemPromptBuilder builder = new SystemPromptBuilder();
 
     @Nested
-    @DisplayName("buildFeedbackPrompt - フィードバックモードのプロンプト構築")
+    @DisplayName("buildFeedbackPrompt - ビジネスコミュニケーション評価軸")
     class BuildFeedbackPromptTest {
 
         @Test
-        @DisplayName("5つのQA評価軸（共感力、クッション言葉、結論ファースト、ポジティブ変換、傾聴姿勢）が含まれる")
-        void shouldContainAllFiveQaCriteria() {
+        @DisplayName("5つのビジネス評価軸（論理的構成力、配慮表現、要約力、提案力、質問・傾聴力）が含まれる")
+        void shouldContainAllFiveBusinessCriteria() {
             String prompt = builder.buildFeedbackPrompt(
                     "テスト太郎", "自己紹介です", "丁寧", "真面目", "スキル向上", "伝わらない", "具体的に");
 
-            assertThat(prompt).contains("共感力");
-            assertThat(prompt).contains("クッション言葉");
-            assertThat(prompt).contains("結論ファースト");
-            assertThat(prompt).contains("ポジティブ変換");
-            assertThat(prompt).contains("傾聴姿勢");
+            assertThat(prompt).contains("論理的構成力");
+            assertThat(prompt).contains("配慮表現");
+            assertThat(prompt).contains("要約力");
+            assertThat(prompt).contains("提案力");
+            assertThat(prompt).contains("質問・傾聴力");
         }
 
         @Test
-        @DisplayName("コールセンター/QAに関連するキーワードが含まれる")
-        void shouldContainCallCenterContext() {
+        @DisplayName("ビジネスコミュニケーションの文脈が含まれる")
+        void shouldContainBusinessContext() {
             String prompt = builder.buildFeedbackPrompt(
                     "テスト太郎", null, null, null, null, null, null);
 
-            assertThat(prompt).contains("コールセンター");
+            assertThat(prompt).contains("ビジネス");
+            assertThat(prompt).doesNotContain("コールセンター");
         }
 
         @Test
@@ -72,33 +73,33 @@ class SystemPromptBuilderTest {
             String prompt = builder.buildFeedbackPrompt(
                     "テスト太郎", null, null, null, null, null, null);
 
-            // 各軸について具体的な評価ポイントが記載されていることを確認
-            assertThat(prompt).contains("相手の気持ち");
-            assertThat(prompt).contains("否定的な表現を肯定的に言い換え");
+            assertThat(prompt).contains("PREP");
+            assertThat(prompt).contains("結論");
+            assertThat(prompt).contains("解決策");
         }
     }
 
     @Nested
-    @DisplayName("buildCoachPrompt - 通常チャットモードのプロンプト構築")
+    @DisplayName("buildCoachPrompt - ビジネスコミュニケーションコーチのプロンプト構築")
     class BuildCoachPromptTest {
 
         @Test
-        @DisplayName("コールセンター式コーチとしてのプロンプトが構築される")
-        void shouldBuildCoachPrompt() {
+        @DisplayName("ビジネスコミュニケーションコーチとしてのプロンプトが構築される")
+        void shouldBuildBusinessCoachPrompt() {
             String prompt = builder.buildCoachPrompt();
 
-            assertThat(prompt).contains("コールセンター");
-            assertThat(prompt).contains("コミュニケーション");
+            assertThat(prompt).contains("ビジネスコミュニケーション");
+            assertThat(prompt).doesNotContain("コールセンター");
         }
 
         @Test
-        @DisplayName("5つのQA評価軸に関連するキーワードが含まれる")
-        void shouldContainQaCriteriaKeywords() {
+        @DisplayName("5つのビジネス評価軸に関連するキーワードが含まれる")
+        void shouldContainBusinessCriteriaKeywords() {
             String prompt = builder.buildCoachPrompt();
 
-            assertThat(prompt).contains("共感");
-            assertThat(prompt).contains("クッション言葉");
-            assertThat(prompt).contains("ポジティブ");
+            assertThat(prompt).contains("論理的");
+            assertThat(prompt).contains("配慮");
+            assertThat(prompt).contains("提案");
         }
     }
 }

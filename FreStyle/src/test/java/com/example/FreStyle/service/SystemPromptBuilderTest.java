@@ -276,6 +276,65 @@ class SystemPromptBuilderTest {
     }
 
     @Nested
+    @DisplayName("IT新卒向け評価軸サブ基準")
+    class ItJuniorSubCriteriaTest {
+
+        @Test
+        @DisplayName("報連相の構造化サブ基準が含まれる")
+        void shouldContainHouRenSouSubCriteria() {
+            String prompt = builder.buildFeedbackPrompt(
+                    "テスト太郎", null, null, null, null, null, null);
+
+            assertThat(prompt).contains("報連相");
+        }
+
+        @Test
+        @DisplayName("敬語の正確さサブ基準が含まれる")
+        void shouldContainKeigoSubCriteria() {
+            String prompt = builder.buildFeedbackPrompt(
+                    "テスト太郎", null, null, null, null, null, null);
+
+            assertThat(prompt).contains("敬語の正確さ");
+        }
+
+        @Test
+        @DisplayName("技術説明の平易化サブ基準が含まれる")
+        void shouldContainTechnicalExplanationSubCriteria() {
+            String prompt = builder.buildFeedbackPrompt(
+                    "テスト太郎", null, null, null, null, null, null);
+
+            assertThat(prompt).contains("技術説明の平易化");
+        }
+
+        @Test
+        @DisplayName("エスカレーション判断力サブ基準が含まれる")
+        void shouldContainEscalationSubCriteria() {
+            String prompt = builder.buildFeedbackPrompt(
+                    "テスト太郎", null, null, null, null, null, null);
+
+            assertThat(prompt).contains("エスカレーション判断力");
+        }
+
+        @Test
+        @DisplayName("要件確認の網羅性サブ基準が含まれる")
+        void shouldContainRequirementConfirmationSubCriteria() {
+            String prompt = builder.buildFeedbackPrompt(
+                    "テスト太郎", null, null, null, null, null, null);
+
+            assertThat(prompt).contains("要件確認の網羅性");
+        }
+
+        @Test
+        @DisplayName("コーチプロンプトにIT新卒向け文脈が含まれる")
+        void shouldContainItJuniorContextInCoachPrompt() {
+            String prompt = builder.buildCoachPrompt();
+
+            assertThat(prompt).contains("新卒");
+            assertThat(prompt).contains("エンジニア");
+        }
+    }
+
+    @Nested
     @DisplayName("buildCoachPrompt - ビジネスコミュニケーションコーチのプロンプト構築")
     class BuildCoachPromptTest {
 

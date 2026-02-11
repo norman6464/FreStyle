@@ -51,4 +51,36 @@ describe('SceneSelector', () => {
     expect(screen.getByText(/ストーリー構成/)).toBeInTheDocument();
     expect(screen.getByText(/ニーズヒアリング/)).toBeInTheDocument();
   });
+
+  it('コードレビューシーンが表示される', () => {
+    render(<SceneSelector onSelect={mockOnSelect} onCancel={mockOnCancel} />);
+
+    expect(screen.getByText('コードレビュー')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('コードレビュー'));
+    expect(mockOnSelect).toHaveBeenCalledWith('code_review');
+  });
+
+  it('障害対応シーンが表示される', () => {
+    render(<SceneSelector onSelect={mockOnSelect} onCancel={mockOnCancel} />);
+
+    expect(screen.getByText('障害対応')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('障害対応'));
+    expect(mockOnSelect).toHaveBeenCalledWith('incident');
+  });
+
+  it('日報シーンが表示される', () => {
+    render(<SceneSelector onSelect={mockOnSelect} onCancel={mockOnCancel} />);
+
+    expect(screen.getByText('日報・週報')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('日報・週報'));
+    expect(mockOnSelect).toHaveBeenCalledWith('daily_report');
+  });
+
+  it('全8シーンが表示される', () => {
+    render(<SceneSelector onSelect={mockOnSelect} onCancel={mockOnCancel} />);
+
+    const buttons = screen.getAllByRole('button');
+    // 8 scene buttons + 1 skip button = 9
+    expect(buttons).toHaveLength(9);
+  });
 });

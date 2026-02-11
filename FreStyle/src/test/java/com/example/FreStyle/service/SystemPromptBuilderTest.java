@@ -160,6 +160,42 @@ class SystemPromptBuilderTest {
         }
 
         @Test
+        @DisplayName("コードレビューシーンの評価観点が含まれる")
+        void shouldContainCodeReviewSceneCriteria() {
+            String prompt = builder.buildFeedbackPromptWithScene(
+                    "code_review", "テスト太郎", null, null, null, null, null, null);
+
+            assertThat(prompt).contains("コードレビュー");
+            assertThat(prompt).contains("指摘の具体性");
+            assertThat(prompt).contains("代替案の提示");
+            assertThat(prompt).contains("相手への配慮");
+        }
+
+        @Test
+        @DisplayName("障害対応シーンの評価観点が含まれる")
+        void shouldContainIncidentSceneCriteria() {
+            String prompt = builder.buildFeedbackPromptWithScene(
+                    "incident", "テスト太郎", null, null, null, null, null, null);
+
+            assertThat(prompt).contains("障害対応");
+            assertThat(prompt).contains("状況報告の正確さ");
+            assertThat(prompt).contains("エスカレーション判断");
+            assertThat(prompt).contains("事後報告の構成");
+        }
+
+        @Test
+        @DisplayName("日報シーンの評価観点が含まれる")
+        void shouldContainDailyReportSceneCriteria() {
+            String prompt = builder.buildFeedbackPromptWithScene(
+                    "daily_report", "テスト太郎", null, null, null, null, null, null);
+
+            assertThat(prompt).contains("日報");
+            assertThat(prompt).contains("成果の定量化");
+            assertThat(prompt).contains("課題の明確化");
+            assertThat(prompt).contains("ネクストアクション");
+        }
+
+        @Test
         @DisplayName("シーンがnullの場合は基本5軸のみのプロンプトが返される")
         void shouldReturnBasicPromptWhenSceneIsNull() {
             String prompt = builder.buildFeedbackPromptWithScene(

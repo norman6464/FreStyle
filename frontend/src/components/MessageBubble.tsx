@@ -8,6 +8,7 @@ interface MessageBubbleProps {
   senderName?: string;
   createdAt?: string;
   onDelete?: ((id: number) => void) | null;
+  onRephrase?: ((content: string) => void) | null;
   isDeleted?: boolean;
 }
 
@@ -19,6 +20,7 @@ export default function MessageBubble({
   senderName,
   createdAt,
   onDelete,
+  onRephrase,
   isDeleted = false,
 }: MessageBubbleProps) {
   const [showDelete, setShowDelete] = useState(false);
@@ -90,14 +92,22 @@ export default function MessageBubble({
           )}
         </div>
 
-        {!isDeleted && createdAt && (
-          <span
-            className={`text-[10px] mt-1 ${
-              isSender ? 'text-right mr-1 text-gray-400' : 'text-left ml-1 text-gray-400'
-            }`}
-          >
-            {formatTime(createdAt)}
-          </span>
+        {!isDeleted && (
+          <div className={`flex items-center gap-2 mt-1 ${isSender ? 'justify-end' : 'justify-start'}`}>
+            {createdAt && (
+              <span className={`text-[10px] ${isSender ? 'mr-1 text-gray-400' : 'ml-1 text-gray-400'}`}>
+                {formatTime(createdAt)}
+              </span>
+            )}
+            {isSender && onRephrase && (
+              <button
+                onClick={() => onRephrase(content)}
+                className="text-[10px] text-primary-500 hover:text-primary-700 transition-colors opacity-0 group-hover:opacity-100"
+              >
+                言い換え
+              </button>
+            )}
+          </div>
         )}
       </div>
     </div>

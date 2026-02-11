@@ -26,6 +26,7 @@ import com.example.FreStyle.entity.User;
 import com.example.FreStyle.service.AiChatMessageService;
 import com.example.FreStyle.service.AiChatService;
 import com.example.FreStyle.service.AiChatSessionService;
+import com.example.FreStyle.service.BedrockService;
 import com.example.FreStyle.service.UserIdentityService;
 
 import lombok.RequiredArgsConstructor;
@@ -41,6 +42,7 @@ public class AiChatController {
     private final AiChatSessionService aiChatSessionService;
     private final AiChatMessageService aiChatMessageService;
     private final UserIdentityService userIdentityService;
+    private final BedrockService bedrockService;
 
 
     // =============================================
@@ -266,8 +268,33 @@ public class AiChatController {
         }
     }
 
+    /**
+     * メッセージの言い換え提案を取得（REST API）
+     */
+    @PostMapping("/rephrase")
+    public ResponseEntity<Map<String, String>> rephrase(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestBody RephraseRequest request
+    ) {
+        logger.info("========== POST /api/chat/ai/rephrase ==========");
+
+        try {
+            String sub = jwt.getSubject();
+            userIdentityService.findUserBySub(sub); // 認証チェック
+
+            String result = bedrockService.rephrase(request.originalMessage(), request.scene());
+            logger.info("✅ 言い換え提案取得成功");
+
+            return ResponseEntity.ok(Map.of("result", result));
+        } catch (Exception e) {
+            logger.error("❌ 言い換え提案エラー: {}", e.getMessage());
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
     // リクエスト用のRecord
     record CreateSessionRequest(String title, Integer relatedRoomId) {}
     record UpdateSessionRequest(String title) {}
     record AddMessageRequest(String content, String role) {}
+    record RephraseRequest(String originalMessage, String scene) {}
 }

@@ -111,9 +111,10 @@ CREATE TABLE IF NOT EXISTS ai_chat_sessions (
     user_id INT NOT NULL,
     title VARCHAR(255),                    -- セッションのタイトル（自動生成 or ユーザー設定）
     related_room_id INT,                   -- chat_roomsとの関連（会話レビューの場合）
+    scene VARCHAR(50) DEFAULT NULL,        -- フィードバックシーン（meeting, one_on_one, email, presentation, negotiation）
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    
+
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (related_room_id) REFERENCES chat_rooms(id) ON DELETE SET NULL,
     INDEX idx_user_created (user_id, created_at DESC)

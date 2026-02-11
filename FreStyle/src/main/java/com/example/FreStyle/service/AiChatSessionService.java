@@ -29,12 +29,21 @@ public class AiChatSessionService {
      */
     @Transactional
     public AiChatSessionDto createSession(Integer userId, String title, Integer relatedRoomId) {
+        return createSession(userId, title, relatedRoomId, null);
+    }
+
+    /**
+     * 新しいセッションを作成（シーン指定付き）
+     */
+    @Transactional
+    public AiChatSessionDto createSession(Integer userId, String title, Integer relatedRoomId, String scene) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("ユーザーが見つかりません: " + userId));
 
         AiChatSession session = new AiChatSession();
         session.setUser(user);
         session.setTitle(title);
+        session.setScene(scene);
 
         // 関連ルームが指定されている場合は設定
         if (relatedRoomId != null) {
@@ -110,6 +119,7 @@ public class AiChatSessionService {
                 session.getUser().getId(),
                 session.getTitle(),
                 session.getRelatedRoom() != null ? session.getRelatedRoom().getId() : null,
+                session.getScene(),
                 session.getCreatedAt(),
                 session.getUpdatedAt()
         );

@@ -1,6 +1,12 @@
 import { MagnifyingGlassIcon } from '@heroicons/react/24/solid';
 
-export default function SearchBox({ value, onChange, placeholder = '検索' }) {
+interface SearchBoxProps {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}
+
+export default function SearchBox({ value, onChange, placeholder = '検索' }: SearchBoxProps) {
   return (
     <div className="relative">
       <MagnifyingGlassIcon className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />

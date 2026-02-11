@@ -1,5 +1,15 @@
-// MessageBubble.jsx
 import { useState } from 'react';
+
+interface MessageBubbleProps {
+  isSender: boolean;
+  type?: 'text' | 'image' | 'bot';
+  content: string;
+  id: number;
+  senderName?: string;
+  createdAt?: string;
+  onDelete?: ((id: number) => void) | null;
+  isDeleted?: boolean;
+}
 
 export default function MessageBubble({
   isSender,
@@ -10,7 +20,7 @@ export default function MessageBubble({
   createdAt,
   onDelete,
   isDeleted = false,
-}) {
+}: MessageBubbleProps) {
   const [showDelete, setShowDelete] = useState(false);
 
   const baseStyle =
@@ -24,7 +34,7 @@ export default function MessageBubble({
     ? 'self-end bg-gray-200 text-gray-500 italic rounded-br-sm'
     : 'self-start bg-gray-200 text-gray-500 italic rounded-bl-sm';
 
-  const formatTime = (dateString) => {
+  const formatTime = (dateString?: string) => {
     if (!dateString) return '';
     const date = new Date(dateString);
     return date.toLocaleTimeString('ja-JP', {

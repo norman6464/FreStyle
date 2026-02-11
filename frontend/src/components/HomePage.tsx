@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { clearAuth } from '../store/authSlice';
+import type { RootState } from '../store';
 import {
   ChatBubbleLeftIcon,
   UserGroupIcon,
@@ -12,15 +13,14 @@ import {
 export default function HomePage() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const email = useSelector((state) => state.auth.email);
+  const email = useSelector((state: RootState) => (state as any).auth.email);
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-  const [stats, setStats] = useState(null);
+  const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
 
-  // 時刻の自動更新
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
@@ -28,7 +28,6 @@ export default function HomePage() {
     return () => clearInterval(timer);
   }, []);
 
-  // 統計情報の取得
   useEffect(() => {
     const fetchStats = async () => {
       try {
@@ -41,7 +40,6 @@ export default function HomePage() {
           credentials: 'include',
         });
 
-        // トークン期限切れの場合
         if (res.status === 401) {
           const refreshRes = await fetch(
             `${API_BASE_URL}/api/auth/cognito/refresh-token`,
@@ -57,10 +55,6 @@ export default function HomePage() {
             return;
           }
 
-          const refreshData = await refreshData.json();
-          dispatch(setAuthData({ accessToken: refreshData.accessToken }));
-
-          // リトライ
           const retryRes = await fetch(`${API_BASE_URL}/api/chat/stats`, {
             headers: {
               'Content-Type': 'application/json',
@@ -79,18 +73,16 @@ export default function HomePage() {
         setStats(data);
       } catch (err) {
         console.error('Error fetching stats:', err);
-        setError(err.message);
+        setError((err as Error).message);
       } finally {
         setLoading(false);
       }
     };
 
-    if (accessToken) {
-      fetchStats();
-    }
+    fetchStats();
   }, [dispatch, navigate, API_BASE_URL]);
 
-  const formatDate = (date) => {
+  const formatDate = (date: Date) => {
     return date.toLocaleDateString('ja-JP', {
       year: 'numeric',
       month: 'long',
@@ -99,7 +91,7 @@ export default function HomePage() {
     });
   };
 
-  const formatTime = (date) => {
+  const formatTime = (date: Date) => {
     return date.toLocaleTimeString('ja-JP', {
       hour: '2-digit',
       minute: '2-digit',
@@ -110,7 +102,6 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-primary-50 p-4 pt-6 pb-8">
       <div className="max-w-2xl mx-auto">
-        {/* ウェルカムセクション */}
         <div className="mb-8 bg-white rounded-xl shadow-lg p-8 border border-gray-100">
           <h1 className="text-4xl font-bold text-gray-800 mb-2">ようこそ！</h1>
           {stats?.username && (
@@ -119,7 +110,6 @@ export default function HomePage() {
             </p>
           )}
 
-          {/* 日付と時刻 */}
           <div className="bg-gradient-to-br from-primary-50 to-secondary-50 rounded-lg p-6 mb-6">
             <div className="flex items-center gap-3 mb-3">
               <CalendarIcon className="w-6 h-6 text-primary-600" />
@@ -137,7 +127,6 @@ export default function HomePage() {
           </p>
         </div>
 
-        {/* 統計情報 */}
         {loading ? (
           <div className="text-center py-8">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
@@ -149,7 +138,6 @@ export default function HomePage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            {/* 会話した人数 */}
             <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100 hover:shadow-xl hover:scale-105 transition-all duration-300">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-800">
@@ -166,7 +154,6 @@ export default function HomePage() {
               </p>
             </div>
 
-            {/* メールアドレス */}
             <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100 hover:shadow-xl hover:scale-105 transition-all duration-300">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-800">
@@ -184,7 +171,6 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* クイックアクションボタン */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <button
             onClick={() => navigate('/chat/members')}

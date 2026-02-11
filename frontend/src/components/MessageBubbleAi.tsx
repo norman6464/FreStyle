@@ -1,7 +1,13 @@
 import { useState } from 'react';
 
-// isSenderではAIとのチャットでは人間かAIか判断して
-// ChatPageでは自分かそれ以外の人かを判断する
+interface MessageBubbleAiProps {
+  isSender: boolean;
+  type?: 'text' | 'image' | 'bot';
+  content: string;
+  id: number;
+  onDelete?: (id: number) => void;
+  isDeleted?: boolean;
+}
 
 export default function MessageBubbleAi({
   isSender,
@@ -10,7 +16,7 @@ export default function MessageBubbleAi({
   id,
   onDelete,
   isDeleted = false,
-}) {
+}: MessageBubbleAiProps) {
   const [showDelete, setShowDelete] = useState(false);
 
   const baseStyle =
@@ -20,7 +26,6 @@ export default function MessageBubbleAi({
     ? 'self-end bg-primary-500 text-white rounded-br-sm'
     : 'self-start bg-gray-100 text-gray-900 rounded-bl-sm';
 
-  // 削除済みメッセージ用のスタイル
   const deletedStyle = 'bg-gray-200 text-gray-500 italic';
 
   return (
@@ -48,7 +53,6 @@ export default function MessageBubbleAi({
           </>
         )}
 
-        {/* 削除ボタン */}
         {isSender && showDelete && onDelete && !isDeleted && (
           <button
             onClick={() => onDelete(id)}

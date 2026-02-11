@@ -1,4 +1,10 @@
-export default function RoomListItem({ name, lastMessage, unreadCount }) {
+interface RoomListItemProps {
+  name: string;
+  lastMessage: string;
+  unreadCount: number;
+}
+
+export default function RoomListItem({ name, lastMessage, unreadCount }: RoomListItemProps) {
   return (
     <div className="p-4 rounded-xl hover:bg-gray-50 cursor-pointer flex justify-between items-center transition-colors duration-150 border border-gray-200">
       <div className="flex-1 min-w-0">

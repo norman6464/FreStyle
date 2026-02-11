@@ -1,14 +1,19 @@
-export default function SNSSignInButton({ provider, onClick }) {
-  // window.location.href を使うと、SPAのルーティングを飛び越えて、完全にページがリロードされる。
+import type { SnsProvider } from '../types';
 
-  const providerIcons = {
+interface SNSSignInButtonProps {
+  provider: SnsProvider;
+  onClick: () => void;
+}
+
+export default function SNSSignInButton({ provider, onClick }: SNSSignInButtonProps) {
+  const providerIcons: Record<SnsProvider, string> = {
     google: 'https://developers.google.com/identity/images/g-logo.png',
     facebook:
       'https://upload.wikimedia.org/wikipedia/commons/0/05/Facebook_Logo_%282019%29.png',
     x: 'https://cdn.cms%E2%80%91twdigitalassets.com/content/dam/about-twitter/x/brand-toolkit/x-white-logo.png',
   };
 
-  const providerLabels = {
+  const providerLabels: Record<SnsProvider, string> = {
     google: 'Googleでログイン',
     facebook: 'Facebookでログイン',
     x: 'Xでログイン',

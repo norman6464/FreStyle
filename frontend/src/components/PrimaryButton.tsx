@@ -1,9 +1,18 @@
+import { ReactNode } from 'react';
+
+interface PrimaryButtonProps {
+  children: ReactNode;
+  onClick?: () => void;
+  type?: 'button' | 'submit' | 'reset';
+  disabled?: boolean;
+}
+
 export default function PrimaryButton({
   children,
   onClick,
   type = 'button',
   disabled,
-}) {
+}: PrimaryButtonProps) {
   return (
     <button
       type={type}

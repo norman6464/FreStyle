@@ -1,12 +1,17 @@
-import { useEffect } from 'react';
+import { ReactNode, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { setAuthData, clearAuth, finishLoading } from '../store/authSlice';
+import type { RootState } from '../store';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-export default function AuthInitializer({ children }) {
+interface AuthInitializerProps {
+  children: ReactNode;
+}
+
+export default function AuthInitializer({ children }: AuthInitializerProps) {
   const dispatch = useDispatch();
-  const loading = useSelector((state) => state.auth.loading);
+  const loading = useSelector((state: RootState) => state.auth.loading);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -26,7 +31,7 @@ export default function AuthInitializer({ children }) {
         console.log('[AuthInitializer] Auth check successful, setting auth state');
         dispatch(setAuthData());
       } catch (error) {
-        console.error('[AuthInitializer] Auth check error:', error.message);
+        console.error('[AuthInitializer] Auth check error:', (error as Error).message);
         dispatch(clearAuth());
       } finally {
         dispatch(finishLoading());

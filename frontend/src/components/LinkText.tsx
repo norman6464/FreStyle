@@ -1,6 +1,12 @@
+import { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 
-export default function LinkText({ to, children }) {
+interface LinkTextProps {
+  to: string;
+  children: ReactNode;
+}
+
+export default function LinkText({ to, children }: LinkTextProps) {
   return (
     <Link
       to={to}

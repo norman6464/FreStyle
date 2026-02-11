@@ -1,6 +1,11 @@
 import MemberItem from './MemberItem';
+import type { MemberUser } from '../types';
 
-export default function MemberList({ users }) {
+interface MemberListProps {
+  users: MemberUser[];
+}
+
+export default function MemberList({ users }: MemberListProps) {
   return (
     <div className="space-y-4">
       {users.map((user) => (

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, ComponentType, SVGProps } from 'react';
 import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { clearAuth } from '../store/authSlice';
@@ -14,7 +14,18 @@ import {
   ChatBubbleLeftRightIcon,
 } from '@heroicons/react/24/solid';
 
-export default function HamburgerMenu({ title }) {
+interface HamburgerMenuProps {
+  title: string;
+}
+
+interface MenuItem {
+  label: string;
+  icon: ComponentType<SVGProps<SVGSVGElement> & { title?: string; titleId?: string }>;
+  onClick: () => void;
+  color: string;
+}
+
+export default function HamburgerMenu({ title }: HamburgerMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -44,7 +55,7 @@ export default function HamburgerMenu({ title }) {
     }
   };
 
-  const menuItems = [
+  const menuItems: MenuItem[] = [
     {
       label: 'ホーム',
       icon: HomeIcon,

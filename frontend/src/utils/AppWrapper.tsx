@@ -1,11 +1,15 @@
-import { useEffect, useState } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { useDispatch, setFlashMessage } from 'react-redux';
+import { useDispatch } from 'react-redux';
 import { setAuthData } from '../store/authSlice';
 
-export default function AppWrapper({ children }) {
+interface AppWrapperProps {
+  children: ReactNode;
+}
+
+export default function AppWrapper({ children }: AppWrapperProps) {
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState<any>(null);
   const dispatch = useDispatch();
 
   useEffect(() => {
@@ -20,7 +24,7 @@ export default function AppWrapper({ children }) {
       .then((data) => {
         setUser(data);
         // dispatch(setFlashMessage('ログインに成功しました.'));
-        dispatch(setAuthData(data));
+        dispatch(setAuthData());
       })
       .catch(() => setUser(null))
       .finally(() => setLoading(false));

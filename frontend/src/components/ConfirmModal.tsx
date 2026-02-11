@@ -1,5 +1,16 @@
 import { useEffect } from 'react';
 
+interface ConfirmModalProps {
+  isOpen: boolean;
+  title?: string;
+  message: string;
+  confirmText?: string;
+  cancelText?: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  isDanger?: boolean;
+}
+
 export default function ConfirmModal({
   isOpen,
   title = '確認',
@@ -9,10 +20,10 @@ export default function ConfirmModal({
   onConfirm,
   onCancel,
   isDanger = true,
-}) {
+}: ConfirmModalProps) {
   // ESCキーで閉じる
   useEffect(() => {
-    const handleEsc = (e) => {
+    const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
         onCancel();
       }

@@ -1,5 +1,14 @@
-import { useState } from 'react';
+import { ChangeEvent, useState } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/solid';
+
+interface InputFieldProps {
+  label: string;
+  name: string;
+  type?: string;
+  value: string;
+  onChange: (e: ChangeEvent<HTMLInputElement> | { target: { name: string; value: string } }) => void;
+  placeholder?: string;
+}
 
 export default function InputField({
   label,
@@ -7,7 +16,7 @@ export default function InputField({
   type = 'text',
   value,
   onChange,
-}) {
+}: InputFieldProps) {
   const [inputValue, setInputValue] = useState(value || '');
 
   const handleClear = () => {

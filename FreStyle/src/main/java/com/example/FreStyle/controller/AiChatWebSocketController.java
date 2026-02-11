@@ -1,5 +1,6 @@
 package com.example.FreStyle.controller;
 
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -9,11 +10,13 @@ import org.springframework.stereotype.Controller;
 
 import com.example.FreStyle.dto.AiChatMessageResponseDto;
 import com.example.FreStyle.dto.AiChatSessionDto;
+import com.example.FreStyle.dto.ScoreCardDto;
 import com.example.FreStyle.dto.UserProfileDto;
 import com.example.FreStyle.entity.AiChatMessage.Role;
 import com.example.FreStyle.service.AiChatMessageService;
 import com.example.FreStyle.service.AiChatSessionService;
 import com.example.FreStyle.service.BedrockService;
+import com.example.FreStyle.service.ScoreCardService;
 import com.example.FreStyle.service.UserProfileService;
 
 import lombok.RequiredArgsConstructor;
@@ -29,6 +32,7 @@ public class AiChatWebSocketController {
     private final BedrockService bedrockService;
     private final SimpMessagingTemplate messagingTemplate;
     private final UserProfileService userProfileService;
+    private final ScoreCardService scoreCardService;
 
     /**
      * AIチャットメッセージ送信
@@ -177,6 +181,30 @@ public class AiChatWebSocketController {
                     savedAiMessage
             );
             System.out.println("✅ AI応答 WebSocket 送信完了");
+
+            // フィードバックモードの場合、AI応答からスコアを抽出・保存・通知
+            if (fromChatFeedback) {
+                List<ScoreCardService.AxisScore> scores = scoreCardService.parseScoresFromResponse(aiReply);
+                if (!scores.isEmpty()) {
+                    scoreCardService.saveScores(sessionId, userId, scores, scene);
+                    double overallScore = scoreCardService.calculateOverallScore(scores);
+
+                    List<ScoreCardDto.AxisScoreDto> scoreDtos = scores.stream()
+                            .map(s -> new ScoreCardDto.AxisScoreDto(s.getAxis(), s.getScore(), s.getComment()))
+                            .toList();
+
+                    ScoreCardDto scoreCard = new ScoreCardDto(sessionId, scoreDtos, overallScore);
+
+                    messagingTemplate.convertAndSend(
+                            "/topic/ai-chat/user/" + userId + "/scorecard",
+                            scoreCard
+                    );
+                    System.out.println("✅ スコアカード送信完了 - 総合スコア: " + overallScore);
+                } else {
+                    System.out.println("⚠️ AI応答からスコアを抽出できませんでした");
+                }
+            }
+
             System.out.println("========== /ai-chat/send 処理完了 ==========\n");
 
         } catch (NumberFormatException e) {

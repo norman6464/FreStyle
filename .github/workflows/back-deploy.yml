@@ -3,8 +3,6 @@ name: Deploy Spring Boot on ECS
 on:
   push:
     branches: ["main"]
-    paths:
-      - "FreStyle/**"
     
 env:
   AWS_REGION: ap-northeast-1

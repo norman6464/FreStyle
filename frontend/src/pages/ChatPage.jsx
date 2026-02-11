@@ -115,6 +115,77 @@ export default function ChatPage() {
     scrollToBottom();
   }, [messages]);
 
+  // チャットルーム開封時に未読カウントをリセット
+  useEffect(() => {
+    if (!roomId || !senderId) return;
+
+    const markAsRead = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/chat/rooms/${roomId}/read`, {
+          method: 'POST',
+          credentials: 'include',
+        });
+        if (res.status === 401) {
+          const refreshRes = await fetch(
+            `${API_BASE_URL}/api/auth/cognito/refresh-token`,
+            { method: 'POST', credentials: 'include' }
+          );
+          if (!refreshRes.ok) {
+            dispatch(clearAuth());
+            return;
+          }
+          return markAsRead();
+        }
+      } catch (e) {
+        console.error('既読リセットエラー:', e);
+      }
+    };
+    markAsRead();
+
+    // サイドバーの未読数もローカルでリセット
+    setChatUsers((prev) =>
+      prev.map((u) =>
+        u.roomId === parseInt(roomId, 10) ? { ...u, unreadCount: 0 } : u
+      )
+    );
+  }, [roomId, senderId]);
+
+  // サイドバーの未読数リアルタイム更新（WebSocket購読）
+  useEffect(() => {
+    if (!senderId) return;
+
+    const unreadClient = new Client({
+      webSocketFactory: () =>
+        new SockJS(`${API_BASE_URL}/ws/chat`, undefined, { withCredentials: true }),
+      reconnectDelay: 5000,
+      onConnect: () => {
+        unreadClient.subscribe(`/topic/unread/${senderId}`, (message) => {
+          const data = JSON.parse(message.body);
+          if (data.type === 'unread_update') {
+            // 現在開いているルームの場合は即座にリセット
+            if (data.roomId === parseInt(roomId, 10)) {
+              fetch(`${API_BASE_URL}/api/chat/rooms/${roomId}/read`, {
+                method: 'POST',
+                credentials: 'include',
+              }).catch(() => {});
+              return;
+            }
+            setChatUsers((prev) =>
+              prev.map((u) =>
+                u.roomId === data.roomId
+                  ? { ...u, unreadCount: (u.unreadCount || 0) + data.increment }
+                  : u
+              )
+            );
+          }
+        });
+      },
+    });
+
+    unreadClient.activate();
+    return () => unreadClient.deactivate();
+  }, [senderId, roomId]);
+
   // --- チャット履歴取得 ---
   const fetchHistory = async () => {
     try {
@@ -512,12 +583,19 @@ export default function ChatPage() {
                         {formatDate(user.lastMessageAt)}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-500 truncate mt-1">
-                      {user.lastMessageSenderId === senderId && (
-                        <span className="text-gray-400">あなた: </span>
+                    <div className="flex items-center justify-between mt-1">
+                      <p className="text-sm text-gray-500 truncate">
+                        {user.lastMessageSenderId === senderId && (
+                          <span className="text-gray-400">あなた: </span>
+                        )}
+                        {user.lastMessage || 'メッセージがありません'}
+                      </p>
+                      {user.unreadCount > 0 && (
+                        <span className="bg-pink-500 text-white text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0 ml-2">
+                          {user.unreadCount > 99 ? '99+' : user.unreadCount}
+                        </span>
                       )}
-                      {user.lastMessage || 'メッセージがありません'}
-                    </p>
+                    </div>
                   </div>
                 </button>
               ))

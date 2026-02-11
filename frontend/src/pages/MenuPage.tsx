@@ -7,7 +7,6 @@ import {
   UserGroupIcon,
   SparklesIcon,
   ChatBubbleLeftRightIcon,
-  LightBulbIcon,
   AcademicCapIcon,
 } from '@heroicons/react/24/solid';
 import type { RootState } from '../store';
@@ -155,34 +154,34 @@ export default function MenuPage() {
     <>
       {message && (
         <div className="fixed top-20 left-0 right-0 flex justify-center z-50">
-          <div className="bg-green-50 border-l-4 border-green-500 text-green-700 px-6 py-4 rounded-lg shadow-sm font-medium">
+          <div className="bg-emerald-50 border-l-4 border-emerald-500 text-emerald-700 px-6 py-4 rounded-lg shadow-sm font-medium">
             ✓ {message}
           </div>
         </div>
       )}
       <HamburgerMenu title="ホーム" />
-      <div className="min-h-screen bg-gray-50 px-4 pt-20 pb-8">
+      <div className="min-h-screen bg-slate-50 px-4 pt-20 pb-8">
         <div className="w-full max-w-2xl mx-auto">
           {/* ユーザー情報セクション */}
           <div className="grid grid-cols-2 gap-4 mb-8">
             {/* 会話したユーザー数 */}
-            <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+            <div className="bg-white rounded-xl shadow-sm p-5 border border-slate-200">
               <div className="flex items-center justify-between mb-2">
-                <h3 className="text-xs font-medium text-gray-500 uppercase">
+                <h3 className="text-xs font-medium text-slate-500 uppercase">
                   会話した人数
                 </h3>
                 <UserGroupIcon className="w-5 h-5 text-primary-400" />
               </div>
               <p className="text-2xl font-bold text-primary-600">
                 {stats?.chatPartnerCount ?? '—'}
-                <span className="text-sm font-normal text-gray-500 ml-1">人</span>
+                <span className="text-sm font-normal text-slate-500 ml-1">人</span>
               </p>
             </div>
 
             {/* 日時 */}
-            <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+            <div className="bg-white rounded-xl shadow-sm p-5 border border-slate-200">
               <div className="flex items-center justify-between mb-2">
-                <h3 className="text-xs font-medium text-gray-500 uppercase">
+                <h3 className="text-xs font-medium text-slate-500 uppercase">
                   {formatDate(currentTime).split('日')[0]}日
                 </h3>
                 <CalendarIcon className="w-5 h-5 text-primary-400" />
@@ -195,90 +194,22 @@ export default function MenuPage() {
 
           {/* クイックアクション見出し */}
           <div className="flex items-center gap-2 mb-4">
-            <ChatBubbleLeftRightIcon className="w-5 h-5 text-gray-500" />
-            <h2 className="text-lg font-bold text-gray-700">クイックアクション</h2>
-          </div>
-
-          {/* ヒーローセクション */}
-          <div className="mb-8 bg-primary-500 rounded-2xl p-6 text-center">
-            <h1 className="text-2xl font-bold text-white mb-2">
-              FreStyle
-            </h1>
-            <p className="text-white/90 text-sm">
-              チャット × 対面 ー「印象のズレ」をAIが解消します
-            </p>
-          </div>
-
-          {/* 3ステップガイド */}
-          <div className="mb-8 bg-white rounded-xl shadow-sm p-6 border border-gray-200">
-            <div className="flex items-center gap-2 mb-4">
-              <LightBulbIcon className="w-5 h-5 text-primary-500" />
-              <h2 className="text-lg font-bold text-gray-800">FreStyleの使い方</h2>
-            </div>
-            <div className="flex flex-col md:flex-row gap-4">
-              {/* Step 1 */}
-              <div className="flex-1 bg-gray-50 rounded-lg p-4 text-center">
-                <div className="w-10 h-10 bg-primary-500 text-white rounded-full flex items-center justify-center mx-auto mb-2 font-bold text-lg">
-                  1
-                </div>
-                <p className="text-sm font-medium text-gray-800 mb-1">
-                  チャットする
-                </p>
-                <p className="text-xs text-gray-500">
-                  友達と普段通りに会話
-                </p>
-              </div>
-              {/* 矢印 */}
-              <div className="hidden md:flex items-center text-gray-300">
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </div>
-              {/* Step 2 */}
-              <div className="flex-1 bg-gray-50 rounded-lg p-4 text-center">
-                <div className="w-10 h-10 bg-primary-500 text-white rounded-full flex items-center justify-center mx-auto mb-2 font-bold text-lg">
-                  2
-                </div>
-                <p className="text-sm font-medium text-gray-800 mb-1">
-                  AIに分析依頼
-                </p>
-                <p className="text-xs text-gray-500">
-                  会話を選んでAIへ
-                </p>
-              </div>
-              {/* 矢印 */}
-              <div className="hidden md:flex items-center text-gray-300">
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </div>
-              {/* Step 3 */}
-              <div className="flex-1 bg-gray-50 rounded-lg p-4 text-center">
-                <div className="w-10 h-10 bg-primary-500 text-white rounded-full flex items-center justify-center mx-auto mb-2 font-bold text-lg">
-                  3
-                </div>
-                <p className="text-sm font-medium text-gray-800 mb-1">
-                  改善のヒント
-                </p>
-                <p className="text-xs text-gray-500">
-                  印象のギャップを知る
-                </p>
-              </div>
-            </div>
+            <ChatBubbleLeftRightIcon className="w-5 h-5 text-slate-500" />
+            <h2 className="text-lg font-bold text-slate-700">クイックアクション</h2>
           </div>
 
           {/* 今日のTIPS */}
-          <div className="mb-8 bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+          <div className="mb-6 bg-white rounded-xl shadow-sm p-4 border border-slate-200">
             <div className="flex items-start gap-3">
-              <div className="text-3xl">{todayTip.emoji}</div>
+              <div className="text-2xl">{todayTip.emoji}</div>
               <div>
                 <span className="text-xs font-medium text-primary-600 bg-primary-50 px-2 py-0.5 rounded-full">
                   TODAY'S TIP
                 </span>
-                <h3 className="text-lg font-bold text-gray-800 mt-2 mb-1">
+                <h3 className="text-sm font-bold text-slate-800 mt-1.5 mb-0.5">
                   {todayTip.title}
                 </h3>
-                <p className="text-sm text-gray-600">
+                <p className="text-xs text-slate-600">
                   {todayTip.content}
                 </p>
               </div>
@@ -297,7 +228,7 @@ export default function MenuPage() {
                   <SparklesIcon className="w-6 h-6 text-white" />
                 </div>
                 <div className="flex-1">
-                  <h2 className="text-xl font-bold text-white">
+                  <h2 className="text-lg font-semibold text-white">
                     AIに分析してもらう
                   </h2>
                   <p className="text-white/80 text-sm mt-1">
@@ -323,22 +254,22 @@ export default function MenuPage() {
             {/* 練習モード */}
             <div
               onClick={() => navigate('/practice')}
-              className="bg-white rounded-xl p-6 cursor-pointer border border-gray-200 hover:bg-gray-50 transition-colors duration-150"
+              className="bg-white rounded-xl p-6 cursor-pointer border border-slate-200 hover:bg-slate-50 transition-colors duration-150"
             >
               <div className="flex items-start">
                 <div className="bg-primary-100 rounded-lg p-3 mr-4">
                   <AcademicCapIcon className="w-6 h-6 text-primary-500" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-gray-800">
+                  <h2 className="text-base font-semibold text-slate-800">
                     練習モード
                   </h2>
-                  <p className="text-gray-500 text-sm mt-1">
+                  <p className="text-slate-500 text-sm mt-1">
                     ビジネスシナリオでAIとロールプレイ練習
                   </p>
                 </div>
                 <svg
-                  className="w-5 h-5 text-gray-300 ml-auto"
+                  className="w-5 h-5 text-slate-300 ml-auto"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -356,22 +287,22 @@ export default function MenuPage() {
             {/* チャット一覧 */}
             <div
               onClick={() => navigate('/chat')}
-              className="bg-white rounded-xl p-6 cursor-pointer border border-gray-200 hover:bg-gray-50 transition-colors duration-150"
+              className="bg-white rounded-xl p-6 cursor-pointer border border-slate-200 hover:bg-slate-50 transition-colors duration-150"
             >
               <div className="flex items-start">
                 <div className="bg-primary-100 rounded-lg p-3 mr-4">
                   <ChatBubbleLeftRightIcon className="w-6 h-6 text-primary-500" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-gray-800">
+                  <h2 className="text-base font-semibold text-slate-800">
                     チャット一覧
                   </h2>
-                  <p className="text-gray-500 text-sm mt-1">
+                  <p className="text-slate-500 text-sm mt-1">
                     友達とのチャットを見る・会話を続ける
                   </p>
                 </div>
                 <svg
-                  className="w-5 h-5 text-gray-300 ml-auto"
+                  className="w-5 h-5 text-slate-300 ml-auto"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -389,7 +320,7 @@ export default function MenuPage() {
             {/* ユーザー検索 */}
             <div
               onClick={() => navigate('/chat/users')}
-              className="bg-white rounded-xl p-6 cursor-pointer border border-gray-200 hover:bg-gray-50 transition-colors duration-150"
+              className="bg-white rounded-xl p-6 cursor-pointer border border-slate-200 hover:bg-slate-50 transition-colors duration-150"
             >
               <div className="flex items-start">
                 <div className="bg-primary-100 rounded-lg p-3 mr-4">
@@ -408,15 +339,15 @@ export default function MenuPage() {
                   </svg>
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-gray-800">
+                  <h2 className="text-base font-semibold text-slate-800">
                     ユーザー検索
                   </h2>
-                  <p className="text-gray-500 text-sm mt-1">
+                  <p className="text-slate-500 text-sm mt-1">
                     メールアドレスで友達を追加
                   </p>
                 </div>
                 <svg
-                  className="w-5 h-5 text-gray-300 ml-auto"
+                  className="w-5 h-5 text-slate-300 ml-auto"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -434,7 +365,7 @@ export default function MenuPage() {
             {/* プロフィール編集 */}
             <div
               onClick={() => navigate('/profile/me')}
-              className="bg-white rounded-xl p-6 cursor-pointer border border-gray-200 hover:bg-gray-50 transition-colors duration-150"
+              className="bg-white rounded-xl p-6 cursor-pointer border border-slate-200 hover:bg-slate-50 transition-colors duration-150"
             >
               <div className="flex items-start">
                 <div className="bg-primary-100 rounded-lg p-3 mr-4">
@@ -453,15 +384,15 @@ export default function MenuPage() {
                   </svg>
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-gray-800">
+                  <h2 className="text-base font-semibold text-slate-800">
                     プロフィールを編集
                   </h2>
-                  <p className="text-gray-500 text-sm mt-1">
+                  <p className="text-slate-500 text-sm mt-1">
                     ユーザー情報の編集
                   </p>
                 </div>
                 <svg
-                  className="w-5 h-5 text-gray-300 ml-auto"
+                  className="w-5 h-5 text-slate-300 ml-auto"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -479,8 +410,8 @@ export default function MenuPage() {
 
           {/* フッター */}
           <div className="mt-8 text-center">
-            <p className="text-xs text-gray-400">
-              💡 チャットで感じた「なんか違う...」をAIと一緒に解決しよう
+            <p className="text-xs text-slate-400">
+              FreStyle - ビジネスコミュニケーション改善
             </p>
           </div>
         </div>

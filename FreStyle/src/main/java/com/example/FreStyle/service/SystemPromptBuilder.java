@@ -219,6 +219,48 @@ public class SystemPromptBuilder {
     }
 
     /**
+     * 練習モード用のシステムプロンプトを構築する
+     * AIがビジネスシーンの相手役を演じ、ユーザーが対応を練習する
+     *
+     * @param scenarioName シナリオ名
+     * @param roleName 相手役の名前・説明
+     * @param difficulty 難易度（beginner, intermediate, advanced）
+     * @param scenarioContext シナリオの状況説明
+     */
+    public String buildPracticePrompt(String scenarioName, String roleName, String difficulty, String scenarioContext) {
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("あなたはビジネスコミュニケーションのロールプレイ練習の相手役です。\n");
+        sb.append("以下のシナリオ設定に基づいて、相手役を演じてください。\n\n");
+
+        sb.append("【シナリオ】").append(scenarioName).append("\n");
+        sb.append("【あなたの役割】").append(roleName).append("\n");
+
+        sb.append("【難易度】");
+        switch (difficulty) {
+            case "beginner":
+                sb.append("初級 - 比較的穏やかに対応し、ユーザーが練習しやすい雰囲気を作ってください\n");
+                break;
+            case "advanced":
+                sb.append("上級 - 厳しい質問や予想外の反応を織り交ぜ、高度な対応力を試してください\n");
+                break;
+            default:
+                sb.append("中級 - 現実的な反応をしつつ、適度にチャレンジングな対応をしてください\n");
+                break;
+        }
+
+        sb.append("【状況】").append(scenarioContext).append("\n\n");
+
+        sb.append("【指示】\n");
+        sb.append("- 設定された役割になりきって自然に会話してください\n");
+        sb.append("- ユーザーの発言に対してリアルな反応を返してください\n");
+        sb.append("- 一度に長く話しすぎず、会話のキャッチボールを意識してください\n");
+        sb.append("- ユーザーが「練習終了」と言ったら、ロールプレイを終了してフィードバックを行ってください\n");
+
+        return sb.toString();
+    }
+
+    /**
      * 通常チャットモード用のシステムプロンプトを構築する
      * ビジネスコミュニケーションコーチとして応答する
      */

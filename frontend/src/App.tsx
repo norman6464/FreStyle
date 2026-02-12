@@ -7,6 +7,7 @@ import ChatListPage from './pages/ChatListPage';
 import MenuPage from './pages/MenuPage';
 import AskAiPage from './pages/AskAiPage';
 import PracticePage from './pages/PracticePage';
+import ScoreHistoryPage from './pages/ScoreHistoryPage';
 import ConfirmPage from './pages/ConfirmPage';
 import MemberPage from './pages/MemberPage';
 import AddUserPage from './pages/AddUserPage';
@@ -51,6 +52,8 @@ export default function App() {
         <Route path="/chat/users" element={<AddUserPage />} />
         <Route path="/chat/users/:roomId" element={<ChatPage />} />
         <Route path="/practice" element={<PracticePage />} />
+        <Route path="/scores" element={<ScoreHistoryPage />} />
+        <Route path="/scores" element={<ScoreHistoryPage />} />
         <Route path="/chat/ask-ai" element={<AskAiPage />} />
         <Route path="/chat/ask-ai/:sessionId" element={<AskAiPage />} />
       </Route>

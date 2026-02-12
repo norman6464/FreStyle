@@ -9,6 +9,7 @@ const pageTitles: Record<string, string> = {
   '/chat/ask-ai': 'AI アシスタント',
   '/practice': '練習モード',
   '/chat/users': 'ユーザー検索',
+  '/scores': 'スコア履歴',
   '/chat/members': 'メンバー',
   '/profile/me': 'プロフィール',
   '/profile/personality': 'パーソナリティ設定',

@@ -9,6 +9,7 @@ import {
   SparklesIcon,
   AcademicCapIcon,
   MagnifyingGlassIcon,
+  ChartBarIcon,
   UserCircleIcon,
   LightBulbIcon,
   ArrowLeftOnRectangleIcon,
@@ -20,6 +21,7 @@ const navItems = [
   { icon: SparklesIcon, label: 'AI', to: '/chat/ask-ai', matchPrefix: '/chat/ask-ai' },
   { icon: AcademicCapIcon, label: '練習', to: '/practice', matchPrefix: '/practice' },
   { icon: MagnifyingGlassIcon, label: 'ユーザー検索', to: '/chat/users', matchExact: true },
+  { icon: ChartBarIcon, label: 'スコア履歴', to: '/scores', matchExact: true },
 ];
 
 const bottomNavItems = [

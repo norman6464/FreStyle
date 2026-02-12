@@ -10,7 +10,10 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 import com.example.FreStyle.dto.ScoreCardDto;
+import com.example.FreStyle.dto.ScoreHistoryDto;
 import com.example.FreStyle.entity.User;
 import com.example.FreStyle.service.AiChatSessionService;
 import com.example.FreStyle.service.ScoreCardService;
@@ -52,6 +55,29 @@ public class ScoreCardController {
         } catch (RuntimeException e) {
             logger.error("❌ スコアカード取得エラー: {}", e.getMessage());
             return ResponseEntity.notFound().build();
+        }
+    }
+
+    /**
+     * ユーザーのスコア履歴を取得
+     */
+    @GetMapping("/history")
+    public ResponseEntity<List<ScoreHistoryDto>> getScoreHistory(
+            @AuthenticationPrincipal Jwt jwt
+    ) {
+        logger.info("========== GET /api/scores/history ==========");
+
+        try {
+            String sub = jwt.getSubject();
+            User user = userIdentityService.findUserBySub(sub);
+
+            List<ScoreHistoryDto> history = scoreCardService.getScoreHistoryGrouped(user.getId());
+            logger.info("✅ スコア履歴取得成功 - userId: {}, 件数: {}", user.getId(), history.size());
+
+            return ResponseEntity.ok(history);
+        } catch (RuntimeException e) {
+            logger.error("❌ スコア履歴取得エラー: {}", e.getMessage());
+            return ResponseEntity.internalServerError().build();
         }
     }
 }

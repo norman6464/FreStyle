@@ -291,7 +291,18 @@ public class SystemPromptBuilder {
         sb.append("- 設定された役割になりきって自然に会話してください\n");
         sb.append("- ユーザーの発言に対してリアルな反応を返してください\n");
         sb.append("- 一度に長く話しすぎず、会話のキャッチボールを意識してください\n");
-        sb.append("- ユーザーが「練習終了」と言ったら、ロールプレイを終了してフィードバックを行ってください\n");
+        sb.append("- ユーザーが「練習終了」と言ったら、ロールプレイを終了してフィードバックを行ってください\n\n");
+
+        sb.append("【練習終了時のスコア評価】\n");
+        sb.append("ユーザーが「練習終了」と入力した場合、このシナリオに応じた評価軸（3〜5軸程度）でスコアリングしてください。\n");
+        sb.append("フィードバックの最後に、以下のJSON形式でスコアを出力してください。必ず```jsonと```で囲んでください。\n");
+        sb.append("```json\n");
+        sb.append("{\"scores\":[\n");
+        sb.append("  {\"axis\":\"評価軸1の名称\",\"score\":8,\"comment\":\"一言コメント\"},\n");
+        sb.append("  {\"axis\":\"評価軸2の名称\",\"score\":7,\"comment\":\"一言コメント\"},\n");
+        sb.append("  {\"axis\":\"評価軸3の名称\",\"score\":6,\"comment\":\"一言コメント\"}\n");
+        sb.append("]}\n");
+        sb.append("```\n");
 
         return sb.toString();
     }

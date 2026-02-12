@@ -341,6 +341,35 @@ class SystemPromptBuilderTest {
 
             assertThat(prompt).contains("ロールプレイ");
         }
+
+        @Test
+        @DisplayName("練習終了時のスコア出力指示が含まれる")
+        void shouldContainScoreOutputInstructionOnPracticeEnd() {
+            String prompt = builder.buildPracticePrompt(
+                    "テスト", "テスト役", "intermediate", "テスト状況");
+
+            assertThat(prompt).contains("練習終了");
+            assertThat(prompt).contains("スコア");
+        }
+
+        @Test
+        @DisplayName("練習スコアのJSON形式が指定される")
+        void shouldContainPracticeScoreJsonFormat() {
+            String prompt = builder.buildPracticePrompt(
+                    "テスト", "テスト役", "intermediate", "テスト状況");
+
+            assertThat(prompt).contains("```json");
+            assertThat(prompt).contains("\"scores\"");
+        }
+
+        @Test
+        @DisplayName("練習スコアの評価軸がシナリオに応じる旨の説明が含まれる")
+        void shouldContainScenarioSpecificScoreCriteria() {
+            String prompt = builder.buildPracticePrompt(
+                    "障害報告対応", "顧客", "intermediate", "状況");
+
+            assertThat(prompt).contains("評価");
+        }
     }
 
     @Nested

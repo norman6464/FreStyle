@@ -49,7 +49,7 @@ public class PracticeController {
 
             return ResponseEntity.ok(scenarios);
         } catch (Exception e) {
-            logger.error("❌ シナリオ一覧取得エラー: {}", e.getMessage());
+            logger.error("❌ シナリオ一覧取得エラー: {}", e.getMessage(), e);
             return ResponseEntity.internalServerError().build();
         }
     }
@@ -73,7 +73,8 @@ public class PracticeController {
 
             return ResponseEntity.ok(scenario);
         } catch (RuntimeException e) {
-            logger.error("❌ シナリオ詳細取得エラー: {}", e.getMessage());
+            logger.error("❌ シナリオ詳細取得エラー - scenarioId: {}, エラー: {}",
+                        scenarioId, e.getMessage(), e);
             return ResponseEntity.notFound().build();
         }
     }
@@ -100,8 +101,13 @@ public class PracticeController {
             logger.info("✅ 練習セッション作成成功 - sessionId: {}", session.getId());
 
             return ResponseEntity.ok(session);
+        } catch (RuntimeException e) {
+            logger.error("❌ 練習セッション作成エラー - scenarioId: {}, エラー: {}",
+                        request.scenarioId(), e.getMessage(), e);
+            return ResponseEntity.internalServerError().build();
         } catch (Exception e) {
-            logger.error("❌ 練習セッション作成エラー: {}", e.getMessage());
+            logger.error("❌ 練習セッション作成エラー（予期しないエラー） - scenarioId: {}",
+                        request.scenarioId(), e);
             return ResponseEntity.internalServerError().build();
         }
     }

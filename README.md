@@ -230,6 +230,34 @@ npx tailwindcss init -p
 
 ---
 
+## 🗄️ 本番環境DBマイグレーション
+
+本番環境（AWS RDS）にデプロイする際、スキーマの更新が必要な場合はマイグレーションSQLを実行してください。
+
+### マイグレーション手順
+
+```bash
+# 1. AWS RDSに接続
+mysql -h <RDS_ENDPOINT> -u <DB_USER> -p <DB_NAME>
+
+# 2. マイグレーションSQLを実行
+source FreStyle/migrations/001_add_practice_mode_support.sql;
+
+# 3. 確認
+SHOW COLUMNS FROM ai_chat_sessions;
+SELECT COUNT(*) FROM practice_scenarios;
+```
+
+### マイグレーション一覧
+
+| ファイル名 | 実行日 | 内容 |
+|-----------|--------|------|
+| `001_add_practice_mode_support.sql` | 2026-02-12 | 練習モード機能追加（`ai_chat_sessions` に `session_type`, `scenario_id` カラム追加、`practice_scenarios` テーブル作成、初期データ12件投入） |
+
+**注意**: マイグレーションは冪等性があり、複数回実行しても安全です（`IF NOT EXISTS`, `INSERT IGNORE` を使用）。
+
+---
+
 ## 📄 ライセンス
 
 MIT License

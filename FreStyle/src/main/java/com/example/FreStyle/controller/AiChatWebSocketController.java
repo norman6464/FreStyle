@@ -225,6 +225,30 @@ public class AiChatWebSocketController {
                 }
             }
 
+            // 練習モードで「練習終了」の場合、スコアを抽出・保存・通知
+            if (isPracticeMode && aiReply.contains("練習終了")) {
+                System.out.println("🎓 練習終了を検知 - スコア抽出中...");
+                List<ScoreCardService.AxisScore> scores = scoreCardService.parseScoresFromResponse(aiReply);
+                if (!scores.isEmpty()) {
+                    scoreCardService.saveScores(sessionId, userId, scores, null);
+                    double overallScore = scoreCardService.calculateOverallScore(scores);
+
+                    List<ScoreCardDto.AxisScoreDto> scoreDtos = scores.stream()
+                            .map(s -> new ScoreCardDto.AxisScoreDto(s.getAxis(), s.getScore(), s.getComment()))
+                            .toList();
+
+                    ScoreCardDto scoreCard = new ScoreCardDto(sessionId, scoreDtos, overallScore);
+
+                    messagingTemplate.convertAndSend(
+                            "/topic/ai-chat/user/" + userId + "/scorecard",
+                            scoreCard
+                    );
+                    System.out.println("✅ 練習スコアカード送信完了 - 総合スコア: " + overallScore);
+                } else {
+                    System.out.println("⚠️ 練習AI応答からスコアを抽出できませんでした");
+                }
+            }
+
             System.out.println("========== /ai-chat/send 処理完了 ==========\n");
 
         } catch (NumberFormatException e) {

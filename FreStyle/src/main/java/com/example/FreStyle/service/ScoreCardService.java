@@ -1,32 +1,36 @@
 package com.example.FreStyle.service;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Service;
 
-import com.example.FreStyle.dto.ScoreCardDto;
-import com.example.FreStyle.dto.ScoreHistoryDto;
-import com.example.FreStyle.entity.AiChatSession;
-import com.example.FreStyle.entity.CommunicationScore;
-import com.example.FreStyle.entity.User;
-import com.example.FreStyle.repository.CommunicationScoreRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * スコアカードのユーティリティサービス
+ *
+ * <p>役割:</p>
+ * <ul>
+ *   <li>AI応答テキストからスコアJSONを抽出・パースする</li>
+ *   <li>スコアの平均値を計算する</li>
+ * </ul>
+ *
+ * <p>クリーンアーキテクチャー上の位置づけ:</p>
+ * <ul>
+ *   <li>アプリケーション層のユーティリティサービス</li>
+ *   <li>UseCaseから呼び出されるパースロジック</li>
+ * </ul>
+ */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class ScoreCardService {
 
-    private final CommunicationScoreRepository communicationScoreRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
@@ -79,91 +83,6 @@ public class ScoreCardService {
                 .mapToInt(AxisScore::getScore)
                 .average()
                 .orElse(0.0);
-    }
-
-    /**
-     * スコアをDBに保存する
-     */
-    public void saveScores(Integer sessionId, Integer userId, List<AxisScore> scores, String scene) {
-        AiChatSession session = new AiChatSession();
-        session.setId(sessionId);
-
-        User user = new User();
-        user.setId(userId);
-
-        for (AxisScore axisScore : scores) {
-            CommunicationScore entity = new CommunicationScore();
-            entity.setSession(session);
-            entity.setUser(user);
-            entity.setAxisName(axisScore.getAxis());
-            entity.setScore(axisScore.getScore());
-            entity.setComment(axisScore.getComment());
-            entity.setScene(scene);
-            communicationScoreRepository.save(entity);
-        }
-
-        log.info("スコア保存完了 - sessionId: {}, 軸数: {}", sessionId, scores.size());
-    }
-
-    /**
-     * セッションIDからスコアカードを取得する
-     */
-    public ScoreCardDto getScoreCard(Integer sessionId) {
-        List<CommunicationScore> entities = communicationScoreRepository.findBySessionId(sessionId);
-
-        List<ScoreCardDto.AxisScoreDto> scoreDtos = entities.stream()
-                .map(e -> new ScoreCardDto.AxisScoreDto(e.getAxisName(), e.getScore(), e.getComment()))
-                .toList();
-
-        List<AxisScore> axisScores = entities.stream()
-                .map(e -> new AxisScore(e.getAxisName(), e.getScore(), e.getComment()))
-                .toList();
-
-        double overall = calculateOverallScore(axisScores);
-
-        return new ScoreCardDto(sessionId, scoreDtos, overall);
-    }
-
-    /**
-     * ユーザーのスコア履歴を取得する
-     */
-    public List<CommunicationScore> getScoreHistory(Integer userId) {
-        return communicationScoreRepository.findByUserIdOrderByCreatedAtDesc(userId);
-    }
-
-    /**
-     * ユーザーのスコア履歴をセッション単位でグループ化して取得する
-     */
-    public List<ScoreHistoryDto> getScoreHistoryGrouped(Integer userId) {
-        List<CommunicationScore> allScores = communicationScoreRepository.findByUserIdOrderByCreatedAtDesc(userId);
-
-        // セッションIDでグループ化（順序保持）
-        Map<Integer, List<CommunicationScore>> grouped = new LinkedHashMap<>();
-        for (CommunicationScore score : allScores) {
-            grouped.computeIfAbsent(score.getSession().getId(), k -> new ArrayList<>()).add(score);
-        }
-
-        List<ScoreHistoryDto> history = new ArrayList<>();
-        for (Map.Entry<Integer, List<CommunicationScore>> entry : grouped.entrySet()) {
-            List<CommunicationScore> sessionScores = entry.getValue();
-            CommunicationScore first = sessionScores.get(0);
-
-            List<ScoreCardDto.AxisScoreDto> scoreDtos = sessionScores.stream()
-                    .map(s -> new ScoreCardDto.AxisScoreDto(s.getAxisName(), s.getScore(), s.getComment()))
-                    .toList();
-
-            List<AxisScore> axisScores = sessionScores.stream()
-                    .map(s -> new AxisScore(s.getAxisName(), s.getScore(), s.getComment()))
-                    .toList();
-
-            double overall = calculateOverallScore(axisScores);
-            String title = first.getSession().getTitle();
-
-            history.add(new ScoreHistoryDto(
-                    entry.getKey(), title, overall, scoreDtos, first.getCreatedAt()));
-        }
-
-        return history;
     }
 
     /**

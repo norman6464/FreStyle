@@ -4,6 +4,7 @@ import { useAiChat } from '../hooks/useAiChat';
 import { SkeletonCard } from '../components/Skeleton';
 import SkillRadarChart from '../components/SkillRadarChart';
 import PracticeCalendar from '../components/PracticeCalendar';
+import SkillTrendChart from '../components/SkillTrendChart';
 
 interface AxisScore {
   axis: string;
@@ -118,6 +119,9 @@ export default function ScoreHistoryPage() {
           ))}
         </div>
       </div>
+
+      {/* スキル別推移 */}
+      <SkillTrendChart history={history} />
 
       {/* 練習カレンダー */}
       <PracticeCalendar practiceDates={history.map(h => h.createdAt)} />

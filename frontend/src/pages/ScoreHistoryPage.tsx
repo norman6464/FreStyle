@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useAiChat } from '../hooks/useAiChat';
 
 interface AxisScore {
   axis: string;
@@ -16,27 +17,15 @@ interface ScoreHistoryItem {
 
 export default function ScoreHistoryPage() {
   const [history, setHistory] = useState<ScoreHistoryItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { fetchScoreHistory, loading } = useAiChat();
 
   useEffect(() => {
-    const fetchHistory = async () => {
-      try {
-        const res = await fetch(
-          `${import.meta.env.VITE_API_BASE_URL}/api/scores/history`,
-          { credentials: 'include' }
-        );
-        if (res.ok) {
-          const data = await res.json();
-          setHistory(data);
-        }
-      } catch (err) {
-        console.error('スコア履歴取得エラー:', err);
-      } finally {
-        setLoading(false);
-      }
+    const loadHistory = async () => {
+      const data = await fetchScoreHistory();
+      setHistory(data);
     };
-    fetchHistory();
-  }, []);
+    loadHistory();
+  }, [fetchScoreHistory]);
 
   const getScoreColor = (score: number) => {
     if (score >= 8) return 'text-green-600';

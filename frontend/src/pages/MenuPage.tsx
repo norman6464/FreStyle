@@ -1,5 +1,4 @@
 import { useNavigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
 import {
   UserGroupIcon,
   ChatBubbleLeftRightIcon,
@@ -9,80 +8,11 @@ import {
 } from '@heroicons/react/24/outline';
 import DailyGoalCard from '../components/DailyGoalCard';
 import LearningInsightsCard from '../components/LearningInsightsCard';
-
-interface ChatStats {
-  chatPartnerCount: number;
-}
-
-interface ScoreHistory {
-  sessionId: number;
-  sessionTitle: string;
-  overallScore: number;
-  createdAt: string;
-}
+import { useMenuData } from '../hooks/useMenuData';
 
 export default function MenuPage() {
   const navigate = useNavigate();
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-  const [stats, setStats] = useState<ChatStats | null>(null);
-  const [totalUnread, setTotalUnread] = useState<number>(0);
-  const [latestScore, setLatestScore] = useState<ScoreHistory | null>(null);
-  const [allScores, setAllScores] = useState<ScoreHistory[]>([]);
-
-  useEffect(() => {
-    const fetchWithRetry = async (url: string) => {
-      const res = await fetch(url, {
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-      });
-      if (res.status === 401) {
-        const refreshRes = await fetch(
-          `${API_BASE_URL}/api/auth/cognito/refresh-token`,
-          { method: 'POST', credentials: 'include' }
-        );
-        if (!refreshRes.ok) {
-          navigate('/login');
-          return null;
-        }
-        await refreshRes.json();
-        const retryRes = await fetch(url, {
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-        });
-        if (!retryRes.ok) return null;
-        return retryRes.json();
-      }
-      if (!res.ok) return null;
-      return res.json();
-    };
-
-    const fetchAll = async () => {
-      try {
-        const [statsData, roomsData, scoresData] = await Promise.all([
-          fetchWithRetry(`${API_BASE_URL}/api/chat/stats`),
-          fetchWithRetry(`${API_BASE_URL}/api/chat/rooms`),
-          fetchWithRetry(`${API_BASE_URL}/api/scores/history`),
-        ]);
-
-        if (statsData) setStats(statsData);
-
-        if (roomsData?.chatUsers) {
-          const unread = roomsData.chatUsers.reduce(
-            (sum: number, u: { unreadCount: number }) => sum + u.unreadCount, 0
-          );
-          setTotalUnread(unread);
-        }
-
-        if (scoresData && scoresData.length > 0) {
-          setLatestScore(scoresData[0]);
-          setAllScores(scoresData);
-        }
-      } catch (err) {
-        console.error('Error fetching dashboard data:', err);
-      }
-    };
-    fetchAll();
-  }, [navigate, API_BASE_URL]);
+  const { stats, totalUnread, latestScore, totalSessions, averageScore, uniqueDays } = useMenuData();
 
   const menuItems = [
     {
@@ -116,12 +46,6 @@ export default function MenuPage() {
   ];
 
   const showRecommendation = !latestScore && stats?.chatPartnerCount === 0;
-
-  const totalSessions = allScores.length;
-  const averageScore = totalSessions > 0
-    ? Math.round((allScores.reduce((sum, s) => sum + s.overallScore, 0) / totalSessions) * 10) / 10
-    : 0;
-  const uniqueDays = new Set(allScores.map(s => s.createdAt.split('T')[0])).size;
 
   return (
     <div className="p-6 max-w-2xl mx-auto">

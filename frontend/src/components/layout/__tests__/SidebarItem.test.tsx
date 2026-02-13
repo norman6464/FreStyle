@@ -36,4 +36,22 @@ describe('SidebarItem', () => {
     const link = container.querySelector('a');
     expect(link?.className).toContain('text-slate-600');
   });
+
+  it('バッジが渡されると未読数を表示する', () => {
+    render(
+      <MemoryRouter>
+        <SidebarItem icon={HomeIcon} label="チャット" to="/chat" active={false} badge={5} />
+      </MemoryRouter>
+    );
+    expect(screen.getByText('5')).toBeInTheDocument();
+  });
+
+  it('バッジが0の場合は表示しない', () => {
+    render(
+      <MemoryRouter>
+        <SidebarItem icon={HomeIcon} label="チャット" to="/chat" active={false} badge={0} />
+      </MemoryRouter>
+    );
+    expect(screen.queryByTestId('sidebar-badge')).not.toBeInTheDocument();
+  });
 });

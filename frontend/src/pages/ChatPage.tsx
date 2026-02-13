@@ -24,6 +24,7 @@ export default function ChatPage() {
   const [showSceneSelector, setShowSceneSelector] = useState(false);
   const [showRephraseModal, setShowRephraseModal] = useState(false);
   const [rephraseResult, setRephraseResult] = useState<{ formal: string; soft: string; concise: string } | null>(null);
+  const [rephraseOriginalText, setRephraseOriginalText] = useState('');
   const stompClientRef = useRef<Client | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -339,6 +340,7 @@ export default function ChatPage() {
   // --- 言い換え提案 ---
   const handleRephrase = async (content: string) => {
     setRephraseResult(null);
+    setRephraseOriginalText(content);
     setShowRephraseModal(true);
 
     try {
@@ -560,6 +562,7 @@ export default function ChatPage() {
         <RephraseModal
           result={rephraseResult}
           onClose={() => setShowRephraseModal(false)}
+          originalText={rephraseOriginalText}
         />
       )}
 

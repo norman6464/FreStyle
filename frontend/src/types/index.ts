@@ -117,3 +117,12 @@ export interface ScoreCard {
 
 /** SNSプロバイダー */
 export type SnsProvider = 'google' | 'facebook' | 'x';
+
+/** お気に入りフレーズ */
+export interface FavoritePhrase {
+  id: string;
+  originalText: string;
+  rephrasedText: string;
+  pattern: string;
+  createdAt: string;
+}

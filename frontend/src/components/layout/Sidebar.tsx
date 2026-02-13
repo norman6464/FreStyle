@@ -11,6 +11,7 @@ import {
   AcademicCapIcon,
   MagnifyingGlassIcon,
   ChartBarIcon,
+  StarIcon,
   UserCircleIcon,
   LightBulbIcon,
   ArrowLeftOnRectangleIcon,
@@ -23,6 +24,7 @@ const navItems = [
   { icon: AcademicCapIcon, label: '練習', to: '/practice', matchPrefix: '/practice' },
   { icon: MagnifyingGlassIcon, label: 'ユーザー検索', to: '/chat/users', matchExact: true },
   { icon: ChartBarIcon, label: 'スコア履歴', to: '/scores', matchExact: true },
+  { icon: StarIcon, label: 'お気に入り', to: '/favorites', matchExact: true },
 ];
 
 const bottomNavItems = [

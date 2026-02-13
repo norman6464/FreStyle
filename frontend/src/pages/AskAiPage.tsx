@@ -5,6 +5,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import ScoreCardComponent from '../components/ScoreCard';
 import PracticeResultSummary from '../components/PracticeResultSummary';
 import SecondaryPanel from '../components/layout/SecondaryPanel';
+import PracticeTimer from '../components/PracticeTimer';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { AiMessage, AiSession, ScoreCard } from '../types';
 import { useAuth } from '../hooks/useAuth';
@@ -336,12 +337,15 @@ export default function AskAiPage() {
               </h2>
               <p className="text-xs text-slate-500">AIが相手役を演じます</p>
             </div>
-            <button
-              onClick={() => handleSend('練習を終了して、今回の会話全体に対するフィードバックとスコアカードをお願いします。')}
-              className="bg-rose-500 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-rose-600 transition-colors"
-            >
-              練習終了
-            </button>
+            <div className="flex items-center gap-3">
+              <PracticeTimer />
+              <button
+                onClick={() => handleSend('練習を終了して、今回の会話全体に対するフィードバックとスコアカードをお願いします。')}
+                className="bg-rose-500 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-rose-600 transition-colors"
+              >
+                練習終了
+              </button>
+            </div>
           </div>
         )}
 

@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 interface RephraseResult {
   formal: string;
   soft: string;
@@ -11,9 +13,21 @@ interface RephraseModalProps {
   onClose: () => void;
 }
 
+const PATTERNS = [
+  { key: 'formal' as const, label: 'フォーマル', hint: '上司や顧客への報告・メールに' },
+  { key: 'soft' as const, label: 'ソフト', hint: '指摘やお願いをする時に' },
+  { key: 'concise' as const, label: '簡潔', hint: 'チャットやSlackで手短に' },
+  { key: 'questioning' as const, label: '質問型', hint: '相手の意見を引き出したい時に' },
+  { key: 'proposal' as const, label: '提案型', hint: '代替案を提示する時に' },
+] as const;
+
 export default function RephraseModal({ result, onClose }: RephraseModalProps) {
-  const handleCopy = (text: string) => {
-    navigator.clipboard.writeText(text);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  const handleCopy = async (text: string, key: string) => {
+    await navigator.clipboard.writeText(text);
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey(null), 2000);
   };
 
   return (
@@ -28,21 +42,18 @@ export default function RephraseModal({ result, onClose }: RephraseModalProps) {
           </div>
         ) : (
           <div className="space-y-3">
-            {([
-              { key: 'formal' as const, label: 'フォーマル' },
-              { key: 'soft' as const, label: 'ソフト' },
-              { key: 'concise' as const, label: '簡潔' },
-              { key: 'questioning' as const, label: '質問型' },
-              { key: 'proposal' as const, label: '提案型' },
-            ]).map(({ key, label }) => (
+            {PATTERNS.map(({ key, label, hint }) => (
               <div key={key} className="border border-slate-200 rounded-lg p-3">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-medium text-slate-600">{label}</span>
+                  <div>
+                    <span className="text-xs font-medium text-slate-600">{label}</span>
+                    <span className="text-[10px] text-slate-400 ml-2">{hint}</span>
+                  </div>
                   <button
-                    onClick={() => handleCopy(result[key])}
+                    onClick={() => handleCopy(result[key], key)}
                     className="text-xs text-slate-400 hover:text-slate-600 px-2 py-0.5 rounded hover:bg-slate-100 transition-colors"
                   >
-                    コピー
+                    {copiedKey === key ? 'コピーしました' : 'コピー'}
                   </button>
                 </div>
                 <p className="text-sm text-slate-700">{result[key]}</p>

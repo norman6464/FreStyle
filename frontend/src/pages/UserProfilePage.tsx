@@ -271,7 +271,7 @@ export default function UserProfilePage() {
           </div>
 
           {/* 保存ボタン */}
-          <div className="p-5 bg-slate-50">
+          <div className="p-5 bg-primary-50">
             <PrimaryButton type="submit">
               {isNewProfile ? 'パーソナリティを保存' : 'パーソナリティを更新'}
             </PrimaryButton>

@@ -256,7 +256,7 @@ export default function AskAiPage() {
               className={`group flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${
                 currentSessionId === session.id
                   ? 'bg-primary-50 text-primary-700'
-                  : 'hover:bg-slate-50'
+                  : 'hover:bg-primary-50'
               }`}
               onClick={() => editingSessionId !== session.id && handleSelectSession(session.id)}
             >

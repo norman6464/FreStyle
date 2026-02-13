@@ -36,7 +36,7 @@ export default function SceneSelector({ onSelect, onCancel }: SceneSelectorProps
             <button
               key={scene.id}
               onClick={() => onSelect(scene.id)}
-              className="w-full text-left px-3 py-2.5 rounded-md hover:bg-slate-50 transition-colors"
+              className="w-full text-left px-3 py-2.5 rounded-md hover:bg-primary-50 transition-colors"
             >
               <span className="text-sm font-medium text-slate-700">{scene.label}</span>
               <p className="text-xs text-slate-400 mt-0.5">{scene.description}</p>

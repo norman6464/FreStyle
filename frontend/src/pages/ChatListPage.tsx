@@ -174,7 +174,7 @@ export default function ChatListPage() {
             <button
               key={user.roomId}
               onClick={() => navigate(`/chat/users/${user.roomId}`)}
-              className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50 transition-colors border-b border-slate-100 text-left"
+              className="w-full px-4 py-3 flex items-center gap-3 hover:bg-primary-50 transition-colors border-b border-slate-100 text-left"
             >
               {/* アバター */}
               <div className="flex-shrink-0">

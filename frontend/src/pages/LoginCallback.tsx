@@ -79,11 +79,11 @@ export default function LoginCallback() {
   }, [code, error, dispatch, navigate]);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-gray-50 to-primary-50">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-surface">
       <div className="flex flex-col items-center space-y-6">
         {/* ローディングスピナー */}
         <div className="relative w-20 h-20">
-          <div className="absolute inset-0 rounded-full border-4 border-gray-200"></div>
+          <div className="absolute inset-0 rounded-full border-4 border-primary-200"></div>
           <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-primary-600 border-r-primary-600 animate-spin"></div>
         </div>
         {/* ローディングテキスト */}

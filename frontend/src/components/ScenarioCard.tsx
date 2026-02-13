@@ -15,7 +15,7 @@ export default function ScenarioCard({ scenario, onSelect }: ScenarioCardProps) 
   return (
     <div
       onClick={() => onSelect(scenario)}
-      className="bg-white rounded-lg border border-slate-200 p-4 cursor-pointer hover:bg-slate-50 transition-colors"
+      className="bg-white rounded-lg border border-slate-200 p-4 cursor-pointer hover:bg-primary-50 transition-colors"
     >
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs text-slate-500">{scenario.category}</span>

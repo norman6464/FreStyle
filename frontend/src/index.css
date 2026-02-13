@@ -3,7 +3,7 @@
 @tailwind utilities;
 @layer base {
   body {
-    @apply bg-slate-50;
+    @apply bg-surface;
   }
 }
 
@@ -13,7 +13,7 @@
   }
 
   .btn-secondary {
-    @apply border border-slate-200 text-slate-700 font-medium py-2.5 rounded-lg hover:bg-slate-50 active:bg-slate-100 transition-colors duration-150;
+    @apply border border-slate-200 text-slate-700 font-medium py-2.5 rounded-lg hover:bg-primary-50 active:bg-primary-100 transition-colors duration-150;
   }
 
   .card {

@@ -6,7 +6,7 @@ interface RoomListItemProps {
 
 export default function RoomListItem({ name, lastMessage, unreadCount }: RoomListItemProps) {
   return (
-    <div className="p-4 rounded-xl hover:bg-slate-50 cursor-pointer flex justify-between items-center transition-colors duration-150 border border-slate-200">
+    <div className="p-4 rounded-xl hover:bg-primary-50 cursor-pointer flex justify-between items-center transition-colors duration-150 border border-slate-200">
       <div className="flex-1 min-w-0">
         <p className="font-semibold text-slate-800">{name}</p>
         <p className="text-sm text-slate-500 truncate">{lastMessage}</p>

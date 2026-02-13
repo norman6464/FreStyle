@@ -78,7 +78,7 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
     <aside className="flex flex-col w-56 h-full bg-white border-r border-slate-200 flex-shrink-0">
       {/* ロゴ */}
       <div className="h-12 flex items-center px-4 border-b border-slate-200">
-        <div className="bg-primary-600 w-7 h-7 rounded flex items-center justify-center mr-2.5">
+        <div className="bg-primary-700 w-7 h-7 rounded flex items-center justify-center mr-2.5">
           <span className="text-white font-bold text-sm">F</span>
         </div>
         <span className="text-sm font-bold text-slate-800">FreStyle</span>

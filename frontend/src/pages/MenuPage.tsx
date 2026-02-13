@@ -9,6 +9,7 @@ import {
 import CommunicationTipCard from '../components/CommunicationTipCard';
 import DailyGoalCard from '../components/DailyGoalCard';
 import LearningInsightsCard from '../components/LearningInsightsCard';
+import PracticeReminderCard from '../components/PracticeReminderCard';
 import RecentSessionsCard from '../components/RecentSessionsCard';
 import WeeklyReportCard from '../components/WeeklyReportCard';
 import { useMenuData } from '../hooks/useMenuData';
@@ -91,6 +92,13 @@ export default function MenuPage() {
       {totalSessions > 0 && (
         <div className="mb-6">
           <WeeklyReportCard allScores={allScores} />
+        </div>
+      )}
+
+      {/* 練習リマインダー */}
+      {latestScore && (
+        <div className="mb-6">
+          <PracticeReminderCard lastPracticeDate={latestScore.createdAt} />
         </div>
       )}
 

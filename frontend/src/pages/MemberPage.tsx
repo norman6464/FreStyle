@@ -1,65 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
-import { debounce } from 'lodash';
-import { useNavigate } from 'react-router-dom';
 import MemberList from '../components/MemberList';
 import SearchBox from '../components/SearchBox';
-import type { MemberUser } from '../types';
+import { useUserSearch } from '../hooks/useUserSearch';
 
 export default function MemberPage() {
-  const navigate = useNavigate();
-  const [members, setMembers] = useState<MemberUser[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [debounceQuery, setDebounceQuery] = useState('');
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-
-  const debounceSearch = useMemo(
-    () => debounce((query: string) => setDebounceQuery(query), 500),
-    []
-  );
-
-  useEffect(() => {
-    debounceSearch(searchQuery);
-    return () => debounceSearch.cancel();
-  }, [searchQuery, debounceSearch]);
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    const queryParam = debounceQuery
-      ? `?query=${encodeURIComponent(debounceQuery)}`
-      : '';
-
-    fetch(`${API_BASE_URL}/api/chat/users${queryParam}`, {
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then((res) => {
-        if (res.status === 401) {
-          navigate('/login');
-          return;
-        } else if (res.status === 500) {
-          navigate('/');
-          return;
-        }
-        return res.json();
-      })
-      .then((data) => {
-        if (data?.users) {
-          setMembers(data.users);
-        } else if (data?.error) {
-          setError(data.error);
-        }
-      })
-      .catch((err: Error) => {
-        if (err.name !== 'AbortError') {
-          setError(err.message);
-        }
-      });
-
-    return () => controller.abort();
-  }, [debounceQuery, navigate, API_BASE_URL]);
+  const { users, error, searchQuery, setSearchQuery } = useUserSearch();
 
   return (
     <div className="p-6 max-w-2xl mx-auto">
@@ -86,12 +30,12 @@ export default function MemberPage() {
       )}
 
       {/* メンバーリスト */}
-      {members.length === 0 && !error && (
+      {users.length === 0 && !error && (
         <div className="text-center py-12">
           <p className="text-sm text-slate-500">メンバーがまだいません</p>
         </div>
       )}
-      <MemberList users={members} />
+      <MemberList users={users} />
     </div>
   );
 }

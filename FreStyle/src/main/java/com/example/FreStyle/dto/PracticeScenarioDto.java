@@ -14,4 +14,5 @@ public class PracticeScenarioDto {
     private String category;
     private String roleName;
     private String difficulty;
+    private String systemPrompt;
 }

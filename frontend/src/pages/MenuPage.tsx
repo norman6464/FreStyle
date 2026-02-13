@@ -9,6 +9,7 @@ import {
 import CommunicationTipCard from '../components/CommunicationTipCard';
 import DailyGoalCard from '../components/DailyGoalCard';
 import LearningInsightsCard from '../components/LearningInsightsCard';
+import RecentSessionsCard from '../components/RecentSessionsCard';
 import WeeklyReportCard from '../components/WeeklyReportCard';
 import { useMenuData } from '../hooks/useMenuData';
 
@@ -97,6 +98,13 @@ export default function MenuPage() {
       <div className="mb-6">
         <DailyGoalCard />
       </div>
+
+      {/* 直近のセッション */}
+      {allScores.length > 0 && (
+        <div className="mb-6">
+          <RecentSessionsCard sessions={allScores} />
+        </div>
+      )}
 
       {/* コミュニケーションTips */}
       <div className="mb-6">

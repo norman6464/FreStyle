@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 
 class ScoreCardServiceTest {
 
-    private final ScoreCardService service = new ScoreCardService(null);
+    private final ScoreCardService service = new ScoreCardService();
 
     @Nested
     @DisplayName("parseScoresFromResponse - AI応答からスコアJSON抽出")

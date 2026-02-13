@@ -1,6 +1,5 @@
 package com.example.FreStyle.controller;
 
-import java.util.List;
 import java.util.Map;
 
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -15,13 +14,13 @@ import com.example.FreStyle.dto.ScoreCardDto;
 import com.example.FreStyle.dto.UserProfileDto;
 import com.example.FreStyle.entity.AiChatMessage.Role;
 import com.example.FreStyle.service.BedrockService;
-import com.example.FreStyle.service.ScoreCardService;
 import com.example.FreStyle.service.SystemPromptBuilder;
 import com.example.FreStyle.service.UserProfileService;
 import com.example.FreStyle.usecase.AddAiChatMessageUseCase;
 import com.example.FreStyle.usecase.CreateAiChatSessionUseCase;
 import com.example.FreStyle.usecase.DeleteAiChatSessionUseCase;
 import com.example.FreStyle.usecase.GetPracticeScenarioByIdUseCase;
+import com.example.FreStyle.usecase.SaveScoreCardUseCase;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,7 +33,6 @@ public class AiChatWebSocketController {
     private final BedrockService bedrockService;
     private final SimpMessagingTemplate messagingTemplate;
     private final UserProfileService userProfileService;
-    private final ScoreCardService scoreCardService;
     private final SystemPromptBuilder systemPromptBuilder;
 
     // UseCases (クリーンアーキテクチャー)
@@ -42,6 +40,7 @@ public class AiChatWebSocketController {
     private final AddAiChatMessageUseCase addAiChatMessageUseCase;
     private final DeleteAiChatSessionUseCase deleteAiChatSessionUseCase;
     private final GetPracticeScenarioByIdUseCase getPracticeScenarioByIdUseCase;
+    private final SaveScoreCardUseCase saveScoreCardUseCase;
 
     /**
      * AIチャットメッセージ送信
@@ -217,22 +216,13 @@ public class AiChatWebSocketController {
 
             // フィードバックモードの場合、AI応答からスコアを抽出・保存・通知
             if (fromChatFeedback) {
-                List<ScoreCardService.AxisScore> scores = scoreCardService.parseScoresFromResponse(aiReply);
-                if (!scores.isEmpty()) {
-                    scoreCardService.saveScores(sessionId, userId, scores, scene);
-                    double overallScore = scoreCardService.calculateOverallScore(scores);
-
-                    List<ScoreCardDto.AxisScoreDto> scoreDtos = scores.stream()
-                            .map(s -> new ScoreCardDto.AxisScoreDto(s.getAxis(), s.getScore(), s.getComment()))
-                            .toList();
-
-                    ScoreCardDto scoreCard = new ScoreCardDto(sessionId, scoreDtos, overallScore);
-
+                ScoreCardDto scoreCard = saveScoreCardUseCase.execute(sessionId, userId, aiReply, scene);
+                if (scoreCard != null) {
                     messagingTemplate.convertAndSend(
                             "/topic/ai-chat/user/" + userId + "/scorecard",
                             scoreCard
                     );
-                    log.info("✅ スコアカード送信完了 - 総合スコア: " + overallScore);
+                    log.info("✅ スコアカード送信完了 - 総合スコア: " + scoreCard.getOverallScore());
                 } else {
                     log.warn("⚠️ AI応答からスコアを抽出できませんでした");
                 }
@@ -241,22 +231,13 @@ public class AiChatWebSocketController {
             // 練習モードで「練習終了」の場合、スコアを抽出・保存・通知
             if (isPracticeMode && aiReply.contains("練習終了")) {
                 log.info("🎓 練習終了を検知 - スコア抽出中...");
-                List<ScoreCardService.AxisScore> scores = scoreCardService.parseScoresFromResponse(aiReply);
-                if (!scores.isEmpty()) {
-                    scoreCardService.saveScores(sessionId, userId, scores, null);
-                    double overallScore = scoreCardService.calculateOverallScore(scores);
-
-                    List<ScoreCardDto.AxisScoreDto> scoreDtos = scores.stream()
-                            .map(s -> new ScoreCardDto.AxisScoreDto(s.getAxis(), s.getScore(), s.getComment()))
-                            .toList();
-
-                    ScoreCardDto scoreCard = new ScoreCardDto(sessionId, scoreDtos, overallScore);
-
+                ScoreCardDto scoreCard = saveScoreCardUseCase.execute(sessionId, userId, aiReply, null);
+                if (scoreCard != null) {
                     messagingTemplate.convertAndSend(
                             "/topic/ai-chat/user/" + userId + "/scorecard",
                             scoreCard
                     );
-                    log.info("✅ 練習スコアカード送信完了 - 総合スコア: " + overallScore);
+                    log.info("✅ 練習スコアカード送信完了 - 総合スコア: " + scoreCard.getOverallScore());
                 } else {
                     log.warn("⚠️ 練習AI応答からスコアを抽出できませんでした");
                 }

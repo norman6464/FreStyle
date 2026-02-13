@@ -85,4 +85,14 @@ describe('ScenarioCard', () => {
     card?.click();
     expect(onSelect).toHaveBeenCalledWith(mockScenario);
   });
+
+  it('ブックマークボタンを表示する', () => {
+    render(<ScenarioCard scenario={mockScenario} onSelect={vi.fn()} isBookmarked={false} onToggleBookmark={vi.fn()} />);
+    expect(screen.getByTitle('ブックマーク')).toBeDefined();
+  });
+
+  it('ブックマーク済みの場合は塗りつぶしアイコンを表示する', () => {
+    render(<ScenarioCard scenario={mockScenario} onSelect={vi.fn()} isBookmarked={true} onToggleBookmark={vi.fn()} />);
+    expect(screen.getByTitle('ブックマーク解除')).toBeDefined();
+  });
 });

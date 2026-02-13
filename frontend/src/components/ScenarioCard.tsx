@@ -3,6 +3,8 @@ import type { PracticeScenario } from '../types';
 interface ScenarioCardProps {
   scenario: PracticeScenario;
   onSelect: (scenario: PracticeScenario) => void;
+  isBookmarked?: boolean;
+  onToggleBookmark?: (scenarioId: number) => void;
 }
 
 const difficultyLabel: Record<string, string> = {
@@ -29,7 +31,12 @@ const difficultyColor: Record<string, string> = {
   advanced: 'bg-rose-50 text-rose-700 border-rose-200',
 };
 
-export default function ScenarioCard({ scenario, onSelect }: ScenarioCardProps) {
+export default function ScenarioCard({ scenario, onSelect, isBookmarked, onToggleBookmark }: ScenarioCardProps) {
+  const handleBookmarkClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onToggleBookmark?.(scenario.id);
+  };
+
   return (
     <div
       onClick={() => onSelect(scenario)}
@@ -37,9 +44,22 @@ export default function ScenarioCard({ scenario, onSelect }: ScenarioCardProps) 
     >
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs text-slate-500">{categoryLabel[scenario.category] || scenario.category}</span>
-        <span className={`text-xs px-2 py-0.5 rounded border ${difficultyColor[scenario.difficulty] || 'bg-slate-50 text-slate-500 border-slate-200'}`}>
-          {difficultyLabel[scenario.difficulty] || scenario.difficulty}
-        </span>
+        <div className="flex items-center gap-2">
+          {onToggleBookmark && (
+            <button
+              onClick={handleBookmarkClick}
+              title={isBookmarked ? 'ブックマーク解除' : 'ブックマーク'}
+              className="p-0.5 hover:bg-slate-100 rounded transition-colors"
+            >
+              <svg className="w-4 h-4" fill={isBookmarked ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+              </svg>
+            </button>
+          )}
+          <span className={`text-xs px-2 py-0.5 rounded border ${difficultyColor[scenario.difficulty] || 'bg-slate-50 text-slate-500 border-slate-200'}`}>
+            {difficultyLabel[scenario.difficulty] || scenario.difficulty}
+          </span>
+        </div>
       </div>
       <h3 className="text-sm font-medium text-slate-800 mb-1">{scenario.name}</h3>
       <p className="text-xs text-slate-500 mb-2">{scenario.description}</p>

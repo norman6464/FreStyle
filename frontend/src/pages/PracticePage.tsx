@@ -4,8 +4,9 @@ import ScenarioCard from '../components/ScenarioCard';
 import { SkeletonCard } from '../components/Skeleton';
 import type { PracticeScenario } from '../types';
 import { usePractice } from '../hooks/usePractice';
+import { useBookmark } from '../hooks/useBookmark';
 
-const CATEGORIES = ['すべて', '顧客折衝', 'シニア・上司', 'チーム内'] as const;
+const CATEGORIES = ['すべて', 'ブックマーク', '顧客折衝', 'シニア・上司', 'チーム内'] as const;
 
 const CATEGORY_LABEL_TO_DB: Record<string, string> = {
   '顧客折衝': 'customer',
@@ -18,6 +19,7 @@ export default function PracticePage() {
 
   const [selectedCategory, setSelectedCategory] = useState<string>('すべて');
   const { scenarios, loading, fetchScenarios, createPracticeSession } = usePractice();
+  const { bookmarkedIds, toggleBookmark, isBookmarked } = useBookmark();
 
   useEffect(() => {
     fetchScenarios();
@@ -40,6 +42,8 @@ export default function PracticePage() {
 
   const filteredScenarios = selectedCategory === 'すべて'
     ? scenarios
+    : selectedCategory === 'ブックマーク'
+    ? scenarios.filter((s) => bookmarkedIds.includes(s.id))
     : scenarios.filter((s) => s.category === CATEGORY_LABEL_TO_DB[selectedCategory]);
 
   return (
@@ -87,6 +91,8 @@ export default function PracticePage() {
               key={scenario.id}
               scenario={scenario}
               onSelect={handleSelectScenario}
+              isBookmarked={isBookmarked(scenario.id)}
+              onToggleBookmark={toggleBookmark}
             />
           ))}
         </div>

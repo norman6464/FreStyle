@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
 import InputField from '../components/InputField';
 import PrimaryButton from '../components/PrimaryButton';
-import { useDispatch } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
-import { clearAuth } from '../store/authSlice';
+import ProfileRepository from '../repositories/ProfileRepository';
 
 interface FormMessage {
   type: 'success' | 'error';
@@ -14,93 +12,27 @@ export default function ProfilePage() {
   const [form, setForm] = useState({ name: '', bio: '' });
   const [message, setMessage] = useState<FormMessage | null>(null);
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
-  const dispatch = useDispatch();
-
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-
-  const fetchProfile = async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/profile/me`, {
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-      });
-
-      if (res.status === 401) {
-        const refreshRes = await fetch(
-          `${API_BASE_URL}/api/auth/cognito/refresh-token`,
-          { method: 'POST', credentials: 'include' }
-        );
-        if (!refreshRes.ok) {
-          dispatch(clearAuth());
-          return;
-        }
-
-        const retryRes = await fetch(`${API_BASE_URL}/api/profile/me`, {
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-        });
-        const retryData = await retryRes.json();
-        if (!retryRes.ok) throw new Error(retryData.error || 'プロフィール再取得に失敗しました。');
-
-        setForm({ name: retryData.name || '', bio: retryData.bio || '' });
-        setLoading(false);
-        return;
-      }
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'プロフィール取得に失敗しました。');
-
-      setForm({ name: data.name || '', bio: data.bio || '' });
-    } catch (err) {
-      setMessage({ type: 'error', text: (err as Error).message });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   useEffect(() => {
-    fetchProfile();
+    const loadProfile = async () => {
+      try {
+        const data = await ProfileRepository.fetchProfile();
+        setForm({ name: data.name || '', bio: data.bio || '' });
+      } catch {
+        setMessage({ type: 'error', text: 'プロフィール取得に失敗しました。' });
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadProfile();
   }, []);
 
   const handleUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${API_BASE_URL}/api/profile/me/update`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(form),
-      });
-
-      if (res.status === 401) {
-        const refreshRes = await fetch(
-          `${API_BASE_URL}/api/auth/cognito/refresh-token`,
-          { method: 'POST', credentials: 'include' }
-        );
-        if (!refreshRes.ok) {
-          navigate('/login');
-          return;
-        }
-        await refreshRes.json();
-        const retryRes = await fetch(`${API_BASE_URL}/api/profile/me/update`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify(form),
-        });
-        const retryData = await retryRes.json();
-        if (!retryRes.ok) throw new Error(retryData.error || 'プロフィール更新に失敗しました。');
-
-        setMessage({ type: 'success', text: retryData.success || 'プロフィールを更新しました。' });
-        return;
-      }
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'プロフィール更新に失敗しました。');
-
+      const data = await ProfileRepository.updateProfile(form);
       setMessage({ type: 'success', text: data.success || 'プロフィールを更新しました。' });
-    } catch (error) {
+    } catch {
       setMessage({ type: 'error', text: '通信エラーが発生しました。' });
     }
   };
@@ -115,7 +47,6 @@ export default function ProfilePage() {
 
   return (
     <div className="p-6 max-w-2xl mx-auto">
-      {/* メッセージ */}
       {message && (
         <div
           className={`mb-4 p-3 rounded-lg text-sm font-medium ${
@@ -128,7 +59,6 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* プロフィールカード */}
       <div className="bg-white rounded-lg border border-slate-200 p-6">
         <div className="flex items-center gap-4 mb-6">
           <div className="w-16 h-16 bg-primary-500 rounded-full flex items-center justify-center">

@@ -23,11 +23,16 @@ export default {
       },
       animation: {
         'fade-in': 'fadeIn 0.15s ease-in',
+        'skeleton': 'skeleton 1.5s ease-in-out infinite',
       },
       keyframes: {
         fadeIn: {
           '0%': { opacity: '0' },
           '100%': { opacity: '1' },
+        },
+        skeleton: {
+          '0%': { backgroundPosition: '200% 0' },
+          '100%': { backgroundPosition: '-200% 0' },
         },
       },
     },

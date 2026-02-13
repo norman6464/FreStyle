@@ -3,6 +3,7 @@ import MessageBubbleAi from '../components/MessageBubbleAi';
 import MessageInput from '../components/MessageInput';
 import ConfirmModal from '../components/ConfirmModal';
 import ScoreCardComponent from '../components/ScoreCard';
+import PracticeResultSummary from '../components/PracticeResultSummary';
 import SecondaryPanel from '../components/layout/SecondaryPanel';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { AiMessage, AiSession, ScoreCard } from '../types';
@@ -374,6 +375,9 @@ export default function AskAiPage() {
           {scoreCard && (
             <div className="max-w-3xl mx-auto w-full">
               <ScoreCardComponent scoreCard={scoreCard} />
+              {isPracticeMode && (
+                <PracticeResultSummary scoreCard={scoreCard} scenarioName={scenarioName || '練習'} />
+              )}
             </div>
           )}
 

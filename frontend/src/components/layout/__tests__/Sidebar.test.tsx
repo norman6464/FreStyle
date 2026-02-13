@@ -40,11 +40,12 @@ describe('Sidebar', () => {
     expect(screen.getByText('ログアウト')).toBeDefined();
   });
 
-  it('FreStyleロゴ画像を表示する', () => {
+  it('FreStyleロゴ画像を角丸で表示する', () => {
     renderSidebar();
     const logo = screen.getByAltText('FreStyle');
     expect(logo).toBeDefined();
     expect(logo.getAttribute('src')).toBe('/image.png');
+    expect(logo.className).toContain('rounded-xl');
   });
 
   it('ホームルートでホームがアクティブになる', () => {

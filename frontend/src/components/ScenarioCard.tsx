@@ -11,6 +11,12 @@ const difficultyLabel: Record<string, string> = {
   advanced: '上級',
 };
 
+const categoryLabel: Record<string, string> = {
+  customer: '顧客折衝',
+  senior: 'シニア・上司',
+  team: 'チーム内',
+};
+
 export default function ScenarioCard({ scenario, onSelect }: ScenarioCardProps) {
   return (
     <div
@@ -18,7 +24,7 @@ export default function ScenarioCard({ scenario, onSelect }: ScenarioCardProps) 
       className="bg-white rounded-lg border border-slate-200 p-4 cursor-pointer hover:bg-primary-50 transition-colors"
     >
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs text-slate-500">{scenario.category}</span>
+        <span className="text-xs text-slate-500">{categoryLabel[scenario.category] || scenario.category}</span>
         <span className="text-xs text-slate-500 border border-slate-200 px-2 py-0.5 rounded">
           {difficultyLabel[scenario.difficulty] || scenario.difficulty}
         </span>

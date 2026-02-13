@@ -7,7 +7,7 @@ const mockScenario: PracticeScenario = {
   id: 1,
   name: '本番障害の緊急報告',
   description: '本番環境で障害が発生し、顧客に緊急報告する場面です。',
-  category: '顧客折衝',
+  category: 'customer',
   roleName: '不満を持つ顧客担当者',
   difficulty: 'intermediate',
 };
@@ -45,9 +45,21 @@ describe('ScenarioCard', () => {
     expect(screen.getByText('上級')).toBeDefined();
   });
 
-  it('カテゴリを表示する', () => {
+  it('カテゴリを日本語で表示する', () => {
     render(<ScenarioCard scenario={mockScenario} onSelect={vi.fn()} />);
     expect(screen.getByText('顧客折衝')).toBeDefined();
+  });
+
+  it('seniorカテゴリを日本語で表示する', () => {
+    const seniorScenario = { ...mockScenario, category: 'senior' };
+    render(<ScenarioCard scenario={seniorScenario} onSelect={vi.fn()} />);
+    expect(screen.getByText('シニア・上司')).toBeDefined();
+  });
+
+  it('teamカテゴリを日本語で表示する', () => {
+    const teamScenario = { ...mockScenario, category: 'team' };
+    render(<ScenarioCard scenario={teamScenario} onSelect={vi.fn()} />);
+    expect(screen.getByText('チーム内')).toBeDefined();
   });
 
   it('クリック時にonSelectが呼ばれる', async () => {

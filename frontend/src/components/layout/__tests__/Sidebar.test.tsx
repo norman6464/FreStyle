@@ -60,6 +60,11 @@ describe('Sidebar', () => {
     expect(logo.className).toContain('rounded-xl');
   });
 
+  it('FreStyleテキストがロゴ横に表示される', () => {
+    renderSidebar();
+    expect(screen.getByText('FreStyle')).toBeInTheDocument();
+  });
+
   it('ホームルートでホームがアクティブになる', () => {
     renderSidebar('/');
     const homeLink = screen.getByText('ホーム').closest('a');

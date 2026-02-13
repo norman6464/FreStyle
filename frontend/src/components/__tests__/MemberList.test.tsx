@@ -40,4 +40,46 @@ describe('MemberList', () => {
 
     expect(container.querySelector('.space-y-4')?.children).toHaveLength(0);
   });
+
+  it('メールアドレスが表示される', () => {
+    const users = [
+      { id: 1, name: 'テスト', email: 'test@example.com' },
+    ];
+
+    render(
+      <MemoryRouter>
+        <MemberList users={users} />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('test@example.com')).toBeInTheDocument();
+  });
+
+  it('roomIdがあるメンバーには「チャット」が表示される', () => {
+    const users = [
+      { id: 1, name: 'テスト', email: 'test@example.com', roomId: 10 },
+    ];
+
+    render(
+      <MemoryRouter>
+        <MemberList users={users} />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('チャット')).toBeInTheDocument();
+  });
+
+  it('roomIdがないメンバーには「追加」が表示される', () => {
+    const users = [
+      { id: 1, name: 'テスト', email: 'test@example.com' },
+    ];
+
+    render(
+      <MemoryRouter>
+        <MemberList users={users} />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('追加')).toBeInTheDocument();
+  });
 });

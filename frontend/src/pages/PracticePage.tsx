@@ -2,90 +2,24 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ScenarioCard from '../components/ScenarioCard';
 import type { PracticeScenario } from '../types';
+import { usePractice } from '../hooks/usePractice';
 
 const CATEGORIES = ['すべて', '顧客折衝', 'シニア・上司', 'チーム内'] as const;
 
 export default function PracticePage() {
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
   const navigate = useNavigate();
 
-  const [scenarios, setScenarios] = useState<PracticeScenario[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('すべて');
-  const [loading, setLoading] = useState(true);
+  const { scenarios, loading, fetchScenarios, createPracticeSession } = usePractice();
 
   useEffect(() => {
-    const fetchScenarios = async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/practice/scenarios`, {
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-        });
-
-        if (res.status === 401) {
-          const refreshRes = await fetch(
-            `${API_BASE_URL}/api/auth/cognito/refresh-token`,
-            { method: 'POST', credentials: 'include' }
-          );
-          if (!refreshRes.ok) {
-            navigate('/login');
-            return;
-          }
-          const retryRes = await fetch(`${API_BASE_URL}/api/practice/scenarios`, {
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-          });
-          if (!retryRes.ok) return;
-          const retryData = await retryRes.json();
-          setScenarios(retryData);
-          setLoading(false);
-          return;
-        }
-
-        if (!res.ok) {
-          console.error('シナリオ取得エラー:', res.status);
-          setLoading(false);
-          return;
-        }
-
-        const data = await res.json();
-        setScenarios(data);
-        setLoading(false);
-      } catch (err) {
-        console.error('シナリオ取得失敗:', err);
-        setLoading(false);
-      }
-    };
-
     fetchScenarios();
-  }, [API_BASE_URL, navigate]);
+  }, [fetchScenarios]);
 
   const handleSelectScenario = async (scenario: PracticeScenario) => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/practice/sessions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ scenarioId: scenario.id }),
-      });
+    const session = await createPracticeSession({ scenarioId: scenario.id });
 
-      if (res.status === 401) {
-        const refreshRes = await fetch(
-          `${API_BASE_URL}/api/auth/cognito/refresh-token`,
-          { method: 'POST', credentials: 'include' }
-        );
-        if (!refreshRes.ok) {
-          navigate('/login');
-          return;
-        }
-        return handleSelectScenario(scenario);
-      }
-
-      if (!res.ok) {
-        console.error('練習セッション作成エラー:', res.status);
-        return;
-      }
-
-      const session = await res.json();
+    if (session) {
       navigate(`/chat/ask-ai/${session.id}`, {
         state: {
           sessionType: 'practice',
@@ -94,8 +28,6 @@ export default function PracticePage() {
           initialPrompt: '練習開始',
         },
       });
-    } catch (err) {
-      console.error('練習セッション作成失敗:', err);
     }
   };
 

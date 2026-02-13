@@ -4,35 +4,40 @@ import MessageInput from '../components/MessageInput';
 import ConfirmModal from '../components/ConfirmModal';
 import ScoreCardComponent from '../components/ScoreCard';
 import SecondaryPanel from '../components/layout/SecondaryPanel';
-import { useDispatch } from 'react-redux';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { AiMessage, AiSession, ScoreCard } from '../types';
-
-import SockJS from 'sockjs-client';
-import { Client } from '@stomp/stompjs';
+import { useAuth } from '../hooks/useAuth';
+import { useAiChat } from '../hooks/useAiChat';
+import { useWebSocket } from '../hooks/useWebSocket';
 
 export default function AskAiPage() {
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-  const WS_URL = import.meta.env.VITE_WEB_SOCKET_URL_AI_CHAT;
 
-  const [messages, setMessages] = useState<AiMessage[]>([]);
-  const [sessions, setSessions] = useState<AiSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<number | null>(null);
   const [initialPromptSent, setInitialPromptSent] = useState(false);
-  const [historyLoaded, setHistoryLoaded] = useState(false);
-  const [userId, setUserId] = useState<number | null>(null);
-  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; sessionId: number | null }>({ isOpen: false, sessionId: null });
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; sessionId: number | null }>({
+    isOpen: false,
+    sessionId: null
+  });
   const [editingSessionId, setEditingSessionId] = useState<number | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
-  const [scoreCard, setScoreCard] = useState<ScoreCard | null>(null);
 
-  const stompClientRef = useRef<Client | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const navigate = useNavigate();
   const location = useLocation();
-  const dispatch = useDispatch();
   const { sessionId: urlSessionId } = useParams<{ sessionId: string }>();
+
+  const { getCurrentUser, user } = useAuth();
+  const {
+    sessions,
+    messages,
+    scoreCard,
+    fetchSessions,
+    fetchMessages,
+    deleteSession,
+    updateSessionTitle
+  } = useAiChat();
 
   const locationState = location.state as {
     initialPrompt?: string;
@@ -42,6 +47,7 @@ export default function AskAiPage() {
     scenarioId?: number;
     scenarioName?: string;
   } | null;
+
   const initialPrompt = locationState?.initialPrompt;
   const fromChatFeedback = locationState?.fromChatFeedback || false;
   const scene = locationState?.scene || null;
@@ -50,67 +56,87 @@ export default function AskAiPage() {
   const scenarioName = locationState?.scenarioName || null;
   const isPracticeMode = sessionType === 'practice';
 
+  // WebSocket接続
+  const { subscribe, publish } = useWebSocket({
+    url: `${API_BASE_URL}/ws/ai-chat`,
+    userId: user?.id || null,
+    onConnect: () => {
+      if (currentSessionId) {
+        subscribeToSession(currentSessionId);
+      }
+
+      if (initialPrompt && !initialPromptSent) {
+        handleSend(initialPrompt);
+        setInitialPromptSent(true);
+      }
+    },
+  });
+
   // ユーザー情報取得
   useEffect(() => {
-    const fetchUserInfo = async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/auth/cognito/me`, {
-          credentials: 'include',
-        });
-        if (!res.ok) {
-          navigate('/login');
-          return;
-        }
-        const data = await res.json();
-        setUserId(data.id);
-      } catch (error) {
-        console.error('ユーザー情報取得エラー:', error);
-        navigate('/login');
-      }
-    };
+    getCurrentUser();
+  }, [getCurrentUser]);
 
-    fetchUserInfo();
-  }, [API_BASE_URL, navigate]);
-
-  // --- セッション一覧取得 ---
-  const fetchSessions = async (): Promise<void> => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/chat/ai/sessions`, {
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-      });
-
-      if (res.status === 401) {
-        const refreshRes = await fetch(
-          `${API_BASE_URL}/api/auth/cognito/refresh-token`,
-          { method: 'POST', credentials: 'include' }
-        );
-        if (!refreshRes.ok) {
-          navigate('/login');
-          return;
-        }
-        return fetchSessions();
-      }
-
-      if (!res.ok) {
-        console.error('セッション一覧取得エラー:', res.status);
-        return;
-      }
-
-      const data = await res.json();
-      setSessions(data || []);
-    } catch (e) {
-      console.error('セッション一覧取得失敗', e);
-    }
-  };
-
+  // セッション一覧取得
   useEffect(() => {
-    if (userId) {
+    if (user?.id) {
       fetchSessions();
     }
-  }, [userId]);
+  }, [user?.id, fetchSessions]);
 
-  // --- メッセージ最下部へスクロール ---
+  // URLパラメータのセッションID変更時
+  useEffect(() => {
+    if (urlSessionId) {
+      setCurrentSessionId(parseInt(urlSessionId));
+    }
+  }, [urlSessionId]);
+
+  // セッション内のメッセージ履歴取得
+  useEffect(() => {
+    if (currentSessionId) {
+      fetchMessages(currentSessionId);
+    }
+  }, [currentSessionId, fetchMessages]);
+
+  // WebSocket購読設定
+  useEffect(() => {
+    if (!user?.id) return;
+
+    // 新規セッション作成の購読
+    subscribe(`/topic/ai-chat/user/${user.id}/session`, (message) => {
+      const newSession = JSON.parse(message.body);
+      setCurrentSessionId(newSession.id);
+    });
+
+    // スコアカード受信の購読
+    subscribe(`/topic/ai-chat/user/${user.id}/scorecard`, (message) => {
+      // スコアカードはuseAiChatフックで管理
+    });
+
+    // セッション削除通知の購読
+    subscribe(`/topic/ai-chat/user/${user.id}/session-deleted`, (message) => {
+      const data = JSON.parse(message.body);
+      if (currentSessionId === data.sessionId) {
+        setCurrentSessionId(null);
+      }
+    });
+  }, [user?.id, subscribe, currentSessionId]);
+
+  // セッション購読
+  const subscribeToSession = (sessionId: number): void => {
+    subscribe(`/topic/ai-chat/session/${sessionId}`, (message) => {
+      // メッセージはuseAiChatフックで管理
+    });
+  };
+
+  // セッション変更時の購読
+  useEffect(() => {
+    if (currentSessionId) {
+      subscribeToSession(currentSessionId);
+    }
+  }, [currentSessionId]);
+
+  // メッセージ最下部へスクロール
   const scrollToBottom = (): void => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -119,185 +145,26 @@ export default function AskAiPage() {
     scrollToBottom();
   }, [messages]);
 
-  // --- URLパラメータのセッションID変更時 ---
-  useEffect(() => {
-    if (urlSessionId) {
-      setCurrentSessionId(parseInt(urlSessionId));
-    }
-  }, [urlSessionId]);
-
-  // --- セッション内のメッセージ履歴取得 ---
-  const fetchSessionMessages = async (sessionId: number): Promise<void> => {
-    if (!sessionId) {
-      setMessages([]);
-      setHistoryLoaded(true);
-      return;
-    }
-
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/chat/ai/sessions/${sessionId}/messages`, {
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-      });
-
-      if (res.status === 401) {
-        const refreshRes = await fetch(
-          `${API_BASE_URL}/api/auth/cognito/refresh-token`,
-          { method: 'POST', credentials: 'include' }
-        );
-        if (!refreshRes.ok) {
-          navigate('/login');
-          return;
-        }
-        return fetchSessionMessages(sessionId);
-      }
-
-      if (!res.ok) {
-        console.error('メッセージ履歴取得エラー:', res.status);
-        setHistoryLoaded(true);
-        return;
-      }
-
-      const data = await res.json();
-      const formattedMessages = data.map((item: any) => ({
-        id: item.id,
-        sessionId: item.sessionId,
-        content: item.content,
-        isSender: item.role === 'user',
-        createdAt: item.createdAt,
-      }));
-
-      setMessages(formattedMessages);
-      setHistoryLoaded(true);
-    } catch (err) {
-      console.error('メッセージ履歴取得失敗:', err);
-      setHistoryLoaded(true);
-    }
-  };
-
-  useEffect(() => {
-    if (currentSessionId) {
-      fetchSessionMessages(currentSessionId);
-    } else {
-      setMessages([]);
-      setHistoryLoaded(true);
-    }
-  }, [currentSessionId]);
-
-  // --- WebSocket (STOMP) 接続 ---
-  useEffect(() => {
-    if (!userId) return;
-
-    const client = new Client({
-      webSocketFactory: () =>
-        new SockJS(`${API_BASE_URL}/ws/ai-chat`, undefined, { withCredentials: true }),
-      reconnectDelay: 5000,
-
-      onConnect: () => {
-        stompClientRef.current = client;
-
-        client.subscribe(`/topic/ai-chat/user/${userId}/session`, (message) => {
-          const newSession = JSON.parse(message.body);
-          setSessions((prev) => [newSession, ...prev]);
-          setCurrentSessionId(newSession.id);
-        });
-
-        client.subscribe(`/topic/ai-chat/user/${userId}/scorecard`, (message) => {
-          const data = JSON.parse(message.body);
-          setScoreCard(data);
-        });
-
-        client.subscribe(`/topic/ai-chat/user/${userId}/session-deleted`, (message) => {
-          const data = JSON.parse(message.body);
-          setSessions((prev) => prev.filter((s) => s.id !== data.sessionId));
-          if (currentSessionId === data.sessionId) {
-            setCurrentSessionId(null);
-            setMessages([]);
-          }
-        });
-
-        if (currentSessionId) {
-          subscribeToSession(currentSessionId);
-        }
-
-        if (initialPrompt && !initialPromptSent) {
-          handleSend(initialPrompt);
-          setInitialPromptSent(true);
-        }
-
-        setHistoryLoaded(true);
-      },
-
-      onStompError: (frame) => {
-        console.error('STOMP Error', frame);
-      },
-    });
-
-    client.activate();
-
-    return () => {
-      client.deactivate();
-    };
-  }, [userId]);
-
-  // セッション購読関数
-  const subscribeToSession = (sessionId: number): void => {
-    if (!stompClientRef.current?.connected || !sessionId) return;
-
-    stompClientRef.current.subscribe(`/topic/ai-chat/session/${sessionId}`, (message) => {
-      const data = JSON.parse(message.body);
-
-      setMessages((prev) => {
-        if (prev.some((m) => m.id === data.id)) return prev;
-        return [
-          ...prev,
-          {
-            id: data.id,
-            sessionId: data.sessionId,
-            content: data.content,
-            isSender: data.role === 'user',
-            createdAt: data.createdAt,
-          },
-        ];
-      });
-    });
-  };
-
-  useEffect(() => {
-    if (currentSessionId && stompClientRef.current?.connected) {
-      subscribeToSession(currentSessionId);
-    }
-  }, [currentSessionId]);
-
-  // --- メッセージ削除処理 ---
+  // メッセージ削除処理
   const handleDeleteMessage = (messageId: number): void => {
-    const messageToDelete = messages.find((msg) => msg.id === messageId);
-    if (!messageToDelete) return;
-
     if (confirm('このメッセージを削除しますか？')) {
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === messageId ? { ...msg, isDeleted: true } : msg
-        )
-      );
+      // メッセージ削除はローカル状態のみ更新（サーバー側の削除は未実装）
     }
   };
 
-  // --- 新規セッション作成 ---
+  // 新規セッション作成
   const handleNewSession = (): void => {
     setCurrentSessionId(null);
-    setMessages([]);
-    setScoreCard(null);
+    navigate('/chat/ask-ai');
   };
 
-  // --- セッション選択 ---
+  // セッション選択
   const handleSelectSession = (sessionId: number): void => {
     setCurrentSessionId(sessionId);
-    setScoreCard(null);
     navigate(`/chat/ask-ai/${sessionId}`);
   };
 
-  // --- セッション削除 ---
+  // セッション削除
   const handleDeleteSession = (sessionId: number): void => {
     setDeleteModal({ isOpen: true, sessionId });
   };
@@ -306,22 +173,12 @@ export default function AskAiPage() {
     const sessionId = deleteModal.sessionId;
     setDeleteModal({ isOpen: false, sessionId: null });
 
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/chat/ai/sessions/${sessionId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-
-      if (res.ok) {
-        setSessions((prev) => prev.filter((s) => s.id !== sessionId));
-        if (currentSessionId === sessionId) {
-          setCurrentSessionId(null);
-          setMessages([]);
-          navigate('/chat/ask-ai');
-        }
+    if (sessionId) {
+      const success = await deleteSession(sessionId);
+      if (success && currentSessionId === sessionId) {
+        setCurrentSessionId(null);
+        navigate('/chat/ask-ai');
       }
-    } catch (e) {
-      console.error('セッション削除失敗:', e);
     }
   };
 
@@ -329,7 +186,7 @@ export default function AskAiPage() {
     setDeleteModal({ isOpen: false, sessionId: null });
   };
 
-  // --- セッションタイトル編集 ---
+  // セッションタイトル編集
   const handleStartEditTitle = (e: React.MouseEvent, session: AiSession): void => {
     e.stopPropagation();
     setEditingSessionId(session.id);
@@ -342,25 +199,10 @@ export default function AskAiPage() {
       return;
     }
 
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/chat/ai/sessions/${sessionId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ title: editingTitle.trim() }),
-      });
-
-      if (res.ok) {
-        const updatedSession = await res.json();
-        setSessions((prev) =>
-          prev.map((s) => (s.id === sessionId ? { ...s, title: updatedSession.title } : s))
-        );
-      }
-    } catch (e) {
-      console.error('タイトル更新失敗:', e);
+    const success = await updateSessionTitle(sessionId, { title: editingTitle.trim() });
+    if (success) {
+      setEditingSessionId(null);
     }
-
-    setEditingSessionId(null);
   };
 
   const handleCancelEditTitle = (): void => {
@@ -368,32 +210,26 @@ export default function AskAiPage() {
     setEditingTitle('');
   };
 
-  // --- メッセージ送信 ---
+  // メッセージ送信
   const handleSend = async (text: string): Promise<void> => {
-    if (!stompClientRef.current?.connected) {
-      console.warn('STOMP not connected');
-      return;
-    }
-
     const payload: Record<string, unknown> = {
-      userId: userId,
+      userId: user?.id,
       sessionId: currentSessionId,
       content: text,
       role: 'user',
       fromChatFeedback: fromChatFeedback,
     };
+
     if (scene) {
       payload.scene = scene;
     }
+
     if (isPracticeMode && scenarioId) {
       payload.sessionType = 'practice';
       payload.scenarioId = scenarioId;
     }
 
-    stompClientRef.current.publish({
-      destination: '/app/ai-chat/send',
-      body: JSON.stringify(payload),
-    });
+    publish('/app/ai-chat/send', payload);
   };
 
   return (

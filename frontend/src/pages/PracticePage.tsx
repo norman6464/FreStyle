@@ -91,6 +91,7 @@ export default function PracticePage() {
           sessionType: 'practice',
           scenarioId: scenario.id,
           scenarioName: scenario.name,
+          initialPrompt: '練習開始',
         },
       });
     } catch (err) {

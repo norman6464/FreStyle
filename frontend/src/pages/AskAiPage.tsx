@@ -7,6 +7,7 @@ import PracticeResultSummary from '../components/PracticeResultSummary';
 import SecondaryPanel from '../components/layout/SecondaryPanel';
 import PracticeTimer from '../components/PracticeTimer';
 import SessionNoteEditor from '../components/SessionNoteEditor';
+import ExportSessionButton from '../components/ExportSessionButton';
 import { useLocation, useParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useAiChat } from '../hooks/useAiChat';
@@ -345,8 +346,11 @@ export default function AskAiPage() {
 
         {/* 入力欄 */}
         <div className="bg-white border-t border-slate-200 p-4">
-          <div className="max-w-3xl mx-auto w-full">
-            <MessageInput onSend={handleSend} />
+          <div className="max-w-3xl mx-auto w-full flex items-end gap-2">
+            <div className="flex-1">
+              <MessageInput onSend={handleSend} />
+            </div>
+            <ExportSessionButton messages={messages} />
           </div>
         </div>
       </div>

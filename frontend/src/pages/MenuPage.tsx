@@ -6,6 +6,7 @@ import {
   AcademicCapIcon,
   ChartBarIcon,
 } from '@heroicons/react/24/outline';
+import CommunicationTipCard from '../components/CommunicationTipCard';
 import DailyGoalCard from '../components/DailyGoalCard';
 import LearningInsightsCard from '../components/LearningInsightsCard';
 import WeeklyReportCard from '../components/WeeklyReportCard';
@@ -95,6 +96,11 @@ export default function MenuPage() {
       {/* 日次学習目標 */}
       <div className="mb-6">
         <DailyGoalCard />
+      </div>
+
+      {/* コミュニケーションTips */}
+      <div className="mb-6">
+        <CommunicationTipCard />
       </div>
 
       {/* メニュー */}

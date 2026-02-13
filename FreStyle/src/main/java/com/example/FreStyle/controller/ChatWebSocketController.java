@@ -34,22 +34,22 @@ public class ChatWebSocketController {
     public void sendMessage(
             @Payload Map<String, Object> payload
     ) {
-        System.out.println("\n========== WebSocket /chat/send リクエスト受信 ==========");
-        System.out.println("📨 ペイロード全体: " + payload);
+        log.info("\n========== WebSocket /chat/send リクエスト受信 ==========");
+        log.info("📨 ペイロード全体: " + payload);
         
         try {
             // パラメータの取得と検証
-            System.out.println("🔍 パラメータを抽出中...");
+            log.info("🔍 パラメータを抽出中...");
             Object senderIdObj = payload.get("senderId");
             Object roomIdObj = payload.get("roomId");
             Object contentObj = payload.get("content");
             
-            System.out.println("   - senderId タイプ: " + (senderIdObj != null ? senderIdObj.getClass().getSimpleName() : "null"));
-            System.out.println("   - senderId 値: " + senderIdObj);
-            System.out.println("   - roomId タイプ: " + (roomIdObj != null ? roomIdObj.getClass().getSimpleName() : "null"));
-            System.out.println("   - roomId 値: " + roomIdObj);
-            System.out.println("   - content タイプ: " + (contentObj != null ? contentObj.getClass().getSimpleName() : "null"));
-            System.out.println("   - content 値: " + contentObj);
+            log.debug("   - senderId タイプ: " + (senderIdObj != null ? senderIdObj.getClass().getSimpleName() : "null"));
+            log.debug("   - senderId 値: " + senderIdObj);
+            log.debug("   - roomId タイプ: " + (roomIdObj != null ? roomIdObj.getClass().getSimpleName() : "null"));
+            log.debug("   - roomId 値: " + roomIdObj);
+            log.debug("   - content タイプ: " + (contentObj != null ? contentObj.getClass().getSimpleName() : "null"));
+            log.debug("   - content 値: " + contentObj);
             
             // senderId は String または Integer で来る可能性がある
             // Integer に変換して扱う
@@ -57,7 +57,7 @@ public class ChatWebSocketController {
             if (senderIdObj instanceof Integer) {
                 // Object型をIntegerに変換をしてから格納をする
                 senderId = (Integer) senderIdObj;
-                System.out.println("   💡 senderId を Integer から String に変換");
+                log.info("   💡 senderId を Integer から String に変換");
             } else {
                 senderId = (Integer) senderIdObj;
             }
@@ -66,41 +66,41 @@ public class ChatWebSocketController {
             Integer roomId;
             if (roomIdObj instanceof Integer) {
                 roomId = (Integer) roomIdObj;
-                System.out.println("   💡 roomId を Integer として取得");
+                log.info("   💡 roomId を Integer として取得");
             } else {
                 roomId = Integer.parseInt((String) roomIdObj);
-                System.out.println("   💡 roomId を String から Integer に変換");
+                log.info("   💡 roomId を String から Integer に変換");
             }
             
             String content = (String) payload.get("content");
             
-            System.out.println("✅ パラメータ抽出成功");
-            System.out.println("   - senderId (最終): " + senderId + " (タイプ: String)");
-            System.out.println("   - roomId (最終): " + roomId + " (タイプ: Integer)");
-            System.out.println("   - content: " + content);
+            log.info("✅ パラメータ抽出成功");
+            log.debug("   - senderId (最終): " + senderId + " (タイプ: String)");
+            log.debug("   - roomId (最終): " + roomId + " (タイプ: Integer)");
+            log.debug("   - content: " + content);
             
             // ChatRoom 取得
-            System.out.println("🔍 ChatRoom を roomId=" + roomId + " で取得中...");
+            log.info("🔍 ChatRoom を roomId=" + roomId + " で取得中...");
             ChatRoom room = chatRoomService.findChatRoomById(roomId);
-            System.out.println("✅ ChatRoom 取得成功: " + room.getId());
+            log.info("✅ ChatRoom 取得成功: " + room.getId());
             
             // メッセージ保存
-            System.out.println("💾 メッセージをデータベースに保存中...");
+            log.info("💾 メッセージをデータベースに保存中...");
             ChatMessageDto saved = chatMessageService.addMessage(room, senderId, content);
-            System.out.println("✅ メッセージ保存成功");
-            System.out.println("   - messageId: " + saved.getId());
-            System.out.println("   - roomId: " + saved.getRoomId());
-            System.out.println("   - senderId: " + saved.getSenderId());
-            System.out.println("   - content: " + saved.getContent());
-            System.out.println("   - createdAt: " + saved.getCreatedAt());
+            log.info("✅ メッセージ保存成功");
+            log.debug("   - messageId: " + saved.getId());
+            log.debug("   - roomId: " + saved.getRoomId());
+            log.debug("   - senderId: " + saved.getSenderId());
+            log.debug("   - content: " + saved.getContent());
+            log.debug("   - createdAt: " + saved.getCreatedAt());
 
             // WebSocket トピックへ送信
-            System.out.println("📤 WebSocket トピック /topic/chat/" + room.getId() + " へメッセージを送信中...");
+            log.info("📤 WebSocket トピック /topic/chat/" + room.getId() + " へメッセージを送信中...");
             messagingTemplate.convertAndSend(
                     "/topic/chat/" + room.getId(),
                     saved
             );
-            System.out.println("✅ WebSocket 送信完了");
+            log.info("✅ WebSocket 送信完了");
 
             // 相手ユーザーの未読数をインクリメントし、WebSocketで通知
             Optional<User> partnerOpt = roomMemberRepository.findPartnerByRoomIdAndUserId(roomId, senderId);
@@ -115,30 +115,27 @@ public class ChatWebSocketController {
                                 "increment", 1
                         )
                 );
-                System.out.println("📤 未読数通知を /topic/unread/" + partner.getId() + " へ送信");
+                log.info("📤 未読数通知を /topic/unread/" + partner.getId() + " へ送信");
             }
 
-            System.out.println("========== /chat/send 処理完了 ==========\n");
+            log.info("========== /chat/send 処理完了 ==========\n");
             
         } catch (NumberFormatException e) {
-            System.out.println("❌ 型変換エラー発生");
-            System.out.println("   エラーメッセージ: " + e.getMessage());
-            System.out.println("   roomId を Integer に変換できませんでした");
-            e.printStackTrace();
-            System.out.println("========== /chat/send 処理失敗 ==========\n");
+            log.error("❌ 型変換エラー発生");
+            log.info("   エラーメッセージ: " + e.getMessage());
+            log.info("   roomId を Integer に変換できませんでした");
+            log.info("========== /chat/send 処理失敗 ==========\n");
         } catch (NullPointerException e) {
-            System.out.println("❌ NullPointerException 発生");
-            System.out.println("   ペイロードに必須パラメータが不足しています");
-            System.out.println("   必須: senderId, roomId, content");
-            System.out.println("   エラーメッセージ: " + e.getMessage());
-            e.printStackTrace();
-            System.out.println("========== /chat/send 処理失敗 ==========\n");
+            log.error("❌ NullPointerException 発生");
+            log.info("   ペイロードに必須パラメータが不足しています");
+            log.info("   必須: senderId, roomId, content");
+            log.info("   エラーメッセージ: " + e.getMessage());
+            log.info("========== /chat/send 処理失敗 ==========\n");
         } catch (Exception e) {
-            System.out.println("❌ 予期しないエラー発生");
-            System.out.println("   エラータイプ: " + e.getClass().getName());
-            System.out.println("   エラーメッセージ: " + e.getMessage());
-            e.printStackTrace();
-            System.out.println("========== /chat/send 処理失敗 ==========\n");
+            log.error("❌ 予期しないエラー発生");
+            log.info("   エラータイプ: " + e.getClass().getName());
+            log.info("   エラーメッセージ: " + e.getMessage());
+            log.info("========== /chat/send 処理失敗 ==========\n");
         }
     }
 
@@ -146,34 +143,34 @@ public class ChatWebSocketController {
     public void deleteMessage(
             @Payload Map<String, Object> payload
     ) {
-        System.out.println("\n========== WebSocket /chat/delete リクエスト受信 ==========");
-        System.out.println("🗑️ ペイロード全体: " + payload);
+        log.info("\n========== WebSocket /chat/delete リクエスト受信 ==========");
+        log.info("🗑️ ペイロード全体: " + payload);
         
         try {
             // パラメータの取得と検証
-            System.out.println("🔍 パラメータを抽出中...");
+            log.info("🔍 パラメータを抽出中...");
             Object messageIdObj = payload.get("messageId");
             Object roomIdObj = payload.get("roomId");
             
-            System.out.println("   - messageId タイプ: " + (messageIdObj != null ? messageIdObj.getClass().getSimpleName() : "null"));
-            System.out.println("   - messageId 値: " + messageIdObj);
-            System.out.println("   - roomId タイプ: " + (roomIdObj != null ? roomIdObj.getClass().getSimpleName() : "null"));
-            System.out.println("   - roomId 値: " + roomIdObj);
+            log.debug("   - messageId タイプ: " + (messageIdObj != null ? messageIdObj.getClass().getSimpleName() : "null"));
+            log.debug("   - messageId 値: " + messageIdObj);
+            log.debug("   - roomId タイプ: " + (roomIdObj != null ? roomIdObj.getClass().getSimpleName() : "null"));
+            log.debug("   - roomId 値: " + roomIdObj);
             
             Integer messageId = ((Number) payload.get("messageId")).intValue();
             Integer roomId = ((Number) payload.get("roomId")).intValue();
             
-            System.out.println("✅ パラメータ抽出成功");
-            System.out.println("   - messageId (最終): " + messageId);
-            System.out.println("   - roomId (最終): " + roomId);
+            log.info("✅ パラメータ抽出成功");
+            log.debug("   - messageId (最終): " + messageId);
+            log.debug("   - roomId (最終): " + roomId);
             
             // メッセージ削除
-            System.out.println("🔍 messageId=" + messageId + " を削除中...");
+            log.info("🔍 messageId=" + messageId + " を削除中...");
             chatMessageService.deleteMessage(messageId);
-            System.out.println("✅ メッセージ削除成功");
+            log.info("✅ メッセージ削除成功");
             
             // WebSocket トピックへ削除通知を送信
-            System.out.println("📤 WebSocket トピック /topic/chat/" + roomId + " へ削除通知を送信中...");
+            log.info("📤 WebSocket トピック /topic/chat/" + roomId + " へ削除通知を送信中...");
             messagingTemplate.convertAndSend(
                     "/topic/chat/" + roomId,
                     Map.of(
@@ -181,28 +178,25 @@ public class ChatWebSocketController {
                         "messageId", messageId
                     )
             );
-            System.out.println("✅ WebSocket 送信完了");
-            System.out.println("========== /chat/delete 処理完了 ==========\n");
+            log.info("✅ WebSocket 送信完了");
+            log.info("========== /chat/delete 処理完了 ==========\n");
             
         } catch (NumberFormatException e) {
-            System.out.println("❌ 型変換エラー発生");
-            System.out.println("   エラーメッセージ: " + e.getMessage());
-            System.out.println("   messageId または roomId を Integer に変換できませんでした");
-            e.printStackTrace();
-            System.out.println("========== /chat/delete 処理失敗 ==========\n");
+            log.error("❌ 型変換エラー発生");
+            log.info("   エラーメッセージ: " + e.getMessage());
+            log.info("   messageId または roomId を Integer に変換できませんでした");
+            log.info("========== /chat/delete 処理失敗 ==========\n");
         } catch (NullPointerException e) {
-            System.out.println("❌ NullPointerException 発生");
-            System.out.println("   ペイロードに必須パラメータが不足しています");
-            System.out.println("   必須: messageId, roomId");
-            System.out.println("   エラーメッセージ: " + e.getMessage());
-            e.printStackTrace();
-            System.out.println("========== /chat/delete 処理失敗 ==========\n");
+            log.error("❌ NullPointerException 発生");
+            log.info("   ペイロードに必須パラメータが不足しています");
+            log.info("   必須: messageId, roomId");
+            log.info("   エラーメッセージ: " + e.getMessage());
+            log.info("========== /chat/delete 処理失敗 ==========\n");
         } catch (Exception e) {
-            System.out.println("❌ 予期しないエラー発生");
-            System.out.println("   エラータイプ: " + e.getClass().getName());
-            System.out.println("   エラーメッセージ: " + e.getMessage());
-            e.printStackTrace();
-            System.out.println("========== /chat/delete 処理失敗 ==========\n");
+            log.error("❌ 予期しないエラー発生");
+            log.info("   エラータイプ: " + e.getClass().getName());
+            log.info("   エラーメッセージ: " + e.getMessage());
+            log.info("========== /chat/delete 処理失敗 ==========\n");
         }
     }
 }

@@ -5,6 +5,7 @@ import { configureStore } from '@reduxjs/toolkit';
 import { MemoryRouter } from 'react-router-dom';
 import LoginCallback from '../LoginCallback';
 import authReducer from '../../store/authSlice';
+import authRepository from '../../repositories/AuthRepository';
 
 const mockNavigate = vi.fn();
 
@@ -15,6 +16,8 @@ vi.mock('react-router-dom', async () => {
     useNavigate: () => mockNavigate,
   };
 });
+
+vi.mock('../../repositories/AuthRepository');
 
 function renderWithRoute(search: string) {
   const store = configureStore({ reducer: { auth: authReducer } });
@@ -30,16 +33,11 @@ function renderWithRoute(search: string) {
 describe('LoginCallback', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.stubGlobal('fetch', vi.fn());
     vi.stubGlobal('alert', vi.fn());
   });
 
   it('ローディング表示がされる', () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: async () => ({}),
-      headers: new Headers(),
-    } as Response);
+    vi.mocked(authRepository.callback).mockResolvedValue({});
 
     renderWithRoute('?code=test-code');
 
@@ -64,33 +62,18 @@ describe('LoginCallback', () => {
   });
 
   it('認証成功時にホームページへリダイレクトする', async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: async () => ({ user: { id: 1, name: 'テスト' } }),
-      headers: new Headers(),
-    } as Response);
+    vi.mocked(authRepository.callback).mockResolvedValue({ user: { id: 1, name: 'テスト' } });
 
     renderWithRoute('?code=valid-code');
 
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/api/auth/cognito/callback'),
-        expect.objectContaining({
-          method: 'POST',
-          body: JSON.stringify({ code: 'valid-code' }),
-          credentials: 'include',
-        }),
-      );
+      expect(authRepository.callback).toHaveBeenCalledWith('valid-code');
       expect(mockNavigate).toHaveBeenCalledWith('/');
     });
   });
 
   it('認証失敗時にアラート表示しログインページへリダイレクトする', async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: false,
-      status: 401,
-      headers: new Headers(),
-    } as Response);
+    vi.mocked(authRepository.callback).mockRejectedValue(new Error('認証失敗'));
 
     renderWithRoute('?code=invalid-code');
 

@@ -4,6 +4,8 @@ import InputField from '../components/InputField';
 import PrimaryButton from '../components/PrimaryButton';
 import LinkText from '../components/LinkText';
 import { useNavigate } from 'react-router-dom';
+import authRepository from '../repositories/AuthRepository';
+import { AxiosError } from 'axios';
 
 interface FormMessage {
   type: 'success' | 'error';
@@ -14,7 +16,6 @@ export default function ConfirmPage() {
   const [form, setForm] = useState({ email: '', code: '' });
   const [message, setMessage] = useState<FormMessage | null>(null);
   const navigate = useNavigate();
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({
@@ -27,34 +28,18 @@ export default function ConfirmPage() {
     e.preventDefault();
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/cognito/confirm`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      await authRepository.confirmSignup(form);
+      navigate('/login', {
+        state: {
+          message: '確認に成功しました。ログインしてください。',
         },
-        body: JSON.stringify(form),
       });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        console.log('OK');
-        setMessage({ type: 'success', text: data.message });
-        navigate('/login', {
-          state: {
-            message: '確認に成功しました。ログインしてください。',
-          },
-        });
-      } else {
-        console.log('error1');
-        setMessage({
-          type: 'error',
-          text: data.error || '確認に失敗しました。',
-        });
-      }
     } catch (error) {
-      console.log(error);
-      setMessage({ type: 'error', text: '通信エラーが発生しました。' });
+      if (error instanceof AxiosError && error.response?.data?.error) {
+        setMessage({ type: 'error', text: error.response.data.error });
+      } else {
+        setMessage({ type: 'error', text: '通信エラーが発生しました。' });
+      }
     }
   };
 

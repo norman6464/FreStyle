@@ -30,11 +30,22 @@ describe('AuthRepository', () => {
   });
 
   it('confirmSignup: サインアップ確認ができる', async () => {
-    mockedApiClient.post.mockResolvedValue({});
+    mockedApiClient.post.mockResolvedValue({ data: { message: '確認成功' } });
 
-    await authRepository.confirmSignup({ email: 'test@example.com', confirmationCode: '123456' });
+    const result = await authRepository.confirmSignup({ email: 'test@example.com', code: '123456' });
 
-    expect(mockedApiClient.post).toHaveBeenCalledWith('/api/auth/cognito/confirm-signup', { email: 'test@example.com', confirmationCode: '123456' });
+    expect(mockedApiClient.post).toHaveBeenCalledWith('/api/auth/cognito/confirm', { email: 'test@example.com', code: '123456' });
+    expect(result).toEqual({ message: '確認成功' });
+  });
+
+  it('callback: OAuthコールバックを処理できる', async () => {
+    const mockData = { user: { id: 1, name: 'テスト' } };
+    mockedApiClient.post.mockResolvedValue({ data: mockData });
+
+    const result = await authRepository.callback('auth-code-123');
+
+    expect(mockedApiClient.post).toHaveBeenCalledWith('/api/auth/cognito/callback', { code: 'auth-code-123' });
+    expect(result).toEqual(mockData);
   });
 
   it('forgotPassword: パスワード再設定リクエストを送信できる', async () => {

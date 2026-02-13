@@ -12,45 +12,72 @@ interface ChatStats {
   chatPartnerCount: number;
 }
 
+interface ScoreHistory {
+  sessionId: number;
+  sessionTitle: string;
+  overallScore: number;
+  createdAt: string;
+}
+
 export default function MenuPage() {
   const navigate = useNavigate();
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
   const [stats, setStats] = useState<ChatStats | null>(null);
+  const [totalUnread, setTotalUnread] = useState<number>(0);
+  const [latestScore, setLatestScore] = useState<ScoreHistory | null>(null);
 
   useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/chat/stats`, {
+    const fetchWithRetry = async (url: string) => {
+      const res = await fetch(url, {
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      });
+      if (res.status === 401) {
+        const refreshRes = await fetch(
+          `${API_BASE_URL}/api/auth/cognito/refresh-token`,
+          { method: 'POST', credentials: 'include' }
+        );
+        if (!refreshRes.ok) {
+          navigate('/login');
+          return null;
+        }
+        await refreshRes.json();
+        const retryRes = await fetch(url, {
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
         });
+        if (!retryRes.ok) return null;
+        return retryRes.json();
+      }
+      if (!res.ok) return null;
+      return res.json();
+    };
 
-        if (res.status === 401) {
-          const refreshRes = await fetch(
-            `${API_BASE_URL}/api/auth/cognito/refresh-token`,
-            { method: 'POST', credentials: 'include' }
+    const fetchAll = async () => {
+      try {
+        const [statsData, roomsData, scoresData] = await Promise.all([
+          fetchWithRetry(`${API_BASE_URL}/api/chat/stats`),
+          fetchWithRetry(`${API_BASE_URL}/api/chat/rooms`),
+          fetchWithRetry(`${API_BASE_URL}/api/scores/history`),
+        ]);
+
+        if (statsData) setStats(statsData);
+
+        if (roomsData?.chatUsers) {
+          const unread = roomsData.chatUsers.reduce(
+            (sum: number, u: { unreadCount: number }) => sum + u.unreadCount, 0
           );
-          if (!refreshRes.ok) {
-            navigate('/login');
-            return;
-          }
-          await refreshRes.json();
-          const retryRes = await fetch(`${API_BASE_URL}/api/chat/stats`, {
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-          });
-          if (!retryRes.ok) return;
-          setStats(await retryRes.json());
-          return;
+          setTotalUnread(unread);
         }
 
-        if (!res.ok) return;
-        setStats(await res.json());
+        if (scoresData && scoresData.length > 0) {
+          setLatestScore(scoresData[0]);
+        }
       } catch (err) {
-        console.error('Error fetching stats:', err);
+        console.error('Error fetching dashboard data:', err);
       }
     };
-    fetchStats();
+    fetchAll();
   }, [navigate, API_BASE_URL]);
 
   const menuItems = [
@@ -59,26 +86,32 @@ export default function MenuPage() {
       label: 'チャット',
       description: 'メンバーとメッセージをやり取り',
       to: '/chat',
+      badge: totalUnread > 0 ? `${totalUnread}件の未読` : null,
     },
     {
       icon: SparklesIcon,
       label: 'AI アシスタント',
       description: 'AIにコミュニケーションを分析・フィードバック',
       to: '/chat/ask-ai',
+      badge: null,
     },
     {
       icon: AcademicCapIcon,
       label: '練習モード',
       description: 'ビジネスシナリオでロールプレイ練習',
       to: '/practice',
+      badge: null,
     },
     {
       icon: ChartBarIcon,
       label: 'スコア履歴',
       description: 'フィードバック結果の振り返り',
       to: '/scores',
+      badge: latestScore ? `最新: ${latestScore.overallScore}` : null,
     },
   ];
+
+  const showRecommendation = !latestScore && stats?.chatPartnerCount === 0;
 
   return (
     <div className="p-6 max-w-2xl mx-auto">
@@ -96,6 +129,16 @@ export default function MenuPage() {
         </div>
       </div>
 
+      {/* おすすめアクション */}
+      {showRecommendation && (
+        <div className="bg-primary-50 rounded-lg border border-primary-200 p-4 mb-6">
+          <p className="text-xs font-medium text-primary-700 mb-1">はじめての方へ</p>
+          <p className="text-xs text-primary-600">
+            まずは練習モードから始めてみましょう。AIが相手役を演じるビジネスシナリオで、コミュニケーションスキルを磨けます。
+          </p>
+        </div>
+      )}
+
       {/* メニュー */}
       <div className="space-y-2">
         {menuItems.map((item) => (
@@ -105,8 +148,15 @@ export default function MenuPage() {
             className="w-full flex items-center gap-4 bg-white rounded-lg border border-slate-200 p-4 text-left hover:bg-primary-50 transition-colors"
           >
             <item.icon className="w-5 h-5 text-slate-500 flex-shrink-0" />
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-slate-800">{item.label}</p>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-medium text-slate-800">{item.label}</p>
+                {item.badge && (
+                  <span className="text-[10px] font-medium bg-primary-500 text-white px-1.5 py-0.5 rounded-full">
+                    {item.badge}
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-slate-500">{item.description}</p>
             </div>
           </button>

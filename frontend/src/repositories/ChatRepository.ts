@@ -20,6 +20,11 @@ const ChatRepository = {
     const res = await apiClient.get('/api/auth/cognito/me');
     return res.data;
   },
+
+  async createRoom(userId: number): Promise<{ roomId: number }> {
+    const res = await apiClient.post(`/api/chat/users/${userId}/create`);
+    return res.data;
+  },
 };
 
 export default ChatRepository;

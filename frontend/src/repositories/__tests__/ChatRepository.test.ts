@@ -43,4 +43,14 @@ describe('ChatRepository', () => {
     expect(mockedApiClient.get).toHaveBeenCalledWith('/api/auth/cognito/me');
     expect(result).toEqual(mockUser);
   });
+
+  it('createRoom: チャットルームを作成できる', async () => {
+    const mockData = { roomId: 42 };
+    mockedApiClient.post.mockResolvedValue({ data: mockData });
+
+    const result = await ChatRepository.createRoom(5);
+
+    expect(mockedApiClient.post).toHaveBeenCalledWith('/api/chat/users/5/create');
+    expect(result).toEqual(mockData);
+  });
 });

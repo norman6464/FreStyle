@@ -1,80 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useDispatch } from 'react-redux';
-import { debounce } from 'lodash';
-import { useNavigate } from 'react-router-dom';
 import MemberList from '../components/MemberList';
 import SearchBox from '../components/SearchBox';
 import {
   MagnifyingGlassIcon,
   UserPlusIcon,
 } from '@heroicons/react/24/solid';
-import type { MemberUser } from '../types';
+import { useUserSearch } from '../hooks/useUserSearch';
 
 export default function AddUserPage() {
-  const navigate = useNavigate();
-  const dispatch = useDispatch();
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-
-  const [users, setUsers] = useState<MemberUser[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [debounceQuery, setDebounceQuery] = useState('');
-
-  const debounceSearch = useMemo(
-    () => debounce((query: string) => setDebounceQuery(query), 500),
-    []
-  );
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    const fetchWithAuth = async () => {
-      const queryParam = debounceQuery
-        ? `?query=${encodeURIComponent(debounceQuery)}`
-        : '';
-
-      const fetchUsers = async () => {
-        const res = await fetch(`${API_BASE_URL}/api/chat/users${queryParam}`, {
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          signal: controller.signal,
-        });
-        return res;
-      };
-
-      try {
-        let res = await fetchUsers();
-
-        if (res.status === 401) {
-          const refreshRes = await fetch(
-            `${API_BASE_URL}/api/auth/cognito/refresh-token`,
-            {
-              method: 'POST',
-              credentials: 'include',
-              signal: controller.signal,
-            }
-          );
-          if (!refreshRes.ok) {
-            navigate('/login');
-            return;
-          }
-          res = await fetchUsers();
-        }
-
-        if (!res.ok) throw new Error('ユーザー取得に失敗しました');
-
-        const data = await res.json();
-        setUsers(data.users || []);
-      } catch (err) {
-        if ((err as Error).name !== 'AbortError') {
-          setError((err as Error).message);
-        }
-      }
-    };
-
-    fetchWithAuth();
-    return () => controller.abort();
-  }, [debounceQuery, navigate, dispatch, API_BASE_URL]);
+  const { users, error, searchQuery, setSearchQuery, debounceQuery } = useUserSearch();
 
   return (
     <div className="p-6 max-w-2xl mx-auto">
@@ -82,10 +15,7 @@ export default function AddUserPage() {
       <div className="mb-6">
         <SearchBox
           value={searchQuery}
-          onChange={(value) => {
-            setSearchQuery(value);
-            debounceSearch(value);
-          }}
+          onChange={setSearchQuery}
           placeholder="ユーザー名またはメールアドレスで検索..."
         />
       </div>

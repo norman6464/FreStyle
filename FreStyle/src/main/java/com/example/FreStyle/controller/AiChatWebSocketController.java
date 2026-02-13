@@ -145,7 +145,16 @@ public class AiChatWebSocketController {
                 String practicePrompt = systemPromptBuilder.buildPracticePrompt(
                         scenario.getName(), scenario.getRoleName(),
                         scenario.getDifficulty(), scenario.getSystemPrompt());
-                aiReply = bedrockService.chatInPracticeMode(content, practicePrompt);
+
+                // 「練習開始」の場合は、AIにシナリオの導入メッセージを生成させる
+                if ("練習開始".equals(content)) {
+                    String startPrompt = practicePrompt +
+                        "\n\nこれから練習が始まります。あなたは相手役として、シナリオに基づいた最初の発言をしてください。" +
+                        "ユーザーに対して、シナリオの状況を反映した自然な会話で話しかけてください。";
+                    aiReply = bedrockService.chatInPracticeMode("", startPrompt);
+                } else {
+                    aiReply = bedrockService.chatInPracticeMode(content, practicePrompt);
+                }
             } else if (fromChatFeedback) {
                 // チャットフィードバックモード: バックエンドでUserProfileを取得
                 System.out.println("🤖 フィードバックモード: UserProfileをバックエンドで取得中... scene=" + scene);

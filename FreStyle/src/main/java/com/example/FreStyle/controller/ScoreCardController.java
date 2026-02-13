@@ -41,21 +41,16 @@ public class ScoreCardController {
     ) {
         logger.info("========== GET /api/scores/sessions/{} ==========", sessionId);
 
-        try {
-            String sub = jwt.getSubject();
-            User user = userIdentityService.findUserBySub(sub);
+        String sub = jwt.getSubject();
+        User user = userIdentityService.findUserBySub(sub);
 
-            // 権限チェック
-            getAiChatSessionByIdUseCase.execute(sessionId, user.getId());
+        // 権限チェック
+        getAiChatSessionByIdUseCase.execute(sessionId, user.getId());
 
-            ScoreCardDto scoreCard = scoreCardService.getScoreCard(sessionId);
-            logger.info("✅ スコアカード取得成功 - sessionId: {}", sessionId);
+        ScoreCardDto scoreCard = scoreCardService.getScoreCard(sessionId);
+        logger.info("✅ スコアカード取得成功 - sessionId: {}", sessionId);
 
-            return ResponseEntity.ok(scoreCard);
-        } catch (RuntimeException e) {
-            logger.error("❌ スコアカード取得エラー: {}", e.getMessage());
-            return ResponseEntity.notFound().build();
-        }
+        return ResponseEntity.ok(scoreCard);
     }
 
     /**
@@ -67,17 +62,12 @@ public class ScoreCardController {
     ) {
         logger.info("========== GET /api/scores/history ==========");
 
-        try {
-            String sub = jwt.getSubject();
-            User user = userIdentityService.findUserBySub(sub);
+        String sub = jwt.getSubject();
+        User user = userIdentityService.findUserBySub(sub);
 
-            List<ScoreHistoryDto> history = scoreCardService.getScoreHistoryGrouped(user.getId());
-            logger.info("✅ スコア履歴取得成功 - userId: {}, 件数: {}", user.getId(), history.size());
+        List<ScoreHistoryDto> history = scoreCardService.getScoreHistoryGrouped(user.getId());
+        logger.info("✅ スコア履歴取得成功 - userId: {}, 件数: {}", user.getId(), history.size());
 
-            return ResponseEntity.ok(history);
-        } catch (RuntimeException e) {
-            logger.error("❌ スコア履歴取得エラー: {}", e.getMessage());
-            return ResponseEntity.internalServerError().build();
-        }
+        return ResponseEntity.ok(history);
     }
 }

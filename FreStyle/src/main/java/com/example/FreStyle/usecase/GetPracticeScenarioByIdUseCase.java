@@ -5,6 +5,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.example.FreStyle.dto.PracticeScenarioDto;
 import com.example.FreStyle.entity.PracticeScenario;
+import com.example.FreStyle.exception.ResourceNotFoundException;
 import com.example.FreStyle.mapper.PracticeScenarioMapper;
 import com.example.FreStyle.repository.PracticeScenarioRepository;
 
@@ -43,12 +44,12 @@ public class GetPracticeScenarioByIdUseCase {
      *
      * @param id 練習シナリオID
      * @return 練習シナリオDTO
-     * @throws RuntimeException 指定されたIDのシナリオが見つからない場合
+     * @throws ResourceNotFoundException 指定されたIDのシナリオが見つからない場合
      */
     @Transactional(readOnly = true)
     public PracticeScenarioDto execute(Integer id) {
         PracticeScenario entity = practiceScenarioRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("シナリオが見つかりません: ID=" + id));
+                .orElseThrow(() -> new ResourceNotFoundException("シナリオが見つかりません: ID=" + id));
 
         return mapper.toDto(entity);
     }

@@ -76,20 +76,15 @@ public class PracticeController {
     public ResponseEntity<List<PracticeScenarioDto>> getScenarios(@AuthenticationPrincipal Jwt jwt) {
         logger.info("========== GET /api/practice/scenarios ==========");
 
-        try {
-            // 認証チェック
-            String sub = jwt.getSubject();
-            userIdentityService.findUserBySub(sub);
+        // 認証チェック
+        String sub = jwt.getSubject();
+        userIdentityService.findUserBySub(sub);
 
-            // ユースケース実行
-            List<PracticeScenarioDto> scenarios = getAllPracticeScenariosUseCase.execute();
-            logger.info("✅ シナリオ一覧取得成功 - 件数: {}", scenarios.size());
+        // ユースケース実行
+        List<PracticeScenarioDto> scenarios = getAllPracticeScenariosUseCase.execute();
+        logger.info("✅ シナリオ一覧取得成功 - 件数: {}", scenarios.size());
 
-            return ResponseEntity.ok(scenarios);
-        } catch (Exception e) {
-            logger.error("❌ シナリオ一覧取得エラー: {}", e.getMessage(), e);
-            return ResponseEntity.internalServerError().build();
-        }
+        return ResponseEntity.ok(scenarios);
     }
 
     /**
@@ -108,21 +103,15 @@ public class PracticeController {
     ) {
         logger.info("========== GET /api/practice/scenarios/{} ==========", scenarioId);
 
-        try {
-            // 認証チェック
-            String sub = jwt.getSubject();
-            userIdentityService.findUserBySub(sub);
+        // 認証チェック
+        String sub = jwt.getSubject();
+        userIdentityService.findUserBySub(sub);
 
-            // ユースケース実行
-            PracticeScenarioDto scenario = getPracticeScenarioByIdUseCase.execute(scenarioId);
-            logger.info("✅ シナリオ詳細取得成功");
+        // ユースケース実行
+        PracticeScenarioDto scenario = getPracticeScenarioByIdUseCase.execute(scenarioId);
+        logger.info("✅ シナリオ詳細取得成功");
 
-            return ResponseEntity.ok(scenario);
-        } catch (RuntimeException e) {
-            logger.error("❌ シナリオ詳細取得エラー - scenarioId: {}, エラー: {}",
-                        scenarioId, e.getMessage(), e);
-            return ResponseEntity.notFound().build();
-        }
+        return ResponseEntity.ok(scenario);
     }
 
     /**
@@ -148,25 +137,15 @@ public class PracticeController {
     ) {
         logger.info("========== POST /api/practice/sessions ==========");
 
-        try {
-            // 認証チェック & ユーザー取得
-            String sub = jwt.getSubject();
-            User user = userIdentityService.findUserBySub(sub);
+        // 認証チェック & ユーザー取得
+        String sub = jwt.getSubject();
+        User user = userIdentityService.findUserBySub(sub);
 
-            // ユースケース実行
-            AiChatSessionDto session = createPracticeSessionUseCase.execute(user, request.scenarioId());
-            logger.info("✅ 練習セッション作成成功 - sessionId: {}", session.getId());
+        // ユースケース実行
+        AiChatSessionDto session = createPracticeSessionUseCase.execute(user, request.scenarioId());
+        logger.info("✅ 練習セッション作成成功 - sessionId: {}", session.getId());
 
-            return ResponseEntity.ok(session);
-        } catch (RuntimeException e) {
-            logger.error("❌ 練習セッション作成エラー - scenarioId: {}, エラー: {}",
-                        request.scenarioId(), e.getMessage(), e);
-            return ResponseEntity.internalServerError().build();
-        } catch (Exception e) {
-            logger.error("❌ 練習セッション作成エラー（予期しないエラー） - scenarioId: {}",
-                        request.scenarioId(), e);
-            return ResponseEntity.internalServerError().build();
-        }
+        return ResponseEntity.ok(session);
     }
 
     /**

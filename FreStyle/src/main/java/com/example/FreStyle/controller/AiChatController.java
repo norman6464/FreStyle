@@ -3,10 +3,8 @@ package com.example.FreStyle.controller;
 import java.util.List;
 import java.util.Map;
 
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -63,28 +61,20 @@ public class AiChatController {
 
     @GetMapping("/history")
     public ResponseEntity<?> getChatHistory(@AuthenticationPrincipal Jwt jwt) {
-        try {
-            // Jwt から senderId(sub) を取得
-            String sub = jwt.getSubject();
-            
-            Integer senderId = userIdentityService.findUserBySub(sub).getId();
-            logger.info("📥 [AiChatController] AI履歴取得リクエスト開始 - senderId: {}", senderId);
-            
-            // ロジックは変更しない
-            logger.debug("🔍 [AiChatController] AiChatService.getChatHistory() を呼び出し");
-            List<AiChatMessageDto> history = aiChatService.getChatHistory(senderId);
-            
-            logger.info("✅ [AiChatController] AI履歴取得成功 - メッセージ数: {}", history.size());
-            logger.debug("📋 [AiChatController] 取得履歴: {}", history);
+        // Jwt から senderId(sub) を取得
+        String sub = jwt.getSubject();
 
-            return ResponseEntity.ok(history);
+        Integer senderId = userIdentityService.findUserBySub(sub).getId();
+        logger.info("📥 [AiChatController] AI履歴取得リクエスト開始 - senderId: {}", senderId);
 
-        } catch (RuntimeException e) {
-            // 予期しないアプリケーションエラー → 500
-            logger.error("❌ [AiChatController] AI履歴取得エラー", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "サーバーのエラーです。"));
-        }
+        // ロジックは変更しない
+        logger.debug("🔍 [AiChatController] AiChatService.getChatHistory() を呼び出し");
+        List<AiChatMessageDto> history = aiChatService.getChatHistory(senderId);
+
+        logger.info("✅ [AiChatController] AI履歴取得成功 - メッセージ数: {}", history.size());
+        logger.debug("📋 [AiChatController] 取得履歴: {}", history);
+
+        return ResponseEntity.ok(history);
     }
 
     // =============================================
@@ -97,19 +87,14 @@ public class AiChatController {
     @GetMapping("/sessions")
     public ResponseEntity<List<AiChatSessionDto>> getSessions(@AuthenticationPrincipal Jwt jwt) {
         logger.info("========== GET /api/chat/ai/sessions ==========");
-        
-        try {
-            String sub = jwt.getSubject();
-            User user = userIdentityService.findUserBySub(sub);
 
-            List<AiChatSessionDto> sessions = getAiChatSessionsByUserIdUseCase.execute(user.getId());
-            logger.info("✅ セッション一覧取得成功 - 件数: {}", sessions.size());
-            
-            return ResponseEntity.ok(sessions);
-        } catch (Exception e) {
-            logger.error("❌ セッション一覧取得エラー: {}", e.getMessage());
-            return ResponseEntity.internalServerError().build();
-        }
+        String sub = jwt.getSubject();
+        User user = userIdentityService.findUserBySub(sub);
+
+        List<AiChatSessionDto> sessions = getAiChatSessionsByUserIdUseCase.execute(user.getId());
+        logger.info("✅ セッション一覧取得成功 - 件数: {}", sessions.size());
+
+        return ResponseEntity.ok(sessions);
     }
 
     /**
@@ -122,23 +107,18 @@ public class AiChatController {
     ) {
         logger.info("========== POST /api/chat/ai/sessions ==========");
         logger.info("📝 リクエスト: {}", request);
-        
-        try {
-            String sub = jwt.getSubject();
-            User user = userIdentityService.findUserBySub(sub);
 
-            AiChatSessionDto session = createAiChatSessionUseCase.execute(
-                    user.getId(),
-                    request.title(),
-                    request.relatedRoomId()
-            );
-            logger.info("✅ セッション作成成功 - sessionId: {}", session.getId());
-            
-            return ResponseEntity.ok(session);
-        } catch (Exception e) {
-            logger.error("❌ セッション作成エラー: {}", e.getMessage());
-            return ResponseEntity.internalServerError().build();
-        }
+        String sub = jwt.getSubject();
+        User user = userIdentityService.findUserBySub(sub);
+
+        AiChatSessionDto session = createAiChatSessionUseCase.execute(
+                user.getId(),
+                request.title(),
+                request.relatedRoomId()
+        );
+        logger.info("✅ セッション作成成功 - sessionId: {}", session.getId());
+
+        return ResponseEntity.ok(session);
     }
 
     /**
@@ -150,19 +130,14 @@ public class AiChatController {
             @PathVariable Integer sessionId
     ) {
         logger.info("========== GET /api/chat/ai/sessions/{} ==========", sessionId);
-        
-        try {
-            String sub = jwt.getSubject();
-            User user = userIdentityService.findUserBySub(sub);
 
-            AiChatSessionDto session = getAiChatSessionByIdUseCase.execute(sessionId, user.getId());
-            logger.info("✅ セッション取得成功");
-            
-            return ResponseEntity.ok(session);
-        } catch (RuntimeException e) {
-            logger.error("❌ セッション取得エラー: {}", e.getMessage());
-            return ResponseEntity.notFound().build();
-        }
+        String sub = jwt.getSubject();
+        User user = userIdentityService.findUserBySub(sub);
+
+        AiChatSessionDto session = getAiChatSessionByIdUseCase.execute(sessionId, user.getId());
+        logger.info("✅ セッション取得成功");
+
+        return ResponseEntity.ok(session);
     }
 
     /**
@@ -175,23 +150,18 @@ public class AiChatController {
             @RequestBody UpdateSessionRequest request
     ) {
         logger.info("========== PUT /api/chat/ai/sessions/{} ==========", sessionId);
-        
-        try {
-            String sub = jwt.getSubject();
-            User user = userIdentityService.findUserBySub(sub);
 
-            AiChatSessionDto session = updateAiChatSessionTitleUseCase.execute(
-                    sessionId,
-                    user.getId(),
-                    request.title()
-            );
-            logger.info("✅ セッションタイトル更新成功");
-            
-            return ResponseEntity.ok(session);
-        } catch (RuntimeException e) {
-            logger.error("❌ セッションタイトル更新エラー: {}", e.getMessage());
-            return ResponseEntity.notFound().build();
-        }
+        String sub = jwt.getSubject();
+        User user = userIdentityService.findUserBySub(sub);
+
+        AiChatSessionDto session = updateAiChatSessionTitleUseCase.execute(
+                sessionId,
+                user.getId(),
+                request.title()
+        );
+        logger.info("✅ セッションタイトル更新成功");
+
+        return ResponseEntity.ok(session);
     }
 
     /**
@@ -203,19 +173,14 @@ public class AiChatController {
             @PathVariable Integer sessionId
     ) {
         logger.info("========== DELETE /api/chat/ai/sessions/{} ==========", sessionId);
-        
-        try {
-            String sub = jwt.getSubject();
-            User user = userIdentityService.findUserBySub(sub);
 
-            deleteAiChatSessionUseCase.execute(sessionId, user.getId());
-            logger.info("✅ セッション削除成功");
-            
-            return ResponseEntity.noContent().build();
-        } catch (RuntimeException e) {
-            logger.error("❌ セッション削除エラー: {}", e.getMessage());
-            return ResponseEntity.notFound().build();
-        }
+        String sub = jwt.getSubject();
+        User user = userIdentityService.findUserBySub(sub);
+
+        deleteAiChatSessionUseCase.execute(sessionId, user.getId());
+        logger.info("✅ セッション削除成功");
+
+        return ResponseEntity.noContent().build();
     }
 
     /**
@@ -227,22 +192,17 @@ public class AiChatController {
             @PathVariable Integer sessionId
     ) {
         logger.info("========== GET /api/chat/ai/sessions/{}/messages ==========", sessionId);
-        
-        try {
-            String sub = jwt.getSubject();
-            User user = userIdentityService.findUserBySub(sub);
 
-            // 権限チェック（セッションがユーザーのものか確認）
-            getAiChatSessionByIdUseCase.execute(sessionId, user.getId());
+        String sub = jwt.getSubject();
+        User user = userIdentityService.findUserBySub(sub);
 
-            List<AiChatMessageResponseDto> messages = getAiChatMessagesBySessionIdUseCase.execute(sessionId);
-            logger.info("✅ メッセージ一覧取得成功 - 件数: {}", messages.size());
-            
-            return ResponseEntity.ok(messages);
-        } catch (RuntimeException e) {
-            logger.error("❌ メッセージ一覧取得エラー: {}", e.getMessage());
-            return ResponseEntity.notFound().build();
-        }
+        // 権限チェック（セッションがユーザーのものか確認）
+        getAiChatSessionByIdUseCase.execute(sessionId, user.getId());
+
+        List<AiChatMessageResponseDto> messages = getAiChatMessagesBySessionIdUseCase.execute(sessionId);
+        logger.info("✅ メッセージ一覧取得成功 - 件数: {}", messages.size());
+
+        return ResponseEntity.ok(messages);
     }
 
     /**
@@ -256,28 +216,23 @@ public class AiChatController {
     ) {
         logger.info("========== POST /api/chat/ai/sessions/{}/messages ==========", sessionId);
         logger.info("📝 リクエスト: {}", request);
-        
-        try {
-            String sub = jwt.getSubject();
-            User user = userIdentityService.findUserBySub(sub);
 
-            // 権限チェック
-            getAiChatSessionByIdUseCase.execute(sessionId, user.getId());
+        String sub = jwt.getSubject();
+        User user = userIdentityService.findUserBySub(sub);
 
-            AiChatMessageResponseDto message;
-            if ("assistant".equalsIgnoreCase(request.role())) {
-                message = addAiChatMessageUseCase.executeAssistantMessage(sessionId, user.getId(), request.content());
-            } else {
-                message = addAiChatMessageUseCase.executeUserMessage(sessionId, user.getId(), request.content());
-            }
+        // 権限チェック
+        getAiChatSessionByIdUseCase.execute(sessionId, user.getId());
 
-            logger.info("✅ メッセージ追加成功 - messageId: {}", message.getId());
-            
-            return ResponseEntity.ok(message);
-        } catch (RuntimeException e) {
-            logger.error("❌ メッセージ追加エラー: {}", e.getMessage());
-            return ResponseEntity.badRequest().build();
+        AiChatMessageResponseDto message;
+        if ("assistant".equalsIgnoreCase(request.role())) {
+            message = addAiChatMessageUseCase.executeAssistantMessage(sessionId, user.getId(), request.content());
+        } else {
+            message = addAiChatMessageUseCase.executeUserMessage(sessionId, user.getId(), request.content());
         }
+
+        logger.info("✅ メッセージ追加成功 - messageId: {}", message.getId());
+
+        return ResponseEntity.ok(message);
     }
 
     /**
@@ -290,18 +245,13 @@ public class AiChatController {
     ) {
         logger.info("========== POST /api/chat/ai/rephrase ==========");
 
-        try {
-            String sub = jwt.getSubject();
-            userIdentityService.findUserBySub(sub); // 認証チェック
+        String sub = jwt.getSubject();
+        userIdentityService.findUserBySub(sub); // 認証チェック
 
-            String result = bedrockService.rephrase(request.originalMessage(), request.scene());
-            logger.info("✅ 言い換え提案取得成功");
+        String result = bedrockService.rephrase(request.originalMessage(), request.scene());
+        logger.info("✅ 言い換え提案取得成功");
 
-            return ResponseEntity.ok(Map.of("result", result));
-        } catch (Exception e) {
-            logger.error("❌ 言い換え提案エラー: {}", e.getMessage());
-            return ResponseEntity.internalServerError().build();
-        }
+        return ResponseEntity.ok(Map.of("result", result));
     }
 
     // リクエスト用のRecord

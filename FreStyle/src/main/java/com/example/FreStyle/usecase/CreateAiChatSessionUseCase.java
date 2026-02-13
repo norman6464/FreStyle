@@ -7,6 +7,7 @@ import com.example.FreStyle.dto.AiChatSessionDto;
 import com.example.FreStyle.entity.AiChatSession;
 import com.example.FreStyle.entity.ChatRoom;
 import com.example.FreStyle.entity.User;
+import com.example.FreStyle.exception.ResourceNotFoundException;
 import com.example.FreStyle.mapper.AiChatSessionMapper;
 import com.example.FreStyle.repository.AiChatSessionRepository;
 import com.example.FreStyle.repository.ChatRoomRepository;
@@ -53,7 +54,7 @@ public class CreateAiChatSessionUseCase {
      * @param title セッションタイトル
      * @param relatedRoomId 関連するチャットルームID（任意）
      * @return 作成されたセッション情報（DTO）
-     * @throws RuntimeException ユーザーまたはルームが見つからない場合
+     * @throws ResourceNotFoundException ユーザーまたはルームが見つからない場合
      */
     @Transactional
     public AiChatSessionDto execute(Integer userId, String title, Integer relatedRoomId) {
@@ -68,7 +69,7 @@ public class CreateAiChatSessionUseCase {
      * @param relatedRoomId 関連するチャットルームID（任意）
      * @param scene シーン（任意）
      * @return 作成されたセッション情報（DTO）
-     * @throws RuntimeException ユーザーまたはルームが見つからない場合
+     * @throws ResourceNotFoundException ユーザーまたはルームが見つからない場合
      */
     @Transactional
     public AiChatSessionDto execute(Integer userId, String title, Integer relatedRoomId, String scene) {
@@ -85,7 +86,7 @@ public class CreateAiChatSessionUseCase {
      * @param sessionType セッションタイプ（"normal", "practice"等）
      * @param scenarioId 練習シナリオID（練習モードの場合のみ）
      * @return 作成されたセッション情報（DTO）
-     * @throws RuntimeException ユーザーまたはルームが見つからない場合
+     * @throws ResourceNotFoundException ユーザーまたはルームが見つからない場合
      */
     @Transactional
     public AiChatSessionDto execute(
@@ -98,7 +99,7 @@ public class CreateAiChatSessionUseCase {
     ) {
         // 1. ユーザーを取得
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("ユーザーが見つかりません: ID=" + userId));
+                .orElseThrow(() -> new ResourceNotFoundException("ユーザーが見つかりません: ID=" + userId));
 
         // 2. セッションを作成
         AiChatSession session = new AiChatSession();
@@ -111,7 +112,7 @@ public class CreateAiChatSessionUseCase {
         // 3. 関連ルームが指定されている場合は設定
         if (relatedRoomId != null) {
             ChatRoom relatedRoom = chatRoomRepository.findById(relatedRoomId)
-                    .orElseThrow(() -> new RuntimeException("チャットルームが見つかりません: ID=" + relatedRoomId));
+                    .orElseThrow(() -> new ResourceNotFoundException("チャットルームが見つかりません: ID=" + relatedRoomId));
             session.setRelatedRoom(relatedRoom);
         }
 

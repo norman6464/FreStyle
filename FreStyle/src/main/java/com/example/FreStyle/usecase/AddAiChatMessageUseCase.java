@@ -8,6 +8,7 @@ import com.example.FreStyle.entity.AiChatMessage;
 import com.example.FreStyle.entity.AiChatMessage.Role;
 import com.example.FreStyle.entity.AiChatSession;
 import com.example.FreStyle.entity.User;
+import com.example.FreStyle.exception.ResourceNotFoundException;
 import com.example.FreStyle.mapper.AiChatMessageMapper;
 import com.example.FreStyle.repository.AiChatMessageRepository;
 import com.example.FreStyle.repository.AiChatSessionRepository;
@@ -52,15 +53,15 @@ public class AddAiChatMessageUseCase {
      * @param role ロール（user/assistant）
      * @param content メッセージ内容
      * @return 追加されたメッセージDTO
-     * @throws RuntimeException セッションまたはユーザーが見つからない場合
+     * @throws ResourceNotFoundException セッションまたはユーザーが見つからない場合
      */
     @Transactional
     public AiChatMessageResponseDto execute(Integer sessionId, Integer userId, Role role, String content) {
         AiChatSession session = aiChatSessionRepository.findById(sessionId)
-                .orElseThrow(() -> new RuntimeException("セッションが見つかりません: ID=" + sessionId));
+                .orElseThrow(() -> new ResourceNotFoundException("セッションが見つかりません: ID=" + sessionId));
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("ユーザーが見つかりません: ID=" + userId));
+                .orElseThrow(() -> new ResourceNotFoundException("ユーザーが見つかりません: ID=" + userId));
 
         AiChatMessage message = new AiChatMessage();
         message.setSession(session);
@@ -79,7 +80,7 @@ public class AddAiChatMessageUseCase {
      * @param userId ユーザーID
      * @param content メッセージ内容
      * @return 追加されたメッセージDTO
-     * @throws RuntimeException セッションまたはユーザーが見つからない場合
+     * @throws ResourceNotFoundException セッションまたはユーザーが見つからない場合
      */
     @Transactional
     public AiChatMessageResponseDto executeUserMessage(Integer sessionId, Integer userId, String content) {
@@ -93,7 +94,7 @@ public class AddAiChatMessageUseCase {
      * @param userId ユーザーID
      * @param content メッセージ内容
      * @return 追加されたメッセージDTO
-     * @throws RuntimeException セッションまたはユーザーが見つからない場合
+     * @throws ResourceNotFoundException セッションまたはユーザーが見つからない場合
      */
     @Transactional
     public AiChatMessageResponseDto executeAssistantMessage(Integer sessionId, Integer userId, String content) {

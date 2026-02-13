@@ -4,6 +4,7 @@ import { useAiChat } from '../hooks/useAiChat';
 import { SkeletonCard } from '../components/Skeleton';
 import SkillRadarChart from '../components/SkillRadarChart';
 import PracticeCalendar from '../components/PracticeCalendar';
+import ScoreRankBadge from '../components/ScoreRankBadge';
 import SkillTrendChart from '../components/SkillTrendChart';
 
 interface AxisScore {
@@ -81,6 +82,17 @@ export default function ScoreHistoryPage() {
 
   return (
     <div className="max-w-3xl mx-auto p-4 space-y-3">
+      {/* 最新スコアとランクバッジ */}
+      {latestSession && (
+        <div className="bg-white rounded-lg border border-slate-200 p-4 flex items-center justify-between">
+          <div>
+            <p className="text-xs text-slate-500 mb-1">最新スコア</p>
+            <p className="text-2xl font-bold text-slate-800">{latestSession.overallScore.toFixed(1)}</p>
+          </div>
+          <ScoreRankBadge score={latestSession.overallScore} />
+        </div>
+      )}
+
       {/* 弱点ベースのおすすめ練習 */}
       {weakestAxis && (
         <div className="bg-primary-50 rounded-lg border border-primary-100 p-4">

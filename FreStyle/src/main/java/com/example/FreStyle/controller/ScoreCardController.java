@@ -15,9 +15,9 @@ import java.util.List;
 import com.example.FreStyle.dto.ScoreCardDto;
 import com.example.FreStyle.dto.ScoreHistoryDto;
 import com.example.FreStyle.entity.User;
-import com.example.FreStyle.service.AiChatSessionService;
 import com.example.FreStyle.service.ScoreCardService;
 import com.example.FreStyle.service.UserIdentityService;
+import com.example.FreStyle.usecase.GetAiChatSessionByIdUseCase;
 
 import lombok.RequiredArgsConstructor;
 
@@ -28,8 +28,8 @@ public class ScoreCardController {
 
     private static final Logger logger = LoggerFactory.getLogger(ScoreCardController.class);
     private final ScoreCardService scoreCardService;
-    private final AiChatSessionService aiChatSessionService;
     private final UserIdentityService userIdentityService;
+    private final GetAiChatSessionByIdUseCase getAiChatSessionByIdUseCase;
 
     /**
      * セッションのスコアカードを取得
@@ -46,7 +46,7 @@ public class ScoreCardController {
             User user = userIdentityService.findUserBySub(sub);
 
             // 権限チェック
-            aiChatSessionService.getSessionByIdAndUserId(sessionId, user.getId());
+            getAiChatSessionByIdUseCase.execute(sessionId, user.getId());
 
             ScoreCardDto scoreCard = scoreCardService.getScoreCard(sessionId);
             logger.info("✅ スコアカード取得成功 - sessionId: {}", sessionId);

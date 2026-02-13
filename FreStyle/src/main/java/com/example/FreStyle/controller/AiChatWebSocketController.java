@@ -14,12 +14,13 @@ import com.example.FreStyle.dto.PracticeScenarioDto;
 import com.example.FreStyle.dto.ScoreCardDto;
 import com.example.FreStyle.dto.UserProfileDto;
 import com.example.FreStyle.entity.AiChatMessage.Role;
-import com.example.FreStyle.service.AiChatMessageService;
-import com.example.FreStyle.service.AiChatSessionService;
 import com.example.FreStyle.service.BedrockService;
 import com.example.FreStyle.service.ScoreCardService;
 import com.example.FreStyle.service.SystemPromptBuilder;
 import com.example.FreStyle.service.UserProfileService;
+import com.example.FreStyle.usecase.AddAiChatMessageUseCase;
+import com.example.FreStyle.usecase.CreateAiChatSessionUseCase;
+import com.example.FreStyle.usecase.DeleteAiChatSessionUseCase;
 import com.example.FreStyle.usecase.GetPracticeScenarioByIdUseCase;
 
 import lombok.RequiredArgsConstructor;
@@ -30,14 +31,17 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class AiChatWebSocketController {
 
-    private final AiChatSessionService aiChatSessionService;
-    private final AiChatMessageService aiChatMessageService;
     private final BedrockService bedrockService;
     private final SimpMessagingTemplate messagingTemplate;
     private final UserProfileService userProfileService;
     private final ScoreCardService scoreCardService;
-    private final GetPracticeScenarioByIdUseCase getPracticeScenarioByIdUseCase;
     private final SystemPromptBuilder systemPromptBuilder;
+
+    // UseCases (クリーンアーキテクチャー)
+    private final CreateAiChatSessionUseCase createAiChatSessionUseCase;
+    private final AddAiChatMessageUseCase addAiChatMessageUseCase;
+    private final DeleteAiChatSessionUseCase deleteAiChatSessionUseCase;
+    private final GetPracticeScenarioByIdUseCase getPracticeScenarioByIdUseCase;
 
     /**
      * AIチャットメッセージ送信
@@ -109,7 +113,7 @@ public class AiChatWebSocketController {
                 if (scene != null && fromChatFeedback) {
                     title = getSceneDisplayName(scene) + "フィードバック";
                 }
-                AiChatSessionDto newSession = aiChatSessionService.createSession(userId, title, null, scene);
+                AiChatSessionDto newSession = createAiChatSessionUseCase.execute(userId, title, null, scene);
                 sessionId = newSession.getId();
                 System.out.println("✅ 新規セッション作成完了 - sessionId: " + sessionId);
 
@@ -122,7 +126,7 @@ public class AiChatWebSocketController {
 
             // メッセージ保存（ユーザーメッセージ）
             System.out.println("💾 ユーザーメッセージをデータベースに保存中...");
-            AiChatMessageResponseDto savedUserMessage = aiChatMessageService.addMessage(sessionId, userId, role, content);
+            AiChatMessageResponseDto savedUserMessage = addAiChatMessageUseCase.execute(sessionId, userId, role, content);
             System.out.println("✅ ユーザーメッセージ保存成功");
             System.out.println("   - messageId: " + savedUserMessage.getId());
             System.out.println("   - sessionId: " + savedUserMessage.getSessionId());
@@ -198,7 +202,7 @@ public class AiChatWebSocketController {
 
             // AI応答をデータベースに保存（role: assistant）
             System.out.println("💾 AI応答をデータベースに保存中...");
-            AiChatMessageResponseDto savedAiMessage = aiChatMessageService.addMessage(sessionId, userId, Role.assistant, aiReply);
+            AiChatMessageResponseDto savedAiMessage = addAiChatMessageUseCase.execute(sessionId, userId, Role.assistant, aiReply);
             System.out.println("✅ AI応答保存成功");
             System.out.println("   - messageId: " + savedAiMessage.getId());
             System.out.println("   - role: " + savedAiMessage.getRole());
@@ -295,7 +299,7 @@ public class AiChatWebSocketController {
             String content = (String) payload.get("content");
 
             // AIからのレスポンスを保存
-            AiChatMessageResponseDto saved = aiChatMessageService.addAssistantMessage(sessionId, userId, content);
+            AiChatMessageResponseDto saved = addAiChatMessageUseCase.executeAssistantMessage(sessionId, userId, content);
 
             // WebSocket トピックへ送信
             messagingTemplate.convertAndSend(
@@ -363,7 +367,7 @@ public class AiChatWebSocketController {
             Integer sessionId = convertToInteger(payload.get("sessionId"));
             Integer userId = convertToInteger(payload.get("userId"));
 
-            aiChatSessionService.deleteSession(sessionId, userId);
+            deleteAiChatSessionUseCase.execute(sessionId, userId);
 
             // 削除完了通知
             messagingTemplate.convertAndSend(

@@ -23,6 +23,10 @@ vi.mock('../../components/LearningInsightsCard', () => ({
   ),
 }));
 
+vi.mock('../../components/WeeklyReportCard', () => ({
+  default: () => <div data-testid="weekly-report">WeeklyReportCard</div>,
+}));
+
 const mockUseMenuData = vi.fn();
 vi.mock('../../hooks/useMenuData', () => ({
   useMenuData: () => mockUseMenuData(),

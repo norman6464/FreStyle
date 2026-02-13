@@ -19,9 +19,9 @@ describe('RephraseModal', () => {
   it('3パターンの言い換え結果が表示される', () => {
     render(<RephraseModal result={rephraseResult} onClose={mockOnClose} />);
 
-    expect(screen.getByText('フォーマル版')).toBeInTheDocument();
-    expect(screen.getByText('ソフト版')).toBeInTheDocument();
-    expect(screen.getByText('簡潔版')).toBeInTheDocument();
+    expect(screen.getByText('フォーマル')).toBeInTheDocument();
+    expect(screen.getByText('ソフト')).toBeInTheDocument();
+    expect(screen.getByText('簡潔')).toBeInTheDocument();
     expect(screen.getByText('フォーマルな言い換え文です。')).toBeInTheDocument();
     expect(screen.getByText('ソフトな言い換え文です。')).toBeInTheDocument();
     expect(screen.getByText('簡潔な言い換え文です。')).toBeInTheDocument();

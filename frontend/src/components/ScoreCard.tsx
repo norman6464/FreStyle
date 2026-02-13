@@ -5,27 +5,13 @@ interface ScoreCardProps {
 }
 
 export default function ScoreCard({ scoreCard }: ScoreCardProps) {
-  const getScoreColor = (score: number) => {
-    if (score >= 8) return 'bg-green-500';
-    if (score >= 6) return 'bg-yellow-500';
-    if (score >= 4) return 'bg-orange-500';
-    return 'bg-red-500';
-  };
-
-  const getOverallColor = (score: number) => {
-    if (score >= 8) return 'text-green-600';
-    if (score >= 6) return 'text-yellow-600';
-    if (score >= 4) return 'text-orange-600';
-    return 'text-red-600';
-  };
-
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-4 my-3 max-w-[85%] self-start">
+    <div className="bg-white rounded-lg border border-slate-200 p-4 my-3 max-w-[85%] self-start">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-bold text-slate-700">スコアカード</h3>
+        <h3 className="text-sm font-medium text-slate-700">スコアカード</h3>
         <div className="flex items-center gap-1">
           <span className="text-xs text-slate-500">総合</span>
-          <span className={`text-lg font-bold ${getOverallColor(scoreCard.overallScore)}`}>
+          <span className="text-lg font-semibold text-slate-800">
             {scoreCard.overallScore.toFixed(1)}
           </span>
           <span className="text-xs text-slate-400">/10</span>
@@ -36,12 +22,12 @@ export default function ScoreCard({ scoreCard }: ScoreCardProps) {
         {scoreCard.scores.map((axisScore) => (
           <div key={axisScore.axis}>
             <div className="flex items-center justify-between mb-0.5">
-              <span className="text-xs text-slate-600">{axisScore.axis}</span>
-              <span className="text-xs font-bold text-slate-700">{axisScore.score}</span>
+              <span className="text-xs text-slate-500">{axisScore.axis}</span>
+              <span className="text-xs font-medium text-slate-600">{axisScore.score}</span>
             </div>
-            <div className="w-full bg-slate-100 rounded-full h-2">
+            <div className="w-full bg-slate-100 rounded-full h-1.5">
               <div
-                className={`h-2 rounded-full transition-all duration-500 ${getScoreColor(axisScore.score)}`}
+                className="h-1.5 rounded-full bg-primary-500"
                 style={{ width: `${axisScore.score * 10}%` }}
               />
             </div>

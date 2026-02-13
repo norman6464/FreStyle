@@ -8,6 +8,7 @@ import {
   CheckCircleIcon,
   ExclamationCircleIcon,
 } from '@heroicons/react/24/solid';
+import { useAuth } from '../hooks/useAuth';
 
 interface FormMessage {
   type: 'success' | 'error';
@@ -17,9 +18,8 @@ interface FormMessage {
 export default function SignupPage() {
   const [form, setForm] = useState({ email: '', password: '', name: '' });
   const [message, setMessage] = useState<FormMessage | null>(null);
-  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+  const { signup, loading } = useAuth();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({
@@ -30,44 +30,28 @@ export default function SignupPage() {
 
   const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setLoading(true);
 
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/cognito/signup`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: form.email,
-          password: form.password,
-          name: form.name,
-        }),
-      });
+    const success = await signup({
+      email: form.email,
+      password: form.password,
+      name: form.name,
+    });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        setMessage({ type: 'success', text: data.message });
-        setTimeout(() => {
-          navigate('/confirm', {
-            state: {
-              message:
-                '✓ サインアップに成功しました！メール確認をお願いします。',
-            },
-          });
-        }, 1500);
-      } else {
-        setMessage({
-          type: 'error',
-          text: data.error || '登録に失敗しました。',
+    if (success) {
+      setMessage({ type: 'success', text: 'サインアップに成功しました！' });
+      setTimeout(() => {
+        navigate('/confirm', {
+          state: {
+            message:
+              '✓ サインアップに成功しました！メール確認をお願いします。',
+          },
         });
-      }
-    } catch (error) {
-      console.log(error);
-      setMessage({ type: 'error', text: '通信エラーが発生しました。' });
-    } finally {
-      setLoading(false);
+      }, 1500);
+    } else {
+      setMessage({
+        type: 'error',
+        text: '登録に失敗しました。',
+      });
     }
   };
 

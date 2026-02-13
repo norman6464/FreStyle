@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useDispatch } from 'react-redux';
 import AuthLayout from '../components/AuthLayout';
 import InputField from '../components/InputField';
 import PrimaryButton from '../components/PrimaryButton';
@@ -7,7 +6,7 @@ import SNSSignInButton from '../components/SNSSignInButton';
 import LinkText from '../components/LinkText';
 import { getCognitoAuthUrl } from '../utils/auth';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { setAuthData } from '../store/authSlice';
+import { useAuth } from '../hooks/useAuth';
 
 interface LoginMessage {
   type: 'success' | 'error';
@@ -20,69 +19,21 @@ export default function LoginPage() {
 
   const location = useLocation();
   const navigate = useNavigate();
-  const dispatch = useDispatch();
+  const { login } = useAuth();
   const message = (location.state as { message?: string })?.message;
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    console.log('\n========== ログインリクエスト開始 ==========');
-    console.log('📌 リクエスト情報:');
-    console.log('   - URL:', `${API_BASE_URL}/api/auth/cognito/login`);
-    console.log('   - email:', form.email);
-    console.log('   - credentials: include');
+    const success = await login({ email: form.email, password: form.password });
 
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/cognito/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: form.email,
-          password: form.password,
-        }),
-        credentials: 'include',
+    if (success) {
+      navigate('/');
+    } else {
+      setLoginMessage({
+        type: 'error',
+        text: 'ログインに失敗しました。',
       });
-
-      console.log('📨 レスポンス受信:');
-      console.log('   - status:', response.status);
-      console.log('   - ok:', response.ok);
-      console.log('   - statusText:', response.statusText);
-
-      console.log('📋 レスポンスヘッダー:');
-      response.headers.forEach((value, key) => {
-        console.log(`   - ${key}: ${value}`);
-      });
-
-      const setCookie = response.headers.get('Set-Cookie');
-      console.log('🍪 Set-Cookie ヘッダー:', setCookie || '(アクセス不可 - httpOnlyのため正常)');
-
-      console.log('🍪 現在のdocument.cookie:', document.cookie || '(空)');
-
-      const data = await response.json();
-      console.log('📄 レスポンスボディ:', data);
-
-      console.log('ステータスコード', response.status);
-
-      if (response.ok) {
-        console.log('✅ ログイン成功 - ホームへ遷移');
-        console.log('🍪 遷移前のdocument.cookie:', document.cookie || '(空)');
-        dispatch(setAuthData());
-        navigate('/');
-      } else {
-        console.log('❌ ログイン失敗:', data.error);
-        setLoginMessage({
-          type: 'error',
-          text: data.error || 'ログインに失敗しました。',
-        });
-      }
-      console.log('========== ログインリクエスト終了 ==========\n');
-    } catch (error) {
-      console.log('❌ 通信エラー:', (error as Error).message);
-      console.log('========== ログインリクエスト終了(エラー) ==========\n');
-      setLoginMessage({ type: 'error', text: '通信エラーが発生しました。' });
     }
   };
 

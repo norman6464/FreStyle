@@ -1,14 +1,13 @@
 import { useState, useEffect } from 'react';
 import InputField from '../components/InputField';
 import PrimaryButton from '../components/PrimaryButton';
-import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { clearAuth } from '../store/authSlice';
 import {
   ChatBubbleLeftRightIcon,
   LightBulbIcon,
   UserCircleIcon,
 } from '@heroicons/react/24/solid';
+import { useUserProfile } from '../hooks/useUserProfile';
 
 interface UserProfileForm {
   displayName: string;
@@ -36,12 +35,9 @@ export default function UserProfilePage() {
     preferredFeedbackStyle: '',
   });
   const [message, setMessage] = useState<FormMessage | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
   const [isNewProfile, setIsNewProfile] = useState<boolean>(false);
   const navigate = useNavigate();
-  const dispatch = useDispatch();
-
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+  const { profile, loading, fetchMyProfile, updateProfile } = useUserProfile();
 
   const communicationStyles = [
     { value: '', label: '選択してください' },
@@ -63,69 +59,24 @@ export default function UserProfilePage() {
     { value: 'detailed', label: '詳細に（具体的に説明してほしい）' },
   ];
 
-  const fetchProfile = async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/user-profile/me`, {
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-      });
-
-      if (res.status === 401) {
-        const refreshRes = await fetch(
-          `${API_BASE_URL}/api/auth/cognito/refresh-token`,
-          { method: 'POST', credentials: 'include' }
-        );
-        if (!refreshRes.ok) {
-          dispatch(clearAuth());
-          return;
-        }
-
-        const retryRes = await fetch(`${API_BASE_URL}/api/user-profile/me`, {
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-        });
-        const retryData = await retryRes.json();
-        if (retryData.message) {
-          setIsNewProfile(true);
-        } else {
-          setForm({
-            displayName: retryData.displayName || '',
-            selfIntroduction: retryData.selfIntroduction || '',
-            communicationStyle: retryData.communicationStyle || '',
-            personalityTraits: retryData.personalityTraits || [],
-            goals: retryData.goals || '',
-            concerns: retryData.concerns || '',
-            preferredFeedbackStyle: retryData.preferredFeedbackStyle || '',
-          });
-        }
-        setLoading(false);
-        return;
-      }
-
-      const data = await res.json();
-      if (data.message) {
-        setIsNewProfile(true);
-      } else {
-        setForm({
-          displayName: data.displayName || '',
-          selfIntroduction: data.selfIntroduction || '',
-          communicationStyle: data.communicationStyle || '',
-          personalityTraits: data.personalityTraits || [],
-          goals: data.goals || '',
-          concerns: data.concerns || '',
-          preferredFeedbackStyle: data.preferredFeedbackStyle || '',
-        });
-      }
-    } catch (err) {
-      setMessage({ type: 'error', text: (err as Error).message });
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    fetchMyProfile();
+  }, [fetchMyProfile]);
 
   useEffect(() => {
-    fetchProfile();
-  }, []);
+    if (profile) {
+      setForm({
+        displayName: profile.displayName || '',
+        selfIntroduction: profile.selfIntroduction || '',
+        communicationStyle: profile.communicationStyle || '',
+        personalityTraits: profile.personalityTraits || [],
+        goals: profile.goals || '',
+        concerns: profile.concerns || '',
+        preferredFeedbackStyle: profile.preferredFeedbackStyle || '',
+      });
+      setIsNewProfile(false);
+    }
+  }, [profile]);
 
   const togglePersonalityTrait = (trait: string) => {
     setForm((prev) => {
@@ -138,59 +89,14 @@ export default function UserProfilePage() {
 
   const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/user-profile/me/upsert`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(form),
-      });
 
-      if (res.status === 401) {
-        const refreshRes = await fetch(
-          `${API_BASE_URL}/api/auth/cognito/refresh-token`,
-          { method: 'POST', credentials: 'include' }
-        );
-        if (!refreshRes.ok) {
-          navigate('/login');
-          return;
-        }
-        const retryRes = await fetch(`${API_BASE_URL}/api/user-profile/me/upsert`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify(form),
-        });
-        const retryData = await retryRes.json();
-        if (!retryRes.ok) throw new Error(retryData.error || '保存に失敗しました。');
+    const success = await updateProfile(form);
 
-        setMessage({ type: 'success', text: 'パーソナリティ設定を保存しました。' });
-        setIsNewProfile(false);
-        return;
-      }
-
-      const data = await res.json();
-
-      if (res.status === 400 && data.error?.includes('既に存在')) {
-        const updateRes = await fetch(`${API_BASE_URL}/api/user-profile/me/upsert`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify(form),
-        });
-        const updateData = await updateRes.json();
-        if (!updateRes.ok) throw new Error(updateData.error || '更新に失敗しました。');
-
-        setMessage({ type: 'success', text: 'パーソナリティ設定を更新しました。' });
-        return;
-      }
-
-      if (!res.ok) throw new Error(data.error || '保存に失敗しました。');
-
+    if (success) {
       setMessage({ type: 'success', text: 'パーソナリティ設定を保存しました。' });
       setIsNewProfile(false);
-    } catch (error) {
-      setMessage({ type: 'error', text: (error as Error).message || '通信エラーが発生しました。' });
+    } else {
+      setMessage({ type: 'error', text: '保存に失敗しました。' });
     }
   };
 

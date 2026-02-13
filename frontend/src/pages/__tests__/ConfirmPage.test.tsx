@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import ConfirmPage from '../ConfirmPage';
+import authRepository from '../../repositories/AuthRepository';
+import { AxiosError } from 'axios';
 
 const mockNavigate = vi.fn();
 
@@ -13,10 +15,11 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
+vi.mock('../../repositories/AuthRepository');
+
 describe('ConfirmPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.stubGlobal('fetch', vi.fn());
   });
 
   it('タイトルが表示される', () => {
@@ -50,10 +53,7 @@ describe('ConfirmPage', () => {
   });
 
   it('確認成功時にログインページへ遷移する', async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: async () => ({ message: '確認成功' }),
-    } as Response);
+    vi.mocked(authRepository.confirmSignup).mockResolvedValue({ message: '確認成功' });
 
     render(<BrowserRouter><ConfirmPage /></BrowserRouter>);
 
@@ -73,10 +73,9 @@ describe('ConfirmPage', () => {
   });
 
   it('確認失敗時にエラーメッセージを表示する', async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: false,
-      json: async () => ({ error: '確認コードが無効です' }),
-    } as Response);
+    const axiosError = new AxiosError('Request failed');
+    (axiosError as any).response = { data: { error: '確認コードが無効です' } };
+    vi.mocked(authRepository.confirmSignup).mockRejectedValue(axiosError);
 
     render(<BrowserRouter><ConfirmPage /></BrowserRouter>);
 
@@ -94,7 +93,7 @@ describe('ConfirmPage', () => {
   });
 
   it('通信エラー時にエラーメッセージを表示する', async () => {
-    vi.mocked(fetch).mockRejectedValue(new Error('Network error'));
+    vi.mocked(authRepository.confirmSignup).mockRejectedValue(new Error('Network error'));
 
     render(<BrowserRouter><ConfirmPage /></BrowserRouter>);
 

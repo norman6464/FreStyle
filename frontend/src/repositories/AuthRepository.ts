@@ -29,7 +29,7 @@ export interface SignupRequest {
 
 export interface ConfirmSignupRequest {
   email: string;
-  confirmationCode: string;
+  code: string;
 }
 
 export interface ForgotPasswordRequest {
@@ -68,8 +68,17 @@ class AuthRepository {
   /**
    * サインアップ確認
    */
-  async confirmSignup(request: ConfirmSignupRequest): Promise<void> {
-    await apiClient.post('/api/auth/cognito/confirm-signup', request);
+  async confirmSignup(request: ConfirmSignupRequest): Promise<{ message: string }> {
+    const response = await apiClient.post('/api/auth/cognito/confirm', request);
+    return response.data;
+  }
+
+  /**
+   * OAuthコールバック
+   */
+  async callback(code: string): Promise<unknown> {
+    const response = await apiClient.post('/api/auth/cognito/callback', { code });
+    return response.data;
   }
 
   /**

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAiChat } from '../hooks/useAiChat';
 import { SkeletonCard } from '../components/Skeleton';
 
@@ -22,10 +23,19 @@ function isPracticeSession(title: string): boolean {
   return title.startsWith('練習:') || title.startsWith('練習：');
 }
 
+const AXIS_ADVICE: Record<string, string> = {
+  '論理的構成力': '論理的構成力を伸ばすシナリオで練習しましょう',
+  '配慮表現': '配慮表現を伸ばすシナリオで練習しましょう',
+  '要約力': '要約力を伸ばすシナリオで練習しましょう',
+  '提案力': '提案力を伸ばすシナリオで練習しましょう',
+  '質問・傾聴力': '質問・傾聴力を伸ばすシナリオで練習しましょう',
+};
+
 export default function ScoreHistoryPage() {
   const [history, setHistory] = useState<ScoreHistoryItem[]>([]);
   const [filter, setFilter] = useState<string>('すべて');
   const { fetchScoreHistory, loading } = useAiChat();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const loadHistory = async () => {
@@ -61,8 +71,29 @@ export default function ScoreHistoryPage() {
     return true;
   });
 
+  const latestSession = history[history.length - 1];
+  const weakestAxis = latestSession
+    ? [...latestSession.scores].sort((a, b) => a.score - b.score)[0]
+    : null;
+
   return (
     <div className="max-w-3xl mx-auto p-4 space-y-3">
+      {/* 弱点ベースのおすすめ練習 */}
+      {weakestAxis && (
+        <div className="bg-primary-50 rounded-lg border border-primary-100 p-4">
+          <p className="text-xs font-semibold text-primary-700 mb-1">おすすめ練習</p>
+          <p className="text-xs text-primary-600 mb-2">
+            {AXIS_ADVICE[weakestAxis.axis] || `${weakestAxis.axis}を伸ばすシナリオで練習しましょう`}
+          </p>
+          <button
+            onClick={() => navigate('/practice')}
+            className="text-xs font-medium text-primary-700 bg-white px-3 py-1.5 rounded-lg border border-primary-200 hover:bg-primary-100 transition-colors"
+          >
+            練習一覧を見る
+          </button>
+        </div>
+      )}
+
       {/* スコア推移グラフ */}
       <div className="bg-white rounded-lg border border-slate-200 p-4">
         <p className="text-xs font-medium text-slate-700 mb-3">スコア推移</p>

@@ -133,3 +133,10 @@ export interface DailyGoal {
   target: number;
   completed: number;
 }
+
+/** セッションメモ */
+export interface SessionNote {
+  sessionId: number;
+  note: string;
+  updatedAt: string;
+}

@@ -6,6 +6,7 @@ import ScoreCardComponent from '../components/ScoreCard';
 import PracticeResultSummary from '../components/PracticeResultSummary';
 import SecondaryPanel from '../components/layout/SecondaryPanel';
 import PracticeTimer from '../components/PracticeTimer';
+import SessionNoteEditor from '../components/SessionNoteEditor';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { AiMessage, AiSession, ScoreCard } from '../types';
 import { useAuth } from '../hooks/useAuth';
@@ -377,10 +378,13 @@ export default function AskAiPage() {
           ))}
 
           {scoreCard && (
-            <div className="max-w-3xl mx-auto w-full">
+            <div className="max-w-3xl mx-auto w-full space-y-3">
               <ScoreCardComponent scoreCard={scoreCard} />
               {isPracticeMode && (
                 <PracticeResultSummary scoreCard={scoreCard} scenarioName={scenarioName || '練習'} />
+              )}
+              {currentSessionId && (
+                <SessionNoteEditor sessionId={currentSessionId} />
               )}
             </div>
           )}

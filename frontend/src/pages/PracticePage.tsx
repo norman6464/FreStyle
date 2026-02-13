@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ScenarioCard from '../components/ScenarioCard';
+import { SkeletonCard } from '../components/Skeleton';
 import type { PracticeScenario } from '../types';
 import { usePractice } from '../hooks/usePractice';
 
@@ -64,8 +65,10 @@ export default function PracticePage() {
 
       {/* シナリオ一覧 */}
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="w-6 h-6 border-2 border-primary-200 border-t-primary-500 rounded-full animate-spin" />
+        <div className="grid gap-3">
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
         </div>
       ) : filteredScenarios.length === 0 ? (
         <div className="text-center py-12 text-sm text-slate-500">

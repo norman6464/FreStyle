@@ -1,0 +1,30 @@
+interface MessageSearchBarProps {
+  onSearch: (query: string) => void;
+  onClear: () => void;
+  matchCount: number;
+}
+
+export default function MessageSearchBar({ onSearch, onClear, matchCount }: MessageSearchBarProps) {
+  return (
+    <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 border-b border-slate-200">
+      <input
+        type="text"
+        placeholder="メッセージを検索..."
+        onChange={(e) => onSearch(e.target.value)}
+        className="flex-1 text-sm bg-white border border-slate-200 rounded-lg px-3 py-1.5 outline-none focus:ring-1 focus:ring-primary-400 focus:border-primary-400"
+      />
+      {matchCount > 0 && (
+        <span className="text-xs text-slate-500 flex-shrink-0">{matchCount}件</span>
+      )}
+      <button
+        onClick={onClear}
+        aria-label="検索をクリア"
+        className="text-xs text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-200 transition-colors"
+      >
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+  );
+}

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAiChat } from '../hooks/useAiChat';
 import { SkeletonCard } from '../components/Skeleton';
 import SkillRadarChart from '../components/SkillRadarChart';
+import PracticeCalendar from '../components/PracticeCalendar';
 
 interface AxisScore {
   axis: string;
@@ -117,6 +118,9 @@ export default function ScoreHistoryPage() {
           ))}
         </div>
       </div>
+
+      {/* 練習カレンダー */}
+      <PracticeCalendar practiceDates={history.map(h => h.createdAt)} />
 
       {/* フィルタタブ */}
       <div className="flex gap-1 border-b border-slate-200">

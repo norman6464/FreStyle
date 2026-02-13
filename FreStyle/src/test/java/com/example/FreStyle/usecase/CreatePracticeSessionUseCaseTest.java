@@ -21,7 +21,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.example.FreStyle.dto.AiChatSessionDto;
 import com.example.FreStyle.dto.PracticeScenarioDto;
 import com.example.FreStyle.entity.User;
-import com.example.FreStyle.service.AiChatSessionService;
 
 /**
  * CreatePracticeSessionUseCaseのテストクラス
@@ -40,7 +39,7 @@ class CreatePracticeSessionUseCaseTest {
     private GetPracticeScenarioByIdUseCase getPracticeScenarioByIdUseCase;
 
     @Mock
-    private AiChatSessionService aiChatSessionService;
+    private CreateAiChatSessionUseCase createAiChatSessionUseCase;
 
     @InjectMocks
     private CreatePracticeSessionUseCase useCase;
@@ -69,7 +68,7 @@ class CreatePracticeSessionUseCaseTest {
 
             when(getPracticeScenarioByIdUseCase.execute(scenarioId))
                     .thenReturn(scenario);
-            when(aiChatSessionService.createSession(
+            when(createAiChatSessionUseCase.execute(
                     eq(1),
                     eq("練習: 本番障害の緊急報告"),
                     isNull(),
@@ -89,7 +88,7 @@ class CreatePracticeSessionUseCaseTest {
             assertThat(result.getScenarioId()).isEqualTo(scenarioId);
 
             verify(getPracticeScenarioByIdUseCase, times(1)).execute(scenarioId);
-            verify(aiChatSessionService, times(1)).createSession(
+            verify(createAiChatSessionUseCase, times(1)).execute(
                     eq(1),
                     eq("練習: 本番障害の緊急報告"),
                     isNull(),
@@ -119,7 +118,7 @@ class CreatePracticeSessionUseCaseTest {
 
             when(getPracticeScenarioByIdUseCase.execute(scenarioId))
                     .thenReturn(scenario);
-            when(aiChatSessionService.createSession(
+            when(createAiChatSessionUseCase.execute(
                     anyInt(),
                     eq("練習: 日報作成"),
                     isNull(),
@@ -133,7 +132,7 @@ class CreatePracticeSessionUseCaseTest {
 
             // Assert
             assertThat(result.getTitle()).isEqualTo("練習: 日報作成");
-            verify(aiChatSessionService, times(1)).createSession(
+            verify(createAiChatSessionUseCase, times(1)).execute(
                     eq(2),
                     eq("練習: 日報作成"),
                     isNull(),
@@ -159,7 +158,7 @@ class CreatePracticeSessionUseCaseTest {
                     .hasMessage("シナリオが見つかりません: ID=" + invalidScenarioId);
 
             verify(getPracticeScenarioByIdUseCase, times(1)).execute(invalidScenarioId);
-            verify(aiChatSessionService, times(0)).createSession(
+            verify(createAiChatSessionUseCase, times(0)).execute(
                     anyInt(), any(), any(), any(), any(), anyInt()
             );
         }
@@ -184,7 +183,7 @@ class CreatePracticeSessionUseCaseTest {
 
             when(getPracticeScenarioByIdUseCase.execute(scenarioId))
                     .thenReturn(scenario);
-            when(aiChatSessionService.createSession(
+            when(createAiChatSessionUseCase.execute(
                     anyInt(),
                     any(),
                     isNull(),  // relatedRoomId = null
@@ -197,7 +196,7 @@ class CreatePracticeSessionUseCaseTest {
             useCase.execute(user, scenarioId);
 
             // Assert
-            verify(aiChatSessionService, times(1)).createSession(
+            verify(createAiChatSessionUseCase, times(1)).execute(
                     eq(1),
                     any(),
                     isNull(),  // relatedRoomId

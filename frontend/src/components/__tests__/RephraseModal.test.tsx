@@ -67,4 +67,27 @@ describe('RephraseModal', () => {
     const copyButtons = screen.getAllByText('コピー');
     expect(copyButtons).toHaveLength(5);
   });
+
+  it('各パターンに利用シーンの説明が表示される', () => {
+    render(<RephraseModal result={rephraseResult} onClose={mockOnClose} />);
+
+    expect(screen.getByText(/上司や顧客への報告/)).toBeInTheDocument();
+    expect(screen.getByText(/指摘やお願いをする時/)).toBeInTheDocument();
+    expect(screen.getByText(/チャットやSlackで/)).toBeInTheDocument();
+  });
+
+  it('コピーボタンクリックでフィードバックが表示される', async () => {
+    // clipboard mockを設定
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) },
+    });
+
+    render(<RephraseModal result={rephraseResult} onClose={mockOnClose} />);
+
+    const copyButtons = screen.getAllByText('コピー');
+    fireEvent.click(copyButtons[0]);
+
+    // コピー成功フィードバック
+    expect(await screen.findByText('コピーしました')).toBeInTheDocument();
+  });
 });

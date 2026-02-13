@@ -51,6 +51,14 @@ vi.mock('../../hooks/usePractice', () => ({
   }),
 }));
 
+vi.mock('../../hooks/useBookmark', () => ({
+  useBookmark: () => ({
+    bookmarkedIds: [1],
+    toggleBookmark: vi.fn(),
+    isBookmarked: (id: number) => id === 1,
+  }),
+}));
+
 describe('PracticePage', () => {
   beforeEach(() => {
     vi.clearAllMocks();

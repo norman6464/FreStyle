@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAiChat } from '../hooks/useAiChat';
 import { SkeletonCard } from '../components/Skeleton';
+import SkillRadarChart from '../components/SkillRadarChart';
 
 interface AxisScore {
   axis: string;
@@ -91,6 +92,13 @@ export default function ScoreHistoryPage() {
           >
             練習一覧を見る
           </button>
+        </div>
+      )}
+
+      {/* スキルレーダーチャート */}
+      {latestSession && latestSession.scores.length > 0 && (
+        <div className="bg-white rounded-lg border border-slate-200 p-4 flex justify-center">
+          <SkillRadarChart scores={latestSession.scores} title="最新のスキルバランス" />
         </div>
       )}
 

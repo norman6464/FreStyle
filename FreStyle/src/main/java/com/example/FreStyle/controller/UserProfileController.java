@@ -20,10 +20,12 @@ import com.example.FreStyle.service.UserIdentityService;
 import com.example.FreStyle.service.UserProfileService;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @RestController
 @RequestMapping("/api/user-profile")
 @RequiredArgsConstructor
+@Slf4j
 public class UserProfileController {
 
     private final UserProfileService userProfileService;
@@ -34,10 +36,10 @@ public class UserProfileController {
     // -----------------------
     @GetMapping("/me")
     public ResponseEntity<?> getMyProfile(@AuthenticationPrincipal Jwt jwt) {
-        System.out.println("[UserProfileController /me] Endpoint called");
+        log.info("[UserProfileController /me] Endpoint called");
         
         if (jwt == null) {
-            System.out.println("[UserProfileController /me] ERROR: JWT is null");
+            log.info("[UserProfileController /me] ERROR: JWT is null");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "認証に失敗しました。"));
         }
@@ -65,7 +67,7 @@ public class UserProfileController {
             return ResponseEntity.ok(profileDto);
 
         } catch (Exception e) {
-            System.out.println("[UserProfileController /me] ERROR: " + e.getMessage());
+            log.info("[UserProfileController /me] ERROR: " + e.getMessage());
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "サーバーエラーが発生しました。"));
@@ -80,7 +82,7 @@ public class UserProfileController {
             @AuthenticationPrincipal Jwt jwt,
             @Validated @RequestBody UserProfileForm form) {
         
-        System.out.println("[UserProfileController POST /me] Endpoint called");
+        log.info("[UserProfileController POST /me] Endpoint called");
         
         if (jwt == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -104,11 +106,11 @@ public class UserProfileController {
             return ResponseEntity.status(HttpStatus.CREATED).body(profileDto);
 
         } catch (RuntimeException e) {
-            System.out.println("[UserProfileController POST /me] ERROR: " + e.getMessage());
+            log.info("[UserProfileController POST /me] ERROR: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
-            System.out.println("[UserProfileController POST /me] ERROR: " + e.getMessage());
+            log.info("[UserProfileController POST /me] ERROR: " + e.getMessage());
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "サーバーエラーが発生しました。"));
@@ -123,7 +125,7 @@ public class UserProfileController {
             @AuthenticationPrincipal Jwt jwt,
             @Validated @RequestBody UserProfileForm form) {
         
-        System.out.println("[UserProfileController PUT /me] Endpoint called");
+        log.info("[UserProfileController PUT /me] Endpoint called");
         
         if (jwt == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -147,11 +149,11 @@ public class UserProfileController {
             return ResponseEntity.ok(profileDto);
 
         } catch (RuntimeException e) {
-            System.out.println("[UserProfileController PUT /me] ERROR: " + e.getMessage());
+            log.info("[UserProfileController PUT /me] ERROR: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
-            System.out.println("[UserProfileController PUT /me] ERROR: " + e.getMessage());
+            log.info("[UserProfileController PUT /me] ERROR: " + e.getMessage());
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "サーバーエラーが発生しました。"));
@@ -166,7 +168,7 @@ public class UserProfileController {
             @AuthenticationPrincipal Jwt jwt,
             @Validated @RequestBody UserProfileForm form) {
         
-        System.out.println("[UserProfileController PUT /me/upsert] Endpoint called");
+        log.info("[UserProfileController PUT /me/upsert] Endpoint called");
         
         if (jwt == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -190,11 +192,11 @@ public class UserProfileController {
             return ResponseEntity.ok(profileDto);
 
         } catch (RuntimeException e) {
-            System.out.println("[UserProfileController PUT /me/upsert] ERROR: " + e.getMessage());
+            log.info("[UserProfileController PUT /me/upsert] ERROR: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
-            System.out.println("[UserProfileController PUT /me/upsert] ERROR: " + e.getMessage());
+            log.info("[UserProfileController PUT /me/upsert] ERROR: " + e.getMessage());
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "サーバーエラーが発生しました。"));
@@ -206,7 +208,7 @@ public class UserProfileController {
     // -----------------------
     @PostMapping("/me/delete")
     public ResponseEntity<?> deleteMyProfile(@AuthenticationPrincipal Jwt jwt) {
-        System.out.println("[UserProfileController DELETE /me] Endpoint called");
+        log.info("[UserProfileController DELETE /me] Endpoint called");
         
         if (jwt == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -230,11 +232,11 @@ public class UserProfileController {
             return ResponseEntity.ok(Map.of("message", "プロファイルを削除しました。"));
 
         } catch (RuntimeException e) {
-            System.out.println("[UserProfileController DELETE /me] ERROR: " + e.getMessage());
+            log.info("[UserProfileController DELETE /me] ERROR: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
-            System.out.println("[UserProfileController DELETE /me] ERROR: " + e.getMessage());
+            log.info("[UserProfileController DELETE /me] ERROR: " + e.getMessage());
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "サーバーエラーが発生しました。"));

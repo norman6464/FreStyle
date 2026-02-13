@@ -76,12 +76,12 @@
   - **スコア履歴ページ**：セッション単位の履歴一覧表示
 - ビジネスシナリオ練習モード（AIロールプレイ・ITエンジニア向け12シナリオ・3カテゴリ対応）
   - **練習終了時スコアリング**：シナリオ固有の評価軸でスコア自動算出
-- Teams風業務系SaaS UIデザイン（永続サイドバーナビゲーション・セカンダリパネル・モバイルオーバーレイドロワー）
+- Notion風ミニマルUIデザイン（ニュートラルグレー配色・永続サイドバーナビゲーション・セカンダリパネル・モバイルオーバーレイドロワー）
 - パフォーマンス計測・可視化（Micrometer + CloudWatch メトリクス・AOP処理時間計測）
 - Docker Compose によるローカル開発環境（MariaDB 11 + Spring Boot）
 - プロフィール編集
 - Google ログイン
-- GitHub Actions による自動デプロイ
+- GitHub Actions による自動デプロイ（S3同期 + CloudFrontキャッシュ自動無効化）
 
 ---
 
@@ -105,7 +105,7 @@
 - Cognito/OIDCログインを使用しているのでHTTPSの必須になるので採用した
 
 ### ④ クリーンアーキテクチャの適用による保守性向上
-**Phase 1-2リファクタリング完了** (2026年2月)
+**Phase 1-3リファクタリング完了** (2026年2月)
 
 バックエンドコードをクリーンアーキテクチャに基づいて全面リファクタリングし、保守性・テスタビリティ・可読性を大幅に向上させました。
 
@@ -118,6 +118,7 @@
 #### リファクタリング対象
 - **Phase 1**: 練習モード機能（PracticeScenarioService → 3 UseCases）
 - **Phase 2**: AI Chat機能（AiChatSessionService/AiChatMessageService → 10 UseCases）
+- **Phase 3**: ScoreCard機能（ScoreCardService → 3 UseCases + Mapper）
 
 #### 成果
 - コード行数: **+1,849行追加 / -377行削除**

@@ -40,10 +40,11 @@ describe('Sidebar', () => {
     expect(screen.getByText('ログアウト')).toBeDefined();
   });
 
-  it('FreStyleロゴを表示する', () => {
+  it('FreStyleロゴ画像を表示する', () => {
     renderSidebar();
-    expect(screen.getByText('F')).toBeDefined();
-    expect(screen.getByText('FreStyle')).toBeDefined();
+    const logo = screen.getByAltText('FreStyle');
+    expect(logo).toBeDefined();
+    expect(logo.getAttribute('src')).toBe('/image.png');
   });
 
   it('ホームルートでホームがアクティブになる', () => {

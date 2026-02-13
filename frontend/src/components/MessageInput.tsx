@@ -3,9 +3,10 @@ import { PaperAirplaneIcon, PlusIcon } from '@heroicons/react/24/solid';
 
 interface MessageInputProps {
   onSend: (text: string) => void;
+  isSending?: boolean;
 }
 
-export default function MessageInput({ onSend }: MessageInputProps) {
+export default function MessageInput({ onSend, isSending = false }: MessageInputProps) {
   const [text, setText] = useState('');
   const [isComposing, setIsComposing] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -40,7 +41,7 @@ export default function MessageInput({ onSend }: MessageInputProps) {
   }, [text]);
 
   const handleSend = () => {
-    if (!text.trim()) return;
+    if (!text.trim() || isSending) return;
     onSend(text);
     setText('');
   };
@@ -72,17 +73,22 @@ export default function MessageInput({ onSend }: MessageInputProps) {
           onKeyDown={handleKeyDown}
           onCompositionStart={() => setIsComposing(true)}
           onCompositionEnd={() => setIsComposing(false)}
+          disabled={isSending}
         />
       </div>
 
       <button
         onClick={handleSend}
         className="text-white bg-primary-500 p-2.5 rounded-full hover:bg-primary-600 transition-colors duration-150 flex-shrink-0 disabled:bg-slate-300 mb-1 ml-2"
-        disabled={!text.trim()}
+        disabled={!text.trim() || isSending}
         aria-label="送信"
       >
         <PaperAirplaneIcon className="h-6 w-6 rotate-90" />
       </button>
+
+      {isSending && (
+        <span className="text-xs text-slate-400 ml-2 mb-2 flex-shrink-0">送信中...</span>
+      )}
     </div>
   );
 }

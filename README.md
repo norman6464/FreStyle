@@ -104,6 +104,37 @@
 - OIDC と組み合わせてセキュアなフロント構成
 - Cognito/OIDCログインを使用しているのでHTTPSの必須になるので採用した
 
+### ④ クリーンアーキテクチャの適用による保守性向上
+**Phase 1-2リファクタリング完了** (2026年2月)
+
+バックエンドコードをクリーンアーキテクチャに基づいて全面リファクタリングし、保守性・テスタビリティ・可読性を大幅に向上させました。
+
+#### 実装内容
+- **Mapper層**: DTO↔Entity変換を一箇所に集約（3クラス作成）
+- **UseCase層**: ビジネスロジックをController層から分離（13クラス作成）
+- **依存性逆転の原則**: Controller → UseCase → Repository の明確な依存関係を確立
+- **単一責任の原則**: 各クラスの責務を明確化し、1クラス1責務を徹底
+
+#### リファクタリング対象
+- **Phase 1**: 練習モード機能（PracticeScenarioService → 3 UseCases）
+- **Phase 2**: AI Chat機能（AiChatSessionService/AiChatMessageService → 10 UseCases）
+
+#### 成果
+- コード行数: **+1,849行追加 / -377行削除**
+- テスタビリティ向上: モック化が容易な設計に
+- 日本語コメント充実: 各クラスの役割・責務を明記
+
+```
+【アーキテクチャ構成】
+Controller (Presentation層) ← HTTP/WebSocketリクエスト処理
+  ↓ 依存
+UseCase (Application層) ← ビジネスロジック実行
+  ↓ 依存
+Service (Domain層) ← ドメインロジック
+  ↓ 依存
+Repository (Infrastructure層) ← DB操作
+```
+
 ---
 
 ## 🧠 苦労した点・学び

@@ -23,11 +23,16 @@ import com.example.FreStyle.dto.AiChatMessageDto;
 import com.example.FreStyle.dto.AiChatMessageResponseDto;
 import com.example.FreStyle.dto.AiChatSessionDto;
 import com.example.FreStyle.entity.User;
-import com.example.FreStyle.service.AiChatMessageService;
 import com.example.FreStyle.service.AiChatService;
-import com.example.FreStyle.service.AiChatSessionService;
 import com.example.FreStyle.service.BedrockService;
 import com.example.FreStyle.service.UserIdentityService;
+import com.example.FreStyle.usecase.AddAiChatMessageUseCase;
+import com.example.FreStyle.usecase.CreateAiChatSessionUseCase;
+import com.example.FreStyle.usecase.DeleteAiChatSessionUseCase;
+import com.example.FreStyle.usecase.GetAiChatMessagesBySessionIdUseCase;
+import com.example.FreStyle.usecase.GetAiChatSessionByIdUseCase;
+import com.example.FreStyle.usecase.GetAiChatSessionsByUserIdUseCase;
+import com.example.FreStyle.usecase.UpdateAiChatSessionTitleUseCase;
 
 import lombok.RequiredArgsConstructor;
 
@@ -39,10 +44,17 @@ public class AiChatController {
 
     private static final Logger logger = LoggerFactory.getLogger(AiChatController.class);
     private final AiChatService aiChatService;
-    private final AiChatSessionService aiChatSessionService;
-    private final AiChatMessageService aiChatMessageService;
     private final UserIdentityService userIdentityService;
     private final BedrockService bedrockService;
+
+    // UseCases (クリーンアーキテクチャー)
+    private final GetAiChatSessionsByUserIdUseCase getAiChatSessionsByUserIdUseCase;
+    private final CreateAiChatSessionUseCase createAiChatSessionUseCase;
+    private final GetAiChatSessionByIdUseCase getAiChatSessionByIdUseCase;
+    private final UpdateAiChatSessionTitleUseCase updateAiChatSessionTitleUseCase;
+    private final DeleteAiChatSessionUseCase deleteAiChatSessionUseCase;
+    private final GetAiChatMessagesBySessionIdUseCase getAiChatMessagesBySessionIdUseCase;
+    private final AddAiChatMessageUseCase addAiChatMessageUseCase;
 
 
     // =============================================
@@ -89,8 +101,8 @@ public class AiChatController {
         try {
             String sub = jwt.getSubject();
             User user = userIdentityService.findUserBySub(sub);
-            
-            List<AiChatSessionDto> sessions = aiChatSessionService.getSessionsByUserId(user.getId());
+
+            List<AiChatSessionDto> sessions = getAiChatSessionsByUserIdUseCase.execute(user.getId());
             logger.info("✅ セッション一覧取得成功 - 件数: {}", sessions.size());
             
             return ResponseEntity.ok(sessions);
@@ -114,8 +126,8 @@ public class AiChatController {
         try {
             String sub = jwt.getSubject();
             User user = userIdentityService.findUserBySub(sub);
-            
-            AiChatSessionDto session = aiChatSessionService.createSession(
+
+            AiChatSessionDto session = createAiChatSessionUseCase.execute(
                     user.getId(),
                     request.title(),
                     request.relatedRoomId()
@@ -142,8 +154,8 @@ public class AiChatController {
         try {
             String sub = jwt.getSubject();
             User user = userIdentityService.findUserBySub(sub);
-            
-            AiChatSessionDto session = aiChatSessionService.getSessionByIdAndUserId(sessionId, user.getId());
+
+            AiChatSessionDto session = getAiChatSessionByIdUseCase.execute(sessionId, user.getId());
             logger.info("✅ セッション取得成功");
             
             return ResponseEntity.ok(session);
@@ -167,8 +179,8 @@ public class AiChatController {
         try {
             String sub = jwt.getSubject();
             User user = userIdentityService.findUserBySub(sub);
-            
-            AiChatSessionDto session = aiChatSessionService.updateSessionTitle(
+
+            AiChatSessionDto session = updateAiChatSessionTitleUseCase.execute(
                     sessionId,
                     user.getId(),
                     request.title()
@@ -195,8 +207,8 @@ public class AiChatController {
         try {
             String sub = jwt.getSubject();
             User user = userIdentityService.findUserBySub(sub);
-            
-            aiChatSessionService.deleteSession(sessionId, user.getId());
+
+            deleteAiChatSessionUseCase.execute(sessionId, user.getId());
             logger.info("✅ セッション削除成功");
             
             return ResponseEntity.noContent().build();
@@ -219,11 +231,11 @@ public class AiChatController {
         try {
             String sub = jwt.getSubject();
             User user = userIdentityService.findUserBySub(sub);
-            
+
             // 権限チェック（セッションがユーザーのものか確認）
-            aiChatSessionService.getSessionByIdAndUserId(sessionId, user.getId());
-            
-            List<AiChatMessageResponseDto> messages = aiChatMessageService.getMessagesBySessionId(sessionId);
+            getAiChatSessionByIdUseCase.execute(sessionId, user.getId());
+
+            List<AiChatMessageResponseDto> messages = getAiChatMessagesBySessionIdUseCase.execute(sessionId);
             logger.info("✅ メッセージ一覧取得成功 - 件数: {}", messages.size());
             
             return ResponseEntity.ok(messages);
@@ -248,17 +260,17 @@ public class AiChatController {
         try {
             String sub = jwt.getSubject();
             User user = userIdentityService.findUserBySub(sub);
-            
+
             // 権限チェック
-            aiChatSessionService.getSessionByIdAndUserId(sessionId, user.getId());
-            
+            getAiChatSessionByIdUseCase.execute(sessionId, user.getId());
+
             AiChatMessageResponseDto message;
             if ("assistant".equalsIgnoreCase(request.role())) {
-                message = aiChatMessageService.addAssistantMessage(sessionId, user.getId(), request.content());
+                message = addAiChatMessageUseCase.executeAssistantMessage(sessionId, user.getId(), request.content());
             } else {
-                message = aiChatMessageService.addUserMessage(sessionId, user.getId(), request.content());
+                message = addAiChatMessageUseCase.executeUserMessage(sessionId, user.getId(), request.content());
             }
-            
+
             logger.info("✅ メッセージ追加成功 - messageId: {}", message.getId());
             
             return ResponseEntity.ok(message);

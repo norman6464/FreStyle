@@ -6,7 +6,6 @@ import org.springframework.transaction.annotation.Transactional;
 import com.example.FreStyle.dto.AiChatSessionDto;
 import com.example.FreStyle.dto.PracticeScenarioDto;
 import com.example.FreStyle.entity.User;
-import com.example.FreStyle.service.AiChatSessionService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -38,7 +37,7 @@ import lombok.RequiredArgsConstructor;
 public class CreatePracticeSessionUseCase {
 
     private final GetPracticeScenarioByIdUseCase getPracticeScenarioByIdUseCase;
-    private final AiChatSessionService aiChatSessionService;
+    private final CreateAiChatSessionUseCase createAiChatSessionUseCase;
 
     /**
      * 練習セッションを作成
@@ -58,7 +57,7 @@ public class CreatePracticeSessionUseCase {
 
         // 3. 練習セッションを作成
         // sessionType="practice", scenarioId=指定されたID
-        return aiChatSessionService.createSession(
+        return createAiChatSessionUseCase.execute(
                 user.getId(),
                 title,
                 null,           // relatedRoomId: 練習モードでは不要

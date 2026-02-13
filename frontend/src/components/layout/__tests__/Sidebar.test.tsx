@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { Provider } from 'react-redux';
@@ -6,8 +6,10 @@ import { configureStore } from '@reduxjs/toolkit';
 import authReducer from '../../../store/authSlice';
 import Sidebar from '../Sidebar';
 
-const mockFetch = vi.fn();
-global.fetch = mockFetch;
+const mockUseSidebar = vi.fn();
+vi.mock('../../../hooks/useSidebar', () => ({
+  useSidebar: () => mockUseSidebar(),
+}));
 
 function createTestStore() {
   return configureStore({
@@ -29,10 +31,9 @@ function renderSidebar(currentPath = '/') {
 describe('Sidebar', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockFetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve({ chatUsers: [] }),
+    mockUseSidebar.mockReturnValue({
+      totalUnread: 0,
+      handleLogout: vi.fn(),
     });
   });
 
@@ -77,23 +78,15 @@ describe('Sidebar', () => {
     expect(chatLink?.className).toContain('bg-primary-50');
   });
 
-  it('未読メッセージがある場合チャットにバッジを表示する', async () => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve({
-        chatUsers: [
-          { roomId: 1, unreadCount: 3 },
-          { roomId: 2, unreadCount: 2 },
-        ],
-      }),
+  it('未読メッセージがある場合チャットにバッジを表示する', () => {
+    mockUseSidebar.mockReturnValue({
+      totalUnread: 5,
+      handleLogout: vi.fn(),
     });
 
     renderSidebar();
 
-    await waitFor(() => {
-      expect(screen.getByTestId('sidebar-badge')).toBeInTheDocument();
-      expect(screen.getByTestId('sidebar-badge')).toHaveTextContent('5');
-    });
+    expect(screen.getByTestId('sidebar-badge')).toBeInTheDocument();
+    expect(screen.getByTestId('sidebar-badge')).toHaveTextContent('5');
   });
 });

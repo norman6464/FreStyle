@@ -6,6 +6,14 @@ import { configureStore } from '@reduxjs/toolkit';
 import authReducer from '../../../store/authSlice';
 import Sidebar from '../Sidebar';
 
+const mockHandleLogout = vi.fn();
+vi.mock('../../../hooks/useSidebar', () => ({
+  useSidebar: () => ({
+    totalUnread: 0,
+    handleLogout: mockHandleLogout,
+  }),
+}));
+
 function createTestStore() {
   return configureStore({
     reducer: { auth: authReducer },
@@ -33,7 +41,6 @@ describe('Sidebar モバイル動作', () => {
 
   it('ログアウトクリック時にonNavigateが呼ばれる', () => {
     const onNavigate = vi.fn();
-    global.fetch = vi.fn().mockResolvedValue({ ok: true });
     renderSidebar(onNavigate);
     fireEvent.click(screen.getByText('ログアウト'));
     expect(onNavigate).toHaveBeenCalledTimes(1);

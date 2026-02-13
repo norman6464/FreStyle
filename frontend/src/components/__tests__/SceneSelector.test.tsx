@@ -83,4 +83,26 @@ describe('SceneSelector', () => {
     // 8 scene buttons + 1 skip button = 9
     expect(buttons).toHaveLength(9);
   });
+
+  it('おすすめシーンに「おすすめ」ラベルが表示される', () => {
+    render(<SceneSelector onSelect={mockOnSelect} onCancel={mockOnCancel} />);
+
+    // 新卒におすすめの会議・コードレビュー・日報にラベルがつく
+    const badges = screen.getAllByText('おすすめ');
+    expect(badges.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('具体的な利用例が表示される', () => {
+    render(<SceneSelector onSelect={mockOnSelect} onCancel={mockOnCancel} />);
+
+    expect(screen.getByText(/朝会やスプリントレビューで/)).toBeInTheDocument();
+    expect(screen.getByText(/PRへのコメントで/)).toBeInTheDocument();
+  });
+
+  it('カテゴリヘッダーが表示される', () => {
+    render(<SceneSelector onSelect={mockOnSelect} onCancel={mockOnCancel} />);
+
+    expect(screen.getByText('日常業務')).toBeInTheDocument();
+    expect(screen.getByText('対面コミュニケーション')).toBeInTheDocument();
+  });
 });

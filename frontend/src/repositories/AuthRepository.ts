@@ -75,15 +75,17 @@ class AuthRepository {
   /**
    * パスワード再設定リクエスト
    */
-  async forgotPassword(request: ForgotPasswordRequest): Promise<void> {
-    await apiClient.post('/api/auth/cognito/forgot-password', request);
+  async forgotPassword(request: ForgotPasswordRequest): Promise<{ message: string }> {
+    const response = await apiClient.post('/api/auth/cognito/forgot-password', request);
+    return response.data;
   }
 
   /**
    * パスワード再設定確認
    */
-  async confirmForgotPassword(request: ConfirmForgotPasswordRequest): Promise<void> {
-    await apiClient.post('/api/auth/cognito/confirm-forgot-password', request);
+  async confirmForgotPassword(request: ConfirmForgotPasswordRequest): Promise<{ message: string }> {
+    const response = await apiClient.post('/api/auth/cognito/confirm-forgot-password', request);
+    return response.data;
   }
 
   /**

@@ -4,6 +4,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.FreStyle.entity.AiChatSession;
+import com.example.FreStyle.exception.ResourceNotFoundException;
 import com.example.FreStyle.repository.AiChatSessionRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -40,12 +41,12 @@ public class DeleteAiChatSessionUseCase {
      *
      * @param sessionId セッションID
      * @param userId ユーザーID
-     * @throws RuntimeException セッションが見つからない、または権限がない場合
+     * @throws ResourceNotFoundException セッションが見つからない、または権限がない場合
      */
     @Transactional
     public void execute(Integer sessionId, Integer userId) {
         AiChatSession session = aiChatSessionRepository.findByIdAndUserId(sessionId, userId)
-                .orElseThrow(() -> new RuntimeException(
+                .orElseThrow(() -> new ResourceNotFoundException(
                     "セッションが見つからないか、アクセス権限がありません: sessionId=" + sessionId + ", userId=" + userId
                 ));
 

@@ -5,6 +5,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.example.FreStyle.dto.AiChatSessionDto;
 import com.example.FreStyle.entity.AiChatSession;
+import com.example.FreStyle.exception.ResourceNotFoundException;
 import com.example.FreStyle.mapper.AiChatSessionMapper;
 import com.example.FreStyle.repository.AiChatSessionRepository;
 
@@ -44,12 +45,12 @@ public class UpdateAiChatSessionTitleUseCase {
      * @param userId ユーザーID
      * @param newTitle 新しいタイトル
      * @return 更新されたセッションDTO
-     * @throws RuntimeException セッションが見つからない、または権限がない場合
+     * @throws ResourceNotFoundException セッションが見つからない、または権限がない場合
      */
     @Transactional
     public AiChatSessionDto execute(Integer sessionId, Integer userId, String newTitle) {
         AiChatSession session = aiChatSessionRepository.findByIdAndUserId(sessionId, userId)
-                .orElseThrow(() -> new RuntimeException(
+                .orElseThrow(() -> new ResourceNotFoundException(
                     "セッションが見つからないか、アクセス権限がありません: sessionId=" + sessionId + ", userId=" + userId
                 ));
 

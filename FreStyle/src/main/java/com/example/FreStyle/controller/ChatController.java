@@ -29,10 +29,12 @@ import com.example.FreStyle.service.UserIdentityService;
 import com.example.FreStyle.service.UserService;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @RestController
 @RequestMapping("/api/chat/")
 @RequiredArgsConstructor
+@Slf4j
 public class ChatController {
 
   
@@ -48,7 +50,7 @@ public class ChatController {
   @GetMapping("/users")
   public ResponseEntity<?> users(@AuthenticationPrincipal Jwt jwt,
       @RequestParam(name = "query", required = false) String query) {
-    System.out.println("GET /api/chat/users");
+    log.info("GET /api/chat/users");
     String cognitoSub = jwt.getSubject();
 
     if (cognitoSub == null || cognitoSub.isEmpty()) {
@@ -62,7 +64,7 @@ public class ChatController {
     Map<String, List<UserDto>> responseData = new HashMap<>();
 
     for (UserDto user : users) {
-      System.out.println("User_id" + user.getId() + "User_Email" + user.getEmail() + "User_name" + user.getName());
+      log.info("User_id" + user.getId() + "User_Email" + user.getEmail() + "User_name" + user.getName());
     }
     responseData.put("users", users);
     return ResponseEntity.ok().body(responseData);
@@ -71,51 +73,51 @@ public class ChatController {
   @PostMapping("/users/{id}/create")
   public ResponseEntity<?> create(@AuthenticationPrincipal Jwt jwt, @PathVariable(name = "id") Integer id) {
     
-    System.out.println("\n========== ルーム作成リクエスト開始 ==========");
-    System.out.println("📌 リクエストPathVariable id: " + id);
-    System.out.println("📌 JWT null判定: " + (jwt == null ? "NULL" : "存在"));
+    log.info("\n========== ルーム作成リクエスト開始 ==========");
+    log.info("📌 リクエストPathVariable id: " + id);
+    log.info("📌 JWT null判定: " + (jwt == null ? "NULL" : "存在"));
     
     String cognitoSub = jwt.getSubject();
-    System.out.println("📌 cognitoSub (Cognito User ID): " + cognitoSub);
+    log.info("📌 cognitoSub (Cognito User ID): " + cognitoSub);
     
     if (cognitoSub == null || cognitoSub.isEmpty()) {
-      System.out.println("❌ cognitoSubがnullまたは空です");
-      System.out.println("========== ルーム作成リクエスト終了(UNAUTHORIZED) ==========\n");
+      log.error("❌ cognitoSubがnullまたは空です");
+      log.info("========== ルーム作成リクエスト終了(UNAUTHORIZED) ==========\n");
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "無効なリクエストです。"));
     }
     
     try{
-      System.out.println("🔍 userIdentityService.findUserBySub() 実行中...");
+      log.info("🔍 userIdentityService.findUserBySub() 実行中...");
       User myUser = userIdentityService.findUserBySub(cognitoSub);
-      System.out.println("✅ 現在のユーザー取得成功");
-      System.out.println("   - myUser.getId(): " + myUser.getId());
-      System.out.println("   - myUser.getName(): " + myUser.getName());
-      System.out.println("   - myUser.getEmail(): " + myUser.getEmail());
+      log.info("✅ 現在のユーザー取得成功");
+      log.debug("   - myUser.getId(): " + myUser.getId());
+      log.debug("   - myUser.getName(): " + myUser.getName());
+      log.debug("   - myUser.getEmail(): " + myUser.getEmail());
       
-      System.out.println("🔍 chatService.createOrGetRoom() 実行中...");
-      System.out.println("   - myUser.getId(): " + myUser.getId() + " (ログイン中のユーザーID)");
-      System.out.println("   - id (相手ユーザーID): " + id);
+      log.info("🔍 chatService.createOrGetRoom() 実行中...");
+      log.debug("   - myUser.getId(): " + myUser.getId() + " (ログイン中のユーザーID)");
+      log.debug("   - id (相手ユーザーID): " + id);
       Integer roomId = chatService.createOrGetRoom(myUser.getId(), id);
       
-      System.out.println("✅ ルーム作成/取得成功");
-      System.out.println("   - roomId: " + roomId);
-      System.out.println("========== ルーム作成リクエスト終了(OK) ==========\n");
+      log.info("✅ ルーム作成/取得成功");
+      log.debug("   - roomId: " + roomId);
+      log.info("========== ルーム作成リクエスト終了(OK) ==========\n");
       return ResponseEntity.ok(Map.of(
             "roomId", roomId,
             "status", "success"
       ));
   } catch (IllegalStateException e) {
-    System.out.println("⚠️ IllegalStateException発生: " + e.getMessage());
-    System.out.println("   スタックトレース:");
+    log.info("⚠️ IllegalStateException発生: " + e.getMessage());
+    log.info("   スタックトレース:");
     e.printStackTrace();
-    System.out.println("========== ルーム作成リクエスト終了(BAD_REQUEST) ==========\n");
+    log.info("========== ルーム作成リクエスト終了(BAD_REQUEST) ==========\n");
     return ResponseEntity.badRequest().body(Map.of("error", "無効なリクエストです。"));
   } catch (Exception e) {
-    System.out.println("❌ 予期しない例外発生: " + e.getClass().getName());
-    System.out.println("   メッセージ: " + e.getMessage());
-    System.out.println("   スタックトレース:");
+    log.error("❌ 予期しない例外発生: " + e.getClass().getName());
+    log.info("   メッセージ: " + e.getMessage());
+    log.info("   スタックトレース:");
     e.printStackTrace();
-    System.out.println("========== ルーム作成リクエスト終了(INTERNAL_SERVER_ERROR) ==========\n");
+    log.info("========== ルーム作成リクエスト終了(INTERNAL_SERVER_ERROR) ==========\n");
     return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
               .body(Map.of("error", "ルーム作成中にエラーが発生しました。"));
   } 
@@ -138,16 +140,16 @@ public class ChatController {
       
       // すでにroom_idが取得されている状態なのでchatRoomServiceからChatRoomオブジェクトを取得をする
       ChatRoom chatRoom = chatRoomService.findChatRoomById(roomId);
-      System.out.println("chatRoom found: " + chatRoom.getId());
+      log.info("chatRoom found: " + chatRoom.getId());
       
       // 履歴の取得 - 現在のユーザーIDを渡す
       List<ChatMessageDto> history = chatMessageService.getMessagesByRoom(chatRoom, myUserId);
-      System.out.println("history count: " + history.size());
+      log.info("history count: " + history.size());
       
       return ResponseEntity.ok(history);
       
     } catch (Exception e) {
-      System.out.println("Error in history endpoint: " + e.getMessage());
+      log.info("Error in history endpoint: " + e.getMessage());
       e.printStackTrace();
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "サーバーエラーです。"));
     }
@@ -173,7 +175,7 @@ public class ChatController {
       
       return ResponseEntity.ok().body(stats);
     } catch (Exception e) {
-      System.out.println(e.getMessage());
+      log.info(e.getMessage());
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "サーバーエラーです。"));
     }
   }
@@ -218,11 +220,11 @@ public class ChatController {
       @AuthenticationPrincipal Jwt jwt,
       @RequestParam(name = "query", required = false) String query) {
     
-    System.out.println("\n========== GET /api/chat/rooms ==========");
-    System.out.println("📌 query: " + query);
+    log.info("\n========== GET /api/chat/rooms ==========");
+    log.info("📌 query: " + query);
     
     if (jwt == null) {
-      System.out.println("❌ 認証エラー: JWTがnull");
+      log.error("❌ 認証エラー: JWTがnull");
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
           .body(Map.of("error", "タイムアウトをしたか、または未ログインです。"));
     }
@@ -230,26 +232,26 @@ public class ChatController {
     String cognitoSub = jwt.getSubject();
     
     if (cognitoSub == null || cognitoSub.isEmpty()) {
-      System.out.println("❌ 認証エラー: cognitoSubがnullまたは空");
+      log.error("❌ 認証エラー: cognitoSubがnullまたは空");
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
           .body(Map.of("error", "タイムアウトをしたか、または未ログインです。"));
     }
     
     try {
       User myUser = userIdentityService.findUserBySub(cognitoSub);
-      System.out.println("✅ ユーザー取得成功 - ID: " + myUser.getId() + ", Name: " + myUser.getName());
+      log.info("✅ ユーザー取得成功 - ID: " + myUser.getId() + ", Name: " + myUser.getName());
       
       List<ChatUserDto> chatUsers = chatService.findChatUsers(myUser.getId(), query);
-      System.out.println("✅ チャットユーザー取得成功 - 件数: " + chatUsers.size());
+      log.info("✅ チャットユーザー取得成功 - 件数: " + chatUsers.size());
       
       Map<String, Object> response = new HashMap<>();
       response.put("chatUsers", chatUsers);
       
-      System.out.println("========== GET /api/chat/rooms 完了 ==========\n");
+      log.info("========== GET /api/chat/rooms 完了 ==========\n");
       return ResponseEntity.ok(response);
       
     } catch (Exception e) {
-      System.out.println("❌ エラー発生: " + e.getMessage());
+      log.error("❌ エラー発生: " + e.getMessage());
       e.printStackTrace();
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
           .body(Map.of("error", "サーバーエラーが発生しました。"));

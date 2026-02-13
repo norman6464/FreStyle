@@ -7,6 +7,12 @@ import { usePractice } from '../hooks/usePractice';
 
 const CATEGORIES = ['すべて', '顧客折衝', 'シニア・上司', 'チーム内'] as const;
 
+const CATEGORY_LABEL_TO_DB: Record<string, string> = {
+  '顧客折衝': 'customer',
+  'シニア・上司': 'senior',
+  'チーム内': 'team',
+};
+
 export default function PracticePage() {
   const navigate = useNavigate();
 
@@ -34,7 +40,7 @@ export default function PracticePage() {
 
   const filteredScenarios = selectedCategory === 'すべて'
     ? scenarios
-    : scenarios.filter((s) => s.category === selectedCategory);
+    : scenarios.filter((s) => s.category === CATEGORY_LABEL_TO_DB[selectedCategory]);
 
   return (
     <div className="p-6 max-w-2xl mx-auto">

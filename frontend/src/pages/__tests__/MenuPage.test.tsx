@@ -13,6 +13,10 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
+vi.mock('../../components/DailyGoalCard', () => ({
+  default: () => <div data-testid="daily-goal-card">DailyGoalCard</div>,
+}));
+
 // フェッチモック
 const mockFetch = vi.fn();
 global.fetch = mockFetch;

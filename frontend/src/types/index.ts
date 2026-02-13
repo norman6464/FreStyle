@@ -126,3 +126,10 @@ export interface FavoritePhrase {
   pattern: string;
   createdAt: string;
 }
+
+/** 日次学習目標 */
+export interface DailyGoal {
+  date: string;
+  target: number;
+  completed: number;
+}

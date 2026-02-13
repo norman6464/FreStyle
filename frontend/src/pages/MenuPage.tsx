@@ -7,6 +7,7 @@ import {
   AcademicCapIcon,
   ChartBarIcon,
 } from '@heroicons/react/24/outline';
+import DailyGoalCard from '../components/DailyGoalCard';
 
 interface ChatStats {
   chatPartnerCount: number;
@@ -138,6 +139,11 @@ export default function MenuPage() {
           </p>
         </div>
       )}
+
+      {/* 日次学習目標 */}
+      <div className="mb-6">
+        <DailyGoalCard />
+      </div>
 
       {/* メニュー */}
       <div className="space-y-2">

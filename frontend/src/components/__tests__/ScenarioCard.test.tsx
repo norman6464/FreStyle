@@ -62,6 +62,22 @@ describe('ScenarioCard', () => {
     expect(screen.getByText('チーム内')).toBeDefined();
   });
 
+  it('所要時間の目安を表示する', () => {
+    render(<ScenarioCard scenario={mockScenario} onSelect={vi.fn()} />);
+    expect(screen.getByText(/約5〜10分/)).toBeDefined();
+  });
+
+  it('難易度の説明テキストを表示する', () => {
+    render(<ScenarioCard scenario={mockScenario} onSelect={vi.fn()} />);
+    expect(screen.getByText(/利害関係の調整/)).toBeDefined();
+  });
+
+  it('初級の難易度説明を表示する', () => {
+    const beginnerScenario = { ...mockScenario, difficulty: 'beginner' };
+    render(<ScenarioCard scenario={beginnerScenario} onSelect={vi.fn()} />);
+    expect(screen.getByText(/基本的な報連相/)).toBeDefined();
+  });
+
   it('クリック時にonSelectが呼ばれる', async () => {
     const onSelect = vi.fn();
     render(<ScenarioCard scenario={mockScenario} onSelect={onSelect} />);

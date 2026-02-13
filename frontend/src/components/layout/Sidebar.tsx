@@ -102,8 +102,9 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
   return (
     <aside className="flex flex-col w-56 h-full bg-white border-r border-slate-200 flex-shrink-0">
       {/* ロゴ */}
-      <div className="h-12 flex items-center px-4 border-b border-slate-200">
-        <img src="/image.png" alt="FreStyle" className="w-9 h-9 rounded-xl object-contain" />
+      <div className="h-14 flex items-center px-4 border-b border-slate-200 gap-2.5">
+        <img src="/image.png" alt="FreStyle" className="w-11 h-11 rounded-xl object-contain" />
+        <span className="text-base font-bold text-slate-800 tracking-tight">FreStyle</span>
       </div>
 
       {/* メインナビ */}

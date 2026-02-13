@@ -1,10 +1,13 @@
-import { render, screen } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 import authReducer from '../../../store/authSlice';
 import Sidebar from '../Sidebar';
+
+const mockFetch = vi.fn();
+global.fetch = mockFetch;
 
 function createTestStore() {
   return configureStore({
@@ -24,6 +27,15 @@ function renderSidebar(currentPath = '/') {
 }
 
 describe('Sidebar', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ chatUsers: [] }),
+    });
+  });
+
   it('全ナビゲーション項目を表示する', () => {
     renderSidebar();
     expect(screen.getByText('ホーム')).toBeDefined();
@@ -58,5 +70,25 @@ describe('Sidebar', () => {
     renderSidebar('/chat');
     const chatLink = screen.getByText('チャット').closest('a');
     expect(chatLink?.className).toContain('bg-primary-50');
+  });
+
+  it('未読メッセージがある場合チャットにバッジを表示する', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({
+        chatUsers: [
+          { roomId: 1, unreadCount: 3 },
+          { roomId: 2, unreadCount: 2 },
+        ],
+      }),
+    });
+
+    renderSidebar();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('sidebar-badge')).toBeInTheDocument();
+      expect(screen.getByTestId('sidebar-badge')).toHaveTextContent('5');
+    });
   });
 });

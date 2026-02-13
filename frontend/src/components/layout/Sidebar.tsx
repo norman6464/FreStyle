@@ -1,6 +1,7 @@
 import { useLocation } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import { clearAuth } from '../../store/authSlice';
 import SidebarItem from './SidebarItem';
 import {
@@ -37,6 +38,30 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
   const location = useLocation();
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const [totalUnread, setTotalUnread] = useState(0);
+
+  useEffect(() => {
+    const fetchUnread = async () => {
+      try {
+        const res = await fetch(
+          `${import.meta.env.VITE_API_BASE_URL}/api/chat/rooms`,
+          { headers: { 'Content-Type': 'application/json' }, credentials: 'include' }
+        );
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.chatUsers) {
+            const unread = data.chatUsers.reduce(
+              (sum: number, u: { unreadCount: number }) => sum + u.unreadCount, 0
+            );
+            setTotalUnread(unread);
+          }
+        }
+      } catch {
+        // サイレントに処理
+      }
+    };
+    fetchUnread();
+  }, []);
 
   const isActive = (item: typeof navItems[0]) => {
     if (item.matchExact) {
@@ -91,6 +116,7 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
             to={item.to}
             active={isActive(item)}
             onClick={onNavigate}
+            badge={item.label === 'チャット' ? totalUnread : undefined}
           />
         ))}
 

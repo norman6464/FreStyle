@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import ForgotPasswordPage from '../ForgotPasswordPage';
+import authRepository from '../../repositories/AuthRepository';
+import { AxiosError } from 'axios';
 
 const mockNavigate = vi.fn();
 
@@ -12,6 +14,8 @@ vi.mock('react-router-dom', async () => {
     useNavigate: () => mockNavigate,
   };
 });
+
+vi.mock('../../repositories/AuthRepository');
 
 describe('ForgotPasswordPage', () => {
   beforeEach(() => {
@@ -37,10 +41,7 @@ describe('ForgotPasswordPage', () => {
   });
 
   it('送信成功時にリセット確認ページへ遷移する', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ message: '確認コードを送信しました' }),
-    });
+    vi.mocked(authRepository.forgotPassword).mockResolvedValue({ message: '確認コードを送信しました' });
 
     render(<BrowserRouter><ForgotPasswordPage /></BrowserRouter>);
 
@@ -57,10 +58,9 @@ describe('ForgotPasswordPage', () => {
   });
 
   it('送信失敗時にエラーメッセージを表示する', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      json: () => Promise.resolve({ error: 'メールアドレスが見つかりません' }),
-    });
+    const axiosError = new AxiosError('Request failed');
+    (axiosError as any).response = { data: { error: 'メールアドレスが見つかりません' } };
+    vi.mocked(authRepository.forgotPassword).mockRejectedValue(axiosError);
 
     render(<BrowserRouter><ForgotPasswordPage /></BrowserRouter>);
 
@@ -75,7 +75,7 @@ describe('ForgotPasswordPage', () => {
   });
 
   it('通信エラー時にエラーメッセージを表示する', async () => {
-    global.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
+    vi.mocked(authRepository.forgotPassword).mockRejectedValue(new Error('Network error'));
 
     render(<BrowserRouter><ForgotPasswordPage /></BrowserRouter>);
 

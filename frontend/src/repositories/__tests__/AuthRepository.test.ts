@@ -38,17 +38,18 @@ describe('AuthRepository', () => {
   });
 
   it('forgotPassword: パスワード再設定リクエストを送信できる', async () => {
-    mockedApiClient.post.mockResolvedValue({});
+    mockedApiClient.post.mockResolvedValue({ data: { message: '確認コードを送信しました' } });
 
-    await authRepository.forgotPassword({ email: 'test@example.com' });
+    const result = await authRepository.forgotPassword({ email: 'test@example.com' });
 
     expect(mockedApiClient.post).toHaveBeenCalledWith('/api/auth/cognito/forgot-password', { email: 'test@example.com' });
+    expect(result).toEqual({ message: '確認コードを送信しました' });
   });
 
   it('confirmForgotPassword: パスワード再設定確認ができる', async () => {
-    mockedApiClient.post.mockResolvedValue({});
+    mockedApiClient.post.mockResolvedValue({ data: { message: 'パスワードをリセットしました' } });
 
-    await authRepository.confirmForgotPassword({
+    const result = await authRepository.confirmForgotPassword({
       email: 'test@example.com',
       confirmationCode: '123456',
       newPassword: 'newPassword123',
@@ -59,6 +60,7 @@ describe('AuthRepository', () => {
       confirmationCode: '123456',
       newPassword: 'newPassword123',
     });
+    expect(result).toEqual({ message: 'パスワードをリセットしました' });
   });
 
   it('logout: ログアウトできる', async () => {

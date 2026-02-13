@@ -3,6 +3,8 @@ import AuthLayout from '../components/AuthLayout';
 import InputField from '../components/InputField';
 import PrimaryButton from '../components/PrimaryButton';
 import { useNavigate, useLocation } from 'react-router-dom';
+import authRepository from '../repositories/AuthRepository';
+import { AxiosError } from 'axios';
 
 interface FormMessage {
   type: 'success' | 'error';
@@ -12,7 +14,6 @@ interface FormMessage {
 export default function ConfirmForgotPasswordPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   const [form, setForm] = useState({
     email: (location.state as { email?: string })?.email || '',
@@ -32,33 +33,22 @@ export default function ConfirmForgotPasswordPage() {
     e.preventDefault();
 
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/auth/cognito/confirm-forgot-password`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(form),
-        }
-      );
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setMessage({ type: 'success', text: data.message });
-        navigate('/login', {
-          state: {
-            message: 'パスワードリセットに成功しました。ログインしてください。',
-          },
-        });
-      } else {
-        setMessage({
-          type: 'error',
-          text: data.error || 'リセットに失敗しました。',
-        });
-      }
+      await authRepository.confirmForgotPassword({
+        email: form.email,
+        confirmationCode: form.code,
+        newPassword: form.newPassword,
+      });
+      navigate('/login', {
+        state: {
+          message: 'パスワードリセットに成功しました。ログインしてください。',
+        },
+      });
     } catch (error) {
-      console.log(error);
-      setMessage({ type: 'error', text: '通信エラーが発生しました。' });
+      if (error instanceof AxiosError && error.response?.data?.error) {
+        setMessage({ type: 'error', text: error.response.data.error });
+      } else {
+        setMessage({ type: 'error', text: '通信エラーが発生しました。' });
+      }
     }
   };
 

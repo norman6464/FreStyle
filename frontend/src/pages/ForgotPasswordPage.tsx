@@ -3,6 +3,8 @@ import AuthLayout from '../components/AuthLayout';
 import InputField from '../components/InputField';
 import PrimaryButton from '../components/PrimaryButton';
 import { useNavigate } from 'react-router-dom';
+import authRepository from '../repositories/AuthRepository';
+import { AxiosError } from 'axios';
 
 interface FormMessage {
   type: 'success' | 'error';
@@ -13,35 +15,20 @@ export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState<FormMessage | null>(null);
   const navigate = useNavigate();
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/auth/cognito/forgot-password`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setMessage({ type: 'success', text: data.message });
-        navigate('/confirm-forgot-password', { state: { email } });
-      } else {
-        setMessage({
-          type: 'error',
-          text: data.error || '送信に失敗しました。',
-        });
-      }
+      const data = await authRepository.forgotPassword({ email });
+      setMessage({ type: 'success', text: data.message });
+      navigate('/confirm-forgot-password', { state: { email } });
     } catch (error) {
-      console.log(error);
-      setMessage({ type: 'error', text: '通信エラーが発生しました。' });
+      if (error instanceof AxiosError && error.response?.data?.error) {
+        setMessage({ type: 'error', text: error.response.data.error });
+      } else {
+        setMessage({ type: 'error', text: '通信エラーが発生しました。' });
+      }
     }
   };
 

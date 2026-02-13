@@ -46,8 +46,9 @@ describe('FavoritesPage', () => {
   it('パターンラベルが表示される', () => {
     render(<FavoritesPage />);
 
-    expect(screen.getByText('フォーマル')).toBeInTheDocument();
-    expect(screen.getByText('ソフト')).toBeInTheDocument();
+    // フィルタボタンとカード内のラベルの両方に存在するため、getAllで確認
+    expect(screen.getAllByText('フォーマル').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('ソフト').length).toBeGreaterThanOrEqual(1);
   });
 
   it('元のテキストが表示される', () => {
@@ -64,6 +65,45 @@ describe('FavoritesPage', () => {
     fireEvent.click(deleteButtons[0]);
 
     expect(mockRemoveFavorite).toHaveBeenCalledWith('1');
+  });
+
+  it('検索ボックスが表示される', () => {
+    render(<FavoritesPage />);
+
+    expect(screen.getByPlaceholderText('フレーズを検索...')).toBeInTheDocument();
+  });
+
+  it('検索でフレーズがフィルタリングされる', () => {
+    render(<FavoritesPage />);
+
+    fireEvent.change(screen.getByPlaceholderText('フレーズを検索...'), {
+      target: { value: '確認' },
+    });
+
+    expect(screen.getByText('ご確認いただけますでしょうか')).toBeInTheDocument();
+    expect(screen.queryByText('こちらの内容でよろしいでしょうか')).not.toBeInTheDocument();
+  });
+
+  it('パターンフィルタでフレーズが絞り込まれる', () => {
+    render(<FavoritesPage />);
+
+    // フィルタボタンは「すべて」「フォーマル」「ソフト」「簡潔」
+    const filterButtons = screen.getAllByRole('button');
+    const softButton = filterButtons.find(b => b.textContent === 'ソフト');
+    fireEvent.click(softButton!);
+
+    expect(screen.getByText('こちらの内容でよろしいでしょうか')).toBeInTheDocument();
+    expect(screen.queryByText('ご確認いただけますでしょうか')).not.toBeInTheDocument();
+  });
+
+  it('検索結果がない場合にメッセージを表示する', () => {
+    render(<FavoritesPage />);
+
+    fireEvent.change(screen.getByPlaceholderText('フレーズを検索...'), {
+      target: { value: '存在しないフレーズ' },
+    });
+
+    expect(screen.getByText('該当するフレーズがありません')).toBeInTheDocument();
   });
 
   it('フレーズが空のときメッセージが表示される', () => {

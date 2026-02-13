@@ -39,23 +39,23 @@ export default function PracticePage() {
   return (
     <div className="p-6 max-w-2xl mx-auto">
       {/* ヘッダー */}
-      <div className="mb-6">
-        <h1 className="text-lg font-bold text-slate-800 mb-1">ビジネスシナリオ練習</h1>
-        <p className="text-sm text-slate-500">
+      <div className="mb-5">
+        <h1 className="text-sm font-semibold text-slate-800 mb-1">ビジネスシナリオ練習</h1>
+        <p className="text-xs text-slate-500">
           AIが相手役を演じます。実践的なビジネスシーンでコミュニケーションスキルを磨きましょう。
         </p>
       </div>
 
-      {/* カテゴリフィルター */}
-      <div className="flex gap-2 mb-6 overflow-x-auto">
+      {/* カテゴリタブ */}
+      <div className="flex gap-1 mb-5 border-b border-slate-200">
         {CATEGORIES.map((category) => (
           <button
             key={category}
             onClick={() => setSelectedCategory(category)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
+            className={`px-3 py-2 text-xs font-medium transition-colors border-b-2 -mb-px ${
               selectedCategory === category
-                ? 'bg-primary-500 text-white'
-                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                ? 'border-primary-500 text-primary-600'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
             }`}
           >
             {category}
@@ -71,7 +71,7 @@ export default function PracticePage() {
           <SkeletonCard />
         </div>
       ) : filteredScenarios.length === 0 ? (
-        <div className="text-center py-12 text-sm text-slate-500">
+        <div className="text-center py-12 text-xs text-slate-500">
           シナリオがありません
         </div>
       ) : (

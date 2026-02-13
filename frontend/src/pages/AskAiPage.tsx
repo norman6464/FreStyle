@@ -7,27 +7,19 @@ import PracticeResultSummary from '../components/PracticeResultSummary';
 import SecondaryPanel from '../components/layout/SecondaryPanel';
 import PracticeTimer from '../components/PracticeTimer';
 import SessionNoteEditor from '../components/SessionNoteEditor';
-import { useNavigate, useLocation, useParams } from 'react-router-dom';
-import { AiMessage, AiSession, ScoreCard } from '../types';
+import { useLocation, useParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useAiChat } from '../hooks/useAiChat';
 import { useWebSocket } from '../hooks/useWebSocket';
+import { useAiSession } from '../hooks/useAiSession';
 
 export default function AskAiPage() {
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-  const [currentSessionId, setCurrentSessionId] = useState<number | null>(null);
   const [initialPromptSent, setInitialPromptSent] = useState(false);
-  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; sessionId: number | null }>({
-    isOpen: false,
-    sessionId: null
-  });
-  const [editingSessionId, setEditingSessionId] = useState<number | null>(null);
-  const [editingTitle, setEditingTitle] = useState('');
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
-  const navigate = useNavigate();
   const location = useLocation();
   const { sessionId: urlSessionId } = useParams<{ sessionId: string }>();
 
@@ -41,6 +33,23 @@ export default function AskAiPage() {
     deleteSession,
     updateSessionTitle
   } = useAiChat();
+
+  const {
+    currentSessionId,
+    setCurrentSessionId,
+    deleteModal,
+    editingSessionId,
+    editingTitle,
+    setEditingTitle,
+    handleNewSession,
+    handleSelectSession,
+    handleDeleteSession,
+    confirmDeleteSession,
+    cancelDeleteSession,
+    handleStartEditTitle,
+    handleSaveTitle,
+    handleCancelEditTitle,
+  } = useAiSession({ deleteSession, updateSessionTitle });
 
   const locationState = location.state as {
     initialPrompt?: string;
@@ -155,64 +164,6 @@ export default function AskAiPage() {
     }
   };
 
-  // 新規セッション作成
-  const handleNewSession = (): void => {
-    setCurrentSessionId(null);
-    navigate('/chat/ask-ai');
-  };
-
-  // セッション選択
-  const handleSelectSession = (sessionId: number): void => {
-    setCurrentSessionId(sessionId);
-    navigate(`/chat/ask-ai/${sessionId}`);
-  };
-
-  // セッション削除
-  const handleDeleteSession = (sessionId: number): void => {
-    setDeleteModal({ isOpen: true, sessionId });
-  };
-
-  const confirmDeleteSession = async (): Promise<void> => {
-    const sessionId = deleteModal.sessionId;
-    setDeleteModal({ isOpen: false, sessionId: null });
-
-    if (sessionId) {
-      const success = await deleteSession(sessionId);
-      if (success && currentSessionId === sessionId) {
-        setCurrentSessionId(null);
-        navigate('/chat/ask-ai');
-      }
-    }
-  };
-
-  const cancelDeleteSession = (): void => {
-    setDeleteModal({ isOpen: false, sessionId: null });
-  };
-
-  // セッションタイトル編集
-  const handleStartEditTitle = (e: React.MouseEvent, session: AiSession): void => {
-    e.stopPropagation();
-    setEditingSessionId(session.id);
-    setEditingTitle(session.title || '');
-  };
-
-  const handleSaveTitle = async (sessionId: number): Promise<void> => {
-    if (!editingTitle.trim()) {
-      setEditingSessionId(null);
-      return;
-    }
-
-    const success = await updateSessionTitle(sessionId, { title: editingTitle.trim() });
-    if (success) {
-      setEditingSessionId(null);
-    }
-  };
-
-  const handleCancelEditTitle = (): void => {
-    setEditingSessionId(null);
-    setEditingTitle('');
-  };
-
   // メッセージ送信
   const handleSend = async (text: string): Promise<void> => {
     const payload: Record<string, unknown> = {
@@ -300,7 +251,7 @@ export default function AskAiPage() {
               {editingSessionId !== session.id && (
                 <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
-                    onClick={(e) => handleStartEditTitle(e, session)}
+                    onClick={(e) => { e.stopPropagation(); handleStartEditTitle(session); }}
                     className="p-1 hover:bg-blue-100 rounded"
                     title="タイトルを編集"
                   >

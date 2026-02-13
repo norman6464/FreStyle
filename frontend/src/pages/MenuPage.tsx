@@ -8,11 +8,12 @@ import {
 } from '@heroicons/react/24/outline';
 import DailyGoalCard from '../components/DailyGoalCard';
 import LearningInsightsCard from '../components/LearningInsightsCard';
+import WeeklyReportCard from '../components/WeeklyReportCard';
 import { useMenuData } from '../hooks/useMenuData';
 
 export default function MenuPage() {
   const navigate = useNavigate();
-  const { stats, totalUnread, latestScore, totalSessions, averageScore, uniqueDays } = useMenuData();
+  const { stats, totalUnread, latestScore, allScores, totalSessions, averageScore, uniqueDays } = useMenuData();
 
   const menuItems = [
     {
@@ -81,6 +82,13 @@ export default function MenuPage() {
           <p className="text-xs text-primary-600">
             まずは練習モードから始めてみましょう。AIが相手役を演じるビジネスシナリオで、コミュニケーションスキルを磨けます。
           </p>
+        </div>
+      )}
+
+      {/* 週間レポート */}
+      {totalSessions > 0 && (
+        <div className="mb-6">
+          <WeeklyReportCard allScores={allScores} />
         </div>
       )}
 

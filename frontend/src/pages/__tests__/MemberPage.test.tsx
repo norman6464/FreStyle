@@ -1,26 +1,27 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import MemberPage from '../MemberPage';
 
-const mockNavigate = vi.fn();
+const mockUseUserSearch = vi.fn();
+vi.mock('../../hooks/useUserSearch', () => ({
+  useUserSearch: () => mockUseUserSearch(),
+}));
 
-vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual('react-router-dom');
+function defaultData() {
   return {
-    ...actual,
-    useNavigate: () => mockNavigate,
+    users: [],
+    error: null,
+    searchQuery: '',
+    setSearchQuery: vi.fn(),
+    debounceQuery: '',
   };
-});
+}
 
 describe('MemberPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve({ users: [] }),
-    });
+    mockUseUserSearch.mockReturnValue(defaultData());
   });
 
   it('ヘッダーが表示される', () => {
@@ -42,47 +43,38 @@ describe('MemberPage', () => {
     expect(screen.getByText('メンバーがまだいません')).toBeInTheDocument();
   });
 
-  it('メンバー取得後に一覧を表示する', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve({
-        users: [
-          { id: 1, name: '鈴木一郎', email: 'suzuki@example.com', roomId: 10 },
-        ],
-      }),
+  it('メンバー一覧を表示する', () => {
+    mockUseUserSearch.mockReturnValue({
+      ...defaultData(),
+      users: [
+        { id: 1, name: '鈴木一郎', email: 'suzuki@example.com', roomId: 10 },
+      ],
     });
 
     render(<BrowserRouter><MemberPage /></BrowserRouter>);
 
-    await waitFor(() => {
-      expect(screen.getByText('鈴木一郎')).toBeInTheDocument();
-    });
+    expect(screen.getByText('鈴木一郎')).toBeInTheDocument();
   });
 
-  it('401レスポンス時にログインページへリダイレクトする', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 401,
+  it('エラーメッセージを表示する', () => {
+    mockUseUserSearch.mockReturnValue({
+      ...defaultData(),
+      error: 'ネットワークエラー',
     });
 
     render(<BrowserRouter><MemberPage /></BrowserRouter>);
 
-    await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith('/login');
-    });
+    expect(screen.getByText('ネットワークエラー')).toBeInTheDocument();
   });
 
-  it('500レスポンス時にトップページへリダイレクトする', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 500,
+  it('エラー時にメンバーなしメッセージは表示しない', () => {
+    mockUseUserSearch.mockReturnValue({
+      ...defaultData(),
+      error: 'エラー',
     });
 
     render(<BrowserRouter><MemberPage /></BrowserRouter>);
 
-    await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith('/');
-    });
+    expect(screen.queryByText('メンバーがまだいません')).not.toBeInTheDocument();
   });
 });

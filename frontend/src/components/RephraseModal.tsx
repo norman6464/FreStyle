@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useFavoritePhrase } from '../hooks/useFavoritePhrase';
 
 interface RephraseResult {
   formal: string;
@@ -11,6 +12,7 @@ interface RephraseResult {
 interface RephraseModalProps {
   result: RephraseResult | null;
   onClose: () => void;
+  originalText?: string;
 }
 
 const PATTERNS = [
@@ -21,13 +23,22 @@ const PATTERNS = [
   { key: 'proposal' as const, label: '提案型', hint: '代替案を提示する時に' },
 ] as const;
 
-export default function RephraseModal({ result, onClose }: RephraseModalProps) {
+export default function RephraseModal({ result, onClose, originalText = '' }: RephraseModalProps) {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const { saveFavorite, isFavorite } = useFavoritePhrase();
+  const [savedKeys, setSavedKeys] = useState<Set<string>>(new Set());
 
   const handleCopy = async (text: string, key: string) => {
     await navigator.clipboard.writeText(text);
     setCopiedKey(key);
     setTimeout(() => setCopiedKey(null), 2000);
+  };
+
+  const handleFavorite = (text: string, label: string, key: string) => {
+    if (!isFavorite(text, label) && !savedKeys.has(key)) {
+      saveFavorite(originalText, text, label);
+      setSavedKeys((prev) => new Set(prev).add(key));
+    }
   };
 
   return (
@@ -42,23 +53,39 @@ export default function RephraseModal({ result, onClose }: RephraseModalProps) {
           </div>
         ) : (
           <div className="space-y-3">
-            {PATTERNS.map(({ key, label, hint }) => (
-              <div key={key} className="border border-slate-200 rounded-lg p-3">
-                <div className="flex items-center justify-between mb-1">
-                  <div>
-                    <span className="text-xs font-medium text-slate-600">{label}</span>
-                    <span className="text-[10px] text-slate-400 ml-2">{hint}</span>
+            {PATTERNS.map(({ key, label, hint }) => {
+              const isSaved = isFavorite(result[key], label) || savedKeys.has(key);
+              return (
+                <div key={key} className="border border-slate-200 rounded-lg p-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <div>
+                      <span className="text-xs font-medium text-slate-600">{label}</span>
+                      <span className="text-[10px] text-slate-400 ml-2">{hint}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleFavorite(result[key], label, key)}
+                        aria-label={isSaved ? 'お気に入り済み' : 'お気に入りに追加'}
+                        className={`text-xs px-1.5 py-0.5 rounded transition-colors ${
+                          isSaved
+                            ? 'text-amber-500'
+                            : 'text-slate-300 hover:text-amber-400'
+                        }`}
+                      >
+                        {isSaved ? '★' : '☆'}
+                      </button>
+                      <button
+                        onClick={() => handleCopy(result[key], key)}
+                        className="text-xs text-slate-400 hover:text-slate-600 px-2 py-0.5 rounded hover:bg-slate-100 transition-colors"
+                      >
+                        {copiedKey === key ? 'コピーしました' : 'コピー'}
+                      </button>
+                    </div>
                   </div>
-                  <button
-                    onClick={() => handleCopy(result[key], key)}
-                    className="text-xs text-slate-400 hover:text-slate-600 px-2 py-0.5 rounded hover:bg-slate-100 transition-colors"
-                  >
-                    {copiedKey === key ? 'コピーしました' : 'コピー'}
-                  </button>
+                  <p className="text-sm text-slate-700">{result[key]}</p>
                 </div>
-                <p className="text-sm text-slate-700">{result[key]}</p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 

@@ -102,7 +102,7 @@ export default function MenuPage() {
           <button
             key={item.to}
             onClick={() => navigate(item.to)}
-            className="w-full flex items-center gap-4 bg-white rounded-lg border border-slate-200 p-4 text-left hover:bg-slate-50 transition-colors"
+            className="w-full flex items-center gap-4 bg-white rounded-lg border border-slate-200 p-4 text-left hover:bg-primary-50 transition-colors"
           >
             <item.icon className="w-5 h-5 text-slate-500 flex-shrink-0" />
             <div className="min-w-0">

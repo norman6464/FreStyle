@@ -89,7 +89,7 @@ export default function MemberItem({ id, name, roomId, email }: MemberItemProps)
   return (
     <div
       onClick={handleClick}
-      className="bg-white rounded-2xl cursor-pointer overflow-hidden group border border-slate-200 hover:bg-slate-50 transition-colors duration-150 mb-3"
+      className="bg-white rounded-2xl cursor-pointer overflow-hidden group border border-slate-200 hover:bg-primary-50 transition-colors duration-150 mb-3"
     >
       <div className="flex items-center p-4">
         <div className="w-14 h-14 bg-primary-500 rounded-full flex items-center justify-center text-white font-bold text-xl flex-shrink-0">

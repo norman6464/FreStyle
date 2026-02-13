@@ -30,7 +30,7 @@ export default function AppShell() {
   const title = getPageTitle(location.pathname);
 
   return (
-    <div className="h-screen flex bg-slate-50">
+    <div className="h-screen flex bg-surface">
       {/* デスクトップサイドバー */}
       <div className="hidden md:block">
         <Sidebar />

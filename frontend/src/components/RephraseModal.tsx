@@ -53,7 +53,7 @@ export default function RephraseModal({ result, onClose }: RephraseModalProps) {
 
         <button
           onClick={onClose}
-          className="w-full mt-4 py-2 text-sm text-slate-500 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors"
+          className="w-full mt-4 py-2 text-sm text-slate-500 hover:text-slate-700 bg-primary-50 hover:bg-primary-100 rounded-lg transition-colors"
         >
           閉じる
         </button>

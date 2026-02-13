@@ -10,17 +10,17 @@ import org.springframework.stereotype.Controller;
 
 import com.example.FreStyle.dto.AiChatMessageResponseDto;
 import com.example.FreStyle.dto.AiChatSessionDto;
+import com.example.FreStyle.dto.PracticeScenarioDto;
 import com.example.FreStyle.dto.ScoreCardDto;
 import com.example.FreStyle.dto.UserProfileDto;
 import com.example.FreStyle.entity.AiChatMessage.Role;
-import com.example.FreStyle.entity.PracticeScenario;
 import com.example.FreStyle.service.AiChatMessageService;
 import com.example.FreStyle.service.AiChatSessionService;
 import com.example.FreStyle.service.BedrockService;
-import com.example.FreStyle.service.PracticeScenarioService;
 import com.example.FreStyle.service.ScoreCardService;
 import com.example.FreStyle.service.SystemPromptBuilder;
 import com.example.FreStyle.service.UserProfileService;
+import com.example.FreStyle.usecase.GetPracticeScenarioByIdUseCase;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,7 +36,7 @@ public class AiChatWebSocketController {
     private final SimpMessagingTemplate messagingTemplate;
     private final UserProfileService userProfileService;
     private final ScoreCardService scoreCardService;
-    private final PracticeScenarioService practiceScenarioService;
+    private final GetPracticeScenarioByIdUseCase getPracticeScenarioByIdUseCase;
     private final SystemPromptBuilder systemPromptBuilder;
 
     /**
@@ -141,7 +141,7 @@ public class AiChatWebSocketController {
             if (isPracticeMode && scenarioId != null) {
                 // 練習モード: シナリオに基づいたロールプレイ
                 System.out.println("🎭 練習モード: scenarioId=" + scenarioId);
-                PracticeScenario scenario = practiceScenarioService.getScenarioEntityById(scenarioId);
+                PracticeScenarioDto scenario = getPracticeScenarioByIdUseCase.execute(scenarioId);
                 String practicePrompt = systemPromptBuilder.buildPracticePrompt(
                         scenario.getName(), scenario.getRoleName(),
                         scenario.getDifficulty(), scenario.getSystemPrompt());

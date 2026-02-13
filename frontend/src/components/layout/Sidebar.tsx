@@ -1,9 +1,6 @@
 import { useLocation } from 'react-router-dom';
-import { useDispatch } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
-import { clearAuth } from '../../store/authSlice';
 import SidebarItem from './SidebarItem';
+import { useSidebar } from '../../hooks/useSidebar';
 import {
   HomeIcon,
   ChatBubbleLeftRightIcon,
@@ -38,32 +35,7 @@ interface SidebarProps {
 
 export default function Sidebar({ onNavigate }: SidebarProps) {
   const location = useLocation();
-  const dispatch = useDispatch();
-  const navigate = useNavigate();
-  const [totalUnread, setTotalUnread] = useState(0);
-
-  useEffect(() => {
-    const fetchUnread = async () => {
-      try {
-        const res = await fetch(
-          `${import.meta.env.VITE_API_BASE_URL}/api/chat/rooms`,
-          { headers: { 'Content-Type': 'application/json' }, credentials: 'include' }
-        );
-        if (res.ok) {
-          const data = await res.json();
-          if (data?.chatUsers) {
-            const unread = data.chatUsers.reduce(
-              (sum: number, u: { unreadCount: number }) => sum + u.unreadCount, 0
-            );
-            setTotalUnread(unread);
-          }
-        }
-      } catch {
-        // サイレントに処理
-      }
-    };
-    fetchUnread();
-  }, []);
+  const { totalUnread, handleLogout } = useSidebar();
 
   const isActive = (item: typeof navItems[0]) => {
     if (item.matchExact) {
@@ -77,28 +49,6 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
       return matches;
     }
     return false;
-  };
-
-  const handleLogout = async () => {
-    try {
-      const res = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/api/auth/cognito/logout`,
-        {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
-      if (!res.ok) {
-        alert('ログアウトに失敗しました');
-        return;
-      }
-      dispatch(clearAuth());
-      navigate('/login');
-    } catch (err) {
-      console.error('ログアウトエラー:', err);
-      alert('ログアウト中にエラーが発生しました');
-    }
   };
 
   return (

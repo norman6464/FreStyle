@@ -8,6 +8,7 @@ import {
   ChartBarIcon,
 } from '@heroicons/react/24/outline';
 import DailyGoalCard from '../components/DailyGoalCard';
+import LearningInsightsCard from '../components/LearningInsightsCard';
 
 interface ChatStats {
   chatPartnerCount: number;
@@ -26,6 +27,7 @@ export default function MenuPage() {
   const [stats, setStats] = useState<ChatStats | null>(null);
   const [totalUnread, setTotalUnread] = useState<number>(0);
   const [latestScore, setLatestScore] = useState<ScoreHistory | null>(null);
+  const [allScores, setAllScores] = useState<ScoreHistory[]>([]);
 
   useEffect(() => {
     const fetchWithRetry = async (url: string) => {
@@ -73,6 +75,7 @@ export default function MenuPage() {
 
         if (scoresData && scoresData.length > 0) {
           setLatestScore(scoresData[0]);
+          setAllScores(scoresData);
         }
       } catch (err) {
         console.error('Error fetching dashboard data:', err);
@@ -114,8 +117,25 @@ export default function MenuPage() {
 
   const showRecommendation = !latestScore && stats?.chatPartnerCount === 0;
 
+  const totalSessions = allScores.length;
+  const averageScore = totalSessions > 0
+    ? Math.round((allScores.reduce((sum, s) => sum + s.overallScore, 0) / totalSessions) * 10) / 10
+    : 0;
+  const uniqueDays = new Set(allScores.map(s => s.createdAt.split('T')[0])).size;
+
   return (
     <div className="p-6 max-w-2xl mx-auto">
+      {/* 学習インサイト */}
+      {totalSessions > 0 && (
+        <div className="mb-6">
+          <LearningInsightsCard
+            totalSessions={totalSessions}
+            averageScore={averageScore}
+            streakDays={uniqueDays}
+          />
+        </div>
+      )}
+
       {/* サマリー */}
       <div className="bg-white rounded-lg border border-slate-200 p-4 mb-6">
         <div className="flex items-center gap-3">

@@ -17,6 +17,12 @@ vi.mock('../../components/DailyGoalCard', () => ({
   default: () => <div data-testid="daily-goal-card">DailyGoalCard</div>,
 }));
 
+vi.mock('../../components/LearningInsightsCard', () => ({
+  default: ({ totalSessions, averageScore, streakDays }: { totalSessions: number; averageScore: number; streakDays: number }) => (
+    <div data-testid="learning-insights">{totalSessions} sessions, {averageScore} avg, {streakDays} days</div>
+  ),
+}));
+
 // フェッチモック
 const mockFetch = vi.fn();
 global.fetch = mockFetch;

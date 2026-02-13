@@ -4,6 +4,8 @@ import { BrowserRouter } from 'react-router-dom';
 import PracticePage from '../PracticePage';
 
 const mockNavigate = vi.fn();
+const mockFetchScenarios = vi.fn();
+const mockCreatePracticeSession = vi.fn();
 
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom');
@@ -13,24 +15,28 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
-global.fetch = vi.fn();
+vi.mock('../../hooks/usePractice', () => ({
+  usePractice: () => ({
+    scenarios: [
+      {
+        id: 1,
+        name: '本番障害の緊急報告',
+        description: '本番環境で重大な障害が発生',
+        category: 'customer',
+        roleName: '怒っている顧客（SIer企業のPM）',
+        difficulty: 'intermediate',
+      },
+    ],
+    loading: false,
+    fetchScenarios: mockFetchScenarios,
+    createPracticeSession: mockCreatePracticeSession,
+  }),
+}));
 
 describe('PracticePage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-      ok: true,
-      json: async () => ([
-        {
-          id: 1,
-          name: '本番障害の緊急報告',
-          description: '本番環境で重大な障害が発生',
-          category: 'customer',
-          roleName: '怒っている顧客（SIer企業のPM）',
-          difficulty: 'intermediate',
-        },
-      ]),
-    } as Response);
+    mockCreatePracticeSession.mockResolvedValue({ id: 123, title: '練習: 本番障害の緊急報告' });
   });
 
   describe('シナリオカードクリック時の動作', () => {
@@ -44,12 +50,6 @@ describe('PracticePage', () => {
       await waitFor(() => {
         expect(screen.getByText('本番障害の緊急報告')).toBeInTheDocument();
       });
-
-      // セッション作成APIのモック
-      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ id: 123, title: '練習: 本番障害の緊急報告' }),
-      } as Response);
 
       const scenarioCard = screen.getByText('本番障害の緊急報告').closest('div[class*="cursor-pointer"]');
       if (scenarioCard) {

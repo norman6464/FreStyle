@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
-import ScoreHistoryPage from '../ScoreHistoryPage';
+import type { Mock } from 'vitest';
 
 const mockHistory = [
   {
@@ -24,57 +24,67 @@ const mockHistory = [
   },
 ];
 
+const mockFetchScoreHistory: Mock = vi.fn();
+const mockUseAiChat = {
+  fetchScoreHistory: mockFetchScoreHistory,
+  loading: false,
+};
+
+vi.mock('../../hooks/useAiChat', () => ({
+  useAiChat: () => mockUseAiChat,
+}));
+
+// モックをクリアしてから動的にインポート
+const importScoreHistoryPage = async () => {
+  return (await import('../ScoreHistoryPage')).default;
+};
+
 describe('ScoreHistoryPage', () => {
   beforeEach(() => {
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
+    mockUseAiChat.loading = false;
+    mockFetchScoreHistory.mockResolvedValue(mockHistory);
   });
 
   it('スコア履歴一覧が表示される', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(mockHistory),
-    });
+    const ScoreHistoryPage = await importScoreHistoryPage();
 
     render(<ScoreHistoryPage />);
 
     await waitFor(() => {
       expect(screen.getByText('会議フィードバック')).toBeInTheDocument();
       expect(screen.getByText('コードレビューフィードバック')).toBeInTheDocument();
-    });
+    }, { timeout: 3000 });
   });
 
   it('総合スコアが表示される', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(mockHistory),
-    });
+    const ScoreHistoryPage = await importScoreHistoryPage();
 
     render(<ScoreHistoryPage />);
 
     await waitFor(() => {
       expect(screen.getByText('7.4')).toBeInTheDocument();
       expect(screen.getByText('6.0')).toBeInTheDocument();
-    });
+    }, { timeout: 3000 });
   });
 
   it('履歴が空の場合メッセージが表示される', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve([]),
-    });
+    mockFetchScoreHistory.mockResolvedValue([]);
+    const ScoreHistoryPage = await importScoreHistoryPage();
 
     render(<ScoreHistoryPage />);
 
     await waitFor(() => {
       expect(screen.getByText('スコア履歴がありません')).toBeInTheDocument();
-    });
+    }, { timeout: 3000 });
   });
 
-  it('ローディング中はスピナーが表示される', () => {
-    global.fetch = vi.fn().mockReturnValue(new Promise(() => {}));
+  it('ローディング中はスケルトンが表示される', async () => {
+    mockUseAiChat.loading = true;
+    const ScoreHistoryPage = await importScoreHistoryPage();
 
     render(<ScoreHistoryPage />);
 
-    expect(document.querySelector('.animate-spin')).toBeInTheDocument();
+    expect(screen.getByText('スコア履歴を読み込み中...')).toBeInTheDocument();
   });
 });

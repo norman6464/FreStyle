@@ -48,4 +48,67 @@ describe('ScoreCard', () => {
     expect(screen.getByText('改善余地あり')).toBeInTheDocument();
     expect(screen.getByText('優秀')).toBeInTheDocument();
   });
+
+  it('総合スコアのレベルラベルが表示される（実務レベル）', () => {
+    render(<ScoreCard scoreCard={scoreCard} />);
+
+    expect(screen.getByText('実務レベル')).toBeInTheDocument();
+  });
+
+  it('総合スコア8以上で「優秀」レベルが表示される', () => {
+    const excellentCard: ScoreCardType = {
+      ...scoreCard,
+      overallScore: 8.5,
+    };
+    render(<ScoreCard scoreCard={excellentCard} />);
+
+    expect(screen.getByText('優秀レベル')).toBeInTheDocument();
+  });
+
+  it('総合スコア5未満で「基礎レベル」が表示される', () => {
+    const basicCard: ScoreCardType = {
+      ...scoreCard,
+      overallScore: 4.0,
+    };
+    render(<ScoreCard scoreCard={basicCard} />);
+
+    expect(screen.getByText('基礎レベル')).toBeInTheDocument();
+  });
+
+  it('低スコアの軸に改善ヒントが表示される', () => {
+    render(<ScoreCard scoreCard={scoreCard} />);
+
+    // スコア5の「提案力」に改善ヒントが表示される
+    expect(screen.getByText(/この項目を重点的に練習しましょう/)).toBeInTheDocument();
+  });
+
+  it('高スコアの軸には改善ヒントが表示されない', () => {
+    const allHighCard: ScoreCardType = {
+      sessionId: 1,
+      scores: [
+        { axis: '論理的構成力', score: 9, comment: '素晴らしい' },
+      ],
+      overallScore: 9.0,
+    };
+    render(<ScoreCard scoreCard={allHighCard} />);
+
+    expect(screen.queryByText(/この項目を重点的に練習しましょう/)).not.toBeInTheDocument();
+  });
+
+  it('スコアに応じたプログレスバーの色分けがされる', () => {
+    render(<ScoreCard scoreCard={scoreCard} />);
+
+    // スコア9の軸 → emerald（高スコア）
+    const bars = document.querySelectorAll('[class*="rounded-full"][style]');
+    const highScoreBar = Array.from(bars).find(
+      (bar) => (bar as HTMLElement).style.width === '90%'
+    );
+    expect(highScoreBar?.className).toContain('bg-emerald');
+
+    // スコア5の軸 → rose（低スコア）
+    const lowScoreBar = Array.from(bars).find(
+      (bar) => (bar as HTMLElement).style.width === '50%'
+    );
+    expect(lowScoreBar?.className).toContain('bg-rose');
+  });
 });

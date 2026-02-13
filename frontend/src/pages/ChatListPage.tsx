@@ -1,82 +1,20 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useDispatch } from 'react-redux';
-import { clearAuth } from '../store/authSlice';
 import SecondaryPanel from '../components/layout/SecondaryPanel';
 import EmptyState from '../components/EmptyState';
 import SearchBox from '../components/SearchBox';
 import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 import SockJS from 'sockjs-client';
 import { Client } from '@stomp/stompjs';
-import { ChatUser } from '../types';
+import { useChatList } from '../hooks/useChatList';
 
 export default function ChatListPage() {
-  const [chatUsers, setChatUsers] = useState<ChatUser[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [userId, setUserId] = useState<number | null>(null);
   const stompClientRef = useRef<Client | null>(null);
   const navigate = useNavigate();
-  const dispatch = useDispatch();
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-  // チャット履歴のあるユーザー一覧取得
-  const fetchChatUsers = async (query = ''): Promise<void> => {
-    try {
-      setLoading(true);
-      const url = query
-        ? `${API_BASE_URL}/api/chat/rooms?query=${encodeURIComponent(query)}`
-        : `${API_BASE_URL}/api/chat/rooms`;
-
-      const res = await fetch(url, {
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-      });
-
-      if (res.status === 401) {
-        const refreshRes = await fetch(
-          `${API_BASE_URL}/api/auth/cognito/refresh-token`,
-          { method: 'POST', credentials: 'include' }
-        );
-        if (!refreshRes.ok) {
-          dispatch(clearAuth());
-          navigate('/login');
-          return;
-        }
-        return fetchChatUsers(query);
-      }
-
-      if (!res.ok) {
-        console.error('チャットユーザー取得エラー:', res.status);
-        return;
-      }
-
-      const data = await res.json();
-      setChatUsers(data.chatUsers || []);
-    } catch (e) {
-      console.error('チャットユーザー取得失敗', e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ユーザーID取得
-  useEffect(() => {
-    const fetchUserId = async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/auth/cognito/me`, {
-          credentials: 'include',
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setUserId(data.id);
-        }
-      } catch (e) {
-        console.error('ユーザー情報取得エラー:', e);
-      }
-    };
-    fetchUserId();
-  }, []);
+  const { chatUsers, loading, userId, fetchChatUsers, updateUnreadCount } = useChatList();
 
   // リアルタイム未読数更新のWebSocket購読
   useEffect(() => {
@@ -90,13 +28,7 @@ export default function ChatListPage() {
         client.subscribe(`/topic/unread/${userId}`, (message) => {
           const data = JSON.parse(message.body);
           if (data.type === 'unread_update') {
-            setChatUsers((prev) =>
-              prev.map((u) =>
-                u.roomId === data.roomId
-                  ? { ...u, unreadCount: (u.unreadCount || 0) + data.increment }
-                  : u
-              )
-            );
+            updateUnreadCount(data.roomId, data.increment);
           }
         });
       },
@@ -105,22 +37,16 @@ export default function ChatListPage() {
     stompClientRef.current = client;
     client.activate();
     return () => client.deactivate();
-  }, [userId]);
-
-  // 初回ロード
-  useEffect(() => {
-    fetchChatUsers();
-  }, []);
+  }, [userId, updateUnreadCount, API_BASE_URL]);
 
   // 検索クエリ変更時にデバウンス検索
   useEffect(() => {
     const timer = setTimeout(() => {
-      fetchChatUsers(searchQuery);
+      fetchChatUsers(searchQuery || undefined);
     }, 300);
     return () => clearTimeout(timer);
-  }, [searchQuery]);
+  }, [searchQuery, fetchChatUsers]);
 
-  // 最終メッセージの時間をフォーマット
   const formatTime = (dateString: string): string => {
     if (!dateString) return '';
     const date = new Date(dateString);
@@ -141,7 +67,6 @@ export default function ChatListPage() {
     }
   };
 
-  // メッセージを短縮表示
   const truncateMessage = (message: string | undefined, maxLength = 30): string => {
     if (!message) return 'メッセージはありません';
     if (message.length <= maxLength) return message;
@@ -150,7 +75,6 @@ export default function ChatListPage() {
 
   return (
     <div className="flex h-full">
-      {/* セカンダリパネル: チャットユーザー一覧 */}
       <SecondaryPanel
         title="チャット"
         headerContent={
@@ -176,7 +100,6 @@ export default function ChatListPage() {
               onClick={() => navigate(`/chat/users/${user.roomId}`)}
               className="w-full px-4 py-3 flex items-center gap-3 hover:bg-primary-50 transition-colors border-b border-slate-100 text-left"
             >
-              {/* アバター */}
               <div className="flex-shrink-0">
                 {user.profileImage ? (
                   <img
@@ -193,7 +116,6 @@ export default function ChatListPage() {
                 )}
               </div>
 
-              {/* ユーザー情報 */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-semibold text-slate-800 truncate">
@@ -221,7 +143,6 @@ export default function ChatListPage() {
         )}
       </SecondaryPanel>
 
-      {/* メインコンテンツ: 空状態 */}
       <div className="flex-1">
         <EmptyState
           icon={ChatBubbleLeftRightIcon}

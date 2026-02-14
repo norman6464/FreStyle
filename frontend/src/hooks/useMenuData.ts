@@ -54,9 +54,10 @@ export function useMenuData() {
     if (totalSessions === 0) return 0;
     return Math.round((allScores.reduce((sum, s) => sum + s.overallScore, 0) / totalSessions) * 10) / 10;
   }, [allScores, totalSessions]);
-  const uniqueDays = useMemo(() => {
-    return new Set(allScores.map(s => s.createdAt.split('T')[0])).size;
+  const practiceDates = useMemo(() => {
+    return [...new Set(allScores.map(s => s.createdAt.split('T')[0]))];
   }, [allScores]);
+  const uniqueDays = practiceDates.length;
 
   const sessionsThisWeek = useMemo(() => {
     const now = new Date();
@@ -75,6 +76,7 @@ export function useMenuData() {
     totalSessions,
     averageScore,
     uniqueDays,
+    practiceDates,
     sessionsThisWeek,
   };
 }

@@ -7,6 +7,7 @@ import {
   ChartBarIcon,
 } from '@heroicons/react/24/outline';
 import AchievementBadgeCard from '../components/AchievementBadgeCard';
+import StreakCalendarCard from '../components/StreakCalendarCard';
 import CommunicationTipCard from '../components/CommunicationTipCard';
 import DailyChallengeCard from '../components/DailyChallengeCard';
 import MotivationQuoteCard from '../components/MotivationQuoteCard';
@@ -21,7 +22,7 @@ import { useMenuData } from '../hooks/useMenuData';
 
 export default function MenuPage() {
   const navigate = useNavigate();
-  const { stats, totalUnread, latestScore, allScores, totalSessions, averageScore, uniqueDays, sessionsThisWeek } = useMenuData();
+  const { stats, totalUnread, latestScore, allScores, totalSessions, averageScore, uniqueDays, practiceDates, sessionsThisWeek } = useMenuData();
 
   const menuItems = [
     {
@@ -77,6 +78,11 @@ export default function MenuPage() {
       {/* 達成バッジ */}
       <div className="mb-6">
         <AchievementBadgeCard totalSessions={totalSessions} />
+      </div>
+
+      {/* 練習ストリークカレンダー */}
+      <div className="mb-6">
+        <StreakCalendarCard practiceDates={practiceDates} />
       </div>
 
       {/* サマリー */}

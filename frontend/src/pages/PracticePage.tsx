@@ -1,50 +1,19 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import ScenarioCard from '../components/ScenarioCard';
 import { SkeletonCard } from '../components/Skeleton';
-import type { PracticeScenario } from '../types';
-import { usePractice } from '../hooks/usePractice';
-import { useBookmark } from '../hooks/useBookmark';
+import { usePracticePage } from '../hooks/usePracticePage';
 
 const CATEGORIES = ['すべて', 'ブックマーク', '顧客折衝', 'シニア・上司', 'チーム内'] as const;
 
-const CATEGORY_LABEL_TO_DB: Record<string, string> = {
-  '顧客折衝': 'customer',
-  'シニア・上司': 'senior',
-  'チーム内': 'team',
-};
-
 export default function PracticePage() {
-  const navigate = useNavigate();
-
-  const [selectedCategory, setSelectedCategory] = useState<string>('すべて');
-  const { scenarios, loading, fetchScenarios, createPracticeSession } = usePractice();
-  const { bookmarkedIds, toggleBookmark, isBookmarked } = useBookmark();
-
-  useEffect(() => {
-    fetchScenarios();
-  }, [fetchScenarios]);
-
-  const handleSelectScenario = async (scenario: PracticeScenario) => {
-    const session = await createPracticeSession({ scenarioId: scenario.id });
-
-    if (session) {
-      navigate(`/chat/ask-ai/${session.id}`, {
-        state: {
-          sessionType: 'practice',
-          scenarioId: scenario.id,
-          scenarioName: scenario.name,
-          initialPrompt: '練習開始',
-        },
-      });
-    }
-  };
-
-  const filteredScenarios = selectedCategory === 'すべて'
-    ? scenarios
-    : selectedCategory === 'ブックマーク'
-    ? scenarios.filter((s) => bookmarkedIds.includes(s.id))
-    : scenarios.filter((s) => s.category === CATEGORY_LABEL_TO_DB[selectedCategory]);
+  const {
+    selectedCategory,
+    setSelectedCategory,
+    filteredScenarios,
+    loading,
+    handleSelectScenario,
+    isBookmarked,
+    toggleBookmark,
+  } = usePracticePage();
 
   return (
     <div className="p-6 max-w-2xl mx-auto">

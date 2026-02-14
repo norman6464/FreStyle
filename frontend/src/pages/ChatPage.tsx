@@ -3,6 +3,7 @@ import MessageInput from '../components/MessageInput';
 import ConfirmModal from '../components/ConfirmModal';
 import SceneSelector from '../components/SceneSelector';
 import RephraseModal from '../components/RephraseModal';
+import MessageSelectionPanel from '../components/MessageSelectionPanel';
 import { useChat } from '../hooks/useChat';
 
 export default function ChatPage() {
@@ -102,64 +103,14 @@ export default function ChatPage() {
       <div className="bg-surface-1 border-t border-surface-3 p-4">
         <div className="max-w-3xl mx-auto w-full space-y-3">
           {selectionMode ? (
-            <div className="space-y-3">
-              <div className="bg-surface-2 border border-[var(--color-border-hover)] rounded-lg p-3">
-                <p className="text-sm text-primary-300">
-                  {selectedMessages.size > 0
-                    ? `${selectedMessages.size}件のメッセージを選択しました`
-                    : '開始位置のメッセージをタップしてください'
-                  }
-                </p>
-              </div>
-
-              <div className="flex gap-2 flex-wrap">
-                <span className="text-xs text-[var(--color-text-muted)] self-center">クイック選択:</span>
-                {[5, 10, 20].map((n) => (
-                  <button
-                    key={n}
-                    onClick={() => handleQuickSelect(n)}
-                    className="px-3 py-1 text-xs bg-surface-3 hover:bg-surface-3 text-[var(--color-text-secondary)] rounded-full transition-colors"
-                  >
-                    直近{n}件
-                  </button>
-                ))}
-                <button
-                  onClick={handleSelectAll}
-                  className="px-3 py-1 text-xs bg-surface-3 hover:bg-surface-3 text-[var(--color-text-secondary)] rounded-full transition-colors"
-                >
-                  すべて
-                </button>
-                <button
-                  onClick={handleDeselectAll}
-                  className="px-3 py-1 text-xs text-rose-500 hover:bg-rose-900/30 rounded-full transition-colors"
-                >
-                  リセット
-                </button>
-              </div>
-
-              <div className="flex gap-2">
-                <button
-                  onClick={handleCancelSelection}
-                  className="flex-1 bg-surface-3 hover:bg-surface-3 text-[var(--color-text-secondary)] font-medium py-2.5 px-4 rounded-lg text-sm transition-colors"
-                >
-                  キャンセル
-                </button>
-                <button
-                  onClick={handleSendToAi}
-                  disabled={selectedMessages.size === 0}
-                  className={`flex-1 font-medium py-2.5 px-4 rounded-lg text-sm transition-colors ${
-                    selectedMessages.size > 0
-                      ? 'bg-primary-500 hover:bg-primary-600 text-white'
-                      : 'bg-surface-3 text-[var(--color-text-muted)] cursor-not-allowed'
-                  }`}
-                >
-                  {selectedMessages.size > 0
-                    ? `${selectedMessages.size}件をAIに送信`
-                    : '範囲を選択してください'
-                  }
-                </button>
-              </div>
-            </div>
+            <MessageSelectionPanel
+              selectedCount={selectedMessages.size}
+              onQuickSelect={handleQuickSelect}
+              onSelectAll={handleSelectAll}
+              onDeselectAll={handleDeselectAll}
+              onCancel={handleCancelSelection}
+              onSend={handleSendToAi}
+            />
           ) : (
             <>
               {messages.length > 0 && (

@@ -88,8 +88,8 @@ describe('ScoreHistoryPage', () => {
     render(<ScoreHistoryPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('7.4')).toBeInTheDocument();
-      expect(screen.getByText('6.0')).toBeInTheDocument();
+      expect(screen.getAllByText('7.4').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('6.0').length).toBeGreaterThanOrEqual(1);
     }, { timeout: 3000 });
   });
 

@@ -32,10 +32,9 @@ describe('useNotes', () => {
     expect(result.current.notes[0].title).toBe('ノート1');
   });
 
-  it('createNoteで新しいノートを作成する', async () => {
+  it('createNoteで新しいノートを作成しローカル追加する', async () => {
     const newNote = { noteId: 'note-3', userId: 1, title: '新規', content: '', isPinned: false, createdAt: 4000, updatedAt: 4000 };
     vi.mocked(NoteRepository.createNote).mockResolvedValue(newNote);
-    vi.mocked(NoteRepository.fetchNotes).mockResolvedValue([...mockNotes, newNote]);
 
     const { result } = renderHook(() => useNotes());
 
@@ -44,25 +43,27 @@ describe('useNotes', () => {
     });
 
     expect(NoteRepository.createNote).toHaveBeenCalledWith('新規');
+    expect(result.current.notes).toHaveLength(1);
+    expect(result.current.notes[0].noteId).toBe('note-3');
   });
 
-  it('deleteNoteでノートを削除する', async () => {
+  it('deleteNoteでノートを削除しローカル除外する', async () => {
     vi.mocked(NoteRepository.deleteNote).mockResolvedValue(undefined);
-    vi.mocked(NoteRepository.fetchNotes)
-      .mockResolvedValueOnce(mockNotes)
-      .mockResolvedValueOnce([mockNotes[1]]);
 
     const { result } = renderHook(() => useNotes());
 
     await act(async () => {
       await result.current.fetchNotes();
     });
+    expect(result.current.notes).toHaveLength(2);
 
     await act(async () => {
       await result.current.deleteNote('note-1');
     });
 
     expect(NoteRepository.deleteNote).toHaveBeenCalledWith('note-1');
+    expect(result.current.notes).toHaveLength(1);
+    expect(result.current.notes[0].noteId).toBe('note-2');
   });
 
   it('selectedNoteIdの初期値がnullである', () => {
@@ -111,7 +112,6 @@ describe('useNotes', () => {
   it('createNote成功後にselectedNoteIdが更新される', async () => {
     const newNote = { noteId: 'new-id', userId: 1, title: 'テスト', content: '', isPinned: false, createdAt: 5000, updatedAt: 5000 };
     vi.mocked(NoteRepository.createNote).mockResolvedValue(newNote);
-    vi.mocked(NoteRepository.fetchNotes).mockResolvedValue([...mockNotes, newNote]);
 
     const { result } = renderHook(() => useNotes());
 
@@ -142,9 +142,6 @@ describe('useNotes', () => {
 
   it('選択中のノートを削除するとselectedNoteIdがnullになる', async () => {
     vi.mocked(NoteRepository.deleteNote).mockResolvedValue(undefined);
-    vi.mocked(NoteRepository.fetchNotes)
-      .mockResolvedValueOnce(mockNotes)
-      .mockResolvedValueOnce([mockNotes[1]]);
 
     const { result } = renderHook(() => useNotes());
 
@@ -161,6 +158,7 @@ describe('useNotes', () => {
     });
 
     expect(result.current.selectedNoteId).toBeNull();
+    expect(result.current.notes).toHaveLength(1);
   });
 
   it('selectNoteにnullを渡すと選択解除される', async () => {

@@ -34,6 +34,8 @@ export default function NoteListItem({
     <div
       role="button"
       tabIndex={0}
+      aria-label={`ノート「${displayTitle}」を選択`}
+      aria-pressed={isActive}
       onClick={() => onSelect(noteId)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(noteId); } }}
       className={`w-full text-left px-3 py-2.5 rounded-lg transition-colors group cursor-pointer ${

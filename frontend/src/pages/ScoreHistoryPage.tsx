@@ -7,6 +7,7 @@ import PracticeCalendar from '../components/PracticeCalendar';
 import ScoreRankBadge from '../components/ScoreRankBadge';
 import ScoreStatsSummary from '../components/ScoreStatsSummary';
 import SkillMilestoneCard from '../components/SkillMilestoneCard';
+import ScoreImprovementAdvice from '../components/ScoreImprovementAdvice';
 import SkillTrendChart from '../components/SkillTrendChart';
 
 interface AxisScore {
@@ -119,6 +120,11 @@ export default function ScoreHistoryPage() {
         <div className="bg-white rounded-lg border border-slate-200 p-4 flex justify-center">
           <SkillRadarChart scores={latestSession.scores} title="最新のスキルバランス" />
         </div>
+      )}
+
+      {/* 改善アドバイス */}
+      {latestSession && latestSession.scores.length > 0 && (
+        <ScoreImprovementAdvice scores={latestSession.scores} />
       )}
 
       {/* スコア推移グラフ */}

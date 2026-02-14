@@ -1,6 +1,4 @@
-import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAiChat } from '../hooks/useAiChat';
 import { SkeletonCard } from '../components/Skeleton';
 import SkillRadarChart from '../components/SkillRadarChart';
 import PracticeCalendar from '../components/PracticeCalendar';
@@ -9,26 +7,7 @@ import ScoreStatsSummary from '../components/ScoreStatsSummary';
 import SkillMilestoneCard from '../components/SkillMilestoneCard';
 import ScoreImprovementAdvice from '../components/ScoreImprovementAdvice';
 import SkillTrendChart from '../components/SkillTrendChart';
-
-interface AxisScore {
-  axis: string;
-  score: number;
-  comment: string;
-}
-
-interface ScoreHistoryItem {
-  sessionId: number;
-  sessionTitle: string;
-  overallScore: number;
-  scores: AxisScore[];
-  createdAt: string;
-}
-
-const FILTERS = ['すべて', '練習', 'フリー'] as const;
-
-function isPracticeSession(title: string): boolean {
-  return title.startsWith('練習:') || title.startsWith('練習：');
-}
+import { useScoreHistory, FILTERS } from '../hooks/useScoreHistory';
 
 const AXIS_ADVICE: Record<string, string> = {
   '論理的構成力': '論理的構成力を伸ばすシナリオで練習しましょう',
@@ -39,18 +18,8 @@ const AXIS_ADVICE: Record<string, string> = {
 };
 
 export default function ScoreHistoryPage() {
-  const [history, setHistory] = useState<ScoreHistoryItem[]>([]);
-  const [filter, setFilter] = useState<string>('すべて');
-  const { fetchScoreHistory, loading } = useAiChat();
+  const { history, filteredHistory, filter, setFilter, loading, latestSession, weakestAxis } = useScoreHistory();
   const navigate = useNavigate();
-
-  useEffect(() => {
-    const loadHistory = async () => {
-      const data = await fetchScoreHistory();
-      setHistory(data);
-    };
-    loadHistory();
-  }, [fetchScoreHistory]);
 
   if (loading) {
     return (
@@ -71,17 +40,6 @@ export default function ScoreHistoryPage() {
       </div>
     );
   }
-
-  const filteredHistory = history.filter((item) => {
-    if (filter === '練習') return isPracticeSession(item.sessionTitle);
-    if (filter === 'フリー') return !isPracticeSession(item.sessionTitle);
-    return true;
-  });
-
-  const latestSession = history[history.length - 1];
-  const weakestAxis = latestSession
-    ? [...latestSession.scores].sort((a, b) => a.score - b.score)[0]
-    : null;
 
   return (
     <div className="max-w-3xl mx-auto p-4 space-y-3">
@@ -175,8 +133,7 @@ export default function ScoreHistoryPage() {
         全 {filteredHistory.length} 件のフィードバック履歴
       </p>
 
-      {filteredHistory.map((item, index) => {
-        // 元のhistory配列でのindexを使ってスコア変動を計算
+      {filteredHistory.map((item) => {
         const originalIndex = history.indexOf(item);
         const prevItem = originalIndex > 0 ? history[originalIndex - 1] : null;
         const delta = prevItem

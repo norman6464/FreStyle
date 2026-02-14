@@ -1,3 +1,5 @@
+import Card from './Card';
+
 interface Quote {
   text: string;
   author: string;
@@ -28,7 +30,7 @@ export default function MotivationQuoteCard() {
   const quote = QUOTES[getDailyIndex()];
 
   return (
-    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
+    <Card>
       <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-2">今日の一言</p>
       <p data-testid="quote-text" className="text-xs text-[var(--color-text-tertiary)] leading-relaxed italic">
         「{quote.text}」
@@ -36,6 +38,6 @@ export default function MotivationQuoteCard() {
       <p data-testid="quote-author" className="text-[10px] text-[var(--color-text-faint)] mt-1.5 text-right">
         — {quote.author}
       </p>
-    </div>
+    </Card>
   );
 }

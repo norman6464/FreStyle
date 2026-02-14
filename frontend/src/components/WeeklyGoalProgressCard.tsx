@@ -1,3 +1,5 @@
+import Card from './Card';
+
 interface WeeklyGoalProgressCardProps {
   sessionsThisWeek: number;
   weeklyGoal: number;
@@ -18,7 +20,7 @@ export default function WeeklyGoalProgressCard({
   const isCompleted = sessionsThisWeek >= weeklyGoal;
 
   return (
-    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
+    <Card>
       <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-2">今週の練習目標</p>
 
       <div className="flex items-baseline gap-1 mb-2">
@@ -39,6 +41,6 @@ export default function WeeklyGoalProgressCard({
       <p className={`text-xs ${isCompleted ? 'text-emerald-400 font-medium' : 'text-[var(--color-text-muted)]'}`}>
         {getMessage(sessionsThisWeek, weeklyGoal)}
       </p>
-    </div>
+    </Card>
   );
 }

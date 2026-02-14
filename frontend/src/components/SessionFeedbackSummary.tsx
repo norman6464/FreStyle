@@ -1,3 +1,5 @@
+import Card from './Card';
+
 interface AxisScore {
   axis: string;
   score: number;
@@ -30,7 +32,7 @@ export default function SessionFeedbackSummary({ scores, overallScore }: Session
   const grade = getGrade(overallScore);
 
   return (
-    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
+    <Card>
       <div className="flex items-center justify-between mb-3">
         <p className="text-xs font-medium text-[var(--color-text-secondary)]">スキル別スコア</p>
         <span className={`text-sm font-bold ${grade.color}`}>{grade.label}</span>
@@ -60,6 +62,6 @@ export default function SessionFeedbackSummary({ scores, overallScore }: Session
           </div>
         ))}
       </div>
-    </div>
+    </Card>
   );
 }

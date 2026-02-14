@@ -17,6 +17,7 @@ import WeeklyComparisonCard from '../components/WeeklyComparisonCard';
 import SkillTrendChart from '../components/SkillTrendChart';
 import SkillRadarOverlayCard from '../components/SkillRadarOverlayCard';
 import SessionDetailModal from '../components/SessionDetailModal';
+import ScoreHistorySessionCard from '../components/ScoreHistorySessionCard';
 import { useScoreHistory, FILTERS } from '../hooks/useScoreHistory';
 
 const AXIS_ADVICE: Record<string, string> = {
@@ -206,59 +207,12 @@ export default function ScoreHistoryPage() {
           : null;
 
         return (
-          <div
+          <ScoreHistorySessionCard
             key={item.sessionId}
-            className="bg-surface-1 rounded-lg border border-surface-3 p-4 cursor-pointer hover:border-[var(--color-border-hover)] transition-colors"
+            item={item}
+            delta={delta}
             onClick={() => setSelectedSession(item)}
-          >
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h3 className="text-sm font-medium text-[var(--color-text-primary)]">
-                  {item.sessionTitle || `セッション #${item.sessionId}`}
-                </h3>
-                <p className="text-xs text-[var(--color-text-faint)] mt-0.5">
-                  {new Date(item.createdAt).toLocaleDateString('ja-JP', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                  })}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                {delta !== null && delta !== 0 && (
-                  <span className={`text-xs font-medium ${delta > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                    {delta > 0 ? `+${delta.toFixed(1)}` : `\u2212${Math.abs(delta).toFixed(1)}`}
-                  </span>
-                )}
-                <div className="flex items-center gap-1">
-                  <span className="text-xs text-[var(--color-text-muted)]">総合</span>
-                  <span className="text-lg font-semibold text-[var(--color-text-primary)]">
-                    {item.overallScore.toFixed(1)}
-                  </span>
-                  <span className="text-xs text-[var(--color-text-faint)]">/10</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              {item.scores.map((axisScore) => (
-                <div key={axisScore.axis} className="flex items-center gap-2">
-                  <span className="text-xs text-[var(--color-text-muted)] w-24 flex-shrink-0 truncate">
-                    {axisScore.axis}
-                  </span>
-                  <div className="flex-1 bg-surface-3 rounded-full h-1.5">
-                    <div
-                      className="h-1.5 rounded-full bg-primary-500"
-                      style={{ width: `${axisScore.score * 10}%` }}
-                    />
-                  </div>
-                  <span className="text-xs text-[var(--color-text-tertiary)] w-5 text-right">
-                    {axisScore.score}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
+          />
         );
       })}
 

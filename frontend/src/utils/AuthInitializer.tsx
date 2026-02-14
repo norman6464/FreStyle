@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { setAuthData, clearAuth, finishLoading } from '../store/authSlice';
 import type { RootState } from '../store';
 import authRepository from '../repositories/AuthRepository';
+import Loading from '../components/Loading';
 
 interface AuthInitializerProps {
   children: ReactNode;
@@ -28,11 +29,7 @@ export default function AuthInitializer({ children }: AuthInitializerProps) {
   }, [dispatch]);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <p className="text-lg">認証確認中...</p>
-      </div>
-    );
+    return <Loading fullscreen />;
   }
 
   return children;

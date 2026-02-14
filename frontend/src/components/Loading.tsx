@@ -58,7 +58,7 @@ export default function Loading({
     return (
       <div className="fixed inset-0 bg-surface-1/80 backdrop-blur-sm flex items-center justify-center z-50">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-3 border-[var(--color-border-hover)] border-t-primary-500 rounded-full animate-spin" />
+          <div className="w-12 h-12 border-3 border-[var(--color-border-hover)] border-t-primary-500 rounded-full animate-spin" role="status" aria-label="読み込み中" />
           {message && (
             <p className="text-sm font-medium text-[var(--color-text-secondary)] animate-pulse">
               {message}

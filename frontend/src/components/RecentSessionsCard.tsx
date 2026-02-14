@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { getScoreTextColor } from '../utils/scoreColor';
+import Card from './Card';
 
 interface Session {
   sessionId: number;
@@ -19,7 +20,7 @@ export default function RecentSessionsCard({ sessions }: RecentSessionsCardProps
   if (recent.length === 0) return null;
 
   return (
-    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
+    <Card>
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-xs font-semibold text-[var(--color-text-primary)]">直近のセッション</h3>
         <button
@@ -47,6 +48,6 @@ export default function RecentSessionsCard({ sessions }: RecentSessionsCardProps
           </div>
         ))}
       </div>
-    </div>
+    </Card>
   );
 }

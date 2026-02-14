@@ -1,4 +1,5 @@
 import { getDeltaColor, formatDelta } from '../utils/scoreColor';
+import Card from './Card';
 
 interface AxisScore {
   axis: string;
@@ -22,7 +23,7 @@ export default function ScoreComparisonCard({
   const overallDelta = Math.round((latestOverall - firstOverall) * 10) / 10;
 
   return (
-    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
+    <Card>
       <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-3">成長の記録</p>
 
       <div className="flex items-center justify-between mb-4">
@@ -60,6 +61,6 @@ export default function ScoreComparisonCard({
           );
         })}
       </div>
-    </div>
+    </Card>
   );
 }

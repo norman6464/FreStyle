@@ -63,10 +63,10 @@ export default function ScenarioCard({ scenario, onSelect, isBookmarked, onToggl
       </div>
       <h3 className="text-sm font-medium text-[var(--color-text-primary)] mb-1">{scenario.name}</h3>
       <p className="text-xs text-[var(--color-text-muted)] mb-2">{scenario.description}</p>
-      <p className="text-[11px] text-[var(--color-text-faint)] mb-3">
+      <p className="text-[11px] text-[var(--color-text-muted)] mb-3">
         {difficultyDescription[scenario.difficulty] || ''} ・ 約5〜10分
       </p>
-      <div className="flex items-center gap-1 text-xs text-[var(--color-text-faint)]">
+      <div className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
         </svg>

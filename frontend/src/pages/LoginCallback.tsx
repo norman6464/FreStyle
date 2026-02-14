@@ -11,10 +11,10 @@ export default function LoginCallback() {
           <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-primary-600 border-r-primary-600 animate-spin"></div>
         </div>
         <div className="text-center">
-          <h3 className="text-2xl font-bold text-gray-800 mb-2">
+          <h3 className="text-2xl font-bold text-[var(--color-text-primary)] mb-2">
             ログイン中...
           </h3>
-          <p className="text-gray-600">お待たせしています</p>
+          <p className="text-[var(--color-text-secondary)]">お待たせしています</p>
         </div>
       </div>
     </div>

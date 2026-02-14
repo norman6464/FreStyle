@@ -1,11 +1,4 @@
-import { useNavigate } from 'react-router-dom';
-import {
-  UserGroupIcon,
-  ChatBubbleLeftRightIcon,
-  SparklesIcon,
-  AcademicCapIcon,
-  ChartBarIcon,
-} from '@heroicons/react/24/outline';
+import { UserGroupIcon } from '@heroicons/react/24/outline';
 import AchievementBadgeCard from '../components/AchievementBadgeCard';
 import StreakCalendarCard from '../components/StreakCalendarCard';
 import CommunicationTipCard from '../components/CommunicationTipCard';
@@ -23,42 +16,11 @@ import WeeklyReportCard from '../components/WeeklyReportCard';
 import LearningPatternCard from '../components/LearningPatternCard';
 import ScoreGrowthTrendCard from '../components/ScoreGrowthTrendCard';
 import PracticeFrequencyCard from '../components/PracticeFrequencyCard';
+import MenuNavigationCard from '../components/MenuNavigationCard';
 import { useMenuData } from '../hooks/useMenuData';
 
 export default function MenuPage() {
-  const navigate = useNavigate();
   const { stats, totalUnread, latestScore, allScores, totalSessions, averageScore, uniqueDays, practiceDates, sessionsThisWeek } = useMenuData();
-
-  const menuItems = [
-    {
-      icon: ChatBubbleLeftRightIcon,
-      label: 'チャット',
-      description: 'メンバーとメッセージをやり取り',
-      to: '/chat',
-      badge: totalUnread > 0 ? `${totalUnread}件の未読` : null,
-    },
-    {
-      icon: SparklesIcon,
-      label: 'AI アシスタント',
-      description: 'AIにコミュニケーションを分析・フィードバック',
-      to: '/chat/ask-ai',
-      badge: null,
-    },
-    {
-      icon: AcademicCapIcon,
-      label: '練習モード',
-      description: 'ビジネスシナリオでロールプレイ練習',
-      to: '/practice',
-      badge: null,
-    },
-    {
-      icon: ChartBarIcon,
-      label: 'スコア履歴',
-      description: 'フィードバック結果の振り返り',
-      to: '/scores',
-      badge: latestScore ? `最新: ${latestScore.overallScore}` : null,
-    },
-  ];
 
   const showRecommendation = !latestScore && stats?.chatPartnerCount === 0;
 
@@ -192,28 +154,7 @@ export default function MenuPage() {
       </div>
 
       {/* メニュー */}
-      <div className="space-y-2">
-        {menuItems.map((item) => (
-          <button
-            key={item.to}
-            onClick={() => navigate(item.to)}
-            className="w-full flex items-center gap-4 bg-surface-1 rounded-lg border border-surface-3 p-4 text-left hover:bg-surface-2 transition-colors"
-          >
-            <item.icon className="w-5 h-5 text-[var(--color-text-muted)] flex-shrink-0" />
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <p className="text-sm font-medium text-[var(--color-text-primary)]">{item.label}</p>
-                {item.badge && (
-                  <span className="text-[10px] font-medium bg-primary-500 text-white px-1.5 py-0.5 rounded-full">
-                    {item.badge}
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-[var(--color-text-muted)]">{item.description}</p>
-            </div>
-          </button>
-        ))}
-      </div>
+      <MenuNavigationCard totalUnread={totalUnread} latestScore={latestScore ? latestScore.overallScore : null} />
     </div>
   );
 }

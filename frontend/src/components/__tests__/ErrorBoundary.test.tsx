@@ -53,4 +53,25 @@ describe('ErrorBoundary', () => {
 
     expect(screen.getByText(/予期せぬエラーが発生しました/)).toBeInTheDocument();
   });
+
+  it('エラー発生時に子コンテンツが非表示になる', () => {
+    render(
+      <ErrorBoundary>
+        <ThrowError shouldThrow={true} />
+      </ErrorBoundary>
+    );
+
+    expect(screen.queryByText('正常なコンテンツ')).toBeNull();
+  });
+
+  it('再試行ボタンがbutton要素である', () => {
+    render(
+      <ErrorBoundary>
+        <ThrowError shouldThrow={true} />
+      </ErrorBoundary>
+    );
+
+    const button = screen.getByText('再試行');
+    expect(button.tagName).toBe('BUTTON');
+  });
 });

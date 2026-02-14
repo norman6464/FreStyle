@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
+import SkipLink from '../SkipLink';
 
 const pageTitles: Record<string, string> = {
   '/': 'ホーム',
@@ -32,6 +33,7 @@ export default function AppShell() {
 
   return (
     <div className="h-screen flex bg-surface">
+      <SkipLink targetId="main-content" />
       {/* デスクトップサイドバー */}
       <div className="hidden md:block">
         <Sidebar />
@@ -60,7 +62,7 @@ export default function AppShell() {
           title={title}
           onMenuToggle={() => setMobileMenuOpen(!mobileMenuOpen)}
         />
-        <main className="flex-1 overflow-auto">
+        <main id="main-content" tabIndex={-1} className="flex-1 overflow-auto outline-none">
           <Outlet />
         </main>
       </div>

@@ -6,6 +6,7 @@ import {
   AcademicCapIcon,
   ChartBarIcon,
 } from '@heroicons/react/24/outline';
+import AchievementBadgeCard from '../components/AchievementBadgeCard';
 import CommunicationTipCard from '../components/CommunicationTipCard';
 import DailyChallengeCard from '../components/DailyChallengeCard';
 import MotivationQuoteCard from '../components/MotivationQuoteCard';
@@ -71,6 +72,11 @@ export default function MenuPage() {
       {/* 練習レベル */}
       <div className="mb-6">
         <PracticeLevelCard totalSessions={totalSessions} />
+      </div>
+
+      {/* 達成バッジ */}
+      <div className="mb-6">
+        <AchievementBadgeCard totalSessions={totalSessions} />
       </div>
 
       {/* サマリー */}

@@ -3,7 +3,7 @@ interface ScoreFilterSummaryProps {
 }
 
 export default function ScoreFilterSummary({ scores }: ScoreFilterSummaryProps) {
-  if (scores.length === 0) return null;
+  if (!Array.isArray(scores) || scores.length === 0) return null;
 
   const avg = Math.round((scores.reduce((s, v) => s + v, 0) / scores.length) * 10) / 10;
   const max = Math.max(...scores);

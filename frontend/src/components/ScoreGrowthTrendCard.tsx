@@ -31,7 +31,7 @@ interface Props {
 
 export default function ScoreGrowthTrendCard({ scores }: Props) {
   const analysis = useMemo(() => {
-    if (scores.length < 2) return null;
+    if (!Array.isArray(scores) || scores.length < 2) return null;
 
     const mid = Math.floor(scores.length / 2);
     const firstHalf = scores.slice(0, mid);

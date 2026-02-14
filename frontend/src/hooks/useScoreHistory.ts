@@ -32,7 +32,7 @@ export function useScoreHistory() {
   useEffect(() => {
     const loadHistory = async () => {
       const data = await fetchScoreHistory();
-      setHistory(data);
+      setHistory(Array.isArray(data) ? data : []);
     };
     loadHistory();
   }, [fetchScoreHistory]);

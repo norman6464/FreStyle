@@ -1,8 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import SecondaryPanel from '../components/layout/SecondaryPanel';
 import NoteListItem from '../components/NoteListItem';
 import NoteEditor from '../components/NoteEditor';
 import EmptyState from '../components/EmptyState';
+import ConfirmModal from '../components/ConfirmModal';
 import { DocumentTextIcon, PlusIcon, MagnifyingGlassIcon, Bars3Icon } from '@heroicons/react/24/outline';
 import { useNotes } from '../hooks/useNotes';
 import { useNoteEditor } from '../hooks/useNoteEditor';
@@ -44,8 +45,17 @@ export default function NotesPage() {
     closeMobilePanel();
   };
 
-  const handleDeleteNote = async (noteId: string) => {
-    await deleteNote(noteId);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+
+  const handleDeleteNote = (noteId: string) => {
+    setDeleteTargetId(noteId);
+  };
+
+  const confirmDelete = async () => {
+    if (deleteTargetId) {
+      await deleteNote(deleteTargetId);
+      setDeleteTargetId(null);
+    }
   };
 
   return (
@@ -134,6 +144,13 @@ export default function NotesPage() {
           />
         )}
       </div>
+
+      <ConfirmModal
+        isOpen={deleteTargetId !== null}
+        message="このノートを削除しますか？"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTargetId(null)}
+      />
     </div>
   );
 }

@@ -59,4 +59,19 @@ describe('SelectField', () => {
     expect(optionElements[1]).toHaveValue('b');
     expect(optionElements[2]).toHaveValue('c');
   });
+
+  it('エラーメッセージが表示される', () => {
+    render(<SelectField label="スタイル" name="style" value="a" onChange={vi.fn()} options={OPTIONS} error="選択してください" />);
+    expect(screen.getByText('選択してください')).toBeInTheDocument();
+  });
+
+  it('エラー時にaria-invalidがtrueになる', () => {
+    render(<SelectField label="スタイル" name="style" value="a" onChange={vi.fn()} options={OPTIONS} error="エラー" />);
+    expect(screen.getByLabelText('スタイル')).toHaveAttribute('aria-invalid', 'true');
+  });
+
+  it('エラー時にボーダーが赤色になる', () => {
+    render(<SelectField label="スタイル" name="style" value="a" onChange={vi.fn()} options={OPTIONS} error="エラー" />);
+    expect(screen.getByLabelText('スタイル').className).toContain('border-rose-500');
+  });
 });

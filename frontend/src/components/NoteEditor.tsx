@@ -1,3 +1,6 @@
+import { useMemo } from 'react';
+import { getNoteStats } from '../utils/noteStats';
+
 interface NoteEditorProps {
   title: string;
   content: string;
@@ -11,6 +14,8 @@ export default function NoteEditor({
   onTitleChange,
   onContentChange,
 }: NoteEditorProps) {
+  const stats = useMemo(() => getNoteStats(content), [content]);
+
   return (
     <div className="flex flex-col h-full p-6 max-w-3xl mx-auto w-full">
       <input
@@ -28,6 +33,10 @@ export default function NoteEditor({
         aria-label="ノートの内容"
         className="flex-1 text-sm text-[var(--color-text-primary)] bg-transparent border-none outline-none w-full resize-none leading-relaxed placeholder:text-[var(--color-text-faint)]"
       />
+      <div className="flex items-center gap-3 pt-3 border-t border-surface-3 text-[11px] text-[var(--color-text-faint)]">
+        <span>{stats.charCount}文字</span>
+        {stats.readingTimeMin > 0 && <span>約{stats.readingTimeMin}分</span>}
+      </div>
     </div>
   );
 }

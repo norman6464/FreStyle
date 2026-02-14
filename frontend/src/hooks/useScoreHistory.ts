@@ -26,6 +26,7 @@ function isPracticeSession(title: string): boolean {
 export function useScoreHistory() {
   const [history, setHistory] = useState<ScoreHistoryItem[]>([]);
   const [filter, setFilter] = useState<FilterType>('すべて');
+  const [selectedSession, setSelectedSession] = useState<ScoreHistoryItem | null>(null);
   const { fetchScoreHistory, loading } = useAiChat();
 
   useEffect(() => {
@@ -59,5 +60,7 @@ export function useScoreHistory() {
     loading,
     latestSession,
     weakestAxis,
+    selectedSession,
+    setSelectedSession,
   };
 }

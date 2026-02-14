@@ -1,5 +1,6 @@
 import InputField from '../components/InputField';
 import TextareaField from '../components/TextareaField';
+import SelectField from '../components/SelectField';
 import PrimaryButton from '../components/PrimaryButton';
 import Loading from '../components/Loading';
 import PersonalityTraitSelector from '../components/PersonalityTraitSelector';
@@ -81,22 +82,15 @@ export default function UserProfilePage() {
               <h3 className="text-sm font-bold text-[var(--color-text-primary)]">コミュニケーションスタイル</h3>
             </div>
             <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">
-                  あなたのコミュニケーションスタイル
-                </label>
-                <select
-                  value={form.communicationStyle}
-                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-                    setForm((prev) => ({ ...prev, communicationStyle: e.target.value }))
-                  }
-                  className="w-full border border-surface-3 rounded-lg px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors"
-                >
-                  {COMMUNICATION_STYLES.map((style) => (
-                    <option key={style.value} value={style.value}>{style.label}</option>
-                  ))}
-                </select>
-              </div>
+              <SelectField
+                label="あなたのコミュニケーションスタイル"
+                name="communicationStyle"
+                value={form.communicationStyle}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                  setForm((prev) => ({ ...prev, communicationStyle: e.target.value }))
+                }
+                options={COMMUNICATION_STYLES}
+              />
 
               <PersonalityTraitSelector
                 options={PERSONALITY_OPTIONS}
@@ -136,22 +130,15 @@ export default function UserProfilePage() {
                 maxLength={300}
               />
 
-              <div>
-                <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">
-                  フィードバックの受け取り方
-                </label>
-                <select
-                  value={form.preferredFeedbackStyle}
-                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-                    setForm((prev) => ({ ...prev, preferredFeedbackStyle: e.target.value }))
-                  }
-                  className="w-full border border-surface-3 rounded-lg px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors"
-                >
-                  {FEEDBACK_STYLES.map((style) => (
-                    <option key={style.value} value={style.value}>{style.label}</option>
-                  ))}
-                </select>
-              </div>
+              <SelectField
+                label="フィードバックの受け取り方"
+                name="preferredFeedbackStyle"
+                value={form.preferredFeedbackStyle}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                  setForm((prev) => ({ ...prev, preferredFeedbackStyle: e.target.value }))
+                }
+                options={FEEDBACK_STYLES}
+              />
             </div>
           </div>
 

@@ -1,5 +1,6 @@
 import ScenarioCard from '../components/ScenarioCard';
 import { SkeletonCard } from '../components/Skeleton';
+import FilterTabs from '../components/FilterTabs';
 import { usePracticePage } from '../hooks/usePracticePage';
 
 const CATEGORIES = ['すべて', 'ブックマーク', '顧客折衝', 'シニア・上司', 'チーム内'] as const;
@@ -26,21 +27,12 @@ export default function PracticePage() {
       </div>
 
       {/* カテゴリタブ */}
-      <div className="flex gap-1 mb-5 border-b border-surface-3">
-        {CATEGORIES.map((category) => (
-          <button
-            key={category}
-            onClick={() => setSelectedCategory(category)}
-            className={`px-3 py-2 text-xs font-medium transition-colors border-b-2 -mb-px ${
-              selectedCategory === category
-                ? 'border-primary-500 text-primary-400'
-                : 'border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'
-            }`}
-          >
-            {category}
-          </button>
-        ))}
-      </div>
+      <FilterTabs
+        tabs={[...CATEGORIES]}
+        selected={selectedCategory}
+        onSelect={setSelectedCategory}
+        className="mb-5"
+      />
 
       {/* シナリオ一覧 */}
       {loading ? (

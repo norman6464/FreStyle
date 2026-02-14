@@ -22,6 +22,7 @@ import ScoreTrendIndicator from '../components/ScoreTrendIndicator';
 import SessionFeedbackSummary from '../components/SessionFeedbackSummary';
 import WeakAxisAdviceCard from '../components/WeakAxisAdviceCard';
 import PersonalBestCard from '../components/PersonalBestCard';
+import FilterTabs from '../components/FilterTabs';
 import { useScoreHistory, FILTERS } from '../hooks/useScoreHistory';
 
 export default function ScoreHistoryPage() {
@@ -169,21 +170,7 @@ export default function ScoreHistoryPage() {
       <PracticeCalendar practiceDates={history.map(h => h.createdAt)} />
 
       {/* フィルタタブ */}
-      <div className="flex gap-1 border-b border-surface-3">
-        {FILTERS.map((f) => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`px-3 py-2 text-xs font-medium transition-colors border-b-2 -mb-px ${
-              filter === f
-                ? 'border-primary-500 text-primary-400'
-                : 'border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'
-            }`}
-          >
-            {f}
-          </button>
-        ))}
-      </div>
+      <FilterTabs tabs={[...FILTERS]} selected={filter} onSelect={setFilter} />
 
       {/* フィルタサマリー */}
       <ScoreFilterSummary scores={filteredHistory.map(h => h.overallScore)} />

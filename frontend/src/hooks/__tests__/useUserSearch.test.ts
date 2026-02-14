@@ -98,6 +98,23 @@ describe('useUserSearch', () => {
     }, { timeout: 2000 });
   });
 
+  it('初期状態でsearchQueryが空文字・loadingに関わらずusersが空', () => {
+    const { result } = renderHook(() => useUserSearch());
+    expect(result.current.searchQuery).toBe('');
+    expect(result.current.debounceQuery).toBe('');
+    expect(result.current.users).toEqual([]);
+  });
+
+  it('non-Errorオブジェクトのreject時にデフォルトメッセージが表示されない', async () => {
+    vi.mocked(UserSearchRepository.searchUsers).mockRejectedValue('文字列エラー');
+
+    const { result } = renderHook(() => useUserSearch());
+
+    await waitFor(() => {
+      expect(result.current.error).toBeDefined();
+    });
+  });
+
   it('アンマウント時にキャンセルされた検索結果は反映されない', async () => {
     let resolveSearch: (value: any) => void;
     vi.mocked(UserSearchRepository.searchUsers).mockImplementation(

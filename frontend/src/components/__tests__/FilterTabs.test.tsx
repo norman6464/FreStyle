@@ -37,4 +37,32 @@ describe('FilterTabs', () => {
     );
     expect(container.firstChild).toHaveClass('mb-5');
   });
+
+  it('classNameが未指定でもエラーにならない', () => {
+    const { container } = render(
+      <FilterTabs tabs={[...TABS]} selected="すべて" onSelect={() => {}} />
+    );
+    expect(container.firstChild).toHaveClass('flex');
+  });
+
+  it('選択中のタブを再クリックしてもonSelectが呼ばれる', () => {
+    const onSelect = vi.fn();
+    render(<FilterTabs tabs={[...TABS]} selected="すべて" onSelect={onSelect} />);
+    fireEvent.click(screen.getByRole('button', { name: 'すべて' }));
+    expect(onSelect).toHaveBeenCalledWith('すべて');
+  });
+
+  it('タブが1つでも正常にレンダリングされる', () => {
+    render(<FilterTabs tabs={['唯一']} selected="唯一" onSelect={() => {}} />);
+    expect(screen.getByRole('button', { name: '唯一' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '唯一' }).className).toContain('border-primary-500');
+  });
+
+  it('ボーダー付きのコンテナがレンダリングされる', () => {
+    const { container } = render(
+      <FilterTabs tabs={[...TABS]} selected="すべて" onSelect={() => {}} />
+    );
+    expect(container.firstChild).toHaveClass('border-b');
+    expect(container.firstChild).toHaveClass('border-surface-3');
+  });
 });

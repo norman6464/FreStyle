@@ -74,4 +74,47 @@ describe('Tooltip', () => {
     });
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
   });
+
+  it('position=bottomでツールチップが下に表示される', () => {
+    render(
+      <Tooltip content="下部説明" position="bottom">
+        <button>ボタン</button>
+      </Tooltip>
+    );
+    fireEvent.mouseEnter(screen.getByText('ボタン').parentElement!);
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    const tooltip = screen.getByRole('tooltip');
+    expect(tooltip.className).toContain('top-full');
+    expect(tooltip.className).toContain('mt-1.5');
+  });
+
+  it('position=topでツールチップが上に表示される', () => {
+    render(
+      <Tooltip content="上部説明">
+        <button>ボタン</button>
+      </Tooltip>
+    );
+    fireEvent.mouseEnter(screen.getByText('ボタン').parentElement!);
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    const tooltip = screen.getByRole('tooltip');
+    expect(tooltip.className).toContain('bottom-full');
+    expect(tooltip.className).toContain('mb-1.5');
+  });
+
+  it('ツールチップにcontent文字列が表示される', () => {
+    render(
+      <Tooltip content="ヘルプテキスト">
+        <span>アイコン</span>
+      </Tooltip>
+    );
+    fireEvent.mouseEnter(screen.getByText('アイコン').parentElement!);
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(screen.getByText('ヘルプテキスト')).toBeInTheDocument();
+  });
 });

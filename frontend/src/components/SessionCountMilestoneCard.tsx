@@ -1,4 +1,5 @@
 import { StarIcon } from '@heroicons/react/24/solid';
+import Card from './Card';
 
 interface SessionCountMilestoneCardProps {
   sessionCount: number;
@@ -23,7 +24,7 @@ export default function SessionCountMilestoneCard({ sessionCount }: SessionCount
     : Math.round(((sessionCount - prevMilestone) / (nextMilestone - prevMilestone)) * 100);
 
   return (
-    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
+    <Card>
       <div className="flex items-center gap-2 mb-3">
         <StarIcon className="w-5 h-5 text-amber-400" />
         <h3 className="text-xs font-semibold text-[var(--color-text-primary)]">セッション達成</h3>
@@ -52,6 +53,6 @@ export default function SessionCountMilestoneCard({ sessionCount }: SessionCount
           素晴らしい! 100回以上の練習を達成しました!
         </p>
       )}
-    </div>
+    </Card>
   );
 }

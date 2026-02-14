@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import Card from './Card';
 
 interface ScoreHistory {
   sessionId: number;
@@ -61,7 +62,7 @@ export default function WeeklyReportCard({ allScores }: WeeklyReportCardProps) {
   const dayLabels = ['日', '月', '火', '水', '木', '金', '土'];
 
   return (
-    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
+    <Card>
       <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-3">今週のレポート</p>
 
       <div className="grid grid-cols-2 gap-4 mb-3">
@@ -107,6 +108,6 @@ export default function WeeklyReportCard({ allScores }: WeeklyReportCardProps) {
           ))}
         </div>
       </div>
-    </div>
+    </Card>
   );
 }

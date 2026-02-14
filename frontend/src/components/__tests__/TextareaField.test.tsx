@@ -38,4 +38,24 @@ describe('TextareaField', () => {
     render(<TextareaField label="自己紹介" name="bio" value="" onChange={vi.fn()} rows={5} />);
     expect(screen.getByLabelText('自己紹介')).toHaveAttribute('rows', '5');
   });
+
+  it('デフォルトのrows属性は3', () => {
+    render(<TextareaField label="自己紹介" name="bio" value="" onChange={vi.fn()} />);
+    expect(screen.getByLabelText('自己紹介')).toHaveAttribute('rows', '3');
+  });
+
+  it('空文字列で文字数カウントが0を表示する', () => {
+    render(<TextareaField label="自己紹介" name="bio" value="" onChange={vi.fn()} maxLength={100} />);
+    expect(screen.getByText('0 / 100')).toBeInTheDocument();
+  });
+
+  it('maxLength属性がtextareaに設定される', () => {
+    render(<TextareaField label="自己紹介" name="bio" value="" onChange={vi.fn()} maxLength={200} />);
+    expect(screen.getByLabelText('自己紹介')).toHaveAttribute('maxlength', '200');
+  });
+
+  it('textarea要素がレンダリングされる', () => {
+    render(<TextareaField label="自己紹介" name="bio" value="" onChange={vi.fn()} />);
+    expect(screen.getByLabelText('自己紹介').tagName).toBe('TEXTAREA');
+  });
 });

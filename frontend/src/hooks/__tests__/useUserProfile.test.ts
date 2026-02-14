@@ -93,6 +93,13 @@ describe('useUserProfile', () => {
     expect(result.current.error).toBe('プロファイルの更新に失敗しました。');
   });
 
+  it('初期状態でprofileがnull・loadingがfalse・errorがnull', () => {
+    const { result } = renderHook(() => useUserProfile());
+    expect(result.current.profile).toBeNull();
+    expect(result.current.loading).toBe(false);
+    expect(result.current.error).toBeNull();
+  });
+
   it('fetchMyProfile: loading状態が正しく変化する', async () => {
     let resolvePromise: (value: any) => void;
     const pendingPromise = new Promise((resolve) => {

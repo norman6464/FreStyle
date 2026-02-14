@@ -165,9 +165,10 @@
 - **SkipLinkコンポーネント**：キーボードユーザー向けの「メインコンテンツへスキップ」リンク・フォーカス時のみ表示・AppShellに組み込み済み
 - **ScrollToTopボタン**：長ページでスクロール位置200px以上で表示されるフローティングボタン・スムーズスクロールで上部に移動・AppShellに組み込み済み
 - **Badgeコンポーネント**：5カラーバリアント（success/warning/danger/info/neutral）・2サイズ対応のインラインバッジ
+- **Avatarコンポーネント**：プロフィール画像+イニシャルフォールバック統一・4サイズ対応（sm/md/lg/xl）・MemberItem/ChatListPage/ProfilePageに適用
 
 ### テスト品質
-- **フロントエンド1259テスト**：Vitest + React Testing Library
+- **フロントエンド1272テスト**：Vitest + React Testing Library
   - Repository層テスト（13リポジトリ・62テスト）
   - Hooks層テスト（32フック・319テスト）
   - Store層テスト（1スライス・5テスト）

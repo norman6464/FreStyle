@@ -111,4 +111,48 @@ describe('useFavoritePhrase', () => {
 
     expect(result.current.phrases).toEqual([]);
   });
+
+  it('searchQueryの初期値が空文字', () => {
+    const { result } = renderHook(() => useFavoritePhrase());
+    expect(result.current.searchQuery).toBe('');
+  });
+
+  it('patternFilterの初期値がすべて', () => {
+    const { result } = renderHook(() => useFavoritePhrase());
+    expect(result.current.patternFilter).toBe('すべて');
+  });
+
+  it('パターンフィルタで絞り込みできる', () => {
+    const phrases = [
+      { id: '1', originalText: 'テスト1', rephrasedText: '言い換え1', pattern: 'フォーマル', createdAt: '2026-01-01' },
+      { id: '2', originalText: 'テスト2', rephrasedText: '言い換え2', pattern: 'ソフト', createdAt: '2026-01-02' },
+    ];
+    mockedRepo.getAll.mockReturnValue(phrases);
+
+    const { result } = renderHook(() => useFavoritePhrase());
+
+    act(() => {
+      result.current.setPatternFilter('フォーマル');
+    });
+
+    expect(result.current.filteredPhrases).toHaveLength(1);
+    expect(result.current.filteredPhrases[0].pattern).toBe('フォーマル');
+  });
+
+  it('検索クエリで絞り込みできる', () => {
+    const phrases = [
+      { id: '1', originalText: '会議', rephrasedText: 'ミーティング', pattern: 'フォーマル', createdAt: '2026-01-01' },
+      { id: '2', originalText: '報告', rephrasedText: 'レポート', pattern: 'ソフト', createdAt: '2026-01-02' },
+    ];
+    mockedRepo.getAll.mockReturnValue(phrases);
+
+    const { result } = renderHook(() => useFavoritePhrase());
+
+    act(() => {
+      result.current.setSearchQuery('会議');
+    });
+
+    expect(result.current.filteredPhrases).toHaveLength(1);
+    expect(result.current.filteredPhrases[0].originalText).toBe('会議');
+  });
 });

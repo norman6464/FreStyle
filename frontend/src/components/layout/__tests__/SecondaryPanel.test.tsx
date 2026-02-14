@@ -9,7 +9,8 @@ describe('SecondaryPanel', () => {
         <div>コンテンツ</div>
       </SecondaryPanel>
     );
-    expect(screen.getByText('チャット')).toBeDefined();
+    const titles = screen.getAllByText('チャット');
+    expect(titles.length).toBeGreaterThanOrEqual(1);
   });
 
   it('子要素を表示する', () => {
@@ -18,7 +19,8 @@ describe('SecondaryPanel', () => {
         <div>子要素コンテンツ</div>
       </SecondaryPanel>
     );
-    expect(screen.getByText('子要素コンテンツ')).toBeDefined();
+    const elements = screen.getAllByText('子要素コンテンツ');
+    expect(elements.length).toBeGreaterThanOrEqual(1);
   });
 
   it('ヘッダーコンテンツを表示する', () => {
@@ -27,6 +29,16 @@ describe('SecondaryPanel', () => {
         <div>内容</div>
       </SecondaryPanel>
     );
-    expect(screen.getByPlaceholderText('検索')).toBeDefined();
+    const inputs = screen.getAllByPlaceholderText('検索');
+    expect(inputs.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('モバイル閉じるボタンを表示する', () => {
+    render(
+      <SecondaryPanel title="テスト" mobileOpen={true} onMobileClose={() => {}}>
+        <div>内容</div>
+      </SecondaryPanel>
+    );
+    expect(screen.getByLabelText('パネルを閉じる')).toBeDefined();
   });
 });

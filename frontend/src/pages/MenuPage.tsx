@@ -8,6 +8,7 @@ import {
 } from '@heroicons/react/24/outline';
 import CommunicationTipCard from '../components/CommunicationTipCard';
 import DailyChallengeCard from '../components/DailyChallengeCard';
+import MotivationQuoteCard from '../components/MotivationQuoteCard';
 import DailyGoalCard from '../components/DailyGoalCard';
 import LearningInsightsCard from '../components/LearningInsightsCard';
 import PracticeLevelCard from '../components/PracticeLevelCard';
@@ -130,6 +131,11 @@ export default function MenuPage() {
       {/* 本日のチャレンジ */}
       <div className="mb-6">
         <DailyChallengeCard />
+      </div>
+
+      {/* 今日の一言 */}
+      <div className="mb-6">
+        <MotivationQuoteCard />
       </div>
 
       {/* コミュニケーションTips */}

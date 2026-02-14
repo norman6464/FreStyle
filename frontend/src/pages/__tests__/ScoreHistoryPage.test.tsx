@@ -154,7 +154,7 @@ describe('ScoreHistoryPage', () => {
       expect(screen.getByText('会議フィードバック')).toBeInTheDocument();
     }, { timeout: 3000 });
 
-    fireEvent.click(screen.getByRole('button', { name: '練習' }));
+    fireEvent.click(screen.getByRole('tab', { name: '練習' }));
 
     expect(screen.queryByText('会議フィードバック')).not.toBeInTheDocument();
     expect(screen.getByText('練習: 本番障害の緊急報告')).toBeInTheDocument();
@@ -170,7 +170,7 @@ describe('ScoreHistoryPage', () => {
       expect(screen.getByText('会議フィードバック')).toBeInTheDocument();
     }, { timeout: 3000 });
 
-    fireEvent.click(screen.getByRole('button', { name: 'フリー' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'フリー' }));
 
     expect(screen.getByText('会議フィードバック')).toBeInTheDocument();
     expect(screen.queryByText('練習: 本番障害の緊急報告')).not.toBeInTheDocument();

@@ -1,3 +1,5 @@
+import { XMarkIcon } from '@heroicons/react/24/outline';
+
 interface SecondaryPanelProps {
   title: string;
   headerContent?: React.ReactNode;
@@ -30,9 +32,7 @@ export default function SecondaryPanel({ title, headerContent, children, mobileO
             className="p-1 hover:bg-surface-2 rounded transition-colors"
             aria-label="パネルを閉じる"
           >
-            <svg className="w-4 h-4 text-[var(--color-text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <XMarkIcon className="w-4 h-4 text-[var(--color-text-muted)]" />
           </button>
         </div>
         {headerContent && <div className="px-4 py-2 border-b border-surface-3">{headerContent}</div>}

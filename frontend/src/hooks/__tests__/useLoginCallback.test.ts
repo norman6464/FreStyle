@@ -92,4 +92,35 @@ describe('useLoginCallback', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/login');
     expect(authRepository.callback).not.toHaveBeenCalled();
   });
+
+  it('errorパラメータがある場合にcallbackを呼ばない', async () => {
+    mockSearchParams = 'error=server_error&code=test-code';
+
+    await act(async () => {
+      renderHook(() => useLoginCallback());
+    });
+
+    expect(authRepository.callback).not.toHaveBeenCalled();
+  });
+
+  it('callback成功時にalertが呼ばれない', async () => {
+    mockSearchParams = 'code=valid-code';
+    vi.mocked(authRepository.callback).mockResolvedValue({} as any);
+
+    await act(async () => {
+      renderHook(() => useLoginCallback());
+    });
+
+    expect(window.alert).not.toHaveBeenCalled();
+  });
+
+  it('codeもerrorもない場合にdispatchが呼ばれない', async () => {
+    mockSearchParams = '';
+
+    await act(async () => {
+      renderHook(() => useLoginCallback());
+    });
+
+    expect(mockDispatch).not.toHaveBeenCalled();
+  });
 });

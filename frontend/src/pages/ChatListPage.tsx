@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import SecondaryPanel from '../components/layout/SecondaryPanel';
 import EmptyState from '../components/EmptyState';
@@ -6,9 +5,10 @@ import SearchBox from '../components/SearchBox';
 import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 import { useChatList } from '../hooks/useChatList';
 import { formatTime, truncateMessage } from '../utils/formatters';
+import { useMobilePanelState } from '../hooks/useMobilePanelState';
 
 export default function ChatListPage() {
-  const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
+  const { isOpen: mobilePanelOpen, open: openMobilePanel, close: closeMobilePanel } = useMobilePanelState();
   const navigate = useNavigate();
   const { chatUsers, loading, searchQuery, setSearchQuery } = useChatList();
 
@@ -17,7 +17,7 @@ export default function ChatListPage() {
       <SecondaryPanel
         title="チャット"
         mobileOpen={mobilePanelOpen}
-        onMobileClose={() => setMobilePanelOpen(false)}
+        onMobileClose={closeMobilePanel}
         headerContent={
           <SearchBox
             value={searchQuery}
@@ -38,7 +38,7 @@ export default function ChatListPage() {
           chatUsers.map((user) => (
             <button
               key={user.roomId}
-              onClick={() => { navigate(`/chat/users/${user.roomId}`); setMobilePanelOpen(false); }}
+              onClick={() => { navigate(`/chat/users/${user.roomId}`); closeMobilePanel(); }}
               className="w-full px-4 py-3 flex items-center gap-3 hover:bg-surface-2 transition-colors border-b border-surface-3 text-left"
             >
               <div className="flex-shrink-0">
@@ -88,7 +88,7 @@ export default function ChatListPage() {
         {/* モバイルヘッダー */}
         <div className="md:hidden bg-surface-1 border-b border-surface-3 px-4 py-2 flex items-center">
           <button
-            onClick={() => setMobilePanelOpen(true)}
+            onClick={openMobilePanel}
             className="p-1.5 hover:bg-surface-2 rounded transition-colors"
             aria-label="チャット一覧を開く"
           >

@@ -39,7 +39,7 @@ const TREND_CONFIG = {
 } as const;
 
 export default function ScoreTrendIndicator({ scores }: ScoreTrendIndicatorProps) {
-  if (scores.length < 2) return null;
+  if (!Array.isArray(scores) || scores.length < 2) return null;
 
   const trend = calculateTrend(scores);
   const config = TREND_CONFIG[trend];

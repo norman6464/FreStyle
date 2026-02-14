@@ -31,14 +31,14 @@ export function useMenuData() {
           setStats(statsData.value);
         }
 
-        if (roomsData.status === 'fulfilled' && roomsData.value?.chatUsers) {
+        if (roomsData.status === 'fulfilled' && Array.isArray(roomsData.value?.chatUsers)) {
           const unread = roomsData.value.chatUsers.reduce(
             (sum, u) => sum + u.unreadCount, 0
           );
           setTotalUnread(unread);
         }
 
-        if (scoresData.status === 'fulfilled' && scoresData.value.length > 0) {
+        if (scoresData.status === 'fulfilled' && Array.isArray(scoresData.value) && scoresData.value.length > 0) {
           setLatestScore(scoresData.value[0]);
           setAllScores(scoresData.value);
         }

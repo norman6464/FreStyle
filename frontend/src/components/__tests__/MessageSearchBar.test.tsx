@@ -44,4 +44,21 @@ describe('MessageSearchBar', () => {
 
     expect(screen.queryByText('0件')).not.toBeInTheDocument();
   });
+
+  it('role="search"がコンテナに適用される', () => {
+    render(<MessageSearchBar onSearch={mockOnSearch} onClear={mockOnClear} matchCount={0} />);
+    expect(screen.getByRole('search')).toBeInTheDocument();
+  });
+
+  it('aria-labelがinputに適用される', () => {
+    render(<MessageSearchBar onSearch={mockOnSearch} onClear={mockOnClear} matchCount={0} />);
+    const input = screen.getByLabelText('メッセージを検索');
+    expect(input.tagName).toBe('INPUT');
+  });
+
+  it('マッチ件数がaria-liveで通知される', () => {
+    render(<MessageSearchBar onSearch={mockOnSearch} onClear={mockOnClear} matchCount={5} />);
+    const liveRegion = screen.getByText('5件');
+    expect(liveRegion).toHaveAttribute('aria-live', 'polite');
+  });
 });

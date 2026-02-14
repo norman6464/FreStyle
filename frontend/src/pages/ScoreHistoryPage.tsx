@@ -6,6 +6,7 @@ import SkillRadarChart from '../components/SkillRadarChart';
 import PracticeCalendar from '../components/PracticeCalendar';
 import ScoreRankBadge from '../components/ScoreRankBadge';
 import ScoreStatsSummary from '../components/ScoreStatsSummary';
+import SkillMilestoneCard from '../components/SkillMilestoneCard';
 import SkillTrendChart from '../components/SkillTrendChart';
 
 interface AxisScore {
@@ -135,6 +136,11 @@ export default function ScoreHistoryPage() {
           ))}
         </div>
       </div>
+
+      {/* スキル別マイルストーン */}
+      {latestSession && latestSession.scores.length > 0 && (
+        <SkillMilestoneCard scores={latestSession.scores} />
+      )}
 
       {/* スキル別推移 */}
       <SkillTrendChart history={history} />

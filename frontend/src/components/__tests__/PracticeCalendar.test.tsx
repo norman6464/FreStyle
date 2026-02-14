@@ -25,7 +25,8 @@ describe('PracticeCalendar', () => {
   });
 
   it('練習日のセルがアクティブなスタイルになる', () => {
-    const today = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     render(<PracticeCalendar practiceDates={[today]} />);
 
     const activeCells = document.querySelectorAll('[data-active="true"]');
@@ -40,7 +41,8 @@ describe('PracticeCalendar', () => {
   });
 
   it('複数回練習した日はより濃い色になる', () => {
-    const today = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     render(<PracticeCalendar practiceDates={[today, today, today]} />);
 
     const activeCells = document.querySelectorAll('[data-count="3"]');

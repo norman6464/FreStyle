@@ -10,6 +10,8 @@ const mockedRepo = vi.mocked(SessionNoteRepository);
 describe('useSessionNote', () => {
   afterEach(() => {
     vi.clearAllMocks();
+    mockedRepo.get.mockReset();
+    mockedRepo.save.mockReset();
   });
 
   it('セッションIDでメモを取得する', () => {
@@ -59,6 +61,37 @@ describe('useSessionNote', () => {
     });
 
     expect(mockedRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('保存後にnoteが即座に更新される', () => {
+    mockedRepo.get.mockReturnValue({ sessionId: 2, note: '元のメモ', updatedAt: '2026-02-13' });
+
+    const { result } = renderHook(() => useSessionNote(2));
+
+    expect(result.current.note).toBe('元のメモ');
+
+    act(() => {
+      result.current.saveNote('更新メモ');
+    });
+
+    expect(result.current.note).toBe('更新メモ');
+  });
+
+  it('複数回保存できる', () => {
+    mockedRepo.get.mockReturnValue(null);
+
+    const { result } = renderHook(() => useSessionNote(1));
+
+    act(() => {
+      result.current.saveNote('メモ1');
+    });
+    expect(result.current.note).toBe('メモ1');
+
+    act(() => {
+      result.current.saveNote('メモ2');
+    });
+    expect(result.current.note).toBe('メモ2');
+    expect(mockedRepo.save).toHaveBeenCalledTimes(2);
   });
 
   it('空文字で保存できる', () => {

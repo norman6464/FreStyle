@@ -30,8 +30,8 @@ export function useSidebar() {
       await AuthRepository.logout();
       dispatch(clearAuth());
       navigate('/login');
-    } catch (err) {
-      console.error('ログアウトエラー:', err);
+    } catch {
+      // サイレントに処理
     }
   }, [dispatch, navigate]);
 

@@ -18,8 +18,8 @@ export function useChatList() {
       setLoading(true);
       const users = await ChatRepository.fetchChatUsers(query);
       setChatUsers(users);
-    } catch (e) {
-      console.error('チャットユーザー取得失敗', e);
+    } catch {
+      // サイレントに処理
     } finally {
       setLoading(false);
     }
@@ -29,8 +29,8 @@ export function useChatList() {
     try {
       const user = await ChatRepository.fetchCurrentUser();
       setUserId(user.id);
-    } catch (e) {
-      console.error('ユーザー情報取得エラー:', e);
+    } catch {
+      // サイレントに処理
     }
   }, []);
 

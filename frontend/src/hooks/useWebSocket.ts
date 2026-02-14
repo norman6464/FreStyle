@@ -64,7 +64,6 @@ export const useWebSocket = ({ url, userId, onConnect, onDisconnect, onError }: 
       },
 
       onStompError: (frame) => {
-        console.error('STOMP Error:', frame);
         onError?.(frame);
       },
     });
@@ -111,8 +110,6 @@ export const useWebSocket = ({ url, userId, onConnect, onDisconnect, onError }: 
         destination,
         body: JSON.stringify(body),
       });
-    } else {
-      console.error('WebSocket is not connected');
     }
   }, []);
 

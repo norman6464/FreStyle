@@ -3,11 +3,6 @@ export function getCognitoAuthUrl(provider: string): string {
     `https://${import.meta.env.VITE_COGNITO_DOMAIN}/oauth2/authorize`
   );
 
-  console.log(import.meta.env.VITE_CLIENT_ID);
-  console.log(import.meta.env.VITE_REDIRECT_URI);
-  console.log(import.meta.env.VITE_RESPONSE_TYPE);
-  console.log(import.meta.env.VITE_SCOPE);
-
   url.searchParams.append('client_id', import.meta.env.VITE_CLIENT_ID);
   url.searchParams.append('redirect_uri', import.meta.env.VITE_REDIRECT_URI);
   url.searchParams.append('response_type', import.meta.env.VITE_RESPONSE_TYPE);

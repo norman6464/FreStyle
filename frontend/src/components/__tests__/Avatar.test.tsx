@@ -65,4 +65,21 @@ describe('Avatar', () => {
     const img = screen.getByRole('img');
     expect(img.className).toContain('object-cover');
   });
+
+  it('小文字の名前が大文字イニシャルに変換される', () => {
+    render(<Avatar name="alice" />);
+    expect(screen.getByText('A')).toBeInTheDocument();
+  });
+
+  it('flex-shrink-0クラスが適用される', () => {
+    const { container } = render(<Avatar name="A" />);
+    const avatar = container.firstChild as HTMLElement;
+    expect(avatar.className).toContain('flex-shrink-0');
+  });
+
+  it('画像モードでもrounded-fullが適用される', () => {
+    const { container } = render(<Avatar name="A" src="https://example.com/photo.jpg" />);
+    const avatar = container.firstChild as HTMLElement;
+    expect(avatar.className).toContain('rounded-full');
+  });
 });

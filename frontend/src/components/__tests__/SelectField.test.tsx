@@ -36,4 +36,27 @@ describe('SelectField', () => {
     render(<SelectField label="スタイル" name="style" value="a" onChange={vi.fn()} options={OPTIONS} />);
     expect(screen.getByLabelText('スタイル').tagName).toBe('SELECT');
   });
+
+  it('オプションが1つでもレンダリングされる', () => {
+    const single = [{ value: 'only', label: '唯一の選択肢' }];
+    render(<SelectField label="スタイル" name="style" value="only" onChange={vi.fn()} options={single} />);
+    expect(screen.getByText('唯一の選択肢')).toBeInTheDocument();
+    expect(screen.getByLabelText('スタイル')).toHaveValue('only');
+  });
+
+  it('name属性がselect要素に設定される', () => {
+    render(<SelectField label="スタイル" name="myField" value="a" onChange={vi.fn()} options={OPTIONS} />);
+    expect(screen.getByLabelText('スタイル')).toHaveAttribute('name', 'myField');
+  });
+
+  it('option要素のvalue属性が正しく設定される', () => {
+    const { container } = render(
+      <SelectField label="スタイル" name="style" value="a" onChange={vi.fn()} options={OPTIONS} />
+    );
+    const optionElements = container.querySelectorAll('option');
+    expect(optionElements).toHaveLength(3);
+    expect(optionElements[0]).toHaveValue('a');
+    expect(optionElements[1]).toHaveValue('b');
+    expect(optionElements[2]).toHaveValue('c');
+  });
 });

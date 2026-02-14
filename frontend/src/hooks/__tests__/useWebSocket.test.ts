@@ -88,4 +88,35 @@ describe('useWebSocket', () => {
 
     expect(mockDeactivate).toHaveBeenCalledOnce();
   });
+
+  it('subscribe関数が購読解除関数を返す', () => {
+    const { result } = renderHook(() =>
+      useWebSocket({ url: 'http://localhost/ws', userId: 1 })
+    );
+
+    const callback = vi.fn();
+    const unsubscribe = result.current.subscribe('/topic/test', callback);
+
+    expect(typeof unsubscribe).toBe('function');
+  });
+
+  it('isConnectedの初期値がfalse', () => {
+    const { result } = renderHook(() =>
+      useWebSocket({ url: 'http://localhost/ws', userId: 1 })
+    );
+
+    expect(result.current.isConnected()).toBe(false);
+  });
+
+  it('publish関数が未接続時に例外を投げない', () => {
+    const { result } = renderHook(() =>
+      useWebSocket({ url: 'http://localhost/ws', userId: 1 })
+    );
+
+    expect(() => {
+      result.current.publish('/app/test', { data: 'hello' });
+    }).not.toThrow();
+
+    expect(mockPublish).not.toHaveBeenCalled();
+  });
 });

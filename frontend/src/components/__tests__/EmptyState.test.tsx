@@ -1,7 +1,7 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import EmptyState from '../EmptyState';
-import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
+import { ChatBubbleLeftRightIcon, SparklesIcon } from '@heroicons/react/24/outline';
 
 describe('EmptyState', () => {
   it('タイトルを表示する', () => {
@@ -52,5 +52,14 @@ describe('EmptyState', () => {
     // タイトルのみ
     const texts = Array.from(paragraphs).map(p => p.textContent);
     expect(texts).not.toContain('詳しい説明テキスト');
+  });
+
+  it('異なるアイコンでも正しく表示される', () => {
+    const { container } = render(
+      <EmptyState icon={SparklesIcon} title="AIアシスタントへようこそ" description="質問や相談を何でも聞いてください" />
+    );
+    expect(screen.getByText('AIアシスタントへようこそ')).toBeDefined();
+    expect(screen.getByText('質問や相談を何でも聞いてください')).toBeDefined();
+    expect(container.querySelector('svg')).toBeTruthy();
   });
 });

@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SkeletonCard } from '../components/Skeleton';
 import SkillRadarChart from '../components/SkillRadarChart';
@@ -17,7 +16,7 @@ import SkillGapAnalysisCard from '../components/SkillGapAnalysisCard';
 import WeeklyComparisonCard from '../components/WeeklyComparisonCard';
 import SkillTrendChart from '../components/SkillTrendChart';
 import SessionDetailModal from '../components/SessionDetailModal';
-import { useScoreHistory, FILTERS, type ScoreHistoryItem } from '../hooks/useScoreHistory';
+import { useScoreHistory, FILTERS } from '../hooks/useScoreHistory';
 
 const AXIS_ADVICE: Record<string, string> = {
   '論理的構成力': '論理的構成力を伸ばすシナリオで練習しましょう',
@@ -28,9 +27,8 @@ const AXIS_ADVICE: Record<string, string> = {
 };
 
 export default function ScoreHistoryPage() {
-  const { history, filteredHistory, filter, setFilter, loading, latestSession, weakestAxis } = useScoreHistory();
+  const { history, filteredHistory, filter, setFilter, loading, latestSession, weakestAxis, selectedSession, setSelectedSession } = useScoreHistory();
   const navigate = useNavigate();
-  const [selectedSession, setSelectedSession] = useState<ScoreHistoryItem | null>(null);
 
   if (loading) {
     return (

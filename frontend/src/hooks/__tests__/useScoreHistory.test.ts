@@ -155,6 +155,37 @@ describe('useScoreHistory', () => {
     expect(result.current.filteredHistory).toHaveLength(2);
   });
 
+  it('selectedSessionの初期値がnullである', async () => {
+    mockFetchScoreHistory.mockResolvedValue([]);
+    const { result } = renderHook(() => useScoreHistory());
+    expect(result.current.selectedSession).toBeNull();
+  });
+
+  it('setSelectedSessionでセッションを選択できる', async () => {
+    const mockData = [
+      { sessionId: 1, sessionTitle: 'テスト', overallScore: 7.0, scores: [], createdAt: '2026-02-10' },
+    ];
+    mockFetchScoreHistory.mockResolvedValue(mockData);
+
+    const { result } = renderHook(() => useScoreHistory());
+
+    await waitFor(() => {
+      expect(result.current.history).toHaveLength(1);
+    });
+
+    act(() => {
+      result.current.setSelectedSession(result.current.history[0]);
+    });
+
+    expect(result.current.selectedSession?.sessionId).toBe(1);
+
+    act(() => {
+      result.current.setSelectedSession(null);
+    });
+
+    expect(result.current.selectedSession).toBeNull();
+  });
+
   it('最新セッションのスコアが空の場合にweakestAxisがnullになる', async () => {
     const mockData = [
       { sessionId: 1, sessionTitle: 'テスト', overallScore: 7.0, scores: [], createdAt: '2026-02-10' },

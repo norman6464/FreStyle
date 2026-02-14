@@ -170,11 +170,11 @@
 - **SearchBoxアクセシビリティ**：role="search"・aria-label追加・スクリーンリーダー対応
 - **Loadingコンポーネント統一**：ChatListPage/NotesPage/ProfilePageのインラインスピナーをLoadingコンポーネントに置換・role="status"自動適用
 - **EmptyState統一**：AskAiPage/ChatPageのインライン空状態UIをEmptyStateコンポーネント+Heroiconsに統一
-- **Heroicons統一**：ハンバーガーメニュー・Plus・CheckアイコンのインラインSVGをHeroiconsコンポーネントに置換
+- **Heroicons完全統一**：全アイコン用インラインSVGをHeroiconsコンポーネントに置換（Bars3Icon/PlusIcon/CheckIcon/XMarkIcon/SparklesIcon/BookmarkIcon/UserIcon/ClipboardDocumentIcon/ExclamationTriangleIcon/ChatBubbleLeftRightIcon）残存SVGはカスタムチャート・スピナーのみ
 - **Tailwind CSS修正**：不正なopacity値(bg-*-900/300)を全15箇所修正し正しい色表示に復元
 
 ### テスト品質
-- **フロントエンド1301テスト**：Vitest + React Testing Library
+- **フロントエンド1304テスト**：Vitest + React Testing Library
   - Repository層テスト（13リポジトリ・62テスト）
   - Hooks層テスト（33フック・332テスト）
   - Store層テスト（1スライス・5テスト）

@@ -54,4 +54,21 @@ describe('PrimaryButton', () => {
     const { container } = render(<PrimaryButton>送信</PrimaryButton>);
     expect(container.querySelector('[data-testid="loading-spinner"]')).not.toBeInTheDocument();
   });
+
+  it('loading時にchildrenも表示される', () => {
+    render(<PrimaryButton loading>送信中</PrimaryButton>);
+    expect(screen.getByText('送信中')).toBeInTheDocument();
+  });
+
+  it('loadingとdisabled両方設定時にボタンが無効化される', () => {
+    render(<PrimaryButton loading disabled>送信</PrimaryButton>);
+    expect(screen.getByRole('button')).toBeDisabled();
+  });
+
+  it('loading時にonClickが呼ばれない', () => {
+    const onClick = vi.fn();
+    render(<PrimaryButton loading onClick={onClick}>送信</PrimaryButton>);
+    fireEvent.click(screen.getByRole('button'));
+    expect(onClick).not.toHaveBeenCalled();
+  });
 });

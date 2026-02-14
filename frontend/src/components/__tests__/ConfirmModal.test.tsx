@@ -71,4 +71,29 @@ describe('ConfirmModal', () => {
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(mockOnCancel).toHaveBeenCalled();
   });
+
+  it('isDanger=falseで確認ボタンがprimaryスタイルになる', () => {
+    render(
+      <ConfirmModal isOpen={true} message="実行しますか？" isDanger={false} onConfirm={mockOnConfirm} onCancel={mockOnCancel} />
+    );
+    const confirmBtn = screen.getByText('削除');
+    expect(confirmBtn.className).toContain('bg-primary-500');
+  });
+
+  it('isDanger=trueで確認ボタンがredスタイルになる', () => {
+    render(
+      <ConfirmModal isOpen={true} message="削除しますか？" isDanger={true} onConfirm={mockOnConfirm} onCancel={mockOnCancel} />
+    );
+    const confirmBtn = screen.getByText('削除');
+    expect(confirmBtn.className).toContain('bg-red-500');
+  });
+
+  it('オーバーレイクリックでonCancelが呼ばれる', () => {
+    const { container } = render(
+      <ConfirmModal isOpen={true} message="削除しますか？" onConfirm={mockOnConfirm} onCancel={mockOnCancel} />
+    );
+    const overlay = container.querySelector('.bg-black\\/50');
+    if (overlay) fireEvent.click(overlay);
+    expect(mockOnCancel).toHaveBeenCalled();
+  });
 });

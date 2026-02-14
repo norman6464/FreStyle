@@ -8,6 +8,7 @@ interface InputFieldProps {
   value: string;
   onChange: (e: ChangeEvent<HTMLInputElement> | { target: { name: string; value: string } }) => void;
   placeholder?: string;
+  error?: string;
 }
 
 export default function InputField({
@@ -16,6 +17,7 @@ export default function InputField({
   type = 'text',
   value,
   onChange,
+  error,
 }: InputFieldProps) {
   const [inputValue, setInputValue] = useState(value || '');
 
@@ -42,7 +44,13 @@ export default function InputField({
             setInputValue(e.target.value);
             onChange(e);
           }}
-          className="w-full border border-surface-3 rounded-lg px-4 py-2.5 pr-10 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors duration-150"
+          aria-invalid={!!error}
+          aria-describedby={error ? `${name}-error` : undefined}
+          className={`w-full border rounded-lg px-4 py-2.5 pr-10 focus:outline-none focus:ring-1 transition-colors duration-150 ${
+            error
+              ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500'
+              : 'border-surface-3 focus:border-primary-500 focus:ring-primary-500'
+          }`}
         />
         {inputValue && (
           <button
@@ -54,6 +62,11 @@ export default function InputField({
           </button>
         )}
       </div>
+      {error && (
+        <p id={`${name}-error`} className="text-xs text-rose-400 mt-1">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

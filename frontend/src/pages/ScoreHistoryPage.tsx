@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SkeletonCard } from '../components/Skeleton';
 import SkillRadarChart from '../components/SkillRadarChart';
@@ -8,7 +9,8 @@ import SkillMilestoneCard from '../components/SkillMilestoneCard';
 import ScoreComparisonCard from '../components/ScoreComparisonCard';
 import ScoreImprovementAdvice from '../components/ScoreImprovementAdvice';
 import SkillTrendChart from '../components/SkillTrendChart';
-import { useScoreHistory, FILTERS } from '../hooks/useScoreHistory';
+import SessionDetailModal from '../components/SessionDetailModal';
+import { useScoreHistory, FILTERS, type ScoreHistoryItem } from '../hooks/useScoreHistory';
 
 const AXIS_ADVICE: Record<string, string> = {
   '論理的構成力': '論理的構成力を伸ばすシナリオで練習しましょう',
@@ -21,6 +23,7 @@ const AXIS_ADVICE: Record<string, string> = {
 export default function ScoreHistoryPage() {
   const { history, filteredHistory, filter, setFilter, loading, latestSession, weakestAxis } = useScoreHistory();
   const navigate = useNavigate();
+  const [selectedSession, setSelectedSession] = useState<ScoreHistoryItem | null>(null);
 
   if (loading) {
     return (
@@ -154,7 +157,8 @@ export default function ScoreHistoryPage() {
         return (
           <div
             key={item.sessionId}
-            className="bg-white rounded-lg border border-slate-200 p-4"
+            className="bg-white rounded-lg border border-slate-200 p-4 cursor-pointer hover:border-primary-300 transition-colors"
+            onClick={() => setSelectedSession(item)}
           >
             <div className="flex items-center justify-between mb-3">
               <div>
@@ -206,6 +210,13 @@ export default function ScoreHistoryPage() {
           </div>
         );
       })}
+
+      {selectedSession && (
+        <SessionDetailModal
+          session={selectedSession}
+          onClose={() => setSelectedSession(null)}
+        />
+      )}
     </div>
   );
 }

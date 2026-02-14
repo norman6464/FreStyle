@@ -1,4 +1,5 @@
 import type { ComponentType, SVGProps } from 'react';
+import Card from './Card';
 import {
   CheckCircleIcon,
   PencilSquareIcon,
@@ -34,7 +35,7 @@ export default function AchievementBadgeCard({ totalSessions }: AchievementBadge
   const nextBadge = BADGES.find((b) => totalSessions < b.threshold);
 
   return (
-    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
+    <Card>
       <div className="flex items-center justify-between mb-3">
         <p className="text-xs font-medium text-[var(--color-text-secondary)]">達成バッジ</p>
         <span className="text-[10px] text-[var(--color-text-faint)]">
@@ -73,6 +74,6 @@ export default function AchievementBadgeCard({ totalSessions }: AchievementBadge
           全バッジを獲得しました！
         </p>
       )}
-    </div>
+    </Card>
   );
 }

@@ -1,3 +1,5 @@
+import Card from './Card';
+
 interface AxisScore {
   axis: string;
   score: number;
@@ -16,7 +18,7 @@ export default function SkillSummaryCard({ scores }: SkillSummaryCardProps) {
   const weaknesses = sorted.slice(-2).reverse();
 
   return (
-    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
+    <Card>
       <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-3">スキル強弱サマリー</p>
 
       <div className="grid grid-cols-2 gap-3">
@@ -44,6 +46,6 @@ export default function SkillSummaryCard({ scores }: SkillSummaryCardProps) {
           </div>
         </div>
       </div>
-    </div>
+    </Card>
   );
 }

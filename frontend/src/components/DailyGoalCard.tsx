@@ -1,10 +1,11 @@
 import { useDailyGoal } from '../hooks/useDailyGoal';
+import Card from './Card';
 
 export default function DailyGoalCard() {
   const { goal, isAchieved, progress } = useDailyGoal();
 
   return (
-    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
+    <Card>
       <div className="flex items-center justify-between mb-2">
         <p className="text-xs font-medium text-[var(--color-text-secondary)]">今日の目標</p>
         <span className="text-xs text-[var(--color-text-muted)]">
@@ -35,6 +36,6 @@ export default function DailyGoalCard() {
           目標達成！お疲れさまでした
         </p>
       )}
-    </div>
+    </Card>
   );
 }

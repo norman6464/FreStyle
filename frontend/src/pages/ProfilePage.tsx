@@ -3,6 +3,7 @@ import TextareaField from '../components/TextareaField';
 import PrimaryButton from '../components/PrimaryButton';
 import FormMessage from '../components/FormMessage';
 import Avatar from '../components/Avatar';
+import Loading from '../components/Loading';
 import { useProfileEdit } from '../hooks/useProfileEdit';
 
 export default function ProfilePage() {
@@ -10,9 +11,7 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-500" />
-      </div>
+      <Loading className="h-full" />
     );
   }
 

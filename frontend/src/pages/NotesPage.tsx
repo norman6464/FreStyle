@@ -4,6 +4,7 @@ import NoteListItem from '../components/NoteListItem';
 import NoteEditor from '../components/NoteEditor';
 import EmptyState from '../components/EmptyState';
 import ConfirmModal from '../components/ConfirmModal';
+import Loading from '../components/Loading';
 import { DocumentTextIcon, PlusIcon, MagnifyingGlassIcon, Bars3Icon } from '@heroicons/react/24/outline';
 import { useNotes } from '../hooks/useNotes';
 import { useNoteEditor } from '../hooks/useNoteEditor';
@@ -89,9 +90,7 @@ export default function NotesPage() {
       >
         <div className="p-2 space-y-0.5">
           {loading && notes.length === 0 ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-500" />
-            </div>
+            <Loading className="py-8" />
           ) : filteredNotes.length === 0 ? (
             <div className="p-4 text-center text-xs text-[var(--color-text-muted)]">
               ノートがありません

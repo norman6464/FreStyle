@@ -21,6 +21,7 @@ import ScoreFilterSummary from '../components/ScoreFilterSummary';
 import ScoreTrendIndicator from '../components/ScoreTrendIndicator';
 import SessionFeedbackSummary from '../components/SessionFeedbackSummary';
 import WeakAxisAdviceCard from '../components/WeakAxisAdviceCard';
+import PersonalBestCard from '../components/PersonalBestCard';
 import { useScoreHistory, FILTERS } from '../hooks/useScoreHistory';
 
 export default function ScoreHistoryPage() {
@@ -73,6 +74,9 @@ export default function ScoreHistoryPage() {
 
       {/* 統計サマリー */}
       <ScoreStatsSummary history={history} />
+
+      {/* 自己ベスト */}
+      <PersonalBestCard history={history} />
 
       {/* 週間比較 */}
       <WeeklyComparisonCard sessions={history} />

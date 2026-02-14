@@ -171,7 +171,7 @@
 - **Loadingコンポーネント統一**：ChatListPage/NotesPage/ProfilePageのインラインスピナーをLoadingコンポーネントに置換・role="status"自動適用
 
 ### テスト品質
-- **フロントエンド1291テスト**：Vitest + React Testing Library
+- **フロントエンド1297テスト**：Vitest + React Testing Library
   - Repository層テスト（13リポジトリ・62テスト）
   - Hooks層テスト（33フック・332テスト）
   - Store層テスト（1スライス・5テスト）

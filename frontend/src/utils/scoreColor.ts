@@ -5,9 +5,9 @@ export function getScoreTextColor(score: number): string {
 }
 
 export function getScoreBarColor(score: number): string {
-  if (score >= 8) return 'bg-emerald-900/300';
-  if (score >= 6) return 'bg-amber-900/300';
-  return 'bg-rose-900/300';
+  if (score >= 8) return 'bg-emerald-500';
+  if (score >= 6) return 'bg-amber-500';
+  return 'bg-rose-500';
 }
 
 export function getScoreLevel(score: number): { label: string; color: string } {

@@ -33,7 +33,7 @@ export default function WeeklyGoalProgressCard({
       <div className="w-full bg-surface-3 rounded-full h-2 mb-2">
         <div
           data-testid="progress-bar"
-          className={`h-2 rounded-full transition-all ${isCompleted ? 'bg-emerald-900/300' : 'bg-primary-500'}`}
+          className={`h-2 rounded-full transition-all ${isCompleted ? 'bg-emerald-500' : 'bg-primary-500'}`}
           style={{ width: `${percentage}%` }}
         />
       </div>

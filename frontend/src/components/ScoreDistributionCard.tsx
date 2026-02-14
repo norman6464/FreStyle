@@ -12,10 +12,10 @@ const RANGES = [
 ] as const;
 
 const RANGE_COLORS = [
-  'bg-emerald-900/300',
-  'bg-blue-900/300',
-  'bg-amber-900/300',
-  'bg-rose-900/300',
+  'bg-emerald-500',
+  'bg-blue-500',
+  'bg-amber-500',
+  'bg-rose-500',
 ];
 
 function getMessage(topRangeIndex: number): string {

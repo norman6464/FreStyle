@@ -105,7 +105,7 @@ export default function AskAiPage() {
               <PracticeTimer />
               <button
                 onClick={() => handleSend('練習を終了して、今回の会話全体に対するフィードバックとスコアカードをお願いします。')}
-                className="bg-rose-900/300 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-rose-600 transition-colors"
+                className="bg-rose-500 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-rose-600 transition-colors"
               >
                 練習終了
               </button>

@@ -48,7 +48,7 @@ export default function ScoreGoalCard({ averageScore }: Props) {
 
       <div className="w-full bg-surface-3 rounded-full h-2 mb-2">
         <div
-          className={`h-2 rounded-full transition-all ${achieved ? 'bg-emerald-900/300' : 'bg-primary-500'}`}
+          className={`h-2 rounded-full transition-all ${achieved ? 'bg-emerald-500' : 'bg-primary-500'}`}
           style={{ width: `${progress}%` }}
         />
       </div>

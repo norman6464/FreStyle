@@ -25,7 +25,7 @@ export default function DailyGoalCard() {
       >
         <div
           className={`h-2 rounded-full transition-all duration-300 ${
-            isAchieved ? 'bg-emerald-900/300' : 'bg-primary-500'
+            isAchieved ? 'bg-emerald-500' : 'bg-primary-500'
           }`}
           style={{ width: `${Math.min(progress, 100)}%` }}
         />

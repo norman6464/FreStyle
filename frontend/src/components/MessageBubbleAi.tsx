@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ClipboardDocumentIcon, ClipboardDocumentCheckIcon, TrashIcon } from '@heroicons/react/24/outline';
 
 interface MessageBubbleAiProps {
   isSender: boolean;
@@ -6,6 +7,8 @@ interface MessageBubbleAiProps {
   content: string;
   id: number;
   onDelete?: (id: number) => void;
+  onCopy?: ((id: number, content: string) => void) | null;
+  isCopied?: boolean;
   isDeleted?: boolean;
 }
 
@@ -15,6 +18,8 @@ export default function MessageBubbleAi({
   content,
   id,
   onDelete,
+  onCopy,
+  isCopied = false,
   isDeleted = false,
 }: MessageBubbleAiProps) {
   const [showDelete, setShowDelete] = useState(false);
@@ -59,16 +64,27 @@ export default function MessageBubbleAi({
             className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 transition-colors duration-150"
             title="削除"
           >
-            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-              <path
-                fillRule="evenodd"
-                d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-                clipRule="evenodd"
-              />
-            </svg>
+            <TrashIcon className="w-3 h-3" />
           </button>
         )}
       </div>
+
+      {!isDeleted && onCopy && (
+        <div className={`flex items-center mt-1 ${isSender ? 'justify-end' : 'justify-start'}`}>
+          <button
+            onClick={() => onCopy(id, content)}
+            title={isCopied ? 'コピー済み' : 'コピー'}
+            aria-label={isCopied ? 'コピー済み' : 'メッセージをコピー'}
+            className="text-[var(--color-text-faint)] hover:text-[var(--color-text-secondary)] transition-colors opacity-0 group-hover:opacity-100"
+          >
+            {isCopied ? (
+              <ClipboardDocumentCheckIcon className="w-3.5 h-3.5 text-green-500" />
+            ) : (
+              <ClipboardDocumentIcon className="w-3.5 h-3.5" />
+            )}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

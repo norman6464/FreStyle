@@ -10,9 +10,11 @@ import ExportSessionButton from '../components/ExportSessionButton';
 import AiSessionListItem from '../components/AiSessionListItem';
 import { useAskAi } from '../hooks/useAskAi';
 import { useMobilePanelState } from '../hooks/useMobilePanelState';
+import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
 
 export default function AskAiPage() {
   const { isOpen: mobilePanelOpen, open: openMobilePanel, close: closeMobilePanel } = useMobilePanelState();
+  const { copiedId, copyToClipboard } = useCopyToClipboard();
   const {
     sessions,
     messages,
@@ -135,8 +137,11 @@ export default function AskAiPage() {
             <div key={msg.id} className="max-w-3xl mx-auto w-full">
               <MessageBubbleAi
                 {...msg}
+                isSender={msg.isSender ?? false}
                 type={msg.isSender ? 'text' : 'bot'}
                 onDelete={handleDeleteMessage}
+                onCopy={copyToClipboard}
+                isCopied={copiedId === msg.id}
               />
             </div>
           ))}

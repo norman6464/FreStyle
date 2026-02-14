@@ -1,0 +1,44 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import authRepository from '../repositories/AuthRepository';
+import { AxiosError } from 'axios';
+
+interface FormMessage {
+  type: 'success' | 'error';
+  text: string;
+}
+
+export function useConfirmSignup() {
+  const navigate = useNavigate();
+  const [form, setForm] = useState({ email: '', code: '' });
+  const [message, setMessage] = useState<FormMessage | null>(null);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handleConfirm = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    try {
+      await authRepository.confirmSignup(form);
+      navigate('/login', {
+        state: {
+          message: '確認に成功しました。ログインしてください。',
+        },
+      });
+    } catch (error) {
+      if (error instanceof AxiosError && error.response?.data?.error) {
+        setMessage({ type: 'error', text: error.response.data.error });
+      } else {
+        setMessage({ type: 'error', text: '通信エラーが発生しました。' });
+      }
+    }
+  };
+
+  return { form, message, handleChange, handleConfirm };
+}

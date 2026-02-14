@@ -1,0 +1,102 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { renderHook, act } from '@testing-library/react';
+import { AxiosError } from 'axios';
+import { useConfirmForgotPassword } from '../useConfirmForgotPassword';
+
+const mockConfirmForgotPassword = vi.fn();
+const mockNavigate = vi.fn();
+
+vi.mock('react-router-dom', () => ({
+  useNavigate: () => mockNavigate,
+  useLocation: () => ({ state: { email: 'test@example.com' } }),
+}));
+
+vi.mock('../../repositories/AuthRepository', () => ({
+  default: {
+    confirmForgotPassword: (...args: unknown[]) => mockConfirmForgotPassword(...args),
+  },
+}));
+
+describe('useConfirmForgotPassword', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockConfirmForgotPassword.mockResolvedValue({ message: '成功' });
+  });
+
+  it('location.stateからemailが初期値にセットされる', () => {
+    const { result } = renderHook(() => useConfirmForgotPassword());
+    expect(result.current.form.email).toBe('test@example.com');
+  });
+
+  it('handleChangeでフォームの値が更新される', () => {
+    const { result } = renderHook(() => useConfirmForgotPassword());
+
+    act(() => {
+      result.current.handleChange({
+        target: { name: 'code', value: '123456' },
+      } as React.ChangeEvent<HTMLInputElement>);
+    });
+
+    expect(result.current.form.code).toBe('123456');
+  });
+
+  it('handleConfirm成功時にログインページへナビゲートする', async () => {
+    const { result } = renderHook(() => useConfirmForgotPassword());
+
+    act(() => {
+      result.current.handleChange({
+        target: { name: 'code', value: '123456' },
+      } as React.ChangeEvent<HTMLInputElement>);
+      result.current.handleChange({
+        target: { name: 'newPassword', value: 'newpass123' },
+      } as React.ChangeEvent<HTMLInputElement>);
+    });
+
+    await act(async () => {
+      await result.current.handleConfirm({
+        preventDefault: vi.fn(),
+      } as unknown as React.FormEvent<HTMLFormElement>);
+    });
+
+    expect(mockConfirmForgotPassword).toHaveBeenCalledWith({
+      email: 'test@example.com',
+      confirmationCode: '123456',
+      newPassword: 'newpass123',
+    });
+    expect(mockNavigate).toHaveBeenCalledWith('/login', {
+      state: { message: 'パスワードリセットに成功しました。ログインしてください。' },
+    });
+  });
+
+  it('handleConfirm失敗時にエラーメッセージが表示される', async () => {
+    const axiosError = new AxiosError('Bad Request');
+    (axiosError as any).response = { data: { error: '確認コードが無効です' } };
+    mockConfirmForgotPassword.mockRejectedValue(axiosError);
+
+    const { result } = renderHook(() => useConfirmForgotPassword());
+
+    await act(async () => {
+      await result.current.handleConfirm({
+        preventDefault: vi.fn(),
+      } as unknown as React.FormEvent<HTMLFormElement>);
+    });
+
+    expect(result.current.message?.type).toBe('error');
+    expect(result.current.message?.text).toBe('確認コードが無効です');
+  });
+
+  it('通信エラー時に汎用エラーメッセージが表示される', async () => {
+    mockConfirmForgotPassword.mockRejectedValue(new Error('Network Error'));
+
+    const { result } = renderHook(() => useConfirmForgotPassword());
+
+    await act(async () => {
+      await result.current.handleConfirm({
+        preventDefault: vi.fn(),
+      } as unknown as React.FormEvent<HTMLFormElement>);
+    });
+
+    expect(result.current.message?.type).toBe('error');
+    expect(result.current.message?.text).toBe('通信エラーが発生しました。');
+  });
+});

@@ -26,9 +26,9 @@ const difficultyDescription: Record<string, string> = {
 };
 
 const difficultyColor: Record<string, string> = {
-  beginner: 'bg-emerald-900/30 text-emerald-400 border-emerald-800',
-  intermediate: 'bg-amber-900/30 text-amber-400 border-amber-800',
-  advanced: 'bg-rose-900/30 text-rose-400 border-rose-800',
+  beginner: 'bg-surface-3 text-[var(--color-text-secondary)] border-surface-3',
+  intermediate: 'bg-surface-3 text-[var(--color-text-secondary)] border-surface-3',
+  advanced: 'bg-surface-3 text-[var(--color-text-secondary)] border-surface-3',
 };
 
 export default function ScenarioCard({ scenario, onSelect, isBookmarked, onToggleBookmark }: ScenarioCardProps) {

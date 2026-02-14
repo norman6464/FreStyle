@@ -1,5 +1,6 @@
 import { useFavoritePhrase } from '../hooks/useFavoritePhrase';
 import SearchBox from '../components/SearchBox';
+import FavoriteStatsCard from '../components/FavoriteStatsCard';
 
 const PATTERN_FILTERS = ['すべて', 'フォーマル', 'ソフト', '簡潔'] as const;
 
@@ -9,6 +10,10 @@ export default function FavoritesPage() {
   return (
     <div className="max-w-3xl mx-auto p-4 space-y-3">
       <h2 className="text-sm font-semibold text-slate-800">お気に入りフレーズ</h2>
+
+      {phrases.length > 0 && (
+        <FavoriteStatsCard phrases={phrases} />
+      )}
 
       {phrases.length > 0 && (
         <>

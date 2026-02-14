@@ -69,4 +69,19 @@ describe('Badge', () => {
     const badge = screen.getByText('追加');
     expect(badge.className).toContain('ml-2');
   });
+
+  it('spanタグでレンダリングされる', () => {
+    render(<Badge>要素</Badge>);
+    expect(screen.getByText('要素').tagName).toBe('SPAN');
+  });
+
+  it('inline-flexクラスが適用される', () => {
+    render(<Badge>表示</Badge>);
+    expect(screen.getByText('表示').className).toContain('inline-flex');
+  });
+
+  it('font-mediumクラスが適用される', () => {
+    render(<Badge>太字</Badge>);
+    expect(screen.getByText('太字').className).toContain('font-medium');
+  });
 });

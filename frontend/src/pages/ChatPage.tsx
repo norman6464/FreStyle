@@ -7,8 +7,7 @@ import { ChatMessage } from '../types';
 import ConfirmModal from '../components/ConfirmModal';
 import SceneSelector from '../components/SceneSelector';
 import RephraseModal from '../components/RephraseModal';
-import { useDispatch } from 'react-redux';
-import { clearAuth } from '../store/authSlice';
+import ChatRepository from '../repositories/ChatRepository';
 
 import SockJS from 'sockjs-client';
 import { Client } from '@stomp/stompjs';
@@ -31,7 +30,6 @@ export default function ChatPage() {
   const { roomId } = useParams<{ roomId: string }>();
 
   const navigate = useNavigate();
-  const dispatch = useDispatch();
 
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -39,23 +37,15 @@ export default function ChatPage() {
   useEffect(() => {
     const fetchUserInfo = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/auth/cognito/me`, {
-          credentials: 'include',
-        });
-        if (!res.ok) {
-          navigate('/login');
-          return;
-        }
-        const data = await res.json();
+        const data = await ChatRepository.fetchCurrentUser();
         setSenderId(data.id);
-      } catch (error) {
-        console.error('ユーザー情報取得エラー:', error);
+      } catch {
         navigate('/login');
       }
     };
 
     fetchUserInfo();
-  }, [API_BASE_URL, navigate]);
+  }, [navigate]);
 
   // スクロール
   const scrollToBottom = () => {
@@ -69,64 +59,14 @@ export default function ChatPage() {
   // チャットルーム開封時に未読カウントをリセット
   useEffect(() => {
     if (!roomId || !senderId) return;
-
-    const markAsRead = async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/chat/rooms/${roomId}/read`, {
-          method: 'POST',
-          credentials: 'include',
-        });
-        if (res.status === 401) {
-          const refreshRes = await fetch(
-            `${API_BASE_URL}/api/auth/cognito/refresh-token`,
-            { method: 'POST', credentials: 'include' }
-          );
-          if (!refreshRes.ok) {
-            dispatch(clearAuth());
-            return;
-          }
-          return markAsRead();
-        }
-      } catch (e) {
-        console.error('既読リセットエラー:', e);
-      }
-    };
-    markAsRead();
+    ChatRepository.markAsRead(roomId).catch(() => {});
   }, [roomId, senderId]);
 
   // --- チャット履歴取得 ---
   const fetchHistory = async () => {
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/api/chat/users/${roomId}/history`,
-        {
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-        }
-      );
-
-      if (res.status === 401) {
-        const refreshRes = await fetch(
-          `${API_BASE_URL}/api/auth/cognito/refresh-token`,
-          { method: 'POST', credentials: 'include' }
-        );
-        if (!refreshRes.ok) {
-          dispatch(clearAuth());
-          return;
-        }
-        return fetchHistory();
-      }
-
-      if (!res.ok) {
-        console.error('チャット履歴取得エラー:', res.status, res.statusText);
-        return;
-      }
-
-      const data = await res.json();
-      if (!Array.isArray(data)) {
-        console.error('レスポンスが配列ではありません:', data);
-        return;
-      }
+      const data = await ChatRepository.fetchHistory(roomId!);
+      if (!Array.isArray(data)) return;
 
       const formatted = data.map((msg: any) => ({
         id: msg.id,
@@ -139,8 +79,8 @@ export default function ChatPage() {
       }));
 
       setMessages(formatted);
-    } catch (e) {
-      console.error('履歴取得失敗', e);
+    } catch {
+      // エラーはaxiosインターセプターが処理
     }
   };
 
@@ -191,9 +131,7 @@ export default function ChatPage() {
         fetchHistory();
       },
 
-      onStompError: (frame) => {
-        console.error('STOMP Error', frame);
-      },
+      onStompError: () => {},
     });
 
     stompClientRef.current = client;
@@ -206,10 +144,7 @@ export default function ChatPage() {
 
   // --- メッセージ送信 ---
   const handleSend = (text: string) => {
-    if (!stompClientRef.current?.connected) {
-      console.warn('STOMP not connected');
-      return;
-    }
+    if (!stompClientRef.current?.connected) return;
 
     stompClientRef.current.publish({
       destination: '/app/chat/send',
@@ -226,10 +161,7 @@ export default function ChatPage() {
     const messageId = deleteModal.messageId;
     setDeleteModal({ isOpen: false, messageId: null });
 
-    if (!stompClientRef.current?.connected) {
-      console.warn('STOMP not connected');
-      return;
-    }
+    if (!stompClientRef.current?.connected) return;
 
     stompClientRef.current.publish({
       destination: '/app/chat/delete',
@@ -344,40 +276,14 @@ export default function ChatPage() {
     setShowRephraseModal(true);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/chat/ai/rephrase`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ originalMessage: content, scene: null }),
-      });
-
-      if (res.status === 401) {
-        const refreshRes = await fetch(
-          `${API_BASE_URL}/api/auth/cognito/refresh-token`,
-          { method: 'POST', credentials: 'include' }
-        );
-        if (!refreshRes.ok) {
-          dispatch(clearAuth());
-          return;
-        }
-        return handleRephrase(content);
-      }
-
-      if (!res.ok) {
-        console.error('言い換えエラー:', res.status);
-        setShowRephraseModal(false);
-        return;
-      }
-
-      const data = await res.json();
+      const data = await ChatRepository.rephrase(content, null);
       try {
         const parsed = JSON.parse(data.result);
         setRephraseResult(parsed);
       } catch {
         setRephraseResult({ formal: data.result, soft: '', concise: '' });
       }
-    } catch (e) {
-      console.error('言い換え失敗:', e);
+    } catch {
       setShowRephraseModal(false);
     }
   };

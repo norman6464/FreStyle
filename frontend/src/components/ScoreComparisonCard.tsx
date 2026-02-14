@@ -1,3 +1,5 @@
+import { getDeltaColor, formatDelta } from '../utils/scoreColor';
+
 interface AxisScore {
   axis: string;
   score: number;
@@ -9,17 +11,6 @@ interface ScoreComparisonCardProps {
   latestScores: AxisScore[];
   firstOverall: number;
   latestOverall: number;
-}
-
-function formatDelta(delta: number): string {
-  if (delta === 0) return '±0';
-  return delta > 0 ? `+${delta.toFixed(1)}` : `${delta.toFixed(1)}`;
-}
-
-function deltaColor(delta: number): string {
-  if (delta > 0) return 'text-emerald-400';
-  if (delta < 0) return 'text-rose-400';
-  return 'text-[var(--color-text-faint)]';
 }
 
 export default function ScoreComparisonCard({
@@ -40,7 +31,7 @@ export default function ScoreComparisonCard({
           <p className="text-xl font-bold text-[var(--color-text-tertiary)]">{firstOverall.toFixed(1)}</p>
         </div>
         <div className="text-center">
-          <span className={`text-sm font-bold ${deltaColor(overallDelta)}`}>
+          <span className={`text-sm font-bold ${getDeltaColor(overallDelta)}`}>
             {formatDelta(overallDelta)}
           </span>
         </div>
@@ -61,7 +52,7 @@ export default function ScoreComparisonCard({
                 <span className="text-xs text-[var(--color-text-faint)] w-6 text-right">{first?.score ?? '-'}</span>
                 <span className="text-xs text-[var(--color-text-subtle)]">→</span>
                 <span className="text-xs text-[var(--color-text-secondary)] w-6">{latest.score}</span>
-                <span className={`text-xs font-medium w-8 text-right ${deltaColor(delta)}`}>
+                <span className={`text-xs font-medium w-8 text-right ${getDeltaColor(delta)}`}>
                   {formatDelta(delta)}
                 </span>
               </div>

@@ -1,3 +1,4 @@
+import Card from './Card';
 import type { AxisScore } from '../types';
 
 interface SkillRadarOverlayCardProps {
@@ -48,7 +49,7 @@ export default function SkillRadarOverlayCard({ previousScores, currentScores }:
   const labels = currentScores.length > 0 ? currentScores : previousScores;
 
   return (
-    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
+    <Card>
       <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-3">スキル変化レーダー</p>
 
       <div className="flex justify-center">
@@ -134,6 +135,6 @@ export default function SkillRadarOverlayCard({ previousScores, currentScores }:
           <span className="text-[10px] text-[var(--color-text-muted)]">今回</span>
         </div>
       </div>
-    </div>
+    </Card>
   );
 }

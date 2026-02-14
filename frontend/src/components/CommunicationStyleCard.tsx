@@ -1,3 +1,5 @@
+import Card from './Card';
+
 interface AxisScore {
   axis: string;
   score: number;
@@ -62,11 +64,11 @@ function getAverageScores(sessions: Session[]): Map<string, number> {
 export default function CommunicationStyleCard({ sessions }: Props) {
   if (sessions.length === 0) {
     return (
-      <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
+      <Card>
         <p className="text-xs font-medium text-[var(--color-text-muted)] mb-1">あなたのスタイル</p>
         <p className="text-sm text-[var(--color-text-faint)]">まだスタイルが判定できません</p>
         <p className="text-xs text-[var(--color-text-faint)] mt-1">練習セッションを完了するとスタイルが判定されます</p>
-      </div>
+      </Card>
     );
   }
 
@@ -88,10 +90,10 @@ export default function CommunicationStyleCard({ sessions }: Props) {
   }
 
   return (
-    <div className={`rounded-lg border p-4 ${style.color}`}>
+    <Card className={style.color}>
       <p className="text-xs font-medium opacity-75 mb-1">あなたのスタイル</p>
       <p className="text-base font-bold">{style.label}</p>
       <p className="text-xs mt-1 opacity-75">{style.description}</p>
-    </div>
+    </Card>
   );
 }

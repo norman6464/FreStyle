@@ -76,4 +76,51 @@ describe('useSidebar', () => {
 
     expect(mockNavigate).not.toHaveBeenCalled();
   });
+
+  it('チャットユーザーがいない場合はtotalUnreadが0', async () => {
+    mockFetchChatUsers.mockResolvedValue([]);
+
+    const { result } = renderHook(() => useSidebar());
+
+    await waitFor(() => {
+      expect(result.current.totalUnread).toBe(0);
+    });
+  });
+
+  it('fetchChatUsers失敗時にtotalUnreadが0のまま', async () => {
+    mockFetchChatUsers.mockRejectedValue(new Error('Network Error'));
+
+    const { result } = renderHook(() => useSidebar());
+
+    await waitFor(() => {
+      expect(mockFetchChatUsers).toHaveBeenCalledOnce();
+    });
+
+    expect(result.current.totalUnread).toBe(0);
+  });
+
+  it('unreadCountがundefinedの場合は0として扱われる', async () => {
+    mockFetchChatUsers.mockResolvedValue([
+      { roomId: 1, unreadCount: undefined, partnerName: 'User1', partnerId: 1 },
+      { roomId: 2, unreadCount: 5, partnerName: 'User2', partnerId: 2 },
+    ]);
+
+    const { result } = renderHook(() => useSidebar());
+
+    await waitFor(() => {
+      expect(result.current.totalUnread).toBe(5);
+    });
+  });
+
+  it('ログアウト失敗時にdispatchも呼ばれない', async () => {
+    mockLogout.mockRejectedValue(new Error('Network Error'));
+
+    const { result } = renderHook(() => useSidebar());
+
+    await act(async () => {
+      await result.current.handleLogout();
+    });
+
+    expect(mockDispatch).not.toHaveBeenCalled();
+  });
 });

@@ -74,4 +74,15 @@ describe('SelectField', () => {
     render(<SelectField label="スタイル" name="style" value="a" onChange={vi.fn()} options={OPTIONS} error="エラー" />);
     expect(screen.getByLabelText('スタイル').className).toContain('border-rose-500');
   });
+
+  it('エラーなし時にaria-invalidがfalseになる', () => {
+    render(<SelectField label="スタイル" name="style" value="a" onChange={vi.fn()} options={OPTIONS} />);
+    expect(screen.getByLabelText('スタイル')).toHaveAttribute('aria-invalid', 'false');
+  });
+
+  it('エラーなし時にボーダーが通常色になる', () => {
+    render(<SelectField label="スタイル" name="style" value="a" onChange={vi.fn()} options={OPTIONS} />);
+    expect(screen.getByLabelText('スタイル').className).toContain('border-surface-3');
+    expect(screen.getByLabelText('スタイル').className).not.toContain('border-rose-500');
+  });
 });

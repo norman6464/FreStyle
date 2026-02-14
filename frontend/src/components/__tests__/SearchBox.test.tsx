@@ -95,4 +95,24 @@ describe('SearchBox', () => {
     const input = screen.getByLabelText('検索');
     expect(input).toBeInTheDocument();
   });
+
+  it('searchロール内にinputが含まれる', () => {
+    render(<SearchBox value="" onChange={vi.fn()} />);
+    const searchRegion = screen.getByRole('search');
+    const input = searchRegion.querySelector('input');
+    expect(input).toBeTruthy();
+  });
+
+  it('クリアボタンがsearchロール内に含まれる', () => {
+    render(<SearchBox value="テスト" onChange={vi.fn()} />);
+    const searchRegion = screen.getByRole('search');
+    const clearButton = searchRegion.querySelector('button');
+    expect(clearButton).toBeTruthy();
+  });
+
+  it('カスタムplaceholderがaria-labelとplaceholder両方に反映される', () => {
+    render(<SearchBox value="" onChange={vi.fn()} placeholder="メールで検索" />);
+    const input = screen.getByLabelText('メールで検索');
+    expect(input).toHaveAttribute('placeholder', 'メールで検索');
+  });
 });

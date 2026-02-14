@@ -7,6 +7,7 @@ import SecondaryPanel from '../components/layout/SecondaryPanel';
 import PracticeTimer from '../components/PracticeTimer';
 import SessionNoteEditor from '../components/SessionNoteEditor';
 import ExportSessionButton from '../components/ExportSessionButton';
+import AiSessionListItem from '../components/AiSessionListItem';
 import { useAskAi } from '../hooks/useAskAi';
 
 export default function AskAiPage() {
@@ -53,75 +54,21 @@ export default function AskAiPage() {
       >
         <div className="p-2 space-y-0.5">
           {sessions.map((session) => (
-            <div
+            <AiSessionListItem
               key={session.id}
-              className={`group flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${
-                currentSessionId === session.id
-                  ? 'bg-surface-2 text-primary-300'
-                  : 'hover:bg-surface-2'
-              }`}
-              onClick={() => editingSessionId !== session.id && handleSelectSession(session.id)}
-            >
-              <div className="flex-1 min-w-0">
-                {editingSessionId === session.id ? (
-                  <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                    <input
-                      type="text"
-                      value={editingTitle}
-                      onChange={(e) => setEditingTitle(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleSaveTitle(session.id);
-                        if (e.key === 'Escape') handleCancelEditTitle();
-                      }}
-                      className="flex-1 text-xs px-2 py-1 border border-[var(--color-border-hover)] rounded focus:outline-none focus:ring-1 focus:ring-primary-400"
-                      autoFocus
-                    />
-                    <button onClick={() => handleSaveTitle(session.id)} className="p-0.5 hover:bg-green-900/30 rounded">
-                      <svg className="w-3.5 h-3.5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                    </button>
-                    <button onClick={handleCancelEditTitle} className="p-0.5 hover:bg-surface-3 rounded">
-                      <svg className="w-3.5 h-3.5 text-[var(--color-text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    <p className="text-sm font-medium truncate">{session.title || '新しいチャット'}</p>
-                    <p className="text-[11px] text-[var(--color-text-muted)]">
-                      {session.createdAt ? new Date(session.createdAt).toLocaleDateString('ja-JP') : ''}
-                    </p>
-                  </>
-                )}
-              </div>
-              {editingSessionId !== session.id && (
-                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleStartEditTitle(session); }}
-                    className="p-1 hover:bg-blue-100 rounded"
-                    title="タイトルを編集"
-                  >
-                    <svg className="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteSession(session.id);
-                    }}
-                    className="p-1 hover:bg-rose-100 rounded"
-                    title="削除"
-                  >
-                    <svg className="w-3.5 h-3.5 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                </div>
-              )}
-            </div>
+              id={session.id}
+              title={session.title}
+              createdAt={session.createdAt}
+              isActive={currentSessionId === session.id}
+              isEditing={editingSessionId === session.id}
+              editingTitle={editingTitle}
+              onSelect={handleSelectSession}
+              onStartEdit={handleStartEditTitle}
+              onDelete={handleDeleteSession}
+              onSaveTitle={handleSaveTitle}
+              onCancelEdit={handleCancelEditTitle}
+              onEditingTitleChange={setEditingTitle}
+            />
           ))}
         </div>
       </SecondaryPanel>

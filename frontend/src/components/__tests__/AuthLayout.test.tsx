@@ -32,4 +32,18 @@ describe('AuthLayout', () => {
     const card = container.querySelector('.border-t-primary-500');
     expect(card).toBeTruthy();
   });
+
+  it('中央寄せレイアウトが適用される', () => {
+    const { container } = render(<AuthLayout><div>テスト</div></AuthLayout>);
+    const wrapper = container.firstElementChild as HTMLElement;
+    expect(wrapper.className).toContain('flex');
+    expect(wrapper.className).toContain('items-center');
+    expect(wrapper.className).toContain('justify-center');
+  });
+
+  it('カードに角丸が適用される', () => {
+    const { container } = render(<AuthLayout><div>テスト</div></AuthLayout>);
+    const card = container.querySelector('.rounded-2xl');
+    expect(card).toBeTruthy();
+  });
 });

@@ -49,4 +49,15 @@ describe('WeeklyReportCard', () => {
 
     expect(screen.getByText('今週のレポート')).toBeInTheDocument();
   });
+
+  it('曜日ラベルが表示される', () => {
+    render(<WeeklyReportCard allScores={[]} />);
+    expect(screen.getByText('月')).toBeInTheDocument();
+    expect(screen.getByText('日')).toBeInTheDocument();
+  });
+
+  it('練習した曜日セクションが表示される', () => {
+    render(<WeeklyReportCard allScores={[]} />);
+    expect(screen.getByText('練習した曜日')).toBeInTheDocument();
+  });
 });

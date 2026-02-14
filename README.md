@@ -148,7 +148,7 @@
 - **Notionライクノート機能**：DynamoDB + クリーンアーキテクチャによるノートCRUD・Notionスタイルのエディタ（タイトル/コンテンツ分離）・800msデバウンス自動保存・SecondaryPanel対応・モバイルレスポンシブ・インクリメンタルサーチ（タイトル/内容）・ピン留め機能（優先表示）・文字数カウント＆読了時間表示
 - **メッセージコピー機能**：チャット・AIチャット両方のメッセージ個別コピーボタン・コピー済みフィードバック表示（2秒間）・Heroiconsアイコン使用
 - **検索ボックスクリアボタン**：SearchBoxコンポーネントにXMarkIconによるワンタップクリア機能・値が空の場合は非表示
-- **FilterTabsコンポーネント**：ジェネリクス型安全なタブ切り替えUI・WAI-ARIAタブパターン対応・PracticePage/ScoreHistoryPageで再利用
+- **FilterTabsコンポーネント**：ジェネリクス型安全なタブ切り替えUI・WAI-ARIAタブパターン対応・矢印キー/Home/Endキーボードナビゲーション・PracticePage/ScoreHistoryPageで再利用
 - **TextareaFieldコンポーネント**：文字数カウント付きtextarea・maxLength指定時に残り文字数表示（90%超で警告色・上限到達で赤色）
 - **SelectFieldコンポーネント**：ラベル付きselect要素の統一コンポーネント・UserProfilePageで再利用
 - **PrimaryButtonローディング対応**：loading prop追加でスピナー表示・自動無効化・二重送信防止
@@ -159,10 +159,10 @@
 - **トースト通知システム**：操作結果（成功/エラー/情報）を画面右下にスタック表示・3秒後自動消去・Heroiconsアイコン・aria-live対応
 - **フォームバリデーション統一**：InputField/TextareaField/SelectField全てにerror prop追加・aria-invalid/aria-describedby/role="alert"のアクセシビリティ対応
 - **Tooltipコンポーネント**：ホバー時にテキスト説明を表示・300msディレイ・上下ポジション対応・role="tooltip"/aria-describedby対応
-- **Cardコンポーネント**：共通カードスタイル（bg-surface-1/rounded-lg/border/p-4）を再利用可能コンポーネント化・5つのカードコンポーネントに適用
+- **Cardコンポーネント**：共通カードスタイル（bg-surface-1/rounded-lg/border/p-4）を再利用可能コンポーネント化・10のカードコンポーネントに適用
 
 ### テスト品質
-- **フロントエンド1196テスト**：Vitest + React Testing Library
+- **フロントエンド1206テスト**：Vitest + React Testing Library
   - Repository層テスト（13リポジトリ・62テスト）
   - Hooks層テスト（32フック・319テスト）
   - Store層テスト（1スライス・5テスト）

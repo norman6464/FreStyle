@@ -9,6 +9,7 @@ import {
 import CommunicationTipCard from '../components/CommunicationTipCard';
 import DailyGoalCard from '../components/DailyGoalCard';
 import LearningInsightsCard from '../components/LearningInsightsCard';
+import PracticeLevelCard from '../components/PracticeLevelCard';
 import PracticeReminderCard from '../components/PracticeReminderCard';
 import RecentSessionsCard from '../components/RecentSessionsCard';
 import WeeklyGoalProgressCard from '../components/WeeklyGoalProgressCard';
@@ -64,6 +65,11 @@ export default function MenuPage() {
           />
         </div>
       )}
+
+      {/* 練習レベル */}
+      <div className="mb-6">
+        <PracticeLevelCard totalSessions={totalSessions} />
+      </div>
 
       {/* サマリー */}
       <div className="bg-white rounded-lg border border-slate-200 p-4 mb-6">

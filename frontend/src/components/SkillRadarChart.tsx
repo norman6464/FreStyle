@@ -50,7 +50,7 @@ export default function SkillRadarChart({ scores, title }: SkillRadarChartProps)
   return (
     <div className="flex flex-col items-center">
       {title && (
-        <h4 className="text-xs font-semibold text-slate-700 mb-2">{title}</h4>
+        <h4 className="text-xs font-semibold text-[#D0D0D0] mb-2">{title}</h4>
       )}
       <svg viewBox={`0 0 ${SIZE} ${SIZE}`} width={SIZE} height={SIZE}>
         {/* グリッド線 */}

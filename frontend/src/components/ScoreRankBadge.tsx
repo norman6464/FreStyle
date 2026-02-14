@@ -10,11 +10,11 @@ interface Rank {
 }
 
 function getRank(score: number): Rank {
-  if (score >= 9.0) return { letter: 'S', label: 'エキスパート', bgColor: 'bg-amber-100', textColor: 'text-amber-700' };
-  if (score >= 8.0) return { letter: 'A', label: '上級', bgColor: 'bg-slate-200', textColor: 'text-slate-700' };
+  if (score >= 9.0) return { letter: 'S', label: 'エキスパート', bgColor: 'bg-amber-100', textColor: 'text-amber-400' };
+  if (score >= 8.0) return { letter: 'A', label: '上級', bgColor: 'bg-surface-3', textColor: 'text-[#D0D0D0]' };
   if (score >= 7.0) return { letter: 'B', label: '中級', bgColor: 'bg-orange-100', textColor: 'text-orange-700' };
-  if (score >= 6.0) return { letter: 'C', label: '初級', bgColor: 'bg-emerald-100', textColor: 'text-emerald-700' };
-  return { letter: 'D', label: '入門', bgColor: 'bg-slate-100', textColor: 'text-slate-500' };
+  if (score >= 6.0) return { letter: 'C', label: '初級', bgColor: 'bg-emerald-100', textColor: 'text-emerald-400' };
+  return { letter: 'D', label: '入門', bgColor: 'bg-surface-3', textColor: 'text-[#888888]' };
 }
 
 export default function ScoreRankBadge({ score }: ScoreRankBadgeProps) {

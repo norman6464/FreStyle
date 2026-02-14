@@ -43,24 +43,24 @@ export default function RephraseModal({ result, onClose, originalText = '' }: Re
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-lg max-w-lg w-full mx-4 p-5">
-        <h3 className="text-sm font-semibold text-slate-800 mb-4">言い換え提案</h3>
+      <div className="bg-surface-1 rounded-lg shadow-lg max-w-lg w-full mx-4 p-5">
+        <h3 className="text-sm font-semibold text-[#F0F0F0] mb-4">言い換え提案</h3>
 
         {result === null ? (
           <div className="flex items-center justify-center py-8">
-            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-slate-400 mr-3" />
-            <span className="text-sm text-slate-500">言い換え中...</span>
+            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#666666] mr-3" />
+            <span className="text-sm text-[#888888]">言い換え中...</span>
           </div>
         ) : (
           <div className="space-y-3">
             {PATTERNS.map(({ key, label, hint }) => {
               const isSaved = isFavorite(result[key], label) || savedKeys.has(key);
               return (
-                <div key={key} className="border border-slate-200 rounded-lg p-3">
+                <div key={key} className="border border-surface-3 rounded-lg p-3">
                   <div className="flex items-center justify-between mb-1">
                     <div>
-                      <span className="text-xs font-medium text-slate-600">{label}</span>
-                      <span className="text-[10px] text-slate-400 ml-2">{hint}</span>
+                      <span className="text-xs font-medium text-[#A0A0A0]">{label}</span>
+                      <span className="text-[10px] text-[#666666] ml-2">{hint}</span>
                     </div>
                     <div className="flex items-center gap-1">
                       <button
@@ -69,20 +69,20 @@ export default function RephraseModal({ result, onClose, originalText = '' }: Re
                         className={`text-xs px-1.5 py-0.5 rounded transition-colors ${
                           isSaved
                             ? 'text-amber-500'
-                            : 'text-slate-300 hover:text-amber-400'
+                            : 'text-[#555555] hover:text-amber-400'
                         }`}
                       >
                         {isSaved ? '★' : '☆'}
                       </button>
                       <button
                         onClick={() => handleCopy(result[key], key)}
-                        className="text-xs text-slate-400 hover:text-slate-600 px-2 py-0.5 rounded hover:bg-slate-100 transition-colors"
+                        className="text-xs text-[#666666] hover:text-[#A0A0A0] px-2 py-0.5 rounded hover:bg-surface-2 transition-colors"
                       >
                         {copiedKey === key ? 'コピーしました' : 'コピー'}
                       </button>
                     </div>
                   </div>
-                  <p className="text-sm text-slate-700">{result[key]}</p>
+                  <p className="text-sm text-[#D0D0D0]">{result[key]}</p>
                 </div>
               );
             })}
@@ -91,7 +91,7 @@ export default function RephraseModal({ result, onClose, originalText = '' }: Re
 
         <button
           onClick={onClose}
-          className="w-full mt-4 py-2 text-sm text-slate-500 hover:text-slate-700 bg-primary-50 hover:bg-primary-100 rounded-lg transition-colors"
+          className="w-full mt-4 py-2 text-sm text-[#888888] hover:text-[#D0D0D0] bg-surface-2 hover:bg-surface-3 rounded-lg transition-colors"
         >
           閉じる
         </button>

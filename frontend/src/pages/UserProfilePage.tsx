@@ -35,8 +35,8 @@ export default function UserProfilePage() {
         <div
           className={`mb-4 p-3 rounded-lg text-sm font-medium ${
             message.type === 'error'
-              ? 'bg-rose-50 text-rose-700 border border-rose-200'
-              : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+              ? 'bg-rose-900/30 text-rose-400 border border-rose-800'
+              : 'bg-emerald-900/30 text-emerald-400 border border-emerald-800'
           }`}
         >
           {message.text}
@@ -44,20 +44,20 @@ export default function UserProfilePage() {
       )}
 
       {/* 説明カード */}
-      <div className="bg-primary-50 rounded-lg p-3 mb-4 border border-primary-200">
-        <p className="text-xs text-primary-700">
+      <div className="bg-surface-2 rounded-lg p-3 mb-4 border border-[#444444]">
+        <p className="text-xs text-primary-300">
           FreStyleはあなたのコミュニケーションスタイルを理解し、チャットと対面の「印象のズレ」を分析します。より正確なフィードバックのために、あなたらしさを教えてください。
         </p>
       </div>
 
       {/* メインカード */}
-      <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+      <div className="bg-surface-1 rounded-lg border border-surface-3 overflow-hidden">
         <form onSubmit={handleSave} className="divide-y divide-slate-100">
           {/* 基本情報セクション */}
           <div className="p-5">
             <div className="flex items-center gap-2 mb-3">
               <UserCircleIcon className="w-4 h-4 text-primary-500" />
-              <h3 className="text-sm font-bold text-slate-800">基本情報</h3>
+              <h3 className="text-sm font-bold text-[#F0F0F0]">基本情報</h3>
             </div>
             <div className="space-y-3">
               <InputField
@@ -70,7 +70,7 @@ export default function UserProfilePage() {
                 placeholder="例：タロウ、たろちゃん"
               />
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
+                <label className="block text-sm font-medium text-[#D0D0D0] mb-1">
                   自己紹介
                 </label>
                 <textarea
@@ -81,7 +81,7 @@ export default function UserProfilePage() {
                   }
                   placeholder="あなた自身について自由に書いてください..."
                   rows={3}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors resize-none"
+                  className="w-full border border-surface-3 rounded-lg px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors resize-none"
                 />
               </div>
             </div>
@@ -91,11 +91,11 @@ export default function UserProfilePage() {
           <div className="p-5">
             <div className="flex items-center gap-2 mb-3">
               <ChatBubbleLeftRightIcon className="w-4 h-4 text-primary-500" />
-              <h3 className="text-sm font-bold text-slate-800">コミュニケーションスタイル</h3>
+              <h3 className="text-sm font-bold text-[#F0F0F0]">コミュニケーションスタイル</h3>
             </div>
             <div className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
+                <label className="block text-sm font-medium text-[#D0D0D0] mb-1">
                   あなたのコミュニケーションスタイル
                 </label>
                 <select
@@ -103,7 +103,7 @@ export default function UserProfilePage() {
                   onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
                     setForm((prev) => ({ ...prev, communicationStyle: e.target.value }))
                   }
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors"
+                  className="w-full border border-surface-3 rounded-lg px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors"
                 >
                   {COMMUNICATION_STYLES.map((style) => (
                     <option key={style.value} value={style.value}>{style.label}</option>
@@ -112,7 +112,7 @@ export default function UserProfilePage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label className="block text-sm font-medium text-[#D0D0D0] mb-2">
                   性格特性（当てはまるものを選んでください）
                 </label>
                 <div className="flex flex-wrap gap-1.5">
@@ -124,7 +124,7 @@ export default function UserProfilePage() {
                       className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
                         form.personalityTraits.includes(trait)
                           ? 'bg-primary-500 text-white'
-                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                          : 'bg-surface-3 text-[#D0D0D0] hover:bg-surface-3'
                       }`}
                     >
                       {trait}
@@ -139,11 +139,11 @@ export default function UserProfilePage() {
           <div className="p-5">
             <div className="flex items-center gap-2 mb-3">
               <LightBulbIcon className="w-4 h-4 text-primary-500" />
-              <h3 className="text-sm font-bold text-slate-800">AIフィードバック設定</h3>
+              <h3 className="text-sm font-bold text-[#F0F0F0]">AIフィードバック設定</h3>
             </div>
             <div className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
+                <label className="block text-sm font-medium text-[#D0D0D0] mb-1">
                   コミュニケーションで改善したい点・目標
                 </label>
                 <textarea
@@ -154,12 +154,12 @@ export default function UserProfilePage() {
                   }
                   placeholder="例：もっと簡潔に伝えられるようになりたい..."
                   rows={3}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors resize-none"
+                  className="w-full border border-surface-3 rounded-lg px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors resize-none"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
+                <label className="block text-sm font-medium text-[#D0D0D0] mb-1">
                   苦手なこと・気になっていること
                 </label>
                 <textarea
@@ -170,12 +170,12 @@ export default function UserProfilePage() {
                   }
                   placeholder="例：話が長くなりがち、相手の反応が気になる..."
                   rows={3}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors resize-none"
+                  className="w-full border border-surface-3 rounded-lg px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors resize-none"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
+                <label className="block text-sm font-medium text-[#D0D0D0] mb-1">
                   フィードバックの受け取り方
                 </label>
                 <select
@@ -183,7 +183,7 @@ export default function UserProfilePage() {
                   onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
                     setForm((prev) => ({ ...prev, preferredFeedbackStyle: e.target.value }))
                   }
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors"
+                  className="w-full border border-surface-3 rounded-lg px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors"
                 >
                   {FEEDBACK_STYLES.map((style) => (
                     <option key={style.value} value={style.value}>{style.label}</option>
@@ -194,7 +194,7 @@ export default function UserProfilePage() {
           </div>
 
           {/* 保存ボタン */}
-          <div className="p-5 bg-primary-50">
+          <div className="p-5 bg-surface-2">
             <PrimaryButton type="submit">
               {isNewProfile ? 'パーソナリティを保存' : 'パーソナリティを更新'}
             </PrimaryButton>

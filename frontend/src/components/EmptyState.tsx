@@ -8,11 +8,11 @@ interface EmptyStateProps {
 export default function EmptyState({ icon: Icon, title, description, action }: EmptyStateProps) {
   return (
     <div className="flex flex-col items-center justify-center h-full text-center px-6">
-      <div className="bg-slate-100 rounded-full p-4 mb-4">
-        <Icon className="w-8 h-8 text-slate-400" />
+      <div className="bg-surface-3 rounded-full p-4 mb-4">
+        <Icon className="w-8 h-8 text-[#666666]" />
       </div>
-      <h3 className="text-base font-semibold text-slate-700 mb-1">{title}</h3>
-      {description && <p className="text-sm text-slate-500 max-w-xs">{description}</p>}
+      <h3 className="text-base font-semibold text-[#D0D0D0] mb-1">{title}</h3>
+      {description && <p className="text-sm text-[#888888] max-w-xs">{description}</p>}
       {action && (
         <button
           onClick={action.onClick}

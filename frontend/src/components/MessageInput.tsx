@@ -54,9 +54,9 @@ export default function MessageInput({ onSend, isSending = false }: MessageInput
   };
 
   return (
-    <div className="w-full bg-white flex items-end p-3 border-t border-slate-200">
+    <div className="w-full bg-surface-1 flex items-end p-3 border-t border-surface-3">
       <button
-        className="text-slate-500 hover:text-slate-700 p-2.5 rounded-full transition-colors duration-150 flex-shrink-0 mb-1"
+        className="text-[#888888] hover:text-[#D0D0D0] p-2.5 rounded-full transition-colors duration-150 flex-shrink-0 mb-1"
         aria-label="添付ファイル"
       >
         <PlusIcon className="h-6 w-6" />
@@ -66,7 +66,7 @@ export default function MessageInput({ onSend, isSending = false }: MessageInput
         <textarea
           ref={textareaRef}
           rows={minRows}
-          className="w-full bg-transparent text-slate-800 outline-none resize-none px-3 py-2 placeholder-slate-400 leading-6"
+          className="w-full bg-transparent text-[#F0F0F0] outline-none resize-none px-3 py-2 placeholder-slate-400 leading-6"
           placeholder="メッセージを入力..."
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -79,7 +79,7 @@ export default function MessageInput({ onSend, isSending = false }: MessageInput
 
       <button
         onClick={handleSend}
-        className="text-white bg-primary-500 p-2.5 rounded-full hover:bg-primary-600 transition-colors duration-150 flex-shrink-0 disabled:bg-slate-300 mb-1 ml-2"
+        className="text-white bg-primary-500 p-2.5 rounded-full hover:bg-primary-600 transition-colors duration-150 flex-shrink-0 disabled:bg-surface-3 mb-1 ml-2"
         disabled={!text.trim() || isSending}
         aria-label="送信"
       >
@@ -87,7 +87,7 @@ export default function MessageInput({ onSend, isSending = false }: MessageInput
       </button>
 
       {isSending && (
-        <span className="text-xs text-slate-400 ml-2 mb-2 flex-shrink-0">送信中...</span>
+        <span className="text-xs text-[#666666] ml-2 mb-2 flex-shrink-0">送信中...</span>
       )}
     </div>
   );

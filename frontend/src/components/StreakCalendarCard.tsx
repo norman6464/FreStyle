@@ -47,18 +47,18 @@ export default function StreakCalendarCard({ practiceDates }: StreakCalendarCard
   const streak = calculateStreak(practiceDates);
 
   return (
-    <div className="bg-white rounded-lg border border-slate-200 p-4">
+    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
       <div className="flex items-center justify-between mb-3">
-        <p className="text-xs font-medium text-slate-700">練習カレンダー</p>
+        <p className="text-xs font-medium text-[#D0D0D0]">練習カレンダー</p>
         <div className="flex items-baseline gap-1">
-          <span className="text-lg font-bold text-primary-600">{streak}</span>
-          <span className="text-[10px] text-slate-500">日連続</span>
+          <span className="text-lg font-bold text-primary-400">{streak}</span>
+          <span className="text-[10px] text-[#888888]">日連続</span>
         </div>
       </div>
 
       <div className="grid grid-cols-7 gap-1 mb-1">
         {WEEKDAY_LABELS.map((label) => (
-          <div key={label} className="text-[9px] text-slate-400 text-center">
+          <div key={label} className="text-[9px] text-[#666666] text-center">
             {label}
           </div>
         ))}
@@ -77,7 +77,7 @@ export default function StreakCalendarCard({ practiceDates }: StreakCalendarCard
               className={`aspect-square rounded-sm ${
                 isActive
                   ? 'bg-primary-500'
-                  : 'bg-slate-100'
+                  : 'bg-surface-3'
               } ${isToday ? 'ring-1 ring-primary-300' : ''}`}
               title={dateStr}
             />

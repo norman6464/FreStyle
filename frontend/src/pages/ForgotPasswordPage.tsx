@@ -9,7 +9,7 @@ export default function ForgotPasswordPage() {
   return (
     <AuthLayout>
       {message?.type === 'error' && (
-        <p className="text-rose-600 text-center">{message.text}</p>
+        <p className="text-rose-400 text-center">{message.text}</p>
       )}
       <h2 className="text-2xl font-bold mb-6 text-center">
         パスワードリセット

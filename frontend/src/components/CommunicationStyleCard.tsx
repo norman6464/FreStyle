@@ -16,7 +16,7 @@ const STYLE_MAP: Record<string, { label: string; description: string; color: str
   '論理的構成力': {
     label: '論理型コミュニケーター',
     description: '情報を整理し、筋道立てて伝えることが得意です',
-    color: 'text-blue-600 bg-blue-50 border-blue-200',
+    color: 'text-blue-400 bg-blue-900/30 border-blue-800',
   },
   '配慮表現': {
     label: '共感型コミュニケーター',
@@ -26,12 +26,12 @@ const STYLE_MAP: Record<string, { label: string; description: string; color: str
   '要約力': {
     label: '簡潔型コミュニケーター',
     description: '要点を短くまとめて伝えることが得意です',
-    color: 'text-emerald-600 bg-emerald-50 border-emerald-200',
+    color: 'text-emerald-400 bg-emerald-900/30 border-emerald-800',
   },
   '提案力': {
     label: '提案型コミュニケーター',
     description: '解決策を積極的に提示することが得意です',
-    color: 'text-amber-600 bg-amber-50 border-amber-200',
+    color: 'text-amber-400 bg-amber-900/30 border-amber-800',
   },
   '質問・傾聴力': {
     label: '傾聴型コミュニケーター',
@@ -62,10 +62,10 @@ function getAverageScores(sessions: Session[]): Map<string, number> {
 export default function CommunicationStyleCard({ sessions }: Props) {
   if (sessions.length === 0) {
     return (
-      <div className="bg-white rounded-lg border border-slate-200 p-4">
-        <p className="text-xs font-medium text-slate-500 mb-1">あなたのスタイル</p>
-        <p className="text-sm text-slate-400">まだスタイルが判定できません</p>
-        <p className="text-xs text-slate-400 mt-1">練習セッションを完了するとスタイルが判定されます</p>
+      <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
+        <p className="text-xs font-medium text-[#888888] mb-1">あなたのスタイル</p>
+        <p className="text-sm text-[#666666]">まだスタイルが判定できません</p>
+        <p className="text-xs text-[#666666] mt-1">練習セッションを完了するとスタイルが判定されます</p>
       </div>
     );
   }

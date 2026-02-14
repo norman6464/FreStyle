@@ -40,15 +40,15 @@ export default function ChatPage() {
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center">
-            <div className="bg-slate-100 rounded-full p-4 mb-4">
-              <svg className="w-8 h-8 text-slate-400" fill="currentColor" viewBox="0 0 20 20">
+            <div className="bg-surface-3 rounded-full p-4 mb-4">
+              <svg className="w-8 h-8 text-[#666666]" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5z" />
               </svg>
             </div>
-            <h3 className="text-base font-semibold text-slate-700 mb-1">
+            <h3 className="text-base font-semibold text-[#D0D0D0] mb-1">
               チャットへようこそ
             </h3>
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-[#888888]">
               相手とのチャットをここで行えます
             </p>
           </div>
@@ -60,8 +60,8 @@ export default function ChatPage() {
                 {getRangeLabel(index) && (
                   <span className={`text-xs font-bold mb-1 px-2 py-0.5 rounded ${
                     getRangeLabel(index) === '開始'
-                      ? 'bg-green-100 text-green-700'
-                      : 'bg-red-100 text-red-700'
+                      ? 'bg-green-900/30 text-green-400'
+                      : 'bg-red-900/30 text-red-700'
                   }`}>
                     {getRangeLabel(index)}
                   </span>
@@ -71,7 +71,7 @@ export default function ChatPage() {
                   className={`mt-1 w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all ${
                     isInRange(index)
                       ? 'bg-primary-500 border-primary-500 text-white'
-                      : 'border-slate-300 hover:border-primary-400 hover:bg-primary-50'
+                      : 'border-surface-3 hover:border-primary-400 hover:bg-surface-2'
                   }`}
                 >
                   {isInRange(index) ? (
@@ -79,13 +79,13 @@ export default function ChatPage() {
                       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>
                   ) : (
-                    <span className="text-[10px] text-slate-400">{index + 1}</span>
+                    <span className="text-[10px] text-[#666666]">{index + 1}</span>
                   )}
                 </button>
               </div>
             )}
             <div className={`flex-1 transition-all ${
-              selectionMode && isInRange(index) ? 'bg-primary-50 -mx-2 px-2 py-1 rounded-lg' : ''
+              selectionMode && isInRange(index) ? 'bg-surface-2 -mx-2 px-2 py-1 rounded-lg' : ''
             }`}>
               <MessageBubble
                 {...msg}
@@ -99,12 +99,12 @@ export default function ChatPage() {
       </div>
 
       {/* 入力欄 */}
-      <div className="bg-white border-t border-slate-200 p-4">
+      <div className="bg-surface-1 border-t border-surface-3 p-4">
         <div className="max-w-3xl mx-auto w-full space-y-3">
           {selectionMode ? (
             <div className="space-y-3">
-              <div className="bg-primary-50 border border-primary-200 rounded-lg p-3">
-                <p className="text-sm text-primary-700">
+              <div className="bg-surface-2 border border-[#444444] rounded-lg p-3">
+                <p className="text-sm text-primary-300">
                   {selectedMessages.size > 0
                     ? `${selectedMessages.size}件のメッセージを選択しました`
                     : '開始位置のメッセージをタップしてください'
@@ -113,25 +113,25 @@ export default function ChatPage() {
               </div>
 
               <div className="flex gap-2 flex-wrap">
-                <span className="text-xs text-slate-500 self-center">クイック選択:</span>
+                <span className="text-xs text-[#888888] self-center">クイック選択:</span>
                 {[5, 10, 20].map((n) => (
                   <button
                     key={n}
                     onClick={() => handleQuickSelect(n)}
-                    className="px-3 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full transition-colors"
+                    className="px-3 py-1 text-xs bg-surface-3 hover:bg-surface-3 text-[#D0D0D0] rounded-full transition-colors"
                   >
                     直近{n}件
                   </button>
                 ))}
                 <button
                   onClick={handleSelectAll}
-                  className="px-3 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full transition-colors"
+                  className="px-3 py-1 text-xs bg-surface-3 hover:bg-surface-3 text-[#D0D0D0] rounded-full transition-colors"
                 >
                   すべて
                 </button>
                 <button
                   onClick={handleDeselectAll}
-                  className="px-3 py-1 text-xs text-rose-500 hover:bg-rose-50 rounded-full transition-colors"
+                  className="px-3 py-1 text-xs text-rose-500 hover:bg-rose-900/30 rounded-full transition-colors"
                 >
                   リセット
                 </button>
@@ -140,7 +140,7 @@ export default function ChatPage() {
               <div className="flex gap-2">
                 <button
                   onClick={handleCancelSelection}
-                  className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium py-2.5 px-4 rounded-lg text-sm transition-colors"
+                  className="flex-1 bg-surface-3 hover:bg-surface-3 text-[#D0D0D0] font-medium py-2.5 px-4 rounded-lg text-sm transition-colors"
                 >
                   キャンセル
                 </button>
@@ -150,7 +150,7 @@ export default function ChatPage() {
                   className={`flex-1 font-medium py-2.5 px-4 rounded-lg text-sm transition-colors ${
                     selectedMessages.size > 0
                       ? 'bg-primary-500 hover:bg-primary-600 text-white'
-                      : 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                      : 'bg-surface-3 text-[#888888] cursor-not-allowed'
                   }`}
                 >
                   {selectedMessages.size > 0

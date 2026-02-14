@@ -27,14 +27,14 @@ describe('SidebarItem', () => {
   it('アクティブ状態で強調スタイルが適用される', () => {
     const { container } = renderSidebarItem(true);
     const link = container.querySelector('a');
-    expect(link?.className).toContain('bg-primary-50');
-    expect(link?.className).toContain('text-primary-700');
+    expect(link?.className).toContain('bg-surface-3');
+    expect(link?.className).toContain('text-primary-300');
   });
 
   it('非アクティブ状態で通常スタイルが適用される', () => {
     const { container } = renderSidebarItem(false);
     const link = container.querySelector('a');
-    expect(link?.className).toContain('text-slate-600');
+    expect(link?.className).toContain('text-[#A0A0A0]');
   });
 
   it('バッジが渡されると未読数を表示する', () => {

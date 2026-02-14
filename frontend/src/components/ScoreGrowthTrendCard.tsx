@@ -6,19 +6,19 @@ const TREND_CONFIG: Record<TrendType, { label: string; message: string; color: s
   up: {
     label: '上昇',
     message: 'スコアが上昇傾向です。この調子で練習を続けましょう！',
-    color: 'text-emerald-600',
+    color: 'text-emerald-400',
     icon: '↑',
   },
   down: {
     label: '低下',
     message: 'スコアが少し低下しています。基礎に立ち返って練習してみましょう。',
-    color: 'text-rose-600',
+    color: 'text-rose-400',
     icon: '↓',
   },
   stable: {
     label: '安定',
     message: 'スコアが安定しています。新しいシナリオに挑戦してレベルアップしましょう！',
-    color: 'text-blue-600',
+    color: 'text-blue-400',
     icon: '→',
   },
 };
@@ -56,25 +56,25 @@ export default function ScoreGrowthTrendCard({ scores }: Props) {
   const config = TREND_CONFIG[analysis.trend];
 
   return (
-    <div className="bg-white rounded-lg border border-slate-200 p-4">
+    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
       <div className="flex items-center justify-between mb-2">
-        <p className="text-xs font-medium text-slate-700">成長トレンド</p>
+        <p className="text-xs font-medium text-[#D0D0D0]">成長トレンド</p>
         <span className={`text-sm font-bold ${config.color}`}>
           {config.icon} {config.label}
         </span>
       </div>
 
       <div className="flex items-baseline gap-2 mb-2">
-        <span className="text-2xl font-bold text-slate-800">{analysis.latestScore}</span>
-        <span className="text-xs text-slate-400">最新スコア</span>
+        <span className="text-2xl font-bold text-[#F0F0F0]">{analysis.latestScore}</span>
+        <span className="text-xs text-[#666666]">最新スコア</span>
         {analysis.delta !== 0 && (
-          <span className={`text-xs font-medium ${analysis.delta > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+          <span className={`text-xs font-medium ${analysis.delta > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
             {analysis.delta > 0 ? '+' : ''}{analysis.delta.toFixed(1)}
           </span>
         )}
       </div>
 
-      <p className="text-xs text-slate-500">{config.message}</p>
+      <p className="text-xs text-[#888888]">{config.message}</p>
     </div>
   );
 }

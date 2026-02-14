@@ -16,29 +16,29 @@ export default function SkillSummaryCard({ scores }: SkillSummaryCardProps) {
   const weaknesses = sorted.slice(-2).reverse();
 
   return (
-    <div className="bg-white rounded-lg border border-slate-200 p-4">
-      <p className="text-xs font-medium text-slate-700 mb-3">スキル強弱サマリー</p>
+    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
+      <p className="text-xs font-medium text-[#D0D0D0] mb-3">スキル強弱サマリー</p>
 
       <div className="grid grid-cols-2 gap-3">
         <div data-testid="strengths">
-          <p className="text-[10px] font-medium text-emerald-600 mb-2">強み</p>
+          <p className="text-[10px] font-medium text-emerald-400 mb-2">強み</p>
           <div className="space-y-2">
             {strengths.map((s) => (
               <div key={s.axis} className="flex items-center justify-between">
-                <span className="text-xs text-slate-700 truncate mr-2">{s.axis}</span>
-                <span className="text-sm font-bold text-emerald-600">{s.score}</span>
+                <span className="text-xs text-[#D0D0D0] truncate mr-2">{s.axis}</span>
+                <span className="text-sm font-bold text-emerald-400">{s.score}</span>
               </div>
             ))}
           </div>
         </div>
 
         <div data-testid="weaknesses">
-          <p className="text-[10px] font-medium text-rose-600 mb-2">課題</p>
+          <p className="text-[10px] font-medium text-rose-400 mb-2">課題</p>
           <div className="space-y-2">
             {weaknesses.map((s) => (
               <div key={s.axis} className="flex items-center justify-between">
-                <span className="text-xs text-slate-700 truncate mr-2">{s.axis}</span>
-                <span className="text-sm font-bold text-rose-600">{s.score}</span>
+                <span className="text-xs text-[#D0D0D0] truncate mr-2">{s.axis}</span>
+                <span className="text-sm font-bold text-rose-400">{s.score}</span>
               </div>
             ))}
           </div>

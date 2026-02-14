@@ -21,9 +21,9 @@ const CHALLENGES: Challenge[] = [
 ];
 
 const DIFFICULTY_STYLES: Record<string, string> = {
-  '初級': 'bg-emerald-100 text-emerald-700',
-  '中級': 'bg-amber-100 text-amber-700',
-  '上級': 'bg-rose-100 text-rose-700',
+  '初級': 'bg-emerald-100 text-emerald-400',
+  '中級': 'bg-amber-100 text-amber-400',
+  '上級': 'bg-rose-100 text-rose-400',
 };
 
 export default function DailyChallengeCard() {
@@ -33,9 +33,9 @@ export default function DailyChallengeCard() {
   const challenge = CHALLENGES[dayIndex];
 
   return (
-    <div className="bg-white rounded-lg border border-slate-200 p-4">
+    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
       <div className="flex items-center justify-between mb-2">
-        <p className="text-xs font-medium text-slate-700">本日のチャレンジ</p>
+        <p className="text-xs font-medium text-[#D0D0D0]">本日のチャレンジ</p>
         <span
           data-testid="challenge-difficulty"
           className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${DIFFICULTY_STYLES[challenge.difficulty]}`}
@@ -44,18 +44,18 @@ export default function DailyChallengeCard() {
         </span>
       </div>
 
-      <p className="text-sm font-semibold text-slate-800 mb-1">{challenge.title}</p>
-      <p data-testid="challenge-description" className="text-xs text-slate-500 mb-2">
+      <p className="text-sm font-semibold text-[#F0F0F0] mb-1">{challenge.title}</p>
+      <p data-testid="challenge-description" className="text-xs text-[#888888] mb-2">
         {challenge.description}
       </p>
 
       <div className="flex items-center justify-between">
-        <span data-testid="challenge-category" className="text-[10px] text-slate-400">
+        <span data-testid="challenge-category" className="text-[10px] text-[#666666]">
           {challenge.category}
         </span>
         <button
           onClick={() => navigate('/practice')}
-          className="text-xs font-medium text-primary-600 hover:text-primary-700 transition-colors"
+          className="text-xs font-medium text-primary-400 hover:text-primary-300 transition-colors"
         >
           チャレンジする
         </button>

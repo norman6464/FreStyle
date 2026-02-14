@@ -11,20 +11,20 @@ export default function RecentNotesCard() {
     .slice(0, 3);
 
   return (
-    <div className="bg-white rounded-lg border border-slate-200 p-4">
+    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
       <div className="flex items-center justify-between mb-3">
-        <p className="text-xs font-medium text-slate-700">最近のメモ</p>
-        <span className="text-[10px] text-slate-400">{noteEntries.length}件</span>
+        <p className="text-xs font-medium text-[#D0D0D0]">最近のメモ</p>
+        <span className="text-[10px] text-[#666666]">{noteEntries.length}件</span>
       </div>
 
       <div className="space-y-2">
         {sortedNotes.map((entry) => (
           <div
             key={entry.sessionId}
-            className="bg-slate-50 rounded p-2"
+            className="bg-surface-2 rounded p-2"
           >
-            <p className="text-xs text-slate-700 line-clamp-2">{entry.note}</p>
-            <p className="text-[10px] text-slate-400 mt-1">
+            <p className="text-xs text-[#D0D0D0] line-clamp-2">{entry.note}</p>
+            <p className="text-[10px] text-[#666666] mt-1">
               {new Date(entry.updatedAt).toLocaleDateString('ja-JP')}
             </p>
           </div>

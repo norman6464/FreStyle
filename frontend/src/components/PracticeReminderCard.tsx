@@ -19,15 +19,15 @@ export default function PracticeReminderCard({ lastPracticeDate }: PracticeRemin
   const daysAgo = getDaysAgo(lastPracticeDate);
 
   return (
-    <div className="bg-white rounded-lg border border-slate-200 p-4 flex items-center justify-between">
+    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4 flex items-center justify-between">
       <div>
         {daysAgo === 0 ? (
-          <p className="text-sm font-medium text-emerald-600">今日も練習済み！</p>
+          <p className="text-sm font-medium text-emerald-400">今日も練習済み！</p>
         ) : (
           <>
-            <p className="text-sm font-medium text-slate-700">最後の練習: {daysAgo}日前</p>
+            <p className="text-sm font-medium text-[#D0D0D0]">最後の練習: {daysAgo}日前</p>
             {daysAgo >= 3 && (
-              <p className="text-xs text-amber-600 mt-0.5">そろそろ練習しませんか？</p>
+              <p className="text-xs text-amber-400 mt-0.5">そろそろ練習しませんか？</p>
             )}
           </>
         )}

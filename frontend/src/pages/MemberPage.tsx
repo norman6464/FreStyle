@@ -9,8 +9,8 @@ export default function MemberPage() {
     <div className="p-6 max-w-2xl mx-auto">
       {/* ヘッダー */}
       <div className="mb-4">
-        <h2 className="text-lg font-bold text-slate-800">チャットメンバー</h2>
-        <p className="text-sm text-slate-500">メンバーを検索または選択</p>
+        <h2 className="text-lg font-bold text-[#F0F0F0]">チャットメンバー</h2>
+        <p className="text-sm text-[#888888]">メンバーを検索または選択</p>
       </div>
 
       {/* 検索ボックス */}
@@ -24,15 +24,15 @@ export default function MemberPage() {
 
       {/* エラー表示 */}
       {error && (
-        <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-lg">
-          <p className="text-sm text-rose-700">{error}</p>
+        <div className="mb-4 p-3 bg-rose-900/30 border border-rose-800 rounded-lg">
+          <p className="text-sm text-rose-400">{error}</p>
         </div>
       )}
 
       {/* メンバーリスト */}
       {users.length === 0 && !error && (
         <div className="text-center py-12">
-          <p className="text-sm text-slate-500">メンバーがまだいません</p>
+          <p className="text-sm text-[#888888]">メンバーがまだいません</p>
         </div>
       )}
       <MemberList users={users} />

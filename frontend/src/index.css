@@ -13,14 +13,14 @@
   }
 
   .btn-secondary {
-    @apply border border-slate-200 text-slate-700 font-medium py-2.5 rounded-lg hover:bg-primary-50 active:bg-primary-100 transition-colors duration-150;
+    @apply border border-surface-3 text-[#A0A0A0] font-medium py-2.5 rounded-lg hover:bg-surface-2 active:bg-surface-3 transition-colors duration-150;
   }
 
   .card {
-    @apply bg-white rounded-xl shadow-sm p-6 border border-slate-200;
+    @apply bg-surface-1 rounded-xl shadow-sm p-6 border border-surface-3;
   }
 
   .input-primary {
-    @apply w-full border border-slate-300 rounded-lg px-4 py-2.5 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 focus:outline-none transition-colors duration-150 placeholder:text-slate-400;
+    @apply w-full border border-surface-3 rounded-lg px-4 py-2.5 bg-surface-2 text-[#F0F0F0] focus:border-primary-400 focus:ring-1 focus:ring-primary-400 focus:outline-none transition-colors duration-150 placeholder:text-[#666666];
   }
 }

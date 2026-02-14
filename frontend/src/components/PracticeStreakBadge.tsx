@@ -12,16 +12,16 @@ const BADGES = [
 
 export default function PracticeStreakBadge({ streakDays, totalSessions }: PracticeStreakBadgeProps) {
   return (
-    <div className="bg-white rounded-lg border border-slate-200 p-4">
+    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
       <div className="flex items-center gap-4 mb-3">
         <div className="text-center">
-          <p className="text-2xl font-bold text-primary-600">{streakDays}</p>
-          <p className="text-[10px] text-slate-500">日連続</p>
+          <p className="text-2xl font-bold text-primary-400">{streakDays}</p>
+          <p className="text-[10px] text-[#888888]">日連続</p>
         </div>
-        <div className="h-8 w-px bg-slate-200" />
+        <div className="h-8 w-px bg-surface-3" />
         <div className="text-center">
-          <p className="text-sm font-semibold text-slate-700">累計 {totalSessions}回</p>
-          <p className="text-[10px] text-slate-400">練習セッション</p>
+          <p className="text-sm font-semibold text-[#D0D0D0]">累計 {totalSessions}回</p>
+          <p className="text-[10px] text-[#666666]">練習セッション</p>
         </div>
       </div>
 
@@ -33,8 +33,8 @@ export default function PracticeStreakBadge({ streakDays, totalSessions }: Pract
               key={label}
               className={`text-[10px] font-medium px-2 py-1 rounded-full border ${
                 achieved
-                  ? 'bg-primary-50 text-primary-700 border-primary-200'
-                  : 'bg-slate-50 text-slate-400 border-slate-200 opacity-40'
+                  ? 'bg-surface-2 text-primary-300 border-[#444444]'
+                  : 'bg-surface-2 text-[#666666] border-surface-3 opacity-40'
               }`}
             >
               {label}

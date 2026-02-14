@@ -28,12 +28,12 @@ export default function MotivationQuoteCard() {
   const quote = QUOTES[getDailyIndex()];
 
   return (
-    <div className="bg-white rounded-lg border border-slate-200 p-4">
-      <p className="text-xs font-medium text-slate-700 mb-2">今日の一言</p>
-      <p data-testid="quote-text" className="text-xs text-slate-600 leading-relaxed italic">
+    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
+      <p className="text-xs font-medium text-[#D0D0D0] mb-2">今日の一言</p>
+      <p data-testid="quote-text" className="text-xs text-[#A0A0A0] leading-relaxed italic">
         「{quote.text}」
       </p>
-      <p data-testid="quote-author" className="text-[10px] text-slate-400 mt-1.5 text-right">
+      <p data-testid="quote-author" className="text-[10px] text-[#666666] mt-1.5 text-right">
         — {quote.author}
       </p>
     </div>

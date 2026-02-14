@@ -10,10 +10,10 @@ const RANGES = [
 ] as const;
 
 const RANGE_COLORS = [
-  'bg-emerald-500',
-  'bg-blue-500',
-  'bg-amber-500',
-  'bg-rose-500',
+  'bg-emerald-900/300',
+  'bg-blue-900/300',
+  'bg-amber-900/300',
+  'bg-rose-900/300',
 ];
 
 function getMessage(topRangeIndex: number): string {
@@ -40,14 +40,14 @@ export default function ScoreDistributionCard({ scores }: ScoreDistributionCardP
   const topRangeIndex = counts.indexOf(maxCount);
 
   return (
-    <div className="bg-white rounded-lg border border-slate-200 p-4">
-      <p className="text-xs font-medium text-slate-700 mb-3">スコア分布</p>
+    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
+      <p className="text-xs font-medium text-[#D0D0D0] mb-3">スコア分布</p>
 
       <div className="space-y-2">
         {RANGES.map((range, i) => (
           <div key={range.label} className="flex items-center gap-2">
-            <span className="text-xs text-slate-500 w-8 text-right">{range.label}</span>
-            <div className="flex-1 bg-slate-100 rounded-full h-4">
+            <span className="text-xs text-[#888888] w-8 text-right">{range.label}</span>
+            <div className="flex-1 bg-surface-3 rounded-full h-4">
               {maxCount > 0 && counts[i] > 0 && (
                 <div
                   className={`h-4 rounded-full ${RANGE_COLORS[i]} transition-all`}
@@ -55,14 +55,14 @@ export default function ScoreDistributionCard({ scores }: ScoreDistributionCardP
                 />
               )}
             </div>
-            <span data-testid="range-count" className="text-xs font-medium text-slate-600 w-6 text-right">
+            <span data-testid="range-count" className="text-xs font-medium text-[#A0A0A0] w-6 text-right">
               {counts[i]}
             </span>
           </div>
         ))}
       </div>
 
-      <p className="text-xs text-slate-500 mt-3">{getMessage(topRangeIndex)}</p>
+      <p className="text-xs text-[#888888] mt-3">{getMessage(topRangeIndex)}</p>
     </div>
   );
 }

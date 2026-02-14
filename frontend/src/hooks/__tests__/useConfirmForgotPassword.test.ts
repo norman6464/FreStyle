@@ -99,4 +99,28 @@ describe('useConfirmForgotPassword', () => {
     expect(result.current.message?.type).toBe('error');
     expect(result.current.message?.text).toBe('通信エラーが発生しました。');
   });
+
+  it('初期messageがnull', () => {
+    const { result } = renderHook(() => useConfirmForgotPassword());
+    expect(result.current.message).toBeNull();
+  });
+
+  it('code・newPasswordの初期値が空文字', () => {
+    const { result } = renderHook(() => useConfirmForgotPassword());
+    expect(result.current.form.code).toBe('');
+    expect(result.current.form.newPassword).toBe('');
+  });
+
+  it('handleConfirmでpreventDefaultが呼ばれる', async () => {
+    const preventDefault = vi.fn();
+    const { result } = renderHook(() => useConfirmForgotPassword());
+
+    await act(async () => {
+      await result.current.handleConfirm({
+        preventDefault,
+      } as unknown as React.FormEvent<HTMLFormElement>);
+    });
+
+    expect(preventDefault).toHaveBeenCalled();
+  });
 });

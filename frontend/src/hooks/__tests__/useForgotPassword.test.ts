@@ -87,4 +87,39 @@ describe('useForgotPassword', () => {
     expect(result.current.message?.type).toBe('error');
     expect(result.current.message?.text).toBe('通信エラーが発生しました。');
   });
+
+  it('初期messageがnull', () => {
+    const { result } = renderHook(() => useForgotPassword());
+    expect(result.current.message).toBeNull();
+  });
+
+  it('handleSubmit成功時にsuccessメッセージが設定される', async () => {
+    const { result } = renderHook(() => useForgotPassword());
+
+    act(() => {
+      result.current.setEmail('test@example.com');
+    });
+
+    await act(async () => {
+      await result.current.handleSubmit({
+        preventDefault: vi.fn(),
+      } as unknown as React.FormEvent<HTMLFormElement>);
+    });
+
+    expect(result.current.message?.type).toBe('success');
+    expect(result.current.message?.text).toBe('コード送信済み');
+  });
+
+  it('handleSubmitでpreventDefaultが呼ばれる', async () => {
+    const preventDefault = vi.fn();
+    const { result } = renderHook(() => useForgotPassword());
+
+    await act(async () => {
+      await result.current.handleSubmit({
+        preventDefault,
+      } as unknown as React.FormEvent<HTMLFormElement>);
+    });
+
+    expect(preventDefault).toHaveBeenCalled();
+  });
 });

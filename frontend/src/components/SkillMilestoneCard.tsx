@@ -1,0 +1,80 @@
+interface AxisScore {
+  axis: string;
+  score: number;
+  comment: string;
+}
+
+interface SkillMilestoneCardProps {
+  scores: AxisScore[];
+}
+
+interface Milestone {
+  label: string;
+  threshold: number;
+  color: string;
+  bgColor: string;
+}
+
+const MILESTONES: Milestone[] = [
+  { label: '入門', threshold: 0, color: 'text-slate-500', bgColor: 'bg-slate-100' },
+  { label: '初級', threshold: 4, color: 'text-emerald-600', bgColor: 'bg-emerald-50' },
+  { label: '中級', threshold: 6, color: 'text-blue-600', bgColor: 'bg-blue-50' },
+  { label: '上級', threshold: 7, color: 'text-purple-600', bgColor: 'bg-purple-50' },
+  { label: 'エキスパート', threshold: 9, color: 'text-amber-600', bgColor: 'bg-amber-50' },
+];
+
+function getCurrentMilestone(score: number): Milestone {
+  for (let i = MILESTONES.length - 1; i >= 0; i--) {
+    if (score >= MILESTONES[i].threshold) return MILESTONES[i];
+  }
+  return MILESTONES[0];
+}
+
+function getNextMilestone(score: number): Milestone | null {
+  for (const m of MILESTONES) {
+    if (score < m.threshold) return m;
+  }
+  return null;
+}
+
+export default function SkillMilestoneCard({ scores }: SkillMilestoneCardProps) {
+  if (scores.length === 0) return null;
+
+  return (
+    <div className="bg-white rounded-lg border border-slate-200 p-4">
+      <h3 className="text-xs font-semibold text-slate-800 mb-3">スキル到達レベル</h3>
+      <div className="space-y-3">
+        {scores.map((s) => {
+          const current = getCurrentMilestone(s.score);
+          const next = getNextMilestone(s.score);
+          const remaining = next ? Math.round((next.threshold - s.score) * 10) / 10 : null;
+          const progress = next
+            ? ((s.score - current.threshold) / (next.threshold - current.threshold)) * 100
+            : 100;
+
+          return (
+            <div key={s.axis}>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-slate-700">{s.axis}</span>
+                <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${current.bgColor} ${current.color}`}>
+                  {current.label}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 bg-slate-100 rounded-full h-1.5">
+                  <div
+                    className="h-1.5 rounded-full bg-primary-500 transition-all"
+                    style={{ width: `${Math.min(progress, 100)}%` }}
+                  />
+                </div>
+                {remaining !== null && (
+                  <span className="text-[10px] text-slate-400 whitespace-nowrap">あと {remaining}</span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

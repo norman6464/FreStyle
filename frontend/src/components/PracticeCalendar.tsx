@@ -4,6 +4,13 @@ interface PracticeCalendarProps {
   practiceDates: string[];
 }
 
+function toLocalDateKey(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 function getCalendarDays(weeks: number): Date[] {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -77,7 +84,7 @@ export default function PracticeCalendar({ practiceDates }: PracticeCalendarProp
         {weeks.map((week, wi) => (
           <div key={wi} className="flex flex-col gap-0.5">
             {week.map((day) => {
-              const key = day.toISOString().split('T')[0];
+              const key = toLocalDateKey(day);
               const count = dateCountMap[key] || 0;
               const today = new Date();
               today.setHours(0, 0, 0, 0);

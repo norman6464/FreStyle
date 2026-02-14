@@ -22,6 +22,7 @@ import WeeklyGoalProgressCard from '../components/WeeklyGoalProgressCard';
 import WeeklyReportCard from '../components/WeeklyReportCard';
 import LearningPatternCard from '../components/LearningPatternCard';
 import ScoreGrowthTrendCard from '../components/ScoreGrowthTrendCard';
+import PracticeFrequencyCard from '../components/PracticeFrequencyCard';
 import { useMenuData } from '../hooks/useMenuData';
 
 export default function MenuPage() {
@@ -95,6 +96,13 @@ export default function MenuPage() {
       <div className="mb-6">
         <AchievementBadgeCard totalSessions={totalSessions} />
       </div>
+
+      {/* 練習頻度 */}
+      {practiceDates.length > 0 && (
+        <div className="mb-6">
+          <PracticeFrequencyCard dates={practiceDates} />
+        </div>
+      )}
 
       {/* 練習ストリークカレンダー */}
       <div className="mb-6">

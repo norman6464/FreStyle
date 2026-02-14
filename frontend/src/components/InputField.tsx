@@ -63,7 +63,7 @@ export default function InputField({
         )}
       </div>
       {error && (
-        <p id={`${name}-error`} className="text-xs text-rose-400 mt-1">
+        <p id={`${name}-error`} role="alert" className="text-xs text-rose-400 mt-1">
           {error}
         </p>
       )}

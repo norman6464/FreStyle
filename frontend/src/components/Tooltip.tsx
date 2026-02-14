@@ -1,4 +1,4 @@
-import { ReactNode, useCallback, useId, useRef, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useId, useRef, useState } from 'react';
 
 interface TooltipProps {
   content: string;
@@ -25,6 +25,14 @@ export default function Tooltip({ content, position = 'top', children }: Tooltip
     setVisible(false);
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+    };
+  }, []);
+
   const positionClass = position === 'top'
     ? 'bottom-full left-1/2 -translate-x-1/2 mb-1.5'
     : 'top-full left-1/2 -translate-x-1/2 mt-1.5';
@@ -34,6 +42,8 @@ export default function Tooltip({ content, position = 'top', children }: Tooltip
       className="relative inline-flex"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
+      onFocus={handleMouseEnter}
+      onBlur={handleMouseLeave}
       aria-describedby={visible ? tooltipId : undefined}
     >
       {children}

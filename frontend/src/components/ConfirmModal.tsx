@@ -103,7 +103,7 @@ export default function ConfirmModal({
           <button
             ref={cancelRef}
             onClick={onCancel}
-            className="flex-1 px-4 py-2.5 bg-surface-3 hover:bg-surface-3 text-[var(--color-text-secondary)] font-medium rounded-xl transition-colors duration-150"
+            className="flex-1 px-4 py-2.5 bg-surface-3 hover:bg-surface-2 text-[var(--color-text-secondary)] font-medium rounded-xl transition-colors duration-150"
           >
             {cancelText}
           </button>

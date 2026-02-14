@@ -159,11 +159,12 @@
 - **トースト通知システム**：操作結果（成功/エラー/情報）を画面右下にスタック表示・3秒後自動消去・Heroiconsアイコン・aria-live対応
 - **フォームバリデーション統一**：InputField/TextareaField/SelectField全てにerror prop追加・aria-invalid/aria-describedby/role="alert"のアクセシビリティ対応
 - **Tooltipコンポーネント**：ホバー時にテキスト説明を表示・300msディレイ・上下ポジション対応・role="tooltip"/aria-describedby対応
-- **Cardコンポーネント**：共通カードスタイル（bg-surface-1/rounded-lg/border/p-4）を再利用可能コンポーネント化・15のカードコンポーネントに適用
+- **Cardコンポーネント**：共通カードスタイル（bg-surface-1/rounded-lg/border/p-4）を再利用可能コンポーネント化・20のカードコンポーネントに適用
 - **ProgressRingコンポーネント**：SVGベース円形プログレスインジケーター・値に応じた色変化（緑/黄/赤）・中央ラベル表示・role=progressbar対応
+- **ConfirmModalフォーカストラップ**：モーダル表示時のキャンセルボタン自動フォーカス・Tab/Shift+Tabでの循環フォーカス移動・ESCキーで閉じる
 
 ### テスト品質
-- **フロントエンド1219テスト**：Vitest + React Testing Library
+- **フロントエンド1225テスト**：Vitest + React Testing Library
   - Repository層テスト（13リポジトリ・62テスト）
   - Hooks層テスト（32フック・319テスト）
   - Store層テスト（1スライス・5テスト）

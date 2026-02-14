@@ -1,56 +1,21 @@
-import { useState } from 'react';
 import AuthLayout from '../components/AuthLayout';
 import InputField from '../components/InputField';
 import PrimaryButton from '../components/PrimaryButton';
 import SNSSignInButton from '../components/SNSSignInButton';
 import LinkText from '../components/LinkText';
 import { getCognitoAuthUrl } from '../utils/auth';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
-
-interface LoginMessage {
-  type: 'success' | 'error';
-  text: string;
-}
+import { useLoginPage } from '../hooks/useLoginPage';
 
 export default function LoginPage() {
-  const [form, setForm] = useState({ email: '', password: '' });
-  const [loginMessage, setLoginMessage] = useState<LoginMessage | null>(null);
-
-  const location = useLocation();
-  const navigate = useNavigate();
-  const { login } = useAuth();
-  const message = (location.state as { message?: string })?.message;
-
-  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-
-    const success = await login({ email: form.email, password: form.password });
-
-    if (success) {
-      navigate('/');
-    } else {
-      setLoginMessage({
-        type: 'error',
-        text: 'ログインに失敗しました。',
-      });
-    }
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setForm({
-      ...form,
-      [e.target.name]: e.target.value,
-    });
-  };
+  const { form, loginMessage, flashMessage, handleLogin, handleChange } = useLoginPage();
 
   return (
     <AuthLayout>
       {/* flash Message */}
       <div>
-        {message && (
+        {flashMessage && (
           <p className="text-emerald-600 text-center mb-4 p-3 bg-emerald-50 rounded-lg font-medium">
-            {message}
+            {flashMessage}
           </p>
         )}
         {loginMessage?.type === 'error' && (

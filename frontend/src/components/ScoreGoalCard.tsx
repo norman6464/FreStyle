@@ -1,29 +1,17 @@
-import { useState } from 'react';
 import Card from './Card';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 
 interface Props {
   averageScore: number;
 }
 
 const GOAL_OPTIONS = [6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0, 9.5, 10.0];
-const STORAGE_KEY = 'scoreGoal';
-
-function getStoredGoal(): number {
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (stored) {
-    const parsed = parseFloat(stored);
-    if (!isNaN(parsed)) return parsed;
-  }
-  return 8.0;
-}
 
 export default function ScoreGoalCard({ averageScore }: Props) {
-  const [goal, setGoal] = useState(getStoredGoal);
+  const [goal, setGoal] = useLocalStorage('scoreGoal', 8.0);
 
   const handleGoalChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newGoal = parseFloat(e.target.value);
-    setGoal(newGoal);
-    localStorage.setItem(STORAGE_KEY, String(newGoal));
+    setGoal(parseFloat(e.target.value));
   };
 
   const achieved = averageScore >= goal;

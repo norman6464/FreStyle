@@ -1,4 +1,3 @@
-import { useState, useEffect, useRef } from 'react';
 import MessageBubbleAi from '../components/MessageBubbleAi';
 import MessageInput from '../components/MessageInput';
 import ConfirmModal from '../components/ConfirmModal';
@@ -8,36 +7,17 @@ import SecondaryPanel from '../components/layout/SecondaryPanel';
 import PracticeTimer from '../components/PracticeTimer';
 import SessionNoteEditor from '../components/SessionNoteEditor';
 import ExportSessionButton from '../components/ExportSessionButton';
-import { useLocation, useParams } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
-import { useAiChat } from '../hooks/useAiChat';
-import { useWebSocket } from '../hooks/useWebSocket';
-import { useAiSession } from '../hooks/useAiSession';
+import { useAskAi } from '../hooks/useAskAi';
 
 export default function AskAiPage() {
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-
-  const [initialPromptSent, setInitialPromptSent] = useState(false);
-
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
-
-  const location = useLocation();
-  const { sessionId: urlSessionId } = useParams<{ sessionId: string }>();
-
-  const { getCurrentUser, user } = useAuth();
   const {
     sessions,
     messages,
     scoreCard,
-    fetchSessions,
-    fetchMessages,
-    deleteSession,
-    updateSessionTitle
-  } = useAiChat();
-
-  const {
+    messagesEndRef,
+    isPracticeMode,
+    scenarioName,
     currentSessionId,
-    setCurrentSessionId,
     deleteModal,
     editingSessionId,
     editingTitle,
@@ -50,142 +30,9 @@ export default function AskAiPage() {
     handleStartEditTitle,
     handleSaveTitle,
     handleCancelEditTitle,
-  } = useAiSession({ deleteSession, updateSessionTitle });
-
-  const locationState = location.state as {
-    initialPrompt?: string;
-    fromChatFeedback?: boolean;
-    scene?: string;
-    sessionType?: string;
-    scenarioId?: number;
-    scenarioName?: string;
-  } | null;
-
-  const initialPrompt = locationState?.initialPrompt;
-  const fromChatFeedback = locationState?.fromChatFeedback || false;
-  const scene = locationState?.scene || null;
-  const sessionType = locationState?.sessionType || 'normal';
-  const scenarioId = locationState?.scenarioId || null;
-  const scenarioName = locationState?.scenarioName || null;
-  const isPracticeMode = sessionType === 'practice';
-
-  // WebSocket接続
-  const { subscribe, publish } = useWebSocket({
-    url: `${API_BASE_URL}/ws/ai-chat`,
-    userId: user?.id || null,
-    onConnect: () => {
-      if (currentSessionId) {
-        subscribeToSession(currentSessionId);
-      }
-
-      if (initialPrompt && !initialPromptSent) {
-        handleSend(initialPrompt);
-        setInitialPromptSent(true);
-      }
-    },
-  });
-
-  // ユーザー情報取得
-  useEffect(() => {
-    getCurrentUser();
-  }, [getCurrentUser]);
-
-  // セッション一覧取得
-  useEffect(() => {
-    if (user?.id) {
-      fetchSessions();
-    }
-  }, [user?.id, fetchSessions]);
-
-  // URLパラメータのセッションID変更時
-  useEffect(() => {
-    if (urlSessionId) {
-      setCurrentSessionId(parseInt(urlSessionId));
-    }
-  }, [urlSessionId]);
-
-  // セッション内のメッセージ履歴取得
-  useEffect(() => {
-    if (currentSessionId) {
-      fetchMessages(currentSessionId);
-    }
-  }, [currentSessionId, fetchMessages]);
-
-  // WebSocket購読設定
-  useEffect(() => {
-    if (!user?.id) return;
-
-    // 新規セッション作成の購読
-    subscribe(`/topic/ai-chat/user/${user.id}/session`, (message) => {
-      const newSession = JSON.parse(message.body);
-      setCurrentSessionId(newSession.id);
-    });
-
-    // スコアカード受信の購読
-    subscribe(`/topic/ai-chat/user/${user.id}/scorecard`, (message) => {
-      // スコアカードはuseAiChatフックで管理
-    });
-
-    // セッション削除通知の購読
-    subscribe(`/topic/ai-chat/user/${user.id}/session-deleted`, (message) => {
-      const data = JSON.parse(message.body);
-      if (currentSessionId === data.sessionId) {
-        setCurrentSessionId(null);
-      }
-    });
-  }, [user?.id, subscribe, currentSessionId]);
-
-  // セッション購読
-  const subscribeToSession = (sessionId: number): void => {
-    subscribe(`/topic/ai-chat/session/${sessionId}`, (message) => {
-      // メッセージはuseAiChatフックで管理
-    });
-  };
-
-  // セッション変更時の購読
-  useEffect(() => {
-    if (currentSessionId) {
-      subscribeToSession(currentSessionId);
-    }
-  }, [currentSessionId]);
-
-  // メッセージ最下部へスクロール
-  const scrollToBottom = (): void => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  // メッセージ削除処理
-  const handleDeleteMessage = (messageId: number): void => {
-    if (confirm('このメッセージを削除しますか？')) {
-      // メッセージ削除はローカル状態のみ更新（サーバー側の削除は未実装）
-    }
-  };
-
-  // メッセージ送信
-  const handleSend = async (text: string): Promise<void> => {
-    const payload: Record<string, unknown> = {
-      userId: user?.id,
-      sessionId: currentSessionId,
-      content: text,
-      role: 'user',
-      fromChatFeedback: fromChatFeedback,
-    };
-
-    if (scene) {
-      payload.scene = scene;
-    }
-
-    if (isPracticeMode && scenarioId) {
-      payload.sessionType = 'practice';
-      payload.scenarioId = scenarioId;
-    }
-
-    publish('/app/ai-chat/send', payload);
-  };
+    handleSend,
+    handleDeleteMessage,
+  } = useAskAi();
 
   return (
     <div className="flex h-full">

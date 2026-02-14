@@ -269,4 +269,56 @@ describe('NotesPage', () => {
     fireEvent.click(screen.getByText('キャンセル'));
     expect(mockUseNotes.deleteNote).not.toHaveBeenCalled();
   });
+
+  it('削除確認ダイアログのキャンセル後にダイアログが閉じる', () => {
+    const noteList = [
+      { noteId: 'n1', userId: 1, title: '削除テスト', content: '内容', isPinned: false, createdAt: 1000, updatedAt: 2000 },
+    ];
+    vi.mocked(useNotes).mockReturnValue({
+      ...mockUseNotes,
+      notes: noteList,
+      filteredNotes: noteList,
+    });
+    render(<NotesPage />);
+    const deleteButtons = screen.getAllByLabelText('ノートを削除');
+    fireEvent.click(deleteButtons[0]);
+    expect(screen.getByText('このノートを削除しますか？')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('キャンセル'));
+    expect(screen.queryByText('このノートを削除しますか？')).not.toBeInTheDocument();
+  });
+
+  it('複数ノートがある場合、正しいノートが削除される', async () => {
+    const noteList = [
+      { noteId: 'n1', userId: 1, title: 'ノート1', content: '内容1', isPinned: false, createdAt: 1000, updatedAt: 2000 },
+      { noteId: 'n2', userId: 1, title: 'ノート2', content: '内容2', isPinned: false, createdAt: 1500, updatedAt: 3000 },
+    ];
+    vi.mocked(useNotes).mockReturnValue({
+      ...mockUseNotes,
+      notes: noteList,
+      filteredNotes: noteList,
+    });
+    render(<NotesPage />);
+    const deleteButtons = screen.getAllByLabelText('ノートを削除');
+    fireEvent.click(deleteButtons[1]);
+    await act(async () => {
+      fireEvent.click(screen.getByText('削除'));
+    });
+    expect(mockUseNotes.deleteNote).toHaveBeenCalledWith('n2');
+  });
+
+  it('削除ボタンを押してもdeleteNoteが直接呼ばれない（確認が必要）', () => {
+    const noteList = [
+      { noteId: 'n1', userId: 1, title: 'テスト', content: '内容', isPinned: false, createdAt: 1000, updatedAt: 2000 },
+    ];
+    vi.mocked(useNotes).mockReturnValue({
+      ...mockUseNotes,
+      notes: noteList,
+      filteredNotes: noteList,
+    });
+    render(<NotesPage />);
+    const deleteButtons = screen.getAllByLabelText('ノートを削除');
+    fireEvent.click(deleteButtons[0]);
+    expect(mockUseNotes.deleteNote).not.toHaveBeenCalled();
+    expect(screen.getByText('このノートを削除しますか？')).toBeInTheDocument();
+  });
 });

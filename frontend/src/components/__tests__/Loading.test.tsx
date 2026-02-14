@@ -26,4 +26,14 @@ describe('Loading', () => {
 
     expect(container.querySelector('p')).toBeNull();
   });
+
+  it('スピナーにaria-labelが設定される', () => {
+    render(<Loading />);
+    expect(screen.getByRole('status')).toHaveAttribute('aria-label', '読み込み中');
+  });
+
+  it('アニメーションクラスが適用される', () => {
+    render(<Loading />);
+    expect(screen.getByRole('status').className).toContain('animate-spin');
+  });
 });

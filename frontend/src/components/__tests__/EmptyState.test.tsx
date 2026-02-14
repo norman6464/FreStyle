@@ -39,4 +39,18 @@ describe('EmptyState', () => {
     render(<EmptyState icon={ChatBubbleLeftRightIcon} title="テスト" />);
     expect(screen.queryByRole('button')).toBeNull();
   });
+
+  it('アイコンが表示される', () => {
+    const { container } = render(<EmptyState icon={ChatBubbleLeftRightIcon} title="テスト" />);
+    const svg = container.querySelector('svg');
+    expect(svg).toBeTruthy();
+  });
+
+  it('説明文なしの場合説明が表示されない', () => {
+    const { container } = render(<EmptyState icon={ChatBubbleLeftRightIcon} title="テスト" />);
+    const paragraphs = container.querySelectorAll('p');
+    // タイトルのみ
+    const texts = Array.from(paragraphs).map(p => p.textContent);
+    expect(texts).not.toContain('詳しい説明テキスト');
+  });
 });

@@ -35,4 +35,14 @@ describe('InputField', () => {
     fireEvent.click(screen.getByRole('button'));
     expect(mockOnChange).toHaveBeenCalledWith({ target: { name: 'email', value: '' } });
   });
+
+  it('空の値ではクリアボタンが表示されない', () => {
+    render(<InputField label="メール" name="email" value="" onChange={mockOnChange} />);
+    expect(screen.queryByRole('button')).toBeNull();
+  });
+
+  it('デフォルトのtypeがtextである', () => {
+    render(<InputField label="名前" name="name" value="" onChange={mockOnChange} />);
+    expect(screen.getByLabelText('名前')).toHaveAttribute('type', 'text');
+  });
 });

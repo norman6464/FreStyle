@@ -3,20 +3,24 @@ import SecondaryPanel from '../components/layout/SecondaryPanel';
 import NoteListItem from '../components/NoteListItem';
 import NoteEditor from '../components/NoteEditor';
 import EmptyState from '../components/EmptyState';
-import { DocumentTextIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { DocumentTextIcon, PlusIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { useNotes } from '../hooks/useNotes';
 
 export default function NotesPage() {
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
   const {
     notes,
+    filteredNotes,
     selectedNoteId,
     loading,
+    searchQuery,
+    setSearchQuery,
     fetchNotes,
     createNote,
     updateNote,
     deleteNote,
     selectNote,
+    togglePin,
   } = useNotes();
 
   const [editTitle, setEditTitle] = useState('');
@@ -83,13 +87,25 @@ export default function NotesPage() {
         mobileOpen={mobilePanelOpen}
         onMobileClose={() => setMobilePanelOpen(false)}
         headerContent={
-          <button
-            onClick={handleCreateNote}
-            className="w-full bg-primary-500 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-primary-600 transition-colors flex items-center justify-center gap-2"
-          >
-            <PlusIcon className="w-4 h-4" />
-            新しいノート
-          </button>
+          <div className="space-y-2">
+            <div className="relative">
+              <MagnifyingGlassIcon className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
+              <input
+                type="text"
+                placeholder="ノートを検索..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 bg-surface-2 border border-surface-3 rounded-lg text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-primary-500 transition-colors"
+              />
+            </div>
+            <button
+              onClick={handleCreateNote}
+              className="w-full bg-primary-500 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-primary-600 transition-colors flex items-center justify-center gap-2"
+            >
+              <PlusIcon className="w-4 h-4" />
+              新しいノート
+            </button>
+          </div>
         }
       >
         <div className="p-2 space-y-0.5">
@@ -97,12 +113,12 @@ export default function NotesPage() {
             <div className="flex items-center justify-center py-8">
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-500" />
             </div>
-          ) : notes.length === 0 ? (
+          ) : filteredNotes.length === 0 ? (
             <div className="p-4 text-center text-xs text-[var(--color-text-muted)]">
               ノートがありません
             </div>
           ) : (
-            notes.map((note) => (
+            filteredNotes.map((note) => (
               <NoteListItem
                 key={note.noteId}
                 noteId={note.noteId}
@@ -113,6 +129,7 @@ export default function NotesPage() {
                 isActive={selectedNoteId === note.noteId}
                 onSelect={handleSelectNote}
                 onDelete={handleDeleteNote}
+                onTogglePin={togglePin}
               />
             ))
           )}

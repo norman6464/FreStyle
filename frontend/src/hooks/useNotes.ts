@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import type { Note } from '../types';
 import NoteRepository from '../repositories/NoteRepository';
 
@@ -6,6 +6,7 @@ export function useNotes() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const fetchNotes = useCallback(async () => {
     setLoading(true);
@@ -51,18 +52,51 @@ export function useNotes() {
     }
   }, []);
 
+  const togglePin = useCallback(async (noteId: string) => {
+    const note = notes.find((n) => n.noteId === noteId);
+    if (!note) return;
+    const newPinned = !note.isPinned;
+    try {
+      await NoteRepository.updateNote(noteId, {
+        title: note.title,
+        content: note.content,
+        isPinned: newPinned,
+      });
+      setNotes((prev) =>
+        prev.map((n) => (n.noteId === noteId ? { ...n, isPinned: newPinned } : n))
+      );
+    } catch {
+      // エラーハンドリング
+    }
+  }, [notes]);
+
   const selectNote = useCallback((noteId: string | null) => {
     setSelectedNoteId(noteId);
   }, []);
 
+  const filteredNotes = useMemo(() => {
+    const query = searchQuery.toLowerCase();
+    const filtered = query
+      ? notes.filter((n) => n.title.toLowerCase().includes(query) || n.content.toLowerCase().includes(query))
+      : notes;
+    return [...filtered].sort((a, b) => {
+      if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
+      return b.updatedAt - a.updatedAt;
+    });
+  }, [notes, searchQuery]);
+
   return {
     notes,
+    filteredNotes,
     selectedNoteId,
     loading,
+    searchQuery,
+    setSearchQuery,
     fetchNotes,
     createNote,
     updateNote,
     deleteNote,
     selectNote,
+    togglePin,
   };
 }

@@ -7,13 +7,17 @@ vi.mock('../../hooks/useNotes');
 
 const mockUseNotes = {
   notes: [],
+  filteredNotes: [],
   selectedNoteId: null,
   loading: false,
+  searchQuery: '',
+  setSearchQuery: vi.fn(),
   fetchNotes: vi.fn(),
   createNote: vi.fn(),
   updateNote: vi.fn(),
   deleteNote: vi.fn(),
   selectNote: vi.fn(),
+  togglePin: vi.fn(),
 };
 
 describe('NotesPage', () => {
@@ -49,12 +53,14 @@ describe('NotesPage', () => {
   });
 
   it('ノート一覧を表示する', () => {
+    const noteList = [
+      { noteId: 'n1', userId: 1, title: 'テスト1', content: '内容1', isPinned: false, createdAt: 1000, updatedAt: 2000 },
+      { noteId: 'n2', userId: 1, title: 'テスト2', content: '内容2', isPinned: true, createdAt: 1500, updatedAt: 3000 },
+    ];
     vi.mocked(useNotes).mockReturnValue({
       ...mockUseNotes,
-      notes: [
-        { noteId: 'n1', userId: 1, title: 'テスト1', content: '内容1', isPinned: false, createdAt: 1000, updatedAt: 2000 },
-        { noteId: 'n2', userId: 1, title: 'テスト2', content: '内容2', isPinned: true, createdAt: 1500, updatedAt: 3000 },
-      ],
+      notes: noteList,
+      filteredNotes: noteList,
     });
     render(<NotesPage />);
     expect(screen.getAllByText('テスト1').length).toBeGreaterThanOrEqual(1);
@@ -167,5 +173,50 @@ describe('NotesPage', () => {
   it('モバイルでノート一覧ボタンが表示される', () => {
     render(<NotesPage />);
     expect(screen.getByLabelText('ノート一覧を開く')).toBeInTheDocument();
+  });
+
+  // 検索・ピン留め機能テスト
+
+  it('検索入力欄が表示される', () => {
+    render(<NotesPage />);
+    expect(screen.getAllByPlaceholderText('ノートを検索...').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('検索入力でsetSearchQueryが呼ばれる', () => {
+    render(<NotesPage />);
+    const searchInputs = screen.getAllByPlaceholderText('ノートを検索...');
+    fireEvent.change(searchInputs[0], { target: { value: 'テスト' } });
+    expect(mockUseNotes.setSearchQuery).toHaveBeenCalledWith('テスト');
+  });
+
+  it('filteredNotesを使ってノート一覧を表示する', () => {
+    const allNotes = [
+      { noteId: 'n1', userId: 1, title: 'テスト1', content: '内容1', isPinned: false, createdAt: 1000, updatedAt: 2000 },
+      { noteId: 'n2', userId: 1, title: 'テスト2', content: '内容2', isPinned: true, createdAt: 1500, updatedAt: 3000 },
+    ];
+    const filtered = [allNotes[0]];
+    vi.mocked(useNotes).mockReturnValue({
+      ...mockUseNotes,
+      notes: allNotes,
+      filteredNotes: filtered,
+      searchQuery: 'テスト1',
+    });
+    render(<NotesPage />);
+    expect(screen.getAllByText('テスト1').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('ピン留めトグルでtogglePinが呼ばれる', async () => {
+    const noteList = [
+      { noteId: 'n1', userId: 1, title: 'ピンテスト', content: '内容', isPinned: false, createdAt: 1000, updatedAt: 2000 },
+    ];
+    vi.mocked(useNotes).mockReturnValue({
+      ...mockUseNotes,
+      notes: noteList,
+      filteredNotes: noteList,
+    });
+    render(<NotesPage />);
+    const pinButtons = screen.getAllByLabelText('ピン留め');
+    fireEvent.click(pinButtons[0]);
+    expect(mockUseNotes.togglePin).toHaveBeenCalledWith('n1');
   });
 });

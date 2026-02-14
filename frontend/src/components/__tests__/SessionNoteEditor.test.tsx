@@ -39,4 +39,22 @@ describe('SessionNoteEditor', () => {
 
     mockNote = '';
   });
+
+  it('振り返りメモラベルが表示される', () => {
+    render(<SessionNoteEditor sessionId={1} />);
+    expect(screen.getByText('振り返りメモ')).toBeInTheDocument();
+  });
+
+  it('保存ボタンが表示される', () => {
+    render(<SessionNoteEditor sessionId={1} />);
+    expect(screen.getByText('保存')).toBeInTheDocument();
+  });
+
+  it('テキストエリアの入力内容が更新される', () => {
+    render(<SessionNoteEditor sessionId={1} />);
+
+    const textarea = screen.getByPlaceholderText(/振り返りメモ/);
+    fireEvent.change(textarea, { target: { value: '新しいメモ' } });
+    expect(screen.getByDisplayValue('新しいメモ')).toBeInTheDocument();
+  });
 });

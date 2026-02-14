@@ -39,4 +39,34 @@ describe('ProfilePage', () => {
       expect(screen.getByText('プロフィール取得に失敗しました。')).toBeInTheDocument();
     });
   });
+
+  it('プロファイル取得後にニックネーム欄が表示される', async () => {
+    mockedRepo.fetchProfile.mockResolvedValue({ name: 'テストユーザー', bio: '自己紹介文' });
+
+    render(<ProfilePage />);
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('テストユーザー')).toBeInTheDocument();
+    });
+  });
+
+  it('プロファイル取得後に自己紹介欄が表示される', async () => {
+    mockedRepo.fetchProfile.mockResolvedValue({ name: 'テスト', bio: 'テスト自己紹介' });
+
+    render(<ProfilePage />);
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('テスト自己紹介')).toBeInTheDocument();
+    });
+  });
+
+  it('アバターのイニシャルが表示される', async () => {
+    mockedRepo.fetchProfile.mockResolvedValue({ name: 'テストユーザー', bio: '' });
+
+    render(<ProfilePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('テ')).toBeInTheDocument();
+    });
+  });
 });

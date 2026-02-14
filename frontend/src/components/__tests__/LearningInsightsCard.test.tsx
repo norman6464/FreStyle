@@ -43,4 +43,43 @@ describe('LearningInsightsCard', () => {
 
     expect(screen.getByText('学習インサイト')).toBeInTheDocument();
   });
+
+  it('単位が表示される', () => {
+    render(
+      <LearningInsightsCard
+        totalSessions={5}
+        averageScore={6.5}
+        streakDays={3}
+      />
+    );
+
+    expect(screen.getByText('回')).toBeInTheDocument();
+    expect(screen.getByText('/10')).toBeInTheDocument();
+    expect(screen.getByText('日')).toBeInTheDocument();
+  });
+
+  it('平均スコアが小数点1桁で表示される', () => {
+    render(
+      <LearningInsightsCard
+        totalSessions={1}
+        averageScore={7}
+        streakDays={1}
+      />
+    );
+
+    expect(screen.getByText('7.0')).toBeInTheDocument();
+  });
+
+  it('3カラムグリッドレイアウトが適用される', () => {
+    const { container } = render(
+      <LearningInsightsCard
+        totalSessions={1}
+        averageScore={5.0}
+        streakDays={1}
+      />
+    );
+
+    const grid = container.querySelector('.grid-cols-3');
+    expect(grid).toBeTruthy();
+  });
 });

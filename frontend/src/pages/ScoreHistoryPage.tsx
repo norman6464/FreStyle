@@ -8,6 +8,7 @@ import ScoreStatsSummary from '../components/ScoreStatsSummary';
 import SkillMilestoneCard from '../components/SkillMilestoneCard';
 import ScoreComparisonCard from '../components/ScoreComparisonCard';
 import ScoreImprovementAdvice from '../components/ScoreImprovementAdvice';
+import SkillSummaryCard from '../components/SkillSummaryCard';
 import SkillTrendChart from '../components/SkillTrendChart';
 import SessionDetailModal from '../components/SessionDetailModal';
 import { useScoreHistory, FILTERS, type ScoreHistoryItem } from '../hooks/useScoreHistory';
@@ -92,6 +93,11 @@ export default function ScoreHistoryPage() {
           firstOverall={history[0].overallScore}
           latestOverall={latestSession.overallScore}
         />
+      )}
+
+      {/* スキル強弱サマリー */}
+      {latestSession && latestSession.scores.length > 0 && (
+        <SkillSummaryCard scores={latestSession.scores} />
       )}
 
       {/* 改善アドバイス */}

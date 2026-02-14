@@ -12,6 +12,7 @@ import SkillSummaryCard from '../components/SkillSummaryCard';
 import CommunicationStyleCard from '../components/CommunicationStyleCard';
 import ScoreGoalCard from '../components/ScoreGoalCard';
 import ScoreDistributionCard from '../components/ScoreDistributionCard';
+import SessionTimeCard from '../components/SessionTimeCard';
 import SkillTrendChart from '../components/SkillTrendChart';
 import SessionDetailModal from '../components/SessionDetailModal';
 import { useScoreHistory, FILTERS, type ScoreHistoryItem } from '../hooks/useScoreHistory';
@@ -142,6 +143,9 @@ export default function ScoreHistoryPage() {
 
       {/* スキル別推移 */}
       <SkillTrendChart history={history} />
+
+      {/* セッション時間帯 */}
+      <SessionTimeCard dates={history.map(h => h.createdAt)} />
 
       {/* 練習カレンダー */}
       <PracticeCalendar practiceDates={history.map(h => h.createdAt)} />

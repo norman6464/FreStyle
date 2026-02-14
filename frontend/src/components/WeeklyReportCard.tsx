@@ -61,28 +61,28 @@ export default function WeeklyReportCard({ allScores }: WeeklyReportCardProps) {
   const dayLabels = ['日', '月', '火', '水', '木', '金', '土'];
 
   return (
-    <div className="bg-white rounded-lg border border-slate-200 p-4">
-      <p className="text-xs font-medium text-slate-700 mb-3">今週のレポート</p>
+    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
+      <p className="text-xs font-medium text-[#D0D0D0] mb-3">今週のレポート</p>
 
       <div className="grid grid-cols-2 gap-4 mb-3">
         <div>
-          <p className="text-xs text-slate-500">練習回数</p>
+          <p className="text-xs text-[#888888]">練習回数</p>
           <div className="flex items-baseline gap-1">
-            <span className="text-lg font-semibold text-slate-800">{thisWeekCount}</span>
-            <span className="text-xs text-slate-500">回</span>
+            <span className="text-lg font-semibold text-[#F0F0F0]">{thisWeekCount}</span>
+            <span className="text-xs text-[#888888]">回</span>
             {countDiff !== 0 && (
-              <span className={`text-xs ${countDiff > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+              <span className={`text-xs ${countDiff > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                 {countDiff > 0 ? '↑' : '↓'}{Math.abs(countDiff)}
               </span>
             )}
           </div>
         </div>
         <div>
-          <p className="text-xs text-slate-500">平均スコア</p>
+          <p className="text-xs text-[#888888]">平均スコア</p>
           <div className="flex items-baseline gap-1">
-            <span className="text-lg font-semibold text-slate-800">{thisWeekAvg || 0}</span>
+            <span className="text-lg font-semibold text-[#F0F0F0]">{thisWeekAvg || 0}</span>
             {scoreDiff !== 0 && thisWeekCount > 0 && (
-              <span className={`text-xs ${scoreDiff > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+              <span className={`text-xs ${scoreDiff > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                 {scoreDiff > 0 ? '↑' : '↓'}{Math.abs(scoreDiff)}
               </span>
             )}
@@ -91,7 +91,7 @@ export default function WeeklyReportCard({ allScores }: WeeklyReportCardProps) {
       </div>
 
       <div>
-        <p className="text-xs text-slate-500 mb-1">練習した曜日</p>
+        <p className="text-xs text-[#888888] mb-1">練習した曜日</p>
         <div className="flex gap-1">
           {dayLabels.map((label, i) => (
             <span
@@ -99,7 +99,7 @@ export default function WeeklyReportCard({ allScores }: WeeklyReportCardProps) {
               className={`w-7 h-7 flex items-center justify-center rounded-full text-[11px] font-medium ${
                 practiceDays.has(i)
                   ? 'bg-primary-500 text-white'
-                  : 'bg-slate-100 text-slate-400'
+                  : 'bg-surface-3 text-[#666666]'
               }`}
             >
               {label}

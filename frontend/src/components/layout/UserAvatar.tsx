@@ -9,7 +9,7 @@ export default function UserAvatar({ name, size = 'md' }: UserAvatarProps) {
 
   return (
     <div
-      className={`${sizeClasses} rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-semibold`}
+      className={`${sizeClasses} rounded-full bg-surface-3 text-primary-300 flex items-center justify-center font-semibold`}
     >
       {initial}
     </div>

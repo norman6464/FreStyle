@@ -22,11 +22,11 @@ export default function ScoreImprovementAdvice({ scores }: ScoreImprovementAdvic
   const weakAxes = scores.filter((s) => s.score < THRESHOLD);
 
   return (
-    <div className="bg-white rounded-lg border border-slate-200 p-4">
-      <p className="text-xs font-medium text-slate-700 mb-3">改善アドバイス</p>
+    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
+      <p className="text-xs font-medium text-[#D0D0D0] mb-3">改善アドバイス</p>
 
       {weakAxes.length === 0 ? (
-        <p className="text-xs text-emerald-600 font-medium">
+        <p className="text-xs text-emerald-400 font-medium">
           素晴らしい成績です！この調子で続けましょう。
         </p>
       ) : (
@@ -34,13 +34,13 @@ export default function ScoreImprovementAdvice({ scores }: ScoreImprovementAdvic
           {weakAxes.map((axis) => (
             <div key={axis.axis} data-testid="advice-item" className="flex gap-3">
               <div className="flex-shrink-0 w-5 h-5 rounded-full bg-amber-100 flex items-center justify-center mt-0.5">
-                <span className="text-amber-600 text-[10px] font-bold">!</span>
+                <span className="text-amber-400 text-[10px] font-bold">!</span>
               </div>
               <div>
-                <p className="text-xs font-medium text-slate-800">
+                <p className="text-xs font-medium text-[#F0F0F0]">
                   {axis.axis}（{axis.score.toFixed(1)}）
                 </p>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <p className="text-xs text-[#888888] mt-0.5">
                   {AXIS_ADVICE[axis.axis] || `${axis.axis}を伸ばすための練習を続けましょう。`}
                 </p>
               </div>

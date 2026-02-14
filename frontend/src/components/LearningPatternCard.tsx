@@ -12,10 +12,10 @@ const PATTERN_MESSAGES: Record<PatternType, string> = {
 };
 
 const PATTERN_COLORS: Record<PatternType, string> = {
-  '平日集中型': 'text-blue-600 bg-blue-50',
+  '平日集中型': 'text-blue-400 bg-blue-900/30',
   '週末集中型': 'text-purple-600 bg-purple-50',
-  '毎日コツコツ型': 'text-emerald-600 bg-emerald-50',
-  '不定期型': 'text-amber-600 bg-amber-50',
+  '毎日コツコツ型': 'text-emerald-400 bg-emerald-900/30',
+  '不定期型': 'text-amber-400 bg-amber-900/30',
 };
 
 function analyzePattern(practiceDates: string[]): { pattern: PatternType; dayCounts: number[] } {
@@ -57,9 +57,9 @@ export default function LearningPatternCard({ practiceDates }: Props) {
   const maxCount = Math.max(...dayCounts, 1);
 
   return (
-    <div className="bg-white rounded-lg border border-slate-200 p-4">
+    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
       <div className="flex items-center justify-between mb-3">
-        <p className="text-xs font-medium text-slate-700">学習パターン</p>
+        <p className="text-xs font-medium text-[#D0D0D0]">学習パターン</p>
         <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${PATTERN_COLORS[pattern]}`}>
           {pattern}
         </span>
@@ -72,12 +72,12 @@ export default function LearningPatternCard({ practiceDates }: Props) {
               className="w-full bg-primary-400 rounded-t transition-all"
               style={{ height: `${(count / maxCount) * 100}%`, minHeight: count > 0 ? '4px' : '0' }}
             />
-            <span className="text-[10px] text-slate-400">{DAY_LABELS[i]}</span>
+            <span className="text-[10px] text-[#666666]">{DAY_LABELS[i]}</span>
           </div>
         ))}
       </div>
 
-      <p className="text-xs text-slate-500">{PATTERN_MESSAGES[pattern]}</p>
+      <p className="text-xs text-[#888888]">{PATTERN_MESSAGES[pattern]}</p>
     </div>
   );
 }

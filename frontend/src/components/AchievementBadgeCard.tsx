@@ -23,10 +23,10 @@ export default function AchievementBadgeCard({ totalSessions }: AchievementBadge
   const nextBadge = BADGES.find((b) => totalSessions < b.threshold);
 
   return (
-    <div className="bg-white rounded-lg border border-slate-200 p-4">
+    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
       <div className="flex items-center justify-between mb-3">
-        <p className="text-xs font-medium text-slate-700">達成バッジ</p>
-        <span className="text-[10px] text-slate-400">
+        <p className="text-xs font-medium text-[#D0D0D0]">達成バッジ</p>
+        <span className="text-[10px] text-[#666666]">
           {unlockedCount}/{BADGES.length}
         </span>
       </div>
@@ -44,7 +44,7 @@ export default function AchievementBadgeCard({ totalSessions }: AchievementBadge
               title={`${badge.name}（${badge.threshold}回）`}
             >
               <span className="text-lg">{badge.icon}</span>
-              <span className="text-[9px] text-slate-500 text-center leading-tight truncate w-full">
+              <span className="text-[9px] text-[#888888] text-center leading-tight truncate w-full">
                 {badge.name}
               </span>
             </div>
@@ -53,11 +53,11 @@ export default function AchievementBadgeCard({ totalSessions }: AchievementBadge
       </div>
 
       {nextBadge ? (
-        <p data-testid="next-badge-info" className="text-xs text-slate-500">
+        <p data-testid="next-badge-info" className="text-xs text-[#888888]">
           次のバッジ「{nextBadge.name}」まであと{nextBadge.threshold - totalSessions}回
         </p>
       ) : (
-        <p data-testid="next-badge-info" className="text-xs text-emerald-600 font-medium">
+        <p data-testid="next-badge-info" className="text-xs text-emerald-400 font-medium">
           全バッジを獲得しました！
         </p>
       )}

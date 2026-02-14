@@ -26,8 +26,8 @@ describe('ScoreGoalCard', () => {
 
   it('デフォルト目標スコア8.0が目標欄に表示される', () => {
     render(<ScoreGoalCard averageScore={7.0} />);
-    // 目標欄のテキストを確認（selectのoptionにも8.0があるのでtext-primary-600で絞る）
-    const goalDisplay = screen.getByText('8.0', { selector: '.text-primary-600' });
+    // 目標欄のテキストを確認（selectのoptionにも8.0があるのでtext-primary-400で絞る）
+    const goalDisplay = screen.getByText('8.0', { selector: '.text-primary-400' });
     expect(goalDisplay).toBeInTheDocument();
   });
 
@@ -45,7 +45,7 @@ describe('ScoreGoalCard', () => {
     render(<ScoreGoalCard averageScore={7.0} />);
     const select = screen.getByRole('combobox');
     fireEvent.change(select, { target: { value: '9' } });
-    const goalDisplay = screen.getByText('9.0', { selector: '.text-primary-600' });
+    const goalDisplay = screen.getByText('9.0', { selector: '.text-primary-400' });
     expect(goalDisplay).toBeInTheDocument();
   });
 
@@ -59,7 +59,7 @@ describe('ScoreGoalCard', () => {
   it('LocalStorageから目標スコアを復元する', () => {
     (localStorage.getItem as ReturnType<typeof vi.fn>).mockReturnValue('9.5');
     render(<ScoreGoalCard averageScore={6.0} />);
-    const goalDisplay = screen.getByText('9.5', { selector: '.text-primary-600' });
+    const goalDisplay = screen.getByText('9.5', { selector: '.text-primary-400' });
     expect(goalDisplay).toBeInTheDocument();
   });
 });

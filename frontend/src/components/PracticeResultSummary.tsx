@@ -24,36 +24,36 @@ export default function PracticeResultSummary({ scoreCard, scenarioName }: Pract
   const advice = IMPROVEMENT_ADVICE[weakest.axis] || `${weakest.axis}を伸ばすために、繰り返し練習しましょう。`;
 
   return (
-    <div className="bg-white rounded-lg border border-slate-200 p-4 my-3 max-w-[85%] self-start">
-      <h3 className="text-sm font-semibold text-slate-800 mb-1">練習結果サマリー</h3>
-      <p className="text-xs text-slate-500 mb-3">「{scenarioName}」の練習結果</p>
+    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4 my-3 max-w-[85%] self-start">
+      <h3 className="text-sm font-semibold text-[#F0F0F0] mb-1">練習結果サマリー</h3>
+      <p className="text-xs text-[#888888] mb-3">「{scenarioName}」の練習結果</p>
 
       <div className="grid grid-cols-2 gap-3 mb-3">
         {/* 強み */}
-        <div className="bg-emerald-50 rounded-lg p-3 border border-emerald-100">
-          <p className="text-[10px] font-semibold text-emerald-600 mb-1">強み</p>
+        <div className="bg-emerald-900/30 rounded-lg p-3 border border-emerald-800">
+          <p className="text-[10px] font-semibold text-emerald-400 mb-1">強み</p>
           <p className="text-sm font-medium text-emerald-800">{strongest.axis}</p>
-          <p className="text-xs text-emerald-600 mt-0.5">スコア: {strongest.score}/10</p>
+          <p className="text-xs text-emerald-400 mt-0.5">スコア: {strongest.score}/10</p>
         </div>
 
         {/* 課題 */}
-        <div className="bg-rose-50 rounded-lg p-3 border border-rose-100">
-          <p className="text-[10px] font-semibold text-rose-600 mb-1">課題</p>
+        <div className="bg-rose-900/30 rounded-lg p-3 border border-rose-800">
+          <p className="text-[10px] font-semibold text-rose-400 mb-1">課題</p>
           <p className="text-sm font-medium text-rose-800">{weakest.axis}</p>
-          <p className="text-xs text-rose-600 mt-0.5">スコア: {weakest.score}/10</p>
+          <p className="text-xs text-rose-400 mt-0.5">スコア: {weakest.score}/10</p>
         </div>
       </div>
 
       {/* 改善アドバイス */}
-      <div className="bg-amber-50 rounded-lg p-3 border border-amber-100 mb-3">
-        <p className="text-[10px] font-semibold text-amber-700 mb-1">改善アドバイス</p>
+      <div className="bg-amber-900/30 rounded-lg p-3 border border-amber-800 mb-3">
+        <p className="text-[10px] font-semibold text-amber-400 mb-1">改善アドバイス</p>
         <p className="text-xs text-amber-800">{advice}</p>
       </div>
 
       {/* 次の練習へ */}
       <button
         onClick={() => navigate('/practice')}
-        className="w-full py-2 text-sm font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 rounded-lg transition-colors"
+        className="w-full py-2 text-sm font-medium text-primary-400 bg-surface-2 hover:bg-surface-3 rounded-lg transition-colors"
       >
         次の練習へ
       </button>

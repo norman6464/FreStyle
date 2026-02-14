@@ -27,7 +27,7 @@ export default function ChatListPage() {
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-500" />
           </div>
         ) : chatUsers.length === 0 ? (
-          <div className="p-4 text-center text-sm text-slate-500">
+          <div className="p-4 text-center text-sm text-[#888888]">
             チャット履歴がありません
           </div>
         ) : (
@@ -35,7 +35,7 @@ export default function ChatListPage() {
             <button
               key={user.roomId}
               onClick={() => navigate(`/chat/users/${user.roomId}`)}
-              className="w-full px-4 py-3 flex items-center gap-3 hover:bg-primary-50 transition-colors border-b border-slate-100 text-left"
+              className="w-full px-4 py-3 flex items-center gap-3 hover:bg-surface-2 transition-colors border-b border-surface-3 text-left"
             >
               <div className="flex-shrink-0">
                 {user.profileImage ? (
@@ -55,21 +55,21 @@ export default function ChatListPage() {
 
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-slate-800 truncate">
+                  <span className="text-sm font-semibold text-[#F0F0F0] truncate">
                     {user.name || 'Unknown User'}
                   </span>
-                  <span className="text-[11px] text-slate-400 flex-shrink-0 ml-2">
+                  <span className="text-[11px] text-[#666666] flex-shrink-0 ml-2">
                     {formatTime(user.lastMessageAt!)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between mt-0.5">
-                  <p className="text-xs text-slate-500 truncate pr-2">
+                  <p className="text-xs text-[#888888] truncate pr-2">
                     {user.lastMessageSenderId === user.userId
                       ? truncateMessage(user.lastMessage)
                       : `あなた: ${truncateMessage(user.lastMessage)}`}
                   </p>
                   {user.unreadCount > 0 && (
-                    <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0">
+                    <span className="bg-rose-900/300 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0">
                       {user.unreadCount > 99 ? '99+' : user.unreadCount}
                     </span>
                   )}

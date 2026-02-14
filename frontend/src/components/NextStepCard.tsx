@@ -45,13 +45,13 @@ export default function NextStepCard({ totalSessions, averageScore }: NextStepCa
   const step = getNextStep(totalSessions, averageScore);
 
   return (
-    <div className="bg-white rounded-lg border border-slate-200 p-4">
-      <p className="text-xs font-medium text-slate-700 mb-2">次のステップ</p>
+    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
+      <p className="text-xs font-medium text-[#D0D0D0] mb-2">次のステップ</p>
       <div className="flex items-start gap-3">
         <span className="text-2xl">{step.emoji}</span>
         <div>
-          <p className="text-sm font-medium text-slate-800">{step.title}</p>
-          <p className="text-xs text-slate-500 mt-0.5">{step.description}</p>
+          <p className="text-sm font-medium text-[#F0F0F0]">{step.title}</p>
+          <p className="text-xs text-[#888888] mt-0.5">{step.description}</p>
         </div>
       </div>
     </div>

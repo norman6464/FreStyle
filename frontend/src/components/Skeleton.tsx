@@ -74,7 +74,7 @@ export default function Skeleton({
  */
 export function SkeletonCard({ className = '' }: { className?: string }) {
   return (
-    <div className={`bg-white rounded-xl border border-slate-200 p-4 ${className}`}>
+    <div className={`bg-surface-1 rounded-xl border border-surface-3 p-4 ${className}`}>
       <div className="flex items-center gap-3 mb-3">
         <Skeleton circle width="w-10" height="h-10" />
         <div className="flex-1">
@@ -95,7 +95,7 @@ export function SkeletonList({ count = 3 }: { count?: number }) {
   return (
     <div className="space-y-2">
       {Array.from({ length: count }).map((_, index) => (
-        <div key={index} className="flex items-center gap-3 p-3 bg-white rounded-lg border border-slate-200">
+        <div key={index} className="flex items-center gap-3 p-3 bg-surface-1 rounded-lg border border-surface-3">
           <Skeleton circle width="w-8" height="h-8" />
           <div className="flex-1">
             <Skeleton width="w-32" height="h-4" className="mb-1.5" />

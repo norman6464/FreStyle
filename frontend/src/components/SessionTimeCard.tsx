@@ -49,14 +49,14 @@ export default function SessionTimeCard({ dates }: SessionTimeCardProps) {
   const topIndex = counts.indexOf(maxCount);
 
   return (
-    <div className="bg-white rounded-lg border border-slate-200 p-4">
-      <p className="text-xs font-medium text-slate-700 mb-3">練習時間帯</p>
+    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
+      <p className="text-xs font-medium text-[#D0D0D0] mb-3">練習時間帯</p>
 
       <div className="space-y-2">
         {TIME_SLOTS.map((slot, i) => (
           <div key={slot.label} className="flex items-center gap-2">
-            <span className="text-xs text-slate-500 w-8 text-right">{slot.label}</span>
-            <div className="flex-1 bg-slate-100 rounded-full h-4">
+            <span className="text-xs text-[#888888] w-8 text-right">{slot.label}</span>
+            <div className="flex-1 bg-surface-3 rounded-full h-4">
               {maxCount > 0 && counts[i] > 0 && (
                 <div
                   className={`h-4 rounded-full ${SLOT_COLORS[i]} transition-all`}
@@ -64,14 +64,14 @@ export default function SessionTimeCard({ dates }: SessionTimeCardProps) {
                 />
               )}
             </div>
-            <span data-testid="time-count" className="text-xs font-medium text-slate-600 w-5 text-right">
+            <span data-testid="time-count" className="text-xs font-medium text-[#A0A0A0] w-5 text-right">
               {counts[i]}
             </span>
           </div>
         ))}
       </div>
 
-      <p className="text-xs text-slate-500 mt-3">{getMessage(topIndex)}</p>
+      <p className="text-xs text-[#888888] mt-3">{getMessage(topIndex)}</p>
     </div>
   );
 }

@@ -33,7 +33,7 @@ function getCalendarDays(weeks: number): Date[] {
 }
 
 function getIntensityClass(count: number): string {
-  if (count === 0) return 'bg-slate-100';
+  if (count === 0) return 'bg-surface-3';
   if (count === 1) return 'bg-emerald-200';
   if (count === 2) return 'bg-emerald-400';
   return 'bg-emerald-600';
@@ -62,8 +62,8 @@ export default function PracticeCalendar({ practiceDates }: PracticeCalendarProp
   const dayLabels = ['日', '月', '火', '水', '木', '金', '土'];
 
   return (
-    <div className="bg-white rounded-lg border border-slate-200 p-4">
-      <p className="text-xs font-medium text-slate-700 mb-3">練習カレンダー</p>
+    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
+      <p className="text-xs font-medium text-[#D0D0D0] mb-3">練習カレンダー</p>
 
       <div className="flex gap-0.5">
         {/* 曜日ラベル */}
@@ -71,7 +71,7 @@ export default function PracticeCalendar({ practiceDates }: PracticeCalendarProp
           {dayLabels.map((label, i) => (
             <div
               key={label}
-              className={`h-3 text-[9px] leading-3 text-slate-400 ${
+              className={`h-3 text-[9px] leading-3 text-[#666666] ${
                 i % 2 === 1 ? '' : 'invisible'
               }`}
             >

@@ -10,9 +10,9 @@ export default function PracticeTimer() {
   }, [start, stop]);
 
   return (
-    <div className="flex items-center gap-1.5 text-xs text-slate-500">
+    <div className="flex items-center gap-1.5 text-xs text-[#888888]">
       <span>経過時間</span>
-      <span className="font-mono font-medium text-slate-700">{formattedTime}</span>
+      <span className="font-mono font-medium text-[#D0D0D0]">{formattedTime}</span>
     </div>
   );
 }

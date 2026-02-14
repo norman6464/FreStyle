@@ -102,14 +102,14 @@ export default function MenuPage() {
       </div>
 
       {/* サマリー */}
-      <div className="bg-white rounded-lg border border-slate-200 p-4 mb-6">
+      <div className="bg-surface-1 rounded-lg border border-surface-3 p-4 mb-6">
         <div className="flex items-center gap-3">
-          <UserGroupIcon className="w-5 h-5 text-slate-400" />
+          <UserGroupIcon className="w-5 h-5 text-[#666666]" />
           <div>
-            <p className="text-xs text-slate-500">会話した人数</p>
-            <p className="text-lg font-semibold text-slate-800">
+            <p className="text-xs text-[#888888]">会話した人数</p>
+            <p className="text-lg font-semibold text-[#F0F0F0]">
               {stats?.chatPartnerCount ?? '—'}
-              <span className="text-sm font-normal text-slate-500 ml-1">人</span>
+              <span className="text-sm font-normal text-[#888888] ml-1">人</span>
             </p>
           </div>
         </div>
@@ -117,9 +117,9 @@ export default function MenuPage() {
 
       {/* おすすめアクション */}
       {showRecommendation && (
-        <div className="bg-primary-50 rounded-lg border border-primary-200 p-4 mb-6">
-          <p className="text-xs font-medium text-primary-700 mb-1">はじめての方へ</p>
-          <p className="text-xs text-primary-600">
+        <div className="bg-surface-2 rounded-lg border border-[#444444] p-4 mb-6">
+          <p className="text-xs font-medium text-primary-300 mb-1">はじめての方へ</p>
+          <p className="text-xs text-primary-400">
             まずは練習モードから始めてみましょう。AIが相手役を演じるビジネスシナリオで、コミュニケーションスキルを磨けます。
           </p>
         </div>
@@ -189,19 +189,19 @@ export default function MenuPage() {
           <button
             key={item.to}
             onClick={() => navigate(item.to)}
-            className="w-full flex items-center gap-4 bg-white rounded-lg border border-slate-200 p-4 text-left hover:bg-primary-50 transition-colors"
+            className="w-full flex items-center gap-4 bg-surface-1 rounded-lg border border-surface-3 p-4 text-left hover:bg-surface-2 transition-colors"
           >
-            <item.icon className="w-5 h-5 text-slate-500 flex-shrink-0" />
+            <item.icon className="w-5 h-5 text-[#888888] flex-shrink-0" />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <p className="text-sm font-medium text-slate-800">{item.label}</p>
+                <p className="text-sm font-medium text-[#F0F0F0]">{item.label}</p>
                 {item.badge && (
                   <span className="text-[10px] font-medium bg-primary-500 text-white px-1.5 py-0.5 rounded-full">
                     {item.badge}
                   </span>
                 )}
               </div>
-              <p className="text-xs text-slate-500">{item.description}</p>
+              <p className="text-xs text-[#888888]">{item.description}</p>
             </div>
           </button>
         ))}

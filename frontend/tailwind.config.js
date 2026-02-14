@@ -16,7 +16,10 @@ export default {
           800: '#242220',
           900: '#181716',
         },
-        surface: '#F7F6F3',
+        surface: '#1A1A1A',
+        'surface-1': '#222222',
+        'surface-2': '#2A2A2A',
+        'surface-3': '#333333',
       },
       borderRadius: {
         xl: '1rem',

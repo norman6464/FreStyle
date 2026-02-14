@@ -42,15 +42,15 @@ export default function PracticeLevelCard({ totalSessions }: PracticeLevelCardPr
   const remaining = next ? next.threshold - totalSessions : 0;
 
   return (
-    <div className="bg-white rounded-lg border border-slate-200 p-4">
-      <p className="text-xs font-medium text-slate-700 mb-2">練習レベル</p>
+    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
+      <p className="text-xs font-medium text-[#D0D0D0] mb-2">練習レベル</p>
 
       <div className="flex items-baseline gap-2 mb-2">
-        <span className="text-xl font-bold text-primary-600">Lv.{current.level}</span>
-        <span className="text-sm font-medium text-slate-600">{current.title}</span>
+        <span className="text-xl font-bold text-primary-400">Lv.{current.level}</span>
+        <span className="text-sm font-medium text-[#A0A0A0]">{current.title}</span>
       </div>
 
-      <div className="w-full bg-slate-100 rounded-full h-2 mb-2">
+      <div className="w-full bg-surface-3 rounded-full h-2 mb-2">
         <div
           data-testid="level-progress"
           className="h-2 rounded-full bg-primary-500 transition-all"
@@ -58,7 +58,7 @@ export default function PracticeLevelCard({ totalSessions }: PracticeLevelCardPr
         />
       </div>
 
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-[#888888]">
         {next ? `次のレベルまであと${remaining}回` : '最高レベル到達！'}
       </p>
     </div>

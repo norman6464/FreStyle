@@ -69,13 +69,13 @@ describe('Sidebar', () => {
   it('ホームルートでホームがアクティブになる', () => {
     renderSidebar('/');
     const homeLink = screen.getByText('ホーム').closest('a');
-    expect(homeLink?.className).toContain('bg-primary-50');
+    expect(homeLink?.className).toContain('bg-surface-3');
   });
 
   it('チャットルートでチャットがアクティブになる', () => {
     renderSidebar('/chat');
     const chatLink = screen.getByText('チャット').closest('a');
-    expect(chatLink?.className).toContain('bg-primary-50');
+    expect(chatLink?.className).toContain('bg-surface-3');
   });
 
   it('未読メッセージがある場合チャットにバッジを表示する', () => {

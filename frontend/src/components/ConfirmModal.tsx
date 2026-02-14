@@ -43,12 +43,12 @@ export default function ConfirmModal({
       />
 
       {/* モーダル */}
-      <div className="relative bg-white rounded-2xl shadow-md p-6 mx-4 max-w-sm w-full animate-fade-in">
+      <div className="relative bg-surface-1 rounded-2xl shadow-md p-6 mx-4 max-w-sm w-full animate-fade-in">
         {/* アイコン */}
         <div className="flex justify-center mb-4">
           <div
             className={`w-14 h-14 rounded-full flex items-center justify-center ${
-              isDanger ? 'bg-red-100' : 'bg-primary-100'
+              isDanger ? 'bg-red-900/30' : 'bg-surface-3'
             }`}
           >
             {isDanger ? (
@@ -67,7 +67,7 @@ export default function ConfirmModal({
               </svg>
             ) : (
               <svg
-                className="w-7 h-7 text-primary-600"
+                className="w-7 h-7 text-primary-400"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -84,18 +84,18 @@ export default function ConfirmModal({
         </div>
 
         {/* タイトル */}
-        <h3 className="text-xl font-bold text-slate-800 text-center mb-2">
+        <h3 className="text-xl font-bold text-[#F0F0F0] text-center mb-2">
           {title}
         </h3>
 
         {/* メッセージ */}
-        <p className="text-slate-600 text-center mb-6">{message}</p>
+        <p className="text-[#A0A0A0] text-center mb-6">{message}</p>
 
         {/* ボタン */}
         <div className="flex gap-3">
           <button
             onClick={onCancel}
-            className="flex-1 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition-colors duration-150"
+            className="flex-1 px-4 py-2.5 bg-surface-3 hover:bg-surface-3 text-[#D0D0D0] font-medium rounded-xl transition-colors duration-150"
           >
             {cancelText}
           </button>

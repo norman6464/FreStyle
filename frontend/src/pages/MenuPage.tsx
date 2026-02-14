@@ -7,6 +7,7 @@ import {
   ChartBarIcon,
 } from '@heroicons/react/24/outline';
 import CommunicationTipCard from '../components/CommunicationTipCard';
+import DailyChallengeCard from '../components/DailyChallengeCard';
 import DailyGoalCard from '../components/DailyGoalCard';
 import LearningInsightsCard from '../components/LearningInsightsCard';
 import PracticeLevelCard from '../components/PracticeLevelCard';
@@ -125,6 +126,11 @@ export default function MenuPage() {
           <RecentSessionsCard sessions={allScores} />
         </div>
       )}
+
+      {/* 本日のチャレンジ */}
+      <div className="mb-6">
+        <DailyChallengeCard />
+      </div>
 
       {/* コミュニケーションTips */}
       <div className="mb-6">

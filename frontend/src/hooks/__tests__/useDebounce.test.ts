@@ -79,4 +79,44 @@ describe('useDebounce', () => {
 
     expect(result.current).toBe(42);
   });
+
+  it('同じ値で再レンダリングされてもデバウンス値は変わらない', () => {
+    const { result, rerender } = renderHook(
+      ({ value, delay }) => useDebounce(value, delay),
+      { initialProps: { value: 'A', delay: 300 } }
+    );
+
+    rerender({ value: 'A', delay: 300 });
+
+    act(() => { vi.advanceTimersByTime(300); });
+
+    expect(result.current).toBe('A');
+  });
+
+  it('アンマウント時にタイマーがクリアされる', () => {
+    const clearTimeoutSpy = vi.spyOn(global, 'clearTimeout');
+
+    const { unmount } = renderHook(
+      ({ value, delay }) => useDebounce(value, delay),
+      { initialProps: { value: 'A', delay: 300 } }
+    );
+
+    unmount();
+
+    expect(clearTimeoutSpy).toHaveBeenCalled();
+    clearTimeoutSpy.mockRestore();
+  });
+
+  it('空文字でも動作する', () => {
+    const { result, rerender } = renderHook(
+      ({ value, delay }) => useDebounce(value, delay),
+      { initialProps: { value: 'テスト', delay: 300 } }
+    );
+
+    rerender({ value: '', delay: 300 });
+
+    act(() => { vi.advanceTimersByTime(300); });
+
+    expect(result.current).toBe('');
+  });
 });

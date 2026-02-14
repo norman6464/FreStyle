@@ -60,4 +60,20 @@ describe('NoteEditor', () => {
     render(<NoteEditor {...defaultProps} content="" />);
     expect(screen.getByText('0文字')).toBeInTheDocument();
   });
+
+  it('空の内容で読了時間が表示されない', () => {
+    render(<NoteEditor {...defaultProps} content="" />);
+    expect(screen.queryByText(/約\d+分/)).not.toBeInTheDocument();
+  });
+
+  it('長い内容で正しい文字数を表示する', () => {
+    const longContent = 'あ'.repeat(1000);
+    render(<NoteEditor {...defaultProps} content={longContent} />);
+    expect(screen.getByText('1000文字')).toBeInTheDocument();
+  });
+
+  it('スペースのみの内容で0文字を表示する', () => {
+    render(<NoteEditor {...defaultProps} content="   " />);
+    expect(screen.getByText('0文字')).toBeInTheDocument();
+  });
 });

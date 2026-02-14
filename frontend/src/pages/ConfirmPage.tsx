@@ -1,47 +1,11 @@
-import { useState } from 'react';
 import AuthLayout from '../components/AuthLayout';
 import InputField from '../components/InputField';
 import PrimaryButton from '../components/PrimaryButton';
 import LinkText from '../components/LinkText';
-import { useNavigate } from 'react-router-dom';
-import authRepository from '../repositories/AuthRepository';
-import { AxiosError } from 'axios';
-
-interface FormMessage {
-  type: 'success' | 'error';
-  text: string;
-}
+import { useConfirmSignup } from '../hooks/useConfirmSignup';
 
 export default function ConfirmPage() {
-  const [form, setForm] = useState({ email: '', code: '' });
-  const [message, setMessage] = useState<FormMessage | null>(null);
-  const navigate = useNavigate();
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setForm({
-      ...form,
-      [e.target.name]: e.target.value,
-    });
-  };
-
-  const handleConfirm = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-
-    try {
-      await authRepository.confirmSignup(form);
-      navigate('/login', {
-        state: {
-          message: '確認に成功しました。ログインしてください。',
-        },
-      });
-    } catch (error) {
-      if (error instanceof AxiosError && error.response?.data?.error) {
-        setMessage({ type: 'error', text: error.response.data.error });
-      } else {
-        setMessage({ type: 'error', text: '通信エラーが発生しました。' });
-      }
-    }
-  };
+  const { form, message, handleChange, handleConfirm } = useConfirmSignup();
 
   return (
     <AuthLayout>

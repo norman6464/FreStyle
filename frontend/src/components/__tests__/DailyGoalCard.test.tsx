@@ -52,4 +52,23 @@ describe('DailyGoalCard', () => {
       incrementCompleted: vi.fn(),
     };
   });
+
+  it('未達成時に達成メッセージが表示されない', () => {
+    render(<DailyGoalCard />);
+    expect(screen.queryByText(/達成/)).toBeNull();
+  });
+
+  it('プログレスバーにaria属性が設定される', () => {
+    const { container } = render(<DailyGoalCard />);
+
+    const progressBar = container.querySelector('[role="progressbar"]');
+    expect(progressBar).toHaveAttribute('aria-valuenow', '33');
+    expect(progressBar).toHaveAttribute('aria-valuemin', '0');
+    expect(progressBar).toHaveAttribute('aria-valuemax', '100');
+  });
+
+  it('回ラベルが表示される', () => {
+    render(<DailyGoalCard />);
+    expect(screen.getByText(/回/)).toBeInTheDocument();
+  });
 });

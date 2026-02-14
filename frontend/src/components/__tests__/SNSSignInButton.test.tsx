@@ -22,4 +22,23 @@ describe('SNSSignInButton', () => {
 
     expect(screen.getByText('Facebookでログイン')).toBeInTheDocument();
   });
+
+  it('Xログインボタンが表示される', () => {
+    render(<SNSSignInButton provider="x" onClick={vi.fn()} />);
+
+    expect(screen.getByText('Xでログイン')).toBeInTheDocument();
+  });
+
+  it('プロバイダーアイコンが表示される', () => {
+    render(<SNSSignInButton provider="google" onClick={vi.fn()} />);
+
+    const img = screen.getByAltText('google');
+    expect(img).toBeInTheDocument();
+  });
+
+  it('ボタン要素としてレンダリングされる', () => {
+    render(<SNSSignInButton provider="google" onClick={vi.fn()} />);
+
+    expect(screen.getByRole('button')).toBeInTheDocument();
+  });
 });

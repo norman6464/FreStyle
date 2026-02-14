@@ -39,7 +39,14 @@
 
 @layer base {
   body {
-    @apply bg-surface;
+    @apply bg-surface text-[var(--color-text-primary)];
+  }
+
+  select,
+  textarea,
+  input {
+    color: var(--color-text-primary);
+    background-color: var(--color-surface-2);
   }
 }
 

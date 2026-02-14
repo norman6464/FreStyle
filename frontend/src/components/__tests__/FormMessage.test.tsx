@@ -46,4 +46,24 @@ describe('FormMessage', () => {
 
     expect(screen.getByText('成功').closest('div')?.querySelector('svg')).toBeInTheDocument();
   });
+
+  it('長いメッセージテキストが正しく表示される', () => {
+    const longText = 'エラー'.repeat(50);
+    render(<FormMessage message={{ type: 'error', text: longText }} />);
+
+    expect(screen.getByText(longText)).toBeInTheDocument();
+  });
+
+  it('HTMLタグを含むテキストがエスケープされる', () => {
+    render(<FormMessage message={{ type: 'error', text: '<script>alert("xss")</script>' }} />);
+
+    expect(screen.getByText('<script>alert("xss")</script>')).toBeInTheDocument();
+  });
+
+  it('エラーメッセージにborder-rose-800クラスが含まれる', () => {
+    render(<FormMessage message={{ type: 'error', text: 'テスト' }} />);
+
+    const el = screen.getByText('テスト').closest('div');
+    expect(el?.className).toContain('border');
+  });
 });

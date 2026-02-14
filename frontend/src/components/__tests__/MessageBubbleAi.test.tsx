@@ -79,4 +79,23 @@ describe('MessageBubbleAi', () => {
 
     expect(screen.queryByTitle('コピー')).not.toBeInTheDocument();
   });
+
+  it('onCopyがnullの場合コピーボタンが表示されない', () => {
+    render(<MessageBubbleAi isSender={false} content="テスト" id={1} onCopy={null} />);
+
+    expect(screen.queryByTitle('コピー')).not.toBeInTheDocument();
+  });
+
+  it('送信者メッセージでもコピーボタンが表示される', () => {
+    const mockCopy = vi.fn();
+    render(<MessageBubbleAi isSender={true} content="テスト" id={1} onCopy={mockCopy} />);
+
+    expect(screen.getByTitle('コピー')).toBeInTheDocument();
+  });
+
+  it('botタイプメッセージが表示される', () => {
+    render(<MessageBubbleAi isSender={false} type="bot" content="AI応答" id={1} />);
+
+    expect(screen.getByText('AI応答')).toBeInTheDocument();
+  });
 });

@@ -19,13 +19,13 @@ export default function WeeklyGoalProgressCard({
 
   return (
     <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
-      <p className="text-xs font-medium text-[#D0D0D0] mb-2">今週の練習目標</p>
+      <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-2">今週の練習目標</p>
 
       <div className="flex items-baseline gap-1 mb-2">
         <span className={`text-2xl font-bold ${isCompleted ? 'text-emerald-400' : 'text-primary-400'}`}>
           {sessionsThisWeek}
         </span>
-        <span className="text-sm text-[#888888]">/ {weeklyGoal} 回</span>
+        <span className="text-sm text-[var(--color-text-muted)]">/ {weeklyGoal} 回</span>
       </div>
 
       <div className="w-full bg-surface-3 rounded-full h-2 mb-2">
@@ -36,7 +36,7 @@ export default function WeeklyGoalProgressCard({
         />
       </div>
 
-      <p className={`text-xs ${isCompleted ? 'text-emerald-400 font-medium' : 'text-[#888888]'}`}>
+      <p className={`text-xs ${isCompleted ? 'text-emerald-400 font-medium' : 'text-[var(--color-text-muted)]'}`}>
         {getMessage(sessionsThisWeek, weeklyGoal)}
       </p>
     </div>

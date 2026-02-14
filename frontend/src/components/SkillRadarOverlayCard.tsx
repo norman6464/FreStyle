@@ -49,7 +49,7 @@ export default function SkillRadarOverlayCard({ previousScores, currentScores }:
 
   return (
     <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
-      <p className="text-xs font-medium text-[#D0D0D0] mb-3">スキル変化レーダー</p>
+      <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-3">スキル変化レーダー</p>
 
       <div className="flex justify-center">
         <svg viewBox={`0 0 ${SIZE} ${SIZE}`} width={SIZE} height={SIZE}>
@@ -59,7 +59,7 @@ export default function SkillRadarOverlayCard({ previousScores, currentScores }:
               key={level}
               points={getGridPoints(level, axisCount)}
               fill="none"
-              stroke="#333333"
+              stroke="var(--color-surface-3)"
               strokeWidth={level === 10 ? 1 : 0.5}
             />
           ))}
@@ -74,7 +74,7 @@ export default function SkillRadarOverlayCard({ previousScores, currentScores }:
                 y1={CENTER}
                 x2={point.x}
                 y2={point.y}
-                stroke="#333333"
+                stroke="var(--color-surface-3)"
                 strokeWidth={0.5}
               />
             );
@@ -113,7 +113,7 @@ export default function SkillRadarOverlayCard({ previousScores, currentScores }:
                 y={point.y}
                 textAnchor="middle"
                 dominantBaseline="middle"
-                fill="#A0A0A0"
+                fill="var(--color-text-tertiary)"
                 fontSize={8}
               >
                 {s.axis}
@@ -127,11 +127,11 @@ export default function SkillRadarOverlayCard({ previousScores, currentScores }:
       <div className="flex justify-center gap-4 mt-2">
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-0.5 bg-[#94a3b8] opacity-60" style={{ borderTop: '2px dashed #94a3b8' }} />
-          <span className="text-[10px] text-[#888888]">前回</span>
+          <span className="text-[10px] text-[var(--color-text-muted)]">前回</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-0.5 bg-indigo-500" />
-          <span className="text-[10px] text-[#888888]">今回</span>
+          <span className="text-[10px] text-[var(--color-text-muted)]">今回</span>
         </div>
       </div>
     </div>

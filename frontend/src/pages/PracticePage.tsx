@@ -19,8 +19,8 @@ export default function PracticePage() {
     <div className="p-6 max-w-2xl mx-auto">
       {/* ヘッダー */}
       <div className="mb-5">
-        <h1 className="text-sm font-semibold text-[#F0F0F0] mb-1">ビジネスシナリオ練習</h1>
-        <p className="text-xs text-[#888888]">
+        <h1 className="text-sm font-semibold text-[var(--color-text-primary)] mb-1">ビジネスシナリオ練習</h1>
+        <p className="text-xs text-[var(--color-text-muted)]">
           AIが相手役を演じます。実践的なビジネスシーンでコミュニケーションスキルを磨きましょう。
         </p>
       </div>
@@ -34,7 +34,7 @@ export default function PracticePage() {
             className={`px-3 py-2 text-xs font-medium transition-colors border-b-2 -mb-px ${
               selectedCategory === category
                 ? 'border-primary-500 text-primary-400'
-                : 'border-transparent text-[#888888] hover:text-[#D0D0D0]'
+                : 'border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'
             }`}
           >
             {category}
@@ -50,7 +50,7 @@ export default function PracticePage() {
           <SkeletonCard />
         </div>
       ) : filteredScenarios.length === 0 ? (
-        <div className="text-center py-12 text-xs text-[#888888]">
+        <div className="text-center py-12 text-xs text-[var(--color-text-muted)]">
           シナリオがありません
         </div>
       ) : (

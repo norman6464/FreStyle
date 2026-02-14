@@ -5,6 +5,7 @@ import SNSSignInButton from '../components/SNSSignInButton';
 import LinkText from '../components/LinkText';
 import { getCognitoAuthUrl } from '../utils/auth';
 import { useLoginPage } from '../hooks/useLoginPage';
+import { XCircleIcon } from '@heroicons/react/24/outline';
 
 export default function LoginPage() {
   const { form, loginMessage, flashMessage, handleLogin, handleChange } = useLoginPage();
@@ -19,15 +20,16 @@ export default function LoginPage() {
           </p>
         )}
         {loginMessage?.type === 'error' && (
-          <p className="text-rose-400 text-center mb-4 p-3 bg-rose-900/30 rounded-lg font-medium">
-            ✕ {loginMessage.text}
+          <p className="text-rose-400 text-center mb-4 p-3 bg-rose-900/30 rounded-lg font-medium flex items-center justify-center gap-1">
+            <XCircleIcon className="w-4 h-4" />
+            {loginMessage.text}
           </p>
         )}
       </div>
-      <h2 className="text-3xl font-bold mb-2 text-center text-[#F0F0F0]">
+      <h2 className="text-3xl font-bold mb-2 text-center text-[var(--color-text-primary)]">
         ログイン
       </h2>
-      <p className="text-center text-[#888888] text-sm mb-6">
+      <p className="text-center text-[var(--color-text-muted)] text-sm mb-6">
         アカウントにアクセスしてください
       </p>
       <form onSubmit={handleLogin}>
@@ -56,7 +58,7 @@ export default function LoginPage() {
           <div className="w-full border-t border-surface-3"></div>
         </div>
         <div className="relative flex justify-center text-sm">
-          <span className="px-2 bg-surface-1 text-[#888888]">
+          <span className="px-2 bg-surface-1 text-[var(--color-text-muted)]">
             またはSNSでログイン
           </span>
         </div>

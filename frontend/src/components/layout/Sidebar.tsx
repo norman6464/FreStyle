@@ -1,6 +1,7 @@
 import { useLocation } from 'react-router-dom';
 import SidebarItem from './SidebarItem';
 import { useSidebar } from '../../hooks/useSidebar';
+import { useTheme } from '../../hooks/useTheme';
 import {
   HomeIcon,
   ChatBubbleLeftRightIcon,
@@ -12,6 +13,8 @@ import {
   UserCircleIcon,
   LightBulbIcon,
   ArrowLeftOnRectangleIcon,
+  SunIcon,
+  MoonIcon,
 } from '@heroicons/react/24/outline';
 
 const navItems = [
@@ -36,6 +39,7 @@ interface SidebarProps {
 export default function Sidebar({ onNavigate }: SidebarProps) {
   const location = useLocation();
   const { totalUnread, handleLogout } = useSidebar();
+  const { theme, toggleTheme } = useTheme();
 
   const isActive = (item: typeof navItems[0]) => {
     if (item.matchExact) {
@@ -56,7 +60,7 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
       {/* ロゴ */}
       <div className="h-14 flex items-center px-4 border-b border-surface-3 gap-2.5">
         <img src="/image.png" alt="FreStyle" className="w-11 h-11 rounded-xl object-contain" />
-        <span className="text-base font-bold text-[#F0F0F0] tracking-tight">FreStyle</span>
+        <span className="text-base font-bold text-[var(--color-text-primary)] tracking-tight">FreStyle</span>
       </div>
 
       {/* メインナビ */}
@@ -87,11 +91,22 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
         ))}
       </nav>
 
-      {/* ログアウト */}
-      <div className="px-2 py-3 border-t border-surface-3">
+      {/* テーマ切り替え・ログアウト */}
+      <div className="px-2 py-3 border-t border-surface-3 space-y-0.5">
+        <button
+          onClick={toggleTheme}
+          className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-[var(--color-text-muted)] hover:bg-surface-2 hover:text-[var(--color-text-secondary)] transition-colors duration-150 w-full"
+        >
+          {theme === 'dark' ? (
+            <SunIcon className="w-5 h-5 flex-shrink-0" />
+          ) : (
+            <MoonIcon className="w-5 h-5 flex-shrink-0" />
+          )}
+          <span>{theme === 'dark' ? 'ライトモード' : 'ダークモード'}</span>
+        </button>
         <button
           onClick={() => { onNavigate?.(); handleLogout(); }}
-          className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-[#888888] hover:bg-red-900/30 hover:text-red-400 transition-colors duration-150 w-full"
+          className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-[var(--color-text-muted)] hover:bg-red-900/30 hover:text-red-400 transition-colors duration-150 w-full"
         >
           <ArrowLeftOnRectangleIcon className="w-5 h-5 flex-shrink-0" />
           <span>ログアウト</span>

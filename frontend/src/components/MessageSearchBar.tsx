@@ -14,12 +14,12 @@ export default function MessageSearchBar({ onSearch, onClear, matchCount }: Mess
         className="flex-1 text-sm bg-surface-1 border border-surface-3 rounded-lg px-3 py-1.5 outline-none focus:ring-1 focus:ring-primary-400 focus:border-primary-400"
       />
       {matchCount > 0 && (
-        <span className="text-xs text-[#888888] flex-shrink-0">{matchCount}件</span>
+        <span className="text-xs text-[var(--color-text-muted)] flex-shrink-0">{matchCount}件</span>
       )}
       <button
         onClick={onClear}
         aria-label="検索をクリア"
-        className="text-xs text-[#666666] hover:text-[#A0A0A0] p-1 rounded hover:bg-surface-3 transition-colors"
+        className="text-xs text-[var(--color-text-faint)] hover:text-[var(--color-text-tertiary)] p-1 rounded hover:bg-surface-3 transition-colors"
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

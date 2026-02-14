@@ -26,7 +26,7 @@ export default function RecentSessionsCard({ sessions }: RecentSessionsCardProps
   return (
     <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-xs font-semibold text-[#F0F0F0]">直近のセッション</h3>
+        <h3 className="text-xs font-semibold text-[var(--color-text-primary)]">直近のセッション</h3>
         <button
           onClick={() => navigate('/scores')}
           className="text-[10px] text-primary-400 hover:text-primary-300"
@@ -41,8 +41,8 @@ export default function RecentSessionsCard({ sessions }: RecentSessionsCardProps
             className="flex items-center justify-between py-1.5 border-b border-surface-3 last:border-0"
           >
             <div className="flex-1 min-w-0 mr-3">
-              <p className="text-sm text-[#D0D0D0] truncate">{session.sessionTitle}</p>
-              <p className="text-[10px] text-[#666666]">
+              <p className="text-sm text-[var(--color-text-secondary)] truncate">{session.sessionTitle}</p>
+              <p className="text-[10px] text-[var(--color-text-faint)]">
                 {new Date(session.createdAt).toLocaleDateString('ja-JP')}
               </p>
             </div>

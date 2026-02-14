@@ -49,16 +49,16 @@ export default function StreakCalendarCard({ practiceDates }: StreakCalendarCard
   return (
     <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
       <div className="flex items-center justify-between mb-3">
-        <p className="text-xs font-medium text-[#D0D0D0]">練習カレンダー</p>
+        <p className="text-xs font-medium text-[var(--color-text-secondary)]">練習カレンダー</p>
         <div className="flex items-baseline gap-1">
           <span className="text-lg font-bold text-primary-400">{streak}</span>
-          <span className="text-[10px] text-[#888888]">日連続</span>
+          <span className="text-[10px] text-[var(--color-text-muted)]">日連続</span>
         </div>
       </div>
 
       <div className="grid grid-cols-7 gap-1 mb-1">
         {WEEKDAY_LABELS.map((label) => (
-          <div key={label} className="text-[9px] text-[#666666] text-center">
+          <div key={label} className="text-[9px] text-[var(--color-text-faint)] text-center">
             {label}
           </div>
         ))}

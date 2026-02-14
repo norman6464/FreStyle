@@ -39,10 +39,10 @@ export default function MemberItem({ id, name, roomId, email }: MemberItemProps)
         </div>
 
         <div className="flex-1 ml-4 min-w-0">
-          <p className="text-base font-bold text-[#F0F0F0] truncate">
+          <p className="text-base font-bold text-[var(--color-text-primary)] truncate">
             {name || 'Unknown'}
           </p>
-          <p className="text-sm text-[#888888] truncate">
+          <p className="text-sm text-[var(--color-text-muted)] truncate">
             {email}
           </p>
         </div>

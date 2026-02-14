@@ -6,9 +6,9 @@ export default function DailyGoalCard() {
   return (
     <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
       <div className="flex items-center justify-between mb-2">
-        <p className="text-xs font-medium text-[#D0D0D0]">今日の目標</p>
-        <span className="text-xs text-[#888888]">
-          <span className="font-semibold text-[#F0F0F0]">{goal.completed}</span>
+        <p className="text-xs font-medium text-[var(--color-text-secondary)]">今日の目標</p>
+        <span className="text-xs text-[var(--color-text-muted)]">
+          <span className="font-semibold text-[var(--color-text-primary)]">{goal.completed}</span>
           {' / '}
           <span>{goal.target}</span>
           {' 回'}

@@ -40,7 +40,7 @@ export function useSignupPage() {
       setTimeout(() => {
         navigate('/confirm', {
           state: {
-            message: '✓ サインアップに成功しました！メール確認をお願いします。',
+            message: 'サインアップに成功しました！メール確認をお願いします。',
           },
         });
       }, 1500);

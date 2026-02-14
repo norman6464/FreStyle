@@ -22,12 +22,12 @@ export default function SessionNoteEditor({ sessionId }: SessionNoteEditorProps)
 
   return (
     <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
-      <p className="text-xs font-medium text-[#D0D0D0] mb-2">振り返りメモ</p>
+      <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-2">振り返りメモ</p>
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder="振り返りメモを入力..."
-        className="w-full text-sm text-[#D0D0D0] border border-surface-3 rounded-lg p-2 resize-none h-20 focus:outline-none focus:ring-1 focus:ring-primary-400"
+        className="w-full text-sm text-[var(--color-text-secondary)] border border-surface-3 rounded-lg p-2 resize-none h-20 focus:outline-none focus:ring-1 focus:ring-primary-400"
       />
       <div className="flex items-center justify-end gap-2 mt-2">
         {saved && <span className="text-xs text-emerald-400">保存しました</span>}

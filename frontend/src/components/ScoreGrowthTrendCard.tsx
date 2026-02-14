@@ -58,15 +58,15 @@ export default function ScoreGrowthTrendCard({ scores }: Props) {
   return (
     <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
       <div className="flex items-center justify-between mb-2">
-        <p className="text-xs font-medium text-[#D0D0D0]">成長トレンド</p>
+        <p className="text-xs font-medium text-[var(--color-text-secondary)]">成長トレンド</p>
         <span className={`text-sm font-bold ${config.color}`}>
           {config.icon} {config.label}
         </span>
       </div>
 
       <div className="flex items-baseline gap-2 mb-2">
-        <span className="text-2xl font-bold text-[#F0F0F0]">{analysis.latestScore}</span>
-        <span className="text-xs text-[#666666]">最新スコア</span>
+        <span className="text-2xl font-bold text-[var(--color-text-primary)]">{analysis.latestScore}</span>
+        <span className="text-xs text-[var(--color-text-faint)]">最新スコア</span>
         {analysis.delta !== 0 && (
           <span className={`text-xs font-medium ${analysis.delta > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
             {analysis.delta > 0 ? '+' : ''}{analysis.delta.toFixed(1)}
@@ -74,7 +74,7 @@ export default function ScoreGrowthTrendCard({ scores }: Props) {
         )}
       </div>
 
-      <p className="text-xs text-[#888888]">{config.message}</p>
+      <p className="text-xs text-[var(--color-text-muted)]">{config.message}</p>
     </div>
   );
 }

@@ -17,7 +17,7 @@ export default function SkillSummaryCard({ scores }: SkillSummaryCardProps) {
 
   return (
     <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
-      <p className="text-xs font-medium text-[#D0D0D0] mb-3">スキル強弱サマリー</p>
+      <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-3">スキル強弱サマリー</p>
 
       <div className="grid grid-cols-2 gap-3">
         <div data-testid="strengths">
@@ -25,7 +25,7 @@ export default function SkillSummaryCard({ scores }: SkillSummaryCardProps) {
           <div className="space-y-2">
             {strengths.map((s) => (
               <div key={s.axis} className="flex items-center justify-between">
-                <span className="text-xs text-[#D0D0D0] truncate mr-2">{s.axis}</span>
+                <span className="text-xs text-[var(--color-text-secondary)] truncate mr-2">{s.axis}</span>
                 <span className="text-sm font-bold text-emerald-400">{s.score}</span>
               </div>
             ))}
@@ -37,7 +37,7 @@ export default function SkillSummaryCard({ scores }: SkillSummaryCardProps) {
           <div className="space-y-2">
             {weaknesses.map((s) => (
               <div key={s.axis} className="flex items-center justify-between">
-                <span className="text-xs text-[#D0D0D0] truncate mr-2">{s.axis}</span>
+                <span className="text-xs text-[var(--color-text-secondary)] truncate mr-2">{s.axis}</span>
                 <span className="text-sm font-bold text-rose-400">{s.score}</span>
               </div>
             ))}

@@ -35,8 +35,8 @@ export default function ProfilePage() {
             </span>
           </div>
           <div>
-            <h2 className="text-lg font-bold text-[#F0F0F0]">プロフィールを編集</h2>
-            <p className="text-sm text-[#888888]">あなたの情報を更新してください</p>
+            <h2 className="text-lg font-bold text-[var(--color-text-primary)]">プロフィールを編集</h2>
+            <p className="text-sm text-[var(--color-text-muted)]">あなたの情報を更新してください</p>
           </div>
         </div>
 
@@ -56,7 +56,7 @@ export default function ProfilePage() {
             }
           />
           <div>
-            <label className="block text-sm font-medium text-[#D0D0D0] mb-1">
+            <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">
               自己紹介
             </label>
             <textarea

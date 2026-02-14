@@ -73,7 +73,7 @@ export default function AskAiPage() {
                         if (e.key === 'Enter') handleSaveTitle(session.id);
                         if (e.key === 'Escape') handleCancelEditTitle();
                       }}
-                      className="flex-1 text-xs px-2 py-1 border border-[#444444] rounded focus:outline-none focus:ring-1 focus:ring-primary-400"
+                      className="flex-1 text-xs px-2 py-1 border border-[var(--color-border-hover)] rounded focus:outline-none focus:ring-1 focus:ring-primary-400"
                       autoFocus
                     />
                     <button onClick={() => handleSaveTitle(session.id)} className="p-0.5 hover:bg-green-900/30 rounded">
@@ -82,7 +82,7 @@ export default function AskAiPage() {
                       </svg>
                     </button>
                     <button onClick={handleCancelEditTitle} className="p-0.5 hover:bg-surface-3 rounded">
-                      <svg className="w-3.5 h-3.5 text-[#888888]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-3.5 h-3.5 text-[var(--color-text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                       </svg>
                     </button>
@@ -90,7 +90,7 @@ export default function AskAiPage() {
                 ) : (
                   <>
                     <p className="text-sm font-medium truncate">{session.title || '新しいチャット'}</p>
-                    <p className="text-[11px] text-[#888888]">
+                    <p className="text-[11px] text-[var(--color-text-muted)]">
                       {session.createdAt ? new Date(session.createdAt).toLocaleDateString('ja-JP') : ''}
                     </p>
                   </>
@@ -132,10 +132,10 @@ export default function AskAiPage() {
         {isPracticeMode && (
           <div className="bg-surface-1 border-b border-surface-3 px-4 py-3 flex items-center justify-between">
             <div>
-              <h2 className="text-sm font-semibold text-[#F0F0F0]">
+              <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">
                 {scenarioName || '練習モード'}
               </h2>
-              <p className="text-xs text-[#888888]">AIが相手役を演じます</p>
+              <p className="text-xs text-[var(--color-text-muted)]">AIが相手役を演じます</p>
             </div>
             <div className="flex items-center gap-3">
               <PracticeTimer />
@@ -154,14 +154,14 @@ export default function AskAiPage() {
           {messages.length === 0 && (
             <div className="flex flex-col items-center justify-center h-full text-center">
               <div className="bg-surface-3 rounded-full p-4 mb-4">
-                <svg className="w-8 h-8 text-[#666666]" fill="currentColor" viewBox="0 0 20 20">
+                <svg className="w-8 h-8 text-[var(--color-text-faint)]" fill="currentColor" viewBox="0 0 20 20">
                   <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                 </svg>
               </div>
-              <h3 className="text-base font-semibold text-[#D0D0D0] mb-1">
+              <h3 className="text-base font-semibold text-[var(--color-text-secondary)] mb-1">
                 AIアシスタントへようこそ
               </h3>
-              <p className="text-sm text-[#888888] max-w-xs">
+              <p className="text-sm text-[var(--color-text-muted)] max-w-xs">
                 質問や相談を何でも聞いてください
               </p>
             </div>

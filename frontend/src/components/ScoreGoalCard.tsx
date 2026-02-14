@@ -32,11 +32,11 @@ export default function ScoreGoalCard({ averageScore }: Props) {
   return (
     <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
       <div className="flex items-center justify-between mb-3">
-        <p className="text-xs font-medium text-[#D0D0D0]">目標スコア</p>
+        <p className="text-xs font-medium text-[var(--color-text-secondary)]">目標スコア</p>
         <select
           value={goal}
           onChange={handleGoalChange}
-          className="text-xs border border-surface-3 rounded px-2 py-1 text-[#A0A0A0]"
+          className="text-xs border border-surface-3 rounded px-2 py-1 text-[var(--color-text-tertiary)]"
         >
           {GOAL_OPTIONS.map((opt) => (
             <option key={opt} value={opt}>
@@ -48,11 +48,11 @@ export default function ScoreGoalCard({ averageScore }: Props) {
 
       <div className="flex items-end justify-between mb-2">
         <div>
-          <p className="text-xs text-[#888888]">現在の平均</p>
-          <p className="text-xl font-bold text-[#F0F0F0]">{averageScore.toFixed(1)}</p>
+          <p className="text-xs text-[var(--color-text-muted)]">現在の平均</p>
+          <p className="text-xl font-bold text-[var(--color-text-primary)]">{averageScore.toFixed(1)}</p>
         </div>
         <div className="text-right">
-          <p className="text-xs text-[#888888]">目標</p>
+          <p className="text-xs text-[var(--color-text-muted)]">目標</p>
           <p className="text-xl font-bold text-primary-400">{goal.toFixed(1)}</p>
         </div>
       </div>
@@ -64,7 +64,7 @@ export default function ScoreGoalCard({ averageScore }: Props) {
         />
       </div>
 
-      <p className={`text-xs ${achieved ? 'text-emerald-400 font-medium' : 'text-[#888888]'}`}>
+      <p className={`text-xs ${achieved ? 'text-emerald-400 font-medium' : 'text-[var(--color-text-muted)]'}`}>
         {achieved
           ? '目標達成！素晴らしいです！'
           : `あと ${gap.toFixed(1)} ポイントで目標達成です`}

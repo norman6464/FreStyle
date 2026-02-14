@@ -18,7 +18,7 @@ export default function SidebarItem({ icon: Icon, label, to, active, onClick, ba
       className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 ${
         active
           ? 'bg-surface-3 text-primary-300'
-          : 'text-[#A0A0A0] hover:bg-surface-2 hover:text-[#F0F0F0]'
+          : 'text-[var(--color-text-tertiary)] hover:bg-surface-2 hover:text-[var(--color-text-primary)]'
       }`}
     >
       <Icon className="w-5 h-5 flex-shrink-0" />

@@ -31,11 +31,11 @@ export default function SkillTrendChart({ history }: SkillTrendChartProps) {
 
   return (
     <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
-      <p className="text-xs font-medium text-[#D0D0D0] mb-3">スキル別推移</p>
+      <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-3">スキル別推移</p>
       <div className="space-y-2">
         {skills.map((skill) => (
           <div key={skill.axis} className="flex items-center gap-2">
-            <span className="text-xs text-[#888888] w-24 flex-shrink-0 truncate">
+            <span className="text-xs text-[var(--color-text-muted)] w-24 flex-shrink-0 truncate">
               {skill.axis}
             </span>
             <div className="flex-1 bg-surface-3 rounded-full h-2">
@@ -46,7 +46,7 @@ export default function SkillTrendChart({ history }: SkillTrendChartProps) {
             </div>
             <span
               data-testid="skill-latest-score"
-              className="text-xs font-medium text-[#D0D0D0] w-5 text-right"
+              className="text-xs font-medium text-[var(--color-text-secondary)] w-5 text-right"
             >
               {skill.score}
             </span>

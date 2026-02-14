@@ -80,7 +80,7 @@ describe('useSignupPage', () => {
     });
 
     expect(mockNavigate).toHaveBeenCalledWith('/confirm', {
-      state: { message: '✓ サインアップに成功しました！メール確認をお願いします。' },
+      state: { message: 'サインアップに成功しました！メール確認をお願いします。' },
     });
   });
 

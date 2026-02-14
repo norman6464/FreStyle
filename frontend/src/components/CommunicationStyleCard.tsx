@@ -63,9 +63,9 @@ export default function CommunicationStyleCard({ sessions }: Props) {
   if (sessions.length === 0) {
     return (
       <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
-        <p className="text-xs font-medium text-[#888888] mb-1">あなたのスタイル</p>
-        <p className="text-sm text-[#666666]">まだスタイルが判定できません</p>
-        <p className="text-xs text-[#666666] mt-1">練習セッションを完了するとスタイルが判定されます</p>
+        <p className="text-xs font-medium text-[var(--color-text-muted)] mb-1">あなたのスタイル</p>
+        <p className="text-sm text-[var(--color-text-faint)]">まだスタイルが判定できません</p>
+        <p className="text-xs text-[var(--color-text-faint)] mt-1">練習セッションを完了するとスタイルが判定されます</p>
       </div>
     );
   }

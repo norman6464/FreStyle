@@ -43,7 +43,7 @@ export default function ScenarioCard({ scenario, onSelect, isBookmarked, onToggl
       className="bg-surface-1 rounded-lg border border-surface-3 p-4 cursor-pointer hover:bg-surface-2 transition-colors"
     >
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs text-[#888888]">{categoryLabel[scenario.category] || scenario.category}</span>
+        <span className="text-xs text-[var(--color-text-muted)]">{categoryLabel[scenario.category] || scenario.category}</span>
         <div className="flex items-center gap-2">
           {onToggleBookmark && (
             <button
@@ -56,17 +56,17 @@ export default function ScenarioCard({ scenario, onSelect, isBookmarked, onToggl
               </svg>
             </button>
           )}
-          <span className={`text-xs px-2 py-0.5 rounded border ${difficultyColor[scenario.difficulty] || 'bg-surface-2 text-[#888888] border-surface-3'}`}>
+          <span className={`text-xs px-2 py-0.5 rounded border ${difficultyColor[scenario.difficulty] || 'bg-surface-2 text-[var(--color-text-muted)] border-surface-3'}`}>
             {difficultyLabel[scenario.difficulty] || scenario.difficulty}
           </span>
         </div>
       </div>
-      <h3 className="text-sm font-medium text-[#F0F0F0] mb-1">{scenario.name}</h3>
-      <p className="text-xs text-[#888888] mb-2">{scenario.description}</p>
-      <p className="text-[11px] text-[#666666] mb-3">
+      <h3 className="text-sm font-medium text-[var(--color-text-primary)] mb-1">{scenario.name}</h3>
+      <p className="text-xs text-[var(--color-text-muted)] mb-2">{scenario.description}</p>
+      <p className="text-[11px] text-[var(--color-text-faint)] mb-3">
         {difficultyDescription[scenario.difficulty] || ''} ・ 約5〜10分
       </p>
-      <div className="flex items-center gap-1 text-xs text-[#666666]">
+      <div className="flex items-center gap-1 text-xs text-[var(--color-text-faint)]">
         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
         </svg>

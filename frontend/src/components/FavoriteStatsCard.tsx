@@ -26,17 +26,17 @@ export default function FavoriteStatsCard({ phrases }: FavoriteStatsCardProps) {
   return (
     <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
       <div className="flex items-center justify-between mb-3">
-        <p className="text-xs font-medium text-[#D0D0D0]">お気に入り統計</p>
+        <p className="text-xs font-medium text-[var(--color-text-secondary)]">お気に入り統計</p>
         <div className="flex items-baseline gap-1">
-          <span className="text-lg font-bold text-[#F0F0F0]">{phrases.length}</span>
-          <span className="text-xs text-[#888888]">フレーズ</span>
+          <span className="text-lg font-bold text-[var(--color-text-primary)]">{phrases.length}</span>
+          <span className="text-xs text-[var(--color-text-muted)]">フレーズ</span>
         </div>
       </div>
 
       <div className="space-y-2">
         {sortedPatterns.map(([pattern, count]) => (
           <div key={pattern} className="flex items-center gap-2">
-            <span className="text-xs text-[#888888] w-16 text-right truncate">{pattern}</span>
+            <span className="text-xs text-[var(--color-text-muted)] w-16 text-right truncate">{pattern}</span>
             <div className="flex-1 bg-surface-3 rounded-full h-3">
               {maxCount > 0 && count > 0 && (
                 <div
@@ -45,7 +45,7 @@ export default function FavoriteStatsCard({ phrases }: FavoriteStatsCardProps) {
                 />
               )}
             </div>
-            <span data-testid="pattern-count" className="text-xs font-medium text-[#A0A0A0] w-5 text-right">
+            <span data-testid="pattern-count" className="text-xs font-medium text-[var(--color-text-tertiary)] w-5 text-right">
               {count}
             </span>
           </div>

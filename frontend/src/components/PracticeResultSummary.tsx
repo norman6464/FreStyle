@@ -25,8 +25,8 @@ export default function PracticeResultSummary({ scoreCard, scenarioName }: Pract
 
   return (
     <div className="bg-surface-1 rounded-lg border border-surface-3 p-4 my-3 max-w-[85%] self-start">
-      <h3 className="text-sm font-semibold text-[#F0F0F0] mb-1">練習結果サマリー</h3>
-      <p className="text-xs text-[#888888] mb-3">「{scenarioName}」の練習結果</p>
+      <h3 className="text-sm font-semibold text-[var(--color-text-primary)] mb-1">練習結果サマリー</h3>
+      <p className="text-xs text-[var(--color-text-muted)] mb-3">「{scenarioName}」の練習結果</p>
 
       <div className="grid grid-cols-2 gap-3 mb-3">
         {/* 強み */}

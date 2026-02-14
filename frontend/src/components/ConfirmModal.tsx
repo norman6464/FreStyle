@@ -44,7 +44,7 @@ export default function ConfirmModal({
       />
 
       {/* モーダル */}
-      <div className="relative bg-surface-1 rounded-2xl shadow-md p-6 mx-4 max-w-sm w-full animate-fade-in">
+      <div role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title" className="relative bg-surface-1 rounded-2xl shadow-md p-6 mx-4 max-w-sm w-full animate-fade-in">
         {/* アイコン */}
         <div className="flex justify-center mb-4">
           <div
@@ -61,7 +61,7 @@ export default function ConfirmModal({
         </div>
 
         {/* タイトル */}
-        <h3 className="text-xl font-bold text-[var(--color-text-primary)] text-center mb-2">
+        <h3 id="confirm-modal-title" className="text-xl font-bold text-[var(--color-text-primary)] text-center mb-2">
           {title}
         </h3>
 

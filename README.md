@@ -152,9 +152,11 @@
 - **TextareaFieldコンポーネント**：文字数カウント付きtextarea・maxLength指定時に残り文字数表示（90%超で警告色・上限到達で赤色）
 - **SelectFieldコンポーネント**：ラベル付きselect要素の統一コンポーネント・UserProfilePageで再利用
 - **PrimaryButtonローディング対応**：loading prop追加でスピナー表示・自動無効化・二重送信防止
+- **ノート削除確認ダイアログ**：ノート削除時にConfirmModalで誤削除防止・キャンセル可能
+- **SectionHeaderコンポーネント**：アイコン＋タイトルのセクション見出しを再利用可能コンポーネント化・UserProfilePageで適用
 
 ### テスト品質
-- **フロントエンド1117テスト**：Vitest + React Testing Library
+- **フロントエンド1131テスト**：Vitest + React Testing Library
   - Repository層テスト（13リポジトリ・62テスト）
   - Hooks層テスト（32フック・319テスト）
   - Store層テスト（1スライス・5テスト）

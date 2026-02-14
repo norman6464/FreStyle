@@ -166,11 +166,12 @@
 - **ScrollToTopボタン**：長ページでスクロール位置200px以上で表示されるフローティングボタン・スムーズスクロールで上部に移動・AppShellに組み込み済み
 - **Badgeコンポーネント**：5カラーバリアント（success/warning/danger/info/neutral）・2サイズ対応のインラインバッジ
 - **Avatarコンポーネント**：プロフィール画像+イニシャルフォールバック統一・4サイズ対応（sm/md/lg/xl）・MemberItem/ChatListPage/ProfilePageに適用
+- **useLocalStorageフック**：localStorage読み書きの型安全な統一フック・JSON直列化自動処理・エラーハンドリング・関数型setValue対応・ScoreGoalCard/ScoreHistoryPageに適用
 
 ### テスト品質
-- **フロントエンド1272テスト**：Vitest + React Testing Library
+- **フロントエンド1285テスト**：Vitest + React Testing Library
   - Repository層テスト（13リポジトリ・62テスト）
-  - Hooks層テスト（32フック・319テスト）
+  - Hooks層テスト（33フック・332テスト）
   - Store層テスト（1スライス・5テスト）
   - UIコンポーネントテスト（82コンポーネント・514テスト）
   - ページコンポーネントテスト（17ページ・110テスト）

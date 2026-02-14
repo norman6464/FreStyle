@@ -15,13 +15,21 @@ export function useLocalStorage<T>(key: string, defaultValue: T): [T, (value: Se
   const setValue = useCallback((value: SetValue<T>) => {
     setStoredValue((prev) => {
       const newValue = value instanceof Function ? value(prev) : value;
-      localStorage.setItem(key, JSON.stringify(newValue));
+      try {
+        localStorage.setItem(key, JSON.stringify(newValue));
+      } catch {
+        // QuotaExceededError等 - stateは更新する
+      }
       return newValue;
     });
   }, [key]);
 
   const removeValue = useCallback(() => {
-    localStorage.removeItem(key);
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      // localStorage unavailable
+    }
     setStoredValue(defaultValue);
   }, [key, defaultValue]);
 

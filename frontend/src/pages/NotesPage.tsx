@@ -3,7 +3,7 @@ import SecondaryPanel from '../components/layout/SecondaryPanel';
 import NoteListItem from '../components/NoteListItem';
 import NoteEditor from '../components/NoteEditor';
 import EmptyState from '../components/EmptyState';
-import { DocumentTextIcon, PlusIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import { DocumentTextIcon, PlusIcon, MagnifyingGlassIcon, Bars3Icon } from '@heroicons/react/24/outline';
 import { useNotes } from '../hooks/useNotes';
 import { useNoteEditor } from '../hooks/useNoteEditor';
 
@@ -60,6 +60,7 @@ export default function NotesPage() {
               <input
                 type="text"
                 placeholder="ノートを検索..."
+                aria-label="ノートを検索"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-8 pr-3 py-1.5 bg-surface-2 border border-surface-3 rounded-lg text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-primary-500 transition-colors"
@@ -111,9 +112,7 @@ export default function NotesPage() {
             className="p-1.5 hover:bg-surface-2 rounded transition-colors"
             aria-label="ノート一覧を開く"
           >
-            <svg className="w-5 h-5 text-[var(--color-text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
+            <Bars3Icon className="w-5 h-5 text-[var(--color-text-muted)]" />
           </button>
           <span className="ml-2 text-xs text-[var(--color-text-muted)]">ノート一覧</span>
         </div>

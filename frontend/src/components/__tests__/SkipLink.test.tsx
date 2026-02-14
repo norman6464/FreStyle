@@ -57,4 +57,22 @@ describe('SkipLink', () => {
     const link = screen.getByText('メインコンテンツへスキップ');
     expect(link.tagName).toBe('A');
   });
+
+  it('ターゲット要素が存在しない場合クリックしてもエラーにならない', () => {
+    render(<SkipLink targetId="nonexistent" />);
+    const link = screen.getByText('メインコンテンツへスキップ');
+    expect(() => fireEvent.click(link)).not.toThrow();
+  });
+
+  it('フォーカス時にprimary-500背景クラスが適用される', () => {
+    render(<SkipLink targetId="main-content" />);
+    const link = screen.getByText('メインコンテンツへスキップ');
+    expect(link.className).toContain('focus:bg-primary-500');
+  });
+
+  it('異なるtargetIdでhrefが正しく設定される', () => {
+    render(<SkipLink targetId="custom-target" />);
+    const link = screen.getByText('メインコンテンツへスキップ');
+    expect(link).toHaveAttribute('href', '#custom-target');
+  });
 });

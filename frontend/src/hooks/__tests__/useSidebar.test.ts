@@ -112,6 +112,11 @@ describe('useSidebar', () => {
     });
   });
 
+  it('初期状態でtotalUnreadが0である', () => {
+    const { result } = renderHook(() => useSidebar());
+    expect(result.current.totalUnread).toBe(0);
+  });
+
   it('ログアウト失敗時にdispatchも呼ばれない', async () => {
     mockLogout.mockRejectedValue(new Error('Network Error'));
 

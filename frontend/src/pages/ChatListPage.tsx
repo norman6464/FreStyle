@@ -4,6 +4,7 @@ import EmptyState from '../components/EmptyState';
 import SearchBox from '../components/SearchBox';
 import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 import Avatar from '../components/Avatar';
+import Loading from '../components/Loading';
 import { useChatList } from '../hooks/useChatList';
 import { formatTime, truncateMessage } from '../utils/formatters';
 import { useMobilePanelState } from '../hooks/useMobilePanelState';
@@ -28,9 +29,7 @@ export default function ChatListPage() {
         }
       >
         {loading ? (
-          <div className="flex items-center justify-center py-8">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-500" />
-          </div>
+          <Loading className="py-8" />
         ) : chatUsers.length === 0 ? (
           <div className="p-4 text-center text-sm text-[var(--color-text-muted)]">
             チャット履歴がありません

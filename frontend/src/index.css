@@ -21,10 +21,10 @@
 }
 
 .light {
-  --color-surface: #F9FAFB;
+  --color-surface: #F7F6F3;
   --color-surface-1: #FFFFFF;
-  --color-surface-2: #F3F4F6;
-  --color-surface-3: #E5E7EB;
+  --color-surface-2: #F1F0ED;
+  --color-surface-3: #E8E7E4;
   --color-text-primary: #1A1A1A;
   --color-text-secondary: #374151;
   --color-text-tertiary: #6B7280;

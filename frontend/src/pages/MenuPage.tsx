@@ -17,6 +17,7 @@ import LearningPatternCard from '../components/LearningPatternCard';
 import ScoreGrowthTrendCard from '../components/ScoreGrowthTrendCard';
 import PracticeFrequencyCard from '../components/PracticeFrequencyCard';
 import MenuNavigationCard from '../components/MenuNavigationCard';
+import SessionCountMilestoneCard from '../components/SessionCountMilestoneCard';
 import { useMenuData } from '../hooks/useMenuData';
 
 export default function MenuPage() {
@@ -57,6 +58,11 @@ export default function MenuPage() {
       {/* 達成バッジ */}
       <div className="mb-6">
         <AchievementBadgeCard totalSessions={totalSessions} />
+      </div>
+
+      {/* セッション数マイルストーン */}
+      <div className="mb-6">
+        <SessionCountMilestoneCard sessionCount={totalSessions} />
       </div>
 
       {/* 練習頻度 */}

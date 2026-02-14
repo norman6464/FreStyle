@@ -41,6 +41,8 @@ function defaultMenuData() {
     totalSessions: 1,
     averageScore: 7.5,
     uniqueDays: 1,
+    practiceDates: ['2026-02-13'],
+    sessionsThisWeek: 1,
   };
 }
 
@@ -86,6 +88,8 @@ describe('MenuPage', () => {
       totalSessions: 0,
       averageScore: 0,
       uniqueDays: 0,
+      practiceDates: [],
+      sessionsThisWeek: 0,
     });
 
     render(<BrowserRouter><MenuPage /></BrowserRouter>);

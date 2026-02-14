@@ -5,6 +5,7 @@ import SceneSelector from '../components/SceneSelector';
 import RephraseModal from '../components/RephraseModal';
 import MessageSelectionPanel from '../components/MessageSelectionPanel';
 import { useChat } from '../hooks/useChat';
+import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
 
 export default function ChatPage() {
   const {
@@ -34,6 +35,8 @@ export default function ChatPage() {
     isInRange,
     getRangeLabel,
   } = useChat();
+
+  const { copiedId, copyToClipboard } = useCopyToClipboard();
 
   return (
     <div className="flex flex-col h-full">
@@ -92,6 +95,8 @@ export default function ChatPage() {
                 {...msg}
                 onDelete={selectionMode ? null : handleDeleteMessage}
                 onRephrase={selectionMode ? null : handleRephrase}
+                onCopy={selectionMode ? null : copyToClipboard}
+                isCopied={copiedId === msg.id}
               />
             </div>
           </div>

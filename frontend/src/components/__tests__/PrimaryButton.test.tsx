@@ -39,4 +39,19 @@ describe('PrimaryButton', () => {
     render(<PrimaryButton>テスト</PrimaryButton>);
     expect(screen.getByText('テスト').className).toContain('w-full');
   });
+
+  it('loading時にスピナーが表示される', () => {
+    const { container } = render(<PrimaryButton loading>送信</PrimaryButton>);
+    expect(container.querySelector('[data-testid="loading-spinner"]')).toBeInTheDocument();
+  });
+
+  it('loading時にボタンが無効化される', () => {
+    render(<PrimaryButton loading>送信</PrimaryButton>);
+    expect(screen.getByRole('button')).toBeDisabled();
+  });
+
+  it('loading=false時にスピナーが表示されない', () => {
+    const { container } = render(<PrimaryButton>送信</PrimaryButton>);
+    expect(container.querySelector('[data-testid="loading-spinner"]')).not.toBeInTheDocument();
+  });
 });

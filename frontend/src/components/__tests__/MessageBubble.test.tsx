@@ -77,4 +77,29 @@ describe('MessageBubble', () => {
 
     expect(screen.getByTitle('コピー')).toBeInTheDocument();
   });
+
+  it('onCopyがnullの場合コピーボタンが表示されない', () => {
+    render(<MessageBubble isSender={false} content="テスト" id={1} onCopy={null} />);
+
+    expect(screen.queryByTitle('コピー')).not.toBeInTheDocument();
+  });
+
+  it('onCopy未指定の場合コピーボタンが表示されない', () => {
+    render(<MessageBubble isSender={false} content="テスト" id={1} />);
+
+    expect(screen.queryByTitle('コピー')).not.toBeInTheDocument();
+  });
+
+  it('画像メッセージが表示される', () => {
+    render(<MessageBubble isSender={false} content="https://example.com/img.jpg" id={1} type="image" />);
+
+    const img = screen.getByAltText('画像');
+    expect(img).toBeInTheDocument();
+  });
+
+  it('時刻が正しく表示される', () => {
+    render(<MessageBubble isSender={false} content="テスト" id={1} createdAt="2026-02-14T10:30:00" />);
+
+    expect(screen.getByText('10:30')).toBeInTheDocument();
+  });
 });

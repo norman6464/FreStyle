@@ -52,4 +52,24 @@ describe('useMobilePanelState', () => {
     act(() => result.current.close());
     expect(result.current.isOpen).toBe(false);
   });
+
+  it('openを連続で呼んでもtrueのまま', () => {
+    const { result } = renderHook(() => useMobilePanelState());
+
+    act(() => result.current.open());
+    act(() => result.current.open());
+    expect(result.current.isOpen).toBe(true);
+  });
+
+  it('open/closeの関数参照が安定している', () => {
+    const { result, rerender } = renderHook(() => useMobilePanelState());
+
+    const openRef = result.current.open;
+    const closeRef = result.current.close;
+
+    rerender();
+
+    expect(result.current.open).toBe(openRef);
+    expect(result.current.close).toBe(closeRef);
+  });
 });

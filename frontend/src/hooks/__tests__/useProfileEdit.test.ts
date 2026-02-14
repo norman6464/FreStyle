@@ -88,4 +88,49 @@ describe('useProfileEdit', () => {
     expect(result.current.message?.type).toBe('error');
     expect(result.current.message?.text).toBe('通信エラーが発生しました。');
   });
+
+  it('loading状態が初期trueからfalseに変化する', async () => {
+    const { result } = renderHook(() => useProfileEdit());
+
+    // 初期状態はloading true
+    expect(result.current.loading).toBe(true);
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+  });
+
+  it('updateFieldでbioフィールドも更新できる', async () => {
+    const { result } = renderHook(() => useProfileEdit());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    act(() => {
+      result.current.updateField('bio', '新しい自己紹介');
+    });
+
+    expect(result.current.form.bio).toBe('新しい自己紹介');
+    // nameは変更されていないこと
+    expect(result.current.form.name).toBe('テスト太郎');
+  });
+
+  it('handleUpdate時にupdateProfileにフォーム値が渡される', async () => {
+    const { result } = renderHook(() => useProfileEdit());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    act(() => {
+      result.current.updateField('name', '更新太郎');
+    });
+
+    await act(async () => {
+      await result.current.handleUpdate();
+    });
+
+    expect(mockUpdateProfile).toHaveBeenCalledWith({ name: '更新太郎', bio: '自己紹介文' });
+  });
 });

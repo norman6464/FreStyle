@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
 import MessageBubbleAi from '../MessageBubbleAi';
 
 describe('MessageBubbleAi', () => {
@@ -43,5 +43,40 @@ describe('MessageBubbleAi', () => {
     const longMessage = 'テスト'.repeat(100);
     render(<MessageBubbleAi isSender={false} content={longMessage} id={1} />);
     expect(screen.getByText(longMessage)).toBeInTheDocument();
+  });
+
+  it('コピーボタンが非削除メッセージに表示される', () => {
+    const mockCopy = vi.fn();
+    render(<MessageBubbleAi isSender={false} content="テスト" id={1} onCopy={mockCopy} />);
+
+    expect(screen.getByTitle('コピー')).toBeInTheDocument();
+  });
+
+  it('コピーボタンクリックでonCopyが呼ばれる', () => {
+    const mockCopy = vi.fn();
+    render(<MessageBubbleAi isSender={false} content="AI応答" id={3} onCopy={mockCopy} />);
+
+    fireEvent.click(screen.getByTitle('コピー'));
+    expect(mockCopy).toHaveBeenCalledWith(3, 'AI応答');
+  });
+
+  it('削除済みメッセージにコピーボタンが表示されない', () => {
+    const mockCopy = vi.fn();
+    render(<MessageBubbleAi isSender={false} content="テスト" id={1} isDeleted={true} onCopy={mockCopy} />);
+
+    expect(screen.queryByTitle('コピー')).not.toBeInTheDocument();
+  });
+
+  it('コピー済み状態でチェックアイコンが表示される', () => {
+    const mockCopy = vi.fn();
+    render(<MessageBubbleAi isSender={false} content="テスト" id={1} onCopy={mockCopy} isCopied={true} />);
+
+    expect(screen.getByTitle('コピー済み')).toBeInTheDocument();
+  });
+
+  it('onCopy未指定の場合コピーボタンが表示されない', () => {
+    render(<MessageBubbleAi isSender={false} content="テスト" id={1} />);
+
+    expect(screen.queryByTitle('コピー')).not.toBeInTheDocument();
   });
 });

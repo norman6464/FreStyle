@@ -1,0 +1,155 @@
+import { useState, useEffect, useCallback, useRef } from 'react';
+import SecondaryPanel from '../components/layout/SecondaryPanel';
+import NoteListItem from '../components/NoteListItem';
+import NoteEditor from '../components/NoteEditor';
+import EmptyState from '../components/EmptyState';
+import { DocumentTextIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { useNotes } from '../hooks/useNotes';
+
+export default function NotesPage() {
+  const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
+  const {
+    notes,
+    selectedNoteId,
+    loading,
+    fetchNotes,
+    createNote,
+    updateNote,
+    deleteNote,
+    selectNote,
+  } = useNotes();
+
+  const [editTitle, setEditTitle] = useState('');
+  const [editContent, setEditContent] = useState('');
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    fetchNotes();
+  }, [fetchNotes]);
+
+  const selectedNote = notes.find((n) => n.noteId === selectedNoteId) || null;
+
+  useEffect(() => {
+    if (selectedNote) {
+      setEditTitle(selectedNote.title);
+      setEditContent(selectedNote.content);
+    }
+  }, [selectedNoteId]);
+
+  const handleAutoSave = useCallback(
+    (title: string, content: string) => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(() => {
+        if (selectedNoteId) {
+          updateNote(selectedNoteId, {
+            title,
+            content,
+            isPinned: selectedNote?.isPinned || false,
+          });
+        }
+      }, 800);
+    },
+    [selectedNoteId, selectedNote, updateNote]
+  );
+
+  const handleTitleChange = (title: string) => {
+    setEditTitle(title);
+    handleAutoSave(title, editContent);
+  };
+
+  const handleContentChange = (content: string) => {
+    setEditContent(content);
+    handleAutoSave(editTitle, content);
+  };
+
+  const handleCreateNote = async () => {
+    await createNote('無題');
+    setMobilePanelOpen(false);
+  };
+
+  const handleSelectNote = (noteId: string) => {
+    selectNote(noteId);
+    setMobilePanelOpen(false);
+  };
+
+  const handleDeleteNote = async (noteId: string) => {
+    await deleteNote(noteId);
+  };
+
+  return (
+    <div className="flex h-full">
+      <SecondaryPanel
+        title="ノート"
+        mobileOpen={mobilePanelOpen}
+        onMobileClose={() => setMobilePanelOpen(false)}
+        headerContent={
+          <button
+            onClick={handleCreateNote}
+            className="w-full bg-primary-500 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-primary-600 transition-colors flex items-center justify-center gap-2"
+          >
+            <PlusIcon className="w-4 h-4" />
+            新しいノート
+          </button>
+        }
+      >
+        <div className="p-2 space-y-0.5">
+          {loading && notes.length === 0 ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-500" />
+            </div>
+          ) : notes.length === 0 ? (
+            <div className="p-4 text-center text-xs text-[var(--color-text-muted)]">
+              ノートがありません
+            </div>
+          ) : (
+            notes.map((note) => (
+              <NoteListItem
+                key={note.noteId}
+                noteId={note.noteId}
+                title={note.title}
+                content={note.content}
+                updatedAt={note.updatedAt}
+                isPinned={note.isPinned}
+                isActive={selectedNoteId === note.noteId}
+                onSelect={handleSelectNote}
+                onDelete={handleDeleteNote}
+              />
+            ))
+          )}
+        </div>
+      </SecondaryPanel>
+
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* モバイルヘッダー */}
+        <div className="md:hidden bg-surface-1 border-b border-surface-3 px-4 py-2 flex items-center">
+          <button
+            onClick={() => setMobilePanelOpen(true)}
+            className="p-1.5 hover:bg-surface-2 rounded transition-colors"
+            aria-label="ノート一覧を開く"
+          >
+            <svg className="w-5 h-5 text-[var(--color-text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+          <span className="ml-2 text-xs text-[var(--color-text-muted)]">ノート一覧</span>
+        </div>
+
+        {selectedNote ? (
+          <NoteEditor
+            title={editTitle}
+            content={editContent}
+            onTitleChange={handleTitleChange}
+            onContentChange={handleContentChange}
+          />
+        ) : (
+          <EmptyState
+            icon={DocumentTextIcon}
+            title="ノートを選択してください"
+            description="左のリストからノートを選択するか、新しいノートを作成しましょう。"
+            action={{ label: '新しいノート', onClick: handleCreateNote }}
+          />
+        )}
+      </div>
+    </div>
+  );
+}

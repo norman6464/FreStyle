@@ -73,4 +73,42 @@ describe('useFavoritePhrase', () => {
     expect(result.current.isFavorite('言い換え', 'フォーマル')).toBe(true);
     expect(mockedRepo.exists).toHaveBeenCalledWith('言い換え', 'フォーマル');
   });
+
+  it('未登録時にisFavoriteがfalseを返す', () => {
+    mockedRepo.exists.mockReturnValue(false);
+
+    const { result } = renderHook(() => useFavoritePhrase());
+
+    expect(result.current.isFavorite('未登録', 'カジュアル')).toBe(false);
+    expect(mockedRepo.exists).toHaveBeenCalledWith('未登録', 'カジュアル');
+  });
+
+  it('複数フレーズ保存で一覧が正しく更新される', () => {
+    const phrase1 = { id: '1', originalText: 'テスト1', rephrasedText: '言い換え1', pattern: 'フォーマル', createdAt: '2026-01-01' };
+    const phrase2 = { id: '2', originalText: 'テスト2', rephrasedText: '言い換え2', pattern: 'カジュアル', createdAt: '2026-01-02' };
+    mockedRepo.getAll
+      .mockReturnValueOnce([])
+      .mockReturnValueOnce([phrase1])
+      .mockReturnValueOnce([phrase1, phrase2]);
+
+    const { result } = renderHook(() => useFavoritePhrase());
+
+    act(() => {
+      result.current.saveFavorite('テスト1', '言い換え1', 'フォーマル');
+    });
+    expect(result.current.phrases).toEqual([phrase1]);
+
+    act(() => {
+      result.current.saveFavorite('テスト2', '言い換え2', 'カジュアル');
+    });
+    expect(result.current.phrases).toEqual([phrase1, phrase2]);
+  });
+
+  it('初期状態でフレーズが空配列の場合', () => {
+    mockedRepo.getAll.mockReturnValue([]);
+
+    const { result } = renderHook(() => useFavoritePhrase());
+
+    expect(result.current.phrases).toEqual([]);
+  });
 });

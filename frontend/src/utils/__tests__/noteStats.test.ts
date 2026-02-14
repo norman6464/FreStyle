@@ -39,4 +39,26 @@ describe('getNoteStats', () => {
     const stats = getNoteStats('hello world');
     expect(stats.charCount).toBe(10);
   });
+
+  it('全スペースの場合0文字・0分を返す', () => {
+    const stats = getNoteStats('   \n\n  \t  ');
+    expect(stats.charCount).toBe(0);
+    expect(stats.readingTimeMin).toBe(0);
+  });
+
+  it('日本語と英語の混合文字をカウントする', () => {
+    const stats = getNoteStats('Hello世界');
+    expect(stats.charCount).toBe(7);
+  });
+
+  it('長文で正しい読了時間を計算する', () => {
+    const text = 'あ'.repeat(1200);
+    const stats = getNoteStats(text);
+    expect(stats.readingTimeMin).toBe(3);
+  });
+
+  it('タブ文字を除外してカウントする', () => {
+    const stats = getNoteStats('テスト\tデータ');
+    expect(stats.charCount).toBe(6);
+  });
 });

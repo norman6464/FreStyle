@@ -1,36 +1,10 @@
-import { useState } from 'react';
 import AuthLayout from '../components/AuthLayout';
 import InputField from '../components/InputField';
 import PrimaryButton from '../components/PrimaryButton';
-import { useNavigate } from 'react-router-dom';
-import authRepository from '../repositories/AuthRepository';
-import { AxiosError } from 'axios';
-
-interface FormMessage {
-  type: 'success' | 'error';
-  text: string;
-}
+import { useForgotPassword } from '../hooks/useForgotPassword';
 
 export default function ForgotPasswordPage() {
-  const [email, setEmail] = useState('');
-  const [message, setMessage] = useState<FormMessage | null>(null);
-  const navigate = useNavigate();
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-
-    try {
-      const data = await authRepository.forgotPassword({ email });
-      setMessage({ type: 'success', text: data.message });
-      navigate('/confirm-forgot-password', { state: { email } });
-    } catch (error) {
-      if (error instanceof AxiosError && error.response?.data?.error) {
-        setMessage({ type: 'error', text: error.response.data.error });
-      } else {
-        setMessage({ type: 'error', text: '通信エラーが発生しました。' });
-      }
-    }
-  };
+  const { email, setEmail, message, handleSubmit } = useForgotPassword();
 
   return (
     <AuthLayout>

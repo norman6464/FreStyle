@@ -151,9 +151,10 @@
 - **FilterTabsコンポーネント**：ジェネリクス型安全なタブ切り替えUI・WAI-ARIAタブパターン対応・PracticePage/ScoreHistoryPageで再利用
 - **TextareaFieldコンポーネント**：文字数カウント付きtextarea・maxLength指定時に残り文字数表示（90%超で警告色・上限到達で赤色）
 - **SelectFieldコンポーネント**：ラベル付きselect要素の統一コンポーネント・UserProfilePageで再利用
+- **PrimaryButtonローディング対応**：loading prop追加でスピナー表示・自動無効化・二重送信防止
 
 ### テスト品質
-- **フロントエンド1108テスト**：Vitest + React Testing Library
+- **フロントエンド1117テスト**：Vitest + React Testing Library
   - Repository層テスト（13リポジトリ・62テスト）
   - Hooks層テスト（32フック・319テスト）
   - Store層テスト（1スライス・5テスト）

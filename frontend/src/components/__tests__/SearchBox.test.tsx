@@ -77,4 +77,22 @@ describe('SearchBox', () => {
     const clearButton = screen.getByLabelText('検索をクリア');
     expect(clearButton.tagName).toBe('BUTTON');
   });
+
+  it('role="search"が外側のdivに適用される', () => {
+    render(<SearchBox value="" onChange={vi.fn()} />);
+    expect(screen.getByRole('search')).toBeInTheDocument();
+  });
+
+  it('aria-labelがinputに適用される', () => {
+    render(<SearchBox value="" onChange={vi.fn()} placeholder="名前で検索" />);
+    const input = screen.getByLabelText('名前で検索');
+    expect(input).toBeInTheDocument();
+    expect(input.tagName).toBe('INPUT');
+  });
+
+  it('デフォルトplaceholderがaria-labelに使用される', () => {
+    render(<SearchBox value="" onChange={vi.fn()} />);
+    const input = screen.getByLabelText('検索');
+    expect(input).toBeInTheDocument();
+  });
 });

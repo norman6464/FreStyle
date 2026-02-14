@@ -73,4 +73,15 @@ describe('TextareaField', () => {
     render(<TextareaField label="自己紹介" name="bio" value="" onChange={vi.fn()} error="エラー" />);
     expect(screen.getByLabelText('自己紹介').className).toContain('border-rose-500');
   });
+
+  it('エラーなし時にaria-invalidがfalseになる', () => {
+    render(<TextareaField label="自己紹介" name="bio" value="" onChange={vi.fn()} />);
+    expect(screen.getByLabelText('自己紹介')).toHaveAttribute('aria-invalid', 'false');
+  });
+
+  it('エラーなし時にボーダーが通常色になる', () => {
+    render(<TextareaField label="自己紹介" name="bio" value="" onChange={vi.fn()} />);
+    expect(screen.getByLabelText('自己紹介').className).toContain('border-surface-3');
+    expect(screen.getByLabelText('自己紹介').className).not.toContain('border-rose-500');
+  });
 });

@@ -45,4 +45,23 @@ describe('Toast', () => {
     const { container } = render(<Toast type="success" message="テスト" onClose={vi.fn()} />);
     expect(container.querySelector('svg')).toBeInTheDocument();
   });
+
+  it('3秒未満ではonCloseが呼ばれない', () => {
+    const onClose = vi.fn();
+    render(<Toast type="success" message="テスト" onClose={onClose} />);
+    act(() => {
+      vi.advanceTimersByTime(2999);
+    });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('エラータイプでもアイコンが表示される', () => {
+    const { container } = render(<Toast type="error" message="エラー" onClose={vi.fn()} />);
+    expect(container.querySelector('svg')).toBeInTheDocument();
+  });
+
+  it('情報タイプでもアイコンが表示される', () => {
+    const { container } = render(<Toast type="info" message="情報" onClose={vi.fn()} />);
+    expect(container.querySelector('svg')).toBeInTheDocument();
+  });
 });

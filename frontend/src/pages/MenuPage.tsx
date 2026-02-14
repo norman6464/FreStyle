@@ -20,6 +20,7 @@ import RecentNotesCard from '../components/RecentNotesCard';
 import RecentSessionsCard from '../components/RecentSessionsCard';
 import WeeklyGoalProgressCard from '../components/WeeklyGoalProgressCard';
 import WeeklyReportCard from '../components/WeeklyReportCard';
+import LearningPatternCard from '../components/LearningPatternCard';
 import { useMenuData } from '../hooks/useMenuData';
 
 export default function MenuPage() {
@@ -120,6 +121,13 @@ export default function MenuPage() {
       {totalSessions > 0 && (
         <div className="mb-6">
           <WeeklyReportCard allScores={allScores} />
+        </div>
+      )}
+
+      {/* 学習パターン分析 */}
+      {practiceDates.length > 0 && (
+        <div className="mb-6">
+          <LearningPatternCard practiceDates={practiceDates} />
         </div>
       )}
 

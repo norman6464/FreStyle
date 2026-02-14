@@ -11,12 +11,13 @@ import DailyGoalCard from '../components/DailyGoalCard';
 import LearningInsightsCard from '../components/LearningInsightsCard';
 import PracticeReminderCard from '../components/PracticeReminderCard';
 import RecentSessionsCard from '../components/RecentSessionsCard';
+import WeeklyGoalProgressCard from '../components/WeeklyGoalProgressCard';
 import WeeklyReportCard from '../components/WeeklyReportCard';
 import { useMenuData } from '../hooks/useMenuData';
 
 export default function MenuPage() {
   const navigate = useNavigate();
-  const { stats, totalUnread, latestScore, allScores, totalSessions, averageScore, uniqueDays } = useMenuData();
+  const { stats, totalUnread, latestScore, allScores, totalSessions, averageScore, uniqueDays, sessionsThisWeek } = useMenuData();
 
   const menuItems = [
     {
@@ -101,6 +102,11 @@ export default function MenuPage() {
           <PracticeReminderCard lastPracticeDate={latestScore.createdAt} />
         </div>
       )}
+
+      {/* 週間練習目標 */}
+      <div className="mb-6">
+        <WeeklyGoalProgressCard sessionsThisWeek={sessionsThisWeek} weeklyGoal={5} />
+      </div>
 
       {/* 日次学習目標 */}
       <div className="mb-6">

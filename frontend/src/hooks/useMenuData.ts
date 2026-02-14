@@ -58,6 +58,15 @@ export function useMenuData() {
     return new Set(allScores.map(s => s.createdAt.split('T')[0])).size;
   }, [allScores]);
 
+  const sessionsThisWeek = useMemo(() => {
+    const now = new Date();
+    const day = now.getDay();
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+    monday.setHours(0, 0, 0, 0);
+    return allScores.filter(s => new Date(s.createdAt) >= monday).length;
+  }, [allScores]);
+
   return {
     stats,
     totalUnread,
@@ -66,5 +75,6 @@ export function useMenuData() {
     totalSessions,
     averageScore,
     uniqueDays,
+    sessionsThisWeek,
   };
 }

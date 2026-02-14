@@ -35,4 +35,16 @@ describe('ScoreStatsSummary', () => {
 
     expect(container.firstChild).toBeNull();
   });
+
+  it('3カラムグリッドで表示される', () => {
+    const { container } = render(<ScoreStatsSummary history={mockHistory} />);
+    const grid = container.firstElementChild as HTMLElement;
+    expect(grid.className).toContain('grid-cols-3');
+  });
+
+  it('最高スコアがアンバー色で表示される', () => {
+    render(<ScoreStatsSummary history={mockHistory} />);
+    const bestScore = screen.getByText('9.2');
+    expect(bestScore.className).toContain('text-amber-400');
+  });
 });

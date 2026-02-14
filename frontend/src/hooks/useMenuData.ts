@@ -42,8 +42,8 @@ export function useMenuData() {
           setLatestScore(scoresData.value[0]);
           setAllScores(scoresData.value);
         }
-      } catch (err) {
-        console.error('ダッシュボードデータ取得エラー:', err);
+      } catch {
+        // サイレントに処理
       }
     };
     fetchAll();

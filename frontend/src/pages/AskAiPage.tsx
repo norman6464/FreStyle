@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import MessageBubbleAi from '../components/MessageBubbleAi';
 import MessageInput from '../components/MessageInput';
 import ConfirmModal from '../components/ConfirmModal';
@@ -10,9 +9,10 @@ import SessionNoteEditor from '../components/SessionNoteEditor';
 import ExportSessionButton from '../components/ExportSessionButton';
 import AiSessionListItem from '../components/AiSessionListItem';
 import { useAskAi } from '../hooks/useAskAi';
+import { useMobilePanelState } from '../hooks/useMobilePanelState';
 
 export default function AskAiPage() {
-  const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
+  const { isOpen: mobilePanelOpen, open: openMobilePanel, close: closeMobilePanel } = useMobilePanelState();
   const {
     sessions,
     messages,
@@ -43,7 +43,7 @@ export default function AskAiPage() {
       <SecondaryPanel
         title="セッション"
         mobileOpen={mobilePanelOpen}
-        onMobileClose={() => setMobilePanelOpen(false)}
+        onMobileClose={closeMobilePanel}
         headerContent={
           <button
             onClick={handleNewSession}
@@ -66,7 +66,7 @@ export default function AskAiPage() {
               isActive={currentSessionId === session.id}
               isEditing={editingSessionId === session.id}
               editingTitle={editingTitle}
-              onSelect={(id: number) => { handleSelectSession(id); setMobilePanelOpen(false); }}
+              onSelect={(id: number) => { handleSelectSession(id); closeMobilePanel(); }}
               onStartEdit={handleStartEditTitle}
               onDelete={handleDeleteSession}
               onSaveTitle={handleSaveTitle}
@@ -82,7 +82,7 @@ export default function AskAiPage() {
         {/* モバイルヘッダー */}
         <div className="md:hidden bg-surface-1 border-b border-surface-3 px-4 py-2 flex items-center">
           <button
-            onClick={() => setMobilePanelOpen(true)}
+            onClick={openMobilePanel}
             className="p-1.5 hover:bg-surface-2 rounded transition-colors"
             aria-label="セッション一覧を開く"
           >

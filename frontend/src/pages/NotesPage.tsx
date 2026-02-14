@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import SecondaryPanel from '../components/layout/SecondaryPanel';
 import NoteListItem from '../components/NoteListItem';
 import NoteEditor from '../components/NoteEditor';
@@ -6,9 +6,10 @@ import EmptyState from '../components/EmptyState';
 import { DocumentTextIcon, PlusIcon, MagnifyingGlassIcon, Bars3Icon } from '@heroicons/react/24/outline';
 import { useNotes } from '../hooks/useNotes';
 import { useNoteEditor } from '../hooks/useNoteEditor';
+import { useMobilePanelState } from '../hooks/useMobilePanelState';
 
 export default function NotesPage() {
-  const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
+  const { isOpen: mobilePanelOpen, open: openMobilePanel, close: closeMobilePanel } = useMobilePanelState();
   const {
     notes,
     filteredNotes,
@@ -35,12 +36,12 @@ export default function NotesPage() {
 
   const handleCreateNote = async () => {
     await createNote('無題');
-    setMobilePanelOpen(false);
+    closeMobilePanel();
   };
 
   const handleSelectNote = (noteId: string) => {
     selectNote(noteId);
-    setMobilePanelOpen(false);
+    closeMobilePanel();
   };
 
   const handleDeleteNote = async (noteId: string) => {
@@ -52,7 +53,7 @@ export default function NotesPage() {
       <SecondaryPanel
         title="ノート"
         mobileOpen={mobilePanelOpen}
-        onMobileClose={() => setMobilePanelOpen(false)}
+        onMobileClose={closeMobilePanel}
         headerContent={
           <div className="space-y-2">
             <div className="relative">
@@ -108,7 +109,7 @@ export default function NotesPage() {
         {/* モバイルヘッダー */}
         <div className="md:hidden bg-surface-1 border-b border-surface-3 px-4 py-2 flex items-center">
           <button
-            onClick={() => setMobilePanelOpen(true)}
+            onClick={openMobilePanel}
             className="p-1.5 hover:bg-surface-2 rounded transition-colors"
             aria-label="ノート一覧を開く"
           >

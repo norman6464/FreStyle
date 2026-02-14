@@ -2,6 +2,7 @@ import AuthLayout from '../components/AuthLayout';
 import InputField from '../components/InputField';
 import PrimaryButton from '../components/PrimaryButton';
 import LinkText from '../components/LinkText';
+import FormMessage from '../components/FormMessage';
 import { useConfirmSignup } from '../hooks/useConfirmSignup';
 
 export default function ConfirmPage() {
@@ -9,9 +10,7 @@ export default function ConfirmPage() {
 
   return (
     <AuthLayout>
-      {message?.type === 'error' && (
-        <p className="text-rose-400 text-center">{message.text}</p>
-      )}
+      <FormMessage message={message} />
       <h2 className="text-2xl font-bold mb-6 text-center">確認コードの入力</h2>
       <form onSubmit={handleConfirm}>
         <InputField

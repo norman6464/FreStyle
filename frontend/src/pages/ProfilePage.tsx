@@ -1,5 +1,6 @@
 import InputField from '../components/InputField';
 import PrimaryButton from '../components/PrimaryButton';
+import FormMessage from '../components/FormMessage';
 import { useProfileEdit } from '../hooks/useProfileEdit';
 
 export default function ProfilePage() {
@@ -15,17 +16,7 @@ export default function ProfilePage() {
 
   return (
     <div className="p-6 max-w-2xl mx-auto">
-      {message && (
-        <div
-          className={`mb-4 p-3 rounded-lg text-sm font-medium ${
-            message.type === 'error'
-              ? 'bg-rose-900/30 text-rose-400 border border-rose-800'
-              : 'bg-emerald-900/30 text-emerald-400 border border-emerald-800'
-          }`}
-        >
-          {message.text}
-        </div>
-      )}
+      <FormMessage message={message} />
 
       <div className="bg-surface-1 rounded-lg border border-surface-3 p-6">
         <div className="flex items-center gap-4 mb-6">

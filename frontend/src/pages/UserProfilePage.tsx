@@ -2,6 +2,7 @@ import InputField from '../components/InputField';
 import PrimaryButton from '../components/PrimaryButton';
 import Loading from '../components/Loading';
 import PersonalityTraitSelector from '../components/PersonalityTraitSelector';
+import FormMessage from '../components/FormMessage';
 import {
   ChatBubbleLeftRightIcon,
   LightBulbIcon,
@@ -31,18 +32,7 @@ export default function UserProfilePage() {
 
   return (
     <div className="p-6 max-w-2xl mx-auto">
-      {/* メッセージ */}
-      {message && (
-        <div
-          className={`mb-4 p-3 rounded-lg text-sm font-medium ${
-            message.type === 'error'
-              ? 'bg-rose-900/30 text-rose-400 border border-rose-800'
-              : 'bg-emerald-900/30 text-emerald-400 border border-emerald-800'
-          }`}
-        >
-          {message.text}
-        </div>
-      )}
+      <FormMessage message={message} />
 
       {/* 説明カード */}
       <div className="bg-surface-2 rounded-lg p-3 mb-4 border border-[var(--color-border-hover)]">

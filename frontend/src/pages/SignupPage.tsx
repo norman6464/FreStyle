@@ -2,10 +2,7 @@ import AuthLayout from '../components/AuthLayout';
 import InputField from '../components/InputField';
 import PrimaryButton from '../components/PrimaryButton';
 import LinkText from '../components/LinkText';
-import {
-  CheckCircleIcon,
-  ExclamationCircleIcon,
-} from '@heroicons/react/24/solid';
+import FormMessage from '../components/FormMessage';
 import { useSignupPage } from '../hooks/useSignupPage';
 
 export default function SignupPage() {
@@ -13,22 +10,7 @@ export default function SignupPage() {
 
   return (
     <AuthLayout>
-      <div>
-        {message?.type === 'error' && (
-          <div className="mb-6 p-4 bg-rose-900/30 border-l-4 border-rose-500 rounded-lg flex items-start">
-            <ExclamationCircleIcon className="w-5 h-5 text-rose-400 mr-3 flex-shrink-0 mt-0.5" />
-            <p className="text-rose-400 font-medium text-sm">{message.text}</p>
-          </div>
-        )}
-        {message?.type === 'success' && (
-          <div className="mb-6 p-4 bg-emerald-900/30 border-l-4 border-emerald-500 rounded-lg flex items-start">
-            <CheckCircleIcon className="w-5 h-5 text-emerald-400 mr-3 flex-shrink-0" />
-            <p className="text-emerald-400 font-medium text-sm">
-              {message.text}
-            </p>
-          </div>
-        )}
-      </div>
+      <FormMessage message={message} />
       <h2 className="text-3xl font-bold mb-2 text-center text-[var(--color-text-primary)]">
         アカウント作成
       </h2>

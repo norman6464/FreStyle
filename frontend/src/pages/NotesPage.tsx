@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import SecondaryPanel from '../components/layout/SecondaryPanel';
 import NoteListItem from '../components/NoteListItem';
 import NoteEditor from '../components/NoteEditor';
 import EmptyState from '../components/EmptyState';
 import { DocumentTextIcon, PlusIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { useNotes } from '../hooks/useNotes';
+import { useNoteEditor } from '../hooks/useNoteEditor';
 
 export default function NotesPage() {
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
@@ -23,48 +24,14 @@ export default function NotesPage() {
     togglePin,
   } = useNotes();
 
-  const [editTitle, setEditTitle] = useState('');
-  const [editContent, setEditContent] = useState('');
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   useEffect(() => {
     fetchNotes();
   }, [fetchNotes]);
 
   const selectedNote = notes.find((n) => n.noteId === selectedNoteId) || null;
 
-  useEffect(() => {
-    if (selectedNote) {
-      setEditTitle(selectedNote.title);
-      setEditContent(selectedNote.content);
-    }
-  }, [selectedNoteId]);
-
-  const handleAutoSave = useCallback(
-    (title: string, content: string) => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = setTimeout(() => {
-        if (selectedNoteId) {
-          updateNote(selectedNoteId, {
-            title,
-            content,
-            isPinned: selectedNote?.isPinned || false,
-          });
-        }
-      }, 800);
-    },
-    [selectedNoteId, selectedNote, updateNote]
-  );
-
-  const handleTitleChange = (title: string) => {
-    setEditTitle(title);
-    handleAutoSave(title, editContent);
-  };
-
-  const handleContentChange = (content: string) => {
-    setEditContent(content);
-    handleAutoSave(editTitle, content);
-  };
+  const { editTitle, editContent, handleTitleChange, handleContentChange } =
+    useNoteEditor(selectedNoteId, selectedNote, updateNote);
 
   const handleCreateNote = async () => {
     await createNote('無題');

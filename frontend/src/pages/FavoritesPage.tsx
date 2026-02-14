@@ -1,23 +1,10 @@
-import { useState, useMemo } from 'react';
 import { useFavoritePhrase } from '../hooks/useFavoritePhrase';
 import SearchBox from '../components/SearchBox';
 
 const PATTERN_FILTERS = ['すべて', 'フォーマル', 'ソフト', '簡潔'] as const;
 
 export default function FavoritesPage() {
-  const { phrases, removeFavorite } = useFavoritePhrase();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [patternFilter, setPatternFilter] = useState<string>('すべて');
-
-  const filteredPhrases = useMemo(() => {
-    return phrases.filter((phrase) => {
-      const matchesPattern = patternFilter === 'すべて' || phrase.pattern === patternFilter;
-      const matchesSearch = !searchQuery ||
-        phrase.originalText.includes(searchQuery) ||
-        phrase.rephrasedText.includes(searchQuery);
-      return matchesPattern && matchesSearch;
-    });
-  }, [phrases, searchQuery, patternFilter]);
+  const { phrases, filteredPhrases, searchQuery, setSearchQuery, patternFilter, setPatternFilter, removeFavorite } = useFavoritePhrase();
 
   return (
     <div className="max-w-3xl mx-auto p-4 space-y-3">

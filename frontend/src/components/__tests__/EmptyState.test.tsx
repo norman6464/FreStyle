@@ -62,4 +62,31 @@ describe('EmptyState', () => {
     expect(screen.getByText('質問や相談を何でも聞いてください')).toBeDefined();
     expect(container.querySelector('svg')).toBeTruthy();
   });
+
+  it('タイトルがh3要素で表示される', () => {
+    render(<EmptyState icon={ChatBubbleLeftRightIcon} title="見出しテスト" />);
+    const heading = screen.getByText('見出しテスト');
+    expect(heading.tagName).toBe('H3');
+  });
+
+  it('アクションボタンに説明文とともに表示できる', () => {
+    const onClick = vi.fn();
+    render(
+      <EmptyState
+        icon={ChatBubbleLeftRightIcon}
+        title="テスト"
+        description="説明テキスト"
+        action={{ label: '操作', onClick }}
+      />
+    );
+    expect(screen.getByText('説明テキスト')).toBeDefined();
+    expect(screen.getByText('操作')).toBeDefined();
+  });
+
+  it('アイコンがbg-surface-3の丸い背景内に表示される', () => {
+    const { container } = render(<EmptyState icon={ChatBubbleLeftRightIcon} title="テスト" />);
+    const iconWrapper = container.querySelector('.bg-surface-3.rounded-full');
+    expect(iconWrapper).toBeTruthy();
+    expect(iconWrapper?.querySelector('svg')).toBeTruthy();
+  });
 });

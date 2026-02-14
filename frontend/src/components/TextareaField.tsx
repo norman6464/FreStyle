@@ -8,9 +8,10 @@ interface TextareaFieldProps {
   placeholder?: string;
   rows?: number;
   maxLength?: number;
+  error?: string;
 }
 
-export default function TextareaField({ label, name, value, onChange, placeholder, rows = 3, maxLength }: TextareaFieldProps) {
+export default function TextareaField({ label, name, value, onChange, placeholder, rows = 3, maxLength, error }: TextareaFieldProps) {
   return (
     <div>
       <label htmlFor={name} className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">
@@ -24,8 +25,19 @@ export default function TextareaField({ label, name, value, onChange, placeholde
         placeholder={placeholder}
         rows={rows}
         maxLength={maxLength}
-        className="w-full border border-surface-3 rounded-lg px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors resize-none"
+        aria-invalid={!!error}
+        aria-describedby={error ? `${name}-error` : undefined}
+        className={`w-full border rounded-lg px-3 py-2 text-sm focus:ring-1 transition-colors resize-none ${
+          error
+            ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500'
+            : 'border-surface-3 focus:border-primary-500 focus:ring-primary-500'
+        }`}
       />
+      {error && (
+        <p id={`${name}-error`} role="alert" className="text-xs text-rose-400 mt-1">
+          {error}
+        </p>
+      )}
       {maxLength && (
         <p className={`text-xs text-right mt-1 ${
           value.length >= maxLength

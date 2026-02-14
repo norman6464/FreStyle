@@ -73,4 +73,34 @@ describe('NoteListItem', () => {
     fireEvent.click(screen.getByLabelText('ピン留め'));
     expect(onSelect).not.toHaveBeenCalled();
   });
+
+  it('削除ボタンクリックでonSelectは呼ばれない', () => {
+    const onSelect = vi.fn();
+    render(<NoteListItem {...defaultProps} onSelect={onSelect} />);
+    fireEvent.click(screen.getByLabelText('ノートを削除'));
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it('EnterキーでonSelectが呼ばれる', () => {
+    const onSelect = vi.fn();
+    const { container } = render(<NoteListItem {...defaultProps} onSelect={onSelect} />);
+    const item = container.querySelector('[role="button"]')!;
+    fireEvent.keyDown(item, { key: 'Enter' });
+    expect(onSelect).toHaveBeenCalledWith('note-1');
+  });
+
+  it('SpaceキーでonSelectが呼ばれる', () => {
+    const onSelect = vi.fn();
+    const { container } = render(<NoteListItem {...defaultProps} onSelect={onSelect} />);
+    const item = container.querySelector('[role="button"]')!;
+    fireEvent.keyDown(item, { key: ' ' });
+    expect(onSelect).toHaveBeenCalledWith('note-1');
+  });
+
+  it('長い内容が60文字で切り詰められる', () => {
+    const longContent = 'あ'.repeat(100);
+    render(<NoteListItem {...defaultProps} content={longContent} />);
+    const preview = screen.getByText('あ'.repeat(60));
+    expect(preview).toBeInTheDocument();
+  });
 });

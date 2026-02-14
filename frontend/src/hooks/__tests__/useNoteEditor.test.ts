@@ -140,4 +140,43 @@ describe('useNoteEditor', () => {
     expect(result.current.editTitle).toBe('');
     expect(result.current.editContent).toBe('');
   });
+
+  it('ピン留めノートの自動保存でisPinnedがtrueで送信される', () => {
+    const pinnedNote: Note = { ...baseNote, isPinned: true };
+    const { result } = renderHook(() => useNoteEditor('n1', pinnedNote, mockUpdateNote));
+
+    act(() => { result.current.handleTitleChange('更新'); });
+    act(() => { vi.advanceTimersByTime(800); });
+
+    expect(mockUpdateNote).toHaveBeenCalledWith('n1', {
+      title: '更新',
+      content: '元内容',
+      isPinned: true,
+    });
+  });
+
+  it('selectedNoteIdがnullの場合800ms後もupdateNoteが呼ばれない', () => {
+    const { result } = renderHook(() => useNoteEditor(null, null, mockUpdateNote));
+
+    act(() => { result.current.handleTitleChange('テスト'); });
+    act(() => { vi.advanceTimersByTime(800); });
+
+    expect(mockUpdateNote).not.toHaveBeenCalled();
+  });
+
+  it('タイトルと内容を交互に変更してもデバウンスが正しく動作する', () => {
+    const { result } = renderHook(() => useNoteEditor('n1', baseNote, mockUpdateNote));
+
+    act(() => { result.current.handleTitleChange('新タイトル'); });
+    act(() => { vi.advanceTimersByTime(400); });
+    act(() => { result.current.handleContentChange('新内容'); });
+    act(() => { vi.advanceTimersByTime(800); });
+
+    expect(mockUpdateNote).toHaveBeenCalledTimes(1);
+    expect(mockUpdateNote).toHaveBeenCalledWith('n1', {
+      title: '新タイトル',
+      content: '新内容',
+      isPinned: false,
+    });
+  });
 });

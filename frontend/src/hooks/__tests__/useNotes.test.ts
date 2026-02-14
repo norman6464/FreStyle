@@ -300,4 +300,64 @@ describe('useNotes', () => {
     expect(result.current.filteredNotes[1].noteId).toBe('n1');
     expect(result.current.filteredNotes[2].noteId).toBe('n3');
   });
+
+  it('検索クエリが大文字小文字を区別しない', async () => {
+    const mixedNotes = [
+      { noteId: 'n1', userId: 1, title: 'Hello World', content: '', isPinned: false, createdAt: 1000, updatedAt: 2000 },
+    ];
+    vi.mocked(NoteRepository.fetchNotes).mockResolvedValue(mixedNotes);
+
+    const { result } = renderHook(() => useNotes());
+    await act(async () => { await result.current.fetchNotes(); });
+
+    act(() => { result.current.setSearchQuery('hello'); });
+    expect(result.current.filteredNotes).toHaveLength(1);
+
+    act(() => { result.current.setSearchQuery('HELLO'); });
+    expect(result.current.filteredNotes).toHaveLength(1);
+  });
+
+  it('togglePinエラー時にnotes状態が変更されない', async () => {
+    vi.mocked(NoteRepository.updateNote).mockRejectedValue(new Error('更新エラー'));
+
+    const { result } = renderHook(() => useNotes());
+    await act(async () => { await result.current.fetchNotes(); });
+
+    const originalPinState = result.current.notes.find(n => n.noteId === 'note-2')?.isPinned;
+
+    await act(async () => { await result.current.togglePin('note-2'); });
+
+    expect(result.current.notes.find(n => n.noteId === 'note-2')?.isPinned).toBe(originalPinState);
+  });
+
+  it('togglePinで存在しないnoteIdの場合何も起こらない', async () => {
+    vi.mocked(NoteRepository.updateNote).mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => useNotes());
+    await act(async () => { await result.current.fetchNotes(); });
+
+    await act(async () => { await result.current.togglePin('nonexistent'); });
+
+    expect(NoteRepository.updateNote).not.toHaveBeenCalled();
+    expect(result.current.notes).toHaveLength(2);
+  });
+
+  it('検索クエリが空文字の場合全ノートが表示される', async () => {
+    const { result } = renderHook(() => useNotes());
+    await act(async () => { await result.current.fetchNotes(); });
+
+    act(() => { result.current.setSearchQuery('ノート1'); });
+    expect(result.current.filteredNotes).toHaveLength(1);
+
+    act(() => { result.current.setSearchQuery(''); });
+    expect(result.current.filteredNotes).toHaveLength(2);
+  });
+
+  it('検索でヒットしない場合は空配列を返す', async () => {
+    const { result } = renderHook(() => useNotes());
+    await act(async () => { await result.current.fetchNotes(); });
+
+    act(() => { result.current.setSearchQuery('存在しないクエリ'); });
+    expect(result.current.filteredNotes).toHaveLength(0);
+  });
 });

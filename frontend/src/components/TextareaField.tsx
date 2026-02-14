@@ -27,7 +27,13 @@ export default function TextareaField({ label, name, value, onChange, placeholde
         className="w-full border border-surface-3 rounded-lg px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors resize-none"
       />
       {maxLength && (
-        <p className="text-xs text-[var(--color-text-muted)] text-right mt-1">
+        <p className={`text-xs text-right mt-1 ${
+          value.length >= maxLength
+            ? 'text-rose-400'
+            : value.length >= maxLength * 0.9
+              ? 'text-amber-400'
+              : 'text-[var(--color-text-muted)]'
+        }`}>
           {value.length} / {maxLength}
         </p>
       )}

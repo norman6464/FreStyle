@@ -149,9 +149,11 @@
 - **メッセージコピー機能**：チャット・AIチャット両方のメッセージ個別コピーボタン・コピー済みフィードバック表示（2秒間）・Heroiconsアイコン使用
 - **検索ボックスクリアボタン**：SearchBoxコンポーネントにXMarkIconによるワンタップクリア機能・値が空の場合は非表示
 - **FilterTabsコンポーネント**：ジェネリクス型安全なタブ切り替えUI・WAI-ARIAタブパターン対応・PracticePage/ScoreHistoryPageで再利用
+- **TextareaFieldコンポーネント**：文字数カウント付きtextarea・maxLength指定時に残り文字数表示（90%超で警告色・上限到達で赤色）
+- **SelectFieldコンポーネント**：ラベル付きselect要素の統一コンポーネント・UserProfilePageで再利用
 
 ### テスト品質
-- **フロントエンド1089テスト**：Vitest + React Testing Library
+- **フロントエンド1108テスト**：Vitest + React Testing Library
   - Repository層テスト（13リポジトリ・62テスト）
   - Hooks層テスト（32フック・319テスト）
   - Store層テスト（1スライス・5テスト）

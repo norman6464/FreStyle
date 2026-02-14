@@ -21,11 +21,14 @@ import AuthInitializer from './utils/AuthInitializer';
 import Protected from './utils/Protected';
 import AppShell from './components/layout/AppShell';
 import ErrorBoundary from './components/ErrorBoundary';
+import { ToastProvider } from './hooks/useToast';
+import ToastContainer from './components/ToastContainer';
 
 
 export default function App() {
   return (
     <ErrorBoundary>
+    <ToastProvider>
     <Routes>
       {/* 誰でもアクセス可能 */}
       <Route path="/login" element={<LoginPage />} />
@@ -63,6 +66,8 @@ export default function App() {
         <Route path="/notes" element={<NotesPage />} />
       </Route>
     </Routes>
+    <ToastContainer />
+    </ToastProvider>
     </ErrorBoundary>
   );
 }

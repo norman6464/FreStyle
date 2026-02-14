@@ -58,4 +58,39 @@ describe('useBookmark', () => {
     expect(result.current.isBookmarked(1)).toBe(true);
     expect(result.current.isBookmarked(2)).toBe(false);
   });
+
+  it('初期ブックマークが空の場合に空配列を返す', () => {
+    mockGetAll.mockReturnValue([]);
+
+    const { result } = renderHook(() => useBookmark());
+    expect(result.current.bookmarkedIds).toEqual([]);
+  });
+
+  it('toggle後にbookmarkedIdsが更新される', () => {
+    mockGetAll.mockReturnValueOnce([1]).mockReturnValueOnce([1, 2]);
+    mockIsBookmarked.mockReturnValue(false);
+
+    const { result } = renderHook(() => useBookmark());
+    expect(result.current.bookmarkedIds).toEqual([1]);
+
+    act(() => {
+      result.current.toggleBookmark(2);
+    });
+
+    expect(result.current.bookmarkedIds).toEqual([1, 2]);
+  });
+
+  it('toggle削除後にbookmarkedIdsが更新される', () => {
+    mockGetAll.mockReturnValueOnce([1, 3]).mockReturnValueOnce([3]);
+    mockIsBookmarked.mockReturnValue(true);
+
+    const { result } = renderHook(() => useBookmark());
+    expect(result.current.bookmarkedIds).toEqual([1, 3]);
+
+    act(() => {
+      result.current.toggleBookmark(1);
+    });
+
+    expect(result.current.bookmarkedIds).toEqual([3]);
+  });
 });

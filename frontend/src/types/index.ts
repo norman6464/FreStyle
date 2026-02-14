@@ -140,3 +140,14 @@ export interface SessionNote {
   note: string;
   updatedAt: string;
 }
+
+/** ノート */
+export interface Note {
+  noteId: string;
+  userId: number;
+  title: string;
+  content: string;
+  isPinned: boolean;
+  createdAt: number;
+  updatedAt: number;
+}

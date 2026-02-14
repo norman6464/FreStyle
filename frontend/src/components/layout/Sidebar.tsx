@@ -10,6 +10,7 @@ import {
   MagnifyingGlassIcon,
   ChartBarIcon,
   StarIcon,
+  DocumentTextIcon,
   UserCircleIcon,
   LightBulbIcon,
   ArrowLeftOnRectangleIcon,
@@ -25,6 +26,7 @@ const navItems = [
   { icon: MagnifyingGlassIcon, label: 'ユーザー検索', to: '/chat/users', matchExact: true },
   { icon: ChartBarIcon, label: 'スコア履歴', to: '/scores', matchExact: true },
   { icon: StarIcon, label: 'お気に入り', to: '/favorites', matchExact: true },
+  { icon: DocumentTextIcon, label: 'ノート', to: '/notes', matchPrefix: '/notes' },
 ];
 
 const bottomNavItems = [

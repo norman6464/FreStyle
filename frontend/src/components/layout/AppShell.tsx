@@ -13,6 +13,7 @@ const pageTitles: Record<string, string> = {
   '/chat/members': 'メンバー',
   '/profile/me': 'プロフィール',
   '/profile/personality': 'パーソナリティ設定',
+  '/notes': 'ノート',
 };
 
 function getPageTitle(pathname: string): string {

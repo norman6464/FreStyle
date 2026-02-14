@@ -14,6 +14,7 @@ import MemberPage from './pages/MemberPage';
 import AddUserPage from './pages/AddUserPage';
 import ProfilePage from './pages/ProfilePage';
 import UserProfilePage from './pages/UserProfilePage';
+import NotesPage from './pages/NotesPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ConfirmForgotPasswordPage from './pages/ConfirmForgotPasswordPage';
 import AuthInitializer from './utils/AuthInitializer';
@@ -59,6 +60,7 @@ export default function App() {
         <Route path="/favorites" element={<FavoritesPage />} />
         <Route path="/chat/ask-ai" element={<AskAiPage />} />
         <Route path="/chat/ask-ai/:sessionId" element={<AskAiPage />} />
+        <Route path="/notes" element={<NotesPage />} />
       </Route>
     </Routes>
     </ErrorBoundary>

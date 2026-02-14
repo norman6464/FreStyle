@@ -1,52 +1,14 @@
-import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import SecondaryPanel from '../components/layout/SecondaryPanel';
 import EmptyState from '../components/EmptyState';
 import SearchBox from '../components/SearchBox';
 import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
-import SockJS from 'sockjs-client';
-import { Client } from '@stomp/stompjs';
 import { useChatList } from '../hooks/useChatList';
 import { formatTime, truncateMessage } from '../utils/formatters';
 
 export default function ChatListPage() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const stompClientRef = useRef<Client | null>(null);
   const navigate = useNavigate();
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-
-  const { chatUsers, loading, userId, fetchChatUsers, updateUnreadCount } = useChatList();
-
-  // リアルタイム未読数更新のWebSocket購読
-  useEffect(() => {
-    if (!userId) return;
-
-    const client = new Client({
-      webSocketFactory: () =>
-        new SockJS(`${API_BASE_URL}/ws/chat`, undefined, { withCredentials: true }),
-      reconnectDelay: 5000,
-      onConnect: () => {
-        client.subscribe(`/topic/unread/${userId}`, (message) => {
-          const data = JSON.parse(message.body);
-          if (data.type === 'unread_update') {
-            updateUnreadCount(data.roomId, data.increment);
-          }
-        });
-      },
-    });
-
-    stompClientRef.current = client;
-    client.activate();
-    return () => client.deactivate();
-  }, [userId, updateUnreadCount, API_BASE_URL]);
-
-  // 検索クエリ変更時にデバウンス検索
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchChatUsers(searchQuery || undefined);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchQuery, fetchChatUsers]);
+  const { chatUsers, loading, searchQuery, setSearchQuery } = useChatList();
 
   return (
     <div className="flex h-full">

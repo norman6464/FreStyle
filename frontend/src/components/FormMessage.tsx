@@ -11,6 +11,7 @@ export default function FormMessage({ message }: FormMessageProps) {
 
   return (
     <div
+      role="alert"
       className={`mb-4 p-3 rounded-lg text-sm font-medium flex items-start gap-2 ${
         isError
           ? 'bg-rose-900/30 text-rose-400 border border-rose-800'

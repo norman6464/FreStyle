@@ -61,4 +61,26 @@ describe('MessageSearchBar', () => {
     const liveRegion = screen.getByText('5件');
     expect(liveRegion).toHaveAttribute('aria-live', 'polite');
   });
+
+  it('入力をクリアするとonSearchが空文字で呼ばれる', () => {
+    render(<MessageSearchBar onSearch={mockOnSearch} onClear={mockOnClear} matchCount={0} />);
+    const input = screen.getByPlaceholderText('メッセージを検索...');
+
+    fireEvent.change(input, { target: { value: 'テスト' } });
+    mockOnSearch.mockClear();
+    fireEvent.change(input, { target: { value: '' } });
+    expect(mockOnSearch).toHaveBeenCalledWith('');
+  });
+
+  it('クリアボタンがsearchロール内にある', () => {
+    render(<MessageSearchBar onSearch={mockOnSearch} onClear={mockOnClear} matchCount={0} />);
+    const searchContainer = screen.getByRole('search');
+    const clearButton = screen.getByLabelText('検索をクリア');
+    expect(searchContainer).toContainElement(clearButton);
+  });
+
+  it('大きなマッチ件数が正しく表示される', () => {
+    render(<MessageSearchBar onSearch={mockOnSearch} onClear={mockOnClear} matchCount={999} />);
+    expect(screen.getByText('999件')).toBeInTheDocument();
+  });
 });

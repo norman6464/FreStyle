@@ -156,9 +156,11 @@
 - **SectionHeaderコンポーネント**：アイコン＋タイトルのセクション見出しを再利用可能コンポーネント化・UserProfilePageで適用
 - **InputFieldバリデーションエラー表示**：error prop追加でフィールドレベルエラー表示・aria-invalid/aria-describedby/role="alert"のアクセシビリティ対応
 - **scoreColorユーティリティ**：スコア色判定ロジックを一元管理（ScoreCard/RecentSessionsCard/ScoreComparisonCard/ScoreGrowthTrendCardで共有）
+- **トースト通知システム**：操作結果（成功/エラー/情報）を画面右下にスタック表示・3秒後自動消去・Heroiconsアイコン・aria-live対応
+- **フォームバリデーション統一**：InputField/TextareaField/SelectField全てにerror prop追加・aria-invalid/aria-describedby/role="alert"のアクセシビリティ対応
 
 ### テスト品質
-- **フロントエンド1159テスト**：Vitest + React Testing Library
+- **フロントエンド1182テスト**：Vitest + React Testing Library
   - Repository層テスト（13リポジトリ・62テスト）
   - Hooks層テスト（32フック・319テスト）
   - Store層テスト（1スライス・5テスト）

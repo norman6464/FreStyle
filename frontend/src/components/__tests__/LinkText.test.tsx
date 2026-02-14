@@ -23,4 +23,36 @@ describe('LinkText', () => {
 
     expect(screen.getByText('新規登録').closest('a')).toHaveAttribute('href', '/signup');
   });
+
+  it('aタグとしてレンダリングされる', () => {
+    render(
+      <MemoryRouter>
+        <LinkText to="/test">テスト</LinkText>
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('テスト').closest('a')).toBeTruthy();
+  });
+
+  it('テキストスタイルが適用される', () => {
+    render(
+      <MemoryRouter>
+        <LinkText to="/test">テスト</LinkText>
+      </MemoryRouter>
+    );
+
+    const link = screen.getByText('テスト').closest('a');
+    expect(link?.className).toContain('text-primary-500');
+    expect(link?.className).toContain('font-medium');
+  });
+
+  it('異なるパスで正しいリンク先が設定される', () => {
+    render(
+      <MemoryRouter>
+        <LinkText to="/forgot-password">パスワードリセット</LinkText>
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('パスワードリセット').closest('a')).toHaveAttribute('href', '/forgot-password');
+  });
 });

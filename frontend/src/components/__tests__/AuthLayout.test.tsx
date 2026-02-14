@@ -14,4 +14,22 @@ describe('AuthLayout', () => {
 
     expect(screen.getByText('子コンテンツ')).toBeInTheDocument();
   });
+
+  it('複数の子要素が表示される', () => {
+    render(
+      <AuthLayout>
+        <p>要素1</p>
+        <p>要素2</p>
+      </AuthLayout>
+    );
+
+    expect(screen.getByText('要素1')).toBeInTheDocument();
+    expect(screen.getByText('要素2')).toBeInTheDocument();
+  });
+
+  it('プライマリカラーのボーダーが適用される', () => {
+    const { container } = render(<AuthLayout><div>テスト</div></AuthLayout>);
+    const card = container.querySelector('.border-t-primary-500');
+    expect(card).toBeTruthy();
+  });
 });

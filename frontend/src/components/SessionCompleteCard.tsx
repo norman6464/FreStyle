@@ -1,4 +1,5 @@
 import { CheckCircleIcon } from '@heroicons/react/24/solid';
+import Card from './Card';
 
 interface SessionCompleteCardProps {
   duration: number;
@@ -20,7 +21,7 @@ export default function SessionCompleteCard({
   onPracticeAgain,
 }: SessionCompleteCardProps) {
   return (
-    <div className="bg-surface-1 rounded-lg border border-surface-3 p-6 text-center">
+    <Card className="p-6 text-center">
       <CheckCircleIcon className="w-10 h-10 text-emerald-400 mx-auto mb-3" />
       <h3 className="text-sm font-bold text-[var(--color-text-primary)] mb-4">セッション完了</h3>
 
@@ -49,6 +50,6 @@ export default function SessionCompleteCard({
           もう一度練習
         </button>
       </div>
-    </div>
+    </Card>
   );
 }

@@ -1,3 +1,5 @@
+import Card from './Card';
+
 interface AxisScore {
   axis: string;
   score: number;
@@ -23,7 +25,7 @@ export default function SkillGapAnalysisCard({ scores, goal }: SkillGapAnalysisC
   const allAchieved = gaps.every((g) => g.achieved);
 
   return (
-    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
+    <Card>
       <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-3">スキルギャップ分析</p>
 
       {allAchieved && (
@@ -58,6 +60,6 @@ export default function SkillGapAnalysisCard({ scores, goal }: SkillGapAnalysisC
           </div>
         ))}
       </div>
-    </div>
+    </Card>
   );
 }

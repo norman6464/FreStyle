@@ -1,4 +1,5 @@
 import type { ScoreHistoryItem } from '../hooks/useScoreHistory';
+import Card from './Card';
 
 interface ScoreHistorySessionCardProps {
   item: ScoreHistoryItem;
@@ -8,8 +9,8 @@ interface ScoreHistorySessionCardProps {
 
 export default function ScoreHistorySessionCard({ item, delta, onClick }: ScoreHistorySessionCardProps) {
   return (
-    <div
-      className="bg-surface-1 rounded-lg border border-surface-3 p-4 cursor-pointer hover:border-[var(--color-border-hover)] transition-colors"
+    <Card
+      className="cursor-pointer hover:border-[var(--color-border-hover)] transition-colors"
       onClick={onClick}
     >
       <div className="flex items-center justify-between mb-3">
@@ -59,6 +60,6 @@ export default function ScoreHistorySessionCard({ item, delta, onClick }: ScoreH
           </div>
         ))}
       </div>
-    </div>
+    </Card>
   );
 }

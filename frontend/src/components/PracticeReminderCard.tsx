@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import Card from './Card';
 
 interface PracticeReminderCardProps {
   lastPracticeDate: string | null;
@@ -19,7 +20,7 @@ export default function PracticeReminderCard({ lastPracticeDate }: PracticeRemin
   const daysAgo = getDaysAgo(lastPracticeDate);
 
   return (
-    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4 flex items-center justify-between">
+    <Card className="flex items-center justify-between">
       <div>
         {daysAgo === 0 ? (
           <p className="text-sm font-medium text-emerald-400">今日も練習済み！</p>
@@ -40,6 +41,6 @@ export default function PracticeReminderCard({ lastPracticeDate }: PracticeRemin
           練習する
         </button>
       )}
-    </div>
+    </Card>
   );
 }

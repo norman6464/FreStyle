@@ -1,4 +1,5 @@
 import type { PracticeScenario } from '../types';
+import Card from './Card';
 
 interface ScenarioCardProps {
   scenario: PracticeScenario;
@@ -38,9 +39,9 @@ export default function ScenarioCard({ scenario, onSelect, isBookmarked, onToggl
   };
 
   return (
-    <div
+    <Card
       onClick={() => onSelect(scenario)}
-      className="bg-surface-1 rounded-lg border border-surface-3 p-4 cursor-pointer hover:bg-surface-2 transition-colors"
+      className="cursor-pointer hover:bg-surface-2 transition-colors"
     >
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs text-[var(--color-text-muted)]">{categoryLabel[scenario.category] || scenario.category}</span>
@@ -72,6 +73,6 @@ export default function ScenarioCard({ scenario, onSelect, isBookmarked, onToggl
         </svg>
         <span>相手役: {scenario.roleName}</span>
       </div>
-    </div>
+    </Card>
   );
 }

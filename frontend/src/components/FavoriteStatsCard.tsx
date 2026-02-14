@@ -41,7 +41,7 @@ export default function FavoriteStatsCard({ phrases }: FavoriteStatsCardProps) {
             <div className="flex-1 bg-surface-3 rounded-full h-3">
               {maxCount > 0 && count > 0 && (
                 <div
-                  className={`h-3 rounded-full ${PATTERN_COLORS[pattern] || 'bg-[#666666]'} transition-all`}
+                  className={`h-3 rounded-full ${PATTERN_COLORS[pattern] || 'bg-surface-3'} transition-all`}
                   style={{ width: `${(count / maxCount) * 100}%` }}
                 />
               )}

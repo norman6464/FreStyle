@@ -11,6 +11,7 @@ import ScoreImprovementAdvice from '../components/ScoreImprovementAdvice';
 import SkillSummaryCard from '../components/SkillSummaryCard';
 import CommunicationStyleCard from '../components/CommunicationStyleCard';
 import ScoreGoalCard from '../components/ScoreGoalCard';
+import ScoreDistributionCard from '../components/ScoreDistributionCard';
 import SkillTrendChart from '../components/SkillTrendChart';
 import SessionDetailModal from '../components/SessionDetailModal';
 import { useScoreHistory, FILTERS, type ScoreHistoryItem } from '../hooks/useScoreHistory';
@@ -114,6 +115,9 @@ export default function ScoreHistoryPage() {
       {latestSession && latestSession.scores.length > 0 && (
         <ScoreImprovementAdvice scores={latestSession.scores} />
       )}
+
+      {/* スコア分布 */}
+      <ScoreDistributionCard scores={history.map(h => h.overallScore)} />
 
       {/* スコア推移グラフ */}
       <div className="bg-white rounded-lg border border-slate-200 p-4">

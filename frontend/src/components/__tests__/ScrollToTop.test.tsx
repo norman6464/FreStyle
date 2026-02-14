@@ -87,4 +87,32 @@ describe('ScrollToTop', () => {
   it('ターゲット要素が存在しない場合エラーにならない', () => {
     expect(() => render(<ScrollToTop targetId="nonexistent" />)).not.toThrow();
   });
+
+  it('ちょうど閾値でボタンが表示される', () => {
+    render(<ScrollToTop targetId="scroll-target" threshold={100} />);
+    Object.defineProperty(scrollContainer, 'scrollTop', { value: 100 });
+    act(() => {
+      fireEvent.scroll(scrollContainer);
+    });
+    expect(screen.getByRole('button')).toBeInTheDocument();
+  });
+
+  it('ボタンにfixed配置クラスが適用される', () => {
+    render(<ScrollToTop targetId="scroll-target" threshold={0} />);
+    Object.defineProperty(scrollContainer, 'scrollTop', { value: 10 });
+    act(() => {
+      fireEvent.scroll(scrollContainer);
+    });
+    expect(screen.getByRole('button').className).toContain('fixed');
+    expect(screen.getByRole('button').className).toContain('bottom-6');
+    expect(screen.getByRole('button').className).toContain('right-6');
+  });
+
+  it('アンマウント時にスクロールイベントリスナーがクリーンアップされる', () => {
+    const removeSpy = vi.spyOn(scrollContainer, 'removeEventListener');
+    const { unmount } = render(<ScrollToTop targetId="scroll-target" />);
+    unmount();
+    expect(removeSpy).toHaveBeenCalledWith('scroll', expect.any(Function));
+    removeSpy.mockRestore();
+  });
 });

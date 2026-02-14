@@ -17,7 +17,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -35,13 +34,12 @@ class NoteServiceTest {
     }
 
     @Nested
-    @DisplayName("getNotesByUserId - ユーザーのノート一覧取得")
-    class GetNotesByUserIdTest {
+    @DisplayName("findByUserId - ユーザーのノート一覧取得")
+    class FindByUserIdTest {
 
         @Test
         @DisplayName("ユーザーのノートを更新日時降順で取得する")
         void shouldReturnNotesSortedByUpdatedAtDesc() {
-            // Arrange
             Map<String, AttributeValue> item1 = createNoteItem(1, "note-1", "タイトル1", "内容1", false, 1000L, 2000L);
             Map<String, AttributeValue> item2 = createNoteItem(1, "note-2", "タイトル2", "内容2", true, 1500L, 3000L);
 
@@ -50,10 +48,8 @@ class NoteServiceTest {
                     .build();
             when(dynamoDbClient.query(any(QueryRequest.class))).thenReturn(response);
 
-            // Act
-            List<NoteDto> result = noteService.getNotesByUserId(1);
+            List<NoteDto> result = noteService.findByUserId(1);
 
-            // Assert
             assertThat(result).hasSize(2);
             assertThat(result.get(0).getNoteId()).isEqualTo("note-1");
             assertThat(result.get(1).getNoteId()).isEqualTo("note-2");
@@ -67,15 +63,15 @@ class NoteServiceTest {
                     .build();
             when(dynamoDbClient.query(any(QueryRequest.class))).thenReturn(response);
 
-            List<NoteDto> result = noteService.getNotesByUserId(1);
+            List<NoteDto> result = noteService.findByUserId(1);
 
             assertThat(result).isEmpty();
         }
     }
 
     @Nested
-    @DisplayName("createNote - ノート作成")
-    class CreateNoteTest {
+    @DisplayName("save - ノート作成")
+    class SaveTest {
 
         @Test
         @DisplayName("新しいノートを作成して返す")
@@ -83,7 +79,7 @@ class NoteServiceTest {
             when(dynamoDbClient.putItem(any(PutItemRequest.class)))
                     .thenReturn(PutItemResponse.builder().build());
 
-            NoteDto result = noteService.createNote(1, "新しいノート");
+            NoteDto result = noteService.save(1, "新しいノート");
 
             assertThat(result).isNotNull();
             assertThat(result.getUserId()).isEqualTo(1);
@@ -97,8 +93,8 @@ class NoteServiceTest {
     }
 
     @Nested
-    @DisplayName("updateNote - ノート更新")
-    class UpdateNoteTest {
+    @DisplayName("update - ノート更新")
+    class UpdateTest {
 
         @Test
         @DisplayName("タイトルと内容を更新する")
@@ -106,7 +102,7 @@ class NoteServiceTest {
             when(dynamoDbClient.updateItem(any(UpdateItemRequest.class)))
                     .thenReturn(UpdateItemResponse.builder().build());
 
-            noteService.updateNote(1, "note-1", "更新タイトル", "更新内容", false);
+            noteService.update(1, "note-1", "更新タイトル", "更新内容", false);
 
             ArgumentCaptor<UpdateItemRequest> captor = ArgumentCaptor.forClass(UpdateItemRequest.class);
             verify(dynamoDbClient).updateItem(captor.capture());
@@ -119,8 +115,8 @@ class NoteServiceTest {
     }
 
     @Nested
-    @DisplayName("deleteNote - ノート削除")
-    class DeleteNoteTest {
+    @DisplayName("delete - ノート削除")
+    class DeleteTest {
 
         @Test
         @DisplayName("指定されたノートを削除する")
@@ -128,7 +124,7 @@ class NoteServiceTest {
             when(dynamoDbClient.deleteItem(any(DeleteItemRequest.class)))
                     .thenReturn(DeleteItemResponse.builder().build());
 
-            noteService.deleteNote(1, "note-1");
+            noteService.delete(1, "note-1");
 
             ArgumentCaptor<DeleteItemRequest> captor = ArgumentCaptor.forClass(DeleteItemRequest.class);
             verify(dynamoDbClient).deleteItem(captor.capture());

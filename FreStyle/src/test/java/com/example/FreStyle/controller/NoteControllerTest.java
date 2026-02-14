@@ -2,8 +2,11 @@ package com.example.FreStyle.controller;
 
 import com.example.FreStyle.dto.NoteDto;
 import com.example.FreStyle.entity.User;
-import com.example.FreStyle.service.NoteService;
 import com.example.FreStyle.service.UserIdentityService;
+import com.example.FreStyle.usecase.CreateNoteUseCase;
+import com.example.FreStyle.usecase.DeleteNoteUseCase;
+import com.example.FreStyle.usecase.GetNotesByUserIdUseCase;
+import com.example.FreStyle.usecase.UpdateNoteUseCase;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -24,7 +27,16 @@ import static org.mockito.Mockito.*;
 class NoteControllerTest {
 
     @Mock
-    private NoteService noteService;
+    private GetNotesByUserIdUseCase getNotesByUserIdUseCase;
+
+    @Mock
+    private CreateNoteUseCase createNoteUseCase;
+
+    @Mock
+    private UpdateNoteUseCase updateNoteUseCase;
+
+    @Mock
+    private DeleteNoteUseCase deleteNoteUseCase;
 
     @Mock
     private UserIdentityService userIdentityService;
@@ -52,17 +64,18 @@ class NoteControllerTest {
     class GetNotesTest {
 
         @Test
-        @DisplayName("ユーザーのノート一覧を返す")
-        void shouldReturnUserNotes() {
+        @DisplayName("UseCase経由でユーザーのノート一覧を返す")
+        void shouldReturnUserNotesViaUseCase() {
             NoteDto note1 = new NoteDto("note-1", 1, "タイトル1", "内容1", false, 1000L, 2000L);
             NoteDto note2 = new NoteDto("note-2", 1, "タイトル2", "内容2", true, 1500L, 3000L);
-            when(noteService.getNotesByUserId(1)).thenReturn(List.of(note1, note2));
+            when(getNotesByUserIdUseCase.execute(1)).thenReturn(List.of(note1, note2));
 
             ResponseEntity<List<NoteDto>> response = noteController.getNotes(jwt);
 
             assertThat(response.getStatusCode().value()).isEqualTo(200);
             assertThat(response.getBody()).hasSize(2);
             assertThat(response.getBody().get(0).getTitle()).isEqualTo("タイトル1");
+            verify(getNotesByUserIdUseCase).execute(1);
         }
     }
 
@@ -71,10 +84,10 @@ class NoteControllerTest {
     class CreateNoteTest {
 
         @Test
-        @DisplayName("新しいノートを作成して返す")
-        void shouldCreateAndReturnNote() {
+        @DisplayName("UseCase経由で新しいノートを作成して返す")
+        void shouldCreateNoteViaUseCase() {
             NoteDto created = new NoteDto("note-new", 1, "新しいノート", "", false, 1000L, 1000L);
-            when(noteService.createNote(1, "新しいノート")).thenReturn(created);
+            when(createNoteUseCase.execute(1, "新しいノート")).thenReturn(created);
 
             ResponseEntity<NoteDto> response = noteController.createNote(jwt,
                     new NoteController.CreateNoteRequest("新しいノート"));
@@ -82,6 +95,7 @@ class NoteControllerTest {
             assertThat(response.getStatusCode().value()).isEqualTo(200);
             assertThat(response.getBody().getTitle()).isEqualTo("新しいノート");
             assertThat(response.getBody().getNoteId()).isEqualTo("note-new");
+            verify(createNoteUseCase).execute(1, "新しいノート");
         }
     }
 
@@ -90,15 +104,15 @@ class NoteControllerTest {
     class UpdateNoteTest {
 
         @Test
-        @DisplayName("ノートを更新して204を返す")
-        void shouldUpdateNoteAndReturnNoContent() {
-            doNothing().when(noteService).updateNote(1, "note-1", "更新タイトル", "更新内容", false);
+        @DisplayName("UseCase経由でノートを更新して204を返す")
+        void shouldUpdateNoteViaUseCase() {
+            doNothing().when(updateNoteUseCase).execute(1, "note-1", "更新タイトル", "更新内容", false);
 
             ResponseEntity<Void> response = noteController.updateNote(jwt, "note-1",
                     new NoteController.UpdateNoteRequest("更新タイトル", "更新内容", false));
 
             assertThat(response.getStatusCode().value()).isEqualTo(204);
-            verify(noteService).updateNote(1, "note-1", "更新タイトル", "更新内容", false);
+            verify(updateNoteUseCase).execute(1, "note-1", "更新タイトル", "更新内容", false);
         }
     }
 
@@ -107,14 +121,14 @@ class NoteControllerTest {
     class DeleteNoteTest {
 
         @Test
-        @DisplayName("ノートを削除して204を返す")
-        void shouldDeleteNoteAndReturnNoContent() {
-            doNothing().when(noteService).deleteNote(1, "note-1");
+        @DisplayName("UseCase経由でノートを削除して204を返す")
+        void shouldDeleteNoteViaUseCase() {
+            doNothing().when(deleteNoteUseCase).execute(1, "note-1");
 
             ResponseEntity<Void> response = noteController.deleteNote(jwt, "note-1");
 
             assertThat(response.getStatusCode().value()).isEqualTo(204);
-            verify(noteService).deleteNote(1, "note-1");
+            verify(deleteNoteUseCase).execute(1, "note-1");
         }
     }
 }

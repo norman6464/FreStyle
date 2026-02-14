@@ -1,9 +1,10 @@
 package com.example.FreStyle.service;
 
 import com.example.FreStyle.dto.NoteDto;
+import com.example.FreStyle.repository.NoteRepository;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Repository;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
@@ -14,8 +15,8 @@ import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
-@Service
-public class NoteService {
+@Repository
+public class NoteService implements NoteRepository {
 
     private DynamoDbClient dynamoDbClient;
     private String tableName;
@@ -32,13 +33,11 @@ public class NoteService {
     @Value("${aws.dynamodb.table-name.notes:fre_style_notes}")
     private String configTableName;
 
-    // テスト用コンストラクタ
     public NoteService(DynamoDbClient dynamoDbClient, String tableName) {
         this.dynamoDbClient = dynamoDbClient;
         this.tableName = tableName;
     }
 
-    // Spring DI用デフォルトコンストラクタ
     public NoteService() {
     }
 
@@ -59,7 +58,8 @@ public class NoteService {
         }
     }
 
-    public List<NoteDto> getNotesByUserId(Integer userId) {
+    @Override
+    public List<NoteDto> findByUserId(Integer userId) {
         QueryRequest queryRequest = QueryRequest.builder()
                 .tableName(tableName)
                 .keyConditionExpression("user_id = :user_id")
@@ -76,7 +76,8 @@ public class NoteService {
                 .collect(Collectors.toList());
     }
 
-    public NoteDto createNote(Integer userId, String title) {
+    @Override
+    public NoteDto save(Integer userId, String title) {
         String noteId = UUID.randomUUID().toString();
         long now = Instant.now().toEpochMilli();
 
@@ -107,7 +108,8 @@ public class NoteService {
         return dto;
     }
 
-    public void updateNote(Integer userId, String noteId, String title, String content, Boolean isPinned) {
+    @Override
+    public void update(Integer userId, String noteId, String title, String content, Boolean isPinned) {
         long now = Instant.now().toEpochMilli();
 
         Map<String, AttributeValue> key = new HashMap<>();
@@ -129,7 +131,8 @@ public class NoteService {
         dynamoDbClient.updateItem(updateRequest);
     }
 
-    public void deleteNote(Integer userId, String noteId) {
+    @Override
+    public void delete(Integer userId, String noteId) {
         Map<String, AttributeValue> key = new HashMap<>();
         key.put("user_id", AttributeValue.builder().n(userId.toString()).build());
         key.put("note_id", AttributeValue.builder().s(noteId).build());

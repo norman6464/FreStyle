@@ -14,6 +14,7 @@ import ScoreGoalCard from '../components/ScoreGoalCard';
 import ScoreDistributionCard from '../components/ScoreDistributionCard';
 import SessionTimeCard from '../components/SessionTimeCard';
 import SkillGapAnalysisCard from '../components/SkillGapAnalysisCard';
+import WeeklyComparisonCard from '../components/WeeklyComparisonCard';
 import SkillTrendChart from '../components/SkillTrendChart';
 import SessionDetailModal from '../components/SessionDetailModal';
 import { useScoreHistory, FILTERS, type ScoreHistoryItem } from '../hooks/useScoreHistory';
@@ -78,6 +79,9 @@ export default function ScoreHistoryPage() {
 
       {/* 統計サマリー */}
       <ScoreStatsSummary history={history} />
+
+      {/* 週間比較 */}
+      <WeeklyComparisonCard sessions={history} />
 
       {/* 最新スコアとランクバッジ */}
       {latestSession && (

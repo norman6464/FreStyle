@@ -32,7 +32,7 @@ describe('AuthInitializer', () => {
     vi.clearAllMocks();
   });
 
-  it('ローディング中は「認証確認中...」を表示する', () => {
+  it('ローディング中はLoadingコンポーネントを表示する', () => {
     vi.mocked(authRepository.getCurrentUser).mockResolvedValue({
       id: 1,
       email: 'test@example.com',
@@ -42,7 +42,7 @@ describe('AuthInitializer', () => {
 
     renderWithStore(true);
 
-    expect(screen.getByText('認証確認中...')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toBeInTheDocument();
   });
 
   it('認証成功時にchildrenを表示する', async () => {

@@ -52,4 +52,25 @@ describe('ExportSessionButton', () => {
     const button = screen.getByTitle('会話をコピー');
     expect(button).toBeDisabled();
   });
+
+  it('コピーテキストにロール名が含まれる', async () => {
+    render(<ExportSessionButton messages={mockMessages} />);
+
+    fireEvent.click(screen.getByTitle('会話をコピー'));
+
+    await waitFor(() => {
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+        expect.stringContaining('あなた')
+      );
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+        expect.stringContaining('AI')
+      );
+    });
+  });
+
+  it('ボタンがbutton要素である', () => {
+    render(<ExportSessionButton messages={mockMessages} />);
+    const button = screen.getByTitle('会話をコピー');
+    expect(button.tagName).toBe('BUTTON');
+  });
 });

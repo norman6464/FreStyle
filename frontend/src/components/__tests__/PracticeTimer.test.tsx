@@ -42,4 +42,17 @@ describe('PracticeTimer', () => {
 
     expect(mockStop).toHaveBeenCalled();
   });
+
+  it('時間がmonospaceフォントで表示される', () => {
+    render(<PracticeTimer />);
+    const timeElement = screen.getByText('02:05');
+    expect(timeElement.className).toContain('font-mono');
+  });
+
+  it('ラベルと時間が同じコンテナ内にある', () => {
+    const { container } = render(<PracticeTimer />);
+    const wrapper = container.firstElementChild as HTMLElement;
+    expect(wrapper.className).toContain('flex');
+    expect(wrapper.className).toContain('items-center');
+  });
 });

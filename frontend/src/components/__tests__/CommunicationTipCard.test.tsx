@@ -37,4 +37,18 @@ describe('CommunicationTipCard', () => {
 
     vi.useRealTimers();
   });
+
+  it('Tipsテキストが空でない', () => {
+    render(<CommunicationTipCard />);
+    const text = screen.getByTestId('tip-text').textContent;
+    expect(text).toBeTruthy();
+    expect(text!.length).toBeGreaterThan(0);
+  });
+
+  it('カードの境界線スタイルが適用される', () => {
+    const { container } = render(<CommunicationTipCard />);
+    const card = container.firstElementChild as HTMLElement;
+    expect(card.className).toContain('border');
+    expect(card.className).toContain('rounded-lg');
+  });
 });

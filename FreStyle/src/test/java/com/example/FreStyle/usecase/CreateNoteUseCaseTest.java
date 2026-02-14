@@ -40,5 +40,17 @@ class CreateNoteUseCaseTest {
             assertThat(result.getUserId()).isEqualTo(1);
             verify(noteRepository, times(1)).save(1, "新しいノート");
         }
+
+        @Test
+        @DisplayName("空文字タイトルでもノートを作成できる")
+        void shouldCreateNoteWithEmptyTitle() {
+            NoteDto expected = new NoteDto("note-empty", 1, "", "", false, 1000L, 1000L);
+            when(noteRepository.save(1, "")).thenReturn(expected);
+
+            NoteDto result = useCase.execute(1, "");
+
+            assertThat(result.getTitle()).isEmpty();
+            verify(noteRepository, times(1)).save(1, "");
+        }
     }
 }

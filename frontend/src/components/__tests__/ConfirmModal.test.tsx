@@ -123,4 +123,31 @@ describe('ConfirmModal', () => {
     fireEvent.keyDown(cancelBtn, { key: 'Tab', shiftKey: true });
     expect(document.activeElement).toBe(screen.getByText('削除'));
   });
+
+  it('role=dialogとaria-modal=trueが設定される', () => {
+    render(
+      <ConfirmModal isOpen={true} message="削除しますか？" onConfirm={mockOnConfirm} onCancel={mockOnCancel} />
+    );
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+  });
+
+  it('aria-labelledbyがタイトルを参照する', () => {
+    render(
+      <ConfirmModal isOpen={true} message="削除しますか？" onConfirm={mockOnConfirm} onCancel={mockOnCancel} />
+    );
+    const dialog = screen.getByRole('dialog');
+    const labelId = dialog.getAttribute('aria-labelledby');
+    expect(labelId).toBeTruthy();
+    const title = document.getElementById(labelId!);
+    expect(title).toHaveTextContent('確認');
+  });
+
+  it('isDanger未指定時のデフォルトがtrueである', () => {
+    render(
+      <ConfirmModal isOpen={true} message="削除しますか？" onConfirm={mockOnConfirm} onCancel={mockOnCancel} />
+    );
+    const confirmBtn = screen.getByText('削除');
+    expect(confirmBtn.className).toContain('bg-red-500');
+  });
 });

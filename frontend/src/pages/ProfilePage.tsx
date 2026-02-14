@@ -1,41 +1,9 @@
-import { useState, useEffect } from 'react';
 import InputField from '../components/InputField';
 import PrimaryButton from '../components/PrimaryButton';
-import ProfileRepository from '../repositories/ProfileRepository';
-
-interface FormMessage {
-  type: 'success' | 'error';
-  text: string;
-}
+import { useProfileEdit } from '../hooks/useProfileEdit';
 
 export default function ProfilePage() {
-  const [form, setForm] = useState({ name: '', bio: '' });
-  const [message, setMessage] = useState<FormMessage | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const loadProfile = async () => {
-      try {
-        const data = await ProfileRepository.fetchProfile();
-        setForm({ name: data.name || '', bio: data.bio || '' });
-      } catch {
-        setMessage({ type: 'error', text: 'プロフィール取得に失敗しました。' });
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadProfile();
-  }, []);
-
-  const handleUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    try {
-      const data = await ProfileRepository.updateProfile(form);
-      setMessage({ type: 'success', text: data.success || 'プロフィールを更新しました。' });
-    } catch {
-      setMessage({ type: 'error', text: '通信エラーが発生しました。' });
-    }
-  };
+  const { form, message, loading, updateField, handleUpdate } = useProfileEdit();
 
   if (loading) {
     return (
@@ -72,13 +40,19 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        <form onSubmit={handleUpdate} className="space-y-4">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleUpdate();
+          }}
+          className="space-y-4"
+        >
           <InputField
             label="ニックネーム"
             name="name"
             value={form.name}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              setForm((prev) => ({ ...prev, name: e.target.value }))
+              updateField('name', e.target.value)
             }
           />
           <div>
@@ -89,7 +63,7 @@ export default function ProfilePage() {
               name="bio"
               value={form.bio}
               onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                setForm((prev) => ({ ...prev, bio: e.target.value }))
+                updateField('bio', e.target.value)
               }
               placeholder="あなたについて教えてください..."
               rows={4}

@@ -21,6 +21,7 @@ import RecentSessionsCard from '../components/RecentSessionsCard';
 import WeeklyGoalProgressCard from '../components/WeeklyGoalProgressCard';
 import WeeklyReportCard from '../components/WeeklyReportCard';
 import LearningPatternCard from '../components/LearningPatternCard';
+import ScoreGrowthTrendCard from '../components/ScoreGrowthTrendCard';
 import { useMenuData } from '../hooks/useMenuData';
 
 export default function MenuPage() {
@@ -70,6 +71,13 @@ export default function MenuPage() {
             averageScore={averageScore}
             streakDays={uniqueDays}
           />
+        </div>
+      )}
+
+      {/* 成長トレンド */}
+      {allScores.length >= 2 && (
+        <div className="mb-6">
+          <ScoreGrowthTrendCard scores={allScores.map(s => s.overallScore)} />
         </div>
       )}
 

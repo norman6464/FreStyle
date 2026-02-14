@@ -98,4 +98,35 @@ describe('useConfirmSignup', () => {
     expect(result.current.message?.type).toBe('error');
     expect(result.current.message?.text).toBe('通信エラーが発生しました。');
   });
+
+  it('初期messageがnull', () => {
+    const { result } = renderHook(() => useConfirmSignup());
+    expect(result.current.message).toBeNull();
+  });
+
+  it('codeフィールドのhandleChangeで値が更新される', () => {
+    const { result } = renderHook(() => useConfirmSignup());
+
+    act(() => {
+      result.current.handleChange({
+        target: { name: 'code', value: '654321' },
+      } as React.ChangeEvent<HTMLInputElement>);
+    });
+
+    expect(result.current.form.code).toBe('654321');
+    expect(result.current.form.email).toBe('');
+  });
+
+  it('handleConfirmでpreventDefaultが呼ばれる', async () => {
+    const preventDefault = vi.fn();
+    const { result } = renderHook(() => useConfirmSignup());
+
+    await act(async () => {
+      await result.current.handleConfirm({
+        preventDefault,
+      } as unknown as React.FormEvent<HTMLFormElement>);
+    });
+
+    expect(preventDefault).toHaveBeenCalledOnce();
+  });
 });

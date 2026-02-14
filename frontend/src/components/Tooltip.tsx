@@ -1,4 +1,4 @@
-import { ReactNode, useCallback, useRef, useState } from 'react';
+import { ReactNode, useCallback, useId, useRef, useState } from 'react';
 
 interface TooltipProps {
   content: string;
@@ -9,6 +9,7 @@ interface TooltipProps {
 export default function Tooltip({ content, position = 'top', children }: TooltipProps) {
   const [visible, setVisible] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tooltipId = useId();
 
   const handleMouseEnter = useCallback(() => {
     timerRef.current = setTimeout(() => {
@@ -33,10 +34,12 @@ export default function Tooltip({ content, position = 'top', children }: Tooltip
       className="relative inline-flex"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
+      aria-describedby={visible ? tooltipId : undefined}
     >
       {children}
       {visible && (
         <div
+          id={tooltipId}
           role="tooltip"
           className={`absolute ${positionClass} px-2 py-1 text-xs text-white bg-gray-900 rounded whitespace-nowrap pointer-events-none z-50 animate-fade-in`}
         >

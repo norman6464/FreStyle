@@ -53,5 +53,19 @@ class GetNotesByUserIdUseCaseTest {
             assertThat(result).isEmpty();
             verify(noteRepository, times(1)).findByUserId(1);
         }
+
+        @Test
+        @DisplayName("ピン留めされたノートが含まれる場合も正しく返す")
+        void shouldReturnNotesWithPinnedStatus() {
+            NoteDto pinned = new NoteDto("note-p", 1, "ピン留め", "内容", true, 1000L, 4000L);
+            NoteDto unpinned = new NoteDto("note-u", 1, "通常", "内容", false, 2000L, 3000L);
+            when(noteRepository.findByUserId(1)).thenReturn(List.of(pinned, unpinned));
+
+            List<NoteDto> result = useCase.execute(1);
+
+            assertThat(result).hasSize(2);
+            assertThat(result.get(0).getIsPinned()).isTrue();
+            assertThat(result.get(1).getIsPinned()).isFalse();
+        }
     }
 }

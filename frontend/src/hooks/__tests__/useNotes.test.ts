@@ -79,4 +79,125 @@ describe('useNotes', () => {
 
     expect(result.current.selectedNoteId).toBe('note-1');
   });
+
+  // エッジケーステスト
+
+  it('fetchNotesエラー時にnotesが空のまま', async () => {
+    vi.mocked(NoteRepository.fetchNotes).mockRejectedValue(new Error('ネットワークエラー'));
+
+    const { result } = renderHook(() => useNotes());
+
+    await act(async () => {
+      await result.current.fetchNotes();
+    });
+
+    expect(result.current.notes).toEqual([]);
+    expect(result.current.loading).toBe(false);
+  });
+
+  it('createNoteエラー時にnullを返す', async () => {
+    vi.mocked(NoteRepository.createNote).mockRejectedValue(new Error('作成エラー'));
+
+    const { result } = renderHook(() => useNotes());
+    let returnValue: unknown;
+
+    await act(async () => {
+      returnValue = await result.current.createNote('テスト');
+    });
+
+    expect(returnValue).toBeNull();
+  });
+
+  it('createNote成功後にselectedNoteIdが更新される', async () => {
+    const newNote = { noteId: 'new-id', userId: 1, title: 'テスト', content: '', isPinned: false, createdAt: 5000, updatedAt: 5000 };
+    vi.mocked(NoteRepository.createNote).mockResolvedValue(newNote);
+    vi.mocked(NoteRepository.fetchNotes).mockResolvedValue([...mockNotes, newNote]);
+
+    const { result } = renderHook(() => useNotes());
+
+    await act(async () => {
+      await result.current.createNote('テスト');
+    });
+
+    expect(result.current.selectedNoteId).toBe('new-id');
+  });
+
+  it('updateNoteでnotes配列がローカル更新される', async () => {
+    vi.mocked(NoteRepository.updateNote).mockResolvedValue(undefined);
+    vi.mocked(NoteRepository.fetchNotes).mockResolvedValue(mockNotes);
+
+    const { result } = renderHook(() => useNotes());
+
+    await act(async () => {
+      await result.current.fetchNotes();
+    });
+
+    await act(async () => {
+      await result.current.updateNote('note-1', { title: '更新済み', content: '新内容', isPinned: false });
+    });
+
+    expect(result.current.notes.find(n => n.noteId === 'note-1')?.title).toBe('更新済み');
+    expect(result.current.notes.find(n => n.noteId === 'note-1')?.content).toBe('新内容');
+  });
+
+  it('選択中のノートを削除するとselectedNoteIdがnullになる', async () => {
+    vi.mocked(NoteRepository.deleteNote).mockResolvedValue(undefined);
+    vi.mocked(NoteRepository.fetchNotes)
+      .mockResolvedValueOnce(mockNotes)
+      .mockResolvedValueOnce([mockNotes[1]]);
+
+    const { result } = renderHook(() => useNotes());
+
+    await act(async () => {
+      await result.current.fetchNotes();
+    });
+
+    await act(async () => {
+      result.current.selectNote('note-1');
+    });
+
+    await act(async () => {
+      await result.current.deleteNote('note-1');
+    });
+
+    expect(result.current.selectedNoteId).toBeNull();
+  });
+
+  it('selectNoteにnullを渡すと選択解除される', async () => {
+    const { result } = renderHook(() => useNotes());
+
+    await act(async () => {
+      result.current.selectNote('note-1');
+    });
+    expect(result.current.selectedNoteId).toBe('note-1');
+
+    await act(async () => {
+      result.current.selectNote(null);
+    });
+    expect(result.current.selectedNoteId).toBeNull();
+  });
+
+  it('loadingはfetchNotes中にtrueになりfalseに戻る', async () => {
+    let resolveFn: (value: typeof mockNotes) => void;
+    vi.mocked(NoteRepository.fetchNotes).mockReturnValue(
+      new Promise((resolve) => { resolveFn = resolve; })
+    );
+
+    const { result } = renderHook(() => useNotes());
+    expect(result.current.loading).toBe(false);
+
+    let fetchPromise: Promise<void>;
+    act(() => {
+      fetchPromise = result.current.fetchNotes();
+    });
+
+    expect(result.current.loading).toBe(true);
+
+    await act(async () => {
+      resolveFn!(mockNotes);
+      await fetchPromise!;
+    });
+
+    expect(result.current.loading).toBe(false);
+  });
 });

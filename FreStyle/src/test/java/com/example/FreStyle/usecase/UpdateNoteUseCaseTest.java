@@ -33,5 +33,25 @@ class UpdateNoteUseCaseTest {
 
             verify(noteRepository, times(1)).update(1, "note-1", "更新タイトル", "更新内容", true);
         }
+
+        @Test
+        @DisplayName("ピン留め状態のみを変更する")
+        void shouldUpdateOnlyPinnedStatus() {
+            doNothing().when(noteRepository).update(1, "note-1", "同じタイトル", "同じ内容", true);
+
+            useCase.execute(1, "note-1", "同じタイトル", "同じ内容", true);
+
+            verify(noteRepository, times(1)).update(1, "note-1", "同じタイトル", "同じ内容", true);
+        }
+
+        @Test
+        @DisplayName("空文字のタイトルと内容で更新する")
+        void shouldUpdateWithEmptyValues() {
+            doNothing().when(noteRepository).update(1, "note-1", "", "", false);
+
+            useCase.execute(1, "note-1", "", "", false);
+
+            verify(noteRepository, times(1)).update(1, "note-1", "", "", false);
+        }
     }
 }

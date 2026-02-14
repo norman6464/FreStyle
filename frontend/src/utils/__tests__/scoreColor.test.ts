@@ -79,5 +79,28 @@ describe('scoreColor', () => {
     it('0で±0を返す', () => {
       expect(formatDelta(0)).toBe('±0');
     });
+
+    it('小数点以下1桁にフォーマットされる', () => {
+      expect(formatDelta(1.23)).toBe('+1.2');
+      expect(formatDelta(-0.78)).toBe('-0.8');
+    });
+  });
+
+  describe('境界値テスト', () => {
+    it('getScoreTextColor: 境界値7.999はamberを返す', () => {
+      expect(getScoreTextColor(7.999)).toBe('text-amber-400');
+    });
+
+    it('getScoreTextColor: 境界値5.999はroseを返す', () => {
+      expect(getScoreTextColor(5.999)).toBe('text-rose-400');
+    });
+
+    it('getScoreLevel: 境界値4.999は基礎レベルを返す', () => {
+      expect(getScoreLevel(4.999).label).toBe('基礎レベル');
+    });
+
+    it('getDeltaColor: 非常に小さい正の値でemeraldを返す', () => {
+      expect(getDeltaColor(0.001)).toBe('text-emerald-400');
+    });
   });
 });

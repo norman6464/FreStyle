@@ -80,6 +80,31 @@ describe('useBookmark', () => {
     expect(result.current.bookmarkedIds).toEqual([1, 2]);
   });
 
+  it('連続toggleで追加・削除が正しく動作する', () => {
+    mockGetAll
+      .mockReturnValueOnce([])     // 初期
+      .mockReturnValueOnce([5])    // 追加後
+      .mockReturnValueOnce([]);    // 削除後
+    mockIsBookmarked
+      .mockReturnValueOnce(false)  // 追加時
+      .mockReturnValueOnce(true);  // 削除時
+
+    const { result } = renderHook(() => useBookmark());
+    expect(result.current.bookmarkedIds).toEqual([]);
+
+    act(() => {
+      result.current.toggleBookmark(5);
+    });
+    expect(mockAdd).toHaveBeenCalledWith(5);
+    expect(result.current.bookmarkedIds).toEqual([5]);
+
+    act(() => {
+      result.current.toggleBookmark(5);
+    });
+    expect(mockRemove).toHaveBeenCalledWith(5);
+    expect(result.current.bookmarkedIds).toEqual([]);
+  });
+
   it('toggle削除後にbookmarkedIdsが更新される', () => {
     mockGetAll.mockReturnValueOnce([1, 3]).mockReturnValueOnce([3]);
     mockIsBookmarked.mockReturnValue(true);

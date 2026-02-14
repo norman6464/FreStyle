@@ -113,6 +113,30 @@ describe('useAiChat', () => {
     expect(rephrased).toBe('言い換え文');
   });
 
+  it('初期状態でsessions/messages/scoreCardが空・null', () => {
+    const { result } = renderHook(() => useAiChat());
+    expect(result.current.sessions).toEqual([]);
+    expect(result.current.messages).toEqual([]);
+    expect(result.current.scoreCard).toBeNull();
+    expect(result.current.currentSession).toBeNull();
+    expect(result.current.loading).toBe(false);
+    expect(result.current.error).toBeNull();
+  });
+
+  it('fetchScoreHistory: スコア履歴を取得する', async () => {
+    const mockHistory = [{ sessionId: 1, overallScore: 7.5 }];
+    mockedRepo.getScoreHistory.mockResolvedValue(mockHistory as any);
+
+    const { result } = renderHook(() => useAiChat());
+
+    let history: any[];
+    await act(async () => {
+      history = await result.current.fetchScoreHistory();
+    });
+
+    expect(history!).toEqual(mockHistory);
+  });
+
   it('fetchScoreCard: スコアカードを取得する', async () => {
     const mockScoreCard = { overallScore: 7.5, scores: [] };
     mockedRepo.getScoreCard.mockResolvedValue(mockScoreCard as any);

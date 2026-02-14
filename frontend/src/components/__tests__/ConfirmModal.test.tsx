@@ -96,4 +96,31 @@ describe('ConfirmModal', () => {
     if (overlay) fireEvent.click(overlay);
     expect(mockOnCancel).toHaveBeenCalled();
   });
+
+  it('モーダル表示時にキャンセルボタンが自動フォーカスされる', () => {
+    render(
+      <ConfirmModal isOpen={true} message="削除しますか？" onConfirm={mockOnConfirm} onCancel={mockOnCancel} />
+    );
+    expect(document.activeElement).toBe(screen.getByText('キャンセル'));
+  });
+
+  it('Tabキーで確認ボタンからキャンセルボタンへ循環移動する', () => {
+    render(
+      <ConfirmModal isOpen={true} message="削除しますか？" onConfirm={mockOnConfirm} onCancel={mockOnCancel} />
+    );
+    const confirmBtn = screen.getByText('削除');
+    confirmBtn.focus();
+    fireEvent.keyDown(confirmBtn, { key: 'Tab' });
+    expect(document.activeElement).toBe(screen.getByText('キャンセル'));
+  });
+
+  it('Shift+Tabでキャンセルボタンから確認ボタンへ循環移動する', () => {
+    render(
+      <ConfirmModal isOpen={true} message="削除しますか？" onConfirm={mockOnConfirm} onCancel={mockOnCancel} />
+    );
+    const cancelBtn = screen.getByText('キャンセル');
+    cancelBtn.focus();
+    fireEvent.keyDown(cancelBtn, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(screen.getByText('削除'));
+  });
 });

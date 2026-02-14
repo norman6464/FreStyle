@@ -73,4 +73,28 @@ describe('ExportSessionButton', () => {
     const button = screen.getByTitle('会話をコピー');
     expect(button.tagName).toBe('BUTTON');
   });
+
+  it('コピー前はClipboardアイコンが表示される', () => {
+    const { container } = render(<ExportSessionButton messages={mockMessages} />);
+    const svg = container.querySelector('svg');
+    expect(svg).toBeTruthy();
+    expect(svg?.classList.contains('text-emerald-500')).toBe(false);
+  });
+
+  it('コピー後はCheckアイコンに切り替わる', async () => {
+    const { container } = render(<ExportSessionButton messages={mockMessages} />);
+    fireEvent.click(screen.getByTitle('会話をコピー'));
+
+    await waitFor(() => {
+      const svg = container.querySelector('svg');
+      expect(svg?.classList.contains('text-emerald-500')).toBe(true);
+    });
+  });
+
+  it('メッセージが空の場合にクリックしてもclipboardが呼ばれない', () => {
+    render(<ExportSessionButton messages={[]} />);
+    const button = screen.getByTitle('会話をコピー');
+    fireEvent.click(button);
+    expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
+  });
 });

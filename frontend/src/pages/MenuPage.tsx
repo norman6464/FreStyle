@@ -13,6 +13,7 @@ import DailyChallengeCard from '../components/DailyChallengeCard';
 import MotivationQuoteCard from '../components/MotivationQuoteCard';
 import DailyGoalCard from '../components/DailyGoalCard';
 import LearningInsightsCard from '../components/LearningInsightsCard';
+import NextStepCard from '../components/NextStepCard';
 import PracticeLevelCard from '../components/PracticeLevelCard';
 import PracticeReminderCard from '../components/PracticeReminderCard';
 import RecentNotesCard from '../components/RecentNotesCard';
@@ -70,6 +71,11 @@ export default function MenuPage() {
           />
         </div>
       )}
+
+      {/* 次のステップ提案 */}
+      <div className="mb-6">
+        <NextStepCard totalSessions={totalSessions} averageScore={averageScore} />
+      </div>
 
       {/* 練習レベル */}
       <div className="mb-6">

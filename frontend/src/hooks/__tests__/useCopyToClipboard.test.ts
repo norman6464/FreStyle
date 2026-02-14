@@ -68,6 +68,61 @@ describe('useCopyToClipboard', () => {
     expect(result.current.copiedId).toBeNull();
   });
 
+  it('空文字列もクリップボードに書き込める', async () => {
+    const { result } = renderHook(() => useCopyToClipboard());
+
+    await act(async () => {
+      await result.current.copyToClipboard(1, '');
+    });
+
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('');
+    expect(result.current.copiedId).toBe(1);
+  });
+
+  it('2秒未満ではcopiedIdが維持される', async () => {
+    const { result } = renderHook(() => useCopyToClipboard());
+
+    await act(async () => {
+      await result.current.copyToClipboard(1, 'テスト');
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(1999);
+    });
+
+    expect(result.current.copiedId).toBe(1);
+  });
+
+  it('同じIDで再コピーしてもタイマーがリセットされる', async () => {
+    const { result } = renderHook(() => useCopyToClipboard());
+
+    await act(async () => {
+      await result.current.copyToClipboard(1, 'テスト');
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(1500);
+    });
+
+    expect(result.current.copiedId).toBe(1);
+
+    await act(async () => {
+      await result.current.copyToClipboard(1, 'テスト');
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(1500);
+    });
+
+    expect(result.current.copiedId).toBe(1);
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    expect(result.current.copiedId).toBeNull();
+  });
+
   it('連続コピーで前のタイマーがクリアされる', async () => {
     const { result } = renderHook(() => useCopyToClipboard());
 

@@ -25,6 +25,20 @@ const ChatRepository = {
     const res = await apiClient.post(`/api/chat/users/${userId}/create`);
     return res.data;
   },
+
+  async markAsRead(roomId: string): Promise<void> {
+    await apiClient.post(`/api/chat/rooms/${roomId}/read`);
+  },
+
+  async fetchHistory(roomId: string): Promise<unknown[]> {
+    const res = await apiClient.get(`/api/chat/users/${roomId}/history`);
+    return res.data;
+  },
+
+  async rephrase(originalMessage: string, scene: string | null): Promise<{ result: string }> {
+    const res = await apiClient.post('/api/chat/ai/rephrase', { originalMessage, scene });
+    return res.data;
+  },
 };
 
 export default ChatRepository;

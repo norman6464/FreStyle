@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import Card from './Card';
 
 interface Props {
   averageScore: number;
@@ -30,7 +31,7 @@ export default function ScoreGoalCard({ averageScore }: Props) {
   const progress = Math.min((averageScore / goal) * 100, 100);
 
   return (
-    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
+    <Card>
       <div className="flex items-center justify-between mb-3">
         <p className="text-xs font-medium text-[var(--color-text-secondary)]">目標スコア</p>
         <select
@@ -69,6 +70,6 @@ export default function ScoreGoalCard({ averageScore }: Props) {
           ? '目標達成！素晴らしいです！'
           : `あと ${gap.toFixed(1)} ポイントで目標達成です`}
       </p>
-    </div>
+    </Card>
   );
 }

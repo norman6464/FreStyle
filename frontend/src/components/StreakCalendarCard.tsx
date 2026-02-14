@@ -1,3 +1,5 @@
+import Card from './Card';
+
 interface StreakCalendarCardProps {
   practiceDates: string[];
 }
@@ -47,7 +49,7 @@ export default function StreakCalendarCard({ practiceDates }: StreakCalendarCard
   const streak = calculateStreak(practiceDates);
 
   return (
-    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
+    <Card>
       <div className="flex items-center justify-between mb-3">
         <p className="text-xs font-medium text-[var(--color-text-secondary)]">練習カレンダー</p>
         <div className="flex items-baseline gap-1">
@@ -84,6 +86,6 @@ export default function StreakCalendarCard({ practiceDates }: StreakCalendarCard
           );
         })}
       </div>
-    </div>
+    </Card>
   );
 }

@@ -1,4 +1,5 @@
 import { SessionNoteRepository } from '../repositories/SessionNoteRepository';
+import Card from './Card';
 
 export default function RecentNotesCard() {
   const allNotes = SessionNoteRepository.getAll();
@@ -11,7 +12,7 @@ export default function RecentNotesCard() {
     .slice(0, 3);
 
   return (
-    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
+    <Card>
       <div className="flex items-center justify-between mb-3">
         <p className="text-xs font-medium text-[var(--color-text-secondary)]">最近のメモ</p>
         <span className="text-[10px] text-[var(--color-text-faint)]">{noteEntries.length}件</span>
@@ -30,6 +31,6 @@ export default function RecentNotesCard() {
           </div>
         ))}
       </div>
-    </div>
+    </Card>
   );
 }

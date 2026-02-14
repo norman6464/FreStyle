@@ -1,3 +1,5 @@
+import Card from './Card';
+
 interface AxisScore {
   axis: string;
   score: number;
@@ -22,7 +24,7 @@ export default function ScoreImprovementAdvice({ scores }: ScoreImprovementAdvic
   const weakAxes = scores.filter((s) => s.score < THRESHOLD);
 
   return (
-    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
+    <Card>
       <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-3">改善アドバイス</p>
 
       {weakAxes.length === 0 ? (
@@ -48,6 +50,6 @@ export default function ScoreImprovementAdvice({ scores }: ScoreImprovementAdvic
           ))}
         </div>
       )}
-    </div>
+    </Card>
   );
 }

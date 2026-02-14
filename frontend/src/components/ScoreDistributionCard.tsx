@@ -1,3 +1,5 @@
+import Card from './Card';
+
 interface ScoreDistributionCardProps {
   scores: number[];
 }
@@ -40,7 +42,7 @@ export default function ScoreDistributionCard({ scores }: ScoreDistributionCardP
   const topRangeIndex = counts.indexOf(maxCount);
 
   return (
-    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
+    <Card>
       <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-3">スコア分布</p>
 
       <div className="space-y-2">
@@ -63,6 +65,6 @@ export default function ScoreDistributionCard({ scores }: ScoreDistributionCardP
       </div>
 
       <p className="text-xs text-[var(--color-text-muted)] mt-3">{getMessage(topRangeIndex)}</p>
-    </div>
+    </Card>
   );
 }

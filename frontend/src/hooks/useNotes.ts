@@ -22,13 +22,13 @@ export function useNotes() {
   const createNote = useCallback(async (title: string) => {
     try {
       const note = await NoteRepository.createNote(title);
-      await fetchNotes();
+      setNotes((prev) => [note, ...prev]);
       setSelectedNoteId(note.noteId);
       return note;
     } catch {
       return null;
     }
-  }, [fetchNotes]);
+  }, []);
 
   const updateNote = useCallback(async (noteId: string, data: { title: string; content: string; isPinned: boolean }) => {
     try {
@@ -44,14 +44,12 @@ export function useNotes() {
   const deleteNote = useCallback(async (noteId: string) => {
     try {
       await NoteRepository.deleteNote(noteId);
-      await fetchNotes();
-      if (selectedNoteId === noteId) {
-        setSelectedNoteId(null);
-      }
+      setNotes((prev) => prev.filter((n) => n.noteId !== noteId));
+      setSelectedNoteId((prev) => (prev === noteId ? null : prev));
     } catch {
       // エラーハンドリング
     }
-  }, [fetchNotes, selectedNoteId]);
+  }, []);
 
   const selectNote = useCallback((noteId: string | null) => {
     setSelectedNoteId(noteId);

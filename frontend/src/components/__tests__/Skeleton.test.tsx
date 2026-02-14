@@ -33,4 +33,19 @@ describe('SkeletonList', () => {
     const elements = screen.getAllByRole('status');
     expect(elements.length).toBeGreaterThan(0);
   });
+
+  it('count指定でリスト件数が変わる', () => {
+    render(<SkeletonList count={5} />);
+
+    const elements = screen.getAllByRole('status');
+    expect(elements.length).toBeGreaterThanOrEqual(5);
+  });
+});
+
+describe('Skeleton - アニメーション', () => {
+  it('アニメーションクラスが適用される', () => {
+    render(<Skeleton />);
+    const el = screen.getByRole('status');
+    expect(el.className).toContain('animate-skeleton');
+  });
 });

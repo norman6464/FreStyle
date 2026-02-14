@@ -1,4 +1,5 @@
 import type { FavoritePhrase } from '../types';
+import Card from './Card';
 
 interface FavoriteStatsCardProps {
   phrases: FavoritePhrase[];
@@ -24,7 +25,7 @@ export default function FavoriteStatsCard({ phrases }: FavoriteStatsCardProps) {
   const maxCount = Math.max(...Object.values(patternCounts));
 
   return (
-    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
+    <Card>
       <div className="flex items-center justify-between mb-3">
         <p className="text-xs font-medium text-[var(--color-text-secondary)]">お気に入り統計</p>
         <div className="flex items-baseline gap-1">
@@ -51,6 +52,6 @@ export default function FavoriteStatsCard({ phrases }: FavoriteStatsCardProps) {
           </div>
         ))}
       </div>
-    </div>
+    </Card>
   );
 }

@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import Card from './Card';
 
 interface PracticeFrequencyCardProps {
   dates: string[];
@@ -44,7 +45,7 @@ export default function PracticeFrequencyCard({ dates }: PracticeFrequencyCardPr
   const delta = currentWeek.count - lastWeek.count;
 
   return (
-    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
+    <Card>
       <div className="flex items-center justify-between mb-3">
         <p className="text-xs font-medium text-[var(--color-text-secondary)]">週別練習頻度</p>
         <div className="flex items-center gap-2">
@@ -81,6 +82,6 @@ export default function PracticeFrequencyCard({ dates }: PracticeFrequencyCardPr
           </div>
         ))}
       </div>
-    </div>
+    </Card>
   );
 }

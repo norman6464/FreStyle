@@ -5,6 +5,7 @@ import {
   ArrowTrendingUpIcon,
   StarIcon,
 } from '@heroicons/react/24/outline';
+import Card from './Card';
 
 interface NextStepCardProps {
   totalSessions: number;
@@ -54,7 +55,7 @@ export default function NextStepCard({ totalSessions, averageScore }: NextStepCa
   const Icon = step.icon;
 
   return (
-    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
+    <Card>
       <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-2">次のステップ</p>
       <div className="flex items-start gap-3">
         <Icon className="w-6 h-6 text-primary-400 flex-shrink-0" />
@@ -63,6 +64,6 @@ export default function NextStepCard({ totalSessions, averageScore }: NextStepCa
           <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{step.description}</p>
         </div>
       </div>
-    </div>
+    </Card>
   );
 }

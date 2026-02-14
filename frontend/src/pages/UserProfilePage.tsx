@@ -1,6 +1,7 @@
 import InputField from '../components/InputField';
 import PrimaryButton from '../components/PrimaryButton';
 import Loading from '../components/Loading';
+import PersonalityTraitSelector from '../components/PersonalityTraitSelector';
 import {
   ChatBubbleLeftRightIcon,
   LightBulbIcon,
@@ -111,27 +112,12 @@ export default function UserProfilePage() {
                 </select>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
-                  性格特性（当てはまるものを選んでください）
-                </label>
-                <div className="flex flex-wrap gap-1.5">
-                  {PERSONALITY_OPTIONS.map((trait) => (
-                    <button
-                      key={trait}
-                      type="button"
-                      onClick={() => togglePersonalityTrait(trait)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                        form.personalityTraits.includes(trait)
-                          ? 'bg-primary-500 text-white'
-                          : 'bg-surface-3 text-[var(--color-text-secondary)] hover:bg-surface-3'
-                      }`}
-                    >
-                      {trait}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <PersonalityTraitSelector
+                options={PERSONALITY_OPTIONS}
+                selected={form.personalityTraits}
+                onToggle={togglePersonalityTrait}
+                label="性格特性（当てはまるものを選んでください）"
+              />
             </div>
           </div>
 

@@ -112,4 +112,53 @@ describe('useAiSession', () => {
     expect(mockUpdateSessionTitle).toHaveBeenCalledWith(10, { title: '新しいタイトル' });
     expect(result.current.editingSessionId).toBeNull();
   });
+
+  it('deleteModal初期値がclosed状態', () => {
+    const { result } = renderHook(() =>
+      useAiSession({ deleteSession: mockDeleteSession, updateSessionTitle: mockUpdateSessionTitle })
+    );
+
+    expect(result.current.deleteModal.isOpen).toBe(false);
+    expect(result.current.deleteModal.sessionId).toBeNull();
+  });
+
+  it('空タイトル保存時にeditingSessionIdがnullに戻る', async () => {
+    const { result } = renderHook(() =>
+      useAiSession({ deleteSession: mockDeleteSession, updateSessionTitle: mockUpdateSessionTitle })
+    );
+
+    act(() => {
+      result.current.handleStartEditTitle({ id: 10, title: 'テスト' });
+    });
+
+    act(() => {
+      result.current.setEditingTitle('   ');
+    });
+
+    await act(async () => {
+      await result.current.handleSaveTitle(10);
+    });
+
+    expect(mockUpdateSessionTitle).not.toHaveBeenCalled();
+    expect(result.current.editingSessionId).toBeNull();
+  });
+
+  it('handleCancelEditTitleでeditingTitleが空に戻る', () => {
+    const { result } = renderHook(() =>
+      useAiSession({ deleteSession: mockDeleteSession, updateSessionTitle: mockUpdateSessionTitle })
+    );
+
+    act(() => {
+      result.current.handleStartEditTitle({ id: 10, title: '既存' });
+    });
+
+    expect(result.current.editingTitle).toBe('既存');
+
+    act(() => {
+      result.current.handleCancelEditTitle();
+    });
+
+    expect(result.current.editingSessionId).toBeNull();
+    expect(result.current.editingTitle).toBe('');
+  });
 });

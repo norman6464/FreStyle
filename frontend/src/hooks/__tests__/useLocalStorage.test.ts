@@ -104,4 +104,33 @@ describe('useLocalStorage', () => {
     });
     expect(result.current[0]).toBe(15);
   });
+
+  it('null値がlocalStorageに保存されてもデフォルト値にフォールバックしない', () => {
+    mockStorage.setItem('test-null', JSON.stringify(null));
+    const { result } = renderHook(() => useLocalStorage<string | null>('test-null', 'default'));
+    expect(result.current[0]).toBeNull();
+  });
+
+  it('removeValue後にsetValueで再度値を保存できる', () => {
+    const { result } = renderHook(() => useLocalStorage('test-reuse', 'initial'));
+    act(() => {
+      result.current[1]('saved');
+    });
+    expect(result.current[0]).toBe('saved');
+    act(() => {
+      result.current[2]();
+    });
+    expect(result.current[0]).toBe('initial');
+    act(() => {
+      result.current[1]('re-saved');
+    });
+    expect(result.current[0]).toBe('re-saved');
+    expect(mockStorage.setItem).toHaveBeenLastCalledWith('test-reuse', JSON.stringify('re-saved'));
+  });
+
+  it('空文字列がデフォルト値にフォールバックしない', () => {
+    mockStorage.setItem('test-empty', JSON.stringify(''));
+    const { result } = renderHook(() => useLocalStorage('test-empty', 'fallback'));
+    expect(result.current[0]).toBe('');
+  });
 });

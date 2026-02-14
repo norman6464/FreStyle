@@ -15,6 +15,7 @@ import DailyGoalCard from '../components/DailyGoalCard';
 import LearningInsightsCard from '../components/LearningInsightsCard';
 import PracticeLevelCard from '../components/PracticeLevelCard';
 import PracticeReminderCard from '../components/PracticeReminderCard';
+import RecentNotesCard from '../components/RecentNotesCard';
 import RecentSessionsCard from '../components/RecentSessionsCard';
 import WeeklyGoalProgressCard from '../components/WeeklyGoalProgressCard';
 import WeeklyReportCard from '../components/WeeklyReportCard';
@@ -139,6 +140,11 @@ export default function MenuPage() {
           <RecentSessionsCard sessions={allScores} />
         </div>
       )}
+
+      {/* 最近のメモ */}
+      <div className="mb-6">
+        <RecentNotesCard />
+      </div>
 
       {/* 本日のチャレンジ */}
       <div className="mb-6">

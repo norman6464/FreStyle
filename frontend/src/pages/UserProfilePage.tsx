@@ -1,105 +1,28 @@
-import { useState, useEffect } from 'react';
 import InputField from '../components/InputField';
 import PrimaryButton from '../components/PrimaryButton';
 import Loading from '../components/Loading';
-import { useNavigate } from 'react-router-dom';
 import {
   ChatBubbleLeftRightIcon,
   LightBulbIcon,
   UserCircleIcon,
 } from '@heroicons/react/24/solid';
-import { useUserProfile } from '../hooks/useUserProfile';
-
-interface UserProfileForm {
-  displayName: string;
-  selfIntroduction: string;
-  communicationStyle: string;
-  personalityTraits: string[];
-  goals: string;
-  concerns: string;
-  preferredFeedbackStyle: string;
-}
-
-interface FormMessage {
-  type: 'success' | 'error';
-  text: string;
-}
+import {
+  useUserProfilePage,
+  COMMUNICATION_STYLES,
+  PERSONALITY_OPTIONS,
+  FEEDBACK_STYLES,
+} from '../hooks/useUserProfilePage';
 
 export default function UserProfilePage() {
-  const [form, setForm] = useState<UserProfileForm>({
-    displayName: '',
-    selfIntroduction: '',
-    communicationStyle: '',
-    personalityTraits: [],
-    goals: '',
-    concerns: '',
-    preferredFeedbackStyle: '',
-  });
-  const [message, setMessage] = useState<FormMessage | null>(null);
-  const [isNewProfile, setIsNewProfile] = useState<boolean>(false);
-  const navigate = useNavigate();
-  const { profile, loading, fetchMyProfile, updateProfile } = useUserProfile();
-
-  const communicationStyles = [
-    { value: '', label: '選択してください' },
-    { value: 'casual', label: 'カジュアル' },
-    { value: 'formal', label: 'フォーマル' },
-    { value: 'friendly', label: 'フレンドリー' },
-    { value: 'professional', label: 'プロフェッショナル' },
-  ];
-
-  const personalityOptions = [
-    '内向的', '外向的', '論理的', '感情的', '共感力が高い',
-    '分析的', 'クリエイティブ', '計画的', '柔軟性がある', 'リーダーシップがある',
-  ];
-
-  const feedbackStyles = [
-    { value: '', label: '選択してください' },
-    { value: 'direct', label: 'ストレート（はっきり伝えてほしい）' },
-    { value: 'gentle', label: 'やさしく（配慮を持って伝えてほしい）' },
-    { value: 'detailed', label: '詳細に（具体的に説明してほしい）' },
-  ];
-
-  useEffect(() => {
-    fetchMyProfile();
-  }, [fetchMyProfile]);
-
-  useEffect(() => {
-    if (profile) {
-      setForm({
-        displayName: profile.displayName || '',
-        selfIntroduction: profile.selfIntroduction || '',
-        communicationStyle: profile.communicationStyle || '',
-        personalityTraits: profile.personalityTraits || [],
-        goals: profile.goals || '',
-        concerns: profile.concerns || '',
-        preferredFeedbackStyle: profile.preferredFeedbackStyle || '',
-      });
-      setIsNewProfile(false);
-    }
-  }, [profile]);
-
-  const togglePersonalityTrait = (trait: string) => {
-    setForm((prev) => {
-      const traits = prev.personalityTraits.includes(trait)
-        ? prev.personalityTraits.filter((t) => t !== trait)
-        : [...prev.personalityTraits, trait];
-      return { ...prev, personalityTraits: traits };
-    });
-  };
-
-  const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-
-    const success = await updateProfile(form);
-
-    if (success) {
-      setMessage({ type: 'success', text: 'パーソナリティ設定を保存しました。' });
-      setIsNewProfile(false);
-    } else {
-      setMessage({ type: 'error', text: '保存に失敗しました。' });
-    }
-  };
+  const {
+    form,
+    setForm,
+    message,
+    isNewProfile,
+    loading,
+    togglePersonalityTrait,
+    handleSave,
+  } = useUserProfilePage();
 
   if (loading) {
     return <Loading fullscreen message="プロファイルを読み込み中..." />;
@@ -182,7 +105,7 @@ export default function UserProfilePage() {
                   }
                   className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors"
                 >
-                  {communicationStyles.map((style) => (
+                  {COMMUNICATION_STYLES.map((style) => (
                     <option key={style.value} value={style.value}>{style.label}</option>
                   ))}
                 </select>
@@ -193,7 +116,7 @@ export default function UserProfilePage() {
                   性格特性（当てはまるものを選んでください）
                 </label>
                 <div className="flex flex-wrap gap-1.5">
-                  {personalityOptions.map((trait) => (
+                  {PERSONALITY_OPTIONS.map((trait) => (
                     <button
                       key={trait}
                       type="button"
@@ -262,7 +185,7 @@ export default function UserProfilePage() {
                   }
                   className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors"
                 >
-                  {feedbackStyles.map((style) => (
+                  {FEEDBACK_STYLES.map((style) => (
                     <option key={style.value} value={style.value}>{style.label}</option>
                   ))}
                 </select>

@@ -1,4 +1,3 @@
-import { useNavigate } from 'react-router-dom';
 import { SkeletonCard } from '../components/Skeleton';
 import SkillRadarChart from '../components/SkillRadarChart';
 import PracticeCalendar from '../components/PracticeCalendar';
@@ -21,19 +20,11 @@ import ScoreHistorySessionCard from '../components/ScoreHistorySessionCard';
 import ScoreFilterSummary from '../components/ScoreFilterSummary';
 import ScoreTrendIndicator from '../components/ScoreTrendIndicator';
 import SessionFeedbackSummary from '../components/SessionFeedbackSummary';
+import WeakAxisAdviceCard from '../components/WeakAxisAdviceCard';
 import { useScoreHistory, FILTERS } from '../hooks/useScoreHistory';
-
-const AXIS_ADVICE: Record<string, string> = {
-  '論理的構成力': '論理的構成力を伸ばすシナリオで練習しましょう',
-  '配慮表現': '配慮表現を伸ばすシナリオで練習しましょう',
-  '要約力': '要約力を伸ばすシナリオで練習しましょう',
-  '提案力': '提案力を伸ばすシナリオで練習しましょう',
-  '質問・傾聴力': '質問・傾聴力を伸ばすシナリオで練習しましょう',
-};
 
 export default function ScoreHistoryPage() {
   const { history, filteredHistory, filter, setFilter, loading, latestSession, weakestAxis, selectedSession, setSelectedSession } = useScoreHistory();
-  const navigate = useNavigate();
 
   if (loading) {
     return (
@@ -103,20 +94,7 @@ export default function ScoreHistoryPage() {
       )}
 
       {/* 弱点ベースのおすすめ練習 */}
-      {weakestAxis && (
-        <div className="bg-surface-2 rounded-lg border border-[var(--color-border-hover)] p-4">
-          <p className="text-xs font-semibold text-primary-300 mb-1">おすすめ練習</p>
-          <p className="text-xs text-primary-400 mb-2">
-            {AXIS_ADVICE[weakestAxis.axis] || `${weakestAxis.axis}を伸ばすシナリオで練習しましょう`}
-          </p>
-          <button
-            onClick={() => navigate('/practice')}
-            className="text-xs font-medium text-primary-300 bg-surface-1 px-3 py-1.5 rounded-lg border border-[var(--color-border-hover)] hover:bg-surface-3 transition-colors"
-          >
-            練習一覧を見る
-          </button>
-        </div>
-      )}
+      {weakestAxis && <WeakAxisAdviceCard axis={weakestAxis.axis} />}
 
       {/* スキルレーダーチャート */}
       {latestSession && latestSession.scores.length > 0 && (

@@ -6,11 +6,11 @@ interface FavoriteStatsCardProps {
 }
 
 const PATTERN_COLORS: Record<string, string> = {
-  'フォーマル': 'bg-blue-900/300',
-  'ソフト': 'bg-emerald-900/300',
-  '簡潔': 'bg-amber-900/300',
+  'フォーマル': 'bg-blue-500',
+  'ソフト': 'bg-emerald-500',
+  '簡潔': 'bg-amber-500',
   '質問型': 'bg-purple-500',
-  '提案型': 'bg-rose-900/300',
+  '提案型': 'bg-rose-500',
 };
 
 export default function FavoriteStatsCard({ phrases }: FavoriteStatsCardProps) {

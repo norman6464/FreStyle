@@ -59,7 +59,7 @@ export default function ChatListPage() {
                       : `あなた: ${truncateMessage(user.lastMessage)}`}
                   </p>
                   {user.unreadCount > 0 && (
-                    <span className="bg-rose-900/300 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0">
+                    <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0">
                       {user.unreadCount > 99 ? '99+' : user.unreadCount}
                     </span>
                   )}

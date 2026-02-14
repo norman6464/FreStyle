@@ -1,4 +1,5 @@
 import InputField from '../components/InputField';
+import TextareaField from '../components/TextareaField';
 import PrimaryButton from '../components/PrimaryButton';
 import FormMessage from '../components/FormMessage';
 import { useProfileEdit } from '../hooks/useProfileEdit';
@@ -46,21 +47,17 @@ export default function ProfilePage() {
               updateField('name', e.target.value)
             }
           />
-          <div>
-            <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">
-              自己紹介
-            </label>
-            <textarea
-              name="bio"
-              value={form.bio}
-              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                updateField('bio', e.target.value)
-              }
-              placeholder="あなたについて教えてください..."
-              rows={4}
-              className="w-full border border-surface-3 rounded-lg px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors resize-none"
-            />
-          </div>
+          <TextareaField
+            label="自己紹介"
+            name="bio"
+            value={form.bio}
+            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+              updateField('bio', e.target.value)
+            }
+            placeholder="あなたについて教えてください..."
+            rows={4}
+            maxLength={200}
+          />
           <PrimaryButton type="submit">プロフィールを更新</PrimaryButton>
         </form>
       </div>

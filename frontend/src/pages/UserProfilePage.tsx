@@ -1,4 +1,5 @@
 import InputField from '../components/InputField';
+import TextareaField from '../components/TextareaField';
 import PrimaryButton from '../components/PrimaryButton';
 import Loading from '../components/Loading';
 import PersonalityTraitSelector from '../components/PersonalityTraitSelector';
@@ -60,21 +61,16 @@ export default function UserProfilePage() {
                 }
                 placeholder="例：タロウ、たろちゃん"
               />
-              <div>
-                <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">
-                  自己紹介
-                </label>
-                <textarea
-                  name="selfIntroduction"
-                  value={form.selfIntroduction}
-                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                    setForm((prev) => ({ ...prev, selfIntroduction: e.target.value }))
-                  }
-                  placeholder="あなた自身について自由に書いてください..."
-                  rows={3}
-                  className="w-full border border-surface-3 rounded-lg px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors resize-none"
-                />
-              </div>
+              <TextareaField
+                label="自己紹介"
+                name="selfIntroduction"
+                value={form.selfIntroduction}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                  setForm((prev) => ({ ...prev, selfIntroduction: e.target.value }))
+                }
+                placeholder="あなた自身について自由に書いてください..."
+                maxLength={300}
+              />
             </div>
           </div>
 
@@ -118,37 +114,27 @@ export default function UserProfilePage() {
               <h3 className="text-sm font-bold text-[var(--color-text-primary)]">AIフィードバック設定</h3>
             </div>
             <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">
-                  コミュニケーションで改善したい点・目標
-                </label>
-                <textarea
-                  name="goals"
-                  value={form.goals}
-                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                    setForm((prev) => ({ ...prev, goals: e.target.value }))
-                  }
-                  placeholder="例：もっと簡潔に伝えられるようになりたい..."
-                  rows={3}
-                  className="w-full border border-surface-3 rounded-lg px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors resize-none"
-                />
-              </div>
+              <TextareaField
+                label="コミュニケーションで改善したい点・目標"
+                name="goals"
+                value={form.goals}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                  setForm((prev) => ({ ...prev, goals: e.target.value }))
+                }
+                placeholder="例：もっと簡潔に伝えられるようになりたい..."
+                maxLength={300}
+              />
 
-              <div>
-                <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">
-                  苦手なこと・気になっていること
-                </label>
-                <textarea
-                  name="concerns"
-                  value={form.concerns}
-                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                    setForm((prev) => ({ ...prev, concerns: e.target.value }))
-                  }
-                  placeholder="例：話が長くなりがち、相手の反応が気になる..."
-                  rows={3}
-                  className="w-full border border-surface-3 rounded-lg px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors resize-none"
-                />
-              </div>
+              <TextareaField
+                label="苦手なこと・気になっていること"
+                name="concerns"
+                value={form.concerns}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                  setForm((prev) => ({ ...prev, concerns: e.target.value }))
+                }
+                placeholder="例：話が長くなりがち、相手の反応が気になる..."
+                maxLength={300}
+              />
 
               <div>
                 <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">

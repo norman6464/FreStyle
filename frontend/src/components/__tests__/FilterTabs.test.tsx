@@ -65,4 +65,59 @@ describe('FilterTabs', () => {
     expect(container.firstChild).toHaveClass('border-b');
     expect(container.firstChild).toHaveClass('border-surface-3');
   });
+
+  it('右矢印キーで次のタブにフォーカスが移動する', () => {
+    const onSelect = vi.fn();
+    render(<FilterTabs tabs={[...TABS]} selected="すべて" onSelect={onSelect} />);
+    const firstTab = screen.getByRole('tab', { name: 'すべて' });
+    fireEvent.keyDown(firstTab, { key: 'ArrowRight' });
+    expect(onSelect).toHaveBeenCalledWith('カテゴリA');
+  });
+
+  it('左矢印キーで前のタブにフォーカスが移動する', () => {
+    const onSelect = vi.fn();
+    render(<FilterTabs tabs={[...TABS]} selected="カテゴリA" onSelect={onSelect} />);
+    const tab = screen.getByRole('tab', { name: 'カテゴリA' });
+    fireEvent.keyDown(tab, { key: 'ArrowLeft' });
+    expect(onSelect).toHaveBeenCalledWith('すべて');
+  });
+
+  it('最後のタブで右矢印キーを押すと最初のタブに移動する', () => {
+    const onSelect = vi.fn();
+    render(<FilterTabs tabs={[...TABS]} selected="カテゴリB" onSelect={onSelect} />);
+    const lastTab = screen.getByRole('tab', { name: 'カテゴリB' });
+    fireEvent.keyDown(lastTab, { key: 'ArrowRight' });
+    expect(onSelect).toHaveBeenCalledWith('すべて');
+  });
+
+  it('最初のタブで左矢印キーを押すと最後のタブに移動する', () => {
+    const onSelect = vi.fn();
+    render(<FilterTabs tabs={[...TABS]} selected="すべて" onSelect={onSelect} />);
+    const firstTab = screen.getByRole('tab', { name: 'すべて' });
+    fireEvent.keyDown(firstTab, { key: 'ArrowLeft' });
+    expect(onSelect).toHaveBeenCalledWith('カテゴリB');
+  });
+
+  it('Homeキーで最初のタブに移動する', () => {
+    const onSelect = vi.fn();
+    render(<FilterTabs tabs={[...TABS]} selected="カテゴリB" onSelect={onSelect} />);
+    const lastTab = screen.getByRole('tab', { name: 'カテゴリB' });
+    fireEvent.keyDown(lastTab, { key: 'Home' });
+    expect(onSelect).toHaveBeenCalledWith('すべて');
+  });
+
+  it('Endキーで最後のタブに移動する', () => {
+    const onSelect = vi.fn();
+    render(<FilterTabs tabs={[...TABS]} selected="すべて" onSelect={onSelect} />);
+    const firstTab = screen.getByRole('tab', { name: 'すべて' });
+    fireEvent.keyDown(firstTab, { key: 'End' });
+    expect(onSelect).toHaveBeenCalledWith('カテゴリB');
+  });
+
+  it('選択タブはtabIndex=0で非選択タブはtabIndex=-1', () => {
+    render(<FilterTabs tabs={[...TABS]} selected="カテゴリA" onSelect={() => {}} />);
+    expect(screen.getByRole('tab', { name: 'カテゴリA' })).toHaveAttribute('tabindex', '0');
+    expect(screen.getByRole('tab', { name: 'すべて' })).toHaveAttribute('tabindex', '-1');
+    expect(screen.getByRole('tab', { name: 'カテゴリB' })).toHaveAttribute('tabindex', '-1');
+  });
 });

@@ -9,6 +9,10 @@ function getAllNotes(): Record<string, SessionNote> {
 }
 
 export const SessionNoteRepository = {
+  getAll(): Record<string, SessionNote> {
+    return getAllNotes();
+  },
+
   get(sessionId: number): SessionNote | null {
     const notes = getAllNotes();
     return notes[String(sessionId)] || null;

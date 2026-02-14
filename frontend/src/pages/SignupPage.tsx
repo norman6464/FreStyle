@@ -1,59 +1,15 @@
-import { useState } from 'react';
 import AuthLayout from '../components/AuthLayout';
 import InputField from '../components/InputField';
 import PrimaryButton from '../components/PrimaryButton';
 import LinkText from '../components/LinkText';
-import { useNavigate } from 'react-router-dom';
 import {
   CheckCircleIcon,
   ExclamationCircleIcon,
 } from '@heroicons/react/24/solid';
-import { useAuth } from '../hooks/useAuth';
-
-interface FormMessage {
-  type: 'success' | 'error';
-  text: string;
-}
+import { useSignupPage } from '../hooks/useSignupPage';
 
 export default function SignupPage() {
-  const [form, setForm] = useState({ email: '', password: '', name: '' });
-  const [message, setMessage] = useState<FormMessage | null>(null);
-  const navigate = useNavigate();
-  const { signup, loading } = useAuth();
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setForm({
-      ...form,
-      [e.target.name]: e.target.value,
-    });
-  };
-
-  const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-
-    const success = await signup({
-      email: form.email,
-      password: form.password,
-      name: form.name,
-    });
-
-    if (success) {
-      setMessage({ type: 'success', text: 'サインアップに成功しました！' });
-      setTimeout(() => {
-        navigate('/confirm', {
-          state: {
-            message:
-              '✓ サインアップに成功しました！メール確認をお願いします。',
-          },
-        });
-      }, 1500);
-    } else {
-      setMessage({
-        type: 'error',
-        text: '登録に失敗しました。',
-      });
-    }
-  };
+  const { form, message, loading, handleChange, handleSignup } = useSignupPage();
 
   return (
     <AuthLayout>

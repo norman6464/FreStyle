@@ -24,9 +24,11 @@ import WeakAxisAdviceCard from '../components/WeakAxisAdviceCard';
 import PersonalBestCard from '../components/PersonalBestCard';
 import FilterTabs from '../components/FilterTabs';
 import { useScoreHistory, FILTERS } from '../hooks/useScoreHistory';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 
 export default function ScoreHistoryPage() {
   const { history, filteredHistory, filter, setFilter, loading, latestSession, weakestAxis, selectedSession, setSelectedSession } = useScoreHistory();
+  const [scoreGoal] = useLocalStorage('scoreGoal', 8.0);
 
   if (loading) {
     return (
@@ -62,14 +64,7 @@ export default function ScoreHistoryPage() {
       {latestSession && latestSession.scores.length > 0 && (
         <SkillGapAnalysisCard
           scores={latestSession.scores}
-          goal={(() => {
-            try {
-              const stored = localStorage.getItem('scoreGoal');
-              return stored ? parseFloat(stored) : 8.0;
-            } catch {
-              return 8.0;
-            }
-          })()}
+          goal={scoreGoal}
         />
       )}
 

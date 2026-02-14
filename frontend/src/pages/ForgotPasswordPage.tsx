@@ -1,6 +1,7 @@
 import AuthLayout from '../components/AuthLayout';
 import InputField from '../components/InputField';
 import PrimaryButton from '../components/PrimaryButton';
+import FormMessage from '../components/FormMessage';
 import { useForgotPassword } from '../hooks/useForgotPassword';
 
 export default function ForgotPasswordPage() {
@@ -8,9 +9,7 @@ export default function ForgotPasswordPage() {
 
   return (
     <AuthLayout>
-      {message?.type === 'error' && (
-        <p className="text-rose-400 text-center">{message.text}</p>
-      )}
+      <FormMessage message={message} />
       <h2 className="text-2xl font-bold mb-6 text-center">
         パスワードリセット
       </h2>

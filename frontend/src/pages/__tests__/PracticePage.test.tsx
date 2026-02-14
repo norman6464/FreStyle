@@ -85,7 +85,7 @@ describe('PracticePage', () => {
         </BrowserRouter>
       );
 
-      fireEvent.click(screen.getByRole('button', { name: '顧客折衝' }));
+      fireEvent.click(screen.getByRole('tab', { name: '顧客折衝' }));
 
       expect(screen.getByText('本番障害の緊急報告')).toBeInTheDocument();
       expect(screen.queryByText('設計方針の意見対立')).not.toBeInTheDocument();
@@ -99,7 +99,7 @@ describe('PracticePage', () => {
         </BrowserRouter>
       );
 
-      fireEvent.click(screen.getByRole('button', { name: 'シニア・上司' }));
+      fireEvent.click(screen.getByRole('tab', { name: 'シニア・上司' }));
 
       expect(screen.queryByText('本番障害の緊急報告')).not.toBeInTheDocument();
       expect(screen.getByText('設計方針の意見対立')).toBeInTheDocument();
@@ -113,7 +113,7 @@ describe('PracticePage', () => {
         </BrowserRouter>
       );
 
-      fireEvent.click(screen.getByRole('button', { name: 'チーム内' }));
+      fireEvent.click(screen.getByRole('tab', { name: 'チーム内' }));
 
       expect(screen.queryByText('本番障害の緊急報告')).not.toBeInTheDocument();
       expect(screen.queryByText('設計方針の意見対立')).not.toBeInTheDocument();

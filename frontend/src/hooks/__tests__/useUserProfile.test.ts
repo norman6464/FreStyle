@@ -66,4 +66,56 @@ describe('useUserProfile', () => {
     expect(success).toBe(false);
     expect(result.current.error).toBe('更新失敗');
   });
+
+  it('fetchMyProfile: non-Errorオブジェクトのreject時にデフォルトメッセージを設定する', async () => {
+    mockedRepo.getMyProfile.mockRejectedValue('文字列エラー');
+
+    const { result } = renderHook(() => useUserProfile());
+
+    await act(async () => {
+      await result.current.fetchMyProfile();
+    });
+
+    expect(result.current.error).toBe('プロファイルの取得に失敗しました。');
+  });
+
+  it('updateProfile: non-Errorオブジェクトのreject時にデフォルトメッセージを設定する', async () => {
+    mockedRepo.updateProfile.mockRejectedValue('文字列エラー');
+
+    const { result } = renderHook(() => useUserProfile());
+
+    let success: boolean = true;
+    await act(async () => {
+      success = await result.current.updateProfile({ displayName: 'テスト' });
+    });
+
+    expect(success).toBe(false);
+    expect(result.current.error).toBe('プロファイルの更新に失敗しました。');
+  });
+
+  it('fetchMyProfile: loading状態が正しく変化する', async () => {
+    let resolvePromise: (value: any) => void;
+    const pendingPromise = new Promise((resolve) => {
+      resolvePromise = resolve;
+    });
+    mockedRepo.getMyProfile.mockReturnValue(pendingPromise as any);
+
+    const { result } = renderHook(() => useUserProfile());
+
+    expect(result.current.loading).toBe(false);
+
+    let fetchPromise: Promise<void>;
+    act(() => {
+      fetchPromise = result.current.fetchMyProfile();
+    });
+
+    expect(result.current.loading).toBe(true);
+
+    await act(async () => {
+      resolvePromise!({ id: 1, displayName: 'テスト' });
+      await fetchPromise;
+    });
+
+    expect(result.current.loading).toBe(false);
+  });
 });

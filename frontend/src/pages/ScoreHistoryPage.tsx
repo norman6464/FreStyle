@@ -18,6 +18,7 @@ import SkillTrendChart from '../components/SkillTrendChart';
 import SkillRadarOverlayCard from '../components/SkillRadarOverlayCard';
 import SessionDetailModal from '../components/SessionDetailModal';
 import ScoreHistorySessionCard from '../components/ScoreHistorySessionCard';
+import ScoreFilterSummary from '../components/ScoreFilterSummary';
 import { useScoreHistory, FILTERS } from '../hooks/useScoreHistory';
 
 const AXIS_ADVICE: Record<string, string> = {
@@ -195,9 +196,8 @@ export default function ScoreHistoryPage() {
         ))}
       </div>
 
-      <p className="text-xs text-[var(--color-text-muted)]">
-        全 {filteredHistory.length} 件のフィードバック履歴
-      </p>
+      {/* フィルタサマリー */}
+      <ScoreFilterSummary scores={filteredHistory.map(h => h.overallScore)} />
 
       {filteredHistory.map((item) => {
         const originalIndex = history.indexOf(item);

@@ -45,4 +45,19 @@ describe('NoteEditor', () => {
     render(<NoteEditor {...defaultProps} content="" />);
     expect(screen.getByPlaceholderText('ここに入力...')).toBeInTheDocument();
   });
+
+  it('文字数カウントが表示される', () => {
+    render(<NoteEditor {...defaultProps} content="テスト内容" />);
+    expect(screen.getByText('5文字')).toBeInTheDocument();
+  });
+
+  it('読了時間が表示される', () => {
+    render(<NoteEditor {...defaultProps} content="テスト内容" />);
+    expect(screen.getByText(/約\d+分/)).toBeInTheDocument();
+  });
+
+  it('空の内容で0文字と表示される', () => {
+    render(<NoteEditor {...defaultProps} content="" />);
+    expect(screen.getByText('0文字')).toBeInTheDocument();
+  });
 });

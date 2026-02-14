@@ -1,4 +1,4 @@
-import { KeyboardEvent, useCallback } from 'react';
+import { KeyboardEvent, useCallback, useRef } from 'react';
 
 interface FilterTabsProps<T extends string> {
   tabs: T[];
@@ -8,6 +8,8 @@ interface FilterTabsProps<T extends string> {
 }
 
 export default function FilterTabs<T extends string>({ tabs, selected, onSelect, className = '' }: FilterTabsProps<T>) {
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
   const handleKeyDown = useCallback((e: KeyboardEvent, index: number) => {
     let nextIndex: number | null = null;
     switch (e.key) {
@@ -26,6 +28,7 @@ export default function FilterTabs<T extends string>({ tabs, selected, onSelect,
     }
     if (nextIndex !== null) {
       e.preventDefault();
+      tabRefs.current[nextIndex]?.focus();
       onSelect(tabs[nextIndex]);
     }
   }, [tabs, onSelect]);
@@ -35,6 +38,7 @@ export default function FilterTabs<T extends string>({ tabs, selected, onSelect,
       {tabs.map((tab, index) => (
         <button
           key={tab}
+          ref={(el) => { tabRefs.current[index] = el; }}
           role="tab"
           aria-selected={selected === tab}
           tabIndex={selected === tab ? 0 : -1}

@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import type { Note } from '../types';
 import NoteRepository from '../repositories/NoteRepository';
 
@@ -7,6 +7,8 @@ export function useNotes() {
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const notesRef = useRef<Note[]>(notes);
+  notesRef.current = notes;
 
   const fetchNotes = useCallback(async () => {
     setLoading(true);
@@ -53,7 +55,7 @@ export function useNotes() {
   }, []);
 
   const togglePin = useCallback(async (noteId: string) => {
-    const note = notes.find((n) => n.noteId === noteId);
+    const note = notesRef.current.find((n) => n.noteId === noteId);
     if (!note) return;
     const newPinned = !note.isPinned;
     try {
@@ -68,7 +70,7 @@ export function useNotes() {
     } catch {
       // エラーハンドリング
     }
-  }, [notes]);
+  }, []);
 
   const selectNote = useCallback((noteId: string | null) => {
     setSelectedNoteId(noteId);

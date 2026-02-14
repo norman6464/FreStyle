@@ -1,4 +1,5 @@
 import { TrophyIcon } from '@heroicons/react/24/solid';
+import Card from './Card';
 
 interface PersonalBestCardProps {
   history: { sessionId: number; overallScore: number; createdAt: string }[];
@@ -12,7 +13,7 @@ export default function PersonalBestCard({ history }: PersonalBestCardProps) {
   );
 
   return (
-    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
+    <Card>
       <div className="flex items-center gap-2 mb-3">
         <TrophyIcon className="w-5 h-5 text-amber-400" />
         <h3 className="text-xs font-semibold text-[var(--color-text-primary)]">自己ベスト</h3>
@@ -26,6 +27,6 @@ export default function PersonalBestCard({ history }: PersonalBestCardProps) {
           </p>
         </div>
       </div>
-    </div>
+    </Card>
   );
 }

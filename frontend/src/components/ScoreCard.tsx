@@ -1,6 +1,7 @@
 import type { ScoreCard as ScoreCardType } from '../types';
 import { LightBulbIcon } from '@heroicons/react/24/outline';
 import { getScoreLevel, getScoreBarColor } from '../utils/scoreColor';
+import Card from './Card';
 
 interface ScoreCardProps {
   scoreCard: ScoreCardType;
@@ -10,7 +11,7 @@ export default function ScoreCard({ scoreCard }: ScoreCardProps) {
   const level = getScoreLevel(scoreCard.overallScore);
 
   return (
-    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4 my-3 max-w-[85%] self-start">
+    <Card className="my-3 max-w-[85%] self-start">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-medium text-[var(--color-text-secondary)]">スコアカード</h3>
         <div className="flex items-center gap-2">
@@ -50,6 +51,6 @@ export default function ScoreCard({ scoreCard }: ScoreCardProps) {
           </div>
         ))}
       </div>
-    </div>
+    </Card>
   );
 }

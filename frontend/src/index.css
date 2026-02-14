@@ -2,22 +2,23 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Theme CSS Variables */
+/* Dark theme (default) */
 :root {
-  --color-surface: #1A1A1A;
-  --color-surface-1: #222222;
-  --color-surface-2: #2A2A2A;
-  --color-surface-3: #333333;
-  --color-text-primary: #F0F0F0;
-  --color-text-secondary: #D0D0D0;
-  --color-text-tertiary: #A0A0A0;
-  --color-text-muted: #888888;
-  --color-text-faint: #666666;
-  --color-text-subtle: #555555;
-  --color-border-hover: #444444;
-  --scrollbar-track: #1A1A1A;
-  --scrollbar-thumb: #444444;
-  --scrollbar-thumb-hover: #555555;
+  --color-surface: #0a0a0a;
+  --color-surface-1: #111827;
+  --color-surface-2: #1f2937;
+  --color-surface-3: #374151;
+  --color-text-primary: #ffffff;
+  --color-text-secondary: #9ca3af;
+  --color-text-tertiary: #6b7280;
+  --color-text-muted: #4b5563;
+  --color-text-faint: #374151;
+  --color-text-subtle: #1f2937;
+  --color-border-hover: #374151;
+  --scrollbar-track: #0a0a0a;
+  --scrollbar-thumb: #374151;
+  --scrollbar-thumb-hover: #4b5563;
+  color-scheme: dark;
 }
 
 .light {

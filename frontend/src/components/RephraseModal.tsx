@@ -50,7 +50,7 @@ export default function RephraseModal({ result, onClose, originalText = '' }: Re
 
         {result === null ? (
           <div className="flex items-center justify-center py-8">
-            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#666666] mr-3" />
+            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[var(--color-text-muted)] mr-3" />
             <span className="text-sm text-[var(--color-text-muted)]">言い換え中...</span>
           </div>
         ) : (

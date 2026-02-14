@@ -24,4 +24,19 @@ describe('PrimaryButton', () => {
     const button = screen.getByText('送信');
     expect(button).toBeDisabled();
   });
+
+  it('デフォルトのtype属性がbuttonである', () => {
+    render(<PrimaryButton>テスト</PrimaryButton>);
+    expect(screen.getByText('テスト')).toHaveAttribute('type', 'button');
+  });
+
+  it('type=submitを指定できる', () => {
+    render(<PrimaryButton type="submit">送信</PrimaryButton>);
+    expect(screen.getByText('送信')).toHaveAttribute('type', 'submit');
+  });
+
+  it('全幅のスタイルが適用される', () => {
+    render(<PrimaryButton>テスト</PrimaryButton>);
+    expect(screen.getByText('テスト').className).toContain('w-full');
+  });
 });

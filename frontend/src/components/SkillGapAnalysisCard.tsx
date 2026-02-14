@@ -24,7 +24,7 @@ export default function SkillGapAnalysisCard({ scores, goal }: SkillGapAnalysisC
 
   return (
     <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
-      <p className="text-xs font-medium text-[#D0D0D0] mb-3">スキルギャップ分析</p>
+      <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-3">スキルギャップ分析</p>
 
       {allAchieved && (
         <p className="text-xs text-emerald-400 font-medium mb-3">
@@ -35,7 +35,7 @@ export default function SkillGapAnalysisCard({ scores, goal }: SkillGapAnalysisC
       <div className="space-y-2">
         {gaps.map((item) => (
           <div key={item.axis} className="flex items-center gap-2">
-            <span data-testid="gap-axis" className="text-xs text-[#888888] w-24 flex-shrink-0 truncate">
+            <span data-testid="gap-axis" className="text-xs text-[var(--color-text-muted)] w-24 flex-shrink-0 truncate">
               {item.axis}
             </span>
             <div className="flex-1 bg-surface-3 rounded-full h-3">

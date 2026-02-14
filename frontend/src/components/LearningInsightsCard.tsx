@@ -17,15 +17,15 @@ export default function LearningInsightsCard({
 
   return (
     <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
-      <p className="text-xs font-medium text-[#D0D0D0] mb-3">学習インサイト</p>
+      <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-3">学習インサイト</p>
       <div className="grid grid-cols-3 gap-3">
         {stats.map((stat) => (
           <div key={stat.label} className="text-center">
-            <p className="text-lg font-semibold text-[#F0F0F0]">{stat.value}</p>
-            <p className="text-[10px] text-[#666666]">
+            <p className="text-lg font-semibold text-[var(--color-text-primary)]">{stat.value}</p>
+            <p className="text-[10px] text-[var(--color-text-faint)]">
               {stat.unit}
             </p>
-            <p className="text-[10px] text-[#888888] mt-0.5">{stat.label}</p>
+            <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">{stat.label}</p>
           </div>
         ))}
       </div>

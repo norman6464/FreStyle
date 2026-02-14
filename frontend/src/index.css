@@ -1,6 +1,42 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Theme CSS Variables */
+:root {
+  --color-surface: #1A1A1A;
+  --color-surface-1: #222222;
+  --color-surface-2: #2A2A2A;
+  --color-surface-3: #333333;
+  --color-text-primary: #F0F0F0;
+  --color-text-secondary: #D0D0D0;
+  --color-text-tertiary: #A0A0A0;
+  --color-text-muted: #888888;
+  --color-text-faint: #666666;
+  --color-text-subtle: #555555;
+  --color-border-hover: #444444;
+  --scrollbar-track: #1A1A1A;
+  --scrollbar-thumb: #444444;
+  --scrollbar-thumb-hover: #555555;
+}
+
+.light {
+  --color-surface: #F9FAFB;
+  --color-surface-1: #FFFFFF;
+  --color-surface-2: #F3F4F6;
+  --color-surface-3: #E5E7EB;
+  --color-text-primary: #1A1A1A;
+  --color-text-secondary: #374151;
+  --color-text-tertiary: #6B7280;
+  --color-text-muted: #9CA3AF;
+  --color-text-faint: #D1D5DB;
+  --color-text-subtle: #E5E7EB;
+  --color-border-hover: #D1D5DB;
+  --scrollbar-track: #F1F5F9;
+  --scrollbar-thumb: #CBD5E1;
+  --scrollbar-thumb-hover: #94A3B8;
+}
+
 @layer base {
   body {
     @apply bg-surface;
@@ -13,7 +49,7 @@
   }
 
   .btn-secondary {
-    @apply border border-surface-3 text-[#A0A0A0] font-medium py-2.5 rounded-lg hover:bg-surface-2 active:bg-surface-3 transition-colors duration-150;
+    @apply border border-surface-3 text-[var(--color-text-tertiary)] font-medium py-2.5 rounded-lg hover:bg-surface-2 active:bg-surface-3 transition-colors duration-150;
   }
 
   .card {
@@ -21,6 +57,6 @@
   }
 
   .input-primary {
-    @apply w-full border border-surface-3 rounded-lg px-4 py-2.5 bg-surface-2 text-[#F0F0F0] focus:border-primary-400 focus:ring-1 focus:ring-primary-400 focus:outline-none transition-colors duration-150 placeholder:text-[#666666];
+    @apply w-full border border-surface-3 rounded-lg px-4 py-2.5 bg-surface-2 text-[var(--color-text-primary)] focus:border-primary-400 focus:ring-1 focus:ring-primary-400 focus:outline-none transition-colors duration-150 placeholder:text-[var(--color-text-faint)];
   }
 }

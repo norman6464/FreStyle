@@ -3,10 +3,10 @@ interface SessionTimeCardProps {
 }
 
 const TIME_SLOTS = [
-  { label: '朝', emoji: '🌅', min: 6, max: 11 },
-  { label: '昼', emoji: '☀️', min: 12, max: 16 },
-  { label: '夕方', emoji: '🌇', min: 17, max: 20 },
-  { label: '夜', emoji: '🌙', min: 21, max: 5, isNight: true },
+  { label: '朝', min: 6, max: 11 },
+  { label: '昼', min: 12, max: 16 },
+  { label: '夕方', min: 17, max: 20 },
+  { label: '夜', min: 21, max: 5, isNight: true },
 ] as const;
 
 const SLOT_COLORS = [
@@ -50,12 +50,12 @@ export default function SessionTimeCard({ dates }: SessionTimeCardProps) {
 
   return (
     <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
-      <p className="text-xs font-medium text-[#D0D0D0] mb-3">練習時間帯</p>
+      <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-3">練習時間帯</p>
 
       <div className="space-y-2">
         {TIME_SLOTS.map((slot, i) => (
           <div key={slot.label} className="flex items-center gap-2">
-            <span className="text-xs text-[#888888] w-8 text-right">{slot.label}</span>
+            <span className="text-xs text-[var(--color-text-muted)] w-8 text-right">{slot.label}</span>
             <div className="flex-1 bg-surface-3 rounded-full h-4">
               {maxCount > 0 && counts[i] > 0 && (
                 <div
@@ -64,14 +64,14 @@ export default function SessionTimeCard({ dates }: SessionTimeCardProps) {
                 />
               )}
             </div>
-            <span data-testid="time-count" className="text-xs font-medium text-[#A0A0A0] w-5 text-right">
+            <span data-testid="time-count" className="text-xs font-medium text-[var(--color-text-tertiary)] w-5 text-right">
               {counts[i]}
             </span>
           </div>
         ))}
       </div>
 
-      <p className="text-xs text-[#888888] mt-3">{getMessage(topIndex)}</p>
+      <p className="text-xs text-[var(--color-text-muted)] mt-3">{getMessage(topIndex)}</p>
     </div>
   );
 }

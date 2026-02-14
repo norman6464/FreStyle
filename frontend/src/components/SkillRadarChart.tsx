@@ -50,7 +50,7 @@ export default function SkillRadarChart({ scores, title }: SkillRadarChartProps)
   return (
     <div className="flex flex-col items-center">
       {title && (
-        <h4 className="text-xs font-semibold text-[#D0D0D0] mb-2">{title}</h4>
+        <h4 className="text-xs font-semibold text-[var(--color-text-secondary)] mb-2">{title}</h4>
       )}
       <svg viewBox={`0 0 ${SIZE} ${SIZE}`} width={SIZE} height={SIZE}>
         {/* グリッド線 */}
@@ -60,7 +60,7 @@ export default function SkillRadarChart({ scores, title }: SkillRadarChartProps)
             className="grid"
             points={getGridPoints(level, axisCount)}
             fill="none"
-            stroke="rgb(226, 232, 240)"
+            stroke="var(--color-surface-3)"
             strokeWidth={level === 10 ? 1 : 0.5}
           />
         ))}
@@ -75,7 +75,7 @@ export default function SkillRadarChart({ scores, title }: SkillRadarChartProps)
               y1={CENTER}
               x2={point.x}
               y2={point.y}
-              stroke="rgb(226, 232, 240)"
+              stroke="var(--color-surface-3)"
               strokeWidth={0.5}
             />
           );
@@ -119,7 +119,7 @@ export default function SkillRadarChart({ scores, title }: SkillRadarChartProps)
               y={point.y}
               textAnchor="middle"
               dominantBaseline="middle"
-              className="fill-slate-600"
+              className="fill-[var(--color-text-tertiary)]"
               fontSize={8}
             >
               {s.axis}

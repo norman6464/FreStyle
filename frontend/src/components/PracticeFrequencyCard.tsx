@@ -46,9 +46,9 @@ export default function PracticeFrequencyCard({ dates }: PracticeFrequencyCardPr
   return (
     <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
       <div className="flex items-center justify-between mb-3">
-        <p className="text-xs font-medium text-[#D0D0D0]">週別練習頻度</p>
+        <p className="text-xs font-medium text-[var(--color-text-secondary)]">週別練習頻度</p>
         <div className="flex items-center gap-2">
-          <span className="text-lg font-bold text-[#F0F0F0]">{currentWeek.count}回</span>
+          <span className="text-lg font-bold text-[var(--color-text-primary)]">{currentWeek.count}回</span>
           {delta !== 0 && (
             <span
               className={`text-xs font-medium ${delta > 0 ? 'text-emerald-400' : 'text-rose-400'}`}
@@ -73,7 +73,7 @@ export default function PracticeFrequencyCard({ dates }: PracticeFrequencyCardPr
             </div>
             <span
               className={`text-[10px] ${
-                week.label === '今週' ? 'font-semibold text-primary-300' : 'text-[#888888]'
+                week.label === '今週' ? 'font-semibold text-primary-300' : 'text-[var(--color-text-muted)]'
               }`}
             >
               {week.label}

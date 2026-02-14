@@ -29,17 +29,17 @@ export default function SceneSelector({ onSelect, onCancel }: SceneSelectorProps
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-surface-1 rounded-lg shadow-lg max-w-md w-full mx-4 p-5 max-h-[80vh] overflow-y-auto">
-        <h3 className="text-sm font-semibold text-[#F0F0F0] mb-1">
+        <h3 className="text-sm font-semibold text-[var(--color-text-primary)] mb-1">
           フィードバックのシーンを選択
         </h3>
-        <p className="text-xs text-[#888888] mb-4">
+        <p className="text-xs text-[var(--color-text-muted)] mb-4">
           シーンに応じた追加評価観点でフィードバックします
         </p>
 
         <div className="space-y-4">
           {categories.map((category) => (
             <div key={category}>
-              <p className="text-[10px] font-semibold text-[#666666] uppercase tracking-wider mb-1 px-1">
+              <p className="text-[10px] font-semibold text-[var(--color-text-faint)] uppercase tracking-wider mb-1 px-1">
                 {category}
               </p>
               <div className="space-y-1">
@@ -50,15 +50,15 @@ export default function SceneSelector({ onSelect, onCancel }: SceneSelectorProps
                     className="w-full text-left px-3 py-2.5 rounded-md hover:bg-surface-2 transition-colors"
                   >
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-[#D0D0D0]">{scene.label}</span>
+                      <span className="text-sm font-medium text-[var(--color-text-secondary)]">{scene.label}</span>
                       {scene.recommended && (
                         <span className="text-[10px] font-medium bg-surface-2 text-primary-400 px-1.5 py-0.5 rounded">
                           おすすめ
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-[#666666] mt-0.5">{scene.description}</p>
-                    <p className="text-[10px] text-[#555555] mt-0.5">{scene.example}</p>
+                    <p className="text-xs text-[var(--color-text-faint)] mt-0.5">{scene.description}</p>
+                    <p className="text-[10px] text-[var(--color-text-subtle)] mt-0.5">{scene.example}</p>
                   </button>
                 ))}
               </div>
@@ -68,7 +68,7 @@ export default function SceneSelector({ onSelect, onCancel }: SceneSelectorProps
 
         <button
           onClick={onCancel}
-          className="w-full mt-3 py-2 text-xs text-[#888888] hover:text-[#D0D0D0] transition-colors"
+          className="w-full mt-3 py-2 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
         >
           スキップ
         </button>

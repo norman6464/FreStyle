@@ -34,7 +34,7 @@ describe('SidebarItem', () => {
   it('非アクティブ状態で通常スタイルが適用される', () => {
     const { container } = renderSidebarItem(false);
     const link = container.querySelector('a');
-    expect(link?.className).toContain('text-[#A0A0A0]');
+    expect(link?.className).toContain('text-[var(--color-text-tertiary)]');
   });
 
   it('バッジが渡されると未読数を表示する', () => {

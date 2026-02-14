@@ -41,24 +41,24 @@ export default function WeeklyComparisonCard({ sessions }: WeeklyComparisonCardP
 
   return (
     <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
-      <p className="text-xs font-medium text-[#D0D0D0] mb-3">週間比較</p>
+      <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-3">週間比較</p>
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <p className="text-xs text-[#888888] mb-1">今週</p>
-          <p data-testid="avg-score" className="text-lg font-bold text-[#F0F0F0]">
+          <p className="text-xs text-[var(--color-text-muted)] mb-1">今週</p>
+          <p data-testid="avg-score" className="text-lg font-bold text-[var(--color-text-primary)]">
             {thisAvg.toFixed(1)}
           </p>
-          <p className="text-xs text-[#666666]">
+          <p className="text-xs text-[var(--color-text-faint)]">
             <span data-testid="session-count">{thisWeek.length}</span> セッション
           </p>
         </div>
         <div>
-          <p className="text-xs text-[#888888] mb-1">先週</p>
-          <p data-testid="avg-score" className="text-lg font-bold text-[#F0F0F0]">
+          <p className="text-xs text-[var(--color-text-muted)] mb-1">先週</p>
+          <p data-testid="avg-score" className="text-lg font-bold text-[var(--color-text-primary)]">
             {lastAvg.toFixed(1)}
           </p>
-          <p className="text-xs text-[#666666]">
+          <p className="text-xs text-[var(--color-text-faint)]">
             <span data-testid="session-count">{lastWeek.length}</span> セッション
           </p>
         </div>
@@ -69,12 +69,12 @@ export default function WeeklyComparisonCard({ sessions }: WeeklyComparisonCardP
           <span
             data-testid="score-delta"
             className={`text-sm font-medium ${
-              delta > 0 ? 'text-emerald-400' : delta < 0 ? 'text-rose-400' : 'text-[#888888]'
+              delta > 0 ? 'text-emerald-400' : delta < 0 ? 'text-rose-400' : 'text-[var(--color-text-muted)]'
             }`}
           >
             {delta > 0 ? `+${delta.toFixed(1)}` : delta < 0 ? `\u2212${Math.abs(delta).toFixed(1)}` : '\u00B10.0'}
           </span>
-          <span className="text-xs text-[#666666] ml-1">先週比</span>
+          <span className="text-xs text-[var(--color-text-faint)] ml-1">先週比</span>
         </div>
       )}
     </div>

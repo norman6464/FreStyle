@@ -27,7 +27,7 @@ export default function CommunicationTipCard() {
   return (
     <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
       <div className="flex items-center justify-between mb-2">
-        <h3 className="text-xs font-semibold text-[#F0F0F0]">今日のTips</h3>
+        <h3 className="text-xs font-semibold text-[var(--color-text-primary)]">今日のTips</h3>
         <span
           data-testid="tip-category"
           className="text-[10px] font-medium text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded"
@@ -35,7 +35,7 @@ export default function CommunicationTipCard() {
           {tip.category}
         </span>
       </div>
-      <p data-testid="tip-text" className="text-sm text-[#A0A0A0] leading-relaxed">
+      <p data-testid="tip-text" className="text-sm text-[var(--color-text-tertiary)] leading-relaxed">
         {tip.text}
       </p>
     </div>

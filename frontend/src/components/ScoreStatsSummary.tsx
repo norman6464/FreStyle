@@ -12,16 +12,16 @@ export default function ScoreStatsSummary({ history }: ScoreStatsSummaryProps) {
   return (
     <div className="grid grid-cols-3 gap-2">
       <div className="bg-surface-1 rounded-lg border border-surface-3 p-3 text-center">
-        <p className="text-lg font-bold text-[#F0F0F0]">{total}</p>
-        <p className="text-[10px] text-[#888888]">総セッション</p>
+        <p className="text-lg font-bold text-[var(--color-text-primary)]">{total}</p>
+        <p className="text-[10px] text-[var(--color-text-muted)]">総セッション</p>
       </div>
       <div className="bg-surface-1 rounded-lg border border-surface-3 p-3 text-center">
-        <p className="text-lg font-bold text-[#F0F0F0]">{avg}</p>
-        <p className="text-[10px] text-[#888888]">平均スコア</p>
+        <p className="text-lg font-bold text-[var(--color-text-primary)]">{avg}</p>
+        <p className="text-[10px] text-[var(--color-text-muted)]">平均スコア</p>
       </div>
       <div className="bg-surface-1 rounded-lg border border-surface-3 p-3 text-center">
         <p className="text-lg font-bold text-amber-400">{best}</p>
-        <p className="text-[10px] text-[#888888]">最高スコア</p>
+        <p className="text-[10px] text-[var(--color-text-muted)]">最高スコア</p>
       </div>
     </div>
   );

@@ -1,3 +1,14 @@
+import type { ComponentType, SVGProps } from 'react';
+import {
+  CheckCircleIcon,
+  PencilSquareIcon,
+  TrophyIcon,
+  StarIcon,
+  FireIcon,
+  ShieldCheckIcon,
+  SparklesIcon,
+} from '@heroicons/react/24/outline';
+
 interface AchievementBadgeCardProps {
   totalSessions: number;
 }
@@ -5,17 +16,17 @@ interface AchievementBadgeCardProps {
 interface Badge {
   name: string;
   threshold: number;
-  icon: string;
+  icon: ComponentType<SVGProps<SVGSVGElement>>;
 }
 
 const BADGES: Badge[] = [
-  { name: 'ファーストステップ', threshold: 1, icon: '🎯' },
-  { name: 'コツコツ練習', threshold: 3, icon: '📝' },
-  { name: 'ウィークリーチャレンジ', threshold: 5, icon: '🏅' },
-  { name: 'テンセッション', threshold: 10, icon: '⭐' },
-  { name: 'ハーフウェイ', threshold: 25, icon: '🔥' },
-  { name: 'フィフティ達成', threshold: 50, icon: '🏆' },
-  { name: 'センチュリー', threshold: 100, icon: '👑' },
+  { name: 'ファーストステップ', threshold: 1, icon: CheckCircleIcon },
+  { name: 'コツコツ練習', threshold: 3, icon: PencilSquareIcon },
+  { name: 'ウィークリーチャレンジ', threshold: 5, icon: TrophyIcon },
+  { name: 'テンセッション', threshold: 10, icon: StarIcon },
+  { name: 'ハーフウェイ', threshold: 25, icon: FireIcon },
+  { name: 'フィフティ達成', threshold: 50, icon: ShieldCheckIcon },
+  { name: 'センチュリー', threshold: 100, icon: SparklesIcon },
 ];
 
 export default function AchievementBadgeCard({ totalSessions }: AchievementBadgeCardProps) {
@@ -25,8 +36,8 @@ export default function AchievementBadgeCard({ totalSessions }: AchievementBadge
   return (
     <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
       <div className="flex items-center justify-between mb-3">
-        <p className="text-xs font-medium text-[#D0D0D0]">達成バッジ</p>
-        <span className="text-[10px] text-[#666666]">
+        <p className="text-xs font-medium text-[var(--color-text-secondary)]">達成バッジ</p>
+        <span className="text-[10px] text-[var(--color-text-faint)]">
           {unlockedCount}/{BADGES.length}
         </span>
       </div>
@@ -34,6 +45,7 @@ export default function AchievementBadgeCard({ totalSessions }: AchievementBadge
       <div className="flex flex-wrap gap-2 mb-3">
         {BADGES.map((badge) => {
           const unlocked = totalSessions >= badge.threshold;
+          const Icon = badge.icon;
           return (
             <div
               key={badge.name}
@@ -43,8 +55,8 @@ export default function AchievementBadgeCard({ totalSessions }: AchievementBadge
               }`}
               title={`${badge.name}（${badge.threshold}回）`}
             >
-              <span className="text-lg">{badge.icon}</span>
-              <span className="text-[9px] text-[#888888] text-center leading-tight truncate w-full">
+              <Icon className="w-5 h-5 text-primary-400" />
+              <span className="text-[9px] text-[var(--color-text-muted)] text-center leading-tight truncate w-full">
                 {badge.name}
               </span>
             </div>
@@ -53,7 +65,7 @@ export default function AchievementBadgeCard({ totalSessions }: AchievementBadge
       </div>
 
       {nextBadge ? (
-        <p data-testid="next-badge-info" className="text-xs text-[#888888]">
+        <p data-testid="next-badge-info" className="text-xs text-[var(--color-text-muted)]">
           次のバッジ「{nextBadge.name}」まであと{nextBadge.threshold - totalSessions}回
         </p>
       ) : (

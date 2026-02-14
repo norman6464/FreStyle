@@ -41,12 +41,12 @@ export default function ScoreDistributionCard({ scores }: ScoreDistributionCardP
 
   return (
     <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
-      <p className="text-xs font-medium text-[#D0D0D0] mb-3">スコア分布</p>
+      <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-3">スコア分布</p>
 
       <div className="space-y-2">
         {RANGES.map((range, i) => (
           <div key={range.label} className="flex items-center gap-2">
-            <span className="text-xs text-[#888888] w-8 text-right">{range.label}</span>
+            <span className="text-xs text-[var(--color-text-muted)] w-8 text-right">{range.label}</span>
             <div className="flex-1 bg-surface-3 rounded-full h-4">
               {maxCount > 0 && counts[i] > 0 && (
                 <div
@@ -55,14 +55,14 @@ export default function ScoreDistributionCard({ scores }: ScoreDistributionCardP
                 />
               )}
             </div>
-            <span data-testid="range-count" className="text-xs font-medium text-[#A0A0A0] w-6 text-right">
+            <span data-testid="range-count" className="text-xs font-medium text-[var(--color-text-tertiary)] w-6 text-right">
               {counts[i]}
             </span>
           </div>
         ))}
       </div>
 
-      <p className="text-xs text-[#888888] mt-3">{getMessage(topRangeIndex)}</p>
+      <p className="text-xs text-[var(--color-text-muted)] mt-3">{getMessage(topRangeIndex)}</p>
     </div>
   );
 }

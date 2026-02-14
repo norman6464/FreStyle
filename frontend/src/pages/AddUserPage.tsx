@@ -31,12 +31,12 @@ export default function AddUserPage() {
       {users.length === 0 && !debounceQuery && (
         <div className="flex flex-col items-center justify-center py-12 text-center">
           <div className="bg-surface-3 rounded-full p-4 mb-4">
-            <MagnifyingGlassIcon className="w-8 h-8 text-[#666666]" />
+            <MagnifyingGlassIcon className="w-8 h-8 text-[var(--color-text-faint)]" />
           </div>
-          <h3 className="text-base font-semibold text-[#D0D0D0] mb-1">
+          <h3 className="text-base font-semibold text-[var(--color-text-secondary)] mb-1">
             ユーザーを検索してみましょう
           </h3>
-          <p className="text-sm text-[#888888] max-w-xs">
+          <p className="text-sm text-[var(--color-text-muted)] max-w-xs">
             名前やメールアドレスを入力して、チャットしたい相手を探してください
           </p>
         </div>
@@ -45,10 +45,10 @@ export default function AddUserPage() {
       {/* 検索結果なし */}
       {users.length === 0 && debounceQuery && (
         <div className="flex flex-col items-center justify-center py-12 text-center">
-          <h3 className="text-base font-semibold text-[#D0D0D0] mb-1">
+          <h3 className="text-base font-semibold text-[var(--color-text-secondary)] mb-1">
             ユーザーが見つかりませんでした
           </h3>
-          <p className="text-sm text-[#888888] max-w-xs">
+          <p className="text-sm text-[var(--color-text-muted)] max-w-xs">
             「{debounceQuery}」に一致するユーザーはいません。
           </p>
         </div>
@@ -58,8 +58,8 @@ export default function AddUserPage() {
       {users.length > 0 && (
         <div>
           <div className="flex items-center gap-2 mb-3">
-            <UserPlusIcon className="w-4 h-4 text-[#888888]" />
-            <span className="text-xs font-semibold text-[#A0A0A0]">
+            <UserPlusIcon className="w-4 h-4 text-[var(--color-text-muted)]" />
+            <span className="text-xs font-semibold text-[var(--color-text-tertiary)]">
               {users.length}人のユーザーが見つかりました
             </span>
           </div>

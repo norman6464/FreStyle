@@ -27,7 +27,7 @@ export default function ChatListPage() {
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-500" />
           </div>
         ) : chatUsers.length === 0 ? (
-          <div className="p-4 text-center text-sm text-[#888888]">
+          <div className="p-4 text-center text-sm text-[var(--color-text-muted)]">
             チャット履歴がありません
           </div>
         ) : (
@@ -55,15 +55,15 @@ export default function ChatListPage() {
 
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-[#F0F0F0] truncate">
+                  <span className="text-sm font-semibold text-[var(--color-text-primary)] truncate">
                     {user.name || 'Unknown User'}
                   </span>
-                  <span className="text-[11px] text-[#666666] flex-shrink-0 ml-2">
+                  <span className="text-[11px] text-[var(--color-text-faint)] flex-shrink-0 ml-2">
                     {formatTime(user.lastMessageAt!)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between mt-0.5">
-                  <p className="text-xs text-[#888888] truncate pr-2">
+                  <p className="text-xs text-[var(--color-text-muted)] truncate pr-2">
                     {user.lastMessageSenderId === user.userId
                       ? truncateMessage(user.lastMessage)
                       : `あなた: ${truncateMessage(user.lastMessage)}`}

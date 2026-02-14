@@ -29,11 +29,11 @@ export default function MotivationQuoteCard() {
 
   return (
     <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
-      <p className="text-xs font-medium text-[#D0D0D0] mb-2">今日の一言</p>
-      <p data-testid="quote-text" className="text-xs text-[#A0A0A0] leading-relaxed italic">
+      <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-2">今日の一言</p>
+      <p data-testid="quote-text" className="text-xs text-[var(--color-text-tertiary)] leading-relaxed italic">
         「{quote.text}」
       </p>
-      <p data-testid="quote-author" className="text-[10px] text-[#666666] mt-1.5 text-right">
+      <p data-testid="quote-author" className="text-[10px] text-[var(--color-text-faint)] mt-1.5 text-right">
         — {quote.author}
       </p>
     </div>

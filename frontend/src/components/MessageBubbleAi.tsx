@@ -24,9 +24,9 @@ export default function MessageBubbleAi({
 
   const alignment = isSender
     ? 'self-end bg-primary-500 text-white rounded-br-sm'
-    : 'self-start bg-surface-3 text-[#F0F0F0] rounded-bl-sm';
+    : 'self-start bg-surface-3 text-[var(--color-text-primary)] rounded-bl-sm';
 
-  const deletedStyle = 'bg-surface-3 text-[#888888] italic';
+  const deletedStyle = 'bg-surface-3 text-[var(--color-text-muted)] italic';
 
   return (
     <div

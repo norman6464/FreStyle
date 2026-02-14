@@ -59,7 +59,7 @@ export default function LearningPatternCard({ practiceDates }: Props) {
   return (
     <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
       <div className="flex items-center justify-between mb-3">
-        <p className="text-xs font-medium text-[#D0D0D0]">学習パターン</p>
+        <p className="text-xs font-medium text-[var(--color-text-secondary)]">学習パターン</p>
         <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${PATTERN_COLORS[pattern]}`}>
           {pattern}
         </span>
@@ -72,12 +72,12 @@ export default function LearningPatternCard({ practiceDates }: Props) {
               className="w-full bg-primary-400 rounded-t transition-all"
               style={{ height: `${(count / maxCount) * 100}%`, minHeight: count > 0 ? '4px' : '0' }}
             />
-            <span className="text-[10px] text-[#666666]">{DAY_LABELS[i]}</span>
+            <span className="text-[10px] text-[var(--color-text-faint)]">{DAY_LABELS[i]}</span>
           </div>
         ))}
       </div>
 
-      <p className="text-xs text-[#888888]">{PATTERN_MESSAGES[pattern]}</p>
+      <p className="text-xs text-[var(--color-text-muted)]">{PATTERN_MESSAGES[pattern]}</p>
     </div>
   );
 }

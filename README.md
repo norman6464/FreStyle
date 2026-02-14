@@ -1,6 +1,6 @@
-## 📱 FreStyleとは
+## FreStyleとは
 
-## 🎯 ターゲットユーザー
+## ターゲットユーザー
 
 **新卒ITエンジニアのためのビジネスコミュニケーション練習アプリ**
 
@@ -13,19 +13,19 @@
 
 ---
 
-## 🌐 デプロイURL（料金の関係上サービスを停止する可能性があります）
+## デプロイURL（料金の関係上サービスを停止する可能性があります）
 
-👉 [https://normanblog.com](https://normanblog.com)
-
----
-
-## 🎥 Demo（変更前）
-
-👉 [デモ動画](https://myapp-demo-videos.s3.ap-northeast-1.amazonaws.com/Fre-Style-demo.mp4)
+[https://normanblog.com](https://normanblog.com)
 
 ---
 
-## 🧰 使用技術
+## Demo（変更前）
+
+[デモ動画](https://myapp-demo-videos.s3.ap-northeast-1.amazonaws.com/Fre-Style-demo.mp4)
+
+---
+
+## 使用技術
 
 <h3>Frontend</h3>
 <a href="https://skillicons.dev">
@@ -64,7 +64,7 @@
 
 ---
 
-## ⚙️ 主な機能
+## 主な機能
 - ユーザー登録・ログイン（JWT 認証 / OIDC）
 - ユーザー同士のリアルタイムチャット
 - 未読メッセージカウント・既読管理（リアルタイム通知対応）
@@ -145,7 +145,7 @@
 
 ---
 
-## 💡 Architecture Highlights（工夫した点）
+## Architecture Highlights（工夫した点）
 
 ### ① WebSocket と HTTP API の構成を用途別に完全分離
 - **WebSocket**：API Gateway + Lambda + DynamoDB  
@@ -198,14 +198,14 @@ Repository (Infrastructure層) ← DB操作
 
 ---
 
-## 🧠 苦労した点・学び
+## 苦労した点・学び
 - WebSocket を ECS で保持するか、サーバーレスにするかの検討 → コスト/工数削減/レイテンシから Lambda + APIGW に決定
 - Spring Security の JWT / JWK / Cookie 設計
 - ALB の TLS Termination と ECS の Backend 構成
 
 ---
 
-## ✔ 技術選定理由（HTTP API / ECS Fargate）
+## 技術選定理由（HTTP API / ECS Fargate）
 
 1. Docker 化した Spring Boot を安定稼働させるため
    - サーバープロビジョニング不要
@@ -222,7 +222,7 @@ Repository (Infrastructure層) ← DB操作
 
 ---
 
-## ✔ 技術選定理由（WebSocket / サーバーレス構成）
+## 技術選定理由（WebSocket / サーバーレス構成）
 
 1. コスト最適化（従量課金）  
    ECS 常時稼働より大幅に低コスト。
@@ -237,7 +237,7 @@ Repository (Infrastructure層) ← DB操作
 
 ---
 
-## 🏗️ AWSアーキテクチャ構成図
+## AWSアーキテクチャ構成図
 
 ### AWS全体構成図（変更前）
 ![AWSアーキテクチャ構成図](./architecture/aws/image.png)
@@ -258,7 +258,7 @@ Repository (Infrastructure層) ← DB操作
 
 ---
 
-## 🚀 今年の目標
+## 今年の目標
 
 ### 技術・資格
 - AWS SAP、CKA、CKAD
@@ -273,7 +273,7 @@ Repository (Infrastructure層) ← DB操作
 
 ---
 
-## 🛠 ローカル開発環境セットアップ
+## ローカル開発環境セットアップ
 
 ### バックエンド（Docker Compose）
 
@@ -311,7 +311,7 @@ npx tailwindcss init -p
 
 ---
 
-## 🗄️ 本番環境DBマイグレーション
+## 本番環境DBマイグレーション
 
 本番環境（AWS RDS）にデプロイする際、スキーマの更新が必要な場合はマイグレーションSQLを実行してください。
 
@@ -339,6 +339,6 @@ SELECT COUNT(*) FROM practice_scenarios;
 
 ---
 
-## 📄 ライセンス
+## ライセンス
 
 MIT License

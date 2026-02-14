@@ -16,7 +16,7 @@ interface Milestone {
 }
 
 const MILESTONES: Milestone[] = [
-  { label: '入門', threshold: 0, color: 'text-[#888888]', bgColor: 'bg-surface-3' },
+  { label: '入門', threshold: 0, color: 'text-[var(--color-text-muted)]', bgColor: 'bg-surface-3' },
   { label: '初級', threshold: 4, color: 'text-emerald-400', bgColor: 'bg-emerald-900/30' },
   { label: '中級', threshold: 6, color: 'text-blue-400', bgColor: 'bg-blue-900/30' },
   { label: '上級', threshold: 7, color: 'text-purple-600', bgColor: 'bg-purple-50' },
@@ -42,7 +42,7 @@ export default function SkillMilestoneCard({ scores }: SkillMilestoneCardProps) 
 
   return (
     <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
-      <h3 className="text-xs font-semibold text-[#F0F0F0] mb-3">スキル到達レベル</h3>
+      <h3 className="text-xs font-semibold text-[var(--color-text-primary)] mb-3">スキル到達レベル</h3>
       <div className="space-y-3">
         {scores.map((s) => {
           const current = getCurrentMilestone(s.score);
@@ -55,7 +55,7 @@ export default function SkillMilestoneCard({ scores }: SkillMilestoneCardProps) 
           return (
             <div key={s.axis}>
               <div className="flex items-center justify-between mb-1">
-                <span className="text-xs text-[#D0D0D0]">{s.axis}</span>
+                <span className="text-xs text-[var(--color-text-secondary)]">{s.axis}</span>
                 <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${current.bgColor} ${current.color}`}>
                   {current.label}
                 </span>
@@ -68,7 +68,7 @@ export default function SkillMilestoneCard({ scores }: SkillMilestoneCardProps) 
                   />
                 </div>
                 {remaining !== null && (
-                  <span className="text-[10px] text-[#666666] whitespace-nowrap">あと {remaining}</span>
+                  <span className="text-[10px] text-[var(--color-text-faint)] whitespace-nowrap">あと {remaining}</span>
                 )}
               </div>
             </div>

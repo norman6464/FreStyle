@@ -35,7 +35,7 @@ export default function DailyChallengeCard() {
   return (
     <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
       <div className="flex items-center justify-between mb-2">
-        <p className="text-xs font-medium text-[#D0D0D0]">本日のチャレンジ</p>
+        <p className="text-xs font-medium text-[var(--color-text-secondary)]">本日のチャレンジ</p>
         <span
           data-testid="challenge-difficulty"
           className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${DIFFICULTY_STYLES[challenge.difficulty]}`}
@@ -44,13 +44,13 @@ export default function DailyChallengeCard() {
         </span>
       </div>
 
-      <p className="text-sm font-semibold text-[#F0F0F0] mb-1">{challenge.title}</p>
-      <p data-testid="challenge-description" className="text-xs text-[#888888] mb-2">
+      <p className="text-sm font-semibold text-[var(--color-text-primary)] mb-1">{challenge.title}</p>
+      <p data-testid="challenge-description" className="text-xs text-[var(--color-text-muted)] mb-2">
         {challenge.description}
       </p>
 
       <div className="flex items-center justify-between">
-        <span data-testid="challenge-category" className="text-[10px] text-[#666666]">
+        <span data-testid="challenge-category" className="text-[10px] text-[var(--color-text-faint)]">
           {challenge.category}
         </span>
         <button

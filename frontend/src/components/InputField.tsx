@@ -27,7 +27,7 @@ export default function InputField({
   return (
     <div className="mb-6">
       <label
-        className="block text-sm font-medium text-[#D0D0D0] mb-2"
+        className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2"
         htmlFor={name}
       >
         {label}
@@ -48,7 +48,7 @@ export default function InputField({
           <button
             type="button"
             onClick={handleClear}
-            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#666666] hover:text-[#A0A0A0] transition-colors"
+            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[var(--color-text-faint)] hover:text-[var(--color-text-tertiary)] transition-colors"
           >
             <XMarkIcon className="w-5 h-5" />
           </button>

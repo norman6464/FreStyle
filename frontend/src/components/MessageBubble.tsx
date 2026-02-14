@@ -30,11 +30,11 @@ export default function MessageBubble({
 
   const alignment = isSender
     ? 'self-end bg-primary-500 text-white rounded-br-sm'
-    : 'self-start bg-surface-3 text-[#F0F0F0] rounded-bl-sm';
+    : 'self-start bg-surface-3 text-[var(--color-text-primary)] rounded-bl-sm';
 
   const deletedAlignment = isSender
-    ? 'self-end bg-surface-3 text-[#888888] italic rounded-br-sm'
-    : 'self-start bg-surface-3 text-[#888888] italic rounded-bl-sm';
+    ? 'self-end bg-surface-3 text-[var(--color-text-muted)] italic rounded-br-sm'
+    : 'self-start bg-surface-3 text-[var(--color-text-muted)] italic rounded-bl-sm';
 
   const formatTime = (dateString?: string) => {
     if (!dateString) return '';
@@ -55,7 +55,7 @@ export default function MessageBubble({
     >
       <div className="flex flex-col w-full">
         {!isSender && senderName && (
-          <span className="text-xs text-[#888888] mb-1 ml-1">{senderName}</span>
+          <span className="text-xs text-[var(--color-text-muted)] mb-1 ml-1">{senderName}</span>
         )}
 
         <div className={`${baseStyle} ${isDeleted ? deletedAlignment : alignment}`}>
@@ -95,7 +95,7 @@ export default function MessageBubble({
         {!isDeleted && (
           <div className={`flex items-center gap-2 mt-1 ${isSender ? 'justify-end' : 'justify-start'}`}>
             {createdAt && (
-              <span className={`text-[10px] ${isSender ? 'mr-1 text-[#666666]' : 'ml-1 text-[#666666]'}`}>
+              <span className={`text-[10px] ${isSender ? 'mr-1 text-[var(--color-text-faint)]' : 'ml-1 text-[var(--color-text-faint)]'}`}>
                 {formatTime(createdAt)}
               </span>
             )}

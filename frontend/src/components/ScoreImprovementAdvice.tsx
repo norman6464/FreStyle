@@ -23,7 +23,7 @@ export default function ScoreImprovementAdvice({ scores }: ScoreImprovementAdvic
 
   return (
     <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
-      <p className="text-xs font-medium text-[#D0D0D0] mb-3">改善アドバイス</p>
+      <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-3">改善アドバイス</p>
 
       {weakAxes.length === 0 ? (
         <p className="text-xs text-emerald-400 font-medium">
@@ -37,10 +37,10 @@ export default function ScoreImprovementAdvice({ scores }: ScoreImprovementAdvic
                 <span className="text-amber-400 text-[10px] font-bold">!</span>
               </div>
               <div>
-                <p className="text-xs font-medium text-[#F0F0F0]">
+                <p className="text-xs font-medium text-[var(--color-text-primary)]">
                   {axis.axis}（{axis.score.toFixed(1)}）
                 </p>
-                <p className="text-xs text-[#888888] mt-0.5">
+                <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
                   {AXIS_ADVICE[axis.axis] || `${axis.axis}を伸ばすための練習を続けましょう。`}
                 </p>
               </div>

@@ -13,8 +13,8 @@ export default function RecentNotesCard() {
   return (
     <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
       <div className="flex items-center justify-between mb-3">
-        <p className="text-xs font-medium text-[#D0D0D0]">最近のメモ</p>
-        <span className="text-[10px] text-[#666666]">{noteEntries.length}件</span>
+        <p className="text-xs font-medium text-[var(--color-text-secondary)]">最近のメモ</p>
+        <span className="text-[10px] text-[var(--color-text-faint)]">{noteEntries.length}件</span>
       </div>
 
       <div className="space-y-2">
@@ -23,8 +23,8 @@ export default function RecentNotesCard() {
             key={entry.sessionId}
             className="bg-surface-2 rounded p-2"
           >
-            <p className="text-xs text-[#D0D0D0] line-clamp-2">{entry.note}</p>
-            <p className="text-[10px] text-[#666666] mt-1">
+            <p className="text-xs text-[var(--color-text-secondary)] line-clamp-2">{entry.note}</p>
+            <p className="text-[10px] text-[var(--color-text-faint)] mt-1">
               {new Date(entry.updatedAt).toLocaleDateString('ja-JP')}
             </p>
           </div>

@@ -1,6 +1,7 @@
 import { useFavoritePhrase } from '../hooks/useFavoritePhrase';
 import SearchBox from '../components/SearchBox';
 import FavoriteStatsCard from '../components/FavoriteStatsCard';
+import { StarIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 const PATTERN_FILTERS = ['すべて', 'フォーマル', 'ソフト', '簡潔'] as const;
 
@@ -9,7 +10,7 @@ export default function FavoritesPage() {
 
   return (
     <div className="max-w-3xl mx-auto p-4 space-y-3">
-      <h2 className="text-sm font-semibold text-[#F0F0F0]">お気に入りフレーズ</h2>
+      <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">お気に入りフレーズ</h2>
 
       {phrases.length > 0 && (
         <FavoriteStatsCard phrases={phrases} />
@@ -31,7 +32,7 @@ export default function FavoritesPage() {
                 className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
                   patternFilter === f
                     ? 'bg-primary-500 text-white'
-                    : 'bg-surface-3 text-[#A0A0A0] hover:bg-surface-3'
+                    : 'bg-surface-3 text-[var(--color-text-tertiary)] hover:bg-surface-3'
                 }`}
               >
                 {f}
@@ -42,13 +43,13 @@ export default function FavoritesPage() {
       )}
 
       {phrases.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-64 text-[#888888]">
+        <div className="flex flex-col items-center justify-center h-64 text-[var(--color-text-muted)]">
           <p className="text-sm font-medium">お気に入りフレーズがありません</p>
-          <p className="text-xs mt-1">言い換え提案で☆をタップするとここに保存されます</p>
+          <p className="text-xs mt-1 flex items-center gap-1">言い換え提案で<StarIcon className="w-3 h-3 inline-block" />をタップするとここに保存されます</p>
         </div>
       ) : filteredPhrases.length === 0 ? (
         <div className="text-center py-8">
-          <p className="text-sm text-[#888888]">該当するフレーズがありません</p>
+          <p className="text-sm text-[var(--color-text-muted)]">該当するフレーズがありません</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -62,20 +63,20 @@ export default function FavoritesPage() {
                   {phrase.pattern}
                 </span>
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-[#666666]">
+                  <span className="text-[10px] text-[var(--color-text-faint)]">
                     {new Date(phrase.createdAt).toLocaleDateString('ja-JP')}
                   </span>
                   <button
                     onClick={() => removeFavorite(phrase.id)}
                     aria-label="お気に入りから削除"
-                    className="text-xs text-[#666666] hover:text-rose-500 transition-colors"
+                    className="text-xs text-[var(--color-text-faint)] hover:text-rose-500 transition-colors"
                   >
-                    ✕
+                    <XMarkIcon className="w-4 h-4" />
                   </button>
                 </div>
               </div>
-              <p className="text-sm text-[#F0F0F0] mb-1">{phrase.rephrasedText}</p>
-              <p className="text-xs text-[#666666]">元: {phrase.originalText}</p>
+              <p className="text-sm text-[var(--color-text-primary)] mb-1">{phrase.rephrasedText}</p>
+              <p className="text-xs text-[var(--color-text-faint)]">元: {phrase.originalText}</p>
             </div>
           ))}
         </div>

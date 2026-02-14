@@ -44,7 +44,7 @@ export default function UserProfilePage() {
       )}
 
       {/* 説明カード */}
-      <div className="bg-surface-2 rounded-lg p-3 mb-4 border border-[#444444]">
+      <div className="bg-surface-2 rounded-lg p-3 mb-4 border border-[var(--color-border-hover)]">
         <p className="text-xs text-primary-300">
           FreStyleはあなたのコミュニケーションスタイルを理解し、チャットと対面の「印象のズレ」を分析します。より正確なフィードバックのために、あなたらしさを教えてください。
         </p>
@@ -57,7 +57,7 @@ export default function UserProfilePage() {
           <div className="p-5">
             <div className="flex items-center gap-2 mb-3">
               <UserCircleIcon className="w-4 h-4 text-primary-500" />
-              <h3 className="text-sm font-bold text-[#F0F0F0]">基本情報</h3>
+              <h3 className="text-sm font-bold text-[var(--color-text-primary)]">基本情報</h3>
             </div>
             <div className="space-y-3">
               <InputField
@@ -70,7 +70,7 @@ export default function UserProfilePage() {
                 placeholder="例：タロウ、たろちゃん"
               />
               <div>
-                <label className="block text-sm font-medium text-[#D0D0D0] mb-1">
+                <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">
                   自己紹介
                 </label>
                 <textarea
@@ -91,11 +91,11 @@ export default function UserProfilePage() {
           <div className="p-5">
             <div className="flex items-center gap-2 mb-3">
               <ChatBubbleLeftRightIcon className="w-4 h-4 text-primary-500" />
-              <h3 className="text-sm font-bold text-[#F0F0F0]">コミュニケーションスタイル</h3>
+              <h3 className="text-sm font-bold text-[var(--color-text-primary)]">コミュニケーションスタイル</h3>
             </div>
             <div className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-[#D0D0D0] mb-1">
+                <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">
                   あなたのコミュニケーションスタイル
                 </label>
                 <select
@@ -112,7 +112,7 @@ export default function UserProfilePage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[#D0D0D0] mb-2">
+                <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
                   性格特性（当てはまるものを選んでください）
                 </label>
                 <div className="flex flex-wrap gap-1.5">
@@ -124,7 +124,7 @@ export default function UserProfilePage() {
                       className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
                         form.personalityTraits.includes(trait)
                           ? 'bg-primary-500 text-white'
-                          : 'bg-surface-3 text-[#D0D0D0] hover:bg-surface-3'
+                          : 'bg-surface-3 text-[var(--color-text-secondary)] hover:bg-surface-3'
                       }`}
                     >
                       {trait}
@@ -139,11 +139,11 @@ export default function UserProfilePage() {
           <div className="p-5">
             <div className="flex items-center gap-2 mb-3">
               <LightBulbIcon className="w-4 h-4 text-primary-500" />
-              <h3 className="text-sm font-bold text-[#F0F0F0]">AIフィードバック設定</h3>
+              <h3 className="text-sm font-bold text-[var(--color-text-primary)]">AIフィードバック設定</h3>
             </div>
             <div className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-[#D0D0D0] mb-1">
+                <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">
                   コミュニケーションで改善したい点・目標
                 </label>
                 <textarea
@@ -159,7 +159,7 @@ export default function UserProfilePage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[#D0D0D0] mb-1">
+                <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">
                   苦手なこと・気になっていること
                 </label>
                 <textarea
@@ -175,7 +175,7 @@ export default function UserProfilePage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[#D0D0D0] mb-1">
+                <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">
                   フィードバックの受け取り方
                 </label>
                 <select

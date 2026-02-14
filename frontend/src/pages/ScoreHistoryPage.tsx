@@ -34,7 +34,7 @@ export default function ScoreHistoryPage() {
   if (loading) {
     return (
       <div className="max-w-3xl mx-auto p-4 space-y-4">
-        <div className="text-sm text-[#888888]">スコア履歴を読み込み中...</div>
+        <div className="text-sm text-[var(--color-text-muted)]">スコア履歴を読み込み中...</div>
         <SkeletonCard />
         <SkeletonCard />
         <SkeletonCard />
@@ -44,7 +44,7 @@ export default function ScoreHistoryPage() {
 
   if (history.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-[#888888]">
+      <div className="flex flex-col items-center justify-center h-64 text-[var(--color-text-muted)]">
         <p className="text-sm font-medium">スコア履歴がありません</p>
         <p className="text-xs mt-1">AIアシスタントでフィードバックを受けるとスコアが記録されます</p>
       </div>
@@ -86,8 +86,8 @@ export default function ScoreHistoryPage() {
       {latestSession && (
         <div className="bg-surface-1 rounded-lg border border-surface-3 p-4 flex items-center justify-between">
           <div>
-            <p className="text-xs text-[#888888] mb-1">最新スコア</p>
-            <p className="text-2xl font-bold text-[#F0F0F0]">{latestSession.overallScore.toFixed(1)}</p>
+            <p className="text-xs text-[var(--color-text-muted)] mb-1">最新スコア</p>
+            <p className="text-2xl font-bold text-[var(--color-text-primary)]">{latestSession.overallScore.toFixed(1)}</p>
           </div>
           <ScoreRankBadge score={latestSession.overallScore} />
         </div>
@@ -95,14 +95,14 @@ export default function ScoreHistoryPage() {
 
       {/* 弱点ベースのおすすめ練習 */}
       {weakestAxis && (
-        <div className="bg-surface-2 rounded-lg border border-[#444444] p-4">
+        <div className="bg-surface-2 rounded-lg border border-[var(--color-border-hover)] p-4">
           <p className="text-xs font-semibold text-primary-300 mb-1">おすすめ練習</p>
           <p className="text-xs text-primary-400 mb-2">
             {AXIS_ADVICE[weakestAxis.axis] || `${weakestAxis.axis}を伸ばすシナリオで練習しましょう`}
           </p>
           <button
             onClick={() => navigate('/practice')}
-            className="text-xs font-medium text-primary-300 bg-surface-1 px-3 py-1.5 rounded-lg border border-[#444444] hover:bg-surface-3 transition-colors"
+            className="text-xs font-medium text-primary-300 bg-surface-1 px-3 py-1.5 rounded-lg border border-[var(--color-border-hover)] hover:bg-surface-3 transition-colors"
           >
             練習一覧を見る
           </button>
@@ -149,7 +149,7 @@ export default function ScoreHistoryPage() {
 
       {/* スコア推移グラフ */}
       <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
-        <p className="text-xs font-medium text-[#D0D0D0] mb-3">スコア推移</p>
+        <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-3">スコア推移</p>
         <div className="flex items-end gap-1 h-16">
           {history.map((item) => (
             <div
@@ -186,7 +186,7 @@ export default function ScoreHistoryPage() {
             className={`px-3 py-2 text-xs font-medium transition-colors border-b-2 -mb-px ${
               filter === f
                 ? 'border-primary-500 text-primary-400'
-                : 'border-transparent text-[#888888] hover:text-[#D0D0D0]'
+                : 'border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'
             }`}
           >
             {f}
@@ -194,7 +194,7 @@ export default function ScoreHistoryPage() {
         ))}
       </div>
 
-      <p className="text-xs text-[#888888]">
+      <p className="text-xs text-[var(--color-text-muted)]">
         全 {filteredHistory.length} 件のフィードバック履歴
       </p>
 
@@ -208,15 +208,15 @@ export default function ScoreHistoryPage() {
         return (
           <div
             key={item.sessionId}
-            className="bg-surface-1 rounded-lg border border-surface-3 p-4 cursor-pointer hover:border-[#444444] transition-colors"
+            className="bg-surface-1 rounded-lg border border-surface-3 p-4 cursor-pointer hover:border-[var(--color-border-hover)] transition-colors"
             onClick={() => setSelectedSession(item)}
           >
             <div className="flex items-center justify-between mb-3">
               <div>
-                <h3 className="text-sm font-medium text-[#F0F0F0]">
+                <h3 className="text-sm font-medium text-[var(--color-text-primary)]">
                   {item.sessionTitle || `セッション #${item.sessionId}`}
                 </h3>
-                <p className="text-xs text-[#666666] mt-0.5">
+                <p className="text-xs text-[var(--color-text-faint)] mt-0.5">
                   {new Date(item.createdAt).toLocaleDateString('ja-JP', {
                     year: 'numeric',
                     month: 'long',
@@ -231,11 +231,11 @@ export default function ScoreHistoryPage() {
                   </span>
                 )}
                 <div className="flex items-center gap-1">
-                  <span className="text-xs text-[#888888]">総合</span>
-                  <span className="text-lg font-semibold text-[#F0F0F0]">
+                  <span className="text-xs text-[var(--color-text-muted)]">総合</span>
+                  <span className="text-lg font-semibold text-[var(--color-text-primary)]">
                     {item.overallScore.toFixed(1)}
                   </span>
-                  <span className="text-xs text-[#666666]">/10</span>
+                  <span className="text-xs text-[var(--color-text-faint)]">/10</span>
                 </div>
               </div>
             </div>
@@ -243,7 +243,7 @@ export default function ScoreHistoryPage() {
             <div className="space-y-1.5">
               {item.scores.map((axisScore) => (
                 <div key={axisScore.axis} className="flex items-center gap-2">
-                  <span className="text-xs text-[#888888] w-24 flex-shrink-0 truncate">
+                  <span className="text-xs text-[var(--color-text-muted)] w-24 flex-shrink-0 truncate">
                     {axisScore.axis}
                   </span>
                   <div className="flex-1 bg-surface-3 rounded-full h-1.5">
@@ -252,7 +252,7 @@ export default function ScoreHistoryPage() {
                       style={{ width: `${axisScore.score * 10}%` }}
                     />
                   </div>
-                  <span className="text-xs text-[#A0A0A0] w-5 text-right">
+                  <span className="text-xs text-[var(--color-text-tertiary)] w-5 text-right">
                     {axisScore.score}
                   </span>
                 </div>

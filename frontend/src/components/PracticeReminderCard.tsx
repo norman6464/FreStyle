@@ -25,7 +25,7 @@ export default function PracticeReminderCard({ lastPracticeDate }: PracticeRemin
           <p className="text-sm font-medium text-emerald-400">今日も練習済み！</p>
         ) : (
           <>
-            <p className="text-sm font-medium text-[#D0D0D0]">最後の練習: {daysAgo}日前</p>
+            <p className="text-sm font-medium text-[var(--color-text-secondary)]">最後の練習: {daysAgo}日前</p>
             {daysAgo >= 3 && (
               <p className="text-xs text-amber-400 mt-0.5">そろそろ練習しませんか？</p>
             )}

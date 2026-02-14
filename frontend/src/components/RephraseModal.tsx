@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useFavoritePhrase } from '../hooks/useFavoritePhrase';
+import { StarIcon as StarOutlineIcon } from '@heroicons/react/24/outline';
+import { StarIcon as StarSolidIcon } from '@heroicons/react/24/solid';
 
 interface RephraseResult {
   formal: string;
@@ -44,12 +46,12 @@ export default function RephraseModal({ result, onClose, originalText = '' }: Re
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-surface-1 rounded-lg shadow-lg max-w-lg w-full mx-4 p-5">
-        <h3 className="text-sm font-semibold text-[#F0F0F0] mb-4">言い換え提案</h3>
+        <h3 className="text-sm font-semibold text-[var(--color-text-primary)] mb-4">言い換え提案</h3>
 
         {result === null ? (
           <div className="flex items-center justify-center py-8">
             <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#666666] mr-3" />
-            <span className="text-sm text-[#888888]">言い換え中...</span>
+            <span className="text-sm text-[var(--color-text-muted)]">言い換え中...</span>
           </div>
         ) : (
           <div className="space-y-3">
@@ -59,8 +61,8 @@ export default function RephraseModal({ result, onClose, originalText = '' }: Re
                 <div key={key} className="border border-surface-3 rounded-lg p-3">
                   <div className="flex items-center justify-between mb-1">
                     <div>
-                      <span className="text-xs font-medium text-[#A0A0A0]">{label}</span>
-                      <span className="text-[10px] text-[#666666] ml-2">{hint}</span>
+                      <span className="text-xs font-medium text-[var(--color-text-tertiary)]">{label}</span>
+                      <span className="text-[10px] text-[var(--color-text-faint)] ml-2">{hint}</span>
                     </div>
                     <div className="flex items-center gap-1">
                       <button
@@ -69,20 +71,24 @@ export default function RephraseModal({ result, onClose, originalText = '' }: Re
                         className={`text-xs px-1.5 py-0.5 rounded transition-colors ${
                           isSaved
                             ? 'text-amber-500'
-                            : 'text-[#555555] hover:text-amber-400'
+                            : 'text-[var(--color-text-subtle)] hover:text-amber-400'
                         }`}
                       >
-                        {isSaved ? '★' : '☆'}
+                        {isSaved ? (
+                          <StarSolidIcon className="w-4 h-4" />
+                        ) : (
+                          <StarOutlineIcon className="w-4 h-4" />
+                        )}
                       </button>
                       <button
                         onClick={() => handleCopy(result[key], key)}
-                        className="text-xs text-[#666666] hover:text-[#A0A0A0] px-2 py-0.5 rounded hover:bg-surface-2 transition-colors"
+                        className="text-xs text-[var(--color-text-faint)] hover:text-[var(--color-text-tertiary)] px-2 py-0.5 rounded hover:bg-surface-2 transition-colors"
                       >
                         {copiedKey === key ? 'コピーしました' : 'コピー'}
                       </button>
                     </div>
                   </div>
-                  <p className="text-sm text-[#D0D0D0]">{result[key]}</p>
+                  <p className="text-sm text-[var(--color-text-secondary)]">{result[key]}</p>
                 </div>
               );
             })}
@@ -91,7 +97,7 @@ export default function RephraseModal({ result, onClose, originalText = '' }: Re
 
         <button
           onClick={onClose}
-          className="w-full mt-4 py-2 text-sm text-[#888888] hover:text-[#D0D0D0] bg-surface-2 hover:bg-surface-3 rounded-lg transition-colors"
+          className="w-full mt-4 py-2 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] bg-surface-2 hover:bg-surface-3 rounded-lg transition-colors"
         >
           閉じる
         </button>

@@ -63,7 +63,7 @@ export default function PracticeCalendar({ practiceDates }: PracticeCalendarProp
 
   return (
     <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
-      <p className="text-xs font-medium text-[#D0D0D0] mb-3">練習カレンダー</p>
+      <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-3">練習カレンダー</p>
 
       <div className="flex gap-0.5">
         {/* 曜日ラベル */}
@@ -71,7 +71,7 @@ export default function PracticeCalendar({ practiceDates }: PracticeCalendarProp
           {dayLabels.map((label, i) => (
             <div
               key={label}
-              className={`h-3 text-[9px] leading-3 text-[#666666] ${
+              className={`h-3 text-[9px] leading-3 text-[var(--color-text-faint)] ${
                 i % 2 === 1 ? '' : 'invisible'
               }`}
             >

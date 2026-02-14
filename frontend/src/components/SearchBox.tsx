@@ -9,7 +9,7 @@ interface SearchBoxProps {
 export default function SearchBox({ value, onChange, placeholder = '検索' }: SearchBoxProps) {
   return (
     <div className="relative">
-      <MagnifyingGlassIcon className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#666666]" />
+      <MagnifyingGlassIcon className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--color-text-faint)]" />
       <input
         type="text"
         value={value}

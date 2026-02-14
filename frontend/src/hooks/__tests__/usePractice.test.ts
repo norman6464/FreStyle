@@ -80,4 +80,29 @@ describe('usePractice', () => {
     expect(created).toBeNull();
     expect(result.current.error).toBe('作成失敗');
   });
+
+  it('初期状態のscenariosが空配列', () => {
+    const { result } = renderHook(() => usePractice());
+    expect(result.current.scenarios).toEqual([]);
+  });
+
+  it('初期状態のloadingがfalseでerrorがnull', () => {
+    const { result } = renderHook(() => usePractice());
+    expect(result.current.loading).toBe(false);
+    expect(result.current.error).toBeNull();
+  });
+
+  it('fetchScenario: エラー時にnullを返しerrorを設定する', async () => {
+    mockedRepo.getScenario.mockRejectedValue(new Error('詳細取得失敗'));
+
+    const { result } = renderHook(() => usePractice());
+
+    let fetched: any;
+    await act(async () => {
+      fetched = await result.current.fetchScenario(999);
+    });
+
+    expect(fetched).toBeNull();
+    expect(result.current.error).toBe('詳細取得失敗');
+  });
 });

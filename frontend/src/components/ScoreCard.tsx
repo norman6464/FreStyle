@@ -1,24 +1,13 @@
 import type { ScoreCard as ScoreCardType } from '../types';
 import { LightBulbIcon } from '@heroicons/react/24/outline';
+import { getScoreLevel, getScoreBarColor } from '../utils/scoreColor';
 
 interface ScoreCardProps {
   scoreCard: ScoreCardType;
 }
 
-function getOverallLevel(score: number): { label: string; color: string } {
-  if (score >= 8) return { label: '優秀レベル', color: 'bg-emerald-900/30 text-emerald-400 border-emerald-800' };
-  if (score >= 5) return { label: '実務レベル', color: 'bg-amber-900/30 text-amber-400 border-amber-800' };
-  return { label: '基礎レベル', color: 'bg-rose-900/30 text-rose-400 border-rose-800' };
-}
-
-function getBarColor(score: number): string {
-  if (score >= 8) return 'bg-emerald-900/300';
-  if (score >= 6) return 'bg-amber-900/300';
-  return 'bg-rose-900/300';
-}
-
 export default function ScoreCard({ scoreCard }: ScoreCardProps) {
-  const level = getOverallLevel(scoreCard.overallScore);
+  const level = getScoreLevel(scoreCard.overallScore);
 
   return (
     <div className="bg-surface-1 rounded-lg border border-surface-3 p-4 my-3 max-w-[85%] self-start">
@@ -47,7 +36,7 @@ export default function ScoreCard({ scoreCard }: ScoreCardProps) {
             </div>
             <div className="w-full bg-surface-3 rounded-full h-1.5">
               <div
-                className={`h-1.5 rounded-full ${getBarColor(axisScore.score)}`}
+                className={`h-1.5 rounded-full ${getScoreBarColor(axisScore.score)}`}
                 style={{ width: `${axisScore.score * 10}%` }}
               />
             </div>

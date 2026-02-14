@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { getDeltaColor, formatDelta } from '../utils/scoreColor';
 
 type TrendType = 'up' | 'down' | 'stable';
 
@@ -68,8 +69,8 @@ export default function ScoreGrowthTrendCard({ scores }: Props) {
         <span className="text-2xl font-bold text-[var(--color-text-primary)]">{analysis.latestScore}</span>
         <span className="text-xs text-[var(--color-text-faint)]">最新スコア</span>
         {analysis.delta !== 0 && (
-          <span className={`text-xs font-medium ${analysis.delta > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-            {analysis.delta > 0 ? '+' : ''}{analysis.delta.toFixed(1)}
+          <span className={`text-xs font-medium ${getDeltaColor(analysis.delta)}`}>
+            {formatDelta(analysis.delta)}
           </span>
         )}
       </div>

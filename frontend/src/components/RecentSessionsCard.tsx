@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { getScoreTextColor } from '../utils/scoreColor';
 
 interface Session {
   sessionId: number;
@@ -9,12 +10,6 @@ interface Session {
 
 interface RecentSessionsCardProps {
   sessions: Session[];
-}
-
-function scoreColor(score: number): string {
-  if (score >= 8) return 'text-emerald-400';
-  if (score >= 6) return 'text-amber-400';
-  return 'text-rose-400';
 }
 
 export default function RecentSessionsCard({ sessions }: RecentSessionsCardProps) {
@@ -46,7 +41,7 @@ export default function RecentSessionsCard({ sessions }: RecentSessionsCardProps
                 {new Date(session.createdAt).toLocaleDateString('ja-JP')}
               </p>
             </div>
-            <span className={`text-sm font-semibold ${scoreColor(session.overallScore)}`}>
+            <span className={`text-sm font-semibold ${getScoreTextColor(session.overallScore)}`}>
               {session.overallScore}
             </span>
           </div>

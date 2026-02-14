@@ -1,0 +1,33 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import authRepository from '../repositories/AuthRepository';
+import { AxiosError } from 'axios';
+
+interface FormMessage {
+  type: 'success' | 'error';
+  text: string;
+}
+
+export function useForgotPassword() {
+  const [email, setEmail] = useState('');
+  const [message, setMessage] = useState<FormMessage | null>(null);
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    try {
+      await authRepository.forgotPassword({ email });
+      setMessage({ type: 'success', text: 'コード送信済み' });
+      navigate('/confirm-forgot-password', { state: { email } });
+    } catch (error) {
+      if (error instanceof AxiosError && error.response?.data?.error) {
+        setMessage({ type: 'error', text: error.response.data.error });
+      } else {
+        setMessage({ type: 'error', text: '通信エラーが発生しました。' });
+      }
+    }
+  };
+
+  return { email, setEmail, message, handleSubmit };
+}

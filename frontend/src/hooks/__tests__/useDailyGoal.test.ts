@@ -67,4 +67,37 @@ describe('useDailyGoal', () => {
 
     expect(result.current.progress).toBe(50);
   });
+
+  it('target=0の場合progressが100になる', () => {
+    mockedRepo.getToday.mockReturnValue({ date: '2026-02-13', target: 0, completed: 0 });
+
+    const { result } = renderHook(() => useDailyGoal());
+
+    expect(result.current.progress).toBe(100);
+  });
+
+  it('completed > targetの場合isAchievedがtrue', () => {
+    mockedRepo.getToday.mockReturnValue({ date: '2026-02-13', target: 3, completed: 5 });
+
+    const { result } = renderHook(() => useDailyGoal());
+
+    expect(result.current.isAchieved).toBe(true);
+    expect(result.current.progress).toBe(167);
+  });
+
+  it('incrementCompleted後の進捗率が更新される', () => {
+    mockedRepo.getToday
+      .mockReturnValueOnce({ date: '2026-02-13', target: 4, completed: 1 })
+      .mockReturnValueOnce({ date: '2026-02-13', target: 4, completed: 2 });
+
+    const { result } = renderHook(() => useDailyGoal());
+
+    expect(result.current.progress).toBe(25);
+
+    act(() => {
+      result.current.incrementCompleted();
+    });
+
+    expect(result.current.progress).toBe(50);
+  });
 });

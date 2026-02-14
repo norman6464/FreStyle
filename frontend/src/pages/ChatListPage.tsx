@@ -3,6 +3,7 @@ import SecondaryPanel from '../components/layout/SecondaryPanel';
 import EmptyState from '../components/EmptyState';
 import SearchBox from '../components/SearchBox';
 import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
+import Avatar from '../components/Avatar';
 import { useChatList } from '../hooks/useChatList';
 import { formatTime, truncateMessage } from '../utils/formatters';
 import { useMobilePanelState } from '../hooks/useMobilePanelState';
@@ -41,21 +42,7 @@ export default function ChatListPage() {
               onClick={() => { navigate(`/chat/users/${user.roomId}`); closeMobilePanel(); }}
               className="w-full px-4 py-3 flex items-center gap-3 hover:bg-surface-2 transition-colors border-b border-surface-3 text-left"
             >
-              <div className="flex-shrink-0">
-                {user.profileImage ? (
-                  <img
-                    src={user.profileImage}
-                    alt={user.name}
-                    className="w-10 h-10 rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="w-10 h-10 rounded-full bg-primary-500 flex items-center justify-center">
-                    <span className="text-white text-sm font-bold">
-                      {user.name?.charAt(0)?.toUpperCase() || '?'}
-                    </span>
-                  </div>
-                )}
-              </div>
+              <Avatar name={user.name} src={user.profileImage} />
 
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between">

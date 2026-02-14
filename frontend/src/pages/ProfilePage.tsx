@@ -2,6 +2,7 @@ import InputField from '../components/InputField';
 import TextareaField from '../components/TextareaField';
 import PrimaryButton from '../components/PrimaryButton';
 import FormMessage from '../components/FormMessage';
+import Avatar from '../components/Avatar';
 import { useProfileEdit } from '../hooks/useProfileEdit';
 
 export default function ProfilePage() {
@@ -21,11 +22,7 @@ export default function ProfilePage() {
 
       <div className="bg-surface-1 rounded-lg border border-surface-3 p-6">
         <div className="flex items-center gap-4 mb-6">
-          <div className="w-16 h-16 bg-primary-500 rounded-full flex items-center justify-center">
-            <span className="text-white text-2xl font-bold">
-              {form.name?.charAt(0)?.toUpperCase() || 'U'}
-            </span>
-          </div>
+          <Avatar name={form.name || 'U'} size="xl" />
           <div>
             <h2 className="text-lg font-bold text-[var(--color-text-primary)]">プロフィールを編集</h2>
             <p className="text-sm text-[var(--color-text-muted)]">あなたの情報を更新してください</p>

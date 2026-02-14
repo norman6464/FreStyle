@@ -1,3 +1,5 @@
+import Card from './Card';
+
 interface Session {
   overallScore: number;
   createdAt: string;
@@ -40,7 +42,7 @@ export default function WeeklyComparisonCard({ sessions }: WeeklyComparisonCardP
   const delta = showDelta ? Math.round((thisAvg - lastAvg) * 10) / 10 : 0;
 
   return (
-    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
+    <Card>
       <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-3">週間比較</p>
 
       <div className="grid grid-cols-2 gap-4">
@@ -77,6 +79,6 @@ export default function WeeklyComparisonCard({ sessions }: WeeklyComparisonCardP
           <span className="text-xs text-[var(--color-text-faint)] ml-1">先週比</span>
         </div>
       )}
-    </div>
+    </Card>
   );
 }

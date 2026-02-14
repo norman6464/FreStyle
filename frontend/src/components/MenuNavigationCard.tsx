@@ -5,6 +5,7 @@ import {
   AcademicCapIcon,
   ChartBarIcon,
 } from '@heroicons/react/24/outline';
+import Card from './Card';
 
 interface MenuNavigationCardProps {
   totalUnread: number;
@@ -56,10 +57,12 @@ export default function MenuNavigationCard({ totalUnread, latestScore }: MenuNav
       {MENU_ITEMS.map((item) => {
         const badge = getBadge(item.badgeKey);
         return (
-          <button
+          <Card
             key={item.to}
+            role="button"
+            tabIndex={0}
             onClick={() => navigate(item.to)}
-            className="w-full flex items-center gap-4 bg-surface-1 rounded-lg border border-surface-3 p-4 text-left hover:bg-surface-2 transition-colors"
+            className="w-full flex items-center gap-4 text-left hover:bg-surface-2 transition-colors cursor-pointer"
           >
             <item.icon className="w-5 h-5 text-[var(--color-text-muted)] flex-shrink-0" />
             <div className="flex-1 min-w-0">
@@ -73,7 +76,7 @@ export default function MenuNavigationCard({ totalUnread, latestScore }: MenuNav
               </div>
               <p className="text-xs text-[var(--color-text-muted)]">{item.description}</p>
             </div>
-          </button>
+          </Card>
         );
       })}
     </div>

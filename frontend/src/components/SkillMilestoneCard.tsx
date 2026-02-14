@@ -1,3 +1,5 @@
+import Card from './Card';
+
 interface AxisScore {
   axis: string;
   score: number;
@@ -41,7 +43,7 @@ export default function SkillMilestoneCard({ scores }: SkillMilestoneCardProps) 
   if (scores.length === 0) return null;
 
   return (
-    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
+    <Card>
       <h3 className="text-xs font-semibold text-[var(--color-text-primary)] mb-3">スキル到達レベル</h3>
       <div className="space-y-3">
         {scores.map((s) => {
@@ -75,6 +77,6 @@ export default function SkillMilestoneCard({ scores }: SkillMilestoneCardProps) 
           );
         })}
       </div>
-    </div>
+    </Card>
   );
 }

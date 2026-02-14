@@ -72,4 +72,21 @@ describe('InputField', () => {
     const input = screen.getByLabelText('メール');
     expect(input.className).toContain('border-rose-500');
   });
+
+  it('エラーがない場合はaria-invalidがfalseになる', () => {
+    render(<InputField label="メール" name="email" value="" onChange={mockOnChange} />);
+    expect(screen.getByLabelText('メール')).toHaveAttribute('aria-invalid', 'false');
+  });
+
+  it('エラーがない場合はaria-describedbyが設定されない', () => {
+    render(<InputField label="メール" name="email" value="" onChange={mockOnChange} />);
+    expect(screen.getByLabelText('メール')).not.toHaveAttribute('aria-describedby');
+  });
+
+  it('エラーがない場合はボーダーが通常色になる', () => {
+    render(<InputField label="メール" name="email" value="" onChange={mockOnChange} />);
+    const input = screen.getByLabelText('メール');
+    expect(input.className).toContain('border-surface-3');
+    expect(input.className).not.toContain('border-rose-500');
+  });
 });

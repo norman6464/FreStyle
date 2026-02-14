@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
 import SkipLink from '../SkipLink';
+import ScrollToTop from '../ScrollToTop';
 
 const pageTitles: Record<string, string> = {
   '/': 'ホーム',
@@ -65,6 +66,7 @@ export default function AppShell() {
         <main id="main-content" tabIndex={-1} className="flex-1 overflow-auto outline-none">
           <Outlet />
         </main>
+        <ScrollToTop targetId="main-content" />
       </div>
     </div>
   );

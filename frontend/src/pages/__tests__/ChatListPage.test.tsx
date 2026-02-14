@@ -71,8 +71,8 @@ describe('ChatListPage', () => {
   it('チャットユーザー一覧を表示する', () => {
     render(<BrowserRouter><ChatListPage /></BrowserRouter>);
 
-    expect(screen.getByText('田中太郎')).toBeInTheDocument();
-    expect(screen.getByText('佐藤花子')).toBeInTheDocument();
+    expect(screen.getAllByText('田中太郎').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('佐藤花子').length).toBeGreaterThanOrEqual(1);
   });
 
   it('ローディング中はスピナーを表示する', () => {
@@ -95,19 +95,19 @@ describe('ChatListPage', () => {
 
     render(<BrowserRouter><ChatListPage /></BrowserRouter>);
 
-    expect(screen.getByText('チャット履歴がありません')).toBeInTheDocument();
+    expect(screen.getAllByText('チャット履歴がありません').length).toBeGreaterThanOrEqual(1);
   });
 
   it('未読バッジを表示する', () => {
     render(<BrowserRouter><ChatListPage /></BrowserRouter>);
 
-    expect(screen.getByText('3')).toBeInTheDocument();
+    expect(screen.getAllByText('3').length).toBeGreaterThanOrEqual(1);
   });
 
   it('チャットルームクリックでnavigateが呼ばれる', () => {
     render(<BrowserRouter><ChatListPage /></BrowserRouter>);
 
-    fireEvent.click(screen.getByText('田中太郎'));
+    fireEvent.click(screen.getAllByText('田中太郎')[0]);
 
     expect(mockNavigate).toHaveBeenCalledWith('/chat/users/1');
   });
@@ -115,20 +115,20 @@ describe('ChatListPage', () => {
   it('自分が送ったメッセージには「あなた:」プレフィックスが付く', () => {
     render(<BrowserRouter><ChatListPage /></BrowserRouter>);
 
-    expect(screen.getByText(/あなた: ありがとうございます/)).toBeInTheDocument();
+    expect(screen.getAllByText(/あなた: ありがとうございます/).length).toBeGreaterThanOrEqual(1);
   });
 
   it('プロフィール画像がない場合は頭文字アバターを表示する', () => {
     render(<BrowserRouter><ChatListPage /></BrowserRouter>);
 
-    expect(screen.getByText('田')).toBeInTheDocument();
+    expect(screen.getAllByText('田').length).toBeGreaterThanOrEqual(1);
   });
 
   it('プロフィール画像がある場合はimgタグを表示する', () => {
     render(<BrowserRouter><ChatListPage /></BrowserRouter>);
 
-    const img = screen.getByAltText('佐藤花子');
-    expect(img).toBeInTheDocument();
-    expect(img.getAttribute('src')).toBe('https://example.com/photo.jpg');
+    const imgs = screen.getAllByAltText('佐藤花子');
+    expect(imgs.length).toBeGreaterThanOrEqual(1);
+    expect(imgs[0].getAttribute('src')).toBe('https://example.com/photo.jpg');
   });
 });

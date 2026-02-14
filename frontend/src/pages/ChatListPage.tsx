@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import SecondaryPanel from '../components/layout/SecondaryPanel';
 import EmptyState from '../components/EmptyState';
@@ -7,6 +8,7 @@ import { useChatList } from '../hooks/useChatList';
 import { formatTime, truncateMessage } from '../utils/formatters';
 
 export default function ChatListPage() {
+  const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
   const navigate = useNavigate();
   const { chatUsers, loading, searchQuery, setSearchQuery } = useChatList();
 
@@ -14,6 +16,8 @@ export default function ChatListPage() {
     <div className="flex h-full">
       <SecondaryPanel
         title="チャット"
+        mobileOpen={mobilePanelOpen}
+        onMobileClose={() => setMobilePanelOpen(false)}
         headerContent={
           <SearchBox
             value={searchQuery}
@@ -34,7 +38,7 @@ export default function ChatListPage() {
           chatUsers.map((user) => (
             <button
               key={user.roomId}
-              onClick={() => navigate(`/chat/users/${user.roomId}`)}
+              onClick={() => { navigate(`/chat/users/${user.roomId}`); setMobilePanelOpen(false); }}
               className="w-full px-4 py-3 flex items-center gap-3 hover:bg-surface-2 transition-colors border-b border-surface-3 text-left"
             >
               <div className="flex-shrink-0">
@@ -80,7 +84,20 @@ export default function ChatListPage() {
         )}
       </SecondaryPanel>
 
-      <div className="flex-1">
+      <div className="flex-1 flex flex-col">
+        {/* モバイルヘッダー */}
+        <div className="md:hidden bg-surface-1 border-b border-surface-3 px-4 py-2 flex items-center">
+          <button
+            onClick={() => setMobilePanelOpen(true)}
+            className="p-1.5 hover:bg-surface-2 rounded transition-colors"
+            aria-label="チャット一覧を開く"
+          >
+            <svg className="w-5 h-5 text-[var(--color-text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+          <span className="ml-2 text-xs text-[var(--color-text-muted)]">チャット一覧</span>
+        </div>
         <EmptyState
           icon={ChatBubbleLeftRightIcon}
           title="チャットを選択してください"

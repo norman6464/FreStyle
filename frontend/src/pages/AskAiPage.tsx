@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import MessageBubbleAi from '../components/MessageBubbleAi';
 import MessageInput from '../components/MessageInput';
 import ConfirmModal from '../components/ConfirmModal';
@@ -11,6 +12,7 @@ import AiSessionListItem from '../components/AiSessionListItem';
 import { useAskAi } from '../hooks/useAskAi';
 
 export default function AskAiPage() {
+  const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
   const {
     sessions,
     messages,
@@ -40,6 +42,8 @@ export default function AskAiPage() {
       {/* セカンダリパネル: セッション一覧 */}
       <SecondaryPanel
         title="セッション"
+        mobileOpen={mobilePanelOpen}
+        onMobileClose={() => setMobilePanelOpen(false)}
         headerContent={
           <button
             onClick={handleNewSession}
@@ -62,7 +66,7 @@ export default function AskAiPage() {
               isActive={currentSessionId === session.id}
               isEditing={editingSessionId === session.id}
               editingTitle={editingTitle}
-              onSelect={handleSelectSession}
+              onSelect={(id: number) => { handleSelectSession(id); setMobilePanelOpen(false); }}
               onStartEdit={handleStartEditTitle}
               onDelete={handleDeleteSession}
               onSaveTitle={handleSaveTitle}
@@ -75,6 +79,20 @@ export default function AskAiPage() {
 
       {/* メインコンテンツ */}
       <div className="flex-1 flex flex-col min-w-0">
+        {/* モバイルヘッダー */}
+        <div className="md:hidden bg-surface-1 border-b border-surface-3 px-4 py-2 flex items-center">
+          <button
+            onClick={() => setMobilePanelOpen(true)}
+            className="p-1.5 hover:bg-surface-2 rounded transition-colors"
+            aria-label="セッション一覧を開く"
+          >
+            <svg className="w-5 h-5 text-[var(--color-text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+          <span className="ml-2 text-xs text-[var(--color-text-muted)]">セッション一覧</span>
+        </div>
+
         {/* 練習モードヘッダー */}
         {isPracticeMode && (
           <div className="bg-surface-1 border-b border-surface-3 px-4 py-3 flex items-center justify-between">

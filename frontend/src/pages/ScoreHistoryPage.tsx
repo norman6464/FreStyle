@@ -5,6 +5,7 @@ import PracticeCalendar from '../components/PracticeCalendar';
 import ScoreRankBadge from '../components/ScoreRankBadge';
 import ScoreStatsSummary from '../components/ScoreStatsSummary';
 import SkillMilestoneCard from '../components/SkillMilestoneCard';
+import ScoreComparisonCard from '../components/ScoreComparisonCard';
 import ScoreImprovementAdvice from '../components/ScoreImprovementAdvice';
 import SkillTrendChart from '../components/SkillTrendChart';
 import { useScoreHistory, FILTERS } from '../hooks/useScoreHistory';
@@ -78,6 +79,16 @@ export default function ScoreHistoryPage() {
         <div className="bg-white rounded-lg border border-slate-200 p-4 flex justify-center">
           <SkillRadarChart scores={latestSession.scores} title="最新のスキルバランス" />
         </div>
+      )}
+
+      {/* 初回vs最新スコア比較 */}
+      {history.length >= 2 && latestSession && history[0].scores.length > 0 && (
+        <ScoreComparisonCard
+          firstScores={history[0].scores}
+          latestScores={latestSession.scores}
+          firstOverall={history[0].overallScore}
+          latestOverall={latestSession.overallScore}
+        />
       )}
 
       {/* 改善アドバイス */}

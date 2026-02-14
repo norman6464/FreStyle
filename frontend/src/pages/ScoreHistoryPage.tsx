@@ -10,6 +10,7 @@ import ScoreComparisonCard from '../components/ScoreComparisonCard';
 import ScoreImprovementAdvice from '../components/ScoreImprovementAdvice';
 import SkillSummaryCard from '../components/SkillSummaryCard';
 import CommunicationStyleCard from '../components/CommunicationStyleCard';
+import ScoreGoalCard from '../components/ScoreGoalCard';
 import SkillTrendChart from '../components/SkillTrendChart';
 import SessionDetailModal from '../components/SessionDetailModal';
 import { useScoreHistory, FILTERS, type ScoreHistoryItem } from '../hooks/useScoreHistory';
@@ -51,6 +52,11 @@ export default function ScoreHistoryPage() {
     <div className="max-w-3xl mx-auto p-4 space-y-3">
       {/* コミュニケーションスタイル */}
       <CommunicationStyleCard sessions={history} />
+
+      {/* 目標スコア */}
+      <ScoreGoalCard
+        averageScore={Math.round((history.reduce((sum, h) => sum + h.overallScore, 0) / history.length) * 10) / 10}
+      />
 
       {/* 統計サマリー */}
       <ScoreStatsSummary history={history} />

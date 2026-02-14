@@ -7,6 +7,12 @@ vi.mock('react-router-dom', () => ({
   useNavigate: () => mockNavigate,
 }));
 
+vi.mock('../../components/ScoreGoalCard', () => ({
+  default: ({ averageScore }: { averageScore: number }) => (
+    <div data-testid="score-goal-card">目標: {averageScore}</div>
+  ),
+}));
+
 const mockHistory = [
   {
     sessionId: 1,

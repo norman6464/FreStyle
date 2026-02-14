@@ -59,4 +59,22 @@ describe('SearchBox', () => {
     fireEvent.click(screen.getByLabelText('検索をクリア'));
     expect(mockOnChange).toHaveBeenCalledWith('');
   });
+
+  it('スペースのみの値でもクリアボタンが表示される', () => {
+    render(<SearchBox value=" " onChange={vi.fn()} />);
+    expect(screen.getByLabelText('検索をクリア')).toBeInTheDocument();
+  });
+
+  it('長い文字列でも正常に表示される', () => {
+    const longText = 'テ'.repeat(200);
+    render(<SearchBox value={longText} onChange={vi.fn()} />);
+    expect(screen.getByDisplayValue(longText)).toBeInTheDocument();
+    expect(screen.getByLabelText('検索をクリア')).toBeInTheDocument();
+  });
+
+  it('クリアボタンにbutton要素が使用される', () => {
+    render(<SearchBox value="テスト" onChange={vi.fn()} />);
+    const clearButton = screen.getByLabelText('検索をクリア');
+    expect(clearButton.tagName).toBe('BUTTON');
+  });
 });

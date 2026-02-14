@@ -1,3 +1,5 @@
+import Card from './Card';
+
 interface PracticeLevelCardProps {
   totalSessions: number;
 }
@@ -42,7 +44,7 @@ export default function PracticeLevelCard({ totalSessions }: PracticeLevelCardPr
   const remaining = next ? next.threshold - totalSessions : 0;
 
   return (
-    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
+    <Card>
       <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-2">練習レベル</p>
 
       <div className="flex items-baseline gap-2 mb-2">
@@ -61,6 +63,6 @@ export default function PracticeLevelCard({ totalSessions }: PracticeLevelCardPr
       <p className="text-xs text-[var(--color-text-muted)]">
         {next ? `次のレベルまであと${remaining}回` : '最高レベル到達！'}
       </p>
-    </div>
+    </Card>
   );
 }

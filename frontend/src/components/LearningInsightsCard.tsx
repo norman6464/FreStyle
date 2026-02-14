@@ -1,3 +1,5 @@
+import Card from './Card';
+
 interface LearningInsightsCardProps {
   totalSessions: number;
   averageScore: number;
@@ -16,7 +18,7 @@ export default function LearningInsightsCard({
   ];
 
   return (
-    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
+    <Card>
       <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-3">学習インサイト</p>
       <div className="grid grid-cols-3 gap-3">
         {stats.map((stat) => (
@@ -29,6 +31,6 @@ export default function LearningInsightsCard({
           </div>
         ))}
       </div>
-    </div>
+    </Card>
   );
 }

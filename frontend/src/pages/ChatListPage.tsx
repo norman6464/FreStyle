@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import SecondaryPanel from '../components/layout/SecondaryPanel';
 import EmptyState from '../components/EmptyState';
 import SearchBox from '../components/SearchBox';
-import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
+import { ChatBubbleLeftRightIcon, Bars3Icon } from '@heroicons/react/24/outline';
 import Avatar from '../components/Avatar';
 import Loading from '../components/Loading';
 import { useChatList } from '../hooks/useChatList';
@@ -78,9 +78,7 @@ export default function ChatListPage() {
             className="p-1.5 hover:bg-surface-2 rounded transition-colors"
             aria-label="チャット一覧を開く"
           >
-            <svg className="w-5 h-5 text-[var(--color-text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
+            <Bars3Icon className="w-5 h-5 text-[var(--color-text-muted)]" />
           </button>
           <span className="ml-2 text-xs text-[var(--color-text-muted)]">チャット一覧</span>
         </div>

@@ -15,6 +15,7 @@ import SessionTimeCard from '../components/SessionTimeCard';
 import SkillGapAnalysisCard from '../components/SkillGapAnalysisCard';
 import WeeklyComparisonCard from '../components/WeeklyComparisonCard';
 import SkillTrendChart from '../components/SkillTrendChart';
+import SkillRadarOverlayCard from '../components/SkillRadarOverlayCard';
 import SessionDetailModal from '../components/SessionDetailModal';
 import { useScoreHistory, FILTERS } from '../hooks/useScoreHistory';
 
@@ -113,6 +114,14 @@ export default function ScoreHistoryPage() {
         <div className="bg-surface-1 rounded-lg border border-surface-3 p-4 flex justify-center">
           <SkillRadarChart scores={latestSession.scores} title="最新のスキルバランス" />
         </div>
+      )}
+
+      {/* スキル変化レーダー（前回vs今回） */}
+      {history.length >= 2 && latestSession && (
+        <SkillRadarOverlayCard
+          previousScores={history[history.length - 2].scores}
+          currentScores={latestSession.scores}
+        />
       )}
 
       {/* 初回vs最新スコア比較 */}

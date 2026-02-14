@@ -1,6 +1,7 @@
 import InputField from '../components/InputField';
 import TextareaField from '../components/TextareaField';
 import SelectField from '../components/SelectField';
+import SectionHeader from '../components/SectionHeader';
 import PrimaryButton from '../components/PrimaryButton';
 import Loading from '../components/Loading';
 import PersonalityTraitSelector from '../components/PersonalityTraitSelector';
@@ -48,10 +49,7 @@ export default function UserProfilePage() {
         <form onSubmit={handleSave} className="divide-y divide-slate-100">
           {/* 基本情報セクション */}
           <div className="p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <UserCircleIcon className="w-4 h-4 text-primary-500" />
-              <h3 className="text-sm font-bold text-[var(--color-text-primary)]">基本情報</h3>
-            </div>
+            <SectionHeader icon={UserCircleIcon} title="基本情報" />
             <div className="space-y-3">
               <InputField
                 label="呼ばれたい名前"
@@ -77,10 +75,7 @@ export default function UserProfilePage() {
 
           {/* コミュニケーションスタイル */}
           <div className="p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <ChatBubbleLeftRightIcon className="w-4 h-4 text-primary-500" />
-              <h3 className="text-sm font-bold text-[var(--color-text-primary)]">コミュニケーションスタイル</h3>
-            </div>
+            <SectionHeader icon={ChatBubbleLeftRightIcon} title="コミュニケーションスタイル" />
             <div className="space-y-3">
               <SelectField
                 label="あなたのコミュニケーションスタイル"
@@ -103,10 +98,7 @@ export default function UserProfilePage() {
 
           {/* AIフィードバック設定 */}
           <div className="p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <LightBulbIcon className="w-4 h-4 text-primary-500" />
-              <h3 className="text-sm font-bold text-[var(--color-text-primary)]">AIフィードバック設定</h3>
-            </div>
+            <SectionHeader icon={LightBulbIcon} title="AIフィードバック設定" />
             <div className="space-y-3">
               <TextareaField
                 label="コミュニケーションで改善したい点・目標"

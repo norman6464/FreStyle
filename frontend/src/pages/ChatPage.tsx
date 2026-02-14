@@ -4,6 +4,8 @@ import ConfirmModal from '../components/ConfirmModal';
 import SceneSelector from '../components/SceneSelector';
 import RephraseModal from '../components/RephraseModal';
 import MessageSelectionPanel from '../components/MessageSelectionPanel';
+import EmptyState from '../components/EmptyState';
+import { ChatBubbleLeftRightIcon, CheckIcon } from '@heroicons/react/24/outline';
 import { useChat } from '../hooks/useChat';
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
 
@@ -43,19 +45,11 @@ export default function ChatPage() {
       {/* メッセージエリア */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-center">
-            <div className="bg-surface-3 rounded-full p-4 mb-4">
-              <svg className="w-8 h-8 text-[var(--color-text-faint)]" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5z" />
-              </svg>
-            </div>
-            <h3 className="text-base font-semibold text-[var(--color-text-secondary)] mb-1">
-              チャットへようこそ
-            </h3>
-            <p className="text-sm text-[var(--color-text-muted)]">
-              相手とのチャットをここで行えます
-            </p>
-          </div>
+          <EmptyState
+            icon={ChatBubbleLeftRightIcon}
+            title="チャットへようこそ"
+            description="相手とのチャットをここで行えます"
+          />
         )}
         {messages.map((msg, index) => (
           <div key={msg.id} className="flex items-start gap-2 max-w-3xl mx-auto w-full">
@@ -79,9 +73,7 @@ export default function ChatPage() {
                   }`}
                 >
                   {isInRange(index) ? (
-                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
+                    <CheckIcon className="w-3.5 h-3.5" />
                   ) : (
                     <span className="text-[10px] text-[var(--color-text-faint)]">{index + 1}</span>
                   )}

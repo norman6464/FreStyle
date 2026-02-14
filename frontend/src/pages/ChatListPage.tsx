@@ -7,6 +7,7 @@ import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 import SockJS from 'sockjs-client';
 import { Client } from '@stomp/stompjs';
 import { useChatList } from '../hooks/useChatList';
+import { formatTime, truncateMessage } from '../utils/formatters';
 
 export default function ChatListPage() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -46,32 +47,6 @@ export default function ChatListPage() {
     }, 300);
     return () => clearTimeout(timer);
   }, [searchQuery, fetchChatUsers]);
-
-  const formatTime = (dateString: string): string => {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const oneDay = 24 * 60 * 60 * 1000;
-    const oneWeek = 7 * oneDay;
-
-    if (diff < oneDay && date.getDate() === now.getDate()) {
-      return date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
-    } else if (diff < oneDay * 2 && date.getDate() === now.getDate() - 1) {
-      return '昨日';
-    } else if (diff < oneWeek) {
-      const days = ['日', '月', '火', '水', '木', '金', '土'];
-      return days[date.getDay()] + '曜日';
-    } else {
-      return date.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' });
-    }
-  };
-
-  const truncateMessage = (message: string | undefined, maxLength = 30): string => {
-    if (!message) return 'メッセージはありません';
-    if (message.length <= maxLength) return message;
-    return message.substring(0, maxLength) + '...';
-  };
 
   return (
     <div className="flex h-full">

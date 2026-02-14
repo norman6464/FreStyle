@@ -106,4 +106,67 @@ describe('useScoreHistory', () => {
     expect(result.current.latestSession).toBeNull();
     expect(result.current.weakestAxis).toBeNull();
   });
+
+  it('フリーフィルタでフリーセッションのみ返す', async () => {
+    const mockData = [
+      { sessionId: 1, sessionTitle: '練習: テスト', overallScore: 7.0, scores: [], createdAt: '2026-02-10' },
+      { sessionId: 2, sessionTitle: 'フリーチャット', overallScore: 8.0, scores: [], createdAt: '2026-02-11' },
+      { sessionId: 3, sessionTitle: '練習：別テスト', overallScore: 6.0, scores: [], createdAt: '2026-02-12' },
+    ];
+    mockFetchScoreHistory.mockResolvedValue(mockData);
+
+    const { result } = renderHook(() => useScoreHistory());
+
+    await waitFor(() => {
+      expect(result.current.history).toHaveLength(3);
+    });
+
+    act(() => {
+      result.current.setFilter('フリー');
+    });
+
+    expect(result.current.filteredHistory).toHaveLength(1);
+    expect(result.current.filteredHistory[0].sessionTitle).toBe('フリーチャット');
+  });
+
+  it('「すべて」フィルタで全セッションを返す', async () => {
+    const mockData = [
+      { sessionId: 1, sessionTitle: '練習: テスト', overallScore: 7.0, scores: [], createdAt: '2026-02-10' },
+      { sessionId: 2, sessionTitle: 'フリーチャット', overallScore: 8.0, scores: [], createdAt: '2026-02-11' },
+    ];
+    mockFetchScoreHistory.mockResolvedValue(mockData);
+
+    const { result } = renderHook(() => useScoreHistory());
+
+    await waitFor(() => {
+      expect(result.current.history).toHaveLength(2);
+    });
+
+    // まず練習フィルタに変更
+    act(() => {
+      result.current.setFilter('練習');
+    });
+    expect(result.current.filteredHistory).toHaveLength(1);
+
+    // すべてフィルタに戻す
+    act(() => {
+      result.current.setFilter('すべて');
+    });
+    expect(result.current.filteredHistory).toHaveLength(2);
+  });
+
+  it('最新セッションのスコアが空の場合にweakestAxisがnullになる', async () => {
+    const mockData = [
+      { sessionId: 1, sessionTitle: 'テスト', overallScore: 7.0, scores: [], createdAt: '2026-02-10' },
+    ];
+    mockFetchScoreHistory.mockResolvedValue(mockData);
+
+    const { result } = renderHook(() => useScoreHistory());
+
+    await waitFor(() => {
+      expect(result.current.latestSession).not.toBeNull();
+    });
+
+    expect(result.current.weakestAxis).toBeNull();
+  });
 });

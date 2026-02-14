@@ -120,4 +120,27 @@ describe('FilterTabs', () => {
     expect(screen.getByRole('tab', { name: 'すべて' })).toHaveAttribute('tabindex', '-1');
     expect(screen.getByRole('tab', { name: 'カテゴリB' })).toHaveAttribute('tabindex', '-1');
   });
+
+  it('タブが1つの場合に右矢印キーで自分自身が選択される', () => {
+    const onSelect = vi.fn();
+    render(<FilterTabs tabs={['唯一']} selected="唯一" onSelect={onSelect} />);
+    const tab = screen.getByRole('tab', { name: '唯一' });
+    fireEvent.keyDown(tab, { key: 'ArrowRight' });
+    expect(onSelect).toHaveBeenCalledWith('唯一');
+  });
+
+  it('無関係なキー入力ではonSelectが呼ばれない', () => {
+    const onSelect = vi.fn();
+    render(<FilterTabs tabs={[...TABS]} selected="すべて" onSelect={onSelect} />);
+    const tab = screen.getByRole('tab', { name: 'すべて' });
+    fireEvent.keyDown(tab, { key: 'a' });
+    fireEvent.keyDown(tab, { key: 'Enter' });
+    fireEvent.keyDown(tab, { key: 'Escape' });
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it('role=tablistがコンテナに設定される', () => {
+    render(<FilterTabs tabs={[...TABS]} selected="すべて" onSelect={() => {}} />);
+    expect(screen.getByRole('tablist')).toBeInTheDocument();
+  });
 });

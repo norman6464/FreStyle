@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ClipboardDocumentIcon, ClipboardDocumentCheckIcon } from '@heroicons/react/24/outline';
 
 interface MessageBubbleProps {
   isSender: boolean;
@@ -9,6 +10,8 @@ interface MessageBubbleProps {
   createdAt?: string;
   onDelete?: ((id: number) => void) | null;
   onRephrase?: ((content: string) => void) | null;
+  onCopy?: ((id: number, content: string) => void) | null;
+  isCopied?: boolean;
   isDeleted?: boolean;
 }
 
@@ -21,6 +24,8 @@ export default function MessageBubble({
   createdAt,
   onDelete,
   onRephrase,
+  onCopy,
+  isCopied = false,
   isDeleted = false,
 }: MessageBubbleProps) {
   const [showDelete, setShowDelete] = useState(false);
@@ -98,6 +103,19 @@ export default function MessageBubble({
               <span className={`text-[10px] ${isSender ? 'mr-1 text-[var(--color-text-faint)]' : 'ml-1 text-[var(--color-text-faint)]'}`}>
                 {formatTime(createdAt)}
               </span>
+            )}
+            {onCopy && (
+              <button
+                onClick={() => onCopy(id, content)}
+                title={isCopied ? 'コピー済み' : 'コピー'}
+                className="text-[var(--color-text-faint)] hover:text-[var(--color-text-secondary)] transition-colors opacity-0 group-hover:opacity-100"
+              >
+                {isCopied ? (
+                  <ClipboardDocumentCheckIcon className="w-3.5 h-3.5 text-green-500" />
+                ) : (
+                  <ClipboardDocumentIcon className="w-3.5 h-3.5" />
+                )}
+              </button>
             )}
             {isSender && onRephrase && (
               <button

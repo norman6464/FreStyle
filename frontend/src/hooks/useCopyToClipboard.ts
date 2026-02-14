@@ -1,0 +1,21 @@
+import { useState, useCallback, useRef } from 'react';
+
+export function useCopyToClipboard() {
+  const [copiedId, setCopiedId] = useState<number | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const copyToClipboard = useCallback(async (id: number, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      if (timerRef.current) clearTimeout(timerRef.current);
+      setCopiedId(id);
+      timerRef.current = setTimeout(() => {
+        setCopiedId(null);
+      }, 2000);
+    } catch {
+      // クリップボードAPI失敗時は何もしない
+    }
+  }, []);
+
+  return { copiedId, copyToClipboard };
+}

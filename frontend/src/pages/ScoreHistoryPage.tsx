@@ -20,6 +20,7 @@ import SessionDetailModal from '../components/SessionDetailModal';
 import ScoreHistorySessionCard from '../components/ScoreHistorySessionCard';
 import ScoreFilterSummary from '../components/ScoreFilterSummary';
 import ScoreTrendIndicator from '../components/ScoreTrendIndicator';
+import SessionFeedbackSummary from '../components/SessionFeedbackSummary';
 import { useScoreHistory, FILTERS } from '../hooks/useScoreHistory';
 
 const AXIS_ADVICE: Record<string, string> = {
@@ -94,6 +95,11 @@ export default function ScoreHistoryPage() {
           </div>
           <ScoreRankBadge score={latestSession.overallScore} />
         </div>
+      )}
+
+      {/* セッションフィードバックサマリー */}
+      {latestSession && latestSession.scores.length > 0 && (
+        <SessionFeedbackSummary scores={latestSession.scores} overallScore={latestSession.overallScore} />
       )}
 
       {/* 弱点ベースのおすすめ練習 */}

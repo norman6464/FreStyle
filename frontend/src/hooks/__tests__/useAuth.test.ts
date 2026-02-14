@@ -104,6 +104,34 @@ describe('useAuth', () => {
     expect(result.current.isAuthenticated).toBe(true);
   });
 
+  it('signup: サインアップ失敗時にfalseとエラーメッセージを返す', async () => {
+    mockedRepo.signup.mockRejectedValue(new Error('メールアドレスが既に使用されています'));
+
+    const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
+
+    let success: boolean = true;
+    await act(async () => {
+      success = await result.current.signup({ email: 'test@example.com', password: 'password', name: 'テスト' });
+    });
+
+    expect(success).toBe(false);
+    expect(result.current.error).toBe('メールアドレスが既に使用されています');
+  });
+
+  it('getCurrentUser: ユーザー情報取得失敗時にnullを返す', async () => {
+    mockedRepo.getCurrentUser.mockRejectedValue(new Error('セッション切れ'));
+
+    const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
+
+    let user: any;
+    await act(async () => {
+      user = await result.current.getCurrentUser();
+    });
+
+    expect(user).toBeNull();
+    expect(result.current.error).toBe('セッション切れ');
+  });
+
   it('refreshToken: リフレッシュ失敗時にログインページに遷移する', async () => {
     mockedRepo.refreshToken.mockRejectedValue(new Error('トークン期限切れ'));
 

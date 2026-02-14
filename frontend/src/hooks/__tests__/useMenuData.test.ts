@@ -123,6 +123,39 @@ describe('useMenuData', () => {
     expect(result.current.sessionsThisWeek).toBe(2);
   });
 
+  it('初期状態でstatsがnullである', () => {
+    mockedRepo.fetchChatStats.mockResolvedValue({ chatPartnerCount: 0 });
+    mockedRepo.fetchChatRooms.mockResolvedValue({ chatUsers: [] });
+    mockedRepo.fetchScoreHistory.mockResolvedValue([]);
+
+    const { result } = renderHook(() => useMenuData());
+
+    expect(result.current.stats).toBeNull();
+    expect(result.current.totalUnread).toBe(0);
+    expect(result.current.latestScore).toBeNull();
+    expect(result.current.allScores).toEqual([]);
+  });
+
+  it('practiceDatesが重複なしの日付配列を返す', async () => {
+    mockedRepo.fetchChatStats.mockResolvedValue({ chatPartnerCount: 0 });
+    mockedRepo.fetchChatRooms.mockResolvedValue({ chatUsers: [] });
+    mockedRepo.fetchScoreHistory.mockResolvedValue([
+      { sessionId: 1, sessionTitle: 'A', overallScore: 7.0, createdAt: '2026-02-13T10:00:00' },
+      { sessionId: 2, sessionTitle: 'B', overallScore: 8.0, createdAt: '2026-02-13T14:00:00' },
+      { sessionId: 3, sessionTitle: 'C', overallScore: 6.0, createdAt: '2026-02-12T09:00:00' },
+    ]);
+
+    const { result } = renderHook(() => useMenuData());
+
+    await waitFor(() => {
+      expect(result.current.totalSessions).toBe(3);
+    });
+
+    expect(result.current.practiceDates).toHaveLength(2);
+    expect(result.current.practiceDates).toContain('2026-02-13');
+    expect(result.current.practiceDates).toContain('2026-02-12');
+  });
+
   it('一部のAPIのみ成功した場合でも動作する', async () => {
     mockedRepo.fetchChatStats.mockResolvedValue({ chatPartnerCount: 3 });
     mockedRepo.fetchChatRooms.mockRejectedValue(new Error('error'));

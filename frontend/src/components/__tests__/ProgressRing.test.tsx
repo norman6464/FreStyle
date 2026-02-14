@@ -58,4 +58,21 @@ describe('ProgressRing', () => {
     render(<ProgressRing value={100} max={100} />);
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '100');
   });
+
+  it('ラベルが未指定の場合にテキストが表示されない', () => {
+    const { container } = render(<ProgressRing value={50} max={100} />);
+    const span = container.querySelector('span');
+    expect(span).toBeNull();
+  });
+
+  it('aria-valueminが0に設定される', () => {
+    render(<ProgressRing value={50} max={100} />);
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuemin', '0');
+  });
+
+  it('背景円と進捗円の2つのcircle要素がレンダリングされる', () => {
+    const { container } = render(<ProgressRing value={50} max={100} />);
+    const circles = container.querySelectorAll('circle');
+    expect(circles).toHaveLength(2);
+  });
 });

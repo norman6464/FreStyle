@@ -198,4 +198,106 @@ describe('useNotes', () => {
 
     expect(result.current.loading).toBe(false);
   });
+
+  // 検索・ピン留め機能テスト
+
+  it('searchQueryの初期値が空文字である', () => {
+    const { result } = renderHook(() => useNotes());
+    expect(result.current.searchQuery).toBe('');
+  });
+
+  it('setSearchQueryで検索クエリを変更できる', () => {
+    const { result } = renderHook(() => useNotes());
+
+    act(() => {
+      result.current.setSearchQuery('テスト');
+    });
+
+    expect(result.current.searchQuery).toBe('テスト');
+  });
+
+  it('filteredNotesがピン留め優先でソートされる', async () => {
+    const { result } = renderHook(() => useNotes());
+
+    await act(async () => {
+      await result.current.fetchNotes();
+    });
+
+    // mockNotes: note-1(pinned, updatedAt:3000), note-2(unpinned, updatedAt:2000)
+    expect(result.current.filteredNotes[0].noteId).toBe('note-1');
+    expect(result.current.filteredNotes[0].isPinned).toBe(true);
+  });
+
+  it('filteredNotesが検索クエリでタイトルフィルタリングされる', async () => {
+    const { result } = renderHook(() => useNotes());
+
+    await act(async () => {
+      await result.current.fetchNotes();
+    });
+
+    act(() => {
+      result.current.setSearchQuery('ノート1');
+    });
+
+    expect(result.current.filteredNotes).toHaveLength(1);
+    expect(result.current.filteredNotes[0].title).toBe('ノート1');
+  });
+
+  it('filteredNotesが検索クエリで内容もフィルタリングする', async () => {
+    const { result } = renderHook(() => useNotes());
+
+    await act(async () => {
+      await result.current.fetchNotes();
+    });
+
+    act(() => {
+      result.current.setSearchQuery('内容2');
+    });
+
+    expect(result.current.filteredNotes).toHaveLength(1);
+    expect(result.current.filteredNotes[0].noteId).toBe('note-2');
+  });
+
+  it('togglePinでノートのピン留め状態をトグルする', async () => {
+    vi.mocked(NoteRepository.updateNote).mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => useNotes());
+
+    await act(async () => {
+      await result.current.fetchNotes();
+    });
+
+    // note-2はisPinned: false → trueにトグル
+    await act(async () => {
+      await result.current.togglePin('note-2');
+    });
+
+    const note2 = result.current.notes.find(n => n.noteId === 'note-2');
+    expect(note2?.isPinned).toBe(true);
+    expect(NoteRepository.updateNote).toHaveBeenCalledWith('note-2', {
+      title: 'ノート2',
+      content: '内容2',
+      isPinned: true,
+    });
+  });
+
+  it('filteredNotesはピン留め内でも更新日時降順でソートされる', async () => {
+    const threeNotes = [
+      { noteId: 'n1', userId: 1, title: 'A', content: '', isPinned: true, createdAt: 1000, updatedAt: 1000 },
+      { noteId: 'n2', userId: 1, title: 'B', content: '', isPinned: true, createdAt: 2000, updatedAt: 3000 },
+      { noteId: 'n3', userId: 1, title: 'C', content: '', isPinned: false, createdAt: 3000, updatedAt: 5000 },
+    ];
+    vi.mocked(NoteRepository.fetchNotes).mockResolvedValue(threeNotes);
+
+    const { result } = renderHook(() => useNotes());
+
+    await act(async () => {
+      await result.current.fetchNotes();
+    });
+
+    // ピン留め優先: n2(pin,3000), n1(pin,1000), n3(unpin,5000)
+    expect(result.current.filteredNotes[0].noteId).toBe('n2');
+    expect(result.current.filteredNotes[1].noteId).toBe('n1');
+    expect(result.current.filteredNotes[2].noteId).toBe('n3');
+  });
 });

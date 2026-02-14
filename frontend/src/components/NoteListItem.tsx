@@ -1,4 +1,6 @@
 import { TrashIcon } from '@heroicons/react/24/outline';
+import { MapPinIcon as MapPinOutline } from '@heroicons/react/24/outline';
+import { MapPinIcon as MapPinSolid } from '@heroicons/react/24/solid';
 
 interface NoteListItemProps {
   noteId: string;
@@ -9,6 +11,7 @@ interface NoteListItemProps {
   isActive: boolean;
   onSelect: (noteId: string) => void;
   onDelete: (noteId: string) => void;
+  onTogglePin: (noteId: string) => void;
 }
 
 export default function NoteListItem({
@@ -16,9 +19,11 @@ export default function NoteListItem({
   title,
   content,
   updatedAt,
+  isPinned,
   isActive,
   onSelect,
   onDelete,
+  onTogglePin,
 }: NoteListItemProps) {
   const displayTitle = title || '無題';
   const preview = content.replace(/\n/g, ' ').slice(0, 60);
@@ -29,6 +34,13 @@ export default function NoteListItem({
     e.stopPropagation();
     onDelete(noteId);
   };
+
+  const handleTogglePin = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onTogglePin(noteId);
+  };
+
+  const PinIcon = isPinned ? MapPinSolid : MapPinOutline;
 
   return (
     <div
@@ -45,6 +57,7 @@ export default function NoteListItem({
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">
+            {isPinned && <PinIcon className="w-3.5 h-3.5 inline mr-1 text-primary-500" />}
             {displayTitle}
           </p>
           {preview && (
@@ -56,13 +69,24 @@ export default function NoteListItem({
             {dateStr}
           </p>
         </div>
-        <button
-          onClick={handleDelete}
-          aria-label="ノートを削除"
-          className="p-1 opacity-0 group-hover:opacity-100 hover:bg-surface-3 rounded transition-all"
-        >
-          <TrashIcon className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
-        </button>
+        <div className="flex items-center gap-0.5">
+          <button
+            onClick={handleTogglePin}
+            aria-label={isPinned ? 'ピン留め解除' : 'ピン留め'}
+            className={`p-1 rounded transition-all ${
+              isPinned ? 'opacity-100 text-primary-500' : 'opacity-0 group-hover:opacity-100 hover:bg-surface-3'
+            }`}
+          >
+            <PinIcon className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={handleDelete}
+            aria-label="ノートを削除"
+            className="p-1 opacity-0 group-hover:opacity-100 hover:bg-surface-3 rounded transition-all"
+          >
+            <TrashIcon className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
+          </button>
+        </div>
       </div>
     </div>
   );

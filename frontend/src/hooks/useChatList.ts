@@ -3,6 +3,7 @@ import SockJS from 'sockjs-client';
 import { Client } from '@stomp/stompjs';
 import ChatRepository from '../repositories/ChatRepository';
 import { ChatUser } from '../types';
+import { useDebounce } from './useDebounce';
 
 /**
  * チャットリスト管理フック
@@ -16,6 +17,7 @@ export function useChatList() {
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const stompClientRef = useRef<Client | null>(null);
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -78,13 +80,10 @@ export function useChatList() {
     return () => { client.deactivate(); };
   }, [userId, updateUnreadCount, API_BASE_URL]);
 
-  // 検索クエリ変更時にデバウンス検索
+  // デバウンスされた検索クエリが変わったらフェッチ
   useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchChatUsers(searchQuery || undefined);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchQuery, fetchChatUsers]);
+    fetchChatUsers(debouncedSearchQuery || undefined);
+  }, [debouncedSearchQuery, fetchChatUsers]);
 
   return {
     chatUsers,

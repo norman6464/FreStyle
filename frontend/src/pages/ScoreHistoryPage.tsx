@@ -13,6 +13,7 @@ import CommunicationStyleCard from '../components/CommunicationStyleCard';
 import ScoreGoalCard from '../components/ScoreGoalCard';
 import ScoreDistributionCard from '../components/ScoreDistributionCard';
 import SessionTimeCard from '../components/SessionTimeCard';
+import SkillGapAnalysisCard from '../components/SkillGapAnalysisCard';
 import SkillTrendChart from '../components/SkillTrendChart';
 import SessionDetailModal from '../components/SessionDetailModal';
 import { useScoreHistory, FILTERS, type ScoreHistoryItem } from '../hooks/useScoreHistory';
@@ -59,6 +60,21 @@ export default function ScoreHistoryPage() {
       <ScoreGoalCard
         averageScore={Math.round((history.reduce((sum, h) => sum + h.overallScore, 0) / history.length) * 10) / 10}
       />
+
+      {/* スキルギャップ分析 */}
+      {latestSession && latestSession.scores.length > 0 && (
+        <SkillGapAnalysisCard
+          scores={latestSession.scores}
+          goal={(() => {
+            try {
+              const stored = localStorage.getItem('scoreGoal');
+              return stored ? parseFloat(stored) : 8.0;
+            } catch {
+              return 8.0;
+            }
+          })()}
+        />
+      )}
 
       {/* 統計サマリー */}
       <ScoreStatsSummary history={history} />

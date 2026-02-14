@@ -4,6 +4,15 @@ import { useChatList } from '../useChatList';
 import ChatRepository from '../../repositories/ChatRepository';
 
 vi.mock('../../repositories/ChatRepository');
+vi.mock('sockjs-client', () => ({ default: vi.fn() }));
+vi.mock('@stomp/stompjs', () => ({
+  Client: class MockClient {
+    activate = vi.fn();
+    deactivate = vi.fn();
+    subscribe = vi.fn();
+    constructor(_config: any) {}
+  },
+}));
 
 const mockedRepo = vi.mocked(ChatRepository);
 
@@ -98,5 +107,40 @@ describe('useChatList', () => {
     });
 
     expect(mockedRepo.fetchChatUsers).toHaveBeenCalledWith('検索ワード');
+  });
+
+  it('searchQueryの初期値が空文字である', async () => {
+    const { result } = renderHook(() => useChatList());
+
+    expect(result.current.searchQuery).toBe('');
+  });
+
+  it('setSearchQueryで検索クエリを更新できる', async () => {
+    const { result } = renderHook(() => useChatList());
+
+    act(() => {
+      result.current.setSearchQuery('テスト検索');
+    });
+
+    expect(result.current.searchQuery).toBe('テスト検索');
+  });
+
+  it('searchQuery変更後にデバウンス検索が実行される', async () => {
+    const { result } = renderHook(() => useChatList());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    mockedRepo.fetchChatUsers.mockClear();
+
+    act(() => {
+      result.current.setSearchQuery('新しい検索');
+    });
+
+    // デバウンス後に検索が実行される
+    await waitFor(() => {
+      expect(mockedRepo.fetchChatUsers).toHaveBeenCalledWith('新しい検索');
+    }, { timeout: 2000 });
   });
 });

@@ -93,6 +93,36 @@ describe('useMenuData', () => {
     expect(result.current.averageScore).toBe(8.0);
   });
 
+  it('sessionsThisWeekが今週のセッション数を正しく算出する', async () => {
+    const now = new Date();
+    const day = now.getDay();
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+    monday.setHours(0, 0, 0, 0);
+
+    const thisWeekDate = new Date(monday);
+    thisWeekDate.setDate(monday.getDate() + 1);
+
+    const lastWeekDate = new Date(monday);
+    lastWeekDate.setDate(monday.getDate() - 3);
+
+    mockedRepo.fetchChatStats.mockResolvedValue({ chatPartnerCount: 0 });
+    mockedRepo.fetchChatRooms.mockResolvedValue({ chatUsers: [] });
+    mockedRepo.fetchScoreHistory.mockResolvedValue([
+      { sessionId: 1, sessionTitle: 'A', overallScore: 7.0, createdAt: thisWeekDate.toISOString() },
+      { sessionId: 2, sessionTitle: 'B', overallScore: 8.0, createdAt: thisWeekDate.toISOString() },
+      { sessionId: 3, sessionTitle: 'C', overallScore: 6.0, createdAt: lastWeekDate.toISOString() },
+    ]);
+
+    const { result } = renderHook(() => useMenuData());
+
+    await waitFor(() => {
+      expect(result.current.totalSessions).toBe(3);
+    });
+
+    expect(result.current.sessionsThisWeek).toBe(2);
+  });
+
   it('一部のAPIのみ成功した場合でも動作する', async () => {
     mockedRepo.fetchChatStats.mockResolvedValue({ chatPartnerCount: 3 });
     mockedRepo.fetchChatRooms.mockRejectedValue(new Error('error'));

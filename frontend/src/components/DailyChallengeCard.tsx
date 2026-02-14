@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import Card from './Card';
 
 interface Challenge {
   title: string;
@@ -33,7 +34,7 @@ export default function DailyChallengeCard() {
   const challenge = CHALLENGES[dayIndex];
 
   return (
-    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
+    <Card>
       <div className="flex items-center justify-between mb-2">
         <p className="text-xs font-medium text-[var(--color-text-secondary)]">本日のチャレンジ</p>
         <span
@@ -60,6 +61,6 @@ export default function DailyChallengeCard() {
           チャレンジする
         </button>
       </div>
-    </div>
+    </Card>
   );
 }

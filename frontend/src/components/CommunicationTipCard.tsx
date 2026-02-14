@@ -1,3 +1,5 @@
+import Card from './Card';
+
 const TIPS = [
   { category: 'メール', text: '件名は「結論＋具体情報」で書くと開封率が上がります。例：「【承認依頼】○○プロジェクト予算案」' },
   { category: '会議', text: '発言の冒頭に「結論→理由→補足」の順で話すと、短い時間で的確に伝わります。' },
@@ -25,7 +27,7 @@ export default function CommunicationTipCard() {
   const tip = getTipOfTheDay();
 
   return (
-    <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
+    <Card>
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-xs font-semibold text-[var(--color-text-primary)]">今日のTips</h3>
         <span
@@ -38,6 +40,6 @@ export default function CommunicationTipCard() {
       <p data-testid="tip-text" className="text-sm text-[var(--color-text-tertiary)] leading-relaxed">
         {tip.text}
       </p>
-    </div>
+    </Card>
   );
 }

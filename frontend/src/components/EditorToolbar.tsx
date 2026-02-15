@@ -12,6 +12,7 @@ import CodeBlockButton from './CodeBlockButton';
 import InlineCodeButton from './InlineCodeButton';
 import ListButtons from './ListButtons';
 import TaskListButton from './TaskListButton';
+import TableInsertButton from './TableInsertButton';
 import ClearFormattingButton from './ClearFormattingButton';
 import KeyboardShortcutsHelp from './KeyboardShortcutsHelp';
 import ToolbarDivider from './ToolbarDivider';
@@ -42,6 +43,8 @@ export default function EditorToolbar({ handlers }: EditorToolbarProps) {
       <ToolbarDivider />
       <ListButtons onBulletList={handlers.handleBulletList} onOrderedList={handlers.handleOrderedList} />
       <TaskListButton onTaskList={handlers.handleTaskList} />
+      <ToolbarDivider />
+      <TableInsertButton onInsertTable={handlers.handleInsertTable} />
       <ToolbarDivider />
       <UndoRedoButtons onUndo={handlers.handleUndo} onRedo={handlers.handleRedo} />
       <ToolbarDivider />

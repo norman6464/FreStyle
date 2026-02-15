@@ -27,6 +27,7 @@ describe('EditorToolbar', () => {
     handleInlineCode: vi.fn(),
     handleHeading: vi.fn(),
     handleTaskList: vi.fn(),
+    handleInsertTable: vi.fn(),
     ...overrides,
   });
 

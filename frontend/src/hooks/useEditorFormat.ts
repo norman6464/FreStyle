@@ -24,6 +24,7 @@ export interface EditorFormatHandlers {
   handleInlineCode: () => void;
   handleHeading: (level: number) => void;
   handleTaskList: () => void;
+  handleInsertTable: () => void;
 }
 
 export function useEditorFormat(editor: Editor | null): EditorFormatHandlers {
@@ -132,6 +133,10 @@ export function useEditorFormat(editor: Editor | null): EditorFormatHandlers {
     editor?.chain().focus().toggleTaskList().run();
   }, [editor]);
 
+  const handleInsertTable = useCallback(() => {
+    editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
+  }, [editor]);
+
   const handleHeading = useCallback((level: number) => {
     if (!editor) return;
     if (level === 0) {
@@ -141,5 +146,5 @@ export function useEditorFormat(editor: Editor | null): EditorFormatHandlers {
     }
   }, [editor]);
 
-  return { handleBold, handleItalic, handleUnderline, handleStrike, handleAlign, handleSelectColor, handleHighlight, handleSuperscript, handleSubscript, handleUndo, handleRedo, handleClearFormatting, handleIndent, handleOutdent, handleBlockquote, handleHorizontalRule, handleCodeBlock, handleBulletList, handleOrderedList, handleInlineCode, handleHeading, handleTaskList };
+  return { handleBold, handleItalic, handleUnderline, handleStrike, handleAlign, handleSelectColor, handleHighlight, handleSuperscript, handleSubscript, handleUndo, handleRedo, handleClearFormatting, handleIndent, handleOutdent, handleBlockquote, handleHorizontalRule, handleCodeBlock, handleBulletList, handleOrderedList, handleInlineCode, handleHeading, handleTaskList, handleInsertTable };
 }

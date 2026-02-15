@@ -48,6 +48,14 @@ export function usePracticePage() {
     return result;
   }, [scenarios, selectedCategory, selectedDifficulty, selectedSort, bookmarkedIds]);
 
+  const isFilterActive = selectedCategory !== 'すべて' || selectedDifficulty !== null || selectedSort !== 'default';
+
+  const resetFilters = useCallback(() => {
+    setSelectedCategory('すべて');
+    setSelectedDifficulty(null);
+    setSelectedSort('default');
+  }, []);
+
   const handleSelectScenario = useCallback(async (scenario: PracticeScenario) => {
     const session = await createPracticeSession({ scenarioId: scenario.id });
     if (session) {
@@ -69,6 +77,8 @@ export function usePracticePage() {
     setSelectedDifficulty,
     selectedSort,
     setSelectedSort,
+    isFilterActive,
+    resetFilters,
     filteredScenarios,
     loading,
     handleSelectScenario,

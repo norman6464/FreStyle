@@ -3,6 +3,7 @@ import { SkeletonCard } from '../components/Skeleton';
 import FilterTabs from '../components/FilterTabs';
 import DifficultyFilter from '../components/DifficultyFilter';
 import SortSelector from '../components/SortSelector';
+import FilterResetButton from '../components/FilterResetButton';
 import { usePracticePage } from '../hooks/usePracticePage';
 
 const CATEGORIES = ['すべて', 'ブックマーク', '顧客折衝', 'シニア・上司', 'チーム内'] as const;
@@ -15,6 +16,8 @@ export default function PracticePage() {
     setSelectedDifficulty,
     selectedSort,
     setSelectedSort,
+    isFilterActive,
+    resetFilters,
     filteredScenarios,
     loading,
     handleSelectScenario,
@@ -40,9 +43,12 @@ export default function PracticePage() {
         className="mb-3"
       />
 
-      {/* 難易度フィルター・ソート */}
+      {/* 難易度フィルター・ソート・リセット */}
       <div className="flex items-center justify-between mb-5">
-        <DifficultyFilter selected={selectedDifficulty} onChange={setSelectedDifficulty} />
+        <div className="flex items-center gap-3">
+          <DifficultyFilter selected={selectedDifficulty} onChange={setSelectedDifficulty} />
+          <FilterResetButton isActive={isFilterActive} onReset={resetFilters} />
+        </div>
         <SortSelector selected={selectedSort} onChange={setSelectedSort} />
       </div>
 

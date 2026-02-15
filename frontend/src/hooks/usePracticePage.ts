@@ -13,6 +13,7 @@ const CATEGORY_LABEL_TO_DB: Record<string, string> = {
 export function usePracticePage() {
   const navigate = useNavigate();
   const [selectedCategory, setSelectedCategory] = useState<string>('すべて');
+  const [selectedDifficulty, setSelectedDifficulty] = useState<string | null>(null);
   const { scenarios, loading, fetchScenarios, createPracticeSession } = usePractice();
   const { bookmarkedIds, toggleBookmark, isBookmarked } = useBookmark();
 
@@ -21,12 +22,20 @@ export function usePracticePage() {
   }, [fetchScenarios]);
 
   const filteredScenarios = useMemo(() => {
-    if (selectedCategory === 'すべて') return scenarios;
+    let result = scenarios;
+
     if (selectedCategory === 'ブックマーク') {
-      return scenarios.filter((s) => bookmarkedIds.includes(s.id));
+      result = result.filter((s) => bookmarkedIds.includes(s.id));
+    } else if (selectedCategory !== 'すべて') {
+      result = result.filter((s) => s.category === CATEGORY_LABEL_TO_DB[selectedCategory]);
     }
-    return scenarios.filter((s) => s.category === CATEGORY_LABEL_TO_DB[selectedCategory]);
-  }, [scenarios, selectedCategory, bookmarkedIds]);
+
+    if (selectedDifficulty) {
+      result = result.filter((s) => s.difficulty === selectedDifficulty);
+    }
+
+    return result;
+  }, [scenarios, selectedCategory, selectedDifficulty, bookmarkedIds]);
 
   const handleSelectScenario = useCallback(async (scenario: PracticeScenario) => {
     const session = await createPracticeSession({ scenarioId: scenario.id });
@@ -45,6 +54,8 @@ export function usePracticePage() {
   return {
     selectedCategory,
     setSelectedCategory,
+    selectedDifficulty,
+    setSelectedDifficulty,
     filteredScenarios,
     loading,
     handleSelectScenario,

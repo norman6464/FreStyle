@@ -1,6 +1,7 @@
 import ScenarioCard from '../components/ScenarioCard';
 import { SkeletonCard } from '../components/Skeleton';
 import FilterTabs from '../components/FilterTabs';
+import DifficultyFilter from '../components/DifficultyFilter';
 import { usePracticePage } from '../hooks/usePracticePage';
 
 const CATEGORIES = ['すべて', 'ブックマーク', '顧客折衝', 'シニア・上司', 'チーム内'] as const;
@@ -9,6 +10,8 @@ export default function PracticePage() {
   const {
     selectedCategory,
     setSelectedCategory,
+    selectedDifficulty,
+    setSelectedDifficulty,
     filteredScenarios,
     loading,
     handleSelectScenario,
@@ -31,8 +34,13 @@ export default function PracticePage() {
         tabs={[...CATEGORIES]}
         selected={selectedCategory}
         onSelect={setSelectedCategory}
-        className="mb-5"
+        className="mb-3"
       />
+
+      {/* 難易度フィルター */}
+      <div className="mb-5">
+        <DifficultyFilter selected={selectedDifficulty} onChange={setSelectedDifficulty} />
+      </div>
 
       {/* シナリオ一覧 */}
       {loading ? (

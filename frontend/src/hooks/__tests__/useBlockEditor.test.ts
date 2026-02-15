@@ -36,6 +36,7 @@ vi.mock('../../extensions/CalloutExtension', () => ({
 vi.mock('@tiptap/extension-link', () => ({ default: { configure: vi.fn(() => 'Link') } }));
 vi.mock('@tiptap/extension-text-style', () => ({ default: 'TextStyle' }));
 vi.mock('@tiptap/extension-color', () => ({ default: 'Color' }));
+vi.mock('@tiptap/extension-text-align', () => ({ default: { configure: vi.fn(() => 'TextAlign') } }));
 vi.mock('../../utils/isLegacyMarkdown', () => ({
   isLegacyMarkdown: vi.fn(() => false),
 }));
@@ -153,12 +154,12 @@ describe('useBlockEditor', () => {
     expect(call[0]).toHaveProperty('onUpdate');
   });
 
-  it('19個の拡張が設定される', async () => {
+  it('20個の拡張が設定される', async () => {
     const { useEditor } = await import('@tiptap/react');
     const onChange = vi.fn();
     renderHook(() => useBlockEditor({ content: '', onChange }));
 
     const call = vi.mocked(useEditor).mock.calls[0]!;
-    expect(call[0]!.extensions).toHaveLength(19);
+    expect(call[0]!.extensions).toHaveLength(20);
   });
 });

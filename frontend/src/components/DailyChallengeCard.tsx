@@ -22,9 +22,9 @@ const CHALLENGES: Challenge[] = [
 ];
 
 const DIFFICULTY_STYLES: Record<string, string> = {
-  '初級': 'bg-emerald-100 text-emerald-400',
-  '中級': 'bg-amber-100 text-amber-400',
-  '上級': 'bg-rose-100 text-rose-400',
+  '初級': 'bg-emerald-900/30 text-emerald-400',
+  '中級': 'bg-amber-900/30 text-amber-400',
+  '上級': 'bg-rose-900/30 text-rose-400',
 };
 
 export default function DailyChallengeCard() {

@@ -10,10 +10,10 @@ interface Rank {
 }
 
 function getRank(score: number): Rank {
-  if (score >= 9.0) return { letter: 'S', label: 'エキスパート', bgColor: 'bg-amber-100', textColor: 'text-amber-400' };
+  if (score >= 9.0) return { letter: 'S', label: 'エキスパート', bgColor: 'bg-amber-900/30', textColor: 'text-amber-400' };
   if (score >= 8.0) return { letter: 'A', label: '上級', bgColor: 'bg-surface-3', textColor: 'text-[var(--color-text-secondary)]' };
-  if (score >= 7.0) return { letter: 'B', label: '中級', bgColor: 'bg-orange-100', textColor: 'text-orange-700' };
-  if (score >= 6.0) return { letter: 'C', label: '初級', bgColor: 'bg-emerald-100', textColor: 'text-emerald-400' };
+  if (score >= 7.0) return { letter: 'B', label: '中級', bgColor: 'bg-orange-900/30', textColor: 'text-orange-400' };
+  if (score >= 6.0) return { letter: 'C', label: '初級', bgColor: 'bg-emerald-900/30', textColor: 'text-emerald-400' };
   return { letter: 'D', label: '入門', bgColor: 'bg-surface-3', textColor: 'text-[var(--color-text-muted)]' };
 }
 

@@ -4,6 +4,7 @@ import FilterTabs from '../components/FilterTabs';
 import DifficultyFilter from '../components/DifficultyFilter';
 import SortSelector from '../components/SortSelector';
 import FilterResetButton from '../components/FilterResetButton';
+import ResultCount from '../components/ResultCount';
 import SearchBox from '../components/SearchBox';
 import { usePracticePage } from '../hooks/usePracticePage';
 import { PRACTICE_CATEGORY_TABS } from '../constants/scenarioLabels';
@@ -63,9 +64,7 @@ export default function PracticePage() {
 
       {/* 結果件数 */}
       {!loading && (
-        <p className="text-[10px] text-[var(--color-text-muted)] mb-2">
-          {isFilterActive ? `${filteredCount} / ${totalCount}件` : `${totalCount}件`}
-        </p>
+        <ResultCount filteredCount={filteredCount} totalCount={totalCount} isFilterActive={isFilterActive} />
       )}
 
       {/* シナリオ一覧 */}

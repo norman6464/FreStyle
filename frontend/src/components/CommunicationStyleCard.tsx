@@ -1,10 +1,5 @@
+import type { AxisScore } from '../types';
 import Card from './Card';
-
-interface AxisScore {
-  axis: string;
-  score: number;
-  comment: string;
-}
 
 interface Session {
   scores: AxisScore[];

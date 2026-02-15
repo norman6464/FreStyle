@@ -4,11 +4,11 @@ import SkillGapAnalysisCard from '../SkillGapAnalysisCard';
 
 describe('SkillGapAnalysisCard', () => {
   const defaultScores = [
-    { axis: '論理的構成力', score: 6.0 },
-    { axis: '配慮表現', score: 8.0 },
-    { axis: '要約力', score: 5.0 },
-    { axis: '提案力', score: 7.0 },
-    { axis: '質問・傾聴力', score: 9.0 },
+    { axis: '論理的構成力', score: 6.0, comment: '' },
+    { axis: '配慮表現', score: 8.0, comment: '' },
+    { axis: '要約力', score: 5.0, comment: '' },
+    { axis: '提案力', score: 7.0, comment: '' },
+    { axis: '質問・傾聴力', score: 9.0, comment: '' },
   ];
 
   it('タイトルが表示される', () => {
@@ -50,11 +50,11 @@ describe('SkillGapAnalysisCard', () => {
 
   it('全軸達成時に祝福メッセージが表示される', () => {
     const highScores = [
-      { axis: '論理的構成力', score: 9.0 },
-      { axis: '配慮表現', score: 8.5 },
-      { axis: '要約力', score: 8.0 },
-      { axis: '提案力', score: 9.5 },
-      { axis: '質問・傾聴力', score: 8.0 },
+      { axis: '論理的構成力', score: 9.0, comment: '' },
+      { axis: '配慮表現', score: 8.5, comment: '' },
+      { axis: '要約力', score: 8.0, comment: '' },
+      { axis: '提案力', score: 9.5, comment: '' },
+      { axis: '質問・傾聴力', score: 8.0, comment: '' },
     ];
     render(<SkillGapAnalysisCard scores={highScores} goal={8.0} />);
     expect(screen.getByText(/全スキル目標達成/)).toBeInTheDocument();

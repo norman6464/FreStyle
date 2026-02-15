@@ -1,7 +1,4 @@
-interface AxisScore {
-  axis: string;
-  score: number;
-}
+import type { AxisScore } from '../types';
 
 interface HistoryItem {
   sessionId: number;

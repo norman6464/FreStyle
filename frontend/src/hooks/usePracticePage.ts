@@ -5,12 +5,7 @@ import { usePractice } from './usePractice';
 import { useBookmark } from './useBookmark';
 import { DIFFICULTY_ORDER } from '../constants/sortOptions';
 import type { SortOption } from '../constants/sortOptions';
-
-const CATEGORY_LABEL_TO_DB: Record<string, string> = {
-  '顧客折衝': 'customer',
-  'シニア・上司': 'senior',
-  'チーム内': 'team',
-};
+import { CATEGORY_LABEL_TO_DB } from '../constants/scenarioLabels';
 
 export function usePracticePage() {
   const navigate = useNavigate();

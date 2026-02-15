@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ClipboardDocumentIcon, ClipboardDocumentCheckIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { formatHourMinute } from '../utils/formatters';
 
 interface MessageBubbleProps {
   isSender: boolean;
@@ -40,15 +41,6 @@ export default function MessageBubble({
   const deletedAlignment = isSender
     ? 'self-end bg-surface-3 text-[var(--color-text-muted)] italic rounded-br-sm'
     : 'self-start bg-surface-3 text-[var(--color-text-muted)] italic rounded-bl-sm';
-
-  const formatTime = (dateString?: string) => {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    return date.toLocaleTimeString('ja-JP', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
 
   return (
     <div
@@ -95,7 +87,7 @@ export default function MessageBubble({
           <div className={`flex items-center gap-2 mt-1 ${isSender ? 'justify-end' : 'justify-start'}`}>
             {createdAt && (
               <span className={`text-[10px] ${isSender ? 'mr-1 text-[var(--color-text-faint)]' : 'ml-1 text-[var(--color-text-faint)]'}`}>
-                {formatTime(createdAt)}
+                {formatHourMinute(createdAt)}
               </span>
             )}
             {onCopy && (

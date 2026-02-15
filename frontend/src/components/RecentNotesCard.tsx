@@ -1,5 +1,6 @@
 import { SessionNoteRepository } from '../repositories/SessionNoteRepository';
 import Card from './Card';
+import { formatDate } from '../utils/formatters';
 
 export default function RecentNotesCard() {
   const allNotes = SessionNoteRepository.getAll();
@@ -26,7 +27,7 @@ export default function RecentNotesCard() {
           >
             <p className="text-xs text-[var(--color-text-secondary)] line-clamp-2">{entry.note}</p>
             <p className="text-[10px] text-[var(--color-text-faint)] mt-1">
-              {new Date(entry.updatedAt).toLocaleDateString('ja-JP')}
+              {formatDate(entry.updatedAt)}
             </p>
           </div>
         ))}

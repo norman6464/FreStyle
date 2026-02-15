@@ -1,4 +1,5 @@
 import { PencilSquareIcon, TrashIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { formatDate } from '../utils/formatters';
 
 interface AiSessionListItemProps {
   id: number;
@@ -63,7 +64,7 @@ export default function AiSessionListItem({
           <>
             <p className="text-sm font-medium truncate">{title || '新しいチャット'}</p>
             <p className="text-[11px] text-[var(--color-text-muted)]">
-              {createdAt ? new Date(createdAt).toLocaleDateString('ja-JP') : ''}
+              {createdAt ? formatDate(createdAt) : ''}
             </p>
           </>
         )}

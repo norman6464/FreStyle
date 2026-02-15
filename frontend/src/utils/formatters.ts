@@ -18,6 +18,16 @@ export function formatTime(dateString: string): string {
   }
 }
 
+export function formatDate(dateString: string): string {
+  if (!dateString) return '';
+  return new Date(dateString).toLocaleDateString('ja-JP');
+}
+
+export function formatHourMinute(dateString?: string): string {
+  if (!dateString) return '';
+  return new Date(dateString).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+}
+
 export function truncateMessage(message: string | undefined, maxLength = 30): string {
   if (!message) return 'メッセージはありません';
   if (message.length <= maxLength) return message;

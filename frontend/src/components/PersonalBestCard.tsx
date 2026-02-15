@@ -1,5 +1,6 @@
 import { TrophyIcon } from '@heroicons/react/24/solid';
 import Card from './Card';
+import { formatDate } from '../utils/formatters';
 
 interface PersonalBestCardProps {
   history: { sessionId: number; overallScore: number; createdAt: string }[];
@@ -23,7 +24,7 @@ export default function PersonalBestCard({ history }: PersonalBestCardProps) {
         <div className="mt-1">
           <p className="text-[10px] text-[var(--color-text-muted)]">達成日</p>
           <p className="text-xs text-[var(--color-text-secondary)]">
-            {new Date(best.createdAt).toLocaleDateString('ja-JP')}
+            {formatDate(best.createdAt)}
           </p>
         </div>
       </div>

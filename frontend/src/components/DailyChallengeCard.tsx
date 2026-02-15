@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import Card from './Card';
+import { DIFFICULTY_STYLES } from '../constants/difficultyStyles';
 
 interface Challenge {
   title: string;
@@ -20,12 +21,6 @@ const CHALLENGES: Challenge[] = [
   { title: 'メール文面作成', description: '社外向けのフォーマルなメールを作成する練習をしましょう。件名・挨拶・本文・結びの構成を意識してください。', category: '配慮', difficulty: '中級' },
   { title: '会議ファシリテーション', description: '会議で議題を整理し、参加者から意見を引き出す練習をしましょう。', category: '質問', difficulty: '上級' },
 ];
-
-const DIFFICULTY_STYLES: Record<string, string> = {
-  '初級': 'bg-emerald-900/30 text-emerald-400',
-  '中級': 'bg-amber-900/30 text-amber-400',
-  '上級': 'bg-rose-900/30 text-rose-400',
-};
 
 export default function DailyChallengeCard() {
   const navigate = useNavigate();

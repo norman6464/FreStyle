@@ -244,4 +244,18 @@ describe('usePracticePage', () => {
     expect(result.current.filteredScenarios).toHaveLength(1);
     expect(result.current.filteredScenarios[0].name).toBe('シナリオA');
   });
+
+  it('totalCountは全シナリオ数を返す', () => {
+    const { result } = renderHook(() => usePracticePage());
+    expect(result.current.totalCount).toBe(3);
+  });
+
+  it('filteredCountはフィルタ後のシナリオ数を返す', () => {
+    const { result } = renderHook(() => usePracticePage());
+    act(() => {
+      result.current.setSelectedCategory('顧客折衝');
+    });
+    expect(result.current.filteredCount).toBe(1);
+    expect(result.current.totalCount).toBe(3);
+  });
 });

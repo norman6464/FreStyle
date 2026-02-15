@@ -3,6 +3,7 @@ import ColorPicker from './ColorPicker';
 import HighlightPicker from './HighlightPicker';
 import TextAlignButtons from './TextAlignButtons';
 import UndoRedoButtons from './UndoRedoButtons';
+import KeyboardShortcutsHelp from './KeyboardShortcutsHelp';
 
 interface EditorToolbarProps {
   onBold: () => void;
@@ -42,6 +43,8 @@ export default function EditorToolbar({
       <TextAlignButtons onAlign={onAlign} />
       <div className="w-px h-4 bg-[var(--color-surface-3)]" />
       <UndoRedoButtons onUndo={onUndo} onRedo={onRedo} />
+      <div className="w-px h-4 bg-[var(--color-surface-3)]" />
+      <KeyboardShortcutsHelp />
     </div>
   );
 }

@@ -87,6 +87,22 @@ describe('tiptapToPlainText', () => {
     expect(tiptapToPlainText(json)).toBe('これは太字です');
   });
 
+  it('タスクリストのテキストを抽出する', () => {
+    const json = JSON.stringify({
+      type: 'doc',
+      content: [
+        {
+          type: 'taskList',
+          content: [
+            { type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'TODO1' }] }] },
+            { type: 'taskItem', attrs: { checked: true }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'TODO2' }] }] },
+          ],
+        },
+      ],
+    });
+    expect(tiptapToPlainText(json)).toBe('TODO1 TODO2');
+  });
+
   it('トグルリストのテキストを抽出する', () => {
     const json = JSON.stringify({
       type: 'doc',

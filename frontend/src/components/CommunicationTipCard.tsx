@@ -32,7 +32,7 @@ export default function CommunicationTipCard() {
         <h3 className="text-xs font-semibold text-[var(--color-text-primary)]">今日のTips</h3>
         <span
           data-testid="tip-category"
-          className="text-[10px] font-medium text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded"
+          className="text-[10px] font-medium text-[var(--color-text-primary)] border border-[var(--color-text-muted)] px-2 py-0.5 rounded"
         >
           {tip.category}
         </span>

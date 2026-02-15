@@ -13,6 +13,7 @@ import InlineCodeButton from './InlineCodeButton';
 import ListButtons from './ListButtons';
 import ClearFormattingButton from './ClearFormattingButton';
 import KeyboardShortcutsHelp from './KeyboardShortcutsHelp';
+import ToolbarDivider from './ToolbarDivider';
 
 interface EditorToolbarProps {
   handlers: EditorFormatHandlers;
@@ -22,28 +23,28 @@ export default function EditorToolbar({ handlers }: EditorToolbarProps) {
   return (
     <div className="px-8 py-1 border-b border-[var(--color-surface-3)] flex items-center gap-3">
       <HeadingSelect onHeading={handlers.handleHeading} />
-      <div className="w-px h-4 bg-[var(--color-surface-3)]" />
+      <ToolbarDivider />
       <FormatButtons onBold={handlers.handleBold} onItalic={handlers.handleItalic} onUnderline={handlers.handleUnderline} onStrike={handlers.handleStrike} onSuperscript={handlers.handleSuperscript} onSubscript={handlers.handleSubscript} />
-      <div className="w-px h-4 bg-[var(--color-surface-3)]" />
+      <ToolbarDivider />
       <ColorPicker onSelectColor={handlers.handleSelectColor} />
-      <div className="w-px h-4 bg-[var(--color-surface-3)]" />
+      <ToolbarDivider />
       <HighlightPicker onSelectHighlight={handlers.handleHighlight} />
-      <div className="w-px h-4 bg-[var(--color-surface-3)]" />
+      <ToolbarDivider />
       <TextAlignButtons onAlign={handlers.handleAlign} />
-      <div className="w-px h-4 bg-[var(--color-surface-3)]" />
+      <ToolbarDivider />
       <IndentButtons onIndent={handlers.handleIndent} onOutdent={handlers.handleOutdent} />
-      <div className="w-px h-4 bg-[var(--color-surface-3)]" />
+      <ToolbarDivider />
       <BlockquoteButton onBlockquote={handlers.handleBlockquote} />
       <HorizontalRuleButton onHorizontalRule={handlers.handleHorizontalRule} />
       <InlineCodeButton onInlineCode={handlers.handleInlineCode} />
       <CodeBlockButton onCodeBlock={handlers.handleCodeBlock} />
-      <div className="w-px h-4 bg-[var(--color-surface-3)]" />
+      <ToolbarDivider />
       <ListButtons onBulletList={handlers.handleBulletList} onOrderedList={handlers.handleOrderedList} />
-      <div className="w-px h-4 bg-[var(--color-surface-3)]" />
+      <ToolbarDivider />
       <UndoRedoButtons onUndo={handlers.handleUndo} onRedo={handlers.handleRedo} />
-      <div className="w-px h-4 bg-[var(--color-surface-3)]" />
+      <ToolbarDivider />
       <ClearFormattingButton onClearFormatting={handlers.handleClearFormatting} />
-      <div className="w-px h-4 bg-[var(--color-surface-3)]" />
+      <ToolbarDivider />
       <KeyboardShortcutsHelp />
     </div>
   );

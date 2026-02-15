@@ -79,5 +79,9 @@ export function useEditorFormat(editor: Editor | null) {
     }
   }, [editor]);
 
-  return { handleBold, handleItalic, handleUnderline, handleStrike, handleAlign, handleSelectColor, handleHighlight, handleSuperscript, handleSubscript, handleUndo, handleRedo, handleClearFormatting, handleIndent, handleOutdent };
+  const handleBlockquote = useCallback(() => {
+    editor?.chain().focus().toggleBlockquote().run();
+  }, [editor]);
+
+  return { handleBold, handleItalic, handleUnderline, handleStrike, handleAlign, handleSelectColor, handleHighlight, handleSuperscript, handleSubscript, handleUndo, handleRedo, handleClearFormatting, handleIndent, handleOutdent, handleBlockquote };
 }

@@ -13,6 +13,8 @@ describe('EditorToolbar', () => {
     onSelectColor: vi.fn(),
     onHighlight: vi.fn(),
     onAlign: vi.fn(),
+    onUndo: vi.fn(),
+    onRedo: vi.fn(),
   };
 
   it('書式ボタンが表示される', () => {

@@ -1,7 +1,7 @@
 /**
  * シナリオラベル定数
  *
- * ScenarioCard で使用するDB値→日本語の変換マッピング
+ * ScenarioCard・usePracticePage で使用するDB値⇔日本語の変換マッピング
  */
 
 export const DIFFICULTY_LABEL: Record<string, string> = {
@@ -15,6 +15,11 @@ export const CATEGORY_LABEL: Record<string, string> = {
   senior: 'シニア・上司',
   team: 'チーム内',
 };
+
+/** 日本語カテゴリ→DB値の逆引き（usePracticePageのフィルタリングで使用） */
+export const CATEGORY_LABEL_TO_DB: Record<string, string> = Object.fromEntries(
+  Object.entries(CATEGORY_LABEL).map(([k, v]) => [v, k])
+);
 
 export const DIFFICULTY_DESCRIPTION: Record<string, string> = {
   beginner: '基本的な報連相',

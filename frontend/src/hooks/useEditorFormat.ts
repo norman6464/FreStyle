@@ -83,5 +83,9 @@ export function useEditorFormat(editor: Editor | null) {
     editor?.chain().focus().toggleBlockquote().run();
   }, [editor]);
 
-  return { handleBold, handleItalic, handleUnderline, handleStrike, handleAlign, handleSelectColor, handleHighlight, handleSuperscript, handleSubscript, handleUndo, handleRedo, handleClearFormatting, handleIndent, handleOutdent, handleBlockquote };
+  const handleHorizontalRule = useCallback(() => {
+    editor?.chain().focus().setHorizontalRule().run();
+  }, [editor]);
+
+  return { handleBold, handleItalic, handleUnderline, handleStrike, handleAlign, handleSelectColor, handleHighlight, handleSuperscript, handleSubscript, handleUndo, handleRedo, handleClearFormatting, handleIndent, handleOutdent, handleBlockquote, handleHorizontalRule };
 }

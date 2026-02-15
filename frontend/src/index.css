@@ -263,6 +263,17 @@
   margin: 0;
 }
 
+/* Link styles */
+.ProseMirror .note-link {
+  color: #60a5fa;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.ProseMirror .note-link:hover {
+  color: #93bbfd;
+}
+
 /* Tippy.js slash command popup */
 .tippy-box[data-theme~='slash-command'] {
   background: transparent;

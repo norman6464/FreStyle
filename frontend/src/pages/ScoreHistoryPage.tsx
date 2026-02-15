@@ -27,7 +27,7 @@ import { useScoreHistory, FILTERS } from '../hooks/useScoreHistory';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 
 export default function ScoreHistoryPage() {
-  const { history, filteredHistory, filter, setFilter, loading, latestSession, weakestAxis, selectedSession, setSelectedSession } = useScoreHistory();
+  const { history, filteredHistory, filter, setFilter, loading, latestSession, averageScore, weakestAxis, selectedSession, setSelectedSession } = useScoreHistory();
   const [scoreGoal] = useLocalStorage('scoreGoal', 8.0);
 
   if (loading) {
@@ -57,7 +57,7 @@ export default function ScoreHistoryPage() {
 
       {/* 目標スコア */}
       <ScoreGoalCard
-        averageScore={Math.round((history.reduce((sum, h) => sum + h.overallScore, 0) / history.length) * 10) / 10}
+        averageScore={averageScore}
       />
 
       {/* スキルギャップ分析 */}

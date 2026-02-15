@@ -51,6 +51,11 @@ export function useScoreHistory() {
 
   const latestSession = history.length > 0 ? history[history.length - 1] : null;
 
+  const averageScore = useMemo(() => {
+    if (history.length === 0) return 0;
+    return Math.round((history.reduce((sum, h) => sum + h.overallScore, 0) / history.length) * 10) / 10;
+  }, [history]);
+
   const weakestAxis = useMemo(() => {
     if (!latestSession) return null;
     return [...latestSession.scores].sort((a, b) => a.score - b.score)[0] ?? null;
@@ -63,6 +68,7 @@ export function useScoreHistory() {
     setFilter,
     loading,
     latestSession,
+    averageScore,
     weakestAxis,
     selectedSession,
     setSelectedSession,

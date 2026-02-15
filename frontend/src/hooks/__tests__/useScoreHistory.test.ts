@@ -218,6 +218,36 @@ describe('useScoreHistory', () => {
     expect(result.current.weakestAxis).toBeNull();
   });
 
+  it('averageScoreが全セッションの平均を返す', async () => {
+    const mockData = [
+      { sessionId: 1, sessionTitle: 'テスト1', overallScore: 7.0, scores: [], createdAt: '2026-02-10' },
+      { sessionId: 2, sessionTitle: 'テスト2', overallScore: 8.5, scores: [], createdAt: '2026-02-11' },
+      { sessionId: 3, sessionTitle: 'テスト3', overallScore: 9.0, scores: [], createdAt: '2026-02-12' },
+    ];
+    mockFetchScoreHistory.mockResolvedValue(mockData);
+
+    const { result } = renderHook(() => useScoreHistory());
+
+    await waitFor(() => {
+      expect(result.current.history).toHaveLength(3);
+    });
+
+    // (7.0 + 8.5 + 9.0) / 3 = 8.166... → 8.2
+    expect(result.current.averageScore).toBe(8.2);
+  });
+
+  it('空の履歴でaverageScoreが0を返す', async () => {
+    mockFetchScoreHistory.mockResolvedValue([]);
+
+    const { result } = renderHook(() => useScoreHistory());
+
+    await waitFor(() => {
+      expect(mockFetchScoreHistory).toHaveBeenCalled();
+    });
+
+    expect(result.current.averageScore).toBe(0);
+  });
+
   it('最新セッションのスコアが空の場合にweakestAxisがnullになる', async () => {
     const mockData = [
       { sessionId: 1, sessionTitle: 'テスト', overallScore: 7.0, scores: [], createdAt: '2026-02-10' },

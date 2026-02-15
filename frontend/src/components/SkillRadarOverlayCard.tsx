@@ -1,46 +1,18 @@
 import Card from './Card';
 import type { AxisScore } from '../types';
+import {
+  polarToCartesian,
+  getPolygonPoints,
+  getGridPoints,
+  RADAR_SIZE,
+  RADAR_CENTER,
+  RADAR_RADIUS,
+  RADAR_GRID_LEVELS,
+} from '../utils/skillRadarHelpers';
 
 interface SkillRadarOverlayCardProps {
   previousScores: AxisScore[];
   currentScores: AxisScore[];
-}
-
-const SIZE = 200;
-const CENTER = SIZE / 2;
-const RADIUS = 70;
-const GRID_LEVELS = [2, 4, 6, 8, 10];
-
-function polarToCartesian(angle: number, radius: number): { x: number; y: number } {
-  const rad = ((angle - 90) * Math.PI) / 180;
-  return {
-    x: CENTER + radius * Math.cos(rad),
-    y: CENTER + radius * Math.sin(rad),
-  };
-}
-
-function getPolygonPoints(values: number[], maxValue: number): string {
-  if (values.length === 0) return '';
-  const angleStep = 360 / values.length;
-  return values
-    .map((value, i) => {
-      const ratio = value / maxValue;
-      const point = polarToCartesian(i * angleStep, RADIUS * ratio);
-      return `${point.x},${point.y}`;
-    })
-    .join(' ');
-}
-
-function getGridPoints(level: number, count: number): string {
-  if (count === 0) return '';
-  const angleStep = 360 / count;
-  const ratio = level / 10;
-  return Array.from({ length: count })
-    .map((_, i) => {
-      const point = polarToCartesian(i * angleStep, RADIUS * ratio);
-      return `${point.x},${point.y}`;
-    })
-    .join(' ');
 }
 
 export default function SkillRadarOverlayCard({ previousScores, currentScores }: SkillRadarOverlayCardProps) {
@@ -53,9 +25,9 @@ export default function SkillRadarOverlayCard({ previousScores, currentScores }:
       <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-3">スキル変化レーダー</p>
 
       <div className="flex justify-center">
-        <svg viewBox={`0 0 ${SIZE} ${SIZE}`} width={SIZE} height={SIZE}>
+        <svg viewBox={`0 0 ${RADAR_SIZE} ${RADAR_SIZE}`} width={RADAR_SIZE} height={RADAR_SIZE}>
           {/* グリッド線 */}
-          {GRID_LEVELS.map((level) => (
+          {RADAR_GRID_LEVELS.map((level) => (
             <polygon
               key={level}
               points={getGridPoints(level, axisCount)}
@@ -67,12 +39,12 @@ export default function SkillRadarOverlayCard({ previousScores, currentScores }:
 
           {/* 軸線 */}
           {labels.map((_, i) => {
-            const point = polarToCartesian(i * angleStep, RADIUS);
+            const point = polarToCartesian(i * angleStep, RADAR_RADIUS);
             return (
               <line
                 key={i}
-                x1={CENTER}
-                y1={CENTER}
+                x1={RADAR_CENTER}
+                y1={RADAR_CENTER}
                 x2={point.x}
                 y2={point.y}
                 stroke="var(--color-surface-3)"
@@ -106,7 +78,7 @@ export default function SkillRadarOverlayCard({ previousScores, currentScores }:
 
           {/* ラベル */}
           {labels.map((s, i) => {
-            const point = polarToCartesian(i * angleStep, RADIUS + 18);
+            const point = polarToCartesian(i * angleStep, RADAR_RADIUS + 18);
             return (
               <text
                 key={i}

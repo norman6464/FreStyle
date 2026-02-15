@@ -128,6 +128,13 @@ describe('SlashCommandExtension', () => {
     expect(chain.run).toHaveBeenCalled();
   });
 
+  it('calloutコマンドでsetCalloutが呼ばれる', () => {
+    const setCallout = vi.fn();
+    const editor = { chain: vi.fn(() => ({ focus: vi.fn().mockReturnThis(), run: vi.fn() })), commands: { setCallout } };
+    executeCommand(editor as never, findCommand('callout'));
+    expect(setCallout).toHaveBeenCalled();
+  });
+
   it('SLASH_COMMANDSのフィルタリングが正しく動作する', () => {
     const filtered = SLASH_COMMANDS.filter(item =>
       item.label.toLowerCase().includes('見出し')

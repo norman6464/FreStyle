@@ -15,6 +15,7 @@ import { common, createLowlight } from 'lowlight';
 import { SlashCommandExtension } from '../extensions/SlashCommandExtension';
 import { slashCommandRenderer } from '../extensions/slashCommandRenderer';
 import { ToggleList, ToggleSummary, ToggleContent } from '../extensions/ToggleListExtension';
+import { Callout } from '../extensions/CalloutExtension';
 import { isLegacyMarkdown } from '../utils/isLegacyMarkdown';
 import { markdownToTiptap } from '../utils/markdownToTiptap';
 
@@ -67,6 +68,7 @@ export function useBlockEditor({ content, onChange }: UseBlockEditorOptions) {
       TableRow,
       TableCell,
       TableHeader,
+      Callout,
     ],
     content: initialContent,
     onUpdate: ({ editor }) => {

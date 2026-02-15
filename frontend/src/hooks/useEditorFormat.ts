@@ -57,5 +57,9 @@ export function useEditorFormat(editor: Editor | null) {
     editor?.chain().focus().redo().run();
   }, [editor]);
 
-  return { handleBold, handleItalic, handleUnderline, handleStrike, handleAlign, handleSelectColor, handleHighlight, handleSuperscript, handleSubscript, handleUndo, handleRedo };
+  const handleClearFormatting = useCallback(() => {
+    editor?.chain().focus().unsetAllMarks().clearNodes().run();
+  }, [editor]);
+
+  return { handleBold, handleItalic, handleUnderline, handleStrike, handleAlign, handleSelectColor, handleHighlight, handleSuperscript, handleSubscript, handleUndo, handleRedo, handleClearFormatting };
 }

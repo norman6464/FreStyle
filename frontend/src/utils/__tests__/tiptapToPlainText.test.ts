@@ -113,6 +113,34 @@ describe('tiptapToPlainText', () => {
     expect(tiptapToPlainText(json)).toBe('const x = 1;');
   });
 
+  it('テーブルのテキストを抽出する', () => {
+    const json = JSON.stringify({
+      type: 'doc',
+      content: [
+        {
+          type: 'table',
+          content: [
+            {
+              type: 'tableRow',
+              content: [
+                { type: 'tableHeader', content: [{ type: 'paragraph', content: [{ type: 'text', text: '名前' }] }] },
+                { type: 'tableHeader', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'スコア' }] }] },
+              ],
+            },
+            {
+              type: 'tableRow',
+              content: [
+                { type: 'tableCell', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Alice' }] }] },
+                { type: 'tableCell', content: [{ type: 'paragraph', content: [{ type: 'text', text: '90' }] }] },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    expect(tiptapToPlainText(json)).toBe('名前 スコア Alice 90');
+  });
+
   it('トグルリストのテキストを抽出する', () => {
     const json = JSON.stringify({
       type: 'doc',

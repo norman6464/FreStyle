@@ -48,6 +48,9 @@ function executeCommand(editor: Editor, command: SlashCommand) {
     case 'horizontalRule':
       chain.setHorizontalRule().run();
       break;
+    case 'table':
+      chain.insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
+      break;
     default: {
       const _exhaustive: never = command.action;
       console.error('Unknown slash command action:', _exhaustive);

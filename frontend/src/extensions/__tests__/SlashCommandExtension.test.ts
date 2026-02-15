@@ -116,6 +116,18 @@ describe('SlashCommandExtension', () => {
     expect(chain.run).toHaveBeenCalled();
   });
 
+  it('tableコマンドでinsertTableが呼ばれる', () => {
+    const chain = {
+      focus: vi.fn().mockReturnThis(),
+      insertTable: vi.fn().mockReturnThis(),
+      run: vi.fn(),
+    };
+    const editor = { chain: vi.fn(() => chain) };
+    executeCommand(editor as never, findCommand('table'));
+    expect(chain.insertTable).toHaveBeenCalledWith({ rows: 3, cols: 3, withHeaderRow: true });
+    expect(chain.run).toHaveBeenCalled();
+  });
+
   it('SLASH_COMMANDSのフィルタリングが正しく動作する', () => {
     const filtered = SLASH_COMMANDS.filter(item =>
       item.label.toLowerCase().includes('見出し')

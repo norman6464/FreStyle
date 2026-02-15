@@ -2,6 +2,10 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import NoteEditor from '../NoteEditor';
 
+vi.mock('../../hooks/useBlockEditor', () => ({
+  useBlockEditor: () => ({ editor: null }),
+}));
+
 const defaultProps = {
   title: 'テストノート',
   content: '',

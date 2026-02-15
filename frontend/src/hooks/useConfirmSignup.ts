@@ -3,19 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import authRepository from '../repositories/AuthRepository';
 import { AxiosError } from 'axios';
 import type { FormMessage } from '../types';
+import { useFormField } from './useFormField';
 
 export function useConfirmSignup() {
   const navigate = useNavigate();
-  const [form, setForm] = useState({ email: '', code: '' });
+  const { form, handleChange } = useFormField({ email: '', code: '' });
   const [message, setMessage] = useState<FormMessage | null>(null);
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setForm((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
 
   const handleConfirm = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();

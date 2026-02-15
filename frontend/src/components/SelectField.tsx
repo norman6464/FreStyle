@@ -1,4 +1,6 @@
 import { ChangeEvent } from 'react';
+import FormFieldError from './FormFieldError';
+import { getFieldBorderClass } from '../utils/fieldStyles';
 
 interface SelectOption {
   value: string;
@@ -27,21 +29,13 @@ export default function SelectField({ label, name, value, onChange, options, err
         onChange={onChange}
         aria-invalid={!!error}
         aria-describedby={error ? `${name}-error` : undefined}
-        className={`w-full border rounded-lg px-3 py-2 text-sm focus:ring-1 transition-colors ${
-          error
-            ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500'
-            : 'border-surface-3 focus:border-primary-500 focus:ring-primary-500'
-        }`}
+        className={`w-full border rounded-lg px-3 py-2 text-sm focus:ring-1 transition-colors ${getFieldBorderClass(!!error)}`}
       >
         {options.map((opt) => (
           <option key={opt.value} value={opt.value}>{opt.label}</option>
         ))}
       </select>
-      {error && (
-        <p id={`${name}-error`} role="alert" className="text-xs text-rose-400 mt-1">
-          {error}
-        </p>
-      )}
+      <FormFieldError name={name} error={error} />
     </div>
   );
 }

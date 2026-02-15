@@ -1,4 +1,6 @@
 import { ChangeEvent } from 'react';
+import FormFieldError from './FormFieldError';
+import { getFieldBorderClass } from '../utils/fieldStyles';
 
 interface TextareaFieldProps {
   label: string;
@@ -27,17 +29,9 @@ export default function TextareaField({ label, name, value, onChange, placeholde
         maxLength={maxLength}
         aria-invalid={!!error}
         aria-describedby={error ? `${name}-error` : undefined}
-        className={`w-full border rounded-lg px-3 py-2 text-sm focus:ring-1 transition-colors resize-none ${
-          error
-            ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500'
-            : 'border-surface-3 focus:border-primary-500 focus:ring-primary-500'
-        }`}
+        className={`w-full border rounded-lg px-3 py-2 text-sm focus:ring-1 transition-colors resize-none ${getFieldBorderClass(!!error)}`}
       />
-      {error && (
-        <p id={`${name}-error`} role="alert" className="text-xs text-rose-400 mt-1">
-          {error}
-        </p>
-      )}
+      <FormFieldError name={name} error={error} />
       {maxLength && (
         <p className={`text-xs text-right mt-1 ${
           value.length >= maxLength

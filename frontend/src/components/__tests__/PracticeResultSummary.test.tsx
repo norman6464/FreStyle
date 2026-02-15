@@ -48,7 +48,7 @@ describe('PracticeResultSummary', () => {
   it('改善アドバイスが表示される', () => {
     render(<PracticeResultSummary scoreCard={scoreCard} scenarioName="障害報告" />);
 
-    expect(screen.getByText(/提案力を伸ばすために/)).toBeInTheDocument();
+    expect(screen.getByText(/課題だけでなく解決策をセットで伝える/)).toBeInTheDocument();
   });
 
   it('次の練習へボタンをクリックすると練習ページに遷移する', () => {

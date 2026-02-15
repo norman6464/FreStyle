@@ -151,4 +151,35 @@ describe('usePracticePage', () => {
     const names = result.current.filteredScenarios.map((s) => s.name);
     expect(names).toEqual(['シナリオA', 'シナリオB', 'シナリオC']);
   });
+
+  it('初期状態ではisFilterActiveがfalse', () => {
+    const { result } = renderHook(() => usePracticePage());
+    expect(result.current.isFilterActive).toBe(false);
+  });
+
+  it('フィルター変更でisFilterActiveがtrueになる', () => {
+    const { result } = renderHook(() => usePracticePage());
+    act(() => {
+      result.current.setSelectedDifficulty('初級');
+    });
+    expect(result.current.isFilterActive).toBe(true);
+  });
+
+  it('resetFiltersで全フィルターが初期状態に戻る', () => {
+    const { result } = renderHook(() => usePracticePage());
+    act(() => {
+      result.current.setSelectedCategory('顧客折衝');
+      result.current.setSelectedDifficulty('初級');
+      result.current.setSelectedSort('name');
+    });
+    expect(result.current.isFilterActive).toBe(true);
+
+    act(() => {
+      result.current.resetFilters();
+    });
+    expect(result.current.selectedCategory).toBe('すべて');
+    expect(result.current.selectedDifficulty).toBeNull();
+    expect(result.current.selectedSort).toBe('default');
+    expect(result.current.isFilterActive).toBe(false);
+  });
 });

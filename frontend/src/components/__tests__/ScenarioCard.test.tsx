@@ -95,4 +95,24 @@ describe('ScenarioCard', () => {
     render(<ScenarioCard scenario={mockScenario} onSelect={vi.fn()} isBookmarked={true} onToggleBookmark={vi.fn()} />);
     expect(screen.getByTitle('ブックマーク解除')).toBeDefined();
   });
+
+  it('初級バッジにemeraldの色が適用される', () => {
+    const beginnerScenario = { ...mockScenario, difficulty: 'beginner' };
+    render(<ScenarioCard scenario={beginnerScenario} onSelect={vi.fn()} />);
+    const badge = screen.getByText('初級');
+    expect(badge.className).toContain('text-emerald-400');
+  });
+
+  it('中級バッジにamberの色が適用される', () => {
+    render(<ScenarioCard scenario={mockScenario} onSelect={vi.fn()} />);
+    const badge = screen.getByText('中級');
+    expect(badge.className).toContain('text-amber-400');
+  });
+
+  it('上級バッジにroseの色が適用される', () => {
+    const advancedScenario = { ...mockScenario, difficulty: 'advanced' };
+    render(<ScenarioCard scenario={advancedScenario} onSelect={vi.fn()} />);
+    const badge = screen.getByText('上級');
+    expect(badge.className).toContain('text-rose-400');
+  });
 });

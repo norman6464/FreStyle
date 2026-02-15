@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -6,8 +6,11 @@ import Image from '@tiptap/extension-image';
 import 'tippy.js/dist/tippy.css';
 import { SlashCommandExtension } from '../extensions/SlashCommandExtension';
 import { slashCommandRenderer } from '../extensions/slashCommandRenderer';
+import { executeCommand } from '../extensions/SlashCommandExtension';
 import { isLegacyMarkdown } from '../utils/isLegacyMarkdown';
 import { markdownToTiptap } from '../utils/markdownToTiptap';
+import BlockInserterButton from './BlockInserterButton';
+import type { SlashCommand } from '../constants/slashCommands';
 
 interface BlockEditorProps {
   content: string;
@@ -26,6 +29,10 @@ export default function BlockEditor({ content, onChange }: BlockEditorProps) {
       return undefined;
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [inserterVisible, setInserterVisible] = useState(false);
+  const [inserterTop, setInserterTop] = useState(0);
 
   const editor = useEditor({
     extensions: [
@@ -78,9 +85,50 @@ export default function BlockEditor({ content, onChange }: BlockEditorProps) {
     editor.commands.setContent(newContent);
   }, [content, editor]);
 
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!containerRef.current) return;
+    const editorEl = containerRef.current.querySelector('.ProseMirror');
+    if (!editorEl) return;
+
+    const target = e.target as HTMLElement;
+    const block = target.closest('p, h1, h2, h3, ul, ol, li, blockquote');
+    if (!block || !editorEl.contains(block)) {
+      setInserterVisible(false);
+      return;
+    }
+
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const blockRect = block.getBoundingClientRect();
+    setInserterTop(blockRect.top - containerRect.top);
+    setInserterVisible(true);
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    setInserterVisible(false);
+  }, []);
+
+  const handleCommand = useCallback((command: SlashCommand) => {
+    if (!editor) return;
+    editor.chain().focus().run();
+    executeCommand(editor, command);
+  }, [editor]);
+
   return (
-    <div className="block-editor flex-1 overflow-y-auto" data-testid="block-editor">
-      <EditorContent editor={editor} aria-label="ノートの内容" />
+    <div
+      ref={containerRef}
+      className="block-editor flex-1 overflow-y-auto relative"
+      data-testid="block-editor"
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+    >
+      <BlockInserterButton
+        visible={inserterVisible}
+        top={inserterTop}
+        onCommand={handleCommand}
+      />
+      <div className="pl-8">
+        <EditorContent editor={editor} aria-label="ノートの内容" />
+      </div>
     </div>
   );
 }

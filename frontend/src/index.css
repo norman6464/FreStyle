@@ -105,6 +105,47 @@
 .ProseMirror strong { font-weight: 700; }
 .ProseMirror em { font-style: italic; }
 
+/* Code block */
+.ProseMirror pre {
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-surface-3);
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  margin: 0.5rem 0;
+  overflow-x: auto;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+.ProseMirror pre code {
+  color: var(--color-text-primary);
+  background: none;
+  padding: 0;
+}
+/* Lowlight syntax colors */
+.ProseMirror pre .hljs-keyword { color: #c678dd; }
+.ProseMirror pre .hljs-string { color: #98c379; }
+.ProseMirror pre .hljs-number { color: #d19a66; }
+.ProseMirror pre .hljs-comment { color: var(--color-text-muted); font-style: italic; }
+.ProseMirror pre .hljs-function { color: #61afef; }
+.ProseMirror pre .hljs-title { color: #61afef; }
+.ProseMirror pre .hljs-params { color: var(--color-text-secondary); }
+.ProseMirror pre .hljs-built_in { color: #e5c07b; }
+.ProseMirror pre .hljs-attr { color: #d19a66; }
+.ProseMirror pre .hljs-tag { color: #e06c75; }
+.ProseMirror pre .hljs-name { color: #e06c75; }
+.ProseMirror pre .hljs-selector-class { color: #d19a66; }
+
+/* Inline code */
+.ProseMirror code {
+  background: var(--color-surface-2);
+  border-radius: 0.25rem;
+  padding: 0.125rem 0.375rem;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 0.8125rem;
+  color: #e06c75;
+}
+
 /* Task list (checkbox) */
 .ProseMirror ul[data-type="taskList"] {
   list-style: none;

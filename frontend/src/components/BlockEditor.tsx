@@ -5,6 +5,8 @@ import Placeholder from '@tiptap/extension-placeholder';
 import Image from '@tiptap/extension-image';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
+import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
+import { common, createLowlight } from 'lowlight';
 import 'tippy.js/dist/tippy.css';
 import { SlashCommandExtension, executeCommand } from '../extensions/SlashCommandExtension';
 import { slashCommandRenderer } from '../extensions/slashCommandRenderer';
@@ -42,6 +44,10 @@ export default function BlockEditor({ content, onChange, noteId }: BlockEditorPr
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
+        codeBlock: false,
+      }),
+      CodeBlockLowlight.configure({
+        lowlight: createLowlight(common),
       }),
       Placeholder.configure({
         placeholder: 'ここに入力...',

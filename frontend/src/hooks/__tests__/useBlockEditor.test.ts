@@ -6,41 +6,10 @@ vi.mock('@tiptap/react', () => ({
   useEditor: vi.fn(() => mockEditor),
 }));
 
-vi.mock('@tiptap/starter-kit', () => ({ default: { configure: vi.fn(() => 'StarterKit') } }));
-vi.mock('@tiptap/extension-placeholder', () => ({ default: { configure: vi.fn(() => 'Placeholder') } }));
-vi.mock('@tiptap/extension-image', () => ({ default: { configure: vi.fn(() => 'Image') } }));
-vi.mock('@tiptap/extension-task-list', () => ({ default: 'TaskList' }));
-vi.mock('@tiptap/extension-task-item', () => ({ default: { configure: vi.fn(() => 'TaskItem') } }));
-vi.mock('@tiptap/extension-code-block-lowlight', () => ({ default: { configure: vi.fn(() => 'CodeBlockLowlight') } }));
-vi.mock('@tiptap/extension-highlight', () => ({ default: { configure: vi.fn(() => 'Highlight') } }));
-vi.mock('@tiptap/extension-table', () => ({ default: { configure: vi.fn(() => 'Table') } }));
-vi.mock('@tiptap/extension-table-row', () => ({ default: 'TableRow' }));
-vi.mock('@tiptap/extension-table-cell', () => ({ default: 'TableCell' }));
-vi.mock('@tiptap/extension-table-header', () => ({ default: 'TableHeader' }));
-vi.mock('lowlight', () => ({ common: {}, createLowlight: vi.fn(() => 'lowlight') }));
-vi.mock('../../extensions/SlashCommandExtension', () => ({
-  SlashCommandExtension: { configure: vi.fn(() => 'SlashCommand') },
-  executeCommand: vi.fn(),
+const mockExtensions = ['ext1', 'ext2'];
+vi.mock('../../utils/editorExtensions', () => ({
+  createEditorExtensions: vi.fn(() => mockExtensions),
 }));
-vi.mock('../../extensions/slashCommandRenderer', () => ({
-  slashCommandRenderer: vi.fn(),
-}));
-vi.mock('../../extensions/ToggleListExtension', () => ({
-  ToggleList: 'ToggleList',
-  ToggleSummary: 'ToggleSummary',
-  ToggleContent: 'ToggleContent',
-}));
-vi.mock('../../extensions/CalloutExtension', () => ({
-  Callout: 'Callout',
-}));
-vi.mock('@tiptap/extension-link', () => ({ default: { configure: vi.fn(() => 'Link') } }));
-vi.mock('@tiptap/extension-text-style', () => ({ default: 'TextStyle' }));
-vi.mock('@tiptap/extension-color', () => ({ default: 'Color' }));
-vi.mock('@tiptap/extension-text-align', () => ({ default: { configure: vi.fn(() => 'TextAlign') } }));
-vi.mock('@tiptap/extension-underline', () => ({ default: 'Underline' }));
-vi.mock('@tiptap/extension-superscript', () => ({ default: 'Superscript' }));
-vi.mock('@tiptap/extension-subscript', () => ({ default: 'Subscript' }));
-vi.mock('@tiptap/extension-youtube', () => ({ default: { configure: vi.fn(() => 'Youtube') } }));
 vi.mock('../../utils/isLegacyMarkdown', () => ({
   isLegacyMarkdown: vi.fn(() => false),
 }));
@@ -68,26 +37,14 @@ describe('useBlockEditor', () => {
     expect(result.current.editor).toBe(mockEditor);
   });
 
-  it('useEditorにextensionsを渡して呼び出す', async () => {
+  it('createEditorExtensionsの結果をuseEditorに渡す', async () => {
     const { useEditor } = await import('@tiptap/react');
     const onChange = vi.fn();
     renderHook(() => useBlockEditor({ content: '', onChange }));
 
     expect(useEditor).toHaveBeenCalledWith(
       expect.objectContaining({
-        extensions: expect.arrayContaining([
-          'StarterKit',
-          'CodeBlockLowlight',
-          'Placeholder',
-          'Image',
-          'SlashCommand',
-          'Highlight',
-          'TaskList',
-          'TaskItem',
-          'ToggleList',
-          'ToggleSummary',
-          'ToggleContent',
-        ]),
+        extensions: mockExtensions,
       })
     );
   });
@@ -156,14 +113,5 @@ describe('useBlockEditor', () => {
 
     const call = vi.mocked(useEditor).mock.calls[0]!;
     expect(call[0]).toHaveProperty('onUpdate');
-  });
-
-  it('22個の拡張が設定される', async () => {
-    const { useEditor } = await import('@tiptap/react');
-    const onChange = vi.fn();
-    renderHook(() => useBlockEditor({ content: '', onChange }));
-
-    const call = vi.mocked(useEditor).mock.calls[0]!;
-    expect(call[0]!.extensions).toHaveLength(24);
   });
 });

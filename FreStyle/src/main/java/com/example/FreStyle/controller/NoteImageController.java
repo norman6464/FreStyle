@@ -24,19 +24,27 @@ public class NoteImageController {
     private final UserIdentityService userIdentityService;
 
     @PostMapping("/{noteId}/images/presigned-url")
-    public ResponseEntity<PresignedUrlResponse> getPresignedUrl(
+    public ResponseEntity<?> getPresignedUrl(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable String noteId,
             @Valid @RequestBody PresignedUrlRequest request
     ) {
-        String sub = jwt.getSubject();
-        User user = userIdentityService.findUserBySub(sub);
+        try {
+            String sub = jwt.getSubject();
+            User user = userIdentityService.findUserBySub(sub);
 
-        PresignedUrlResponse response = noteImageService.generatePresignedUrl(
-                user.getId(), noteId, request.fileName(), request.contentType()
-        );
-        logger.info("Presigned URL生成成功 - noteId: {}, fileName: {}", noteId, request.fileName());
+            PresignedUrlResponse response = noteImageService.generatePresignedUrl(
+                    user.getId(), noteId, request.fileName(), request.contentType()
+            );
+            logger.info("Presigned URL生成成功 - noteId: {}, fileName: {}", noteId, request.fileName());
 
-        return ResponseEntity.ok(response);
+            return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            logger.warn("Presigned URL生成失敗 - 不正なリクエスト: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(java.util.Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            logger.error("Presigned URL生成失敗 - noteId: {}, fileName: {}", noteId, request.fileName(), e);
+            return ResponseEntity.internalServerError().body(java.util.Map.of("error", "画像アップロードの準備に失敗しました"));
+        }
     }
 }

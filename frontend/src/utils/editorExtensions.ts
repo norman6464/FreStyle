@@ -3,7 +3,6 @@ import Placeholder from '@tiptap/extension-placeholder';
 import Image from '@tiptap/extension-image';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
-import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import Highlight from '@tiptap/extension-highlight';
 import Table from '@tiptap/extension-table';
 import TableRow from '@tiptap/extension-table-row';
@@ -14,6 +13,7 @@ import { SlashCommandExtension } from '../extensions/SlashCommandExtension';
 import { slashCommandRenderer } from '../extensions/slashCommandRenderer';
 import { ToggleList, ToggleSummary, ToggleContent } from '../extensions/ToggleListExtension';
 import { Callout } from '../extensions/CalloutExtension';
+import { CodeBlock } from '../extensions/CodeBlockExtension';
 import Link from '@tiptap/extension-link';
 import TextStyle from '@tiptap/extension-text-style';
 import Color from '@tiptap/extension-color';
@@ -29,7 +29,7 @@ export function createEditorExtensions() {
       heading: { levels: [1, 2, 3] },
       codeBlock: false,
     }),
-    CodeBlockLowlight.configure({
+    CodeBlock.configure({
       lowlight: createLowlight(common),
     }),
     Placeholder.configure({

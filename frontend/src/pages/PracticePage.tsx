@@ -2,6 +2,7 @@ import ScenarioCard from '../components/ScenarioCard';
 import { SkeletonCard } from '../components/Skeleton';
 import FilterTabs from '../components/FilterTabs';
 import DifficultyFilter from '../components/DifficultyFilter';
+import SortSelector from '../components/SortSelector';
 import { usePracticePage } from '../hooks/usePracticePage';
 
 const CATEGORIES = ['すべて', 'ブックマーク', '顧客折衝', 'シニア・上司', 'チーム内'] as const;
@@ -12,6 +13,8 @@ export default function PracticePage() {
     setSelectedCategory,
     selectedDifficulty,
     setSelectedDifficulty,
+    selectedSort,
+    setSelectedSort,
     filteredScenarios,
     loading,
     handleSelectScenario,
@@ -37,9 +40,10 @@ export default function PracticePage() {
         className="mb-3"
       />
 
-      {/* 難易度フィルター */}
-      <div className="mb-5">
+      {/* 難易度フィルター・ソート */}
+      <div className="flex items-center justify-between mb-5">
         <DifficultyFilter selected={selectedDifficulty} onChange={setSelectedDifficulty} />
+        <SortSelector selected={selectedSort} onChange={setSelectedSort} />
       </div>
 
       {/* シナリオ一覧 */}

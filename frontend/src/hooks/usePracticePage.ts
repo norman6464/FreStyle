@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import type { PracticeScenario } from '../types';
 import { usePractice } from './usePractice';
 import { useBookmark } from './useBookmark';
+import type { SortOption } from '../components/SortSelector';
 
 const CATEGORY_LABEL_TO_DB: Record<string, string> = {
   '顧客折衝': 'customer',
@@ -10,10 +11,17 @@ const CATEGORY_LABEL_TO_DB: Record<string, string> = {
   'チーム内': 'team',
 };
 
+const DIFFICULTY_ORDER: Record<string, number> = {
+  beginner: 1,
+  intermediate: 2,
+  advanced: 3,
+};
+
 export function usePracticePage() {
   const navigate = useNavigate();
   const [selectedCategory, setSelectedCategory] = useState<string>('すべて');
   const [selectedDifficulty, setSelectedDifficulty] = useState<string | null>(null);
+  const [selectedSort, setSelectedSort] = useState<SortOption>('default');
   const { scenarios, loading, fetchScenarios, createPracticeSession } = usePractice();
   const { bookmarkedIds, toggleBookmark, isBookmarked } = useBookmark();
 
@@ -34,8 +42,16 @@ export function usePracticePage() {
       result = result.filter((s) => s.difficulty === selectedDifficulty);
     }
 
+    if (selectedSort === 'difficulty-asc') {
+      result = [...result].sort((a, b) => (DIFFICULTY_ORDER[a.difficulty] ?? 0) - (DIFFICULTY_ORDER[b.difficulty] ?? 0));
+    } else if (selectedSort === 'difficulty-desc') {
+      result = [...result].sort((a, b) => (DIFFICULTY_ORDER[b.difficulty] ?? 0) - (DIFFICULTY_ORDER[a.difficulty] ?? 0));
+    } else if (selectedSort === 'name') {
+      result = [...result].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+    }
+
     return result;
-  }, [scenarios, selectedCategory, selectedDifficulty, bookmarkedIds]);
+  }, [scenarios, selectedCategory, selectedDifficulty, selectedSort, bookmarkedIds]);
 
   const handleSelectScenario = useCallback(async (scenario: PracticeScenario) => {
     const session = await createPracticeSession({ scenarioId: scenario.id });
@@ -56,6 +72,8 @@ export function usePracticePage() {
     setSelectedCategory,
     selectedDifficulty,
     setSelectedDifficulty,
+    selectedSort,
+    setSelectedSort,
     filteredScenarios,
     loading,
     handleSelectScenario,

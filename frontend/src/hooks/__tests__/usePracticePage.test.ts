@@ -12,9 +12,9 @@ const mockCreatePracticeSession = vi.fn();
 vi.mock('../usePractice', () => ({
   usePractice: () => ({
     scenarios: [
-      { id: 1, name: 'シナリオ1', category: 'customer' },
-      { id: 2, name: 'シナリオ2', category: 'senior' },
-      { id: 3, name: 'シナリオ3', category: 'team' },
+      { id: 1, name: 'シナリオC', category: 'customer', difficulty: 'advanced' },
+      { id: 2, name: 'シナリオA', category: 'senior', difficulty: 'beginner' },
+      { id: 3, name: 'シナリオB', category: 'team', difficulty: 'intermediate' },
     ],
     loading: false,
     fetchScenarios: mockFetchScenarios,
@@ -118,5 +118,37 @@ describe('usePracticePage', () => {
     const { result } = renderHook(() => usePracticePage());
     expect(result.current.isBookmarked).toBeDefined();
     expect(result.current.toggleBookmark).toBeDefined();
+  });
+
+  it('初期ソートはdefault', () => {
+    const { result } = renderHook(() => usePracticePage());
+    expect(result.current.selectedSort).toBe('default');
+  });
+
+  it('難易度昇順でソートできる', () => {
+    const { result } = renderHook(() => usePracticePage());
+    act(() => {
+      result.current.setSelectedSort('difficulty-asc');
+    });
+    const names = result.current.filteredScenarios.map((s) => s.name);
+    expect(names).toEqual(['シナリオA', 'シナリオB', 'シナリオC']);
+  });
+
+  it('難易度降順でソートできる', () => {
+    const { result } = renderHook(() => usePracticePage());
+    act(() => {
+      result.current.setSelectedSort('difficulty-desc');
+    });
+    const names = result.current.filteredScenarios.map((s) => s.name);
+    expect(names).toEqual(['シナリオC', 'シナリオB', 'シナリオA']);
+  });
+
+  it('名前順でソートできる', () => {
+    const { result } = renderHook(() => usePracticePage());
+    act(() => {
+      result.current.setSelectedSort('name');
+    });
+    const names = result.current.filteredScenarios.map((s) => s.name);
+    expect(names).toEqual(['シナリオA', 'シナリオB', 'シナリオC']);
   });
 });

@@ -1,5 +1,6 @@
 import { BoldIcon, ItalicIcon, UnderlineIcon, StrikethroughIcon } from '@heroicons/react/24/solid';
 import { ArrowUpIcon, ArrowDownIcon } from '@heroicons/react/24/outline';
+import ToolbarIconButton from './ToolbarIconButton';
 
 interface FormatButtonsProps {
   onBold: () => void;
@@ -25,15 +26,7 @@ export default function FormatButtons({ onBold, onItalic, onUnderline, onStrike,
   return (
     <div className="flex items-center gap-0.5">
       {BUTTONS.map(({ label, Icon, key }) => (
-        <button
-          key={key}
-          type="button"
-          aria-label={label}
-          className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--color-surface-3)] text-[var(--color-text-faint)] transition-colors"
-          onClick={handlers[key]}
-        >
-          <Icon className="w-4 h-4" />
-        </button>
+        <ToolbarIconButton key={key} icon={Icon} label={label} onClick={handlers[key]} />
       ))}
     </div>
   );

@@ -1,4 +1,5 @@
 import { Bars3BottomLeftIcon, Bars3Icon, Bars3BottomRightIcon } from '@heroicons/react/24/solid';
+import ToolbarIconButton from './ToolbarIconButton';
 
 type Alignment = 'left' | 'center' | 'right';
 
@@ -17,17 +18,13 @@ export default function TextAlignButtons({ onAlign, activeAlign }: TextAlignButt
   return (
     <div className="flex items-center gap-0.5">
       {ALIGNMENTS.map(({ alignment, label, Icon }) => (
-        <button
+        <ToolbarIconButton
           key={alignment}
-          type="button"
-          aria-label={label}
-          className={`w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--color-surface-3)] transition-colors ${
-            activeAlign === alignment ? 'text-primary-500' : 'text-[var(--color-text-faint)]'
-          }`}
+          icon={Icon}
+          label={label}
           onClick={() => onAlign(alignment)}
-        >
-          <Icon className="w-4 h-4" />
-        </button>
+          isActive={activeAlign === alignment}
+        />
       ))}
     </div>
   );

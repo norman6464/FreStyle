@@ -115,4 +115,23 @@ describe('ScenarioCard', () => {
     const badge = screen.getByText('上級');
     expect(badge.className).toContain('text-rose-400');
   });
+
+  it('未知のdifficulty値はそのまま表示される', () => {
+    const unknownScenario = { ...mockScenario, difficulty: 'expert' };
+    render(<ScenarioCard scenario={unknownScenario} onSelect={vi.fn()} />);
+    expect(screen.getByText('expert')).toBeDefined();
+  });
+
+  it('未知のcategory値はそのまま表示される', () => {
+    const unknownScenario = { ...mockScenario, category: 'other' };
+    render(<ScenarioCard scenario={unknownScenario} onSelect={vi.fn()} />);
+    expect(screen.getByText('other')).toBeDefined();
+  });
+
+  it('ブックマークボタンクリックでonToggleBookmarkが正しいidで呼ばれる', () => {
+    const onToggleBookmark = vi.fn();
+    render(<ScenarioCard scenario={mockScenario} onSelect={vi.fn()} isBookmarked={false} onToggleBookmark={onToggleBookmark} />);
+    screen.getByTitle('ブックマーク').click();
+    expect(onToggleBookmark).toHaveBeenCalledWith(1);
+  });
 });

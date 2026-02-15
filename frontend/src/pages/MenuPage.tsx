@@ -18,6 +18,7 @@ import ScoreGrowthTrendCard from '../components/ScoreGrowthTrendCard';
 import PracticeFrequencyCard from '../components/PracticeFrequencyCard';
 import MenuNavigationCard from '../components/MenuNavigationCard';
 import SessionCountMilestoneCard from '../components/SessionCountMilestoneCard';
+import ScoreSparkline from '../components/ScoreSparkline';
 import { useMenuData } from '../hooks/useMenuData';
 
 export default function MenuPage() {
@@ -35,6 +36,13 @@ export default function MenuPage() {
             averageScore={averageScore}
             streakDays={uniqueDays}
           />
+        </div>
+      )}
+
+      {/* スコアスパークライン */}
+      {allScores.length >= 2 && (
+        <div className="mb-6">
+          <ScoreSparkline scores={allScores.map(s => s.overallScore)} />
         </div>
       )}
 

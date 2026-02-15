@@ -8,30 +8,30 @@ function parseInline(text: string): (string | JSX.Element)[] {
   let key = 0;
 
   while (remaining.length > 0) {
-    // **bold**
     const boldMatch = remaining.match(/\*\*(.+?)\*\*/);
-    if (boldMatch && boldMatch.index !== undefined) {
-      if (boldMatch.index > 0) {
-        result.push(remaining.slice(0, boldMatch.index));
+    const italicMatch = remaining.match(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/);
+
+    if (!boldMatch && !italicMatch) {
+      result.push(remaining);
+      break;
+    }
+
+    const boldIndex = boldMatch?.index ?? Infinity;
+    const italicIndex = italicMatch?.index ?? Infinity;
+
+    if (boldIndex <= italicIndex && boldMatch) {
+      if (boldIndex > 0) {
+        result.push(remaining.slice(0, boldIndex));
       }
       result.push(<strong key={key++}>{boldMatch[1]}</strong>);
-      remaining = remaining.slice(boldMatch.index + boldMatch[0].length);
-      continue;
-    }
-
-    // *italic*
-    const italicMatch = remaining.match(/\*(.+?)\*/);
-    if (italicMatch && italicMatch.index !== undefined) {
-      if (italicMatch.index > 0) {
-        result.push(remaining.slice(0, italicMatch.index));
+      remaining = remaining.slice(boldIndex + boldMatch[0].length);
+    } else if (italicMatch) {
+      if (italicIndex > 0) {
+        result.push(remaining.slice(0, italicIndex));
       }
       result.push(<em key={key++}>{italicMatch[1]}</em>);
-      remaining = remaining.slice(italicMatch.index + italicMatch[0].length);
-      continue;
+      remaining = remaining.slice(italicIndex + italicMatch[0].length);
     }
-
-    result.push(remaining);
-    break;
   }
 
   return result;
@@ -98,7 +98,7 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
   const blocks = parseBlocks(content);
 
   return (
-    <div className="prose-note space-y-2">
+    <div className="space-y-2">
       {blocks.map((block, i) => {
         if (block.type === 'heading') {
           const Tag = `h${block.level}` as 'h1' | 'h2' | 'h3';

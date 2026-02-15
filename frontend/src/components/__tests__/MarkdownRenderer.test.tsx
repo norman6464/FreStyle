@@ -58,4 +58,20 @@ describe('MarkdownRenderer', () => {
     expect(screen.getByText('行1')).toBeInTheDocument();
     expect(screen.getByText('行2')).toBeInTheDocument();
   });
+
+  it('斜体と太字が同じ行にある場合に正しくレンダリングする', () => {
+    render(<MarkdownRenderer content="*斜体*と**太字**が混在" />);
+    const italic = screen.getByText('斜体');
+    expect(italic.tagName).toBe('EM');
+    const bold = screen.getByText('太字');
+    expect(bold.tagName).toBe('STRONG');
+  });
+
+  it('太字の後に斜体がある場合に正しくレンダリングする', () => {
+    render(<MarkdownRenderer content="**太字**の後に*斜体*" />);
+    const bold = screen.getByText('太字');
+    expect(bold.tagName).toBe('STRONG');
+    const italic = screen.getByText('斜体');
+    expect(italic.tagName).toBe('EM');
+  });
 });

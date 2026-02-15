@@ -31,6 +31,7 @@ export default function NoteEditor({
           className="text-xl font-bold text-[var(--color-text-primary)] bg-transparent border-none outline-none flex-1 placeholder:text-[var(--color-text-faint)]"
         />
         <button
+          type="button"
           onClick={() => setIsPreview(!isPreview)}
           className="ml-3 p-1.5 rounded-lg hover:bg-surface-2 transition-colors text-[var(--color-text-muted)]"
           aria-label={isPreview ? '編集' : 'プレビュー'}

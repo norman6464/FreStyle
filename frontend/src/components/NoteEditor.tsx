@@ -1,6 +1,8 @@
-import { useMemo } from 'react';
+import { useMemo, useCallback } from 'react';
 import { getNoteStats } from '../utils/noteStats';
+import { useTableOfContents } from '../hooks/useTableOfContents';
 import BlockEditor from './BlockEditor';
+import TableOfContents from './TableOfContents';
 
 interface NoteEditorProps {
   title: string;
@@ -18,6 +20,19 @@ export default function NoteEditor({
   onContentChange,
 }: NoteEditorProps) {
   const stats = useMemo(() => getNoteStats(content), [content]);
+  const { headings, isOpen, toggle } = useTableOfContents(content);
+
+  const handleHeadingClick = useCallback((id: string) => {
+    const index = parseInt(id.replace('heading-', ''), 10);
+    const editorEl = document.querySelector('.ProseMirror');
+    if (!editorEl) return;
+
+    const headingEls = editorEl.querySelectorAll('h1, h2, h3');
+    const target = headingEls[index];
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, []);
 
   return (
     <div className="flex flex-col h-full p-6 max-w-3xl mx-auto w-full">
@@ -29,6 +44,21 @@ export default function NoteEditor({
         aria-label="ノートのタイトル"
         className="text-xl font-bold text-[var(--color-text-primary)] bg-transparent border-none outline-none w-full mb-4 placeholder:text-[var(--color-text-faint)]"
       />
+
+      {headings.length > 0 && (
+        <div className="mb-2">
+          <button
+            onClick={toggle}
+            className="text-xs text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors"
+            aria-label="目次の表示切替"
+          >
+            {isOpen ? '▼ 目次を閉じる' : '▶ 目次を表示'}
+          </button>
+          {isOpen && (
+            <TableOfContents headings={headings} onHeadingClick={handleHeadingClick} />
+          )}
+        </div>
+      )}
 
       <BlockEditor content={content} onChange={onContentChange} noteId={noteId} />
 

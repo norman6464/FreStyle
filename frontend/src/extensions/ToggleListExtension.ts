@@ -56,7 +56,7 @@ export const ToggleList = Node.create({
   },
 
   renderHTML({ HTMLAttributes }) {
-    return ['details', mergeAttributes(HTMLAttributes), 0];
+    return ['details', mergeAttributes(HTMLAttributes, { class: 'toggle-list' }), 0];
   },
 
   addNodeView() {

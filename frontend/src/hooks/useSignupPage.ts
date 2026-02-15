@@ -1,16 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from './useAuth';
+import type { FormMessage } from '../types';
 
 interface SignupForm {
   email: string;
   password: string;
   name: string;
-}
-
-interface FormMessage {
-  type: 'success' | 'error';
-  text: string;
 }
 
 export function useSignupPage() {

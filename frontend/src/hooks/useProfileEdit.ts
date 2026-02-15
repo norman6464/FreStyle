@@ -1,10 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import ProfileRepository from '../repositories/ProfileRepository';
-
-interface FormMessage {
-  type: 'success' | 'error';
-  text: string;
-}
+import type { FormMessage } from '../types';
 
 export function useProfileEdit() {
   const [form, setForm] = useState({ name: '', bio: '' });

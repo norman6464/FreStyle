@@ -75,6 +75,12 @@ export interface FlashMessage {
   text: string;
 }
 
+/** フォームメッセージ */
+export interface FormMessage {
+  type: 'success' | 'error';
+  text: string;
+}
+
 /** ユーザープロフィール（パーソナリティ設定） */
 export interface UserProfile {
   displayName: string;

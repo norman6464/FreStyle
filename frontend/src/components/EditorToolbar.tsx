@@ -1,4 +1,5 @@
 import type { EditorFormatHandlers } from '../hooks/useEditorFormat';
+import HeadingSelect from './HeadingSelect';
 import FormatButtons from './FormatButtons';
 import ColorPicker from './ColorPicker';
 import HighlightPicker from './HighlightPicker';
@@ -20,6 +21,8 @@ interface EditorToolbarProps {
 export default function EditorToolbar({ handlers }: EditorToolbarProps) {
   return (
     <div className="px-8 py-1 border-b border-[var(--color-surface-3)] flex items-center gap-3">
+      <HeadingSelect onHeading={handlers.handleHeading} />
+      <div className="w-px h-4 bg-[var(--color-surface-3)]" />
       <FormatButtons onBold={handlers.handleBold} onItalic={handlers.handleItalic} onUnderline={handlers.handleUnderline} onStrike={handlers.handleStrike} onSuperscript={handlers.handleSuperscript} onSubscript={handlers.handleSubscript} />
       <div className="w-px h-4 bg-[var(--color-surface-3)]" />
       <ColorPicker onSelectColor={handlers.handleSelectColor} />

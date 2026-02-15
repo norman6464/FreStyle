@@ -76,4 +76,23 @@ describe('NoteEditor', () => {
     render(<NoteEditor {...defaultProps} content="   " />);
     expect(screen.getByText('0文字')).toBeInTheDocument();
   });
+
+  it('プレビューボタンが表示される', () => {
+    render(<NoteEditor {...defaultProps} />);
+    expect(screen.getByRole('button', { name: 'プレビュー' })).toBeInTheDocument();
+  });
+
+  it('プレビューボタンクリックでマークダウンが表示される', () => {
+    render(<NoteEditor {...defaultProps} content={"- りんご\n- みかん"} />);
+    fireEvent.click(screen.getByRole('button', { name: 'プレビュー' }));
+    const items = screen.getAllByRole('listitem');
+    expect(items).toHaveLength(2);
+  });
+
+  it('編集ボタンクリックでテキストエリアに戻る', () => {
+    render(<NoteEditor {...defaultProps} content={"- りんご"} />);
+    fireEvent.click(screen.getByRole('button', { name: 'プレビュー' }));
+    fireEvent.click(screen.getByRole('button', { name: '編集' }));
+    expect(screen.getByLabelText('ノートの内容')).toBeInTheDocument();
+  });
 });

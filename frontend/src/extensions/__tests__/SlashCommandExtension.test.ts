@@ -63,8 +63,15 @@ describe('SlashCommandExtension', () => {
     expect(setToggleList).toHaveBeenCalled();
   });
 
-  it('imageコマンドはエラーなく実行される（外部で処理）', () => {
-    const editor = createMockEditor();
+  it('imageコマンドでstorage.onImageUploadが呼ばれる', () => {
+    const onImageUpload = vi.fn();
+    const editor = { ...createMockEditor(), storage: { slashCommand: { onImageUpload } } };
+    executeCommand(editor as never, findCommand('image'));
+    expect(onImageUpload).toHaveBeenCalled();
+  });
+
+  it('imageコマンドでonImageUploadが未設定でもエラーにならない', () => {
+    const editor = { ...createMockEditor(), storage: { slashCommand: { onImageUpload: null } } };
     expect(() => executeCommand(editor as never, findCommand('image'))).not.toThrow();
   });
 

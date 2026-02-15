@@ -1,16 +1,12 @@
-export type SortOption = 'default' | 'difficulty-asc' | 'difficulty-desc' | 'name';
+import { SORT_OPTIONS } from '../constants/sortOptions';
+import type { SortOption } from '../constants/sortOptions';
 
 interface SortSelectorProps {
   selected: SortOption;
   onChange: (sort: SortOption) => void;
 }
 
-const SORT_OPTIONS: { value: SortOption; label: string }[] = [
-  { value: 'default', label: 'デフォルト' },
-  { value: 'difficulty-asc', label: '難易度↑' },
-  { value: 'difficulty-desc', label: '難易度↓' },
-  { value: 'name', label: '名前順' },
-];
+export type { SortOption };
 
 export default function SortSelector({ selected, onChange }: SortSelectorProps) {
   return (

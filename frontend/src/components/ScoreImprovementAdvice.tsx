@@ -35,7 +35,7 @@ export default function ScoreImprovementAdvice({ scores }: ScoreImprovementAdvic
         <div className="space-y-3">
           {weakAxes.map((axis) => (
             <div key={axis.axis} data-testid="advice-item" className="flex gap-3">
-              <div className="flex-shrink-0 w-5 h-5 rounded-full bg-amber-100 flex items-center justify-center mt-0.5">
+              <div className="flex-shrink-0 w-5 h-5 rounded-full bg-amber-900/30 flex items-center justify-center mt-0.5">
                 <span className="text-amber-400 text-[10px] font-bold">!</span>
               </div>
               <div>

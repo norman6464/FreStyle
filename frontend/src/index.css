@@ -2,22 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Dark theme (default) */
+/* Dark theme (default) - Navy blue base like Zenn */
 :root {
-  --color-surface: #0a0a0a;
-  --color-surface-1: #111827;
-  --color-surface-2: #1f2937;
-  --color-surface-3: #374151;
-  --color-text-primary: #ffffff;
-  --color-text-secondary: #9ca3af;
-  --color-text-tertiary: #6b7280;
-  --color-text-muted: #4b5563;
-  --color-text-faint: #374151;
-  --color-text-subtle: #1f2937;
-  --color-border-hover: #374151;
-  --scrollbar-track: #0a0a0a;
-  --scrollbar-thumb: #374151;
-  --scrollbar-thumb-hover: #4b5563;
+  --color-surface: #0f1219;
+  --color-surface-1: #171c28;
+  --color-surface-2: #1e2535;
+  --color-surface-3: #2a3245;
+  --color-text-primary: #e3e8f0;
+  --color-text-secondary: #9ba4b5;
+  --color-text-tertiary: #6b7690;
+  --color-text-muted: #4a5368;
+  --color-text-faint: #353d50;
+  --color-text-subtle: #1e2535;
+  --color-border-hover: #2a3245;
+  --scrollbar-track: #0f1219;
+  --scrollbar-thumb: #2a3245;
+  --scrollbar-thumb-hover: #4a5368;
   color-scheme: dark;
 }
 

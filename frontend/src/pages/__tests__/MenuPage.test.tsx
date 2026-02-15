@@ -31,6 +31,14 @@ vi.mock('../../components/RecentNotesCard', () => ({
   default: () => <div data-testid="recent-notes">RecentNotesCard</div>,
 }));
 
+vi.mock('../../components/CommunicationTipCard', () => ({
+  default: () => <div data-testid="communication-tip">CommunicationTipCard</div>,
+}));
+
+vi.mock('../../components/DailyChallengeCard', () => ({
+  default: () => <div data-testid="daily-challenge">DailyChallengeCard</div>,
+}));
+
 const mockUseMenuData = vi.fn();
 vi.mock('../../hooks/useMenuData', () => ({
   useMenuData: () => mockUseMenuData(),

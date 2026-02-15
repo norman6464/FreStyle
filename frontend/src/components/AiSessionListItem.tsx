@@ -72,7 +72,7 @@ export default function AiSessionListItem({
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
             onClick={(e) => { e.stopPropagation(); onStartEdit({ id, title }); }}
-            className="p-1 hover:bg-blue-100 rounded"
+            className="p-1 hover:bg-blue-900/30 rounded"
             title="タイトルを編集"
           >
             <PencilSquareIcon className="w-3.5 h-3.5 text-blue-500" />
@@ -82,7 +82,7 @@ export default function AiSessionListItem({
               e.stopPropagation();
               onDelete(id);
             }}
-            className="p-1 hover:bg-rose-100 rounded"
+            className="p-1 hover:bg-rose-900/30 rounded"
             title="削除"
           >
             <TrashIcon className="w-3.5 h-3.5 text-rose-500" />

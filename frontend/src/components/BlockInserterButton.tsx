@@ -64,7 +64,7 @@ export default function BlockInserterButton({ visible, top, onCommand, onMenuOpe
   return (
     <div
       data-block-inserter
-      className="absolute left-0 z-10 transition-all duration-150"
+      className="absolute -left-8 z-10 transition-all duration-150"
       style={{ top: `${top}px` }}
     >
       <div className="group relative">

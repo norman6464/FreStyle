@@ -137,9 +137,7 @@ export default function BlockEditor({ content, onChange, noteId }: BlockEditorPr
         onCommand={handleCommand}
         onMenuOpenChange={handleInserterMenuOpenChange}
       />
-      <div className="pl-8">
-        <EditorContent editor={editor} aria-label="ノートの内容" />
-      </div>
+      <EditorContent editor={editor} aria-label="ノートの内容" />
     </div>
   );
 }

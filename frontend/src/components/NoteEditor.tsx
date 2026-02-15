@@ -5,6 +5,7 @@ import BlockEditor from './BlockEditor';
 import TableOfContents from './TableOfContents';
 import WordCount from './WordCount';
 import ReadingTime from './ReadingTime';
+import LineCount from './LineCount';
 
 interface NoteEditorProps {
   title: string;
@@ -66,6 +67,7 @@ export default function NoteEditor({
 
       <div className="flex items-center gap-3 pt-3 border-t border-surface-3" aria-label="ノート統計">
         <WordCount charCount={stats.charCount} />
+        <LineCount lineCount={stats.lineCount} />
         <ReadingTime charCount={stats.charCount} />
       </div>
     </div>

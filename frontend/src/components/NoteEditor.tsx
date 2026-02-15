@@ -3,6 +3,7 @@ import { getNoteStats } from '../utils/noteStats';
 import { useTableOfContents } from '../hooks/useTableOfContents';
 import BlockEditor from './BlockEditor';
 import TableOfContents from './TableOfContents';
+import WordCount from './WordCount';
 
 interface NoteEditorProps {
   title: string;
@@ -62,9 +63,9 @@ export default function NoteEditor({
 
       <BlockEditor content={content} onChange={onContentChange} noteId={noteId} />
 
-      <div className="flex items-center gap-3 pt-3 border-t border-surface-3 text-[11px] text-[var(--color-text-faint)]" aria-label="ノート統計">
-        <span>{stats.charCount}文字</span>
-        {stats.readingTimeMin > 0 && <span>約{stats.readingTimeMin}分</span>}
+      <div className="flex items-center gap-3 pt-3 border-t border-surface-3" aria-label="ノート統計">
+        <WordCount charCount={stats.charCount} />
+        {stats.readingTimeMin > 0 && <span className="text-[11px] text-[var(--color-text-faint)]">約{stats.readingTimeMin}分</span>}
       </div>
     </div>
   );

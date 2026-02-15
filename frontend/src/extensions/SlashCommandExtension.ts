@@ -42,6 +42,12 @@ function executeCommand(editor: Editor, command: SlashCommand) {
     case 'codeBlock':
       chain.toggleCodeBlock().run();
       break;
+    case 'blockquote':
+      chain.toggleBlockquote().run();
+      break;
+    case 'horizontalRule':
+      chain.setHorizontalRule().run();
+      break;
     default: {
       const _exhaustive: never = command.action;
       console.error('Unknown slash command action:', _exhaustive);

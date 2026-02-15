@@ -105,6 +105,21 @@
 .ProseMirror strong { font-weight: 700; }
 .ProseMirror em { font-style: italic; }
 
+/* Blockquote */
+.ProseMirror blockquote {
+  border-left: 3px solid #6366f1;
+  padding-left: 1rem;
+  margin: 0.5rem 0;
+  color: var(--color-text-secondary);
+}
+
+/* Horizontal rule */
+.ProseMirror hr {
+  border: none;
+  border-top: 1px solid var(--color-surface-3);
+  margin: 1rem 0;
+}
+
 /* Code block */
 .ProseMirror pre {
   background: var(--color-surface-2);

@@ -1,5 +1,6 @@
 import type { ScoreHistoryItem } from '../types';
 import Card from './Card';
+import AxisScoreBar from './AxisScoreBar';
 
 interface ScoreHistorySessionCardProps {
   item: ScoreHistoryItem;
@@ -48,11 +49,8 @@ export default function ScoreHistorySessionCard({ item, delta, onClick }: ScoreH
             <span className="text-xs text-[var(--color-text-muted)] w-24 flex-shrink-0 truncate">
               {axisScore.axis}
             </span>
-            <div className="flex-1 bg-surface-3 rounded-full h-1.5">
-              <div
-                className="h-1.5 rounded-full bg-primary-500"
-                style={{ width: `${axisScore.score * 10}%` }}
-              />
+            <div className="flex-1">
+              <AxisScoreBar score={axisScore.score} />
             </div>
             <span className="text-xs text-[var(--color-text-tertiary)] w-5 text-right">
               {axisScore.score}

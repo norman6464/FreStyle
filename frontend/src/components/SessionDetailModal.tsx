@@ -1,4 +1,5 @@
 import type { ScoreHistoryItem } from '../types';
+import AxisScoreBar from './AxisScoreBar';
 
 interface SessionDetailModalProps {
   session: ScoreHistoryItem;
@@ -49,11 +50,8 @@ export default function SessionDetailModal({ session, onClose }: SessionDetailMo
                     {axisScore.score.toFixed(1)}
                   </span>
                 </div>
-                <div className="w-full bg-surface-3 rounded-full h-1.5 mb-2">
-                  <div
-                    className="h-1.5 rounded-full bg-primary-500"
-                    style={{ width: `${axisScore.score * 10}%` }}
-                  />
+                <div className="mb-2">
+                  <AxisScoreBar score={axisScore.score} />
                 </div>
                 {axisScore.comment && (
                   <p className="text-xs text-[var(--color-text-muted)]">{axisScore.comment}</p>

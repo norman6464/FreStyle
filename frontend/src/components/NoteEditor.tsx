@@ -4,6 +4,7 @@ import { useTableOfContents } from '../hooks/useTableOfContents';
 import BlockEditor from './BlockEditor';
 import TableOfContents from './TableOfContents';
 import WordCount from './WordCount';
+import ReadingTime from './ReadingTime';
 
 interface NoteEditorProps {
   title: string;
@@ -65,7 +66,7 @@ export default function NoteEditor({
 
       <div className="flex items-center gap-3 pt-3 border-t border-surface-3" aria-label="ノート統計">
         <WordCount charCount={stats.charCount} />
-        {stats.readingTimeMin > 0 && <span className="text-[11px] text-[var(--color-text-faint)]">約{stats.readingTimeMin}分</span>}
+        <ReadingTime charCount={stats.charCount} />
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 import Card from './Card';
+import ProgressBar from './ProgressBar';
 
 interface PracticeLevelCardProps {
   totalSessions: number;
@@ -52,12 +53,8 @@ export default function PracticeLevelCard({ totalSessions }: PracticeLevelCardPr
         <span className="text-sm font-medium text-[var(--color-text-tertiary)]">{current.title}</span>
       </div>
 
-      <div className="w-full bg-surface-3 rounded-full h-2 mb-2">
-        <div
-          data-testid="level-progress"
-          className="h-2 rounded-full bg-primary-500 transition-all"
-          style={{ width: `${Math.min(progress, 100)}%` }}
-        />
+      <div className="mb-2">
+        <ProgressBar percentage={Math.min(progress, 100)} />
       </div>
 
       <p className="text-xs text-[var(--color-text-muted)]">

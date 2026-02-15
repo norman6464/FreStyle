@@ -37,7 +37,8 @@ describe('WeeklyGoalProgressCard', () => {
   it('プログレスバーが正しい幅で表示される', () => {
     render(<WeeklyGoalProgressCard sessionsThisWeek={3} weeklyGoal={5} />);
 
-    const bar = document.querySelector('[data-testid="progress-bar"]');
+    const progressbar = screen.getByRole('progressbar');
+    const bar = progressbar.firstElementChild;
     expect(bar).toHaveStyle({ width: '60%' });
   });
 });

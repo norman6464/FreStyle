@@ -1,5 +1,6 @@
 import { useDailyGoal } from '../hooks/useDailyGoal';
 import Card from './Card';
+import ProgressBar from './ProgressBar';
 
 export default function DailyGoalCard() {
   const { goal, isAchieved, progress } = useDailyGoal();
@@ -16,20 +17,10 @@ export default function DailyGoalCard() {
         </span>
       </div>
 
-      <div
-        role="progressbar"
-        aria-valuenow={progress}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        className="w-full bg-surface-3 rounded-full h-2"
-      >
-        <div
-          className={`h-2 rounded-full transition-all duration-300 ${
-            isAchieved ? 'bg-emerald-500' : 'bg-primary-500'
-          }`}
-          style={{ width: `${Math.min(progress, 100)}%` }}
-        />
-      </div>
+      <ProgressBar
+        percentage={Math.min(progress, 100)}
+        barColorClass={isAchieved ? 'bg-emerald-500' : 'bg-primary-500'}
+      />
 
       {isAchieved && (
         <p className="text-xs text-emerald-400 font-medium mt-2">

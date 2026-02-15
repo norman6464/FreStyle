@@ -37,7 +37,8 @@ describe('PracticeLevelCard', () => {
   it('プログレスバーが表示される', () => {
     render(<PracticeLevelCard totalSessions={3} />);
 
-    const bar = document.querySelector('[data-testid="level-progress"]');
+    const progressbar = screen.getByRole('progressbar');
+    const bar = progressbar.firstElementChild;
     expect(bar).toHaveStyle({ width: '60%' });
   });
 });

@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import CardHeading from './CardHeading';
 import { toLocalDateKey, getCalendarDays, getIntensityClass } from '../utils/calendarHelpers';
 
 interface PracticeCalendarProps {
@@ -29,7 +30,7 @@ export default function PracticeCalendar({ practiceDates }: PracticeCalendarProp
 
   return (
     <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
-      <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-3">練習カレンダー</p>
+      <CardHeading>練習カレンダー</CardHeading>
 
       <div className="flex gap-0.5">
         {/* 曜日ラベル */}

@@ -1,6 +1,7 @@
 import type { AxisScore } from '../types';
 import { getDeltaColor, formatDelta } from '../utils/scoreColor';
 import Card from './Card';
+import CardHeading from './CardHeading';
 
 interface ScoreComparisonCardProps {
   firstScores: AxisScore[];
@@ -19,7 +20,7 @@ export default function ScoreComparisonCard({
 
   return (
     <Card>
-      <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-3">成長の記録</p>
+      <CardHeading>成長の記録</CardHeading>
 
       <div className="flex items-center justify-between mb-4">
         <div className="text-center">

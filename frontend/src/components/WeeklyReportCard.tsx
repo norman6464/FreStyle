@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import Card from './Card';
+import CardHeading from './CardHeading';
 import type { ScoreHistory } from '../types';
 import { getWeekRange } from '../utils/weekUtils';
 
@@ -43,7 +44,7 @@ export default function WeeklyReportCard({ allScores }: WeeklyReportCardProps) {
 
   return (
     <Card>
-      <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-3">今週のレポート</p>
+      <CardHeading>今週のレポート</CardHeading>
 
       <div className="grid grid-cols-2 gap-4 mb-3">
         <div>

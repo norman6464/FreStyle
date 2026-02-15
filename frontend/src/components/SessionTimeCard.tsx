@@ -1,3 +1,5 @@
+import CardHeading from './CardHeading';
+
 interface SessionTimeCardProps {
   dates: string[];
 }
@@ -50,7 +52,7 @@ export default function SessionTimeCard({ dates }: SessionTimeCardProps) {
 
   return (
     <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
-      <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-3">練習時間帯</p>
+      <CardHeading>練習時間帯</CardHeading>
 
       <div className="space-y-2">
         {TIME_SLOTS.map((slot, i) => (

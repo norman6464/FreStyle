@@ -1,5 +1,6 @@
 import type { AxisScore } from '../types';
 import Card from './Card';
+import CardHeading from './CardHeading';
 
 interface SkillSummaryCardProps {
   scores: AxisScore[];
@@ -14,7 +15,7 @@ export default function SkillSummaryCard({ scores }: SkillSummaryCardProps) {
 
   return (
     <Card>
-      <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-3">スキル強弱サマリー</p>
+      <CardHeading>スキル強弱サマリー</CardHeading>
 
       <div className="grid grid-cols-2 gap-3">
         <div data-testid="strengths">

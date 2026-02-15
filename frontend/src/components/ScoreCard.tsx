@@ -2,6 +2,7 @@ import type { ScoreCard as ScoreCardType } from '../types';
 import { LightBulbIcon } from '@heroicons/react/24/outline';
 import { getScoreLevel, getScoreBarColor } from '../utils/scoreColor';
 import Card from './Card';
+import AxisScoreBar from './AxisScoreBar';
 
 interface ScoreCardProps {
   scoreCard: ScoreCardType;
@@ -35,12 +36,7 @@ export default function ScoreCard({ scoreCard }: ScoreCardProps) {
               <span className="text-xs text-[var(--color-text-muted)]">{axisScore.axis}</span>
               <span className="text-xs font-medium text-[var(--color-text-tertiary)]">{axisScore.score}</span>
             </div>
-            <div className="w-full bg-surface-3 rounded-full h-1.5">
-              <div
-                className={`h-1.5 rounded-full ${getScoreBarColor(axisScore.score)}`}
-                style={{ width: `${axisScore.score * 10}%` }}
-              />
-            </div>
+            <AxisScoreBar score={axisScore.score} barColorClass={getScoreBarColor(axisScore.score)} />
             <p className="text-[10px] text-[var(--color-text-faint)] mt-0.5">{axisScore.comment}</p>
             {axisScore.score <= 5 && (
               <p className="text-[10px] text-amber-400 mt-0.5 flex items-center gap-0.5">

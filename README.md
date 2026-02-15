@@ -173,9 +173,10 @@
 - **Heroicons完全統一**：全アイコン用インラインSVGをHeroiconsコンポーネントに置換（Bars3Icon/PlusIcon/CheckIcon/XMarkIcon/SparklesIcon/BookmarkIcon/UserIcon/ClipboardDocumentIcon/ExclamationTriangleIcon/ChatBubbleLeftRightIcon）残存SVGはカスタムチャート・スピナーのみ
 - **Tailwind CSS修正**：不正なopacity値(bg-*-900/300)を全15箇所修正し正しい色表示に復元
 - **AIアシスタント会話テンプレート**：空状態時に4カテゴリ8テンプレート（メール添削/敬語・表現/報連相/会議・発表）を表示・ワンクリックでAIチャット開始
+- **スコアスパークライン**：MenuPageに直近5件のスコア推移をSVGミニグラフで表示・上昇/下降トレンドインジケーター付き
 
 ### テスト品質
-- **フロントエンド1311テスト**：Vitest + React Testing Library
+- **フロントエンド1319テスト**：Vitest + React Testing Library
   - Repository層テスト（13リポジトリ・62テスト）
   - Hooks層テスト（33フック・332テスト）
   - Store層テスト（1スライス・5テスト）

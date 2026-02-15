@@ -2,6 +2,7 @@ import type { PracticeScenario } from '../types';
 import Card from './Card';
 import { BookmarkIcon as BookmarkOutlineIcon, UserIcon } from '@heroicons/react/24/outline';
 import { BookmarkIcon as BookmarkSolidIcon } from '@heroicons/react/24/solid';
+import { DIFFICULTY_STYLES } from '../constants/difficultyStyles';
 
 interface ScenarioCardProps {
   scenario: PracticeScenario;
@@ -28,11 +29,12 @@ const difficultyDescription: Record<string, string> = {
   advanced: '複雑な交渉・説得',
 };
 
-const difficultyColor: Record<string, string> = {
-  beginner: 'bg-surface-3 text-[var(--color-text-secondary)] border-surface-3',
-  intermediate: 'bg-surface-3 text-[var(--color-text-secondary)] border-surface-3',
-  advanced: 'bg-surface-3 text-[var(--color-text-secondary)] border-surface-3',
-};
+function getDifficultyColor(difficulty: string): string {
+  const label = difficultyLabel[difficulty];
+  return label && DIFFICULTY_STYLES[label]
+    ? DIFFICULTY_STYLES[label]
+    : 'bg-surface-2 text-[var(--color-text-muted)]';
+}
 
 export default function ScenarioCard({ scenario, onSelect, isBookmarked, onToggleBookmark }: ScenarioCardProps) {
   const handleBookmarkClick = (e: React.MouseEvent) => {
@@ -61,7 +63,7 @@ export default function ScenarioCard({ scenario, onSelect, isBookmarked, onToggl
               )}
             </button>
           )}
-          <span className={`text-xs px-2 py-0.5 rounded border ${difficultyColor[scenario.difficulty] || 'bg-surface-2 text-[var(--color-text-muted)] border-surface-3'}`}>
+          <span className={`text-xs px-2 py-0.5 rounded-full ${getDifficultyColor(scenario.difficulty)}`}>
             {difficultyLabel[scenario.difficulty] || scenario.difficulty}
           </span>
         </div>

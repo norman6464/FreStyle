@@ -1,12 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import type { AxisScore } from '../../types';
 import CommunicationStyleCard from '../CommunicationStyleCard';
-
-interface AxisScore {
-  axis: string;
-  score: number;
-  comment: string;
-}
 
 interface Session {
   scores: AxisScore[];

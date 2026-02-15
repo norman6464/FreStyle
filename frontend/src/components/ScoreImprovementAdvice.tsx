@@ -1,11 +1,6 @@
+import type { AxisScore } from '../types';
 import Card from './Card';
 import { IMPROVEMENT_ADVICE, SCORE_THRESHOLD } from '../constants/axisAdvice';
-
-interface AxisScore {
-  axis: string;
-  score: number;
-  comment: string;
-}
 
 interface ScoreImprovementAdviceProps {
   scores: AxisScore[];

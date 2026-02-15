@@ -1,11 +1,6 @@
+import type { AxisScore } from '../types';
 import { getDeltaColor, formatDelta } from '../utils/scoreColor';
 import Card from './Card';
-
-interface AxisScore {
-  axis: string;
-  score: number;
-  comment: string;
-}
 
 interface ScoreComparisonCardProps {
   firstScores: AxisScore[];

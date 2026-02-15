@@ -1,9 +1,5 @@
+import type { AxisScore } from '../types';
 import Card from './Card';
-
-interface AxisScore {
-  axis: string;
-  score: number;
-}
 
 interface SkillGapAnalysisCardProps {
   scores: AxisScore[];

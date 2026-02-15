@@ -1,8 +1,4 @@
-interface AxisScore {
-  axis: string;
-  score: number;
-  comment: string;
-}
+import type { AxisScore } from '../types';
 
 interface Session {
   sessionId: number;

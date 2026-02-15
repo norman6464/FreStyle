@@ -1,11 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
+import type { AxisScore } from '../types';
 import { useAiChat } from './useAiChat';
-
-interface AxisScore {
-  axis: string;
-  score: number;
-  comment: string;
-}
 
 export interface ScoreHistoryItem {
   sessionId: number;

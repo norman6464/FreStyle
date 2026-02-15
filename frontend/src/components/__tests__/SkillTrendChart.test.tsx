@@ -6,21 +6,21 @@ const mockHistory = [
   {
     sessionId: 1,
     scores: [
-      { axis: '論理的構成力', score: 6 },
-      { axis: '配慮表現', score: 7 },
-      { axis: '要約力', score: 5 },
-      { axis: '提案力', score: 4 },
-      { axis: '質問・傾聴力', score: 8 },
+      { axis: '論理的構成力', score: 6, comment: '' },
+      { axis: '配慮表現', score: 7, comment: '' },
+      { axis: '要約力', score: 5, comment: '' },
+      { axis: '提案力', score: 4, comment: '' },
+      { axis: '質問・傾聴力', score: 8, comment: '' },
     ],
   },
   {
     sessionId: 2,
     scores: [
-      { axis: '論理的構成力', score: 8 },
-      { axis: '配慮表現', score: 7 },
-      { axis: '要約力', score: 6 },
-      { axis: '提案力', score: 5 },
-      { axis: '質問・傾聴力', score: 9 },
+      { axis: '論理的構成力', score: 8, comment: '' },
+      { axis: '配慮表現', score: 7, comment: '' },
+      { axis: '要約力', score: 6, comment: '' },
+      { axis: '提案力', score: 5, comment: '' },
+      { axis: '質問・傾聴力', score: 9, comment: '' },
     ],
   },
 ];
@@ -59,7 +59,7 @@ describe('SkillTrendChart', () => {
 
   it('scoresがnullのセッションでもエラーにならない', () => {
     const history = [
-      { sessionId: 1, scores: null as unknown as { axis: string; score: number }[] },
+      { sessionId: 1, scores: null as unknown as { axis: string; score: number; comment: string }[] },
     ];
     const { container } = render(<SkillTrendChart history={history} />);
     expect(container.firstChild).toBeNull();
@@ -67,11 +67,11 @@ describe('SkillTrendChart', () => {
 
   it('前回セッションのscoresがnullでもエラーにならない', () => {
     const history = [
-      { sessionId: 1, scores: null as unknown as { axis: string; score: number }[] },
+      { sessionId: 1, scores: null as unknown as { axis: string; score: number; comment: string }[] },
       {
         sessionId: 2,
         scores: [
-          { axis: '論理的構成力', score: 8 },
+          { axis: '論理的構成力', score: 8, comment: '' },
         ],
       },
     ];

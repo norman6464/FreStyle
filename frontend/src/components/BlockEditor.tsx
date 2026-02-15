@@ -63,6 +63,22 @@ export default function BlockEditor({ content, onChange, noteId }: BlockEditorPr
     executeCommand(editor, command);
   }, [editor, openFileDialog]);
 
+  const handleBold = useCallback(() => {
+    editor?.chain().focus().toggleBold().run();
+  }, [editor]);
+
+  const handleItalic = useCallback(() => {
+    editor?.chain().focus().toggleItalic().run();
+  }, [editor]);
+
+  const handleUnderline = useCallback(() => {
+    editor?.chain().focus().toggleUnderline().run();
+  }, [editor]);
+
+  const handleStrike = useCallback(() => {
+    editor?.chain().focus().toggleStrike().run();
+  }, [editor]);
+
   const handleAlign = useCallback((alignment: 'left' | 'center' | 'right') => {
     if (!editor) return;
     editor.chain().focus().setTextAlign(alignment).run();
@@ -89,7 +105,14 @@ export default function BlockEditor({ content, onChange, noteId }: BlockEditorPr
       onDragOver={(e) => e.preventDefault()}
       onClick={handleEditorClick}
     >
-      <EditorToolbar onSelectColor={handleSelectColor} onAlign={handleAlign} />
+      <EditorToolbar
+        onBold={handleBold}
+        onItalic={handleItalic}
+        onUnderline={handleUnderline}
+        onStrike={handleStrike}
+        onSelectColor={handleSelectColor}
+        onAlign={handleAlign}
+      />
       {linkBubble && (
         <div
           className="absolute z-50"

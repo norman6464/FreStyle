@@ -1,7 +1,26 @@
 import { useCallback } from 'react';
 import type { Editor } from '@tiptap/react';
 
-export function useEditorFormat(editor: Editor | null) {
+export interface EditorFormatHandlers {
+  handleBold: () => void;
+  handleItalic: () => void;
+  handleUnderline: () => void;
+  handleStrike: () => void;
+  handleAlign: (alignment: 'left' | 'center' | 'right') => void;
+  handleSelectColor: (color: string) => void;
+  handleHighlight: (color: string) => void;
+  handleSuperscript: () => void;
+  handleSubscript: () => void;
+  handleUndo: () => void;
+  handleRedo: () => void;
+  handleClearFormatting: () => void;
+  handleIndent: () => void;
+  handleOutdent: () => void;
+  handleBlockquote: () => void;
+  handleHorizontalRule: () => void;
+}
+
+export function useEditorFormat(editor: Editor | null): EditorFormatHandlers {
   const handleBold = useCallback(() => {
     editor?.chain().focus().toggleBold().run();
   }, [editor]);

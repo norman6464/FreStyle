@@ -1,56 +1,58 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import EditorToolbar from '../EditorToolbar';
+import type { EditorFormatHandlers } from '../../hooks/useEditorFormat';
 
 describe('EditorToolbar', () => {
-  const defaultProps = {
-    onBold: vi.fn(),
-    onItalic: vi.fn(),
-    onUnderline: vi.fn(),
-    onStrike: vi.fn(),
-    onSuperscript: vi.fn(),
-    onSubscript: vi.fn(),
-    onSelectColor: vi.fn(),
-    onHighlight: vi.fn(),
-    onAlign: vi.fn(),
-    onUndo: vi.fn(),
-    onRedo: vi.fn(),
-    onClearFormatting: vi.fn(),
-    onIndent: vi.fn(),
-    onOutdent: vi.fn(),
-    onBlockquote: vi.fn(),
-    onHorizontalRule: vi.fn(),
-  };
+  const createHandlers = (overrides?: Partial<EditorFormatHandlers>): EditorFormatHandlers => ({
+    handleBold: vi.fn(),
+    handleItalic: vi.fn(),
+    handleUnderline: vi.fn(),
+    handleStrike: vi.fn(),
+    handleSuperscript: vi.fn(),
+    handleSubscript: vi.fn(),
+    handleSelectColor: vi.fn(),
+    handleHighlight: vi.fn(),
+    handleAlign: vi.fn(),
+    handleUndo: vi.fn(),
+    handleRedo: vi.fn(),
+    handleClearFormatting: vi.fn(),
+    handleIndent: vi.fn(),
+    handleOutdent: vi.fn(),
+    handleBlockquote: vi.fn(),
+    handleHorizontalRule: vi.fn(),
+    ...overrides,
+  });
 
   it('書式ボタンが表示される', () => {
-    render(<EditorToolbar {...defaultProps} />);
+    render(<EditorToolbar handlers={createHandlers()} />);
     expect(screen.getByLabelText('太字')).toBeInTheDocument();
     expect(screen.getByLabelText('下線')).toBeInTheDocument();
   });
 
   it('カラーピッカーが表示される', () => {
-    render(<EditorToolbar {...defaultProps} />);
+    render(<EditorToolbar handlers={createHandlers()} />);
     expect(screen.getByLabelText('赤')).toBeInTheDocument();
   });
 
   it('配置ボタンが表示される', () => {
-    render(<EditorToolbar {...defaultProps} />);
+    render(<EditorToolbar handlers={createHandlers()} />);
     expect(screen.getByLabelText('左寄せ')).toBeInTheDocument();
     expect(screen.getByLabelText('中央寄せ')).toBeInTheDocument();
     expect(screen.getByLabelText('右寄せ')).toBeInTheDocument();
   });
 
-  it('色選択でonSelectColorが呼ばれる', () => {
-    const onSelectColor = vi.fn();
-    render(<EditorToolbar {...defaultProps} onSelectColor={onSelectColor} />);
+  it('色選択でhandleSelectColorが呼ばれる', () => {
+    const handleSelectColor = vi.fn();
+    render(<EditorToolbar handlers={createHandlers({ handleSelectColor })} />);
     fireEvent.click(screen.getByLabelText('赤'));
-    expect(onSelectColor).toHaveBeenCalled();
+    expect(handleSelectColor).toHaveBeenCalled();
   });
 
-  it('配置ボタンクリックでonAlignが呼ばれる', () => {
-    const onAlign = vi.fn();
-    render(<EditorToolbar {...defaultProps} onAlign={onAlign} />);
+  it('配置ボタンクリックでhandleAlignが呼ばれる', () => {
+    const handleAlign = vi.fn();
+    render(<EditorToolbar handlers={createHandlers({ handleAlign })} />);
     fireEvent.click(screen.getByLabelText('中央寄せ'));
-    expect(onAlign).toHaveBeenCalledWith('center');
+    expect(handleAlign).toHaveBeenCalledWith('center');
   });
 });

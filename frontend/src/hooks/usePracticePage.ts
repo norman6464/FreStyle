@@ -3,18 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import type { PracticeScenario } from '../types';
 import { usePractice } from './usePractice';
 import { useBookmark } from './useBookmark';
-import type { SortOption } from '../components/SortSelector';
+import { DIFFICULTY_ORDER } from '../constants/sortOptions';
+import type { SortOption } from '../constants/sortOptions';
 
 const CATEGORY_LABEL_TO_DB: Record<string, string> = {
   '顧客折衝': 'customer',
   'シニア・上司': 'senior',
   'チーム内': 'team',
-};
-
-const DIFFICULTY_ORDER: Record<string, number> = {
-  beginner: 1,
-  intermediate: 2,
-  advanced: 3,
 };
 
 export function usePracticePage() {

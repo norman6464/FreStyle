@@ -6,8 +6,7 @@ import SortSelector from '../components/SortSelector';
 import FilterResetButton from '../components/FilterResetButton';
 import SearchBox from '../components/SearchBox';
 import { usePracticePage } from '../hooks/usePracticePage';
-
-const CATEGORIES = ['すべて', 'ブックマーク', '顧客折衝', 'シニア・上司', 'チーム内'] as const;
+import { PRACTICE_CATEGORY_TABS } from '../constants/scenarioLabels';
 
 export default function PracticePage() {
   const {
@@ -45,7 +44,7 @@ export default function PracticePage() {
 
       {/* カテゴリタブ */}
       <FilterTabs
-        tabs={[...CATEGORIES]}
+        tabs={[...PRACTICE_CATEGORY_TABS]}
         selected={selectedCategory}
         onSelect={setSelectedCategory}
         className="mb-3"

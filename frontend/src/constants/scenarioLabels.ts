@@ -21,6 +21,9 @@ export const CATEGORY_LABEL_TO_DB: Record<string, string> = Object.fromEntries(
   Object.entries(CATEGORY_LABEL).map(([k, v]) => [v, k])
 );
 
+/** PracticePageのカテゴリタブ一覧 */
+export const PRACTICE_CATEGORY_TABS = ['すべて', 'ブックマーク', '顧客折衝', 'シニア・上司', 'チーム内'] as const;
+
 export const DIFFICULTY_DESCRIPTION: Record<string, string> = {
   beginner: '基本的な報連相',
   intermediate: '利害関係の調整',

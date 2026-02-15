@@ -21,6 +21,7 @@ describe('EditorToolbar', () => {
     handleOutdent: vi.fn(),
     handleBlockquote: vi.fn(),
     handleHorizontalRule: vi.fn(),
+    handleCodeBlock: vi.fn(),
     ...overrides,
   });
 

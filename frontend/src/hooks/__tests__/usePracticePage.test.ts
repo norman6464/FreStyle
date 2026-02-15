@@ -217,4 +217,31 @@ describe('usePracticePage', () => {
     });
     expect(result.current.searchQuery).toBe('');
   });
+
+  it('検索とカテゴリフィルタを同時に適用できる', () => {
+    const { result } = renderHook(() => usePracticePage());
+    act(() => {
+      result.current.setSearchQuery('シナリオ');
+      result.current.setSelectedCategory('顧客折衝');
+    });
+    expect(result.current.filteredScenarios).toHaveLength(1);
+    expect(result.current.filteredScenarios[0].name).toBe('シナリオC');
+  });
+
+  it('検索で該当なしの場合は空配列を返す', () => {
+    const { result } = renderHook(() => usePracticePage());
+    act(() => {
+      result.current.setSearchQuery('存在しないシナリオ');
+    });
+    expect(result.current.filteredScenarios).toHaveLength(0);
+  });
+
+  it('検索は大文字小文字を区別しない', () => {
+    const { result } = renderHook(() => usePracticePage());
+    act(() => {
+      result.current.setSearchQuery('シナリオa');
+    });
+    expect(result.current.filteredScenarios).toHaveLength(1);
+    expect(result.current.filteredScenarios[0].name).toBe('シナリオA');
+  });
 });

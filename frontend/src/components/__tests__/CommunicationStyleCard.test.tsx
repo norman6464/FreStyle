@@ -88,6 +88,14 @@ describe('CommunicationStyleCard', () => {
     expect(screen.getByText('傾聴型コミュニケーター')).toBeInTheDocument();
   });
 
+  it('scoresがnullのセッションでもエラーにならない', () => {
+    const sessions = [
+      { scores: null as unknown as AxisScore[] },
+    ];
+    render(<CommunicationStyleCard sessions={sessions} />);
+    expect(document.body).toBeTruthy();
+  });
+
   it('複数セッションの平均からスタイルを判定する', () => {
     const sessions: Session[] = [
       {

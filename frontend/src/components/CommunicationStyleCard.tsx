@@ -46,7 +46,8 @@ function getAverageScores(sessions: Session[]): Map<string, number> {
   const totals = new Map<string, { sum: number; count: number }>();
 
   for (const session of sessions) {
-    for (const score of session.scores) {
+    const scores = Array.isArray(session.scores) ? session.scores : [];
+    for (const score of scores) {
       const current = totals.get(score.axis) || { sum: 0, count: 0 };
       current.sum += score.score;
       current.count += 1;

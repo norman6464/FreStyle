@@ -17,9 +17,13 @@ export default function SkillTrendChart({ history }: SkillTrendChartProps) {
 
   const latest = history[history.length - 1];
   const previous = history.length > 1 ? history[history.length - 2] : null;
+  const latestScores = Array.isArray(latest.scores) ? latest.scores : [];
+  const previousScores = Array.isArray(previous?.scores) ? previous.scores : [];
 
-  const skills = latest.scores.map((s) => {
-    const prevScore = previous?.scores.find((p) => p.axis === s.axis)?.score;
+  if (latestScores.length === 0) return null;
+
+  const skills = latestScores.map((s) => {
+    const prevScore = previousScores.find((p) => p.axis === s.axis)?.score;
     const delta = prevScore !== undefined ? s.score - prevScore : null;
 
     return {

@@ -4,9 +4,19 @@ import EditorToolbar from '../EditorToolbar';
 
 describe('EditorToolbar', () => {
   const defaultProps = {
+    onBold: vi.fn(),
+    onItalic: vi.fn(),
+    onUnderline: vi.fn(),
+    onStrike: vi.fn(),
     onSelectColor: vi.fn(),
     onAlign: vi.fn(),
   };
+
+  it('書式ボタンが表示される', () => {
+    render(<EditorToolbar {...defaultProps} />);
+    expect(screen.getByLabelText('太字')).toBeInTheDocument();
+    expect(screen.getByLabelText('下線')).toBeInTheDocument();
+  });
 
   it('カラーピッカーが表示される', () => {
     render(<EditorToolbar {...defaultProps} />);

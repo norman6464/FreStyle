@@ -58,6 +58,16 @@ function executeCommand(editor: Editor, command: SlashCommand) {
       }
       break;
     }
+    case 'youtube': {
+      const url = window.prompt('YouTubeのURLを入力してください');
+      if (url) {
+        const setYoutubeVideo = (editor.commands as { setYoutubeVideo?: (opts: { src: string }) => boolean }).setYoutubeVideo;
+        if (typeof setYoutubeVideo === 'function') {
+          setYoutubeVideo({ src: url });
+        }
+      }
+      break;
+    }
     default: {
       const _exhaustive: never = command.action;
       console.error('Unknown slash command action:', _exhaustive);

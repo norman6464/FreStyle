@@ -12,7 +12,8 @@ export type SlashCommandAction =
   | 'blockquote'
   | 'horizontalRule'
   | 'table'
-  | 'callout';
+  | 'callout'
+  | 'youtube';
 
 export interface SlashCommand {
   label: string;
@@ -36,4 +37,5 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   { label: '区切り線', description: '水平線で区切る', icon: '—', action: 'horizontalRule' },
   { label: 'テーブル', description: '表を挿入', icon: '▦', action: 'table' },
   { label: 'コールアウト', description: '強調ブロック', icon: '💡', action: 'callout' },
+  { label: 'YouTube', description: 'YouTube動画を埋め込み', icon: '▶', action: 'youtube' },
 ];

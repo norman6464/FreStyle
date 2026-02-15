@@ -21,6 +21,7 @@ import TextStyle from '@tiptap/extension-text-style';
 import Color from '@tiptap/extension-color';
 import TextAlign from '@tiptap/extension-text-align';
 import Underline from '@tiptap/extension-underline';
+import Youtube from '@tiptap/extension-youtube';
 import { isLegacyMarkdown } from '../utils/isLegacyMarkdown';
 import { markdownToTiptap } from '../utils/markdownToTiptap';
 
@@ -84,6 +85,10 @@ export function useBlockEditor({ content, onChange }: UseBlockEditorOptions) {
         types: ['heading', 'paragraph'],
       }),
       Underline,
+      Youtube.configure({
+        allowFullscreen: true,
+        HTMLAttributes: { class: 'note-youtube' },
+      }),
     ],
     content: initialContent,
     onUpdate: ({ editor }) => {

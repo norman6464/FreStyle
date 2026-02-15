@@ -274,6 +274,21 @@
   color: #93bbfd;
 }
 
+/* YouTube embed styles */
+.ProseMirror .note-youtube {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  margin: 0.5rem 0;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.ProseMirror .note-youtube iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
 /* Tippy.js slash command popup */
 .tippy-box[data-theme~='slash-command'] {
   background: transparent;

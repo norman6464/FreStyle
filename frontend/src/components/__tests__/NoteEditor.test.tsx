@@ -77,22 +77,64 @@ describe('NoteEditor', () => {
     expect(screen.getByText('0文字')).toBeInTheDocument();
   });
 
-  it('プレビューボタンが表示される', () => {
+  it('編集タブとプレビュータブが表示される', () => {
     render(<NoteEditor {...defaultProps} />);
-    expect(screen.getByRole('button', { name: 'プレビュー' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: '編集' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'プレビュー' })).toBeInTheDocument();
   });
 
-  it('プレビューボタンクリックでマークダウンが表示される', () => {
+  it('初期状態で編集タブがアクティブ', () => {
+    render(<NoteEditor {...defaultProps} />);
+    expect(screen.getByRole('tab', { name: '編集' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'プレビュー' })).toHaveAttribute('aria-selected', 'false');
+  });
+
+  it('プレビュータブクリックでマークダウンが表示される', () => {
     render(<NoteEditor {...defaultProps} content={"- りんご\n- みかん"} />);
-    fireEvent.click(screen.getByRole('button', { name: 'プレビュー' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'プレビュー' }));
     const items = screen.getAllByRole('listitem');
     expect(items).toHaveLength(2);
   });
 
-  it('編集ボタンクリックでテキストエリアに戻る', () => {
+  it('プレビュータブクリック後に編集タブがアクティブでなくなる', () => {
+    render(<NoteEditor {...defaultProps} />);
+    fireEvent.click(screen.getByRole('tab', { name: 'プレビュー' }));
+    expect(screen.getByRole('tab', { name: '編集' })).toHaveAttribute('aria-selected', 'false');
+    expect(screen.getByRole('tab', { name: 'プレビュー' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('編集タブクリックでテキストエリアに戻る', () => {
     render(<NoteEditor {...defaultProps} content={"- りんご"} />);
-    fireEvent.click(screen.getByRole('button', { name: 'プレビュー' }));
-    fireEvent.click(screen.getByRole('button', { name: '編集' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'プレビュー' }));
+    fireEvent.click(screen.getByRole('tab', { name: '編集' }));
     expect(screen.getByLabelText('ノートの内容')).toBeInTheDocument();
+  });
+
+  it('アクティブタブのtabIndexが0、非アクティブが-1', () => {
+    render(<NoteEditor {...defaultProps} />);
+    expect(screen.getByRole('tab', { name: '編集' })).toHaveAttribute('tabIndex', '0');
+    expect(screen.getByRole('tab', { name: 'プレビュー' })).toHaveAttribute('tabIndex', '-1');
+  });
+
+  it('tabpanelが存在しaria-labelledbyで紐付けされる', () => {
+    render(<NoteEditor {...defaultProps} />);
+    const panel = screen.getByRole('tabpanel');
+    expect(panel).toBeInTheDocument();
+    expect(panel).toHaveAttribute('aria-labelledby');
+  });
+
+  it('ArrowRightキーでプレビュータブに移動する', () => {
+    render(<NoteEditor {...defaultProps} />);
+    const editTab = screen.getByRole('tab', { name: '編集' });
+    fireEvent.keyDown(editTab, { key: 'ArrowRight' });
+    expect(screen.getByRole('tab', { name: 'プレビュー' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('ArrowLeftキーで編集タブに戻る', () => {
+    render(<NoteEditor {...defaultProps} />);
+    fireEvent.click(screen.getByRole('tab', { name: 'プレビュー' }));
+    const previewTab = screen.getByRole('tab', { name: 'プレビュー' });
+    fireEvent.keyDown(previewTab, { key: 'ArrowLeft' });
+    expect(screen.getByRole('tab', { name: '編集' })).toHaveAttribute('aria-selected', 'true');
   });
 });

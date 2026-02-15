@@ -128,11 +128,20 @@ describe('SlashCommandExtension', () => {
     expect(chain.run).toHaveBeenCalled();
   });
 
-  it('calloutコマンドでsetCalloutが呼ばれる', () => {
-    const setCallout = vi.fn();
-    const editor = { chain: vi.fn(() => ({ focus: vi.fn().mockReturnThis(), run: vi.fn() })), commands: { setCallout } };
-    executeCommand(editor as never, findCommand('callout'));
-    expect(setCallout).toHaveBeenCalled();
+  it('情報コールアウトでsetCalloutWithTypeが呼ばれる', () => {
+    const setCalloutWithType = vi.fn();
+    const editor = { chain: vi.fn(() => ({ focus: vi.fn().mockReturnThis(), run: vi.fn() })), commands: { setCalloutWithType } };
+    const infoCallout = SLASH_COMMANDS.find(c => c.action === 'callout' && c.attrs?.calloutType === 'info')!;
+    executeCommand(editor as never, infoCallout);
+    expect(setCalloutWithType).toHaveBeenCalledWith('info', '💡');
+  });
+
+  it('警告コールアウトでsetCalloutWithTypeが呼ばれる', () => {
+    const setCalloutWithType = vi.fn();
+    const editor = { chain: vi.fn(() => ({ focus: vi.fn().mockReturnThis(), run: vi.fn() })), commands: { setCalloutWithType } };
+    const warningCallout = SLASH_COMMANDS.find(c => c.action === 'callout' && c.attrs?.calloutType === 'warning')!;
+    executeCommand(editor as never, warningCallout);
+    expect(setCalloutWithType).toHaveBeenCalledWith('warning', '⚠️');
   });
 
   it('SLASH_COMMANDSのフィルタリングが正しく動作する', () => {

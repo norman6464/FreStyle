@@ -46,6 +46,13 @@ export const Callout = Node.create({
           content: [{ type: 'paragraph' }],
         });
       },
+      setCalloutWithType: (calloutType: CalloutType, emoji: string) => ({ commands }) => {
+        return commands.insertContent({
+          type: 'callout',
+          attrs: { type: calloutType, emoji },
+          content: [{ type: 'paragraph' }],
+        });
+      },
     };
   },
 });

@@ -1,24 +1,10 @@
 import { useMemo } from 'react';
 import Card from './Card';
 import type { ScoreHistory } from '../types';
+import { getWeekRange } from '../utils/weekUtils';
 
 interface WeeklyReportCardProps {
   allScores: ScoreHistory[];
-}
-
-function getWeekRange(weeksAgo: number): { start: Date; end: Date } {
-  const now = new Date();
-  const dayOfWeek = now.getDay();
-  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-
-  const start = new Date(now);
-  start.setDate(now.getDate() + mondayOffset - weeksAgo * 7);
-  start.setHours(0, 0, 0, 0);
-
-  const end = new Date(start);
-  end.setDate(start.getDate() + 7);
-
-  return { start, end };
 }
 
 export default function WeeklyReportCard({ allScores }: WeeklyReportCardProps) {

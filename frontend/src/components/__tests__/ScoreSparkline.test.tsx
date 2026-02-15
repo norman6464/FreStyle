@@ -37,4 +37,25 @@ describe('ScoreSparkline', () => {
     const trendIndicator = container.querySelector('[data-testid="trend-down"]');
     expect(trendIndicator).toBeTruthy();
   });
+
+  it('同じスコアが連続する場合はトレンドインジケーターが表示されない', () => {
+    const { container } = render(<ScoreSparkline scores={[7.0, 7.0, 7.0]} />);
+
+    expect(container.querySelector('[data-testid="trend-up"]')).toBeNull();
+    expect(container.querySelector('[data-testid="trend-down"]')).toBeNull();
+  });
+
+  it('5件を超えるスコアの場合は直近5件のみ表示される', () => {
+    const { container } = render(<ScoreSparkline scores={[3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]} />);
+
+    const circles = container.querySelectorAll('circle');
+    expect(circles.length).toBe(5);
+  });
+
+  it('空配列の場合はデータ不足と表示される', () => {
+    const { container } = render(<ScoreSparkline scores={[]} />);
+
+    expect(screen.getByText('データ不足')).toBeInTheDocument();
+    expect(container.querySelector('svg')).toBeNull();
+  });
 });

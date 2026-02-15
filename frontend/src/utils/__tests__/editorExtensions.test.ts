@@ -7,10 +7,10 @@ vi.mock('@tiptap/extension-task-list', () => ({ default: 'TaskList' }));
 vi.mock('@tiptap/extension-task-item', () => ({ default: { configure: vi.fn(() => 'TaskItem') } }));
 vi.mock('@tiptap/extension-code-block-lowlight', () => ({ default: { configure: vi.fn(() => 'CodeBlockLowlight') } }));
 vi.mock('@tiptap/extension-highlight', () => ({ default: { configure: vi.fn(() => 'Highlight') } }));
-vi.mock('@tiptap/extension-table', () => ({ default: { configure: vi.fn(() => 'Table') } }));
-vi.mock('@tiptap/extension-table-row', () => ({ default: 'TableRow' }));
-vi.mock('@tiptap/extension-table-cell', () => ({ default: 'TableCell' }));
-vi.mock('@tiptap/extension-table-header', () => ({ default: 'TableHeader' }));
+vi.mock('@tiptap/extension-table', () => ({ Table: { configure: vi.fn(() => 'Table') } }));
+vi.mock('@tiptap/extension-table-row', () => ({ TableRow: 'TableRow' }));
+vi.mock('@tiptap/extension-table-cell', () => ({ TableCell: 'TableCell' }));
+vi.mock('@tiptap/extension-table-header', () => ({ TableHeader: 'TableHeader' }));
 vi.mock('lowlight', () => ({ common: {}, createLowlight: vi.fn(() => 'lowlight') }));
 vi.mock('../../extensions/SlashCommandExtension', () => ({
   SlashCommandExtension: { configure: vi.fn(() => 'SlashCommand') },
@@ -31,7 +31,7 @@ vi.mock('../../extensions/CodeBlockExtension', () => ({
   CodeBlock: { configure: vi.fn(() => 'CodeBlock') },
 }));
 vi.mock('@tiptap/extension-link', () => ({ default: { configure: vi.fn(() => 'Link') } }));
-vi.mock('@tiptap/extension-text-style', () => ({ default: 'TextStyle' }));
+vi.mock('@tiptap/extension-text-style', () => ({ TextStyle: 'TextStyle' }));
 vi.mock('@tiptap/extension-color', () => ({ default: 'Color' }));
 vi.mock('@tiptap/extension-text-align', () => ({ default: { configure: vi.fn(() => 'TextAlign') } }));
 vi.mock('@tiptap/extension-underline', () => ({ default: 'Underline' }));

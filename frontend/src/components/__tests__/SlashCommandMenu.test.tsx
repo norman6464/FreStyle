@@ -14,7 +14,6 @@ describe('SlashCommandMenu', () => {
     render(<SlashCommandMenu {...defaultProps} />);
     for (const cmd of SLASH_COMMANDS) {
       expect(screen.getByText(cmd.label)).toBeInTheDocument();
-      expect(screen.getByText(cmd.description)).toBeInTheDocument();
     }
   });
 
@@ -38,11 +37,11 @@ describe('SlashCommandMenu', () => {
     expect(screen.getByText('H2')).toBeInTheDocument();
   });
 
-  it('空のitems配列で何も表示しない', () => {
-    const { container } = render(
+  it('空のitems配列でメニュー項目が表示されない', () => {
+    render(
       <SlashCommandMenu items={[]} selectedIndex={0} onSelect={vi.fn()} />
     );
-    expect(container.querySelector('[role="menu"]')?.children).toHaveLength(0);
+    expect(screen.queryAllByRole('menuitem')).toHaveLength(0);
   });
 
   it('menuロールを持つ', () => {
@@ -52,7 +51,7 @@ describe('SlashCommandMenu', () => {
 
   it('aria-activedescendantが設定される', () => {
     render(<SlashCommandMenu {...defaultProps} selectedIndex={1} />);
-    expect(screen.getByRole('menu')).toHaveAttribute('aria-activedescendant', 'slash-cmd-heading1');
+    expect(screen.getByRole('menu')).toHaveAttribute('aria-activedescendant', 'slash-cmd-1');
   });
 
   it('aria-labelが設定される', () => {

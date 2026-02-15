@@ -43,9 +43,16 @@ export default function NoteEditor({
         type="text"
         value={title}
         onChange={(e) => onTitleChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            const editor = document.querySelector('.ProseMirror') as HTMLElement;
+            editor?.focus();
+          }
+        }}
         placeholder="無題"
         aria-label="ノートのタイトル"
-        className="text-xl font-bold text-[var(--color-text-primary)] bg-transparent border-none outline-none w-full mb-4 placeholder:text-[var(--color-text-faint)]"
+        className="text-3xl font-bold text-[var(--color-text-primary)] bg-transparent border-none outline-none w-full mb-4 placeholder:text-[var(--color-text-faint)]"
       />
 
       {headings.length > 0 && (

@@ -43,7 +43,7 @@ describe('BlockInserterButton', () => {
   it('topプロパティでボタン位置が設定される', () => {
     render(<BlockInserterButton visible={true} top={200} onCommand={mockOnCommand} />);
     const button = screen.getByLabelText('ブロックを追加');
-    expect(button.parentElement).toHaveStyle({ top: '200px' });
+    expect(button.closest('[data-block-inserter]')).toHaveStyle({ top: '200px' });
   });
 
   it('visible=falseになるとメニューが閉じる', () => {

@@ -57,6 +57,28 @@ describe('SkillTrendChart', () => {
     expect(screen.getByText('+2')).toBeInTheDocument();
   });
 
+  it('scoresがnullのセッションでもエラーにならない', () => {
+    const history = [
+      { sessionId: 1, scores: null as unknown as { axis: string; score: number }[] },
+    ];
+    const { container } = render(<SkillTrendChart history={history} />);
+    expect(container.firstChild).toBeNull();
+  });
+
+  it('前回セッションのscoresがnullでもエラーにならない', () => {
+    const history = [
+      { sessionId: 1, scores: null as unknown as { axis: string; score: number }[] },
+      {
+        sessionId: 2,
+        scores: [
+          { axis: '論理的構成力', score: 8 },
+        ],
+      },
+    ];
+    render(<SkillTrendChart history={history} />);
+    expect(screen.getByText('論理的構成力')).toBeInTheDocument();
+  });
+
   it('履歴が空の場合は何も表示しない', () => {
     const { container } = render(<SkillTrendChart history={[]} />);
 

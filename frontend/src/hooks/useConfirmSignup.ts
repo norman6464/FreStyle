@@ -2,11 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import authRepository from '../repositories/AuthRepository';
 import { AxiosError } from 'axios';
-
-interface FormMessage {
-  type: 'success' | 'error';
-  text: string;
-}
+import type { FormMessage } from '../types';
 
 export function useConfirmSignup() {
   const navigate = useNavigate();

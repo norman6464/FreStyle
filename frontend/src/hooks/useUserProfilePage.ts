@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useUserProfile } from './useUserProfile';
+import type { FormMessage } from '../types';
 
 interface UserProfileForm {
   displayName: string;
@@ -9,11 +10,6 @@ interface UserProfileForm {
   goals: string;
   concerns: string;
   preferredFeedbackStyle: string;
-}
-
-interface FormMessage {
-  type: 'success' | 'error';
-  text: string;
 }
 
 export const COMMUNICATION_STYLES = [

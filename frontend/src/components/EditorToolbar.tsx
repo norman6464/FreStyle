@@ -4,6 +4,7 @@ import HighlightPicker from './HighlightPicker';
 import TextAlignButtons from './TextAlignButtons';
 import UndoRedoButtons from './UndoRedoButtons';
 import IndentButtons from './IndentButtons';
+import BlockquoteButton from './BlockquoteButton';
 import ClearFormattingButton from './ClearFormattingButton';
 import KeyboardShortcutsHelp from './KeyboardShortcutsHelp';
 
@@ -22,6 +23,7 @@ interface EditorToolbarProps {
   onClearFormatting: () => void;
   onIndent: () => void;
   onOutdent: () => void;
+  onBlockquote: () => void;
 }
 
 export default function EditorToolbar({
@@ -39,6 +41,7 @@ export default function EditorToolbar({
   onClearFormatting,
   onIndent,
   onOutdent,
+  onBlockquote,
 }: EditorToolbarProps) {
   return (
     <div className="px-8 py-1 border-b border-[var(--color-surface-3)] flex items-center gap-3">
@@ -51,6 +54,8 @@ export default function EditorToolbar({
       <TextAlignButtons onAlign={onAlign} />
       <div className="w-px h-4 bg-[var(--color-surface-3)]" />
       <IndentButtons onIndent={onIndent} onOutdent={onOutdent} />
+      <div className="w-px h-4 bg-[var(--color-surface-3)]" />
+      <BlockquoteButton onBlockquote={onBlockquote} />
       <div className="w-px h-4 bg-[var(--color-surface-3)]" />
       <UndoRedoButtons onUndo={onUndo} onRedo={onRedo} />
       <div className="w-px h-4 bg-[var(--color-surface-3)]" />

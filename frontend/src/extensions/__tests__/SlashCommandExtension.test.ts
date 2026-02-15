@@ -143,12 +143,11 @@ describe('SlashCommandExtension', () => {
     expect(setCalloutWithType).toHaveBeenCalledWith('info', '💡');
   });
 
-  it('警告コールアウトでsetCalloutWithTypeが呼ばれる', () => {
-    const setCalloutWithType = vi.fn();
-    const editor = { chain: vi.fn(() => ({ focus: vi.fn().mockReturnThis(), run: vi.fn() })), commands: { setCalloutWithType } };
-    const warningCallout = SLASH_COMMANDS.find(c => c.action === 'callout' && c.attrs?.calloutType === 'warning')!;
-    executeCommand(editor as never, warningCallout);
-    expect(setCalloutWithType).toHaveBeenCalledWith('warning', '⚠️');
+  it('attrsなしのコールアウトでsetCalloutが呼ばれる', () => {
+    const setCallout = vi.fn();
+    const editor = { chain: vi.fn(() => ({ focus: vi.fn().mockReturnThis(), run: vi.fn() })), commands: { setCallout } };
+    executeCommand(editor as never, { label: 'コールアウト', description: '強調', icon: '💡', action: 'callout' as const, category: 'コンテンツ' });
+    expect(setCallout).toHaveBeenCalled();
   });
 
   it('SLASH_COMMANDSのフィルタリングが正しく動作する', () => {

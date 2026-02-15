@@ -67,16 +67,26 @@ export default function BlockInserterButton({ visible, top, onCommand, onMenuOpe
       className="absolute left-0 z-10 transition-all duration-150"
       style={{ top: `${top}px` }}
     >
-      <button
-        type="button"
-        aria-label="ブロックを追加"
-        className={`w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--color-surface-3)] text-[var(--color-text-faint)] hover:text-[var(--color-text-secondary)] transition-opacity duration-150 ${
-          visible || menuOpen ? 'opacity-100' : 'opacity-0'
-        }`}
-        onClick={() => setMenuOpen(!menuOpen)}
-      >
-        <PlusIcon className="w-4 h-4" />
-      </button>
+      <div className="group relative">
+        <button
+          type="button"
+          aria-label="ブロックを追加"
+          className={`w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--color-surface-3)] text-[var(--color-text-faint)] hover:text-[var(--color-text-secondary)] transition-opacity duration-150 ${
+            visible || menuOpen ? 'opacity-100' : 'opacity-0'
+          }`}
+          onClick={() => setMenuOpen(!menuOpen)}
+        >
+          <PlusIcon className="w-4 h-4" />
+        </button>
+        {!menuOpen && (
+          <div className="absolute left-8 top-1/2 -translate-y-1/2 hidden group-hover:block z-30 pointer-events-none">
+            <div className="bg-[var(--color-surface-1)] border border-[var(--color-border)] rounded-lg shadow-lg px-3 py-2 whitespace-nowrap">
+              <p className="text-xs font-medium text-[var(--color-text-primary)]">クリックして下に追加</p>
+              <p className="text-[11px] text-[var(--color-text-muted)]">Opt+クリック/Alt+クリックで上に追加</p>
+            </div>
+          </div>
+        )}
+      </div>
       {menuOpen && (
         <div
           ref={menuRef}

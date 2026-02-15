@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { SLASH_COMMANDS } from '../slashCommands';
 
 describe('SLASH_COMMANDS', () => {
-  it('18のコマンドが定義されている', () => {
-    expect(SLASH_COMMANDS).toHaveLength(18);
+  it('15のコマンドが定義されている', () => {
+    expect(SLASH_COMMANDS).toHaveLength(15);
   });
 
   it('各コマンドに必要なプロパティがある', () => {
@@ -20,9 +20,9 @@ describe('SLASH_COMMANDS', () => {
     expect(new Set(labels).size).toBe(labels.length);
   });
 
-  it('コールアウトが4種類ある', () => {
+  it('コールアウトが1種類ある', () => {
     const callouts = SLASH_COMMANDS.filter(c => c.action === 'callout');
-    expect(callouts).toHaveLength(4);
-    expect(callouts.map(c => c.attrs?.calloutType)).toEqual(['info', 'warning', 'success', 'error']);
+    expect(callouts).toHaveLength(1);
+    expect(callouts[0].attrs?.calloutType).toBe('info');
   });
 });

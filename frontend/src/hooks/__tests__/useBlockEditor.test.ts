@@ -1,0 +1,104 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { renderHook } from '@testing-library/react';
+import { useBlockEditor } from '../useBlockEditor';
+
+vi.mock('@tiptap/react', () => ({
+  useEditor: vi.fn(() => mockEditor),
+}));
+
+vi.mock('@tiptap/starter-kit', () => ({ default: { configure: vi.fn(() => 'StarterKit') } }));
+vi.mock('@tiptap/extension-placeholder', () => ({ default: { configure: vi.fn(() => 'Placeholder') } }));
+vi.mock('@tiptap/extension-image', () => ({ default: { configure: vi.fn(() => 'Image') } }));
+vi.mock('@tiptap/extension-task-list', () => ({ default: 'TaskList' }));
+vi.mock('@tiptap/extension-task-item', () => ({ default: { configure: vi.fn(() => 'TaskItem') } }));
+vi.mock('@tiptap/extension-code-block-lowlight', () => ({ default: { configure: vi.fn(() => 'CodeBlockLowlight') } }));
+vi.mock('@tiptap/extension-highlight', () => ({ default: { configure: vi.fn(() => 'Highlight') } }));
+vi.mock('lowlight', () => ({ common: {}, createLowlight: vi.fn(() => 'lowlight') }));
+vi.mock('../../extensions/SlashCommandExtension', () => ({
+  SlashCommandExtension: { configure: vi.fn(() => 'SlashCommand') },
+  executeCommand: vi.fn(),
+}));
+vi.mock('../../extensions/slashCommandRenderer', () => ({
+  slashCommandRenderer: vi.fn(),
+}));
+vi.mock('../../extensions/ToggleListExtension', () => ({
+  ToggleList: 'ToggleList',
+  ToggleSummary: 'ToggleSummary',
+  ToggleContent: 'ToggleContent',
+}));
+vi.mock('../../utils/isLegacyMarkdown', () => ({
+  isLegacyMarkdown: vi.fn(() => false),
+}));
+vi.mock('../../utils/markdownToTiptap', () => ({
+  markdownToTiptap: vi.fn(),
+}));
+
+const mockEditor = {
+  getJSON: vi.fn(() => ({ type: 'doc', content: [] })),
+  commands: {
+    clearContent: vi.fn(),
+    setContent: vi.fn(),
+  },
+};
+
+describe('useBlockEditor', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('editorインスタンスを返す', () => {
+    const onChange = vi.fn();
+    const { result } = renderHook(() => useBlockEditor({ content: '', onChange }));
+
+    expect(result.current.editor).toBe(mockEditor);
+  });
+
+  it('useEditorにextensionsを渡して呼び出す', async () => {
+    const { useEditor } = await import('@tiptap/react');
+    const onChange = vi.fn();
+    renderHook(() => useBlockEditor({ content: '', onChange }));
+
+    expect(useEditor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        extensions: expect.arrayContaining([
+          'StarterKit',
+          'CodeBlockLowlight',
+          'Placeholder',
+          'Image',
+          'SlashCommand',
+          'Highlight',
+          'TaskList',
+          'TaskItem',
+          'ToggleList',
+          'ToggleSummary',
+          'ToggleContent',
+        ]),
+      })
+    );
+  });
+
+  it('JSONコンテンツをパースしてinitialContentとして設定する', async () => {
+    const { useEditor } = await import('@tiptap/react');
+    const jsonContent = JSON.stringify({ type: 'doc', content: [{ type: 'paragraph' }] });
+    const onChange = vi.fn();
+    renderHook(() => useBlockEditor({ content: jsonContent, onChange }));
+
+    expect(useEditor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: { type: 'doc', content: [{ type: 'paragraph' }] },
+      })
+    );
+  });
+
+  it('空コンテンツの場合はundefinedを設定する', async () => {
+    const { useEditor } = await import('@tiptap/react');
+    const onChange = vi.fn();
+    renderHook(() => useBlockEditor({ content: '', onChange }));
+
+    expect(useEditor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: undefined,
+      })
+    );
+  });
+});

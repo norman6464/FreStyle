@@ -1,19 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useEditor, EditorContent } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-import Placeholder from '@tiptap/extension-placeholder';
-import Image from '@tiptap/extension-image';
-import TaskList from '@tiptap/extension-task-list';
-import TaskItem from '@tiptap/extension-task-item';
-import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
-import Highlight from '@tiptap/extension-highlight';
-import { common, createLowlight } from 'lowlight';
+import { useCallback, useRef, useState } from 'react';
+import { EditorContent } from '@tiptap/react';
 import 'tippy.js/dist/tippy.css';
-import { SlashCommandExtension, executeCommand } from '../extensions/SlashCommandExtension';
-import { slashCommandRenderer } from '../extensions/slashCommandRenderer';
-import { ToggleList, ToggleSummary, ToggleContent } from '../extensions/ToggleListExtension';
-import { isLegacyMarkdown } from '../utils/isLegacyMarkdown';
-import { markdownToTiptap } from '../utils/markdownToTiptap';
+import { executeCommand } from '../extensions/SlashCommandExtension';
+import { useBlockEditor } from '../hooks/useBlockEditor';
 import { useImageUpload } from '../hooks/useImageUpload';
 import BlockInserterButton from './BlockInserterButton';
 import type { SlashCommand } from '../constants/slashCommands';
@@ -25,84 +14,13 @@ interface BlockEditorProps {
 }
 
 export default function BlockEditor({ content, onChange, noteId }: BlockEditorProps) {
-  const initialContent = useMemo(() => {
-    if (!content) return undefined;
-    if (isLegacyMarkdown(content)) {
-      return markdownToTiptap(content);
-    }
-    try {
-      return JSON.parse(content);
-    } catch {
-      return undefined;
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const { editor } = useBlockEditor({ content, onChange });
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [inserterVisible, setInserterVisible] = useState(false);
   const [inserterTop, setInserterTop] = useState(0);
 
-  const editor = useEditor({
-    extensions: [
-      StarterKit.configure({
-        heading: { levels: [1, 2, 3] },
-        codeBlock: false,
-      }),
-      CodeBlockLowlight.configure({
-        lowlight: createLowlight(common),
-      }),
-      Placeholder.configure({
-        placeholder: 'ここに入力...',
-      }),
-      Image.configure({
-        allowBase64: false,
-        HTMLAttributes: { class: 'note-image' },
-      }),
-      SlashCommandExtension.configure({
-        suggestion: {
-          render: slashCommandRenderer,
-        },
-      }),
-      Highlight.configure({ multicolor: true }),
-      TaskList,
-      TaskItem.configure({ nested: true }),
-      ToggleList,
-      ToggleSummary,
-      ToggleContent,
-    ],
-    content: initialContent,
-    onUpdate: ({ editor }) => {
-      onChange(JSON.stringify(editor.getJSON()));
-    },
-  });
-
   const { openFileDialog, handleDrop, handlePaste } = useImageUpload(noteId, editor);
-
-  useEffect(() => {
-    if (!editor) return;
-    const currentJson = JSON.stringify(editor.getJSON());
-    if (content === currentJson) return;
-
-    if (!content) {
-      editor.commands.clearContent();
-      return;
-    }
-
-    let newContent;
-    if (isLegacyMarkdown(content)) {
-      newContent = markdownToTiptap(content);
-    } else {
-      try {
-        newContent = JSON.parse(content);
-      } catch {
-        return;
-      }
-    }
-
-    const newJson = JSON.stringify(newContent);
-    if (newJson === currentJson) return;
-
-    editor.commands.setContent(newContent);
-  }, [content, editor]);
 
   const lastMoveTime = useRef(0);
   const handleMouseMove = useCallback((e: React.MouseEvent) => {

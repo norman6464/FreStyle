@@ -5,6 +5,7 @@ import { executeCommand } from '../extensions/SlashCommandExtension';
 import { useBlockEditor } from '../hooks/useBlockEditor';
 import { useImageUpload } from '../hooks/useImageUpload';
 import { useLinkEditor } from '../hooks/useLinkEditor';
+import { useEditorFormat } from '../hooks/useEditorFormat';
 import BlockInserterButton from './BlockInserterButton';
 import LinkBubbleMenu from './LinkBubbleMenu';
 import EditorToolbar from './EditorToolbar';
@@ -25,6 +26,7 @@ export default function BlockEditor({ content, onChange, noteId }: BlockEditorPr
 
   const { openFileDialog, handleDrop, handlePaste } = useImageUpload(noteId, editor);
   const { linkBubble, handleEditorClick, handleEditLink, handleRemoveLink } = useLinkEditor(editor, containerRef);
+  const { handleBold, handleItalic, handleUnderline, handleStrike, handleAlign, handleSelectColor } = useEditorFormat(editor);
 
   const lastMoveTime = useRef(0);
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
@@ -62,36 +64,6 @@ export default function BlockEditor({ content, onChange, noteId }: BlockEditorPr
     editor.chain().focus().run();
     executeCommand(editor, command);
   }, [editor, openFileDialog]);
-
-  const handleBold = useCallback(() => {
-    editor?.chain().focus().toggleBold().run();
-  }, [editor]);
-
-  const handleItalic = useCallback(() => {
-    editor?.chain().focus().toggleItalic().run();
-  }, [editor]);
-
-  const handleUnderline = useCallback(() => {
-    editor?.chain().focus().toggleUnderline().run();
-  }, [editor]);
-
-  const handleStrike = useCallback(() => {
-    editor?.chain().focus().toggleStrike().run();
-  }, [editor]);
-
-  const handleAlign = useCallback((alignment: 'left' | 'center' | 'right') => {
-    if (!editor) return;
-    editor.chain().focus().setTextAlign(alignment).run();
-  }, [editor]);
-
-  const handleSelectColor = useCallback((color: string) => {
-    if (!editor) return;
-    if (color) {
-      editor.chain().focus().setColor(color).run();
-    } else {
-      editor.chain().focus().unsetColor().run();
-    }
-  }, [editor]);
 
   return (
     <div

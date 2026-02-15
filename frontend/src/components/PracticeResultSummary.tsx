@@ -1,18 +1,11 @@
 import { useNavigate } from 'react-router-dom';
+import { getAdviceForAxis } from '../constants/axisAdvice';
 import type { ScoreCard } from '../types';
 
 interface PracticeResultSummaryProps {
   scoreCard: ScoreCard;
   scenarioName: string;
 }
-
-const IMPROVEMENT_ADVICE: Record<string, string> = {
-  '論理的構成力': '論理的構成力を伸ばすために、結論→理由→具体例の構成を意識して練習しましょう。',
-  '配慮表現': '配慮表現を伸ばすために、クッション言葉や敬語のバリエーションを増やしましょう。',
-  '要約力': '要約力を伸ばすために、要点を3つに絞って伝える練習をしましょう。',
-  '提案力': '提案力を伸ばすために、代替案を複数用意してから発言する習慣をつけましょう。',
-  '質問・傾聴力': '質問・傾聴力を伸ばすために、相手の発言を復唱してから質問する練習をしましょう。',
-};
 
 export default function PracticeResultSummary({ scoreCard, scenarioName }: PracticeResultSummaryProps) {
   const navigate = useNavigate();
@@ -21,7 +14,7 @@ export default function PracticeResultSummary({ scoreCard, scenarioName }: Pract
   const strongest = sorted[0];
   const weakest = sorted[sorted.length - 1];
 
-  const advice = IMPROVEMENT_ADVICE[weakest.axis] || `${weakest.axis}を伸ばすために、繰り返し練習しましょう。`;
+  const advice = getAdviceForAxis(weakest.axis);
 
   return (
     <div className="bg-surface-1 rounded-lg border border-surface-3 p-4 my-3 max-w-[85%] self-start">

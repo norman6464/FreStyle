@@ -24,6 +24,7 @@
     "@tiptap/pm": "^3.19.0",
     "@tiptap/react": "^3.19.0",
     "@tiptap/starter-kit": "^3.19.0",
+    "@tiptap/suggestion": "^3.19.0",
     "axios": "^1.13.5",
     "lodash": "^4.17.21",
     "react": "^19.1.1",
@@ -31,7 +32,8 @@
     "react-hook-form": "^7.65.0",
     "react-redux": "^9.2.0",
     "react-router-dom": "^7.9.4",
-    "sockjs-client": "^1.6.1"
+    "sockjs-client": "^1.6.1",
+    "tippy.js": "^6.3.7"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",

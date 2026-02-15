@@ -3,6 +3,8 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import Image from '@tiptap/extension-image';
+import { SlashCommandExtension } from '../extensions/SlashCommandExtension';
+import { slashCommandRenderer } from '../extensions/slashCommandRenderer';
 import { isLegacyMarkdown } from '../utils/isLegacyMarkdown';
 import { markdownToTiptap } from '../utils/markdownToTiptap';
 
@@ -35,6 +37,11 @@ export default function BlockEditor({ content, onChange }: BlockEditorProps) {
       Image.configure({
         allowBase64: false,
         HTMLAttributes: { class: 'note-image' },
+      }),
+      SlashCommandExtension.configure({
+        suggestion: {
+          render: slashCommandRenderer,
+        },
       }),
     ],
     content: initialContent,

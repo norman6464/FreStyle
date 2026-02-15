@@ -63,7 +63,7 @@ dependencies {
 
 	// AWS SDK for Java (v2) - S3, Lambda, DynamoDB, Cognito操作用
 	// AWS SDKのバージョン管理をSpring Cloud AWSに任せる方法もありますが、今回は手動で追加します。
-	implementation platform('software.amazon.awssdk:bom:2.26.19') // SDK v2のバージョン管理を有効化
+	implementation enforcedPlatform('software.amazon.awssdk:bom:2.31.78') // SDK v2のバージョン管理を有効化（全モジュールのバージョンを統一）
 	
 	// DynamoDB (メッセージログ、接続ID管理)
 	implementation 'software.amazon.awssdk:dynamodb'

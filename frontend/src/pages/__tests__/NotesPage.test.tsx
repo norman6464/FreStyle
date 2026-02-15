@@ -4,6 +4,9 @@ import NotesPage from '../NotesPage';
 import { useNotes } from '../../hooks/useNotes';
 
 vi.mock('../../hooks/useNotes');
+vi.mock('../../hooks/useBlockEditor', () => ({
+  useBlockEditor: () => ({ editor: null }),
+}));
 
 const mockUseNotes = {
   notes: [],

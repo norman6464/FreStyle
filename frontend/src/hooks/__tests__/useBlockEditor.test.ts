@@ -13,6 +13,10 @@ vi.mock('@tiptap/extension-task-list', () => ({ default: 'TaskList' }));
 vi.mock('@tiptap/extension-task-item', () => ({ default: { configure: vi.fn(() => 'TaskItem') } }));
 vi.mock('@tiptap/extension-code-block-lowlight', () => ({ default: { configure: vi.fn(() => 'CodeBlockLowlight') } }));
 vi.mock('@tiptap/extension-highlight', () => ({ default: { configure: vi.fn(() => 'Highlight') } }));
+vi.mock('@tiptap/extension-table', () => ({ default: { configure: vi.fn(() => 'Table') } }));
+vi.mock('@tiptap/extension-table-row', () => ({ default: 'TableRow' }));
+vi.mock('@tiptap/extension-table-cell', () => ({ default: 'TableCell' }));
+vi.mock('@tiptap/extension-table-header', () => ({ default: 'TableHeader' }));
 vi.mock('lowlight', () => ({ common: {}, createLowlight: vi.fn(() => 'lowlight') }));
 vi.mock('../../extensions/SlashCommandExtension', () => ({
   SlashCommandExtension: { configure: vi.fn(() => 'SlashCommand') },
@@ -143,12 +147,12 @@ describe('useBlockEditor', () => {
     expect(call[0]).toHaveProperty('onUpdate');
   });
 
-  it('11個の拡張が設定される', async () => {
+  it('15個の拡張が設定される', async () => {
     const { useEditor } = await import('@tiptap/react');
     const onChange = vi.fn();
     renderHook(() => useBlockEditor({ content: '', onChange }));
 
     const call = vi.mocked(useEditor).mock.calls[0]!;
-    expect(call[0]!.extensions).toHaveLength(11);
+    expect(call[0]!.extensions).toHaveLength(15);
   });
 });

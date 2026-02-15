@@ -26,6 +26,7 @@ describe('EditorToolbar', () => {
     handleOrderedList: vi.fn(),
     handleInlineCode: vi.fn(),
     handleHeading: vi.fn(),
+    handleTaskList: vi.fn(),
     ...overrides,
   });
 

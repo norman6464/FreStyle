@@ -6,6 +6,7 @@ import Image from '@tiptap/extension-image';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
+import Highlight from '@tiptap/extension-highlight';
 import { common, createLowlight } from 'lowlight';
 import 'tippy.js/dist/tippy.css';
 import { SlashCommandExtension, executeCommand } from '../extensions/SlashCommandExtension';
@@ -61,6 +62,7 @@ export default function BlockEditor({ content, onChange, noteId }: BlockEditorPr
           render: slashCommandRenderer,
         },
       }),
+      Highlight.configure({ multicolor: true }),
       TaskList,
       TaskItem.configure({ nested: true }),
       ToggleList,

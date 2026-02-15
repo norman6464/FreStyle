@@ -44,6 +44,15 @@ describe('SessionDetailModal', () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
+  it('scoresがnullでもエラーにならない', () => {
+    const nullSession = {
+      ...session,
+      scores: null as unknown as typeof session.scores,
+    };
+    render(<SessionDetailModal session={nullSession} onClose={vi.fn()} />);
+    expect(screen.getByText('障害報告の練習')).toBeInTheDocument();
+  });
+
   it('オーバーレイクリックでonCloseが呼ばれる', () => {
     const onClose = vi.fn();
     render(<SessionDetailModal session={session} onClose={onClose} />);

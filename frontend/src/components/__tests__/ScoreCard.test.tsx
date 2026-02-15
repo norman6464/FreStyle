@@ -95,6 +95,16 @@ describe('ScoreCard', () => {
     expect(screen.queryByText(/この項目を重点的に練習しましょう/)).not.toBeInTheDocument();
   });
 
+  it('scoresがnullでもエラーにならない', () => {
+    const nullScoresCard: ScoreCardType = {
+      sessionId: 1,
+      scores: null as unknown as ScoreCardType['scores'],
+      overallScore: 7.0,
+    };
+    render(<ScoreCard scoreCard={nullScoresCard} />);
+    expect(screen.getByText('スコアカード')).toBeInTheDocument();
+  });
+
   it('スコアに応じたプログレスバーの色分けがされる', () => {
     render(<ScoreCard scoreCard={scoreCard} />);
 

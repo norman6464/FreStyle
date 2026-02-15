@@ -29,7 +29,7 @@ export default function ScoreCard({ scoreCard }: ScoreCardProps) {
       </div>
 
       <div className="space-y-2">
-        {scoreCard.scores.map((axisScore) => (
+        {(Array.isArray(scoreCard.scores) ? scoreCard.scores : []).map((axisScore) => (
           <div key={axisScore.axis}>
             <div className="flex items-center justify-between mb-0.5">
               <span className="text-xs text-[var(--color-text-muted)]">{axisScore.axis}</span>

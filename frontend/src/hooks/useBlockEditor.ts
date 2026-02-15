@@ -16,6 +16,7 @@ import { SlashCommandExtension } from '../extensions/SlashCommandExtension';
 import { slashCommandRenderer } from '../extensions/slashCommandRenderer';
 import { ToggleList, ToggleSummary, ToggleContent } from '../extensions/ToggleListExtension';
 import { Callout } from '../extensions/CalloutExtension';
+import Link from '@tiptap/extension-link';
 import { isLegacyMarkdown } from '../utils/isLegacyMarkdown';
 import { markdownToTiptap } from '../utils/markdownToTiptap';
 
@@ -69,6 +70,10 @@ export function useBlockEditor({ content, onChange }: UseBlockEditorOptions) {
       TableCell,
       TableHeader,
       Callout,
+      Link.configure({
+        openOnClick: false,
+        HTMLAttributes: { class: 'note-link' },
+      }),
     ],
     content: initialContent,
     onUpdate: ({ editor }) => {

@@ -103,6 +103,16 @@ describe('tiptapToPlainText', () => {
     expect(tiptapToPlainText(json)).toBe('TODO1 TODO2');
   });
 
+  it('コードブロックのテキストを抽出する', () => {
+    const json = JSON.stringify({
+      type: 'doc',
+      content: [
+        { type: 'codeBlock', attrs: { language: 'javascript' }, content: [{ type: 'text', text: 'const x = 1;' }] },
+      ],
+    });
+    expect(tiptapToPlainText(json)).toBe('const x = 1;');
+  });
+
   it('トグルリストのテキストを抽出する', () => {
     const json = JSON.stringify({
       type: 'doc',

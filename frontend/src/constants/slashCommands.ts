@@ -7,7 +7,8 @@ export type SlashCommandAction =
   | 'orderedList'
   | 'toggleList'
   | 'image'
-  | 'taskList';
+  | 'taskList'
+  | 'codeBlock';
 
 export interface SlashCommand {
   label: string;
@@ -26,4 +27,5 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   { label: 'トグル', description: '開閉可能なブロック', icon: '▶', action: 'toggleList' },
   { label: '画像', description: '画像をアップロード', icon: '🖼', action: 'image' },
   { label: 'タスクリスト', description: 'チェックリスト', icon: '☑', action: 'taskList' },
+  { label: 'コード', description: 'コードブロック', icon: '</>', action: 'codeBlock' },
 ];

@@ -23,6 +23,7 @@ export interface EditorFormatHandlers {
   handleOrderedList: () => void;
   handleInlineCode: () => void;
   handleHeading: (level: number) => void;
+  handleTaskList: () => void;
 }
 
 export function useEditorFormat(editor: Editor | null): EditorFormatHandlers {
@@ -127,6 +128,10 @@ export function useEditorFormat(editor: Editor | null): EditorFormatHandlers {
     editor?.chain().focus().toggleCode().run();
   }, [editor]);
 
+  const handleTaskList = useCallback(() => {
+    editor?.chain().focus().toggleTaskList().run();
+  }, [editor]);
+
   const handleHeading = useCallback((level: number) => {
     if (!editor) return;
     if (level === 0) {
@@ -136,5 +141,5 @@ export function useEditorFormat(editor: Editor | null): EditorFormatHandlers {
     }
   }, [editor]);
 
-  return { handleBold, handleItalic, handleUnderline, handleStrike, handleAlign, handleSelectColor, handleHighlight, handleSuperscript, handleSubscript, handleUndo, handleRedo, handleClearFormatting, handleIndent, handleOutdent, handleBlockquote, handleHorizontalRule, handleCodeBlock, handleBulletList, handleOrderedList, handleInlineCode, handleHeading };
+  return { handleBold, handleItalic, handleUnderline, handleStrike, handleAlign, handleSelectColor, handleHighlight, handleSuperscript, handleSubscript, handleUndo, handleRedo, handleClearFormatting, handleIndent, handleOutdent, handleBlockquote, handleHorizontalRule, handleCodeBlock, handleBulletList, handleOrderedList, handleInlineCode, handleHeading, handleTaskList };
 }

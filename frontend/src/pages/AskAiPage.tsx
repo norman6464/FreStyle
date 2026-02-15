@@ -9,6 +9,7 @@ import SessionNoteEditor from '../components/SessionNoteEditor';
 import ExportSessionButton from '../components/ExportSessionButton';
 import AiSessionListItem from '../components/AiSessionListItem';
 import EmptyState from '../components/EmptyState';
+import ConversationTemplates from '../components/ConversationTemplates';
 import { PlusIcon, Bars3Icon, SparklesIcon } from '@heroicons/react/24/outline';
 import { useAskAi } from '../hooks/useAskAi';
 import { useMobilePanelState } from '../hooks/useMobilePanelState';
@@ -117,11 +118,14 @@ export default function AskAiPage() {
         {/* メッセージエリア */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
           {messages.length === 0 && (
-            <EmptyState
-              icon={SparklesIcon}
-              title="AIアシスタントへようこそ"
-              description="質問や相談を何でも聞いてください"
-            />
+            <div className="flex flex-col items-center justify-center h-full gap-6">
+              <EmptyState
+                icon={SparklesIcon}
+                title="AIアシスタントへようこそ"
+                description="質問や相談を何でも聞いてください"
+              />
+              <ConversationTemplates onSelect={handleSend} />
+            </div>
           )}
           {messages.map((msg) => (
             <div key={msg.id} className="max-w-3xl mx-auto w-full">

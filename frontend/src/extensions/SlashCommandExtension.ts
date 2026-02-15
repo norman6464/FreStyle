@@ -26,6 +26,11 @@ function executeCommand(editor: Editor, command: SlashCommand) {
     case 'orderedList':
       chain.toggleOrderedList().run();
       break;
+    default: {
+      const _exhaustive: never = command.action;
+      console.error('Unknown slash command action:', _exhaustive);
+      break;
+    }
   }
 }
 

@@ -11,23 +11,28 @@ export default function SlashCommandMenu({ items, selectedIndex, onSelect }: Sla
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const selected = listRef.current?.querySelector<HTMLElement>('[aria-selected="true"]');
+    const selected = listRef.current?.querySelector<HTMLElement>('[aria-current="true"]');
     if (selected && typeof selected.scrollIntoView === 'function') {
       selected.scrollIntoView({ block: 'nearest' });
     }
   }, [selectedIndex]);
 
+  const activeId = items[selectedIndex] ? `slash-cmd-${items[selectedIndex].action}` : undefined;
+
   return (
     <div
       ref={listRef}
-      role="listbox"
+      role="menu"
+      aria-activedescendant={activeId}
+      aria-label="スラッシュコマンド"
       className="slash-command-menu bg-[var(--color-surface-1)] border border-[var(--color-border)] rounded-lg shadow-lg overflow-y-auto max-h-64 py-1 min-w-[220px]"
     >
       {items.map((item, index) => (
         <button
           key={item.action}
-          role="option"
-          aria-selected={index === selectedIndex}
+          id={`slash-cmd-${item.action}`}
+          role="menuitem"
+          aria-current={index === selectedIndex}
           className={`w-full flex items-center gap-3 px-3 py-2 text-left transition-colors ${
             index === selectedIndex
               ? 'bg-[var(--color-surface-3)] text-[var(--color-text-primary)]'

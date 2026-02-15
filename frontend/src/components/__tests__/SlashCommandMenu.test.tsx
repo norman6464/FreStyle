@@ -18,11 +18,11 @@ describe('SlashCommandMenu', () => {
     }
   });
 
-  it('選択中の項目にaria-selected属性がある', () => {
+  it('選択中の項目にaria-current属性がある', () => {
     render(<SlashCommandMenu {...defaultProps} selectedIndex={2} />);
-    const items = screen.getAllByRole('option');
-    expect(items[2]).toHaveAttribute('aria-selected', 'true');
-    expect(items[0]).toHaveAttribute('aria-selected', 'false');
+    const items = screen.getAllByRole('menuitem');
+    expect(items[2]).toHaveAttribute('aria-current', 'true');
+    expect(items[0]).toHaveAttribute('aria-current', 'false');
   });
 
   it('項目クリックでonSelectが呼ばれる', () => {
@@ -42,11 +42,21 @@ describe('SlashCommandMenu', () => {
     const { container } = render(
       <SlashCommandMenu items={[]} selectedIndex={0} onSelect={vi.fn()} />
     );
-    expect(container.querySelector('[role="listbox"]')?.children).toHaveLength(0);
+    expect(container.querySelector('[role="menu"]')?.children).toHaveLength(0);
   });
 
-  it('listboxロールを持つ', () => {
+  it('menuロールを持つ', () => {
     render(<SlashCommandMenu {...defaultProps} />);
-    expect(screen.getByRole('listbox')).toBeInTheDocument();
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+  });
+
+  it('aria-activedescendantが設定される', () => {
+    render(<SlashCommandMenu {...defaultProps} selectedIndex={1} />);
+    expect(screen.getByRole('menu')).toHaveAttribute('aria-activedescendant', 'slash-cmd-heading1');
+  });
+
+  it('aria-labelが設定される', () => {
+    render(<SlashCommandMenu {...defaultProps} />);
+    expect(screen.getByRole('menu')).toHaveAttribute('aria-label', 'スラッシュコマンド');
   });
 });

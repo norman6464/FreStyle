@@ -52,6 +52,7 @@ export function slashCommandRenderer() {
         trigger: 'manual',
         placement: 'bottom-start',
         maxWidth: 'none',
+        theme: 'slash-command',
       });
     },
 
@@ -76,6 +77,7 @@ export function slashCommandRenderer() {
       const { event } = props;
 
       if (event.key === 'ArrowDown') {
+        if (state.items.length === 0) return false;
         state = {
           ...state,
           selectedIndex: (state.selectedIndex + 1) % state.items.length,
@@ -85,6 +87,7 @@ export function slashCommandRenderer() {
       }
 
       if (event.key === 'ArrowUp') {
+        if (state.items.length === 0) return false;
         state = {
           ...state,
           selectedIndex: (state.selectedIndex - 1 + state.items.length) % state.items.length,
@@ -94,11 +97,7 @@ export function slashCommandRenderer() {
       }
 
       if (event.key === 'Enter') {
-        const item = state.items[state.selectedIndex];
-        if (item) {
-          const commandProps = (props as unknown as { command: (item: SlashCommand) => void });
-          commandProps.command(item);
-        }
+        state.onSelect(state.selectedIndex);
         return true;
       }
 

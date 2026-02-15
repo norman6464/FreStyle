@@ -1,8 +1,16 @@
+export type SlashCommandAction =
+  | 'paragraph'
+  | 'heading1'
+  | 'heading2'
+  | 'heading3'
+  | 'bulletList'
+  | 'orderedList';
+
 export interface SlashCommand {
   label: string;
   description: string;
   icon: string;
-  action: string;
+  action: SlashCommandAction;
 }
 
 export const SLASH_COMMANDS: SlashCommand[] = [

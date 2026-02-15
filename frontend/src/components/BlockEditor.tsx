@@ -3,6 +3,7 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import Image from '@tiptap/extension-image';
+import 'tippy.js/dist/tippy.css';
 import { SlashCommandExtension } from '../extensions/SlashCommandExtension';
 import { slashCommandRenderer } from '../extensions/slashCommandRenderer';
 import { isLegacyMarkdown } from '../utils/isLegacyMarkdown';

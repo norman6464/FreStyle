@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { MenuRepository } from '../repositories/MenuRepository';
 import type { ScoreHistory } from '../types';
+import { getMonday } from '../utils/weekUtils';
 
 interface ChatStats {
   chatPartnerCount: number;
@@ -54,11 +55,7 @@ export function useMenuData() {
   const uniqueDays = practiceDates.length;
 
   const sessionsThisWeek = useMemo(() => {
-    const now = new Date();
-    const day = now.getDay();
-    const monday = new Date(now);
-    monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
-    monday.setHours(0, 0, 0, 0);
+    const monday = getMonday(new Date());
     return allScores.filter(s => new Date(s.createdAt) >= monday).length;
   }, [allScores]);
 

@@ -1,23 +1,14 @@
 import type { ScoreHistoryItem } from '../types';
+import { getWeekRange } from '../utils/weekUtils';
 import Card from './Card';
 
 interface WeeklyComparisonCardProps {
   sessions: ScoreHistoryItem[];
 }
 
-function getMonday(date: Date): Date {
-  const d = new Date(date);
-  const day = d.getDay();
-  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
 export default function WeeklyComparisonCard({ sessions }: WeeklyComparisonCardProps) {
-  const now = new Date();
-  const thisMonday = getMonday(now);
-  const lastMonday = new Date(thisMonday);
-  lastMonday.setDate(thisMonday.getDate() - 7);
+  const { start: thisMonday } = getWeekRange(0);
+  const { start: lastMonday } = getWeekRange(1);
 
   const thisWeek = sessions.filter((s) => new Date(s.createdAt) >= thisMonday);
   const lastWeek = sessions.filter((s) => {

@@ -26,7 +26,7 @@ export default function BlockEditor({ content, onChange, noteId }: BlockEditorPr
 
   const { openFileDialog, handleDrop, handlePaste } = useImageUpload(noteId, editor);
   const { linkBubble, handleEditorClick, handleEditLink, handleRemoveLink } = useLinkEditor(editor, containerRef);
-  const { handleBold, handleItalic, handleUnderline, handleStrike, handleAlign, handleSelectColor, handleHighlight, handleSuperscript, handleSubscript, handleUndo, handleRedo, handleClearFormatting, handleIndent, handleOutdent, handleBlockquote } = useEditorFormat(editor);
+  const { handleBold, handleItalic, handleUnderline, handleStrike, handleAlign, handleSelectColor, handleHighlight, handleSuperscript, handleSubscript, handleUndo, handleRedo, handleClearFormatting, handleIndent, handleOutdent, handleBlockquote, handleHorizontalRule } = useEditorFormat(editor);
 
   const lastMoveTime = useRef(0);
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
@@ -93,6 +93,7 @@ export default function BlockEditor({ content, onChange, noteId }: BlockEditorPr
         onIndent={handleIndent}
         onOutdent={handleOutdent}
         onBlockquote={handleBlockquote}
+        onHorizontalRule={handleHorizontalRule}
       />
       {linkBubble && (
         <div

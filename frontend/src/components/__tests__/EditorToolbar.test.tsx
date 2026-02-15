@@ -19,6 +19,7 @@ describe('EditorToolbar', () => {
     onIndent: vi.fn(),
     onOutdent: vi.fn(),
     onBlockquote: vi.fn(),
+    onHorizontalRule: vi.fn(),
   };
 
   it('書式ボタンが表示される', () => {

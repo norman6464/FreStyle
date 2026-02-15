@@ -1,12 +1,8 @@
-import type { AxisScore } from '../types';
+import type { ScoreHistoryItem } from '../types';
 import Card from './Card';
 
-interface Session {
-  scores: AxisScore[];
-}
-
 interface Props {
-  sessions: Session[];
+  sessions: ScoreHistoryItem[];
 }
 
 const STYLE_MAP: Record<string, { label: string; description: string; color: string }> = {
@@ -37,7 +33,7 @@ const STYLE_MAP: Record<string, { label: string; description: string; color: str
   },
 };
 
-function getAverageScores(sessions: Session[]): Map<string, number> {
+function getAverageScores(sessions: ScoreHistoryItem[]): Map<string, number> {
   const totals = new Map<string, { sum: number; count: number }>();
 
   for (const session of sessions) {

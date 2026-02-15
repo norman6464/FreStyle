@@ -1,4 +1,4 @@
-import type { ScoreHistoryItem } from '../hooks/useScoreHistory';
+import type { ScoreHistoryItem } from '../types';
 import Card from './Card';
 
 interface ScoreHistorySessionCardProps {

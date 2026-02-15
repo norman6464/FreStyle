@@ -1,14 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
-import type { AxisScore } from '../types';
+import type { ScoreHistoryItem } from '../types';
 import { useAiChat } from './useAiChat';
-
-export interface ScoreHistoryItem {
-  sessionId: number;
-  sessionTitle: string;
-  overallScore: number;
-  scores: AxisScore[];
-  createdAt: string;
-}
 
 const FILTERS = ['すべて', '練習', 'フリー'] as const;
 export type FilterType = (typeof FILTERS)[number];

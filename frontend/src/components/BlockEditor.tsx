@@ -26,7 +26,7 @@ export default function BlockEditor({ content, onChange, noteId }: BlockEditorPr
 
   const { openFileDialog, handleDrop, handlePaste } = useImageUpload(noteId, editor);
   const { linkBubble, handleEditorClick, handleEditLink, handleRemoveLink } = useLinkEditor(editor, containerRef);
-  const { handleBold, handleItalic, handleUnderline, handleStrike, handleAlign, handleSelectColor, handleHighlight, handleSuperscript, handleSubscript, handleUndo, handleRedo, handleClearFormatting, handleIndent, handleOutdent, handleBlockquote, handleHorizontalRule } = useEditorFormat(editor);
+  const formatHandlers = useEditorFormat(editor);
 
   const lastMoveTime = useRef(0);
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
@@ -77,24 +77,7 @@ export default function BlockEditor({ content, onChange, noteId }: BlockEditorPr
       onDragOver={(e) => e.preventDefault()}
       onClick={handleEditorClick}
     >
-      <EditorToolbar
-        onBold={handleBold}
-        onItalic={handleItalic}
-        onUnderline={handleUnderline}
-        onStrike={handleStrike}
-        onSuperscript={handleSuperscript}
-        onSubscript={handleSubscript}
-        onSelectColor={handleSelectColor}
-        onHighlight={handleHighlight}
-        onAlign={handleAlign}
-        onUndo={handleUndo}
-        onRedo={handleRedo}
-        onClearFormatting={handleClearFormatting}
-        onIndent={handleIndent}
-        onOutdent={handleOutdent}
-        onBlockquote={handleBlockquote}
-        onHorizontalRule={handleHorizontalRule}
-      />
+      <EditorToolbar handlers={formatHandlers} />
       {linkBubble && (
         <div
           className="absolute z-50"

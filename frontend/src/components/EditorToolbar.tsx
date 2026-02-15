@@ -1,3 +1,4 @@
+import type { EditorFormatHandlers } from '../hooks/useEditorFormat';
 import FormatButtons from './FormatButtons';
 import ColorPicker from './ColorPicker';
 import HighlightPicker from './HighlightPicker';
@@ -10,60 +11,28 @@ import ClearFormattingButton from './ClearFormattingButton';
 import KeyboardShortcutsHelp from './KeyboardShortcutsHelp';
 
 interface EditorToolbarProps {
-  onBold: () => void;
-  onItalic: () => void;
-  onUnderline: () => void;
-  onStrike: () => void;
-  onSuperscript: () => void;
-  onSubscript: () => void;
-  onSelectColor: (color: string) => void;
-  onHighlight: (color: string) => void;
-  onAlign: (alignment: 'left' | 'center' | 'right') => void;
-  onUndo: () => void;
-  onRedo: () => void;
-  onClearFormatting: () => void;
-  onIndent: () => void;
-  onOutdent: () => void;
-  onBlockquote: () => void;
-  onHorizontalRule: () => void;
+  handlers: EditorFormatHandlers;
 }
 
-export default function EditorToolbar({
-  onBold,
-  onItalic,
-  onUnderline,
-  onStrike,
-  onSuperscript,
-  onSubscript,
-  onSelectColor,
-  onHighlight,
-  onAlign,
-  onUndo,
-  onRedo,
-  onClearFormatting,
-  onIndent,
-  onOutdent,
-  onBlockquote,
-  onHorizontalRule,
-}: EditorToolbarProps) {
+export default function EditorToolbar({ handlers }: EditorToolbarProps) {
   return (
     <div className="px-8 py-1 border-b border-[var(--color-surface-3)] flex items-center gap-3">
-      <FormatButtons onBold={onBold} onItalic={onItalic} onUnderline={onUnderline} onStrike={onStrike} onSuperscript={onSuperscript} onSubscript={onSubscript} />
+      <FormatButtons onBold={handlers.handleBold} onItalic={handlers.handleItalic} onUnderline={handlers.handleUnderline} onStrike={handlers.handleStrike} onSuperscript={handlers.handleSuperscript} onSubscript={handlers.handleSubscript} />
       <div className="w-px h-4 bg-[var(--color-surface-3)]" />
-      <ColorPicker onSelectColor={onSelectColor} />
+      <ColorPicker onSelectColor={handlers.handleSelectColor} />
       <div className="w-px h-4 bg-[var(--color-surface-3)]" />
-      <HighlightPicker onSelectHighlight={onHighlight} />
+      <HighlightPicker onSelectHighlight={handlers.handleHighlight} />
       <div className="w-px h-4 bg-[var(--color-surface-3)]" />
-      <TextAlignButtons onAlign={onAlign} />
+      <TextAlignButtons onAlign={handlers.handleAlign} />
       <div className="w-px h-4 bg-[var(--color-surface-3)]" />
-      <IndentButtons onIndent={onIndent} onOutdent={onOutdent} />
+      <IndentButtons onIndent={handlers.handleIndent} onOutdent={handlers.handleOutdent} />
       <div className="w-px h-4 bg-[var(--color-surface-3)]" />
-      <BlockquoteButton onBlockquote={onBlockquote} />
-      <HorizontalRuleButton onHorizontalRule={onHorizontalRule} />
+      <BlockquoteButton onBlockquote={handlers.handleBlockquote} />
+      <HorizontalRuleButton onHorizontalRule={handlers.handleHorizontalRule} />
       <div className="w-px h-4 bg-[var(--color-surface-3)]" />
-      <UndoRedoButtons onUndo={onUndo} onRedo={onRedo} />
+      <UndoRedoButtons onUndo={handlers.handleUndo} onRedo={handlers.handleRedo} />
       <div className="w-px h-4 bg-[var(--color-surface-3)]" />
-      <ClearFormattingButton onClearFormatting={onClearFormatting} />
+      <ClearFormattingButton onClearFormatting={handlers.handleClearFormatting} />
       <div className="w-px h-4 bg-[var(--color-surface-3)]" />
       <KeyboardShortcutsHelp />
     </div>

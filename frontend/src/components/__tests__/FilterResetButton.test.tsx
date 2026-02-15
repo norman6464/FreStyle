@@ -31,4 +31,29 @@ describe('FilterResetButton', () => {
     expect(button).toBeDefined();
     expect(button?.querySelector('svg')).toBeDefined();
   });
+
+  it('isActiveがfalseからtrueに変わるとボタンが出現する', () => {
+    const { rerender } = render(<FilterResetButton isActive={false} onReset={mockOnReset} />);
+    expect(screen.queryByText('リセット')).not.toBeInTheDocument();
+
+    rerender(<FilterResetButton isActive={true} onReset={mockOnReset} />);
+    expect(screen.getByText('リセット')).toBeInTheDocument();
+  });
+
+  it('isActiveがtrueからfalseに変わるとボタンが消える', () => {
+    const { rerender } = render(<FilterResetButton isActive={true} onReset={mockOnReset} />);
+    expect(screen.getByText('リセット')).toBeInTheDocument();
+
+    rerender(<FilterResetButton isActive={false} onReset={mockOnReset} />);
+    expect(screen.queryByText('リセット')).not.toBeInTheDocument();
+  });
+
+  it('連続クリックでonResetが複数回呼ばれる', () => {
+    render(<FilterResetButton isActive={true} onReset={mockOnReset} />);
+    const button = screen.getByText('リセット');
+    fireEvent.click(button);
+    fireEvent.click(button);
+    fireEvent.click(button);
+    expect(mockOnReset).toHaveBeenCalledTimes(3);
+  });
 });

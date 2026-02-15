@@ -17,6 +17,8 @@ import { slashCommandRenderer } from '../extensions/slashCommandRenderer';
 import { ToggleList, ToggleSummary, ToggleContent } from '../extensions/ToggleListExtension';
 import { Callout } from '../extensions/CalloutExtension';
 import Link from '@tiptap/extension-link';
+import TextStyle from '@tiptap/extension-text-style';
+import Color from '@tiptap/extension-color';
 import { isLegacyMarkdown } from '../utils/isLegacyMarkdown';
 import { markdownToTiptap } from '../utils/markdownToTiptap';
 
@@ -74,6 +76,8 @@ export function useBlockEditor({ content, onChange }: UseBlockEditorOptions) {
         openOnClick: false,
         HTMLAttributes: { class: 'note-link' },
       }),
+      TextStyle,
+      Color,
     ],
     content: initialContent,
     onUpdate: ({ editor }) => {

@@ -4,6 +4,7 @@ import SockJS from 'sockjs-client';
 import { Client } from '@stomp/stompjs';
 import ChatRepository from '../repositories/ChatRepository';
 import { ChatMessage } from '../types';
+import { useMessageSelection } from './useMessageSelection';
 
 /**
  * チャットページのコアロジックフック
@@ -15,10 +16,6 @@ export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [senderId, setSenderId] = useState<number | null>(null);
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; messageId: number | null }>({ isOpen: false, messageId: null });
-  const [selectionMode, setSelectionMode] = useState(false);
-  const [selectedMessages, setSelectedMessages] = useState<Set<number>>(new Set());
-  const [rangeStart, setRangeStart] = useState<number | null>(null);
-  const [rangeEnd, setRangeEnd] = useState<number | null>(null);
   const [showSceneSelector, setShowSceneSelector] = useState(false);
   const [showRephraseModal, setShowRephraseModal] = useState(false);
   const [rephraseResult, setRephraseResult] = useState<{ formal: string; soft: string; concise: string } | null>(null);
@@ -29,6 +26,8 @@ export function useChat() {
   const { roomId } = useParams<{ roomId: string }>();
   const navigate = useNavigate();
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
+  const selection = useMessageSelection(messages);
 
   // ユーザー情報取得
   useEffect(() => {
@@ -156,79 +155,28 @@ export function useChat() {
 
   // AI選択モード
   const handleAiFeedback = useCallback(() => {
-    setSelectionMode(true);
-    setSelectedMessages(new Set());
-    setRangeStart(null);
-    setRangeEnd(null);
-  }, []);
-
-  const handleRangeClick = useCallback((messageId: number) => {
-    const messageIndex = messages.findIndex((msg) => msg.id === messageId);
-    if (rangeStart === null) {
-      setRangeStart(messageIndex);
-      setRangeEnd(null);
-      setSelectedMessages(new Set([messageId]));
-    } else if (rangeEnd === null) {
-      setRangeEnd(messageIndex);
-      const start = Math.min(rangeStart, messageIndex);
-      const end = Math.max(rangeStart, messageIndex);
-      const rangeIds = new Set(messages.slice(start, end + 1).map((msg) => msg.id));
-      setSelectedMessages(rangeIds);
-    } else {
-      setRangeStart(messageIndex);
-      setRangeEnd(null);
-      setSelectedMessages(new Set([messageId]));
-    }
-  }, [messages, rangeStart, rangeEnd]);
-
-  const handleQuickSelect = useCallback((count: number) => {
-    const recentMessages = messages.slice(-count);
-    const recentIds = new Set(recentMessages.map((msg) => msg.id));
-    setSelectedMessages(recentIds);
-    if (recentMessages.length > 0) {
-      setRangeStart(messages.length - count);
-      setRangeEnd(messages.length - 1);
-    }
-  }, [messages]);
-
-  const handleSelectAll = useCallback(() => {
-    const allIds = new Set(messages.map((msg) => msg.id));
-    setSelectedMessages(allIds);
-    setRangeStart(0);
-    setRangeEnd(messages.length - 1);
-  }, [messages]);
-
-  const handleDeselectAll = useCallback(() => {
-    setSelectedMessages(new Set());
-    setRangeStart(null);
-    setRangeEnd(null);
-  }, []);
+    selection.enterSelectionMode();
+  }, [selection]);
 
   const handleCancelSelection = useCallback(() => {
-    setSelectionMode(false);
-    setSelectedMessages(new Set());
-    setRangeStart(null);
-    setRangeEnd(null);
-  }, []);
+    selection.cancelSelection();
+  }, [selection]);
 
   const handleSendToAi = useCallback(() => {
-    if (selectedMessages.size === 0) {
+    if (selection.selectedMessages.size === 0) {
       alert('メッセージを選択してください');
       return;
     }
     setShowSceneSelector(true);
-  }, [selectedMessages]);
+  }, [selection.selectedMessages]);
 
   const handleSceneSelect = useCallback((scene: string | null) => {
     setShowSceneSelector(false);
-    const selectedMsgs = messages.filter((msg) => selectedMessages.has(msg.id));
+    const selectedMsgs = messages.filter((msg) => selection.selectedMessages.has(msg.id));
     const chatHistory = selectedMsgs
       .map((msg) => `${msg.isSender ? '自分' : '相手'}: ${msg.content}`)
       .join('\n');
-    setSelectionMode(false);
-    setSelectedMessages(new Set());
-    setRangeStart(null);
-    setRangeEnd(null);
+    selection.cancelSelection();
     navigate('/chat/ask-ai', {
       state: {
         initialPrompt: `【選択したチャット履歴】\n${chatHistory}`,
@@ -236,7 +184,7 @@ export function useChat() {
         scene: scene,
       },
     });
-  }, [messages, selectedMessages, navigate]);
+  }, [messages, selection, navigate]);
 
   // 言い換え提案
   const handleRephrase = useCallback(async (content: string) => {
@@ -256,31 +204,12 @@ export function useChat() {
     }
   }, []);
 
-  // ユーティリティ
-  const isInRange = useCallback((index: number): boolean => {
-    if (rangeStart === null) return false;
-    if (rangeEnd === null) return index === rangeStart;
-    const start = Math.min(rangeStart, rangeEnd);
-    const end = Math.max(rangeStart, rangeEnd);
-    return index >= start && index <= end;
-  }, [rangeStart, rangeEnd]);
-
-  const getRangeLabel = useCallback((index: number): string | null => {
-    if (rangeStart === index && rangeEnd === null) return '開始';
-    if (rangeEnd === null) return null;
-    const start = Math.min(rangeStart!, rangeEnd);
-    const end = Math.max(rangeStart!, rangeEnd);
-    if (index === start) return '開始';
-    if (index === end) return '終了';
-    return null;
-  }, [rangeStart, rangeEnd]);
-
   return {
     messages,
     senderId,
     deleteModal,
-    selectionMode,
-    selectedMessages,
+    selectionMode: selection.selectionMode,
+    selectedMessages: selection.selectedMessages,
     showSceneSelector,
     showRephraseModal,
     rephraseResult,
@@ -291,16 +220,16 @@ export function useChat() {
     confirmDelete,
     cancelDelete,
     handleAiFeedback,
-    handleRangeClick,
-    handleQuickSelect,
-    handleSelectAll,
-    handleDeselectAll,
+    handleRangeClick: selection.handleRangeClick,
+    handleQuickSelect: selection.handleQuickSelect,
+    handleSelectAll: selection.handleSelectAll,
+    handleDeselectAll: selection.handleDeselectAll,
     handleCancelSelection,
     handleSendToAi,
     handleSceneSelect,
     handleRephrase,
     setShowRephraseModal,
-    isInRange,
-    getRangeLabel,
+    isInRange: selection.isInRange,
+    getRangeLabel: selection.getRangeLabel,
   };
 }

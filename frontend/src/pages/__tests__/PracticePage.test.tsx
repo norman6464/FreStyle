@@ -121,6 +121,30 @@ describe('PracticePage', () => {
     });
   });
 
+  describe('結果件数表示', () => {
+    it('初期状態で全件数が表示される', () => {
+      render(
+        <BrowserRouter>
+          <PracticePage />
+        </BrowserRouter>
+      );
+
+      expect(screen.getByText('3件')).toBeInTheDocument();
+    });
+
+    it('フィルター適用時にフィルタ後件数と全件数が表示される', () => {
+      render(
+        <BrowserRouter>
+          <PracticePage />
+        </BrowserRouter>
+      );
+
+      fireEvent.click(screen.getByRole('tab', { name: '顧客折衝' }));
+
+      expect(screen.getByText('1 / 3件')).toBeInTheDocument();
+    });
+  });
+
   describe('シナリオ検索', () => {
     it('検索ボックスが表示される', () => {
       render(

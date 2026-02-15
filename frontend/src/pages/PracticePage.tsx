@@ -21,6 +21,8 @@ export default function PracticePage() {
     isFilterActive,
     resetFilters,
     filteredScenarios,
+    totalCount,
+    filteredCount,
     loading,
     handleSelectScenario,
     isBookmarked,
@@ -58,6 +60,13 @@ export default function PracticePage() {
         </div>
         <SortSelector selected={selectedSort} onChange={setSelectedSort} />
       </div>
+
+      {/* 結果件数 */}
+      {!loading && (
+        <p className="text-[10px] text-[var(--color-text-muted)] mb-2">
+          {isFilterActive ? `${filteredCount} / ${totalCount}件` : `${totalCount}件`}
+        </p>
+      )}
 
       {/* シナリオ一覧 */}
       {loading ? (

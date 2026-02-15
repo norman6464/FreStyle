@@ -72,6 +72,9 @@ export function usePracticePage() {
     }
   }, [createPracticeSession, navigate]);
 
+  const totalCount = scenarios.length;
+  const filteredCount = filteredScenarios.length;
+
   return {
     selectedCategory,
     setSelectedCategory,
@@ -84,6 +87,8 @@ export function usePracticePage() {
     isFilterActive,
     resetFilters,
     filteredScenarios,
+    totalCount,
+    filteredCount,
     loading,
     handleSelectScenario,
     isBookmarked,

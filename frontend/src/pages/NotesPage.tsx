@@ -131,6 +131,7 @@ export default function NotesPage() {
           <NoteEditor
             title={editTitle}
             content={editContent}
+            noteId={selectedNoteId}
             onTitleChange={handleTitleChange}
             onContentChange={handleContentChange}
           />

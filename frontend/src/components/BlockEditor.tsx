@@ -9,15 +9,17 @@ import { slashCommandRenderer } from '../extensions/slashCommandRenderer';
 import { ToggleList, ToggleSummary, ToggleContent } from '../extensions/ToggleListExtension';
 import { isLegacyMarkdown } from '../utils/isLegacyMarkdown';
 import { markdownToTiptap } from '../utils/markdownToTiptap';
+import { useImageUpload } from '../hooks/useImageUpload';
 import BlockInserterButton from './BlockInserterButton';
 import type { SlashCommand } from '../constants/slashCommands';
 
 interface BlockEditorProps {
   content: string;
   onChange: (jsonString: string) => void;
+  noteId: string | null;
 }
 
-export default function BlockEditor({ content, onChange }: BlockEditorProps) {
+export default function BlockEditor({ content, onChange, noteId }: BlockEditorProps) {
   const initialContent = useMemo(() => {
     if (!content) return undefined;
     if (isLegacyMarkdown(content)) {
@@ -60,6 +62,8 @@ export default function BlockEditor({ content, onChange }: BlockEditorProps) {
       onChange(JSON.stringify(editor.getJSON()));
     },
   });
+
+  const { openFileDialog, handleDrop, handlePaste } = useImageUpload(noteId, editor);
 
   useEffect(() => {
     if (!editor) return;
@@ -117,9 +121,13 @@ export default function BlockEditor({ content, onChange }: BlockEditorProps) {
 
   const handleCommand = useCallback((command: SlashCommand) => {
     if (!editor) return;
+    if (command.action === 'image') {
+      openFileDialog();
+      return;
+    }
     editor.chain().focus().run();
     executeCommand(editor, command);
-  }, [editor]);
+  }, [editor, openFileDialog]);
 
   return (
     <div
@@ -128,6 +136,9 @@ export default function BlockEditor({ content, onChange }: BlockEditorProps) {
       data-testid="block-editor"
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
+      onDrop={handleDrop}
+      onPaste={handlePaste}
+      onDragOver={(e) => e.preventDefault()}
     >
       <BlockInserterButton
         visible={inserterVisible}

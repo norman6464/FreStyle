@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { formatTime, truncateMessage } from '../formatters';
+import { formatTime, formatDate, formatHourMinute, truncateMessage } from '../formatters';
 
 describe('formatTime', () => {
   beforeEach(() => {
@@ -33,6 +33,34 @@ describe('formatTime', () => {
   it('1週間以上前の場合は月日で返す', () => {
     const result = formatTime('2025-05-01T10:30:00');
     expect(result).toMatch(/5/);
+  });
+});
+
+describe('formatDate', () => {
+  it('空文字の場合は空文字を返す', () => {
+    expect(formatDate('')).toBe('');
+  });
+
+  it('日付文字列をja-JP形式に変換する', () => {
+    const result = formatDate('2025-06-15T10:30:00');
+    expect(result).toMatch(/2025/);
+    expect(result).toMatch(/6/);
+    expect(result).toMatch(/15/);
+  });
+});
+
+describe('formatHourMinute', () => {
+  it('undefinedの場合は空文字を返す', () => {
+    expect(formatHourMinute(undefined)).toBe('');
+  });
+
+  it('空文字の場合は空文字を返す', () => {
+    expect(formatHourMinute('')).toBe('');
+  });
+
+  it('時刻をHH:mm形式で返す', () => {
+    const result = formatHourMinute('2025-06-15T10:30:00');
+    expect(result).toMatch(/10:30/);
   });
 });
 

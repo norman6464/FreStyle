@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { getScoreTextColor } from '../utils/scoreColor';
 import Card from './Card';
+import { formatDate } from '../utils/formatters';
 
 interface Session {
   sessionId: number;
@@ -39,7 +40,7 @@ export default function RecentSessionsCard({ sessions }: RecentSessionsCardProps
             <div className="flex-1 min-w-0 mr-3">
               <p className="text-sm text-[var(--color-text-secondary)] truncate">{session.sessionTitle}</p>
               <p className="text-[10px] text-[var(--color-text-faint)]">
-                {new Date(session.createdAt).toLocaleDateString('ja-JP')}
+                {formatDate(session.createdAt)}
               </p>
             </div>
             <span className={`text-sm font-semibold ${getScoreTextColor(session.overallScore)}`}>

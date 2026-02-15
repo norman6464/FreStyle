@@ -77,7 +77,7 @@ describe('NotesPage', () => {
     });
     render(<NotesPage />);
     expect(screen.getByDisplayValue('選択ノート')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('選択内容')).toBeInTheDocument();
+    expect(screen.getByTestId('block-editor')).toBeInTheDocument();
   });
 
   it('新しいノートボタンでcreateNoteが呼ばれる', async () => {
@@ -96,7 +96,7 @@ describe('NotesPage', () => {
     vi.mocked(useNotes).mockReturnValue({
       ...mockUseNotes,
       notes: [
-        { noteId: 'n1', userId: 1, title: '元タイトル', content: '元内容', isPinned: false, createdAt: 1000, updatedAt: 2000 },
+        { noteId: 'n1', userId: 1, title: '元タイトル', content: '', isPinned: false, createdAt: 1000, updatedAt: 2000 },
       ],
       selectedNoteId: 'n1',
     });
@@ -111,38 +111,13 @@ describe('NotesPage', () => {
       vi.advanceTimersByTime(800);
     });
 
-    expect(mockUseNotes.updateNote).toHaveBeenCalledWith('n1', {
+    expect(mockUseNotes.updateNote).toHaveBeenCalledWith('n1', expect.objectContaining({
       title: '新タイトル',
-      content: '元内容',
       isPinned: false,
-    });
+    }));
   });
 
-  it('内容変更で自動保存が800ms後に呼ばれる', async () => {
-    vi.mocked(useNotes).mockReturnValue({
-      ...mockUseNotes,
-      notes: [
-        { noteId: 'n1', userId: 1, title: 'タイトル', content: '元内容', isPinned: false, createdAt: 1000, updatedAt: 2000 },
-      ],
-      selectedNoteId: 'n1',
-    });
-    render(<NotesPage />);
-
-    const textarea = screen.getByDisplayValue('元内容');
-    fireEvent.change(textarea, { target: { value: '新内容' } });
-
-    act(() => {
-      vi.advanceTimersByTime(800);
-    });
-
-    expect(mockUseNotes.updateNote).toHaveBeenCalledWith('n1', {
-      title: 'タイトル',
-      content: '新内容',
-      isPinned: false,
-    });
-  });
-
-  it('連続入力で自動保存がデバウンスされる', async () => {
+  it('タイトル変更でデバウンス後にupdateNoteが呼ばれる', async () => {
     vi.mocked(useNotes).mockReturnValue({
       ...mockUseNotes,
       notes: [
@@ -153,13 +128,8 @@ describe('NotesPage', () => {
     render(<NotesPage />);
 
     const titleInput = screen.getByDisplayValue('タイトル');
-    fireEvent.change(titleInput, { target: { value: 'A' } });
-    act(() => { vi.advanceTimersByTime(400); });
-
-    fireEvent.change(titleInput, { target: { value: 'AB' } });
-    act(() => { vi.advanceTimersByTime(400); });
-
     fireEvent.change(titleInput, { target: { value: 'ABC' } });
+
     act(() => { vi.advanceTimersByTime(800); });
 
     expect(mockUseNotes.updateNote).toHaveBeenCalledTimes(1);

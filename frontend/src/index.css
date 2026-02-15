@@ -90,9 +90,10 @@
 .ProseMirror h2 { font-size: 1.25rem; font-weight: 600; margin: 0.75rem 0 0.375rem; }
 .ProseMirror h3 { font-size: 1rem; font-weight: 600; margin: 0.5rem 0 0.25rem; }
 
-.ProseMirror ul { list-style: disc; padding-left: 1.5rem; }
-.ProseMirror ol { list-style: decimal; padding-left: 1.5rem; }
+.ProseMirror ul { list-style-type: disc; padding-left: 1.5rem; }
+.ProseMirror ol { list-style-type: decimal; padding-left: 1.5rem; }
 .ProseMirror li { margin: 0.125rem 0; }
+.ProseMirror li p { margin: 0; }
 
 .ProseMirror p { margin: 0.25rem 0; }
 

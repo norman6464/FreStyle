@@ -29,8 +29,15 @@ public class NoteImageController {
             @PathVariable String noteId,
             @Valid @RequestBody PresignedUrlRequest request
     ) {
+        logger.info("Presigned URLリクエスト受信 - noteId: {}, fileName: {}, contentType: {}",
+                noteId, request.fileName(), request.contentType());
         try {
+            if (jwt == null) {
+                logger.warn("JWT is null - 認証されていないリクエスト");
+                return ResponseEntity.status(401).body(java.util.Map.of("error", "認証が必要です"));
+            }
             String sub = jwt.getSubject();
+            logger.debug("JWT subject: {}", sub);
             User user = userIdentityService.findUserBySub(sub);
 
             PresignedUrlResponse response = noteImageService.generatePresignedUrl(

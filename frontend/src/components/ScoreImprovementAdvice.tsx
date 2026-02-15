@@ -1,5 +1,6 @@
 import type { AxisScore } from '../types';
 import Card from './Card';
+import CardHeading from './CardHeading';
 import { IMPROVEMENT_ADVICE, SCORE_THRESHOLD } from '../constants/axisAdvice';
 
 interface ScoreImprovementAdviceProps {
@@ -11,7 +12,7 @@ export default function ScoreImprovementAdvice({ scores }: ScoreImprovementAdvic
 
   return (
     <Card>
-      <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-3">改善アドバイス</p>
+      <CardHeading>改善アドバイス</CardHeading>
 
       {weakAxes.length === 0 ? (
         <p className="text-xs text-emerald-400 font-medium">

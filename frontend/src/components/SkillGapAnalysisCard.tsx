@@ -1,5 +1,6 @@
 import type { AxisScore } from '../types';
 import Card from './Card';
+import CardHeading from './CardHeading';
 
 interface SkillGapAnalysisCardProps {
   scores: AxisScore[];
@@ -22,7 +23,7 @@ export default function SkillGapAnalysisCard({ scores, goal }: SkillGapAnalysisC
 
   return (
     <Card>
-      <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-3">スキルギャップ分析</p>
+      <CardHeading>スキルギャップ分析</CardHeading>
 
       {allAchieved && (
         <p className="text-xs text-emerald-400 font-medium mb-3">

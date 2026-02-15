@@ -1,4 +1,5 @@
 import Card from './Card';
+import CardHeading from './CardHeading';
 
 interface LearningInsightsCardProps {
   totalSessions: number;
@@ -19,7 +20,7 @@ export default function LearningInsightsCard({
 
   return (
     <Card>
-      <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-3">学習インサイト</p>
+      <CardHeading>学習インサイト</CardHeading>
       <div className="grid grid-cols-3 gap-3">
         {stats.map((stat) => (
           <div key={stat.label} className="text-center">

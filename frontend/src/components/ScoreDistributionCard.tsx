@@ -1,4 +1,5 @@
 import Card from './Card';
+import CardHeading from './CardHeading';
 
 interface ScoreDistributionCardProps {
   scores: number[];
@@ -43,7 +44,7 @@ export default function ScoreDistributionCard({ scores }: ScoreDistributionCardP
 
   return (
     <Card>
-      <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-3">スコア分布</p>
+      <CardHeading>スコア分布</CardHeading>
 
       <div className="space-y-2">
         {RANGES.map((range, i) => (

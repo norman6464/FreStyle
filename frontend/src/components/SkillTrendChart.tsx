@@ -1,3 +1,4 @@
+import CardHeading from './CardHeading';
 import type { AxisScore } from '../types';
 
 interface HistoryItem {
@@ -32,7 +33,7 @@ export default function SkillTrendChart({ history }: SkillTrendChartProps) {
 
   return (
     <div className="bg-surface-1 rounded-lg border border-surface-3 p-4">
-      <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-3">スキル別推移</p>
+      <CardHeading>スキル別推移</CardHeading>
       <div className="space-y-2">
         {skills.map((skill) => (
           <div key={skill.axis} className="flex items-center gap-2">

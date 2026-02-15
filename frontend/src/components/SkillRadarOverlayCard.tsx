@@ -1,4 +1,5 @@
 import Card from './Card';
+import CardHeading from './CardHeading';
 import type { AxisScore } from '../types';
 import {
   polarToCartesian,
@@ -22,7 +23,7 @@ export default function SkillRadarOverlayCard({ previousScores, currentScores }:
 
   return (
     <Card>
-      <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-3">スキル変化レーダー</p>
+      <CardHeading>スキル変化レーダー</CardHeading>
 
       <div className="flex justify-center">
         <svg viewBox={`0 0 ${RADAR_SIZE} ${RADAR_SIZE}`} width={RADAR_SIZE} height={RADAR_SIZE}>

@@ -1,6 +1,7 @@
 import type { ScoreHistoryItem } from '../types';
 import { getWeekRange } from '../utils/weekUtils';
 import Card from './Card';
+import CardHeading from './CardHeading';
 
 interface WeeklyComparisonCardProps {
   sessions: ScoreHistoryItem[];
@@ -30,7 +31,7 @@ export default function WeeklyComparisonCard({ sessions }: WeeklyComparisonCardP
 
   return (
     <Card>
-      <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-3">週間比較</p>
+      <CardHeading>週間比較</CardHeading>
 
       <div className="grid grid-cols-2 gap-4">
         <div>

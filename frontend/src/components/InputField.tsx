@@ -1,5 +1,7 @@
 import { ChangeEvent, useState } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/solid';
+import FormFieldError from './FormFieldError';
+import { getFieldBorderClass } from '../utils/fieldStyles';
 
 interface InputFieldProps {
   label: string;
@@ -46,11 +48,7 @@ export default function InputField({
           }}
           aria-invalid={!!error}
           aria-describedby={error ? `${name}-error` : undefined}
-          className={`w-full border rounded-lg px-4 py-2.5 pr-10 focus:outline-none focus:ring-1 transition-colors duration-150 ${
-            error
-              ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500'
-              : 'border-surface-3 focus:border-primary-500 focus:ring-primary-500'
-          }`}
+          className={`w-full border rounded-lg px-4 py-2.5 pr-10 focus:outline-none focus:ring-1 transition-colors duration-150 ${getFieldBorderClass(!!error)}`}
         />
         {inputValue && (
           <button
@@ -62,11 +60,7 @@ export default function InputField({
           </button>
         )}
       </div>
-      {error && (
-        <p id={`${name}-error`} role="alert" className="text-xs text-rose-400 mt-1">
-          {error}
-        </p>
-      )}
+      <FormFieldError name={name} error={error} />
     </div>
   );
 }

@@ -4,6 +4,7 @@ import FilterTabs from '../components/FilterTabs';
 import DifficultyFilter from '../components/DifficultyFilter';
 import SortSelector from '../components/SortSelector';
 import FilterResetButton from '../components/FilterResetButton';
+import SearchBox from '../components/SearchBox';
 import { usePracticePage } from '../hooks/usePracticePage';
 
 const CATEGORIES = ['すべて', 'ブックマーク', '顧客折衝', 'シニア・上司', 'チーム内'] as const;
@@ -16,6 +17,8 @@ export default function PracticePage() {
     setSelectedDifficulty,
     selectedSort,
     setSelectedSort,
+    searchQuery,
+    setSearchQuery,
     isFilterActive,
     resetFilters,
     filteredScenarios,
@@ -33,6 +36,11 @@ export default function PracticePage() {
         <p className="text-xs text-[var(--color-text-muted)]">
           AIが相手役を演じます。実践的なビジネスシーンでコミュニケーションスキルを磨きましょう。
         </p>
+      </div>
+
+      {/* 検索ボックス */}
+      <div className="mb-3">
+        <SearchBox value={searchQuery} onChange={setSearchQuery} placeholder="シナリオを検索" />
       </div>
 
       {/* カテゴリタブ */}

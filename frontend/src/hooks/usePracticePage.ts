@@ -12,6 +12,7 @@ export function usePracticePage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('すべて');
   const [selectedDifficulty, setSelectedDifficulty] = useState<string | null>(null);
   const [selectedSort, setSelectedSort] = useState<SortOption>('default');
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const { scenarios, loading, fetchScenarios, createPracticeSession } = usePractice();
   const { bookmarkedIds, toggleBookmark, isBookmarked } = useBookmark();
 
@@ -28,6 +29,11 @@ export function usePracticePage() {
       result = result.filter((s) => s.category === CATEGORY_LABEL_TO_DB[selectedCategory]);
     }
 
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter((s) => s.name.toLowerCase().includes(q));
+    }
+
     if (selectedDifficulty) {
       result = result.filter((s) => s.difficulty === selectedDifficulty);
     }
@@ -41,14 +47,15 @@ export function usePracticePage() {
     }
 
     return result;
-  }, [scenarios, selectedCategory, selectedDifficulty, selectedSort, bookmarkedIds]);
+  }, [scenarios, selectedCategory, selectedDifficulty, selectedSort, searchQuery, bookmarkedIds]);
 
-  const isFilterActive = selectedCategory !== 'すべて' || selectedDifficulty !== null || selectedSort !== 'default';
+  const isFilterActive = selectedCategory !== 'すべて' || selectedDifficulty !== null || selectedSort !== 'default' || searchQuery !== '';
 
   const resetFilters = useCallback(() => {
     setSelectedCategory('すべて');
     setSelectedDifficulty(null);
     setSelectedSort('default');
+    setSearchQuery('');
   }, []);
 
   const handleSelectScenario = useCallback(async (scenario: PracticeScenario) => {
@@ -72,6 +79,8 @@ export function usePracticePage() {
     setSelectedDifficulty,
     selectedSort,
     setSelectedSort,
+    searchQuery,
+    setSearchQuery,
     isFilterActive,
     resetFilters,
     filteredScenarios,

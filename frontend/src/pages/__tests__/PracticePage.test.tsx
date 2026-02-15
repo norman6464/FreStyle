@@ -121,6 +121,34 @@ describe('PracticePage', () => {
     });
   });
 
+  describe('シナリオ検索', () => {
+    it('検索ボックスが表示される', () => {
+      render(
+        <BrowserRouter>
+          <PracticePage />
+        </BrowserRouter>
+      );
+
+      expect(screen.getByPlaceholderText('シナリオを検索')).toBeInTheDocument();
+    });
+
+    it('検索キーワードでシナリオを絞り込める', () => {
+      render(
+        <BrowserRouter>
+          <PracticePage />
+        </BrowserRouter>
+      );
+
+      fireEvent.change(screen.getByPlaceholderText('シナリオを検索'), {
+        target: { value: '障害' },
+      });
+
+      expect(screen.getByText('本番障害の緊急報告')).toBeInTheDocument();
+      expect(screen.queryByText('設計方針の意見対立')).not.toBeInTheDocument();
+      expect(screen.queryByText('チーム内の進捗共有')).not.toBeInTheDocument();
+    });
+  });
+
   describe('シナリオカードクリック時の動作', () => {
     it('シナリオカードクリック時にinitialPromptを含むstateでnavigateする', async () => {
       render(

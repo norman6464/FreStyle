@@ -182,4 +182,39 @@ describe('usePracticePage', () => {
     expect(result.current.selectedSort).toBe('default');
     expect(result.current.isFilterActive).toBe(false);
   });
+
+  it('初期searchQueryは空文字', () => {
+    const { result } = renderHook(() => usePracticePage());
+    expect(result.current.searchQuery).toBe('');
+  });
+
+  it('searchQueryでシナリオ名を絞り込める', () => {
+    const { result } = renderHook(() => usePracticePage());
+    act(() => {
+      result.current.setSearchQuery('シナリオA');
+    });
+    expect(result.current.filteredScenarios).toHaveLength(1);
+    expect(result.current.filteredScenarios[0].name).toBe('シナリオA');
+  });
+
+  it('searchQueryが設定されるとisFilterActiveがtrueになる', () => {
+    const { result } = renderHook(() => usePracticePage());
+    act(() => {
+      result.current.setSearchQuery('テスト');
+    });
+    expect(result.current.isFilterActive).toBe(true);
+  });
+
+  it('resetFiltersでsearchQueryもクリアされる', () => {
+    const { result } = renderHook(() => usePracticePage());
+    act(() => {
+      result.current.setSearchQuery('シナリオ');
+    });
+    expect(result.current.searchQuery).toBe('シナリオ');
+
+    act(() => {
+      result.current.resetFilters();
+    });
+    expect(result.current.searchQuery).toBe('');
+  });
 });

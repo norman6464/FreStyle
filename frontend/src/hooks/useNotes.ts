@@ -14,7 +14,7 @@ export function useNotes() {
     setLoading(true);
     try {
       const data = await NoteRepository.fetchNotes();
-      setNotes(data);
+      setNotes(Array.isArray(data) ? data : []);
     } catch {
       // エラーハンドリング
     } finally {

@@ -1,12 +1,6 @@
 import { useMemo } from 'react';
 import Card from './Card';
-
-interface ScoreHistory {
-  sessionId: number;
-  sessionTitle: string;
-  overallScore: number;
-  createdAt: string;
-}
+import type { ScoreHistory } from '../types';
 
 interface WeeklyReportCardProps {
   allScores: ScoreHistory[];

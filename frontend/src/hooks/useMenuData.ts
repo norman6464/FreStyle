@@ -1,15 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { MenuRepository } from '../repositories/MenuRepository';
+import type { ScoreHistory } from '../types';
 
 interface ChatStats {
   chatPartnerCount: number;
-}
-
-interface ScoreHistory {
-  sessionId: number;
-  sessionTitle: string;
-  overallScore: number;
-  createdAt: string;
 }
 
 export function useMenuData() {

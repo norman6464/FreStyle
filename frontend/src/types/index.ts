@@ -157,3 +157,11 @@ export interface Note {
   createdAt: number;
   updatedAt: number;
 }
+
+/** スコア履歴 */
+export interface ScoreHistory {
+  sessionId: number;
+  sessionTitle: string;
+  overallScore: number;
+  createdAt: string;
+}

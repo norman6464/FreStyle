@@ -69,4 +69,21 @@ describe('tiptapToPlainText', () => {
     });
     expect(tiptapToPlainText(json)).toBe('');
   });
+
+  it('インラインノード間にスペースを挿入しない', () => {
+    const json = JSON.stringify({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'これは' },
+            { type: 'text', text: '太字', marks: [{ type: 'bold' }] },
+            { type: 'text', text: 'です' },
+          ],
+        },
+      ],
+    });
+    expect(tiptapToPlainText(json)).toBe('これは太字です');
+  });
 });

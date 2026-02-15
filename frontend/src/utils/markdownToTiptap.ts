@@ -14,7 +14,8 @@ interface Block {
 }
 
 function parseBlocks(content: string): Block[] {
-  const lines = content.split('\n');
+  const normalizedContent = content.replace(/\r\n?/g, '\n');
+  const lines = normalizedContent.split('\n');
   const blocks: Block[] = [];
   let i = 0;
 

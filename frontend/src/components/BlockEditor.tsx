@@ -63,12 +63,16 @@ export default function BlockEditor({ content, onChange }: BlockEditorProps) {
         return;
       }
     }
+
+    const newJson = JSON.stringify(newContent);
+    if (newJson === currentJson) return;
+
     editor.commands.setContent(newContent);
   }, [content, editor]);
 
   return (
     <div className="block-editor flex-1 overflow-y-auto" data-testid="block-editor">
-      <EditorContent editor={editor} />
+      <EditorContent editor={editor} aria-label="ノートの内容" />
     </div>
   );
 }

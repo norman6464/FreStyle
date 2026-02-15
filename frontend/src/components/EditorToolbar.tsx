@@ -8,6 +8,8 @@ interface EditorToolbarProps {
   onItalic: () => void;
   onUnderline: () => void;
   onStrike: () => void;
+  onSuperscript: () => void;
+  onSubscript: () => void;
   onSelectColor: (color: string) => void;
   onHighlight: (color: string) => void;
   onAlign: (alignment: 'left' | 'center' | 'right') => void;
@@ -18,13 +20,15 @@ export default function EditorToolbar({
   onItalic,
   onUnderline,
   onStrike,
+  onSuperscript,
+  onSubscript,
   onSelectColor,
   onHighlight,
   onAlign,
 }: EditorToolbarProps) {
   return (
     <div className="px-8 py-1 border-b border-[var(--color-surface-3)] flex items-center gap-3">
-      <FormatButtons onBold={onBold} onItalic={onItalic} onUnderline={onUnderline} onStrike={onStrike} />
+      <FormatButtons onBold={onBold} onItalic={onItalic} onUnderline={onUnderline} onStrike={onStrike} onSuperscript={onSuperscript} onSubscript={onSubscript} />
       <div className="w-px h-4 bg-[var(--color-surface-3)]" />
       <ColorPicker onSelectColor={onSelectColor} />
       <div className="w-px h-4 bg-[var(--color-surface-3)]" />

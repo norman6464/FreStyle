@@ -41,5 +41,13 @@ export function useEditorFormat(editor: Editor | null) {
     }
   }, [editor]);
 
-  return { handleBold, handleItalic, handleUnderline, handleStrike, handleAlign, handleSelectColor, handleHighlight };
+  const handleSuperscript = useCallback(() => {
+    editor?.chain().focus().toggleSuperscript().run();
+  }, [editor]);
+
+  const handleSubscript = useCallback(() => {
+    editor?.chain().focus().toggleSubscript().run();
+  }, [editor]);
+
+  return { handleBold, handleItalic, handleUnderline, handleStrike, handleAlign, handleSelectColor, handleHighlight, handleSuperscript, handleSubscript };
 }

@@ -38,4 +38,28 @@ describe('DifficultyFilter', () => {
     const selectedButton = screen.getByText('中級');
     expect(selectedButton.className).toContain('text-amber-400');
   });
+
+  it('非選択のボタンはmutedスタイルが適用される', () => {
+    render(<DifficultyFilter selected="初級" onChange={mockOnChange} />);
+
+    const unselectedButton = screen.getByText('上級');
+    expect(unselectedButton.className).toContain('text-[var(--color-text-muted)]');
+    expect(unselectedButton.className).not.toContain('text-rose-400');
+  });
+
+  it('各難易度で正しいカラーが適用される', () => {
+    const { rerender } = render(<DifficultyFilter selected="初級" onChange={mockOnChange} />);
+    expect(screen.getByText('初級').className).toContain('text-emerald-400');
+
+    rerender(<DifficultyFilter selected="上級" onChange={mockOnChange} />);
+    expect(screen.getByText('上級').className).toContain('text-rose-400');
+  });
+
+  it('DIFFICULTY_OPTIONSの件数とラベルが定数と一致する', () => {
+    render(<DifficultyFilter selected={null} onChange={mockOnChange} />);
+
+    const buttons = screen.getAllByRole('button');
+    expect(buttons).toHaveLength(4);
+    expect(buttons.map((b) => b.textContent)).toEqual(['全レベル', '初級', '中級', '上級']);
+  });
 });

@@ -141,6 +141,22 @@ describe('tiptapToPlainText', () => {
     expect(tiptapToPlainText(json)).toBe('名前 スコア Alice 90');
   });
 
+  it('コールアウトのテキストを抽出する', () => {
+    const json = JSON.stringify({
+      type: 'doc',
+      content: [
+        {
+          type: 'callout',
+          attrs: { type: 'info', emoji: '💡' },
+          content: [
+            { type: 'paragraph', content: [{ type: 'text', text: '重要な情報です' }] },
+          ],
+        },
+      ],
+    });
+    expect(tiptapToPlainText(json)).toBe('重要な情報です');
+  });
+
   it('トグルリストのテキストを抽出する', () => {
     const json = JSON.stringify({
       type: 'doc',

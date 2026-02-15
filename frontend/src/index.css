@@ -252,6 +252,17 @@
   margin: 0;
 }
 
+/* Callout block */
+.ProseMirror .callout {
+  margin: 0.5rem 0;
+  border-radius: 0.5rem;
+  border-left-width: 4px;
+  padding: 0.75rem;
+}
+.ProseMirror .callout p {
+  margin: 0;
+}
+
 /* Tippy.js slash command popup */
 .tippy-box[data-theme~='slash-command'] {
   background: transparent;

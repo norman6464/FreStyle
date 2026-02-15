@@ -11,7 +11,8 @@ export type SlashCommandAction =
   | 'codeBlock'
   | 'blockquote'
   | 'horizontalRule'
-  | 'table';
+  | 'table'
+  | 'callout';
 
 export interface SlashCommand {
   label: string;
@@ -34,4 +35,5 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   { label: '引用', description: '引用ブロック', icon: '❝', action: 'blockquote' },
   { label: '区切り線', description: '水平線で区切る', icon: '—', action: 'horizontalRule' },
   { label: 'テーブル', description: '表を挿入', icon: '▦', action: 'table' },
+  { label: 'コールアウト', description: '強調ブロック', icon: '💡', action: 'callout' },
 ];

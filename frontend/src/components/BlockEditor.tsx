@@ -5,10 +5,9 @@ import { executeCommand } from '../extensions/SlashCommandExtension';
 import { useBlockEditor } from '../hooks/useBlockEditor';
 import { useImageUpload } from '../hooks/useImageUpload';
 import { useLinkEditor } from '../hooks/useLinkEditor';
-import { useEditorFormat } from '../hooks/useEditorFormat';
 import BlockInserterButton from './BlockInserterButton';
 import LinkBubbleMenu from './LinkBubbleMenu';
-import EditorToolbar from './EditorToolbar';
+import SelectionToolbar from './SelectionToolbar';
 import type { SlashCommand } from '../constants/slashCommands';
 
 interface BlockEditorProps {
@@ -27,7 +26,6 @@ export default function BlockEditor({ content, onChange, noteId }: BlockEditorPr
 
   const { openFileDialog, handleDrop, handlePaste } = useImageUpload(noteId, editor);
   const { linkBubble, handleEditorClick, handleEditLink, handleRemoveLink } = useLinkEditor(editor, containerRef);
-  const formatHandlers = useEditorFormat(editor);
 
   // スラッシュコマンドから画像アップロードを呼べるようにする
   useEffect(() => {
@@ -120,7 +118,7 @@ export default function BlockEditor({ content, onChange, noteId }: BlockEditorPr
       onDragOver={(e) => e.preventDefault()}
       onClick={handleEditorClick}
     >
-      <EditorToolbar handlers={formatHandlers} />
+      <SelectionToolbar editor={editor} containerRef={containerRef} />
       {linkBubble && (
         <div
           className="absolute z-50"

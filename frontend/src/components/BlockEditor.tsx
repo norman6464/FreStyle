@@ -7,8 +7,7 @@ import { useImageUpload } from '../hooks/useImageUpload';
 import { useLinkEditor } from '../hooks/useLinkEditor';
 import BlockInserterButton from './BlockInserterButton';
 import LinkBubbleMenu from './LinkBubbleMenu';
-import ColorPicker from './ColorPicker';
-import TextAlignButtons from './TextAlignButtons';
+import EditorToolbar from './EditorToolbar';
 import type { SlashCommand } from '../constants/slashCommands';
 
 interface BlockEditorProps {
@@ -90,11 +89,7 @@ export default function BlockEditor({ content, onChange, noteId }: BlockEditorPr
       onDragOver={(e) => e.preventDefault()}
       onClick={handleEditorClick}
     >
-      <div className="px-8 py-1 border-b border-[var(--color-surface-3)] flex items-center gap-3">
-        <ColorPicker onSelectColor={handleSelectColor} />
-        <div className="w-px h-4 bg-[var(--color-surface-3)]" />
-        <TextAlignButtons onAlign={handleAlign} />
-      </div>
+      <EditorToolbar onSelectColor={handleSelectColor} onAlign={handleAlign} />
       {linkBubble && (
         <div
           className="absolute z-50"

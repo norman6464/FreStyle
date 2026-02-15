@@ -1,13 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import WeeklyReportCard from '../WeeklyReportCard';
-
-interface ScoreHistory {
-  sessionId: number;
-  sessionTitle: string;
-  overallScore: number;
-  createdAt: string;
-}
+import type { ScoreHistory } from '../../types';
 
 describe('WeeklyReportCard', () => {
   it('今週の練習回数を表示する', () => {

@@ -1,13 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import PracticeCalendar from '../PracticeCalendar';
-
-interface ScoreHistory {
-  sessionId: number;
-  sessionTitle: string;
-  overallScore: number;
-  createdAt: string;
-}
+import type { ScoreHistory } from '../../types';
 
 describe('PracticeCalendar', () => {
   it('タイトルが表示される', () => {

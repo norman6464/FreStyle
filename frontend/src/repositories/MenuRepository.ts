@@ -1,4 +1,5 @@
 import apiClient from '../lib/axios';
+import type { ScoreHistory } from '../types';
 
 interface ChatStats {
   chatPartnerCount: number;
@@ -6,13 +7,6 @@ interface ChatStats {
 
 interface ChatRoomsResponse {
   chatUsers: Array<{ roomId: number; unreadCount: number }>;
-}
-
-interface ScoreHistory {
-  sessionId: number;
-  sessionTitle: string;
-  overallScore: number;
-  createdAt: string;
 }
 
 export const MenuRepository = {

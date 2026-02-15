@@ -1,5 +1,6 @@
 import MemberList from '../components/MemberList';
 import SearchBox from '../components/SearchBox';
+import FormMessage from '../components/FormMessage';
 import { useUserSearch } from '../hooks/useUserSearch';
 
 export default function MemberPage() {
@@ -23,11 +24,7 @@ export default function MemberPage() {
       </div>
 
       {/* エラー表示 */}
-      {error && (
-        <div className="mb-4 p-3 bg-rose-900/30 border border-rose-800 rounded-lg">
-          <p className="text-sm text-rose-400">{error}</p>
-        </div>
-      )}
+      <FormMessage message={error ? { type: 'error', text: error } : null} />
 
       {/* メンバーリスト */}
       {users.length === 0 && !error && (

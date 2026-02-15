@@ -61,5 +61,23 @@ export function useEditorFormat(editor: Editor | null) {
     editor?.chain().focus().unsetAllMarks().clearNodes().run();
   }, [editor]);
 
-  return { handleBold, handleItalic, handleUnderline, handleStrike, handleAlign, handleSelectColor, handleHighlight, handleSuperscript, handleSubscript, handleUndo, handleRedo, handleClearFormatting };
+  const handleIndent = useCallback(() => {
+    if (!editor) return;
+    if (editor.can().sinkListItem('listItem')) {
+      editor.chain().focus().sinkListItem('listItem').run();
+    } else if (editor.can().sinkListItem('taskItem')) {
+      editor.chain().focus().sinkListItem('taskItem').run();
+    }
+  }, [editor]);
+
+  const handleOutdent = useCallback(() => {
+    if (!editor) return;
+    if (editor.can().liftListItem('listItem')) {
+      editor.chain().focus().liftListItem('listItem').run();
+    } else if (editor.can().liftListItem('taskItem')) {
+      editor.chain().focus().liftListItem('taskItem').run();
+    }
+  }, [editor]);
+
+  return { handleBold, handleItalic, handleUnderline, handleStrike, handleAlign, handleSelectColor, handleHighlight, handleSuperscript, handleSubscript, handleUndo, handleRedo, handleClearFormatting, handleIndent, handleOutdent };
 }

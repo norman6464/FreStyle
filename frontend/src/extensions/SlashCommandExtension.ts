@@ -26,6 +26,13 @@ function executeCommand(editor: Editor, command: SlashCommand) {
     case 'orderedList':
       chain.toggleOrderedList().run();
       break;
+    case 'toggleList': {
+      const setToggleList = (editor.commands as { setToggleList?: () => boolean }).setToggleList;
+      if (typeof setToggleList === 'function') {
+        setToggleList();
+      }
+      break;
+    }
     default: {
       const _exhaustive: never = command.action;
       console.error('Unknown slash command action:', _exhaustive);

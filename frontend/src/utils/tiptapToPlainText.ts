@@ -8,6 +8,7 @@ interface TiptapNode {
 
 const CONTAINER_BLOCK_TYPES = new Set([
   'doc', 'blockquote', 'bulletList', 'orderedList', 'listItem',
+  'toggleList', 'toggleContent',
 ]);
 
 function extractText(node: TiptapNode): string {

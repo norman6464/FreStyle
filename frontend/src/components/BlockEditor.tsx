@@ -3,6 +3,8 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import Image from '@tiptap/extension-image';
+import TaskList from '@tiptap/extension-task-list';
+import TaskItem from '@tiptap/extension-task-item';
 import 'tippy.js/dist/tippy.css';
 import { SlashCommandExtension, executeCommand } from '../extensions/SlashCommandExtension';
 import { slashCommandRenderer } from '../extensions/slashCommandRenderer';
@@ -53,6 +55,8 @@ export default function BlockEditor({ content, onChange, noteId }: BlockEditorPr
           render: slashCommandRenderer,
         },
       }),
+      TaskList,
+      TaskItem.configure({ nested: true }),
       ToggleList,
       ToggleSummary,
       ToggleContent,

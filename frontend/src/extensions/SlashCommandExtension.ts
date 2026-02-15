@@ -36,6 +36,9 @@ function executeCommand(editor: Editor, command: SlashCommand) {
     case 'image':
       // image action is handled externally via onImageUpload callback
       break;
+    case 'taskList':
+      chain.toggleTaskList().run();
+      break;
     default: {
       const _exhaustive: never = command.action;
       console.error('Unknown slash command action:', _exhaustive);

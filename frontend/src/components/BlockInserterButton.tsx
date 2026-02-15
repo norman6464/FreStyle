@@ -17,7 +17,14 @@ export default function BlockInserterButton({ visible, top, onCommand }: BlockIn
   useEffect(() => {
     if (!menuOpen) return;
     setSelectedIndex(0);
+    menuRef.current?.focus();
   }, [menuOpen]);
+
+  useEffect(() => {
+    if (!visible) {
+      setMenuOpen(false);
+    }
+  }, [visible]);
 
   function handleSelect(index: number) {
     const cmd = SLASH_COMMANDS[index];
@@ -66,7 +73,8 @@ export default function BlockInserterButton({ visible, top, onCommand }: BlockIn
       {menuOpen && (
         <div
           ref={menuRef}
-          className="absolute left-8 top-0 z-20"
+          tabIndex={0}
+          className="absolute left-8 top-0 z-20 outline-none"
           onKeyDown={handleKeyDown}
         >
           <SlashCommandMenu

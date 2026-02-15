@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import BlockInserterButton from '../BlockInserterButton';
 import { SLASH_COMMANDS } from '../../constants/slashCommands';
@@ -43,6 +43,14 @@ describe('BlockInserterButton', () => {
     render(<BlockInserterButton visible={true} top={200} onCommand={mockOnCommand} />);
     const button = screen.getByLabelText('ブロックを追加');
     expect(button.parentElement).toHaveStyle({ top: '200px' });
+  });
+
+  it('visible=falseになるとメニューが閉じる', () => {
+    const { rerender } = render(<BlockInserterButton visible={true} top={100} onCommand={mockOnCommand} />);
+    fireEvent.click(screen.getByLabelText('ブロックを追加'));
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    rerender(<BlockInserterButton visible={false} top={100} onCommand={mockOnCommand} />);
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
   });
 
   it('メニュー表示中にEscで閉じる', () => {

@@ -85,7 +85,12 @@ export default function BlockEditor({ content, onChange }: BlockEditorProps) {
     editor.commands.setContent(newContent);
   }, [content, editor]);
 
+  const lastMoveTime = useRef(0);
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    const now = Date.now();
+    if (now - lastMoveTime.current < 50) return;
+    lastMoveTime.current = now;
+
     if (!containerRef.current) return;
     const editorEl = containerRef.current.querySelector('.ProseMirror');
     if (!editorEl) return;

@@ -19,6 +19,7 @@ import { Callout } from '../extensions/CalloutExtension';
 import Link from '@tiptap/extension-link';
 import TextStyle from '@tiptap/extension-text-style';
 import Color from '@tiptap/extension-color';
+import TextAlign from '@tiptap/extension-text-align';
 import { isLegacyMarkdown } from '../utils/isLegacyMarkdown';
 import { markdownToTiptap } from '../utils/markdownToTiptap';
 
@@ -78,6 +79,9 @@ export function useBlockEditor({ content, onChange }: UseBlockEditorOptions) {
       }),
       TextStyle,
       Color,
+      TextAlign.configure({
+        types: ['heading', 'paragraph'],
+      }),
     ],
     content: initialContent,
     onUpdate: ({ editor }) => {

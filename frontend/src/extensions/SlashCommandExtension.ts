@@ -26,6 +26,9 @@ function executeCommand(editor: Editor, command: SlashCommand) {
     case 'orderedList':
       chain.toggleOrderedList().run();
       break;
+    case 'toggleList':
+      (editor.commands as Record<string, (...args: unknown[]) => boolean>).setToggleList();
+      break;
     default: {
       const _exhaustive: never = command.action;
       console.error('Unknown slash command action:', _exhaustive);

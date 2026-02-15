@@ -4,9 +4,9 @@ import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import Image from '@tiptap/extension-image';
 import 'tippy.js/dist/tippy.css';
-import { SlashCommandExtension } from '../extensions/SlashCommandExtension';
+import { SlashCommandExtension, executeCommand } from '../extensions/SlashCommandExtension';
 import { slashCommandRenderer } from '../extensions/slashCommandRenderer';
-import { executeCommand } from '../extensions/SlashCommandExtension';
+import { ToggleList, ToggleSummary, ToggleContent } from '../extensions/ToggleListExtension';
 import { isLegacyMarkdown } from '../utils/isLegacyMarkdown';
 import { markdownToTiptap } from '../utils/markdownToTiptap';
 import BlockInserterButton from './BlockInserterButton';
@@ -51,6 +51,9 @@ export default function BlockEditor({ content, onChange }: BlockEditorProps) {
           render: slashCommandRenderer,
         },
       }),
+      ToggleList,
+      ToggleSummary,
+      ToggleContent,
     ],
     content: initialContent,
     onUpdate: ({ editor }) => {

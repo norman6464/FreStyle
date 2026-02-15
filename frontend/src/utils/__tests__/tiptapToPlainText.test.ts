@@ -86,4 +86,21 @@ describe('tiptapToPlainText', () => {
     });
     expect(tiptapToPlainText(json)).toBe('これは太字です');
   });
+
+  it('トグルリストのテキストを抽出する', () => {
+    const json = JSON.stringify({
+      type: 'doc',
+      content: [
+        {
+          type: 'toggleList',
+          attrs: { open: true },
+          content: [
+            { type: 'toggleSummary', content: [{ type: 'text', text: 'まとめ' }] },
+            { type: 'toggleContent', content: [{ type: 'paragraph', content: [{ type: 'text', text: '詳細' }] }] },
+          ],
+        },
+      ],
+    });
+    expect(tiptapToPlainText(json)).toBe('まとめ 詳細');
+  });
 });

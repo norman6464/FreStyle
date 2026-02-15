@@ -52,6 +52,13 @@ describe('SlashCommandExtension', () => {
     expect(editor._chain.toggleOrderedList).toHaveBeenCalled();
   });
 
+  it('toggleListコマンドでsetToggleListが呼ばれる', () => {
+    const setToggleList = vi.fn();
+    const editor = { chain: vi.fn(() => ({ focus: vi.fn().mockReturnThis(), run: vi.fn() })), commands: { setToggleList } };
+    executeCommand(editor as never, SLASH_COMMANDS[6]);
+    expect(setToggleList).toHaveBeenCalled();
+  });
+
   it('SLASH_COMMANDSのフィルタリングが正しく動作する', () => {
     const filtered = SLASH_COMMANDS.filter(item =>
       item.label.toLowerCase().includes('見出し')

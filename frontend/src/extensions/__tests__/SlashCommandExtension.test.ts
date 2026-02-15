@@ -63,6 +63,59 @@ describe('SlashCommandExtension', () => {
     expect(setToggleList).toHaveBeenCalled();
   });
 
+  it('imageコマンドはエラーなく実行される（外部で処理）', () => {
+    const editor = createMockEditor();
+    expect(() => executeCommand(editor as never, findCommand('image'))).not.toThrow();
+  });
+
+  it('taskListコマンドでtoggleTaskListが呼ばれる', () => {
+    const chain = {
+      focus: vi.fn().mockReturnThis(),
+      toggleTaskList: vi.fn().mockReturnThis(),
+      run: vi.fn(),
+    };
+    const editor = { chain: vi.fn(() => chain) };
+    executeCommand(editor as never, findCommand('taskList'));
+    expect(chain.toggleTaskList).toHaveBeenCalled();
+    expect(chain.run).toHaveBeenCalled();
+  });
+
+  it('codeBlockコマンドでtoggleCodeBlockが呼ばれる', () => {
+    const chain = {
+      focus: vi.fn().mockReturnThis(),
+      toggleCodeBlock: vi.fn().mockReturnThis(),
+      run: vi.fn(),
+    };
+    const editor = { chain: vi.fn(() => chain) };
+    executeCommand(editor as never, findCommand('codeBlock'));
+    expect(chain.toggleCodeBlock).toHaveBeenCalled();
+    expect(chain.run).toHaveBeenCalled();
+  });
+
+  it('blockquoteコマンドでtoggleBlockquoteが呼ばれる', () => {
+    const chain = {
+      focus: vi.fn().mockReturnThis(),
+      toggleBlockquote: vi.fn().mockReturnThis(),
+      run: vi.fn(),
+    };
+    const editor = { chain: vi.fn(() => chain) };
+    executeCommand(editor as never, findCommand('blockquote'));
+    expect(chain.toggleBlockquote).toHaveBeenCalled();
+    expect(chain.run).toHaveBeenCalled();
+  });
+
+  it('horizontalRuleコマンドでsetHorizontalRuleが呼ばれる', () => {
+    const chain = {
+      focus: vi.fn().mockReturnThis(),
+      setHorizontalRule: vi.fn().mockReturnThis(),
+      run: vi.fn(),
+    };
+    const editor = { chain: vi.fn(() => chain) };
+    executeCommand(editor as never, findCommand('horizontalRule'));
+    expect(chain.setHorizontalRule).toHaveBeenCalled();
+    expect(chain.run).toHaveBeenCalled();
+  });
+
   it('SLASH_COMMANDSのフィルタリングが正しく動作する', () => {
     const filtered = SLASH_COMMANDS.filter(item =>
       item.label.toLowerCase().includes('見出し')

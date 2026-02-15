@@ -101,4 +101,54 @@ describe('useBlockEditor', () => {
       })
     );
   });
+
+  it('レガシーMarkdownコンテンツをTipTap JSONに変換する', async () => {
+    const { isLegacyMarkdown } = await import('../../utils/isLegacyMarkdown');
+    const { markdownToTiptap } = await import('../../utils/markdownToTiptap');
+    const { useEditor } = await import('@tiptap/react');
+
+    vi.mocked(isLegacyMarkdown).mockReturnValue(true);
+    const tiptapDoc = { type: 'doc', content: [{ type: 'paragraph' }] };
+    vi.mocked(markdownToTiptap).mockReturnValue(tiptapDoc);
+
+    const onChange = vi.fn();
+    renderHook(() => useBlockEditor({ content: '# Hello', onChange }));
+
+    expect(isLegacyMarkdown).toHaveBeenCalledWith('# Hello');
+    expect(markdownToTiptap).toHaveBeenCalledWith('# Hello');
+    expect(useEditor).toHaveBeenCalledWith(
+      expect.objectContaining({ content: tiptapDoc })
+    );
+  });
+
+  it('不正なJSONの場合はundefinedを設定する', async () => {
+    const { useEditor } = await import('@tiptap/react');
+    const { isLegacyMarkdown } = await import('../../utils/isLegacyMarkdown');
+    vi.mocked(isLegacyMarkdown).mockReturnValue(false);
+
+    const onChange = vi.fn();
+    renderHook(() => useBlockEditor({ content: 'invalid json{{{', onChange }));
+
+    expect(useEditor).toHaveBeenCalledWith(
+      expect.objectContaining({ content: undefined })
+    );
+  });
+
+  it('onUpdateコールバックがuseEditorに設定される', async () => {
+    const { useEditor } = await import('@tiptap/react');
+    const onChange = vi.fn();
+    renderHook(() => useBlockEditor({ content: '', onChange }));
+
+    const call = vi.mocked(useEditor).mock.calls[0]!;
+    expect(call[0]).toHaveProperty('onUpdate');
+  });
+
+  it('11個の拡張が設定される', async () => {
+    const { useEditor } = await import('@tiptap/react');
+    const onChange = vi.fn();
+    renderHook(() => useBlockEditor({ content: '', onChange }));
+
+    const call = vi.mocked(useEditor).mock.calls[0]!;
+    expect(call[0]!.extensions).toHaveLength(11);
+  });
 });

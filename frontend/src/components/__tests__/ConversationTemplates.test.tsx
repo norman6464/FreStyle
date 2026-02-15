@@ -1,9 +1,14 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import ConversationTemplates from '../ConversationTemplates';
+import { CONVERSATION_TEMPLATES, TEMPLATE_CATEGORIES } from '../../constants/conversationTemplates';
 
 describe('ConversationTemplates', () => {
   const mockOnSelect = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   it('テンプレートカテゴリが全て表示される', () => {
     render(<ConversationTemplates onSelect={mockOnSelect} />);
@@ -39,5 +44,32 @@ describe('ConversationTemplates', () => {
     render(<ConversationTemplates onSelect={mockOnSelect} />);
 
     expect(screen.getByText('テンプレートから始める')).toBeInTheDocument();
+  });
+
+  it('複数テンプレートをクリックしても各プロンプトが正しく渡される', () => {
+    render(<ConversationTemplates onSelect={mockOnSelect} />);
+
+    const buttons = screen.getAllByRole('button');
+    fireEvent.click(buttons[0]);
+    fireEvent.click(buttons[1]);
+
+    expect(mockOnSelect).toHaveBeenCalledTimes(2);
+    const firstPrompt = mockOnSelect.mock.calls[0][0];
+    const secondPrompt = mockOnSelect.mock.calls[1][0];
+    expect(firstPrompt).not.toBe(secondPrompt);
+  });
+
+  it('全カテゴリにアイコンが表示される', () => {
+    const { container } = render(<ConversationTemplates onSelect={mockOnSelect} />);
+
+    const categoryBadges = container.querySelectorAll('.rounded-full svg');
+    expect(categoryBadges.length).toBe(TEMPLATE_CATEGORIES.length);
+  });
+
+  it('定数ファイルのテンプレート数と表示ボタン数が一致する', () => {
+    render(<ConversationTemplates onSelect={mockOnSelect} />);
+
+    const buttons = screen.getAllByRole('button');
+    expect(buttons.length).toBe(CONVERSATION_TEMPLATES.length);
   });
 });

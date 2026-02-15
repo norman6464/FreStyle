@@ -8,12 +8,14 @@ describe('FormatButtons', () => {
     onItalic: vi.fn(),
     onUnderline: vi.fn(),
     onStrike: vi.fn(),
+    onSuperscript: vi.fn(),
+    onSubscript: vi.fn(),
   };
 
-  it('4つの書式ボタンが表示される', () => {
+  it('6つの書式ボタンが表示される', () => {
     render(<FormatButtons {...defaultProps} />);
     const buttons = screen.getAllByRole('button');
-    expect(buttons).toHaveLength(4);
+    expect(buttons).toHaveLength(6);
   });
 
   it('太字ボタンにaria-labelがある', () => {
@@ -36,6 +38,16 @@ describe('FormatButtons', () => {
     expect(screen.getByLabelText('取り消し線')).toBeInTheDocument();
   });
 
+  it('上付き文字ボタンにaria-labelがある', () => {
+    render(<FormatButtons {...defaultProps} />);
+    expect(screen.getByLabelText('上付き文字')).toBeInTheDocument();
+  });
+
+  it('下付き文字ボタンにaria-labelがある', () => {
+    render(<FormatButtons {...defaultProps} />);
+    expect(screen.getByLabelText('下付き文字')).toBeInTheDocument();
+  });
+
   it('太字クリックでonBoldが呼ばれる', () => {
     const onBold = vi.fn();
     render(<FormatButtons {...defaultProps} onBold={onBold} />);
@@ -55,5 +67,19 @@ describe('FormatButtons', () => {
     render(<FormatButtons {...defaultProps} onStrike={onStrike} />);
     fireEvent.click(screen.getByLabelText('取り消し線'));
     expect(onStrike).toHaveBeenCalled();
+  });
+
+  it('上付き文字クリックでonSuperscriptが呼ばれる', () => {
+    const onSuperscript = vi.fn();
+    render(<FormatButtons {...defaultProps} onSuperscript={onSuperscript} />);
+    fireEvent.click(screen.getByLabelText('上付き文字'));
+    expect(onSuperscript).toHaveBeenCalled();
+  });
+
+  it('下付き文字クリックでonSubscriptが呼ばれる', () => {
+    const onSubscript = vi.fn();
+    render(<FormatButtons {...defaultProps} onSubscript={onSubscript} />);
+    fireEvent.click(screen.getByLabelText('下付き文字'));
+    expect(onSubscript).toHaveBeenCalled();
   });
 });

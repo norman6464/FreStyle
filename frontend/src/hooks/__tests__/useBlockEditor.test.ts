@@ -38,6 +38,8 @@ vi.mock('@tiptap/extension-text-style', () => ({ default: 'TextStyle' }));
 vi.mock('@tiptap/extension-color', () => ({ default: 'Color' }));
 vi.mock('@tiptap/extension-text-align', () => ({ default: { configure: vi.fn(() => 'TextAlign') } }));
 vi.mock('@tiptap/extension-underline', () => ({ default: 'Underline' }));
+vi.mock('@tiptap/extension-superscript', () => ({ default: 'Superscript' }));
+vi.mock('@tiptap/extension-subscript', () => ({ default: 'Subscript' }));
 vi.mock('@tiptap/extension-youtube', () => ({ default: { configure: vi.fn(() => 'Youtube') } }));
 vi.mock('../../utils/isLegacyMarkdown', () => ({
   isLegacyMarkdown: vi.fn(() => false),
@@ -162,6 +164,6 @@ describe('useBlockEditor', () => {
     renderHook(() => useBlockEditor({ content: '', onChange }));
 
     const call = vi.mocked(useEditor).mock.calls[0]!;
-    expect(call[0]!.extensions).toHaveLength(22);
+    expect(call[0]!.extensions).toHaveLength(24);
   });
 });

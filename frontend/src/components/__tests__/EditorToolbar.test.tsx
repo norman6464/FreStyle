@@ -8,6 +8,8 @@ describe('EditorToolbar', () => {
     onItalic: vi.fn(),
     onUnderline: vi.fn(),
     onStrike: vi.fn(),
+    onSuperscript: vi.fn(),
+    onSubscript: vi.fn(),
     onSelectColor: vi.fn(),
     onHighlight: vi.fn(),
     onAlign: vi.fn(),

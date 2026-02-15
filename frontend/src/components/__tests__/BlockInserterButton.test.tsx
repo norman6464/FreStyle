@@ -5,6 +5,7 @@ import { SLASH_COMMANDS } from '../../constants/slashCommands';
 
 describe('BlockInserterButton', () => {
   const mockOnCommand = vi.fn();
+  const mockOnMenuOpenChange = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -59,5 +60,19 @@ describe('BlockInserterButton', () => {
     expect(screen.getByRole('menu')).toBeInTheDocument();
     fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' });
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  it('メニュー開閉時にonMenuOpenChangeが呼ばれる', () => {
+    render(<BlockInserterButton visible={true} top={100} onCommand={mockOnCommand} onMenuOpenChange={mockOnMenuOpenChange} />);
+    fireEvent.click(screen.getByLabelText('ブロックを追加'));
+    expect(mockOnMenuOpenChange).toHaveBeenCalledWith(true);
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' });
+    expect(mockOnMenuOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('data-block-inserter属性がルート要素に設定される', () => {
+    render(<BlockInserterButton visible={true} top={100} onCommand={mockOnCommand} />);
+    const button = screen.getByLabelText('ブロックを追加');
+    expect(button.closest('[data-block-inserter]')).toBeInTheDocument();
   });
 });

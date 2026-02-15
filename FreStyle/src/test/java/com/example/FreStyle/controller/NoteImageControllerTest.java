@@ -54,13 +54,15 @@ class NoteImageControllerTest {
         when(noteImageService.generatePresignedUrl(1, "note1", "image.png", "image/png"))
                 .thenReturn(expected);
 
-        ResponseEntity<PresignedUrlResponse> response = noteImageController.getPresignedUrl(
+        ResponseEntity<?> response = noteImageController.getPresignedUrl(
                 jwt, "note1", new PresignedUrlRequest("image.png", "image/png")
         );
 
         assertThat(response.getStatusCode().value()).isEqualTo(200);
-        assertThat(response.getBody().uploadUrl()).isEqualTo("https://s3.example.com/upload");
-        assertThat(response.getBody().imageUrl()).startsWith("https://cdn.example.com/notes/1/note1/");
+        assertThat(response.getBody()).isNotNull();
+        PresignedUrlResponse body = (PresignedUrlResponse) response.getBody();
+        assertThat(body.uploadUrl()).isEqualTo("https://s3.example.com/upload");
+        assertThat(body.imageUrl()).startsWith("https://cdn.example.com/notes/1/note1/");
         verify(noteImageService).generatePresignedUrl(1, "note1", "image.png", "image/png");
     }
 
@@ -82,15 +84,28 @@ class NoteImageControllerTest {
     }
 
     @Test
-    @DisplayName("不正なcontentTypeはサービス層でエラーになる")
-    void shouldPropagateServiceException() {
+    @DisplayName("不正なcontentTypeは400エラーを返す")
+    void shouldReturn400ForInvalidContentType() {
         when(noteImageService.generatePresignedUrl(1, "note1", "file.exe", "application/octet-stream"))
                 .thenThrow(new IllegalArgumentException("許可されていないファイル形式です: application/octet-stream"));
 
-        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class, () ->
-                noteImageController.getPresignedUrl(
-                        jwt, "note1", new PresignedUrlRequest("file.exe", "application/octet-stream")
-                )
+        ResponseEntity<?> response = noteImageController.getPresignedUrl(
+                jwt, "note1", new PresignedUrlRequest("file.exe", "application/octet-stream")
         );
+
+        assertThat(response.getStatusCode().value()).isEqualTo(400);
+    }
+
+    @Test
+    @DisplayName("S3エラー時は500エラーを返す")
+    void shouldReturn500ForS3Error() {
+        when(noteImageService.generatePresignedUrl(1, "note1", "image.png", "image/png"))
+                .thenThrow(new RuntimeException("S3 connection failed"));
+
+        ResponseEntity<?> response = noteImageController.getPresignedUrl(
+                jwt, "note1", new PresignedUrlRequest("image.png", "image/png")
+        );
+
+        assertThat(response.getStatusCode().value()).isEqualTo(500);
     }
 }

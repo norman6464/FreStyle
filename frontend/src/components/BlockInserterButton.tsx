@@ -7,10 +7,16 @@ interface BlockInserterButtonProps {
   visible: boolean;
   top: number;
   onCommand: (command: SlashCommand) => void;
+  onMenuOpenChange?: (open: boolean) => void;
 }
 
-export default function BlockInserterButton({ visible, top, onCommand }: BlockInserterButtonProps) {
-  const [menuOpen, setMenuOpen] = useState(false);
+export default function BlockInserterButton({ visible, top, onCommand, onMenuOpenChange }: BlockInserterButtonProps) {
+  const [menuOpen, setMenuOpenInternal] = useState(false);
+
+  const setMenuOpen = (open: boolean) => {
+    setMenuOpenInternal(open);
+    onMenuOpenChange?.(open);
+  };
   const [selectedIndex, setSelectedIndex] = useState(0);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -57,6 +63,7 @@ export default function BlockInserterButton({ visible, top, onCommand }: BlockIn
 
   return (
     <div
+      data-block-inserter
       className="absolute left-0 z-10 transition-all duration-150"
       style={{ top: `${top}px` }}
     >

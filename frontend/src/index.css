@@ -127,36 +127,84 @@
   margin: 1rem 0;
 }
 
-/* Code block */
-.ProseMirror pre {
+/* Code block (Notion-style) */
+.code-block-wrapper {
   background: var(--color-surface-2);
   border: 1px solid var(--color-surface-3);
   border-radius: 0.5rem;
-  padding: 0.75rem 1rem;
   margin: 0.5rem 0;
+  overflow: hidden;
+}
+.code-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.375rem 0.75rem;
+  border-bottom: 1px solid var(--color-surface-3);
+  background: var(--color-surface-1);
+}
+.code-block-language {
+  appearance: none;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.code-block-language:hover {
+  border-color: var(--color-surface-3);
+  color: var(--color-text-secondary);
+}
+.code-block-language:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+.code-block-copy {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  border: none;
+  border-radius: 0.25rem;
+  background: transparent;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.code-block-copy:hover {
+  background: var(--color-surface-3);
+  color: var(--color-text-secondary);
+}
+.code-block-wrapper pre {
+  margin: 0;
+  padding: 0.75rem 1rem;
   overflow-x: auto;
   font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
   font-size: 0.8125rem;
   line-height: 1.5;
 }
-.ProseMirror pre code {
+.code-block-wrapper pre code {
   color: var(--color-text-primary);
   background: none;
   padding: 0;
 }
 /* Lowlight syntax colors */
-.ProseMirror pre .hljs-keyword { color: #c678dd; }
-.ProseMirror pre .hljs-string { color: #98c379; }
-.ProseMirror pre .hljs-number { color: #d19a66; }
-.ProseMirror pre .hljs-comment { color: var(--color-text-muted); font-style: italic; }
-.ProseMirror pre .hljs-function { color: #61afef; }
-.ProseMirror pre .hljs-title { color: #61afef; }
-.ProseMirror pre .hljs-params { color: var(--color-text-secondary); }
-.ProseMirror pre .hljs-built_in { color: #e5c07b; }
-.ProseMirror pre .hljs-attr { color: #d19a66; }
-.ProseMirror pre .hljs-tag { color: #e06c75; }
-.ProseMirror pre .hljs-name { color: #e06c75; }
-.ProseMirror pre .hljs-selector-class { color: #d19a66; }
+.code-block-wrapper pre .hljs-keyword { color: #c678dd; }
+.code-block-wrapper pre .hljs-string { color: #98c379; }
+.code-block-wrapper pre .hljs-number { color: #d19a66; }
+.code-block-wrapper pre .hljs-comment { color: var(--color-text-muted); font-style: italic; }
+.code-block-wrapper pre .hljs-function { color: #61afef; }
+.code-block-wrapper pre .hljs-title { color: #61afef; }
+.code-block-wrapper pre .hljs-params { color: var(--color-text-secondary); }
+.code-block-wrapper pre .hljs-built_in { color: #e5c07b; }
+.code-block-wrapper pre .hljs-attr { color: #d19a66; }
+.code-block-wrapper pre .hljs-tag { color: #e06c75; }
+.code-block-wrapper pre .hljs-name { color: #e06c75; }
+.code-block-wrapper pre .hljs-selector-class { color: #d19a66; }
 
 /* Inline code */
 .ProseMirror code {

@@ -27,6 +27,9 @@ vi.mock('../../extensions/ToggleListExtension', () => ({
 vi.mock('../../extensions/CalloutExtension', () => ({
   Callout: 'Callout',
 }));
+vi.mock('../../extensions/CodeBlockExtension', () => ({
+  CodeBlock: { configure: vi.fn(() => 'CodeBlock') },
+}));
 vi.mock('@tiptap/extension-link', () => ({ default: { configure: vi.fn(() => 'Link') } }));
 vi.mock('@tiptap/extension-text-style', () => ({ default: 'TextStyle' }));
 vi.mock('@tiptap/extension-color', () => ({ default: 'Color' }));

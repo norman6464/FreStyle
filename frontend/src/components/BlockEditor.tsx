@@ -7,6 +7,7 @@ import { useImageUpload } from '../hooks/useImageUpload';
 import { useLinkEditor } from '../hooks/useLinkEditor';
 import BlockInserterButton from './BlockInserterButton';
 import LinkBubbleMenu from './LinkBubbleMenu';
+import ColorPicker from './ColorPicker';
 import type { SlashCommand } from '../constants/slashCommands';
 
 interface BlockEditorProps {
@@ -62,6 +63,15 @@ export default function BlockEditor({ content, onChange, noteId }: BlockEditorPr
     executeCommand(editor, command);
   }, [editor, openFileDialog]);
 
+  const handleSelectColor = useCallback((color: string) => {
+    if (!editor) return;
+    if (color) {
+      editor.chain().focus().setColor(color).run();
+    } else {
+      editor.chain().focus().unsetColor().run();
+    }
+  }, [editor]);
+
   return (
     <div
       ref={containerRef}
@@ -74,6 +84,9 @@ export default function BlockEditor({ content, onChange, noteId }: BlockEditorPr
       onDragOver={(e) => e.preventDefault()}
       onClick={handleEditorClick}
     >
+      <div className="px-8 py-1 border-b border-[var(--color-surface-3)]">
+        <ColorPicker onSelectColor={handleSelectColor} />
+      </div>
       {linkBubble && (
         <div
           className="absolute z-50"

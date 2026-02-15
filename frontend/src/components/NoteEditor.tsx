@@ -21,22 +21,43 @@ export default function NoteEditor({
 
   return (
     <div className="flex flex-col h-full p-6 max-w-3xl mx-auto w-full">
-      <div className="flex items-center justify-between mb-4">
-        <input
-          type="text"
-          value={title}
-          onChange={(e) => onTitleChange(e.target.value)}
-          placeholder="無題"
-          aria-label="ノートのタイトル"
-          className="text-xl font-bold text-[var(--color-text-primary)] bg-transparent border-none outline-none flex-1 placeholder:text-[var(--color-text-faint)]"
-        />
+      <input
+        type="text"
+        value={title}
+        onChange={(e) => onTitleChange(e.target.value)}
+        placeholder="無題"
+        aria-label="ノートのタイトル"
+        className="text-xl font-bold text-[var(--color-text-primary)] bg-transparent border-none outline-none w-full mb-4 placeholder:text-[var(--color-text-faint)]"
+      />
+
+      <div className="flex border-b border-surface-3 mb-4" role="tablist">
         <button
           type="button"
-          onClick={() => setIsPreview(!isPreview)}
-          className="ml-3 p-1.5 rounded-lg hover:bg-surface-2 transition-colors text-[var(--color-text-muted)]"
-          aria-label={isPreview ? '編集' : 'プレビュー'}
+          role="tab"
+          aria-selected={!isPreview}
+          onClick={() => setIsPreview(false)}
+          className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors -mb-px ${
+            !isPreview
+              ? 'text-primary-400 border-b-2 border-primary-400'
+              : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'
+          }`}
         >
-          {isPreview ? <PencilIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
+          <PencilIcon className="w-4 h-4" />
+          編集
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={isPreview}
+          onClick={() => setIsPreview(true)}
+          className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors -mb-px ${
+            isPreview
+              ? 'text-primary-400 border-b-2 border-primary-400'
+              : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'
+          }`}
+        >
+          <EyeIcon className="w-4 h-4" />
+          プレビュー
         </button>
       </div>
 

@@ -1,15 +1,7 @@
-import type { AxisScore } from '../types';
-
-interface Session {
-  sessionId: number;
-  sessionTitle: string;
-  overallScore: number;
-  scores: AxisScore[];
-  createdAt: string;
-}
+import type { ScoreHistoryItem } from '../types';
 
 interface SessionDetailModalProps {
-  session: Session;
+  session: ScoreHistoryItem;
   onClose: () => void;
 }
 

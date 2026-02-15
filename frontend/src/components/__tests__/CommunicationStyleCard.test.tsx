@@ -1,11 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import type { AxisScore } from '../../types';
+import type { AxisScore, ScoreHistoryItem } from '../../types';
 import CommunicationStyleCard from '../CommunicationStyleCard';
-
-interface Session {
-  scores: AxisScore[];
-}
 
 describe('CommunicationStyleCard', () => {
   it('セッションがない場合は未判定メッセージを表示する', () => {
@@ -14,7 +10,7 @@ describe('CommunicationStyleCard', () => {
   });
 
   it('論理的構成力が最高の場合は論理型を表示する', () => {
-    const sessions: Session[] = [{
+    const sessions: ScoreHistoryItem[] = [{
       scores: [
         { axis: '論理的構成力', score: 9, comment: '' },
         { axis: '配慮表現', score: 5, comment: '' },
@@ -28,7 +24,7 @@ describe('CommunicationStyleCard', () => {
   });
 
   it('配慮表現が最高の場合は共感型を表示する', () => {
-    const sessions: Session[] = [{
+    const sessions: ScoreHistoryItem[] = [{
       scores: [
         { axis: '論理的構成力', score: 5, comment: '' },
         { axis: '配慮表現', score: 9, comment: '' },
@@ -42,7 +38,7 @@ describe('CommunicationStyleCard', () => {
   });
 
   it('要約力が最高の場合は簡潔型を表示する', () => {
-    const sessions: Session[] = [{
+    const sessions: ScoreHistoryItem[] = [{
       scores: [
         { axis: '論理的構成力', score: 5, comment: '' },
         { axis: '配慮表現', score: 5, comment: '' },
@@ -56,7 +52,7 @@ describe('CommunicationStyleCard', () => {
   });
 
   it('提案力が最高の場合は提案型を表示する', () => {
-    const sessions: Session[] = [{
+    const sessions: ScoreHistoryItem[] = [{
       scores: [
         { axis: '論理的構成力', score: 5, comment: '' },
         { axis: '配慮表現', score: 5, comment: '' },
@@ -70,7 +66,7 @@ describe('CommunicationStyleCard', () => {
   });
 
   it('質問・傾聴力が最高の場合は傾聴型を表示する', () => {
-    const sessions: Session[] = [{
+    const sessions: ScoreHistoryItem[] = [{
       scores: [
         { axis: '論理的構成力', score: 5, comment: '' },
         { axis: '配慮表現', score: 5, comment: '' },
@@ -92,7 +88,7 @@ describe('CommunicationStyleCard', () => {
   });
 
   it('複数セッションの平均からスタイルを判定する', () => {
-    const sessions: Session[] = [
+    const sessions: ScoreHistoryItem[] = [
       {
         scores: [
           { axis: '論理的構成力', score: 8, comment: '' },

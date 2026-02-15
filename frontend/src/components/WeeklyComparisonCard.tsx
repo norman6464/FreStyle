@@ -1,12 +1,8 @@
+import type { ScoreHistoryItem } from '../types';
 import Card from './Card';
 
-interface Session {
-  overallScore: number;
-  createdAt: string;
-}
-
 interface WeeklyComparisonCardProps {
-  sessions: Session[];
+  sessions: ScoreHistoryItem[];
 }
 
 function getMonday(date: Date): Date {

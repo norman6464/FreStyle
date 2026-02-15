@@ -1,7 +1,7 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import ScoreHistorySessionCard from '../ScoreHistorySessionCard';
-import type { ScoreHistoryItem } from '../../hooks/useScoreHistory';
+import type { ScoreHistoryItem } from '../../types';
 
 const baseItem: ScoreHistoryItem = {
   sessionId: 1,

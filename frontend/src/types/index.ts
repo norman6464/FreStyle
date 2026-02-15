@@ -165,3 +165,12 @@ export interface ScoreHistory {
   overallScore: number;
   createdAt: string;
 }
+
+/** スコア履歴アイテム（スコア詳細付き） */
+export interface ScoreHistoryItem {
+  sessionId: number;
+  sessionTitle: string;
+  overallScore: number;
+  scores: AxisScore[];
+  createdAt: string;
+}

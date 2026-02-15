@@ -1,17 +1,11 @@
 import { useNavigate } from 'react-router-dom';
+import type { ScoreHistoryItem } from '../types';
 import { getScoreTextColor } from '../utils/scoreColor';
 import Card from './Card';
 import { formatDate } from '../utils/formatters';
 
-interface Session {
-  sessionId: number;
-  sessionTitle: string;
-  overallScore: number;
-  createdAt: string;
-}
-
 interface RecentSessionsCardProps {
-  sessions: Session[];
+  sessions: ScoreHistoryItem[];
 }
 
 export default function RecentSessionsCard({ sessions }: RecentSessionsCardProps) {

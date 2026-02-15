@@ -26,7 +26,7 @@ export default function BlockEditor({ content, onChange, noteId }: BlockEditorPr
 
   const { openFileDialog, handleDrop, handlePaste } = useImageUpload(noteId, editor);
   const { linkBubble, handleEditorClick, handleEditLink, handleRemoveLink } = useLinkEditor(editor, containerRef);
-  const { handleBold, handleItalic, handleUnderline, handleStrike, handleAlign, handleSelectColor } = useEditorFormat(editor);
+  const { handleBold, handleItalic, handleUnderline, handleStrike, handleAlign, handleSelectColor, handleHighlight } = useEditorFormat(editor);
 
   const lastMoveTime = useRef(0);
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
@@ -83,6 +83,7 @@ export default function BlockEditor({ content, onChange, noteId }: BlockEditorPr
         onUnderline={handleUnderline}
         onStrike={handleStrike}
         onSelectColor={handleSelectColor}
+        onHighlight={handleHighlight}
         onAlign={handleAlign}
       />
       {linkBubble && (

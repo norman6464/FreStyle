@@ -51,7 +51,7 @@ export default function SessionDetailModal({ session, onClose }: SessionDetailMo
           </div>
 
           <div className="space-y-3">
-            {session.scores.map((axisScore) => (
+            {(Array.isArray(session.scores) ? session.scores : []).map((axisScore) => (
               <div key={axisScore.axis} className="bg-surface-2 rounded-lg p-3">
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-xs font-medium text-[var(--color-text-secondary)]">

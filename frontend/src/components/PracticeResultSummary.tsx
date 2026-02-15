@@ -10,7 +10,10 @@ interface PracticeResultSummaryProps {
 export default function PracticeResultSummary({ scoreCard, scenarioName }: PracticeResultSummaryProps) {
   const navigate = useNavigate();
 
-  const sorted = [...scoreCard.scores].sort((a, b) => b.score - a.score);
+  const scores = Array.isArray(scoreCard.scores) ? scoreCard.scores : [];
+  if (scores.length === 0) return null;
+
+  const sorted = [...scores].sort((a, b) => b.score - a.score);
   const strongest = sorted[0];
   const weakest = sorted[sorted.length - 1];
 

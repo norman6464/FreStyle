@@ -64,6 +64,16 @@ describe('PracticeResultSummary', () => {
     expect(screen.getByText(/障害報告/)).toBeInTheDocument();
   });
 
+  it('scoresがnullでもエラーにならない', () => {
+    const nullCard: ScoreCard = {
+      sessionId: 1,
+      overallScore: 7.0,
+      scores: null as unknown as ScoreCard['scores'],
+    };
+    render(<PracticeResultSummary scoreCard={nullCard} scenarioName="テスト" />);
+    expect(document.body).toBeTruthy();
+  });
+
   it('全軸のスコアが同じ場合でも正しく表示される', () => {
     const equalScores: ScoreCard = {
       sessionId: 2,

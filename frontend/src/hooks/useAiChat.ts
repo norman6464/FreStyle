@@ -221,7 +221,10 @@ export const useAiChat = () => {
 
     try {
       const data = await AiChatRepository.getScoreCard(sessionId);
-      setScoreCard(data);
+      setScoreCard({
+        ...data,
+        scores: Array.isArray(data.scores) ? data.scores : [],
+      });
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : 'スコアカードの取得に失敗しました。';

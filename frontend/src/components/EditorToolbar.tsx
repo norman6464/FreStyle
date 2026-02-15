@@ -1,5 +1,6 @@
 import FormatButtons from './FormatButtons';
 import ColorPicker from './ColorPicker';
+import HighlightPicker from './HighlightPicker';
 import TextAlignButtons from './TextAlignButtons';
 
 interface EditorToolbarProps {
@@ -8,6 +9,7 @@ interface EditorToolbarProps {
   onUnderline: () => void;
   onStrike: () => void;
   onSelectColor: (color: string) => void;
+  onHighlight: (color: string) => void;
   onAlign: (alignment: 'left' | 'center' | 'right') => void;
 }
 
@@ -17,6 +19,7 @@ export default function EditorToolbar({
   onUnderline,
   onStrike,
   onSelectColor,
+  onHighlight,
   onAlign,
 }: EditorToolbarProps) {
   return (
@@ -24,6 +27,8 @@ export default function EditorToolbar({
       <FormatButtons onBold={onBold} onItalic={onItalic} onUnderline={onUnderline} onStrike={onStrike} />
       <div className="w-px h-4 bg-[var(--color-surface-3)]" />
       <ColorPicker onSelectColor={onSelectColor} />
+      <div className="w-px h-4 bg-[var(--color-surface-3)]" />
+      <HighlightPicker onSelectHighlight={onHighlight} />
       <div className="w-px h-4 bg-[var(--color-surface-3)]" />
       <TextAlignButtons onAlign={onAlign} />
     </div>

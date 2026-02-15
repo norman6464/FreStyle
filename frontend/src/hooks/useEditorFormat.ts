@@ -32,5 +32,14 @@ export function useEditorFormat(editor: Editor | null) {
     }
   }, [editor]);
 
-  return { handleBold, handleItalic, handleUnderline, handleStrike, handleAlign, handleSelectColor };
+  const handleHighlight = useCallback((color: string) => {
+    if (!editor) return;
+    if (color) {
+      editor.chain().focus().setHighlight({ color }).run();
+    } else {
+      editor.chain().focus().unsetHighlight().run();
+    }
+  }, [editor]);
+
+  return { handleBold, handleItalic, handleUnderline, handleStrike, handleAlign, handleSelectColor, handleHighlight };
 }

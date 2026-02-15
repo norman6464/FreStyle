@@ -1,4 +1,5 @@
 import Card from './Card';
+import ProgressBar from './ProgressBar';
 
 interface WeeklyGoalProgressCardProps {
   sessionsThisWeek: number;
@@ -30,11 +31,10 @@ export default function WeeklyGoalProgressCard({
         <span className="text-sm text-[var(--color-text-muted)]">/ {weeklyGoal} 回</span>
       </div>
 
-      <div className="w-full bg-surface-3 rounded-full h-2 mb-2">
-        <div
-          data-testid="progress-bar"
-          className={`h-2 rounded-full transition-all ${isCompleted ? 'bg-emerald-500' : 'bg-primary-500'}`}
-          style={{ width: `${percentage}%` }}
+      <div className="mb-2">
+        <ProgressBar
+          percentage={percentage}
+          barColorClass={isCompleted ? 'bg-emerald-500' : 'bg-primary-500'}
         />
       </div>
 

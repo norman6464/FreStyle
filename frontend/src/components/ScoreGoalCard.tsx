@@ -1,4 +1,5 @@
 import Card from './Card';
+import ProgressBar from './ProgressBar';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 
 interface Props {
@@ -46,10 +47,10 @@ export default function ScoreGoalCard({ averageScore }: Props) {
         </div>
       </div>
 
-      <div className="w-full bg-surface-3 rounded-full h-2 mb-2">
-        <div
-          className={`h-2 rounded-full transition-all ${achieved ? 'bg-emerald-500' : 'bg-primary-500'}`}
-          style={{ width: `${progress}%` }}
+      <div className="mb-2">
+        <ProgressBar
+          percentage={progress}
+          barColorClass={achieved ? 'bg-emerald-500' : 'bg-primary-500'}
         />
       </div>
 

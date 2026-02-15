@@ -33,9 +33,13 @@ function executeCommand(editor: Editor, command: SlashCommand) {
       }
       break;
     }
-    case 'image':
-      // image action is handled externally via onImageUpload callback
+    case 'image': {
+      const onImageUpload = editor.storage.slashCommand?.onImageUpload;
+      if (typeof onImageUpload === 'function') {
+        onImageUpload();
+      }
       break;
+    }
     case 'taskList':
       chain.toggleTaskList().run();
       break;
@@ -87,6 +91,12 @@ export type SlashCommandSuggestionOptions = Omit<SuggestionOptions<SlashCommand>
 
 export const SlashCommandExtension = Extension.create({
   name: 'slashCommand',
+
+  addStorage() {
+    return {
+      onImageUpload: null as (() => void) | null,
+    };
+  },
 
   addOptions() {
     return {

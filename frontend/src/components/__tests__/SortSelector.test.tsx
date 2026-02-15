@@ -38,4 +38,32 @@ describe('SortSelector', () => {
     const unselectedButton = screen.getByText('名前順');
     expect(unselectedButton.className).toContain('text-[var(--color-text-muted)]');
   });
+
+  it('全オプションがボタン要素で4件描画される', () => {
+    render(<SortSelector selected="default" onChange={mockOnChange} />);
+
+    const buttons = screen.getAllByRole('button');
+    expect(buttons).toHaveLength(4);
+  });
+
+  it('連続クリックで各ソート値が正しく渡される', () => {
+    render(<SortSelector selected="default" onChange={mockOnChange} />);
+
+    fireEvent.click(screen.getByText('難易度↓'));
+    fireEvent.click(screen.getByText('名前順'));
+    fireEvent.click(screen.getByText('デフォルト'));
+
+    expect(mockOnChange).toHaveBeenNthCalledWith(1, 'difficulty-desc');
+    expect(mockOnChange).toHaveBeenNthCalledWith(2, 'name');
+    expect(mockOnChange).toHaveBeenNthCalledWith(3, 'default');
+  });
+
+  it('rerenderで選択状態が正しく切り替わる', () => {
+    const { rerender } = render(<SortSelector selected="default" onChange={mockOnChange} />);
+    expect(screen.getByText('デフォルト').className).toContain('text-[var(--color-text-secondary)]');
+
+    rerender(<SortSelector selected="difficulty-desc" onChange={mockOnChange} />);
+    expect(screen.getByText('難易度↓').className).toContain('text-[var(--color-text-secondary)]');
+    expect(screen.getByText('デフォルト').className).toContain('text-[var(--color-text-muted)]');
+  });
 });

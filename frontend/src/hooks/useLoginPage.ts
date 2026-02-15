@@ -1,11 +1,7 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from './useAuth';
-
-interface LoginForm {
-  email: string;
-  password: string;
-}
+import { useFormField } from './useFormField';
 
 interface LoginMessage {
   type: 'success' | 'error';
@@ -22,7 +18,7 @@ interface LoginMessage {
  * </ul>
  */
 export function useLoginPage() {
-  const [form, setForm] = useState<LoginForm>({ email: '', password: '' });
+  const { form, handleChange } = useFormField({ email: '', password: '' });
   const [loginMessage, setLoginMessage] = useState<LoginMessage | null>(null);
 
   const location = useLocation();
@@ -44,13 +40,6 @@ export function useLoginPage() {
         text: 'ログインに失敗しました。',
       });
     }
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setForm({
-      ...form,
-      [e.target.name]: e.target.value,
-    });
   };
 
   return {

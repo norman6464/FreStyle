@@ -2,25 +2,13 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from './useAuth';
 import type { FormMessage } from '../types';
-
-interface SignupForm {
-  email: string;
-  password: string;
-  name: string;
-}
+import { useFormField } from './useFormField';
 
 export function useSignupPage() {
-  const [form, setForm] = useState<SignupForm>({ email: '', password: '', name: '' });
+  const { form, handleChange } = useFormField({ email: '', password: '', name: '' });
   const [message, setMessage] = useState<FormMessage | null>(null);
   const navigate = useNavigate();
   const { signup, loading } = useAuth();
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setForm({
-      ...form,
-      [e.target.name]: e.target.value,
-    });
-  };
 
   const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();

@@ -3,25 +3,18 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import authRepository from '../repositories/AuthRepository';
 import { AxiosError } from 'axios';
 import type { FormMessage } from '../types';
+import { useFormField } from './useFormField';
 
 export function useConfirmForgotPassword() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const [form, setForm] = useState({
+  const { form, handleChange } = useFormField({
     email: (location.state as { email?: string })?.email || '',
     code: '',
     newPassword: '',
   });
   const [message, setMessage] = useState<FormMessage | null>(null);
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setForm((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
 
   const handleConfirm = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();

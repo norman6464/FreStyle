@@ -15,6 +15,7 @@ describe('EditorToolbar', () => {
     onAlign: vi.fn(),
     onUndo: vi.fn(),
     onRedo: vi.fn(),
+    onClearFormatting: vi.fn(),
   };
 
   it('書式ボタンが表示される', () => {

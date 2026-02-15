@@ -3,6 +3,7 @@ import ColorPicker from './ColorPicker';
 import HighlightPicker from './HighlightPicker';
 import TextAlignButtons from './TextAlignButtons';
 import UndoRedoButtons from './UndoRedoButtons';
+import ClearFormattingButton from './ClearFormattingButton';
 import KeyboardShortcutsHelp from './KeyboardShortcutsHelp';
 
 interface EditorToolbarProps {
@@ -17,6 +18,7 @@ interface EditorToolbarProps {
   onAlign: (alignment: 'left' | 'center' | 'right') => void;
   onUndo: () => void;
   onRedo: () => void;
+  onClearFormatting: () => void;
 }
 
 export default function EditorToolbar({
@@ -31,6 +33,7 @@ export default function EditorToolbar({
   onAlign,
   onUndo,
   onRedo,
+  onClearFormatting,
 }: EditorToolbarProps) {
   return (
     <div className="px-8 py-1 border-b border-[var(--color-surface-3)] flex items-center gap-3">
@@ -43,6 +46,8 @@ export default function EditorToolbar({
       <TextAlignButtons onAlign={onAlign} />
       <div className="w-px h-4 bg-[var(--color-surface-3)]" />
       <UndoRedoButtons onUndo={onUndo} onRedo={onRedo} />
+      <div className="w-px h-4 bg-[var(--color-surface-3)]" />
+      <ClearFormattingButton onClearFormatting={onClearFormatting} />
       <div className="w-px h-4 bg-[var(--color-surface-3)]" />
       <KeyboardShortcutsHelp />
     </div>

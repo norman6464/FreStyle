@@ -8,6 +8,7 @@ import IndentButtons from './IndentButtons';
 import BlockquoteButton from './BlockquoteButton';
 import HorizontalRuleButton from './HorizontalRuleButton';
 import CodeBlockButton from './CodeBlockButton';
+import InlineCodeButton from './InlineCodeButton';
 import ListButtons from './ListButtons';
 import ClearFormattingButton from './ClearFormattingButton';
 import KeyboardShortcutsHelp from './KeyboardShortcutsHelp';
@@ -31,6 +32,7 @@ export default function EditorToolbar({ handlers }: EditorToolbarProps) {
       <div className="w-px h-4 bg-[var(--color-surface-3)]" />
       <BlockquoteButton onBlockquote={handlers.handleBlockquote} />
       <HorizontalRuleButton onHorizontalRule={handlers.handleHorizontalRule} />
+      <InlineCodeButton onInlineCode={handlers.handleInlineCode} />
       <CodeBlockButton onCodeBlock={handlers.handleCodeBlock} />
       <div className="w-px h-4 bg-[var(--color-surface-3)]" />
       <ListButtons onBulletList={handlers.handleBulletList} onOrderedList={handlers.handleOrderedList} />

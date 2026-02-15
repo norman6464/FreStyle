@@ -52,9 +52,16 @@ function executeCommand(editor: Editor, command: SlashCommand) {
       chain.insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
       break;
     case 'callout': {
-      const setCallout = (editor.commands as { setCallout?: () => boolean }).setCallout;
-      if (typeof setCallout === 'function') {
-        setCallout();
+      if (command.attrs) {
+        const setCalloutWithType = (editor.commands as { setCalloutWithType?: (type: string, emoji: string) => boolean }).setCalloutWithType;
+        if (typeof setCalloutWithType === 'function') {
+          setCalloutWithType(command.attrs.calloutType, command.attrs.emoji);
+        }
+      } else {
+        const setCallout = (editor.commands as { setCallout?: () => boolean }).setCallout;
+        if (typeof setCallout === 'function') {
+          setCallout();
+        }
       }
       break;
     }

@@ -20,6 +20,7 @@ export interface SlashCommand {
   description: string;
   icon: string;
   action: SlashCommandAction;
+  attrs?: { calloutType: string; emoji: string };
 }
 
 export const SLASH_COMMANDS: SlashCommand[] = [
@@ -36,6 +37,9 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   { label: '引用', description: '引用ブロック', icon: '❝', action: 'blockquote' },
   { label: '区切り線', description: '水平線で区切る', icon: '—', action: 'horizontalRule' },
   { label: 'テーブル', description: '表を挿入', icon: '▦', action: 'table' },
-  { label: 'コールアウト', description: '強調ブロック', icon: '💡', action: 'callout' },
+  { label: 'コールアウト（情報）', description: '情報の強調', icon: '💡', action: 'callout', attrs: { calloutType: 'info', emoji: '💡' } },
+  { label: 'コールアウト（警告）', description: '注意喚起', icon: '⚠️', action: 'callout', attrs: { calloutType: 'warning', emoji: '⚠️' } },
+  { label: 'コールアウト（成功）', description: '成功・完了', icon: '✅', action: 'callout', attrs: { calloutType: 'success', emoji: '✅' } },
+  { label: 'コールアウト（エラー）', description: 'エラー・危険', icon: '❌', action: 'callout', attrs: { calloutType: 'error', emoji: '❌' } },
   { label: 'YouTube', description: 'YouTube動画を埋め込み', icon: '▶', action: 'youtube' },
 ];

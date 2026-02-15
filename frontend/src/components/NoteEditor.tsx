@@ -5,6 +5,7 @@ import BlockEditor from './BlockEditor';
 interface NoteEditorProps {
   title: string;
   content: string;
+  noteId: string | null;
   onTitleChange: (title: string) => void;
   onContentChange: (content: string) => void;
 }
@@ -12,6 +13,7 @@ interface NoteEditorProps {
 export default function NoteEditor({
   title,
   content,
+  noteId,
   onTitleChange,
   onContentChange,
 }: NoteEditorProps) {
@@ -28,7 +30,7 @@ export default function NoteEditor({
         className="text-xl font-bold text-[var(--color-text-primary)] bg-transparent border-none outline-none w-full mb-4 placeholder:text-[var(--color-text-faint)]"
       />
 
-      <BlockEditor content={content} onChange={onContentChange} />
+      <BlockEditor content={content} onChange={onContentChange} noteId={noteId} />
 
       <div className="flex items-center gap-3 pt-3 border-t border-surface-3 text-[11px] text-[var(--color-text-faint)]" aria-label="ノート統計">
         <span>{stats.charCount}文字</span>

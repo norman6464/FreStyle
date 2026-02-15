@@ -5,6 +5,7 @@ import NoteEditor from '../NoteEditor';
 const defaultProps = {
   title: 'テストノート',
   content: '',
+  noteId: 'note-1',
   onTitleChange: vi.fn(),
   onContentChange: vi.fn(),
 };

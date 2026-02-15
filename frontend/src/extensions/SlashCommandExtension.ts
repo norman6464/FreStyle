@@ -33,6 +33,9 @@ function executeCommand(editor: Editor, command: SlashCommand) {
       }
       break;
     }
+    case 'image':
+      // image action is handled externally via onImageUpload callback
+      break;
     default: {
       const _exhaustive: never = command.action;
       console.error('Unknown slash command action:', _exhaustive);

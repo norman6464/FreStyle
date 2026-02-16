@@ -94,6 +94,17 @@ class FavoritePhraseControllerTest {
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
             verify(addFavoritePhraseUseCase).execute(testUser, "確認お願い", "ご確認ください", "フォーマル版");
         }
+
+        @Test
+        @DisplayName("UseCase例外時にそのまま伝搬する")
+        void propagatesException() {
+            doThrow(new RuntimeException("追加失敗"))
+                    .when(addFavoritePhraseUseCase).execute(testUser, "元文", "変換文", "パターン");
+
+            org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                    () -> favoritePhraseController.addFavoritePhrase(mockJwt,
+                            Map.of("originalText", "元文", "rephrasedText", "変換文", "pattern", "パターン")));
+        }
     }
 
     @Nested
@@ -131,17 +142,6 @@ class FavoritePhraseControllerTest {
 
             org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
                     () -> favoritePhraseController.getFavoritePhrases(mockJwt));
-        }
-
-        @Test
-        @DisplayName("addFavoritePhrase: UseCase例外時にそのまま伝搬する")
-        void addPhrase_propagatesException() {
-            doThrow(new RuntimeException("追加失敗"))
-                    .when(addFavoritePhraseUseCase).execute(testUser, "元文", "変換文", "パターン");
-
-            org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
-                    () -> favoritePhraseController.addFavoritePhrase(mockJwt,
-                            Map.of("originalText", "元文", "rephrasedText", "変換文", "pattern", "パターン")));
         }
     }
 

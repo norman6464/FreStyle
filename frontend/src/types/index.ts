@@ -174,3 +174,14 @@ export interface ScoreHistoryItem {
   scores: AxisScore[];
   createdAt: string;
 }
+
+/** 通知 */
+export interface Notification {
+  id: number;
+  type: string;
+  title: string;
+  message: string;
+  isRead: boolean;
+  relatedId?: number;
+  createdAt: string;
+}

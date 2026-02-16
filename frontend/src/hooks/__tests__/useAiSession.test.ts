@@ -122,7 +122,7 @@ describe('useAiSession', () => {
     expect(result.current.deleteModal.sessionId).toBeNull();
   });
 
-  it('空タイトル保存時にeditingSessionIdがnullに戻る', async () => {
+  it('空タイトル保存時に編集モードが維持される', async () => {
     const { result } = renderHook(() =>
       useAiSession({ deleteSession: mockDeleteSession, updateSessionTitle: mockUpdateSessionTitle })
     );
@@ -140,7 +140,28 @@ describe('useAiSession', () => {
     });
 
     expect(mockUpdateSessionTitle).not.toHaveBeenCalled();
-    expect(result.current.editingSessionId).toBeNull();
+    expect(result.current.editingSessionId).toBe(10);
+  });
+
+  it('空文字タイトル保存時に編集モードが維持されAPIが呼ばれない', async () => {
+    const { result } = renderHook(() =>
+      useAiSession({ deleteSession: mockDeleteSession, updateSessionTitle: mockUpdateSessionTitle })
+    );
+
+    act(() => {
+      result.current.handleStartEditTitle({ id: 5, title: '元のタイトル' });
+    });
+
+    act(() => {
+      result.current.setEditingTitle('');
+    });
+
+    await act(async () => {
+      await result.current.handleSaveTitle(5);
+    });
+
+    expect(mockUpdateSessionTitle).not.toHaveBeenCalled();
+    expect(result.current.editingSessionId).toBe(5);
   });
 
   it('handleCancelEditTitleでeditingTitleが空に戻る', () => {

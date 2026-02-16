@@ -52,13 +52,13 @@ export default memo(function AiSessionListItem({
               value={editingTitle}
               onChange={(e) => onEditingTitleChange(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') onSaveTitle(id);
+                if (e.key === 'Enter' && editingTitle.trim()) onSaveTitle(id);
                 if (e.key === 'Escape') onCancelEdit();
               }}
               className="flex-1 text-xs px-2 py-1 border border-[var(--color-border-hover)] rounded focus:outline-none focus:ring-1 focus:ring-primary-400"
               autoFocus
             />
-            <button onClick={() => onSaveTitle(id)} className="p-0.5 hover:bg-green-900/30 rounded" aria-label="保存">
+            <button onClick={() => onSaveTitle(id)} disabled={!editingTitle.trim()} className="p-0.5 hover:bg-green-900/30 rounded disabled:opacity-30 disabled:cursor-not-allowed" aria-label="保存">
               <CheckIcon className="w-3.5 h-3.5 text-green-400" />
             </button>
             <button onClick={onCancelEdit} className="p-0.5 hover:bg-surface-3 rounded" aria-label="キャンセル">

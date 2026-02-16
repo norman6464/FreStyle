@@ -19,9 +19,11 @@ import com.example.FreStyle.form.ForgotPasswordForm;
 import com.example.FreStyle.form.LoginForm;
 import com.example.FreStyle.form.SignupForm;
 import com.example.FreStyle.service.AccessTokenService;
+import com.example.FreStyle.service.AuthCookieService;
 import com.example.FreStyle.service.CognitoAuthService;
 import com.example.FreStyle.service.UserIdentityService;
 import com.example.FreStyle.service.UserService;
+import com.example.FreStyle.usecase.CognitoLoginUseCase;
 import com.example.FreStyle.utils.JwtUtils;
 import com.nimbusds.jwt.JWTClaimsSet;
 
@@ -62,17 +64,23 @@ public class CognitoAuthController {
     private final CognitoAuthService cognitoAuthService;
     private final UserIdentityService userIdentityService;
     private final AccessTokenService accessTokenService;
+    private final AuthCookieService authCookieService;
+    private final CognitoLoginUseCase cognitoLoginUseCase;
 
     public CognitoAuthController(WebClient.Builder webClientBuilder,
         UserService userService,
         CognitoAuthService cognitoAuthService,
         UserIdentityService userIdentityService,
-        AccessTokenService accessTokenService) {
+        AccessTokenService accessTokenService,
+        AuthCookieService authCookieService,
+        CognitoLoginUseCase cognitoLoginUseCase) {
         this.webClient = webClientBuilder.build();
         this.userService = userService;
         this.cognitoAuthService = cognitoAuthService;
         this.userIdentityService = userIdentityService;
         this.accessTokenService = accessTokenService;
+        this.authCookieService = authCookieService;
+        this.cognitoLoginUseCase = cognitoLoginUseCase;
     }
 
     // -----------------------
@@ -80,36 +88,18 @@ public class CognitoAuthController {
     // -----------------------
     @PostMapping("/signup")
     public ResponseEntity<?> signup(@RequestBody SignupForm form) {
-        log.info("\n========== POST /api/auth/cognito/signup リクエスト開始 ==========");
-        log.info("📌 リクエストパラメータ:");
-        log.info("   - email: {}", form.getEmail());
-        log.info("   - name: {}", form.getName());
-        log.info("   - password: [MASKED]");
-        
+        log.info("POST /api/auth/cognito/signup - email: {}", form.getEmail());
         try {
-            log.info("🔍 cognitoAuthService.signUpUser() 実行中...");
             cognitoAuthService.signUpUser(form.getEmail(), form.getPassword(), form.getName());
-            log.info("✅ Cognitoへのユーザー登録成功");
-            
-            log.info("🔍 userService.registerUser() 実行中...");
             userService.registerUser(form);
-            log.info("✅ DBへのユーザー登録成功");
-
-            log.info("========== /signup 処理完了(CREATED) ==========\n");
             return ResponseEntity.status(HttpStatus.CREATED)
                     .body(Map.of("message", "サインアップ成功。確認メールを送信しました。"));
 
         } catch (UsernameExistsException e) {
-            log.info("❌ エラー: ユーザーが既に存在しています - {}", form.getEmail());
-            log.info("========== /signup 処理完了(CONFLICT) ==========\n");
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(Map.of("error", "既にユーザーが存在しています。"));
-
         } catch (InvalidPasswordException e) {
-            log.info("❌ エラー: パスワードポリシー違反");
-            log.info("========== /signup 処理完了(BAD_REQUEST) ==========\n");
             return ResponseEntity.badRequest().body(Map.of("error", "パスワードポリシーに違反しています。"));
-
         } catch (RuntimeException e) {
             log.error("/signup エラー: {}", e.getMessage(), e);
             return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
@@ -121,40 +111,20 @@ public class CognitoAuthController {
     // -----------------------
     @PostMapping("/confirm")
     public ResponseEntity<?> confirm(@RequestBody ConfirmSignupForm form) {
-        log.info("\n========== POST /api/auth/cognito/confirm リクエスト開始 ==========");
-        log.info("📌 リクエストパラメータ:");
-        log.info("   - email: {}", form.getEmail());
-        log.info("   - code: {}", form.getCode());
-        
+        log.info("POST /api/auth/cognito/confirm - email: {}", form.getEmail());
         try {
-            log.info("🔍 cognitoAuthService.confirmUserSignup() 実行中...");
             cognitoAuthService.confirmUserSignup(form.getEmail(), form.getCode());
-            log.info("✅ Cognito確認成功");
-            
-            log.info("🔍 userService.activeUser() 実行中...");
             userService.activeUser(form.getEmail());
-            log.info("✅ ユーザーアクティブ化成功");
-
-            log.info("========== /confirm 処理完了(OK) ==========\n");
             return ResponseEntity.ok(Map.of("message", "確認に成功しました。ログインできます。"));
 
         } catch (CodeMismatchException e) {
-            log.info("❌ エラー: 確認コード不一致");
-            log.info("========== /confirm 処理完了(BAD_REQUEST) ==========\n");
             return ResponseEntity.badRequest().body(Map.of("error", "確認コードが正しくありません。"));
-
         } catch (ExpiredCodeException e) {
-            log.info("❌ エラー: 確認コード期限切れ");
-            log.info("========== /confirm 処理完了(GONE) ==========\n");
             return ResponseEntity.status(HttpStatus.GONE)
                     .body(Map.of("error", "確認コードの有効期限が切れています。"));
-
         } catch (UserNotFoundException e) {
-            log.info("❌ エラー: ユーザーが存在しません - {}", form.getEmail());
-            log.info("========== /confirm 処理完了(NOT_FOUND) ==========\n");
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("error", "ユーザーが存在しません。"));
-
         } catch (RuntimeException e) {
             log.error("/confirm エラー: {}", e.getMessage(), e);
             return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
@@ -166,66 +136,15 @@ public class CognitoAuthController {
     // -----------------------
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginForm form, HttpServletResponse response) {
-        log.info("\n========== POST /api/auth/cognito/login リクエスト開始 ==========");
-        log.info("📌 リクエストパラメータ:");
-        log.info("   - email: {}", form.getEmail());
-        log.info("   - password: [MASKED]");
-
+        log.info("POST /api/auth/cognito/login - email: {}", form.getEmail());
         try {
-            log.info("🔍 userService.checkUserIsActive() 実行中...");
-            userService.checkUserIsActive(form.getEmail());
-            log.info("✅ ユーザーアクティブ確認成功");
-            
-            log.info("🔍 cognitoAuthService.login() 実行中...");
-            Map<String, String> tokens = cognitoAuthService.login(form.getEmail(), form.getPassword());
-            log.info("✅ Cognitoログイン成功");
-
-            String idToken = tokens.get("idToken");
-            String accessToken = tokens.get("accessToken");
-            String refreshToken = tokens.get("refreshToken");
-            log.info("📌 トークン取得状況:");
-            log.info("   - idToken: {}", idToken != null ? "✓ 取得済" : "null");
-            log.info("   - accessToken: {}", accessToken != null ? "✓ 取得済" : "null");
-            log.info("   - refreshToken: {}", refreshToken != null ? "✓ 取得済" : "null");
-
-            log.info("🔍 JwtUtils.decode() 実行中...");
-            Optional<JWTClaimsSet> claimsOpt = JwtUtils.decode(idToken);
-            if (claimsOpt.isEmpty()) {
-                log.info("❌ エラー: IDトークンのデコードに失敗");
-                log.info("========== /login 処理完了(UNAUTHORIZED) ==========\n");
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "無効なアクセスです。"));
-            }
-            log.info("✅ IDトークンデコード成功");
-
-            JWTClaimsSet claims = claimsOpt.get();
-            log.info("📌 JWTクレーム情報:");
-            log.info("   - issuer: {}", claims.getIssuer());
-            log.info("   - subject: {}", claims.getSubject());
-
-            log.info("🔍 userService.findUserByEmail() 実行中...");
-            User user = userService.findUserByEmail(form.getEmail());
-            log.info("✅ ユーザー取得成功 - userId: {}", user.getId());
-            
-            log.info("🔍 userIdentityService.registerUserIdentity() 実行中...");
-            userIdentityService.registerUserIdentity(user, claims.getIssuer(), claims.getSubject());
-            log.info("✅ ユーザーアイデンティティ登録成功");
-
-            // Cognitoネイティブユーザーのusernameはメールアドレス
-            Object cognitoUsernameObj = claims.getClaim("cognito:username");
-            String cognitoUsername = cognitoUsernameObj != null ? cognitoUsernameObj.toString() : form.getEmail();
-            log.info("📌 cognitoUsername: {}", cognitoUsername);
-
-            log.info("🍪 setAuthCookies() 実行中...");
-            setAuthCookies(response, accessToken, refreshToken, form.getEmail(), cognitoUsername);
-            log.info("✅ Cookie設定成功");
-
-            log.info("💾 accessTokenService.saveTokens() 実行中...");
-            accessTokenService.saveTokens(user, accessToken, refreshToken);
-            log.info("✅ トークン保存成功");
-
-            log.info("========== /login 処理完了(OK) ==========\n");
+            CognitoLoginUseCase.Result result = cognitoLoginUseCase.execute(form.getEmail(), form.getPassword());
+            authCookieService.setAuthCookies(response,
+                    result.accessToken(), result.refreshToken(), result.email(), result.cognitoUsername());
             return ResponseEntity.ok(Map.of("succes", "ログインできました。"));
 
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "無効なアクセスです。"));
         } catch (RuntimeException e) {
             log.error("/login エラー: {}", e.getMessage(), e);
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -237,10 +156,8 @@ public class CognitoAuthController {
     // -----------------------
     @PostMapping("/callback")
     public ResponseEntity<?> callback(@RequestBody Map<String, String> body, HttpServletResponse response) {
-        log.info("[CognitoAuthController /callback] Callback endpoint called");
+        log.info("POST /api/auth/cognito/callback");
         String code = body.get("code");
-        log.info("[CognitoAuthController /callback] Authorization code received: {}",
-                          code != null ? code.substring(0, Math.min(20, code.length())) + "..." : "null");
 
         String basicAuthValue = Base64.getEncoder()
                 .encodeToString((clientId + ":" + clientSecret).getBytes(StandardCharsets.UTF_8));
@@ -251,36 +168,26 @@ public class CognitoAuthController {
         formData.add("redirect_uri", redirectUri);
         formData.add("client_id", clientId);
 
-        log.info("[CognitoAuthController /callback] Requesting token from Cognito");
         Map<String, Object> tokenResponse = webClient.post()
                 .uri(tokenUri)
                 .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_FORM_URLENCODED_VALUE)
                 .header(HttpHeaders.AUTHORIZATION, "Basic " + basicAuthValue)
                 .body(BodyInserters.fromFormData(formData))
                 .retrieve()
-                .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {
-                })
+                .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
                 .block();
 
         if (tokenResponse == null) {
-            log.error("/callback トークンレスポンスがnull");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "トークン取得に失敗しました。"));
         }
-
-        log.info("[CognitoAuthController /callback] トークン取得成功");
 
         String idToken = (String) tokenResponse.get("id_token");
         String accessToken = (String) tokenResponse.get("access_token");
         String refreshToken = (String) tokenResponse.get("refresh_token");
 
-        log.info("[CognitoAuthController /callback] Token types - accessToken: {}, refreshToken: {}",
-                          accessToken != null ? "✓" : "null",
-                          refreshToken != null ? "✓" : "null");
-
         Optional<JWTClaimsSet> claimsOpt = JwtUtils.decode(idToken);
         if (claimsOpt.isEmpty()) {
-            log.error("/callback IDトークンのデコード失敗");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "無効なリクエストです。"));
         }
@@ -291,27 +198,18 @@ public class CognitoAuthController {
             String email = claims.getStringClaim("email");
             String sub = claims.getSubject();
 
-            log.info("[CognitoAuthController /callback] User info - email: {}, sub: {}", email, sub);
-
             boolean isGoogle = claims.getClaim("identities") != null;
             String provider = isGoogle ? "google" : "cognito";
 
-            log.info("[CognitoAuthController /callback] Registering user - provider: {}", provider);
             User user = userService.registerUserOIDC(name, email, provider, sub);
 
-            // OIDCユーザーのCognitoユーザー名を取得（例: Google_123456789）
             Object cognitoUsernameObj = claims.getClaim("cognito:username");
             String cognitoUsername = cognitoUsernameObj != null ? cognitoUsernameObj.toString() : sub;
-            log.info("[CognitoAuthController /callback] cognitoUsername: {}", cognitoUsername);
 
-            // アクセストークン、リフレッシュトークン保存
             accessTokenService.saveTokens(user, accessToken, refreshToken);
+            authCookieService.setAuthCookies(response, accessToken, refreshToken, email, cognitoUsername);
 
-            // httpOnlyCookieの設定
-            log.info("[CognitoAuthController /callback] Setting auth cookies");
-            setAuthCookies(response, accessToken, refreshToken, email, cognitoUsername);
-
-            return ResponseEntity.ok(Map .of("success","ログインできました"));
+            return ResponseEntity.ok(Map.of("success", "ログインできました"));
 
         } catch (Exception e) {
             log.error("/callback エラー: {}", e.getMessage(), e);
@@ -325,31 +223,15 @@ public class CognitoAuthController {
     // -----------------------
     @PostMapping("/logout")
     public ResponseEntity<?> logout(@AuthenticationPrincipal Jwt jwt, HttpServletResponse response) {
-        log.info("\n========== POST /api/auth/cognito/logout リクエスト開始 ==========");
-        log.info("📌 JWT null判定: {}", jwt == null ? "NULL" : "存在");
-        
+        log.info("POST /api/auth/cognito/logout");
         String sub = jwt.getSubject();
-        log.info("📌 JWT Subject (sub): {}", sub);
 
         if (sub == null || sub.isEmpty()) {
-            log.info("❌ エラー: subがnullまたは空です");
-            log.info("========== /logout 処理完了(UNAUTHORIZED) ==========\n");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "無効なリクエストです。"));
         }
 
-        log.info("🍪 REFRESH_TOKEN Cookieを削除中...");
-        ResponseCookie cookie = ResponseCookie.from("REFRESH_TOKEN", null)
-                .httpOnly(true)
-                .secure(false)
-                .path("/")
-                .maxAge(0)
-                .sameSite("None")
-                .build();
-        response.addHeader("Set-Cookie", cookie.toString());
-        log.info("✅ Cookie削除成功");
-
-        log.info("========== /logout 処理完了(OK) ==========\n");
+        authCookieService.clearRefreshTokenCookie(response);
         return ResponseEntity.ok(Map.of("message", "ログアウトしました。"));
     }
 
@@ -358,26 +240,15 @@ public class CognitoAuthController {
     // -----------------------
     @PostMapping("/forgot-password")
     public ResponseEntity<?> forgotPassword(@Validated @RequestBody Map<String, String> body) {
-        log.info("\n========== POST /api/auth/cognito/forgot-password リクエスト開始 ==========");
-        
         String email = body.get("email");
-        log.info("📌 リクエストパラメータ:");
-        log.info("   - email: {}", email);
-
+        log.info("POST /api/auth/cognito/forgot-password - email: {}", email);
         try {
-            log.info("🔍 cognitoAuthService.forgotPassword() 実行中...");
             cognitoAuthService.forgotPassword(email);
-            log.info("✅ パスワードリセットコード送信成功");
-            
-            log.info("========== /forgot-password 処理完了(OK) ==========\n");
             return ResponseEntity.ok(Map.of("message", "確認コードを送信しました。"));
 
         } catch (UserNotFoundException e) {
-            log.info("❌ エラー: ユーザーが存在しません - {}", email);
-            log.info("========== /forgot-password 処理完了(NOT_FOUND) ==========\n");
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("error", "ユーザーが存在しません。"));
-
         } catch (RuntimeException e) {
             log.error("/forgot-password エラー: {}", e.getMessage(), e);
             return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
@@ -385,43 +256,28 @@ public class CognitoAuthController {
     }
 
     // -----------------------
-    // リフレッシュトークンを使用をしてアクセストークン、IDトークンの再発行を行う
+    // リフレッシュトークン
     // -----------------------
     @PostMapping("/refresh-token")
     public ResponseEntity<?> refreshToken(@CookieValue(name = "REFRESH_TOKEN", required = true) String refreshToken,
                                         @CookieValue(name = "EMAIL", required = true) String email,
                                         @CookieValue(name = "COGNITO_USERNAME", required = false) String cognitoUsername,
                                         HttpServletResponse response) {
-
-        log.info("[CognitoAuthController /refresh-token] Endpoint called");
-        log.info("[CognitoAuthController /refresh-token] REFRESH_TOKEN cookie: {}",
-                          refreshToken != null ? refreshToken.substring(0, Math.min(20, refreshToken.length())) + "..." : "null");
-
-        // COGNITO_USERNAMEクッキーが無い場合はEMAILにフォールバック（後方互換性）
+        log.info("POST /api/auth/cognito/refresh-token");
         String username = (cognitoUsername != null && !cognitoUsername.isEmpty()) ? cognitoUsername : email;
-        log.info("[CognitoAuthController /refresh-token] Using username for SECRET_HASH: {}", username);
 
         if (refreshToken == null || refreshToken.isEmpty()) {
-            log.warn("認証エラー: リフレッシュトークンがnullまたは空");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "リフレッシュトークンが存在しません。"));
         }
 
         try {
-
             AccessToken accessTokenEntity = accessTokenService.findAccessTokenByRefreshToken(refreshToken);
-
-            log.info("[CognitoAuthController /refresh-token] Attempting to refresh access token");
             Map<String, String> tokens = cognitoAuthService.refreshAccessToken(refreshToken, username);
-            log.info("[CognitoAuthController /refresh-token] Successfully refreshed tokens");
 
-            accessTokenService.updateTokens(
-                    accessTokenEntity,
-                    tokens.get("accessToken")
-            );
-
-            setAuthCookies(response, tokens.get("accessToken"), refreshToken, email, username);
-            return ResponseEntity.ok(Map.of("success","更新完了"));
+            accessTokenService.updateTokens(accessTokenEntity, tokens.get("accessToken"));
+            authCookieService.setAuthCookies(response, tokens.get("accessToken"), refreshToken, email, username);
+            return ResponseEntity.ok(Map.of("success", "更新完了"));
 
         } catch (RuntimeException e) {
             log.error("/refresh-token エラー: {}", e.getMessage(), e);
@@ -435,48 +291,22 @@ public class CognitoAuthController {
     // -----------------------
     @PostMapping("/confirm-forgot-password")
     public ResponseEntity<?> confirmForgotPassword(@Validated @RequestBody ForgotPasswordForm form) {
-        log.info("\n========== POST /api/auth/cognito/confirm-forgot-password リクエスト開始 ==========");
-        
-        String email = form.getEmail();
-        String code = form.getCode();
-        String newPassword = form.getNewPassword();
-        
-        log.info("📌 リクエストパラメータ:");
-        log.info("   - email: {}", email);
-        log.info("   - code: {}", code);
-        log.info("   - newPassword: [MASKED]");
-
+        log.info("POST /api/auth/cognito/confirm-forgot-password - email: {}", form.getEmail());
         try {
-            log.info("🔍 cognitoAuthService.confirmForgotPassword() 実行中...");
-            cognitoAuthService.confirmForgotPassword(email, code, newPassword);
-            log.info("✅ パスワードリセット成功");
-
-            log.info("========== /confirm-forgot-password 処理完了(OK) ==========\n");
+            cognitoAuthService.confirmForgotPassword(form.getEmail(), form.getCode(), form.getNewPassword());
             return ResponseEntity.ok(Map.of("message", "パスワードをリセットしました。"));
 
         } catch (UserNotFoundException e) {
-            log.info("❌ エラー: ユーザーが存在しません - {}", email);
-            log.info("========== /confirm-forgot-password 処理完了(NOT_FOUND) ==========\n");
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("error", "ユーザーが存在しません。"));
-
         } catch (CodeMismatchException e) {
-            log.info("❌ エラー: 確認コード不一致");
-            log.info("========== /confirm-forgot-password 処理完了(BAD_REQUEST) ==========\n");
             return ResponseEntity.badRequest().body(Map.of("error", "確認コードが正しくありません。"));
-
         } catch (ExpiredCodeException e) {
-            log.info("❌ エラー: 確認コード期限切れ");
-            log.info("========== /confirm-forgot-password 処理完了(GONE) ==========\n");
             return ResponseEntity.status(HttpStatus.GONE)
                     .body(Map.of("error", "確認コードの有効期限が切れています。"));
-
         } catch (InvalidPasswordException e) {
-            log.info("❌ エラー: パスワードポリシー違反");
-            log.info("========== /confirm-forgot-password 処理完了(BAD_REQUEST) ==========\n");
             return ResponseEntity.badRequest()
                     .body(Map.of("error", "パスワードポリシーに違反しています。"));
-
         } catch (RuntimeException e) {
             log.error("/confirm-forgot-password エラー: {}", e.getMessage(), e);
             return ResponseEntity.internalServerError()
@@ -484,98 +314,30 @@ public class CognitoAuthController {
         }
     }
 
-
-    
     // -----------------------
-    // Cookie格納メソッド
+    // ユーザー情報取得
     // -----------------------
     @GetMapping("/me")
     public ResponseEntity<?> me(@AuthenticationPrincipal Jwt jwt) {
-        log.info("[CognitoAuthController /me] Endpoint called");
-        
         if (jwt == null) {
-            log.warn("認証エラー: JWTがnull");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "認証されていません"));
         }
-        
-        log.info("[CognitoAuthController /me] JWT Principal: {}", jwt);
-        
-        String sub = jwt.getSubject();
-        log.info("[CognitoAuthController /me] JWT Subject (sub): {}", sub);
 
+        String sub = jwt.getSubject();
         if (sub == null || sub.isEmpty()) {
-            log.warn("認証エラー: JWTのsubがnullまたは空");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "無効なリクエストです。"));
         }
 
         try {
-            log.info("[CognitoAuthController /me] Finding user with sub: {}", sub);
             Integer id = userIdentityService.findUserBySub(sub).getId();
-            log.info("[CognitoAuthController /me] User found: {}", id);
-
-            return ResponseEntity.ok(Map.of("id",id));
+            return ResponseEntity.ok(Map.of("id", id));
 
         } catch (RuntimeException e) {
             log.error("/me エラー: {}", e.getMessage(), e);
             return ResponseEntity.internalServerError()
                     .body(Map.of("error", e.getMessage()));
         }
-    } 
-
-
-    // -----------------------
-    // Cookie格納メソッド
-    // -----------------------
-    private void setAuthCookies(
-        HttpServletResponse response,
-        String accessToken,
-        String refreshToken,
-        String email,
-        String cognitoUsername
-    ) {
-    ResponseCookie accessCookie = ResponseCookie.from("ACCESS_TOKEN", accessToken)
-            .httpOnly(true)
-            .secure(true) // 開発環境: false、本番環境: true
-            .path("/")
-            .maxAge(60 * 60 * 2) // 2時間
-            .sameSite("None") // 開発環境: Lax、本番環境: None
-            .build();
-
-    ResponseCookie refreshCookie = ResponseCookie.from("REFRESH_TOKEN", refreshToken)
-            .httpOnly(true)
-            .secure(true) // 開発環境: false、本番環境: true
-            .path("/")
-            .maxAge(60 * 60 * 24 * 7) // 7日
-            .sameSite("None") // 開発環境: Lax、本番環境: None
-            .build();
-
-    ResponseCookie emailCookie = ResponseCookie.from("EMAIL", email)
-            .httpOnly(true)
-            .secure(true) // 開発環境: false、本番環境: true
-            .path("/")
-            .maxAge(60 * 60 * 24 * 7) // 7日
-            .sameSite("None") // 開発環境: Lax、本番環境: None
-            .build();
-
-    ResponseCookie cognitoUsernameCookie = ResponseCookie.from("COGNITO_USERNAME", cognitoUsername)
-            .httpOnly(true)
-            .secure(true)
-            .path("/")
-            .maxAge(60 * 60 * 24 * 7) // 7日
-            .sameSite("None")
-            .build();
-
-    log.debug("Cookie設定: ACCESS_TOKEN, REFRESH_TOKEN, EMAIL, COGNITO_USERNAME");
-    response.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
-    response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
-    response.addHeader(HttpHeaders.SET_COOKIE, emailCookie.toString());
-    response.addHeader(HttpHeaders.SET_COOKIE, cognitoUsernameCookie.toString());
-}
-
-
-    
-
-
+    }
 }

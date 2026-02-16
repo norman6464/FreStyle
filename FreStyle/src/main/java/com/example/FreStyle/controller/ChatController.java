@@ -107,17 +107,10 @@ public class ChatController {
             "status", "success"
       ));
   } catch (IllegalStateException e) {
-    log.info("⚠️ IllegalStateException発生: " + e.getMessage());
-    log.info("   スタックトレース:");
-    e.printStackTrace();
-    log.info("========== ルーム作成リクエスト終了(BAD_REQUEST) ==========\n");
+    log.warn("ルーム作成エラー(不正リクエスト): {}", e.getMessage(), e);
     return ResponseEntity.badRequest().body(Map.of("error", "無効なリクエストです。"));
   } catch (Exception e) {
-    log.error("❌ 予期しない例外発生: " + e.getClass().getName());
-    log.info("   メッセージ: " + e.getMessage());
-    log.info("   スタックトレース:");
-    e.printStackTrace();
-    log.info("========== ルーム作成リクエスト終了(INTERNAL_SERVER_ERROR) ==========\n");
+    log.error("ルーム作成エラー: {}", e.getMessage(), e);
     return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
               .body(Map.of("error", "ルーム作成中にエラーが発生しました。"));
   } 
@@ -149,8 +142,7 @@ public class ChatController {
       return ResponseEntity.ok(history);
       
     } catch (Exception e) {
-      log.info("Error in history endpoint: " + e.getMessage());
-      e.printStackTrace();
+      log.error("履歴取得エラー: {}", e.getMessage(), e);
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "サーバーエラーです。"));
     }
   }
@@ -251,8 +243,7 @@ public class ChatController {
       return ResponseEntity.ok(response);
       
     } catch (Exception e) {
-      log.error("❌ エラー発生: " + e.getMessage());
-      e.printStackTrace();
+      log.error("チャットルーム取得エラー: {}", e.getMessage(), e);
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
           .body(Map.of("error", "サーバーエラーが発生しました。"));
     }

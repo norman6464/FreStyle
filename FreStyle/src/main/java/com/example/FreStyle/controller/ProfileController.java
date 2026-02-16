@@ -79,8 +79,7 @@ public class ProfileController {
 
         } catch (Exception e) {
             // 想定外のエラー
-            log.info("[ProfileController /me] ERROR: " + e.getClass().getSimpleName() + " - " + e.getMessage());
-            e.printStackTrace();
+            log.error("プロフィール取得エラー: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "サーバーエラーが発生しました。"));
         }
@@ -145,8 +144,7 @@ public class ProfileController {
 
         } catch (Exception e) {
             // 想定外エラー
-            log.info("[ProfileController /me/update] ERROR: " + e.getClass().getSimpleName() + " - " + e.getMessage());
-            e.printStackTrace();
+            log.error("プロフィール更新エラー: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "サーバーエラーが発生しました。"));
         }

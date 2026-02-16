@@ -67,8 +67,7 @@ public class UserProfileController {
             return ResponseEntity.ok(profileDto);
 
         } catch (Exception e) {
-            log.info("[UserProfileController /me] ERROR: " + e.getMessage());
-            e.printStackTrace();
+            log.error("プロファイル取得エラー: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "サーバーエラーが発生しました。"));
         }
@@ -110,8 +109,7 @@ public class UserProfileController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
-            log.info("[UserProfileController POST /me] ERROR: " + e.getMessage());
-            e.printStackTrace();
+            log.error("プロファイル作成エラー: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "サーバーエラーが発生しました。"));
         }
@@ -153,8 +151,7 @@ public class UserProfileController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
-            log.info("[UserProfileController PUT /me] ERROR: " + e.getMessage());
-            e.printStackTrace();
+            log.error("プロファイル更新エラー: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "サーバーエラーが発生しました。"));
         }
@@ -196,8 +193,7 @@ public class UserProfileController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
-            log.info("[UserProfileController PUT /me/upsert] ERROR: " + e.getMessage());
-            e.printStackTrace();
+            log.error("プロファイルupsertエラー: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "サーバーエラーが発生しました。"));
         }
@@ -236,8 +232,7 @@ public class UserProfileController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
-            log.info("[UserProfileController DELETE /me] ERROR: " + e.getMessage());
-            e.printStackTrace();
+            log.error("プロファイル削除エラー: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "サーバーエラーが発生しました。"));
         }

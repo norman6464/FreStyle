@@ -6,7 +6,7 @@ import FormMessage from '../components/FormMessage';
 import { useConfirmSignup } from '../hooks/useConfirmSignup';
 
 export default function ConfirmPage() {
-  const { form, message, handleChange, handleConfirm } = useConfirmSignup();
+  const { form, message, loading, handleChange, handleConfirm } = useConfirmSignup();
 
   return (
     <AuthLayout>
@@ -19,14 +19,18 @@ export default function ConfirmPage() {
           type="email"
           value={form.email}
           onChange={handleChange}
+          disabled={loading}
         />
         <InputField
           label="確認コード"
           name="code"
           value={form.code}
           onChange={handleChange}
+          disabled={loading}
         />
-        <PrimaryButton type="submit">確認する</PrimaryButton>
+        <PrimaryButton type="submit" loading={loading}>
+          {loading ? '確認中...' : '確認する'}
+        </PrimaryButton>
       </form>
       <div className="mt-4 text-center">
         <LinkText to="/signup">アカウント作成に戻る</LinkText>

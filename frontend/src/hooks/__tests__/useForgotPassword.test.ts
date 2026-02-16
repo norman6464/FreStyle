@@ -122,4 +122,31 @@ describe('useForgotPassword', () => {
 
     expect(preventDefault).toHaveBeenCalled();
   });
+
+  it('初期状態でloadingがfalseである', () => {
+    const { result } = renderHook(() => useForgotPassword());
+    expect(result.current.loading).toBe(false);
+  });
+
+  it('handleSubmit実行中にloadingがtrueになる', async () => {
+    let resolvePromise: (value: unknown) => void;
+    mockForgotPassword.mockReturnValue(new Promise((resolve) => { resolvePromise = resolve; }));
+    const { result } = renderHook(() => useForgotPassword());
+
+    let submitPromise: Promise<void>;
+    act(() => {
+      submitPromise = result.current.handleSubmit({
+        preventDefault: vi.fn(),
+      } as unknown as React.FormEvent<HTMLFormElement>);
+    });
+
+    expect(result.current.loading).toBe(true);
+
+    await act(async () => {
+      resolvePromise!({ message: 'ok' });
+      await submitPromise;
+    });
+
+    expect(result.current.loading).toBe(false);
+  });
 });

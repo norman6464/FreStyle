@@ -8,7 +8,7 @@ import { useLoginPage } from '../hooks/useLoginPage';
 import { XCircleIcon } from '@heroicons/react/24/outline';
 
 export default function LoginPage() {
-  const { form, loginMessage, flashMessage, handleLogin, handleChange } = useLoginPage();
+  const { form, loginMessage, flashMessage, loading, handleLogin, handleChange } = useLoginPage();
 
   return (
     <AuthLayout>
@@ -39,6 +39,7 @@ export default function LoginPage() {
           type="email"
           value={form.email}
           onChange={handleChange}
+          disabled={loading}
         />
         <InputField
           label="パスワード"
@@ -46,8 +47,11 @@ export default function LoginPage() {
           type="password"
           value={form.password}
           onChange={handleChange}
+          disabled={loading}
         />
-        <PrimaryButton type="submit">ログイン</PrimaryButton>
+        <PrimaryButton type="submit" loading={loading}>
+          {loading ? 'ログイン中...' : 'ログイン'}
+        </PrimaryButton>
       </form>
       <div className="flex justify-between items-center mt-6 text-sm">
         <LinkText to="/forgot-password">パスワードをお忘れですか？</LinkText>

@@ -20,6 +20,7 @@ interface LoginMessage {
 export function useLoginPage() {
   const { form, handleChange } = useFormField({ email: '', password: '' });
   const [loginMessage, setLoginMessage] = useState<LoginMessage | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -29,16 +30,21 @@ export function useLoginPage() {
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setLoading(true);
 
-    const success = await login({ email: form.email, password: form.password });
+    try {
+      const success = await login({ email: form.email, password: form.password });
 
-    if (success) {
-      navigate('/');
-    } else {
-      setLoginMessage({
-        type: 'error',
-        text: 'ログインに失敗しました。',
-      });
+      if (success) {
+        navigate('/');
+      } else {
+        setLoginMessage({
+          type: 'error',
+          text: 'ログインに失敗しました。',
+        });
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -46,6 +52,7 @@ export function useLoginPage() {
     form,
     loginMessage,
     flashMessage,
+    loading,
     handleLogin,
     handleChange,
   };

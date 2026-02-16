@@ -5,7 +5,7 @@ import FormMessage from '../components/FormMessage';
 import { useConfirmForgotPassword } from '../hooks/useConfirmForgotPassword';
 
 export default function ConfirmForgotPasswordPage() {
-  const { form, message, handleChange, handleConfirm } = useConfirmForgotPassword();
+  const { form, message, loading, handleChange, handleConfirm } = useConfirmForgotPassword();
 
   return (
     <AuthLayout>
@@ -20,12 +20,14 @@ export default function ConfirmForgotPasswordPage() {
           type="email"
           value={form.email}
           onChange={handleChange}
+          disabled={loading}
         />
         <InputField
           label="確認コード"
           name="code"
           value={form.code}
           onChange={handleChange}
+          disabled={loading}
         />
         <InputField
           label="新しいパスワード"
@@ -33,8 +35,11 @@ export default function ConfirmForgotPasswordPage() {
           type="password"
           value={form.newPassword}
           onChange={handleChange}
+          disabled={loading}
         />
-        <PrimaryButton type="submit">パスワードをリセット</PrimaryButton>
+        <PrimaryButton type="submit" loading={loading}>
+          {loading ? 'リセット中...' : 'パスワードをリセット'}
+        </PrimaryButton>
       </form>
     </AuthLayout>
   );

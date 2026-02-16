@@ -23,6 +23,7 @@ export default function SignupPage() {
           name="name"
           value={form.name}
           onChange={handleChange}
+          disabled={loading}
         />
         <InputField
           label="メールアドレス"
@@ -30,6 +31,7 @@ export default function SignupPage() {
           type="email"
           value={form.email}
           onChange={handleChange}
+          disabled={loading}
         />
         <InputField
           label="パスワード"
@@ -37,8 +39,9 @@ export default function SignupPage() {
           type="password"
           value={form.password}
           onChange={handleChange}
+          disabled={loading}
         />
-        <PrimaryButton type="submit" disabled={loading}>
+        <PrimaryButton type="submit" loading={loading}>
           {loading ? '作成中...' : 'アカウント作成'}
         </PrimaryButton>
       </form>

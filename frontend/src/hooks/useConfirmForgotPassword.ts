@@ -15,9 +15,11 @@ export function useConfirmForgotPassword() {
     newPassword: '',
   });
   const [message, setMessage] = useState<FormMessage | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const handleConfirm = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setLoading(true);
 
     try {
       await authRepository.confirmForgotPassword({
@@ -36,8 +38,10 @@ export function useConfirmForgotPassword() {
       } else {
         setMessage({ type: 'error', text: '通信エラーが発生しました。' });
       }
+    } finally {
+      setLoading(false);
     }
   };
 
-  return { form, message, handleChange, handleConfirm };
+  return { form, message, loading, handleChange, handleConfirm };
 }

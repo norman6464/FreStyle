@@ -89,4 +89,14 @@ describe('InputField', () => {
     expect(input.className).toContain('border-surface-3');
     expect(input.className).not.toContain('border-rose-500');
   });
+
+  it('disabled時にinputが無効化される', () => {
+    render(<InputField label="メール" name="email" value="" onChange={mockOnChange} disabled />);
+    expect(screen.getByLabelText('メール')).toBeDisabled();
+  });
+
+  it('disabled時にクリアボタンが表示されない', () => {
+    render(<InputField label="メール" name="email" value="test" onChange={mockOnChange} disabled />);
+    expect(screen.queryByRole('button')).toBeNull();
+  });
 });

@@ -131,4 +131,31 @@ describe('useLoginPage', () => {
 
     expect(mockLogin).toHaveBeenCalledWith({ email: 'user@test.com', password: 'pass123' });
   });
+
+  it('初期状態でloadingがfalseである', () => {
+    const { result } = renderHook(() => useLoginPage());
+    expect(result.current.loading).toBe(false);
+  });
+
+  it('handleLogin実行中にloadingがtrueになる', async () => {
+    let resolveLogin: (value: boolean) => void;
+    mockLogin.mockReturnValue(new Promise<boolean>((resolve) => { resolveLogin = resolve; }));
+    const { result } = renderHook(() => useLoginPage());
+
+    let loginPromise: Promise<void>;
+    act(() => {
+      loginPromise = result.current.handleLogin({
+        preventDefault: vi.fn(),
+      } as unknown as React.FormEvent<HTMLFormElement>);
+    });
+
+    expect(result.current.loading).toBe(true);
+
+    await act(async () => {
+      resolveLogin!(true);
+      await loginPromise;
+    });
+
+    expect(result.current.loading).toBe(false);
+  });
 });

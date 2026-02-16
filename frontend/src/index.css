@@ -338,6 +338,24 @@
   border: none;
 }
 
+/* Search & Replace highlights */
+.ProseMirror .search-match {
+  background-color: rgba(255, 200, 0, 0.3);
+  border-radius: 2px;
+}
+.ProseMirror .search-match-current {
+  background-color: rgba(255, 150, 0, 0.5);
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(255, 150, 0, 0.7);
+}
+.light .ProseMirror .search-match {
+  background-color: rgba(255, 220, 0, 0.4);
+}
+.light .ProseMirror .search-match-current {
+  background-color: rgba(255, 165, 0, 0.5);
+  box-shadow: 0 0 0 1px rgba(255, 165, 0, 0.7);
+}
+
 /* Tippy.js slash command popup */
 .tippy-box[data-theme~='slash-command'] {
   background: transparent;

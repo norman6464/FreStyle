@@ -20,6 +20,7 @@ import MenuNavigationCard from '../components/MenuNavigationCard';
 import SessionCountMilestoneCard from '../components/SessionCountMilestoneCard';
 import ScoreSparkline from '../components/ScoreSparkline';
 import RecommendedScenarioCard from '../components/RecommendedScenarioCard';
+import BookmarkedScenariosCard from '../components/BookmarkedScenariosCard';
 import { useMenuData } from '../hooks/useMenuData';
 import { useScoreHistory } from '../hooks/useScoreHistory';
 import { useRecommendedScenario } from '../hooks/useRecommendedScenario';
@@ -158,6 +159,11 @@ export default function MenuPage() {
           <RecentSessionsCard sessions={allScores} />
         </div>
       )}
+
+      {/* ブックマーク済みシナリオ */}
+      <div className="mb-6">
+        <BookmarkedScenariosCard />
+      </div>
 
       {/* 最近のメモ */}
       <div className="mb-6">

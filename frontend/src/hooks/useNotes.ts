@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo, useRef } from 'react';
 import type { Note } from '../types';
+import type { NoteSortOption } from '../constants/sortOptions';
 import NoteRepository from '../repositories/NoteRepository';
 
 export function useNotes() {
@@ -8,6 +9,7 @@ export function useNotes() {
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [noteSort, setNoteSort] = useState<NoteSortOption>('default');
   const notesRef = useRef<Note[]>(notes);
   notesRef.current = notes;
 
@@ -88,9 +90,12 @@ export function useNotes() {
       : notes;
     return [...filtered].sort((a, b) => {
       if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
+      if (noteSort === 'updated-asc') return a.updatedAt - b.updatedAt;
+      if (noteSort === 'title') return a.title.localeCompare(b.title, 'ja');
+      if (noteSort === 'created-desc') return b.createdAt - a.createdAt;
       return b.updatedAt - a.updatedAt;
     });
-  }, [notes, searchQuery]);
+  }, [notes, searchQuery, noteSort]);
 
   const requestDelete = useCallback((noteId: string) => {
     setDeleteTargetId(noteId);
@@ -136,5 +141,7 @@ export function useNotes() {
     requestDelete,
     confirmDelete,
     cancelDelete,
+    noteSort,
+    setNoteSort,
   };
 }

@@ -23,3 +23,17 @@ export const DIFFICULTY_ORDER: Record<string, number> = {
   intermediate: 2,
   advanced: 3,
 };
+
+export type NoteSortOption = 'default' | 'updated-asc' | 'title' | 'created-desc';
+
+export interface NoteSortOptionItem {
+  value: NoteSortOption;
+  label: string;
+}
+
+export const NOTE_SORT_OPTIONS: NoteSortOptionItem[] = [
+  { value: 'default', label: 'デフォルト' },
+  { value: 'updated-asc', label: '古い順' },
+  { value: 'title', label: 'タイトル順' },
+  { value: 'created-desc', label: '作成日（新しい順）' },
+];

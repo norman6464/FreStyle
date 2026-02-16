@@ -33,8 +33,7 @@ public class DailyGoalController {
 
     @GetMapping("/today")
     public ResponseEntity<DailyGoalDto> getToday(@AuthenticationPrincipal Jwt jwt) {
-        String sub = jwt.getSubject();
-        User user = userIdentityService.findUserBySub(sub);
+        User user = resolveUser(jwt);
         DailyGoalDto dto = getTodayDailyGoalUseCase.execute(user.getId());
         return ResponseEntity.ok(dto);
     }
@@ -43,17 +42,19 @@ public class DailyGoalController {
     public ResponseEntity<Void> setTarget(
             @AuthenticationPrincipal Jwt jwt,
             @RequestBody Map<String, Integer> body) {
-        String sub = jwt.getSubject();
-        User user = userIdentityService.findUserBySub(sub);
+        User user = resolveUser(jwt);
         setDailyGoalTargetUseCase.execute(user, body.get("target"));
         return ResponseEntity.ok().build();
     }
 
     @PostMapping("/increment")
     public ResponseEntity<DailyGoalDto> increment(@AuthenticationPrincipal Jwt jwt) {
-        String sub = jwt.getSubject();
-        User user = userIdentityService.findUserBySub(sub);
+        User user = resolveUser(jwt);
         DailyGoalDto dto = incrementDailyGoalUseCase.execute(user);
         return ResponseEntity.ok(dto);
+    }
+
+    private User resolveUser(Jwt jwt) {
+        return userIdentityService.findUserBySub(jwt.getSubject());
     }
 }

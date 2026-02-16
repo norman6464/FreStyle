@@ -66,19 +66,9 @@ public class BedrockService {
         log.info("📤 Bedrock にメッセージ送信中...");
         log.debug("   - userMessage: {}", userMessage);
 
-        try {
-            String coachPrompt = systemPromptBuilder.buildCoachPrompt();
-
-            ArrayNode messagesArray = objectMapper.createArrayNode();
-            messagesArray.add(buildUserMessageNode(userMessage));
-
-            ObjectNode requestBody = buildRequestBody(coachPrompt, messagesArray, 1024, 0.7);
-            return invokeAndParseResponse(requestBody, "Bedrock");
-
-        } catch (Exception e) {
-            log.error("Bedrock 呼び出しエラー: {}", e.getMessage(), e);
-            throw new RuntimeException("AI応答の取得に失敗しました: " + e.getMessage(), e);
-        }
+        String coachPrompt = systemPromptBuilder.buildCoachPrompt();
+        return invokeSingleMessage(coachPrompt, userMessage, 1024, 0.7,
+                "Bedrock", "AI応答の取得に失敗しました");
     }
 
     /**
@@ -154,21 +144,11 @@ public class BedrockService {
 
         log.info("📤 Bedrock にUserProfile付きメッセージ送信中... scene={}", scene);
 
-        try {
-            String systemPrompt = systemPromptBuilder.buildFeedbackPromptWithScene(
-                    scene, displayName, selfIntroduction, communicationStyle,
-                    personalityTraits, goals, concerns, preferredFeedbackStyle);
-
-            ArrayNode messagesArray = objectMapper.createArrayNode();
-            messagesArray.add(buildUserMessageNode(userMessage));
-
-            ObjectNode requestBody = buildRequestBody(systemPrompt, messagesArray, 2048, 0.7);
-            return invokeAndParseResponse(requestBody, "Bedrock（UserProfile付き）");
-
-        } catch (Exception e) {
-            log.error("Bedrock 呼び出しエラー（UserProfile付き）: {}", e.getMessage(), e);
-            throw new RuntimeException("AI応答の取得に失敗しました: " + e.getMessage(), e);
-        }
+        String systemPrompt = systemPromptBuilder.buildFeedbackPromptWithScene(
+                scene, displayName, selfIntroduction, communicationStyle,
+                personalityTraits, goals, concerns, preferredFeedbackStyle);
+        return invokeSingleMessage(systemPrompt, userMessage, 2048, 0.7,
+                "Bedrock（UserProfile付き）", "AI応答の取得に失敗しました");
     }
 
     /**
@@ -182,17 +162,8 @@ public class BedrockService {
     public String chatInPracticeMode(String userMessage, String practicePrompt) {
         log.info("📤 Bedrock に練習モードメッセージ送信中...");
 
-        try {
-            ArrayNode messagesArray = objectMapper.createArrayNode();
-            messagesArray.add(buildUserMessageNode(userMessage));
-
-            ObjectNode requestBody = buildRequestBody(practicePrompt, messagesArray, 1024, 0.8);
-            return invokeAndParseResponse(requestBody, "Bedrock（練習モード）");
-
-        } catch (Exception e) {
-            log.error("Bedrock 練習モードエラー: {}", e.getMessage(), e);
-            throw new RuntimeException("練習モードのAI応答取得に失敗しました: " + e.getMessage(), e);
-        }
+        return invokeSingleMessage(practicePrompt, userMessage, 1024, 0.8,
+                "Bedrock（練習モード）", "練習モードのAI応答取得に失敗しました");
     }
 
     /**
@@ -205,18 +176,24 @@ public class BedrockService {
     public String rephrase(String originalMessage, String scene) {
         log.info("📤 Bedrock に言い換えリクエスト送信中... scene={}", scene);
 
+        String systemPrompt = systemPromptBuilder.buildRephrasePrompt(scene);
+        return invokeSingleMessage(systemPrompt, originalMessage, 1024, 0.7,
+                "Bedrock（言い換え）", "言い換え提案の取得に失敗しました");
+    }
+
+    private String invokeSingleMessage(String systemPrompt, String userMessage,
+                                       int maxTokens, double temperature,
+                                       String logContext, String errorMessage) {
         try {
-            String systemPrompt = systemPromptBuilder.buildRephrasePrompt(scene);
-
             ArrayNode messagesArray = objectMapper.createArrayNode();
-            messagesArray.add(buildUserMessageNode(originalMessage));
+            messagesArray.add(buildUserMessageNode(userMessage));
 
-            ObjectNode requestBody = buildRequestBody(systemPrompt, messagesArray, 1024, 0.7);
-            return invokeAndParseResponse(requestBody, "Bedrock（言い換え）");
+            ObjectNode requestBody = buildRequestBody(systemPrompt, messagesArray, maxTokens, temperature);
+            return invokeAndParseResponse(requestBody, logContext);
 
         } catch (Exception e) {
-            log.error("Bedrock 言い換えエラー: {}", e.getMessage(), e);
-            throw new RuntimeException("言い換え提案の取得に失敗しました: " + e.getMessage(), e);
+            log.error("{} エラー: {}", logContext, e.getMessage(), e);
+            throw new RuntimeException(errorMessage + ": " + e.getMessage(), e);
         }
     }
 

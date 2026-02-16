@@ -69,4 +69,29 @@ class AiChatMessageMapperTest {
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("null");
     }
+
+    @Test
+    @DisplayName("異なるsessionId・userIdで正しく変換される")
+    void toDtoWithDifferentIds() {
+        AiChatMessage message = createMessage();
+        message.getSession().setId(99);
+        message.getUser().setId(42);
+
+        AiChatMessageResponseDto dto = mapper.toDto(message);
+
+        assertThat(dto.getSessionId()).isEqualTo(99);
+        assertThat(dto.getUserId()).isEqualTo(42);
+    }
+
+    @Test
+    @DisplayName("空のコンテンツでも正しく変換される")
+    void toDtoWithEmptyContent() {
+        AiChatMessage message = createMessage();
+        message.setContent("");
+
+        AiChatMessageResponseDto dto = mapper.toDto(message);
+
+        assertThat(dto.getContent()).isEmpty();
+        assertThat(dto.getId()).isEqualTo(1);
+    }
 }

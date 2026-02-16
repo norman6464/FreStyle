@@ -20,11 +20,14 @@ import org.springframework.web.reactive.function.client.WebClient;
 import com.example.FreStyle.entity.User;
 import com.example.FreStyle.form.ConfirmSignupForm;
 import com.example.FreStyle.form.ForgotPasswordForm;
+import com.example.FreStyle.form.LoginForm;
 import com.example.FreStyle.form.SignupForm;
 import com.example.FreStyle.service.AccessTokenService;
+import com.example.FreStyle.service.AuthCookieService;
 import com.example.FreStyle.service.CognitoAuthService;
 import com.example.FreStyle.service.UserIdentityService;
 import com.example.FreStyle.service.UserService;
+import com.example.FreStyle.usecase.CognitoLoginUseCase;
 
 import jakarta.servlet.http.HttpServletResponse;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.CodeMismatchException;
@@ -41,6 +44,8 @@ class CognitoAuthControllerTest {
     @Mock private CognitoAuthService cognitoAuthService;
     @Mock private UserIdentityService userIdentityService;
     @Mock private AccessTokenService accessTokenService;
+    @Mock private AuthCookieService authCookieService;
+    @Mock private CognitoLoginUseCase cognitoLoginUseCase;
     @Mock private WebClient.Builder webClientBuilder;
     @Mock private WebClient webClient;
     @Mock private HttpServletResponse httpResponse;
@@ -51,7 +56,8 @@ class CognitoAuthControllerTest {
     void setUp() {
         when(webClientBuilder.build()).thenReturn(webClient);
         controller = new CognitoAuthController(
-            webClientBuilder, userService, cognitoAuthService, userIdentityService, accessTokenService
+            webClientBuilder, userService, cognitoAuthService, userIdentityService,
+            accessTokenService, authCookieService, cognitoLoginUseCase
         );
     }
 
@@ -245,6 +251,50 @@ class CognitoAuthControllerTest {
     }
 
     @Nested
+    @DisplayName("login")
+    class Login {
+
+        @Test
+        @DisplayName("ログイン成功で200を返す")
+        void returnsOkOnSuccess() {
+            LoginForm form = new LoginForm("test@example.com", "password123");
+            CognitoLoginUseCase.Result result = new CognitoLoginUseCase.Result(
+                    "access-token", "refresh-token", "test@example.com", "cognito-user");
+            when(cognitoLoginUseCase.execute("test@example.com", "password123")).thenReturn(result);
+
+            ResponseEntity<?> response = controller.login(form, httpResponse);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+            verify(authCookieService).setAuthCookies(httpResponse,
+                    "access-token", "refresh-token", "test@example.com", "cognito-user");
+        }
+
+        @Test
+        @DisplayName("IllegalStateExceptionで401を返す")
+        void returnsUnauthorizedOnIllegalState() {
+            LoginForm form = new LoginForm("test@example.com", "password123");
+            when(cognitoLoginUseCase.execute(anyString(), anyString()))
+                    .thenThrow(new IllegalStateException("IDトークンのデコードに失敗"));
+
+            ResponseEntity<?> response = controller.login(form, httpResponse);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        }
+
+        @Test
+        @DisplayName("RuntimeExceptionで400を返す")
+        void returnsBadRequestOnRuntimeException() {
+            LoginForm form = new LoginForm("test@example.com", "wrong");
+            when(cognitoLoginUseCase.execute(anyString(), anyString()))
+                    .thenThrow(new RuntimeException("認証失敗"));
+
+            ResponseEntity<?> response = controller.login(form, httpResponse);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    @Nested
     @DisplayName("logout")
     class Logout {
 
@@ -256,7 +306,7 @@ class CognitoAuthControllerTest {
             ResponseEntity<?> response = controller.logout(jwt, httpResponse);
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-            verify(httpResponse).addHeader(eq("Set-Cookie"), anyString());
+            verify(authCookieService).clearRefreshTokenCookie(httpResponse);
         }
 
         @Test

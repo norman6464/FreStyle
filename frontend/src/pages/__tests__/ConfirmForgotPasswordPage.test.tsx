@@ -113,6 +113,12 @@ describe('ConfirmForgotPasswordPage', () => {
     fireEvent.change(screen.getByLabelText('確認コード'), {
       target: { value: '000000', name: 'code' },
     });
+    fireEvent.change(screen.getByLabelText('新しいパスワード'), {
+      target: { value: 'newPassword123', name: 'newPassword' },
+    });
+    fireEvent.change(screen.getByLabelText('パスワード確認'), {
+      target: { value: 'newPassword123', name: 'confirmPassword' },
+    });
     fireEvent.click(screen.getByText('パスワードをリセット'));
 
     await waitFor(() => {

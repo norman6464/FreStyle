@@ -55,4 +55,27 @@ class ChatRoomServiceTest {
         assertThrows(RuntimeException.class,
                 () -> chatRoomService.findChatRoomById(1));
     }
+
+    @Test
+    @DisplayName("findChatRoomById: 異なるIDで正しいルームを返す")
+    void findChatRoomById_returnsDifferentRoom() {
+        ChatRoom room = new ChatRoom();
+        room.setId(42);
+        when(chatRoomRepository.findById(42)).thenReturn(Optional.of(room));
+
+        ChatRoom result = chatRoomService.findChatRoomById(42);
+
+        assertEquals(42, result.getId());
+    }
+
+    @Test
+    @DisplayName("findChatRoomById: リポジトリ例外のメッセージが保持される")
+    void findChatRoomById_propagatesExceptionMessage() {
+        when(chatRoomRepository.findById(1))
+                .thenThrow(new RuntimeException("DB接続エラー"));
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> chatRoomService.findChatRoomById(1));
+        assertEquals("DB接続エラー", ex.getMessage());
+    }
 }

@@ -34,6 +34,37 @@ class ChatUserDtoTest {
     }
 
     @Test
+    @DisplayName("NoArgsConstructorで全フィールドがnull/デフォルト値")
+    void noArgsConstructorLeavesAllFieldsNull() {
+        ChatUserDto dto = new ChatUserDto();
+
+        assertThat(dto.getUserId()).isNull();
+        assertThat(dto.getEmail()).isNull();
+        assertThat(dto.getName()).isNull();
+        assertThat(dto.getRoomId()).isNull();
+        assertThat(dto.getLastMessage()).isNull();
+        assertThat(dto.getLastMessageSenderId()).isNull();
+        assertThat(dto.getLastMessageSenderName()).isNull();
+        assertThat(dto.getLastMessageAt()).isNull();
+        assertThat(dto.getUnreadCount()).isNull();
+        assertThat(dto.getProfileImage()).isNull();
+    }
+
+    @Test
+    @DisplayName("setterで個別フィールドを更新できる")
+    void setterUpdatesFields() {
+        ChatUserDto dto = new ChatUserDto(1, "old@example.com", "旧名前", 10);
+
+        dto.setName("新名前");
+        dto.setProfileImage("https://example.com/new.jpg");
+        dto.setUnreadCount(5);
+
+        assertThat(dto.getName()).isEqualTo("新名前");
+        assertThat(dto.getProfileImage()).isEqualTo("https://example.com/new.jpg");
+        assertThat(dto.getUnreadCount()).isEqualTo(5);
+    }
+
+    @Test
     @DisplayName("AllArgsConstructorで全フィールドが設定される")
     void allArgsConstructorSetsAllFields() {
         Timestamp now = new Timestamp(System.currentTimeMillis());

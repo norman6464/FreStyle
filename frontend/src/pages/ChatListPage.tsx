@@ -18,6 +18,7 @@ export default function ChatListPage() {
     <div className="flex h-full">
       <SecondaryPanel
         title="チャット"
+        badge={`${chatUsers.length}件`}
         mobileOpen={mobilePanelOpen}
         onMobileClose={closeMobilePanel}
         headerContent={

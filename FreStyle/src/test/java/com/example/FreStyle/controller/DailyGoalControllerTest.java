@@ -65,6 +65,23 @@ class DailyGoalControllerTest {
     }
 
     @Test
+    @DisplayName("getToday: レスポンスに完了数と日付が含まれる")
+    void getToday_includesCompletedAndDate() {
+        Jwt jwt = createMockJwt();
+        User user = new User();
+        user.setId(1);
+        when(userIdentityService.findUserBySub("cognito-sub-123")).thenReturn(user);
+        String today = LocalDate.now().toString();
+        DailyGoalDto dto = new DailyGoalDto(today, 3, 2);
+        when(getTodayDailyGoalUseCase.execute(1)).thenReturn(dto);
+
+        ResponseEntity<DailyGoalDto> response = dailyGoalController.getToday(jwt);
+
+        assertEquals(2, response.getBody().getCompleted());
+        assertEquals(today, response.getBody().getDate());
+    }
+
+    @Test
     @DisplayName("setTarget: 目標回数を設定できる")
     void setTarget_setsTarget() {
         Jwt jwt = createMockJwt();
@@ -76,6 +93,19 @@ class DailyGoalControllerTest {
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         verify(setDailyGoalTargetUseCase).execute(user, 7);
+    }
+
+    @Test
+    @DisplayName("setTarget: レスポンスボディがnull")
+    void setTarget_returnsNoBody() {
+        Jwt jwt = createMockJwt();
+        User user = new User();
+        user.setId(1);
+        when(userIdentityService.findUserBySub("cognito-sub-123")).thenReturn(user);
+
+        ResponseEntity<Void> response = dailyGoalController.setTarget(jwt, Map.of("target", 1));
+
+        assertNull(response.getBody());
     }
 
     @Test
@@ -92,5 +122,22 @@ class DailyGoalControllerTest {
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals(1, response.getBody().getCompleted());
+    }
+
+    @Test
+    @DisplayName("increment: レスポンスにtargetと日付が含まれる")
+    void increment_includesTargetAndDate() {
+        Jwt jwt = createMockJwt();
+        User user = new User();
+        user.setId(1);
+        when(userIdentityService.findUserBySub("cognito-sub-123")).thenReturn(user);
+        String today = LocalDate.now().toString();
+        DailyGoalDto dto = new DailyGoalDto(today, 5, 3);
+        when(incrementDailyGoalUseCase.execute(user)).thenReturn(dto);
+
+        ResponseEntity<DailyGoalDto> response = dailyGoalController.increment(jwt);
+
+        assertEquals(5, response.getBody().getTarget());
+        assertEquals(today, response.getBody().getDate());
     }
 }

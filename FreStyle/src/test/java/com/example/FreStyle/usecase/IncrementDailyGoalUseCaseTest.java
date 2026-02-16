@@ -62,4 +62,41 @@ class IncrementDailyGoalUseCaseTest {
         verify(dailyGoalRepository).save(argThat(g ->
                 g.getCompleted() == 1 && g.getTarget() == 3));
     }
+
+    @Test
+    @DisplayName("レスポンスの日付が今日になる")
+    void execute_returnsToday() {
+        User user = new User();
+        user.setId(1);
+        DailyGoal goal = new DailyGoal();
+        goal.setUser(user);
+        goal.setGoalDate(LocalDate.now());
+        goal.setTarget(3);
+        goal.setCompleted(0);
+        when(dailyGoalRepository.findByUserIdAndGoalDate(1, LocalDate.now()))
+                .thenReturn(Optional.of(goal));
+
+        DailyGoalDto result = incrementDailyGoalUseCase.execute(user);
+
+        assertEquals(LocalDate.now().toString(), result.getDate());
+    }
+
+    @Test
+    @DisplayName("目標達成時もインクリメントされる")
+    void execute_atTarget_incrementsBeyond() {
+        User user = new User();
+        user.setId(1);
+        DailyGoal goal = new DailyGoal();
+        goal.setUser(user);
+        goal.setGoalDate(LocalDate.now());
+        goal.setTarget(5);
+        goal.setCompleted(4);
+        when(dailyGoalRepository.findByUserIdAndGoalDate(1, LocalDate.now()))
+                .thenReturn(Optional.of(goal));
+
+        DailyGoalDto result = incrementDailyGoalUseCase.execute(user);
+
+        assertEquals(5, result.getCompleted());
+        assertEquals(5, result.getTarget());
+    }
 }

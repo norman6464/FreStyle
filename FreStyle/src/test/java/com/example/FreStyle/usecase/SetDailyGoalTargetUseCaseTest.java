@@ -61,4 +61,37 @@ class SetDailyGoalTargetUseCaseTest {
         verify(dailyGoalRepository).save(argThat(g ->
                 g.getTarget() == 7 && g.getCompleted() == 0 && g.getUser().getId() == 1));
     }
+
+    @Test
+    @DisplayName("既存ゴールの完了数が保持される")
+    void execute_existingGoal_preservesCompleted() {
+        User user = new User();
+        user.setId(1);
+        DailyGoal goal = new DailyGoal();
+        goal.setUser(user);
+        goal.setGoalDate(LocalDate.now());
+        goal.setTarget(3);
+        goal.setCompleted(5);
+        when(dailyGoalRepository.findByUserIdAndGoalDate(1, LocalDate.now()))
+                .thenReturn(Optional.of(goal));
+
+        setDailyGoalTargetUseCase.execute(user, 10);
+
+        verify(dailyGoalRepository).save(argThat(g ->
+                g.getTarget() == 10 && g.getCompleted() == 5));
+    }
+
+    @Test
+    @DisplayName("新規作成時の日付が今日になる")
+    void execute_noGoal_setsGoalDateToToday() {
+        User user = new User();
+        user.setId(1);
+        when(dailyGoalRepository.findByUserIdAndGoalDate(1, LocalDate.now()))
+                .thenReturn(Optional.empty());
+
+        setDailyGoalTargetUseCase.execute(user, 5);
+
+        verify(dailyGoalRepository).save(argThat(g ->
+                g.getGoalDate().equals(LocalDate.now())));
+    }
 }

@@ -40,4 +40,18 @@ describe('UserProfileRepository', () => {
     expect(mockedApiClient.post).toHaveBeenCalledWith('/api/user-profile/me', updateRequest);
     expect(result).toEqual(mockProfile);
   });
+
+  it('getMyProfile: APIエラー時に例外がそのまま伝搬する', async () => {
+    mockedApiClient.get.mockRejectedValue(new Error('Network Error'));
+
+    await expect(userProfileRepository.getMyProfile()).rejects.toThrow('Network Error');
+  });
+
+  it('updateProfile: APIエラー時に例外がそのまま伝搬する', async () => {
+    mockedApiClient.post.mockRejectedValue(new Error('Server Error'));
+
+    await expect(
+      userProfileRepository.updateProfile({ displayName: 'テスト' })
+    ).rejects.toThrow('Server Error');
+  });
 });

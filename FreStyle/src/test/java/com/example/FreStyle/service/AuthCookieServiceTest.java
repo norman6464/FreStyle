@@ -47,4 +47,32 @@ class AuthCookieServiceTest {
         assertThat(captor.getValue()).contains("REFRESH_TOKEN");
         assertThat(captor.getValue()).contains("Max-Age=0");
     }
+
+    @Test
+    @DisplayName("setAuthCookies: CookieにHttpOnly属性が設定される")
+    void setAuthCookiesSetsHttpOnlyAttribute() {
+        HttpServletResponse response = mock(HttpServletResponse.class);
+
+        authCookieService.setAuthCookies(response, "access", "refresh", "test@example.com", "user1");
+
+        ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
+        verify(response, times(4)).addHeader(eq("Set-Cookie"), captor.capture());
+
+        captor.getAllValues().forEach(cookie ->
+                assertThat(cookie).contains("HttpOnly"));
+    }
+
+    @Test
+    @DisplayName("setAuthCookies: CookieにSecure属性が設定される")
+    void setAuthCookiesSetsSecureAttribute() {
+        HttpServletResponse response = mock(HttpServletResponse.class);
+
+        authCookieService.setAuthCookies(response, "access", "refresh", "test@example.com", "user1");
+
+        ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
+        verify(response, times(4)).addHeader(eq("Set-Cookie"), captor.capture());
+
+        captor.getAllValues().forEach(cookie ->
+                assertThat(cookie).contains("Secure"));
+    }
 }

@@ -318,6 +318,26 @@ describe('NotesPage', () => {
     expect(mockShowToast).toHaveBeenCalledWith('success', 'ノートを削除しました');
   });
 
+  it('ノートがある場合、件数が表示される', () => {
+    const noteList = [
+      { noteId: 'n1', userId: 1, title: 'テスト1', content: '内容1', isPinned: false, createdAt: 1000, updatedAt: 2000 },
+      { noteId: 'n2', userId: 1, title: 'テスト2', content: '内容2', isPinned: false, createdAt: 1500, updatedAt: 3000 },
+      { noteId: 'n3', userId: 1, title: 'テスト3', content: '内容3', isPinned: false, createdAt: 2000, updatedAt: 4000 },
+    ];
+    vi.mocked(useNotes).mockReturnValue({
+      ...mockUseNotes,
+      notes: noteList,
+      filteredNotes: noteList,
+    });
+    render(<NotesPage />);
+    expect(screen.getAllByText('3件').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('ノートが0件の場合、件数が表示される', () => {
+    render(<NotesPage />);
+    expect(screen.getAllByText('0件').length).toBeGreaterThanOrEqual(1);
+  });
+
   it('複数ノートがある場合、正しいノートのrequestDeleteが呼ばれる', () => {
     const noteList = [
       { noteId: 'n1', userId: 1, title: 'ノート1', content: '内容1', isPinned: false, createdAt: 1000, updatedAt: 2000 },

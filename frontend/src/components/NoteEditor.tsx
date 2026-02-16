@@ -1,6 +1,9 @@
 import { useMemo, useCallback } from 'react';
+import { ArrowDownTrayIcon, ClipboardDocumentIcon } from '@heroicons/react/24/outline';
 import { getNoteStats } from '../utils/noteStats';
 import { useTableOfContents } from '../hooks/useTableOfContents';
+import { useMarkdownExport } from '../hooks/useMarkdownExport';
+import { useToast } from '../hooks/useToast';
 import BlockEditor from './BlockEditor';
 import TableOfContents from './TableOfContents';
 import WordCount from './WordCount';
@@ -24,6 +27,22 @@ export default function NoteEditor({
 }: NoteEditorProps) {
   const stats = useMemo(() => getNoteStats(content), [content]);
   const { headings, isOpen, toggle } = useTableOfContents(content);
+  const { exportAsMarkdown, copyAsMarkdown } = useMarkdownExport();
+  const { showToast } = useToast();
+
+  const handleExport = useCallback(() => {
+    exportAsMarkdown(title, content);
+  }, [exportAsMarkdown, title, content]);
+
+  const handleCopyMarkdown = useCallback(async () => {
+    const md = copyAsMarkdown(title, content);
+    try {
+      await navigator.clipboard.writeText(md);
+      showToast('success', 'Markdownをコピーしました');
+    } catch {
+      showToast('error', 'コピーに失敗しました');
+    }
+  }, [copyAsMarkdown, title, content, showToast]);
 
   const handleHeadingClick = useCallback((id: string) => {
     const index = parseInt(id.replace('heading-', ''), 10);
@@ -76,6 +95,26 @@ export default function NoteEditor({
         <WordCount charCount={stats.charCount} />
         <LineCount lineCount={stats.lineCount} />
         <ReadingTime charCount={stats.charCount} />
+        <div className="ml-auto flex items-center gap-1">
+          <button
+            type="button"
+            onClick={handleCopyMarkdown}
+            aria-label="Markdownをコピー"
+            className="p-1.5 rounded hover:bg-[var(--color-surface-3)] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
+            title="Markdownをコピー"
+          >
+            <ClipboardDocumentIcon className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={handleExport}
+            aria-label="Markdownでダウンロード"
+            className="p-1.5 rounded hover:bg-[var(--color-surface-3)] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
+            title="Markdownでダウンロード"
+          >
+            <ArrowDownTrayIcon className="w-4 h-4" />
+          </button>
+        </div>
       </div>
     </div>
   );

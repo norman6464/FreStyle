@@ -23,15 +23,7 @@ describe('useStartPracticeSession', () => {
     const { result } = renderHook(() => useStartPracticeSession());
 
     await act(async () => {
-      await result.current.startSession({
-        id: 1,
-        name: 'テストシナリオ',
-        description: '説明',
-        category: 'customer',
-        roleName: '顧客',
-        difficulty: 'intermediate',
-        systemPrompt: '',
-      });
+      await result.current.startSession({ id: 1, name: 'テストシナリオ' });
     });
 
     expect(mockedRepo.createPracticeSession).toHaveBeenCalledWith({ scenarioId: 1 });
@@ -51,15 +43,7 @@ describe('useStartPracticeSession', () => {
     const { result } = renderHook(() => useStartPracticeSession());
 
     await act(async () => {
-      await result.current.startSession({
-        id: 1,
-        name: 'テスト',
-        description: '',
-        category: 'customer',
-        roleName: '顧客',
-        difficulty: 'beginner',
-        systemPrompt: '',
-      });
+      await result.current.startSession({ id: 1, name: 'テスト' });
     });
 
     expect(mockNavigate).toHaveBeenCalledWith('/practice');
@@ -77,10 +61,7 @@ describe('useStartPracticeSession', () => {
 
     let startPromise: Promise<void>;
     act(() => {
-      startPromise = result.current.startSession({
-        id: 1, name: 'テスト', description: '', category: 'customer',
-        roleName: '顧客', difficulty: 'beginner', systemPrompt: '',
-      });
+      startPromise = result.current.startSession({ id: 1, name: 'テスト' });
     });
 
     expect(result.current.starting).toBe(true);

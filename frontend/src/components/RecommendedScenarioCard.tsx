@@ -37,7 +37,7 @@ export default function RecommendedScenarioCard({ scenario, weakAxis }: Recommen
       <div className="flex items-center justify-between">
         <span className="text-[10px] text-[var(--color-text-faint)]">{categoryLabel}</span>
         <button
-          onClick={() => startSession(scenario as Parameters<typeof startSession>[0])}
+          onClick={() => startSession(scenario)}
           disabled={starting}
           className="text-xs font-medium text-primary-400 hover:text-primary-300 transition-colors disabled:opacity-50"
         >

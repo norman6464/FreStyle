@@ -1,6 +1,7 @@
 package com.example.FreStyle.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -108,5 +109,173 @@ class BedrockServiceTest {
         String result = bedrockService.chat("質問です");
 
         assertThat(result).isEqualTo("AI応答テスト");
+    }
+
+    @Test
+    @DisplayName("chat()でBedrock呼び出しエラー時にRuntimeExceptionをスローする")
+    void chatShouldThrowOnBedrockError() {
+        when(bedrockClient.invokeModel(any(InvokeModelRequest.class)))
+                .thenThrow(new RuntimeException("Bedrock error"));
+
+        assertThatThrownBy(() -> bedrockService.chat("質問です"))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("AI応答の取得に失敗しました");
+    }
+
+    // ============================
+    // chatWithHistory
+    // ============================
+    @Test
+    @DisplayName("chatWithHistory()が会話履歴なしでも正常に動作する")
+    void chatWithHistoryWithEmptyHistory() throws Exception {
+        when(bedrockClient.invokeModel(any(InvokeModelRequest.class)))
+                .thenReturn(createMockResponse("履歴なし応答"));
+
+        String result = bedrockService.chatWithHistory(null, "新しいメッセージ");
+
+        assertThat(result).isEqualTo("履歴なし応答");
+    }
+
+    @Test
+    @DisplayName("chatWithHistory()が会話履歴を含めてリクエストを構築する")
+    void chatWithHistoryShouldIncludeHistory() throws Exception {
+        when(bedrockClient.invokeModel(any(InvokeModelRequest.class)))
+                .thenReturn(createMockResponse("履歴付き応答"));
+
+        String history = "[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"前の質問\"}]},"
+                + "{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"前の回答\"}]}]";
+
+        bedrockService.chatWithHistory(history, "続きの質問");
+
+        ArgumentCaptor<InvokeModelRequest> captor = ArgumentCaptor.forClass(InvokeModelRequest.class);
+        verify(bedrockClient).invokeModel(captor.capture());
+
+        String requestBody = captor.getValue().body().asUtf8String();
+        JsonNode json = objectMapper.readTree(requestBody);
+        JsonNode messages = json.get("messages");
+
+        // 履歴2件 + 新規メッセージ1件 = 3件
+        assertThat(messages.size()).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("chatWithHistory()でBedrock呼び出しエラー時にRuntimeExceptionをスローする")
+    void chatWithHistoryShouldThrowOnError() {
+        when(bedrockClient.invokeModel(any(InvokeModelRequest.class)))
+                .thenThrow(new RuntimeException("Bedrock error"));
+
+        assertThatThrownBy(() -> bedrockService.chatWithHistory(null, "メッセージ"))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("AI応答の取得に失敗しました");
+    }
+
+    // ============================
+    // chatInPracticeMode
+    // ============================
+    @Test
+    @DisplayName("chatInPracticeMode()が練習用プロンプトを使用してリクエストを構築する")
+    void chatInPracticeModeShouldUsePracticePrompt() throws Exception {
+        when(bedrockClient.invokeModel(any(InvokeModelRequest.class)))
+                .thenReturn(createMockResponse("練習応答"));
+
+        bedrockService.chatInPracticeMode("こんにちは", "あなたは上司です。");
+
+        ArgumentCaptor<InvokeModelRequest> captor = ArgumentCaptor.forClass(InvokeModelRequest.class);
+        verify(bedrockClient).invokeModel(captor.capture());
+
+        String requestBody = captor.getValue().body().asUtf8String();
+        JsonNode json = objectMapper.readTree(requestBody);
+
+        assertThat(json.get("system").asText()).isEqualTo("あなたは上司です。");
+        assertThat(json.get("temperature").asDouble()).isEqualTo(0.8);
+    }
+
+    @Test
+    @DisplayName("chatInPracticeMode()がAIの応答テキストを正しく返す")
+    void chatInPracticeModeShouldReturnAiReply() throws Exception {
+        when(bedrockClient.invokeModel(any(InvokeModelRequest.class)))
+                .thenReturn(createMockResponse("練習モード応答"));
+
+        String result = bedrockService.chatInPracticeMode("テスト", "プロンプト");
+
+        assertThat(result).isEqualTo("練習モード応答");
+    }
+
+    @Test
+    @DisplayName("chatInPracticeMode()でエラー時にRuntimeExceptionをスローする")
+    void chatInPracticeModeShouldThrowOnError() {
+        when(bedrockClient.invokeModel(any(InvokeModelRequest.class)))
+                .thenThrow(new RuntimeException("Bedrock error"));
+
+        assertThatThrownBy(() -> bedrockService.chatInPracticeMode("メッセージ", "プロンプト"))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("練習モードのAI応答取得に失敗しました");
+    }
+
+    // ============================
+    // rephrase
+    // ============================
+    @Test
+    @DisplayName("rephrase()が言い換えプロンプトを使用してリクエストを構築する")
+    void rephraseShouldUseRephrasePrompt() throws Exception {
+        when(bedrockClient.invokeModel(any(InvokeModelRequest.class)))
+                .thenReturn(createMockResponse("言い換え結果"));
+
+        bedrockService.rephrase("元のメッセージ", "meeting");
+
+        ArgumentCaptor<InvokeModelRequest> captor = ArgumentCaptor.forClass(InvokeModelRequest.class);
+        verify(bedrockClient).invokeModel(captor.capture());
+
+        String requestBody = captor.getValue().body().asUtf8String();
+        JsonNode json = objectMapper.readTree(requestBody);
+
+        assertThat(json.has("system")).isTrue();
+        assertThat(json.get("messages").get(0).get("content").get(0).get("text").asText())
+                .isEqualTo("元のメッセージ");
+    }
+
+    @Test
+    @DisplayName("rephrase()がAIの応答テキストを正しく返す")
+    void rephraseShouldReturnAiReply() throws Exception {
+        when(bedrockClient.invokeModel(any(InvokeModelRequest.class)))
+                .thenReturn(createMockResponse("言い換え応答"));
+
+        String result = bedrockService.rephrase("テストメッセージ", null);
+
+        assertThat(result).isEqualTo("言い換え応答");
+    }
+
+    @Test
+    @DisplayName("rephrase()でエラー時にRuntimeExceptionをスローする")
+    void rephraseShouldThrowOnError() {
+        when(bedrockClient.invokeModel(any(InvokeModelRequest.class)))
+                .thenThrow(new RuntimeException("Bedrock error"));
+
+        assertThatThrownBy(() -> bedrockService.rephrase("メッセージ", null))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("言い換え提案の取得に失敗しました");
+    }
+
+    // ============================
+    // chatWithUserProfileAndScene
+    // ============================
+    @Test
+    @DisplayName("chatWithUserProfileAndScene()がシーン指定付きでリクエストを構築する")
+    void chatWithUserProfileAndSceneShouldIncludeScene() throws Exception {
+        when(bedrockClient.invokeModel(any(InvokeModelRequest.class)))
+                .thenReturn(createMockResponse("シーン付き応答"));
+
+        bedrockService.chatWithUserProfileAndScene(
+                "テストメッセージ", "meeting",
+                "太郎", "自己紹介", "丁寧", "真面目", "目標", "懸念", "優しく");
+
+        ArgumentCaptor<InvokeModelRequest> captor = ArgumentCaptor.forClass(InvokeModelRequest.class);
+        verify(bedrockClient).invokeModel(captor.capture());
+
+        String requestBody = captor.getValue().body().asUtf8String();
+        JsonNode json = objectMapper.readTree(requestBody);
+
+        assertThat(json.get("max_tokens").asInt()).isEqualTo(2048);
+        assertThat(json.has("system")).isTrue();
     }
 }

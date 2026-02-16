@@ -1,7 +1,17 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { FavoritePhraseRepository } from '../FavoritePhraseRepository';
 
-const STORAGE_KEY = 'freestyle_favorite_phrases';
+const mockGet = vi.fn();
+const mockPost = vi.fn();
+const mockDelete = vi.fn();
+
+vi.mock('../../lib/axios', () => ({
+  default: {
+    get: (...args: unknown[]) => mockGet(...args),
+    post: (...args: unknown[]) => mockPost(...args),
+    delete: (...args: unknown[]) => mockDelete(...args),
+  },
+}));
 
 function createMockStorage(): Storage {
   let store: Record<string, string> = {};
@@ -16,92 +26,103 @@ function createMockStorage(): Storage {
 }
 
 describe('FavoritePhraseRepository', () => {
-  let mockStorage: Storage;
-
   beforeEach(() => {
-    mockStorage = createMockStorage();
-    vi.stubGlobal('localStorage', mockStorage);
+    vi.clearAllMocks();
+    vi.stubGlobal('localStorage', createMockStorage());
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it('初期状態では空配列を返す', () => {
-    const result = FavoritePhraseRepository.getAll();
-    expect(result).toEqual([]);
-  });
+  describe('API正常系', () => {
+    it('getAll: APIからフレーズ一覧を取得し、IDをstring変換する', async () => {
+      mockGet.mockResolvedValue({
+        data: [
+          { id: 1, originalText: '元文', rephrasedText: '変換文', pattern: 'フォーマル版', createdAt: '2026-01-01T00:00:00Z' },
+        ],
+      });
 
-  it('フレーズを保存できる', () => {
-    FavoritePhraseRepository.save({
-      originalText: '確認お願いします',
-      rephrasedText: 'ご確認いただけますでしょうか',
-      pattern: 'フォーマル',
+      const result = await FavoritePhraseRepository.getAll();
+
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('1');
+      expect(result[0].originalText).toBe('元文');
+      expect(mockGet).toHaveBeenCalledWith('/api/favorite-phrases');
     });
 
-    const all = FavoritePhraseRepository.getAll();
-    expect(all).toHaveLength(1);
-    expect(all[0].originalText).toBe('確認お願いします');
-    expect(all[0].rephrasedText).toBe('ご確認いただけますでしょうか');
-    expect(all[0].pattern).toBe('フォーマル');
-    expect(all[0].id).toBeDefined();
-    expect(all[0].createdAt).toBeDefined();
-  });
+    it('save: APIでフレーズを保存できる', async () => {
+      mockPost.mockResolvedValue({});
 
-  it('複数フレーズを保存でき、新しい順に返される', () => {
-    vi.spyOn(Date, 'now')
-      .mockReturnValueOnce(1000)
-      .mockReturnValueOnce(1000)
-      .mockReturnValueOnce(2000)
-      .mockReturnValueOnce(2000);
+      await FavoritePhraseRepository.save({
+        originalText: '確認お願い',
+        rephrasedText: 'ご確認ください',
+        pattern: 'フォーマル版',
+      });
 
-    FavoritePhraseRepository.save({
-      originalText: 'テスト1',
-      rephrasedText: '言い換え1',
-      pattern: 'ソフト',
-    });
-    FavoritePhraseRepository.save({
-      originalText: 'テスト2',
-      rephrasedText: '言い換え2',
-      pattern: '簡潔',
+      expect(mockPost).toHaveBeenCalledWith('/api/favorite-phrases', {
+        originalText: '確認お願い',
+        rephrasedText: 'ご確認ください',
+        pattern: 'フォーマル版',
+      });
     });
 
-    const all = FavoritePhraseRepository.getAll();
-    expect(all).toHaveLength(2);
-    expect(all[0].originalText).toBe('テスト2');
-    expect(all[1].originalText).toBe('テスト1');
+    it('remove: APIでフレーズを削除できる', async () => {
+      mockDelete.mockResolvedValue({});
 
-    vi.restoreAllMocks();
-  });
+      await FavoritePhraseRepository.remove('5');
 
-  it('フレーズを削除できる', () => {
-    FavoritePhraseRepository.save({
-      originalText: 'テスト',
-      rephrasedText: '言い換え',
-      pattern: 'フォーマル',
+      expect(mockDelete).toHaveBeenCalledWith('/api/favorite-phrases/5');
     });
 
-    const all = FavoritePhraseRepository.getAll();
-    expect(all).toHaveLength(1);
+    it('exists: フレーズの存在判定ができる', async () => {
+      mockGet.mockResolvedValue({
+        data: [
+          { id: 1, originalText: '元', rephrasedText: '変換文', pattern: 'フォーマル版', createdAt: '2026-01-01' },
+        ],
+      });
 
-    FavoritePhraseRepository.remove(all[0].id);
-
-    expect(FavoritePhraseRepository.getAll()).toHaveLength(0);
+      expect(await FavoritePhraseRepository.exists('変換文', 'フォーマル版')).toBe(true);
+      expect(await FavoritePhraseRepository.exists('別文', 'フォーマル版')).toBe(false);
+    });
   });
 
-  it('存在しないIDの削除はエラーにならない', () => {
-    expect(() => FavoritePhraseRepository.remove('nonexistent')).not.toThrow();
-  });
+  describe('APIエラー時のlocalStorageフォールバック', () => {
+    it('getAll: APIエラー時はlocalStorageから取得する', async () => {
+      mockGet.mockRejectedValue(new Error('Network Error'));
+      localStorage.setItem('freestyle_favorite_phrases', JSON.stringify([
+        { id: 'fav_1', originalText: 'テスト', rephrasedText: '変換', pattern: 'ソフト版', createdAt: '2026-01-01' },
+      ]));
 
-  it('重複チェックが機能する', () => {
-    FavoritePhraseRepository.save({
-      originalText: 'テスト',
-      rephrasedText: '言い換え',
-      pattern: 'フォーマル',
+      const result = await FavoritePhraseRepository.getAll();
+
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('fav_1');
     });
 
-    expect(FavoritePhraseRepository.exists('言い換え', 'フォーマル')).toBe(true);
-    expect(FavoritePhraseRepository.exists('言い換え', 'ソフト')).toBe(false);
-    expect(FavoritePhraseRepository.exists('別のテキスト', 'フォーマル')).toBe(false);
+    it('save: APIエラー時はlocalStorageに保存する', async () => {
+      mockPost.mockRejectedValue(new Error('Network Error'));
+
+      await FavoritePhraseRepository.save({
+        originalText: 'テスト',
+        rephrasedText: '変換',
+        pattern: 'ソフト版',
+      });
+
+      expect(localStorage.setItem).toHaveBeenCalled();
+    });
+
+    it('remove: APIエラー時はlocalStorageから削除する', async () => {
+      mockDelete.mockRejectedValue(new Error('Network Error'));
+      localStorage.setItem('freestyle_favorite_phrases', JSON.stringify([
+        { id: 'fav_1', originalText: 'テスト', rephrasedText: '変換', pattern: 'ソフト版', createdAt: '2026-01-01' },
+      ]));
+
+      await FavoritePhraseRepository.remove('fav_1');
+
+      const calls = (localStorage.setItem as ReturnType<typeof vi.fn>).mock.calls;
+      const lastCall = calls[calls.length - 1];
+      expect(JSON.parse(lastCall[1] as string)).toHaveLength(0);
+    });
   });
 });

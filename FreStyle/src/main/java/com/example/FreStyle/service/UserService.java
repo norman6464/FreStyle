@@ -107,6 +107,7 @@ public class UserService {
     User user = userIdentityService.findUserBySub(sub);
     user.setName(form.getName());
     user.setBio(form.getBio());
+    user.setIconUrl(form.getIconUrl());
 
     userRepository.save(user);
   }

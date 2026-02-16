@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import InputField from '../components/InputField';
 import TextareaField from '../components/TextareaField';
 import PrimaryButton from '../components/PrimaryButton';
@@ -5,9 +6,30 @@ import FormMessage from '../components/FormMessage';
 import Avatar from '../components/Avatar';
 import Loading from '../components/Loading';
 import { useProfileEdit } from '../hooks/useProfileEdit';
+import { useProfileImageUpload } from '../hooks/useProfileImageUpload';
+import { CameraIcon } from '@heroicons/react/24/outline';
 
 export default function ProfilePage() {
-  const { form, message, loading, submitting, updateField, handleUpdate } = useProfileEdit();
+  const { form, message, setMessage, loading, submitting, updateField, handleUpdate } = useProfileEdit();
+  const { upload, uploading } = useProfileImageUpload();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const imageUrl = await upload(file);
+    if (imageUrl) {
+      updateField('iconUrl', imageUrl);
+    } else {
+      setMessage({ type: 'error', text: '画像のアップロードに失敗しました。' });
+    }
+
+    // 同じファイルを再選択可能にする
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   if (loading) {
     return (
@@ -21,10 +43,31 @@ export default function ProfilePage() {
 
       <div className="bg-surface-1 rounded-lg border border-surface-3 p-6">
         <div className="flex items-center gap-4 mb-6">
-          <Avatar name={form.name || 'U'} size="xl" />
+          <div className="relative">
+            <Avatar name={form.name || 'U'} src={form.iconUrl || undefined} size="xl" />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="absolute bottom-0 right-0 bg-primary-500 text-white rounded-full p-1 hover:bg-primary-600 transition-colors disabled:opacity-50"
+              aria-label="プロフィール画像を変更"
+            >
+              <CameraIcon className="w-4 h-4" />
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/gif,image/webp"
+              onChange={handleImageSelect}
+              className="hidden"
+              data-testid="profile-image-input"
+            />
+          </div>
           <div>
             <h2 className="text-lg font-bold text-[var(--color-text-primary)]">プロフィールを編集</h2>
-            <p className="text-sm text-[var(--color-text-muted)]">あなたの情報を更新してください</p>
+            <p className="text-sm text-[var(--color-text-muted)]">
+              {uploading ? '画像をアップロード中...' : 'あなたの情報を更新してください'}
+            </p>
           </div>
         </div>
 

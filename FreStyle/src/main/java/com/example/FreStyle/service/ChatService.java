@@ -132,6 +132,7 @@ public class ChatService {
             dto.setEmail(partner.getEmail());
             dto.setName(partner.getName());
             dto.setRoomId(roomId);
+            dto.setProfileImage(partner.getIconUrl());
             dto.setUnreadCount(unreadCounts.getOrDefault(roomId, 0));
             
             if (latestMsg != null) {

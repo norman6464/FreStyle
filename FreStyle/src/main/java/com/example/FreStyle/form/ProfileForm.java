@@ -13,4 +13,5 @@ public class ProfileForm {
   @NotBlank(message = "ユーザー名を入力してください")
   private String name;
   private String bio;
+  private String iconUrl;
 }

@@ -64,6 +64,7 @@ class ChatServiceTest {
         partnerUser.setId(2);
         partnerUser.setName("相手");
         partnerUser.setEmail("partner@test.com");
+        partnerUser.setIconUrl("https://cdn.example.com/profiles/2/avatar.png");
 
         room = new ChatRoom();
         room.setId(10);
@@ -276,5 +277,25 @@ class ChatServiceTest {
         // Assert
         assertEquals(1, result.size());
         assertEquals(0, result.get(0).getUnreadCount());
+    }
+
+    @Test
+    @DisplayName("findChatUsers: プロフィール画像URLがDTOに設定される")
+    void findChatUsers_setsProfileImage() {
+        List<PartnerRoomProjection> partnerDataList = new ArrayList<>();
+        partnerDataList.add(createProjection(2, 10));
+        when(roomMemberRepository.findPartnerUserIdAndRoomIdByUserId(1))
+                .thenReturn(partnerDataList);
+        when(userRepository.findAllById(List.of(2)))
+                .thenReturn(List.of(partnerUser));
+        when(chatMessageRepository.findLatestMessagesByRoomIds(List.of(10)))
+                .thenReturn(List.of());
+        when(unreadCountService.getUnreadCountsByUserAndRooms(eq(1), anyList()))
+                .thenReturn(Map.of());
+
+        List<ChatUserDto> result = chatService.findChatUsers(1, null);
+
+        assertEquals(1, result.size());
+        assertEquals("https://cdn.example.com/profiles/2/avatar.png", result.get(0).getProfileImage());
     }
 }

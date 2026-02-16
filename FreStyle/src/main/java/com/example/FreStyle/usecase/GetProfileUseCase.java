@@ -22,6 +22,6 @@ public class GetProfileUseCase {
         if (user == null) {
             throw new ResourceNotFoundException("ユーザーが見つかりません: sub=" + sub);
         }
-        return new ProfileDto(user.getName(), user.getBio());
+        return new ProfileDto(user.getName(), user.getBio(), user.getIconUrl());
     }
 }

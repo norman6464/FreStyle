@@ -30,6 +30,9 @@ public class ChatUserDto {
     
     // 未読数（将来の拡張用）
     private Integer unreadCount;
+
+    // プロフィール画像URL
+    private String profileImage;
     
     /**
      * 最終メッセージなしの場合のコンストラクタ

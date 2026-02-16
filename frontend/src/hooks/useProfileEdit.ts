@@ -3,7 +3,7 @@ import ProfileRepository from '../repositories/ProfileRepository';
 import type { FormMessage } from '../types';
 
 export function useProfileEdit() {
-  const [form, setForm] = useState({ name: '', bio: '' });
+  const [form, setForm] = useState({ name: '', bio: '', iconUrl: '' });
   const [message, setMessage] = useState<FormMessage | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -12,7 +12,7 @@ export function useProfileEdit() {
     const loadProfile = async () => {
       try {
         const data = await ProfileRepository.fetchProfile();
-        setForm({ name: data.name || '', bio: data.bio || '' });
+        setForm({ name: data.name || '', bio: data.bio || '', iconUrl: data.iconUrl || '' });
       } catch {
         setMessage({ type: 'error', text: 'プロフィール取得に失敗しました。' });
       } finally {
@@ -22,7 +22,7 @@ export function useProfileEdit() {
     loadProfile();
   }, []);
 
-  const updateField = useCallback((field: 'name' | 'bio', value: string) => {
+  const updateField = useCallback((field: 'name' | 'bio' | 'iconUrl', value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   }, []);
 
@@ -46,6 +46,7 @@ export function useProfileEdit() {
   return {
     form,
     message,
+    setMessage,
     loading,
     submitting,
     updateField,

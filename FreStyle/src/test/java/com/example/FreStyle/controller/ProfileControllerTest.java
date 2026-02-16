@@ -20,9 +20,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.oauth2.jwt.Jwt;
 
+import com.example.FreStyle.dto.PresignedUrlRequest;
+import com.example.FreStyle.dto.PresignedUrlResponse;
 import com.example.FreStyle.dto.ProfileDto;
 import com.example.FreStyle.exception.ResourceNotFoundException;
 import com.example.FreStyle.form.ProfileForm;
+import com.example.FreStyle.usecase.GenerateProfileImageUrlUseCase;
 import com.example.FreStyle.usecase.GetProfileUseCase;
 import com.example.FreStyle.usecase.UpdateProfileUseCase;
 
@@ -35,6 +38,9 @@ class ProfileControllerTest {
 
     @Mock
     private UpdateProfileUseCase updateProfileUseCase;
+
+    @Mock
+    private GenerateProfileImageUrlUseCase generateProfileImageUrlUseCase;
 
     @InjectMocks
     private ProfileController profileController;
@@ -49,7 +55,7 @@ class ProfileControllerTest {
             Jwt jwt = mock(Jwt.class);
             when(jwt.getSubject()).thenReturn("sub-123");
             when(getProfileUseCase.execute("sub-123"))
-                    .thenReturn(new ProfileDto("テストユーザー", "テスト自己紹介"));
+                    .thenReturn(new ProfileDto("テストユーザー", "テスト自己紹介", null));
 
             ResponseEntity<ProfileDto> response = profileController.getProfile(jwt);
 
@@ -92,7 +98,7 @@ class ProfileControllerTest {
         @DisplayName("Cognitoユーザーのプロフィールを更新できる")
         void updatesCognitoUserProfile() {
             Jwt jwt = mock(Jwt.class);
-            ProfileForm form = new ProfileForm("新しい名前", "新しい自己紹介");
+            ProfileForm form = new ProfileForm("新しい名前", "新しい自己紹介", null);
 
             ResponseEntity<Map<String, String>> response = profileController.updateProfile(jwt, form);
 
@@ -104,13 +110,48 @@ class ProfileControllerTest {
         @DisplayName("入力値不正時はIllegalArgumentExceptionが伝搬する")
         void throwsWhenInvalidInput() {
             Jwt jwt = mock(Jwt.class);
-            ProfileForm form = new ProfileForm("", "自己紹介");
+            ProfileForm form = new ProfileForm("", "自己紹介", null);
 
             doThrow(new IllegalArgumentException("名前が不正です"))
                     .when(updateProfileUseCase).execute(jwt, form);
 
             assertThrows(IllegalArgumentException.class,
                     () -> profileController.updateProfile(jwt, form));
+        }
+    }
+
+    @Nested
+    @DisplayName("getProfileImagePresignedUrl")
+    class GetProfileImagePresignedUrl {
+
+        @Test
+        @DisplayName("Presigned URLを正常に取得できる")
+        void returnsPresignedUrl() {
+            Jwt jwt = mock(Jwt.class);
+            when(jwt.getSubject()).thenReturn("sub-123");
+            PresignedUrlRequest request = new PresignedUrlRequest("avatar.png", "image/png");
+            PresignedUrlResponse expected = new PresignedUrlResponse(
+                    "https://s3.example.com/upload", "https://cdn.example.com/profiles/1/avatar.png");
+            when(generateProfileImageUrlUseCase.execute("sub-123", "avatar.png", "image/png"))
+                    .thenReturn(expected);
+
+            ResponseEntity<PresignedUrlResponse> response = profileController.getProfileImagePresignedUrl(jwt, request);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(response.getBody()).isEqualTo(expected);
+        }
+
+        @Test
+        @DisplayName("不正なcontentTypeでIllegalArgumentExceptionが伝搬する")
+        void throwsForInvalidContentType() {
+            Jwt jwt = mock(Jwt.class);
+            when(jwt.getSubject()).thenReturn("sub-123");
+            PresignedUrlRequest request = new PresignedUrlRequest("file.exe", "application/octet-stream");
+            when(generateProfileImageUrlUseCase.execute("sub-123", "file.exe", "application/octet-stream"))
+                    .thenThrow(new IllegalArgumentException("許可されていないファイル形式です"));
+
+            assertThrows(IllegalArgumentException.class,
+                    () -> profileController.getProfileImagePresignedUrl(jwt, request));
         }
     }
 }

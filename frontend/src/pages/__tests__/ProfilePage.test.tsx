@@ -3,6 +3,14 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import ProfilePage from '../ProfilePage';
 import ProfileRepository from '../../repositories/ProfileRepository';
 
+const mockUpload = vi.fn();
+vi.mock('../../hooks/useProfileImageUpload', () => ({
+  useProfileImageUpload: () => ({
+    upload: mockUpload,
+    uploading: false,
+  }),
+}));
+
 vi.mock('../../repositories/ProfileRepository');
 
 const mockedRepo = vi.mocked(ProfileRepository);
@@ -85,6 +93,54 @@ describe('ProfilePage', () => {
 
     await waitFor(() => {
       expect(screen.getByText('テ')).toBeInTheDocument();
+    });
+  });
+
+  it('カメラボタンが表示される', async () => {
+    mockedRepo.fetchProfile.mockResolvedValue({ name: 'テスト', bio: '' });
+
+    render(<ProfilePage />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('プロフィール画像を変更')).toBeInTheDocument();
+    });
+  });
+
+  it('画像アップロード成功時にアバターが更新される', async () => {
+    mockedRepo.fetchProfile.mockResolvedValue({ name: 'テスト', bio: '' });
+    mockUpload.mockResolvedValue('https://cdn.example.com/profiles/1/avatar.png');
+
+    render(<ProfilePage />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('プロフィール画像を変更')).toBeInTheDocument();
+    });
+
+    const fileInput = screen.getByTestId('profile-image-input');
+    const file = new File(['test'], 'avatar.png', { type: 'image/png' });
+    fireEvent.change(fileInput, { target: { files: [file] } });
+
+    await waitFor(() => {
+      expect(mockUpload).toHaveBeenCalledWith(file);
+    });
+  });
+
+  it('画像アップロード失敗時にエラーメッセージが表示される', async () => {
+    mockedRepo.fetchProfile.mockResolvedValue({ name: 'テスト', bio: '' });
+    mockUpload.mockResolvedValue(null);
+
+    render(<ProfilePage />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('プロフィール画像を変更')).toBeInTheDocument();
+    });
+
+    const fileInput = screen.getByTestId('profile-image-input');
+    const file = new File(['test'], 'avatar.png', { type: 'image/png' });
+    fireEvent.change(fileInput, { target: { files: [file] } });
+
+    await waitFor(() => {
+      expect(screen.getByText('画像のアップロードに失敗しました。')).toBeInTheDocument();
     });
   });
 });

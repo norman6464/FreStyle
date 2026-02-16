@@ -62,6 +62,13 @@ export default function MenuNavigationCard({ totalUnread, latestScore }: MenuNav
             role="button"
             tabIndex={0}
             onClick={() => navigate(item.to)}
+            onKeyDown={(e: React.KeyboardEvent) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                navigate(item.to);
+              }
+            }}
+            aria-label={item.label}
             className="w-full flex items-center gap-4 text-left hover:bg-surface-2 transition-colors cursor-pointer"
           >
             <item.icon className="w-5 h-5 text-[var(--color-text-muted)] flex-shrink-0" />

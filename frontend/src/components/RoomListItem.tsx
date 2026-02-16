@@ -1,10 +1,12 @@
+import { memo } from 'react';
+
 interface RoomListItemProps {
   name: string;
   lastMessage: string;
   unreadCount: number;
 }
 
-export default function RoomListItem({ name, lastMessage, unreadCount }: RoomListItemProps) {
+export default memo(function RoomListItem({ name, lastMessage, unreadCount }: RoomListItemProps) {
   return (
     <div className="p-4 rounded-xl hover:bg-surface-2 cursor-pointer flex justify-between items-center transition-colors duration-150 border border-surface-3">
       <div className="flex-1 min-w-0">
@@ -18,4 +20,4 @@ export default function RoomListItem({ name, lastMessage, unreadCount }: RoomLis
       )}
     </div>
   );
-}
+});

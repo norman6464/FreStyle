@@ -42,10 +42,14 @@ export default function CodeBlockNodeView({ node, updateAttributes }: CodeBlockN
     return text.split('\n').length;
   }, [node.textContent]);
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(node.textContent);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(node.textContent);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard API非対応・権限なし時は無視
+    }
   };
 
   return (

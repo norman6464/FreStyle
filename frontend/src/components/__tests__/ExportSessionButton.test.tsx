@@ -97,4 +97,19 @@ describe('ExportSessionButton', () => {
     fireEvent.click(button);
     expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
   });
+
+  it('Clipboard APIがエラーを返してもクラッシュしない', async () => {
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: vi.fn().mockRejectedValue(new Error('Permission denied')),
+      },
+    });
+    render(<ExportSessionButton messages={mockMessages} />);
+    fireEvent.click(screen.getByTitle('会話をコピー'));
+
+    await waitFor(() => {
+      expect(navigator.clipboard.writeText).toHaveBeenCalled();
+    });
+    expect(screen.getByTitle('会話をコピー')).toBeInTheDocument();
+  });
 });

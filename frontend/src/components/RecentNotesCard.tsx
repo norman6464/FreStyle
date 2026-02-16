@@ -1,22 +1,17 @@
-import { SessionNoteRepository } from '../repositories/SessionNoteRepository';
 import Card from './Card';
 import { formatDate } from '../utils/formatters';
+import { useRecentNotes } from '../hooks/useRecentNotes';
 
 export default function RecentNotesCard() {
-  const allNotes = SessionNoteRepository.getAll();
-  const noteEntries = Object.values(allNotes);
+  const { notes: sortedNotes, totalCount } = useRecentNotes(3);
 
-  if (noteEntries.length === 0) return null;
-
-  const sortedNotes = [...noteEntries]
-    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-    .slice(0, 3);
+  if (totalCount === 0) return null;
 
   return (
     <Card>
       <div className="flex items-center justify-between mb-3">
         <p className="text-xs font-medium text-[var(--color-text-secondary)]">最近のメモ</p>
-        <span className="text-[10px] text-[var(--color-text-faint)]">{noteEntries.length}件</span>
+        <span className="text-[10px] text-[var(--color-text-faint)]">{totalCount}件</span>
       </div>
 
       <div className="space-y-2">

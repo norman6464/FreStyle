@@ -1,7 +1,6 @@
-import { useNavigate } from 'react-router-dom';
 import { ChatBubbleLeftIcon, UserPlusIcon } from '@heroicons/react/24/solid';
-import ChatRepository from '../repositories/ChatRepository';
 import Avatar from './Avatar';
+import { useChatRoomCreation } from '../hooks/useChatRoomCreation';
 
 interface MemberItemProps {
   id: number;
@@ -11,22 +10,10 @@ interface MemberItemProps {
 }
 
 export default function MemberItem({ id, name, roomId, email }: MemberItemProps) {
-  const navigate = useNavigate();
+  const { openChat } = useChatRoomCreation();
 
-  const handleClick = async () => {
-    try {
-      if (roomId) {
-        navigate(`/chat/users/${roomId}`);
-        return;
-      }
-
-      const data = await ChatRepository.createRoom(id);
-      if (data.roomId) {
-        navigate(`/chat/users/${data.roomId}`);
-      }
-    } catch {
-      // エラーはaxiosインターセプターが処理
-    }
+  const handleClick = () => {
+    openChat(id, roomId);
   };
 
   return (

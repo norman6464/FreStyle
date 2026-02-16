@@ -1,9 +1,7 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import Card from './Card';
 import { DIFFICULTY_LABEL, CATEGORY_LABEL } from '../constants/scenarioLabels';
 import { DIFFICULTY_STYLES } from '../constants/difficultyStyles';
-import PracticeRepository from '../repositories/PracticeRepository';
+import { useStartPracticeSession } from '../hooks/useStartPracticeSession';
 
 interface RecommendedScenarioCardProps {
   scenario: {
@@ -18,29 +16,9 @@ interface RecommendedScenarioCardProps {
 }
 
 export default function RecommendedScenarioCard({ scenario, weakAxis }: RecommendedScenarioCardProps) {
-  const navigate = useNavigate();
-  const [starting, setStarting] = useState(false);
+  const { startSession, starting } = useStartPracticeSession();
   const difficultyLabel = DIFFICULTY_LABEL[scenario.difficulty] || scenario.difficulty;
   const categoryLabel = CATEGORY_LABEL[scenario.category] || scenario.category;
-
-  const handleStart = async () => {
-    setStarting(true);
-    try {
-      const session = await PracticeRepository.createPracticeSession({ scenarioId: scenario.id });
-      navigate(`/chat/ask-ai/${session.id}`, {
-        state: {
-          sessionType: 'practice',
-          scenarioId: scenario.id,
-          scenarioName: scenario.name,
-          initialPrompt: '練習開始',
-        },
-      });
-    } catch {
-      navigate('/practice');
-    } finally {
-      setStarting(false);
-    }
-  };
 
   return (
     <Card>
@@ -59,7 +37,7 @@ export default function RecommendedScenarioCard({ scenario, weakAxis }: Recommen
       <div className="flex items-center justify-between">
         <span className="text-[10px] text-[var(--color-text-faint)]">{categoryLabel}</span>
         <button
-          onClick={handleStart}
+          onClick={() => startSession(scenario)}
           disabled={starting}
           className="text-xs font-medium text-primary-400 hover:text-primary-300 transition-colors disabled:opacity-50"
         >

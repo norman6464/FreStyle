@@ -75,4 +75,17 @@ describe('createEditorExtensions', () => {
     expect(a).not.toBe(b);
     expect(a).toEqual(b);
   });
+
+  it('テーブル関連エクステンションが含まれる', () => {
+    const extensions = createEditorExtensions();
+    expect(extensions).toContain('Table');
+    expect(extensions).toContain('TableRow');
+    expect(extensions).toContain('TableCell');
+    expect(extensions).toContain('TableHeader');
+  });
+
+  it('SearchReplaceExtensionが含まれる', () => {
+    const extensions = createEditorExtensions();
+    expect(extensions).toContain('SearchReplace');
+  });
 });

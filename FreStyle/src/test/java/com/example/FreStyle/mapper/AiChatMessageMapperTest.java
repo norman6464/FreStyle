@@ -69,4 +69,27 @@ class AiChatMessageMapperTest {
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("null");
     }
+
+    @Test
+    @DisplayName("createdAtのタイムスタンプが正しく変換される")
+    void toDtoPreservesCreatedAt() {
+        AiChatMessage message = createMessage();
+        Timestamp expected = Timestamp.valueOf("2025-01-01 12:00:00");
+
+        AiChatMessageResponseDto dto = mapper.toDto(message);
+
+        assertThat(dto.getCreatedAt()).isEqualTo(expected);
+    }
+
+    @Test
+    @DisplayName("空のコンテンツでも正しく変換される")
+    void toDtoWithEmptyContent() {
+        AiChatMessage message = createMessage();
+        message.setContent("");
+
+        AiChatMessageResponseDto dto = mapper.toDto(message);
+
+        assertThat(dto.getContent()).isEmpty();
+        assertThat(dto.getId()).isEqualTo(1);
+    }
 }

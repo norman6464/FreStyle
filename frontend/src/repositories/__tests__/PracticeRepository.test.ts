@@ -42,4 +42,20 @@ describe('PracticeRepository', () => {
     expect(mockedApiClient.post).toHaveBeenCalledWith('/api/practice/sessions', { scenarioId: 1 });
     expect(result).toEqual(mockSession);
   });
+
+  it('getScenarios: APIエラーが呼び出し元に伝播する', async () => {
+    mockedApiClient.get.mockRejectedValue(new Error('Network Error'));
+
+    await expect(practiceRepository.getScenarios()).rejects.toThrow('Network Error');
+  });
+
+  it('getScenario: 異なるIDで正しいURLが呼ばれる', async () => {
+    const mockScenario = { id: 99, name: '別のシナリオ', description: '説明', category: 'business', roleName: '上司', difficulty: 'hard', systemPrompt: 'prompt' };
+    mockedApiClient.get.mockResolvedValue({ data: mockScenario });
+
+    const result = await practiceRepository.getScenario(99);
+
+    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/practice/scenarios/99');
+    expect(result).toEqual(mockScenario);
+  });
 });

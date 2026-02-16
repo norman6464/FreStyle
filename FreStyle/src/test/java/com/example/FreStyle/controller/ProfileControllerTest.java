@@ -1,6 +1,7 @@
 package com.example.FreStyle.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -17,24 +18,20 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.oauth2.jwt.Jwt;
 
 import com.example.FreStyle.dto.ProfileDto;
-import com.example.FreStyle.entity.User;
+import com.example.FreStyle.exception.ResourceNotFoundException;
 import com.example.FreStyle.form.ProfileForm;
-import com.example.FreStyle.service.CognitoAuthService;
-import com.example.FreStyle.service.UserIdentityService;
-import com.example.FreStyle.service.UserService;
+import com.example.FreStyle.usecase.GetProfileUseCase;
+import com.example.FreStyle.usecase.UpdateProfileUseCase;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("ProfileController")
 class ProfileControllerTest {
 
     @Mock
-    private CognitoAuthService cognitoAuthService;
+    private GetProfileUseCase getProfileUseCase;
 
     @Mock
-    private UserService userService;
-
-    @Mock
-    private UserIdentityService userIdentityService;
+    private UpdateProfileUseCase updateProfileUseCase;
 
     @InjectMocks
     private ProfileController profileController;
@@ -48,11 +45,8 @@ class ProfileControllerTest {
         void returnsProfile() {
             Jwt jwt = mock(Jwt.class);
             when(jwt.getSubject()).thenReturn("sub-123");
-
-            User user = new User();
-            user.setName("テストユーザー");
-            user.setBio("テスト自己紹介");
-            when(userIdentityService.findUserBySub("sub-123")).thenReturn(user);
+            when(getProfileUseCase.execute("sub-123"))
+                    .thenReturn(new ProfileDto("テストユーザー", "テスト自己紹介"));
 
             ResponseEntity<?> response = profileController.getProfile(jwt);
 
@@ -75,7 +69,8 @@ class ProfileControllerTest {
         void returnsNotFoundWhenUserNotFound() {
             Jwt jwt = mock(Jwt.class);
             when(jwt.getSubject()).thenReturn("sub-999");
-            when(userIdentityService.findUserBySub("sub-999")).thenReturn(null);
+            when(getProfileUseCase.execute("sub-999"))
+                    .thenThrow(new ResourceNotFoundException("ユーザーが見つかりません"));
 
             ResponseEntity<?> response = profileController.getProfile(jwt);
 
@@ -92,31 +87,13 @@ class ProfileControllerTest {
         void updatesCognitoUserProfile() {
             Jwt jwt = mock(Jwt.class);
             when(jwt.getSubject()).thenReturn("sub-123");
-            when(jwt.hasClaim("cognito:groups")).thenReturn(false);
-            when(jwt.getTokenValue()).thenReturn("access-token");
 
             ProfileForm form = new ProfileForm("新しい名前", "新しい自己紹介");
 
             ResponseEntity<?> response = profileController.updateProfile(jwt, form);
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-            verify(cognitoAuthService).updateUserProfile("access-token", "新しい名前");
-            verify(userService).updateUser(form, "sub-123");
-        }
-
-        @Test
-        @DisplayName("OIDCユーザーのプロフィールをDB更新のみで更新できる")
-        void updatesOidcUserProfile() {
-            Jwt jwt = mock(Jwt.class);
-            when(jwt.getSubject()).thenReturn("sub-456");
-            when(jwt.hasClaim("cognito:groups")).thenReturn(true);
-
-            ProfileForm form = new ProfileForm("OIDC名前", "OIDC自己紹介");
-
-            ResponseEntity<?> response = profileController.updateProfile(jwt, form);
-
-            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-            verify(userService).updateUser(form, "sub-456");
+            verify(updateProfileUseCase).execute(jwt, form);
         }
 
         @Test
@@ -127,6 +104,22 @@ class ProfileControllerTest {
             ResponseEntity<?> response = profileController.updateProfile(null, form);
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        }
+
+        @Test
+        @DisplayName("入力値不正時は400を返す")
+        void returnsBadRequestWhenInvalidInput() {
+            Jwt jwt = mock(Jwt.class);
+            when(jwt.getSubject()).thenReturn("sub-123");
+
+            ProfileForm form = new ProfileForm("", "自己紹介");
+
+            doThrow(new IllegalArgumentException("名前が不正です"))
+                    .when(updateProfileUseCase).execute(jwt, form);
+
+            ResponseEntity<?> response = profileController.updateProfile(jwt, form);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         }
     }
 }

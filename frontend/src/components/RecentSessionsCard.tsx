@@ -29,7 +29,8 @@ export default function RecentSessionsCard({ sessions }: RecentSessionsCardProps
         {recent.map((session) => (
           <div
             key={session.sessionId}
-            className="flex items-center justify-between py-1.5 border-b border-surface-3 last:border-0"
+            className="flex items-center justify-between py-1.5 border-b border-surface-3 last:border-0 cursor-pointer hover:bg-[var(--color-surface-2)] -mx-1 px-1 rounded transition-colors"
+            onClick={() => navigate(`/chat/ask-ai/${session.sessionId}`)}
           >
             <div className="flex-1 min-w-0 mr-3">
               <p className="text-sm text-[var(--color-text-secondary)] truncate">{session.sessionTitle}</p>

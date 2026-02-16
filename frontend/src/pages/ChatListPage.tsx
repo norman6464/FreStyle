@@ -31,8 +31,12 @@ export default function ChatListPage() {
         {loading ? (
           <Loading className="py-8" />
         ) : chatUsers.length === 0 ? (
-          <div className="p-4 text-center text-sm text-[var(--color-text-muted)]">
-            チャット履歴がありません
+          <div className="py-12">
+            <EmptyState
+              icon={ChatBubbleLeftRightIcon}
+              title={searchQuery ? '該当するユーザーがいません' : 'チャット履歴がありません'}
+              description={searchQuery ? '検索条件を変更してみてください' : 'メンバーとのチャットを始めましょう'}
+            />
           </div>
         ) : (
           chatUsers.map((user) => (

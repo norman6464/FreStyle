@@ -1,6 +1,7 @@
 import { useFavoritePhrase } from '../hooks/useFavoritePhrase';
 import SearchBox from '../components/SearchBox';
 import FavoriteStatsCard from '../components/FavoriteStatsCard';
+import EmptyState from '../components/EmptyState';
 import { StarIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 const PATTERN_FILTERS = ['すべて', 'フォーマル', 'ソフト', '簡潔'] as const;
@@ -43,14 +44,17 @@ export default function FavoritesPage() {
       )}
 
       {phrases.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-64 text-[var(--color-text-muted)]">
-          <p className="text-sm font-medium">お気に入りフレーズがありません</p>
-          <p className="text-xs mt-1 flex items-center gap-1">言い換え提案で<StarIcon className="w-3 h-3 inline-block" />をタップするとここに保存されます</p>
-        </div>
+        <EmptyState
+          icon={StarIcon}
+          title="お気に入りフレーズがありません"
+          description="言い換え提案で★をタップするとここに保存されます"
+        />
       ) : filteredPhrases.length === 0 ? (
-        <div className="text-center py-8">
-          <p className="text-sm text-[var(--color-text-muted)]">該当するフレーズがありません</p>
-        </div>
+        <EmptyState
+          icon={StarIcon}
+          title="該当するフレーズがありません"
+          description="検索条件やフィルターを変更してみてください"
+        />
       ) : (
         <div className="space-y-2">
           {filteredPhrases.map((phrase) => (

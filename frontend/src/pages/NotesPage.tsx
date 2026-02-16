@@ -99,8 +99,13 @@ export default function NotesPage() {
           {loading && notes.length === 0 ? (
             <Loading className="py-8" />
           ) : filteredNotes.length === 0 ? (
-            <div className="p-4 text-center text-xs text-[var(--color-text-muted)]">
-              ノートがありません
+            <div className="py-12">
+              <EmptyState
+                icon={DocumentTextIcon}
+                title={searchQuery ? '該当するノートがありません' : 'ノートがありません'}
+                description={searchQuery ? '検索条件を変更してみてください' : '新しいノートを作成しましょう'}
+                action={!searchQuery ? { label: '新しいノート', onClick: handleCreateNote } : undefined}
+              />
             </div>
           ) : (
             filteredNotes.map((note) => (

@@ -6,6 +6,8 @@ import SortSelector from '../components/SortSelector';
 import FilterResetButton from '../components/FilterResetButton';
 import ResultCount from '../components/ResultCount';
 import SearchBox from '../components/SearchBox';
+import EmptyState from '../components/EmptyState';
+import { AcademicCapIcon } from '@heroicons/react/24/outline';
 import { usePracticePage } from '../hooks/usePracticePage';
 import { PRACTICE_CATEGORY_TABS } from '../constants/scenarioLabels';
 
@@ -75,8 +77,13 @@ export default function PracticePage() {
           <SkeletonCard />
         </div>
       ) : filteredScenarios.length === 0 ? (
-        <div className="text-center py-12 text-xs text-[var(--color-text-muted)]">
-          シナリオがありません
+        <div className="py-12">
+          <EmptyState
+            icon={AcademicCapIcon}
+            title={isFilterActive ? '該当するシナリオがありません' : 'シナリオがありません'}
+            description={isFilterActive ? 'フィルター条件を変更してみてください' : 'シナリオが読み込まれていません'}
+            action={isFilterActive ? { label: 'フィルターをリセット', onClick: resetFilters } : undefined}
+          />
         </div>
       ) : (
         <div className="grid gap-3">

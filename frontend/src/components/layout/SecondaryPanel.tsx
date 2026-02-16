@@ -2,13 +2,14 @@ import { XMarkIcon } from '@heroicons/react/24/outline';
 
 interface SecondaryPanelProps {
   title: string;
+  badge?: string;
   headerContent?: React.ReactNode;
   children: React.ReactNode;
   mobileOpen?: boolean;
   onMobileClose?: () => void;
 }
 
-export default function SecondaryPanel({ title, headerContent, children, mobileOpen = false, onMobileClose }: SecondaryPanelProps) {
+export default function SecondaryPanel({ title, badge, headerContent, children, mobileOpen = false, onMobileClose }: SecondaryPanelProps) {
   return (
     <>
       {/* モバイルオーバーレイ */}
@@ -26,7 +27,10 @@ export default function SecondaryPanel({ title, headerContent, children, mobileO
         }`}
       >
         <div className="px-4 py-3 border-b border-surface-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">{title}</h2>
+          <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">
+            {title}
+            {badge && <span className="ml-2 text-xs font-normal text-[var(--color-text-muted)]">{badge}</span>}
+          </h2>
           <button
             onClick={onMobileClose}
             className="p-1 hover:bg-surface-2 rounded transition-colors"
@@ -42,7 +46,10 @@ export default function SecondaryPanel({ title, headerContent, children, mobileO
       {/* デスクトップパネル */}
       <div className="hidden md:flex w-72 bg-surface-1 border-r border-surface-3 flex-col h-full flex-shrink-0">
         <div className="px-4 py-3 border-b border-surface-3">
-          <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">{title}</h2>
+          <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">
+            {title}
+            {badge && <span className="ml-2 text-xs font-normal text-[var(--color-text-muted)]">{badge}</span>}
+          </h2>
           {headerContent && <div className="mt-2">{headerContent}</div>}
         </div>
         <div className="flex-1 overflow-y-auto">{children}</div>

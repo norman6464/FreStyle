@@ -74,6 +74,7 @@ export default function NotesPage() {
     <div className="flex h-full">
       <SecondaryPanel
         title="ノート"
+        badge={`${notes.length}件`}
         mobileOpen={mobilePanelOpen}
         onMobileClose={closeMobilePanel}
         headerContent={

@@ -6,11 +6,11 @@ import FormMessage from '../components/FormMessage';
 import { useSignupPage } from '../hooks/useSignupPage';
 
 export default function SignupPage() {
-  const { form, message, loading, handleChange, handleSignup } = useSignupPage();
+  const { form, message, loading, handleChange, handleSignup, clearMessage } = useSignupPage();
 
   return (
     <AuthLayout>
-      <FormMessage message={message} />
+      <FormMessage message={message} onDismiss={clearMessage} />
       <h2 className="text-3xl font-bold mb-2 text-center text-[var(--color-text-primary)]">
         アカウント作成
       </h2>

@@ -6,11 +6,11 @@ import FormMessage from '../components/FormMessage';
 import { useConfirmSignup } from '../hooks/useConfirmSignup';
 
 export default function ConfirmPage() {
-  const { form, message, loading, handleChange, handleConfirm } = useConfirmSignup();
+  const { form, message, loading, handleChange, handleConfirm, clearMessage } = useConfirmSignup();
 
   return (
     <AuthLayout>
-      <FormMessage message={message} />
+      <FormMessage message={message} onDismiss={clearMessage} />
       <h2 className="text-2xl font-bold mb-6 text-center">確認コードの入力</h2>
       <form onSubmit={handleConfirm}>
         <InputField

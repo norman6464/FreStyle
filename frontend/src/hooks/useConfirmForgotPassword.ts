@@ -39,5 +39,7 @@ export function useConfirmForgotPassword() {
     }
   };
 
-  return { form, message, loading, handleChange, handleConfirm };
+  const clearMessage = () => setMessage(null);
+
+  return { form, message, loading, handleChange, handleConfirm, clearMessage };
 }

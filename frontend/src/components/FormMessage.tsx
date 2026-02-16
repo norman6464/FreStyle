@@ -1,10 +1,18 @@
-import { CheckCircleIcon, ExclamationCircleIcon } from '@heroicons/react/24/solid';
+import { useEffect } from 'react';
+import { CheckCircleIcon, ExclamationCircleIcon, XMarkIcon } from '@heroicons/react/24/solid';
 
 interface FormMessageProps {
   message: { type: 'error' | 'success'; text: string } | null;
+  onDismiss?: () => void;
 }
 
-export default function FormMessage({ message }: FormMessageProps) {
+export default function FormMessage({ message, onDismiss }: FormMessageProps) {
+  useEffect(() => {
+    if (!message || !onDismiss) return;
+    const timer = setTimeout(onDismiss, 5000);
+    return () => clearTimeout(timer);
+  }, [message, onDismiss]);
+
   if (!message) return null;
 
   const isError = message.type === 'error';
@@ -23,7 +31,17 @@ export default function FormMessage({ message }: FormMessageProps) {
       ) : (
         <CheckCircleIcon className="w-5 h-5 flex-shrink-0 mt-0.5" />
       )}
-      <span>{message.text}</span>
+      <span className="flex-1">{message.text}</span>
+      {onDismiss && (
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label="閉じる"
+          className="flex-shrink-0 mt-0.5 hover:opacity-70 transition-opacity"
+        >
+          <XMarkIcon className="w-4 h-4" />
+        </button>
+      )}
     </div>
   );
 }

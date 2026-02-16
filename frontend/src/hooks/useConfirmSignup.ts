@@ -29,5 +29,7 @@ export function useConfirmSignup() {
     }
   };
 
-  return { form, message, loading, handleChange, handleConfirm };
+  const clearMessage = () => setMessage(null);
+
+  return { form, message, loading, handleChange, handleConfirm, clearMessage };
 }

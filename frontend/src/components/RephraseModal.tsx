@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useFavoritePhrase } from '../hooks/useFavoritePhrase';
 import { StarIcon as StarOutlineIcon } from '@heroicons/react/24/outline';
 import { StarIcon as StarSolidIcon } from '@heroicons/react/24/solid';
@@ -29,6 +29,15 @@ export default function RephraseModal({ result, onClose, originalText = '' }: Re
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const { saveFavorite, isFavorite } = useFavoritePhrase();
   const [savedKeys, setSavedKeys] = useState<Set<string>>(new Set());
+
+  const handleEsc = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Escape') onClose();
+  }, [onClose]);
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleEsc);
+    return () => document.removeEventListener('keydown', handleEsc);
+  }, [handleEsc]);
 
   const handleCopy = async (text: string, key: string) => {
     await navigator.clipboard.writeText(text);

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, KeyboardEvent } from 'react';
 import { PaperAirplaneIcon, PlusIcon } from '@heroicons/react/24/solid';
+import { useAutoResizeTextarea } from '../hooks/useAutoResizeTextarea';
 
 interface MessageInputProps {
   onSend: (text: string) => void;
@@ -9,9 +10,7 @@ interface MessageInputProps {
 export default function MessageInput({ onSend, isSending = false }: MessageInputProps) {
   const [text, setText] = useState('');
   const [isComposing, setIsComposing] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const minRows = 1;
-  const maxRows = 8;
+  const textareaRef = useAutoResizeTextarea({ text });
 
   const prevIsSendingRef = useRef(isSending);
   useEffect(() => {
@@ -19,34 +18,7 @@ export default function MessageInput({ onSend, isSending = false }: MessageInput
       textareaRef.current?.focus();
     }
     prevIsSendingRef.current = isSending;
-  }, [isSending]);
-
-  useEffect(() => {
-    const textarea = textareaRef.current;
-    if (textarea) {
-      textarea.style.height = 'auto';
-      const lineHeight = parseFloat(getComputedStyle(textarea).lineHeight);
-      const paddingTop = parseFloat(getComputedStyle(textarea).paddingTop);
-      const paddingBottom = parseFloat(
-        getComputedStyle(textarea).paddingBottom
-      );
-
-      const maxHeight = maxRows * lineHeight + paddingTop + paddingBottom;
-      const newScrollHeight = textarea.scrollHeight;
-      const newHeight = Math.min(newScrollHeight, maxHeight);
-
-      if (newHeight > 0) {
-        textarea.style.height = `${newHeight}px`;
-      } else {
-        textarea.style.height = `${
-          minRows * lineHeight + paddingTop + paddingBottom
-        }px`;
-      }
-
-      textarea.style.overflowY =
-        newScrollHeight > maxHeight ? 'scroll' : 'hidden';
-    }
-  }, [text]);
+  }, [isSending, textareaRef]);
 
   const handleSend = () => {
     if (!text.trim() || isSending) return;
@@ -73,7 +45,7 @@ export default function MessageInput({ onSend, isSending = false }: MessageInput
       <div className="flex-1 min-w-0">
         <textarea
           ref={textareaRef}
-          rows={minRows}
+          rows={1}
           className="w-full bg-transparent text-[var(--color-text-primary)] outline-none resize-none px-3 py-2 placeholder-slate-400 leading-6"
           placeholder="メッセージを入力..."
           value={text}

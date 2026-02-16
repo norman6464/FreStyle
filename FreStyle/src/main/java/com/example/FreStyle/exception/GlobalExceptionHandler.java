@@ -110,6 +110,23 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErrorResponseDto> handleIllegalArgumentException(
+            IllegalArgumentException ex,
+            WebRequest request
+    ) {
+        logger.warn("不正な引数: {}", ex.getMessage());
+
+        ErrorResponseDto error = ErrorResponseDto.of(
+            HttpStatus.BAD_REQUEST.value(),
+            "Bad Request",
+            ex.getMessage(),
+            request.getDescription(false).replace("uri=", "")
+        );
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
     /**
      * 汎用Exception のハンドラー
      *

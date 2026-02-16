@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import authRepository from '../repositories/AuthRepository';
-import { AxiosError } from 'axios';
 import type { FormMessage } from '../types';
+import { extractServerErrorMessage } from '../utils/classifyApiError';
 import { useFormField } from './useFormField';
 
 export function useConfirmForgotPassword() {
@@ -33,11 +33,7 @@ export function useConfirmForgotPassword() {
         },
       });
     } catch (error) {
-      if (error instanceof AxiosError && error.response?.data?.error) {
-        setMessage({ type: 'error', text: error.response.data.error });
-      } else {
-        setMessage({ type: 'error', text: '通信エラーが発生しました。' });
-      }
+      setMessage({ type: 'error', text: extractServerErrorMessage(error, '通信エラーが発生しました。') });
     } finally {
       setLoading(false);
     }

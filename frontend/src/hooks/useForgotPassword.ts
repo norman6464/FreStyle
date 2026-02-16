@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import authRepository from '../repositories/AuthRepository';
-import { AxiosError } from 'axios';
 import type { FormMessage } from '../types';
+import { extractServerErrorMessage } from '../utils/classifyApiError';
 
 export function useForgotPassword() {
   const [email, setEmail] = useState('');
@@ -19,11 +19,7 @@ export function useForgotPassword() {
       setMessage({ type: 'success', text: 'コード送信済み' });
       navigate('/confirm-forgot-password', { state: { email } });
     } catch (error) {
-      if (error instanceof AxiosError && error.response?.data?.error) {
-        setMessage({ type: 'error', text: error.response.data.error });
-      } else {
-        setMessage({ type: 'error', text: '通信エラーが発生しました。' });
-      }
+      setMessage({ type: 'error', text: extractServerErrorMessage(error, '通信エラーが発生しました。') });
     } finally {
       setLoading(false);
     }

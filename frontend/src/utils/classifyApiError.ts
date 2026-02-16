@@ -38,3 +38,13 @@ export function classifyApiError(error: unknown, fallback: string): string {
 
   return fallback;
 }
+
+export function extractServerErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof AxiosError) {
+    const serverMessage = error.response?.data?.error;
+    if (typeof serverMessage === 'string' && serverMessage) {
+      return serverMessage;
+    }
+  }
+  return classifyApiError(error, fallback);
+}

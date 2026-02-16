@@ -131,8 +131,8 @@ export default function AskAiPage() {
             <div key={msg.id} className="max-w-3xl mx-auto w-full">
               <MessageBubbleAi
                 {...msg}
-                isSender={msg.isSender ?? false}
-                type={msg.isSender ? 'text' : 'bot'}
+                isSender={msg.role === 'user'}
+                type={msg.role === 'user' ? 'text' : 'bot'}
                 onDelete={handleDeleteMessage}
                 onCopy={copyToClipboard}
                 isCopied={copiedId === msg.id}

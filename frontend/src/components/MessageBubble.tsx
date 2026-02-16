@@ -32,27 +32,25 @@ export default memo(function MessageBubble({
   const [showDelete, setShowDelete] = useState(false);
 
   const baseStyle =
-    'max-w-[85%] px-4 py-2.5 rounded-2xl text-sm whitespace-pre-wrap break-words relative';
+    'px-4 py-2.5 rounded-2xl text-sm whitespace-pre-wrap break-words relative';
 
   const alignment = isSender
-    ? 'self-end bg-primary-500 text-white rounded-br-sm'
-    : 'self-start bg-surface-3 text-[var(--color-text-primary)] rounded-bl-sm';
+    ? 'bg-primary-500 text-white rounded-br-sm'
+    : 'bg-surface-3 text-[var(--color-text-primary)] rounded-bl-sm';
 
   const deletedAlignment = isSender
-    ? 'self-end bg-surface-3 text-[var(--color-text-muted)] italic rounded-br-sm'
-    : 'self-start bg-surface-3 text-[var(--color-text-muted)] italic rounded-bl-sm';
+    ? 'bg-surface-3 text-[var(--color-text-muted)] italic rounded-br-sm'
+    : 'bg-surface-3 text-[var(--color-text-muted)] italic rounded-bl-sm';
 
   const ariaLabel = isSender ? '自分のメッセージ' : senderName ? `${senderName}のメッセージ` : 'メッセージ';
 
   return (
     <div
-      className={`flex ${
-        isSender ? 'justify-end' : 'justify-start'
-      } my-3 group`}
+      className="my-3 group"
       onMouseEnter={() => isSender && !isDeleted && setShowDelete(true)}
       onMouseLeave={() => setShowDelete(false)}
     >
-      <div className="flex flex-col w-full" role="article" aria-label={ariaLabel}>
+      <div className={`flex flex-col max-w-[85%] ${isSender ? 'items-end ml-auto' : 'items-start mr-auto'}`} role="article" aria-label={ariaLabel}>
         {!isSender && senderName && (
           <span className="text-xs text-[var(--color-text-muted)] mb-1 ml-1">{senderName}</span>
         )}

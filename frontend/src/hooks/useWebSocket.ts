@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import SockJS from 'sockjs-client';
 import { Client, IFrame, IMessage } from '@stomp/stompjs';
 
@@ -36,6 +36,15 @@ export const useWebSocket = ({ url, userId, onConnect, onDisconnect, onError }: 
   const subscriptionsRef = useRef<Subscription[]>([]);
   const isConnectedRef = useRef(false);
 
+  // コールバックをrefで保持し、毎レンダーでの再接続を防止
+  const onConnectRef = useRef(onConnect);
+  const onDisconnectRef = useRef(onDisconnect);
+  const onErrorRef = useRef(onError);
+
+  useLayoutEffect(() => { onConnectRef.current = onConnect; }, [onConnect]);
+  useLayoutEffect(() => { onDisconnectRef.current = onDisconnect; }, [onDisconnect]);
+  useLayoutEffect(() => { onErrorRef.current = onError; }, [onError]);
+
   /**
    * WebSocket接続
    */
@@ -55,22 +64,22 @@ export const useWebSocket = ({ url, userId, onConnect, onDisconnect, onError }: 
           client.subscribe(sub.destination, sub.callback);
         });
 
-        onConnect?.();
+        onConnectRef.current?.();
       },
 
       onDisconnect: () => {
         isConnectedRef.current = false;
-        onDisconnect?.();
+        onDisconnectRef.current?.();
       },
 
       onStompError: (frame) => {
-        onError?.(frame);
+        onErrorRef.current?.(frame);
       },
     });
 
     client.activate();
     clientRef.current = client;
-  }, [url, userId, onConnect, onDisconnect, onError]);
+  }, [url, userId]);
 
   /**
    * WebSocket切断

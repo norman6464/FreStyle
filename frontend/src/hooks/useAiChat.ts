@@ -235,6 +235,36 @@ export const useAiChat = () => {
     }
   }, []);
 
+  /**
+   * WebSocketから受信したメッセージをリアルタイムで追加
+   */
+  const handleIncomingMessage = useCallback((message: AiMessage) => {
+    setMessages((prev) => {
+      if (prev.some((m) => m.id === message.id)) return prev;
+      return [...prev, message];
+    });
+  }, []);
+
+  /**
+   * WebSocketから受信したスコアカードをリアルタイムで設定
+   */
+  const handleIncomingScoreCard = useCallback((data: ScoreCard) => {
+    setScoreCard({
+      ...data,
+      scores: Array.isArray(data.scores) ? data.scores : [],
+    });
+  }, []);
+
+  /**
+   * WebSocketから受信した新規セッションをリストに追加
+   */
+  const handleIncomingSession = useCallback((session: AiSession) => {
+    setSessions((prev) => {
+      if (prev.some((s) => s.id === session.id)) return prev;
+      return [session, ...prev];
+    });
+  }, []);
+
   return {
     sessions,
     currentSession,
@@ -252,5 +282,8 @@ export const useAiChat = () => {
     rephrase,
     fetchScoreCard,
     fetchScoreHistory,
+    handleIncomingMessage,
+    handleIncomingScoreCard,
+    handleIncomingSession,
   };
 };

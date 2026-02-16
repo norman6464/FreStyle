@@ -9,6 +9,9 @@ import jakarta.servlet.http.HttpServletResponse;
 @Service
 public class AuthCookieService {
 
+    private static final long ACCESS_TOKEN_MAX_AGE = 60L * 60 * 2;
+    private static final long PERSISTENT_COOKIE_MAX_AGE = 60L * 60 * 24 * 7;
+
     public void setAuthCookies(
             HttpServletResponse response,
             String accessToken,
@@ -16,52 +19,24 @@ public class AuthCookieService {
             String email,
             String cognitoUsername) {
 
-        ResponseCookie accessCookie = ResponseCookie.from("ACCESS_TOKEN", accessToken)
-                .httpOnly(true)
-                .secure(true)
-                .path("/")
-                .maxAge(60 * 60 * 2)
-                .sameSite("None")
-                .build();
-
-        ResponseCookie refreshCookie = ResponseCookie.from("REFRESH_TOKEN", refreshToken)
-                .httpOnly(true)
-                .secure(true)
-                .path("/")
-                .maxAge(60 * 60 * 24 * 7)
-                .sameSite("None")
-                .build();
-
-        ResponseCookie emailCookie = ResponseCookie.from("EMAIL", email)
-                .httpOnly(true)
-                .secure(true)
-                .path("/")
-                .maxAge(60 * 60 * 24 * 7)
-                .sameSite("None")
-                .build();
-
-        ResponseCookie cognitoUsernameCookie = ResponseCookie.from("COGNITO_USERNAME", cognitoUsername)
-                .httpOnly(true)
-                .secure(true)
-                .path("/")
-                .maxAge(60 * 60 * 24 * 7)
-                .sameSite("None")
-                .build();
-
-        response.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
-        response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
-        response.addHeader(HttpHeaders.SET_COOKIE, emailCookie.toString());
-        response.addHeader(HttpHeaders.SET_COOKIE, cognitoUsernameCookie.toString());
+        addCookie(response, "ACCESS_TOKEN", accessToken, ACCESS_TOKEN_MAX_AGE, true);
+        addCookie(response, "REFRESH_TOKEN", refreshToken, PERSISTENT_COOKIE_MAX_AGE, true);
+        addCookie(response, "EMAIL", email, PERSISTENT_COOKIE_MAX_AGE, true);
+        addCookie(response, "COGNITO_USERNAME", cognitoUsername, PERSISTENT_COOKIE_MAX_AGE, true);
     }
 
     public void clearRefreshTokenCookie(HttpServletResponse response) {
-        ResponseCookie cookie = ResponseCookie.from("REFRESH_TOKEN", null)
+        addCookie(response, "REFRESH_TOKEN", null, 0, false);
+    }
+
+    private void addCookie(HttpServletResponse response, String name, String value, long maxAge, boolean secure) {
+        ResponseCookie cookie = ResponseCookie.from(name, value)
                 .httpOnly(true)
-                .secure(false)
+                .secure(secure)
                 .path("/")
-                .maxAge(0)
+                .maxAge(maxAge)
                 .sameSite("None")
                 .build();
-        response.addHeader("Set-Cookie", cookie.toString());
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
 }

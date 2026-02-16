@@ -77,8 +77,7 @@ public class PracticeController {
         logger.info("========== GET /api/practice/scenarios ==========");
 
         // 認証チェック
-        String sub = jwt.getSubject();
-        userIdentityService.findUserBySub(sub);
+        resolveUser(jwt);
 
         // ユースケース実行
         List<PracticeScenarioDto> scenarios = getAllPracticeScenariosUseCase.execute();
@@ -104,8 +103,7 @@ public class PracticeController {
         logger.info("========== GET /api/practice/scenarios/{} ==========", scenarioId);
 
         // 認証チェック
-        String sub = jwt.getSubject();
-        userIdentityService.findUserBySub(sub);
+        resolveUser(jwt);
 
         // ユースケース実行
         PracticeScenarioDto scenario = getPracticeScenarioByIdUseCase.execute(scenarioId);
@@ -138,8 +136,7 @@ public class PracticeController {
         logger.info("========== POST /api/practice/sessions ==========");
 
         // 認証チェック & ユーザー取得
-        String sub = jwt.getSubject();
-        User user = userIdentityService.findUserBySub(sub);
+        User user = resolveUser(jwt);
 
         // ユースケース実行
         AiChatSessionDto session = createPracticeSessionUseCase.execute(user, request.scenarioId());
@@ -154,5 +151,9 @@ public class PracticeController {
      * @param scenarioId 練習シナリオID
      */
     record CreatePracticeSessionRequest(Integer scenarioId) {}
+
+    private User resolveUser(Jwt jwt) {
+        return userIdentityService.findUserBySub(jwt.getSubject());
+    }
 }
 

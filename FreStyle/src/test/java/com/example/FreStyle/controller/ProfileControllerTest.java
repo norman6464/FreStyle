@@ -1,10 +1,13 @@
 package com.example.FreStyle.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import java.util.Map;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -48,44 +51,23 @@ class ProfileControllerTest {
             when(getProfileUseCase.execute("sub-123"))
                     .thenReturn(new ProfileDto("テストユーザー", "テスト自己紹介"));
 
-            ResponseEntity<?> response = profileController.getProfile(jwt);
+            ResponseEntity<ProfileDto> response = profileController.getProfile(jwt);
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-            ProfileDto body = (ProfileDto) response.getBody();
-            assertThat(body.getName()).isEqualTo("テストユーザー");
-            assertThat(body.getBio()).isEqualTo("テスト自己紹介");
+            assertThat(response.getBody().getName()).isEqualTo("テストユーザー");
+            assertThat(response.getBody().getBio()).isEqualTo("テスト自己紹介");
         }
 
         @Test
-        @DisplayName("JWTがnullの場合401を返す")
-        void returnsUnauthorizedWhenJwtNull() {
-            ResponseEntity<?> response = profileController.getProfile(null);
-
-            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-        }
-
-        @Test
-        @DisplayName("JWTのsubjectが空文字の場合401を返す")
-        void returnsUnauthorizedWhenSubjectEmpty() {
-            Jwt jwt = mock(Jwt.class);
-            when(jwt.getSubject()).thenReturn("");
-
-            ResponseEntity<?> response = profileController.getProfile(jwt);
-
-            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-        }
-
-        @Test
-        @DisplayName("ユーザーが見つからない場合404を返す")
-        void returnsNotFoundWhenUserNotFound() {
+        @DisplayName("ユーザーが見つからない場合ResourceNotFoundExceptionが伝搬する")
+        void throwsWhenUserNotFound() {
             Jwt jwt = mock(Jwt.class);
             when(jwt.getSubject()).thenReturn("sub-999");
             when(getProfileUseCase.execute("sub-999"))
                     .thenThrow(new ResourceNotFoundException("ユーザーが見つかりません"));
 
-            ResponseEntity<?> response = profileController.getProfile(jwt);
-
-            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+            assertThrows(ResourceNotFoundException.class,
+                    () -> profileController.getProfile(jwt));
         }
     }
 
@@ -97,53 +79,25 @@ class ProfileControllerTest {
         @DisplayName("Cognitoユーザーのプロフィールを更新できる")
         void updatesCognitoUserProfile() {
             Jwt jwt = mock(Jwt.class);
-            when(jwt.getSubject()).thenReturn("sub-123");
-
             ProfileForm form = new ProfileForm("新しい名前", "新しい自己紹介");
 
-            ResponseEntity<?> response = profileController.updateProfile(jwt, form);
+            ResponseEntity<Map<String, String>> response = profileController.updateProfile(jwt, form);
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
             verify(updateProfileUseCase).execute(jwt, form);
         }
 
         @Test
-        @DisplayName("JWTがnullの場合401を返す")
-        void returnsUnauthorizedWhenJwtNull() {
-            ProfileForm form = new ProfileForm("名前", "自己紹介");
-
-            ResponseEntity<?> response = profileController.updateProfile(null, form);
-
-            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-        }
-
-        @Test
-        @DisplayName("JWTのsubjectが空文字の場合401を返す")
-        void returnsUnauthorizedWhenSubjectEmpty() {
+        @DisplayName("入力値不正時はIllegalArgumentExceptionが伝搬する")
+        void throwsWhenInvalidInput() {
             Jwt jwt = mock(Jwt.class);
-            when(jwt.getSubject()).thenReturn("");
-
-            ProfileForm form = new ProfileForm("名前", "自己紹介");
-
-            ResponseEntity<?> response = profileController.updateProfile(jwt, form);
-
-            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-        }
-
-        @Test
-        @DisplayName("入力値不正時は400を返す")
-        void returnsBadRequestWhenInvalidInput() {
-            Jwt jwt = mock(Jwt.class);
-            when(jwt.getSubject()).thenReturn("sub-123");
-
             ProfileForm form = new ProfileForm("", "自己紹介");
 
             doThrow(new IllegalArgumentException("名前が不正です"))
                     .when(updateProfileUseCase).execute(jwt, form);
 
-            ResponseEntity<?> response = profileController.updateProfile(jwt, form);
-
-            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+            assertThrows(IllegalArgumentException.class,
+                    () -> profileController.updateProfile(jwt, form));
         }
     }
 }

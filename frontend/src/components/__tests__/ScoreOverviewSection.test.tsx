@@ -120,6 +120,6 @@ describe('ScoreOverviewSection', () => {
         scoreGoal={8.0}
       />
     );
-    expect(screen.queryByText('スキル変化レーダー')).not.toBeInTheDocument();
+    expect(screen.queryByText('成長の記録')).not.toBeInTheDocument();
   });
 });

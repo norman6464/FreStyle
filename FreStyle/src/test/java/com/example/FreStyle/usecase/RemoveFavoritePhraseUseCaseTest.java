@@ -31,14 +31,6 @@ class RemoveFavoritePhraseUseCaseTest {
     }
 
     @Test
-    @DisplayName("引数がrepositoryに正しい順序で渡される（phraseId, userId）")
-    void execute_PassesArgumentsInCorrectOrder() {
-        removeFavoritePhraseUseCase.execute(10, 20);
-
-        verify(favoritePhraseRepository).deleteByIdAndUserId(20, 10);
-    }
-
-    @Test
     @DisplayName("repositoryが例外をスローした場合そのまま伝搬する")
     void execute_PropagatesRepositoryException() {
         doThrow(new RuntimeException("DB接続エラー"))

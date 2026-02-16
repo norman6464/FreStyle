@@ -1,6 +1,7 @@
 import MemberList from '../components/MemberList';
 import SearchBox from '../components/SearchBox';
 import FormMessage from '../components/FormMessage';
+import Loading from '../components/Loading';
 import {
   MagnifyingGlassIcon,
   UserPlusIcon,
@@ -8,7 +9,7 @@ import {
 import { useUserSearch } from '../hooks/useUserSearch';
 
 export default function AddUserPage() {
-  const { users, error, searchQuery, setSearchQuery, debounceQuery } = useUserSearch();
+  const { users, error, searchQuery, setSearchQuery, debounceQuery, loading } = useUserSearch();
 
   return (
     <div className="p-6 max-w-2xl mx-auto">
@@ -24,8 +25,15 @@ export default function AddUserPage() {
       {/* エラー表示 */}
       <FormMessage message={error ? { type: 'error', text: error } : null} />
 
+      {/* ローディング中 */}
+      {loading && (
+        <div className="py-12">
+          <Loading message="検索中..." />
+        </div>
+      )}
+
       {/* 検索前の状態 */}
-      {users.length === 0 && !debounceQuery && (
+      {!loading && users.length === 0 && !debounceQuery && (
         <div className="flex flex-col items-center justify-center py-12 text-center">
           <div className="bg-surface-3 rounded-full p-4 mb-4">
             <MagnifyingGlassIcon className="w-8 h-8 text-[var(--color-text-faint)]" />
@@ -40,7 +48,7 @@ export default function AddUserPage() {
       )}
 
       {/* 検索結果なし */}
-      {users.length === 0 && debounceQuery && (
+      {!loading && users.length === 0 && debounceQuery && (
         <div className="flex flex-col items-center justify-center py-12 text-center">
           <h3 className="text-base font-semibold text-[var(--color-text-secondary)] mb-1">
             ユーザーが見つかりませんでした
@@ -52,7 +60,7 @@ export default function AddUserPage() {
       )}
 
       {/* ユーザーリスト */}
-      {users.length > 0 && (
+      {!loading && users.length > 0 && (
         <div>
           <div className="flex items-center gap-2 mb-3">
             <UserPlusIcon className="w-4 h-4 text-[var(--color-text-muted)]" />

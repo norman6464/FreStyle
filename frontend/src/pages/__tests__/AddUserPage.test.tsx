@@ -15,6 +15,7 @@ function defaultData() {
     searchQuery: '',
     setSearchQuery: vi.fn(),
     debounceQuery: '',
+    loading: false,
   };
 }
 
@@ -83,5 +84,32 @@ describe('AddUserPage', () => {
     render(<BrowserRouter><AddUserPage /></BrowserRouter>);
 
     expect(screen.getByText('2人のユーザーが見つかりました')).toBeInTheDocument();
+  });
+
+  it('検索中にローディングが表示される', () => {
+    mockUseUserSearch.mockReturnValue({
+      ...defaultData(),
+      loading: true,
+      debounceQuery: 'テスト',
+    });
+
+    render(<BrowserRouter><AddUserPage /></BrowserRouter>);
+
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(screen.getByText('検索中...')).toBeInTheDocument();
+  });
+
+  it('検索中は検索案内・検索結果なし・ユーザーリストが表示されない', () => {
+    mockUseUserSearch.mockReturnValue({
+      ...defaultData(),
+      loading: true,
+      debounceQuery: 'テスト',
+    });
+
+    render(<BrowserRouter><AddUserPage /></BrowserRouter>);
+
+    expect(screen.queryByText('ユーザーを検索してみましょう')).not.toBeInTheDocument();
+    expect(screen.queryByText('ユーザーが見つかりませんでした')).not.toBeInTheDocument();
+    expect(screen.queryByText(/人のユーザーが見つかりました/)).not.toBeInTheDocument();
   });
 });

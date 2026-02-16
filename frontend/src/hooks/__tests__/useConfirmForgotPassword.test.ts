@@ -78,6 +78,18 @@ describe('useConfirmForgotPassword', () => {
 
     const { result } = renderHook(() => useConfirmForgotPassword());
 
+    act(() => {
+      result.current.handleChange({
+        target: { name: 'code', value: '123456' },
+      } as React.ChangeEvent<HTMLInputElement>);
+      result.current.handleChange({
+        target: { name: 'newPassword', value: 'newpass123' },
+      } as React.ChangeEvent<HTMLInputElement>);
+      result.current.handleChange({
+        target: { name: 'confirmPassword', value: 'newpass123' },
+      } as React.ChangeEvent<HTMLInputElement>);
+    });
+
     await act(async () => {
       await result.current.handleConfirm({
         preventDefault: vi.fn(),
@@ -92,6 +104,18 @@ describe('useConfirmForgotPassword', () => {
     mockConfirmForgotPassword.mockRejectedValue(new Error('Network Error'));
 
     const { result } = renderHook(() => useConfirmForgotPassword());
+
+    act(() => {
+      result.current.handleChange({
+        target: { name: 'code', value: '123456' },
+      } as React.ChangeEvent<HTMLInputElement>);
+      result.current.handleChange({
+        target: { name: 'newPassword', value: 'newpass123' },
+      } as React.ChangeEvent<HTMLInputElement>);
+      result.current.handleChange({
+        target: { name: 'confirmPassword', value: 'newpass123' },
+      } as React.ChangeEvent<HTMLInputElement>);
+    });
 
     await act(async () => {
       await result.current.handleConfirm({
@@ -137,6 +161,18 @@ describe('useConfirmForgotPassword', () => {
     mockConfirmForgotPassword.mockReturnValue(new Promise((resolve) => { resolvePromise = resolve; }));
     const { result } = renderHook(() => useConfirmForgotPassword());
 
+    act(() => {
+      result.current.handleChange({
+        target: { name: 'code', value: '123456' },
+      } as React.ChangeEvent<HTMLInputElement>);
+      result.current.handleChange({
+        target: { name: 'newPassword', value: 'newpass123' },
+      } as React.ChangeEvent<HTMLInputElement>);
+      result.current.handleChange({
+        target: { name: 'confirmPassword', value: 'newpass123' },
+      } as React.ChangeEvent<HTMLInputElement>);
+    });
+
     let confirmPromise: Promise<void>;
     act(() => {
       confirmPromise = result.current.handleConfirm({
@@ -163,6 +199,9 @@ describe('useConfirmForgotPassword', () => {
     const { result } = renderHook(() => useConfirmForgotPassword());
 
     act(() => {
+      result.current.handleChange({
+        target: { name: 'code', value: '123456' },
+      } as React.ChangeEvent<HTMLInputElement>);
       result.current.handleChange({
         target: { name: 'newPassword', value: 'password1' },
       } as React.ChangeEvent<HTMLInputElement>);
@@ -204,5 +243,48 @@ describe('useConfirmForgotPassword', () => {
     });
 
     expect(mockConfirmForgotPassword).toHaveBeenCalled();
+  });
+
+  it('確認コードが空の場合エラーメッセージが表示されAPIが呼ばれない', async () => {
+    const { result } = renderHook(() => useConfirmForgotPassword());
+
+    act(() => {
+      result.current.handleChange({
+        target: { name: 'newPassword', value: 'password123' },
+      } as React.ChangeEvent<HTMLInputElement>);
+      result.current.handleChange({
+        target: { name: 'confirmPassword', value: 'password123' },
+      } as React.ChangeEvent<HTMLInputElement>);
+    });
+
+    await act(async () => {
+      await result.current.handleConfirm({
+        preventDefault: vi.fn(),
+      } as unknown as React.FormEvent<HTMLFormElement>);
+    });
+
+    expect(result.current.message?.type).toBe('error');
+    expect(result.current.message?.text).toBe('すべてのフィールドを入力してください。');
+    expect(mockConfirmForgotPassword).not.toHaveBeenCalled();
+  });
+
+  it('新パスワードが空の場合エラーメッセージが表示されAPIが呼ばれない', async () => {
+    const { result } = renderHook(() => useConfirmForgotPassword());
+
+    act(() => {
+      result.current.handleChange({
+        target: { name: 'code', value: '123456' },
+      } as React.ChangeEvent<HTMLInputElement>);
+    });
+
+    await act(async () => {
+      await result.current.handleConfirm({
+        preventDefault: vi.fn(),
+      } as unknown as React.FormEvent<HTMLFormElement>);
+    });
+
+    expect(result.current.message?.type).toBe('error');
+    expect(result.current.message?.text).toBe('すべてのフィールドを入力してください。');
+    expect(mockConfirmForgotPassword).not.toHaveBeenCalled();
   });
 });

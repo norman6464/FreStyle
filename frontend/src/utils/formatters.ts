@@ -28,6 +28,20 @@ export function formatHourMinute(dateString?: string): string {
   return new Date(dateString).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
 }
 
+export function formatMonthDay(timestamp: number): string {
+  const date = new Date(timestamp);
+  return `${date.getMonth() + 1}/${date.getDate()}`;
+}
+
+export function formatLongDate(dateString: string): string {
+  if (!dateString) return '';
+  return new Date(dateString).toLocaleDateString('ja-JP', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+}
+
 export function truncateMessage(message: string | undefined, maxLength = 30): string {
   if (!message) return 'メッセージはありません';
   if (message.length <= maxLength) return message;

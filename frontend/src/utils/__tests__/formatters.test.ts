@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { formatTime, formatDate, formatHourMinute, truncateMessage } from '../formatters';
+import { formatTime, formatDate, formatHourMinute, formatMonthDay, formatLongDate, truncateMessage } from '../formatters';
 
 describe('formatTime', () => {
   beforeEach(() => {
@@ -61,6 +61,37 @@ describe('formatHourMinute', () => {
   it('時刻をHH:mm形式で返す', () => {
     const result = formatHourMinute('2025-06-15T10:30:00');
     expect(result).toMatch(/10:30/);
+  });
+});
+
+describe('formatMonthDay', () => {
+  it('タイムスタンプからM/D形式を返す', () => {
+    // 2025-06-15 のタイムスタンプ
+    const timestamp = new Date('2025-06-15T10:00:00').getTime();
+    expect(formatMonthDay(timestamp)).toBe('6/15');
+  });
+
+  it('1月1日のタイムスタンプを正しくフォーマットする', () => {
+    const timestamp = new Date('2025-01-01T00:00:00').getTime();
+    expect(formatMonthDay(timestamp)).toBe('1/1');
+  });
+
+  it('12月31日のタイムスタンプを正しくフォーマットする', () => {
+    const timestamp = new Date('2025-12-31T23:59:59').getTime();
+    expect(formatMonthDay(timestamp)).toBe('12/31');
+  });
+});
+
+describe('formatLongDate', () => {
+  it('ISO日付文字列からY年M月D日形式を返す', () => {
+    const result = formatLongDate('2025-06-15T10:00:00');
+    expect(result).toMatch(/2025/);
+    expect(result).toMatch(/6/);
+    expect(result).toMatch(/15/);
+  });
+
+  it('空文字の場合は空文字を返す', () => {
+    expect(formatLongDate('')).toBe('');
   });
 });
 

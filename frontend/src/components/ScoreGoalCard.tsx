@@ -1,6 +1,6 @@
 import Card from './Card';
 import ProgressBar from './ProgressBar';
-import { useLocalStorage } from '../hooks/useLocalStorage';
+import { useScoreGoal } from '../hooks/useScoreGoal';
 
 interface Props {
   averageScore: number;
@@ -9,10 +9,10 @@ interface Props {
 const GOAL_OPTIONS = [6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0, 9.5, 10.0];
 
 export default function ScoreGoalCard({ averageScore }: Props) {
-  const [goal, setGoal] = useLocalStorage('scoreGoal', 8.0);
+  const { goal, saveGoal } = useScoreGoal();
 
   const handleGoalChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setGoal(parseFloat(e.target.value));
+    saveGoal(parseFloat(e.target.value));
   };
 
   const achieved = averageScore >= goal;

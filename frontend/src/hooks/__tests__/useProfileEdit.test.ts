@@ -116,6 +116,35 @@ describe('useProfileEdit', () => {
     expect(result.current.form.name).toBe('テスト太郎');
   });
 
+  it('handleUpdate中はsubmittingがtrueになる', async () => {
+    let resolveUpdate: (value: any) => void;
+    mockUpdateProfile.mockImplementation(
+      () => new Promise((resolve) => { resolveUpdate = resolve; })
+    );
+
+    const { result } = renderHook(() => useProfileEdit());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    expect(result.current.submitting).toBe(false);
+
+    let updatePromise: Promise<void>;
+    act(() => {
+      updatePromise = result.current.handleUpdate();
+    });
+
+    expect(result.current.submitting).toBe(true);
+
+    await act(async () => {
+      resolveUpdate!({ success: 'OK' });
+      await updatePromise!;
+    });
+
+    expect(result.current.submitting).toBe(false);
+  });
+
   it('handleUpdate時にupdateProfileにフォーム値が渡される', async () => {
     const { result } = renderHook(() => useProfileEdit());
 

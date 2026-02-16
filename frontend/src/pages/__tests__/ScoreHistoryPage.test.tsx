@@ -99,7 +99,7 @@ describe('ScoreHistoryPage', () => {
     }, { timeout: 3000 });
   });
 
-  it('履歴が空の場合メッセージが表示される', async () => {
+  it('履歴が空の場合EmptyStateが表示される', async () => {
     mockFetchScoreHistory.mockResolvedValue([]);
     const ScoreHistoryPage = await importScoreHistoryPage();
 
@@ -107,7 +107,22 @@ describe('ScoreHistoryPage', () => {
 
     await waitFor(() => {
       expect(screen.getByText('スコア履歴がありません')).toBeInTheDocument();
+      expect(screen.getByText('AIアシスタントで練習を開始')).toBeInTheDocument();
     }, { timeout: 3000 });
+  });
+
+  it('EmptyStateのCTAボタンでAIアシスタントに遷移する', async () => {
+    mockFetchScoreHistory.mockResolvedValue([]);
+    const ScoreHistoryPage = await importScoreHistoryPage();
+
+    render(<ScoreHistoryPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('AIアシスタントで練習を開始')).toBeInTheDocument();
+    }, { timeout: 3000 });
+
+    fireEvent.click(screen.getByText('AIアシスタントで練習を開始'));
+    expect(mockNavigate).toHaveBeenCalledWith('/chat/ask-ai');
   });
 
   it('ローディング中はスケルトンが表示される', async () => {

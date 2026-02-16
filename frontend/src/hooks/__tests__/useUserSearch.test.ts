@@ -18,6 +18,23 @@ describe('useUserSearch', () => {
     expect(result.current.error).toBeNull();
   });
 
+  it('検索中はloadingがtrueになる', async () => {
+    let resolveSearch: (value: any) => void;
+    vi.mocked(UserSearchRepository.searchUsers).mockImplementation(
+      () => new Promise((resolve) => { resolveSearch = resolve; })
+    );
+
+    const { result } = renderHook(() => useUserSearch());
+
+    expect(result.current.loading).toBe(true);
+
+    await act(async () => {
+      resolveSearch!([]);
+    });
+
+    expect(result.current.loading).toBe(false);
+  });
+
   it('初回マウント時にユーザー検索が実行される', async () => {
     const mockUsers = [{ id: 1, name: 'テスト', email: 'test@example.com' }];
     vi.mocked(UserSearchRepository.searchUsers).mockResolvedValue(mockUsers);

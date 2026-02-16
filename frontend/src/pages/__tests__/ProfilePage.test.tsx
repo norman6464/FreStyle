@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import ProfilePage from '../ProfilePage';
 import ProfileRepository from '../../repositories/ProfileRepository';
 
@@ -57,6 +57,24 @@ describe('ProfilePage', () => {
 
     await waitFor(() => {
       expect(screen.getByDisplayValue('テスト自己紹介')).toBeInTheDocument();
+    });
+  });
+
+  it('送信中はボタンが「更新中...」になり無効化される', async () => {
+    mockedRepo.fetchProfile.mockResolvedValue({ name: 'テスト', bio: '' });
+    mockedRepo.updateProfile.mockReturnValue(new Promise(() => {}));
+
+    render(<ProfilePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('プロフィールを更新')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText('プロフィールを更新'));
+
+    await waitFor(() => {
+      expect(screen.getByText('更新中...')).toBeInTheDocument();
+      expect(screen.getByText('更新中...').closest('button')).toBeDisabled();
     });
   });
 

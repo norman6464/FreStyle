@@ -7,7 +7,7 @@ import Loading from '../components/Loading';
 import { useProfileEdit } from '../hooks/useProfileEdit';
 
 export default function ProfilePage() {
-  const { form, message, loading, updateField, handleUpdate } = useProfileEdit();
+  const { form, message, loading, submitting, updateField, handleUpdate } = useProfileEdit();
 
   if (loading) {
     return (
@@ -54,7 +54,9 @@ export default function ProfilePage() {
             rows={4}
             maxLength={200}
           />
-          <PrimaryButton type="submit">プロフィールを更新</PrimaryButton>
+          <PrimaryButton type="submit" disabled={submitting}>
+            {submitting ? '更新中...' : 'プロフィールを更新'}
+          </PrimaryButton>
         </form>
       </div>
     </div>

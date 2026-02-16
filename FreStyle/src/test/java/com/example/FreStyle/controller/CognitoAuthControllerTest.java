@@ -282,15 +282,15 @@ class CognitoAuthControllerTest {
         }
 
         @Test
-        @DisplayName("RuntimeExceptionで400を返す")
-        void returnsBadRequestOnRuntimeException() {
+        @DisplayName("RuntimeExceptionで500を返す")
+        void returnsInternalServerErrorOnRuntimeException() {
             LoginForm form = new LoginForm("test@example.com", "wrong");
             when(cognitoLoginUseCase.execute(anyString(), anyString()))
                     .thenThrow(new RuntimeException("認証失敗"));
 
             ResponseEntity<?> response = controller.login(form, httpResponse);
 
-            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 

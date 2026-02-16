@@ -46,23 +46,21 @@ class CognitoAuthServiceTest {
         }
 
         @Test
-        void 既存メールアドレスでUsernameExistsException() {
+        void 既存メールアドレスでUsernameExistsExceptionがそのまま伝搬する() {
             when(cognitoClient.signUp(any(SignUpRequest.class)))
                     .thenThrow(UsernameExistsException.builder().message("exists").build());
 
-            RuntimeException ex = assertThrows(RuntimeException.class,
+            assertThrows(UsernameExistsException.class,
                     () -> service.signUpUser("existing@example.com", "Password123!", "テスト"));
-            assertEquals("このメールアドレスは既に登録されています。", ex.getMessage());
         }
 
         @Test
-        void 不正なパスワードでInvalidPasswordException() {
+        void 不正なパスワードでInvalidPasswordExceptionがそのまま伝搬する() {
             when(cognitoClient.signUp(any(SignUpRequest.class)))
                     .thenThrow(InvalidPasswordException.builder().message("weak").build());
 
-            RuntimeException ex = assertThrows(RuntimeException.class,
+            assertThrows(InvalidPasswordException.class,
                     () -> service.signUpUser("test@example.com", "weak", "テスト"));
-            assertEquals("パスワードが要件を満たしていません。", ex.getMessage());
         }
 
         @Test
@@ -92,33 +90,30 @@ class CognitoAuthServiceTest {
         }
 
         @Test
-        void ユーザー未存在でUserNotFoundException() {
+        void ユーザー未存在でUserNotFoundExceptionがそのまま伝搬する() {
             when(cognitoClient.confirmSignUp(any(ConfirmSignUpRequest.class)))
                     .thenThrow(UserNotFoundException.builder().message("not found").build());
 
-            RuntimeException ex = assertThrows(RuntimeException.class,
+            assertThrows(UserNotFoundException.class,
                     () -> service.confirmUserSignup("unknown@example.com", "123456"));
-            assertEquals("ユーザーが見つかりません。", ex.getMessage());
         }
 
         @Test
-        void 確認コード不一致でCodeMismatchException() {
+        void 確認コード不一致でCodeMismatchExceptionがそのまま伝搬する() {
             when(cognitoClient.confirmSignUp(any(ConfirmSignUpRequest.class)))
                     .thenThrow(CodeMismatchException.builder().message("mismatch").build());
 
-            RuntimeException ex = assertThrows(RuntimeException.class,
+            assertThrows(CodeMismatchException.class,
                     () -> service.confirmUserSignup("test@example.com", "000000"));
-            assertEquals("確認コードが正しくありません。", ex.getMessage());
         }
 
         @Test
-        void 確認コード期限切れでExpiredCodeException() {
+        void 確認コード期限切れでExpiredCodeExceptionがそのまま伝搬する() {
             when(cognitoClient.confirmSignUp(any(ConfirmSignUpRequest.class)))
                     .thenThrow(ExpiredCodeException.builder().message("expired").build());
 
-            RuntimeException ex = assertThrows(RuntimeException.class,
+            assertThrows(ExpiredCodeException.class,
                     () -> service.confirmUserSignup("test@example.com", "123456"));
-            assertEquals("確認コードの有効期限が切れています。", ex.getMessage());
         }
     }
 
@@ -148,23 +143,21 @@ class CognitoAuthServiceTest {
         }
 
         @Test
-        void 認証失敗でNotAuthorizedException() {
+        void 認証失敗でNotAuthorizedExceptionがそのまま伝搬する() {
             when(cognitoClient.initiateAuth(any(InitiateAuthRequest.class)))
                     .thenThrow(NotAuthorizedException.builder().message("bad creds").build());
 
-            RuntimeException ex = assertThrows(RuntimeException.class,
+            assertThrows(NotAuthorizedException.class,
                     () -> service.login("test@example.com", "WrongPassword"));
-            assertEquals("メールアドレスまたはパスワードが間違っています。", ex.getMessage());
         }
 
         @Test
-        void メール未確認でUserNotConfirmedException() {
+        void メール未確認でUserNotConfirmedExceptionがそのまま伝搬する() {
             when(cognitoClient.initiateAuth(any(InitiateAuthRequest.class)))
                     .thenThrow(UserNotConfirmedException.builder().message("not confirmed").build());
 
-            RuntimeException ex = assertThrows(RuntimeException.class,
+            assertThrows(UserNotConfirmedException.class,
                     () -> service.login("unconfirmed@example.com", "Password123!"));
-            assertEquals("メール確認が完了していません。", ex.getMessage());
         }
     }
 
@@ -184,13 +177,12 @@ class CognitoAuthServiceTest {
         }
 
         @Test
-        void ユーザー未存在でUserNotFoundException() {
+        void ユーザー未存在でUserNotFoundExceptionがそのまま伝搬する() {
             when(cognitoClient.forgotPassword(any(ForgotPasswordRequest.class)))
                     .thenThrow(UserNotFoundException.builder().message("not found").build());
 
-            RuntimeException ex = assertThrows(RuntimeException.class,
+            assertThrows(UserNotFoundException.class,
                     () -> service.forgotPassword("unknown@example.com"));
-            assertEquals("このメールアドレスは登録されていません。", ex.getMessage());
         }
     }
 
@@ -210,23 +202,21 @@ class CognitoAuthServiceTest {
         }
 
         @Test
-        void 確認コード不一致でCodeMismatchException() {
+        void 確認コード不一致でCodeMismatchExceptionがそのまま伝搬する() {
             when(cognitoClient.confirmForgotPassword(any(ConfirmForgotPasswordRequest.class)))
                     .thenThrow(CodeMismatchException.builder().message("mismatch").build());
 
-            RuntimeException ex = assertThrows(RuntimeException.class,
+            assertThrows(CodeMismatchException.class,
                     () -> service.confirmForgotPassword("test@example.com", "000000", "NewPassword123!"));
-            assertEquals("確認コードが間違っています。", ex.getMessage());
         }
 
         @Test
-        void 確認コード期限切れでExpiredCodeException() {
+        void 確認コード期限切れでExpiredCodeExceptionがそのまま伝搬する() {
             when(cognitoClient.confirmForgotPassword(any(ConfirmForgotPasswordRequest.class)))
                     .thenThrow(ExpiredCodeException.builder().message("expired").build());
 
-            RuntimeException ex = assertThrows(RuntimeException.class,
+            assertThrows(ExpiredCodeException.class,
                     () -> service.confirmForgotPassword("test@example.com", "123456", "NewPassword123!"));
-            assertEquals("確認コードの有効期限が切れています。", ex.getMessage());
         }
     }
 

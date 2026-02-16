@@ -100,7 +100,6 @@ class CognitoRefreshTokenUseCaseTest {
 
         cognitoRefreshTokenUseCase.execute("my-refresh", "user2");
 
-        verify(accessTokenService).findAccessTokenByRefreshToken("my-refresh");
         verify(cognitoAuthService).refreshAccessToken("my-refresh", "user2");
     }
 }

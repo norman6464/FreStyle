@@ -1,5 +1,6 @@
 package com.example.FreStyle.usecase;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -51,5 +52,30 @@ class CreateOrGetChatRoomUseCaseTest {
         createOrGetChatRoomUseCase.execute("sub-456", 10);
 
         verify(chatService).createOrGetRoom(5, 10);
+    }
+
+    @Test
+    @DisplayName("UserIdentityServiceが例外をスローした場合そのまま伝搬する")
+    void execute_propagatesUserIdentityException() {
+        when(userIdentityService.findUserBySub("unknown-sub"))
+                .thenThrow(new RuntimeException("ユーザーが見つかりません"));
+
+        assertThatThrownBy(() -> createOrGetChatRoomUseCase.execute("unknown-sub", 2))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("ユーザーが見つかりません");
+    }
+
+    @Test
+    @DisplayName("ChatServiceが例外をスローした場合そのまま伝搬する")
+    void execute_propagatesChatServiceException() {
+        User user = new User();
+        user.setId(1);
+        when(userIdentityService.findUserBySub("sub-123")).thenReturn(user);
+        when(chatService.createOrGetRoom(1, 2))
+                .thenThrow(new RuntimeException("ルーム作成失敗"));
+
+        assertThatThrownBy(() -> createOrGetChatRoomUseCase.execute("sub-123", 2))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("ルーム作成失敗");
     }
 }

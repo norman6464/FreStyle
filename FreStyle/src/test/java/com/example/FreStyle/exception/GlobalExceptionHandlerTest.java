@@ -92,6 +92,22 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    @DisplayName("IllegalArgumentExceptionで400を返す")
+    void returnsBadRequestOnIllegalArgumentException() {
+        WebRequest request = mockRequest("/api/notes/1/images");
+        IllegalArgumentException ex = new IllegalArgumentException("許可されていないファイル形式です");
+
+        ResponseEntity<ErrorResponseDto> response = handler.handleIllegalArgumentException(ex, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getStatus()).isEqualTo(400);
+        assertThat(response.getBody().getError()).isEqualTo("Bad Request");
+        assertThat(response.getBody().getMessage()).isEqualTo("許可されていないファイル形式です");
+        assertThat(response.getBody().getPath()).isEqualTo("/api/notes/1/images");
+    }
+
+    @Test
     @DisplayName("エラーレスポンスにタイムスタンプが含まれる")
     void responseContainsTimestamp() {
         WebRequest request = mockRequest("/api/test");

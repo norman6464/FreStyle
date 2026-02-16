@@ -7,14 +7,13 @@ import com.example.FreStyle.entity.User;
 import com.example.FreStyle.entity.UserIdentity;
 import com.example.FreStyle.repository.UserIdentityRepository;
 
+import lombok.RequiredArgsConstructor;
+
 @Service
+@RequiredArgsConstructor
 public class UserIdentityService {
 
     private final UserIdentityRepository userIdentityRepository;
-
-    public UserIdentityService(UserIdentityRepository userIdentityRepository) {
-        this.userIdentityRepository = userIdentityRepository;
-    }
 
     // ------------------------
     // UserIdentity を登録

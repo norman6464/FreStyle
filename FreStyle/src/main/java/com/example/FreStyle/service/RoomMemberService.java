@@ -6,15 +6,14 @@ import org.springframework.stereotype.Service;
 import com.example.FreStyle.entity.User;
 import com.example.FreStyle.repository.RoomMemberRepository;
 
+import lombok.RequiredArgsConstructor;
+
 // ユーザー同士のチャットの管理
 @Service
+@RequiredArgsConstructor
 public class RoomMemberService {
-  
+
   private final RoomMemberRepository roomMemberRepository;
-  
-  public RoomMemberService(RoomMemberRepository roomMemberRepository) {
-    this.roomMemberRepository = roomMemberRepository;
-  } 
   
   public boolean existsRoom(Integer roomId, Integer userId) {
     return roomMemberRepository.existsByRoom_IdAndUser_Id(roomId, userId);

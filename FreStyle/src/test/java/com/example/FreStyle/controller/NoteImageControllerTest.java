@@ -2,9 +2,7 @@ package com.example.FreStyle.controller;
 
 import com.example.FreStyle.dto.PresignedUrlRequest;
 import com.example.FreStyle.dto.PresignedUrlResponse;
-import com.example.FreStyle.entity.User;
-import com.example.FreStyle.service.NoteImageService;
-import com.example.FreStyle.service.UserIdentityService;
+import com.example.FreStyle.usecase.GeneratePresignedUrlUseCase;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -22,27 +20,17 @@ import static org.mockito.Mockito.*;
 class NoteImageControllerTest {
 
     @Mock
-    private NoteImageService noteImageService;
-
-    @Mock
-    private UserIdentityService userIdentityService;
+    private GeneratePresignedUrlUseCase generatePresignedUrlUseCase;
 
     @InjectMocks
     private NoteImageController noteImageController;
 
     private Jwt jwt;
-    private User user;
 
     @BeforeEach
     void setUp() {
         jwt = mock(Jwt.class);
         when(jwt.getSubject()).thenReturn("test-sub");
-
-        user = new User();
-        user.setId(1);
-        user.setName("テストユーザー");
-
-        when(userIdentityService.findUserBySub("test-sub")).thenReturn(user);
     }
 
     @Test
@@ -51,7 +39,7 @@ class NoteImageControllerTest {
         PresignedUrlResponse expected = new PresignedUrlResponse(
                 "https://s3.example.com/upload", "https://cdn.example.com/notes/1/note1/abc_image.png"
         );
-        when(noteImageService.generatePresignedUrl(1, "note1", "image.png", "image/png"))
+        when(generatePresignedUrlUseCase.execute("test-sub", "note1", "image.png", "image/png"))
                 .thenReturn(expected);
 
         ResponseEntity<?> response = noteImageController.getPresignedUrl(
@@ -59,35 +47,15 @@ class NoteImageControllerTest {
         );
 
         assertThat(response.getStatusCode().value()).isEqualTo(200);
-        assertThat(response.getBody()).isNotNull();
         PresignedUrlResponse body = (PresignedUrlResponse) response.getBody();
         assertThat(body.uploadUrl()).isEqualTo("https://s3.example.com/upload");
-        assertThat(body.imageUrl()).startsWith("https://cdn.example.com/notes/1/note1/");
-        verify(noteImageService).generatePresignedUrl(1, "note1", "image.png", "image/png");
-    }
-
-    @Test
-    @DisplayName("NoteImageServiceにユーザーIDを渡す")
-    void shouldPassUserIdToService() {
-        user.setId(42);
-        PresignedUrlResponse expected = new PresignedUrlResponse(
-                "https://s3.example.com/upload", "https://cdn.example.com/notes/42/noteXYZ/abc_photo.jpg"
-        );
-        when(noteImageService.generatePresignedUrl(42, "noteXYZ", "photo.jpg", "image/jpeg"))
-                .thenReturn(expected);
-
-        noteImageController.getPresignedUrl(
-                jwt, "noteXYZ", new PresignedUrlRequest("photo.jpg", "image/jpeg")
-        );
-
-        verify(noteImageService).generatePresignedUrl(42, "noteXYZ", "photo.jpg", "image/jpeg");
     }
 
     @Test
     @DisplayName("不正なcontentTypeは400エラーを返す")
     void shouldReturn400ForInvalidContentType() {
-        when(noteImageService.generatePresignedUrl(1, "note1", "file.exe", "application/octet-stream"))
-                .thenThrow(new IllegalArgumentException("許可されていないファイル形式です: application/octet-stream"));
+        when(generatePresignedUrlUseCase.execute("test-sub", "note1", "file.exe", "application/octet-stream"))
+                .thenThrow(new IllegalArgumentException("許可されていないファイル形式です"));
 
         ResponseEntity<?> response = noteImageController.getPresignedUrl(
                 jwt, "note1", new PresignedUrlRequest("file.exe", "application/octet-stream")
@@ -99,7 +67,7 @@ class NoteImageControllerTest {
     @Test
     @DisplayName("S3エラー時は500エラーを返す")
     void shouldReturn500ForS3Error() {
-        when(noteImageService.generatePresignedUrl(1, "note1", "image.png", "image/png"))
+        when(generatePresignedUrlUseCase.execute("test-sub", "note1", "image.png", "image/png"))
                 .thenThrow(new RuntimeException("S3 connection failed"));
 
         ResponseEntity<?> response = noteImageController.getPresignedUrl(

@@ -1,21 +1,35 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { BookmarkRepository } from '../repositories/BookmarkRepository';
 
 export function useBookmark() {
-  const [bookmarkedIds, setBookmarkedIds] = useState<number[]>(() => BookmarkRepository.getAll());
+  const [bookmarkedIds, setBookmarkedIds] = useState<number[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const toggleBookmark = useCallback((scenarioId: number) => {
-    if (BookmarkRepository.isBookmarked(scenarioId)) {
-      BookmarkRepository.remove(scenarioId);
-    } else {
-      BookmarkRepository.add(scenarioId);
-    }
-    setBookmarkedIds(BookmarkRepository.getAll());
+  useEffect(() => {
+    let cancelled = false;
+    BookmarkRepository.getAll().then((ids) => {
+      if (!cancelled) {
+        setBookmarkedIds(ids);
+        setLoading(false);
+      }
+    });
+    return () => { cancelled = true; };
   }, []);
+
+  const toggleBookmark = useCallback(async (scenarioId: number) => {
+    const isCurrentlyBookmarked = bookmarkedIds.includes(scenarioId);
+    if (isCurrentlyBookmarked) {
+      setBookmarkedIds(prev => prev.filter(id => id !== scenarioId));
+      await BookmarkRepository.remove(scenarioId);
+    } else {
+      setBookmarkedIds(prev => [...prev, scenarioId]);
+      await BookmarkRepository.add(scenarioId);
+    }
+  }, [bookmarkedIds]);
 
   const isBookmarked = useCallback((scenarioId: number) => {
-    return BookmarkRepository.isBookmarked(scenarioId);
-  }, []);
+    return bookmarkedIds.includes(scenarioId);
+  }, [bookmarkedIds]);
 
-  return { bookmarkedIds, toggleBookmark, isBookmarked };
+  return { bookmarkedIds, toggleBookmark, isBookmarked, loading };
 }

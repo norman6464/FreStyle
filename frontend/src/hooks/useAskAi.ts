@@ -168,7 +168,7 @@ export function useAskAi() {
   const filteredSessions = useMemo(() => {
     if (!sessionSearchQuery) return sessions;
     const query = sessionSearchQuery.toLowerCase();
-    return sessions.filter((s: { title: string }) => s.title.toLowerCase().includes(query));
+    return sessions.filter((s) => s.title?.toLowerCase().includes(query));
   }, [sessions, sessionSearchQuery]);
 
   // メッセージ削除処理

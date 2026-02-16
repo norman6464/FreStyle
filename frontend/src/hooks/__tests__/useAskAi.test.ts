@@ -24,9 +24,10 @@ vi.mock('../useAuth', () => ({
   }),
 }));
 
+let mockSessions: any[] = [];
 vi.mock('../useAiChat', () => ({
   useAiChat: () => ({
-    sessions: [],
+    sessions: mockSessions,
     messages: [],
     scoreCard: null,
     fetchSessions: mockFetchSessions,
@@ -67,6 +68,7 @@ vi.mock('../useAiSession', () => ({
 describe('useAskAi', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSessions = [];
   });
 
   it('初期化時にgetCurrentUserが呼ばれる', () => {
@@ -136,8 +138,47 @@ describe('useAskAi', () => {
     expect(result.current.sessionSearchQuery).toBe('テスト');
   });
 
-  it('filteredSessionsが返される', () => {
+  it('filteredSessionsがセッション一覧を返す', () => {
+    mockSessions = [
+      { id: 1, title: 'セッションA' },
+      { id: 2, title: 'セッションB' },
+    ];
     const { result } = renderHook(() => useAskAi());
-    expect(result.current.filteredSessions).toEqual([]);
+    expect(result.current.filteredSessions).toHaveLength(2);
+  });
+
+  it('sessionSearchQueryでセッションをタイトルフィルタリングできる', () => {
+    mockSessions = [
+      { id: 1, title: '英語の練習' },
+      { id: 2, title: '数学の勉強' },
+      { id: 3, title: '英語のテスト' },
+    ];
+    const { result } = renderHook(() => useAskAi());
+    act(() => { result.current.setSessionSearchQuery('英語'); });
+    expect(result.current.filteredSessions).toHaveLength(2);
+    expect(result.current.filteredSessions.map((s: any) => s.id)).toEqual([1, 3]);
+  });
+
+  it('sessionSearchQueryが大文字小文字を区別しない', () => {
+    mockSessions = [
+      { id: 1, title: 'Hello World' },
+      { id: 2, title: 'Goodbye' },
+    ];
+    const { result } = renderHook(() => useAskAi());
+    act(() => { result.current.setSessionSearchQuery('hello'); });
+    expect(result.current.filteredSessions).toHaveLength(1);
+    expect(result.current.filteredSessions[0].id).toBe(1);
+  });
+
+  it('sessionSearchQueryが空の場合は全セッションを返す', () => {
+    mockSessions = [
+      { id: 1, title: 'セッションA' },
+      { id: 2, title: 'セッションB' },
+    ];
+    const { result } = renderHook(() => useAskAi());
+    act(() => { result.current.setSessionSearchQuery('テスト'); });
+    expect(result.current.filteredSessions).toHaveLength(0);
+    act(() => { result.current.setSessionSearchQuery(''); });
+    expect(result.current.filteredSessions).toHaveLength(2);
   });
 });

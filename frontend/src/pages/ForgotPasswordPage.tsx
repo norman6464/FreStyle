@@ -5,7 +5,7 @@ import FormMessage from '../components/FormMessage';
 import { useForgotPassword } from '../hooks/useForgotPassword';
 
 export default function ForgotPasswordPage() {
-  const { email, setEmail, message, handleSubmit } = useForgotPassword();
+  const { email, setEmail, message, loading, handleSubmit } = useForgotPassword();
 
   return (
     <AuthLayout>
@@ -20,8 +20,11 @@ export default function ForgotPasswordPage() {
           type="email"
           value={email}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
+          disabled={loading}
         />
-        <PrimaryButton type="submit">確認コードを送信</PrimaryButton>
+        <PrimaryButton type="submit" loading={loading}>
+          {loading ? '送信中...' : '確認コードを送信'}
+        </PrimaryButton>
       </form>
     </AuthLayout>
   );

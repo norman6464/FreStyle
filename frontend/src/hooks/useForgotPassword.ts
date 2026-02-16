@@ -7,10 +7,12 @@ import type { FormMessage } from '../types';
 export function useForgotPassword() {
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState<FormMessage | null>(null);
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setLoading(true);
 
     try {
       await authRepository.forgotPassword({ email });
@@ -22,8 +24,10 @@ export function useForgotPassword() {
       } else {
         setMessage({ type: 'error', text: '通信エラーが発生しました。' });
       }
+    } finally {
+      setLoading(false);
     }
   };
 
-  return { email, setEmail, message, handleSubmit };
+  return { email, setEmail, message, loading, handleSubmit };
 }

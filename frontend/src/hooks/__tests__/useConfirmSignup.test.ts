@@ -129,4 +129,31 @@ describe('useConfirmSignup', () => {
 
     expect(preventDefault).toHaveBeenCalledOnce();
   });
+
+  it('初期状態でloadingがfalseである', () => {
+    const { result } = renderHook(() => useConfirmSignup());
+    expect(result.current.loading).toBe(false);
+  });
+
+  it('handleConfirm実行中にloadingがtrueになる', async () => {
+    let resolvePromise: (value: unknown) => void;
+    mockConfirmSignup.mockReturnValue(new Promise((resolve) => { resolvePromise = resolve; }));
+    const { result } = renderHook(() => useConfirmSignup());
+
+    let confirmPromise: Promise<void>;
+    act(() => {
+      confirmPromise = result.current.handleConfirm({
+        preventDefault: vi.fn(),
+      } as unknown as React.FormEvent<HTMLFormElement>);
+    });
+
+    expect(result.current.loading).toBe(true);
+
+    await act(async () => {
+      resolvePromise!({ message: 'ok' });
+      await confirmPromise;
+    });
+
+    expect(result.current.loading).toBe(false);
+  });
 });

@@ -11,6 +11,7 @@ interface InputFieldProps {
   onChange: (e: ChangeEvent<HTMLInputElement> | { target: { name: string; value: string } }) => void;
   placeholder?: string;
   error?: string;
+  disabled?: boolean;
 }
 
 export default function InputField({
@@ -20,6 +21,7 @@ export default function InputField({
   value,
   onChange,
   error,
+  disabled,
 }: InputFieldProps) {
   const [inputValue, setInputValue] = useState(value || '');
 
@@ -46,11 +48,12 @@ export default function InputField({
             setInputValue(e.target.value);
             onChange(e);
           }}
+          disabled={disabled}
           aria-invalid={!!error}
           aria-describedby={error ? `${name}-error` : undefined}
-          className={`w-full border rounded-lg px-4 py-2.5 pr-10 focus:outline-none focus:ring-1 transition-colors duration-150 ${getFieldBorderClass(!!error)}`}
+          className={`w-full border rounded-lg px-4 py-2.5 pr-10 focus:outline-none focus:ring-1 transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed ${getFieldBorderClass(!!error)}`}
         />
-        {inputValue && (
+        {inputValue && !disabled && (
           <button
             type="button"
             onClick={handleClear}

@@ -67,6 +67,11 @@ describe('createEditorExtensions', () => {
     expect(extensions).toContain('Underline');
     expect(extensions).toContain('Superscript');
     expect(extensions).toContain('Subscript');
+    expect(extensions).toContain('Table');
+    expect(extensions).toContain('TableRow');
+    expect(extensions).toContain('TableCell');
+    expect(extensions).toContain('TableHeader');
+    expect(extensions).toContain('SearchReplace');
   });
 
   it('毎回新しい配列を返す', () => {
@@ -76,16 +81,13 @@ describe('createEditorExtensions', () => {
     expect(a).toEqual(b);
   });
 
-  it('テーブル関連エクステンションが含まれる', () => {
+  it('配列の先頭がStarterKitである', () => {
     const extensions = createEditorExtensions();
-    expect(extensions).toContain('Table');
-    expect(extensions).toContain('TableRow');
-    expect(extensions).toContain('TableCell');
-    expect(extensions).toContain('TableHeader');
+    expect(extensions[0]).toBe('StarterKit');
   });
 
-  it('SearchReplaceExtensionが含まれる', () => {
+  it('配列の末尾がSearchReplaceExtensionである', () => {
     const extensions = createEditorExtensions();
-    expect(extensions).toContain('SearchReplace');
+    expect(extensions[extensions.length - 1]).toBe('SearchReplace');
   });
 });

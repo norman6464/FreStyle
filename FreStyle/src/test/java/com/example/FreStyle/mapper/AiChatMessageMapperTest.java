@@ -71,14 +71,16 @@ class AiChatMessageMapperTest {
     }
 
     @Test
-    @DisplayName("createdAtのタイムスタンプが正しく変換される")
-    void toDtoPreservesCreatedAt() {
+    @DisplayName("異なるsessionId・userIdで正しく変換される")
+    void toDtoWithDifferentIds() {
         AiChatMessage message = createMessage();
-        Timestamp expected = Timestamp.valueOf("2025-01-01 12:00:00");
+        message.getSession().setId(99);
+        message.getUser().setId(42);
 
         AiChatMessageResponseDto dto = mapper.toDto(message);
 
-        assertThat(dto.getCreatedAt()).isEqualTo(expected);
+        assertThat(dto.getSessionId()).isEqualTo(99);
+        assertThat(dto.getUserId()).isEqualTo(42);
     }
 
     @Test

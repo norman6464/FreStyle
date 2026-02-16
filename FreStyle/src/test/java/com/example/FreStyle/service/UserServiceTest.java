@@ -13,7 +13,10 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
 import java.util.Optional;
+
+import com.example.FreStyle.dto.UserDto;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -221,5 +224,46 @@ class UserServiceTest {
         Long count = userService.getTotalUserCount();
 
         assertEquals(42L, count);
+    }
+
+    @Test
+    @DisplayName("findUsersWithRoomId: クエリなしで全ユーザーを返しroomIdを設定する")
+    void findUsersWithRoomId_returnsAllUsersWithRoomId() {
+        UserDto user1 = new UserDto(2, "user1@example.com", "ユーザー1");
+        UserDto user2 = new UserDto(3, "user2@example.com", "ユーザー2");
+        when(userRepository.findAllUserDtos(1)).thenReturn(List.of(user1, user2));
+        when(chatRoomRepository.findRoomIdByUserIds(1, 2)).thenReturn(10);
+        when(chatRoomRepository.findRoomIdByUserIds(1, 3)).thenReturn(null);
+
+        List<UserDto> result = userService.findUsersWithRoomId(1, null);
+
+        assertEquals(2, result.size());
+        assertEquals(10, result.get(0).getRoomId());
+        assertNull(result.get(1).getRoomId());
+    }
+
+    @Test
+    @DisplayName("findUsersWithRoomId: クエリありでメール検索しroomIdを設定する")
+    void findUsersWithRoomId_searchesByEmailQuery() {
+        UserDto user1 = new UserDto(2, "test@example.com", "テスト");
+        when(userRepository.findIdAndEmailByEmailLikeDtos(1, "%test%")).thenReturn(List.of(user1));
+        when(chatRoomRepository.findRoomIdByUserIds(1, 2)).thenReturn(5);
+
+        List<UserDto> result = userService.findUsersWithRoomId(1, "test");
+
+        assertEquals(1, result.size());
+        assertEquals(5, result.get(0).getRoomId());
+        verify(userRepository).findIdAndEmailByEmailLikeDtos(1, "%test%");
+    }
+
+    @Test
+    @DisplayName("findUsersWithRoomId: 空文字クエリは全ユーザーを返す")
+    void findUsersWithRoomId_emptyQueryReturnsAll() {
+        when(userRepository.findAllUserDtos(1)).thenReturn(List.of());
+
+        List<UserDto> result = userService.findUsersWithRoomId(1, "");
+
+        assertEquals(0, result.size());
+        verify(userRepository).findAllUserDtos(1);
     }
 }

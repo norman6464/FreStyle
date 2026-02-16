@@ -1,14 +1,17 @@
 import { useNavigate } from 'react-router-dom';
 import { getAdviceForAxis } from '../constants/axisAdvice';
+import { useStartPracticeSession } from '../hooks/useStartPracticeSession';
 import type { ScoreCard } from '../types';
 
 interface PracticeResultSummaryProps {
   scoreCard: ScoreCard;
   scenarioName: string;
+  scenarioId?: number;
 }
 
-export default function PracticeResultSummary({ scoreCard, scenarioName }: PracticeResultSummaryProps) {
+export default function PracticeResultSummary({ scoreCard, scenarioName, scenarioId }: PracticeResultSummaryProps) {
   const navigate = useNavigate();
+  const { startSession, starting } = useStartPracticeSession();
 
   const scores = Array.isArray(scoreCard.scores) ? scoreCard.scores : [];
   if (scores.length === 0) return null;
@@ -46,13 +49,23 @@ export default function PracticeResultSummary({ scoreCard, scenarioName }: Pract
         <p className="text-xs text-amber-800">{advice}</p>
       </div>
 
-      {/* 次の練習へ */}
-      <button
-        onClick={() => navigate('/practice')}
-        className="w-full py-2 text-sm font-medium text-primary-400 bg-surface-2 hover:bg-surface-3 rounded-lg transition-colors"
-      >
-        次の練習へ
-      </button>
+      <div className="flex flex-col gap-2">
+        {scenarioId && (
+          <button
+            onClick={() => startSession({ id: scenarioId, name: scenarioName })}
+            disabled={starting}
+            className="w-full py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-500 disabled:opacity-50 rounded-lg transition-colors"
+          >
+            もう一度練習
+          </button>
+        )}
+        <button
+          onClick={() => navigate('/practice')}
+          className="w-full py-2 text-sm font-medium text-primary-400 bg-surface-2 hover:bg-surface-3 rounded-lg transition-colors"
+        >
+          次の練習へ
+        </button>
+      </div>
     </div>
   );
 }

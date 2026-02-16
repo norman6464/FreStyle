@@ -8,6 +8,11 @@ vi.mock('react-router-dom', () => ({
   useNavigate: () => mockNavigate,
 }));
 
+const mockStartSession = vi.fn();
+vi.mock('../../hooks/useStartPracticeSession', () => ({
+  useStartPracticeSession: () => ({ startSession: mockStartSession, starting: false }),
+}));
+
 describe('PracticeResultSummary', () => {
   const scoreCard: ScoreCard = {
     sessionId: 1,
@@ -23,6 +28,7 @@ describe('PracticeResultSummary', () => {
 
   beforeEach(() => {
     mockNavigate.mockClear();
+    mockStartSession.mockClear();
   });
 
   it('練習結果サマリーのタイトルが表示される', () => {
@@ -91,5 +97,24 @@ describe('PracticeResultSummary', () => {
 
     expect(screen.getByText('強み')).toBeInTheDocument();
     expect(screen.getByText('課題')).toBeInTheDocument();
+  });
+
+  it('scenarioIdがある場合「もう一度練習」ボタンが表示される', () => {
+    render(<PracticeResultSummary scoreCard={scoreCard} scenarioName="障害報告" scenarioId={5} />);
+
+    expect(screen.getByRole('button', { name: 'もう一度練習' })).toBeInTheDocument();
+  });
+
+  it('「もう一度練習」ボタンをクリックすると同じシナリオでセッション開始する', () => {
+    render(<PracticeResultSummary scoreCard={scoreCard} scenarioName="障害報告" scenarioId={5} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'もう一度練習' }));
+    expect(mockStartSession).toHaveBeenCalledWith({ id: 5, name: '障害報告' });
+  });
+
+  it('scenarioIdがない場合「もう一度練習」ボタンは表示されない', () => {
+    render(<PracticeResultSummary scoreCard={scoreCard} scenarioName="障害報告" />);
+
+    expect(screen.queryByRole('button', { name: 'もう一度練習' })).not.toBeInTheDocument();
   });
 });

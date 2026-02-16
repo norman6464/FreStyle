@@ -10,13 +10,32 @@ const FILTERS = ['すべて', '練習', 'フリー'] as const;
 export type FilterType = (typeof FILTERS)[number];
 export { FILTERS };
 
+const PERIOD_FILTERS = ['全期間', '1週間', '1ヶ月', '3ヶ月'] as const;
+export type PeriodFilterType = (typeof PERIOD_FILTERS)[number];
+export { PERIOD_FILTERS };
+
 function isPracticeSession(title: string): boolean {
   return title.startsWith('練習:') || title.startsWith('練習：');
+}
+
+function getPeriodCutoff(period: PeriodFilterType): Date | null {
+  const now = new Date();
+  switch (period) {
+    case '1週間':
+      return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    case '1ヶ月':
+      return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    case '3ヶ月':
+      return new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+    default:
+      return null;
+  }
 }
 
 export function useScoreHistory() {
   const [history, setHistory] = useState<ScoreHistoryItem[]>([]);
   const [filter, setFilter] = useState<FilterType>('すべて');
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilterType>('全期間');
   const [selectedSession, setSelectedSession] = useState<ScoreHistoryItem | null>(null);
   const { fetchScoreHistory, loading } = useAiChat();
 
@@ -33,12 +52,14 @@ export function useScoreHistory() {
   }, [fetchScoreHistory]);
 
   const filteredHistory = useMemo(() => {
+    const cutoff = getPeriodCutoff(periodFilter);
     return history.filter((item) => {
-      if (filter === '練習') return isPracticeSession(item.sessionTitle);
-      if (filter === 'フリー') return !isPracticeSession(item.sessionTitle);
+      if (filter === '練習' && !isPracticeSession(item.sessionTitle)) return false;
+      if (filter === 'フリー' && isPracticeSession(item.sessionTitle)) return false;
+      if (cutoff && new Date(item.createdAt) < cutoff) return false;
       return true;
     });
-  }, [history, filter]);
+  }, [history, filter, periodFilter]);
 
   const latestSession = history.length > 0 ? history[history.length - 1] : null;
 
@@ -69,6 +90,8 @@ export function useScoreHistory() {
     filteredHistoryWithDelta,
     filter,
     setFilter,
+    periodFilter,
+    setPeriodFilter,
     loading,
     latestSession,
     averageScore,

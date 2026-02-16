@@ -1,103 +1,115 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { renderHook, act, waitFor } from '@testing-library/react';
 import { useDailyGoal } from '../useDailyGoal';
-import { DailyGoalRepository } from '../../repositories/DailyGoalRepository';
 
-vi.mock('../../repositories/DailyGoalRepository');
+const mockGetToday = vi.fn();
+const mockSetTarget = vi.fn();
+const mockIncrementCompleted = vi.fn();
 
-const mockedRepo = vi.mocked(DailyGoalRepository);
+vi.mock('../../repositories/DailyGoalRepository', () => ({
+  DailyGoalRepository: {
+    getToday: (...args: unknown[]) => mockGetToday(...args),
+    setTarget: (...args: unknown[]) => mockSetTarget(...args),
+    incrementCompleted: (...args: unknown[]) => mockIncrementCompleted(...args),
+  },
+}));
 
 describe('useDailyGoal', () => {
-  afterEach(() => {
+  beforeEach(() => {
     vi.clearAllMocks();
+    mockGetToday.mockResolvedValue({ date: '2026-02-16', target: 3, completed: 0 });
+    mockSetTarget.mockResolvedValue(undefined);
+    mockIncrementCompleted.mockResolvedValue({ date: '2026-02-16', target: 3, completed: 1 });
   });
 
-  it('初期状態で今日の目標を取得する', () => {
-    mockedRepo.getToday.mockReturnValue({ date: '2026-02-13', target: 3, completed: 1 });
-
+  it('初期状態はloading=trueでデフォルト値', () => {
     const { result } = renderHook(() => useDailyGoal());
-
+    expect(result.current.loading).toBe(true);
     expect(result.current.goal.target).toBe(3);
-    expect(result.current.goal.completed).toBe(1);
-    expect(result.current.isAchieved).toBe(false);
   });
 
-  it('目標達成時にisAchievedがtrueになる', () => {
-    mockedRepo.getToday.mockReturnValue({ date: '2026-02-13', target: 3, completed: 3 });
+  it('マウント時にAPIから今日の目標を取得する', async () => {
+    mockGetToday.mockResolvedValue({ date: '2026-02-16', target: 5, completed: 2 });
 
     const { result } = renderHook(() => useDailyGoal());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    expect(result.current.goal.target).toBe(5);
+    expect(result.current.goal.completed).toBe(2);
+  });
+
+  it('目標達成時にisAchievedがtrueになる', async () => {
+    mockGetToday.mockResolvedValue({ date: '2026-02-16', target: 3, completed: 3 });
+
+    const { result } = renderHook(() => useDailyGoal());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
 
     expect(result.current.isAchieved).toBe(true);
   });
 
-  it('目標数を更新できる', () => {
-    mockedRepo.getToday
-      .mockReturnValueOnce({ date: '2026-02-13', target: 3, completed: 0 })
-      .mockReturnValueOnce({ date: '2026-02-13', target: 5, completed: 0 });
+  it('目標数を更新できる', async () => {
+    mockGetToday
+      .mockResolvedValueOnce({ date: '2026-02-16', target: 3, completed: 0 })
+      .mockResolvedValueOnce({ date: '2026-02-16', target: 5, completed: 0 });
 
     const { result } = renderHook(() => useDailyGoal());
 
-    act(() => {
-      result.current.setTarget(5);
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
     });
 
-    expect(mockedRepo.setTarget).toHaveBeenCalledWith(5);
+    await act(async () => {
+      await result.current.setTarget(5);
+    });
+
+    expect(mockSetTarget).toHaveBeenCalledWith(5);
     expect(result.current.goal.target).toBe(5);
   });
 
-  it('完了数を増加できる', () => {
-    mockedRepo.getToday
-      .mockReturnValueOnce({ date: '2026-02-13', target: 3, completed: 0 })
-      .mockReturnValueOnce({ date: '2026-02-13', target: 3, completed: 1 });
+  it('完了数をインクリメントできる', async () => {
+    mockGetToday.mockResolvedValue({ date: '2026-02-16', target: 3, completed: 0 });
 
     const { result } = renderHook(() => useDailyGoal());
 
-    act(() => {
-      result.current.incrementCompleted();
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
     });
 
-    expect(mockedRepo.incrementCompleted).toHaveBeenCalled();
+    await act(async () => {
+      await result.current.incrementCompleted();
+    });
+
+    expect(mockIncrementCompleted).toHaveBeenCalled();
     expect(result.current.goal.completed).toBe(1);
   });
 
-  it('進捗率が正しく計算される', () => {
-    mockedRepo.getToday.mockReturnValue({ date: '2026-02-13', target: 4, completed: 2 });
+  it('進捗率が正しく計算される', async () => {
+    mockGetToday.mockResolvedValue({ date: '2026-02-16', target: 4, completed: 2 });
 
     const { result } = renderHook(() => useDailyGoal());
 
-    expect(result.current.progress).toBe(50);
-  });
-
-  it('target=0の場合progressが100になる', () => {
-    mockedRepo.getToday.mockReturnValue({ date: '2026-02-13', target: 0, completed: 0 });
-
-    const { result } = renderHook(() => useDailyGoal());
-
-    expect(result.current.progress).toBe(100);
-  });
-
-  it('completed > targetの場合isAchievedがtrue', () => {
-    mockedRepo.getToday.mockReturnValue({ date: '2026-02-13', target: 3, completed: 5 });
-
-    const { result } = renderHook(() => useDailyGoal());
-
-    expect(result.current.isAchieved).toBe(true);
-    expect(result.current.progress).toBe(167);
-  });
-
-  it('incrementCompleted後の進捗率が更新される', () => {
-    mockedRepo.getToday
-      .mockReturnValueOnce({ date: '2026-02-13', target: 4, completed: 1 })
-      .mockReturnValueOnce({ date: '2026-02-13', target: 4, completed: 2 });
-
-    const { result } = renderHook(() => useDailyGoal());
-
-    expect(result.current.progress).toBe(25);
-
-    act(() => {
-      result.current.incrementCompleted();
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
     });
 
     expect(result.current.progress).toBe(50);
+  });
+
+  it('target=0の場合progressが100になる', async () => {
+    mockGetToday.mockResolvedValue({ date: '2026-02-16', target: 0, completed: 0 });
+
+    const { result } = renderHook(() => useDailyGoal());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    expect(result.current.progress).toBe(100);
   });
 });

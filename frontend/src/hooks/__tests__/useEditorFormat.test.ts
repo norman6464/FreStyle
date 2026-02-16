@@ -44,4 +44,49 @@ describe('useEditorFormat', () => {
     expect(() => act(() => result.current.handleAlign('center'))).not.toThrow();
     expect(() => act(() => result.current.handleSelectColor('#ff0000'))).not.toThrow();
   });
+
+  it('handleSelectColorで空文字を渡すとunsetColorが呼ばれる', () => {
+    const mockUnsetColor = vi.fn(() => ({ run: vi.fn() }));
+    const mockSetColor = vi.fn(() => ({ run: vi.fn() }));
+    const editor = {
+      chain: vi.fn(() => ({
+        focus: vi.fn(() => ({
+          setColor: mockSetColor,
+          unsetColor: mockUnsetColor,
+          toggleBold: vi.fn(() => ({ run: vi.fn() })),
+          toggleItalic: vi.fn(() => ({ run: vi.fn() })),
+          toggleUnderline: vi.fn(() => ({ run: vi.fn() })),
+          toggleStrike: vi.fn(() => ({ run: vi.fn() })),
+          setTextAlign: vi.fn(() => ({ run: vi.fn() })),
+        })),
+      })),
+    };
+
+    const { result } = renderHook(() => useEditorFormat(editor as never));
+    act(() => result.current.handleSelectColor(''));
+    expect(mockUnsetColor).toHaveBeenCalled();
+  });
+
+  it('追加のハンドラーがすべて定義されている', () => {
+    const editor = createMockEditor();
+    const { result } = renderHook(() => useEditorFormat(editor as never));
+
+    expect(result.current.handleHighlight).toBeDefined();
+    expect(result.current.handleSuperscript).toBeDefined();
+    expect(result.current.handleSubscript).toBeDefined();
+    expect(result.current.handleUndo).toBeDefined();
+    expect(result.current.handleRedo).toBeDefined();
+    expect(result.current.handleClearFormatting).toBeDefined();
+    expect(result.current.handleBlockquote).toBeDefined();
+    expect(result.current.handleCodeBlock).toBeDefined();
+    expect(result.current.handleBulletList).toBeDefined();
+    expect(result.current.handleOrderedList).toBeDefined();
+    expect(result.current.handleInlineCode).toBeDefined();
+    expect(result.current.handleHeading).toBeDefined();
+    expect(result.current.handleTaskList).toBeDefined();
+    expect(result.current.handleInsertTable).toBeDefined();
+    expect(result.current.handleIndent).toBeDefined();
+    expect(result.current.handleOutdent).toBeDefined();
+    expect(result.current.handleHorizontalRule).toBeDefined();
+  });
 });

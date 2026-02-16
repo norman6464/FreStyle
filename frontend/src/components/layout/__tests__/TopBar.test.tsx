@@ -1,12 +1,12 @@
-import { render, screen } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import TopBar from '../TopBar';
 
-function renderTopBar(title = 'ホーム') {
+function renderTopBar(title = 'ホーム', onMenuToggle = () => {}) {
   return render(
     <MemoryRouter>
-      <TopBar title={title} onMenuToggle={() => {}} />
+      <TopBar title={title} onMenuToggle={onMenuToggle} />
     </MemoryRouter>
   );
 }
@@ -26,5 +26,18 @@ describe('TopBar', () => {
     renderTopBar();
     const menuButton = screen.getByRole('button', { name: /メニュー/i });
     expect(menuButton).toBeDefined();
+  });
+
+  it('メニューボタンクリックでonMenuToggleが呼ばれる', () => {
+    const onMenuToggle = vi.fn();
+    renderTopBar('テスト', onMenuToggle);
+
+    fireEvent.click(screen.getByRole('button', { name: /メニュー/i }));
+    expect(onMenuToggle).toHaveBeenCalledOnce();
+  });
+
+  it('headerタグでレンダリングされる', () => {
+    renderTopBar();
+    expect(document.querySelector('header')).toBeTruthy();
   });
 });

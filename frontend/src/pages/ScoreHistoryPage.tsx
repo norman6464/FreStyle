@@ -27,7 +27,7 @@ import { useScoreHistory, FILTERS } from '../hooks/useScoreHistory';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 
 export default function ScoreHistoryPage() {
-  const { history, filteredHistory, filter, setFilter, loading, latestSession, averageScore, weakestAxis, selectedSession, setSelectedSession } = useScoreHistory();
+  const { history, filteredHistoryWithDelta, filter, setFilter, loading, latestSession, averageScore, weakestAxis, selectedSession, setSelectedSession } = useScoreHistory();
   const [scoreGoal] = useLocalStorage('scoreGoal', 8.0);
 
   if (loading) {
@@ -168,27 +168,19 @@ export default function ScoreHistoryPage() {
       <FilterTabs tabs={[...FILTERS]} selected={filter} onSelect={setFilter} />
 
       {/* フィルタサマリー */}
-      <ScoreFilterSummary scores={filteredHistory.map(h => h.overallScore)} />
+      <ScoreFilterSummary scores={filteredHistoryWithDelta.map(h => h.overallScore)} />
 
       {/* トレンドインジケーター */}
-      <ScoreTrendIndicator scores={filteredHistory.map(h => h.overallScore)} />
+      <ScoreTrendIndicator scores={filteredHistoryWithDelta.map(h => h.overallScore)} />
 
-      {filteredHistory.map((item) => {
-        const originalIndex = history.indexOf(item);
-        const prevItem = originalIndex > 0 ? history[originalIndex - 1] : null;
-        const delta = prevItem
-          ? Math.round((item.overallScore - prevItem.overallScore) * 10) / 10
-          : null;
-
-        return (
-          <ScoreHistorySessionCard
-            key={item.sessionId}
-            item={item}
-            delta={delta}
-            onClick={() => setSelectedSession(item)}
-          />
-        );
-      })}
+      {filteredHistoryWithDelta.map((item) => (
+        <ScoreHistorySessionCard
+          key={item.sessionId}
+          item={item}
+          delta={item.delta}
+          onClick={() => setSelectedSession(item)}
+        />
+      ))}
 
       {selectedSession && (
         <SessionDetailModal

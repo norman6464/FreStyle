@@ -2,6 +2,10 @@ import { useEffect, useState, useMemo } from 'react';
 import type { ScoreHistoryItem } from '../types';
 import { useAiChat } from './useAiChat';
 
+export interface ScoreHistoryItemWithDelta extends ScoreHistoryItem {
+  delta: number | null;
+}
+
 const FILTERS = ['すべて', '練習', 'フリー'] as const;
 export type FilterType = (typeof FILTERS)[number];
 export { FILTERS };
@@ -48,9 +52,21 @@ export function useScoreHistory() {
     return [...latestSession.scores].sort((a, b) => a.score - b.score)[0] ?? null;
   }, [latestSession]);
 
+  const filteredHistoryWithDelta = useMemo((): ScoreHistoryItemWithDelta[] => {
+    return filteredHistory.map((item) => {
+      const originalIndex = history.indexOf(item);
+      const prevItem = originalIndex > 0 ? history[originalIndex - 1] : null;
+      const delta = prevItem
+        ? Math.round((item.overallScore - prevItem.overallScore) * 10) / 10
+        : null;
+      return { ...item, delta };
+    });
+  }, [filteredHistory, history]);
+
   return {
     history,
     filteredHistory,
+    filteredHistoryWithDelta,
     filter,
     setFilter,
     loading,

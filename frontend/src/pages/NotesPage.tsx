@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import SecondaryPanel from '../components/layout/SecondaryPanel';
 import NoteListItem from '../components/NoteListItem';
 import NoteEditor from '../components/NoteEditor';
@@ -16,22 +16,24 @@ export default function NotesPage() {
     notes,
     filteredNotes,
     selectedNoteId,
+    selectedNote,
     loading,
     searchQuery,
     setSearchQuery,
     fetchNotes,
     createNote,
     updateNote,
-    deleteNote,
     selectNote,
     togglePin,
+    deleteTargetId,
+    requestDelete,
+    confirmDelete,
+    cancelDelete,
   } = useNotes();
 
   useEffect(() => {
     fetchNotes();
   }, [fetchNotes]);
-
-  const selectedNote = notes.find((n) => n.noteId === selectedNoteId) || null;
 
   const { editTitle, editContent, handleTitleChange, handleContentChange } =
     useNoteEditor(selectedNoteId, selectedNote, updateNote);
@@ -44,19 +46,6 @@ export default function NotesPage() {
   const handleSelectNote = (noteId: string) => {
     selectNote(noteId);
     closeMobilePanel();
-  };
-
-  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
-
-  const handleDeleteNote = (noteId: string) => {
-    setDeleteTargetId(noteId);
-  };
-
-  const confirmDelete = async () => {
-    if (deleteTargetId) {
-      await deleteNote(deleteTargetId);
-      setDeleteTargetId(null);
-    }
   };
 
   return (
@@ -106,7 +95,7 @@ export default function NotesPage() {
                 isPinned={note.isPinned}
                 isActive={selectedNoteId === note.noteId}
                 onSelect={handleSelectNote}
-                onDelete={handleDeleteNote}
+                onDelete={requestDelete}
                 onTogglePin={togglePin}
               />
             ))
@@ -149,7 +138,7 @@ export default function NotesPage() {
         isOpen={deleteTargetId !== null}
         message="このノートを削除しますか？"
         onConfirm={confirmDelete}
-        onCancel={() => setDeleteTargetId(null)}
+        onCancel={cancelDelete}
       />
     </div>
   );

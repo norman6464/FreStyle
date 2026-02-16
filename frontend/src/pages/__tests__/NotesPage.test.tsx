@@ -12,9 +12,10 @@ vi.mock('../../hooks/useToast', () => ({
 }));
 
 const mockUseNotes = {
-  notes: [],
-  filteredNotes: [],
-  selectedNoteId: null,
+  notes: [] as any[],
+  filteredNotes: [] as any[],
+  selectedNoteId: null as string | null,
+  selectedNote: null as any,
   loading: false,
   searchQuery: '',
   setSearchQuery: vi.fn(),
@@ -24,6 +25,10 @@ const mockUseNotes = {
   deleteNote: vi.fn(),
   selectNote: vi.fn(),
   togglePin: vi.fn(),
+  deleteTargetId: null as string | null,
+  requestDelete: vi.fn(),
+  confirmDelete: vi.fn(),
+  cancelDelete: vi.fn(),
 };
 
 describe('NotesPage', () => {
@@ -74,12 +79,12 @@ describe('NotesPage', () => {
   });
 
   it('ノート選択時にエディタが表示される', () => {
+    const note = { noteId: 'n1', userId: 1, title: '選択ノート', content: '選択内容', isPinned: false, createdAt: 1000, updatedAt: 2000 };
     vi.mocked(useNotes).mockReturnValue({
       ...mockUseNotes,
-      notes: [
-        { noteId: 'n1', userId: 1, title: '選択ノート', content: '選択内容', isPinned: false, createdAt: 1000, updatedAt: 2000 },
-      ],
+      notes: [note],
       selectedNoteId: 'n1',
+      selectedNote: note,
     });
     render(<NotesPage />);
     expect(screen.getByDisplayValue('選択ノート')).toBeInTheDocument();
@@ -99,12 +104,12 @@ describe('NotesPage', () => {
   });
 
   it('タイトル変更で自動保存が800ms後に呼ばれる', async () => {
+    const note = { noteId: 'n1', userId: 1, title: '元タイトル', content: '', isPinned: false, createdAt: 1000, updatedAt: 2000 };
     vi.mocked(useNotes).mockReturnValue({
       ...mockUseNotes,
-      notes: [
-        { noteId: 'n1', userId: 1, title: '元タイトル', content: '', isPinned: false, createdAt: 1000, updatedAt: 2000 },
-      ],
+      notes: [note],
       selectedNoteId: 'n1',
+      selectedNote: note,
     });
     render(<NotesPage />);
 
@@ -124,12 +129,12 @@ describe('NotesPage', () => {
   });
 
   it('タイトル変更でデバウンス後にupdateNoteが呼ばれる', async () => {
+    const note = { noteId: 'n1', userId: 1, title: 'タイトル', content: '', isPinned: false, createdAt: 1000, updatedAt: 2000 };
     vi.mocked(useNotes).mockReturnValue({
       ...mockUseNotes,
-      notes: [
-        { noteId: 'n1', userId: 1, title: 'タイトル', content: '', isPinned: false, createdAt: 1000, updatedAt: 2000 },
-      ],
+      notes: [note],
       selectedNoteId: 'n1',
+      selectedNote: note,
     });
     render(<NotesPage />);
 
@@ -196,7 +201,7 @@ describe('NotesPage', () => {
     expect(mockUseNotes.togglePin).toHaveBeenCalledWith('n1');
   });
 
-  it('ノート削除時に確認ダイアログが表示される', () => {
+  it('削除ボタンクリックでrequestDeleteが呼ばれる', () => {
     const noteList = [
       { noteId: 'n1', userId: 1, title: '削除テスト', content: '内容', isPinned: false, createdAt: 1000, updatedAt: 2000 },
     ];
@@ -208,11 +213,10 @@ describe('NotesPage', () => {
     render(<NotesPage />);
     const deleteButtons = screen.getAllByLabelText('ノートを削除');
     fireEvent.click(deleteButtons[0]);
-    expect(screen.getByText('このノートを削除しますか？')).toBeInTheDocument();
-    expect(mockUseNotes.deleteNote).not.toHaveBeenCalled();
+    expect(mockUseNotes.requestDelete).toHaveBeenCalledWith('n1');
   });
 
-  it('確認ダイアログで削除を実行するとdeleteNoteが呼ばれる', async () => {
+  it('deleteTargetIdがセットされると確認ダイアログが表示される', () => {
     const noteList = [
       { noteId: 'n1', userId: 1, title: '削除テスト', content: '内容', isPinned: false, createdAt: 1000, updatedAt: 2000 },
     ];
@@ -220,17 +224,30 @@ describe('NotesPage', () => {
       ...mockUseNotes,
       notes: noteList,
       filteredNotes: noteList,
+      deleteTargetId: 'n1',
     });
     render(<NotesPage />);
-    const deleteButtons = screen.getAllByLabelText('ノートを削除');
-    fireEvent.click(deleteButtons[0]);
+    expect(screen.getByText('このノートを削除しますか？')).toBeInTheDocument();
+  });
+
+  it('確認ダイアログで削除を実行するとconfirmDeleteが呼ばれる', async () => {
+    const noteList = [
+      { noteId: 'n1', userId: 1, title: '削除テスト', content: '内容', isPinned: false, createdAt: 1000, updatedAt: 2000 },
+    ];
+    vi.mocked(useNotes).mockReturnValue({
+      ...mockUseNotes,
+      notes: noteList,
+      filteredNotes: noteList,
+      deleteTargetId: 'n1',
+    });
+    render(<NotesPage />);
     await act(async () => {
       fireEvent.click(screen.getByText('削除'));
     });
-    expect(mockUseNotes.deleteNote).toHaveBeenCalledWith('n1');
+    expect(mockUseNotes.confirmDelete).toHaveBeenCalled();
   });
 
-  it('確認ダイアログでキャンセルするとdeleteNoteが呼ばれない', () => {
+  it('確認ダイアログでキャンセルするとcancelDeleteが呼ばれる', () => {
     const noteList = [
       { noteId: 'n1', userId: 1, title: '削除テスト', content: '内容', isPinned: false, createdAt: 1000, updatedAt: 2000 },
     ];
@@ -238,32 +255,28 @@ describe('NotesPage', () => {
       ...mockUseNotes,
       notes: noteList,
       filteredNotes: noteList,
+      deleteTargetId: 'n1',
     });
     render(<NotesPage />);
-    const deleteButtons = screen.getAllByLabelText('ノートを削除');
-    fireEvent.click(deleteButtons[0]);
     fireEvent.click(screen.getByText('キャンセル'));
-    expect(mockUseNotes.deleteNote).not.toHaveBeenCalled();
+    expect(mockUseNotes.cancelDelete).toHaveBeenCalled();
   });
 
-  it('削除確認ダイアログのキャンセル後にダイアログが閉じる', () => {
+  it('deleteTargetIdがnullのとき確認ダイアログが非表示', () => {
     const noteList = [
-      { noteId: 'n1', userId: 1, title: '削除テスト', content: '内容', isPinned: false, createdAt: 1000, updatedAt: 2000 },
+      { noteId: 'n1', userId: 1, title: 'テスト', content: '内容', isPinned: false, createdAt: 1000, updatedAt: 2000 },
     ];
     vi.mocked(useNotes).mockReturnValue({
       ...mockUseNotes,
       notes: noteList,
       filteredNotes: noteList,
+      deleteTargetId: null,
     });
     render(<NotesPage />);
-    const deleteButtons = screen.getAllByLabelText('ノートを削除');
-    fireEvent.click(deleteButtons[0]);
-    expect(screen.getByText('このノートを削除しますか？')).toBeInTheDocument();
-    fireEvent.click(screen.getByText('キャンセル'));
     expect(screen.queryByText('このノートを削除しますか？')).not.toBeInTheDocument();
   });
 
-  it('複数ノートがある場合、正しいノートが削除される', async () => {
+  it('複数ノートがある場合、正しいノートのrequestDeleteが呼ばれる', () => {
     const noteList = [
       { noteId: 'n1', userId: 1, title: 'ノート1', content: '内容1', isPinned: false, createdAt: 1000, updatedAt: 2000 },
       { noteId: 'n2', userId: 1, title: 'ノート2', content: '内容2', isPinned: false, createdAt: 1500, updatedAt: 3000 },
@@ -276,25 +289,6 @@ describe('NotesPage', () => {
     render(<NotesPage />);
     const deleteButtons = screen.getAllByLabelText('ノートを削除');
     fireEvent.click(deleteButtons[1]);
-    await act(async () => {
-      fireEvent.click(screen.getByText('削除'));
-    });
-    expect(mockUseNotes.deleteNote).toHaveBeenCalledWith('n2');
-  });
-
-  it('削除ボタンを押してもdeleteNoteが直接呼ばれない（確認が必要）', () => {
-    const noteList = [
-      { noteId: 'n1', userId: 1, title: 'テスト', content: '内容', isPinned: false, createdAt: 1000, updatedAt: 2000 },
-    ];
-    vi.mocked(useNotes).mockReturnValue({
-      ...mockUseNotes,
-      notes: noteList,
-      filteredNotes: noteList,
-    });
-    render(<NotesPage />);
-    const deleteButtons = screen.getAllByLabelText('ノートを削除');
-    fireEvent.click(deleteButtons[0]);
-    expect(mockUseNotes.deleteNote).not.toHaveBeenCalled();
-    expect(screen.getByText('このノートを削除しますか？')).toBeInTheDocument();
+    expect(mockUseNotes.requestDelete).toHaveBeenCalledWith('n2');
   });
 });

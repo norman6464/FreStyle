@@ -248,6 +248,54 @@ describe('useScoreHistory', () => {
     expect(result.current.averageScore).toBe(0);
   });
 
+  it('filteredHistoryWithDeltaがデルタ値を含む', async () => {
+    const mockData = [
+      { sessionId: 1, sessionTitle: 'テスト1', overallScore: 7.0, scores: [], createdAt: '2026-02-10' },
+      { sessionId: 2, sessionTitle: 'テスト2', overallScore: 8.5, scores: [], createdAt: '2026-02-11' },
+      { sessionId: 3, sessionTitle: 'テスト3', overallScore: 6.0, scores: [], createdAt: '2026-02-12' },
+    ];
+    mockFetchScoreHistory.mockResolvedValue(mockData);
+
+    const { result } = renderHook(() => useScoreHistory());
+
+    await waitFor(() => {
+      expect(result.current.filteredHistoryWithDelta).toHaveLength(3);
+    });
+
+    // 最初のアイテムはデルタがnull
+    expect(result.current.filteredHistoryWithDelta[0].delta).toBeNull();
+    // 2番目: 8.5 - 7.0 = 1.5
+    expect(result.current.filteredHistoryWithDelta[1].delta).toBe(1.5);
+    // 3番目: 6.0 - 8.5 = -2.5
+    expect(result.current.filteredHistoryWithDelta[2].delta).toBe(-2.5);
+  });
+
+  it('filteredHistoryWithDeltaがフィルタ適用時もオリジナルインデックスでデルタを計算する', async () => {
+    const mockData = [
+      { sessionId: 1, sessionTitle: '練習: A', overallScore: 5.0, scores: [], createdAt: '2026-02-10' },
+      { sessionId: 2, sessionTitle: 'フリー', overallScore: 7.0, scores: [], createdAt: '2026-02-11' },
+      { sessionId: 3, sessionTitle: '練習: B', overallScore: 9.0, scores: [], createdAt: '2026-02-12' },
+    ];
+    mockFetchScoreHistory.mockResolvedValue(mockData);
+
+    const { result } = renderHook(() => useScoreHistory());
+
+    await waitFor(() => {
+      expect(result.current.history).toHaveLength(3);
+    });
+
+    act(() => {
+      result.current.setFilter('練習');
+    });
+
+    // 練習フィルタ: セッション1(5.0)とセッション3(9.0)
+    expect(result.current.filteredHistoryWithDelta).toHaveLength(2);
+    // セッション1は最初なのでデルタnull
+    expect(result.current.filteredHistoryWithDelta[0].delta).toBeNull();
+    // セッション3: 9.0 - 7.0(前のセッション2) = 2.0 (オリジナルインデックスで計算)
+    expect(result.current.filteredHistoryWithDelta[1].delta).toBe(2.0);
+  });
+
   it('最新セッションのスコアが空の場合にweakestAxisがnullになる', async () => {
     const mockData = [
       { sessionId: 1, sessionTitle: 'テスト', overallScore: 7.0, scores: [], createdAt: '2026-02-10' },

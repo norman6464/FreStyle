@@ -49,15 +49,11 @@ public class ProfileController {
     }
 
     @PostMapping("/me/image/presigned-url")
-    public ResponseEntity<?> getProfileImagePresignedUrl(
+    public ResponseEntity<PresignedUrlResponse> getProfileImagePresignedUrl(
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody PresignedUrlRequest request) {
-        try {
-            PresignedUrlResponse response = generateProfileImageUrlUseCase.execute(
-                    jwt.getSubject(), request.fileName(), request.contentType());
-            return ResponseEntity.ok(response);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        }
+        PresignedUrlResponse response = generateProfileImageUrlUseCase.execute(
+                jwt.getSubject(), request.fileName(), request.contentType());
+        return ResponseEntity.ok(response);
     }
 }

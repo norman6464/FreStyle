@@ -15,6 +15,7 @@ import java.util.UUID;
 @Service
 public class ProfileImageService {
 
+    // SVGはXSSリスクがあるためプロフィール画像では除外（NoteImageServiceでは許可）
     private static final Set<String> ALLOWED_CONTENT_TYPES = Set.of(
             "image/png", "image/jpeg", "image/gif", "image/webp"
     );

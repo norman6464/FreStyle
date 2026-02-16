@@ -46,6 +46,7 @@ export function useProfileEdit() {
   return {
     form,
     message,
+    setMessage,
     loading,
     submitting,
     updateField,

@@ -10,7 +10,7 @@ import { useProfileImageUpload } from '../hooks/useProfileImageUpload';
 import { CameraIcon } from '@heroicons/react/24/outline';
 
 export default function ProfilePage() {
-  const { form, message, loading, submitting, updateField, handleUpdate } = useProfileEdit();
+  const { form, message, setMessage, loading, submitting, updateField, handleUpdate } = useProfileEdit();
   const { upload, uploading } = useProfileImageUpload();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -21,6 +21,8 @@ export default function ProfilePage() {
     const imageUrl = await upload(file);
     if (imageUrl) {
       updateField('iconUrl', imageUrl);
+    } else {
+      setMessage({ type: 'error', text: '画像のアップロードに失敗しました。' });
     }
 
     // 同じファイルを再選択可能にする

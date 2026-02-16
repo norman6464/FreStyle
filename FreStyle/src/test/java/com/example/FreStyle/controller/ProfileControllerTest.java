@@ -135,24 +135,23 @@ class ProfileControllerTest {
             when(generateProfileImageUrlUseCase.execute("sub-123", "avatar.png", "image/png"))
                     .thenReturn(expected);
 
-            ResponseEntity<?> response = profileController.getProfileImagePresignedUrl(jwt, request);
+            ResponseEntity<PresignedUrlResponse> response = profileController.getProfileImagePresignedUrl(jwt, request);
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
             assertThat(response.getBody()).isEqualTo(expected);
         }
 
         @Test
-        @DisplayName("不正なcontentTypeで400エラーが返る")
-        void returnsBadRequestForInvalidContentType() {
+        @DisplayName("不正なcontentTypeでIllegalArgumentExceptionが伝搬する")
+        void throwsForInvalidContentType() {
             Jwt jwt = mock(Jwt.class);
             when(jwt.getSubject()).thenReturn("sub-123");
             PresignedUrlRequest request = new PresignedUrlRequest("file.exe", "application/octet-stream");
             when(generateProfileImageUrlUseCase.execute("sub-123", "file.exe", "application/octet-stream"))
                     .thenThrow(new IllegalArgumentException("許可されていないファイル形式です"));
 
-            ResponseEntity<?> response = profileController.getProfileImagePresignedUrl(jwt, request);
-
-            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+            assertThrows(IllegalArgumentException.class,
+                    () -> profileController.getProfileImagePresignedUrl(jwt, request));
         }
     }
 }

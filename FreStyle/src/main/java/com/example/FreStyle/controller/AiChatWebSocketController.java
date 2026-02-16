@@ -140,64 +140,7 @@ public class AiChatWebSocketController {
             log.info("✅ ユーザーメッセージ WebSocket 送信完了");
 
             // Bedrockにメッセージを送信してAI応答を取得
-            String aiReply;
-            if (isPracticeMode && scenarioId != null) {
-                // 練習モード: シナリオに基づいたロールプレイ
-                log.info("🎭 練習モード: scenarioId={}", scenarioId);
-                PracticeScenarioDto scenario = getPracticeScenarioByIdUseCase.execute(scenarioId);
-                String practicePrompt = systemPromptBuilder.buildPracticePrompt(
-                        scenario.getName(), scenario.getRoleName(),
-                        scenario.getDifficulty(), scenario.getSystemPrompt());
-
-                // 「練習開始」の場合は、AIにシナリオの導入メッセージを生成させる
-                if ("練習開始".equals(content)) {
-                    String startPrompt = practicePrompt +
-                        "\n\nこれから練習が始まります。あなたは相手役として、シナリオに基づいた最初の発言をしてください。" +
-                        "ユーザーに対して、シナリオの状況を反映した自然な会話で話しかけてください。";
-                    aiReply = bedrockService.chatInPracticeMode("", startPrompt);
-                } else {
-                    aiReply = bedrockService.chatInPracticeMode(content, practicePrompt);
-                }
-            } else if (fromChatFeedback) {
-                // チャットフィードバックモード: バックエンドでUserProfileを取得
-                log.info("🤖 フィードバックモード: UserProfileをバックエンドで取得中... scene={}", scene);
-                UserProfileDto userProfile = userProfileService.getProfileByUserId(userId);
-
-                if (userProfile != null) {
-                    log.info("✅ UserProfile取得成功");
-                    log.debug("   - UserProfile情報:");
-                    log.info("     - displayName: {}", userProfile.getDisplayName());
-                    log.info("     - goals: {}", userProfile.getGoals());
-                    log.info("     - concerns: {}", userProfile.getConcerns());
-                    log.info("     - preferredFeedbackStyle: {}", userProfile.getPreferredFeedbackStyle());
-
-                    String personalityTraits = userProfile.getPersonalityTraits() != null
-                        ? String.join(", ", userProfile.getPersonalityTraits())
-                        : null;
-
-                    aiReply = bedrockService.chatWithUserProfileAndScene(
-                        content,
-                        scene,
-                        userProfile.getDisplayName(),
-                        userProfile.getSelfIntroduction(),
-                        userProfile.getCommunicationStyle(),
-                        personalityTraits,
-                        userProfile.getGoals(),
-                        userProfile.getConcerns(),
-                        userProfile.getPreferredFeedbackStyle()
-                    );
-                } else {
-                    // UserProfileが存在しない場合は通常モードで処理
-                    log.warn("⚠️ UserProfileが見つかりません。通常モードで処理します。");
-                    aiReply = bedrockService.chat(content);
-                }
-            } else {
-                // 通常モード
-                log.info("🤖 Bedrock にメッセージを送信中...");
-                aiReply = bedrockService.chat(content);
-            }
-            log.info("✅ Bedrock から応答を取得しました");
-            log.debug("   - AI Reply: {}", aiReply.length() > 100 ? aiReply.substring(0, 100) + "..." : aiReply);
+            String aiReply = getAiReply(content, isPracticeMode, scenarioId, fromChatFeedback, scene, userId);
 
             // AI応答をデータベースに保存（role: assistant）
             log.info("💾 AI応答をデータベースに保存中...");
@@ -214,34 +157,8 @@ public class AiChatWebSocketController {
             );
             log.info("✅ AI応答 WebSocket 送信完了");
 
-            // フィードバックモードの場合、AI応答からスコアを抽出・保存・通知
-            if (fromChatFeedback) {
-                ScoreCardDto scoreCard = saveScoreCardUseCase.execute(sessionId, userId, aiReply, scene);
-                if (scoreCard != null) {
-                    messagingTemplate.convertAndSend(
-                            "/topic/ai-chat/user/" + userId + "/scorecard",
-                            scoreCard
-                    );
-                    log.info("✅ スコアカード送信完了 - 総合スコア: {}", scoreCard.getOverallScore());
-                } else {
-                    log.warn("⚠️ AI応答からスコアを抽出できませんでした");
-                }
-            }
-
-            // 練習モードで「練習終了」の場合、スコアを抽出・保存・通知
-            if (isPracticeMode && aiReply.contains("練習終了")) {
-                log.info("🎓 練習終了を検知 - スコア抽出中...");
-                ScoreCardDto scoreCard = saveScoreCardUseCase.execute(sessionId, userId, aiReply, null);
-                if (scoreCard != null) {
-                    messagingTemplate.convertAndSend(
-                            "/topic/ai-chat/user/" + userId + "/scorecard",
-                            scoreCard
-                    );
-                    log.info("✅ 練習スコアカード送信完了 - 総合スコア: {}", scoreCard.getOverallScore());
-                } else {
-                    log.warn("⚠️ 練習AI応答からスコアを抽出できませんでした");
-                }
-            }
+            // スコア抽出・保存・通知
+            notifyScoreCardIfNeeded(sessionId, userId, aiReply, scene, fromChatFeedback, isPracticeMode);
 
             log.info("========== /ai-chat/send 処理完了 ==========\n");
 
@@ -344,6 +261,83 @@ public class AiChatWebSocketController {
 
         } catch (Exception e) {
             log.error("セッション削除エラー: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * AI応答を取得（モードに応じて適切なBedrockメソッドを呼び出す）
+     */
+    private String getAiReply(String content, boolean isPracticeMode, Integer scenarioId,
+                              boolean fromChatFeedback, String scene, Integer userId) {
+        if (isPracticeMode && scenarioId != null) {
+            log.info("🎭 練習モード: scenarioId={}", scenarioId);
+            PracticeScenarioDto scenario = getPracticeScenarioByIdUseCase.execute(scenarioId);
+            String practicePrompt = systemPromptBuilder.buildPracticePrompt(
+                    scenario.getName(), scenario.getRoleName(),
+                    scenario.getDifficulty(), scenario.getSystemPrompt());
+
+            if ("練習開始".equals(content)) {
+                String startPrompt = practicePrompt +
+                    "\n\nこれから練習が始まります。あなたは相手役として、シナリオに基づいた最初の発言をしてください。" +
+                    "ユーザーに対して、シナリオの状況を反映した自然な会話で話しかけてください。";
+                return bedrockService.chatInPracticeMode("", startPrompt);
+            }
+            return bedrockService.chatInPracticeMode(content, practicePrompt);
+        }
+
+        if (fromChatFeedback) {
+            log.info("🤖 フィードバックモード: UserProfileをバックエンドで取得中... scene={}", scene);
+            UserProfileDto userProfile = userProfileService.getProfileByUserId(userId);
+
+            if (userProfile != null) {
+                log.info("✅ UserProfile取得成功");
+                String personalityTraits = userProfile.getPersonalityTraits() != null
+                    ? String.join(", ", userProfile.getPersonalityTraits())
+                    : null;
+
+                return bedrockService.chatWithUserProfileAndScene(
+                    content, scene,
+                    userProfile.getDisplayName(),
+                    userProfile.getSelfIntroduction(),
+                    userProfile.getCommunicationStyle(),
+                    personalityTraits,
+                    userProfile.getGoals(),
+                    userProfile.getConcerns(),
+                    userProfile.getPreferredFeedbackStyle()
+                );
+            }
+            log.warn("⚠️ UserProfileが見つかりません。通常モードで処理します。");
+        }
+
+        log.info("🤖 Bedrock にメッセージを送信中...");
+        return bedrockService.chat(content);
+    }
+
+    /**
+     * スコアカードを抽出・保存し、WebSocketで通知する
+     */
+    private void notifyScoreCardIfNeeded(Integer sessionId, Integer userId, String aiReply,
+                                         String scene, boolean fromChatFeedback, boolean isPracticeMode) {
+        if (fromChatFeedback) {
+            sendScoreCard(sessionId, userId, aiReply, scene, "スコアカード");
+        }
+        if (isPracticeMode && aiReply.contains("練習終了")) {
+            log.info("🎓 練習終了を検知 - スコア抽出中...");
+            sendScoreCard(sessionId, userId, aiReply, null, "練習スコアカード");
+        }
+    }
+
+    private void sendScoreCard(Integer sessionId, Integer userId, String aiReply,
+                               String scene, String logLabel) {
+        ScoreCardDto scoreCard = saveScoreCardUseCase.execute(sessionId, userId, aiReply, scene);
+        if (scoreCard != null) {
+            messagingTemplate.convertAndSend(
+                    "/topic/ai-chat/user/" + userId + "/scorecard",
+                    scoreCard
+            );
+            log.info("✅ {}送信完了 - 総合スコア: {}", logLabel, scoreCard.getOverallScore());
+        } else {
+            log.warn("⚠️ AI応答からスコアを抽出できませんでした");
         }
     }
 

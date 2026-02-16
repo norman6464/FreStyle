@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
 import SkipLink from '../SkipLink';
 import ScrollToTop from '../ScrollToTop';
+import CommandPalette from '../CommandPalette';
 
 const pageTitles: Record<string, string> = {
   '/': 'ホーム',
@@ -29,8 +30,21 @@ function getPageTitle(pathname: string): string {
 
 export default function AppShell() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const location = useLocation();
   const title = getPageTitle(location.pathname);
+
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      e.preventDefault();
+      setCommandPaletteOpen(prev => !prev);
+    }
+  }, []);
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
 
   return (
     <div className="h-screen flex bg-surface">
@@ -68,6 +82,10 @@ export default function AppShell() {
         </main>
         <ScrollToTop targetId="main-content" />
       </div>
+      <CommandPalette
+        isOpen={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+      />
     </div>
   );
 }

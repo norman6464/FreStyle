@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { PencilSquareIcon, TrashIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { formatDate } from '../utils/formatters';
 
@@ -16,7 +17,7 @@ interface AiSessionListItemProps {
   onEditingTitleChange: (title: string) => void;
 }
 
-export default function AiSessionListItem({
+export default memo(function AiSessionListItem({
   id,
   title,
   createdAt,
@@ -96,4 +97,4 @@ export default function AiSessionListItem({
       )}
     </div>
   );
-}
+});

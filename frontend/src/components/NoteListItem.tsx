@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { TrashIcon } from '@heroicons/react/24/outline';
 import { MapPinIcon as MapPinOutline } from '@heroicons/react/24/outline';
 import { MapPinIcon as MapPinSolid } from '@heroicons/react/24/solid';
@@ -16,7 +17,7 @@ interface NoteListItemProps {
   onTogglePin: (noteId: string) => void;
 }
 
-export default function NoteListItem({
+export default memo(function NoteListItem({
   noteId,
   title,
   content,
@@ -91,4 +92,4 @@ export default function NoteListItem({
       </div>
     </div>
   );
-}
+});

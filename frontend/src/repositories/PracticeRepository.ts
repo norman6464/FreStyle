@@ -24,6 +24,12 @@ export interface PracticeScenario {
   systemPrompt: string;
 }
 
+export interface PracticeSession {
+  id: number;
+  title?: string;
+  scenarioId?: number;
+}
+
 export interface CreatePracticeSessionRequest {
   scenarioId: number;
 }
@@ -48,7 +54,7 @@ class PracticeRepository {
   /**
    * 練習セッションを作成
    */
-  async createPracticeSession(request: CreatePracticeSessionRequest): Promise<any> {
+  async createPracticeSession(request: CreatePracticeSessionRequest): Promise<PracticeSession> {
     const response = await apiClient.post('/api/practice/sessions', request);
     return response.data;
   }

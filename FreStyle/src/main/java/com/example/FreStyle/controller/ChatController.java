@@ -64,7 +64,7 @@ public class ChatController {
     Map<String, List<UserDto>> responseData = new HashMap<>();
 
     for (UserDto user : users) {
-      log.info("User_id" + user.getId() + "User_Email" + user.getEmail() + "User_name" + user.getName());
+      log.info("User_id: {}, User_Email: {}, User_name: {}", user.getId(), user.getEmail(), user.getName());
     }
     responseData.put("users", users);
     return ResponseEntity.ok().body(responseData);
@@ -74,11 +74,11 @@ public class ChatController {
   public ResponseEntity<?> create(@AuthenticationPrincipal Jwt jwt, @PathVariable(name = "id") Integer id) {
     
     log.info("\n========== ルーム作成リクエスト開始 ==========");
-    log.info("📌 リクエストPathVariable id: " + id);
-    log.info("📌 JWT null判定: " + (jwt == null ? "NULL" : "存在"));
-    
+    log.info("📌 リクエストPathVariable id: {}", id);
+    log.info("📌 JWT null判定: {}", jwt == null ? "NULL" : "存在");
+
     String cognitoSub = jwt.getSubject();
-    log.info("📌 cognitoSub (Cognito User ID): " + cognitoSub);
+    log.info("📌 cognitoSub (Cognito User ID): {}", cognitoSub);
     
     if (cognitoSub == null || cognitoSub.isEmpty()) {
       log.error("❌ cognitoSubがnullまたは空です");
@@ -90,17 +90,17 @@ public class ChatController {
       log.info("🔍 userIdentityService.findUserBySub() 実行中...");
       User myUser = userIdentityService.findUserBySub(cognitoSub);
       log.info("✅ 現在のユーザー取得成功");
-      log.debug("   - myUser.getId(): " + myUser.getId());
-      log.debug("   - myUser.getName(): " + myUser.getName());
-      log.debug("   - myUser.getEmail(): " + myUser.getEmail());
-      
+      log.debug("   - myUser.getId(): {}", myUser.getId());
+      log.debug("   - myUser.getName(): {}", myUser.getName());
+      log.debug("   - myUser.getEmail(): {}", myUser.getEmail());
+
       log.info("🔍 chatService.createOrGetRoom() 実行中...");
-      log.debug("   - myUser.getId(): " + myUser.getId() + " (ログイン中のユーザーID)");
-      log.debug("   - id (相手ユーザーID): " + id);
+      log.debug("   - myUser.getId(): {} (ログイン中のユーザーID)", myUser.getId());
+      log.debug("   - id (相手ユーザーID): {}", id);
       Integer roomId = chatService.createOrGetRoom(myUser.getId(), id);
       
       log.info("✅ ルーム作成/取得成功");
-      log.debug("   - roomId: " + roomId);
+      log.debug("   - roomId: {}", roomId);
       log.info("========== ルーム作成リクエスト終了(OK) ==========\n");
       return ResponseEntity.ok(Map.of(
             "roomId", roomId,
@@ -133,11 +133,11 @@ public class ChatController {
       
       // すでにroom_idが取得されている状態なのでchatRoomServiceからChatRoomオブジェクトを取得をする
       ChatRoom chatRoom = chatRoomService.findChatRoomById(roomId);
-      log.info("chatRoom found: " + chatRoom.getId());
+      log.info("chatRoom found: {}", chatRoom.getId());
       
       // 履歴の取得 - 現在のユーザーIDを渡す
       List<ChatMessageDto> history = chatMessageService.getMessagesByRoom(chatRoom, myUserId);
-      log.info("history count: " + history.size());
+      log.info("history count: {}", history.size());
       
       return ResponseEntity.ok(history);
       
@@ -213,7 +213,7 @@ public class ChatController {
       @RequestParam(name = "query", required = false) String query) {
     
     log.info("\n========== GET /api/chat/rooms ==========");
-    log.info("📌 query: " + query);
+    log.info("📌 query: {}", query);
     
     if (jwt == null) {
       log.error("❌ 認証エラー: JWTがnull");
@@ -231,10 +231,10 @@ public class ChatController {
     
     try {
       User myUser = userIdentityService.findUserBySub(cognitoSub);
-      log.info("✅ ユーザー取得成功 - ID: " + myUser.getId() + ", Name: " + myUser.getName());
+      log.info("✅ ユーザー取得成功 - ID: {}, Name: {}", myUser.getId(), myUser.getName());
       
       List<ChatUserDto> chatUsers = chatService.findChatUsers(myUser.getId(), query);
-      log.info("✅ チャットユーザー取得成功 - 件数: " + chatUsers.size());
+      log.info("✅ チャットユーザー取得成功 - 件数: {}", chatUsers.size());
       
       Map<String, Object> response = new HashMap<>();
       response.put("chatUsers", chatUsers);

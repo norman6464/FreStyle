@@ -49,7 +49,7 @@ public class AiChatWebSocketController {
     @MessageMapping("/ai-chat/send")
     public void sendMessage(@Payload Map<String, Object> payload) {
         log.info("\n========== WebSocket /ai-chat/send リクエスト受信 ==========");
-        log.info("📨 ペイロード全体: " + payload);
+        log.info("📨 ペイロード全体: {}", payload);
 
         try {
             // パラメータの取得と検証
@@ -63,14 +63,14 @@ public class AiChatWebSocketController {
             Object sessionTypeObj = payload.get("sessionType"); // セッション種別（normal, practice）
             Object scenarioIdObj = payload.get("scenarioId"); // 練習シナリオID
 
-            log.debug("   - userId タイプ: " + (userIdObj != null ? userIdObj.getClass().getSimpleName() : "null"));
-            log.debug("   - userId 値: " + userIdObj);
-            log.debug("   - sessionId タイプ: " + (sessionIdObj != null ? sessionIdObj.getClass().getSimpleName() : "null"));
-            log.debug("   - sessionId 値: " + sessionIdObj);
-            log.debug("   - content: " + contentObj);
-            log.debug("   - role: " + roleObj);
-            log.debug("   - fromChatFeedback: " + fromChatFeedbackObj);
-            log.debug("   - scene: " + sceneObj);
+            log.debug("   - userId タイプ: {}", userIdObj != null ? userIdObj.getClass().getSimpleName() : "null");
+            log.debug("   - userId 値: {}", userIdObj);
+            log.debug("   - sessionId タイプ: {}", sessionIdObj != null ? sessionIdObj.getClass().getSimpleName() : "null");
+            log.debug("   - sessionId 値: {}", sessionIdObj);
+            log.debug("   - content: {}", contentObj);
+            log.debug("   - role: {}", roleObj);
+            log.debug("   - fromChatFeedback: {}", fromChatFeedbackObj);
+            log.debug("   - scene: {}", sceneObj);
 
             // userId の変換
             Integer userId = convertToInteger(userIdObj);
@@ -96,12 +96,12 @@ public class AiChatWebSocketController {
             boolean isPracticeMode = "practice".equals(sessionType);
 
             log.info("✅ パラメータ抽出成功");
-            log.debug("   - userId (最終): " + userId);
-            log.debug("   - sessionId (最終): " + sessionId);
-            log.debug("   - content: " + content);
-            log.debug("   - role: " + role);
-            log.debug("   - fromChatFeedback (最終): " + fromChatFeedback);
-            log.debug("   - scene (最終): " + scene);
+            log.debug("   - userId (最終): {}", userId);
+            log.debug("   - sessionId (最終): {}", sessionId);
+            log.debug("   - content: {}", content);
+            log.debug("   - role: {}", role);
+            log.debug("   - fromChatFeedback (最終): {}", fromChatFeedback);
+            log.debug("   - scene (最終): {}", scene);
 
             // セッションが存在しない場合は新規作成
             if (sessionId == null) {
@@ -114,7 +114,7 @@ public class AiChatWebSocketController {
                 }
                 AiChatSessionDto newSession = createAiChatSessionUseCase.execute(userId, title, null, scene);
                 sessionId = newSession.getId();
-                log.info("✅ 新規セッション作成完了 - sessionId: " + sessionId);
+                log.info("✅ 新規セッション作成完了 - sessionId: {}", sessionId);
 
                 // 新しいセッション情報をクライアントに通知
                 messagingTemplate.convertAndSend(
@@ -127,12 +127,12 @@ public class AiChatWebSocketController {
             log.info("💾 ユーザーメッセージをデータベースに保存中...");
             AiChatMessageResponseDto savedUserMessage = addAiChatMessageUseCase.execute(sessionId, userId, role, content);
             log.info("✅ ユーザーメッセージ保存成功");
-            log.debug("   - messageId: " + savedUserMessage.getId());
-            log.debug("   - sessionId: " + savedUserMessage.getSessionId());
-            log.debug("   - role: " + savedUserMessage.getRole());
+            log.debug("   - messageId: {}", savedUserMessage.getId());
+            log.debug("   - sessionId: {}", savedUserMessage.getSessionId());
+            log.debug("   - role: {}", savedUserMessage.getRole());
 
             // WebSocket トピックへユーザーメッセージを送信
-            log.info("📤 WebSocket トピック /topic/ai-chat/session/" + sessionId + " へユーザーメッセージを送信中...");
+            log.info("📤 WebSocket トピック /topic/ai-chat/session/{} へユーザーメッセージを送信中...", sessionId);
             messagingTemplate.convertAndSend(
                     "/topic/ai-chat/session/" + sessionId,
                     savedUserMessage
@@ -143,7 +143,7 @@ public class AiChatWebSocketController {
             String aiReply;
             if (isPracticeMode && scenarioId != null) {
                 // 練習モード: シナリオに基づいたロールプレイ
-                log.info("🎭 練習モード: scenarioId=" + scenarioId);
+                log.info("🎭 練習モード: scenarioId={}", scenarioId);
                 PracticeScenarioDto scenario = getPracticeScenarioByIdUseCase.execute(scenarioId);
                 String practicePrompt = systemPromptBuilder.buildPracticePrompt(
                         scenario.getName(), scenario.getRoleName(),
@@ -160,16 +160,16 @@ public class AiChatWebSocketController {
                 }
             } else if (fromChatFeedback) {
                 // チャットフィードバックモード: バックエンドでUserProfileを取得
-                log.info("🤖 フィードバックモード: UserProfileをバックエンドで取得中... scene=" + scene);
+                log.info("🤖 フィードバックモード: UserProfileをバックエンドで取得中... scene={}", scene);
                 UserProfileDto userProfile = userProfileService.getProfileByUserId(userId);
 
                 if (userProfile != null) {
                     log.info("✅ UserProfile取得成功");
                     log.debug("   - UserProfile情報:");
-                    log.info("     - displayName: " + userProfile.getDisplayName());
-                    log.info("     - goals: " + userProfile.getGoals());
-                    log.info("     - concerns: " + userProfile.getConcerns());
-                    log.info("     - preferredFeedbackStyle: " + userProfile.getPreferredFeedbackStyle());
+                    log.info("     - displayName: {}", userProfile.getDisplayName());
+                    log.info("     - goals: {}", userProfile.getGoals());
+                    log.info("     - concerns: {}", userProfile.getConcerns());
+                    log.info("     - preferredFeedbackStyle: {}", userProfile.getPreferredFeedbackStyle());
 
                     String personalityTraits = userProfile.getPersonalityTraits() != null
                         ? String.join(", ", userProfile.getPersonalityTraits())
@@ -197,17 +197,17 @@ public class AiChatWebSocketController {
                 aiReply = bedrockService.chat(content);
             }
             log.info("✅ Bedrock から応答を取得しました");
-            log.debug("   - AI Reply: " + (aiReply.length() > 100 ? aiReply.substring(0, 100) + "..." : aiReply));
+            log.debug("   - AI Reply: {}", aiReply.length() > 100 ? aiReply.substring(0, 100) + "..." : aiReply);
 
             // AI応答をデータベースに保存（role: assistant）
             log.info("💾 AI応答をデータベースに保存中...");
             AiChatMessageResponseDto savedAiMessage = addAiChatMessageUseCase.execute(sessionId, userId, Role.assistant, aiReply);
             log.info("✅ AI応答保存成功");
-            log.debug("   - messageId: " + savedAiMessage.getId());
-            log.debug("   - role: " + savedAiMessage.getRole());
+            log.debug("   - messageId: {}", savedAiMessage.getId());
+            log.debug("   - role: {}", savedAiMessage.getRole());
 
             // WebSocket トピックへAI応答を送信
-            log.info("📤 WebSocket トピック /topic/ai-chat/session/" + sessionId + " へAI応答を送信中...");
+            log.info("📤 WebSocket トピック /topic/ai-chat/session/{} へAI応答を送信中...", sessionId);
             messagingTemplate.convertAndSend(
                     "/topic/ai-chat/session/" + sessionId,
                     savedAiMessage
@@ -222,7 +222,7 @@ public class AiChatWebSocketController {
                             "/topic/ai-chat/user/" + userId + "/scorecard",
                             scoreCard
                     );
-                    log.info("✅ スコアカード送信完了 - 総合スコア: " + scoreCard.getOverallScore());
+                    log.info("✅ スコアカード送信完了 - 総合スコア: {}", scoreCard.getOverallScore());
                 } else {
                     log.warn("⚠️ AI応答からスコアを抽出できませんでした");
                 }
@@ -237,7 +237,7 @@ public class AiChatWebSocketController {
                             "/topic/ai-chat/user/" + userId + "/scorecard",
                             scoreCard
                     );
-                    log.info("✅ 練習スコアカード送信完了 - 総合スコア: " + scoreCard.getOverallScore());
+                    log.info("✅ 練習スコアカード送信完了 - 総合スコア: {}", scoreCard.getOverallScore());
                 } else {
                     log.warn("⚠️ 練習AI応答からスコアを抽出できませんでした");
                 }
@@ -260,7 +260,7 @@ public class AiChatWebSocketController {
     @MessageMapping("/ai-chat/response")
     public void receiveAiResponse(@Payload Map<String, Object> payload) {
         log.info("\n========== WebSocket /ai-chat/response リクエスト受信 ==========");
-        log.info("🤖 AIレスポンス ペイロード: " + payload);
+        log.info("🤖 AIレスポンス ペイロード: {}", payload);
 
         try {
             Integer sessionId = convertToInteger(payload.get("sessionId"));
@@ -297,13 +297,13 @@ public class AiChatWebSocketController {
             Object sceneObj = payload.get("scene");
             String scene = sceneObj != null ? String.valueOf(sceneObj) : null;
 
-            log.debug("   - userId: " + userId);
-            log.debug("   - originalMessage: " + originalMessage);
-            log.debug("   - scene: " + scene);
+            log.debug("   - userId: {}", userId);
+            log.debug("   - originalMessage: {}", originalMessage);
+            log.debug("   - scene: {}", scene);
 
             // Bedrockに言い換えリクエスト
             String rephraseResult = bedrockService.rephrase(originalMessage, scene);
-            log.info("✅ 言い換え結果取得: " + rephraseResult);
+            log.info("✅ 言い換え結果取得: {}", rephraseResult);
 
             // WebSocket トピックへ言い換え結果を送信
             messagingTemplate.convertAndSend(

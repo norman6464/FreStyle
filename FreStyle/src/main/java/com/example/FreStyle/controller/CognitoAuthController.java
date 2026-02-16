@@ -82,8 +82,8 @@ public class CognitoAuthController {
     public ResponseEntity<?> signup(@RequestBody SignupForm form) {
         log.info("\n========== POST /api/auth/cognito/signup リクエスト開始 ==========");
         log.info("📌 リクエストパラメータ:");
-        log.info("   - email: " + form.getEmail());
-        log.info("   - name: " + form.getName());
+        log.info("   - email: {}", form.getEmail());
+        log.info("   - name: {}", form.getName());
         log.info("   - password: [MASKED]");
         
         try {
@@ -100,7 +100,7 @@ public class CognitoAuthController {
                     .body(Map.of("message", "サインアップ成功。確認メールを送信しました。"));
 
         } catch (UsernameExistsException e) {
-            log.info("❌ エラー: ユーザーが既に存在しています - " + form.getEmail());
+            log.info("❌ エラー: ユーザーが既に存在しています - {}", form.getEmail());
             log.info("========== /signup 処理完了(CONFLICT) ==========\n");
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(Map.of("error", "既にユーザーが存在しています。"));
@@ -123,8 +123,8 @@ public class CognitoAuthController {
     public ResponseEntity<?> confirm(@RequestBody ConfirmSignupForm form) {
         log.info("\n========== POST /api/auth/cognito/confirm リクエスト開始 ==========");
         log.info("📌 リクエストパラメータ:");
-        log.info("   - email: " + form.getEmail());
-        log.info("   - code: " + form.getCode());
+        log.info("   - email: {}", form.getEmail());
+        log.info("   - code: {}", form.getCode());
         
         try {
             log.info("🔍 cognitoAuthService.confirmUserSignup() 実行中...");
@@ -150,7 +150,7 @@ public class CognitoAuthController {
                     .body(Map.of("error", "確認コードの有効期限が切れています。"));
 
         } catch (UserNotFoundException e) {
-            log.info("❌ エラー: ユーザーが存在しません - " + form.getEmail());
+            log.info("❌ エラー: ユーザーが存在しません - {}", form.getEmail());
             log.info("========== /confirm 処理完了(NOT_FOUND) ==========\n");
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("error", "ユーザーが存在しません。"));
@@ -168,7 +168,7 @@ public class CognitoAuthController {
     public ResponseEntity<?> login(@RequestBody LoginForm form, HttpServletResponse response) {
         log.info("\n========== POST /api/auth/cognito/login リクエスト開始 ==========");
         log.info("📌 リクエストパラメータ:");
-        log.info("   - email: " + form.getEmail());
+        log.info("   - email: {}", form.getEmail());
         log.info("   - password: [MASKED]");
 
         try {
@@ -184,9 +184,9 @@ public class CognitoAuthController {
             String accessToken = tokens.get("accessToken");
             String refreshToken = tokens.get("refreshToken");
             log.info("📌 トークン取得状況:");
-            log.info("   - idToken: " + (idToken != null ? "✓ 取得済" : "null"));
-            log.info("   - accessToken: " + (accessToken != null ? "✓ 取得済" : "null"));
-            log.info("   - refreshToken: " + (refreshToken != null ? "✓ 取得済" : "null"));
+            log.info("   - idToken: {}", idToken != null ? "✓ 取得済" : "null");
+            log.info("   - accessToken: {}", accessToken != null ? "✓ 取得済" : "null");
+            log.info("   - refreshToken: {}", refreshToken != null ? "✓ 取得済" : "null");
 
             log.info("🔍 JwtUtils.decode() 実行中...");
             Optional<JWTClaimsSet> claimsOpt = JwtUtils.decode(idToken);
@@ -199,12 +199,12 @@ public class CognitoAuthController {
 
             JWTClaimsSet claims = claimsOpt.get();
             log.info("📌 JWTクレーム情報:");
-            log.info("   - issuer: " + claims.getIssuer());
-            log.info("   - subject: " + claims.getSubject());
+            log.info("   - issuer: {}", claims.getIssuer());
+            log.info("   - subject: {}", claims.getSubject());
 
             log.info("🔍 userService.findUserByEmail() 実行中...");
             User user = userService.findUserByEmail(form.getEmail());
-            log.info("✅ ユーザー取得成功 - userId: " + user.getId());
+            log.info("✅ ユーザー取得成功 - userId: {}", user.getId());
             
             log.info("🔍 userIdentityService.registerUserIdentity() 実行中...");
             userIdentityService.registerUserIdentity(user, claims.getIssuer(), claims.getSubject());
@@ -234,8 +234,8 @@ public class CognitoAuthController {
     public ResponseEntity<?> callback(@RequestBody Map<String, String> body, HttpServletResponse response) {
         log.info("[CognitoAuthController /callback] Callback endpoint called");
         String code = body.get("code");
-        log.info("[CognitoAuthController /callback] Authorization code received: " + 
-                          (code != null ? code.substring(0, Math.min(20, code.length())) + "..." : "null"));
+        log.info("[CognitoAuthController /callback] Authorization code received: {}",
+                          code != null ? code.substring(0, Math.min(20, code.length())) + "..." : "null");
 
         String basicAuthValue = Base64.getEncoder()
                 .encodeToString((clientId + ":" + clientSecret).getBytes(StandardCharsets.UTF_8));
@@ -269,9 +269,9 @@ public class CognitoAuthController {
         String accessToken = (String) tokenResponse.get("access_token");
         String refreshToken = (String) tokenResponse.get("refresh_token");
 
-        log.info("[CognitoAuthController /callback] Token types - accessToken: " + 
-                          (accessToken != null ? "✓" : "null") + 
-                          ", refreshToken: " + (refreshToken != null ? "✓" : "null"));
+        log.info("[CognitoAuthController /callback] Token types - accessToken: {}, refreshToken: {}",
+                          accessToken != null ? "✓" : "null",
+                          refreshToken != null ? "✓" : "null");
 
         Optional<JWTClaimsSet> claimsOpt = JwtUtils.decode(idToken);
         if (claimsOpt.isEmpty()) {
@@ -286,12 +286,12 @@ public class CognitoAuthController {
             String email = claims.getStringClaim("email");
             String sub = claims.getSubject();
 
-            log.info("[CognitoAuthController /callback] User info - email: " + email + ", sub: " + sub);
+            log.info("[CognitoAuthController /callback] User info - email: {}, sub: {}", email, sub);
 
             boolean isGoogle = claims.getClaim("identities") != null;
             String provider = isGoogle ? "google" : "cognito";
 
-            log.info("[CognitoAuthController /callback] Registering user - provider: " + provider);
+            log.info("[CognitoAuthController /callback] Registering user - provider: {}", provider);
             User user = userService.registerUserOIDC(name, email, provider, sub);
 
             // アクセストークン、リフレッシュトークン保存
@@ -316,10 +316,10 @@ public class CognitoAuthController {
     @PostMapping("/logout")
     public ResponseEntity<?> logout(@AuthenticationPrincipal Jwt jwt, HttpServletResponse response) {
         log.info("\n========== POST /api/auth/cognito/logout リクエスト開始 ==========");
-        log.info("📌 JWT null判定: " + (jwt == null ? "NULL" : "存在"));
+        log.info("📌 JWT null判定: {}", jwt == null ? "NULL" : "存在");
         
         String sub = jwt.getSubject();
-        log.info("📌 JWT Subject (sub): " + sub);
+        log.info("📌 JWT Subject (sub): {}", sub);
 
         if (sub == null || sub.isEmpty()) {
             log.info("❌ エラー: subがnullまたは空です");
@@ -352,7 +352,7 @@ public class CognitoAuthController {
         
         String email = body.get("email");
         log.info("📌 リクエストパラメータ:");
-        log.info("   - email: " + email);
+        log.info("   - email: {}", email);
 
         try {
             log.info("🔍 cognitoAuthService.forgotPassword() 実行中...");
@@ -363,7 +363,7 @@ public class CognitoAuthController {
             return ResponseEntity.ok(Map.of("message", "確認コードを送信しました。"));
 
         } catch (UserNotFoundException e) {
-            log.info("❌ エラー: ユーザーが存在しません - " + email);
+            log.info("❌ エラー: ユーザーが存在しません - {}", email);
             log.info("========== /forgot-password 処理完了(NOT_FOUND) ==========\n");
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("error", "ユーザーが存在しません。"));
@@ -383,8 +383,8 @@ public class CognitoAuthController {
                                         HttpServletResponse response) {
 
         log.info("[CognitoAuthController /refresh-token] Endpoint called");
-        log.info("[CognitoAuthController /refresh-token] REFRESH_TOKEN cookie: " + 
-                          (refreshToken != null ? refreshToken.substring(0, Math.min(20, refreshToken.length())) + "..." : "null"));
+        log.info("[CognitoAuthController /refresh-token] REFRESH_TOKEN cookie: {}",
+                          refreshToken != null ? refreshToken.substring(0, Math.min(20, refreshToken.length())) + "..." : "null");
 
         if (refreshToken == null || refreshToken.isEmpty()) {
             log.warn("認証エラー: リフレッシュトークンがnullまたは空");
@@ -427,8 +427,8 @@ public class CognitoAuthController {
         String newPassword = form.getNewPassword();
         
         log.info("📌 リクエストパラメータ:");
-        log.info("   - email: " + email);
-        log.info("   - code: " + code);
+        log.info("   - email: {}", email);
+        log.info("   - code: {}", code);
         log.info("   - newPassword: [MASKED]");
 
         try {
@@ -440,7 +440,7 @@ public class CognitoAuthController {
             return ResponseEntity.ok(Map.of("message", "パスワードをリセットしました。"));
 
         } catch (UserNotFoundException e) {
-            log.info("❌ エラー: ユーザーが存在しません - " + email);
+            log.info("❌ エラー: ユーザーが存在しません - {}", email);
             log.info("========== /confirm-forgot-password 処理完了(NOT_FOUND) ==========\n");
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("error", "ユーザーが存在しません。"));
@@ -484,10 +484,10 @@ public class CognitoAuthController {
                     .body(Map.of("error", "認証されていません"));
         }
         
-        log.info("[CognitoAuthController /me] JWT Principal: " + jwt.toString());
+        log.info("[CognitoAuthController /me] JWT Principal: {}", jwt);
         
         String sub = jwt.getSubject();
-        log.info("[CognitoAuthController /me] JWT Subject (sub): " + sub);
+        log.info("[CognitoAuthController /me] JWT Subject (sub): {}", sub);
 
         if (sub == null || sub.isEmpty()) {
             log.warn("認証エラー: JWTのsubがnullまたは空");
@@ -496,9 +496,9 @@ public class CognitoAuthController {
         }
 
         try {
-            log.info("[CognitoAuthController /me] Finding user with sub: " + sub);
+            log.info("[CognitoAuthController /me] Finding user with sub: {}", sub);
             Integer id = userIdentityService.findUserBySub(sub).getId();
-            log.info("[CognitoAuthController /me] User found: " + id);
+            log.info("[CognitoAuthController /me] User found: {}", id);
 
             return ResponseEntity.ok(Map.of("id",id));
 

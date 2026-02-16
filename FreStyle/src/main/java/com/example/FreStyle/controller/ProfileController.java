@@ -45,10 +45,10 @@ public class ProfileController {
                     .body(Map.of("error", "認証に失敗しました。"));
         }
         
-        log.info("[ProfileController /me] JWT Principal: " + jwt.toString());
-        
+        log.info("[ProfileController /me] JWT Principal: {}", jwt);
+
         String sub = jwt.getSubject();
-        log.info("[ProfileController /me] JWT Subject (sub): " + sub);
+        log.info("[ProfileController /me] JWT Subject (sub): {}", sub);
 
         if (sub == null || sub.isEmpty()) {
             // JWT が無効 → 認証されていない
@@ -58,7 +58,7 @@ public class ProfileController {
         }
 
         try {
-            log.info("[ProfileController /me] Finding user with sub: " + sub);
+            log.info("[ProfileController /me] Finding user with sub: {}", sub);
             User user = userIdentityService.findUserBySub(sub);
 
             if (user == null) {
@@ -68,7 +68,7 @@ public class ProfileController {
                         .body(Map.of("error", "ユーザーが存在しません。"));
             }
             
-            log.info("[ProfileController /me] User found - ID: " + user.getId() + ", Name: " + user.getName());
+            log.info("[ProfileController /me] User found - ID: {}, Name: {}", user.getId(), user.getName());
 
             ProfileDto profileDto = new ProfileDto(
                     user.getName(),
@@ -101,10 +101,10 @@ public class ProfileController {
                     .body(Map.of("error", "認証に失敗しました。"));
         }
         
-        log.info("[ProfileController /me/update] JWT Principal: " + jwt.toString());
+        log.info("[ProfileController /me/update] JWT Principal: {}", jwt);
 
         String sub = jwt.getSubject();
-        log.info("[ProfileController /me/update] JWT Subject (sub): " + sub);
+        log.info("[ProfileController /me/update] JWT Subject (sub): {}", sub);
 
         if (sub == null || sub.isEmpty()) {
             log.warn("認証エラー: JWTのsubがnullまたは空");
@@ -112,12 +112,12 @@ public class ProfileController {
                     .body(Map.of("error", "認証に失敗しました。"));
         }
 
-        log.info("[ProfileController /me/update] Update request - name: " + form.getName() + 
-                          ", bio: " + (form.getBio() != null ? form.getBio().substring(0, Math.min(30, form.getBio().length())) + "..." : "null"));
+        log.info("[ProfileController /me/update] Update request - name: {}, bio: {}", form.getName(),
+                          form.getBio() != null ? form.getBio().substring(0, Math.min(30, form.getBio().length())) + "..." : "null");
 
         try {
             boolean isOidcUser = jwt.hasClaim("cognito:groups");
-            log.info("[ProfileController /me/update] User type - isOidcUser: " + isOidcUser);
+            log.info("[ProfileController /me/update] User type - isOidcUser: {}", isOidcUser);
 
             if (isOidcUser) {
                 // OIDCユーザー → DBのみ更新

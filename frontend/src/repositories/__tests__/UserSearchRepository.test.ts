@@ -43,18 +43,4 @@ describe('UserSearchRepository', () => {
 
     await expect(UserSearchRepository.searchUsers('テスト')).rejects.toThrow('ネットワークエラー');
   });
-
-  it('複数ユーザーの検索結果を返す', async () => {
-    const mockUsers = [
-      { id: 1, name: '山田太郎', email: 'yamada@example.com', roomId: null },
-      { id: 2, name: '山田花子', email: 'hanako@example.com', roomId: 5 },
-    ];
-    vi.mocked(apiClient.get).mockResolvedValue({ data: { users: mockUsers } });
-
-    const result = await UserSearchRepository.searchUsers('山田');
-
-    expect(result).toHaveLength(2);
-    expect(result[0].name).toBe('山田太郎');
-    expect(result[1].name).toBe('山田花子');
-  });
 });

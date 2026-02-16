@@ -169,4 +169,35 @@ class AiChatSessionServiceTest {
 
         verify(aiChatSessionRepository).delete(session);
     }
+
+    @Test
+    @DisplayName("getSessionsByRelatedRoomId: 関連ルームのセッション一覧を返す")
+    void getSessionsByRelatedRoomId_returnsList() {
+        User user = createUser(1);
+        ChatRoom room = new ChatRoom();
+        room.setId(5);
+        AiChatSession s1 = createSession(1, user, "ルーム関連1");
+        s1.setRelatedRoom(room);
+        AiChatSession s2 = createSession(2, user, "ルーム関連2");
+        s2.setRelatedRoom(room);
+        when(aiChatSessionRepository.findByRelatedRoomId(5))
+                .thenReturn(List.of(s1, s2));
+
+        List<AiChatSessionDto> result = aiChatSessionService.getSessionsByRelatedRoomId(5);
+
+        assertEquals(2, result.size());
+        assertEquals("ルーム関連1", result.get(0).getTitle());
+        assertEquals(5, result.get(0).getRelatedRoomId());
+    }
+
+    @Test
+    @DisplayName("getSessionsByRelatedRoomId: セッションがない場合は空リスト")
+    void getSessionsByRelatedRoomId_returnsEmptyList() {
+        when(aiChatSessionRepository.findByRelatedRoomId(999))
+                .thenReturn(List.of());
+
+        List<AiChatSessionDto> result = aiChatSessionService.getSessionsByRelatedRoomId(999);
+
+        assertTrue(result.isEmpty());
+    }
 }

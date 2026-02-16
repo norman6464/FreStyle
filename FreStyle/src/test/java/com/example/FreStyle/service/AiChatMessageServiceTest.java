@@ -165,4 +165,33 @@ class AiChatMessageServiceTest {
 
         assertEquals(5L, count);
     }
+
+    @Test
+    @DisplayName("getMessagesByUserId: ユーザーの全メッセージを返す")
+    void getMessagesByUserId_returnsList() {
+        AiChatSession session = createSession(1);
+        User user = createUser(10);
+        AiChatMessage msg1 = createMessage(1, session, user, Role.user, "質問1");
+        AiChatMessage msg2 = createMessage(2, session, user, Role.assistant, "回答1");
+        when(aiChatMessageRepository.findByUserIdOrderByCreatedAtAsc(10))
+                .thenReturn(List.of(msg1, msg2));
+
+        List<AiChatMessageResponseDto> result = aiChatMessageService.getMessagesByUserId(10);
+
+        assertEquals(2, result.size());
+        assertEquals("質問1", result.get(0).getContent());
+        assertEquals("回答1", result.get(1).getContent());
+        assertEquals(10, result.get(0).getUserId());
+    }
+
+    @Test
+    @DisplayName("getMessagesByUserId: メッセージがない場合は空リスト")
+    void getMessagesByUserId_returnsEmptyList() {
+        when(aiChatMessageRepository.findByUserIdOrderByCreatedAtAsc(999))
+                .thenReturn(List.of());
+
+        List<AiChatMessageResponseDto> result = aiChatMessageService.getMessagesByUserId(999);
+
+        assertTrue(result.isEmpty());
+    }
 }

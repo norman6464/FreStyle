@@ -360,4 +360,69 @@ describe('useNotes', () => {
     act(() => { result.current.setSearchQuery('存在しないクエリ'); });
     expect(result.current.filteredNotes).toHaveLength(0);
   });
+
+  // selectedNote テスト
+
+  it('selectedNoteが選択中のノートオブジェクトを返す', async () => {
+    const { result } = renderHook(() => useNotes());
+    await act(async () => { await result.current.fetchNotes(); });
+
+    act(() => { result.current.selectNote('note-1'); });
+    expect(result.current.selectedNote?.noteId).toBe('note-1');
+    expect(result.current.selectedNote?.title).toBe('ノート1');
+  });
+
+  it('selectedNoteが未選択時にnullを返す', async () => {
+    const { result } = renderHook(() => useNotes());
+    await act(async () => { await result.current.fetchNotes(); });
+
+    expect(result.current.selectedNote).toBeNull();
+  });
+
+  // 削除確認テスト
+
+  it('deleteTargetIdの初期値がnullである', () => {
+    const { result } = renderHook(() => useNotes());
+    expect(result.current.deleteTargetId).toBeNull();
+  });
+
+  it('requestDeleteでdeleteTargetIdが設定される', () => {
+    const { result } = renderHook(() => useNotes());
+
+    act(() => { result.current.requestDelete('note-1'); });
+    expect(result.current.deleteTargetId).toBe('note-1');
+  });
+
+  it('confirmDeleteでノートが削除されdeleteTargetIdがリセットされる', async () => {
+    vi.mocked(NoteRepository.deleteNote).mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => useNotes());
+    await act(async () => { await result.current.fetchNotes(); });
+
+    act(() => { result.current.requestDelete('note-1'); });
+    expect(result.current.deleteTargetId).toBe('note-1');
+
+    await act(async () => { await result.current.confirmDelete(); });
+
+    expect(result.current.deleteTargetId).toBeNull();
+    expect(NoteRepository.deleteNote).toHaveBeenCalledWith('note-1');
+    expect(result.current.notes).toHaveLength(1);
+  });
+
+  it('cancelDeleteでdeleteTargetIdがリセットされる', () => {
+    const { result } = renderHook(() => useNotes());
+
+    act(() => { result.current.requestDelete('note-1'); });
+    expect(result.current.deleteTargetId).toBe('note-1');
+
+    act(() => { result.current.cancelDelete(); });
+    expect(result.current.deleteTargetId).toBeNull();
+  });
+
+  it('deleteTargetIdがnullのときconfirmDeleteは何もしない', async () => {
+    const { result } = renderHook(() => useNotes());
+
+    await act(async () => { await result.current.confirmDelete(); });
+    expect(NoteRepository.deleteNote).not.toHaveBeenCalled();
+  });
 });

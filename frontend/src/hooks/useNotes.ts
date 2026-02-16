@@ -7,6 +7,7 @@ export function useNotes() {
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const notesRef = useRef<Note[]>(notes);
   notesRef.current = notes;
 
@@ -76,6 +77,25 @@ export function useNotes() {
     setSelectedNoteId(noteId);
   }, []);
 
+  const selectedNote = useMemo(() => {
+    return notes.find((n) => n.noteId === selectedNoteId) || null;
+  }, [notes, selectedNoteId]);
+
+  const requestDelete = useCallback((noteId: string) => {
+    setDeleteTargetId(noteId);
+  }, []);
+
+  const confirmDelete = useCallback(async () => {
+    if (deleteTargetId) {
+      await deleteNote(deleteTargetId);
+      setDeleteTargetId(null);
+    }
+  }, [deleteTargetId, deleteNote]);
+
+  const cancelDelete = useCallback(() => {
+    setDeleteTargetId(null);
+  }, []);
+
   const filteredNotes = useMemo(() => {
     const query = searchQuery.toLowerCase();
     const filtered = query
@@ -91,6 +111,7 @@ export function useNotes() {
     notes,
     filteredNotes,
     selectedNoteId,
+    selectedNote,
     loading,
     searchQuery,
     setSearchQuery,
@@ -100,5 +121,9 @@ export function useNotes() {
     deleteNote,
     selectNote,
     togglePin,
+    deleteTargetId,
+    requestDelete,
+    confirmDelete,
+    cancelDelete,
   };
 }

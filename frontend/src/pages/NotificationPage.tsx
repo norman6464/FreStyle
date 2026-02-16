@@ -1,5 +1,6 @@
 import { useNotification } from '../hooks/useNotification';
 import EmptyState from '../components/EmptyState';
+import Loading from '../components/Loading';
 import { BellIcon, CheckIcon } from '@heroicons/react/24/outline';
 import type { Notification } from '../types';
 
@@ -56,11 +57,7 @@ export default function NotificationPage() {
   if (loading) {
     return (
       <div className="max-w-3xl mx-auto p-4">
-        <div className="animate-pulse space-y-3">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="h-20 bg-surface-2 rounded-lg" />
-          ))}
-        </div>
+        <Loading size="medium" message="通知を読み込み中..." className="py-12" />
       </div>
     );
   }

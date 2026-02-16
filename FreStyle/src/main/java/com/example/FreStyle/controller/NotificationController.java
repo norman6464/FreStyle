@@ -20,10 +20,12 @@ import com.example.FreStyle.usecase.MarkAllNotificationsAsReadUseCase;
 import com.example.FreStyle.usecase.MarkNotificationAsReadUseCase;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/notifications")
+@Slf4j
 public class NotificationController {
 
     private final GetUserNotificationsUseCase getUserNotificationsUseCase;

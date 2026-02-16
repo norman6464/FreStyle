@@ -16,6 +16,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.example.FreStyle.entity.Notification;
 import com.example.FreStyle.entity.User;
+import com.example.FreStyle.exception.ResourceNotFoundException;
 import com.example.FreStyle.repository.NotificationRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -54,7 +55,7 @@ class MarkNotificationAsReadUseCaseTest {
     void execute_throwsWhenNotFound() {
         when(notificationRepository.findById(999)).thenReturn(Optional.empty());
 
-        assertThrows(RuntimeException.class,
+        assertThrows(ResourceNotFoundException.class,
                 () -> markNotificationAsReadUseCase.execute(1, 999));
     }
 
@@ -74,7 +75,7 @@ class MarkNotificationAsReadUseCaseTest {
 
         when(notificationRepository.findById(10)).thenReturn(Optional.of(notification));
 
-        assertThrows(RuntimeException.class,
+        assertThrows(ResourceNotFoundException.class,
                 () -> markNotificationAsReadUseCase.execute(1, 10));
     }
 }

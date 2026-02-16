@@ -28,13 +28,23 @@ export function useNotification() {
   }, [fetchData]);
 
   const markAsRead = useCallback(async (notificationId: number) => {
-    await NotificationRepository.markAsRead(notificationId);
-    await fetchData();
+    try {
+      await NotificationRepository.markAsRead(notificationId);
+    } catch {
+      // エラー時もUIを最新状態に更新
+    } finally {
+      await fetchData();
+    }
   }, [fetchData]);
 
   const markAllAsRead = useCallback(async () => {
-    await NotificationRepository.markAllAsRead();
-    await fetchData();
+    try {
+      await NotificationRepository.markAllAsRead();
+    } catch {
+      // エラー時もUIを最新状態に更新
+    } finally {
+      await fetchData();
+    }
   }, [fetchData]);
 
   return { notifications, unreadCount, loading, markAsRead, markAllAsRead, refresh: fetchData };

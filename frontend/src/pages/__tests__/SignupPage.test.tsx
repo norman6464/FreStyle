@@ -59,6 +59,10 @@ describe('SignupPage', () => {
     mockSignup.mockResolvedValue(false);
     renderSignupPage();
 
+    fireEvent.change(screen.getByLabelText('ニックネーム'), { target: { value: 'テスト' } });
+    fireEvent.change(screen.getByLabelText('メールアドレス'), { target: { value: 'test@example.com' } });
+    fireEvent.change(screen.getByLabelText('パスワード'), { target: { value: 'pass123' } });
+
     const submitButtons = screen.getAllByText('アカウント作成');
     const submitButton = submitButtons.find(el => el.tagName === 'BUTTON');
     fireEvent.click(submitButton!);
@@ -72,6 +76,10 @@ describe('SignupPage', () => {
     mockSignup.mockResolvedValue(true);
     renderSignupPage();
 
+    fireEvent.change(screen.getByLabelText('ニックネーム'), { target: { value: 'テスト' } });
+    fireEvent.change(screen.getByLabelText('メールアドレス'), { target: { value: 'test@example.com' } });
+    fireEvent.change(screen.getByLabelText('パスワード'), { target: { value: 'pass123' } });
+
     const submitButtons = screen.getAllByText('アカウント作成');
     const submitButton = submitButtons.find(el => el.tagName === 'BUTTON');
     fireEvent.click(submitButton!);
@@ -79,5 +87,18 @@ describe('SignupPage', () => {
     await waitFor(() => {
       expect(screen.getByText(/サインアップに成功しました/)).toBeInTheDocument();
     });
+  });
+
+  it('未入力で送信するとバリデーションエラーが表示される', async () => {
+    renderSignupPage();
+
+    const submitButtons = screen.getAllByText('アカウント作成');
+    const submitButton = submitButtons.find(el => el.tagName === 'BUTTON');
+    fireEvent.click(submitButton!);
+
+    await waitFor(() => {
+      expect(screen.getByText('すべてのフィールドを入力してください。')).toBeInTheDocument();
+    });
+    expect(mockSignup).not.toHaveBeenCalled();
   });
 });

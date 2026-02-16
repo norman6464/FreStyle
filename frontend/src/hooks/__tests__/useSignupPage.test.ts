@@ -53,6 +53,12 @@ describe('useSignupPage', () => {
     mockSignup.mockResolvedValue(true);
     const { result } = renderHook(() => useSignupPage());
 
+    act(() => {
+      result.current.handleChange({ target: { name: 'name', value: 'テスト' } } as React.ChangeEvent<HTMLInputElement>);
+      result.current.handleChange({ target: { name: 'email', value: 'test@example.com' } } as React.ChangeEvent<HTMLInputElement>);
+      result.current.handleChange({ target: { name: 'password', value: 'pass123' } } as React.ChangeEvent<HTMLInputElement>);
+    });
+
     await act(async () => {
       await result.current.handleSignup({
         preventDefault: vi.fn(),
@@ -68,6 +74,12 @@ describe('useSignupPage', () => {
   it('サインアップ成功後にナビゲートされる', async () => {
     mockSignup.mockResolvedValue(true);
     const { result } = renderHook(() => useSignupPage());
+
+    act(() => {
+      result.current.handleChange({ target: { name: 'name', value: 'テスト' } } as React.ChangeEvent<HTMLInputElement>);
+      result.current.handleChange({ target: { name: 'email', value: 'test@example.com' } } as React.ChangeEvent<HTMLInputElement>);
+      result.current.handleChange({ target: { name: 'password', value: 'pass123' } } as React.ChangeEvent<HTMLInputElement>);
+    });
 
     await act(async () => {
       await result.current.handleSignup({
@@ -87,6 +99,12 @@ describe('useSignupPage', () => {
   it('サインアップ失敗時にエラーメッセージが設定される', async () => {
     mockSignup.mockResolvedValue(false);
     const { result } = renderHook(() => useSignupPage());
+
+    act(() => {
+      result.current.handleChange({ target: { name: 'name', value: 'テスト' } } as React.ChangeEvent<HTMLInputElement>);
+      result.current.handleChange({ target: { name: 'email', value: 'test@example.com' } } as React.ChangeEvent<HTMLInputElement>);
+      result.current.handleChange({ target: { name: 'password', value: 'pass123' } } as React.ChangeEvent<HTMLInputElement>);
+    });
 
     await act(async () => {
       await result.current.handleSignup({
@@ -151,5 +169,100 @@ describe('useSignupPage', () => {
   it('loadingがuseAuthから取得される', () => {
     const { result } = renderHook(() => useSignupPage());
     expect(result.current.loading).toBe(false);
+  });
+
+  it('ニックネームが空の場合エラーメッセージが表示されsignupが呼ばれない', async () => {
+    const { result } = renderHook(() => useSignupPage());
+
+    act(() => {
+      result.current.handleChange({
+        target: { name: 'email', value: 'test@example.com' },
+      } as React.ChangeEvent<HTMLInputElement>);
+      result.current.handleChange({
+        target: { name: 'password', value: 'password123' },
+      } as React.ChangeEvent<HTMLInputElement>);
+    });
+
+    await act(async () => {
+      await result.current.handleSignup({
+        preventDefault: vi.fn(),
+      } as unknown as React.FormEvent<HTMLFormElement>);
+    });
+
+    expect(result.current.message?.type).toBe('error');
+    expect(result.current.message?.text).toBe('すべてのフィールドを入力してください。');
+    expect(mockSignup).not.toHaveBeenCalled();
+  });
+
+  it('メールアドレスが空の場合エラーメッセージが表示されsignupが呼ばれない', async () => {
+    const { result } = renderHook(() => useSignupPage());
+
+    act(() => {
+      result.current.handleChange({
+        target: { name: 'name', value: 'テスト' },
+      } as React.ChangeEvent<HTMLInputElement>);
+      result.current.handleChange({
+        target: { name: 'password', value: 'password123' },
+      } as React.ChangeEvent<HTMLInputElement>);
+    });
+
+    await act(async () => {
+      await result.current.handleSignup({
+        preventDefault: vi.fn(),
+      } as unknown as React.FormEvent<HTMLFormElement>);
+    });
+
+    expect(result.current.message?.type).toBe('error');
+    expect(result.current.message?.text).toBe('すべてのフィールドを入力してください。');
+    expect(mockSignup).not.toHaveBeenCalled();
+  });
+
+  it('パスワードが空の場合エラーメッセージが表示されsignupが呼ばれない', async () => {
+    const { result } = renderHook(() => useSignupPage());
+
+    act(() => {
+      result.current.handleChange({
+        target: { name: 'name', value: 'テスト' },
+      } as React.ChangeEvent<HTMLInputElement>);
+      result.current.handleChange({
+        target: { name: 'email', value: 'test@example.com' },
+      } as React.ChangeEvent<HTMLInputElement>);
+    });
+
+    await act(async () => {
+      await result.current.handleSignup({
+        preventDefault: vi.fn(),
+      } as unknown as React.FormEvent<HTMLFormElement>);
+    });
+
+    expect(result.current.message?.type).toBe('error');
+    expect(result.current.message?.text).toBe('すべてのフィールドを入力してください。');
+    expect(mockSignup).not.toHaveBeenCalled();
+  });
+
+  it('メールアドレス形式が無効の場合エラーメッセージが表示されsignupが呼ばれない', async () => {
+    const { result } = renderHook(() => useSignupPage());
+
+    act(() => {
+      result.current.handleChange({
+        target: { name: 'name', value: 'テスト' },
+      } as React.ChangeEvent<HTMLInputElement>);
+      result.current.handleChange({
+        target: { name: 'email', value: 'invalid-email' },
+      } as React.ChangeEvent<HTMLInputElement>);
+      result.current.handleChange({
+        target: { name: 'password', value: 'password123' },
+      } as React.ChangeEvent<HTMLInputElement>);
+    });
+
+    await act(async () => {
+      await result.current.handleSignup({
+        preventDefault: vi.fn(),
+      } as unknown as React.FormEvent<HTMLFormElement>);
+    });
+
+    expect(result.current.message?.type).toBe('error');
+    expect(result.current.message?.text).toBe('有効なメールアドレスを入力してください。');
+    expect(mockSignup).not.toHaveBeenCalled();
   });
 });

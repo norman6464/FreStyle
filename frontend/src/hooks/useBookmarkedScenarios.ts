@@ -8,11 +8,14 @@ export function useBookmarkedScenarios(limit = 3) {
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
+    setScenarios([]);
 
     Promise.all([BookmarkRepository.getAll(), PracticeRepository.getScenarios()])
       .then(([bookmarkedIds, allScenarios]) => {
         if (cancelled) return;
-        const bookmarked = allScenarios.filter((s) => bookmarkedIds.includes(s.id));
+        const bookmarkedIdSet = new Set(bookmarkedIds);
+        const bookmarked = allScenarios.filter((s) => bookmarkedIdSet.has(s.id));
         setScenarios(bookmarked.slice(0, limit));
         setLoading(false);
       })

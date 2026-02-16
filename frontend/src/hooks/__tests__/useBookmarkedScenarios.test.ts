@@ -18,9 +18,9 @@ import { BookmarkRepository } from '../../repositories/BookmarkRepository';
 import PracticeRepository from '../../repositories/PracticeRepository';
 
 const mockScenarios = [
-  { id: 1, name: 'クレーム対応', description: '説明1', category: 'ビジネス', roleName: '顧客', difficulty: '中級', systemPrompt: '' },
-  { id: 2, name: '会議ファシリテーション', description: '説明2', category: 'ビジネス', roleName: '同僚', difficulty: '上級', systemPrompt: '' },
-  { id: 3, name: '面接練習', description: '説明3', category: '就活', roleName: '面接官', difficulty: '初級', systemPrompt: '' },
+  { id: 1, name: 'クレーム対応', description: '説明1', category: 'customer', roleName: '顧客', difficulty: 'intermediate', systemPrompt: '' },
+  { id: 2, name: '会議ファシリテーション', description: '説明2', category: 'senior', roleName: '同僚', difficulty: 'advanced', systemPrompt: '' },
+  { id: 3, name: '面接練習', description: '説明3', category: 'team', roleName: '面接官', difficulty: 'beginner', systemPrompt: '' },
 ];
 
 describe('useBookmarkedScenarios', () => {

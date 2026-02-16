@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useBookmarkedScenarios } from '../hooks/useBookmarkedScenarios';
 import { useStartPracticeSession } from '../hooks/useStartPracticeSession';
+import { CATEGORY_LABEL, DIFFICULTY_LABEL } from '../constants/scenarioLabels';
 import Card from './Card';
 
 export default function BookmarkedScenariosCard() {
@@ -11,7 +12,7 @@ export default function BookmarkedScenariosCard() {
   if (loading || scenarios.length === 0) return null;
 
   return (
-    <Card>
+    <Card className="mb-6">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-xs font-semibold text-[var(--color-text-primary)]">ブックマーク済みシナリオ</h3>
         <button
@@ -30,7 +31,7 @@ export default function BookmarkedScenariosCard() {
             <div className="flex-1 min-w-0 mr-3">
               <p className="text-sm text-[var(--color-text-secondary)] truncate">{scenario.name}</p>
               <p className="text-[10px] text-[var(--color-text-faint)]">
-                {scenario.category}・{scenario.difficulty}
+                {CATEGORY_LABEL[scenario.category] ?? scenario.category}・{DIFFICULTY_LABEL[scenario.difficulty] ?? scenario.difficulty}
               </p>
             </div>
             <button

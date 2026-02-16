@@ -14,8 +14,8 @@ vi.mock('../../hooks/useStartPracticeSession', () => ({
 import { useBookmarkedScenarios } from '../../hooks/useBookmarkedScenarios';
 
 const mockScenarios = [
-  { id: 1, name: 'クレーム対応', description: '説明1', category: 'ビジネス', roleName: '顧客', difficulty: '中級', systemPrompt: '' },
-  { id: 2, name: '会議ファシリテーション', description: '説明2', category: 'ビジネス', roleName: '同僚', difficulty: '上級', systemPrompt: '' },
+  { id: 1, name: 'クレーム対応', description: '説明1', category: 'customer', roleName: '顧客', difficulty: 'intermediate', systemPrompt: '' },
+  { id: 2, name: '会議ファシリテーション', description: '説明2', category: 'senior', roleName: '同僚', difficulty: 'advanced', systemPrompt: '' },
 ];
 
 describe('BookmarkedScenariosCard', () => {
@@ -41,8 +41,8 @@ describe('BookmarkedScenariosCard', () => {
 
     render(<BrowserRouter><BookmarkedScenariosCard /></BrowserRouter>);
 
-    expect(screen.getByText('ビジネス・中級')).toBeInTheDocument();
-    expect(screen.getByText('ビジネス・上級')).toBeInTheDocument();
+    expect(screen.getByText('顧客折衝・中級')).toBeInTheDocument();
+    expect(screen.getByText('シニア・上司・上級')).toBeInTheDocument();
   });
 
   it('ブックマークがない場合は何も表示しない', () => {

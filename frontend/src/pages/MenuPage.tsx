@@ -161,9 +161,7 @@ export default function MenuPage() {
       )}
 
       {/* ブックマーク済みシナリオ */}
-      <div className="mb-6">
-        <BookmarkedScenariosCard />
-      </div>
+      <BookmarkedScenariosCard />
 
       {/* 最近のメモ */}
       <div className="mb-6">

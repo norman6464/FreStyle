@@ -166,4 +166,23 @@ describe('AskAiPage', () => {
     expect(screen.queryByText('AIが相手役を演じます')).not.toBeInTheDocument();
     expect(screen.queryByText('練習終了')).not.toBeInTheDocument();
   });
+
+  it('セッション件数が表示される', () => {
+    const sessionData = [
+      { id: 1, title: 'セッション1', createdAt: '2026-02-10T10:00:00Z' },
+      { id: 2, title: 'セッション2', createdAt: '2026-02-11T10:00:00Z' },
+    ];
+    vi.mocked(useAskAi).mockReturnValue({
+      ...mockUseAskAi,
+      sessions: sessionData as any,
+      filteredSessions: sessionData as any,
+    });
+    render(<AskAiPage />);
+    expect(screen.getAllByText('2件').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('セッション0件の場合、0件と表示される', () => {
+    render(<AskAiPage />);
+    expect(screen.getAllByText('0件').length).toBeGreaterThanOrEqual(1);
+  });
 });

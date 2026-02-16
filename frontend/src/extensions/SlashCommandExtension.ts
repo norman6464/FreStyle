@@ -79,6 +79,13 @@ function executeCommand(editor: Editor, command: SlashCommand) {
       }
       break;
     }
+    case 'emoji': {
+      const onEmojiPicker = editor.storage.slashCommand?.onEmojiPicker;
+      if (typeof onEmojiPicker === 'function') {
+        onEmojiPicker();
+      }
+      break;
+    }
     default: {
       const _exhaustive: never = command.action;
       console.error('Unknown slash command action:', _exhaustive);
@@ -95,6 +102,7 @@ export const SlashCommandExtension = Extension.create({
   addStorage() {
     return {
       onImageUpload: null as (() => void) | null,
+      onEmojiPicker: null as (() => void) | null,
     };
   },
 

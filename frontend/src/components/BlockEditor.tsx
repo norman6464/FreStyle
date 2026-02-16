@@ -6,6 +6,7 @@ import { useBlockEditor } from '../hooks/useBlockEditor';
 import { useImageUpload } from '../hooks/useImageUpload';
 import { useLinkEditor } from '../hooks/useLinkEditor';
 import BlockInserterButton from './BlockInserterButton';
+import EmojiPicker from './EmojiPicker';
 import LinkBubbleMenu from './LinkBubbleMenu';
 import SearchReplaceBar from './SearchReplaceBar';
 import SelectionToolbar from './SelectionToolbar';
@@ -25,16 +26,23 @@ export default function BlockEditor({ content, onChange, noteId }: BlockEditorPr
   const [inserterTop, setInserterTop] = useState(0);
   const inserterMenuOpen = useRef(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
 
   const { openFileDialog, handleDrop, handlePaste } = useImageUpload(noteId, editor);
   const { linkBubble, handleEditorClick, handleEditLink, handleRemoveLink } = useLinkEditor(editor, containerRef);
 
-  // スラッシュコマンドから画像アップロードを呼べるようにする
+  // スラッシュコマンドから画像アップロード・絵文字ピッカーを呼べるようにする
+  const openEmojiPicker = useCallback(() => setEmojiPickerOpen(true), []);
+
   useEffect(() => {
     if (!editor) return;
     editor.storage.slashCommand.onImageUpload = openFileDialog;
-    return () => { editor.storage.slashCommand.onImageUpload = null; };
-  }, [editor, openFileDialog]);
+    editor.storage.slashCommand.onEmojiPicker = openEmojiPicker;
+    return () => {
+      editor.storage.slashCommand.onImageUpload = null;
+      editor.storage.slashCommand.onEmojiPicker = null;
+    };
+  }, [editor, openFileDialog, openEmojiPicker]);
 
   // Ctrl+F / Cmd+F で検索バーを開く
   useEffect(() => {
@@ -110,10 +118,19 @@ export default function BlockEditor({ content, onChange, noteId }: BlockEditorPr
     }
   }, []);
 
+  const handleEmojiSelect = useCallback((emoji: string) => {
+    if (!editor) return;
+    editor.chain().focus().insertContent(emoji).run();
+  }, [editor]);
+
   const handleCommand = useCallback((command: SlashCommand) => {
     if (!editor) return;
     if (command.action === 'image') {
       openFileDialog();
+      return;
+    }
+    if (command.action === 'emoji') {
+      setEmojiPickerOpen(true);
       return;
     }
     editor.chain().focus().run();
@@ -153,6 +170,15 @@ export default function BlockEditor({ content, onChange, noteId }: BlockEditorPr
         onMenuOpenChange={handleInserterMenuOpenChange}
       />
       <EditorContent editor={editor} aria-label="ノートの内容" />
+      {emojiPickerOpen && (
+        <div className="absolute z-50 top-8 left-8">
+          <EmojiPicker
+            isOpen={emojiPickerOpen}
+            onSelect={handleEmojiSelect}
+            onClose={() => setEmojiPickerOpen(false)}
+          />
+        </div>
+      )}
     </div>
   );
 }

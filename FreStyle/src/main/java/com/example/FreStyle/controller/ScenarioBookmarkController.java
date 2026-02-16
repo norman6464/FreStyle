@@ -37,8 +37,7 @@ public class ScenarioBookmarkController {
     @GetMapping
     public ResponseEntity<List<Integer>> getBookmarks(@AuthenticationPrincipal Jwt jwt) {
         logger.info("========== GET /api/bookmarks ==========");
-        String sub = jwt.getSubject();
-        User user = userIdentityService.findUserBySub(sub);
+        User user = resolveUser(jwt);
         List<Integer> bookmarkedIds = getUserBookmarksUseCase.execute(user.getId());
         logger.info("ブックマーク一覧取得成功 - 件数: {}", bookmarkedIds.size());
         return ResponseEntity.ok(bookmarkedIds);
@@ -50,8 +49,7 @@ public class ScenarioBookmarkController {
             @PathVariable Integer scenarioId
     ) {
         logger.info("========== POST /api/bookmarks/{} ==========", scenarioId);
-        String sub = jwt.getSubject();
-        User user = userIdentityService.findUserBySub(sub);
+        User user = resolveUser(jwt);
         addScenarioBookmarkUseCase.execute(user, scenarioId);
         logger.info("ブックマーク追加成功 - scenarioId: {}", scenarioId);
         return ResponseEntity.ok().build();
@@ -63,10 +61,13 @@ public class ScenarioBookmarkController {
             @PathVariable Integer scenarioId
     ) {
         logger.info("========== DELETE /api/bookmarks/{} ==========", scenarioId);
-        String sub = jwt.getSubject();
-        User user = userIdentityService.findUserBySub(sub);
+        User user = resolveUser(jwt);
         removeScenarioBookmarkUseCase.execute(user.getId(), scenarioId);
         logger.info("ブックマーク削除成功 - scenarioId: {}", scenarioId);
         return ResponseEntity.ok().build();
+    }
+
+    private User resolveUser(Jwt jwt) {
+        return userIdentityService.findUserBySub(jwt.getSubject());
     }
 }

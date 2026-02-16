@@ -1,6 +1,7 @@
 package com.example.FreStyle.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 import org.junit.jupiter.api.DisplayName;
@@ -84,5 +85,33 @@ class SessionNoteControllerTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         verify(saveSessionNoteUseCase).execute(user, 100, "保存メモ");
+    }
+
+    @Test
+    @DisplayName("GET: UseCaseに正しいuserIdとsessionIdを渡している")
+    void getNote_passesCorrectArguments() {
+        Jwt jwt = mockJwt("sub-789");
+        User user = new User();
+        user.setId(55);
+        when(userIdentityService.findUserBySub("sub-789")).thenReturn(user);
+        when(getSessionNoteUseCase.execute(55, 200)).thenReturn(new SessionNoteDto(200, "メモ", "2026-02-16T12:00:00"));
+
+        sessionNoteController.getNote(jwt, 200);
+
+        verify(getSessionNoteUseCase).execute(55, 200);
+    }
+
+    @Test
+    @DisplayName("PUT: UseCaseの例外がそのまま伝搬する")
+    void saveNote_propagatesException() {
+        Jwt jwt = mockJwt("sub-123");
+        User user = new User();
+        user.setId(1);
+        when(userIdentityService.findUserBySub("sub-123")).thenReturn(user);
+        doThrow(new RuntimeException("DB接続エラー")).when(saveSessionNoteUseCase).execute(user, 100, "メモ");
+
+        assertThatThrownBy(
+                () -> sessionNoteController.saveNote(jwt, 100, new SessionNoteController.SaveNoteRequest("メモ"))
+        ).isInstanceOf(RuntimeException.class).hasMessage("DB接続エラー");
     }
 }

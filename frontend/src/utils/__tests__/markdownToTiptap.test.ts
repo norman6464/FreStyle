@@ -92,4 +92,33 @@ describe('markdownToTiptap', () => {
     expect(result.content.some((b: { type: string }) => b.type === 'paragraph')).toBe(true);
     expect(result.content.some((b: { type: string }) => b.type === 'bulletList')).toBe(true);
   });
+
+  it('CRLF改行を正しく処理する', () => {
+    const result = markdownToTiptap('- 項目1\r\n- 項目2\r\n- 項目3');
+    expect(result.content[0].type).toBe('bulletList');
+    expect(result.content[0].content).toHaveLength(3);
+  });
+
+  it('空白のみの文字列で空のdocを返す', () => {
+    const result = markdownToTiptap('   \n  \n   ');
+    expect(result).toEqual({ type: 'doc', content: [] });
+  });
+
+  it('リスト項目内の太字を変換する', () => {
+    const result = markdownToTiptap('- **重要な**項目');
+    const listItem = result.content[0].content![0];
+    const paragraph = listItem.content![0];
+    const boldNode = paragraph.content!.find(
+      (n: { marks?: { type: string }[] }) => n.marks?.some(m => m.type === 'bold')
+    );
+    expect(boldNode).toBeDefined();
+    expect(boldNode!.text).toBe('重要な');
+  });
+
+  it('CR改行を正しく処理する', () => {
+    const result = markdownToTiptap('行1\r行2');
+    expect(result.content).toHaveLength(2);
+    expect(result.content[0].type).toBe('paragraph');
+    expect(result.content[1].type).toBe('paragraph');
+  });
 });

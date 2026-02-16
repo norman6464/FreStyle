@@ -52,5 +52,22 @@ describe('NoteImageRepository', () => {
         headers: { 'Content-Type': 'image/png' },
       });
     });
+
+    it('S3アップロード失敗時にエラーが伝搬する', async () => {
+      vi.mocked(axios.put).mockRejectedValue(new Error('Network Error'));
+      const file = new File(['test'], 'image.png', { type: 'image/png' });
+
+      await expect(NoteImageRepository.uploadToS3('https://s3.example.com/upload', file))
+        .rejects.toThrow('Network Error');
+    });
+  });
+
+  describe('getPresignedUrl エラー', () => {
+    it('API失敗時にエラーが伝搬する', async () => {
+      vi.mocked(apiClient.post).mockRejectedValue(new Error('Server Error'));
+
+      await expect(NoteImageRepository.getPresignedUrl('note1', 'image.png', 'image/png'))
+        .rejects.toThrow('Server Error');
+    });
   });
 });

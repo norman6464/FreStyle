@@ -50,6 +50,9 @@ describe('useConfirmForgotPassword', () => {
       result.current.handleChange({
         target: { name: 'newPassword', value: 'newpass123' },
       } as React.ChangeEvent<HTMLInputElement>);
+      result.current.handleChange({
+        target: { name: 'confirmPassword', value: 'newpass123' },
+      } as React.ChangeEvent<HTMLInputElement>);
     });
 
     await act(async () => {
@@ -149,5 +152,57 @@ describe('useConfirmForgotPassword', () => {
     });
 
     expect(result.current.loading).toBe(false);
+  });
+
+  it('confirmPasswordの初期値が空文字', () => {
+    const { result } = renderHook(() => useConfirmForgotPassword());
+    expect(result.current.form.confirmPassword).toBe('');
+  });
+
+  it('パスワード不一致時にエラーメッセージが表示される', async () => {
+    const { result } = renderHook(() => useConfirmForgotPassword());
+
+    act(() => {
+      result.current.handleChange({
+        target: { name: 'newPassword', value: 'password1' },
+      } as React.ChangeEvent<HTMLInputElement>);
+      result.current.handleChange({
+        target: { name: 'confirmPassword', value: 'password2' },
+      } as React.ChangeEvent<HTMLInputElement>);
+    });
+
+    await act(async () => {
+      await result.current.handleConfirm({
+        preventDefault: vi.fn(),
+      } as unknown as React.FormEvent<HTMLFormElement>);
+    });
+
+    expect(result.current.message?.type).toBe('error');
+    expect(result.current.message?.text).toBe('パスワードが一致しません。');
+    expect(mockConfirmForgotPassword).not.toHaveBeenCalled();
+  });
+
+  it('パスワード一致時にAPIが呼ばれる', async () => {
+    const { result } = renderHook(() => useConfirmForgotPassword());
+
+    act(() => {
+      result.current.handleChange({
+        target: { name: 'code', value: '123456' },
+      } as React.ChangeEvent<HTMLInputElement>);
+      result.current.handleChange({
+        target: { name: 'newPassword', value: 'samePassword' },
+      } as React.ChangeEvent<HTMLInputElement>);
+      result.current.handleChange({
+        target: { name: 'confirmPassword', value: 'samePassword' },
+      } as React.ChangeEvent<HTMLInputElement>);
+    });
+
+    await act(async () => {
+      await result.current.handleConfirm({
+        preventDefault: vi.fn(),
+      } as unknown as React.FormEvent<HTMLFormElement>);
+    });
+
+    expect(mockConfirmForgotPassword).toHaveBeenCalled();
   });
 });

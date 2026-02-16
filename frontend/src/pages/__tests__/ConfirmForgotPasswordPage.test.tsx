@@ -65,6 +65,9 @@ describe('ConfirmForgotPasswordPage', () => {
     fireEvent.change(screen.getByLabelText('新しいパスワード'), {
       target: { value: 'newPassword123', name: 'newPassword' },
     });
+    fireEvent.change(screen.getByLabelText('パスワード確認'), {
+      target: { value: 'newPassword123', name: 'confirmPassword' },
+    });
     fireEvent.click(screen.getByText('パスワードをリセット'));
 
     await waitFor(() => {
@@ -72,6 +75,32 @@ describe('ConfirmForgotPasswordPage', () => {
         state: { message: 'パスワードリセットに成功しました。ログインしてください。' },
       });
     });
+  });
+
+  it('パスワード確認フィールドが表示される', () => {
+    render(<BrowserRouter><ConfirmForgotPasswordPage /></BrowserRouter>);
+
+    expect(screen.getByLabelText('パスワード確認')).toBeInTheDocument();
+  });
+
+  it('パスワード不一致時にエラーメッセージを表示する', async () => {
+    render(<BrowserRouter><ConfirmForgotPasswordPage /></BrowserRouter>);
+
+    fireEvent.change(screen.getByLabelText('確認コード'), {
+      target: { value: '123456', name: 'code' },
+    });
+    fireEvent.change(screen.getByLabelText('新しいパスワード'), {
+      target: { value: 'password1', name: 'newPassword' },
+    });
+    fireEvent.change(screen.getByLabelText('パスワード確認'), {
+      target: { value: 'password2', name: 'confirmPassword' },
+    });
+    fireEvent.click(screen.getByText('パスワードをリセット'));
+
+    await waitFor(() => {
+      expect(screen.getByText('パスワードが一致しません。')).toBeInTheDocument();
+    });
+    expect(authRepository.confirmForgotPassword).not.toHaveBeenCalled();
   });
 
   it('リセット失敗時にエラーメッセージを表示する', async () => {

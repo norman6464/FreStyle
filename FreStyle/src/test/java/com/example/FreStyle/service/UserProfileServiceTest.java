@@ -231,4 +231,53 @@ class UserProfileServiceTest {
                 () -> userProfileService.deleteProfile(999));
         assertEquals("プロファイルが見つかりません。", ex.getMessage());
     }
+
+    @Test
+    @DisplayName("convertToDto: 不正なJSON personalityTraitsは空リストにフォールバックする")
+    void convertToDto_invalidJson_fallsBackToEmptyList() throws JsonProcessingException {
+        User user = createUser(1);
+        UserProfile profile = createProfile(10, user);
+        profile.setPersonalityTraits("invalid-json");
+        when(userProfileRepository.findByUserId(1)).thenReturn(Optional.of(profile));
+        when(objectMapper.readValue(eq("invalid-json"), any(com.fasterxml.jackson.core.type.TypeReference.class)))
+                .thenThrow(new JsonProcessingException("parse error") {});
+
+        UserProfileDto result = userProfileService.getProfileByUserId(1);
+
+        assertNotNull(result);
+        assertTrue(result.getPersonalityTraits().isEmpty());
+    }
+
+    @Test
+    @DisplayName("updateProfileFromForm: personalityTraitsのJSON変換失敗でRuntimeExceptionをスローする")
+    void updateProfileFromForm_jsonProcessingException_throwsRuntimeException() throws JsonProcessingException {
+        User user = createUser(1);
+        UserProfileForm form = createForm();
+        when(userProfileRepository.existsByUserId(1)).thenReturn(false);
+        when(objectMapper.writeValueAsString(form.getPersonalityTraits()))
+                .thenThrow(new JsonProcessingException("write error") {});
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> userProfileService.createProfile(user, form));
+        assertEquals("性格特性のJSON変換に失敗しました。", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("createProfile: personalityTraitsがnullの場合nullが設定される")
+    void createProfile_nullPersonalityTraits_setsNull() {
+        User user = createUser(1);
+        UserProfileForm form = createForm();
+        form.setPersonalityTraits(null);
+        when(userProfileRepository.existsByUserId(1)).thenReturn(false);
+        when(userProfileRepository.save(any())).thenAnswer(inv -> {
+            UserProfile p = inv.getArgument(0);
+            p.setId(10);
+            return p;
+        });
+
+        UserProfileDto result = userProfileService.createProfile(user, form);
+
+        assertNotNull(result);
+        assertTrue(result.getPersonalityTraits().isEmpty());
+    }
 }

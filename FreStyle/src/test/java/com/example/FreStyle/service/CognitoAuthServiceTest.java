@@ -268,6 +268,26 @@ class CognitoAuthServiceTest {
                     () -> service.updateUserProfile("invalid-token", "名前"));
             assertEquals("invalid parameter retry login", ex.getMessage());
         }
+
+        @Test
+        void InvalidUserPoolConfigurationExceptionでRuntimeException() {
+            when(cognitoClient.updateUserAttributes(any(UpdateUserAttributesRequest.class)))
+                    .thenThrow(InvalidUserPoolConfigurationException.builder().message("bad config").build());
+
+            RuntimeException ex = assertThrows(RuntimeException.class,
+                    () -> service.updateUserProfile("access-token", "名前"));
+            assertEquals("user configuration setting", ex.getMessage());
+        }
+
+        @Test
+        void InvalidParameterExceptionでRuntimeException() {
+            when(cognitoClient.updateUserAttributes(any(UpdateUserAttributesRequest.class)))
+                    .thenThrow(new java.security.InvalidParameterException("invalid param"));
+
+            RuntimeException ex = assertThrows(RuntimeException.class,
+                    () -> service.updateUserProfile("access-token", "名前"));
+            assertEquals("invalid parameter", ex.getMessage());
+        }
     }
 
     // ============================

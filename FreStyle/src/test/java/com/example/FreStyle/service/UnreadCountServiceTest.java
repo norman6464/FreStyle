@@ -171,4 +171,28 @@ class UnreadCountServiceTest {
         assertTrue(result.isEmpty());
         verify(unreadCountRepository, never()).findByUserIdAndRoomIds(anyInt(), anyList());
     }
+
+    @Test
+    @DisplayName("getUnreadCountsByUserAndRooms: 部分的なルームのみ未読レコードがある場合そのルームだけ返す")
+    void getUnreadCountsByUserAndRooms_partialRooms_returnsOnlyExistingRooms() {
+        // Arrange - 3ルームリクエストだが、未読レコードは1ルーム分のみ
+        ChatRoom room1 = new ChatRoom();
+        room1.setId(10);
+
+        UnreadCount uc1 = new UnreadCount();
+        uc1.setRoom(room1);
+        uc1.setCount(5);
+
+        when(unreadCountRepository.findByUserIdAndRoomIds(1, List.of(10, 20, 30)))
+                .thenReturn(List.of(uc1));
+
+        // Act
+        Map<Integer, Integer> result = unreadCountService.getUnreadCountsByUserAndRooms(1, List.of(10, 20, 30));
+
+        // Assert
+        assertEquals(1, result.size());
+        assertEquals(5, result.get(10));
+        assertNull(result.get(20));
+        assertNull(result.get(30));
+    }
 }

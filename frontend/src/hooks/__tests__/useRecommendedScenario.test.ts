@@ -70,6 +70,17 @@ describe('useRecommendedScenario', () => {
     expect(result.current.scenario).toBeNull();
   });
 
+  it('マッピングは存在するが一致するシナリオがない場合はnullを返す', async () => {
+    mockedRepo.getScenarios.mockResolvedValue([]);
+    const weakAxis = { axis: '論理的構成力', score: 5, comment: '' };
+    const { result } = renderHook(() => useRecommendedScenario(weakAxis));
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+    expect(result.current.scenario).toBeNull();
+  });
+
   it('未知の軸名の場合はnullを返す', async () => {
     const weakAxis = { axis: '未知の軸', score: 3, comment: '' };
     const { result } = renderHook(() => useRecommendedScenario(weakAxis));

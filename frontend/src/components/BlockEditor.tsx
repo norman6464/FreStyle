@@ -140,7 +140,7 @@ export default function BlockEditor({ content, onChange, noteId }: BlockEditorPr
   return (
     <div
       ref={containerRef}
-      className="block-editor flex-1 overflow-y-auto relative"
+      className="block-editor flex-1 overflow-y-auto relative pl-10"
       data-testid="block-editor"
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}

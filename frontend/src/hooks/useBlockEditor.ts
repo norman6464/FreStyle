@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useEditor } from '@tiptap/react';
 import { createEditorExtensions } from '../utils/editorExtensions';
 import { isLegacyMarkdown } from '../utils/isLegacyMarkdown';
@@ -10,6 +10,12 @@ interface UseBlockEditorOptions {
 }
 
 export function useBlockEditor({ content, onChange }: UseBlockEditorOptions) {
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
+  // エディタ自身が発行した最後のJSON文字列を記録し、同期ループを防止
+  const lastEmittedJson = useRef<string>('');
+
   const initialContent = useMemo(() => {
     if (!content) return undefined;
     if (isLegacyMarkdown(content)) {
@@ -26,14 +32,17 @@ export function useBlockEditor({ content, onChange }: UseBlockEditorOptions) {
     extensions: createEditorExtensions(),
     content: initialContent,
     onUpdate: ({ editor }) => {
-      onChange(JSON.stringify(editor.getJSON()));
+      const json = JSON.stringify(editor.getJSON());
+      lastEmittedJson.current = json;
+      onChangeRef.current(json);
     },
   });
 
   useEffect(() => {
     if (!editor) return;
-    const currentJson = JSON.stringify(editor.getJSON());
-    if (content === currentJson) return;
+
+    // エディタのonUpdateから発行されたコンテンツが戻ってきた場合はスキップ
+    if (content === lastEmittedJson.current) return;
 
     if (!content) {
       editor.commands.clearContent();
@@ -51,6 +60,7 @@ export function useBlockEditor({ content, onChange }: UseBlockEditorOptions) {
       }
     }
 
+    const currentJson = JSON.stringify(editor.getJSON());
     const newJson = JSON.stringify(newContent);
     if (newJson === currentJson) return;
 

@@ -39,7 +39,7 @@ export default function SlashCommandMenu({ items, selectedIndex, onSelect }: Sla
       role="menu"
       aria-activedescendant={activeId}
       aria-label="スラッシュコマンド"
-      className="slash-command-menu bg-[var(--color-surface-1)] border border-[var(--color-border)] rounded-xl shadow-2xl overflow-y-auto max-h-80 min-w-[280px]"
+      className="slash-command-menu bg-[var(--color-surface-1)] border border-[var(--color-surface-3)] rounded-xl shadow-2xl overflow-y-auto max-h-80 min-w-[280px]"
     >
       {[...categories.entries()].map(([category, { items: catItems, startIndex }]) => (
         <div key={category}>
@@ -64,7 +64,7 @@ export default function SlashCommandMenu({ items, selectedIndex, onSelect }: Sla
                 onClick={() => onSelect(globalIndex)}
                 type="button"
               >
-                <span className="w-7 h-7 flex items-center justify-center rounded bg-[var(--color-surface-2)] border border-[var(--color-border)] text-xs font-semibold shrink-0">
+                <span className="w-7 h-7 flex items-center justify-center rounded bg-[var(--color-surface-2)] border border-[var(--color-surface-3)] text-xs font-semibold shrink-0">
                   {item.icon}
                 </span>
                 <span className="flex-1 text-sm font-medium truncate">{item.label}</span>
@@ -78,9 +78,9 @@ export default function SlashCommandMenu({ items, selectedIndex, onSelect }: Sla
           })}
         </div>
       ))}
-      <div className="flex items-center justify-between px-3 py-2 border-t border-[var(--color-border)] mt-1">
+      <div className="flex items-center justify-between px-3 py-2 border-t border-[var(--color-surface-3)] mt-1">
         <span className="text-[11px] text-[var(--color-text-faint)]">メニューを閉じる</span>
-        <kbd className="text-[11px] text-[var(--color-text-faint)] bg-[var(--color-surface-2)] px-1.5 py-0.5 rounded border border-[var(--color-border)]">
+        <kbd className="text-[11px] text-[var(--color-text-faint)] bg-[var(--color-surface-2)] px-1.5 py-0.5 rounded border border-[var(--color-surface-3)]">
           esc
         </kbd>
       </div>

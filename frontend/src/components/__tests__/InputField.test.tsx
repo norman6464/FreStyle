@@ -99,4 +99,32 @@ describe('InputField', () => {
     render(<InputField label="メール" name="email" value="test" onChange={mockOnChange} disabled />);
     expect(screen.queryByRole('button')).toBeNull();
   });
+
+  it('type="password"時にパスワード表示切替ボタンが表示される', () => {
+    render(<InputField label="パスワード" name="password" type="password" value="secret" onChange={mockOnChange} />);
+    expect(screen.getByLabelText('パスワードを表示')).toBeInTheDocument();
+  });
+
+  it('パスワード表示切替ボタンクリックでtype="text"に変わる', () => {
+    render(<InputField label="パスワード" name="password" type="password" value="secret" onChange={mockOnChange} />);
+    fireEvent.click(screen.getByLabelText('パスワードを表示'));
+    expect(screen.getByLabelText('パスワード')).toHaveAttribute('type', 'text');
+  });
+
+  it('再クリックでtype="password"に戻る', () => {
+    render(<InputField label="パスワード" name="password" type="password" value="secret" onChange={mockOnChange} />);
+    fireEvent.click(screen.getByLabelText('パスワードを表示'));
+    fireEvent.click(screen.getByLabelText('パスワードを非表示'));
+    expect(screen.getByLabelText('パスワード')).toHaveAttribute('type', 'password');
+  });
+
+  it('type="text"時はパスワード表示切替ボタンが表示されない', () => {
+    render(<InputField label="メール" name="email" type="text" value="test" onChange={mockOnChange} />);
+    expect(screen.queryByLabelText('パスワードを表示')).toBeNull();
+  });
+
+  it('type="password"時にクリアボタンが表示されない', () => {
+    render(<InputField label="パスワード" name="password" type="password" value="secret" onChange={mockOnChange} />);
+    expect(screen.queryByLabelText('入力をクリア')).toBeNull();
+  });
 });

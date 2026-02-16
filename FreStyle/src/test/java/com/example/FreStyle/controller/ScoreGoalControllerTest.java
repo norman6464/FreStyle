@@ -1,6 +1,7 @@
 package com.example.FreStyle.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 import org.junit.jupiter.api.DisplayName;
@@ -107,7 +108,7 @@ class ScoreGoalControllerTest {
         when(userIdentityService.findUserBySub("sub-123")).thenReturn(user);
         doThrow(new RuntimeException("DB接続エラー")).when(saveScoreGoalUseCase).execute(user, 9.0);
 
-        org.assertj.core.api.Assertions.assertThatThrownBy(
+        assertThatThrownBy(
                 () -> scoreGoalController.saveGoal(jwt, new ScoreGoalController.SaveGoalRequest(9.0))
         ).isInstanceOf(RuntimeException.class).hasMessage("DB接続エラー");
     }

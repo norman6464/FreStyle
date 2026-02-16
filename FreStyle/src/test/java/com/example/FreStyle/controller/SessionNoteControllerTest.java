@@ -1,6 +1,7 @@
 package com.example.FreStyle.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 import org.junit.jupiter.api.DisplayName;
@@ -109,7 +110,7 @@ class SessionNoteControllerTest {
         when(userIdentityService.findUserBySub("sub-123")).thenReturn(user);
         doThrow(new RuntimeException("DB接続エラー")).when(saveSessionNoteUseCase).execute(user, 100, "メモ");
 
-        org.assertj.core.api.Assertions.assertThatThrownBy(
+        assertThatThrownBy(
                 () -> sessionNoteController.saveNote(jwt, 100, new SessionNoteController.SaveNoteRequest("メモ"))
         ).isInstanceOf(RuntimeException.class).hasMessage("DB接続エラー");
     }

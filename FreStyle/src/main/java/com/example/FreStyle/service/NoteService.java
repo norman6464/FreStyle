@@ -18,6 +18,14 @@ import java.util.stream.Collectors;
 @Repository
 public class NoteService implements NoteRepository {
 
+    private static final String ATTR_USER_ID = "user_id";
+    private static final String ATTR_NOTE_ID = "note_id";
+    private static final String ATTR_TITLE = "title";
+    private static final String ATTR_CONTENT = "content";
+    private static final String ATTR_IS_PINNED = "is_pinned";
+    private static final String ATTR_CREATED_AT = "created_at";
+    private static final String ATTR_UPDATED_AT = "updated_at";
+
     private DynamoDbClient dynamoDbClient;
     private String tableName;
 
@@ -62,7 +70,7 @@ public class NoteService implements NoteRepository {
     public List<NoteDto> findByUserId(Integer userId) {
         QueryRequest queryRequest = QueryRequest.builder()
                 .tableName(tableName)
-                .keyConditionExpression("user_id = :user_id")
+                .keyConditionExpression(ATTR_USER_ID + " = :user_id")
                 .expressionAttributeValues(Map.of(
                         ":user_id", AttributeValue.builder().n(userId.toString()).build()
                 ))
@@ -82,13 +90,13 @@ public class NoteService implements NoteRepository {
         long now = Instant.now().toEpochMilli();
 
         Map<String, AttributeValue> item = new HashMap<>();
-        item.put("user_id", AttributeValue.builder().n(userId.toString()).build());
-        item.put("note_id", AttributeValue.builder().s(noteId).build());
-        item.put("title", AttributeValue.builder().s(title).build());
-        item.put("content", AttributeValue.builder().s("").build());
-        item.put("is_pinned", AttributeValue.builder().bool(false).build());
-        item.put("created_at", AttributeValue.builder().n(String.valueOf(now)).build());
-        item.put("updated_at", AttributeValue.builder().n(String.valueOf(now)).build());
+        item.put(ATTR_USER_ID, AttributeValue.builder().n(userId.toString()).build());
+        item.put(ATTR_NOTE_ID, AttributeValue.builder().s(noteId).build());
+        item.put(ATTR_TITLE, AttributeValue.builder().s(title).build());
+        item.put(ATTR_CONTENT, AttributeValue.builder().s("").build());
+        item.put(ATTR_IS_PINNED, AttributeValue.builder().bool(false).build());
+        item.put(ATTR_CREATED_AT, AttributeValue.builder().n(String.valueOf(now)).build());
+        item.put(ATTR_UPDATED_AT, AttributeValue.builder().n(String.valueOf(now)).build());
 
         PutItemRequest putRequest = PutItemRequest.builder()
                 .tableName(tableName)
@@ -112,14 +120,10 @@ public class NoteService implements NoteRepository {
     public void update(Integer userId, String noteId, String title, String content, Boolean isPinned) {
         long now = Instant.now().toEpochMilli();
 
-        Map<String, AttributeValue> key = new HashMap<>();
-        key.put("user_id", AttributeValue.builder().n(userId.toString()).build());
-        key.put("note_id", AttributeValue.builder().s(noteId).build());
-
         UpdateItemRequest updateRequest = UpdateItemRequest.builder()
                 .tableName(tableName)
-                .key(key)
-                .updateExpression("SET title = :title, content = :content, is_pinned = :is_pinned, updated_at = :updated_at")
+                .key(buildKey(userId, noteId))
+                .updateExpression("SET " + ATTR_TITLE + " = :title, " + ATTR_CONTENT + " = :content, " + ATTR_IS_PINNED + " = :is_pinned, " + ATTR_UPDATED_AT + " = :updated_at")
                 .expressionAttributeValues(Map.of(
                         ":title", AttributeValue.builder().s(title).build(),
                         ":content", AttributeValue.builder().s(content).build(),
@@ -133,27 +137,38 @@ public class NoteService implements NoteRepository {
 
     @Override
     public void delete(Integer userId, String noteId) {
-        Map<String, AttributeValue> key = new HashMap<>();
-        key.put("user_id", AttributeValue.builder().n(userId.toString()).build());
-        key.put("note_id", AttributeValue.builder().s(noteId).build());
-
         DeleteItemRequest deleteRequest = DeleteItemRequest.builder()
                 .tableName(tableName)
-                .key(key)
+                .key(buildKey(userId, noteId))
                 .build();
 
         dynamoDbClient.deleteItem(deleteRequest);
     }
 
+    private Map<String, AttributeValue> buildKey(Integer userId, String noteId) {
+        Map<String, AttributeValue> key = new HashMap<>();
+        key.put(ATTR_USER_ID, AttributeValue.builder().n(userId.toString()).build());
+        key.put(ATTR_NOTE_ID, AttributeValue.builder().s(noteId).build());
+        return key;
+    }
+
     private NoteDto toDto(Map<String, AttributeValue> item) {
         NoteDto dto = new NoteDto();
-        dto.setUserId(Integer.parseInt(item.get("user_id").n()));
-        dto.setNoteId(item.get("note_id").s());
-        dto.setTitle(item.containsKey("title") ? item.get("title").s() : "");
-        dto.setContent(item.containsKey("content") ? item.get("content").s() : "");
-        dto.setIsPinned(item.containsKey("is_pinned") ? item.get("is_pinned").bool() : false);
-        dto.setCreatedAt(item.containsKey("created_at") ? Long.parseLong(item.get("created_at").n()) : 0L);
-        dto.setUpdatedAt(item.containsKey("updated_at") ? Long.parseLong(item.get("updated_at").n()) : 0L);
+        dto.setUserId(Integer.parseInt(item.get(ATTR_USER_ID).n()));
+        dto.setNoteId(item.get(ATTR_NOTE_ID).s());
+        dto.setTitle(getStringAttr(item, ATTR_TITLE, ""));
+        dto.setContent(getStringAttr(item, ATTR_CONTENT, ""));
+        dto.setIsPinned(item.containsKey(ATTR_IS_PINNED) ? item.get(ATTR_IS_PINNED).bool() : false);
+        dto.setCreatedAt(getLongAttr(item, ATTR_CREATED_AT, 0L));
+        dto.setUpdatedAt(getLongAttr(item, ATTR_UPDATED_AT, 0L));
         return dto;
+    }
+
+    private String getStringAttr(Map<String, AttributeValue> item, String key, String defaultValue) {
+        return item.containsKey(key) ? item.get(key).s() : defaultValue;
+    }
+
+    private long getLongAttr(Map<String, AttributeValue> item, String key, long defaultValue) {
+        return item.containsKey(key) ? Long.parseLong(item.get(key).n()) : defaultValue;
     }
 }

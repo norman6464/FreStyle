@@ -5,6 +5,9 @@ import NoteEditor from '../components/NoteEditor';
 import EmptyState from '../components/EmptyState';
 import ConfirmModal from '../components/ConfirmModal';
 import Loading from '../components/Loading';
+import SortSelector from '../components/SortSelector';
+import { NOTE_SORT_OPTIONS } from '../constants/sortOptions';
+import type { NoteSortOption } from '../constants/sortOptions';
 import { DocumentTextIcon, PlusIcon, MagnifyingGlassIcon, Bars3Icon } from '@heroicons/react/24/outline';
 import { useNotes } from '../hooks/useNotes';
 import { useNoteEditor } from '../hooks/useNoteEditor';
@@ -32,6 +35,8 @@ export default function NotesPage() {
     requestDelete,
     confirmDelete,
     cancelDelete,
+    noteSort,
+    setNoteSort,
   } = useNotes();
 
   useEffect(() => {
@@ -85,6 +90,11 @@ export default function NotesPage() {
                 className="w-full pl-8 pr-3 py-1.5 bg-surface-2 border border-surface-3 rounded-lg text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-primary-500 transition-colors"
               />
             </div>
+            <SortSelector
+              options={NOTE_SORT_OPTIONS}
+              selected={noteSort}
+              onChange={(v) => setNoteSort(v as NoteSortOption)}
+            />
             <button
               onClick={handleCreateNote}
               className="w-full bg-primary-500 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-primary-600 transition-colors flex items-center justify-center gap-2"

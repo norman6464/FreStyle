@@ -2,16 +2,17 @@ import { SORT_OPTIONS } from '../constants/sortOptions';
 import type { SortOption } from '../constants/sortOptions';
 
 interface SortSelectorProps {
-  selected: SortOption;
-  onChange: (sort: SortOption) => void;
+  options?: { value: string; label: string }[];
+  selected: string;
+  onChange: (sort: string) => void;
 }
 
 export type { SortOption };
 
-export default function SortSelector({ selected, onChange }: SortSelectorProps) {
+export default function SortSelector({ options = SORT_OPTIONS, selected, onChange }: SortSelectorProps) {
   return (
     <div className="flex gap-1.5">
-      {SORT_OPTIONS.map(({ value, label }) => {
+      {options.map(({ value, label }) => {
         const isActive = selected === value;
         return (
           <button

@@ -468,4 +468,72 @@ describe('useNotes', () => {
     await act(async () => { await result.current.confirmDelete(); });
     expect(NoteRepository.deleteNote).not.toHaveBeenCalled();
   });
+
+  // ソートオプションテスト
+
+  it('noteSortの初期値がdefaultである', () => {
+    const { result } = renderHook(() => useNotes());
+    expect(result.current.noteSort).toBe('default');
+  });
+
+  it('setNoteSortでソート順を変更できる', () => {
+    const { result } = renderHook(() => useNotes());
+
+    act(() => { result.current.setNoteSort('updated-asc'); });
+    expect(result.current.noteSort).toBe('updated-asc');
+  });
+
+  it('noteSortがupdated-ascの場合、更新日時昇順でソートされる', async () => {
+    const notes = [
+      { noteId: 'n1', userId: 1, title: 'A', content: '', isPinned: false, createdAt: 1000, updatedAt: 3000 },
+      { noteId: 'n2', userId: 1, title: 'B', content: '', isPinned: false, createdAt: 2000, updatedAt: 1000 },
+      { noteId: 'n3', userId: 1, title: 'C', content: '', isPinned: false, createdAt: 3000, updatedAt: 2000 },
+    ];
+    vi.mocked(NoteRepository.fetchNotes).mockResolvedValue(notes);
+
+    const { result } = renderHook(() => useNotes());
+    await act(async () => { await result.current.fetchNotes(); });
+
+    act(() => { result.current.setNoteSort('updated-asc'); });
+
+    expect(result.current.filteredNotes[0].noteId).toBe('n2');
+    expect(result.current.filteredNotes[1].noteId).toBe('n3');
+    expect(result.current.filteredNotes[2].noteId).toBe('n1');
+  });
+
+  it('noteSortがtitleの場合、タイトル順でソートされる', async () => {
+    const notes = [
+      { noteId: 'n1', userId: 1, title: 'バナナ', content: '', isPinned: false, createdAt: 1000, updatedAt: 1000 },
+      { noteId: 'n2', userId: 1, title: 'アップル', content: '', isPinned: false, createdAt: 2000, updatedAt: 2000 },
+      { noteId: 'n3', userId: 1, title: 'チェリー', content: '', isPinned: false, createdAt: 3000, updatedAt: 3000 },
+    ];
+    vi.mocked(NoteRepository.fetchNotes).mockResolvedValue(notes);
+
+    const { result } = renderHook(() => useNotes());
+    await act(async () => { await result.current.fetchNotes(); });
+
+    act(() => { result.current.setNoteSort('title'); });
+
+    expect(result.current.filteredNotes[0].title).toBe('アップル');
+    expect(result.current.filteredNotes[1].title).toBe('チェリー');
+    expect(result.current.filteredNotes[2].title).toBe('バナナ');
+  });
+
+  it('noteSortがcreated-descの場合、作成日時降順でソートされる', async () => {
+    const notes = [
+      { noteId: 'n1', userId: 1, title: 'A', content: '', isPinned: false, createdAt: 1000, updatedAt: 3000 },
+      { noteId: 'n2', userId: 1, title: 'B', content: '', isPinned: false, createdAt: 3000, updatedAt: 1000 },
+      { noteId: 'n3', userId: 1, title: 'C', content: '', isPinned: false, createdAt: 2000, updatedAt: 2000 },
+    ];
+    vi.mocked(NoteRepository.fetchNotes).mockResolvedValue(notes);
+
+    const { result } = renderHook(() => useNotes());
+    await act(async () => { await result.current.fetchNotes(); });
+
+    act(() => { result.current.setNoteSort('created-desc'); });
+
+    expect(result.current.filteredNotes[0].noteId).toBe('n2');
+    expect(result.current.filteredNotes[1].noteId).toBe('n3');
+    expect(result.current.filteredNotes[2].noteId).toBe('n1');
+  });
 });

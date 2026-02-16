@@ -34,4 +34,22 @@ class BusinessExceptionTest {
 
         assertInstanceOf(RuntimeException.class, exception);
     }
+
+    @Test
+    @DisplayName("throwしてcatchできる")
+    void canBeThrown() {
+        assertThrows(BusinessException.class, () -> {
+            throw new BusinessException("ビジネスエラー");
+        });
+    }
+
+    @Test
+    @DisplayName("原因例外のチェインが正しく伝搬する")
+    void causeChainPropagates() {
+        IllegalArgumentException root = new IllegalArgumentException("根本原因");
+        BusinessException exception = new BusinessException("ビジネスエラー", root);
+
+        assertInstanceOf(IllegalArgumentException.class, exception.getCause());
+        assertEquals("根本原因", exception.getCause().getMessage());
+    }
 }

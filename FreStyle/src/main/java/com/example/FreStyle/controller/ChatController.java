@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.example.FreStyle.dto.ChatMessageDto;
 import com.example.FreStyle.dto.ChatUserDto;
 import com.example.FreStyle.dto.UserDto;
 import com.example.FreStyle.usecase.CreateOrGetChatRoomUseCase;
@@ -41,56 +40,45 @@ public class ChatController {
     @GetMapping("/users")
     public ResponseEntity<?> users(@AuthenticationPrincipal Jwt jwt,
         @RequestParam(name = "query", required = false) String query) {
-        String cognitoSub = jwt.getSubject();
-        if (cognitoSub == null || cognitoSub.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "タイムアウトをしたか、または未ログインです。"));
-        }
-        List<UserDto> users = getChatUsersUseCase.execute(cognitoSub, query);
+        String sub = resolveSubject(jwt);
+        if (sub == null) return unauthorizedResponse();
+        List<UserDto> users = getChatUsersUseCase.execute(sub, query);
         return ResponseEntity.ok().body(Map.of("users", users));
     }
 
     @PostMapping("/users/{id}/create")
     public ResponseEntity<?> create(@AuthenticationPrincipal Jwt jwt, @PathVariable(name = "id") Integer id) {
-        String cognitoSub = jwt.getSubject();
-        if (cognitoSub == null || cognitoSub.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "無効なリクエストです。"));
-        }
+        String sub = resolveSubject(jwt);
+        if (sub == null) return unauthorizedResponse();
         try {
-            Integer roomId = createOrGetChatRoomUseCase.execute(cognitoSub, id);
+            Integer roomId = createOrGetChatRoomUseCase.execute(sub, id);
             return ResponseEntity.ok(Map.of("roomId", roomId, "status", "success"));
         } catch (IllegalStateException e) {
             return ResponseEntity.badRequest().body(Map.of("error", "無効なリクエストです。"));
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "ルーム作成中にエラーが発生しました。"));
+            return internalErrorResponse();
         }
     }
 
     @GetMapping("/users/{roomId}/history")
     public ResponseEntity<?> history(@AuthenticationPrincipal Jwt jwt, @PathVariable(name = "roomId", required = true) Integer roomId) {
-        String cognitoSub = jwt.getSubject();
-        if (cognitoSub == null || cognitoSub.isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "無効なリクエストです。"));
-        }
+        String sub = resolveSubject(jwt);
+        if (sub == null) return unauthorizedResponse();
         try {
-            List<ChatMessageDto> history = getChatHistoryUseCase.execute(cognitoSub, roomId);
-            return ResponseEntity.ok(history);
+            return ResponseEntity.ok(getChatHistoryUseCase.execute(sub, roomId));
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "サーバーエラーです。"));
+            return internalErrorResponse();
         }
     }
 
     @GetMapping("/stats")
     public ResponseEntity<?> stats(@AuthenticationPrincipal Jwt jwt) {
-        String cognitoSub = jwt.getSubject();
-        if (cognitoSub == null || cognitoSub.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "タイムアウトをしたか、または未ログインです。"));
-        }
+        String sub = resolveSubject(jwt);
+        if (sub == null) return unauthorizedResponse();
         try {
-            Map<String, Object> stats = getChatStatsUseCase.execute(cognitoSub);
-            return ResponseEntity.ok().body(stats);
+            return ResponseEntity.ok().body(getChatStatsUseCase.execute(sub));
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "サーバーエラーです。"));
+            return internalErrorResponse();
         }
     }
 
@@ -98,21 +86,13 @@ public class ChatController {
     public ResponseEntity<?> markAsRead(
         @AuthenticationPrincipal Jwt jwt,
         @PathVariable("roomId") Integer roomId) {
-        if (jwt == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(Map.of("error", "認証されていません。"));
-        }
-        String cognitoSub = jwt.getSubject();
-        if (cognitoSub == null || cognitoSub.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(Map.of("error", "タイムアウトをしたか、または未ログインです。"));
-        }
+        String sub = resolveSubject(jwt);
+        if (sub == null) return unauthorizedResponse();
         try {
-            markChatAsReadUseCase.execute(cognitoSub, roomId);
+            markChatAsReadUseCase.execute(sub, roomId);
             return ResponseEntity.ok(Map.of("status", "success"));
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Map.of("error", "サーバーエラーが発生しました。"));
+            return internalErrorResponse();
         }
     }
 
@@ -120,21 +100,29 @@ public class ChatController {
     public ResponseEntity<?> getChatRooms(
         @AuthenticationPrincipal Jwt jwt,
         @RequestParam(name = "query", required = false) String query) {
-        if (jwt == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(Map.of("error", "タイムアウトをしたか、または未ログインです。"));
-        }
-        String cognitoSub = jwt.getSubject();
-        if (cognitoSub == null || cognitoSub.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(Map.of("error", "タイムアウトをしたか、または未ログインです。"));
-        }
+        String sub = resolveSubject(jwt);
+        if (sub == null) return unauthorizedResponse();
         try {
-            List<ChatUserDto> chatUsers = getChatRoomsUseCase.execute(cognitoSub, query);
+            List<ChatUserDto> chatUsers = getChatRoomsUseCase.execute(sub, query);
             return ResponseEntity.ok(Map.of("chatUsers", chatUsers));
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Map.of("error", "サーバーエラーが発生しました。"));
+            return internalErrorResponse();
         }
+    }
+
+    private String resolveSubject(Jwt jwt) {
+        if (jwt == null) return null;
+        String sub = jwt.getSubject();
+        return (sub == null || sub.isEmpty()) ? null : sub;
+    }
+
+    private ResponseEntity<Map<String, String>> unauthorizedResponse() {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+            .body(Map.of("error", "タイムアウトをしたか、または未ログインです。"));
+    }
+
+    private ResponseEntity<Map<String, String>> internalErrorResponse() {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+            .body(Map.of("error", "サーバーエラーが発生しました。"));
     }
 }

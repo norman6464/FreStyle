@@ -63,6 +63,10 @@ describe('useForgotPassword', () => {
 
     const { result } = renderHook(() => useForgotPassword());
 
+    act(() => {
+      result.current.setEmail('test@example.com');
+    });
+
     await act(async () => {
       await result.current.handleSubmit({
         preventDefault: vi.fn(),
@@ -77,6 +81,10 @@ describe('useForgotPassword', () => {
     mockForgotPassword.mockRejectedValue(new Error('Network Error'));
 
     const { result } = renderHook(() => useForgotPassword());
+
+    act(() => {
+      result.current.setEmail('test@example.com');
+    });
 
     await act(async () => {
       await result.current.handleSubmit({
@@ -128,10 +136,62 @@ describe('useForgotPassword', () => {
     expect(result.current.loading).toBe(false);
   });
 
+  it('メールアドレスが空の場合エラーメッセージが表示されAPIが呼ばれない', async () => {
+    const { result } = renderHook(() => useForgotPassword());
+
+    await act(async () => {
+      await result.current.handleSubmit({
+        preventDefault: vi.fn(),
+      } as unknown as React.FormEvent<HTMLFormElement>);
+    });
+
+    expect(result.current.message?.type).toBe('error');
+    expect(result.current.message?.text).toBe('メールアドレスを入力してください。');
+    expect(mockForgotPassword).not.toHaveBeenCalled();
+  });
+
+  it('メールアドレス形式が無効の場合エラーメッセージが表示されAPIが呼ばれない', async () => {
+    const { result } = renderHook(() => useForgotPassword());
+
+    act(() => {
+      result.current.setEmail('invalid-email');
+    });
+
+    await act(async () => {
+      await result.current.handleSubmit({
+        preventDefault: vi.fn(),
+      } as unknown as React.FormEvent<HTMLFormElement>);
+    });
+
+    expect(result.current.message?.type).toBe('error');
+    expect(result.current.message?.text).toBe('有効なメールアドレスを入力してください。');
+    expect(mockForgotPassword).not.toHaveBeenCalled();
+  });
+
+  it('有効なメールアドレスの場合APIが呼ばれる', async () => {
+    const { result } = renderHook(() => useForgotPassword());
+
+    act(() => {
+      result.current.setEmail('valid@example.com');
+    });
+
+    await act(async () => {
+      await result.current.handleSubmit({
+        preventDefault: vi.fn(),
+      } as unknown as React.FormEvent<HTMLFormElement>);
+    });
+
+    expect(mockForgotPassword).toHaveBeenCalledWith({ email: 'valid@example.com' });
+  });
+
   it('handleSubmit実行中にloadingがtrueになる', async () => {
     let resolvePromise: (value: unknown) => void;
     mockForgotPassword.mockReturnValue(new Promise((resolve) => { resolvePromise = resolve; }));
     const { result } = renderHook(() => useForgotPassword());
+
+    act(() => {
+      result.current.setEmail('test@example.com');
+    });
 
     let submitPromise: Promise<void>;
     act(() => {

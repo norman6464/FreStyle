@@ -12,6 +12,18 @@ export function useForgotPassword() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+
+    if (!email.trim()) {
+      setMessage({ type: 'error', text: 'メールアドレスを入力してください。' });
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setMessage({ type: 'error', text: '有効なメールアドレスを入力してください。' });
+      return;
+    }
+
     setLoading(true);
 
     try {

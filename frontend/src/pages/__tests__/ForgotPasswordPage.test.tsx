@@ -74,6 +74,31 @@ describe('ForgotPasswordPage', () => {
     });
   });
 
+  it('メールアドレス未入力で送信するとバリデーションエラーが表示される', async () => {
+    render(<BrowserRouter><ForgotPasswordPage /></BrowserRouter>);
+
+    fireEvent.click(screen.getByText('確認コードを送信'));
+
+    await waitFor(() => {
+      expect(screen.getByText('メールアドレスを入力してください。')).toBeInTheDocument();
+    });
+    expect(authRepository.forgotPassword).not.toHaveBeenCalled();
+  });
+
+  it('無効なメールアドレスで送信するとバリデーションエラーが表示される', async () => {
+    render(<BrowserRouter><ForgotPasswordPage /></BrowserRouter>);
+
+    fireEvent.change(screen.getByLabelText('メールアドレス'), {
+      target: { value: 'invalid-email' },
+    });
+    fireEvent.submit(screen.getByText('確認コードを送信').closest('form')!);
+
+    await waitFor(() => {
+      expect(screen.getByText('有効なメールアドレスを入力してください。')).toBeInTheDocument();
+    });
+    expect(authRepository.forgotPassword).not.toHaveBeenCalled();
+  });
+
   it('通信エラー時にエラーメッセージを表示する', async () => {
     vi.mocked(authRepository.forgotPassword).mockRejectedValue(new Error('Network error'));
 

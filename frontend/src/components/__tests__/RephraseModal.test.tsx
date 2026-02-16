@@ -92,6 +92,13 @@ describe('RephraseModal', () => {
     expect(favButtons).toHaveLength(5);
   });
 
+  it('ESCキーでonCloseが呼ばれる', () => {
+    render(<RephraseModal result={rephraseResult} onClose={mockOnClose} originalText="元のテキスト" />);
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(mockOnClose).toHaveBeenCalled();
+  });
+
   it('コピーボタンクリックでフィードバックが表示される', async () => {
     // clipboard mockを設定
     Object.assign(navigator, {

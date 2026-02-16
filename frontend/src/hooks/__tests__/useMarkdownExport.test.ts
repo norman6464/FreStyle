@@ -72,8 +72,7 @@ describe('useMarkdownExport', () => {
       ],
     };
     const md = result.current.copyAsMarkdown('タイトル', JSON.stringify(doc));
-    expect(md).toContain('段落1');
-    expect(md).toContain('段落2');
+    expect(md).toBe('# タイトル\n\n段落1\n\n段落2');
   });
 
   it('exportAsMarkdownがタイトルなしの場合「無題.md」をファイル名にする', () => {
@@ -92,8 +91,8 @@ describe('useMarkdownExport', () => {
       }
       return originalCreateElement(tag);
     });
-    vi.spyOn(document.body, 'appendChild').mockImplementation((node) => node);
-    vi.spyOn(document.body, 'removeChild').mockImplementation((node) => node);
+    const appendSpy = vi.spyOn(document.body, 'appendChild').mockImplementation((node) => node);
+    const removeSpy = vi.spyOn(document.body, 'removeChild').mockImplementation((node) => node);
     globalThis.URL.createObjectURL = vi.fn(() => 'blob:test');
     globalThis.URL.revokeObjectURL = vi.fn();
 
@@ -103,5 +102,7 @@ describe('useMarkdownExport', () => {
     expect(downloadFileName).toBe('無題.md');
 
     createElementSpy.mockRestore();
+    appendSpy.mockRestore();
+    removeSpy.mockRestore();
   });
 });

@@ -47,30 +47,8 @@ class ChatRoomServiceTest {
     }
 
     @Test
-    @DisplayName("findChatRoomById: リポジトリが例外をスローした場合そのまま伝搬する")
+    @DisplayName("findChatRoomById: リポジトリが例外をスローした場合メッセージ付きで伝搬する")
     void findChatRoomById_propagatesRepositoryException() {
-        when(chatRoomRepository.findById(1))
-                .thenThrow(new RuntimeException("DB接続エラー"));
-
-        assertThrows(RuntimeException.class,
-                () -> chatRoomService.findChatRoomById(1));
-    }
-
-    @Test
-    @DisplayName("findChatRoomById: 異なるIDで正しいルームを返す")
-    void findChatRoomById_returnsDifferentRoom() {
-        ChatRoom room = new ChatRoom();
-        room.setId(42);
-        when(chatRoomRepository.findById(42)).thenReturn(Optional.of(room));
-
-        ChatRoom result = chatRoomService.findChatRoomById(42);
-
-        assertEquals(42, result.getId());
-    }
-
-    @Test
-    @DisplayName("findChatRoomById: リポジトリ例外のメッセージが保持される")
-    void findChatRoomById_propagatesExceptionMessage() {
         when(chatRoomRepository.findById(1))
                 .thenThrow(new RuntimeException("DB接続エラー"));
 

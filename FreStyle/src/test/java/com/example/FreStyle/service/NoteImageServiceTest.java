@@ -117,4 +117,37 @@ class NoteImageServiceTest {
 
         assertThat(response.uploadUrl()).isNotNull();
     }
+
+    @Test
+    void gif形式のcontentTypeが許可される() throws Exception {
+        when(s3Presigner.presignPutObject(any(PutObjectPresignRequest.class)))
+                .thenReturn(presignedPutObjectRequest);
+        when(presignedPutObjectRequest.url()).thenReturn(new URL("https://s3.example.com/upload"));
+
+        PresignedUrlResponse response = service.generatePresignedUrl(1, "note1", "anim.gif", "image/gif");
+
+        assertThat(response.uploadUrl()).isNotNull();
+    }
+
+    @Test
+    void 不正なcontentTypeのエラーメッセージにファイル形式が含まれる() {
+        assertThatThrownBy(() ->
+                service.generatePresignedUrl(1, "note1", "file.txt", "text/plain")
+        ).isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("text/plain");
+    }
+
+    @Test
+    void バケット名がS3リクエストに含まれる() throws Exception {
+        when(s3Presigner.presignPutObject(any(PutObjectPresignRequest.class)))
+                .thenReturn(presignedPutObjectRequest);
+        when(presignedPutObjectRequest.url()).thenReturn(new URL("https://s3.example.com/upload"));
+
+        service.generatePresignedUrl(1, "note1", "image.png", "image/png");
+
+        ArgumentCaptor<PutObjectPresignRequest> captor = ArgumentCaptor.forClass(PutObjectPresignRequest.class);
+        verify(s3Presigner).presignPutObject(captor.capture());
+
+        assertThat(captor.getValue().putObjectRequest().bucket()).isEqualTo("test-bucket");
+    }
 }

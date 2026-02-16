@@ -19,10 +19,15 @@ import PracticeFrequencyCard from '../components/PracticeFrequencyCard';
 import MenuNavigationCard from '../components/MenuNavigationCard';
 import SessionCountMilestoneCard from '../components/SessionCountMilestoneCard';
 import ScoreSparkline from '../components/ScoreSparkline';
+import RecommendedScenarioCard from '../components/RecommendedScenarioCard';
 import { useMenuData } from '../hooks/useMenuData';
+import { useScoreHistory } from '../hooks/useScoreHistory';
+import { useRecommendedScenario } from '../hooks/useRecommendedScenario';
 
 export default function MenuPage() {
   const { stats, totalUnread, latestScore, allScores, totalSessions, averageScore, uniqueDays, practiceDates, sessionsThisWeek } = useMenuData();
+  const { weakestAxis } = useScoreHistory();
+  const { scenario: recommendedScenario } = useRecommendedScenario(weakestAxis);
 
   const showRecommendation = !latestScore && stats?.chatPartnerCount === 0;
 
@@ -50,6 +55,13 @@ export default function MenuPage() {
       {allScores.length >= 2 && (
         <div className="mb-6">
           <ScoreGrowthTrendCard scores={allScores.map(s => s.overallScore)} />
+        </div>
+      )}
+
+      {/* 弱点シナリオ推薦 */}
+      {recommendedScenario && weakestAxis && (
+        <div className="mb-6">
+          <RecommendedScenarioCard scenario={recommendedScenario} weakAxis={weakestAxis.axis} />
         </div>
       )}
 

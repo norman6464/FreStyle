@@ -27,4 +27,14 @@ class SceneDisplayNameTest {
     void 未知のシーンの場合は空文字を返す() {
         assertThat(SceneDisplayName.of("unknown")).isEmpty();
     }
+
+    @Test
+    void 空文字の場合は空文字を返す() {
+        assertThat(SceneDisplayName.of("")).isEmpty();
+    }
+
+    @Test
+    void 大文字のシーン名の場合は空文字を返す() {
+        assertThat(SceneDisplayName.of("MEETING")).isEmpty();
+    }
 }

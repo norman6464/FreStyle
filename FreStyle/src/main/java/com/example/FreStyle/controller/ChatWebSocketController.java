@@ -35,21 +35,21 @@ public class ChatWebSocketController {
             @Payload Map<String, Object> payload
     ) {
         log.info("\n========== WebSocket /chat/send リクエスト受信 ==========");
-        log.info("📨 ペイロード全体: " + payload);
-        
+        log.info("📨 ペイロード全体: {}", payload);
+
         try {
             // パラメータの取得と検証
             log.info("🔍 パラメータを抽出中...");
             Object senderIdObj = payload.get("senderId");
             Object roomIdObj = payload.get("roomId");
             Object contentObj = payload.get("content");
-            
-            log.debug("   - senderId タイプ: " + (senderIdObj != null ? senderIdObj.getClass().getSimpleName() : "null"));
-            log.debug("   - senderId 値: " + senderIdObj);
-            log.debug("   - roomId タイプ: " + (roomIdObj != null ? roomIdObj.getClass().getSimpleName() : "null"));
-            log.debug("   - roomId 値: " + roomIdObj);
-            log.debug("   - content タイプ: " + (contentObj != null ? contentObj.getClass().getSimpleName() : "null"));
-            log.debug("   - content 値: " + contentObj);
+
+            log.debug("   - senderId タイプ: {}", senderIdObj != null ? senderIdObj.getClass().getSimpleName() : "null");
+            log.debug("   - senderId 値: {}", senderIdObj);
+            log.debug("   - roomId タイプ: {}", roomIdObj != null ? roomIdObj.getClass().getSimpleName() : "null");
+            log.debug("   - roomId 値: {}", roomIdObj);
+            log.debug("   - content タイプ: {}", contentObj != null ? contentObj.getClass().getSimpleName() : "null");
+            log.debug("   - content 値: {}", contentObj);
             
             // senderId は String または Integer で来る可能性がある
             // Integer に変換して扱う
@@ -75,27 +75,27 @@ public class ChatWebSocketController {
             String content = (String) payload.get("content");
             
             log.info("✅ パラメータ抽出成功");
-            log.debug("   - senderId (最終): " + senderId + " (タイプ: String)");
-            log.debug("   - roomId (最終): " + roomId + " (タイプ: Integer)");
-            log.debug("   - content: " + content);
-            
+            log.debug("   - senderId (最終): {}", senderId);
+            log.debug("   - roomId (最終): {}", roomId);
+            log.debug("   - content: {}", content);
+
             // ChatRoom 取得
-            log.info("🔍 ChatRoom を roomId=" + roomId + " で取得中...");
+            log.info("🔍 ChatRoom を roomId={} で取得中...", roomId);
             ChatRoom room = chatRoomService.findChatRoomById(roomId);
-            log.info("✅ ChatRoom 取得成功: " + room.getId());
+            log.info("✅ ChatRoom 取得成功: {}", room.getId());
             
             // メッセージ保存
             log.info("💾 メッセージをデータベースに保存中...");
             ChatMessageDto saved = chatMessageService.addMessage(room, senderId, content);
             log.info("✅ メッセージ保存成功");
-            log.debug("   - messageId: " + saved.getId());
-            log.debug("   - roomId: " + saved.getRoomId());
-            log.debug("   - senderId: " + saved.getSenderId());
-            log.debug("   - content: " + saved.getContent());
-            log.debug("   - createdAt: " + saved.getCreatedAt());
+            log.debug("   - messageId: {}", saved.getId());
+            log.debug("   - roomId: {}", saved.getRoomId());
+            log.debug("   - senderId: {}", saved.getSenderId());
+            log.debug("   - content: {}", saved.getContent());
+            log.debug("   - createdAt: {}", saved.getCreatedAt());
 
             // WebSocket トピックへ送信
-            log.info("📤 WebSocket トピック /topic/chat/" + room.getId() + " へメッセージを送信中...");
+            log.info("📤 WebSocket トピック /topic/chat/{} へメッセージを送信中...", room.getId());
             messagingTemplate.convertAndSend(
                     "/topic/chat/" + room.getId(),
                     saved
@@ -115,7 +115,7 @@ public class ChatWebSocketController {
                                 "increment", 1
                         )
                 );
-                log.info("📤 未読数通知を /topic/unread/" + partner.getId() + " へ送信");
+                log.info("📤 未読数通知を /topic/unread/{} へ送信", partner.getId());
             }
 
             log.info("========== /chat/send 処理完了 ==========\n");
@@ -134,7 +134,7 @@ public class ChatWebSocketController {
             @Payload Map<String, Object> payload
     ) {
         log.info("\n========== WebSocket /chat/delete リクエスト受信 ==========");
-        log.info("🗑️ ペイロード全体: " + payload);
+        log.info("🗑️ ペイロード全体: {}", payload);
         
         try {
             // パラメータの取得と検証
@@ -142,25 +142,25 @@ public class ChatWebSocketController {
             Object messageIdObj = payload.get("messageId");
             Object roomIdObj = payload.get("roomId");
             
-            log.debug("   - messageId タイプ: " + (messageIdObj != null ? messageIdObj.getClass().getSimpleName() : "null"));
-            log.debug("   - messageId 値: " + messageIdObj);
-            log.debug("   - roomId タイプ: " + (roomIdObj != null ? roomIdObj.getClass().getSimpleName() : "null"));
-            log.debug("   - roomId 値: " + roomIdObj);
+            log.debug("   - messageId タイプ: {}", messageIdObj != null ? messageIdObj.getClass().getSimpleName() : "null");
+            log.debug("   - messageId 値: {}", messageIdObj);
+            log.debug("   - roomId タイプ: {}", roomIdObj != null ? roomIdObj.getClass().getSimpleName() : "null");
+            log.debug("   - roomId 値: {}", roomIdObj);
             
             Integer messageId = ((Number) payload.get("messageId")).intValue();
             Integer roomId = ((Number) payload.get("roomId")).intValue();
             
             log.info("✅ パラメータ抽出成功");
-            log.debug("   - messageId (最終): " + messageId);
-            log.debug("   - roomId (最終): " + roomId);
-            
+            log.debug("   - messageId (最終): {}", messageId);
+            log.debug("   - roomId (最終): {}", roomId);
+
             // メッセージ削除
-            log.info("🔍 messageId=" + messageId + " を削除中...");
+            log.info("🔍 messageId={} を削除中...", messageId);
             chatMessageService.deleteMessage(messageId);
             log.info("✅ メッセージ削除成功");
             
             // WebSocket トピックへ削除通知を送信
-            log.info("📤 WebSocket トピック /topic/chat/" + roomId + " へ削除通知を送信中...");
+            log.info("📤 WebSocket トピック /topic/chat/{} へ削除通知を送信中...", roomId);
             messagingTemplate.convertAndSend(
                     "/topic/chat/" + roomId,
                     Map.of(

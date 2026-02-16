@@ -102,4 +102,33 @@ describe('MessageBubble', () => {
 
     expect(screen.getByText('10:30')).toBeInTheDocument();
   });
+
+  it('メッセージにarticleロールとaria-labelがある', () => {
+    render(<MessageBubble isSender={false} content="こんにちは" id={1} senderName="田中太郎" />);
+
+    const article = screen.getByRole('article');
+    expect(article).toBeInTheDocument();
+    expect(article).toHaveAttribute('aria-label', '田中太郎のメッセージ');
+  });
+
+  it('送信者メッセージにaria-labelがある', () => {
+    render(<MessageBubble isSender={true} content="テスト" id={1} />);
+
+    expect(screen.getByRole('article')).toHaveAttribute('aria-label', '自分のメッセージ');
+  });
+
+  it('削除ボタンにaria-labelがある', () => {
+    const mockDelete = vi.fn();
+    render(<MessageBubble isSender={true} content="テスト" id={1} onDelete={mockDelete} />);
+
+    // ホバーで削除ボタン表示
+    fireEvent.mouseEnter(screen.getByRole('article').parentElement!);
+    expect(screen.getByLabelText('メッセージを削除')).toBeInTheDocument();
+  });
+
+  it('言い換えボタンにaria-labelがある', () => {
+    render(<MessageBubble isSender={true} content="テスト" id={1} onRephrase={vi.fn()} />);
+
+    expect(screen.getByLabelText('メッセージを言い換え')).toBeInTheDocument();
+  });
 });

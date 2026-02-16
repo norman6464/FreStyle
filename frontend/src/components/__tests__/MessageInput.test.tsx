@@ -48,4 +48,12 @@ describe('MessageInput', () => {
 
     expect(screen.getByLabelText('送信')).toBeDisabled();
   });
+
+  it('送信完了後に入力欄にフォーカスが戻る', () => {
+    const { rerender } = render(<MessageInput onSend={mockOnSend} isSending={true} />);
+
+    rerender(<MessageInput onSend={mockOnSend} isSending={false} />);
+
+    expect(screen.getByPlaceholderText('メッセージを入力...')).toHaveFocus();
+  });
 });

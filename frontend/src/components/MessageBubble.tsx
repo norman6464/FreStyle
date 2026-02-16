@@ -42,6 +42,8 @@ export default function MessageBubble({
     ? 'self-end bg-surface-3 text-[var(--color-text-muted)] italic rounded-br-sm'
     : 'self-start bg-surface-3 text-[var(--color-text-muted)] italic rounded-bl-sm';
 
+  const ariaLabel = isSender ? '自分のメッセージ' : senderName ? `${senderName}のメッセージ` : 'メッセージ';
+
   return (
     <div
       className={`flex ${
@@ -50,7 +52,7 @@ export default function MessageBubble({
       onMouseEnter={() => isSender && !isDeleted && setShowDelete(true)}
       onMouseLeave={() => setShowDelete(false)}
     >
-      <div className="flex flex-col w-full">
+      <div className="flex flex-col w-full" role="article" aria-label={ariaLabel}>
         {!isSender && senderName && (
           <span className="text-xs text-[var(--color-text-muted)] mb-1 ml-1">{senderName}</span>
         )}
@@ -77,6 +79,7 @@ export default function MessageBubble({
               onClick={() => onDelete(id)}
               className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 transition-colors duration-150"
               title="削除"
+              aria-label="メッセージを削除"
             >
               <TrashIcon className="w-3 h-3" />
             </button>
@@ -95,7 +98,7 @@ export default function MessageBubble({
                 onClick={() => onCopy(id, content)}
                 title={isCopied ? 'コピー済み' : 'コピー'}
                 aria-label={isCopied ? 'コピー済み' : 'メッセージをコピー'}
-                className="text-[var(--color-text-faint)] hover:text-[var(--color-text-secondary)] transition-colors opacity-0 group-hover:opacity-100"
+                className="text-[var(--color-text-faint)] hover:text-[var(--color-text-secondary)] transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
               >
                 {isCopied ? (
                   <ClipboardDocumentCheckIcon className="w-3.5 h-3.5 text-green-500" />
@@ -107,7 +110,8 @@ export default function MessageBubble({
             {isSender && onRephrase && (
               <button
                 onClick={() => onRephrase(content)}
-                className="text-[10px] text-primary-500 hover:text-primary-300 transition-colors opacity-0 group-hover:opacity-100"
+                className="text-[10px] text-primary-500 hover:text-primary-300 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                aria-label="メッセージを言い換え"
               >
                 言い換え
               </button>

@@ -108,6 +108,7 @@ describe('ScoreHistoryPage', () => {
     await waitFor(() => {
       expect(screen.getByText('スコア履歴がありません')).toBeInTheDocument();
       expect(screen.getByText('AIアシスタントで練習を開始')).toBeInTheDocument();
+      expect(screen.queryByText(/0件/)).not.toBeInTheDocument();
     }, { timeout: 3000 });
   });
 
@@ -231,7 +232,7 @@ describe('ScoreHistoryPage', () => {
     render(<ScoreHistoryPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('3件')).toBeInTheDocument();
+      expect(screen.getByText('スコア履歴 3件')).toBeInTheDocument();
     }, { timeout: 3000 });
   });
 
@@ -242,7 +243,7 @@ describe('ScoreHistoryPage', () => {
     render(<ScoreHistoryPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('1件')).toBeInTheDocument();
+      expect(screen.getByText('スコア履歴 1件')).toBeInTheDocument();
     }, { timeout: 3000 });
   });
 });

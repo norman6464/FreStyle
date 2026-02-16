@@ -3,18 +3,17 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import lombok.extern.slf4j.Slf4j;
+
 @RestController
 @RequestMapping("/api")
+@Slf4j
 public class HelloController {
-  
+
   @GetMapping("/hello")
   public String hello() {
-    System.out.println("========== Hello Endpoint Called ==========");
-    System.out.println("Hello health check endpoint called.");
-    System.out.println("This is a test endpoint to verify the backend is running.");
-
-
+    log.debug("Hello health check endpoint called");
     return "hello";
   }
-  
+
 }

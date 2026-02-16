@@ -9,6 +9,8 @@ import java.util.Map;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -25,6 +27,7 @@ import software.amazon.awssdk.services.cognitoidentityprovider.model.*;
  * - ログイン
  */
 @Service
+@Slf4j
 public class CognitoAuthService {
 
     private final CognitoIdentityProviderClient cognitoClient;
@@ -67,15 +70,15 @@ public class CognitoAuthService {
                   .build();
                   
         cognitoClient.updateUserAttributes(request);
-        System.out.println("Profile update");
+        log.debug("プロフィール更新成功");
       } catch (NotAuthorizedException e) {
-        System.out.println("NotAuthorizedException");
+        log.warn("プロフィール更新失敗: NotAuthorizedException");
         throw new RuntimeException("invalid parameter retry login");
       } catch (InvalidParameterException e) {
-        System.out.println("InvalidParameterException");
+        log.warn("プロフィール更新失敗: InvalidParameterException");
         throw new RuntimeException("invalid parameter");
       } catch (InvalidUserPoolConfigurationException e) {
-        System.out.println("InvalidUserPoolConfigurationException");
+        log.warn("プロフィール更新失敗: InvalidUserPoolConfigurationException");
         throw new RuntimeException("user configuration setting");
       } catch (Exception e) {
         throw new RuntimeException("proceed update profile error");
@@ -101,9 +104,9 @@ public class CognitoAuthService {
         try {
             SignUpResponse response = cognitoClient.signUp(request);
             if (response.userConfirmed()) {
-                System.out.println("ユーザーは既に確認済みです。");
+                log.debug("ユーザーは既に確認済みです");
             } else {
-                System.out.println("確認コードを送信しました。");
+                log.debug("確認コードを送信しました");
             }
         } catch (UsernameExistsException e) {
             throw new RuntimeException("このメールアドレスは既に登録されています。");
@@ -126,8 +129,8 @@ public class CognitoAuthService {
                 .build();
 
         try {
-            ConfirmSignUpResponse response = cognitoClient.confirmSignUp(request);
-            System.out.println("ユーザー確認に成功しました: " + response);
+            cognitoClient.confirmSignUp(request);
+            log.debug("ユーザー確認に成功しました");
         } catch (UserNotFoundException e) {
             throw new RuntimeException("ユーザーが見つかりません。");
         } catch (CodeMismatchException e) {
@@ -181,12 +184,12 @@ public class CognitoAuthService {
         
         try {
             cognitoClient.forgotPassword(request);
-            System.out.println("send confirm code" + email);
+            log.debug("確認コード送信完了: {}", email);
         } catch (UserNotFoundException e) {
-            System.out.println("this mail not register");
+            log.warn("パスワードリセット失敗: メールアドレス未登録 - {}", email);
             throw new RuntimeException("このメールアドレスは登録されていません。");
         } catch (Exception e) {
-            System.out.println("password reset request failed");
+            log.error("パスワードリセットリクエスト失敗", e);
             throw new RuntimeException("パスワードリセットのリクエストに失敗しました。" + e.getMessage());
         }
     }
@@ -202,15 +205,15 @@ public class CognitoAuthService {
             
             try {
                 cognitoClient.confirmForgotPassword(request);
-                System.out.println("password reset finish");
+                log.debug("パスワードリセット完了");
             } catch (CodeMismatchException e) {
-                System.out.println("CodeMismatchException class error");
+                log.warn("パスワードリセット失敗: 確認コード不一致");
                 throw new RuntimeException("確認コードが間違っています。");
             } catch (ExpiredCodeException e) {
-                System.out.println("ExpiredCodeException class error");
+                log.warn("パスワードリセット失敗: 確認コード期限切れ");
                 throw new RuntimeException("確認コードの有効期限が切れています。");
             } catch (Exception e) {
-                System.out.println("password reset processing error");
+                log.error("パスワードリセット処理エラー", e);
                 throw new RuntimeException("パスワードがリセット中にエラーが発生しました。");
             }
     }
@@ -235,47 +238,35 @@ public class CognitoAuthService {
     // だがリフレッシュトークンのローテーションの設定をしていないのでリフレッシュトークンの取得はできない
     // -----------------------
     public Map<String, String> refreshAccessToken(String refreshToken, String username) {
-        System.out.println("[CognitoAuthService refreshAccessToken] リフレッシュトークンでのアクセストークン再発行を開始");
-        System.out.println("[CognitoAuthService refreshAccessToken] REFRESH_TOKEN: " + 
-                          (refreshToken != null ? refreshToken.substring(0, Math.min(20, refreshToken.length())) + "..." : "null"));
+        log.debug("リフレッシュトークンでのアクセストークン再発行を開始 - username: {}", username);
 
-                          System.out.println("[CognitoAuthService refreshAccessToken] リフレッシュトークンでのアクセストークン再発行を開始");
-        System.out.println("[CognitoAuthService refreshAccessToken] USERNAME(email): '" + username + "'");  // ← これを追加
-        System.out.println("[CognitoAuthService refreshAccessToken] USERNAME length: " + (username != null ? username.length() : "null"));  // ← これも追加
-        
         Map<String, String> authParams = new HashMap<>();
         authParams.put("REFRESH_TOKEN", refreshToken);
-        
+
         String secretHash = calculateSecretHash(username);
         authParams.put("SECRET_HASH", secretHash);
-        System.out.println("[CognitoAuthService refreshAccessToken] SECRET_HASH: " + secretHash.substring(0, Math.min(20, secretHash.length())) + "...");
-        
+
         InitiateAuthRequest authRequest = InitiateAuthRequest.builder()
             .authFlow(AuthFlowType.REFRESH_TOKEN)
             .clientId(clientId)
             .authParameters(authParams)
             .build();
-        
-        System.out.println("[CognitoAuthService refreshAccessToken] Cognito initializeAuth API を呼び出し中...");
+
         try {
             InitiateAuthResponse response = cognitoClient.initiateAuth(authRequest);
             AuthenticationResultType result = response.authenticationResult();
-            
-            System.out.println("[CognitoAuthService refreshAccessToken] ✅ トークン再発行成功");
-            
+
+            log.debug("トークン再発行成功");
+
             Map<String, String> tokens = new HashMap<>();
-            
             tokens.put("accessToken", result.accessToken());
             tokens.put("idToken", result.idToken());
-            System.out.println("[CognitoAuthService refreshAccessToken] accessToken: " + 
-                              (result.accessToken() != null ? result.accessToken().substring(0, Math.min(20, result.accessToken().length())) + "..." : "null"));
             return tokens;
         } catch (NotAuthorizedException e) {
-            System.out.println("[CognitoAuthService refreshAccessToken] ❌ NotAuthorizedException: " + e.getMessage());
+            log.warn("トークン再発行失敗: NotAuthorizedException - {}", e.getMessage());
             throw new RuntimeException("リフレッシュトークンが無効です。再ログインしてください。");
         } catch (Exception e) {
-            System.out.println("[CognitoAuthService refreshAccessToken] ❌ Exception: " + e.getClass().getSimpleName() + " - " + e.getMessage());
-            e.printStackTrace();
+            log.error("アクセストークン再発行中にエラーが発生", e);
             throw new RuntimeException("アクセストークン再発行中にエラーが発生しました。");
         }
     }

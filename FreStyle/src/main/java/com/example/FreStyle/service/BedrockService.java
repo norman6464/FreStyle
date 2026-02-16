@@ -119,8 +119,7 @@ public class BedrockService {
             return aiReply;
 
         } catch (Exception e) {
-            log.error("❌ Bedrock 呼び出しエラー: {}", e.getMessage());
-            e.printStackTrace();
+            log.error("Bedrock 呼び出しエラー: {}", e.getMessage(), e);
             throw new RuntimeException("AI応答の取得に失敗しました: " + e.getMessage(), e);
         }
     }
@@ -184,8 +183,7 @@ public class BedrockService {
             return aiReply;
 
         } catch (Exception e) {
-            log.error("❌ Bedrock 呼び出しエラー（履歴付き）: {}", e.getMessage());
-            e.printStackTrace();
+            log.error("Bedrock 呼び出しエラー（履歴付き）: {}", e.getMessage(), e);
             throw new RuntimeException("AI応答の取得に失敗しました: " + e.getMessage(), e);
         }
     }
@@ -290,8 +288,7 @@ public class BedrockService {
             return aiReply;
 
         } catch (Exception e) {
-            log.error("❌ Bedrock 呼び出しエラー（UserProfile付き）: {}", e.getMessage());
-            e.printStackTrace();
+            log.error("Bedrock 呼び出しエラー（UserProfile付き）: {}", e.getMessage(), e);
             throw new RuntimeException("AI応答の取得に失敗しました: " + e.getMessage(), e);
         }
     }
@@ -349,8 +346,7 @@ public class BedrockService {
             return aiReply;
 
         } catch (Exception e) {
-            log.error("❌ Bedrock 練習モードエラー: {}", e.getMessage());
-            e.printStackTrace();
+            log.error("Bedrock 練習モードエラー: {}", e.getMessage(), e);
             throw new RuntimeException("練習モードのAI応答取得に失敗しました: " + e.getMessage(), e);
         }
     }
@@ -410,8 +406,7 @@ public class BedrockService {
             return aiReply;
 
         } catch (Exception e) {
-            log.error("❌ Bedrock 言い換えエラー: {}", e.getMessage());
-            e.printStackTrace();
+            log.error("Bedrock 言い換えエラー: {}", e.getMessage(), e);
             throw new RuntimeException("言い換え提案の取得に失敗しました: " + e.getMessage(), e);
         }
     }

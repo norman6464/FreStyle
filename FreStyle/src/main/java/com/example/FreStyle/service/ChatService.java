@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.FreStyle.dto.ChatUserDto;
+import lombok.extern.slf4j.Slf4j;
 import com.example.FreStyle.dto.PartnerRoomProjection;
 import com.example.FreStyle.entity.ChatMessage;
 import com.example.FreStyle.entity.ChatRoom;
@@ -22,6 +23,7 @@ import lombok.RequiredArgsConstructor;
 
 // ChatRoomServiceとRoomMemberServiceクラス二つとも関与しているときはこちらのクラスを使う
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class ChatService {
     private final ChatRoomRepository chatRoomRepository;
@@ -67,11 +69,11 @@ public class ChatService {
      */
     @Transactional(readOnly = true)
     public List<ChatUserDto> findChatUsers(Integer myUserId, String query) {
-        System.out.println("🔍 findChatUsers 開始 - myUserId: " + myUserId + ", query: " + query);
-        
+        log.debug("findChatUsers 開始 - myUserId: {}, query: {}", myUserId, query);
+
         // 1. 自分が参加しているルームと相手ユーザーIDのペアを取得
         List<PartnerRoomProjection> partnerData = roomMemberRepository.findPartnerUserIdAndRoomIdByUserId(myUserId);
-        System.out.println("📊 取得したルーム数: " + partnerData.size());
+        log.debug("取得したルーム数: {}", partnerData.size());
 
         if (partnerData.isEmpty()) {
             return new ArrayList<>();
@@ -150,7 +152,7 @@ public class ChatService {
             return b.getLastMessageAt().compareTo(a.getLastMessageAt());
         });
         
-        System.out.println("✅ findChatUsers 完了 - 結果数: " + result.size());
+        log.debug("findChatUsers 完了 - 結果数: {}", result.size());
         return result;
     }
 }

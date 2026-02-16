@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useFavoritePhrase } from '../hooks/useFavoritePhrase';
 import { StarIcon as StarOutlineIcon } from '@heroicons/react/24/outline';
 import { StarIcon as StarSolidIcon } from '@heroicons/react/24/solid';
+import { UI_TIMINGS } from '../constants/uiTimings';
 
 interface RephraseResult {
   formal: string;
@@ -42,7 +43,7 @@ export default function RephraseModal({ result, onClose, originalText = '' }: Re
   const handleCopy = async (text: string, key: string) => {
     await navigator.clipboard.writeText(text);
     setCopiedKey(key);
-    setTimeout(() => setCopiedKey(null), 2000);
+    setTimeout(() => setCopiedKey(null), UI_TIMINGS.COPY_FEEDBACK_DURATION);
   };
 
   const handleFavorite = (text: string, label: string, key: string) => {

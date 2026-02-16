@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import type { Editor } from '@tiptap/core';
+import { UI_TIMINGS, UI_DIMENSIONS } from '../constants/uiTimings';
 
 interface SelectionToolbarProps {
   editor: Editor | null;
@@ -20,7 +21,10 @@ export default function SelectionToolbar({ editor, containerRef }: SelectionTool
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const [colorOpen, setColorOpen] = useState(false);
   const [headingOpen, setHeadingOpen] = useState(false);
+  const [linkInputOpen, setLinkInputOpen] = useState(false);
+  const [linkUrl, setLinkUrl] = useState('');
   const toolbarRef = useRef<HTMLDivElement>(null);
+  const linkInputRef = useRef<HTMLInputElement>(null);
 
   const updatePosition = useCallback(() => {
     if (!editor || !containerRef.current) return;
@@ -47,7 +51,7 @@ export default function SelectionToolbar({ editor, containerRef }: SelectionTool
     }
 
     setPosition({
-      top: rect.top - containerRect.top - 48,
+      top: rect.top - containerRect.top - UI_DIMENSIONS.SELECTION_TOOLBAR_OFFSET_TOP,
       left: rect.left - containerRect.left + rect.width / 2,
     });
     setVisible(true);
@@ -67,7 +71,7 @@ export default function SelectionToolbar({ editor, containerRef }: SelectionTool
         if (!toolbarRef.current?.contains(document.activeElement)) {
           setVisible(false);
         }
-      }, 150);
+      }, UI_TIMINGS.TOOLBAR_HIDE_DELAY);
     };
 
     editor.on('selectionUpdate', onSelectionUpdate);
@@ -99,11 +103,20 @@ export default function SelectionToolbar({ editor, containerRef }: SelectionTool
     if (editor.isActive('link')) {
       editor.chain().focus().unsetLink().run();
     } else {
-      const url = window.prompt('URLを入力してください');
-      if (url) {
-        editor.chain().focus().setLink({ href: url }).run();
-      }
+      setLinkInputOpen(true);
+      setLinkUrl('');
+      setColorOpen(false);
+      setHeadingOpen(false);
+      setTimeout(() => linkInputRef.current?.focus(), 0);
     }
+  };
+
+  const submitLink = () => {
+    if (linkUrl.trim()) {
+      editor.chain().focus().setLink({ href: linkUrl.trim() }).run();
+    }
+    setLinkInputOpen(false);
+    setLinkUrl('');
   };
 
   return (
@@ -211,6 +224,30 @@ export default function SelectionToolbar({ editor, containerRef }: SelectionTool
           )}
         </div>
       </div>
+      {linkInputOpen && (
+        <div className="mt-1 flex items-center gap-1 bg-[var(--color-surface-1)] border border-[var(--color-surface-3)] rounded-lg shadow-xl px-2 py-1.5">
+          <input
+            ref={linkInputRef}
+            type="url"
+            value={linkUrl}
+            onChange={(e) => setLinkUrl(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') { e.preventDefault(); submitLink(); }
+              if (e.key === 'Escape') { setLinkInputOpen(false); setLinkUrl(''); }
+            }}
+            placeholder="https://..."
+            className="text-xs bg-transparent border-none outline-none text-[var(--color-text-primary)] placeholder:text-[var(--color-text-faint)] w-48"
+            aria-label="URL入力"
+          />
+          <button
+            type="button"
+            className="text-xs px-2 py-0.5 rounded bg-primary-500 text-white hover:bg-primary-600 transition-colors"
+            onMouseDown={(e) => { e.preventDefault(); submitLink(); }}
+          >
+            追加
+          </button>
+        </div>
+      )}
     </div>
   );
 }

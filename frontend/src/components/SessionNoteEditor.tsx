@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useSessionNote } from '../hooks/useSessionNote';
+import { UI_TIMINGS } from '../constants/uiTimings';
 
 interface SessionNoteEditorProps {
   sessionId: number;
@@ -17,7 +18,7 @@ export default function SessionNoteEditor({ sessionId }: SessionNoteEditorProps)
   const handleSave = () => {
     saveNote(text);
     setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    setTimeout(() => setSaved(false), UI_TIMINGS.COPY_FEEDBACK_DURATION);
   };
 
   return (

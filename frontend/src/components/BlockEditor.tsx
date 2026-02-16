@@ -11,6 +11,7 @@ import LinkBubbleMenu from './LinkBubbleMenu';
 import SearchReplaceBar from './SearchReplaceBar';
 import SelectionToolbar from './SelectionToolbar';
 import type { SlashCommand } from '../constants/slashCommands';
+import { UI_TIMINGS } from '../constants/uiTimings';
 
 interface BlockEditorProps {
   content: string;
@@ -27,22 +28,32 @@ export default function BlockEditor({ content, onChange, noteId }: BlockEditorPr
   const inserterMenuOpen = useRef(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
+  const [youtubeInputOpen, setYoutubeInputOpen] = useState(false);
+  const [youtubeUrl, setYoutubeUrl] = useState('');
+  const youtubeInputRef = useRef<HTMLInputElement>(null);
 
   const { openFileDialog, handleDrop, handlePaste } = useImageUpload(noteId, editor);
   const { linkBubble, handleEditorClick, handleEditLink, handleRemoveLink } = useLinkEditor(editor, containerRef);
 
-  // スラッシュコマンドから画像アップロード・絵文字ピッカーを呼べるようにする
+  // スラッシュコマンドから画像アップロード・絵文字ピッカー・YouTube入力を呼べるようにする
   const openEmojiPicker = useCallback(() => setEmojiPickerOpen(true), []);
+  const openYoutubeInput = useCallback(() => {
+    setYoutubeInputOpen(true);
+    setYoutubeUrl('');
+    setTimeout(() => youtubeInputRef.current?.focus(), 0);
+  }, []);
 
   useEffect(() => {
     if (!editor) return;
     editor.storage.slashCommand.onImageUpload = openFileDialog;
     editor.storage.slashCommand.onEmojiPicker = openEmojiPicker;
+    editor.storage.slashCommand.onYoutubeUrl = openYoutubeInput;
     return () => {
       editor.storage.slashCommand.onImageUpload = null;
       editor.storage.slashCommand.onEmojiPicker = null;
+      editor.storage.slashCommand.onYoutubeUrl = null;
     };
-  }, [editor, openFileDialog, openEmojiPicker]);
+  }, [editor, openFileDialog, openEmojiPicker, openYoutubeInput]);
 
   // Ctrl+F / Cmd+F で検索バーを開く
   useEffect(() => {
@@ -72,12 +83,12 @@ export default function BlockEditor({ content, onChange, noteId }: BlockEditorPr
       if (!inserterMenuOpen.current) {
         setInserterVisible(false);
       }
-    }, 200);
+    }, UI_TIMINGS.INSERTER_HIDE_DELAY);
   }, [clearHideTimeout]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     const now = Date.now();
-    if (now - lastMoveTime.current < 50) return;
+    if (now - lastMoveTime.current < UI_TIMINGS.MOUSE_MOVE_THROTTLE) return;
     lastMoveTime.current = now;
 
     if (!containerRef.current) return;
@@ -123,6 +134,20 @@ export default function BlockEditor({ content, onChange, noteId }: BlockEditorPr
     editor.chain().focus().insertContent(emoji).run();
   }, [editor]);
 
+  const submitYoutubeUrl = useCallback(() => {
+    if (!editor || !youtubeUrl.trim()) {
+      setYoutubeInputOpen(false);
+      setYoutubeUrl('');
+      return;
+    }
+    const setYoutubeVideo = (editor.commands as { setYoutubeVideo?: (opts: { src: string }) => boolean }).setYoutubeVideo;
+    if (typeof setYoutubeVideo === 'function') {
+      setYoutubeVideo({ src: youtubeUrl.trim() });
+    }
+    setYoutubeInputOpen(false);
+    setYoutubeUrl('');
+  }, [editor, youtubeUrl]);
+
   const handleCommand = useCallback((command: SlashCommand) => {
     if (!editor) return;
     if (command.action === 'image') {
@@ -131,6 +156,10 @@ export default function BlockEditor({ content, onChange, noteId }: BlockEditorPr
     }
     if (command.action === 'emoji') {
       setEmojiPickerOpen(true);
+      return;
+    }
+    if (command.action === 'youtube') {
+      openYoutubeInput();
       return;
     }
     editor.chain().focus().run();
@@ -177,6 +206,33 @@ export default function BlockEditor({ content, onChange, noteId }: BlockEditorPr
             onSelect={handleEmojiSelect}
             onClose={() => setEmojiPickerOpen(false)}
           />
+        </div>
+      )}
+      {youtubeInputOpen && (
+        <div className="absolute z-50 top-8 left-8 bg-[var(--color-surface-1)] border border-[var(--color-surface-3)] rounded-lg shadow-xl p-3">
+          <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-2">YouTubeのURLを入力</p>
+          <div className="flex items-center gap-2">
+            <input
+              ref={youtubeInputRef}
+              type="url"
+              value={youtubeUrl}
+              onChange={(e) => setYoutubeUrl(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') { e.preventDefault(); submitYoutubeUrl(); }
+                if (e.key === 'Escape') { setYoutubeInputOpen(false); setYoutubeUrl(''); }
+              }}
+              placeholder="https://www.youtube.com/watch?v=..."
+              className="text-xs bg-[var(--color-surface-2)] border border-[var(--color-surface-3)] rounded px-2 py-1.5 text-[var(--color-text-primary)] placeholder:text-[var(--color-text-faint)] w-64 outline-none focus:border-primary-400"
+              aria-label="YouTube URL"
+            />
+            <button
+              type="button"
+              className="text-xs px-3 py-1.5 rounded bg-primary-500 text-white hover:bg-primary-600 transition-colors"
+              onClick={submitYoutubeUrl}
+            >
+              追加
+            </button>
+          </div>
         </div>
       )}
     </div>

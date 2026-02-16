@@ -124,5 +124,38 @@ describe('DailyGoalCard', () => {
 
       expect(mockGoalState.setTarget).toHaveBeenCalledWith(7);
     });
+
+    it('目標回数が下限未満のとき1にクランプされる', () => {
+      render(<DailyGoalCard />);
+
+      fireEvent.click(screen.getByRole('button', { name: /目標を変更/ }));
+      const input = screen.getByRole('spinbutton');
+      fireEvent.change(input, { target: { value: '0' } });
+      fireEvent.keyDown(input, { key: 'Enter' });
+
+      expect(mockGoalState.setTarget).toHaveBeenCalledWith(1);
+    });
+
+    it('目標回数が上限を超えたとき10にクランプされる', () => {
+      render(<DailyGoalCard />);
+
+      fireEvent.click(screen.getByRole('button', { name: /目標を変更/ }));
+      const input = screen.getByRole('spinbutton');
+      fireEvent.change(input, { target: { value: '11' } });
+      fireEvent.keyDown(input, { key: 'Enter' });
+
+      expect(mockGoalState.setTarget).toHaveBeenCalledWith(10);
+    });
+
+    it('負の値のとき1にクランプされる', () => {
+      render(<DailyGoalCard />);
+
+      fireEvent.click(screen.getByRole('button', { name: /目標を変更/ }));
+      const input = screen.getByRole('spinbutton');
+      fireEvent.change(input, { target: { value: '-3' } });
+      fireEvent.keyDown(input, { key: 'Enter' });
+
+      expect(mockGoalState.setTarget).toHaveBeenCalledWith(1);
+    });
   });
 });

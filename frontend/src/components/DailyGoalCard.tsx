@@ -6,7 +6,7 @@ import ProgressBar from './ProgressBar';
 export default function DailyGoalCard() {
   const { goal, setTarget, isAchieved, progress } = useDailyGoal();
   const [editing, setEditing] = useState(false);
-  const [editValue, setEditValue] = useState(goal.target);
+  const [editValue, setEditValue] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -22,7 +22,8 @@ export default function DailyGoalCard() {
   };
 
   const save = () => {
-    const clamped = Math.max(1, Math.min(10, editValue));
+    const value = Number.isNaN(editValue) ? goal.target : editValue;
+    const clamped = Math.max(1, Math.min(10, value));
     if (clamped !== goal.target) {
       setTarget(clamped);
     }
@@ -64,7 +65,14 @@ export default function DailyGoalCard() {
             <button
               onClick={startEditing}
               aria-label="目標を変更"
-              className="hover:text-primary-400 transition-colors cursor-pointer"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  startEditing();
+                }
+              }}
+              className="hover:text-primary-400 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded"
             >
               {goal.target}
             </button>

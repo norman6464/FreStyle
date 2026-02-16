@@ -67,56 +67,13 @@ public class BedrockService {
         log.debug("   - userMessage: {}", userMessage);
 
         try {
-            // コールセンター式コーチのシステムプロンプトを取得
             String coachPrompt = systemPromptBuilder.buildCoachPrompt();
 
-            // リクエストボディを構築
-            ObjectNode requestBody = objectMapper.createObjectNode();
-            requestBody.put("anthropic_version", "bedrock-2023-05-31");
-            requestBody.put("max_tokens", 1024);
-            requestBody.put("temperature", 0.7);
-            requestBody.put("system", coachPrompt);
-
-            // messages配列を構築
             ArrayNode messagesArray = objectMapper.createArrayNode();
-            ObjectNode userMessageNode = objectMapper.createObjectNode();
-            userMessageNode.put("role", "user");
+            messagesArray.add(buildUserMessageNode(userMessage));
 
-            ArrayNode contentArray = objectMapper.createArrayNode();
-            ObjectNode textContent = objectMapper.createObjectNode();
-            textContent.put("type", "text");
-            textContent.put("text", userMessage);
-            contentArray.add(textContent);
-
-            userMessageNode.set("content", contentArray);
-            messagesArray.add(userMessageNode);
-
-            requestBody.set("messages", messagesArray);
-
-            String requestBodyJson = objectMapper.writeValueAsString(requestBody);
-            log.debug("   - Request Body: {}", requestBodyJson);
-
-            // Bedrockにリクエストを送信
-            InvokeModelRequest request = InvokeModelRequest.builder()
-                    .modelId(MODEL_ID)
-                    .contentType("application/json")
-                    .accept("application/json")
-                    .body(SdkBytes.fromUtf8String(requestBodyJson))
-                    .build();
-
-            InvokeModelResponse response = bedrockClient.invokeModel(request);
-
-            // レスポンスをパース
-            String responseBody = response.body().asUtf8String();
-            log.debug("   - Response Body: {}", responseBody);
-
-            JsonNode responseJson = objectMapper.readTree(responseBody);
-            String aiReply = responseJson.path("content").get(0).path("text").asText();
-
-            log.info("✅ Bedrock からの応答を取得しました");
-            log.debug("   - AI Reply: {}", aiReply);
-
-            return aiReply;
+            ObjectNode requestBody = buildRequestBody(coachPrompt, messagesArray, 1024, 0.7);
+            return invokeAndParseResponse(requestBody, "Bedrock");
 
         } catch (Exception e) {
             log.error("Bedrock 呼び出しエラー: {}", e.getMessage(), e);
@@ -135,52 +92,16 @@ public class BedrockService {
         log.info("📤 Bedrock に会話履歴付きメッセージ送信中...");
 
         try {
-            ObjectNode requestBody = objectMapper.createObjectNode();
-            requestBody.put("anthropic_version", "bedrock-2023-05-31");
-            requestBody.put("max_tokens", 1024);
-            requestBody.put("temperature", 0.7);
-
-            // 会話履歴がある場合はパースして使用
             ArrayNode messagesArray;
             if (conversationHistory != null && !conversationHistory.isEmpty()) {
                 messagesArray = (ArrayNode) objectMapper.readTree(conversationHistory);
             } else {
                 messagesArray = objectMapper.createArrayNode();
             }
+            messagesArray.add(buildUserMessageNode(userMessage));
 
-            // 新しいユーザーメッセージを追加
-            ObjectNode userMessageNode = objectMapper.createObjectNode();
-            userMessageNode.put("role", "user");
-            
-            ArrayNode contentArray = objectMapper.createArrayNode();
-            ObjectNode textContent = objectMapper.createObjectNode();
-            textContent.put("type", "text");
-            textContent.put("text", userMessage);
-            contentArray.add(textContent);
-            
-            userMessageNode.set("content", contentArray);
-            messagesArray.add(userMessageNode);
-
-            requestBody.set("messages", messagesArray);
-
-            String requestBodyJson = objectMapper.writeValueAsString(requestBody);
-
-            InvokeModelRequest request = InvokeModelRequest.builder()
-                    .modelId(MODEL_ID)
-                    .contentType("application/json")
-                    .accept("application/json")
-                    .body(SdkBytes.fromUtf8String(requestBodyJson))
-                    .build();
-
-            InvokeModelResponse response = bedrockClient.invokeModel(request);
-
-            String responseBody = response.body().asUtf8String();
-            JsonNode responseJson = objectMapper.readTree(responseBody);
-            String aiReply = responseJson.path("content").get(0).path("text").asText();
-
-            log.info("✅ Bedrock からの応答を取得しました（履歴付き）");
-
-            return aiReply;
+            ObjectNode requestBody = buildRequestBody(null, messagesArray, 1024, 0.7);
+            return invokeAndParseResponse(requestBody, "Bedrock（履歴付き）");
 
         } catch (Exception e) {
             log.error("Bedrock 呼び出しエラー（履歴付き）: {}", e.getMessage(), e);
@@ -234,58 +155,15 @@ public class BedrockService {
         log.info("📤 Bedrock にUserProfile付きメッセージ送信中... scene={}", scene);
 
         try {
-            // シーン指定がある場合はシーン別プロンプト、なければ基本プロンプト
             String systemPrompt = systemPromptBuilder.buildFeedbackPromptWithScene(
                     scene, displayName, selfIntroduction, communicationStyle,
                     personalityTraits, goals, concerns, preferredFeedbackStyle);
-            log.debug("   - System Prompt: {}", systemPrompt);
 
-            // リクエストボディを構築
-            ObjectNode requestBody = objectMapper.createObjectNode();
-            requestBody.put("anthropic_version", "bedrock-2023-05-31");
-            requestBody.put("max_tokens", 2048); // フィードバック用に少し長めに
-            requestBody.put("temperature", 0.7);
-            requestBody.put("system", systemPrompt);
-
-            // messages配列を構築
             ArrayNode messagesArray = objectMapper.createArrayNode();
-            ObjectNode userMessageNode = objectMapper.createObjectNode();
-            userMessageNode.put("role", "user");
-            
-            ArrayNode contentArray = objectMapper.createArrayNode();
-            ObjectNode textContent = objectMapper.createObjectNode();
-            textContent.put("type", "text");
-            textContent.put("text", userMessage);
-            contentArray.add(textContent);
-            
-            userMessageNode.set("content", contentArray);
-            messagesArray.add(userMessageNode);
-            
-            requestBody.set("messages", messagesArray);
+            messagesArray.add(buildUserMessageNode(userMessage));
 
-            String requestBodyJson = objectMapper.writeValueAsString(requestBody);
-            log.debug("   - Request Body: {}", requestBodyJson);
-
-            // Bedrockにリクエストを送信
-            InvokeModelRequest request = InvokeModelRequest.builder()
-                    .modelId(MODEL_ID)
-                    .contentType("application/json")
-                    .accept("application/json")
-                    .body(SdkBytes.fromUtf8String(requestBodyJson))
-                    .build();
-
-            InvokeModelResponse response = bedrockClient.invokeModel(request);
-
-            // レスポンスをパース
-            String responseBody = response.body().asUtf8String();
-            log.debug("   - Response Body: {}", responseBody);
-
-            JsonNode responseJson = objectMapper.readTree(responseBody);
-            String aiReply = responseJson.path("content").get(0).path("text").asText();
-
-            log.info("✅ Bedrock からの応答を取得しました（UserProfile付き）");
-
-            return aiReply;
+            ObjectNode requestBody = buildRequestBody(systemPrompt, messagesArray, 2048, 0.7);
+            return invokeAndParseResponse(requestBody, "Bedrock（UserProfile付き）");
 
         } catch (Exception e) {
             log.error("Bedrock 呼び出しエラー（UserProfile付き）: {}", e.getMessage(), e);
@@ -305,45 +183,11 @@ public class BedrockService {
         log.info("📤 Bedrock に練習モードメッセージ送信中...");
 
         try {
-            ObjectNode requestBody = objectMapper.createObjectNode();
-            requestBody.put("anthropic_version", "bedrock-2023-05-31");
-            requestBody.put("max_tokens", 1024);
-            requestBody.put("temperature", 0.8); // 練習モードでは少し創造的に
-            requestBody.put("system", practicePrompt);
-
             ArrayNode messagesArray = objectMapper.createArrayNode();
-            ObjectNode userMessageNode = objectMapper.createObjectNode();
-            userMessageNode.put("role", "user");
+            messagesArray.add(buildUserMessageNode(userMessage));
 
-            ArrayNode contentArray = objectMapper.createArrayNode();
-            ObjectNode textContent = objectMapper.createObjectNode();
-            textContent.put("type", "text");
-            textContent.put("text", userMessage);
-            contentArray.add(textContent);
-
-            userMessageNode.set("content", contentArray);
-            messagesArray.add(userMessageNode);
-
-            requestBody.set("messages", messagesArray);
-
-            String requestBodyJson = objectMapper.writeValueAsString(requestBody);
-
-            InvokeModelRequest request = InvokeModelRequest.builder()
-                    .modelId(MODEL_ID)
-                    .contentType("application/json")
-                    .accept("application/json")
-                    .body(SdkBytes.fromUtf8String(requestBodyJson))
-                    .build();
-
-            InvokeModelResponse response = bedrockClient.invokeModel(request);
-
-            String responseBody = response.body().asUtf8String();
-            JsonNode responseJson = objectMapper.readTree(responseBody);
-            String aiReply = responseJson.path("content").get(0).path("text").asText();
-
-            log.info("✅ Bedrock からの練習モード応答を取得しました");
-
-            return aiReply;
+            ObjectNode requestBody = buildRequestBody(practicePrompt, messagesArray, 1024, 0.8);
+            return invokeAndParseResponse(requestBody, "Bedrock（練習モード）");
 
         } catch (Exception e) {
             log.error("Bedrock 練習モードエラー: {}", e.getMessage(), e);
@@ -363,51 +207,65 @@ public class BedrockService {
 
         try {
             String systemPrompt = systemPromptBuilder.buildRephrasePrompt(scene);
-            log.debug("   - System Prompt: {}", systemPrompt);
-
-            ObjectNode requestBody = objectMapper.createObjectNode();
-            requestBody.put("anthropic_version", "bedrock-2023-05-31");
-            requestBody.put("max_tokens", 1024);
-            requestBody.put("temperature", 0.7);
-            requestBody.put("system", systemPrompt);
 
             ArrayNode messagesArray = objectMapper.createArrayNode();
-            ObjectNode userMessageNode = objectMapper.createObjectNode();
-            userMessageNode.put("role", "user");
+            messagesArray.add(buildUserMessageNode(originalMessage));
 
-            ArrayNode contentArray = objectMapper.createArrayNode();
-            ObjectNode textContent = objectMapper.createObjectNode();
-            textContent.put("type", "text");
-            textContent.put("text", originalMessage);
-            contentArray.add(textContent);
-
-            userMessageNode.set("content", contentArray);
-            messagesArray.add(userMessageNode);
-
-            requestBody.set("messages", messagesArray);
-
-            String requestBodyJson = objectMapper.writeValueAsString(requestBody);
-
-            InvokeModelRequest request = InvokeModelRequest.builder()
-                    .modelId(MODEL_ID)
-                    .contentType("application/json")
-                    .accept("application/json")
-                    .body(SdkBytes.fromUtf8String(requestBodyJson))
-                    .build();
-
-            InvokeModelResponse response = bedrockClient.invokeModel(request);
-
-            String responseBody = response.body().asUtf8String();
-            JsonNode responseJson = objectMapper.readTree(responseBody);
-            String aiReply = responseJson.path("content").get(0).path("text").asText();
-
-            log.info("✅ Bedrock からの言い換え応答を取得しました");
-
-            return aiReply;
+            ObjectNode requestBody = buildRequestBody(systemPrompt, messagesArray, 1024, 0.7);
+            return invokeAndParseResponse(requestBody, "Bedrock（言い換え）");
 
         } catch (Exception e) {
             log.error("Bedrock 言い換えエラー: {}", e.getMessage(), e);
             throw new RuntimeException("言い換え提案の取得に失敗しました: " + e.getMessage(), e);
         }
+    }
+
+    private ObjectNode buildUserMessageNode(String text) {
+        ObjectNode userMessageNode = objectMapper.createObjectNode();
+        userMessageNode.put("role", "user");
+
+        ArrayNode contentArray = objectMapper.createArrayNode();
+        ObjectNode textContent = objectMapper.createObjectNode();
+        textContent.put("type", "text");
+        textContent.put("text", text);
+        contentArray.add(textContent);
+
+        userMessageNode.set("content", contentArray);
+        return userMessageNode;
+    }
+
+    private ObjectNode buildRequestBody(String systemPrompt, ArrayNode messages, int maxTokens, double temperature) {
+        ObjectNode requestBody = objectMapper.createObjectNode();
+        requestBody.put("anthropic_version", "bedrock-2023-05-31");
+        requestBody.put("max_tokens", maxTokens);
+        requestBody.put("temperature", temperature);
+        if (systemPrompt != null) {
+            requestBody.put("system", systemPrompt);
+        }
+        requestBody.set("messages", messages);
+        return requestBody;
+    }
+
+    private String invokeAndParseResponse(ObjectNode requestBody, String logContext) throws Exception {
+        String requestBodyJson = objectMapper.writeValueAsString(requestBody);
+        log.debug("   - Request Body: {}", requestBodyJson);
+
+        InvokeModelRequest request = InvokeModelRequest.builder()
+                .modelId(MODEL_ID)
+                .contentType("application/json")
+                .accept("application/json")
+                .body(SdkBytes.fromUtf8String(requestBodyJson))
+                .build();
+
+        InvokeModelResponse response = bedrockClient.invokeModel(request);
+
+        String responseBody = response.body().asUtf8String();
+        log.debug("   - Response Body: {}", responseBody);
+
+        JsonNode responseJson = objectMapper.readTree(responseBody);
+        String aiReply = responseJson.path("content").get(0).path("text").asText();
+
+        log.info("✅ {} からの応答を取得しました", logContext);
+        return aiReply;
     }
 }

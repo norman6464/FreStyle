@@ -58,4 +58,35 @@ describe('EmojiPicker', () => {
     // 検索結果に😀が含まれるはず
     expect(screen.getByTestId('emoji-picker')).toBeInTheDocument();
   });
+
+  it('カテゴリタブをクリックするとカテゴリが切り替わる', () => {
+    render(<EmojiPicker isOpen={true} onSelect={onSelect} onClose={onClose} />);
+    const handTab = screen.getByLabelText('手・体');
+    fireEvent.click(handTab);
+    // 「手・体」カテゴリ名が表示される
+    expect(screen.getByText('手・体')).toBeInTheDocument();
+  });
+
+  it('検索中はカテゴリタブが非表示になる', () => {
+    render(<EmojiPicker isOpen={true} onSelect={onSelect} onClose={onClose} />);
+    fireEvent.change(screen.getByPlaceholderText('絵文字を検索...'), {
+      target: { value: 'test' },
+    });
+    // カテゴリタブのaria-labelが見つからない
+    expect(screen.queryByLabelText('よく使う')).not.toBeInTheDocument();
+  });
+
+  it('検索結果がない場合はメッセージが表示される', () => {
+    render(<EmojiPicker isOpen={true} onSelect={onSelect} onClose={onClose} />);
+    fireEvent.change(screen.getByPlaceholderText('絵文字を検索...'), {
+      target: { value: 'zzzznotfound' },
+    });
+    expect(screen.getByText('該当する絵文字がありません')).toBeInTheDocument();
+  });
+
+  it('Escape以外のキーではonCloseが呼ばれない', () => {
+    render(<EmojiPicker isOpen={true} onSelect={onSelect} onClose={onClose} />);
+    fireEvent.keyDown(screen.getByPlaceholderText('絵文字を検索...'), { key: 'Enter' });
+    expect(onClose).not.toHaveBeenCalled();
+  });
 });

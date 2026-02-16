@@ -139,5 +139,55 @@ class ScoreCardServiceTest {
 
             assertThat(scores).isEmpty();
         }
+
+        @Test
+        @DisplayName("複数のJSONブロックがある場合は最初のブロックを使用する")
+        void shouldUseFirstJsonBlock() {
+            String aiResponse = "```json\n" +
+                    "{\"scores\":[{\"axis\":\"論理的構成力\",\"score\":8,\"comment\":\"良い\"}]}\n```\n" +
+                    "テキスト\n" +
+                    "```json\n{\"scores\":[{\"axis\":\"要約力\",\"score\":3,\"comment\":\"悪い\"}]}\n```";
+
+            List<ScoreCardService.AxisScore> scores = service.parseScoresFromResponse(aiResponse);
+
+            assertThat(scores).hasSize(1);
+            assertThat(scores.get(0).getAxis()).isEqualTo("論理的構成力");
+            assertThat(scores.get(0).getScore()).isEqualTo(8);
+        }
+
+        @Test
+        @DisplayName("軸データにフィールドが欠損している場合はデフォルト値が使用される")
+        void shouldHandleMissingFields() {
+            String aiResponse = "```json\n{\"scores\":[{\"axis\":\"テスト\"}]}\n```";
+
+            List<ScoreCardService.AxisScore> scores = service.parseScoresFromResponse(aiResponse);
+
+            assertThat(scores).hasSize(1);
+            assertThat(scores.get(0).getAxis()).isEqualTo("テスト");
+            assertThat(scores.get(0).getScore()).isEqualTo(0);
+            assertThat(scores.get(0).getComment()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("scoresがオブジェクト型の場合は空リストを返す")
+        void shouldReturnEmptyListWhenScoresIsObject() {
+            String aiResponse = "```json\n{\"scores\":{\"axis\":\"テスト\",\"score\":5}}\n```";
+
+            List<ScoreCardService.AxisScore> scores = service.parseScoresFromResponse(aiResponse);
+
+            assertThat(scores).isEmpty();
+        }
+
+        @Test
+        @DisplayName("JSONブロック内に改行やスペースが含まれていてもパースできる")
+        void shouldHandleWhitespaceInJsonBlock() {
+            String aiResponse = "```json\n\n  {  \"scores\" : [ { \"axis\" : \"配慮表現\" , \"score\" : 7 , \"comment\" : \"良好\" } ]  }  \n\n```";
+
+            List<ScoreCardService.AxisScore> scores = service.parseScoresFromResponse(aiResponse);
+
+            assertThat(scores).hasSize(1);
+            assertThat(scores.get(0).getAxis()).isEqualTo("配慮表現");
+            assertThat(scores.get(0).getScore()).isEqualTo(7);
+        }
     }
 }

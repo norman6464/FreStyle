@@ -1,5 +1,5 @@
 import apiClient from '../lib/axios';
-import { AiSession, AiMessage, ScoreCard } from '../types';
+import { AiSession, AiMessage, ScoreCard, ScoreHistoryItem } from '../types';
 
 /**
  * AI Chatリポジトリ
@@ -110,7 +110,7 @@ class AiChatRepository {
   /**
    * スコア履歴を取得
    */
-  async getScoreHistory(): Promise<any[]> {
+  async getScoreHistory(): Promise<ScoreHistoryItem[]> {
     const response = await apiClient.get('/api/scores/history');
     return response.data;
   }

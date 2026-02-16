@@ -1,5 +1,5 @@
 import apiClient from '../lib/axios';
-import { ChatUser } from '../types';
+import { ChatUser, ChatMessage } from '../types';
 
 /**
  * Chatリポジトリ
@@ -30,7 +30,7 @@ const ChatRepository = {
     await apiClient.post(`/api/chat/rooms/${roomId}/read`);
   },
 
-  async fetchHistory(roomId: string): Promise<unknown[]> {
+  async fetchHistory(roomId: string): Promise<ChatMessage[]> {
     const res = await apiClient.get(`/api/chat/users/${roomId}/history`);
     return res.data;
   },

@@ -209,9 +209,14 @@ public class CognitoAuthController {
             log.info("🔍 userIdentityService.registerUserIdentity() 実行中...");
             userIdentityService.registerUserIdentity(user, claims.getIssuer(), claims.getSubject());
             log.info("✅ ユーザーアイデンティティ登録成功");
-            
+
+            // Cognitoネイティブユーザーのusernameはメールアドレス
+            Object cognitoUsernameObj = claims.getClaim("cognito:username");
+            String cognitoUsername = cognitoUsernameObj != null ? cognitoUsernameObj.toString() : form.getEmail();
+            log.info("📌 cognitoUsername: {}", cognitoUsername);
+
             log.info("🍪 setAuthCookies() 実行中...");
-            setAuthCookies(response, accessToken, refreshToken, form.getEmail());
+            setAuthCookies(response, accessToken, refreshToken, form.getEmail(), cognitoUsername);
             log.info("✅ Cookie設定成功");
 
             log.info("💾 accessTokenService.saveTokens() 実行中...");
@@ -294,12 +299,17 @@ public class CognitoAuthController {
             log.info("[CognitoAuthController /callback] Registering user - provider: {}", provider);
             User user = userService.registerUserOIDC(name, email, provider, sub);
 
+            // OIDCユーザーのCognitoユーザー名を取得（例: Google_123456789）
+            Object cognitoUsernameObj = claims.getClaim("cognito:username");
+            String cognitoUsername = cognitoUsernameObj != null ? cognitoUsernameObj.toString() : sub;
+            log.info("[CognitoAuthController /callback] cognitoUsername: {}", cognitoUsername);
+
             // アクセストークン、リフレッシュトークン保存
             accessTokenService.saveTokens(user, accessToken, refreshToken);
 
             // httpOnlyCookieの設定
             log.info("[CognitoAuthController /callback] Setting auth cookies");
-            setAuthCookies(response, accessToken, refreshToken, email);
+            setAuthCookies(response, accessToken, refreshToken, email, cognitoUsername);
 
             return ResponseEntity.ok(Map .of("success","ログインできました"));
 
@@ -380,11 +390,16 @@ public class CognitoAuthController {
     @PostMapping("/refresh-token")
     public ResponseEntity<?> refreshToken(@CookieValue(name = "REFRESH_TOKEN", required = true) String refreshToken,
                                         @CookieValue(name = "EMAIL", required = true) String email,
+                                        @CookieValue(name = "COGNITO_USERNAME", required = false) String cognitoUsername,
                                         HttpServletResponse response) {
 
         log.info("[CognitoAuthController /refresh-token] Endpoint called");
         log.info("[CognitoAuthController /refresh-token] REFRESH_TOKEN cookie: {}",
                           refreshToken != null ? refreshToken.substring(0, Math.min(20, refreshToken.length())) + "..." : "null");
+
+        // COGNITO_USERNAMEクッキーが無い場合はEMAILにフォールバック（後方互換性）
+        String username = (cognitoUsername != null && !cognitoUsername.isEmpty()) ? cognitoUsername : email;
+        log.info("[CognitoAuthController /refresh-token] Using username for SECRET_HASH: {}", username);
 
         if (refreshToken == null || refreshToken.isEmpty()) {
             log.warn("認証エラー: リフレッシュトークンがnullまたは空");
@@ -397,7 +412,7 @@ public class CognitoAuthController {
             AccessToken accessTokenEntity = accessTokenService.findAccessTokenByRefreshToken(refreshToken);
 
             log.info("[CognitoAuthController /refresh-token] Attempting to refresh access token");
-            Map<String, String> tokens = cognitoAuthService.refreshAccessToken(refreshToken,email);
+            Map<String, String> tokens = cognitoAuthService.refreshAccessToken(refreshToken, username);
             log.info("[CognitoAuthController /refresh-token] Successfully refreshed tokens");
 
             accessTokenService.updateTokens(
@@ -405,7 +420,7 @@ public class CognitoAuthController {
                     tokens.get("accessToken")
             );
 
-            setAuthCookies(response, tokens.get("accessToken"), refreshToken, email);
+            setAuthCookies(response, tokens.get("accessToken"), refreshToken, email, username);
             return ResponseEntity.ok(Map.of("success","更新完了"));
 
         } catch (RuntimeException e) {
@@ -517,7 +532,8 @@ public class CognitoAuthController {
         HttpServletResponse response,
         String accessToken,
         String refreshToken,
-        String email
+        String email,
+        String cognitoUsername
     ) {
     ResponseCookie accessCookie = ResponseCookie.from("ACCESS_TOKEN", accessToken)
             .httpOnly(true)
@@ -543,10 +559,19 @@ public class CognitoAuthController {
             .sameSite("None") // 開発環境: Lax、本番環境: None
             .build();
 
-    log.debug("Cookie設定: ACCESS_TOKEN, REFRESH_TOKEN, EMAIL");
+    ResponseCookie cognitoUsernameCookie = ResponseCookie.from("COGNITO_USERNAME", cognitoUsername)
+            .httpOnly(true)
+            .secure(true)
+            .path("/")
+            .maxAge(60 * 60 * 24 * 7) // 7日
+            .sameSite("None")
+            .build();
+
+    log.debug("Cookie設定: ACCESS_TOKEN, REFRESH_TOKEN, EMAIL, COGNITO_USERNAME");
     response.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
     response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
     response.addHeader(HttpHeaders.SET_COOKIE, emailCookie.toString());
+    response.addHeader(HttpHeaders.SET_COOKIE, cognitoUsernameCookie.toString());
 }
 
 

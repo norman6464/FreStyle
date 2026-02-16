@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.FreStyle.dto.ChatUserDto;
+import com.example.FreStyle.dto.PartnerRoomProjection;
 import com.example.FreStyle.entity.ChatMessage;
 import com.example.FreStyle.entity.ChatRoom;
 import com.example.FreStyle.entity.RoomMember;
@@ -69,21 +70,21 @@ public class ChatService {
         System.out.println("🔍 findChatUsers 開始 - myUserId: " + myUserId + ", query: " + query);
         
         // 1. 自分が参加しているルームと相手ユーザーIDのペアを取得
-        List<Object[]> partnerData = roomMemberRepository.findPartnerUserIdAndRoomIdByUserId(myUserId);
+        List<PartnerRoomProjection> partnerData = roomMemberRepository.findPartnerUserIdAndRoomIdByUserId(myUserId);
         System.out.println("📊 取得したルーム数: " + partnerData.size());
-        
+
         if (partnerData.isEmpty()) {
             return new ArrayList<>();
         }
-        
+
         // 2. 相手ユーザーIDとルームIDのマップを作成
         Map<Integer, Integer> userIdToRoomId = new HashMap<>();
         List<Integer> roomIds = new ArrayList<>();
         List<Integer> partnerUserIds = new ArrayList<>();
-        
-        for (Object[] row : partnerData) {
-            Integer partnerId = (Integer) row[0];
-            Integer roomId = (Integer) row[1];
+
+        for (PartnerRoomProjection row : partnerData) {
+            Integer partnerId = row.getUserId();
+            Integer roomId = row.getRoomId();
             userIdToRoomId.put(partnerId, roomId);
             roomIds.add(roomId);
             partnerUserIds.add(partnerId);

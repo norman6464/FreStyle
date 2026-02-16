@@ -1,6 +1,7 @@
 package com.example.FreStyle.service;
 
 import com.example.FreStyle.dto.ChatUserDto;
+import com.example.FreStyle.dto.PartnerRoomProjection;
 import com.example.FreStyle.entity.ChatMessage;
 import com.example.FreStyle.entity.ChatRoom;
 import com.example.FreStyle.entity.User;
@@ -73,13 +74,20 @@ class ChatServiceTest {
         latestMessage.setCreatedAt(new Timestamp(System.currentTimeMillis()));
     }
 
+    private PartnerRoomProjection createProjection(Integer userId, Integer roomId) {
+        PartnerRoomProjection projection = mock(PartnerRoomProjection.class);
+        when(projection.getUserId()).thenReturn(userId);
+        when(projection.getRoomId()).thenReturn(roomId);
+        return projection;
+    }
+
     @Test
     @DisplayName("findChatUsers: 未読数が正しくDTOに設定される")
     void findChatUsers_setsCorrectUnreadCount() {
         // Arrange
         // partnerId=2, roomId=10 のペアを返す
-        List<Object[]> partnerDataList = new ArrayList<>();
-        partnerDataList.add(new Object[]{2, 10});
+        List<PartnerRoomProjection> partnerDataList = new ArrayList<>();
+        partnerDataList.add(createProjection(2, 10));
         when(roomMemberRepository.findPartnerUserIdAndRoomIdByUserId(1))
                 .thenReturn(partnerDataList);
         when(userRepository.findAllById(List.of(2)))
@@ -106,8 +114,8 @@ class ChatServiceTest {
     @DisplayName("findChatUsers: 未読レコードなしのルームはカウント0")
     void findChatUsers_noUnreadRecord_defaultsToZero() {
         // Arrange
-        List<Object[]> partnerDataList = new ArrayList<>();
-        partnerDataList.add(new Object[]{2, 10});
+        List<PartnerRoomProjection> partnerDataList = new ArrayList<>();
+        partnerDataList.add(createProjection(2, 10));
         when(roomMemberRepository.findPartnerUserIdAndRoomIdByUserId(1))
                 .thenReturn(partnerDataList);
         when(userRepository.findAllById(List.of(2)))

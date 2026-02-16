@@ -1,5 +1,6 @@
 package com.example.FreStyle.repository;
 
+import com.example.FreStyle.dto.PartnerRoomProjection;
 import com.example.FreStyle.entity.RoomMember;
 import com.example.FreStyle.entity.User;
 
@@ -40,17 +41,16 @@ public interface RoomMemberRepository extends JpaRepository<RoomMember, Integer>
 
     /**
      * 自分が参加しているルームで、相手ユーザーとルームIDのペアを取得
-     * 結果: [userId, roomId] のリスト
      */
     @Query("""
-            SELECT rm2.user.id, rm2.room.id
+            SELECT rm2.user.id AS userId, rm2.room.id AS roomId
             FROM RoomMember rm2
             WHERE rm2.room.id IN (
                 SELECT rm.room.id FROM RoomMember rm WHERE rm.user.id = :userId
             )
             AND rm2.user.id <> :userId
             """)
-    List<Object[]> findPartnerUserIdAndRoomIdByUserId(@Param("userId") Integer userId);
+    List<PartnerRoomProjection> findPartnerUserIdAndRoomIdByUserId(@Param("userId") Integer userId);
 
     /**
      * 指定ルームで自分以外のユーザーを取得

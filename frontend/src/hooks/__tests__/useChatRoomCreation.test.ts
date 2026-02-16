@@ -52,4 +52,28 @@ describe('useChatRoomCreation', () => {
 
     expect(mockNavigate).not.toHaveBeenCalled();
   });
+
+  it('createRoomのレスポンスにroomIdがない場合は遷移しない', async () => {
+    mockedRepo.createRoom.mockResolvedValue({ roomId: undefined as unknown as number });
+
+    const { result } = renderHook(() => useChatRoomCreation());
+
+    await act(async () => {
+      await result.current.openChat(1, undefined);
+    });
+
+    expect(mockedRepo.createRoom).toHaveBeenCalledWith(1);
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it('既存のroomIdがある場合はcreateRoomを呼ばずに即座に遷移する', async () => {
+    const { result } = renderHook(() => useChatRoomCreation());
+
+    await act(async () => {
+      await result.current.openChat(5, 300);
+    });
+
+    expect(mockedRepo.createRoom).not.toHaveBeenCalled();
+    expect(mockNavigate).toHaveBeenCalledWith('/chat/users/300');
+  });
 });

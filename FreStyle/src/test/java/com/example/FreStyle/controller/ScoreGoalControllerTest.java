@@ -83,4 +83,32 @@ class ScoreGoalControllerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
         verify(saveScoreGoalUseCase).execute(user, 9.0);
     }
+
+    @Test
+    @DisplayName("GET: UseCaseに正しいuserIdを渡している")
+    void getGoal_passesCorrectUserId() {
+        Jwt jwt = mockJwt("sub-456");
+        User user = new User();
+        user.setId(42);
+        when(userIdentityService.findUserBySub("sub-456")).thenReturn(user);
+        when(getScoreGoalUseCase.execute(42)).thenReturn(new ScoreGoalDto(7.0));
+
+        scoreGoalController.getGoal(jwt);
+
+        verify(getScoreGoalUseCase).execute(42);
+    }
+
+    @Test
+    @DisplayName("PUT: UseCaseの例外がそのまま伝搬する")
+    void saveGoal_propagatesException() {
+        Jwt jwt = mockJwt("sub-123");
+        User user = new User();
+        user.setId(1);
+        when(userIdentityService.findUserBySub("sub-123")).thenReturn(user);
+        doThrow(new RuntimeException("DB接続エラー")).when(saveScoreGoalUseCase).execute(user, 9.0);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                () -> scoreGoalController.saveGoal(jwt, new ScoreGoalController.SaveGoalRequest(9.0))
+        ).isInstanceOf(RuntimeException.class).hasMessage("DB接続エラー");
+    }
 }

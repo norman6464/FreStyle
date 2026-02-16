@@ -419,6 +419,49 @@ describe('useNotes', () => {
     expect(result.current.deleteTargetId).toBeNull();
   });
 
+  it('confirmDeleteで選択中ノート削除後に次のノートが自動選択される', async () => {
+    const threeNotes = [
+      { noteId: 'n1', userId: 1, title: 'A', content: '', isPinned: false, createdAt: 1000, updatedAt: 3000 },
+      { noteId: 'n2', userId: 1, title: 'B', content: '', isPinned: false, createdAt: 2000, updatedAt: 2000 },
+      { noteId: 'n3', userId: 1, title: 'C', content: '', isPinned: false, createdAt: 3000, updatedAt: 1000 },
+    ];
+    vi.mocked(NoteRepository.fetchNotes).mockResolvedValue(threeNotes);
+    vi.mocked(NoteRepository.deleteNote).mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => useNotes());
+    await act(async () => { await result.current.fetchNotes(); });
+
+    // n1を選択 → 削除 → n2（次のノート）が自動選択
+    act(() => { result.current.selectNote('n1'); });
+    act(() => { result.current.requestDelete('n1'); });
+
+    await act(async () => { await result.current.confirmDelete(); });
+
+    expect(result.current.selectedNoteId).toBe('n2');
+  });
+
+  it('confirmDeleteで最後のノート削除後に前のノートが自動選択される', async () => {
+    const threeNotes = [
+      { noteId: 'n1', userId: 1, title: 'A', content: '', isPinned: false, createdAt: 1000, updatedAt: 3000 },
+      { noteId: 'n2', userId: 1, title: 'B', content: '', isPinned: false, createdAt: 2000, updatedAt: 2000 },
+      { noteId: 'n3', userId: 1, title: 'C', content: '', isPinned: false, createdAt: 3000, updatedAt: 1000 },
+    ];
+    vi.mocked(NoteRepository.fetchNotes).mockResolvedValue(threeNotes);
+    vi.mocked(NoteRepository.deleteNote).mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => useNotes());
+    await act(async () => { await result.current.fetchNotes(); });
+
+    // filteredNotes: n1(updatedAt:3000), n2(2000), n3(1000)
+    // n3を選択 → 削除 → n2（前のノート）が自動選択
+    act(() => { result.current.selectNote('n3'); });
+    act(() => { result.current.requestDelete('n3'); });
+
+    await act(async () => { await result.current.confirmDelete(); });
+
+    expect(result.current.selectedNoteId).toBe('n2');
+  });
+
   it('deleteTargetIdがnullのときconfirmDeleteは何もしない', async () => {
     const { result } = renderHook(() => useNotes());
 

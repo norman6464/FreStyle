@@ -6,7 +6,7 @@ interface ResultCountProps {
 
 export default function ResultCount({ filteredCount, totalCount, isFilterActive }: ResultCountProps) {
   return (
-    <p className="text-[10px] text-[var(--color-text-muted)] mb-2">
+    <p className="text-[10px] text-[var(--color-text-muted)] mb-2" role="status" aria-live="polite">
       {isFilterActive ? `${filteredCount} / ${totalCount}件` : `${totalCount}件`}
     </p>
   );

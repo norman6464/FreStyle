@@ -81,21 +81,6 @@ export function useNotes() {
     return notes.find((n) => n.noteId === selectedNoteId) || null;
   }, [notes, selectedNoteId]);
 
-  const requestDelete = useCallback((noteId: string) => {
-    setDeleteTargetId(noteId);
-  }, []);
-
-  const confirmDelete = useCallback(async () => {
-    if (deleteTargetId) {
-      await deleteNote(deleteTargetId);
-      setDeleteTargetId(null);
-    }
-  }, [deleteTargetId, deleteNote]);
-
-  const cancelDelete = useCallback(() => {
-    setDeleteTargetId(null);
-  }, []);
-
   const filteredNotes = useMemo(() => {
     const query = searchQuery.toLowerCase();
     const filtered = query
@@ -106,6 +91,32 @@ export function useNotes() {
       return b.updatedAt - a.updatedAt;
     });
   }, [notes, searchQuery]);
+
+  const requestDelete = useCallback((noteId: string) => {
+    setDeleteTargetId(noteId);
+  }, []);
+
+  const confirmDelete = useCallback(async () => {
+    if (!deleteTargetId) return;
+
+    // 削除前に次の選択候補を決定（filteredNotesの順序で次→前）
+    const idx = filteredNotes.findIndex((n) => n.noteId === deleteTargetId);
+    const nextNote = idx >= 0
+      ? filteredNotes[idx + 1] || filteredNotes[idx - 1] || null
+      : null;
+
+    await deleteNote(deleteTargetId);
+
+    if (selectedNoteId === deleteTargetId && nextNote) {
+      setSelectedNoteId(nextNote.noteId);
+    }
+
+    setDeleteTargetId(null);
+  }, [deleteTargetId, deleteNote, filteredNotes, selectedNoteId]);
+
+  const cancelDelete = useCallback(() => {
+    setDeleteTargetId(null);
+  }, []);
 
   return {
     notes,

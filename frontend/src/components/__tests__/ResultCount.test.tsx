@@ -35,4 +35,12 @@ describe('ResultCount', () => {
     rerender(<ResultCount filteredCount={7} totalCount={10} isFilterActive={true} />);
     expect(screen.getByText('7 / 10件')).toBeInTheDocument();
   });
+
+  it('aria-liveとrole="status"が設定されている', () => {
+    render(<ResultCount filteredCount={3} totalCount={10} isFilterActive={true} />);
+
+    const element = screen.getByRole('status');
+    expect(element).toBeInTheDocument();
+    expect(element).toHaveAttribute('aria-live', 'polite');
+  });
 });

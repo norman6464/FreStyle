@@ -10,7 +10,7 @@ import ExportSessionButton from '../components/ExportSessionButton';
 import AiSessionListItem from '../components/AiSessionListItem';
 import EmptyState from '../components/EmptyState';
 import ConversationTemplates from '../components/ConversationTemplates';
-import { PlusIcon, Bars3Icon, SparklesIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, Bars3Icon, SparklesIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { useAskAi } from '../hooks/useAskAi';
 import { useMobilePanelState } from '../hooks/useMobilePanelState';
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
@@ -19,7 +19,7 @@ export default function AskAiPage() {
   const { isOpen: mobilePanelOpen, open: openMobilePanel, close: closeMobilePanel } = useMobilePanelState();
   const { copiedId, copyToClipboard } = useCopyToClipboard();
   const {
-    sessions,
+    filteredSessions,
     messages,
     scoreCard,
     messagesEndRef,
@@ -31,6 +31,8 @@ export default function AskAiPage() {
     editingSessionId,
     editingTitle,
     setEditingTitle,
+    sessionSearchQuery,
+    setSessionSearchQuery,
     handleNewSession,
     handleSelectSession,
     handleDeleteSession,
@@ -51,17 +53,30 @@ export default function AskAiPage() {
         mobileOpen={mobilePanelOpen}
         onMobileClose={closeMobilePanel}
         headerContent={
-          <button
-            onClick={handleNewSession}
-            className="w-full bg-primary-500 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-primary-600 transition-colors flex items-center justify-center gap-2"
-          >
-            <PlusIcon className="w-4 h-4" />
-            新しいチャット
-          </button>
+          <div className="space-y-2">
+            <div className="relative">
+              <MagnifyingGlassIcon className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
+              <input
+                type="text"
+                placeholder="セッションを検索..."
+                aria-label="セッションを検索"
+                value={sessionSearchQuery}
+                onChange={(e) => setSessionSearchQuery(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 bg-surface-2 border border-surface-3 rounded-lg text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-primary-500 transition-colors"
+              />
+            </div>
+            <button
+              onClick={handleNewSession}
+              className="w-full bg-primary-500 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-primary-600 transition-colors flex items-center justify-center gap-2"
+            >
+              <PlusIcon className="w-4 h-4" />
+              新しいチャット
+            </button>
+          </div>
         }
       >
         <div className="p-2 space-y-0.5">
-          {sessions.map((session) => (
+          {filteredSessions.map((session) => (
             <AiSessionListItem
               key={session.id}
               id={session.id}

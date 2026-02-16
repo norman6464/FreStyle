@@ -8,14 +8,13 @@ import com.example.FreStyle.entity.AccessToken;
 import com.example.FreStyle.entity.User;
 import com.example.FreStyle.repository.AccessTokenRepository;
 
+import lombok.RequiredArgsConstructor;
+
 @Service
+@RequiredArgsConstructor
 public class AccessTokenService {
 
     private final AccessTokenRepository accessTokenRepository;
-
-    public AccessTokenService(AccessTokenRepository accessTokenRepository) {
-        this.accessTokenRepository = accessTokenRepository;
-    }
 
     @Transactional
     public void saveTokens(

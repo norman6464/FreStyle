@@ -34,4 +34,21 @@ class ResourceNotFoundExceptionTest {
 
         assertInstanceOf(RuntimeException.class, exception);
     }
+
+    @Test
+    @DisplayName("nullメッセージでもnullが保持される")
+    void constructor_WithNullMessage() {
+        ResourceNotFoundException exception = new ResourceNotFoundException(null);
+
+        assertNull(exception.getMessage());
+    }
+
+    @Test
+    @DisplayName("2引数コンストラクタでcauseがnullでも正常に動作する")
+    void constructor_WithNullCause() {
+        ResourceNotFoundException exception = new ResourceNotFoundException("エラー", null);
+
+        assertEquals("エラー", exception.getMessage());
+        assertNull(exception.getCause());
+    }
 }

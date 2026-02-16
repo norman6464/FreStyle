@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
 import java.util.List;
-import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -84,12 +83,9 @@ class FavoritePhraseControllerTest {
         @Test
         @DisplayName("お気に入りフレーズを追加できる")
         void addsPhrase() {
-            Map<String, String> body = Map.of(
-                    "originalText", "確認お願い",
-                    "rephrasedText", "ご確認ください",
-                    "pattern", "フォーマル版");
+            var request = new FavoritePhraseController.AddFavoritePhraseRequest("確認お願い", "ご確認ください", "フォーマル版");
 
-            ResponseEntity<Void> response = favoritePhraseController.addFavoritePhrase(mockJwt, body);
+            ResponseEntity<Void> response = favoritePhraseController.addFavoritePhrase(mockJwt, request);
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
             verify(addFavoritePhraseUseCase).execute(testUser, "確認お願い", "ご確認ください", "フォーマル版");
@@ -103,7 +99,7 @@ class FavoritePhraseControllerTest {
 
             org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
                     () -> favoritePhraseController.addFavoritePhrase(mockJwt,
-                            Map.of("originalText", "元文", "rephrasedText", "変換文", "pattern", "パターン")));
+                            new FavoritePhraseController.AddFavoritePhraseRequest("元文", "変換文", "パターン")));
         }
     }
 

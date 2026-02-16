@@ -1,9 +1,10 @@
 package com.example.FreStyle.controller;
 
 import java.util.List;
-import java.util.Map;
 
 import org.springframework.http.ResponseEntity;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -45,13 +46,13 @@ public class FavoritePhraseController {
     @PostMapping
     public ResponseEntity<Void> addFavoritePhrase(
             @AuthenticationPrincipal Jwt jwt,
-            @RequestBody Map<String, String> body) {
+            @Valid @RequestBody AddFavoritePhraseRequest request) {
         User user = resolveUser(jwt);
         addFavoritePhraseUseCase.execute(
                 user,
-                body.get("originalText"),
-                body.get("rephrasedText"),
-                body.get("pattern"));
+                request.originalText(),
+                request.rephrasedText(),
+                request.pattern());
         return ResponseEntity.ok().build();
     }
 
@@ -67,4 +68,6 @@ public class FavoritePhraseController {
     private User resolveUser(Jwt jwt) {
         return userIdentityService.findUserBySub(jwt.getSubject());
     }
+
+    record AddFavoritePhraseRequest(@NotBlank String originalText, @NotBlank String rephrasedText, @NotBlank String pattern) {}
 }

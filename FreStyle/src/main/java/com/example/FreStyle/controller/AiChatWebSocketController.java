@@ -7,19 +7,16 @@ import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 
+import com.example.FreStyle.constant.SceneDisplayName;
 import com.example.FreStyle.dto.AiChatMessageResponseDto;
 import com.example.FreStyle.dto.AiChatSessionDto;
-import com.example.FreStyle.dto.PracticeScenarioDto;
 import com.example.FreStyle.dto.ScoreCardDto;
-import com.example.FreStyle.dto.UserProfileDto;
 import com.example.FreStyle.entity.AiChatMessage.Role;
 import com.example.FreStyle.service.BedrockService;
-import com.example.FreStyle.service.SystemPromptBuilder;
-import com.example.FreStyle.service.UserProfileService;
 import com.example.FreStyle.usecase.AddAiChatMessageUseCase;
 import com.example.FreStyle.usecase.CreateAiChatSessionUseCase;
 import com.example.FreStyle.usecase.DeleteAiChatSessionUseCase;
-import com.example.FreStyle.usecase.GetPracticeScenarioByIdUseCase;
+import com.example.FreStyle.usecase.GetAiReplyUseCase;
 import com.example.FreStyle.usecase.SaveScoreCardUseCase;
 
 import lombok.RequiredArgsConstructor;
@@ -32,14 +29,12 @@ public class AiChatWebSocketController {
 
     private final BedrockService bedrockService;
     private final SimpMessagingTemplate messagingTemplate;
-    private final UserProfileService userProfileService;
-    private final SystemPromptBuilder systemPromptBuilder;
 
     // UseCases (クリーンアーキテクチャー)
     private final CreateAiChatSessionUseCase createAiChatSessionUseCase;
     private final AddAiChatMessageUseCase addAiChatMessageUseCase;
     private final DeleteAiChatSessionUseCase deleteAiChatSessionUseCase;
-    private final GetPracticeScenarioByIdUseCase getPracticeScenarioByIdUseCase;
+    private final GetAiReplyUseCase getAiReplyUseCase;
     private final SaveScoreCardUseCase saveScoreCardUseCase;
 
     /**
@@ -110,7 +105,7 @@ public class AiChatWebSocketController {
                 String title = fromChatFeedback ? "チャットフィードバック" : "新しいチャット";
                 // シーンが指定されている場合はタイトルにシーン名を含める
                 if (scene != null && fromChatFeedback) {
-                    title = getSceneDisplayName(scene) + "フィードバック";
+                    title = SceneDisplayName.of(scene) + "フィードバック";
                 }
                 AiChatSessionDto newSession = createAiChatSessionUseCase.execute(userId, title, null, scene);
                 sessionId = newSession.getId();
@@ -140,7 +135,8 @@ public class AiChatWebSocketController {
             log.info("✅ ユーザーメッセージ WebSocket 送信完了");
 
             // Bedrockにメッセージを送信してAI応答を取得
-            String aiReply = getAiReply(content, isPracticeMode, scenarioId, fromChatFeedback, scene, userId);
+            var aiReplyCommand = new GetAiReplyUseCase.Command(content, isPracticeMode, scenarioId, fromChatFeedback, scene, userId);
+            String aiReply = getAiReplyUseCase.execute(aiReplyCommand);
 
             // AI応答をデータベースに保存（role: assistant）
             log.info("💾 AI応答をデータベースに保存中...");
@@ -265,55 +261,6 @@ public class AiChatWebSocketController {
     }
 
     /**
-     * AI応答を取得（モードに応じて適切なBedrockメソッドを呼び出す）
-     */
-    private String getAiReply(String content, boolean isPracticeMode, Integer scenarioId,
-                              boolean fromChatFeedback, String scene, Integer userId) {
-        if (isPracticeMode && scenarioId != null) {
-            log.info("🎭 練習モード: scenarioId={}", scenarioId);
-            PracticeScenarioDto scenario = getPracticeScenarioByIdUseCase.execute(scenarioId);
-            String practicePrompt = systemPromptBuilder.buildPracticePrompt(
-                    scenario.getName(), scenario.getRoleName(),
-                    scenario.getDifficulty(), scenario.getSystemPrompt());
-
-            if ("練習開始".equals(content)) {
-                String startPrompt = practicePrompt +
-                    "\n\nこれから練習が始まります。あなたは相手役として、シナリオに基づいた最初の発言をしてください。" +
-                    "ユーザーに対して、シナリオの状況を反映した自然な会話で話しかけてください。";
-                return bedrockService.chatInPracticeMode("", startPrompt);
-            }
-            return bedrockService.chatInPracticeMode(content, practicePrompt);
-        }
-
-        if (fromChatFeedback) {
-            log.info("🤖 フィードバックモード: UserProfileをバックエンドで取得中... scene={}", scene);
-            UserProfileDto userProfile = userProfileService.getProfileByUserId(userId);
-
-            if (userProfile != null) {
-                log.info("✅ UserProfile取得成功");
-                String personalityTraits = userProfile.getPersonalityTraits() != null
-                    ? String.join(", ", userProfile.getPersonalityTraits())
-                    : null;
-
-                return bedrockService.chatWithUserProfileAndScene(
-                    content, scene,
-                    userProfile.getDisplayName(),
-                    userProfile.getSelfIntroduction(),
-                    userProfile.getCommunicationStyle(),
-                    personalityTraits,
-                    userProfile.getGoals(),
-                    userProfile.getConcerns(),
-                    userProfile.getPreferredFeedbackStyle()
-                );
-            }
-            log.warn("⚠️ UserProfileが見つかりません。通常モードで処理します。");
-        }
-
-        log.info("🤖 Bedrock にメッセージを送信中...");
-        return bedrockService.chat(content);
-    }
-
-    /**
      * スコアカードを抽出・保存し、WebSocketで通知する
      */
     private void notifyScoreCardIfNeeded(Integer sessionId, Integer userId, String aiReply,
@@ -338,24 +285,6 @@ public class AiChatWebSocketController {
             log.info("✅ {}送信完了 - 総合スコア: {}", logLabel, scoreCard.getOverallScore());
         } else {
             log.warn("⚠️ AI応答からスコアを抽出できませんでした");
-        }
-    }
-
-    /**
-     * シーン識別子から表示名を取得
-     */
-    private String getSceneDisplayName(String scene) {
-        if (scene == null) return "";
-        switch (scene) {
-            case "meeting": return "会議";
-            case "one_on_one": return "1on1";
-            case "email": return "メール";
-            case "presentation": return "プレゼン";
-            case "negotiation": return "商談";
-            case "code_review": return "コードレビュー";
-            case "incident": return "障害対応";
-            case "daily_report": return "日報・週報";
-            default: return "";
         }
     }
 

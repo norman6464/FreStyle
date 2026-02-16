@@ -224,4 +224,25 @@ describe('ScoreHistoryPage', () => {
     fireEvent.click(screen.getByText('練習一覧を見る'));
     expect(mockNavigate).toHaveBeenCalledWith('/practice');
   });
+
+  it('セッション件数が表示される', async () => {
+    const ScoreHistoryPage = await importScoreHistoryPage();
+
+    render(<ScoreHistoryPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('3件')).toBeInTheDocument();
+    }, { timeout: 3000 });
+  });
+
+  it('セッションが1件の場合「1件」と表示される', async () => {
+    mockFetchScoreHistory.mockResolvedValue([mockHistory[0]]);
+    const ScoreHistoryPage = await importScoreHistoryPage();
+
+    render(<ScoreHistoryPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('1件')).toBeInTheDocument();
+    }, { timeout: 3000 });
+  });
 });

@@ -39,6 +39,7 @@ export default function ScoreHistoryPage() {
 
   return (
     <div className="max-w-3xl mx-auto p-4 space-y-3">
+      <p className="text-xs text-[var(--color-text-muted)]">{history.length}件</p>
       <ScoreOverviewSection
         history={history}
         latestSession={latestSession!}

@@ -84,5 +84,60 @@ class ScoreCardServiceTest {
 
             assertThat(overall).isEqualTo(0.0);
         }
+
+        @Test
+        @DisplayName("nullの場合は0.0を返す")
+        void shouldReturnZeroForNull() {
+            double overall = service.calculateOverallScore(null);
+
+            assertThat(overall).isEqualTo(0.0);
+        }
+
+        @Test
+        @DisplayName("1軸のみの場合はそのスコアを返す")
+        void shouldReturnSingleScore() {
+            List<ScoreCardService.AxisScore> scores = List.of(
+                    new ScoreCardService.AxisScore("論理的構成力", 8, "良い")
+            );
+
+            double overall = service.calculateOverallScore(scores);
+
+            assertThat(overall).isEqualTo(8.0);
+        }
+    }
+
+    @Nested
+    @DisplayName("parseScoresFromResponse - エッジケース")
+    class ParseScoresEdgeCaseTest {
+
+        @Test
+        @DisplayName("JSONにscores配列がない場合は空リストを返す")
+        void shouldReturnEmptyListWhenNoScoresArray() {
+            String aiResponse = "```json\n{\"result\": \"ok\"}\n```";
+
+            List<ScoreCardService.AxisScore> scores = service.parseScoresFromResponse(aiResponse);
+
+            assertThat(scores).isEmpty();
+        }
+
+        @Test
+        @DisplayName("scores配列が空の場合は空リストを返す")
+        void shouldReturnEmptyListWhenScoresArrayEmpty() {
+            String aiResponse = "```json\n{\"scores\":[]}\n```";
+
+            List<ScoreCardService.AxisScore> scores = service.parseScoresFromResponse(aiResponse);
+
+            assertThat(scores).isEmpty();
+        }
+
+        @Test
+        @DisplayName("コードブロックなしのJSON文字列は空リストを返す")
+        void shouldReturnEmptyListForRawJson() {
+            String aiResponse = "{\"scores\":[{\"axis\":\"テスト\",\"score\":5,\"comment\":\"ok\"}]}";
+
+            List<ScoreCardService.AxisScore> scores = service.parseScoresFromResponse(aiResponse);
+
+            assertThat(scores).isEmpty();
+        }
     }
 }

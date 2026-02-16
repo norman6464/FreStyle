@@ -5,10 +5,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.lang.reflect.Method;
 import java.util.Map;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -21,12 +18,10 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import com.example.FreStyle.dto.AiChatMessageResponseDto;
 import com.example.FreStyle.service.BedrockService;
-import com.example.FreStyle.service.SystemPromptBuilder;
-import com.example.FreStyle.service.UserProfileService;
 import com.example.FreStyle.usecase.AddAiChatMessageUseCase;
 import com.example.FreStyle.usecase.CreateAiChatSessionUseCase;
 import com.example.FreStyle.usecase.DeleteAiChatSessionUseCase;
-import com.example.FreStyle.usecase.GetPracticeScenarioByIdUseCase;
+import com.example.FreStyle.usecase.GetAiReplyUseCase;
 import com.example.FreStyle.usecase.SaveScoreCardUseCase;
 
 @ExtendWith(MockitoExtension.class)
@@ -35,12 +30,10 @@ class AiChatWebSocketControllerTest {
 
     @Mock private BedrockService bedrockService;
     @Mock private SimpMessagingTemplate messagingTemplate;
-    @Mock private UserProfileService userProfileService;
-    @Mock private SystemPromptBuilder systemPromptBuilder;
     @Mock private CreateAiChatSessionUseCase createAiChatSessionUseCase;
     @Mock private AddAiChatMessageUseCase addAiChatMessageUseCase;
     @Mock private DeleteAiChatSessionUseCase deleteAiChatSessionUseCase;
-    @Mock private GetPracticeScenarioByIdUseCase getPracticeScenarioByIdUseCase;
+    @Mock private GetAiReplyUseCase getAiReplyUseCase;
     @Mock private SaveScoreCardUseCase saveScoreCardUseCase;
 
     @InjectMocks
@@ -133,38 +126,4 @@ class AiChatWebSocketControllerTest {
         }
     }
 
-    @Nested
-    @DisplayName("getSceneDisplayName")
-    class GetSceneDisplayName {
-
-        private String invokeGetSceneDisplayName(String scene) throws Exception {
-            Method method = AiChatWebSocketController.class.getDeclaredMethod("getSceneDisplayName", String.class);
-            method.setAccessible(true);
-            return (String) method.invoke(controller, scene);
-        }
-
-        @Test
-        @DisplayName("会議シーンの表示名を返す")
-        void returnsMeetingDisplayName() throws Exception {
-            assertThat(invokeGetSceneDisplayName("meeting")).isEqualTo("会議");
-        }
-
-        @Test
-        @DisplayName("1on1シーンの表示名を返す")
-        void returnsOneOnOneDisplayName() throws Exception {
-            assertThat(invokeGetSceneDisplayName("one_on_one")).isEqualTo("1on1");
-        }
-
-        @Test
-        @DisplayName("nullの場合は空文字を返す")
-        void returnsEmptyForNull() throws Exception {
-            assertThat(invokeGetSceneDisplayName(null)).isEmpty();
-        }
-
-        @Test
-        @DisplayName("不明なシーンの場合は空文字を返す")
-        void returnsEmptyForUnknown() throws Exception {
-            assertThat(invokeGetSceneDisplayName("unknown")).isEmpty();
-        }
-    }
 }

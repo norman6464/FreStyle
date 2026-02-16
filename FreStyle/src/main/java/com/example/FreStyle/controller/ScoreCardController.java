@@ -43,8 +43,7 @@ public class ScoreCardController {
     ) {
         logger.info("========== GET /api/scores/sessions/{} ==========", sessionId);
 
-        String sub = jwt.getSubject();
-        User user = userIdentityService.findUserBySub(sub);
+        User user = resolveUser(jwt);
 
         // 権限チェック
         getAiChatSessionByIdUseCase.execute(sessionId, user.getId());
@@ -64,12 +63,15 @@ public class ScoreCardController {
     ) {
         logger.info("========== GET /api/scores/history ==========");
 
-        String sub = jwt.getSubject();
-        User user = userIdentityService.findUserBySub(sub);
+        User user = resolveUser(jwt);
 
         List<ScoreHistoryDto> history = getScoreHistoryByUserIdUseCase.execute(user.getId());
         logger.info("✅ スコア履歴取得成功 - userId: {}, 件数: {}", user.getId(), history.size());
 
         return ResponseEntity.ok(history);
+    }
+
+    private User resolveUser(Jwt jwt) {
+        return userIdentityService.findUserBySub(jwt.getSubject());
     }
 }

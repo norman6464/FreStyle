@@ -39,4 +39,10 @@ describe('MenuRepository', () => {
     expect(mockedApiClient.get).toHaveBeenCalledWith('/api/scores/history');
     expect(result).toEqual(mockScores);
   });
+
+  it('fetchChatStats: APIエラーが呼び出し元に伝播する', async () => {
+    mockedApiClient.get.mockRejectedValue(new Error('Network Error'));
+
+    await expect(MenuRepository.fetchChatStats()).rejects.toThrow('Network Error');
+  });
 });

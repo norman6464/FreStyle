@@ -61,7 +61,9 @@ class DeleteAiChatSessionUseCaseTest {
                     .thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> useCase.execute(999, 1))
-                    .isInstanceOf(ResourceNotFoundException.class);
+                    .isInstanceOf(ResourceNotFoundException.class)
+                    .hasMessageContaining("999")
+                    .hasMessageContaining("1");
         }
 
         @Test

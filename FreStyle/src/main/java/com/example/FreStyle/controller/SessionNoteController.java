@@ -31,8 +31,7 @@ public class SessionNoteController {
     public ResponseEntity<SessionNoteDto> getNote(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable Integer sessionId) {
-        String sub = jwt.getSubject();
-        User user = userIdentityService.findUserBySub(sub);
+        User user = resolveUser(jwt);
         SessionNoteDto dto = getSessionNoteUseCase.execute(user.getId(), sessionId);
         return ResponseEntity.ok(dto);
     }
@@ -42,10 +41,13 @@ public class SessionNoteController {
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable Integer sessionId,
             @RequestBody SaveNoteRequest request) {
-        String sub = jwt.getSubject();
-        User user = userIdentityService.findUserBySub(sub);
+        User user = resolveUser(jwt);
         saveSessionNoteUseCase.execute(user, sessionId, request.note());
         return ResponseEntity.ok().build();
+    }
+
+    private User resolveUser(Jwt jwt) {
+        return userIdentityService.findUserBySub(jwt.getSubject());
     }
 
     public record SaveNoteRequest(String note) {}

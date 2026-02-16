@@ -12,6 +12,7 @@ function defaultData() {
   return {
     users: [],
     error: null,
+    loading: false,
     searchQuery: '',
     setSearchQuery: vi.fn(),
     debounceQuery: '',
@@ -65,6 +66,28 @@ describe('MemberPage', () => {
     render(<BrowserRouter><MemberPage /></BrowserRouter>);
 
     expect(screen.getByText('ネットワークエラー')).toBeInTheDocument();
+  });
+
+  it('ローディング中はスピナーが表示される', () => {
+    mockUseUserSearch.mockReturnValue({
+      ...defaultData(),
+      loading: true,
+    });
+
+    const { container } = render(<BrowserRouter><MemberPage /></BrowserRouter>);
+
+    expect(container.querySelector('.animate-spin')).toBeInTheDocument();
+  });
+
+  it('ローディング中はメンバーなしメッセージが非表示', () => {
+    mockUseUserSearch.mockReturnValue({
+      ...defaultData(),
+      loading: true,
+    });
+
+    render(<BrowserRouter><MemberPage /></BrowserRouter>);
+
+    expect(screen.queryByText('メンバーがまだいません')).not.toBeInTheDocument();
   });
 
   it('エラー時にメンバーなしメッセージは表示しない', () => {

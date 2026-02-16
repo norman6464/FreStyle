@@ -6,6 +6,7 @@ export function useProfileEdit() {
   const [form, setForm] = useState({ name: '', bio: '' });
   const [message, setMessage] = useState<FormMessage | null>(null);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -26,11 +27,14 @@ export function useProfileEdit() {
   }, []);
 
   const handleUpdate = useCallback(async () => {
+    setSubmitting(true);
     try {
       const data = await ProfileRepository.updateProfile(form);
       setMessage({ type: 'success', text: data.success || 'プロフィールを更新しました。' });
     } catch {
       setMessage({ type: 'error', text: '通信エラーが発生しました。' });
+    } finally {
+      setSubmitting(false);
     }
   }, [form]);
 
@@ -38,6 +42,7 @@ export function useProfileEdit() {
     form,
     message,
     loading,
+    submitting,
     updateField,
     handleUpdate,
   };

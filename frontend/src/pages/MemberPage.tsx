@@ -1,10 +1,11 @@
 import MemberList from '../components/MemberList';
 import SearchBox from '../components/SearchBox';
 import FormMessage from '../components/FormMessage';
+import Loading from '../components/Loading';
 import { useUserSearch } from '../hooks/useUserSearch';
 
 export default function MemberPage() {
-  const { users, error, searchQuery, setSearchQuery } = useUserSearch();
+  const { users, error, loading, searchQuery, setSearchQuery } = useUserSearch();
 
   return (
     <div className="p-6 max-w-2xl mx-auto">
@@ -27,11 +28,13 @@ export default function MemberPage() {
       <FormMessage message={error ? { type: 'error', text: error } : null} />
 
       {/* メンバーリスト */}
-      {users.length === 0 && !error && (
+      {loading ? (
+        <Loading className="py-12" />
+      ) : users.length === 0 && !error ? (
         <div className="text-center py-12">
           <p className="text-sm text-[var(--color-text-muted)]">メンバーがまだいません</p>
         </div>
-      )}
+      ) : null}
       <MemberList users={users} />
     </div>
   );

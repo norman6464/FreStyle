@@ -1,4 +1,7 @@
+import { useNavigate } from 'react-router-dom';
+import { SparklesIcon } from '@heroicons/react/24/outline';
 import { SkeletonCard } from '../components/Skeleton';
+import EmptyState from '../components/EmptyState';
 import SkillRadarChart from '../components/SkillRadarChart';
 import PracticeCalendar from '../components/PracticeCalendar';
 import ScoreRankBadge from '../components/ScoreRankBadge';
@@ -27,6 +30,7 @@ import { useScoreHistory, FILTERS } from '../hooks/useScoreHistory';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 
 export default function ScoreHistoryPage() {
+  const navigate = useNavigate();
   const { history, filteredHistoryWithDelta, filter, setFilter, loading, latestSession, averageScore, weakestAxis, selectedSession, setSelectedSession } = useScoreHistory();
   const [scoreGoal] = useLocalStorage('scoreGoal', 8.0);
 
@@ -43,10 +47,15 @@ export default function ScoreHistoryPage() {
 
   if (history.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-[var(--color-text-muted)]">
-        <p className="text-sm font-medium">スコア履歴がありません</p>
-        <p className="text-xs mt-1">AIアシスタントでフィードバックを受けるとスコアが記録されます</p>
-      </div>
+      <EmptyState
+        icon={SparklesIcon}
+        title="スコア履歴がありません"
+        description="AIアシスタントでフィードバックを受けるとスコアが記録されます"
+        action={{
+          label: 'AIアシスタントで練習を開始',
+          onClick: () => navigate('/chat/ask-ai'),
+        }}
+      />
     );
   }
 

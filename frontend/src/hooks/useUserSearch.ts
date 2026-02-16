@@ -6,6 +6,7 @@ import type { MemberUser } from '../types';
 export function useUserSearch() {
   const [users, setUsers] = useState<MemberUser[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [debounceQuery, setDebounceQuery] = useState('');
 
@@ -23,6 +24,7 @@ export function useUserSearch() {
     let cancelled = false;
 
     const search = async () => {
+      setLoading(true);
       try {
         const result = await UserSearchRepository.searchUsers(debounceQuery || undefined);
         if (!cancelled) {
@@ -32,6 +34,10 @@ export function useUserSearch() {
       } catch (err) {
         if (!cancelled) {
           setError((err as Error).message);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
         }
       }
     };
@@ -46,6 +52,7 @@ export function useUserSearch() {
   return {
     users,
     error,
+    loading,
     searchQuery,
     setSearchQuery,
     debounceQuery,

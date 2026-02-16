@@ -7,6 +7,9 @@ vi.mock('../../hooks/useNotes');
 vi.mock('../../hooks/useBlockEditor', () => ({
   useBlockEditor: () => ({ editor: null }),
 }));
+vi.mock('../../hooks/useToast', () => ({
+  useToast: () => ({ showToast: vi.fn(), toasts: [], removeToast: vi.fn() }),
+}));
 
 const mockUseNotes = {
   notes: [],

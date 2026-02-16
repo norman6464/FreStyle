@@ -1,7 +1,6 @@
 package com.example.FreStyle.controller;
 
 import java.util.List;
-import java.util.Map;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -45,13 +44,13 @@ public class FavoritePhraseController {
     @PostMapping
     public ResponseEntity<Void> addFavoritePhrase(
             @AuthenticationPrincipal Jwt jwt,
-            @RequestBody Map<String, String> body) {
+            @RequestBody AddFavoritePhraseRequest request) {
         User user = resolveUser(jwt);
         addFavoritePhraseUseCase.execute(
                 user,
-                body.get("originalText"),
-                body.get("rephrasedText"),
-                body.get("pattern"));
+                request.originalText(),
+                request.rephrasedText(),
+                request.pattern());
         return ResponseEntity.ok().build();
     }
 
@@ -67,4 +66,6 @@ public class FavoritePhraseController {
     private User resolveUser(Jwt jwt) {
         return userIdentityService.findUserBySub(jwt.getSubject());
     }
+
+    record AddFavoritePhraseRequest(String originalText, String rephrasedText, String pattern) {}
 }

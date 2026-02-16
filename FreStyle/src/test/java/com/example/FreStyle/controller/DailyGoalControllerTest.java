@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 import java.time.LocalDate;
-import java.util.Map;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -89,7 +88,7 @@ class DailyGoalControllerTest {
         user.setId(1);
         when(userIdentityService.findUserBySub("cognito-sub-123")).thenReturn(user);
 
-        ResponseEntity<Void> response = dailyGoalController.setTarget(jwt, Map.of("target", 7));
+        ResponseEntity<Void> response = dailyGoalController.setTarget(jwt, new DailyGoalController.SetTargetRequest(7));
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         verify(setDailyGoalTargetUseCase).execute(user, 7);
@@ -103,7 +102,7 @@ class DailyGoalControllerTest {
         user.setId(1);
         when(userIdentityService.findUserBySub("cognito-sub-123")).thenReturn(user);
 
-        ResponseEntity<Void> response = dailyGoalController.setTarget(jwt, Map.of("target", 1));
+        ResponseEntity<Void> response = dailyGoalController.setTarget(jwt, new DailyGoalController.SetTargetRequest(1));
 
         assertNull(response.getBody());
     }
@@ -151,7 +150,7 @@ class DailyGoalControllerTest {
         doThrow(new RuntimeException("保存失敗")).when(setDailyGoalTargetUseCase).execute(user, 5);
 
         assertThrows(RuntimeException.class,
-                () -> dailyGoalController.setTarget(jwt, Map.of("target", 5)));
+                () -> dailyGoalController.setTarget(jwt, new DailyGoalController.SetTargetRequest(5)));
     }
 
     @Test

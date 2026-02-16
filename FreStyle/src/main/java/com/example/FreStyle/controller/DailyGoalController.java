@@ -1,7 +1,5 @@
 package com.example.FreStyle.controller;
 
-import java.util.Map;
-
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -41,9 +39,9 @@ public class DailyGoalController {
     @PutMapping("/target")
     public ResponseEntity<Void> setTarget(
             @AuthenticationPrincipal Jwt jwt,
-            @RequestBody Map<String, Integer> body) {
+            @RequestBody SetTargetRequest request) {
         User user = resolveUser(jwt);
-        setDailyGoalTargetUseCase.execute(user, body.get("target"));
+        setDailyGoalTargetUseCase.execute(user, request.target());
         return ResponseEntity.ok().build();
     }
 
@@ -57,4 +55,6 @@ public class DailyGoalController {
     private User resolveUser(Jwt jwt) {
         return userIdentityService.findUserBySub(jwt.getSubject());
     }
+
+    record SetTargetRequest(Integer target) {}
 }

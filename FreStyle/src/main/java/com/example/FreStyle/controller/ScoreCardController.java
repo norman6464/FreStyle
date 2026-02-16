@@ -1,7 +1,5 @@
 package com.example.FreStyle.controller;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -21,13 +19,13 @@ import com.example.FreStyle.usecase.GetScoreCardBySessionIdUseCase;
 import com.example.FreStyle.usecase.GetScoreHistoryByUserIdUseCase;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/scores")
+@Slf4j
 public class ScoreCardController {
-
-    private static final Logger logger = LoggerFactory.getLogger(ScoreCardController.class);
     private final UserIdentityService userIdentityService;
     private final GetAiChatSessionByIdUseCase getAiChatSessionByIdUseCase;
     private final GetScoreCardBySessionIdUseCase getScoreCardBySessionIdUseCase;
@@ -41,7 +39,7 @@ public class ScoreCardController {
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable Integer sessionId
     ) {
-        logger.info("========== GET /api/scores/sessions/{} ==========", sessionId);
+        log.info("========== GET /api/scores/sessions/{} ==========", sessionId);
 
         User user = resolveUser(jwt);
 
@@ -49,7 +47,7 @@ public class ScoreCardController {
         getAiChatSessionByIdUseCase.execute(sessionId, user.getId());
 
         ScoreCardDto scoreCard = getScoreCardBySessionIdUseCase.execute(sessionId);
-        logger.info("✅ スコアカード取得成功 - sessionId: {}", sessionId);
+        log.info("✅ スコアカード取得成功 - sessionId: {}", sessionId);
 
         return ResponseEntity.ok(scoreCard);
     }
@@ -61,12 +59,12 @@ public class ScoreCardController {
     public ResponseEntity<List<ScoreHistoryDto>> getScoreHistory(
             @AuthenticationPrincipal Jwt jwt
     ) {
-        logger.info("========== GET /api/scores/history ==========");
+        log.info("========== GET /api/scores/history ==========");
 
         User user = resolveUser(jwt);
 
         List<ScoreHistoryDto> history = getScoreHistoryByUserIdUseCase.execute(user.getId());
-        logger.info("✅ スコア履歴取得成功 - userId: {}, 件数: {}", user.getId(), history.size());
+        log.info("✅ スコア履歴取得成功 - userId: {}, 件数: {}", user.getId(), history.size());
 
         return ResponseEntity.ok(history);
     }

@@ -1,33 +1,26 @@
 package com.example.FreStyle.controller;
 
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.*;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.util.MultiValueMap;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.reactive.function.BodyInserters;
-import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.security.oauth2.jwt.Jwt;
 
-import com.example.FreStyle.entity.AccessToken;
-import com.example.FreStyle.entity.User;
 import com.example.FreStyle.form.ConfirmSignupForm;
 import com.example.FreStyle.form.ForgotPasswordForm;
 import com.example.FreStyle.form.LoginForm;
 import com.example.FreStyle.form.SignupForm;
-import com.example.FreStyle.service.AccessTokenService;
 import com.example.FreStyle.service.AuthCookieService;
 import com.example.FreStyle.service.CognitoAuthService;
 import com.example.FreStyle.service.UserIdentityService;
-import com.example.FreStyle.service.UserService;
+import com.example.FreStyle.usecase.CognitoCallbackUseCase;
+import com.example.FreStyle.usecase.CognitoConfirmUseCase;
 import com.example.FreStyle.usecase.CognitoLoginUseCase;
-import com.example.FreStyle.utils.JwtUtils;
-import com.nimbusds.jwt.JWTClaimsSet;
+import com.example.FreStyle.usecase.CognitoRefreshTokenUseCase;
+import com.example.FreStyle.usecase.CognitoSignupUseCase;
 
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.CodeMismatchException;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.ExpiredCodeException;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.InvalidPasswordException;
@@ -36,54 +29,25 @@ import software.amazon.awssdk.services.cognitoidentityprovider.model.UserNotConf
 import software.amazon.awssdk.services.cognitoidentityprovider.model.UserNotFoundException;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.UsernameExistsException;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.Map;
-import java.util.Optional;
 
 import lombok.extern.slf4j.Slf4j;
 
 @RestController
 @RequestMapping("/api/auth/cognito")
 @CrossOrigin(origins = "https://normanblog.com", allowCredentials = "true")
+@RequiredArgsConstructor
 @Slf4j
 public class CognitoAuthController {
 
-    @Value("${cognito.client-id}")
-    private String clientId;
-
-    @Value("${cognito.client-secret}")
-    private String clientSecret;
-
-    @Value("${cognito.redirect-uri}")
-    private String redirectUri;
-
-    @Value("${cognito.token-uri}")
-    private String tokenUri;
-
-    private final WebClient webClient;
-    private final UserService userService;
     private final CognitoAuthService cognitoAuthService;
     private final UserIdentityService userIdentityService;
-    private final AccessTokenService accessTokenService;
     private final AuthCookieService authCookieService;
     private final CognitoLoginUseCase cognitoLoginUseCase;
-
-    public CognitoAuthController(WebClient.Builder webClientBuilder,
-        UserService userService,
-        CognitoAuthService cognitoAuthService,
-        UserIdentityService userIdentityService,
-        AccessTokenService accessTokenService,
-        AuthCookieService authCookieService,
-        CognitoLoginUseCase cognitoLoginUseCase) {
-        this.webClient = webClientBuilder.build();
-        this.userService = userService;
-        this.cognitoAuthService = cognitoAuthService;
-        this.userIdentityService = userIdentityService;
-        this.accessTokenService = accessTokenService;
-        this.authCookieService = authCookieService;
-        this.cognitoLoginUseCase = cognitoLoginUseCase;
-    }
+    private final CognitoSignupUseCase cognitoSignupUseCase;
+    private final CognitoConfirmUseCase cognitoConfirmUseCase;
+    private final CognitoCallbackUseCase cognitoCallbackUseCase;
+    private final CognitoRefreshTokenUseCase cognitoRefreshTokenUseCase;
 
     // -----------------------
     // サインアップ
@@ -92,8 +56,7 @@ public class CognitoAuthController {
     public ResponseEntity<?> signup(@RequestBody SignupForm form) {
         log.info("POST /api/auth/cognito/signup - email: {}", form.getEmail());
         try {
-            cognitoAuthService.signUpUser(form.getEmail(), form.getPassword(), form.getName());
-            userService.registerUser(form);
+            cognitoSignupUseCase.execute(form);
             return ResponseEntity.status(HttpStatus.CREATED)
                     .body(Map.of("message", "サインアップ成功。確認メールを送信しました。"));
 
@@ -115,8 +78,7 @@ public class CognitoAuthController {
     public ResponseEntity<?> confirm(@RequestBody ConfirmSignupForm form) {
         log.info("POST /api/auth/cognito/confirm - email: {}", form.getEmail());
         try {
-            cognitoAuthService.confirmUserSignup(form.getEmail(), form.getCode());
-            userService.activeUser(form.getEmail());
+            cognitoConfirmUseCase.execute(form.getEmail(), form.getCode());
             return ResponseEntity.ok(Map.of("message", "確認に成功しました。ログインできます。"));
 
         } catch (CodeMismatchException e) {
@@ -165,60 +127,16 @@ public class CognitoAuthController {
     @PostMapping("/callback")
     public ResponseEntity<?> callback(@RequestBody Map<String, String> body, HttpServletResponse response) {
         log.info("POST /api/auth/cognito/callback");
-        String code = body.get("code");
-
-        String basicAuthValue = Base64.getEncoder()
-                .encodeToString((clientId + ":" + clientSecret).getBytes(StandardCharsets.UTF_8));
-
-        MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
-        formData.add("grant_type", "authorization_code");
-        formData.add("code", code);
-        formData.add("redirect_uri", redirectUri);
-        formData.add("client_id", clientId);
-
-        Map<String, Object> tokenResponse = webClient.post()
-                .uri(tokenUri)
-                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_FORM_URLENCODED_VALUE)
-                .header(HttpHeaders.AUTHORIZATION, "Basic " + basicAuthValue)
-                .body(BodyInserters.fromFormData(formData))
-                .retrieve()
-                .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
-                .block();
-
-        if (tokenResponse == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("error", "トークン取得に失敗しました。"));
-        }
-
-        String idToken = (String) tokenResponse.get("id_token");
-        String accessToken = (String) tokenResponse.get("access_token");
-        String refreshToken = (String) tokenResponse.get("refresh_token");
-
-        Optional<JWTClaimsSet> claimsOpt = JwtUtils.decode(idToken);
-        if (claimsOpt.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("error", "無効なリクエストです。"));
-        }
-
         try {
-            JWTClaimsSet claims = claimsOpt.get();
-            String name = claims.getStringClaim("name");
-            String email = claims.getStringClaim("email");
-            String sub = claims.getSubject();
-
-            boolean isGoogle = claims.getClaim("identities") != null;
-            String provider = isGoogle ? "google" : "cognito";
-
-            User user = userService.registerUserOIDC(name, email, provider, sub);
-
-            Object cognitoUsernameObj = claims.getClaim("cognito:username");
-            String cognitoUsername = cognitoUsernameObj != null ? cognitoUsernameObj.toString() : sub;
-
-            accessTokenService.saveTokens(user, accessToken, refreshToken);
-            authCookieService.setAuthCookies(response, accessToken, refreshToken, email, cognitoUsername);
-
+            String code = body.get("code");
+            CognitoCallbackUseCase.Result result = cognitoCallbackUseCase.execute(code);
+            authCookieService.setAuthCookies(response,
+                    result.accessToken(), result.refreshToken(), result.email(), result.cognitoUsername());
             return ResponseEntity.ok(Map.of("success", "ログインできました"));
 
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
             log.error("/callback エラー: {}", e.getMessage(), e);
             return ResponseEntity.internalServerError()
@@ -280,11 +198,8 @@ public class CognitoAuthController {
         }
 
         try {
-            AccessToken accessTokenEntity = accessTokenService.findAccessTokenByRefreshToken(refreshToken);
-            Map<String, String> tokens = cognitoAuthService.refreshAccessToken(refreshToken, username);
-
-            accessTokenService.updateTokens(accessTokenEntity, tokens.get("accessToken"));
-            authCookieService.setAuthCookies(response, tokens.get("accessToken"), refreshToken, email, username);
+            CognitoRefreshTokenUseCase.Result result = cognitoRefreshTokenUseCase.execute(refreshToken, username);
+            authCookieService.setAuthCookies(response, result.newAccessToken(), refreshToken, email, username);
             return ResponseEntity.ok(Map.of("success", "更新完了"));
 
         } catch (RuntimeException e) {

@@ -15,19 +15,20 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.web.reactive.function.client.WebClient;
 
 import com.example.FreStyle.entity.User;
 import com.example.FreStyle.form.ConfirmSignupForm;
 import com.example.FreStyle.form.ForgotPasswordForm;
 import com.example.FreStyle.form.LoginForm;
 import com.example.FreStyle.form.SignupForm;
-import com.example.FreStyle.service.AccessTokenService;
 import com.example.FreStyle.service.AuthCookieService;
 import com.example.FreStyle.service.CognitoAuthService;
 import com.example.FreStyle.service.UserIdentityService;
-import com.example.FreStyle.service.UserService;
+import com.example.FreStyle.usecase.CognitoCallbackUseCase;
+import com.example.FreStyle.usecase.CognitoConfirmUseCase;
 import com.example.FreStyle.usecase.CognitoLoginUseCase;
+import com.example.FreStyle.usecase.CognitoRefreshTokenUseCase;
+import com.example.FreStyle.usecase.CognitoSignupUseCase;
 
 import jakarta.servlet.http.HttpServletResponse;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.CodeMismatchException;
@@ -40,24 +41,24 @@ import software.amazon.awssdk.services.cognitoidentityprovider.model.UsernameExi
 @DisplayName("CognitoAuthController")
 class CognitoAuthControllerTest {
 
-    @Mock private UserService userService;
     @Mock private CognitoAuthService cognitoAuthService;
     @Mock private UserIdentityService userIdentityService;
-    @Mock private AccessTokenService accessTokenService;
     @Mock private AuthCookieService authCookieService;
     @Mock private CognitoLoginUseCase cognitoLoginUseCase;
-    @Mock private WebClient.Builder webClientBuilder;
-    @Mock private WebClient webClient;
+    @Mock private CognitoSignupUseCase cognitoSignupUseCase;
+    @Mock private CognitoConfirmUseCase cognitoConfirmUseCase;
+    @Mock private CognitoCallbackUseCase cognitoCallbackUseCase;
+    @Mock private CognitoRefreshTokenUseCase cognitoRefreshTokenUseCase;
     @Mock private HttpServletResponse httpResponse;
 
     private CognitoAuthController controller;
 
     @BeforeEach
     void setUp() {
-        when(webClientBuilder.build()).thenReturn(webClient);
         controller = new CognitoAuthController(
-            webClientBuilder, userService, cognitoAuthService, userIdentityService,
-            accessTokenService, authCookieService, cognitoLoginUseCase
+            cognitoAuthService, userIdentityService, authCookieService,
+            cognitoLoginUseCase, cognitoSignupUseCase, cognitoConfirmUseCase,
+            cognitoCallbackUseCase, cognitoRefreshTokenUseCase
         );
     }
 
@@ -79,8 +80,7 @@ class CognitoAuthControllerTest {
             ResponseEntity<?> response = controller.signup(form);
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-            verify(cognitoAuthService).signUpUser("test@example.com", "password123", "テスト");
-            verify(userService).registerUser(form);
+            verify(cognitoSignupUseCase).execute(form);
         }
 
         @Test
@@ -88,7 +88,7 @@ class CognitoAuthControllerTest {
         void returnsConflictOnUsernameExists() {
             SignupForm form = new SignupForm("test@example.com", "password123", "テスト");
             doThrow(UsernameExistsException.builder().message("exists").build())
-                .when(cognitoAuthService).signUpUser(anyString(), anyString(), anyString());
+                .when(cognitoSignupUseCase).execute(any(SignupForm.class));
 
             ResponseEntity<?> response = controller.signup(form);
 
@@ -100,7 +100,7 @@ class CognitoAuthControllerTest {
         void returnsBadRequestOnInvalidPassword() {
             SignupForm form = new SignupForm("test@example.com", "weak", "テスト");
             doThrow(InvalidPasswordException.builder().message("invalid").build())
-                .when(cognitoAuthService).signUpUser(anyString(), anyString(), anyString());
+                .when(cognitoSignupUseCase).execute(any(SignupForm.class));
 
             ResponseEntity<?> response = controller.signup(form);
 
@@ -112,7 +112,7 @@ class CognitoAuthControllerTest {
         void returnsInternalServerErrorOnRuntimeException() {
             SignupForm form = new SignupForm("test@example.com", "password123", "テスト");
             doThrow(new RuntimeException("unexpected"))
-                .when(cognitoAuthService).signUpUser(anyString(), anyString(), anyString());
+                .when(cognitoSignupUseCase).execute(any(SignupForm.class));
 
             ResponseEntity<?> response = controller.signup(form);
 
@@ -132,8 +132,7 @@ class CognitoAuthControllerTest {
             ResponseEntity<?> response = controller.confirm(form);
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-            verify(cognitoAuthService).confirmUserSignup("test@example.com", "123456");
-            verify(userService).activeUser("test@example.com");
+            verify(cognitoConfirmUseCase).execute("test@example.com", "123456");
         }
 
         @Test
@@ -141,7 +140,7 @@ class CognitoAuthControllerTest {
         void returnsBadRequestOnCodeMismatch() {
             ConfirmSignupForm form = new ConfirmSignupForm("test@example.com", "wrong");
             doThrow(CodeMismatchException.builder().message("mismatch").build())
-                .when(cognitoAuthService).confirmUserSignup(anyString(), anyString());
+                .when(cognitoConfirmUseCase).execute(anyString(), anyString());
 
             ResponseEntity<?> response = controller.confirm(form);
 
@@ -153,7 +152,7 @@ class CognitoAuthControllerTest {
         void returnsGoneOnExpiredCode() {
             ConfirmSignupForm form = new ConfirmSignupForm("test@example.com", "expired");
             doThrow(ExpiredCodeException.builder().message("expired").build())
-                .when(cognitoAuthService).confirmUserSignup(anyString(), anyString());
+                .when(cognitoConfirmUseCase).execute(anyString(), anyString());
 
             ResponseEntity<?> response = controller.confirm(form);
 
@@ -165,11 +164,81 @@ class CognitoAuthControllerTest {
         void returnsNotFoundOnUserNotFound() {
             ConfirmSignupForm form = new ConfirmSignupForm("unknown@example.com", "123456");
             doThrow(UserNotFoundException.builder().message("not found").build())
-                .when(cognitoAuthService).confirmUserSignup(anyString(), anyString());
+                .when(cognitoConfirmUseCase).execute(anyString(), anyString());
 
             ResponseEntity<?> response = controller.confirm(form);
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        }
+    }
+
+    @Nested
+    @DisplayName("callback")
+    class Callback {
+
+        @Test
+        @DisplayName("コールバック成功で200を返す")
+        void returnsOkOnSuccess() {
+            CognitoCallbackUseCase.Result result = new CognitoCallbackUseCase.Result(
+                    "access-token", "refresh-token", "test@example.com", "cognito-user");
+            when(cognitoCallbackUseCase.execute("auth-code")).thenReturn(result);
+
+            ResponseEntity<?> response = controller.callback(Map.of("code", "auth-code"), httpResponse);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+            verify(authCookieService).setAuthCookies(httpResponse,
+                    "access-token", "refresh-token", "test@example.com", "cognito-user");
+        }
+
+        @Test
+        @DisplayName("IllegalStateExceptionで401を返す")
+        void returnsUnauthorizedOnIllegalState() {
+            when(cognitoCallbackUseCase.execute(anyString()))
+                    .thenThrow(new IllegalStateException("トークン取得に失敗しました。"));
+
+            ResponseEntity<?> response = controller.callback(Map.of("code", "bad-code"), httpResponse);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        }
+    }
+
+    @Nested
+    @DisplayName("refreshToken")
+    class RefreshToken {
+
+        @Test
+        @DisplayName("トークン更新成功で200を返す")
+        void returnsOkOnSuccess() {
+            CognitoRefreshTokenUseCase.Result result = new CognitoRefreshTokenUseCase.Result("new-access-token");
+            when(cognitoRefreshTokenUseCase.execute("refresh-token", "testuser")).thenReturn(result);
+
+            ResponseEntity<?> response = controller.refreshToken(
+                    "refresh-token", "test@example.com", "testuser", httpResponse);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+            verify(authCookieService).setAuthCookies(httpResponse,
+                    "new-access-token", "refresh-token", "test@example.com", "testuser");
+        }
+
+        @Test
+        @DisplayName("空のリフレッシュトークンで401を返す")
+        void returnsUnauthorizedOnEmptyRefreshToken() {
+            ResponseEntity<?> response = controller.refreshToken(
+                    "", "test@example.com", "testuser", httpResponse);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        }
+
+        @Test
+        @DisplayName("RuntimeExceptionで401を返す")
+        void returnsUnauthorizedOnRuntimeException() {
+            when(cognitoRefreshTokenUseCase.execute(anyString(), anyString()))
+                    .thenThrow(new RuntimeException("無効なリフレッシュトークンです。"));
+
+            ResponseEntity<?> response = controller.refreshToken(
+                    "invalid-token", "test@example.com", "testuser", httpResponse);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         }
     }
 

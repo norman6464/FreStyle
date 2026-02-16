@@ -28,7 +28,7 @@ public class ScoreGoalController {
 
     @GetMapping
     public ResponseEntity<ScoreGoalDto> getGoal(@AuthenticationPrincipal Jwt jwt) {
-        User user = userIdentityService.findUserBySub(jwt.getSubject());
+        User user = resolveUser(jwt);
         ScoreGoalDto dto = getScoreGoalUseCase.execute(user.getId());
         if (dto == null) {
             return ResponseEntity.noContent().build();
@@ -38,9 +38,13 @@ public class ScoreGoalController {
 
     @PutMapping
     public ResponseEntity<Void> saveGoal(@AuthenticationPrincipal Jwt jwt, @RequestBody SaveGoalRequest request) {
-        User user = userIdentityService.findUserBySub(jwt.getSubject());
+        User user = resolveUser(jwt);
         saveScoreGoalUseCase.execute(user, request.goalScore());
         return ResponseEntity.noContent().build();
+    }
+
+    private User resolveUser(Jwt jwt) {
+        return userIdentityService.findUserBySub(jwt.getSubject());
     }
 
     public record SaveGoalRequest(Double goalScore) {}

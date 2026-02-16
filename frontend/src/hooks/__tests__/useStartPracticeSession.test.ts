@@ -73,4 +73,31 @@ describe('useStartPracticeSession', () => {
 
     expect(result.current.starting).toBe(false);
   });
+
+  it('失敗時もstarting状態がfalseに戻る', async () => {
+    mockedRepo.createPracticeSession.mockRejectedValue(new Error('エラー'));
+
+    const { result } = renderHook(() => useStartPracticeSession());
+
+    await act(async () => {
+      await result.current.startSession({ id: 1, name: 'テスト' });
+    });
+
+    expect(result.current.starting).toBe(false);
+  });
+
+  it('異なるシナリオIDがリポジトリに正しく渡される', async () => {
+    mockedRepo.createPracticeSession.mockResolvedValue({ id: 99 });
+
+    const { result } = renderHook(() => useStartPracticeSession());
+
+    await act(async () => {
+      await result.current.startSession({ id: 5, name: '別のシナリオ' });
+    });
+
+    expect(mockedRepo.createPracticeSession).toHaveBeenCalledWith({ scenarioId: 5 });
+    expect(mockNavigate).toHaveBeenCalledWith('/chat/ask-ai/99', expect.objectContaining({
+      state: expect.objectContaining({ scenarioId: 5, scenarioName: '別のシナリオ' }),
+    }));
+  });
 });

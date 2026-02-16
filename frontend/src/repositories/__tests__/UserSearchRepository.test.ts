@@ -37,4 +37,10 @@ describe('UserSearchRepository', () => {
 
     expect(result).toEqual([]);
   });
+
+  it('APIエラー時に例外が伝搬する', async () => {
+    vi.mocked(apiClient.get).mockRejectedValue(new Error('ネットワークエラー'));
+
+    await expect(UserSearchRepository.searchUsers('テスト')).rejects.toThrow('ネットワークエラー');
+  });
 });

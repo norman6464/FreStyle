@@ -110,4 +110,35 @@ class ChatWebSocketControllerTest {
         assertEquals("delete", notification.get("type"));
         assertEquals(100, notification.get("messageId"));
     }
+
+    @Test
+    @DisplayName("sendMessage: UseCase例外時にWebSocket通知が送信されない")
+    void sendMessage_exceptionDoesNotSendNotification() {
+        when(sendChatMessageUseCase.execute(1, 10, "テストメッセージ"))
+                .thenThrow(new RuntimeException("DB接続エラー"));
+
+        Map<String, Object> payload = Map.of(
+                "senderId", 1,
+                "roomId", 10,
+                "content", "テストメッセージ"
+        );
+
+        assertDoesNotThrow(() -> controller.sendMessage(payload));
+        verify(messagingTemplate, never()).convertAndSend(anyString(), any(Object.class));
+    }
+
+    @Test
+    @DisplayName("deleteMessage: UseCase例外時にWebSocket通知が送信されない")
+    void deleteMessage_exceptionDoesNotSendNotification() {
+        doThrow(new RuntimeException("削除エラー"))
+                .when(deleteChatMessageUseCase).execute(100);
+
+        Map<String, Object> payload = Map.of(
+                "messageId", 100,
+                "roomId", 10
+        );
+
+        assertDoesNotThrow(() -> controller.deleteMessage(payload));
+        verify(messagingTemplate, never()).convertAndSend(anyString(), any(Object.class));
+    }
 }

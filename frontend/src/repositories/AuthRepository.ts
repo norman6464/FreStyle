@@ -76,7 +76,7 @@ class AuthRepository {
   /**
    * OAuthコールバック
    */
-  async callback(code: string): Promise<unknown> {
+  async callback(code: string): Promise<{ success: string }> {
     const response = await apiClient.post('/api/auth/cognito/callback', { code });
     return response.data;
   }

@@ -5,7 +5,7 @@ import AiChatRepository, {
   AddMessageRequest,
   RephraseRequest,
 } from '../repositories/AiChatRepository';
-import { AiSession, AiMessage, ScoreCard } from '../types';
+import { AiSession, AiMessage, ScoreCard, ScoreHistoryItem } from '../types';
 
 /**
  * AI Chatフック
@@ -237,7 +237,7 @@ export const useAiChat = () => {
   /**
    * スコア履歴を取得
    */
-  const fetchScoreHistory = useCallback(async (): Promise<any[]> => {
+  const fetchScoreHistory = useCallback(async (): Promise<ScoreHistoryItem[]> => {
     setLoading(true);
     setError(null);
 

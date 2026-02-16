@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { useAiChat } from '../useAiChat';
 import AiChatRepository from '../../repositories/AiChatRepository';
+import type { ScoreHistoryItem } from '../../types';
 
 vi.mock('../../repositories/AiChatRepository');
 
@@ -124,12 +125,12 @@ describe('useAiChat', () => {
   });
 
   it('fetchScoreHistory: スコア履歴を取得する', async () => {
-    const mockHistory = [{ sessionId: 1, overallScore: 7.5 }];
-    mockedRepo.getScoreHistory.mockResolvedValue(mockHistory as any);
+    const mockHistory: ScoreHistoryItem[] = [{ sessionId: 1, sessionTitle: 'テスト', overallScore: 7.5, scores: [], createdAt: '2025-01-01' }];
+    mockedRepo.getScoreHistory.mockResolvedValue(mockHistory);
 
     const { result } = renderHook(() => useAiChat());
 
-    let history: any[];
+    let history: ScoreHistoryItem[];
     await act(async () => {
       history = await result.current.fetchScoreHistory();
     });

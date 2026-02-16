@@ -19,9 +19,13 @@ export default function ExportSessionButton({ messages }: ExportSessionButtonPro
       .map((msg) => `${msg.role === 'user' ? 'あなた' : 'AI'}: ${msg.content}`)
       .join('\n\n');
 
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard API非対応・権限なし時は無視
+    }
   };
 
   return (

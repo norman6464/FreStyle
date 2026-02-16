@@ -65,4 +65,26 @@ describe('MenuNavigationCard', () => {
     const buttons = screen.getAllByRole('button');
     expect(buttons).toHaveLength(4);
   });
+
+  it('Enterキーで画面遷移する', () => {
+    render(<MenuNavigationCard totalUnread={0} latestScore={null} />);
+    const chatButton = screen.getByRole('button', { name: 'チャット' });
+    fireEvent.keyDown(chatButton, { key: 'Enter' });
+    expect(mockNavigate).toHaveBeenCalledWith('/chat');
+  });
+
+  it('Spaceキーで画面遷移する', () => {
+    render(<MenuNavigationCard totalUnread={0} latestScore={null} />);
+    const practiceButton = screen.getByRole('button', { name: '練習モード' });
+    fireEvent.keyDown(practiceButton, { key: ' ' });
+    expect(mockNavigate).toHaveBeenCalledWith('/practice');
+  });
+
+  it('aria-labelが各メニュー項目に設定されている', () => {
+    render(<MenuNavigationCard totalUnread={0} latestScore={null} />);
+    expect(screen.getByRole('button', { name: 'チャット' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'AI アシスタント' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '練習モード' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'スコア履歴' })).toBeInTheDocument();
+  });
 });

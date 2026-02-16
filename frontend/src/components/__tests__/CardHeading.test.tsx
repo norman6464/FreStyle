@@ -20,4 +20,15 @@ describe('CardHeading', () => {
     const heading = screen.getByText('タイトル');
     expect(heading.tagName).toBe('P');
   });
+
+  it('mb-3クラスが適用される', () => {
+    render(<CardHeading>タイトル</CardHeading>);
+    const heading = screen.getByText('タイトル');
+    expect(heading.className).toContain('mb-3');
+  });
+
+  it('異なるテキストが正しく表示される', () => {
+    render(<CardHeading>スコア推移</CardHeading>);
+    expect(screen.getByText('スコア推移')).toBeInTheDocument();
+  });
 });

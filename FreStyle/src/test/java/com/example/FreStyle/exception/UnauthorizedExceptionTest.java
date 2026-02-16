@@ -34,4 +34,21 @@ class UnauthorizedExceptionTest {
 
         assertInstanceOf(RuntimeException.class, exception);
     }
+
+    @Test
+    @DisplayName("nullメッセージでもnullが保持される")
+    void constructor_WithNullMessage() {
+        UnauthorizedException exception = new UnauthorizedException(null);
+
+        assertNull(exception.getMessage());
+    }
+
+    @Test
+    @DisplayName("2引数コンストラクタでcauseがnullでも正常に動作する")
+    void constructor_WithNullCause() {
+        UnauthorizedException exception = new UnauthorizedException("エラー", null);
+
+        assertEquals("エラー", exception.getMessage());
+        assertNull(exception.getCause());
+    }
 }

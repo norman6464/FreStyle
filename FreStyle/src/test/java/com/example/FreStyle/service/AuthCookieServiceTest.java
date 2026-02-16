@@ -75,4 +75,63 @@ class AuthCookieServiceTest {
         captor.getAllValues().forEach(cookie ->
                 assertThat(cookie).contains("Secure"));
     }
+
+    @Test
+    @DisplayName("setAuthCookies: CookieにSameSite=None属性が設定される")
+    void setAuthCookiesSetsSameSiteNone() {
+        HttpServletResponse response = mock(HttpServletResponse.class);
+
+        authCookieService.setAuthCookies(response, "access", "refresh", "test@example.com", "user1");
+
+        ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
+        verify(response, times(4)).addHeader(eq("Set-Cookie"), captor.capture());
+
+        captor.getAllValues().forEach(cookie ->
+                assertThat(cookie).contains("SameSite=None"));
+    }
+
+    @Test
+    @DisplayName("setAuthCookies: ACCESS_TOKENのMaxAgeが7200秒に設定される")
+    void setAuthCookiesSetsAccessTokenMaxAge() {
+        HttpServletResponse response = mock(HttpServletResponse.class);
+
+        authCookieService.setAuthCookies(response, "access", "refresh", "test@example.com", "user1");
+
+        ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
+        verify(response, times(4)).addHeader(eq("Set-Cookie"), captor.capture());
+
+        String accessCookie = captor.getAllValues().stream()
+                .filter(c -> c.contains("ACCESS_TOKEN=access"))
+                .findFirst().orElseThrow();
+        assertThat(accessCookie).contains("Max-Age=7200");
+    }
+
+    @Test
+    @DisplayName("setAuthCookies: REFRESH_TOKENのMaxAgeが604800秒に設定される")
+    void setAuthCookiesSetsRefreshTokenMaxAge() {
+        HttpServletResponse response = mock(HttpServletResponse.class);
+
+        authCookieService.setAuthCookies(response, "access", "refresh", "test@example.com", "user1");
+
+        ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
+        verify(response, times(4)).addHeader(eq("Set-Cookie"), captor.capture());
+
+        String refreshCookie = captor.getAllValues().stream()
+                .filter(c -> c.contains("REFRESH_TOKEN=refresh"))
+                .findFirst().orElseThrow();
+        assertThat(refreshCookie).contains("Max-Age=604800");
+    }
+
+    @Test
+    @DisplayName("clearRefreshTokenCookie: CookieにSameSite=None属性が設定される")
+    void clearRefreshTokenCookieSetsSameSiteNone() {
+        HttpServletResponse response = mock(HttpServletResponse.class);
+
+        authCookieService.clearRefreshTokenCookie(response);
+
+        ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
+        verify(response).addHeader(eq("Set-Cookie"), captor.capture());
+
+        assertThat(captor.getValue()).contains("SameSite=None");
+    }
 }

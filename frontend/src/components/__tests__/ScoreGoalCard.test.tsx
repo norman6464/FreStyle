@@ -1,22 +1,22 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import ScoreGoalCard from '../ScoreGoalCard';
 
-function createMockStorage(): Storage {
-  let store: Record<string, string> = {};
-  return {
-    getItem: vi.fn((key: string) => store[key] ?? null),
-    setItem: vi.fn((key: string, value: string) => { store[key] = value; }),
-    removeItem: vi.fn((key: string) => { delete store[key]; }),
-    clear: vi.fn(() => { store = {}; }),
-    get length() { return Object.keys(store).length; },
-    key: vi.fn((index: number) => Object.keys(store)[index] ?? null),
-  };
-}
+const mockSaveGoal = vi.fn();
+let mockGoal = 8.0;
+
+vi.mock('../../hooks/useScoreGoal', () => ({
+  useScoreGoal: () => ({
+    goal: mockGoal,
+    saveGoal: mockSaveGoal,
+    loading: false,
+  }),
+}));
 
 describe('ScoreGoalCard', () => {
   beforeEach(() => {
-    vi.stubGlobal('localStorage', createMockStorage());
+    mockGoal = 8.0;
+    mockSaveGoal.mockClear();
   });
 
   it('平均スコアが表示される', () => {
@@ -26,7 +26,6 @@ describe('ScoreGoalCard', () => {
 
   it('デフォルト目標スコア8.0が目標欄に表示される', () => {
     render(<ScoreGoalCard averageScore={7.0} />);
-    // 目標欄のテキストを確認（selectのoptionにも8.0があるのでtext-primary-400で絞る）
     const goalDisplay = screen.getByText('8.0', { selector: '.text-primary-400' });
     expect(goalDisplay).toBeInTheDocument();
   });
@@ -41,25 +40,10 @@ describe('ScoreGoalCard', () => {
     expect(screen.getByText(/あと/)).toBeInTheDocument();
   });
 
-  it('目標スコアを変更できる', () => {
+  it('目標スコアを変更するとsaveGoalが呼ばれる', () => {
     render(<ScoreGoalCard averageScore={7.0} />);
     const select = screen.getByRole('combobox');
     fireEvent.change(select, { target: { value: '9' } });
-    const goalDisplay = screen.getByText('9.0', { selector: '.text-primary-400' });
-    expect(goalDisplay).toBeInTheDocument();
-  });
-
-  it('目標スコアがLocalStorageに保存される', () => {
-    render(<ScoreGoalCard averageScore={7.0} />);
-    const select = screen.getByRole('combobox');
-    fireEvent.change(select, { target: { value: '9' } });
-    expect(localStorage.setItem).toHaveBeenCalledWith('scoreGoal', '9');
-  });
-
-  it('LocalStorageから目標スコアを復元する', () => {
-    (localStorage.getItem as ReturnType<typeof vi.fn>).mockReturnValue('9.5');
-    render(<ScoreGoalCard averageScore={6.0} />);
-    const goalDisplay = screen.getByText('9.5', { selector: '.text-primary-400' });
-    expect(goalDisplay).toBeInTheDocument();
+    expect(mockSaveGoal).toHaveBeenCalledWith(9);
   });
 });

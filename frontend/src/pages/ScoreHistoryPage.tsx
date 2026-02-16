@@ -5,12 +5,12 @@ import EmptyState from '../components/EmptyState';
 import ScoreOverviewSection from '../components/ScoreOverviewSection';
 import SessionListSection from '../components/SessionListSection';
 import { useScoreHistory } from '../hooks/useScoreHistory';
-import { useLocalStorage } from '../hooks/useLocalStorage';
+import { useScoreGoal } from '../hooks/useScoreGoal';
 
 export default function ScoreHistoryPage() {
   const navigate = useNavigate();
   const { history, filteredHistoryWithDelta, filter, setFilter, loading, latestSession, averageScore, weakestAxis, selectedSession, setSelectedSession } = useScoreHistory();
-  const [scoreGoal] = useLocalStorage('scoreGoal', 8.0);
+  const { goal: scoreGoal } = useScoreGoal();
 
   if (loading) {
     return (

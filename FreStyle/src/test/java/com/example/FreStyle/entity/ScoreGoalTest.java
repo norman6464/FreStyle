@@ -24,16 +24,15 @@ class ScoreGoalTest {
     }
 
     @Test
-    @DisplayName("updateTimestampを2回呼ぶとupdatedAtが更新される")
-    void updateTimestampUpdatesOnSecondCall() throws InterruptedException {
+    @DisplayName("updateTimestampで過去のupdatedAtが現在時刻以降に更新される")
+    void updateTimestampUpdatesFromPastTimestamp() {
         ScoreGoal scoreGoal = new ScoreGoal();
-        scoreGoal.updateTimestamp();
-        LocalDateTime firstTimestamp = scoreGoal.getUpdatedAt();
+        LocalDateTime past = LocalDateTime.now().minusDays(1);
+        scoreGoal.setUpdatedAt(past);
 
-        Thread.sleep(10);
         scoreGoal.updateTimestamp();
 
-        assertThat(scoreGoal.getUpdatedAt()).isAfterOrEqualTo(firstTimestamp);
+        assertThat(scoreGoal.getUpdatedAt()).isAfter(past);
     }
 
     @Test

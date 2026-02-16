@@ -24,16 +24,14 @@ class SessionNoteTest {
     }
 
     @Test
-    @DisplayName("updateTimestampを2回呼ぶとupdatedAtが更新される")
-    void updateTimestampUpdatesOnSecondCall() throws InterruptedException {
-        SessionNote note = new SessionNote();
-        note.updateTimestamp();
-        LocalDateTime firstTimestamp = note.getUpdatedAt();
+    @DisplayName("updateTimestampで過去のupdatedAtが現在時刻以降に更新される")
+    void updateTimestampUpdatesFromPastTimestamp() {
+        LocalDateTime past = LocalDateTime.now().minusDays(1);
+        SessionNote note = new SessionNote(1, null, 0, null, past);
 
-        Thread.sleep(10);
         note.updateTimestamp();
 
-        assertThat(note.getUpdatedAt()).isAfterOrEqualTo(firstTimestamp);
+        assertThat(note.getUpdatedAt()).isAfter(past);
     }
 
     @Test

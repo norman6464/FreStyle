@@ -80,4 +80,34 @@ class RoomMemberServiceTest {
         assertEquals(5L, result);
         verify(roomMemberRepository).countDistinctPartnersByUserId(1);
     }
+
+    @Test
+    @DisplayName("findRoomId: ルームが存在しない場合空リストを返す")
+    void findRoomId_returnsEmptyList() {
+        when(roomMemberRepository.findRoomIdByUserId(999)).thenReturn(List.of());
+
+        List<Integer> result = roomMemberService.findRoomId(999);
+
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    @DisplayName("findUsers: リポジトリが例外をスローした場合そのまま伝搬する")
+    void findUsers_propagatesRepositoryException() {
+        when(roomMemberRepository.findUsersByUserId(1))
+                .thenThrow(new RuntimeException("DB接続エラー"));
+
+        assertThrows(RuntimeException.class,
+                () -> roomMemberService.findUsers(1));
+    }
+
+    @Test
+    @DisplayName("countChatPartners: 会話相手が0人の場合0を返す")
+    void countChatPartners_returnsZero() {
+        when(roomMemberRepository.countDistinctPartnersByUserId(999)).thenReturn(0L);
+
+        Long result = roomMemberService.countChatPartners(999);
+
+        assertEquals(0L, result);
+    }
 }

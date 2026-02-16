@@ -45,4 +45,14 @@ class ChatRoomServiceTest {
                 () -> chatRoomService.findChatRoomById(999));
         assertEquals("ルームが存在しません。", ex.getMessage());
     }
+
+    @Test
+    @DisplayName("findChatRoomById: リポジトリが例外をスローした場合そのまま伝搬する")
+    void findChatRoomById_propagatesRepositoryException() {
+        when(chatRoomRepository.findById(1))
+                .thenThrow(new RuntimeException("DB接続エラー"));
+
+        assertThrows(RuntimeException.class,
+                () -> chatRoomService.findChatRoomById(1));
+    }
 }

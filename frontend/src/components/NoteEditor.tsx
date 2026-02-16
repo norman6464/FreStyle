@@ -4,6 +4,7 @@ import { getNoteStats } from '../utils/noteStats';
 import { useTableOfContents } from '../hooks/useTableOfContents';
 import { useMarkdownExport } from '../hooks/useMarkdownExport';
 import { useToast } from '../hooks/useToast';
+import type { SaveStatus } from '../hooks/useNoteEditor';
 import BlockEditor from './BlockEditor';
 import TableOfContents from './TableOfContents';
 import WordCount from './WordCount';
@@ -14,14 +15,22 @@ interface NoteEditorProps {
   title: string;
   content: string;
   noteId: string | null;
+  saveStatus: SaveStatus;
   onTitleChange: (title: string) => void;
   onContentChange: (content: string) => void;
 }
+
+const SAVE_STATUS_CONFIG: Record<Exclude<SaveStatus, 'idle'>, { label: string; color: string }> = {
+  unsaved: { label: '未保存', color: 'text-amber-500' },
+  saving: { label: '保存中...', color: 'text-[var(--color-text-muted)]' },
+  saved: { label: '保存済み', color: 'text-emerald-500' },
+};
 
 export default function NoteEditor({
   title,
   content,
   noteId,
+  saveStatus,
   onTitleChange,
   onContentChange,
 }: NoteEditorProps) {
@@ -95,6 +104,11 @@ export default function NoteEditor({
         <WordCount charCount={stats.charCount} />
         <LineCount lineCount={stats.lineCount} />
         <ReadingTime charCount={stats.charCount} />
+        {saveStatus !== 'idle' && (
+          <span className={`text-xs ${SAVE_STATUS_CONFIG[saveStatus].color}`} aria-label="保存状態">
+            {SAVE_STATUS_CONFIG[saveStatus].label}
+          </span>
+        )}
         <div className="ml-auto flex items-center gap-1">
           <button
             type="button"

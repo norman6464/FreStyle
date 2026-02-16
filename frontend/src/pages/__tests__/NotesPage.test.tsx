@@ -7,8 +7,9 @@ vi.mock('../../hooks/useNotes');
 vi.mock('../../hooks/useBlockEditor', () => ({
   useBlockEditor: () => ({ editor: null }),
 }));
+const mockShowToast = vi.fn();
 vi.mock('../../hooks/useToast', () => ({
-  useToast: () => ({ showToast: vi.fn(), toasts: [], removeToast: vi.fn() }),
+  useToast: () => ({ showToast: mockShowToast, toasts: [], removeToast: vi.fn() }),
 }));
 
 const mockUseNotes = {
@@ -274,6 +275,47 @@ describe('NotesPage', () => {
     });
     render(<NotesPage />);
     expect(screen.queryByText('このノートを削除しますか？')).not.toBeInTheDocument();
+  });
+
+  // トースト通知テスト
+
+  it('ノート作成成功時にトーストが表示される', async () => {
+    mockUseNotes.createNote.mockResolvedValue({ noteId: 'n1', title: '無題' });
+    render(<NotesPage />);
+
+    const createButtons = screen.getAllByText('新しいノート');
+    await act(async () => {
+      fireEvent.click(createButtons[0]);
+    });
+
+    expect(mockShowToast).toHaveBeenCalledWith('success', 'ノートを作成しました');
+  });
+
+  it('ノート作成失敗時にエラートーストが表示される', async () => {
+    mockUseNotes.createNote.mockResolvedValue(null);
+    render(<NotesPage />);
+
+    const createButtons = screen.getAllByText('新しいノート');
+    await act(async () => {
+      fireEvent.click(createButtons[0]);
+    });
+
+    expect(mockShowToast).toHaveBeenCalledWith('error', 'ノートの作成に失敗しました');
+  });
+
+  it('ノート削除確認時にトーストが表示される', async () => {
+    mockUseNotes.confirmDelete.mockResolvedValue(undefined);
+    vi.mocked(useNotes).mockReturnValue({
+      ...mockUseNotes,
+      deleteTargetId: 'n1',
+    });
+    render(<NotesPage />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('削除'));
+    });
+
+    expect(mockShowToast).toHaveBeenCalledWith('success', 'ノートを削除しました');
   });
 
   it('複数ノートがある場合、正しいノートのrequestDeleteが呼ばれる', () => {

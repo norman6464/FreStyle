@@ -56,7 +56,6 @@ export function useAiSession({ deleteSession, updateSessionTitle }: UseAiSession
 
   const handleSaveTitle = useCallback(async (sessionId: number) => {
     if (!editingTitle.trim()) {
-      setEditingSessionId(null);
       return;
     }
 

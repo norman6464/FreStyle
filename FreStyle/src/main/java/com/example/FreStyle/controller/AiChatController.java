@@ -3,8 +3,6 @@ package com.example.FreStyle.controller;
 import java.util.List;
 import java.util.Map;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -33,14 +31,14 @@ import com.example.FreStyle.usecase.GetAiChatSessionsByUserIdUseCase;
 import com.example.FreStyle.usecase.UpdateAiChatSessionTitleUseCase;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 
-@RestController 
+@RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/chat/ai")
+@Slf4j
 public class AiChatController {
-
-    private static final Logger logger = LoggerFactory.getLogger(AiChatController.class);
     private final AiChatService aiChatService;
     private final UserIdentityService userIdentityService;
     private final BedrockService bedrockService;
@@ -62,13 +60,13 @@ public class AiChatController {
     @GetMapping("/history")
     public ResponseEntity<?> getChatHistory(@AuthenticationPrincipal Jwt jwt) {
         User user = resolveUser(jwt);
-        logger.info("📥 [AiChatController] AI履歴取得リクエスト開始 - senderId: {}", user.getId());
+        log.info("📥 [AiChatController] AI履歴取得リクエスト開始 - senderId: {}", user.getId());
 
-        logger.debug("🔍 [AiChatController] AiChatService.getChatHistory() を呼び出し");
+        log.debug("🔍 [AiChatController] AiChatService.getChatHistory() を呼び出し");
         List<AiChatMessageDto> history = aiChatService.getChatHistory(user.getId());
 
-        logger.info("✅ [AiChatController] AI履歴取得成功 - メッセージ数: {}", history.size());
-        logger.debug("📋 [AiChatController] 取得履歴: {}", history);
+        log.info("✅ [AiChatController] AI履歴取得成功 - メッセージ数: {}", history.size());
+        log.debug("📋 [AiChatController] 取得履歴: {}", history);
 
         return ResponseEntity.ok(history);
     }
@@ -82,11 +80,11 @@ public class AiChatController {
      */
     @GetMapping("/sessions")
     public ResponseEntity<List<AiChatSessionDto>> getSessions(@AuthenticationPrincipal Jwt jwt) {
-        logger.info("========== GET /api/chat/ai/sessions ==========");
+        log.info("========== GET /api/chat/ai/sessions ==========");
 
         User user = resolveUser(jwt);
         List<AiChatSessionDto> sessions = getAiChatSessionsByUserIdUseCase.execute(user.getId());
-        logger.info("✅ セッション一覧取得成功 - 件数: {}", sessions.size());
+        log.info("✅ セッション一覧取得成功 - 件数: {}", sessions.size());
 
         return ResponseEntity.ok(sessions);
     }
@@ -99,8 +97,8 @@ public class AiChatController {
             @AuthenticationPrincipal Jwt jwt,
             @RequestBody CreateSessionRequest request
     ) {
-        logger.info("========== POST /api/chat/ai/sessions ==========");
-        logger.info("📝 リクエスト: {}", request);
+        log.info("========== POST /api/chat/ai/sessions ==========");
+        log.info("📝 リクエスト: {}", request);
 
         User user = resolveUser(jwt);
         AiChatSessionDto session = createAiChatSessionUseCase.execute(
@@ -108,7 +106,7 @@ public class AiChatController {
                 request.title(),
                 request.relatedRoomId()
         );
-        logger.info("✅ セッション作成成功 - sessionId: {}", session.getId());
+        log.info("✅ セッション作成成功 - sessionId: {}", session.getId());
 
         return ResponseEntity.ok(session);
     }
@@ -121,11 +119,11 @@ public class AiChatController {
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable Integer sessionId
     ) {
-        logger.info("========== GET /api/chat/ai/sessions/{} ==========", sessionId);
+        log.info("========== GET /api/chat/ai/sessions/{} ==========", sessionId);
 
         User user = resolveUser(jwt);
         AiChatSessionDto session = getAiChatSessionByIdUseCase.execute(sessionId, user.getId());
-        logger.info("✅ セッション取得成功");
+        log.info("✅ セッション取得成功");
 
         return ResponseEntity.ok(session);
     }
@@ -139,7 +137,7 @@ public class AiChatController {
             @PathVariable Integer sessionId,
             @RequestBody UpdateSessionRequest request
     ) {
-        logger.info("========== PUT /api/chat/ai/sessions/{} ==========", sessionId);
+        log.info("========== PUT /api/chat/ai/sessions/{} ==========", sessionId);
 
         User user = resolveUser(jwt);
         AiChatSessionDto session = updateAiChatSessionTitleUseCase.execute(
@@ -147,7 +145,7 @@ public class AiChatController {
                 user.getId(),
                 request.title()
         );
-        logger.info("✅ セッションタイトル更新成功");
+        log.info("✅ セッションタイトル更新成功");
 
         return ResponseEntity.ok(session);
     }
@@ -160,11 +158,11 @@ public class AiChatController {
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable Integer sessionId
     ) {
-        logger.info("========== DELETE /api/chat/ai/sessions/{} ==========", sessionId);
+        log.info("========== DELETE /api/chat/ai/sessions/{} ==========", sessionId);
 
         User user = resolveUser(jwt);
         deleteAiChatSessionUseCase.execute(sessionId, user.getId());
-        logger.info("✅ セッション削除成功");
+        log.info("✅ セッション削除成功");
 
         return ResponseEntity.noContent().build();
     }
@@ -177,14 +175,14 @@ public class AiChatController {
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable Integer sessionId
     ) {
-        logger.info("========== GET /api/chat/ai/sessions/{}/messages ==========", sessionId);
+        log.info("========== GET /api/chat/ai/sessions/{}/messages ==========", sessionId);
 
         User user = resolveUser(jwt);
         // 権限チェック（セッションがユーザーのものか確認）
         getAiChatSessionByIdUseCase.execute(sessionId, user.getId());
 
         List<AiChatMessageResponseDto> messages = getAiChatMessagesBySessionIdUseCase.execute(sessionId);
-        logger.info("✅ メッセージ一覧取得成功 - 件数: {}", messages.size());
+        log.info("✅ メッセージ一覧取得成功 - 件数: {}", messages.size());
 
         return ResponseEntity.ok(messages);
     }
@@ -198,8 +196,8 @@ public class AiChatController {
             @PathVariable Integer sessionId,
             @RequestBody AddMessageRequest request
     ) {
-        logger.info("========== POST /api/chat/ai/sessions/{}/messages ==========", sessionId);
-        logger.info("📝 リクエスト: {}", request);
+        log.info("========== POST /api/chat/ai/sessions/{}/messages ==========", sessionId);
+        log.info("📝 リクエスト: {}", request);
 
         User user = resolveUser(jwt);
         // 権限チェック
@@ -212,7 +210,7 @@ public class AiChatController {
             message = addAiChatMessageUseCase.executeUserMessage(sessionId, user.getId(), request.content());
         }
 
-        logger.info("✅ メッセージ追加成功 - messageId: {}", message.getId());
+        log.info("✅ メッセージ追加成功 - messageId: {}", message.getId());
 
         return ResponseEntity.ok(message);
     }
@@ -225,12 +223,12 @@ public class AiChatController {
             @AuthenticationPrincipal Jwt jwt,
             @RequestBody RephraseRequest request
     ) {
-        logger.info("========== POST /api/chat/ai/rephrase ==========");
+        log.info("========== POST /api/chat/ai/rephrase ==========");
 
         resolveUser(jwt); // 認証チェック
 
         String result = bedrockService.rephrase(request.originalMessage(), request.scene());
-        logger.info("✅ 言い換え提案取得成功");
+        log.info("✅ 言い換え提案取得成功");
 
         return ResponseEntity.ok(Map.of("result", result));
     }

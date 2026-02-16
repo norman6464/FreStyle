@@ -8,8 +8,7 @@ import com.example.FreStyle.usecase.DeleteNoteUseCase;
 import com.example.FreStyle.usecase.GetNotesByUserIdUseCase;
 import com.example.FreStyle.usecase.UpdateNoteUseCase;
 import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -20,9 +19,8 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/notes")
+@Slf4j
 public class NoteController {
-
-    private static final Logger logger = LoggerFactory.getLogger(NoteController.class);
     private final GetNotesByUserIdUseCase getNotesByUserIdUseCase;
     private final CreateNoteUseCase createNoteUseCase;
     private final UpdateNoteUseCase updateNoteUseCase;
@@ -34,7 +32,7 @@ public class NoteController {
         User user = resolveUser(jwt);
 
         List<NoteDto> notes = getNotesByUserIdUseCase.execute(user.getId());
-        logger.info("ノート一覧取得成功 - 件数: {}", notes.size());
+        log.info("ノート一覧取得成功 - 件数: {}", notes.size());
 
         return ResponseEntity.ok(notes);
     }
@@ -47,7 +45,7 @@ public class NoteController {
         User user = resolveUser(jwt);
 
         NoteDto note = createNoteUseCase.execute(user.getId(), request.title());
-        logger.info("ノート作成成功 - noteId: {}", note.getNoteId());
+        log.info("ノート作成成功 - noteId: {}", note.getNoteId());
 
         return ResponseEntity.ok(note);
     }
@@ -61,7 +59,7 @@ public class NoteController {
         User user = resolveUser(jwt);
 
         updateNoteUseCase.execute(user.getId(), noteId, request.title(), request.content(), request.isPinned());
-        logger.info("ノート更新成功 - noteId: {}", noteId);
+        log.info("ノート更新成功 - noteId: {}", noteId);
 
         return ResponseEntity.noContent().build();
     }
@@ -74,7 +72,7 @@ public class NoteController {
         User user = resolveUser(jwt);
 
         deleteNoteUseCase.execute(user.getId(), noteId);
-        logger.info("ノート削除成功 - noteId: {}", noteId);
+        log.info("ノート削除成功 - noteId: {}", noteId);
 
         return ResponseEntity.noContent().build();
     }

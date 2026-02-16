@@ -1,15 +1,15 @@
 import { SORT_OPTIONS } from '../constants/sortOptions';
 import type { SortOption } from '../constants/sortOptions';
 
-interface SortSelectorProps {
-  options?: { value: string; label: string }[];
-  selected: string;
-  onChange: (sort: string) => void;
+interface SortSelectorProps<T extends string = SortOption> {
+  options?: { value: T; label: string }[];
+  selected: T;
+  onChange: (sort: T) => void;
 }
 
 export type { SortOption };
 
-export default function SortSelector({ options = SORT_OPTIONS, selected, onChange }: SortSelectorProps) {
+export default function SortSelector<T extends string = SortOption>({ options = SORT_OPTIONS as { value: T; label: string }[], selected, onChange }: SortSelectorProps<T>) {
   return (
     <div className="flex gap-1.5">
       {options.map(({ value, label }) => {

@@ -35,5 +35,5 @@ export const NOTE_SORT_OPTIONS: NoteSortOptionItem[] = [
   { value: 'default', label: 'デフォルト' },
   { value: 'updated-asc', label: '古い順' },
   { value: 'title', label: 'タイトル順' },
-  { value: 'created-desc', label: '作成日順' },
+  { value: 'created-desc', label: '作成日（新しい順）' },
 ];

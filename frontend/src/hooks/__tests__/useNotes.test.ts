@@ -536,4 +536,34 @@ describe('useNotes', () => {
     expect(result.current.filteredNotes[1].noteId).toBe('n3');
     expect(result.current.filteredNotes[2].noteId).toBe('n1');
   });
+
+  it('noteSortを変更してもピン留めされたノートが常に先頭に来る', async () => {
+    const notes = [
+      { noteId: 'p1', userId: 1, title: 'バナナ', content: '', isPinned: true, createdAt: 1000, updatedAt: 4000 },
+      { noteId: 'u1', userId: 1, title: 'アップル', content: '', isPinned: false, createdAt: 2000, updatedAt: 3000 },
+      { noteId: 'p2', userId: 1, title: 'チェリー', content: '', isPinned: true, createdAt: 3000, updatedAt: 2000 },
+      { noteId: 'u2', userId: 1, title: 'オレンジ', content: '', isPinned: false, createdAt: 4000, updatedAt: 1000 },
+    ];
+    vi.mocked(NoteRepository.fetchNotes).mockResolvedValue(notes);
+
+    const { result } = renderHook(() => useNotes());
+    await act(async () => { await result.current.fetchNotes(); });
+
+    const assertPinnedFirst = () => {
+      const filtered = result.current.filteredNotes;
+      const firstUnpinnedIndex = filtered.findIndex((note) => !note.isPinned);
+      if (firstUnpinnedIndex === -1) return;
+      const allAfterUnpinned = filtered.slice(firstUnpinnedIndex).every((note) => !note.isPinned);
+      expect(allAfterUnpinned).toBe(true);
+    };
+
+    act(() => { result.current.setNoteSort('updated-asc'); });
+    assertPinnedFirst();
+
+    act(() => { result.current.setNoteSort('title'); });
+    assertPinnedFirst();
+
+    act(() => { result.current.setNoteSort('created-desc'); });
+    assertPinnedFirst();
+  });
 });

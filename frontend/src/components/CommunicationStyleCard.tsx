@@ -1,7 +1,7 @@
 import type { ScoreHistoryItem } from '../types';
 import Card from './Card';
 
-interface Props {
+interface CommunicationStyleCardProps {
   sessions: ScoreHistoryItem[];
 }
 
@@ -53,7 +53,7 @@ function getAverageScores(sessions: ScoreHistoryItem[]): Map<string, number> {
   return averages;
 }
 
-export default function CommunicationStyleCard({ sessions }: Props) {
+export default function CommunicationStyleCard({ sessions }: CommunicationStyleCardProps) {
   if (sessions.length === 0) {
     return (
       <Card>

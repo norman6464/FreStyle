@@ -99,9 +99,9 @@ export default function CommandPalette({ isOpen, onClose, onCreateNote }: Comman
         className="absolute inset-0 bg-black/50"
         onClick={() => { close(); onClose(); }}
       />
-      <div className="relative w-full max-w-lg bg-[var(--color-surface-1)] border border-[var(--color-border)] rounded-xl shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-lg bg-[var(--color-surface-1)] border border-[var(--color-surface-3)] rounded-xl shadow-2xl overflow-hidden">
         {/* 検索入力 */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--color-border)]">
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--color-surface-3)]">
           <MagnifyingGlassIcon className="w-5 h-5 text-[var(--color-text-muted)] flex-shrink-0" />
           <input
             ref={inputRef}
@@ -112,7 +112,7 @@ export default function CommandPalette({ isOpen, onClose, onCreateNote }: Comman
             onKeyDown={handleKeyDown}
             className="flex-1 bg-transparent text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none text-sm"
           />
-          <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-[10px] font-mono text-[var(--color-text-muted)] bg-[var(--color-surface-2)] border border-[var(--color-border)] rounded">
+          <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-[10px] font-mono text-[var(--color-text-muted)] bg-[var(--color-surface-2)] border border-[var(--color-surface-3)] rounded">
             ESC
           </kbd>
         </div>
@@ -166,17 +166,17 @@ export default function CommandPalette({ isOpen, onClose, onCreateNote }: Comman
         </div>
 
         {/* フッター */}
-        <div className="flex items-center gap-4 px-4 py-2 border-t border-[var(--color-border)] text-[10px] text-[var(--color-text-muted)]">
+        <div className="flex items-center gap-4 px-4 py-2 border-t border-[var(--color-surface-3)] text-[10px] text-[var(--color-text-muted)]">
           <span className="flex items-center gap-1">
-            <kbd className="px-1 py-0.5 bg-[var(--color-surface-2)] border border-[var(--color-border)] rounded font-mono">↑↓</kbd>
+            <kbd className="px-1 py-0.5 bg-[var(--color-surface-2)] border border-[var(--color-surface-3)] rounded font-mono">↑↓</kbd>
             移動
           </span>
           <span className="flex items-center gap-1">
-            <kbd className="px-1 py-0.5 bg-[var(--color-surface-2)] border border-[var(--color-border)] rounded font-mono">↵</kbd>
+            <kbd className="px-1 py-0.5 bg-[var(--color-surface-2)] border border-[var(--color-surface-3)] rounded font-mono">↵</kbd>
             実行
           </span>
           <span className="flex items-center gap-1">
-            <kbd className="px-1 py-0.5 bg-[var(--color-surface-2)] border border-[var(--color-border)] rounded font-mono">esc</kbd>
+            <kbd className="px-1 py-0.5 bg-[var(--color-surface-2)] border border-[var(--color-surface-3)] rounded font-mono">esc</kbd>
             閉じる
           </span>
         </div>

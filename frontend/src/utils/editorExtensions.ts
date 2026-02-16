@@ -1,4 +1,6 @@
 import StarterKit from '@tiptap/starter-kit';
+import Heading from '@tiptap/extension-heading';
+import { textblockTypeInputRule } from '@tiptap/core';
 import Placeholder from '@tiptap/extension-placeholder';
 import Image from '@tiptap/extension-image';
 import TaskList from '@tiptap/extension-task-list';
@@ -27,8 +29,19 @@ import { SearchReplaceExtension } from '../extensions/SearchReplaceExtension';
 export function createEditorExtensions() {
   return [
     StarterKit.configure({
-      heading: { levels: [1, 2, 3] },
+      heading: false,
       codeBlock: false,
+    }),
+    Heading.configure({ levels: [1, 2, 3] }).extend({
+      addInputRules() {
+        return (this.options.levels as number[]).map((level) => {
+          return textblockTypeInputRule({
+            find: new RegExp(`^([#＃]{${Math.min(...(this.options.levels as number[]))},${level}})\\s$`),
+            type: this.type,
+            getAttributes: { level },
+          });
+        });
+      },
     }),
     CodeBlock.configure({
       lowlight: createLowlight(common),

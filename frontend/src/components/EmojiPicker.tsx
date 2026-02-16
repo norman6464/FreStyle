@@ -47,7 +47,7 @@ export default function EmojiPicker({ isOpen, onSelect, onClose }: EmojiPickerPr
   return (
     <div
       data-testid="emoji-picker"
-      className="w-72 bg-[var(--color-surface-1)] border border-[var(--color-border)] rounded-xl shadow-2xl overflow-hidden"
+      className="w-72 bg-[var(--color-surface-1)] border border-[var(--color-surface-3)] rounded-xl shadow-2xl overflow-hidden"
     >
       {/* 検索 */}
       <div className="px-3 pt-3 pb-2">
@@ -58,7 +58,7 @@ export default function EmojiPicker({ isOpen, onSelect, onClose }: EmojiPickerPr
           value={search}
           onChange={e => setSearch(e.target.value)}
           onKeyDown={handleKeyDown}
-          className="w-full px-3 py-1.5 text-xs bg-[var(--color-surface-2)] border border-[var(--color-border)] rounded-lg text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]"
+          className="w-full px-3 py-1.5 text-xs bg-[var(--color-surface-2)] border border-[var(--color-surface-3)] rounded-lg text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]"
         />
       </div>
 

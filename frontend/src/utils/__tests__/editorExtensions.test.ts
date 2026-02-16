@@ -1,6 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
 
 vi.mock('@tiptap/starter-kit', () => ({ default: { configure: vi.fn(() => 'StarterKit') } }));
+vi.mock('@tiptap/extension-heading', () => ({
+  default: { configure: vi.fn(() => ({ extend: vi.fn(() => 'Heading') })) },
+}));
+vi.mock('@tiptap/core', () => ({
+  textblockTypeInputRule: vi.fn(),
+}));
 vi.mock('@tiptap/extension-placeholder', () => ({ default: { configure: vi.fn(() => 'Placeholder') } }));
 vi.mock('@tiptap/extension-image', () => ({ default: { configure: vi.fn(() => 'Image') } }));
 vi.mock('@tiptap/extension-task-list', () => ({ default: 'TaskList' }));
@@ -45,9 +51,9 @@ vi.mock('../../extensions/SearchReplaceExtension', () => ({
 import { createEditorExtensions } from '../editorExtensions';
 
 describe('createEditorExtensions', () => {
-  it('25個のエクステンションを返す', () => {
+  it('26個のエクステンションを返す', () => {
     const extensions = createEditorExtensions();
-    expect(extensions).toHaveLength(25);
+    expect(extensions).toHaveLength(26);
   });
 
   it('主要なエクステンションが含まれる', () => {

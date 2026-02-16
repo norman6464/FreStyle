@@ -98,7 +98,7 @@ export default function SearchReplaceBar({ editor, isOpen, onClose }: SearchRepl
 
   return (
     <div
-      className="absolute top-0 right-0 z-30 bg-[var(--color-surface-1)] border border-[var(--color-border)] rounded-bl-lg shadow-lg"
+      className="absolute top-0 right-0 z-30 bg-[var(--color-surface-1)] border border-[var(--color-surface-3)] rounded-bl-lg shadow-lg"
       data-testid="search-replace-bar"
     >
       {/* 検索行 */}
@@ -120,7 +120,7 @@ export default function SearchReplaceBar({ editor, isOpen, onClose }: SearchRepl
             value={searchTerm}
             onChange={e => handleSearchChange(e.target.value)}
             onKeyDown={handleSearchKeyDown}
-            className="w-48 pl-7 pr-2 py-1 text-xs bg-[var(--color-surface-2)] border border-[var(--color-border)] rounded text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]"
+            className="w-48 pl-7 pr-2 py-1 text-xs bg-[var(--color-surface-2)] border border-[var(--color-surface-3)] rounded text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]"
           />
         </div>
         <span className="text-[10px] text-[var(--color-text-muted)] min-w-[3.5rem] text-center">
@@ -156,7 +156,7 @@ export default function SearchReplaceBar({ editor, isOpen, onClose }: SearchRepl
 
       {/* 置換行 */}
       {showReplace && (
-        <div className="flex items-center gap-1.5 px-3 py-2 border-t border-[var(--color-border)]">
+        <div className="flex items-center gap-1.5 px-3 py-2 border-t border-[var(--color-surface-3)]">
           <div className="w-5" /> {/* スペーサー（アイコン幅に合わせる） */}
           <input
             type="text"
@@ -164,7 +164,7 @@ export default function SearchReplaceBar({ editor, isOpen, onClose }: SearchRepl
             value={replaceTerm}
             onChange={e => handleReplaceChange(e.target.value)}
             onKeyDown={handleReplaceKeyDown}
-            className="w-48 px-2 py-1 text-xs bg-[var(--color-surface-2)] border border-[var(--color-border)] rounded text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]"
+            className="w-48 px-2 py-1 text-xs bg-[var(--color-surface-2)] border border-[var(--color-surface-3)] rounded text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]"
           />
           <button
             type="button"

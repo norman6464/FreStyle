@@ -64,7 +64,7 @@ export default function BlockInserterButton({ visible, top, onCommand, onMenuOpe
   return (
     <div
       data-block-inserter
-      className="absolute -left-8 z-10 transition-all duration-150"
+      className="absolute left-0 z-10 transition-all duration-150"
       style={{ top: `${top}px` }}
     >
       <div className="group relative">
@@ -80,7 +80,7 @@ export default function BlockInserterButton({ visible, top, onCommand, onMenuOpe
         </button>
         {!menuOpen && (
           <div className="absolute left-8 top-1/2 -translate-y-1/2 hidden group-hover:block z-30 pointer-events-none">
-            <div className="bg-[var(--color-surface-1)] border border-[var(--color-border)] rounded-lg shadow-lg px-3 py-2 whitespace-nowrap">
+            <div className="bg-[var(--color-surface-1)] border border-surface-3 rounded-lg shadow-lg px-3 py-2 whitespace-nowrap">
               <p className="text-xs font-medium text-[var(--color-text-primary)]">クリックして下に追加</p>
               <p className="text-[11px] text-[var(--color-text-muted)]">Opt+クリック/Alt+クリックで上に追加</p>
             </div>

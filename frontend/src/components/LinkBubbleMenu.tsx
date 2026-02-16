@@ -8,7 +8,7 @@ interface LinkBubbleMenuProps {
 
 export default function LinkBubbleMenu({ url, onEdit, onRemove }: LinkBubbleMenuProps) {
   return (
-    <div className="flex items-center gap-1 bg-[var(--color-surface-1)] border border-[var(--color-border)] rounded-lg shadow-lg px-2 py-1.5 text-sm">
+    <div className="flex items-center gap-1 bg-[var(--color-surface-1)] border border-[var(--color-surface-3)] rounded-lg shadow-lg px-2 py-1.5 text-sm">
       <a
         href={url}
         target="_blank"

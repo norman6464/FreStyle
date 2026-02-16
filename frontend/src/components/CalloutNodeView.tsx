@@ -54,7 +54,7 @@ export default function CalloutNodeView({ node, updateAttributes }: CalloutNodeV
           {showMenu && (
             <div
               ref={menuRef}
-              className="absolute left-0 top-8 z-50 bg-[var(--color-surface-1)] border border-[var(--color-border)] rounded-lg shadow-lg p-1 min-w-[120px]"
+              className="absolute left-0 top-8 z-50 bg-[var(--color-surface-1)] border border-[var(--color-surface-3)] rounded-lg shadow-lg p-1 min-w-[120px]"
             >
               {CALLOUT_TYPES.map((ct) => (
                 <button

@@ -46,7 +46,8 @@ class GetAiReplyUseCaseTest {
         void 通常モードでBedrockのchatを呼ぶ() {
             when(bedrockService.chat("こんにちは")).thenReturn("AI応答です");
 
-            String result = getAiReplyUseCase.execute("こんにちは", false, null, false, null, 1);
+            var command = new GetAiReplyUseCase.Command("こんにちは", false, null, false, null, 1);
+            String result = getAiReplyUseCase.execute(command);
 
             assertThat(result).isEqualTo("AI応答です");
             verify(bedrockService).chat("こんにちは");
@@ -66,7 +67,8 @@ class GetAiReplyUseCaseTest {
             when(bedrockService.chatInPracticeMode("ユーザーメッセージ", "構築されたプロンプト"))
                     .thenReturn("練習AI応答");
 
-            String result = getAiReplyUseCase.execute("ユーザーメッセージ", true, 1, false, null, 1);
+            var command = new GetAiReplyUseCase.Command("ユーザーメッセージ", true, 1, false, null, 1);
+            String result = getAiReplyUseCase.execute(command);
 
             assertThat(result).isEqualTo("練習AI応答");
         }
@@ -81,7 +83,8 @@ class GetAiReplyUseCaseTest {
             when(bedrockService.chatInPracticeMode(eq(""), any(String.class)))
                     .thenReturn("練習開始AI応答");
 
-            String result = getAiReplyUseCase.execute("練習開始", true, 1, false, null, 1);
+            var command = new GetAiReplyUseCase.Command("練習開始", true, 1, false, null, 1);
+            String result = getAiReplyUseCase.execute(command);
 
             assertThat(result).isEqualTo("練習開始AI応答");
             verify(bedrockService).chatInPracticeMode(eq(""), any(String.class));
@@ -103,7 +106,8 @@ class GetAiReplyUseCaseTest {
                     "フレンドリー", "明るい, 積極的", "目標", "課題", "優しく"))
                     .thenReturn("フィードバック応答");
 
-            String result = getAiReplyUseCase.execute("メッセージ", false, null, true, "meeting", 1);
+            var command = new GetAiReplyUseCase.Command("メッセージ", false, null, true, "meeting", 1);
+            String result = getAiReplyUseCase.execute(command);
 
             assertThat(result).isEqualTo("フィードバック応答");
         }
@@ -113,7 +117,8 @@ class GetAiReplyUseCaseTest {
             when(userProfileService.getProfileByUserId(1)).thenReturn(null);
             when(bedrockService.chat("メッセージ")).thenReturn("通常応答");
 
-            String result = getAiReplyUseCase.execute("メッセージ", false, null, true, "meeting", 1);
+            var command = new GetAiReplyUseCase.Command("メッセージ", false, null, true, "meeting", 1);
+            String result = getAiReplyUseCase.execute(command);
 
             assertThat(result).isEqualTo("通常応答");
             verify(bedrockService).chat("メッセージ");
@@ -131,7 +136,8 @@ class GetAiReplyUseCaseTest {
                     "フレンドリー", null, "目標", "課題", "優しく"))
                     .thenReturn("フィードバック応答");
 
-            String result = getAiReplyUseCase.execute("メッセージ", false, null, true, "meeting", 1);
+            var command = new GetAiReplyUseCase.Command("メッセージ", false, null, true, "meeting", 1);
+            String result = getAiReplyUseCase.execute(command);
 
             assertThat(result).isEqualTo("フィードバック応答");
         }

@@ -135,7 +135,8 @@ public class AiChatWebSocketController {
             log.info("✅ ユーザーメッセージ WebSocket 送信完了");
 
             // Bedrockにメッセージを送信してAI応答を取得
-            String aiReply = getAiReplyUseCase.execute(content, isPracticeMode, scenarioId, fromChatFeedback, scene, userId);
+            var aiReplyCommand = new GetAiReplyUseCase.Command(content, isPracticeMode, scenarioId, fromChatFeedback, scene, userId);
+            String aiReply = getAiReplyUseCase.execute(aiReplyCommand);
 
             // AI応答をデータベースに保存（role: assistant）
             log.info("💾 AI応答をデータベースに保存中...");

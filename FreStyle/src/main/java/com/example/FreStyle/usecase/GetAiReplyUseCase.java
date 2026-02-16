@@ -16,26 +16,36 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class GetAiReplyUseCase {
 
+    private static final String PRACTICE_START_MESSAGE = "練習開始";
+
     private final BedrockService bedrockService;
     private final UserProfileService userProfileService;
     private final SystemPromptBuilder systemPromptBuilder;
     private final GetPracticeScenarioByIdUseCase getPracticeScenarioByIdUseCase;
 
+    public record Command(
+        String content,
+        boolean isPracticeMode,
+        Integer scenarioId,
+        boolean fromChatFeedback,
+        String scene,
+        Integer userId
+    ) {}
+
     /**
      * AI応答を取得（モードに応じて適切なBedrockメソッドを呼び出す）
      */
-    public String execute(String content, boolean isPracticeMode, Integer scenarioId,
-                          boolean fromChatFeedback, String scene, Integer userId) {
-        if (isPracticeMode && scenarioId != null) {
-            return handlePracticeMode(content, scenarioId);
+    public String execute(Command command) {
+        if (command.isPracticeMode() && command.scenarioId() != null) {
+            return handlePracticeMode(command.content(), command.scenarioId());
         }
 
-        if (fromChatFeedback) {
-            return handleFeedbackMode(content, scene, userId);
+        if (command.fromChatFeedback()) {
+            return handleFeedbackMode(command.content(), command.scene(), command.userId());
         }
 
-        log.info("🤖 Bedrock にメッセージを送信中...");
-        return bedrockService.chat(content);
+        log.debug("🤖 Bedrock にメッセージを送信中...");
+        return bedrockService.chat(command.content());
     }
 
     private String handlePracticeMode(String content, Integer scenarioId) {
@@ -45,7 +55,7 @@ public class GetAiReplyUseCase {
                 scenario.getName(), scenario.getRoleName(),
                 scenario.getDifficulty(), scenario.getSystemPrompt());
 
-        if ("練習開始".equals(content)) {
+        if (PRACTICE_START_MESSAGE.equals(content)) {
             String startPrompt = practicePrompt +
                 "\n\nこれから練習が始まります。あなたは相手役として、シナリオに基づいた最初の発言をしてください。" +
                 "ユーザーに対して、シナリオの状況を反映した自然な会話で話しかけてください。";

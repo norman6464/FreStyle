@@ -2,8 +2,6 @@ package com.example.FreStyle.controller;
 
 import java.util.List;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -21,13 +19,13 @@ import com.example.FreStyle.usecase.GetUserBookmarksUseCase;
 import com.example.FreStyle.usecase.RemoveScenarioBookmarkUseCase;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/bookmarks")
+@Slf4j
 public class ScenarioBookmarkController {
-
-    private static final Logger logger = LoggerFactory.getLogger(ScenarioBookmarkController.class);
 
     private final GetUserBookmarksUseCase getUserBookmarksUseCase;
     private final AddScenarioBookmarkUseCase addScenarioBookmarkUseCase;
@@ -36,10 +34,10 @@ public class ScenarioBookmarkController {
 
     @GetMapping
     public ResponseEntity<List<Integer>> getBookmarks(@AuthenticationPrincipal Jwt jwt) {
-        logger.info("========== GET /api/bookmarks ==========");
+        log.info("========== GET /api/bookmarks ==========");
         User user = resolveUser(jwt);
         List<Integer> bookmarkedIds = getUserBookmarksUseCase.execute(user.getId());
-        logger.info("ブックマーク一覧取得成功 - 件数: {}", bookmarkedIds.size());
+        log.info("ブックマーク一覧取得成功 - 件数: {}", bookmarkedIds.size());
         return ResponseEntity.ok(bookmarkedIds);
     }
 
@@ -48,10 +46,10 @@ public class ScenarioBookmarkController {
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable Integer scenarioId
     ) {
-        logger.info("========== POST /api/bookmarks/{} ==========", scenarioId);
+        log.info("========== POST /api/bookmarks/{} ==========", scenarioId);
         User user = resolveUser(jwt);
         addScenarioBookmarkUseCase.execute(user, scenarioId);
-        logger.info("ブックマーク追加成功 - scenarioId: {}", scenarioId);
+        log.info("ブックマーク追加成功 - scenarioId: {}", scenarioId);
         return ResponseEntity.ok().build();
     }
 
@@ -60,10 +58,10 @@ public class ScenarioBookmarkController {
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable Integer scenarioId
     ) {
-        logger.info("========== DELETE /api/bookmarks/{} ==========", scenarioId);
+        log.info("========== DELETE /api/bookmarks/{} ==========", scenarioId);
         User user = resolveUser(jwt);
         removeScenarioBookmarkUseCase.execute(user.getId(), scenarioId);
-        logger.info("ブックマーク削除成功 - scenarioId: {}", scenarioId);
+        log.info("ブックマーク削除成功 - scenarioId: {}", scenarioId);
         return ResponseEntity.ok().build();
     }
 

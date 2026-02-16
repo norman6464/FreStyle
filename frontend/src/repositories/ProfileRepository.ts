@@ -1,4 +1,5 @@
 import apiClient from '../lib/axios';
+import axios from 'axios';
 
 /**
  * プロフィールリポジトリ
@@ -7,9 +8,15 @@ import apiClient from '../lib/axios';
  * axiosインターセプターによる自動トークンリフレッシュを活用する。
  */
 
-interface ProfileData {
+export interface ProfileData {
   name: string;
   bio: string;
+  iconUrl?: string;
+}
+
+interface PresignedUrlResponse {
+  uploadUrl: string;
+  imageUrl: string;
 }
 
 const ProfileRepository = {
@@ -21,6 +28,20 @@ const ProfileRepository = {
   async updateProfile(data: ProfileData): Promise<{ success: string }> {
     const res = await apiClient.put('/api/profile/me/update', data);
     return res.data;
+  },
+
+  async getImagePresignedUrl(fileName: string, contentType: string): Promise<PresignedUrlResponse> {
+    const res = await apiClient.post('/api/profile/me/image/presigned-url', {
+      fileName,
+      contentType,
+    });
+    return res.data;
+  },
+
+  async uploadToS3(uploadUrl: string, file: File): Promise<void> {
+    await axios.put(uploadUrl, file, {
+      headers: { 'Content-Type': file.type },
+    });
   },
 };
 

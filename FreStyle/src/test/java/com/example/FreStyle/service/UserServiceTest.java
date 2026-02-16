@@ -165,12 +165,13 @@ class UserServiceTest {
         User user = createUser(1, "旧名", "test@example.com", true);
         when(userIdentityService.findUserBySub("sub123")).thenReturn(user);
 
-        ProfileForm form = new ProfileForm("新名", "新しいBio");
+        ProfileForm form = new ProfileForm("新名", "新しいBio", "https://cdn.example.com/profiles/1/avatar.png");
         userService.updateUser(form, "sub123");
 
         verify(userRepository).save(user);
         assertEquals("新名", user.getName());
         assertEquals("新しいBio", user.getBio());
+        assertEquals("https://cdn.example.com/profiles/1/avatar.png", user.getIconUrl());
     }
 
     @Test

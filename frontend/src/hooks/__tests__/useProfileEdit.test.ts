@@ -160,7 +160,7 @@ describe('useProfileEdit', () => {
       await result.current.handleUpdate();
     });
 
-    expect(mockUpdateProfile).toHaveBeenCalledWith({ name: '更新太郎', bio: '自己紹介文' });
+    expect(mockUpdateProfile).toHaveBeenCalledWith({ name: '更新太郎', bio: '自己紹介文', iconUrl: '' });
   });
 
   it('ニックネームが空の場合エラーメッセージが表示されAPIが呼ばれない', async () => {

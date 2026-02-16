@@ -10,4 +10,5 @@ import lombok.NoArgsConstructor;
 public class ProfileDto {
   private String name;
   private String bio;
+  private String iconUrl;
 }

@@ -1,25 +1,38 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { FavoritePhraseRepository } from '../repositories/FavoritePhraseRepository';
 import type { FavoritePhrase } from '../types';
 
 export function useFavoritePhrase() {
-  const [phrases, setPhrases] = useState<FavoritePhrase[]>(() => FavoritePhraseRepository.getAll());
+  const [phrases, setPhrases] = useState<FavoritePhrase[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [patternFilter, setPatternFilter] = useState('すべて');
 
-  const saveFavorite = useCallback((originalText: string, rephrasedText: string, pattern: string) => {
-    FavoritePhraseRepository.save({ originalText, rephrasedText, pattern });
-    setPhrases(FavoritePhraseRepository.getAll());
+  useEffect(() => {
+    let cancelled = false;
+    FavoritePhraseRepository.getAll().then((data) => {
+      if (!cancelled) {
+        setPhrases(data);
+        setLoading(false);
+      }
+    });
+    return () => { cancelled = true; };
   }, []);
 
-  const removeFavorite = useCallback((id: string) => {
-    FavoritePhraseRepository.remove(id);
-    setPhrases(FavoritePhraseRepository.getAll());
+  const saveFavorite = useCallback(async (originalText: string, rephrasedText: string, pattern: string) => {
+    await FavoritePhraseRepository.save({ originalText, rephrasedText, pattern });
+    const updated = await FavoritePhraseRepository.getAll();
+    setPhrases(updated);
+  }, []);
+
+  const removeFavorite = useCallback(async (id: string) => {
+    setPhrases(prev => prev.filter(p => p.id !== id));
+    await FavoritePhraseRepository.remove(id);
   }, []);
 
   const isFavorite = useCallback((rephrasedText: string, pattern: string) => {
-    return FavoritePhraseRepository.exists(rephrasedText, pattern);
-  }, []);
+    return phrases.some((p) => p.rephrasedText === rephrasedText && p.pattern === pattern);
+  }, [phrases]);
 
   const filteredPhrases = useMemo(() => {
     return phrases.filter((phrase) => {
@@ -31,5 +44,5 @@ export function useFavoritePhrase() {
     });
   }, [phrases, searchQuery, patternFilter]);
 
-  return { phrases, filteredPhrases, searchQuery, setSearchQuery, patternFilter, setPatternFilter, saveFavorite, removeFavorite, isFavorite };
+  return { phrases, filteredPhrases, searchQuery, setSearchQuery, patternFilter, setPatternFilter, saveFavorite, removeFavorite, isFavorite, loading };
 }

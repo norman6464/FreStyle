@@ -61,15 +61,11 @@ public class AiChatController {
 
     @GetMapping("/history")
     public ResponseEntity<?> getChatHistory(@AuthenticationPrincipal Jwt jwt) {
-        // Jwt から senderId(sub) を取得
-        String sub = jwt.getSubject();
+        User user = resolveUser(jwt);
+        logger.info("📥 [AiChatController] AI履歴取得リクエスト開始 - senderId: {}", user.getId());
 
-        Integer senderId = userIdentityService.findUserBySub(sub).getId();
-        logger.info("📥 [AiChatController] AI履歴取得リクエスト開始 - senderId: {}", senderId);
-
-        // ロジックは変更しない
         logger.debug("🔍 [AiChatController] AiChatService.getChatHistory() を呼び出し");
-        List<AiChatMessageDto> history = aiChatService.getChatHistory(senderId);
+        List<AiChatMessageDto> history = aiChatService.getChatHistory(user.getId());
 
         logger.info("✅ [AiChatController] AI履歴取得成功 - メッセージ数: {}", history.size());
         logger.debug("📋 [AiChatController] 取得履歴: {}", history);
@@ -88,9 +84,7 @@ public class AiChatController {
     public ResponseEntity<List<AiChatSessionDto>> getSessions(@AuthenticationPrincipal Jwt jwt) {
         logger.info("========== GET /api/chat/ai/sessions ==========");
 
-        String sub = jwt.getSubject();
-        User user = userIdentityService.findUserBySub(sub);
-
+        User user = resolveUser(jwt);
         List<AiChatSessionDto> sessions = getAiChatSessionsByUserIdUseCase.execute(user.getId());
         logger.info("✅ セッション一覧取得成功 - 件数: {}", sessions.size());
 
@@ -108,9 +102,7 @@ public class AiChatController {
         logger.info("========== POST /api/chat/ai/sessions ==========");
         logger.info("📝 リクエスト: {}", request);
 
-        String sub = jwt.getSubject();
-        User user = userIdentityService.findUserBySub(sub);
-
+        User user = resolveUser(jwt);
         AiChatSessionDto session = createAiChatSessionUseCase.execute(
                 user.getId(),
                 request.title(),
@@ -131,9 +123,7 @@ public class AiChatController {
     ) {
         logger.info("========== GET /api/chat/ai/sessions/{} ==========", sessionId);
 
-        String sub = jwt.getSubject();
-        User user = userIdentityService.findUserBySub(sub);
-
+        User user = resolveUser(jwt);
         AiChatSessionDto session = getAiChatSessionByIdUseCase.execute(sessionId, user.getId());
         logger.info("✅ セッション取得成功");
 
@@ -151,9 +141,7 @@ public class AiChatController {
     ) {
         logger.info("========== PUT /api/chat/ai/sessions/{} ==========", sessionId);
 
-        String sub = jwt.getSubject();
-        User user = userIdentityService.findUserBySub(sub);
-
+        User user = resolveUser(jwt);
         AiChatSessionDto session = updateAiChatSessionTitleUseCase.execute(
                 sessionId,
                 user.getId(),
@@ -174,9 +162,7 @@ public class AiChatController {
     ) {
         logger.info("========== DELETE /api/chat/ai/sessions/{} ==========", sessionId);
 
-        String sub = jwt.getSubject();
-        User user = userIdentityService.findUserBySub(sub);
-
+        User user = resolveUser(jwt);
         deleteAiChatSessionUseCase.execute(sessionId, user.getId());
         logger.info("✅ セッション削除成功");
 
@@ -193,9 +179,7 @@ public class AiChatController {
     ) {
         logger.info("========== GET /api/chat/ai/sessions/{}/messages ==========", sessionId);
 
-        String sub = jwt.getSubject();
-        User user = userIdentityService.findUserBySub(sub);
-
+        User user = resolveUser(jwt);
         // 権限チェック（セッションがユーザーのものか確認）
         getAiChatSessionByIdUseCase.execute(sessionId, user.getId());
 
@@ -217,9 +201,7 @@ public class AiChatController {
         logger.info("========== POST /api/chat/ai/sessions/{}/messages ==========", sessionId);
         logger.info("📝 リクエスト: {}", request);
 
-        String sub = jwt.getSubject();
-        User user = userIdentityService.findUserBySub(sub);
-
+        User user = resolveUser(jwt);
         // 権限チェック
         getAiChatSessionByIdUseCase.execute(sessionId, user.getId());
 
@@ -245,13 +227,16 @@ public class AiChatController {
     ) {
         logger.info("========== POST /api/chat/ai/rephrase ==========");
 
-        String sub = jwt.getSubject();
-        userIdentityService.findUserBySub(sub); // 認証チェック
+        resolveUser(jwt); // 認証チェック
 
         String result = bedrockService.rephrase(request.originalMessage(), request.scene());
         logger.info("✅ 言い換え提案取得成功");
 
         return ResponseEntity.ok(Map.of("result", result));
+    }
+
+    private User resolveUser(Jwt jwt) {
+        return userIdentityService.findUserBySub(jwt.getSubject());
     }
 
     // リクエスト用のRecord

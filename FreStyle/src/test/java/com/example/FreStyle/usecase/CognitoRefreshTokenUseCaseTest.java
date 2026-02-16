@@ -72,4 +72,35 @@ class CognitoRefreshTokenUseCaseTest {
 
         verify(accessTokenService, never()).updateTokens(any(), any());
     }
+
+    @Test
+    @DisplayName("updateTokensに正しいアクセストークンが渡される")
+    void passesCorrectAccessTokenToUpdate() {
+        AccessToken accessTokenEntity = new AccessToken();
+
+        when(accessTokenService.findAccessTokenByRefreshToken("rt-abc"))
+                .thenReturn(accessTokenEntity);
+        when(cognitoAuthService.refreshAccessToken("rt-abc", "user1"))
+                .thenReturn(Map.of("accessToken", "at-xyz"));
+
+        cognitoRefreshTokenUseCase.execute("rt-abc", "user1");
+
+        verify(accessTokenService).updateTokens(accessTokenEntity, "at-xyz");
+    }
+
+    @Test
+    @DisplayName("refreshAccessTokenに正しいリフレッシュトークンとユーザー名が渡される")
+    void passesCorrectArgsToRefresh() {
+        AccessToken accessTokenEntity = new AccessToken();
+
+        when(accessTokenService.findAccessTokenByRefreshToken("my-refresh"))
+                .thenReturn(accessTokenEntity);
+        when(cognitoAuthService.refreshAccessToken("my-refresh", "user2"))
+                .thenReturn(Map.of("accessToken", "new-at"));
+
+        cognitoRefreshTokenUseCase.execute("my-refresh", "user2");
+
+        verify(accessTokenService).findAccessTokenByRefreshToken("my-refresh");
+        verify(cognitoAuthService).refreshAccessToken("my-refresh", "user2");
+    }
 }

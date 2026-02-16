@@ -48,6 +48,22 @@ class DeleteAiChatSessionUseCaseTest {
 
             verify(aiChatSessionRepository).delete(session);
         }
+
+        @Test
+        @DisplayName("findByIdAndUserIdに正しい引数が渡される")
+        void shouldPassCorrectArguments() {
+            User user = new User();
+            user.setId(5);
+            AiChatSession session = new AiChatSession();
+            session.setId(20);
+            session.setUser(user);
+            when(aiChatSessionRepository.findByIdAndUserId(20, 5))
+                    .thenReturn(Optional.of(session));
+
+            useCase.execute(20, 5);
+
+            verify(aiChatSessionRepository).findByIdAndUserId(20, 5);
+        }
     }
 
     @Nested
@@ -61,7 +77,9 @@ class DeleteAiChatSessionUseCaseTest {
                     .thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> useCase.execute(999, 1))
-                    .isInstanceOf(ResourceNotFoundException.class);
+                    .isInstanceOf(ResourceNotFoundException.class)
+                    .hasMessageContaining("999")
+                    .hasMessageContaining("1");
         }
 
         @Test

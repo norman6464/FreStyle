@@ -101,21 +101,11 @@ public class CognitoAuthService {
                 .userAttributes(emailAttr, nameAttr)
                 .build();
 
-        try {
-            SignUpResponse response = cognitoClient.signUp(request);
-            if (response.userConfirmed()) {
-                log.debug("ユーザーは既に確認済みです");
-            } else {
-                log.debug("確認コードを送信しました");
-            }
-        } catch (UsernameExistsException e) {
-            throw new RuntimeException("このメールアドレスは既に登録されています。");
-        } catch (InvalidPasswordException e) {
-            throw new RuntimeException("パスワードが要件を満たしていません。");
-        } catch (InvalidParameterException e) {
-            throw new RuntimeException("入力値が無効です。");
-        } catch (Exception e) {
-            throw new RuntimeException("サインアップ中にエラーが発生しました: " + e.getMessage(), e);
+        SignUpResponse response = cognitoClient.signUp(request);
+        if (response.userConfirmed()) {
+            log.debug("ユーザーは既に確認済みです");
+        } else {
+            log.debug("確認コードを送信しました");
         }
     }
 
@@ -128,18 +118,8 @@ public class CognitoAuthService {
                 .confirmationCode(confirmationCode)
                 .build();
 
-        try {
-            cognitoClient.confirmSignUp(request);
-            log.debug("ユーザー確認に成功しました");
-        } catch (UserNotFoundException e) {
-            throw new RuntimeException("ユーザーが見つかりません。");
-        } catch (CodeMismatchException e) {
-            throw new RuntimeException("確認コードが正しくありません。");
-        } catch (ExpiredCodeException e) {
-            throw new RuntimeException("確認コードの有効期限が切れています。");
-        } catch (Exception e) {
-            throw new RuntimeException("ユーザー確認中にエラーが発生しました: " + e.getMessage(), e);
-        }
+        cognitoClient.confirmSignUp(request);
+        log.debug("ユーザー確認に成功しました");
     }
 
     // ログイン
@@ -155,23 +135,14 @@ public class CognitoAuthService {
                 .authParameters(authParams)
                 .build();
 
-        try {
-            InitiateAuthResponse response = cognitoClient.initiateAuth(authRequest);
-            AuthenticationResultType result = response.authenticationResult();
+        InitiateAuthResponse response = cognitoClient.initiateAuth(authRequest);
+        AuthenticationResultType result = response.authenticationResult();
 
-            Map<String, String> tokens = new HashMap<>();
-            tokens.put("accessToken", result.accessToken());
-            tokens.put("idToken", result.idToken());
-            tokens.put("refreshToken", result.refreshToken());
-            return tokens;
-
-        } catch (NotAuthorizedException e) {
-            throw new RuntimeException("メールアドレスまたはパスワードが間違っています。");
-        } catch (UserNotConfirmedException e) {
-            throw new RuntimeException("メール確認が完了していません。");
-        } catch (Exception e) {
-            throw new RuntimeException("ログイン中にエラーが発生しました: " + e.getMessage(), e);
-        }
+        Map<String, String> tokens = new HashMap<>();
+        tokens.put("accessToken", result.accessToken());
+        tokens.put("idToken", result.idToken());
+        tokens.put("refreshToken", result.refreshToken());
+        return tokens;
     }
     
     
@@ -182,16 +153,8 @@ public class CognitoAuthService {
         .secretHash(calculateSecretHash(email))
         .build();
         
-        try {
-            cognitoClient.forgotPassword(request);
-            log.debug("確認コード送信完了: {}", email);
-        } catch (UserNotFoundException e) {
-            log.warn("パスワードリセット失敗: メールアドレス未登録 - {}", email);
-            throw new RuntimeException("このメールアドレスは登録されていません。");
-        } catch (Exception e) {
-            log.error("パスワードリセットリクエスト失敗", e);
-            throw new RuntimeException("パスワードリセットのリクエストに失敗しました。" + e.getMessage());
-        }
+        cognitoClient.forgotPassword(request);
+        log.debug("確認コード送信完了: {}", email);
     }
     
     public void confirmForgotPassword(String email, String confirmationCode, String newPassword) {
@@ -203,19 +166,8 @@ public class CognitoAuthService {
             .password(newPassword)
             .build();
             
-            try {
-                cognitoClient.confirmForgotPassword(request);
-                log.debug("パスワードリセット完了");
-            } catch (CodeMismatchException e) {
-                log.warn("パスワードリセット失敗: 確認コード不一致");
-                throw new RuntimeException("確認コードが間違っています。");
-            } catch (ExpiredCodeException e) {
-                log.warn("パスワードリセット失敗: 確認コード期限切れ");
-                throw new RuntimeException("確認コードの有効期限が切れています。");
-            } catch (Exception e) {
-                log.error("パスワードリセット処理エラー", e);
-                throw new RuntimeException("パスワードがリセット中にエラーが発生しました。");
-            }
+        cognitoClient.confirmForgotPassword(request);
+        log.debug("パスワードリセット完了");
     }
     
     // ハッシュ値を計算をする

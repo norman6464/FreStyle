@@ -31,6 +31,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.CodeMismatchException;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.ExpiredCodeException;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.InvalidPasswordException;
+import software.amazon.awssdk.services.cognitoidentityprovider.model.NotAuthorizedException;
+import software.amazon.awssdk.services.cognitoidentityprovider.model.UserNotConfirmedException;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.UserNotFoundException;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.UsernameExistsException;
 
@@ -143,11 +145,17 @@ public class CognitoAuthController {
                     result.accessToken(), result.refreshToken(), result.email(), result.cognitoUsername());
             return ResponseEntity.ok(Map.of("succes", "ログインできました。"));
 
+        } catch (NotAuthorizedException e) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "メールアドレスまたはパスワードが間違っています。"));
+        } catch (UserNotConfirmedException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "メール確認が完了していません。"));
         } catch (IllegalStateException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "無効なアクセスです。"));
         } catch (RuntimeException e) {
             log.error("/login エラー: {}", e.getMessage(), e);
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
         }
     }
 

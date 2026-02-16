@@ -108,5 +108,29 @@ class FavoritePhraseControllerTest {
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
             verify(removeFavoritePhraseUseCase).execute(1, 5);
         }
+
+        @Test
+        @DisplayName("削除UseCase例外時にそのまま伝搬する")
+        void throwsWhenUseCaseFails() {
+            doThrow(new RuntimeException("削除失敗")).when(removeFavoritePhraseUseCase).execute(1, 99);
+
+            org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                    () -> favoritePhraseController.removeFavoritePhrase(mockJwt, 99));
+        }
+    }
+
+    @Nested
+    @DisplayName("共通エラー")
+    class CommonErrors {
+
+        @Test
+        @DisplayName("UserIdentityService例外時にそのまま伝搬する")
+        void throwsWhenUserNotFound() {
+            when(userIdentityService.findUserBySub("sub-123"))
+                    .thenThrow(new RuntimeException("ユーザーが見つかりません"));
+
+            org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                    () -> favoritePhraseController.getFavoritePhrases(mockJwt));
+        }
     }
 }

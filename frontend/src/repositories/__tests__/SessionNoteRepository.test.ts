@@ -92,5 +92,19 @@ describe('SessionNoteRepository', () => {
       expect(Object.keys(result)).toHaveLength(2);
       expect(result['1'].note).toBe('メモ1');
     });
+
+    it('localStorageが空の場合は空オブジェクトを返す', () => {
+      const result = SessionNoteRepository.getAll();
+      expect(result).toEqual({});
+    });
+
+    it('localStorageのJSONが破損している場合は空オブジェクトを返しキーを削除する', () => {
+      localStorage.setItem('freestyle_session_notes', '{invalid-json');
+
+      const result = SessionNoteRepository.getAll();
+
+      expect(result).toEqual({});
+      expect(localStorage.removeItem).toHaveBeenCalledWith('freestyle_session_notes');
+    });
   });
 });

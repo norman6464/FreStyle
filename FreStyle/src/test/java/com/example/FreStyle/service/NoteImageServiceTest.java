@@ -84,4 +84,37 @@ class NoteImageServiceTest {
                 service.generatePresignedUrl(1, "note1", "file.exe", "application/octet-stream")
         ).isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void S3Presignerが例外をスローした場合そのまま伝搬する() {
+        when(s3Presigner.presignPutObject(any(PutObjectPresignRequest.class)))
+                .thenThrow(new RuntimeException("S3 error"));
+
+        assertThatThrownBy(() ->
+                service.generatePresignedUrl(1, "note1", "image.png", "image/png")
+        ).isInstanceOf(RuntimeException.class)
+                .hasMessage("S3 error");
+    }
+
+    @Test
+    void webp形式のcontentTypeが許可される() throws Exception {
+        when(s3Presigner.presignPutObject(any(PutObjectPresignRequest.class)))
+                .thenReturn(presignedPutObjectRequest);
+        when(presignedPutObjectRequest.url()).thenReturn(new URL("https://s3.example.com/upload"));
+
+        PresignedUrlResponse response = service.generatePresignedUrl(1, "note1", "image.webp", "image/webp");
+
+        assertThat(response.uploadUrl()).isNotNull();
+    }
+
+    @Test
+    void svg形式のcontentTypeが許可される() throws Exception {
+        when(s3Presigner.presignPutObject(any(PutObjectPresignRequest.class)))
+                .thenReturn(presignedPutObjectRequest);
+        when(presignedPutObjectRequest.url()).thenReturn(new URL("https://s3.example.com/upload"));
+
+        PresignedUrlResponse response = service.generatePresignedUrl(1, "note1", "icon.svg", "image/svg+xml");
+
+        assertThat(response.uploadUrl()).isNotNull();
+    }
 }

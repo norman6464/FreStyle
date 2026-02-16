@@ -34,6 +34,8 @@ describe('SessionListSection', () => {
         filteredHistoryWithDelta={mockHistory}
         filter="すべて"
         setFilter={vi.fn()}
+        periodFilter="全期間"
+        setPeriodFilter={vi.fn()}
         selectedSession={null}
         setSelectedSession={vi.fn()}
       />
@@ -49,10 +51,49 @@ describe('SessionListSection', () => {
         filteredHistoryWithDelta={mockHistory}
         filter="すべて"
         setFilter={vi.fn()}
+        periodFilter="全期間"
+        setPeriodFilter={vi.fn()}
         selectedSession={null}
         setSelectedSession={vi.fn()}
       />
     );
     expect(screen.getByRole('tab', { name: 'すべて' })).toBeInTheDocument();
+  });
+
+  it('期間フィルタタブが表示される', () => {
+    render(
+      <SessionListSection
+        history={mockHistory}
+        filteredHistoryWithDelta={mockHistory}
+        filter="すべて"
+        setFilter={vi.fn()}
+        periodFilter="全期間"
+        setPeriodFilter={vi.fn()}
+        selectedSession={null}
+        setSelectedSession={vi.fn()}
+      />
+    );
+    expect(screen.getByRole('tab', { name: '全期間' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: '1週間' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: '1ヶ月' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: '3ヶ月' })).toBeInTheDocument();
+  });
+
+  it('期間フィルタ選択でsetPeriodFilterが呼ばれる', () => {
+    const mockSetPeriodFilter = vi.fn();
+    render(
+      <SessionListSection
+        history={mockHistory}
+        filteredHistoryWithDelta={mockHistory}
+        filter="すべて"
+        setFilter={vi.fn()}
+        periodFilter="全期間"
+        setPeriodFilter={mockSetPeriodFilter}
+        selectedSession={null}
+        setSelectedSession={vi.fn()}
+      />
+    );
+    fireEvent.click(screen.getByRole('tab', { name: '1週間' }));
+    expect(mockSetPeriodFilter).toHaveBeenCalledWith('1週間');
   });
 });

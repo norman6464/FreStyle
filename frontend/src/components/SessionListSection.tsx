@@ -8,7 +8,7 @@ import ScoreHistorySessionCard from './ScoreHistorySessionCard';
 import ScoreFilterSummary from './ScoreFilterSummary';
 import ScoreTrendIndicator from './ScoreTrendIndicator';
 import FilterTabs from './FilterTabs';
-import { FILTERS } from '../hooks/useScoreHistory';
+import { FILTERS, PERIOD_FILTERS } from '../hooks/useScoreHistory';
 import type { ScoreHistoryItem } from '../types';
 import type { ScoreHistoryItemWithDelta } from '../hooks/useScoreHistory';
 
@@ -17,6 +17,8 @@ interface SessionListSectionProps {
   filteredHistoryWithDelta: ScoreHistoryItemWithDelta[];
   filter: string;
   setFilter: (filter: string) => void;
+  periodFilter: string;
+  setPeriodFilter: (period: string) => void;
   selectedSession: ScoreHistoryItem | null;
   setSelectedSession: (session: ScoreHistoryItem | null) => void;
 }
@@ -26,6 +28,8 @@ export default function SessionListSection({
   filteredHistoryWithDelta,
   filter,
   setFilter,
+  periodFilter,
+  setPeriodFilter,
   selectedSession,
   setSelectedSession,
 }: SessionListSectionProps) {
@@ -58,6 +62,8 @@ export default function SessionListSection({
       <SessionTimeCard dates={history.map(h => h.createdAt)} />
 
       <PracticeCalendar practiceDates={history.map(h => h.createdAt)} />
+
+      <FilterTabs tabs={[...PERIOD_FILTERS]} selected={periodFilter} onSelect={setPeriodFilter} />
 
       <FilterTabs tabs={[...FILTERS]} selected={filter} onSelect={setFilter} />
 

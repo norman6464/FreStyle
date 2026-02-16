@@ -9,7 +9,7 @@ import { useScoreGoal } from '../hooks/useScoreGoal';
 
 export default function ScoreHistoryPage() {
   const navigate = useNavigate();
-  const { history, filteredHistoryWithDelta, filter, setFilter, loading, latestSession, averageScore, weakestAxis, selectedSession, setSelectedSession } = useScoreHistory();
+  const { history, filteredHistoryWithDelta, filter, setFilter, periodFilter, setPeriodFilter, loading, latestSession, averageScore, weakestAxis, selectedSession, setSelectedSession } = useScoreHistory();
   const { goal: scoreGoal } = useScoreGoal();
 
   if (loading) {
@@ -52,6 +52,8 @@ export default function ScoreHistoryPage() {
         filteredHistoryWithDelta={filteredHistoryWithDelta}
         filter={filter}
         setFilter={setFilter}
+        periodFilter={periodFilter}
+        setPeriodFilter={setPeriodFilter}
         selectedSession={selectedSession}
         setSelectedSession={setSelectedSession}
       />

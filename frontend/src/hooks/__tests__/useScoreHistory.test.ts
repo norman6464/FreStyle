@@ -310,4 +310,130 @@ describe('useScoreHistory', () => {
 
     expect(result.current.weakestAxis).toBeNull();
   });
+
+  it('期間フィルタ「1週間」で直近1週間のセッションのみ返す', async () => {
+    const now = new Date();
+    const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString();
+    const tenDaysAgo = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000).toISOString();
+
+    const mockData = [
+      { sessionId: 1, sessionTitle: '古い', overallScore: 6.0, scores: [], createdAt: tenDaysAgo },
+      { sessionId: 2, sessionTitle: '新しい', overallScore: 8.0, scores: [], createdAt: twoDaysAgo },
+    ];
+    mockFetchScoreHistory.mockResolvedValue(mockData);
+
+    const { result } = renderHook(() => useScoreHistory());
+
+    await waitFor(() => {
+      expect(result.current.history).toHaveLength(2);
+    });
+
+    act(() => {
+      result.current.setPeriodFilter('1週間');
+    });
+
+    expect(result.current.filteredHistory).toHaveLength(1);
+    expect(result.current.filteredHistory[0].sessionTitle).toBe('新しい');
+  });
+
+  it('期間フィルタ「1ヶ月」で直近1ヶ月のセッションのみ返す', async () => {
+    const now = new Date();
+    const fiveDaysAgo = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString();
+    const fiftyDaysAgo = new Date(now.getTime() - 50 * 24 * 60 * 60 * 1000).toISOString();
+
+    const mockData = [
+      { sessionId: 1, sessionTitle: '古い', overallScore: 5.0, scores: [], createdAt: fiftyDaysAgo },
+      { sessionId: 2, sessionTitle: '新しい', overallScore: 7.5, scores: [], createdAt: fiveDaysAgo },
+    ];
+    mockFetchScoreHistory.mockResolvedValue(mockData);
+
+    const { result } = renderHook(() => useScoreHistory());
+
+    await waitFor(() => {
+      expect(result.current.history).toHaveLength(2);
+    });
+
+    act(() => {
+      result.current.setPeriodFilter('1ヶ月');
+    });
+
+    expect(result.current.filteredHistory).toHaveLength(1);
+    expect(result.current.filteredHistory[0].sessionTitle).toBe('新しい');
+  });
+
+  it('期間フィルタ「3ヶ月」で直近3ヶ月のセッションのみ返す', async () => {
+    const now = new Date();
+    const twentyDaysAgo = new Date(now.getTime() - 20 * 24 * 60 * 60 * 1000).toISOString();
+    const hundredDaysAgo = new Date(now.getTime() - 100 * 24 * 60 * 60 * 1000).toISOString();
+
+    const mockData = [
+      { sessionId: 1, sessionTitle: '古い', overallScore: 4.0, scores: [], createdAt: hundredDaysAgo },
+      { sessionId: 2, sessionTitle: '新しい', overallScore: 8.0, scores: [], createdAt: twentyDaysAgo },
+    ];
+    mockFetchScoreHistory.mockResolvedValue(mockData);
+
+    const { result } = renderHook(() => useScoreHistory());
+
+    await waitFor(() => {
+      expect(result.current.history).toHaveLength(2);
+    });
+
+    act(() => {
+      result.current.setPeriodFilter('3ヶ月');
+    });
+
+    expect(result.current.filteredHistory).toHaveLength(1);
+    expect(result.current.filteredHistory[0].sessionTitle).toBe('新しい');
+  });
+
+  it('期間フィルタ「全期間」で全セッションを返す', async () => {
+    const now = new Date();
+    const oneYearAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000).toISOString();
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+
+    const mockData = [
+      { sessionId: 1, sessionTitle: '古い', overallScore: 5.0, scores: [], createdAt: oneYearAgo },
+      { sessionId: 2, sessionTitle: '新しい', overallScore: 9.0, scores: [], createdAt: yesterday },
+    ];
+    mockFetchScoreHistory.mockResolvedValue(mockData);
+
+    const { result } = renderHook(() => useScoreHistory());
+
+    await waitFor(() => {
+      expect(result.current.history).toHaveLength(2);
+    });
+
+    act(() => {
+      result.current.setPeriodFilter('全期間');
+    });
+
+    expect(result.current.filteredHistory).toHaveLength(2);
+  });
+
+  it('期間フィルタとセッション種別フィルタを組み合わせて使える', async () => {
+    const now = new Date();
+    const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString();
+    const tenDaysAgo = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000).toISOString();
+
+    const mockData = [
+      { sessionId: 1, sessionTitle: '練習: 古い', overallScore: 5.0, scores: [], createdAt: tenDaysAgo },
+      { sessionId: 2, sessionTitle: 'フリー新しい', overallScore: 7.0, scores: [], createdAt: twoDaysAgo },
+      { sessionId: 3, sessionTitle: '練習: 新しい', overallScore: 8.0, scores: [], createdAt: twoDaysAgo },
+    ];
+    mockFetchScoreHistory.mockResolvedValue(mockData);
+
+    const { result } = renderHook(() => useScoreHistory());
+
+    await waitFor(() => {
+      expect(result.current.history).toHaveLength(3);
+    });
+
+    act(() => {
+      result.current.setPeriodFilter('1週間');
+      result.current.setFilter('練習');
+    });
+
+    expect(result.current.filteredHistory).toHaveLength(1);
+    expect(result.current.filteredHistory[0].sessionTitle).toBe('練習: 新しい');
+  });
 });

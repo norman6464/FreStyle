@@ -1,12 +1,8 @@
 package com.example.FreStyle.controller;
 
 import com.example.FreStyle.dto.ChatMessageDto;
-import com.example.FreStyle.entity.ChatRoom;
-import com.example.FreStyle.entity.User;
-import com.example.FreStyle.repository.RoomMemberRepository;
-import com.example.FreStyle.service.ChatMessageService;
-import com.example.FreStyle.service.ChatRoomService;
-import com.example.FreStyle.service.UnreadCountService;
+import com.example.FreStyle.usecase.DeleteChatMessageUseCase;
+import com.example.FreStyle.usecase.SendChatMessageUseCase;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -19,7 +15,6 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.sql.Timestamp;
 import java.util.Map;
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -29,41 +24,21 @@ import static org.mockito.Mockito.*;
 class ChatWebSocketControllerTest {
 
     @Mock
-    private ChatRoomService chatRoomService;
+    private SendChatMessageUseCase sendChatMessageUseCase;
 
     @Mock
-    private ChatMessageService chatMessageService;
+    private DeleteChatMessageUseCase deleteChatMessageUseCase;
 
     @Mock
     private SimpMessagingTemplate messagingTemplate;
 
-    @Mock
-    private UnreadCountService unreadCountService;
-
-    @Mock
-    private RoomMemberRepository roomMemberRepository;
-
     @InjectMocks
     private ChatWebSocketController controller;
 
-    private ChatRoom testRoom;
-    private User sender;
-    private User partner;
     private ChatMessageDto savedMessage;
 
     @BeforeEach
     void setUp() {
-        testRoom = new ChatRoom();
-        testRoom.setId(10);
-
-        sender = new User();
-        sender.setId(1);
-        sender.setName("送信者");
-
-        partner = new User();
-        partner.setId(2);
-        partner.setName("相手");
-
         savedMessage = new ChatMessageDto();
         savedMessage.setId(100);
         savedMessage.setRoomId(10);
@@ -74,33 +49,10 @@ class ChatWebSocketControllerTest {
     }
 
     @Test
-    @DisplayName("sendMessage: 相手のunreadCountがインクリメントされる")
-    void sendMessage_incrementsPartnerUnreadCount() {
-        // Arrange
-        when(chatRoomService.findChatRoomById(10)).thenReturn(testRoom);
-        when(chatMessageService.addMessage(testRoom, 1, "テストメッセージ")).thenReturn(savedMessage);
-        when(roomMemberRepository.findPartnerByRoomIdAndUserId(10, 1)).thenReturn(Optional.of(partner));
-
-        Map<String, Object> payload = Map.of(
-                "senderId", 1,
-                "roomId", 10,
-                "content", "テストメッセージ"
-        );
-
-        // Act
-        controller.sendMessage(payload);
-
-        // Assert
-        verify(unreadCountService).incrementUnreadCount(2, 10);
-    }
-
-    @Test
-    @DisplayName("sendMessage: WebSocketで/topic/unread/{partnerId}に通知が送信される")
+    @DisplayName("sendMessage: 相手のunreadCountがWebSocket通知される")
     void sendMessage_sendsUnreadNotificationViaWebSocket() {
-        // Arrange
-        when(chatRoomService.findChatRoomById(10)).thenReturn(testRoom);
-        when(chatMessageService.addMessage(testRoom, 1, "テストメッセージ")).thenReturn(savedMessage);
-        when(roomMemberRepository.findPartnerByRoomIdAndUserId(10, 1)).thenReturn(Optional.of(partner));
+        when(sendChatMessageUseCase.execute(1, 10, "テストメッセージ"))
+                .thenReturn(new SendChatMessageUseCase.Result(savedMessage, 2));
 
         Map<String, Object> payload = Map.of(
                 "senderId", 1,
@@ -108,14 +60,12 @@ class ChatWebSocketControllerTest {
                 "content", "テストメッセージ"
         );
 
-        // Act
         controller.sendMessage(payload);
 
-        // Assert - チャットメッセージのブロードキャスト
         verify(messagingTemplate).convertAndSend(eq("/topic/chat/10"), eq(savedMessage));
 
-        // Assert - 未読数通知
-        ArgumentCaptor<Map> captor = ArgumentCaptor.forClass(Map.class);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
         verify(messagingTemplate).convertAndSend(eq("/topic/unread/2"), captor.capture());
         Map<String, Object> notification = captor.getValue();
         assertEquals("unread_update", notification.get("type"));
@@ -124,12 +74,10 @@ class ChatWebSocketControllerTest {
     }
 
     @Test
-    @DisplayName("sendMessage: 相手が見つからない場合でも例外が発生しない")
-    void sendMessage_noPartner_doesNotThrow() {
-        // Arrange
-        when(chatRoomService.findChatRoomById(10)).thenReturn(testRoom);
-        when(chatMessageService.addMessage(testRoom, 1, "テストメッセージ")).thenReturn(savedMessage);
-        when(roomMemberRepository.findPartnerByRoomIdAndUserId(10, 1)).thenReturn(Optional.empty());
+    @DisplayName("sendMessage: 相手が見つからない場合は未読通知を送信しない")
+    void sendMessage_noPartner_doesNotSendUnreadNotification() {
+        when(sendChatMessageUseCase.execute(1, 10, "テストメッセージ"))
+                .thenReturn(new SendChatMessageUseCase.Result(savedMessage, null));
 
         Map<String, Object> payload = Map.of(
                 "senderId", 1,
@@ -137,10 +85,29 @@ class ChatWebSocketControllerTest {
                 "content", "テストメッセージ"
         );
 
-        // Act & Assert - 例外なし
-        assertDoesNotThrow(() -> controller.sendMessage(payload));
+        controller.sendMessage(payload);
 
-        // 未読数インクリメントは呼ばれない
-        verify(unreadCountService, never()).incrementUnreadCount(anyInt(), anyInt());
+        verify(messagingTemplate).convertAndSend(eq("/topic/chat/10"), eq(savedMessage));
+        verify(messagingTemplate, times(1)).convertAndSend(anyString(), any(Object.class));
+    }
+
+    @Test
+    @DisplayName("deleteMessage: 削除通知をWebSocketで送信する")
+    void deleteMessage_sendsDeleteNotificationViaWebSocket() {
+        Map<String, Object> payload = Map.of(
+                "messageId", 100,
+                "roomId", 10
+        );
+
+        controller.deleteMessage(payload);
+
+        verify(deleteChatMessageUseCase).execute(100);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
+        verify(messagingTemplate).convertAndSend(eq("/topic/chat/10"), captor.capture());
+        Map<String, Object> notification = captor.getValue();
+        assertEquals("delete", notification.get("type"));
+        assertEquals(100, notification.get("messageId"));
     }
 }

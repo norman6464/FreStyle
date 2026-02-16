@@ -280,4 +280,55 @@ class UserProfileServiceTest {
         assertNotNull(result);
         assertTrue(result.getPersonalityTraits().isEmpty());
     }
+
+    @Test
+    @DisplayName("convertToDto: 正常なJSON personalityTraitsがリストに変換される")
+    void convertToDto_validJson_returnsList() throws JsonProcessingException {
+        User user = createUser(1);
+        UserProfile profile = createProfile(10, user);
+        profile.setPersonalityTraits("[\"明るい\",\"積極的\"]");
+        when(userProfileRepository.findByUserId(1)).thenReturn(Optional.of(profile));
+        when(objectMapper.readValue(eq("[\"明るい\",\"積極的\"]"), any(com.fasterxml.jackson.core.type.TypeReference.class)))
+                .thenReturn(List.of("明るい", "積極的"));
+
+        UserProfileDto result = userProfileService.getProfileByUserId(1);
+
+        assertNotNull(result);
+        assertEquals(2, result.getPersonalityTraits().size());
+        assertEquals("明るい", result.getPersonalityTraits().get(0));
+        assertEquals("積極的", result.getPersonalityTraits().get(1));
+    }
+
+    @Test
+    @DisplayName("convertToDto: 全フィールドが正しくマッピングされる")
+    void convertToDto_allFieldsMapped() {
+        User user = createUser(1);
+        UserProfile profile = createProfile(10, user);
+        when(userProfileRepository.findById(10)).thenReturn(Optional.of(profile));
+
+        UserProfileDto result = userProfileService.getProfileById(10);
+
+        assertEquals(10, result.getId());
+        assertEquals(1, result.getUserId());
+        assertEquals("表示名", result.getDisplayName());
+        assertEquals("自己紹介", result.getSelfIntroduction());
+        assertEquals("friendly", result.getCommunicationStyle());
+        assertEquals("目標", result.getGoals());
+        assertEquals("悩み", result.getConcerns());
+        assertEquals("gentle", result.getPreferredFeedbackStyle());
+    }
+
+    @Test
+    @DisplayName("getSessionsByUserId: セッションがない場合は空リストを返す")
+    void getProfileByUserId_emptyPersonalityTraits_returnsEmptyList() {
+        User user = createUser(1);
+        UserProfile profile = createProfile(10, user);
+        profile.setPersonalityTraits(null);
+        when(userProfileRepository.findByUserId(1)).thenReturn(Optional.of(profile));
+
+        UserProfileDto result = userProfileService.getProfileByUserId(1);
+
+        assertNotNull(result);
+        assertTrue(result.getPersonalityTraits().isEmpty());
+    }
 }

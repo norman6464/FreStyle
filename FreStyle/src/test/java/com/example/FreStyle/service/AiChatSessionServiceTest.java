@@ -200,4 +200,56 @@ class AiChatSessionServiceTest {
 
         assertTrue(result.isEmpty());
     }
+
+    @Test
+    @DisplayName("createSession: 関連ルームが見つからない場合に例外")
+    void createSession_throwsWhenRelatedRoomNotFound() {
+        User user = createUser(1);
+        when(userRepository.findById(1)).thenReturn(Optional.of(user));
+        when(chatRoomRepository.findById(999)).thenReturn(Optional.empty());
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> aiChatSessionService.createSession(1, "テスト", 999, "meeting", "normal", null));
+        assertTrue(ex.getMessage().contains("チャットルームが見つかりません"));
+    }
+
+    @Test
+    @DisplayName("updateSessionTitle: 存在しないセッションの場合に例外")
+    void updateSessionTitle_throwsWhenNotFound() {
+        when(aiChatSessionRepository.findByIdAndUserId(999, 1))
+                .thenReturn(Optional.empty());
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> aiChatSessionService.updateSessionTitle(999, 1, "新タイトル"));
+        assertTrue(ex.getMessage().contains("セッションが見つかりません"));
+    }
+
+    @Test
+    @DisplayName("deleteSession: 存在しないセッションの場合に例外")
+    void deleteSession_throwsWhenNotFound() {
+        when(aiChatSessionRepository.findByIdAndUserId(999, 1))
+                .thenReturn(Optional.empty());
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> aiChatSessionService.deleteSession(999, 1));
+        assertTrue(ex.getMessage().contains("セッションが見つかりません"));
+    }
+
+    @Test
+    @DisplayName("createSession: 3パラメータオーバーロードでscene=null, sessionType=normalが設定される")
+    void createSession_threeParamOverload_setsDefaults() {
+        User user = createUser(1);
+        when(userRepository.findById(1)).thenReturn(Optional.of(user));
+
+        AiChatSession saved = createSession(10, user, "デフォルト確認");
+        when(aiChatSessionRepository.save(any())).thenReturn(saved);
+
+        aiChatSessionService.createSession(1, "デフォルト確認", null);
+
+        ArgumentCaptor<AiChatSession> captor = ArgumentCaptor.forClass(AiChatSession.class);
+        verify(aiChatSessionRepository).save(captor.capture());
+        assertNull(captor.getValue().getScene());
+        assertEquals("normal", captor.getValue().getSessionType());
+        assertNull(captor.getValue().getScenarioId());
+    }
 }

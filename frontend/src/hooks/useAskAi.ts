@@ -176,6 +176,7 @@ export function useAskAi() {
     scoreCard,
     messagesEndRef,
     isPracticeMode,
+    scenarioId,
     scenarioName,
 
     // セッション管理

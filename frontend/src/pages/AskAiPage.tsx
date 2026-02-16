@@ -24,6 +24,7 @@ export default function AskAiPage() {
     scoreCard,
     messagesEndRef,
     isPracticeMode,
+    scenarioId,
     scenarioName,
     currentSessionId,
     deleteModal,
@@ -144,7 +145,7 @@ export default function AskAiPage() {
             <div className="max-w-3xl mx-auto w-full space-y-3">
               <ScoreCardComponent scoreCard={scoreCard} />
               {isPracticeMode && (
-                <PracticeResultSummary scoreCard={scoreCard} scenarioName={scenarioName || '練習'} />
+                <PracticeResultSummary scoreCard={scoreCard} scenarioName={scenarioName || '練習'} scenarioId={scenarioId ?? undefined} />
               )}
               {currentSessionId && (
                 <SessionNoteEditor sessionId={currentSessionId} />

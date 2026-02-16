@@ -103,4 +103,14 @@ describe('NoteListItem', () => {
     const preview = screen.getByText('あ'.repeat(60));
     expect(preview).toBeInTheDocument();
   });
+
+  it('読了時間が表示される', () => {
+    render(<NoteListItem {...defaultProps} content="テスト内容" />);
+    expect(screen.getByText(/約\d+分/)).toBeInTheDocument();
+  });
+
+  it('空の内容では読了時間が約0分と表示される', () => {
+    render(<NoteListItem {...defaultProps} content="" />);
+    expect(screen.getByText('約0分')).toBeInTheDocument();
+  });
 });

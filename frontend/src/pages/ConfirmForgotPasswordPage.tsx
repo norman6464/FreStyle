@@ -5,11 +5,11 @@ import FormMessage from '../components/FormMessage';
 import { useConfirmForgotPassword } from '../hooks/useConfirmForgotPassword';
 
 export default function ConfirmForgotPasswordPage() {
-  const { form, message, loading, handleChange, handleConfirm } = useConfirmForgotPassword();
+  const { form, message, loading, handleChange, handleConfirm, clearMessage } = useConfirmForgotPassword();
 
   return (
     <AuthLayout>
-      <FormMessage message={message} />
+      <FormMessage message={message} onDismiss={clearMessage} />
       <h2 className="text-2xl font-bold mb-6 text-center">
         パスワードリセット確認
       </h2>

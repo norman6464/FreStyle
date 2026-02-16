@@ -5,11 +5,11 @@ import FormMessage from '../components/FormMessage';
 import { useForgotPassword } from '../hooks/useForgotPassword';
 
 export default function ForgotPasswordPage() {
-  const { email, setEmail, message, loading, handleSubmit } = useForgotPassword();
+  const { email, setEmail, message, loading, handleSubmit, clearMessage } = useForgotPassword();
 
   return (
     <AuthLayout>
-      <FormMessage message={message} />
+      <FormMessage message={message} onDismiss={clearMessage} />
       <h2 className="text-2xl font-bold mb-6 text-center">
         パスワードリセット
       </h2>

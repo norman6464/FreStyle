@@ -36,11 +36,14 @@ export function useSignupPage() {
     }
   };
 
+  const clearMessage = () => setMessage(null);
+
   return {
     form,
     message,
     loading,
     handleChange,
     handleSignup,
+    clearMessage,
   };
 }

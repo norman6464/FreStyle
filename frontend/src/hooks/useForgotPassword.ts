@@ -25,5 +25,7 @@ export function useForgotPassword() {
     }
   };
 
-  return { email, setEmail, message, loading, handleSubmit };
+  const clearMessage = () => setMessage(null);
+
+  return { email, setEmail, message, loading, handleSubmit, clearMessage };
 }

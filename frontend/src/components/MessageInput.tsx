@@ -56,7 +56,7 @@ export default function MessageInput({ onSend, isSending = false }: MessageInput
           disabled={isSending}
         />
         {text.length > 0 && (
-          <span data-testid="char-count" className="block px-3 pb-1 text-[10px] text-[var(--color-text-muted)] text-right">
+          <span data-testid="char-count" className="block px-3 pb-1 text-[10px] text-[var(--color-text-muted)] text-right" aria-live="polite">
             {text.length}
           </span>
         )}

@@ -156,4 +156,15 @@ describe('MessageInput', () => {
     fireEvent.keyDown(textarea, { key: 'Enter', shiftKey: false });
     expect(screen.queryByTestId('char-count')).not.toBeInTheDocument();
   });
+
+  it('文字数表示にaria-live="polite"が設定されている', () => {
+    render(<MessageInput onSend={mockOnSend} />);
+
+    fireEvent.change(screen.getByPlaceholderText('メッセージを入力...'), {
+      target: { value: 'テスト入力' },
+    });
+
+    const charCount = screen.getByTestId('char-count');
+    expect(charCount).toHaveAttribute('aria-live', 'polite');
+  });
 });

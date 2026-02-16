@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import SockJS from 'sockjs-client';
-import { Client, IMessage } from '@stomp/stompjs';
+import { Client, IFrame, IMessage } from '@stomp/stompjs';
 
 /**
  * WebSocketフック
@@ -23,7 +23,7 @@ interface UseWebSocketOptions {
   userId: number | null;
   onConnect?: () => void;
   onDisconnect?: () => void;
-  onError?: (error: any) => void;
+  onError?: (error: IFrame) => void;
 }
 
 interface Subscription {
@@ -104,7 +104,7 @@ export const useWebSocket = ({ url, userId, onConnect, onDisconnect, onError }: 
   /**
    * メッセージ送信
    */
-  const publish = useCallback((destination: string, body: any) => {
+  const publish = useCallback((destination: string, body: Record<string, unknown>) => {
     if (clientRef.current?.connected) {
       clientRef.current.publish({
         destination,

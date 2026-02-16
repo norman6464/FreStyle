@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { ClipboardDocumentIcon, ClipboardDocumentCheckIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { formatHourMinute } from '../utils/formatters';
 
@@ -16,7 +16,7 @@ interface MessageBubbleProps {
   isDeleted?: boolean;
 }
 
-export default function MessageBubble({
+export default memo(function MessageBubble({
   isSender,
   type = 'text',
   content,
@@ -121,4 +121,4 @@ export default function MessageBubble({
       </div>
     </div>
   );
-}
+});

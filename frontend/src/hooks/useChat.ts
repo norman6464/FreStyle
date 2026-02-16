@@ -62,7 +62,7 @@ export function useChat() {
     try {
       const data = await ChatRepository.fetchHistory(roomId!);
       if (!Array.isArray(data)) return;
-      const formatted = data.map((msg: any) => ({
+      const formatted = data.map((msg: ChatMessage) => ({
         id: msg.id,
         roomId: msg.roomId,
         senderId: msg.senderId,

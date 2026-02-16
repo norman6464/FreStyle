@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import PracticeRepository, {
   PracticeScenario,
+  PracticeSession,
   CreatePracticeSessionRequest,
 } from '../repositories/PracticeRepository';
 
@@ -69,7 +70,7 @@ export const usePractice = () => {
    * 練習セッションを作成
    */
   const createPracticeSession = useCallback(
-    async (request: CreatePracticeSessionRequest): Promise<any | null> => {
+    async (request: CreatePracticeSessionRequest): Promise<PracticeSession | null> => {
       setLoading(true);
       setError(null);
 

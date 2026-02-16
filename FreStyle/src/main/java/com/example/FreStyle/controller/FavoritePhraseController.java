@@ -37,8 +37,7 @@ public class FavoritePhraseController {
 
     @GetMapping
     public ResponseEntity<List<FavoritePhraseDto>> getFavoritePhrases(@AuthenticationPrincipal Jwt jwt) {
-        String sub = jwt.getSubject();
-        User user = userIdentityService.findUserBySub(sub);
+        User user = resolveUser(jwt);
         List<FavoritePhraseDto> phrases = getUserFavoritePhrasesUseCase.execute(user.getId());
         return ResponseEntity.ok(phrases);
     }
@@ -47,8 +46,7 @@ public class FavoritePhraseController {
     public ResponseEntity<Void> addFavoritePhrase(
             @AuthenticationPrincipal Jwt jwt,
             @RequestBody Map<String, String> body) {
-        String sub = jwt.getSubject();
-        User user = userIdentityService.findUserBySub(sub);
+        User user = resolveUser(jwt);
         addFavoritePhraseUseCase.execute(
                 user,
                 body.get("originalText"),
@@ -61,9 +59,12 @@ public class FavoritePhraseController {
     public ResponseEntity<Void> removeFavoritePhrase(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable Integer phraseId) {
-        String sub = jwt.getSubject();
-        User user = userIdentityService.findUserBySub(sub);
+        User user = resolveUser(jwt);
         removeFavoritePhraseUseCase.execute(user.getId(), phraseId);
         return ResponseEntity.ok().build();
+    }
+
+    private User resolveUser(Jwt jwt) {
+        return userIdentityService.findUserBySub(jwt.getSubject());
     }
 }

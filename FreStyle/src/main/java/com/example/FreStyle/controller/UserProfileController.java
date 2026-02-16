@@ -1,6 +1,7 @@
 package com.example.FreStyle.controller;
 
 import java.util.Map;
+import java.util.Optional;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -28,6 +29,12 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class UserProfileController {
 
+    private static final ResponseEntity<?> UNAUTHORIZED_RESPONSE = ResponseEntity
+            .status(HttpStatus.UNAUTHORIZED)
+            .body(Map.of("error", "認証に失敗しました。"));
+
+    private static final String SERVER_ERROR_MESSAGE = "サーバーエラーが発生しました。";
+
     private final GetUserProfileUseCase getUserProfileUseCase;
     private final CreateUserProfileUseCase createUserProfileUseCase;
     private final UpdateUserProfileUseCase updateUserProfileUseCase;
@@ -36,19 +43,19 @@ public class UserProfileController {
 
     @GetMapping("/me")
     public ResponseEntity<?> getMyProfile(@AuthenticationPrincipal Jwt jwt) {
-        if (jwt == null || jwt.getSubject() == null || jwt.getSubject().isEmpty()) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("error", "認証に失敗しました。"));
+        Optional<String> subject = extractSubject(jwt);
+        if (subject.isEmpty()) {
+            return UNAUTHORIZED_RESPONSE;
         }
         try {
-            UserProfileDto profileDto = getUserProfileUseCase.execute(jwt.getSubject());
+            UserProfileDto profileDto = getUserProfileUseCase.execute(subject.get());
             if (profileDto == null) {
                 return ResponseEntity.ok(Map.of("message", "プロファイルが設定されていません。"));
             }
             return ResponseEntity.ok(profileDto);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "サーバーエラーが発生しました。"));
+                    .body(Map.of("error", SERVER_ERROR_MESSAGE));
         }
     }
 
@@ -56,19 +63,19 @@ public class UserProfileController {
     public ResponseEntity<?> createMyProfile(
             @AuthenticationPrincipal Jwt jwt,
             @Validated @RequestBody UserProfileForm form) {
-        if (jwt == null || jwt.getSubject() == null || jwt.getSubject().isEmpty()) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("error", "認証に失敗しました。"));
+        Optional<String> subject = extractSubject(jwt);
+        if (subject.isEmpty()) {
+            return UNAUTHORIZED_RESPONSE;
         }
         try {
-            UserProfileDto profileDto = createUserProfileUseCase.execute(jwt.getSubject(), form);
+            UserProfileDto profileDto = createUserProfileUseCase.execute(subject.get(), form);
             return ResponseEntity.status(HttpStatus.CREATED).body(profileDto);
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "サーバーエラーが発生しました。"));
+                    .body(Map.of("error", SERVER_ERROR_MESSAGE));
         }
     }
 
@@ -76,19 +83,19 @@ public class UserProfileController {
     public ResponseEntity<?> updateMyProfile(
             @AuthenticationPrincipal Jwt jwt,
             @Validated @RequestBody UserProfileForm form) {
-        if (jwt == null || jwt.getSubject() == null || jwt.getSubject().isEmpty()) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("error", "認証に失敗しました。"));
+        Optional<String> subject = extractSubject(jwt);
+        if (subject.isEmpty()) {
+            return UNAUTHORIZED_RESPONSE;
         }
         try {
-            UserProfileDto profileDto = updateUserProfileUseCase.execute(jwt.getSubject(), form);
+            UserProfileDto profileDto = updateUserProfileUseCase.execute(subject.get(), form);
             return ResponseEntity.ok(profileDto);
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "サーバーエラーが発生しました。"));
+                    .body(Map.of("error", SERVER_ERROR_MESSAGE));
         }
     }
 
@@ -96,37 +103,44 @@ public class UserProfileController {
     public ResponseEntity<?> upsertMyProfile(
             @AuthenticationPrincipal Jwt jwt,
             @Validated @RequestBody UserProfileForm form) {
-        if (jwt == null || jwt.getSubject() == null || jwt.getSubject().isEmpty()) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("error", "認証に失敗しました。"));
+        Optional<String> subject = extractSubject(jwt);
+        if (subject.isEmpty()) {
+            return UNAUTHORIZED_RESPONSE;
         }
         try {
-            UserProfileDto profileDto = upsertUserProfileUseCase.execute(jwt.getSubject(), form);
+            UserProfileDto profileDto = upsertUserProfileUseCase.execute(subject.get(), form);
             return ResponseEntity.ok(profileDto);
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "サーバーエラーが発生しました。"));
+                    .body(Map.of("error", SERVER_ERROR_MESSAGE));
         }
     }
 
     @PostMapping("/me/delete")
     public ResponseEntity<?> deleteMyProfile(@AuthenticationPrincipal Jwt jwt) {
-        if (jwt == null || jwt.getSubject() == null || jwt.getSubject().isEmpty()) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("error", "認証に失敗しました。"));
+        Optional<String> subject = extractSubject(jwt);
+        if (subject.isEmpty()) {
+            return UNAUTHORIZED_RESPONSE;
         }
         try {
-            deleteUserProfileUseCase.execute(jwt.getSubject());
+            deleteUserProfileUseCase.execute(subject.get());
             return ResponseEntity.ok(Map.of("message", "プロファイルを削除しました。"));
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "サーバーエラーが発生しました。"));
+                    .body(Map.of("error", SERVER_ERROR_MESSAGE));
         }
+    }
+
+    private Optional<String> extractSubject(Jwt jwt) {
+        if (jwt == null || jwt.getSubject() == null || jwt.getSubject().isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(jwt.getSubject());
     }
 }

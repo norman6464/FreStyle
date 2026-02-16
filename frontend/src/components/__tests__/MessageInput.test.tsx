@@ -129,4 +129,42 @@ describe('MessageInput', () => {
 
     expect(mockOnSend).toHaveBeenCalledWith('ボタン送信');
   });
+
+  it('テキスト入力時に文字数が表示される', () => {
+    render(<MessageInput onSend={mockOnSend} />);
+
+    fireEvent.change(screen.getByPlaceholderText('メッセージを入力...'), {
+      target: { value: 'テスト入力' },
+    });
+
+    expect(screen.getByText('5')).toBeInTheDocument();
+  });
+
+  it('空テキスト時は文字数が表示されない', () => {
+    render(<MessageInput onSend={mockOnSend} />);
+
+    expect(screen.queryByTestId('char-count')).not.toBeInTheDocument();
+  });
+
+  it('送信後に文字数表示が消える', () => {
+    render(<MessageInput onSend={mockOnSend} />);
+
+    const textarea = screen.getByPlaceholderText('メッセージを入力...');
+    fireEvent.change(textarea, { target: { value: 'テスト' } });
+    expect(screen.getByText('3')).toBeInTheDocument();
+
+    fireEvent.keyDown(textarea, { key: 'Enter', shiftKey: false });
+    expect(screen.queryByTestId('char-count')).not.toBeInTheDocument();
+  });
+
+  it('文字数表示にaria-live="polite"が設定されている', () => {
+    render(<MessageInput onSend={mockOnSend} />);
+
+    fireEvent.change(screen.getByPlaceholderText('メッセージを入力...'), {
+      target: { value: 'テスト入力' },
+    });
+
+    const charCount = screen.getByTestId('char-count');
+    expect(charCount).toHaveAttribute('aria-live', 'polite');
+  });
 });

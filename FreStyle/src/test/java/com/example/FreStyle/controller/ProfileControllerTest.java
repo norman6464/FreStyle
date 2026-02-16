@@ -69,6 +69,19 @@ class ProfileControllerTest {
             assertThrows(ResourceNotFoundException.class,
                     () -> profileController.getProfile(jwt));
         }
+
+        @Test
+        @DisplayName("JWTのsubjectがnullの場合useCaseにnullが渡される")
+        void passesNullSubjectToUseCase() {
+            Jwt jwt = mock(Jwt.class);
+            when(jwt.getSubject()).thenReturn(null);
+            when(getProfileUseCase.execute(null))
+                    .thenThrow(new ResourceNotFoundException("ユーザーが見つかりません"));
+
+            assertThrows(ResourceNotFoundException.class,
+                    () -> profileController.getProfile(jwt));
+            verify(getProfileUseCase).execute(null);
+        }
     }
 
     @Nested

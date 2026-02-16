@@ -312,5 +312,15 @@ class CognitoAuthServiceTest {
                     () -> service.refreshAccessToken("invalid-token", "test@example.com"));
             assertEquals("リフレッシュトークンが無効です。再ログインしてください。", ex.getMessage());
         }
+
+        @Test
+        void 予期しない例外でRuntimeExceptionにラップされる() {
+            when(cognitoClient.initiateAuth(any(InitiateAuthRequest.class)))
+                    .thenThrow(new RuntimeException("unexpected error"));
+
+            RuntimeException ex = assertThrows(RuntimeException.class,
+                    () -> service.refreshAccessToken("valid-token", "test@example.com"));
+            assertEquals("アクセストークン再発行中にエラーが発生しました。", ex.getMessage());
+        }
     }
 }

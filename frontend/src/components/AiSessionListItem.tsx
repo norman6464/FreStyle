@@ -58,10 +58,10 @@ export default memo(function AiSessionListItem({
               className="flex-1 text-xs px-2 py-1 border border-[var(--color-border-hover)] rounded focus:outline-none focus:ring-1 focus:ring-primary-400"
               autoFocus
             />
-            <button onClick={() => onSaveTitle(id)} className="p-0.5 hover:bg-green-900/30 rounded">
+            <button onClick={() => onSaveTitle(id)} className="p-0.5 hover:bg-green-900/30 rounded" aria-label="保存">
               <CheckIcon className="w-3.5 h-3.5 text-green-400" />
             </button>
-            <button onClick={onCancelEdit} className="p-0.5 hover:bg-surface-3 rounded">
+            <button onClick={onCancelEdit} className="p-0.5 hover:bg-surface-3 rounded" aria-label="キャンセル">
               <XMarkIcon className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
             </button>
           </div>
@@ -80,6 +80,7 @@ export default memo(function AiSessionListItem({
             onClick={(e) => { e.stopPropagation(); onStartEdit({ id, title }); }}
             className="p-1 hover:bg-blue-900/30 rounded"
             title="タイトルを編集"
+            aria-label="タイトルを編集"
           >
             <PencilSquareIcon className="w-3.5 h-3.5 text-blue-500" />
           </button>
@@ -90,6 +91,7 @@ export default memo(function AiSessionListItem({
             }}
             className="p-1 hover:bg-rose-900/30 rounded"
             title="削除"
+            aria-label="削除"
           >
             <TrashIcon className="w-3.5 h-3.5 text-rose-500" />
           </button>

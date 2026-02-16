@@ -14,13 +14,16 @@ export default function SessionDetailModal({ session, onClose }: SessionDetailMo
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="session-detail-title"
         className="bg-surface-1 rounded-xl shadow-xl max-w-md w-full max-h-[80vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-5">
           <div className="flex items-start justify-between mb-4">
             <div>
-              <h2 className="text-sm font-bold text-[var(--color-text-primary)]">
+              <h2 id="session-detail-title" className="text-sm font-bold text-[var(--color-text-primary)]">
                 {session.sessionTitle || `セッション #${session.sessionId}`}
               </h2>
               <p className="text-xs text-[var(--color-text-faint)] mt-0.5">

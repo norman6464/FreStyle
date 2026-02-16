@@ -1,15 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import { AxiosError, AxiosHeaders } from 'axios';
-import { classifyApiError } from '../classifyApiError';
+import { classifyApiError, extractServerErrorMessage } from '../classifyApiError';
 
-function createAxiosError(status: number, message = 'Request failed'): AxiosError {
+function createAxiosError(status: number, message = 'Request failed', data: Record<string, unknown> = {}): AxiosError {
   const headers = new AxiosHeaders();
   return new AxiosError(message, 'ERR_BAD_REQUEST', undefined, undefined, {
     status,
     statusText: '',
     headers: {},
     config: { headers },
-    data: {},
+    data,
   });
 }
 
@@ -79,5 +79,31 @@ describe('classifyApiError', () => {
     const error = createAxiosError(418);
     const result = classifyApiError(error, 'デフォルトメッセージ');
     expect(result).toBe('デフォルトメッセージ');
+  });
+});
+
+describe('extractServerErrorMessage', () => {
+  it('サーバーエラーメッセージがある場合はそれを返す', () => {
+    const error = createAxiosError(400, 'Bad Request', { error: '確認コードが無効です' });
+    const result = extractServerErrorMessage(error, '通信エラーが発生しました。');
+    expect(result).toBe('確認コードが無効です');
+  });
+
+  it('サーバーエラーメッセージがない場合はclassifyApiErrorにフォールバックする', () => {
+    const error = createAxiosError(500);
+    const result = extractServerErrorMessage(error, '通信エラーが発生しました。');
+    expect(result).toBe('サーバーエラーが発生しました。時間をおいてお試しください。');
+  });
+
+  it('ネットワークエラーの場合はclassifyApiErrorのメッセージを返す', () => {
+    const error = createNetworkError();
+    const result = extractServerErrorMessage(error, '通信エラーが発生しました。');
+    expect(result).toBe('インターネット接続を確認してください。');
+  });
+
+  it('一般的なErrorの場合はフォールバックメッセージを返す', () => {
+    const error = new Error('something went wrong');
+    const result = extractServerErrorMessage(error, '通信エラーが発生しました。');
+    expect(result).toBe('通信エラーが発生しました。');
   });
 });

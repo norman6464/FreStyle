@@ -40,7 +40,7 @@ public class ProfileController {
         log.info("[ProfileController /me] Endpoint called");
         
         if (jwt == null) {
-            log.info("[ProfileController /me] ERROR: JWT is null - user not authenticated");
+            log.warn("認証エラー: JWTがnull");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "認証に失敗しました。"));
         }
@@ -52,7 +52,7 @@ public class ProfileController {
 
         if (sub == null || sub.isEmpty()) {
             // JWT が無効 → 認証されていない
-            log.info("[ProfileController /me] ERROR: JWT subject is null or empty");
+            log.warn("認証エラー: JWTのsubがnullまたは空");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "認証に失敗しました。"));
         }
@@ -63,7 +63,7 @@ public class ProfileController {
 
             if (user == null) {
                 // sub に紐づくユーザーが DB に存在しない
-                log.info("[ProfileController /me] ERROR: User not found for sub: " + sub);
+                log.warn("ユーザー未存在: sub={}", sub);
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
                         .body(Map.of("error", "ユーザーが存在しません。"));
             }
@@ -96,7 +96,7 @@ public class ProfileController {
         log.info("[ProfileController /me/update] Endpoint called");
         
         if (jwt == null) {
-            log.info("[ProfileController /me/update] ERROR: JWT is null - user not authenticated");
+            log.warn("認証エラー: JWTがnull");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "認証に失敗しました。"));
         }
@@ -107,7 +107,7 @@ public class ProfileController {
         log.info("[ProfileController /me/update] JWT Subject (sub): " + sub);
 
         if (sub == null || sub.isEmpty()) {
-            log.info("[ProfileController /me/update] ERROR: JWT subject is null or empty");
+            log.warn("認証エラー: JWTのsubがnullまたは空");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "認証に失敗しました。"));
         }
@@ -138,7 +138,7 @@ public class ProfileController {
 
         } catch (IllegalArgumentException e) {
             // フォームの入力値が不正等
-            log.info("[ProfileController /me/update] ERROR: IllegalArgumentException - " + e.getMessage());
+            log.warn("プロフィール更新エラー(入力値不正): {}", e.getMessage());
             return ResponseEntity.badRequest()
                     .body(Map.of("error", e.getMessage()));
 

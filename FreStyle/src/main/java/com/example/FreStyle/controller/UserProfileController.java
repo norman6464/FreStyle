@@ -39,7 +39,7 @@ public class UserProfileController {
         log.info("[UserProfileController /me] Endpoint called");
         
         if (jwt == null) {
-            log.info("[UserProfileController /me] ERROR: JWT is null");
+            log.warn("認証エラー: JWTがnull");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "認証に失敗しました。"));
         }
@@ -105,7 +105,7 @@ public class UserProfileController {
             return ResponseEntity.status(HttpStatus.CREATED).body(profileDto);
 
         } catch (RuntimeException e) {
-            log.info("[UserProfileController POST /me] ERROR: " + e.getMessage());
+            log.warn("プロファイル作成エラー(不正リクエスト): {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
@@ -147,7 +147,7 @@ public class UserProfileController {
             return ResponseEntity.ok(profileDto);
 
         } catch (RuntimeException e) {
-            log.info("[UserProfileController PUT /me] ERROR: " + e.getMessage());
+            log.warn("プロファイル更新エラー(不正リクエスト): {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
@@ -189,7 +189,7 @@ public class UserProfileController {
             return ResponseEntity.ok(profileDto);
 
         } catch (RuntimeException e) {
-            log.info("[UserProfileController PUT /me/upsert] ERROR: " + e.getMessage());
+            log.warn("プロファイルupsertエラー(不正リクエスト): {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
@@ -228,7 +228,7 @@ public class UserProfileController {
             return ResponseEntity.ok(Map.of("message", "プロファイルを削除しました。"));
 
         } catch (RuntimeException e) {
-            log.info("[UserProfileController DELETE /me] ERROR: " + e.getMessage());
+            log.warn("プロファイル削除エラー(不正リクエスト): {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("error", e.getMessage()));
         } catch (Exception e) {

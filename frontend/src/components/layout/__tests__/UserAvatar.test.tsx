@@ -20,4 +20,20 @@ describe('UserAvatar', () => {
 
     expect(screen.getByText('?')).toBeInTheDocument();
   });
+
+  it('size="sm"でsmクラスが適用される', () => {
+    const { container } = render(<UserAvatar name="太郎" size="sm" />);
+
+    const avatar = container.firstElementChild!;
+    expect(avatar.className).toContain('w-7');
+    expect(avatar.className).toContain('h-7');
+  });
+
+  it('デフォルトサイズでmdクラスが適用される', () => {
+    const { container } = render(<UserAvatar name="太郎" />);
+
+    const avatar = container.firstElementChild!;
+    expect(avatar.className).toContain('w-8');
+    expect(avatar.className).toContain('h-8');
+  });
 });

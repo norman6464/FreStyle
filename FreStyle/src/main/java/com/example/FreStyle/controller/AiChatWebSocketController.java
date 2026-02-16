@@ -246,20 +246,11 @@ public class AiChatWebSocketController {
             log.info("========== /ai-chat/send 処理完了 ==========\n");
 
         } catch (NumberFormatException e) {
-            log.error("❌ 型変換エラー発生");
-            log.error("   エラーメッセージ: " + e.getMessage());
-            log.info("========== /ai-chat/send 処理失敗 ==========\n");
+            log.error("AIチャット送信エラー(型変換): {}", e.getMessage(), e);
         } catch (NullPointerException e) {
-            log.error("❌ NullPointerException 発生");
-            log.error("   ペイロードに必須パラメータが不足しています");
-            log.error("   必須: userId, content");
-            log.error("   エラーメッセージ: " + e.getMessage());
-            log.info("========== /ai-chat/send 処理失敗 ==========\n");
+            log.error("AIチャット送信エラー(パラメータ不足): {}", e.getMessage(), e);
         } catch (Exception e) {
-            log.error("❌ 予期しないエラー発生");
-            log.error("   エラータイプ: " + e.getClass().getName());
-            log.error("   エラーメッセージ: " + e.getMessage());
-            log.info("========== /ai-chat/send 処理失敗 ==========\n");
+            log.error("AIチャット送信エラー: {}", e.getMessage(), e);
         }
     }
 
@@ -288,8 +279,7 @@ public class AiChatWebSocketController {
             log.info("========== /ai-chat/response 処理完了 ==========\n");
 
         } catch (Exception e) {
-            log.error("❌ AIレスポンス処理エラー: " + e.getMessage());
-            log.info("========== /ai-chat/response 処理失敗 ==========\n");
+            log.error("AIレスポンス処理エラー: {}", e.getMessage(), e);
         }
     }
 
@@ -327,8 +317,7 @@ public class AiChatWebSocketController {
             log.info("========== /ai-chat/rephrase 処理完了 ==========\n");
 
         } catch (Exception e) {
-            log.error("❌ 言い換え処理エラー: " + e.getMessage());
-            log.info("========== /ai-chat/rephrase 処理失敗 ==========\n");
+            log.error("言い換え処理エラー: {}", e.getMessage(), e);
         }
     }
 
@@ -354,8 +343,7 @@ public class AiChatWebSocketController {
             log.info("========== /ai-chat/delete-session 処理完了 ==========\n");
 
         } catch (Exception e) {
-            log.error("❌ セッション削除エラー: " + e.getMessage());
-            log.info("========== /ai-chat/delete-session 処理失敗 ==========\n");
+            log.error("セッション削除エラー: {}", e.getMessage(), e);
         }
     }
 

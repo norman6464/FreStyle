@@ -121,21 +121,11 @@ public class ChatWebSocketController {
             log.info("========== /chat/send 処理完了 ==========\n");
             
         } catch (NumberFormatException e) {
-            log.error("❌ 型変換エラー発生");
-            log.info("   エラーメッセージ: " + e.getMessage());
-            log.info("   roomId を Integer に変換できませんでした");
-            log.info("========== /chat/send 処理失敗 ==========\n");
+            log.error("メッセージ送信エラー(型変換): {}", e.getMessage(), e);
         } catch (NullPointerException e) {
-            log.error("❌ NullPointerException 発生");
-            log.info("   ペイロードに必須パラメータが不足しています");
-            log.info("   必須: senderId, roomId, content");
-            log.info("   エラーメッセージ: " + e.getMessage());
-            log.info("========== /chat/send 処理失敗 ==========\n");
+            log.error("メッセージ送信エラー(パラメータ不足): {}", e.getMessage(), e);
         } catch (Exception e) {
-            log.error("❌ 予期しないエラー発生");
-            log.info("   エラータイプ: " + e.getClass().getName());
-            log.info("   エラーメッセージ: " + e.getMessage());
-            log.info("========== /chat/send 処理失敗 ==========\n");
+            log.error("メッセージ送信エラー: {}", e.getMessage(), e);
         }
     }
 
@@ -182,21 +172,11 @@ public class ChatWebSocketController {
             log.info("========== /chat/delete 処理完了 ==========\n");
             
         } catch (NumberFormatException e) {
-            log.error("❌ 型変換エラー発生");
-            log.info("   エラーメッセージ: " + e.getMessage());
-            log.info("   messageId または roomId を Integer に変換できませんでした");
-            log.info("========== /chat/delete 処理失敗 ==========\n");
+            log.error("メッセージ削除エラー(型変換): {}", e.getMessage(), e);
         } catch (NullPointerException e) {
-            log.error("❌ NullPointerException 発生");
-            log.info("   ペイロードに必須パラメータが不足しています");
-            log.info("   必須: messageId, roomId");
-            log.info("   エラーメッセージ: " + e.getMessage());
-            log.info("========== /chat/delete 処理失敗 ==========\n");
+            log.error("メッセージ削除エラー(パラメータ不足): {}", e.getMessage(), e);
         } catch (Exception e) {
-            log.error("❌ 予期しないエラー発生");
-            log.info("   エラータイプ: " + e.getClass().getName());
-            log.info("   エラーメッセージ: " + e.getMessage());
-            log.info("========== /chat/delete 処理失敗 ==========\n");
+            log.error("メッセージ削除エラー: {}", e.getMessage(), e);
         }
     }
 }

@@ -167,7 +167,7 @@ public class ChatController {
       
       return ResponseEntity.ok().body(stats);
     } catch (Exception e) {
-      log.info(e.getMessage());
+      log.error("統計情報取得エラー: {}", e.getMessage(), e);
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "サーバーエラーです。"));
     }
   }

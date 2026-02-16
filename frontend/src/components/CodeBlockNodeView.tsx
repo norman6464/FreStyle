@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { NodeViewWrapper, NodeViewContent } from '@tiptap/react';
 import { ClipboardIcon, CheckIcon } from '@heroicons/react/24/outline';
+import { UI_TIMINGS } from '../constants/uiTimings';
 
 const LANGUAGES = [
   { value: '', label: 'プレーンテキスト' },
@@ -46,7 +47,7 @@ export default function CodeBlockNodeView({ node, updateAttributes }: CodeBlockN
     try {
       await navigator.clipboard.writeText(node.textContent);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setTimeout(() => setCopied(false), UI_TIMINGS.COPY_FEEDBACK_DURATION);
     } catch {
       // Clipboard API非対応・権限なし時は無視
     }

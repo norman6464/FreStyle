@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { CheckIcon, ClipboardDocumentIcon } from '@heroicons/react/24/outline';
+import { UI_TIMINGS } from '../constants/uiTimings';
 
 interface Message {
   id: number;
@@ -22,7 +23,7 @@ export default function ExportSessionButton({ messages }: ExportSessionButtonPro
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setTimeout(() => setCopied(false), UI_TIMINGS.COPY_FEEDBACK_DURATION);
     } catch {
       // Clipboard API非対応・権限なし時は無視
     }

@@ -70,12 +70,9 @@ function executeCommand(editor: Editor, command: SlashCommand) {
       break;
     }
     case 'youtube': {
-      const url = window.prompt('YouTubeのURLを入力してください');
-      if (url) {
-        const setYoutubeVideo = (editor.commands as { setYoutubeVideo?: (opts: { src: string }) => boolean }).setYoutubeVideo;
-        if (typeof setYoutubeVideo === 'function') {
-          setYoutubeVideo({ src: url });
-        }
+      const onYoutubeUrl = editor.storage.slashCommand?.onYoutubeUrl;
+      if (typeof onYoutubeUrl === 'function') {
+        onYoutubeUrl();
       }
       break;
     }
@@ -103,6 +100,7 @@ export const SlashCommandExtension = Extension.create({
     return {
       onImageUpload: null as (() => void) | null,
       onEmojiPicker: null as (() => void) | null,
+      onYoutubeUrl: null as (() => void) | null,
     };
   },
 

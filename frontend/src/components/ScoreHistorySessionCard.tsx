@@ -1,6 +1,7 @@
 import type { ScoreHistoryItem } from '../types';
 import Card from './Card';
 import AxisScoreBar from './AxisScoreBar';
+import { formatLongDate } from '../utils/formatters';
 
 interface ScoreHistorySessionCardProps {
   item: ScoreHistoryItem;
@@ -20,11 +21,7 @@ export default function ScoreHistorySessionCard({ item, delta, onClick }: ScoreH
             {item.sessionTitle || `セッション #${item.sessionId}`}
           </h3>
           <p className="text-xs text-[var(--color-text-faint)] mt-0.5">
-            {new Date(item.createdAt).toLocaleDateString('ja-JP', {
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-            })}
+            {formatLongDate(item.createdAt)}
           </p>
         </div>
         <div className="flex items-center gap-2">

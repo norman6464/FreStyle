@@ -2,6 +2,7 @@ import { TrashIcon } from '@heroicons/react/24/outline';
 import { MapPinIcon as MapPinOutline } from '@heroicons/react/24/outline';
 import { MapPinIcon as MapPinSolid } from '@heroicons/react/24/solid';
 import { tiptapToPlainText } from '../utils/tiptapToPlainText';
+import { formatMonthDay } from '../utils/formatters';
 
 interface NoteListItemProps {
   noteId: string;
@@ -28,8 +29,7 @@ export default function NoteListItem({
 }: NoteListItemProps) {
   const displayTitle = title || '無題';
   const preview = tiptapToPlainText(content).replace(/\n/g, ' ').slice(0, 60);
-  const date = new Date(updatedAt);
-  const dateStr = `${date.getMonth() + 1}/${date.getDate()}`;
+  const dateStr = formatMonthDay(updatedAt);
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();

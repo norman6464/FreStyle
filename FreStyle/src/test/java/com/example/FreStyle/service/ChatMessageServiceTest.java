@@ -133,4 +133,40 @@ class ChatMessageServiceTest {
                 () -> chatMessageService.deleteMessage(999));
         assertEquals("メッセージが見つかりません。", ex.getMessage());
     }
+
+    @Test
+    @DisplayName("addMessage: UserServiceが例外をスローした場合そのまま伝搬する")
+    void addMessage_propagatesUserServiceException() {
+        ChatRoom room = createRoom(1);
+        when(userService.findUserById(999))
+                .thenThrow(new RuntimeException("ユーザーが見つかりません"));
+
+        assertThrows(RuntimeException.class,
+                () -> chatMessageService.addMessage(room, 999, "テスト"));
+    }
+
+    @Test
+    @DisplayName("addMessage: リポジトリ保存失敗時に例外が伝搬する")
+    void addMessage_propagatesRepositorySaveException() {
+        ChatRoom room = createRoom(1);
+        User sender = createUser(10, "送信者");
+        when(userService.findUserById(10)).thenReturn(sender);
+        when(chatMessageRepository.save(any()))
+                .thenThrow(new RuntimeException("保存失敗"));
+
+        assertThrows(RuntimeException.class,
+                () -> chatMessageService.addMessage(room, 10, "テスト"));
+    }
+
+    @Test
+    @DisplayName("getMessagesByRoom: 空のリストを返す")
+    void getMessagesByRoom_returnsEmptyList() {
+        ChatRoom room = createRoom(1);
+        when(chatMessageRepository.findByRoomOrderByCreatedAtAsc(room))
+                .thenReturn(List.of());
+
+        List<ChatMessageDto> result = chatMessageService.getMessagesByRoom(room, 10);
+
+        assertTrue(result.isEmpty());
+    }
 }

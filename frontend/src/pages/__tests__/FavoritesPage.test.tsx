@@ -58,7 +58,7 @@ describe('FavoritesPage', () => {
   it('お気に入りフレーズ一覧が表示される', () => {
     render(<FavoritesPage />);
 
-    expect(screen.getByText('お気に入りフレーズ')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /お気に入りフレーズ/ })).toBeInTheDocument();
     expect(screen.getByText('ご確認いただけますでしょうか')).toBeInTheDocument();
     expect(screen.getByText('こちらの内容でよろしいでしょうか')).toBeInTheDocument();
   });

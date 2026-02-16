@@ -1,6 +1,18 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { BookmarkRepository } from '../BookmarkRepository';
 
+const mockGet = vi.fn();
+const mockPost = vi.fn();
+const mockDelete = vi.fn();
+
+vi.mock('../../lib/axios', () => ({
+  default: {
+    get: (...args: unknown[]) => mockGet(...args),
+    post: (...args: unknown[]) => mockPost(...args),
+    delete: (...args: unknown[]) => mockDelete(...args),
+  },
+}));
+
 function createMockStorage(): Storage {
   let store: Record<string, string> = {};
   return {
@@ -15,6 +27,7 @@ function createMockStorage(): Storage {
 
 describe('BookmarkRepository', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     vi.stubGlobal('localStorage', createMockStorage());
   });
 
@@ -22,31 +35,87 @@ describe('BookmarkRepository', () => {
     vi.unstubAllGlobals();
   });
 
-  it('ブックマークを追加できる', () => {
-    BookmarkRepository.add(1);
-    const ids = BookmarkRepository.getAll();
-    expect(ids).toContain(1);
+  describe('API正常系', () => {
+    it('getAll: APIからブックマークIDリストを取得できる', async () => {
+      mockGet.mockResolvedValue({ data: [1, 3, 5] });
+
+      const ids = await BookmarkRepository.getAll();
+
+      expect(ids).toEqual([1, 3, 5]);
+      expect(mockGet).toHaveBeenCalledWith('/api/bookmarks');
+    });
+
+    it('add: APIでブックマークを追加できる', async () => {
+      mockPost.mockResolvedValue({});
+
+      await BookmarkRepository.add(1);
+
+      expect(mockPost).toHaveBeenCalledWith('/api/bookmarks/1');
+    });
+
+    it('remove: APIでブックマークを削除できる', async () => {
+      mockDelete.mockResolvedValue({});
+
+      await BookmarkRepository.remove(1);
+
+      expect(mockDelete).toHaveBeenCalledWith('/api/bookmarks/1');
+    });
+
+    it('isBookmarked: ブックマーク済みか判定できる', async () => {
+      mockGet.mockResolvedValue({ data: [1, 3] });
+
+      expect(await BookmarkRepository.isBookmarked(1)).toBe(true);
+    });
+
+    it('isBookmarked: 未ブックマークの場合falseを返す', async () => {
+      mockGet.mockResolvedValue({ data: [1, 3] });
+
+      expect(await BookmarkRepository.isBookmarked(2)).toBe(false);
+    });
   });
 
-  it('ブックマークを削除できる', () => {
-    BookmarkRepository.add(1);
-    BookmarkRepository.add(2);
-    BookmarkRepository.remove(1);
-    const ids = BookmarkRepository.getAll();
-    expect(ids).not.toContain(1);
-    expect(ids).toContain(2);
-  });
+  describe('APIエラー時のlocalStorageフォールバック', () => {
+    it('getAll: APIエラー時はlocalStorageから取得する', async () => {
+      mockGet.mockRejectedValue(new Error('Network Error'));
+      localStorage.setItem('freestyle_scenario_bookmarks', JSON.stringify([2, 4]));
 
-  it('ブックマーク済みか判定できる', () => {
-    BookmarkRepository.add(5);
-    expect(BookmarkRepository.isBookmarked(5)).toBe(true);
-    expect(BookmarkRepository.isBookmarked(6)).toBe(false);
-  });
+      const ids = await BookmarkRepository.getAll();
 
-  it('重複追加しても1つのみ保存される', () => {
-    BookmarkRepository.add(1);
-    BookmarkRepository.add(1);
-    const ids = BookmarkRepository.getAll();
-    expect(ids.filter(id => id === 1)).toHaveLength(1);
+      expect(ids).toEqual([2, 4]);
+    });
+
+    it('add: APIエラー時はlocalStorageに保存する', async () => {
+      mockPost.mockRejectedValue(new Error('Network Error'));
+
+      await BookmarkRepository.add(7);
+
+      expect(localStorage.setItem).toHaveBeenCalledWith(
+        'freestyle_scenario_bookmarks',
+        JSON.stringify([7])
+      );
+    });
+
+    it('add: APIエラー時に重複追加しない', async () => {
+      mockPost.mockRejectedValue(new Error('Network Error'));
+      localStorage.setItem('freestyle_scenario_bookmarks', JSON.stringify([7]));
+
+      await BookmarkRepository.add(7);
+
+      const calls = (localStorage.setItem as ReturnType<typeof vi.fn>).mock.calls;
+      const lastCall = calls[calls.length - 1];
+      expect(JSON.parse(lastCall[1] as string).filter((id: number) => id === 7)).toHaveLength(1);
+    });
+
+    it('remove: APIエラー時はlocalStorageから削除する', async () => {
+      mockDelete.mockRejectedValue(new Error('Network Error'));
+      localStorage.setItem('freestyle_scenario_bookmarks', JSON.stringify([1, 2]));
+
+      await BookmarkRepository.remove(1);
+
+      expect(localStorage.setItem).toHaveBeenCalledWith(
+        'freestyle_scenario_bookmarks',
+        JSON.stringify([2])
+      );
+    });
   });
 });

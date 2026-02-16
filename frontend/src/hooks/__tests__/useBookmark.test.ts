@@ -1,121 +1,132 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
+import { renderHook, act, waitFor } from '@testing-library/react';
 import { useBookmark } from '../useBookmark';
 
 const mockGetAll = vi.fn();
 const mockAdd = vi.fn();
 const mockRemove = vi.fn();
-const mockIsBookmarked = vi.fn();
 
 vi.mock('../../repositories/BookmarkRepository', () => ({
   BookmarkRepository: {
     getAll: (...args: unknown[]) => mockGetAll(...args),
     add: (...args: unknown[]) => mockAdd(...args),
     remove: (...args: unknown[]) => mockRemove(...args),
-    isBookmarked: (...args: unknown[]) => mockIsBookmarked(...args),
   },
 }));
 
 describe('useBookmark', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetAll.mockReturnValue([1, 3]);
-    mockIsBookmarked.mockImplementation((id: number) => [1, 3].includes(id));
+    mockGetAll.mockResolvedValue([1, 3]);
+    mockAdd.mockResolvedValue(undefined);
+    mockRemove.mockResolvedValue(undefined);
   });
 
-  it('ブックマーク済みIDの一覧を返す', () => {
+  it('初期状態はloading=trueで空配列', () => {
     const { result } = renderHook(() => useBookmark());
+    expect(result.current.bookmarkedIds).toEqual([]);
+    expect(result.current.loading).toBe(true);
+  });
+
+  it('マウント時にAPIからブックマークを取得する', async () => {
+    const { result } = renderHook(() => useBookmark());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
     expect(result.current.bookmarkedIds).toEqual([1, 3]);
+    expect(mockGetAll).toHaveBeenCalled();
   });
 
-  it('toggleBookmarkでブックマーク追加・削除を切り替える', () => {
-    mockGetAll.mockReturnValueOnce([1, 3]).mockReturnValueOnce([1, 3, 5]);
-
+  it('toggleBookmarkでブックマーク追加できる', async () => {
     const { result } = renderHook(() => useBookmark());
 
-    act(() => {
-      result.current.toggleBookmark(5);
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    await act(async () => {
+      await result.current.toggleBookmark(5);
     });
 
     expect(mockAdd).toHaveBeenCalledWith(5);
+    expect(result.current.bookmarkedIds).toContain(5);
   });
 
-  it('ブックマーク済みの場合はtoggleで削除する', () => {
-    mockIsBookmarked.mockReturnValue(true);
-    mockGetAll.mockReturnValueOnce([1, 3]).mockReturnValueOnce([3]);
-
+  it('ブックマーク済みの場合はtoggleで削除する', async () => {
     const { result } = renderHook(() => useBookmark());
 
-    act(() => {
-      result.current.toggleBookmark(1);
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    await act(async () => {
+      await result.current.toggleBookmark(1);
     });
 
     expect(mockRemove).toHaveBeenCalledWith(1);
+    expect(result.current.bookmarkedIds).not.toContain(1);
   });
 
-  it('isBookmarkedで判定できる', () => {
+  it('isBookmarkedで判定できる', async () => {
     const { result } = renderHook(() => useBookmark());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
     expect(result.current.isBookmarked(1)).toBe(true);
     expect(result.current.isBookmarked(2)).toBe(false);
   });
 
-  it('初期ブックマークが空の場合に空配列を返す', () => {
-    mockGetAll.mockReturnValue([]);
+  it('初期ブックマークが空の場合に空配列を返す', async () => {
+    mockGetAll.mockResolvedValue([]);
 
     const { result } = renderHook(() => useBookmark());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
     expect(result.current.bookmarkedIds).toEqual([]);
   });
 
-  it('toggle後にbookmarkedIdsが更新される', () => {
-    mockGetAll.mockReturnValueOnce([1]).mockReturnValueOnce([1, 2]);
-    mockIsBookmarked.mockReturnValue(false);
-
+  it('toggle追加後にbookmarkedIdsが即座に更新される', async () => {
     const { result } = renderHook(() => useBookmark());
-    expect(result.current.bookmarkedIds).toEqual([1]);
 
-    act(() => {
-      result.current.toggleBookmark(2);
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
     });
 
-    expect(result.current.bookmarkedIds).toEqual([1, 2]);
+    await act(async () => {
+      await result.current.toggleBookmark(2);
+    });
+
+    expect(result.current.bookmarkedIds).toEqual([1, 3, 2]);
   });
 
-  it('連続toggleで追加・削除が正しく動作する', () => {
-    mockGetAll
-      .mockReturnValueOnce([])     // 初期
-      .mockReturnValueOnce([5])    // 追加後
-      .mockReturnValueOnce([]);    // 削除後
-    mockIsBookmarked
-      .mockReturnValueOnce(false)  // 追加時
-      .mockReturnValueOnce(true);  // 削除時
-
+  it('toggle削除後にbookmarkedIdsが即座に更新される', async () => {
     const { result } = renderHook(() => useBookmark());
-    expect(result.current.bookmarkedIds).toEqual([]);
 
-    act(() => {
-      result.current.toggleBookmark(5);
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
     });
-    expect(mockAdd).toHaveBeenCalledWith(5);
-    expect(result.current.bookmarkedIds).toEqual([5]);
 
-    act(() => {
-      result.current.toggleBookmark(5);
-    });
-    expect(mockRemove).toHaveBeenCalledWith(5);
-    expect(result.current.bookmarkedIds).toEqual([]);
-  });
-
-  it('toggle削除後にbookmarkedIdsが更新される', () => {
-    mockGetAll.mockReturnValueOnce([1, 3]).mockReturnValueOnce([3]);
-    mockIsBookmarked.mockReturnValue(true);
-
-    const { result } = renderHook(() => useBookmark());
-    expect(result.current.bookmarkedIds).toEqual([1, 3]);
-
-    act(() => {
-      result.current.toggleBookmark(1);
+    await act(async () => {
+      await result.current.toggleBookmark(1);
     });
 
     expect(result.current.bookmarkedIds).toEqual([3]);
+  });
+
+  it('loading状態を返す', async () => {
+    const { result } = renderHook(() => useBookmark());
+
+    expect(result.current.loading).toBe(true);
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
   });
 });

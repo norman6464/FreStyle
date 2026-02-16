@@ -387,7 +387,7 @@ public class CognitoAuthController {
                           (refreshToken != null ? refreshToken.substring(0, Math.min(20, refreshToken.length())) + "..." : "null"));
 
         if (refreshToken == null || refreshToken.isEmpty()) {
-            log.info("[CognitoAuthController /refresh-token] ERROR: REFRESH_TOKEN cookie is null or empty");
+            log.warn("認証エラー: リフレッシュトークンがnullまたは空");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "リフレッシュトークンが存在しません。"));
         }
@@ -479,7 +479,7 @@ public class CognitoAuthController {
         log.info("[CognitoAuthController /me] Endpoint called");
         
         if (jwt == null) {
-            log.info("[CognitoAuthController /me] ERROR: JWT is null - user not authenticated");
+            log.warn("認証エラー: JWTがnull");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "認証されていません"));
         }
@@ -490,7 +490,7 @@ public class CognitoAuthController {
         log.info("[CognitoAuthController /me] JWT Subject (sub): " + sub);
 
         if (sub == null || sub.isEmpty()) {
-            log.info("[CognitoAuthController /me] ERROR: JWT subject is null or empty");
+            log.warn("認証エラー: JWTのsubがnullまたは空");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "無効なリクエストです。"));
         }

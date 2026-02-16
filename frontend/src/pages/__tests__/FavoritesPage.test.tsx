@@ -77,13 +77,35 @@ describe('FavoritesPage', () => {
     expect(screen.getByText(/これでいいですか/)).toBeInTheDocument();
   });
 
-  it('削除ボタンでremoveFavoriteが呼ばれる', () => {
+  it('削除ボタンクリックで確認ダイアログが表示される', () => {
     render(<FavoritesPage />);
 
     const deleteButtons = screen.getAllByLabelText('お気に入りから削除');
     fireEvent.click(deleteButtons[0]);
 
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText(/「ご確認いただけますでしょうか」を削除しますか/)).toBeInTheDocument();
+  });
+
+  it('確認ダイアログで削除を実行するとremoveFavoriteが呼ばれる', () => {
+    render(<FavoritesPage />);
+
+    const deleteButtons = screen.getAllByLabelText('お気に入りから削除');
+    fireEvent.click(deleteButtons[0]);
+    fireEvent.click(screen.getByText('削除'));
+
     expect(mockRemoveFavorite).toHaveBeenCalledWith('1');
+  });
+
+  it('確認ダイアログでキャンセルするとremoveFavoriteが呼ばれない', () => {
+    render(<FavoritesPage />);
+
+    const deleteButtons = screen.getAllByLabelText('お気に入りから削除');
+    fireEvent.click(deleteButtons[0]);
+    fireEvent.click(screen.getByText('キャンセル'));
+
+    expect(mockRemoveFavorite).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('検索ボックスが表示される', () => {

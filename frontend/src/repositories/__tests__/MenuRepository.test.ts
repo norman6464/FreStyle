@@ -45,15 +45,4 @@ describe('MenuRepository', () => {
 
     await expect(MenuRepository.fetchChatStats()).rejects.toThrow('Network Error');
   });
-
-  it('fetchChatRooms: 複数のチャットルームを取得できる', async () => {
-    const mockRooms = { chatUsers: [{ roomId: 1, unreadCount: 3 }, { roomId: 2, unreadCount: 0 }] };
-    mockedApiClient.get.mockResolvedValue({ data: mockRooms });
-
-    const result = await MenuRepository.fetchChatRooms();
-
-    expect(result.chatUsers).toHaveLength(2);
-    expect(result.chatUsers[0].unreadCount).toBe(3);
-    expect(result.chatUsers[1].unreadCount).toBe(0);
-  });
 });

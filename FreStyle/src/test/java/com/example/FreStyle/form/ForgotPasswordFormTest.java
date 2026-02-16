@@ -81,4 +81,39 @@ class ForgotPasswordFormTest {
         Set<ConstraintViolation<ForgotPasswordForm>> violations = validator.validate(form);
         assertThat(violations).isEmpty();
     }
+
+    @Test
+    void メールアドレスがnullの場合エラー() {
+        ForgotPasswordForm form = new ForgotPasswordForm(null, "123456", "newpass123");
+        Set<ConstraintViolation<ForgotPasswordForm>> violations = validator.validate(form);
+        assertThat(violations).anyMatch(v -> v.getMessage().equals("メールアドレスを入力してください"));
+    }
+
+    @Test
+    void コードがnullの場合エラー() {
+        ForgotPasswordForm form = new ForgotPasswordForm("user@example.com", null, "newpass123");
+        Set<ConstraintViolation<ForgotPasswordForm>> violations = validator.validate(form);
+        assertThat(violations).anyMatch(v -> v.getMessage().equals("コードを入力してください"));
+    }
+
+    @Test
+    void 新パスワードがnullの場合エラー() {
+        ForgotPasswordForm form = new ForgotPasswordForm("user@example.com", "123456", null);
+        Set<ConstraintViolation<ForgotPasswordForm>> violations = validator.validate(form);
+        assertThat(violations).anyMatch(v -> v.getMessage().equals("パスワードを入力してください"));
+    }
+
+    @Test
+    void コードがちょうど6文字の場合バリデーション通過() {
+        ForgotPasswordForm form = new ForgotPasswordForm("user@example.com", "123456", "newpass123");
+        Set<ConstraintViolation<ForgotPasswordForm>> violations = validator.validate(form);
+        assertThat(violations).isEmpty();
+    }
+
+    @Test
+    void コードがちょうど8文字の場合バリデーション通過() {
+        ForgotPasswordForm form = new ForgotPasswordForm("user@example.com", "12345678", "newpass123");
+        Set<ConstraintViolation<ForgotPasswordForm>> violations = validator.validate(form);
+        assertThat(violations).isEmpty();
+    }
 }

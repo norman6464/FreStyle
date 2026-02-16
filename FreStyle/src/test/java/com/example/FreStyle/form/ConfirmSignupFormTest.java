@@ -74,4 +74,18 @@ class ConfirmSignupFormTest {
         Set<ConstraintViolation<ConfirmSignupForm>> violations = validator.validate(form);
         assertThat(violations).isEmpty();
     }
+
+    @Test
+    void メールアドレスがnullの場合エラー() {
+        ConfirmSignupForm form = new ConfirmSignupForm(null, "123456");
+        Set<ConstraintViolation<ConfirmSignupForm>> violations = validator.validate(form);
+        assertThat(violations).anyMatch(v -> v.getMessage().equals("メールアドレスを入力してください"));
+    }
+
+    @Test
+    void コードがnullの場合エラー() {
+        ConfirmSignupForm form = new ConfirmSignupForm("user@example.com", null);
+        Set<ConstraintViolation<ConfirmSignupForm>> violations = validator.validate(form);
+        assertThat(violations).anyMatch(v -> v.getMessage().equals("コードを入力してください"));
+    }
 }

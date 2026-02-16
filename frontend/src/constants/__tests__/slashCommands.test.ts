@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { SLASH_COMMANDS } from '../slashCommands';
 
 describe('SLASH_COMMANDS', () => {
-  it('15のコマンドが定義されている', () => {
-    expect(SLASH_COMMANDS).toHaveLength(15);
+  it('16のコマンドが定義されている', () => {
+    expect(SLASH_COMMANDS).toHaveLength(16);
   });
 
   it('各コマンドに必要なプロパティがある', () => {

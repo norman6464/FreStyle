@@ -13,7 +13,8 @@ export type SlashCommandAction =
   | 'horizontalRule'
   | 'table'
   | 'callout'
-  | 'youtube';
+  | 'youtube'
+  | 'emoji';
 
 export interface SlashCommand {
   label: string;
@@ -44,4 +45,5 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   { label: '画像', description: '画像をアップロード', icon: '🖼', action: 'image', category: 'メディア' },
   { label: 'YouTube', description: 'YouTube動画を埋め込み', icon: '▶', action: 'youtube', category: 'メディア' },
   { label: 'コード', description: 'コードブロック', icon: '</>', action: 'codeBlock', category: 'メディア' },
+  { label: '絵文字', description: '絵文字を挿入', icon: '😀', action: 'emoji', category: 'メディア' },
 ];

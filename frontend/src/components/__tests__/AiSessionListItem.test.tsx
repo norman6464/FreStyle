@@ -92,4 +92,34 @@ describe('AiSessionListItem', () => {
     fireEvent.click(deleteButton);
     expect(onDelete).toHaveBeenCalledWith(1);
   });
+
+  it('role="button"とtabIndex={0}を持つ', () => {
+    render(<AiSessionListItem {...baseProps} />);
+    const item = screen.getByRole('button', { name: /テストセッション/ });
+    expect(item).toHaveAttribute('tabindex', '0');
+  });
+
+  it('Enterキーでセッション選択できる', () => {
+    const onSelect = vi.fn();
+    render(<AiSessionListItem {...baseProps} onSelect={onSelect} />);
+    const item = screen.getByRole('button', { name: /テストセッション/ });
+    fireEvent.keyDown(item, { key: 'Enter' });
+    expect(onSelect).toHaveBeenCalledWith(1);
+  });
+
+  it('Spaceキーでセッション選択できる', () => {
+    const onSelect = vi.fn();
+    render(<AiSessionListItem {...baseProps} onSelect={onSelect} />);
+    const item = screen.getByRole('button', { name: /テストセッション/ });
+    fireEvent.keyDown(item, { key: ' ' });
+    expect(onSelect).toHaveBeenCalledWith(1);
+  });
+
+  it('編集中はキーボードでセッション選択されない', () => {
+    const onSelect = vi.fn();
+    render(<AiSessionListItem {...baseProps} isEditing={true} editingTitle="編集中" onSelect={onSelect} />);
+    const item = screen.getByRole('button', { name: /テストセッション/ });
+    fireEvent.keyDown(item, { key: 'Enter' });
+    expect(onSelect).not.toHaveBeenCalled();
+  });
 });

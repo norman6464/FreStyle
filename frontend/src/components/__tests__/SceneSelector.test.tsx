@@ -105,4 +105,25 @@ describe('SceneSelector', () => {
     expect(screen.getByText('日常業務')).toBeInTheDocument();
     expect(screen.getByText('対面コミュニケーション')).toBeInTheDocument();
   });
+
+  it('role="dialog"とaria-modal="true"を持つ', () => {
+    render(<SceneSelector onSelect={mockOnSelect} onCancel={mockOnCancel} />);
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+  });
+
+  it('aria-labelledbyでタイトルが関連付けられている', () => {
+    render(<SceneSelector onSelect={mockOnSelect} onCancel={mockOnCancel} />);
+    const dialog = screen.getByRole('dialog');
+    const labelId = dialog.getAttribute('aria-labelledby');
+    expect(labelId).toBeTruthy();
+    const heading = document.getElementById(labelId!);
+    expect(heading).toHaveTextContent('フィードバックのシーンを選択');
+  });
+
+  it('ESCキーでonCancelが呼ばれる', () => {
+    render(<SceneSelector onSelect={mockOnSelect} onCancel={mockOnCancel} />);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(mockOnCancel).toHaveBeenCalled();
+  });
 });

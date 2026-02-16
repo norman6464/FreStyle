@@ -32,12 +32,16 @@ export default function AiSessionListItem({
 }: AiSessionListItemProps) {
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-label={title || '新しいチャット'}
       className={`group flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${
         isActive
           ? 'bg-surface-2 text-primary-300'
           : 'hover:bg-surface-2'
       }`}
       onClick={() => !isEditing && onSelect(id)}
+      onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && !isEditing) { e.preventDefault(); onSelect(id); } }}
     >
       <div className="flex-1 min-w-0">
         {isEditing ? (

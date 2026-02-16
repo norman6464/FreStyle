@@ -68,4 +68,41 @@ describe('MemberItem', () => {
 
     expect(mockNavigate).toHaveBeenCalledWith('/chat/users/10');
   });
+
+  it('role="button"とtabIndex={0}を持つ', () => {
+    render(
+      <MemoryRouter>
+        <MemberItem id={1} name="テスト" email="test@example.com" />
+      </MemoryRouter>
+    );
+
+    const button = screen.getByRole('button', { name: /テスト/ });
+    expect(button).toHaveAttribute('tabindex', '0');
+  });
+
+  it('Enterキーでクリックと同じ動作をする', async () => {
+    render(
+      <MemoryRouter>
+        <MemberItem id={1} name="テスト" email="test@example.com" roomId={10} />
+      </MemoryRouter>
+    );
+
+    const button = screen.getByRole('button', { name: /テスト/ });
+    fireEvent.keyDown(button, { key: 'Enter' });
+
+    expect(mockNavigate).toHaveBeenCalledWith('/chat/users/10');
+  });
+
+  it('Spaceキーでクリックと同じ動作をする', async () => {
+    render(
+      <MemoryRouter>
+        <MemberItem id={1} name="テスト" email="test@example.com" roomId={10} />
+      </MemoryRouter>
+    );
+
+    const button = screen.getByRole('button', { name: /テスト/ });
+    fireEvent.keyDown(button, { key: ' ' });
+
+    expect(mockNavigate).toHaveBeenCalledWith('/chat/users/10');
+  });
 });

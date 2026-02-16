@@ -3,8 +3,6 @@ package com.example.FreStyle.config;
 import java.util.Arrays;
 import java.util.List;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.cors.CorsConfiguration;
@@ -13,10 +11,11 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @Configuration
 public class CorsConfig {
-
-  private static final Logger logger = LoggerFactory.getLogger(CorsConfig.class);
 
   // 許可するオリジンを一元管理
   private static final List<String> ALLOWED_ORIGINS = Arrays.asList(
@@ -37,34 +36,34 @@ public class CorsConfig {
    */
   @Bean
   public CorsConfigurationSource corsConfigurationSource() {
-    logger.info("========== [CorsConfig] CorsConfigurationSource Bean 初期化開始 ==========");
+    log.info("========== [CorsConfig] CorsConfigurationSource Bean 初期化開始 ==========");
     
     CorsConfiguration configuration = new CorsConfiguration();
     
     // 許可するオリジン
     configuration.setAllowedOrigins(ALLOWED_ORIGINS);
-    logger.info("[CorsConfig] 許可オリジン設定: {}", ALLOWED_ORIGINS);
+    log.info("[CorsConfig] 許可オリジン設定: {}", ALLOWED_ORIGINS);
     
     // 許可するHTTPメソッド
     configuration.setAllowedMethods(ALLOWED_METHODS);
-    logger.info("[CorsConfig] 許可メソッド設定: {}", ALLOWED_METHODS);
+    log.info("[CorsConfig] 許可メソッド設定: {}", ALLOWED_METHODS);
     
     // 許可するヘッダー
     configuration.setAllowedHeaders(List.of("*"));
-    logger.info("[CorsConfig] 許可ヘッダー設定: *");
+    log.info("[CorsConfig] 許可ヘッダー設定: *");
     
     // クレデンシャル（Cookie等）を許可
     configuration.setAllowCredentials(true);
-    logger.info("[CorsConfig] allowCredentials: true");
+    log.info("[CorsConfig] allowCredentials: true");
     
     // プリフライトリクエストのキャッシュ時間（秒）
     configuration.setMaxAge(3600L);
-    logger.info("[CorsConfig] maxAge: 3600秒");
+    log.info("[CorsConfig] maxAge: 3600秒");
     
     UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
     source.registerCorsConfiguration("/**", configuration);
     
-    logger.info("========== [CorsConfig] CorsConfigurationSource Bean 初期化完了 ==========");
+    log.info("========== [CorsConfig] CorsConfigurationSource Bean 初期化完了 ==========");
     return source;
   }
 
@@ -73,13 +72,13 @@ public class CorsConfig {
    */
   @Bean
   public WebMvcConfigurer corsConfigurer() {
-    logger.info("[CorsConfig] WebMvcConfigurer (MVC用CORS) Bean 初期化");
+    log.info("[CorsConfig] WebMvcConfigurer (MVC用CORS) Bean 初期化");
     
     return new WebMvcConfigurer() {
 
       @Override
       public void addCorsMappings(CorsRegistry registry) {
-        logger.info("[CorsConfig] addCorsMappings() 実行 - MVC用CORS設定適用");
+        log.info("[CorsConfig] addCorsMappings() 実行 - MVC用CORS設定適用");
         registry.addMapping("/**")
             .allowedOrigins(ALLOWED_ORIGINS.toArray(new String[0]))
             .allowCredentials(true)

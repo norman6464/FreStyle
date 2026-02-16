@@ -1,9 +1,11 @@
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 import { TrashIcon } from '@heroicons/react/24/outline';
 import { MapPinIcon as MapPinOutline } from '@heroicons/react/24/outline';
 import { MapPinIcon as MapPinSolid } from '@heroicons/react/24/solid';
 import { tiptapToPlainText } from '../utils/tiptapToPlainText';
 import { formatMonthDay } from '../utils/formatters';
+import { getNoteStats } from '../utils/noteStats';
+import ReadingTime from './ReadingTime';
 
 interface NoteListItemProps {
   noteId: string;
@@ -31,6 +33,7 @@ export default memo(function NoteListItem({
   const displayTitle = title || '無題';
   const preview = tiptapToPlainText(content).replace(/\n/g, ' ').slice(0, 60);
   const dateStr = formatMonthDay(updatedAt);
+  const stats = useMemo(() => getNoteStats(content), [content]);
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -68,7 +71,7 @@ export default memo(function NoteListItem({
             </p>
           )}
           <p className="text-[11px] text-[var(--color-text-faint)] mt-1">
-            {dateStr}
+            {dateStr} · <ReadingTime charCount={stats.charCount} />
           </p>
         </div>
         <div className="flex items-center gap-0.5">

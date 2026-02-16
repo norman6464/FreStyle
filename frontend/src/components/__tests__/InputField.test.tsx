@@ -127,4 +127,9 @@ describe('InputField', () => {
     render(<InputField label="パスワード" name="password" type="password" value="secret" onChange={mockOnChange} />);
     expect(screen.queryByLabelText('入力をクリア')).toBeNull();
   });
+
+  it('クリアボタンにaria-label="入力をクリア"が設定される', () => {
+    render(<InputField label="メール" name="email" value="test" onChange={mockOnChange} />);
+    expect(screen.getByLabelText('入力をクリア')).toBeInTheDocument();
+  });
 });

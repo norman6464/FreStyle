@@ -164,6 +164,89 @@ describe('useNoteEditor', () => {
     expect(mockUpdateNote).not.toHaveBeenCalled();
   });
 
+  // 保存状態テスト
+
+  it('saveStatusの初期値がidleである', () => {
+    const { result } = renderHook(() => useNoteEditor('n1', baseNote, mockUpdateNote));
+    expect(result.current.saveStatus).toBe('idle');
+  });
+
+  it('変更後にsaveStatusがunsavedになる', () => {
+    const { result } = renderHook(() => useNoteEditor('n1', baseNote, mockUpdateNote));
+
+    act(() => {
+      result.current.handleTitleChange('変更後');
+    });
+
+    expect(result.current.saveStatus).toBe('unsaved');
+  });
+
+  it('デバウンス完了後にsaveStatusがsavingになる', () => {
+    mockUpdateNote.mockReturnValue(new Promise(() => {}));
+    const { result } = renderHook(() => useNoteEditor('n1', baseNote, mockUpdateNote));
+
+    act(() => {
+      result.current.handleTitleChange('変更後');
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(800);
+    });
+
+    expect(result.current.saveStatus).toBe('saving');
+  });
+
+  it('保存完了後にsaveStatusがsavedになる', async () => {
+    mockUpdateNote.mockResolvedValue(undefined);
+    const { result } = renderHook(() => useNoteEditor('n1', baseNote, mockUpdateNote));
+
+    act(() => {
+      result.current.handleTitleChange('変更後');
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(800);
+    });
+
+    expect(result.current.saveStatus).toBe('saved');
+  });
+
+  it('forceSaveでデバウンスをスキップして即座に保存される', async () => {
+    mockUpdateNote.mockResolvedValue(undefined);
+    const { result } = renderHook(() => useNoteEditor('n1', baseNote, mockUpdateNote));
+
+    act(() => {
+      result.current.handleTitleChange('即時保存');
+    });
+
+    expect(mockUpdateNote).not.toHaveBeenCalled();
+
+    await act(async () => {
+      result.current.forceSave();
+    });
+
+    expect(mockUpdateNote).toHaveBeenCalledWith('n1', {
+      title: '即時保存',
+      content: '元内容',
+      isPinned: false,
+    });
+  });
+
+  it('forceSaveで保存後にsaveStatusがsavedになる', async () => {
+    mockUpdateNote.mockResolvedValue(undefined);
+    const { result } = renderHook(() => useNoteEditor('n1', baseNote, mockUpdateNote));
+
+    act(() => {
+      result.current.handleTitleChange('変更');
+    });
+
+    await act(async () => {
+      result.current.forceSave();
+    });
+
+    expect(result.current.saveStatus).toBe('saved');
+  });
+
   it('タイトルと内容を交互に変更してもデバウンスが正しく動作する', () => {
     const { result } = renderHook(() => useNoteEditor('n1', baseNote, mockUpdateNote));
 

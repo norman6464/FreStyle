@@ -9,8 +9,11 @@ import { DocumentTextIcon, PlusIcon, MagnifyingGlassIcon, Bars3Icon } from '@her
 import { useNotes } from '../hooks/useNotes';
 import { useNoteEditor } from '../hooks/useNoteEditor';
 import { useMobilePanelState } from '../hooks/useMobilePanelState';
+import { useToast } from '../hooks/useToast';
+import { useNoteKeyboardShortcuts } from '../hooks/useNoteKeyboardShortcuts';
 
 export default function NotesPage() {
+  const { showToast } = useToast();
   const { isOpen: mobilePanelOpen, open: openMobilePanel, close: closeMobilePanel } = useMobilePanelState();
   const {
     notes,
@@ -35,13 +38,28 @@ export default function NotesPage() {
     fetchNotes();
   }, [fetchNotes]);
 
-  const { editTitle, editContent, handleTitleChange, handleContentChange } =
+  const { editTitle, editContent, saveStatus, handleTitleChange, handleContentChange, forceSave } =
     useNoteEditor(selectedNoteId, selectedNote, updateNote);
 
   const handleCreateNote = async () => {
-    await createNote('無題');
+    const note = await createNote('無題');
+    if (note) {
+      showToast('success', 'ノートを作成しました');
+    } else {
+      showToast('error', 'ノートの作成に失敗しました');
+    }
     closeMobilePanel();
   };
+
+  const handleConfirmDelete = async () => {
+    await confirmDelete();
+    showToast('success', 'ノートを削除しました');
+  };
+
+  useNoteKeyboardShortcuts({
+    onCreateNote: handleCreateNote,
+    onForceSave: forceSave,
+  });
 
   const handleSelectNote = (noteId: string) => {
     selectNote(noteId);
@@ -121,6 +139,7 @@ export default function NotesPage() {
             title={editTitle}
             content={editContent}
             noteId={selectedNoteId}
+            saveStatus={saveStatus}
             onTitleChange={handleTitleChange}
             onContentChange={handleContentChange}
           />
@@ -137,7 +156,7 @@ export default function NotesPage() {
       <ConfirmModal
         isOpen={deleteTargetId !== null}
         message="このノートを削除しますか？"
-        onConfirm={confirmDelete}
+        onConfirm={handleConfirmDelete}
         onCancel={cancelDelete}
       />
     </div>

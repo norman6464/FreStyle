@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Note } from '../types';
 
+export type SaveStatus = 'idle' | 'unsaved' | 'saving' | 'saved';
+
 export function useNoteEditor(
   selectedNoteId: string | null,
   selectedNote: Note | null,
@@ -8,6 +10,7 @@ export function useNoteEditor(
 ) {
   const [editTitle, setEditTitle] = useState('');
   const [editContent, setEditContent] = useState('');
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -18,18 +21,22 @@ export function useNoteEditor(
       setEditTitle('');
       setEditContent('');
     }
+    setSaveStatus('idle');
   }, [selectedNoteId]);
 
   const handleAutoSave = useCallback(
     (title: string, content: string) => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = setTimeout(() => {
+      setSaveStatus('unsaved');
+      saveTimerRef.current = setTimeout(async () => {
         if (selectedNoteId) {
-          updateNote(selectedNoteId, {
+          setSaveStatus('saving');
+          await updateNote(selectedNoteId, {
             title,
             content,
             isPinned: selectedNote?.isPinned || false,
           });
+          setSaveStatus('saved');
         }
       }, 800);
     },
@@ -52,10 +59,24 @@ export function useNoteEditor(
     [handleAutoSave, editTitle]
   );
 
+  const forceSave = useCallback(async () => {
+    if (!selectedNoteId) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    setSaveStatus('saving');
+    await updateNote(selectedNoteId, {
+      title: editTitle,
+      content: editContent,
+      isPinned: selectedNote?.isPinned || false,
+    });
+    setSaveStatus('saved');
+  }, [selectedNoteId, editTitle, editContent, selectedNote, updateNote]);
+
   return {
     editTitle,
     editContent,
+    saveStatus,
     handleTitleChange,
     handleContentChange,
+    forceSave,
   };
 }

@@ -65,6 +65,17 @@ class ProfileControllerTest {
         }
 
         @Test
+        @DisplayName("JWTのsubjectが空文字の場合401を返す")
+        void returnsUnauthorizedWhenSubjectEmpty() {
+            Jwt jwt = mock(Jwt.class);
+            when(jwt.getSubject()).thenReturn("");
+
+            ResponseEntity<?> response = profileController.getProfile(jwt);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        }
+
+        @Test
         @DisplayName("ユーザーが見つからない場合404を返す")
         void returnsNotFoundWhenUserNotFound() {
             Jwt jwt = mock(Jwt.class);
@@ -102,6 +113,19 @@ class ProfileControllerTest {
             ProfileForm form = new ProfileForm("名前", "自己紹介");
 
             ResponseEntity<?> response = profileController.updateProfile(null, form);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        }
+
+        @Test
+        @DisplayName("JWTのsubjectが空文字の場合401を返す")
+        void returnsUnauthorizedWhenSubjectEmpty() {
+            Jwt jwt = mock(Jwt.class);
+            when(jwt.getSubject()).thenReturn("");
+
+            ProfileForm form = new ProfileForm("名前", "自己紹介");
+
+            ResponseEntity<?> response = profileController.updateProfile(jwt, form);
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         }

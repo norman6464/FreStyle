@@ -278,4 +278,17 @@ class BedrockServiceTest {
         assertThat(json.get("max_tokens").asInt()).isEqualTo(2048);
         assertThat(json.has("system")).isTrue();
     }
+
+    @Test
+    @DisplayName("chatWithUserProfileAndScene()でエラー時にRuntimeExceptionをスローする")
+    void chatWithUserProfileAndSceneShouldThrowOnError() {
+        when(bedrockClient.invokeModel(any(InvokeModelRequest.class)))
+                .thenThrow(new RuntimeException("Bedrock error"));
+
+        assertThatThrownBy(() -> bedrockService.chatWithUserProfileAndScene(
+                "テストメッセージ", "meeting",
+                "太郎", "自己紹介", "丁寧", "真面目", "目標", "懸念", "優しく"))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("AI応答の取得に失敗しました");
+    }
 }

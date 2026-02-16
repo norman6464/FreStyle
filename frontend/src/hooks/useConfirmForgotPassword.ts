@@ -13,12 +13,19 @@ export function useConfirmForgotPassword() {
     email: (location.state as { email?: string })?.email || '',
     code: '',
     newPassword: '',
+    confirmPassword: '',
   });
   const [message, setMessage] = useState<FormMessage | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleConfirm = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+
+    if (form.newPassword !== form.confirmPassword) {
+      setMessage({ type: 'error', text: 'パスワードが一致しません。' });
+      return;
+    }
+
     setLoading(true);
 
     try {

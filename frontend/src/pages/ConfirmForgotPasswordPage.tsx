@@ -37,6 +37,14 @@ export default function ConfirmForgotPasswordPage() {
           onChange={handleChange}
           disabled={loading}
         />
+        <InputField
+          label="パスワード確認"
+          name="confirmPassword"
+          type="password"
+          value={form.confirmPassword}
+          onChange={handleChange}
+          disabled={loading}
+        />
         <PrimaryButton type="submit" loading={loading}>
           {loading ? 'リセット中...' : 'パスワードをリセット'}
         </PrimaryButton>

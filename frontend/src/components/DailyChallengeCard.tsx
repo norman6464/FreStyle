@@ -34,7 +34,7 @@ export default function DailyChallengeCard() {
         <p className="text-xs font-medium text-[var(--color-text-secondary)]">本日のチャレンジ</p>
         <span
           data-testid="challenge-difficulty"
-          className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${DIFFICULTY_STYLES[challenge.difficulty]}`}
+          className={`text-[10px] font-medium px-2 py-0.5 rounded ${DIFFICULTY_STYLES[challenge.difficulty]}`}
         >
           {challenge.difficulty}
         </span>

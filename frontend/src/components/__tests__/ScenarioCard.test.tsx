@@ -96,24 +96,27 @@ describe('ScenarioCard', () => {
     expect(screen.getByTitle('ブックマーク解除')).toBeDefined();
   });
 
-  it('初級バッジにemeraldの色が適用される', () => {
+  it('初級バッジにボーダースタイルが適用される', () => {
     const beginnerScenario = { ...mockScenario, difficulty: 'beginner' };
     render(<ScenarioCard scenario={beginnerScenario} onSelect={vi.fn()} />);
     const badge = screen.getByText('初級');
-    expect(badge.className).toContain('text-emerald-400');
+    expect(badge).toHaveClass('border');
+    expect(badge).toHaveClass('text-[var(--color-text-primary)]');
   });
 
-  it('中級バッジにamberの色が適用される', () => {
+  it('中級バッジにボーダースタイルが適用される', () => {
     render(<ScenarioCard scenario={mockScenario} onSelect={vi.fn()} />);
     const badge = screen.getByText('中級');
-    expect(badge.className).toContain('text-amber-400');
+    expect(badge).toHaveClass('border');
+    expect(badge).toHaveClass('text-[var(--color-text-primary)]');
   });
 
-  it('上級バッジにroseの色が適用される', () => {
+  it('上級バッジにボーダースタイルが適用される', () => {
     const advancedScenario = { ...mockScenario, difficulty: 'advanced' };
     render(<ScenarioCard scenario={advancedScenario} onSelect={vi.fn()} />);
     const badge = screen.getByText('上級');
-    expect(badge.className).toContain('text-rose-400');
+    expect(badge).toHaveClass('border');
+    expect(badge).toHaveClass('text-[var(--color-text-primary)]');
   });
 
   it('未知のdifficulty値はそのまま表示される', () => {

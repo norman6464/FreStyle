@@ -1,5 +1,6 @@
 package com.example.FreStyle.usecase;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 import org.junit.jupiter.api.DisplayName;
@@ -37,5 +38,16 @@ class RemoveScenarioBookmarkUseCaseTest {
         removeScenarioBookmarkUseCase.execute(1, 999);
 
         verify(scenarioBookmarkRepository).deleteByUserIdAndScenarioId(1, 999);
+    }
+
+    @Test
+    @DisplayName("repositoryが例外をスローした場合そのまま伝搬する")
+    void execute_PropagatesRepositoryException() {
+        doThrow(new RuntimeException("DB接続エラー"))
+                .when(scenarioBookmarkRepository).deleteByUserIdAndScenarioId(1, 1);
+
+        assertThatThrownBy(() -> removeScenarioBookmarkUseCase.execute(1, 1))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("DB接続エラー");
     }
 }

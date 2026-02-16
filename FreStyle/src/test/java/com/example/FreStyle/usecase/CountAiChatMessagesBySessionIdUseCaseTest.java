@@ -1,6 +1,7 @@
 package com.example.FreStyle.usecase;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 import org.junit.jupiter.api.DisplayName;
@@ -38,5 +39,25 @@ class CountAiChatMessagesBySessionIdUseCaseTest {
         Long result = useCase.execute(99);
 
         assertThat(result).isEqualTo(0L);
+    }
+
+    @Test
+    @DisplayName("大量メッセージ数も正しく返す")
+    void returnsLargeCount() {
+        when(repository.countBySessionId(1)).thenReturn(100000L);
+
+        Long result = useCase.execute(1);
+
+        assertThat(result).isEqualTo(100000L);
+    }
+
+    @Test
+    @DisplayName("repositoryが例外をスローした場合そのまま伝搬する")
+    void propagatesRepositoryException() {
+        when(repository.countBySessionId(5)).thenThrow(new RuntimeException("DB接続エラー"));
+
+        assertThatThrownBy(() -> useCase.execute(5))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("DB接続エラー");
     }
 }

@@ -55,4 +55,14 @@ class GeneratePresignedUrlUseCaseTest {
         assertThrows(IllegalArgumentException.class,
                 () -> useCase.execute("test-sub", "note1", "file.exe", "application/octet-stream"));
     }
+
+    @Test
+    @DisplayName("UserIdentityServiceが例外をスローした場合そのまま伝搬する")
+    void execute_propagatesUserIdentityException() {
+        when(userIdentityService.findUserBySub("unknown-sub"))
+                .thenThrow(new RuntimeException("ユーザーが見つかりません"));
+
+        assertThrows(RuntimeException.class,
+                () -> useCase.execute("unknown-sub", "note1", "image.png", "image/png"));
+    }
 }

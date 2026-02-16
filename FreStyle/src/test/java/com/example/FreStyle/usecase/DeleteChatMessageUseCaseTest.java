@@ -1,5 +1,6 @@
 package com.example.FreStyle.usecase;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 import org.junit.jupiter.api.DisplayName;
@@ -26,5 +27,16 @@ class DeleteChatMessageUseCaseTest {
         useCase.execute(100);
 
         verify(chatMessageService).deleteMessage(100);
+    }
+
+    @Test
+    @DisplayName("ChatMessageServiceが例外をスローした場合そのまま伝搬する")
+    void execute_propagatesServiceException() {
+        doThrow(new RuntimeException("削除失敗"))
+                .when(chatMessageService).deleteMessage(100);
+
+        assertThatThrownBy(() -> useCase.execute(100))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("削除失敗");
     }
 }

@@ -74,7 +74,7 @@ export default function ConfirmModal({
       />
 
       {/* モーダル */}
-      <div role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title" onKeyDown={handleKeyDown} className="relative bg-surface-1 rounded-2xl shadow-md p-6 mx-4 max-w-sm w-full animate-fade-in">
+      <div role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title" onKeyDown={handleKeyDown} className="relative bg-surface-1 rounded-2xl shadow-md p-6 mx-4 max-w-sm w-full animate-scale-in">
         {/* アイコン */}
         <div className="flex justify-center mb-4">
           <div

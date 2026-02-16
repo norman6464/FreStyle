@@ -54,8 +54,8 @@ export default function RephraseModal({ result, onClose, originalText = '' }: Re
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-surface-1 rounded-lg shadow-lg max-w-lg w-full mx-4 p-5">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-fade-in">
+      <div className="bg-surface-1 rounded-lg shadow-lg max-w-lg w-full mx-4 p-5 animate-scale-in">
         <h3 className="text-sm font-semibold text-[var(--color-text-primary)] mb-4">言い換え提案</h3>
 
         {result === null ? (

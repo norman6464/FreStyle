@@ -2,6 +2,11 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import SessionDetailModal from '../SessionDetailModal';
 
+const mockNavigate = vi.fn();
+vi.mock('react-router-dom', () => ({
+  useNavigate: () => mockNavigate,
+}));
+
 const session = {
   sessionId: 1,
   sessionTitle: '障害報告の練習',
@@ -59,5 +64,13 @@ describe('SessionDetailModal', () => {
 
     fireEvent.click(screen.getByTestId('modal-overlay'));
     expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('「会話を見る」ボタンをクリックするとセッション画面に遷移する', () => {
+    const onClose = vi.fn();
+    render(<SessionDetailModal session={session} onClose={onClose} />);
+
+    fireEvent.click(screen.getByRole('button', { name: '会話を見る' }));
+    expect(mockNavigate).toHaveBeenCalledWith('/chat/ask-ai/1');
   });
 });

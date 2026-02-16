@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import type { ScoreHistoryItem } from '../types';
 import AxisScoreBar from './AxisScoreBar';
 
@@ -7,6 +8,8 @@ interface SessionDetailModalProps {
 }
 
 export default function SessionDetailModal({ session, onClose }: SessionDetailModalProps) {
+  const navigate = useNavigate();
+
   return (
     <div
       data-testid="modal-overlay"
@@ -63,12 +66,20 @@ export default function SessionDetailModal({ session, onClose }: SessionDetailMo
             ))}
           </div>
 
-          <button
-            onClick={onClose}
-            className="w-full mt-4 py-2 text-xs font-medium text-[var(--color-text-tertiary)] bg-surface-3 rounded-lg hover:bg-surface-3 transition-colors"
-          >
-            閉じる
-          </button>
+          <div className="flex gap-2 mt-4">
+            <button
+              onClick={() => navigate(`/chat/ask-ai/${session.sessionId}`)}
+              className="flex-1 py-2 text-xs font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-500 transition-colors"
+            >
+              会話を見る
+            </button>
+            <button
+              onClick={onClose}
+              className="flex-1 py-2 text-xs font-medium text-[var(--color-text-tertiary)] bg-surface-3 rounded-lg hover:bg-surface-3 transition-colors"
+            >
+              閉じる
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -162,4 +162,44 @@ describe('useProfileEdit', () => {
 
     expect(mockUpdateProfile).toHaveBeenCalledWith({ name: '更新太郎', bio: '自己紹介文' });
   });
+
+  it('ニックネームが空の場合エラーメッセージが表示されAPIが呼ばれない', async () => {
+    const { result } = renderHook(() => useProfileEdit());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    act(() => {
+      result.current.updateField('name', '');
+    });
+
+    await act(async () => {
+      await result.current.handleUpdate();
+    });
+
+    expect(result.current.message?.type).toBe('error');
+    expect(result.current.message?.text).toBe('ニックネームを入力してください。');
+    expect(mockUpdateProfile).not.toHaveBeenCalled();
+  });
+
+  it('ニックネームが空白のみの場合エラーメッセージが表示されAPIが呼ばれない', async () => {
+    const { result } = renderHook(() => useProfileEdit());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    act(() => {
+      result.current.updateField('name', '   ');
+    });
+
+    await act(async () => {
+      await result.current.handleUpdate();
+    });
+
+    expect(result.current.message?.type).toBe('error');
+    expect(result.current.message?.text).toBe('ニックネームを入力してください。');
+    expect(mockUpdateProfile).not.toHaveBeenCalled();
+  });
 });

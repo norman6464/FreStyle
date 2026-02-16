@@ -140,4 +140,30 @@ class DailyGoalControllerTest {
         assertEquals(5, response.getBody().getTarget());
         assertEquals(today, response.getBody().getDate());
     }
+
+    @Test
+    @DisplayName("setTarget: UseCaseの例外がそのまま伝搬する")
+    void setTarget_propagatesException() {
+        Jwt jwt = createMockJwt();
+        User user = new User();
+        user.setId(1);
+        when(userIdentityService.findUserBySub("cognito-sub-123")).thenReturn(user);
+        doThrow(new RuntimeException("保存失敗")).when(setDailyGoalTargetUseCase).execute(user, 5);
+
+        assertThrows(RuntimeException.class,
+                () -> dailyGoalController.setTarget(jwt, Map.of("target", 5)));
+    }
+
+    @Test
+    @DisplayName("increment: UseCaseの例外がそのまま伝搬する")
+    void increment_propagatesException() {
+        Jwt jwt = createMockJwt();
+        User user = new User();
+        user.setId(1);
+        when(userIdentityService.findUserBySub("cognito-sub-123")).thenReturn(user);
+        when(incrementDailyGoalUseCase.execute(user)).thenThrow(new RuntimeException("インクリメント失敗"));
+
+        assertThrows(RuntimeException.class,
+                () -> dailyGoalController.increment(jwt));
+    }
 }

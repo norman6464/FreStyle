@@ -58,7 +58,7 @@ describe('FavoritesPage', () => {
   it('お気に入りフレーズ一覧が表示される', () => {
     render(<FavoritesPage />);
 
-    expect(screen.getByText('お気に入りフレーズ')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /お気に入りフレーズ/ })).toBeInTheDocument();
     expect(screen.getByText('ご確認いただけますでしょうか')).toBeInTheDocument();
     expect(screen.getByText('こちらの内容でよろしいでしょうか')).toBeInTheDocument();
   });
@@ -148,5 +148,19 @@ describe('FavoritesPage', () => {
     render(<FavoritesPage />);
 
     expect(screen.getByText('お気に入りフレーズがありません')).toBeInTheDocument();
+  });
+
+  it('フレーズ件数が表示される', () => {
+    render(<FavoritesPage />);
+
+    expect(screen.getByText('2件')).toBeInTheDocument();
+  });
+
+  it('フレーズが0件の場合は件数が表示されない', () => {
+    mockReturnValue = { ...mockReturnValue, phrases: [], filteredPhrases: [] };
+
+    render(<FavoritesPage />);
+
+    expect(screen.queryByText('0件')).not.toBeInTheDocument();
   });
 });

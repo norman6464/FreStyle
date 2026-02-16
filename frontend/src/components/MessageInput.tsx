@@ -13,6 +13,14 @@ export default function MessageInput({ onSend, isSending = false }: MessageInput
   const minRows = 1;
   const maxRows = 8;
 
+  const prevIsSendingRef = useRef(isSending);
+  useEffect(() => {
+    if (prevIsSendingRef.current && !isSending) {
+      textareaRef.current?.focus();
+    }
+    prevIsSendingRef.current = isSending;
+  }, [isSending]);
+
   useEffect(() => {
     const textarea = textareaRef.current;
     if (textarea) {

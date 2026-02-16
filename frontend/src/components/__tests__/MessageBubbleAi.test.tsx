@@ -34,9 +34,10 @@ describe('MessageBubbleAi', () => {
     const { container: receiverContainer } = render(
       <MessageBubbleAi isSender={false} content="受信" id={2} />
     );
-    const senderBubble = senderContainer.firstElementChild as HTMLElement;
-    const receiverBubble = receiverContainer.firstElementChild as HTMLElement;
-    expect(senderBubble.className).not.toBe(receiverBubble.className);
+    const senderWrapper = senderContainer.firstElementChild?.firstElementChild as HTMLElement;
+    const receiverWrapper = receiverContainer.firstElementChild?.firstElementChild as HTMLElement;
+    expect(senderWrapper.className).toContain('ml-auto');
+    expect(receiverWrapper.className).toContain('mr-auto');
   });
 
   it('長いメッセージも表示される', () => {

@@ -32,6 +32,9 @@ export function useAskAi() {
     fetchMessages,
     deleteSession,
     updateSessionTitle,
+    handleIncomingMessage,
+    handleIncomingScoreCard,
+    handleIncomingSession,
   } = useAiChat();
 
   const aiSession = useAiSession({ deleteSession, updateSessionTitle });
@@ -94,8 +97,9 @@ export function useAskAi() {
 
   // セッション購読
   const subscribeToSession = (sessionId: number): void => {
-    subscribe(`/topic/ai-chat/session/${sessionId}`, () => {
-      // メッセージはuseAiChatフックで管理
+    subscribe(`/topic/ai-chat/session/${sessionId}`, (message) => {
+      const newMessage = JSON.parse(message.body);
+      handleIncomingMessage(newMessage);
     });
   };
 
@@ -131,11 +135,13 @@ export function useAskAi() {
 
     subscribe(`/topic/ai-chat/user/${user.id}/session`, (message) => {
       const newSession = JSON.parse(message.body);
+      handleIncomingSession(newSession);
       setCurrentSessionId(newSession.id);
     });
 
-    subscribe(`/topic/ai-chat/user/${user.id}/scorecard`, () => {
-      // スコアカードはuseAiChatフックで管理
+    subscribe(`/topic/ai-chat/user/${user.id}/scorecard`, (message) => {
+      const data = JSON.parse(message.body);
+      handleIncomingScoreCard(data);
     });
 
     subscribe(`/topic/ai-chat/user/${user.id}/session-deleted`, (message) => {

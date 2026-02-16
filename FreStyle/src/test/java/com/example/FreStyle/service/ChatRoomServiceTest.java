@@ -47,12 +47,13 @@ class ChatRoomServiceTest {
     }
 
     @Test
-    @DisplayName("findChatRoomById: リポジトリが例外をスローした場合そのまま伝搬する")
+    @DisplayName("findChatRoomById: リポジトリが例外をスローした場合メッセージ付きで伝搬する")
     void findChatRoomById_propagatesRepositoryException() {
         when(chatRoomRepository.findById(1))
                 .thenThrow(new RuntimeException("DB接続エラー"));
 
-        assertThrows(RuntimeException.class,
+        RuntimeException ex = assertThrows(RuntimeException.class,
                 () -> chatRoomService.findChatRoomById(1));
+        assertEquals("DB接続エラー", ex.getMessage());
     }
 }

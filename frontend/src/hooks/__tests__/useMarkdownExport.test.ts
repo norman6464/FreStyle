@@ -61,4 +61,48 @@ describe('useMarkdownExport', () => {
     appendSpy.mockRestore();
     removeSpy.mockRestore();
   });
+
+  it('copyAsMarkdownが複数段落を正しく変換する', () => {
+    const { result } = renderHook(() => useMarkdownExport());
+    const doc = {
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: '段落1' }] },
+        { type: 'paragraph', content: [{ type: 'text', text: '段落2' }] },
+      ],
+    };
+    const md = result.current.copyAsMarkdown('タイトル', JSON.stringify(doc));
+    expect(md).toBe('# タイトル\n\n段落1\n\n段落2');
+  });
+
+  it('exportAsMarkdownがタイトルなしの場合「無題.md」をファイル名にする', () => {
+    const { result } = renderHook(() => useMarkdownExport());
+
+    let downloadFileName = '';
+    const originalCreateElement = document.createElement.bind(document);
+    const createElementSpy = vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+      if (tag === 'a') {
+        return {
+          click: vi.fn(),
+          href: '',
+          set download(val: string) { downloadFileName = val; },
+          get download() { return downloadFileName; },
+        } as unknown as HTMLAnchorElement;
+      }
+      return originalCreateElement(tag);
+    });
+    const appendSpy = vi.spyOn(document.body, 'appendChild').mockImplementation((node) => node);
+    const removeSpy = vi.spyOn(document.body, 'removeChild').mockImplementation((node) => node);
+    globalThis.URL.createObjectURL = vi.fn(() => 'blob:test');
+    globalThis.URL.revokeObjectURL = vi.fn();
+
+    const doc = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'テスト' }] }] };
+    result.current.exportAsMarkdown('', JSON.stringify(doc));
+
+    expect(downloadFileName).toBe('無題.md');
+
+    createElementSpy.mockRestore();
+    appendSpy.mockRestore();
+    removeSpy.mockRestore();
+  });
 });

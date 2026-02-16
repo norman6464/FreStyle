@@ -19,6 +19,7 @@ export default function AskAiPage() {
   const { isOpen: mobilePanelOpen, open: openMobilePanel, close: closeMobilePanel } = useMobilePanelState();
   const { copiedId, copyToClipboard } = useCopyToClipboard();
   const {
+    sessions,
     filteredSessions,
     messages,
     scoreCard,
@@ -50,6 +51,7 @@ export default function AskAiPage() {
       {/* セカンダリパネル: セッション一覧 */}
       <SecondaryPanel
         title="セッション"
+        badge={`${sessions.length}件`}
         mobileOpen={mobilePanelOpen}
         onMobileClose={closeMobilePanel}
         headerContent={

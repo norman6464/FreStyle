@@ -31,8 +31,7 @@ public class NoteController {
 
     @GetMapping
     public ResponseEntity<List<NoteDto>> getNotes(@AuthenticationPrincipal Jwt jwt) {
-        String sub = jwt.getSubject();
-        User user = userIdentityService.findUserBySub(sub);
+        User user = resolveUser(jwt);
 
         List<NoteDto> notes = getNotesByUserIdUseCase.execute(user.getId());
         logger.info("ノート一覧取得成功 - 件数: {}", notes.size());
@@ -45,8 +44,7 @@ public class NoteController {
             @AuthenticationPrincipal Jwt jwt,
             @RequestBody CreateNoteRequest request
     ) {
-        String sub = jwt.getSubject();
-        User user = userIdentityService.findUserBySub(sub);
+        User user = resolveUser(jwt);
 
         NoteDto note = createNoteUseCase.execute(user.getId(), request.title());
         logger.info("ノート作成成功 - noteId: {}", note.getNoteId());
@@ -60,8 +58,7 @@ public class NoteController {
             @PathVariable String noteId,
             @RequestBody UpdateNoteRequest request
     ) {
-        String sub = jwt.getSubject();
-        User user = userIdentityService.findUserBySub(sub);
+        User user = resolveUser(jwt);
 
         updateNoteUseCase.execute(user.getId(), noteId, request.title(), request.content(), request.isPinned());
         logger.info("ノート更新成功 - noteId: {}", noteId);
@@ -74,13 +71,16 @@ public class NoteController {
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable String noteId
     ) {
-        String sub = jwt.getSubject();
-        User user = userIdentityService.findUserBySub(sub);
+        User user = resolveUser(jwt);
 
         deleteNoteUseCase.execute(user.getId(), noteId);
         logger.info("ノート削除成功 - noteId: {}", noteId);
 
         return ResponseEntity.noContent().build();
+    }
+
+    private User resolveUser(Jwt jwt) {
+        return userIdentityService.findUserBySub(jwt.getSubject());
     }
 
     public record CreateNoteRequest(String title) {}

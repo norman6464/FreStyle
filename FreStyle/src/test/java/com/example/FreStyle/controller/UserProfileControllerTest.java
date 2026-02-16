@@ -15,20 +15,31 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.oauth2.jwt.Jwt;
 
 import com.example.FreStyle.dto.UserProfileDto;
-import com.example.FreStyle.entity.User;
 import com.example.FreStyle.form.UserProfileForm;
-import com.example.FreStyle.service.UserIdentityService;
-import com.example.FreStyle.service.UserProfileService;
+import com.example.FreStyle.usecase.CreateUserProfileUseCase;
+import com.example.FreStyle.usecase.DeleteUserProfileUseCase;
+import com.example.FreStyle.usecase.GetUserProfileUseCase;
+import com.example.FreStyle.usecase.UpdateUserProfileUseCase;
+import com.example.FreStyle.usecase.UpsertUserProfileUseCase;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("UserProfileController")
 class UserProfileControllerTest {
 
     @Mock
-    private UserProfileService userProfileService;
+    private GetUserProfileUseCase getUserProfileUseCase;
 
     @Mock
-    private UserIdentityService userIdentityService;
+    private CreateUserProfileUseCase createUserProfileUseCase;
+
+    @Mock
+    private UpdateUserProfileUseCase updateUserProfileUseCase;
+
+    @Mock
+    private UpsertUserProfileUseCase upsertUserProfileUseCase;
+
+    @Mock
+    private DeleteUserProfileUseCase deleteUserProfileUseCase;
 
     @InjectMocks
     private UserProfileController userProfileController;
@@ -37,13 +48,6 @@ class UserProfileControllerTest {
         Jwt jwt = mock(Jwt.class);
         when(jwt.getSubject()).thenReturn(sub);
         return jwt;
-    }
-
-    private User createUser(Integer id) {
-        User user = new User();
-        user.setId(id);
-        user.setName("テストユーザー");
-        return user;
     }
 
     private UserProfileDto createProfileDto() {
@@ -62,9 +66,7 @@ class UserProfileControllerTest {
         @DisplayName("正常にプロファイルを取得できる")
         void returnsProfile() {
             Jwt jwt = mockJwt("sub-123");
-            User user = createUser(10);
-            when(userIdentityService.findUserBySub("sub-123")).thenReturn(user);
-            when(userProfileService.getProfileByUserId(10)).thenReturn(createProfileDto());
+            when(getUserProfileUseCase.execute("sub-123")).thenReturn(createProfileDto());
 
             ResponseEntity<?> response = userProfileController.getMyProfile(jwt);
 
@@ -76,9 +78,7 @@ class UserProfileControllerTest {
         @DisplayName("プロファイル未作成の場合メッセージを返す")
         void returnsMessageWhenNoProfile() {
             Jwt jwt = mockJwt("sub-123");
-            User user = createUser(10);
-            when(userIdentityService.findUserBySub("sub-123")).thenReturn(user);
-            when(userProfileService.getProfileByUserId(10)).thenReturn(null);
+            when(getUserProfileUseCase.execute("sub-123")).thenReturn(null);
 
             ResponseEntity<?> response = userProfileController.getMyProfile(jwt);
 
@@ -102,10 +102,8 @@ class UserProfileControllerTest {
         @DisplayName("正常にプロファイルを作成できる")
         void createsProfile() {
             Jwt jwt = mockJwt("sub-123");
-            User user = createUser(10);
             UserProfileForm form = new UserProfileForm();
-            when(userIdentityService.findUserBySub("sub-123")).thenReturn(user);
-            when(userProfileService.createProfile(user, form)).thenReturn(createProfileDto());
+            when(createUserProfileUseCase.execute("sub-123", form)).thenReturn(createProfileDto());
 
             ResponseEntity<?> response = userProfileController.createMyProfile(jwt, form);
 
@@ -124,10 +122,8 @@ class UserProfileControllerTest {
         @DisplayName("既に存在する場合400を返す")
         void returns400WhenAlreadyExists() {
             Jwt jwt = mockJwt("sub-123");
-            User user = createUser(10);
             UserProfileForm form = new UserProfileForm();
-            when(userIdentityService.findUserBySub("sub-123")).thenReturn(user);
-            when(userProfileService.createProfile(user, form))
+            when(createUserProfileUseCase.execute("sub-123", form))
                     .thenThrow(new RuntimeException("プロファイルは既に存在します。"));
 
             ResponseEntity<?> response = userProfileController.createMyProfile(jwt, form);
@@ -144,10 +140,8 @@ class UserProfileControllerTest {
         @DisplayName("正常にプロファイルを更新できる")
         void updatesProfile() {
             Jwt jwt = mockJwt("sub-123");
-            User user = createUser(10);
             UserProfileForm form = new UserProfileForm();
-            when(userIdentityService.findUserBySub("sub-123")).thenReturn(user);
-            when(userProfileService.updateProfile(10, form)).thenReturn(createProfileDto());
+            when(updateUserProfileUseCase.execute("sub-123", form)).thenReturn(createProfileDto());
 
             ResponseEntity<?> response = userProfileController.updateMyProfile(jwt, form);
 
@@ -158,10 +152,8 @@ class UserProfileControllerTest {
         @DisplayName("存在しない場合400を返す")
         void returns400WhenNotFound() {
             Jwt jwt = mockJwt("sub-123");
-            User user = createUser(10);
             UserProfileForm form = new UserProfileForm();
-            when(userIdentityService.findUserBySub("sub-123")).thenReturn(user);
-            when(userProfileService.updateProfile(10, form))
+            when(updateUserProfileUseCase.execute("sub-123", form))
                     .thenThrow(new RuntimeException("プロファイルが見つかりません。"));
 
             ResponseEntity<?> response = userProfileController.updateMyProfile(jwt, form);
@@ -178,10 +170,8 @@ class UserProfileControllerTest {
         @DisplayName("正常にupsertできる")
         void upsertsProfile() {
             Jwt jwt = mockJwt("sub-123");
-            User user = createUser(10);
             UserProfileForm form = new UserProfileForm();
-            when(userIdentityService.findUserBySub("sub-123")).thenReturn(user);
-            when(userProfileService.createOrUpdateProfile(user, form)).thenReturn(createProfileDto());
+            when(upsertUserProfileUseCase.execute("sub-123", form)).thenReturn(createProfileDto());
 
             ResponseEntity<?> response = userProfileController.upsertMyProfile(jwt, form);
 
@@ -197,23 +187,19 @@ class UserProfileControllerTest {
         @DisplayName("正常にプロファイルを削除できる")
         void deletesProfile() {
             Jwt jwt = mockJwt("sub-123");
-            User user = createUser(10);
-            when(userIdentityService.findUserBySub("sub-123")).thenReturn(user);
 
             ResponseEntity<?> response = userProfileController.deleteMyProfile(jwt);
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-            verify(userProfileService).deleteProfile(10);
+            verify(deleteUserProfileUseCase).execute("sub-123");
         }
 
         @Test
         @DisplayName("存在しない場合400を返す")
         void returns400WhenNotFound() {
             Jwt jwt = mockJwt("sub-123");
-            User user = createUser(10);
-            when(userIdentityService.findUserBySub("sub-123")).thenReturn(user);
             doThrow(new RuntimeException("プロファイルが見つかりません。"))
-                    .when(userProfileService).deleteProfile(10);
+                    .when(deleteUserProfileUseCase).execute("sub-123");
 
             ResponseEntity<?> response = userProfileController.deleteMyProfile(jwt);
 

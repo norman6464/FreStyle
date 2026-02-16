@@ -21,8 +21,10 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -79,6 +81,147 @@ class ChatServiceTest {
         when(projection.getUserId()).thenReturn(userId);
         when(projection.getRoomId()).thenReturn(roomId);
         return projection;
+    }
+
+    // ============================
+    // createOrGetRoom
+    // ============================
+    @Test
+    @DisplayName("createOrGetRoom: 既存ルームが見つかればそのroomIdを返す")
+    void createOrGetRoom_existingRoom_returnsRoomId() {
+        when(chatRoomRepository.findRoomIdByUserIds(1, 2)).thenReturn(10);
+
+        Integer result = chatService.createOrGetRoom(1, 2);
+
+        assertEquals(10, result);
+        verify(chatRoomRepository, never()).save(any());
+        verify(roomMemberRepository, never()).saveAll(anyList());
+    }
+
+    @Test
+    @DisplayName("createOrGetRoom: 新規ルームを作成しメンバーを登録する")
+    void createOrGetRoom_newRoom_createsRoomAndMembers() {
+        when(chatRoomRepository.findRoomIdByUserIds(1, 2)).thenReturn(null);
+        when(chatRoomRepository.save(any(ChatRoom.class))).thenAnswer(invocation -> {
+            ChatRoom arg = invocation.getArgument(0);
+            arg.setId(99);
+            return arg;
+        });
+        when(userRepository.findById(1)).thenReturn(Optional.of(myUser));
+        when(userRepository.findById(2)).thenReturn(Optional.of(partnerUser));
+
+        Integer result = chatService.createOrGetRoom(1, 2);
+
+        assertEquals(99, result);
+        verify(chatRoomRepository).save(any(ChatRoom.class));
+        verify(roomMemberRepository).saveAll(anyList());
+    }
+
+    @Test
+    @DisplayName("createOrGetRoom: 自分のユーザーが見つからない場合はIllegalStateException")
+    void createOrGetRoom_myUserNotFound_throwsException() {
+        when(chatRoomRepository.findRoomIdByUserIds(1, 2)).thenReturn(null);
+        when(chatRoomRepository.save(any(ChatRoom.class))).thenReturn(new ChatRoom());
+        when(userRepository.findById(1)).thenReturn(Optional.empty());
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> chatService.createOrGetRoom(1, 2));
+        assertEquals("ユーザーが存在しません。", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("createOrGetRoom: 相手ユーザーが見つからない場合はIllegalStateException")
+    void createOrGetRoom_targetUserNotFound_throwsException() {
+        when(chatRoomRepository.findRoomIdByUserIds(1, 2)).thenReturn(null);
+        when(chatRoomRepository.save(any(ChatRoom.class))).thenReturn(new ChatRoom());
+        when(userRepository.findById(1)).thenReturn(Optional.of(myUser));
+        when(userRepository.findById(2)).thenReturn(Optional.empty());
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> chatService.createOrGetRoom(1, 2));
+        assertEquals("相手ユーザーが存在しません。", ex.getMessage());
+    }
+
+    // ============================
+    // findChatUsers
+    // ============================
+    @Test
+    @DisplayName("findChatUsers: パートナーが存在しない場合は空リストを返す")
+    void findChatUsers_noPartners_returnsEmptyList() {
+        when(roomMemberRepository.findPartnerUserIdAndRoomIdByUserId(1))
+                .thenReturn(new ArrayList<>());
+
+        List<ChatUserDto> result = chatService.findChatUsers(1, null);
+
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    @DisplayName("findChatUsers: 検索クエリで名前フィルタリングできる")
+    void findChatUsers_withQuery_filtersUsersByName() {
+        User partner2 = new User();
+        partner2.setId(3);
+        partner2.setName("フィルタ対象外");
+        partner2.setEmail("other@test.com");
+
+        List<PartnerRoomProjection> partnerDataList = new ArrayList<>();
+        partnerDataList.add(createProjection(2, 10));
+        partnerDataList.add(createProjection(3, 20));
+        when(roomMemberRepository.findPartnerUserIdAndRoomIdByUserId(1))
+                .thenReturn(partnerDataList);
+        when(userRepository.findAllById(List.of(2, 3)))
+                .thenReturn(List.of(partnerUser, partner2));
+        when(chatMessageRepository.findLatestMessagesByRoomIds(List.of(10, 20)))
+                .thenReturn(List.of());
+        when(unreadCountService.getUnreadCountsByUserAndRooms(eq(1), anyList()))
+                .thenReturn(Map.of());
+
+        List<ChatUserDto> result = chatService.findChatUsers(1, "相手");
+
+        assertEquals(1, result.size());
+        assertEquals("相手", result.get(0).getName());
+    }
+
+    @Test
+    @DisplayName("findChatUsers: 最終メッセージ日時で降順ソートされる")
+    void findChatUsers_sortedByLastMessageDesc() {
+        User partner2 = new User();
+        partner2.setId(3);
+        partner2.setName("ユーザー3");
+        partner2.setEmail("user3@test.com");
+
+        ChatRoom room2 = new ChatRoom();
+        room2.setId(20);
+
+        ChatMessage olderMessage = new ChatMessage();
+        olderMessage.setRoom(room);
+        olderMessage.setSender(partnerUser);
+        olderMessage.setContent("古いメッセージ");
+        olderMessage.setCreatedAt(new Timestamp(1000));
+
+        ChatMessage newerMessage = new ChatMessage();
+        newerMessage.setRoom(room2);
+        newerMessage.setSender(partner2);
+        newerMessage.setContent("新しいメッセージ");
+        newerMessage.setCreatedAt(new Timestamp(2000));
+
+        List<PartnerRoomProjection> partnerDataList = new ArrayList<>();
+        partnerDataList.add(createProjection(2, 10));
+        partnerDataList.add(createProjection(3, 20));
+        when(roomMemberRepository.findPartnerUserIdAndRoomIdByUserId(1))
+                .thenReturn(partnerDataList);
+        when(userRepository.findAllById(List.of(2, 3)))
+                .thenReturn(List.of(partnerUser, partner2));
+        when(chatMessageRepository.findLatestMessagesByRoomIds(List.of(10, 20)))
+                .thenReturn(List.of(olderMessage, newerMessage));
+        when(unreadCountService.getUnreadCountsByUserAndRooms(eq(1), anyList()))
+                .thenReturn(Map.of());
+
+        List<ChatUserDto> result = chatService.findChatUsers(1, null);
+
+        assertEquals(2, result.size());
+        assertEquals("ユーザー3", result.get(0).getName());
+        assertEquals("相手", result.get(1).getName());
     }
 
     @Test

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useLocation, useParams } from 'react-router-dom';
 import { useAuth } from './useAuth';
 import { useAiChat } from './useAiChat';
@@ -18,6 +18,7 @@ export function useAskAi() {
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   const [initialPromptSent, setInitialPromptSent] = useState(false);
+  const [sessionSearchQuery, setSessionSearchQuery] = useState('');
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const location = useLocation();
@@ -164,6 +165,12 @@ export function useAskAi() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  const filteredSessions = useMemo(() => {
+    if (!sessionSearchQuery) return sessions;
+    const query = sessionSearchQuery.toLowerCase();
+    return sessions.filter((s: { title: string }) => s.title.toLowerCase().includes(query));
+  }, [sessions, sessionSearchQuery]);
+
   // メッセージ削除処理
   const handleDeleteMessage = (_messageId: number): void => {
     // メッセージ削除はローカル状態のみ更新（サーバー側の削除は未実装）
@@ -172,12 +179,15 @@ export function useAskAi() {
   return {
     // データ
     sessions,
+    filteredSessions,
     messages,
     scoreCard,
     messagesEndRef,
     isPracticeMode,
     scenarioId,
     scenarioName,
+    sessionSearchQuery,
+    setSessionSearchQuery,
 
     // セッション管理
     ...aiSession,

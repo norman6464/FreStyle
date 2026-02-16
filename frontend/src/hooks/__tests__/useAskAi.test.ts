@@ -124,4 +124,20 @@ describe('useAskAi', () => {
     const { result } = renderHook(() => useAskAi());
     expect(result.current.deleteModal.isOpen).toBe(false);
   });
+
+  it('sessionSearchQueryの初期値が空文字である', () => {
+    const { result } = renderHook(() => useAskAi());
+    expect(result.current.sessionSearchQuery).toBe('');
+  });
+
+  it('setSessionSearchQueryで検索クエリを変更できる', () => {
+    const { result } = renderHook(() => useAskAi());
+    act(() => { result.current.setSessionSearchQuery('テスト'); });
+    expect(result.current.sessionSearchQuery).toBe('テスト');
+  });
+
+  it('filteredSessionsが返される', () => {
+    const { result } = renderHook(() => useAskAi());
+    expect(result.current.filteredSessions).toEqual([]);
+  });
 });

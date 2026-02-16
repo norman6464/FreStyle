@@ -12,6 +12,7 @@ vi.mock('../../hooks/useBlockEditor', () => ({
 
 const mockUseAskAi = {
   sessions: [],
+  filteredSessions: [],
   messages: [],
   scoreCard: null,
   messagesEndRef: { current: null },
@@ -22,6 +23,8 @@ const mockUseAskAi = {
   editingSessionId: null,
   editingTitle: '',
   setEditingTitle: vi.fn(),
+  sessionSearchQuery: '',
+  setSessionSearchQuery: vi.fn(),
   handleNewSession: vi.fn(),
   handleSelectSession: vi.fn(),
   handleDeleteSession: vi.fn(),
@@ -58,12 +61,14 @@ describe('AskAiPage', () => {
   });
 
   it('セッション一覧が表示される', () => {
+    const sessionData = [
+      { id: 1, title: 'セッション1', createdAt: '2026-02-10T10:00:00Z' },
+      { id: 2, title: 'セッション2', createdAt: '2026-02-11T10:00:00Z' },
+    ];
     vi.mocked(useAskAi).mockReturnValue({
       ...mockUseAskAi,
-      sessions: [
-        { id: 1, title: 'セッション1', createdAt: '2026-02-10T10:00:00Z' },
-        { id: 2, title: 'セッション2', createdAt: '2026-02-11T10:00:00Z' },
-      ] as any,
+      sessions: sessionData as any,
+      filteredSessions: sessionData as any,
     });
     render(<AskAiPage />);
     expect(screen.getAllByText('セッション1').length).toBeGreaterThanOrEqual(1);

@@ -131,4 +131,21 @@ describe('ChatListPage', () => {
     expect(imgs.length).toBeGreaterThanOrEqual(1);
     expect(imgs[0].getAttribute('src')).toBe('https://example.com/photo.jpg');
   });
+
+  it('チャットユーザー数バッジを表示する', () => {
+    render(<BrowserRouter><ChatListPage /></BrowserRouter>);
+
+    expect(screen.getAllByText('2件').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('チャットユーザーが0件の場合「0件」バッジを表示する', () => {
+    mockUseChatList.mockReturnValue({
+      ...defaultChatListData(),
+      chatUsers: [],
+    });
+
+    render(<BrowserRouter><ChatListPage /></BrowserRouter>);
+
+    expect(screen.getAllByText('0件').length).toBeGreaterThanOrEqual(1);
+  });
 });

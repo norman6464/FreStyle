@@ -68,6 +68,7 @@ export default function InputField({
           <button
             type="button"
             onClick={handleClear}
+            aria-label="入力をクリア"
             className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[var(--color-text-faint)] hover:text-[var(--color-text-tertiary)] transition-colors"
           >
             <XMarkIcon className="w-5 h-5" />

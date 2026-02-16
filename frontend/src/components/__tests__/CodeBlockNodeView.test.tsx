@@ -67,4 +67,30 @@ describe('CodeBlockNodeView', () => {
     render(<CodeBlockNodeView {...defaultProps} />);
     expect(screen.getByText('コピー')).toBeInTheDocument();
   });
+
+  it('行番号が表示される（1行のコード）', () => {
+    render(<CodeBlockNodeView {...defaultProps} />);
+    const lineNumbers = screen.getByText('1');
+    expect(lineNumbers).toBeInTheDocument();
+  });
+
+  it('複数行のコードで正しい行番号が表示される', () => {
+    const props = {
+      ...defaultProps,
+      node: { ...defaultProps.node, textContent: 'line1\nline2\nline3' },
+    };
+    render(<CodeBlockNodeView {...props} />);
+    expect(screen.getByText('1')).toBeInTheDocument();
+    expect(screen.getByText('2')).toBeInTheDocument();
+    expect(screen.getByText('3')).toBeInTheDocument();
+  });
+
+  it('空のコードブロックでも行番号1が表示される', () => {
+    const props = {
+      ...defaultProps,
+      node: { ...defaultProps.node, textContent: '' },
+    };
+    render(<CodeBlockNodeView {...props} />);
+    expect(screen.getByText('1')).toBeInTheDocument();
+  });
 });

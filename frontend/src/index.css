@@ -22,20 +22,20 @@
 }
 
 .light {
-  --color-surface: #F7F6F3;
+  --color-surface: #FFFFFF;
   --color-surface-1: #FFFFFF;
-  --color-surface-2: #F1F0ED;
-  --color-surface-3: #E8E7E4;
-  --color-text-primary: #1A1A1A;
-  --color-text-secondary: #374151;
-  --color-text-tertiary: #6B7280;
-  --color-text-muted: #9CA3AF;
-  --color-text-faint: #D1D5DB;
-  --color-text-subtle: #E5E7EB;
-  --color-border-hover: #D1D5DB;
-  --scrollbar-track: #F1F5F9;
-  --scrollbar-thumb: #CBD5E1;
-  --scrollbar-thumb-hover: #94A3B8;
+  --color-surface-2: #F7F7F5;
+  --color-surface-3: #E8E8E6;
+  --color-text-primary: #191919;
+  --color-text-secondary: #37352F;
+  --color-text-tertiary: #787774;
+  --color-text-muted: #A4A4A0;
+  --color-text-faint: #D3D3D0;
+  --color-text-subtle: #E8E8E6;
+  --color-border-hover: #D3D3D0;
+  --scrollbar-track: #FFFFFF;
+  --scrollbar-thumb: #D3D3D0;
+  --scrollbar-thumb-hover: #A4A4A0;
 }
 
 @layer base {
@@ -180,10 +180,34 @@
   background: var(--color-surface-3);
   color: var(--color-text-secondary);
 }
+.code-block-body {
+  display: flex;
+  overflow-x: auto;
+}
+.code-block-line-numbers {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  padding: 0.75rem 0;
+  padding-left: 0.75rem;
+  padding-right: 0.5rem;
+  text-align: right;
+  user-select: none;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  border-right: 1px solid var(--color-surface-3);
+}
+.code-block-line-numbers span {
+  min-width: 1.5rem;
+}
 .code-block-wrapper pre {
   margin: 0;
   padding: 0.75rem 1rem;
   overflow-x: auto;
+  flex: 1;
+  min-width: 0;
   font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
   font-size: 0.8125rem;
   line-height: 1.5;

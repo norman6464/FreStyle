@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { NodeViewWrapper, NodeViewContent } from '@tiptap/react';
 import { ClipboardIcon, CheckIcon } from '@heroicons/react/24/outline';
 
@@ -36,6 +36,12 @@ export default function CodeBlockNodeView({ node, updateAttributes }: CodeBlockN
   const [copied, setCopied] = useState(false);
   const language = node.attrs.language || '';
 
+  const lineCount = useMemo(() => {
+    const text = node.textContent;
+    if (!text) return 1;
+    return text.split('\n').length;
+  }, [node.textContent]);
+
   const handleCopy = () => {
     navigator.clipboard.writeText(node.textContent);
     setCopied(true);
@@ -68,9 +74,16 @@ export default function CodeBlockNodeView({ node, updateAttributes }: CodeBlockN
           )}
         </button>
       </div>
-      <pre>
-        <NodeViewContent as="code" />
-      </pre>
+      <div className="code-block-body">
+        <div className="code-block-line-numbers" contentEditable={false} aria-hidden="true">
+          {Array.from({ length: lineCount }, (_, i) => (
+            <span key={i}>{i + 1}</span>
+          ))}
+        </div>
+        <pre>
+          <NodeViewContent as="code" />
+        </pre>
+      </div>
     </NodeViewWrapper>
   );
 }

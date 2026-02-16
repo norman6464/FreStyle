@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
 import DailyGoalCard from '../DailyGoalCard';
 
 vi.mock('../../hooks/useDailyGoal', () => ({
@@ -70,5 +70,59 @@ describe('DailyGoalCard', () => {
   it('回ラベルが表示される', () => {
     render(<DailyGoalCard />);
     expect(screen.getByText(/回/)).toBeInTheDocument();
+  });
+
+  describe('目標回数変更', () => {
+    beforeEach(() => {
+      mockGoalState = {
+        goal: { date: '2026-02-13', target: 3, completed: 1 },
+        isAchieved: false,
+        progress: 33,
+        setTarget: vi.fn(),
+        incrementCompleted: vi.fn(),
+      };
+    });
+
+    it('目標回数をクリックすると編集モードになる', () => {
+      render(<DailyGoalCard />);
+
+      fireEvent.click(screen.getByRole('button', { name: /目標を変更/ }));
+
+      expect(screen.getByRole('spinbutton')).toBeInTheDocument();
+    });
+
+    it('編集モードで値を変更してEnterで保存する', () => {
+      render(<DailyGoalCard />);
+
+      fireEvent.click(screen.getByRole('button', { name: /目標を変更/ }));
+      const input = screen.getByRole('spinbutton');
+      fireEvent.change(input, { target: { value: '5' } });
+      fireEvent.keyDown(input, { key: 'Enter' });
+
+      expect(mockGoalState.setTarget).toHaveBeenCalledWith(5);
+    });
+
+    it('編集モードでEscapeを押すとキャンセルされる', () => {
+      render(<DailyGoalCard />);
+
+      fireEvent.click(screen.getByRole('button', { name: /目標を変更/ }));
+      const input = screen.getByRole('spinbutton');
+      fireEvent.change(input, { target: { value: '8' } });
+      fireEvent.keyDown(input, { key: 'Escape' });
+
+      expect(mockGoalState.setTarget).not.toHaveBeenCalled();
+      expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument();
+    });
+
+    it('編集モードでblurすると保存される', () => {
+      render(<DailyGoalCard />);
+
+      fireEvent.click(screen.getByRole('button', { name: /目標を変更/ }));
+      const input = screen.getByRole('spinbutton');
+      fireEvent.change(input, { target: { value: '7' } });
+      fireEvent.blur(input);
+
+      expect(mockGoalState.setTarget).toHaveBeenCalledWith(7);
+    });
   });
 });

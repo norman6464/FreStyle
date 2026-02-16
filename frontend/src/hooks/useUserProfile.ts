@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { classifyApiError } from '../utils/classifyApiError';
 import UserProfileRepository, {
   UserProfile,
   UpdateUserProfileRequest,
@@ -35,9 +36,7 @@ export const useUserProfile = () => {
       const data = await UserProfileRepository.getMyProfile();
       setProfile(data);
     } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : 'プロファイルの取得に失敗しました。';
-      setError(errorMessage);
+      setError(classifyApiError(err, 'プロファイルの取得に失敗しました。'));
     } finally {
       setLoading(false);
     }
@@ -56,9 +55,7 @@ export const useUserProfile = () => {
         setProfile(updatedProfile);
         return true;
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : 'プロファイルの更新に失敗しました。';
-        setError(errorMessage);
+        setError(classifyApiError(err, 'プロファイルの更新に失敗しました。'));
         return false;
       } finally {
         setLoading(false);

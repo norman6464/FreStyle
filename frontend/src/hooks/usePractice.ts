@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { classifyApiError } from '../utils/classifyApiError';
 import PracticeRepository, {
   PracticeScenario,
   PracticeSession,
@@ -37,9 +38,7 @@ export const usePractice = () => {
       const data = await PracticeRepository.getScenarios();
       setScenarios(data);
     } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : 'シナリオ一覧の取得に失敗しました。';
-      setError(errorMessage);
+      setError(classifyApiError(err, 'シナリオ一覧の取得に失敗しました。'));
     } finally {
       setLoading(false);
     }
@@ -57,9 +56,7 @@ export const usePractice = () => {
       setCurrentScenario(data);
       return data;
     } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : 'シナリオ詳細の取得に失敗しました。';
-      setError(errorMessage);
+      setError(classifyApiError(err, 'シナリオ詳細の取得に失敗しました。'));
       return null;
     } finally {
       setLoading(false);
@@ -78,9 +75,7 @@ export const usePractice = () => {
         const data = await PracticeRepository.createPracticeSession(request);
         return data;
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : '練習セッションの作成に失敗しました。';
-        setError(errorMessage);
+        setError(classifyApiError(err, '練習セッションの作成に失敗しました。'));
         return null;
       } finally {
         setLoading(false);

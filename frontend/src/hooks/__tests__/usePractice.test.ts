@@ -35,7 +35,7 @@ describe('usePractice', () => {
       await result.current.fetchScenarios();
     });
 
-    expect(result.current.error).toBe('取得失敗');
+    expect(result.current.error).toBe('シナリオ一覧の取得に失敗しました。');
   });
 
   it('fetchScenario: シナリオ詳細を取得する', async () => {
@@ -78,7 +78,7 @@ describe('usePractice', () => {
     });
 
     expect(created).toBeNull();
-    expect(result.current.error).toBe('作成失敗');
+    expect(result.current.error).toBe('練習セッションの作成に失敗しました。');
   });
 
   it('初期状態のscenariosが空配列', () => {
@@ -103,6 +103,6 @@ describe('usePractice', () => {
     });
 
     expect(fetched).toBeNull();
-    expect(result.current.error).toBe('詳細取得失敗');
+    expect(result.current.error).toBe('シナリオ詳細の取得に失敗しました。');
   });
 });

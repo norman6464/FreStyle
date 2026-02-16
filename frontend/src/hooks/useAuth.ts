@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
+import { classifyApiError } from '../utils/classifyApiError';
 import AuthRepository, {
   LoginRequest,
   SignupRequest,
@@ -50,8 +51,7 @@ export const useAuth = () => {
         dispatch(setAuthData());
         return true;
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'ログインに失敗しました。';
-        setError(errorMessage);
+        setError(classifyApiError(err, 'ログインに失敗しました。'));
         return false;
       } finally {
         setLoading(false);
@@ -71,8 +71,7 @@ export const useAuth = () => {
       await AuthRepository.signup(request);
       return true;
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'サインアップに失敗しました。';
-      setError(errorMessage);
+      setError(classifyApiError(err, 'サインアップに失敗しました。'));
       return false;
     } finally {
       setLoading(false);
@@ -90,8 +89,7 @@ export const useAuth = () => {
       await AuthRepository.confirmSignup(request);
       return true;
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : '確認に失敗しました。';
-      setError(errorMessage);
+      setError(classifyApiError(err, '確認に失敗しました。'));
       return false;
     } finally {
       setLoading(false);
@@ -109,9 +107,7 @@ export const useAuth = () => {
       await AuthRepository.forgotPassword(request);
       return true;
     } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : 'パスワード再設定リクエストに失敗しました。';
-      setError(errorMessage);
+      setError(classifyApiError(err, 'パスワード再設定リクエストに失敗しました。'));
       return false;
     } finally {
       setLoading(false);
@@ -130,9 +126,7 @@ export const useAuth = () => {
         await AuthRepository.confirmForgotPassword(request);
         return true;
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : 'パスワード再設定確認に失敗しました。';
-        setError(errorMessage);
+        setError(classifyApiError(err, 'パスワード再設定確認に失敗しました。'));
         return false;
       } finally {
         setLoading(false);
@@ -154,8 +148,7 @@ export const useAuth = () => {
       dispatch(clearAuth());
       navigate('/login');
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'ログアウトに失敗しました。';
-      setError(errorMessage);
+      setError(classifyApiError(err, 'ログアウトに失敗しました。'));
     } finally {
       setLoading(false);
     }
@@ -174,9 +167,7 @@ export const useAuth = () => {
       dispatch(setAuthData());
       return userInfo;
     } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : 'ユーザー情報の取得に失敗しました。';
-      setError(errorMessage);
+      setError(classifyApiError(err, 'ユーザー情報の取得に失敗しました。'));
       dispatch(finishLoading());
       return null;
     } finally {

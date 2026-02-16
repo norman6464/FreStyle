@@ -35,7 +35,7 @@ describe('useUserProfile', () => {
       await result.current.fetchMyProfile();
     });
 
-    expect(result.current.error).toBe('取得失敗');
+    expect(result.current.error).toBe('プロファイルの取得に失敗しました。');
   });
 
   it('updateProfile: プロファイルを更新する', async () => {
@@ -64,7 +64,7 @@ describe('useUserProfile', () => {
     });
 
     expect(success).toBe(false);
-    expect(result.current.error).toBe('更新失敗');
+    expect(result.current.error).toBe('プロファイルの更新に失敗しました。');
   });
 
   it('fetchMyProfile: non-Errorオブジェクトのreject時にデフォルトメッセージを設定する', async () => {

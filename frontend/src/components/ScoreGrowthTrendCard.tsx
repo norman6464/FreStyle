@@ -25,11 +25,11 @@ const TREND_CONFIG: Record<TrendType, { label: string; message: string; color: s
   },
 };
 
-interface Props {
+interface ScoreGrowthTrendCardProps {
   scores: number[];
 }
 
-export default function ScoreGrowthTrendCard({ scores }: Props) {
+export default function ScoreGrowthTrendCard({ scores }: ScoreGrowthTrendCardProps) {
   const analysis = useMemo(() => {
     if (!Array.isArray(scores) || scores.length < 2) return null;
 

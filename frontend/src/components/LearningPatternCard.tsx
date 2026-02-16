@@ -45,11 +45,11 @@ function analyzePattern(practiceDates: string[]): { pattern: PatternType; dayCou
   return { pattern, dayCounts };
 }
 
-interface Props {
+interface LearningPatternCardProps {
   practiceDates: string[];
 }
 
-export default function LearningPatternCard({ practiceDates }: Props) {
+export default function LearningPatternCard({ practiceDates }: LearningPatternCardProps) {
   const { pattern, dayCounts } = useMemo(() => analyzePattern(practiceDates), [practiceDates]);
 
   if (practiceDates.length === 0) return null;

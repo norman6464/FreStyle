@@ -36,4 +36,27 @@ class UserDtoTest {
         dto.setRoomId(10);
         assertThat(dto.getRoomId()).isEqualTo(10);
     }
+
+    @Test
+    @DisplayName("NoArgsConstructorで全フィールドがnull")
+    void noArgsConstructorAllFieldsNull() {
+        UserDto dto = new UserDto();
+
+        assertThat(dto.getId()).isNull();
+        assertThat(dto.getEmail()).isNull();
+        assertThat(dto.getName()).isNull();
+        assertThat(dto.getRoomId()).isNull();
+    }
+
+    @Test
+    @DisplayName("setterでemail・nameを変更できる")
+    void setEmailAndName() {
+        UserDto dto = new UserDto(1, "old@example.com", "旧名前");
+
+        dto.setEmail("new@example.com");
+        dto.setName("新名前");
+
+        assertThat(dto.getEmail()).isEqualTo("new@example.com");
+        assertThat(dto.getName()).isEqualTo("新名前");
+    }
 }

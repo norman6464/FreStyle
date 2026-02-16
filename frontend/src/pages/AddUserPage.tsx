@@ -1,6 +1,7 @@
 import MemberList from '../components/MemberList';
 import SearchBox from '../components/SearchBox';
 import FormMessage from '../components/FormMessage';
+import Loading from '../components/Loading';
 import {
   MagnifyingGlassIcon,
   UserPlusIcon,
@@ -26,8 +27,8 @@ export default function AddUserPage() {
 
       {/* ローディング中 */}
       {loading && (
-        <div className="flex items-center justify-center py-12">
-          <p className="text-sm text-[var(--color-text-muted)]">検索中...</p>
+        <div className="py-12">
+          <Loading message="検索中..." />
         </div>
       )}
 

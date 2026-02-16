@@ -1,5 +1,5 @@
 import { ChangeEvent, useState } from 'react';
-import { XMarkIcon } from '@heroicons/react/24/solid';
+import { XMarkIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/solid';
 import FormFieldError from './FormFieldError';
 import { getFieldBorderClass } from '../utils/fieldStyles';
 
@@ -24,6 +24,8 @@ export default function InputField({
   disabled,
 }: InputFieldProps) {
   const [inputValue, setInputValue] = useState(value || '');
+  const [showPassword, setShowPassword] = useState(false);
+  const isPasswordField = type === 'password';
 
   const handleClear = () => {
     setInputValue('');
@@ -42,7 +44,7 @@ export default function InputField({
         <input
           id={name}
           name={name}
-          type={type}
+          type={isPasswordField && showPassword ? 'text' : type}
           value={inputValue}
           onChange={(e) => {
             setInputValue(e.target.value);
@@ -53,7 +55,16 @@ export default function InputField({
           aria-describedby={error ? `${name}-error` : undefined}
           className={`w-full border rounded-lg px-4 py-2.5 pr-10 focus:outline-none focus:ring-1 transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed ${getFieldBorderClass(!!error)}`}
         />
-        {inputValue && !disabled && (
+        {isPasswordField && !disabled ? (
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            aria-label={showPassword ? 'パスワードを非表示' : 'パスワードを表示'}
+            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[var(--color-text-faint)] hover:text-[var(--color-text-tertiary)] transition-colors"
+          >
+            {showPassword ? <EyeSlashIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
+          </button>
+        ) : inputValue && !disabled ? (
           <button
             type="button"
             onClick={handleClear}
@@ -61,7 +72,7 @@ export default function InputField({
           >
             <XMarkIcon className="w-5 h-5" />
           </button>
-        )}
+        ) : null}
       </div>
       <FormFieldError name={name} error={error} />
     </div>

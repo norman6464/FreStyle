@@ -15,7 +15,12 @@ export default function FavoritesPage() {
 
   return (
     <div className="max-w-3xl mx-auto p-4 space-y-3">
-      <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">お気に入りフレーズ</h2>
+      <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">
+        お気に入りフレーズ
+        {phrases.length > 0 && (
+          <span className="ml-2 text-xs font-normal text-[var(--color-text-muted)]">{phrases.length}件</span>
+        )}
+      </h2>
 
       {phrases.length > 0 && (
         <FavoriteStatsCard phrases={phrases} />

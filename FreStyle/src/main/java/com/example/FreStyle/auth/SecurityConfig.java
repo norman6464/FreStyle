@@ -1,7 +1,5 @@
 package com.example.FreStyle.auth;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -13,12 +11,12 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfigurationSource;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Configuration
 @RequiredArgsConstructor
 public class SecurityConfig {
-    
-    private static final Logger logger = LoggerFactory.getLogger(SecurityConfig.class);
     
     // Cognitoの.well-known/jwk.json
     // Spring Security は access_token を自動で decode & validate & set Authentication してくれる
@@ -33,14 +31,14 @@ public class SecurityConfig {
     
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        logger.info("========== [SecurityConfig] SecurityFilterChain 構築開始 ==========");
-        logger.info("[SecurityConfig] CorsConfigurationSource注入確認: {}", corsConfigurationSource != null ? "OK" : "NULL ⚠️");
+        log.info("========== [SecurityConfig] SecurityFilterChain 構築開始 ==========");
+        log.info("[SecurityConfig] CorsConfigurationSource注入確認: {}", corsConfigurationSource != null ? "OK" : "NULL ⚠️");
         
         http
                 // 明示的にCorsConfigurationSourceを指定
                 .cors(cors -> {
                     cors.configurationSource(corsConfigurationSource);
-                    logger.info("[SecurityConfig] CORS設定適用完了");
+                    log.info("[SecurityConfig] CORS設定適用完了");
                 })
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
@@ -55,7 +53,7 @@ public class SecurityConfig {
                         .jwtAuthenticationConverter(jwtAuthenticationConverter()) // カスタムコンバーターを作成をする
                         .jwkSetUri(jwkUri)));
         
-        logger.info("========== [SecurityConfig] SecurityFilterChain 構築完了 ==========");
+        log.info("========== [SecurityConfig] SecurityFilterChain 構築完了 ==========");
         return http.build();
     }
     

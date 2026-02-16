@@ -1,7 +1,5 @@
 package com.example.FreStyle.exception;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -9,6 +7,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 
 import com.example.FreStyle.dto.ErrorResponseDto;
+
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * グローバル例外ハンドラー
@@ -27,10 +27,9 @@ import com.example.FreStyle.dto.ErrorResponseDto;
  *   <li>適切なHTTPステータスコードとエラーメッセージを返却</li>
  * </ul>
  */
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-
-    private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     /**
      * ResourceNotFoundException のハンドラー
@@ -46,7 +45,7 @@ public class GlobalExceptionHandler {
             ResourceNotFoundException ex,
             WebRequest request
     ) {
-        logger.warn("❌ リソースが見つかりません: {}", ex.getMessage());
+        log.warn("❌ リソースが見つかりません: {}", ex.getMessage());
 
         ErrorResponseDto error = ErrorResponseDto.of(
             HttpStatus.NOT_FOUND.value(),
@@ -72,7 +71,7 @@ public class GlobalExceptionHandler {
             UnauthorizedException ex,
             WebRequest request
     ) {
-        logger.warn("❌ 権限エラー: {}", ex.getMessage());
+        log.warn("❌ 権限エラー: {}", ex.getMessage());
 
         ErrorResponseDto error = ErrorResponseDto.of(
             HttpStatus.FORBIDDEN.value(),
@@ -98,7 +97,7 @@ public class GlobalExceptionHandler {
             BusinessException ex,
             WebRequest request
     ) {
-        logger.warn("❌ ビジネスロジックエラー: {}", ex.getMessage());
+        log.warn("❌ ビジネスロジックエラー: {}", ex.getMessage());
 
         ErrorResponseDto error = ErrorResponseDto.of(
             HttpStatus.BAD_REQUEST.value(),
@@ -115,7 +114,7 @@ public class GlobalExceptionHandler {
             IllegalArgumentException ex,
             WebRequest request
     ) {
-        logger.warn("不正な引数: {}", ex.getMessage());
+        log.warn("不正な引数: {}", ex.getMessage());
 
         ErrorResponseDto error = ErrorResponseDto.of(
             HttpStatus.BAD_REQUEST.value(),
@@ -141,7 +140,7 @@ public class GlobalExceptionHandler {
             Exception ex,
             WebRequest request
     ) {
-        logger.error("❌ 予期しないエラー: {}", ex.getMessage(), ex);
+        log.error("❌ 予期しないエラー: {}", ex.getMessage(), ex);
 
         ErrorResponseDto error = ErrorResponseDto.of(
             HttpStatus.INTERNAL_SERVER_ERROR.value(),

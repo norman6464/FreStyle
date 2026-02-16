@@ -111,9 +111,7 @@ public class CognitoAuthController {
             return ResponseEntity.badRequest().body(Map.of("error", "パスワードポリシーに違反しています。"));
 
         } catch (RuntimeException e) {
-            log.info("❌ エラー: " + e.getClass().getSimpleName() + " - " + e.getMessage());
-            e.printStackTrace();
-            log.info("========== /signup 処理完了(INTERNAL_SERVER_ERROR) ==========\n");
+            log.error("/signup エラー: {}", e.getMessage(), e);
             return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
         }
     }
@@ -158,9 +156,7 @@ public class CognitoAuthController {
                     .body(Map.of("error", "ユーザーが存在しません。"));
 
         } catch (RuntimeException e) {
-            log.info("❌ エラー: " + e.getClass().getSimpleName() + " - " + e.getMessage());
-            e.printStackTrace();
-            log.info("========== /confirm 処理完了(INTERNAL_SERVER_ERROR) ==========\n");
+            log.error("/confirm エラー: {}", e.getMessage(), e);
             return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
         }
     }
@@ -226,9 +222,7 @@ public class CognitoAuthController {
             return ResponseEntity.ok(Map.of("succes", "ログインできました。"));
 
         } catch (RuntimeException e) {
-            log.info("❌ エラー: " + e.getClass().getSimpleName() + " - " + e.getMessage());
-            e.printStackTrace();
-            log.info("========== /login 処理完了(BAD_REQUEST) ==========\n");
+            log.error("/login エラー: {}", e.getMessage(), e);
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
@@ -264,7 +258,7 @@ public class CognitoAuthController {
                 .block();
 
         if (tokenResponse == null) {
-            System.err.println("[CognitoAuthController /callback] ERROR: tokenResponse is null");
+            log.error("/callback トークンレスポンスがnull");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "トークン取得に失敗しました。"));
         }
@@ -281,7 +275,7 @@ public class CognitoAuthController {
 
         Optional<JWTClaimsSet> claimsOpt = JwtUtils.decode(idToken);
         if (claimsOpt.isEmpty()) {
-            System.err.println("[CognitoAuthController /callback] ERROR: Failed to decode idToken");
+            log.error("/callback IDトークンのデコード失敗");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "無効なリクエストです。"));
         }
@@ -310,8 +304,7 @@ public class CognitoAuthController {
             return ResponseEntity.ok(Map .of("success","ログインできました"));
 
         } catch (Exception e) {
-            log.info("[CognitoAuthController /callback] ERROR: " + e.getClass().getSimpleName() + " - " + e.getMessage());
-            e.printStackTrace();
+            log.error("/callback エラー: {}", e.getMessage(), e);
             return ResponseEntity.internalServerError()
                     .body(Map.of("error", "server error: " + e.getMessage()));
         }
@@ -376,9 +369,7 @@ public class CognitoAuthController {
                     .body(Map.of("error", "ユーザーが存在しません。"));
 
         } catch (RuntimeException e) {
-            log.info("❌ エラー: " + e.getClass().getSimpleName() + " - " + e.getMessage());
-            e.printStackTrace();
-            log.info("========== /forgot-password 処理完了(INTERNAL_SERVER_ERROR) ==========\n");
+            log.error("/forgot-password エラー: {}", e.getMessage(), e);
             return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
         }
     }
@@ -414,14 +405,11 @@ public class CognitoAuthController {
                     tokens.get("accessToken")
             );
 
-            User user = accessTokenEntity.getUser();
-            
             setAuthCookies(response, tokens.get("accessToken"), refreshToken, email);
             return ResponseEntity.ok(Map.of("success","更新完了"));
 
         } catch (RuntimeException e) {
-            log.info("[CognitoAuthController /refresh-token] ERROR: " + e.getClass().getSimpleName() + " - " + e.getMessage());
-            e.printStackTrace();
+            log.error("/refresh-token エラー: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", e.getMessage()));
         }
@@ -475,9 +463,7 @@ public class CognitoAuthController {
                     .body(Map.of("error", "パスワードポリシーに違反しています。"));
 
         } catch (RuntimeException e) {
-            log.info("❌ エラー: " + e.getClass().getSimpleName() + " - " + e.getMessage());
-            e.printStackTrace();
-            log.info("========== /confirm-forgot-password 処理完了(INTERNAL_SERVER_ERROR) ==========\n");
+            log.error("/confirm-forgot-password エラー: {}", e.getMessage(), e);
             return ResponseEntity.internalServerError()
                     .body(Map.of("error", e.getMessage()));
         }
@@ -517,8 +503,7 @@ public class CognitoAuthController {
             return ResponseEntity.ok(Map.of("id",id));
 
         } catch (RuntimeException e) {
-            log.info("[CognitoAuthController /me] ERROR: " + e.getClass().getSimpleName() + " - " + e.getMessage());
-            e.printStackTrace();
+            log.error("/me エラー: {}", e.getMessage(), e);
             return ResponseEntity.internalServerError()
                     .body(Map.of("error", e.getMessage()));
         }
@@ -558,7 +543,7 @@ public class CognitoAuthController {
             .sameSite("None") // 開発環境: Lax、本番環境: None
             .build();
 
-    System.out.println("[setAuthCookies] Setting cookies - ACCESS_TOKEN and REFRESH_TOKEN");
+    log.debug("Cookie設定: ACCESS_TOKEN, REFRESH_TOKEN, EMAIL");
     response.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
     response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
     response.addHeader(HttpHeaders.SET_COOKIE, emailCookie.toString());

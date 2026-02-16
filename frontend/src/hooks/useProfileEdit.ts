@@ -27,6 +27,11 @@ export function useProfileEdit() {
   }, []);
 
   const handleUpdate = useCallback(async () => {
+    if (!form.name.trim()) {
+      setMessage({ type: 'error', text: 'ニックネームを入力してください。' });
+      return;
+    }
+
     setSubmitting(true);
     try {
       const data = await ProfileRepository.updateProfile(form);

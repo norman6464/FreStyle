@@ -1,3 +1,5 @@
+import { useEffect } from 'react';
+
 interface Scene {
   id: string;
   label: string;
@@ -26,10 +28,23 @@ interface SceneSelectorProps {
 export default function SceneSelector({ onSelect, onCancel }: SceneSelectorProps) {
   const categories = [...new Set(SCENES.map((s) => s.category))];
 
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel();
+    };
+    document.addEventListener('keydown', handleEsc);
+    return () => document.removeEventListener('keydown', handleEsc);
+  }, [onCancel]);
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-surface-1 rounded-lg shadow-lg max-w-md w-full mx-4 p-5 max-h-[80vh] overflow-y-auto">
-        <h3 className="text-sm font-semibold text-[var(--color-text-primary)] mb-1">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="scene-selector-heading"
+        className="bg-surface-1 rounded-lg shadow-lg max-w-md w-full mx-4 p-5 max-h-[80vh] overflow-y-auto"
+      >
+        <h3 id="scene-selector-heading" className="text-sm font-semibold text-[var(--color-text-primary)] mb-1">
           フィードバックのシーンを選択
         </h3>
         <p className="text-xs text-[var(--color-text-muted)] mb-4">

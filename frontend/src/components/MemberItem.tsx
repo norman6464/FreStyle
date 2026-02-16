@@ -31,7 +31,11 @@ export default function MemberItem({ id, name, roomId, email }: MemberItemProps)
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-label={`${name || 'Unknown'}とチャット`}
       onClick={handleClick}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClick(); } }}
       className="bg-surface-1 rounded-2xl cursor-pointer overflow-hidden group border border-surface-3 hover:bg-surface-2 transition-colors duration-150 mb-3"
     >
       <div className="flex items-center p-4">

@@ -1,18 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import RecommendedScenarioCard from '../RecommendedScenarioCard';
-import PracticeRepository from '../../repositories/PracticeRepository';
 
-vi.mock('../../repositories/PracticeRepository');
-
-const mockNavigate = vi.fn();
-vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual('react-router-dom');
-  return { ...actual, useNavigate: () => mockNavigate };
-});
-
-const mockedRepo = vi.mocked(PracticeRepository);
+const mockStartSession = vi.fn();
+vi.mock('../../hooks/useStartPracticeSession', () => ({
+  useStartPracticeSession: () => ({
+    startSession: mockStartSession,
+    starting: false,
+  }),
+}));
 
 const defaultScenario = {
   id: 1,
@@ -59,9 +56,7 @@ describe('RecommendedScenarioCard', () => {
     expect(screen.getByText('このシナリオで練習する')).toBeInTheDocument();
   });
 
-  it('ボタンクリックでセッション作成後にAIチャットページに遷移する', async () => {
-    mockedRepo.createPracticeSession.mockResolvedValue({ id: 42 });
-
+  it('ボタンクリックでstartSessionが呼ばれる', () => {
     render(
       <MemoryRouter>
         <RecommendedScenarioCard scenario={defaultScenario} weakAxis="提案力" />
@@ -70,33 +65,7 @@ describe('RecommendedScenarioCard', () => {
 
     screen.getByText('このシナリオで練習する').click();
 
-    await waitFor(() => {
-      expect(mockedRepo.createPracticeSession).toHaveBeenCalledWith({ scenarioId: 1 });
-      expect(mockNavigate).toHaveBeenCalledWith('/chat/ask-ai/42', {
-        state: {
-          sessionType: 'practice',
-          scenarioId: 1,
-          scenarioName: '本番障害の緊急報告',
-          initialPrompt: '練習開始',
-        },
-      });
-    });
-  });
-
-  it('セッション作成失敗時は練習一覧に遷移する', async () => {
-    mockedRepo.createPracticeSession.mockRejectedValue(new Error('失敗'));
-
-    render(
-      <MemoryRouter>
-        <RecommendedScenarioCard scenario={defaultScenario} weakAxis="要約力" />
-      </MemoryRouter>
-    );
-
-    screen.getByText('このシナリオで練習する').click();
-
-    await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith('/practice');
-    });
+    expect(mockStartSession).toHaveBeenCalledWith(defaultScenario);
   });
 
   it('難易度バッジが表示される', () => {

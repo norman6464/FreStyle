@@ -60,7 +60,7 @@ describe('useAuth', () => {
     });
 
     expect(success).toBe(false);
-    expect(result.current.error).toBe('認証失敗');
+    expect(result.current.error).toBe('ログインに失敗しました。');
   });
 
   it('signup: サインアップ成功時にtrueを返す', async () => {
@@ -115,7 +115,7 @@ describe('useAuth', () => {
     });
 
     expect(success).toBe(false);
-    expect(result.current.error).toBe('メールアドレスが既に使用されています');
+    expect(result.current.error).toBe('サインアップに失敗しました。');
   });
 
   it('getCurrentUser: ユーザー情報取得失敗時にnullを返す', async () => {
@@ -129,7 +129,7 @@ describe('useAuth', () => {
     });
 
     expect(user).toBeNull();
-    expect(result.current.error).toBe('セッション切れ');
+    expect(result.current.error).toBe('ユーザー情報の取得に失敗しました。');
   });
 
   it('refreshToken: リフレッシュ失敗時にログインページに遷移する', async () => {

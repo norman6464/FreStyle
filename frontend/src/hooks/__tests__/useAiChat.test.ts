@@ -36,7 +36,7 @@ describe('useAiChat', () => {
       await result.current.fetchSessions();
     });
 
-    expect(result.current.error).toBe('取得失敗');
+    expect(result.current.error).toBe('セッション一覧の取得に失敗しました。');
     expect(result.current.loading).toBe(false);
   });
 

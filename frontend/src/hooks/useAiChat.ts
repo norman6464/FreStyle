@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { classifyApiError } from '../utils/classifyApiError';
 import AiChatRepository, {
   CreateSessionRequest,
   UpdateSessionTitleRequest,
@@ -41,9 +42,7 @@ export const useAiChat = () => {
       const data = await AiChatRepository.getSessions();
       setSessions(data);
     } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : 'セッション一覧の取得に失敗しました。';
-      setError(errorMessage);
+      setError(classifyApiError(err, 'セッション一覧の取得に失敗しました。'));
     } finally {
       setLoading(false);
     }
@@ -60,9 +59,7 @@ export const useAiChat = () => {
       const data = await AiChatRepository.getSession(sessionId);
       setCurrentSession(data);
     } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : 'セッション詳細の取得に失敗しました。';
-      setError(errorMessage);
+      setError(classifyApiError(err, 'セッション詳細の取得に失敗しました。'));
     } finally {
       setLoading(false);
     }
@@ -82,9 +79,7 @@ export const useAiChat = () => {
         setCurrentSession(data);
         return data;
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : 'セッションの作成に失敗しました。';
-        setError(errorMessage);
+        setError(classifyApiError(err, 'セッションの作成に失敗しました。'));
         return null;
       } finally {
         setLoading(false);
@@ -111,9 +106,7 @@ export const useAiChat = () => {
         }
         return true;
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : 'セッションタイトルの更新に失敗しました。';
-        setError(errorMessage);
+        setError(classifyApiError(err, 'セッションタイトルの更新に失敗しました。'));
         return false;
       } finally {
         setLoading(false);
@@ -137,9 +130,7 @@ export const useAiChat = () => {
       }
       return true;
     } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : 'セッションの削除に失敗しました。';
-      setError(errorMessage);
+      setError(classifyApiError(err, 'セッションの削除に失敗しました。'));
       return false;
     } finally {
       setLoading(false);
@@ -157,9 +148,7 @@ export const useAiChat = () => {
       const data = await AiChatRepository.getMessages(sessionId);
       setMessages(data);
     } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : 'メッセージ一覧の取得に失敗しました。';
-      setError(errorMessage);
+      setError(classifyApiError(err, 'メッセージ一覧の取得に失敗しました。'));
     } finally {
       setLoading(false);
     }
@@ -178,9 +167,7 @@ export const useAiChat = () => {
         setMessages((prev) => [...prev, data]);
         return data;
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : 'メッセージの追加に失敗しました。';
-        setError(errorMessage);
+        setError(classifyApiError(err, 'メッセージの追加に失敗しました。'));
         return null;
       } finally {
         setLoading(false);
@@ -201,9 +188,7 @@ export const useAiChat = () => {
         const data = await AiChatRepository.rephrase(request);
         return data.result;
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : '言い換え提案の取得に失敗しました。';
-        setError(errorMessage);
+        setError(classifyApiError(err, '言い換え提案の取得に失敗しました。'));
         return null;
       } finally {
         setLoading(false);
@@ -226,9 +211,7 @@ export const useAiChat = () => {
         scores: Array.isArray(data.scores) ? data.scores : [],
       });
     } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : 'スコアカードの取得に失敗しました。';
-      setError(errorMessage);
+      setError(classifyApiError(err, 'スコアカードの取得に失敗しました。'));
     } finally {
       setLoading(false);
     }
@@ -245,9 +228,7 @@ export const useAiChat = () => {
       const data = await AiChatRepository.getScoreHistory();
       return data;
     } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : 'スコア履歴の取得に失敗しました。';
-      setError(errorMessage);
+      setError(classifyApiError(err, 'スコア履歴の取得に失敗しました。'));
       return [];
     } finally {
       setLoading(false);

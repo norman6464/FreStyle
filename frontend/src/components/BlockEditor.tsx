@@ -7,6 +7,7 @@ import { useImageUpload } from '../hooks/useImageUpload';
 import { useLinkEditor } from '../hooks/useLinkEditor';
 import BlockInserterButton from './BlockInserterButton';
 import LinkBubbleMenu from './LinkBubbleMenu';
+import SearchReplaceBar from './SearchReplaceBar';
 import SelectionToolbar from './SelectionToolbar';
 import type { SlashCommand } from '../constants/slashCommands';
 
@@ -23,6 +24,7 @@ export default function BlockEditor({ content, onChange, noteId }: BlockEditorPr
   const [inserterVisible, setInserterVisible] = useState(false);
   const [inserterTop, setInserterTop] = useState(0);
   const inserterMenuOpen = useRef(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const { openFileDialog, handleDrop, handlePaste } = useImageUpload(noteId, editor);
   const { linkBubble, handleEditorClick, handleEditLink, handleRemoveLink } = useLinkEditor(editor, containerRef);
@@ -33,6 +35,18 @@ export default function BlockEditor({ content, onChange, noteId }: BlockEditorPr
     editor.storage.slashCommand.onImageUpload = openFileDialog;
     return () => { editor.storage.slashCommand.onImageUpload = null; };
   }, [editor, openFileDialog]);
+
+  // Ctrl+F / Cmd+F で検索バーを開く
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+        e.preventDefault();
+        setSearchOpen(prev => !prev);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const lastMoveTime = useRef(0);
   const hideTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -118,6 +132,7 @@ export default function BlockEditor({ content, onChange, noteId }: BlockEditorPr
       onDragOver={(e) => e.preventDefault()}
       onClick={handleEditorClick}
     >
+      <SearchReplaceBar editor={editor} isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
       <SelectionToolbar editor={editor} containerRef={containerRef} />
       {linkBubble && (
         <div

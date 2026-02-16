@@ -22,6 +22,7 @@ import Underline from '@tiptap/extension-underline';
 import Superscript from '@tiptap/extension-superscript';
 import Subscript from '@tiptap/extension-subscript';
 import Youtube from '@tiptap/extension-youtube';
+import { SearchReplaceExtension } from '../extensions/SearchReplaceExtension';
 
 export function createEditorExtensions() {
   return [
@@ -71,5 +72,6 @@ export function createEditorExtensions() {
       allowFullscreen: true,
       HTMLAttributes: { class: 'note-youtube' },
     }),
+    SearchReplaceExtension,
   ];
 }

@@ -38,13 +38,16 @@ vi.mock('@tiptap/extension-underline', () => ({ default: 'Underline' }));
 vi.mock('@tiptap/extension-superscript', () => ({ default: 'Superscript' }));
 vi.mock('@tiptap/extension-subscript', () => ({ default: 'Subscript' }));
 vi.mock('@tiptap/extension-youtube', () => ({ default: { configure: vi.fn(() => 'Youtube') } }));
+vi.mock('../../extensions/SearchReplaceExtension', () => ({
+  SearchReplaceExtension: 'SearchReplace',
+}));
 
 import { createEditorExtensions } from '../editorExtensions';
 
 describe('createEditorExtensions', () => {
-  it('24個のエクステンションを返す', () => {
+  it('25個のエクステンションを返す', () => {
     const extensions = createEditorExtensions();
-    expect(extensions).toHaveLength(24);
+    expect(extensions).toHaveLength(25);
   });
 
   it('主要なエクステンションが含まれる', () => {

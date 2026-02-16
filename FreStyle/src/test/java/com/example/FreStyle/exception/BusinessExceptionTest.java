@@ -34,4 +34,21 @@ class BusinessExceptionTest {
 
         assertInstanceOf(RuntimeException.class, exception);
     }
+
+    @Test
+    @DisplayName("nullメッセージでもnullが保持される")
+    void constructor_WithNullMessage() {
+        BusinessException exception = new BusinessException(null);
+
+        assertNull(exception.getMessage());
+    }
+
+    @Test
+    @DisplayName("2引数コンストラクタでcauseがnullでも正常に動作する")
+    void constructor_WithNullCause() {
+        BusinessException exception = new BusinessException("エラー", null);
+
+        assertEquals("エラー", exception.getMessage());
+        assertNull(exception.getCause());
+    }
 }

@@ -11,9 +11,13 @@ export const DailyGoalRepository = {
   getToday(): DailyGoal {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
-      const goal: DailyGoal = JSON.parse(raw);
-      if (goal.date === getTodayStr()) {
-        return goal;
+      try {
+        const goal: DailyGoal = JSON.parse(raw);
+        if (goal.date === getTodayStr()) {
+          return goal;
+        }
+      } catch {
+        localStorage.removeItem(STORAGE_KEY);
       }
     }
     return { date: getTodayStr(), target: DEFAULT_TARGET, completed: 0 };

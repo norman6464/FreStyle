@@ -6,8 +6,13 @@ export const FavoritePhraseRepository = {
   getAll(): FavoritePhrase[] {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
-    const phrases: FavoritePhrase[] = JSON.parse(raw);
-    return phrases.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    try {
+      const phrases: FavoritePhrase[] = JSON.parse(raw);
+      return phrases.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    } catch {
+      localStorage.removeItem(STORAGE_KEY);
+      return [];
+    }
   },
 
   save(phrase: Omit<FavoritePhrase, 'id' | 'createdAt'>): void {

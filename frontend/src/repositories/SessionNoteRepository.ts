@@ -5,7 +5,12 @@ const STORAGE_KEY = 'freestyle_session_notes';
 function getAllNotes(): Record<string, SessionNote> {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) return {};
-  return JSON.parse(raw);
+  try {
+    return JSON.parse(raw);
+  } catch {
+    localStorage.removeItem(STORAGE_KEY);
+    return {};
+  }
 }
 
 export const SessionNoteRepository = {

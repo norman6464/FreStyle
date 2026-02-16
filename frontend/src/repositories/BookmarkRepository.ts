@@ -4,7 +4,12 @@ export const BookmarkRepository = {
   getAll(): number[] {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
-    return JSON.parse(raw);
+    try {
+      return JSON.parse(raw);
+    } catch {
+      localStorage.removeItem(STORAGE_KEY);
+      return [];
+    }
   },
 
   add(scenarioId: number): void {

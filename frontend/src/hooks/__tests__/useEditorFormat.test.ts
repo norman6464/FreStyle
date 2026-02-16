@@ -85,5 +85,8 @@ describe('useEditorFormat', () => {
     expect(result.current.handleHeading).toBeDefined();
     expect(result.current.handleTaskList).toBeDefined();
     expect(result.current.handleInsertTable).toBeDefined();
+    expect(result.current.handleIndent).toBeDefined();
+    expect(result.current.handleOutdent).toBeDefined();
+    expect(result.current.handleHorizontalRule).toBeDefined();
   });
 });

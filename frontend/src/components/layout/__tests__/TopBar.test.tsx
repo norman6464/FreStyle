@@ -3,10 +3,10 @@ import { describe, it, expect, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import TopBar from '../TopBar';
 
-function renderTopBar(title = 'ホーム') {
+function renderTopBar(title = 'ホーム', onMenuToggle = () => {}) {
   return render(
     <MemoryRouter>
-      <TopBar title={title} onMenuToggle={() => {}} />
+      <TopBar title={title} onMenuToggle={onMenuToggle} />
     </MemoryRouter>
   );
 }
@@ -30,11 +30,7 @@ describe('TopBar', () => {
 
   it('メニューボタンクリックでonMenuToggleが呼ばれる', () => {
     const onMenuToggle = vi.fn();
-    render(
-      <MemoryRouter>
-        <TopBar title="テスト" onMenuToggle={onMenuToggle} />
-      </MemoryRouter>
-    );
+    renderTopBar('テスト', onMenuToggle);
 
     fireEvent.click(screen.getByRole('button', { name: /メニュー/i }));
     expect(onMenuToggle).toHaveBeenCalledOnce();

@@ -36,20 +36,19 @@ class BusinessExceptionTest {
     }
 
     @Test
-    @DisplayName("throwしてcatchできる")
-    void canBeThrown() {
-        assertThrows(BusinessException.class, () -> {
-            throw new BusinessException("ビジネスエラー");
-        });
+    @DisplayName("nullメッセージでもnullが保持される")
+    void constructor_WithNullMessage() {
+        BusinessException exception = new BusinessException(null);
+
+        assertNull(exception.getMessage());
     }
 
     @Test
-    @DisplayName("原因例外のチェインが正しく伝搬する")
-    void causeChainPropagates() {
-        IllegalArgumentException root = new IllegalArgumentException("根本原因");
-        BusinessException exception = new BusinessException("ビジネスエラー", root);
+    @DisplayName("2引数コンストラクタでcauseがnullでも正常に動作する")
+    void constructor_WithNullCause() {
+        BusinessException exception = new BusinessException("エラー", null);
 
-        assertInstanceOf(IllegalArgumentException.class, exception.getCause());
-        assertEquals("根本原因", exception.getCause().getMessage());
+        assertEquals("エラー", exception.getMessage());
+        assertNull(exception.getCause());
     }
 }

@@ -2,8 +2,6 @@ package com.example.FreStyle.controller;
 
 import java.util.List;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -23,6 +21,7 @@ import com.example.FreStyle.usecase.GetAllPracticeScenariosUseCase;
 import com.example.FreStyle.usecase.GetPracticeScenarioByIdUseCase;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * 練習モードAPIコントローラー
@@ -52,9 +51,8 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/practice")
+@Slf4j
 public class PracticeController {
-
-    private static final Logger logger = LoggerFactory.getLogger(PracticeController.class);
 
     // UseCaseクラス（アプリケーション層）
     private final GetAllPracticeScenariosUseCase getAllPracticeScenariosUseCase;
@@ -74,14 +72,14 @@ public class PracticeController {
      */
     @GetMapping("/scenarios")
     public ResponseEntity<List<PracticeScenarioDto>> getScenarios(@AuthenticationPrincipal Jwt jwt) {
-        logger.info("========== GET /api/practice/scenarios ==========");
+        log.info("========== GET /api/practice/scenarios ==========");
 
         // 認証チェック
         resolveUser(jwt);
 
         // ユースケース実行
         List<PracticeScenarioDto> scenarios = getAllPracticeScenariosUseCase.execute();
-        logger.info("✅ シナリオ一覧取得成功 - 件数: {}", scenarios.size());
+        log.info("✅ シナリオ一覧取得成功 - 件数: {}", scenarios.size());
 
         return ResponseEntity.ok(scenarios);
     }
@@ -100,14 +98,14 @@ public class PracticeController {
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable Integer scenarioId
     ) {
-        logger.info("========== GET /api/practice/scenarios/{} ==========", scenarioId);
+        log.info("========== GET /api/practice/scenarios/{} ==========", scenarioId);
 
         // 認証チェック
         resolveUser(jwt);
 
         // ユースケース実行
         PracticeScenarioDto scenario = getPracticeScenarioByIdUseCase.execute(scenarioId);
-        logger.info("✅ シナリオ詳細取得成功");
+        log.info("✅ シナリオ詳細取得成功");
 
         return ResponseEntity.ok(scenario);
     }
@@ -133,14 +131,14 @@ public class PracticeController {
             @AuthenticationPrincipal Jwt jwt,
             @RequestBody CreatePracticeSessionRequest request
     ) {
-        logger.info("========== POST /api/practice/sessions ==========");
+        log.info("========== POST /api/practice/sessions ==========");
 
         // 認証チェック & ユーザー取得
         User user = resolveUser(jwt);
 
         // ユースケース実行
         AiChatSessionDto session = createPracticeSessionUseCase.execute(user, request.scenarioId());
-        logger.info("✅ 練習セッション作成成功 - sessionId: {}", session.getId());
+        log.info("✅ 練習セッション作成成功 - sessionId: {}", session.getId());
 
         return ResponseEntity.ok(session);
     }

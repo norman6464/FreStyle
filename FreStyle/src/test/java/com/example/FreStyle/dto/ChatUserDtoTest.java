@@ -43,6 +43,9 @@ class ChatUserDtoTest {
         assertThat(dto.getName()).isNull();
         assertThat(dto.getRoomId()).isNull();
         assertThat(dto.getLastMessage()).isNull();
+        assertThat(dto.getLastMessageSenderId()).isNull();
+        assertThat(dto.getLastMessageSenderName()).isNull();
+        assertThat(dto.getLastMessageAt()).isNull();
         assertThat(dto.getUnreadCount()).isNull();
         assertThat(dto.getProfileImage()).isNull();
     }

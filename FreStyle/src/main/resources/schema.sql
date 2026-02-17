@@ -205,6 +205,20 @@ CREATE TABLE IF NOT EXISTS learning_reports (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- フレンド（フォロー/フォロワー）
+CREATE TABLE IF NOT EXISTS friendships (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    follower_id INT NOT NULL,
+    following_id INT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uk_follower_following (follower_id, following_id),
+    FOREIGN KEY (follower_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (following_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_follower (follower_id),
+    INDEX idx_following (following_id)
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 -- ┌─────────────────┐     ┌──────────────────────┐
 -- │     users       │────→│   ai_chat_sessions   │
 -- └─────────────────┘     └──────────────────────┘

@@ -13,6 +13,7 @@ import {
   DocumentTextIcon,
   BellIcon,
   DocumentChartBarIcon,
+  UsersIcon,
   UserCircleIcon,
   LightBulbIcon,
   ArrowLeftOnRectangleIcon,
@@ -31,6 +32,7 @@ const navItems = [
   { icon: DocumentTextIcon, label: 'ノート', to: '/notes', matchPrefix: '/notes' },
   { icon: BellIcon, label: '通知', to: '/notifications', matchExact: true },
   { icon: DocumentChartBarIcon, label: 'レポート', to: '/reports', matchExact: true },
+  { icon: UsersIcon, label: 'フレンド', to: '/friends', matchExact: true },
 ];
 
 const bottomNavItems = [

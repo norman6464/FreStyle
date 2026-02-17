@@ -1,18 +1,11 @@
 package com.example.FreStyle.dto;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-public class NotificationDto {
-    private Integer id;
-    private String type;
-    private String title;
-    private String message;
-    private Boolean isRead;
-    private Integer relatedId;
-    private String createdAt;
+public record NotificationDto(
+        Integer id,
+        String type,
+        String title,
+        String message,
+        Boolean isRead,
+        Integer relatedId,
+        String createdAt) {
 }

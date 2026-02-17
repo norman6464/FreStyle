@@ -83,9 +83,9 @@ class GetScoreHistoryByUserIdUseCaseTest {
 
             // Assert
             assertThat(result).hasSize(1);
-            assertThat(result.get(0).getSessionId()).isEqualTo(10);
-            assertThat(result.get(0).getOverallScore()).isEqualTo(7.0);
-            assertThat(result.get(0).getScores()).hasSize(2);
+            assertThat(result.get(0).sessionId()).isEqualTo(10);
+            assertThat(result.get(0).overallScore()).isEqualTo(7.0);
+            assertThat(result.get(0).scores()).hasSize(2);
 
             verify(communicationScoreRepository, times(1)).findByUserIdOrderByCreatedAtDesc(userId);
             verify(mapper, times(1)).toScoreHistoryDtoList(entities);

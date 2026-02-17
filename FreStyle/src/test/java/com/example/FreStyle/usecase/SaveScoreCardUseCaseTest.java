@@ -72,11 +72,11 @@ class SaveScoreCardUseCaseTest {
 
             // Assert
             assertThat(result).isNotNull();
-            assertThat(result.getSessionId()).isEqualTo(sessionId);
-            assertThat(result.getScores()).hasSize(1);
-            assertThat(result.getScores().get(0).getAxis()).isEqualTo("論理的構成力");
-            assertThat(result.getScores().get(0).getScore()).isEqualTo(8);
-            assertThat(result.getOverallScore()).isEqualTo(8.0);
+            assertThat(result.sessionId()).isEqualTo(sessionId);
+            assertThat(result.scores()).hasSize(1);
+            assertThat(result.scores().get(0).axis()).isEqualTo("論理的構成力");
+            assertThat(result.scores().get(0).score()).isEqualTo(8);
+            assertThat(result.overallScore()).isEqualTo(8.0);
 
             verify(communicationScoreRepository, times(1)).save(any(CommunicationScore.class));
         }
@@ -108,8 +108,8 @@ class SaveScoreCardUseCaseTest {
             ScoreCardDto result = useCase.execute(sessionId, userId, aiResponse, null);
 
             // Assert
-            assertThat(result.getScores()).hasSize(3);
-            assertThat(result.getOverallScore()).isEqualTo(7.0);
+            assertThat(result.scores()).hasSize(3);
+            assertThat(result.overallScore()).isEqualTo(7.0);
 
             ArgumentCaptor<CommunicationScore> captor = ArgumentCaptor.forClass(CommunicationScore.class);
             verify(communicationScoreRepository, times(3)).save(captor.capture());

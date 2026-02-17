@@ -282,7 +282,7 @@ public class AiChatWebSocketController {
                     "/topic/ai-chat/user/" + userId + "/scorecard",
                     scoreCard
             );
-            log.info("✅ {}送信完了 - 総合スコア: {}", logLabel, scoreCard.getOverallScore());
+            log.info("✅ {}送信完了 - 総合スコア: {}", logLabel, scoreCard.overallScore());
         } else {
             log.warn("⚠️ AI応答からスコアを抽出できませんでした");
         }

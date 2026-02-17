@@ -73,9 +73,9 @@ class GetScoreCardBySessionIdUseCaseTest {
             ScoreCardDto result = useCase.execute(sessionId);
 
             // Assert
-            assertThat(result.getSessionId()).isEqualTo(sessionId);
-            assertThat(result.getScores()).hasSize(2);
-            assertThat(result.getOverallScore()).isEqualTo(7.0);
+            assertThat(result.sessionId()).isEqualTo(sessionId);
+            assertThat(result.scores()).hasSize(2);
+            assertThat(result.overallScore()).isEqualTo(7.0);
 
             verify(communicationScoreRepository, times(1)).findBySessionId(sessionId);
             verify(mapper, times(1)).toScoreCardDto(sessionId, entities);
@@ -97,9 +97,9 @@ class GetScoreCardBySessionIdUseCaseTest {
             ScoreCardDto result = useCase.execute(sessionId);
 
             // Assert
-            assertThat(result.getSessionId()).isEqualTo(sessionId);
-            assertThat(result.getScores()).isEmpty();
-            assertThat(result.getOverallScore()).isEqualTo(0.0);
+            assertThat(result.sessionId()).isEqualTo(sessionId);
+            assertThat(result.scores()).isEmpty();
+            assertThat(result.overallScore()).isEqualTo(0.0);
 
             verify(communicationScoreRepository, times(1)).findBySessionId(sessionId);
             verify(mapper, times(1)).toScoreCardDto(sessionId, emptyList);

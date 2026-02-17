@@ -50,13 +50,8 @@ class SendChatMessageUseCaseTest {
         testRoom = new ChatRoom();
         testRoom.setId(10);
 
-        savedMessage = new ChatMessageDto();
-        savedMessage.setId(100);
-        savedMessage.setRoomId(10);
-        savedMessage.setSenderId(1);
-        savedMessage.setSenderName("送信者");
-        savedMessage.setContent("テストメッセージ");
-        savedMessage.setCreatedAt(new Timestamp(System.currentTimeMillis()));
+        savedMessage = new ChatMessageDto(100, 10, 1, "送信者", "テストメッセージ",
+                new Timestamp(System.currentTimeMillis()), null);
 
         partner = new User();
         partner.setId(2);

@@ -67,9 +67,9 @@ public class SaveScoreCardUseCase {
             CommunicationScore entity = new CommunicationScore();
             entity.setSession(session);
             entity.setUser(user);
-            entity.setAxisName(axisScore.getAxis());
-            entity.setScore(axisScore.getScore());
-            entity.setComment(axisScore.getComment());
+            entity.setAxisName(axisScore.axis());
+            entity.setScore(axisScore.score());
+            entity.setComment(axisScore.comment());
             entity.setScene(scene);
             communicationScoreRepository.save(entity);
         }
@@ -79,7 +79,7 @@ public class SaveScoreCardUseCase {
         double overallScore = scoreCardService.calculateOverallScore(scores);
 
         List<ScoreCardDto.AxisScoreDto> scoreDtos = scores.stream()
-                .map(s -> new ScoreCardDto.AxisScoreDto(s.getAxis(), s.getScore(), s.getComment()))
+                .map(s -> new ScoreCardDto.AxisScoreDto(s.axis(), s.score(), s.comment()))
                 .toList();
 
         return new ScoreCardDto(sessionId, scoreDtos, overallScore);

@@ -80,35 +80,11 @@ public class ScoreCardService {
             return 0.0;
         }
         return scores.stream()
-                .mapToInt(AxisScore::getScore)
+                .mapToInt(AxisScore::score)
                 .average()
                 .orElse(0.0);
     }
 
-    /**
-     * 評価軸スコアの内部表現
-     */
-    public static class AxisScore {
-        private final String axis;
-        private final int score;
-        private final String comment;
-
-        public AxisScore(String axis, int score, String comment) {
-            this.axis = axis;
-            this.score = score;
-            this.comment = comment;
-        }
-
-        public String getAxis() {
-            return axis;
-        }
-
-        public int getScore() {
-            return score;
-        }
-
-        public String getComment() {
-            return comment;
-        }
+    public record AxisScore(String axis, int score, String comment) {
     }
 }

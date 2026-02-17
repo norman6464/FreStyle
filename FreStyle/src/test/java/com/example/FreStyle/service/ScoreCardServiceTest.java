@@ -31,9 +31,9 @@ class ScoreCardServiceTest {
             List<ScoreCardService.AxisScore> scores = service.parseScoresFromResponse(aiResponse);
 
             assertThat(scores).hasSize(5);
-            assertThat(scores.get(0).getAxis()).isEqualTo("論理的構成力");
-            assertThat(scores.get(0).getScore()).isEqualTo(8);
-            assertThat(scores.get(0).getComment()).isEqualTo("良い");
+            assertThat(scores.get(0).axis()).isEqualTo("論理的構成力");
+            assertThat(scores.get(0).score()).isEqualTo(8);
+            assertThat(scores.get(0).comment()).isEqualTo("良い");
         }
 
         @Test
@@ -151,8 +151,8 @@ class ScoreCardServiceTest {
             List<ScoreCardService.AxisScore> scores = service.parseScoresFromResponse(aiResponse);
 
             assertThat(scores).hasSize(1);
-            assertThat(scores.get(0).getAxis()).isEqualTo("論理的構成力");
-            assertThat(scores.get(0).getScore()).isEqualTo(8);
+            assertThat(scores.get(0).axis()).isEqualTo("論理的構成力");
+            assertThat(scores.get(0).score()).isEqualTo(8);
         }
 
         @Test
@@ -163,9 +163,9 @@ class ScoreCardServiceTest {
             List<ScoreCardService.AxisScore> scores = service.parseScoresFromResponse(aiResponse);
 
             assertThat(scores).hasSize(1);
-            assertThat(scores.get(0).getAxis()).isEqualTo("テスト");
-            assertThat(scores.get(0).getScore()).isEqualTo(0);
-            assertThat(scores.get(0).getComment()).isEmpty();
+            assertThat(scores.get(0).axis()).isEqualTo("テスト");
+            assertThat(scores.get(0).score()).isEqualTo(0);
+            assertThat(scores.get(0).comment()).isEmpty();
         }
 
         @Test
@@ -186,8 +186,8 @@ class ScoreCardServiceTest {
             List<ScoreCardService.AxisScore> scores = service.parseScoresFromResponse(aiResponse);
 
             assertThat(scores).hasSize(1);
-            assertThat(scores.get(0).getAxis()).isEqualTo("配慮表現");
-            assertThat(scores.get(0).getScore()).isEqualTo(7);
+            assertThat(scores.get(0).axis()).isEqualTo("配慮表現");
+            assertThat(scores.get(0).score()).isEqualTo(7);
         }
     }
 }

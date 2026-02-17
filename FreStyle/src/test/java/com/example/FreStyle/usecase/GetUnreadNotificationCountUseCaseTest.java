@@ -1,6 +1,7 @@
 package com.example.FreStyle.usecase;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.DisplayName;
@@ -40,5 +41,27 @@ class GetUnreadNotificationCountUseCaseTest {
         long result = getUnreadNotificationCountUseCase.execute(1);
 
         assertThat(result).isEqualTo(0L);
+    }
+
+    @Test
+    @DisplayName("大量の未読通知数を正しく返す")
+    void execute_returnsLargeCount() {
+        when(notificationRepository.countByUserIdAndIsReadFalse(1)).thenReturn(9999L);
+
+        long result = getUnreadNotificationCountUseCase.execute(1);
+
+        assertThat(result).isEqualTo(9999L);
+        verify(notificationRepository).countByUserIdAndIsReadFalse(1);
+    }
+
+    @Test
+    @DisplayName("異なるユーザーIDで正しいパラメータが渡される")
+    void execute_passesCorrectUserId() {
+        when(notificationRepository.countByUserIdAndIsReadFalse(42)).thenReturn(3L);
+
+        long result = getUnreadNotificationCountUseCase.execute(42);
+
+        assertThat(result).isEqualTo(3L);
+        verify(notificationRepository).countByUserIdAndIsReadFalse(42);
     }
 }

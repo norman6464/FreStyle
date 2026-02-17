@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.FreStyle.dto.AiChatMessageDto;
 import com.example.FreStyle.dto.AiChatMessageResponseDto;
 import com.example.FreStyle.dto.AiChatSessionDto;
+import com.example.FreStyle.dto.AiChatSessionStatsDto;
 import com.example.FreStyle.dto.PracticeSessionSummaryDto;
 import com.example.FreStyle.entity.User;
 import com.example.FreStyle.service.AiChatService;
@@ -29,6 +30,7 @@ import com.example.FreStyle.usecase.DeleteAiChatSessionUseCase;
 import com.example.FreStyle.usecase.GetAiChatMessagesBySessionIdUseCase;
 import com.example.FreStyle.usecase.GetAiChatSessionByIdUseCase;
 import com.example.FreStyle.usecase.GetAiChatSessionsByUserIdUseCase;
+import com.example.FreStyle.usecase.GetAiChatSessionStatsUseCase;
 import com.example.FreStyle.usecase.GetPracticeSessionSummaryUseCase;
 import com.example.FreStyle.usecase.UpdateAiChatSessionTitleUseCase;
 
@@ -54,6 +56,7 @@ public class AiChatController {
     private final GetAiChatMessagesBySessionIdUseCase getAiChatMessagesBySessionIdUseCase;
     private final AddAiChatMessageUseCase addAiChatMessageUseCase;
     private final GetPracticeSessionSummaryUseCase getPracticeSessionSummaryUseCase;
+    private final GetAiChatSessionStatsUseCase getAiChatSessionStatsUseCase;
 
 
     // =============================================
@@ -251,6 +254,21 @@ public class AiChatController {
         log.info("✅ 言い換え提案取得成功");
 
         return ResponseEntity.ok(Map.of("result", result));
+    }
+
+    /**
+     * セッション統計を取得
+     */
+    @GetMapping("/session-stats")
+    public ResponseEntity<AiChatSessionStatsDto> getSessionStats(
+            @AuthenticationPrincipal Jwt jwt) {
+        log.info("========== GET /api/chat/ai/session-stats ==========");
+
+        User user = resolveUser(jwt);
+        AiChatSessionStatsDto result = getAiChatSessionStatsUseCase.execute(user.getId());
+        log.info("✅ セッション統計取得成功 - userId={}", user.getId());
+
+        return ResponseEntity.ok(result);
     }
 
     private User resolveUser(Jwt jwt) {

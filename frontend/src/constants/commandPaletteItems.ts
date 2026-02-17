@@ -8,7 +8,6 @@ import {
   StarIcon,
   DocumentTextIcon,
   UserCircleIcon,
-  LightBulbIcon,
   SunIcon,
   DocumentPlusIcon,
 } from '@heroicons/react/24/outline';
@@ -110,15 +109,6 @@ export const COMMAND_ITEMS: CommandItem[] = [
     category: 'ページ移動',
     action: { type: 'navigate', path: '/profile/me' },
     keywords: ['profile', 'プロフィール', '設定'],
-  },
-  {
-    id: 'nav-personality',
-    label: 'パーソナリティ設定',
-    description: 'パーソナリティ設定に移動',
-    icon: LightBulbIcon,
-    category: 'ページ移動',
-    action: { type: 'navigate', path: '/profile/personality' },
-    keywords: ['personality', 'パーソナリティ', '性格'],
   },
   // アクション
   {

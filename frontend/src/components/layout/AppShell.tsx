@@ -15,7 +15,6 @@ const pageTitles: Record<string, string> = {
   '/scores': 'スコア履歴',
   '/chat/members': 'メンバー',
   '/profile/me': 'プロフィール',
-  '/profile/personality': 'パーソナリティ設定',
   '/notes': 'ノート',
 };
 

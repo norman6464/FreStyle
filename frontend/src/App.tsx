@@ -14,7 +14,6 @@ import ConfirmPage from './pages/ConfirmPage';
 import MemberPage from './pages/MemberPage';
 import AddUserPage from './pages/AddUserPage';
 import ProfilePage from './pages/ProfilePage';
-import UserProfilePage from './pages/UserProfilePage';
 import NotesPage from './pages/NotesPage';
 import NotificationPage from './pages/NotificationPage';
 import LearningReportPage from './pages/LearningReportPage';
@@ -71,7 +70,6 @@ export default function App() {
       >
         <Route path="/" element={<MenuPage />} />
         <Route path="/profile/me" element={<ProfilePage />} />
-        <Route path="/profile/personality" element={<UserProfilePage />} />
         <Route path="/chat/members" element={<MemberPage />} />
         <Route path="/chat" element={<ChatListPage />} />
         <Route path="/chat/users" element={<AddUserPage />} />

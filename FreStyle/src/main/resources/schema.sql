@@ -10,31 +10,6 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- user_profiles（ユーザーの自己設定・パーソナリティ情報）
-CREATE TABLE IF NOT EXISTS user_profiles (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    user_id INT NOT NULL UNIQUE,
-    
-    -- 基本的な自己紹介
-    display_name VARCHAR(100),           -- 呼ばれたい名前
-    self_introduction TEXT,              -- 自由形式の自己紹介
-    
-    -- コミュニケーションスタイル
-    communication_style VARCHAR(50),     -- 例: 'casual', 'formal', 'friendly' など
-    personality_traits JSON,             -- 性格特性（複数選択可能）例: ["内向的", "論理的", "共感力が高い"]
-    
-    -- AIフィードバック用の追加情報
-    goals TEXT,                          -- コミュニケーションで改善したい点・目標
-    concerns TEXT,                       -- 苦手なこと・気になっていること
-    preferred_feedback_style VARCHAR(50), -- フィードバックの受け取り方 例: 'direct', 'gentle', 'detailed'
-    
-    -- メタ情報
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
 -- user_identities
 CREATE TABLE IF NOT EXISTS user_identities (
     id INT PRIMARY KEY AUTO_INCREMENT,

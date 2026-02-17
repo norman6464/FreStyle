@@ -14,21 +14,14 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.example.FreStyle.dto.PracticeScenarioDto;
-import com.example.FreStyle.dto.UserProfileDto;
 import com.example.FreStyle.service.BedrockService;
 import com.example.FreStyle.service.SystemPromptBuilder;
-import com.example.FreStyle.service.UserProfileService;
-
-import java.util.List;
 
 @ExtendWith(MockitoExtension.class)
 class GetAiReplyUseCaseTest {
 
     @Mock
     private BedrockService bedrockService;
-
-    @Mock
-    private UserProfileService userProfileService;
 
     @Mock
     private SystemPromptBuilder systemPromptBuilder;
@@ -95,51 +88,14 @@ class GetAiReplyUseCaseTest {
     class フィードバックモード {
 
         @Test
-        void UserProfileありでchatWithUserProfileAndSceneを呼ぶ() {
-            UserProfileDto profile = new UserProfileDto(
-                    1, 1, "テストユーザー", "自己紹介",
-                    "フレンドリー", List.of("明るい", "積極的"),
-                    "目標", "課題", "優しく");
-            when(userProfileService.getProfileByUserId(1)).thenReturn(profile);
-            when(bedrockService.chatWithUserProfileAndScene(
-                    "メッセージ", "meeting", "テストユーザー", "自己紹介",
-                    "フレンドリー", "明るい, 積極的", "目標", "課題", "優しく"))
-                    .thenReturn("フィードバック応答");
+        void フィードバックモードでchatを呼ぶ() {
+            when(bedrockService.chat("メッセージ")).thenReturn("フィードバック応答");
 
             var command = new GetAiReplyUseCase.Command("メッセージ", false, null, true, "meeting", 1);
             String result = getAiReplyUseCase.execute(command);
 
             assertThat(result).isEqualTo("フィードバック応答");
-        }
-
-        @Test
-        void UserProfileがnullの場合は通常モードにフォールバック() {
-            when(userProfileService.getProfileByUserId(1)).thenReturn(null);
-            when(bedrockService.chat("メッセージ")).thenReturn("通常応答");
-
-            var command = new GetAiReplyUseCase.Command("メッセージ", false, null, true, "meeting", 1);
-            String result = getAiReplyUseCase.execute(command);
-
-            assertThat(result).isEqualTo("通常応答");
             verify(bedrockService).chat("メッセージ");
-        }
-
-        @Test
-        void personalityTraitsがnullの場合はnullを渡す() {
-            UserProfileDto profile = new UserProfileDto(
-                    1, 1, "テストユーザー", "自己紹介",
-                    "フレンドリー", null,
-                    "目標", "課題", "優しく");
-            when(userProfileService.getProfileByUserId(1)).thenReturn(profile);
-            when(bedrockService.chatWithUserProfileAndScene(
-                    "メッセージ", "meeting", "テストユーザー", "自己紹介",
-                    "フレンドリー", null, "目標", "課題", "優しく"))
-                    .thenReturn("フィードバック応答");
-
-            var command = new GetAiReplyUseCase.Command("メッセージ", false, null, true, "meeting", 1);
-            String result = getAiReplyUseCase.execute(command);
-
-            assertThat(result).isEqualTo("フィードバック応答");
         }
     }
 }

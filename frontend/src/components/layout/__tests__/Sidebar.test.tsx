@@ -55,7 +55,6 @@ describe('Sidebar', () => {
     expect(screen.getByText('練習')).toBeDefined();
     expect(screen.getByText('ユーザー検索')).toBeDefined();
     expect(screen.getByText('プロフィール')).toBeDefined();
-    expect(screen.getByText('パーソナリティ')).toBeDefined();
   });
 
   it('ログアウトボタンを表示する', () => {

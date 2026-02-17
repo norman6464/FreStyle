@@ -16,7 +16,6 @@ import {
   DocumentChartBarIcon,
   UsersIcon,
   UserCircleIcon,
-  LightBulbIcon,
   ArrowLeftOnRectangleIcon,
   SunIcon,
   MoonIcon,
@@ -38,7 +37,6 @@ const navItems = [
 
 const bottomNavItems = [
   { icon: UserCircleIcon, label: 'プロフィール', to: '/profile/me', matchExact: true },
-  { icon: LightBulbIcon, label: 'パーソナリティ', to: '/profile/personality', matchExact: true },
 ];
 
 interface SidebarProps {

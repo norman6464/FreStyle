@@ -30,7 +30,7 @@ public class AiChatMessageMapper {
      *
      * @param message AI Chatメッセージエンティティ
      * @return AI ChatメッセージDTO（APIレスポンス用）
-     * @throws IllegalArgumentException messageがnullの場合
+     * @throws NullPointerException messageがnullの場合
      */
     public AiChatMessageResponseDto toDto(AiChatMessage message) {
         Objects.requireNonNull(message, "AiChatMessageエンティティがnullです");

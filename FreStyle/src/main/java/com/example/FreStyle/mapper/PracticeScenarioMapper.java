@@ -30,7 +30,7 @@ public class PracticeScenarioMapper {
      *
      * @param entity 練習シナリオエンティティ
      * @return 練習シナリオDTO（APIレスポンス用）
-     * @throws IllegalArgumentException entityがnullの場合
+     * @throws NullPointerException entityがnullの場合
      */
     public PracticeScenarioDto toDto(PracticeScenario entity) {
         Objects.requireNonNull(entity, "PracticeScenarioエンティティがnullです");
@@ -58,7 +58,7 @@ public class PracticeScenarioMapper {
      *
      * @param dto 練習シナリオDTO
      * @return 練習シナリオエンティティ
-     * @throws IllegalArgumentException dtoがnullの場合
+     * @throws NullPointerException dtoがnullの場合
      */
     public PracticeScenario toEntity(PracticeScenarioDto dto) {
         Objects.requireNonNull(dto, "PracticeScenarioDTOがnullです");

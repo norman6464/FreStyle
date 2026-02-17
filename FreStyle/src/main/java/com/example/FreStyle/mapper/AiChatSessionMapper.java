@@ -30,7 +30,7 @@ public class AiChatSessionMapper {
      *
      * @param session AI Chatセッションエンティティ
      * @return AI ChatセッションDTO（APIレスポンス用）
-     * @throws IllegalArgumentException sessionがnullの場合
+     * @throws NullPointerException sessionがnullの場合
      */
     public AiChatSessionDto toDto(AiChatSession session) {
         Objects.requireNonNull(session, "AiChatSessionエンティティがnullです");

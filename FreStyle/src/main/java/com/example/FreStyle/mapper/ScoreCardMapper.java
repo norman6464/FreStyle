@@ -36,7 +36,7 @@ public class ScoreCardMapper {
      * @param sessionId セッションID
      * @param scores CommunicationScoreエンティティのリスト
      * @return ScoreCardDto（APIレスポンス用）
-     * @throws IllegalArgumentException scoresがnullの場合
+     * @throws NullPointerException scoresがnullの場合
      */
     public ScoreCardDto toScoreCardDto(Integer sessionId, List<CommunicationScore> scores) {
         Objects.requireNonNull(scores, "scoresがnullです");
@@ -55,7 +55,7 @@ public class ScoreCardMapper {
      *
      * @param scores CommunicationScoreエンティティのリスト（createdAt降順）
      * @return ScoreHistoryDtoのリスト
-     * @throws IllegalArgumentException scoresがnullの場合
+     * @throws NullPointerException scoresがnullの場合
      */
     public List<ScoreHistoryDto> toScoreHistoryDtoList(List<CommunicationScore> scores) {
         Objects.requireNonNull(scores, "scoresがnullです");

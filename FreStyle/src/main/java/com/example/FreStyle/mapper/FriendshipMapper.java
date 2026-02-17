@@ -10,26 +10,20 @@ import com.example.FreStyle.entity.User;
 public class FriendshipMapper {
 
     public FriendshipDto toFollowingDto(Friendship friendship, boolean mutual) {
-        User following = friendship.getFollowing();
-        return new FriendshipDto(
-                friendship.getId(),
-                following.getId(),
-                following.getName(),
-                following.getIconUrl(),
-                following.getBio(),
-                mutual,
-                friendship.getCreatedAt() != null ? friendship.getCreatedAt().toString() : null
-        );
+        return toDto(friendship, friendship.getFollowing(), mutual);
     }
 
     public FriendshipDto toFollowerDto(Friendship friendship, boolean mutual) {
-        User follower = friendship.getFollower();
+        return toDto(friendship, friendship.getFollower(), mutual);
+    }
+
+    private FriendshipDto toDto(Friendship friendship, User user, boolean mutual) {
         return new FriendshipDto(
                 friendship.getId(),
-                follower.getId(),
-                follower.getName(),
-                follower.getIconUrl(),
-                follower.getBio(),
+                user.getId(),
+                user.getName(),
+                user.getIconUrl(),
+                user.getBio(),
                 mutual,
                 friendship.getCreatedAt() != null ? friendship.getCreatedAt().toString() : null
         );

@@ -17,6 +17,7 @@ import UserProfilePage from './pages/UserProfilePage';
 import NotesPage from './pages/NotesPage';
 import NotificationPage from './pages/NotificationPage';
 import LearningReportPage from './pages/LearningReportPage';
+import FriendshipPage from './pages/FriendshipPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ConfirmForgotPasswordPage from './pages/ConfirmForgotPasswordPage';
 import AuthInitializer from './utils/AuthInitializer';
@@ -68,6 +69,7 @@ export default function App() {
         <Route path="/notes" element={<NotesPage />} />
         <Route path="/notifications" element={<NotificationPage />} />
         <Route path="/reports" element={<LearningReportPage />} />
+        <Route path="/friends" element={<FriendshipPage />} />
       </Route>
     </Routes>
     <ToastContainer />

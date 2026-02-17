@@ -200,3 +200,19 @@ export interface Notification {
   relatedId?: number;
   createdAt: string;
 }
+
+export interface FriendshipUser {
+  id: number;
+  userId: number;
+  username: string;
+  iconUrl?: string;
+  bio?: string;
+  mutual: boolean;
+  createdAt: string;
+}
+
+export interface FollowStatus {
+  isFollowing: boolean;
+  isFollowedBy: boolean;
+  isMutual: boolean;
+}

@@ -52,11 +52,11 @@ class ScoreCardMapperTest {
 
             ScoreCardDto dto = mapper.toScoreCardDto(1, scores);
 
-            assertThat(dto.getSessionId()).isEqualTo(1);
-            assertThat(dto.getScores()).hasSize(2);
-            assertThat(dto.getScores().get(0).getAxis()).isEqualTo("明瞭性");
-            assertThat(dto.getScores().get(0).getScore()).isEqualTo(8);
-            assertThat(dto.getScores().get(0).getComment()).isEqualTo("良い");
+            assertThat(dto.sessionId()).isEqualTo(1);
+            assertThat(dto.scores()).hasSize(2);
+            assertThat(dto.scores().get(0).axis()).isEqualTo("明瞭性");
+            assertThat(dto.scores().get(0).score()).isEqualTo(8);
+            assertThat(dto.scores().get(0).comment()).isEqualTo("良い");
         }
 
         @Test
@@ -71,7 +71,7 @@ class ScoreCardMapperTest {
 
             ScoreCardDto dto = mapper.toScoreCardDto(1, scores);
 
-            assertThat(dto.getOverallScore()).isEqualTo(6.0);
+            assertThat(dto.overallScore()).isEqualTo(6.0);
         }
 
         @Test
@@ -79,8 +79,8 @@ class ScoreCardMapperTest {
         void returnsZeroForEmptyList() {
             ScoreCardDto dto = mapper.toScoreCardDto(1, List.of());
 
-            assertThat(dto.getScores()).isEmpty();
-            assertThat(dto.getOverallScore()).isEqualTo(0.0);
+            assertThat(dto.scores()).isEmpty();
+            assertThat(dto.overallScore()).isEqualTo(0.0);
         }
 
         @Test
@@ -111,10 +111,10 @@ class ScoreCardMapperTest {
             List<ScoreHistoryDto> history = mapper.toScoreHistoryDtoList(scores);
 
             assertThat(history).hasSize(2);
-            assertThat(history.get(0).getSessionId()).isEqualTo(1);
-            assertThat(history.get(0).getSessionTitle()).isEqualTo("セッション1");
-            assertThat(history.get(0).getScores()).hasSize(2);
-            assertThat(history.get(1).getSessionId()).isEqualTo(2);
+            assertThat(history.get(0).sessionId()).isEqualTo(1);
+            assertThat(history.get(0).sessionTitle()).isEqualTo("セッション1");
+            assertThat(history.get(0).scores()).hasSize(2);
+            assertThat(history.get(1).sessionId()).isEqualTo(2);
         }
 
         @Test
@@ -128,7 +128,7 @@ class ScoreCardMapperTest {
 
             List<ScoreHistoryDto> history = mapper.toScoreHistoryDtoList(scores);
 
-            assertThat(history.get(0).getOverallScore()).isEqualTo(8.0);
+            assertThat(history.get(0).overallScore()).isEqualTo(8.0);
         }
 
         @Test
@@ -157,7 +157,7 @@ class ScoreCardMapperTest {
 
             List<ScoreHistoryDto> history = mapper.toScoreHistoryDtoList(scores);
 
-            assertThat(history.get(0).getCreatedAt()).isNotNull();
+            assertThat(history.get(0).createdAt()).isNotNull();
         }
     }
 }

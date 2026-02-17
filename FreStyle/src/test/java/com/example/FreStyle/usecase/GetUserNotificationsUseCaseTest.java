@@ -49,10 +49,10 @@ class GetUserNotificationsUseCaseTest {
         List<NotificationDto> result = getUserNotificationsUseCase.execute(1);
 
         assertThat(result).hasSize(1);
-        assertThat(result.get(0).getId()).isEqualTo(10);
-        assertThat(result.get(0).getType()).isEqualTo("NEW_MESSAGE");
-        assertThat(result.get(0).getTitle()).isEqualTo("新しいメッセージ");
-        assertThat(result.get(0).getIsRead()).isFalse();
+        assertThat(result.get(0).id()).isEqualTo(10);
+        assertThat(result.get(0).type()).isEqualTo("NEW_MESSAGE");
+        assertThat(result.get(0).title()).isEqualTo("新しいメッセージ");
+        assertThat(result.get(0).isRead()).isFalse();
     }
 
     @Test

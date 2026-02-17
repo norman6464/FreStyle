@@ -65,23 +65,21 @@ class ScoreCardControllerTest {
         @Test
         @DisplayName("スコアカードを取得する")
         void shouldReturnScoreCard() {
-            ScoreCardDto scoreCard = new ScoreCardDto();
-            scoreCard.setSessionId(10);
-            scoreCard.setOverallScore(8.5);
+            ScoreCardDto scoreCard = new ScoreCardDto(10, List.of(), 8.5);
             when(getScoreCardBySessionIdUseCase.execute(10)).thenReturn(scoreCard);
 
             ResponseEntity<ScoreCardDto> response = controller.getSessionScoreCard(jwt, 10);
 
             assertThat(response.getStatusCode().value()).isEqualTo(200);
             assertThat(response.getBody()).isNotNull();
-            assertThat(response.getBody().getSessionId()).isEqualTo(10);
-            assertThat(response.getBody().getOverallScore()).isEqualTo(8.5);
+            assertThat(response.getBody().sessionId()).isEqualTo(10);
+            assertThat(response.getBody().overallScore()).isEqualTo(8.5);
         }
 
         @Test
         @DisplayName("権限チェックが実行される")
         void shouldCheckAuthorization() {
-            ScoreCardDto scoreCard = new ScoreCardDto();
+            ScoreCardDto scoreCard = new ScoreCardDto(10, List.of(), 0.0);
             when(getScoreCardBySessionIdUseCase.execute(10)).thenReturn(scoreCard);
 
             controller.getSessionScoreCard(jwt, 10);
@@ -97,12 +95,8 @@ class ScoreCardControllerTest {
         @Test
         @DisplayName("スコア履歴を取得する")
         void shouldReturnScoreHistory() {
-            ScoreHistoryDto history1 = new ScoreHistoryDto();
-            history1.setSessionId(1);
-            history1.setOverallScore(7.5);
-            ScoreHistoryDto history2 = new ScoreHistoryDto();
-            history2.setSessionId(2);
-            history2.setOverallScore(8.0);
+            ScoreHistoryDto history1 = new ScoreHistoryDto(1, null, 7.5, List.of(), null);
+            ScoreHistoryDto history2 = new ScoreHistoryDto(2, null, 8.0, List.of(), null);
             when(getScoreHistoryByUserIdUseCase.execute(1))
                     .thenReturn(List.of(history1, history2));
 

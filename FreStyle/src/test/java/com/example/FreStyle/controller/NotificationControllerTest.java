@@ -78,7 +78,7 @@ class NotificationControllerTest {
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
             assertThat(response.getBody()).hasSize(1);
-            assertThat(response.getBody().get(0).getType()).isEqualTo("NEW_MESSAGE");
+            assertThat(response.getBody().get(0).type()).isEqualTo("NEW_MESSAGE");
         }
 
         @Test

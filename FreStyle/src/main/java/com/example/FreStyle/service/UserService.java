@@ -90,12 +90,7 @@ public class UserService {
 
     User user = userIdentityService.findUserBySub(sub);
 
-    LoginUserDto dto = new LoginUserDto();
-    dto.setSub(sub);
-    dto.setName(user.getName());
-    dto.setEmail(user.getEmail());
-
-    return dto;
+    return new LoginUserDto(user.getName(), user.getEmail(), sub);
   }
 
   // ------------------------

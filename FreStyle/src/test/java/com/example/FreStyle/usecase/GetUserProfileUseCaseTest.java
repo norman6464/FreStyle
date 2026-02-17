@@ -34,14 +34,13 @@ class GetUserProfileUseCaseTest {
         User user = new User();
         user.setId(10);
         when(userIdentityService.findUserBySub("sub-123")).thenReturn(user);
-        UserProfileDto dto = new UserProfileDto();
-        dto.setDisplayName("テスト");
+        UserProfileDto dto = new UserProfileDto(null, 10, "テスト", null, null, null, null, null, null);
         when(userProfileService.getProfileByUserId(10)).thenReturn(dto);
 
         UserProfileDto result = useCase.execute("sub-123");
 
         assertThat(result).isNotNull();
-        assertThat(result.getDisplayName()).isEqualTo("テスト");
+        assertThat(result.displayName()).isEqualTo("テスト");
     }
 
     @Test

@@ -36,13 +36,12 @@ class UpsertUserProfileUseCaseTest {
         user.setId(10);
         when(userIdentityService.findUserBySub("sub-123")).thenReturn(user);
         UserProfileForm form = new UserProfileForm();
-        UserProfileDto dto = new UserProfileDto();
-        dto.setDisplayName("upsert済み");
+        UserProfileDto dto = new UserProfileDto(null, 10, "upsert済み", null, null, null, null, null, null);
         when(userProfileService.createOrUpdateProfile(user, form)).thenReturn(dto);
 
         UserProfileDto result = useCase.execute("sub-123", form);
 
-        assertThat(result.getDisplayName()).isEqualTo("upsert済み");
+        assertThat(result.displayName()).isEqualTo("upsert済み");
     }
 
     @Test
@@ -52,12 +51,11 @@ class UpsertUserProfileUseCaseTest {
         user.setId(20);
         when(userIdentityService.findUserBySub("sub-new")).thenReturn(user);
         UserProfileForm form = new UserProfileForm();
-        UserProfileDto dto = new UserProfileDto();
-        dto.setUserId(20);
+        UserProfileDto dto = new UserProfileDto(null, 20, null, null, null, null, null, null, null);
         when(userProfileService.createOrUpdateProfile(user, form)).thenReturn(dto);
 
         UserProfileDto result = useCase.execute("sub-new", form);
 
-        assertThat(result.getUserId()).isEqualTo(20);
+        assertThat(result.userId()).isEqualTo(20);
     }
 }

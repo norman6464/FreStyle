@@ -154,9 +154,9 @@ class UserServiceTest {
 
         LoginUserDto dto = userService.findLoginUserBySub("sub123");
 
-        assertEquals("sub123", dto.getSub());
-        assertEquals("テスト", dto.getName());
-        assertEquals("test@example.com", dto.getEmail());
+        assertEquals("sub123", dto.sub());
+        assertEquals("テスト", dto.name());
+        assertEquals("test@example.com", dto.email());
     }
 
     @Test

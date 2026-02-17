@@ -137,30 +137,27 @@ public class UserProfileService {
     // ヘルパーメソッド: EntityからDTOへの変換
     // ------------------------
     private UserProfileDto convertToDto(UserProfile profile) {
-        UserProfileDto dto = new UserProfileDto();
-        dto.setId(profile.getId());
-        dto.setUserId(profile.getUser().getId());
-        dto.setDisplayName(profile.getDisplayName());
-        dto.setSelfIntroduction(profile.getSelfIntroduction());
-        dto.setCommunicationStyle(profile.getCommunicationStyle());
-        dto.setGoals(profile.getGoals());
-        dto.setConcerns(profile.getConcerns());
-        dto.setPreferredFeedbackStyle(profile.getPreferredFeedbackStyle());
-        
-        // JSON 文字列を List<String> に変換
+        List<String> traits = new ArrayList<>();
         if (profile.getPersonalityTraits() != null) {
             try {
-                List<String> traits = objectMapper.readValue(
+                traits = objectMapper.readValue(
                         profile.getPersonalityTraits(),
                         new TypeReference<List<String>>() {});
-                dto.setPersonalityTraits(traits);
             } catch (JsonProcessingException e) {
-                dto.setPersonalityTraits(new ArrayList<>());
+                // JSON解析失敗時は空リスト
             }
-        } else {
-            dto.setPersonalityTraits(new ArrayList<>());
         }
-        
-        return dto;
+
+        return new UserProfileDto(
+                profile.getId(),
+                profile.getUser().getId(),
+                profile.getDisplayName(),
+                profile.getSelfIntroduction(),
+                profile.getCommunicationStyle(),
+                traits,
+                profile.getGoals(),
+                profile.getConcerns(),
+                profile.getPreferredFeedbackStyle()
+        );
     }
 }

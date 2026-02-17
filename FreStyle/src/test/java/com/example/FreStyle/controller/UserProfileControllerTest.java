@@ -52,11 +52,7 @@ class UserProfileControllerTest {
     }
 
     private UserProfileDto createProfileDto() {
-        UserProfileDto dto = new UserProfileDto();
-        dto.setId(1);
-        dto.setUserId(10);
-        dto.setDisplayName("表示名");
-        return dto;
+        return new UserProfileDto(1, 10, "表示名", null, null, null, null, null, null);
     }
 
     @Nested

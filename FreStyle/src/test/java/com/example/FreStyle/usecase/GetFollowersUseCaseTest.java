@@ -116,6 +116,8 @@ class GetFollowersUseCaseTest {
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).username()).isEqualTo("フォロワーA");
+        assertThat(result.get(0).createdAt()).isEqualTo(now.toString());
         verify(friendshipRepository).findByFollowingIdOrderByCreatedAtDesc(1);
+        verify(friendshipRepository).findMutualFollowingIds(List.of(2), 1);
     }
 }

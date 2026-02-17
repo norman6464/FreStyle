@@ -55,11 +55,11 @@ class PracticeScenarioMapperTest {
         }
 
         @Test
-        @DisplayName("nullエンティティを渡すとIllegalArgumentExceptionがスローされる")
+        @DisplayName("nullエンティティを渡すとNullPointerExceptionがスローされる")
         void shouldThrowExceptionWhenEntityIsNull() {
             // Act & Assert
             assertThatThrownBy(() -> mapper.toDto(null))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(NullPointerException.class)
                     .hasMessage("PracticeScenarioエンティティがnullです");
         }
     }
@@ -96,11 +96,11 @@ class PracticeScenarioMapperTest {
         }
 
         @Test
-        @DisplayName("nullDTOを渡すとIllegalArgumentExceptionがスローされる")
+        @DisplayName("nullDTOを渡すとNullPointerExceptionがスローされる")
         void shouldThrowExceptionWhenDtoIsNull() {
             // Act & Assert
             assertThatThrownBy(() -> mapper.toEntity(null))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(NullPointerException.class)
                     .hasMessage("PracticeScenarioDTOがnullです");
         }
     }

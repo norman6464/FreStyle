@@ -1,5 +1,7 @@
 package com.example.FreStyle.mapper;
 
+import java.util.Objects;
+
 import org.springframework.stereotype.Component;
 
 import com.example.FreStyle.dto.AiChatSessionDto;
@@ -31,9 +33,7 @@ public class AiChatSessionMapper {
      * @throws IllegalArgumentException sessionがnullの場合
      */
     public AiChatSessionDto toDto(AiChatSession session) {
-        if (session == null) {
-            throw new IllegalArgumentException("AiChatSessionエンティティがnullです");
-        }
+        Objects.requireNonNull(session, "AiChatSessionエンティティがnullです");
 
         return new AiChatSessionDto(
             session.getId(),

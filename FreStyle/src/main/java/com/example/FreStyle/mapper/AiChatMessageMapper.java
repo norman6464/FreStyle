@@ -1,5 +1,7 @@
 package com.example.FreStyle.mapper;
 
+import java.util.Objects;
+
 import org.springframework.stereotype.Component;
 
 import com.example.FreStyle.dto.AiChatMessageResponseDto;
@@ -31,9 +33,7 @@ public class AiChatMessageMapper {
      * @throws IllegalArgumentException messageがnullの場合
      */
     public AiChatMessageResponseDto toDto(AiChatMessage message) {
-        if (message == null) {
-            throw new IllegalArgumentException("AiChatMessageエンティティがnullです");
-        }
+        Objects.requireNonNull(message, "AiChatMessageエンティティがnullです");
 
         return new AiChatMessageResponseDto(
             message.getId(),

@@ -14,11 +14,13 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.FreStyle.dto.AiChatSessionDto;
 import com.example.FreStyle.dto.PracticeScenarioDto;
+import com.example.FreStyle.dto.RecommendedScenarioDto;
 import com.example.FreStyle.entity.User;
 import com.example.FreStyle.service.UserIdentityService;
 import com.example.FreStyle.usecase.CreatePracticeSessionUseCase;
 import com.example.FreStyle.usecase.GetAllPracticeScenariosUseCase;
 import com.example.FreStyle.usecase.GetPracticeScenarioByIdUseCase;
+import com.example.FreStyle.usecase.GetRecommendedScenariosUseCase;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -58,6 +60,7 @@ public class PracticeController {
     private final GetAllPracticeScenariosUseCase getAllPracticeScenariosUseCase;
     private final GetPracticeScenarioByIdUseCase getPracticeScenarioByIdUseCase;
     private final CreatePracticeSessionUseCase createPracticeSessionUseCase;
+    private final GetRecommendedScenariosUseCase getRecommendedScenariosUseCase;
 
     // 認証サービス
     private final UserIdentityService userIdentityService;
@@ -148,6 +151,15 @@ public class PracticeController {
      *
      * @param scenarioId 練習シナリオID
      */
+    @GetMapping("/scenarios/recommended")
+    public ResponseEntity<RecommendedScenarioDto> getRecommendedScenarios(@AuthenticationPrincipal Jwt jwt) {
+        log.info("========== GET /api/practice/scenarios/recommended ==========");
+        User user = resolveUser(jwt);
+        RecommendedScenarioDto result = getRecommendedScenariosUseCase.execute(user.getId());
+        log.info("✅ 推奨シナリオ取得成功 - 件数: {}", result.recommendations().size());
+        return ResponseEntity.ok(result);
+    }
+
     record CreatePracticeSessionRequest(Integer scenarioId) {}
 
     private User resolveUser(Jwt jwt) {

@@ -50,8 +50,8 @@ public class GetCommunicationScoreSummaryUseCase {
                         .thenComparing(CommunicationScoreSummaryDto.AxisAverage::axisName))
                 .toList();
 
-        String bestAxis = axisAverages.get(0).axisName();
-        String worstAxis = axisAverages.get(axisAverages.size() - 1).axisName();
+        String bestAxis = axisAverages.getFirst().axisName();
+        String worstAxis = axisAverages.getLast().axisName();
 
         return new CommunicationScoreSummaryDto(totalSessions, overallAverage, axisAverages, bestAxis, worstAxis);
     }

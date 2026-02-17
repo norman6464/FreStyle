@@ -121,4 +121,25 @@ class GetCommunicationScoreSummaryUseCaseTest {
         assertThat(result.axisAverages().get(2).axisName()).isEqualTo("配慮表現");
         verify(communicationScoreRepository).findByUserIdOrderByCreatedAtDesc(1);
     }
+
+    @Test
+    @DisplayName("同スコア時は軸名昇順でソートされる")
+    void execute_tieBreakByAxisNameAscending() {
+        List<CommunicationScore> scores = List.of(
+                score(1, "B軸", 7),
+                score(2, "B軸", 7),
+                score(1, "A軸", 7),
+                score(1, "C軸", 5)
+        );
+
+        when(communicationScoreRepository.findByUserIdOrderByCreatedAtDesc(1)).thenReturn(scores);
+
+        CommunicationScoreSummaryDto result = useCase.execute(1);
+
+        assertThat(result.axisAverages()).hasSize(3);
+        assertThat(result.axisAverages().get(0).axisName()).isEqualTo("A軸");
+        assertThat(result.axisAverages().get(1).axisName()).isEqualTo("B軸");
+        assertThat(result.axisAverages().get(2).axisName()).isEqualTo("C軸");
+        verify(communicationScoreRepository).findByUserIdOrderByCreatedAtDesc(1);
+    }
 }

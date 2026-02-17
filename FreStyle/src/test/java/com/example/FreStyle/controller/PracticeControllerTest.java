@@ -25,6 +25,9 @@ import com.example.FreStyle.service.UserIdentityService;
 import com.example.FreStyle.usecase.CreatePracticeSessionUseCase;
 import com.example.FreStyle.usecase.GetAllPracticeScenariosUseCase;
 import com.example.FreStyle.usecase.GetPracticeScenarioByIdUseCase;
+import com.example.FreStyle.usecase.GetRecommendedScenariosUseCase;
+import com.example.FreStyle.dto.RecommendedScenarioDto;
+import com.example.FreStyle.dto.RecommendedScenarioDto.ScenarioRecommendation;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("PracticeController")
@@ -38,6 +41,9 @@ class PracticeControllerTest {
 
     @Mock
     private CreatePracticeSessionUseCase createPracticeSessionUseCase;
+
+    @Mock
+    private GetRecommendedScenariosUseCase getRecommendedScenariosUseCase;
 
     @Mock
     private UserIdentityService userIdentityService;
@@ -139,6 +145,28 @@ class PracticeControllerTest {
             assertThat(response.getBody()).isNotNull();
             assertThat(response.getBody().getId()).isEqualTo(10);
             verify(createPracticeSessionUseCase).execute(user, 3);
+        }
+    }
+
+    @Nested
+    @DisplayName("GET /api/practice/scenarios/recommended - 推奨シナリオ取得")
+    class GetRecommendedScenarios {
+
+        @Test
+        @DisplayName("推奨シナリオ一覧を返す")
+        void shouldReturnRecommendedScenarios() {
+            ScenarioRecommendation rec = new ScenarioRecommendation(
+                    10, "交渉シナリオ", "business", "hard", 4.5, 2);
+            RecommendedScenarioDto dto = new RecommendedScenarioDto(List.of(rec));
+            when(getRecommendedScenariosUseCase.execute(1)).thenReturn(dto);
+
+            ResponseEntity<RecommendedScenarioDto> response = controller.getRecommendedScenarios(jwt);
+
+            assertThat(response.getStatusCode().value()).isEqualTo(200);
+            assertThat(response.getBody()).isNotNull();
+            assertThat(response.getBody().recommendations()).hasSize(1);
+            assertThat(response.getBody().recommendations().get(0).scenarioName()).isEqualTo("交渉シナリオ");
+            verify(getRecommendedScenariosUseCase).execute(1);
         }
     }
 }

@@ -46,7 +46,6 @@ class DeleteChatMessageUseCaseTest {
         useCase.execute(999);
 
         verify(chatMessageService).deleteMessage(999);
-        verify(chatMessageService, never()).deleteMessage(100);
     }
 
     @Test

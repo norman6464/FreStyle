@@ -150,4 +150,38 @@ describe('useSidebar', () => {
 
     expect(mockDispatch).not.toHaveBeenCalled();
   });
+
+  it('初期状態でloggingOutがfalseである', () => {
+    const { result } = renderHook(() => useSidebar());
+    expect(result.current.loggingOut).toBe(false);
+  });
+
+  it('ログアウト開始時にloggingOutがtrueになる', async () => {
+    let resolveLogout: () => void;
+    mockLogout.mockImplementation(() => new Promise<void>(r => { resolveLogout = r; }));
+
+    const { result } = renderHook(() => useSidebar());
+
+    act(() => {
+      result.current.handleLogout();
+    });
+
+    expect(result.current.loggingOut).toBe(true);
+
+    await act(async () => {
+      resolveLogout!();
+    });
+  });
+
+  it('ログアウト失敗時にloggingOutがfalseに戻る', async () => {
+    mockLogout.mockRejectedValue(new Error('Network Error'));
+
+    const { result } = renderHook(() => useSidebar());
+
+    await act(async () => {
+      await result.current.handleLogout();
+    });
+
+    expect(result.current.loggingOut).toBe(false);
+  });
 });

@@ -43,7 +43,7 @@ export default function ChatPage() {
   const { copiedId, copyToClipboard } = useCopyToClipboard();
 
   if (loading) {
-    return <Loading message="読み込み中..." className="min-h-[50vh]" />;
+    return <Loading message="読み込み中..." className="min-h-[calc(100vh-3.5rem)]" />;
   }
 
   return (

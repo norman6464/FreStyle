@@ -9,6 +9,7 @@ export function useSidebar() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const [totalUnread, setTotalUnread] = useState(0);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
     const fetchUnread = async () => {
@@ -26,14 +27,15 @@ export function useSidebar() {
   }, []);
 
   const handleLogout = useCallback(async () => {
+    setLoggingOut(true);
     try {
       await AuthRepository.logout();
       dispatch(clearAuth());
       navigate('/login', { state: { toast: 'ログアウトしました' } });
     } catch {
-      // サイレントに処理
+      setLoggingOut(false);
     }
   }, [dispatch, navigate]);
 
-  return { totalUnread, handleLogout };
+  return { totalUnread, handleLogout, loggingOut };
 }

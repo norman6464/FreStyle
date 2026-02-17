@@ -30,7 +30,7 @@ export default function UserProfilePage() {
   } = useUserProfilePage();
 
   if (loading) {
-    return <Loading size="medium" message="プロファイルを読み込み中..." className="min-h-[50vh]" />;
+    return <Loading size="medium" message="プロファイルを読み込み中..." className="min-h-[calc(100vh-3.5rem)]" />;
   }
 
   return (

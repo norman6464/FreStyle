@@ -2,6 +2,7 @@ package com.example.FreStyle.usecase;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.sql.Timestamp;
@@ -77,6 +78,12 @@ class GetPracticeSessionSummaryUseCaseTest {
             assertThat(result.worstAxis()).isEqualTo("配慮表現");
             assertThat(result.note()).isEqualTo("要復習");
             assertThat(result.scenarioName()).isEqualTo("本番障害の緊急報告");
+
+            verify(aiChatSessionRepository).findByIdAndUserId(1, 10);
+            verify(aiChatMessageRepository).countBySessionId(1);
+            verify(communicationScoreRepository).findBySessionId(1);
+            verify(sessionNoteRepository).findByUserIdAndSessionId(10, 1);
+            verify(practiceScenarioRepository).findById(5);
         }
 
         @Test
@@ -130,6 +137,25 @@ class GetPracticeSessionSummaryUseCaseTest {
             PracticeSessionSummaryDto result = useCase.execute(4, 10);
 
             assertThat(result.scenarioName()).isNull();
+        }
+
+        @Test
+        @DisplayName("全スコアが同じ値の場合はworstAxisがnullになる")
+        void equalScores_worstAxisIsNull() {
+            AiChatSession session = createSession(5, 10, "同一スコア", "practice", null, null);
+            when(aiChatSessionRepository.findByIdAndUserId(5, 10)).thenReturn(Optional.of(session));
+            when(aiChatMessageRepository.countBySessionId(5)).thenReturn(0L);
+
+            CommunicationScore s1 = createScore("話し方", 80, null);
+            CommunicationScore s2 = createScore("内容", 80, null);
+            when(communicationScoreRepository.findBySessionId(5)).thenReturn(List.of(s1, s2));
+            when(sessionNoteRepository.findByUserIdAndSessionId(10, 5)).thenReturn(Optional.empty());
+
+            PracticeSessionSummaryDto result = useCase.execute(5, 10);
+
+            assertThat(result.bestAxis()).isNotNull();
+            assertThat(result.worstAxis()).isNull();
+            assertThat(result.averageScore()).isEqualTo(80.0);
         }
     }
 

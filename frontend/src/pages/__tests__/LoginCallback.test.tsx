@@ -72,7 +72,7 @@ describe('LoginCallback', () => {
 
     await waitFor(() => {
       expect(authRepository.callback).toHaveBeenCalledWith('valid-code');
-      expect(mockNavigate).toHaveBeenCalledWith('/');
+      expect(mockNavigate).toHaveBeenCalledWith('/', { state: { toast: 'ログインしました' } });
     });
   });
 

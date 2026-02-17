@@ -3,13 +3,11 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { setAuthData } from '../store/authSlice';
 import authRepository from '../repositories/AuthRepository';
-import { useToast } from './useToast';
 
 export function useLoginCallback() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const { showToast } = useToast();
   const code = searchParams.get('code');
   const error = searchParams.get('error');
 
@@ -25,8 +23,7 @@ export function useLoginCallback() {
         .callback(code)
         .then(() => {
           dispatch(setAuthData());
-          showToast('success', 'ログインしました');
-          navigate('/');
+          navigate('/', { state: { toast: 'ログインしました' } });
         })
         .catch(() => {
           alert('認証に失敗しました。');
@@ -35,5 +32,5 @@ export function useLoginCallback() {
     } else {
       navigate('/login');
     }
-  }, [code, error, dispatch, navigate, showToast]);
+  }, [code, error, dispatch, navigate]);
 }

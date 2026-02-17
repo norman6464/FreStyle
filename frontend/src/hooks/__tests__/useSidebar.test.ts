@@ -17,11 +17,6 @@ vi.mock('../../store/authSlice', () => ({
   clearAuth: () => ({ type: 'auth/clearAuth' }),
 }));
 
-const mockShowToast = vi.fn();
-vi.mock('../useToast', () => ({
-  useToast: () => ({ showToast: mockShowToast, toasts: [], removeToast: vi.fn() }),
-}));
-
 const mockFetchChatUsers = vi.fn();
 const mockLogout = vi.fn();
 
@@ -67,7 +62,7 @@ describe('useSidebar', () => {
 
     expect(mockLogout).toHaveBeenCalledOnce();
     expect(mockDispatch).toHaveBeenCalledWith({ type: 'auth/clearAuth' });
-    expect(mockNavigate).toHaveBeenCalledWith('/login');
+    expect(mockNavigate).toHaveBeenCalledWith('/login', { state: { toast: 'ログアウトしました' } });
   });
 
   it('ログアウト失敗時はnavigate呼ばない', async () => {
@@ -122,17 +117,17 @@ describe('useSidebar', () => {
     expect(result.current.totalUnread).toBe(0);
   });
 
-  it('ログアウト成功時にログアウトしましたトーストを表示する', async () => {
+  it('ログアウト成功時にトースト付きでログインページに遷移する', async () => {
     const { result } = renderHook(() => useSidebar());
 
     await act(async () => {
       await result.current.handleLogout();
     });
 
-    expect(mockShowToast).toHaveBeenCalledWith('success', 'ログアウトしました');
+    expect(mockNavigate).toHaveBeenCalledWith('/login', { state: { toast: 'ログアウトしました' } });
   });
 
-  it('ログアウト失敗時にトーストを表示しない', async () => {
+  it('ログアウト失敗時にトースト付きで遷移しない', async () => {
     mockLogout.mockRejectedValue(new Error('Network Error'));
 
     const { result } = renderHook(() => useSidebar());
@@ -141,7 +136,7 @@ describe('useSidebar', () => {
       await result.current.handleLogout();
     });
 
-    expect(mockShowToast).not.toHaveBeenCalled();
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 
   it('ログアウト失敗時にdispatchも呼ばれない', async () => {

@@ -1,4 +1,5 @@
-import { Routes, Route } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Routes, Route, useLocation } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import LoginCallback from './pages/LoginCallback';
@@ -24,9 +25,23 @@ import AuthInitializer from './utils/AuthInitializer';
 import Protected from './utils/Protected';
 import AppShell from './components/layout/AppShell';
 import ErrorBoundary from './components/ErrorBoundary';
-import { ToastProvider } from './hooks/useToast';
+import { ToastProvider, useToast } from './hooks/useToast';
 import ToastContainer from './components/ToastContainer';
 
+function NavigationToast() {
+  const location = useLocation();
+  const { showToast } = useToast();
+
+  useEffect(() => {
+    const toast = (location.state as { toast?: string })?.toast;
+    if (toast) {
+      showToast('success', toast);
+      window.history.replaceState({}, '');
+    }
+  }, [location, showToast]);
+
+  return null;
+}
 
 export default function App() {
   return (
@@ -72,6 +87,7 @@ export default function App() {
         <Route path="/friends" element={<FriendshipPage />} />
       </Route>
     </Routes>
+    <NavigationToast />
     <ToastContainer />
     </ToastProvider>
     </ErrorBoundary>

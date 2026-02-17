@@ -60,4 +60,38 @@ class GetChatStatsUseCaseTest {
 
         assertEquals(0L, result.get("chatPartnerCount"));
     }
+
+    @Test
+    @DisplayName("返却MapにchatPartnerCount・email・usernameの3キーが含まれる")
+    void execute_returnsAllExpectedKeys() {
+        User user = new User();
+        user.setId(3);
+        user.setName("キー検証ユーザー");
+        user.setEmail("keys@example.com");
+        when(userIdentityService.findUserBySub("sub-keys")).thenReturn(user);
+        when(roomMemberService.countChatPartners(3)).thenReturn(10L);
+
+        Map<String, Object> result = getChatStatsUseCase.execute("sub-keys");
+
+        assertEquals(3, result.size());
+        assertTrue(result.containsKey("chatPartnerCount"));
+        assertTrue(result.containsKey("email"));
+        assertTrue(result.containsKey("username"));
+    }
+
+    @Test
+    @DisplayName("正しいsubでUserIdentityServiceとRoomMemberServiceを呼び出す")
+    void execute_callsServicesWithCorrectParams() {
+        User user = new User();
+        user.setId(7);
+        user.setName("検証ユーザー");
+        user.setEmail("verify@example.com");
+        when(userIdentityService.findUserBySub("sub-verify")).thenReturn(user);
+        when(roomMemberService.countChatPartners(7)).thenReturn(3L);
+
+        getChatStatsUseCase.execute("sub-verify");
+
+        verify(userIdentityService).findUserBySub("sub-verify");
+        verify(roomMemberService).countChatPartners(7);
+    }
 }

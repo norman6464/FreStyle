@@ -57,4 +57,36 @@ class GetChatRoomsUseCaseTest {
 
         verify(chatService).findChatUsers(1, "テスト");
     }
+
+    @Test
+    @DisplayName("チャットルームが0件の場合は空リストを返す")
+    void execute_noRooms_returnsEmptyList() {
+        User user = new User();
+        user.setId(5);
+        when(userIdentityService.findUserBySub("sub-empty")).thenReturn(user);
+        when(chatService.findChatUsers(5, null)).thenReturn(List.of());
+
+        List<ChatUserDto> result = getChatRoomsUseCase.execute("sub-empty", null);
+
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    @DisplayName("複数のチャットルームを正しい順序で取得できる")
+    void execute_multipleRooms_returnsAll() {
+        User user = new User();
+        user.setId(1);
+        when(userIdentityService.findUserBySub("sub-multi")).thenReturn(user);
+        ChatUserDto dto1 = new ChatUserDto(2, "a@example.com", "ユーザーA", 10);
+        ChatUserDto dto2 = new ChatUserDto(3, "b@example.com", "ユーザーB", 20);
+        ChatUserDto dto3 = new ChatUserDto(4, "c@example.com", "ユーザーC", 30);
+        when(chatService.findChatUsers(1, null)).thenReturn(List.of(dto1, dto2, dto3));
+
+        List<ChatUserDto> result = getChatRoomsUseCase.execute("sub-multi", null);
+
+        assertEquals(3, result.size());
+        assertEquals("ユーザーA", result.get(0).getName());
+        assertEquals("ユーザーB", result.get(1).getName());
+        assertEquals("ユーザーC", result.get(2).getName());
+    }
 }

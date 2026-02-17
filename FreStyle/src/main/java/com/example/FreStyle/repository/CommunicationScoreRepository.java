@@ -1,5 +1,6 @@
 package com.example.FreStyle.repository;
 
+import java.sql.Timestamp;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -16,4 +17,8 @@ public interface CommunicationScoreRepository extends JpaRepository<Communicatio
 
     @Query("SELECT cs FROM CommunicationScore cs WHERE cs.user.id = :userId ORDER BY cs.createdAt DESC")
     List<CommunicationScore> findByUserIdOrderByCreatedAtDesc(@Param("userId") Integer userId);
+
+    @Query("SELECT cs FROM CommunicationScore cs WHERE cs.user.id = :userId AND cs.createdAt > :cutoff ORDER BY cs.createdAt DESC")
+    List<CommunicationScore> findByUserIdAndCreatedAtAfterOrderByCreatedAtDesc(
+            @Param("userId") Integer userId, @Param("cutoff") Timestamp cutoff);
 }

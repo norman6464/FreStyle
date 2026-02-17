@@ -84,10 +84,10 @@ class ScoreCardMapperTest {
         }
 
         @Test
-        @DisplayName("nullの場合はIllegalArgumentExceptionを投げる")
+        @DisplayName("nullの場合はNullPointerExceptionを投げる")
         void throwsOnNull() {
             assertThatThrownBy(() -> mapper.toScoreCardDto(1, null))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(NullPointerException.class)
                 .hasMessage("scoresがnullです");
         }
     }
@@ -140,10 +140,10 @@ class ScoreCardMapperTest {
         }
 
         @Test
-        @DisplayName("nullの場合はIllegalArgumentExceptionを投げる")
+        @DisplayName("nullの場合はNullPointerExceptionを投げる")
         void throwsOnNull() {
             assertThatThrownBy(() -> mapper.toScoreHistoryDtoList(null))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(NullPointerException.class)
                 .hasMessage("scoresがnullです");
         }
 

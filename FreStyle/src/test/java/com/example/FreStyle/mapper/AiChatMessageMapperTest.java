@@ -63,10 +63,10 @@ class AiChatMessageMapperTest {
     }
 
     @Test
-    @DisplayName("nullを渡すとIllegalArgumentExceptionを投げる")
+    @DisplayName("nullを渡すとNullPointerExceptionを投げる")
     void toDtoThrowsOnNull() {
         assertThatThrownBy(() -> mapper.toDto(null))
-            .isInstanceOf(IllegalArgumentException.class)
+            .isInstanceOf(NullPointerException.class)
             .hasMessageContaining("null");
     }
 

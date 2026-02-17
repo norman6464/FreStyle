@@ -3,6 +3,7 @@ package com.example.FreStyle.mapper;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
@@ -35,12 +36,10 @@ public class ScoreCardMapper {
      * @param sessionId セッションID
      * @param scores CommunicationScoreエンティティのリスト
      * @return ScoreCardDto（APIレスポンス用）
-     * @throws IllegalArgumentException scoresがnullの場合
+     * @throws NullPointerException scoresがnullの場合
      */
     public ScoreCardDto toScoreCardDto(Integer sessionId, List<CommunicationScore> scores) {
-        if (scores == null) {
-            throw new IllegalArgumentException("scoresがnullです");
-        }
+        Objects.requireNonNull(scores, "scoresがnullです");
 
         List<ScoreCardDto.AxisScoreDto> scoreDtos = scores.stream()
                 .map(this::toAxisScoreDto)
@@ -56,12 +55,10 @@ public class ScoreCardMapper {
      *
      * @param scores CommunicationScoreエンティティのリスト（createdAt降順）
      * @return ScoreHistoryDtoのリスト
-     * @throws IllegalArgumentException scoresがnullの場合
+     * @throws NullPointerException scoresがnullの場合
      */
     public List<ScoreHistoryDto> toScoreHistoryDtoList(List<CommunicationScore> scores) {
-        if (scores == null) {
-            throw new IllegalArgumentException("scoresがnullです");
-        }
+        Objects.requireNonNull(scores, "scoresがnullです");
 
         // セッションIDでグループ化（順序保持）
         Map<Integer, List<CommunicationScore>> grouped = scores.stream()

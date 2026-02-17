@@ -1,5 +1,7 @@
 package com.example.FreStyle.mapper;
 
+import java.util.Objects;
+
 import org.springframework.stereotype.Component;
 
 import com.example.FreStyle.dto.PracticeScenarioDto;
@@ -28,12 +30,10 @@ public class PracticeScenarioMapper {
      *
      * @param entity 練習シナリオエンティティ
      * @return 練習シナリオDTO（APIレスポンス用）
-     * @throws IllegalArgumentException entityがnullの場合
+     * @throws NullPointerException entityがnullの場合
      */
     public PracticeScenarioDto toDto(PracticeScenario entity) {
-        if (entity == null) {
-            throw new IllegalArgumentException("PracticeScenarioエンティティがnullです");
-        }
+        Objects.requireNonNull(entity, "PracticeScenarioエンティティがnullです");
 
         return new PracticeScenarioDto(
             entity.getId(),
@@ -58,12 +58,10 @@ public class PracticeScenarioMapper {
      *
      * @param dto 練習シナリオDTO
      * @return 練習シナリオエンティティ
-     * @throws IllegalArgumentException dtoがnullの場合
+     * @throws NullPointerException dtoがnullの場合
      */
     public PracticeScenario toEntity(PracticeScenarioDto dto) {
-        if (dto == null) {
-            throw new IllegalArgumentException("PracticeScenarioDTOがnullです");
-        }
+        Objects.requireNonNull(dto, "PracticeScenarioDTOがnullです");
 
         PracticeScenario entity = new PracticeScenario();
         entity.setId(dto.id());

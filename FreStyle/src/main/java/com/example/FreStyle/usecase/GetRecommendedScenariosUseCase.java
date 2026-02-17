@@ -5,6 +5,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -14,6 +15,7 @@ import com.example.FreStyle.dto.RecommendedScenarioDto;
 import com.example.FreStyle.dto.RecommendedScenarioDto.ScenarioRecommendation;
 import com.example.FreStyle.entity.AiChatSession;
 import com.example.FreStyle.entity.CommunicationScore;
+import com.example.FreStyle.entity.PracticeScenario;
 import com.example.FreStyle.repository.AiChatSessionRepository;
 import com.example.FreStyle.repository.CommunicationScoreRepository;
 import com.example.FreStyle.repository.PracticeScenarioRepository;
@@ -56,19 +58,26 @@ public class GetRecommendedScenariosUseCase {
             }
         }
 
+        // シナリオ情報を一括取得（N+1回避）
+        Map<Integer, PracticeScenario> scenarioMap = practiceScenarioRepository
+                .findAllById(scenarioScores.keySet()).stream()
+                .collect(Collectors.toMap(PracticeScenario::getId, Function.identity()));
+
         // シナリオごとの平均スコアを計算し、低い順にソート
         List<ScenarioRecommendation> recommendations = scenarioScores.entrySet().stream()
                 .map(entry -> {
                     Integer scenarioId = entry.getKey();
                     double avg = entry.getValue().stream().mapToInt(i -> i).average().orElse(0);
                     int practiceCount = scenarioSessions.get(scenarioId).size();
-                    return practiceScenarioRepository.findById(scenarioId)
-                            .map(ps -> new ScenarioRecommendation(
-                                    ps.getId(), ps.getName(), ps.getCategory(),
-                                    ps.getDifficulty(), avg, practiceCount))
-                            .orElse(null);
+                    PracticeScenario ps = scenarioMap.get(scenarioId);
+                    if (ps == null) {
+                        return null;
+                    }
+                    return new ScenarioRecommendation(
+                            ps.getId(), ps.getName(), ps.getCategory(),
+                            ps.getDifficulty(), avg, practiceCount);
                 })
-                .filter(r -> r != null)
+                .flatMap(r -> java.util.stream.Stream.ofNullable(r))
                 .sorted(Comparator.comparingDouble(ScenarioRecommendation::averageScore))
                 .limit(5)
                 .toList();

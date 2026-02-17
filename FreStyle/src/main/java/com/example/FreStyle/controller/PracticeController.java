@@ -153,8 +153,10 @@ public class PracticeController {
      */
     @GetMapping("/scenarios/recommended")
     public ResponseEntity<RecommendedScenarioDto> getRecommendedScenarios(@AuthenticationPrincipal Jwt jwt) {
+        log.info("========== GET /api/practice/scenarios/recommended ==========");
         User user = resolveUser(jwt);
         RecommendedScenarioDto result = getRecommendedScenariosUseCase.execute(user.getId());
+        log.info("✅ 推奨シナリオ取得成功 - 件数: {}", result.recommendations().size());
         return ResponseEntity.ok(result);
     }
 

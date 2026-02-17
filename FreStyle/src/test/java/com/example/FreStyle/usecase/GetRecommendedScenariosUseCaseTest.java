@@ -1,10 +1,10 @@
 package com.example.FreStyle.usecase;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.*;
 
 import java.util.List;
-import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -14,7 +14,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.example.FreStyle.dto.RecommendedScenarioDto;
-import com.example.FreStyle.dto.RecommendedScenarioDto.ScenarioRecommendation;
 import com.example.FreStyle.entity.AiChatSession;
 import com.example.FreStyle.entity.CommunicationScore;
 import com.example.FreStyle.entity.PracticeScenario;
@@ -85,8 +84,7 @@ class GetRecommendedScenariosUseCaseTest {
 
         PracticeScenario ps10 = scenario(10, "会議シナリオ", "business", "easy");
         PracticeScenario ps20 = scenario(20, "交渉シナリオ", "business", "hard");
-        when(practiceScenarioRepository.findById(10)).thenReturn(Optional.of(ps10));
-        when(practiceScenarioRepository.findById(20)).thenReturn(Optional.of(ps20));
+        when(practiceScenarioRepository.findAllById(anyCollection())).thenReturn(List.of(ps10, ps20));
 
         RecommendedScenarioDto result = useCase.execute(1);
 
@@ -124,7 +122,7 @@ class GetRecommendedScenariosUseCaseTest {
                 .thenReturn(List.of(score(s1, "論理性", 7)));
 
         PracticeScenario ps10 = scenario(10, "会議シナリオ", "business", "easy");
-        when(practiceScenarioRepository.findById(10)).thenReturn(Optional.of(ps10));
+        when(practiceScenarioRepository.findAllById(anyCollection())).thenReturn(List.of(ps10));
 
         RecommendedScenarioDto result = useCase.execute(1);
 
@@ -146,7 +144,7 @@ class GetRecommendedScenariosUseCaseTest {
                         score(s2, "論理性", 4), score(s2, "共感力", 6)));
 
         PracticeScenario ps10 = scenario(10, "会議シナリオ", "business", "easy");
-        when(practiceScenarioRepository.findById(10)).thenReturn(Optional.of(ps10));
+        when(practiceScenarioRepository.findAllById(anyCollection())).thenReturn(List.of(ps10));
 
         RecommendedScenarioDto result = useCase.execute(1);
 
@@ -160,19 +158,20 @@ class GetRecommendedScenariosUseCaseTest {
     void limitsToFiveRecommendations() {
         List<AiChatSession> sessions = new java.util.ArrayList<>();
         List<CommunicationScore> scores = new java.util.ArrayList<>();
+        List<PracticeScenario> scenarios = new java.util.ArrayList<>();
 
         for (int i = 1; i <= 7; i++) {
             AiChatSession s = practiceSession(i, i * 10);
             sessions.add(s);
             scores.add(score(s, "論理性", i));
-            PracticeScenario ps = scenario(i * 10, "シナリオ" + i, "business", "easy");
-            when(practiceScenarioRepository.findById(i * 10)).thenReturn(Optional.of(ps));
+            scenarios.add(scenario(i * 10, "シナリオ" + i, "business", "easy"));
         }
 
         when(aiChatSessionRepository.findByUserIdOrderByCreatedAtDesc(1))
                 .thenReturn(sessions);
         when(communicationScoreRepository.findByUserIdOrderByCreatedAtDesc(1))
                 .thenReturn(scores);
+        when(practiceScenarioRepository.findAllById(anyCollection())).thenReturn(scenarios);
 
         RecommendedScenarioDto result = useCase.execute(1);
 

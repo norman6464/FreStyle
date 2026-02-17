@@ -11,6 +11,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -71,7 +72,7 @@ class CreateNoteUseCaseTest {
             when(noteRepository.save(1, "エラー"))
                     .thenThrow(new RuntimeException("保存失敗"));
 
-            org.assertj.core.api.Assertions.assertThatThrownBy(() -> useCase.execute(1, "エラー"))
+            assertThatThrownBy(() -> useCase.execute(1, "エラー"))
                     .isInstanceOf(RuntimeException.class)
                     .hasMessage("保存失敗");
         }

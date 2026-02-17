@@ -81,17 +81,6 @@ export interface FormMessage {
   text: string;
 }
 
-/** ユーザープロフィール（パーソナリティ設定） */
-export interface UserProfile {
-  displayName: string;
-  selfIntroduction: string;
-  communicationStyle: string;
-  personalityTraits: string[];
-  goals: string;
-  concerns: string;
-  preferredFeedbackStyle: string;
-}
-
 /** 認証ステート */
 export interface AuthState {
   isAuthenticated: boolean;

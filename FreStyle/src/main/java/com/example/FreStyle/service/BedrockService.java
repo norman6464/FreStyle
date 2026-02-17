@@ -100,58 +100,6 @@ public class BedrockService {
     }
 
     /**
-     * UserProfile情報を含めたチャットフィードバック用AI応答取得
-     * システムプロンプトにユーザーの目標、懸念事項、フィードバックスタイルを含める
-     */
-    public String chatWithUserProfile(
-            String userMessage,
-            String displayName,
-            String selfIntroduction,
-            String communicationStyle,
-            String personalityTraits,
-            String goals,
-            String concerns,
-            String preferredFeedbackStyle) {
-        return chatWithUserProfileAndScene(userMessage, null,
-                displayName, selfIntroduction, communicationStyle,
-                personalityTraits, goals, concerns, preferredFeedbackStyle);
-    }
-
-    /**
-     * UserProfile情報＋シーン指定を含めたチャットフィードバック用AI応答取得
-     *
-     * @param userMessage ユーザーからのメッセージ（チャット履歴を含む）
-     * @param scene フィードバックシーン（meeting, one_on_one, email, presentation, negotiation）
-     * @param displayName ユーザーの表示名
-     * @param selfIntroduction 自己紹介
-     * @param communicationStyle コミュニケーションスタイル
-     * @param personalityTraits 性格特性（カンマ区切り）
-     * @param goals ユーザーの目標
-     * @param concerns 懸念事項
-     * @param preferredFeedbackStyle 希望するフィードバックスタイル
-     * @return AIからの応答テキスト
-     */
-    public String chatWithUserProfileAndScene(
-            String userMessage,
-            String scene,
-            String displayName,
-            String selfIntroduction,
-            String communicationStyle,
-            String personalityTraits,
-            String goals,
-            String concerns,
-            String preferredFeedbackStyle) {
-
-        log.info("📤 Bedrock にUserProfile付きメッセージ送信中... scene={}", scene);
-
-        String systemPrompt = systemPromptBuilder.buildFeedbackPromptWithScene(
-                scene, displayName, selfIntroduction, communicationStyle,
-                personalityTraits, goals, concerns, preferredFeedbackStyle);
-        return invokeSingleMessage(systemPrompt, userMessage, 2048, 0.7,
-                "Bedrock（UserProfile付き）", "AI応答の取得に失敗しました");
-    }
-
-    /**
      * 練習モード用のAI応答取得
      * シナリオに基づいたロールプレイ相手役として応答する
      *

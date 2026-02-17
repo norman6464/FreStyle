@@ -3,10 +3,8 @@ package com.example.FreStyle.usecase;
 import org.springframework.stereotype.Service;
 
 import com.example.FreStyle.dto.PracticeScenarioDto;
-import com.example.FreStyle.dto.UserProfileDto;
 import com.example.FreStyle.service.BedrockService;
 import com.example.FreStyle.service.SystemPromptBuilder;
-import com.example.FreStyle.service.UserProfileService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,7 +17,6 @@ public class GetAiReplyUseCase {
     private static final String PRACTICE_START_MESSAGE = "練習開始";
 
     private final BedrockService bedrockService;
-    private final UserProfileService userProfileService;
     private final SystemPromptBuilder systemPromptBuilder;
     private final GetPracticeScenarioByIdUseCase getPracticeScenarioByIdUseCase;
 
@@ -65,28 +62,7 @@ public class GetAiReplyUseCase {
     }
 
     private String handleFeedbackMode(String content, String scene, Integer userId) {
-        log.info("🤖 フィードバックモード: UserProfileをバックエンドで取得中... scene={}", scene);
-        UserProfileDto userProfile = userProfileService.getProfileByUserId(userId);
-
-        if (userProfile != null) {
-            log.info("✅ UserProfile取得成功");
-            String personalityTraits = userProfile.personalityTraits() != null
-                ? String.join(", ", userProfile.personalityTraits())
-                : null;
-
-            return bedrockService.chatWithUserProfileAndScene(
-                content, scene,
-                userProfile.displayName(),
-                userProfile.selfIntroduction(),
-                userProfile.communicationStyle(),
-                personalityTraits,
-                userProfile.goals(),
-                userProfile.concerns(),
-                userProfile.preferredFeedbackStyle()
-            );
-        }
-
-        log.warn("⚠️ UserProfileが見つかりません。通常モードで処理します。");
+        log.info("🤖 フィードバックモード: scene={}", scene);
         return bedrockService.chat(content);
     }
 }

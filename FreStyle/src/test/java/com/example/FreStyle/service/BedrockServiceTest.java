@@ -76,31 +76,6 @@ class BedrockServiceTest {
     }
 
     @Test
-    @DisplayName("chatWithUserProfile()がビジネス評価軸を含むフィードバックプロンプトを使用する")
-    void chatWithUserProfileShouldIncludeFeedbackPrompt() throws Exception {
-        when(bedrockClient.invokeModel(any(InvokeModelRequest.class)))
-                .thenReturn(createMockResponse("フィードバック応答"));
-
-        bedrockService.chatWithUserProfile(
-                "テストメッセージ", "太郎", "自己紹介", "丁寧", "真面目", "目標", "懸念", "優しく");
-
-        ArgumentCaptor<InvokeModelRequest> captor = ArgumentCaptor.forClass(InvokeModelRequest.class);
-        verify(bedrockClient).invokeModel(captor.capture());
-
-        String requestBody = captor.getValue().body().asUtf8String();
-        JsonNode json = objectMapper.readTree(requestBody);
-
-        String systemPrompt = json.get("system").asText();
-        assertThat(systemPrompt).contains("論理的構成力");
-        assertThat(systemPrompt).contains("配慮表現");
-        assertThat(systemPrompt).contains("要約力");
-        assertThat(systemPrompt).contains("提案力");
-        assertThat(systemPrompt).contains("質問・傾聴力");
-        assertThat(systemPrompt).contains("ビジネス");
-        assertThat(systemPrompt).contains("太郎");
-    }
-
-    @Test
     @DisplayName("chat()がAIの応答テキストを正しく返す")
     void chatShouldReturnAiReply() throws Exception {
         when(bedrockClient.invokeModel(any(InvokeModelRequest.class)))
@@ -256,39 +231,4 @@ class BedrockServiceTest {
                 .hasMessageContaining("言い換え提案の取得に失敗しました");
     }
 
-    // ============================
-    // chatWithUserProfileAndScene
-    // ============================
-    @Test
-    @DisplayName("chatWithUserProfileAndScene()がシーン指定付きでリクエストを構築する")
-    void chatWithUserProfileAndSceneShouldIncludeScene() throws Exception {
-        when(bedrockClient.invokeModel(any(InvokeModelRequest.class)))
-                .thenReturn(createMockResponse("シーン付き応答"));
-
-        bedrockService.chatWithUserProfileAndScene(
-                "テストメッセージ", "meeting",
-                "太郎", "自己紹介", "丁寧", "真面目", "目標", "懸念", "優しく");
-
-        ArgumentCaptor<InvokeModelRequest> captor = ArgumentCaptor.forClass(InvokeModelRequest.class);
-        verify(bedrockClient).invokeModel(captor.capture());
-
-        String requestBody = captor.getValue().body().asUtf8String();
-        JsonNode json = objectMapper.readTree(requestBody);
-
-        assertThat(json.get("max_tokens").asInt()).isEqualTo(2048);
-        assertThat(json.has("system")).isTrue();
-    }
-
-    @Test
-    @DisplayName("chatWithUserProfileAndScene()でエラー時にRuntimeExceptionをスローする")
-    void chatWithUserProfileAndSceneShouldThrowOnError() {
-        when(bedrockClient.invokeModel(any(InvokeModelRequest.class)))
-                .thenThrow(new RuntimeException("Bedrock error"));
-
-        assertThatThrownBy(() -> bedrockService.chatWithUserProfileAndScene(
-                "テストメッセージ", "meeting",
-                "太郎", "自己紹介", "丁寧", "真面目", "目標", "懸念", "優しく"))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessageContaining("AI応答の取得に失敗しました");
-    }
 }

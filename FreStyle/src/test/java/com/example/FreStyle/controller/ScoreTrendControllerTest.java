@@ -15,9 +15,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.oauth2.jwt.Jwt;
 
+import com.example.FreStyle.dto.AxisAnalysisDto;
 import com.example.FreStyle.dto.ScoreTrendDto;
 import com.example.FreStyle.entity.User;
 import com.example.FreStyle.service.UserIdentityService;
+import com.example.FreStyle.usecase.GetAxisAnalysisUseCase;
 import com.example.FreStyle.usecase.GetScoreTrendUseCase;
 
 @ExtendWith(MockitoExtension.class)
@@ -26,6 +28,9 @@ class ScoreTrendControllerTest {
 
     @Mock
     private GetScoreTrendUseCase getScoreTrendUseCase;
+
+    @Mock
+    private GetAxisAnalysisUseCase getAxisAnalysisUseCase;
 
     @Mock
     private UserIdentityService userIdentityService;
@@ -64,5 +69,24 @@ class ScoreTrendControllerTest {
         scoreTrendController.getTrend(jwt, 7);
 
         verify(getScoreTrendUseCase).execute(42, 7);
+    }
+
+    @Test
+    @DisplayName("軸別分析を取得できる")
+    void getAxisAnalysisReturnsAnalysis() {
+        Jwt jwt = mock(Jwt.class);
+        when(jwt.getSubject()).thenReturn("sub-123");
+        User user = new User();
+        user.setId(1);
+        when(userIdentityService.findUserBySub("sub-123")).thenReturn(user);
+        AxisAnalysisDto dto = new AxisAnalysisDto(
+                List.of(new AxisAnalysisDto.AxisStat("傾聴力", 8.0, 3)),
+                "傾聴力", "傾聴力", 3);
+        when(getAxisAnalysisUseCase.execute(1)).thenReturn(dto);
+
+        ResponseEntity<AxisAnalysisDto> response = scoreTrendController.getAxisAnalysis(jwt);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isEqualTo(dto);
     }
 }

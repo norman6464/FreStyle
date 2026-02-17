@@ -15,6 +15,7 @@ export function useMenuData() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
     const fetchAll = async () => {
       try {
         const [statsData, roomsData, scoresData] = await Promise.allSettled([
@@ -22,6 +23,8 @@ export function useMenuData() {
           MenuRepository.fetchChatRooms(),
           MenuRepository.fetchScoreHistory(),
         ]);
+
+        if (cancelled) return;
 
         if (statsData.status === 'fulfilled') {
           setStats(statsData.value);
@@ -41,10 +44,13 @@ export function useMenuData() {
       } catch {
         // サイレントに処理
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
     fetchAll();
+    return () => { cancelled = true; };
   }, []);
 
   const totalSessions = allScores.length;

@@ -117,7 +117,8 @@ export function useChat() {
         });
         fetchHistory();
       },
-      onStompError: () => {},
+      onStompError: () => { setLoading(false); },
+      onWebSocketError: () => { setLoading(false); },
     });
     stompClientRef.current = client;
     client.activate();

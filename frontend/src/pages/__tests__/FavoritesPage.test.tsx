@@ -33,6 +33,7 @@ let mockReturnValue: any = {
   removeFavorite: mockRemoveFavorite,
   saveFavorite: vi.fn(),
   isFavorite: vi.fn(),
+  loading: false,
 };
 
 vi.mock('../../hooks/useFavoritePhrase', () => ({
@@ -52,6 +53,7 @@ describe('FavoritesPage', () => {
       removeFavorite: mockRemoveFavorite,
       saveFavorite: vi.fn(),
       isFavorite: vi.fn(),
+      loading: false,
     };
   });
 
@@ -162,5 +164,14 @@ describe('FavoritesPage', () => {
     render(<FavoritesPage />);
 
     expect(screen.queryByText('0件')).not.toBeInTheDocument();
+  });
+
+  it('ローディング中はLoadingコンポーネントが表示される', () => {
+    mockReturnValue = { ...mockReturnValue, loading: true };
+
+    render(<FavoritesPage />);
+
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /お気に入りフレーズ/ })).not.toBeInTheDocument();
   });
 });

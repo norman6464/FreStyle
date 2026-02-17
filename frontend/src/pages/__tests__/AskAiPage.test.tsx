@@ -18,6 +18,7 @@ const mockUseAskAi = {
   messagesEndRef: { current: null },
   isPracticeMode: false,
   scenarioName: null,
+  scenarioId: null,
   currentSessionId: null,
   deleteModal: { isOpen: false, sessionId: null },
   editingSessionId: null,
@@ -35,6 +36,7 @@ const mockUseAskAi = {
   handleCancelEditTitle: vi.fn(),
   handleSend: vi.fn(),
   handleDeleteMessage: vi.fn(),
+  loading: false,
 };
 
 describe('AskAiPage', () => {
@@ -184,5 +186,15 @@ describe('AskAiPage', () => {
   it('セッション0件の場合、0件と表示される', () => {
     render(<AskAiPage />);
     expect(screen.getAllByText('0件').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('ローディング中はLoadingコンポーネントが表示される', () => {
+    vi.mocked(useAskAi).mockReturnValue({
+      ...mockUseAskAi,
+      loading: true,
+    });
+    render(<AskAiPage />);
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(screen.queryByText('AIアシスタントへようこそ')).not.toBeInTheDocument();
   });
 });

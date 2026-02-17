@@ -18,6 +18,7 @@ export function useChat() {
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; messageId: number | null }>({ isOpen: false, messageId: null });
   const [showSceneSelector, setShowSceneSelector] = useState(false);
   const [showRephraseModal, setShowRephraseModal] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [rephraseResult, setRephraseResult] = useState<{ formal: string; soft: string; concise: string } | null>(null);
   const [rephraseOriginalText, setRephraseOriginalText] = useState('');
   const stompClientRef = useRef<Client | null>(null);
@@ -74,6 +75,8 @@ export function useChat() {
       setMessages(formatted);
     } catch {
       // エラーはaxiosインターセプターが処理
+    } finally {
+      setLoading(false);
     }
   }, [roomId, senderId]);
 
@@ -114,7 +117,8 @@ export function useChat() {
         });
         fetchHistory();
       },
-      onStompError: () => {},
+      onStompError: () => { setLoading(false); },
+      onWebSocketError: () => { setLoading(false); },
     });
     stompClientRef.current = client;
     client.activate();
@@ -207,6 +211,7 @@ export function useChat() {
   return {
     messages,
     senderId,
+    loading,
     deleteModal,
     selectionMode: selection.selectionMode,
     selectedMessages: selection.selectedMessages,

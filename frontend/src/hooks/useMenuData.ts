@@ -12,8 +12,10 @@ export function useMenuData() {
   const [totalUnread, setTotalUnread] = useState(0);
   const [latestScore, setLatestScore] = useState<ScoreHistory | null>(null);
   const [allScores, setAllScores] = useState<ScoreHistory[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
     const fetchAll = async () => {
       try {
         const [statsData, roomsData, scoresData] = await Promise.allSettled([
@@ -21,6 +23,8 @@ export function useMenuData() {
           MenuRepository.fetchChatRooms(),
           MenuRepository.fetchScoreHistory(),
         ]);
+
+        if (cancelled) return;
 
         if (statsData.status === 'fulfilled') {
           setStats(statsData.value);
@@ -39,9 +43,14 @@ export function useMenuData() {
         }
       } catch {
         // サイレントに処理
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
     fetchAll();
+    return () => { cancelled = true; };
   }, []);
 
   const totalSessions = allScores.length;
@@ -69,5 +78,6 @@ export function useMenuData() {
     uniqueDays,
     practiceDates,
     sessionsThisWeek,
+    loading,
   };
 }

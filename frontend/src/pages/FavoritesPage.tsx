@@ -4,14 +4,19 @@ import SearchBox from '../components/SearchBox';
 import FavoriteStatsCard from '../components/FavoriteStatsCard';
 import EmptyState from '../components/EmptyState';
 import ConfirmModal from '../components/ConfirmModal';
+import Loading from '../components/Loading';
 import { StarIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import type { FavoritePhrase } from '../types';
 
 const PATTERN_FILTERS = ['すべて', 'フォーマル', 'ソフト', '簡潔'] as const;
 
 export default function FavoritesPage() {
-  const { phrases, filteredPhrases, searchQuery, setSearchQuery, patternFilter, setPatternFilter, removeFavorite } = useFavoritePhrase();
+  const { phrases, filteredPhrases, searchQuery, setSearchQuery, patternFilter, setPatternFilter, removeFavorite, loading } = useFavoritePhrase();
   const [deleteTarget, setDeleteTarget] = useState<FavoritePhrase | null>(null);
+
+  if (loading) {
+    return <Loading message="読み込み中..." className="py-12" />;
+  }
 
   return (
     <div className="max-w-3xl mx-auto p-4 space-y-3">

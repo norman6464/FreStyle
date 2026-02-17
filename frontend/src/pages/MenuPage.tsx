@@ -21,14 +21,19 @@ import SessionCountMilestoneCard from '../components/SessionCountMilestoneCard';
 import ScoreSparkline from '../components/ScoreSparkline';
 import RecommendedScenarioCard from '../components/RecommendedScenarioCard';
 import BookmarkedScenariosCard from '../components/BookmarkedScenariosCard';
+import Loading from '../components/Loading';
 import { useMenuData } from '../hooks/useMenuData';
 import { useScoreHistory } from '../hooks/useScoreHistory';
 import { useRecommendedScenario } from '../hooks/useRecommendedScenario';
 
 export default function MenuPage() {
-  const { stats, totalUnread, latestScore, allScores, totalSessions, averageScore, uniqueDays, practiceDates, sessionsThisWeek } = useMenuData();
+  const { stats, totalUnread, latestScore, allScores, totalSessions, averageScore, uniqueDays, practiceDates, sessionsThisWeek, loading } = useMenuData();
   const { weakestAxis } = useScoreHistory();
   const { scenario: recommendedScenario } = useRecommendedScenario(weakestAxis);
+
+  if (loading) {
+    return <Loading message="読み込み中..." className="py-12" />;
+  }
 
   const showRecommendation = !latestScore && stats?.chatPartnerCount === 0;
 

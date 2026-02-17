@@ -33,6 +33,7 @@ const mockUseChat = {
   setShowRephraseModal: vi.fn(),
   isInRange: vi.fn().mockReturnValue(false),
   getRangeLabel: vi.fn().mockReturnValue(null),
+  loading: false,
 };
 
 describe('ChatPage', () => {
@@ -130,5 +131,15 @@ describe('ChatPage', () => {
   it('削除モーダルが閉じている場合はメッセージが表示されない', () => {
     render(<ChatPage />);
     expect(screen.queryByText('このメッセージを削除しますか？この操作は取り消せません。')).not.toBeInTheDocument();
+  });
+
+  it('ローディング中はLoadingコンポーネントが表示される', () => {
+    vi.mocked(useChat).mockReturnValue({
+      ...mockUseChat,
+      loading: true,
+    });
+    render(<ChatPage />);
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(screen.queryByText('チャットへようこそ')).not.toBeInTheDocument();
   });
 });

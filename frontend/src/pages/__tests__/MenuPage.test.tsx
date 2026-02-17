@@ -55,6 +55,7 @@ function defaultMenuData() {
     uniqueDays: 1,
     practiceDates: ['2026-02-13'],
     sessionsThisWeek: 1,
+    loading: false,
   };
 }
 
@@ -119,5 +120,17 @@ describe('MenuPage', () => {
 
     expect(screen.getByText('チャット')).toBeInTheDocument();
     expect(screen.queryByText(/件の未読/)).not.toBeInTheDocument();
+  });
+
+  it('ローディング中はLoadingコンポーネントが表示される', () => {
+    mockUseMenuData.mockReturnValue({
+      ...defaultMenuData(),
+      loading: true,
+    });
+
+    render(<BrowserRouter><MenuPage /></BrowserRouter>);
+
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(screen.queryByText('チャット')).not.toBeInTheDocument();
   });
 });

@@ -63,9 +63,9 @@ class FollowUserUseCaseTest {
         FriendshipDto result = followUserUseCase.execute(follower, following);
 
         assertThat(result).isNotNull();
-        assertThat(result.getUserId()).isEqualTo(2);
-        assertThat(result.getUsername()).isEqualTo("ユーザーB");
-        assertThat(result.isMutual()).isFalse();
+        assertThat(result.userId()).isEqualTo(2);
+        assertThat(result.username()).isEqualTo("ユーザーB");
+        assertThat(result.mutual()).isFalse();
         verify(friendshipRepository).save(any(Friendship.class));
     }
 
@@ -83,7 +83,7 @@ class FollowUserUseCaseTest {
         FriendshipDto result = followUserUseCase.execute(follower, following);
 
         assertThat(result).isNotNull();
-        assertThat(result.isMutual()).isTrue();
+        assertThat(result.mutual()).isTrue();
     }
 
     @Test

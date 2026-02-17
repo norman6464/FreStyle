@@ -72,7 +72,7 @@ class FavoritePhraseControllerTest {
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
             assertThat(response.getBody()).hasSize(1);
-            assertThat(response.getBody().get(0).getOriginalText()).isEqualTo("元文");
+            assertThat(response.getBody().get(0).originalText()).isEqualTo("元文");
         }
     }
 

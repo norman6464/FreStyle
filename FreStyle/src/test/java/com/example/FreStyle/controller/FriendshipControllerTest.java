@@ -92,7 +92,7 @@ class FriendshipControllerTest {
             ResponseEntity<FriendshipDto> response = friendshipController.followUser(mockJwt, 2);
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-            assertThat(response.getBody().getUserId()).isEqualTo(2);
+            assertThat(response.getBody().userId()).isEqualTo(2);
         }
     }
 

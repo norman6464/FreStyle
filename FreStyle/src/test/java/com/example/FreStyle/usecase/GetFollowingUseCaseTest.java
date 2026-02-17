@@ -65,10 +65,10 @@ class GetFollowingUseCaseTest {
         List<FriendshipDto> result = getFollowingUseCase.execute(1);
 
         assertThat(result).hasSize(2);
-        assertThat(result.get(0).getUserId()).isEqualTo(2);
-        assertThat(result.get(0).isMutual()).isTrue();
-        assertThat(result.get(1).getUserId()).isEqualTo(3);
-        assertThat(result.get(1).isMutual()).isFalse();
+        assertThat(result.get(0).userId()).isEqualTo(2);
+        assertThat(result.get(0).mutual()).isTrue();
+        assertThat(result.get(1).userId()).isEqualTo(3);
+        assertThat(result.get(1).mutual()).isFalse();
     }
 
     @Test

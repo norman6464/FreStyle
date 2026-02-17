@@ -37,10 +37,10 @@ class GlobalExceptionHandlerTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().getStatus()).isEqualTo(404);
-        assertThat(response.getBody().getError()).isEqualTo("Not Found");
-        assertThat(response.getBody().getMessage()).isEqualTo("ノートが見つかりません");
-        assertThat(response.getBody().getPath()).isEqualTo("/api/notes/999");
+        assertThat(response.getBody().status()).isEqualTo(404);
+        assertThat(response.getBody().error()).isEqualTo("Not Found");
+        assertThat(response.getBody().message()).isEqualTo("ノートが見つかりません");
+        assertThat(response.getBody().path()).isEqualTo("/api/notes/999");
     }
 
     @Test
@@ -53,10 +53,10 @@ class GlobalExceptionHandlerTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().getStatus()).isEqualTo(403);
-        assertThat(response.getBody().getError()).isEqualTo("Forbidden");
-        assertThat(response.getBody().getMessage()).isEqualTo("アクセス権限がありません");
-        assertThat(response.getBody().getPath()).isEqualTo("/api/notes/1");
+        assertThat(response.getBody().status()).isEqualTo(403);
+        assertThat(response.getBody().error()).isEqualTo("Forbidden");
+        assertThat(response.getBody().message()).isEqualTo("アクセス権限がありません");
+        assertThat(response.getBody().path()).isEqualTo("/api/notes/1");
     }
 
     @Test
@@ -69,10 +69,10 @@ class GlobalExceptionHandlerTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().getStatus()).isEqualTo(400);
-        assertThat(response.getBody().getError()).isEqualTo("Bad Request");
-        assertThat(response.getBody().getMessage()).isEqualTo("メールアドレスが無効です");
-        assertThat(response.getBody().getPath()).isEqualTo("/api/auth/signup");
+        assertThat(response.getBody().status()).isEqualTo(400);
+        assertThat(response.getBody().error()).isEqualTo("Bad Request");
+        assertThat(response.getBody().message()).isEqualTo("メールアドレスが無効です");
+        assertThat(response.getBody().path()).isEqualTo("/api/auth/signup");
     }
 
     @Test
@@ -85,10 +85,10 @@ class GlobalExceptionHandlerTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
         assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().getStatus()).isEqualTo(500);
-        assertThat(response.getBody().getError()).isEqualTo("Internal Server Error");
-        assertThat(response.getBody().getMessage()).isEqualTo("サーバーエラーが発生しました。管理者にお問い合わせください。");
-        assertThat(response.getBody().getPath()).isEqualTo("/api/data");
+        assertThat(response.getBody().status()).isEqualTo(500);
+        assertThat(response.getBody().error()).isEqualTo("Internal Server Error");
+        assertThat(response.getBody().message()).isEqualTo("サーバーエラーが発生しました。管理者にお問い合わせください。");
+        assertThat(response.getBody().path()).isEqualTo("/api/data");
     }
 
     @Test
@@ -101,10 +101,10 @@ class GlobalExceptionHandlerTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().getStatus()).isEqualTo(400);
-        assertThat(response.getBody().getError()).isEqualTo("Bad Request");
-        assertThat(response.getBody().getMessage()).isEqualTo("許可されていないファイル形式です");
-        assertThat(response.getBody().getPath()).isEqualTo("/api/notes/1/images");
+        assertThat(response.getBody().status()).isEqualTo(400);
+        assertThat(response.getBody().error()).isEqualTo("Bad Request");
+        assertThat(response.getBody().message()).isEqualTo("許可されていないファイル形式です");
+        assertThat(response.getBody().path()).isEqualTo("/api/notes/1/images");
     }
 
     @Test
@@ -117,10 +117,10 @@ class GlobalExceptionHandlerTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().getStatus()).isEqualTo(400);
-        assertThat(response.getBody().getError()).isEqualTo("Bad Request");
-        assertThat(response.getBody().getMessage()).isEqualTo("無効な状態です");
-        assertThat(response.getBody().getPath()).isEqualTo("/api/chat/users/1/create");
+        assertThat(response.getBody().status()).isEqualTo(400);
+        assertThat(response.getBody().error()).isEqualTo("Bad Request");
+        assertThat(response.getBody().message()).isEqualTo("無効な状態です");
+        assertThat(response.getBody().path()).isEqualTo("/api/chat/users/1/create");
     }
 
     @Test
@@ -132,6 +132,6 @@ class GlobalExceptionHandlerTest {
         ResponseEntity<ErrorResponseDto> response = handler.handleResourceNotFoundException(ex, request);
 
         assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().getTimestamp()).isNotNull();
+        assertThat(response.getBody().timestamp()).isNotNull();
     }
 }

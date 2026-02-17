@@ -56,9 +56,9 @@ class GetUserFavoritePhrasesUseCaseTest {
         List<FavoritePhraseDto> result = getUserFavoritePhrasesUseCase.execute(1);
 
         assertEquals(2, result.size());
-        assertEquals("確認お願いします", result.get(0).getOriginalText());
-        assertEquals("ご確認いただけますでしょうか", result.get(0).getRephrasedText());
-        assertEquals("フォーマル版", result.get(0).getPattern());
+        assertEquals("確認お願いします", result.get(0).originalText());
+        assertEquals("ご確認いただけますでしょうか", result.get(0).rephrasedText());
+        assertEquals("フォーマル版", result.get(0).pattern());
     }
 
     @Test

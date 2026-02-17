@@ -1,7 +1,6 @@
 package com.example.FreStyle.usecase;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -50,6 +49,6 @@ public class GetAiChatMessagesBySessionIdUseCase {
         List<AiChatMessage> messages = aiChatMessageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId);
         return messages.stream()
                 .map(mapper::toDto)
-                .collect(Collectors.toList());
+                .toList();
     }
 }

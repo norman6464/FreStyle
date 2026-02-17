@@ -1,7 +1,6 @@
 package com.example.FreStyle.usecase;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +25,6 @@ public class GetUserFavoritePhrasesUseCase {
                         phrase.getRephrasedText(),
                         phrase.getPattern(),
                         phrase.getCreatedAt() != null ? phrase.getCreatedAt().toInstant().toString() : null))
-                .collect(Collectors.toList());
+                .toList();
     }
 }

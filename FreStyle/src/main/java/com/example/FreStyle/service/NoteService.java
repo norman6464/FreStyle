@@ -13,7 +13,6 @@ import software.amazon.awssdk.services.dynamodb.model.*;
 
 import java.time.Instant;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Repository
 public class NoteService implements NoteRepository {
@@ -81,7 +80,7 @@ public class NoteService implements NoteRepository {
 
         return response.items().stream()
                 .map(this::toDto)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Override

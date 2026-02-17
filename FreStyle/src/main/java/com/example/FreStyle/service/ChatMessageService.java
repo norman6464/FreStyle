@@ -1,7 +1,6 @@
 package com.example.FreStyle.service;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,7 +31,7 @@ public class ChatMessageService {
         List<ChatMessage> messages = chatMessageRepository.findByRoomOrderByCreatedAtAsc(room);
         return messages.stream()
                 .map(msg -> toDto(msg))
-                .collect(Collectors.toList());
+                .toList();
     }
 
     /**

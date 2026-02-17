@@ -1,7 +1,6 @@
 package com.example.FreStyle.usecase;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +19,6 @@ public class GetUserBookmarksUseCase {
     public List<Integer> execute(Integer userId) {
         return scenarioBookmarkRepository.findByUserId(userId).stream()
                 .map(bookmark -> bookmark.getScenario().getId())
-                .collect(Collectors.toList());
+                .toList();
     }
 }

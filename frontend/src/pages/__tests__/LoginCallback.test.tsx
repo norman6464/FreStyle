@@ -45,7 +45,7 @@ describe('LoginCallback', () => {
     renderWithRoute('?code=test-code');
 
     expect(screen.getByRole('status')).toBeInTheDocument();
-    expect(screen.getByText('読み込み中...')).toBeInTheDocument();
+    expect(screen.getByText('ログイン中...')).toBeInTheDocument();
   });
 
   it('codeがない場合はログインページへリダイレクトする', async () => {

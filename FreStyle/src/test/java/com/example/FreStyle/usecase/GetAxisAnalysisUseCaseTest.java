@@ -46,6 +46,12 @@ class GetAxisAnalysisUseCaseTest {
 
         assertThat(result.axisStats()).hasSize(3);
         assertThat(result.totalEvaluations()).isEqualTo(5);
+        // 平均スコア降順で並んでいることを検証
+        assertThat(result.axisStats().get(0).axisName()).isEqualTo("傾聴力"); // avg 8.0
+        assertThat(result.axisStats().get(1).axisName()).isEqualTo("論理的構成力"); // avg 7.0
+        assertThat(result.axisStats().get(2).axisName()).isEqualTo("表現力"); // avg 5.0
+        assertThat(result.bestAxis()).isEqualTo("傾聴力");
+        assertThat(result.worstAxis()).isEqualTo("表現力");
     }
 
     @Test

@@ -11,11 +11,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.example.FreStyle.dto.LearningReportDto;
 import com.example.FreStyle.entity.LearningReport;
 import com.example.FreStyle.entity.User;
+import com.example.FreStyle.mapper.LearningReportMapper;
 import com.example.FreStyle.repository.LearningReportRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -24,6 +26,9 @@ class GetMonthlyReportUseCaseTest {
 
     @Mock
     private LearningReportRepository learningReportRepository;
+
+    @Spy
+    private LearningReportMapper learningReportMapper;
 
     @InjectMocks
     private GetMonthlyReportUseCase getMonthlyReportUseCase;

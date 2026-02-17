@@ -20,6 +20,8 @@ import com.example.FreStyle.usecase.GetMonthlyReportUseCase;
 import com.example.FreStyle.usecase.GetReportListUseCase;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,6 +40,7 @@ public class LearningReportController {
     @GetMapping
     public ResponseEntity<List<LearningReportDto>> getReportList(@AuthenticationPrincipal Jwt jwt) {
         User user = resolveUser(jwt);
+        log.info("レポート一覧取得: userId={}", user.getId());
         List<LearningReportDto> reports = getReportListUseCase.execute(user.getId());
         return ResponseEntity.ok(reports);
     }
@@ -48,6 +51,7 @@ public class LearningReportController {
             @PathVariable Integer year,
             @PathVariable Integer month) {
         User user = resolveUser(jwt);
+        log.info("月次レポート取得: userId={}, year={}, month={}", user.getId(), year, month);
         LearningReportDto report = getMonthlyReportUseCase.execute(user.getId(), year, month);
         if (report == null) {
             return ResponseEntity.notFound().build();
@@ -60,6 +64,7 @@ public class LearningReportController {
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody GenerateReportRequest request) {
         User user = resolveUser(jwt);
+        log.info("月次レポート生成: userId={}, year={}, month={}", user.getId(), request.year(), request.month());
         LearningReportDto report = generateMonthlyReportUseCase.execute(user, request.year(), request.month());
         return ResponseEntity.ok(report);
     }
@@ -68,5 +73,7 @@ public class LearningReportController {
         return userIdentityService.findUserBySub(jwt.getSubject());
     }
 
-    record GenerateReportRequest(@NotNull Integer year, @NotNull Integer month) {}
+    record GenerateReportRequest(
+            @NotNull @Min(1900) @Max(2100) Integer year,
+            @NotNull @Min(1) @Max(12) Integer month) {}
 }

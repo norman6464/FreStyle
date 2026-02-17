@@ -13,6 +13,7 @@ import com.example.FreStyle.dto.LearningReportDto;
 import com.example.FreStyle.entity.CommunicationScore;
 import com.example.FreStyle.entity.LearningReport;
 import com.example.FreStyle.entity.User;
+import com.example.FreStyle.mapper.LearningReportMapper;
 import com.example.FreStyle.repository.CommunicationScoreRepository;
 import com.example.FreStyle.repository.LearningReportRepository;
 
@@ -24,6 +25,7 @@ public class GenerateMonthlyReportUseCase {
 
     private final CommunicationScoreRepository communicationScoreRepository;
     private final LearningReportRepository learningReportRepository;
+    private final LearningReportMapper learningReportMapper;
 
     @Transactional
     public LearningReportDto execute(User user, Integer year, Integer month) {
@@ -67,6 +69,9 @@ public class GenerateMonthlyReportUseCase {
                     .min(Map.Entry.comparingByValue())
                     .map(Map.Entry::getKey)
                     .orElse(null);
+            if (bestAxis != null && bestAxis.equals(worstAxis)) {
+                worstAxis = null;
+            }
         }
 
         // 前月のスコア取得
@@ -95,26 +100,6 @@ public class GenerateMonthlyReportUseCase {
         report.setPracticeDays((int) practiceDays);
 
         LearningReport saved = learningReportRepository.save(report);
-        return toDto(saved);
-    }
-
-    private LearningReportDto toDto(LearningReport report) {
-        Double scoreChange = null;
-        if (report.getPreviousAverageScore() != null) {
-            scoreChange = report.getAverageScore() - report.getPreviousAverageScore();
-        }
-        return new LearningReportDto(
-                report.getId(),
-                report.getYear(),
-                report.getMonth(),
-                report.getTotalSessions(),
-                report.getAverageScore(),
-                report.getPreviousAverageScore(),
-                scoreChange,
-                report.getBestAxis(),
-                report.getWorstAxis(),
-                report.getPracticeDays(),
-                report.getCreatedAt() != null ? report.getCreatedAt().toString() : null
-        );
+        return learningReportMapper.toDto(saved);
     }
 }

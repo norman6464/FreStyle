@@ -7,7 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.FreStyle.dto.LearningReportDto;
-import com.example.FreStyle.entity.LearningReport;
+import com.example.FreStyle.mapper.LearningReportMapper;
 import com.example.FreStyle.repository.LearningReportRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -17,32 +17,13 @@ import lombok.RequiredArgsConstructor;
 public class GetReportListUseCase {
 
     private final LearningReportRepository learningReportRepository;
+    private final LearningReportMapper learningReportMapper;
 
     @Transactional(readOnly = true)
     public List<LearningReportDto> execute(Integer userId) {
         return learningReportRepository.findByUserIdOrderByYearDescMonthDesc(userId)
                 .stream()
-                .map(this::toDto)
+                .map(learningReportMapper::toDto)
                 .collect(Collectors.toList());
-    }
-
-    private LearningReportDto toDto(LearningReport report) {
-        Double scoreChange = null;
-        if (report.getPreviousAverageScore() != null) {
-            scoreChange = report.getAverageScore() - report.getPreviousAverageScore();
-        }
-        return new LearningReportDto(
-                report.getId(),
-                report.getYear(),
-                report.getMonth(),
-                report.getTotalSessions(),
-                report.getAverageScore(),
-                report.getPreviousAverageScore(),
-                scoreChange,
-                report.getBestAxis(),
-                report.getWorstAxis(),
-                report.getPracticeDays(),
-                report.getCreatedAt() != null ? report.getCreatedAt().toString() : null
-        );
     }
 }

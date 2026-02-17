@@ -5,6 +5,7 @@ import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 import authReducer from '../../../store/authSlice';
 import AppShell from '../AppShell';
+import { ToastProvider } from '../../../hooks/useToast';
 
 function createTestStore() {
   return configureStore({
@@ -17,11 +18,13 @@ function renderAppShell() {
   return render(
     <Provider store={createTestStore()}>
       <MemoryRouter initialEntries={['/']}>
-        <Routes>
-          <Route element={<AppShell />}>
-            <Route path="/" element={<div>テストコンテンツ</div>} />
-          </Route>
-        </Routes>
+        <ToastProvider>
+          <Routes>
+            <Route element={<AppShell />}>
+              <Route path="/" element={<div>テストコンテンツ</div>} />
+            </Route>
+          </Routes>
+        </ToastProvider>
       </MemoryRouter>
     </Provider>
   );

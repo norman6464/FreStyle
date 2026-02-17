@@ -44,14 +44,13 @@ class GetChatHistoryUseCaseTest {
         ChatRoom chatRoom = new ChatRoom();
         chatRoom.setId(10);
         when(chatRoomService.findChatRoomById(10)).thenReturn(chatRoom);
-        ChatMessageDto msg = new ChatMessageDto();
-        msg.setContent("テストメッセージ");
+        ChatMessageDto msg = new ChatMessageDto(null, null, null, null, "テストメッセージ", null, null);
         when(chatMessageService.getMessagesByRoom(chatRoom, 1)).thenReturn(List.of(msg));
 
         List<ChatMessageDto> result = getChatHistoryUseCase.execute("sub-123", 10);
 
         assertEquals(1, result.size());
-        assertEquals("テストメッセージ", result.get(0).getContent());
+        assertEquals("テストメッセージ", result.get(0).content());
     }
 
     @Test

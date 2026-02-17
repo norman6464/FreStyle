@@ -68,8 +68,8 @@ class ChatMessageServiceTest {
         List<ChatMessageDto> result = chatMessageService.getMessagesByRoom(room, 10);
 
         assertEquals(2, result.size());
-        assertEquals("こんにちは", result.get(0).getContent());
-        assertEquals("お元気ですか", result.get(1).getContent());
+        assertEquals("こんにちは", result.get(0).content());
+        assertEquals("お元気ですか", result.get(1).content());
     }
 
     @Test
@@ -84,10 +84,10 @@ class ChatMessageServiceTest {
 
         ChatMessageDto dto = chatMessageService.addMessage(room, 10, "新メッセージ");
 
-        assertEquals(100, dto.getId());
-        assertEquals(1, dto.getRoomId());
-        assertEquals(10, dto.getSenderId());
-        assertEquals("新メッセージ", dto.getContent());
+        assertEquals(100, dto.id());
+        assertEquals(1, dto.roomId());
+        assertEquals(10, dto.senderId());
+        assertEquals("新メッセージ", dto.content());
     }
 
     @Test
@@ -101,7 +101,7 @@ class ChatMessageServiceTest {
 
         ChatMessageDto dto = chatMessageService.updateMessage(1, "新内容");
 
-        assertEquals("新内容", dto.getContent());
+        assertEquals("新内容", dto.content());
     }
 
     @Test

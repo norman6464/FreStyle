@@ -1,6 +1,7 @@
 package com.example.FreStyle.usecase;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDate;
@@ -56,6 +57,7 @@ class GetDailyGoalStreakUseCaseTest {
         assertThat(result.currentStreak()).isEqualTo(3);
         assertThat(result.longestStreak()).isEqualTo(3);
         assertThat(result.totalAchievedDays()).isEqualTo(3);
+        verify(dailyGoalRepository).findByUserIdOrderByGoalDateDesc(1);
     }
 
     @Test
@@ -68,6 +70,7 @@ class GetDailyGoalStreakUseCaseTest {
         assertThat(result.currentStreak()).isZero();
         assertThat(result.longestStreak()).isZero();
         assertThat(result.totalAchievedDays()).isZero();
+        verify(dailyGoalRepository).findByUserIdOrderByGoalDateDesc(1);
     }
 
     @Test
@@ -86,6 +89,7 @@ class GetDailyGoalStreakUseCaseTest {
 
         assertThat(result.currentStreak()).isEqualTo(2);
         assertThat(result.totalAchievedDays()).isEqualTo(2);
+        verify(dailyGoalRepository).findByUserIdOrderByGoalDateDesc(1);
     }
 
     @Test
@@ -107,6 +111,7 @@ class GetDailyGoalStreakUseCaseTest {
         assertThat(result.currentStreak()).isEqualTo(1);
         assertThat(result.longestStreak()).isEqualTo(3);
         assertThat(result.totalAchievedDays()).isEqualTo(4);
+        verify(dailyGoalRepository).findByUserIdOrderByGoalDateDesc(1);
     }
 
     @Test
@@ -127,5 +132,6 @@ class GetDailyGoalStreakUseCaseTest {
         assertThat(result.currentStreak()).isEqualTo(1);
         assertThat(result.longestStreak()).isEqualTo(2);
         assertThat(result.totalAchievedDays()).isEqualTo(3);
+        verify(dailyGoalRepository).findByUserIdOrderByGoalDateDesc(1);
     }
 }

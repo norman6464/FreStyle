@@ -11,7 +11,15 @@ export default function LoginPage() {
   const { form, loginMessage, flashMessage, loading, handleLogin, handleChange } = useLoginPage();
 
   return (
-    <AuthLayout>
+    <AuthLayout
+      title="ログイン"
+      footer={
+        <p className="text-sm text-[var(--color-text-muted)]">
+          アカウントをお持ちでない方{' '}
+          <LinkText to="/signup">新規登録</LinkText>
+        </p>
+      }
+    >
       {/* flash Message */}
       <div>
         {flashMessage && (
@@ -26,12 +34,28 @@ export default function LoginPage() {
           </p>
         )}
       </div>
-      <h2 className="text-3xl font-bold mb-2 text-center text-[var(--color-text-primary)]">
-        ログイン
-      </h2>
-      <p className="text-center text-[var(--color-text-muted)] text-sm mb-6">
-        アカウントにアクセスしてください
-      </p>
+
+      {/* Googleログイン */}
+      <SNSSignInButton
+        provider="google"
+        onClick={() => {
+          window.location.href = getCognitoAuthUrl('Google');
+        }}
+      />
+
+      {/* 区切り線 */}
+      <div className="relative my-5">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t border-surface-3"></div>
+        </div>
+        <div className="relative flex justify-center text-sm">
+          <span className="px-2 bg-surface-1 text-[var(--color-text-muted)]">
+            または
+          </span>
+        </div>
+      </div>
+
+      {/* メール・パスワードフォーム */}
       <form onSubmit={handleLogin}>
         <InputField
           label="メールアドレス"
@@ -53,26 +77,11 @@ export default function LoginPage() {
           {loading ? 'ログイン中...' : 'ログイン'}
         </PrimaryButton>
       </form>
-      <div className="flex justify-between items-center mt-6 text-sm">
-        <LinkText to="/forgot-password">パスワードをお忘れですか？</LinkText>
-        <LinkText to="/signup">アカウント作成</LinkText>
+
+      {/* パスワードリセットリンク */}
+      <div className="mt-4 text-center">
+        <LinkText to="/forgot-password">パスワードを忘れた方</LinkText>
       </div>
-      <div className="relative my-6">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-surface-3"></div>
-        </div>
-        <div className="relative flex justify-center text-sm">
-          <span className="px-2 bg-surface-1 text-[var(--color-text-muted)]">
-            またはSNSでログイン
-          </span>
-        </div>
-      </div>
-      <SNSSignInButton
-        provider="google"
-        onClick={() => {
-          window.location.href = getCognitoAuthUrl('Google');
-        }}
-      />
     </AuthLayout>
   );
 }

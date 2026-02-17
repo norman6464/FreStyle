@@ -53,8 +53,8 @@ describe('LoginPage', () => {
   it('リンクテキストが表示される', () => {
     renderLoginPage();
 
-    expect(screen.getByText('パスワードをお忘れですか？')).toBeInTheDocument();
-    expect(screen.getByText('アカウント作成')).toBeInTheDocument();
+    expect(screen.getByText('パスワードを忘れた方')).toBeInTheDocument();
+    expect(screen.getByText('新規登録')).toBeInTheDocument();
   });
 
   it('ログイン成功時にホームに遷移する', async () => {

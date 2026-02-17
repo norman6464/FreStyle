@@ -405,5 +405,13 @@ class CognitoAuthControllerTest {
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         }
+
+        @Test
+        @DisplayName("JWTがnullの場合401を返す（/api/auth/**はpermitAllのため）")
+        void returnsUnauthorizedOnNullJwt() {
+            ResponseEntity<?> response = controller.me(null);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        }
     }
 }

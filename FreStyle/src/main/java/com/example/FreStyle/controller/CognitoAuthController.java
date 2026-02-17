@@ -242,9 +242,12 @@ public class CognitoAuthController {
     // -----------------------
     @GetMapping("/me")
     public ResponseEntity<?> me(@AuthenticationPrincipal Jwt jwt) {
-        String sub = jwt.getSubject();
-        log.info("GET /api/auth/cognito/me - sub={}", sub);
-        Integer id = userIdentityService.findUserBySub(sub).getId();
+        if (jwt == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "認証されていません"));
+        }
+        Integer id = userIdentityService.findUserBySub(jwt.getSubject()).getId();
+        log.info("GET /api/auth/cognito/me - userId={}", id);
         return ResponseEntity.ok(Map.of("id", id));
     }
 }

@@ -16,10 +16,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.oauth2.jwt.Jwt;
 
 import com.example.FreStyle.dto.AxisAnalysisDto;
+import com.example.FreStyle.dto.CommunicationScoreSummaryDto;
 import com.example.FreStyle.dto.ScoreTrendDto;
 import com.example.FreStyle.entity.User;
 import com.example.FreStyle.service.UserIdentityService;
 import com.example.FreStyle.usecase.GetAxisAnalysisUseCase;
+import com.example.FreStyle.usecase.GetCommunicationScoreSummaryUseCase;
 import com.example.FreStyle.usecase.GetScoreTrendUseCase;
 
 @ExtendWith(MockitoExtension.class)
@@ -31,6 +33,9 @@ class ScoreTrendControllerTest {
 
     @Mock
     private GetAxisAnalysisUseCase getAxisAnalysisUseCase;
+
+    @Mock
+    private GetCommunicationScoreSummaryUseCase getCommunicationScoreSummaryUseCase;
 
     @Mock
     private UserIdentityService userIdentityService;
@@ -88,5 +93,24 @@ class ScoreTrendControllerTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isEqualTo(dto);
+    }
+
+    @Test
+    @DisplayName("スコアサマリーを取得できる")
+    void getSummaryReturnsSummary() {
+        Jwt jwt = mock(Jwt.class);
+        when(jwt.getSubject()).thenReturn("sub-123");
+        User user = new User();
+        user.setId(1);
+        when(userIdentityService.findUserBySub("sub-123")).thenReturn(user);
+        CommunicationScoreSummaryDto dto = new CommunicationScoreSummaryDto(
+                3, 7.5, List.of(), "論理的構成力", "配慮表現");
+        when(getCommunicationScoreSummaryUseCase.execute(1)).thenReturn(dto);
+
+        ResponseEntity<CommunicationScoreSummaryDto> response = scoreTrendController.getSummary(jwt);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isEqualTo(dto);
+        verify(getCommunicationScoreSummaryUseCase).execute(1);
     }
 }

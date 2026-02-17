@@ -9,9 +9,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.FreStyle.dto.AxisAnalysisDto;
 import com.example.FreStyle.dto.ScoreTrendDto;
 import com.example.FreStyle.entity.User;
 import com.example.FreStyle.service.UserIdentityService;
+import com.example.FreStyle.usecase.GetAxisAnalysisUseCase;
 import com.example.FreStyle.usecase.GetScoreTrendUseCase;
 
 import jakarta.validation.constraints.Min;
@@ -26,6 +28,7 @@ import lombok.extern.slf4j.Slf4j;
 public class ScoreTrendController {
 
     private final GetScoreTrendUseCase getScoreTrendUseCase;
+    private final GetAxisAnalysisUseCase getAxisAnalysisUseCase;
     private final UserIdentityService userIdentityService;
 
     @GetMapping("/trend")
@@ -35,6 +38,14 @@ public class ScoreTrendController {
         User user = resolveUser(jwt);
         log.info("GET /api/scores/trend - userId={}, days={}", user.getId(), days);
         ScoreTrendDto result = getScoreTrendUseCase.execute(user.getId(), days);
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/axis-analysis")
+    public ResponseEntity<AxisAnalysisDto> getAxisAnalysis(@AuthenticationPrincipal Jwt jwt) {
+        User user = resolveUser(jwt);
+        log.info("GET /api/scores/axis-analysis - userId={}", user.getId());
+        AxisAnalysisDto result = getAxisAnalysisUseCase.execute(user.getId());
         return ResponseEntity.ok(result);
     }
 

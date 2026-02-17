@@ -82,10 +82,10 @@ class CreatePracticeSessionUseCaseTest {
 
             // Assert
             assertThat(result).isNotNull();
-            assertThat(result.getId()).isEqualTo(100);
-            assertThat(result.getTitle()).isEqualTo("練習: 本番障害の緊急報告");
-            assertThat(result.getSessionType()).isEqualTo("practice");
-            assertThat(result.getScenarioId()).isEqualTo(scenarioId);
+            assertThat(result.id()).isEqualTo(100);
+            assertThat(result.title()).isEqualTo("練習: 本番障害の緊急報告");
+            assertThat(result.sessionType()).isEqualTo("practice");
+            assertThat(result.scenarioId()).isEqualTo(scenarioId);
 
             verify(getPracticeScenarioByIdUseCase, times(1)).execute(scenarioId);
             verify(createAiChatSessionUseCase, times(1)).execute(
@@ -131,7 +131,7 @@ class CreatePracticeSessionUseCaseTest {
             AiChatSessionDto result = useCase.execute(user, scenarioId);
 
             // Assert
-            assertThat(result.getTitle()).isEqualTo("練習: 日報作成");
+            assertThat(result.title()).isEqualTo("練習: 日報作成");
             verify(createAiChatSessionUseCase, times(1)).execute(
                     eq(2),
                     eq("練習: 日報作成"),
@@ -237,11 +237,6 @@ class CreatePracticeSessionUseCaseTest {
             String sessionType,
             Integer scenarioId
     ) {
-        AiChatSessionDto dto = new AiChatSessionDto();
-        dto.setId(id);
-        dto.setTitle(title);
-        dto.setSessionType(sessionType);
-        dto.setScenarioId(scenarioId);
-        return dto;
+        return new AiChatSessionDto(id, null, title, null, null, sessionType, scenarioId, null, null);
     }
 }

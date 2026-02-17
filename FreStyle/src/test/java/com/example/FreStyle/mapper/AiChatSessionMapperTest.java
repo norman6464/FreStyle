@@ -42,12 +42,12 @@ class AiChatSessionMapperTest {
 
         AiChatSessionDto dto = mapper.toDto(session);
 
-        assertThat(dto.getId()).isEqualTo(1);
-        assertThat(dto.getUserId()).isEqualTo(10);
-        assertThat(dto.getTitle()).isEqualTo("テストセッション");
-        assertThat(dto.getScene()).isEqualTo("meeting");
-        assertThat(dto.getSessionType()).isEqualTo("normal");
-        assertThat(dto.getRelatedRoomId()).isNull();
+        assertThat(dto.id()).isEqualTo(1);
+        assertThat(dto.userId()).isEqualTo(10);
+        assertThat(dto.title()).isEqualTo("テストセッション");
+        assertThat(dto.scene()).isEqualTo("meeting");
+        assertThat(dto.sessionType()).isEqualTo("normal");
+        assertThat(dto.relatedRoomId()).isNull();
     }
 
     @Test
@@ -60,7 +60,7 @@ class AiChatSessionMapperTest {
 
         AiChatSessionDto dto = mapper.toDto(session);
 
-        assertThat(dto.getRelatedRoomId()).isEqualTo(99);
+        assertThat(dto.relatedRoomId()).isEqualTo(99);
     }
 
     @Test
@@ -71,7 +71,7 @@ class AiChatSessionMapperTest {
 
         AiChatSessionDto dto = mapper.toDto(session);
 
-        assertThat(dto.getRelatedRoomId()).isNull();
+        assertThat(dto.relatedRoomId()).isNull();
     }
 
     @Test

@@ -41,18 +41,16 @@ class GetAiChatSessionsByUserIdUseCaseTest {
         when(aiChatSessionRepository.findByUserIdOrderByCreatedAtDesc(1))
                 .thenReturn(List.of(session1, session2));
 
-        AiChatSessionDto dto1 = new AiChatSessionDto();
-        dto1.setId(1);
-        AiChatSessionDto dto2 = new AiChatSessionDto();
-        dto2.setId(2);
+        AiChatSessionDto dto1 = new AiChatSessionDto(1, null, null, null, null, null, null, null, null);
+        AiChatSessionDto dto2 = new AiChatSessionDto(2, null, null, null, null, null, null, null, null);
         when(mapper.toDto(session1)).thenReturn(dto1);
         when(mapper.toDto(session2)).thenReturn(dto2);
 
         List<AiChatSessionDto> result = useCase.execute(1);
 
         assertThat(result).hasSize(2);
-        assertThat(result.get(0).getId()).isEqualTo(1);
-        assertThat(result.get(1).getId()).isEqualTo(2);
+        assertThat(result.get(0).id()).isEqualTo(1);
+        assertThat(result.get(1).id()).isEqualTo(2);
     }
 
     @Test

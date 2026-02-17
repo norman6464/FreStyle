@@ -43,9 +43,7 @@ class UpdateAiChatSessionTitleUseCaseTest {
     void updatesTitle() {
         AiChatSession session = createSession(1, 10, "旧タイトル");
         AiChatSession saved = createSession(1, 10, "新タイトル");
-        AiChatSessionDto dto = new AiChatSessionDto();
-        dto.setId(1);
-        dto.setTitle("新タイトル");
+        AiChatSessionDto dto = new AiChatSessionDto(1, null, "新タイトル", null, null, null, null, null, null);
 
         when(repository.findByIdAndUserId(1, 10)).thenReturn(Optional.of(session));
         when(repository.save(session)).thenReturn(saved);
@@ -53,7 +51,7 @@ class UpdateAiChatSessionTitleUseCaseTest {
 
         AiChatSessionDto result = useCase.execute(1, 10, "新タイトル");
 
-        assertThat(result.getTitle()).isEqualTo("新タイトル");
+        assertThat(result.title()).isEqualTo("新タイトル");
         verify(repository).save(session);
     }
 
@@ -80,7 +78,7 @@ class UpdateAiChatSessionTitleUseCaseTest {
     @DisplayName("saveが呼ばれた時にタイトルが設定されている")
     void titleIsSetBeforeSave() {
         AiChatSession session = createSession(1, 10, "旧タイトル");
-        AiChatSessionDto dto = new AiChatSessionDto();
+        AiChatSessionDto dto = new AiChatSessionDto(null, null, null, null, null, null, null, null, null);
 
         when(repository.findByIdAndUserId(1, 10)).thenReturn(Optional.of(session));
         when(repository.save(any())).thenReturn(session);

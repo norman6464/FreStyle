@@ -64,15 +64,13 @@ class AddAiChatMessageUseCaseTest {
             savedMessage.setId(10);
             when(aiChatMessageRepository.save(any(AiChatMessage.class))).thenReturn(savedMessage);
 
-            AiChatMessageResponseDto expectedDto = new AiChatMessageResponseDto();
-            expectedDto.setId(10);
-            expectedDto.setRole("user");
+            AiChatMessageResponseDto expectedDto = new AiChatMessageResponseDto(10, null, null, "user", null, null);
             when(mapper.toDto(savedMessage)).thenReturn(expectedDto);
 
             AiChatMessageResponseDto result = useCase.executeUserMessage(1, 1, "こんにちは");
 
-            assertThat(result.getId()).isEqualTo(10);
-            assertThat(result.getRole()).isEqualTo("user");
+            assertThat(result.id()).isEqualTo(10);
+            assertThat(result.role()).isEqualTo("user");
             verify(aiChatMessageRepository).save(any(AiChatMessage.class));
         }
 
@@ -91,15 +89,13 @@ class AddAiChatMessageUseCaseTest {
             savedMessage.setId(11);
             when(aiChatMessageRepository.save(any(AiChatMessage.class))).thenReturn(savedMessage);
 
-            AiChatMessageResponseDto expectedDto = new AiChatMessageResponseDto();
-            expectedDto.setId(11);
-            expectedDto.setRole("assistant");
+            AiChatMessageResponseDto expectedDto = new AiChatMessageResponseDto(11, null, null, "assistant", null, null);
             when(mapper.toDto(savedMessage)).thenReturn(expectedDto);
 
             AiChatMessageResponseDto result = useCase.executeAssistantMessage(1, 1, "応答です");
 
-            assertThat(result.getId()).isEqualTo(11);
-            assertThat(result.getRole()).isEqualTo("assistant");
+            assertThat(result.id()).isEqualTo(11);
+            assertThat(result.role()).isEqualTo("assistant");
         }
     }
 

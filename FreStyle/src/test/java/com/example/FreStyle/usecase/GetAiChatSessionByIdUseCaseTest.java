@@ -42,14 +42,13 @@ class GetAiChatSessionByIdUseCaseTest {
     @DisplayName("セッションを正常に取得できる")
     void returnsSession() {
         AiChatSession session = createSession(1, 10);
-        AiChatSessionDto dto = new AiChatSessionDto();
-        dto.setId(1);
+        AiChatSessionDto dto = new AiChatSessionDto(1, null, null, null, null, null, null, null, null);
         when(repository.findByIdAndUserId(1, 10)).thenReturn(Optional.of(session));
         when(mapper.toDto(session)).thenReturn(dto);
 
         AiChatSessionDto result = useCase.execute(1, 10);
 
-        assertThat(result.getId()).isEqualTo(1);
+        assertThat(result.id()).isEqualTo(1);
         verify(repository).findByIdAndUserId(1, 10);
     }
 

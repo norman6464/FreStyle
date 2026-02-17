@@ -41,18 +41,16 @@ class GetAiChatMessagesBySessionIdUseCaseTest {
         when(aiChatMessageRepository.findBySessionIdOrderByCreatedAtAsc(1))
                 .thenReturn(List.of(msg1, msg2));
 
-        AiChatMessageResponseDto dto1 = new AiChatMessageResponseDto();
-        dto1.setId(1);
-        AiChatMessageResponseDto dto2 = new AiChatMessageResponseDto();
-        dto2.setId(2);
+        AiChatMessageResponseDto dto1 = new AiChatMessageResponseDto(1, null, null, null, null, null);
+        AiChatMessageResponseDto dto2 = new AiChatMessageResponseDto(2, null, null, null, null, null);
         when(mapper.toDto(msg1)).thenReturn(dto1);
         when(mapper.toDto(msg2)).thenReturn(dto2);
 
         List<AiChatMessageResponseDto> result = useCase.execute(1);
 
         assertThat(result).hasSize(2);
-        assertThat(result.get(0).getId()).isEqualTo(1);
-        assertThat(result.get(1).getId()).isEqualTo(2);
+        assertThat(result.get(0).id()).isEqualTo(1);
+        assertThat(result.get(1).id()).isEqualTo(2);
     }
 
     @Test

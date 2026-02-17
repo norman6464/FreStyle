@@ -46,9 +46,7 @@ class AiChatWebSocketControllerTest {
         @Test
         @DisplayName("AI応答を保存してWebSocket送信する")
         void savesAndBroadcasts() {
-            AiChatMessageResponseDto saved = new AiChatMessageResponseDto();
-            saved.setId(1);
-            saved.setSessionId(10);
+            AiChatMessageResponseDto saved = new AiChatMessageResponseDto(1, 10, null, null, null, null);
             when(addAiChatMessageUseCase.executeAssistantMessage(10, 5, "AI応答")).thenReturn(saved);
 
             Map<String, Object> payload = Map.of(

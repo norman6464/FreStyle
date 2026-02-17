@@ -52,8 +52,8 @@ public class GetAiReplyUseCase {
         log.info("🎭 練習モード: scenarioId={}", scenarioId);
         PracticeScenarioDto scenario = getPracticeScenarioByIdUseCase.execute(scenarioId);
         String practicePrompt = systemPromptBuilder.buildPracticePrompt(
-                scenario.getName(), scenario.getRoleName(),
-                scenario.getDifficulty(), scenario.getSystemPrompt());
+                scenario.name(), scenario.roleName(),
+                scenario.difficulty(), scenario.systemPrompt());
 
         if (PRACTICE_START_MESSAGE.equals(content)) {
             String startPrompt = practicePrompt +

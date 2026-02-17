@@ -53,7 +53,7 @@ public class CreatePracticeSessionUseCase {
         PracticeScenarioDto scenario = getPracticeScenarioByIdUseCase.execute(scenarioId);
 
         // 2. セッションタイトルを生成
-        String title = "練習: " + scenario.getName();
+        String title = "練習: " + scenario.name();
 
         // 3. 練習セッションを作成
         // sessionType="practice", scenarioId=指定されたID

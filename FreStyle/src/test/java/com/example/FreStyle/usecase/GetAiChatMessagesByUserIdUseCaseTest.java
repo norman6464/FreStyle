@@ -33,10 +33,8 @@ class GetAiChatMessagesByUserIdUseCaseTest {
         msg1.setId(1);
         AiChatMessage msg2 = new AiChatMessage();
         msg2.setId(2);
-        AiChatMessageResponseDto dto1 = new AiChatMessageResponseDto();
-        dto1.setId(1);
-        AiChatMessageResponseDto dto2 = new AiChatMessageResponseDto();
-        dto2.setId(2);
+        AiChatMessageResponseDto dto1 = new AiChatMessageResponseDto(1, null, null, null, null, null);
+        AiChatMessageResponseDto dto2 = new AiChatMessageResponseDto(2, null, null, null, null, null);
 
         when(repository.findByUserIdOrderByCreatedAtAsc(10)).thenReturn(List.of(msg1, msg2));
         when(mapper.toDto(msg1)).thenReturn(dto1);
@@ -45,8 +43,8 @@ class GetAiChatMessagesByUserIdUseCaseTest {
         List<AiChatMessageResponseDto> result = useCase.execute(10);
 
         assertThat(result).hasSize(2);
-        assertThat(result.get(0).getId()).isEqualTo(1);
-        assertThat(result.get(1).getId()).isEqualTo(2);
+        assertThat(result.get(0).id()).isEqualTo(1);
+        assertThat(result.get(1).id()).isEqualTo(2);
         verify(repository).findByUserIdOrderByCreatedAtAsc(10);
     }
 

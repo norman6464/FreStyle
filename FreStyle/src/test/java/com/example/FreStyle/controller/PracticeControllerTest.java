@@ -73,12 +73,8 @@ class PracticeControllerTest {
         @Test
         @DisplayName("シナリオ一覧を返す")
         void shouldReturnScenarios() {
-            PracticeScenarioDto s1 = new PracticeScenarioDto();
-            s1.setId(1);
-            s1.setName("障害報告");
-            PracticeScenarioDto s2 = new PracticeScenarioDto();
-            s2.setId(2);
-            s2.setName("設計レビュー");
+            PracticeScenarioDto s1 = new PracticeScenarioDto(1, "障害報告", null, null, null, null, null);
+            PracticeScenarioDto s2 = new PracticeScenarioDto(2, "設計レビュー", null, null, null, null, null);
             when(getAllPracticeScenariosUseCase.execute()).thenReturn(List.of(s1, s2));
 
             ResponseEntity<List<PracticeScenarioDto>> response = controller.getScenarios(jwt);
@@ -107,17 +103,14 @@ class PracticeControllerTest {
         @Test
         @DisplayName("指定IDのシナリオを返す")
         void shouldReturnScenarioById() {
-            PracticeScenarioDto scenario = new PracticeScenarioDto();
-            scenario.setId(5);
-            scenario.setName("要件変更説明");
-            scenario.setCategory("顧客折衝");
+            PracticeScenarioDto scenario = new PracticeScenarioDto(5, "要件変更説明", null, "顧客折衝", null, null, null);
             when(getPracticeScenarioByIdUseCase.execute(5)).thenReturn(scenario);
 
             ResponseEntity<PracticeScenarioDto> response = controller.getScenario(jwt, 5);
 
             assertThat(response.getStatusCode().value()).isEqualTo(200);
             assertThat(response.getBody()).isNotNull();
-            assertThat(response.getBody().getName()).isEqualTo("要件変更説明");
+            assertThat(response.getBody().name()).isEqualTo("要件変更説明");
             verify(getPracticeScenarioByIdUseCase).execute(5);
         }
     }
@@ -129,9 +122,7 @@ class PracticeControllerTest {
         @Test
         @DisplayName("練習セッションを作成する")
         void shouldCreatePracticeSession() {
-            AiChatSessionDto sessionDto = new AiChatSessionDto();
-            sessionDto.setId(10);
-            sessionDto.setSessionType("practice");
+            AiChatSessionDto sessionDto = new AiChatSessionDto(10, null, null, null, null, "practice", null, null, null);
             when(createPracticeSessionUseCase.execute(user, 3)).thenReturn(sessionDto);
 
             // リフレクションでinnerレコードにアクセスする代わりに直接コントローラーメソッドをテスト
@@ -143,7 +134,7 @@ class PracticeControllerTest {
 
             assertThat(response.getStatusCode().value()).isEqualTo(200);
             assertThat(response.getBody()).isNotNull();
-            assertThat(response.getBody().getId()).isEqualTo(10);
+            assertThat(response.getBody().id()).isEqualTo(10);
             verify(createPracticeSessionUseCase).execute(user, 3);
         }
     }

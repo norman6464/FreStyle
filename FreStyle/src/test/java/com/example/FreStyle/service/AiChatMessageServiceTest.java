@@ -74,11 +74,11 @@ class AiChatMessageServiceTest {
 
         AiChatMessageResponseDto dto = aiChatMessageService.addMessage(1, 10, Role.user, "こんにちは");
 
-        assertEquals(100, dto.getId());
-        assertEquals(1, dto.getSessionId());
-        assertEquals(10, dto.getUserId());
-        assertEquals("user", dto.getRole());
-        assertEquals("こんにちは", dto.getContent());
+        assertEquals(100, dto.id());
+        assertEquals(1, dto.sessionId());
+        assertEquals(10, dto.userId());
+        assertEquals("user", dto.role());
+        assertEquals("こんにちは", dto.content());
 
         ArgumentCaptor<AiChatMessage> captor = ArgumentCaptor.forClass(AiChatMessage.class);
         verify(aiChatMessageRepository).save(captor.capture());
@@ -121,7 +121,7 @@ class AiChatMessageServiceTest {
         when(aiChatMessageRepository.save(any())).thenReturn(saved);
 
         AiChatMessageResponseDto dto = aiChatMessageService.addUserMessage(1, 10, "質問");
-        assertEquals("user", dto.getRole());
+        assertEquals("user", dto.role());
     }
 
     @Test
@@ -136,7 +136,7 @@ class AiChatMessageServiceTest {
         when(aiChatMessageRepository.save(any())).thenReturn(saved);
 
         AiChatMessageResponseDto dto = aiChatMessageService.addAssistantMessage(1, 10, "回答");
-        assertEquals("assistant", dto.getRole());
+        assertEquals("assistant", dto.role());
     }
 
     @Test
@@ -152,8 +152,8 @@ class AiChatMessageServiceTest {
         List<AiChatMessageResponseDto> result = aiChatMessageService.getMessagesBySessionId(1);
 
         assertEquals(2, result.size());
-        assertEquals("質問", result.get(0).getContent());
-        assertEquals("回答", result.get(1).getContent());
+        assertEquals("質問", result.get(0).content());
+        assertEquals("回答", result.get(1).content());
     }
 
     @Test
@@ -179,9 +179,9 @@ class AiChatMessageServiceTest {
         List<AiChatMessageResponseDto> result = aiChatMessageService.getMessagesByUserId(10);
 
         assertEquals(2, result.size());
-        assertEquals("質問1", result.get(0).getContent());
-        assertEquals("回答1", result.get(1).getContent());
-        assertEquals(10, result.get(0).getUserId());
+        assertEquals("質問1", result.get(0).content());
+        assertEquals("回答1", result.get(1).content());
+        assertEquals(10, result.get(0).userId());
     }
 
     @Test

@@ -42,10 +42,8 @@ class GetAiChatSessionsByRelatedRoomIdUseCaseTest {
     void returnsSessions() {
         AiChatSession s1 = createSession(1);
         AiChatSession s2 = createSession(2);
-        AiChatSessionDto dto1 = new AiChatSessionDto();
-        dto1.setId(1);
-        AiChatSessionDto dto2 = new AiChatSessionDto();
-        dto2.setId(2);
+        AiChatSessionDto dto1 = new AiChatSessionDto(1, null, null, null, null, null, null, null, null);
+        AiChatSessionDto dto2 = new AiChatSessionDto(2, null, null, null, null, null, null, null, null);
 
         when(repository.findByRelatedRoomId(10)).thenReturn(List.of(s1, s2));
         when(mapper.toDto(s1)).thenReturn(dto1);
@@ -54,8 +52,8 @@ class GetAiChatSessionsByRelatedRoomIdUseCaseTest {
         List<AiChatSessionDto> result = useCase.execute(10);
 
         assertThat(result).hasSize(2);
-        assertThat(result.get(0).getId()).isEqualTo(1);
-        assertThat(result.get(1).getId()).isEqualTo(2);
+        assertThat(result.get(0).id()).isEqualTo(1);
+        assertThat(result.get(1).id()).isEqualTo(2);
         verify(repository).findByRelatedRoomId(10);
     }
 

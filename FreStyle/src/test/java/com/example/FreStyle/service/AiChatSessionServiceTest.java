@@ -65,9 +65,9 @@ class AiChatSessionServiceTest {
 
         AiChatSessionDto dto = aiChatSessionService.createSession(1, "テストセッション", null);
 
-        assertEquals(10, dto.getId());
-        assertEquals(1, dto.getUserId());
-        assertEquals("テストセッション", dto.getTitle());
+        assertEquals(10, dto.id());
+        assertEquals(1, dto.userId());
+        assertEquals("テストセッション", dto.title());
 
         ArgumentCaptor<AiChatSession> captor = ArgumentCaptor.forClass(AiChatSession.class);
         verify(aiChatSessionRepository).save(captor.capture());
@@ -90,7 +90,7 @@ class AiChatSessionServiceTest {
 
         AiChatSessionDto dto = aiChatSessionService.createSession(1, "ルーム付き", 5, "meeting", "normal", null);
 
-        assertEquals(5, dto.getRelatedRoomId());
+        assertEquals(5, dto.relatedRoomId());
     }
 
     @Test
@@ -115,8 +115,8 @@ class AiChatSessionServiceTest {
         List<AiChatSessionDto> result = aiChatSessionService.getSessionsByUserId(1);
 
         assertEquals(2, result.size());
-        assertEquals("セッション1", result.get(0).getTitle());
-        assertEquals("セッション2", result.get(1).getTitle());
+        assertEquals("セッション1", result.get(0).title());
+        assertEquals("セッション2", result.get(1).title());
     }
 
     @Test
@@ -129,7 +129,7 @@ class AiChatSessionServiceTest {
 
         AiChatSessionDto dto = aiChatSessionService.getSessionByIdAndUserId(10, 1);
 
-        assertEquals("取得テスト", dto.getTitle());
+        assertEquals("取得テスト", dto.title());
     }
 
     @Test
@@ -154,7 +154,7 @@ class AiChatSessionServiceTest {
 
         AiChatSessionDto dto = aiChatSessionService.updateSessionTitle(10, 1, "新タイトル");
 
-        assertEquals("新タイトル", dto.getTitle());
+        assertEquals("新タイトル", dto.title());
     }
 
     @Test
@@ -186,8 +186,8 @@ class AiChatSessionServiceTest {
         List<AiChatSessionDto> result = aiChatSessionService.getSessionsByRelatedRoomId(5);
 
         assertEquals(2, result.size());
-        assertEquals("ルーム関連1", result.get(0).getTitle());
-        assertEquals(5, result.get(0).getRelatedRoomId());
+        assertEquals("ルーム関連1", result.get(0).title());
+        assertEquals(5, result.get(0).relatedRoomId());
     }
 
     @Test

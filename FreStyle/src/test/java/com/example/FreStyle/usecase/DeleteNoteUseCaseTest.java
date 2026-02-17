@@ -45,5 +45,16 @@ class DeleteNoteUseCaseTest {
                     .isInstanceOf(RuntimeException.class)
                     .hasMessage("DynamoDB error");
         }
+
+        @Test
+        @DisplayName("deleteのみが呼び出され他のリポジトリメソッドは呼ばれない")
+        void shouldOnlyCallDeleteOnRepository() {
+            doNothing().when(noteRepository).delete(1, "note-1");
+
+            useCase.execute(1, "note-1");
+
+            verify(noteRepository).delete(1, "note-1");
+            verifyNoMoreInteractions(noteRepository);
+        }
     }
 }

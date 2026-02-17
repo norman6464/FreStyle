@@ -51,7 +51,7 @@ public class GetScoreTrendUseCase {
                 })
                 .sorted(Comparator.comparing(ScoreTrendDto.SessionScore::createdAt,
                         Comparator.nullsLast(Comparator.naturalOrder())))
-                .collect(Collectors.toList());
+                .toList();
 
         double overallAverage = filteredScores.stream()
                 .mapToInt(CommunicationScore::getScore)
@@ -64,8 +64,8 @@ public class GetScoreTrendUseCase {
 
         Double improvement = null;
         if (sessionScores.size() >= 2) {
-            double firstAvg = sessionScores.get(0).averageScore();
-            double lastAvg = sessionScores.get(sessionScores.size() - 1).averageScore();
+            double firstAvg = sessionScores.getFirst().averageScore();
+            double lastAvg = sessionScores.getLast().averageScore();
             improvement = lastAvg - firstAvg;
         }
 

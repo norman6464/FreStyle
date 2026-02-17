@@ -38,7 +38,7 @@ public class GenerateMonthlyReportUseCase {
                     LocalDateTime ldt = ts.toLocalDateTime();
                     return ldt.getYear() == year && ldt.getMonthValue() == month;
                 })
-                .collect(Collectors.toList());
+                .toList();
 
         long totalSessions = monthlyScores.stream()
                 .map(s -> s.getSession().getId())

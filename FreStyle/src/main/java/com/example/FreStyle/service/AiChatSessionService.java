@@ -1,7 +1,6 @@
 package com.example.FreStyle.service;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -75,7 +74,7 @@ public class AiChatSessionService {
         List<AiChatSession> sessions = aiChatSessionRepository.findByUserIdOrderByCreatedAtDesc(userId);
         return sessions.stream()
                 .map(this::toDto)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     /**
@@ -118,7 +117,7 @@ public class AiChatSessionService {
         List<AiChatSession> sessions = aiChatSessionRepository.findByRelatedRoomId(roomId);
         return sessions.stream()
                 .map(this::toDto)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     /**

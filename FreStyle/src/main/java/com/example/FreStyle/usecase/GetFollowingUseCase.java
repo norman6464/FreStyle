@@ -3,7 +3,6 @@ package com.example.FreStyle.usecase;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,13 +31,13 @@ public class GetFollowingUseCase {
 
         List<Integer> followingIds = friendships.stream()
                 .map(f -> f.getFollowing().getId())
-                .collect(Collectors.toList());
+                .toList();
 
         Set<Integer> mutualIds = new HashSet<>(
                 friendshipRepository.findMutualFollowerIds(followingIds, userId));
 
         return friendships.stream()
                 .map(f -> friendshipMapper.toFollowingDto(f, mutualIds.contains(f.getFollowing().getId())))
-                .collect(Collectors.toList());
+                .toList();
     }
 }

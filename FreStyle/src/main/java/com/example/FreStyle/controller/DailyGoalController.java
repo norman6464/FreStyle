@@ -5,6 +5,8 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import java.time.LocalDate;
+
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -13,8 +15,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.FreStyle.dto.DailyGoalDto;
+import com.example.FreStyle.dto.DailyGoalStreakDto;
 import com.example.FreStyle.entity.User;
 import com.example.FreStyle.service.UserIdentityService;
+import com.example.FreStyle.usecase.GetDailyGoalStreakUseCase;
 import com.example.FreStyle.usecase.GetTodayDailyGoalUseCase;
 import com.example.FreStyle.usecase.IncrementDailyGoalUseCase;
 import com.example.FreStyle.usecase.SetDailyGoalTargetUseCase;
@@ -31,6 +35,7 @@ public class DailyGoalController {
     private final GetTodayDailyGoalUseCase getTodayDailyGoalUseCase;
     private final SetDailyGoalTargetUseCase setDailyGoalTargetUseCase;
     private final IncrementDailyGoalUseCase incrementDailyGoalUseCase;
+    private final GetDailyGoalStreakUseCase getDailyGoalStreakUseCase;
     private final UserIdentityService userIdentityService;
 
     @GetMapping("/today")
@@ -56,6 +61,14 @@ public class DailyGoalController {
         User user = resolveUser(jwt);
         log.info("日次目標インクリメント: userId={}", user.getId());
         DailyGoalDto dto = incrementDailyGoalUseCase.execute(user);
+        return ResponseEntity.ok(dto);
+    }
+
+    @GetMapping("/streak")
+    public ResponseEntity<DailyGoalStreakDto> getStreak(@AuthenticationPrincipal Jwt jwt) {
+        User user = resolveUser(jwt);
+        log.info("日次目標ストリーク取得: userId={}", user.getId());
+        DailyGoalStreakDto dto = getDailyGoalStreakUseCase.execute(user.getId(), LocalDate.now());
         return ResponseEntity.ok(dto);
     }
 

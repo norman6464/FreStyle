@@ -31,7 +31,7 @@ public class CheckScoreGoalAchievementUseCase {
             double average = scores.stream()
                     .mapToInt(CommunicationScore::getScore)
                     .average()
-                    .orElse(0.0);
+                    .getAsDouble();
 
             if (average >= goal.getGoalScore()) {
                 createNotificationUseCase.execute(

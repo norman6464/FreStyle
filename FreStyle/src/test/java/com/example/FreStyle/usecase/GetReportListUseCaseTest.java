@@ -1,6 +1,7 @@
 package com.example.FreStyle.usecase;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
@@ -60,5 +61,37 @@ class GetReportListUseCaseTest {
         List<LearningReportDto> result = getReportListUseCase.execute(1);
 
         assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("repositoryとmapperが正しく呼び出される")
+    void verifiesRepositoryAndMapperCalls() {
+        User user = new User();
+        user.setId(5);
+        LearningReport report = new LearningReport(1, user, 2025, 12, 3, 70.0, null, "要約力", "提案力", 2, LocalDateTime.now());
+        when(learningReportRepository.findByUserIdOrderByYearDescMonthDesc(5))
+                .thenReturn(List.of(report));
+
+        getReportListUseCase.execute(5);
+
+        verify(learningReportRepository).findByUserIdOrderByYearDescMonthDesc(5);
+        verify(learningReportMapper).toDto(report);
+    }
+
+    @Test
+    @DisplayName("単一レポートの場合でも正しく返す")
+    void shouldReturnSingleReport() {
+        User user = new User();
+        user.setId(1);
+        LearningReport report = new LearningReport(1, user, 2026, 3, 10, 85.0, 80.0, "論理的構成力", "配慮表現", 7, LocalDateTime.now());
+        when(learningReportRepository.findByUserIdOrderByYearDescMonthDesc(1))
+                .thenReturn(List.of(report));
+
+        List<LearningReportDto> result = getReportListUseCase.execute(1);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.getFirst().year()).isEqualTo(2026);
+        assertThat(result.getFirst().month()).isEqualTo(3);
+        assertThat(result.getFirst().totalSessions()).isEqualTo(10);
     }
 }

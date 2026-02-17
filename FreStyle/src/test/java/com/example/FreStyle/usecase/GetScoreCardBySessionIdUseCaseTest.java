@@ -106,6 +106,62 @@ class GetScoreCardBySessionIdUseCaseTest {
         }
     }
 
+        @Test
+        @DisplayName("異なるセッションIDでも正しく取得する")
+        void shouldReturnScoreCardForDifferentSessionId() {
+            Integer sessionId = 42;
+            List<CommunicationScore> entities = List.of(
+                    createEntity(10, sessionId, "要約力", 9, "素晴らしい")
+            );
+
+            ScoreCardDto expectedDto = new ScoreCardDto(
+                    sessionId,
+                    List.of(new ScoreCardDto.AxisScoreDto("要約力", 9, "素晴らしい")),
+                    9.0
+            );
+
+            when(communicationScoreRepository.findBySessionId(sessionId)).thenReturn(entities);
+            when(mapper.toScoreCardDto(sessionId, entities)).thenReturn(expectedDto);
+
+            ScoreCardDto result = useCase.execute(sessionId);
+
+            assertThat(result.sessionId()).isEqualTo(42);
+            assertThat(result.scores()).hasSize(1);
+            assertThat(result.scores().getFirst().axis()).isEqualTo("要約力");
+            verify(communicationScoreRepository).findBySessionId(sessionId);
+        }
+
+        @Test
+        @DisplayName("スコアが多い場合でも正しく取得する")
+        void shouldReturnScoreCardWithManyScores() {
+            Integer sessionId = 5;
+            List<CommunicationScore> entities = List.of(
+                    createEntity(1, sessionId, "論理的構成力", 8, "良い"),
+                    createEntity(2, sessionId, "配慮表現", 6, "改善余地"),
+                    createEntity(3, sessionId, "要約力", 7, "普通"),
+                    createEntity(4, sessionId, "提案力", 9, "素晴らしい")
+            );
+
+            ScoreCardDto expectedDto = new ScoreCardDto(
+                    sessionId,
+                    List.of(
+                            new ScoreCardDto.AxisScoreDto("論理的構成力", 8, "良い"),
+                            new ScoreCardDto.AxisScoreDto("配慮表現", 6, "改善余地"),
+                            new ScoreCardDto.AxisScoreDto("要約力", 7, "普通"),
+                            new ScoreCardDto.AxisScoreDto("提案力", 9, "素晴らしい")
+                    ),
+                    7.5
+            );
+
+            when(communicationScoreRepository.findBySessionId(sessionId)).thenReturn(entities);
+            when(mapper.toScoreCardDto(sessionId, entities)).thenReturn(expectedDto);
+
+            ScoreCardDto result = useCase.execute(sessionId);
+
+            assertThat(result.scores()).hasSize(4);
+            assertThat(result.overallScore()).isEqualTo(7.5);
+        }
+
     // ヘルパーメソッド
     private CommunicationScore createEntity(Integer id, Integer sessionId, String axisName, Integer score, String comment) {
         CommunicationScore entity = new CommunicationScore();

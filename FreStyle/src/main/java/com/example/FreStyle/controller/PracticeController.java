@@ -10,14 +10,17 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.FreStyle.dto.AiChatSessionDto;
+import com.example.FreStyle.dto.FilteredScenariosDto;
 import com.example.FreStyle.dto.PracticeScenarioDto;
 import com.example.FreStyle.dto.RecommendedScenarioDto;
 import com.example.FreStyle.entity.User;
 import com.example.FreStyle.service.UserIdentityService;
 import com.example.FreStyle.usecase.CreatePracticeSessionUseCase;
+import com.example.FreStyle.usecase.FilterPracticeScenariosUseCase;
 import com.example.FreStyle.usecase.GetAllPracticeScenariosUseCase;
 import com.example.FreStyle.usecase.GetPracticeScenarioByIdUseCase;
 import com.example.FreStyle.usecase.GetRecommendedScenariosUseCase;
@@ -61,6 +64,7 @@ public class PracticeController {
     private final GetPracticeScenarioByIdUseCase getPracticeScenarioByIdUseCase;
     private final CreatePracticeSessionUseCase createPracticeSessionUseCase;
     private final GetRecommendedScenariosUseCase getRecommendedScenariosUseCase;
+    private final FilterPracticeScenariosUseCase filterPracticeScenariosUseCase;
 
     // 認証サービス
     private final UserIdentityService userIdentityService;
@@ -157,6 +161,22 @@ public class PracticeController {
         User user = resolveUser(jwt);
         RecommendedScenarioDto result = getRecommendedScenariosUseCase.execute(user.getId());
         log.info("✅ 推奨シナリオ取得成功 - 件数: {}", result.recommendations().size());
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * 練習シナリオを難易度・カテゴリでフィルタリング
+     */
+    @GetMapping("/scenarios/filter")
+    public ResponseEntity<FilteredScenariosDto> filterScenarios(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestParam(required = false) String difficulty,
+            @RequestParam(required = false) String category
+    ) {
+        log.info("========== GET /api/practice/scenarios/filter ==========");
+        resolveUser(jwt);
+        FilteredScenariosDto result = filterPracticeScenariosUseCase.execute(difficulty, category);
+        log.info("✅ シナリオフィルタリング成功 - 件数: {}", result.totalCount());
         return ResponseEntity.ok(result);
     }
 

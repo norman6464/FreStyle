@@ -47,8 +47,8 @@ class GetReportListUseCaseTest {
         List<LearningReportDto> result = getReportListUseCase.execute(1);
 
         assertThat(result).hasSize(2);
-        assertThat(result.get(0).getYear()).isEqualTo(2026);
-        assertThat(result.get(0).getMonth()).isEqualTo(2);
+        assertThat(result.get(0).year()).isEqualTo(2026);
+        assertThat(result.get(0).month()).isEqualTo(2);
     }
 
     @Test

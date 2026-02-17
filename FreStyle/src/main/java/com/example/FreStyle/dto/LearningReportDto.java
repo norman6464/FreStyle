@@ -1,22 +1,15 @@
 package com.example.FreStyle.dto;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-public class LearningReportDto {
-    private Integer id;
-    private Integer year;
-    private Integer month;
-    private Integer totalSessions;
-    private Double averageScore;
-    private Double previousAverageScore;
-    private Double scoreChange;
-    private String bestAxis;
-    private String worstAxis;
-    private Integer practiceDays;
-    private String createdAt;
-}
+public record LearningReportDto(
+        Integer id,
+        Integer year,
+        Integer month,
+        Integer totalSessions,
+        Double averageScore,
+        Double previousAverageScore,
+        Double scoreChange,
+        String bestAxis,
+        String worstAxis,
+        Integer practiceDays,
+        String createdAt
+) {}

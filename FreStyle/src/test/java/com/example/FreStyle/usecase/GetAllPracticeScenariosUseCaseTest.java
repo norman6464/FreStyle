@@ -70,9 +70,9 @@ class GetAllPracticeScenariosUseCaseTest {
 
             // Assert
             assertThat(result).hasSize(3);
-            assertThat(result.get(0).getName()).isEqualTo("シナリオ1");
-            assertThat(result.get(1).getName()).isEqualTo("シナリオ2");
-            assertThat(result.get(2).getName()).isEqualTo("シナリオ3");
+            assertThat(result.get(0).name()).isEqualTo("シナリオ1");
+            assertThat(result.get(1).name()).isEqualTo("シナリオ2");
+            assertThat(result.get(2).name()).isEqualTo("シナリオ3");
 
             verify(practiceScenarioRepository, times(1)).findAll();
             verify(mapper, times(3)).toDto(org.mockito.ArgumentMatchers.any(PracticeScenario.class));

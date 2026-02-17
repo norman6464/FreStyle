@@ -90,7 +90,7 @@ class LearningReportControllerTest {
             ResponseEntity<LearningReportDto> response = learningReportController.getMonthlyReport(mockJwt, 2026, 1);
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-            assertThat(response.getBody().getTotalSessions()).isEqualTo(5);
+            assertThat(response.getBody().totalSessions()).isEqualTo(5);
         }
 
         @Test

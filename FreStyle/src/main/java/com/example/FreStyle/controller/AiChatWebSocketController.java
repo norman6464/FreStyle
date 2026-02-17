@@ -108,7 +108,7 @@ public class AiChatWebSocketController {
                     title = SceneDisplayName.of(scene) + "フィードバック";
                 }
                 AiChatSessionDto newSession = createAiChatSessionUseCase.execute(userId, title, null, scene);
-                sessionId = newSession.getId();
+                sessionId = newSession.id();
                 log.info("✅ 新規セッション作成完了 - sessionId: {}", sessionId);
 
                 // 新しいセッション情報をクライアントに通知
@@ -122,9 +122,9 @@ public class AiChatWebSocketController {
             log.info("💾 ユーザーメッセージをデータベースに保存中...");
             AiChatMessageResponseDto savedUserMessage = addAiChatMessageUseCase.execute(sessionId, userId, role, content);
             log.info("✅ ユーザーメッセージ保存成功");
-            log.debug("   - messageId: {}", savedUserMessage.getId());
-            log.debug("   - sessionId: {}", savedUserMessage.getSessionId());
-            log.debug("   - role: {}", savedUserMessage.getRole());
+            log.debug("   - messageId: {}", savedUserMessage.id());
+            log.debug("   - sessionId: {}", savedUserMessage.sessionId());
+            log.debug("   - role: {}", savedUserMessage.role());
 
             // WebSocket トピックへユーザーメッセージを送信
             log.info("📤 WebSocket トピック /topic/ai-chat/session/{} へユーザーメッセージを送信中...", sessionId);
@@ -142,8 +142,8 @@ public class AiChatWebSocketController {
             log.info("💾 AI応答をデータベースに保存中...");
             AiChatMessageResponseDto savedAiMessage = addAiChatMessageUseCase.execute(sessionId, userId, Role.assistant, aiReply);
             log.info("✅ AI応答保存成功");
-            log.debug("   - messageId: {}", savedAiMessage.getId());
-            log.debug("   - role: {}", savedAiMessage.getRole());
+            log.debug("   - messageId: {}", savedAiMessage.id());
+            log.debug("   - role: {}", savedAiMessage.role());
 
             // WebSocket トピックへAI応答を送信
             log.info("📤 WebSocket トピック /topic/ai-chat/session/{} へAI応答を送信中...", sessionId);

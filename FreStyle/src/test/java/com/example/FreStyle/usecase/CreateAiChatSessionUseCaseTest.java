@@ -60,13 +60,12 @@ class CreateAiChatSessionUseCaseTest {
             savedSession.setId(10);
             when(aiChatSessionRepository.save(any(AiChatSession.class))).thenReturn(savedSession);
 
-            AiChatSessionDto expectedDto = new AiChatSessionDto();
-            expectedDto.setId(10);
+            AiChatSessionDto expectedDto = new AiChatSessionDto(10, null, null, null, null, null, null, null, null);
             when(mapper.toDto(savedSession)).thenReturn(expectedDto);
 
             AiChatSessionDto result = useCase.execute(1, "テストセッション", null);
 
-            assertThat(result.getId()).isEqualTo(10);
+            assertThat(result.id()).isEqualTo(10);
             verify(aiChatSessionRepository).save(any(AiChatSession.class));
         }
 
@@ -85,13 +84,12 @@ class CreateAiChatSessionUseCaseTest {
             savedSession.setId(10);
             when(aiChatSessionRepository.save(any(AiChatSession.class))).thenReturn(savedSession);
 
-            AiChatSessionDto expectedDto = new AiChatSessionDto();
-            expectedDto.setId(10);
+            AiChatSessionDto expectedDto = new AiChatSessionDto(10, null, null, null, null, null, null, null, null);
             when(mapper.toDto(savedSession)).thenReturn(expectedDto);
 
             AiChatSessionDto result = useCase.execute(1, "テスト", 5);
 
-            assertThat(result.getId()).isEqualTo(10);
+            assertThat(result.id()).isEqualTo(10);
             verify(chatRoomRepository).findById(5);
         }
 
@@ -106,13 +104,12 @@ class CreateAiChatSessionUseCaseTest {
             savedSession.setId(10);
             when(aiChatSessionRepository.save(any(AiChatSession.class))).thenReturn(savedSession);
 
-            AiChatSessionDto expectedDto = new AiChatSessionDto();
-            expectedDto.setId(10);
+            AiChatSessionDto expectedDto = new AiChatSessionDto(10, null, null, null, null, null, null, null, null);
             when(mapper.toDto(savedSession)).thenReturn(expectedDto);
 
             AiChatSessionDto result = useCase.execute(1, "練習", null, "meeting", "practice", 3);
 
-            assertThat(result.getId()).isEqualTo(10);
+            assertThat(result.id()).isEqualTo(10);
         }
     }
 

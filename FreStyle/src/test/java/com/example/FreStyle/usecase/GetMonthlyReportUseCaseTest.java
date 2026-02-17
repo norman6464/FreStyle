@@ -57,10 +57,10 @@ class GetMonthlyReportUseCaseTest {
         LearningReportDto result = getMonthlyReportUseCase.execute(1, 2026, 1);
 
         assertThat(result).isNotNull();
-        assertThat(result.getTotalSessions()).isEqualTo(5);
-        assertThat(result.getAverageScore()).isEqualTo(75.0);
-        assertThat(result.getScoreChange()).isEqualTo(5.0);
-        assertThat(result.getBestAxis()).isEqualTo("論理的構成力");
+        assertThat(result.totalSessions()).isEqualTo(5);
+        assertThat(result.averageScore()).isEqualTo(75.0);
+        assertThat(result.scoreChange()).isEqualTo(5.0);
+        assertThat(result.bestAxis()).isEqualTo("論理的構成力");
     }
 
     @Test

@@ -106,7 +106,7 @@ public class AiChatController {
                 request.title(),
                 request.relatedRoomId()
         );
-        log.info("✅ セッション作成成功 - sessionId: {}", session.getId());
+        log.info("✅ セッション作成成功 - sessionId: {}", session.id());
 
         return ResponseEntity.ok(session);
     }
@@ -210,7 +210,7 @@ public class AiChatController {
             message = addAiChatMessageUseCase.executeUserMessage(sessionId, user.getId(), request.content());
         }
 
-        log.info("✅ メッセージ追加成功 - messageId: {}", message.getId());
+        log.info("✅ メッセージ追加成功 - messageId: {}", message.id());
 
         return ResponseEntity.ok(message);
     }

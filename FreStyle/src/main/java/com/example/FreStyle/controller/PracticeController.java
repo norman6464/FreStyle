@@ -141,7 +141,7 @@ public class PracticeController {
 
         // ユースケース実行
         AiChatSessionDto session = createPracticeSessionUseCase.execute(user, request.scenarioId());
-        log.info("✅ 練習セッション作成成功 - sessionId: {}", session.getId());
+        log.info("✅ 練習セッション作成成功 - sessionId: {}", session.id());
 
         return ResponseEntity.ok(session);
     }

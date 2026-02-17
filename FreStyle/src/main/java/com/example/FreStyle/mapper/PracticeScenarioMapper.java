@@ -66,13 +66,13 @@ public class PracticeScenarioMapper {
         }
 
         PracticeScenario entity = new PracticeScenario();
-        entity.setId(dto.getId());
-        entity.setName(dto.getName());
-        entity.setDescription(dto.getDescription());
-        entity.setCategory(dto.getCategory());
-        entity.setRoleName(dto.getRoleName());
-        entity.setDifficulty(dto.getDifficulty());
-        entity.setSystemPrompt(dto.getSystemPrompt());
+        entity.setId(dto.id());
+        entity.setName(dto.name());
+        entity.setDescription(dto.description());
+        entity.setCategory(dto.category());
+        entity.setRoleName(dto.roleName());
+        entity.setDifficulty(dto.difficulty());
+        entity.setSystemPrompt(dto.systemPrompt());
 
         return entity;
     }

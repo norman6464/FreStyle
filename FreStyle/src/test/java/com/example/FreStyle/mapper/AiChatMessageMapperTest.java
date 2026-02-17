@@ -43,12 +43,12 @@ class AiChatMessageMapperTest {
 
         AiChatMessageResponseDto dto = mapper.toDto(message);
 
-        assertThat(dto.getId()).isEqualTo(1);
-        assertThat(dto.getSessionId()).isEqualTo(10);
-        assertThat(dto.getUserId()).isEqualTo(5);
-        assertThat(dto.getRole()).isEqualTo("user");
-        assertThat(dto.getContent()).isEqualTo("テストメッセージ");
-        assertThat(dto.getCreatedAt()).isEqualTo(Timestamp.valueOf("2025-01-01 12:00:00"));
+        assertThat(dto.id()).isEqualTo(1);
+        assertThat(dto.sessionId()).isEqualTo(10);
+        assertThat(dto.userId()).isEqualTo(5);
+        assertThat(dto.role()).isEqualTo("user");
+        assertThat(dto.content()).isEqualTo("テストメッセージ");
+        assertThat(dto.createdAt()).isEqualTo(Timestamp.valueOf("2025-01-01 12:00:00"));
     }
 
     @Test
@@ -59,7 +59,7 @@ class AiChatMessageMapperTest {
 
         AiChatMessageResponseDto dto = mapper.toDto(message);
 
-        assertThat(dto.getRole()).isEqualTo("assistant");
+        assertThat(dto.role()).isEqualTo("assistant");
     }
 
     @Test
@@ -79,8 +79,8 @@ class AiChatMessageMapperTest {
 
         AiChatMessageResponseDto dto = mapper.toDto(message);
 
-        assertThat(dto.getSessionId()).isEqualTo(99);
-        assertThat(dto.getUserId()).isEqualTo(42);
+        assertThat(dto.sessionId()).isEqualTo(99);
+        assertThat(dto.userId()).isEqualTo(42);
     }
 
     @Test
@@ -91,7 +91,7 @@ class AiChatMessageMapperTest {
 
         AiChatMessageResponseDto dto = mapper.toDto(message);
 
-        assertThat(dto.getContent()).isEmpty();
-        assertThat(dto.getId()).isEqualTo(1);
+        assertThat(dto.content()).isEmpty();
+        assertThat(dto.id()).isEqualTo(1);
     }
 }

@@ -98,11 +98,11 @@ class GenerateMonthlyReportUseCaseTest {
         LearningReportDto result = generateMonthlyReportUseCase.execute(testUser, 2026, 1);
 
         assertThat(result).isNotNull();
-        assertThat(result.getYear()).isEqualTo(2026);
-        assertThat(result.getMonth()).isEqualTo(1);
-        assertThat(result.getTotalSessions()).isEqualTo(2);
-        assertThat(result.getBestAxis()).isEqualTo("論理的構成力");
-        assertThat(result.getWorstAxis()).isEqualTo("配慮表現");
+        assertThat(result.year()).isEqualTo(2026);
+        assertThat(result.month()).isEqualTo(1);
+        assertThat(result.totalSessions()).isEqualTo(2);
+        assertThat(result.bestAxis()).isEqualTo("論理的構成力");
+        assertThat(result.worstAxis()).isEqualTo("配慮表現");
         verify(learningReportRepository).save(any(LearningReport.class));
     }
 
@@ -125,8 +125,8 @@ class GenerateMonthlyReportUseCaseTest {
         LearningReportDto result = generateMonthlyReportUseCase.execute(testUser, 2026, 2);
 
         assertThat(result).isNotNull();
-        assertThat(result.getTotalSessions()).isEqualTo(0);
-        assertThat(result.getAverageScore()).isEqualTo(0.0);
+        assertThat(result.totalSessions()).isEqualTo(0);
+        assertThat(result.averageScore()).isEqualTo(0.0);
     }
 
     @Test
@@ -150,7 +150,7 @@ class GenerateMonthlyReportUseCaseTest {
         LearningReportDto result = generateMonthlyReportUseCase.execute(testUser, 2026, 1);
 
         assertThat(result).isNotNull();
-        assertThat(result.getId()).isEqualTo(50);
+        assertThat(result.id()).isEqualTo(50);
     }
 
     @Test
@@ -176,7 +176,7 @@ class GenerateMonthlyReportUseCaseTest {
         LearningReportDto result = generateMonthlyReportUseCase.execute(testUser, 2026, 1);
 
         assertThat(result).isNotNull();
-        assertThat(result.getPreviousAverageScore()).isEqualTo(85.0);
+        assertThat(result.previousAverageScore()).isEqualTo(85.0);
         verify(learningReportRepository).findByUserIdAndYearAndMonth(1, 2025, 12);
     }
 
@@ -216,7 +216,7 @@ class GenerateMonthlyReportUseCaseTest {
         LearningReportDto result = generateMonthlyReportUseCase.execute(testUser, 2026, 3);
 
         assertThat(result).isNotNull();
-        assertThat(result.getBestAxis()).isEqualTo("論理的構成力");
-        assertThat(result.getWorstAxis()).isNull();
+        assertThat(result.bestAxis()).isEqualTo("論理的構成力");
+        assertThat(result.worstAxis()).isNull();
     }
 }

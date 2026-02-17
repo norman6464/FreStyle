@@ -91,15 +91,14 @@ class AiChatControllerTest {
         void returnsSession() {
             Jwt jwt = mockJwt("sub-123");
             User user = createUser(10);
-            AiChatSessionDto dto = new AiChatSessionDto();
-            dto.setId(1);
+            AiChatSessionDto dto = new AiChatSessionDto(1, null, null, null, null, null, null, null, null);
             when(userIdentityService.findUserBySub("sub-123")).thenReturn(user);
             when(getAiChatSessionByIdUseCase.execute(1, 10)).thenReturn(dto);
 
             ResponseEntity<AiChatSessionDto> response = aiChatController.getSession(jwt, 1);
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-            assertThat(response.getBody().getId()).isEqualTo(1);
+            assertThat(response.getBody().id()).isEqualTo(1);
         }
     }
 
@@ -172,8 +171,7 @@ class AiChatControllerTest {
         void createsSession() {
             Jwt jwt = mockJwt("sub-123");
             User user = createUser(10);
-            AiChatSessionDto dto = new AiChatSessionDto();
-            dto.setId(5);
+            AiChatSessionDto dto = new AiChatSessionDto(5, null, null, null, null, null, null, null, null);
             when(userIdentityService.findUserBySub("sub-123")).thenReturn(user);
             when(createAiChatSessionUseCase.execute(10, "テストセッション", null)).thenReturn(dto);
 
@@ -181,7 +179,7 @@ class AiChatControllerTest {
             ResponseEntity<AiChatSessionDto> response = aiChatController.createSession(jwt, request);
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-            assertThat(response.getBody().getId()).isEqualTo(5);
+            assertThat(response.getBody().id()).isEqualTo(5);
         }
     }
 
@@ -194,8 +192,7 @@ class AiChatControllerTest {
         void updatesTitle() {
             Jwt jwt = mockJwt("sub-123");
             User user = createUser(10);
-            AiChatSessionDto dto = new AiChatSessionDto();
-            dto.setId(1);
+            AiChatSessionDto dto = new AiChatSessionDto(1, null, null, null, null, null, null, null, null);
             when(userIdentityService.findUserBySub("sub-123")).thenReturn(user);
             when(updateAiChatSessionTitleUseCase.execute(1, 10, "新しいタイトル")).thenReturn(dto);
 
@@ -216,8 +213,7 @@ class AiChatControllerTest {
         void returnsMessages() {
             Jwt jwt = mockJwt("sub-123");
             User user = createUser(10);
-            AiChatSessionDto sessionDto = new AiChatSessionDto();
-            sessionDto.setId(1);
+            AiChatSessionDto sessionDto = new AiChatSessionDto(1, null, null, null, null, null, null, null, null);
             when(userIdentityService.findUserBySub("sub-123")).thenReturn(user);
             when(getAiChatSessionByIdUseCase.execute(1, 10)).thenReturn(sessionDto);
             when(getAiChatMessagesBySessionIdUseCase.execute(1)).thenReturn(List.of());
@@ -239,10 +235,8 @@ class AiChatControllerTest {
         void addsUserMessage() {
             Jwt jwt = mockJwt("sub-123");
             User user = createUser(10);
-            AiChatSessionDto sessionDto = new AiChatSessionDto();
-            sessionDto.setId(1);
-            AiChatMessageResponseDto messageDto = new AiChatMessageResponseDto();
-            messageDto.setId(100);
+            AiChatSessionDto sessionDto = new AiChatSessionDto(1, null, null, null, null, null, null, null, null);
+            AiChatMessageResponseDto messageDto = new AiChatMessageResponseDto(100, null, null, null, null, null);
             when(userIdentityService.findUserBySub("sub-123")).thenReturn(user);
             when(getAiChatSessionByIdUseCase.execute(1, 10)).thenReturn(sessionDto);
             when(addAiChatMessageUseCase.executeUserMessage(1, 10, "テスト")).thenReturn(messageDto);
@@ -251,7 +245,7 @@ class AiChatControllerTest {
             ResponseEntity<AiChatMessageResponseDto> response = aiChatController.addMessage(jwt, 1, request);
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-            assertThat(response.getBody().getId()).isEqualTo(100);
+            assertThat(response.getBody().id()).isEqualTo(100);
         }
 
         @Test
@@ -259,10 +253,8 @@ class AiChatControllerTest {
         void addsAssistantMessage() {
             Jwt jwt = mockJwt("sub-123");
             User user = createUser(10);
-            AiChatSessionDto sessionDto = new AiChatSessionDto();
-            sessionDto.setId(1);
-            AiChatMessageResponseDto messageDto = new AiChatMessageResponseDto();
-            messageDto.setId(101);
+            AiChatSessionDto sessionDto = new AiChatSessionDto(1, null, null, null, null, null, null, null, null);
+            AiChatMessageResponseDto messageDto = new AiChatMessageResponseDto(101, null, null, null, null, null);
             when(userIdentityService.findUserBySub("sub-123")).thenReturn(user);
             when(getAiChatSessionByIdUseCase.execute(1, 10)).thenReturn(sessionDto);
             when(addAiChatMessageUseCase.executeAssistantMessage(1, 10, "AI応答")).thenReturn(messageDto);
@@ -271,7 +263,7 @@ class AiChatControllerTest {
             ResponseEntity<AiChatMessageResponseDto> response = aiChatController.addMessage(jwt, 1, request);
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-            assertThat(response.getBody().getId()).isEqualTo(101);
+            assertThat(response.getBody().id()).isEqualTo(101);
         }
     }
 }

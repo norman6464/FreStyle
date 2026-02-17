@@ -45,13 +45,13 @@ class PracticeScenarioMapperTest {
             PracticeScenarioDto dto = mapper.toDto(entity);
 
             // Assert
-            assertThat(dto.getId()).isEqualTo(1);
-            assertThat(dto.getName()).isEqualTo("本番障害の緊急報告");
-            assertThat(dto.getDescription()).isEqualTo("本番環境で重大な障害が発生");
-            assertThat(dto.getCategory()).isEqualTo("customer");
-            assertThat(dto.getRoleName()).isEqualTo("怒っている顧客（SIer企業のPM）");
-            assertThat(dto.getDifficulty()).isEqualTo("intermediate");
-            assertThat(dto.getSystemPrompt()).isEqualTo("あなたは怒っている顧客です");
+            assertThat(dto.id()).isEqualTo(1);
+            assertThat(dto.name()).isEqualTo("本番障害の緊急報告");
+            assertThat(dto.description()).isEqualTo("本番環境で重大な障害が発生");
+            assertThat(dto.category()).isEqualTo("customer");
+            assertThat(dto.roleName()).isEqualTo("怒っている顧客（SIer企業のPM）");
+            assertThat(dto.difficulty()).isEqualTo("intermediate");
+            assertThat(dto.systemPrompt()).isEqualTo("あなたは怒っている顧客です");
         }
 
         @Test

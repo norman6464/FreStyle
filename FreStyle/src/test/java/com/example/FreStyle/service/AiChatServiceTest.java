@@ -64,9 +64,9 @@ class AiChatServiceTest {
             List<AiChatMessageDto> result = aiChatService.getChatHistory(1);
 
             assertThat(result).hasSize(1);
-            assertThat(result.get(0).getContent()).isEqualTo("テストメッセージ");
+            assertThat(result.get(0).content()).isEqualTo("テストメッセージ");
             assertThat(result.get(0).isUser()).isTrue();
-            assertThat(result.get(0).getTimestamp()).isEqualTo(1000L);
+            assertThat(result.get(0).timestamp()).isEqualTo(1000L);
         }
 
         @Test
@@ -99,8 +99,8 @@ class AiChatServiceTest {
             List<AiChatMessageDto> result = aiChatService.getChatHistory(1);
 
             assertThat(result).hasSize(2);
-            assertThat(result.get(0).getContent()).isEqualTo("メッセージ1");
-            assertThat(result.get(1).getContent()).isEqualTo("メッセージ2");
+            assertThat(result.get(0).content()).isEqualTo("メッセージ1");
+            assertThat(result.get(1).content()).isEqualTo("メッセージ2");
             assertThat(result.get(1).isUser()).isFalse();
         }
 

@@ -76,11 +76,11 @@ class GetPracticeScenarioByIdUseCaseTest {
 
             // Assert
             assertThat(result).isNotNull();
-            assertThat(result.getId()).isEqualTo(scenarioId);
-            assertThat(result.getName()).isEqualTo("本番障害の緊急報告");
-            assertThat(result.getCategory()).isEqualTo("customer");
-            assertThat(result.getRoleName()).isEqualTo("怒っている顧客（SIer企業のPM）");
-            assertThat(result.getDifficulty()).isEqualTo("intermediate");
+            assertThat(result.id()).isEqualTo(scenarioId);
+            assertThat(result.name()).isEqualTo("本番障害の緊急報告");
+            assertThat(result.category()).isEqualTo("customer");
+            assertThat(result.roleName()).isEqualTo("怒っている顧客（SIer企業のPM）");
+            assertThat(result.difficulty()).isEqualTo("intermediate");
 
             verify(practiceScenarioRepository, times(1)).findById(scenarioId);
             verify(mapper, times(1)).toDto(entity);

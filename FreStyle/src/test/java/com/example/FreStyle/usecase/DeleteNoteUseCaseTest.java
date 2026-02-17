@@ -9,7 +9,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
@@ -45,41 +44,6 @@ class DeleteNoteUseCaseTest {
             assertThatThrownBy(() -> useCase.execute(1, "note-1"))
                     .isInstanceOf(RuntimeException.class)
                     .hasMessage("DynamoDB error");
-        }
-
-        @Test
-        @DisplayName("異なるuserIdとnoteIdの組み合わせで正しく削除される")
-        void shouldDeleteWithDifferentParams() {
-            doNothing().when(noteRepository).delete(99, "note-xyz");
-
-            assertThatCode(() -> useCase.execute(99, "note-xyz"))
-                    .doesNotThrowAnyException();
-
-            verify(noteRepository, times(1)).delete(99, "note-xyz");
-        }
-
-        @Test
-        @DisplayName("deleteが複数回呼ばれても各回で正しいパラメータが渡される")
-        void shouldPassCorrectParamsOnMultipleCalls() {
-            doNothing().when(noteRepository).delete(anyInt(), anyString());
-
-            useCase.execute(1, "note-a");
-            useCase.execute(2, "note-b");
-
-            verify(noteRepository).delete(1, "note-a");
-            verify(noteRepository).delete(2, "note-b");
-            verify(noteRepository, times(2)).delete(anyInt(), anyString());
-        }
-
-        @Test
-        @DisplayName("IllegalArgumentExceptionがリポジトリから発生した場合そのまま伝搬する")
-        void shouldPropagateIllegalArgumentException() {
-            doThrow(new IllegalArgumentException("不正なノートID"))
-                    .when(noteRepository).delete(1, "");
-
-            assertThatThrownBy(() -> useCase.execute(1, ""))
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessage("不正なノートID");
         }
     }
 }

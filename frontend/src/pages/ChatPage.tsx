@@ -5,6 +5,7 @@ import SceneSelector from '../components/SceneSelector';
 import RephraseModal from '../components/RephraseModal';
 import MessageSelectionPanel from '../components/MessageSelectionPanel';
 import EmptyState from '../components/EmptyState';
+import Loading from '../components/Loading';
 import { ChatBubbleLeftRightIcon, CheckIcon } from '@heroicons/react/24/outline';
 import { useChat } from '../hooks/useChat';
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
@@ -12,6 +13,7 @@ import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
 export default function ChatPage() {
   const {
     messages,
+    loading,
     deleteModal,
     selectionMode,
     selectedMessages,
@@ -39,6 +41,10 @@ export default function ChatPage() {
   } = useChat();
 
   const { copiedId, copyToClipboard } = useCopyToClipboard();
+
+  if (loading) {
+    return <Loading message="読み込み中..." className="py-12" />;
+  }
 
   return (
     <div className="flex flex-col h-full">

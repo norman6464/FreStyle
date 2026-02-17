@@ -12,6 +12,7 @@ export function useMenuData() {
   const [totalUnread, setTotalUnread] = useState(0);
   const [latestScore, setLatestScore] = useState<ScoreHistory | null>(null);
   const [allScores, setAllScores] = useState<ScoreHistory[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -39,6 +40,8 @@ export function useMenuData() {
         }
       } catch {
         // サイレントに処理
+      } finally {
+        setLoading(false);
       }
     };
     fetchAll();
@@ -69,5 +72,6 @@ export function useMenuData() {
     uniqueDays,
     practiceDates,
     sessionsThisWeek,
+    loading,
   };
 }

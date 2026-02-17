@@ -10,6 +10,7 @@ import ExportSessionButton from '../components/ExportSessionButton';
 import AiSessionListItem from '../components/AiSessionListItem';
 import EmptyState from '../components/EmptyState';
 import ConversationTemplates from '../components/ConversationTemplates';
+import Loading from '../components/Loading';
 import { PlusIcon, Bars3Icon, SparklesIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { useAskAi } from '../hooks/useAskAi';
 import { useMobilePanelState } from '../hooks/useMobilePanelState';
@@ -23,6 +24,7 @@ export default function AskAiPage() {
     filteredSessions,
     messages,
     scoreCard,
+    loading,
     messagesEndRef,
     isPracticeMode,
     scenarioId,
@@ -45,6 +47,10 @@ export default function AskAiPage() {
     handleSend,
     handleDeleteMessage,
   } = useAskAi();
+
+  if (loading && sessions.length === 0) {
+    return <Loading message="読み込み中..." className="py-12" />;
+  }
 
   return (
     <div className="flex h-full">

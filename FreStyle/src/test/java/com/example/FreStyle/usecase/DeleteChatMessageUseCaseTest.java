@@ -39,4 +39,22 @@ class DeleteChatMessageUseCaseTest {
                 .isInstanceOf(RuntimeException.class)
                 .hasMessage("削除失敗");
     }
+
+    @Test
+    @DisplayName("異なるメッセージIDで正しいパラメータが渡される")
+    void execute_passesCorrectMessageId() {
+        useCase.execute(999);
+
+        verify(chatMessageService).deleteMessage(999);
+        verify(chatMessageService, never()).deleteMessage(100);
+    }
+
+    @Test
+    @DisplayName("deleteMessageが1回だけ呼び出される")
+    void execute_callsDeleteMessageOnce() {
+        useCase.execute(50);
+
+        verify(chatMessageService, times(1)).deleteMessage(50);
+        verifyNoMoreInteractions(chatMessageService);
+    }
 }

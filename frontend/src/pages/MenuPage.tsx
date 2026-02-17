@@ -32,7 +32,7 @@ export default function MenuPage() {
   const { scenario: recommendedScenario } = useRecommendedScenario(weakestAxis);
 
   if (loading) {
-    return <Loading message="読み込み中..." className="py-12" />;
+    return <Loading message="読み込み中..." className="min-h-[50vh]" />;
   }
 
   const showRecommendation = !latestScore && stats?.chatPartnerCount === 0;

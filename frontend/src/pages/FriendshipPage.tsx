@@ -50,7 +50,7 @@ export default function FriendshipPage() {
   const { following, followers, loading, unfollowUser } = useFriendship();
   const [tab, setTab] = useState<'following' | 'followers'>('following');
 
-  if (loading) return <Loading />;
+  if (loading) return <Loading message="読み込み中..." className="min-h-[50vh]" />;
 
   const currentList = tab === 'following' ? following : followers;
 

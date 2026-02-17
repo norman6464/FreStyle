@@ -49,7 +49,7 @@ export default function AskAiPage() {
   } = useAskAi();
 
   if (loading && sessions.length === 0) {
-    return <Loading message="読み込み中..." className="py-12" />;
+    return <Loading message="読み込み中..." className="min-h-[50vh]" />;
   }
 
   return (

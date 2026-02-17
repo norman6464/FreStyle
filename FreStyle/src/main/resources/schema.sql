@@ -219,6 +219,30 @@ CREATE TABLE IF NOT EXISTS friendships (
     INDEX idx_following (following_id)
 ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- デイリー目標
+CREATE TABLE IF NOT EXISTS daily_goals (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    goal_date DATE NOT NULL,
+    target INT NOT NULL,
+    completed INT NOT NULL DEFAULT 0,
+
+    UNIQUE KEY uk_user_goal_date (user_id, goal_date),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- シナリオブックマーク
+CREATE TABLE IF NOT EXISTS scenario_bookmarks (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    scenario_id INT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uk_user_scenario (user_id, scenario_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (scenario_id) REFERENCES practice_scenarios(id) ON DELETE CASCADE
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 -- ┌─────────────────┐     ┌──────────────────────┐
 -- │     users       │────→│   ai_chat_sessions   │
 -- └─────────────────┘     └──────────────────────┘

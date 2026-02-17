@@ -55,7 +55,7 @@ class SessionNoteControllerTest {
         ResponseEntity<SessionNoteDto> response = sessionNoteController.getNote(jwt, 100);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody().getNote()).isEqualTo("テストメモ");
+        assertThat(response.getBody().note()).isEqualTo("テストメモ");
     }
 
     @Test

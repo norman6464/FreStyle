@@ -45,8 +45,8 @@ class GetSessionNoteUseCaseTest {
         SessionNoteDto result = useCase.execute(1, 100);
 
         assertThat(result).isNotNull();
-        assertThat(result.getSessionId()).isEqualTo(100);
-        assertThat(result.getNote()).isEqualTo("振り返りメモ");
+        assertThat(result.sessionId()).isEqualTo(100);
+        assertThat(result.note()).isEqualTo("振り返りメモ");
     }
 
     @Test

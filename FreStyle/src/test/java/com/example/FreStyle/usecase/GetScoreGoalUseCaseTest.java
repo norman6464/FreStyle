@@ -35,7 +35,7 @@ class GetScoreGoalUseCaseTest {
         ScoreGoalDto result = useCase.execute(1);
 
         assertNotNull(result);
-        assertEquals(8.5, result.getGoalScore());
+        assertEquals(8.5, result.goalScore());
     }
 
     @Test

@@ -54,7 +54,7 @@ class ScoreGoalControllerTest {
         ResponseEntity<ScoreGoalDto> response = scoreGoalController.getGoal(jwt);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody().getGoalScore()).isEqualTo(8.5);
+        assertThat(response.getBody().goalScore()).isEqualTo(8.5);
     }
 
     @Test

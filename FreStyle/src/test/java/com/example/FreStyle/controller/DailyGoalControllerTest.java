@@ -60,7 +60,7 @@ class DailyGoalControllerTest {
         ResponseEntity<DailyGoalDto> response = dailyGoalController.getToday(jwt);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(5, response.getBody().getTarget());
+        assertEquals(5, response.getBody().target());
     }
 
     @Test
@@ -76,8 +76,8 @@ class DailyGoalControllerTest {
 
         ResponseEntity<DailyGoalDto> response = dailyGoalController.getToday(jwt);
 
-        assertEquals(2, response.getBody().getCompleted());
-        assertEquals(today, response.getBody().getDate());
+        assertEquals(2, response.getBody().completed());
+        assertEquals(today, response.getBody().date());
     }
 
     @Test
@@ -120,7 +120,7 @@ class DailyGoalControllerTest {
         ResponseEntity<DailyGoalDto> response = dailyGoalController.increment(jwt);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertEquals(1, response.getBody().getCompleted());
+        assertEquals(1, response.getBody().completed());
     }
 
     @Test
@@ -136,8 +136,8 @@ class DailyGoalControllerTest {
 
         ResponseEntity<DailyGoalDto> response = dailyGoalController.increment(jwt);
 
-        assertEquals(5, response.getBody().getTarget());
-        assertEquals(today, response.getBody().getDate());
+        assertEquals(5, response.getBody().target());
+        assertEquals(today, response.getBody().date());
     }
 
     @Test

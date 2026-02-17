@@ -43,7 +43,7 @@ class IncrementDailyGoalUseCaseTest {
 
         DailyGoalDto result = incrementDailyGoalUseCase.execute(user);
 
-        assertEquals(3, result.getCompleted());
+        assertEquals(3, result.completed());
         verify(dailyGoalRepository).save(argThat(g -> g.getCompleted() == 3));
     }
 
@@ -57,8 +57,8 @@ class IncrementDailyGoalUseCaseTest {
 
         DailyGoalDto result = incrementDailyGoalUseCase.execute(user);
 
-        assertEquals(1, result.getCompleted());
-        assertEquals(3, result.getTarget());
+        assertEquals(1, result.completed());
+        assertEquals(3, result.target());
         verify(dailyGoalRepository).save(argThat(g ->
                 g.getCompleted() == 1 && g.getTarget() == 3));
     }
@@ -78,7 +78,7 @@ class IncrementDailyGoalUseCaseTest {
 
         DailyGoalDto result = incrementDailyGoalUseCase.execute(user);
 
-        assertEquals(LocalDate.now().toString(), result.getDate());
+        assertEquals(LocalDate.now().toString(), result.date());
     }
 
     @Test
@@ -96,7 +96,7 @@ class IncrementDailyGoalUseCaseTest {
 
         DailyGoalDto result = incrementDailyGoalUseCase.execute(user);
 
-        assertEquals(5, result.getCompleted());
-        assertEquals(5, result.getTarget());
+        assertEquals(5, result.completed());
+        assertEquals(5, result.target());
     }
 }

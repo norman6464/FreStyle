@@ -16,9 +16,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.FreStyle.dto.FavoritePhraseDto;
+import com.example.FreStyle.dto.FavoritePhraseSummaryDto;
 import com.example.FreStyle.entity.User;
 import com.example.FreStyle.service.UserIdentityService;
 import com.example.FreStyle.usecase.AddFavoritePhraseUseCase;
+import com.example.FreStyle.usecase.GetFavoritePhraseSummaryUseCase;
 import com.example.FreStyle.usecase.GetUserFavoritePhrasesUseCase;
 import com.example.FreStyle.usecase.RemoveFavoritePhraseUseCase;
 
@@ -34,6 +36,7 @@ public class FavoritePhraseController {
     private final GetUserFavoritePhrasesUseCase getUserFavoritePhrasesUseCase;
     private final AddFavoritePhraseUseCase addFavoritePhraseUseCase;
     private final RemoveFavoritePhraseUseCase removeFavoritePhraseUseCase;
+    private final GetFavoritePhraseSummaryUseCase getFavoritePhraseSummaryUseCase;
     private final UserIdentityService userIdentityService;
 
     @GetMapping
@@ -54,6 +57,14 @@ public class FavoritePhraseController {
                 request.rephrasedText(),
                 request.pattern());
         return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/summary")
+    public ResponseEntity<FavoritePhraseSummaryDto> getSummary(@AuthenticationPrincipal Jwt jwt) {
+        User user = resolveUser(jwt);
+        log.info("お気に入りフレーズサマリー取得: userId={}", user.getId());
+        FavoritePhraseSummaryDto summary = getFavoritePhraseSummaryUseCase.execute(user.getId());
+        return ResponseEntity.ok(summary);
     }
 
     @DeleteMapping("/{phraseId}")

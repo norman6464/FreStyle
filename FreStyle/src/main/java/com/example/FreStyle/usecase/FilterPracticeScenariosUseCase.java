@@ -23,6 +23,9 @@ public class FilterPracticeScenariosUseCase {
 
     @Transactional(readOnly = true)
     public FilteredScenariosDto execute(String difficulty, String category) {
+        String normalizedDifficulty = isBlank(difficulty) ? null : difficulty.trim();
+        String normalizedCategory = isBlank(category) ? null : category.trim();
+
         List<PracticeScenario> all = practiceScenarioRepository.findAll();
 
         List<String> availableDifficulties = all.stream()
@@ -39,18 +42,10 @@ public class FilterPracticeScenariosUseCase {
                 .sorted()
                 .toList();
 
-        List<PracticeScenario> filtered;
-        if (difficulty != null && category != null) {
-            filtered = practiceScenarioRepository.findByDifficulty(difficulty).stream()
-                    .filter(s -> category.equals(s.getCategory()))
-                    .toList();
-        } else if (difficulty != null) {
-            filtered = practiceScenarioRepository.findByDifficulty(difficulty);
-        } else if (category != null) {
-            filtered = practiceScenarioRepository.findByCategory(category);
-        } else {
-            filtered = all;
-        }
+        List<PracticeScenario> filtered = all.stream()
+                .filter(s -> normalizedDifficulty == null || normalizedDifficulty.equals(s.getDifficulty()))
+                .filter(s -> normalizedCategory == null || normalizedCategory.equals(s.getCategory()))
+                .toList();
 
         List<PracticeScenarioDto> scenarioDtos = filtered.stream()
                 .map(mapper::toDto)
@@ -58,5 +53,9 @@ public class FilterPracticeScenariosUseCase {
 
         return new FilteredScenariosDto(scenarioDtos, scenarioDtos.size(),
                 availableDifficulties, availableCategories);
+    }
+
+    private boolean isBlank(String s) {
+        return s == null || s.isBlank();
     }
 }

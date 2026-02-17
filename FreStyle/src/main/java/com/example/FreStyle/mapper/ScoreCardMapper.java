@@ -1,9 +1,9 @@
 package com.example.FreStyle.mapper;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
 
@@ -64,28 +64,25 @@ public class ScoreCardMapper {
         }
 
         // セッションIDでグループ化（順序保持）
-        Map<Integer, List<CommunicationScore>> grouped = new LinkedHashMap<>();
-        for (CommunicationScore score : scores) {
-            grouped.computeIfAbsent(score.getSession().getId(), k -> new ArrayList<>()).add(score);
-        }
+        Map<Integer, List<CommunicationScore>> grouped = scores.stream()
+                .collect(Collectors.groupingBy(
+                        s -> s.getSession().getId(),
+                        LinkedHashMap::new,
+                        Collectors.toList()));
 
-        List<ScoreHistoryDto> history = new ArrayList<>();
-        for (Map.Entry<Integer, List<CommunicationScore>> entry : grouped.entrySet()) {
-            List<CommunicationScore> sessionScores = entry.getValue();
-            CommunicationScore first = sessionScores.get(0);
-
-            List<ScoreCardDto.AxisScoreDto> scoreDtos = sessionScores.stream()
-                    .map(this::toAxisScoreDto)
-                    .toList();
-
-            double overallScore = calculateOverallScore(sessionScores);
-            String title = first.getSession().getTitle();
-
-            history.add(new ScoreHistoryDto(
-                    entry.getKey(), title, overallScore, scoreDtos, first.getCreatedAt()));
-        }
-
-        return history;
+        return grouped.entrySet().stream()
+                .map(entry -> {
+                    List<CommunicationScore> sessionScores = entry.getValue();
+                    CommunicationScore first = sessionScores.getFirst();
+                    List<ScoreCardDto.AxisScoreDto> scoreDtos = sessionScores.stream()
+                            .map(this::toAxisScoreDto)
+                            .toList();
+                    double overallScore = calculateOverallScore(sessionScores);
+                    return new ScoreHistoryDto(
+                            entry.getKey(), first.getSession().getTitle(),
+                            overallScore, scoreDtos, first.getCreatedAt());
+                })
+                .toList();
     }
 
     /**

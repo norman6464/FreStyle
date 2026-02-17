@@ -16,10 +16,12 @@ import com.example.FreStyle.usecase.GetScoreGoalUseCase;
 import com.example.FreStyle.usecase.SaveScoreGoalUseCase;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/score-goal")
+@Slf4j
 public class ScoreGoalController {
 
     private final GetScoreGoalUseCase getScoreGoalUseCase;
@@ -29,6 +31,7 @@ public class ScoreGoalController {
     @GetMapping
     public ResponseEntity<ScoreGoalDto> getGoal(@AuthenticationPrincipal Jwt jwt) {
         User user = resolveUser(jwt);
+        log.info("スコア目標取得: userId={}", user.getId());
         ScoreGoalDto dto = getScoreGoalUseCase.execute(user.getId());
         if (dto == null) {
             return ResponseEntity.noContent().build();
@@ -39,6 +42,7 @@ public class ScoreGoalController {
     @PutMapping
     public ResponseEntity<Void> saveGoal(@AuthenticationPrincipal Jwt jwt, @RequestBody SaveGoalRequest request) {
         User user = resolveUser(jwt);
+        log.info("スコア目標設定: userId={}, goalScore={}", user.getId(), request.goalScore());
         saveScoreGoalUseCase.execute(user, request.goalScore());
         return ResponseEntity.noContent().build();
     }

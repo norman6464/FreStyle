@@ -405,23 +405,5 @@ class CognitoAuthControllerTest {
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         }
-
-        @Test
-        @DisplayName("JWTがnullの場合401を返す")
-        void returnsUnauthorizedOnNullJwt() {
-            ResponseEntity<?> response = controller.me(null);
-
-            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-        }
-
-        @Test
-        @DisplayName("subが空の場合401を返す")
-        void returnsUnauthorizedOnEmptySub() {
-            Jwt jwt = mockJwt("");
-
-            ResponseEntity<?> response = controller.me(jwt);
-
-            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-        }
     }
 }

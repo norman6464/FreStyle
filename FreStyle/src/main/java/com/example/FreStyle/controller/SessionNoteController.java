@@ -17,10 +17,12 @@ import com.example.FreStyle.usecase.GetSessionNoteUseCase;
 import com.example.FreStyle.usecase.SaveSessionNoteUseCase;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/session-notes")
+@Slf4j
 public class SessionNoteController {
 
     private final GetSessionNoteUseCase getSessionNoteUseCase;
@@ -32,6 +34,7 @@ public class SessionNoteController {
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable Integer sessionId) {
         User user = resolveUser(jwt);
+        log.info("セッションノート取得: userId={}, sessionId={}", user.getId(), sessionId);
         SessionNoteDto dto = getSessionNoteUseCase.execute(user.getId(), sessionId);
         return ResponseEntity.ok(dto);
     }
@@ -42,6 +45,7 @@ public class SessionNoteController {
             @PathVariable Integer sessionId,
             @RequestBody SaveNoteRequest request) {
         User user = resolveUser(jwt);
+        log.info("セッションノート保存: userId={}, sessionId={}", user.getId(), sessionId);
         saveSessionNoteUseCase.execute(user, sessionId, request.note());
         return ResponseEntity.ok().build();
     }

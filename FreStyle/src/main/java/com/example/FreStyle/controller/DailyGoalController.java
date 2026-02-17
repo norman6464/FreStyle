@@ -20,10 +20,12 @@ import com.example.FreStyle.usecase.IncrementDailyGoalUseCase;
 import com.example.FreStyle.usecase.SetDailyGoalTargetUseCase;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/daily-goals")
+@Slf4j
 public class DailyGoalController {
 
     private final GetTodayDailyGoalUseCase getTodayDailyGoalUseCase;
@@ -34,6 +36,7 @@ public class DailyGoalController {
     @GetMapping("/today")
     public ResponseEntity<DailyGoalDto> getToday(@AuthenticationPrincipal Jwt jwt) {
         User user = resolveUser(jwt);
+        log.info("今日の日次目標取得: userId={}", user.getId());
         DailyGoalDto dto = getTodayDailyGoalUseCase.execute(user.getId());
         return ResponseEntity.ok(dto);
     }
@@ -43,6 +46,7 @@ public class DailyGoalController {
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody SetTargetRequest request) {
         User user = resolveUser(jwt);
+        log.info("日次目標設定: userId={}, target={}", user.getId(), request.target());
         setDailyGoalTargetUseCase.execute(user, request.target());
         return ResponseEntity.ok().build();
     }
@@ -50,6 +54,7 @@ public class DailyGoalController {
     @PostMapping("/increment")
     public ResponseEntity<DailyGoalDto> increment(@AuthenticationPrincipal Jwt jwt) {
         User user = resolveUser(jwt);
+        log.info("日次目標インクリメント: userId={}", user.getId());
         DailyGoalDto dto = incrementDailyGoalUseCase.execute(user);
         return ResponseEntity.ok(dto);
     }

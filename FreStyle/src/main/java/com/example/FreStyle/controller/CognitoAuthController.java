@@ -242,25 +242,9 @@ public class CognitoAuthController {
     // -----------------------
     @GetMapping("/me")
     public ResponseEntity<?> me(@AuthenticationPrincipal Jwt jwt) {
-        if (jwt == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("error", "認証されていません"));
-        }
-
         String sub = jwt.getSubject();
-        if (sub == null || sub.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("error", "無効なリクエストです。"));
-        }
-
-        try {
-            Integer id = userIdentityService.findUserBySub(sub).getId();
-            return ResponseEntity.ok(Map.of("id", id));
-
-        } catch (RuntimeException e) {
-            log.error("/me エラー: {}", e.getMessage(), e);
-            return ResponseEntity.internalServerError()
-                    .body(Map.of("error", e.getMessage()));
-        }
+        log.info("GET /api/auth/cognito/me - sub={}", sub);
+        Integer id = userIdentityService.findUserBySub(sub).getId();
+        return ResponseEntity.ok(Map.of("id", id));
     }
 }

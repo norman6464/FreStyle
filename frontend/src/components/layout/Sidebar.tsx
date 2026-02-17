@@ -1,5 +1,6 @@
 import { useLocation } from 'react-router-dom';
 import SidebarItem from './SidebarItem';
+import Loading from '../Loading';
 import { useSidebar } from '../../hooks/useSidebar';
 import { useTheme } from '../../hooks/useTheme';
 import {
@@ -46,7 +47,7 @@ interface SidebarProps {
 
 export default function Sidebar({ onNavigate }: SidebarProps) {
   const location = useLocation();
-  const { totalUnread, handleLogout } = useSidebar();
+  const { totalUnread, handleLogout, loggingOut } = useSidebar();
   const { theme, toggleTheme } = useTheme();
 
   const isActive = (item: typeof navItems[0]) => {
@@ -64,6 +65,8 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
   };
 
   return (
+    <>
+    {loggingOut && <Loading fullscreen message="ログアウト中..." />}
     <aside className="flex flex-col w-56 h-full bg-surface-1 border-r border-surface-3 flex-shrink-0">
       {/* ロゴ */}
       <div className="h-14 flex items-center px-4 border-b border-surface-3 gap-2.5">
@@ -121,5 +124,6 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
         </button>
       </div>
     </aside>
+    </>
   );
 }

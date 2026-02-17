@@ -205,8 +205,8 @@ export interface FriendshipUser {
   id: number;
   userId: number;
   username: string;
-  iconUrl?: string;
-  bio?: string;
+  iconUrl: string | null;
+  bio: string | null;
   mutual: boolean;
   createdAt: string;
 }

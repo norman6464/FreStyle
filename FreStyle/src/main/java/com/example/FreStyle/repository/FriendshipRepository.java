@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import com.example.FreStyle.entity.Friendship;
@@ -22,4 +24,10 @@ public interface FriendshipRepository extends JpaRepository<Friendship, Integer>
     long countByFollowerId(Integer followerId);
 
     long countByFollowingId(Integer followingId);
+
+    @Query("SELECT f.follower.id FROM Friendship f WHERE f.follower.id IN :userIds AND f.following.id = :targetId")
+    List<Integer> findMutualFollowerIds(@Param("userIds") List<Integer> userIds, @Param("targetId") Integer targetId);
+
+    @Query("SELECT f.following.id FROM Friendship f WHERE f.following.id IN :userIds AND f.follower.id = :targetId")
+    List<Integer> findMutualFollowingIds(@Param("userIds") List<Integer> userIds, @Param("targetId") Integer targetId);
 }

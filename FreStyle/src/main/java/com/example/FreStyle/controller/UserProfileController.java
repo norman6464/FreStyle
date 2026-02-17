@@ -1,7 +1,6 @@
 package com.example.FreStyle.controller;
 
 import java.util.Map;
-import java.util.Optional;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,17 +22,13 @@ import com.example.FreStyle.usecase.UpdateUserProfileUseCase;
 import com.example.FreStyle.usecase.UpsertUserProfileUseCase;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @RestController
 @RequestMapping("/api/user-profile")
 @RequiredArgsConstructor
+@Slf4j
 public class UserProfileController {
-
-    private static final ResponseEntity<?> UNAUTHORIZED_RESPONSE = ResponseEntity
-            .status(HttpStatus.UNAUTHORIZED)
-            .body(Map.of("error", "認証に失敗しました。"));
-
-    private static final String SERVER_ERROR_MESSAGE = "サーバーエラーが発生しました。";
 
     private final GetUserProfileUseCase getUserProfileUseCase;
     private final CreateUserProfileUseCase createUserProfileUseCase;
@@ -43,104 +38,50 @@ public class UserProfileController {
 
     @GetMapping("/me")
     public ResponseEntity<?> getMyProfile(@AuthenticationPrincipal Jwt jwt) {
-        Optional<String> subject = extractSubject(jwt);
-        if (subject.isEmpty()) {
-            return UNAUTHORIZED_RESPONSE;
+        String sub = jwt.getSubject();
+        log.info("プロファイル取得: sub={}", sub);
+        UserProfileDto profileDto = getUserProfileUseCase.execute(sub);
+        if (profileDto == null) {
+            return ResponseEntity.ok(Map.of("message", "プロファイルが設定されていません。"));
         }
-        try {
-            UserProfileDto profileDto = getUserProfileUseCase.execute(subject.get());
-            if (profileDto == null) {
-                return ResponseEntity.ok(Map.of("message", "プロファイルが設定されていません。"));
-            }
-            return ResponseEntity.ok(profileDto);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", SERVER_ERROR_MESSAGE));
-        }
+        return ResponseEntity.ok(profileDto);
     }
 
     @PostMapping("/me/create")
     public ResponseEntity<?> createMyProfile(
             @AuthenticationPrincipal Jwt jwt,
             @Validated @RequestBody UserProfileForm form) {
-        Optional<String> subject = extractSubject(jwt);
-        if (subject.isEmpty()) {
-            return UNAUTHORIZED_RESPONSE;
-        }
-        try {
-            UserProfileDto profileDto = createUserProfileUseCase.execute(subject.get(), form);
-            return ResponseEntity.status(HttpStatus.CREATED).body(profileDto);
-        } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("error", e.getMessage()));
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", SERVER_ERROR_MESSAGE));
-        }
+        String sub = jwt.getSubject();
+        log.info("プロファイル作成: sub={}", sub);
+        UserProfileDto profileDto = createUserProfileUseCase.execute(sub, form);
+        return ResponseEntity.status(HttpStatus.CREATED).body(profileDto);
     }
 
     @PostMapping("/me/update")
     public ResponseEntity<?> updateMyProfile(
             @AuthenticationPrincipal Jwt jwt,
             @Validated @RequestBody UserProfileForm form) {
-        Optional<String> subject = extractSubject(jwt);
-        if (subject.isEmpty()) {
-            return UNAUTHORIZED_RESPONSE;
-        }
-        try {
-            UserProfileDto profileDto = updateUserProfileUseCase.execute(subject.get(), form);
-            return ResponseEntity.ok(profileDto);
-        } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("error", e.getMessage()));
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", SERVER_ERROR_MESSAGE));
-        }
+        String sub = jwt.getSubject();
+        log.info("プロファイル更新: sub={}", sub);
+        UserProfileDto profileDto = updateUserProfileUseCase.execute(sub, form);
+        return ResponseEntity.ok(profileDto);
     }
 
     @PostMapping("/me/upsert")
     public ResponseEntity<?> upsertMyProfile(
             @AuthenticationPrincipal Jwt jwt,
             @Validated @RequestBody UserProfileForm form) {
-        Optional<String> subject = extractSubject(jwt);
-        if (subject.isEmpty()) {
-            return UNAUTHORIZED_RESPONSE;
-        }
-        try {
-            UserProfileDto profileDto = upsertUserProfileUseCase.execute(subject.get(), form);
-            return ResponseEntity.ok(profileDto);
-        } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("error", e.getMessage()));
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", SERVER_ERROR_MESSAGE));
-        }
+        String sub = jwt.getSubject();
+        log.info("プロファイルupsert: sub={}", sub);
+        UserProfileDto profileDto = upsertUserProfileUseCase.execute(sub, form);
+        return ResponseEntity.ok(profileDto);
     }
 
     @PostMapping("/me/delete")
     public ResponseEntity<?> deleteMyProfile(@AuthenticationPrincipal Jwt jwt) {
-        Optional<String> subject = extractSubject(jwt);
-        if (subject.isEmpty()) {
-            return UNAUTHORIZED_RESPONSE;
-        }
-        try {
-            deleteUserProfileUseCase.execute(subject.get());
-            return ResponseEntity.ok(Map.of("message", "プロファイルを削除しました。"));
-        } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("error", e.getMessage()));
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", SERVER_ERROR_MESSAGE));
-        }
-    }
-
-    private Optional<String> extractSubject(Jwt jwt) {
-        if (jwt == null || jwt.getSubject() == null || jwt.getSubject().isEmpty()) {
-            return Optional.empty();
-        }
-        return Optional.of(jwt.getSubject());
+        String sub = jwt.getSubject();
+        log.info("プロファイル削除: sub={}", sub);
+        deleteUserProfileUseCase.execute(sub);
+        return ResponseEntity.ok(Map.of("message", "プロファイルを削除しました。"));
     }
 }

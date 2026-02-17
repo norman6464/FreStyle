@@ -1,7 +1,6 @@
 package com.example.FreStyle.controller;
 
 import java.util.List;
-import java.util.Map;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -13,6 +12,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.FreStyle.dto.FollowStatusDto;
 import com.example.FreStyle.dto.FriendshipDto;
 import com.example.FreStyle.entity.User;
 import com.example.FreStyle.service.UserIdentityService;
@@ -78,11 +78,11 @@ public class FriendshipController {
     }
 
     @GetMapping("/{userId}/status")
-    public ResponseEntity<Map<String, Object>> checkFollowStatus(
+    public ResponseEntity<FollowStatusDto> checkFollowStatus(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable Integer userId) {
         User user = resolveUser(jwt);
-        Map<String, Object> status = checkFollowStatusUseCase.execute(user.getId(), userId);
+        FollowStatusDto status = checkFollowStatusUseCase.execute(user.getId(), userId);
         return ResponseEntity.ok(status);
     }
 

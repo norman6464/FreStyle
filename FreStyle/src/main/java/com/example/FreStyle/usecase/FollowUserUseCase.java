@@ -1,5 +1,6 @@
 package com.example.FreStyle.usecase;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,14 +26,19 @@ public class FollowUserUseCase {
         }
 
         if (friendshipRepository.existsByFollowerIdAndFollowingId(follower.getId(), following.getId())) {
-            throw new IllegalStateException("既にフォローしています");
+            throw new IllegalArgumentException("既にフォローしています");
         }
 
         Friendship friendship = new Friendship();
         friendship.setFollower(follower);
         friendship.setFollowing(following);
 
-        Friendship saved = friendshipRepository.save(friendship);
+        Friendship saved;
+        try {
+            saved = friendshipRepository.save(friendship);
+        } catch (DataIntegrityViolationException e) {
+            throw new IllegalArgumentException("既にフォローしています");
+        }
 
         boolean mutual = friendshipRepository.existsByFollowerIdAndFollowingId(
                 following.getId(), follower.getId());

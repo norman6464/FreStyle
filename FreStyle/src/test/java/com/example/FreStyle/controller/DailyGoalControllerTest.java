@@ -16,8 +16,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.oauth2.jwt.Jwt;
 
 import com.example.FreStyle.dto.DailyGoalDto;
+import com.example.FreStyle.dto.DailyGoalStreakDto;
 import com.example.FreStyle.entity.User;
 import com.example.FreStyle.service.UserIdentityService;
+import com.example.FreStyle.usecase.GetDailyGoalStreakUseCase;
 import com.example.FreStyle.usecase.GetTodayDailyGoalUseCase;
 import com.example.FreStyle.usecase.IncrementDailyGoalUseCase;
 import com.example.FreStyle.usecase.SetDailyGoalTargetUseCase;
@@ -34,6 +36,9 @@ class DailyGoalControllerTest {
 
     @Mock
     private IncrementDailyGoalUseCase incrementDailyGoalUseCase;
+
+    @Mock
+    private GetDailyGoalStreakUseCase getDailyGoalStreakUseCase;
 
     @Mock
     private UserIdentityService userIdentityService;
@@ -164,5 +169,23 @@ class DailyGoalControllerTest {
 
         assertThrows(RuntimeException.class,
                 () -> dailyGoalController.increment(jwt));
+    }
+
+    @Test
+    @DisplayName("getStreak: ストリーク情報を取得できる")
+    void getStreak_returnsStreakDto() {
+        Jwt jwt = createMockJwt();
+        User user = new User();
+        user.setId(1);
+        when(userIdentityService.findUserBySub("cognito-sub-123")).thenReturn(user);
+        DailyGoalStreakDto dto = new DailyGoalStreakDto(5, 12, 30);
+        when(getDailyGoalStreakUseCase.execute(eq(1), any(LocalDate.class))).thenReturn(dto);
+
+        ResponseEntity<DailyGoalStreakDto> response = dailyGoalController.getStreak(jwt);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(5, response.getBody().currentStreak());
+        assertEquals(12, response.getBody().longestStreak());
+        assertEquals(30, response.getBody().totalAchievedDays());
     }
 }

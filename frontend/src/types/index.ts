@@ -175,6 +175,21 @@ export interface ScoreHistoryItem {
   createdAt: string;
 }
 
+/** 学習レポート */
+export interface LearningReport {
+  id: number;
+  year: number;
+  month: number;
+  totalSessions: number;
+  averageScore: number;
+  previousAverageScore?: number;
+  scoreChange?: number;
+  bestAxis?: string;
+  worstAxis?: string;
+  practiceDays: number;
+  createdAt?: string;
+}
+
 /** 通知 */
 export interface Notification {
   id: number;

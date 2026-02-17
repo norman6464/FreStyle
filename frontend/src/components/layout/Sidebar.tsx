@@ -12,6 +12,7 @@ import {
   StarIcon,
   DocumentTextIcon,
   BellIcon,
+  DocumentChartBarIcon,
   UserCircleIcon,
   LightBulbIcon,
   ArrowLeftOnRectangleIcon,
@@ -29,6 +30,7 @@ const navItems = [
   { icon: StarIcon, label: 'お気に入り', to: '/favorites', matchExact: true },
   { icon: DocumentTextIcon, label: 'ノート', to: '/notes', matchPrefix: '/notes' },
   { icon: BellIcon, label: '通知', to: '/notifications', matchExact: true },
+  { icon: DocumentChartBarIcon, label: 'レポート', to: '/reports', matchExact: true },
 ];
 
 const bottomNavItems = [

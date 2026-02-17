@@ -187,6 +187,24 @@ INSERT IGNORE INTO practice_scenarios (id, name, description, category, role_nam
 (11, '新メンバーへの技術オンボーディング', '新しくチームに入ったジュニアエンジニアに技術スタックを説明する', 'team', '入社したばかりのジュニアエンジニア', 'beginner', '新卒で入社したジュニアエンジニアがあなたのチームに配属されました。プロジェクトで使用しているReact + Spring Boot + AWSの技術スタックについて説明し、最初のタスクをアサインする場面です。本人はJavaの基礎はありますが、実務経験はありません。'),
 (12, 'チーム間の仕様調整', 'フロントエンドチームとバックエンドチームのAPI仕様のすり合わせ', 'team', 'フロントエンドチームのリーダー', 'intermediate', 'あなたはバックエンドチームのエンジニアです。フロントエンドチームのリーダーと新機能のAPI仕様を調整する必要があります。フロントエンド側はGraphQLを希望していますが、バックエンドチームはREST APIで統一したいと考えています。');
 
+-- 学習レポート（月次レポート）
+CREATE TABLE IF NOT EXISTS learning_reports (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    year INT NOT NULL,
+    month INT NOT NULL,
+    total_sessions INT NOT NULL DEFAULT 0,
+    average_score DOUBLE NOT NULL DEFAULT 0.0,
+    previous_average_score DOUBLE,
+    best_axis VARCHAR(50),
+    worst_axis VARCHAR(50),
+    practice_days INT NOT NULL DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uk_user_year_month (user_id, year, month),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 -- ┌─────────────────┐     ┌──────────────────────┐
 -- │     users       │────→│   ai_chat_sessions   │
 -- └─────────────────┘     └──────────────────────┘

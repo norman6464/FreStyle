@@ -19,12 +19,6 @@
 
 ---
 
-## Demo（変更前）
-
-[デモ動画](https://myapp-demo-videos.s3.ap-northeast-1.amazonaws.com/Fre-Style-demo.mp4)
-
----
-
 ## 使用技術
 
 <h3>Frontend</h3>

@@ -30,7 +30,7 @@ export default function UserProfilePage() {
   } = useUserProfilePage();
 
   if (loading) {
-    return <Loading fullscreen message="プロファイルを読み込み中..." />;
+    return <Loading size="medium" message="プロファイルを読み込み中..." className="py-12" />;
   }
 
   return (

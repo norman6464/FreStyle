@@ -1,5 +1,6 @@
 package com.example.FreStyle.usecase;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -74,6 +75,32 @@ class SendChatMessageUseCaseTest {
         assertEquals(savedMessage, result.message());
         assertEquals(2, result.partnerId());
         verify(unreadCountService).incrementUnreadCount(2, 10);
+    }
+
+    @Test
+    @DisplayName("chatRoomService.findChatRoomById例外時にそのまま伝搬する")
+    void propagatesExceptionWhenRoomNotFound() {
+        when(chatRoomService.findChatRoomById(999))
+                .thenThrow(new RuntimeException("チャットルームが見つかりません"));
+
+        assertThatThrownBy(() -> useCase.execute(1, 999, "テストメッセージ"))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("チャットルームが見つかりません");
+
+        verify(chatMessageService, never()).addMessage(any(), anyInt(), anyString());
+    }
+
+    @Test
+    @DisplayName("addMessageに正しい引数が渡される")
+    void passesCorrectArgumentsToAddMessage() {
+        when(chatRoomService.findChatRoomById(10)).thenReturn(testRoom);
+        when(chatMessageService.addMessage(testRoom, 5, "こんにちは")).thenReturn(savedMessage);
+        when(roomMemberRepository.findPartnerByRoomIdAndUserId(10, 5)).thenReturn(Optional.empty());
+
+        useCase.execute(5, 10, "こんにちは");
+
+        verify(chatMessageService).addMessage(testRoom, 5, "こんにちは");
+        verify(chatRoomService).findChatRoomById(10);
     }
 
     @Test

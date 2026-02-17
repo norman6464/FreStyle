@@ -22,6 +22,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
+import org.mockito.InOrder;
+
 @ExtendWith(MockitoExtension.class)
 class CognitoLoginUseCaseTest {
 
@@ -67,6 +69,50 @@ class CognitoLoginUseCaseTest {
             verify(userIdentityService).registerUserIdentity(user, "https://cognito-idp.example.com", "sub-123");
             verify(accessTokenService).saveTokens(user, "access-token-value", "refresh-token-value");
         }
+    }
+
+    @Test
+    @DisplayName("checkUserIsActiveがcognitoAuthService.loginより先に呼ばれる")
+    void checksActiveBeforeLogin() throws Exception {
+        User user = new User();
+        user.setId(1);
+
+        when(cognitoAuthService.login("test@example.com", "password123"))
+                .thenReturn(Map.of(
+                        "idToken", "id-token-value",
+                        "accessToken", "access-token-value",
+                        "refreshToken", "refresh-token-value"));
+        when(userService.findUserByEmail("test@example.com")).thenReturn(user);
+
+        JWTClaimsSet claims = new JWTClaimsSet.Builder()
+                .subject("sub-123")
+                .issuer("https://cognito-idp.example.com")
+                .claim("cognito:username", "testuser")
+                .build();
+
+        try (MockedStatic<JwtUtils> jwtUtilsMock = mockStatic(JwtUtils.class)) {
+            jwtUtilsMock.when(() -> JwtUtils.decode("id-token-value"))
+                    .thenReturn(Optional.of(claims));
+
+            cognitoLoginUseCase.execute("test@example.com", "password123");
+
+            InOrder inOrder = inOrder(userService, cognitoAuthService);
+            inOrder.verify(userService).checkUserIsActive("test@example.com");
+            inOrder.verify(cognitoAuthService).login("test@example.com", "password123");
+        }
+    }
+
+    @Test
+    @DisplayName("checkUserIsActive失敗時にloginが呼ばれない")
+    void doesNotLoginWhenUserInactive() {
+        doThrow(new RuntimeException("無効なアカウントです"))
+                .when(userService).checkUserIsActive("test@example.com");
+
+        assertThatThrownBy(() -> cognitoLoginUseCase.execute("test@example.com", "password123"))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("無効なアカウントです");
+
+        verify(cognitoAuthService, never()).login(anyString(), anyString());
     }
 
     @Test

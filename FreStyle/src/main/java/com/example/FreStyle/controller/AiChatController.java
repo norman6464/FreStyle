@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.FreStyle.dto.AiChatMessageDto;
 import com.example.FreStyle.dto.AiChatMessageResponseDto;
 import com.example.FreStyle.dto.AiChatSessionDto;
+import com.example.FreStyle.dto.PracticeSessionSummaryDto;
 import com.example.FreStyle.entity.User;
 import com.example.FreStyle.service.AiChatService;
 import com.example.FreStyle.service.BedrockService;
@@ -28,6 +29,7 @@ import com.example.FreStyle.usecase.DeleteAiChatSessionUseCase;
 import com.example.FreStyle.usecase.GetAiChatMessagesBySessionIdUseCase;
 import com.example.FreStyle.usecase.GetAiChatSessionByIdUseCase;
 import com.example.FreStyle.usecase.GetAiChatSessionsByUserIdUseCase;
+import com.example.FreStyle.usecase.GetPracticeSessionSummaryUseCase;
 import com.example.FreStyle.usecase.UpdateAiChatSessionTitleUseCase;
 
 import lombok.RequiredArgsConstructor;
@@ -51,6 +53,7 @@ public class AiChatController {
     private final DeleteAiChatSessionUseCase deleteAiChatSessionUseCase;
     private final GetAiChatMessagesBySessionIdUseCase getAiChatMessagesBySessionIdUseCase;
     private final AddAiChatMessageUseCase addAiChatMessageUseCase;
+    private final GetPracticeSessionSummaryUseCase getPracticeSessionSummaryUseCase;
 
 
     // =============================================
@@ -213,6 +216,23 @@ public class AiChatController {
         log.info("✅ メッセージ追加成功 - messageId: {}", message.id());
 
         return ResponseEntity.ok(message);
+    }
+
+    /**
+     * セッションサマリーを取得
+     */
+    @GetMapping("/sessions/{sessionId}/summary")
+    public ResponseEntity<PracticeSessionSummaryDto> getSessionSummary(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable Integer sessionId
+    ) {
+        log.info("========== GET /api/chat/ai/sessions/{}/summary ==========", sessionId);
+
+        User user = resolveUser(jwt);
+        PracticeSessionSummaryDto summary = getPracticeSessionSummaryUseCase.execute(sessionId, user.getId());
+        log.info("✅ セッションサマリー取得成功");
+
+        return ResponseEntity.ok(summary);
     }
 
     /**

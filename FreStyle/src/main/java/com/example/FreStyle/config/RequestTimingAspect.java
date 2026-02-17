@@ -7,18 +7,16 @@ import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.springframework.stereotype.Component;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Aspect
 @Component
+@RequiredArgsConstructor
 public class RequestTimingAspect {
 
     private final MeterRegistry meterRegistry;
-
-    public RequestTimingAspect(MeterRegistry meterRegistry) {
-        this.meterRegistry = meterRegistry;
-    }
 
     @Around("execution(* com.example.FreStyle.controller..*(..))")
     public Object timeControllerMethods(ProceedingJoinPoint joinPoint) throws Throwable {

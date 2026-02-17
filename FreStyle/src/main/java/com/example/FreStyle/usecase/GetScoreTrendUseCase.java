@@ -24,18 +24,13 @@ public class GetScoreTrendUseCase {
 
     @Transactional(readOnly = true)
     public ScoreTrendDto execute(Integer userId, int days) {
-        LocalDateTime cutoff = LocalDateTime.now().minusDays(days);
-        List<CommunicationScore> allScores = communicationScoreRepository.findByUserIdOrderByCreatedAtDesc(userId);
+        Timestamp cutoffTimestamp = Timestamp.valueOf(LocalDateTime.now().minusDays(days));
 
-        List<CommunicationScore> filteredScores = allScores.stream()
-                .filter(s -> {
-                    Timestamp ts = s.getCreatedAt();
-                    return ts != null && ts.toLocalDateTime().isAfter(cutoff);
-                })
-                .collect(Collectors.toList());
+        List<CommunicationScore> filteredScores =
+                communicationScoreRepository.findByUserIdAndCreatedAtAfterOrderByCreatedAtDesc(userId, cutoffTimestamp);
 
         if (filteredScores.isEmpty()) {
-            return new ScoreTrendDto(days, List.of(), 0.0, null, 0);
+            return new ScoreTrendDto(days, List.of(), 0.0, null, 0, null);
         }
 
         Map<Integer, List<CommunicationScore>> bySession = filteredScores.stream()
@@ -67,6 +62,13 @@ public class GetScoreTrendUseCase {
                 .max(Comparator.comparingDouble(ScoreTrendDto.SessionScore::averageScore))
                 .orElse(null);
 
-        return new ScoreTrendDto(days, sessionScores, overallAverage, bestSession, sessionScores.size());
+        Double improvement = null;
+        if (sessionScores.size() >= 2) {
+            double firstAvg = sessionScores.get(0).averageScore();
+            double lastAvg = sessionScores.get(sessionScores.size() - 1).averageScore();
+            improvement = lastAvg - firstAvg;
+        }
+
+        return new ScoreTrendDto(days, sessionScores, overallAverage, bestSession, sessionScores.size(), improvement);
     }
 }

@@ -7,7 +7,8 @@ public record ScoreTrendDto(
         List<SessionScore> sessionScores,
         double overallAverage,
         SessionScore bestSession,
-        int totalSessions) {
+        int totalSessions,
+        Double improvement) {
 
     public record SessionScore(
             Integer sessionId,

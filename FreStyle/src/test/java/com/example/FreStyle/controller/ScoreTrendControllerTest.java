@@ -35,13 +35,13 @@ class ScoreTrendControllerTest {
 
     @Test
     @DisplayName("スコアトレンドを取得できる")
-    void getTrend_returnsTrend() {
+    void getTrendReturnsTrend() {
         Jwt jwt = mock(Jwt.class);
         when(jwt.getSubject()).thenReturn("sub-123");
         User user = new User();
         user.setId(1);
         when(userIdentityService.findUserBySub("sub-123")).thenReturn(user);
-        ScoreTrendDto dto = new ScoreTrendDto(30, List.of(), 0.0, null, 0);
+        ScoreTrendDto dto = new ScoreTrendDto(30, List.of(), 0.0, null, 0, null);
         when(getScoreTrendUseCase.execute(1, 30)).thenReturn(dto);
 
         ResponseEntity<ScoreTrendDto> response = scoreTrendController.getTrend(jwt, 30);
@@ -51,18 +51,18 @@ class ScoreTrendControllerTest {
     }
 
     @Test
-    @DisplayName("days未指定時はデフォルト30日になる")
-    void getTrend_defaultDays() {
+    @DisplayName("UseCaseに正しいuserIdとdaysを渡している")
+    void getTrendPassesCorrectArguments() {
         Jwt jwt = mock(Jwt.class);
-        when(jwt.getSubject()).thenReturn("sub-123");
+        when(jwt.getSubject()).thenReturn("sub-456");
         User user = new User();
-        user.setId(1);
-        when(userIdentityService.findUserBySub("sub-123")).thenReturn(user);
-        ScoreTrendDto dto = new ScoreTrendDto(30, List.of(), 0.0, null, 0);
-        when(getScoreTrendUseCase.execute(1, 30)).thenReturn(dto);
+        user.setId(42);
+        when(userIdentityService.findUserBySub("sub-456")).thenReturn(user);
+        ScoreTrendDto dto = new ScoreTrendDto(7, List.of(), 0.0, null, 0, null);
+        when(getScoreTrendUseCase.execute(42, 7)).thenReturn(dto);
 
-        ResponseEntity<ScoreTrendDto> response = scoreTrendController.getTrend(jwt, 30);
+        scoreTrendController.getTrend(jwt, 7);
 
-        verify(getScoreTrendUseCase).execute(1, 30);
+        verify(getScoreTrendUseCase).execute(42, 7);
     }
 }

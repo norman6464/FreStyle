@@ -1,7 +1,10 @@
 package com.example.FreStyle.usecase;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
+
+import org.mockito.ArgumentCaptor;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -48,5 +51,35 @@ class CreateNotificationUseCaseTest {
         createNotificationUseCase.execute(testUser, "SYSTEM", "システム通知", "お知らせがあります", null);
 
         verify(notificationRepository).save(any(Notification.class));
+    }
+
+    @Test
+    @DisplayName("保存される通知のフィールドが正しく設定される")
+    void execute_savedNotificationHasCorrectFields() {
+        createNotificationUseCase.execute(testUser, "NEW_MESSAGE", "新しいメッセージ", "田中さんから", 10);
+
+        ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
+        verify(notificationRepository).save(captor.capture());
+
+        Notification saved = captor.getValue();
+        assertThat(saved.getUser()).isEqualTo(testUser);
+        assertThat(saved.getType()).isEqualTo("NEW_MESSAGE");
+        assertThat(saved.getTitle()).isEqualTo("新しいメッセージ");
+        assertThat(saved.getMessage()).isEqualTo("田中さんから");
+        assertThat(saved.getRelatedId()).isEqualTo(10);
+    }
+
+    @Test
+    @DisplayName("relatedIdがnullの場合も正しくエンティティに設定される")
+    void execute_savedNotificationHasNullRelatedId() {
+        createNotificationUseCase.execute(testUser, "SYSTEM", "お知らせ", "メンテナンス予定", null);
+
+        ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
+        verify(notificationRepository).save(captor.capture());
+
+        Notification saved = captor.getValue();
+        assertThat(saved.getUser()).isEqualTo(testUser);
+        assertThat(saved.getType()).isEqualTo("SYSTEM");
+        assertThat(saved.getRelatedId()).isNull();
     }
 }

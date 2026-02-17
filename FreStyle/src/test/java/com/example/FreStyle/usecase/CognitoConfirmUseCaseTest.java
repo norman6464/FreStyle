@@ -12,6 +12,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
+import org.mockito.InOrder;
+
 @ExtendWith(MockitoExtension.class)
 class CognitoConfirmUseCaseTest {
 
@@ -28,6 +30,29 @@ class CognitoConfirmUseCaseTest {
 
         verify(cognitoAuthService).confirmUserSignup("test@example.com", "123456");
         verify(userService).activeUser("test@example.com");
+    }
+
+    @Test
+    @DisplayName("Cognito確認→ユーザー有効化の順序で実行される")
+    void executesInCorrectOrder() {
+        cognitoConfirmUseCase.execute("order@example.com", "111111");
+
+        InOrder inOrder = inOrder(cognitoAuthService, userService);
+        inOrder.verify(cognitoAuthService).confirmUserSignup("order@example.com", "111111");
+        inOrder.verify(userService).activeUser("order@example.com");
+    }
+
+    @Test
+    @DisplayName("ユーザー有効化失敗時に例外が伝搬しCognito確認は完了済み")
+    void propagatesUserServiceExceptionAfterCognitoConfirm() {
+        doThrow(new RuntimeException("DB error"))
+                .when(userService).activeUser("fail@example.com");
+
+        assertThatThrownBy(() -> cognitoConfirmUseCase.execute("fail@example.com", "123456"))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("DB error");
+
+        verify(cognitoAuthService).confirmUserSignup("fail@example.com", "123456");
     }
 
     @Test

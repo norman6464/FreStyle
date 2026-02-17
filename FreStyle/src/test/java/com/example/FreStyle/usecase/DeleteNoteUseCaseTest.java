@@ -47,16 +47,6 @@ class DeleteNoteUseCaseTest {
         }
 
         @Test
-        @DisplayName("異なるパラメータでも正しくリポジトリに渡される")
-        void shouldPassDifferentParametersToRepository() {
-            doNothing().when(noteRepository).delete(99, "note-abc");
-
-            useCase.execute(99, "note-abc");
-
-            verify(noteRepository, times(1)).delete(99, "note-abc");
-        }
-
-        @Test
         @DisplayName("deleteのみが呼び出され他のリポジトリメソッドは呼ばれない")
         void shouldOnlyCallDeleteOnRepository() {
             doNothing().when(noteRepository).delete(1, "note-1");

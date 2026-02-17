@@ -17,6 +17,11 @@ vi.mock('../../store/authSlice', () => ({
   clearAuth: () => ({ type: 'auth/clearAuth' }),
 }));
 
+const mockShowToast = vi.fn();
+vi.mock('../useToast', () => ({
+  useToast: () => ({ showToast: mockShowToast, toasts: [], removeToast: vi.fn() }),
+}));
+
 const mockFetchChatUsers = vi.fn();
 const mockLogout = vi.fn();
 
@@ -115,6 +120,28 @@ describe('useSidebar', () => {
   it('初期状態でtotalUnreadが0である', () => {
     const { result } = renderHook(() => useSidebar());
     expect(result.current.totalUnread).toBe(0);
+  });
+
+  it('ログアウト成功時にログアウトしましたトーストを表示する', async () => {
+    const { result } = renderHook(() => useSidebar());
+
+    await act(async () => {
+      await result.current.handleLogout();
+    });
+
+    expect(mockShowToast).toHaveBeenCalledWith('success', 'ログアウトしました');
+  });
+
+  it('ログアウト失敗時にトーストを表示しない', async () => {
+    mockLogout.mockRejectedValue(new Error('Network Error'));
+
+    const { result } = renderHook(() => useSidebar());
+
+    await act(async () => {
+      await result.current.handleLogout();
+    });
+
+    expect(mockShowToast).not.toHaveBeenCalled();
   });
 
   it('ログアウト失敗時にdispatchも呼ばれない', async () => {

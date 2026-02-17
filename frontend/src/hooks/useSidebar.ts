@@ -4,10 +4,12 @@ import { useNavigate } from 'react-router-dom';
 import { clearAuth } from '../store/authSlice';
 import ChatRepository from '../repositories/ChatRepository';
 import AuthRepository from '../repositories/AuthRepository';
+import { useToast } from './useToast';
 
 export function useSidebar() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [totalUnread, setTotalUnread] = useState(0);
 
   useEffect(() => {
@@ -29,11 +31,12 @@ export function useSidebar() {
     try {
       await AuthRepository.logout();
       dispatch(clearAuth());
+      showToast('success', 'ログアウトしました');
       navigate('/login');
     } catch {
       // サイレントに処理
     }
-  }, [dispatch, navigate]);
+  }, [dispatch, navigate, showToast]);
 
   return { totalUnread, handleLogout };
 }

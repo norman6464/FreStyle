@@ -24,6 +24,11 @@ vi.mock('../../store/authSlice', () => ({
   setAuthData: () => ({ type: 'auth/setAuthData' }),
 }));
 
+const mockShowToast = vi.fn();
+vi.mock('../useToast', () => ({
+  useToast: () => ({ showToast: mockShowToast, toasts: [], removeToast: vi.fn() }),
+}));
+
 import authRepository from '../../repositories/AuthRepository';
 
 let mockSearchParams = '';
@@ -101,6 +106,28 @@ describe('useLoginCallback', () => {
     });
 
     expect(authRepository.callback).not.toHaveBeenCalled();
+  });
+
+  it('callback成功時にログインしましたトーストを表示する', async () => {
+    mockSearchParams = 'code=valid-code';
+    vi.mocked(authRepository.callback).mockResolvedValue({} as any);
+
+    await act(async () => {
+      renderHook(() => useLoginCallback());
+    });
+
+    expect(mockShowToast).toHaveBeenCalledWith('success', 'ログインしました');
+  });
+
+  it('callback失敗時にトーストを表示しない', async () => {
+    mockSearchParams = 'code=invalid-code';
+    vi.mocked(authRepository.callback).mockRejectedValue(new Error('認証失敗'));
+
+    await act(async () => {
+      renderHook(() => useLoginCallback());
+    });
+
+    expect(mockShowToast).not.toHaveBeenCalled();
   });
 
   it('callback成功時にalertが呼ばれない', async () => {

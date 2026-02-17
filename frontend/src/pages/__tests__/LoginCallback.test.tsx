@@ -6,6 +6,7 @@ import { MemoryRouter } from 'react-router-dom';
 import LoginCallback from '../LoginCallback';
 import authReducer from '../../store/authSlice';
 import authRepository from '../../repositories/AuthRepository';
+import { ToastProvider } from '../../hooks/useToast';
 
 const mockNavigate = vi.fn();
 
@@ -24,7 +25,9 @@ function renderWithRoute(search: string) {
   return render(
     <Provider store={store}>
       <MemoryRouter initialEntries={[`/callback${search}`]}>
-        <LoginCallback />
+        <ToastProvider>
+          <LoginCallback />
+        </ToastProvider>
       </MemoryRouter>
     </Provider>,
   );
@@ -41,7 +44,8 @@ describe('LoginCallback', () => {
 
     renderWithRoute('?code=test-code');
 
-    expect(screen.getByText('ログイン中...')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(screen.getByText('読み込み中...')).toBeInTheDocument();
   });
 
   it('codeがない場合はログインページへリダイレクトする', async () => {

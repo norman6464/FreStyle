@@ -10,10 +10,12 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.FreStyle.dto.AxisAnalysisDto;
+import com.example.FreStyle.dto.CommunicationScoreSummaryDto;
 import com.example.FreStyle.dto.ScoreTrendDto;
 import com.example.FreStyle.entity.User;
 import com.example.FreStyle.service.UserIdentityService;
 import com.example.FreStyle.usecase.GetAxisAnalysisUseCase;
+import com.example.FreStyle.usecase.GetCommunicationScoreSummaryUseCase;
 import com.example.FreStyle.usecase.GetScoreTrendUseCase;
 
 import jakarta.validation.constraints.Min;
@@ -29,6 +31,7 @@ public class ScoreTrendController {
 
     private final GetScoreTrendUseCase getScoreTrendUseCase;
     private final GetAxisAnalysisUseCase getAxisAnalysisUseCase;
+    private final GetCommunicationScoreSummaryUseCase getCommunicationScoreSummaryUseCase;
     private final UserIdentityService userIdentityService;
 
     @GetMapping("/trend")
@@ -46,6 +49,14 @@ public class ScoreTrendController {
         User user = resolveUser(jwt);
         log.info("GET /api/scores/axis-analysis - userId={}", user.getId());
         AxisAnalysisDto result = getAxisAnalysisUseCase.execute(user.getId());
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/summary")
+    public ResponseEntity<CommunicationScoreSummaryDto> getSummary(@AuthenticationPrincipal Jwt jwt) {
+        User user = resolveUser(jwt);
+        log.info("GET /api/scores/summary - userId={}", user.getId());
+        CommunicationScoreSummaryDto result = getCommunicationScoreSummaryUseCase.execute(user.getId());
         return ResponseEntity.ok(result);
     }
 

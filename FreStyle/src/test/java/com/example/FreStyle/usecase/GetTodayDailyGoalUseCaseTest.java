@@ -44,9 +44,9 @@ class GetTodayDailyGoalUseCaseTest {
 
         DailyGoalDto result = getTodayDailyGoalUseCase.execute(1);
 
-        assertEquals(LocalDate.now().toString(), result.getDate());
-        assertEquals(5, result.getTarget());
-        assertEquals(2, result.getCompleted());
+        assertEquals(LocalDate.now().toString(), result.date());
+        assertEquals(5, result.target());
+        assertEquals(2, result.completed());
     }
 
     @Test
@@ -57,8 +57,8 @@ class GetTodayDailyGoalUseCaseTest {
 
         DailyGoalDto result = getTodayDailyGoalUseCase.execute(1);
 
-        assertEquals(LocalDate.now().toString(), result.getDate());
-        assertEquals(3, result.getTarget());
-        assertEquals(0, result.getCompleted());
+        assertEquals(LocalDate.now().toString(), result.date());
+        assertEquals(3, result.target());
+        assertEquals(0, result.completed());
     }
 }

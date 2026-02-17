@@ -45,9 +45,9 @@ class GetProfileUseCaseTest {
 
         ProfileDto result = getProfileUseCase.execute("sub-123");
 
-        assertEquals("テストユーザー", result.getName());
-        assertEquals("テスト自己紹介", result.getBio());
-        assertEquals("https://cdn.example.com/profiles/1/avatar.png", result.getIconUrl());
+        assertEquals("テストユーザー", result.name());
+        assertEquals("テスト自己紹介", result.bio());
+        assertEquals("https://cdn.example.com/profiles/1/avatar.png", result.iconUrl());
     }
 
     @Test

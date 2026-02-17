@@ -60,8 +60,8 @@ class ProfileControllerTest {
             ResponseEntity<ProfileDto> response = profileController.getProfile(jwt);
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-            assertThat(response.getBody().getName()).isEqualTo("テストユーザー");
-            assertThat(response.getBody().getBio()).isEqualTo("テスト自己紹介");
+            assertThat(response.getBody().name()).isEqualTo("テストユーザー");
+            assertThat(response.getBody().bio()).isEqualTo("テスト自己紹介");
         }
 
         @Test

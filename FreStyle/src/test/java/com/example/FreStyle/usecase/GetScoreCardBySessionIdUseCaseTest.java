@@ -160,6 +160,8 @@ class GetScoreCardBySessionIdUseCaseTest {
 
             assertThat(result.scores()).hasSize(4);
             assertThat(result.overallScore()).isEqualTo(7.5);
+            verify(communicationScoreRepository).findBySessionId(sessionId);
+            verify(mapper).toScoreCardDto(sessionId, entities);
         }
 
     // ヘルパーメソッド

@@ -108,6 +108,22 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    @DisplayName("IllegalStateExceptionで400を返す")
+    void returnsBadRequestOnIllegalStateException() {
+        WebRequest request = mockRequest("/api/chat/users/1/create");
+        IllegalStateException ex = new IllegalStateException("無効な状態です");
+
+        ResponseEntity<ErrorResponseDto> response = handler.handleIllegalStateException(ex, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getStatus()).isEqualTo(400);
+        assertThat(response.getBody().getError()).isEqualTo("Bad Request");
+        assertThat(response.getBody().getMessage()).isEqualTo("無効な状態です");
+        assertThat(response.getBody().getPath()).isEqualTo("/api/chat/users/1/create");
+    }
+
+    @Test
     @DisplayName("エラーレスポンスにタイムスタンプが含まれる")
     void responseContainsTimestamp() {
         WebRequest request = mockRequest("/api/test");

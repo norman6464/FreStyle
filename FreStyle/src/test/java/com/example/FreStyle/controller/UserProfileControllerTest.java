@@ -1,6 +1,7 @@
 package com.example.FreStyle.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 import org.junit.jupiter.api.DisplayName;
@@ -84,14 +85,6 @@ class UserProfileControllerTest {
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         }
-
-        @Test
-        @DisplayName("JWTがnullの場合401を返す")
-        void returns401WhenJwtNull() {
-            ResponseEntity<?> response = userProfileController.getMyProfile(null);
-
-            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-        }
     }
 
     @Nested
@@ -111,24 +104,15 @@ class UserProfileControllerTest {
         }
 
         @Test
-        @DisplayName("JWTがnullの場合401を返す")
-        void returns401WhenJwtNull() {
-            ResponseEntity<?> response = userProfileController.createMyProfile(null, new UserProfileForm());
-
-            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-        }
-
-        @Test
-        @DisplayName("既に存在する場合400を返す")
-        void returns400WhenAlreadyExists() {
+        @DisplayName("既に存在する場合は例外がスローされる")
+        void throwsWhenAlreadyExists() {
             Jwt jwt = mockJwt("sub-123");
             UserProfileForm form = new UserProfileForm();
             when(createUserProfileUseCase.execute("sub-123", form))
                     .thenThrow(new RuntimeException("プロファイルは既に存在します。"));
 
-            ResponseEntity<?> response = userProfileController.createMyProfile(jwt, form);
-
-            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+            assertThatThrownBy(() -> userProfileController.createMyProfile(jwt, form))
+                    .isInstanceOf(RuntimeException.class);
         }
     }
 
@@ -149,16 +133,15 @@ class UserProfileControllerTest {
         }
 
         @Test
-        @DisplayName("存在しない場合400を返す")
-        void returns400WhenNotFound() {
+        @DisplayName("存在しない場合は例外がスローされる")
+        void throwsWhenNotFound() {
             Jwt jwt = mockJwt("sub-123");
             UserProfileForm form = new UserProfileForm();
             when(updateUserProfileUseCase.execute("sub-123", form))
                     .thenThrow(new RuntimeException("プロファイルが見つかりません。"));
 
-            ResponseEntity<?> response = userProfileController.updateMyProfile(jwt, form);
-
-            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+            assertThatThrownBy(() -> userProfileController.updateMyProfile(jwt, form))
+                    .isInstanceOf(RuntimeException.class);
         }
     }
 
@@ -195,15 +178,14 @@ class UserProfileControllerTest {
         }
 
         @Test
-        @DisplayName("存在しない場合400を返す")
-        void returns400WhenNotFound() {
+        @DisplayName("存在しない場合は例外がスローされる")
+        void throwsWhenNotFound() {
             Jwt jwt = mockJwt("sub-123");
             doThrow(new RuntimeException("プロファイルが見つかりません。"))
                     .when(deleteUserProfileUseCase).execute("sub-123");
 
-            ResponseEntity<?> response = userProfileController.deleteMyProfile(jwt);
-
-            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+            assertThatThrownBy(() -> userProfileController.deleteMyProfile(jwt))
+                    .isInstanceOf(RuntimeException.class);
         }
     }
 }

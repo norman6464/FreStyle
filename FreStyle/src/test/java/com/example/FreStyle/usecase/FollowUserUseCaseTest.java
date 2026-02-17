@@ -6,6 +6,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import org.springframework.dao.DataIntegrityViolationException;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -98,5 +100,17 @@ class FollowUserUseCaseTest {
     void execute_cannotFollowSelf() {
         assertThatThrownBy(() -> followUserUseCase.execute(follower, follower))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("レース条件でDB制約違反が発生した場合はIllegalArgumentExceptionに変換される")
+    void execute_raceConditionThrowsIllegalArgument() {
+        when(friendshipRepository.existsByFollowerIdAndFollowingId(1, 2)).thenReturn(false);
+        when(friendshipRepository.save(any(Friendship.class)))
+                .thenThrow(new DataIntegrityViolationException("Duplicate entry"));
+
+        assertThatThrownBy(() -> followUserUseCase.execute(follower, following))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("既にフォローしています");
     }
 }

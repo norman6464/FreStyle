@@ -109,12 +109,47 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
 
+    /**
+     * IllegalStateException のハンドラー
+     *
+     * <p>不正な状態遷移の場合に400 Bad Requestを返却</p>
+     *
+     * @param ex IllegalStateException
+     * @param request WebRequest
+     * @return エラーレスポンス（400 Bad Request）
+     */
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ErrorResponseDto> handleIllegalStateException(
+            IllegalStateException ex,
+            WebRequest request
+    ) {
+        log.warn("❌ 不正な状態: {}", ex.getMessage());
+
+        ErrorResponseDto error = ErrorResponseDto.of(
+            HttpStatus.BAD_REQUEST.value(),
+            "Bad Request",
+            ex.getMessage(),
+            request.getDescription(false).replace("uri=", "")
+        );
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    /**
+     * IllegalArgumentException のハンドラー
+     *
+     * <p>不正な引数の場合に400 Bad Requestを返却</p>
+     *
+     * @param ex IllegalArgumentException
+     * @param request WebRequest
+     * @return エラーレスポンス（400 Bad Request）
+     */
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorResponseDto> handleIllegalArgumentException(
             IllegalArgumentException ex,
             WebRequest request
     ) {
-        log.warn("不正な引数: {}", ex.getMessage());
+        log.warn("❌ 不正な引数: {}", ex.getMessage());
 
         ErrorResponseDto error = ErrorResponseDto.of(
             HttpStatus.BAD_REQUEST.value(),

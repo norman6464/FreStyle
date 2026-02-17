@@ -210,7 +210,7 @@ CREATE TABLE IF NOT EXISTS friendships (
     id INT PRIMARY KEY AUTO_INCREMENT,
     follower_id INT NOT NULL,
     following_id INT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     UNIQUE KEY uk_follower_following (follower_id, following_id),
     FOREIGN KEY (follower_id) REFERENCES users(id) ON DELETE CASCADE,

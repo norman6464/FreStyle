@@ -1,8 +1,9 @@
 package com.example.FreStyle.controller;
 
-import com.example.FreStyle.dto.PresignedUrlRequest;
-import com.example.FreStyle.dto.PresignedUrlResponse;
-import com.example.FreStyle.usecase.GeneratePresignedUrlUseCase;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.*;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -13,12 +14,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.oauth2.jwt.Jwt;
 
-import java.util.Map;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.*;
+import com.example.FreStyle.dto.PresignedUrlRequest;
+import com.example.FreStyle.dto.PresignedUrlResponse;
+import com.example.FreStyle.usecase.GeneratePresignedUrlUseCase;
 
 @ExtendWith(MockitoExtension.class)
+@DisplayName("NoteImageController")
 class NoteImageControllerTest {
 
     @Mock
@@ -54,58 +55,25 @@ class NoteImageControllerTest {
     }
 
     @Test
-    @DisplayName("不正なcontentTypeは400エラーを返す")
-    void shouldReturn400ForInvalidContentType() {
+    @DisplayName("不正なcontentTypeは例外がスローされる")
+    void shouldThrowOnInvalidContentType() {
         when(generatePresignedUrlUseCase.execute("test-sub", "note1", "file.exe", "application/octet-stream"))
                 .thenThrow(new IllegalArgumentException("許可されていないファイル形式です"));
 
-        ResponseEntity<?> response = noteImageController.getPresignedUrl(
+        assertThatThrownBy(() -> noteImageController.getPresignedUrl(
                 jwt, "note1", new PresignedUrlRequest("file.exe", "application/octet-stream")
-        );
-
-        assertThat(response.getStatusCode().value()).isEqualTo(400);
-    }
-
-    @SuppressWarnings("unchecked")
-    @Test
-    @DisplayName("不正なcontentType時のエラーレスポンスにメッセージが含まれる")
-    void shouldReturn400WithErrorMessage() {
-        when(generatePresignedUrlUseCase.execute("test-sub", "note1", "file.exe", "application/octet-stream"))
-                .thenThrow(new IllegalArgumentException("許可されていないファイル形式です"));
-
-        ResponseEntity<?> response = noteImageController.getPresignedUrl(
-                jwt, "note1", new PresignedUrlRequest("file.exe", "application/octet-stream")
-        );
-
-        Map<String, String> body = (Map<String, String>) response.getBody();
-        assertThat(body).containsEntry("error", "許可されていないファイル形式です");
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("許可されていないファイル形式です");
     }
 
     @Test
-    @DisplayName("S3エラー時は500エラーを返す")
-    void shouldReturn500ForS3Error() {
+    @DisplayName("S3エラー時は例外がスローされる")
+    void shouldThrowOnS3Error() {
         when(generatePresignedUrlUseCase.execute("test-sub", "note1", "image.png", "image/png"))
                 .thenThrow(new RuntimeException("S3 connection failed"));
 
-        ResponseEntity<?> response = noteImageController.getPresignedUrl(
+        assertThatThrownBy(() -> noteImageController.getPresignedUrl(
                 jwt, "note1", new PresignedUrlRequest("image.png", "image/png")
-        );
-
-        assertThat(response.getStatusCode().value()).isEqualTo(500);
-    }
-
-    @SuppressWarnings("unchecked")
-    @Test
-    @DisplayName("S3エラー時のエラーレスポンスに固定メッセージが含まれる")
-    void shouldReturn500WithFixedErrorMessage() {
-        when(generatePresignedUrlUseCase.execute("test-sub", "note1", "image.png", "image/png"))
-                .thenThrow(new RuntimeException("S3 connection failed"));
-
-        ResponseEntity<?> response = noteImageController.getPresignedUrl(
-                jwt, "note1", new PresignedUrlRequest("image.png", "image/png")
-        );
-
-        Map<String, String> body = (Map<String, String>) response.getBody();
-        assertThat(body).containsEntry("error", "画像アップロードの準備に失敗しました");
+        )).isInstanceOf(RuntimeException.class);
     }
 }

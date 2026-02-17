@@ -1,6 +1,7 @@
 package com.example.FreStyle.usecase;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 import org.junit.jupiter.api.DisplayName;
@@ -54,5 +55,31 @@ class GetUserProfileUseCaseTest {
         UserProfileDto result = useCase.execute("sub-123");
 
         assertThat(result).isNull();
+    }
+
+    @Test
+    @DisplayName("findUserBySubとgetProfileByUserIdが正しく呼び出される")
+    void verifiesServiceCalls() {
+        User user = new User();
+        user.setId(20);
+        when(userIdentityService.findUserBySub("sub-456")).thenReturn(user);
+        UserProfileDto dto = new UserProfileDto(null, 20, "ユーザー2", null, null, null, null, null, null);
+        when(userProfileService.getProfileByUserId(20)).thenReturn(dto);
+
+        useCase.execute("sub-456");
+
+        verify(userIdentityService).findUserBySub("sub-456");
+        verify(userProfileService).getProfileByUserId(20);
+    }
+
+    @Test
+    @DisplayName("userIdentityServiceが例外をスローした場合そのまま伝搬する")
+    void propagatesExceptionFromUserIdentityService() {
+        when(userIdentityService.findUserBySub("invalid-sub"))
+                .thenThrow(new RuntimeException("ユーザーが見つかりません"));
+
+        assertThatThrownBy(() -> useCase.execute("invalid-sub"))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("ユーザーが見つかりません");
     }
 }

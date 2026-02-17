@@ -58,4 +58,33 @@ class CreateUserProfileUseCaseTest {
         assertThatThrownBy(() -> useCase.execute("sub-123", form))
                 .isInstanceOf(RuntimeException.class);
     }
+
+    @Test
+    @DisplayName("findUserBySubとcreateProfileが正しく呼び出される")
+    void verifiesServiceCalls() {
+        User user = new User();
+        user.setId(5);
+        when(userIdentityService.findUserBySub("sub-xyz")).thenReturn(user);
+        UserProfileForm form = new UserProfileForm();
+        UserProfileDto dto = new UserProfileDto(null, 5, "テスト", null, null, null, null, null, null);
+        when(userProfileService.createProfile(user, form)).thenReturn(dto);
+
+        useCase.execute("sub-xyz", form);
+
+        verify(userIdentityService).findUserBySub("sub-xyz");
+        verify(userProfileService).createProfile(user, form);
+    }
+
+    @Test
+    @DisplayName("userIdentityServiceが例外をスローした場合そのまま伝搬する")
+    void propagatesExceptionFromUserIdentityService() {
+        when(userIdentityService.findUserBySub("unknown-sub"))
+                .thenThrow(new RuntimeException("ユーザーが見つかりません"));
+
+        UserProfileForm form = new UserProfileForm();
+
+        assertThatThrownBy(() -> useCase.execute("unknown-sub", form))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("ユーザーが見つかりません");
+    }
 }

@@ -6,7 +6,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
-import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -20,6 +19,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.oauth2.jwt.Jwt;
 
+import com.example.FreStyle.dto.FollowStatusDto;
 import com.example.FreStyle.dto.FriendshipDto;
 import com.example.FreStyle.entity.User;
 import com.example.FreStyle.service.UserIdentityService;
@@ -151,13 +151,13 @@ class FriendshipControllerTest {
         @Test
         @DisplayName("フォロー状態を確認できる")
         void returnsFollowStatus() {
-            Map<String, Object> status = Map.of("isFollowing", true, "isFollowedBy", false, "isMutual", false);
+            FollowStatusDto status = new FollowStatusDto(true, false, false);
             when(checkFollowStatusUseCase.execute(1, 2)).thenReturn(status);
 
-            ResponseEntity<Map<String, Object>> response = friendshipController.checkFollowStatus(mockJwt, 2);
+            ResponseEntity<FollowStatusDto> response = friendshipController.checkFollowStatus(mockJwt, 2);
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-            assertThat(response.getBody().get("isFollowing")).isEqualTo(true);
+            assertThat(response.getBody().isFollowing()).isTrue();
         }
     }
 }

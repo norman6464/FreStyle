@@ -3,8 +3,6 @@ package com.example.FreStyle.usecase;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
-import java.util.Map;
-
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -12,6 +10,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.example.FreStyle.dto.FollowStatusDto;
 import com.example.FreStyle.repository.FriendshipRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -30,11 +29,11 @@ class CheckFollowStatusUseCaseTest {
         when(friendshipRepository.existsByFollowerIdAndFollowingId(1, 2)).thenReturn(true);
         when(friendshipRepository.existsByFollowerIdAndFollowingId(2, 1)).thenReturn(true);
 
-        Map<String, Object> result = checkFollowStatusUseCase.execute(1, 2);
+        FollowStatusDto result = checkFollowStatusUseCase.execute(1, 2);
 
-        assertThat(result.get("isFollowing")).isEqualTo(true);
-        assertThat(result.get("isFollowedBy")).isEqualTo(true);
-        assertThat(result.get("isMutual")).isEqualTo(true);
+        assertThat(result.isFollowing()).isTrue();
+        assertThat(result.isFollowedBy()).isTrue();
+        assertThat(result.isMutual()).isTrue();
     }
 
     @Test
@@ -43,11 +42,11 @@ class CheckFollowStatusUseCaseTest {
         when(friendshipRepository.existsByFollowerIdAndFollowingId(1, 2)).thenReturn(true);
         when(friendshipRepository.existsByFollowerIdAndFollowingId(2, 1)).thenReturn(false);
 
-        Map<String, Object> result = checkFollowStatusUseCase.execute(1, 2);
+        FollowStatusDto result = checkFollowStatusUseCase.execute(1, 2);
 
-        assertThat(result.get("isFollowing")).isEqualTo(true);
-        assertThat(result.get("isFollowedBy")).isEqualTo(false);
-        assertThat(result.get("isMutual")).isEqualTo(false);
+        assertThat(result.isFollowing()).isTrue();
+        assertThat(result.isFollowedBy()).isFalse();
+        assertThat(result.isMutual()).isFalse();
     }
 
     @Test
@@ -56,10 +55,10 @@ class CheckFollowStatusUseCaseTest {
         when(friendshipRepository.existsByFollowerIdAndFollowingId(1, 2)).thenReturn(false);
         when(friendshipRepository.existsByFollowerIdAndFollowingId(2, 1)).thenReturn(false);
 
-        Map<String, Object> result = checkFollowStatusUseCase.execute(1, 2);
+        FollowStatusDto result = checkFollowStatusUseCase.execute(1, 2);
 
-        assertThat(result.get("isFollowing")).isEqualTo(false);
-        assertThat(result.get("isFollowedBy")).isEqualTo(false);
-        assertThat(result.get("isMutual")).isEqualTo(false);
+        assertThat(result.isFollowing()).isFalse();
+        assertThat(result.isFollowedBy()).isFalse();
+        assertThat(result.isMutual()).isFalse();
     }
 }

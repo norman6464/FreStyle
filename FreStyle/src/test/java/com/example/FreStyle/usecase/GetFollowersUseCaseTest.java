@@ -59,8 +59,8 @@ class GetFollowersUseCaseTest {
 
         when(friendshipRepository.findByFollowingIdOrderByCreatedAtDesc(1))
                 .thenReturn(List.of(f1, f2));
-        when(friendshipRepository.existsByFollowerIdAndFollowingId(1, 2)).thenReturn(true);
-        when(friendshipRepository.existsByFollowerIdAndFollowingId(1, 3)).thenReturn(false);
+        when(friendshipRepository.findMutualFollowingIds(List.of(2, 3), 1))
+                .thenReturn(List.of(2));
 
         List<FriendshipDto> result = getFollowersUseCase.execute(1);
 

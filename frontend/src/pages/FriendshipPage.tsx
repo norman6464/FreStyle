@@ -37,6 +37,7 @@ function FriendCard({ user, onUnfollow, showUnfollow }: { user: FriendshipUser; 
           onClick={() => onUnfollow(user.userId)}
           className="p-1.5 rounded-md text-[var(--color-text-muted)] hover:bg-red-900/30 hover:text-red-400 transition-colors"
           title="フォロー解除"
+          aria-label="フォロー解除"
         >
           <UserMinusIcon className="w-4 h-4" />
         </button>

@@ -90,7 +90,7 @@ class FollowUserUseCaseTest {
         when(friendshipRepository.existsByFollowerIdAndFollowingId(1, 2)).thenReturn(true);
 
         assertThatThrownBy(() -> followUserUseCase.execute(follower, following))
-                .isInstanceOf(IllegalStateException.class);
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

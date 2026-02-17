@@ -67,6 +67,36 @@ class NoteImageControllerTest {
     }
 
     @Test
+    @DisplayName("レスポンスにimageUrlも含まれる")
+    void shouldReturnCdnUrlInResponse() {
+        PresignedUrlResponse expected = new PresignedUrlResponse(
+                "https://s3.example.com/upload", "https://cdn.example.com/notes/1/note1/abc_image.png"
+        );
+        when(generatePresignedUrlUseCase.execute("test-sub", "note1", "image.png", "image/png"))
+                .thenReturn(expected);
+
+        ResponseEntity<?> response = noteImageController.getPresignedUrl(
+                jwt, "note1", new PresignedUrlRequest("image.png", "image/png")
+        );
+
+        PresignedUrlResponse body = (PresignedUrlResponse) response.getBody();
+        assertThat(body.imageUrl()).isEqualTo("https://cdn.example.com/notes/1/note1/abc_image.png");
+    }
+
+    @Test
+    @DisplayName("UseCaseに正しい引数が渡される")
+    void shouldPassCorrectArgumentsToUseCase() {
+        when(generatePresignedUrlUseCase.execute("test-sub", "noteXYZ", "photo.jpg", "image/jpeg"))
+                .thenReturn(new PresignedUrlResponse("https://s3.example.com/upload", "https://cdn.example.com/photo.jpg"));
+
+        noteImageController.getPresignedUrl(
+                jwt, "noteXYZ", new PresignedUrlRequest("photo.jpg", "image/jpeg")
+        );
+
+        verify(generatePresignedUrlUseCase).execute("test-sub", "noteXYZ", "photo.jpg", "image/jpeg");
+    }
+
+    @Test
     @DisplayName("S3エラー時は例外がスローされる")
     void shouldThrowOnS3Error() {
         when(generatePresignedUrlUseCase.execute("test-sub", "note1", "image.png", "image/png"))

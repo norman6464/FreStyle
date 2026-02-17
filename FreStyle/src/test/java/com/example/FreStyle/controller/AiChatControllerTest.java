@@ -31,6 +31,8 @@ import com.example.FreStyle.usecase.GetAiChatSessionsByUserIdUseCase;
 import com.example.FreStyle.usecase.UpdateAiChatSessionTitleUseCase;
 import com.example.FreStyle.usecase.GetAiChatMessagesBySessionIdUseCase;
 import com.example.FreStyle.usecase.AddAiChatMessageUseCase;
+import com.example.FreStyle.usecase.GetPracticeSessionSummaryUseCase;
+import com.example.FreStyle.dto.PracticeSessionSummaryDto;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("AiChatController")
@@ -46,6 +48,7 @@ class AiChatControllerTest {
     @Mock private DeleteAiChatSessionUseCase deleteAiChatSessionUseCase;
     @Mock private GetAiChatMessagesBySessionIdUseCase getAiChatMessagesBySessionIdUseCase;
     @Mock private AddAiChatMessageUseCase addAiChatMessageUseCase;
+    @Mock private GetPracticeSessionSummaryUseCase getPracticeSessionSummaryUseCase;
 
     @InjectMocks
     private AiChatController aiChatController;
@@ -264,6 +267,30 @@ class AiChatControllerTest {
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
             assertThat(response.getBody().id()).isEqualTo(101);
+        }
+    }
+
+    @Nested
+    @DisplayName("getSessionSummary")
+    class GetSessionSummary {
+
+        @Test
+        @DisplayName("セッションサマリーを返す")
+        void returnsSummary() {
+            Jwt jwt = mockJwt("sub-123");
+            User user = createUser(10);
+            PracticeSessionSummaryDto summary = new PracticeSessionSummaryDto(
+                    1, "テスト", "practice", "meeting", null, 5L,
+                    List.of(), 80.0, "論理的構成力", "配慮表現", null, "シナリオ名");
+            when(userIdentityService.findUserBySub("sub-123")).thenReturn(user);
+            when(getPracticeSessionSummaryUseCase.execute(1, 10)).thenReturn(summary);
+
+            ResponseEntity<PracticeSessionSummaryDto> response = aiChatController.getSessionSummary(jwt, 1);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(response.getBody().sessionId()).isEqualTo(1);
+            assertThat(response.getBody().averageScore()).isEqualTo(80.0);
+            verify(getPracticeSessionSummaryUseCase).execute(1, 10);
         }
     }
 }

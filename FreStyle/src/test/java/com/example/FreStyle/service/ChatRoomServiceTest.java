@@ -56,4 +56,32 @@ class ChatRoomServiceTest {
                 () -> chatRoomService.findChatRoomById(1));
         assertEquals("DB接続エラー", ex.getMessage());
     }
+
+    @Test
+    @DisplayName("findChatRoomById: 返却されたChatRoomオブジェクトが同一インスタンスである")
+    void findChatRoomById_returnsSameInstance() {
+        ChatRoom room = new ChatRoom();
+        room.setId(42);
+        when(chatRoomRepository.findById(42)).thenReturn(Optional.of(room));
+
+        ChatRoom result = chatRoomService.findChatRoomById(42);
+
+        assertEquals(42, result.getId());
+        assertSame(room, result);
+    }
+
+    @Test
+    @DisplayName("findChatRoomById: 異なるIDで存在しないルームはそれぞれ例外をスローする")
+    void findChatRoomById_throwsForDifferentNonExistentIds() {
+        when(chatRoomRepository.findById(100)).thenReturn(Optional.empty());
+        when(chatRoomRepository.findById(200)).thenReturn(Optional.empty());
+
+        RuntimeException ex1 = assertThrows(RuntimeException.class,
+                () -> chatRoomService.findChatRoomById(100));
+        assertEquals("ルームが存在しません。", ex1.getMessage());
+
+        RuntimeException ex2 = assertThrows(RuntimeException.class,
+                () -> chatRoomService.findChatRoomById(200));
+        assertEquals("ルームが存在しません。", ex2.getMessage());
+    }
 }

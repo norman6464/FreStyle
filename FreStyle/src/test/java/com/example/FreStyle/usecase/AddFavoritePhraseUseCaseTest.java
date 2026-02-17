@@ -1,6 +1,8 @@
 package com.example.FreStyle.usecase;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.*;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -54,5 +56,45 @@ class AddFavoritePhraseUseCaseTest {
         addFavoritePhraseUseCase.execute(testUser, "確認お願い", "ご確認ください", "フォーマル版");
 
         verify(favoritePhraseRepository, never()).save(any(FavoritePhrase.class));
+    }
+
+    @Test
+    @DisplayName("保存時にFavoritePhraseの各フィールドが正しくセットされる")
+    void execute_SetsCorrectFields() {
+        when(favoritePhraseRepository.existsByUserIdAndRephrasedTextAndPattern(1, "お世話になっております", "ビジネス版"))
+                .thenReturn(false);
+
+        addFavoritePhraseUseCase.execute(testUser, "こんにちは", "お世話になっております", "ビジネス版");
+
+        verify(favoritePhraseRepository).save(argThat(phrase ->
+                phrase.getUser().getId().equals(1) &&
+                "こんにちは".equals(phrase.getOriginalText()) &&
+                "お世話になっております".equals(phrase.getRephrasedText()) &&
+                "ビジネス版".equals(phrase.getPattern())
+        ));
+    }
+
+    @Test
+    @DisplayName("異なるパターンの同一フレーズは重複とみなされない")
+    void execute_DifferentPatternIsNotDuplicate() {
+        when(favoritePhraseRepository.existsByUserIdAndRephrasedTextAndPattern(1, "ご確認ください", "カジュアル版"))
+                .thenReturn(false);
+
+        addFavoritePhraseUseCase.execute(testUser, "確認お願い", "ご確認ください", "カジュアル版");
+
+        verify(favoritePhraseRepository).save(any(FavoritePhrase.class));
+    }
+
+    @Test
+    @DisplayName("リポジトリが例外をスローした場合そのまま伝搬する")
+    void execute_PropagatesRepositoryException() {
+        when(favoritePhraseRepository.existsByUserIdAndRephrasedTextAndPattern(1, "テスト", "パターン"))
+                .thenReturn(false);
+        when(favoritePhraseRepository.save(any(FavoritePhrase.class)))
+                .thenThrow(new RuntimeException("DB接続エラー"));
+
+        assertThatThrownBy(() -> addFavoritePhraseUseCase.execute(testUser, "元", "テスト", "パターン"))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("DB接続エラー");
     }
 }

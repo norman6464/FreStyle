@@ -98,7 +98,8 @@ public class CognitoCallbackUseCase {
         formData.add("redirect_uri", redirectUri);
         formData.add("client_id", clientId);
 
-        return webClient.post()
+        long start = System.currentTimeMillis();
+        Map<String, Object> result = webClient.post()
                 .uri(tokenUri)
                 .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_FORM_URLENCODED_VALUE)
                 .header(HttpHeaders.AUTHORIZATION, "Basic " + basicAuthValue)
@@ -106,5 +107,7 @@ public class CognitoCallbackUseCase {
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
                 .block();
+        log.info("[COGNITO-TIMING] exchangeCodeForTokens: {}ms", System.currentTimeMillis() - start);
+        return result;
     }
 }

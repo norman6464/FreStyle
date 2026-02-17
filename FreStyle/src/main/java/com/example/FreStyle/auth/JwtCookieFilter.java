@@ -54,6 +54,13 @@ public class JwtCookieFilter extends OncePerRequestFilter {
             }
         }
 
+        long start = System.currentTimeMillis();
         filterChain.doFilter(wrappedRequest, response);
+        long elapsed = System.currentTimeMillis() - start;
+        if (elapsed > 100) {
+            log.warn("[REQUEST-TIMING] {} {} - {}ms (status={})", request.getMethod(), request.getRequestURI(), elapsed, response.getStatus());
+        } else {
+            log.info("[REQUEST-TIMING] {} {} - {}ms (status={})", request.getMethod(), request.getRequestURI(), elapsed, response.getStatus());
+        }
     }
 }

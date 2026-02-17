@@ -28,6 +28,11 @@ public class RequestTimingAspect {
         return timeMethod(joinPoint, "service");
     }
 
+    @Around("execution(* com.example.FreStyle.usecase..*(..))")
+    public Object timeUseCaseMethods(ProceedingJoinPoint joinPoint) throws Throwable {
+        return timeMethod(joinPoint, "usecase");
+    }
+
     private Object timeMethod(ProceedingJoinPoint joinPoint, String layer) throws Throwable {
         String className = joinPoint.getSignature().getDeclaringTypeName();
         String methodName = joinPoint.getSignature().getName();

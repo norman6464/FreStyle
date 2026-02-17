@@ -135,7 +135,9 @@ public class CognitoAuthService {
                 .authParameters(authParams)
                 .build();
 
+        long start = System.currentTimeMillis();
         InitiateAuthResponse response = cognitoClient.initiateAuth(authRequest);
+        log.info("[COGNITO-TIMING] login initiateAuth: {}ms", System.currentTimeMillis() - start);
         AuthenticationResultType result = response.authenticationResult();
 
         Map<String, String> tokens = new HashMap<>();
@@ -205,7 +207,9 @@ public class CognitoAuthService {
             .build();
 
         try {
+            long start = System.currentTimeMillis();
             InitiateAuthResponse response = cognitoClient.initiateAuth(authRequest);
+            log.info("[COGNITO-TIMING] refreshAccessToken initiateAuth: {}ms", System.currentTimeMillis() - start);
             AuthenticationResultType result = response.authenticationResult();
 
             log.debug("トークン再発行成功");

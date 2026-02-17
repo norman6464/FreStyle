@@ -1,6 +1,7 @@
 package com.example.FreStyle.usecase;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
@@ -62,5 +63,38 @@ class GetAiChatMessagesBySessionIdUseCaseTest {
         List<AiChatMessageResponseDto> result = useCase.execute(999);
 
         assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("repositoryとmapperが正しく呼び出される")
+    void verifiesRepositoryAndMapperCalls() {
+        AiChatMessage msg = new AiChatMessage();
+        msg.setId(10);
+        when(aiChatMessageRepository.findBySessionIdOrderByCreatedAtAsc(5))
+                .thenReturn(List.of(msg));
+        when(mapper.toDto(msg))
+                .thenReturn(new AiChatMessageResponseDto(10, null, null, null, null, null));
+
+        useCase.execute(5);
+
+        verify(aiChatMessageRepository).findBySessionIdOrderByCreatedAtAsc(5);
+        verify(mapper).toDto(msg);
+    }
+
+    @Test
+    @DisplayName("単一メッセージの場合でも正しく返す")
+    void shouldReturnSingleMessage() {
+        AiChatMessage msg = new AiChatMessage();
+        msg.setId(42);
+        when(aiChatMessageRepository.findBySessionIdOrderByCreatedAtAsc(3))
+                .thenReturn(List.of(msg));
+        when(mapper.toDto(msg))
+                .thenReturn(new AiChatMessageResponseDto(42, null, null, null, "hello", null));
+
+        List<AiChatMessageResponseDto> result = useCase.execute(3);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.getFirst().id()).isEqualTo(42);
+        assertThat(result.getFirst().content()).isEqualTo("hello");
     }
 }

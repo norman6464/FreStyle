@@ -63,7 +63,7 @@ class SaveSessionNoteUseCaseTest {
 
     @Test
     @DisplayName("既存メモ更新時にUserとSessionIdが変更されない")
-    void updatesExistingNote_preservesUserAndSessionId() {
+    void updatesExistingNotePreservesUserAndSessionId() {
         User user = new User();
         user.setId(1);
         SessionNote existing = new SessionNote();
@@ -82,7 +82,7 @@ class SaveSessionNoteUseCaseTest {
 
     @Test
     @DisplayName("異なるセッションIDで別のメモが新規作成される")
-    void createsNewNote_differentSessionId() {
+    void createsNewNoteWithDifferentSessionId() {
         User user = new User();
         user.setId(1);
         when(sessionNoteRepository.findByUserIdAndSessionId(1, 200))

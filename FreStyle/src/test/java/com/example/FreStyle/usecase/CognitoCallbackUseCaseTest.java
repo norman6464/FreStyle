@@ -187,7 +187,9 @@ class CognitoCallbackUseCaseTest {
 
             assertThatThrownBy(() -> cognitoCallbackUseCase.execute("auth-code-123"))
                     .isInstanceOf(RuntimeException.class)
-                    .hasMessage("DB接続エラー");
+                    .hasMessage("DB接続エラー")
+                    .hasCauseInstanceOf(RuntimeException.class)
+                    .hasRootCauseMessage("DB接続エラー");
         }
     }
 

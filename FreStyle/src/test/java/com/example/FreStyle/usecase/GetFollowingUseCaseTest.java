@@ -1,6 +1,7 @@
 package com.example.FreStyle.usecase;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
@@ -80,5 +81,41 @@ class GetFollowingUseCaseTest {
         List<FriendshipDto> result = getFollowingUseCase.execute(1);
 
         assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("全フォロー先が相互フォローの場合mutualが全てtrue")
+    void execute_allMutual() {
+        Friendship f1 = new Friendship(1, user, target1, LocalDateTime.now());
+        Friendship f2 = new Friendship(2, user, target2, LocalDateTime.now());
+
+        when(friendshipRepository.findByFollowerIdOrderByCreatedAtDesc(1))
+                .thenReturn(List.of(f1, f2));
+        when(friendshipRepository.findMutualFollowerIds(List.of(2, 3), 1))
+                .thenReturn(List.of(2, 3));
+
+        List<FriendshipDto> result = getFollowingUseCase.execute(1);
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).mutual()).isTrue();
+        assertThat(result.get(1).mutual()).isTrue();
+    }
+
+    @Test
+    @DisplayName("リポジトリが正しいパラメータで呼び出される")
+    void execute_callsRepositoryWithCorrectParams() {
+        Friendship f = new Friendship(1, user, target1, LocalDateTime.now());
+
+        when(friendshipRepository.findByFollowerIdOrderByCreatedAtDesc(1))
+                .thenReturn(List.of(f));
+        when(friendshipRepository.findMutualFollowerIds(List.of(2), 1))
+                .thenReturn(List.of());
+
+        List<FriendshipDto> result = getFollowingUseCase.execute(1);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).username()).isEqualTo("ユーザーB");
+        verify(friendshipRepository).findByFollowerIdOrderByCreatedAtDesc(1);
+        verify(friendshipRepository).findMutualFollowerIds(List.of(2), 1);
     }
 }

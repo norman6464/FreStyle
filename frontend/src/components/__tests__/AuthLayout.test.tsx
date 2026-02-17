@@ -1,12 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import AuthLayout from '../AuthLayout';
 
 describe('AuthLayout', () => {
-  it('FreStyleロゴが表示される', () => {
-    render(<AuthLayout><div>テスト</div></AuthLayout>);
+  it('タイトルが表示される', () => {
+    render(<AuthLayout title="テストタイトル"><div>テスト</div></AuthLayout>);
 
-    expect(screen.getByText('FreStyle')).toBeInTheDocument();
+    expect(screen.getByText('テストタイトル')).toBeInTheDocument();
   });
 
   it('子要素が表示される', () => {
@@ -27,12 +28,6 @@ describe('AuthLayout', () => {
     expect(screen.getByText('要素2')).toBeInTheDocument();
   });
 
-  it('プライマリカラーのボーダーが適用される', () => {
-    const { container } = render(<AuthLayout><div>テスト</div></AuthLayout>);
-    const card = container.querySelector('.border-t-primary-500');
-    expect(card).toBeTruthy();
-  });
-
   it('中央寄せレイアウトが適用される', () => {
     const { container } = render(<AuthLayout><div>テスト</div></AuthLayout>);
     const wrapper = container.firstElementChild as HTMLElement;
@@ -43,7 +38,23 @@ describe('AuthLayout', () => {
 
   it('カードに角丸が適用される', () => {
     const { container } = render(<AuthLayout><div>テスト</div></AuthLayout>);
-    const card = container.querySelector('.rounded-2xl');
+    const card = container.querySelector('.rounded-xl');
     expect(card).toBeTruthy();
+  });
+
+  it('フッターが表示される', () => {
+    render(
+      <MemoryRouter>
+        <AuthLayout footer={<p>フッター内容</p>}><div>テスト</div></AuthLayout>
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('フッター内容')).toBeInTheDocument();
+  });
+
+  it('アイコンが表示される', () => {
+    const { container } = render(<AuthLayout><div>テスト</div></AuthLayout>);
+    const svg = container.querySelector('svg');
+    expect(svg).toBeTruthy();
   });
 });

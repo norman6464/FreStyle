@@ -130,6 +130,68 @@ class CognitoCallbackUseCaseTest {
     }
 
     @Test
+    @DisplayName("identitiesクレームがない場合はproviderがcognitoになる")
+    void usesCognitoProviderWhenNoIdentities() throws Exception {
+        User user = new User();
+        user.setId(2);
+
+        Map<String, Object> tokenResponse = Map.of(
+                "id_token", "id-token-value",
+                "access_token", "access-token-value",
+                "refresh_token", "refresh-token-value");
+
+        setupWebClientMock(Mono.just(tokenResponse));
+
+        JWTClaimsSet claims = new JWTClaimsSet.Builder()
+                .subject("sub-789")
+                .claim("name", "Cognitoユーザー")
+                .claim("email", "cognito@example.com")
+                .claim("cognito:username", "cognito_user")
+                .build();
+
+        when(userService.registerUserOIDC("Cognitoユーザー", "cognito@example.com", "cognito", "sub-789"))
+                .thenReturn(user);
+
+        try (MockedStatic<JwtUtils> jwtUtilsMock = mockStatic(JwtUtils.class)) {
+            jwtUtilsMock.when(() -> JwtUtils.decode("id-token-value"))
+                    .thenReturn(Optional.of(claims));
+
+            cognitoCallbackUseCase.execute("auth-code-123");
+
+            verify(userService).registerUserOIDC("Cognitoユーザー", "cognito@example.com", "cognito", "sub-789");
+        }
+    }
+
+    @Test
+    @DisplayName("registerUserOIDCが例外をスローした場合RuntimeExceptionにラップされる")
+    void wrapsExceptionFromRegisterUser() throws Exception {
+        Map<String, Object> tokenResponse = Map.of(
+                "id_token", "id-token-value",
+                "access_token", "access-token-value",
+                "refresh_token", "refresh-token-value");
+
+        setupWebClientMock(Mono.just(tokenResponse));
+
+        JWTClaimsSet claims = new JWTClaimsSet.Builder()
+                .subject("sub-error")
+                .claim("name", "エラーユーザー")
+                .claim("email", "error@example.com")
+                .build();
+
+        when(userService.registerUserOIDC("エラーユーザー", "error@example.com", "cognito", "sub-error"))
+                .thenThrow(new RuntimeException("DB接続エラー"));
+
+        try (MockedStatic<JwtUtils> jwtUtilsMock = mockStatic(JwtUtils.class)) {
+            jwtUtilsMock.when(() -> JwtUtils.decode("id-token-value"))
+                    .thenReturn(Optional.of(claims));
+
+            assertThatThrownBy(() -> cognitoCallbackUseCase.execute("auth-code-123"))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessage("DB接続エラー");
+        }
+    }
+
+    @Test
     @DisplayName("cognito:usernameがない場合はsubをcognitoUsernameとして使用する")
     void usesSubAsCognitoUsernameWhenAbsent() throws Exception {
         User user = new User();

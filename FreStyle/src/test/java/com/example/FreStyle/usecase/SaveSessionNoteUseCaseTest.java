@@ -60,4 +60,37 @@ class SaveSessionNoteUseCaseTest {
         verify(sessionNoteRepository).save(argThat(n ->
                 n.getId() == 10 && n.getNote().equals("更新メモ")));
     }
+
+    @Test
+    @DisplayName("既存メモ更新時にUserとSessionIdが変更されない")
+    void updatesExistingNote_preservesUserAndSessionId() {
+        User user = new User();
+        user.setId(1);
+        SessionNote existing = new SessionNote();
+        existing.setId(10);
+        existing.setUser(user);
+        existing.setSessionId(100);
+        existing.setNote("旧メモ");
+        when(sessionNoteRepository.findByUserIdAndSessionId(1, 100))
+                .thenReturn(Optional.of(existing));
+
+        useCase.execute(user, 100, "更新メモ");
+
+        verify(sessionNoteRepository).save(argThat(n ->
+                n.getUser().getId() == 1 && n.getSessionId() == 100));
+    }
+
+    @Test
+    @DisplayName("異なるセッションIDで別のメモが新規作成される")
+    void createsNewNote_differentSessionId() {
+        User user = new User();
+        user.setId(1);
+        when(sessionNoteRepository.findByUserIdAndSessionId(1, 200))
+                .thenReturn(Optional.empty());
+
+        useCase.execute(user, 200, "別セッションメモ");
+
+        verify(sessionNoteRepository).save(argThat(n ->
+                n.getSessionId() == 200 && n.getNote().equals("別セッションメモ")));
+    }
 }

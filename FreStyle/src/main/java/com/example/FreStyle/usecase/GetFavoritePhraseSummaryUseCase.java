@@ -32,7 +32,10 @@ public class GetFavoritePhraseSummaryUseCase {
                 .collect(Collectors.groupingBy(FavoritePhrase::getPattern, Collectors.counting()));
 
         List<FavoritePhraseSummaryDto.PatternCount> patternCounts = countByPattern.entrySet().stream()
-                .sorted(Map.Entry.<String, Long>comparingByValue(Comparator.reverseOrder()))
+                .sorted(
+                        Map.Entry.<String, Long>comparingByValue(Comparator.reverseOrder())
+                                .thenComparing(Map.Entry.comparingByKey())
+                )
                 .map(e -> new FavoritePhraseSummaryDto.PatternCount(e.getKey(), e.getValue()))
                 .toList();
 

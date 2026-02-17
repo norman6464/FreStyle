@@ -91,6 +91,7 @@ class GetFavoritePhraseSummaryUseCaseTest {
         assertThat(result.patternCounts()).hasSize(1);
         assertThat(result.patternCounts().get(0).pattern()).isEqualTo("email");
         assertThat(result.patternCounts().get(0).count()).isEqualTo(3);
+        verify(favoritePhraseRepository).findByUserIdOrderByCreatedAtDesc(1);
     }
 
     @Test
@@ -114,5 +115,6 @@ class GetFavoritePhraseSummaryUseCaseTest {
         assertThat(result.patternCounts().get(0).count()).isEqualTo(3);
         assertThat(result.patternCounts().get(1).count()).isEqualTo(2);
         assertThat(result.patternCounts().get(2).count()).isEqualTo(1);
+        verify(favoritePhraseRepository).findByUserIdOrderByCreatedAtDesc(1);
     }
 }

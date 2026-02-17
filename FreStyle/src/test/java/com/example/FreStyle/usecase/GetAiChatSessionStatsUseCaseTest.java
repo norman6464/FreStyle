@@ -106,4 +106,24 @@ class GetAiChatSessionStatsUseCaseTest {
                 .noneMatch(sc -> sc.scene() == null)).isTrue();
         verify(aiChatSessionRepository).findByUserIdOrderByCreatedAtDesc(1);
     }
+
+    @Test
+    @DisplayName("同数時はタイプ名昇順でソートされる")
+    void execute_typesWithEqualCountsSortedByNameAscending() {
+        List<AiChatSession> sessions = List.of(
+                session("normal", null),
+                session("practice", null),
+                session("normal", null),
+                session("practice", null)
+        );
+
+        when(aiChatSessionRepository.findByUserIdOrderByCreatedAtDesc(1)).thenReturn(sessions);
+
+        AiChatSessionStatsDto result = useCase.execute(1);
+
+        assertThat(result.sessionsByType()).hasSize(2);
+        assertThat(result.sessionsByType().getFirst().type()).isEqualTo("normal");
+        assertThat(result.sessionsByType().getLast().type()).isEqualTo("practice");
+        verify(aiChatSessionRepository).findByUserIdOrderByCreatedAtDesc(1);
+    }
 }

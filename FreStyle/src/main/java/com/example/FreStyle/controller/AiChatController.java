@@ -256,12 +256,18 @@ public class AiChatController {
         return ResponseEntity.ok(Map.of("result", result));
     }
 
+    /**
+     * セッション統計を取得
+     */
     @GetMapping("/session-stats")
     public ResponseEntity<AiChatSessionStatsDto> getSessionStats(
             @AuthenticationPrincipal Jwt jwt) {
+        log.info("========== GET /api/chat/ai/session-stats ==========");
+
         User user = resolveUser(jwt);
-        log.info("GET /api/chat/ai/session-stats - userId={}", user.getId());
         AiChatSessionStatsDto result = getAiChatSessionStatsUseCase.execute(user.getId());
+        log.info("✅ セッション統計取得成功 - userId={}", user.getId());
+
         return ResponseEntity.ok(result);
     }
 

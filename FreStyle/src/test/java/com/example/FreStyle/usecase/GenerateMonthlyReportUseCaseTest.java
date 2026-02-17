@@ -152,4 +152,71 @@ class GenerateMonthlyReportUseCaseTest {
         assertThat(result).isNotNull();
         assertThat(result.getId()).isEqualTo(50);
     }
+
+    @Test
+    @DisplayName("1月のレポート生成時に前月は前年12月を参照する")
+    void execute_januaryReport_checksPreviousDecember() {
+        LearningReport decReport = new LearningReport();
+        decReport.setId(99);
+        decReport.setAverageScore(85.0);
+
+        when(communicationScoreRepository.findByUserIdOrderByCreatedAtDesc(1))
+                .thenReturn(List.of());
+        when(learningReportRepository.findByUserIdAndYearAndMonth(1, 2025, 12))
+                .thenReturn(Optional.of(decReport));
+        when(learningReportRepository.findByUserIdAndYearAndMonth(1, 2026, 1))
+                .thenReturn(Optional.empty());
+        when(learningReportRepository.save(any(LearningReport.class)))
+                .thenAnswer(inv -> {
+                    LearningReport r = inv.getArgument(0);
+                    r.setId(102);
+                    return r;
+                });
+
+        LearningReportDto result = generateMonthlyReportUseCase.execute(testUser, 2026, 1);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getPreviousAverageScore()).isEqualTo(85.0);
+        verify(learningReportRepository).findByUserIdAndYearAndMonth(1, 2025, 12);
+    }
+
+    @Test
+    @DisplayName("全スコアが同じ軸の場合worstAxisはnullになる")
+    void execute_singleAxis_worstAxisIsNull() {
+        AiChatSession session = new AiChatSession();
+        session.setId(1);
+
+        CommunicationScore score1 = new CommunicationScore();
+        score1.setUser(testUser);
+        score1.setSession(session);
+        score1.setAxisName("論理的構成力");
+        score1.setScore(80);
+        score1.setCreatedAt(Timestamp.valueOf(LocalDateTime.of(2026, 3, 10, 10, 0)));
+
+        CommunicationScore score2 = new CommunicationScore();
+        score2.setUser(testUser);
+        score2.setSession(session);
+        score2.setAxisName("論理的構成力");
+        score2.setScore(90);
+        score2.setCreatedAt(Timestamp.valueOf(LocalDateTime.of(2026, 3, 15, 10, 0)));
+
+        when(communicationScoreRepository.findByUserIdOrderByCreatedAtDesc(1))
+                .thenReturn(List.of(score1, score2));
+        when(learningReportRepository.findByUserIdAndYearAndMonth(1, 2026, 2))
+                .thenReturn(Optional.empty());
+        when(learningReportRepository.findByUserIdAndYearAndMonth(1, 2026, 3))
+                .thenReturn(Optional.empty());
+        when(learningReportRepository.save(any(LearningReport.class)))
+                .thenAnswer(inv -> {
+                    LearningReport r = inv.getArgument(0);
+                    r.setId(103);
+                    return r;
+                });
+
+        LearningReportDto result = generateMonthlyReportUseCase.execute(testUser, 2026, 3);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getBestAxis()).isEqualTo("論理的構成力");
+        assertThat(result.getWorstAxis()).isNull();
+    }
 }

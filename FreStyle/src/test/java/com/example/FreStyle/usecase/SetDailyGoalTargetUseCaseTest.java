@@ -1,5 +1,6 @@
 package com.example.FreStyle.usecase;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
 import java.time.LocalDate;
@@ -93,5 +94,44 @@ class SetDailyGoalTargetUseCaseTest {
 
         verify(dailyGoalRepository).save(argThat(g ->
                 g.getGoalDate().equals(LocalDate.now())));
+    }
+
+    @Test
+    @DisplayName("ターゲットを複数回更新しても最後の値が反映される")
+    void execute_multipleUpdates_lastValueApplied() {
+        User user = new User();
+        user.setId(1);
+        DailyGoal goal = new DailyGoal();
+        goal.setUser(user);
+        goal.setGoalDate(LocalDate.now());
+        goal.setTarget(3);
+        goal.setCompleted(0);
+        when(dailyGoalRepository.findByUserIdAndGoalDate(1, LocalDate.now()))
+                .thenReturn(Optional.of(goal));
+
+        setDailyGoalTargetUseCase.execute(user, 5);
+        setDailyGoalTargetUseCase.execute(user, 10);
+
+        assertThat(goal.getTarget()).isEqualTo(10);
+        verify(dailyGoalRepository, times(2)).save(goal);
+    }
+
+    @Test
+    @DisplayName("completedがtargetを超えていても新しいtargetに更新できる")
+    void execute_completedExceedsTarget_stillUpdates() {
+        User user = new User();
+        user.setId(1);
+        DailyGoal goal = new DailyGoal();
+        goal.setUser(user);
+        goal.setGoalDate(LocalDate.now());
+        goal.setTarget(3);
+        goal.setCompleted(10);
+        when(dailyGoalRepository.findByUserIdAndGoalDate(1, LocalDate.now()))
+                .thenReturn(Optional.of(goal));
+
+        setDailyGoalTargetUseCase.execute(user, 2);
+
+        verify(dailyGoalRepository).save(argThat(g ->
+                g.getTarget() == 2 && g.getCompleted() == 10));
     }
 }

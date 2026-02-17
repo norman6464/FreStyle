@@ -75,9 +75,9 @@ class UserProfileServiceTest {
         UserProfileDto result = userProfileService.getProfileByUserId(1);
 
         assertNotNull(result);
-        assertEquals(10, result.getId());
-        assertEquals(1, result.getUserId());
-        assertEquals("表示名", result.getDisplayName());
+        assertEquals(10, result.id());
+        assertEquals(1, result.userId());
+        assertEquals("表示名", result.displayName());
     }
 
     @Test
@@ -100,7 +100,7 @@ class UserProfileServiceTest {
         UserProfileDto result = userProfileService.getProfileById(10);
 
         assertNotNull(result);
-        assertEquals(10, result.getId());
+        assertEquals(10, result.id());
     }
 
     @Test
@@ -130,8 +130,8 @@ class UserProfileServiceTest {
         UserProfileDto result = userProfileService.createProfile(user, form);
 
         assertNotNull(result);
-        assertEquals("新しい名前", result.getDisplayName());
-        assertEquals("casual", result.getCommunicationStyle());
+        assertEquals("新しい名前", result.displayName());
+        assertEquals("casual", result.communicationStyle());
         verify(userProfileRepository).save(any());
     }
 
@@ -160,8 +160,8 @@ class UserProfileServiceTest {
 
         UserProfileDto result = userProfileService.updateProfile(1, form);
 
-        assertEquals("新しい名前", result.getDisplayName());
-        assertEquals("新しい目標", result.getGoals());
+        assertEquals("新しい名前", result.displayName());
+        assertEquals("新しい目標", result.goals());
     }
 
     @Test
@@ -191,8 +191,8 @@ class UserProfileServiceTest {
         UserProfileDto result = userProfileService.createOrUpdateProfile(user, form);
 
         assertNotNull(result);
-        assertEquals(1, result.getUserId());
-        assertEquals("新しい名前", result.getDisplayName());
+        assertEquals(1, result.userId());
+        assertEquals("新しい名前", result.displayName());
     }
 
     @Test
@@ -208,8 +208,8 @@ class UserProfileServiceTest {
 
         UserProfileDto result = userProfileService.createOrUpdateProfile(user, form);
 
-        assertEquals(10, result.getId());
-        assertEquals("新しい名前", result.getDisplayName());
+        assertEquals(10, result.id());
+        assertEquals("新しい名前", result.displayName());
     }
 
     @Test
@@ -245,7 +245,7 @@ class UserProfileServiceTest {
         UserProfileDto result = userProfileService.getProfileByUserId(1);
 
         assertNotNull(result);
-        assertTrue(result.getPersonalityTraits().isEmpty());
+        assertTrue(result.personalityTraits().isEmpty());
     }
 
     @Test
@@ -278,7 +278,7 @@ class UserProfileServiceTest {
         UserProfileDto result = userProfileService.createProfile(user, form);
 
         assertNotNull(result);
-        assertTrue(result.getPersonalityTraits().isEmpty());
+        assertTrue(result.personalityTraits().isEmpty());
     }
 
     @Test
@@ -294,9 +294,9 @@ class UserProfileServiceTest {
         UserProfileDto result = userProfileService.getProfileByUserId(1);
 
         assertNotNull(result);
-        assertEquals(2, result.getPersonalityTraits().size());
-        assertEquals("明るい", result.getPersonalityTraits().get(0));
-        assertEquals("積極的", result.getPersonalityTraits().get(1));
+        assertEquals(2, result.personalityTraits().size());
+        assertEquals("明るい", result.personalityTraits().get(0));
+        assertEquals("積極的", result.personalityTraits().get(1));
     }
 
     @Test
@@ -308,14 +308,14 @@ class UserProfileServiceTest {
 
         UserProfileDto result = userProfileService.getProfileById(10);
 
-        assertEquals(10, result.getId());
-        assertEquals(1, result.getUserId());
-        assertEquals("表示名", result.getDisplayName());
-        assertEquals("自己紹介", result.getSelfIntroduction());
-        assertEquals("friendly", result.getCommunicationStyle());
-        assertEquals("目標", result.getGoals());
-        assertEquals("悩み", result.getConcerns());
-        assertEquals("gentle", result.getPreferredFeedbackStyle());
+        assertEquals(10, result.id());
+        assertEquals(1, result.userId());
+        assertEquals("表示名", result.displayName());
+        assertEquals("自己紹介", result.selfIntroduction());
+        assertEquals("friendly", result.communicationStyle());
+        assertEquals("目標", result.goals());
+        assertEquals("悩み", result.concerns());
+        assertEquals("gentle", result.preferredFeedbackStyle());
     }
 
     @Test
@@ -329,6 +329,6 @@ class UserProfileServiceTest {
         UserProfileDto result = userProfileService.getProfileByUserId(1);
 
         assertNotNull(result);
-        assertTrue(result.getPersonalityTraits().isEmpty());
+        assertTrue(result.personalityTraits().isEmpty());
     }
 }

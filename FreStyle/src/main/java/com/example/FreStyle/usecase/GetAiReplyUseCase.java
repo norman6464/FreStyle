@@ -70,19 +70,19 @@ public class GetAiReplyUseCase {
 
         if (userProfile != null) {
             log.info("✅ UserProfile取得成功");
-            String personalityTraits = userProfile.getPersonalityTraits() != null
-                ? String.join(", ", userProfile.getPersonalityTraits())
+            String personalityTraits = userProfile.personalityTraits() != null
+                ? String.join(", ", userProfile.personalityTraits())
                 : null;
 
             return bedrockService.chatWithUserProfileAndScene(
                 content, scene,
-                userProfile.getDisplayName(),
-                userProfile.getSelfIntroduction(),
-                userProfile.getCommunicationStyle(),
+                userProfile.displayName(),
+                userProfile.selfIntroduction(),
+                userProfile.communicationStyle(),
                 personalityTraits,
-                userProfile.getGoals(),
-                userProfile.getConcerns(),
-                userProfile.getPreferredFeedbackStyle()
+                userProfile.goals(),
+                userProfile.concerns(),
+                userProfile.preferredFeedbackStyle()
             );
         }
 

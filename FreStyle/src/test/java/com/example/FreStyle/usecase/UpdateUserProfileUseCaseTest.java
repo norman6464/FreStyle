@@ -37,13 +37,12 @@ class UpdateUserProfileUseCaseTest {
         user.setId(10);
         when(userIdentityService.findUserBySub("sub-123")).thenReturn(user);
         UserProfileForm form = new UserProfileForm();
-        UserProfileDto dto = new UserProfileDto();
-        dto.setDisplayName("更新済み");
+        UserProfileDto dto = new UserProfileDto(null, 10, "更新済み", null, null, null, null, null, null);
         when(userProfileService.updateProfile(10, form)).thenReturn(dto);
 
         UserProfileDto result = useCase.execute("sub-123", form);
 
-        assertThat(result.getDisplayName()).isEqualTo("更新済み");
+        assertThat(result.displayName()).isEqualTo("更新済み");
     }
 
     @Test

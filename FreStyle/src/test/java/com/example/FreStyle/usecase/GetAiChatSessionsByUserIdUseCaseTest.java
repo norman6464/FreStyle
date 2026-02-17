@@ -1,6 +1,7 @@
 package com.example.FreStyle.usecase;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
@@ -62,5 +63,38 @@ class GetAiChatSessionsByUserIdUseCaseTest {
         List<AiChatSessionDto> result = useCase.execute(999);
 
         assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("repositoryとmapperが正しく呼び出される")
+    void verifiesRepositoryAndMapperCalls() {
+        AiChatSession session = new AiChatSession();
+        session.setId(10);
+        when(aiChatSessionRepository.findByUserIdOrderByCreatedAtDesc(5))
+                .thenReturn(List.of(session));
+        when(mapper.toDto(session))
+                .thenReturn(new AiChatSessionDto(10, null, null, null, null, null, null, null, null));
+
+        useCase.execute(5);
+
+        verify(aiChatSessionRepository).findByUserIdOrderByCreatedAtDesc(5);
+        verify(mapper).toDto(session);
+    }
+
+    @Test
+    @DisplayName("単一セッションの場合でも正しく返す")
+    void shouldReturnSingleSession() {
+        AiChatSession session = new AiChatSession();
+        session.setId(42);
+        when(aiChatSessionRepository.findByUserIdOrderByCreatedAtDesc(3))
+                .thenReturn(List.of(session));
+        when(mapper.toDto(session))
+                .thenReturn(new AiChatSessionDto(42, null, "テストセッション", null, null, null, null, null, null));
+
+        List<AiChatSessionDto> result = useCase.execute(3);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.getFirst().id()).isEqualTo(42);
+        assertThat(result.getFirst().title()).isEqualTo("テストセッション");
     }
 }

@@ -51,4 +51,28 @@ class DeleteUserProfileUseCaseTest {
         assertThatThrownBy(() -> useCase.execute("sub-123"))
                 .isInstanceOf(RuntimeException.class);
     }
+
+    @Test
+    @DisplayName("findUserBySubとdeleteProfileが正しく呼び出される")
+    void verifiesServiceCalls() {
+        User user = new User();
+        user.setId(20);
+        when(userIdentityService.findUserBySub("sub-456")).thenReturn(user);
+
+        useCase.execute("sub-456");
+
+        verify(userIdentityService).findUserBySub("sub-456");
+        verify(userProfileService).deleteProfile(20);
+    }
+
+    @Test
+    @DisplayName("userIdentityServiceが例外をスローした場合そのまま伝搬する")
+    void propagatesExceptionFromUserIdentityService() {
+        when(userIdentityService.findUserBySub("unknown-sub"))
+                .thenThrow(new RuntimeException("ユーザーが見つかりません"));
+
+        assertThatThrownBy(() -> useCase.execute("unknown-sub"))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("ユーザーが見つかりません");
+    }
 }

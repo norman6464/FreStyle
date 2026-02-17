@@ -52,5 +52,28 @@ class CreateNoteUseCaseTest {
             assertThat(result.getTitle()).isEmpty();
             verify(noteRepository, times(1)).save(1, "");
         }
+
+        @Test
+        @DisplayName("異なるuserIdで正しいパラメータが渡される")
+        void shouldPassCorrectUserId() {
+            NoteDto expected = new NoteDto("note-42", 42, "テスト", "", false, 2000L, 2000L);
+            when(noteRepository.save(42, "テスト")).thenReturn(expected);
+
+            NoteDto result = useCase.execute(42, "テスト");
+
+            assertThat(result.getUserId()).isEqualTo(42);
+            verify(noteRepository).save(42, "テスト");
+        }
+
+        @Test
+        @DisplayName("NoteRepositoryが例外をスローした場合そのまま伝搬する")
+        void shouldPropagateRepositoryException() {
+            when(noteRepository.save(1, "エラー"))
+                    .thenThrow(new RuntimeException("保存失敗"));
+
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> useCase.execute(1, "エラー"))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessage("保存失敗");
+        }
     }
 }

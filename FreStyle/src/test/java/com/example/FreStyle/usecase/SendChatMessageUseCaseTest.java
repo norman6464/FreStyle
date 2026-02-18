@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-import java.sql.Timestamp;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -16,18 +15,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.example.FreStyle.dto.ChatMessageDto;
-import com.example.FreStyle.entity.ChatRoom;
 import com.example.FreStyle.entity.User;
 import com.example.FreStyle.repository.RoomMemberRepository;
 import com.example.FreStyle.service.ChatMessageService;
-import com.example.FreStyle.service.ChatRoomService;
 import com.example.FreStyle.service.UnreadCountService;
 
 @ExtendWith(MockitoExtension.class)
 class SendChatMessageUseCaseTest {
-
-    @Mock
-    private ChatRoomService chatRoomService;
 
     @Mock
     private ChatMessageService chatMessageService;
@@ -41,17 +35,12 @@ class SendChatMessageUseCaseTest {
     @InjectMocks
     private SendChatMessageUseCase useCase;
 
-    private ChatRoom testRoom;
     private ChatMessageDto savedMessage;
     private User partner;
 
     @BeforeEach
     void setUp() {
-        testRoom = new ChatRoom();
-        testRoom.setId(10);
-
-        savedMessage = new ChatMessageDto(100, 10, 1, "送信者", "テストメッセージ",
-                new Timestamp(System.currentTimeMillis()), null);
+        savedMessage = new ChatMessageDto("msg-100", 10, 1, "送信者", "テストメッセージ", 1000L);
 
         partner = new User();
         partner.setId(2);
@@ -61,8 +50,7 @@ class SendChatMessageUseCaseTest {
     @Test
     @DisplayName("メッセージを保存しChatMessageDtoと相手IDを返す")
     void execute_savesMessageAndReturnsResult() {
-        when(chatRoomService.findChatRoomById(10)).thenReturn(testRoom);
-        when(chatMessageService.addMessage(testRoom, 1, "テストメッセージ")).thenReturn(savedMessage);
+        when(chatMessageService.addMessage(10, 1, "テストメッセージ")).thenReturn(savedMessage);
         when(roomMemberRepository.findPartnerByRoomIdAndUserId(10, 1)).thenReturn(Optional.of(partner));
 
         SendChatMessageUseCase.Result result = useCase.execute(1, 10, "テストメッセージ");
@@ -73,36 +61,31 @@ class SendChatMessageUseCaseTest {
     }
 
     @Test
-    @DisplayName("chatRoomService.findChatRoomById例外時にそのまま伝搬する")
-    void propagatesExceptionWhenRoomNotFound() {
-        when(chatRoomService.findChatRoomById(999))
-                .thenThrow(new RuntimeException("チャットルームが見つかりません"));
+    @DisplayName("addMessage例外時にそのまま伝搬する")
+    void propagatesExceptionWhenAddMessageFails() {
+        when(chatMessageService.addMessage(999, 1, "テストメッセージ"))
+                .thenThrow(new RuntimeException("保存失敗"));
 
         assertThatThrownBy(() -> useCase.execute(1, 999, "テストメッセージ"))
                 .isInstanceOf(RuntimeException.class)
-                .hasMessage("チャットルームが見つかりません");
-
-        verify(chatMessageService, never()).addMessage(any(), anyInt(), anyString());
+                .hasMessage("保存失敗");
     }
 
     @Test
     @DisplayName("addMessageに正しい引数が渡される")
     void passesCorrectArgumentsToAddMessage() {
-        when(chatRoomService.findChatRoomById(10)).thenReturn(testRoom);
-        when(chatMessageService.addMessage(testRoom, 5, "こんにちは")).thenReturn(savedMessage);
+        when(chatMessageService.addMessage(10, 5, "こんにちは")).thenReturn(savedMessage);
         when(roomMemberRepository.findPartnerByRoomIdAndUserId(10, 5)).thenReturn(Optional.empty());
 
         useCase.execute(5, 10, "こんにちは");
 
-        verify(chatMessageService).addMessage(testRoom, 5, "こんにちは");
-        verify(chatRoomService).findChatRoomById(10);
+        verify(chatMessageService).addMessage(10, 5, "こんにちは");
     }
 
     @Test
     @DisplayName("相手がいない場合はpartnerIdがnullで未読数インクリメントしない")
     void execute_noPartner_returnsNullPartnerId() {
-        when(chatRoomService.findChatRoomById(10)).thenReturn(testRoom);
-        when(chatMessageService.addMessage(testRoom, 1, "テストメッセージ")).thenReturn(savedMessage);
+        when(chatMessageService.addMessage(10, 1, "テストメッセージ")).thenReturn(savedMessage);
         when(roomMemberRepository.findPartnerByRoomIdAndUserId(10, 1)).thenReturn(Optional.empty());
 
         SendChatMessageUseCase.Result result = useCase.execute(1, 10, "テストメッセージ");

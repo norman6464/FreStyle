@@ -51,16 +51,17 @@ public class ChatWebSocketController {
     @MessageMapping("/chat/delete")
     public void deleteMessage(@Payload Map<String, Object> payload) {
         try {
-            Integer messageId = ((Number) payload.get("messageId")).intValue();
             Integer roomId = ((Number) payload.get("roomId")).intValue();
+            Long createdAt = ((Number) payload.get("createdAt")).longValue();
 
-            deleteChatMessageUseCase.execute(messageId);
+            deleteChatMessageUseCase.execute(roomId, createdAt);
 
             messagingTemplate.convertAndSend(
                     "/topic/chat/" + roomId,
                     Map.of(
                             "type", "delete",
-                            "messageId", messageId
+                            "roomId", roomId,
+                            "createdAt", createdAt
                     )
             );
         } catch (Exception e) {

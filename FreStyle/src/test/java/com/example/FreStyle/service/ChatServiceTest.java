@@ -1,11 +1,11 @@
 package com.example.FreStyle.service;
 
+import com.example.FreStyle.dto.ChatMessageDto;
 import com.example.FreStyle.dto.ChatUserDto;
 import com.example.FreStyle.dto.PartnerRoomProjection;
-import com.example.FreStyle.entity.ChatMessage;
 import com.example.FreStyle.entity.ChatRoom;
 import com.example.FreStyle.entity.User;
-import com.example.FreStyle.repository.ChatMessageRepository;
+import com.example.FreStyle.repository.ChatMessageDynamoRepository;
 import com.example.FreStyle.repository.ChatRoomRepository;
 import com.example.FreStyle.repository.RoomMemberRepository;
 import com.example.FreStyle.repository.UserRepository;
@@ -17,7 +17,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -40,7 +39,7 @@ class ChatServiceTest {
     private UserRepository userRepository;
 
     @Mock
-    private ChatMessageRepository chatMessageRepository;
+    private ChatMessageDynamoRepository chatMessageDynamoRepository;
 
     @Mock
     private UnreadCountService unreadCountService;
@@ -50,8 +49,7 @@ class ChatServiceTest {
 
     private User myUser;
     private User partnerUser;
-    private ChatRoom room;
-    private ChatMessage latestMessage;
+    private ChatMessageDto latestMessage;
 
     @BeforeEach
     void setUp() {
@@ -66,15 +64,7 @@ class ChatServiceTest {
         partnerUser.setEmail("partner@test.com");
         partnerUser.setIconUrl("https://cdn.example.com/profiles/2/avatar.png");
 
-        room = new ChatRoom();
-        room.setId(10);
-
-        latestMessage = new ChatMessage();
-        latestMessage.setId(100);
-        latestMessage.setRoom(room);
-        latestMessage.setSender(partnerUser);
-        latestMessage.setContent("こんにちは");
-        latestMessage.setCreatedAt(new Timestamp(System.currentTimeMillis()));
+        latestMessage = new ChatMessageDto("msg-100", 10, 2, null, "こんにちは", 5000L);
     }
 
     private PartnerRoomProjection createProjection(Integer userId, Integer roomId) {
@@ -172,8 +162,8 @@ class ChatServiceTest {
                 .thenReturn(partnerDataList);
         when(userRepository.findAllById(List.of(2, 3)))
                 .thenReturn(List.of(partnerUser, partner2));
-        when(chatMessageRepository.findLatestMessagesByRoomIds(List.of(10, 20)))
-                .thenReturn(List.of());
+        when(chatMessageDynamoRepository.findLatestByRoomIds(List.of(10, 20)))
+                .thenReturn(Map.of());
         when(unreadCountService.getUnreadCountsByUserAndRooms(eq(1), anyList()))
                 .thenReturn(Map.of());
 
@@ -191,20 +181,8 @@ class ChatServiceTest {
         partner2.setName("ユーザー3");
         partner2.setEmail("user3@test.com");
 
-        ChatRoom room2 = new ChatRoom();
-        room2.setId(20);
-
-        ChatMessage olderMessage = new ChatMessage();
-        olderMessage.setRoom(room);
-        olderMessage.setSender(partnerUser);
-        olderMessage.setContent("古いメッセージ");
-        olderMessage.setCreatedAt(new Timestamp(1000));
-
-        ChatMessage newerMessage = new ChatMessage();
-        newerMessage.setRoom(room2);
-        newerMessage.setSender(partner2);
-        newerMessage.setContent("新しいメッセージ");
-        newerMessage.setCreatedAt(new Timestamp(2000));
+        ChatMessageDto olderMessage = new ChatMessageDto("msg-1", 10, 2, null, "古いメッセージ", 1000L);
+        ChatMessageDto newerMessage = new ChatMessageDto("msg-2", 20, 3, null, "新しいメッセージ", 2000L);
 
         List<PartnerRoomProjection> partnerDataList = new ArrayList<>();
         partnerDataList.add(createProjection(2, 10));
@@ -213,8 +191,8 @@ class ChatServiceTest {
                 .thenReturn(partnerDataList);
         when(userRepository.findAllById(List.of(2, 3)))
                 .thenReturn(List.of(partnerUser, partner2));
-        when(chatMessageRepository.findLatestMessagesByRoomIds(List.of(10, 20)))
-                .thenReturn(List.of(olderMessage, newerMessage));
+        when(chatMessageDynamoRepository.findLatestByRoomIds(List.of(10, 20)))
+                .thenReturn(Map.of(10, olderMessage, 20, newerMessage));
         when(unreadCountService.getUnreadCountsByUserAndRooms(eq(1), anyList()))
                 .thenReturn(Map.of());
 
@@ -228,25 +206,19 @@ class ChatServiceTest {
     @Test
     @DisplayName("findChatUsers: 未読数が正しくDTOに設定される")
     void findChatUsers_setsCorrectUnreadCount() {
-        // Arrange
-        // partnerId=2, roomId=10 のペアを返す
         List<PartnerRoomProjection> partnerDataList = new ArrayList<>();
         partnerDataList.add(createProjection(2, 10));
         when(roomMemberRepository.findPartnerUserIdAndRoomIdByUserId(1))
                 .thenReturn(partnerDataList);
         when(userRepository.findAllById(List.of(2)))
                 .thenReturn(List.of(partnerUser));
-        when(chatMessageRepository.findLatestMessagesByRoomIds(List.of(10)))
-                .thenReturn(List.of(latestMessage));
-
-        // 未読数: room 10 に3件の未読
+        when(chatMessageDynamoRepository.findLatestByRoomIds(List.of(10)))
+                .thenReturn(Map.of(10, latestMessage));
         when(unreadCountService.getUnreadCountsByUserAndRooms(1, List.of(10)))
                 .thenReturn(Map.of(10, 3));
 
-        // Act
         List<ChatUserDto> result = chatService.findChatUsers(1, null);
 
-        // Assert
         assertEquals(1, result.size());
         ChatUserDto dto = result.get(0);
         assertEquals(3, dto.getUnreadCount());
@@ -257,24 +229,19 @@ class ChatServiceTest {
     @Test
     @DisplayName("findChatUsers: 未読レコードなしのルームはカウント0")
     void findChatUsers_noUnreadRecord_defaultsToZero() {
-        // Arrange
         List<PartnerRoomProjection> partnerDataList = new ArrayList<>();
         partnerDataList.add(createProjection(2, 10));
         when(roomMemberRepository.findPartnerUserIdAndRoomIdByUserId(1))
                 .thenReturn(partnerDataList);
         when(userRepository.findAllById(List.of(2)))
                 .thenReturn(List.of(partnerUser));
-        when(chatMessageRepository.findLatestMessagesByRoomIds(List.of(10)))
-                .thenReturn(List.of(latestMessage));
-
-        // 未読数: 空Map（レコードなし）
+        when(chatMessageDynamoRepository.findLatestByRoomIds(List.of(10)))
+                .thenReturn(Map.of(10, latestMessage));
         when(unreadCountService.getUnreadCountsByUserAndRooms(1, List.of(10)))
                 .thenReturn(Map.of());
 
-        // Act
         List<ChatUserDto> result = chatService.findChatUsers(1, null);
 
-        // Assert
         assertEquals(1, result.size());
         assertEquals(0, result.get(0).getUnreadCount());
     }
@@ -288,8 +255,8 @@ class ChatServiceTest {
                 .thenReturn(partnerDataList);
         when(userRepository.findAllById(List.of(2)))
                 .thenReturn(List.of(partnerUser));
-        when(chatMessageRepository.findLatestMessagesByRoomIds(List.of(10)))
-                .thenReturn(List.of());
+        when(chatMessageDynamoRepository.findLatestByRoomIds(List.of(10)))
+                .thenReturn(Map.of());
         when(unreadCountService.getUnreadCountsByUserAndRooms(eq(1), anyList()))
                 .thenReturn(Map.of());
 

@@ -13,7 +13,7 @@ import com.example.FreStyle.entity.CommunicationScore;
 import com.example.FreStyle.entity.PracticeScenario;
 import com.example.FreStyle.entity.SessionNote;
 import com.example.FreStyle.exception.ResourceNotFoundException;
-import com.example.FreStyle.repository.AiChatMessageRepository;
+import com.example.FreStyle.repository.AiChatMessageDynamoRepository;
 import com.example.FreStyle.repository.AiChatSessionRepository;
 import com.example.FreStyle.repository.CommunicationScoreRepository;
 import com.example.FreStyle.repository.PracticeScenarioRepository;
@@ -26,7 +26,7 @@ import lombok.RequiredArgsConstructor;
 public class GetPracticeSessionSummaryUseCase {
 
     private final AiChatSessionRepository aiChatSessionRepository;
-    private final AiChatMessageRepository aiChatMessageRepository;
+    private final AiChatMessageDynamoRepository aiChatMessageDynamoRepository;
     private final CommunicationScoreRepository communicationScoreRepository;
     private final SessionNoteRepository sessionNoteRepository;
     private final PracticeScenarioRepository practiceScenarioRepository;
@@ -36,7 +36,7 @@ public class GetPracticeSessionSummaryUseCase {
         AiChatSession session = aiChatSessionRepository.findByIdAndUserId(sessionId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("セッションが見つかりません"));
 
-        Long messageCount = aiChatMessageRepository.countBySessionId(sessionId);
+        Long messageCount = aiChatMessageDynamoRepository.countBySessionId(sessionId);
 
         List<CommunicationScore> scores = communicationScoreRepository.findBySessionId(sessionId);
 

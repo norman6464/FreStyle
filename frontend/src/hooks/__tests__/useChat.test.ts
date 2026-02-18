@@ -60,18 +60,18 @@ describe('useChat', () => {
     const { result } = renderHook(() => useChat());
 
     act(() => {
-      result.current.handleDeleteMessage(42);
+      result.current.handleDeleteMessage('msg-42');
     });
 
     expect(result.current.deleteModal.isOpen).toBe(true);
-    expect(result.current.deleteModal.messageId).toBe(42);
+    expect(result.current.deleteModal.messageId).toBe('msg-42');
   });
 
   it('cancelDeleteでdeleteModalが閉じる', async () => {
     const { result } = renderHook(() => useChat());
 
     act(() => {
-      result.current.handleDeleteMessage(42);
+      result.current.handleDeleteMessage('msg-42');
     });
     expect(result.current.deleteModal.isOpen).toBe(true);
 

@@ -239,7 +239,7 @@ class AiChatControllerTest {
             Jwt jwt = mockJwt("sub-123");
             User user = createUser(10);
             AiChatSessionDto sessionDto = new AiChatSessionDto(1, null, null, null, null, null, null, null, null);
-            AiChatMessageResponseDto messageDto = new AiChatMessageResponseDto(100, null, null, null, null, null);
+            AiChatMessageResponseDto messageDto = new AiChatMessageResponseDto("msg-100", null, null, null, null, null);
             when(userIdentityService.findUserBySub("sub-123")).thenReturn(user);
             when(getAiChatSessionByIdUseCase.execute(1, 10)).thenReturn(sessionDto);
             when(addAiChatMessageUseCase.executeUserMessage(1, 10, "テスト")).thenReturn(messageDto);
@@ -248,7 +248,7 @@ class AiChatControllerTest {
             ResponseEntity<AiChatMessageResponseDto> response = aiChatController.addMessage(jwt, 1, request);
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-            assertThat(response.getBody().id()).isEqualTo(100);
+            assertThat(response.getBody().id()).isEqualTo("msg-100");
         }
 
         @Test
@@ -257,7 +257,7 @@ class AiChatControllerTest {
             Jwt jwt = mockJwt("sub-123");
             User user = createUser(10);
             AiChatSessionDto sessionDto = new AiChatSessionDto(1, null, null, null, null, null, null, null, null);
-            AiChatMessageResponseDto messageDto = new AiChatMessageResponseDto(101, null, null, null, null, null);
+            AiChatMessageResponseDto messageDto = new AiChatMessageResponseDto("msg-101", null, null, null, null, null);
             when(userIdentityService.findUserBySub("sub-123")).thenReturn(user);
             when(getAiChatSessionByIdUseCase.execute(1, 10)).thenReturn(sessionDto);
             when(addAiChatMessageUseCase.executeAssistantMessage(1, 10, "AI応答")).thenReturn(messageDto);
@@ -266,7 +266,7 @@ class AiChatControllerTest {
             ResponseEntity<AiChatMessageResponseDto> response = aiChatController.addMessage(jwt, 1, request);
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-            assertThat(response.getBody().id()).isEqualTo(101);
+            assertThat(response.getBody().id()).isEqualTo("msg-101");
         }
     }
 

@@ -11,7 +11,7 @@ const mockUseChat = {
   messages: [],
   deleteModal: { isOpen: false, messageId: null },
   selectionMode: false,
-  selectedMessages: new Set<number>(),
+  selectedMessages: new Set<string>(),
   showSceneSelector: false,
   showRephraseModal: false,
   rephraseResult: null,
@@ -52,8 +52,8 @@ describe('ChatPage', () => {
     vi.mocked(useChat).mockReturnValue({
       ...mockUseChat,
       messages: [
-        { id: 1, roomId: 1, senderId: 1, senderName: 'テスト', content: 'メッセージ1', createdAt: '2026-02-10', isSender: true },
-        { id: 2, roomId: 1, senderId: 2, senderName: '相手', content: 'メッセージ2', createdAt: '2026-02-10', isSender: false },
+        { id: 'msg-1', roomId: 1, senderId: 1, senderName: 'テスト', content: 'メッセージ1', createdAt: 1707523200000, isSender: true },
+        { id: 'msg-2', roomId: 1, senderId: 2, senderName: '相手', content: 'メッセージ2', createdAt: 1707523200000, isSender: false },
       ] as any,
     });
     render(<ChatPage />);
@@ -65,7 +65,7 @@ describe('ChatPage', () => {
     vi.mocked(useChat).mockReturnValue({
       ...mockUseChat,
       messages: [
-        { id: 1, roomId: 1, senderId: 1, senderName: 'テスト', content: 'テスト', createdAt: '2026-02-10', isSender: true },
+        { id: 'msg-1', roomId: 1, senderId: 1, senderName: 'テスト', content: 'テスト', createdAt: 1707523200000, isSender: true },
       ] as any,
     });
     render(<ChatPage />);
@@ -76,7 +76,7 @@ describe('ChatPage', () => {
     vi.mocked(useChat).mockReturnValue({
       ...mockUseChat,
       messages: [
-        { id: 1, roomId: 1, senderId: 1, senderName: 'テスト', content: 'テスト', createdAt: '2026-02-10', isSender: true },
+        { id: 'msg-1', roomId: 1, senderId: 1, senderName: 'テスト', content: 'テスト', createdAt: 1707523200000, isSender: true },
       ] as any,
     });
     render(<ChatPage />);
@@ -88,7 +88,7 @@ describe('ChatPage', () => {
     vi.mocked(useChat).mockReturnValue({
       ...mockUseChat,
       selectionMode: true,
-      selectedMessages: new Set([1]),
+      selectedMessages: new Set(['msg-1']),
     });
     render(<ChatPage />);
     expect(screen.queryByText('AIにフィードバックしてもらう')).not.toBeInTheDocument();
@@ -102,7 +102,7 @@ describe('ChatPage', () => {
   it('削除確認モーダルが表示される', () => {
     vi.mocked(useChat).mockReturnValue({
       ...mockUseChat,
-      deleteModal: { isOpen: true, messageId: 1 },
+      deleteModal: { isOpen: true, messageId: 'msg-1' },
     });
     render(<ChatPage />);
     expect(screen.getByText('このメッセージを削除しますか？この操作は取り消せません。')).toBeInTheDocument();
@@ -111,7 +111,7 @@ describe('ChatPage', () => {
   it('削除確認でconfirmDeleteが呼ばれる', () => {
     vi.mocked(useChat).mockReturnValue({
       ...mockUseChat,
-      deleteModal: { isOpen: true, messageId: 1 },
+      deleteModal: { isOpen: true, messageId: 'msg-1' },
     });
     render(<ChatPage />);
     fireEvent.click(screen.getByText('削除する'));
@@ -121,7 +121,7 @@ describe('ChatPage', () => {
   it('削除キャンセルでcancelDeleteが呼ばれる', () => {
     vi.mocked(useChat).mockReturnValue({
       ...mockUseChat,
-      deleteModal: { isOpen: true, messageId: 1 },
+      deleteModal: { isOpen: true, messageId: 'msg-1' },
     });
     render(<ChatPage />);
     fireEvent.click(screen.getByText('キャンセル'));

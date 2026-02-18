@@ -3,52 +3,25 @@ package com.example.FreStyle.usecase;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import com.example.FreStyle.dto.AiChatMessageResponseDto;
-import com.example.FreStyle.entity.AiChatMessage;
-import com.example.FreStyle.mapper.AiChatMessageMapper;
-import com.example.FreStyle.repository.AiChatMessageRepository;
+import com.example.FreStyle.repository.AiChatMessageDynamoRepository;
 
 import lombok.RequiredArgsConstructor;
 
 /**
  * セッション別AI Chatメッセージ一覧取得ユースケース
- *
- * <p>役割:</p>
- * <ul>
- *   <li>指定されたセッションIDのすべてのメッセージを取得</li>
- *   <li>作成日時の昇順でソート</li>
- * </ul>
- *
- * <p>ビジネスルール:</p>
- * <ul>
- *   <li>メッセージは作成日時の古い順で返却（会話の流れ順）</li>
- * </ul>
- *
- * <p>クリーンアーキテクチャー上の位置づけ:</p>
- * <ul>
- *   <li>アプリケーション層（Use Case層）</li>
- * </ul>
  */
 @Service
 @RequiredArgsConstructor
 public class GetAiChatMessagesBySessionIdUseCase {
 
-    private final AiChatMessageRepository aiChatMessageRepository;
-    private final AiChatMessageMapper mapper;
+    private final AiChatMessageDynamoRepository aiChatMessageDynamoRepository;
 
     /**
      * 指定セッションのメッセージ一覧を取得
-     *
-     * @param sessionId セッションID
-     * @return メッセージDTOのリスト（作成日時昇順）
      */
-    @Transactional(readOnly = true)
     public List<AiChatMessageResponseDto> execute(Integer sessionId) {
-        List<AiChatMessage> messages = aiChatMessageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId);
-        return messages.stream()
-                .map(mapper::toDto)
-                .toList();
+        return aiChatMessageDynamoRepository.findBySessionId(sessionId);
     }
 }

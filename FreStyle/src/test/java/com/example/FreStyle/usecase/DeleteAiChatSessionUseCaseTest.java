@@ -10,13 +10,16 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.example.FreStyle.entity.AiChatSession;
 import com.example.FreStyle.entity.User;
 import com.example.FreStyle.exception.ResourceNotFoundException;
+import com.example.FreStyle.repository.AiChatMessageDynamoRepository;
 import com.example.FreStyle.repository.AiChatSessionRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -26,6 +29,9 @@ class DeleteAiChatSessionUseCaseTest {
     @Mock
     private AiChatSessionRepository aiChatSessionRepository;
 
+    @Mock
+    private AiChatMessageDynamoRepository aiChatMessageDynamoRepository;
+
     @InjectMocks
     private DeleteAiChatSessionUseCase useCase;
 
@@ -34,8 +40,8 @@ class DeleteAiChatSessionUseCaseTest {
     class Success {
 
         @Test
-        @DisplayName("セッションを削除する")
-        void shouldDeleteSession() {
+        @DisplayName("DynamoDBメッセージ削除後にセッションを削除する")
+        void shouldDeleteMessagesFirstThenSession() {
             User user = new User();
             user.setId(1);
             AiChatSession session = new AiChatSession();
@@ -46,7 +52,10 @@ class DeleteAiChatSessionUseCaseTest {
 
             useCase.execute(10, 1);
 
-            verify(aiChatSessionRepository).delete(session);
+            // DynamoDBメッセージが先に削除され、その後セッションが削除される
+            InOrder inOrder = Mockito.inOrder(aiChatMessageDynamoRepository, aiChatSessionRepository);
+            inOrder.verify(aiChatMessageDynamoRepository).deleteBySessionId(10);
+            inOrder.verify(aiChatSessionRepository).delete(session);
         }
     }
 

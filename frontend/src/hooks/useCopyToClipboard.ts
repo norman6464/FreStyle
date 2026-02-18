@@ -1,10 +1,10 @@
 import { useState, useCallback, useRef } from 'react';
 
 export function useCopyToClipboard() {
-  const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const copyToClipboard = useCallback(async (id: number, text: string) => {
+  const copyToClipboard = useCallback(async (id: string, text: string) => {
     try {
       await navigator.clipboard.writeText(text);
       if (timerRef.current) clearTimeout(timerRef.current);

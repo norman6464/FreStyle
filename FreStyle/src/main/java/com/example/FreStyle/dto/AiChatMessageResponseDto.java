@@ -1,12 +1,10 @@
 package com.example.FreStyle.dto;
 
-import java.sql.Timestamp;
-
 public record AiChatMessageResponseDto(
-        Integer id,
+        String id,
         Integer sessionId,
         Integer userId,
         String role,
         String content,
-        Timestamp createdAt
+        Long createdAt
 ) {}

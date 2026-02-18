@@ -15,19 +15,14 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.example.FreStyle.dto.AiChatMessageResponseDto;
-import com.example.FreStyle.entity.AiChatMessage;
-import com.example.FreStyle.mapper.AiChatMessageMapper;
-import com.example.FreStyle.repository.AiChatMessageRepository;
+import com.example.FreStyle.repository.AiChatMessageDynamoRepository;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("GetAiChatMessagesBySessionIdUseCase")
 class GetAiChatMessagesBySessionIdUseCaseTest {
 
     @Mock
-    private AiChatMessageRepository aiChatMessageRepository;
-
-    @Mock
-    private AiChatMessageMapper mapper;
+    private AiChatMessageDynamoRepository aiChatMessageDynamoRepository;
 
     @InjectMocks
     private GetAiChatMessagesBySessionIdUseCase useCase;
@@ -35,30 +30,21 @@ class GetAiChatMessagesBySessionIdUseCaseTest {
     @Test
     @DisplayName("セッションIDでメッセージ一覧を取得する")
     void shouldReturnMessagesBySessionId() {
-        AiChatMessage msg1 = new AiChatMessage();
-        msg1.setId(1);
-        AiChatMessage msg2 = new AiChatMessage();
-        msg2.setId(2);
-        when(aiChatMessageRepository.findBySessionIdOrderByCreatedAtAsc(1))
-                .thenReturn(List.of(msg1, msg2));
-
-        AiChatMessageResponseDto dto1 = new AiChatMessageResponseDto(1, null, null, null, null, null);
-        AiChatMessageResponseDto dto2 = new AiChatMessageResponseDto(2, null, null, null, null, null);
-        when(mapper.toDto(msg1)).thenReturn(dto1);
-        when(mapper.toDto(msg2)).thenReturn(dto2);
+        AiChatMessageResponseDto dto1 = new AiChatMessageResponseDto("msg-1", 1, 10, "user", "質問", 1000L);
+        AiChatMessageResponseDto dto2 = new AiChatMessageResponseDto("msg-2", 1, 10, "assistant", "回答", 2000L);
+        when(aiChatMessageDynamoRepository.findBySessionId(1)).thenReturn(List.of(dto1, dto2));
 
         List<AiChatMessageResponseDto> result = useCase.execute(1);
 
         assertThat(result).hasSize(2);
-        assertThat(result.get(0).id()).isEqualTo(1);
-        assertThat(result.get(1).id()).isEqualTo(2);
+        assertThat(result.get(0).id()).isEqualTo("msg-1");
+        assertThat(result.get(1).id()).isEqualTo("msg-2");
     }
 
     @Test
     @DisplayName("メッセージがない場合は空リストを返す")
     void shouldReturnEmptyListWhenNoMessages() {
-        when(aiChatMessageRepository.findBySessionIdOrderByCreatedAtAsc(999))
-                .thenReturn(Collections.emptyList());
+        when(aiChatMessageDynamoRepository.findBySessionId(999)).thenReturn(Collections.emptyList());
 
         List<AiChatMessageResponseDto> result = useCase.execute(999);
 
@@ -66,35 +52,26 @@ class GetAiChatMessagesBySessionIdUseCaseTest {
     }
 
     @Test
-    @DisplayName("repositoryとmapperが正しく呼び出される")
-    void verifiesRepositoryAndMapperCalls() {
-        AiChatMessage msg = new AiChatMessage();
-        msg.setId(10);
-        when(aiChatMessageRepository.findBySessionIdOrderByCreatedAtAsc(5))
-                .thenReturn(List.of(msg));
-        when(mapper.toDto(msg))
-                .thenReturn(new AiChatMessageResponseDto(10, null, null, null, null, null));
+    @DisplayName("repositoryが正しく呼び出される")
+    void verifiesRepositoryCalls() {
+        when(aiChatMessageDynamoRepository.findBySessionId(5))
+                .thenReturn(List.of(new AiChatMessageResponseDto("msg-10", 5, 1, "user", "hello", 1000L)));
 
         useCase.execute(5);
 
-        verify(aiChatMessageRepository).findBySessionIdOrderByCreatedAtAsc(5);
-        verify(mapper).toDto(msg);
+        verify(aiChatMessageDynamoRepository).findBySessionId(5);
     }
 
     @Test
     @DisplayName("単一メッセージの場合でも正しく返す")
     void shouldReturnSingleMessage() {
-        AiChatMessage msg = new AiChatMessage();
-        msg.setId(42);
-        when(aiChatMessageRepository.findBySessionIdOrderByCreatedAtAsc(3))
-                .thenReturn(List.of(msg));
-        when(mapper.toDto(msg))
-                .thenReturn(new AiChatMessageResponseDto(42, null, null, null, "hello", null));
+        when(aiChatMessageDynamoRepository.findBySessionId(3))
+                .thenReturn(List.of(new AiChatMessageResponseDto("msg-42", 3, 1, "user", "hello", 1000L)));
 
         List<AiChatMessageResponseDto> result = useCase.execute(3);
 
         assertThat(result).hasSize(1);
-        assertThat(result.getFirst().id()).isEqualTo(42);
+        assertThat(result.getFirst().id()).isEqualTo("msg-42");
         assertThat(result.getFirst().content()).isEqualTo("hello");
     }
 }

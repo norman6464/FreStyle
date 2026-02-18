@@ -24,7 +24,7 @@ import com.example.FreStyle.entity.PracticeScenario;
 import com.example.FreStyle.entity.SessionNote;
 import com.example.FreStyle.entity.User;
 import com.example.FreStyle.exception.ResourceNotFoundException;
-import com.example.FreStyle.repository.AiChatMessageRepository;
+import com.example.FreStyle.repository.AiChatMessageDynamoRepository;
 import com.example.FreStyle.repository.AiChatSessionRepository;
 import com.example.FreStyle.repository.CommunicationScoreRepository;
 import com.example.FreStyle.repository.PracticeScenarioRepository;
@@ -35,7 +35,7 @@ import com.example.FreStyle.repository.SessionNoteRepository;
 class GetPracticeSessionSummaryUseCaseTest {
 
     @Mock private AiChatSessionRepository aiChatSessionRepository;
-    @Mock private AiChatMessageRepository aiChatMessageRepository;
+    @Mock private AiChatMessageDynamoRepository aiChatMessageDynamoRepository;
     @Mock private CommunicationScoreRepository communicationScoreRepository;
     @Mock private SessionNoteRepository sessionNoteRepository;
     @Mock private PracticeScenarioRepository practiceScenarioRepository;
@@ -52,7 +52,7 @@ class GetPracticeSessionSummaryUseCaseTest {
         void returnsFullSummary() {
             AiChatSession session = createSession(1, 10, "練習セッション", "practice", "meeting", 5);
             when(aiChatSessionRepository.findByIdAndUserId(1, 10)).thenReturn(Optional.of(session));
-            when(aiChatMessageRepository.countBySessionId(1)).thenReturn(8L);
+            when(aiChatMessageDynamoRepository.countBySessionId(1)).thenReturn(8L);
 
             CommunicationScore score1 = createScore("論理的構成力", 85, "良い構成");
             CommunicationScore score2 = createScore("配慮表現", 60, "改善の余地あり");
@@ -80,7 +80,7 @@ class GetPracticeSessionSummaryUseCaseTest {
             assertThat(result.scenarioName()).isEqualTo("本番障害の緊急報告");
 
             verify(aiChatSessionRepository).findByIdAndUserId(1, 10);
-            verify(aiChatMessageRepository).countBySessionId(1);
+            verify(aiChatMessageDynamoRepository).countBySessionId(1);
             verify(communicationScoreRepository).findBySessionId(1);
             verify(sessionNoteRepository).findByUserIdAndSessionId(10, 1);
             verify(practiceScenarioRepository).findById(5);
@@ -91,7 +91,7 @@ class GetPracticeSessionSummaryUseCaseTest {
         void returnsWithoutScores() {
             AiChatSession session = createSession(2, 10, "通常セッション", "normal", null, null);
             when(aiChatSessionRepository.findByIdAndUserId(2, 10)).thenReturn(Optional.of(session));
-            when(aiChatMessageRepository.countBySessionId(2)).thenReturn(3L);
+            when(aiChatMessageDynamoRepository.countBySessionId(2)).thenReturn(3L);
             when(communicationScoreRepository.findBySessionId(2)).thenReturn(List.of());
             when(sessionNoteRepository.findByUserIdAndSessionId(10, 2)).thenReturn(Optional.empty());
 
@@ -111,7 +111,7 @@ class GetPracticeSessionSummaryUseCaseTest {
         void singleScoreAxis() {
             AiChatSession session = createSession(3, 10, "テスト", "practice", null, null);
             when(aiChatSessionRepository.findByIdAndUserId(3, 10)).thenReturn(Optional.of(session));
-            when(aiChatMessageRepository.countBySessionId(3)).thenReturn(5L);
+            when(aiChatMessageDynamoRepository.countBySessionId(3)).thenReturn(5L);
 
             CommunicationScore score = createScore("論理的構成力", 90, null);
             when(communicationScoreRepository.findBySessionId(3)).thenReturn(List.of(score));
@@ -129,7 +129,7 @@ class GetPracticeSessionSummaryUseCaseTest {
         void scenarioDeleted() {
             AiChatSession session = createSession(4, 10, "テスト", "practice", null, 99);
             when(aiChatSessionRepository.findByIdAndUserId(4, 10)).thenReturn(Optional.of(session));
-            when(aiChatMessageRepository.countBySessionId(4)).thenReturn(2L);
+            when(aiChatMessageDynamoRepository.countBySessionId(4)).thenReturn(2L);
             when(communicationScoreRepository.findBySessionId(4)).thenReturn(List.of());
             when(sessionNoteRepository.findByUserIdAndSessionId(10, 4)).thenReturn(Optional.empty());
             when(practiceScenarioRepository.findById(99)).thenReturn(Optional.empty());
@@ -144,7 +144,7 @@ class GetPracticeSessionSummaryUseCaseTest {
         void equalScores_worstAxisIsNull() {
             AiChatSession session = createSession(5, 10, "同一スコア", "practice", null, null);
             when(aiChatSessionRepository.findByIdAndUserId(5, 10)).thenReturn(Optional.of(session));
-            when(aiChatMessageRepository.countBySessionId(5)).thenReturn(0L);
+            when(aiChatMessageDynamoRepository.countBySessionId(5)).thenReturn(0L);
 
             CommunicationScore s1 = createScore("話し方", 80, null);
             CommunicationScore s2 = createScore("内容", 80, null);

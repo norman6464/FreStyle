@@ -1,7 +1,5 @@
 package com.example.FreStyle.dto;
 
-import java.sql.Timestamp;
-
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -26,7 +24,7 @@ public class ChatUserDto {
     private String lastMessage;
     private Integer lastMessageSenderId;
     private String lastMessageSenderName;
-    private Timestamp lastMessageAt;
+    private Long lastMessageAt;
     
     // 未読数（将来の拡張用）
     private Integer unreadCount;

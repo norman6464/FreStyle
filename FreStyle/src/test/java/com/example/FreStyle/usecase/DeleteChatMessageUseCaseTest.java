@@ -24,36 +24,36 @@ class DeleteChatMessageUseCaseTest {
     @Test
     @DisplayName("メッセージを削除する")
     void execute_deletesMessage() {
-        useCase.execute(100);
+        useCase.execute(10, 1000L);
 
-        verify(chatMessageService).deleteMessage(100);
+        verify(chatMessageService).deleteMessage(10, 1000L);
     }
 
     @Test
     @DisplayName("ChatMessageServiceが例外をスローした場合そのまま伝搬する")
     void execute_propagatesServiceException() {
         doThrow(new RuntimeException("削除失敗"))
-                .when(chatMessageService).deleteMessage(100);
+                .when(chatMessageService).deleteMessage(10, 1000L);
 
-        assertThatThrownBy(() -> useCase.execute(100))
+        assertThatThrownBy(() -> useCase.execute(10, 1000L))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessage("削除失敗");
     }
 
     @Test
-    @DisplayName("異なるメッセージIDで正しいパラメータが渡される")
-    void execute_passesCorrectMessageId() {
-        useCase.execute(999);
+    @DisplayName("異なるパラメータで正しい引数が渡される")
+    void execute_passesCorrectParams() {
+        useCase.execute(20, 2000L);
 
-        verify(chatMessageService).deleteMessage(999);
+        verify(chatMessageService).deleteMessage(20, 2000L);
     }
 
     @Test
     @DisplayName("deleteMessageが1回だけ呼び出される")
     void execute_callsDeleteMessageOnce() {
-        useCase.execute(50);
+        useCase.execute(10, 5000L);
 
-        verify(chatMessageService, times(1)).deleteMessage(50);
+        verify(chatMessageService, times(1)).deleteMessage(10, 5000L);
         verifyNoMoreInteractions(chatMessageService);
     }
 }

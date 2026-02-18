@@ -13,10 +13,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.example.FreStyle.dto.ChatMessageDto;
-import com.example.FreStyle.entity.ChatRoom;
 import com.example.FreStyle.entity.User;
 import com.example.FreStyle.service.ChatMessageService;
-import com.example.FreStyle.service.ChatRoomService;
 import com.example.FreStyle.service.UserIdentityService;
 
 @ExtendWith(MockitoExtension.class)
@@ -25,9 +23,6 @@ class GetChatHistoryUseCaseTest {
 
     @Mock
     private UserIdentityService userIdentityService;
-
-    @Mock
-    private ChatRoomService chatRoomService;
 
     @Mock
     private ChatMessageService chatMessageService;
@@ -41,11 +36,8 @@ class GetChatHistoryUseCaseTest {
         User user = new User();
         user.setId(1);
         when(userIdentityService.findUserBySub("sub-123")).thenReturn(user);
-        ChatRoom chatRoom = new ChatRoom();
-        chatRoom.setId(10);
-        when(chatRoomService.findChatRoomById(10)).thenReturn(chatRoom);
-        ChatMessageDto msg = new ChatMessageDto(null, null, null, null, "テストメッセージ", null, null);
-        when(chatMessageService.getMessagesByRoom(chatRoom, 1)).thenReturn(List.of(msg));
+        ChatMessageDto msg = new ChatMessageDto(null, null, null, null, "テストメッセージ", null);
+        when(chatMessageService.getMessagesByRoom(10, 1)).thenReturn(List.of(msg));
 
         List<ChatMessageDto> result = getChatHistoryUseCase.execute("sub-123", 10);
 
@@ -59,14 +51,10 @@ class GetChatHistoryUseCaseTest {
         User user = new User();
         user.setId(3);
         when(userIdentityService.findUserBySub("sub-789")).thenReturn(user);
-        ChatRoom chatRoom = new ChatRoom();
-        chatRoom.setId(20);
-        when(chatRoomService.findChatRoomById(20)).thenReturn(chatRoom);
-        when(chatMessageService.getMessagesByRoom(chatRoom, 3)).thenReturn(List.of());
+        when(chatMessageService.getMessagesByRoom(20, 3)).thenReturn(List.of());
 
         getChatHistoryUseCase.execute("sub-789", 20);
 
-        verify(chatRoomService).findChatRoomById(20);
-        verify(chatMessageService).getMessagesByRoom(chatRoom, 3);
+        verify(chatMessageService).getMessagesByRoom(20, 3);
     }
 }

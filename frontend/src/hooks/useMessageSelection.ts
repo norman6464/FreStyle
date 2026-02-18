@@ -3,7 +3,7 @@ import type { ChatMessage } from '../types';
 
 export function useMessageSelection(messages: ChatMessage[]) {
   const [selectionMode, setSelectionMode] = useState(false);
-  const [selectedMessages, setSelectedMessages] = useState<Set<number>>(new Set());
+  const [selectedMessages, setSelectedMessages] = useState<Set<string>>(new Set());
   const [rangeStart, setRangeStart] = useState<number | null>(null);
   const [rangeEnd, setRangeEnd] = useState<number | null>(null);
 
@@ -21,7 +21,7 @@ export function useMessageSelection(messages: ChatMessage[]) {
     setRangeEnd(null);
   }, []);
 
-  const handleRangeClick = useCallback((messageId: number) => {
+  const handleRangeClick = useCallback((messageId: string) => {
     const messageIndex = messages.findIndex((msg) => msg.id === messageId);
     if (rangeStart === null) {
       setRangeStart(messageIndex);

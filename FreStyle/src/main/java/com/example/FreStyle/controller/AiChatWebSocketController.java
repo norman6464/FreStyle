@@ -11,7 +11,6 @@ import com.example.FreStyle.constant.SceneDisplayName;
 import com.example.FreStyle.dto.AiChatMessageResponseDto;
 import com.example.FreStyle.dto.AiChatSessionDto;
 import com.example.FreStyle.dto.ScoreCardDto;
-import com.example.FreStyle.entity.AiChatMessage.Role;
 import com.example.FreStyle.service.BedrockService;
 import com.example.FreStyle.usecase.AddAiChatMessageUseCase;
 import com.example.FreStyle.usecase.CreateAiChatSessionUseCase;
@@ -74,8 +73,7 @@ public class AiChatWebSocketController {
             Integer sessionId = sessionIdObj != null ? convertToInteger(sessionIdObj) : null;
 
             String content = (String) contentObj;
-            String roleStr = roleObj != null ? (String) roleObj : "user";
-            Role role = "assistant".equalsIgnoreCase(roleStr) ? Role.assistant : Role.user;
+            String role = roleObj != null ? (String) roleObj : "user";
 
             // チャットフィードバックモードの判定
             boolean fromChatFeedback = fromChatFeedbackObj != null &&
@@ -140,7 +138,7 @@ public class AiChatWebSocketController {
 
             // AI応答をデータベースに保存（role: assistant）
             log.info("💾 AI応答をデータベースに保存中...");
-            AiChatMessageResponseDto savedAiMessage = addAiChatMessageUseCase.execute(sessionId, userId, Role.assistant, aiReply);
+            AiChatMessageResponseDto savedAiMessage = addAiChatMessageUseCase.execute(sessionId, userId, "assistant", aiReply);
             log.info("✅ AI応答保存成功");
             log.debug("   - messageId: {}", savedAiMessage.id());
             log.debug("   - role: {}", savedAiMessage.role());

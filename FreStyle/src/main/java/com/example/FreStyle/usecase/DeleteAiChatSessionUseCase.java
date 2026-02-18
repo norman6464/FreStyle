@@ -5,43 +5,24 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.example.FreStyle.entity.AiChatSession;
 import com.example.FreStyle.exception.ResourceNotFoundException;
+import com.example.FreStyle.repository.AiChatMessageDynamoRepository;
 import com.example.FreStyle.repository.AiChatSessionRepository;
 
 import lombok.RequiredArgsConstructor;
 
 /**
  * AI Chatセッション削除ユースケース
- *
- * <p>役割:</p>
- * <ul>
- *   <li>指定されたセッションを削除</li>
- *   <li>ユーザーの権限チェック（自分のセッションのみ削除可能）</li>
- * </ul>
- *
- * <p>ビジネスルール:</p>
- * <ul>
- *   <li>セッションIDとユーザーIDが一致しない場合はエラー</li>
- *   <li>セッションが存在しない場合はエラー</li>
- *   <li>削除時、関連するメッセージも自動削除される（カスケード削除）</li>
- * </ul>
- *
- * <p>クリーンアーキテクチャー上の位置づけ:</p>
- * <ul>
- *   <li>アプリケーション層（Use Case層）</li>
- * </ul>
+ * DynamoDBのメッセージを明示的に削除してからRDBのセッションを削除する
  */
 @Service
 @RequiredArgsConstructor
 public class DeleteAiChatSessionUseCase {
 
     private final AiChatSessionRepository aiChatSessionRepository;
+    private final AiChatMessageDynamoRepository aiChatMessageDynamoRepository;
 
     /**
-     * セッションを削除
-     *
-     * @param sessionId セッションID
-     * @param userId ユーザーID
-     * @throws ResourceNotFoundException セッションが見つからない、または権限がない場合
+     * セッションを削除（DynamoDBメッセージ + RDBセッション）
      */
     @Transactional
     public void execute(Integer sessionId, Integer userId) {
@@ -50,6 +31,10 @@ public class DeleteAiChatSessionUseCase {
                     "セッションが見つからないか、アクセス権限がありません: sessionId=" + sessionId + ", userId=" + userId
                 ));
 
+        // DynamoDBからメッセージを削除
+        aiChatMessageDynamoRepository.deleteBySessionId(sessionId);
+
+        // RDBからセッションを削除
         aiChatSessionRepository.delete(session);
     }
 }

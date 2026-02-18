@@ -15,7 +15,7 @@ import { useMessageSelection } from './useMessageSelection';
 export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [senderId, setSenderId] = useState<number | null>(null);
-  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; messageId: number | null }>({ isOpen: false, messageId: null });
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; messageId: string | null }>({ isOpen: false, messageId: null });
   const [showSceneSelector, setShowSceneSelector] = useState(false);
   const [showRephraseModal, setShowRephraseModal] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -97,7 +97,7 @@ export function useChat() {
           if (data.type === 'delete') {
             setMessages((prev) =>
               prev.map((m) =>
-                m.id === data.messageId ? { ...m, isDeleted: true } : m
+                m.createdAt === data.createdAt ? { ...m, isDeleted: true } : m
               )
             );
             return;
@@ -135,23 +135,24 @@ export function useChat() {
   }, [roomId, senderId]);
 
   // メッセージ削除
-  const handleDeleteMessage = useCallback((messageId: number) => {
+  const handleDeleteMessage = useCallback((messageId: string) => {
     setDeleteModal({ isOpen: true, messageId });
   }, []);
 
   const confirmDelete = useCallback(() => {
     const messageId = deleteModal.messageId;
     setDeleteModal({ isOpen: false, messageId: null });
-    if (!stompClientRef.current?.connected) return;
+    if (!stompClientRef.current?.connected || !messageId) return;
+    const msg = messages.find((m) => m.id === messageId);
+    if (!msg?.createdAt) return;
     stompClientRef.current.publish({
       destination: '/app/chat/delete',
       body: JSON.stringify({
-        messageId,
         roomId: parseInt(roomId!, 10),
-        senderId,
+        createdAt: msg.createdAt,
       }),
     });
-  }, [deleteModal.messageId, roomId, senderId]);
+  }, [deleteModal.messageId, roomId, messages]);
 
   const cancelDelete = useCallback(() => {
     setDeleteModal({ isOpen: false, messageId: null });

@@ -3,8 +3,6 @@ package com.example.FreStyle.dto;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.sql.Timestamp;
-
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ChatUserDtoTest {
@@ -67,7 +65,7 @@ class ChatUserDtoTest {
     @Test
     @DisplayName("AllArgsConstructorで全フィールドが設定される")
     void allArgsConstructorSetsAllFields() {
-        Timestamp now = new Timestamp(System.currentTimeMillis());
+        Long now = System.currentTimeMillis();
         ChatUserDto dto = new ChatUserDto(
                 1, "test@example.com", "テスト", 10,
                 "最後のメッセージ", 2, "送信者", now, 3, "https://example.com/image.jpg");

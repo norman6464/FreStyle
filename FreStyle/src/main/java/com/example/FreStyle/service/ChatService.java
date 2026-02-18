@@ -8,14 +8,14 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.FreStyle.dto.ChatMessageDto;
 import com.example.FreStyle.dto.ChatUserDto;
 import lombok.extern.slf4j.Slf4j;
 import com.example.FreStyle.dto.PartnerRoomProjection;
-import com.example.FreStyle.entity.ChatMessage;
 import com.example.FreStyle.entity.ChatRoom;
 import com.example.FreStyle.entity.RoomMember;
 import com.example.FreStyle.entity.User;
-import com.example.FreStyle.repository.ChatMessageRepository;
+import com.example.FreStyle.repository.ChatMessageDynamoRepository;
 import com.example.FreStyle.repository.ChatRoomRepository;
 import com.example.FreStyle.repository.RoomMemberRepository;
 import com.example.FreStyle.repository.UserRepository;
@@ -29,7 +29,7 @@ public class ChatService {
     private final ChatRoomRepository chatRoomRepository;
     private final RoomMemberRepository roomMemberRepository;
     private final UserRepository userRepository;
-    private final ChatMessageRepository chatMessageRepository;
+    private final ChatMessageDynamoRepository chatMessageDynamoRepository;
     private final UnreadCountService unreadCountService;
 
     
@@ -97,36 +97,34 @@ public class ChatService {
         Map<Integer, User> userMap = partners.stream()
                 .collect(Collectors.toMap(User::getId, u -> u));
         
-        // 4. 各ルームの最新メッセージを一括取得
-        List<ChatMessage> latestMessages = chatMessageRepository.findLatestMessagesByRoomIds(roomIds);
-        Map<Integer, ChatMessage> roomToLatestMessage = latestMessages.stream()
-                .collect(Collectors.toMap(msg -> msg.getRoom().getId(), msg -> msg));
-        
+        // 4. 各ルームの最新メッセージをDynamoDBから一括取得
+        Map<Integer, ChatMessageDto> roomToLatestMessage = chatMessageDynamoRepository.findLatestByRoomIds(roomIds);
+
         // 5. 未読数を一括取得
         Map<Integer, Integer> unreadCounts = unreadCountService.getUnreadCountsByUserAndRooms(myUserId, roomIds);
 
         // 6. DTOを構築
         List<ChatUserDto> result = new ArrayList<>();
-        
+
         for (Integer partnerId : partnerUserIds) {
             User partner = userMap.get(partnerId);
             if (partner == null) continue;
-            
+
             // 検索クエリがある場合はフィルタリング
             if (query != null && !query.isEmpty()) {
                 String lowerQuery = query.toLowerCase();
-                boolean matchesName = partner.getName() != null && 
+                boolean matchesName = partner.getName() != null &&
                         partner.getName().toLowerCase().contains(lowerQuery);
-                boolean matchesEmail = partner.getEmail() != null && 
+                boolean matchesEmail = partner.getEmail() != null &&
                         partner.getEmail().toLowerCase().contains(lowerQuery);
                 if (!matchesName && !matchesEmail) {
                     continue;
                 }
             }
-            
+
             Integer roomId = userIdToRoomId.get(partnerId);
-            ChatMessage latestMsg = roomToLatestMessage.get(roomId);
-            
+            ChatMessageDto latestMsg = roomToLatestMessage.get(roomId);
+
             ChatUserDto dto = new ChatUserDto();
             dto.setUserId(partner.getId());
             dto.setEmail(partner.getEmail());
@@ -134,14 +132,16 @@ public class ChatService {
             dto.setRoomId(roomId);
             dto.setProfileImage(partner.getIconUrl());
             dto.setUnreadCount(unreadCounts.getOrDefault(roomId, 0));
-            
+
             if (latestMsg != null) {
-                dto.setLastMessage(latestMsg.getContent());
-                dto.setLastMessageSenderId(latestMsg.getSender().getId());
-                dto.setLastMessageSenderName(latestMsg.getSender().getName());
-                dto.setLastMessageAt(latestMsg.getCreatedAt());
+                dto.setLastMessage(latestMsg.content());
+                dto.setLastMessageSenderId(latestMsg.senderId());
+                // senderNameをuserMapから解決
+                User senderUser = userMap.get(latestMsg.senderId());
+                dto.setLastMessageSenderName(senderUser != null ? senderUser.getName() : null);
+                dto.setLastMessageAt(latestMsg.createdAt());
             }
-            
+
             result.add(dto);
         }
         

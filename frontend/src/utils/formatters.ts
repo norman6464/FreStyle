@@ -1,5 +1,5 @@
-export function formatTime(dateString: string): string {
-  if (!dateString) return '';
+export function formatTime(dateString: string | number): string {
+  if (!dateString && dateString !== 0) return '';
   const date = new Date(dateString);
   const now = new Date();
   const diff = now.getTime() - date.getTime();
@@ -23,8 +23,8 @@ export function formatDate(dateString: string): string {
   return new Date(dateString).toLocaleDateString('ja-JP');
 }
 
-export function formatHourMinute(dateString?: string): string {
-  if (!dateString) return '';
+export function formatHourMinute(dateString?: string | number): string {
+  if (!dateString && dateString !== 0) return '';
   return new Date(dateString).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
 }
 

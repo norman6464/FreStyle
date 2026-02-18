@@ -6,12 +6,12 @@ interface MessageBubbleProps {
   isSender: boolean;
   type?: 'text' | 'image' | 'bot';
   content: string;
-  id: number;
+  id: string;
   senderName?: string;
-  createdAt?: string;
-  onDelete?: ((id: number) => void) | null;
+  createdAt?: number;
+  onDelete?: ((id: string) => void) | null;
   onRephrase?: ((content: string) => void) | null;
-  onCopy?: ((id: number, content: string) => void) | null;
+  onCopy?: ((id: string, content: string) => void) | null;
   isCopied?: boolean;
   isDeleted?: boolean;
 }

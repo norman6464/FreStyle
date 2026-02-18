@@ -2,7 +2,6 @@ package com.example.FreStyle.usecase;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -17,12 +16,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.example.FreStyle.dto.AiChatMessageResponseDto;
-import com.example.FreStyle.entity.AiChatMessage;
 import com.example.FreStyle.entity.AiChatSession;
 import com.example.FreStyle.entity.User;
 import com.example.FreStyle.exception.ResourceNotFoundException;
-import com.example.FreStyle.mapper.AiChatMessageMapper;
-import com.example.FreStyle.repository.AiChatMessageRepository;
+import com.example.FreStyle.repository.AiChatMessageDynamoRepository;
 import com.example.FreStyle.repository.AiChatSessionRepository;
 import com.example.FreStyle.repository.UserRepository;
 
@@ -31,16 +28,13 @@ import com.example.FreStyle.repository.UserRepository;
 class AddAiChatMessageUseCaseTest {
 
     @Mock
-    private AiChatMessageRepository aiChatMessageRepository;
+    private AiChatMessageDynamoRepository aiChatMessageDynamoRepository;
 
     @Mock
     private AiChatSessionRepository aiChatSessionRepository;
 
     @Mock
     private UserRepository userRepository;
-
-    @Mock
-    private AiChatMessageMapper mapper;
 
     @InjectMocks
     private AddAiChatMessageUseCase useCase;
@@ -60,18 +54,14 @@ class AddAiChatMessageUseCaseTest {
             user.setId(1);
             when(userRepository.findById(1)).thenReturn(Optional.of(user));
 
-            AiChatMessage savedMessage = new AiChatMessage();
-            savedMessage.setId(10);
-            when(aiChatMessageRepository.save(any(AiChatMessage.class))).thenReturn(savedMessage);
-
-            AiChatMessageResponseDto expectedDto = new AiChatMessageResponseDto(10, null, null, "user", null, null);
-            when(mapper.toDto(savedMessage)).thenReturn(expectedDto);
+            AiChatMessageResponseDto expectedDto = new AiChatMessageResponseDto("msg-1", 1, 1, "user", "こんにちは", 1000L);
+            when(aiChatMessageDynamoRepository.save(1, 1, "user", "こんにちは")).thenReturn(expectedDto);
 
             AiChatMessageResponseDto result = useCase.executeUserMessage(1, 1, "こんにちは");
 
-            assertThat(result.id()).isEqualTo(10);
+            assertThat(result.id()).isEqualTo("msg-1");
             assertThat(result.role()).isEqualTo("user");
-            verify(aiChatMessageRepository).save(any(AiChatMessage.class));
+            verify(aiChatMessageDynamoRepository).save(1, 1, "user", "こんにちは");
         }
 
         @Test
@@ -85,16 +75,12 @@ class AddAiChatMessageUseCaseTest {
             user.setId(1);
             when(userRepository.findById(1)).thenReturn(Optional.of(user));
 
-            AiChatMessage savedMessage = new AiChatMessage();
-            savedMessage.setId(11);
-            when(aiChatMessageRepository.save(any(AiChatMessage.class))).thenReturn(savedMessage);
-
-            AiChatMessageResponseDto expectedDto = new AiChatMessageResponseDto(11, null, null, "assistant", null, null);
-            when(mapper.toDto(savedMessage)).thenReturn(expectedDto);
+            AiChatMessageResponseDto expectedDto = new AiChatMessageResponseDto("msg-2", 1, 1, "assistant", "応答です", 2000L);
+            when(aiChatMessageDynamoRepository.save(1, 1, "assistant", "応答です")).thenReturn(expectedDto);
 
             AiChatMessageResponseDto result = useCase.executeAssistantMessage(1, 1, "応答です");
 
-            assertThat(result.id()).isEqualTo(11);
+            assertThat(result.id()).isEqualTo("msg-2");
             assertThat(result.role()).isEqualTo("assistant");
         }
     }

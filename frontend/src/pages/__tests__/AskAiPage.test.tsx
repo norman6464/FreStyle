@@ -81,8 +81,8 @@ describe('AskAiPage', () => {
     vi.mocked(useAskAi).mockReturnValue({
       ...mockUseAskAi,
       messages: [
-        { id: 1, content: 'こんにちは', isSender: true, createdAt: '2026-02-10' },
-        { id: 2, content: 'お手伝いします', isSender: false, createdAt: '2026-02-10' },
+        { id: 'msg-1', content: 'こんにちは', isSender: true, createdAt: 1707523200000 },
+        { id: 'msg-2', content: 'お手伝いします', isSender: false, createdAt: 1707523200000 },
       ] as any,
     });
     render(<AskAiPage />);

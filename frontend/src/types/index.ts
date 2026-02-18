@@ -5,7 +5,7 @@ export interface ChatUser {
   name: string;
   email?: string;
   lastMessage?: string;
-  lastMessageAt?: string;
+  lastMessageAt?: number;
   lastMessageSenderId?: number;
   unreadCount: number;
   profileImage?: string;
@@ -13,12 +13,12 @@ export interface ChatUser {
 
 /** チャットメッセージ */
 export interface ChatMessage {
-  id: number;
+  id: string;
   roomId: number;
   senderId: number;
   senderName?: string;
   content: string;
-  createdAt?: string;
+  createdAt?: number;
   isSender: boolean;
   isDeleted?: boolean;
 }
@@ -53,11 +53,11 @@ export interface PracticeScenario {
 
 /** AIメッセージ */
 export interface AiMessage {
-  id: number;
+  id: string;
   sessionId: number;
   content: string;
   role: 'user' | 'assistant';
-  createdAt?: string;
+  createdAt?: number;
   isSender?: boolean;
   isDeleted?: boolean;
 }

@@ -173,7 +173,7 @@ export function useAskAi() {
   }, [sessions, sessionSearchQuery]);
 
   // メッセージ削除処理
-  const handleDeleteMessage = (_messageId: number): void => {
+  const handleDeleteMessage = (_messageId: string): void => {
     // メッセージ削除はローカル状態のみ更新（サーバー側の削除は未実装）
   };
 

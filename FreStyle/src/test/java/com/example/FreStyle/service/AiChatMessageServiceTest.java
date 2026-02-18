@@ -1,22 +1,18 @@
 package com.example.FreStyle.service;
 
 import com.example.FreStyle.dto.AiChatMessageResponseDto;
-import com.example.FreStyle.entity.AiChatMessage;
-import com.example.FreStyle.entity.AiChatMessage.Role;
 import com.example.FreStyle.entity.AiChatSession;
 import com.example.FreStyle.entity.User;
-import com.example.FreStyle.repository.AiChatMessageRepository;
+import com.example.FreStyle.repository.AiChatMessageDynamoRepository;
 import com.example.FreStyle.repository.AiChatSessionRepository;
 import com.example.FreStyle.repository.UserRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.sql.Timestamp;
 import java.util.List;
 import java.util.Optional;
 
@@ -27,7 +23,7 @@ import static org.mockito.Mockito.*;
 class AiChatMessageServiceTest {
 
     @Mock
-    private AiChatMessageRepository aiChatMessageRepository;
+    private AiChatMessageDynamoRepository aiChatMessageDynamoRepository;
 
     @Mock
     private AiChatSessionRepository aiChatSessionRepository;
@@ -50,17 +46,6 @@ class AiChatMessageServiceTest {
         return user;
     }
 
-    private AiChatMessage createMessage(Integer id, AiChatSession session, User user, Role role, String content) {
-        AiChatMessage msg = new AiChatMessage();
-        msg.setId(id);
-        msg.setSession(session);
-        msg.setUser(user);
-        msg.setRole(role);
-        msg.setContent(content);
-        msg.setCreatedAt(new Timestamp(System.currentTimeMillis()));
-        return msg;
-    }
-
     @Test
     @DisplayName("addMessage: メッセージを保存してDTOを返す")
     void addMessage_savesAndReturnsDto() {
@@ -69,22 +54,18 @@ class AiChatMessageServiceTest {
         when(aiChatSessionRepository.findById(1)).thenReturn(Optional.of(session));
         when(userRepository.findById(10)).thenReturn(Optional.of(user));
 
-        AiChatMessage saved = createMessage(100, session, user, Role.user, "こんにちは");
-        when(aiChatMessageRepository.save(any())).thenReturn(saved);
+        AiChatMessageResponseDto expected = new AiChatMessageResponseDto("msg-1", 1, 10, "user", "こんにちは", 1000L);
+        when(aiChatMessageDynamoRepository.save(1, 10, "user", "こんにちは")).thenReturn(expected);
 
-        AiChatMessageResponseDto dto = aiChatMessageService.addMessage(1, 10, Role.user, "こんにちは");
+        AiChatMessageResponseDto dto = aiChatMessageService.addMessage(1, 10, "user", "こんにちは");
 
-        assertEquals(100, dto.id());
+        assertEquals("msg-1", dto.id());
         assertEquals(1, dto.sessionId());
         assertEquals(10, dto.userId());
         assertEquals("user", dto.role());
         assertEquals("こんにちは", dto.content());
 
-        ArgumentCaptor<AiChatMessage> captor = ArgumentCaptor.forClass(AiChatMessage.class);
-        verify(aiChatMessageRepository).save(captor.capture());
-        assertEquals(session, captor.getValue().getSession());
-        assertEquals(user, captor.getValue().getUser());
-        assertEquals(Role.user, captor.getValue().getRole());
+        verify(aiChatMessageDynamoRepository).save(1, 10, "user", "こんにちは");
     }
 
     @Test
@@ -93,7 +74,7 @@ class AiChatMessageServiceTest {
         when(aiChatSessionRepository.findById(999)).thenReturn(Optional.empty());
 
         RuntimeException ex = assertThrows(RuntimeException.class,
-                () -> aiChatMessageService.addMessage(999, 10, Role.user, "test"));
+                () -> aiChatMessageService.addMessage(999, 10, "user", "test"));
         assertTrue(ex.getMessage().contains("セッションが見つかりません"));
     }
 
@@ -105,7 +86,7 @@ class AiChatMessageServiceTest {
         when(userRepository.findById(999)).thenReturn(Optional.empty());
 
         RuntimeException ex = assertThrows(RuntimeException.class,
-                () -> aiChatMessageService.addMessage(1, 999, Role.user, "test"));
+                () -> aiChatMessageService.addMessage(1, 999, "user", "test"));
         assertTrue(ex.getMessage().contains("ユーザーが見つかりません"));
     }
 
@@ -117,8 +98,8 @@ class AiChatMessageServiceTest {
         when(aiChatSessionRepository.findById(1)).thenReturn(Optional.of(session));
         when(userRepository.findById(10)).thenReturn(Optional.of(user));
 
-        AiChatMessage saved = createMessage(101, session, user, Role.user, "質問");
-        when(aiChatMessageRepository.save(any())).thenReturn(saved);
+        AiChatMessageResponseDto expected = new AiChatMessageResponseDto("msg-1", 1, 10, "user", "質問", 1000L);
+        when(aiChatMessageDynamoRepository.save(1, 10, "user", "質問")).thenReturn(expected);
 
         AiChatMessageResponseDto dto = aiChatMessageService.addUserMessage(1, 10, "質問");
         assertEquals("user", dto.role());
@@ -132,8 +113,8 @@ class AiChatMessageServiceTest {
         when(aiChatSessionRepository.findById(1)).thenReturn(Optional.of(session));
         when(userRepository.findById(10)).thenReturn(Optional.of(user));
 
-        AiChatMessage saved = createMessage(102, session, user, Role.assistant, "回答");
-        when(aiChatMessageRepository.save(any())).thenReturn(saved);
+        AiChatMessageResponseDto expected = new AiChatMessageResponseDto("msg-1", 1, 10, "assistant", "回答", 1000L);
+        when(aiChatMessageDynamoRepository.save(1, 10, "assistant", "回答")).thenReturn(expected);
 
         AiChatMessageResponseDto dto = aiChatMessageService.addAssistantMessage(1, 10, "回答");
         assertEquals("assistant", dto.role());
@@ -142,12 +123,11 @@ class AiChatMessageServiceTest {
     @Test
     @DisplayName("getMessagesBySessionId: セッションのメッセージ一覧を返す")
     void getMessagesBySessionId_returnsList() {
-        AiChatSession session = createSession(1);
-        User user = createUser(10);
-        AiChatMessage msg1 = createMessage(1, session, user, Role.user, "質問");
-        AiChatMessage msg2 = createMessage(2, session, user, Role.assistant, "回答");
-        when(aiChatMessageRepository.findBySessionIdOrderByCreatedAtAsc(1))
-                .thenReturn(List.of(msg1, msg2));
+        List<AiChatMessageResponseDto> expected = List.of(
+                new AiChatMessageResponseDto("msg-1", 1, 10, "user", "質問", 1000L),
+                new AiChatMessageResponseDto("msg-2", 1, 10, "assistant", "回答", 2000L)
+        );
+        when(aiChatMessageDynamoRepository.findBySessionId(1)).thenReturn(expected);
 
         List<AiChatMessageResponseDto> result = aiChatMessageService.getMessagesBySessionId(1);
 
@@ -159,7 +139,7 @@ class AiChatMessageServiceTest {
     @Test
     @DisplayName("countMessagesBySessionId: メッセージ数を返す")
     void countMessagesBySessionId_returnsCount() {
-        when(aiChatMessageRepository.countBySessionId(1)).thenReturn(5L);
+        when(aiChatMessageDynamoRepository.countBySessionId(1)).thenReturn(5L);
 
         Long count = aiChatMessageService.countMessagesBySessionId(1);
 
@@ -169,12 +149,11 @@ class AiChatMessageServiceTest {
     @Test
     @DisplayName("getMessagesByUserId: ユーザーの全メッセージを返す")
     void getMessagesByUserId_returnsList() {
-        AiChatSession session = createSession(1);
-        User user = createUser(10);
-        AiChatMessage msg1 = createMessage(1, session, user, Role.user, "質問1");
-        AiChatMessage msg2 = createMessage(2, session, user, Role.assistant, "回答1");
-        when(aiChatMessageRepository.findByUserIdOrderByCreatedAtAsc(10))
-                .thenReturn(List.of(msg1, msg2));
+        List<AiChatMessageResponseDto> expected = List.of(
+                new AiChatMessageResponseDto("msg-1", 1, 10, "user", "質問1", 1000L),
+                new AiChatMessageResponseDto("msg-2", 1, 10, "assistant", "回答1", 2000L)
+        );
+        when(aiChatMessageDynamoRepository.findByUserId(10)).thenReturn(expected);
 
         List<AiChatMessageResponseDto> result = aiChatMessageService.getMessagesByUserId(10);
 
@@ -187,8 +166,7 @@ class AiChatMessageServiceTest {
     @Test
     @DisplayName("getMessagesByUserId: メッセージがない場合は空リスト")
     void getMessagesByUserId_returnsEmptyList() {
-        when(aiChatMessageRepository.findByUserIdOrderByCreatedAtAsc(999))
-                .thenReturn(List.of());
+        when(aiChatMessageDynamoRepository.findByUserId(999)).thenReturn(List.of());
 
         List<AiChatMessageResponseDto> result = aiChatMessageService.getMessagesByUserId(999);
 

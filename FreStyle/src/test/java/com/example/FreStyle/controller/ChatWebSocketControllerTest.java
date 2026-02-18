@@ -13,7 +13,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
-import java.sql.Timestamp;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -39,8 +38,7 @@ class ChatWebSocketControllerTest {
 
     @BeforeEach
     void setUp() {
-        savedMessage = new ChatMessageDto(100, 10, 1, "送信者", "テストメッセージ",
-                new Timestamp(System.currentTimeMillis()), null);
+        savedMessage = new ChatMessageDto("msg-100", 10, 1, "送信者", "テストメッセージ", 1000L);
     }
 
     @Test
@@ -90,20 +88,21 @@ class ChatWebSocketControllerTest {
     @DisplayName("deleteMessage: 削除通知をWebSocketで送信する")
     void deleteMessage_sendsDeleteNotificationViaWebSocket() {
         Map<String, Object> payload = Map.of(
-                "messageId", 100,
-                "roomId", 10
+                "roomId", 10,
+                "createdAt", 1000L
         );
 
         controller.deleteMessage(payload);
 
-        verify(deleteChatMessageUseCase).execute(100);
+        verify(deleteChatMessageUseCase).execute(10, 1000L);
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
         verify(messagingTemplate).convertAndSend(eq("/topic/chat/10"), captor.capture());
         Map<String, Object> notification = captor.getValue();
         assertEquals("delete", notification.get("type"));
-        assertEquals(100, notification.get("messageId"));
+        assertEquals(10, notification.get("roomId"));
+        assertEquals(1000L, notification.get("createdAt"));
     }
 
     @Test
@@ -126,11 +125,11 @@ class ChatWebSocketControllerTest {
     @DisplayName("deleteMessage: UseCase例外時にWebSocket通知が送信されない")
     void deleteMessage_exceptionDoesNotSendNotification() {
         doThrow(new RuntimeException("削除エラー"))
-                .when(deleteChatMessageUseCase).execute(100);
+                .when(deleteChatMessageUseCase).execute(10, 1000L);
 
         Map<String, Object> payload = Map.of(
-                "messageId", 100,
-                "roomId", 10
+                "roomId", 10,
+                "createdAt", 1000L
         );
 
         assertDoesNotThrow(() -> controller.deleteMessage(payload));

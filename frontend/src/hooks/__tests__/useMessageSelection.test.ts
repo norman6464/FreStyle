@@ -5,12 +5,12 @@ import type { ChatMessage } from '../../types';
 
 const makeMessages = (count: number): ChatMessage[] =>
   Array.from({ length: count }, (_, i) => ({
-    id: i + 1,
+    id: `msg-${i + 1}`,
     roomId: 1,
     senderId: i % 2 === 0 ? 1 : 2,
     senderName: `User${i % 2}`,
     content: `msg${i + 1}`,
-    createdAt: '2025-01-01T00:00:00',
+    createdAt: 1735689600000 + i * 1000,
     isSender: i % 2 === 0,
   }));
 
@@ -40,14 +40,14 @@ describe('useMessageSelection', () => {
     const { result } = renderHook(() => useMessageSelection(messages));
     act(() => result.current.enterSelectionMode());
     // 1番目をクリック（開始）
-    act(() => result.current.handleRangeClick(1));
+    act(() => result.current.handleRangeClick('msg-1'));
     expect(result.current.selectedMessages.size).toBe(1);
     // 3番目をクリック（終了）
-    act(() => result.current.handleRangeClick(3));
+    act(() => result.current.handleRangeClick('msg-3'));
     expect(result.current.selectedMessages.size).toBe(3);
-    expect(result.current.selectedMessages.has(1)).toBe(true);
-    expect(result.current.selectedMessages.has(2)).toBe(true);
-    expect(result.current.selectedMessages.has(3)).toBe(true);
+    expect(result.current.selectedMessages.has('msg-1')).toBe(true);
+    expect(result.current.selectedMessages.has('msg-2')).toBe(true);
+    expect(result.current.selectedMessages.has('msg-3')).toBe(true);
   });
 
   it('handleQuickSelectで直近N件を選択する', () => {
@@ -55,9 +55,9 @@ describe('useMessageSelection', () => {
     const { result } = renderHook(() => useMessageSelection(messages));
     act(() => result.current.handleQuickSelect(3));
     expect(result.current.selectedMessages.size).toBe(3);
-    expect(result.current.selectedMessages.has(8)).toBe(true);
-    expect(result.current.selectedMessages.has(9)).toBe(true);
-    expect(result.current.selectedMessages.has(10)).toBe(true);
+    expect(result.current.selectedMessages.has('msg-8')).toBe(true);
+    expect(result.current.selectedMessages.has('msg-9')).toBe(true);
+    expect(result.current.selectedMessages.has('msg-10')).toBe(true);
   });
 
   it('handleSelectAllで全件選択する', () => {
@@ -78,8 +78,8 @@ describe('useMessageSelection', () => {
   it('isInRangeが範囲内のインデックスを判定する', () => {
     const messages = makeMessages(5);
     const { result } = renderHook(() => useMessageSelection(messages));
-    act(() => result.current.handleRangeClick(1));
-    act(() => result.current.handleRangeClick(3));
+    act(() => result.current.handleRangeClick('msg-1'));
+    act(() => result.current.handleRangeClick('msg-3'));
     expect(result.current.isInRange(0)).toBe(true);
     expect(result.current.isInRange(1)).toBe(true);
     expect(result.current.isInRange(2)).toBe(true);
@@ -89,8 +89,8 @@ describe('useMessageSelection', () => {
   it('getRangeLabelが開始・終了ラベルを返す', () => {
     const messages = makeMessages(5);
     const { result } = renderHook(() => useMessageSelection(messages));
-    act(() => result.current.handleRangeClick(1));
-    act(() => result.current.handleRangeClick(3));
+    act(() => result.current.handleRangeClick('msg-1'));
+    act(() => result.current.handleRangeClick('msg-3'));
     expect(result.current.getRangeLabel(0)).toBe('開始');
     expect(result.current.getRangeLabel(2)).toBe('終了');
     expect(result.current.getRangeLabel(1)).toBeNull();

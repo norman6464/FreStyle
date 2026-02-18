@@ -4,9 +4,9 @@ interface MessageBubbleAiProps {
   isSender: boolean;
   type?: 'text' | 'image' | 'bot';
   content: string;
-  id: number;
-  onDelete?: (id: number) => void;
-  onCopy?: ((id: number, content: string) => void) | null;
+  id: string;
+  onDelete?: (id: string) => void;
+  onCopy?: ((id: string, content: string) => void) | null;
   isCopied?: boolean;
   isDeleted?: boolean;
 }

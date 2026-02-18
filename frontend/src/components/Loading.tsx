@@ -1,36 +1,7 @@
-/**
- * Loadingコンポーネント
- *
- * <p>役割:</p>
- * <ul>
- *   <li>統一されたローディング表示</li>
- *   <li>サイズバリエーション対応</li>
- *   <li>フルスクリーン/インラインモード対応</li>
- * </ul>
- *
- * <p>Presentation Layer:</p>
- * <ul>
- *   <li>UIのみに集中</li>
- *   <li>再利用可能なコンポーネント</li>
- * </ul>
- */
-
 interface LoadingProps {
-  /**
-   * サイズ: small (16px), medium (32px), large (48px)
-   */
   size?: 'small' | 'medium' | 'large';
-  /**
-   * フルスクリーンモード
-   */
   fullscreen?: boolean;
-  /**
-   * 表示メッセージ
-   */
   message?: string;
-  /**
-   * カスタムクラス
-   */
   className?: string;
 }
 
@@ -42,13 +13,13 @@ export default function Loading({
 }: LoadingProps) {
   const sizeClasses = {
     small: 'w-4 h-4 border-2',
-    medium: 'w-8 h-8 border-2',
-    large: 'w-12 h-12 border-3',
+    medium: 'w-8 h-8 border-3',
+    large: 'w-10 h-10 border-4',
   };
 
   const spinner = (
     <div
-      className={`${sizeClasses[size]} border-[var(--color-border-hover)] border-t-primary-500 rounded-full animate-spin`}
+      className={`${sizeClasses[size]} border-gray-200 border-t-blue-500 rounded-full animate-spin`}
       role="status"
       aria-label="読み込み中"
     />
@@ -56,25 +27,21 @@ export default function Loading({
 
   if (fullscreen) {
     return (
-      <div className="fixed inset-0 bg-surface-1/80 backdrop-blur-sm flex items-center justify-center z-50">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-3 border-[var(--color-border-hover)] border-t-primary-500 rounded-full animate-spin" role="status" aria-label="読み込み中" />
-          {message && (
-            <p className="text-sm font-medium text-[var(--color-text-secondary)] animate-pulse">
-              {message}
-            </p>
-          )}
-        </div>
+      <div className="fixed inset-0 bg-white flex flex-col items-center justify-center z-50">
+        <div className="w-10 h-10 border-4 border-gray-200 border-t-blue-500 rounded-full animate-spin" role="status" aria-label="読み込み中" />
+        {message && (
+          <p className="mt-4 text-sm text-gray-500">{message}</p>
+        )}
       </div>
     );
   }
 
   return (
     <div className={`flex items-center justify-center ${className}`}>
-      <div className="flex flex-col items-center gap-2">
+      <div className="flex flex-col items-center gap-3">
         {spinner}
         {message && (
-          <p className="text-xs text-[var(--color-text-tertiary)]">{message}</p>
+          <p className="text-sm text-gray-500">{message}</p>
         )}
       </div>
     </div>

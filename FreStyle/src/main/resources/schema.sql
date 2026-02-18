@@ -218,6 +218,44 @@ CREATE TABLE IF NOT EXISTS scenario_bookmarks (
     FOREIGN KEY (scenario_id) REFERENCES practice_scenarios(id) ON DELETE CASCADE
 ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- スコア目標
+CREATE TABLE IF NOT EXISTS score_goals (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    goal_score DOUBLE NOT NULL,
+    updated_at DATETIME NOT NULL,
+
+    UNIQUE KEY uk_user_id (user_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- お気に入りフレーズ
+CREATE TABLE IF NOT EXISTS favorite_phrases (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    original_text TEXT NOT NULL,
+    rephrased_text TEXT NOT NULL,
+    pattern VARCHAR(50) NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- 通知
+CREATE TABLE IF NOT EXISTS notifications (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    type VARCHAR(50) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    message TEXT NOT NULL,
+    is_read BOOLEAN NOT NULL DEFAULT FALSE,
+    related_id INT,
+    created_at DATETIME NOT NULL,
+
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_user_created (user_id, created_at DESC)
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 -- ┌─────────────────┐     ┌──────────────────────┐
 -- │     users       │────→│   ai_chat_sessions   │
 -- └─────────────────┘     └──────────────────────┘

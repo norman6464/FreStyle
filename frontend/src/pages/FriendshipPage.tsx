@@ -86,7 +86,8 @@ export default function FriendshipPage() {
 
       {currentList.length === 0 ? (
         <EmptyState
-          message={tab === 'following' ? 'まだ誰もフォローしていません' : 'まだフォロワーがいません'}
+          icon={UsersIcon}
+          title={tab === 'following' ? 'まだ誰もフォローしていません' : 'まだフォロワーがいません'}
         />
       ) : (
         <div className="space-y-2">

@@ -256,6 +256,37 @@ CREATE TABLE IF NOT EXISTS notifications (
     INDEX idx_user_created (user_id, created_at DESC)
 ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- セッションノート
+CREATE TABLE IF NOT EXISTS session_notes (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    session_id INT NOT NULL,
+    note TEXT NOT NULL,
+    updated_at DATETIME NOT NULL,
+
+    UNIQUE KEY uk_user_session (user_id, session_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (session_id) REFERENCES ai_chat_sessions(id) ON DELETE CASCADE
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ユーザープロフィール
+CREATE TABLE IF NOT EXISTS user_profiles (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    display_name VARCHAR(100),
+    self_introduction TEXT,
+    communication_style VARCHAR(50),
+    personality_traits JSON,
+    goals TEXT,
+    concerns TEXT,
+    preferred_feedback_style VARCHAR(50),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uk_user_id (user_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 -- ┌─────────────────┐     ┌──────────────────────┐
 -- │     users       │────→│   ai_chat_sessions   │
 -- └─────────────────┘     └──────────────────────┘

@@ -130,7 +130,7 @@ export function useChat() {
     if (!stompClientRef.current?.connected) return;
     stompClientRef.current.publish({
       destination: '/app/chat/send',
-      body: JSON.stringify({ roomId, senderId, content: text }),
+      body: JSON.stringify({ roomId: parseInt(roomId!, 10), senderId, content: text }),
     });
   }, [roomId, senderId]);
 

@@ -21,12 +21,18 @@ export function useUserSearch() {
   }, [searchQuery, debounceSearch]);
 
   useEffect(() => {
+    if (!debounceQuery) {
+      setUsers([]);
+      setLoading(false);
+      return;
+    }
+
     let cancelled = false;
 
     const search = async () => {
       setLoading(true);
       try {
-        const result = await UserSearchRepository.searchUsers(debounceQuery || undefined);
+        const result = await UserSearchRepository.searchUsers(debounceQuery);
         if (!cancelled) {
           setUsers(result);
           setError(null);

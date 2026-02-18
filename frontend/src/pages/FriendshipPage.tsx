@@ -28,6 +28,9 @@ function FriendCard({ user, onUnfollow, showUnfollow }: { user: FriendshipUser; 
             </span>
           )}
         </div>
+        {user.status && (
+          <p className="text-xs text-emerald-400 truncate mt-0.5">{user.status}</p>
+        )}
         {user.bio && (
           <p className="text-xs text-[var(--color-text-muted)] truncate mt-0.5">{user.bio}</p>
         )}

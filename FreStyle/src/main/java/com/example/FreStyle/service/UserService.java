@@ -103,6 +103,7 @@ public class UserService {
     user.setName(form.getName());
     user.setBio(form.getBio());
     user.setIconUrl(form.getIconUrl());
+    user.setStatus(form.getStatus());
 
     userRepository.save(user);
   }

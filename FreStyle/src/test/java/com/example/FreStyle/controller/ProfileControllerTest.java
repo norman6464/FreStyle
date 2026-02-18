@@ -55,7 +55,7 @@ class ProfileControllerTest {
             Jwt jwt = mock(Jwt.class);
             when(jwt.getSubject()).thenReturn("sub-123");
             when(getProfileUseCase.execute("sub-123"))
-                    .thenReturn(new ProfileDto("テストユーザー", "テスト自己紹介", null));
+                    .thenReturn(new ProfileDto("テストユーザー", "テスト自己紹介", null, null));
 
             ResponseEntity<ProfileDto> response = profileController.getProfile(jwt);
 
@@ -98,7 +98,7 @@ class ProfileControllerTest {
         @DisplayName("Cognitoユーザーのプロフィールを更新できる")
         void updatesCognitoUserProfile() {
             Jwt jwt = mock(Jwt.class);
-            ProfileForm form = new ProfileForm("新しい名前", "新しい自己紹介", null);
+            ProfileForm form = new ProfileForm("新しい名前", "新しい自己紹介", null, null);
 
             ResponseEntity<Map<String, String>> response = profileController.updateProfile(jwt, form);
 
@@ -110,7 +110,7 @@ class ProfileControllerTest {
         @DisplayName("入力値不正時はIllegalArgumentExceptionが伝搬する")
         void throwsWhenInvalidInput() {
             Jwt jwt = mock(Jwt.class);
-            ProfileForm form = new ProfileForm("", "自己紹介", null);
+            ProfileForm form = new ProfileForm("", "自己紹介", null, null);
 
             doThrow(new IllegalArgumentException("名前が不正です"))
                     .when(updateProfileUseCase).execute(jwt, form);

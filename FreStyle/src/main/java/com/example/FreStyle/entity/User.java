@@ -40,6 +40,9 @@ public class User {
     @Column(columnDefinition = "TEXT")
     private String bio;
 
+    @Column(length = 100)
+    private String status;
+
     @Column(name = "is_active")
     private Boolean isActive = false;
 

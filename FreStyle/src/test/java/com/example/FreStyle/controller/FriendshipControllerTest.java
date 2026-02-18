@@ -86,7 +86,7 @@ class FriendshipControllerTest {
         @DisplayName("ユーザーをフォローできる")
         void followsUser() {
             when(userService.findUserById(2)).thenReturn(targetUser);
-            FriendshipDto dto = new FriendshipDto(1, 2, "ターゲット", null, null, false, "2026-02-17T00:00:00");
+            FriendshipDto dto = new FriendshipDto(1, 2, "ターゲット", null, null, false, "2026-02-17T00:00:00", null);
             when(followUserUseCase.execute(testUser, targetUser)).thenReturn(dto);
 
             ResponseEntity<FriendshipDto> response = friendshipController.followUser(mockJwt, 2);
@@ -117,7 +117,7 @@ class FriendshipControllerTest {
         @Test
         @DisplayName("フォロー中一覧を取得できる")
         void returnsFollowingList() {
-            FriendshipDto dto = new FriendshipDto(1, 2, "ターゲット", null, null, false, "2026-02-17T00:00:00");
+            FriendshipDto dto = new FriendshipDto(1, 2, "ターゲット", null, null, false, "2026-02-17T00:00:00", null);
             when(getFollowingUseCase.execute(1)).thenReturn(List.of(dto));
 
             ResponseEntity<List<FriendshipDto>> response = friendshipController.getFollowing(mockJwt);
@@ -134,7 +134,7 @@ class FriendshipControllerTest {
         @Test
         @DisplayName("フォロワー一覧を取得できる")
         void returnsFollowerList() {
-            FriendshipDto dto = new FriendshipDto(1, 2, "フォロワー", null, null, true, "2026-02-17T00:00:00");
+            FriendshipDto dto = new FriendshipDto(1, 2, "フォロワー", null, null, true, "2026-02-17T00:00:00", null);
             when(getFollowersUseCase.execute(1)).thenReturn(List.of(dto));
 
             ResponseEntity<List<FriendshipDto>> response = friendshipController.getFollowers(mockJwt);

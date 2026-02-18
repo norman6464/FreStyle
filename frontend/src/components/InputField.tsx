@@ -12,6 +12,7 @@ interface InputFieldProps {
   placeholder?: string;
   error?: string;
   disabled?: boolean;
+  maxLength?: number;
 }
 
 export default function InputField({
@@ -20,8 +21,10 @@ export default function InputField({
   type = 'text',
   value,
   onChange,
+  placeholder,
   error,
   disabled,
+  maxLength,
 }: InputFieldProps) {
   const [inputValue, setInputValue] = useState(value || '');
   const [showPassword, setShowPassword] = useState(false);
@@ -50,7 +53,9 @@ export default function InputField({
             setInputValue(e.target.value);
             onChange(e);
           }}
+          placeholder={placeholder}
           disabled={disabled}
+          maxLength={maxLength}
           aria-invalid={!!error}
           aria-describedby={error ? `${name}-error` : undefined}
           className={`w-full border rounded-lg px-4 py-2.5 pr-10 focus:outline-none focus:ring-1 transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed ${getFieldBorderClass(!!error)}`}

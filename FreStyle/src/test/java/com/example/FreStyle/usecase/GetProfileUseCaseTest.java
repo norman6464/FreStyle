@@ -36,6 +36,7 @@ class GetProfileUseCaseTest {
         testUser.setEmail("test@example.com");
         testUser.setBio("テスト自己紹介");
         testUser.setIconUrl("https://cdn.example.com/profiles/1/avatar.png");
+        testUser.setStatus("学習中");
     }
 
     @Test
@@ -48,6 +49,7 @@ class GetProfileUseCaseTest {
         assertEquals("テストユーザー", result.name());
         assertEquals("テスト自己紹介", result.bio());
         assertEquals("https://cdn.example.com/profiles/1/avatar.png", result.iconUrl());
+        assertEquals("学習中", result.status());
     }
 
     @Test

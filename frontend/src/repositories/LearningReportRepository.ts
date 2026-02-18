@@ -16,8 +16,8 @@ export const LearningReportRepository = {
     }
   },
 
-  async generate(year: number, month: number): Promise<LearningReport> {
-    const response = await apiClient.post<LearningReport>('/api/reports/generate', { year, month });
+  async generate(year: number, month: number): Promise<{ status: string }> {
+    const response = await apiClient.post<{ status: string }>('/api/reports/generate', { year, month });
     return response.data;
   },
 };

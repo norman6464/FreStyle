@@ -13,18 +13,6 @@ vi.mock('../../hooks/useProfileImageUpload', () => ({
 
 vi.mock('../../repositories/ProfileRepository');
 
-const mockFetchMyProfile = vi.fn();
-const mockUpdateProfile = vi.fn();
-vi.mock('../../hooks/useUserProfile', () => ({
-  useUserProfile: () => ({
-    profile: null,
-    loading: false,
-    error: null,
-    fetchMyProfile: mockFetchMyProfile,
-    updateProfile: mockUpdateProfile,
-  }),
-}));
-
 vi.mock('../../repositories/ProfileStatsRepository', () => ({
   default: {
     fetchStats: vi.fn().mockResolvedValue({
@@ -44,8 +32,6 @@ const mockedRepo = vi.mocked(ProfileRepository);
 describe('ProfilePage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockFetchMyProfile.mockResolvedValue(undefined);
-    mockUpdateProfile.mockResolvedValue(true);
   });
 
   it('ローディング中はスピナーが表示される', () => {
@@ -190,40 +176,6 @@ describe('ProfilePage', () => {
     await waitFor(() => {
       expect(screen.getByText('学習統計')).toBeInTheDocument();
       expect(screen.getByText('10回')).toBeInTheDocument();
-    });
-  });
-
-  it('コミュニケーション設定セクションが表示される', async () => {
-    mockedRepo.fetchProfile.mockResolvedValue({ name: 'テスト', bio: '' });
-
-    render(<ProfilePage />);
-
-    await waitFor(() => {
-      expect(screen.getByText('コミュニケーション設定')).toBeInTheDocument();
-      expect(screen.getByText('設定を保存')).toBeInTheDocument();
-    });
-  });
-
-  it('性格タグが表示される', async () => {
-    mockedRepo.fetchProfile.mockResolvedValue({ name: 'テスト', bio: '' });
-
-    render(<ProfilePage />);
-
-    await waitFor(() => {
-      expect(screen.getByText('内向的')).toBeInTheDocument();
-      expect(screen.getByText('外向的')).toBeInTheDocument();
-    });
-  });
-
-  it('AIフィードバック設定が表示される', async () => {
-    mockedRepo.fetchProfile.mockResolvedValue({ name: 'テスト', bio: '' });
-
-    render(<ProfilePage />);
-
-    await waitFor(() => {
-      expect(screen.getByText('AIフィードバック設定')).toBeInTheDocument();
-      expect(screen.getByText('学習目標')).toBeInTheDocument();
-      expect(screen.getByText('悩み・課題')).toBeInTheDocument();
     });
   });
 });

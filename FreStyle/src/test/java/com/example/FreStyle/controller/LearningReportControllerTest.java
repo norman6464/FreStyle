@@ -6,6 +6,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -22,7 +23,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import com.example.FreStyle.dto.LearningReportDto;
 import com.example.FreStyle.entity.User;
 import com.example.FreStyle.service.UserIdentityService;
-import com.example.FreStyle.usecase.GenerateMonthlyReportUseCase;
+import com.example.FreStyle.usecase.EnqueueReportGenerationUseCase;
 import com.example.FreStyle.usecase.GetMonthlyReportUseCase;
 import com.example.FreStyle.usecase.GetReportListUseCase;
 
@@ -31,7 +32,7 @@ import com.example.FreStyle.usecase.GetReportListUseCase;
 class LearningReportControllerTest {
 
     @Mock
-    private GenerateMonthlyReportUseCase generateMonthlyReportUseCase;
+    private EnqueueReportGenerationUseCase enqueueReportGenerationUseCase;
 
     @Mock
     private GetMonthlyReportUseCase getMonthlyReportUseCase;
@@ -109,15 +110,14 @@ class LearningReportControllerTest {
     class GenerateReport {
 
         @Test
-        @DisplayName("レポートを生成できる")
-        void generatesReport() {
-            LearningReportDto dto = new LearningReportDto(1, 2026, 1, 5, 75.0, 70.0, 5.0, "論理的構成力", "配慮表現", 3, "2026-02-01T00:00:00");
-            when(generateMonthlyReportUseCase.execute(testUser, 2026, 1)).thenReturn(dto);
+        @DisplayName("レポート生成をキューに投入し202を返す")
+        void enqueuesReportGeneration() {
+            ResponseEntity<Map<String, String>> response = learningReportController.generateReport(
+                    mockJwt, new LearningReportController.GenerateReportRequest(2026, 1));
 
-            ResponseEntity<LearningReportDto> response = learningReportController.generateReport(mockJwt, new LearningReportController.GenerateReportRequest(2026, 1));
-
-            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-            verify(generateMonthlyReportUseCase).execute(testUser, 2026, 1);
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+            assertThat(response.getBody()).containsEntry("status", "processing");
+            verify(enqueueReportGenerationUseCase).execute(1, 2026, 1);
         }
     }
 }

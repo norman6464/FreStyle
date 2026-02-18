@@ -56,7 +56,7 @@ function ReportCard({ report }: { report: LearningReport }) {
 }
 
 export default function LearningReportPage() {
-  const { reports, loading, generateReport } = useLearningReport();
+  const { reports, loading, generating, generateReport } = useLearningReport();
 
   const handleGenerate = () => {
     const now = new Date();
@@ -82,9 +82,10 @@ export default function LearningReportPage() {
         </h2>
         <button
           onClick={handleGenerate}
-          className="text-xs text-primary-500 hover:text-primary-600 transition-colors"
+          disabled={generating}
+          className="text-xs text-primary-500 hover:text-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          今月のレポートを生成
+          {generating ? '生成中...' : '今月のレポートを生成'}
         </button>
       </div>
 

@@ -95,6 +95,7 @@ jobs:
             DYNAMODB_CHAT_TABLE=${{ secrets.DYNAMODB_CHAT_TABLE }}
             NOTE_IMAGES_BUCKET=${{ secrets.NOTE_IMAGES_BUCKET }}
             NOTE_IMAGES_CDN_URL=${{ secrets.NOTE_IMAGES_CDN_URL }}
+            SQS_REPORT_QUEUE_URL=${{ secrets.SQS_REPORT_QUEUE_URL }}
 
       - name: Deploy Amazon ECS task definition
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2

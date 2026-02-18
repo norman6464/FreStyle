@@ -1,7 +1,9 @@
 package com.example.FreStyle.controller;
 
 import java.util.List;
+import java.util.Map;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -15,7 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.FreStyle.dto.LearningReportDto;
 import com.example.FreStyle.entity.User;
 import com.example.FreStyle.service.UserIdentityService;
-import com.example.FreStyle.usecase.GenerateMonthlyReportUseCase;
+import com.example.FreStyle.usecase.EnqueueReportGenerationUseCase;
 import com.example.FreStyle.usecase.GetMonthlyReportUseCase;
 import com.example.FreStyle.usecase.GetReportListUseCase;
 
@@ -32,7 +34,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class LearningReportController {
 
-    private final GenerateMonthlyReportUseCase generateMonthlyReportUseCase;
+    private final EnqueueReportGenerationUseCase enqueueReportGenerationUseCase;
     private final GetMonthlyReportUseCase getMonthlyReportUseCase;
     private final GetReportListUseCase getReportListUseCase;
     private final UserIdentityService userIdentityService;
@@ -60,13 +62,13 @@ public class LearningReportController {
     }
 
     @PostMapping("/generate")
-    public ResponseEntity<LearningReportDto> generateReport(
+    public ResponseEntity<Map<String, String>> generateReport(
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody GenerateReportRequest request) {
         User user = resolveUser(jwt);
-        log.info("月次レポート生成: userId={}, year={}, month={}", user.getId(), request.year(), request.month());
-        LearningReportDto report = generateMonthlyReportUseCase.execute(user, request.year(), request.month());
-        return ResponseEntity.ok(report);
+        log.info("月次レポート生成キュー投入: userId={}, year={}, month={}", user.getId(), request.year(), request.month());
+        enqueueReportGenerationUseCase.execute(user.getId(), request.year(), request.month());
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(Map.of("status", "processing"));
     }
 
     private User resolveUser(Jwt jwt) {

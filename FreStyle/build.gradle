@@ -80,6 +80,9 @@ dependencies {
 	
 	// Bedrock (AIチャット用)
 	implementation 'software.amazon.awssdk:bedrockruntime'
+
+	// SQS (非同期メッセージキュー)
+	implementation 'software.amazon.awssdk:sqs'
 	
 	// Httpクライアント
 	implementation 'org.springframework.boot:spring-boot-starter-webflux'

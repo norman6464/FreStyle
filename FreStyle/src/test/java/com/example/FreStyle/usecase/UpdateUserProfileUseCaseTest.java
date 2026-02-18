@@ -1,0 +1,61 @@
+package com.example.FreStyle.usecase;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.*;
+
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import com.example.FreStyle.dto.UserProfileDto;
+import com.example.FreStyle.entity.User;
+import com.example.FreStyle.form.UserProfileForm;
+import com.example.FreStyle.service.UserIdentityService;
+import com.example.FreStyle.service.UserProfileService;
+
+@ExtendWith(MockitoExtension.class)
+@DisplayName("UpdateUserProfileUseCase")
+class UpdateUserProfileUseCaseTest {
+
+    @Mock
+    private UserProfileService userProfileService;
+
+    @Mock
+    private UserIdentityService userIdentityService;
+
+    @InjectMocks
+    private UpdateUserProfileUseCase useCase;
+
+    @Test
+    @DisplayName("正常にプロファイルを更新する")
+    void updatesProfile() {
+        User user = new User();
+        user.setId(10);
+        when(userIdentityService.findUserBySub("sub-123")).thenReturn(user);
+        UserProfileForm form = new UserProfileForm();
+        UserProfileDto dto = new UserProfileDto(null, 10, "更新済み", null, null, null, null, null, null);
+        when(userProfileService.updateProfile(10, form)).thenReturn(dto);
+
+        UserProfileDto result = useCase.execute("sub-123", form);
+
+        assertThat(result.displayName()).isEqualTo("更新済み");
+    }
+
+    @Test
+    @DisplayName("存在しない場合はRuntimeExceptionを投げる")
+    void throwsWhenNotFound() {
+        User user = new User();
+        user.setId(10);
+        when(userIdentityService.findUserBySub("sub-123")).thenReturn(user);
+        UserProfileForm form = new UserProfileForm();
+        when(userProfileService.updateProfile(10, form))
+                .thenThrow(new RuntimeException("プロファイルが見つかりません。"));
+
+        assertThatThrownBy(() -> useCase.execute("sub-123", form))
+                .isInstanceOf(RuntimeException.class);
+    }
+}

@@ -7,5 +7,6 @@ public record FriendshipDto(
         String iconUrl,
         String bio,
         boolean mutual,
-        String createdAt) {
+        String createdAt,
+        String status) {
 }

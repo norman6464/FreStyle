@@ -49,7 +49,7 @@ class UserProfileRepository {
    * プロファイルを更新
    */
   async updateProfile(request: UpdateUserProfileRequest): Promise<UserProfile> {
-    const response = await apiClient.post('/api/user-profile/me', request);
+    const response = await apiClient.post('/api/user-profile/me/upsert', request);
     return response.data;
   }
 }

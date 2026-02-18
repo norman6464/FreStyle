@@ -25,7 +25,8 @@ public class FriendshipMapper {
                 user.getIconUrl(),
                 user.getBio(),
                 mutual,
-                friendship.getCreatedAt() != null ? friendship.getCreatedAt().toString() : null
+                friendship.getCreatedAt() != null ? friendship.getCreatedAt().toString() : null,
+                user.getStatus()
         );
     }
 }

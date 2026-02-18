@@ -13,11 +13,39 @@ vi.mock('../../hooks/useProfileImageUpload', () => ({
 
 vi.mock('../../repositories/ProfileRepository');
 
+const mockFetchMyProfile = vi.fn();
+const mockUpdateProfile = vi.fn();
+vi.mock('../../hooks/useUserProfile', () => ({
+  useUserProfile: () => ({
+    profile: null,
+    loading: false,
+    error: null,
+    fetchMyProfile: mockFetchMyProfile,
+    updateProfile: mockUpdateProfile,
+  }),
+}));
+
+vi.mock('../../repositories/ProfileStatsRepository', () => ({
+  default: {
+    fetchStats: vi.fn().mockResolvedValue({
+      totalSessions: 10,
+      averageScore: 75.0,
+      currentStreak: 3,
+      longestStreak: 7,
+      totalAchievedDays: 20,
+      followerCount: 5,
+      followingCount: 8,
+    }),
+  },
+}));
+
 const mockedRepo = vi.mocked(ProfileRepository);
 
 describe('ProfilePage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockFetchMyProfile.mockResolvedValue(undefined);
+    mockUpdateProfile.mockResolvedValue(true);
   });
 
   it('ローディング中はスピナーが表示される', () => {
@@ -34,7 +62,7 @@ describe('ProfilePage', () => {
 
     await waitFor(() => {
       expect(screen.getByText('プロフィールを編集')).toBeInTheDocument();
-      expect(screen.getByText('プロフィールを更新')).toBeInTheDocument();
+      expect(screen.getByText('基本情報を保存')).toBeInTheDocument();
     });
   });
 
@@ -75,10 +103,10 @@ describe('ProfilePage', () => {
     render(<ProfilePage />);
 
     await waitFor(() => {
-      expect(screen.getByText('プロフィールを更新')).toBeInTheDocument();
+      expect(screen.getByText('基本情報を保存')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByText('プロフィールを更新'));
+    fireEvent.click(screen.getByText('基本情報を保存'));
 
     await waitFor(() => {
       expect(screen.getByText('更新中...')).toBeInTheDocument();
@@ -141,6 +169,61 @@ describe('ProfilePage', () => {
 
     await waitFor(() => {
       expect(screen.getByText('画像のアップロードに失敗しました。')).toBeInTheDocument();
+    });
+  });
+
+  it('ステータス入力フィールドが表示される', async () => {
+    mockedRepo.fetchProfile.mockResolvedValue({ name: 'テスト', bio: '', status: '学習中' });
+
+    render(<ProfilePage />);
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('学習中')).toBeInTheDocument();
+    });
+  });
+
+  it('学習統計セクションが表示される', async () => {
+    mockedRepo.fetchProfile.mockResolvedValue({ name: 'テスト', bio: '' });
+
+    render(<ProfilePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('学習統計')).toBeInTheDocument();
+      expect(screen.getByText('10回')).toBeInTheDocument();
+    });
+  });
+
+  it('コミュニケーション設定セクションが表示される', async () => {
+    mockedRepo.fetchProfile.mockResolvedValue({ name: 'テスト', bio: '' });
+
+    render(<ProfilePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('コミュニケーション設定')).toBeInTheDocument();
+      expect(screen.getByText('設定を保存')).toBeInTheDocument();
+    });
+  });
+
+  it('性格タグが表示される', async () => {
+    mockedRepo.fetchProfile.mockResolvedValue({ name: 'テスト', bio: '' });
+
+    render(<ProfilePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('内向的')).toBeInTheDocument();
+      expect(screen.getByText('外向的')).toBeInTheDocument();
+    });
+  });
+
+  it('AIフィードバック設定が表示される', async () => {
+    mockedRepo.fetchProfile.mockResolvedValue({ name: 'テスト', bio: '' });
+
+    render(<ProfilePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('AIフィードバック設定')).toBeInTheDocument();
+      expect(screen.getByText('学習目標')).toBeInTheDocument();
+      expect(screen.getByText('悩み・課題')).toBeInTheDocument();
     });
   });
 });

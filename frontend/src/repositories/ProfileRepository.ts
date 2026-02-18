@@ -12,6 +12,7 @@ export interface ProfileData {
   name: string;
   bio: string;
   iconUrl?: string;
+  status?: string;
 }
 
 interface PresignedUrlResponse {

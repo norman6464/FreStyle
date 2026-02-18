@@ -36,7 +36,7 @@ class UpdateProfileUseCaseTest {
         when(jwt.hasClaim("cognito:groups")).thenReturn(false);
         when(jwt.getTokenValue()).thenReturn("access-token");
 
-        ProfileForm form = new ProfileForm("新しい名前", "新しい自己紹介", null);
+        ProfileForm form = new ProfileForm("新しい名前", "新しい自己紹介", null, null);
 
         updateProfileUseCase.execute(jwt, form);
 
@@ -51,7 +51,7 @@ class UpdateProfileUseCaseTest {
         when(jwt.getSubject()).thenReturn("sub-456");
         when(jwt.hasClaim("cognito:groups")).thenReturn(true);
 
-        ProfileForm form = new ProfileForm("OIDC名前", "OIDC自己紹介", null);
+        ProfileForm form = new ProfileForm("OIDC名前", "OIDC自己紹介", null, null);
 
         updateProfileUseCase.execute(jwt, form);
 
@@ -67,7 +67,7 @@ class UpdateProfileUseCaseTest {
         when(jwt.hasClaim("cognito:groups")).thenReturn(false);
         when(jwt.getTokenValue()).thenReturn("access-token");
 
-        ProfileForm form = new ProfileForm("名前", "自己紹介", null);
+        ProfileForm form = new ProfileForm("名前", "自己紹介", null, null);
 
         doThrow(new IllegalArgumentException("名前が不正です"))
                 .when(cognitoAuthService).updateUserProfile("access-token", "名前");

@@ -198,6 +198,7 @@ export interface FriendshipUser {
   bio: string | null;
   mutual: boolean;
   createdAt: string;
+  status: string | null;
 }
 
 export interface FollowStatus {

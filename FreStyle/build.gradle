@@ -83,6 +83,11 @@ dependencies {
 
 	// SQS (非同期メッセージキュー)
 	implementation 'software.amazon.awssdk:sqs'
+
+	// AWS X-Ray トレーシング
+	implementation 'com.amazonaws:aws-xray-recorder-sdk-core:2.18.2'
+	implementation 'com.amazonaws:aws-xray-recorder-sdk-aws-sdk-v2:2.18.2'
+	implementation 'com.amazonaws:aws-xray-recorder-sdk-aws-sdk-v2-instrumentor:2.18.2'
 	
 	// Httpクライアント
 	implementation 'org.springframework.boot:spring-boot-starter-webflux'

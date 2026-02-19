@@ -54,6 +54,21 @@ describe('useTableOfContents', () => {
     ]);
   });
 
+  it('テキストが空の見出しは除外する', () => {
+    const content = JSON.stringify({
+      type: 'doc',
+      content: [
+        { type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: '大見出し' }] },
+        { type: 'heading', attrs: { level: 2 } },
+        { type: 'heading', attrs: { level: 3 }, content: [] },
+      ],
+    });
+    const { result } = renderHook(() => useTableOfContents(content));
+    expect(result.current.headings).toEqual([
+      { level: 1, text: '大見出し', id: 'heading-0' },
+    ]);
+  });
+
   it('レガシーMarkdownの場合は空リストを返す', () => {
     const { result } = renderHook(() => useTableOfContents('普通のテキスト'));
     expect(result.current.headings).toEqual([]);

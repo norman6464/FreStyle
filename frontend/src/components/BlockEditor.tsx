@@ -31,6 +31,7 @@ export default function BlockEditor({ content, onChange, noteId }: BlockEditorPr
   const [youtubeInputOpen, setYoutubeInputOpen] = useState(false);
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const youtubeInputRef = useRef<HTMLInputElement>(null);
+  const youtubeContainerRef = useRef<HTMLDivElement>(null);
 
   const { openFileDialog, handleDrop, handlePaste } = useImageUpload(noteId, editor);
   const { linkBubble, handleEditorClick, handleEditLink, handleRemoveLink } = useLinkEditor(editor, containerRef);
@@ -54,6 +55,19 @@ export default function BlockEditor({ content, onChange, noteId }: BlockEditorPr
       editor.storage.slashCommand.onYoutubeUrl = null;
     };
   }, [editor, openFileDialog, openEmojiPicker, openYoutubeInput]);
+
+  // YouTube入力の外側クリックで閉じる
+  useEffect(() => {
+    if (!youtubeInputOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (youtubeContainerRef.current && !youtubeContainerRef.current.contains(e.target as Node)) {
+        setYoutubeInputOpen(false);
+        setYoutubeUrl('');
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [youtubeInputOpen]);
 
   // Ctrl+F / Cmd+F で検索バーを開く
   useEffect(() => {
@@ -209,7 +223,7 @@ export default function BlockEditor({ content, onChange, noteId }: BlockEditorPr
         </div>
       )}
       {youtubeInputOpen && (
-        <div className="absolute z-50 top-8 left-8 bg-[var(--color-surface-1)] border border-[var(--color-surface-3)] rounded-lg shadow-xl p-3">
+        <div ref={youtubeContainerRef} className="absolute z-50 top-8 left-8 bg-[var(--color-surface-1)] border border-[var(--color-surface-3)] rounded-lg shadow-xl p-3">
           <p className="text-xs font-medium text-[var(--color-text-secondary)] mb-2">YouTubeのURLを入力</p>
           <div className="flex items-center gap-2">
             <input

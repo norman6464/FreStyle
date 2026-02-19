@@ -18,12 +18,24 @@ export default function BlockInserterButton({ visible, top, onCommand, onMenuOpe
     onMenuOpenChange?.(open);
   };
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!menuOpen) return;
     setSelectedIndex(0);
     menuRef.current?.focus();
+  }, [menuOpen]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [menuOpen]);
 
   useEffect(() => {
@@ -63,6 +75,7 @@ export default function BlockInserterButton({ visible, top, onCommand, onMenuOpe
 
   return (
     <div
+      ref={containerRef}
       data-block-inserter
       className="absolute left-0 z-10 transition-all duration-150"
       style={{ top: `${top}px` }}

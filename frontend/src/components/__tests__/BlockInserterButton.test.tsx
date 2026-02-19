@@ -75,4 +75,13 @@ describe('BlockInserterButton', () => {
     const button = screen.getByLabelText('ブロックを追加');
     expect(button.closest('[data-block-inserter]')).toBeInTheDocument();
   });
+
+  it('メニュー表示中に外側クリックで閉じる', () => {
+    render(<BlockInserterButton visible={true} top={100} onCommand={mockOnCommand} onMenuOpenChange={mockOnMenuOpenChange} />);
+    fireEvent.click(screen.getByLabelText('ブロックを追加'));
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(mockOnMenuOpenChange).toHaveBeenLastCalledWith(false);
+  });
 });

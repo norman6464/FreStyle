@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import BlockEditor from '../BlockEditor';
 
@@ -129,5 +129,16 @@ describe('BlockEditor', () => {
     const container = screen.getByTestId('block-editor');
     expect(container.className).toContain('block-editor');
     expect(container.className).toContain('pl-10');
+  });
+
+  it('YouTube入力の外側クリックで閉じる', () => {
+    render(<BlockEditor {...defaultProps} />);
+    const openYoutube = mockEditor.storage.slashCommand.onYoutubeUrl;
+    expect(openYoutube).not.toBeNull();
+    act(() => openYoutube!());
+    expect(screen.getByLabelText('YouTube URL')).toBeInTheDocument();
+
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByLabelText('YouTube URL')).not.toBeInTheDocument();
   });
 });

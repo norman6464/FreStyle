@@ -38,8 +38,9 @@ export function useTableOfContents(content: string) {
         .map((node) => ({
           level: node.attrs!.level!,
           text: node.content ? extractText(node.content) : '',
-          id: `heading-${index++}`,
-        }));
+        }))
+        .filter((h) => h.text.trim() !== '')
+        .map((h) => ({ ...h, id: `heading-${index++}` }));
     } catch {
       return [];
     }

@@ -80,7 +80,7 @@ export default function NoteEditor({
         }}
         placeholder="無題"
         aria-label="ノートのタイトル"
-        className="text-3xl font-bold text-[var(--color-text-primary)] bg-transparent border-none outline-none w-full mb-4 placeholder:text-[var(--color-text-faint)]"
+        className="text-3xl font-bold text-[var(--color-text-primary)] bg-transparent border-none outline-none w-full mb-4 pl-10 placeholder:text-[var(--color-text-faint)]"
       />
 
       {headings.length > 0 && (

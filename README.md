@@ -159,69 +159,7 @@ Repository (Infrastructure層) ← DB操作
 
 ### 現在のAWS全体構成図
 
-```mermaid
-graph TB
-    User["👤 User (Browser/Mobile)"]
-
-    subgraph Edge["Edge Layer"]
-        WAF["🛡️ WAF<br/>XSS/SQLi/DDoS防御"]
-        CF["🌐 CloudFront<br/>CDN + HTTPS"]
-    end
-
-    subgraph VPC["VPC: 10.0.0.0/20"]
-        subgraph Public["Public Subnets (1a/1c)"]
-            ALB["⚖️ ALB<br/>fre-style-alb"]
-        end
-        subgraph Private["Private Subnets (1a/1c)"]
-            subgraph ECS["ECS Fargate (2 vCPU / 4GB)"]
-                App["☕ Spring Boot 3.5.6<br/>Java 21"]
-                XRayD["📡 X-Ray Daemon<br/>sidecar"]
-            end
-            RDS["🗄️ RDS MariaDB<br/>db.t4g.small"]
-        end
-    end
-
-    subgraph Services["AWS Services"]
-        Cognito["🔐 Cognito<br/>JWT Auth"]
-        Bedrock["🤖 Bedrock<br/>AI Chat"]
-        DDB["📊 DynamoDB<br/>ai_chat / chat / notes"]
-        S3F["📦 S3<br/>Frontend Hosting"]
-        S3I["🖼️ S3<br/>Note Images"]
-        SQS["📬 SQS<br/>Async Report"]
-        DLQ["⚠️ SQS DLQ"]
-    end
-
-    subgraph Monitoring["Monitoring & Alerts"]
-        CW["📈 CloudWatch<br/>Metrics / Alarms"]
-        XRay["🔍 X-Ray<br/>Distributed Tracing"]
-        SNS["📧 SNS<br/>Error Alerts"]
-    end
-
-    subgraph CICD["CI/CD"]
-        GHA["⚙️ GitHub Actions"]
-        ECR["📦 ECR"]
-    end
-
-    Email["✉️ Email (Gmail)"]
-
-    User --> WAF --> CF
-    CF -->|静的コンテンツ| S3F
-    CF -->|API| ALB
-    ALB -->|:8080| App
-    App -->|JDBC| RDS
-    App -->|JWT検証| Cognito
-    App --> DDB
-    App -->|Presigned URL| S3I
-    App -->|AI推論| Bedrock
-    App -->|enqueue| SQS
-    SQS -->|失敗| DLQ
-    XRayD -->|traces| XRay
-    App -.->|metrics| CW
-    CW -->|alarm| SNS
-    SNS --> Email
-    GHA -->|docker push| ECR
-    ECR -.->|deploy| App
-```
+![AWSアーキテクチャ構成図](./architecture/aws/AWSアーキテクチャー図修正v2.png)
 
 ### 旧AWS構成図
 

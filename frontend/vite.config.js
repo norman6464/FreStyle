@@ -13,4 +13,22 @@ export default defineConfig(({ mode }) => ({
         pure: ['console.log', 'console.debug', 'console.info'],
       }
     : undefined,
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // React本体
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          // 状態管理
+          'vendor-state': ['@reduxjs/toolkit', 'react-redux', '@tanstack/react-query'],
+          // TipTapエディタ（重いので分離）
+          'vendor-tiptap': [
+            '@tiptap/react',
+            '@tiptap/starter-kit',
+            '@tiptap/core',
+          ],
+        },
+      },
+    },
+  },
 }));

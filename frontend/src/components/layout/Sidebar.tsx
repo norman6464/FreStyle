@@ -68,7 +68,7 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
     <aside className="flex flex-col w-56 h-full bg-surface-1 border-r border-surface-3 flex-shrink-0">
       {/* ロゴ */}
       <div className="h-14 flex items-center px-4 border-b border-surface-3 gap-2.5">
-        <img src="/image.png" alt="FreStyle" className="w-11 h-11 rounded-xl object-contain" />
+        <img src="/logo.webp" alt="FreStyle" className="w-11 h-11 rounded-xl object-contain" />
         <span className="text-base font-bold text-[var(--color-text-primary)] tracking-tight">FreStyle</span>
       </div>
 

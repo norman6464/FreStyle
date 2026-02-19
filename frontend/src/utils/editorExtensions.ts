@@ -25,6 +25,7 @@ import Superscript from '@tiptap/extension-superscript';
 import Subscript from '@tiptap/extension-subscript';
 import Youtube from '@tiptap/extension-youtube';
 import { SearchReplaceExtension } from '../extensions/SearchReplaceExtension';
+import { FullWidthHeadingEnter } from '../extensions/FullWidthHeadingEnter';
 
 export function createEditorExtensions() {
   return [
@@ -86,5 +87,6 @@ export function createEditorExtensions() {
       HTMLAttributes: { class: 'note-youtube' },
     }),
     SearchReplaceExtension,
+    FullWidthHeadingEnter,
   ];
 }

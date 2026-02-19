@@ -6,6 +6,7 @@ vi.mock('@tiptap/extension-heading', () => ({
 }));
 vi.mock('@tiptap/core', () => ({
   textblockTypeInputRule: vi.fn(),
+  Extension: { create: vi.fn(() => 'FullWidthHeadingEnter') },
 }));
 vi.mock('@tiptap/extension-placeholder', () => ({ default: { configure: vi.fn(() => 'Placeholder') } }));
 vi.mock('@tiptap/extension-image', () => ({ default: { configure: vi.fn(() => 'Image') } }));
@@ -47,13 +48,16 @@ vi.mock('@tiptap/extension-youtube', () => ({ default: { configure: vi.fn(() => 
 vi.mock('../../extensions/SearchReplaceExtension', () => ({
   SearchReplaceExtension: 'SearchReplace',
 }));
+vi.mock('../../extensions/FullWidthHeadingEnter', () => ({
+  FullWidthHeadingEnter: 'FullWidthHeadingEnter',
+}));
 
 import { createEditorExtensions } from '../editorExtensions';
 
 describe('createEditorExtensions', () => {
-  it('26個のエクステンションを返す', () => {
+  it('27個のエクステンションを返す', () => {
     const extensions = createEditorExtensions();
-    expect(extensions).toHaveLength(26);
+    expect(extensions).toHaveLength(27);
   });
 
   it('主要なエクステンションが含まれる', () => {
@@ -72,6 +76,7 @@ describe('createEditorExtensions', () => {
     expect(extensions).toContain('TableCell');
     expect(extensions).toContain('TableHeader');
     expect(extensions).toContain('SearchReplace');
+    expect(extensions).toContain('FullWidthHeadingEnter');
   });
 
   it('毎回新しい配列を返す', () => {
@@ -86,8 +91,8 @@ describe('createEditorExtensions', () => {
     expect(extensions[0]).toBe('StarterKit');
   });
 
-  it('配列の末尾がSearchReplaceExtensionである', () => {
+  it('配列の末尾がFullWidthHeadingEnterである', () => {
     const extensions = createEditorExtensions();
-    expect(extensions[extensions.length - 1]).toBe('SearchReplace');
+    expect(extensions[extensions.length - 1]).toBe('FullWidthHeadingEnter');
   });
 });

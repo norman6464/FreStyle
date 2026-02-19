@@ -66,7 +66,7 @@ describe('Sidebar', () => {
     renderSidebar();
     const logo = screen.getByAltText('FreStyle');
     expect(logo).toBeDefined();
-    expect(logo.getAttribute('src')).toBe('/image.png');
+    expect(logo.getAttribute('src')).toBe('/logo.webp');
     expect(logo.className).toContain('rounded-xl');
   });
 

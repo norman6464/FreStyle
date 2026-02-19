@@ -1,31 +1,36 @@
-import { useEffect } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
-import LoginPage from './pages/LoginPage';
-import SignupPage from './pages/SignupPage';
-import LoginCallback from './pages/LoginCallback';
-import ChatPage from './pages/ChatPage';
-import ChatListPage from './pages/ChatListPage';
-import MenuPage from './pages/MenuPage';
-import AskAiPage from './pages/AskAiPage';
-import PracticePage from './pages/PracticePage';
-import ScoreHistoryPage from './pages/ScoreHistoryPage';
-import FavoritesPage from './pages/FavoritesPage';
-import ConfirmPage from './pages/ConfirmPage';
-import MemberPage from './pages/MemberPage';
-import AddUserPage from './pages/AddUserPage';
-import ProfilePage from './pages/ProfilePage';
-import NotesPage from './pages/NotesPage';
-import NotificationPage from './pages/NotificationPage';
-import LearningReportPage from './pages/LearningReportPage';
-import FriendshipPage from './pages/FriendshipPage';
-import ForgotPasswordPage from './pages/ForgotPasswordPage';
-import ConfirmForgotPasswordPage from './pages/ConfirmForgotPasswordPage';
 import AuthInitializer from './utils/AuthInitializer';
 import Protected from './utils/Protected';
 import AppShell from './components/layout/AppShell';
 import ErrorBoundary from './components/ErrorBoundary';
+import Loading from './components/Loading';
 import { ToastProvider, useToast } from './hooks/useToast';
 import ToastContainer from './components/ToastContainer';
+
+// 認証不要ページ
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const SignupPage = lazy(() => import('./pages/SignupPage'));
+const LoginCallback = lazy(() => import('./pages/LoginCallback'));
+const ConfirmPage = lazy(() => import('./pages/ConfirmPage'));
+const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'));
+const ConfirmForgotPasswordPage = lazy(() => import('./pages/ConfirmForgotPasswordPage'));
+
+// 認証必要ページ
+const MenuPage = lazy(() => import('./pages/MenuPage'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
+const MemberPage = lazy(() => import('./pages/MemberPage'));
+const ChatListPage = lazy(() => import('./pages/ChatListPage'));
+const AddUserPage = lazy(() => import('./pages/AddUserPage'));
+const ChatPage = lazy(() => import('./pages/ChatPage'));
+const PracticePage = lazy(() => import('./pages/PracticePage'));
+const ScoreHistoryPage = lazy(() => import('./pages/ScoreHistoryPage'));
+const FavoritesPage = lazy(() => import('./pages/FavoritesPage'));
+const AskAiPage = lazy(() => import('./pages/AskAiPage'));
+const NotesPage = lazy(() => import('./pages/NotesPage'));
+const NotificationPage = lazy(() => import('./pages/NotificationPage'));
+const LearningReportPage = lazy(() => import('./pages/LearningReportPage'));
+const FriendshipPage = lazy(() => import('./pages/FriendshipPage'));
 
 function NavigationToast() {
   const location = useLocation();
@@ -46,6 +51,7 @@ export default function App() {
   return (
     <ErrorBoundary>
     <ToastProvider>
+    <Suspense fallback={<Loading fullscreen message="読み込み中..." />}>
     <Routes>
       {/* 誰でもアクセス可能 */}
       <Route path="/login" element={<LoginPage />} />
@@ -85,6 +91,7 @@ export default function App() {
         <Route path="/friends" element={<FriendshipPage />} />
       </Route>
     </Routes>
+    </Suspense>
     <NavigationToast />
     <ToastContainer />
     </ToastProvider>

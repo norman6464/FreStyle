@@ -1,6 +1,8 @@
+import React from 'react';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import BlockEditor from '../BlockEditor';
+import type { BlockEditorHandle } from '../BlockEditor';
 
 const mockEditor = {
   chain: vi.fn(() => mockEditor),
@@ -17,7 +19,7 @@ const mockEditor = {
   commands: {},
   on: vi.fn(),
   off: vi.fn(),
-  state: { selection: { from: 0, to: 0 } },
+  state: { selection: { from: 0, to: 0, empty: true } },
 };
 
 vi.mock('../../hooks/useBlockEditor', () => ({
@@ -129,6 +131,33 @@ describe('BlockEditor', () => {
     const container = screen.getByTestId('block-editor');
     expect(container.className).toContain('block-editor');
     expect(container.className).toContain('pl-10');
+  });
+
+  it('contentの先頭でBackspaceを押すとonBackspaceAtStartが呼ばれる', () => {
+    const onBackspaceAtStart = vi.fn();
+    mockEditor.state.selection = { from: 1, to: 1, empty: true };
+    render(<BlockEditor {...defaultProps} onBackspaceAtStart={onBackspaceAtStart} />);
+    const container = screen.getByTestId('block-editor');
+    fireEvent.keyDown(container, { key: 'Backspace' });
+    expect(onBackspaceAtStart).toHaveBeenCalledTimes(1);
+  });
+
+  it('contentの途中でBackspaceを押してもonBackspaceAtStartは呼ばれない', () => {
+    const onBackspaceAtStart = vi.fn();
+    mockEditor.state.selection = { from: 5, to: 5, empty: true };
+    render(<BlockEditor {...defaultProps} onBackspaceAtStart={onBackspaceAtStart} />);
+    const container = screen.getByTestId('block-editor');
+    fireEvent.keyDown(container, { key: 'Backspace' });
+    expect(onBackspaceAtStart).not.toHaveBeenCalled();
+  });
+
+  it('focusAtStartでエディタの先頭にフォーカスする', () => {
+    const ref = React.createRef<BlockEditorHandle>();
+    render(<BlockEditor ref={ref} {...defaultProps} />);
+    act(() => ref.current!.focusAtStart());
+    expect(mockEditor.chain).toHaveBeenCalled();
+    expect(mockEditor.focus).toHaveBeenCalledWith('start');
+    expect(mockEditor.run).toHaveBeenCalled();
   });
 
   it('YouTube入力の外側クリックで閉じる', () => {

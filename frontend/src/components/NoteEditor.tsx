@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useRef } from 'react';
 import { ArrowDownTrayIcon, ClipboardDocumentIcon } from '@heroicons/react/24/outline';
 import { getNoteStats } from '../utils/noteStats';
 import { useTableOfContents } from '../hooks/useTableOfContents';
@@ -6,6 +6,7 @@ import { useMarkdownExport } from '../hooks/useMarkdownExport';
 import { useToast } from '../hooks/useToast';
 import type { SaveStatus } from '../hooks/useNoteEditor';
 import BlockEditor from './BlockEditor';
+import type { BlockEditorHandle } from './BlockEditor';
 import TableOfContents from './TableOfContents';
 import WordCount from './WordCount';
 import ReadingTime from './ReadingTime';
@@ -34,6 +35,9 @@ export default function NoteEditor({
   onTitleChange,
   onContentChange,
 }: NoteEditorProps) {
+  const titleRef = useRef<HTMLInputElement>(null);
+  const editorRef = useRef<BlockEditorHandle>(null);
+
   const stats = useMemo(() => getNoteStats(content), [content]);
   const { headings, isOpen, toggle } = useTableOfContents(content);
   const { exportAsMarkdown, copyAsMarkdown } = useMarkdownExport();
@@ -53,6 +57,26 @@ export default function NoteEditor({
     }
   }, [copyAsMarkdown, title, content, showToast]);
 
+  const handleTitleFocus = useCallback(() => {
+    const proseMirror = document.querySelector('.ProseMirror') as HTMLElement;
+    proseMirror?.blur();
+  }, []);
+
+  const handleTitleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      editorRef.current?.focusAtStart();
+    }
+  }, []);
+
+  const handleBackspaceAtStart = useCallback(() => {
+    titleRef.current?.focus();
+    if (titleRef.current) {
+      const len = titleRef.current.value.length;
+      titleRef.current.setSelectionRange(len, len);
+    }
+  }, []);
+
   const handleHeadingClick = useCallback((id: string) => {
     const index = parseInt(id.replace('heading-', ''), 10);
     const editorEl = document.querySelector('.ProseMirror');
@@ -68,16 +92,12 @@ export default function NoteEditor({
   return (
     <div className="flex flex-col h-full p-6 max-w-3xl mx-auto w-full">
       <input
+        ref={titleRef}
         type="text"
         value={title}
         onChange={(e) => onTitleChange(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            const editor = document.querySelector('.ProseMirror') as HTMLElement;
-            editor?.focus();
-          }
-        }}
+        onFocus={handleTitleFocus}
+        onKeyDown={handleTitleKeyDown}
         placeholder="無題"
         aria-label="ノートのタイトル"
         className="text-3xl font-bold text-[var(--color-text-primary)] bg-transparent border-none outline-none w-full mb-4 pl-10 placeholder:text-[var(--color-text-faint)]"
@@ -98,7 +118,7 @@ export default function NoteEditor({
         </div>
       )}
 
-      <BlockEditor content={content} onChange={onContentChange} noteId={noteId} />
+      <BlockEditor ref={editorRef} content={content} onChange={onContentChange} noteId={noteId} onBackspaceAtStart={handleBackspaceAtStart} />
 
       <div className="flex items-center gap-3 pt-3 border-t border-surface-3" aria-label="ノート統計">
         <WordCount charCount={stats.charCount} />

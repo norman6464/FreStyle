@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
 import { EditorContent } from '@tiptap/react';
 import 'tippy.js/dist/tippy.css';
 import { executeCommand } from '../extensions/SlashCommandExtension';
@@ -13,13 +13,18 @@ import SelectionToolbar from './SelectionToolbar';
 import type { SlashCommand } from '../constants/slashCommands';
 import { UI_TIMINGS } from '../constants/uiTimings';
 
+export interface BlockEditorHandle {
+  focusAtStart: () => void;
+}
+
 interface BlockEditorProps {
   content: string;
   onChange: (jsonString: string) => void;
   noteId: string | null;
+  onBackspaceAtStart?: () => void;
 }
 
-export default function BlockEditor({ content, onChange, noteId }: BlockEditorProps) {
+export default forwardRef<BlockEditorHandle, BlockEditorProps>(function BlockEditor({ content, onChange, noteId, onBackspaceAtStart }, ref) {
   const { editor } = useBlockEditor({ content, onChange });
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -32,6 +37,12 @@ export default function BlockEditor({ content, onChange, noteId }: BlockEditorPr
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const youtubeInputRef = useRef<HTMLInputElement>(null);
   const youtubeContainerRef = useRef<HTMLDivElement>(null);
+
+  useImperativeHandle(ref, () => ({
+    focusAtStart: () => {
+      editor?.chain().focus('start').run();
+    },
+  }), [editor]);
 
   const { openFileDialog, handleDrop, handlePaste } = useImageUpload(noteId, editor);
   const { linkBubble, handleEditorClick, handleEditLink, handleRemoveLink } = useLinkEditor(editor, containerRef);
@@ -162,6 +173,16 @@ export default function BlockEditor({ content, onChange, noteId }: BlockEditorPr
     setYoutubeUrl('');
   }, [editor, youtubeUrl]);
 
+  const handleBackspaceAtStart = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Backspace' && onBackspaceAtStart && editor) {
+      const { from, empty } = editor.state.selection;
+      if (from <= 1 && empty) {
+        e.preventDefault();
+        onBackspaceAtStart();
+      }
+    }
+  }, [editor, onBackspaceAtStart]);
+
   const handleCommand = useCallback((command: SlashCommand) => {
     if (!editor) return;
     if (command.action === 'image') {
@@ -187,6 +208,7 @@ export default function BlockEditor({ content, onChange, noteId }: BlockEditorPr
       data-testid="block-editor"
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
+      onKeyDown={handleBackspaceAtStart}
       onDrop={handleDrop}
       onPaste={handlePaste}
       onDragOver={(e) => e.preventDefault()}
@@ -251,4 +273,4 @@ export default function BlockEditor({ content, onChange, noteId }: BlockEditorPr
       )}
     </div>
   );
-}
+});

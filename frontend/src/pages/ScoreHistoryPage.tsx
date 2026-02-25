@@ -4,6 +4,7 @@ import { SkeletonCard } from '../components/Skeleton';
 import EmptyState from '../components/EmptyState';
 import ScoreOverviewSection from '../components/ScoreOverviewSection';
 import SessionListSection from '../components/SessionListSection';
+import ExportScoreHistoryButton from '../components/ExportScoreHistoryButton';
 import { useScoreHistory } from '../hooks/useScoreHistory';
 import { useScoreGoal } from '../hooks/useScoreGoal';
 
@@ -39,7 +40,10 @@ export default function ScoreHistoryPage() {
 
   return (
     <div className="max-w-3xl mx-auto p-4 space-y-3">
-      <p className="text-xs text-[var(--color-text-muted)]">スコア履歴 {history.length}件</p>
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-[var(--color-text-muted)]">スコア履歴 {history.length}件</p>
+        <ExportScoreHistoryButton history={history} />
+      </div>
       <ScoreOverviewSection
         history={history}
         latestSession={latestSession!}

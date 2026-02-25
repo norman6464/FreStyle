@@ -18,9 +18,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.oauth2.jwt.Jwt;
 
 import com.example.FreStyle.dto.FavoritePhraseDto;
+import com.example.FreStyle.dto.FavoritePhraseSummaryDto;
 import com.example.FreStyle.entity.User;
 import com.example.FreStyle.service.UserIdentityService;
 import com.example.FreStyle.usecase.AddFavoritePhraseUseCase;
+import com.example.FreStyle.usecase.GetFavoritePhraseSummaryUseCase;
 import com.example.FreStyle.usecase.GetUserFavoritePhrasesUseCase;
 import com.example.FreStyle.usecase.RemoveFavoritePhraseUseCase;
 
@@ -36,6 +38,9 @@ class FavoritePhraseControllerTest {
 
     @Mock
     private RemoveFavoritePhraseUseCase removeFavoritePhraseUseCase;
+
+    @Mock
+    private GetFavoritePhraseSummaryUseCase getFavoritePhraseSummaryUseCase;
 
     @Mock
     private UserIdentityService userIdentityService;
@@ -123,6 +128,26 @@ class FavoritePhraseControllerTest {
 
             org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
                     () -> favoritePhraseController.removeFavoritePhrase(mockJwt, 99));
+        }
+    }
+
+    @Nested
+    @DisplayName("getSummary")
+    class GetSummary {
+
+        @Test
+        @DisplayName("お気に入りフレーズサマリーを返す")
+        void returnsSummary() {
+            FavoritePhraseSummaryDto summary = new FavoritePhraseSummaryDto(
+                    3, List.of(new FavoritePhraseSummaryDto.PatternCount("フォーマル版", 2)));
+            when(getFavoritePhraseSummaryUseCase.execute(1)).thenReturn(summary);
+
+            ResponseEntity<FavoritePhraseSummaryDto> response = favoritePhraseController.getSummary(mockJwt);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(response.getBody().totalCount()).isEqualTo(3);
+            assertThat(response.getBody().patternCounts()).hasSize(1);
+            verify(getFavoritePhraseSummaryUseCase).execute(1);
         }
     }
 

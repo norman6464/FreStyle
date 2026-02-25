@@ -37,6 +37,8 @@ import com.example.FreStyle.usecase.UpdateAiChatSessionTitleUseCase;
 import com.example.FreStyle.usecase.GetAiChatMessagesBySessionIdUseCase;
 import com.example.FreStyle.usecase.AddAiChatMessageUseCase;
 import com.example.FreStyle.usecase.GetPracticeSessionSummaryUseCase;
+import com.example.FreStyle.usecase.GetAiChatSessionStatsUseCase;
+import com.example.FreStyle.dto.AiChatSessionStatsDto;
 import com.example.FreStyle.dto.PracticeSessionSummaryDto;
 
 @ExtendWith(MockitoExtension.class)
@@ -54,6 +56,7 @@ class AiChatControllerTest {
     @Mock private GetAiChatMessagesBySessionIdUseCase getAiChatMessagesBySessionIdUseCase;
     @Mock private AddAiChatMessageUseCase addAiChatMessageUseCase;
     @Mock private GetPracticeSessionSummaryUseCase getPracticeSessionSummaryUseCase;
+    @Mock private GetAiChatSessionStatsUseCase getAiChatSessionStatsUseCase;
 
     @InjectMocks
     private AiChatController aiChatController;
@@ -296,6 +299,30 @@ class AiChatControllerTest {
             assertThat(response.getBody().sessionId()).isEqualTo(1);
             assertThat(response.getBody().averageScore()).isEqualTo(80.0);
             verify(getPracticeSessionSummaryUseCase).execute(1, 10);
+        }
+    }
+
+    @Nested
+    @DisplayName("getSessionStats")
+    class GetSessionStats {
+
+        @Test
+        @DisplayName("セッション統計を返す")
+        void returnsSessionStats() {
+            Jwt jwt = mockJwt("sub-123");
+            User user = createUser(10);
+            AiChatSessionStatsDto stats = new AiChatSessionStatsDto(
+                    5, List.of(new AiChatSessionStatsDto.TypeCount("free", 3)),
+                    List.of(new AiChatSessionStatsDto.SceneCount("meeting", 2)));
+            when(userIdentityService.findUserBySub("sub-123")).thenReturn(user);
+            when(getAiChatSessionStatsUseCase.execute(10)).thenReturn(stats);
+
+            ResponseEntity<AiChatSessionStatsDto> response = aiChatController.getSessionStats(jwt);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(response.getBody().totalSessions()).isEqualTo(5);
+            assertThat(response.getBody().sessionsByType()).hasSize(1);
+            verify(getAiChatSessionStatsUseCase).execute(10);
         }
     }
 

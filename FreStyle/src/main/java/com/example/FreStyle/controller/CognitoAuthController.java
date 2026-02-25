@@ -67,7 +67,7 @@ public class CognitoAuthController {
             return ResponseEntity.badRequest().body(Map.of("error", "パスワードポリシーに違反しています。"));
         } catch (RuntimeException e) {
             log.error("/signup エラー: {}", e.getMessage(), e);
-            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+            return ResponseEntity.internalServerError().body(Map.of("error", "サーバーエラーが発生しました。"));
         }
     }
 
@@ -91,7 +91,7 @@ public class CognitoAuthController {
                     .body(Map.of("error", "ユーザーが存在しません。"));
         } catch (RuntimeException e) {
             log.error("/confirm エラー: {}", e.getMessage(), e);
-            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+            return ResponseEntity.internalServerError().body(Map.of("error", "サーバーエラーが発生しました。"));
         }
     }
 
@@ -117,7 +117,7 @@ public class CognitoAuthController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "無効なアクセスです。"));
         } catch (RuntimeException e) {
             log.error("/login エラー: {}", e.getMessage(), e);
-            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+            return ResponseEntity.internalServerError().body(Map.of("error", "サーバーエラーが発生しました。"));
         }
     }
 
@@ -136,11 +136,11 @@ public class CognitoAuthController {
 
         } catch (IllegalStateException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("error", e.getMessage()));
+                    .body(Map.of("error", "認証に失敗しました。"));
         } catch (Exception e) {
             log.error("/callback エラー: {}", e.getMessage(), e);
             return ResponseEntity.internalServerError()
-                    .body(Map.of("error", "server error: " + e.getMessage()));
+                    .body(Map.of("error", "サーバーエラーが発生しました。"));
         }
     }
 
@@ -177,7 +177,7 @@ public class CognitoAuthController {
                     .body(Map.of("error", "ユーザーが存在しません。"));
         } catch (RuntimeException e) {
             log.error("/forgot-password エラー: {}", e.getMessage(), e);
-            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+            return ResponseEntity.internalServerError().body(Map.of("error", "サーバーエラーが発生しました。"));
         }
     }
 
@@ -205,7 +205,7 @@ public class CognitoAuthController {
         } catch (RuntimeException e) {
             log.error("/refresh-token エラー: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("error", e.getMessage()));
+                    .body(Map.of("error", "トークンの更新に失敗しました。"));
         }
     }
 
@@ -233,7 +233,7 @@ public class CognitoAuthController {
         } catch (RuntimeException e) {
             log.error("/confirm-forgot-password エラー: {}", e.getMessage(), e);
             return ResponseEntity.internalServerError()
-                    .body(Map.of("error", e.getMessage()));
+                    .body(Map.of("error", "サーバーエラーが発生しました。"));
         }
     }
 

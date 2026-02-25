@@ -75,4 +75,28 @@ class ProfileFormTest {
         Set<ConstraintViolation<ProfileForm>> violations = validator.validate(form);
         assertThat(violations).anyMatch(v -> v.getMessage().equals("ステータスは100文字以内で入力してください"));
     }
+
+    @Test
+    void bioが500文字以内なら通過() {
+        String bio = "あ".repeat(500);
+        ProfileForm form = new ProfileForm("テストユーザー", bio, null, null);
+        Set<ConstraintViolation<ProfileForm>> violations = validator.validate(form);
+        assertThat(violations).isEmpty();
+    }
+
+    @Test
+    void bioが500文字を超えるとエラー() {
+        String longBio = "あ".repeat(501);
+        ProfileForm form = new ProfileForm("テストユーザー", longBio, null, null);
+        Set<ConstraintViolation<ProfileForm>> violations = validator.validate(form);
+        assertThat(violations).anyMatch(v -> v.getMessage().equals("自己紹介は500文字以内で入力してください"));
+    }
+
+    @Test
+    void iconUrlが2048文字を超えるとエラー() {
+        String longUrl = "https://example.com/" + "a".repeat(2030);
+        ProfileForm form = new ProfileForm("テストユーザー", "bio", longUrl, null);
+        Set<ConstraintViolation<ProfileForm>> violations = validator.validate(form);
+        assertThat(violations).anyMatch(v -> v.getMessage().equals("アイコンURLが長すぎます"));
+    }
 }

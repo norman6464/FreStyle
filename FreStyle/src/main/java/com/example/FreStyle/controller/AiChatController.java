@@ -3,6 +3,9 @@ package com.example.FreStyle.controller;
 import java.util.List;
 import java.util.Map;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -101,7 +104,7 @@ public class AiChatController {
     @PostMapping("/sessions")
     public ResponseEntity<AiChatSessionDto> createSession(
             @AuthenticationPrincipal Jwt jwt,
-            @RequestBody CreateSessionRequest request
+            @Valid @RequestBody CreateSessionRequest request
     ) {
         log.info("========== POST /api/chat/ai/sessions ==========");
         log.info("📝 リクエスト: {}", request);
@@ -141,7 +144,7 @@ public class AiChatController {
     public ResponseEntity<AiChatSessionDto> updateSessionTitle(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable Integer sessionId,
-            @RequestBody UpdateSessionRequest request
+            @Valid @RequestBody UpdateSessionRequest request
     ) {
         log.info("========== PUT /api/chat/ai/sessions/{} ==========", sessionId);
 
@@ -200,7 +203,7 @@ public class AiChatController {
     public ResponseEntity<AiChatMessageResponseDto> addMessage(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable Integer sessionId,
-            @RequestBody AddMessageRequest request
+            @Valid @RequestBody AddMessageRequest request
     ) {
         log.info("========== POST /api/chat/ai/sessions/{}/messages ==========", sessionId);
         log.info("📝 リクエスト: {}", request);
@@ -244,7 +247,7 @@ public class AiChatController {
     @PostMapping("/rephrase")
     public ResponseEntity<Map<String, String>> rephrase(
             @AuthenticationPrincipal Jwt jwt,
-            @RequestBody RephraseRequest request
+            @Valid @RequestBody RephraseRequest request
     ) {
         log.info("========== POST /api/chat/ai/rephrase ==========");
 
@@ -277,7 +280,7 @@ public class AiChatController {
 
     // リクエスト用のRecord
     record CreateSessionRequest(String title, Integer relatedRoomId) {}
-    record UpdateSessionRequest(String title) {}
-    record AddMessageRequest(String content, String role) {}
-    record RephraseRequest(String originalMessage, String scene) {}
+    record UpdateSessionRequest(@NotBlank String title) {}
+    record AddMessageRequest(@NotBlank String content, @NotBlank String role) {}
+    record RephraseRequest(@NotBlank String originalMessage, @NotBlank String scene) {}
 }

@@ -24,6 +24,12 @@ export function useNoteEditor(
     setSaveStatus('idle');
   }, [selectedNoteId]);
 
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, []);
+
   const handleAutoSave = useCallback(
     (title: string, content: string) => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);

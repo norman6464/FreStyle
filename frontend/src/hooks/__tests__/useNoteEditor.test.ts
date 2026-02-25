@@ -262,4 +262,20 @@ describe('useNoteEditor', () => {
       isPinned: false,
     });
   });
+
+  it('アンマウント時に保存タイマーがクリアされる', () => {
+    const { result, unmount } = renderHook(() => useNoteEditor('n1', baseNote, mockUpdateNote));
+
+    act(() => {
+      result.current.handleTitleChange('変更中');
+    });
+
+    unmount();
+
+    act(() => {
+      vi.advanceTimersByTime(800);
+    });
+
+    expect(mockUpdateNote).not.toHaveBeenCalled();
+  });
 });

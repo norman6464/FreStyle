@@ -7,6 +7,10 @@ import com.example.FreStyle.usecase.CreateNoteUseCase;
 import com.example.FreStyle.usecase.DeleteNoteUseCase;
 import com.example.FreStyle.usecase.GetNotesByUserIdUseCase;
 import com.example.FreStyle.usecase.UpdateNoteUseCase;
+
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -40,7 +44,7 @@ public class NoteController {
     @PostMapping
     public ResponseEntity<NoteDto> createNote(
             @AuthenticationPrincipal Jwt jwt,
-            @RequestBody CreateNoteRequest request
+            @Valid @RequestBody CreateNoteRequest request
     ) {
         User user = resolveUser(jwt);
 
@@ -54,7 +58,7 @@ public class NoteController {
     public ResponseEntity<Void> updateNote(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable String noteId,
-            @RequestBody UpdateNoteRequest request
+            @Valid @RequestBody UpdateNoteRequest request
     ) {
         User user = resolveUser(jwt);
 
@@ -81,6 +85,12 @@ public class NoteController {
         return userIdentityService.findUserBySub(jwt.getSubject());
     }
 
-    public record CreateNoteRequest(String title) {}
-    public record UpdateNoteRequest(String title, String content, Boolean isPinned) {}
+    public record CreateNoteRequest(
+            @NotBlank(message = "タイトルを入力してください") @Size(max = 200, message = "タイトルは200文字以内で入力してください") String title
+    ) {}
+    public record UpdateNoteRequest(
+            @Size(max = 200, message = "タイトルは200文字以内で入力してください") String title,
+            @Size(max = 50000, message = "コンテンツが長すぎます") String content,
+            Boolean isPinned
+    ) {}
 }

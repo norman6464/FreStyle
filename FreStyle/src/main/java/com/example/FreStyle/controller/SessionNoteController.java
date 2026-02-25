@@ -1,5 +1,8 @@
 package com.example.FreStyle.controller;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Size;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -43,7 +46,7 @@ public class SessionNoteController {
     public ResponseEntity<Void> saveNote(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable Integer sessionId,
-            @RequestBody SaveNoteRequest request) {
+            @Valid @RequestBody SaveNoteRequest request) {
         User user = resolveUser(jwt);
         log.info("セッションノート保存: userId={}, sessionId={}", user.getId(), sessionId);
         saveSessionNoteUseCase.execute(user, sessionId, request.note());
@@ -54,5 +57,7 @@ public class SessionNoteController {
         return userIdentityService.findUserBySub(jwt.getSubject());
     }
 
-    public record SaveNoteRequest(String note) {}
+    public record SaveNoteRequest(
+            @Size(max = 10000, message = "ノートは10000文字以内で入力してください") String note
+    ) {}
 }

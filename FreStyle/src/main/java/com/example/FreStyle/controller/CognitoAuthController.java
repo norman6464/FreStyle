@@ -53,7 +53,7 @@ public class CognitoAuthController {
     // サインアップ
     // -----------------------
     @PostMapping("/signup")
-    public ResponseEntity<?> signup(@RequestBody SignupForm form) {
+    public ResponseEntity<?> signup(@Validated @RequestBody SignupForm form) {
         log.info("POST /api/auth/cognito/signup - email: {}", form.getEmail());
         try {
             cognitoSignupUseCase.execute(form);
@@ -75,7 +75,7 @@ public class CognitoAuthController {
     // サインアップ確認
     // -----------------------
     @PostMapping("/confirm")
-    public ResponseEntity<?> confirm(@RequestBody ConfirmSignupForm form) {
+    public ResponseEntity<?> confirm(@Validated @RequestBody ConfirmSignupForm form) {
         log.info("POST /api/auth/cognito/confirm - email: {}", form.getEmail());
         try {
             cognitoConfirmUseCase.execute(form.getEmail(), form.getCode());
@@ -99,7 +99,7 @@ public class CognitoAuthController {
     // ログイン
     // -----------------------
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody LoginForm form, HttpServletResponse response) {
+    public ResponseEntity<?> login(@Validated @RequestBody LoginForm form, HttpServletResponse response) {
         log.info("POST /api/auth/cognito/login - email: {}", form.getEmail());
         try {
             CognitoLoginUseCase.Result result = cognitoLoginUseCase.execute(form.getEmail(), form.getPassword());

@@ -3,13 +3,19 @@ package com.example.FreStyle.exception;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
+import java.util.List;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.core.MethodParameter;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.BindingResult;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.context.request.WebRequest;
 
 import com.example.FreStyle.dto.ErrorResponseDto;
@@ -133,5 +139,30 @@ class GlobalExceptionHandlerTest {
 
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().timestamp()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("MethodArgumentNotValidExceptionで400を返しフィールドエラーを含む")
+    void returnsBadRequestOnValidationError() throws Exception {
+        WebRequest request = mockRequest("/api/profile/me/update");
+
+        BindingResult bindingResult = mock(BindingResult.class);
+        when(bindingResult.getFieldErrors()).thenReturn(List.of(
+            new FieldError("profileForm", "name", "ユーザー名を入力してください"),
+            new FieldError("profileForm", "bio", "自己紹介は500文字以内で入力してください")
+        ));
+
+        MethodParameter methodParameter = mock(MethodParameter.class);
+        MethodArgumentNotValidException ex = new MethodArgumentNotValidException(methodParameter, bindingResult);
+
+        ResponseEntity<ErrorResponseDto> response = handler.handleValidationException(ex, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().status()).isEqualTo(400);
+        assertThat(response.getBody().error()).isEqualTo("Validation Error");
+        assertThat(response.getBody().message()).contains("name");
+        assertThat(response.getBody().message()).contains("bio");
+        assertThat(response.getBody().path()).isEqualTo("/api/profile/me/update");
     }
 }

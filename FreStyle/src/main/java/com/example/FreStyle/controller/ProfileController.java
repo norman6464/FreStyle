@@ -43,7 +43,7 @@ public class ProfileController {
     @PutMapping("/me/update")
     public ResponseEntity<Map<String, String>> updateProfile(
             @AuthenticationPrincipal Jwt jwt,
-            @RequestBody ProfileForm form) {
+            @Valid @RequestBody ProfileForm form) {
         updateProfileUseCase.execute(jwt, form);
         return ResponseEntity.ok(Map.of("message", "プロフィールを更新しました。"));
     }

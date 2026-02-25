@@ -1,5 +1,10 @@
 package com.example.FreStyle.controller;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -40,7 +45,7 @@ public class ScoreGoalController {
     }
 
     @PutMapping
-    public ResponseEntity<Void> saveGoal(@AuthenticationPrincipal Jwt jwt, @RequestBody SaveGoalRequest request) {
+    public ResponseEntity<Void> saveGoal(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody SaveGoalRequest request) {
         User user = resolveUser(jwt);
         log.info("スコア目標設定: userId={}, goalScore={}", user.getId(), request.goalScore());
         saveScoreGoalUseCase.execute(user, request.goalScore());
@@ -51,5 +56,10 @@ public class ScoreGoalController {
         return userIdentityService.findUserBySub(jwt.getSubject());
     }
 
-    public record SaveGoalRequest(Double goalScore) {}
+    public record SaveGoalRequest(
+            @NotNull(message = "目標スコアを入力してください")
+            @Min(value = 0, message = "目標スコアは0以上で入力してください")
+            @Max(value = 100, message = "目標スコアは100以下で入力してください")
+            Double goalScore
+    ) {}
 }

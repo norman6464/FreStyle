@@ -6,8 +6,10 @@ export function useFriendship() {
   const [following, setFollowing] = useState<FriendshipUser[]>([]);
   const [followers, setFollowers] = useState<FriendshipUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
+    setError(null);
     try {
       const [followingData, followersData] = await Promise.all([
         FriendshipRepository.getFollowing(),
@@ -18,6 +20,7 @@ export function useFriendship() {
     } catch {
       setFollowing([]);
       setFollowers([]);
+      setError('フレンド情報の取得に失敗しました');
     } finally {
       setLoading(false);
     }
@@ -32,7 +35,7 @@ export function useFriendship() {
       await FriendshipRepository.follow(userId);
       await fetchData();
     } catch {
-      // エラーハンドリング
+      setError('フォローに失敗しました');
     }
   }, [fetchData]);
 
@@ -41,9 +44,9 @@ export function useFriendship() {
       await FriendshipRepository.unfollow(userId);
       await fetchData();
     } catch {
-      // エラーハンドリング
+      setError('フォロー解除に失敗しました');
     }
   }, [fetchData]);
 
-  return { following, followers, loading, followUser, unfollowUser, refetch: fetchData };
+  return { following, followers, loading, error, followUser, unfollowUser, refetch: fetchData };
 }

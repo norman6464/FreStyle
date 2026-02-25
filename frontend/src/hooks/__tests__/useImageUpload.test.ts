@@ -72,10 +72,9 @@ describe('useImageUpload', () => {
     expect(NoteImageRepository.getPresignedUrl).not.toHaveBeenCalled();
   });
 
-  it('エラー時にコンソールエラーを出力する', async () => {
+  it('エラー時にuploadErrorが設定される', async () => {
     const editor = createMockEditor();
     vi.mocked(NoteImageRepository.getPresignedUrl).mockRejectedValue(new Error('network error'));
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const { result } = renderHook(() => useImageUpload('note1', editor as any));
 
@@ -84,7 +83,30 @@ describe('useImageUpload', () => {
       await result.current.uploadAndInsert(file);
     });
 
-    expect(consoleSpy).toHaveBeenCalledWith('画像アップロードに失敗しました:', expect.any(Error));
-    consoleSpy.mockRestore();
+    expect(result.current.uploadError).toBe('画像アップロードに失敗しました');
+  });
+
+  it('再アップロード成功時にuploadErrorがクリアされる', async () => {
+    const editor = createMockEditor();
+    vi.mocked(NoteImageRepository.getPresignedUrl)
+      .mockRejectedValueOnce(new Error('network error'))
+      .mockResolvedValueOnce({
+        uploadUrl: 'https://s3.example.com/upload',
+        imageUrl: 'https://cdn.example.com/image.png',
+      });
+    vi.mocked(NoteImageRepository.uploadToS3).mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => useImageUpload('note1', editor as any));
+
+    const file = new File(['test'], 'photo.png', { type: 'image/png' });
+    await act(async () => {
+      await result.current.uploadAndInsert(file);
+    });
+    expect(result.current.uploadError).toBe('画像アップロードに失敗しました');
+
+    await act(async () => {
+      await result.current.uploadAndInsert(file);
+    });
+    expect(result.current.uploadError).toBeNull();
   });
 });

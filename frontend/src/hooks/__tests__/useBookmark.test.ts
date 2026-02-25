@@ -129,4 +129,34 @@ describe('useBookmark', () => {
       expect(result.current.loading).toBe(false);
     });
   });
+
+  it('ブックマーク追加API失敗時に状態がロールバックされる', async () => {
+    mockAdd.mockRejectedValue(new Error('API error'));
+    const { result } = renderHook(() => useBookmark());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    await act(async () => {
+      await result.current.toggleBookmark(5);
+    });
+
+    expect(result.current.bookmarkedIds).not.toContain(5);
+  });
+
+  it('ブックマーク削除API失敗時に状態がロールバックされる', async () => {
+    mockRemove.mockRejectedValue(new Error('API error'));
+    const { result } = renderHook(() => useBookmark());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    await act(async () => {
+      await result.current.toggleBookmark(1);
+    });
+
+    expect(result.current.bookmarkedIds).toContain(1);
+  });
 });

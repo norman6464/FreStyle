@@ -18,12 +18,21 @@ export function useBookmark() {
 
   const toggleBookmark = useCallback(async (scenarioId: number) => {
     const isCurrentlyBookmarked = bookmarkedIds.includes(scenarioId);
+    const snapshot = bookmarkedIds;
     if (isCurrentlyBookmarked) {
       setBookmarkedIds(prev => prev.filter(id => id !== scenarioId));
-      await BookmarkRepository.remove(scenarioId);
+      try {
+        await BookmarkRepository.remove(scenarioId);
+      } catch {
+        setBookmarkedIds(snapshot);
+      }
     } else {
       setBookmarkedIds(prev => [...prev, scenarioId]);
-      await BookmarkRepository.add(scenarioId);
+      try {
+        await BookmarkRepository.add(scenarioId);
+      } catch {
+        setBookmarkedIds(snapshot);
+      }
     }
   }, [bookmarkedIds]);
 

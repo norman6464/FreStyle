@@ -108,15 +108,18 @@ class CognitoAuthControllerTest {
         }
 
         @Test
-        @DisplayName("RuntimeExceptionで500を返す")
+        @DisplayName("RuntimeExceptionで500を返し内部エラー情報を漏洩しない")
+        @SuppressWarnings("unchecked")
         void returnsInternalServerErrorOnRuntimeException() {
             SignupForm form = new SignupForm("test@example.com", "password123", "テスト");
-            doThrow(new RuntimeException("unexpected"))
+            doThrow(new RuntimeException("Internal DB connection pool exhausted"))
                 .when(cognitoSignupUseCase).execute(any(SignupForm.class));
 
             ResponseEntity<?> response = controller.signup(form);
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+            Map<String, String> body = (Map<String, String>) response.getBody();
+            assertThat(body.get("error")).doesNotContain("DB connection pool");
         }
     }
 
@@ -351,15 +354,18 @@ class CognitoAuthControllerTest {
         }
 
         @Test
-        @DisplayName("RuntimeExceptionで500を返す")
+        @DisplayName("RuntimeExceptionで500を返し内部エラー情報を漏洩しない")
+        @SuppressWarnings("unchecked")
         void returnsInternalServerErrorOnRuntimeException() {
             LoginForm form = new LoginForm("test@example.com", "wrong");
             when(cognitoLoginUseCase.execute(anyString(), anyString()))
-                    .thenThrow(new RuntimeException("認証失敗"));
+                    .thenThrow(new RuntimeException("AWS SDK internal timeout error"));
 
             ResponseEntity<?> response = controller.login(form, httpResponse);
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+            Map<String, String> body = (Map<String, String>) response.getBody();
+            assertThat(body.get("error")).doesNotContain("AWS SDK");
         }
     }
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from './useAuth';
 import type { FormMessage } from '../types';
@@ -9,6 +9,13 @@ export function useSignupPage() {
   const [message, setMessage] = useState<FormMessage | null>(null);
   const navigate = useNavigate();
   const { signup, loading } = useAuth();
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
 
   const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -32,7 +39,7 @@ export function useSignupPage() {
 
     if (success) {
       setMessage({ type: 'success', text: 'サインアップに成功しました！' });
-      setTimeout(() => {
+      timerRef.current = setTimeout(() => {
         navigate('/confirm', {
           state: {
             message: 'サインアップに成功しました！メール確認をお願いします。',

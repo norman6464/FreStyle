@@ -265,4 +265,30 @@ describe('useSignupPage', () => {
     expect(result.current.message?.text).toBe('有効なメールアドレスを入力してください。');
     expect(mockSignup).not.toHaveBeenCalled();
   });
+
+  it('アンマウント時にナビゲーションタイマーがクリアされる', async () => {
+    mockSignup.mockResolvedValue(true);
+    const { result, unmount } = renderHook(() => useSignupPage());
+
+    act(() => {
+      result.current.handleChange({ target: { name: 'name', value: 'テスト' } } as React.ChangeEvent<HTMLInputElement>);
+      result.current.handleChange({ target: { name: 'email', value: 'test@example.com' } } as React.ChangeEvent<HTMLInputElement>);
+      result.current.handleChange({ target: { name: 'password', value: 'pass123' } } as React.ChangeEvent<HTMLInputElement>);
+    });
+
+    await act(async () => {
+      await result.current.handleSignup({
+        preventDefault: vi.fn(),
+      } as unknown as React.FormEvent<HTMLFormElement>);
+    });
+
+    unmount();
+
+    act(() => {
+      vi.advanceTimersByTime(1500);
+    });
+
+    // アンマウント後はナビゲートされない
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
 });

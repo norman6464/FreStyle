@@ -37,12 +37,16 @@ export function useNoteEditor(
       saveTimerRef.current = setTimeout(async () => {
         if (selectedNoteId) {
           setSaveStatus('saving');
-          await updateNote(selectedNoteId, {
-            title,
-            content,
-            isPinned: selectedNote?.isPinned || false,
-          });
-          setSaveStatus('saved');
+          try {
+            await updateNote(selectedNoteId, {
+              title,
+              content,
+              isPinned: selectedNote?.isPinned || false,
+            });
+            setSaveStatus('saved');
+          } catch {
+            setSaveStatus('idle');
+          }
         }
       }, 800);
     },
@@ -69,12 +73,16 @@ export function useNoteEditor(
     if (!selectedNoteId) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     setSaveStatus('saving');
-    await updateNote(selectedNoteId, {
-      title: editTitle,
-      content: editContent,
-      isPinned: selectedNote?.isPinned || false,
-    });
-    setSaveStatus('saved');
+    try {
+      await updateNote(selectedNoteId, {
+        title: editTitle,
+        content: editContent,
+        isPinned: selectedNote?.isPinned || false,
+      });
+      setSaveStatus('saved');
+    } catch {
+      setSaveStatus('idle');
+    }
   }, [selectedNoteId, editTitle, editContent, selectedNote, updateNote]);
 
   return {

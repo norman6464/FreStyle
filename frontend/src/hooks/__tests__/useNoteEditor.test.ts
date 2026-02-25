@@ -278,4 +278,30 @@ describe('useNoteEditor', () => {
 
     expect(mockUpdateNote).not.toHaveBeenCalled();
   });
+
+  it('自動保存失敗時にsaveStatusがidleに戻る', async () => {
+    mockUpdateNote.mockRejectedValue(new Error('保存失敗'));
+    const { result } = renderHook(() => useNoteEditor('n1', baseNote, mockUpdateNote));
+
+    act(() => {
+      result.current.handleTitleChange('変更');
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(800);
+    });
+
+    expect(result.current.saveStatus).toBe('idle');
+  });
+
+  it('forceSave失敗時にsaveStatusがidleに戻る', async () => {
+    mockUpdateNote.mockRejectedValue(new Error('保存失敗'));
+    const { result } = renderHook(() => useNoteEditor('n1', baseNote, mockUpdateNote));
+
+    await act(async () => {
+      result.current.forceSave();
+    });
+
+    expect(result.current.saveStatus).toBe('idle');
+  });
 });

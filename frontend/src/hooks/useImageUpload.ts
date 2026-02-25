@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Editor } from '@tiptap/core';
 import NoteImageRepository from '../repositories/NoteImageRepository';
 
@@ -44,6 +44,15 @@ export function useImageUpload(noteId: string | null, editor: Editor | null) {
     }
     fileInputRef.current.click();
   }, [handleFilesFromInput]);
+
+  useEffect(() => {
+    return () => {
+      if (fileInputRef.current) {
+        fileInputRef.current.remove();
+        fileInputRef.current = null;
+      }
+    };
+  }, []);
 
   const handleDrop = useCallback((event: React.DragEvent) => {
     const files = event.dataTransfer?.files;

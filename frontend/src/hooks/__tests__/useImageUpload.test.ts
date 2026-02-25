@@ -86,6 +86,23 @@ describe('useImageUpload', () => {
     expect(result.current.uploadError).toBe('画像アップロードに失敗しました');
   });
 
+  it('アンマウント時にファイルinput要素がDOMから削除される', () => {
+    const editor = createMockEditor();
+    const { result, unmount } = renderHook(() => useImageUpload('note1', editor as any));
+
+    act(() => {
+      result.current.openFileDialog();
+    });
+
+    const inputs = document.querySelectorAll('input[type="file"]');
+    expect(inputs.length).toBe(1);
+
+    unmount();
+
+    const inputsAfter = document.querySelectorAll('input[type="file"]');
+    expect(inputsAfter.length).toBe(0);
+  });
+
   it('再アップロード成功時にuploadErrorがクリアされる', async () => {
     const editor = createMockEditor();
     vi.mocked(NoteImageRepository.getPresignedUrl)

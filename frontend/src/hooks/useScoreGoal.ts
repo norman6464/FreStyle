@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import apiClient from '../lib/axios';
+import { ScoreGoalRepository } from '../repositories/ScoreGoalRepository';
 
 const STORAGE_KEY = 'scoreGoal';
 const DEFAULT_GOAL = 8.0;
@@ -27,15 +27,12 @@ export function useScoreGoal() {
 
   useEffect(() => {
     let cancelled = false;
-    apiClient.get<{ goalScore: number }>('/api/score-goal')
-      .then((response) => {
-        if (!cancelled && response.data?.goalScore != null) {
-          setGoal(response.data.goalScore);
-          setLocalGoal(response.data.goalScore);
+    ScoreGoalRepository.fetchGoal()
+      .then((goalScore) => {
+        if (!cancelled && goalScore != null) {
+          setGoal(goalScore);
+          setLocalGoal(goalScore);
         }
-      })
-      .catch(() => {
-        // API失敗時はlocalStorageの値を維持
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -46,11 +43,7 @@ export function useScoreGoal() {
   const saveGoal = useCallback(async (newGoal: number) => {
     setGoal(newGoal);
     setLocalGoal(newGoal);
-    try {
-      await apiClient.put('/api/score-goal', { goalScore: newGoal });
-    } catch {
-      // API失敗時もlocalStorageには保存済み
-    }
+    await ScoreGoalRepository.saveGoal(newGoal);
   }, []);
 
   return { goal, saveGoal, loading };

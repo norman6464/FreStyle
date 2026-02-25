@@ -65,4 +65,28 @@ describe('useChatRoomCreation', () => {
     expect(mockedRepo.createRoom).toHaveBeenCalledWith(1);
     expect(mockNavigate).not.toHaveBeenCalled();
   });
+
+  it('ルーム作成失敗時にerrorが設定される', async () => {
+    mockedRepo.createRoom.mockRejectedValue(new Error('失敗'));
+
+    const { result } = renderHook(() => useChatRoomCreation());
+
+    await act(async () => {
+      await result.current.openChat(1, undefined);
+    });
+
+    expect(result.current.error).toBe('チャットルームの作成に失敗しました');
+  });
+
+  it('ルーム作成成功時にerrorがnullのまま', async () => {
+    mockedRepo.createRoom.mockResolvedValue({ roomId: 200 });
+
+    const { result } = renderHook(() => useChatRoomCreation());
+
+    await act(async () => {
+      await result.current.openChat(1, undefined);
+    });
+
+    expect(result.current.error).toBeNull();
+  });
 });

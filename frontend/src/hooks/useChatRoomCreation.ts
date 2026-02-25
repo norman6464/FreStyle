@@ -1,9 +1,10 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ChatRepository from '../repositories/ChatRepository';
 
 export function useChatRoomCreation() {
   const navigate = useNavigate();
+  const [error, setError] = useState<string | null>(null);
 
   const openChat = useCallback(async (userId: number, roomId?: number) => {
     if (roomId) {
@@ -17,9 +18,9 @@ export function useChatRoomCreation() {
         navigate(`/chat/users/${data.roomId}`);
       }
     } catch {
-      // エラーはaxiosインターセプターが処理
+      setError('チャットルームの作成に失敗しました');
     }
   }, [navigate]);
 
-  return { openChat };
+  return { openChat, error };
 }

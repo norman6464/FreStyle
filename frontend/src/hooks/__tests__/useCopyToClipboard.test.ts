@@ -144,4 +144,21 @@ describe('useCopyToClipboard', () => {
 
     expect(result.current.copiedId).toBeNull();
   });
+
+  it('アンマウント時にタイマーがクリアされる', async () => {
+    const { result, unmount } = renderHook(() => useCopyToClipboard());
+
+    await act(async () => {
+      await result.current.copyToClipboard(1, 'テスト');
+    });
+
+    expect(result.current.copiedId).toBe(1);
+
+    unmount();
+
+    // アンマウント後にタイマーが発火してもエラーにならない
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+  });
 });

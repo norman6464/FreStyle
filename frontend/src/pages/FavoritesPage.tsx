@@ -1,17 +1,19 @@
 import { useState } from 'react';
 import { useFavoritePhrase } from '../hooks/useFavoritePhrase';
+import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
 import SearchBox from '../components/SearchBox';
 import FavoriteStatsCard from '../components/FavoriteStatsCard';
 import EmptyState from '../components/EmptyState';
 import ConfirmModal from '../components/ConfirmModal';
 import Loading from '../components/Loading';
-import { StarIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { StarIcon, XMarkIcon, ClipboardDocumentIcon, CheckIcon } from '@heroicons/react/24/outline';
 import type { FavoritePhrase } from '../types';
 
 const PATTERN_FILTERS = ['すべて', 'フォーマル', 'ソフト', '簡潔'] as const;
 
 export default function FavoritesPage() {
   const { phrases, filteredPhrases, searchQuery, setSearchQuery, patternFilter, setPatternFilter, removeFavorite, loading } = useFavoritePhrase();
+  const { copiedId, copyToClipboard } = useCopyToClipboard();
   const [deleteTarget, setDeleteTarget] = useState<FavoritePhrase | null>(null);
 
   if (loading) {
@@ -93,7 +95,20 @@ export default function FavoritesPage() {
                   </button>
                 </div>
               </div>
-              <p className="text-sm text-[var(--color-text-primary)] mb-1">{phrase.rephrasedText}</p>
+              <div className="flex items-start justify-between gap-2 mb-1">
+                <p className="text-sm text-[var(--color-text-primary)] flex-1">{phrase.rephrasedText}</p>
+                <button
+                  onClick={() => copyToClipboard(phrase.id, phrase.rephrasedText)}
+                  aria-label="フレーズをコピー"
+                  className="flex-shrink-0 p-1 rounded hover:bg-surface-2 transition-colors"
+                >
+                  {copiedId === phrase.id ? (
+                    <CheckIcon className="w-4 h-4 text-emerald-500" />
+                  ) : (
+                    <ClipboardDocumentIcon className="w-4 h-4 text-[var(--color-text-faint)]" />
+                  )}
+                </button>
+              </div>
               <p className="text-xs text-[var(--color-text-faint)]">元: {phrase.originalText}</p>
             </div>
           ))}

@@ -174,4 +174,23 @@ describe('FavoritesPage', () => {
     expect(screen.getByRole('status')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: /お気に入りフレーズ/ })).not.toBeInTheDocument();
   });
+
+  it('各フレーズにコピーボタンが表示される', () => {
+    render(<FavoritesPage />);
+
+    const copyButtons = screen.getAllByLabelText('フレーズをコピー');
+    expect(copyButtons).toHaveLength(2);
+  });
+
+  it('コピーボタンクリックでクリップボードにコピーされる', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+
+    render(<FavoritesPage />);
+
+    const copyButtons = screen.getAllByLabelText('フレーズをコピー');
+    fireEvent.click(copyButtons[0]);
+
+    expect(writeText).toHaveBeenCalledWith('ご確認いただけますでしょうか');
+  });
 });

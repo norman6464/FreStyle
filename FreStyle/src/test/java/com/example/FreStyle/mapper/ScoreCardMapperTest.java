@@ -37,6 +37,12 @@ class ScoreCardMapperTest {
         return session;
     }
 
+    private AiChatSession createPracticeSession(Integer id, String title, Integer scenarioId) {
+        AiChatSession session = createSession(id, title);
+        session.setScenarioId(scenarioId);
+        return session;
+    }
+
     @Nested
     @DisplayName("toScoreCardDto")
     class ToScoreCardDto {
@@ -158,6 +164,32 @@ class ScoreCardMapperTest {
             List<ScoreHistoryDto> history = mapper.toScoreHistoryDtoList(scores);
 
             assertThat(history.get(0).createdAt()).isNotNull();
+        }
+
+        @Test
+        @DisplayName("練習セッションのscenarioIdが設定される")
+        void setsScenarioIdForPracticeSession() {
+            AiChatSession session = createPracticeSession(1, "練習セッション", 3);
+            List<CommunicationScore> scores = List.of(
+                createScore(session, "明瞭性", 8, "")
+            );
+
+            List<ScoreHistoryDto> history = mapper.toScoreHistoryDtoList(scores);
+
+            assertThat(history.get(0).scenarioId()).isEqualTo(3);
+        }
+
+        @Test
+        @DisplayName("通常セッションのscenarioIdはnullになる")
+        void scenarioIdIsNullForNormalSession() {
+            AiChatSession session = createSession(1, "通常セッション");
+            List<CommunicationScore> scores = List.of(
+                createScore(session, "明瞭性", 8, "")
+            );
+
+            List<ScoreHistoryDto> history = mapper.toScoreHistoryDtoList(scores);
+
+            assertThat(history.get(0).scenarioId()).isNull();
         }
     }
 }

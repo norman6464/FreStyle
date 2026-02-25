@@ -159,6 +159,7 @@ export interface ScoreHistory {
 export interface ScoreHistoryItem {
   sessionId: number;
   sessionTitle: string;
+  scenarioId: number | null;
   overallScore: number;
   scores: AxisScore[];
   createdAt: string;

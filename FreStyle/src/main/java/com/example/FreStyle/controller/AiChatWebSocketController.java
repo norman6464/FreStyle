@@ -4,9 +4,11 @@ import java.util.Map;
 
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 
+import com.example.FreStyle.config.WebSocketAuthHandshakeInterceptor;
 import com.example.FreStyle.constant.SceneDisplayName;
 import com.example.FreStyle.dto.AiChatMessageResponseDto;
 import com.example.FreStyle.dto.AiChatSessionDto;
@@ -41,33 +43,24 @@ public class AiChatWebSocketController {
      * クライアントから /app/ai-chat/send へメッセージを送信
      */
     @MessageMapping("/ai-chat/send")
-    public void sendMessage(@Payload Map<String, Object> payload) {
+    public void sendMessage(@Payload Map<String, Object> payload, SimpMessageHeaderAccessor headerAccessor) {
         log.info("\n========== WebSocket /ai-chat/send リクエスト受信 ==========");
-        log.info("📨 ペイロード全体: {}", payload);
 
         try {
-            // パラメータの取得と検証
-            log.info("🔍 パラメータを抽出中...");
-            Object userIdObj = payload.get("userId");
+            // 認証済みユーザーIDをセッション属性から取得（クライアントのpayloadは無視）
+            Integer userId = getAuthenticatedUserId(headerAccessor);
+            if (userId == null) {
+                log.warn("WebSocket認証エラー: 認証されていないユーザーからのAIチャット送信");
+                return;
+            }
+
             Object sessionIdObj = payload.get("sessionId");
             Object contentObj = payload.get("content");
-            Object roleObj = payload.get("role"); // "user" または "assistant"
-            Object fromChatFeedbackObj = payload.get("fromChatFeedback"); // チャットフィードバックモードフラグ
-            Object sceneObj = payload.get("scene"); // フィードバックシーン
-            Object sessionTypeObj = payload.get("sessionType"); // セッション種別（normal, practice）
-            Object scenarioIdObj = payload.get("scenarioId"); // 練習シナリオID
-
-            log.debug("   - userId タイプ: {}", userIdObj != null ? userIdObj.getClass().getSimpleName() : "null");
-            log.debug("   - userId 値: {}", userIdObj);
-            log.debug("   - sessionId タイプ: {}", sessionIdObj != null ? sessionIdObj.getClass().getSimpleName() : "null");
-            log.debug("   - sessionId 値: {}", sessionIdObj);
-            log.debug("   - content: {}", contentObj);
-            log.debug("   - role: {}", roleObj);
-            log.debug("   - fromChatFeedback: {}", fromChatFeedbackObj);
-            log.debug("   - scene: {}", sceneObj);
-
-            // userId の変換
-            Integer userId = convertToInteger(userIdObj);
+            Object roleObj = payload.get("role");
+            Object fromChatFeedbackObj = payload.get("fromChatFeedback");
+            Object sceneObj = payload.get("scene");
+            Object sessionTypeObj = payload.get("sessionType");
+            Object scenarioIdObj = payload.get("scenarioId");
 
             // sessionId の変換（新規セッションの場合はnull）
             Integer sessionId = sessionIdObj != null ? convertToInteger(sessionIdObj) : null;
@@ -88,28 +81,17 @@ public class AiChatWebSocketController {
             Integer scenarioId = scenarioIdObj != null ? convertToInteger(scenarioIdObj) : null;
             boolean isPracticeMode = "practice".equals(sessionType);
 
-            log.info("✅ パラメータ抽出成功");
-            log.debug("   - userId (最終): {}", userId);
-            log.debug("   - sessionId (最終): {}", sessionId);
-            log.debug("   - content: {}", content);
-            log.debug("   - role: {}", role);
-            log.debug("   - fromChatFeedback (最終): {}", fromChatFeedback);
-            log.debug("   - scene (最終): {}", scene);
+            log.info("✅ パラメータ抽出成功 - userId: {}, sessionId: {}", userId, sessionId);
 
             // セッションが存在しない場合は新規作成
             if (sessionId == null) {
-                log.info("🆕 新規セッション作成中...");
-                // フィードバックモードの場合はタイトルを変更
                 String title = fromChatFeedback ? "チャットフィードバック" : "新しいチャット";
-                // シーンが指定されている場合はタイトルにシーン名を含める
                 if (scene != null && fromChatFeedback) {
                     title = SceneDisplayName.of(scene) + "フィードバック";
                 }
                 AiChatSessionDto newSession = createAiChatSessionUseCase.execute(userId, title, null, scene);
                 sessionId = newSession.id();
-                log.info("✅ 新規セッション作成完了 - sessionId: {}", sessionId);
 
-                // 新しいセッション情報をクライアントに通知
                 messagingTemplate.convertAndSend(
                         "/topic/ai-chat/user/" + userId + "/session",
                         newSession
@@ -117,39 +99,26 @@ public class AiChatWebSocketController {
             }
 
             // メッセージ保存（ユーザーメッセージ）
-            log.info("💾 ユーザーメッセージをデータベースに保存中...");
             AiChatMessageResponseDto savedUserMessage = addAiChatMessageUseCase.execute(sessionId, userId, role, content);
-            log.info("✅ ユーザーメッセージ保存成功");
-            log.debug("   - messageId: {}", savedUserMessage.id());
-            log.debug("   - sessionId: {}", savedUserMessage.sessionId());
-            log.debug("   - role: {}", savedUserMessage.role());
 
             // WebSocket トピックへユーザーメッセージを送信
-            log.info("📤 WebSocket トピック /topic/ai-chat/session/{} へユーザーメッセージを送信中...", sessionId);
             messagingTemplate.convertAndSend(
                     "/topic/ai-chat/session/" + sessionId,
                     savedUserMessage
             );
-            log.info("✅ ユーザーメッセージ WebSocket 送信完了");
 
             // Bedrockにメッセージを送信してAI応答を取得
             var aiReplyCommand = new GetAiReplyUseCase.Command(content, isPracticeMode, scenarioId, fromChatFeedback, scene, userId);
             String aiReply = getAiReplyUseCase.execute(aiReplyCommand);
 
             // AI応答をデータベースに保存（role: assistant）
-            log.info("💾 AI応答をデータベースに保存中...");
             AiChatMessageResponseDto savedAiMessage = addAiChatMessageUseCase.execute(sessionId, userId, "assistant", aiReply);
-            log.info("✅ AI応答保存成功");
-            log.debug("   - messageId: {}", savedAiMessage.id());
-            log.debug("   - role: {}", savedAiMessage.role());
 
             // WebSocket トピックへAI応答を送信
-            log.info("📤 WebSocket トピック /topic/ai-chat/session/{} へAI応答を送信中...", sessionId);
             messagingTemplate.convertAndSend(
                     "/topic/ai-chat/session/" + sessionId,
                     savedAiMessage
             );
-            log.info("✅ AI応答 WebSocket 送信完了");
 
             // スコア抽出・保存・通知
             notifyScoreCardIfNeeded(sessionId, userId, aiReply, scene, fromChatFeedback, isPracticeMode);
@@ -169,25 +138,26 @@ public class AiChatWebSocketController {
      * AIからのレスポンスを保存してブロードキャスト
      */
     @MessageMapping("/ai-chat/response")
-    public void receiveAiResponse(@Payload Map<String, Object> payload) {
+    public void receiveAiResponse(@Payload Map<String, Object> payload, SimpMessageHeaderAccessor headerAccessor) {
         log.info("\n========== WebSocket /ai-chat/response リクエスト受信 ==========");
-        log.info("🤖 AIレスポンス ペイロード: {}", payload);
 
         try {
+            Integer userId = getAuthenticatedUserId(headerAccessor);
+            if (userId == null) {
+                log.warn("WebSocket認証エラー: 認証されていないユーザーからのAIレスポンス");
+                return;
+            }
+
             Integer sessionId = convertToInteger(payload.get("sessionId"));
-            Integer userId = convertToInteger(payload.get("userId"));
             String content = (String) payload.get("content");
 
-            // AIからのレスポンスを保存
             AiChatMessageResponseDto saved = addAiChatMessageUseCase.executeAssistantMessage(sessionId, userId, content);
 
-            // WebSocket トピックへ送信
             messagingTemplate.convertAndSend(
                     "/topic/ai-chat/session/" + sessionId,
                     saved
             );
             log.info("✅ AIレスポンス送信完了");
-            log.info("========== /ai-chat/response 処理完了 ==========\n");
 
         } catch (Exception e) {
             log.error("AIレスポンス処理エラー: {}", e.getMessage(), e);
@@ -196,27 +166,24 @@ public class AiChatWebSocketController {
 
     /**
      * メッセージの言い換え提案
-     * クライアントから /app/ai-chat/rephrase へリクエストを送信
      */
     @MessageMapping("/ai-chat/rephrase")
-    public void rephraseMessage(@Payload Map<String, Object> payload) {
+    public void rephraseMessage(@Payload Map<String, Object> payload, SimpMessageHeaderAccessor headerAccessor) {
         log.info("\n========== WebSocket /ai-chat/rephrase リクエスト受信 ==========");
 
         try {
-            Integer userId = convertToInteger(payload.get("userId"));
+            Integer userId = getAuthenticatedUserId(headerAccessor);
+            if (userId == null) {
+                log.warn("WebSocket認証エラー: 認証されていないユーザーからの言い換えリクエスト");
+                return;
+            }
+
             String originalMessage = (String) payload.get("originalMessage");
             Object sceneObj = payload.get("scene");
             String scene = sceneObj != null ? String.valueOf(sceneObj) : null;
 
-            log.debug("   - userId: {}", userId);
-            log.debug("   - originalMessage: {}", originalMessage);
-            log.debug("   - scene: {}", scene);
-
-            // Bedrockに言い換えリクエスト
             String rephraseResult = bedrockService.rephrase(originalMessage, scene);
-            log.info("✅ 言い換え結果取得: {}", rephraseResult);
 
-            // WebSocket トピックへ言い換え結果を送信
             messagingTemplate.convertAndSend(
                     "/topic/ai-chat/user/" + userId + "/rephrase",
                     Map.of(
@@ -225,7 +192,6 @@ public class AiChatWebSocketController {
                     )
             );
             log.info("✅ 言い換え結果送信完了");
-            log.info("========== /ai-chat/rephrase 処理完了 ==========\n");
 
         } catch (Exception e) {
             log.error("言い換え処理エラー: {}", e.getMessage(), e);
@@ -236,22 +202,25 @@ public class AiChatWebSocketController {
      * セッション削除
      */
     @MessageMapping("/ai-chat/delete-session")
-    public void deleteSession(@Payload Map<String, Object> payload) {
+    public void deleteSession(@Payload Map<String, Object> payload, SimpMessageHeaderAccessor headerAccessor) {
         log.info("\n========== WebSocket /ai-chat/delete-session リクエスト受信 ==========");
 
         try {
+            Integer userId = getAuthenticatedUserId(headerAccessor);
+            if (userId == null) {
+                log.warn("WebSocket認証エラー: 認証されていないユーザーからのセッション削除");
+                return;
+            }
+
             Integer sessionId = convertToInteger(payload.get("sessionId"));
-            Integer userId = convertToInteger(payload.get("userId"));
 
             deleteAiChatSessionUseCase.execute(sessionId, userId);
 
-            // 削除完了通知
             messagingTemplate.convertAndSend(
                     "/topic/ai-chat/user/" + userId + "/session-deleted",
                     Map.of("sessionId", sessionId, "deleted", true)
             );
             log.info("✅ セッション削除完了");
-            log.info("========== /ai-chat/delete-session 処理完了 ==========\n");
 
         } catch (Exception e) {
             log.error("セッション削除エラー: {}", e.getMessage(), e);
@@ -284,6 +253,12 @@ public class AiChatWebSocketController {
         } else {
             log.warn("⚠️ AI応答からスコアを抽出できませんでした");
         }
+    }
+
+    private Integer getAuthenticatedUserId(SimpMessageHeaderAccessor headerAccessor) {
+        Map<String, Object> sessionAttributes = headerAccessor.getSessionAttributes();
+        if (sessionAttributes == null) return null;
+        return (Integer) sessionAttributes.get(WebSocketAuthHandshakeInterceptor.AUTHENTICATED_USER_ID);
     }
 
     /**

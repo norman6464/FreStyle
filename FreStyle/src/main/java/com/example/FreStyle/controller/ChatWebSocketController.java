@@ -4,9 +4,11 @@ import java.util.Map;
 
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 
+import com.example.FreStyle.config.WebSocketAuthHandshakeInterceptor;
 import com.example.FreStyle.usecase.DeleteChatMessageUseCase;
 import com.example.FreStyle.usecase.SendChatMessageUseCase;
 
@@ -23,9 +25,13 @@ public class ChatWebSocketController {
     private final SimpMessagingTemplate messagingTemplate;
 
     @MessageMapping("/chat/send")
-    public void sendMessage(@Payload Map<String, Object> payload) {
+    public void sendMessage(@Payload Map<String, Object> payload, SimpMessageHeaderAccessor headerAccessor) {
         try {
-            Integer senderId = ((Number) payload.get("senderId")).intValue();
+            Integer senderId = getAuthenticatedUserId(headerAccessor);
+            if (senderId == null) {
+                log.warn("WebSocket認証エラー: 認証されていないユーザーからのメッセージ送信");
+                return;
+            }
             Integer roomId = ((Number) payload.get("roomId")).intValue();
             String content = (String) payload.get("content");
 
@@ -67,5 +73,11 @@ public class ChatWebSocketController {
         } catch (Exception e) {
             log.error("メッセージ削除エラー: {}", e.getMessage(), e);
         }
+    }
+
+    private Integer getAuthenticatedUserId(SimpMessageHeaderAccessor headerAccessor) {
+        Map<String, Object> sessionAttributes = headerAccessor.getSessionAttributes();
+        if (sessionAttributes == null) return null;
+        return (Integer) sessionAttributes.get(WebSocketAuthHandshakeInterceptor.AUTHENTICATED_USER_ID);
     }
 }

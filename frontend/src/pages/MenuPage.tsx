@@ -21,6 +21,7 @@ import SessionCountMilestoneCard from '../components/SessionCountMilestoneCard';
 import ScoreSparkline from '../components/ScoreSparkline';
 import RecommendedScenarioCard from '../components/RecommendedScenarioCard';
 import BookmarkedScenariosCard from '../components/BookmarkedScenariosCard';
+import QuickStartButton from '../components/QuickStartButton';
 import Loading from '../components/Loading';
 import { useMenuData } from '../hooks/useMenuData';
 import { useScoreHistory } from '../hooks/useScoreHistory';
@@ -39,6 +40,11 @@ export default function MenuPage() {
 
   return (
     <div className="p-6 max-w-2xl mx-auto">
+      {/* クイックスタート */}
+      <div className="mb-6">
+        <QuickStartButton scenario={recommendedScenario} />
+      </div>
+
       {/* 学習インサイト */}
       {totalSessions > 0 && (
         <div className="mb-6">

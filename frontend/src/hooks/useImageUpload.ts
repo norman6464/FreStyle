@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type { Editor } from '@tiptap/core';
 import NoteImageRepository from '../repositories/NoteImageRepository';
 
@@ -6,10 +6,12 @@ const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'im
 
 export function useImageUpload(noteId: string | null, editor: Editor | null) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const uploadAndInsert = useCallback(async (file: File) => {
     if (!noteId || !editor) return;
     if (!ALLOWED_TYPES.includes(file.type)) return;
+    setUploadError(null);
 
     try {
       const { uploadUrl, imageUrl } = await NoteImageRepository.getPresignedUrl(
@@ -17,8 +19,8 @@ export function useImageUpload(noteId: string | null, editor: Editor | null) {
       );
       await NoteImageRepository.uploadToS3(uploadUrl, file);
       editor.chain().focus().setImage({ src: imageUrl, alt: file.name }).run();
-    } catch (error) {
-      console.error('画像アップロードに失敗しました:', error);
+    } catch {
+      setUploadError('画像アップロードに失敗しました');
     }
   }, [noteId, editor]);
 
@@ -70,5 +72,5 @@ export function useImageUpload(noteId: string | null, editor: Editor | null) {
     }
   }, [uploadAndInsert]);
 
-  return { uploadAndInsert, openFileDialog, handleDrop, handlePaste };
+  return { uploadAndInsert, openFileDialog, handleDrop, handlePaste, uploadError };
 }

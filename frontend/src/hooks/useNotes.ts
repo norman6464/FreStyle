@@ -7,6 +7,7 @@ export function useNotes() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [noteSort, setNoteSort] = useState<NoteSortOption>('default');
@@ -15,11 +16,12 @@ export function useNotes() {
 
   const fetchNotes = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await NoteRepository.fetchNotes();
       setNotes(Array.isArray(data) ? data : []);
     } catch {
-      // エラーハンドリング
+      setError('ノートの取得に失敗しました');
     } finally {
       setLoading(false);
     }
@@ -43,7 +45,7 @@ export function useNotes() {
         prev.map((n) => (n.noteId === noteId ? { ...n, ...data, updatedAt: Date.now() } : n))
       );
     } catch {
-      // エラーハンドリング
+      setError('ノートの更新に失敗しました');
     }
   }, []);
 
@@ -53,7 +55,7 @@ export function useNotes() {
       setNotes((prev) => prev.filter((n) => n.noteId !== noteId));
       setSelectedNoteId((prev) => (prev === noteId ? null : prev));
     } catch {
-      // エラーハンドリング
+      setError('ノートの削除に失敗しました');
     }
   }, []);
 
@@ -71,7 +73,7 @@ export function useNotes() {
         prev.map((n) => (n.noteId === noteId ? { ...n, isPinned: newPinned } : n))
       );
     } catch {
-      // エラーハンドリング
+      setError('ピン留めの変更に失敗しました');
     }
   }, []);
 
@@ -129,6 +131,7 @@ export function useNotes() {
     selectedNoteId,
     selectedNote,
     loading,
+    error,
     searchQuery,
     setSearchQuery,
     fetchNotes,

@@ -87,7 +87,7 @@ describe('useFriendship', () => {
     expect(mockUnfollow).toHaveBeenCalledWith(2);
   });
 
-  it('API失敗時はエラーなく空リストを返す', async () => {
+  it('API失敗時はerrorが設定され空リストを返す', async () => {
     mockGetFollowing.mockRejectedValue(new Error('API Error'));
     mockGetFollowers.mockRejectedValue(new Error('API Error'));
 
@@ -99,5 +99,38 @@ describe('useFriendship', () => {
 
     expect(result.current.following).toEqual([]);
     expect(result.current.followers).toEqual([]);
+    expect(result.current.error).toBe('フレンド情報の取得に失敗しました');
+  });
+
+  it('フォロー失敗時にerrorが設定される', async () => {
+    mockFollow.mockRejectedValue(new Error('Follow failed'));
+
+    const { result } = renderHook(() => useFriendship());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    await act(async () => {
+      await result.current.followUser(5);
+    });
+
+    expect(result.current.error).toBe('フォローに失敗しました');
+  });
+
+  it('フォロー解除失敗時にerrorが設定される', async () => {
+    mockUnfollow.mockRejectedValue(new Error('Unfollow failed'));
+
+    const { result } = renderHook(() => useFriendship());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    await act(async () => {
+      await result.current.unfollowUser(2);
+    });
+
+    expect(result.current.error).toBe('フォロー解除に失敗しました');
   });
 });

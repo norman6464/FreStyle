@@ -566,4 +566,68 @@ describe('useNotes', () => {
     act(() => { result.current.setNoteSort('created-desc'); });
     assertPinnedFirst();
   });
+
+  it('fetchNotes失敗時にerrorが設定される', async () => {
+    vi.mocked(NoteRepository.fetchNotes).mockRejectedValue(new Error('Network error'));
+
+    const { result } = renderHook(() => useNotes());
+
+    await act(async () => {
+      await result.current.fetchNotes();
+    });
+
+    expect(result.current.error).toBe('ノートの取得に失敗しました');
+    expect(result.current.notes).toEqual([]);
+  });
+
+  it('updateNote失敗時にerrorが設定される', async () => {
+    vi.mocked(NoteRepository.updateNote).mockRejectedValue(new Error('Update failed'));
+
+    const { result } = renderHook(() => useNotes());
+
+    await act(async () => {
+      await result.current.fetchNotes();
+    });
+
+    await act(async () => {
+      await result.current.updateNote('note-1', { title: '更新', content: '内容', isPinned: false });
+    });
+
+    expect(result.current.error).toBe('ノートの更新に失敗しました');
+  });
+
+  it('deleteNote失敗時にerrorが設定される', async () => {
+    vi.mocked(NoteRepository.deleteNote).mockRejectedValue(new Error('Delete failed'));
+
+    const { result } = renderHook(() => useNotes());
+
+    await act(async () => {
+      await result.current.fetchNotes();
+    });
+
+    await act(async () => {
+      await result.current.deleteNote('note-1');
+    });
+
+    expect(result.current.error).toBe('ノートの削除に失敗しました');
+    expect(result.current.notes).toHaveLength(2);
+  });
+
+  it('成功した操作でerrorがクリアされる', async () => {
+    vi.mocked(NoteRepository.fetchNotes).mockRejectedValueOnce(new Error('fail'));
+
+    const { result } = renderHook(() => useNotes());
+
+    await act(async () => {
+      await result.current.fetchNotes();
+    });
+    expect(result.current.error).toBe('ノートの取得に失敗しました');
+
+    vi.mocked(NoteRepository.fetchNotes).mockResolvedValue(mockNotes);
+
+    await act(async () => {
+      await result.current.fetchNotes();
+    });
+    expect(result.current.error).toBeNull();
+  });
 });

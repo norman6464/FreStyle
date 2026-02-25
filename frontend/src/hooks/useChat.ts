@@ -5,6 +5,7 @@ import { Client } from '@stomp/stompjs';
 import ChatRepository from '../repositories/ChatRepository';
 import { ChatMessage } from '../types';
 import { useMessageSelection } from './useMessageSelection';
+import { useToast } from './useToast';
 
 /**
  * チャットページのコアロジックフック
@@ -13,6 +14,7 @@ import { useMessageSelection } from './useMessageSelection';
  * メッセージ管理・WebSocket接続・選択モード・言い換え提案を担う。
  */
 export function useChat() {
+  const { showToast } = useToast();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [senderId, setSenderId] = useState<number | null>(null);
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; messageId: string | null }>({ isOpen: false, messageId: null });
@@ -169,7 +171,7 @@ export function useChat() {
 
   const handleSendToAi = useCallback(() => {
     if (selection.selectedMessages.size === 0) {
-      alert('メッセージを選択してください');
+      showToast('info', 'メッセージを選択してください');
       return;
     }
     setShowSceneSelector(true);

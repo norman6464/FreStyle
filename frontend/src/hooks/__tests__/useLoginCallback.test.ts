@@ -32,7 +32,6 @@ describe('useLoginCallback', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSearchParams = '';
-    vi.spyOn(window, 'alert').mockImplementation(() => {});
   });
 
   it('codeがある場合にauthRepository.callbackを呼び出す', async () => {
@@ -58,7 +57,7 @@ describe('useLoginCallback', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/', { state: { toast: 'ログインしました' } });
   });
 
-  it('callback失敗時にアラートを表示しログインページに遷移する', async () => {
+  it('callback失敗時にトースト付きでログインページに遷移する', async () => {
     mockSearchParams = 'code=test-code';
     vi.mocked(authRepository.callback).mockRejectedValue(new Error('認証失敗'));
 
@@ -66,19 +65,17 @@ describe('useLoginCallback', () => {
       renderHook(() => useLoginCallback());
     });
 
-    expect(window.alert).toHaveBeenCalledWith('認証に失敗しました。');
-    expect(mockNavigate).toHaveBeenCalledWith('/login');
+    expect(mockNavigate).toHaveBeenCalledWith('/login', { state: { toast: '認証に失敗しました' } });
   });
 
-  it('errorパラメータがある場合にアラートを表示しログインページに遷移する', async () => {
+  it('errorパラメータがある場合にトースト付きでログインページに遷移する', async () => {
     mockSearchParams = 'error=access_denied';
 
     await act(async () => {
       renderHook(() => useLoginCallback());
     });
 
-    expect(window.alert).toHaveBeenCalledWith('認証エラーが発生しました。access_denied');
-    expect(mockNavigate).toHaveBeenCalledWith('/login');
+    expect(mockNavigate).toHaveBeenCalledWith('/login', { state: { toast: '認証エラーが発生しました' } });
     expect(authRepository.callback).not.toHaveBeenCalled();
   });
 
@@ -125,7 +122,7 @@ describe('useLoginCallback', () => {
     expect(mockNavigate).not.toHaveBeenCalledWith('/', expect.objectContaining({ state: expect.objectContaining({ toast: expect.any(String) }) }));
   });
 
-  it('callback成功時にalertが呼ばれない', async () => {
+  it('callback成功時にエラートーストなしでホームに遷移する', async () => {
     mockSearchParams = 'code=valid-code';
     vi.mocked(authRepository.callback).mockResolvedValue({} as any);
 
@@ -133,7 +130,7 @@ describe('useLoginCallback', () => {
       renderHook(() => useLoginCallback());
     });
 
-    expect(window.alert).not.toHaveBeenCalled();
+    expect(mockNavigate).not.toHaveBeenCalledWith('/login', expect.objectContaining({ state: expect.objectContaining({ toast: expect.any(String) }) }));
   });
 
   it('codeもerrorもない場合にdispatchが呼ばれない', async () => {

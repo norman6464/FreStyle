@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { CheckIcon } from '@heroicons/react/24/outline';
 import type { Notification } from '../types';
 
@@ -14,7 +15,7 @@ interface NotificationItemProps {
   onMarkAsRead: (id: number) => void;
 }
 
-export default function NotificationItem({ notification, onMarkAsRead }: NotificationItemProps) {
+export default memo(function NotificationItem({ notification, onMarkAsRead }: NotificationItemProps) {
   return (
     <div
       className={`p-4 rounded-lg border transition-colors ${
@@ -51,4 +52,4 @@ export default function NotificationItem({ notification, onMarkAsRead }: Notific
       </div>
     </div>
   );
-}
+});

@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { UserMinusIcon } from '@heroicons/react/24/outline';
 import type { FriendshipUser } from '../types';
 
@@ -7,7 +8,7 @@ interface FriendCardProps {
   showUnfollow: boolean;
 }
 
-export default function FriendCard({ user, onUnfollow, showUnfollow }: FriendCardProps) {
+export default memo(function FriendCard({ user, onUnfollow, showUnfollow }: FriendCardProps) {
   return (
     <div className="flex items-center gap-3 bg-surface-1 rounded-lg border border-surface-3 p-3">
       <div className="w-10 h-10 rounded-full bg-surface-3 flex items-center justify-center flex-shrink-0 overflow-hidden">
@@ -49,4 +50,4 @@ export default function FriendCard({ user, onUnfollow, showUnfollow }: FriendCar
       )}
     </div>
   );
-}
+});

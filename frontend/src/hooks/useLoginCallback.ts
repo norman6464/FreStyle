@@ -13,8 +13,7 @@ export function useLoginCallback() {
 
   useEffect(() => {
     if (error) {
-      alert('認証エラーが発生しました。' + error);
-      navigate('/login');
+      navigate('/login', { state: { toast: '認証エラーが発生しました' } });
       return;
     }
 
@@ -26,8 +25,7 @@ export function useLoginCallback() {
           navigate('/', { state: { toast: 'ログインしました' } });
         })
         .catch(() => {
-          alert('認証に失敗しました。');
-          navigate('/login');
+          navigate('/login', { state: { toast: '認証に失敗しました' } });
         });
     } else {
       navigate('/login');

@@ -10,6 +10,10 @@ vi.mock('react-router-dom', () => ({
 }));
 
 vi.mock('../../repositories/ChatRepository');
+const mockShowToast = vi.fn();
+vi.mock('../useToast', () => ({
+  useToast: () => ({ showToast: mockShowToast, toasts: [], removeToast: vi.fn() }),
+}));
 vi.mock('sockjs-client', () => ({ default: vi.fn() }));
 vi.mock('@stomp/stompjs', () => ({
   Client: class MockClient {

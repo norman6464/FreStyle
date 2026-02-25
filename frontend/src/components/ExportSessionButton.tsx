@@ -34,6 +34,7 @@ export default function ExportSessionButton({ messages }: ExportSessionButtonPro
       onClick={handleCopy}
       disabled={messages.length === 0}
       title={copied ? 'コピーしました' : '会話をコピー'}
+      aria-label={copied ? 'コピーしました' : '会話をコピー'}
       className="p-1.5 rounded-lg hover:bg-surface-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
     >
       {copied ? (

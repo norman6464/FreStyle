@@ -66,4 +66,18 @@ describe('SortSelector', () => {
     expect(screen.getByText('難易度↓').className).toContain('text-[var(--color-text-secondary)]');
     expect(screen.getByText('デフォルト').className).toContain('text-[var(--color-text-muted)]');
   });
+
+  it('選択中のボタンにaria-pressed=trueが設定される', () => {
+    render(<SortSelector selected="name" onChange={mockOnChange} />);
+
+    expect(screen.getByText('名前順')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('デフォルト')).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('ソートグループにrole=groupとaria-labelが設定される', () => {
+    render(<SortSelector selected="default" onChange={mockOnChange} />);
+
+    const group = screen.getByRole('group', { name: '並び替え' });
+    expect(group).toBeInTheDocument();
+  });
 });

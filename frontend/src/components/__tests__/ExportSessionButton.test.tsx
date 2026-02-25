@@ -112,4 +112,9 @@ describe('ExportSessionButton', () => {
     });
     expect(screen.getByTitle('会話をコピー')).toBeInTheDocument();
   });
+
+  it('ボタンにaria-labelが設定される', () => {
+    render(<ExportSessionButton messages={mockMessages} />);
+    expect(screen.getByRole('button', { name: '会話をコピー' })).toBeInTheDocument();
+  });
 });

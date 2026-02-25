@@ -62,4 +62,19 @@ describe('DifficultyFilter', () => {
     expect(buttons).toHaveLength(4);
     expect(buttons.map((b) => b.textContent)).toEqual(['全レベル', '初級', '中級', '上級']);
   });
+
+  it('選択中のボタンにaria-pressed=trueが設定される', () => {
+    render(<DifficultyFilter selected="初級" onChange={mockOnChange} />);
+
+    expect(screen.getByText('初級')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('中級')).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByText('上級')).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('フィルターグループにrole=groupとaria-labelが設定される', () => {
+    render(<DifficultyFilter selected={null} onChange={mockOnChange} />);
+
+    const group = screen.getByRole('group', { name: '難易度フィルター' });
+    expect(group).toBeInTheDocument();
+  });
 });

@@ -6,6 +6,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
+import java.util.Set;
+
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -15,6 +20,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.oauth2.jwt.Jwt;
 
@@ -158,6 +165,30 @@ class PracticeControllerTest {
             assertThat(response.getBody().recommendations()).hasSize(1);
             assertThat(response.getBody().recommendations().get(0).scenarioName()).isEqualTo("交渉シナリオ");
             verify(getRecommendedScenariosUseCase).execute(1);
+        }
+    }
+
+    @Nested
+    @DisplayName("リクエストバリデーション")
+    @MockitoSettings(strictness = Strictness.LENIENT)
+    class RequestValidation {
+
+        private final Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
+
+        @Test
+        @DisplayName("CreatePracticeSessionRequest: scenarioIdがnullの場合バリデーションエラー")
+        void createPracticeSessionRequest_nullScenarioId_fails() {
+            var request = new PracticeController.CreatePracticeSessionRequest(null);
+            Set<ConstraintViolation<PracticeController.CreatePracticeSessionRequest>> violations = validator.validate(request);
+            assertThat(violations).isNotEmpty();
+        }
+
+        @Test
+        @DisplayName("CreatePracticeSessionRequest: scenarioIdが正常な場合バリデーション成功")
+        void createPracticeSessionRequest_valid_passes() {
+            var request = new PracticeController.CreatePracticeSessionRequest(1);
+            Set<ConstraintViolation<PracticeController.CreatePracticeSessionRequest>> violations = validator.validate(request);
+            assertThat(violations).isEmpty();
         }
     }
 }

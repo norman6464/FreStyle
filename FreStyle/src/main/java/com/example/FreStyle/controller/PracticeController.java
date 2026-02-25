@@ -2,6 +2,9 @@ package com.example.FreStyle.controller;
 
 import java.util.List;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -136,7 +139,7 @@ public class PracticeController {
     @PostMapping("/sessions")
     public ResponseEntity<AiChatSessionDto> createPracticeSession(
             @AuthenticationPrincipal Jwt jwt,
-            @RequestBody CreatePracticeSessionRequest request
+            @Valid @RequestBody CreatePracticeSessionRequest request
     ) {
         log.info("========== POST /api/practice/sessions ==========");
 
@@ -180,7 +183,7 @@ public class PracticeController {
         return ResponseEntity.ok(result);
     }
 
-    record CreatePracticeSessionRequest(Integer scenarioId) {}
+    record CreatePracticeSessionRequest(@NotNull Integer scenarioId) {}
 
     private User resolveUser(Jwt jwt) {
         return userIdentityService.findUserBySub(jwt.getSubject());

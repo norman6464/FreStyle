@@ -5,6 +5,11 @@ import static org.mockito.Mockito.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -291,6 +296,61 @@ class AiChatControllerTest {
             assertThat(response.getBody().sessionId()).isEqualTo(1);
             assertThat(response.getBody().averageScore()).isEqualTo(80.0);
             verify(getPracticeSessionSummaryUseCase).execute(1, 10);
+        }
+    }
+
+    @Nested
+    @DisplayName("リクエストバリデーション")
+    class RequestValidation {
+
+        private final Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
+
+        @Test
+        @DisplayName("AddMessageRequest: contentが空の場合バリデーションエラー")
+        void addMessageRequest_blankContent_fails() {
+            var request = new AiChatController.AddMessageRequest("", "user");
+            Set<ConstraintViolation<AiChatController.AddMessageRequest>> violations = validator.validate(request);
+            assertThat(violations).isNotEmpty();
+        }
+
+        @Test
+        @DisplayName("AddMessageRequest: roleが空の場合バリデーションエラー")
+        void addMessageRequest_blankRole_fails() {
+            var request = new AiChatController.AddMessageRequest("テスト", "");
+            Set<ConstraintViolation<AiChatController.AddMessageRequest>> violations = validator.validate(request);
+            assertThat(violations).isNotEmpty();
+        }
+
+        @Test
+        @DisplayName("AddMessageRequest: 正常な値の場合バリデーション成功")
+        void addMessageRequest_valid_passes() {
+            var request = new AiChatController.AddMessageRequest("テスト", "user");
+            Set<ConstraintViolation<AiChatController.AddMessageRequest>> violations = validator.validate(request);
+            assertThat(violations).isEmpty();
+        }
+
+        @Test
+        @DisplayName("UpdateSessionRequest: titleが空の場合バリデーションエラー")
+        void updateSessionRequest_blankTitle_fails() {
+            var request = new AiChatController.UpdateSessionRequest("");
+            Set<ConstraintViolation<AiChatController.UpdateSessionRequest>> violations = validator.validate(request);
+            assertThat(violations).isNotEmpty();
+        }
+
+        @Test
+        @DisplayName("RephraseRequest: originalMessageが空の場合バリデーションエラー")
+        void rephraseRequest_blankOriginal_fails() {
+            var request = new AiChatController.RephraseRequest("", "会議");
+            Set<ConstraintViolation<AiChatController.RephraseRequest>> violations = validator.validate(request);
+            assertThat(violations).isNotEmpty();
+        }
+
+        @Test
+        @DisplayName("RephraseRequest: sceneが空の場合バリデーションエラー")
+        void rephraseRequest_blankScene_fails() {
+            var request = new AiChatController.RephraseRequest("テスト", "");
+            Set<ConstraintViolation<AiChatController.RephraseRequest>> violations = validator.validate(request);
+            assertThat(violations).isNotEmpty();
         }
     }
 }

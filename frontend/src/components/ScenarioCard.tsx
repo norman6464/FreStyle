@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import type { PracticeScenario } from '../types';
 import Card from './Card';
 import { BookmarkIcon as BookmarkOutlineIcon, UserIcon } from '@heroicons/react/24/outline';
@@ -19,7 +20,7 @@ function getDifficultyColor(difficulty: string): string {
     : 'bg-surface-2 text-[var(--color-text-muted)]';
 }
 
-export default function ScenarioCard({ scenario, onSelect, isBookmarked, onToggleBookmark }: ScenarioCardProps) {
+export default memo(function ScenarioCard({ scenario, onSelect, isBookmarked, onToggleBookmark }: ScenarioCardProps) {
   const handleBookmarkClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     onToggleBookmark?.(scenario.id);
@@ -62,4 +63,4 @@ export default function ScenarioCard({ scenario, onSelect, isBookmarked, onToggl
       </div>
     </Card>
   );
-}
+});

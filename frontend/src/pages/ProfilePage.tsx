@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useCallback } from 'react';
+import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import InputField from '../components/InputField';
 import TextareaField from '../components/TextareaField';
 import PrimaryButton from '../components/PrimaryButton';
@@ -6,15 +6,22 @@ import FormMessage from '../components/FormMessage';
 import Avatar from '../components/Avatar';
 import Loading from '../components/Loading';
 import ProfileStatsSection from '../components/profile/ProfileStatsSection';
+import ActivityHeatmap from '../components/ActivityHeatmap';
 import { useProfileEdit } from '../hooks/useProfileEdit';
 import { useProfileImageUpload } from '../hooks/useProfileImageUpload';
+import { useScoreHistory } from '../hooks/useScoreHistory';
 import ProfileStatsRepository, { type ProfileStats } from '../repositories/ProfileStatsRepository';
 import { CameraIcon } from '@heroicons/react/24/outline';
 
 export default function ProfilePage() {
   const { form, message, setMessage, loading, submitting, updateField, handleUpdate } = useProfileEdit();
   const { upload, uploading } = useProfileImageUpload();
+  const { history } = useScoreHistory();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const practiceDates = useMemo(() => {
+    return history.map((h) => h.createdAt.split('T')[0]);
+  }, [history]);
 
   // 学習統計
   const [stats, setStats] = useState<ProfileStats | null>(null);
@@ -126,7 +133,10 @@ export default function ProfilePage() {
         </form>
       </div>
 
-      {/* セクション2: 学習統計 */}
+      {/* セクション2: 年間活動ヒートマップ */}
+      <ActivityHeatmap practiceDates={practiceDates} />
+
+      {/* セクション3: 学習統計 */}
       <ProfileStatsSection stats={stats} loading={statsLoading} />
     </div>
   );

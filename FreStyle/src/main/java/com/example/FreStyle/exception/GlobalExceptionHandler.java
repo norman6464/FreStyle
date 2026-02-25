@@ -1,7 +1,10 @@
 package com.example.FreStyle.exception;
 
+import java.util.stream.Collectors;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
@@ -155,6 +158,31 @@ public class GlobalExceptionHandler {
             HttpStatus.BAD_REQUEST.value(),
             "Bad Request",
             ex.getMessage(),
+            request.getDescription(false).replace("uri=", "")
+        );
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    /**
+     * バリデーションエラーのハンドラー
+     *
+     * <p>@Valid/@Validatedによるバリデーションエラーの場合に400 Bad Requestを返却</p>
+     */
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ErrorResponseDto> handleValidationException(
+            MethodArgumentNotValidException ex,
+            WebRequest request
+    ) {
+        String message = ex.getBindingResult().getFieldErrors().stream()
+                .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
+                .collect(Collectors.joining(", "));
+        log.warn("❌ バリデーションエラー: {}", message);
+
+        ErrorResponseDto error = ErrorResponseDto.of(
+            HttpStatus.BAD_REQUEST.value(),
+            "Validation Error",
+            message,
             request.getDescription(false).replace("uri=", "")
         );
 

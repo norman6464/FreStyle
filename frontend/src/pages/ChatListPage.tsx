@@ -44,6 +44,7 @@ export default function ChatListPage() {
             <button
               key={user.roomId}
               onClick={() => { navigate(`/chat/users/${user.roomId}`); closeMobilePanel(); }}
+              aria-label={`${user.name || 'Unknown User'}とのチャット`}
               className="w-full px-4 py-3 flex items-center gap-3 hover:bg-surface-2 transition-colors border-b border-surface-3 text-left"
             >
               <Avatar name={user.name} src={user.profileImage} />

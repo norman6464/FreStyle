@@ -113,4 +113,11 @@ describe('RephraseModal', () => {
     // コピー成功フィードバック
     expect(await screen.findByText('コピーしました')).toBeInTheDocument();
   });
+
+  it('モーダルにrole=dialogとaria-modal属性が設定される', () => {
+    render(<RephraseModal result={rephraseResult} onClose={mockOnClose} originalText="元のテキスト" />);
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+    expect(dialog).toHaveAttribute('aria-labelledby');
+  });
 });

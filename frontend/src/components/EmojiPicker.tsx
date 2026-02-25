@@ -55,6 +55,7 @@ export default function EmojiPicker({ isOpen, onSelect, onClose }: EmojiPickerPr
           ref={inputRef}
           type="text"
           placeholder="絵文字を検索..."
+          aria-label="絵文字を検索"
           value={search}
           onChange={e => setSearch(e.target.value)}
           onKeyDown={handleKeyDown}

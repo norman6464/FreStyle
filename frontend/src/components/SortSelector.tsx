@@ -11,13 +11,14 @@ export type { SortOption };
 
 export default function SortSelector<T extends string = SortOption>({ options = SORT_OPTIONS as { value: T; label: string }[], selected, onChange }: SortSelectorProps<T>) {
   return (
-    <div className="flex gap-1.5">
+    <div className="flex gap-1.5" role="group" aria-label="並び替え">
       {options.map(({ value, label }) => {
         const isActive = selected === value;
         return (
           <button
             key={value}
             onClick={() => onChange(value)}
+            aria-pressed={isActive}
             className={`text-[10px] font-medium px-2.5 py-1 rounded-full transition-colors ${
               isActive
                 ? 'text-[var(--color-text-secondary)] bg-surface-2'

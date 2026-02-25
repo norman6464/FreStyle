@@ -148,4 +148,11 @@ describe('ChatListPage', () => {
 
     expect(screen.getAllByText('0件').length).toBeGreaterThanOrEqual(1);
   });
+
+  it('チャットアイテムにaria-labelが設定される', () => {
+    render(<BrowserRouter><ChatListPage /></BrowserRouter>);
+
+    expect(screen.getAllByRole('button', { name: /田中太郎/ }).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByRole('button', { name: /佐藤花子/ }).length).toBeGreaterThanOrEqual(1);
+  });
 });

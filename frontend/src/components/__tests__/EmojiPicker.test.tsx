@@ -89,4 +89,18 @@ describe('EmojiPicker', () => {
     fireEvent.keyDown(screen.getByPlaceholderText('絵文字を検索...'), { key: 'Enter' });
     expect(onClose).not.toHaveBeenCalled();
   });
+
+  it('検索入力にaria-labelが設定される', () => {
+    render(<EmojiPicker isOpen={true} onSelect={onSelect} onClose={onClose} />);
+    expect(screen.getByLabelText('絵文字を検索')).toBeInTheDocument();
+  });
+
+  it('絵文字ボタンにaria-labelが設定される', () => {
+    render(<EmojiPicker isOpen={true} onSelect={onSelect} onClose={onClose} />);
+    const emojiButtons = screen.getAllByRole('button').filter(btn => {
+      const label = btn.getAttribute('aria-label');
+      return label !== null && label !== 'よく使う' && label !== '顔' && label !== '手・体' && label !== '動物・自然' && label !== '食べ物' && label !== 'オブジェクト' && label !== '記号';
+    });
+    expect(emojiButtons.length).toBeGreaterThan(0);
+  });
 });

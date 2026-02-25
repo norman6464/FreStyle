@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
+import { useRef, useMemo } from 'react';
 import InputField from '../components/InputField';
 import TextareaField from '../components/TextareaField';
 import PrimaryButton from '../components/PrimaryButton';
@@ -9,38 +9,20 @@ import ProfileStatsSection from '../components/profile/ProfileStatsSection';
 import ActivityHeatmap from '../components/ActivityHeatmap';
 import { useProfileEdit } from '../hooks/useProfileEdit';
 import { useProfileImageUpload } from '../hooks/useProfileImageUpload';
+import { useProfileStats } from '../hooks/useProfileStats';
 import { useScoreHistory } from '../hooks/useScoreHistory';
-import ProfileStatsRepository, { type ProfileStats } from '../repositories/ProfileStatsRepository';
 import { CameraIcon } from '@heroicons/react/24/outline';
 
 export default function ProfilePage() {
   const { form, message, setMessage, loading, submitting, updateField, handleUpdate } = useProfileEdit();
   const { upload, uploading } = useProfileImageUpload();
+  const { stats, loading: statsLoading } = useProfileStats();
   const { history } = useScoreHistory();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const practiceDates = useMemo(() => {
     return history.map((h) => h.createdAt.split('T')[0]);
   }, [history]);
-
-  // 学習統計
-  const [stats, setStats] = useState<ProfileStats | null>(null);
-  const [statsLoading, setStatsLoading] = useState(true);
-
-  const loadStats = useCallback(async () => {
-    try {
-      const data = await ProfileStatsRepository.fetchStats();
-      setStats(data);
-    } catch {
-      // 統計取得エラーは無視
-    } finally {
-      setStatsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadStats();
-  }, [loadStats]);
 
   const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

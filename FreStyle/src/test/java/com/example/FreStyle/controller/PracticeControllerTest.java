@@ -33,8 +33,10 @@ import com.example.FreStyle.usecase.CreatePracticeSessionUseCase;
 import com.example.FreStyle.usecase.GetAllPracticeScenariosUseCase;
 import com.example.FreStyle.usecase.GetPracticeScenarioByIdUseCase;
 import com.example.FreStyle.usecase.GetRecommendedScenariosUseCase;
+import com.example.FreStyle.dto.FilteredScenariosDto;
 import com.example.FreStyle.dto.RecommendedScenarioDto;
 import com.example.FreStyle.dto.RecommendedScenarioDto.ScenarioRecommendation;
+import com.example.FreStyle.usecase.FilterPracticeScenariosUseCase;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("PracticeController")
@@ -51,6 +53,9 @@ class PracticeControllerTest {
 
     @Mock
     private GetRecommendedScenariosUseCase getRecommendedScenariosUseCase;
+
+    @Mock
+    private FilterPracticeScenariosUseCase filterPracticeScenariosUseCase;
 
     @Mock
     private UserIdentityService userIdentityService;
@@ -165,6 +170,27 @@ class PracticeControllerTest {
             assertThat(response.getBody().recommendations()).hasSize(1);
             assertThat(response.getBody().recommendations().get(0).scenarioName()).isEqualTo("交渉シナリオ");
             verify(getRecommendedScenariosUseCase).execute(1);
+        }
+    }
+
+    @Nested
+    @DisplayName("GET /api/practice/scenarios/filter - シナリオフィルタリング")
+    class FilterScenarios {
+
+        @Test
+        @DisplayName("難易度とカテゴリでフィルタリングされたシナリオを返す")
+        void shouldReturnFilteredScenarios() {
+            PracticeScenarioDto s1 = new PracticeScenarioDto(1, "障害報告", null, null, "easy", null, null);
+            FilteredScenariosDto dto = new FilteredScenariosDto(
+                    List.of(s1), 1, List.of("easy", "medium"), List.of("business"));
+            when(filterPracticeScenariosUseCase.execute("easy", "business")).thenReturn(dto);
+
+            ResponseEntity<FilteredScenariosDto> response = controller.filterScenarios(jwt, "easy", "business");
+
+            assertThat(response.getStatusCode().value()).isEqualTo(200);
+            assertThat(response.getBody()).isNotNull();
+            assertThat(response.getBody().totalCount()).isEqualTo(1);
+            verify(filterPracticeScenariosUseCase).execute("easy", "business");
         }
     }
 

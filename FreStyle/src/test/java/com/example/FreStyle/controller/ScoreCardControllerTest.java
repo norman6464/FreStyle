@@ -95,8 +95,8 @@ class ScoreCardControllerTest {
         @Test
         @DisplayName("スコア履歴を取得する")
         void shouldReturnScoreHistory() {
-            ScoreHistoryDto history1 = new ScoreHistoryDto(1, null, 7.5, List.of(), null);
-            ScoreHistoryDto history2 = new ScoreHistoryDto(2, null, 8.0, List.of(), null);
+            ScoreHistoryDto history1 = new ScoreHistoryDto(1, null, null, 7.5, List.of(), null);
+            ScoreHistoryDto history2 = new ScoreHistoryDto(2, null, null, 8.0, List.of(), null);
             when(getScoreHistoryByUserIdUseCase.execute(1))
                     .thenReturn(List.of(history1, history2));
 

@@ -77,6 +77,7 @@ public class ScoreCardMapper {
                     double overallScore = calculateOverallScore(sessionScores);
                     return new ScoreHistoryDto(
                             entry.getKey(), first.getSession().getTitle(),
+                            first.getSession().getScenarioId(),
                             overallScore, scoreDtos, first.getCreatedAt());
                 })
                 .toList();

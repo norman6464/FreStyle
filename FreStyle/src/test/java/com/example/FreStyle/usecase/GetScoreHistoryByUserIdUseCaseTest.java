@@ -66,6 +66,7 @@ class GetScoreHistoryByUserIdUseCaseTest {
                     new ScoreHistoryDto(
                             10,
                             "セッション1",
+                            null,
                             7.0,
                             List.of(
                                     new ScoreCardDto.AxisScoreDto("論理的構成力", 8, "良い"),

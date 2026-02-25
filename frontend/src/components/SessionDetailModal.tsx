@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import type { ScoreHistoryItem } from '../types';
 import AxisScoreBar from './AxisScoreBar';
+import { useStartPracticeSession } from '../hooks/useStartPracticeSession';
 
 interface SessionDetailModalProps {
   session: ScoreHistoryItem;
@@ -9,6 +10,7 @@ interface SessionDetailModalProps {
 
 export default function SessionDetailModal({ session, onClose }: SessionDetailModalProps) {
   const navigate = useNavigate();
+  const { startSession, starting } = useStartPracticeSession();
 
   return (
     <div
@@ -73,6 +75,15 @@ export default function SessionDetailModal({ session, onClose }: SessionDetailMo
             >
               会話を見る
             </button>
+            {session.scenarioId && (
+              <button
+                onClick={() => startSession({ id: session.scenarioId!, name: session.sessionTitle })}
+                disabled={starting}
+                className="flex-1 py-2 text-xs font-medium text-primary-400 bg-primary-600/10 rounded-lg hover:bg-primary-600/20 transition-colors disabled:opacity-50"
+              >
+                {starting ? '開始中...' : 'もう一度挑戦'}
+              </button>
+            )}
             <button
               onClick={onClose}
               className="flex-1 py-2 text-xs font-medium text-[var(--color-text-tertiary)] bg-surface-3 rounded-lg hover:bg-surface-3 transition-colors"

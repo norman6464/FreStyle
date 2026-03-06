@@ -111,8 +111,11 @@ public class AiChatWebSocketController {
             var aiReplyCommand = new GetAiReplyUseCase.Command(content, isPracticeMode, scenarioId, fromChatFeedback, scene, userId);
             String aiReply = getAiReplyUseCase.execute(aiReplyCommand);
 
+            // AI応答からJSONスコアカードブロックを除去（ScoreCardとして別途送信するため）
+            String displayReply = aiReply.replaceAll("(?s)```json\\s*\\n?.*?\\n?```", "").trim();
+
             // AI応答をデータベースに保存（role: assistant）
-            AiChatMessageResponseDto savedAiMessage = addAiChatMessageUseCase.execute(sessionId, userId, "assistant", aiReply);
+            AiChatMessageResponseDto savedAiMessage = addAiChatMessageUseCase.execute(sessionId, userId, "assistant", displayReply);
 
             // WebSocket トピックへAI応答を送信
             messagingTemplate.convertAndSend(

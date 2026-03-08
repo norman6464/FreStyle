@@ -55,10 +55,23 @@ public class ChatWebSocketController {
     }
 
     @MessageMapping("/chat/delete")
-    public void deleteMessage(@Payload Map<String, Object> payload) {
+    public void deleteMessage(@Payload Map<String, Object> payload, SimpMessageHeaderAccessor headerAccessor) {
         try {
+            Integer userId = getAuthenticatedUserId(headerAccessor);
+            if (userId == null) {
+                log.warn("WebSocket認証エラー: 認証されていないユーザーからのメッセージ削除");
+                return;
+            }
+
             Integer roomId = ((Number) payload.get("roomId")).intValue();
             Long createdAt = ((Number) payload.get("createdAt")).longValue();
+            Integer senderId = payload.get("senderId") != null ? ((Number) payload.get("senderId")).intValue() : null;
+
+            // 送信者本人のみ削除可能
+            if (senderId == null || !senderId.equals(userId)) {
+                log.warn("メッセージ削除権限エラー: userId={}, senderId={}", userId, senderId);
+                return;
+            }
 
             deleteChatMessageUseCase.execute(roomId, createdAt);
 

@@ -108,14 +108,15 @@ class ChatWebSocketControllerTest {
     }
 
     @Test
-    @DisplayName("deleteMessage: 削除通知をWebSocketで送信する")
+    @DisplayName("deleteMessage: 送信者本人の場合、削除通知をWebSocketで送信する")
     void deleteMessage_sendsDeleteNotificationViaWebSocket() {
-        Map<String, Object> payload = Map.of(
+        Map<String, Object> payload = new HashMap<>(Map.of(
                 "roomId", 10,
-                "createdAt", 1000L
-        );
+                "createdAt", 1000L,
+                "senderId", 1
+        ));
 
-        controller.deleteMessage(payload);
+        controller.deleteMessage(payload, headerAccessor);
 
         verify(deleteChatMessageUseCase).execute(10, 1000L);
 
@@ -126,6 +127,39 @@ class ChatWebSocketControllerTest {
         assertEquals("delete", notification.get("type"));
         assertEquals(10, notification.get("roomId"));
         assertEquals(1000L, notification.get("createdAt"));
+    }
+
+    @Test
+    @DisplayName("deleteMessage: 送信者本人でない場合、削除しない")
+    void deleteMessage_notSender_doesNotDelete() {
+        Map<String, Object> payload = new HashMap<>(Map.of(
+                "roomId", 10,
+                "createdAt", 1000L,
+                "senderId", 99
+        ));
+
+        controller.deleteMessage(payload, headerAccessor);
+
+        verify(deleteChatMessageUseCase, never()).execute(anyInt(), anyLong());
+        verify(messagingTemplate, never()).convertAndSend(anyString(), any(Object.class));
+    }
+
+    @Test
+    @DisplayName("deleteMessage: 未認証ユーザーの場合、削除しない")
+    void deleteMessage_unauthenticated_doesNotDelete() {
+        SimpMessageHeaderAccessor unauthHeader = SimpMessageHeaderAccessor.create();
+        unauthHeader.setSessionAttributes(new HashMap<>());
+
+        Map<String, Object> payload = new HashMap<>(Map.of(
+                "roomId", 10,
+                "createdAt", 1000L,
+                "senderId", 1
+        ));
+
+        controller.deleteMessage(payload, unauthHeader);
+
+        verify(deleteChatMessageUseCase, never()).execute(anyInt(), anyLong());
+        verify(messagingTemplate, never()).convertAndSend(anyString(), any(Object.class));
     }
 
     @Test
@@ -149,12 +183,13 @@ class ChatWebSocketControllerTest {
         doThrow(new RuntimeException("削除エラー"))
                 .when(deleteChatMessageUseCase).execute(10, 1000L);
 
-        Map<String, Object> payload = Map.of(
+        Map<String, Object> payload = new HashMap<>(Map.of(
                 "roomId", 10,
-                "createdAt", 1000L
-        );
+                "createdAt", 1000L,
+                "senderId", 1
+        ));
 
-        assertDoesNotThrow(() -> controller.deleteMessage(payload));
+        assertDoesNotThrow(() -> controller.deleteMessage(payload, headerAccessor));
         verify(messagingTemplate, never()).convertAndSend(anyString(), any(Object.class));
     }
 }

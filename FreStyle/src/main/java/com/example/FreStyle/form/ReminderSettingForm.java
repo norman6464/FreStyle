@@ -7,5 +7,5 @@ import jakarta.validation.constraints.Pattern;
 public record ReminderSettingForm(
     @NotNull Boolean enabled,
     @NotBlank @Pattern(regexp = "^([01]\\d|2[0-3]):[0-5]\\d$") String reminderTime,
-    @NotBlank String daysOfWeek
+    @NotBlank @Pattern(regexp = "^(mon|tue|wed|thu|fri|sat|sun)(,(mon|tue|wed|thu|fri|sat|sun))*$") String daysOfWeek
 ) {}

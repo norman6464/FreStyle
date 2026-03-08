@@ -13,11 +13,11 @@ import com.example.FreStyle.constant.SceneDisplayName;
 import com.example.FreStyle.dto.AiChatMessageResponseDto;
 import com.example.FreStyle.dto.AiChatSessionDto;
 import com.example.FreStyle.dto.ScoreCardDto;
-import com.example.FreStyle.service.BedrockService;
 import com.example.FreStyle.usecase.AddAiChatMessageUseCase;
 import com.example.FreStyle.usecase.CreateAiChatSessionUseCase;
 import com.example.FreStyle.usecase.DeleteAiChatSessionUseCase;
 import com.example.FreStyle.usecase.GetAiReplyUseCase;
+import com.example.FreStyle.usecase.RephraseMessageUseCase;
 import com.example.FreStyle.usecase.SaveScoreCardUseCase;
 
 import lombok.RequiredArgsConstructor;
@@ -28,7 +28,6 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class AiChatWebSocketController {
 
-    private final BedrockService bedrockService;
     private final SimpMessagingTemplate messagingTemplate;
 
     // UseCases (クリーンアーキテクチャー)
@@ -37,6 +36,7 @@ public class AiChatWebSocketController {
     private final DeleteAiChatSessionUseCase deleteAiChatSessionUseCase;
     private final GetAiReplyUseCase getAiReplyUseCase;
     private final SaveScoreCardUseCase saveScoreCardUseCase;
+    private final RephraseMessageUseCase rephraseMessageUseCase;
 
     /**
      * AIチャットメッセージ送信
@@ -185,7 +185,7 @@ public class AiChatWebSocketController {
             Object sceneObj = payload.get("scene");
             String scene = sceneObj != null ? String.valueOf(sceneObj) : null;
 
-            String rephraseResult = bedrockService.rephrase(originalMessage, scene);
+            String rephraseResult = rephraseMessageUseCase.execute(originalMessage, scene);
 
             messagingTemplate.convertAndSend(
                     "/topic/ai-chat/user/" + userId + "/rephrase",

@@ -11,6 +11,7 @@ import com.example.FreStyle.entity.CommunicationScore;
 import com.example.FreStyle.repository.AiChatSessionRepository;
 import com.example.FreStyle.repository.CommunicationScoreRepository;
 import com.example.FreStyle.repository.FriendshipRepository;
+import com.example.FreStyle.service.UserService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -21,9 +22,12 @@ public class GetUserStatsUseCase {
     private final AiChatSessionRepository aiChatSessionRepository;
     private final FriendshipRepository friendshipRepository;
     private final CommunicationScoreRepository communicationScoreRepository;
+    private final UserService userService;
 
     @Transactional(readOnly = true)
     public UserStatsDto execute(Integer userId) {
+        // ユーザー存在チェック（存在しない場合はRuntimeException）
+        userService.findUserById(userId);
         List<AiChatSession> sessions = aiChatSessionRepository.findByUserIdOrderByCreatedAtDesc(userId);
         long totalSessions = sessions.size();
         long practiceSessionCount = sessions.stream()

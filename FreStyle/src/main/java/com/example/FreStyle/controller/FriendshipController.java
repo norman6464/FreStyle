@@ -16,7 +16,6 @@ import com.example.FreStyle.dto.FollowStatusDto;
 import com.example.FreStyle.dto.FriendshipDto;
 import com.example.FreStyle.entity.User;
 import com.example.FreStyle.service.UserIdentityService;
-import com.example.FreStyle.service.UserService;
 import com.example.FreStyle.usecase.CheckFollowStatusUseCase;
 import com.example.FreStyle.usecase.FollowUserUseCase;
 import com.example.FreStyle.usecase.GetFollowersUseCase;
@@ -38,16 +37,14 @@ public class FriendshipController {
     private final GetFollowingUseCase getFollowingUseCase;
     private final CheckFollowStatusUseCase checkFollowStatusUseCase;
     private final UserIdentityService userIdentityService;
-    private final UserService userService;
 
     @PostMapping("/{userId}/follow")
     public ResponseEntity<FriendshipDto> followUser(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable Integer userId) {
         User currentUser = resolveUser(jwt);
-        User targetUser = userService.findUserById(userId);
         log.info("フォロー: userId={} -> targetId={}", currentUser.getId(), userId);
-        FriendshipDto result = followUserUseCase.execute(currentUser, targetUser);
+        FriendshipDto result = followUserUseCase.execute(currentUser, userId);
         return ResponseEntity.ok(result);
     }
 
@@ -57,7 +54,7 @@ public class FriendshipController {
             @PathVariable Integer userId) {
         User currentUser = resolveUser(jwt);
         log.info("フォロー解除: userId={} -> targetId={}", currentUser.getId(), userId);
-        unfollowUserUseCase.execute(currentUser, userId);
+        unfollowUserUseCase.execute(currentUser.getId(), userId);
         return ResponseEntity.noContent().build();
     }
 

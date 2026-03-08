@@ -18,6 +18,7 @@ import com.example.FreStyle.entity.CommunicationScore;
 import com.example.FreStyle.repository.AiChatSessionRepository;
 import com.example.FreStyle.repository.CommunicationScoreRepository;
 import com.example.FreStyle.repository.FriendshipRepository;
+import com.example.FreStyle.service.UserService;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("GetUserStatsUseCase テスト")
@@ -31,6 +32,9 @@ class GetUserStatsUseCaseTest {
 
     @Mock
     private CommunicationScoreRepository communicationScoreRepository;
+
+    @Mock
+    private UserService userService;
 
     @InjectMocks
     private GetUserStatsUseCase getUserStatsUseCase;

@@ -34,4 +34,21 @@ describe('useWeeklyChallenge', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.challenge).toBeNull();
   });
+
+  it('アンマウント時にデータ更新しない', async () => {
+    let resolvePromise: (value: typeof mockChallenge | null) => void;
+    mockedRepo.fetchCurrentChallenge.mockImplementation(() => new Promise((resolve) => { resolvePromise = resolve; }));
+
+    const { result, unmount } = renderHook(() => useWeeklyChallenge());
+
+    expect(result.current.loading).toBe(true);
+
+    unmount();
+
+    resolvePromise!(mockChallenge);
+
+    // After unmount, state should not have been updated
+    expect(result.current.challenge).toBeNull();
+    expect(result.current.loading).toBe(true);
+  });
 });

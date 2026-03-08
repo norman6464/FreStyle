@@ -61,4 +61,26 @@ describe('useRanking', () => {
 
     expect(result.current.error).toBe('ランキングの取得に失敗しました');
   });
+
+  it('アンマウント時にデータ更新しない', async () => {
+    let resolvePromise: (value: typeof mockRanking) => void;
+    mockedRepo.fetchRanking.mockImplementation(() => new Promise((resolve) => { resolvePromise = resolve; }));
+
+    const { result, unmount } = renderHook(() => useRanking());
+
+    expect(result.current.loading).toBe(true);
+
+    unmount();
+
+    resolvePromise!(mockRanking);
+
+    // After unmount, state should not have been updated (no error thrown)
+    expect(result.current.ranking).toBeNull();
+    expect(result.current.loading).toBe(true);
+  });
+
+  it('期間のデフォルト値はweeklyである', () => {
+    const { result } = renderHook(() => useRanking());
+    expect(result.current.period).toBe('weekly');
+  });
 });

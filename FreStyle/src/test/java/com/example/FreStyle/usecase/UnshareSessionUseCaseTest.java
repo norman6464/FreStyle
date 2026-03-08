@@ -71,4 +71,13 @@ class UnshareSessionUseCaseTest {
         assertThatThrownBy(() -> useCase.execute(1, 10))
                 .isInstanceOf(ResourceNotFoundException.class);
     }
+
+    @Test
+    @DisplayName("共有セッションが見つからない場合は例外を投げる")
+    void shouldThrowWhenSharedSessionNotFound() {
+        when(sharedSessionRepository.findBySessionId(999)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> useCase.execute(1, 999))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
 }

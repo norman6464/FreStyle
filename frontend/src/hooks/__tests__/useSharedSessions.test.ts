@@ -37,4 +37,28 @@ describe('useSharedSessions', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.error).toBe('共有セッションの取得に失敗しました');
   });
+
+  it('共有解除するとリストから削除される', async () => {
+    mockedRepo.unshareSession.mockResolvedValue(undefined);
+    const { result } = renderHook(() => useSharedSessions());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.sessions).toHaveLength(1);
+
+    await act(async () => { await result.current.unshareSession(10); });
+    expect(result.current.sessions).toHaveLength(0);
+    expect(mockedRepo.unshareSession).toHaveBeenCalledWith(10);
+  });
+
+  it('共有解除のAPIエラーをスローする', async () => {
+    mockedRepo.unshareSession.mockRejectedValue(new Error('unshare failed'));
+    const { result } = renderHook(() => useSharedSessions());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await expect(
+      act(async () => { await result.current.unshareSession(10); })
+    ).rejects.toThrow('unshare failed');
+
+    // リストは変更されないこと（filterはunshareSession成功後に実行される）
+    expect(result.current.sessions).toHaveLength(1);
+  });
 });

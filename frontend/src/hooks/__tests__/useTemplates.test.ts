@@ -36,4 +36,29 @@ describe('useTemplates', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.error).toBe('テンプレートの取得に失敗しました');
   });
+
+  it('カテゴリリストを提供する', async () => {
+    const { result } = renderHook(() => useTemplates());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.categories).toBeDefined();
+    expect(Array.isArray(result.current.categories)).toBe(true);
+    expect(result.current.categories.length).toBeGreaterThan(0);
+    expect(result.current.categories[0]).toHaveProperty('key');
+    expect(result.current.categories[0]).toHaveProperty('label');
+  });
+
+  it('空文字カテゴリはundefinedとして送信する', async () => {
+    const { result } = renderHook(() => useTemplates());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    // 初期状態は空文字 → undefinedで呼ばれる
+    expect(mockedRepo.fetchTemplates).toHaveBeenCalledWith(undefined);
+
+    // カテゴリを設定してから空文字に戻す
+    act(() => result.current.changeCategory('meeting'));
+    await waitFor(() => expect(mockedRepo.fetchTemplates).toHaveBeenCalledWith('meeting'));
+
+    act(() => result.current.changeCategory(''));
+    await waitFor(() => expect(mockedRepo.fetchTemplates).toHaveBeenLastCalledWith(undefined));
+  });
 });

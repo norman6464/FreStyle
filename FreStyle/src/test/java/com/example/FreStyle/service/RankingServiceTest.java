@@ -111,4 +111,75 @@ class RankingServiceTest {
         // Allow 5 seconds tolerance
         assertThat(diffMillis).isBetween(sevenDaysMillis - 5000L, sevenDaysMillis + 5000L);
     }
+
+    @Test
+    @DisplayName("monthlyの場合は1ヶ月前からのデータを取得する")
+    void shouldUseCutoffForMonthlyPeriod() {
+        ArgumentCaptor<Timestamp> cutoffCaptor = ArgumentCaptor.forClass(Timestamp.class);
+        when(communicationScoreRepository.findUserAverageScoresAfter(cutoffCaptor.capture()))
+                .thenReturn(List.of());
+
+        rankingService.getRanking("monthly", 1);
+
+        Timestamp capturedCutoff = cutoffCaptor.getValue();
+        Timestamp now = new Timestamp(System.currentTimeMillis());
+        long diffMillis = now.getTime() - capturedCutoff.getTime();
+        // approximately 30 days
+        long thirtyDaysMillis = 30 * 24 * 60 * 60 * 1000L;
+        // Allow range of 28-31 days to account for month length variation
+        long twentyEightDaysMillis = 28 * 24 * 60 * 60 * 1000L;
+        long thirtyOneDaysMillis = 31 * 24 * 60 * 60 * 1000L;
+        assertThat(diffMillis).isBetween(twentyEightDaysMillis - 5000L, thirtyOneDaysMillis + 5000L);
+    }
+
+    @Test
+    @DisplayName("ユーザーが見つからない場合はスキップする")
+    void shouldSkipWhenUserNotFound() {
+        Object[] row1 = new Object[]{1, 8.5, 3L};
+        Object[] row2 = new Object[]{2, 7.0, 2L};
+        when(communicationScoreRepository.findUserAverageScoresAfter(any(Timestamp.class)))
+                .thenReturn(List.of(row1, row2));
+
+        User user1 = new User();
+        user1.setId(1);
+        user1.setName("User1");
+        user1.setIconUrl("icon1.png");
+        when(userRepository.findById(1)).thenReturn(Optional.of(user1));
+        when(userRepository.findById(2)).thenReturn(Optional.empty());
+
+        RankingDto result = rankingService.getRanking("weekly", 99);
+
+        assertThat(result.entries()).hasSize(1);
+        assertThat(result.entries().get(0).username()).isEqualTo("User1");
+    }
+
+    @Test
+    @DisplayName("空の結果の場合は空のリストを返す")
+    void shouldReturnEmptyListWhenNoResults() {
+        when(communicationScoreRepository.findUserAverageScoresAfter(any(Timestamp.class)))
+                .thenReturn(List.of());
+
+        RankingDto result = rankingService.getRanking("weekly", 1);
+
+        assertThat(result.entries()).isEmpty();
+        assertThat(result.myRanking()).isNull();
+    }
+
+    @Test
+    @DisplayName("デフォルトの期間はmonthlyとして扱う")
+    void shouldTreatUnknownPeriodAsMonthly() {
+        ArgumentCaptor<Timestamp> cutoffCaptor = ArgumentCaptor.forClass(Timestamp.class);
+        when(communicationScoreRepository.findUserAverageScoresAfter(cutoffCaptor.capture()))
+                .thenReturn(List.of());
+
+        rankingService.getRanking("unknown_period", 1);
+
+        Timestamp capturedCutoff = cutoffCaptor.getValue();
+        Timestamp now = new Timestamp(System.currentTimeMillis());
+        long diffMillis = now.getTime() - capturedCutoff.getTime();
+        // default falls through to monthly (approximately 28-31 days)
+        long twentyEightDaysMillis = 28 * 24 * 60 * 60 * 1000L;
+        long thirtyOneDaysMillis = 31 * 24 * 60 * 60 * 1000L;
+        assertThat(diffMillis).isBetween(twentyEightDaysMillis - 5000L, thirtyOneDaysMillis + 5000L);
+    }
 }

@@ -33,4 +33,25 @@ class RephraseMessageUseCaseTest {
         assertThat(result).isEqualTo("言い換え結果");
         verify(bedrockService).rephrase("元のメッセージ", "会議");
     }
+
+    @Test
+    @DisplayName("空のメッセージでも処理する")
+    void execute_handlesEmptyMessage() {
+        when(bedrockService.rephrase("", "日常")).thenReturn("空の言い換え結果");
+
+        String result = rephraseMessageUseCase.execute("", "日常");
+
+        assertThat(result).isEqualTo("空の言い換え結果");
+        verify(bedrockService).rephrase("", "日常");
+    }
+
+    @Test
+    @DisplayName("BedrockServiceに正しい引数を渡す")
+    void execute_passesCorrectArgumentsToBedrockService() {
+        when(bedrockService.rephrase("特定のメッセージ", "ビジネス")).thenReturn("結果");
+
+        rephraseMessageUseCase.execute("特定のメッセージ", "ビジネス");
+
+        verify(bedrockService).rephrase("特定のメッセージ", "ビジネス");
+    }
 }

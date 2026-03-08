@@ -35,6 +35,7 @@ const RankingPage = lazy(() => import('./pages/RankingPage'));
 const TemplatePage = lazy(() => import('./pages/TemplatePage'));
 const ReminderPage = lazy(() => import('./pages/ReminderPage'));
 const SharedSessionsPage = lazy(() => import('./pages/SharedSessionsPage'));
+const WeeklyChallengePage = lazy(() => import('./pages/WeeklyChallengePage'));
 
 function NavigationToast() {
   const location = useLocation();
@@ -97,6 +98,7 @@ export default function App() {
         <Route path="/templates" element={<TemplatePage />} />
         <Route path="/reminder" element={<ReminderPage />} />
         <Route path="/shared-sessions" element={<SharedSessionsPage />} />
+        <Route path="/weekly-challenge" element={<WeeklyChallengePage />} />
       </Route>
     </Routes>
     </Suspense>

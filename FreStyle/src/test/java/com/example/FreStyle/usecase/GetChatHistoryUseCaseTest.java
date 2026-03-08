@@ -14,6 +14,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.example.FreStyle.dto.ChatMessageDto;
 import com.example.FreStyle.entity.User;
+import com.example.FreStyle.repository.RoomMemberRepository;
 import com.example.FreStyle.service.ChatMessageService;
 import com.example.FreStyle.service.UserIdentityService;
 
@@ -27,6 +28,9 @@ class GetChatHistoryUseCaseTest {
     @Mock
     private ChatMessageService chatMessageService;
 
+    @Mock
+    private RoomMemberRepository roomMemberRepository;
+
     @InjectMocks
     private GetChatHistoryUseCase getChatHistoryUseCase;
 
@@ -36,6 +40,7 @@ class GetChatHistoryUseCaseTest {
         User user = new User();
         user.setId(1);
         when(userIdentityService.findUserBySub("sub-123")).thenReturn(user);
+        when(roomMemberRepository.existsByRoom_IdAndUser_Id(10, 1)).thenReturn(true);
         ChatMessageDto msg = new ChatMessageDto(null, null, null, null, "テストメッセージ", null);
         when(chatMessageService.getMessagesByRoom(10, 1)).thenReturn(List.of(msg));
 
@@ -51,10 +56,23 @@ class GetChatHistoryUseCaseTest {
         User user = new User();
         user.setId(3);
         when(userIdentityService.findUserBySub("sub-789")).thenReturn(user);
+        when(roomMemberRepository.existsByRoom_IdAndUser_Id(20, 3)).thenReturn(true);
         when(chatMessageService.getMessagesByRoom(20, 3)).thenReturn(List.of());
 
         getChatHistoryUseCase.execute("sub-789", 20);
 
         verify(chatMessageService).getMessagesByRoom(20, 3);
+    }
+
+    @Test
+    @DisplayName("ルームメンバーでない場合はSecurityExceptionをスローする")
+    void execute_throwsSecurityExceptionWhenNotMember() {
+        User user = new User();
+        user.setId(1);
+        when(userIdentityService.findUserBySub("sub-123")).thenReturn(user);
+        when(roomMemberRepository.existsByRoom_IdAndUser_Id(10, 1)).thenReturn(false);
+
+        assertThrows(SecurityException.class, () -> getChatHistoryUseCase.execute("sub-123", 10));
+        verify(chatMessageService, never()).getMessagesByRoom(anyInt(), anyInt());
     }
 }

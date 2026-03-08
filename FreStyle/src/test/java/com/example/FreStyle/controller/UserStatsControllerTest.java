@@ -66,7 +66,7 @@ class UserStatsControllerTest {
         UserStatsDto stats = new UserStatsDto(5, 3, 8, 4, 60.0);
         when(getUserStatsUseCase.execute(2)).thenReturn(stats);
 
-        ResponseEntity<UserStatsDto> response = userStatsController.getUserStats(2);
+        ResponseEntity<UserStatsDto> response = userStatsController.getUserStats(2, jwt);
 
         assertThat(response.getStatusCode().value()).isEqualTo(200);
         assertThat(response.getBody()).isNotNull();

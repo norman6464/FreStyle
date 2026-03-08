@@ -34,7 +34,7 @@ public class UserStatsController {
     }
 
     @GetMapping("/{userId}/stats")
-    public ResponseEntity<UserStatsDto> getUserStats(@PathVariable Integer userId) {
+    public ResponseEntity<UserStatsDto> getUserStats(@PathVariable Integer userId, @AuthenticationPrincipal Jwt jwt) {
         log.info("ユーザー統計取得: userId={}", userId);
         UserStatsDto stats = getUserStatsUseCase.execute(userId);
         return ResponseEntity.ok(stats);

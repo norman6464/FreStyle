@@ -54,7 +54,7 @@ public class CognitoAuthController {
     // -----------------------
     @PostMapping("/signup")
     public ResponseEntity<?> signup(@Validated @RequestBody SignupForm form) {
-        log.info("POST /api/auth/cognito/signup - email: {}", form.getEmail());
+        log.info("POST /api/auth/cognito/signup - email: [REDACTED]");
         try {
             cognitoSignupUseCase.execute(form);
             return ResponseEntity.status(HttpStatus.CREATED)
@@ -76,7 +76,7 @@ public class CognitoAuthController {
     // -----------------------
     @PostMapping("/confirm")
     public ResponseEntity<?> confirm(@Validated @RequestBody ConfirmSignupForm form) {
-        log.info("POST /api/auth/cognito/confirm - email: {}", form.getEmail());
+        log.info("POST /api/auth/cognito/confirm - email: [REDACTED]");
         try {
             cognitoConfirmUseCase.execute(form.getEmail(), form.getCode());
             return ResponseEntity.ok(Map.of("message", "確認に成功しました。ログインできます。"));
@@ -100,7 +100,7 @@ public class CognitoAuthController {
     // -----------------------
     @PostMapping("/login")
     public ResponseEntity<?> login(@Validated @RequestBody LoginForm form, HttpServletResponse response) {
-        log.info("POST /api/auth/cognito/login - email: {}", form.getEmail());
+        log.info("POST /api/auth/cognito/login - email: [REDACTED]");
         try {
             CognitoLoginUseCase.Result result = cognitoLoginUseCase.execute(form.getEmail(), form.getPassword());
             authCookieService.setAuthCookies(response,
@@ -167,7 +167,7 @@ public class CognitoAuthController {
     @PostMapping("/forgot-password")
     public ResponseEntity<?> forgotPassword(@Validated @RequestBody Map<String, String> body) {
         String email = body.get("email");
-        log.info("POST /api/auth/cognito/forgot-password - email: {}", email);
+        log.info("POST /api/auth/cognito/forgot-password - email: [REDACTED]");
         try {
             cognitoAuthService.forgotPassword(email);
             return ResponseEntity.ok(Map.of("message", "確認コードを送信しました。"));
@@ -214,7 +214,7 @@ public class CognitoAuthController {
     // -----------------------
     @PostMapping("/confirm-forgot-password")
     public ResponseEntity<?> confirmForgotPassword(@Validated @RequestBody ForgotPasswordForm form) {
-        log.info("POST /api/auth/cognito/confirm-forgot-password - email: {}", form.getEmail());
+        log.info("POST /api/auth/cognito/confirm-forgot-password - email: [REDACTED]");
         try {
             cognitoAuthService.confirmForgotPassword(form.getEmail(), form.getCode(), form.getNewPassword());
             return ResponseEntity.ok(Map.of("message", "パスワードをリセットしました。"));

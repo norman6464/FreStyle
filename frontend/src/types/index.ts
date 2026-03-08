@@ -240,3 +240,15 @@ export interface ReminderSetting {
   reminderTime: string;
   daysOfWeek: string;
 }
+
+/** 共有セッション */
+export interface SharedSession {
+  id: number;
+  sessionId: number;
+  sessionTitle: string;
+  userId: number;
+  username: string;
+  userIconUrl: string | null;
+  description: string | null;
+  createdAt: string;
+}

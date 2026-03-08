@@ -21,4 +21,11 @@ public interface CommunicationScoreRepository extends JpaRepository<Communicatio
     @Query("SELECT cs FROM CommunicationScore cs WHERE cs.user.id = :userId AND cs.createdAt > :cutoff ORDER BY cs.createdAt DESC")
     List<CommunicationScore> findByUserIdAndCreatedAtAfterOrderByCreatedAtDesc(
             @Param("userId") Integer userId, @Param("cutoff") Timestamp cutoff);
+
+    @Query("SELECT cs.user.id, AVG(cs.score), COUNT(DISTINCT cs.session.id) " +
+           "FROM CommunicationScore cs " +
+           "WHERE cs.createdAt > :cutoff " +
+           "GROUP BY cs.user.id " +
+           "ORDER BY AVG(cs.score) DESC")
+    List<Object[]> findUserAverageScoresAfter(@Param("cutoff") Timestamp cutoff);
 }

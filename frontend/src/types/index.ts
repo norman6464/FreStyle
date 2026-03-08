@@ -207,3 +207,19 @@ export interface FollowStatus {
   isFollowedBy: boolean;
   isMutual: boolean;
 }
+
+/** ランキングエントリー */
+export interface RankingEntry {
+  rank: number;
+  userId: number;
+  username: string;
+  iconUrl: string | null;
+  averageScore: number;
+  sessionCount: number;
+}
+
+/** ランキング */
+export interface Ranking {
+  entries: RankingEntry[];
+  myRanking: RankingEntry | null;
+}

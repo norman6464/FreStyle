@@ -31,6 +31,7 @@ const NotesPage = lazy(() => import('./pages/NotesPage'));
 const NotificationPage = lazy(() => import('./pages/NotificationPage'));
 const LearningReportPage = lazy(() => import('./pages/LearningReportPage'));
 const FriendshipPage = lazy(() => import('./pages/FriendshipPage'));
+const RankingPage = lazy(() => import('./pages/RankingPage'));
 
 function NavigationToast() {
   const location = useLocation();
@@ -89,6 +90,7 @@ export default function App() {
         <Route path="/notifications" element={<NotificationPage />} />
         <Route path="/reports" element={<LearningReportPage />} />
         <Route path="/friends" element={<FriendshipPage />} />
+        <Route path="/ranking" element={<RankingPage />} />
       </Route>
     </Routes>
     </Suspense>

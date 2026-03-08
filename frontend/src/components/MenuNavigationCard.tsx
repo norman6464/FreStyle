@@ -4,6 +4,7 @@ import {
   SparklesIcon,
   AcademicCapIcon,
   ChartBarIcon,
+  TrophyIcon,
 } from '@heroicons/react/24/outline';
 import Card from './Card';
 
@@ -40,6 +41,13 @@ const MENU_ITEMS = [
     description: 'フィードバック結果の振り返り',
     to: '/scores',
     badgeKey: 'score' as const,
+  },
+  {
+    icon: TrophyIcon,
+    label: 'ランキング',
+    description: 'ユーザー間のスコアランキング',
+    to: '/ranking',
+    badgeKey: null,
   },
 ];
 

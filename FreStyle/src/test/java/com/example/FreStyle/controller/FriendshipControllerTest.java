@@ -23,7 +23,6 @@ import com.example.FreStyle.dto.FollowStatusDto;
 import com.example.FreStyle.dto.FriendshipDto;
 import com.example.FreStyle.entity.User;
 import com.example.FreStyle.service.UserIdentityService;
-import com.example.FreStyle.service.UserService;
 import com.example.FreStyle.usecase.CheckFollowStatusUseCase;
 import com.example.FreStyle.usecase.FollowUserUseCase;
 import com.example.FreStyle.usecase.GetFollowersUseCase;
@@ -52,15 +51,11 @@ class FriendshipControllerTest {
     @Mock
     private UserIdentityService userIdentityService;
 
-    @Mock
-    private UserService userService;
-
     @InjectMocks
     private FriendshipController friendshipController;
 
     private Jwt mockJwt;
     private User testUser;
-    private User targetUser;
 
     @BeforeEach
     void setUp() {
@@ -70,10 +65,6 @@ class FriendshipControllerTest {
         testUser = new User();
         testUser.setId(1);
         testUser.setName("テストユーザー");
-
-        targetUser = new User();
-        targetUser.setId(2);
-        targetUser.setName("ターゲット");
 
         when(userIdentityService.findUserBySub("sub-123")).thenReturn(testUser);
     }
@@ -85,9 +76,8 @@ class FriendshipControllerTest {
         @Test
         @DisplayName("ユーザーをフォローできる")
         void followsUser() {
-            when(userService.findUserById(2)).thenReturn(targetUser);
             FriendshipDto dto = new FriendshipDto(1, 2, "ターゲット", null, null, false, "2026-02-17T00:00:00", null);
-            when(followUserUseCase.execute(testUser, targetUser)).thenReturn(dto);
+            when(followUserUseCase.execute(testUser, 2)).thenReturn(dto);
 
             ResponseEntity<FriendshipDto> response = friendshipController.followUser(mockJwt, 2);
 
@@ -106,7 +96,7 @@ class FriendshipControllerTest {
             ResponseEntity<Void> response = friendshipController.unfollowUser(mockJwt, 2);
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
-            verify(unfollowUserUseCase).execute(testUser, 2);
+            verify(unfollowUserUseCase).execute(1, 2);
         }
     }
 

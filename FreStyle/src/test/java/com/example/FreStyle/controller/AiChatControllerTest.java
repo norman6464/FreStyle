@@ -27,17 +27,17 @@ import com.example.FreStyle.dto.AiChatMessageResponseDto;
 import com.example.FreStyle.dto.AiChatSessionDto;
 import com.example.FreStyle.entity.User;
 import com.example.FreStyle.service.AiChatService;
-import com.example.FreStyle.service.BedrockService;
 import com.example.FreStyle.service.UserIdentityService;
+import com.example.FreStyle.usecase.AddAiChatMessageUseCase;
 import com.example.FreStyle.usecase.CreateAiChatSessionUseCase;
 import com.example.FreStyle.usecase.DeleteAiChatSessionUseCase;
-import com.example.FreStyle.usecase.GetAiChatSessionByIdUseCase;
-import com.example.FreStyle.usecase.GetAiChatSessionsByUserIdUseCase;
-import com.example.FreStyle.usecase.UpdateAiChatSessionTitleUseCase;
 import com.example.FreStyle.usecase.GetAiChatMessagesBySessionIdUseCase;
-import com.example.FreStyle.usecase.AddAiChatMessageUseCase;
-import com.example.FreStyle.usecase.GetPracticeSessionSummaryUseCase;
+import com.example.FreStyle.usecase.GetAiChatSessionByIdUseCase;
 import com.example.FreStyle.usecase.GetAiChatSessionStatsUseCase;
+import com.example.FreStyle.usecase.GetAiChatSessionsByUserIdUseCase;
+import com.example.FreStyle.usecase.GetPracticeSessionSummaryUseCase;
+import com.example.FreStyle.usecase.RephraseMessageUseCase;
+import com.example.FreStyle.usecase.UpdateAiChatSessionTitleUseCase;
 import com.example.FreStyle.dto.AiChatSessionStatsDto;
 import com.example.FreStyle.dto.PracticeSessionSummaryDto;
 
@@ -47,7 +47,7 @@ class AiChatControllerTest {
 
     @Mock private AiChatService aiChatService;
     @Mock private UserIdentityService userIdentityService;
-    @Mock private BedrockService bedrockService;
+    @Mock private RephraseMessageUseCase rephraseMessageUseCase;
     @Mock private GetAiChatSessionsByUserIdUseCase getAiChatSessionsByUserIdUseCase;
     @Mock private CreateAiChatSessionUseCase createAiChatSessionUseCase;
     @Mock private GetAiChatSessionByIdUseCase getAiChatSessionByIdUseCase;
@@ -141,7 +141,7 @@ class AiChatControllerTest {
             Jwt jwt = mockJwt("sub-123");
             User user = createUser(10);
             when(userIdentityService.findUserBySub("sub-123")).thenReturn(user);
-            when(bedrockService.rephrase("テスト", "会議")).thenReturn("言い換え結果");
+            when(rephraseMessageUseCase.execute("テスト", "会議")).thenReturn("言い換え結果");
 
             // Use reflection-free approach: create record via constructor
             var request = new AiChatController.RephraseRequest("テスト", "会議");

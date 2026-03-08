@@ -11,7 +11,6 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.FreStyle.dto.UserStatsDto;
 import com.example.FreStyle.entity.User;
 import com.example.FreStyle.service.UserIdentityService;
-import com.example.FreStyle.service.UserService;
 import com.example.FreStyle.usecase.GetUserStatsUseCase;
 
 import lombok.RequiredArgsConstructor;
@@ -25,7 +24,6 @@ public class UserStatsController {
 
     private final GetUserStatsUseCase getUserStatsUseCase;
     private final UserIdentityService userIdentityService;
-    private final UserService userService;
 
     @GetMapping("/me/stats")
     public ResponseEntity<UserStatsDto> getMyStats(@AuthenticationPrincipal Jwt jwt) {
@@ -37,7 +35,6 @@ public class UserStatsController {
 
     @GetMapping("/{userId}/stats")
     public ResponseEntity<UserStatsDto> getUserStats(@PathVariable Integer userId) {
-        userService.findUserById(userId);
         log.info("ユーザー統計取得: userId={}", userId);
         UserStatsDto stats = getUserStatsUseCase.execute(userId);
         return ResponseEntity.ok(stats);

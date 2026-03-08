@@ -25,7 +25,6 @@ import com.example.FreStyle.dto.AiChatSessionStatsDto;
 import com.example.FreStyle.dto.PracticeSessionSummaryDto;
 import com.example.FreStyle.entity.User;
 import com.example.FreStyle.service.AiChatService;
-import com.example.FreStyle.service.BedrockService;
 import com.example.FreStyle.service.UserIdentityService;
 import com.example.FreStyle.usecase.AddAiChatMessageUseCase;
 import com.example.FreStyle.usecase.CreateAiChatSessionUseCase;
@@ -35,6 +34,7 @@ import com.example.FreStyle.usecase.GetAiChatSessionByIdUseCase;
 import com.example.FreStyle.usecase.GetAiChatSessionsByUserIdUseCase;
 import com.example.FreStyle.usecase.GetAiChatSessionStatsUseCase;
 import com.example.FreStyle.usecase.GetPracticeSessionSummaryUseCase;
+import com.example.FreStyle.usecase.RephraseMessageUseCase;
 import com.example.FreStyle.usecase.UpdateAiChatSessionTitleUseCase;
 
 import lombok.RequiredArgsConstructor;
@@ -48,7 +48,6 @@ import lombok.extern.slf4j.Slf4j;
 public class AiChatController {
     private final AiChatService aiChatService;
     private final UserIdentityService userIdentityService;
-    private final BedrockService bedrockService;
 
     // UseCases (クリーンアーキテクチャー)
     private final GetAiChatSessionsByUserIdUseCase getAiChatSessionsByUserIdUseCase;
@@ -60,6 +59,7 @@ public class AiChatController {
     private final AddAiChatMessageUseCase addAiChatMessageUseCase;
     private final GetPracticeSessionSummaryUseCase getPracticeSessionSummaryUseCase;
     private final GetAiChatSessionStatsUseCase getAiChatSessionStatsUseCase;
+    private final RephraseMessageUseCase rephraseMessageUseCase;
 
 
     // =============================================
@@ -253,7 +253,7 @@ public class AiChatController {
 
         resolveUser(jwt); // 認証チェック
 
-        String result = bedrockService.rephrase(request.originalMessage(), request.scene());
+        String result = rephraseMessageUseCase.execute(request.originalMessage(), request.scene());
         log.info("✅ 言い換え提案取得成功");
 
         return ResponseEntity.ok(Map.of("result", result));

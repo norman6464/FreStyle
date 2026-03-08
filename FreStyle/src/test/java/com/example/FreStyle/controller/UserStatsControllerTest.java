@@ -16,7 +16,6 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import com.example.FreStyle.dto.UserStatsDto;
 import com.example.FreStyle.entity.User;
 import com.example.FreStyle.service.UserIdentityService;
-import com.example.FreStyle.service.UserService;
 import com.example.FreStyle.usecase.GetUserStatsUseCase;
 
 @ExtendWith(MockitoExtension.class)
@@ -28,9 +27,6 @@ class UserStatsControllerTest {
 
     @Mock
     private UserIdentityService userIdentityService;
-
-    @Mock
-    private UserService userService;
 
     @Mock
     private Jwt jwt;
@@ -67,10 +63,6 @@ class UserStatsControllerTest {
     @Test
     @DisplayName("指定ユーザーの統計を取得できる")
     void getUserStats_returnsStats() {
-        User targetUser = new User();
-        targetUser.setId(2);
-        when(userService.findUserById(2)).thenReturn(targetUser);
-
         UserStatsDto stats = new UserStatsDto(5, 3, 8, 4, 60.0);
         when(getUserStatsUseCase.execute(2)).thenReturn(stats);
 

@@ -22,6 +22,7 @@ import com.example.FreStyle.entity.Friendship;
 import com.example.FreStyle.entity.User;
 import com.example.FreStyle.mapper.FriendshipMapper;
 import com.example.FreStyle.repository.FriendshipRepository;
+import com.example.FreStyle.service.UserService;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("FollowUserUseCase テスト")
@@ -29,6 +30,9 @@ class FollowUserUseCaseTest {
 
     @Mock
     private FriendshipRepository friendshipRepository;
+
+    @Mock
+    private UserService userService;
 
     @Spy
     private FriendshipMapper friendshipMapper;
@@ -54,13 +58,14 @@ class FollowUserUseCaseTest {
     void execute_followsUser() {
         when(friendshipRepository.existsByFollowerIdAndFollowingId(1, 2)).thenReturn(false);
         when(friendshipRepository.existsByFollowerIdAndFollowingId(2, 1)).thenReturn(false);
+        when(userService.findUserById(2)).thenReturn(following);
         when(friendshipRepository.save(any(Friendship.class))).thenAnswer(inv -> {
             Friendship f = inv.getArgument(0);
             f.setId(100);
             return f;
         });
 
-        FriendshipDto result = followUserUseCase.execute(follower, following);
+        FriendshipDto result = followUserUseCase.execute(follower, 2);
 
         assertThat(result).isNotNull();
         assertThat(result.userId()).isEqualTo(2);
@@ -74,13 +79,14 @@ class FollowUserUseCaseTest {
     void execute_mutualFollow() {
         when(friendshipRepository.existsByFollowerIdAndFollowingId(1, 2)).thenReturn(false);
         when(friendshipRepository.existsByFollowerIdAndFollowingId(2, 1)).thenReturn(true);
+        when(userService.findUserById(2)).thenReturn(following);
         when(friendshipRepository.save(any(Friendship.class))).thenAnswer(inv -> {
             Friendship f = inv.getArgument(0);
             f.setId(101);
             return f;
         });
 
-        FriendshipDto result = followUserUseCase.execute(follower, following);
+        FriendshipDto result = followUserUseCase.execute(follower, 2);
 
         assertThat(result).isNotNull();
         assertThat(result.mutual()).isTrue();
@@ -91,14 +97,14 @@ class FollowUserUseCaseTest {
     void execute_alreadyFollowing() {
         when(friendshipRepository.existsByFollowerIdAndFollowingId(1, 2)).thenReturn(true);
 
-        assertThatThrownBy(() -> followUserUseCase.execute(follower, following))
+        assertThatThrownBy(() -> followUserUseCase.execute(follower, 2))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     @DisplayName("自分自身はフォローできない")
     void execute_cannotFollowSelf() {
-        assertThatThrownBy(() -> followUserUseCase.execute(follower, follower))
+        assertThatThrownBy(() -> followUserUseCase.execute(follower, 1))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -106,10 +112,11 @@ class FollowUserUseCaseTest {
     @DisplayName("レース条件でDB制約違反が発生した場合はIllegalArgumentExceptionに変換される")
     void execute_raceConditionThrowsIllegalArgument() {
         when(friendshipRepository.existsByFollowerIdAndFollowingId(1, 2)).thenReturn(false);
+        when(userService.findUserById(2)).thenReturn(following);
         when(friendshipRepository.save(any(Friendship.class)))
                 .thenThrow(new DataIntegrityViolationException("Duplicate entry"));
 
-        assertThatThrownBy(() -> followUserUseCase.execute(follower, following))
+        assertThatThrownBy(() -> followUserUseCase.execute(follower, 2))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("既にフォローしています");
     }

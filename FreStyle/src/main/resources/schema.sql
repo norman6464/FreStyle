@@ -306,6 +306,21 @@ CREATE TABLE IF NOT EXISTS reminder_settings (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- 共有セッション
+CREATE TABLE IF NOT EXISTS shared_sessions (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    session_id INT NOT NULL,
+    user_id INT NOT NULL,
+    description TEXT,
+    is_public BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uk_session_id (session_id),
+    FOREIGN KEY (session_id) REFERENCES ai_chat_sessions(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_public_created (is_public, created_at DESC)
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 -- ┌─────────────────┐     ┌──────────────────────┐
 -- │     users       │────→│   ai_chat_sessions   │
 -- └─────────────────┘     └──────────────────────┘

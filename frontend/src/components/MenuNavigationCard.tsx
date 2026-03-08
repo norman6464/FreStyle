@@ -7,6 +7,7 @@ import {
   TrophyIcon,
   DocumentTextIcon,
   BellAlertIcon,
+  ShareIcon,
 } from '@heroicons/react/24/outline';
 import Card from './Card';
 
@@ -63,6 +64,13 @@ const MENU_ITEMS = [
     label: '練習リマインダー',
     description: '練習の通知時間・曜日を設定',
     to: '/reminder',
+    badgeKey: null,
+  },
+  {
+    icon: ShareIcon,
+    label: 'みんなの会話',
+    description: 'コミュニティで共有されたAI会話セッション',
+    to: '/shared-sessions',
     badgeKey: null,
   },
 ];

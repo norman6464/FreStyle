@@ -8,6 +8,7 @@ import {
   DocumentTextIcon,
   BellAlertIcon,
   ShareIcon,
+  FireIcon,
 } from '@heroicons/react/24/outline';
 import Card from './Card';
 
@@ -71,6 +72,13 @@ const MENU_ITEMS = [
     label: 'みんなの会話',
     description: 'コミュニティで共有されたAI会話セッション',
     to: '/shared-sessions',
+    badgeKey: null,
+  },
+  {
+    icon: FireIcon,
+    label: 'ウィークリーチャレンジ',
+    description: '今週のチャレンジに挑戦しよう',
+    to: '/weekly-challenge',
     badgeKey: null,
   },
 ];

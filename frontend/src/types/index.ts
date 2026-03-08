@@ -252,3 +252,16 @@ export interface SharedSession {
   description: string | null;
   createdAt: string;
 }
+
+/** ウィークリーチャレンジ */
+export interface WeeklyChallenge {
+  id: number;
+  title: string;
+  description: string;
+  category: string;
+  targetSessions: number;
+  completedSessions: number;
+  isCompleted: boolean;
+  weekStart: string;
+  weekEnd: string;
+}

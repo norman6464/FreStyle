@@ -293,6 +293,19 @@ INSERT IGNORE INTO conversation_templates (id, title, description, category, ope
 (7, '技術提案書説明', '非技術者への技術提案の説明', 'presentation', '新しいシステムの提案について説明をお願いします。', '経営層に対して技術的な提案を分かりやすく説明する場面です。', 'advanced'),
 (8, '予算交渉', 'プロジェクト予算の追加要求', 'negotiation', '追加予算の件ですが、もう少し詳しく聞かせてください。', 'プロジェクトの予算追加を上層部に交渉する場面です。', 'advanced');
 
+-- リマインダー設定
+CREATE TABLE IF NOT EXISTS reminder_settings (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    reminder_time VARCHAR(5) NOT NULL DEFAULT '20:00',
+    days_of_week VARCHAR(50) NOT NULL DEFAULT 'mon,tue,wed,thu,fri',
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uk_user_id (user_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 -- ┌─────────────────┐     ┌──────────────────────┐
 -- │     users       │────→│   ai_chat_sessions   │
 -- └─────────────────┘     └──────────────────────┘

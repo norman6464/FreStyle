@@ -6,6 +6,7 @@ import {
   ChartBarIcon,
   TrophyIcon,
   DocumentTextIcon,
+  BellAlertIcon,
 } from '@heroicons/react/24/outline';
 import Card from './Card';
 
@@ -55,6 +56,13 @@ const MENU_ITEMS = [
     label: '会話テンプレート',
     description: 'シーン別の会話テンプレートで練習',
     to: '/templates',
+    badgeKey: null,
+  },
+  {
+    icon: BellAlertIcon,
+    label: '練習リマインダー',
+    description: '練習の通知時間・曜日を設定',
+    to: '/reminder',
     badgeKey: null,
   },
 ];

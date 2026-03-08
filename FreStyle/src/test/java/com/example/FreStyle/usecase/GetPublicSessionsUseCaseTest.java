@@ -58,4 +58,14 @@ class GetPublicSessionsUseCaseTest {
         assertThat(result.get(0).sessionTitle()).isEqualTo("公開セッション");
         assertThat(result.get(0).username()).isEqualTo("ユーザー1");
     }
+
+    @Test
+    @DisplayName("公開セッションがない場合は空リストを返す")
+    void shouldReturnEmptyListWhenNoPublicSessions() {
+        when(sharedSessionRepository.findPublicSessions()).thenReturn(List.of());
+
+        List<SharedSessionDto> result = useCase.execute();
+
+        assertThat(result).isEmpty();
+    }
 }

@@ -39,4 +39,16 @@ class GetRankingUseCaseTest {
         verify(rankingService).getRanking("weekly", 1);
         assertThat(result).isEqualTo(expected);
     }
+
+    @Test
+    @DisplayName("RankingServiceに正しい引数を委譲する")
+    void shouldDelegateCorrectPeriodAndUserId() {
+        RankingDto expected = new RankingDto(List.of(), null);
+        when(rankingService.getRanking("monthly", 42)).thenReturn(expected);
+
+        RankingDto result = useCase.execute("monthly", 42);
+
+        verify(rankingService).getRanking("monthly", 42);
+        assertThat(result).isEqualTo(expected);
+    }
 }

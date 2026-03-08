@@ -86,4 +86,16 @@ class ShareSessionUseCaseTest {
         assertThatThrownBy(() -> useCase.execute(2, form))
                 .isInstanceOf(ResourceNotFoundException.class);
     }
+
+    @Test
+    @DisplayName("セッションが見つからない場合は例外を投げる")
+    void shouldThrowWhenSessionNotFound() {
+        when(aiChatSessionRepository.findByIdAndUserId(999, 1))
+                .thenReturn(Optional.empty());
+
+        ShareSessionForm form = new ShareSessionForm(999, "説明");
+
+        assertThatThrownBy(() -> useCase.execute(1, form))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
 }

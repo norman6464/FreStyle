@@ -233,3 +233,10 @@ export interface ConversationTemplate {
   openingMessage: string;
   difficulty: string;
 }
+
+/** リマインダー設定 */
+export interface ReminderSetting {
+  enabled: boolean;
+  reminderTime: string;
+  daysOfWeek: string;
+}

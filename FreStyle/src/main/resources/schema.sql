@@ -270,6 +270,29 @@ CREATE TABLE IF NOT EXISTS session_notes (
     FOREIGN KEY (session_id) REFERENCES ai_chat_sessions(id) ON DELETE CASCADE
 ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- 会話テンプレート
+CREATE TABLE IF NOT EXISTS conversation_templates (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    title VARCHAR(100) NOT NULL,
+    description TEXT,
+    category VARCHAR(50) NOT NULL,
+    opening_message TEXT NOT NULL,
+    system_context TEXT NOT NULL,
+    difficulty VARCHAR(20) DEFAULT 'intermediate',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- 初期テンプレートデータ
+INSERT IGNORE INTO conversation_templates (id, title, description, category, opening_message, system_context, difficulty) VALUES
+(1, '会議の進行', 'チーム定例会議のファシリテーション練習', 'meeting', 'それでは定例会議を始めます。まず先週の進捗を確認しましょう。', 'あなたはチームメンバーとして定例会議に参加しています。', 'beginner'),
+(2, 'プレゼン質疑応答', '技術プレゼン後の質疑応答対応', 'presentation', 'プレゼンありがとうございました。いくつか質問があります。', 'プレゼンテーション後の質疑応答の場面です。技術的な質問や懸念に対応してください。', 'intermediate'),
+(3, '商談クロージング', '契約締結に向けた最終交渉', 'negotiation', '提案内容については概ね理解しました。いくつか条件を確認させてください。', '商談の最終段階で、契約条件の詰めを行う場面です。', 'advanced'),
+(4, '報告メール作成', '上司への週次報告メールの作成練習', 'email', '今週の報告をお願いします。主要なトピックを教えてください。', '週次報告メールを作成する場面です。要点を簡潔にまとめる練習です。', 'beginner'),
+(5, 'クレーム対応', '顧客からのクレームに対する初期対応', 'customer_support', 'サービスに問題があり、非常に困っています。', '顧客からクレームを受けた場面です。まず共感と謝罪から始めてください。', 'intermediate'),
+(6, 'チーム1on1', 'メンバーとの1on1ミーティング練習', 'meeting', '最近の業務で気になることはありますか？', 'マネージャーとしてチームメンバーと1on1を行う場面です。', 'beginner'),
+(7, '技術提案書説明', '非技術者への技術提案の説明', 'presentation', '新しいシステムの提案について説明をお願いします。', '経営層に対して技術的な提案を分かりやすく説明する場面です。', 'advanced'),
+(8, '予算交渉', 'プロジェクト予算の追加要求', 'negotiation', '追加予算の件ですが、もう少し詳しく聞かせてください。', 'プロジェクトの予算追加を上層部に交渉する場面です。', 'advanced');
+
 -- ┌─────────────────┐     ┌──────────────────────┐
 -- │     users       │────→│   ai_chat_sessions   │
 -- └─────────────────┘     └──────────────────────┘

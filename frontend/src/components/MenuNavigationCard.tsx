@@ -5,6 +5,7 @@ import {
   AcademicCapIcon,
   ChartBarIcon,
   TrophyIcon,
+  DocumentTextIcon,
 } from '@heroicons/react/24/outline';
 import Card from './Card';
 
@@ -47,6 +48,13 @@ const MENU_ITEMS = [
     label: 'ランキング',
     description: 'ユーザー間のスコアランキング',
     to: '/ranking',
+    badgeKey: null,
+  },
+  {
+    icon: DocumentTextIcon,
+    label: '会話テンプレート',
+    description: 'シーン別の会話テンプレートで練習',
+    to: '/templates',
     badgeKey: null,
   },
 ];

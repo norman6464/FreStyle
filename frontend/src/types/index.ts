@@ -223,3 +223,13 @@ export interface Ranking {
   entries: RankingEntry[];
   myRanking: RankingEntry | null;
 }
+
+/** 会話テンプレート */
+export interface ConversationTemplate {
+  id: number;
+  title: string;
+  description: string;
+  category: string;
+  openingMessage: string;
+  difficulty: string;
+}

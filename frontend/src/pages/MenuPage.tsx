@@ -23,6 +23,7 @@ import RecommendedScenarioCard from '../components/RecommendedScenarioCard';
 import BookmarkedScenariosCard from '../components/BookmarkedScenariosCard';
 import QuickStartButton from '../components/QuickStartButton';
 import Loading from '../components/Loading';
+import { useMemo } from 'react';
 import { useMenuData } from '../hooks/useMenuData';
 import { useScoreHistory } from '../hooks/useScoreHistory';
 import { useRecommendedScenario } from '../hooks/useRecommendedScenario';
@@ -61,6 +62,7 @@ export default function MenuPage() {
   }
 
   const isFirstTimeUser = totalSessions === 0;
+  const overallScores = useMemo(() => allScores.map((s) => s.overallScore), [allScores]);
 
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-6">
@@ -121,10 +123,8 @@ export default function MenuPage() {
               streakDays={uniqueDays}
             />
 
-            {allScores.length >= 2 && <ScoreSparkline scores={allScores.map((s) => s.overallScore)} />}
-            {allScores.length >= 2 && (
-              <ScoreGrowthTrendCard scores={allScores.map((s) => s.overallScore)} />
-            )}
+            {overallScores.length >= 2 && <ScoreSparkline scores={overallScores} />}
+            {overallScores.length >= 2 && <ScoreGrowthTrendCard scores={overallScores} />}
           </div>
         </section>
       )}

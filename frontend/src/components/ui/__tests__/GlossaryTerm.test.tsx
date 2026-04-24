@@ -15,8 +15,13 @@ describe('GlossaryTerm', () => {
 
   it('ヘルプアイコンをクリック（mousedown）すると定義が表示される', () => {
     render(<GlossaryTerm term="5軸評価" definition="5 つの軸で評価します" />);
-    fireEvent.mouseDown(screen.getByRole('button', { name: '5軸評価の意味を表示' }));
-    expect(screen.getByRole('tooltip')).toHaveTextContent('5 つの軸で評価します');
+    const trigger = screen.getByRole('button', { name: '5軸評価の意味を表示' });
+    fireEvent.mouseDown(trigger);
+    // Disclosure パターンのため aria-controls の指す panel に定義があることを検証
+    const panelId = trigger.getAttribute('aria-controls');
+    expect(panelId).not.toBeNull();
+    const panel = document.getElementById(panelId as string);
+    expect(panel).toHaveTextContent('5 つの軸で評価します');
   });
 
   it('definition に ReactNode を受け取れる', () => {

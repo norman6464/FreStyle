@@ -2,11 +2,11 @@ import { useState, useRef, useEffect, useId, ReactNode } from 'react';
 import { QuestionMarkCircleIcon } from '@heroicons/react/24/outline';
 
 type HelpTooltipProps = {
-  /** ツールチップに表示する説明文。ReactNode を許容することで改行や強調も可能 */
+  /** パネルに表示する説明文。ReactNode を許容することで改行や強調も可能 */
   children: ReactNode;
   /** アクセシブルなラベル（スクリーンリーダー向け）。例: 「5軸評価について」 */
   label?: string;
-  /** 吹き出しの表示方向 */
+  /** パネルの表示方向 */
   placement?: 'top' | 'bottom' | 'right' | 'left';
   /** 追加 className */
   className?: string;
@@ -15,6 +15,13 @@ type HelpTooltipProps = {
 /**
  * 専門用語や機能の横に置くヘルプアイコン。
  * クリック / フォーカスで説明を表示し、初心者が意味を確認できるようにする。
+ *
+ * WAI-ARIA のセマンティクスとしては **Disclosure（開閉パネル）** パターンを採用。
+ * - ボタン: aria-expanded + aria-controls でパネルとの関係を示す
+ * - パネル: role は持たせず id のみ（Disclosure では特別な role は不要）
+ *
+ * role="tooltip" を併用しないのは、本コンポーネントが自動表示ではなく
+ * ユーザ操作による明示的なトグルで開閉するためです。
  */
 export default function HelpTooltip({
   children,
@@ -24,7 +31,7 @@ export default function HelpTooltip({
 }: HelpTooltipProps) {
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLSpanElement>(null);
-  const tooltipId = useId();
+  const panelId = useId();
 
   useEffect(() => {
     if (!open) return;
@@ -57,7 +64,7 @@ export default function HelpTooltip({
         type="button"
         aria-label={label}
         aria-expanded={open}
-        aria-describedby={open ? tooltipId : undefined}
+        aria-controls={panelId}
         // onMouseDown で preventDefault してフォーカスイベントを抑止し、
         // クリック時に「focus → setOpen(true)」→「click → toggle で false」と
         // なる race を回避。フォーカス状態は自前で明示管理する。
@@ -81,8 +88,8 @@ export default function HelpTooltip({
       </button>
       {open && (
         <span
-          id={tooltipId}
-          role="tooltip"
+          id={panelId}
+          // Disclosure パターンのためパネル自体には role を付けない
           className={`absolute z-30 w-60 rounded-lg border border-surface-3 bg-surface-2 px-3 py-2 text-xs text-[var(--color-text-secondary)] shadow-lg animate-fade-in ${placementClasses[placement]}`}
         >
           {children}

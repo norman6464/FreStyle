@@ -87,10 +87,12 @@
 
 バックエンドコードをクリーンアーキテクチャに基づいて全面リファクタリングし、保守性・テスタビリティ・可読性を大幅に向上させました。
 
+詳細な層責務・クラス依存関係・テスト戦略は [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) を一次情報として参照してください。
+
 #### 実装内容
-- **Mapper層**: DTO↔Entity変換を一箇所に集約（3クラス作成）
-- **UseCase層**: ビジネスロジックをController層から分離（20クラス作成）
-- **依存性逆転の原則**: Controller → UseCase → Repository の明確な依存関係を確立
+- **Mapper層**: DTO↔Entity変換を一箇所に集約
+- **UseCase層**: ビジネスロジックをController層から分離（87クラス）
+- **依存性逆転の原則**: Controller → UseCase → Service/Repository の明確な依存関係を確立
 - **単一責任の原則**: 各クラスの責務を明確化し、1クラス1責務を徹底
 
 #### リファクタリング対象
@@ -103,16 +105,146 @@
 - テスタビリティ向上: モック化が容易な設計に
 - 日本語コメント充実: 各クラスの役割・責務を明記
 
+#### 層構成（バックエンド）
+
 ```
-【アーキテクチャ構成】
-Controller (Presentation層) ← HTTP/WebSocketリクエスト処理
-  ↓ 依存
-UseCase (Application層) ← ビジネスロジック実行
-  ↓ 依存
-Service (Domain層) ← ドメインロジック
-  ↓ 依存
-Repository (Infrastructure層) ← DB操作
+┌────────────────────────────────────────────────────────────┐
+│                  Presentation Layer                        │
+│   Controller（REST / WebSocket）                           │
+└────────────────────────────────────────────────────────────┘
+                       ↓
+┌────────────────────────────────────────────────────────────┐
+│                  Application Layer                         │
+│   UseCase（1 ユースケース = 1 クラス／87 クラス）            │
+└────────────────────────────────────────────────────────────┘
+                       ↓
+┌────────────────────────────────────────────────────────────┐
+│                    Domain Layer                            │
+│   Service（ドメインロジック・外部統合） / Entity             │
+└────────────────────────────────────────────────────────────┘
+                       ↓
+┌────────────────────────────────────────────────────────────┐
+│                Infrastructure Layer                        │
+│   Repository（JPA / DynamoDB / S3 / Bedrock）               │
+└────────────────────────────────────────────────────────────┘
 ```
+
+#### 層構成（フロントエンド）
+
+バックエンドと同じ発想でフロントエンドもレイヤー化しています。
+
+```
+Page (画面)  →  Hook (Application)  →  Repository (axios)
+  ↓
+Component (Presentational)
+```
+
+#### クラス依存関係図（AI チャット機能）
+
+```mermaid
+classDiagram
+    class AiChatController {
+      +createSession(userId)
+      +addMessage(sessionId, content)
+      +getSessions(userId)
+    }
+    class CreateAiChatSessionUseCase
+    class AddAiChatMessageUseCase
+    class GetAiChatSessionsByUserIdUseCase
+    class AiChatSessionService
+    class AiChatMessageService
+    class BedrockService
+    class AiChatSessionRepository {
+      <<JPA>>
+    }
+    class AiChatMessageDynamoService {
+      <<DynamoDB>>
+    }
+
+    AiChatController --> CreateAiChatSessionUseCase
+    AiChatController --> AddAiChatMessageUseCase
+    AiChatController --> GetAiChatSessionsByUserIdUseCase
+
+    CreateAiChatSessionUseCase --> AiChatSessionService
+    AddAiChatMessageUseCase --> AiChatMessageService
+    AddAiChatMessageUseCase --> BedrockService
+    GetAiChatSessionsByUserIdUseCase --> AiChatSessionService
+
+    AiChatSessionService --> AiChatSessionRepository
+    AiChatMessageService --> AiChatMessageDynamoService
+```
+
+#### クラス依存関係図（スコア評価機能）
+
+```mermaid
+classDiagram
+    class ScoreCardController
+    class CreateScoreCardUseCase
+    class GetScoreCardsByUserIdUseCase
+    class GetScoreTrendUseCase
+    class ScoreCardService
+    class ScoreCardMapper
+    class ScoreCardRepository {
+      <<JPA>>
+    }
+
+    ScoreCardController --> CreateScoreCardUseCase
+    ScoreCardController --> GetScoreCardsByUserIdUseCase
+    ScoreCardController --> GetScoreTrendUseCase
+
+    CreateScoreCardUseCase --> ScoreCardService
+    CreateScoreCardUseCase --> ScoreCardMapper
+    GetScoreCardsByUserIdUseCase --> ScoreCardService
+    GetScoreCardsByUserIdUseCase --> ScoreCardMapper
+    GetScoreTrendUseCase --> ScoreCardService
+
+    ScoreCardService --> ScoreCardRepository
+```
+
+#### データフロー: AI チャットへメッセージを送る
+
+```mermaid
+sequenceDiagram
+    participant FE as ChatPage
+    participant Hook as useAiChat Hook
+    participant Repo as AiChatRepository
+    participant Ctrl as AiChatController
+    participant UC as AddAiChatMessageUseCase
+    participant Svc as AiChatMessageService
+    participant DDB as DynamoDB
+    participant Bed as BedrockService
+
+    FE->>Hook: sendMessage(text)
+    Hook->>Repo: POST /ai-chat/sessions/:id/messages
+    Repo->>Ctrl: HTTP Request
+    Ctrl->>UC: execute(sessionId, content)
+    UC->>Svc: add(userMessage)
+    Svc->>DDB: put
+    UC->>Bed: invokeModel(prompt)
+    Bed-->>UC: aiResponse
+    UC->>Svc: add(aiMessage)
+    Svc->>DDB: put
+    UC-->>Ctrl: MessageDto
+    Ctrl-->>Repo: HTTP Response
+    Repo-->>Hook: Promise resolve
+    Hook-->>FE: state update → re-render
+```
+
+### ⑤ 初心者向けUIコンポーネントライブラリ
+
+新卒エンジニアが迷わず使えるよう、`frontend/src/components/ui/` に共通UIコンポーネント群を整備しています。
+
+| コンポーネント | 用途 |
+|---|---|
+| `PageIntro` | 全画面統一のページヘッダー |
+| `FirstTimeWelcome` | 初回訪問時の導入カード（localStorage永続化） |
+| `GlossaryTerm` | 専門用語の下線表示＋クリックで用語解説 |
+| `HelpTooltip` | 「?」アイコン付きの補足説明 |
+| `StepIndicator` | 多段階操作の進行状況可視化 |
+| `GuidedHint` | 閉じるボタン付き初心者向けヒント |
+| `ActionCard` | Link/Button両対応の強調CTAカード |
+
+専門用語（5軸評価・論理的構成力・練習モードなど）の定義は `frontend/src/constants/glossary.ts` に集約。
 
 ---
 
@@ -265,6 +397,55 @@ SELECT COUNT(*) FROM practice_scenarios;
 | `001_add_practice_mode_support.sql` | 2026-02-12 | 練習モード機能追加（`ai_chat_sessions` に `session_type`, `scenario_id` カラム追加、`practice_scenarios` テーブル作成、初期データ12件投入） |
 
 **注意**: マイグレーションは冪等性があり、複数回実行しても安全です（`IF NOT EXISTS`, `INSERT IGNORE` を使用）。
+
+---
+
+## 開発フロー / 貢献ガイド
+
+本プロジェクトは以下の運用ルールで開発されています。
+
+### ブランチ運用
+
+1. Issue を起票（日本語で目的・完了条件を明記）
+2. ブランチを切る（`feat/*` / `fix/*` / `refactor/*` / `docs/*` / `test/*`）
+3. 作業 → コミット（コミットメッセージは日本語）
+4. PR 作成（タイトル・本文とも日本語）
+5. **CodeRabbit によるコードレビューを待つ**
+6. CodeRabbit 指摘に対応
+7. **squash merge**（main への直接コミット禁止、ブランチ保護設定済み）
+
+### コーディング規約（要点）
+
+- **クリーンアーキテクチャ**: Controller → UseCase → Service/Repository の依存方向を厳守。詳細は [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)
+- **1 UseCase = 1 ビジネスルール**: 新規機能追加時は Service に肥大化させず、UseCase クラスを新規作成
+- **DTO ↔ Entity 変換**: Mapper に集約。Controller / UseCase で直接変換しない
+- **テスト必須**: 新規追加コードには必ず単体テストを付ける
+- **日本語**: PR / Issue / コミットメッセージ / コメントは日本語、識別子は英語
+
+### テスト
+
+#### バックエンド
+
+```bash
+cd FreStyle
+./gradlew test
+```
+
+- JUnit 5 + Mockito + AssertJ
+- UseCase: Mockito でモック化した単体テスト
+- Service: 外部クライアントをモックした単体テスト
+- Repository: `@DataJpaTest` + H2 インメモリDB による統合テスト
+- Mapper: 純粋な変換ロジックの単体テスト
+
+#### フロントエンド
+
+```bash
+cd frontend
+npm test
+```
+
+- Vitest + React Testing Library
+- 慣習: `vi.stubGlobal('localStorage', createMockStorage())` で localStorage をスタブ、`fireEvent` でイベント発火
 
 ---
 

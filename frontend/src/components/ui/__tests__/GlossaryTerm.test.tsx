@@ -13,9 +13,9 @@ describe('GlossaryTerm', () => {
     expect(screen.getByRole('button', { name: '5軸評価の意味を表示' })).toBeInTheDocument();
   });
 
-  it('ヘルプアイコンをクリックすると定義が表示される', () => {
+  it('ヘルプアイコンをクリック（mousedown）すると定義が表示される', () => {
     render(<GlossaryTerm term="5軸評価" definition="5 つの軸で評価します" />);
-    fireEvent.click(screen.getByRole('button', { name: '5軸評価の意味を表示' }));
+    fireEvent.mouseDown(screen.getByRole('button', { name: '5軸評価の意味を表示' }));
     expect(screen.getByRole('tooltip')).toHaveTextContent('5 つの軸で評価します');
   });
 
@@ -26,7 +26,7 @@ describe('GlossaryTerm', () => {
         definition={<span data-testid="definition-node">強調テキスト</span>}
       />
     );
-    fireEvent.click(screen.getByRole('button', { name: '練習モードの意味を表示' }));
+    fireEvent.mouseDown(screen.getByRole('button', { name: '練習モードの意味を表示' }));
     expect(screen.getByTestId('definition-node')).toBeInTheDocument();
   });
 });

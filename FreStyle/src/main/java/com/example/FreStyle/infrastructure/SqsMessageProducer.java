@@ -10,6 +10,15 @@ import lombok.extern.slf4j.Slf4j;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 
+/**
+ * SQS への外向きメッセージ送信 Gateway。
+ *
+ * <p>クリーンアーキテクチャの例外規則として <b>UseCase から直接依存することを許容</b>する。
+ * 詳細は {@code docs/ARCHITECTURE.md} の「2.2.1 UseCase → Infrastructure に限って許容する例外」参照。
+ *
+ * <p>本クラスは非同期な書き込み系 I/O（ファイア＆フォーゲット）に限定する。
+ * DB 永続化や読み取りは Repository 経由で行うこと。
+ */
 @Component
 @Slf4j
 public class SqsMessageProducer {

@@ -1,4 +1,4 @@
-import { UserGroupIcon, HomeIcon, SparklesIcon, ChartBarIcon } from '@heroicons/react/24/outline';
+import { UserGroupIcon, HomeIcon, ChartBarIcon } from '@heroicons/react/24/outline';
 import AchievementBadgeCard from '../components/AchievementBadgeCard';
 import StreakCalendarCard from '../components/StreakCalendarCard';
 import CommunicationTipCard from '../components/CommunicationTipCard';
@@ -60,7 +60,6 @@ export default function MenuPage() {
     return <Loading message="読み込み中..." className="min-h-[calc(100vh-3.5rem)]" />;
   }
 
-  const showRecommendation = !latestScore && stats?.chatPartnerCount === 0;
   const isFirstTimeUser = totalSessions === 0;
 
   return (
@@ -175,20 +174,6 @@ export default function MenuPage() {
           </div>
         </div>
       </section>
-
-      {/* 初回ユーザー向けおすすめ（ログはあるが練習未経験のユーザー向け） */}
-      {showRecommendation && !isFirstTimeUser && (
-        <aside className="rounded-lg border border-primary-400/30 bg-primary-500/10 p-4">
-          <p className="text-xs font-medium text-primary-300 mb-1 flex items-center gap-1">
-            <SparklesIcon className="w-4 h-4" aria-hidden="true" />
-            はじめての方へ
-          </p>
-          <p className="text-sm text-[var(--color-text-secondary)]">
-            まずは練習モードから始めてみましょう。AI が相手役を演じるビジネスシナリオで、
-            コミュニケーションスキルを磨けます。
-          </p>
-        </aside>
-      )}
 
       {/* 週次レポート / パターン分析 */}
       {totalSessions > 0 && (

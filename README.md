@@ -107,7 +107,7 @@
 
 #### 層構成（バックエンド）
 
-```
+```text
 ┌────────────────────────────────────────────────────────────┐
 │                  Presentation Layer                        │
 │   Controller（REST / WebSocket）                           │
@@ -133,7 +133,7 @@
 
 バックエンドと同じ発想でフロントエンドもレイヤー化しています。
 
-```
+```text
 Page (画面)  →  Hook (Application)  →  Repository (axios)
   ↓
 Component (Presentational)

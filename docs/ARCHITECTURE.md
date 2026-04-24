@@ -15,6 +15,8 @@
 - [5. データフロー（代表的なユースケース）](#5-データフロー代表的なユースケース)
 - [6. テスト戦略](#6-テスト戦略)
 - [7. ディレクトリマップ](#7-ディレクトリマップ)
+- [8. 変更時のチェックリスト](#8-変更時のチェックリスト)
+- [参考: 過去のリファクタリング実績](#参考-過去のリファクタリング実績)
 
 ---
 
@@ -48,7 +50,7 @@
 
 ## 2. 層構成（バックエンド）
 
-```
+```text
 ┌────────────────────────────────────────────────────────────┐
 │                  Presentation Layer                        │
 │   Controller (REST / WebSocket)                            │
@@ -83,14 +85,14 @@
 | 層 | パッケージ | 責務 | 許される依存 |
 |---|---|---|---|
 | Presentation | `controller` | HTTP/WS リクエスト受付、認証取得、UseCase 呼び出し、DTO 返却 | `usecase`, `dto`, `form`, `mapper` |
-| Application | `usecase` | ビジネスロジック。Service/Repository のオーケストレーション | `service`, `repository`, `mapper`, `dto`, `entity` |
+| Application | `usecase` | ビジネスロジック。Service/Repository のオーケストレーション | `service`, `repository`, `mapper`, `dto`, `entity`, `infrastructure`（※2.2.1 の例外規則参照） |
 | Domain | `service` / `entity` | ドメインロジック、外部サービス統合、ドメインモデル | `repository`, `entity`, `infrastructure` |
 | Infrastructure | `repository` / `infrastructure` / `config` | 永続化、外部 API クライアント、Spring Boot 設定 | `entity` |
 | Shared | `dto` / `form` / `mapper` / `exception` / `utils` / `constant` | 横断的な型・変換・ユーティリティ | （層依存なし） |
 
 ### 2.2 禁止される依存
 
-```
+```text
 ❌ Controller → Service（直接呼び出し）
 ❌ Controller → Repository
 ❌ UseCase → Controller
@@ -100,13 +102,28 @@
 ❌ Entity → 他の層
 ```
 
+### 2.2.1 UseCase → Infrastructure（Gateway / Producer）に限って許容する例外
+
+クリーンアーキテクチャの原理主義では UseCase は Domain のインターフェース経由で Infrastructure を呼ぶべきだが、本プロジェクトでは軽量化のため **非同期メッセージ送信（SQS Producer など）の Gateway クラスは `infrastructure` パッケージに配置したまま UseCase から直接利用することを許容**する。
+
+対象:
+
+- `com.example.FreStyle.infrastructure.SqsMessageProducer` — 例: [`EnqueueReportGenerationUseCase`](../FreStyle/src/main/java/com/example/FreStyle/usecase/EnqueueReportGenerationUseCase.java) から直接呼び出す
+
+ルール:
+
+- 例外として許容するのは **外向きの I/O のみ**（SQS 送信・メール送信・外部通知など、書き込み系のファイア＆フォーゲット）
+- 許容するクラスには JavaDoc で「UseCaseから直接依存可」と明記する
+- **DB 永続化は必ず Repository 経由**。`infrastructure` から直接DBを叩くのは禁止
+- 将来的に依存先を差し替えたくなった時点で、Domain 層にインターフェースを切り直して依存性逆転に移行する（そのための拡張ポイント）
+
 ---
 
 ## 3. 層構成（フロントエンド）
 
 フロントエンドもバックエンドと同じ発想でレイヤー化します。
 
-```
+```text
 ┌────────────────────────────────────────────────────────────┐
 │              Presentation Layer                            │
 │   Page (画面コンポーネント)                                  │
@@ -392,7 +409,7 @@ sequenceDiagram
 
 ### 6.1 テストピラミッド
 
-```
+```text
         ┌────┐
        / E2E  \           5%   Cypress / Playwright（未導入）
       ──────────
@@ -409,7 +426,7 @@ sequenceDiagram
 | Controller | 統合 | `@WebMvcTest` + MockMvc | UseCase をモックし、HTTP レイヤーだけを検証 |
 | UseCase | 単体 | JUnit 5 + Mockito | Service / Repository をモックし、ビジネスロジックを検証 |
 | Service | 単体 | JUnit 5 + Mockito | 外部クライアント（Cognito / Bedrock / DynamoDB）をモック |
-| Repository | 統合 | `@DataJpaTest` / Testcontainers | 本物の DB に対して CRUD を検証 |
+| Repository | 統合 | `@DataJpaTest` + H2（インメモリ） | 本物の DB に対して CRUD を検証。本PRではH2採用、将来的にMariaDB版パリティ担保のため Testcontainers への移行は検討中 |
 | Mapper | 単体 | JUnit 5 | 入出力の対応関係を網羅 |
 
 ### 6.3 フロントエンド層別テスト方針
@@ -432,7 +449,7 @@ sequenceDiagram
 
 ### 7.1 バックエンド
 
-```
+```text
 FreStyle/src/main/java/com/example/FreStyle/
 ├── FreStyleApplication.java        エントリポイント
 ├── controller/                      Presentation 層
@@ -468,7 +485,7 @@ FreStyle/src/main/java/com/example/FreStyle/
 
 ### 7.2 フロントエンド
 
-```
+```text
 frontend/src/
 ├── App.tsx                          ルーティング定義
 ├── main.tsx                         React エントリポイント

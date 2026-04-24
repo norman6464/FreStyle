@@ -74,12 +74,12 @@ describe('MenuPage', () => {
   it('MenuNavigationCard のメニュー項目がすべて表示される', () => {
     render(<BrowserRouter><MenuPage /></BrowserRouter>);
 
-    expect(screen.getByText('チャット')).toBeInTheDocument();
-    expect(screen.getByText('AI アシスタント')).toBeInTheDocument();
-    // 「練習モード」はPageIntroのGlossaryTermにも登場するため、MenuNavigationCard内では
-    // 複数マッチする可能性があるので getAllByText で件数を検証する
-    expect(screen.getAllByText('練習モード').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('スコア履歴')).toBeInTheDocument();
+    // MenuNavigationCard 内のナビゲーション項目は role=button + aria-label で描画されるので
+    // ロール＆アクセシブルネームで検証し、PageIntroのGlossaryTerm "練習モード" と混同しない
+    expect(screen.getByRole('button', { name: 'チャット' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'AI アシスタント' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '練習モード' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'スコア履歴' })).toBeInTheDocument();
   });
 
   it('会話した人数を表示する', () => {

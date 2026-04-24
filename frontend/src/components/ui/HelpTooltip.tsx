@@ -58,7 +58,19 @@ export default function HelpTooltip({
         aria-label={label}
         aria-expanded={open}
         aria-describedby={open ? tooltipId : undefined}
-        onClick={() => setOpen((prev) => !prev)}
+        // onMouseDown で preventDefault してフォーカスイベントを抑止し、
+        // クリック時に「focus → setOpen(true)」→「click → toggle で false」と
+        // なる race を回避。フォーカス状態は自前で明示管理する。
+        onMouseDown={(e) => {
+          e.preventDefault();
+          setOpen((prev) => !prev);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setOpen((prev) => !prev);
+          }
+        }}
         onFocus={() => setOpen(true)}
         onBlur={(e) => {
           if (!wrapperRef.current?.contains(e.relatedTarget as Node)) setOpen(false);

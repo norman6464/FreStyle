@@ -1,4 +1,4 @@
-import { UserGroupIcon } from '@heroicons/react/24/outline';
+import { UserGroupIcon, HomeIcon, SparklesIcon, ChartBarIcon } from '@heroicons/react/24/outline';
 import AchievementBadgeCard from '../components/AchievementBadgeCard';
 import StreakCalendarCard from '../components/StreakCalendarCard';
 import CommunicationTipCard from '../components/CommunicationTipCard';
@@ -26,9 +26,33 @@ import Loading from '../components/Loading';
 import { useMenuData } from '../hooks/useMenuData';
 import { useScoreHistory } from '../hooks/useScoreHistory';
 import { useRecommendedScenario } from '../hooks/useRecommendedScenario';
+import { PageIntro, FirstTimeWelcome, GlossaryTerm } from '../components/ui';
+import { GLOSSARY } from '../constants/glossary';
 
+/**
+ * 初心者向けに上から順に並ぶホーム画面。
+ *
+ * 情報設計:
+ *   1. ウェルカム（初回のみ） / クイックスタート
+ *   2. 今日やること（デイリーゴール・チャレンジ）
+ *   3. 成長サマリー（インサイト・スコア推移）
+ *   4. 継続を促すエンゲージメント（バッジ・ストリーク・マイルストーン）
+ *   5. 振り返り（週次レポート・パターン）
+ *   6. 参考情報（ヒント・名言）
+ */
 export default function MenuPage() {
-  const { stats, totalUnread, latestScore, allScores, totalSessions, averageScore, uniqueDays, practiceDates, sessionsThisWeek, loading } = useMenuData();
+  const {
+    stats,
+    totalUnread,
+    latestScore,
+    allScores,
+    totalSessions,
+    averageScore,
+    uniqueDays,
+    practiceDates,
+    sessionsThisWeek,
+    loading,
+  } = useMenuData();
   const { weakestAxis } = useScoreHistory();
   const { scenario: recommendedScenario } = useRecommendedScenario(weakestAxis);
 
@@ -37,82 +61,111 @@ export default function MenuPage() {
   }
 
   const showRecommendation = !latestScore && stats?.chatPartnerCount === 0;
+  const isFirstTimeUser = totalSessions === 0;
 
   return (
-    <div className="p-6 max-w-2xl mx-auto">
+    <div className="p-6 max-w-2xl mx-auto space-y-6">
+      <PageIntro
+        icon={<HomeIcon className="h-6 w-6" />}
+        title="ホーム"
+        description={
+          <>
+            今日の{' '}
+            <GlossaryTerm
+              term={GLOSSARY.practiceMode.term}
+              definition={GLOSSARY.practiceMode.definition}
+            />{' '}
+            と学習の振り返りがここにまとまります。
+          </>
+        }
+      />
+
+      {/* 初回ユーザー向けウェルカム */}
+      {isFirstTimeUser && (
+        <FirstTimeWelcome
+          storageKey="welcome:menu:v1"
+          steps={[
+            {
+              title: 'シナリオを選んで AI と練習',
+              description:
+                '「練習モード」には 12 件のビジネスシーンがあります。まずは 1 つ選んで会話してみましょう。',
+            },
+            {
+              title: '5 軸評価で自分の強みを知る',
+              description:
+                '会話が終わると AI が自動でスコアカードを作成。論理的構成力や配慮表現などを可視化します。',
+            },
+            {
+              title: '毎日少しずつ続ける',
+              description:
+                '日次目標・週次目標・ストリークカレンダーで継続を応援します。1 日 1 回が理想的です。',
+            },
+          ]}
+        />
+      )}
+
       {/* クイックスタート */}
-      <div className="mb-6">
+      <section aria-label="今すぐ始める">
         <QuickStartButton scenario={recommendedScenario} />
-      </div>
+      </section>
 
       {/* 学習インサイト */}
       {totalSessions > 0 && (
-        <div className="mb-6">
-          <LearningInsightsCard
-            totalSessions={totalSessions}
-            averageScore={averageScore}
-            streakDays={uniqueDays}
-          />
-        </div>
-      )}
+        <section aria-labelledby="menu-insights">
+          <h2 id="menu-insights" className="sr-only">
+            学習の進捗サマリー
+          </h2>
+          <div className="space-y-6">
+            <LearningInsightsCard
+              totalSessions={totalSessions}
+              averageScore={averageScore}
+              streakDays={uniqueDays}
+            />
 
-      {/* スコアスパークライン */}
-      {allScores.length >= 2 && (
-        <div className="mb-6">
-          <ScoreSparkline scores={allScores.map(s => s.overallScore)} />
-        </div>
-      )}
-
-      {/* 成長トレンド */}
-      {allScores.length >= 2 && (
-        <div className="mb-6">
-          <ScoreGrowthTrendCard scores={allScores.map(s => s.overallScore)} />
-        </div>
+            {allScores.length >= 2 && <ScoreSparkline scores={allScores.map((s) => s.overallScore)} />}
+            {allScores.length >= 2 && (
+              <ScoreGrowthTrendCard scores={allScores.map((s) => s.overallScore)} />
+            )}
+          </div>
+        </section>
       )}
 
       {/* 弱点シナリオ推薦 */}
       {recommendedScenario && weakestAxis && (
-        <div className="mb-6">
-          <RecommendedScenarioCard scenario={recommendedScenario} weakAxis={weakestAxis.axis} />
-        </div>
+        <RecommendedScenarioCard scenario={recommendedScenario} weakAxis={weakestAxis.axis} />
       )}
 
-      {/* 次のステップ提案 */}
-      <div className="mb-6">
-        <NextStepCard totalSessions={totalSessions} averageScore={averageScore} />
-      </div>
-
-      {/* 練習レベル */}
-      <div className="mb-6">
-        <PracticeLevelCard totalSessions={totalSessions} />
-      </div>
-
-      {/* 達成バッジ */}
-      <div className="mb-6">
-        <AchievementBadgeCard totalSessions={totalSessions} />
-      </div>
-
-      {/* セッション数マイルストーン */}
-      <div className="mb-6">
-        <SessionCountMilestoneCard sessionCount={totalSessions} />
-      </div>
-
-      {/* 練習頻度 */}
-      {practiceDates.length > 0 && (
-        <div className="mb-6">
-          <PracticeFrequencyCard dates={practiceDates} />
+      {/* 次のステップ */}
+      <section aria-labelledby="menu-nextstep">
+        <h2 id="menu-nextstep" className="sr-only">
+          次にやるといいこと
+        </h2>
+        <div className="space-y-6">
+          <NextStepCard totalSessions={totalSessions} averageScore={averageScore} />
+          <PracticeLevelCard totalSessions={totalSessions} />
+          <AchievementBadgeCard totalSessions={totalSessions} />
+          <SessionCountMilestoneCard sessionCount={totalSessions} />
         </div>
+      </section>
+
+      {/* 練習頻度・継続 */}
+      {(practiceDates.length > 0 || latestScore) && (
+        <section aria-labelledby="menu-engagement">
+          <h2 id="menu-engagement" className="sr-only">
+            継続とエンゲージメント
+          </h2>
+          <div className="space-y-6">
+            {practiceDates.length > 0 && <PracticeFrequencyCard dates={practiceDates} />}
+            <StreakCalendarCard practiceDates={practiceDates} />
+            {latestScore && <PracticeReminderCard lastPracticeDate={latestScore.createdAt} />}
+          </div>
+        </section>
       )}
 
-      {/* 練習ストリークカレンダー */}
-      <div className="mb-6">
-        <StreakCalendarCard practiceDates={practiceDates} />
-      </div>
-
-      {/* サマリー */}
-      <div className="bg-surface-1 rounded-lg border border-surface-3 p-4 mb-6">
+      {/* 会話した人数サマリー */}
+      <section className="rounded-lg border border-surface-3 bg-surface-1 p-4" aria-label="会話した人数">
         <div className="flex items-center gap-3">
-          <UserGroupIcon className="w-5 h-5 text-[var(--color-text-faint)]" />
+          <UserGroupIcon className="w-5 h-5 text-[var(--color-text-faint)]" aria-hidden="true" />
           <div>
             <p className="text-xs text-[var(--color-text-muted)]">会話した人数</p>
             <p className="text-lg font-semibold text-[var(--color-text-primary)]">
@@ -121,81 +174,78 @@ export default function MenuPage() {
             </p>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* おすすめアクション */}
-      {showRecommendation && (
-        <div className="bg-surface-2 rounded-lg border border-[var(--color-border-hover)] p-4 mb-6">
-          <p className="text-xs font-medium text-primary-300 mb-1">はじめての方へ</p>
-          <p className="text-xs text-primary-400">
-            まずは練習モードから始めてみましょう。AIが相手役を演じるビジネスシナリオで、コミュニケーションスキルを磨けます。
+      {/* 初回ユーザー向けおすすめ（ログはあるが練習未経験のユーザー向け） */}
+      {showRecommendation && !isFirstTimeUser && (
+        <aside className="rounded-lg border border-primary-400/30 bg-primary-500/10 p-4">
+          <p className="text-xs font-medium text-primary-300 mb-1 flex items-center gap-1">
+            <SparklesIcon className="w-4 h-4" aria-hidden="true" />
+            はじめての方へ
           </p>
-        </div>
+          <p className="text-sm text-[var(--color-text-secondary)]">
+            まずは練習モードから始めてみましょう。AI が相手役を演じるビジネスシナリオで、
+            コミュニケーションスキルを磨けます。
+          </p>
+        </aside>
       )}
 
-      {/* 週間レポート */}
+      {/* 週次レポート / パターン分析 */}
       {totalSessions > 0 && (
-        <div className="mb-6">
-          <WeeklyReportCard allScores={allScores} />
-        </div>
+        <section aria-labelledby="menu-reports">
+          <h2
+            id="menu-reports"
+            className="mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--color-text-secondary)]"
+          >
+            <ChartBarIcon className="h-4 w-4 text-primary-300" aria-hidden="true" />
+            振り返り
+          </h2>
+          <div className="space-y-6">
+            <WeeklyReportCard allScores={allScores} />
+            {practiceDates.length > 0 && <LearningPatternCard practiceDates={practiceDates} />}
+          </div>
+        </section>
       )}
 
-      {/* 学習パターン分析 */}
-      {practiceDates.length > 0 && (
-        <div className="mb-6">
-          <LearningPatternCard practiceDates={practiceDates} />
+      {/* 目標 */}
+      <section aria-labelledby="menu-goals">
+        <h2 id="menu-goals" className="sr-only">
+          日々の目標
+        </h2>
+        <div className="space-y-6">
+          <WeeklyGoalProgressCard sessionsThisWeek={sessionsThisWeek} weeklyGoal={5} />
+          <DailyGoalCard />
         </div>
-      )}
+      </section>
 
-      {/* 練習リマインダー */}
-      {latestScore && (
-        <div className="mb-6">
-          <PracticeReminderCard lastPracticeDate={latestScore.createdAt} />
+      {/* 直近のコンテンツ */}
+      <section aria-labelledby="menu-recent">
+        <h2 id="menu-recent" className="sr-only">
+          最近のアクティビティ
+        </h2>
+        <div className="space-y-6">
+          {allScores.length > 0 && <RecentSessionsCard sessions={allScores} />}
+          <BookmarkedScenariosCard />
+          <RecentNotesCard />
         </div>
-      )}
+      </section>
 
-      {/* 週間練習目標 */}
-      <div className="mb-6">
-        <WeeklyGoalProgressCard sessionsThisWeek={sessionsThisWeek} weeklyGoal={5} />
-      </div>
-
-      {/* 日次学習目標 */}
-      <div className="mb-6">
-        <DailyGoalCard />
-      </div>
-
-      {/* 直近のセッション */}
-      {allScores.length > 0 && (
-        <div className="mb-6">
-          <RecentSessionsCard sessions={allScores} />
+      {/* 参考情報 */}
+      <section aria-labelledby="menu-tips">
+        <h2 id="menu-tips" className="sr-only">
+          毎日のヒント
+        </h2>
+        <div className="space-y-6">
+          <DailyChallengeCard />
+          <MotivationQuoteCard />
+          <CommunicationTipCard />
         </div>
-      )}
+      </section>
 
-      {/* ブックマーク済みシナリオ */}
-      <BookmarkedScenariosCard />
-
-      {/* 最近のメモ */}
-      <div className="mb-6">
-        <RecentNotesCard />
-      </div>
-
-      {/* 本日のチャレンジ */}
-      <div className="mb-6">
-        <DailyChallengeCard />
-      </div>
-
-      {/* 今日の一言 */}
-      <div className="mb-6">
-        <MotivationQuoteCard />
-      </div>
-
-      {/* コミュニケーションTips */}
-      <div className="mb-6">
-        <CommunicationTipCard />
-      </div>
-
-      {/* メニュー */}
-      <MenuNavigationCard totalUnread={totalUnread} latestScore={latestScore ? latestScore.overallScore : null} />
+      <MenuNavigationCard
+        totalUnread={totalUnread}
+        latestScore={latestScore ? latestScore.overallScore : null}
+      />
     </div>
   );
 }

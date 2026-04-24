@@ -1,7 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import MenuPage from '../MenuPage';
+import { createMockStorage } from '../../test/mockStorage';
 
 const mockNavigate = vi.fn();
 
@@ -62,15 +63,22 @@ function defaultMenuData() {
 describe('MenuPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubGlobal('localStorage', createMockStorage());
     mockUseMenuData.mockReturnValue(defaultMenuData());
   });
 
-  it('メニュー項目が全て表示される', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('MenuNavigationCard のメニュー項目がすべて表示される', () => {
     render(<BrowserRouter><MenuPage /></BrowserRouter>);
 
     expect(screen.getByText('チャット')).toBeInTheDocument();
     expect(screen.getByText('AI アシスタント')).toBeInTheDocument();
-    expect(screen.getByText('練習モード')).toBeInTheDocument();
+    // 「練習モード」はPageIntroのGlossaryTermにも登場するため、MenuNavigationCard内では
+    // 複数マッチする可能性があるので getAllByText で件数を検証する
+    expect(screen.getAllByText('練習モード').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('スコア履歴')).toBeInTheDocument();
   });
 
@@ -92,7 +100,7 @@ describe('MenuPage', () => {
     expect(screen.getByText(/最新: 7\.5/)).toBeInTheDocument();
   });
 
-  it('スコア履歴がない場合はおすすめアクションを表示する', () => {
+  it('初回ユーザー (totalSessions=0) には FirstTimeWelcome ウェルカムカードを表示する', () => {
     mockUseMenuData.mockReturnValue({
       stats: { chatPartnerCount: 0 },
       totalUnread: 0,
@@ -103,11 +111,13 @@ describe('MenuPage', () => {
       uniqueDays: 0,
       practiceDates: [],
       sessionsThisWeek: 0,
+      loading: false,
     });
 
     render(<BrowserRouter><MenuPage /></BrowserRouter>);
 
-    expect(screen.getByText(/練習モードから始めてみましょう/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'ようこそ FreStyle へ' })).toBeInTheDocument();
+    expect(screen.getByText(/シナリオを選んで AI と練習/)).toBeInTheDocument();
   });
 
   it('未読がない場合は未読バッジを表示しない', () => {

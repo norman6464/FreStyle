@@ -72,10 +72,14 @@ export default function HelpTooltip({
           e.preventDefault();
           setOpen((prev) => !prev);
         }}
+        // Tab でフォーカスした直後に Enter/Space でアクティベートすると
+        // 「focus で open → keydown toggle で close」の race が起きる。
+        // キーボード経由のアクティベートは「開く」方向に限定（idempotent）し、
+        // 閉じるのは blur / Escape / 外側クリックに委譲する。
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            setOpen((prev) => !prev);
+            setOpen(true);
           }
         }}
         onFocus={() => setOpen(true)}

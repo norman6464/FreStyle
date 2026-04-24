@@ -71,26 +71,39 @@ describe('HelpTooltip', () => {
     expect(getPanel(trigger)).toBeInTheDocument();
   });
 
-  it('Enter キーでパネルをトグル開閉できる', () => {
+  it('Enter キーでパネルが開く（idempotent）', () => {
     render(<HelpTooltip>説明</HelpTooltip>);
     const trigger = getTrigger();
 
     fireEvent.keyDown(trigger, { key: 'Enter' });
     expect(trigger).toHaveAttribute('aria-expanded', 'true');
 
+    // 2 回目の Enter でも閉じない（keyboard activation は open のみ）
     fireEvent.keyDown(trigger, { key: 'Enter' });
-    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
   });
 
-  it('Space キーでもパネルをトグル開閉できる', () => {
+  it('Space キーでもパネルが開く（idempotent）', () => {
     render(<HelpTooltip>説明</HelpTooltip>);
     const trigger = getTrigger();
 
     fireEvent.keyDown(trigger, { key: ' ' });
     expect(trigger).toHaveAttribute('aria-expanded', 'true');
+  });
 
-    fireEvent.keyDown(trigger, { key: ' ' });
-    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  it('Tab→focus で開いた後に Enter を押しても閉じない（keyboard race 回帰防止）', () => {
+    // ブラウザでは Tab フォーカス後に Enter/Space で <button> をアクティベートする。
+    // この順序でテストを再現し、focus で開いた状態を Enter が閉じないことを検証する。
+    render(<HelpTooltip>説明</HelpTooltip>);
+    const trigger = getTrigger();
+
+    // Tab 相当: focus でパネルを開く
+    fireEvent.focus(trigger);
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+
+    // Enter: keyboard activation は open のみなので状態維持
+    fireEvent.keyDown(trigger, { key: 'Enter' });
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
   });
 
   it('Escape キーでパネルが閉じる', () => {

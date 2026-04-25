@@ -1,0 +1,80 @@
+name: Scheduled - Stop (destroy ECS + ALB at night)
+
+# 目的: 毎日 22:00 JST (13:00 UTC) に ECS + ALB を destroy してコスト節約。
+# RDS / DynamoDB / S3 / SQS / IAM / SG / ECR / Cognito は対象外（データ保護 or 課金影響小）。
+#
+# 復旧は scheduled-start.yml が翌日 07:00 JST に自動実行。
+# 緊急で起こしたい場合は手動で gh workflow run scheduled-start.yml を叩く。
+#
+# 認証: GitHub OIDC + IAM Role (frestyle-prod-github-actions-role)
+
+on:
+  schedule:
+    # 22:00 JST = 13:00 UTC、毎日
+    - cron: '0 13 * * *'
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: '手動実行時は "stop" と入力'
+        required: true
+        type: string
+
+env:
+  AWS_REGION: ap-northeast-1
+  STACK_PFX: frestyle-prod
+  AWS_ROLE_ARN: arn:aws:iam::010928196665:role/frestyle-prod-github-actions-role
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  stop:
+    name: Destroy ECS + ALB
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Verify input (workflow_dispatch only)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          if [ "${{ inputs.confirm }}" != "stop" ]; then
+            echo "ERROR: confirm に 'stop' と入力されていません"
+            exit 1
+          fi
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          role-session-name: frestyle-scheduled-stop
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Destroy ECS stack
+        run: |
+          if aws cloudformation describe-stacks --region $AWS_REGION --stack-name $STACK_PFX-ecs >/dev/null 2>&1; then
+            echo "Deleting $STACK_PFX-ecs ..."
+            aws cloudformation delete-stack --region $AWS_REGION --stack-name $STACK_PFX-ecs
+            aws cloudformation wait stack-delete-complete --region $AWS_REGION --stack-name $STACK_PFX-ecs
+            echo "✅ ECS deleted"
+          else
+            echo "ECS stack already absent, skip"
+          fi
+
+      - name: Destroy ALB stack
+        run: |
+          if aws cloudformation describe-stacks --region $AWS_REGION --stack-name $STACK_PFX-alb >/dev/null 2>&1; then
+            echo "Deleting $STACK_PFX-alb ..."
+            aws cloudformation delete-stack --region $AWS_REGION --stack-name $STACK_PFX-alb
+            aws cloudformation wait stack-delete-complete --region $AWS_REGION --stack-name $STACK_PFX-alb
+            echo "✅ ALB deleted"
+          else
+            echo "ALB stack already absent, skip"
+          fi
+
+      - name: Summary
+        run: |
+          echo "🌙 Cost-saving stop complete at $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          aws cloudformation list-stacks --region $AWS_REGION \
+            --query 'StackSummaries[?starts_with(StackName, `frestyle-prod-`) && StackStatus != `DELETE_COMPLETE`].[StackName,StackStatus]' \
+            --output table

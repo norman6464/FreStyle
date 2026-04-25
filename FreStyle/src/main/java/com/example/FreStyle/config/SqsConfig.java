@@ -5,20 +5,19 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.sqs.SqsClient;
 
+/**
+ * SQS Client 設定。
+ *
+ * <p>credentialsProvider を明示指定しないことで AWS SDK の標準
+ * クレデンシャルチェーンが env vars → ~/.aws/credentials → ECS Task Role
+ * → EC2 Instance Profile の順に自動解決する。S3Config と同方針。
+ */
 @Configuration
 @EnableScheduling
 public class SqsConfig {
-
-    @Value("${aws.access-key}")
-    private String accessKey;
-
-    @Value("${aws.secret-key}")
-    private String secretKey;
 
     @Value("${aws.region}")
     private String region;
@@ -27,11 +26,6 @@ public class SqsConfig {
     public SqsClient sqsClient() {
         return SqsClient.builder()
                 .region(Region.of(region))
-                .credentialsProvider(
-                        StaticCredentialsProvider.create(
-                                AwsBasicCredentials.create(accessKey, secretKey)
-                        )
-                )
                 .build();
     }
 }

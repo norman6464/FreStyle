@@ -14,8 +14,6 @@ import com.example.FreStyle.dto.AiChatMessageResponseDto;
 import com.example.FreStyle.repository.AiChatMessageDynamoRepository;
 
 import jakarta.annotation.PostConstruct;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
@@ -42,12 +40,6 @@ public class AiChatMessageDynamoService implements AiChatMessageDynamoRepository
     private DynamoDbClient dynamoDbClient;
     private String tableName;
 
-    @Value("${aws.access-key:}")
-    private String accessKey;
-
-    @Value("${aws.secret-key:}")
-    private String secretKey;
-
     @Value("${aws.region:}")
     private String region;
 
@@ -65,14 +57,11 @@ public class AiChatMessageDynamoService implements AiChatMessageDynamoRepository
 
     @PostConstruct
     public void init() {
-        if (dynamoDbClient == null && !accessKey.isEmpty()) {
+        // credentialsProvider は明示指定せず、AWS SDK の標準クレデンシャルチェーンに委譲。
+        // env vars → ~/.aws/credentials → ECS Task Role → EC2 Instance Profile の順に解決される。
+        if (dynamoDbClient == null && region != null && !region.isEmpty()) {
             dynamoDbClient = DynamoDbClient.builder()
                     .region(Region.of(region))
-                    .credentialsProvider(
-                            StaticCredentialsProvider.create(
-                                    AwsBasicCredentials.create(accessKey, secretKey)
-                            )
-                    )
                     .build();
         }
         if (tableName == null) {

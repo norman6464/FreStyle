@@ -37,6 +37,7 @@ import com.example.FreStyle.usecase.GetPracticeSessionSummaryUseCase;
 import com.example.FreStyle.usecase.RephraseMessageUseCase;
 import com.example.FreStyle.usecase.UpdateAiChatSessionTitleUseCase;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -45,6 +46,7 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 @RequestMapping("/api/chat/ai")
 @Slf4j
+@Tag(name = "AI Chat", description = "AI 対話セッションとメッセージの管理 API")
 public class AiChatController {
     private final AiChatService aiChatService;
     private final UserIdentityService userIdentityService;

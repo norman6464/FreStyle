@@ -43,6 +43,8 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/hello","/api/hello/**","/api/auth/info","/ws/chat/**","/api/auth/**","/actuator/**").permitAll()
+                        // OpenAPI / Swagger UI（API 仕様書は認証不要で公開）
+                        .requestMatchers("/v3/api-docs","/v3/api-docs/**","/swagger-ui.html","/swagger-ui/**").permitAll()
                         .anyRequest().authenticated())
                 .formLogin(form -> form.disable())
                 .httpBasic(basic -> basic.disable())

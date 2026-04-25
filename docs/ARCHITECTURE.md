@@ -443,6 +443,27 @@ sequenceDiagram
 - 新規追加コード: **80% 以上**
 - 全体: 段階的に引き上げる（既存は除外可）
 
+### 6.5 統合テスト導入の進捗
+
+統合テストの整備は Issue [#1462](https://github.com/norman6464/FreStyle/issues/1462) で追跡。
+
+- Phase 1（H2 ベース、当面は外部依存をモック化）
+  - [x] HelloController（テンプレート確立）
+  - [ ] CognitoAuthController / ProfileController / PracticeController / NoteController / LearningReportController
+- Phase 2（外部依存を含む）
+  - [ ] DynamoDB / S3 / SQS を LocalStack 化
+  - [ ] Bedrock を WireMock 化
+
+統合テストの起点は [`FreStyle/src/test/resources/application-test.properties`](../FreStyle/src/test/resources/application-test.properties) 。
+H2 inMemory + ダミー Cognito / AWS 設定で `@SpringBootTest` を起動できる。
+
+```java
+@SpringBootTest
+@AutoConfigureMockMvc
+@TestPropertySource(locations = "classpath:application-test.properties")
+class XxxControllerTest { ... }
+```
+
 ---
 
 ## 7. ディレクトリマップ

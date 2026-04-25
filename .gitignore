@@ -1,3 +1,8 @@
 .env
 .claude/
 CLAUDE.md
+
+# IaC（CloudFormation）はプライベートリポジトリ frestyle-infrastructure
+# で別管理しているため、本リポジトリには含めない。
+# 詳細はリポジトリ管理者に問い合わせてください。
+infrastructure/

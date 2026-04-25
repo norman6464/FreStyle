@@ -10,6 +10,8 @@ import EmptyState from '../components/EmptyState';
 import { AcademicCapIcon } from '@heroicons/react/24/outline';
 import { usePracticePage } from '../hooks/usePracticePage';
 import { PRACTICE_CATEGORY_TABS } from '../constants/scenarioLabels';
+import { PageIntro, StepIndicator, GuidedHint, GlossaryTerm } from '../components/ui';
+import { GLOSSARY } from '../constants/glossary';
 
 export default function PracticePage() {
   const {
@@ -34,12 +36,46 @@ export default function PracticePage() {
 
   return (
     <div className="p-6 max-w-2xl mx-auto">
-      {/* ヘッダー */}
+      <PageIntro
+        icon={<AcademicCapIcon className="h-6 w-6" />}
+        title="ビジネスシナリオ練習"
+        description={
+          <>
+            AI がビジネスの相手役を演じます。{' '}
+            <GlossaryTerm
+              term={GLOSSARY.scenario.term}
+              definition={GLOSSARY.scenario.definition}
+            />{' '}
+            を選んで会話を始めると、終了後に{' '}
+            <GlossaryTerm
+              term={GLOSSARY.fiveAxisScore.term}
+              definition={GLOSSARY.fiveAxisScore.definition}
+            />{' '}
+            で結果を確認できます。
+          </>
+        }
+      />
+
+      {/* 初回訪問ヒント */}
+      <div className="mb-4">
+        <GuidedHint
+          title="練習モードの流れ"
+          storageKey="hint:practice:intro-v1"
+        >
+          3 ステップで完了します。まずは気になるシナリオを 1 つ選んでみましょう。
+        </GuidedHint>
+      </div>
+
+      {/* 進行ステップ */}
       <div className="mb-5">
-        <h1 className="text-sm font-semibold text-[var(--color-text-primary)] mb-1">ビジネスシナリオ練習</h1>
-        <p className="text-xs text-[var(--color-text-muted)]">
-          AIが相手役を演じます。実践的なビジネスシーンでコミュニケーションスキルを磨きましょう。
-        </p>
+        <StepIndicator
+          steps={[
+            { label: 'シナリオを選ぶ', description: 'まずはここから' },
+            { label: 'AI と会話する', description: 'ロールプレイ' },
+            { label: 'スコアを確認', description: '5 軸で振り返り' },
+          ]}
+          currentStep={0}
+        />
       </div>
 
       {/* 検索ボックス */}

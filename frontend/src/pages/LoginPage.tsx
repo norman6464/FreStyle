@@ -5,7 +5,8 @@ import SNSSignInButton from '../components/SNSSignInButton';
 import LinkText from '../components/LinkText';
 import { getCognitoAuthUrl } from '../utils/auth';
 import { useLoginPage } from '../hooks/useLoginPage';
-import { XCircleIcon } from '@heroicons/react/24/outline';
+import { XCircleIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { GuidedHint } from '../components/ui';
 
 export default function LoginPage() {
   const { form, loginMessage, flashMessage, loading, handleLogin, handleChange } = useLoginPage();
@@ -20,22 +21,37 @@ export default function LoginPage() {
         </p>
       }
     >
-      {/* flash Message */}
-      <div>
-        {flashMessage && (
-          <p className="text-emerald-400 text-center mb-4 p-3 bg-emerald-900/30 rounded-lg font-medium">
-            {flashMessage}
-          </p>
-        )}
-        {loginMessage?.type === 'error' && (
-          <p className="text-rose-400 text-center mb-4 p-3 bg-rose-900/30 rounded-lg font-medium flex items-center justify-center gap-1">
-            <XCircleIcon className="w-4 h-4" />
-            {loginMessage.text}
-          </p>
-        )}
+      {/* 初心者向け導入ヒント（一度閉じると再表示しない） */}
+      <div className="mb-4">
+        <GuidedHint title="FreStyle へようこそ" storageKey="hint:login:intro-v1" tone="info">
+          Google アカウント、またはメールアドレス + パスワードでログインできます。
+          アカウントがない場合は下のリンクから新規登録してください。
+        </GuidedHint>
       </div>
 
-      {/* Googleログイン */}
+      {/* フラッシュメッセージ（成功） */}
+      {flashMessage && (
+        <p
+          role="status"
+          className="flex items-center justify-center gap-1 text-emerald-400 text-center mb-4 p-3 bg-emerald-900/30 rounded-lg font-medium"
+        >
+          <CheckCircleIcon className="w-4 h-4" aria-hidden="true" />
+          {flashMessage}
+        </p>
+      )}
+
+      {/* エラーメッセージ */}
+      {loginMessage?.type === 'error' && (
+        <p
+          role="alert"
+          className="flex items-center justify-center gap-1 text-rose-400 text-center mb-4 p-3 bg-rose-900/30 rounded-lg font-medium"
+        >
+          <XCircleIcon className="w-4 h-4" aria-hidden="true" />
+          {loginMessage.text}
+        </p>
+      )}
+
+      {/* Google ログイン */}
       <SNSSignInButton
         provider="google"
         onClick={() => {
@@ -49,14 +65,12 @@ export default function LoginPage() {
           <div className="w-full border-t border-surface-3"></div>
         </div>
         <div className="relative flex justify-center text-sm">
-          <span className="px-2 bg-surface-1 text-[var(--color-text-muted)]">
-            または
-          </span>
+          <span className="px-2 bg-surface-1 text-[var(--color-text-muted)]">または</span>
         </div>
       </div>
 
       {/* メール・パスワードフォーム */}
-      <form onSubmit={handleLogin}>
+      <form onSubmit={handleLogin} aria-label="ログインフォーム">
         <InputField
           label="メールアドレス"
           name="email"

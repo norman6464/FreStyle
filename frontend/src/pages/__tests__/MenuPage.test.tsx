@@ -1,7 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import MenuPage from '../MenuPage';
+import { createMockStorage } from '../../test/mockStorage';
 
 const mockNavigate = vi.fn();
 
@@ -62,16 +63,23 @@ function defaultMenuData() {
 describe('MenuPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubGlobal('localStorage', createMockStorage());
     mockUseMenuData.mockReturnValue(defaultMenuData());
   });
 
-  it('メニュー項目が全て表示される', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('MenuNavigationCard のメニュー項目がすべて表示される', () => {
     render(<BrowserRouter><MenuPage /></BrowserRouter>);
 
-    expect(screen.getByText('チャット')).toBeInTheDocument();
-    expect(screen.getByText('AI アシスタント')).toBeInTheDocument();
-    expect(screen.getByText('練習モード')).toBeInTheDocument();
-    expect(screen.getByText('スコア履歴')).toBeInTheDocument();
+    // MenuNavigationCard 内のナビゲーション項目は role=button + aria-label で描画されるので
+    // ロール＆アクセシブルネームで検証し、PageIntroのGlossaryTerm "練習モード" と混同しない
+    expect(screen.getByRole('button', { name: 'チャット' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'AI アシスタント' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '練習モード' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'スコア履歴' })).toBeInTheDocument();
   });
 
   it('会話した人数を表示する', () => {
@@ -92,7 +100,7 @@ describe('MenuPage', () => {
     expect(screen.getByText(/最新: 7\.5/)).toBeInTheDocument();
   });
 
-  it('スコア履歴がない場合はおすすめアクションを表示する', () => {
+  it('初回ユーザー (totalSessions=0) には FirstTimeWelcome ウェルカムカードを表示する', () => {
     mockUseMenuData.mockReturnValue({
       stats: { chatPartnerCount: 0 },
       totalUnread: 0,
@@ -103,11 +111,13 @@ describe('MenuPage', () => {
       uniqueDays: 0,
       practiceDates: [],
       sessionsThisWeek: 0,
+      loading: false,
     });
 
     render(<BrowserRouter><MenuPage /></BrowserRouter>);
 
-    expect(screen.getByText(/練習モードから始めてみましょう/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'ようこそ FreStyle へ' })).toBeInTheDocument();
+    expect(screen.getByText(/シナリオを選んで AI と練習/)).toBeInTheDocument();
   });
 
   it('未読がない場合は未読バッジを表示しない', () => {

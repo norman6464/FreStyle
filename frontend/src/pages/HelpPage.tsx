@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom';
 import {
   AcademicCapIcon,
   ChatBubbleLeftRightIcon,
@@ -103,7 +102,7 @@ export default function HelpPage() {
           <ActionCard
             to="/practice"
             title="練習モードを開く"
-            description="まずはお勧めシナリオから 1 つ選んで会話を始めてみましょう。"
+            description="まずはおすすめシナリオから 1 つ選んで会話を始めてみましょう。"
             icon={<AcademicCapIcon className="h-5 w-5" />}
             emphasis="primary"
             badge="Step 1"
@@ -272,44 +271,52 @@ export default function HelpPage() {
         <h2 id="help-faq" className="mb-3 text-xl font-bold text-[var(--color-text-primary)]">
           7. 困ったとき（FAQ）
         </h2>
-        <dl className="space-y-3">
-          <details className="rounded-lg border border-surface-3 bg-surface-1 p-3 open:bg-surface-2/40">
-            <summary className="cursor-pointer text-sm font-semibold text-[var(--color-text-primary)]">
-              <QuestionMarkCircleIcon className="mr-1 inline h-4 w-4 text-primary-300" aria-hidden="true" />
-              スコアが低くて落ち込みます
-            </summary>
-            <p className="mt-2 text-xs text-[var(--color-text-secondary)] leading-relaxed">
-              はじめは誰でも 5 点前後からスタートします。3 セッション目以降から伸びてくる人が多いので、まずは 1 週間続けることを目標にしてみてください。
-            </p>
-          </details>
-          <details className="rounded-lg border border-surface-3 bg-surface-1 p-3 open:bg-surface-2/40">
-            <summary className="cursor-pointer text-sm font-semibold text-[var(--color-text-primary)]">
-              <QuestionMarkCircleIcon className="mr-1 inline h-4 w-4 text-primary-300" aria-hidden="true" />
-              どのシナリオから始めればいい？
-            </summary>
-            <p className="mt-2 text-xs text-[var(--color-text-secondary)] leading-relaxed">
-              ホーム画面の「おすすめシナリオ」をまず開いてみてください。あなたの最も低い軸に効くシナリオが提示されます。それでも迷う場合は「日報を共有する」など軽めのシナリオから。
-            </p>
-          </details>
-          <details className="rounded-lg border border-surface-3 bg-surface-1 p-3 open:bg-surface-2/40">
-            <summary className="cursor-pointer text-sm font-semibold text-[var(--color-text-primary)]">
-              <QuestionMarkCircleIcon className="mr-1 inline h-4 w-4 text-primary-300" aria-hidden="true" />
-              AI の返答がしっくり来ないとき
-            </summary>
-            <p className="mt-2 text-xs text-[var(--color-text-secondary)] leading-relaxed">
-              AI は完璧ではありません。あくまで「練習相手」として割り切り、納得いかない返答が来たら「もっと具体的に教えて」と聞き返してみましょう。それ自体が質問・傾聴力の練習になります。
-            </p>
-          </details>
-          <details className="rounded-lg border border-surface-3 bg-surface-1 p-3 open:bg-surface-2/40">
-            <summary className="cursor-pointer text-sm font-semibold text-[var(--color-text-primary)]">
-              <QuestionMarkCircleIcon className="mr-1 inline h-4 w-4 text-primary-300" aria-hidden="true" />
-              続かない / 気が乗らない
-            </summary>
-            <p className="mt-2 text-xs text-[var(--color-text-secondary)] leading-relaxed">
-              1 日 1 回・5 分でも構いません。ホームの「日次目標」「ストリークカレンダー」が継続をサポートします。週 3 回を 4 週間続けると効果を実感しやすいです。
-            </p>
-          </details>
-        </dl>
+        <ul className="list-none space-y-3 pl-0">
+          <li>
+            <details className="rounded-lg border border-surface-3 bg-surface-1 p-3 open:bg-surface-2/40">
+              <summary className="cursor-pointer text-sm font-semibold text-[var(--color-text-primary)]">
+                <QuestionMarkCircleIcon className="mr-1 inline h-4 w-4 text-primary-300" aria-hidden="true" />
+                スコアが低くて落ち込みます
+              </summary>
+              <p className="mt-2 text-xs text-[var(--color-text-secondary)] leading-relaxed">
+                はじめは誰でも 5 点前後からスタートします。3 セッション目以降から伸びてくる人が多いので、まずは 1 週間続けることを目標にしてみてください。
+              </p>
+            </details>
+          </li>
+          <li>
+            <details className="rounded-lg border border-surface-3 bg-surface-1 p-3 open:bg-surface-2/40">
+              <summary className="cursor-pointer text-sm font-semibold text-[var(--color-text-primary)]">
+                <QuestionMarkCircleIcon className="mr-1 inline h-4 w-4 text-primary-300" aria-hidden="true" />
+                どのシナリオから始めればいい？
+              </summary>
+              <p className="mt-2 text-xs text-[var(--color-text-secondary)] leading-relaxed">
+                ホーム画面の「おすすめシナリオ」をまず開いてみてください。あなたの最も低い軸に効くシナリオが提示されます。それでも迷う場合は「日報を共有する」など軽めのシナリオから。
+              </p>
+            </details>
+          </li>
+          <li>
+            <details className="rounded-lg border border-surface-3 bg-surface-1 p-3 open:bg-surface-2/40">
+              <summary className="cursor-pointer text-sm font-semibold text-[var(--color-text-primary)]">
+                <QuestionMarkCircleIcon className="mr-1 inline h-4 w-4 text-primary-300" aria-hidden="true" />
+                AI の返答がしっくり来ないとき
+              </summary>
+              <p className="mt-2 text-xs text-[var(--color-text-secondary)] leading-relaxed">
+                AI は完璧ではありません。あくまで「練習相手」として割り切り、納得いかない返答が来たら「もっと具体的に教えて」と聞き返してみましょう。それ自体が質問・傾聴力の練習になります。
+              </p>
+            </details>
+          </li>
+          <li>
+            <details className="rounded-lg border border-surface-3 bg-surface-1 p-3 open:bg-surface-2/40">
+              <summary className="cursor-pointer text-sm font-semibold text-[var(--color-text-primary)]">
+                <QuestionMarkCircleIcon className="mr-1 inline h-4 w-4 text-primary-300" aria-hidden="true" />
+                続かない / 気が乗らない
+              </summary>
+              <p className="mt-2 text-xs text-[var(--color-text-secondary)] leading-relaxed">
+                1 日 1 回・5 分でも構いません。ホームの「日次目標」「ストリークカレンダー」が継続をサポートします。週 3 回を 4 週間続けると効果を実感しやすいです。
+              </p>
+            </details>
+          </li>
+        </ul>
       </section>
 
       {/* CTA: ホームへ戻る */}

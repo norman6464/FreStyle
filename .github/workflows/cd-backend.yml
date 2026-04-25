@@ -14,8 +14,10 @@ name: CD - Backend Deploy to ECS
 #      （GitHub Secrets を parameter-overrides 経由で渡す）
 #   3) force-new-deployment でローリング再起動
 #
+# 認証: GitHub OIDC + IAM Role (frestyle-prod-github-actions-role)
+#       Step 3 で導入。長寿命の AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY は廃止。
+#
 # 必要な GitHub Secrets（事前セットアップが必要）:
-#   - AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY  : 管理者用 IAM（後で OIDC Role に移行予定）
 #   - AWS_ECR_API_SERVER_REPOSITORY              : 例 fre-style
 #   - COGNITO_CLIENT_ID / COGNITO_REDIRECT_URI / COGNITO_TOKEN_URI / COGNITO_JWK_SET_URI
 #     ※ COGNITO_CLIENT_SECRET と DB password は AWS Secrets Manager に保管済み（Step 2 で導入）
@@ -40,8 +42,10 @@ env:
   ENV: prod
   STACK_PFX: frestyle-prod
   IAC_REPO: norman6464/frestyle-infrastructure
+  AWS_ROLE_ARN: arn:aws:iam::010928196665:role/frestyle-prod-github-actions-role
 
 permissions:
+  id-token: write
   contents: read
 
 jobs:
@@ -70,11 +74,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          role-session-name: frestyle-cd-backend-build
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
@@ -118,11 +122,11 @@ jobs:
           token: ${{ secrets.IAC_REPO_TOKEN }}
           path: iac
 
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          role-session-name: frestyle-cd-backend-deploy
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Resolve dependent stack outputs

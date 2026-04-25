@@ -31,8 +31,8 @@ describe('HelpPage', () => {
     renderHelp();
     expect(screen.getByRole('heading', { name: /1\. FreStyle ってなに？/ })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /2\. 最初の1日にやること/ })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /3\..*の使い方/ })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /4\..*の読み方/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /3\. 練習モードの使い方/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /4\. 5軸評価の読み方/ })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /5\. AI チャットとは/ })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /6\. メモ・テンプレート機能/ })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /7\. 困ったとき/ })).toBeInTheDocument();

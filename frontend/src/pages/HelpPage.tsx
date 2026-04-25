@@ -119,16 +119,17 @@ export default function HelpPage() {
 
       {/* 3. 練習モードの使い方 */}
       <section aria-labelledby="help-practice">
+        {/* h2 内に GlossaryTerm をネストすると <h2><button>... となり A11y 違反のため
+            見出しはプレーンテキストにし、用語の補足は直後の本文で扱う */}
         <h2 id="help-practice" className="mb-3 text-xl font-bold text-[var(--color-text-primary)]">
-          3.{' '}
+          3. 練習モードの使い方
+        </h2>
+        <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">
           <GlossaryTerm
             term={GLOSSARY.practiceMode.term}
             definition={GLOSSARY.practiceMode.definition}
           />{' '}
-          の使い方
-        </h2>
-        <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">
-          12 種類のビジネスシーンから、いま伸ばしたい力に合うシナリオを選んで AI と会話します。
+          では、12 種類のビジネスシーンから、いま伸ばしたい力に合うシナリオを選んで AI と会話します。
         </p>
 
         <h3 className="mt-4 text-base font-semibold text-[var(--color-text-primary)]">
@@ -162,15 +163,14 @@ export default function HelpPage() {
       {/* 4. 5軸評価の読み方 */}
       <section aria-labelledby="help-scoring">
         <h2 id="help-scoring" className="mb-3 text-xl font-bold text-[var(--color-text-primary)]">
-          4.{' '}
+          4. 5軸評価の読み方
+        </h2>
+        <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">
           <GlossaryTerm
             term={GLOSSARY.fiveAxisScore.term}
             definition={GLOSSARY.fiveAxisScore.definition}
           />{' '}
-          の読み方
-        </h2>
-        <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">
-          会話終了後に AI が以下の 5 つの観点で自動採点します。スコアは 0〜10 点で、各軸ごとに改善コメントが付きます。
+          では、会話終了後に AI が以下の 5 つの観点で自動採点します。スコアは 0〜10 点で、各軸ごとに改善コメントが付きます。
         </p>
         <dl className="mt-3 grid gap-3 sm:grid-cols-2">
           <div className="rounded-lg border border-surface-3 bg-surface-1 p-3">

@@ -1,10 +1,23 @@
-name: Deploy Spring Boot on ECS
+name: CD - Backend Deploy to ECS
+
+# 目的: バックエンドを ECS にデプロイする。CI と分離し、明示的トリガーのみで動く。
+# トリガー:
+#   - workflow_dispatch（手動）  : メインの起動経路
+#   - tag push (release/v*)     : リリースタグ付与でデプロイ
+#
+# main への通常 push では動かない。ドキュメント変更などで誤ってデプロイされない。
 
 on:
-  push:
-    branches: ["main"]
   workflow_dispatch:
-    
+    inputs:
+      confirm:
+        description: '本番デプロイ確認用に "deploy" と入力してください'
+        required: true
+        type: string
+  push:
+    tags:
+      - 'release/v*'
+
 env:
   AWS_REGION: ap-northeast-1
   ECS_SERVICE: fre-style-service
@@ -13,54 +26,65 @@ env:
 
 permissions:
   contents: read
-  
+
 jobs:
-  test-build-image:
-    name: Spring boot Test and Build
+  guard:
+    name: Confirm input (workflow_dispatch only)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Verify confirmation input
+        run: |
+          if [ "${{ inputs.confirm }}" != "deploy" ]; then
+            echo "ERROR: confirm に 'deploy' と入力されていません。中止します。"
+            exit 1
+          fi
+
+  build-and-push:
+    name: Build & Push Image
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [guard]
+    if: always() && (github.event_name == 'push' || needs.guard.result == 'success')
     defaults:
       run:
         working-directory: FreStyle
+
     steps:
-      # このステップでGitHubのリポジトリをアクションの実行環境でコピーする
       - uses: actions/checkout@v4
-      
-      - name: Build an Image and Run Tests
-      # dockerイメージのビルドコマンドを打つ
-        run: |
-          docker image build --target production -t temp_api_image_name:latest .
-      # AWSの認証情報（IAMユーザーで作成したアクセスキー、シークレットアクセスキー）を設定をしている
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID}}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
-          
-      # ECRレジストリ、リポジトリの情報を取得する
-      # さっきのid値を設定したが各ジョブは違う環境にあるのでまた同じ設定をし直す必要がある
+
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
-        
-      # さっきのログインしたECRリポジトリの中にイメージをプッシュする
-      - name: Push the image mto Amazon ECR
+
+      - name: Build production image
+        run: docker image build --target production -t temp_api_image_name:latest .
+
+      - name: Tag and push to ECR
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY:  ${{ secrets.AWS_ECR_API_SERVER_REPOSITORY }}
+          ECR_REPOSITORY: ${{ secrets.AWS_ECR_API_SERVER_REPOSITORY }}
         run: |
           docker image tag temp_api_image_name:latest $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker image tag temp_api_image_name:latest $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}
+
   deploy:
-    name: Deploy
+    name: Deploy to ECS
     runs-on: ubuntu-latest
-    needs: [test-build-image]
+    needs: [build-and-push]
+    timeout-minutes: 15
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -106,10 +130,10 @@ jobs:
             NOTE_IMAGES_CDN_URL=${{ secrets.NOTE_IMAGES_CDN_URL }}
             SQS_REPORT_QUEUE_URL=${{ secrets.SQS_REPORT_QUEUE_URL }}
 
-      - name: Deploy Amazon ECS task definition
+      - name: Deploy task definition
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.render-task.outputs.task-definition }}
           service: ${{ env.ECS_SERVICE }}
           cluster: ${{ env.ECS_CLUSTER }}
-          wait-for-service-stability: false # タスク定義の更新を待たない素早く開発ができるようにしたい
+          wait-for-service-stability: false

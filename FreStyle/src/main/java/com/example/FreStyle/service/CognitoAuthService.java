@@ -14,8 +14,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.cognitoidentityprovider.CognitoIdentityProviderClient;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.*;
@@ -38,14 +36,10 @@ public class CognitoAuthService {
     @Value("${cognito.client-secret}")
     private String clientSecret;
 
-    public CognitoAuthService(
-            @Value("${aws.access-key}") String accessKey,
-            @Value("${aws.secret-key}") String secretKey,
-            @Value("${aws.region}") String region) {
-
+    public CognitoAuthService(@Value("${aws.region}") String region) {
+        // credentialsProvider は明示指定せず、AWS SDK の標準クレデンシャルチェーンに委譲。
+        // env vars → ~/.aws/credentials → ECS Task Role → EC2 Instance Profile の順で解決。
         this.cognitoClient = CognitoIdentityProviderClient.builder()
-                .credentialsProvider(StaticCredentialsProvider.create(
-                        AwsBasicCredentials.create(accessKey, secretKey)))
                 .region(Region.of(region))
                 .build();
     }

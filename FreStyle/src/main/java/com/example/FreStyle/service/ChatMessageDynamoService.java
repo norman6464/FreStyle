@@ -5,7 +5,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Repository;
@@ -14,8 +13,6 @@ import com.example.FreStyle.dto.ChatMessageDto;
 import com.example.FreStyle.repository.ChatMessageDynamoRepository;
 
 import jakarta.annotation.PostConstruct;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
@@ -36,12 +33,6 @@ public class ChatMessageDynamoService implements ChatMessageDynamoRepository {
     private DynamoDbClient dynamoDbClient;
     private String tableName;
 
-    @Value("${aws.access-key:}")
-    private String accessKey;
-
-    @Value("${aws.secret-key:}")
-    private String secretKey;
-
     @Value("${aws.region:}")
     private String region;
 
@@ -59,14 +50,11 @@ public class ChatMessageDynamoService implements ChatMessageDynamoRepository {
 
     @PostConstruct
     public void init() {
-        if (dynamoDbClient == null && !accessKey.isEmpty()) {
+        // credentialsProvider は明示指定せず、AWS SDK の標準クレデンシャルチェーンに委譲。
+        // env vars → ~/.aws/credentials → ECS Task Role → EC2 Instance Profile の順に解決される。
+        if (dynamoDbClient == null && region != null && !region.isEmpty()) {
             dynamoDbClient = DynamoDbClient.builder()
                     .region(Region.of(region))
-                    .credentialsProvider(
-                            StaticCredentialsProvider.create(
-                                    AwsBasicCredentials.create(accessKey, secretKey)
-                            )
-                    )
                     .build();
         }
         if (tableName == null) {

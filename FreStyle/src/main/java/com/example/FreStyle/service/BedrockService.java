@@ -10,8 +10,6 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeClient;
@@ -21,12 +19,6 @@ import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelResponse;
 @Service
 @Slf4j
 public class BedrockService {
-
-    @Value("${aws.access-key}")
-    private String accessKey;
-
-    @Value("${aws.secret-key}")
-    private String secretKey;
 
     @Value("${aws.region}")
     private String region;
@@ -45,13 +37,10 @@ public class BedrockService {
     @PostConstruct
     public void init() {
         log.info("🚀 Bedrock Runtime Client を初期化中...");
+        // credentialsProvider は明示指定せず、AWS SDK の標準クレデンシャルチェーンに委譲。
+        // env vars → ~/.aws/credentials → ECS Task Role → EC2 Instance Profile の順で解決。
         bedrockClient = BedrockRuntimeClient.builder()
                 .region(Region.of(region))
-                .credentialsProvider(
-                        StaticCredentialsProvider.create(
-                                AwsBasicCredentials.create(accessKey, secretKey)
-                        )
-                )
                 .build();
         log.info("✅ Bedrock Runtime Client 初期化完了 - Region: {}", region);
     }

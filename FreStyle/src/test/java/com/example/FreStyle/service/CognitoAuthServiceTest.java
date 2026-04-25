@@ -22,7 +22,7 @@ class CognitoAuthServiceTest {
     @BeforeEach
     void setUp() {
         cognitoClient = mock(CognitoIdentityProviderClient.class);
-        service = new CognitoAuthService("dummyAccessKey", "dummySecretKey", "ap-northeast-1");
+        service = new CognitoAuthService("ap-northeast-1");
         ReflectionTestUtils.setField(service, "cognitoClient", cognitoClient);
         ReflectionTestUtils.setField(service, "clientId", "testClientId");
         ReflectionTestUtils.setField(service, "clientSecret", "testClientSecret");

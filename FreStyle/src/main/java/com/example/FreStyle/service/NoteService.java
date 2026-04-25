@@ -5,8 +5,6 @@ import com.example.FreStyle.repository.NoteRepository;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Repository;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.*;
@@ -28,12 +26,6 @@ public class NoteService implements NoteRepository {
     private DynamoDbClient dynamoDbClient;
     private String tableName;
 
-    @Value("${aws.access-key:}")
-    private String accessKey;
-
-    @Value("${aws.secret-key:}")
-    private String secretKey;
-
     @Value("${aws.region:}")
     private String region;
 
@@ -50,14 +42,11 @@ public class NoteService implements NoteRepository {
 
     @PostConstruct
     public void init() {
-        if (dynamoDbClient == null && !accessKey.isEmpty()) {
+        // credentialsProvider は明示指定せず、AWS SDK の標準クレデンシャルチェーンに委譲。
+        // env vars → ~/.aws/credentials → ECS Task Role → EC2 Instance Profile の順で解決。
+        if (dynamoDbClient == null && region != null && !region.isEmpty()) {
             dynamoDbClient = DynamoDbClient.builder()
                     .region(Region.of(region))
-                    .credentialsProvider(
-                            StaticCredentialsProvider.create(
-                                    AwsBasicCredentials.create(accessKey, secretKey)
-                            )
-                    )
                     .build();
         }
         if (tableName == null) {

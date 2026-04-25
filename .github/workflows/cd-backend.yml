@@ -15,13 +15,12 @@ name: CD - Backend Deploy to ECS
 #   3) force-new-deployment でローリング再起動
 #
 # 必要な GitHub Secrets（事前セットアップが必要）:
-#   - AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY  : 管理者用 IAM
+#   - AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY  : 管理者用 IAM（後で OIDC Role に移行予定）
 #   - AWS_ECR_API_SERVER_REPOSITORY              : 例 fre-style
-#   - SPRING_AWS_ACCESS_KEY / SPRING_AWS_SECRET_KEY : ECS タスク内アプリ用 IAM
-#   - COGNITO_CLIENT_ID / COGNITO_CLIENT_SECRET / COGNITO_REDIRECT_URI / COGNITO_TOKEN_URI / COGNITO_JWK_SET_URI
+#   - COGNITO_CLIENT_ID / COGNITO_REDIRECT_URI / COGNITO_TOKEN_URI / COGNITO_JWK_SET_URI
+#     ※ COGNITO_CLIENT_SECRET と DB password は AWS Secrets Manager に保管済み（Step 2 で導入）
+#     ※ ECS タスクは Task Role を使うため SPRING_AWS_ACCESS_KEY/SECRET は廃止（Step 1 で導入）
 #   - IAC_REPO_TOKEN  : frestyle-infrastructure (private repo) 読み取り用 PAT
-#                       (Settings → Developer settings → Fine-grained PAT で
-#                        Contents: Read 権限を frestyle-infrastructure に付与)
 # 詳細は .github/workflows/README.md 参照
 
 on:
@@ -150,21 +149,26 @@ jobs:
           SQS_URL=$(aws cloudformation describe-stacks --region $AWS_REGION \
             --stack-name $STACK_PFX-sqs \
             --query 'Stacks[0].Outputs[?OutputKey==`ReportQueueUrl`].OutputValue' --output text)
+          EXEC_ROLE=$(aws cloudformation describe-stacks --region $AWS_REGION \
+            --stack-name $STACK_PFX-iam \
+            --query 'Stacks[0].Outputs[?OutputKey==`TaskExecutionRoleArn`].OutputValue' --output text)
+          TASK_ROLE=$(aws cloudformation describe-stacks --region $AWS_REGION \
+            --stack-name $STACK_PFX-iam \
+            --query 'Stacks[0].Outputs[?OutputKey==`TaskRoleArn`].OutputValue' --output text)
+          DB_PWD_ARN=$(aws secretsmanager describe-secret --region $AWS_REGION \
+            --secret-id $STACK_PFX/db-master-password --query 'ARN' --output text)
+          COG_SEC_ARN=$(aws secretsmanager describe-secret --region $AWS_REGION \
+            --secret-id $STACK_PFX/cognito-client-secret --query 'ARN' --output text)
 
           echo "ecs_sg=$ECS_SG" >> "$GITHUB_OUTPUT"
           echo "tg_arn=$TG_ARN" >> "$GITHUB_OUTPUT"
           echo "db_url=jdbc:mysql://$DB_HOST:$DB_PORT/$DB_NAME" >> "$GITHUB_OUTPUT"
           echo "s3_bucket=$S3_BUCKET" >> "$GITHUB_OUTPUT"
           echo "sqs_url=$SQS_URL" >> "$GITHUB_OUTPUT"
-
-      - name: Fetch DB password from Secrets Manager
-        id: dbpass
-        run: |
-          PWD=$(aws secretsmanager get-secret-value --region $AWS_REGION \
-            --secret-id frestyle-prod/db-master-password \
-            --query SecretString --output text)
-          echo "::add-mask::$PWD"
-          echo "value=$PWD" >> "$GITHUB_OUTPUT"
+          echo "exec_role=$EXEC_ROLE" >> "$GITHUB_OUTPUT"
+          echo "task_role=$TASK_ROLE" >> "$GITHUB_OUTPUT"
+          echo "db_pwd_arn=$DB_PWD_ARN" >> "$GITHUB_OUTPUT"
+          echo "cog_sec_arn=$COG_SEC_ARN" >> "$GITHUB_OUTPUT"
 
       - name: Deploy ECS stack
         env:
@@ -173,7 +177,10 @@ jobs:
           DB_URL: ${{ steps.deps.outputs.db_url }}
           S3_BUCKET: ${{ steps.deps.outputs.s3_bucket }}
           SQS_URL: ${{ steps.deps.outputs.sqs_url }}
-          DB_PASS: ${{ steps.dbpass.outputs.value }}
+          EXEC_ROLE: ${{ steps.deps.outputs.exec_role }}
+          TASK_ROLE: ${{ steps.deps.outputs.task_role }}
+          DB_PWD_ARN: ${{ steps.deps.outputs.db_pwd_arn }}
+          COG_SEC_ARN: ${{ steps.deps.outputs.cog_sec_arn }}
         run: |
           aws cloudformation deploy --region $AWS_REGION \
             --stack-name $STACK_PFX-ecs \
@@ -184,16 +191,16 @@ jobs:
               TargetGroupArn="$TG_ARN" \
               DBUrl="$DB_URL" \
               DBUser=admin \
-              DBPass="$DB_PASS" \
+              DBPasswordSecretArn="$DB_PWD_ARN" \
               CognitoClientId="${{ secrets.COGNITO_CLIENT_ID }}" \
-              CognitoClientSecret="${{ secrets.COGNITO_CLIENT_SECRET }}" \
+              CognitoClientSecretArn="$COG_SEC_ARN" \
               CognitoRedirectUri="${{ secrets.COGNITO_REDIRECT_URI }}" \
               CognitoTokenUri="${{ secrets.COGNITO_TOKEN_URI }}" \
               CognitoJwkSetUri="${{ secrets.COGNITO_JWK_SET_URI }}" \
-              AwsAccessKey="${{ secrets.SPRING_AWS_ACCESS_KEY }}" \
-              AwsSecretKey="${{ secrets.SPRING_AWS_SECRET_KEY }}" \
               NoteImagesBucket="$S3_BUCKET" \
               SqsReportQueueUrl="$SQS_URL" \
+              ExecutionRoleArn="$EXEC_ROLE" \
+              TaskRoleArn="$TASK_ROLE" \
             --capabilities CAPABILITY_IAM \
             --no-fail-on-empty-changeset \
             --tags Project=FreStyle Environment=$ENV ManagedBy=CloudFormation

@@ -6,6 +6,23 @@ name: CD - Backend Deploy to ECS
 #   - tag push (release/v*)     : リリースタグ付与でデプロイ
 #
 # main への通常 push では動かない。ドキュメント変更などで誤ってデプロイされない。
+#
+# 仕組み:
+#   1) Docker image を ECR に push (:latest と :${sha} の両方)
+#   2) frestyle-infrastructure リポの CFn テンプレートを使って
+#      ECS Cluster + Service + Task Definition を CFn deploy
+#      （GitHub Secrets を parameter-overrides 経由で渡す）
+#   3) force-new-deployment でローリング再起動
+#
+# 必要な GitHub Secrets（事前セットアップが必要）:
+#   - AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY  : 管理者用 IAM
+#   - AWS_ECR_API_SERVER_REPOSITORY              : 例 fre-style
+#   - SPRING_AWS_ACCESS_KEY / SPRING_AWS_SECRET_KEY : ECS タスク内アプリ用 IAM
+#   - COGNITO_CLIENT_ID / COGNITO_CLIENT_SECRET / COGNITO_REDIRECT_URI / COGNITO_TOKEN_URI / COGNITO_JWK_SET_URI
+#   - IAC_REPO_TOKEN  : frestyle-infrastructure (private repo) 読み取り用 PAT
+#                       (Settings → Developer settings → Fine-grained PAT で
+#                        Contents: Read 権限を frestyle-infrastructure に付与)
+# 詳細は .github/workflows/README.md 参照
 
 on:
   workflow_dispatch:
@@ -20,9 +37,10 @@ on:
 
 env:
   AWS_REGION: ap-northeast-1
-  ECS_SERVICE: fre-style-service
-  ECS_CLUSTER: fre-style-cluster
-  ECS_TASK_DEFINITION: .aws/task-definition.json
+  PROJECT: frestyle
+  ENV: prod
+  STACK_PFX: frestyle-prod
+  IAC_REPO: norman6464/frestyle-infrastructure
 
 permissions:
   contents: read
@@ -43,12 +61,12 @@ jobs:
   build-and-push:
     name: Build & Push Image
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     needs: [guard]
     if: always() && (github.event_name == 'push' || needs.guard.result == 'success')
-    defaults:
-      run:
-        working-directory: FreStyle
+
+    outputs:
+      image_tag: ${{ steps.meta.outputs.image_tag }}
 
     steps:
       - uses: actions/checkout@v4
@@ -64,7 +82,16 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Set image metadata
+        id: meta
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ secrets.AWS_ECR_API_SERVER_REPOSITORY }}
+        run: |
+          echo "image_tag=$ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}" >> "$GITHUB_OUTPUT"
+
       - name: Build production image
+        working-directory: FreStyle
         run: docker image build --target production -t temp_api_image_name:latest .
 
       - name: Tag and push to ECR
@@ -77,14 +104,20 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}
 
-  deploy:
-    name: Deploy to ECS
+  cfn-deploy:
+    name: CloudFormation Deploy (ECS Stack)
     runs-on: ubuntu-latest
     needs: [build-and-push]
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
-      - uses: actions/checkout@v4
+      # IaC リポを clone（プライベートなので gh CLI 経由でトークン認証）
+      - name: Checkout frestyle-infrastructure
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.IAC_REPO }}
+          token: ${{ secrets.IAC_REPO_TOKEN }}
+          path: iac
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -93,47 +126,103 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+      - name: Resolve dependent stack outputs
+        id: deps
+        run: |
+          ECS_SG=$(aws cloudformation describe-stacks --region $AWS_REGION \
+            --stack-name $STACK_PFX-sg \
+            --query 'Stacks[0].Outputs[?OutputKey==`EcsServiceSecurityGroupId`].OutputValue' --output text)
+          TG_ARN=$(aws cloudformation describe-stacks --region $AWS_REGION \
+            --stack-name $STACK_PFX-alb \
+            --query 'Stacks[0].Outputs[?OutputKey==`TargetGroupArn`].OutputValue' --output text)
+          DB_HOST=$(aws cloudformation describe-stacks --region $AWS_REGION \
+            --stack-name $STACK_PFX-rds \
+            --query 'Stacks[0].Outputs[?OutputKey==`DBEndpoint`].OutputValue' --output text)
+          DB_PORT=$(aws cloudformation describe-stacks --region $AWS_REGION \
+            --stack-name $STACK_PFX-rds \
+            --query 'Stacks[0].Outputs[?OutputKey==`DBPort`].OutputValue' --output text)
+          DB_NAME=$(aws cloudformation describe-stacks --region $AWS_REGION \
+            --stack-name $STACK_PFX-rds \
+            --query 'Stacks[0].Outputs[?OutputKey==`DBName`].OutputValue' --output text)
+          S3_BUCKET=$(aws cloudformation describe-stacks --region $AWS_REGION \
+            --stack-name $STACK_PFX-s3 \
+            --query 'Stacks[0].Outputs[?OutputKey==`NoteImagesBucketName`].OutputValue' --output text)
+          SQS_URL=$(aws cloudformation describe-stacks --region $AWS_REGION \
+            --stack-name $STACK_PFX-sqs \
+            --query 'Stacks[0].Outputs[?OutputKey==`ReportQueueUrl`].OutputValue' --output text)
 
-      - name: Render X-Ray daemon container
-        id: render-xray
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:
-          task-definition: ${{ env.ECS_TASK_DEFINITION }}
-          container-name: xray-daemon
-          image: public.ecr.aws/xray/aws-xray-daemon:latest
+          echo "ecs_sg=$ECS_SG" >> "$GITHUB_OUTPUT"
+          echo "tg_arn=$TG_ARN" >> "$GITHUB_OUTPUT"
+          echo "db_url=jdbc:mysql://$DB_HOST:$DB_PORT/$DB_NAME" >> "$GITHUB_OUTPUT"
+          echo "s3_bucket=$S3_BUCKET" >> "$GITHUB_OUTPUT"
+          echo "sqs_url=$SQS_URL" >> "$GITHUB_OUTPUT"
 
-      - name: Render app container
-        id: render-task
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:
-          task-definition: ${{ steps.render-xray.outputs.task-definition }}
-          container-name: fre-style
-          image: ${{ steps.login-ecr.outputs.registry }}/${{ secrets.AWS_ECR_API_SERVER_REPOSITORY }}:latest
-          environment-variables: |
-            DB_URL=${{ secrets.DB_URL }}
-            DB_USER=${{ secrets.DB_USER }}
-            DB_PASS=${{ secrets.DB_PASS }}
-            AWS_ACCESS_KEY=${{ secrets.SPRING_AWS_ACCESS_KEY }}
-            AWS_SECRET_KEY=${{ secrets.SPRING_AWS_SECRET_KEY }}
-            AWS_REGION=${{ env.AWS_REGION }}
-            COGNITO_CLIENT_ID=${{ secrets.COGNITO_CLIENT_ID }}
-            COGNITO_CLIENT_SECRET=${{ secrets.COGNITO_CLIENT_SECRET }}
-            COGNITO_REDIRECT_URI=${{ secrets.COGNITO_REDIRECT_URI }}
-            COGNITO_TOKEN_URI=${{ secrets.COGNITO_TOKEN_URI }}
-            COGNITO_JWK_SET_URI=${{ secrets.COGNITO_JWK_SET_URI }}
-            DYNAMODB_AI_CHAT_TABLE=${{ secrets.DYNAMODB_AI_CHAT_TABLE }}
-            DYNAMODB_CHAT_TABLE=${{ secrets.DYNAMODB_CHAT_TABLE }}
-            NOTE_IMAGES_BUCKET=${{ secrets.NOTE_IMAGES_BUCKET }}
-            NOTE_IMAGES_CDN_URL=${{ secrets.NOTE_IMAGES_CDN_URL }}
-            SQS_REPORT_QUEUE_URL=${{ secrets.SQS_REPORT_QUEUE_URL }}
+      - name: Fetch DB password from Secrets Manager
+        id: dbpass
+        run: |
+          PWD=$(aws secretsmanager get-secret-value --region $AWS_REGION \
+            --secret-id frestyle-prod/db-master-password \
+            --query SecretString --output text)
+          echo "::add-mask::$PWD"
+          echo "value=$PWD" >> "$GITHUB_OUTPUT"
 
-      - name: Deploy task definition
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
-        with:
-          task-definition: ${{ steps.render-task.outputs.task-definition }}
-          service: ${{ env.ECS_SERVICE }}
-          cluster: ${{ env.ECS_CLUSTER }}
-          wait-for-service-stability: false
+      - name: Deploy ECS stack
+        env:
+          ECS_SG: ${{ steps.deps.outputs.ecs_sg }}
+          TG_ARN: ${{ steps.deps.outputs.tg_arn }}
+          DB_URL: ${{ steps.deps.outputs.db_url }}
+          S3_BUCKET: ${{ steps.deps.outputs.s3_bucket }}
+          SQS_URL: ${{ steps.deps.outputs.sqs_url }}
+          DB_PASS: ${{ steps.dbpass.outputs.value }}
+        run: |
+          aws cloudformation deploy --region $AWS_REGION \
+            --stack-name $STACK_PFX-ecs \
+            --template-file iac/infrastructure/cloudformation/templates/runtime/ecs.yml \
+            --parameter-overrides \
+              Environment=$ENV \
+              EcsServiceSecurityGroupId="$ECS_SG" \
+              TargetGroupArn="$TG_ARN" \
+              DBUrl="$DB_URL" \
+              DBUser=admin \
+              DBPass="$DB_PASS" \
+              CognitoClientId="${{ secrets.COGNITO_CLIENT_ID }}" \
+              CognitoClientSecret="${{ secrets.COGNITO_CLIENT_SECRET }}" \
+              CognitoRedirectUri="${{ secrets.COGNITO_REDIRECT_URI }}" \
+              CognitoTokenUri="${{ secrets.COGNITO_TOKEN_URI }}" \
+              CognitoJwkSetUri="${{ secrets.COGNITO_JWK_SET_URI }}" \
+              AwsAccessKey="${{ secrets.SPRING_AWS_ACCESS_KEY }}" \
+              AwsSecretKey="${{ secrets.SPRING_AWS_SECRET_KEY }}" \
+              NoteImagesBucket="$S3_BUCKET" \
+              SqsReportQueueUrl="$SQS_URL" \
+            --capabilities CAPABILITY_IAM \
+            --no-fail-on-empty-changeset \
+            --tags Project=FreStyle Environment=$ENV ManagedBy=CloudFormation
+
+      - name: Force new deployment (rolling restart)
+        run: |
+          aws ecs update-service --region $AWS_REGION \
+            --cluster $STACK_PFX --service $STACK_PFX-svc \
+            --force-new-deployment \
+            --query 'service.deployments[0].status' --output text
+
+      - name: Wait for service to stabilize
+        run: |
+          aws ecs wait services-stable --region $AWS_REGION \
+            --cluster $STACK_PFX --services $STACK_PFX-svc
+
+      - name: Verify health
+        run: |
+          ALB_DNS=$(aws cloudformation describe-stacks --region $AWS_REGION \
+            --stack-name $STACK_PFX-alb \
+            --query 'Stacks[0].Outputs[?OutputKey==`LoadBalancerDnsName`].OutputValue' --output text)
+          echo "ALB DNS: $ALB_DNS"
+          for i in 1 2 3 4 5; do
+            if curl -fsS "http://$ALB_DNS/actuator/health"; then
+              echo "✅ Healthy"
+              exit 0
+            fi
+            echo "Attempt $i failed, retrying in 10s..."
+            sleep 10
+          done
+          echo "❌ Health check failed after 5 attempts"
+          exit 1

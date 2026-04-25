@@ -1,0 +1,207 @@
+name: Scheduled - Start (recreate ALB + ECS at morning)
+
+# 目的: 毎日 07:00 JST (22:00 UTC) に ALB と ECS を再作成して稼働開始。
+# scheduled-stop.yml と対になる。
+#
+# 流れ:
+#   1) ALB を CFn deploy（新しい AWS DNS 名が払い出される）
+#   2) ECS を CFn deploy（IAM Role / Secrets Manager は前夜から残置）
+#   3) Cloudflare DNS で api.normanblog.com の CNAME を新 ALB に更新
+#   4) services-stable wait + ヘルスチェック
+#
+# 認証: GitHub OIDC + IAM Role (frestyle-prod-github-actions-role)
+
+on:
+  schedule:
+    # 07:00 JST = 22:00 UTC（前日）、毎日
+    - cron: '0 22 * * *'
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: '手動実行時は "start" と入力'
+        required: true
+        type: string
+
+env:
+  AWS_REGION: ap-northeast-1
+  STACK_PFX: frestyle-prod
+  AWS_ROLE_ARN: arn:aws:iam::010928196665:role/frestyle-prod-github-actions-role
+  IAC_REPO: norman6464/frestyle-infrastructure
+  CF_API_RECORD_NAME: api.normanblog.com
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  start:
+    name: Recreate ALB + ECS
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Verify input (workflow_dispatch only)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          if [ "${{ inputs.confirm }}" != "start" ]; then
+            echo "ERROR: confirm に 'start' と入力されていません"
+            exit 1
+          fi
+
+      - name: Checkout frestyle-infrastructure
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.IAC_REPO }}
+          token: ${{ secrets.IAC_REPO_TOKEN }}
+          path: iac
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          role-session-name: frestyle-scheduled-start
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy ALB stack
+        run: |
+          ALB_SG=$(aws cloudformation describe-stacks --region $AWS_REGION \
+            --stack-name $STACK_PFX-sg \
+            --query 'Stacks[0].Outputs[?OutputKey==`AlbSecurityGroupId`].OutputValue' --output text)
+          aws cloudformation deploy --region $AWS_REGION \
+            --stack-name $STACK_PFX-alb \
+            --template-file iac/infrastructure/cloudformation/templates/runtime/alb.yml \
+            --parameter-overrides Environment=prod AlbSecurityGroupId=$ALB_SG \
+            --capabilities CAPABILITY_IAM --no-fail-on-empty-changeset \
+            --tags Project=FreStyle Environment=prod ManagedBy=CloudFormation
+
+      - name: Resolve dependent stack outputs
+        id: deps
+        run: |
+          ECS_SG=$(aws cloudformation describe-stacks --region $AWS_REGION \
+            --stack-name $STACK_PFX-sg \
+            --query 'Stacks[0].Outputs[?OutputKey==`EcsServiceSecurityGroupId`].OutputValue' --output text)
+          TG_ARN=$(aws cloudformation describe-stacks --region $AWS_REGION \
+            --stack-name $STACK_PFX-alb \
+            --query 'Stacks[0].Outputs[?OutputKey==`TargetGroupArn`].OutputValue' --output text)
+          DB_HOST=$(aws cloudformation describe-stacks --region $AWS_REGION \
+            --stack-name $STACK_PFX-rds \
+            --query 'Stacks[0].Outputs[?OutputKey==`DBEndpoint`].OutputValue' --output text)
+          DB_PORT=$(aws cloudformation describe-stacks --region $AWS_REGION \
+            --stack-name $STACK_PFX-rds \
+            --query 'Stacks[0].Outputs[?OutputKey==`DBPort`].OutputValue' --output text)
+          DB_NAME=$(aws cloudformation describe-stacks --region $AWS_REGION \
+            --stack-name $STACK_PFX-rds \
+            --query 'Stacks[0].Outputs[?OutputKey==`DBName`].OutputValue' --output text)
+          S3_BUCKET=$(aws cloudformation describe-stacks --region $AWS_REGION \
+            --stack-name $STACK_PFX-s3 \
+            --query 'Stacks[0].Outputs[?OutputKey==`NoteImagesBucketName`].OutputValue' --output text)
+          SQS_URL=$(aws cloudformation describe-stacks --region $AWS_REGION \
+            --stack-name $STACK_PFX-sqs \
+            --query 'Stacks[0].Outputs[?OutputKey==`ReportQueueUrl`].OutputValue' --output text)
+          EXEC_ROLE=$(aws cloudformation describe-stacks --region $AWS_REGION \
+            --stack-name $STACK_PFX-iam \
+            --query 'Stacks[0].Outputs[?OutputKey==`TaskExecutionRoleArn`].OutputValue' --output text)
+          TASK_ROLE=$(aws cloudformation describe-stacks --region $AWS_REGION \
+            --stack-name $STACK_PFX-iam \
+            --query 'Stacks[0].Outputs[?OutputKey==`TaskRoleArn`].OutputValue' --output text)
+          DB_PWD_ARN=$(aws secretsmanager describe-secret --region $AWS_REGION \
+            --secret-id $STACK_PFX/db-master-password --query 'ARN' --output text)
+          COG_SEC_ARN=$(aws secretsmanager describe-secret --region $AWS_REGION \
+            --secret-id $STACK_PFX/cognito-client-secret --query 'ARN' --output text)
+          ALB_DNS=$(aws cloudformation describe-stacks --region $AWS_REGION \
+            --stack-name $STACK_PFX-alb \
+            --query 'Stacks[0].Outputs[?OutputKey==`LoadBalancerDnsName`].OutputValue' --output text)
+
+          {
+            echo "ecs_sg=$ECS_SG"
+            echo "tg_arn=$TG_ARN"
+            echo "db_url=jdbc:mysql://$DB_HOST:$DB_PORT/$DB_NAME"
+            echo "s3_bucket=$S3_BUCKET"
+            echo "sqs_url=$SQS_URL"
+            echo "exec_role=$EXEC_ROLE"
+            echo "task_role=$TASK_ROLE"
+            echo "db_pwd_arn=$DB_PWD_ARN"
+            echo "cog_sec_arn=$COG_SEC_ARN"
+            echo "alb_dns=$ALB_DNS"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Deploy ECS stack
+        env:
+          ECS_SG: ${{ steps.deps.outputs.ecs_sg }}
+          TG_ARN: ${{ steps.deps.outputs.tg_arn }}
+          DB_URL: ${{ steps.deps.outputs.db_url }}
+          S3_BUCKET: ${{ steps.deps.outputs.s3_bucket }}
+          SQS_URL: ${{ steps.deps.outputs.sqs_url }}
+          EXEC_ROLE: ${{ steps.deps.outputs.exec_role }}
+          TASK_ROLE: ${{ steps.deps.outputs.task_role }}
+          DB_PWD_ARN: ${{ steps.deps.outputs.db_pwd_arn }}
+          COG_SEC_ARN: ${{ steps.deps.outputs.cog_sec_arn }}
+        run: |
+          aws cloudformation deploy --region $AWS_REGION \
+            --stack-name $STACK_PFX-ecs \
+            --template-file iac/infrastructure/cloudformation/templates/runtime/ecs.yml \
+            --parameter-overrides \
+              Environment=prod \
+              EcsServiceSecurityGroupId="$ECS_SG" \
+              TargetGroupArn="$TG_ARN" \
+              DBUrl="$DB_URL" \
+              DBUser=admin \
+              DBPasswordSecretArn="$DB_PWD_ARN" \
+              CognitoClientId="${{ secrets.COGNITO_CLIENT_ID }}" \
+              CognitoClientSecretArn="$COG_SEC_ARN" \
+              CognitoRedirectUri="${{ secrets.COGNITO_REDIRECT_URI }}" \
+              CognitoTokenUri="${{ secrets.COGNITO_TOKEN_URI }}" \
+              CognitoJwkSetUri="${{ secrets.COGNITO_JWK_SET_URI }}" \
+              NoteImagesBucket="$S3_BUCKET" \
+              SqsReportQueueUrl="$SQS_URL" \
+              ExecutionRoleArn="$EXEC_ROLE" \
+              TaskRoleArn="$TASK_ROLE" \
+            --capabilities CAPABILITY_IAM --no-fail-on-empty-changeset \
+            --tags Project=FreStyle Environment=prod ManagedBy=CloudFormation
+
+      - name: Update Cloudflare DNS to new ALB
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ZONE_ID: ${{ secrets.CF_ZONE_ID }}
+          ALB_DNS: ${{ steps.deps.outputs.alb_dns }}
+        run: |
+          REC_ID=$(curl -s -H "Authorization: Bearer $CF_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/dns_records?type=CNAME&name=$CF_API_RECORD_NAME" | \
+            jq -r '.result[0].id // ""')
+          BODY=$(jq -n --arg name "$CF_API_RECORD_NAME" --arg content "$ALB_DNS" \
+            '{type:"CNAME", name:$name, content:$content, ttl:1, proxied:true}')
+          if [ -n "$REC_ID" ]; then
+            echo "Updating existing record id=$REC_ID -> $ALB_DNS"
+            curl -s -X PUT -H "Authorization: Bearer $CF_API_TOKEN" -H "Content-Type: application/json" \
+              --data "$BODY" \
+              "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/dns_records/$REC_ID" | jq '.success, .result.content'
+          else
+            echo "Creating new record -> $ALB_DNS"
+            curl -s -X POST -H "Authorization: Bearer $CF_API_TOKEN" -H "Content-Type: application/json" \
+              --data "$BODY" \
+              "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/dns_records" | jq '.success, .result.content'
+          fi
+
+      - name: Wait for ECS service to stabilize
+        run: |
+          aws ecs wait services-stable --region $AWS_REGION \
+            --cluster $STACK_PFX --services $STACK_PFX-svc
+
+      - name: Health check via ALB DNS (Cloudflare 伝播前でも確認可)
+        env:
+          ALB_DNS: ${{ steps.deps.outputs.alb_dns }}
+        run: |
+          for i in 1 2 3 4 5; do
+            if curl -fsS "http://$ALB_DNS/actuator/health"; then
+              echo "✅ Healthy"
+              exit 0
+            fi
+            echo "Attempt $i failed, retrying in 15s..."
+            sleep 15
+          done
+          echo "❌ Health check failed after 5 attempts"
+          exit 1
+
+      - name: Summary
+        run: |
+          echo "☀️ Morning start complete at $(date -u +"%Y-%m-%dT%H:%M:%SZ")"

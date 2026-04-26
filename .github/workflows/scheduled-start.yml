@@ -65,6 +65,25 @@ jobs:
           role-session-name: frestyle-scheduled-start
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Cleanup stale ROLLBACK_COMPLETE stacks (self-healing)
+        run: |
+          # 前夜の scheduled-stop / 前回の cd-backend が ROLLBACK_COMPLETE で残っていると
+          # 今回の deploy が "stack cannot be updated" で失敗する。先に削除しておく。
+          for STACK in $STACK_PFX-ecs $STACK_PFX-alb; do
+            STATUS=$(aws cloudformation describe-stacks --region $AWS_REGION \
+              --stack-name $STACK --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "ABSENT")
+            case "$STATUS" in
+              ROLLBACK_COMPLETE|UPDATE_ROLLBACK_COMPLETE|CREATE_FAILED)
+                echo "Stack $STACK is in $STATUS — deleting before redeploy"
+                aws cloudformation delete-stack --region $AWS_REGION --stack-name $STACK
+                aws cloudformation wait stack-delete-complete --region $AWS_REGION --stack-name $STACK || true
+                ;;
+              *)
+                echo "Stack $STACK status=$STATUS (no cleanup needed)"
+                ;;
+            esac
+          done
+
       - name: Deploy ALB stack
         run: |
           ALB_SG=$(aws cloudformation describe-stacks --region $AWS_REGION \
@@ -86,14 +105,15 @@ jobs:
           TG_ARN=$(aws cloudformation describe-stacks --region $AWS_REGION \
             --stack-name $STACK_PFX-alb \
             --query 'Stacks[0].Outputs[?OutputKey==`TargetGroupArn`].OutputValue' --output text)
+          # PostgreSQL に切替済 (frestyle-prod-rds-postgres)
           DB_HOST=$(aws cloudformation describe-stacks --region $AWS_REGION \
-            --stack-name $STACK_PFX-rds \
+            --stack-name $STACK_PFX-rds-postgres \
             --query 'Stacks[0].Outputs[?OutputKey==`DBEndpoint`].OutputValue' --output text)
           DB_PORT=$(aws cloudformation describe-stacks --region $AWS_REGION \
-            --stack-name $STACK_PFX-rds \
+            --stack-name $STACK_PFX-rds-postgres \
             --query 'Stacks[0].Outputs[?OutputKey==`DBPort`].OutputValue' --output text)
           DB_NAME=$(aws cloudformation describe-stacks --region $AWS_REGION \
-            --stack-name $STACK_PFX-rds \
+            --stack-name $STACK_PFX-rds-postgres \
             --query 'Stacks[0].Outputs[?OutputKey==`DBName`].OutputValue' --output text)
           S3_BUCKET=$(aws cloudformation describe-stacks --region $AWS_REGION \
             --stack-name $STACK_PFX-s3 \
@@ -107,8 +127,9 @@ jobs:
           TASK_ROLE=$(aws cloudformation describe-stacks --region $AWS_REGION \
             --stack-name $STACK_PFX-iam \
             --query 'Stacks[0].Outputs[?OutputKey==`TaskRoleArn`].OutputValue' --output text)
+          # PostgreSQL master password (旧 db-master-password ではなく pg-master-password)
           DB_PWD_ARN=$(aws secretsmanager describe-secret --region $AWS_REGION \
-            --secret-id $STACK_PFX/db-master-password --query 'ARN' --output text)
+            --secret-id $STACK_PFX/pg-master-password --query 'ARN' --output text)
           COG_SEC_ARN=$(aws secretsmanager describe-secret --region $AWS_REGION \
             --secret-id $STACK_PFX/cognito-client-secret --query 'ARN' --output text)
           ALB_ARN=$(aws cloudformation describe-stacks --region $AWS_REGION \
@@ -125,7 +146,7 @@ jobs:
           {
             echo "ecs_sg=$ECS_SG"
             echo "tg_arn=$TG_ARN"
-            echo "db_url=jdbc:mysql://$DB_HOST:$DB_PORT/$DB_NAME"
+            echo "db_url=jdbc:postgresql://$DB_HOST:$DB_PORT/$DB_NAME"
             echo "s3_bucket=$S3_BUCKET"
             echo "sqs_url=$SQS_URL"
             echo "exec_role=$EXEC_ROLE"
@@ -156,7 +177,7 @@ jobs:
               EcsServiceSecurityGroupId="$ECS_SG" \
               TargetGroupArn="$TG_ARN" \
               DBUrl="$DB_URL" \
-              DBUser=admin \
+              DBUser=postgres \
               DBPasswordSecretArn="$DB_PWD_ARN" \
               CognitoClientId="${{ secrets.COGNITO_CLIENT_ID }}" \
               CognitoClientSecretArn="$COG_SEC_ARN" \

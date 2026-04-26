@@ -38,6 +38,7 @@ const SharedSessionsPage = lazy(() => import('./pages/SharedSessionsPage'));
 const WeeklyChallengePage = lazy(() => import('./pages/WeeklyChallengePage'));
 const HelpPage = lazy(() => import('./pages/HelpPage'));
 const AdminScenariosPage = lazy(() => import('./pages/AdminScenariosPage'));
+const AdminInvitationsPage = lazy(() => import('./pages/AdminInvitationsPage'));
 
 function NavigationToast() {
   const location = useLocation();
@@ -104,6 +105,7 @@ export default function App() {
         <Route path="/help" element={<HelpPage />} />
         {/* Admin 専用（コンポーネント側で isAdmin チェック → 非 admin は / にリダイレクト） */}
         <Route path="/admin/scenarios" element={<AdminScenariosPage />} />
+        <Route path="/admin/invitations" element={<AdminInvitationsPage />} />
       </Route>
     </Routes>
     </Suspense>

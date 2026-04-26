@@ -1,8 +1,10 @@
 import { useLocation } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import SidebarItem from './SidebarItem';
 import Loading from '../Loading';
 import { useSidebar } from '../../hooks/useSidebar';
 import { useTheme } from '../../hooks/useTheme';
+import type { RootState } from '../../store';
 import {
   HomeIcon,
   ChatBubbleLeftRightIcon,
@@ -19,6 +21,7 @@ import {
   ArrowLeftOnRectangleIcon,
   SunIcon,
   MoonIcon,
+  Cog6ToothIcon,
 } from '@heroicons/react/24/outline';
 
 const navItems = [
@@ -47,6 +50,7 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
   const location = useLocation();
   const { totalUnread, handleLogout, loggingOut } = useSidebar();
   const { theme, toggleTheme } = useTheme();
+  const isAdmin = useSelector((state: RootState) => state.auth.isAdmin);
 
   const isActive = (item: typeof navItems[0]) => {
     if (item.matchExact) {
@@ -98,6 +102,19 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
             onClick={onNavigate}
           />
         ))}
+
+        {isAdmin && (
+          <>
+            <div className="my-3 border-t border-surface-3" />
+            <SidebarItem
+              icon={Cog6ToothIcon}
+              label="管理: シナリオ"
+              to="/admin/scenarios"
+              active={location.pathname.startsWith('/admin/scenarios')}
+              onClick={onNavigate}
+            />
+          </>
+        )}
       </nav>
 
       {/* テーマ切り替え・ログアウト */}

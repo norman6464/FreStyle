@@ -86,44 +86,45 @@ export default function ActivityHeatmap({ practiceDates }: ActivityHeatmapProps)
         </p>
       </div>
 
-      {/* 月ラベル */}
-      <div className="flex mb-1 text-[9px] text-[var(--color-text-faint)]" style={{ paddingLeft: '0px' }}>
-        {monthPositions.map((pos, i) => (
-          <span
-            key={i}
-            style={{
-              position: 'relative',
-              left: `${pos.weekIndex * 11}px`,
-              marginRight: i < monthPositions.length - 1
-                ? `${Math.max(0, (monthPositions[i + 1]?.weekIndex - pos.weekIndex) * 11 - 20)}px`
-                : '0px',
-            }}
-          >
-            {pos.label}
-          </span>
-        ))}
-      </div>
-
-      {/* ヒートマップグリッド */}
-      <div className="flex gap-[2px] overflow-x-auto">
-        {weeks.map((week, weekIndex) => (
-          <div key={weekIndex} className="flex flex-col gap-[2px]">
-            {week.map((day, dayIndex) => {
-              if (!day) {
-                return <div key={dayIndex} className="w-[9px] h-[9px]" />;
-              }
-              const dateStr = formatDate(day);
-              const count = dateCountMap.get(dateStr) || 0;
-              return (
-                <div
-                  key={dayIndex}
-                  title={dateStr}
-                  className={`w-[9px] h-[9px] rounded-[2px] ${getIntensityClass(count)}`}
-                />
-              );
-            })}
+      {/* 月ラベル + ヒートマップグリッドを横スクロール可能な単一コンテナに収める */}
+      <div className="overflow-x-auto">
+        {/* グリッド総幅: weeks * (cell 9px + gap 2px) = weeks * 11px。月ラベルとグリッドで同じ幅を共有 */}
+        <div style={{ width: `${weeks.length * 11}px` }}>
+          {/* 月ラベル: 各ラベルを weekIndex に対して absolute 配置することではみ出しを防ぐ */}
+          <div className="relative h-3 mb-1 text-[9px] text-[var(--color-text-faint)]">
+            {monthPositions.map((pos) => (
+              <span
+                key={`${pos.label}-${pos.weekIndex}`}
+                className="absolute top-0"
+                style={{ left: `${pos.weekIndex * 11}px` }}
+              >
+                {pos.label}
+              </span>
+            ))}
           </div>
-        ))}
+
+          {/* ヒートマップグリッド本体 */}
+          <div className="flex gap-[2px]">
+            {weeks.map((week, weekIndex) => (
+              <div key={weekIndex} className="flex flex-col gap-[2px]">
+                {week.map((day, dayIndex) => {
+                  if (!day) {
+                    return <div key={dayIndex} className="w-[9px] h-[9px]" />;
+                  }
+                  const dateStr = formatDate(day);
+                  const count = dateCountMap.get(dateStr) || 0;
+                  return (
+                    <div
+                      key={dayIndex}
+                      title={dateStr}
+                      className={`w-[9px] h-[9px] rounded-[2px] ${getIntensityClass(count)}`}
+                    />
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </Card>
   );

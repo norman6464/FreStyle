@@ -16,8 +16,8 @@ export default function AuthInitializer({ children }: AuthInitializerProps) {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        await authRepository.getCurrentUser();
-        dispatch(setAuthData());
+        const me = await authRepository.getCurrentUser();
+        dispatch(setAuthData({ isAdmin: !!me.isAdmin }));
       } catch {
         dispatch(clearAuth());
       } finally {

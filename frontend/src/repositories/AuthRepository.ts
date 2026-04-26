@@ -44,9 +44,11 @@ export interface ConfirmForgotPasswordRequest {
 
 export interface UserInfo {
   id: number;
-  email: string;
-  name: string;
-  sub: string;
+  email?: string;
+  name?: string;
+  sub?: string;
+  groups?: string[];
+  isAdmin?: boolean;
 }
 
 class AuthRepository {

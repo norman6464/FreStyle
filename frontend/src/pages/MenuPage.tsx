@@ -56,13 +56,16 @@ export default function MenuPage() {
   } = useMenuData();
   const { weakestAxis } = useScoreHistory();
   const { scenario: recommendedScenario } = useRecommendedScenario(weakestAxis);
+  // Hooks は条件付きの early return より前に呼ぶ（Rules of Hooks）。
+  // 以前は loading 早期 return 直後に useMemo を置いており、再レンダー時に
+  // フック呼び出し数が変わって React error #310 を引き起こしていた。
+  const overallScores = useMemo(() => allScores.map((s) => s.overallScore), [allScores]);
 
   if (loading) {
     return <Loading message="読み込み中..." className="min-h-[calc(100vh-3.5rem)]" />;
   }
 
   const isFirstTimeUser = totalSessions === 0;
-  const overallScores = useMemo(() => allScores.map((s) => s.overallScore), [allScores]);
 
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-6">

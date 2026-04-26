@@ -22,6 +22,7 @@ import {
   SunIcon,
   MoonIcon,
   Cog6ToothIcon,
+  UserPlusIcon,
 } from '@heroicons/react/24/outline';
 
 const navItems = [
@@ -113,7 +114,7 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
               onClick={onNavigate}
             />
             <SidebarItem
-              icon={Cog6ToothIcon}
+              icon={UserPlusIcon}
               label="管理: 招待"
               to="/admin/invitations"
               active={location.pathname.startsWith('/admin/invitations')}

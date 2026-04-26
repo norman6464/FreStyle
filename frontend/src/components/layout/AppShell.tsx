@@ -49,7 +49,7 @@ export default function AppShell() {
     <div className="h-screen flex bg-surface">
       <SkipLink targetId="main-content" />
       {/* デスクトップサイドバー */}
-      <div className="hidden md:block">
+      <div className="hidden md:block h-full">
         <Sidebar />
       </div>
 

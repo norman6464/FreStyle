@@ -71,9 +71,8 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
     {loggingOut && <Loading fullscreen message="ログアウト中..." />}
     <aside className="flex flex-col w-56 h-full bg-surface-1 border-r border-surface-3 flex-shrink-0">
       {/* ロゴ */}
-      <div className="h-14 flex items-center px-4 border-b border-surface-3 gap-2.5">
-        <img src="/logo.webp" alt="FreStyle" className="w-11 h-11 rounded-xl object-contain" />
-        <span className="text-base font-bold text-[var(--color-text-primary)] tracking-tight">FreStyle</span>
+      <div className="h-14 flex items-center px-3 border-b border-surface-3">
+        <img src="/logo.svg" alt="FreStyle" className="h-9 w-auto" />
       </div>
 
       {/* メインナビ */}

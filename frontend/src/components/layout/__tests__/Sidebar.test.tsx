@@ -62,17 +62,11 @@ describe('Sidebar', () => {
     expect(screen.getByText('ログアウト')).toBeDefined();
   });
 
-  it('FreStyleロゴ画像を角丸で表示する', () => {
+  it('FreStyle ロゴ SVG を表示する（F アイコン + テキストを 1 つの SVG に統合）', () => {
     renderSidebar();
     const logo = screen.getByAltText('FreStyle');
     expect(logo).toBeDefined();
-    expect(logo.getAttribute('src')).toBe('/logo.webp');
-    expect(logo.className).toContain('rounded-xl');
-  });
-
-  it('FreStyleテキストがロゴ横に表示される', () => {
-    renderSidebar();
-    expect(screen.getByText('FreStyle')).toBeInTheDocument();
+    expect(logo.getAttribute('src')).toBe('/logo.svg');
   });
 
   it('ホームルートでホームがアクティブになる', () => {

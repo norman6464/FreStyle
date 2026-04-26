@@ -65,6 +65,17 @@ vi.mock('../../hooks/useAiChat', () => ({
   useAiChat: () => mockUseAiChat,
 }));
 
+// useScoreGoal が axios 経由でリポジトリを叩くと Node の undici が
+// 「invalid onError method」を unhandled error として吐き、CI を落とす。
+// テスト対象でないので丸ごとモックする。
+vi.mock('../../hooks/useScoreGoal', () => ({
+  useScoreGoal: () => ({
+    goal: null,
+    saveGoal: vi.fn(),
+    loading: false,
+  }),
+}));
+
 // モックをクリアしてから動的にインポート
 const importScoreHistoryPage = async () => {
   return (await import('../ScoreHistoryPage')).default;

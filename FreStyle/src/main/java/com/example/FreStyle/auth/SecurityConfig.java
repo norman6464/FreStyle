@@ -45,6 +45,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/hello","/api/hello/**","/api/auth/info","/ws/chat/**","/api/auth/**","/actuator/**").permitAll()
                         // OpenAPI / Swagger UI（API 仕様書は認証不要で公開）
                         .requestMatchers("/v3/api-docs","/v3/api-docs/**","/swagger-ui.html","/swagger-ui/**").permitAll()
+                        // 管理者専用エンドポイント（Cognito の cognito:groups に "admin" を含むユーザーのみ）
+                        .requestMatchers("/api/admin/**").hasRole("admin")
                         .anyRequest().authenticated())
                 .formLogin(form -> form.disable())
                 .httpBasic(basic -> basic.disable())

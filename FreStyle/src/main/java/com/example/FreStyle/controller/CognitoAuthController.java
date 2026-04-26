@@ -247,7 +247,17 @@ public class CognitoAuthController {
                     .body(Map.of("error", "認証されていません"));
         }
         Integer id = userIdentityService.findUserBySub(jwt.getSubject()).getId();
-        log.info("GET /api/auth/cognito/me - userId={}", id);
-        return ResponseEntity.ok(Map.of("id", id));
+        // Cognito の cognito:groups クレームを抽出（フロント側で admin 判定に使う）
+        java.util.List<String> groups = jwt.getClaimAsStringList("cognito:groups");
+        if (groups == null) {
+            groups = java.util.Collections.emptyList();
+        }
+        boolean isAdmin = groups.contains("admin");
+        log.info("GET /api/auth/cognito/me - userId={}, groups={}", id, groups);
+        return ResponseEntity.ok(Map.of(
+                "id", id,
+                "groups", groups,
+                "isAdmin", isAdmin
+        ));
     }
 }

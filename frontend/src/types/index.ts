@@ -85,6 +85,7 @@ export interface FormMessage {
 export interface AuthState {
   isAuthenticated: boolean;
   loading: boolean;
+  isAdmin: boolean;
 }
 
 /** 言い換え提案結果 */

@@ -56,12 +56,11 @@ describe('LoginCallback', () => {
     });
   });
 
-  it('errorパラメータがある場合はアラート表示しログインページへリダイレクトする', async () => {
+  it('errorパラメータがある場合はトースト付きでログインページへリダイレクトする', async () => {
     renderWithRoute('?error=access_denied');
 
     await waitFor(() => {
-      expect(alert).toHaveBeenCalledWith('認証エラーが発生しました。access_denied');
-      expect(mockNavigate).toHaveBeenCalledWith('/login');
+      expect(mockNavigate).toHaveBeenCalledWith('/login', { state: { toast: '認証エラーが発生しました' } });
     });
   });
 
@@ -76,14 +75,13 @@ describe('LoginCallback', () => {
     });
   });
 
-  it('認証失敗時にアラート表示しログインページへリダイレクトする', async () => {
+  it('認証失敗時にトースト付きでログインページへリダイレクトする', async () => {
     vi.mocked(authRepository.callback).mockRejectedValue(new Error('認証失敗'));
 
     renderWithRoute('?code=invalid-code');
 
     await waitFor(() => {
-      expect(alert).toHaveBeenCalledWith('認証に失敗しました。');
-      expect(mockNavigate).toHaveBeenCalledWith('/login');
+      expect(mockNavigate).toHaveBeenCalledWith('/login', { state: { toast: '認証に失敗しました' } });
     });
   });
 });

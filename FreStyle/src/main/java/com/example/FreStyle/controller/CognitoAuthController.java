@@ -149,14 +149,9 @@ public class CognitoAuthController {
     // -----------------------
     @PostMapping("/logout")
     public ResponseEntity<?> logout(@AuthenticationPrincipal Jwt jwt, HttpServletResponse response) {
-        log.info("POST /api/auth/cognito/logout");
-        String sub = jwt.getSubject();
-
-        if (sub == null || sub.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("error", "無効なリクエストです。"));
-        }
-
+        log.info("POST /api/auth/cognito/logout (authenticated={})", jwt != null);
+        // jwt が null でも (= cookie 期限切れや既ログアウト状態でも) Cookie をクリアして
+        // 冪等に成功扱いにする。500 で詰まらせない。
         authCookieService.clearRefreshTokenCookie(response);
         return ResponseEntity.ok(Map.of("message", "ログアウトしました。"));
     }

@@ -59,7 +59,10 @@ dependencies {
 	implementation 'com.nimbusds:nimbus-jose-jwt:9.38'
 	
 	// Database Drivers
+	// MariaDB (旧: 移行期間中は両方同梱、cutover 後に削除)
 	runtimeOnly 'com.mysql:mysql-connector-j'
+	// PostgreSQL (新: Phase 0b 切替先)
+	runtimeOnly 'org.postgresql:postgresql:42.7.4'
 
 	// AWS SDK for Java (v2) - S3, Lambda, DynamoDB, Cognito操作用
 	// AWS SDKのバージョン管理をSpring Cloud AWSに任せる方法もありますが、今回は手動で追加します。

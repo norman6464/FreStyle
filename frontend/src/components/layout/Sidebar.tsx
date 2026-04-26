@@ -112,6 +112,13 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
               active={location.pathname.startsWith('/admin/scenarios')}
               onClick={onNavigate}
             />
+            <SidebarItem
+              icon={Cog6ToothIcon}
+              label="管理: 招待"
+              to="/admin/invitations"
+              active={location.pathname.startsWith('/admin/invitations')}
+              onClick={onNavigate}
+            />
           </>
         )}
       </nav>

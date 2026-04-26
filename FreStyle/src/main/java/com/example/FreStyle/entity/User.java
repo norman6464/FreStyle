@@ -33,7 +33,7 @@ public class User {
 
     @Column(length = 254, nullable = false, unique = true)
     private String email;
-    
+
     @Column(name = "icon_url", length = 255)
     private String iconUrl;
 
@@ -45,6 +45,18 @@ public class User {
 
     @Column(name = "is_active")
     private Boolean isActive = false;
+
+    /** マルチテナント: 所属会社 (super_admin は NULL) */
+    @Column(name = "company_id")
+    private Long companyId;
+
+    /** ロール: super_admin / company_admin / trainee */
+    @Column(length = 30, nullable = false)
+    private String role;
+
+    /** 論理削除タイムスタンプ */
+    @Column(name = "deleted_at")
+    private java.time.LocalDateTime deletedAt;
 
     @Column(name = "created_at", insertable = false, updatable = false)
     private Timestamp createdAt;

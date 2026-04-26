@@ -15,24 +15,47 @@
   - `frestyle-infrastructure/infrastructure/cloudformation/templates/runtime/rds-postgres.yml`
   - `frestyle-infrastructure/scripts/migrate-mariadb-to-postgres.sh`
 
-## 切替の段階構成
+## 切替の段階構成（直接 cutover 方式）
+
+> **MariaDB と PostgreSQL の並行運用はコスト重複が発生するため行わない。**
+> ベータ期で重要データが少ない (= ユーザー履歴ほぼなし、AI チャットメッセージは DynamoDB) ため、安全のためのスナップショットを取った上で MariaDB を削除し、新規 PostgreSQL に切り替える方式を採用。
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│ Step B1: 新 PostgreSQL インスタンス作成（並行運用、既存 MariaDB は稼働継続）│
+│ Step B0: MariaDB の最終スナップショット取得 → DeletionProtection 解除 →   │
+│         CFn スタック削除（frestyle-prod-rds）                              │
 ├──────────────────────────────────────────────────────────────────────────┤
-│ Step B2: schema-postgres.sql をスキーマ定義として流す                      │
+│ Step B1: PostgreSQL インスタンス作成（frestyle-prod-rds-postgres）         │
 ├──────────────────────────────────────────────────────────────────────────┤
-│ Step B3: ECS タスク内でデータ移行スクリプト実行 (MariaDB → PostgreSQL)     │
+│ Step B2: schema-postgres.sql を流す（テーブル + seed データ）               │
 ├──────────────────────────────────────────────────────────────────────────┤
-│ Step B4: ステージング ECS の DB_URL を Postgres に切替えて動作確認         │
+│ Step B3: 必要な seed をプログラム的に追加                                  │
+│         - FreStyle 社 (id=1)                                              │
+│         - 河野拓真 super_admin（Cognito 認証で自動作成 or 手動 INSERT）    │
 ├──────────────────────────────────────────────────────────────────────────┤
-│ Step B5: 本番メンテナンスウィンドウ - MariaDB を read-only → 最終差分取込  │
-│         → 本番 ECS の DB_URL を Postgres に切替 → 再デプロイ              │
+│ Step B4: ECS Task Definition を更新 (DB_URL=postgres / Profile=postgres)   │
+│         → cd-backend.yml 再実行 → ヘルスチェック OK                        │
 ├──────────────────────────────────────────────────────────────────────────┤
-│ Step B6: 1 週間モニタリング → 問題なければ MariaDB スタックを destroy      │
+│ Step B5: 動作確認 (ログイン・AI セッション・スコア表示)                    │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
+
+### データ損失について
+
+cutover 後に失われるデータ（最終スナップショットには残っている）:
+
+| データ | 失う / 失わない | 影響 |
+|---|---|---|
+| ユーザー (河野拓真) | 失わない | Cognito sub で再作成可、ログインで自動再生成 |
+| AI チャットメッセージ | **失わない** | DynamoDB 管理 |
+| AI セッションメタ (ai_chat_sessions) | 失う | スコア履歴の表示が空になる |
+| communication_scores | 失う | スコア履歴 0 件から再開 |
+| session_notes / favorites / daily_goals | 失う | ベータ期なので影響軽微 |
+| 静的シナリオ (practice_scenarios) | **失わない** | schema-postgres.sql で再シード |
+| 会話テンプレ (conversation_templates) | **失わない** | 同上 |
+| companies / users.role / company_id | **失わない** | schema-postgres.sql + seed |
+
+スナップショット (`frestyle-prod-final-pre-postgres-cutover`) は **AWS 側に保管されたまま** なので、必要なら後で別 RDS に復元してデータを取り出すことも可能。
 
 ## Step B1: 新 PostgreSQL インスタンスを作成
 

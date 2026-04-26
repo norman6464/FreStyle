@@ -6,7 +6,8 @@ name: Scheduled - Start (recreate ALB + ECS at morning)
 # 流れ:
 #   1) ALB を CFn deploy（新しい AWS DNS 名が払い出される）
 #   2) ECS を CFn deploy（IAM Role / Secrets Manager は前夜から残置）
-#   3) Cloudflare DNS で api.normanblog.com の CNAME を新 ALB に更新
+#   3) Route 53 で api.normanblog.com の Alias レコードを新 ALB に更新
+#      (normanblog.com の Hosted Zone Z02128031IOUNFFKBRXXE)
 #   4) services-stable wait + ヘルスチェック
 #
 # 認証: GitHub OIDC + IAM Role (frestyle-prod-github-actions-role)
@@ -27,7 +28,9 @@ env:
   STACK_PFX: frestyle-prod
   AWS_ROLE_ARN: arn:aws:iam::010928196665:role/frestyle-prod-github-actions-role
   IAC_REPO: norman6464/frestyle-infrastructure
-  CF_API_RECORD_NAME: api.normanblog.com
+  # Route 53: normanblog.com の権威 Hosted Zone（CloudFront も同ゾーンに紐付いている正規ゾーン）
+  R53_HOSTED_ZONE_ID: Z02128031IOUNFFKBRXXE
+  R53_RECORD_NAME: api.normanblog.com
 
 permissions:
   id-token: write
@@ -108,9 +111,16 @@ jobs:
             --secret-id $STACK_PFX/db-master-password --query 'ARN' --output text)
           COG_SEC_ARN=$(aws secretsmanager describe-secret --region $AWS_REGION \
             --secret-id $STACK_PFX/cognito-client-secret --query 'ARN' --output text)
-          ALB_DNS=$(aws cloudformation describe-stacks --region $AWS_REGION \
+          ALB_ARN=$(aws cloudformation describe-stacks --region $AWS_REGION \
             --stack-name $STACK_PFX-alb \
-            --query 'Stacks[0].Outputs[?OutputKey==`LoadBalancerDnsName`].OutputValue' --output text)
+            --query 'Stacks[0].Outputs[?OutputKey==`LoadBalancerArn`].OutputValue' --output text)
+          ALB_DNS=$(aws elbv2 describe-load-balancers --region $AWS_REGION \
+            --load-balancer-arns "$ALB_ARN" \
+            --query 'LoadBalancers[0].DNSName' --output text)
+          # ALB の CanonicalHostedZoneId（Route 53 Alias レコードで参照する固定値）
+          ALB_HOSTED_ZONE_ID=$(aws elbv2 describe-load-balancers --region $AWS_REGION \
+            --load-balancer-arns "$ALB_ARN" \
+            --query 'LoadBalancers[0].CanonicalHostedZoneId' --output text)
 
           {
             echo "ecs_sg=$ECS_SG"
@@ -123,6 +133,7 @@ jobs:
             echo "db_pwd_arn=$DB_PWD_ARN"
             echo "cog_sec_arn=$COG_SEC_ARN"
             echo "alb_dns=$ALB_DNS"
+            echo "alb_hosted_zone_id=$ALB_HOSTED_ZONE_ID"
           } >> "$GITHUB_OUTPUT"
 
       - name: Deploy ECS stack
@@ -159,35 +170,51 @@ jobs:
             --capabilities CAPABILITY_IAM --no-fail-on-empty-changeset \
             --tags Project=FreStyle Environment=prod ManagedBy=CloudFormation
 
-      - name: Update Cloudflare DNS to new ALB
+      - name: Upsert Route 53 Alias record (api.normanblog.com → ALB)
         env:
-          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-          CF_ZONE_ID: ${{ secrets.CF_ZONE_ID }}
           ALB_DNS: ${{ steps.deps.outputs.alb_dns }}
+          ALB_HOSTED_ZONE_ID: ${{ steps.deps.outputs.alb_hosted_zone_id }}
         run: |
-          REC_ID=$(curl -s -H "Authorization: Bearer $CF_API_TOKEN" \
-            "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/dns_records?type=CNAME&name=$CF_API_RECORD_NAME" | \
-            jq -r '.result[0].id // ""')
-          BODY=$(jq -n --arg name "$CF_API_RECORD_NAME" --arg content "$ALB_DNS" \
-            '{type:"CNAME", name:$name, content:$content, ttl:1, proxied:true}')
-          if [ -n "$REC_ID" ]; then
-            echo "Updating existing record id=$REC_ID -> $ALB_DNS"
-            curl -s -X PUT -H "Authorization: Bearer $CF_API_TOKEN" -H "Content-Type: application/json" \
-              --data "$BODY" \
-              "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/dns_records/$REC_ID" | jq '.success, .result.content'
-          else
-            echo "Creating new record -> $ALB_DNS"
-            curl -s -X POST -H "Authorization: Bearer $CF_API_TOKEN" -H "Content-Type: application/json" \
-              --data "$BODY" \
-              "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/dns_records" | jq '.success, .result.content'
+          if [ -z "$ALB_DNS" ] || [ -z "$ALB_HOSTED_ZONE_ID" ]; then
+            echo "::error::ALB_DNS or ALB_HOSTED_ZONE_ID is empty"
+            exit 1
           fi
+          # ALB の DNSName は dualstack. を付けないと正常解決されないことがある
+          # → Alias の DNSName には ALB の DNSName をそのまま使う（CanonicalHostedZoneId 経由で AWS が解決）
+          CHANGE_BATCH=$(jq -n \
+            --arg name "$R53_RECORD_NAME" \
+            --arg dns "$ALB_DNS" \
+            --arg hz "$ALB_HOSTED_ZONE_ID" \
+            '{
+              Comment: "Upsert api.normanblog.com Alias to ALB by scheduled-start.yml",
+              Changes: [{
+                Action: "UPSERT",
+                ResourceRecordSet: {
+                  Name: $name,
+                  Type: "A",
+                  AliasTarget: {
+                    HostedZoneId: $hz,
+                    DNSName: $dns,
+                    EvaluateTargetHealth: false
+                  }
+                }
+              }]
+            }')
+          CHANGE_ID=$(aws route53 change-resource-record-sets --region $AWS_REGION \
+            --hosted-zone-id "$R53_HOSTED_ZONE_ID" \
+            --change-batch "$CHANGE_BATCH" \
+            --query 'ChangeInfo.Id' --output text)
+          echo "Change submitted: $CHANGE_ID"
+          # Route 53 への伝播完了を待つ（INSYNC になるまで最大 60 秒）
+          aws route53 wait resource-record-sets-changed --id "$CHANGE_ID"
+          echo "✅ DNS record api.normanblog.com -> $ALB_DNS is INSYNC"
 
       - name: Wait for ECS service to stabilize
         run: |
           aws ecs wait services-stable --region $AWS_REGION \
             --cluster $STACK_PFX --services $STACK_PFX-svc
 
-      - name: Health check via ALB DNS (Cloudflare 伝播前でも確認可)
+      - name: Health check via ALB DNS (Route 53 伝播前でも確認可)
         env:
           ALB_DNS: ${{ steps.deps.outputs.alb_dns }}
         run: |

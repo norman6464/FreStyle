@@ -5,3 +5,6 @@ CLAUDE.md
 infrastructure/
 
 frestyle-infrastructure/
+
+# PdM 用プライベートリポ（FreStyle 配下に clone する運用、本リポの管理対象外）
+frestyle-pdm/

@@ -165,6 +165,12 @@ jobs:
           CF_ZONE_ID: ${{ secrets.CF_ZONE_ID }}
           ALB_DNS: ${{ steps.deps.outputs.alb_dns }}
         run: |
+          # GitHub Secret 未登録だと空文字で API がサイレント失敗するためここで明示的に検出
+          if [ -z "$CF_API_TOKEN" ] || [ -z "$CF_ZONE_ID" ]; then
+            echo "::error::CF_API_TOKEN or CF_ZONE_ID is not set in GitHub Secrets"
+            echo "Register them via: gh secret set CF_API_TOKEN -R norman6464/FreStyle"
+            exit 1
+          fi
           REC_ID=$(curl -s -H "Authorization: Bearer $CF_API_TOKEN" \
             "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/dns_records?type=CNAME&name=$CF_API_RECORD_NAME" | \
             jq -r '.result[0].id // ""')
@@ -172,14 +178,21 @@ jobs:
             '{type:"CNAME", name:$name, content:$content, ttl:1, proxied:true}')
           if [ -n "$REC_ID" ]; then
             echo "Updating existing record id=$REC_ID -> $ALB_DNS"
-            curl -s -X PUT -H "Authorization: Bearer $CF_API_TOKEN" -H "Content-Type: application/json" \
+            RESPONSE=$(curl -s -X PUT -H "Authorization: Bearer $CF_API_TOKEN" -H "Content-Type: application/json" \
               --data "$BODY" \
-              "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/dns_records/$REC_ID" | jq '.success, .result.content'
+              "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/dns_records/$REC_ID")
           else
             echo "Creating new record -> $ALB_DNS"
-            curl -s -X POST -H "Authorization: Bearer $CF_API_TOKEN" -H "Content-Type: application/json" \
+            RESPONSE=$(curl -s -X POST -H "Authorization: Bearer $CF_API_TOKEN" -H "Content-Type: application/json" \
               --data "$BODY" \
-              "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/dns_records" | jq '.success, .result.content'
+              "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/dns_records")
+          fi
+          echo "$RESPONSE" | jq '.'
+          # success: false なら fail-fast（API のエラーを exit 0 で見逃さない）
+          SUCCESS=$(echo "$RESPONSE" | jq -r '.success // false')
+          if [ "$SUCCESS" != "true" ]; then
+            echo "::error::Cloudflare DNS update failed"
+            exit 1
           fi
 
       - name: Wait for ECS service to stabilize

@@ -205,5 +205,14 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 	authed.GET("/notifications", notificationHandler.List)
 	authed.PATCH("/notifications/:id/read", notificationHandler.MarkRead)
 
+	// Phase 22: ReminderSetting
+	reminderRepo := repository.NewReminderSettingRepository(db)
+	reminderHandler := NewReminderSettingHandler(
+		usecase.NewGetReminderSettingUseCase(reminderRepo),
+		usecase.NewUpsertReminderSettingUseCase(reminderRepo),
+	)
+	authed.GET("/reminder-settings/:userId", reminderHandler.Get)
+	authed.PUT("/reminder-settings/:userId", reminderHandler.Upsert)
+
 	return r
 }

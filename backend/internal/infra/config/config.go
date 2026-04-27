@@ -14,6 +14,17 @@ type Config struct {
 	DBPassword string
 	DBName     string
 	DBSSLMode  string
+
+	Cognito CognitoConfig
+}
+
+// CognitoConfig は Cognito Hosted UI / OAuth2 token endpoint との通信に必要な設定。
+type CognitoConfig struct {
+	ClientID     string
+	ClientSecret string
+	RedirectURI  string
+	TokenURI     string
+	JwkSetURI    string
 }
 
 func Load() (*Config, error) {
@@ -26,6 +37,13 @@ func Load() (*Config, error) {
 		DBPassword: os.Getenv("DB_PASSWORD"),
 		DBName:     getEnvOrDefault("DB_NAME", "fre_style"),
 		DBSSLMode:  getEnvOrDefault("DB_SSLMODE", "require"),
+		Cognito: CognitoConfig{
+			ClientID:     os.Getenv("COGNITO_CLIENT_ID"),
+			ClientSecret: os.Getenv("COGNITO_CLIENT_SECRET"),
+			RedirectURI:  os.Getenv("COGNITO_REDIRECT_URI"),
+			TokenURI:     os.Getenv("COGNITO_TOKEN_URI"),
+			JwkSetURI:    os.Getenv("COGNITO_JWK_SET_URI"),
+		},
 	}
 	if cfg.DBHost == "" {
 		return nil, fmt.Errorf("DB_HOST is required")

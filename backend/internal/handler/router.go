@@ -223,5 +223,14 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 	authed.GET("/daily-goals/:userId", dailyGoalHandler.Get)
 	authed.PUT("/daily-goals/:userId", dailyGoalHandler.Upsert)
 
+	// Phase 24: WeeklyChallenge
+	weeklyRepo := repository.NewWeeklyChallengeRepository(db)
+	weeklyHandler := NewWeeklyChallengeHandler(
+		usecase.NewGetCurrentWeeklyChallengeUseCase(weeklyRepo),
+		usecase.NewCompleteWeeklyChallengeUseCase(weeklyRepo),
+	)
+	authed.GET("/weekly-challenges/current", weeklyHandler.GetCurrent)
+	authed.POST("/weekly-challenges/complete", weeklyHandler.Complete)
+
 	return r
 }

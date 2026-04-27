@@ -214,5 +214,14 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 	authed.GET("/reminder-settings/:userId", reminderHandler.Get)
 	authed.PUT("/reminder-settings/:userId", reminderHandler.Upsert)
 
+	// Phase 23: DailyGoal
+	dailyGoalRepo := repository.NewDailyGoalRepository(db)
+	dailyGoalHandler := NewDailyGoalHandler(
+		usecase.NewGetDailyGoalUseCase(dailyGoalRepo),
+		usecase.NewUpsertDailyGoalUseCase(dailyGoalRepo),
+	)
+	authed.GET("/daily-goals/:userId", dailyGoalHandler.Get)
+	authed.PUT("/daily-goals/:userId", dailyGoalHandler.Upsert)
+
 	return r
 }

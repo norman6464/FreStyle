@@ -153,5 +153,11 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 	)
 	authed.GET("/score-trends/:userId", scoreTrendHandler.Get)
 
+	// Phase 16: Ranking
+	rankingHandler := NewRankingHandler(
+		usecase.NewGetRankingUseCase(repository.NewRankingRepository(db)),
+	)
+	authed.GET("/rankings", rankingHandler.Get)
+
 	return r
 }

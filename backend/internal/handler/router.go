@@ -196,5 +196,14 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 	authed.POST("/friendships", friendshipHandler.Request)
 	authed.PATCH("/friendships/:id", friendshipHandler.Respond)
 
+	// Phase 21: Notification
+	notificationRepo := repository.NewNotificationRepository(db)
+	notificationHandler := NewNotificationHandler(
+		usecase.NewListNotificationsUseCase(notificationRepo),
+		usecase.NewMarkNotificationReadUseCase(notificationRepo),
+	)
+	authed.GET("/notifications", notificationHandler.List)
+	authed.PATCH("/notifications/:id/read", notificationHandler.MarkRead)
+
 	return r
 }

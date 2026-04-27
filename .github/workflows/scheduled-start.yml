@@ -146,7 +146,9 @@ jobs:
           {
             echo "ecs_sg=$ECS_SG"
             echo "tg_arn=$TG_ARN"
-            echo "db_url=jdbc:postgresql://$DB_HOST:$DB_PORT/$DB_NAME"
+            echo "db_host=$DB_HOST"
+            echo "db_port=$DB_PORT"
+            echo "db_name=$DB_NAME"
             echo "s3_bucket=$S3_BUCKET"
             echo "sqs_url=$SQS_URL"
             echo "exec_role=$EXEC_ROLE"
@@ -161,7 +163,9 @@ jobs:
         env:
           ECS_SG: ${{ steps.deps.outputs.ecs_sg }}
           TG_ARN: ${{ steps.deps.outputs.tg_arn }}
-          DB_URL: ${{ steps.deps.outputs.db_url }}
+          DB_HOST: ${{ steps.deps.outputs.db_host }}
+          DB_PORT: ${{ steps.deps.outputs.db_port }}
+          DB_NAME: ${{ steps.deps.outputs.db_name }}
           S3_BUCKET: ${{ steps.deps.outputs.s3_bucket }}
           SQS_URL: ${{ steps.deps.outputs.sqs_url }}
           EXEC_ROLE: ${{ steps.deps.outputs.exec_role }}
@@ -176,7 +180,9 @@ jobs:
               Environment=prod \
               EcsServiceSecurityGroupId="$ECS_SG" \
               TargetGroupArn="$TG_ARN" \
-              DBUrl="$DB_URL" \
+              DBHost="$DB_HOST" \
+              DBPort="$DB_PORT" \
+              DBName="$DB_NAME" \
               DBUser=postgres \
               DBPasswordSecretArn="$DB_PWD_ARN" \
               CognitoClientId="${{ secrets.COGNITO_CLIENT_ID }}" \

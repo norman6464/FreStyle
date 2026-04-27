@@ -31,7 +31,7 @@ export const SessionNoteRepository = {
 
   async get(sessionId: number): Promise<SessionNote | null> {
     try {
-      const response = await apiClient.get<SessionNote>(`/api/session-notes/${sessionId}`);
+      const response = await apiClient.get<SessionNote>(`/api/v2/session-notes/${sessionId}`);
       return response.data;
     } catch {
       const notes = getAllLocalNotes();
@@ -41,7 +41,7 @@ export const SessionNoteRepository = {
 
   async save(sessionId: number, note: string): Promise<void> {
     try {
-      await apiClient.put(`/api/session-notes/${sessionId}`, { note });
+      await apiClient.put(`/api/v2/session-notes/${sessionId}`, { note });
     } catch {
       saveLocalNote(sessionId, note);
     }

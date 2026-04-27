@@ -22,7 +22,7 @@ describe('ScoreGoalRepository', () => {
     const { ScoreGoalRepository } = await import('../ScoreGoalRepository');
     const result = await ScoreGoalRepository.fetchGoal();
     expect(result).toBe(9.0);
-    expect(mockedGet).toHaveBeenCalledWith('/api/score-goal');
+    expect(mockedGet).toHaveBeenCalledWith('/api/v2/score-goal');
   });
 
   it('fetchGoal: API失敗時にnullを返す', async () => {
@@ -36,7 +36,7 @@ describe('ScoreGoalRepository', () => {
     mockedPut.mockResolvedValue({ data: {} });
     const { ScoreGoalRepository } = await import('../ScoreGoalRepository');
     await ScoreGoalRepository.saveGoal(7.5);
-    expect(mockedPut).toHaveBeenCalledWith('/api/score-goal', { goalScore: 7.5 });
+    expect(mockedPut).toHaveBeenCalledWith('/api/v2/score-goal', { goalScore: 7.5 });
   });
 
   it('saveGoal: API失敗時にエラーをスローしない', async () => {

@@ -12,7 +12,7 @@ describe('WeeklyChallengeRepository', () => {
     const mockData = { id: 1, title: 'Test', targetSessions: 3, completedSessions: 0, isCompleted: false };
     mockedApiClient.get.mockResolvedValue({ data: mockData });
     const result = await WeeklyChallengeRepository.fetchCurrentChallenge();
-    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/weekly-challenge');
+    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/v2/weekly-challenge');
     expect(result).toEqual(mockData);
   });
 
@@ -20,7 +20,7 @@ describe('WeeklyChallengeRepository', () => {
     const mockData = { id: 1, completedSessions: 1 };
     mockedApiClient.post.mockResolvedValue({ data: mockData });
     const result = await WeeklyChallengeRepository.incrementProgress();
-    expect(mockedApiClient.post).toHaveBeenCalledWith('/api/weekly-challenge/progress');
+    expect(mockedApiClient.post).toHaveBeenCalledWith('/api/v2/weekly-challenge/progress');
     expect(result).toEqual(mockData);
   });
 

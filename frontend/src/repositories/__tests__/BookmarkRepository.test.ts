@@ -42,7 +42,7 @@ describe('BookmarkRepository', () => {
       const ids = await BookmarkRepository.getAll();
 
       expect(ids).toEqual([1, 3, 5]);
-      expect(mockGet).toHaveBeenCalledWith('/api/bookmarks');
+      expect(mockGet).toHaveBeenCalledWith('/api/v2/bookmarks');
     });
 
     it('add: APIでブックマークを追加できる', async () => {
@@ -50,7 +50,7 @@ describe('BookmarkRepository', () => {
 
       await BookmarkRepository.add(1);
 
-      expect(mockPost).toHaveBeenCalledWith('/api/bookmarks/1');
+      expect(mockPost).toHaveBeenCalledWith('/api/v2/bookmarks/1');
     });
 
     it('remove: APIでブックマークを削除できる', async () => {
@@ -58,7 +58,7 @@ describe('BookmarkRepository', () => {
 
       await BookmarkRepository.remove(1);
 
-      expect(mockDelete).toHaveBeenCalledWith('/api/bookmarks/1');
+      expect(mockDelete).toHaveBeenCalledWith('/api/v2/bookmarks/1');
     });
 
     it('isBookmarked: ブックマーク済みか判定できる', async () => {

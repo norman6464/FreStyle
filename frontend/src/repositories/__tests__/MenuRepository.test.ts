@@ -16,7 +16,7 @@ describe('MenuRepository', () => {
 
     const result = await MenuRepository.fetchChatStats();
 
-    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/chat/stats');
+    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/v2/chat/stats');
     expect(result).toEqual({ chatPartnerCount: 5 });
   });
 
@@ -26,7 +26,7 @@ describe('MenuRepository', () => {
 
     const result = await MenuRepository.fetchChatRooms();
 
-    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/chat/rooms');
+    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/v2/chat/rooms');
     expect(result).toEqual(mockRooms);
   });
 
@@ -36,7 +36,7 @@ describe('MenuRepository', () => {
 
     const result = await MenuRepository.fetchScoreHistory();
 
-    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/scores/history');
+    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/v2/scores/history');
     expect(result).toEqual(mockScores);
   });
 

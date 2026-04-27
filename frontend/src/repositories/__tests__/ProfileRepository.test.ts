@@ -28,7 +28,7 @@ describe('ProfileRepository', () => {
 
     const result = await ProfileRepository.fetchProfile();
 
-    expect(apiClient.get).toHaveBeenCalledWith('/api/profile/me');
+    expect(apiClient.get).toHaveBeenCalledWith('/api/v2/profile/me');
     expect(result).toEqual(mockData);
   });
 
@@ -38,7 +38,7 @@ describe('ProfileRepository', () => {
 
     const result = await ProfileRepository.updateProfile({ name: 'テスト', bio: '更新' });
 
-    expect(apiClient.put).toHaveBeenCalledWith('/api/profile/me/update', { name: 'テスト', bio: '更新' });
+    expect(apiClient.put).toHaveBeenCalledWith('/api/v2/profile/me/update', { name: 'テスト', bio: '更新' });
     expect(result).toEqual(mockData);
   });
 
@@ -48,7 +48,7 @@ describe('ProfileRepository', () => {
 
     const result = await ProfileRepository.getImagePresignedUrl('avatar.png', 'image/png');
 
-    expect(apiClient.post).toHaveBeenCalledWith('/api/profile/me/image/presigned-url', {
+    expect(apiClient.post).toHaveBeenCalledWith('/api/v2/profile/me/image/presigned-url', {
       fileName: 'avatar.png',
       contentType: 'image/png',
     });

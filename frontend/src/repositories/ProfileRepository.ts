@@ -22,17 +22,17 @@ interface PresignedUrlResponse {
 
 const ProfileRepository = {
   async fetchProfile(): Promise<ProfileData> {
-    const res = await apiClient.get('/api/profile/me');
+    const res = await apiClient.get('/api/v2/profile/me');
     return res.data;
   },
 
   async updateProfile(data: ProfileData): Promise<{ success: string }> {
-    const res = await apiClient.put('/api/profile/me/update', data);
+    const res = await apiClient.put('/api/v2/profile/me/update', data);
     return res.data;
   },
 
   async getImagePresignedUrl(fileName: string, contentType: string): Promise<PresignedUrlResponse> {
-    const res = await apiClient.post('/api/profile/me/image/presigned-url', {
+    const res = await apiClient.post('/api/v2/profile/me/image/presigned-url', {
       fileName,
       contentType,
     });

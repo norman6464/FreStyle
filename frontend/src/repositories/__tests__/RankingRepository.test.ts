@@ -17,7 +17,7 @@ describe('RankingRepository', () => {
 
       const result = await RankingRepository.fetchRanking();
 
-      expect(mockedApiClient.get).toHaveBeenCalledWith('/api/ranking', {
+      expect(mockedApiClient.get).toHaveBeenCalledWith('/api/v2/ranking', {
         params: { period: 'weekly' },
       });
       expect(result).toEqual(mockData);
@@ -29,7 +29,7 @@ describe('RankingRepository', () => {
 
       await RankingRepository.fetchRanking('monthly');
 
-      expect(mockedApiClient.get).toHaveBeenCalledWith('/api/ranking', {
+      expect(mockedApiClient.get).toHaveBeenCalledWith('/api/v2/ranking', {
         params: { period: 'monthly' },
       });
     });

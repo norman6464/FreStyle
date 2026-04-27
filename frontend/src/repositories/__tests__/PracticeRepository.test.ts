@@ -19,7 +19,7 @@ describe('PracticeRepository', () => {
 
     const result = await practiceRepository.getScenarios();
 
-    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/practice/scenarios');
+    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/v2/practice/scenarios');
     expect(result).toEqual(mockScenarios);
   });
 
@@ -29,7 +29,7 @@ describe('PracticeRepository', () => {
 
     const result = await practiceRepository.getScenario(1);
 
-    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/practice/scenarios/1');
+    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/v2/practice/scenarios/1');
     expect(result).toEqual(mockScenario);
   });
 
@@ -39,7 +39,7 @@ describe('PracticeRepository', () => {
 
     const result = await practiceRepository.createPracticeSession({ scenarioId: 1 });
 
-    expect(mockedApiClient.post).toHaveBeenCalledWith('/api/practice/sessions', { scenarioId: 1 });
+    expect(mockedApiClient.post).toHaveBeenCalledWith('/api/v2/practice/sessions', { scenarioId: 1 });
     expect(result).toEqual(mockSession);
   });
 
@@ -55,7 +55,7 @@ describe('PracticeRepository', () => {
 
     const result = await practiceRepository.getScenario(99);
 
-    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/practice/scenarios/99');
+    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/v2/practice/scenarios/99');
     expect(result).toEqual(mockScenario);
   });
 });

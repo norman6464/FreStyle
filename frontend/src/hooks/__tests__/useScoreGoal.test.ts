@@ -43,7 +43,7 @@ describe('useScoreGoal', () => {
       expect(result.current.loading).toBe(false);
     });
     expect(result.current.goal).toBe(9.0);
-    expect(mockGet).toHaveBeenCalledWith('/api/score-goal');
+    expect(mockGet).toHaveBeenCalledWith('/api/v2/score-goal');
   });
 
   it('APIエラー時はlocalStorageのデフォルト値を使用する', async () => {
@@ -72,7 +72,7 @@ describe('useScoreGoal', () => {
     });
 
     expect(result.current.goal).toBe(9.5);
-    expect(mockPut).toHaveBeenCalledWith('/api/score-goal', { goalScore: 9.5 });
+    expect(mockPut).toHaveBeenCalledWith('/api/v2/score-goal', { goalScore: 9.5 });
     expect(localStorage.setItem).toHaveBeenCalledWith('scoreGoal', '9.5');
   });
 

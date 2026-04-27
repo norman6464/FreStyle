@@ -12,31 +12,31 @@ const ChatRepository = {
   async fetchChatUsers(query?: string): Promise<ChatUser[]> {
     const params: Record<string, string> = {};
     if (query) params.query = query;
-    const res = await apiClient.get('/api/chat/rooms', { params });
+    const res = await apiClient.get('/api/v2/chat/rooms', { params });
     return res.data.chatUsers || [];
   },
 
   async fetchCurrentUser(): Promise<{ id: number; name: string }> {
-    const res = await apiClient.get('/api/auth/cognito/me');
+    const res = await apiClient.get('/api/v2/auth/cognito/me');
     return res.data;
   },
 
   async createRoom(userId: number): Promise<{ roomId: number }> {
-    const res = await apiClient.post(`/api/chat/users/${userId}/create`);
+    const res = await apiClient.post(`/api/v2/chat/users/${userId}/create`);
     return res.data;
   },
 
   async markAsRead(roomId: string): Promise<void> {
-    await apiClient.post(`/api/chat/rooms/${roomId}/read`);
+    await apiClient.post(`/api/v2/chat/rooms/${roomId}/read`);
   },
 
   async fetchHistory(roomId: string): Promise<ChatMessage[]> {
-    const res = await apiClient.get(`/api/chat/users/${roomId}/history`);
+    const res = await apiClient.get(`/api/v2/chat/users/${roomId}/history`);
     return res.data;
   },
 
   async rephrase(originalMessage: string, scene: string | null): Promise<{ result: string }> {
-    const res = await apiClient.post('/api/chat/ai/rephrase', { originalMessage, scene });
+    const res = await apiClient.post('/api/v2/chat/ai/rephrase', { originalMessage, scene });
     return res.data;
   },
 };

@@ -11,7 +11,7 @@ describe('SharedSessionRepository', () => {
   it('公開セッション一覧を取得する', async () => {
     mockedApiClient.get.mockResolvedValue({ data: [] });
     const result = await SharedSessionRepository.fetchPublicSessions();
-    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/shared-sessions');
+    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/v2/shared-sessions');
     expect(result).toEqual([]);
   });
 
@@ -19,13 +19,13 @@ describe('SharedSessionRepository', () => {
     const mockShared = { id: 1, sessionId: 10, sessionTitle: 'test' };
     mockedApiClient.post.mockResolvedValue({ data: mockShared });
     const result = await SharedSessionRepository.shareSession(10, 'desc');
-    expect(mockedApiClient.post).toHaveBeenCalledWith('/api/shared-sessions', { sessionId: 10, description: 'desc' });
+    expect(mockedApiClient.post).toHaveBeenCalledWith('/api/v2/shared-sessions', { sessionId: 10, description: 'desc' });
     expect(result).toEqual(mockShared);
   });
 
   it('セッション共有を解除する', async () => {
     mockedApiClient.delete.mockResolvedValue({});
     await SharedSessionRepository.unshareSession(10);
-    expect(mockedApiClient.delete).toHaveBeenCalledWith('/api/shared-sessions/10');
+    expect(mockedApiClient.delete).toHaveBeenCalledWith('/api/v2/shared-sessions/10');
   });
 });

@@ -17,7 +17,7 @@ describe('UserSearchRepository', () => {
 
     const result = await UserSearchRepository.searchUsers('山田');
 
-    expect(apiClient.get).toHaveBeenCalledWith('/api/chat/users', { params: { query: '山田' } });
+    expect(apiClient.get).toHaveBeenCalledWith('/api/v2/chat/users', { params: { query: '山田' } });
     expect(result).toEqual(mockUsers);
   });
 
@@ -26,7 +26,7 @@ describe('UserSearchRepository', () => {
 
     const result = await UserSearchRepository.searchUsers();
 
-    expect(apiClient.get).toHaveBeenCalledWith('/api/chat/users', { params: {} });
+    expect(apiClient.get).toHaveBeenCalledWith('/api/v2/chat/users', { params: {} });
     expect(result).toEqual([]);
   });
 

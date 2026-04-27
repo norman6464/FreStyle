@@ -25,22 +25,22 @@ export interface AdminScenarioForm {
  */
 class AdminScenarioRepository {
   async list(): Promise<AdminScenario[]> {
-    const res = await apiClient.get<AdminScenario[]>('/api/admin/scenarios');
+    const res = await apiClient.get<AdminScenario[]>('/api/v2/admin/scenarios');
     return res.data;
   }
 
   async create(form: AdminScenarioForm): Promise<AdminScenario> {
-    const res = await apiClient.post<AdminScenario>('/api/admin/scenarios', form);
+    const res = await apiClient.post<AdminScenario>('/api/v2/admin/scenarios', form);
     return res.data;
   }
 
   async update(id: number, form: AdminScenarioForm): Promise<AdminScenario> {
-    const res = await apiClient.put<AdminScenario>(`/api/admin/scenarios/${id}`, form);
+    const res = await apiClient.put<AdminScenario>(`/api/v2/admin/scenarios/${id}`, form);
     return res.data;
   }
 
   async remove(id: number): Promise<void> {
-    await apiClient.delete(`/api/admin/scenarios/${id}`);
+    await apiClient.delete(`/api/v2/admin/scenarios/${id}`);
   }
 }
 

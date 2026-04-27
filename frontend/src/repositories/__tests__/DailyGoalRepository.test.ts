@@ -43,7 +43,7 @@ describe('DailyGoalRepository', () => {
 
       expect(result.target).toBe(5);
       expect(result.completed).toBe(2);
-      expect(mockGet).toHaveBeenCalledWith('/api/daily-goals/today');
+      expect(mockGet).toHaveBeenCalledWith('/api/v2/daily-goals/today');
     });
 
     it('setTarget: APIで目標回数を設定する', async () => {
@@ -51,7 +51,7 @@ describe('DailyGoalRepository', () => {
 
       await DailyGoalRepository.setTarget(7);
 
-      expect(mockPut).toHaveBeenCalledWith('/api/daily-goals/target', { target: 7 });
+      expect(mockPut).toHaveBeenCalledWith('/api/v2/daily-goals/target', { target: 7 });
     });
 
     it('incrementCompleted: APIで完了数をインクリメントする', async () => {
@@ -60,7 +60,7 @@ describe('DailyGoalRepository', () => {
       const result = await DailyGoalRepository.incrementCompleted();
 
       expect(result.completed).toBe(1);
-      expect(mockPost).toHaveBeenCalledWith('/api/daily-goals/increment');
+      expect(mockPost).toHaveBeenCalledWith('/api/v2/daily-goals/increment');
     });
   });
 

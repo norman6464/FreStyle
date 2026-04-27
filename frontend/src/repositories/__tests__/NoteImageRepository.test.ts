@@ -32,7 +32,7 @@ describe('NoteImageRepository', () => {
 
       const result = await NoteImageRepository.getPresignedUrl('note1', 'image.png', 'image/png');
 
-      expect(apiClient.post).toHaveBeenCalledWith('/api/notes/note1/images/presigned-url', {
+      expect(apiClient.post).toHaveBeenCalledWith('/api/v2/notes/note1/images/presigned-url', {
         fileName: 'image.png',
         contentType: 'image/png',
       });

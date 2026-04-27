@@ -48,7 +48,7 @@ describe('FavoritePhraseRepository', () => {
       expect(result).toHaveLength(1);
       expect(result[0].id).toBe('1');
       expect(result[0].originalText).toBe('元文');
-      expect(mockGet).toHaveBeenCalledWith('/api/favorite-phrases');
+      expect(mockGet).toHaveBeenCalledWith('/api/v2/favorite-phrases');
     });
 
     it('save: APIでフレーズを保存できる', async () => {
@@ -60,7 +60,7 @@ describe('FavoritePhraseRepository', () => {
         pattern: 'フォーマル版',
       });
 
-      expect(mockPost).toHaveBeenCalledWith('/api/favorite-phrases', {
+      expect(mockPost).toHaveBeenCalledWith('/api/v2/favorite-phrases', {
         originalText: '確認お願い',
         rephrasedText: 'ご確認ください',
         pattern: 'フォーマル版',
@@ -72,7 +72,7 @@ describe('FavoritePhraseRepository', () => {
 
       await FavoritePhraseRepository.remove('5');
 
-      expect(mockDelete).toHaveBeenCalledWith('/api/favorite-phrases/5');
+      expect(mockDelete).toHaveBeenCalledWith('/api/v2/favorite-phrases/5');
     });
 
     it('exists: フレーズの存在判定ができる', async () => {

@@ -30,7 +30,7 @@ function saveLocalGoal(goal: DailyGoal): void {
 export const DailyGoalRepository = {
   async getToday(): Promise<DailyGoal> {
     try {
-      const response = await apiClient.get<DailyGoal>('/api/daily-goals/today');
+      const response = await apiClient.get<DailyGoal>('/api/v2/daily-goals/today');
       return response.data;
     } catch {
       return getLocalGoal();
@@ -39,7 +39,7 @@ export const DailyGoalRepository = {
 
   async setTarget(target: number): Promise<void> {
     try {
-      await apiClient.put('/api/daily-goals/target', { target });
+      await apiClient.put('/api/v2/daily-goals/target', { target });
     } catch {
       const goal = getLocalGoal();
       goal.target = target;
@@ -49,7 +49,7 @@ export const DailyGoalRepository = {
 
   async incrementCompleted(): Promise<DailyGoal> {
     try {
-      const response = await apiClient.post<DailyGoal>('/api/daily-goals/increment');
+      const response = await apiClient.post<DailyGoal>('/api/v2/daily-goals/increment');
       return response.data;
     } catch {
       const goal = getLocalGoal();

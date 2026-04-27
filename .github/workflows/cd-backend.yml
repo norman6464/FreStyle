@@ -93,9 +93,14 @@ jobs:
         run: |
           echo "image_tag=$ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}" >> "$GITHUB_OUTPUT"
 
-      - name: Build production image
-        working-directory: FreStyle
-        run: docker image build --target production -t temp_api_image_name:latest .
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build production image (Go backend)
+        working-directory: backend
+        run: |
+          docker buildx build --platform linux/amd64 \
+            -t temp_api_image_name:latest --load .
 
       - name: Tag and push to ECR
         env:
@@ -168,7 +173,9 @@ jobs:
 
           echo "ecs_sg=$ECS_SG" >> "$GITHUB_OUTPUT"
           echo "tg_arn=$TG_ARN" >> "$GITHUB_OUTPUT"
-          echo "db_url=jdbc:postgresql://$DB_HOST:$DB_PORT/$DB_NAME" >> "$GITHUB_OUTPUT"
+          echo "db_host=$DB_HOST" >> "$GITHUB_OUTPUT"
+          echo "db_port=$DB_PORT" >> "$GITHUB_OUTPUT"
+          echo "db_name=$DB_NAME" >> "$GITHUB_OUTPUT"
           echo "s3_bucket=$S3_BUCKET" >> "$GITHUB_OUTPUT"
           echo "sqs_url=$SQS_URL" >> "$GITHUB_OUTPUT"
           echo "exec_role=$EXEC_ROLE" >> "$GITHUB_OUTPUT"
@@ -180,7 +187,9 @@ jobs:
         env:
           ECS_SG: ${{ steps.deps.outputs.ecs_sg }}
           TG_ARN: ${{ steps.deps.outputs.tg_arn }}
-          DB_URL: ${{ steps.deps.outputs.db_url }}
+          DB_HOST: ${{ steps.deps.outputs.db_host }}
+          DB_PORT: ${{ steps.deps.outputs.db_port }}
+          DB_NAME: ${{ steps.deps.outputs.db_name }}
           S3_BUCKET: ${{ steps.deps.outputs.s3_bucket }}
           SQS_URL: ${{ steps.deps.outputs.sqs_url }}
           EXEC_ROLE: ${{ steps.deps.outputs.exec_role }}
@@ -195,7 +204,9 @@ jobs:
               Environment=$ENV \
               EcsServiceSecurityGroupId="$ECS_SG" \
               TargetGroupArn="$TG_ARN" \
-              DBUrl="$DB_URL" \
+              DBHost="$DB_HOST" \
+              DBPort="$DB_PORT" \
+              DBName="$DB_NAME" \
               DBUser=postgres \
               DBPasswordSecretArn="$DB_PWD_ARN" \
               CognitoClientId="${{ secrets.COGNITO_CLIENT_ID }}" \

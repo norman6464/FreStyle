@@ -17,7 +17,7 @@ describe('AiChatRepository', () => {
 
     const result = await aiChatRepository.getSessions();
 
-    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/chat/ai/sessions');
+    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/v2/chat/ai/sessions');
     expect(result).toEqual(mockSessions);
   });
 
@@ -27,7 +27,7 @@ describe('AiChatRepository', () => {
 
     const result = await aiChatRepository.getSession(1);
 
-    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/chat/ai/sessions/1');
+    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/v2/chat/ai/sessions/1');
     expect(result).toEqual(mockSession);
   });
 
@@ -37,7 +37,7 @@ describe('AiChatRepository', () => {
 
     const result = await aiChatRepository.createSession({ title: '新しいセッション' });
 
-    expect(mockedApiClient.post).toHaveBeenCalledWith('/api/chat/ai/sessions', { title: '新しいセッション' });
+    expect(mockedApiClient.post).toHaveBeenCalledWith('/api/v2/chat/ai/sessions', { title: '新しいセッション' });
     expect(result).toEqual(mockSession);
   });
 
@@ -47,7 +47,7 @@ describe('AiChatRepository', () => {
 
     const result = await aiChatRepository.updateSessionTitle(1, { title: '更新タイトル' });
 
-    expect(mockedApiClient.put).toHaveBeenCalledWith('/api/chat/ai/sessions/1', { title: '更新タイトル' });
+    expect(mockedApiClient.put).toHaveBeenCalledWith('/api/v2/chat/ai/sessions/1', { title: '更新タイトル' });
     expect(result).toEqual(mockSession);
   });
 
@@ -56,7 +56,7 @@ describe('AiChatRepository', () => {
 
     await aiChatRepository.deleteSession(1);
 
-    expect(mockedApiClient.delete).toHaveBeenCalledWith('/api/chat/ai/sessions/1');
+    expect(mockedApiClient.delete).toHaveBeenCalledWith('/api/v2/chat/ai/sessions/1');
   });
 
   it('getMessages: メッセージ一覧を取得できる', async () => {
@@ -65,7 +65,7 @@ describe('AiChatRepository', () => {
 
     const result = await aiChatRepository.getMessages(1);
 
-    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/chat/ai/sessions/1/messages');
+    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/v2/chat/ai/sessions/1/messages');
     expect(result).toEqual(mockMessages);
   });
 
@@ -75,7 +75,7 @@ describe('AiChatRepository', () => {
 
     const result = await aiChatRepository.addMessage(1, { content: '新しいメッセージ', role: 'user' });
 
-    expect(mockedApiClient.post).toHaveBeenCalledWith('/api/chat/ai/sessions/1/messages', { content: '新しいメッセージ', role: 'user' });
+    expect(mockedApiClient.post).toHaveBeenCalledWith('/api/v2/chat/ai/sessions/1/messages', { content: '新しいメッセージ', role: 'user' });
     expect(result).toEqual(mockMessage);
   });
 
@@ -85,7 +85,7 @@ describe('AiChatRepository', () => {
 
     const result = await aiChatRepository.rephrase({ originalMessage: '元のメッセージ', scene: 'meeting' });
 
-    expect(mockedApiClient.post).toHaveBeenCalledWith('/api/chat/ai/rephrase', { originalMessage: '元のメッセージ', scene: 'meeting' });
+    expect(mockedApiClient.post).toHaveBeenCalledWith('/api/v2/chat/ai/rephrase', { originalMessage: '元のメッセージ', scene: 'meeting' });
     expect(result).toEqual(mockResult);
   });
 
@@ -95,7 +95,7 @@ describe('AiChatRepository', () => {
 
     const result = await aiChatRepository.getScoreCard(1);
 
-    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/scores/sessions/1');
+    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/v2/scores/sessions/1');
     expect(result).toEqual(mockScoreCard);
   });
 
@@ -105,7 +105,7 @@ describe('AiChatRepository', () => {
 
     const result = await aiChatRepository.getScoreHistory();
 
-    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/scores/history');
+    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/v2/scores/history');
     expect(result).toEqual(mockHistory);
   });
 });

@@ -232,5 +232,16 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 	authed.GET("/weekly-challenges/current", weeklyHandler.GetCurrent)
 	authed.POST("/weekly-challenges/complete", weeklyHandler.Complete)
 
+	// Phase 25: AdminInvitation
+	adminInvRepo := repository.NewAdminInvitationRepository(db)
+	adminInvHandler := NewAdminInvitationHandler(
+		usecase.NewListAdminInvitationsUseCase(adminInvRepo),
+		usecase.NewCreateAdminInvitationUseCase(adminInvRepo, repository.NewStubCognitoAdminClient()),
+		usecase.NewCancelAdminInvitationUseCase(adminInvRepo),
+	)
+	authed.GET("/admin/invitations", adminInvHandler.List)
+	authed.POST("/admin/invitations", adminInvHandler.Create)
+	authed.DELETE("/admin/invitations/:id", adminInvHandler.Cancel)
+
 	return r
 }

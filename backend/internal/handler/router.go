@@ -185,5 +185,16 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 	authed.POST("/favorite-phrases", favHandler.Add)
 	authed.DELETE("/favorite-phrases/:id", favHandler.Remove)
 
+	// Phase 20: Friendship
+	friendshipRepo := repository.NewFriendshipRepository(db)
+	friendshipHandler := NewFriendshipHandler(
+		usecase.NewListFriendshipsUseCase(friendshipRepo),
+		usecase.NewRequestFriendshipUseCase(friendshipRepo),
+		usecase.NewRespondFriendshipUseCase(friendshipRepo),
+	)
+	authed.GET("/friendships", friendshipHandler.List)
+	authed.POST("/friendships", friendshipHandler.Request)
+	authed.PATCH("/friendships/:id", friendshipHandler.Respond)
+
 	return r
 }

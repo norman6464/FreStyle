@@ -99,5 +99,18 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 	authed.GET("/shared-sessions", sharedHandler.List)
 	authed.POST("/shared-sessions", sharedHandler.Create)
 
+	// Phase 10: Note CRUD
+	noteRepo := repository.NewNoteRepository(db)
+	noteHandler := NewNoteHandler(
+		usecase.NewListNotesByUserIDUseCase(noteRepo),
+		usecase.NewCreateNoteUseCase(noteRepo),
+		usecase.NewUpdateNoteUseCase(noteRepo),
+		usecase.NewDeleteNoteUseCase(noteRepo),
+	)
+	authed.GET("/notes", noteHandler.List)
+	authed.POST("/notes", noteHandler.Create)
+	authed.PUT("/notes/:id", noteHandler.Update)
+	authed.DELETE("/notes/:id", noteHandler.Delete)
+
 	return r
 }

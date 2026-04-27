@@ -120,5 +120,14 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 	)
 	authed.POST("/notes/images/upload-url", noteImageHandler.IssueUploadURL)
 
+	// Phase 12: SessionNote (セッション固有ノート)
+	sessionNoteRepo := repository.NewSessionNoteRepository(db)
+	sessionNoteHandler := NewSessionNoteHandler(
+		usecase.NewGetSessionNoteUseCase(sessionNoteRepo),
+		usecase.NewUpsertSessionNoteUseCase(sessionNoteRepo),
+	)
+	authed.GET("/sessions/:sessionId/note", sessionNoteHandler.Get)
+	authed.PUT("/sessions/:sessionId/note", sessionNoteHandler.Upsert)
+
 	return r
 }

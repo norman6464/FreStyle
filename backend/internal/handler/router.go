@@ -55,5 +55,14 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 	authed.GET("/chat/rooms", chatHandler.GetRooms)
 	authed.POST("/chat/rooms", chatHandler.CreateRoom)
 
+	// Phase 5: プロフィール
+	profileRepo := repository.NewProfileRepository(db)
+	profileHandler := NewProfileHandler(
+		usecase.NewGetProfileUseCase(profileRepo),
+		usecase.NewUpdateProfileUseCase(profileRepo),
+	)
+	authed.GET("/profile/:userId", profileHandler.Get)
+	authed.PUT("/profile/:userId", profileHandler.Update)
+
 	return r
 }

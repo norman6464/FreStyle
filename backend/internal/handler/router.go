@@ -112,5 +112,13 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 	authed.PUT("/notes/:id", noteHandler.Update)
 	authed.DELETE("/notes/:id", noteHandler.Delete)
 
+	// Phase 11: Note image (S3 presigned upload)
+	noteImageHandler := NewNoteImageHandler(
+		usecase.NewIssueNoteImageUploadURLUseCase(
+			repository.NewStubNoteImagePresigner("frestyle-prod-note-images"),
+		),
+	)
+	authed.POST("/notes/images/upload-url", noteImageHandler.IssueUploadURL)
+
 	return r
 }

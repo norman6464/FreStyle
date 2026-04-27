@@ -85,7 +85,7 @@ apiClient.interceptors.response.use(
       try {
         // トークンリフレッシュ
         await axios.post(
-          `${API_BASE_URL}/api/auth/cognito/refresh-token`,
+          `${API_BASE_URL}/api/v2/auth/cognito/refresh-token`,
           {},
           { withCredentials: true }
         );

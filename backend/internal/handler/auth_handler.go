@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
@@ -27,7 +29,8 @@ func NewAuthHandler(getCurrentUser *usecase.GetCurrentUserUseCase, cognito *conf
 	return &AuthHandler{
 		getCurrentUser: getCurrentUser,
 		cognito:        cognito,
-		httpClient:     &http.Client{},
+		// Cognito token endpoint への通信が無限待ちにならないよう必ず timeout を設定する
+		httpClient: &http.Client{Timeout: 10 * time.Second},
 	}
 }
 
@@ -103,18 +106,24 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 
 	resp, err := h.httpClient.Do(httpReq)
 	if err != nil {
+		log.Printf("cognito callback: token exchange request failed: %v", err)
 		c.JSON(http.StatusBadGateway, gin.H{"error": "cognito_unreachable"})
 		return
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "token_exchange_failed", "detail": string(body)})
+		// Cognito 側が拒否した本当の理由 (invalid_grant / invalid_client / redirect_uri_mismatch 等) を
+		// CloudWatch Logs に必ず残す。クライアントには簡素なエラーだけ返す。
+		log.Printf("cognito callback: token exchange status=%d body=%s redirect_uri=%s client_id_set=%t client_secret_set=%t",
+			resp.StatusCode, string(body), h.cognito.RedirectURI, h.cognito.ClientID != "", h.cognito.ClientSecret != "")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "token_exchange_failed"})
 		return
 	}
 
 	var tok cognitoTokenResponse
 	if err := json.Unmarshal(body, &tok); err != nil {
+		log.Printf("cognito callback: invalid token response: %v", err)
 		c.JSON(http.StatusBadGateway, gin.H{"error": "invalid_token_response"})
 		return
 	}
@@ -130,4 +139,65 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 		c.SetCookie("refresh_token", tok.RefreshToken, 30*24*3600, "/", "", true, true)
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "ログインしました。"})
+}
+
+// Refresh は HttpOnly Cookie の refresh_token を使ってアクセストークンを再発行する。
+func (h *AuthHandler) Refresh(c *gin.Context) {
+	rt, err := c.Cookie("refresh_token")
+	if err != nil || rt == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "refresh_token_missing"})
+		return
+	}
+	if h.cognito == nil || h.cognito.TokenURI == "" || h.cognito.ClientID == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "cognito_not_configured"})
+		return
+	}
+
+	form := url.Values{}
+	form.Set("grant_type", "refresh_token")
+	form.Set("client_id", h.cognito.ClientID)
+	form.Set("refresh_token", rt)
+
+	httpReq, err := http.NewRequestWithContext(c.Request.Context(), http.MethodPost,
+		h.cognito.TokenURI, strings.NewReader(form.Encode()))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "request_build_failed"})
+		return
+	}
+	httpReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if h.cognito.ClientSecret != "" {
+		basic := base64.StdEncoding.EncodeToString(
+			[]byte(fmt.Sprintf("%s:%s", h.cognito.ClientID, h.cognito.ClientSecret)))
+		httpReq.Header.Set("Authorization", "Basic "+basic)
+	}
+
+	resp, err := h.httpClient.Do(httpReq)
+	if err != nil {
+		log.Printf("cognito refresh: token endpoint unreachable: %v", err)
+		c.JSON(http.StatusBadGateway, gin.H{"error": "cognito_unreachable"})
+		return
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("cognito refresh: status=%d body=%s", resp.StatusCode, string(body))
+		// refresh が無効ならログイン状態をクリアして 401 を返し、フロントは login へ誘導する
+		c.SetCookie(middleware.CookieAccessToken, "", -1, "/", "", true, true)
+		c.SetCookie("refresh_token", "", -1, "/", "", true, true)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "refresh_failed"})
+		return
+	}
+
+	var tok cognitoTokenResponse
+	if err := json.Unmarshal(body, &tok); err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "invalid_token_response"})
+		return
+	}
+	maxAge := tok.ExpiresIn
+	if maxAge <= 0 {
+		maxAge = 3600
+	}
+	c.SetSameSite(http.SameSiteNoneMode)
+	c.SetCookie(middleware.CookieAccessToken, tok.AccessToken, maxAge, "/", "", true, true)
+	c.JSON(http.StatusOK, gin.H{"message": "refreshed"})
 }

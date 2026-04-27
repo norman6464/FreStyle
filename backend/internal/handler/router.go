@@ -36,6 +36,8 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	v2.POST("/auth/cognito/logout", authHandler.Logout)
 	// callback は code を受け取って token に交換するので認証不要
 	v2.POST("/auth/cognito/callback", authHandler.Callback)
+	// refresh-token は HttpOnly Cookie の refresh_token を読むため認証 middleware の対象外
+	v2.POST("/auth/cognito/refresh-token", authHandler.Refresh)
 
 	// 認証必須グループ
 	authed := v2.Group("")

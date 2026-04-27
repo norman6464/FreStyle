@@ -1,9 +1,7 @@
 package handler
 
 import (
-	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -85,9 +83,15 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 		return
 	}
 
+	// Cognito の OAuth2 token endpoint には「Authorization Basic header 方式」と
+	// 「body 方式 (client_id + client_secret を form に入れる)」があるが、両方送ると
+	// invalid_client を返すケースがある。本実装では body 方式に統一する（AWS docs 推奨）。
 	form := url.Values{}
 	form.Set("grant_type", "authorization_code")
 	form.Set("client_id", h.cognito.ClientID)
+	if h.cognito.ClientSecret != "" {
+		form.Set("client_secret", h.cognito.ClientSecret)
+	}
 	form.Set("code", req.Code)
 	form.Set("redirect_uri", h.cognito.RedirectURI)
 
@@ -98,11 +102,6 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 		return
 	}
 	httpReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	if h.cognito.ClientSecret != "" {
-		basic := base64.StdEncoding.EncodeToString(
-			[]byte(fmt.Sprintf("%s:%s", h.cognito.ClientID, h.cognito.ClientSecret)))
-		httpReq.Header.Set("Authorization", "Basic "+basic)
-	}
 
 	resp, err := h.httpClient.Do(httpReq)
 	if err != nil {
@@ -153,9 +152,13 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		return
 	}
 
+	// Callback と同じく body 方式に統一する。
 	form := url.Values{}
 	form.Set("grant_type", "refresh_token")
 	form.Set("client_id", h.cognito.ClientID)
+	if h.cognito.ClientSecret != "" {
+		form.Set("client_secret", h.cognito.ClientSecret)
+	}
 	form.Set("refresh_token", rt)
 
 	httpReq, err := http.NewRequestWithContext(c.Request.Context(), http.MethodPost,
@@ -165,11 +168,6 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		return
 	}
 	httpReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	if h.cognito.ClientSecret != "" {
-		basic := base64.StdEncoding.EncodeToString(
-			[]byte(fmt.Sprintf("%s:%s", h.cognito.ClientID, h.cognito.ClientSecret)))
-		httpReq.Header.Set("Authorization", "Basic "+basic)
-	}
 
 	resp, err := h.httpClient.Do(httpReq)
 	if err != nil {

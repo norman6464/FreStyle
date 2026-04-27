@@ -2,19 +2,29 @@ package handler
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/norman6464/FreStyle/backend/internal/repository"
+	"github.com/norman6464/FreStyle/backend/internal/usecase"
 	"gorm.io/gorm"
 )
 
 // NewRouter は API ルーティングを組み立てる。
-// Phase 0 では空のルータのみを返し、Phase 1 以降でハンドラを順次追加する。
-func NewRouter(_ *gorm.DB) *gin.Engine {
+// /api/v2/* は Spring Boot の /api/* と並行運用する Go 側のエンドポイント。
+func NewRouter(db *gorm.DB) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.Use(gin.Logger())
 
 	r.GET("/", func(c *gin.Context) {
-		c.JSON(200, gin.H{"message": "FreStyle Go backend (Phase 0 bootstrap)"})
+		c.JSON(200, gin.H{"message": "FreStyle Go backend"})
 	})
+
+	v2 := r.Group("/api/v2")
+	{
+		healthHandler := NewHealthHandler(
+			usecase.NewCheckHealthUseCase(repository.NewHealthRepository(db)),
+		)
+		v2.GET("/health", healthHandler.Get)
+	}
 
 	return r
 }

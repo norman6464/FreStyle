@@ -60,10 +60,10 @@ describe('MenuNavigationCard', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/practice');
   });
 
-  it('4つのメニュー項目のボタンが存在する', () => {
+  it('9つのメニュー項目のボタンが存在する', () => {
     render(<MenuNavigationCard totalUnread={0} latestScore={null} />);
     const buttons = screen.getAllByRole('button');
-    expect(buttons).toHaveLength(4);
+    expect(buttons).toHaveLength(9);
   });
 
   it('Enterキーで画面遷移する', () => {

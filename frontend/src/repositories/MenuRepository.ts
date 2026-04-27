@@ -10,9 +10,15 @@ interface ChatRoomsResponse {
 }
 
 export const MenuRepository = {
+  // /chat/stats は Go バックエンドに未実装。chat/rooms から件数を計算する暫定実装。
   async fetchChatStats(): Promise<ChatStats> {
-    const { data } = await apiClient.get('/api/v2/chat/stats');
-    return data;
+    try {
+      const { data } = await apiClient.get<ChatRoomsResponse>('/api/v2/chat/rooms');
+      const count = Array.isArray(data?.chatUsers) ? data.chatUsers.length : 0;
+      return { chatPartnerCount: count };
+    } catch {
+      return { chatPartnerCount: 0 };
+    }
   },
 
   async fetchChatRooms(): Promise<ChatRoomsResponse> {
@@ -21,7 +27,7 @@ export const MenuRepository = {
   },
 
   async fetchScoreHistory(): Promise<ScoreHistory[]> {
-    const { data } = await apiClient.get('/api/v2/scores/history');
+    const { data } = await apiClient.get('/api/v2/score-cards');
     return data;
   },
 };

@@ -11,13 +11,13 @@ describe('MenuRepository', () => {
     vi.clearAllMocks();
   });
 
-  it('チャット統計を取得できる', async () => {
-    mockedApiClient.get.mockResolvedValue({ data: { chatPartnerCount: 5 } });
+  it('チャット統計は chat/rooms の件数から導出する', async () => {
+    mockedApiClient.get.mockResolvedValue({ data: { chatUsers: [{ roomId: 1, unreadCount: 0 }, { roomId: 2, unreadCount: 1 }] } });
 
     const result = await MenuRepository.fetchChatStats();
 
-    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/v2/chat/stats');
-    expect(result).toEqual({ chatPartnerCount: 5 });
+    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/v2/chat/rooms');
+    expect(result).toEqual({ chatPartnerCount: 2 });
   });
 
   it('チャットルーム一覧を取得できる', async () => {
@@ -36,13 +36,13 @@ describe('MenuRepository', () => {
 
     const result = await MenuRepository.fetchScoreHistory();
 
-    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/v2/scores/history');
+    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/v2/score-cards');
     expect(result).toEqual(mockScores);
   });
 
-  it('fetchChatStats: APIエラーが呼び出し元に伝播する', async () => {
+  it('fetchChatStats: API エラーは握りつぶして 0 を返す（暫定対応）', async () => {
     mockedApiClient.get.mockRejectedValue(new Error('Network Error'));
 
-    await expect(MenuRepository.fetchChatStats()).rejects.toThrow('Network Error');
+    await expect(MenuRepository.fetchChatStats()).resolves.toEqual({ chatPartnerCount: 0 });
   });
 });

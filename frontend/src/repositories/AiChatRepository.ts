@@ -111,7 +111,7 @@ class AiChatRepository {
    * スコア履歴を取得
    */
   async getScoreHistory(): Promise<ScoreHistoryItem[]> {
-    const response = await apiClient.get('/api/v2/scores/history');
+    const response = await apiClient.get('/api/v2/score-cards');
     return response.data;
   }
 }

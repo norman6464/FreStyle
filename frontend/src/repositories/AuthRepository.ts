@@ -56,7 +56,7 @@ class AuthRepository {
    * ログイン
    */
   async login(request: LoginRequest): Promise<UserInfo> {
-    const response = await apiClient.post('/api/auth/cognito/login', request);
+    const response = await apiClient.post('/api/v2/auth/cognito/login', request);
     return response.data;
   }
 
@@ -64,14 +64,14 @@ class AuthRepository {
    * サインアップ
    */
   async signup(request: SignupRequest): Promise<void> {
-    await apiClient.post('/api/auth/cognito/signup', request);
+    await apiClient.post('/api/v2/auth/cognito/signup', request);
   }
 
   /**
    * サインアップ確認
    */
   async confirmSignup(request: ConfirmSignupRequest): Promise<{ message: string }> {
-    const response = await apiClient.post('/api/auth/cognito/confirm', request);
+    const response = await apiClient.post('/api/v2/auth/cognito/confirm', request);
     return response.data;
   }
 
@@ -79,7 +79,7 @@ class AuthRepository {
    * OAuthコールバック
    */
   async callback(code: string): Promise<{ success: string }> {
-    const response = await apiClient.post('/api/auth/cognito/callback', { code });
+    const response = await apiClient.post('/api/v2/auth/cognito/callback', { code });
     return response.data;
   }
 
@@ -87,7 +87,7 @@ class AuthRepository {
    * パスワード再設定リクエスト
    */
   async forgotPassword(request: ForgotPasswordRequest): Promise<{ message: string }> {
-    const response = await apiClient.post('/api/auth/cognito/forgot-password', request);
+    const response = await apiClient.post('/api/v2/auth/cognito/forgot-password', request);
     return response.data;
   }
 
@@ -95,7 +95,7 @@ class AuthRepository {
    * パスワード再設定確認
    */
   async confirmForgotPassword(request: ConfirmForgotPasswordRequest): Promise<{ message: string }> {
-    const response = await apiClient.post('/api/auth/cognito/confirm-forgot-password', request);
+    const response = await apiClient.post('/api/v2/auth/cognito/confirm-forgot-password', request);
     return response.data;
   }
 
@@ -103,14 +103,14 @@ class AuthRepository {
    * ログアウト
    */
   async logout(): Promise<void> {
-    await apiClient.post('/api/auth/cognito/logout');
+    await apiClient.post('/api/v2/auth/cognito/logout');
   }
 
   /**
    * 現在のユーザー情報取得
    */
   async getCurrentUser(): Promise<UserInfo> {
-    const response = await apiClient.get('/api/auth/cognito/me');
+    const response = await apiClient.get('/api/v2/auth/cognito/me');
     return response.data;
   }
 
@@ -118,7 +118,7 @@ class AuthRepository {
    * トークンリフレッシュ
    */
   async refreshToken(): Promise<void> {
-    await apiClient.post('/api/auth/cognito/refresh-token');
+    await apiClient.post('/api/v2/auth/cognito/refresh-token');
   }
 }
 

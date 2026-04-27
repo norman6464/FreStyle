@@ -22,8 +22,8 @@ describe('ProfileStatsRepository', () => {
 
     const stats = await ProfileStatsRepository.fetchStats();
 
-    expect(mockGet).toHaveBeenCalledWith('/api/users/me/stats');
-    expect(mockGet).toHaveBeenCalledWith('/api/daily-goals/streak');
+    expect(mockGet).toHaveBeenCalledWith('/api/v2/users/me/stats');
+    expect(mockGet).toHaveBeenCalledWith('/api/v2/daily-goals/streak');
     expect(stats).toEqual({
       totalSessions: 10,
       averageScore: 75.5,

@@ -41,7 +41,7 @@ describe('SessionNoteRepository', () => {
 
       expect(result).not.toBeNull();
       expect(result!.note).toBe('APIメモ');
-      expect(mockGet).toHaveBeenCalledWith('/api/session-notes/1');
+      expect(mockGet).toHaveBeenCalledWith('/api/v2/session-notes/1');
     });
 
     it('save: APIでメモを保存する', async () => {
@@ -49,7 +49,7 @@ describe('SessionNoteRepository', () => {
 
       await SessionNoteRepository.save(1, '保存メモ');
 
-      expect(mockPut).toHaveBeenCalledWith('/api/session-notes/1', { note: '保存メモ' });
+      expect(mockPut).toHaveBeenCalledWith('/api/v2/session-notes/1', { note: '保存メモ' });
     });
   });
 

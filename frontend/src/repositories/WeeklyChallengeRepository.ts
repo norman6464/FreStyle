@@ -4,7 +4,7 @@ import { WeeklyChallenge } from '../types';
 export const WeeklyChallengeRepository = {
   async fetchCurrentChallenge(): Promise<WeeklyChallenge | null> {
     try {
-      const response = await apiClient.get<WeeklyChallenge>('/api/weekly-challenge');
+      const response = await apiClient.get<WeeklyChallenge>('/api/v2/weekly-challenge');
       return response.data;
     } catch {
       return null;
@@ -13,7 +13,7 @@ export const WeeklyChallengeRepository = {
 
   async incrementProgress(): Promise<WeeklyChallenge | null> {
     try {
-      const response = await apiClient.post<WeeklyChallenge>('/api/weekly-challenge/progress');
+      const response = await apiClient.post<WeeklyChallenge>('/api/v2/weekly-challenge/progress');
       return response.data;
     } catch {
       return null;

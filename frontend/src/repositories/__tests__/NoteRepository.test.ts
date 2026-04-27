@@ -17,7 +17,7 @@ describe('NoteRepository', () => {
 
     const result = await NoteRepository.fetchNotes();
 
-    expect(apiClient.get).toHaveBeenCalledWith('/api/notes');
+    expect(apiClient.get).toHaveBeenCalledWith('/api/v2/notes');
     expect(result).toEqual(mockNotes);
   });
 
@@ -27,7 +27,7 @@ describe('NoteRepository', () => {
 
     const result = await NoteRepository.createNote('新しいノート');
 
-    expect(apiClient.post).toHaveBeenCalledWith('/api/notes', { title: '新しいノート' });
+    expect(apiClient.post).toHaveBeenCalledWith('/api/v2/notes', { title: '新しいノート' });
     expect(result.title).toBe('新しいノート');
   });
 
@@ -36,7 +36,7 @@ describe('NoteRepository', () => {
 
     await NoteRepository.updateNote('note-1', { title: '更新', content: '内容', isPinned: false });
 
-    expect(apiClient.put).toHaveBeenCalledWith('/api/notes/note-1', { title: '更新', content: '内容', isPinned: false });
+    expect(apiClient.put).toHaveBeenCalledWith('/api/v2/notes/note-1', { title: '更新', content: '内容', isPinned: false });
   });
 
   it('deleteNoteがDELETEリクエストを送信する', async () => {
@@ -44,6 +44,6 @@ describe('NoteRepository', () => {
 
     await NoteRepository.deleteNote('note-1');
 
-    expect(apiClient.delete).toHaveBeenCalledWith('/api/notes/note-1');
+    expect(apiClient.delete).toHaveBeenCalledWith('/api/v2/notes/note-1');
   });
 });

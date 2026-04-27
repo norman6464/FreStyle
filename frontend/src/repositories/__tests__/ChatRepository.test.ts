@@ -21,7 +21,7 @@ describe('ChatRepository', () => {
 
     const result = await ChatRepository.fetchChatUsers();
 
-    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/chat/rooms', { params: {} });
+    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/v2/chat/rooms', { params: {} });
     expect(result).toEqual(mockData.chatUsers);
   });
 
@@ -31,7 +31,7 @@ describe('ChatRepository', () => {
 
     await ChatRepository.fetchChatUsers('テスト');
 
-    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/chat/rooms', { params: { query: 'テスト' } });
+    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/v2/chat/rooms', { params: { query: 'テスト' } });
   });
 
   it('fetchCurrentUser: 現在のユーザー情報を取得できる', async () => {
@@ -40,7 +40,7 @@ describe('ChatRepository', () => {
 
     const result = await ChatRepository.fetchCurrentUser();
 
-    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/auth/cognito/me');
+    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/v2/auth/cognito/me');
     expect(result).toEqual(mockUser);
   });
 
@@ -50,7 +50,7 @@ describe('ChatRepository', () => {
 
     const result = await ChatRepository.createRoom(5);
 
-    expect(mockedApiClient.post).toHaveBeenCalledWith('/api/chat/users/5/create');
+    expect(mockedApiClient.post).toHaveBeenCalledWith('/api/v2/chat/users/5/create');
     expect(result).toEqual(mockData);
   });
 
@@ -59,7 +59,7 @@ describe('ChatRepository', () => {
 
     await ChatRepository.markAsRead('10');
 
-    expect(mockedApiClient.post).toHaveBeenCalledWith('/api/chat/rooms/10/read');
+    expect(mockedApiClient.post).toHaveBeenCalledWith('/api/v2/chat/rooms/10/read');
   });
 
   it('fetchHistory: チャット履歴を取得できる', async () => {
@@ -71,7 +71,7 @@ describe('ChatRepository', () => {
 
     const result = await ChatRepository.fetchHistory('5');
 
-    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/chat/users/5/history');
+    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/v2/chat/users/5/history');
     expect(result).toEqual(mockMessages);
   });
 
@@ -81,7 +81,7 @@ describe('ChatRepository', () => {
 
     const result = await ChatRepository.rephrase('テスト文', null);
 
-    expect(mockedApiClient.post).toHaveBeenCalledWith('/api/chat/ai/rephrase', {
+    expect(mockedApiClient.post).toHaveBeenCalledWith('/api/v2/chat/ai/rephrase', {
       originalMessage: 'テスト文',
       scene: null,
     });

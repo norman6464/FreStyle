@@ -12,13 +12,13 @@ describe('TemplateRepository', () => {
     it('カテゴリなしで全テンプレートを取得する', async () => {
       mockedApiClient.get.mockResolvedValue({ data: [] });
       await TemplateRepository.fetchTemplates();
-      expect(mockedApiClient.get).toHaveBeenCalledWith('/api/templates', { params: {} });
+      expect(mockedApiClient.get).toHaveBeenCalledWith('/api/v2/templates', { params: {} });
     });
 
     it('カテゴリ指定でテンプレートを取得する', async () => {
       mockedApiClient.get.mockResolvedValue({ data: [] });
       await TemplateRepository.fetchTemplates('meeting');
-      expect(mockedApiClient.get).toHaveBeenCalledWith('/api/templates', { params: { category: 'meeting' } });
+      expect(mockedApiClient.get).toHaveBeenCalledWith('/api/v2/templates', { params: { category: 'meeting' } });
     });
   });
 
@@ -27,7 +27,7 @@ describe('TemplateRepository', () => {
       const mockTemplate = { id: 1, title: 'Test', description: '', category: 'meeting', openingMessage: 'Hello', difficulty: 'beginner' };
       mockedApiClient.get.mockResolvedValue({ data: mockTemplate });
       const result = await TemplateRepository.fetchTemplateById(1);
-      expect(mockedApiClient.get).toHaveBeenCalledWith('/api/templates/1');
+      expect(mockedApiClient.get).toHaveBeenCalledWith('/api/v2/templates/1');
       expect(result).toEqual(mockTemplate);
     });
   });

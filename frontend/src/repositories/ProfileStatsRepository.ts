@@ -13,8 +13,8 @@ export interface ProfileStats {
 const ProfileStatsRepository = {
   async fetchStats(): Promise<ProfileStats> {
     const [statsRes, streakRes] = await Promise.all([
-      apiClient.get('/api/users/me/stats'),
-      apiClient.get('/api/daily-goals/streak'),
+      apiClient.get('/api/v2/users/me/stats'),
+      apiClient.get('/api/v2/daily-goals/streak'),
     ]);
     return {
       totalSessions: statsRes.data.totalSessions ?? 0,

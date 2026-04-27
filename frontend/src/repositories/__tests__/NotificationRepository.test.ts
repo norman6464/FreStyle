@@ -26,21 +26,21 @@ describe('NotificationRepository', () => {
 
     const result = await NotificationRepository.getAll();
     expect(result).toEqual(notifications);
-    expect(mockedGet).toHaveBeenCalledWith('/api/notifications');
+    expect(mockedGet).toHaveBeenCalledWith('/api/v2/notifications');
   });
 
   it('markAsRead: 指定IDの通知を既読にする', async () => {
     mockedPut.mockResolvedValue({});
 
     await NotificationRepository.markAsRead(5);
-    expect(mockedPut).toHaveBeenCalledWith('/api/notifications/5/read');
+    expect(mockedPut).toHaveBeenCalledWith('/api/v2/notifications/5/read');
   });
 
   it('markAllAsRead: 全通知を既読にする', async () => {
     mockedPut.mockResolvedValue({});
 
     await NotificationRepository.markAllAsRead();
-    expect(mockedPut).toHaveBeenCalledWith('/api/notifications/read-all');
+    expect(mockedPut).toHaveBeenCalledWith('/api/v2/notifications/read-all');
   });
 
   it('getUnreadCount: 未読数を取得する', async () => {
@@ -48,6 +48,6 @@ describe('NotificationRepository', () => {
 
     const result = await NotificationRepository.getUnreadCount();
     expect(result).toBe(3);
-    expect(mockedGet).toHaveBeenCalledWith('/api/notifications/unread-count');
+    expect(mockedGet).toHaveBeenCalledWith('/api/v2/notifications/unread-count');
   });
 });

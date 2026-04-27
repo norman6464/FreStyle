@@ -12,7 +12,7 @@ describe('ReminderRepository', () => {
     const mockData = { enabled: true, reminderTime: '20:00', daysOfWeek: 'mon,tue' };
     mockedApiClient.get.mockResolvedValue({ data: mockData });
     const result = await ReminderRepository.fetchSetting();
-    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/reminder');
+    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/v2/reminder');
     expect(result).toEqual(mockData);
   });
 
@@ -20,7 +20,7 @@ describe('ReminderRepository', () => {
     const setting = { enabled: true, reminderTime: '19:00', daysOfWeek: 'mon' };
     mockedApiClient.put.mockResolvedValue({ data: setting });
     const result = await ReminderRepository.saveSetting(setting);
-    expect(mockedApiClient.put).toHaveBeenCalledWith('/api/reminder', setting);
+    expect(mockedApiClient.put).toHaveBeenCalledWith('/api/v2/reminder', setting);
     expect(result).toEqual(setting);
   });
 });

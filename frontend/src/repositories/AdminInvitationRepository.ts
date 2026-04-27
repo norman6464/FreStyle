@@ -21,17 +21,17 @@ export interface CreateInvitationForm {
 /** 管理者専用: メール招待 CRUD */
 class AdminInvitationRepository {
   async list(): Promise<AdminInvitation[]> {
-    const res = await apiClient.get<AdminInvitation[]>('/api/admin/invitations');
+    const res = await apiClient.get<AdminInvitation[]>('/api/v2/admin/invitations');
     return res.data;
   }
 
   async create(form: CreateInvitationForm): Promise<AdminInvitation> {
-    const res = await apiClient.post<AdminInvitation>('/api/admin/invitations', form);
+    const res = await apiClient.post<AdminInvitation>('/api/v2/admin/invitations', form);
     return res.data;
   }
 
   async cancel(id: number): Promise<void> {
-    await apiClient.delete(`/api/admin/invitations/${id}`);
+    await apiClient.delete(`/api/v2/admin/invitations/${id}`);
   }
 }
 

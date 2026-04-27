@@ -11,17 +11,17 @@ interface ChatRoomsResponse {
 
 export const MenuRepository = {
   async fetchChatStats(): Promise<ChatStats> {
-    const { data } = await apiClient.get('/api/chat/stats');
+    const { data } = await apiClient.get('/api/v2/chat/stats');
     return data;
   },
 
   async fetchChatRooms(): Promise<ChatRoomsResponse> {
-    const { data } = await apiClient.get('/api/chat/rooms');
+    const { data } = await apiClient.get('/api/v2/chat/rooms');
     return data;
   },
 
   async fetchScoreHistory(): Promise<ScoreHistory[]> {
-    const { data } = await apiClient.get('/api/scores/history');
+    const { data } = await apiClient.get('/api/v2/scores/history');
     return data;
   },
 };

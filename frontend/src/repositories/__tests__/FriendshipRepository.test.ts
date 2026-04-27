@@ -26,7 +26,7 @@ describe('FriendshipRepository', () => {
 
     const result = await FriendshipRepository.getFollowing();
     expect(result).toEqual(users);
-    expect(mockedGet).toHaveBeenCalledWith('/api/friendships/following');
+    expect(mockedGet).toHaveBeenCalledWith('/api/v2/friendships/following');
   });
 
   it('getFollowers: フォロワー一覧を取得する', async () => {
@@ -35,7 +35,7 @@ describe('FriendshipRepository', () => {
 
     const result = await FriendshipRepository.getFollowers();
     expect(result).toEqual(users);
-    expect(mockedGet).toHaveBeenCalledWith('/api/friendships/followers');
+    expect(mockedGet).toHaveBeenCalledWith('/api/v2/friendships/followers');
   });
 
   it('follow: フォローリクエストを送る', async () => {
@@ -44,14 +44,14 @@ describe('FriendshipRepository', () => {
 
     const result = await FriendshipRepository.follow(30);
     expect(result).toEqual(user);
-    expect(mockedPost).toHaveBeenCalledWith('/api/friendships/30/follow');
+    expect(mockedPost).toHaveBeenCalledWith('/api/v2/friendships/30/follow');
   });
 
   it('unfollow: フォロー解除する', async () => {
     mockedDelete.mockResolvedValue({});
 
     await FriendshipRepository.unfollow(30);
-    expect(mockedDelete).toHaveBeenCalledWith('/api/friendships/30/follow');
+    expect(mockedDelete).toHaveBeenCalledWith('/api/v2/friendships/30/follow');
   });
 
   it('checkStatus: フォロー状態を確認する', async () => {
@@ -60,6 +60,6 @@ describe('FriendshipRepository', () => {
 
     const result = await FriendshipRepository.checkStatus(30);
     expect(result).toEqual(status);
-    expect(mockedGet).toHaveBeenCalledWith('/api/friendships/30/status');
+    expect(mockedGet).toHaveBeenCalledWith('/api/v2/friendships/30/status');
   });
 });

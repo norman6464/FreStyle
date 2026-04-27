@@ -90,5 +90,14 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 	authed.POST("/scenario-bookmarks", bookmarkHandler.Add)
 	authed.DELETE("/scenario-bookmarks/:userId/:scenarioId", bookmarkHandler.Remove)
 
+	// Phase 9: 共有 AI 会話セッション
+	sharedRepo := repository.NewSharedSessionRepository(db)
+	sharedHandler := NewSharedSessionHandler(
+		usecase.NewListSharedSessionsUseCase(sharedRepo),
+		usecase.NewCreateSharedSessionUseCase(sharedRepo),
+	)
+	authed.GET("/shared-sessions", sharedHandler.List)
+	authed.POST("/shared-sessions", sharedHandler.Create)
+
 	return r
 }

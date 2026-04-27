@@ -46,5 +46,14 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 	authed.GET("/ai-chat/sessions", aiHandler.GetSessions)
 	authed.POST("/ai-chat/sessions", aiHandler.CreateSession)
 
+	// Phase 4: ユーザー間チャット (ルーム CRUD)
+	chatRoomRepo := repository.NewChatRoomRepository(db)
+	chatHandler := NewChatHandler(
+		usecase.NewGetChatRoomsByUserIDUseCase(chatRoomRepo),
+		usecase.NewCreateChatRoomUseCase(chatRoomRepo),
+	)
+	authed.GET("/chat/rooms", chatHandler.GetRooms)
+	authed.POST("/chat/rooms", chatHandler.CreateRoom)
+
 	return r
 }

@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -10,8 +12,10 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/infra/config"
+	"github.com/norman6464/FreStyle/backend/internal/repository"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
 
@@ -19,13 +23,15 @@ import (
 // Spring Boot の CognitoAuthController に相当。
 type AuthHandler struct {
 	getCurrentUser *usecase.GetCurrentUserUseCase
+	users          repository.UserRepository
 	cognito        *config.CognitoConfig
 	httpClient     *http.Client
 }
 
-func NewAuthHandler(getCurrentUser *usecase.GetCurrentUserUseCase, cognito *config.CognitoConfig) *AuthHandler {
+func NewAuthHandler(getCurrentUser *usecase.GetCurrentUserUseCase, users repository.UserRepository, cognito *config.CognitoConfig) *AuthHandler {
 	return &AuthHandler{
 		getCurrentUser: getCurrentUser,
+		users:          users,
 		cognito:        cognito,
 		// Cognito token endpoint への通信が無限待ちにならないよう必ず timeout を設定する
 		httpClient: &http.Client{Timeout: 10 * time.Second},
@@ -137,7 +143,56 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	if tok.RefreshToken != "" {
 		c.SetCookie("refresh_token", tok.RefreshToken, 30*24*3600, "/", "", true, true)
 	}
+
+	// 初回ログインで users 行が無いと /auth/me が 404 になるため自動で upsert する。
+	// id_token の payload から sub / email を取り出して、未登録なら trainee として作成。
+	if claims, err := decodeJWTClaims(tok.IDToken); err == nil {
+		sub, _ := claims["sub"].(string)
+		email, _ := claims["email"].(string)
+		if sub != "" && h.users != nil {
+			existing, _ := h.users.FindByCognitoSub(c.Request.Context(), sub)
+			if existing == nil {
+				_ = h.users.Create(c.Request.Context(), &domain.User{
+					CognitoSub:  sub,
+					Email:       email,
+					DisplayName: email,
+					Role:        domain.RoleTrainee,
+				})
+			}
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{"message": "ログインしました。"})
+}
+
+// decodeJWTClaims は JWT (3 セグメント、署名検証なし) の payload 部だけ base64 デコードする。
+// callback 直後に Cognito 発行 token から sub / email を取り出して users 自動作成するためだけに使う。
+// 認証 middleware の本格的な署名検証 (JWKS) は別 issue。
+func decodeJWTClaims(idToken string) (map[string]any, error) {
+	parts := strings.Split(idToken, ".")
+	if len(parts) != 3 {
+		return nil, fmt.Errorf("invalid jwt format")
+	}
+	payload, err := base64URLDecode(parts[1])
+	if err != nil {
+		return nil, err
+	}
+	var claims map[string]any
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return nil, err
+	}
+	return claims, nil
+}
+
+func base64URLDecode(s string) ([]byte, error) {
+	switch len(s) % 4 {
+	case 2:
+		s += "=="
+	case 3:
+		s += "="
+	}
+	s = strings.NewReplacer("-", "+", "_", "/").Replace(s)
+	return base64.StdEncoding.DecodeString(s)
 }
 
 // Refresh は HttpOnly Cookie の refresh_token を使ってアクセストークンを再発行する。

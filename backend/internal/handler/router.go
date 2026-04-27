@@ -32,7 +32,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 
 	// Phase 2: 認証 (Cognito)
 	userRepo := repository.NewUserRepository(db)
-	authHandler := NewAuthHandler(usecase.NewGetCurrentUserUseCase(userRepo), &cfg.Cognito)
+	authHandler := NewAuthHandler(usecase.NewGetCurrentUserUseCase(userRepo), userRepo, &cfg.Cognito)
 	v2.POST("/auth/cognito/logout", authHandler.Logout)
 	// callback は code を受け取って token に交換するので認証不要
 	v2.POST("/auth/cognito/callback", authHandler.Callback)
@@ -63,6 +63,11 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	)
 	authed.GET("/chat/rooms", chatHandler.GetRooms)
 	authed.POST("/chat/rooms", chatHandler.CreateRoom)
+	// /chat/stats はフロント MenuPage が叩いていた旧 Spring Boot path。
+	// Go では未実装なので暫定 stub で空オブジェクトを返す（フロントは PR で chat/rooms 由来に切替済）。
+	authed.GET("/chat/stats", func(c *gin.Context) {
+		c.JSON(200, gin.H{"chatPartnerCount": 0})
+	})
 
 	// Phase 5: プロフィール
 	profileRepo := repository.NewProfileRepository(db)
@@ -146,6 +151,8 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	)
 	authed.GET("/score-cards", scoreCardHandler.List)
 	authed.POST("/score-cards", scoreCardHandler.Create)
+	// 旧 Spring Boot 互換 path の alias
+	authed.GET("/scores/history", scoreCardHandler.List)
 
 	// Phase 14: ScoreGoal
 	scoreGoalRepo := repository.NewScoreGoalRepository(db)

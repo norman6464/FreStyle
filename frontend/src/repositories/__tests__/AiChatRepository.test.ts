@@ -105,7 +105,7 @@ describe('AiChatRepository', () => {
 
     const result = await aiChatRepository.getScoreHistory();
 
-    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/v2/scores/history');
+    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/v2/score-cards');
     expect(result).toEqual(mockHistory);
   });
 });

@@ -64,5 +64,11 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 	authed.GET("/profile/:userId", profileHandler.Get)
 	authed.PUT("/profile/:userId", profileHandler.Update)
 
+	// Phase 6: ユーザー統計
+	statsHandler := NewUserStatsHandler(
+		usecase.NewGetUserStatsUseCase(repository.NewUserStatsRepository(db)),
+	)
+	authed.GET("/user-stats/:userId", statsHandler.Get)
+
 	return r
 }

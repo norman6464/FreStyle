@@ -43,6 +43,8 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	authed := v2.Group("")
 	authed.Use(middleware.JWTAuth())
 	authed.GET("/auth/me", authHandler.Me)
+	// フロントが旧 Spring Boot 互換パス /api/v2/auth/cognito/me を叩く場合の alias
+	authed.GET("/auth/cognito/me", authHandler.Me)
 
 	// Phase 3: AI チャット
 	aiSessionRepo := repository.NewAiChatSessionRepository(db)

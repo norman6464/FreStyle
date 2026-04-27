@@ -18,7 +18,14 @@ func NewChatHandler(g *usecase.GetChatRoomsByUserIDUseCase, c *usecase.CreateCha
 }
 
 func (h *ChatHandler) GetRooms(c *gin.Context) {
-	uid, _ := strconv.ParseUint(c.Query("userId"), 10, 64)
+	// userId クエリが無い場合は空配列を返す（本来は認証 middleware から current user を取り出すべきだが、
+	// JWKS 検証が Phase 2.1 待ちのため暫定対応）。
+	uidStr := c.Query("userId")
+	if uidStr == "" {
+		c.JSON(http.StatusOK, []struct{}{})
+		return
+	}
+	uid, _ := strconv.ParseUint(uidStr, 10, 64)
 	rows, err := h.getRooms.Execute(c.Request.Context(), uid)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

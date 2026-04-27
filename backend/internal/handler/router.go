@@ -260,5 +260,9 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 	aiChatWsHandler := NewAiChatWsHandler()
 	authed.GET("/ws/ai-chat", aiChatWsHandler.Handle)
 
+	// Phase 28: Chat WebSocket (ルームごとブロードキャスト)
+	chatWsHandler := NewChatWsHandler()
+	authed.GET("/ws/chat/:roomId", chatWsHandler.Handle)
+
 	return r
 }

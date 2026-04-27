@@ -70,5 +70,14 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 	)
 	authed.GET("/user-stats/:userId", statsHandler.Get)
 
+	// Phase 7: 練習モード (シナリオ)
+	practiceRepo := repository.NewPracticeScenarioRepository(db)
+	practiceHandler := NewPracticeHandler(
+		usecase.NewListPracticeScenariosUseCase(practiceRepo),
+		usecase.NewGetPracticeScenarioUseCase(practiceRepo),
+	)
+	authed.GET("/practice/scenarios", practiceHandler.List)
+	authed.GET("/practice/scenarios/:id", practiceHandler.Get)
+
 	return r
 }

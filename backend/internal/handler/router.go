@@ -129,5 +129,14 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 	authed.GET("/sessions/:sessionId/note", sessionNoteHandler.Get)
 	authed.PUT("/sessions/:sessionId/note", sessionNoteHandler.Upsert)
 
+	// Phase 13: ScoreCard
+	scoreCardRepo := repository.NewScoreCardRepository(db)
+	scoreCardHandler := NewScoreCardHandler(
+		usecase.NewListScoreCardsByUserIDUseCase(scoreCardRepo),
+		usecase.NewCreateScoreCardUseCase(scoreCardRepo),
+	)
+	authed.GET("/score-cards", scoreCardHandler.List)
+	authed.POST("/score-cards", scoreCardHandler.Create)
+
 	return r
 }

@@ -246,7 +246,7 @@ jobs:
           ALB_DNS: ${{ steps.deps.outputs.alb_dns }}
         run: |
           for i in 1 2 3 4 5; do
-            if curl -fsS "http://$ALB_DNS/actuator/health"; then
+            if curl -fsS "http://$ALB_DNS/api/v2/health"; then
               echo "✅ Healthy"
               exit 0
             fi

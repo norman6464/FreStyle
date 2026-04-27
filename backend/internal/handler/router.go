@@ -243,5 +243,18 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 	authed.POST("/admin/invitations", adminInvHandler.Create)
 	authed.DELETE("/admin/invitations/:id", adminInvHandler.Cancel)
 
+	// Phase 26: AdminScenario
+	adminScenarioRepo := repository.NewAdminScenarioRepository(db)
+	adminScenarioHandler := NewAdminScenarioHandler(
+		usecase.NewListAdminScenariosUseCase(adminScenarioRepo),
+		usecase.NewCreateAdminScenarioUseCase(adminScenarioRepo),
+		usecase.NewUpdateAdminScenarioUseCase(adminScenarioRepo),
+		usecase.NewDeleteAdminScenarioUseCase(adminScenarioRepo),
+	)
+	authed.GET("/admin/scenarios", adminScenarioHandler.List)
+	authed.POST("/admin/scenarios", adminScenarioHandler.Create)
+	authed.PUT("/admin/scenarios/:id", adminScenarioHandler.Update)
+	authed.DELETE("/admin/scenarios/:id", adminScenarioHandler.Delete)
+
 	return r
 }

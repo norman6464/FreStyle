@@ -168,5 +168,11 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 	authed.GET("/learning-reports", learningReportHandler.List)
 	authed.POST("/learning-reports", learningReportHandler.Request)
 
+	// Phase 18: ConversationTemplate
+	templateHandler := NewConversationTemplateHandler(
+		usecase.NewListConversationTemplatesUseCase(repository.NewConversationTemplateRepository(db)),
+	)
+	authed.GET("/conversation-templates", templateHandler.List)
+
 	return r
 }

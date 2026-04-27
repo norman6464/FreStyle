@@ -37,5 +37,14 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 	authed.Use(middleware.JWTAuth())
 	authed.GET("/auth/me", authHandler.Me)
 
+	// Phase 3: AI チャット
+	aiSessionRepo := repository.NewAiChatSessionRepository(db)
+	aiHandler := NewAiChatHandler(
+		usecase.NewGetAiChatSessionsByUserIDUseCase(aiSessionRepo),
+		usecase.NewCreateAiChatSessionUseCase(aiSessionRepo),
+	)
+	authed.GET("/ai-chat/sessions", aiHandler.GetSessions)
+	authed.POST("/ai-chat/sessions", aiHandler.CreateSession)
+
 	return r
 }

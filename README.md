@@ -92,8 +92,11 @@
 
 <h3>Backend</h3>
 <a href="https://skillicons.dev">
-  <img src="https://skillicons.dev/icons?i=java,spring,gradle&theme=light" alt="Backend">
+  <img src="https://skillicons.dev/icons?i=go,gin,docker&theme=light" alt="Backend">
 </a>
+
+> 旧バックエンド (Spring Boot / Java / Gradle) は `FreStyle/` 配下に資産として保持。
+> 新バックエンド (Go / Gin / GORM) は `backend/` 配下で機能ごとに段階的に移植中。
 
 <h3>Infrastructure</h3>
 <a href="https://skillicons.dev">
@@ -102,7 +105,7 @@
 
 <h3>Database</h3>
 <a href="https://skillicons.dev">
-  <img src="https://skillicons.dev/icons?i=mysql,dynamodb&theme=light" alt="Database">
+  <img src="https://skillicons.dev/icons?i=postgres,dynamodb&theme=light" alt="Database">
 </a>
 
 <h3>CI/CD</h3>
@@ -116,7 +119,7 @@
 |---------|----------|------|
 | **Compute** | ECS (Fargate), ECR | コンテナ実行・イメージ管理 |
 | **Networking** | CloudFront, ALB, Route 53 | CDN・ロードバランシング・DNS |
-| **Database** | RDS (MariaDB), DynamoDB | リレーショナルDB・NoSQL |
+| **Database** | RDS (PostgreSQL 16), DynamoDB | リレーショナルDB（GORM 経由）・NoSQL |
 | **Storage** | S3 | フロントエンドホスティング・画像保存 |
 | **Auth** | Cognito | JWT認証 (HttpOnly Cookie) |
 | **AI** | Bedrock | AIチャット（コミュニケーションスコア評価） |
@@ -130,66 +133,96 @@
 ## Architecture Highlights（工夫した点）
 
 ### ① WebSocket と HTTP API の構成を用途別に完全分離
-- **WebSocket**：API Gateway + Lambda + DynamoDB  
-- **HTTP（Rest API）**：ECS（Fargate） + Spring Boot  
+- **WebSocket**：API Gateway + Lambda + DynamoDB
+- **HTTP（Rest API）**：ECS（Fargate） + Go (Gin)
 
 リアルタイム性と低コストを優先した WebSocket と、安定稼働・複雑処理に適した HTTP API を分離し、性能・コスト・可用性の最適化を実現。
 
-### ② JWT（HttpOnly Cookie）× Spring Security の安全な認証設計
+### ② JWT（HttpOnly Cookie）× Cognito の安全な認証設計
 - JWT を HttpOnly Cookie に保存（XSS 対策）
-- アクセストークンの有効期間を短くしリフレッシュトークンで再発行をする
+- アクセストークンの有効期間を短くしリフレッシュトークンで再発行
 - OIDC & JWK を活用した堅牢な認証フロー
-- OIDC経由でも当該アプリ経由でも同一ユーザーとして認識
+- OIDC 経由でも当該アプリ経由でも同一ユーザーとして認識
+- Go 側は Gin の middleware で JWT 検証（`golang-jwt/jwt` + AWS Cognito JWKS）を実装
 
 ### ③ CloudFront によるグローバル最適化と HTTPS 化
 - 高速配信（CDN）
 - OIDC と組み合わせてセキュアなフロント構成
-- Cognito/OIDCログインを使用しているのでHTTPSの必須になるので採用した
+- Cognito / OIDC ログインで HTTPS が必須なため採用
 
-### ④ クリーンアーキテクチャの適用による保守性向上
-**Phase 1-3リファクタリング完了** (2026年2月)
+### ④ Spring Boot → Go (Gin + GORM) への段階的移行
 
-バックエンドコードをクリーンアーキテクチャに基づいて全面リファクタリングし、保守性・テスタビリティ・可読性を大幅に向上させました。
+**Phase 0 完了** (2026 年 4 月 27 日): `backend/` ディレクトリに Go プロジェクト基盤を新設
 
-詳細な層責務・クラス依存関係・テスト戦略は [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) を一次情報として参照してください。
+ECS Fargate のリソース消費を最小化するため、JVM ベースの Spring Boot から Go (Gin + GORM) に段階的に置き換え中。Spring Boot 資産（`FreStyle/` 配下）は壊さず並行運用し、機能ごとに切り替えていく。
 
-#### 実装内容
-- **Mapper層**: DTO↔Entity変換を一箇所に集約
-- **UseCase層**: ビジネスロジックをController層から分離（87クラス）
-- **依存性逆転の原則**: Controller → UseCase → Service/Repository の明確な依存関係を確立
-- **単一責任の原則**: 各クラスの責務を明確化し、1クラス1責務を徹底
+#### なぜ Go に移行するのか
 
-#### リファクタリング対象
-- **Phase 1**: 練習モード機能（PracticeScenarioService → 3 UseCases）
-- **Phase 2**: AI Chat機能（AiChatSessionService/AiChatMessageService → 10 UseCases）
-- **Phase 3**: ScoreCard機能（ScoreCardService → 3 UseCases + Mapper）
+| 観点 | Spring Boot (旧) | Go + Gin (新) |
+|---|---|---|
+| ECS Fargate スペック | 2 vCPU / 4 GB（JVM オーバーヘッド分） | 0.25 vCPU / 0.5 GB（最小） |
+| Fargate コスト見込み | ~$2.40/日 | ~$0.30/日（**約 80% 削減**） |
+| 起動時間 | 数十秒（JVM warmup） | サブ秒 |
+| バイナリサイズ | JRE + jar 約 200 MB+ | distroless + static binary 約 30 MB |
+| 並行処理 | スレッドプール | goroutine（軽量） |
 
-#### 成果
-- コード行数: **+1,849行追加 / -377行削除**
-- テスタビリティ向上: モック化が容易な設計に
-- 日本語コメント充実: 各クラスの役割・責務を明記
+#### 移行戦略
 
-#### 層構成（バックエンド）
+- ALB の path-based routing で `/api/v2/*` を Go ECS Service に振り、既存 `/api/*`（Spring Boot）と並行運用
+- 機能（controller 単位）ごとに **独立した issue / PR / merge** で切り替え
+- 全機能の移植が完了した時点で `/api/v2/*` を `/api/*` に統合し、Spring Boot 側を destroy
+
+#### Go バックエンドのクリーンアーキテクチャ
+
+Spring Boot 側で確立した依存方向ルールを Go 側にも忠実に持ち込みます。
 
 ```text
 ┌────────────────────────────────────────────────────────────┐
 │                  Presentation Layer                        │
-│   Controller（REST / WebSocket）                           │
+│   handler (Gin)                                            │
 └────────────────────────────────────────────────────────────┘
                        ↓
 ┌────────────────────────────────────────────────────────────┐
 │                  Application Layer                         │
-│   UseCase（1 ユースケース = 1 クラス／87 クラス）            │
+│   usecase（1 ユースケース = 1 ファイル）                    │
 └────────────────────────────────────────────────────────────┘
                        ↓
 ┌────────────────────────────────────────────────────────────┐
 │                    Domain Layer                            │
-│   Service（ドメインロジック・外部統合） / Entity             │
+│   domain（純粋なドメイン構造体・ロジック）                   │
 └────────────────────────────────────────────────────────────┘
                        ↓
 ┌────────────────────────────────────────────────────────────┐
 │                Infrastructure Layer                        │
-│   Repository（JPA / DynamoDB / S3 / Bedrock）               │
+│   repository (GORM) / infra (Cognito / S3 / Bedrock SDK)   │
+└────────────────────────────────────────────────────────────┘
+```
+
+ディレクトリ:
+
+```
+backend/
+├── cmd/server/          エントリーポイント (main.go)
+├── internal/
+│   ├── handler/         HTTP ハンドラ層 (Spring Boot Controller 相当)
+│   ├── usecase/         ユースケース層 (Spring Boot UseCase 相当)
+│   ├── repository/      リポジトリ層 (Spring Boot Repository 相当)
+│   ├── domain/          ドメインモデル (Spring Boot Entity 相当)
+│   └── infra/
+│       ├── config/      環境変数ロード
+│       └── database/    GORM + PostgreSQL 接続
+├── Dockerfile           multi-stage / distroless / static binary
+└── go.mod
+```
+
+#### Spring Boot 側のクリーンアーキテクチャ（既存資産）
+
+Spring Boot バックエンドは Phase 1〜3 のリファクタリング（2026 年 2 月）で 87 クラスの UseCase を整備済みで、Go 移植のリファレンス実装としてそのまま `FreStyle/` 配下に保持しています。詳細な層責務・クラス依存関係は [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) を参照してください。
+
+```text
+┌────────────────────────────────────────────────────────────┐
+│   Controller → UseCase → Service / Repository → Entity     │
+│   (Java / Spring Boot 側、87 UseCase クラス)                │
 └────────────────────────────────────────────────────────────┘
 ```
 
@@ -203,93 +236,60 @@ Page (画面)  →  Hook (Application)  →  Repository (axios)
 Component (Presentational)
 ```
 
-#### クラス依存関係図（AI チャット機能）
+#### 依存関係図（AI チャット機能 - Go 移植版の例）
 
 ```mermaid
 classDiagram
-    class AiChatController {
-      +createSession(userId)
-      +addMessage(sessionId, content)
-      +getSessions(userId)
+    class AiChatHandler {
+      +CreateSession(c *gin.Context)
+      +AddMessage(c *gin.Context)
+      +GetSessions(c *gin.Context)
     }
     class CreateAiChatSessionUseCase
     class AddAiChatMessageUseCase
     class GetAiChatSessionsByUserIdUseCase
-    class AiChatSessionService
-    class AiChatMessageService
-    class BedrockService
     class AiChatSessionRepository {
-      <<JPA>>
+      <<GORM / Postgres>>
     }
-    class AiChatMessageDynamoService {
-      <<DynamoDB>>
+    class AiChatMessageRepository {
+      <<DynamoDB SDK>>
+    }
+    class BedrockClient {
+      <<AWS SDK>>
     }
 
-    AiChatController --> CreateAiChatSessionUseCase
-    AiChatController --> AddAiChatMessageUseCase
-    AiChatController --> GetAiChatSessionsByUserIdUseCase
+    AiChatHandler --> CreateAiChatSessionUseCase
+    AiChatHandler --> AddAiChatMessageUseCase
+    AiChatHandler --> GetAiChatSessionsByUserIdUseCase
 
-    CreateAiChatSessionUseCase --> AiChatSessionService
-    AddAiChatMessageUseCase --> AiChatMessageService
-    AddAiChatMessageUseCase --> BedrockService
-    GetAiChatSessionsByUserIdUseCase --> AiChatSessionService
-
-    AiChatSessionService --> AiChatSessionRepository
-    AiChatMessageService --> AiChatMessageDynamoService
+    CreateAiChatSessionUseCase --> AiChatSessionRepository
+    AddAiChatMessageUseCase --> AiChatMessageRepository
+    AddAiChatMessageUseCase --> BedrockClient
+    GetAiChatSessionsByUserIdUseCase --> AiChatSessionRepository
 ```
 
-#### クラス依存関係図（スコア評価機能）
-
-```mermaid
-classDiagram
-    class ScoreCardController
-    class CreateScoreCardUseCase
-    class GetScoreCardsByUserIdUseCase
-    class GetScoreTrendUseCase
-    class ScoreCardService
-    class ScoreCardMapper
-    class ScoreCardRepository {
-      <<JPA>>
-    }
-
-    ScoreCardController --> CreateScoreCardUseCase
-    ScoreCardController --> GetScoreCardsByUserIdUseCase
-    ScoreCardController --> GetScoreTrendUseCase
-
-    CreateScoreCardUseCase --> ScoreCardService
-    CreateScoreCardUseCase --> ScoreCardMapper
-    GetScoreCardsByUserIdUseCase --> ScoreCardService
-    GetScoreCardsByUserIdUseCase --> ScoreCardMapper
-    GetScoreTrendUseCase --> ScoreCardService
-
-    ScoreCardService --> ScoreCardRepository
-```
-
-#### データフロー: AI チャットへメッセージを送る
+#### データフロー: AI チャットへメッセージを送る（Go 版）
 
 ```mermaid
 sequenceDiagram
     participant FE as ChatPage
     participant Hook as useAiChat Hook
     participant Repo as AiChatRepository
-    participant Ctrl as AiChatController
+    participant H as AiChatHandler (Gin)
     participant UC as AddAiChatMessageUseCase
-    participant Svc as AiChatMessageService
     participant DDB as DynamoDB
-    participant Bed as BedrockService
+    participant Bed as Bedrock SDK
 
     FE->>Hook: sendMessage(text)
-    Hook->>Repo: POST /ai-chat/sessions/:id/messages
-    Repo->>Ctrl: HTTP Request
-    Ctrl->>UC: execute(sessionId, content)
-    UC->>Svc: add(userMessage)
-    Svc->>DDB: put
-    UC->>Bed: invokeModel(prompt)
+    Hook->>Repo: POST /api/v2/ai-chat/sessions/:id/messages
+    Repo->>H: HTTP Request
+    H->>UC: Execute(ctx, sessionId, content)
+    UC->>DDB: PutItem(userMessage)
+    UC->>Bed: InvokeModel(prompt)
     Bed-->>UC: aiResponse
-    UC->>Svc: add(aiMessage)
-    Svc->>DDB: put
-    UC-->>Ctrl: MessageDto
-    Ctrl-->>Repo: HTTP Response
+    UC->>DDB: PutItem(aiMessage)
+    UC-->>H: MessageDto
+    H-->>Repo: HTTP Response (JSON)
     Repo-->>Hook: Promise resolve
     Hook-->>FE: state update → re-render
 ```
@@ -313,23 +313,30 @@ sequenceDiagram
 ---
 
 ## 苦労した点・学び
-- WebSocket を ECS で保持するか、サーバーレスにするかの検討 → コスト/工数削減/レイテンシから Lambda + APIGW に決定
-- Spring Security の JWT / JWK / Cookie 設計
+- WebSocket を ECS で保持するか、サーバーレスにするかの検討 → コスト / 工数削減 / レイテンシから Lambda + APIGW に決定
+- Spring Security の JWT / JWK / Cookie 設計（Go 移行後は Gin middleware で再実装）
 - ALB の TLS Termination と ECS の Backend 構成
+- Spring Boot の JVM オーバーヘッドにより Fargate 2 vCPU / 4 GB を要し、ランニングコストが嵩んでいた → Go (Gin + GORM) に置き換えて 0.25 vCPU / 0.5 GB へ縮退する設計に切替
+- 既存資産を捨てない移行戦略の設計（path-based routing による Spring Boot / Go 並行運用）
 
 ---
 
-## 技術選定理由（HTTP API / ECS Fargate）
+## 技術選定理由（HTTP API / ECS Fargate / Go）
 
-1. Docker 化した Spring Boot を安定稼働させるため
-   - サーバープロビジョニング不要
-   - OS 管理不要
+1. **Go (Gin + GORM)** で書き直すことでコンテナ要求リソースを最小化
+   - JVM が要求する 2 vCPU / 4 GB → 0.25 vCPU / 0.5 GB へ
+   - 起動時間サブ秒、distroless で 30 MB 級の static binary
+   - goroutine による軽量並行処理
 
-2. ALB と連携した柔軟なルーティング
-   - ホストベースルーティングで[BeStyle](https://normanblog.com)にも同じロードバランサーを使用をしコスト削減をした
-   - ヘルスチェックをしておりSpring Bootのactuatorでヘルスチェックのエンドポイントにアクセス
+2. **ECS Fargate** で Docker 化したアプリを安定稼働
+   - サーバープロビジョニング不要 / OS 管理不要
+   - 旧 Spring Boot 版から Go 版への切替は ECS Service 単位で blue/green に近い運用が可能
 
-3. Blue/Green デプロイ
+3. **ALB と連携した柔軟なルーティング**
+   - ホストベースルーティングで [BeStyle](https://normanblog.com) にも同じロードバランサーを使用しコスト削減
+   - ヘルスチェックは Go 側で `/api/v2/health` を提供し ALB Target Group が定期チェック
+
+4. **Blue/Green デプロイ**
    - CodeDeploy と連携
    - 新バージョンのヘルスチェック後に切替
    - 即時ロールバック可能
@@ -400,21 +407,58 @@ sequenceDiagram
 
 ## ローカル開発環境セットアップ
 
-### バックエンド（Docker Compose）
+### バックエンド (Go) — `backend/`
 
 ```bash
-# 1. 環境変数ファイルを作成（.env.example をコピーして値を設定）
-cp .env.example .env
+cd backend
 
-# 2. MariaDB + Spring Boot を起動
-docker compose up -d --build
+# 1) 依存解決
+go mod tidy
 
-# 3. 動作確認
-docker compose ps          # コンテナ状態確認
-docker compose logs api    # Spring Boot ログ確認
+# 2) PostgreSQL 接続情報を環境変数に
+export DB_HOST=localhost
+export DB_PORT=5432
+export DB_USER=postgres
+export DB_PASSWORD=<password>
+export DB_NAME=fre_style
+export DB_SSLMODE=disable
+export PORT=8080
+
+# 3) 起動
+go run ./cmd/server
+
+# 4) 動作確認
+curl http://localhost:8080/
+# => {"message":"FreStyle Go backend (Phase 0 bootstrap)"}
 ```
 
-MariaDB 11 がコンテナとして起動し、Spring Boot 起動時に `schema.sql` でテーブルが自動作成されます。
+Docker でビルドする場合:
+
+```bash
+cd backend
+docker build -t frestyle-backend:dev .
+docker run --rm -p 8080:8080 \
+  -e DB_HOST=host.docker.internal \
+  -e DB_USER=postgres -e DB_PASSWORD=<password> \
+  -e DB_NAME=fre_style -e DB_SSLMODE=disable \
+  frestyle-backend:dev
+```
+
+### バックエンド (Spring Boot, 旧 / 並行運用中) — `FreStyle/`
+
+```bash
+# 環境変数ファイルを作成（.env.example をコピーして値を設定）
+cp .env.example .env
+
+# Docker Compose で起動（PostgreSQL + Spring Boot）
+docker compose up -d --build
+
+# 動作確認
+docker compose ps
+docker compose logs api
+```
+
+Spring Boot 側は Phase 移行が完了するまで `FreStyle/` 配下にそのまま保持し、機能ごとに Go 側へ置き換え後は段階的に削除していきます。
 
 ### フロントエンド
 
@@ -438,19 +482,20 @@ npx tailwindcss init -p
 
 ## 本番環境DBマイグレーション
 
-本番環境（AWS RDS）にデプロイする際、スキーマの更新が必要な場合はマイグレーションSQLを実行してください。
+本番環境（AWS RDS PostgreSQL）にデプロイする際、スキーマの更新が必要な場合はマイグレーション SQL を実行してください。
 
 ### マイグレーション手順
 
 ```bash
-# 1. AWS RDSに接続
-mysql -h <RDS_ENDPOINT> -u <DB_USER> -p <DB_NAME>
+# 1. AWS RDS (PostgreSQL) に踏み台 EC2 経由で接続
+ssh -L 5432:<RDS_ENDPOINT>:5432 ec2-user@<BASTION>
+psql -h localhost -U postgres -d fre_style
 
-# 2. マイグレーションSQLを実行
-source FreStyle/migrations/001_add_practice_mode_support.sql;
+# 2. マイグレーション SQL を実行
+\i FreStyle/migrations/001_add_practice_mode_support.sql
 
 # 3. 確認
-SHOW COLUMNS FROM ai_chat_sessions;
+\d ai_chat_sessions
 SELECT COUNT(*) FROM practice_scenarios;
 ```
 
@@ -458,9 +503,11 @@ SELECT COUNT(*) FROM practice_scenarios;
 
 | ファイル名 | 実行日 | 内容 |
 |-----------|--------|------|
-| `001_add_practice_mode_support.sql` | 2026-02-12 | 練習モード機能追加（`ai_chat_sessions` に `session_type`, `scenario_id` カラム追加、`practice_scenarios` テーブル作成、初期データ12件投入） |
+| `001_add_practice_mode_support.sql` | 2026-02-12 | 練習モード機能追加（`ai_chat_sessions` に `session_type`, `scenario_id` カラム追加、`practice_scenarios` テーブル作成、初期データ 12 件投入） |
 
-**注意**: マイグレーションは冪等性があり、複数回実行しても安全です（`IF NOT EXISTS`, `INSERT IGNORE` を使用）。
+**注意**: マイグレーションは冪等性があり、複数回実行しても安全です（`IF NOT EXISTS`, `ON CONFLICT DO NOTHING` を使用）。
+
+GORM 側の AutoMigrate は本番では使わず、明示的な SQL で運用します（破壊的変更の検知漏れを防ぐため）。
 
 ---
 
@@ -480,15 +527,28 @@ SELECT COUNT(*) FROM practice_scenarios;
 
 ### コーディング規約（要点）
 
-- **クリーンアーキテクチャ**: Controller → UseCase → Service/Repository の依存方向を厳守。詳細は [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)
-- **1 UseCase = 1 ビジネスルール**: 新規機能追加時は Service に肥大化させず、UseCase クラスを新規作成
-- **DTO ↔ Entity 変換**: Mapper に集約。Controller / UseCase で直接変換しない
+- **クリーンアーキテクチャ**: handler → usecase → repository → domain（Go）/ Controller → UseCase → Service / Repository → Entity（Spring Boot）の依存方向を厳守。詳細は [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)
+- **1 UseCase = 1 ビジネスルール**: 新規機能追加時は usecase ファイルを新規作成し、肥大化させない
+- **DTO ↔ Domain 変換**: 1 箇所に集約。handler / usecase で直接変換しない
 - **テスト必須**: 新規追加コードには必ず単体テストを付ける
 - **日本語**: PR / Issue / コミットメッセージ / コメントは日本語、識別子は英語
 
 ### テスト
 
-#### バックエンド
+#### バックエンド (Go)
+
+```bash
+cd backend
+go vet ./...
+go test ./...
+```
+
+- 標準 `testing` パッケージ + `github.com/stretchr/testify`（順次導入）
+- usecase: 依存をインターフェイスとしてモック化した単体テスト
+- repository: テスト用 PostgreSQL コンテナまたは sqlite による統合テスト
+- handler: `httptest.NewRecorder` + `gin.New()` でルータごと検証
+
+#### バックエンド (Spring Boot, 並行運用中)
 
 ```bash
 cd FreStyle
@@ -496,10 +556,7 @@ cd FreStyle
 ```
 
 - JUnit 5 + Mockito + AssertJ
-- UseCase: Mockito でモック化した単体テスト
-- Service: 外部クライアントをモックした単体テスト
-- Repository: `@DataJpaTest` + H2 インメモリDB による統合テスト
-- Mapper: 純粋な変換ロジックの単体テスト
+- 既存 87 UseCase の単体テスト一式
 
 #### フロントエンド
 

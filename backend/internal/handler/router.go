@@ -256,5 +256,9 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 	authed.PUT("/admin/scenarios/:id", adminScenarioHandler.Update)
 	authed.DELETE("/admin/scenarios/:id", adminScenarioHandler.Delete)
 
+	// Phase 27: AiChat WebSocket (echo skeleton, Bedrock 連携は Phase 27.1)
+	aiChatWsHandler := NewAiChatWsHandler()
+	authed.GET("/ws/ai-chat", aiChatWsHandler.Handle)
+
 	return r
 }

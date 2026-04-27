@@ -2,6 +2,7 @@ package handler
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/repository"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 	"gorm.io/gorm"
@@ -19,12 +20,22 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 	})
 
 	v2 := r.Group("/api/v2")
-	{
-		healthHandler := NewHealthHandler(
-			usecase.NewCheckHealthUseCase(repository.NewHealthRepository(db)),
-		)
-		v2.GET("/health", healthHandler.Get)
-	}
+
+	// Phase 1: 認証不要のヘルスチェック
+	healthHandler := NewHealthHandler(
+		usecase.NewCheckHealthUseCase(repository.NewHealthRepository(db)),
+	)
+	v2.GET("/health", healthHandler.Get)
+
+	// Phase 2: 認証 (Cognito)
+	userRepo := repository.NewUserRepository(db)
+	authHandler := NewAuthHandler(usecase.NewGetCurrentUserUseCase(userRepo))
+	v2.POST("/auth/cognito/logout", authHandler.Logout)
+
+	// 認証必須グループ
+	authed := v2.Group("")
+	authed.Use(middleware.JWTAuth())
+	authed.GET("/auth/me", authHandler.Me)
 
 	return r
 }

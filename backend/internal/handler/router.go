@@ -103,6 +103,8 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	authed.GET("/scenario-bookmarks", bookmarkHandler.List)
 	authed.POST("/scenario-bookmarks", bookmarkHandler.Add)
 	authed.DELETE("/scenario-bookmarks/:userId/:scenarioId", bookmarkHandler.Remove)
+	// 旧 Spring Boot 互換 path のための alias（フロントが /api/v2/bookmarks を叩くケース）
+	authed.GET("/bookmarks", bookmarkHandler.List)
 
 	// Phase 9: 共有 AI 会話セッション
 	sharedRepo := repository.NewSharedSessionRepository(db)
@@ -238,6 +240,11 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	)
 	authed.GET("/daily-goals/:userId", dailyGoalHandler.Get)
 	authed.PUT("/daily-goals/:userId", dailyGoalHandler.Upsert)
+	// /daily-goals/today は Spring Boot 時代の path。Go では :userId 解析されて 400 になっていた。
+	// 暫定で 200 + 空オブジェクトを返す stub。本来は current user の今日の goal を返すべきだが別 issue。
+	authed.GET("/daily-goals/today", func(c *gin.Context) {
+		c.JSON(200, gin.H{"date": "", "targetMinutes": 0, "actualMinutes": 0, "isAchieved": false})
+	})
 
 	// Phase 24: WeeklyChallenge
 	weeklyRepo := repository.NewWeeklyChallengeRepository(db)

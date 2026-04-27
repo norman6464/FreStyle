@@ -174,5 +174,16 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 	)
 	authed.GET("/conversation-templates", templateHandler.List)
 
+	// Phase 19: FavoritePhrase
+	favRepo := repository.NewFavoritePhraseRepository(db)
+	favHandler := NewFavoritePhraseHandler(
+		usecase.NewListFavoritePhrasesUseCase(favRepo),
+		usecase.NewAddFavoritePhraseUseCase(favRepo),
+		usecase.NewDeleteFavoritePhraseUseCase(favRepo),
+	)
+	authed.GET("/favorite-phrases", favHandler.List)
+	authed.POST("/favorite-phrases", favHandler.Add)
+	authed.DELETE("/favorite-phrases/:id", favHandler.Remove)
+
 	return r
 }

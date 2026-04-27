@@ -79,5 +79,16 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 	authed.GET("/practice/scenarios", practiceHandler.List)
 	authed.GET("/practice/scenarios/:id", practiceHandler.Get)
 
+	// Phase 8: シナリオブックマーク
+	bookmarkRepo := repository.NewScenarioBookmarkRepository(db)
+	bookmarkHandler := NewScenarioBookmarkHandler(
+		usecase.NewListScenarioBookmarksUseCase(bookmarkRepo),
+		usecase.NewAddScenarioBookmarkUseCase(bookmarkRepo),
+		usecase.NewRemoveScenarioBookmarkUseCase(bookmarkRepo),
+	)
+	authed.GET("/scenario-bookmarks", bookmarkHandler.List)
+	authed.POST("/scenario-bookmarks", bookmarkHandler.Add)
+	authed.DELETE("/scenario-bookmarks/:userId/:scenarioId", bookmarkHandler.Remove)
+
 	return r
 }

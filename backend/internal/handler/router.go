@@ -159,5 +159,14 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 	)
 	authed.GET("/rankings", rankingHandler.Get)
 
+	// Phase 17: LearningReport (非同期生成)
+	learningReportRepo := repository.NewLearningReportRepository(db)
+	learningReportHandler := NewLearningReportHandler(
+		usecase.NewListLearningReportsUseCase(learningReportRepo),
+		usecase.NewRequestLearningReportUseCase(learningReportRepo, repository.NewStubSqsEnqueuer()),
+	)
+	authed.GET("/learning-reports", learningReportHandler.List)
+	authed.POST("/learning-reports", learningReportHandler.Request)
+
 	return r
 }

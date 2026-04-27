@@ -3,17 +3,20 @@ package handler
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
+	"github.com/norman6464/FreStyle/backend/internal/infra/config"
 	"github.com/norman6464/FreStyle/backend/internal/repository"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 	"gorm.io/gorm"
 )
 
 // NewRouter は API ルーティングを組み立てる。
-// /api/v2/* は Spring Boot の /api/* と並行運用する Go 側のエンドポイント。
-func NewRouter(db *gorm.DB) *gin.Engine {
+// /api/v2/* は Go バックエンドの単独エンドポイント（旧 Spring Boot /api/* は廃止済み）。
+func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.Use(gin.Logger())
+	// 全エンドポイントで CORS を許可（normanblog.com など allowlisted origin）
+	r.Use(middleware.CORS())
 
 	r.GET("/", func(c *gin.Context) {
 		c.JSON(200, gin.H{"message": "FreStyle Go backend"})
@@ -29,8 +32,10 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 
 	// Phase 2: 認証 (Cognito)
 	userRepo := repository.NewUserRepository(db)
-	authHandler := NewAuthHandler(usecase.NewGetCurrentUserUseCase(userRepo))
+	authHandler := NewAuthHandler(usecase.NewGetCurrentUserUseCase(userRepo), &cfg.Cognito)
 	v2.POST("/auth/cognito/logout", authHandler.Logout)
+	// callback は code を受け取って token に交換するので認証不要
+	v2.POST("/auth/cognito/callback", authHandler.Callback)
 
 	// 認証必須グループ
 	authed := v2.Group("")

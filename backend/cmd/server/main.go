@@ -19,7 +19,7 @@ func main() {
 		log.Fatalf("database connect failed: %v", err)
 	}
 
-	r := handler.NewRouter(db)
+	r := handler.NewRouter(db, cfg)
 	addr := ":" + cfg.ServerPort
 	log.Printf("FreStyle Go backend listening on %s (env=%s)", addr, cfg.AppEnv)
 	if err := r.Run(addr); err != nil {

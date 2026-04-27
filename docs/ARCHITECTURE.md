@@ -4,10 +4,9 @@
 
 実装に迷ったとき・レビューで指針が必要なときは本書を根拠として判断してください。
 
-> **移行ステータス（2026-04-27 現在）**
-> 旧バックエンド: Spring Boot / Java（`FreStyle/` 配下、87 UseCase 完備）
-> 新バックエンド: **Go (Gin + GORM)**（`backend/` 配下、Phase 0 で基盤整備済み、Phase 1 以降で機能を順次移植）
-> 本書では Go 版を「正」とし、Spring Boot 版はリファレンス実装かつ移行中の並行運用として扱う。
+> **バックエンド (2026-04-27 移行完了)**
+> Go (Gin + GORM)（`backend/` 配下）を採用。旧 Spring Boot 実装は廃止済み。
+> 詳細な移行履歴は §9 を参照。
 
 ---
 
@@ -21,7 +20,7 @@
 - [6. テスト戦略](#6-テスト戦略)
 - [7. ディレクトリマップ](#7-ディレクトリマップ)
 - [8. 変更時のチェックリスト](#8-変更時のチェックリスト)
-- [9. Spring Boot 旧資産との関係](#9-spring-boot-旧資産との関係)
+- [9. 移行履歴（Spring Boot からの完全置換）](#9-移行履歴spring-boot-からの完全置換)
 
 ---
 
@@ -128,7 +127,7 @@ Component (Presentational)
 |---|---|---|
 | Page | `frontend/src/pages` | 画面コンポーネント。ビジネスロジックは書かない |
 | Hook | `frontend/src/hooks` | 画面固有の状態管理・API 呼び出しを Hook にまとめる |
-| Repository | `frontend/src/repositories` | axios の利用をここに集約。`/api/v2/*` (Go) と `/api/*` (Spring Boot 並行運用) を呼び分け |
+| Repository | `frontend/src/repositories` | axios の利用をここに集約。`/api/v2/*` (Go) のみを呼び出す |
 | Component | `frontend/src/components` | プレゼンテーショナル。副作用なし |
 | Store | `frontend/src/store` | Redux Toolkit slice。グローバル状態（auth など） |
 
@@ -351,7 +350,7 @@ backend/
 frontend/src/
 ├── pages/                    # 画面（Hook を使う）
 ├── hooks/                    # Application 層
-├── repositories/             # axios 集約。/api/v2/* (Go) と /api/* (Spring Boot) を呼び分け
+├── repositories/             # axios 集約。/api/v2/* (Go) のみを呼び出す
 ├── components/               # プレゼンテーショナル
 ├── store/                    # Redux Toolkit slice
 └── utils/                    # ユーティリティ
@@ -370,37 +369,31 @@ frontend/src/
 - [ ] `internal/handler/router.go` でルーティングに追加（`/api/v2/<feature>` プレフィックス）
 - [ ] `_test.go` で usecase 単体テストを書く
 - [ ] `go vet ./...` / `go test ./...` 通過
-- [ ] PR 本文に「Closes #<issue>」と移植元の Spring Boot Controller 名を記載
+- [ ] PR 本文に「Closes #<issue>」を記載
 
 ---
 
-## 9. Spring Boot 旧資産との関係
+## 9. 移行履歴（Spring Boot からの完全置換）
 
-### 9.1 並行運用ルール
+### 9.1 ステータス: 完了 (2026-04-27)
 
-- ALB の path-based routing で `/api/v2/*` を **Go ECS Service** に振り、`/api/*` を **Spring Boot ECS Service**（旧）に振る
-- 同じ機能を Go で再実装している間は両系統が並走する
-- Go 側で実装完了 → フロントエンド repository を `/api/v2/*` に切替 → 1 phase 終了
+全 28 機能 (Phase 1〜28) を Go (Gin + GORM) に移植し、Spring Boot 実装 (`FreStyle/`) を完全削除しました。フロントエンドは `/api/v2/*` 経由で Go バックエンドのみと通信します。
 
-### 9.2 旧 Spring Boot 側の参照
+### 9.2 旧 Spring Boot との対応表（履歴用）
 
-`FreStyle/` 配下の旧コード（87 UseCase 含む）は **リファレンス実装** として保持。  
-Go 移植時は Spring Boot の Controller / UseCase / Service / Repository を読んで仕様を確認してから Go 側に書き直す。
+Spring Boot 時代の概念を Go ではどう実装したか、リファクタリング時の参考用に残します。
 
-| Spring Boot | 対応する Go |
+| Spring Boot (旧) | 対応する Go (現行) |
 |---|---|
 | `controller/AiChatController.java` | `internal/handler/ai_chat_handler.go` |
-| `usecase/AddAiChatMessageUseCase.java` | `internal/usecase/add_ai_chat_message_usecase.go`（または同パッケージ内 type） |
-| `service/AiChatSessionService.java` | `internal/usecase/*_usecase.go` に責務統合 or `internal/repository/*_repository.go` に分割 |
+| `usecase/AddAiChatMessageUseCase.java` | `internal/usecase/ai_chat_usecase.go` 内の `AddAiChatMessageUseCase` |
+| `service/AiChatSessionService.java` | `internal/usecase/*_usecase.go` または `internal/repository/*_repository.go` に統合 |
 | `entity/AiChatSession.java` (JPA) | `internal/domain/ai_chat.go` (GORM) |
-| `mapper/*Mapper.java` | usecase 内のシンプルな変換関数（必要時のみ） |
+| `mapper/*Mapper.java` | usecase 内のシンプルな変換関数 |
 
-### 9.3 完全移行後
+### 9.3 移行で得られた成果
 
-全 28 機能が Go に移植されたら:
-- ALB の `/api/*` ルーティングを Go 側に切替
-- Spring Boot ECS Service を destroy
-- `FreStyle/` 配下を docs アーカイブとして移動 or 削除
 - ECS Fargate スペックを `2 vCPU / 4 GB` → `0.25 vCPU / 0.5 GB` に縮退（コスト約 80% 削減）
-
-このフェーズの進捗は GitHub Issues `Phase 1` 〜 `Phase 28` で管理。
+- 起動時間が JVM warmup の数十秒からサブ秒に短縮
+- Docker イメージサイズが 200 MB+ から distroless ベースで 30 MB 級に
+- goroutine ベースの軽量な並行処理

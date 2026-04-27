@@ -1,22 +1,27 @@
 # FreStyle アーキテクチャ仕様書
 
-本書は FreStyle プロジェクトにおけるクリーンアーキテクチャの適用方針、層ごとの責務、そしてクラス間の依存関係を定義する **一次情報** です。
+本書は FreStyle プロジェクトにおけるクリーンアーキテクチャの適用方針、層ごとの責務、そしてクラス（Go 版ではパッケージ・型）間の依存関係を定義する **一次情報** です。
 
 実装に迷ったとき・レビューで指針が必要なときは本書を根拠として判断してください。
+
+> **移行ステータス（2026-04-27 現在）**
+> 旧バックエンド: Spring Boot / Java（`FreStyle/` 配下、87 UseCase 完備）
+> 新バックエンド: **Go (Gin + GORM)**（`backend/` 配下、Phase 0 で基盤整備済み、Phase 1 以降で機能を順次移植）
+> 本書では Go 版を「正」とし、Spring Boot 版はリファレンス実装かつ移行中の並行運用として扱う。
 
 ---
 
 ## 目次
 
 - [1. 設計原則](#1-設計原則)
-- [2. 層構成（バックエンド）](#2-層構成バックエンド)
+- [2. 層構成（Go バックエンド）](#2-層構成go-バックエンド)
 - [3. 層構成（フロントエンド）](#3-層構成フロントエンド)
-- [4. クラス依存関係図](#4-クラス依存関係図)
+- [4. パッケージ・型の依存関係図](#4-パッケージ型の依存関係図)
 - [5. データフロー（代表的なユースケース）](#5-データフロー代表的なユースケース)
 - [6. テスト戦略](#6-テスト戦略)
 - [7. ディレクトリマップ](#7-ディレクトリマップ)
 - [8. 変更時のチェックリスト](#8-変更時のチェックリスト)
-- [参考: 過去のリファクタリング実績](#参考-過去のリファクタリング実績)
+- [9. Spring Boot 旧資産との関係](#9-spring-boot-旧資産との関係)
 
 ---
 
@@ -24,59 +29,59 @@
 
 ### 1.1 依存性逆転の原則 (Dependency Inversion Principle)
 
-高レベルのモジュール（UseCase）は、低レベルのモジュール（Repository 実装）に依存しない。
-どちらも抽象（インターフェース）に依存する。
+高レベルのモジュール（usecase）は、低レベルのモジュール（repository 実装）に**直接**依存せず、**インターフェース**を介して依存する。
+
+Go では interface が言語機能として埋め込まれているので、`usecase` パッケージで interface を宣言し、`repository` パッケージで実装を提供する。
 
 ### 1.2 単一責任の原則 (Single Responsibility Principle)
 
-- **1 UseCase = 1 ビジネスルール**
-- 複数の操作を一つのクラスに詰め込まない
+- **1 usecase = 1 ビジネスルール**
+- 複数の操作を一つの構造体に詰め込まない
+- 例: `CreateAiChatSessionUseCase`, `AddAiChatMessageUseCase` は別ファイル・別構造体
 
 ### 1.3 関心の分離 (Separation of Concerns)
 
-| 関心事 | 担当 |
+| 関心事 | 担当（Go） |
 |---|---|
-| HTTP / WebSocket プロトコル | Controller |
-| ビジネスロジックのオーケストレーション | UseCase |
-| ドメインロジック・外部 API 統合 | Service |
-| 永続化 | Repository |
-| データ変換 | Mapper |
+| HTTP / WebSocket プロトコル | `internal/handler` (Gin) |
+| ビジネスロジックのオーケストレーション | `internal/usecase` |
+| 永続化（GORM / DynamoDB SDK / S3 SDK / Bedrock SDK） | `internal/repository` および `internal/infra` |
+| ドメインモデル・純粋ロジック | `internal/domain` |
 
 ### 1.4 テスタビリティ
 
-すべての UseCase は、**外部依存をモックして単体テスト可能**でなければならない。
+すべての usecase は、依存リポジトリを interface 経由でモックして単体テスト可能でなければならない。
 
 ---
 
-## 2. 層構成（バックエンド）
+## 2. 層構成（Go バックエンド）
 
 ```text
 ┌────────────────────────────────────────────────────────────┐
 │                  Presentation Layer                        │
-│   Controller (REST / WebSocket)                            │
-│   com.example.FreStyle.controller                          │
+│   handler (Gin)                                            │
+│   github.com/.../backend/internal/handler                  │
 └────────────────────────────────────────────────────────────┘
                            ↓ 呼び出し
 ┌────────────────────────────────────────────────────────────┐
 │                  Application Layer                         │
-│   UseCase (1 ユースケース 1 クラス)                         │
-│   com.example.FreStyle.usecase                             │
+│   usecase（1 ユースケース 1 ファイル / 1 構造体）             │
+│   github.com/.../backend/internal/usecase                  │
 └────────────────────────────────────────────────────────────┘
-                           ↓ 呼び出し
+                           ↓ 呼び出し（interface 経由）
 ┌────────────────────────────────────────────────────────────┐
 │                    Domain Layer                            │
-│   Service (ドメインロジック・外部統合)                       │
-│   com.example.FreStyle.service                             │
-│                                                            │
-│   Entity (ドメインモデル)                                    │
-│   com.example.FreStyle.entity                              │
+│   domain（純粋なドメイン構造体・定数・ロジック）              │
+│   github.com/.../backend/internal/domain                   │
 └────────────────────────────────────────────────────────────┘
-                           ↓ 呼び出し
+                           ↑ 参照のみ
 ┌────────────────────────────────────────────────────────────┐
 │                Infrastructure Layer                        │
-│   Repository (JPA / DynamoDB / S3 / Bedrock)               │
-│   com.example.FreStyle.repository                          │
-│   com.example.FreStyle.infrastructure                      │
+│   repository (GORM)                                        │
+│   infra/database (PostgreSQL 接続)                         │
+│   infra/config (環境変数)                                   │
+│   後続 PR で追加: infra/dynamodb / infra/s3 / infra/bedrock  │
+│   github.com/.../backend/internal/repository | infra       │
 └────────────────────────────────────────────────────────────┘
 ```
 
@@ -84,505 +89,318 @@
 
 | 層 | パッケージ | 責務 | 許される依存 |
 |---|---|---|---|
-| Presentation | `controller` | HTTP/WS リクエスト受付、認証取得、UseCase 呼び出し、DTO 返却 | `usecase`, `dto`, `form`, `mapper` |
-| Application | `usecase` | ビジネスロジック。Service/Repository のオーケストレーション | `service`, `repository`, `mapper`, `dto`, `entity`, `infrastructure`（※2.2.1 の例外規則参照） |
-| Domain | `service` / `entity` | ドメインロジック、外部サービス統合、ドメインモデル | `repository`, `entity`, `infrastructure` |
-| Infrastructure | `repository` / `infrastructure` / `config` | 永続化、外部 API クライアント、Spring Boot 設定 | `entity` |
-| Shared | `dto` / `form` / `mapper` / `exception` / `utils` / `constant` | 横断的な型・変換・ユーティリティ | （層依存なし） |
+| Presentation | `internal/handler` | HTTP/WS リクエスト受付、認証取得、usecase 呼び出し、JSON 返却 | `usecase`, `domain`, `handler/middleware` |
+| Application | `internal/usecase` | ビジネスロジック。repository のオーケストレーション。usecase 内で interface 宣言 | `domain`, `repository`（interface のみ）|
+| Domain | `internal/domain` | ドメイン構造体（GORM tag を含む）と純粋関数 | （層依存なし） |
+| Infrastructure | `internal/repository`, `internal/infra/*` | 永続化、外部 API クライアント、設定 | `domain` |
 
 ### 2.2 禁止される依存
 
 ```text
-❌ Controller → Service（直接呼び出し）
-❌ Controller → Repository
-❌ UseCase → Controller
-❌ Service → UseCase
-❌ Repository → Service
-❌ Repository → UseCase
-❌ Entity → 他の層
+❌ handler  → repository（直接呼び出し）
+❌ usecase  → handler
+❌ usecase  → repository の具象型に依存（interface のみ参照）
+❌ repository → usecase
+❌ domain   → 他のどの層
 ```
 
-### 2.2.1 UseCase → Infrastructure（Gateway / Producer）に限って許容する例外
+許可される輸入は Go の `internal/` パッケージ規約と上の matrix で物理的・論理的に縛る。
 
-クリーンアーキテクチャの原理主義では UseCase は Domain のインターフェース経由で Infrastructure を呼ぶべきだが、本プロジェクトでは軽量化のため **非同期メッセージ送信（SQS Producer など）の Gateway クラスは `infrastructure` パッケージに配置したまま UseCase から直接利用することを許容**する。
+### 2.3 1 ユースケース 1 ファイル
 
-対象:
-
-- `com.example.FreStyle.infrastructure.SqsMessageProducer` — 例: [`EnqueueReportGenerationUseCase`](../FreStyle/src/main/java/com/example/FreStyle/usecase/EnqueueReportGenerationUseCase.java) から直接呼び出す
-
-ルール:
-
-- 例外として許容するのは **外向きの I/O のみ**（SQS 送信・メール送信・外部通知など、書き込み系のファイア＆フォーゲット）
-- 許容するクラスには JavaDoc で「UseCaseから直接依存可」と明記する
-- **DB 永続化は必ず Repository 経由**。`infrastructure` から直接DBを叩くのは禁止
-- 将来的に依存先を差し替えたくなった時点で、Domain 層にインターフェースを切り直して依存性逆転に移行する（そのための拡張ポイント）
+- ❌ `aiChatService.AddMessage(...)` の中に「メッセージ追加 + Bedrock 呼び出し + DynamoDB put + Score 計算」が同居
+- ⭕ `usecase/add_ai_chat_message_usecase.go` (`AddAiChatMessageUseCase`) として分離
+- それぞれが固有の `Execute(ctx, input) (output, error)` シグネチャを持つ
 
 ---
 
 ## 3. 層構成（フロントエンド）
 
-フロントエンドもバックエンドと同じ発想でレイヤー化します。
+フロントエンドにも同じ発想でレイヤーを適用する。
 
 ```text
-┌────────────────────────────────────────────────────────────┐
-│              Presentation Layer                            │
-│   Page (画面コンポーネント)                                  │
-│   Component (プレゼンテーショナル)                           │
-│   frontend/src/pages, frontend/src/components              │
-└────────────────────────────────────────────────────────────┘
-                           ↓
-┌────────────────────────────────────────────────────────────┐
-│              Application Layer                             │
-│   Hook (画面固有の状態管理・API オーケストレーション)         │
-│   Store (Redux Toolkit slice — グローバル状態のみ)          │
-│   frontend/src/hooks, frontend/src/store                   │
-└────────────────────────────────────────────────────────────┘
-                           ↓
-┌────────────────────────────────────────────────────────────┐
-│              Infrastructure Layer                          │
-│   Repository (axios ラッパー・HTTP API クライアント)         │
-│   frontend/src/repositories                                │
-└────────────────────────────────────────────────────────────┘
+Page (画面)  →  Hook (Application)  →  Repository (axios) → HTTP
+  ↓
+Component (Presentational)
 ```
-
-### 3.1 各層の責務
 
 | 層 | ディレクトリ | 責務 |
 |---|---|---|
-| Page | `src/pages/` | ルーティングの先で表示する画面。Hook 呼び出しと Component 配置のみ |
-| Component | `src/components/` | プレゼンテーショナルなパーツ。副作用を持たない |
-| Hook | `src/hooks/` | 画面固有の状態・副作用。Repository を呼び出す |
-| Store | `src/store/` | 全画面から参照されるグローバル状態（auth など）に限定 |
-| Repository | `src/repositories/` | axios を直接使うのはここだけ。エンドポイント定義を集約 |
+| Page | `frontend/src/pages` | 画面コンポーネント。ビジネスロジックは書かない |
+| Hook | `frontend/src/hooks` | 画面固有の状態管理・API 呼び出しを Hook にまとめる |
+| Repository | `frontend/src/repositories` | axios の利用をここに集約。`/api/v2/*` (Go) と `/api/*` (Spring Boot 並行運用) を呼び分け |
+| Component | `frontend/src/components` | プレゼンテーショナル。副作用なし |
+| Store | `frontend/src/store` | Redux Toolkit slice。グローバル状態（auth など） |
 
 ---
 
-## 4. クラス依存関係図
+## 4. パッケージ・型の依存関係図
 
-### 4.1 バックエンド: 層間依存関係（概観）
-
-```mermaid
-graph TD
-    subgraph Presentation
-      Controller[AiChatController]
-    end
-    subgraph Application
-      UC1[CreateAiChatSessionUseCase]
-      UC2[AddAiChatMessageUseCase]
-      UC3[GetAiChatSessionsByUserIdUseCase]
-    end
-    subgraph Domain
-      SVC1[AiChatSessionService]
-      SVC2[AiChatMessageService]
-      SVC3[BedrockService]
-      ENT1[AiChatSession]
-    end
-    subgraph Infrastructure
-      REP1[AiChatSessionRepository]
-      REP2[AiChatMessageDynamoService]
-    end
-
-    Controller --> UC1
-    Controller --> UC2
-    Controller --> UC3
-
-    UC1 --> SVC1
-    UC2 --> SVC2
-    UC2 --> SVC3
-    UC3 --> SVC1
-
-    SVC1 --> REP1
-    SVC2 --> REP2
-    SVC1 -.manages.-> ENT1
-```
-
-### 4.2 バックエンド: AI チャット機能の詳細依存
+### 4.1 AI チャット（Go 版）
 
 ```mermaid
 classDiagram
-    class AiChatController {
-      +createSession(userId)
-      +addMessage(sessionId, content)
-      +getSessions(userId)
+    class AiChatHandler {
+      +CreateSession(c *gin.Context)
+      +AddMessage(c *gin.Context)
+      +GetSessions(c *gin.Context)
     }
     class CreateAiChatSessionUseCase {
-      +execute(userId, scenarioId)
+      +Execute(ctx, input) (Session, error)
     }
     class AddAiChatMessageUseCase {
-      +execute(sessionId, content)
+      +Execute(ctx, input) (Message, error)
     }
-    class GetAiChatSessionsByUserIdUseCase {
-      +execute(userId)
-    }
-    class AiChatSessionService {
-      +create(session)
-      +findById(id)
-      +findByUserId(userId)
-    }
-    class AiChatMessageService {
-      +add(message)
-      +listBySession(sessionId)
-    }
-    class BedrockService {
-      +invokeModel(prompt)
+    class GetAiChatSessionsByUserIDUseCase {
+      +Execute(ctx, userID) ([]Session, error)
     }
     class AiChatSessionRepository {
-      <<JPA>>
-      +save(entity)
-      +findByUserId(userId)
+      <<interface>>
+      ListByUserID(ctx, userID)
+      Create(ctx, session)
+      FindByID(ctx, id)
     }
-    class AiChatMessageDynamoService {
-      <<DynamoDB>>
-      +put(message)
-      +query(sessionId)
+    class AiChatMessageRepository {
+      <<interface, DynamoDB>>
+      Put(ctx, message)
+      Query(ctx, sessionID)
+    }
+    class BedrockClient {
+      <<interface, AWS SDK>>
+      Invoke(ctx, prompt) (string, error)
     }
 
-    AiChatController --> CreateAiChatSessionUseCase
-    AiChatController --> AddAiChatMessageUseCase
-    AiChatController --> GetAiChatSessionsByUserIdUseCase
+    AiChatHandler --> CreateAiChatSessionUseCase
+    AiChatHandler --> AddAiChatMessageUseCase
+    AiChatHandler --> GetAiChatSessionsByUserIDUseCase
 
-    CreateAiChatSessionUseCase --> AiChatSessionService
-    AddAiChatMessageUseCase --> AiChatMessageService
-    AddAiChatMessageUseCase --> BedrockService
-    GetAiChatSessionsByUserIdUseCase --> AiChatSessionService
-
-    AiChatSessionService --> AiChatSessionRepository
-    AiChatMessageService --> AiChatMessageDynamoService
+    CreateAiChatSessionUseCase --> AiChatSessionRepository
+    AddAiChatMessageUseCase --> AiChatMessageRepository
+    AddAiChatMessageUseCase --> BedrockClient
+    GetAiChatSessionsByUserIDUseCase --> AiChatSessionRepository
 ```
 
-### 4.3 バックエンド: スコア評価機能の依存
+### 4.2 スコア評価（Go 版）
 
 ```mermaid
 classDiagram
-    class ScoreCardController {
-      +getByUserId(userId)
-      +create(request)
-      +getTrend(userId)
-    }
-    class CreateScoreCardUseCase {
-      +execute(userId, sessionId, evaluation)
-    }
-    class GetScoreCardsByUserIdUseCase {
-      +execute(userId)
-    }
-    class GetScoreTrendUseCase {
-      +execute(userId, range)
-    }
-    class ScoreCardService
-    class ScoreCardMapper {
-      +toDto(entity)
-      +toEntity(dto)
-    }
+    class ScoreCardHandler
+    class CreateScoreCardUseCase
+    class GetScoreCardsByUserIDUseCase
+    class GetScoreTrendUseCase
     class ScoreCardRepository {
-      <<JPA>>
+      <<interface, GORM>>
+      ListByUserID(ctx, userID)
+      Create(ctx, card)
+      AggregateTrend(ctx, userID, period)
     }
 
-    ScoreCardController --> CreateScoreCardUseCase
-    ScoreCardController --> GetScoreCardsByUserIdUseCase
-    ScoreCardController --> GetScoreTrendUseCase
+    ScoreCardHandler --> CreateScoreCardUseCase
+    ScoreCardHandler --> GetScoreCardsByUserIDUseCase
+    ScoreCardHandler --> GetScoreTrendUseCase
 
-    CreateScoreCardUseCase --> ScoreCardService
-    CreateScoreCardUseCase --> ScoreCardMapper
-    GetScoreCardsByUserIdUseCase --> ScoreCardService
-    GetScoreCardsByUserIdUseCase --> ScoreCardMapper
-    GetScoreTrendUseCase --> ScoreCardService
-
-    ScoreCardService --> ScoreCardRepository
+    CreateScoreCardUseCase --> ScoreCardRepository
+    GetScoreCardsByUserIDUseCase --> ScoreCardRepository
+    GetScoreTrendUseCase --> ScoreCardRepository
 ```
 
-### 4.4 フロントエンド: 練習モード画面の依存
+### 4.3 認証（Go 版）
 
 ```mermaid
 classDiagram
-    class PracticePage {
-      <<Page>>
+    class AuthHandler {
+      +Me(c *gin.Context)
+      +Logout(c *gin.Context)
     }
-    class StepIndicator {
-      <<Component>>
+    class JWTAuthMiddleware {
+      <<gin middleware>>
+      +Handle(c *gin.Context)
     }
-    class GlossaryTerm {
-      <<Component>>
-    }
-    class ScenarioCard {
-      <<Component>>
-    }
-    class usePracticeScenarios {
-      <<Hook>>
-      +scenarios
-      +loading
-    }
-    class useAiChatSession {
-      <<Hook>>
-      +createSession()
-    }
-    class PracticeScenarioRepository {
-      <<Repository>>
-      +list()
-    }
-    class AiChatRepository {
-      <<Repository>>
-      +createSession()
-    }
-    class axios {
-      <<HTTP>>
+    class GetCurrentUserUseCase
+    class UserRepository {
+      <<interface, GORM>>
+      FindByCognitoSub(ctx, sub)
+      Create(ctx, user)
     }
 
-    PracticePage --> StepIndicator
-    PracticePage --> GlossaryTerm
-    PracticePage --> ScenarioCard
-    PracticePage --> usePracticeScenarios
-    PracticePage --> useAiChatSession
-
-    usePracticeScenarios --> PracticeScenarioRepository
-    useAiChatSession --> AiChatRepository
-
-    PracticeScenarioRepository --> axios
-    AiChatRepository --> axios
+    AuthHandler --> GetCurrentUserUseCase
+    JWTAuthMiddleware ..> AuthHandler : 認証必須グループに適用
+    GetCurrentUserUseCase --> UserRepository
 ```
 
 ---
 
 ## 5. データフロー（代表的なユースケース）
 
-### 5.1 AI チャットにメッセージを送る
+### 5.1 AI チャットへメッセージを送る
 
 ```mermaid
 sequenceDiagram
-    autonumber
-    participant FE as Page (ChatPage)
+    participant FE as ChatPage (React)
     participant Hook as useAiChat Hook
-    participant Repo as AiChatRepository (Front)
-    participant Ctrl as AiChatController
+    participant Repo as AiChatRepository (axios)
+    participant H as AiChatHandler (Gin)
     participant UC as AddAiChatMessageUseCase
-    participant Svc as AiChatMessageService
-    participant DDB as DynamoDB
-    participant Bed as BedrockService
+    participant DDB as DynamoDB SDK
+    participant Bed as Bedrock SDK
 
     FE->>Hook: sendMessage(text)
-    Hook->>Repo: POST /ai-chat/sessions/:id/messages
-    Repo->>Ctrl: HTTP Request
-    Ctrl->>UC: execute(sessionId, content)
-    UC->>Svc: add(userMessage)
-    Svc->>DDB: put
-    UC->>Bed: invokeModel(prompt)
+    Hook->>Repo: POST /api/v2/ai-chat/sessions/:id/messages
+    Repo->>H: HTTP Request (JSON)
+    H->>UC: Execute(ctx, sessionId, content)
+    UC->>DDB: PutItem(userMessage)
+    UC->>Bed: InvokeModel(prompt)
     Bed-->>UC: aiResponse
-    UC->>Svc: add(aiMessage)
-    Svc->>DDB: put
-    UC-->>Ctrl: MessageDto
-    Ctrl-->>Repo: HTTP Response
+    UC->>DDB: PutItem(aiMessage)
+    UC-->>H: MessageDto
+    H-->>Repo: HTTP Response (JSON)
     Repo-->>Hook: Promise resolve
     Hook-->>FE: state update → re-render
 ```
 
-### 5.2 ユーザーがログインする
+### 5.2 ログイン（Cognito Hosted UI）
 
 ```mermaid
 sequenceDiagram
-    autonumber
-    participant FE as LoginPage
-    participant Hook as useLoginPage
-    participant Repo as AuthRepository (Front)
-    participant Ctrl as CognitoAuthController
-    participant UC as CognitoLoginUseCase
-    participant Svc as CognitoAuthService
+    participant FE as LoginCallback
+    participant H as AuthHandler (Gin)
     participant Cog as AWS Cognito
-    participant Cookie as AuthCookieService
+    participant DB as PostgreSQL (GORM)
 
-    FE->>Hook: handleLogin(form)
-    Hook->>Repo: POST /auth/login
-    Repo->>Ctrl: HTTP Request (email,password)
-    Ctrl->>UC: execute(form)
-    UC->>Svc: authenticate(form)
-    Svc->>Cog: InitiateAuth
-    Cog-->>Svc: tokens
-    Svc-->>UC: tokens
-    UC->>Cookie: setHttpOnlyCookie(tokens)
-    UC-->>Ctrl: LoginResponseDto
-    Ctrl-->>Repo: 200 OK + Set-Cookie
-    Repo-->>Hook: Promise resolve
-    Hook-->>FE: navigate to /
+    FE->>H: GET /api/v2/auth/cognito/callback?code=...
+    H->>Cog: token exchange (code → JWT)
+    Cog-->>H: id_token / access_token / refresh_token
+    H->>DB: FindByCognitoSub or Create user
+    DB-->>H: User
+    H-->>FE: Set-Cookie (HttpOnly access/refresh) + 302 to /
 ```
 
 ---
 
 ## 6. テスト戦略
 
-### 6.1 テストピラミッド
+### 6.1 バックエンド (Go)
 
-```text
-        ┌────┐
-       / E2E  \           5%   Cypress / Playwright（未導入）
-      ──────────
-     / 統合テスト \        15%  Controller + UseCase + Repository
-    ──────────────
-   /   単体テスト   \     80%  UseCase / Service / Repository / Component
-  ──────────────────
-```
-
-### 6.2 バックエンド層別テスト方針
-
-| 層 | 種別 | ツール | 方針 |
-|---|---|---|---|
-| Controller | 統合 | `@WebMvcTest` + MockMvc | UseCase をモックし、HTTP レイヤーだけを検証 |
-| UseCase | 単体 | JUnit 5 + Mockito | Service / Repository をモックし、ビジネスロジックを検証 |
-| Service | 単体 | JUnit 5 + Mockito | 外部クライアント（Cognito / Bedrock / DynamoDB）をモック |
-| Repository | 統合 | `@DataJpaTest` + H2（インメモリ） | 本物の DB に対して CRUD を検証。本PRではH2採用、将来的にMariaDB版パリティ担保のため Testcontainers への移行は検討中 |
-| Mapper | 単体 | JUnit 5 | 入出力の対応関係を網羅 |
-
-### 6.3 フロントエンド層別テスト方針
-
-| 層 | ツール | 方針 |
+| 層 | ツール | 戦略 |
 |---|---|---|
-| Page | Vitest + RTL | `render` して主要な要素とイベントハンドラを検証 |
-| Component | Vitest + RTL | Props ごとのレンダリングと aria 属性を検証 |
-| Hook | Vitest + `renderHook` | 状態遷移と副作用を検証 |
-| Repository | Vitest + `vi.mock('axios')` | axios 呼び出しを mock してリクエスト形状を検証 |
+| usecase | 標準 `testing` + (necessary に応じ `testify`) | 依存 interface をスタブで差し替え。各分岐をテーブル駆動でテスト |
+| repository | テスト用 PostgreSQL container or sqlite | `gorm.Open()` を切替、CRUD 統合テスト |
+| handler | `httptest.NewRecorder()` + `gin.New()` | ルータ単位で組み立てて HTTP 検証 |
+| middleware | `httptest.NewRequest` でクッキー有無を制御 | 401 / 通過のテーブル駆動 |
 
-### 6.4 カバレッジ目標
+**例: usecase テストのスケルトン**
 
-- 新規追加コード: **80% 以上**
-- 全体: 段階的に引き上げる（既存は除外可）
+```go
+type stubUserRepo struct { user *domain.User; err error }
+func (s *stubUserRepo) FindByCognitoSub(_ context.Context, _ string) (*domain.User, error) {
+    return s.user, s.err
+}
 
-### 6.5 統合テスト導入の進捗
-
-統合テストの整備は Issue [#1462](https://github.com/norman6464/FreStyle/issues/1462) で追跡。
-
-- Phase 1（H2 ベース、当面は外部依存をモック化）
-  - [x] HelloController（テンプレート確立）
-  - [ ] CognitoAuthController / ProfileController / PracticeController / NoteController / LearningReportController
-- Phase 2（外部依存を含む）
-  - [ ] DynamoDB / S3 / SQS を LocalStack 化
-  - [ ] Bedrock を WireMock 化
-
-統合テストの起点は [`FreStyle/src/test/resources/application-test.properties`](../FreStyle/src/test/resources/application-test.properties) 。
-H2 inMemory + ダミー Cognito / AWS 設定で `@SpringBootTest` を起動できる。
-
-```java
-@SpringBootTest
-@AutoConfigureMockMvc
-@TestPropertySource(locations = "classpath:application-test.properties")
-class XxxControllerTest { ... }
+func TestGetCurrentUserUseCase_Found(t *testing.T) {
+    uc := NewGetCurrentUserUseCase(&stubUserRepo{user: &domain.User{ID: 1}})
+    got, err := uc.Execute(context.Background(), "abc")
+    if err != nil || got.ID != 1 { t.Fatal("...") }
+}
 ```
+
+### 6.2 フロントエンド
+
+| 対象 | ツール | 戦略 |
+|---|---|---|
+| Page / Component | Vitest + React Testing Library | render → role / text 検索でアクセシビリティ込み検証 |
+| Hook | Vitest + `renderHook` | 状態遷移と副作用のテスト |
+| Repository | Vitest + axios mock | リクエスト/レスポンスの形を検証 |
+
+### 6.3 カバレッジ目標
+
+新規追加コードは 80% 以上を目標とする。
 
 ---
 
 ## 7. ディレクトリマップ
 
-### 7.1 バックエンド
+### 7.1 Go バックエンド (`backend/`)
 
-```text
-FreStyle/src/main/java/com/example/FreStyle/
-├── FreStyleApplication.java        エントリポイント
-├── controller/                      Presentation 層
-│   ├── AiChatController.java
-│   ├── ChatController.java
-│   ├── ScoreCardController.java
-│   └── ...
-├── usecase/                         Application 層（87 クラス）
-│   ├── CreateAiChatSessionUseCase.java
-│   ├── AddAiChatMessageUseCase.java
-│   ├── GetScoreTrendUseCase.java
-│   └── ...
-├── service/                         Domain 層（21 クラス）
-│   ├── AiChatMessageService.java
-│   ├── AiChatSessionService.java
-│   ├── BedrockService.java
-│   └── ...
-├── repository/                      Infrastructure 層（25 クラス）
-│   ├── UserRepository.java          (JPA)
-│   ├── AiChatSessionRepository.java (JPA)
-│   └── ...
-├── entity/                          Domain モデル
-├── dto/                             層間データ受け渡し（39 クラス）
-├── form/                            リクエストバリデーション
-├── mapper/                          DTO ↔ Entity 変換（5 クラス）
-├── auth/                            Cognito JWT / OAuth2
-├── config/                          Spring Boot 設定
-├── infrastructure/                  SQS Producer/Consumer
-├── exception/                       例外階層
-├── utils/                           ユーティリティ
-└── constant/                        業務定数
+```
+backend/
+├── cmd/
+│   └── server/main.go        # エントリーポイント
+├── internal/
+│   ├── handler/              # Gin ハンドラ・ルーティング (Spring の controller)
+│   │   ├── router.go
+│   │   ├── *_handler.go
+│   │   └── middleware/       # JWT 認証等
+│   ├── usecase/              # ユースケース (Spring の usecase)
+│   │   ├── *_usecase.go
+│   │   └── *_usecase_test.go
+│   ├── repository/           # GORM 実装と interface (Spring の repository)
+│   │   └── *_repository.go
+│   ├── domain/               # ドメイン構造体 (Spring の entity)
+│   │   └── *.go
+│   └── infra/
+│       ├── config/           # 環境変数ロード
+│       └── database/         # GORM + PostgreSQL 接続
+├── Dockerfile                # multi-stage / distroless
+├── go.mod
+└── README.md
 ```
 
-### 7.2 フロントエンド
+### 7.2 フロントエンド (`frontend/`)
 
-```text
+```
 frontend/src/
-├── App.tsx                          ルーティング定義
-├── main.tsx                         React エントリポイント
-├── pages/                           Presentation 層（画面）
-│   ├── MenuPage.tsx
-│   ├── LoginPage.tsx
-│   ├── PracticePage.tsx
-│   └── ...
-├── components/                      Presentation 層（パーツ）
-│   ├── ui/                          ★ 初心者向け共通 UI（本PRで追加）
-│   │   ├── GlossaryTerm.tsx
-│   │   ├── HelpTooltip.tsx
-│   │   ├── StepIndicator.tsx
-│   │   ├── GuidedHint.tsx
-│   │   ├── PageIntro.tsx
-│   │   ├── FirstTimeWelcome.tsx
-│   │   └── ActionCard.tsx
-│   ├── layout/                      AppShell 等のレイアウト
-│   └── ...                          既存の機能別コンポーネント
-├── hooks/                           Application 層（61 フック）
-├── repositories/                    Infrastructure 層（24 クライアント）
-├── store/                           Redux Toolkit
-├── utils/                           AuthInitializer / Protected 等
-├── constants/                       業務定数
-├── types/                           TypeScript 型
-└── test/                            Vitest セットアップ
+├── pages/                    # 画面（Hook を使う）
+├── hooks/                    # Application 層
+├── repositories/             # axios 集約。/api/v2/* (Go) と /api/* (Spring Boot) を呼び分け
+├── components/               # プレゼンテーショナル
+├── store/                    # Redux Toolkit slice
+└── utils/                    # ユーティリティ
 ```
 
 ---
 
 ## 8. 変更時のチェックリスト
 
-新しいユースケースを追加するときは、必ず以下を順に確認してください。
+新規機能を追加するときは以下を確認:
 
-1. [ ] **Issue が起票されている**
-2. [ ] **ブランチを切った**（`main` へ直接コミット禁止）
-3. [ ] 新しい UseCase クラスを作成した（既存 Service に追加しない）
-4. [ ] Controller → UseCase → Service → Repository の依存方向を守っている
-5. [ ] DTO ↔ Entity 変換は Mapper に集約している
-6. [ ] UseCase / Service / Repository それぞれに単体テストを追加した
-7. [ ] フロントエンドなら、Page / Hook / Repository それぞれの責務を守っている
-8. [ ] コミットメッセージ・PR は日本語で書いた
-9. [ ] **CodeRabbit レビューを待ち、指摘に対応した**
-10. [ ] squash merge で取り込んだ
+- [ ] `internal/handler/<feature>_handler.go` を新規作成
+- [ ] `internal/usecase/<feature>_usecase.go` を新規作成（**1 ユースケース 1 構造体**）
+- [ ] `internal/repository/<feature>_repository.go` で interface 宣言と GORM 実装を提供
+- [ ] `internal/domain/<feature>.go` でドメイン構造体を定義（GORM tag）
+- [ ] `internal/handler/router.go` でルーティングに追加（`/api/v2/<feature>` プレフィックス）
+- [ ] `_test.go` で usecase 単体テストを書く
+- [ ] `go vet ./...` / `go test ./...` 通過
+- [ ] PR 本文に「Closes #<issue>」と移植元の Spring Boot Controller 名を記載
 
 ---
 
-## 参考: 過去のリファクタリング実績
+## 9. Spring Boot 旧資産との関係
 
-### Phase 1（2026-01）: 練習モード
+### 9.1 並行運用ルール
 
-- `PracticeScenarioService` を 3 UseCase に分解
-  - `GetPracticeScenariosUseCase`
-  - `GetPracticeScenarioByIdUseCase`
-  - `StartPracticeSessionUseCase`
+- ALB の path-based routing で `/api/v2/*` を **Go ECS Service** に振り、`/api/*` を **Spring Boot ECS Service**（旧）に振る
+- 同じ機能を Go で再実装している間は両系統が並走する
+- Go 側で実装完了 → フロントエンド repository を `/api/v2/*` に切替 → 1 phase 終了
 
-### Phase 2（2026-02）: AI チャット
+### 9.2 旧 Spring Boot 側の参照
 
-- `AiChatSessionService` / `AiChatMessageService` から 10 UseCase を抽出
-  - `CreateAiChatSessionUseCase`
-  - `AddAiChatMessageUseCase`
-  - `GetAiChatSessionsByUserIdUseCase`
-  - `GetAiChatMessagesBySessionIdUseCase`
-  - `CountAiChatMessagesBySessionIdUseCase`
-  - 他 5 クラス
+`FreStyle/` 配下の旧コード（87 UseCase 含む）は **リファレンス実装** として保持。  
+Go 移植時は Spring Boot の Controller / UseCase / Service / Repository を読んで仕様を確認してから Go 側に書き直す。
 
-### Phase 3（2026-02）: ScoreCard
+| Spring Boot | 対応する Go |
+|---|---|
+| `controller/AiChatController.java` | `internal/handler/ai_chat_handler.go` |
+| `usecase/AddAiChatMessageUseCase.java` | `internal/usecase/add_ai_chat_message_usecase.go`（または同パッケージ内 type） |
+| `service/AiChatSessionService.java` | `internal/usecase/*_usecase.go` に責務統合 or `internal/repository/*_repository.go` に分割 |
+| `entity/AiChatSession.java` (JPA) | `internal/domain/ai_chat.go` (GORM) |
+| `mapper/*Mapper.java` | usecase 内のシンプルな変換関数（必要時のみ） |
 
-- `ScoreCardService` から 3 UseCase + 1 Mapper を抽出
-  - `CreateScoreCardUseCase`
-  - `GetScoreCardsByUserIdUseCase`
-  - `GetScoreTrendUseCase`
-  - `ScoreCardMapper`
+### 9.3 完全移行後
 
-### 成果
+全 28 機能が Go に移植されたら:
+- ALB の `/api/*` ルーティングを Go 側に切替
+- Spring Boot ECS Service を destroy
+- `FreStyle/` 配下を docs アーカイブとして移動 or 削除
+- ECS Fargate スペックを `2 vCPU / 4 GB` → `0.25 vCPU / 0.5 GB` に縮退（コスト約 80% 削減）
 
-- コード行数: **+1,849 / -377**
-- テスタビリティ: モック化容易な構造へ
-- 1 クラス 1 責務の徹底
+このフェーズの進捗は GitHub Issues `Phase 1` 〜 `Phase 28` で管理。

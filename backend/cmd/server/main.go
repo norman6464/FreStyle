@@ -21,7 +21,15 @@ func main() {
 
 	r := handler.NewRouter(db, cfg)
 	addr := ":" + cfg.ServerPort
-	log.Printf("FreStyle Go backend listening on %s (env=%s)", addr, cfg.AppEnv)
+	// Cognito secret 不一致の診断用一時ログ。値そのものは出さず長さと末尾 4 文字のみ。
+	// 解消後に削除する。
+	csLen := len(cfg.Cognito.ClientSecret)
+	csTail := ""
+	if csLen >= 4 {
+		csTail = cfg.Cognito.ClientSecret[csLen-4:]
+	}
+	log.Printf("FreStyle Go backend listening on %s (env=%s) cognito_client_id=%s cognito_secret_len=%d cognito_secret_tail=...%s cognito_token_uri=%s",
+		addr, cfg.AppEnv, cfg.Cognito.ClientID, csLen, csTail, cfg.Cognito.TokenURI)
 	if err := r.Run(addr); err != nil {
 		log.Fatalf("server stopped: %v", err)
 	}

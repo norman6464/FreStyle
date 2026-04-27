@@ -147,5 +147,11 @@ func NewRouter(db *gorm.DB) *gin.Engine {
 	authed.GET("/score-goals/:userId", scoreGoalHandler.Get)
 	authed.PUT("/score-goals/:userId", scoreGoalHandler.Upsert)
 
+	// Phase 15: ScoreTrend
+	scoreTrendHandler := NewScoreTrendHandler(
+		usecase.NewGetScoreTrendUseCase(repository.NewScoreTrendRepository(db)),
+	)
+	authed.GET("/score-trends/:userId", scoreTrendHandler.Get)
+
 	return r
 }

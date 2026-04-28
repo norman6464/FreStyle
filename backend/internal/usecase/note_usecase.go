@@ -34,6 +34,7 @@ type CreateNoteInput struct {
 	Title    string
 	Content  string
 	IsPublic bool
+	IsPinned bool
 }
 
 func (u *CreateNoteUseCase) Execute(ctx context.Context, in CreateNoteInput) (*domain.Note, error) {
@@ -43,7 +44,13 @@ func (u *CreateNoteUseCase) Execute(ctx context.Context, in CreateNoteInput) (*d
 	if in.Title == "" {
 		return nil, errors.New("title is required")
 	}
-	n := &domain.Note{UserID: in.UserID, Title: in.Title, Content: in.Content, IsPublic: in.IsPublic}
+	n := &domain.Note{
+		UserID:   in.UserID,
+		Title:    in.Title,
+		Content:  in.Content,
+		IsPublic: in.IsPublic,
+		IsPinned: in.IsPinned,
+	}
 	if err := u.repo.Create(ctx, n); err != nil {
 		return nil, err
 	}
@@ -62,6 +69,7 @@ type UpdateNoteInput struct {
 	Title    string
 	Content  string
 	IsPublic bool
+	IsPinned bool
 }
 
 // Execute は所有者検証込みで note を更新する。
@@ -83,6 +91,7 @@ func (u *UpdateNoteUseCase) Execute(ctx context.Context, in UpdateNoteInput) (*d
 	existing.Title = in.Title
 	existing.Content = in.Content
 	existing.IsPublic = in.IsPublic
+	existing.IsPinned = in.IsPinned
 	if err := u.repo.Update(ctx, existing); err != nil {
 		return nil, err
 	}

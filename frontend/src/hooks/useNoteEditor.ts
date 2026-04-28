@@ -4,9 +4,9 @@ import type { Note } from '../types';
 export type SaveStatus = 'idle' | 'unsaved' | 'saving' | 'saved';
 
 export function useNoteEditor(
-  selectedNoteId: string | null,
+  selectedNoteId: number | null,
   selectedNote: Note | null,
-  updateNote: (noteId: string, data: { title: string; content: string; isPinned: boolean }) => Promise<void>
+  updateNote: (noteId: number, data: { title: string; content: string; isPinned: boolean }) => Promise<void>
 ) {
   const [editTitle, setEditTitle] = useState('');
   const [editContent, setEditContent] = useState('');
@@ -35,7 +35,7 @@ export function useNoteEditor(
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       setSaveStatus('unsaved');
       saveTimerRef.current = setTimeout(async () => {
-        if (selectedNoteId) {
+        if (selectedNoteId != null) {
           setSaveStatus('saving');
           try {
             await updateNote(selectedNoteId, {
@@ -70,7 +70,7 @@ export function useNoteEditor(
   );
 
   const forceSave = useCallback(async () => {
-    if (!selectedNoteId) return;
+    if (selectedNoteId == null) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     setSaveStatus('saving');
     try {

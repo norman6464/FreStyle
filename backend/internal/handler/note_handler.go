@@ -46,6 +46,7 @@ type noteCreateReq struct {
 	Title    string `json:"title" binding:"required"`
 	Content  string `json:"content"`
 	IsPublic bool   `json:"isPublic"`
+	IsPinned bool   `json:"isPinned"`
 }
 
 // Create は current user 名義で note を作る。userId は受け取らず固定する。
@@ -61,7 +62,8 @@ func (h *NoteHandler) Create(c *gin.Context) {
 		return
 	}
 	got, err := h.create.Execute(c.Request.Context(), usecase.CreateNoteInput{
-		UserID: uid, Title: req.Title, Content: req.Content, IsPublic: req.IsPublic,
+		UserID: uid, Title: req.Title, Content: req.Content,
+		IsPublic: req.IsPublic, IsPinned: req.IsPinned,
 	})
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -74,6 +76,7 @@ type noteUpdateReq struct {
 	Title    string `json:"title" binding:"required"`
 	Content  string `json:"content"`
 	IsPublic bool   `json:"isPublic"`
+	IsPinned bool   `json:"isPinned"`
 }
 
 // Update は current user 所有の note のみ更新可能。usecase 側で所有者検証する。
@@ -90,7 +93,8 @@ func (h *NoteHandler) Update(c *gin.Context) {
 		return
 	}
 	got, err := h.update.Execute(c.Request.Context(), usecase.UpdateNoteInput{
-		UserID: uid, ID: id, Title: req.Title, Content: req.Content, IsPublic: req.IsPublic,
+		UserID: uid, ID: id, Title: req.Title, Content: req.Content,
+		IsPublic: req.IsPublic, IsPinned: req.IsPinned,
 	})
 	if err != nil {
 		if errors.Is(err, usecase.ErrNoteForbidden) {

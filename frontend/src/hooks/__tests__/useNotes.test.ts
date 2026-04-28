@@ -1,13 +1,33 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, act, waitFor } from '@testing-library/react';
+import { renderHook, act } from '@testing-library/react';
 import { useNotes } from '../useNotes';
 import NoteRepository from '../../repositories/NoteRepository';
+import type { Note } from '../../types';
 
 vi.mock('../../repositories/NoteRepository');
 
-const mockNotes = [
-  { noteId: 'note-1', userId: 1, title: 'ノート1', content: '内容1', isPinned: true, createdAt: 1000, updatedAt: 3000 },
-  { noteId: 'note-2', userId: 1, title: 'ノート2', content: '内容2', isPinned: false, createdAt: 2000, updatedAt: 2000 },
+// backend `domain.Note` と 1:1。createdAt / updatedAt は RFC3339 string。
+const mockNotes: Note[] = [
+  {
+    id: 1,
+    userId: 1,
+    title: 'ノート1',
+    content: '内容1',
+    isPublic: false,
+    isPinned: true,
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-03T00:00:00Z',
+  },
+  {
+    id: 2,
+    userId: 1,
+    title: 'ノート2',
+    content: '内容2',
+    isPublic: false,
+    isPinned: false,
+    createdAt: '2026-01-02T00:00:00Z',
+    updatedAt: '2026-01-02T00:00:00Z',
+  },
 ];
 
 describe('useNotes', () => {
@@ -33,7 +53,16 @@ describe('useNotes', () => {
   });
 
   it('createNoteで新しいノートを作成しローカル追加する', async () => {
-    const newNote = { noteId: 'note-3', userId: 1, title: '新規', content: '', isPinned: false, createdAt: 4000, updatedAt: 4000 };
+    const newNote: Note = {
+      id: 3,
+      userId: 1,
+      title: '新規',
+      content: '',
+      isPublic: false,
+      isPinned: false,
+      createdAt: '2026-01-04T00:00:00Z',
+      updatedAt: '2026-01-04T00:00:00Z',
+    };
     vi.mocked(NoteRepository.createNote).mockResolvedValue(newNote);
 
     const { result } = renderHook(() => useNotes());
@@ -44,7 +73,7 @@ describe('useNotes', () => {
 
     expect(NoteRepository.createNote).toHaveBeenCalledWith('新規');
     expect(result.current.notes).toHaveLength(1);
-    expect(result.current.notes[0].noteId).toBe('note-3');
+    expect(result.current.notes[0].id).toBe(3);
   });
 
   it('deleteNoteでノートを削除しローカル除外する', async () => {
@@ -58,12 +87,12 @@ describe('useNotes', () => {
     expect(result.current.notes).toHaveLength(2);
 
     await act(async () => {
-      await result.current.deleteNote('note-1');
+      await result.current.deleteNote(1);
     });
 
-    expect(NoteRepository.deleteNote).toHaveBeenCalledWith('note-1');
+    expect(NoteRepository.deleteNote).toHaveBeenCalledWith(1);
     expect(result.current.notes).toHaveLength(1);
-    expect(result.current.notes[0].noteId).toBe('note-2');
+    expect(result.current.notes[0].id).toBe(2);
   });
 
   it('selectedNoteIdの初期値がnullである', () => {
@@ -71,17 +100,15 @@ describe('useNotes', () => {
     expect(result.current.selectedNoteId).toBeNull();
   });
 
-  it('selectNoteでノートを選択できる', async () => {
+  it('selectNoteでノートを選択できる', () => {
     const { result } = renderHook(() => useNotes());
 
-    await act(async () => {
-      result.current.selectNote('note-1');
+    act(() => {
+      result.current.selectNote(1);
     });
 
-    expect(result.current.selectedNoteId).toBe('note-1');
+    expect(result.current.selectedNoteId).toBe(1);
   });
-
-  // エッジケーステスト
 
   it('fetchNotesエラー時にnotesが空のまま', async () => {
     vi.mocked(NoteRepository.fetchNotes).mockRejectedValue(new Error('ネットワークエラー'));
@@ -110,7 +137,16 @@ describe('useNotes', () => {
   });
 
   it('createNote成功後にselectedNoteIdが更新される', async () => {
-    const newNote = { noteId: 'new-id', userId: 1, title: 'テスト', content: '', isPinned: false, createdAt: 5000, updatedAt: 5000 };
+    const newNote: Note = {
+      id: 99,
+      userId: 1,
+      title: 'テスト',
+      content: '',
+      isPublic: false,
+      isPinned: false,
+      createdAt: '2026-01-05T00:00:00Z',
+      updatedAt: '2026-01-05T00:00:00Z',
+    };
     vi.mocked(NoteRepository.createNote).mockResolvedValue(newNote);
 
     const { result } = renderHook(() => useNotes());
@@ -119,12 +155,11 @@ describe('useNotes', () => {
       await result.current.createNote('テスト');
     });
 
-    expect(result.current.selectedNoteId).toBe('new-id');
+    expect(result.current.selectedNoteId).toBe(99);
   });
 
   it('updateNoteでnotes配列がローカル更新される', async () => {
     vi.mocked(NoteRepository.updateNote).mockResolvedValue(undefined);
-    vi.mocked(NoteRepository.fetchNotes).mockResolvedValue(mockNotes);
 
     const { result } = renderHook(() => useNotes());
 
@@ -133,11 +168,11 @@ describe('useNotes', () => {
     });
 
     await act(async () => {
-      await result.current.updateNote('note-1', { title: '更新済み', content: '新内容', isPinned: false });
+      await result.current.updateNote(1, { title: '更新済み', content: '新内容', isPinned: false });
     });
 
-    expect(result.current.notes.find(n => n.noteId === 'note-1')?.title).toBe('更新済み');
-    expect(result.current.notes.find(n => n.noteId === 'note-1')?.content).toBe('新内容');
+    expect(result.current.notes.find((n) => n.id === 1)?.title).toBe('更新済み');
+    expect(result.current.notes.find((n) => n.id === 1)?.content).toBe('新内容');
   });
 
   it('選択中のノートを削除するとselectedNoteIdがnullになる', async () => {
@@ -149,27 +184,27 @@ describe('useNotes', () => {
       await result.current.fetchNotes();
     });
 
-    await act(async () => {
-      result.current.selectNote('note-1');
+    act(() => {
+      result.current.selectNote(1);
     });
 
     await act(async () => {
-      await result.current.deleteNote('note-1');
+      await result.current.deleteNote(1);
     });
 
     expect(result.current.selectedNoteId).toBeNull();
     expect(result.current.notes).toHaveLength(1);
   });
 
-  it('selectNoteにnullを渡すと選択解除される', async () => {
+  it('selectNoteにnullを渡すと選択解除される', () => {
     const { result } = renderHook(() => useNotes());
 
-    await act(async () => {
-      result.current.selectNote('note-1');
+    act(() => {
+      result.current.selectNote(1);
     });
-    expect(result.current.selectedNoteId).toBe('note-1');
+    expect(result.current.selectedNoteId).toBe(1);
 
-    await act(async () => {
+    act(() => {
       result.current.selectNote(null);
     });
     expect(result.current.selectedNoteId).toBeNull();
@@ -199,8 +234,6 @@ describe('useNotes', () => {
     expect(result.current.loading).toBe(false);
   });
 
-  // 検索・ピン留め機能テスト
-
   it('searchQueryの初期値が空文字である', () => {
     const { result } = renderHook(() => useNotes());
     expect(result.current.searchQuery).toBe('');
@@ -223,8 +256,7 @@ describe('useNotes', () => {
       await result.current.fetchNotes();
     });
 
-    // mockNotes: note-1(pinned, updatedAt:3000), note-2(unpinned, updatedAt:2000)
-    expect(result.current.filteredNotes[0].noteId).toBe('note-1');
+    expect(result.current.filteredNotes[0].id).toBe(1);
     expect(result.current.filteredNotes[0].isPinned).toBe(true);
   });
 
@@ -255,7 +287,7 @@ describe('useNotes', () => {
     });
 
     expect(result.current.filteredNotes).toHaveLength(1);
-    expect(result.current.filteredNotes[0].noteId).toBe('note-2');
+    expect(result.current.filteredNotes[0].id).toBe(2);
   });
 
   it('togglePinでノートのピン留め状態をトグルする', async () => {
@@ -267,14 +299,13 @@ describe('useNotes', () => {
       await result.current.fetchNotes();
     });
 
-    // note-2はisPinned: false → trueにトグル
     await act(async () => {
-      await result.current.togglePin('note-2');
+      await result.current.togglePin(2);
     });
 
-    const note2 = result.current.notes.find(n => n.noteId === 'note-2');
+    const note2 = result.current.notes.find((n) => n.id === 2);
     expect(note2?.isPinned).toBe(true);
-    expect(NoteRepository.updateNote).toHaveBeenCalledWith('note-2', {
+    expect(NoteRepository.updateNote).toHaveBeenCalledWith(2, {
       title: 'ノート2',
       content: '内容2',
       isPinned: true,
@@ -282,10 +313,10 @@ describe('useNotes', () => {
   });
 
   it('filteredNotesはピン留め内でも更新日時降順でソートされる', async () => {
-    const threeNotes = [
-      { noteId: 'n1', userId: 1, title: 'A', content: '', isPinned: true, createdAt: 1000, updatedAt: 1000 },
-      { noteId: 'n2', userId: 1, title: 'B', content: '', isPinned: true, createdAt: 2000, updatedAt: 3000 },
-      { noteId: 'n3', userId: 1, title: 'C', content: '', isPinned: false, createdAt: 3000, updatedAt: 5000 },
+    const threeNotes: Note[] = [
+      { id: 1, userId: 1, title: 'A', content: '', isPublic: false, isPinned: true, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' },
+      { id: 2, userId: 1, title: 'B', content: '', isPublic: false, isPinned: true, createdAt: '2026-01-02T00:00:00Z', updatedAt: '2026-01-03T00:00:00Z' },
+      { id: 3, userId: 1, title: 'C', content: '', isPublic: false, isPinned: false, createdAt: '2026-01-03T00:00:00Z', updatedAt: '2026-01-05T00:00:00Z' },
     ];
     vi.mocked(NoteRepository.fetchNotes).mockResolvedValue(threeNotes);
 
@@ -295,15 +326,14 @@ describe('useNotes', () => {
       await result.current.fetchNotes();
     });
 
-    // ピン留め優先: n2(pin,3000), n1(pin,1000), n3(unpin,5000)
-    expect(result.current.filteredNotes[0].noteId).toBe('n2');
-    expect(result.current.filteredNotes[1].noteId).toBe('n1');
-    expect(result.current.filteredNotes[2].noteId).toBe('n3');
+    expect(result.current.filteredNotes[0].id).toBe(2);
+    expect(result.current.filteredNotes[1].id).toBe(1);
+    expect(result.current.filteredNotes[2].id).toBe(3);
   });
 
   it('検索クエリが大文字小文字を区別しない', async () => {
-    const mixedNotes = [
-      { noteId: 'n1', userId: 1, title: 'Hello World', content: '', isPinned: false, createdAt: 1000, updatedAt: 2000 },
+    const mixedNotes: Note[] = [
+      { id: 1, userId: 1, title: 'Hello World', content: '', isPublic: false, isPinned: false, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-02T00:00:00Z' },
     ];
     vi.mocked(NoteRepository.fetchNotes).mockResolvedValue(mixedNotes);
 
@@ -323,20 +353,20 @@ describe('useNotes', () => {
     const { result } = renderHook(() => useNotes());
     await act(async () => { await result.current.fetchNotes(); });
 
-    const originalPinState = result.current.notes.find(n => n.noteId === 'note-2')?.isPinned;
+    const originalPinState = result.current.notes.find((n) => n.id === 2)?.isPinned;
 
-    await act(async () => { await result.current.togglePin('note-2'); });
+    await act(async () => { await result.current.togglePin(2); });
 
-    expect(result.current.notes.find(n => n.noteId === 'note-2')?.isPinned).toBe(originalPinState);
+    expect(result.current.notes.find((n) => n.id === 2)?.isPinned).toBe(originalPinState);
   });
 
-  it('togglePinで存在しないnoteIdの場合何も起こらない', async () => {
+  it('togglePinで存在しないIDの場合何も起こらない', async () => {
     vi.mocked(NoteRepository.updateNote).mockResolvedValue(undefined);
 
     const { result } = renderHook(() => useNotes());
     await act(async () => { await result.current.fetchNotes(); });
 
-    await act(async () => { await result.current.togglePin('nonexistent'); });
+    await act(async () => { await result.current.togglePin(9999); });
 
     expect(NoteRepository.updateNote).not.toHaveBeenCalled();
     expect(result.current.notes).toHaveLength(2);
@@ -361,14 +391,12 @@ describe('useNotes', () => {
     expect(result.current.filteredNotes).toHaveLength(0);
   });
 
-  // selectedNote テスト
-
   it('selectedNoteが選択中のノートオブジェクトを返す', async () => {
     const { result } = renderHook(() => useNotes());
     await act(async () => { await result.current.fetchNotes(); });
 
-    act(() => { result.current.selectNote('note-1'); });
-    expect(result.current.selectedNote?.noteId).toBe('note-1');
+    act(() => { result.current.selectNote(1); });
+    expect(result.current.selectedNote?.id).toBe(1);
     expect(result.current.selectedNote?.title).toBe('ノート1');
   });
 
@@ -379,8 +407,6 @@ describe('useNotes', () => {
     expect(result.current.selectedNote).toBeNull();
   });
 
-  // 削除確認テスト
-
   it('deleteTargetIdの初期値がnullである', () => {
     const { result } = renderHook(() => useNotes());
     expect(result.current.deleteTargetId).toBeNull();
@@ -389,8 +415,8 @@ describe('useNotes', () => {
   it('requestDeleteでdeleteTargetIdが設定される', () => {
     const { result } = renderHook(() => useNotes());
 
-    act(() => { result.current.requestDelete('note-1'); });
-    expect(result.current.deleteTargetId).toBe('note-1');
+    act(() => { result.current.requestDelete(1); });
+    expect(result.current.deleteTargetId).toBe(1);
   });
 
   it('confirmDeleteでノートが削除されdeleteTargetIdがリセットされる', async () => {
@@ -399,31 +425,31 @@ describe('useNotes', () => {
     const { result } = renderHook(() => useNotes());
     await act(async () => { await result.current.fetchNotes(); });
 
-    act(() => { result.current.requestDelete('note-1'); });
-    expect(result.current.deleteTargetId).toBe('note-1');
+    act(() => { result.current.requestDelete(1); });
+    expect(result.current.deleteTargetId).toBe(1);
 
     await act(async () => { await result.current.confirmDelete(); });
 
     expect(result.current.deleteTargetId).toBeNull();
-    expect(NoteRepository.deleteNote).toHaveBeenCalledWith('note-1');
+    expect(NoteRepository.deleteNote).toHaveBeenCalledWith(1);
     expect(result.current.notes).toHaveLength(1);
   });
 
   it('cancelDeleteでdeleteTargetIdがリセットされる', () => {
     const { result } = renderHook(() => useNotes());
 
-    act(() => { result.current.requestDelete('note-1'); });
-    expect(result.current.deleteTargetId).toBe('note-1');
+    act(() => { result.current.requestDelete(1); });
+    expect(result.current.deleteTargetId).toBe(1);
 
     act(() => { result.current.cancelDelete(); });
     expect(result.current.deleteTargetId).toBeNull();
   });
 
   it('confirmDeleteで選択中ノート削除後に次のノートが自動選択される', async () => {
-    const threeNotes = [
-      { noteId: 'n1', userId: 1, title: 'A', content: '', isPinned: false, createdAt: 1000, updatedAt: 3000 },
-      { noteId: 'n2', userId: 1, title: 'B', content: '', isPinned: false, createdAt: 2000, updatedAt: 2000 },
-      { noteId: 'n3', userId: 1, title: 'C', content: '', isPinned: false, createdAt: 3000, updatedAt: 1000 },
+    const threeNotes: Note[] = [
+      { id: 11, userId: 1, title: 'A', content: '', isPublic: false, isPinned: false, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-03T00:00:00Z' },
+      { id: 12, userId: 1, title: 'B', content: '', isPublic: false, isPinned: false, createdAt: '2026-01-02T00:00:00Z', updatedAt: '2026-01-02T00:00:00Z' },
+      { id: 13, userId: 1, title: 'C', content: '', isPublic: false, isPinned: false, createdAt: '2026-01-03T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' },
     ];
     vi.mocked(NoteRepository.fetchNotes).mockResolvedValue(threeNotes);
     vi.mocked(NoteRepository.deleteNote).mockResolvedValue(undefined);
@@ -431,20 +457,19 @@ describe('useNotes', () => {
     const { result } = renderHook(() => useNotes());
     await act(async () => { await result.current.fetchNotes(); });
 
-    // n1を選択 → 削除 → n2（次のノート）が自動選択
-    act(() => { result.current.selectNote('n1'); });
-    act(() => { result.current.requestDelete('n1'); });
+    act(() => { result.current.selectNote(11); });
+    act(() => { result.current.requestDelete(11); });
 
     await act(async () => { await result.current.confirmDelete(); });
 
-    expect(result.current.selectedNoteId).toBe('n2');
+    expect(result.current.selectedNoteId).toBe(12);
   });
 
   it('confirmDeleteで最後のノート削除後に前のノートが自動選択される', async () => {
-    const threeNotes = [
-      { noteId: 'n1', userId: 1, title: 'A', content: '', isPinned: false, createdAt: 1000, updatedAt: 3000 },
-      { noteId: 'n2', userId: 1, title: 'B', content: '', isPinned: false, createdAt: 2000, updatedAt: 2000 },
-      { noteId: 'n3', userId: 1, title: 'C', content: '', isPinned: false, createdAt: 3000, updatedAt: 1000 },
+    const threeNotes: Note[] = [
+      { id: 11, userId: 1, title: 'A', content: '', isPublic: false, isPinned: false, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-03T00:00:00Z' },
+      { id: 12, userId: 1, title: 'B', content: '', isPublic: false, isPinned: false, createdAt: '2026-01-02T00:00:00Z', updatedAt: '2026-01-02T00:00:00Z' },
+      { id: 13, userId: 1, title: 'C', content: '', isPublic: false, isPinned: false, createdAt: '2026-01-03T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' },
     ];
     vi.mocked(NoteRepository.fetchNotes).mockResolvedValue(threeNotes);
     vi.mocked(NoteRepository.deleteNote).mockResolvedValue(undefined);
@@ -452,14 +477,12 @@ describe('useNotes', () => {
     const { result } = renderHook(() => useNotes());
     await act(async () => { await result.current.fetchNotes(); });
 
-    // filteredNotes: n1(updatedAt:3000), n2(2000), n3(1000)
-    // n3を選択 → 削除 → n2（前のノート）が自動選択
-    act(() => { result.current.selectNote('n3'); });
-    act(() => { result.current.requestDelete('n3'); });
+    act(() => { result.current.selectNote(13); });
+    act(() => { result.current.requestDelete(13); });
 
     await act(async () => { await result.current.confirmDelete(); });
 
-    expect(result.current.selectedNoteId).toBe('n2');
+    expect(result.current.selectedNoteId).toBe(12);
   });
 
   it('deleteTargetIdがnullのときconfirmDeleteは何もしない', async () => {
@@ -468,8 +491,6 @@ describe('useNotes', () => {
     await act(async () => { await result.current.confirmDelete(); });
     expect(NoteRepository.deleteNote).not.toHaveBeenCalled();
   });
-
-  // ソートオプションテスト
 
   it('noteSortの初期値がdefaultである', () => {
     const { result } = renderHook(() => useNotes());
@@ -484,10 +505,10 @@ describe('useNotes', () => {
   });
 
   it('noteSortがupdated-ascの場合、更新日時昇順でソートされる', async () => {
-    const notes = [
-      { noteId: 'n1', userId: 1, title: 'A', content: '', isPinned: false, createdAt: 1000, updatedAt: 3000 },
-      { noteId: 'n2', userId: 1, title: 'B', content: '', isPinned: false, createdAt: 2000, updatedAt: 1000 },
-      { noteId: 'n3', userId: 1, title: 'C', content: '', isPinned: false, createdAt: 3000, updatedAt: 2000 },
+    const notes: Note[] = [
+      { id: 1, userId: 1, title: 'A', content: '', isPublic: false, isPinned: false, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-03T00:00:00Z' },
+      { id: 2, userId: 1, title: 'B', content: '', isPublic: false, isPinned: false, createdAt: '2026-01-02T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' },
+      { id: 3, userId: 1, title: 'C', content: '', isPublic: false, isPinned: false, createdAt: '2026-01-03T00:00:00Z', updatedAt: '2026-01-02T00:00:00Z' },
     ];
     vi.mocked(NoteRepository.fetchNotes).mockResolvedValue(notes);
 
@@ -496,16 +517,16 @@ describe('useNotes', () => {
 
     act(() => { result.current.setNoteSort('updated-asc'); });
 
-    expect(result.current.filteredNotes[0].noteId).toBe('n2');
-    expect(result.current.filteredNotes[1].noteId).toBe('n3');
-    expect(result.current.filteredNotes[2].noteId).toBe('n1');
+    expect(result.current.filteredNotes[0].id).toBe(2);
+    expect(result.current.filteredNotes[1].id).toBe(3);
+    expect(result.current.filteredNotes[2].id).toBe(1);
   });
 
   it('noteSortがtitleの場合、タイトル順でソートされる', async () => {
-    const notes = [
-      { noteId: 'n1', userId: 1, title: 'バナナ', content: '', isPinned: false, createdAt: 1000, updatedAt: 1000 },
-      { noteId: 'n2', userId: 1, title: 'アップル', content: '', isPinned: false, createdAt: 2000, updatedAt: 2000 },
-      { noteId: 'n3', userId: 1, title: 'チェリー', content: '', isPinned: false, createdAt: 3000, updatedAt: 3000 },
+    const notes: Note[] = [
+      { id: 1, userId: 1, title: 'バナナ', content: '', isPublic: false, isPinned: false, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' },
+      { id: 2, userId: 1, title: 'アップル', content: '', isPublic: false, isPinned: false, createdAt: '2026-01-02T00:00:00Z', updatedAt: '2026-01-02T00:00:00Z' },
+      { id: 3, userId: 1, title: 'チェリー', content: '', isPublic: false, isPinned: false, createdAt: '2026-01-03T00:00:00Z', updatedAt: '2026-01-03T00:00:00Z' },
     ];
     vi.mocked(NoteRepository.fetchNotes).mockResolvedValue(notes);
 
@@ -520,10 +541,10 @@ describe('useNotes', () => {
   });
 
   it('noteSortがcreated-descの場合、作成日時降順でソートされる', async () => {
-    const notes = [
-      { noteId: 'n1', userId: 1, title: 'A', content: '', isPinned: false, createdAt: 1000, updatedAt: 3000 },
-      { noteId: 'n2', userId: 1, title: 'B', content: '', isPinned: false, createdAt: 3000, updatedAt: 1000 },
-      { noteId: 'n3', userId: 1, title: 'C', content: '', isPinned: false, createdAt: 2000, updatedAt: 2000 },
+    const notes: Note[] = [
+      { id: 1, userId: 1, title: 'A', content: '', isPublic: false, isPinned: false, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-03T00:00:00Z' },
+      { id: 2, userId: 1, title: 'B', content: '', isPublic: false, isPinned: false, createdAt: '2026-01-03T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' },
+      { id: 3, userId: 1, title: 'C', content: '', isPublic: false, isPinned: false, createdAt: '2026-01-02T00:00:00Z', updatedAt: '2026-01-02T00:00:00Z' },
     ];
     vi.mocked(NoteRepository.fetchNotes).mockResolvedValue(notes);
 
@@ -532,17 +553,17 @@ describe('useNotes', () => {
 
     act(() => { result.current.setNoteSort('created-desc'); });
 
-    expect(result.current.filteredNotes[0].noteId).toBe('n2');
-    expect(result.current.filteredNotes[1].noteId).toBe('n3');
-    expect(result.current.filteredNotes[2].noteId).toBe('n1');
+    expect(result.current.filteredNotes[0].id).toBe(2);
+    expect(result.current.filteredNotes[1].id).toBe(3);
+    expect(result.current.filteredNotes[2].id).toBe(1);
   });
 
   it('noteSortを変更してもピン留めされたノートが常に先頭に来る', async () => {
-    const notes = [
-      { noteId: 'p1', userId: 1, title: 'バナナ', content: '', isPinned: true, createdAt: 1000, updatedAt: 4000 },
-      { noteId: 'u1', userId: 1, title: 'アップル', content: '', isPinned: false, createdAt: 2000, updatedAt: 3000 },
-      { noteId: 'p2', userId: 1, title: 'チェリー', content: '', isPinned: true, createdAt: 3000, updatedAt: 2000 },
-      { noteId: 'u2', userId: 1, title: 'オレンジ', content: '', isPinned: false, createdAt: 4000, updatedAt: 1000 },
+    const notes: Note[] = [
+      { id: 1, userId: 1, title: 'バナナ', content: '', isPublic: false, isPinned: true, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-04T00:00:00Z' },
+      { id: 2, userId: 1, title: 'アップル', content: '', isPublic: false, isPinned: false, createdAt: '2026-01-02T00:00:00Z', updatedAt: '2026-01-03T00:00:00Z' },
+      { id: 3, userId: 1, title: 'チェリー', content: '', isPublic: false, isPinned: true, createdAt: '2026-01-03T00:00:00Z', updatedAt: '2026-01-02T00:00:00Z' },
+      { id: 4, userId: 1, title: 'オレンジ', content: '', isPublic: false, isPinned: false, createdAt: '2026-01-04T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' },
     ];
     vi.mocked(NoteRepository.fetchNotes).mockResolvedValue(notes);
 
@@ -590,7 +611,7 @@ describe('useNotes', () => {
     });
 
     await act(async () => {
-      await result.current.updateNote('note-1', { title: '更新', content: '内容', isPinned: false });
+      await result.current.updateNote(1, { title: '更新', content: '内容', isPinned: false });
     });
 
     expect(result.current.error).toBe('ノートの更新に失敗しました');
@@ -606,7 +627,7 @@ describe('useNotes', () => {
     });
 
     await act(async () => {
-      await result.current.deleteNote('note-1');
+      await result.current.deleteNote(1);
     });
 
     expect(result.current.error).toBe('ノートの削除に失敗しました');

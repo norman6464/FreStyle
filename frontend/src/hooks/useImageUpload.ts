@@ -4,12 +4,12 @@ import NoteImageRepository from '../repositories/NoteImageRepository';
 
 const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml'];
 
-export function useImageUpload(noteId: string | null, editor: Editor | null) {
+export function useImageUpload(noteId: number | null, editor: Editor | null) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   const uploadAndInsert = useCallback(async (file: File) => {
-    if (!noteId || !editor) return;
+    if (noteId == null || !editor) return;
     if (!ALLOWED_TYPES.includes(file.type)) return;
     setUploadError(null);
 

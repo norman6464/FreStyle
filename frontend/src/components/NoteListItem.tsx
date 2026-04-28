@@ -8,15 +8,16 @@ import { getNoteStats } from '../utils/noteStats';
 import ReadingTime from './ReadingTime';
 
 interface NoteListItemProps {
-  noteId: string;
+  noteId: number;
   title: string;
   content: string;
-  updatedAt: number;
+  // backend は RFC3339 string を返す（formatMonthDay は string / number / Date を受け付ける）。
+  updatedAt: string;
   isPinned: boolean;
   isActive: boolean;
-  onSelect: (noteId: string) => void;
-  onDelete: (noteId: string) => void;
-  onTogglePin: (noteId: string) => void;
+  onSelect: (noteId: number) => void;
+  onDelete: (noteId: number) => void;
+  onTogglePin: (noteId: number) => void;
 }
 
 export default memo(function NoteListItem({

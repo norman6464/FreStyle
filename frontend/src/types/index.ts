@@ -138,14 +138,21 @@ export interface SessionNote {
 }
 
 /** ノート */
+/**
+ * Note は Go backend `domain.Note` と 1:1 で対応する。
+ * - id / userId は number
+ * - createdAt / updatedAt は RFC3339 string（ISO）
+ * - isPublic = 公開フラグ、isPinned = ピン留めフラグ（独立した属性）
+ */
 export interface Note {
-  noteId: string;
+  id: number;
   userId: number;
   title: string;
   content: string;
+  isPublic: boolean;
   isPinned: boolean;
-  createdAt: number;
-  updatedAt: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 /** スコア履歴 */

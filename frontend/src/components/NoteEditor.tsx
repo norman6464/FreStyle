@@ -15,7 +15,7 @@ import LineCount from './LineCount';
 interface NoteEditorProps {
   title: string;
   content: string;
-  noteId: string | null;
+  noteId: number | null;
   saveStatus: SaveStatus;
   onTitleChange: (title: string) => void;
   onContentChange: (content: string) => void;

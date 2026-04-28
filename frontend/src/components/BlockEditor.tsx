@@ -20,7 +20,7 @@ export interface BlockEditorHandle {
 interface BlockEditorProps {
   content: string;
   onChange: (jsonString: string) => void;
-  noteId: string | null;
+  noteId: number | null;
   onBackspaceAtStart?: () => void;
 }
 

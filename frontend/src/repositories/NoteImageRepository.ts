@@ -7,7 +7,7 @@ interface PresignedUrlResponse {
 }
 
 const NoteImageRepository = {
-  async getPresignedUrl(noteId: string, fileName: string, contentType: string): Promise<PresignedUrlResponse> {
+  async getPresignedUrl(noteId: number, fileName: string, contentType: string): Promise<PresignedUrlResponse> {
     const res = await apiClient.post(`/api/v2/notes/${noteId}/images/presigned-url`, {
       fileName,
       contentType,

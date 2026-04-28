@@ -1,17 +1,21 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import SockJS from 'sockjs-client';
-import { Client } from '@stomp/stompjs';
 import ChatRepository from '../repositories/ChatRepository';
 import { ChatMessage } from '../types';
 import { useMessageSelection } from './useMessageSelection';
 import { useToast } from './useToast';
+import { useWebSocketNative } from './useWebSocketNative';
 
 /**
  * チャットページのコアロジックフック
  *
- * ChatPageからビジネスロジックを分離し、
- * メッセージ管理・WebSocket接続・選択モード・言い換え提案を担う。
+ * ChatPage からビジネスロジックを分離し、
+ * メッセージ管理・WebSocket 接続・選択モード・言い換え提案を担う。
+ *
+ * WS は SockJS / STOMP を廃止し、native WebSocket + JSON プロトコルで通信する。
+ * - 送信: { type: "send", content }
+ * - 削除: { type: "delete", createdAtRef }
+ * - 受信: { type: "message" | "delete", id, roomId, senderId, senderName, content, createdAt }
  */
 export function useChat() {
   const { showToast } = useToast();
@@ -23,7 +27,6 @@ export function useChat() {
   const [loading, setLoading] = useState(true);
   const [rephraseResult, setRephraseResult] = useState<{ formal: string; soft: string; concise: string } | null>(null);
   const [rephraseOriginalText, setRephraseOriginalText] = useState('');
-  const stompClientRef = useRef<Client | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const { roomId } = useParams<{ roomId: string }>();
@@ -76,65 +79,57 @@ export function useChat() {
       }));
       setMessages(formatted);
     } catch {
-      // エラーはaxiosインターセプターが処理
+      // エラーは axios インターセプターが処理
     } finally {
       setLoading(false);
     }
   }, [roomId, senderId]);
 
-  // WebSocket接続
-  useEffect(() => {
-    if (!senderId) return;
-    const client = new Client({
-      webSocketFactory: () =>
-        new SockJS(`${API_BASE_URL}/ws/chat`, undefined, { withCredentials: true }),
-      reconnectDelay: 5000,
-      onConnect: () => {
-        client.publish({
-          destination: '/app/auth',
-          body: JSON.stringify({ userId: senderId }),
-        });
-        client.subscribe(`/topic/chat/${roomId}`, (message) => {
-          const data = JSON.parse(message.body);
-          if (data.type === 'delete') {
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.createdAt === data.createdAt ? { ...m, isDeleted: true } : m
-              )
-            );
-            return;
-          }
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: data.id,
-              roomId: data.roomId,
-              senderId: data.senderId,
-              senderName: data.senderName,
-              content: data.content,
-              createdAt: data.createdAt,
-              isSender: data.senderId === senderId,
-            },
-          ]);
-        });
-        fetchHistory();
-      },
-      onStompError: () => { setLoading(false); },
-      onWebSocketError: () => { setLoading(false); },
-    });
-    stompClientRef.current = client;
-    client.activate();
-    return () => { client.deactivate(); };
-  }, [roomId, senderId, fetchHistory, API_BASE_URL]);
+  // WebSocket URL は http(s) → ws(s) に変換する。VITE_API_BASE_URL は http(s) で定義されている。
+  const wsUrl = roomId && senderId && API_BASE_URL
+    ? toWsUrl(`${API_BASE_URL}/api/v2/ws/chat/${roomId}`)
+    : null;
+
+  type ChatWsInbound =
+    | { type: 'message'; id: string; roomId: string | number; senderId: number; senderName: string; content: string; createdAt: string }
+    | { type: 'delete'; createdAt: string };
+
+  const { send } = useWebSocketNative({
+    url: wsUrl,
+    onOpen: () => {
+      fetchHistory();
+    },
+    onMessage: (raw) => {
+      const data = raw as ChatWsInbound;
+      if (data.type === 'delete') {
+        setMessages((prev) =>
+          prev.map((m) => (m.createdAt === data.createdAt ? { ...m, isDeleted: true } : m))
+        );
+        return;
+      }
+      if (data.type === 'message') {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: data.id,
+            roomId: typeof data.roomId === 'string' ? parseInt(data.roomId, 10) : data.roomId,
+            senderId: data.senderId,
+            senderName: data.senderName,
+            content: data.content,
+            createdAt: data.createdAt,
+            isSender: data.senderId === senderId,
+          },
+        ]);
+      }
+    },
+    onError: () => setLoading(false),
+    onClose: () => setLoading(false),
+  });
 
   // メッセージ送信
   const handleSend = useCallback((text: string) => {
-    if (!stompClientRef.current?.connected) return;
-    stompClientRef.current.publish({
-      destination: '/app/chat/send',
-      body: JSON.stringify({ roomId: parseInt(roomId!, 10), senderId, content: text }),
-    });
-  }, [roomId, senderId]);
+    send({ type: 'send', content: text });
+  }, [send]);
 
   // メッセージ削除
   const handleDeleteMessage = useCallback((messageId: string) => {
@@ -144,17 +139,11 @@ export function useChat() {
   const confirmDelete = useCallback(() => {
     const messageId = deleteModal.messageId;
     setDeleteModal({ isOpen: false, messageId: null });
-    if (!stompClientRef.current?.connected || !messageId) return;
+    if (!messageId) return;
     const msg = messages.find((m) => m.id === messageId);
     if (!msg?.createdAt) return;
-    stompClientRef.current.publish({
-      destination: '/app/chat/delete',
-      body: JSON.stringify({
-        roomId: parseInt(roomId!, 10),
-        createdAt: msg.createdAt,
-      }),
-    });
-  }, [deleteModal.messageId, roomId, messages]);
+    send({ type: 'delete', createdAtRef: msg.createdAt });
+  }, [deleteModal.messageId, messages, send]);
 
   const cancelDelete = useCallback(() => {
     setDeleteModal({ isOpen: false, messageId: null });
@@ -175,7 +164,7 @@ export function useChat() {
       return;
     }
     setShowSceneSelector(true);
-  }, [selection.selectedMessages]);
+  }, [selection.selectedMessages, showToast, selection]);
 
   const handleSceneSelect = useCallback((scene: string | null) => {
     setShowSceneSelector(false);
@@ -240,4 +229,11 @@ export function useChat() {
     isInRange: selection.isInRange,
     getRangeLabel: selection.getRangeLabel,
   };
+}
+
+/**
+ * http(s) ベースの BASE_URL を WebSocket URL (ws/wss) に変換する。
+ */
+function toWsUrl(httpUrl: string): string {
+  return httpUrl.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:');
 }

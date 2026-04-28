@@ -271,33 +271,14 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	authed.PUT("/admin/scenarios/:id", adminScenarioHandler.Update)
 	authed.DELETE("/admin/scenarios/:id", adminScenarioHandler.Delete)
 
-	// Phase 27: AiChat WebSocket (echo skeleton, Bedrock 連携は Phase 27.1)
+	// AiChat WebSocket (raw / native, Bedrock 連携は別 PR)
+	// SockJS / STOMP は廃止し、フロントは ブラウザ標準 `WebSocket` で接続する。
 	aiChatWsHandler := NewAiChatWsHandler()
 	authed.GET("/ws/ai-chat", aiChatWsHandler.Handle)
-	// SockJS 互換 info endpoint。フロント (@stomp/stompjs + sockjs-client) は接続前に
-	// /ws/.../info?t=... を叩く。Go は raw WebSocket なので websocket=false で返して
-	// SockJS の reconnect ループを早期終了させる。本格的な WS 統合は別 issue。
-	v2.GET("/ws/ai-chat/info", sockJSInfo)
-	v2.GET("/ws/chat/info", sockJSInfo)
-	// /ws/... (api/v2 プレフィックス無し) でも叩かれているので root にも登録
-	r.GET("/ws/ai-chat/info", sockJSInfo)
-	r.GET("/ws/chat/info", sockJSInfo)
 
-	// Phase 28: Chat WebSocket (ルームごとブロードキャスト)
+	// Chat WebSocket (ルームごとブロードキャスト)。raw WebSocket + JSON プロトコル。
 	chatWsHandler := NewChatWsHandler()
 	authed.GET("/ws/chat/:roomId", chatWsHandler.Handle)
 
 	return r
-}
-
-// sockJSInfo は SockJS 互換の /info レスポンスを返す。
-// websocket=false を返すことで sockjs-client が WS 試行をスキップし、
-// 全 transport 失敗 → 早期に諦めるようになる（本格的な WS 統合は別 issue）。
-func sockJSInfo(c *gin.Context) {
-	c.JSON(200, gin.H{
-		"entropy":       0,
-		"origins":       []string{"*:*"},
-		"cookie_needed": false,
-		"websocket":     false,
-	})
 }

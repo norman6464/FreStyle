@@ -13,19 +13,6 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
-vi.mock('sockjs-client', () => ({
-  default: vi.fn(),
-}));
-
-vi.mock('@stomp/stompjs', () => ({
-  Client: class MockClient {
-    activate = vi.fn();
-    deactivate = vi.fn();
-    subscribe = vi.fn();
-    constructor() {}
-  },
-}));
-
 const mockUseChatList = vi.fn();
 vi.mock('../../hooks/useChatList', () => ({
   useChatList: () => mockUseChatList(),

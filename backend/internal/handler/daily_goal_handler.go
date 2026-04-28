@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
@@ -19,20 +20,43 @@ func NewDailyGoalHandler(g *usecase.GetDailyGoalUseCase, u *usecase.UpsertDailyG
 	return &DailyGoalHandler{get: g, upsert: u}
 }
 
-// resolveUserID は path の :userId が "today" や空文字なら current user を返す。
-// フロントが /api/v2/daily-goals/today を叩くケースに対応。
-func (h *DailyGoalHandler) resolveUserID(c *gin.Context) uint64 {
-	param := c.Param("userId")
-	if uid, err := strconv.ParseUint(param, 10, 64); err == nil && uid > 0 {
-		return uid
+var (
+	errDailyGoalForbidden    = errors.New("forbidden")
+	errDailyGoalUnauthorized = errors.New("unauthorized")
+)
+
+// resolveUserID は path :userId を current user と突き合わせる。
+//   - "today" / 空文字 / 数値以外 → current user (フロントの /daily-goals/today に対応)
+//   - 数値 0 → 不正
+//   - 数値が current user 以外 → forbidden（IDOR 対策）
+//   - 数値が current user と一致 → そのまま返す
+func (h *DailyGoalHandler) resolveUserID(c *gin.Context) (uint64, error) {
+	cur := middleware.CurrentUserIDOrZero(c)
+	if cur == 0 {
+		return 0, errDailyGoalUnauthorized
 	}
-	return middleware.CurrentUserIDOrZero(c)
+	param := c.Param("userId")
+	if param == "" || param == "today" {
+		return cur, nil
+	}
+	uid, err := strconv.ParseUint(param, 10, 64)
+	if err != nil {
+		// 数字でない path リテラル（例 "today" 以外の文字列）も current user として扱う。
+		return cur, nil
+	}
+	if uid == 0 {
+		return 0, errDailyGoalForbidden
+	}
+	if uid != cur {
+		return 0, errDailyGoalForbidden
+	}
+	return uid, nil
 }
 
 func (h *DailyGoalHandler) Get(c *gin.Context) {
-	uid := h.resolveUserID(c)
-	if uid == 0 {
-		c.JSON(http.StatusOK, gin.H{"date": "", "targetMinutes": 0, "actualMinutes": 0, "isAchieved": false})
+	uid, err := h.resolveUserID(c)
+	if err != nil {
+		writeDailyGoalError(c, err)
 		return
 	}
 	dateStr := c.DefaultQuery("date", time.Now().UTC().Format("2006-01-02"))
@@ -47,6 +71,7 @@ func (h *DailyGoalHandler) Get(c *gin.Context) {
 		return
 	}
 	if got == nil {
+		// 未設定でも success と同形 (userId / date / targetMinutes / actualMinutes / isAchieved) を返す。
 		c.JSON(http.StatusOK, gin.H{"userId": uid, "date": dateStr, "targetMinutes": 0, "actualMinutes": 0, "isAchieved": false})
 		return
 	}
@@ -60,7 +85,11 @@ type dailyGoalReq struct {
 }
 
 func (h *DailyGoalHandler) Upsert(c *gin.Context) {
-	uid, _ := strconv.ParseUint(c.Param("userId"), 10, 64)
+	uid, err := h.resolveUserID(c)
+	if err != nil {
+		writeDailyGoalError(c, err)
+		return
+	}
 	var req dailyGoalReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -79,4 +108,15 @@ func (h *DailyGoalHandler) Upsert(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, got)
+}
+
+func writeDailyGoalError(c *gin.Context, err error) {
+	switch err {
+	case errDailyGoalUnauthorized:
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+	case errDailyGoalForbidden:
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+	default:
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	}
 }

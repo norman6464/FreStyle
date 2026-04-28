@@ -27,9 +27,12 @@ func NewMarkNotificationReadUseCase(r repository.NotificationRepository) *MarkNo
 	return &MarkNotificationReadUseCase{repo: r}
 }
 
-func (u *MarkNotificationReadUseCase) Execute(ctx context.Context, id uint64) error {
+func (u *MarkNotificationReadUseCase) Execute(ctx context.Context, userID, id uint64) error {
+	if userID == 0 {
+		return errors.New("userID is required")
+	}
 	if id == 0 {
 		return errors.New("id is required")
 	}
-	return u.repo.MarkRead(ctx, id)
+	return u.repo.MarkRead(ctx, userID, id)
 }

@@ -35,9 +35,17 @@ func (h *NotificationHandler) List(c *gin.Context) {
 	c.JSON(http.StatusOK, rows)
 }
 
+// MarkRead は所有者検証つきで通知を既読化する。
+// 自分の通知 id でなければ DB の WHERE 句で何もマッチしないので、
+// 任意 id を渡されても他人の既読化は起きない。
 func (h *NotificationHandler) MarkRead(c *gin.Context) {
+	uid := middleware.CurrentUserIDOrZero(c)
+	if uid == 0 {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err := h.markRead.Execute(c.Request.Context(), id); err != nil {
+	if err := h.markRead.Execute(c.Request.Context(), uid, id); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}

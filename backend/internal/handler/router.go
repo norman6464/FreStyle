@@ -94,9 +94,11 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 		usecase.NewAddScenarioBookmarkUseCase(bookmarkRepo),
 		usecase.NewRemoveScenarioBookmarkUseCase(bookmarkRepo),
 	)
+	// scenario-bookmarks は current user の所有物のみ操作可能（IDOR 対策で userId は受けない）。
+	// フロントは /scenario-bookmarks/:scenarioId に POST/DELETE を投げる。
 	authed.GET("/scenario-bookmarks", bookmarkHandler.List)
-	authed.POST("/scenario-bookmarks", bookmarkHandler.Add)
-	authed.DELETE("/scenario-bookmarks/:userId/:scenarioId", bookmarkHandler.Remove)
+	authed.POST("/scenario-bookmarks/:scenarioId", bookmarkHandler.Add)
+	authed.DELETE("/scenario-bookmarks/:scenarioId", bookmarkHandler.Remove)
 
 	// Phase 9: 共有 AI 会話セッション
 	sharedRepo := repository.NewSharedSessionRepository(db)

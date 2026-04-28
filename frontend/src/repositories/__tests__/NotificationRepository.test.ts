@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../../lib/axios', () => ({
   default: {
     get: vi.fn(),
-    put: vi.fn(),
+    patch: vi.fn(),
   },
 }));
 
@@ -11,7 +11,7 @@ import apiClient from '../../lib/axios';
 import { NotificationRepository } from '../NotificationRepository';
 
 const mockedGet = vi.mocked(apiClient.get);
-const mockedPut = vi.mocked(apiClient.put);
+const mockedPatch = vi.mocked(apiClient.patch);
 
 describe('NotificationRepository', () => {
   beforeEach(() => {
@@ -30,17 +30,17 @@ describe('NotificationRepository', () => {
   });
 
   it('markAsRead: 指定IDの通知を既読にする', async () => {
-    mockedPut.mockResolvedValue({});
+    mockedPatch.mockResolvedValue({});
 
     await NotificationRepository.markAsRead(5);
-    expect(mockedPut).toHaveBeenCalledWith('/api/v2/notifications/5/read');
+    expect(mockedPatch).toHaveBeenCalledWith('/api/v2/notifications/5/read');
   });
 
   it('markAllAsRead: 全通知を既読にする', async () => {
-    mockedPut.mockResolvedValue({});
+    mockedPatch.mockResolvedValue({});
 
     await NotificationRepository.markAllAsRead();
-    expect(mockedPut).toHaveBeenCalledWith('/api/v2/notifications/read-all');
+    expect(mockedPatch).toHaveBeenCalledWith('/api/v2/notifications/read-all');
   });
 
   it('getUnreadCount: 未読数を取得する', async () => {

@@ -2,10 +2,10 @@ package handler
 
 import (
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
 
@@ -18,8 +18,14 @@ func NewLearningReportHandler(l *usecase.ListLearningReportsUseCase, r *usecase.
 	return &LearningReportHandler{list: l, request: r}
 }
 
+// List は current user の learning report 一覧を返す。
+// userId はクライアントから受け取らない（IDOR 対策）。
 func (h *LearningReportHandler) List(c *gin.Context) {
-	uid, _ := strconv.ParseUint(c.Query("userId"), 10, 64)
+	uid := middleware.CurrentUserIDOrZero(c)
+	if uid == 0 {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
 	rows, err := h.list.Execute(c.Request.Context(), uid)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -29,12 +35,17 @@ func (h *LearningReportHandler) List(c *gin.Context) {
 }
 
 type requestReportReq struct {
-	UserID     uint64 `json:"userId" binding:"required"`
 	PeriodFrom string `json:"periodFrom" binding:"required"`
 	PeriodTo   string `json:"periodTo" binding:"required"`
 }
 
+// Request は current user で report 生成を要求する。
 func (h *LearningReportHandler) Request(c *gin.Context) {
+	uid := middleware.CurrentUserIDOrZero(c)
+	if uid == 0 {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
 	var req requestReportReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -51,7 +62,7 @@ func (h *LearningReportHandler) Request(c *gin.Context) {
 		return
 	}
 	got, err := h.request.Execute(c.Request.Context(), usecase.RequestLearningReportInput{
-		UserID: req.UserID, PeriodFrom: from, PeriodTo: to,
+		UserID: uid, PeriodFrom: from, PeriodTo: to,
 	})
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

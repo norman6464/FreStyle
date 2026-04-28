@@ -198,25 +198,41 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	authed.POST("/favorite-phrases", favHandler.Add)
 	authed.DELETE("/favorite-phrases/:id", favHandler.Remove)
 
-	// Phase 20: Friendship
+	// Phase 20: Friendship + 単方向フォロー（フロントの follow / unfollow / status / following / followers に対応）
 	friendshipRepo := repository.NewFriendshipRepository(db)
 	friendshipHandler := NewFriendshipHandler(
 		usecase.NewListFriendshipsUseCase(friendshipRepo),
 		usecase.NewRequestFriendshipUseCase(friendshipRepo),
 		usecase.NewRespondFriendshipUseCase(friendshipRepo),
+		usecase.NewFollowUserUseCase(friendshipRepo),
+		usecase.NewUnfollowUserUseCase(friendshipRepo),
+		usecase.NewListFollowingUseCase(friendshipRepo),
+		usecase.NewListFollowersUseCase(friendshipRepo),
+		usecase.NewGetFollowStatusUseCase(friendshipRepo),
 	)
 	authed.GET("/friendships", friendshipHandler.List)
 	authed.POST("/friendships", friendshipHandler.Request)
 	authed.PATCH("/friendships/:id", friendshipHandler.Respond)
+	authed.GET("/friendships/following", friendshipHandler.Following)
+	authed.GET("/friendships/followers", friendshipHandler.Followers)
+	authed.POST("/friendships/:userId/follow", friendshipHandler.Follow)
+	authed.DELETE("/friendships/:userId/follow", friendshipHandler.Unfollow)
+	authed.GET("/friendships/:userId/status", friendshipHandler.Status)
 
 	// Phase 21: Notification
 	notificationRepo := repository.NewNotificationRepository(db)
 	notificationHandler := NewNotificationHandler(
 		usecase.NewListNotificationsUseCase(notificationRepo),
 		usecase.NewMarkNotificationReadUseCase(notificationRepo),
+		usecase.NewMarkAllNotificationsReadUseCase(notificationRepo),
+		usecase.NewCountUnreadNotificationsUseCase(notificationRepo),
 	)
 	authed.GET("/notifications", notificationHandler.List)
+	authed.GET("/notifications/unread-count", notificationHandler.UnreadCount)
 	authed.PATCH("/notifications/:id/read", notificationHandler.MarkRead)
+	authed.PUT("/notifications/:id/read", notificationHandler.MarkRead)
+	authed.PATCH("/notifications/read-all", notificationHandler.MarkAllRead)
+	authed.PUT("/notifications/read-all", notificationHandler.MarkAllRead)
 
 	// Phase 22: ReminderSetting
 	reminderRepo := repository.NewReminderSettingRepository(db)

@@ -12,6 +12,10 @@ type NotificationRepository interface {
 	// MarkRead は所有者検証込みで is_read を立てる。
 	// 自分以外の通知を既読化できないように、必ず WHERE で user_id を絞る。
 	MarkRead(ctx context.Context, userID, id uint64) error
+	// MarkAllRead は current user の全通知を既読化する。
+	MarkAllRead(ctx context.Context, userID uint64) error
+	// CountUnread は current user の未読通知数を返す。
+	CountUnread(ctx context.Context, userID uint64) (int64, error)
 }
 
 type notificationRepository struct{ db *gorm.DB }
@@ -29,6 +33,22 @@ func (r *notificationRepository) MarkRead(ctx context.Context, userID, id uint64
 		Model(&domain.Notification{}).
 		Where("id = ? AND user_id = ?", id, userID).
 		Update("is_read", true).Error
+}
+
+func (r *notificationRepository) MarkAllRead(ctx context.Context, userID uint64) error {
+	return r.db.WithContext(ctx).
+		Model(&domain.Notification{}).
+		Where("user_id = ? AND is_read = ?", userID, false).
+		Update("is_read", true).Error
+}
+
+func (r *notificationRepository) CountUnread(ctx context.Context, userID uint64) (int64, error) {
+	var n int64
+	err := r.db.WithContext(ctx).
+		Model(&domain.Notification{}).
+		Where("user_id = ? AND is_read = ?", userID, false).
+		Count(&n).Error
+	return n, err
 }
 
 // SnsPublisher は通知 push 用の interface（実装は AWS SDK 連携で別 PR）。

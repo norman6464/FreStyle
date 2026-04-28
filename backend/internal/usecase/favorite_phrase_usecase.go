@@ -44,9 +44,12 @@ func NewDeleteFavoritePhraseUseCase(r repository.FavoritePhraseRepository) *Dele
 	return &DeleteFavoritePhraseUseCase{repo: r}
 }
 
-func (u *DeleteFavoritePhraseUseCase) Execute(ctx context.Context, id uint64) error {
+func (u *DeleteFavoritePhraseUseCase) Execute(ctx context.Context, userID, id uint64) error {
+	if userID == 0 {
+		return errors.New("userID is required")
+	}
 	if id == 0 {
 		return errors.New("id is required")
 	}
-	return u.repo.Delete(ctx, id)
+	return u.repo.Delete(ctx, userID, id)
 }

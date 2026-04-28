@@ -40,7 +40,7 @@ describe('ChatRepository', () => {
 
     const result = await ChatRepository.fetchCurrentUser();
 
-    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/v2/auth/cognito/me');
+    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/v2/auth/me');
     expect(result).toEqual(mockUser);
   });
 

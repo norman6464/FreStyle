@@ -35,7 +35,7 @@ describe('useScoreGoal', () => {
   });
 
   it('APIから目標スコアを取得する', async () => {
-    mockGet.mockResolvedValue({ data: { goalScore: 9.0 } });
+    mockGet.mockResolvedValue({ data: { targetScore: 9.0 } });
 
     const { result } = renderHook(() => useScoreGoal());
 
@@ -43,7 +43,7 @@ describe('useScoreGoal', () => {
       expect(result.current.loading).toBe(false);
     });
     expect(result.current.goal).toBe(9.0);
-    expect(mockGet).toHaveBeenCalledWith('/api/v2/score-goal');
+    expect(mockGet).toHaveBeenCalledWith('/api/v2/score-goals');
   });
 
   it('APIエラー時はlocalStorageのデフォルト値を使用する', async () => {
@@ -58,7 +58,7 @@ describe('useScoreGoal', () => {
   });
 
   it('目標スコアを保存できる', async () => {
-    mockGet.mockResolvedValue({ data: { goalScore: 8.0 } });
+    mockGet.mockResolvedValue({ data: { targetScore: 8.0 } });
     mockPut.mockResolvedValue({});
 
     const { result } = renderHook(() => useScoreGoal());
@@ -72,12 +72,12 @@ describe('useScoreGoal', () => {
     });
 
     expect(result.current.goal).toBe(9.5);
-    expect(mockPut).toHaveBeenCalledWith('/api/v2/score-goal', { goalScore: 9.5 });
+    expect(mockPut).toHaveBeenCalledWith('/api/v2/score-goals', { targetScore: 9.5 });
     expect(localStorage.setItem).toHaveBeenCalledWith('scoreGoal', '9.5');
   });
 
   it('API保存失敗時もlocalStorageには保存される', async () => {
-    mockGet.mockResolvedValue({ data: { goalScore: 8.0 } });
+    mockGet.mockResolvedValue({ data: { targetScore: 8.0 } });
     mockPut.mockRejectedValue(new Error('Network Error'));
 
     const { result } = renderHook(() => useScoreGoal());
@@ -95,7 +95,7 @@ describe('useScoreGoal', () => {
   });
 
   it('読み込み中はloadingがtrueになる', async () => {
-    mockGet.mockResolvedValue({ data: { goalScore: 8.5 } });
+    mockGet.mockResolvedValue({ data: { targetScore: 8.5 } });
 
     const { result } = renderHook(() => useScoreGoal());
 

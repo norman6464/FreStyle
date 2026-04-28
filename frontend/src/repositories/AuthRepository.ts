@@ -110,7 +110,7 @@ class AuthRepository {
    * 現在のユーザー情報取得
    */
   async getCurrentUser(): Promise<UserInfo> {
-    const response = await apiClient.get('/api/v2/auth/cognito/me');
+    const response = await apiClient.get('/api/v2/auth/me');
     return response.data;
   }
 

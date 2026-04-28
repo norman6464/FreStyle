@@ -39,12 +39,11 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	// refresh-token は HttpOnly Cookie の refresh_token を読むため認証 middleware の対象外
 	v2.POST("/auth/cognito/refresh-token", authHandler.Refresh)
 
-	// 認証必須グループ
+	// 認証必須グループ。JWTAuth で sub を context に詰めた後、CurrentUser で users.id を解決する。
 	authed := v2.Group("")
 	authed.Use(middleware.JWTAuth())
+	authed.Use(middleware.CurrentUser(userRepo))
 	authed.GET("/auth/me", authHandler.Me)
-	// フロントが旧 Spring Boot 互換パス /api/v2/auth/cognito/me を叩く場合の alias
-	authed.GET("/auth/cognito/me", authHandler.Me)
 
 	// Phase 3: AI チャット
 	aiSessionRepo := repository.NewAiChatSessionRepository(db)
@@ -54,9 +53,6 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	)
 	authed.GET("/ai-chat/sessions", aiHandler.GetSessions)
 	authed.POST("/ai-chat/sessions", aiHandler.CreateSession)
-	// 旧 Spring Boot 互換 path: フロントは /chat/ai/sessions を叩く
-	authed.GET("/chat/ai/sessions", aiHandler.GetSessions)
-	authed.POST("/chat/ai/sessions", aiHandler.CreateSession)
 
 	// Phase 4: ユーザー間チャット (ルーム CRUD)
 	chatRoomRepo := repository.NewChatRoomRepository(db)
@@ -66,11 +62,6 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	)
 	authed.GET("/chat/rooms", chatHandler.GetRooms)
 	authed.POST("/chat/rooms", chatHandler.CreateRoom)
-	// /chat/stats はフロント MenuPage が叩いていた旧 Spring Boot path。
-	// Go では未実装なので暫定 stub で空オブジェクトを返す（フロントは PR で chat/rooms 由来に切替済）。
-	authed.GET("/chat/stats", func(c *gin.Context) {
-		c.JSON(200, gin.H{"chatPartnerCount": 0})
-	})
 
 	// Phase 5: プロフィール
 	profileRepo := repository.NewProfileRepository(db)
@@ -103,11 +94,11 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 		usecase.NewAddScenarioBookmarkUseCase(bookmarkRepo),
 		usecase.NewRemoveScenarioBookmarkUseCase(bookmarkRepo),
 	)
+	// scenario-bookmarks は current user の所有物のみ操作可能（IDOR 対策で userId は受けない）。
+	// フロントは /scenario-bookmarks/:scenarioId に POST/DELETE を投げる。
 	authed.GET("/scenario-bookmarks", bookmarkHandler.List)
-	authed.POST("/scenario-bookmarks", bookmarkHandler.Add)
-	authed.DELETE("/scenario-bookmarks/:userId/:scenarioId", bookmarkHandler.Remove)
-	// 旧 Spring Boot 互換 path のための alias（フロントが /api/v2/bookmarks を叩くケース）
-	authed.GET("/bookmarks", bookmarkHandler.List)
+	authed.POST("/scenario-bookmarks/:scenarioId", bookmarkHandler.Add)
+	authed.DELETE("/scenario-bookmarks/:scenarioId", bookmarkHandler.Remove)
 
 	// Phase 9: 共有 AI 会話セッション
 	sharedRepo := repository.NewSharedSessionRepository(db)
@@ -156,8 +147,6 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	)
 	authed.GET("/score-cards", scoreCardHandler.List)
 	authed.POST("/score-cards", scoreCardHandler.Create)
-	// 旧 Spring Boot 互換 path の alias
-	authed.GET("/scores/history", scoreCardHandler.List)
 
 	// Phase 14: ScoreGoal
 	scoreGoalRepo := repository.NewScoreGoalRepository(db)
@@ -165,12 +154,11 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 		usecase.NewGetScoreGoalUseCase(scoreGoalRepo),
 		usecase.NewUpsertScoreGoalUseCase(scoreGoalRepo),
 	)
-	authed.GET("/score-goals/:userId", scoreGoalHandler.Get)
-	authed.PUT("/score-goals/:userId", scoreGoalHandler.Upsert)
-	// 旧 Spring Boot 互換 path（単数形）: フロントが /score-goal を叩く
-	authed.GET("/score-goal", func(c *gin.Context) {
-		c.JSON(200, gin.H{"targetScore": 0})
-	})
+	// 認証済 current user の score goal のみを返す。
+	// 旧 `/score-goals/:userId` 系は admin 認可機構が無く IDOR になるため廃止。
+	// admin 用の他ユーザー閲覧/変更が必要になったら別途 /admin/users/:id/score-goal として追加する。
+	authed.GET("/score-goals", scoreGoalHandler.Get)
+	authed.PUT("/score-goals", scoreGoalHandler.Upsert)
 
 	// Phase 15: ScoreTrend
 	scoreTrendHandler := NewScoreTrendHandler(
@@ -245,13 +233,10 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 		usecase.NewGetDailyGoalUseCase(dailyGoalRepo),
 		usecase.NewUpsertDailyGoalUseCase(dailyGoalRepo),
 	)
+	// /daily-goals/today はフロント MenuPage が呼ぶ。handler 側で path の :userId が "today" や数値以外なら
+	// current user に解決する仕組みを入れている (see daily_goal_handler.go resolveUserID)。
 	authed.GET("/daily-goals/:userId", dailyGoalHandler.Get)
 	authed.PUT("/daily-goals/:userId", dailyGoalHandler.Upsert)
-	// /daily-goals/today は Spring Boot 時代の path。Go では :userId 解析されて 400 になっていた。
-	// 暫定で 200 + 空オブジェクトを返す stub。本来は current user の今日の goal を返すべきだが別 issue。
-	authed.GET("/daily-goals/today", func(c *gin.Context) {
-		c.JSON(200, gin.H{"date": "", "targetMinutes": 0, "actualMinutes": 0, "isAchieved": false})
-	})
 
 	// Phase 24: WeeklyChallenge
 	weeklyRepo := repository.NewWeeklyChallengeRepository(db)

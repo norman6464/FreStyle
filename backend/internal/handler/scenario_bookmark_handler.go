@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
 
@@ -23,9 +24,9 @@ func NewScenarioBookmarkHandler(
 }
 
 func (h *ScenarioBookmarkHandler) List(c *gin.Context) {
-	uid, _ := strconv.ParseUint(c.Query("userId"), 10, 64)
+	uid := middleware.CurrentUserIDOrZero(c)
 	if uid == 0 {
-		c.JSON(http.StatusOK, []struct{}{})
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 	rows, err := h.list.Execute(c.Request.Context(), uid)
@@ -36,18 +37,20 @@ func (h *ScenarioBookmarkHandler) List(c *gin.Context) {
 	c.JSON(http.StatusOK, rows)
 }
 
-type addBookmarkReq struct {
-	UserID     uint64 `json:"userId" binding:"required"`
-	ScenarioID uint64 `json:"scenarioId" binding:"required"`
-}
-
+// Add は path :scenarioId を current user の bookmark として登録する。
+// userId はクライアントから受け取らずサーバ側で current user に固定する（IDOR 対策）。
 func (h *ScenarioBookmarkHandler) Add(c *gin.Context) {
-	var req addBookmarkReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	uid := middleware.CurrentUserIDOrZero(c)
+	if uid == 0 {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
-	got, err := h.add.Execute(c.Request.Context(), req.UserID, req.ScenarioID)
+	sid, err := strconv.ParseUint(c.Param("scenarioId"), 10, 64)
+	if err != nil || sid == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid scenarioId"})
+		return
+	}
+	got, err := h.add.Execute(c.Request.Context(), uid, sid)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -55,9 +58,19 @@ func (h *ScenarioBookmarkHandler) Add(c *gin.Context) {
 	c.JSON(http.StatusCreated, got)
 }
 
+// Remove は path :scenarioId を current user の bookmark として削除する。
+// 他人の bookmark を消せないように DB の WHERE 句で user_id を絞る。
 func (h *ScenarioBookmarkHandler) Remove(c *gin.Context) {
-	uid, _ := strconv.ParseUint(c.Param("userId"), 10, 64)
-	sid, _ := strconv.ParseUint(c.Param("scenarioId"), 10, 64)
+	uid := middleware.CurrentUserIDOrZero(c)
+	if uid == 0 {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	sid, err := strconv.ParseUint(c.Param("scenarioId"), 10, 64)
+	if err != nil || sid == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid scenarioId"})
+		return
+	}
 	if err := h.remove.Execute(c.Request.Context(), uid, sid); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

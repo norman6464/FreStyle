@@ -68,6 +68,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	profileHandler := NewProfileHandler(
 		usecase.NewGetProfileUseCase(profileRepo),
 		usecase.NewUpdateProfileUseCase(profileRepo),
+		userRepo,
 	)
 	// /profile/:userId は数字 / "me" の両方を受ける（handler.resolveUserID で current user 解決）。
 	// フロント互換のため /profile/:userId/update PUT / /profile/:userId/image/presigned-url POST も提供する。

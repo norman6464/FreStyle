@@ -42,7 +42,7 @@ describe('ProfilePage', () => {
   });
 
   it('プロファイル取得後にフォームが表示される', async () => {
-    mockedRepo.fetchProfile.mockResolvedValue({ name: 'テストユーザー', bio: '自己紹介文' });
+    mockedRepo.fetchProfile.mockResolvedValue({ userId: 1, displayName: 'テストユーザー', bio: '自己紹介文', avatarUrl: '', status: '', updatedAt: '2026-04-28T00:00:00Z' });
 
     render(<ProfilePage />);
 
@@ -63,7 +63,7 @@ describe('ProfilePage', () => {
   });
 
   it('プロファイル取得後にニックネーム欄が表示される', async () => {
-    mockedRepo.fetchProfile.mockResolvedValue({ name: 'テストユーザー', bio: '自己紹介文' });
+    mockedRepo.fetchProfile.mockResolvedValue({ userId: 1, displayName: 'テストユーザー', bio: '自己紹介文', avatarUrl: '', status: '', updatedAt: '2026-04-28T00:00:00Z' });
 
     render(<ProfilePage />);
 
@@ -73,7 +73,7 @@ describe('ProfilePage', () => {
   });
 
   it('プロファイル取得後に自己紹介欄が表示される', async () => {
-    mockedRepo.fetchProfile.mockResolvedValue({ name: 'テスト', bio: 'テスト自己紹介' });
+    mockedRepo.fetchProfile.mockResolvedValue({ userId: 1, displayName: 'テスト', bio: 'テスト自己紹介', avatarUrl: '', status: '', updatedAt: '2026-04-28T00:00:00Z' });
 
     render(<ProfilePage />);
 
@@ -83,7 +83,7 @@ describe('ProfilePage', () => {
   });
 
   it('送信中はボタンが「更新中...」になり無効化される', async () => {
-    mockedRepo.fetchProfile.mockResolvedValue({ name: 'テスト', bio: '' });
+    mockedRepo.fetchProfile.mockResolvedValue({ userId: 1, displayName: 'テスト', bio: '', avatarUrl: '', status: '', updatedAt: '2026-04-28T00:00:00Z' });
     mockedRepo.updateProfile.mockReturnValue(new Promise(() => {}));
 
     render(<ProfilePage />);
@@ -101,7 +101,7 @@ describe('ProfilePage', () => {
   });
 
   it('アバターのイニシャルが表示される', async () => {
-    mockedRepo.fetchProfile.mockResolvedValue({ name: 'テストユーザー', bio: '' });
+    mockedRepo.fetchProfile.mockResolvedValue({ userId: 1, displayName: 'テストユーザー', bio: '', avatarUrl: '', status: '', updatedAt: '2026-04-28T00:00:00Z' });
 
     render(<ProfilePage />);
 
@@ -111,7 +111,7 @@ describe('ProfilePage', () => {
   });
 
   it('カメラボタンが表示される', async () => {
-    mockedRepo.fetchProfile.mockResolvedValue({ name: 'テスト', bio: '' });
+    mockedRepo.fetchProfile.mockResolvedValue({ userId: 1, displayName: 'テスト', bio: '', avatarUrl: '', status: '', updatedAt: '2026-04-28T00:00:00Z' });
 
     render(<ProfilePage />);
 
@@ -121,7 +121,7 @@ describe('ProfilePage', () => {
   });
 
   it('画像アップロード成功時にアバターが更新される', async () => {
-    mockedRepo.fetchProfile.mockResolvedValue({ name: 'テスト', bio: '' });
+    mockedRepo.fetchProfile.mockResolvedValue({ userId: 1, displayName: 'テスト', bio: '', avatarUrl: '', status: '', updatedAt: '2026-04-28T00:00:00Z' });
     mockUpload.mockResolvedValue('https://cdn.example.com/profiles/1/avatar.png');
 
     render(<ProfilePage />);
@@ -140,7 +140,7 @@ describe('ProfilePage', () => {
   });
 
   it('画像アップロード失敗時にエラーメッセージが表示される', async () => {
-    mockedRepo.fetchProfile.mockResolvedValue({ name: 'テスト', bio: '' });
+    mockedRepo.fetchProfile.mockResolvedValue({ userId: 1, displayName: 'テスト', bio: '', avatarUrl: '', status: '', updatedAt: '2026-04-28T00:00:00Z' });
     mockUpload.mockResolvedValue(null);
 
     render(<ProfilePage />);
@@ -159,7 +159,7 @@ describe('ProfilePage', () => {
   });
 
   it('ステータス入力フィールドが表示される', async () => {
-    mockedRepo.fetchProfile.mockResolvedValue({ name: 'テスト', bio: '', status: '学習中' });
+    mockedRepo.fetchProfile.mockResolvedValue({ userId: 1, displayName: 'テスト', bio: '', avatarUrl: '', status: '学習中', updatedAt: '2026-04-28T00:00:00Z' });
 
     render(<ProfilePage />);
 
@@ -169,7 +169,7 @@ describe('ProfilePage', () => {
   });
 
   it('学習統計セクションが表示される', async () => {
-    mockedRepo.fetchProfile.mockResolvedValue({ name: 'テスト', bio: '' });
+    mockedRepo.fetchProfile.mockResolvedValue({ userId: 1, displayName: 'テスト', bio: '', avatarUrl: '', status: '', updatedAt: '2026-04-28T00:00:00Z' });
 
     render(<ProfilePage />);
 

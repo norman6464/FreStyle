@@ -35,13 +35,19 @@ type UpdateProfileInput struct {
 	UserID    uint64
 	Bio       string
 	AvatarURL string
+	Status    string
 }
 
 func (u *UpdateProfileUseCase) Execute(ctx context.Context, in UpdateProfileInput) (*domain.Profile, error) {
 	if in.UserID == 0 {
 		return nil, errors.New("userID is required")
 	}
-	p := &domain.Profile{UserID: in.UserID, Bio: in.Bio, AvatarURL: in.AvatarURL}
+	p := &domain.Profile{
+		UserID:    in.UserID,
+		Bio:       in.Bio,
+		AvatarURL: in.AvatarURL,
+		Status:    in.Status,
+	}
 	if err := u.profiles.Upsert(ctx, p); err != nil {
 		return nil, err
 	}

@@ -1,18 +1,17 @@
 import apiClient from '../lib/axios';
 import axios from 'axios';
+import type { Profile } from '../types';
 
 /**
- * プロフィールリポジトリ
- *
- * プロフィール関連のAPI呼び出しを抽象化し、
- * axiosインターセプターによる自動トークンリフレッシュを活用する。
+ * Profile 関連 API の薄いラッパ。
+ * フロント `Profile` 型は backend `domain.ProfileView` と 1:1 なのでマッパー不要。
  */
 
-export interface ProfileData {
-  name: string;
+export interface UpdateProfileRequest {
+  displayName: string;
   bio: string;
-  iconUrl?: string;
-  status?: string;
+  avatarUrl: string;
+  status: string;
 }
 
 interface PresignedUrlResponse {
@@ -21,18 +20,18 @@ interface PresignedUrlResponse {
 }
 
 const ProfileRepository = {
-  async fetchProfile(): Promise<ProfileData> {
-    const res = await apiClient.get('/api/v2/profile/me');
+  async fetchProfile(): Promise<Profile> {
+    const res = await apiClient.get<Profile>('/api/v2/profile/me');
     return res.data;
   },
 
-  async updateProfile(data: ProfileData): Promise<{ success: string }> {
-    const res = await apiClient.put('/api/v2/profile/me/update', data);
+  async updateProfile(data: UpdateProfileRequest): Promise<Profile> {
+    const res = await apiClient.put<Profile>('/api/v2/profile/me/update', data);
     return res.data;
   },
 
   async getImagePresignedUrl(fileName: string, contentType: string): Promise<PresignedUrlResponse> {
-    const res = await apiClient.post('/api/v2/profile/me/image/presigned-url', {
+    const res = await apiClient.post<PresignedUrlResponse>('/api/v2/profile/me/image/presigned-url', {
       fileName,
       contentType,
     });

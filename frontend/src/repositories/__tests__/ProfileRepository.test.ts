@@ -17,29 +17,45 @@ vi.mock('axios', () => ({
   },
 }));
 
+const fixtureProfile = {
+  userId: 1,
+  displayName: 'テスト',
+  bio: '自己紹介',
+  avatarUrl: '',
+  status: '',
+  updatedAt: '2026-04-28T00:00:00Z',
+};
+
 describe('ProfileRepository', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it('fetchProfile: プロフィールを取得できる', async () => {
-    const mockData = { name: 'テスト', bio: '自己紹介' };
-    vi.mocked(apiClient.get).mockResolvedValue({ data: mockData });
-
+    vi.mocked(apiClient.get).mockResolvedValue({ data: fixtureProfile });
     const result = await ProfileRepository.fetchProfile();
-
     expect(apiClient.get).toHaveBeenCalledWith('/api/v2/profile/me');
-    expect(result).toEqual(mockData);
+    expect(result).toEqual(fixtureProfile);
   });
 
   it('updateProfile: プロフィールを更新できる', async () => {
-    const mockData = { success: 'プロフィールを更新しました。' };
-    vi.mocked(apiClient.put).mockResolvedValue({ data: mockData });
+    const updated = { ...fixtureProfile, bio: '更新' };
+    vi.mocked(apiClient.put).mockResolvedValue({ data: updated });
 
-    const result = await ProfileRepository.updateProfile({ name: 'テスト', bio: '更新' });
+    const result = await ProfileRepository.updateProfile({
+      displayName: 'テスト',
+      bio: '更新',
+      avatarUrl: '',
+      status: '',
+    });
 
-    expect(apiClient.put).toHaveBeenCalledWith('/api/v2/profile/me/update', { name: 'テスト', bio: '更新' });
-    expect(result).toEqual(mockData);
+    expect(apiClient.put).toHaveBeenCalledWith('/api/v2/profile/me/update', {
+      displayName: 'テスト',
+      bio: '更新',
+      avatarUrl: '',
+      status: '',
+    });
+    expect(result).toEqual(updated);
   });
 
   it('getImagePresignedUrl: Presigned URLを取得できる', async () => {

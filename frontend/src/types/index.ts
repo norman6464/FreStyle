@@ -1,4 +1,18 @@
-/** チャットユーザー（チャットリスト表示用） */
+/**
+ * ChatRoom は Go backend `domain.ChatRoom` と 1:1。
+ */
+export interface ChatRoom {
+  id: number;
+  name: string;
+  isGroup: boolean;
+  createdAt: string;
+}
+
+/**
+ * ChatUser はチャット一覧画面（ChatListPage）専用の view モデル。
+ * backend には対応する単一の domain は無く、複数 domain (ChatRoom + last ChatMessage + User)
+ * を合成した形でフロントが扱う。
+ */
 export interface ChatUser {
   roomId: number;
   userId: number;
@@ -11,7 +25,25 @@ export interface ChatUser {
   profileImage?: string;
 }
 
-/** チャットメッセージ */
+/**
+ * ChatMessageDto は Go backend `domain.ChatMessage` と 1:1。
+ * 新規実装はこの型を「真のソース」として参照する。Repository / hook で UI 表示用に
+ * `ChatMessage` view へ写像する。
+ */
+export interface ChatMessageDto {
+  roomId: number;
+  messageId: string;
+  senderId: number;
+  content: string;
+  createdAt: string;
+}
+
+/**
+ * ChatMessage はチャット画面で表示するメッセージ view。
+ * UI 用フィールド (`isSender`, `isDeleted`, `senderName`) を持ち、Hook 側で算出される。
+ * 既存コードベースに合わせて `id: string` / `createdAt?: number` も残しているが、
+ * 将来的に DTO へ統一する。
+ */
 export interface ChatMessage {
   id: string;
   roomId: number;
@@ -31,7 +63,24 @@ export interface MemberUser {
   roomId?: number;
 }
 
-/** AIセッション */
+/**
+ * AiChatSession は Go backend `domain.AiChatSession` と 1:1。
+ * 新規実装はこちらを参照すること。
+ */
+export interface AiChatSession {
+  id: number;
+  userId: number;
+  title: string;
+  sessionType: string;
+  scenarioId?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * AiSession は AskAi 画面表示用の view 型。userId / updatedAt は不要なケースが多く、
+ * scene のような UI 由来のフィールドを足してある。後段で AiChatSession へ統一予定。
+ */
 export interface AiSession {
   id: number;
   title?: string;
@@ -51,7 +100,22 @@ export interface PracticeScenario {
   difficulty: string;
 }
 
-/** AIメッセージ */
+/**
+ * AiChatMessageDto は Go backend `domain.AiChatMessage` と 1:1。
+ * `messageId` (DynamoDB key) と `createdAt` (RFC3339 string) を持つ。
+ */
+export interface AiChatMessageDto {
+  sessionId: number;
+  messageId: string;
+  role: 'user' | 'assistant';
+  content: string;
+  createdAt: string;
+}
+
+/**
+ * AiMessage は AskAi 画面表示用の view 型。
+ * `id` (string) を画面側で扱いやすい一意キーとして使う。
+ */
 export interface AiMessage {
   id: string;
   sessionId: number;

@@ -245,7 +245,8 @@ export interface RankingEntryDto {
 /** SNSプロバイダー */
 export type SnsProvider = 'google' | 'facebook' | 'x';
 
-/** お気に入りフレーズ */
+/** お気に入りフレーズ（フロント表示用 view）。
+ *  backend 1:1 は `FavoritePhraseDto` を参照すること。 */
 export interface FavoritePhrase {
   id: string;
   originalText: string;
@@ -254,11 +255,33 @@ export interface FavoritePhrase {
   createdAt: string;
 }
 
-/** 日次学習目標 */
+/** FavoritePhraseDto は Go backend `domain.FavoritePhrase` と 1:1。 */
+export interface FavoritePhraseDto {
+  id: number;
+  userId: number;
+  phrase: string;
+  note: string;
+  createdAt: string;
+}
+
+/** 日次学習目標（フロント表示用 view）。
+ *  backend 1:1 は `DailyGoalDto` を参照すること。 */
 export interface DailyGoal {
   date: string;
   target: number;
   completed: number;
+}
+
+/** DailyGoalDto は Go backend `domain.DailyGoal` と 1:1。
+ *  date は YYYY-MM-DD で、targetMinutes / actualMinutes / isAchieved を持つ。 */
+export interface DailyGoalDto {
+  id: number;
+  userId: number;
+  date: string;
+  targetMinutes: number;
+  actualMinutes: number;
+  isAchieved: boolean;
+  createdAt: string;
 }
 
 /** セッションメモ */
@@ -333,7 +356,8 @@ export interface ScoreHistoryItem {
   createdAt: string;
 }
 
-/** 学習レポート */
+/** 学習レポート（フロント表示用 view）。
+ *  backend 1:1 は `LearningReportDto` を参照すること。 */
 export interface LearningReport {
   id: number;
   year: number;
@@ -348,7 +372,20 @@ export interface LearningReport {
   createdAt?: string;
 }
 
-/** 通知 */
+/** LearningReportDto は Go backend `domain.LearningReport` と 1:1。
+ *  非同期生成のため status (`pending` / `ready` / `failed`) と s3Key を持つ。 */
+export interface LearningReportDto {
+  id: number;
+  userId: number;
+  periodFrom: string;
+  periodTo: string;
+  status: 'pending' | 'ready' | 'failed';
+  s3Key?: string;
+  createdAt: string;
+}
+
+/** 通知（フロント表示用 view）。
+ *  backend 1:1 は `NotificationDto` を参照すること。 */
 export interface Notification {
   id: number;
   type: string;
@@ -359,6 +396,20 @@ export interface Notification {
   createdAt: string;
 }
 
+/** NotificationDto は Go backend `domain.Notification` と 1:1。
+ *  backend は `body` カラム、フロント view は `message` を使う点が差。 */
+export interface NotificationDto {
+  id: number;
+  userId: number;
+  type: string;
+  title: string;
+  body: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
+/** FriendshipUser はフロント表示用 view（friend list 表示で使う）。
+ *  backend 1:1 は `FriendshipDto`。 */
 export interface FriendshipUser {
   id: number;
   userId: number;
@@ -368,6 +419,16 @@ export interface FriendshipUser {
   mutual: boolean;
   createdAt: string;
   status: string | null;
+}
+
+/** FriendshipDto は Go backend `domain.Friendship` と 1:1。
+ *  status は `pending` / `accepted` / `rejected`。 */
+export interface FriendshipDto {
+  id: number;
+  requesterId: number;
+  addresseeId: number;
+  status: 'pending' | 'accepted' | 'rejected';
+  createdAt: string;
 }
 
 export interface FollowStatus {
@@ -392,7 +453,8 @@ export interface Ranking {
   myRanking: RankingEntry | null;
 }
 
-/** 会話テンプレート */
+/** 会話テンプレート（フロント表示用 view）。
+ *  backend 1:1 は `ConversationTemplateDto` を参照すること。 */
 export interface ConversationTemplate {
   id: number;
   title: string;
@@ -402,11 +464,30 @@ export interface ConversationTemplate {
   difficulty: string;
 }
 
-/** リマインダー設定 */
+/** ConversationTemplateDto は Go backend `domain.ConversationTemplate` と 1:1。 */
+export interface ConversationTemplateDto {
+  id: number;
+  title: string;
+  body: string;
+  category: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
+/** リマインダー設定（フロント表示用 view）。 */
 export interface ReminderSetting {
   enabled: boolean;
   reminderTime: string;
   daysOfWeek: string;
+}
+
+/** ReminderSettingDto は Go backend `domain.ReminderSetting` と 1:1（user 単位の通知設定）。 */
+export interface ReminderSettingDto {
+  userId: number;
+  enabled: boolean;
+  reminderTime: string;
+  daysOfWeek: string;
+  updatedAt: string;
 }
 
 /** 共有セッション */
@@ -421,7 +502,8 @@ export interface SharedSession {
   createdAt: string;
 }
 
-/** ウィークリーチャレンジ */
+/** ウィークリーチャレンジ（フロント表示用 view）。
+ *  backend 1:1 は `WeeklyChallengeDto` / `WeeklyChallengeProgressDto` を参照。 */
 export interface WeeklyChallenge {
   id: number;
   title: string;
@@ -432,4 +514,22 @@ export interface WeeklyChallenge {
   isCompleted: boolean;
   weekStart: string;
   weekEnd: string;
+}
+
+/** WeeklyChallengeDto は Go backend `domain.WeeklyChallenge` と 1:1。 */
+export interface WeeklyChallengeDto {
+  id: number;
+  weekStart: string;
+  title: string;
+  description: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
+/** WeeklyChallengeProgressDto は Go backend `domain.WeeklyChallengeProgress` と 1:1。 */
+export interface WeeklyChallengeProgressDto {
+  userId: number;
+  challengeId: number;
+  completed: boolean;
+  updatedAt: string;
 }

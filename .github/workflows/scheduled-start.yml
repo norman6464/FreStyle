@@ -1,16 +1,27 @@
-name: Scheduled - Start (recreate ALB + ECS at morning)
+name: Scheduled - Start (restore RDS + recreate ALB + ECS at morning)
 
-# 目的: 毎日 07:00 JST (22:00 UTC) に ALB と ECS を再作成して稼働開始。
-# scheduled-stop.yml と対になる。
+# 目的: 毎日 07:00 JST (22:00 UTC) に RDS を昨夜の snapshot から復元し、
+# ALB と ECS を再作成して稼働開始。scheduled-stop.yml と対になる。
 #
 # 流れ:
-#   1) ALB を CFn deploy（新しい AWS DNS 名が払い出される）
-#   2) ECS を CFn deploy（IAM Role / Secrets Manager は前夜から残置）
-#   3) Route 53 で api.normanblog.com の Alias レコードを新 ALB に更新
+#   1) RDS スタックが無ければ最新の `frestyle-prod-nightly-*` snapshot から復元
+#      (CFn deploy with DBSnapshotIdentifier=<latest>)
+#   2) ALB を CFn deploy（新しい AWS DNS 名が払い出される）
+#   3) ECS を CFn deploy（IAM Role / Secrets Manager は前夜から残置）
+#   4) Route 53 で api.normanblog.com の Alias レコードを新 ALB に更新
 #      (normanblog.com の Hosted Zone Z02128031IOUNFFKBRXXE)
-#   4) services-stable wait + ヘルスチェック
+#   5) services-stable wait + ヘルスチェック
 #
 # 認証: GitHub OIDC + IAM Role (frestyle-prod-github-actions-role)
+# 必要な追加 IAM 権限:
+#   - rds:DescribeDBSnapshots
+#   - cloudformation:CreateStack / UpdateStack / DescribeStacks（既存）
+#
+# 前提:
+#   - frestyle-infrastructure 側の rds-postgres.yml が `DBSnapshotIdentifier`
+#     パラメータを受け取る形に対応していること（テンプレ未対応の場合は
+#     scheduled-start 初回実行時に param 不一致で fail するので、その時点で
+#     インフラ側に PR を出す）。
 
 on:
   schedule:
@@ -26,8 +37,11 @@ on:
 env:
   AWS_REGION: ap-northeast-1
   STACK_PFX: frestyle-prod
+  RDS_STACK: frestyle-prod-rds-postgres
   AWS_ROLE_ARN: arn:aws:iam::010928196665:role/frestyle-prod-github-actions-role
   IAC_REPO: norman6464/frestyle-infrastructure
+  # nightly snapshot の prefix（scheduled-stop 側と一致させる）
+  NIGHTLY_SNAPSHOT_PREFIX: frestyle-prod-nightly
   # Route 53: normanblog.com の権威 Hosted Zone（CloudFront も同ゾーンに紐付いている正規ゾーン）
   R53_HOSTED_ZONE_ID: Z02128031IOUNFFKBRXXE
   R53_RECORD_NAME: api.normanblog.com
@@ -69,7 +83,7 @@ jobs:
         run: |
           # 前夜の scheduled-stop / 前回の cd-backend が ROLLBACK_COMPLETE で残っていると
           # 今回の deploy が "stack cannot be updated" で失敗する。先に削除しておく。
-          for STACK in $STACK_PFX-ecs $STACK_PFX-alb; do
+          for STACK in $STACK_PFX-ecs $STACK_PFX-alb $RDS_STACK; do
             STATUS=$(aws cloudformation describe-stacks --region $AWS_REGION \
               --stack-name $STACK --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "ABSENT")
             case "$STATUS" in
@@ -83,6 +97,37 @@ jobs:
                 ;;
             esac
           done
+
+      - name: Restore RDS from latest nightly snapshot (if RDS stack absent)
+        id: restore_rds
+        run: |
+          # RDS スタックが既に存在すれば、昼間の手動運用 (例: バックアップ確認) などで
+          # 起き上がっているので何もしない。
+          if aws cloudformation describe-stacks --region $AWS_REGION --stack-name $RDS_STACK >/dev/null 2>&1; then
+            echo "$RDS_STACK already exists — skip restore"
+            echo "skipped=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # 昨夜 scheduled-stop が作った最新の nightly snapshot を取得。
+          LATEST=$(aws rds describe-db-snapshots --region $AWS_REGION \
+            --snapshot-type manual \
+            --query "DBSnapshots[?starts_with(DBSnapshotIdentifier, '${NIGHTLY_SNAPSHOT_PREFIX}-') && Status=='available'] | sort_by(@, &SnapshotCreateTime)[-1].DBSnapshotIdentifier" \
+            --output text)
+          if [ -z "$LATEST" ] || [ "$LATEST" = "None" ]; then
+            echo "::error::No nightly snapshot found for prefix '${NIGHTLY_SNAPSHOT_PREFIX}-'"
+            exit 1
+          fi
+          echo "Restoring from snapshot: $LATEST"
+          # rds-postgres.yml は frestyle-infrastructure 側で `DBSnapshotIdentifier`
+          # パラメータを受け付ける必要がある。受け付ければ snapshot 復元として動作。
+          aws cloudformation deploy --region $AWS_REGION \
+            --stack-name $RDS_STACK \
+            --template-file iac/infrastructure/cloudformation/templates/runtime/rds-postgres.yml \
+            --parameter-overrides Environment=prod DBSnapshotIdentifier="$LATEST" \
+            --capabilities CAPABILITY_IAM --no-fail-on-empty-changeset \
+            --tags Project=FreStyle Environment=prod ManagedBy=CloudFormation
+          echo "✅ RDS restored from $LATEST"
+          echo "skipped=false" >> "$GITHUB_OUTPUT"
 
       - name: Deploy ALB stack
         run: |

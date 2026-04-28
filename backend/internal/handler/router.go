@@ -69,14 +69,19 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 		usecase.NewGetProfileUseCase(profileRepo),
 		usecase.NewUpdateProfileUseCase(profileRepo),
 	)
+	// /profile/:userId は数字 / "me" の両方を受ける（handler.resolveUserID で current user 解決）。
+	// フロント互換のため /profile/:userId/update PUT / /profile/:userId/image/presigned-url POST も提供する。
 	authed.GET("/profile/:userId", profileHandler.Get)
 	authed.PUT("/profile/:userId", profileHandler.Update)
+	authed.PUT("/profile/:userId/update", profileHandler.Update)
 
 	// Phase 6: ユーザー統計
 	statsHandler := NewUserStatsHandler(
 		usecase.NewGetUserStatsUseCase(repository.NewUserStatsRepository(db)),
 	)
+	// 旧 path /user-stats/:userId と Spring 風 /users/:userId/stats の両方を提供する。
 	authed.GET("/user-stats/:userId", statsHandler.Get)
+	authed.GET("/users/:userId/stats", statsHandler.Get)
 
 	// Phase 7: 練習モード (シナリオ)
 	practiceRepo := repository.NewPracticeScenarioRepository(db)

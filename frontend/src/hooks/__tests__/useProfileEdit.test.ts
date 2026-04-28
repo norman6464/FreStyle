@@ -12,11 +12,20 @@ vi.mock('../../repositories/ProfileRepository', () => ({
   },
 }));
 
+const fixtureProfile = {
+  userId: 1,
+  displayName: 'テスト太郎',
+  bio: '自己紹介文',
+  avatarUrl: '',
+  status: '学習中',
+  updatedAt: '2026-04-28T00:00:00Z',
+};
+
 describe('useProfileEdit', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockFetchProfile.mockResolvedValue({ name: 'テスト太郎', bio: '自己紹介文', status: '学習中' });
-    mockUpdateProfile.mockResolvedValue({ success: '更新しました' });
+    mockFetchProfile.mockResolvedValue({ ...fixtureProfile });
+    mockUpdateProfile.mockResolvedValue({ ...fixtureProfile });
   });
 
   it('プロフィール取得成功時にフォームに値がセットされる', async () => {
@@ -26,7 +35,7 @@ describe('useProfileEdit', () => {
       expect(result.current.loading).toBe(false);
     });
 
-    expect(result.current.form.name).toBe('テスト太郎');
+    expect(result.current.form.displayName).toBe('テスト太郎');
     expect(result.current.form.bio).toBe('自己紹介文');
     expect(result.current.form.status).toBe('学習中');
   });
@@ -52,10 +61,10 @@ describe('useProfileEdit', () => {
     });
 
     act(() => {
-      result.current.updateField('name', '新しい名前');
+      result.current.updateField('displayName', '新しい名前');
     });
 
-    expect(result.current.form.name).toBe('新しい名前');
+    expect(result.current.form.displayName).toBe('新しい名前');
   });
 
   it('handleUpdate成功時に成功メッセージが表示される', async () => {
@@ -70,7 +79,7 @@ describe('useProfileEdit', () => {
     });
 
     expect(result.current.message?.type).toBe('success');
-    expect(result.current.message?.text).toBe('更新しました');
+    expect(result.current.message?.text).toBe('プロフィールを更新しました。');
   });
 
   it('handleUpdate失敗時にエラーメッセージが表示される', async () => {
@@ -92,8 +101,6 @@ describe('useProfileEdit', () => {
 
   it('loading状態が初期trueからfalseに変化する', async () => {
     const { result } = renderHook(() => useProfileEdit());
-
-    // 初期状態はloading true
     expect(result.current.loading).toBe(true);
 
     await waitFor(() => {
@@ -113,12 +120,11 @@ describe('useProfileEdit', () => {
     });
 
     expect(result.current.form.bio).toBe('新しい自己紹介');
-    // nameは変更されていないこと
-    expect(result.current.form.name).toBe('テスト太郎');
+    expect(result.current.form.displayName).toBe('テスト太郎');
   });
 
   it('handleUpdate中はsubmittingがtrueになる', async () => {
-    let resolveUpdate: (value: any) => void;
+    let resolveUpdate: (value: unknown) => void;
     mockUpdateProfile.mockImplementation(
       () => new Promise((resolve) => { resolveUpdate = resolve; })
     );
@@ -139,7 +145,7 @@ describe('useProfileEdit', () => {
     expect(result.current.submitting).toBe(true);
 
     await act(async () => {
-      resolveUpdate!({ success: 'OK' });
+      resolveUpdate!({ ...fixtureProfile });
       await updatePromise!;
     });
 
@@ -154,14 +160,19 @@ describe('useProfileEdit', () => {
     });
 
     act(() => {
-      result.current.updateField('name', '更新太郎');
+      result.current.updateField('displayName', '更新太郎');
     });
 
     await act(async () => {
       await result.current.handleUpdate();
     });
 
-    expect(mockUpdateProfile).toHaveBeenCalledWith({ name: '更新太郎', bio: '自己紹介文', iconUrl: '', status: '学習中' });
+    expect(mockUpdateProfile).toHaveBeenCalledWith({
+      displayName: '更新太郎',
+      bio: '自己紹介文',
+      avatarUrl: '',
+      status: '学習中',
+    });
   });
 
   it('ニックネームが空の場合エラーメッセージが表示されAPIが呼ばれない', async () => {
@@ -172,7 +183,7 @@ describe('useProfileEdit', () => {
     });
 
     act(() => {
-      result.current.updateField('name', '');
+      result.current.updateField('displayName', '');
     });
 
     await act(async () => {
@@ -192,7 +203,7 @@ describe('useProfileEdit', () => {
     });
 
     act(() => {
-      result.current.updateField('name', '   ');
+      result.current.updateField('displayName', '   ');
     });
 
     await act(async () => {

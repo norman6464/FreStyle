@@ -6,17 +6,28 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
+	"github.com/norman6464/FreStyle/backend/internal/repository"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
 
+// ProfileHandler は GET / PUT /profile/:userId(or "me") を提供する。
+//
+// 返却 DTO `domain.ProfileView` は users.display_name と profiles テーブルを合成したもの
+// （フロントは displayName / bio / avatarUrl / status を 1 つの object で扱う）。
 type ProfileHandler struct {
 	get    *usecase.GetProfileUseCase
 	update *usecase.UpdateProfileUseCase
+	users  repository.UserRepository
 }
 
-func NewProfileHandler(g *usecase.GetProfileUseCase, u *usecase.UpdateProfileUseCase) *ProfileHandler {
-	return &ProfileHandler{get: g, update: u}
+func NewProfileHandler(
+	g *usecase.GetProfileUseCase,
+	u *usecase.UpdateProfileUseCase,
+	users repository.UserRepository,
+) *ProfileHandler {
+	return &ProfileHandler{get: g, update: u, users: users}
 }
 
 var (
@@ -53,22 +64,23 @@ func (h *ProfileHandler) Get(c *gin.Context) {
 		writeProfileError(c, err)
 		return
 	}
-	p, err := h.get.Execute(c.Request.Context(), uid)
+	view, err := h.buildView(c, uid)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if p == nil {
-		// 未登録ユーザーでも UI が落ちないよう最小デフォルトを返す。
-		c.JSON(http.StatusOK, gin.H{"userId": uid, "bio": "", "avatarUrl": "", "name": "", "iconUrl": "", "status": ""})
-		return
-	}
-	c.JSON(http.StatusOK, p)
+	c.JSON(http.StatusOK, view)
 }
 
 type updateProfileReq struct {
-	Bio       string `json:"bio"`
-	AvatarURL string `json:"avatarUrl"`
+	// `name` は旧フロント実装の互換のため受け付け、`displayName` を優先する。
+	DisplayName string `json:"displayName"`
+	Name        string `json:"name"`
+	Bio         string `json:"bio"`
+	AvatarURL   string `json:"avatarUrl"`
+	// 旧フロント実装が `iconUrl` で送ってきた場合の互換。
+	IconURL string `json:"iconUrl"`
+	Status  string `json:"status"`
 }
 
 func (h *ProfileHandler) Update(c *gin.Context) {
@@ -82,14 +94,56 @@ func (h *ProfileHandler) Update(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	updated, err := h.update.Execute(c.Request.Context(), usecase.UpdateProfileInput{
-		UserID: uid, Bio: req.Bio, AvatarURL: req.AvatarURL,
-	})
-	if err != nil {
+	displayName := req.DisplayName
+	if displayName == "" {
+		displayName = req.Name
+	}
+	avatarURL := req.AvatarURL
+	if avatarURL == "" {
+		avatarURL = req.IconURL
+	}
+	if displayName != "" {
+		if err := h.users.UpdateDisplayName(c.Request.Context(), uid, displayName); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+	}
+	if _, err := h.update.Execute(c.Request.Context(), usecase.UpdateProfileInput{
+		UserID:    uid,
+		Bio:       req.Bio,
+		AvatarURL: avatarURL,
+		Status:    req.Status,
+	}); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, updated)
+	view, err := h.buildView(c, uid)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"success": "プロフィールを更新しました"})
+		return
+	}
+	c.JSON(http.StatusOK, view)
+}
+
+// buildView は users.display_name と profiles を合成して ProfileView を返す。
+// 未登録ユーザーでも UI が落ちないよう、欠損時は空文字フィールドで埋める。
+func (h *ProfileHandler) buildView(c *gin.Context, uid uint64) (*domain.ProfileView, error) {
+	p, err := h.get.Execute(c.Request.Context(), uid)
+	if err != nil {
+		return nil, err
+	}
+	view := &domain.ProfileView{UserID: uid}
+	if p != nil {
+		view.Bio = p.Bio
+		view.AvatarURL = p.AvatarURL
+		view.Status = p.Status
+		view.UpdatedAt = p.UpdatedAt
+	}
+	user, _ := h.users.FindByID(c.Request.Context(), uid)
+	if user != nil {
+		view.DisplayName = user.DisplayName
+	}
+	return view, nil
 }
 
 func writeProfileError(c *gin.Context, err error) {

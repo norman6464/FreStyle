@@ -155,6 +155,35 @@ export interface Note {
   updatedAt: string;
 }
 
+/**
+ * Profile は Go backend `domain.ProfileView` と 1:1 で対応する。
+ * users.display_name と profiles を合成した「プロフィール表示」用 DTO。
+ */
+export interface Profile {
+  userId: number;
+  displayName: string;
+  bio: string;
+  avatarUrl: string;
+  status: string;
+  updatedAt: string;
+}
+
+/**
+ * User は Go backend `domain.User` と 1:1 で対応する。
+ * 認証フローおよび admin 操作で利用する。
+ */
+export interface User {
+  id: number;
+  cognitoSub: string;
+  email: string;
+  displayName: string;
+  companyId?: number | null;
+  role: string;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt?: string | null;
+}
+
 /** スコア履歴 */
 export interface ScoreHistory {
   sessionId: number;

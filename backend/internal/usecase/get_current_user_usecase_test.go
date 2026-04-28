@@ -16,7 +16,13 @@ type stubUserRepo struct {
 func (s *stubUserRepo) FindByCognitoSub(_ context.Context, _ string) (*domain.User, error) {
 	return s.user, s.err
 }
+func (s *stubUserRepo) FindByID(_ context.Context, _ uint64) (*domain.User, error) {
+	return s.user, s.err
+}
 func (s *stubUserRepo) Create(_ context.Context, _ *domain.User) error { return s.err }
+func (s *stubUserRepo) UpdateDisplayName(_ context.Context, _ uint64, _ string) error {
+	return s.err
+}
 
 func TestGetCurrentUserUseCase_Found(t *testing.T) {
 	want := &domain.User{ID: 1, CognitoSub: "abc", Email: "u@example.com"}

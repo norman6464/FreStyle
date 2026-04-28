@@ -30,7 +30,7 @@ export default function ProfilePage() {
 
     const imageUrl = await upload(file);
     if (imageUrl) {
-      updateField('iconUrl', imageUrl);
+      updateField('avatarUrl', imageUrl);
     } else {
       setMessage({ type: 'error', text: '画像のアップロードに失敗しました。' });
     }
@@ -52,7 +52,7 @@ export default function ProfilePage() {
       <div className="bg-surface-1 rounded-lg border border-surface-3 p-6">
         <div className="flex items-center gap-4 mb-6">
           <div className="relative">
-            <Avatar name={form.name || 'U'} src={form.iconUrl || undefined} size="xl" />
+            <Avatar name={form.displayName || 'U'} src={form.avatarUrl || undefined} size="xl" />
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
@@ -88,9 +88,9 @@ export default function ProfilePage() {
         >
           <InputField
             label="ニックネーム"
-            name="name"
-            value={form.name}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateField('name', e.target.value)}
+            name="displayName"
+            value={form.displayName}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateField('displayName', e.target.value)}
           />
           <TextareaField
             label="自己紹介"

@@ -65,7 +65,7 @@ export default function NotesPage() {
     onForceSave: forceSave,
   });
 
-  const handleSelectNote = (noteId: string) => {
+  const handleSelectNote = (noteId: number) => {
     selectNote(noteId);
     closeMobilePanel();
   };
@@ -120,13 +120,13 @@ export default function NotesPage() {
           ) : (
             filteredNotes.map((note) => (
               <NoteListItem
-                key={note.noteId}
-                noteId={note.noteId}
+                key={note.id}
+                noteId={note.id}
                 title={note.title}
                 content={note.content}
                 updatedAt={note.updatedAt}
                 isPinned={note.isPinned}
-                isActive={selectedNoteId === note.noteId}
+                isActive={selectedNoteId === note.id}
                 onSelect={handleSelectNote}
                 onDelete={requestDelete}
                 onTogglePin={togglePin}

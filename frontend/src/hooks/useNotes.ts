@@ -3,13 +3,19 @@ import type { Note } from '../types';
 import type { NoteSortOption } from '../constants/sortOptions';
 import NoteRepository from '../repositories/NoteRepository';
 
+/**
+ * useNotes — Note の一覧取得・選択・並び替え・CRUD を担う hook。
+ *
+ * Note 型は backend `domain.Note` と 1:1 なので、id は number、
+ * createdAt / updatedAt は RFC3339 string として扱う。
+ */
 export function useNotes() {
   const [notes, setNotes] = useState<Note[]>([]);
-  const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
+  const [selectedNoteId, setSelectedNoteId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
   const [noteSort, setNoteSort] = useState<NoteSortOption>('default');
   const notesRef = useRef<Note[]>(notes);
   notesRef.current = notes;
@@ -31,36 +37,36 @@ export function useNotes() {
     try {
       const note = await NoteRepository.createNote(title);
       setNotes((prev) => [note, ...prev]);
-      setSelectedNoteId(note.noteId);
+      setSelectedNoteId(note.id);
       return note;
     } catch {
       return null;
     }
   }, []);
 
-  const updateNote = useCallback(async (noteId: string, data: { title: string; content: string; isPinned: boolean }) => {
+  const updateNote = useCallback(async (noteId: number, data: { title: string; content: string; isPinned: boolean }) => {
     try {
       await NoteRepository.updateNote(noteId, data);
       setNotes((prev) =>
-        prev.map((n) => (n.noteId === noteId ? { ...n, ...data, updatedAt: Date.now() } : n))
+        prev.map((n) => (n.id === noteId ? { ...n, ...data, updatedAt: new Date().toISOString() } : n))
       );
     } catch {
       setError('ノートの更新に失敗しました');
     }
   }, []);
 
-  const deleteNote = useCallback(async (noteId: string) => {
+  const deleteNote = useCallback(async (noteId: number) => {
     try {
       await NoteRepository.deleteNote(noteId);
-      setNotes((prev) => prev.filter((n) => n.noteId !== noteId));
+      setNotes((prev) => prev.filter((n) => n.id !== noteId));
       setSelectedNoteId((prev) => (prev === noteId ? null : prev));
     } catch {
       setError('ノートの削除に失敗しました');
     }
   }, []);
 
-  const togglePin = useCallback(async (noteId: string) => {
-    const note = notesRef.current.find((n) => n.noteId === noteId);
+  const togglePin = useCallback(async (noteId: number) => {
+    const note = notesRef.current.find((n) => n.id === noteId);
     if (!note) return;
     const newPinned = !note.isPinned;
     try {
@@ -70,19 +76,19 @@ export function useNotes() {
         isPinned: newPinned,
       });
       setNotes((prev) =>
-        prev.map((n) => (n.noteId === noteId ? { ...n, isPinned: newPinned } : n))
+        prev.map((n) => (n.id === noteId ? { ...n, isPinned: newPinned } : n))
       );
     } catch {
       setError('ピン留めの変更に失敗しました');
     }
   }, []);
 
-  const selectNote = useCallback((noteId: string | null) => {
+  const selectNote = useCallback((noteId: number | null) => {
     setSelectedNoteId(noteId);
   }, []);
 
   const selectedNote = useMemo(() => {
-    return notes.find((n) => n.noteId === selectedNoteId) || null;
+    return notes.find((n) => n.id === selectedNoteId) || null;
   }, [notes, selectedNoteId]);
 
   const filteredNotes = useMemo(() => {
@@ -90,24 +96,26 @@ export function useNotes() {
     const filtered = query
       ? notes.filter((n) => n.title.toLowerCase().includes(query) || n.content.toLowerCase().includes(query))
       : notes;
+    // 並び替え用に RFC3339 string を ms に解釈する。
+    const ms = (s: string) => Date.parse(s) || 0;
     return [...filtered].sort((a, b) => {
       if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
-      if (noteSort === 'updated-asc') return a.updatedAt - b.updatedAt;
+      if (noteSort === 'updated-asc') return ms(a.updatedAt) - ms(b.updatedAt);
       if (noteSort === 'title') return a.title.localeCompare(b.title, 'ja');
-      if (noteSort === 'created-desc') return b.createdAt - a.createdAt;
-      return b.updatedAt - a.updatedAt;
+      if (noteSort === 'created-desc') return ms(b.createdAt) - ms(a.createdAt);
+      return ms(b.updatedAt) - ms(a.updatedAt);
     });
   }, [notes, searchQuery, noteSort]);
 
-  const requestDelete = useCallback((noteId: string) => {
+  const requestDelete = useCallback((noteId: number) => {
     setDeleteTargetId(noteId);
   }, []);
 
   const confirmDelete = useCallback(async () => {
-    if (!deleteTargetId) return;
+    if (deleteTargetId == null) return;
 
-    // 削除前に次の選択候補を決定（filteredNotesの順序で次→前）
-    const idx = filteredNotes.findIndex((n) => n.noteId === deleteTargetId);
+    // 削除前に次の選択候補を決定（filteredNotes の順序で次→前）
+    const idx = filteredNotes.findIndex((n) => n.id === deleteTargetId);
     const nextNote = idx >= 0
       ? filteredNotes[idx + 1] || filteredNotes[idx - 1] || null
       : null;
@@ -115,7 +123,7 @@ export function useNotes() {
     await deleteNote(deleteTargetId);
 
     if (selectedNoteId === deleteTargetId && nextNote) {
-      setSelectedNoteId(nextNote.noteId);
+      setSelectedNoteId(nextNote.id);
     }
 
     setDeleteTargetId(null);

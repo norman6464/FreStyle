@@ -120,10 +120,13 @@ jobs:
           echo "Restoring from snapshot: $LATEST"
           # rds-postgres.yml は frestyle-infrastructure 側で `DBSnapshotIdentifier`
           # パラメータを受け付ける必要がある。受け付ければ snapshot 復元として動作。
+          # rds-postgres.yml の正規パラメータ名は `SnapshotIdentifier`。
+          # 指定すると Conditions.RestoreFromSnapshot が true になり、
+          # DBSnapshotIdentifier として CFn が DB を復元する。
           aws cloudformation deploy --region $AWS_REGION \
             --stack-name $RDS_STACK \
             --template-file iac/infrastructure/cloudformation/templates/runtime/rds-postgres.yml \
-            --parameter-overrides Environment=prod DBSnapshotIdentifier="$LATEST" \
+            --parameter-overrides Environment=prod SnapshotIdentifier="$LATEST" \
             --capabilities CAPABILITY_IAM --no-fail-on-empty-changeset \
             --tags Project=FreStyle Environment=prod ManagedBy=CloudFormation
           echo "✅ RDS restored from $LATEST"

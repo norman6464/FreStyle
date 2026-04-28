@@ -18,13 +18,13 @@ func NewNotificationHandler(l *usecase.ListNotificationsUseCase, m *usecase.Mark
 	return &NotificationHandler{list: l, markRead: m}
 }
 
+// List は常に認証済 current user の通知を返す。
+// 過去は ?userId= クエリを受け付けていたが、authz 機構が無いため任意の userId を
+// クエリで指定できると IDOR になる。admin 機構が入るまでは current user 固定にする。
 func (h *NotificationHandler) List(c *gin.Context) {
-	uid, _ := strconv.ParseUint(c.Query("userId"), 10, 64)
+	uid := middleware.CurrentUserIDOrZero(c)
 	if uid == 0 {
-		uid = middleware.MustCurrentUserID(c)
-	}
-	if uid == 0 {
-		c.JSON(http.StatusOK, []struct{}{})
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 	rows, err := h.list.Execute(c.Request.Context(), uid)

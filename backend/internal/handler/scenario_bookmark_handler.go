@@ -26,7 +26,7 @@ func NewScenarioBookmarkHandler(
 func (h *ScenarioBookmarkHandler) List(c *gin.Context) {
 	uid, _ := strconv.ParseUint(c.Query("userId"), 10, 64)
 	if uid == 0 {
-		uid = middleware.MustCurrentUserID(c)
+		uid = middleware.CurrentUserIDOrZero(c)
 	}
 	if uid == 0 {
 		c.JSON(http.StatusOK, []struct{}{})

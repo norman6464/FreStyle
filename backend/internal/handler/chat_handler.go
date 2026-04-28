@@ -19,11 +19,11 @@ func NewChatHandler(g *usecase.GetChatRoomsByUserIDUseCase, c *usecase.CreateCha
 }
 
 func (h *ChatHandler) GetRooms(c *gin.Context) {
-	// userId クエリが無い場合は空配列を返す（本来は認証 middleware から current user を取り出すべきだが、
-	// JWKS 検証が Phase 2.1 待ちのため暫定対応）。
+	// `?userId=` が指定されていれば優先し、無ければ middleware.CurrentUser がセットした
+	// 認証済 user を使う。フロントは current user 用に userId 無しで叩いてくるのが正規 path。
 	uid, _ := strconv.ParseUint(c.Query("userId"), 10, 64)
 	if uid == 0 {
-		uid = middleware.MustCurrentUserID(c)
+		uid = middleware.CurrentUserIDOrZero(c)
 	}
 	if uid == 0 {
 		c.JSON(http.StatusOK, []struct{}{})

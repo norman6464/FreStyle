@@ -24,7 +24,7 @@ func (h *ScoreCardHandler) List(c *gin.Context) {
 	// フロントは /api/v2/score-cards だけ叩けば良く、認証済 user の score-card 一覧が返る。
 	uid, _ := strconv.ParseUint(c.Query("userId"), 10, 64)
 	if uid == 0 {
-		uid = middleware.MustCurrentUserID(c)
+		uid = middleware.CurrentUserIDOrZero(c)
 	}
 	if uid == 0 {
 		c.JSON(http.StatusOK, []struct{}{})

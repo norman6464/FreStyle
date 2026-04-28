@@ -152,11 +152,11 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 		usecase.NewGetScoreGoalUseCase(scoreGoalRepo),
 		usecase.NewUpsertScoreGoalUseCase(scoreGoalRepo),
 	)
-	// /score-goals は current user 解決、/score-goals/:userId は管理者用 path
+	// 認証済 current user の score goal のみを返す。
+	// 旧 `/score-goals/:userId` 系は admin 認可機構が無く IDOR になるため廃止。
+	// admin 用の他ユーザー閲覧/変更が必要になったら別途 /admin/users/:id/score-goal として追加する。
 	authed.GET("/score-goals", scoreGoalHandler.Get)
 	authed.PUT("/score-goals", scoreGoalHandler.Upsert)
-	authed.GET("/score-goals/:userId", scoreGoalHandler.Get)
-	authed.PUT("/score-goals/:userId", scoreGoalHandler.Upsert)
 
 	// Phase 15: ScoreTrend
 	scoreTrendHandler := NewScoreTrendHandler(

@@ -17,8 +17,8 @@ describe('ScoreGoalRepository', () => {
     vi.clearAllMocks();
   });
 
-  it('fetchGoal: API成功時にgoalScoreを返す', async () => {
-    mockedGet.mockResolvedValue({ data: { goalScore: 9.0 } });
+  it('fetchGoal: API成功時にtargetScoreを返す', async () => {
+    mockedGet.mockResolvedValue({ data: { targetScore: 9.0 } });
     const { ScoreGoalRepository } = await import('../ScoreGoalRepository');
     const result = await ScoreGoalRepository.fetchGoal();
     expect(result).toBe(9.0);
@@ -36,7 +36,7 @@ describe('ScoreGoalRepository', () => {
     mockedPut.mockResolvedValue({ data: {} });
     const { ScoreGoalRepository } = await import('../ScoreGoalRepository');
     await ScoreGoalRepository.saveGoal(7.5);
-    expect(mockedPut).toHaveBeenCalledWith('/api/v2/score-goals', { goalScore: 7.5 });
+    expect(mockedPut).toHaveBeenCalledWith('/api/v2/score-goals', { targetScore: 7.5 });
   });
 
   it('saveGoal: API失敗時にエラーをスローしない', async () => {

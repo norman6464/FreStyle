@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -18,18 +19,28 @@ func NewScoreGoalHandler(g *usecase.GetScoreGoalUseCase, u *usecase.UpsertScoreG
 	return &ScoreGoalHandler{get: g, upsert: u}
 }
 
-// resolveUserID は path :userId か、未指定なら current user の users.id を返す。
-func (h *ScoreGoalHandler) resolveUserID(c *gin.Context) uint64 {
+var errInvalidUserID = errors.New("invalid userId")
+
+// resolveUserID は path :userId が指定されていれば解析し、未指定なら current user を返す。
+// 不正な :userId （非数値・0）は黙って current user にフォールバックさせず error を返す。
+// これにより handler 側で 400 を返せる（IDOR 風の意図しない挙動を防ぐ）。
+func (h *ScoreGoalHandler) resolveUserID(c *gin.Context) (uint64, error) {
 	if v := c.Param("userId"); v != "" {
-		if uid, err := strconv.ParseUint(v, 10, 64); err == nil {
-			return uid
+		uid, err := strconv.ParseUint(v, 10, 64)
+		if err != nil || uid == 0 {
+			return 0, errInvalidUserID
 		}
+		return uid, nil
 	}
-	return middleware.MustCurrentUserID(c)
+	return middleware.CurrentUserIDOrZero(c), nil
 }
 
 func (h *ScoreGoalHandler) Get(c *gin.Context) {
-	uid := h.resolveUserID(c)
+	uid, err := h.resolveUserID(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 	if uid == 0 {
 		c.JSON(http.StatusOK, gin.H{"targetScore": 0})
 		return
@@ -52,7 +63,11 @@ type scoreGoalUpsertReq struct {
 }
 
 func (h *ScoreGoalHandler) Upsert(c *gin.Context) {
-	uid := h.resolveUserID(c)
+	uid, err := h.resolveUserID(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 	if uid == 0 {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return

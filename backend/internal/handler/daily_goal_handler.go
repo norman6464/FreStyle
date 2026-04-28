@@ -26,7 +26,7 @@ func (h *DailyGoalHandler) resolveUserID(c *gin.Context) uint64 {
 	if uid, err := strconv.ParseUint(param, 10, 64); err == nil && uid > 0 {
 		return uid
 	}
-	return middleware.MustCurrentUserID(c)
+	return middleware.CurrentUserIDOrZero(c)
 }
 
 func (h *DailyGoalHandler) Get(c *gin.Context) {

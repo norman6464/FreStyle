@@ -12,7 +12,9 @@ type NoteRepository interface {
 	FindByID(ctx context.Context, id uint64) (*domain.Note, error)
 	Create(ctx context.Context, n *domain.Note) error
 	Update(ctx context.Context, n *domain.Note) error
-	Delete(ctx context.Context, id uint64) error
+	// Delete は所有者検証込みで note を削除する。
+	// WHERE で user_id を絞って他人の note を消せないようにする。
+	Delete(ctx context.Context, userID, id uint64) error
 }
 
 type noteRepository struct{ db *gorm.DB }
@@ -41,6 +43,8 @@ func (r *noteRepository) Update(ctx context.Context, n *domain.Note) error {
 	return r.db.WithContext(ctx).Save(n).Error
 }
 
-func (r *noteRepository) Delete(ctx context.Context, id uint64) error {
-	return r.db.WithContext(ctx).Delete(&domain.Note{}, id).Error
+func (r *noteRepository) Delete(ctx context.Context, userID, id uint64) error {
+	return r.db.WithContext(ctx).
+		Where("id = ? AND user_id = ?", id, userID).
+		Delete(&domain.Note{}).Error
 }

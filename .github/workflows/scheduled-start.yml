@@ -175,9 +175,22 @@ jobs:
           TASK_ROLE=$(aws cloudformation describe-stacks --region $AWS_REGION \
             --stack-name $STACK_PFX-iam \
             --query 'Stacks[0].Outputs[?OutputKey==`TaskRoleArn`].OutputValue' --output text)
-          # PostgreSQL master password (旧 db-master-password ではなく pg-master-password)
-          DB_PWD_ARN=$(aws secretsmanager describe-secret --region $AWS_REGION \
-            --secret-id $STACK_PFX/pg-master-password --query 'ARN' --output text)
+          # PostgreSQL master password の Secret ARN を解決する（短期 credential 方針）。
+          # 1) RDS スタックが ManageMasterUserPassword=true で作られていれば、AWS が自動生成した
+          #    `MasterUserSecretArn` を output として export している。これは JSON 形式 Secret なので
+          #    ECS Task で参照するときは `:password::` の jsonField suffix が必要。
+          # 2) 無ければ旧来の手動 Secret `frestyle-prod/pg-master-password` (plain string) を使う。
+          MANAGED_SECRET_ARN=$(aws cloudformation describe-stacks --region $AWS_REGION \
+            --stack-name $STACK_PFX-rds-postgres \
+            --query 'Stacks[0].Outputs[?OutputKey==`MasterUserSecretArn`].OutputValue' --output text 2>/dev/null || true)
+          if [ -n "$MANAGED_SECRET_ARN" ] && [ "$MANAGED_SECRET_ARN" != "None" ]; then
+            echo "Using AWS-managed master user secret: $MANAGED_SECRET_ARN"
+            DB_PWD_ARN="${MANAGED_SECRET_ARN}:password::"
+          else
+            echo "MasterUserSecretArn output not found — fallback to manual Secret pg-master-password"
+            DB_PWD_ARN=$(aws secretsmanager describe-secret --region $AWS_REGION \
+              --secret-id $STACK_PFX/pg-master-password --query 'ARN' --output text)
+          fi
           COG_SEC_ARN=$(aws secretsmanager describe-secret --region $AWS_REGION \
             --secret-id $STACK_PFX/cognito-client-secret --query 'ARN' --output text)
           ALB_ARN=$(aws cloudformation describe-stacks --region $AWS_REGION \

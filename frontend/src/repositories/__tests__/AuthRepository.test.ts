@@ -88,7 +88,7 @@ describe('AuthRepository', () => {
 
     const result = await authRepository.getCurrentUser();
 
-    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/v2/auth/cognito/me');
+    expect(mockedApiClient.get).toHaveBeenCalledWith('/api/v2/auth/me');
     expect(result).toEqual(mockUser);
   });
 

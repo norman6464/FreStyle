@@ -17,7 +17,7 @@ const ChatRepository = {
   },
 
   async fetchCurrentUser(): Promise<{ id: number; name: string }> {
-    const res = await apiClient.get('/api/v2/auth/cognito/me');
+    const res = await apiClient.get('/api/v2/auth/me');
     return res.data;
   },
 

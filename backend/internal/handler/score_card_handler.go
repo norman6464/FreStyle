@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
 
@@ -19,9 +20,12 @@ func NewScoreCardHandler(l *usecase.ListScoreCardsByUserIDUseCase, c *usecase.Cr
 }
 
 func (h *ScoreCardHandler) List(c *gin.Context) {
-	// userId クエリ未指定 / parse 失敗時は空配列で返す（フロント未連携時の暫定対応）。
-	// 本来は middleware で current user を解決して付与すべきだが、別 issue に分離。
+	// userId は (1) クエリ → (2) middleware の current user の順で解決する。
+	// フロントは /api/v2/score-cards だけ叩けば良く、認証済 user の score-card 一覧が返る。
 	uid, _ := strconv.ParseUint(c.Query("userId"), 10, 64)
+	if uid == 0 {
+		uid = middleware.MustCurrentUserID(c)
+	}
 	if uid == 0 {
 		c.JSON(http.StatusOK, []struct{}{})
 		return

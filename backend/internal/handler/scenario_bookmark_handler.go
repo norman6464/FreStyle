@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
 
@@ -24,6 +25,9 @@ func NewScenarioBookmarkHandler(
 
 func (h *ScenarioBookmarkHandler) List(c *gin.Context) {
 	uid, _ := strconv.ParseUint(c.Query("userId"), 10, 64)
+	if uid == 0 {
+		uid = middleware.MustCurrentUserID(c)
+	}
 	if uid == 0 {
 		c.JSON(http.StatusOK, []struct{}{})
 		return

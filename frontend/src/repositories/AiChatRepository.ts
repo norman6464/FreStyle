@@ -40,7 +40,7 @@ class AiChatRepository {
    * セッション一覧を取得
    */
   async getSessions(): Promise<AiSession[]> {
-    const response = await apiClient.get('/api/v2/chat/ai/sessions');
+    const response = await apiClient.get('/api/v2/ai-chat/sessions');
     return response.data;
   }
 
@@ -48,7 +48,7 @@ class AiChatRepository {
    * セッション詳細を取得
    */
   async getSession(sessionId: number): Promise<AiSession> {
-    const response = await apiClient.get(`/api/v2/chat/ai/sessions/${sessionId}`);
+    const response = await apiClient.get(`/api/v2/ai-chat/sessions/${sessionId}`);
     return response.data;
   }
 
@@ -56,7 +56,7 @@ class AiChatRepository {
    * 新規セッションを作成
    */
   async createSession(request: CreateSessionRequest): Promise<AiSession> {
-    const response = await apiClient.post('/api/v2/chat/ai/sessions', request);
+    const response = await apiClient.post('/api/v2/ai-chat/sessions', request);
     return response.data;
   }
 
@@ -64,7 +64,7 @@ class AiChatRepository {
    * セッションタイトルを更新
    */
   async updateSessionTitle(sessionId: number, request: UpdateSessionTitleRequest): Promise<AiSession> {
-    const response = await apiClient.put(`/api/v2/chat/ai/sessions/${sessionId}`, request);
+    const response = await apiClient.put(`/api/v2/ai-chat/sessions/${sessionId}`, request);
     return response.data;
   }
 
@@ -72,14 +72,14 @@ class AiChatRepository {
    * セッションを削除
    */
   async deleteSession(sessionId: number): Promise<void> {
-    await apiClient.delete(`/api/v2/chat/ai/sessions/${sessionId}`);
+    await apiClient.delete(`/api/v2/ai-chat/sessions/${sessionId}`);
   }
 
   /**
    * セッション内のメッセージ一覧を取得
    */
   async getMessages(sessionId: number): Promise<AiMessage[]> {
-    const response = await apiClient.get(`/api/v2/chat/ai/sessions/${sessionId}/messages`);
+    const response = await apiClient.get(`/api/v2/ai-chat/sessions/${sessionId}/messages`);
     return response.data;
   }
 
@@ -87,7 +87,7 @@ class AiChatRepository {
    * メッセージを追加
    */
   async addMessage(sessionId: number, request: AddMessageRequest): Promise<AiMessage> {
-    const response = await apiClient.post(`/api/v2/chat/ai/sessions/${sessionId}/messages`, request);
+    const response = await apiClient.post(`/api/v2/ai-chat/sessions/${sessionId}/messages`, request);
     return response.data;
   }
 

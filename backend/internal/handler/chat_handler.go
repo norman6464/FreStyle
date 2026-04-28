@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
 
@@ -20,12 +21,14 @@ func NewChatHandler(g *usecase.GetChatRoomsByUserIDUseCase, c *usecase.CreateCha
 func (h *ChatHandler) GetRooms(c *gin.Context) {
 	// userId クエリが無い場合は空配列を返す（本来は認証 middleware から current user を取り出すべきだが、
 	// JWKS 検証が Phase 2.1 待ちのため暫定対応）。
-	uidStr := c.Query("userId")
-	if uidStr == "" {
+	uid, _ := strconv.ParseUint(c.Query("userId"), 10, 64)
+	if uid == 0 {
+		uid = middleware.MustCurrentUserID(c)
+	}
+	if uid == 0 {
 		c.JSON(http.StatusOK, []struct{}{})
 		return
 	}
-	uid, _ := strconv.ParseUint(uidStr, 10, 64)
 	rows, err := h.getRooms.Execute(c.Request.Context(), uid)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

@@ -90,7 +90,8 @@ export interface AiSession {
   createdAt?: string;
 }
 
-/** 練習シナリオ */
+/** 練習シナリオ（フロント表示用 view）。
+ *  backend 1:1 は `PracticeScenarioDto` を参照すること。 */
 export interface PracticeScenario {
   id: number;
   name: string;
@@ -98,6 +99,25 @@ export interface PracticeScenario {
   category: string;
   roleName: string;
   difficulty: string;
+}
+
+/** PracticeScenarioDto は Go backend `domain.PracticeScenario` と 1:1。 */
+export interface PracticeScenarioDto {
+  id: number;
+  title: string;
+  description: string;
+  category: string;
+  difficultyLevel: number;
+  isActive: boolean;
+  createdAt: string;
+}
+
+/** ScenarioBookmark は Go backend `domain.ScenarioBookmark` と 1:1。 */
+export interface ScenarioBookmark {
+  id: number;
+  userId: number;
+  scenarioId: number;
+  createdAt: string;
 }
 
 /**
@@ -168,11 +188,58 @@ export interface AxisScore {
   comment: string;
 }
 
-/** スコアカード */
+/** スコアカード（フロント表示用 view）。
+ *  backend 1:1 は `ScoreCardDto` を参照すること。 */
 export interface ScoreCard {
   sessionId: number;
   scores: AxisScore[];
   overallScore: number;
+}
+
+/**
+ * ScoreCardDto は Go backend `domain.ScoreCard` と 1:1。
+ * 5 軸スコアは個別カラム（logicalScore / considerationScore / summaryScore /
+ * proposalScore / listeningScore）として保持される。
+ */
+export interface ScoreCardDto {
+  id: number;
+  userId: number;
+  sessionId: number;
+  overallScore: number;
+  logicalScore: number;
+  considerationScore: number;
+  summaryScore: number;
+  proposalScore: number;
+  listeningScore: number;
+  feedback: string;
+  createdAt: string;
+}
+
+/** ScoreGoalDto は Go backend `domain.ScoreGoal` と 1:1。 */
+export interface ScoreGoalDto {
+  userId: number;
+  targetScore: number;
+  updatedAt: string;
+}
+
+/** ScoreTrendPoint / ScoreTrend は Go backend `domain.ScoreTrend` と 1:1。 */
+export interface ScoreTrendPoint {
+  date: string;
+  overallScore: number;
+}
+export interface ScoreTrend {
+  userId: number;
+  points: ScoreTrendPoint[];
+}
+
+/** RankingEntryDto は Go backend `domain.RankingEntry` と 1:1。
+ *  既存 `RankingEntry` (UI view) は username / iconUrl / sessionCount を
+ *  別 API から取得して合成しているため、当面 view 型は別に保持する。 */
+export interface RankingEntryDto {
+  userId: number;
+  displayName: string;
+  averageScore: number;
+  rank: number;
 }
 
 /** SNSプロバイダー */

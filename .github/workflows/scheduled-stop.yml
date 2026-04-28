@@ -1,12 +1,25 @@
-name: Scheduled - Stop (destroy ECS + ALB at night)
+name: Scheduled - Stop (destroy ECS + ALB + RDS at night)
 
-# 目的: 毎日 22:00 JST (13:00 UTC) に ECS + ALB を destroy してコスト節約。
-# RDS / DynamoDB / S3 / SQS / IAM / SG / ECR / Cognito は対象外（データ保護 or 課金影響小）。
+# 目的: 毎日 22:00 JST (13:00 UTC) に ECS + ALB + RDS を destroy してコスト節約。
+# RDS は事前に手動スナップショットを取ってから削除する。翌朝 scheduled-start.yml が
+# その最新スナップショットから RDS を復元して起動する。
+#
+# 順序:
+#   1) ECS destroy（DB connection を全断するため最初に）
+#   2) ALB destroy
+#   3) RDS の手動スナップショット作成（識別子: frestyle-prod-nightly-YYYYMMDD-HHMMSS）
+#   4) snapshot available まで wait
+#   5) RDS スタック destroy（CFn DeletionPolicy: Snapshot により auto final snapshot も作成される）
+#   6) 古い nightly snapshot を 7 世代だけ残してクリーンアップ
 #
 # 復旧は scheduled-start.yml が翌日 07:00 JST に自動実行。
 # 緊急で起こしたい場合は手動で gh workflow run scheduled-start.yml を叩く。
 #
 # 認証: GitHub OIDC + IAM Role (frestyle-prod-github-actions-role)
+# 必要な IAM 権限:
+#   - cloudformation:DeleteStack / DescribeStacks / DescribeStackResources / ListStackResources
+#   - rds:CreateDBSnapshot / DescribeDBSnapshots / DeleteDBSnapshot
+#   - rds:DescribeDBInstances
 
 on:
   schedule:
@@ -22,7 +35,12 @@ on:
 env:
   AWS_REGION: ap-northeast-1
   STACK_PFX: frestyle-prod
+  RDS_STACK: frestyle-prod-rds-postgres
   AWS_ROLE_ARN: arn:aws:iam::010928196665:role/frestyle-prod-github-actions-role
+  # nightly snapshot 識別子の prefix（scheduled-start 側の検索条件と一致させる）
+  NIGHTLY_SNAPSHOT_PREFIX: frestyle-prod-nightly
+  # 残す nightly snapshot の世代数（古いものは削除して RDS 課金を抑える）
+  NIGHTLY_KEEP: 7
 
 permissions:
   id-token: write
@@ -30,9 +48,9 @@ permissions:
 
 jobs:
   stop:
-    name: Destroy ECS + ALB
+    name: Destroy ECS + ALB + RDS (with snapshot)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 60
 
     steps:
       - name: Verify input (workflow_dispatch only)
@@ -72,8 +90,91 @@ jobs:
             echo "ALB stack already absent, skip"
           fi
 
+      - name: Resolve RDS instance identifier
+        id: rds
+        run: |
+          # RDS スタックから DBInstance リソースの PhysicalResourceId（=DBInstanceIdentifier）を取得。
+          # CFn が自動採番した識別子を直接拾うのが最も確実。
+          if ! aws cloudformation describe-stacks --region $AWS_REGION --stack-name $RDS_STACK >/dev/null 2>&1; then
+            echo "RDS stack ($RDS_STACK) not found — already destroyed. Skip subsequent steps."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          DB_ID=$(aws cloudformation list-stack-resources --region $AWS_REGION \
+            --stack-name $RDS_STACK \
+            --query "StackResourceSummaries[?ResourceType=='AWS::RDS::DBInstance'].PhysicalResourceId | [0]" \
+            --output text)
+          if [ -z "$DB_ID" ] || [ "$DB_ID" = "None" ]; then
+            echo "::error::Could not resolve DBInstanceIdentifier from $RDS_STACK"
+            exit 1
+          fi
+          echo "Resolved DBInstanceIdentifier: $DB_ID"
+          SNAPSHOT_ID="${NIGHTLY_SNAPSHOT_PREFIX}-$(date -u +%Y%m%d-%H%M%S)"
+          {
+            echo "skip=false"
+            echo "db_id=$DB_ID"
+            echo "snapshot_id=$SNAPSHOT_ID"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create manual snapshot before destroying RDS
+        if: steps.rds.outputs.skip != 'true'
+        env:
+          DB_ID: ${{ steps.rds.outputs.db_id }}
+          SNAPSHOT_ID: ${{ steps.rds.outputs.snapshot_id }}
+        run: |
+          echo "Creating manual snapshot: $SNAPSHOT_ID (from $DB_ID)"
+          aws rds create-db-snapshot --region $AWS_REGION \
+            --db-instance-identifier "$DB_ID" \
+            --db-snapshot-identifier "$SNAPSHOT_ID" \
+            --tags Key=Project,Value=FreStyle Key=Environment,Value=prod Key=ManagedBy,Value=scheduled-stop
+          echo "Waiting for snapshot to become available (this may take a few minutes)..."
+          aws rds wait db-snapshot-available --region $AWS_REGION \
+            --db-snapshot-identifier "$SNAPSHOT_ID"
+          echo "✅ Snapshot $SNAPSHOT_ID is available"
+
+      - name: Destroy RDS stack
+        if: steps.rds.outputs.skip != 'true'
+        run: |
+          # CFn の DeletionPolicy: Snapshot により auto final snapshot も作成されるが、
+          # 我々は事前に予測可能な命名 (frestyle-prod-nightly-*) で manual snapshot を取っているので、
+          # こちらが scheduled-start で参照する正規の世代になる。
+          echo "Deleting $RDS_STACK ..."
+          aws cloudformation delete-stack --region $AWS_REGION --stack-name $RDS_STACK
+          aws cloudformation wait stack-delete-complete --region $AWS_REGION --stack-name $RDS_STACK
+          echo "✅ RDS stack deleted"
+
+      - name: Cleanup old nightly snapshots (keep latest N)
+        if: steps.rds.outputs.skip != 'true'
+        continue-on-error: true
+        run: |
+          # nightly prefix を持つ manual snapshot を新しい順に取得し、
+          # NIGHTLY_KEEP より古いものを削除する。CFn auto final snapshot は
+          # `rds:` で始まる system snapshot なので対象外。
+          ALL=$(aws rds describe-db-snapshots --region $AWS_REGION \
+            --snapshot-type manual \
+            --query "DBSnapshots[?starts_with(DBSnapshotIdentifier, '${NIGHTLY_SNAPSHOT_PREFIX}-')] | sort_by(@, &SnapshotCreateTime)[].DBSnapshotIdentifier" \
+            --output text)
+          if [ -z "$ALL" ]; then
+            echo "No nightly snapshots found, skip cleanup"
+            exit 0
+          fi
+          # 新しい順 (sort_by は古い順なので reverse する)
+          REVERSED=$(echo "$ALL" | tr '\t' '\n' | tac)
+          KEEP=$NIGHTLY_KEEP
+          IDX=0
+          for SNAP in $REVERSED; do
+            IDX=$((IDX+1))
+            if [ "$IDX" -le "$KEEP" ]; then
+              echo "Keep: $SNAP"
+              continue
+            fi
+            echo "Delete (older than $KEEP latest): $SNAP"
+            aws rds delete-db-snapshot --region $AWS_REGION \
+              --db-snapshot-identifier "$SNAP" || echo "(failed to delete $SNAP, skip)"
+          done
+
       # Summary は非クリティカル。GitHub Actions IAM Role に
-      # cloudformation:ListStacks 権限が無くても本筋 (ECS / ALB destroy) は完了済み。
+      # cloudformation:ListStacks 権限が無くても本筋 (ECS / ALB / RDS destroy) は完了済み。
       # 失敗で workflow 全体を red にしないため continue-on-error / `|| true` で吸収する。
       - name: Summary
         continue-on-error: true

@@ -4,15 +4,6 @@ import { useChatList } from '../useChatList';
 import ChatRepository from '../../repositories/ChatRepository';
 
 vi.mock('../../repositories/ChatRepository');
-vi.mock('sockjs-client', () => ({ default: vi.fn() }));
-vi.mock('@stomp/stompjs', () => ({
-  Client: class MockClient {
-    activate = vi.fn();
-    deactivate = vi.fn();
-    subscribe = vi.fn();
-    constructor(_config: any) {}
-  },
-}));
 
 const mockedRepo = vi.mocked(ChatRepository);
 

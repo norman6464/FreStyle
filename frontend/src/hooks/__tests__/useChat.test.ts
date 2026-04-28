@@ -14,16 +14,11 @@ const mockShowToast = vi.fn();
 vi.mock('../useToast', () => ({
   useToast: () => ({ showToast: mockShowToast, toasts: [], removeToast: vi.fn() }),
 }));
-vi.mock('sockjs-client', () => ({ default: vi.fn() }));
-vi.mock('@stomp/stompjs', () => ({
-  Client: class MockClient {
-    activate = vi.fn();
-    deactivate = vi.fn();
-    subscribe = vi.fn();
-    publish = vi.fn();
-    connected = true;
-    constructor(_config: any) {}
-  },
+vi.mock('../useWebSocketNative', () => ({
+  useWebSocketNative: () => ({
+    send: vi.fn(),
+    disconnect: vi.fn(),
+  }),
 }));
 
 const mockedRepo = vi.mocked(ChatRepository);

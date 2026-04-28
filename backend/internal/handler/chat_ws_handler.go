@@ -4,15 +4,19 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 )
 
 // ChatWsHandler はユーザー間チャット用 WebSocket。
-// Spring Boot の ChatWebSocketController に相当。
-// Phase 28 ではルームごとの簡易ブロードキャスト機構を提供する。
-// DynamoDB への永続化は Phase 28.1 で別 PR。
+// raw WebSocket + JSON プロトコル。SockJS / STOMP は使わない。
+//
+// メッセージは {type, content?, createdAtRef?} の JSON で受信し、
+// {type, id, roomId, senderId, senderName, content, createdAt} で broadcast する。
+// senderId は JWT 由来 (middleware.CurrentUserIDOrZero) でサーバが固定する（IDOR 対策）。
 type ChatWsHandler struct {
 	upgrader websocket.Upgrader
 
@@ -23,13 +27,21 @@ type ChatWsHandler struct {
 func NewChatWsHandler() *ChatWsHandler {
 	return &ChatWsHandler{
 		upgrader: websocket.Upgrader{
-			CheckOrigin: func(r *http.Request) bool { return true },
+			// 本番 origin allowlist。SockJS 排除と同時に origin 検査を厳格化。
+			CheckOrigin: func(r *http.Request) bool {
+				return middleware.IsAllowedOrigin(r.Header.Get("Origin"))
+			},
 		},
 		rooms: make(map[string]map[*websocket.Conn]struct{}),
 	}
 }
 
 func (h *ChatWsHandler) Handle(c *gin.Context) {
+	uid := middleware.CurrentUserIDOrZero(c)
+	if uid == 0 {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
 	roomID := c.Param("roomId")
 	conn, err := h.upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
@@ -39,12 +51,33 @@ func (h *ChatWsHandler) Handle(c *gin.Context) {
 	h.join(roomID, conn)
 	defer h.leave(roomID, conn)
 
+	// senderName は JWT email を簡易的に使う。永続化導入時に users.display_name へ差し替え。
+	senderName, _ := c.Get(middleware.ContextKeyEmail)
+	senderNameStr, _ := senderName.(string)
+
 	for {
-		mt, msg, err := conn.ReadMessage()
+		_, raw, err := conn.ReadMessage()
 		if err != nil {
-			break
+			return
 		}
-		h.broadcast(roomID, mt, msg, conn)
+		in, err := DecodeInbound(raw)
+		if err != nil {
+			continue
+		}
+		switch in.Type {
+		case "send":
+			out, ok := BuildChatMessage(in, roomID, uid, senderNameStr, time.Now())
+			if !ok {
+				continue
+			}
+			h.broadcastJSON(roomID, out)
+		case "delete":
+			out, ok := BuildChatDelete(in, roomID)
+			if !ok {
+				continue
+			}
+			h.broadcastJSON(roomID, out)
+		}
 	}
 }
 
@@ -69,14 +102,20 @@ func (h *ChatWsHandler) leave(roomID string, conn *websocket.Conn) {
 	conn.Close()
 }
 
-func (h *ChatWsHandler) broadcast(roomID string, mt int, msg []byte, sender *websocket.Conn) {
+func (h *ChatWsHandler) broadcastJSON(roomID string, out ChatOutbound) {
+	raw, err := EncodeOutbound(out)
+	if err != nil {
+		return
+	}
 	h.mu.RLock()
 	peers := h.rooms[roomID]
-	h.mu.RUnlock()
+	conns := make([]*websocket.Conn, 0, len(peers))
 	for c := range peers {
-		if c == sender {
-			continue
-		}
-		_ = c.WriteMessage(mt, msg)
+		conns = append(conns, c)
+	}
+	h.mu.RUnlock()
+	// 送信者にも自分の発言を返す（フロントは subscribe で受け取って描画する設計）。
+	for _, c := range conns {
+		_ = c.WriteMessage(websocket.TextMessage, raw)
 	}
 }

@@ -1,18 +1,21 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useLocation, useParams } from 'react-router-dom';
 import { useAuth } from './useAuth';
 import { useAiChat } from './useAiChat';
-import { useWebSocket } from './useWebSocket';
+import { useWebSocketNative } from './useWebSocketNative';
 import { useAiSession } from './useAiSession';
 
 /**
- * AskAiPageフック
+ * AskAiPage フック
  *
- * <p>役割:</p>
- * <ul>
- *   <li>AskAiページのビジネスロジックを管理</li>
- *   <li>WebSocket購読・メッセージ送受信・セッション管理</li>
- * </ul>
+ * SockJS / STOMP 廃止に伴い、native WebSocket + JSON プロトコルへ移行した。
+ * 旧 destination ベースの subscribe は廃止し、受信メッセージ側で `type` を見て分岐する。
+ *
+ * 送受信プロトコル（暫定）:
+ * - 送信: { type: "send", sessionId, content, role, scene?, sessionType?, scenarioId?, fromChatFeedback }
+ * - 受信: { type: "message" | "session" | "scorecard" | "session-deleted", ... }
+ *
+ * Bedrock 連携が backend 側に未実装のため、現時点では echo になっても UI が壊れないように扱う。
  */
 export function useAskAi() {
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
@@ -59,51 +62,66 @@ export function useAskAi() {
   const scenarioName = locationState?.scenarioName || null;
   const isPracticeMode = sessionType === 'practice';
 
-  // メッセージ送信
-  const handleSend = (text: string): void => {
-    const payload: Record<string, unknown> = {
-      userId: user?.id,
-      sessionId: currentSessionId,
-      content: text,
-      role: 'user',
-      fromChatFeedback: fromChatFeedback,
-    };
+  const wsUrl = user?.id && API_BASE_URL
+    ? toWsUrl(`${API_BASE_URL}/api/v2/ws/ai-chat`)
+    : null;
 
-    if (scene) {
-      payload.scene = scene;
-    }
+  type AiWsInbound =
+    | { type: 'message'; sessionId?: number; [k: string]: unknown }
+    | { type: 'session'; id: number; [k: string]: unknown }
+    | { type: 'scorecard'; sessionId?: number; [k: string]: unknown }
+    | { type: 'session-deleted'; sessionId: number };
 
-    if (isPracticeMode && scenarioId) {
-      payload.sessionType = 'practice';
-      payload.scenarioId = scenarioId;
-    }
-
-    publish('/app/ai-chat/send', payload);
-  };
-
-  // WebSocket接続
-  const { subscribe, publish } = useWebSocket({
-    url: `${API_BASE_URL}/ws/ai-chat`,
-    userId: user?.id || null,
-    onConnect: () => {
-      if (currentSessionId) {
-        subscribeToSession(currentSessionId);
-      }
-
+  const { send } = useWebSocketNative({
+    url: wsUrl,
+    onOpen: () => {
       if (initialPrompt && !initialPromptSent) {
-        handleSend(initialPrompt);
+        sendMessage(initialPrompt);
         setInitialPromptSent(true);
+      }
+    },
+    onMessage: (raw) => {
+      const data = raw as AiWsInbound;
+      if (data.type === 'message') {
+        handleIncomingMessage(data);
+        return;
+      }
+      if (data.type === 'session') {
+        handleIncomingSession(data);
+        setCurrentSessionId(data.id);
+        return;
+      }
+      if (data.type === 'scorecard') {
+        handleIncomingScoreCard(data);
+        return;
+      }
+      if (data.type === 'session-deleted') {
+        if (currentSessionId === data.sessionId) {
+          setCurrentSessionId(null);
+        }
       }
     },
   });
 
-  // セッション購読
-  const subscribeToSession = (sessionId: number): void => {
-    subscribe(`/topic/ai-chat/session/${sessionId}`, (message) => {
-      const newMessage = JSON.parse(message.body);
-      handleIncomingMessage(newMessage);
-    });
-  };
+  const sendMessage = useCallback((text: string) => {
+    const payload: Record<string, unknown> = {
+      type: 'send',
+      sessionId: currentSessionId,
+      content: text,
+      role: 'user',
+      fromChatFeedback,
+    };
+    if (scene) payload.scene = scene;
+    if (isPracticeMode && scenarioId) {
+      payload.sessionType = 'practice';
+      payload.scenarioId = scenarioId;
+    }
+    send(payload);
+  }, [send, currentSessionId, fromChatFeedback, scene, isPracticeMode, scenarioId]);
+
+  const handleSend = useCallback((text: string): void => {
+    sendMessage(text);
+  }, [sendMessage]);
 
   // ユーザー情報取得
   useEffect(() => {
@@ -122,7 +140,7 @@ export function useAskAi() {
     if (urlSessionId) {
       setCurrentSessionId(parseInt(urlSessionId));
     }
-  }, [urlSessionId]);
+  }, [urlSessionId, setCurrentSessionId]);
 
   // セッション内のメッセージ履歴取得
   useEffect(() => {
@@ -130,36 +148,6 @@ export function useAskAi() {
       fetchMessages(currentSessionId);
     }
   }, [currentSessionId, fetchMessages]);
-
-  // WebSocket購読設定
-  useEffect(() => {
-    if (!user?.id) return;
-
-    subscribe(`/topic/ai-chat/user/${user.id}/session`, (message) => {
-      const newSession = JSON.parse(message.body);
-      handleIncomingSession(newSession);
-      setCurrentSessionId(newSession.id);
-    });
-
-    subscribe(`/topic/ai-chat/user/${user.id}/scorecard`, (message) => {
-      const data = JSON.parse(message.body);
-      handleIncomingScoreCard(data);
-    });
-
-    subscribe(`/topic/ai-chat/user/${user.id}/session-deleted`, (message) => {
-      const data = JSON.parse(message.body);
-      if (currentSessionId === data.sessionId) {
-        setCurrentSessionId(null);
-      }
-    });
-  }, [user?.id, subscribe, currentSessionId]);
-
-  // セッション変更時の購読
-  useEffect(() => {
-    if (currentSessionId) {
-      subscribeToSession(currentSessionId);
-    }
-  }, [currentSessionId]);
 
   // メッセージ最下部へスクロール
   useEffect(() => {
@@ -174,11 +162,10 @@ export function useAskAi() {
 
   // メッセージ削除処理
   const handleDeleteMessage = (_messageId: string): void => {
-    // メッセージ削除はローカル状態のみ更新（サーバー側の削除は未実装）
+    // ローカル状態のみ更新（サーバ側削除は別 issue）
   };
 
   return {
-    // データ
     sessions,
     filteredSessions,
     messages,
@@ -191,11 +178,13 @@ export function useAskAi() {
     sessionSearchQuery,
     setSessionSearchQuery,
 
-    // セッション管理
     ...aiSession,
 
-    // アクション
     handleSend,
     handleDeleteMessage,
   };
+}
+
+function toWsUrl(httpUrl: string): string {
+  return httpUrl.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:');
 }

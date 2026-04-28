@@ -1,6 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import SockJS from 'sockjs-client';
-import { Client } from '@stomp/stompjs';
+import { useState, useEffect, useCallback } from 'react';
 import ChatRepository from '../repositories/ChatRepository';
 import { ChatUser } from '../types';
 import { useDebounce } from './useDebounce';
@@ -8,9 +6,10 @@ import { useDebounce } from './useDebounce';
 /**
  * チャットリスト管理フック
  *
- * ChatListPageからビジネスロジックを分離し、
- * Repository経由でAPI呼び出しを行う。
- * WebSocket購読・デバウンス検索も含む。
+ * ChatListPage からビジネスロジックを分離し、Repository 経由で API 呼び出しを行う。
+ * SockJS / STOMP ベースの旧 unread リアルタイム購読は廃止し、
+ * Page 表示時 fetch + 検索デバウンスのシンプル構成にした。
+ * リアルタイム unread 更新は別 issue で raw WebSocket 化する予定。
  */
 export function useChatList() {
   const [chatUsers, setChatUsers] = useState<ChatUser[]>([]);
@@ -18,8 +17,6 @@ export function useChatList() {
   const [userId, setUserId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
-  const stompClientRef = useRef<Client | null>(null);
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   const fetchChatUsers = useCallback(async (query?: string) => {
     try {
@@ -56,29 +53,6 @@ export function useChatList() {
     fetchUserId();
     fetchChatUsers();
   }, [fetchUserId, fetchChatUsers]);
-
-  // リアルタイム未読数更新のWebSocket購読
-  useEffect(() => {
-    if (!userId) return;
-
-    const client = new Client({
-      webSocketFactory: () =>
-        new SockJS(`${API_BASE_URL}/ws/chat`, undefined, { withCredentials: true }),
-      reconnectDelay: 5000,
-      onConnect: () => {
-        client.subscribe(`/topic/unread/${userId}`, (message) => {
-          const data = JSON.parse(message.body);
-          if (data.type === 'unread_update') {
-            updateUnreadCount(data.roomId, data.increment);
-          }
-        });
-      },
-    });
-
-    stompClientRef.current = client;
-    client.activate();
-    return () => { client.deactivate(); };
-  }, [userId, updateUnreadCount, API_BASE_URL]);
 
   // デバウンスされた検索クエリが変わったらフェッチ
   useEffect(() => {

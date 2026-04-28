@@ -7,8 +7,7 @@ const mockFetchSessions = vi.fn();
 const mockFetchMessages = vi.fn();
 const mockDeleteSession = vi.fn();
 const mockUpdateSessionTitle = vi.fn();
-const mockSubscribe = vi.fn(() => vi.fn());
-const mockPublish = vi.fn();
+const mockSend = vi.fn();
 const mockNavigate = vi.fn();
 
 vi.mock('react-router-dom', () => ({
@@ -37,13 +36,11 @@ vi.mock('../useAiChat', () => ({
   }),
 }));
 
-vi.mock('../useWebSocket', () => ({
-  useWebSocket: (opts: any) => {
-    return {
-      subscribe: mockSubscribe,
-      publish: mockPublish,
-    };
-  },
+vi.mock('../useWebSocketNative', () => ({
+  useWebSocketNative: () => ({
+    send: mockSend,
+    disconnect: vi.fn(),
+  }),
 }));
 
 vi.mock('../useAiSession', () => ({
@@ -96,12 +93,13 @@ describe('useAskAi', () => {
     expect(result.current.scenarioName).toBeNull();
   });
 
-  it('handleSendがpublishを呼ぶ', () => {
+  it('handleSendがsendを呼ぶ', () => {
     const { result } = renderHook(() => useAskAi());
     act(() => {
       result.current.handleSend('テストメッセージ');
     });
-    expect(mockPublish).toHaveBeenCalledWith('/app/ai-chat/send', expect.objectContaining({
+    expect(mockSend).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'send',
       content: 'テストメッセージ',
       role: 'user',
     }));

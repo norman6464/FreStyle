@@ -21,6 +21,13 @@ const (
 	maxAge       = "3600"
 )
 
+// IsAllowedOrigin は WebSocket Upgrader.CheckOrigin など CORS middleware の外でも
+// 同じ allowlist を使えるようにするヘルパ。
+func IsAllowedOrigin(origin string) bool {
+	_, ok := allowedOrigins[origin]
+	return ok
+}
+
 // CORS は Gin 用の CORS middleware。
 // 許可リストにある Origin のみ Access-Control-Allow-Origin を返し、
 // allowCredentials=true で動作するようにする。
@@ -28,7 +35,7 @@ const (
 func CORS() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.GetHeader("Origin")
-		if _, ok := allowedOrigins[origin]; ok {
+		if IsAllowedOrigin(origin) {
 			c.Header("Access-Control-Allow-Origin", origin)
 			c.Header("Access-Control-Allow-Credentials", "true")
 			c.Header("Access-Control-Allow-Methods", allowMethods)

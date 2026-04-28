@@ -72,9 +72,13 @@ jobs:
             echo "ALB stack already absent, skip"
           fi
 
+      # Summary は非クリティカル。GitHub Actions IAM Role に
+      # cloudformation:ListStacks 権限が無くても本筋 (ECS / ALB destroy) は完了済み。
+      # 失敗で workflow 全体を red にしないため continue-on-error / `|| true` で吸収する。
       - name: Summary
+        continue-on-error: true
         run: |
           echo "🌙 Cost-saving stop complete at $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
           aws cloudformation list-stacks --region $AWS_REGION \
             --query 'StackSummaries[?starts_with(StackName, `frestyle-prod-`) && StackStatus != `DELETE_COMPLETE`].[StackName,StackStatus]' \
-            --output table
+            --output table || echo "(ListStacks denied; not fatal)"

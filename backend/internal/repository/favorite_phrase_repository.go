@@ -10,7 +10,8 @@ import (
 type FavoritePhraseRepository interface {
 	ListByUserID(ctx context.Context, userID uint64) ([]domain.FavoritePhrase, error)
 	Create(ctx context.Context, p *domain.FavoritePhrase) error
-	Delete(ctx context.Context, id uint64) error
+	// Delete は所有者検証込みで削除する。WHERE で user_id を絞り IDOR を防ぐ。
+	Delete(ctx context.Context, userID, id uint64) error
 }
 
 type favoritePhraseRepository struct{ db *gorm.DB }
@@ -29,6 +30,8 @@ func (r *favoritePhraseRepository) Create(ctx context.Context, p *domain.Favorit
 	return r.db.WithContext(ctx).Create(p).Error
 }
 
-func (r *favoritePhraseRepository) Delete(ctx context.Context, id uint64) error {
-	return r.db.WithContext(ctx).Delete(&domain.FavoritePhrase{}, id).Error
+func (r *favoritePhraseRepository) Delete(ctx context.Context, userID, id uint64) error {
+	return r.db.WithContext(ctx).
+		Where("id = ? AND user_id = ?", id, userID).
+		Delete(&domain.FavoritePhrase{}).Error
 }

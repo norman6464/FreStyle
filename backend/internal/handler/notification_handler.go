@@ -10,17 +10,22 @@ import (
 )
 
 type NotificationHandler struct {
-	list     *usecase.ListNotificationsUseCase
-	markRead *usecase.MarkNotificationReadUseCase
+	list        *usecase.ListNotificationsUseCase
+	markRead    *usecase.MarkNotificationReadUseCase
+	markAllRead *usecase.MarkAllNotificationsReadUseCase
+	countUnread *usecase.CountUnreadNotificationsUseCase
 }
 
-func NewNotificationHandler(l *usecase.ListNotificationsUseCase, m *usecase.MarkNotificationReadUseCase) *NotificationHandler {
-	return &NotificationHandler{list: l, markRead: m}
+func NewNotificationHandler(
+	l *usecase.ListNotificationsUseCase,
+	m *usecase.MarkNotificationReadUseCase,
+	a *usecase.MarkAllNotificationsReadUseCase,
+	cu *usecase.CountUnreadNotificationsUseCase,
+) *NotificationHandler {
+	return &NotificationHandler{list: l, markRead: m, markAllRead: a, countUnread: cu}
 }
 
 // List は常に認証済 current user の通知を返す。
-// 過去は ?userId= クエリを受け付けていたが、authz 機構が無いため任意の userId を
-// クエリで指定できると IDOR になる。admin 機構が入るまでは current user 固定にする。
 func (h *NotificationHandler) List(c *gin.Context) {
 	uid := middleware.CurrentUserIDOrZero(c)
 	if uid == 0 {
@@ -36,8 +41,6 @@ func (h *NotificationHandler) List(c *gin.Context) {
 }
 
 // MarkRead は所有者検証つきで通知を既読化する。
-// 自分の通知 id でなければ DB の WHERE 句で何もマッチしないので、
-// 任意 id を渡されても他人の既読化は起きない。
 func (h *NotificationHandler) MarkRead(c *gin.Context) {
 	uid := middleware.CurrentUserIDOrZero(c)
 	if uid == 0 {
@@ -50,4 +53,33 @@ func (h *NotificationHandler) MarkRead(c *gin.Context) {
 		return
 	}
 	c.Status(http.StatusNoContent)
+}
+
+// MarkAllRead は current user の全通知をまとめて既読化する。
+func (h *NotificationHandler) MarkAllRead(c *gin.Context) {
+	uid := middleware.CurrentUserIDOrZero(c)
+	if uid == 0 {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	if err := h.markAllRead.Execute(c.Request.Context(), uid); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// UnreadCount は current user の未読通知数を整数で返す。
+func (h *NotificationHandler) UnreadCount(c *gin.Context) {
+	uid := middleware.CurrentUserIDOrZero(c)
+	if uid == 0 {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	n, err := h.countUnread.Execute(c.Request.Context(), uid)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, n)
 }

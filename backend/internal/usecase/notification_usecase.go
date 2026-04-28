@@ -36,3 +36,29 @@ func (u *MarkNotificationReadUseCase) Execute(ctx context.Context, userID, id ui
 	}
 	return u.repo.MarkRead(ctx, userID, id)
 }
+
+type MarkAllNotificationsReadUseCase struct{ repo repository.NotificationRepository }
+
+func NewMarkAllNotificationsReadUseCase(r repository.NotificationRepository) *MarkAllNotificationsReadUseCase {
+	return &MarkAllNotificationsReadUseCase{repo: r}
+}
+
+func (u *MarkAllNotificationsReadUseCase) Execute(ctx context.Context, userID uint64) error {
+	if userID == 0 {
+		return errors.New("userID is required")
+	}
+	return u.repo.MarkAllRead(ctx, userID)
+}
+
+type CountUnreadNotificationsUseCase struct{ repo repository.NotificationRepository }
+
+func NewCountUnreadNotificationsUseCase(r repository.NotificationRepository) *CountUnreadNotificationsUseCase {
+	return &CountUnreadNotificationsUseCase{repo: r}
+}
+
+func (u *CountUnreadNotificationsUseCase) Execute(ctx context.Context, userID uint64) (int64, error) {
+	if userID == 0 {
+		return 0, errors.New("userID is required")
+	}
+	return u.repo.CountUnread(ctx, userID)
+}

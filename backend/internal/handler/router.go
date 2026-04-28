@@ -75,6 +75,15 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	authed.PUT("/profile/:userId", profileHandler.Update)
 	authed.PUT("/profile/:userId/update", profileHandler.Update)
 
+	// Profile アイコン画像の S3 presigned-url。bucket / CDN は note image と同じインフラを共有する
+	// （別 prefix `profiles/` で分離）。AWS SDK 統合は別 issue。
+	profileImageHandler := NewProfileImageHandler(
+		usecase.NewIssueProfileImageUploadURLUseCase(
+			repository.NewStubProfileImagePresigner("frestyle-prod-note-images", "https://normanblog.com"),
+		),
+	)
+	authed.POST("/profile/:userId/image/presigned-url", profileImageHandler.IssueUploadURL)
+
 	// Phase 6: ユーザー統計
 	statsHandler := NewUserStatsHandler(
 		usecase.NewGetUserStatsUseCase(repository.NewUserStatsRepository(db)),

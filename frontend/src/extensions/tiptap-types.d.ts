@@ -79,5 +79,9 @@ declare module '@tiptap/core' {
     embedCardCommands: {
       insertEmbedCard: (url: string) => ReturnType;
     };
+    /** ServiceEmbedExtension (YouTube / Twitter / GitHub) のコマンド */
+    serviceEmbedCommands: {
+      insertServiceEmbed: (kind: 'youtube' | 'twitter' | 'github', url: string) => ReturnType;
+    };
   }
 }

@@ -30,6 +30,7 @@ import { FullWidthHeadingEnter } from '../extensions/FullWidthHeadingEnter';
 import { MathBlock, MathInline } from '../extensions/MathExtension';
 import { Mermaid } from '../extensions/MermaidExtension';
 import { EmbedCard } from '../extensions/EmbedCardExtension';
+import { ServiceEmbed } from '../extensions/ServiceEmbedExtension';
 
 export function createEditorExtensions() {
   return [
@@ -99,6 +100,8 @@ export function createEditorExtensions() {
     Mermaid,
     // 埋め込みカード (@[card](url)) - PR F
     EmbedCard,
+    // YouTube / Twitter / GitHub 専用埋め込み (URL 単独行) - PR G
+    ServiceEmbed,
     // tiptap-markdown は editor.storage.markdown.getMarkdown() / setContent(md) を提供する。
     // - html: false       editor 内の生 HTML 出力を抑制し pure な Markdown シリアライズに統一
     // - tightLists: true  リストアイテム間の空行を出力しない (Zenn / GitHub 準拠)

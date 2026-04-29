@@ -19,8 +19,9 @@ const (
 
 // AdminGroupName は Cognito User Pool 上の admin グループ名。
 // resjimkalto89890@gmail.com など管理者ユーザーが所属する。
-// Spring Boot 時代と同じく "ADMIN" を採用。
-const AdminGroupName = "ADMIN"
+// AWS Cognito の group 名は case-sensitive。Pool 2 (ap-northeast-1_TkRen4lyD) の
+// 既存 group `admin` (小文字) を Spring Boot 時代から踏襲している。
+const AdminGroupName = "admin"
 
 // JWTAuth は HttpOnly Cookie の access_token を検証する Gin middleware。
 // 現状は payload (claims) の base64 デコードのみで、署名 (JWKS) 検証は別 issue で実装する。

@@ -39,6 +39,11 @@ func NewAuthHandler(getCurrentUser *usecase.GetCurrentUserUseCase, users reposit
 }
 
 // Me は現在ログイン中のユーザー情報を返す。
+// レスポンスは domain.User の各フィールド + 派生 `isAdmin` / `groups` を含める。
+// isAdmin の判定:
+//   1) Cognito の `cognito:groups` claim に "ADMIN" が含まれている (Spring Boot 時代と同等)
+//   2) または DB users.role が super_admin / company_admin
+// 上記いずれかで true。フロントは `isAdmin` を見て管理画面の表示可否を決める。
 func (h *AuthHandler) Me(c *gin.Context) {
 	sub, ok := c.Get(middleware.ContextKeyCognitoSub)
 	if !ok {
@@ -54,7 +59,22 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "user_not_found"})
 		return
 	}
-	c.JSON(http.StatusOK, user)
+	groups := middleware.CognitoGroupsFromContext(c)
+	isAdmin := middleware.IsAdminFromGroups(groups) ||
+		user.Role == domain.RoleSuperAdmin ||
+		user.Role == domain.RoleCompanyAdmin
+	c.JSON(http.StatusOK, gin.H{
+		"id":          user.ID,
+		"cognitoSub":  user.CognitoSub,
+		"email":       user.Email,
+		"displayName": user.DisplayName,
+		"companyId":   user.CompanyID,
+		"role":        user.Role,
+		"createdAt":   user.CreatedAt,
+		"updatedAt":   user.UpdatedAt,
+		"groups":      groups,
+		"isAdmin":     isAdmin,
+	})
 }
 
 // Logout はリフレッシュ・アクセストークンの Cookie を消去する。
@@ -145,10 +165,18 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	}
 
 	// 初回ログインで users 行が無いと /auth/me が 404 になるため自動で upsert する。
-	// id_token の payload から sub / email を取り出して、未登録なら trainee として作成。
+	// id_token の payload から sub / email / cognito:groups を取り出して同期する:
+	//   - 未登録なら role = (group に ADMIN なら super_admin / 無ければ trainee) で create
+	//   - 既存ユーザーは Cognito group が変わっていれば role を update する
+	// これで Spring Boot 時代と同じ「Cognito group が真のソース」で運用できる。
 	if claims, err := decodeJWTClaims(tok.IDToken); err == nil {
 		sub, _ := claims["sub"].(string)
 		email, _ := claims["email"].(string)
+		groups := middleware.ToStringSliceFromClaim(claims["cognito:groups"])
+		desiredRole := domain.RoleTrainee
+		if middleware.IsAdminFromGroups(groups) {
+			desiredRole = domain.RoleSuperAdmin
+		}
 		if sub != "" && h.users != nil {
 			existing, _ := h.users.FindByCognitoSub(c.Request.Context(), sub)
 			if existing == nil {
@@ -156,8 +184,13 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 					CognitoSub:  sub,
 					Email:       email,
 					DisplayName: email,
-					Role:        domain.RoleTrainee,
+					Role:        desiredRole,
 				})
+			} else if existing.Role != desiredRole && desiredRole == domain.RoleSuperAdmin {
+				// Cognito group で admin に昇格された場合のみ DB role を上書きする。
+				// 既に DB で super_admin / company_admin が設定されているケースは触らない
+				// （AdminInvitation 系の手動付与が他にある可能性があるため、降格は手動で）。
+				_ = h.users.UpdateRole(c.Request.Context(), existing.ID, desiredRole)
 			}
 		}
 	}

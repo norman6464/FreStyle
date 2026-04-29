@@ -29,8 +29,30 @@ jobs:
       - name: go mod download
         run: go mod download
 
+      # gofmt 未整形のコードがあれば失敗させる。
+      # Effective Go の "gofmt'd code is the standard" を CI で強制するための
+      # 入り口チェック。`gofmt -l .` が 1 ファイルでも出したら CI を fail にして
+      # ローカル `gofmt -w .` で直してもらう運用にする。
+      - name: gofmt check
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::The following files are not gofmt-formatted:"
+            echo "$unformatted"
+            echo "Run 'gofmt -w backend/' locally and commit the result."
+            exit 1
+          fi
+
       - name: go vet
         run: go vet ./...
+
+      # staticcheck は Go 公式 Tools チームが推奨する高品質 linter。
+      # honnef.co/go/tools/cmd/staticcheck でしか拾えない bug pattern (SA*** 系)
+      # を CI で検知する。go vet との重複は避けつつ深いバグを拾える。
+      - name: staticcheck
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@2025.1.1
+          staticcheck ./...
 
       - name: go test
         run: go test ./...

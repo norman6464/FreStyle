@@ -1,11 +1,22 @@
 import { useNavigate } from 'react-router-dom';
-import type { ScoreHistoryItem } from '../types';
 import { getScoreTextColor } from '../utils/scoreColor';
 import Card from './Card';
 import { formatDate } from '../utils/formatters';
 
+/**
+ * RecentSessionsCard が必要とするのは sessionId / sessionTitle / overallScore /
+ * createdAt の 4 フィールドのみ。ScoreHistory / ScoreHistoryItem 双方を受けられるよう
+ * 構造的に最小公倍数の型を定義する。
+ */
+interface RecentSessionItem {
+  sessionId: number;
+  sessionTitle: string;
+  overallScore: number;
+  createdAt: string;
+}
+
 interface RecentSessionsCardProps {
-  sessions: ScoreHistoryItem[];
+  sessions: RecentSessionItem[];
 }
 
 export default function RecentSessionsCard({ sessions }: RecentSessionsCardProps) {

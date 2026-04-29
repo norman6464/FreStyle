@@ -1,10 +1,11 @@
-import { NodeViewWrapper, NodeViewContent } from '@tiptap/react';
+import { NodeViewWrapper, NodeViewContent, type ReactNodeViewProps } from '@tiptap/react';
 import { ChevronRightIcon } from '@heroicons/react/24/solid';
 
-export default function ToggleListNodeView({ node, updateAttributes }: {
-  node: { attrs: { open: boolean } };
-  updateAttributes: (attrs: { open: boolean }) => void;
-}) {
+type ToggleListNodeViewProps = ReactNodeViewProps<HTMLElement> & {
+  node: ReactNodeViewProps<HTMLElement>['node'] & { attrs: { open: boolean } };
+};
+
+export default function ToggleListNodeView({ node, updateAttributes }: ToggleListNodeViewProps) {
   const isOpen = node.attrs.open;
 
   return (

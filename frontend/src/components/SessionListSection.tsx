@@ -10,17 +10,18 @@ import ScoreTrendIndicator from './ScoreTrendIndicator';
 import FilterTabs from './FilterTabs';
 import { FILTERS, PERIOD_FILTERS } from '../hooks/useScoreHistory';
 import type { ScoreHistoryItem } from '../types';
-import type { ScoreHistoryItemWithDelta } from '../hooks/useScoreHistory';
+import type { Dispatch, SetStateAction } from 'react';
+import type { ScoreHistoryItemWithDelta, FilterType, PeriodFilterType } from '../hooks/useScoreHistory';
 
 interface SessionListSectionProps {
   history: ScoreHistoryItem[];
   filteredHistoryWithDelta: ScoreHistoryItemWithDelta[];
-  filter: string;
-  setFilter: (filter: string) => void;
-  periodFilter: string;
-  setPeriodFilter: (period: string) => void;
+  filter: FilterType;
+  setFilter: Dispatch<SetStateAction<FilterType>>;
+  periodFilter: PeriodFilterType;
+  setPeriodFilter: Dispatch<SetStateAction<PeriodFilterType>>;
   selectedSession: ScoreHistoryItem | null;
-  setSelectedSession: (session: ScoreHistoryItem | null) => void;
+  setSelectedSession: Dispatch<SetStateAction<ScoreHistoryItem | null>>;
 }
 
 export default function SessionListSection({

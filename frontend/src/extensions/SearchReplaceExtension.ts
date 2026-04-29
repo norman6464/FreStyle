@@ -13,7 +13,7 @@ export interface SearchReplaceState {
 export const searchReplacePluginKey = new PluginKey('searchReplace');
 
 function findMatches(
-  doc: { textBetween: (from: number, to: number) => string; content: { size: number } },
+  doc: { textBetween: (from: number, to: number, blockSeparator?: string) => string; content: { size: number } },
   searchTerm: string,
   caseSensitive: boolean,
 ): { from: number; to: number }[] {

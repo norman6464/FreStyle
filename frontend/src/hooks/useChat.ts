@@ -26,7 +26,15 @@ export function useChat() {
   const [showSceneSelector, setShowSceneSelector] = useState(false);
   const [showRephraseModal, setShowRephraseModal] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [rephraseResult, setRephraseResult] = useState<{ formal: string; soft: string; concise: string } | null>(null);
+  // RephraseModal の RephraseResult 型に合わせて 5 パターン全て持つ。
+  // backend が返さないフィールドは空文字でフォールバックする。
+  const [rephraseResult, setRephraseResult] = useState<{
+    formal: string;
+    soft: string;
+    concise: string;
+    questioning: string;
+    proposal: string;
+  } | null>(null);
   const [rephraseOriginalText, setRephraseOriginalText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -196,7 +204,7 @@ export function useChat() {
         const parsed = JSON.parse(data.result);
         setRephraseResult(parsed);
       } catch {
-        setRephraseResult({ formal: data.result, soft: '', concise: '' });
+        setRephraseResult({ formal: data.result, soft: '', concise: '', questioning: '', proposal: '' });
       }
     } catch {
       setShowRephraseModal(false);

@@ -2,14 +2,19 @@ import { useState } from 'react';
 import { CheckIcon, ClipboardDocumentIcon } from '@heroicons/react/24/outline';
 import { UI_TIMINGS } from '../constants/uiTimings';
 
-interface Message {
-  id: number;
+/**
+ * ExportSessionButton はメッセージ配列を txt 形式でクリップボードにコピーする。
+ * 受け取る型は最小限の subset (id / content / role) のみで、AiMessage / Message 双方を許容する。
+ */
+interface ExportableMessage {
+  /** AiMessage.id は string、Message.id は number。両対応する。 */
+  id: string | number;
   content: string;
   role: 'user' | 'assistant';
 }
 
 interface ExportSessionButtonProps {
-  messages: Message[];
+  messages: ExportableMessage[];
 }
 
 export default function ExportSessionButton({ messages }: ExportSessionButtonProps) {

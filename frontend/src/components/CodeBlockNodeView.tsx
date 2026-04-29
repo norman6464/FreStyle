@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { NodeViewWrapper, NodeViewContent } from '@tiptap/react';
+import { NodeViewWrapper, NodeViewContent, type ReactNodeViewProps } from '@tiptap/react';
 import { ClipboardIcon, CheckIcon } from '@heroicons/react/24/outline';
 import { UI_TIMINGS } from '../constants/uiTimings';
 
@@ -28,10 +28,14 @@ const LANGUAGES = [
   { value: 'kotlin', label: 'Kotlin' },
 ];
 
-interface CodeBlockNodeViewProps {
-  node: { attrs: { language: string | null }; textContent: string };
-  updateAttributes: (attrs: { language: string }) => void;
-}
+// Tiptap が提供する ReactNodeViewProps<HTMLElement> をベースに、
+// addAttributes で定義した language の型をフィールドとして上書きする。
+type CodeBlockNodeViewProps = ReactNodeViewProps<HTMLElement> & {
+  node: ReactNodeViewProps<HTMLElement>['node'] & {
+    attrs: { language: string | null };
+    textContent: string;
+  };
+};
 
 export default function CodeBlockNodeView({ node, updateAttributes }: CodeBlockNodeViewProps) {
   const [copied, setCopied] = useState(false);
@@ -86,7 +90,9 @@ export default function CodeBlockNodeView({ node, updateAttributes }: CodeBlockN
           ))}
         </div>
         <pre>
-          <NodeViewContent as="code" />
+          {/* Tiptap react の NodeViewContent props の `as` 型は限定的だが、
+              ProseMirror 側は code タグも問題なく描画する。型キャストで通す。 */}
+          <NodeViewContent as={'code' as 'div'} />
         </pre>
       </div>
     </NodeViewWrapper>

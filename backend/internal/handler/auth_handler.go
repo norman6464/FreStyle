@@ -78,8 +78,7 @@ func (h *AuthHandler) Me(c *gin.Context) {
 
 // Logout はリフレッシュ・アクセストークンの Cookie を消去する。
 func (h *AuthHandler) Logout(c *gin.Context) {
-	c.SetCookie(middleware.CookieAccessToken, "", -1, "/", "", true, true)
-	c.SetCookie("refresh_token", "", -1, "/", "", true, true)
+	middleware.ClearAuthCookies(c)
 	c.JSON(http.StatusOK, gin.H{"message": "ログアウトしました。"})
 }
 
@@ -153,15 +152,8 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	}
 
 	// HttpOnly + Secure + SameSite=None でアプリ全体に Cookie を渡す
-	maxAge := tok.ExpiresIn
-	if maxAge <= 0 {
-		maxAge = 3600
-	}
-	c.SetSameSite(http.SameSiteNoneMode)
-	c.SetCookie(middleware.CookieAccessToken, tok.AccessToken, maxAge, "/", "", true, true)
-	if tok.RefreshToken != "" {
-		c.SetCookie("refresh_token", tok.RefreshToken, 30*24*3600, "/", "", true, true)
-	}
+	middleware.SetAccessTokenCookie(c, tok.AccessToken, tok.ExpiresIn)
+	middleware.SetRefreshTokenCookie(c, tok.RefreshToken)
 
 	// 初回ログインで users 行が無いと /auth/me が 404 になるため自動で upsert する。
 	// id_token の payload から sub / email / cognito:groups を取り出して同期する:
@@ -199,7 +191,7 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 
 // Refresh は HttpOnly Cookie の refresh_token を使ってアクセストークンを再発行する。
 func (h *AuthHandler) Refresh(c *gin.Context) {
-	rt, err := c.Cookie("refresh_token")
+	rt, err := c.Cookie(middleware.CookieRefreshToken)
 	if err != nil || rt == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "refresh_token_missing"})
 		return
@@ -237,8 +229,7 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 	if resp.StatusCode != http.StatusOK {
 		log.Printf("cognito refresh: status=%d body=%s", resp.StatusCode, string(body))
 		// refresh が無効ならログイン状態をクリアして 401 を返し、フロントは login へ誘導する
-		c.SetCookie(middleware.CookieAccessToken, "", -1, "/", "", true, true)
-		c.SetCookie("refresh_token", "", -1, "/", "", true, true)
+		middleware.ClearAuthCookies(c)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "refresh_failed"})
 		return
 	}
@@ -248,11 +239,6 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		c.JSON(http.StatusBadGateway, gin.H{"error": "invalid_token_response"})
 		return
 	}
-	maxAge := tok.ExpiresIn
-	if maxAge <= 0 {
-		maxAge = 3600
-	}
-	c.SetSameSite(http.SameSiteNoneMode)
-	c.SetCookie(middleware.CookieAccessToken, tok.AccessToken, maxAge, "/", "", true, true)
+	middleware.SetAccessTokenCookie(c, tok.AccessToken, tok.ExpiresIn)
 	c.JSON(http.StatusOK, gin.H{"message": "refreshed"})
 }

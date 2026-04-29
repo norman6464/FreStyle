@@ -75,5 +75,9 @@ declare module '@tiptap/core' {
     mermaidCommands: {
       insertMermaid: (code?: string) => ReturnType;
     };
+    /** EmbedCardExtension のコマンド */
+    embedCardCommands: {
+      insertEmbedCard: (url: string) => ReturnType;
+    };
   }
 }

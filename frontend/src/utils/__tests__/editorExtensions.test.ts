@@ -61,16 +61,20 @@ vi.mock('../../extensions/MathExtension', () => ({
 vi.mock('../../extensions/MermaidExtension', () => ({
   Mermaid: 'Mermaid',
 }));
+vi.mock('../../extensions/EmbedCardExtension', () => ({
+  EmbedCard: 'EmbedCard',
+}));
 
 import { createEditorExtensions } from '../editorExtensions';
 
 describe('createEditorExtensions', () => {
-  it('31個のエクステンションを返す', () => {
+  it('32個のエクステンションを返す', () => {
     // PR A: tiptap-markdown +1
     // PR C: MathBlock + MathInline +2
-    // PR D: Mermaid +1 → 28 + 2 + 1 = 31
+    // PR D: Mermaid +1
+    // PR F: EmbedCard +1 → 27 + 1 + 2 + 1 + 1 = 32
     const extensions = createEditorExtensions();
-    expect(extensions).toHaveLength(31);
+    expect(extensions).toHaveLength(32);
   });
 
   it('主要なエクステンションが含まれる', () => {

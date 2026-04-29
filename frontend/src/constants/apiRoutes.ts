@@ -157,6 +157,11 @@ export const ADMIN = {
   scenarioById: (id: number | string) => `${API_V2}/admin/scenarios/${id}`,
 } as const;
 
+/** 外部 URL の OGP / oEmbed メタ情報を取得するプロキシ */
+export const EMBEDS = {
+  oembed: `${API_V2}/embeds/oembed`,
+} as const;
+
 /** WebSocket（Cookie 認証 / 通常 ws:// or wss:// にフロント側で書き換え）*/
 export const WS = {
   /** ルームごとブロードキャスト（ユーザー間チャット） */

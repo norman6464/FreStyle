@@ -48,6 +48,8 @@
     "lodash": "^4.17.21",
     "lowlight": "^3.3.0",
     "markdown-it-container": "^4.0.0",
+    "markdown-it-emoji": "^3.0.0",
+    "markdown-it-footnote": "^4.0.0",
     "markdown-it-katex": "^2.0.3",
     "mermaid": "^11.14.0",
     "react": "^19.1.1",

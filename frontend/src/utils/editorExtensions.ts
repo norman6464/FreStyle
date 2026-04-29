@@ -24,6 +24,7 @@ import Underline from '@tiptap/extension-underline';
 import Superscript from '@tiptap/extension-superscript';
 import Subscript from '@tiptap/extension-subscript';
 import Youtube from '@tiptap/extension-youtube';
+import { Markdown } from 'tiptap-markdown';
 import { SearchReplaceExtension } from '../extensions/SearchReplaceExtension';
 import { FullWidthHeadingEnter } from '../extensions/FullWidthHeadingEnter';
 
@@ -88,5 +89,19 @@ export function createEditorExtensions() {
     }),
     SearchReplaceExtension,
     FullWidthHeadingEnter,
+    // tiptap-markdown は editor.storage.markdown.getMarkdown() / setContent(md) を提供する。
+    // - html: false       editor 内の生 HTML 出力を抑制し pure な Markdown シリアライズに統一
+    // - tightLists: true  リストアイテム間の空行を出力しない (Zenn / GitHub 準拠)
+    // - bulletListMarker  Zenn のサンプルが `-` で統一されているのに合わせる
+    // - linkify: false    URL の自動リンク化はしない（Zenn 風の「URL 行 → カード」は別 PR で扱う）
+    Markdown.configure({
+      html: false,
+      tightLists: true,
+      bulletListMarker: '-',
+      linkify: false,
+      breaks: false,
+      transformPastedText: false,
+      transformCopiedText: false,
+    }),
   ];
 }

@@ -93,7 +93,9 @@ describe('useBlockEditor', () => {
     );
   });
 
-  it('不正なJSONの場合はundefinedを設定する', async () => {
+  it('JSON として parse できない文字列は Markdown としてそのまま設定する', async () => {
+    // PR A (tiptap-markdown 導入) で挙動変更: 旧実装は parse 失敗 → undefined だったが、
+    // 新実装は markdown 文字列とみなして tiptap-markdown が処理するため content にそのまま渡す。
     const { useEditor } = await import('@tiptap/react');
     const { isLegacyMarkdown } = await import('../../utils/isLegacyMarkdown');
     vi.mocked(isLegacyMarkdown).mockReturnValue(false);
@@ -102,7 +104,7 @@ describe('useBlockEditor', () => {
     renderHook(() => useBlockEditor({ content: 'invalid json{{{', onChange }));
 
     expect(useEditor).toHaveBeenCalledWith(
-      expect.objectContaining({ content: undefined })
+      expect.objectContaining({ content: 'invalid json{{{' })
     );
   });
 

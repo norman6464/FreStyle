@@ -71,5 +71,9 @@ declare module '@tiptap/core' {
       insertMathBlock: (latex?: string) => ReturnType;
       insertMathInline: (latex?: string) => ReturnType;
     };
+    /** MermaidExtension のコマンド */
+    mermaidCommands: {
+      insertMermaid: (code?: string) => ReturnType;
+    };
   }
 }

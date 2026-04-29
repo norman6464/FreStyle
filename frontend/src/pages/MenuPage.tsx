@@ -68,7 +68,10 @@ export default function MenuPage() {
   const isFirstTimeUser = totalSessions === 0;
 
   return (
-    <div className="p-6 max-w-2xl mx-auto space-y-6">
+    // 下にスクロールしたとき最後のカードが viewport 下端で見切れる問題を回避するため、
+    // 縦方向は px-6 pt-6 pb-24 に分割して bottom padding を 6rem 確保する
+    // (p-6 のままだと 1.5rem しか取れず、最終カードと viewport 端が密着して見切れる)。
+    <div className="px-6 pt-6 pb-24 max-w-2xl mx-auto space-y-6">
       <PageIntro
         icon={<HomeIcon className="h-6 w-6" />}
         title="ホーム"

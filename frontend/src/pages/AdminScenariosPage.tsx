@@ -109,7 +109,8 @@ export default function AdminScenariosPage() {
   };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
+    // シナリオ一覧 + フォームで縦長になるため pb-24 で下部見切れ回避
+    <div className="px-6 pt-6 pb-24 max-w-4xl mx-auto space-y-6">
       <PageIntro
         title="管理: 練習シナリオ"
         description={<>新規作成・編集・削除ができます。一般ユーザーには表示されません。</>}

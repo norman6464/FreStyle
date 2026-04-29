@@ -92,7 +92,8 @@ export default function AdminInvitationsPage() {
   const formatDate = (iso: string) => new Date(iso).toLocaleString('ja-JP');
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-6">
+    // 招待一覧 (テーブル) が長くなるケースで viewport 下端の見切れを防ぐため pb-24
+    <div className="px-6 pt-6 pb-24 max-w-3xl mx-auto space-y-6">
       <PageIntro
         title="管理: メンバー招待"
         description={

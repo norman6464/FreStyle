@@ -45,7 +45,8 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="p-6 max-w-2xl mx-auto space-y-6">
+    // 縦長コンテンツの最終要素が viewport 下端で見切れないよう pb-24 で余白確保
+    <div className="px-6 pt-6 pb-24 max-w-2xl mx-auto space-y-6">
       <FormMessage message={message} />
 
       {/* セクション1: 基本情報 */}

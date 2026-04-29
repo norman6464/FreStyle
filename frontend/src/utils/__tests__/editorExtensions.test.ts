@@ -54,14 +54,19 @@ vi.mock('../../extensions/FullWidthHeadingEnter', () => ({
 vi.mock('tiptap-markdown', () => ({
   Markdown: { configure: vi.fn(() => 'Markdown') },
 }));
+vi.mock('../../extensions/MathExtension', () => ({
+  MathBlock: 'MathBlock',
+  MathInline: 'MathInline',
+}));
 
 import { createEditorExtensions } from '../editorExtensions';
 
 describe('createEditorExtensions', () => {
-  it('28個のエクステンションを返す', () => {
-    // tiptap-markdown 導入で 27 → 28 になった (Zenn 互換 markdown PR A)。
+  it('30個のエクステンションを返す', () => {
+    // PR A: tiptap-markdown 追加で +1
+    // PR C: KaTeX (MathBlock + MathInline) 追加で +2 → 28 + 2 = 30
     const extensions = createEditorExtensions();
-    expect(extensions).toHaveLength(28);
+    expect(extensions).toHaveLength(30);
   });
 
   it('主要なエクステンションが含まれる', () => {
@@ -96,9 +101,9 @@ describe('createEditorExtensions', () => {
   });
 
   it('配列の末尾が Markdown extension である', () => {
-    // tiptap-markdown が一番最後に追加される (PR A)。
-    // 旧テストは FullWidthHeadingEnter を末尾と想定していたが、Markdown 追加後は
-    // それが最終要素になる。
+    // PR C で MathBlock / MathInline を Markdown より前に挿入したため、
+    // Markdown は引き続き最終要素を保つ（getMarkdown 系 storage が他 extension の
+    // serialize を集約する都合上、最後に積まれている方が読みやすい）。
     const extensions = createEditorExtensions();
     expect(extensions[extensions.length - 1]).toBe('Markdown');
   });

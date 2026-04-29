@@ -199,7 +199,7 @@ export default forwardRef<BlockEditorHandle, BlockEditorProps>(function BlockEdi
     }
     editor.chain().focus().run();
     executeCommand(editor, command);
-  }, [editor, openFileDialog]);
+  }, [editor, openFileDialog, openYoutubeInput]);
 
   return (
     <div

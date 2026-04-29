@@ -22,7 +22,7 @@ export function useNoteEditor(
       setEditContent('');
     }
     setSaveStatus('idle');
-  }, [selectedNoteId]);
+  }, [selectedNoteId, selectedNote]);
 
   useEffect(() => {
     return () => {

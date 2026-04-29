@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { PlusIcon } from '@heroicons/react/24/outline';
 import SlashCommandMenu from './SlashCommandMenu';
 import { SLASH_COMMANDS, type SlashCommand } from '../constants/slashCommands';
@@ -13,10 +13,11 @@ interface BlockInserterButtonProps {
 export default function BlockInserterButton({ visible, top, onCommand, onMenuOpenChange }: BlockInserterButtonProps) {
   const [menuOpen, setMenuOpenInternal] = useState(false);
 
-  const setMenuOpen = (open: boolean) => {
+  // useEffect の依存に入れたいので useCallback で identity を安定化する。
+  const setMenuOpen = useCallback((open: boolean) => {
     setMenuOpenInternal(open);
     onMenuOpenChange?.(open);
-  };
+  }, [onMenuOpenChange]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -36,13 +37,15 @@ export default function BlockInserterButton({ visible, top, onCommand, onMenuOpe
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [menuOpen]);
+    // setMenuOpen は useState の setter で stable な identity を持つが、
+    // react-hooks/exhaustive-deps はこれを検知できないので明示的に含める。
+  }, [menuOpen, setMenuOpen]);
 
   useEffect(() => {
     if (!visible) {
       setMenuOpen(false);
     }
-  }, [visible]);
+  }, [visible, setMenuOpen]);
 
   function handleSelect(index: number) {
     const cmd = SLASH_COMMANDS[index];

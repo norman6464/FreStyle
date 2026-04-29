@@ -6,7 +6,7 @@ import { MemoryRouter } from 'react-router-dom';
 import LoginCallback from '../LoginCallback';
 import authReducer from '../../store/authSlice';
 import authRepository from '../../repositories/AuthRepository';
-import { ToastProvider } from '../../hooks/useToast';
+import { ToastProvider } from '../../components/ToastProvider';
 
 const mockNavigate = vi.fn();
 

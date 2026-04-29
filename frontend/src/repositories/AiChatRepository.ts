@@ -1,4 +1,5 @@
 import apiClient from '../lib/axios';
+import { AI_CHAT, CHAT, SCORES } from '../constants/apiRoutes';
 import { AiSession, AiMessage, ScoreCard, ScoreHistoryItem } from '../types';
 
 /**
@@ -40,7 +41,7 @@ class AiChatRepository {
    * セッション一覧を取得
    */
   async getSessions(): Promise<AiSession[]> {
-    const response = await apiClient.get('/api/v2/ai-chat/sessions');
+    const response = await apiClient.get(AI_CHAT.sessions);
     return response.data;
   }
 
@@ -48,7 +49,7 @@ class AiChatRepository {
    * セッション詳細を取得
    */
   async getSession(sessionId: number): Promise<AiSession> {
-    const response = await apiClient.get(`/api/v2/ai-chat/sessions/${sessionId}`);
+    const response = await apiClient.get(AI_CHAT.session(sessionId));
     return response.data;
   }
 
@@ -56,7 +57,7 @@ class AiChatRepository {
    * 新規セッションを作成
    */
   async createSession(request: CreateSessionRequest): Promise<AiSession> {
-    const response = await apiClient.post('/api/v2/ai-chat/sessions', request);
+    const response = await apiClient.post(AI_CHAT.sessions, request);
     return response.data;
   }
 
@@ -64,7 +65,7 @@ class AiChatRepository {
    * セッションタイトルを更新
    */
   async updateSessionTitle(sessionId: number, request: UpdateSessionTitleRequest): Promise<AiSession> {
-    const response = await apiClient.put(`/api/v2/ai-chat/sessions/${sessionId}`, request);
+    const response = await apiClient.put(AI_CHAT.session(sessionId), request);
     return response.data;
   }
 
@@ -72,14 +73,14 @@ class AiChatRepository {
    * セッションを削除
    */
   async deleteSession(sessionId: number): Promise<void> {
-    await apiClient.delete(`/api/v2/ai-chat/sessions/${sessionId}`);
+    await apiClient.delete(AI_CHAT.session(sessionId));
   }
 
   /**
    * セッション内のメッセージ一覧を取得
    */
   async getMessages(sessionId: number): Promise<AiMessage[]> {
-    const response = await apiClient.get(`/api/v2/ai-chat/sessions/${sessionId}/messages`);
+    const response = await apiClient.get(AI_CHAT.sessionMessages(sessionId));
     return response.data;
   }
 
@@ -87,7 +88,7 @@ class AiChatRepository {
    * メッセージを追加
    */
   async addMessage(sessionId: number, request: AddMessageRequest): Promise<AiMessage> {
-    const response = await apiClient.post(`/api/v2/ai-chat/sessions/${sessionId}/messages`, request);
+    const response = await apiClient.post(AI_CHAT.sessionMessages(sessionId), request);
     return response.data;
   }
 
@@ -95,7 +96,7 @@ class AiChatRepository {
    * メッセージの言い換え提案を取得
    */
   async rephrase(request: RephraseRequest): Promise<{ result: string }> {
-    const response = await apiClient.post('/api/v2/chat/ai/rephrase', request);
+    const response = await apiClient.post(CHAT.aiRephrase, request);
     return response.data;
   }
 
@@ -103,7 +104,7 @@ class AiChatRepository {
    * セッションのスコアカードを取得
    */
   async getScoreCard(sessionId: number): Promise<ScoreCard> {
-    const response = await apiClient.get(`/api/v2/scores/sessions/${sessionId}`);
+    const response = await apiClient.get(SCORES.sessionScore(sessionId));
     return response.data;
   }
 
@@ -111,7 +112,7 @@ class AiChatRepository {
    * スコア履歴を取得
    */
   async getScoreHistory(): Promise<ScoreHistoryItem[]> {
-    const response = await apiClient.get('/api/v2/score-cards');
+    const response = await apiClient.get(SCORES.cards);
     return response.data;
   }
 }

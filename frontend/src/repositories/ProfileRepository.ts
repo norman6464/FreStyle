@@ -1,5 +1,6 @@
 import apiClient from '../lib/axios';
 import axios from 'axios';
+import { PROFILE } from '../constants/apiRoutes';
 import type { Profile } from '../types';
 
 /**
@@ -21,17 +22,17 @@ interface PresignedUrlResponse {
 
 const ProfileRepository = {
   async fetchProfile(): Promise<Profile> {
-    const res = await apiClient.get<Profile>('/api/v2/profile/me');
+    const res = await apiClient.get<Profile>(PROFILE.me);
     return res.data;
   },
 
   async updateProfile(data: UpdateProfileRequest): Promise<Profile> {
-    const res = await apiClient.put<Profile>('/api/v2/profile/me/update', data);
+    const res = await apiClient.put<Profile>(PROFILE.meUpdate, data);
     return res.data;
   },
 
   async getImagePresignedUrl(fileName: string, contentType: string): Promise<PresignedUrlResponse> {
-    const res = await apiClient.post<PresignedUrlResponse>('/api/v2/profile/me/image/presigned-url', {
+    const res = await apiClient.post<PresignedUrlResponse>(PROFILE.meImagePresignedUrl, {
       fileName,
       contentType,
     });

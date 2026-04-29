@@ -1,10 +1,11 @@
 import apiClient from '../lib/axios';
+import { WEEKLY_CHALLENGE } from '../constants/apiRoutes';
 import { WeeklyChallenge } from '../types';
 
 export const WeeklyChallengeRepository = {
   async fetchCurrentChallenge(): Promise<WeeklyChallenge | null> {
     try {
-      const response = await apiClient.get<WeeklyChallenge>('/api/v2/weekly-challenge');
+      const response = await apiClient.get<WeeklyChallenge>(WEEKLY_CHALLENGE.current);
       return response.data;
     } catch {
       return null;
@@ -13,7 +14,7 @@ export const WeeklyChallengeRepository = {
 
   async incrementProgress(): Promise<WeeklyChallenge | null> {
     try {
-      const response = await apiClient.post<WeeklyChallenge>('/api/v2/weekly-challenge/progress');
+      const response = await apiClient.post<WeeklyChallenge>(WEEKLY_CHALLENGE.progress);
       return response.data;
     } catch {
       return null;

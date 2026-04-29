@@ -1,4 +1,5 @@
 import axios, { AxiosError, AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios';
+import { AUTH } from '../constants/apiRoutes';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -85,7 +86,7 @@ apiClient.interceptors.response.use(
       try {
         // トークンリフレッシュ
         await axios.post(
-          `${API_BASE_URL}/api/v2/auth/cognito/refresh-token`,
+          `${API_BASE_URL}${AUTH.refreshToken}`,
           {},
           { withCredentials: true }
         );

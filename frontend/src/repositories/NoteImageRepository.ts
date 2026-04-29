@@ -1,5 +1,6 @@
 import apiClient from '../lib/axios';
 import axios from 'axios';
+import { NOTES } from '../constants/apiRoutes';
 
 interface PresignedUrlResponse {
   uploadUrl: string;
@@ -8,7 +9,7 @@ interface PresignedUrlResponse {
 
 const NoteImageRepository = {
   async getPresignedUrl(noteId: number, fileName: string, contentType: string): Promise<PresignedUrlResponse> {
-    const res = await apiClient.post(`/api/v2/notes/${noteId}/images/presigned-url`, {
+    const res = await apiClient.post(NOTES.imagesPresignedUrl(noteId), {
       fileName,
       contentType,
     });

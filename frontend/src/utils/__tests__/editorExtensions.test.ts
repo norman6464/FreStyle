@@ -58,15 +58,19 @@ vi.mock('../../extensions/MathExtension', () => ({
   MathBlock: 'MathBlock',
   MathInline: 'MathInline',
 }));
+vi.mock('../../extensions/MermaidExtension', () => ({
+  Mermaid: 'Mermaid',
+}));
 
 import { createEditorExtensions } from '../editorExtensions';
 
 describe('createEditorExtensions', () => {
-  it('30個のエクステンションを返す', () => {
-    // PR A: tiptap-markdown 追加で +1
-    // PR C: KaTeX (MathBlock + MathInline) 追加で +2 → 28 + 2 = 30
+  it('31個のエクステンションを返す', () => {
+    // PR A: tiptap-markdown +1
+    // PR C: MathBlock + MathInline +2
+    // PR D: Mermaid +1 → 28 + 2 + 1 = 31
     const extensions = createEditorExtensions();
-    expect(extensions).toHaveLength(30);
+    expect(extensions).toHaveLength(31);
   });
 
   it('主要なエクステンションが含まれる', () => {

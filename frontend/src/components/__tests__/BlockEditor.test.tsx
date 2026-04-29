@@ -83,7 +83,7 @@ describe('BlockEditor', () => {
   const defaultProps = {
     content: '',
     onChange: vi.fn(),
-    noteId: 'test-note-1',
+    noteId: 1,
   };
 
   beforeEach(() => {

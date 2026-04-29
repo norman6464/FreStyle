@@ -1,9 +1,7 @@
 package handler
 
 import (
-	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -170,7 +168,7 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	//   - 未登録なら role = (group に ADMIN なら super_admin / 無ければ trainee) で create
 	//   - 既存ユーザーは Cognito group が変わっていれば role を update する
 	// これで Spring Boot 時代と同じ「Cognito group が真のソース」で運用できる。
-	if claims, err := decodeJWTClaims(tok.IDToken); err == nil {
+	if claims, err := middleware.DecodeClaims(tok.IDToken); err == nil {
 		sub, _ := claims["sub"].(string)
 		email, _ := claims["email"].(string)
 		groups := middleware.ToStringSliceFromClaim(claims["cognito:groups"])
@@ -197,36 +195,6 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "ログインしました。"})
-}
-
-// decodeJWTClaims は JWT (3 セグメント、署名検証なし) の payload 部だけ base64 デコードする。
-// callback 直後に Cognito 発行 token から sub / email を取り出して users 自動作成するためだけに使う。
-// 認証 middleware の本格的な署名検証 (JWKS) は別 issue。
-func decodeJWTClaims(idToken string) (map[string]any, error) {
-	parts := strings.Split(idToken, ".")
-	if len(parts) != 3 {
-		return nil, fmt.Errorf("invalid jwt format")
-	}
-	payload, err := base64URLDecode(parts[1])
-	if err != nil {
-		return nil, err
-	}
-	var claims map[string]any
-	if err := json.Unmarshal(payload, &claims); err != nil {
-		return nil, err
-	}
-	return claims, nil
-}
-
-func base64URLDecode(s string) ([]byte, error) {
-	switch len(s) % 4 {
-	case 2:
-		s += "=="
-	case 3:
-		s += "="
-	}
-	s = strings.NewReplacer("-", "+", "_", "/").Replace(s)
-	return base64.StdEncoding.DecodeString(s)
 }
 
 // Refresh は HttpOnly Cookie の refresh_token を使ってアクセストークンを再発行する。

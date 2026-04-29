@@ -3,6 +3,7 @@ package middleware
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"slices"
 	"strings"
@@ -33,7 +34,7 @@ func JWTAuth() gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 			return
 		}
-		claims, err := decodeClaims(token)
+		claims, err := DecodeClaims(token)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid_token"})
 			return
@@ -90,10 +91,15 @@ func IsAdminFromGroups(groups []string) bool {
 	return slices.Contains(groups, AdminGroupName)
 }
 
-func decodeClaims(jwt string) (map[string]any, error) {
-	parts := strings.Split(jwt, ".")
+// DecodeClaims は JWT (3 セグメント) の payload 部だけを base64url デコードして
+// claim マップに変換する。署名検証は行わない（JWKS 検証は別 issue）。
+//
+// middleware.JWTAuth と auth_handler.Callback の両方で利用される共通ヘルパー。
+// 以前は各所に同等実装が複製されていたが DRY 化のため 1 箇所に集約。
+func DecodeClaims(token string) (map[string]any, error) {
+	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
-		return nil, errInvalidJWT
+		return nil, ErrInvalidJWT
 	}
 	payload, err := base64URLDecode(parts[1])
 	if err != nil {
@@ -106,6 +112,7 @@ func decodeClaims(jwt string) (map[string]any, error) {
 	return claims, nil
 }
 
+// base64URLDecode は JWT で使われる URL-safe base64 (パディング省略) を復元してデコードする。
 func base64URLDecode(s string) ([]byte, error) {
 	switch len(s) % 4 {
 	case 2:
@@ -117,8 +124,5 @@ func base64URLDecode(s string) ([]byte, error) {
 	return base64.StdEncoding.DecodeString(s)
 }
 
-type jwtError string
-
-func (e jwtError) Error() string { return string(e) }
-
-const errInvalidJWT = jwtError("invalid jwt format")
+// ErrInvalidJWT は token の形式 (3 セグメント) が壊れているときに返る。
+var ErrInvalidJWT = errors.New("middleware: invalid jwt format")

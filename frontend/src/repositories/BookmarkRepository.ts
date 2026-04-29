@@ -1,4 +1,5 @@
 import apiClient from '../lib/axios';
+import { SCENARIO_BOOKMARKS } from '../constants/apiRoutes';
 
 const STORAGE_KEY = 'freestyle_scenario_bookmarks';
 
@@ -20,7 +21,7 @@ function saveLocalBookmarks(ids: number[]): void {
 export const BookmarkRepository = {
   async getAll(): Promise<number[]> {
     try {
-      const response = await apiClient.get<number[]>('/api/v2/scenario-bookmarks');
+      const response = await apiClient.get<number[]>(SCENARIO_BOOKMARKS.list);
       return response.data;
     } catch {
       return getLocalBookmarks();
@@ -29,7 +30,7 @@ export const BookmarkRepository = {
 
   async add(scenarioId: number): Promise<void> {
     try {
-      await apiClient.post(`/api/v2/scenario-bookmarks/${scenarioId}`);
+      await apiClient.post(SCENARIO_BOOKMARKS.byScenario(scenarioId));
     } catch {
       const ids = getLocalBookmarks();
       if (!ids.includes(scenarioId)) {
@@ -41,7 +42,7 @@ export const BookmarkRepository = {
 
   async remove(scenarioId: number): Promise<void> {
     try {
-      await apiClient.delete(`/api/v2/scenario-bookmarks/${scenarioId}`);
+      await apiClient.delete(SCENARIO_BOOKMARKS.byScenario(scenarioId));
     } catch {
       const ids = getLocalBookmarks().filter(id => id !== scenarioId);
       saveLocalBookmarks(ids);

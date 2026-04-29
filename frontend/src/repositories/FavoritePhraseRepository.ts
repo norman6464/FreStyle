@@ -1,4 +1,5 @@
 import apiClient from '../lib/axios';
+import { FAVORITE_PHRASES } from '../constants/apiRoutes';
 import type { FavoritePhrase } from '../types';
 
 const STORAGE_KEY = 'freestyle_favorite_phrases';
@@ -40,7 +41,7 @@ function toFavoritePhrase(dto: ApiFavoritePhraseDto): FavoritePhrase {
 export const FavoritePhraseRepository = {
   async getAll(): Promise<FavoritePhrase[]> {
     try {
-      const response = await apiClient.get<ApiFavoritePhraseDto[]>('/api/v2/favorite-phrases');
+      const response = await apiClient.get<ApiFavoritePhraseDto[]>(FAVORITE_PHRASES.list);
       return response.data.map(toFavoritePhrase);
     } catch {
       return getLocalPhrases();
@@ -49,7 +50,7 @@ export const FavoritePhraseRepository = {
 
   async save(phrase: Omit<FavoritePhrase, 'id' | 'createdAt'>): Promise<void> {
     try {
-      await apiClient.post('/api/v2/favorite-phrases', {
+      await apiClient.post(FAVORITE_PHRASES.list, {
         originalText: phrase.originalText,
         rephrasedText: phrase.rephrasedText,
         pattern: phrase.pattern,
@@ -68,7 +69,7 @@ export const FavoritePhraseRepository = {
 
   async remove(id: string): Promise<void> {
     try {
-      await apiClient.delete(`/api/v2/favorite-phrases/${id}`);
+      await apiClient.delete(FAVORITE_PHRASES.byId(id));
     } catch {
       const all = getLocalPhrases().filter((p) => p.id !== id);
       saveLocalPhrases(all);

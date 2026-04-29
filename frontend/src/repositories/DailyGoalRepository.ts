@@ -1,4 +1,5 @@
 import apiClient from '../lib/axios';
+import { DAILY_GOALS } from '../constants/apiRoutes';
 import type { DailyGoal } from '../types';
 
 const STORAGE_KEY = 'freestyle_daily_goal';
@@ -30,7 +31,7 @@ function saveLocalGoal(goal: DailyGoal): void {
 export const DailyGoalRepository = {
   async getToday(): Promise<DailyGoal> {
     try {
-      const response = await apiClient.get<DailyGoal>('/api/v2/daily-goals/today');
+      const response = await apiClient.get<DailyGoal>(DAILY_GOALS.today);
       return response.data;
     } catch {
       return getLocalGoal();
@@ -39,7 +40,7 @@ export const DailyGoalRepository = {
 
   async setTarget(target: number): Promise<void> {
     try {
-      await apiClient.put('/api/v2/daily-goals/target', { target });
+      await apiClient.put(DAILY_GOALS.target, { target });
     } catch {
       const goal = getLocalGoal();
       goal.target = target;
@@ -49,7 +50,7 @@ export const DailyGoalRepository = {
 
   async incrementCompleted(): Promise<DailyGoal> {
     try {
-      const response = await apiClient.post<DailyGoal>('/api/v2/daily-goals/increment');
+      const response = await apiClient.post<DailyGoal>(DAILY_GOALS.increment);
       return response.data;
     } catch {
       const goal = getLocalGoal();

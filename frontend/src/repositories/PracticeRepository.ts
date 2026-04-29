@@ -1,4 +1,5 @@
 import apiClient from '../lib/axios';
+import { PRACTICE } from '../constants/apiRoutes';
 
 /**
  * 練習モードリポジトリ
@@ -39,7 +40,7 @@ class PracticeRepository {
    * シナリオ一覧を取得
    */
   async getScenarios(): Promise<PracticeScenario[]> {
-    const response = await apiClient.get('/api/v2/practice/scenarios');
+    const response = await apiClient.get(PRACTICE.scenarios);
     return response.data;
   }
 
@@ -47,7 +48,7 @@ class PracticeRepository {
    * シナリオ詳細を取得
    */
   async getScenario(scenarioId: number): Promise<PracticeScenario> {
-    const response = await apiClient.get(`/api/v2/practice/scenarios/${scenarioId}`);
+    const response = await apiClient.get(PRACTICE.scenario(scenarioId));
     return response.data;
   }
 
@@ -55,7 +56,7 @@ class PracticeRepository {
    * 練習セッションを作成
    */
   async createPracticeSession(request: CreatePracticeSessionRequest): Promise<PracticeSession> {
-    const response = await apiClient.post('/api/v2/practice/sessions', request);
+    const response = await apiClient.post(PRACTICE.sessions, request);
     return response.data;
   }
 }

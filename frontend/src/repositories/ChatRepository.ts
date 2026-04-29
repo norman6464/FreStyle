@@ -1,4 +1,5 @@
 import apiClient from '../lib/axios';
+import { AUTH, CHAT } from '../constants/apiRoutes';
 import { ChatUser, ChatMessage } from '../types';
 
 /**
@@ -12,31 +13,31 @@ const ChatRepository = {
   async fetchChatUsers(query?: string): Promise<ChatUser[]> {
     const params: Record<string, string> = {};
     if (query) params.query = query;
-    const res = await apiClient.get('/api/v2/chat/rooms', { params });
+    const res = await apiClient.get(CHAT.rooms, { params });
     return res.data.chatUsers || [];
   },
 
   async fetchCurrentUser(): Promise<{ id: number; name: string }> {
-    const res = await apiClient.get('/api/v2/auth/me');
+    const res = await apiClient.get(AUTH.me);
     return res.data;
   },
 
   async createRoom(userId: number): Promise<{ roomId: number }> {
-    const res = await apiClient.post(`/api/v2/chat/users/${userId}/create`);
+    const res = await apiClient.post(CHAT.userCreate(userId));
     return res.data;
   },
 
   async markAsRead(roomId: string): Promise<void> {
-    await apiClient.post(`/api/v2/chat/rooms/${roomId}/read`);
+    await apiClient.post(CHAT.roomRead(roomId));
   },
 
   async fetchHistory(roomId: string): Promise<ChatMessage[]> {
-    const res = await apiClient.get(`/api/v2/chat/users/${roomId}/history`);
+    const res = await apiClient.get(CHAT.userHistory(roomId));
     return res.data;
   },
 
   async rephrase(originalMessage: string, scene: string | null): Promise<{ result: string }> {
-    const res = await apiClient.post('/api/v2/chat/ai/rephrase', { originalMessage, scene });
+    const res = await apiClient.post(CHAT.aiRephrase, { originalMessage, scene });
     return res.data;
   },
 };

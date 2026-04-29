@@ -1,4 +1,5 @@
 import apiClient from '../lib/axios';
+import { DAILY_GOALS, PROFILE } from '../constants/apiRoutes';
 
 export interface ProfileStats {
   totalSessions: number;
@@ -13,8 +14,8 @@ export interface ProfileStats {
 const ProfileStatsRepository = {
   async fetchStats(): Promise<ProfileStats> {
     const [statsRes, streakRes] = await Promise.all([
-      apiClient.get('/api/v2/users/me/stats'),
-      apiClient.get('/api/v2/daily-goals/streak'),
+      apiClient.get(PROFILE.meStats),
+      apiClient.get(DAILY_GOALS.streak),
     ]);
     return {
       totalSessions: statsRes.data.totalSessions ?? 0,

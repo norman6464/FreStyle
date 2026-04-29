@@ -1,4 +1,5 @@
 import apiClient from '../lib/axios';
+import { ADMIN } from '../constants/apiRoutes';
 
 export interface AdminInvitation {
   id: number;
@@ -21,17 +22,17 @@ export interface CreateInvitationForm {
 /** 管理者専用: メール招待 CRUD */
 class AdminInvitationRepository {
   async list(): Promise<AdminInvitation[]> {
-    const res = await apiClient.get<AdminInvitation[]>('/api/v2/admin/invitations');
+    const res = await apiClient.get<AdminInvitation[]>(ADMIN.invitations);
     return res.data;
   }
 
   async create(form: CreateInvitationForm): Promise<AdminInvitation> {
-    const res = await apiClient.post<AdminInvitation>('/api/v2/admin/invitations', form);
+    const res = await apiClient.post<AdminInvitation>(ADMIN.invitations, form);
     return res.data;
   }
 
   async cancel(id: number): Promise<void> {
-    await apiClient.delete(`/api/v2/admin/invitations/${id}`);
+    await apiClient.delete(ADMIN.invitationById(id));
   }
 }
 

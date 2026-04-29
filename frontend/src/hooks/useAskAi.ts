@@ -4,6 +4,7 @@ import { useAuth } from './useAuth';
 import { useAiChat } from './useAiChat';
 import { useWebSocketNative } from './useWebSocketNative';
 import { useAiSession } from './useAiSession';
+import { WS } from '../constants/apiRoutes';
 
 /**
  * AskAiPage フック
@@ -63,7 +64,7 @@ export function useAskAi() {
   const isPracticeMode = sessionType === 'practice';
 
   const wsUrl = user?.id && API_BASE_URL
-    ? toWsUrl(`${API_BASE_URL}/api/v2/ws/ai-chat`)
+    ? toWsUrl(`${API_BASE_URL}${WS.aiChat}`)
     : null;
 
   type AiWsInbound =

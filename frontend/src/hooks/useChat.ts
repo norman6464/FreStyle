@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import ChatRepository from '../repositories/ChatRepository';
+import { WS } from '../constants/apiRoutes';
 import { ChatMessage } from '../types';
 import { useMessageSelection } from './useMessageSelection';
 import { useToast } from './useToast';
@@ -87,7 +88,7 @@ export function useChat() {
 
   // WebSocket URL は http(s) → ws(s) に変換する。VITE_API_BASE_URL は http(s) で定義されている。
   const wsUrl = roomId && senderId && API_BASE_URL
-    ? toWsUrl(`${API_BASE_URL}/api/v2/ws/chat/${roomId}`)
+    ? toWsUrl(`${API_BASE_URL}${WS.chatRoom(roomId)}`)
     : null;
 
   type ChatWsInbound =

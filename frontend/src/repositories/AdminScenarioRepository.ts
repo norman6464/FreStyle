@@ -1,4 +1,5 @@
 import apiClient from '../lib/axios';
+import { ADMIN } from '../constants/apiRoutes';
 
 export interface AdminScenario {
   id: number;
@@ -25,22 +26,22 @@ export interface AdminScenarioForm {
  */
 class AdminScenarioRepository {
   async list(): Promise<AdminScenario[]> {
-    const res = await apiClient.get<AdminScenario[]>('/api/v2/admin/scenarios');
+    const res = await apiClient.get<AdminScenario[]>(ADMIN.scenarios);
     return res.data;
   }
 
   async create(form: AdminScenarioForm): Promise<AdminScenario> {
-    const res = await apiClient.post<AdminScenario>('/api/v2/admin/scenarios', form);
+    const res = await apiClient.post<AdminScenario>(ADMIN.scenarios, form);
     return res.data;
   }
 
   async update(id: number, form: AdminScenarioForm): Promise<AdminScenario> {
-    const res = await apiClient.put<AdminScenario>(`/api/v2/admin/scenarios/${id}`, form);
+    const res = await apiClient.put<AdminScenario>(ADMIN.scenarioById(id), form);
     return res.data;
   }
 
   async remove(id: number): Promise<void> {
-    await apiClient.delete(`/api/v2/admin/scenarios/${id}`);
+    await apiClient.delete(ADMIN.scenarioById(id));
   }
 }
 

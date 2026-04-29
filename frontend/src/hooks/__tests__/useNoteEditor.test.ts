@@ -6,13 +6,14 @@ import type { Note } from '../../types';
 const mockUpdateNote = vi.fn();
 
 const baseNote: Note = {
-  noteId: 'n1',
+  id: 1,
   userId: 1,
   title: '元タイトル',
   content: '元内容',
+  isPublic: false,
   isPinned: false,
-  createdAt: 1000,
-  updatedAt: 2000,
+  createdAt: '2024-01-01T00:00:00Z',
+  updatedAt: '2024-01-01T00:00:01Z',
 };
 
 describe('useNoteEditor', () => {
@@ -26,7 +27,7 @@ describe('useNoteEditor', () => {
   });
 
   it('selectedNoteからeditTitleとeditContentが初期化される', () => {
-    const { result } = renderHook(() => useNoteEditor('n1', baseNote, mockUpdateNote));
+    const { result } = renderHook(() => useNoteEditor(1, baseNote, mockUpdateNote));
     expect(result.current.editTitle).toBe('元タイトル');
     expect(result.current.editContent).toBe('元内容');
   });
@@ -38,7 +39,7 @@ describe('useNoteEditor', () => {
   });
 
   it('handleTitleChangeでeditTitleが更新される', () => {
-    const { result } = renderHook(() => useNoteEditor('n1', baseNote, mockUpdateNote));
+    const { result } = renderHook(() => useNoteEditor(1, baseNote, mockUpdateNote));
 
     act(() => {
       result.current.handleTitleChange('新タイトル');
@@ -48,7 +49,7 @@ describe('useNoteEditor', () => {
   });
 
   it('handleContentChangeでeditContentが更新される', () => {
-    const { result } = renderHook(() => useNoteEditor('n1', baseNote, mockUpdateNote));
+    const { result } = renderHook(() => useNoteEditor(1, baseNote, mockUpdateNote));
 
     act(() => {
       result.current.handleContentChange('新内容');
@@ -58,7 +59,7 @@ describe('useNoteEditor', () => {
   });
 
   it('タイトル変更後800msでupdateNoteが呼ばれる', () => {
-    const { result } = renderHook(() => useNoteEditor('n1', baseNote, mockUpdateNote));
+    const { result } = renderHook(() => useNoteEditor(1, baseNote, mockUpdateNote));
 
     act(() => {
       result.current.handleTitleChange('新タイトル');
@@ -70,7 +71,7 @@ describe('useNoteEditor', () => {
       vi.advanceTimersByTime(800);
     });
 
-    expect(mockUpdateNote).toHaveBeenCalledWith('n1', {
+    expect(mockUpdateNote).toHaveBeenCalledWith(1, {
       title: '新タイトル',
       content: '元内容',
       isPinned: false,
@@ -78,7 +79,7 @@ describe('useNoteEditor', () => {
   });
 
   it('内容変更後800msでupdateNoteが呼ばれる', () => {
-    const { result } = renderHook(() => useNoteEditor('n1', baseNote, mockUpdateNote));
+    const { result } = renderHook(() => useNoteEditor(1, baseNote, mockUpdateNote));
 
     act(() => {
       result.current.handleContentChange('新内容');
@@ -88,7 +89,7 @@ describe('useNoteEditor', () => {
       vi.advanceTimersByTime(800);
     });
 
-    expect(mockUpdateNote).toHaveBeenCalledWith('n1', {
+    expect(mockUpdateNote).toHaveBeenCalledWith(1, {
       title: '元タイトル',
       content: '新内容',
       isPinned: false,
@@ -96,7 +97,7 @@ describe('useNoteEditor', () => {
   });
 
   it('連続入力でデバウンスされる', () => {
-    const { result } = renderHook(() => useNoteEditor('n1', baseNote, mockUpdateNote));
+    const { result } = renderHook(() => useNoteEditor(1, baseNote, mockUpdateNote));
 
     act(() => { result.current.handleTitleChange('A'); });
     act(() => { vi.advanceTimersByTime(400); });
@@ -106,7 +107,7 @@ describe('useNoteEditor', () => {
     act(() => { vi.advanceTimersByTime(800); });
 
     expect(mockUpdateNote).toHaveBeenCalledTimes(1);
-    expect(mockUpdateNote).toHaveBeenCalledWith('n1', {
+    expect(mockUpdateNote).toHaveBeenCalledWith(1, {
       title: 'ABC',
       content: '元内容',
       isPinned: false,
@@ -114,16 +115,16 @@ describe('useNoteEditor', () => {
   });
 
   it('selectedNoteIdが変わるとeditTitle/editContentがリセットされる', () => {
-    const newNote: Note = { ...baseNote, noteId: 'n2', title: '別ノート', content: '別内容' };
+    const newNote: Note = { ...baseNote, id: 2, title: '別ノート', content: '別内容' };
 
     const { result, rerender } = renderHook(
       ({ noteId, note }) => useNoteEditor(noteId, note, mockUpdateNote),
-      { initialProps: { noteId: 'n1' as string | null, note: baseNote as Note | null } }
+      { initialProps: { noteId: 1 as number | null, note: baseNote as Note | null } }
     );
 
     expect(result.current.editTitle).toBe('元タイトル');
 
-    rerender({ noteId: 'n2', note: newNote });
+    rerender({ noteId: 2, note: newNote });
 
     expect(result.current.editTitle).toBe('別ノート');
     expect(result.current.editContent).toBe('別内容');
@@ -132,7 +133,7 @@ describe('useNoteEditor', () => {
   it('selectedNoteIdがnullになるとeditTitle/editContentが空になる', () => {
     const { result, rerender } = renderHook(
       ({ noteId, note }) => useNoteEditor(noteId, note, mockUpdateNote),
-      { initialProps: { noteId: 'n1' as string | null, note: baseNote as Note | null } }
+      { initialProps: { noteId: 1 as number | null, note: baseNote as Note | null } }
     );
 
     rerender({ noteId: null, note: null });
@@ -143,12 +144,12 @@ describe('useNoteEditor', () => {
 
   it('ピン留めノートの自動保存でisPinnedがtrueで送信される', () => {
     const pinnedNote: Note = { ...baseNote, isPinned: true };
-    const { result } = renderHook(() => useNoteEditor('n1', pinnedNote, mockUpdateNote));
+    const { result } = renderHook(() => useNoteEditor(1, pinnedNote, mockUpdateNote));
 
     act(() => { result.current.handleTitleChange('更新'); });
     act(() => { vi.advanceTimersByTime(800); });
 
-    expect(mockUpdateNote).toHaveBeenCalledWith('n1', {
+    expect(mockUpdateNote).toHaveBeenCalledWith(1, {
       title: '更新',
       content: '元内容',
       isPinned: true,
@@ -167,12 +168,12 @@ describe('useNoteEditor', () => {
   // 保存状態テスト
 
   it('saveStatusの初期値がidleである', () => {
-    const { result } = renderHook(() => useNoteEditor('n1', baseNote, mockUpdateNote));
+    const { result } = renderHook(() => useNoteEditor(1, baseNote, mockUpdateNote));
     expect(result.current.saveStatus).toBe('idle');
   });
 
   it('変更後にsaveStatusがunsavedになる', () => {
-    const { result } = renderHook(() => useNoteEditor('n1', baseNote, mockUpdateNote));
+    const { result } = renderHook(() => useNoteEditor(1, baseNote, mockUpdateNote));
 
     act(() => {
       result.current.handleTitleChange('変更後');
@@ -183,7 +184,7 @@ describe('useNoteEditor', () => {
 
   it('デバウンス完了後にsaveStatusがsavingになる', () => {
     mockUpdateNote.mockReturnValue(new Promise(() => {}));
-    const { result } = renderHook(() => useNoteEditor('n1', baseNote, mockUpdateNote));
+    const { result } = renderHook(() => useNoteEditor(1, baseNote, mockUpdateNote));
 
     act(() => {
       result.current.handleTitleChange('変更後');
@@ -198,7 +199,7 @@ describe('useNoteEditor', () => {
 
   it('保存完了後にsaveStatusがsavedになる', async () => {
     mockUpdateNote.mockResolvedValue(undefined);
-    const { result } = renderHook(() => useNoteEditor('n1', baseNote, mockUpdateNote));
+    const { result } = renderHook(() => useNoteEditor(1, baseNote, mockUpdateNote));
 
     act(() => {
       result.current.handleTitleChange('変更後');
@@ -213,7 +214,7 @@ describe('useNoteEditor', () => {
 
   it('forceSaveでデバウンスをスキップして即座に保存される', async () => {
     mockUpdateNote.mockResolvedValue(undefined);
-    const { result } = renderHook(() => useNoteEditor('n1', baseNote, mockUpdateNote));
+    const { result } = renderHook(() => useNoteEditor(1, baseNote, mockUpdateNote));
 
     act(() => {
       result.current.handleTitleChange('即時保存');
@@ -225,7 +226,7 @@ describe('useNoteEditor', () => {
       result.current.forceSave();
     });
 
-    expect(mockUpdateNote).toHaveBeenCalledWith('n1', {
+    expect(mockUpdateNote).toHaveBeenCalledWith(1, {
       title: '即時保存',
       content: '元内容',
       isPinned: false,
@@ -234,7 +235,7 @@ describe('useNoteEditor', () => {
 
   it('forceSaveで保存後にsaveStatusがsavedになる', async () => {
     mockUpdateNote.mockResolvedValue(undefined);
-    const { result } = renderHook(() => useNoteEditor('n1', baseNote, mockUpdateNote));
+    const { result } = renderHook(() => useNoteEditor(1, baseNote, mockUpdateNote));
 
     act(() => {
       result.current.handleTitleChange('変更');
@@ -248,7 +249,7 @@ describe('useNoteEditor', () => {
   });
 
   it('タイトルと内容を交互に変更してもデバウンスが正しく動作する', () => {
-    const { result } = renderHook(() => useNoteEditor('n1', baseNote, mockUpdateNote));
+    const { result } = renderHook(() => useNoteEditor(1, baseNote, mockUpdateNote));
 
     act(() => { result.current.handleTitleChange('新タイトル'); });
     act(() => { vi.advanceTimersByTime(400); });
@@ -256,7 +257,7 @@ describe('useNoteEditor', () => {
     act(() => { vi.advanceTimersByTime(800); });
 
     expect(mockUpdateNote).toHaveBeenCalledTimes(1);
-    expect(mockUpdateNote).toHaveBeenCalledWith('n1', {
+    expect(mockUpdateNote).toHaveBeenCalledWith(1, {
       title: '新タイトル',
       content: '新内容',
       isPinned: false,
@@ -264,7 +265,7 @@ describe('useNoteEditor', () => {
   });
 
   it('アンマウント時に保存タイマーがクリアされる', () => {
-    const { result, unmount } = renderHook(() => useNoteEditor('n1', baseNote, mockUpdateNote));
+    const { result, unmount } = renderHook(() => useNoteEditor(1, baseNote, mockUpdateNote));
 
     act(() => {
       result.current.handleTitleChange('変更中');
@@ -281,7 +282,7 @@ describe('useNoteEditor', () => {
 
   it('自動保存失敗時にsaveStatusがidleに戻る', async () => {
     mockUpdateNote.mockRejectedValue(new Error('保存失敗'));
-    const { result } = renderHook(() => useNoteEditor('n1', baseNote, mockUpdateNote));
+    const { result } = renderHook(() => useNoteEditor(1, baseNote, mockUpdateNote));
 
     act(() => {
       result.current.handleTitleChange('変更');
@@ -296,7 +297,7 @@ describe('useNoteEditor', () => {
 
   it('forceSave失敗時にsaveStatusがidleに戻る', async () => {
     mockUpdateNote.mockRejectedValue(new Error('保存失敗'));
-    const { result } = renderHook(() => useNoteEditor('n1', baseNote, mockUpdateNote));
+    const { result } = renderHook(() => useNoteEditor(1, baseNote, mockUpdateNote));
 
     await act(async () => {
       result.current.forceSave();

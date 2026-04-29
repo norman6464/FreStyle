@@ -8,7 +8,9 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/repository"
 )
 
-type ListScoreCardsByUserIDUseCase struct{ repo repository.ScoreCardRepository }
+type ListScoreCardsByUserIDUseCase struct {
+	repo repository.ScoreCardRepository
+}
 
 func NewListScoreCardsByUserIDUseCase(r repository.ScoreCardRepository) *ListScoreCardsByUserIDUseCase {
 	return &ListScoreCardsByUserIDUseCase{repo: r}
@@ -21,7 +23,9 @@ func (u *ListScoreCardsByUserIDUseCase) Execute(ctx context.Context, userID uint
 	return u.repo.ListByUserID(ctx, userID)
 }
 
-type CreateScoreCardUseCase struct{ repo repository.ScoreCardRepository }
+type CreateScoreCardUseCase struct {
+	repo repository.ScoreCardRepository
+}
 
 func NewCreateScoreCardUseCase(r repository.ScoreCardRepository) *CreateScoreCardUseCase {
 	return &CreateScoreCardUseCase{repo: r}

@@ -9,7 +9,9 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/repository"
 )
 
-type ListAdminInvitationsUseCase struct{ repo repository.AdminInvitationRepository }
+type ListAdminInvitationsUseCase struct {
+	repo repository.AdminInvitationRepository
+}
 
 func NewListAdminInvitationsUseCase(r repository.AdminInvitationRepository) *ListAdminInvitationsUseCase {
 	return &ListAdminInvitationsUseCase{repo: r}
@@ -56,7 +58,9 @@ func (u *CreateAdminInvitationUseCase) Execute(ctx context.Context, in CreateAdm
 	return inv, nil
 }
 
-type CancelAdminInvitationUseCase struct{ repo repository.AdminInvitationRepository }
+type CancelAdminInvitationUseCase struct {
+	repo repository.AdminInvitationRepository
+}
 
 func NewCancelAdminInvitationUseCase(r repository.AdminInvitationRepository) *CancelAdminInvitationUseCase {
 	return &CancelAdminInvitationUseCase{repo: r}

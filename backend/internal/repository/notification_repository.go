@@ -20,7 +20,9 @@ type NotificationRepository interface {
 
 type notificationRepository struct{ db *gorm.DB }
 
-func NewNotificationRepository(db *gorm.DB) NotificationRepository { return &notificationRepository{db: db} }
+func NewNotificationRepository(db *gorm.DB) NotificationRepository {
+	return &notificationRepository{db: db}
+}
 
 func (r *notificationRepository) ListByUserID(ctx context.Context, userID uint64) ([]domain.Notification, error) {
 	var rows []domain.Notification

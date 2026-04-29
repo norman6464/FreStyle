@@ -8,7 +8,9 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/repository"
 )
 
-type GetReminderSettingUseCase struct{ repo repository.ReminderSettingRepository }
+type GetReminderSettingUseCase struct {
+	repo repository.ReminderSettingRepository
+}
 
 func NewGetReminderSettingUseCase(r repository.ReminderSettingRepository) *GetReminderSettingUseCase {
 	return &GetReminderSettingUseCase{repo: r}
@@ -21,7 +23,9 @@ func (u *GetReminderSettingUseCase) Execute(ctx context.Context, userID uint64) 
 	return u.repo.FindByUserID(ctx, userID)
 }
 
-type UpsertReminderSettingUseCase struct{ repo repository.ReminderSettingRepository }
+type UpsertReminderSettingUseCase struct {
+	repo repository.ReminderSettingRepository
+}
 
 func NewUpsertReminderSettingUseCase(r repository.ReminderSettingRepository) *UpsertReminderSettingUseCase {
 	return &UpsertReminderSettingUseCase{repo: r}

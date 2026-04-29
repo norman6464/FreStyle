@@ -8,7 +8,9 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/repository"
 )
 
-type ListNotificationsUseCase struct{ repo repository.NotificationRepository }
+type ListNotificationsUseCase struct {
+	repo repository.NotificationRepository
+}
 
 func NewListNotificationsUseCase(r repository.NotificationRepository) *ListNotificationsUseCase {
 	return &ListNotificationsUseCase{repo: r}
@@ -21,7 +23,9 @@ func (u *ListNotificationsUseCase) Execute(ctx context.Context, userID uint64) (
 	return u.repo.ListByUserID(ctx, userID)
 }
 
-type MarkNotificationReadUseCase struct{ repo repository.NotificationRepository }
+type MarkNotificationReadUseCase struct {
+	repo repository.NotificationRepository
+}
 
 func NewMarkNotificationReadUseCase(r repository.NotificationRepository) *MarkNotificationReadUseCase {
 	return &MarkNotificationReadUseCase{repo: r}
@@ -37,7 +41,9 @@ func (u *MarkNotificationReadUseCase) Execute(ctx context.Context, userID, id ui
 	return u.repo.MarkRead(ctx, userID, id)
 }
 
-type MarkAllNotificationsReadUseCase struct{ repo repository.NotificationRepository }
+type MarkAllNotificationsReadUseCase struct {
+	repo repository.NotificationRepository
+}
 
 func NewMarkAllNotificationsReadUseCase(r repository.NotificationRepository) *MarkAllNotificationsReadUseCase {
 	return &MarkAllNotificationsReadUseCase{repo: r}
@@ -50,7 +56,9 @@ func (u *MarkAllNotificationsReadUseCase) Execute(ctx context.Context, userID ui
 	return u.repo.MarkAllRead(ctx, userID)
 }
 
-type CountUnreadNotificationsUseCase struct{ repo repository.NotificationRepository }
+type CountUnreadNotificationsUseCase struct {
+	repo repository.NotificationRepository
+}
 
 func NewCountUnreadNotificationsUseCase(r repository.NotificationRepository) *CountUnreadNotificationsUseCase {
 	return &CountUnreadNotificationsUseCase{repo: r}

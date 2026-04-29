@@ -9,12 +9,12 @@ import (
 )
 
 type stubNoteRepo struct {
-	rows           []domain.Note
-	one            *domain.Note
-	err            error
-	deletedUserID  uint64
-	deletedID      uint64
-	updatedNote    *domain.Note
+	rows          []domain.Note
+	one           *domain.Note
+	err           error
+	deletedUserID uint64
+	deletedID     uint64
+	updatedNote   *domain.Note
 }
 
 func (s *stubNoteRepo) ListByUserID(_ context.Context, _ uint64) ([]domain.Note, error) {

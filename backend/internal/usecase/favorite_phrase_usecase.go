@@ -8,7 +8,9 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/repository"
 )
 
-type ListFavoritePhrasesUseCase struct{ repo repository.FavoritePhraseRepository }
+type ListFavoritePhrasesUseCase struct {
+	repo repository.FavoritePhraseRepository
+}
 
 func NewListFavoritePhrasesUseCase(r repository.FavoritePhraseRepository) *ListFavoritePhrasesUseCase {
 	return &ListFavoritePhrasesUseCase{repo: r}
@@ -21,7 +23,9 @@ func (u *ListFavoritePhrasesUseCase) Execute(ctx context.Context, userID uint64)
 	return u.repo.ListByUserID(ctx, userID)
 }
 
-type AddFavoritePhraseUseCase struct{ repo repository.FavoritePhraseRepository }
+type AddFavoritePhraseUseCase struct {
+	repo repository.FavoritePhraseRepository
+}
 
 func NewAddFavoritePhraseUseCase(r repository.FavoritePhraseRepository) *AddFavoritePhraseUseCase {
 	return &AddFavoritePhraseUseCase{repo: r}
@@ -38,7 +42,9 @@ func (u *AddFavoritePhraseUseCase) Execute(ctx context.Context, userID uint64, p
 	return p, nil
 }
 
-type DeleteFavoritePhraseUseCase struct{ repo repository.FavoritePhraseRepository }
+type DeleteFavoritePhraseUseCase struct {
+	repo repository.FavoritePhraseRepository
+}
 
 func NewDeleteFavoritePhraseUseCase(r repository.FavoritePhraseRepository) *DeleteFavoritePhraseUseCase {
 	return &DeleteFavoritePhraseUseCase{repo: r}

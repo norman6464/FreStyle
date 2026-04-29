@@ -8,7 +8,9 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/repository"
 )
 
-type ListFriendshipsUseCase struct{ repo repository.FriendshipRepository }
+type ListFriendshipsUseCase struct {
+	repo repository.FriendshipRepository
+}
 
 func NewListFriendshipsUseCase(r repository.FriendshipRepository) *ListFriendshipsUseCase {
 	return &ListFriendshipsUseCase{repo: r}
@@ -21,7 +23,9 @@ func (u *ListFriendshipsUseCase) Execute(ctx context.Context, userID uint64) ([]
 	return u.repo.ListByUserID(ctx, userID)
 }
 
-type RequestFriendshipUseCase struct{ repo repository.FriendshipRepository }
+type RequestFriendshipUseCase struct {
+	repo repository.FriendshipRepository
+}
 
 func NewRequestFriendshipUseCase(r repository.FriendshipRepository) *RequestFriendshipUseCase {
 	return &RequestFriendshipUseCase{repo: r}
@@ -41,7 +45,9 @@ func (u *RequestFriendshipUseCase) Execute(ctx context.Context, requesterID, add
 	return f, nil
 }
 
-type RespondFriendshipUseCase struct{ repo repository.FriendshipRepository }
+type RespondFriendshipUseCase struct {
+	repo repository.FriendshipRepository
+}
 
 func NewRespondFriendshipUseCase(r repository.FriendshipRepository) *RespondFriendshipUseCase {
 	return &RespondFriendshipUseCase{repo: r}
@@ -60,7 +66,9 @@ func (u *RespondFriendshipUseCase) Execute(ctx context.Context, id uint64, accep
 
 // FollowUserUseCase は単方向フォロー（accepted の Friendship を即時作成）。
 // フロントの follow ボタンが確認なしで完了する仕様に合わせる。
-type FollowUserUseCase struct{ repo repository.FriendshipRepository }
+type FollowUserUseCase struct {
+	repo repository.FriendshipRepository
+}
 
 func NewFollowUserUseCase(r repository.FriendshipRepository) *FollowUserUseCase {
 	return &FollowUserUseCase{repo: r}
@@ -89,7 +97,9 @@ func (u *FollowUserUseCase) Execute(ctx context.Context, followerID, targetID ui
 	return f, nil
 }
 
-type UnfollowUserUseCase struct{ repo repository.FriendshipRepository }
+type UnfollowUserUseCase struct {
+	repo repository.FriendshipRepository
+}
 
 func NewUnfollowUserUseCase(r repository.FriendshipRepository) *UnfollowUserUseCase {
 	return &UnfollowUserUseCase{repo: r}
@@ -102,7 +112,9 @@ func (u *UnfollowUserUseCase) Execute(ctx context.Context, followerID, targetID 
 	return u.repo.DeleteBetween(ctx, followerID, targetID)
 }
 
-type ListFollowingUseCase struct{ repo repository.FriendshipRepository }
+type ListFollowingUseCase struct {
+	repo repository.FriendshipRepository
+}
 
 func NewListFollowingUseCase(r repository.FriendshipRepository) *ListFollowingUseCase {
 	return &ListFollowingUseCase{repo: r}
@@ -115,7 +127,9 @@ func (u *ListFollowingUseCase) Execute(ctx context.Context, userID uint64) ([]do
 	return u.repo.ListAcceptedFollowing(ctx, userID)
 }
 
-type ListFollowersUseCase struct{ repo repository.FriendshipRepository }
+type ListFollowersUseCase struct {
+	repo repository.FriendshipRepository
+}
 
 func NewListFollowersUseCase(r repository.FriendshipRepository) *ListFollowersUseCase {
 	return &ListFollowersUseCase{repo: r}
@@ -134,7 +148,9 @@ type FollowStatus struct {
 	IsFollowedBy bool `json:"isFollowedBy"`
 }
 
-type GetFollowStatusUseCase struct{ repo repository.FriendshipRepository }
+type GetFollowStatusUseCase struct {
+	repo repository.FriendshipRepository
+}
 
 func NewGetFollowStatusUseCase(r repository.FriendshipRepository) *GetFollowStatusUseCase {
 	return &GetFollowStatusUseCase{repo: r}

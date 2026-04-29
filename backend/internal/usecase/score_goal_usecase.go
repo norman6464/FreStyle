@@ -8,7 +8,9 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/repository"
 )
 
-type GetScoreGoalUseCase struct{ repo repository.ScoreGoalRepository }
+type GetScoreGoalUseCase struct {
+	repo repository.ScoreGoalRepository
+}
 
 func NewGetScoreGoalUseCase(r repository.ScoreGoalRepository) *GetScoreGoalUseCase {
 	return &GetScoreGoalUseCase{repo: r}
@@ -21,7 +23,9 @@ func (u *GetScoreGoalUseCase) Execute(ctx context.Context, userID uint64) (*doma
 	return u.repo.FindByUserID(ctx, userID)
 }
 
-type UpsertScoreGoalUseCase struct{ repo repository.ScoreGoalRepository }
+type UpsertScoreGoalUseCase struct {
+	repo repository.ScoreGoalRepository
+}
 
 func NewUpsertScoreGoalUseCase(r repository.ScoreGoalRepository) *UpsertScoreGoalUseCase {
 	return &UpsertScoreGoalUseCase{repo: r}

@@ -3,12 +3,12 @@ package domain
 import "time"
 
 type WeeklyChallenge struct {
-	ID         uint64    `gorm:"primaryKey" json:"id"`
-	WeekStart  time.Time `gorm:"column:week_start;type:date" json:"weekStart"`
-	Title      string    `gorm:"column:title" json:"title"`
-	Description string   `gorm:"column:description" json:"description"`
-	IsActive   bool      `gorm:"column:is_active" json:"isActive"`
-	CreatedAt  time.Time `gorm:"column:created_at" json:"createdAt"`
+	ID          uint64    `gorm:"primaryKey" json:"id"`
+	WeekStart   time.Time `gorm:"column:week_start;type:date" json:"weekStart"`
+	Title       string    `gorm:"column:title" json:"title"`
+	Description string    `gorm:"column:description" json:"description"`
+	IsActive    bool      `gorm:"column:is_active" json:"isActive"`
+	CreatedAt   time.Time `gorm:"column:created_at" json:"createdAt"`
 }
 
 func (WeeklyChallenge) TableName() string { return "weekly_challenges" }

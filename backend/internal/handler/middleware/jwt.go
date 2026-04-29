@@ -4,16 +4,23 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
 const (
-	ContextKeyCognitoSub = "cognitoSub"
-	ContextKeyEmail      = "email"
-	CookieAccessToken    = "access_token"
+	ContextKeyCognitoSub    = "cognitoSub"
+	ContextKeyEmail         = "email"
+	ContextKeyCognitoGroups = "cognitoGroups"
+	CookieAccessToken       = "access_token"
 )
+
+// AdminGroupName は Cognito User Pool 上の admin グループ名。
+// resjimkalto89890@gmail.com など管理者ユーザーが所属する。
+// Spring Boot 時代と同じく "ADMIN" を採用。
+const AdminGroupName = "ADMIN"
 
 // JWTAuth は HttpOnly Cookie の access_token を検証する Gin middleware。
 // 現状は payload (claims) の base64 デコードのみで、署名 (JWKS) 検証は別 issue で実装する。
@@ -39,8 +46,47 @@ func JWTAuth() gin.HandlerFunc {
 		if email, ok := claims["email"].(string); ok {
 			c.Set(ContextKeyEmail, email)
 		}
+		// cognito:groups は []string として claim に入る。Spring Boot 時代と同じ
+		// "ADMIN" group を見て管理者判定する想定。
+		if raw, ok := claims["cognito:groups"]; ok {
+			groups := ToStringSliceFromClaim(raw)
+			c.Set(ContextKeyCognitoGroups, groups)
+		}
 		c.Next()
 	}
+}
+
+// ToStringSliceFromClaim は claim の `cognito:groups` を []string に変換する。
+// JSON unmarshal 結果が []any なので逐次 string assert する。
+// auth_handler 等の外部からも使うため exported。
+func ToStringSliceFromClaim(v any) []string {
+	arr, ok := v.([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(arr))
+	for _, item := range arr {
+		if s, ok := item.(string); ok {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// CognitoGroupsFromContext は context にセットされた cognito:groups を返す。
+// 未設定 / 不正型の場合は nil。
+func CognitoGroupsFromContext(c *gin.Context) []string {
+	v, ok := c.Get(ContextKeyCognitoGroups)
+	if !ok {
+		return nil
+	}
+	groups, _ := v.([]string)
+	return groups
+}
+
+// IsAdminFromGroups は groups に AdminGroupName が含まれているかを判定する。
+func IsAdminFromGroups(groups []string) bool {
+	return slices.Contains(groups, AdminGroupName)
 }
 
 func decodeClaims(jwt string) (map[string]any, error) {

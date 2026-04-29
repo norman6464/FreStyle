@@ -14,9 +14,9 @@ func (ChatRoom) TableName() string { return "chat_rooms" }
 
 // ChatRoomMember はルームに所属するユーザー。
 type ChatRoomMember struct {
-	ID       uint64 `gorm:"primaryKey" json:"id"`
-	RoomID   uint64 `gorm:"column:room_id;index" json:"roomId"`
-	UserID   uint64 `gorm:"column:user_id;index" json:"userId"`
+	ID       uint64    `gorm:"primaryKey" json:"id"`
+	RoomID   uint64    `gorm:"column:room_id;index" json:"roomId"`
+	UserID   uint64    `gorm:"column:user_id;index" json:"userId"`
 	JoinedAt time.Time `gorm:"column:joined_at" json:"joinedAt"`
 }
 

@@ -8,10 +8,10 @@ import (
 )
 
 type stubFavPhraseRepo struct {
-	rows           []domain.FavoritePhrase
-	err            error
-	deletedUserID  uint64
-	deletedID      uint64
+	rows          []domain.FavoritePhrase
+	err           error
+	deletedUserID uint64
+	deletedID     uint64
 }
 
 func (s *stubFavPhraseRepo) ListByUserID(_ context.Context, _ uint64) ([]domain.FavoritePhrase, error) {

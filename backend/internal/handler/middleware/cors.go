@@ -8,10 +8,10 @@ import (
 
 // 許可するオリジン。Spring Boot の CorsConfig と同じ値を Go 側でも維持する。
 var allowedOrigins = map[string]struct{}{
-	"https://normanblog.com":      {},
-	"http://normanblog.com":       {},
-	"http://localhost:5173":       {},
-	"https://dcd3m6lwt0z8u.cloudfront.net": {},
+	"https://normanblog.com":                                          {},
+	"http://normanblog.com":                                           {},
+	"http://localhost:5173":                                           {},
+	"https://dcd3m6lwt0z8u.cloudfront.net":                            {},
 	"http://fre-style-bucket.s3-website-ap-northeast-1.amazonaws.com": {},
 }
 

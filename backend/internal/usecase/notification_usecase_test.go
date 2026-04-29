@@ -16,7 +16,7 @@ func (s *stubNotificationRepo) ListByUserID(_ context.Context, _ uint64) ([]doma
 	return s.rows, s.err
 }
 func (s *stubNotificationRepo) MarkRead(_ context.Context, _, _ uint64) error { return s.err }
-func (s *stubNotificationRepo) MarkAllRead(_ context.Context, _ uint64) error  { return s.err }
+func (s *stubNotificationRepo) MarkAllRead(_ context.Context, _ uint64) error { return s.err }
 func (s *stubNotificationRepo) CountUnread(_ context.Context, _ uint64) (int64, error) {
 	return int64(len(s.rows)), s.err
 }

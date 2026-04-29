@@ -9,7 +9,9 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/repository"
 )
 
-type ListLearningReportsUseCase struct{ repo repository.LearningReportRepository }
+type ListLearningReportsUseCase struct {
+	repo repository.LearningReportRepository
+}
 
 func NewListLearningReportsUseCase(r repository.LearningReportRepository) *ListLearningReportsUseCase {
 	return &ListLearningReportsUseCase{repo: r}

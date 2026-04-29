@@ -137,9 +137,6 @@
 | **Monitoring** | CloudWatch Logs | ECS Task / RDS のログ集約 |
 | **CI/CD** | GitHub Actions | 自動テスト・E2E (Playwright) ・cd-frontend / cd-backend |
 
-> **未使用のサービス（過去の README に記載があったもの）**: API Gateway / Lambda / WAF / X-Ray / SNS / Bedrock。
-> WebSocket は API Gateway + Lambda 構成ではなく、**ECS 上の Go backend が `gorilla/websocket` で直接 upgrade** する単一経路に統一しています。Bedrock 連携と AI スコアリングは現状ハンドラのスケルトンのみで、本番投入は後続 PR で行います。
-
 ---
 
 ## Architecture Highlights（工夫した点）

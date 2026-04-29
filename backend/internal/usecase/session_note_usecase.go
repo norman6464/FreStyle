@@ -8,7 +8,9 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/repository"
 )
 
-type GetSessionNoteUseCase struct{ repo repository.SessionNoteRepository }
+type GetSessionNoteUseCase struct {
+	repo repository.SessionNoteRepository
+}
 
 func NewGetSessionNoteUseCase(r repository.SessionNoteRepository) *GetSessionNoteUseCase {
 	return &GetSessionNoteUseCase{repo: r}
@@ -21,7 +23,9 @@ func (u *GetSessionNoteUseCase) Execute(ctx context.Context, sessionID uint64) (
 	return u.repo.FindBySessionID(ctx, sessionID)
 }
 
-type UpsertSessionNoteUseCase struct{ repo repository.SessionNoteRepository }
+type UpsertSessionNoteUseCase struct {
+	repo repository.SessionNoteRepository
+}
 
 func NewUpsertSessionNoteUseCase(r repository.SessionNoteRepository) *UpsertSessionNoteUseCase {
 	return &UpsertSessionNoteUseCase{repo: r}

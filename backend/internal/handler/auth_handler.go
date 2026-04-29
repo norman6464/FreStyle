@@ -41,8 +41,9 @@ func NewAuthHandler(getCurrentUser *usecase.GetCurrentUserUseCase, users reposit
 // Me は現在ログイン中のユーザー情報を返す。
 // レスポンスは domain.User の各フィールド + 派生 `isAdmin` / `groups` を含める。
 // isAdmin の判定:
-//   1) Cognito の `cognito:groups` claim に "ADMIN" が含まれている (Spring Boot 時代と同等)
-//   2) または DB users.role が super_admin / company_admin
+//  1. Cognito の `cognito:groups` claim に "ADMIN" が含まれている (Spring Boot 時代と同等)
+//  2. または DB users.role が super_admin / company_admin
+//
 // 上記いずれかで true。フロントは `isAdmin` を見て管理画面の表示可否を決める。
 func (h *AuthHandler) Me(c *gin.Context) {
 	sub, ok := c.Get(middleware.ContextKeyCognitoSub)

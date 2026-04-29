@@ -8,7 +8,9 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/repository"
 )
 
-type GetScoreTrendUseCase struct{ repo repository.ScoreTrendRepository }
+type GetScoreTrendUseCase struct {
+	repo repository.ScoreTrendRepository
+}
 
 func NewGetScoreTrendUseCase(r repository.ScoreTrendRepository) *GetScoreTrendUseCase {
 	return &GetScoreTrendUseCase{repo: r}

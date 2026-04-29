@@ -7,7 +7,9 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/repository"
 )
 
-type ListConversationTemplatesUseCase struct{ repo repository.ConversationTemplateRepository }
+type ListConversationTemplatesUseCase struct {
+	repo repository.ConversationTemplateRepository
+}
 
 func NewListConversationTemplatesUseCase(r repository.ConversationTemplateRepository) *ListConversationTemplatesUseCase {
 	return &ListConversationTemplatesUseCase{repo: r}

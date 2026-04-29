@@ -9,7 +9,9 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/repository"
 )
 
-type GetDailyGoalUseCase struct{ repo repository.DailyGoalRepository }
+type GetDailyGoalUseCase struct {
+	repo repository.DailyGoalRepository
+}
 
 func NewGetDailyGoalUseCase(r repository.DailyGoalRepository) *GetDailyGoalUseCase {
 	return &GetDailyGoalUseCase{repo: r}
@@ -22,7 +24,9 @@ func (u *GetDailyGoalUseCase) Execute(ctx context.Context, userID uint64, date t
 	return u.repo.FindByUserAndDate(ctx, userID, date)
 }
 
-type UpsertDailyGoalUseCase struct{ repo repository.DailyGoalRepository }
+type UpsertDailyGoalUseCase struct {
+	repo repository.DailyGoalRepository
+}
 
 func NewUpsertDailyGoalUseCase(r repository.DailyGoalRepository) *UpsertDailyGoalUseCase {
 	return &UpsertDailyGoalUseCase{repo: r}

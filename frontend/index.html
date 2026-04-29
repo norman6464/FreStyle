@@ -15,12 +15,17 @@
         - connect-src 'self' https://api.normanblog.com https://*.amazoncognito.com wss://api.normanblog.com
                                                          : API / WebSocket / Cognito callback
         - form-action 'self' https://*.amazoncognito.com: ログイン flow が Cognito Hosted UI へ POST
-        - frame-ancestors 'none'                        : Clickjacking 対策（任意ページからの iframe 禁止）
         - base-uri 'self'                               : <base> 注入対策
         - object-src 'none'                             : <object>/<embed>/<applet> 禁止
         - upgrade-insecure-requests                     : http リソース参照を https に強制
+
+      NOTE: `frame-ancestors` は CSP 仕様で <meta> 経由では無視される（HTTP ヘッダー専用）。
+      代わりに CloudFront ResponseHeadersPolicy で `X-Frame-Options: DENY` を配信して
+      Clickjacking を等価に防御している（infrastructure リポ：runtime/cloudfront-security-headers.yml）。
+      `report-uri` / `report-to` / `sandbox` も同様 meta では無視されるので、配信が必要な場合は
+      CloudFront 側に追加する。
     -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.normanblog.com https://*.amazoncognito.com wss://api.normanblog.com; form-action 'self' https://*.amazoncognito.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; upgrade-insecure-requests" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.normanblog.com https://*.amazoncognito.com wss://api.normanblog.com; form-action 'self' https://*.amazoncognito.com; base-uri 'self'; object-src 'none'; upgrade-insecure-requests" />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
 
     <title>FreStyle</title>

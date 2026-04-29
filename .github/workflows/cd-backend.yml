@@ -165,9 +165,35 @@ jobs:
           TASK_ROLE=$(aws cloudformation describe-stacks --region $AWS_REGION \
             --stack-name $STACK_PFX-iam \
             --query 'Stacks[0].Outputs[?OutputKey==`TaskRoleArn`].OutputValue' --output text)
-          # PostgreSQL master password の Secret に切替
-          DB_PWD_ARN=$(aws secretsmanager describe-secret --region $AWS_REGION \
-            --secret-id $STACK_PFX/pg-master-password --query 'ARN' --output text)
+          # PostgreSQL master password の Secret ARN を解決する。
+          # scheduled-start.yml と同じロジック:
+          # 1) RDS スタック Output `MasterUserSecretArn`
+          # 2) `aws rds describe-db-instances` の MasterUserSecret.SecretArn
+          #    (modify-db-instance --manage-master-user-password で後付け管理化された場合)
+          # 3) 旧 manual Secret `frestyle-prod/pg-master-password`
+          # AWS managed secret は JSON 形式なので :password:: jsonField suffix を付ける。
+          MANAGED_SECRET_ARN=$(aws cloudformation describe-stacks --region $AWS_REGION \
+            --stack-name $STACK_PFX-rds-postgres \
+            --query 'Stacks[0].Outputs[?OutputKey==`MasterUserSecretArn`].OutputValue' --output text 2>/dev/null || true)
+          if [ -z "$MANAGED_SECRET_ARN" ] || [ "$MANAGED_SECRET_ARN" = "None" ]; then
+            DB_INSTANCE_ID=$(aws cloudformation list-stack-resources --region $AWS_REGION \
+              --stack-name $STACK_PFX-rds-postgres \
+              --query "StackResourceSummaries[?ResourceType=='AWS::RDS::DBInstance'].PhysicalResourceId | [0]" \
+              --output text 2>/dev/null || true)
+            if [ -n "$DB_INSTANCE_ID" ] && [ "$DB_INSTANCE_ID" != "None" ]; then
+              MANAGED_SECRET_ARN=$(aws rds describe-db-instances --region $AWS_REGION \
+                --db-instance-identifier "$DB_INSTANCE_ID" \
+                --query 'DBInstances[0].MasterUserSecret.SecretArn' --output text 2>/dev/null || true)
+            fi
+          fi
+          if [ -n "$MANAGED_SECRET_ARN" ] && [ "$MANAGED_SECRET_ARN" != "None" ]; then
+            echo "Using AWS-managed master user secret: $MANAGED_SECRET_ARN"
+            DB_PWD_ARN="${MANAGED_SECRET_ARN}:password::"
+          else
+            echo "Managed secret not found — fallback to manual Secret pg-master-password"
+            DB_PWD_ARN=$(aws secretsmanager describe-secret --region $AWS_REGION \
+              --secret-id $STACK_PFX/pg-master-password --query 'ARN' --output text)
+          fi
           COG_SEC_ARN=$(aws secretsmanager describe-secret --region $AWS_REGION \
             --secret-id $STACK_PFX/cognito-client-secret --query 'ARN' --output text)
 

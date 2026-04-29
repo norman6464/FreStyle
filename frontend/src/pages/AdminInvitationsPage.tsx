@@ -8,6 +8,7 @@ import AdminInvitationRepository, {
 import type { RootState } from '../store';
 import Loading from '../components/Loading';
 import PageIntro from '../components/ui/PageIntro';
+import { logger } from '../lib/logger';
 
 const EMPTY_FORM: CreateInvitationForm = {
   email: '',
@@ -41,8 +42,7 @@ export default function AdminInvitationsPage() {
       setError(null);
     } catch (e) {
       setError('招待一覧の取得に失敗しました');
-      // eslint-disable-next-line no-console
-      console.error(e);
+      logger.error(e);
     } finally {
       setLoading(false);
     }
@@ -72,8 +72,7 @@ export default function AdminInvitationsPage() {
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
         '招待の作成に失敗しました';
       setError(msg);
-      // eslint-disable-next-line no-console
-      console.error(err);
+      logger.error(err);
     } finally {
       setSubmitting(false);
     }
@@ -86,8 +85,7 @@ export default function AdminInvitationsPage() {
       await fetchAll();
     } catch (err) {
       setError('招待のキャンセルに失敗しました');
-      // eslint-disable-next-line no-console
-      console.error(err);
+      logger.error(err);
     }
   };
 

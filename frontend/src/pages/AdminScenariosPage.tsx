@@ -8,6 +8,7 @@ import AdminScenarioRepository, {
 import type { RootState } from '../store';
 import Loading from '../components/Loading';
 import PageIntro from '../components/ui/PageIntro';
+import { logger } from '../lib/logger';
 
 const EMPTY_FORM: AdminScenarioForm = {
   name: '',
@@ -43,8 +44,7 @@ export default function AdminScenariosPage() {
       setError(null);
     } catch (e) {
       setError('シナリオの取得に失敗しました');
-      // eslint-disable-next-line no-console
-      console.error(e);
+      logger.error(e);
     } finally {
       setLoading(false);
     }
@@ -91,8 +91,7 @@ export default function AdminScenariosPage() {
       await fetchAll();
     } catch (err) {
       setError('保存に失敗しました');
-      // eslint-disable-next-line no-console
-      console.error(err);
+      logger.error(err);
     } finally {
       setSubmitting(false);
     }
@@ -105,8 +104,7 @@ export default function AdminScenariosPage() {
       await fetchAll();
     } catch (err) {
       setError('削除に失敗しました');
-      // eslint-disable-next-line no-console
-      console.error(err);
+      logger.error(err);
     }
   };
 

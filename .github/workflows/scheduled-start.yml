@@ -176,18 +176,34 @@ jobs:
             --stack-name $STACK_PFX-iam \
             --query 'Stacks[0].Outputs[?OutputKey==`TaskRoleArn`].OutputValue' --output text)
           # PostgreSQL master password の Secret ARN を解決する（短期 credential 方針）。
-          # 1) RDS スタックが ManageMasterUserPassword=true で作られていれば、AWS が自動生成した
-          #    `MasterUserSecretArn` を output として export している。これは JSON 形式 Secret なので
-          #    ECS Task で参照するときは `:password::` の jsonField suffix が必要。
-          # 2) 無ければ旧来の手動 Secret `frestyle-prod/pg-master-password` (plain string) を使う。
+          # 解決順序:
+          #   1) RDS スタックの Output `MasterUserSecretArn`（テンプレが ManageMasterUserPassword=true で
+          #      deploy された場合のみ存在）
+          #   2) `aws rds describe-db-instances` の `MasterUserSecret.SecretArn`
+          #      （`aws rds modify-db-instance --manage-master-user-password` で後付け管理化された
+          #      既存 DB はこちら経由でしか取れない）
+          #   3) 旧来の手動 Secret `frestyle-prod/pg-master-password`（plain string、後方互換）
+          # AWS Managed Secret は JSON `{"username":..,"password":..}` 形式なので、ECS Task の
+          # Secrets で参照するときは `:password::` の jsonField suffix を付ける必要がある。
           MANAGED_SECRET_ARN=$(aws cloudformation describe-stacks --region $AWS_REGION \
             --stack-name $STACK_PFX-rds-postgres \
             --query 'Stacks[0].Outputs[?OutputKey==`MasterUserSecretArn`].OutputValue' --output text 2>/dev/null || true)
+          if [ -z "$MANAGED_SECRET_ARN" ] || [ "$MANAGED_SECRET_ARN" = "None" ]; then
+            DB_INSTANCE_ID=$(aws cloudformation list-stack-resources --region $AWS_REGION \
+              --stack-name $STACK_PFX-rds-postgres \
+              --query "StackResourceSummaries[?ResourceType=='AWS::RDS::DBInstance'].PhysicalResourceId | [0]" \
+              --output text 2>/dev/null || true)
+            if [ -n "$DB_INSTANCE_ID" ] && [ "$DB_INSTANCE_ID" != "None" ]; then
+              MANAGED_SECRET_ARN=$(aws rds describe-db-instances --region $AWS_REGION \
+                --db-instance-identifier "$DB_INSTANCE_ID" \
+                --query 'DBInstances[0].MasterUserSecret.SecretArn' --output text 2>/dev/null || true)
+            fi
+          fi
           if [ -n "$MANAGED_SECRET_ARN" ] && [ "$MANAGED_SECRET_ARN" != "None" ]; then
             echo "Using AWS-managed master user secret: $MANAGED_SECRET_ARN"
             DB_PWD_ARN="${MANAGED_SECRET_ARN}:password::"
           else
-            echo "MasterUserSecretArn output not found — fallback to manual Secret pg-master-password"
+            echo "Managed secret not found — fallback to manual Secret pg-master-password"
             DB_PWD_ARN=$(aws secretsmanager describe-secret --region $AWS_REGION \
               --secret-id $STACK_PFX/pg-master-password --query 'ARN' --output text)
           fi

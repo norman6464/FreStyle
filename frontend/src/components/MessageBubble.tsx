@@ -8,7 +8,7 @@ interface MessageBubbleProps {
   content: string;
   id: string;
   senderName?: string;
-  createdAt?: number;
+  createdAt?: string;
   onDelete?: ((id: string) => void) | null;
   onRephrase?: ((content: string) => void) | null;
   onCopy?: ((id: string, content: string) => void) | null;

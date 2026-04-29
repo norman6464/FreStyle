@@ -41,8 +41,10 @@ export interface ChatMessageDto {
 /**
  * ChatMessage はチャット画面で表示するメッセージ view。
  * UI 用フィールド (`isSender`, `isDeleted`, `senderName`) を持ち、Hook 側で算出される。
- * 既存コードベースに合わせて `id: string` / `createdAt?: number` も残しているが、
- * 将来的に DTO へ統一する。
+ *
+ * createdAt は backend WebSocket / REST が ISO 8601 string で送るためそれに揃える。
+ * 旧コードの `createdAt?: number` 想定は誤りで、formatHourMinute / formatMonthDay は
+ * string / number 双方を受け付けるため UI 側に影響なし。
  */
 export interface ChatMessage {
   id: string;
@@ -50,7 +52,7 @@ export interface ChatMessage {
   senderId: number;
   senderName?: string;
   content: string;
-  createdAt?: number;
+  createdAt?: string;
   isSender: boolean;
   isDeleted?: boolean;
 }

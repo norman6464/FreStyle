@@ -1,5 +1,6 @@
-import { Node, mergeAttributes } from '@tiptap/core';
-import { ReactNodeViewRenderer } from '@tiptap/react';
+import { Node, mergeAttributes, type RawCommands, type CommandProps } from '@tiptap/core';
+import { ReactNodeViewRenderer, type ReactNodeViewProps } from '@tiptap/react';
+import type { ComponentType } from 'react';
 import ToggleListNodeView from '../components/ToggleListNodeView';
 
 export const ToggleSummary = Node.create({
@@ -60,21 +61,27 @@ export const ToggleList = Node.create({
   },
 
   addNodeView() {
-    return ReactNodeViewRenderer(ToggleListNodeView);
+    // ToggleListNodeView は ReactNodeViewProps<HTMLElement> 拡張型なので、
+    // ReactNodeViewRenderer の厳密シグネチャに合わせて cast する。
+    return ReactNodeViewRenderer(
+      ToggleListNodeView as ComponentType<ReactNodeViewProps<HTMLElement>>,
+    );
   },
 
-  addCommands() {
+  addCommands(): Partial<RawCommands> {
     return {
-      setToggleList: () => ({ commands }) => {
-        return commands.insertContent({
-          type: 'toggleList',
-          attrs: { open: true },
-          content: [
-            { type: 'toggleSummary', content: [{ type: 'text', text: 'トグル' }] },
-            { type: 'toggleContent', content: [{ type: 'paragraph' }] },
-          ],
-        });
-      },
+      setToggleList:
+        () =>
+        ({ commands }: CommandProps) => {
+          return commands.insertContent({
+            type: 'toggleList',
+            attrs: { open: true },
+            content: [
+              { type: 'toggleSummary', content: [{ type: 'text', text: 'トグル' }] },
+              { type: 'toggleContent', content: [{ type: 'paragraph' }] },
+            ],
+          });
+        },
     };
   },
 });

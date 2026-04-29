@@ -77,7 +77,7 @@ export default memo(function AiSessionListItem({
       {!isEditing && (
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
-            onClick={(e) => { e.stopPropagation(); onStartEdit({ id, title }); }}
+            onClick={(e) => { e.stopPropagation(); onStartEdit({ id, title: title ?? '' }); }}
             className="p-1 hover:bg-blue-900/30 rounded"
             title="タイトルを編集"
             aria-label="タイトルを編集"

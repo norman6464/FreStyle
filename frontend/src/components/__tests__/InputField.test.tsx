@@ -33,7 +33,12 @@ describe('InputField', () => {
     render(<InputField label="メール" name="email" value="test" onChange={mockOnChange} />);
 
     fireEvent.click(screen.getByRole('button'));
-    expect(mockOnChange).toHaveBeenCalledWith({ target: { name: 'email', value: '' } });
+    // InputField は ChangeEvent<HTMLInputElement> 互換の synthetic event を生成する。
+    // target は実 input element なので name / value のみ検証する。
+    expect(mockOnChange).toHaveBeenCalledTimes(1);
+    const callArg = mockOnChange.mock.calls[0][0];
+    expect(callArg.target.name).toBe('email');
+    expect(callArg.target.value).toBe('');
   });
 
   it('空の値ではクリアボタンが表示されない', () => {

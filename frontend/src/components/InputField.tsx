@@ -8,7 +8,15 @@ interface InputFieldProps {
   name: string;
   type?: string;
   value: string;
-  onChange: (e: ChangeEvent<HTMLInputElement> | { target: { name: string; value: string } }) => void;
+  /**
+   * onChange は `(e: ChangeEvent<HTMLInputElement>) => void` を厳密に要求する。
+   *
+   * 旧コードは `ChangeEvent | { target: {name, value} }` の union を許していたが、
+   * 関数パラメータの contravariance により呼び出し側の narrow handler が代入不能になる
+   * TS2322 を 9 ページで起こしていた。handleClear 側で synthetic event を組み立てて
+   * 型を満たすことで解消する。
+   */
+  onChange: (e: ChangeEvent<HTMLInputElement>) => void;
   placeholder?: string;
   error?: string;
   disabled?: boolean;
@@ -32,7 +40,15 @@ export default function InputField({
 
   const handleClear = () => {
     setInputValue('');
-    onChange({ target: { name, value: '' } });
+    // 呼び出し側が e.target.value / e.target.name のみ参照する前提で
+    // ChangeEvent<HTMLInputElement> 互換の最小オブジェクトを synthesize する。
+    // 完全な ChangeEvent ではないが構造的に target.{name,value} を保証する。
+    const syntheticTarget = Object.assign(document.createElement('input'), { name, value: '' });
+    const syntheticEvent = {
+      target: syntheticTarget,
+      currentTarget: syntheticTarget,
+    } as unknown as ChangeEvent<HTMLInputElement>;
+    onChange(syntheticEvent);
   };
 
   return (

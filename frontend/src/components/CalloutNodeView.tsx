@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { NodeViewWrapper, NodeViewContent } from '@tiptap/react';
+import { NodeViewWrapper, NodeViewContent, type ReactNodeViewProps } from '@tiptap/react';
 import type { CalloutType } from '../extensions/CalloutExtension';
 
 const CALLOUT_STYLES: Record<CalloutType, { bg: string; border: string }> = {
@@ -16,10 +16,13 @@ const CALLOUT_TYPES: { type: CalloutType; emoji: string; label: string }[] = [
   { type: 'success', emoji: '✅', label: '成功' },
 ];
 
-interface CalloutNodeViewProps {
-  node: { attrs: { type: CalloutType; emoji: string } };
-  updateAttributes: (attrs: Partial<{ type: CalloutType; emoji: string }>) => void;
-}
+// Tiptap の ReactNodeViewProps<HTMLElement> は最小公約数の型なので、
+// 我々が addAttributes で定義した node.attrs 形状を上書きする。
+type CalloutNodeViewProps = ReactNodeViewProps<HTMLElement> & {
+  node: ReactNodeViewProps<HTMLElement>['node'] & {
+    attrs: { type: CalloutType; emoji: string };
+  };
+};
 
 export default function CalloutNodeView({ node, updateAttributes }: CalloutNodeViewProps) {
   const [showMenu, setShowMenu] = useState(false);

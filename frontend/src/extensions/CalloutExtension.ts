@@ -1,5 +1,6 @@
-import { Node, mergeAttributes } from '@tiptap/core';
-import { ReactNodeViewRenderer } from '@tiptap/react';
+import { Node, mergeAttributes, type RawCommands, type CommandProps } from '@tiptap/core';
+import { ReactNodeViewRenderer, type ReactNodeViewProps } from '@tiptap/react';
+import type { ComponentType } from 'react';
 import CalloutNodeView from '../components/CalloutNodeView';
 
 export type CalloutType = 'info' | 'warning' | 'error' | 'success';
@@ -34,25 +35,33 @@ export const Callout = Node.create({
   },
 
   addNodeView() {
-    return ReactNodeViewRenderer(CalloutNodeView);
+    // CalloutNodeView は ReactNodeViewProps<HTMLElement> を拡張した形状で型付けされているが、
+    // ReactNodeViewRenderer は厳密な ComponentType を要求するためここで cast する。
+    return ReactNodeViewRenderer(
+      CalloutNodeView as ComponentType<ReactNodeViewProps<HTMLElement>>,
+    );
   },
 
-  addCommands() {
+  addCommands(): Partial<RawCommands> {
     return {
-      setCallout: () => ({ commands }) => {
-        return commands.insertContent({
-          type: 'callout',
-          attrs: { type: 'info', emoji: '💡' },
-          content: [{ type: 'paragraph' }],
-        });
-      },
-      setCalloutWithType: (calloutType: CalloutType, emoji: string) => ({ commands }) => {
-        return commands.insertContent({
-          type: 'callout',
-          attrs: { type: calloutType, emoji },
-          content: [{ type: 'paragraph' }],
-        });
-      },
+      setCallout:
+        () =>
+        ({ commands }: CommandProps) => {
+          return commands.insertContent({
+            type: 'callout',
+            attrs: { type: 'info', emoji: '💡' },
+            content: [{ type: 'paragraph' }],
+          });
+        },
+      setCalloutWithType:
+        (calloutType: string, emoji: string) =>
+        ({ commands }: CommandProps) => {
+          return commands.insertContent({
+            type: 'callout',
+            attrs: { type: calloutType, emoji },
+            content: [{ type: 'paragraph' }],
+          });
+        },
     };
   },
 });

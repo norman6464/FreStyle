@@ -84,7 +84,9 @@ export function useAskAi() {
     onMessage: (raw) => {
       const data = raw as AiWsInbound;
       if (data.type === 'message') {
-        handleIncomingMessage(data);
+        // backend からの WS 形状は AiMessage と互換性があるため、type フィールドを除いて
+        // 既存 handler に渡す。AiMessage は domain.AiMessage と 1:1 (DOP)。
+        handleIncomingMessage(data as unknown as Parameters<typeof handleIncomingMessage>[0]);
         return;
       }
       if (data.type === 'session') {
@@ -93,7 +95,7 @@ export function useAskAi() {
         return;
       }
       if (data.type === 'scorecard') {
-        handleIncomingScoreCard(data);
+        handleIncomingScoreCard(data as unknown as Parameters<typeof handleIncomingScoreCard>[0]);
         return;
       }
       if (data.type === 'session-deleted') {

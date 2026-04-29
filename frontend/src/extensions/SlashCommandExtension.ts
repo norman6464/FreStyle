@@ -3,6 +3,7 @@ import Suggestion from '@tiptap/suggestion';
 import type { SuggestionOptions } from '@tiptap/suggestion';
 import type { Editor } from '@tiptap/core';
 import { SLASH_COMMANDS, type SlashCommand } from '../constants/slashCommands';
+import { logger } from '../lib/logger';
 
 function executeCommand(editor: Editor, command: SlashCommand) {
   const chain = editor.chain().focus();
@@ -85,7 +86,7 @@ function executeCommand(editor: Editor, command: SlashCommand) {
     }
     default: {
       const _exhaustive: never = command.action;
-      console.error('Unknown slash command action:', _exhaustive);
+      logger.error('Unknown slash command action:', _exhaustive);
       break;
     }
   }

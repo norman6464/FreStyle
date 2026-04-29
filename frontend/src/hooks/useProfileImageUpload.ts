@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import ProfileRepository from '../repositories/ProfileRepository';
+import { logger } from '../lib/logger';
 
 const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
 
@@ -17,7 +18,7 @@ export function useProfileImageUpload() {
       await ProfileRepository.uploadToS3(uploadUrl, file);
       return imageUrl;
     } catch (error) {
-      console.error('プロフィール画像のアップロードに失敗しました:', error);
+      logger.error('プロフィール画像のアップロードに失敗しました:', error);
       return null;
     } finally {
       setUploading(false);

@@ -66,5 +66,10 @@ declare module '@tiptap/core' {
     toggleListCustomCommands: {
       setToggleList: () => ReturnType;
     };
+    /** MathExtension のコマンド (KaTeX 数式) */
+    mathCommands: {
+      insertMathBlock: (latex?: string) => ReturnType;
+      insertMathInline: (latex?: string) => ReturnType;
+    };
   }
 }

@@ -165,7 +165,9 @@ export function useChat() {
       return;
     }
     setShowSceneSelector(true);
-  }, [selection.selectedMessages, showToast, selection]);
+    // selection.selectedMessages は selection オブジェクト経由で参照しているため
+    // ネスト依存は冗長。selection 全体を deps にすれば済む。
+  }, [selection, showToast]);
 
   const handleSceneSelect = useCallback((scene: string | null) => {
     setShowSceneSelector(false);

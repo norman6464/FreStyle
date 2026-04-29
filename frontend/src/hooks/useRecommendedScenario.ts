@@ -49,7 +49,11 @@ export function useRecommendedScenario(weakAxis: AxisScore | null) {
     } else {
       setScenario(null);
     }
-  }, [weakAxis?.axis, scenarios]);
+    // weakAxis オブジェクト全体を依存に入れると識別子変化のたびに再計算が走るため、
+    // 内部で参照する .axis のみを deps に書く設計だが、exhaustive-deps が
+    // weakAxis 全体も要求するため両方を含める（mapping は weakAxis.axis のみ参照、
+    // 二重評価でも setScenario の冪等性で副作用は無い）。
+  }, [weakAxis, weakAxis?.axis, scenarios]);
 
   return { scenario, loading };
 }

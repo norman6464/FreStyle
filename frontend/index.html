@@ -1,17 +1,31 @@
 <!doctype html>
-<html lang="en">
+<html lang="ja">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!--
+      Content-Security-Policy:
+        - default-src 'self'                            : 既定で同一オリジン以外を遮断
+        - script-src 'self'                             : インラインスクリプト禁止（Self-XSS / 注入対策）
+        - style-src 'self' 'unsafe-inline'              : Tailwind / React の inline style 用
+        - img-src 'self' data: https:                   : avatar / CDN 経由画像 / data URL
+        - font-src 'self' data:                         : ローカルフォント + base64 埋め込み
+        - connect-src 'self' https://api.normanblog.com https://*.amazoncognito.com wss://api.normanblog.com
+                                                         : API / WebSocket / Cognito callback
+        - form-action 'self' https://*.amazoncognito.com: ログイン flow が Cognito Hosted UI へ POST
+        - frame-ancestors 'none'                        : Clickjacking 対策（任意ページからの iframe 禁止）
+        - base-uri 'self'                               : <base> 注入対策
+        - object-src 'none'                             : <object>/<embed>/<applet> 禁止
+        - upgrade-insecure-requests                     : http リソース参照を https に強制
+    -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.normanblog.com https://*.amazoncognito.com wss://api.normanblog.com; form-action 'self' https://*.amazoncognito.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; upgrade-insecure-requests" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+
     <title>FreStyle</title>
-    <script>
-      try {
-        if (localStorage.getItem('theme') === 'light') {
-          document.documentElement.classList.add('light');
-        }
-      } catch (e) {}
-    </script>
+    <!-- theme 初期化は public/theme-init.js に外出し（CSP: script-src 'self' を満たすため） -->
+    <script src="/theme-init.js"></script>
   </head>
   <body style="background-color: var(--color-surface, #1A1A1A);">
     <div id="root"></div>

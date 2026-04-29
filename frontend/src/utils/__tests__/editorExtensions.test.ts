@@ -51,13 +51,17 @@ vi.mock('../../extensions/SearchReplaceExtension', () => ({
 vi.mock('../../extensions/FullWidthHeadingEnter', () => ({
   FullWidthHeadingEnter: 'FullWidthHeadingEnter',
 }));
+vi.mock('tiptap-markdown', () => ({
+  Markdown: { configure: vi.fn(() => 'Markdown') },
+}));
 
 import { createEditorExtensions } from '../editorExtensions';
 
 describe('createEditorExtensions', () => {
-  it('27個のエクステンションを返す', () => {
+  it('28個のエクステンションを返す', () => {
+    // tiptap-markdown 導入で 27 → 28 になった (Zenn 互換 markdown PR A)。
     const extensions = createEditorExtensions();
-    expect(extensions).toHaveLength(27);
+    expect(extensions).toHaveLength(28);
   });
 
   it('主要なエクステンションが含まれる', () => {
@@ -91,8 +95,11 @@ describe('createEditorExtensions', () => {
     expect(extensions[0]).toBe('StarterKit');
   });
 
-  it('配列の末尾がFullWidthHeadingEnterである', () => {
+  it('配列の末尾が Markdown extension である', () => {
+    // tiptap-markdown が一番最後に追加される (PR A)。
+    // 旧テストは FullWidthHeadingEnter を末尾と想定していたが、Markdown 追加後は
+    // それが最終要素になる。
     const extensions = createEditorExtensions();
-    expect(extensions[extensions.length - 1]).toBe('FullWidthHeadingEnter');
+    expect(extensions[extensions.length - 1]).toBe('Markdown');
   });
 });

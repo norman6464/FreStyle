@@ -23,12 +23,23 @@ interface SearchReplaceExtensionStorage {
   currentIndex: number;
 }
 
+/**
+ * tiptap-markdown が提供する storage。
+ * editor.storage.markdown.getMarkdown() で現在の editor 内容を Markdown 文字列で取得できる。
+ * 公式 README: https://github.com/aguingand/tiptap-markdown
+ */
+interface TiptapMarkdownStorage {
+  getMarkdown: () => string;
+}
+
 declare module '@tiptap/core' {
   interface Storage {
     /** SlashCommandExtension の storage（image upload / emoji / youtube URL ハンドラ） */
     slashCommand: SlashCommandStorage;
     /** SearchReplaceExtension の storage（検索語・置換語・カレント位置・マッチ結果） */
     searchReplace: SearchReplaceExtensionStorage;
+    /** tiptap-markdown の storage（getMarkdown() で現在エディタ内容を Markdown 文字列で取得） */
+    markdown: TiptapMarkdownStorage;
   }
 
   // Tiptap の RawCommands は Commands<T> のうち「value が object 型」のキーだけを

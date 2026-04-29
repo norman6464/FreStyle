@@ -67,18 +67,26 @@ vi.mock('../../extensions/EmbedCardExtension', () => ({
 vi.mock('../../extensions/ServiceEmbedExtension', () => ({
   ServiceEmbed: 'ServiceEmbed',
 }));
+vi.mock('../../extensions/FootnoteExtension', () => ({
+  FootnoteRef: 'FootnoteRef',
+  FootnoteList: 'FootnoteList',
+}));
+vi.mock('../../extensions/EmojiShortcodeExtension', () => ({
+  EmojiShortcode: 'EmojiShortcode',
+}));
 
 import { createEditorExtensions } from '../editorExtensions';
 
 describe('createEditorExtensions', () => {
-  it('33個のエクステンションを返す', () => {
+  it('36個のエクステンションを返す', () => {
     // PR A: tiptap-markdown +1
     // PR C: MathBlock + MathInline +2
     // PR D: Mermaid +1
     // PR F: EmbedCard +1
-    // PR G: ServiceEmbed +1 → 27 + 1 + 2 + 1 + 1 + 1 = 33
+    // PR G: ServiceEmbed +1
+    // PR H: FootnoteRef + FootnoteList + EmojiShortcode +3 → 27 + 1 + 2 + 1 + 1 + 1 + 3 = 36
     const extensions = createEditorExtensions();
-    expect(extensions).toHaveLength(33);
+    expect(extensions).toHaveLength(36);
   });
 
   it('主要なエクステンションが含まれる', () => {

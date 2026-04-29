@@ -31,6 +31,8 @@ import { MathBlock, MathInline } from '../extensions/MathExtension';
 import { Mermaid } from '../extensions/MermaidExtension';
 import { EmbedCard } from '../extensions/EmbedCardExtension';
 import { ServiceEmbed } from '../extensions/ServiceEmbedExtension';
+import { FootnoteRef, FootnoteList } from '../extensions/FootnoteExtension';
+import { EmojiShortcode } from '../extensions/EmojiShortcodeExtension';
 
 export function createEditorExtensions() {
   return [
@@ -102,6 +104,10 @@ export function createEditorExtensions() {
     EmbedCard,
     // YouTube / Twitter / GitHub 専用埋め込み (URL 単独行) - PR G
     ServiceEmbed,
+    // 脚注 [^N] / 絵文字 shortcode :smile: - PR H
+    FootnoteRef,
+    FootnoteList,
+    EmojiShortcode,
     // tiptap-markdown は editor.storage.markdown.getMarkdown() / setContent(md) を提供する。
     // - html: false       editor 内の生 HTML 出力を抑制し pure な Markdown シリアライズに統一
     // - tightLists: true  リストアイテム間の空行を出力しない (Zenn / GitHub 準拠)

@@ -5,7 +5,8 @@ import Protected from './utils/Protected';
 import AppShell from './components/layout/AppShell';
 import ErrorBoundary from './components/ErrorBoundary';
 import Loading from './components/Loading';
-import { ToastProvider, useToast } from './hooks/useToast';
+import { ToastProvider } from './components/ToastProvider';
+import { useToast } from './hooks/useToast';
 import ToastContainer from './components/ToastContainer';
 
 // 認証不要ページ

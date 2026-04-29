@@ -204,7 +204,11 @@ export const SearchReplaceExtension = Extension.create({
   },
 
   addProseMirrorPlugins() {
-    const extensionThis = this;
+    // ProseMirror plugin の state.apply() は state config object のメソッドとして呼ばれるため、
+    // 関数内 this は extension を指さない。storage はオブジェクト参照（mutate しても同じ参照）
+    // なのでここで closure に取り込んで apply 内から参照する。
+    // `const that = this` 形式の this aliasing は @typescript-eslint/no-this-alias で禁止されている。
+    const storage = this.storage as SearchReplaceState;
 
     return [
       new Plugin({
@@ -216,7 +220,6 @@ export const SearchReplaceExtension = Extension.create({
           apply(tr, oldDecorations) {
             const meta = tr.getMeta(searchReplacePluginKey);
             if (meta || tr.docChanged) {
-              const storage = extensionThis.storage as SearchReplaceState;
               const results = findMatches(tr.doc, storage.searchTerm, storage.caseSensitive);
               storage.results = results;
 

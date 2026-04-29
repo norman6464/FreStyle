@@ -1,41 +1,16 @@
-import { createContext, useCallback, useContext, useState, ReactNode } from 'react';
-import type { ToastType } from '../components/Toast';
+import { useContext } from 'react';
+import { ToastContext } from './useToastContext';
 
-interface ToastItem {
-  id: string;
-  type: ToastType;
-  message: string;
-}
-
-interface ToastContextValue {
-  toasts: ToastItem[];
-  showToast: (type: ToastType, message: string) => void;
-  removeToast: (id: string) => void;
-}
-
-const ToastContext = createContext<ToastContextValue | null>(null);
-
-let toastId = 0;
-
-export function ToastProvider({ children }: { children: ReactNode }) {
-  const [toasts, setToasts] = useState<ToastItem[]>([]);
-
-  const showToast = useCallback((type: ToastType, message: string) => {
-    const id = String(++toastId);
-    setToasts((prev) => [...prev, { id, type, message }]);
-  }, []);
-
-  const removeToast = useCallback((id: string) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
-  }, []);
-
-  return (
-    <ToastContext.Provider value={{ toasts, showToast, removeToast }}>
-      {children}
-    </ToastContext.Provider>
-  );
-}
-
+/**
+ * useToast は ToastContext から showToast / removeToast / toasts を取り出す hook。
+ *
+ * ToastProvider component は src/components/ToastProvider.tsx に分離した。
+ * 同一ファイルで component + hook を export していると Vite React HMR の
+ * react-refresh/only-export-components ルールに引っかかるため。
+ *
+ * 旧コードとの互換性を保つため `import { ToastProvider } from '../hooks/useToast'`
+ * の参照は ../components/ToastProvider に書き換える必要がある。
+ */
 export function useToast() {
   const context = useContext(ToastContext);
   if (!context) {

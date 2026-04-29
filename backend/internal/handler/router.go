@@ -62,6 +62,8 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	registerSocialRoutes(authed, deps)
 	registerSettingsRoutes(authed, deps)
 	registerAdminRoutes(authed, deps)
+	// 埋め込みカード (Note エディタの URL カード) は認証必須。SSRF / OGP fetch は handler 内で防御済み。
+	registerEmbedRoutes(authed)
 	registerWebSocketRoutes(authed)
 
 	return r

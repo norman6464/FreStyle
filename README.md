@@ -113,30 +113,44 @@
   <img src="https://skillicons.dev/icons?i=githubactions&theme=light" alt="CI/CD">
 </a>
 
+<h3>Testing</h3>
+<a href="https://skillicons.dev">
+  <img src="https://skillicons.dev/icons?i=vitest,playwright&theme=light" alt="Testing">
+</a>
+
+> Vitest + React Testing Library（フロントエンド単体）/ `go test`（バックエンド単体）/ Playwright（本番 E2E スモーク、Chromium）
+
 ### AWS サービス詳細
+
+実際にプロビジョン済みのリソースのみ記載しています（CFn テンプレートは [`norman6464/frestyle-infrastructure`](https://github.com/norman6464/frestyle-infrastructure) で管理）。
 
 | カテゴリ | サービス | 用途 |
 |---------|----------|------|
-| **Compute** | ECS (Fargate), ECR | コンテナ実行・イメージ管理 |
-| **Networking** | CloudFront, ALB, Route 53 | CDN・ロードバランシング・DNS |
-| **Database** | RDS (PostgreSQL 16), DynamoDB | リレーショナルDB（GORM 経由）・NoSQL |
-| **Storage** | S3 | フロントエンドホスティング・画像保存 |
-| **Auth** | Cognito | JWT認証 (HttpOnly Cookie) |
-| **AI** | Bedrock | AIチャット（コミュニケーションスコア評価） |
-| **Messaging** | SQS | 非同期レポート生成 |
-| **Security** | WAF | XSS・SQLi・DDoS防御・レート制限 |
-| **Monitoring** | CloudWatch, X-Ray, SNS | メトリクス・分散トレーシング・エラー通知 |
-| **CI/CD** | GitHub Actions | 自動テスト・デプロイ |
+| **Compute** | ECS Fargate, ECR | Go (Gin) backend のコンテナ実行・イメージ管理 |
+| **Networking** | CloudFront, ALB, Route 53, ACM | CDN（フロント SPA + セキュリティヘッダー）・ロードバランシング・DNS（旧 Cloudflare から移管）・TLS 証明書 |
+| **Database** | RDS PostgreSQL 16, DynamoDB | リレーショナル DB（GORM 経由）・チャットメッセージ NoSQL |
+| **Storage** | S3 | フロントエンド静的ホスティング・ノート画像 |
+| **Auth** | Cognito | OAuth 2.0 / OIDC + JWT (HttpOnly Cookie)・SRP / Hosted UI |
+| **Secrets** | Secrets Manager | RDS マスターパスワード（`ManageMasterUserPassword` で自動ローテーション） |
+| **Messaging** | SQS (+ DLQ) | 非同期レポート生成キュー（Spring Boot 時代の遺産、Go 移行後は段階的に整理予定） |
+| **Identity** | IAM (OIDC Provider) | GitHub Actions の AssumeRole（長期キー廃止、一時クレデンシャル運用） |
+| **Monitoring** | CloudWatch Logs | ECS Task / RDS のログ集約 |
+| **CI/CD** | GitHub Actions | 自動テスト・E2E (Playwright) ・cd-frontend / cd-backend |
+
+> **未使用のサービス（過去の README に記載があったもの）**: API Gateway / Lambda / WAF / X-Ray / SNS / Bedrock。
+> WebSocket は API Gateway + Lambda 構成ではなく、**ECS 上の Go backend が `gorilla/websocket` で直接 upgrade** する単一経路に統一しています。Bedrock 連携と AI スコアリングは現状ハンドラのスケルトンのみで、本番投入は後続 PR で行います。
 
 ---
 
 ## Architecture Highlights（工夫した点）
 
-### ① WebSocket と HTTP API の構成を用途別に完全分離
-- **WebSocket**：API Gateway + Lambda + DynamoDB
-- **HTTP（Rest API）**：ECS（Fargate） + Go (Gin)
+### ① HTTP / WebSocket を ECS + Go で単一経路化
+- **HTTP API / WebSocket** ともに **ECS Fargate 上の Go (Gin)** に集約
+- WebSocket は `gorilla/websocket` で ALB → ECS Task に直接 upgrade（Sticky Session 不要・stateless 化）
+- 旧構成（Spring Boot 時代）の **API Gateway + Lambda + DynamoDB** のサーバレス WS は廃止し、ALB を 1 本にまとめてコスト・運用・可観測性を一元化
+- フロントエンドは `wss://api.normanblog.com/api/v2/ws/...` で接続、Cognito JWT (HttpOnly Cookie) を Origin チェックと併用して認証
 
-リアルタイム性と低コストを優先した WebSocket と、安定稼働・複雑処理に適した HTTP API を分離し、性能・コスト・可用性の最適化を実現。
+> 旧 Lambda + API Gateway 構成を廃止した理由は本 README 末尾の「なぜアーキテクチャーを変えたのか」を参照。
 
 ### ② JWT（HttpOnly Cookie）× Cognito の安全な認証設計
 - JWT を HttpOnly Cookie に保存（XSS 対策）
@@ -302,11 +316,12 @@ sequenceDiagram
 ---
 
 ## 苦労した点・学び
-- WebSocket を ECS で保持するか、サーバーレスにするかの検討 → コスト / 工数削減 / レイテンシから Lambda + APIGW に決定
-- Spring Security の JWT / JWK / Cookie 設計（Go 移行後は Gin middleware で再実装）
-- ALB の TLS Termination と ECS の Backend 構成
-- Spring Boot の JVM オーバーヘッドにより Fargate 2 vCPU / 4 GB を要し、ランニングコストが嵩んでいた → Go (Gin + GORM) に置き換えて 0.25 vCPU / 0.5 GB へ縮退する設計に切替
-- 既存資産を捨てない移行戦略の設計（path-based routing による Spring Boot / Go 並行運用）
+- **WebSocket の構成方針転換**: 当初は Lambda + API Gateway のサーバレス WebSocket でコスト最適化していたが、トラフィック増加時のスケール特性とコネクション管理（DynamoDB の `connectionId` テーブル）の運用負荷が嵩み、最終的に **ECS + `gorilla/websocket` の単一経路** に統一
+- Spring Security の JWT / JWK / Cookie 設計を Go 移行後は **Gin middleware（`golang-jwt/jwt` + Cognito JWKS キャッシュ）** で再実装
+- ALB の TLS Termination（ACM 証明書）と ECS Backend 間は HTTP（VPC 内）で割り切り、外向き HTTPS 強制は CloudFront の ResponseHeadersPolicy + HSTS で多層化
+- Spring Boot の JVM オーバーヘッドにより Fargate 2 vCPU / 4 GB を要し、ランニングコストが嵩んでいた → Go (Gin + GORM) に置き換えて **0.25 vCPU / 0.5 GB へ縮退（約 80% コスト削減）**
+- 既存資産を捨てない移行戦略の設計（path-based routing による Spring Boot / Go 並行運用 → 全機能 cutover 後に Spring Boot を完全削除）
+- RDS マスターパスワードを **Secrets Manager の自動ローテーション**（`ManageMasterUserPassword=true`）に切替えて、`.env` での平文保管を撤廃
 
 ---
 
@@ -332,18 +347,18 @@ sequenceDiagram
 
 ---
 
-## 技術選定理由（WebSocket / サーバーレス構成）
+## 技術選定理由（WebSocket / ECS 一本化）
 
-1. コスト最適化（従量課金）  
-   ECS 常時稼働より大幅に低コスト。
+旧構成（API Gateway + Lambda + DynamoDB）を廃止し、**ECS + Go (`gorilla/websocket`) の単一経路** に統一した理由:
 
-2. 低レイテンシ & シンプルな処理  
-   Lambda → DynamoDB の最短経路。
-
-3. サーバーレスで構成統一
-   - フルマネージド
-   - 自動スケーリング
-   - 運用負荷最小
+1. **複雑なクエリの直行性**  
+   AI フィードバックでユーザの過去スコア・性格傾向・チャット履歴を組み合わせる必要があり、DynamoDB だけだと application 側の join が肥大化。RDS（PostgreSQL）+ DynamoDB のハイブリッドにし、ECS 上の Go から両方を直接叩く方が単純。
+2. **トラフィック増加時のスケール**  
+   Lambda 同時実行数の上限・cold start・WS 切断時の再接続コスト（API Gateway の billing 単位）が運用上のリスクになっていた。ECS Fargate なら `desired count` で水平スケールでき、ALB のヘルスチェックで自己修復可能。
+3. **可観測性とデプロイ単位の統一**  
+   HTTP / WebSocket を 1 つの ECS Service に同居させると、ログ・メトリクス・デプロイ単位が 1 本化されて運用が楽（CloudWatch Logs Group を分けずに済む）。
+4. **コスト**  
+   Go バイナリは 0.25 vCPU / 0.5 GB Fargate で常時稼働しても月 $9 前後。WS のコネクション課金が無くなる分、トラフィックが伸びるほど ECS の方が有利。
 
 ---
 
@@ -530,6 +545,19 @@ npm test
 
 - Vitest + React Testing Library
 - 慣習: `vi.stubGlobal('localStorage', createMockStorage())` で localStorage をスタブ、`fireEvent` でイベント発火
+
+#### E2E (Playwright)
+
+```bash
+cd frontend
+npm run e2e:install   # 初回のみ（Chromium + OS deps）
+npm run e2e            # 本番に対してスモーク 6 ケース
+npm run e2e:ui         # UI モードでデバッグ
+PLAYWRIGHT_BASE_URL=http://localhost:5173 npm run e2e   # ローカル dev server 経由
+```
+
+- 認証前スモーク（SPA ロード / セキュリティヘッダー / CSP / API health / 認証 401 / SockJS 廃止確認）を **GitHub Actions の `E2E - Playwright Smoke` workflow** で push to main / PR / `workflow_dispatch` 時に実行
+- 詳細・運用手順・将来の認証付き E2E への拡張ガイドは [`norman6464/frestyle-infrastructure` の docs/17-e2e-playwright-runbook.md](https://github.com/norman6464/frestyle-infrastructure/blob/main/docs/17-e2e-playwright-runbook.md) を参照
 
 ---
 

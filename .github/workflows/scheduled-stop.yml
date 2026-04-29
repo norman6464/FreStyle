@@ -7,10 +7,13 @@ name: Scheduled - Stop (destroy ECS + ALB + RDS at night)
 # 順序:
 #   1) ECS destroy（DB connection を全断するため最初に）
 #   2) ALB destroy
-#   3) RDS の手動スナップショット作成（識別子: frestyle-prod-nightly-YYYYMMDD-HHMMSS）
-#   4) snapshot available まで wait
-#   5) RDS スタック destroy（CFn DeletionPolicy: Snapshot により auto final snapshot も作成される）
-#   6) 古い nightly snapshot を 7 世代だけ残してクリーンアップ
+#   3) RDS インスタンスの DeletionProtection を OFF に modify (self-heal)
+#      ※ rds-postgres.yml は本番テンプレで DeletionProtection: true 固定 (誤削除ガード) のため、
+#        delete-stack 直前にだけ modify-db-instance --no-deletion-protection で外す
+#   4) RDS の手動スナップショット作成（識別子: frestyle-prod-nightly-YYYYMMDD-HHMMSS）
+#   5) snapshot available まで wait
+#   6) RDS スタック destroy（CFn DeletionPolicy: Snapshot により auto final snapshot も作成される）
+#   7) 古い nightly snapshot を 7 世代だけ残してクリーンアップ
 #
 # 復旧は scheduled-start.yml が翌日 07:00 JST に自動実行。
 # 緊急で起こしたい場合は手動で gh workflow run scheduled-start.yml を叩く。
@@ -20,6 +23,7 @@ name: Scheduled - Stop (destroy ECS + ALB + RDS at night)
 #   - cloudformation:DeleteStack / DescribeStacks / DescribeStackResources / ListStackResources
 #   - rds:CreateDBSnapshot / DescribeDBSnapshots / DeleteDBSnapshot
 #   - rds:DescribeDBInstances
+#   - rds:ModifyDBInstance (deletion protection の自動 OFF 用、本 PR で追加)
 
 on:
   schedule:
@@ -90,31 +94,77 @@ jobs:
             echo "ALB stack already absent, skip"
           fi
 
-      - name: Resolve RDS instance identifier
+      - name: Resolve RDS instance identifier and stack status
         id: rds
         run: |
-          # RDS スタックから DBInstance リソースの PhysicalResourceId（=DBInstanceIdentifier）を取得。
-          # CFn が自動採番した識別子を直接拾うのが最も確実。
+          # describe-stacks は DELETE_FAILED 状態でも成功する (スタックは「論理的には存在」)。
+          # 本当に削除完了 (記録自体が無い) のときだけ skip する。
           if ! aws cloudformation describe-stacks --region $AWS_REGION --stack-name $RDS_STACK >/dev/null 2>&1; then
             echo "RDS stack ($RDS_STACK) not found — already destroyed. Skip subsequent steps."
             echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          STACK_STATUS=$(aws cloudformation describe-stacks --region $AWS_REGION \
+            --stack-name $RDS_STACK --query 'Stacks[0].StackStatus' --output text)
+          # CFn が採番した DBInstanceIdentifier を直接取得。
+          # DELETE_FAILED の場合 list-stack-resources が部分結果しか返さないことがあるため
+          # 命名規則 fallback (frestyle-prod-postgres) を用意して self-heal を可能にする。
           DB_ID=$(aws cloudformation list-stack-resources --region $AWS_REGION \
             --stack-name $RDS_STACK \
             --query "StackResourceSummaries[?ResourceType=='AWS::RDS::DBInstance'].PhysicalResourceId | [0]" \
-            --output text)
+            --output text 2>/dev/null || true)
           if [ -z "$DB_ID" ] || [ "$DB_ID" = "None" ]; then
-            echo "::error::Could not resolve DBInstanceIdentifier from $RDS_STACK"
-            exit 1
+            DB_ID="${STACK_PFX}-postgres"
+            echo "list-stack-resources returned empty; falling back to convention-based id: $DB_ID"
           fi
-          echo "Resolved DBInstanceIdentifier: $DB_ID"
+          echo "Resolved DBInstanceIdentifier: $DB_ID (stack status: $STACK_STATUS)"
           SNAPSHOT_ID="${NIGHTLY_SNAPSHOT_PREFIX}-$(date -u +%Y%m%d-%H%M%S)"
           {
             echo "skip=false"
             echo "db_id=$DB_ID"
+            echo "stack_status=$STACK_STATUS"
             echo "snapshot_id=$SNAPSHOT_ID"
           } >> "$GITHUB_OUTPUT"
+
+      - name: Disable deletion protection on RDS instance (self-heal)
+        if: steps.rds.outputs.skip != 'true'
+        env:
+          DB_ID: ${{ steps.rds.outputs.db_id }}
+        run: |
+          # rds-postgres.yml は本番で DeletionProtection: true で deploy される (コンソール誤削除ガード)。
+          # delete-stack するとリソースハンドラが「Cannot delete protected DB Instance」で失敗するため、
+          # scheduled-stop の直前に modify-db-instance で false に切り替えてから destroy する。
+          if ! aws rds describe-db-instances --region $AWS_REGION \
+            --db-instance-identifier "$DB_ID" >/dev/null 2>&1; then
+            echo "DB instance $DB_ID does not exist — skip (snapshot phase will skip too)"
+            exit 0
+          fi
+          STATUS=$(aws rds describe-db-instances --region $AWS_REGION \
+            --db-instance-identifier "$DB_ID" \
+            --query 'DBInstances[0].DBInstanceStatus' --output text)
+          PROTECTED=$(aws rds describe-db-instances --region $AWS_REGION \
+            --db-instance-identifier "$DB_ID" \
+            --query 'DBInstances[0].DeletionProtection' --output text)
+          echo "DB $DB_ID status=$STATUS deletion_protection=$PROTECTED"
+          # modify は available 以外でも受理されるが、安全のため available まで待つ (上限 5 分)。
+          if [ "$STATUS" != "available" ]; then
+            echo "Waiting up to 5 minutes for DB to become available..."
+            aws rds wait db-instance-available --region $AWS_REGION \
+              --db-instance-identifier "$DB_ID" || echo "(wait timed out, continue anyway)"
+          fi
+          if [ "$PROTECTED" = "True" ] || [ "$PROTECTED" = "true" ]; then
+            echo "Disabling deletion protection..."
+            aws rds modify-db-instance --region $AWS_REGION \
+              --db-instance-identifier "$DB_ID" \
+              --no-deletion-protection \
+              --apply-immediately
+            # --apply-immediately は通常即時反映されるが、念のため available まで wait。
+            aws rds wait db-instance-available --region $AWS_REGION \
+              --db-instance-identifier "$DB_ID" || true
+            echo "✅ Deletion protection disabled"
+          else
+            echo "Deletion protection already off, skip"
+          fi
 
       - name: Create manual snapshot before destroying RDS
         if: steps.rds.outputs.skip != 'true'
@@ -122,11 +172,29 @@ jobs:
           DB_ID: ${{ steps.rds.outputs.db_id }}
           SNAPSHOT_ID: ${{ steps.rds.outputs.snapshot_id }}
         run: |
+          # DELETE_FAILED ループから復旧する場合、当日中に既に nightly snapshot を取っている
+          # 可能性が高い。create に失敗しても既存 snapshot があれば fatal 扱いしない (idempotent)。
+          if ! aws rds describe-db-instances --region $AWS_REGION \
+            --db-instance-identifier "$DB_ID" >/dev/null 2>&1; then
+            echo "DB instance $DB_ID is gone — skip snapshot (already deleted)"
+            exit 0
+          fi
           echo "Creating manual snapshot: $SNAPSHOT_ID (from $DB_ID)"
-          aws rds create-db-snapshot --region $AWS_REGION \
+          if ! aws rds create-db-snapshot --region $AWS_REGION \
             --db-instance-identifier "$DB_ID" \
             --db-snapshot-identifier "$SNAPSHOT_ID" \
-            --tags Key=Project,Value=FreStyle Key=Environment,Value=prod Key=ManagedBy,Value=scheduled-stop
+            --tags Key=Project,Value=FreStyle Key=Environment,Value=prod Key=ManagedBy,Value=scheduled-stop; then
+            echo "(create-db-snapshot failed — check if today's nightly snapshot already exists)"
+            EXISTING=$(aws rds describe-db-snapshots --region $AWS_REGION \
+              --snapshot-type manual \
+              --query "DBSnapshots[?starts_with(DBSnapshotIdentifier, '${NIGHTLY_SNAPSHOT_PREFIX}-')] | sort_by(@, &SnapshotCreateTime)[-1].DBSnapshotIdentifier" \
+              --output text)
+            if [ -n "$EXISTING" ] && [ "$EXISTING" != "None" ]; then
+              echo "Latest nightly snapshot already exists: $EXISTING — proceed"
+              exit 0
+            fi
+            exit 1
+          fi
           echo "Waiting for snapshot to become available (this may take a few minutes)..."
           aws rds wait db-snapshot-available --region $AWS_REGION \
             --db-snapshot-identifier "$SNAPSHOT_ID"
@@ -138,6 +206,9 @@ jobs:
           # CFn の DeletionPolicy: Snapshot により auto final snapshot も作成されるが、
           # 我々は事前に予測可能な命名 (frestyle-prod-nightly-*) で manual snapshot を取っているので、
           # こちらが scheduled-start で参照する正規の世代になる。
+          # DELETE_FAILED 状態のスタックも、deletion protection が外れた今なら delete-stack を
+          # 再投入で CFn が DBInstance の削除を完遂してくれる (self-heal)。
+          echo "Current stack status: ${{ steps.rds.outputs.stack_status }}"
           echo "Deleting $RDS_STACK ..."
           aws cloudformation delete-stack --region $AWS_REGION --stack-name $RDS_STACK
           aws cloudformation wait stack-delete-complete --region $AWS_REGION --stack-name $RDS_STACK

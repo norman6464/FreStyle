@@ -40,6 +40,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # TypeScript 型チェック (production code 限定 / test ファイルは tsconfig.exclude で除外済み)。
+      # tsc が 1 エラーでも報告したら fail する。React / TypeScript Handbook の
+      # "static type-checking before runtime" を CI で強制する。
+      - name: TypeScript type-check
+        run: npx tsc --noEmit
+
+      # ESLint で 1 件でも warning があれば fail させる（将来のドリフト防止）。
+      # rules は eslint.config.js で管理。
+      - name: ESLint (max-warnings=0)
+        run: npx eslint . --max-warnings=0
+
       - name: Run Vitest
         run: npm test -- --run
 

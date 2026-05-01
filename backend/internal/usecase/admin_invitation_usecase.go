@@ -17,7 +17,14 @@ func NewListAdminInvitationsUseCase(r repository.AdminInvitationRepository) *Lis
 	return &ListAdminInvitationsUseCase{repo: r}
 }
 
-func (u *ListAdminInvitationsUseCase) Execute(ctx context.Context, companyID uint64) ([]domain.AdminInvitation, error) {
+// ListAll は全社横断で招待一覧を返す。SuperAdmin (運営側) からのみ呼ばれる想定。
+// 認可は handler 層で current user.role を見て行う。
+func (u *ListAdminInvitationsUseCase) ListAll(ctx context.Context) ([]domain.AdminInvitation, error) {
+	return u.repo.ListAll(ctx)
+}
+
+// ListByCompanyID は指定 company の招待一覧を返す。CompanyAdmin が自社のみを見る用。
+func (u *ListAdminInvitationsUseCase) ListByCompanyID(ctx context.Context, companyID uint64) ([]domain.AdminInvitation, error) {
 	if companyID == 0 {
 		return nil, errors.New("companyID is required")
 	}

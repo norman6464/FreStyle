@@ -5,6 +5,8 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
 
@@ -18,14 +20,55 @@ func NewAdminInvitationHandler(l *usecase.ListAdminInvitationsUseCase, c *usecas
 	return &AdminInvitationHandler{list: l, create: c, cancel: x}
 }
 
+// List は GET /api/v2/admin/invitations。
+// 認可と scope 判定:
+//   - SuperAdmin (運営): 全社横断 → ListAll() / ?companyId= 指定で絞り込みも可
+//   - CompanyAdmin     : 自社の company_id で自動フィルタ → ListByCompanyID()
+//   - その他           : 403 Forbidden
+//
+// 旧実装は ?companyId= クエリ必須だったが、フロントが渡していなかったため
+// 常に 400 を返していた。current user の role / company_id から自動解決する設計に修正。
 func (h *AdminInvitationHandler) List(c *gin.Context) {
-	cid, _ := strconv.ParseUint(c.Query("companyId"), 10, 64)
-	rows, err := h.list.Execute(c.Request.Context(), cid)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	user := middleware.CurrentUserFromContext(c)
+	if user == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
-	c.JSON(http.StatusOK, rows)
+
+	switch user.Role {
+	case domain.RoleSuperAdmin:
+		// SuperAdmin は全社横断アクセス可。?companyId= が指定されていればそれで絞り込み。
+		if q := c.Query("companyId"); q != "" {
+			cid, _ := strconv.ParseUint(q, 10, 64)
+			rows, err := h.list.ListByCompanyID(c.Request.Context(), cid)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusOK, rows)
+			return
+		}
+		rows, err := h.list.ListAll(c.Request.Context())
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
+			return
+		}
+		c.JSON(http.StatusOK, rows)
+	case domain.RoleCompanyAdmin:
+		// CompanyAdmin は自社のみ。company_id 未設定なら 403 (誤用防止)。
+		if user.CompanyID == nil || *user.CompanyID == 0 {
+			c.JSON(http.StatusForbidden, gin.H{"error": "company_admin_without_company"})
+			return
+		}
+		rows, err := h.list.ListByCompanyID(c.Request.Context(), *user.CompanyID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, rows)
+	default:
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+	}
 }
 
 type createAdminInvReq struct {

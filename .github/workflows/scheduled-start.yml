@@ -118,15 +118,31 @@ jobs:
             exit 1
           fi
           echo "Restoring from snapshot: $LATEST"
-          # rds-postgres.yml は frestyle-infrastructure 側で `DBSnapshotIdentifier`
-          # パラメータを受け付ける必要がある。受け付ければ snapshot 復元として動作。
-          # rds-postgres.yml の正規パラメータ名は `SnapshotIdentifier`。
-          # 指定すると Conditions.RestoreFromSnapshot が true になり、
-          # DBSnapshotIdentifier として CFn が DB を復元する。
+          # rds-postgres.yml の必須 / 重要パラメータを sg スタックの Output から解決する。
+          # 旧コードは Environment と SnapshotIdentifier しか渡していなかったため
+          #   ValidationError: Parameters: [RdsSecurityGroupId] must have values
+          # で復元自体が起動しないバグがあった (2026-04-30 のロスト)。
+          #
+          # - RdsSecurityGroupId: rds-postgres.yml の必須 param (frestyle-prod-sg の Output)
+          # - ManageMasterUserPassword=false: snapshot 復元では AWS が snapshot 内の master
+          #   password を引き継ぐ。true のままだと CFn が新規 secret を作ろうとして整合性エラー。
+          # - SnapshotIdentifier を指定すると Conditions.RestoreFromSnapshot=true になり、
+          #   DBSnapshotIdentifier 経由で CFn が DB を復元する。
+          RDS_SG=$(aws cloudformation describe-stacks --region $AWS_REGION \
+            --stack-name $STACK_PFX-sg \
+            --query 'Stacks[0].Outputs[?OutputKey==`RdsSecurityGroupId`].OutputValue' --output text)
+          if [ -z "$RDS_SG" ] || [ "$RDS_SG" = "None" ]; then
+            echo "::error::Could not resolve RdsSecurityGroupId from $STACK_PFX-sg outputs"
+            exit 1
+          fi
           aws cloudformation deploy --region $AWS_REGION \
             --stack-name $RDS_STACK \
             --template-file iac/infrastructure/cloudformation/templates/runtime/rds-postgres.yml \
-            --parameter-overrides Environment=prod SnapshotIdentifier="$LATEST" \
+            --parameter-overrides \
+              Environment=prod \
+              RdsSecurityGroupId="$RDS_SG" \
+              SnapshotIdentifier="$LATEST" \
+              ManageMasterUserPassword=false \
             --capabilities CAPABILITY_IAM --no-fail-on-empty-changeset \
             --tags Project=FreStyle Environment=prod ManagedBy=CloudFormation
           echo "✅ RDS restored from $LATEST"

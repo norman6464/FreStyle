@@ -71,12 +71,23 @@ export default function AppShell() {
       </div>
 
       {/* メインコンテンツ */}
-      <div className="flex-1 flex flex-col min-w-0">
+      {/*
+        flex-1 flex-col / min-h-0 / min-w-0 / overflow-hidden を組み合わせるのが
+        Tailwind + Flexbox 内で「内側だけ overflow-auto してくれ」を成立させる
+        必須レシピ。これらが無いと flex item の default min-height: auto により
+        子コンテンツが column 全体を伸ばしてしまい、AppShell の h-screen を超え、
+        body 側にも 2 本目のスクロールバーが発生する (実際 MenuPage でだけ顕在化していた)。
+      */}
+      <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
         <TopBar
           title={title}
           onMenuToggle={() => setMobileMenuOpen(!mobileMenuOpen)}
         />
-        <main id="main-content" tabIndex={-1} className="flex-1 overflow-auto outline-none">
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="flex-1 min-h-0 overflow-auto outline-none"
+        >
           <Outlet />
         </main>
         <ScrollToTop targetId="main-content" />

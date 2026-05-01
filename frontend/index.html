@@ -13,7 +13,10 @@
         - img-src 'self' data: https:                   : avatar / CDN 経由画像 / data URL
         - font-src 'self' data:                         : ローカルフォント + base64 埋め込み
         - connect-src 'self' https://api.normanblog.com https://*.amazoncognito.com wss://api.normanblog.com
-                                                         : API / WebSocket / Cognito callback
+                       https://*.s3.amazonaws.com https://*.s3.ap-northeast-1.amazonaws.com
+                                                         : API / WebSocket / Cognito callback /
+                                                           プロフィール / Note 画像の S3 presigned PUT
+                                                           (frestyle-prod-note-images.s3.amazonaws.com)
         - form-action 'self' https://*.amazoncognito.com: ログイン flow が Cognito Hosted UI へ POST
         - base-uri 'self'                               : <base> 注入対策
         - object-src 'none'                             : <object>/<embed>/<applet> 禁止
@@ -25,7 +28,7 @@
       `report-uri` / `report-to` / `sandbox` も同様 meta では無視されるので、配信が必要な場合は
       CloudFront 側に追加する。
     -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.normanblog.com https://*.amazoncognito.com wss://api.normanblog.com; form-action 'self' https://*.amazoncognito.com; base-uri 'self'; object-src 'none'; upgrade-insecure-requests" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.normanblog.com https://*.amazoncognito.com wss://api.normanblog.com https://*.s3.amazonaws.com https://*.s3.ap-northeast-1.amazonaws.com; form-action 'self' https://*.amazoncognito.com; base-uri 'self'; object-src 'none'; upgrade-insecure-requests" />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
 
     <title>FreStyle</title>

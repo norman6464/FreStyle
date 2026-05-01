@@ -22,10 +22,16 @@
 }
 
 .light {
-  --color-surface: #FFFFFF;
+  /*
+   * ライトモードのサーフェスは「ページ背景 < カード < 強調」の階層を視認できるように差をつける。
+   * 旧設定は --color-surface と --color-surface-1 が同じ #FFFFFF だったため、
+   * bg-surface-1 のカードがページ背景と完全に同色になり「カードが消えて見える」レイアウト崩れの
+   * 原因になっていた。ページを薄いオフホワイト、カードを純白にして境界線も濃いめに。
+   */
+  --color-surface: #F7F7F5;
   --color-surface-1: #FFFFFF;
-  --color-surface-2: #F7F7F5;
-  --color-surface-3: #E8E8E6;
+  --color-surface-2: #EFEFEC;
+  --color-surface-3: #DCDCD8;
   --color-text-primary: #191919;
   --color-text-secondary: #37352F;
   --color-text-tertiary: #787774;

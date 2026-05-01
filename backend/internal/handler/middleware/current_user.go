@@ -4,10 +4,16 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/repository"
 )
 
-const ContextKeyCurrentUserID = "currentUserID"
+const (
+	ContextKeyCurrentUserID = "currentUserID"
+	// ContextKeyCurrentUser は JWTAuth の後段でセットされる *domain.User。
+	// handler 側で role / company_id を見たいケース (admin scope の判定など) で利用する。
+	ContextKeyCurrentUser = "currentUser"
+)
 
 // CurrentUser は JWTAuth の後段で動く middleware。
 // JWTAuth が context に詰めた cognito sub から users 行を引き、
@@ -39,6 +45,7 @@ func CurrentUser(users repository.UserRepository) gin.HandlerFunc {
 			return
 		}
 		c.Set(ContextKeyCurrentUserID, user.ID)
+		c.Set(ContextKeyCurrentUser, user)
 		c.Next()
 	}
 }
@@ -54,4 +61,15 @@ func CurrentUserIDOrZero(c *gin.Context) uint64 {
 	}
 	id, _ := v.(uint64)
 	return id
+}
+
+// CurrentUserFromContext は CurrentUser middleware が保存した *domain.User を返す。
+// 未セット / 型不一致のときは nil。handler 側で role / company_id を扱うために使う。
+func CurrentUserFromContext(c *gin.Context) *domain.User {
+	v, ok := c.Get(ContextKeyCurrentUser)
+	if !ok {
+		return nil
+	}
+	u, _ := v.(*domain.User)
+	return u
 }

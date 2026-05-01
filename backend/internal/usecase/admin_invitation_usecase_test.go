@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
@@ -11,9 +12,16 @@ import (
 type stubAdminInvRepo struct {
 	rows []domain.AdminInvitation
 	err  error
+	// 直近に呼ばれた絞り込み条件を記録する。"all" / "company:42" のような形式。
+	calledWith string
 }
 
-func (s *stubAdminInvRepo) ListByCompanyID(_ context.Context, _ uint64) ([]domain.AdminInvitation, error) {
+func (s *stubAdminInvRepo) ListAll(_ context.Context) ([]domain.AdminInvitation, error) {
+	s.calledWith = "all"
+	return s.rows, s.err
+}
+func (s *stubAdminInvRepo) ListByCompanyID(_ context.Context, companyID uint64) ([]domain.AdminInvitation, error) {
+	s.calledWith = "company:" + strconv.FormatUint(companyID, 10)
 	return s.rows, s.err
 }
 func (s *stubAdminInvRepo) Create(_ context.Context, inv *domain.AdminInvitation) error {
@@ -34,10 +42,40 @@ func (c *stubCognitoAdmin) InviteUser(_ context.Context, email, _, _ string) (st
 	return "sub-" + email, nil
 }
 
-func TestListAdminInvitations_RequiresCompanyID(t *testing.T) {
+func TestListAdminInvitations_ListByCompanyID_RequiresCompanyID(t *testing.T) {
 	uc := NewListAdminInvitationsUseCase(&stubAdminInvRepo{})
-	if _, err := uc.Execute(context.Background(), 0); err == nil {
+	if _, err := uc.ListByCompanyID(context.Background(), 0); err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+func TestListAdminInvitations_ListByCompanyID_DelegatesToRepo(t *testing.T) {
+	repo := &stubAdminInvRepo{rows: []domain.AdminInvitation{{ID: 1}}}
+	uc := NewListAdminInvitationsUseCase(repo)
+	got, err := uc.ListByCompanyID(context.Background(), 42)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if len(got) != 1 || got[0].ID != 1 {
+		t.Fatalf("unexpected rows: %+v", got)
+	}
+	if repo.calledWith != "company:42" {
+		t.Fatalf("expected company:42 query, got %q", repo.calledWith)
+	}
+}
+
+func TestListAdminInvitations_ListAll_DelegatesToRepo(t *testing.T) {
+	repo := &stubAdminInvRepo{rows: []domain.AdminInvitation{{ID: 7}, {ID: 8}}}
+	uc := NewListAdminInvitationsUseCase(repo)
+	got, err := uc.ListAll(context.Background())
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("unexpected rows: %+v", got)
+	}
+	if repo.calledWith != "all" {
+		t.Fatalf("expected ListAll path, got %q", repo.calledWith)
 	}
 }
 

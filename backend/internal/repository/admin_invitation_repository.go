@@ -8,6 +8,9 @@ import (
 )
 
 type AdminInvitationRepository interface {
+	// ListAll は全社横断で招待を返す。SuperAdmin (運営) のダッシュボード用。
+	ListAll(ctx context.Context) ([]domain.AdminInvitation, error)
+	// ListByCompanyID は CompanyAdmin が自社の招待のみを見るための query。
 	ListByCompanyID(ctx context.Context, companyID uint64) ([]domain.AdminInvitation, error)
 	Create(ctx context.Context, inv *domain.AdminInvitation) error
 	UpdateStatus(ctx context.Context, id uint64, status string) error
@@ -17,6 +20,12 @@ type adminInvitationRepository struct{ db *gorm.DB }
 
 func NewAdminInvitationRepository(db *gorm.DB) AdminInvitationRepository {
 	return &adminInvitationRepository{db: db}
+}
+
+func (r *adminInvitationRepository) ListAll(ctx context.Context) ([]domain.AdminInvitation, error) {
+	var rows []domain.AdminInvitation
+	err := r.db.WithContext(ctx).Order("created_at DESC").Find(&rows).Error
+	return rows, err
 }
 
 func (r *adminInvitationRepository) ListByCompanyID(ctx context.Context, companyID uint64) ([]domain.AdminInvitation, error) {

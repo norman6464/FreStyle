@@ -16,6 +16,14 @@ type Config struct {
 	DBSSLMode  string
 
 	Cognito CognitoConfig
+	S3      S3Config
+}
+
+// S3Config は profile / note 画像 upload の presign 発行に必要な設定。
+type S3Config struct {
+	Region            string
+	NoteImagesBucket  string
+	NoteImagesCDNBase string // 配信用 CDN URL (CloudFront / virtual-hosted)
 }
 
 // CognitoConfig は Cognito Hosted UI / OAuth2 token endpoint との通信に必要な設定。
@@ -43,6 +51,12 @@ func Load() (*Config, error) {
 			RedirectURI:  os.Getenv("COGNITO_REDIRECT_URI"),
 			TokenURI:     os.Getenv("COGNITO_TOKEN_URI"),
 			JwkSetURI:    os.Getenv("COGNITO_JWK_SET_URI"),
+		},
+		S3: S3Config{
+			Region:           getEnvOrDefault("AWS_REGION", "ap-northeast-1"),
+			NoteImagesBucket: os.Getenv("NOTE_IMAGES_BUCKET"),
+			// ecs.yml が渡す環境変数名は NOTE_IMAGES_CDN_URL。
+			NoteImagesCDNBase: getEnvOrDefault("NOTE_IMAGES_CDN_URL", ""),
 		},
 	}
 	if cfg.DBHost == "" {

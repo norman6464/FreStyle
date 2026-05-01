@@ -10,23 +10,37 @@ import (
 )
 
 // ProfileImagePresigner は profile アイコン用 S3 PUT 署名付き URL を発行する。
-// AWS SDK 実装は別 PR。現状は Stub で形式だけ満たす。
 type ProfileImagePresigner interface {
 	Generate(ctx context.Context, userID uint64, fileName, contentType string) (*domain.ProfileImageUploadURL, error)
 }
 
-type stubProfileImagePresigner struct {
-	bucket string
+// s3Presigner は infra/s3.Presigner と同等の interface を minimal に切り出した型。
+// repository が infra/s3 パッケージに直接依存しないよう dep direction を反転 (依存性逆転原則)。
+type s3Presigner interface {
+	PresignPut(ctx context.Context, key, contentType string) (url string, ttl time.Duration, err error)
+}
+
+type profileImagePresigner struct {
+	pre    s3Presigner
 	cdnURL string
 }
 
-// NewStubProfileImagePresigner は CDN URL (例: https://normanblog.com) と
-// S3 bucket name を受け取って stub presigner を返す。
-func NewStubProfileImagePresigner(bucket, cdnURL string) ProfileImagePresigner {
-	return &stubProfileImagePresigner{bucket: bucket, cdnURL: strings.TrimRight(cdnURL, "/")}
+// NewProfileImagePresigner は infra/s3.Presigner を受けて real な presigner を返す。
+// cdnURL は配信用ベース URL (CloudFront / S3 virtual-hosted-style)。
+func NewProfileImagePresigner(p s3Presigner, cdnURL string) ProfileImagePresigner {
+	return &profileImagePresigner{pre: p, cdnURL: strings.TrimRight(cdnURL, "/")}
 }
 
-func (p *stubProfileImagePresigner) Generate(_ context.Context, userID uint64, fileName, contentType string) (*domain.ProfileImageUploadURL, error) {
+// NewStubProfileImagePresigner は test / dev 用の stub。
+// 本番では NewProfileImagePresigner(infra/s3.NewPresigner(...), cdnURL) を使う。
+func NewStubProfileImagePresigner(bucket, cdnURL string) ProfileImagePresigner {
+	return &profileImagePresigner{
+		pre:    &stubPresigner{bucket: bucket},
+		cdnURL: strings.TrimRight(cdnURL, "/"),
+	}
+}
+
+func (p *profileImagePresigner) Generate(ctx context.Context, userID uint64, fileName, contentType string) (*domain.ProfileImageUploadURL, error) {
 	if userID == 0 {
 		return nil, fmt.Errorf("userID is required")
 	}
@@ -35,11 +49,15 @@ func (p *stubProfileImagePresigner) Generate(_ context.Context, userID uint64, f
 	}
 	ext := guessExt(fileName, contentType)
 	key := fmt.Sprintf("profiles/%d/%d%s", userID, time.Now().UnixNano(), ext)
+	url, ttl, err := p.pre.PresignPut(ctx, key, contentType)
+	if err != nil {
+		return nil, err
+	}
 	return &domain.ProfileImageUploadURL{
-		UploadURL: fmt.Sprintf("https://%s.s3.amazonaws.com/%s?X-Amz-Stub=1", p.bucket, key),
+		UploadURL: url,
 		ImageURL:  fmt.Sprintf("%s/%s", p.cdnURL, key),
 		Key:       key,
-		ExpiresIn: 600,
+		ExpiresIn: int(ttl.Seconds()),
 	}, nil
 }
 

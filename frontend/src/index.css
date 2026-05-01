@@ -45,8 +45,20 @@
 }
 
 @layer base {
+  /*
+   * 外側スクロールバー (Chrome ブラウザ標準) と内側スクロールバー (AppShell の <main>)
+   * の二重表示を防ぐため、ルート要素を viewport 高さに固定し overflow を切る。
+   * h-screen の AppShell がこの 100% 領域を占有し、子の <main overflow-auto>
+   * のみがスクロール対象になる。
+   */
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
   body {
     @apply bg-surface text-[var(--color-text-primary)];
+    overflow: hidden;
   }
 
   select,

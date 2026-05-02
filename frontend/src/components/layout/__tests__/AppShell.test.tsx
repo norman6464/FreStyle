@@ -33,9 +33,8 @@ function renderAppShell() {
 describe('AppShell', () => {
   it('サイドバーを表示する', () => {
     renderAppShell();
-    // デスクトップ+モバイルで2つのSidebarが存在
     expect(screen.getAllByText('ホーム').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('チャット').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('AI').length).toBeGreaterThanOrEqual(1);
   });
 
   it('子コンテンツを表示する', () => {
@@ -45,7 +44,6 @@ describe('AppShell', () => {
 
   it('トップバーを表示する', () => {
     renderAppShell();
-    // TopBarにはモバイルメニューボタンがある
     const menuButton = screen.getByRole('button', { name: /メニュー/i });
     expect(menuButton).toBeDefined();
   });

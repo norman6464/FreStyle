@@ -47,8 +47,6 @@ vi.mock('../../hooks/useMenuData', () => ({
 
 function defaultMenuData() {
   return {
-    stats: { chatPartnerCount: 5 },
-    totalUnread: 5,
     latestScore: { sessionId: 1, sessionTitle: 'テスト', overallScore: 7.5, createdAt: '2026-02-13' },
     allScores: [{ sessionId: 1, sessionTitle: 'テスト', overallScore: 7.5, createdAt: '2026-02-13' }],
     totalSessions: 1,
@@ -74,24 +72,9 @@ describe('MenuPage', () => {
   it('MenuNavigationCard のメニュー項目がすべて表示される', () => {
     render(<BrowserRouter><MenuPage /></BrowserRouter>);
 
-    // MenuNavigationCard 内のナビゲーション項目は role=button + aria-label で描画されるので
-    // ロール＆アクセシブルネームで検証し、PageIntroのGlossaryTerm "練習モード" と混同しない
-    expect(screen.getByRole('button', { name: 'チャット' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'AI アシスタント' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '練習モード' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'スコア履歴' })).toBeInTheDocument();
-  });
-
-  it('会話した人数を表示する', () => {
-    render(<BrowserRouter><MenuPage /></BrowserRouter>);
-
-    expect(screen.getByText('5')).toBeInTheDocument();
-  });
-
-  it('未読メッセージ数バッジをチャットカードに表示する', () => {
-    render(<BrowserRouter><MenuPage /></BrowserRouter>);
-
-    expect(screen.getByText('5件の未読')).toBeInTheDocument();
   });
 
   it('最新スコアをスコア履歴カードに表示する', () => {
@@ -102,8 +85,6 @@ describe('MenuPage', () => {
 
   it('初回ユーザー (totalSessions=0) には FirstTimeWelcome ウェルカムカードを表示する', () => {
     mockUseMenuData.mockReturnValue({
-      stats: { chatPartnerCount: 0 },
-      totalUnread: 0,
       latestScore: null,
       allScores: [],
       totalSessions: 0,
@@ -120,18 +101,6 @@ describe('MenuPage', () => {
     expect(screen.getByText(/シナリオを選んで AI と練習/)).toBeInTheDocument();
   });
 
-  it('未読がない場合は未読バッジを表示しない', () => {
-    mockUseMenuData.mockReturnValue({
-      ...defaultMenuData(),
-      totalUnread: 0,
-    });
-
-    render(<BrowserRouter><MenuPage /></BrowserRouter>);
-
-    expect(screen.getByText('チャット')).toBeInTheDocument();
-    expect(screen.queryByText(/件の未読/)).not.toBeInTheDocument();
-  });
-
   it('ローディング中はLoadingコンポーネントが表示される', () => {
     mockUseMenuData.mockReturnValue({
       ...defaultMenuData(),
@@ -141,6 +110,6 @@ describe('MenuPage', () => {
     render(<BrowserRouter><MenuPage /></BrowserRouter>);
 
     expect(screen.getByRole('status')).toBeInTheDocument();
-    expect(screen.queryByText('チャット')).not.toBeInTheDocument();
+    expect(screen.queryByText('AI アシスタント')).not.toBeInTheDocument();
   });
 });

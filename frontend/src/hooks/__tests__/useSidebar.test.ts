@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, act, waitFor } from '@testing-library/react';
+import { renderHook, act } from '@testing-library/react';
 import { useSidebar } from '../useSidebar';
 
 const mockDispatch = vi.fn();
@@ -17,14 +17,7 @@ vi.mock('../../store/authSlice', () => ({
   clearAuth: () => ({ type: 'auth/clearAuth' }),
 }));
 
-const mockFetchChatUsers = vi.fn();
 const mockLogout = vi.fn();
-
-vi.mock('../../repositories/ChatRepository', () => ({
-  default: {
-    fetchChatUsers: (...args: unknown[]) => mockFetchChatUsers(...args),
-  },
-}));
 
 vi.mock('../../repositories/AuthRepository', () => ({
   default: {
@@ -35,22 +28,7 @@ vi.mock('../../repositories/AuthRepository', () => ({
 describe('useSidebar', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockFetchChatUsers.mockResolvedValue([]);
     mockLogout.mockResolvedValue(undefined);
-  });
-
-  it('未読数を取得して合計する', async () => {
-    mockFetchChatUsers.mockResolvedValue([
-      { roomId: 1, unreadCount: 3, partnerName: 'User1', partnerId: 1 },
-      { roomId: 2, unreadCount: 2, partnerName: 'User2', partnerId: 2 },
-    ]);
-
-    const { result } = renderHook(() => useSidebar());
-
-    await waitFor(() => {
-      expect(result.current.totalUnread).toBe(5);
-    });
-    expect(mockFetchChatUsers).toHaveBeenCalledOnce();
   });
 
   it('ログアウトでdispatch(clearAuth)とnavigate(/login)を呼ぶ', async () => {
@@ -77,46 +55,6 @@ describe('useSidebar', () => {
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 
-  it('チャットユーザーがいない場合はtotalUnreadが0', async () => {
-    mockFetchChatUsers.mockResolvedValue([]);
-
-    const { result } = renderHook(() => useSidebar());
-
-    await waitFor(() => {
-      expect(result.current.totalUnread).toBe(0);
-    });
-  });
-
-  it('fetchChatUsers失敗時にtotalUnreadが0のまま', async () => {
-    mockFetchChatUsers.mockRejectedValue(new Error('Network Error'));
-
-    const { result } = renderHook(() => useSidebar());
-
-    await waitFor(() => {
-      expect(mockFetchChatUsers).toHaveBeenCalledOnce();
-    });
-
-    expect(result.current.totalUnread).toBe(0);
-  });
-
-  it('unreadCountがundefinedの場合は0として扱われる', async () => {
-    mockFetchChatUsers.mockResolvedValue([
-      { roomId: 1, unreadCount: undefined, partnerName: 'User1', partnerId: 1 },
-      { roomId: 2, unreadCount: 5, partnerName: 'User2', partnerId: 2 },
-    ]);
-
-    const { result } = renderHook(() => useSidebar());
-
-    await waitFor(() => {
-      expect(result.current.totalUnread).toBe(5);
-    });
-  });
-
-  it('初期状態でtotalUnreadが0である', () => {
-    const { result } = renderHook(() => useSidebar());
-    expect(result.current.totalUnread).toBe(0);
-  });
-
   it('ログアウト成功時にトースト付きでログインページに遷移する', async () => {
     const { result } = renderHook(() => useSidebar());
 
@@ -125,18 +63,6 @@ describe('useSidebar', () => {
     });
 
     expect(mockNavigate).toHaveBeenCalledWith('/login', { state: { toast: 'ログアウトしました' } });
-  });
-
-  it('ログアウト失敗時にトースト付きで遷移しない', async () => {
-    mockLogout.mockRejectedValue(new Error('Network Error'));
-
-    const { result } = renderHook(() => useSidebar());
-
-    await act(async () => {
-      await result.current.handleLogout();
-    });
-
-    expect(mockNavigate).not.toHaveBeenCalled();
   });
 
   it('ログアウト失敗時にdispatchも呼ばれない', async () => {

@@ -1,71 +1,4 @@
 /**
- * ChatRoom は Go backend `domain.ChatRoom` と 1:1。
- */
-export interface ChatRoom {
-  id: number;
-  name: string;
-  isGroup: boolean;
-  createdAt: string;
-}
-
-/**
- * ChatUser はチャット一覧画面（ChatListPage）専用の view モデル。
- * backend には対応する単一の domain は無く、複数 domain (ChatRoom + last ChatMessage + User)
- * を合成した形でフロントが扱う。
- */
-export interface ChatUser {
-  roomId: number;
-  userId: number;
-  name: string;
-  email?: string;
-  lastMessage?: string;
-  lastMessageAt?: number;
-  lastMessageSenderId?: number;
-  unreadCount: number;
-  profileImage?: string;
-}
-
-/**
- * ChatMessageDto は Go backend `domain.ChatMessage` と 1:1。
- * 新規実装はこの型を「真のソース」として参照する。Repository / hook で UI 表示用に
- * `ChatMessage` view へ写像する。
- */
-export interface ChatMessageDto {
-  roomId: number;
-  messageId: string;
-  senderId: number;
-  content: string;
-  createdAt: string;
-}
-
-/**
- * ChatMessage はチャット画面で表示するメッセージ view。
- * UI 用フィールド (`isSender`, `isDeleted`, `senderName`) を持ち、Hook 側で算出される。
- *
- * createdAt は backend WebSocket / REST が ISO 8601 string で送るためそれに揃える。
- * 旧コードの `createdAt?: number` 想定は誤りで、formatHourMinute / formatMonthDay は
- * string / number 双方を受け付けるため UI 側に影響なし。
- */
-export interface ChatMessage {
-  id: string;
-  roomId: number;
-  senderId: number;
-  senderName?: string;
-  content: string;
-  createdAt?: string;
-  isSender: boolean;
-  isDeleted?: boolean;
-}
-
-/** メンバーユーザー（ユーザー検索用） */
-export interface MemberUser {
-  id: number;
-  name: string;
-  email: string;
-  roomId?: number;
-}
-
-/**
  * AiChatSession は Go backend `domain.AiChatSession` と 1:1。
  * 新規実装はこちらを参照すること。
  */
@@ -146,13 +79,6 @@ export interface AiMessage {
   createdAt?: number;
   isSender?: boolean;
   isDeleted?: boolean;
-}
-
-/** 未読数更新通知 */
-export interface UnreadUpdate {
-  type: 'unread_update';
-  roomId: number;
-  increment: number;
 }
 
 /** フラッシュメッセージ */

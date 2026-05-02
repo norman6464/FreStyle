@@ -38,8 +38,8 @@ describe('Sidebar', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseSidebar.mockReturnValue({
-      totalUnread: 0,
       handleLogout: vi.fn(),
+      loggingOut: false,
     });
     mockUseTheme.mockReturnValue({
       theme: 'dark',
@@ -50,10 +50,8 @@ describe('Sidebar', () => {
   it('全ナビゲーション項目を表示する', () => {
     renderSidebar();
     expect(screen.getByText('ホーム')).toBeDefined();
-    expect(screen.getByText('チャット')).toBeDefined();
     expect(screen.getByText('AI')).toBeDefined();
     expect(screen.getByText('練習')).toBeDefined();
-    expect(screen.getByText('ユーザー検索')).toBeDefined();
     expect(screen.getByText('プロフィール')).toBeDefined();
   });
 
@@ -75,12 +73,6 @@ describe('Sidebar', () => {
     expect(homeLink?.className).toContain('bg-surface-3');
   });
 
-  it('チャットルートでチャットがアクティブになる', () => {
-    renderSidebar('/chat');
-    const chatLink = screen.getByText('チャット').closest('a');
-    expect(chatLink?.className).toContain('bg-surface-3');
-  });
-
   it('ダークモード時にライトモードボタンを表示する', () => {
     renderSidebar();
     expect(screen.getByText('ライトモード')).toBeInTheDocument();
@@ -99,17 +91,5 @@ describe('Sidebar', () => {
     renderSidebar();
     fireEvent.click(screen.getByText('ライトモード'));
     expect(mockToggleTheme).toHaveBeenCalledTimes(1);
-  });
-
-  it('未読メッセージがある場合チャットにバッジを表示する', () => {
-    mockUseSidebar.mockReturnValue({
-      totalUnread: 5,
-      handleLogout: vi.fn(),
-    });
-
-    renderSidebar();
-
-    expect(screen.getByTestId('sidebar-badge')).toBeInTheDocument();
-    expect(screen.getByTestId('sidebar-badge')).toHaveTextContent('5');
   });
 });

@@ -15,8 +15,10 @@ type Config struct {
 	DBName     string
 	DBSSLMode  string
 
-	Cognito CognitoConfig
-	S3      S3Config
+	Cognito  CognitoConfig
+	S3       S3Config
+	Bedrock  BedrockConfig
+	DynamoDB DynamoDBConfig
 }
 
 // S3Config は profile / note 画像 upload の presign 発行に必要な設定。
@@ -24,6 +26,18 @@ type S3Config struct {
 	Region            string
 	NoteImagesBucket  string
 	NoteImagesCDNBase string // 配信用 CDN URL (CloudFront / virtual-hosted)
+}
+
+// BedrockConfig は AWS Bedrock Converse API 呼び出しに必要な設定。
+type BedrockConfig struct {
+	Region  string
+	ModelID string
+}
+
+// DynamoDBConfig は AI チャットメッセージを保存する DynamoDB の設定。
+type DynamoDBConfig struct {
+	Region      string
+	AiChatTable string
 }
 
 // CognitoConfig は Cognito Hosted UI / OAuth2 token endpoint との通信に必要な設定。
@@ -57,6 +71,14 @@ func Load() (*Config, error) {
 			NoteImagesBucket: os.Getenv("NOTE_IMAGES_BUCKET"),
 			// ecs.yml が渡す環境変数名は NOTE_IMAGES_CDN_URL。
 			NoteImagesCDNBase: getEnvOrDefault("NOTE_IMAGES_CDN_URL", ""),
+		},
+		Bedrock: BedrockConfig{
+			Region:  getEnvOrDefault("AWS_REGION", "ap-northeast-1"),
+			ModelID: getEnvOrDefault("BEDROCK_MODEL_ID", "anthropic.claude-3-5-haiku-20241022-v1:0"),
+		},
+		DynamoDB: DynamoDBConfig{
+			Region:      getEnvOrDefault("AWS_REGION", "ap-northeast-1"),
+			AiChatTable: getEnvOrDefault("DYNAMODB_AI_CHAT_TABLE", "fre_style_ai_chat_dev"),
 		},
 	}
 	if cfg.DBHost == "" {

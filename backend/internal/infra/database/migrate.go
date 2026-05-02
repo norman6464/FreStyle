@@ -16,8 +16,6 @@ func allDomainModels() []any {
 		&domain.User{},
 		&domain.Profile{},
 		&domain.AiChatSession{},
-		&domain.ChatRoom{},
-		&domain.ChatRoomMember{},
 		&domain.PracticeScenario{},
 		&domain.ScenarioBookmark{},
 		&domain.SharedSession{},

@@ -79,7 +79,8 @@ Go では interface が言語機能として埋め込まれているので、`us
 │   repository (GORM)                                        │
 │   infra/database (PostgreSQL 接続)                         │
 │   infra/config (環境変数)                                   │
-│   後続 PR で追加: infra/dynamodb / infra/s3 / infra/bedrock  │
+│   infra/s3 (presigned URL), infra/bedrock (Converse API)    │
+│   repository/ai_chat_message_repository (DynamoDB)          │
 │   github.com/.../backend/internal/repository | infra       │
 └────────────────────────────────────────────────────────────┘
 ```
@@ -141,41 +142,43 @@ Component (Presentational)
 classDiagram
     class AiChatHandler {
       +CreateSession(c *gin.Context)
-      +AddMessage(c *gin.Context)
       +GetSessions(c *gin.Context)
+    }
+    class AiChatWsHandler {
+      +Handle(c *gin.Context)
+    }
+    class SendAiMessageUseCase {
+      +Execute(ctx, input) (Output, error)
     }
     class CreateAiChatSessionUseCase {
       +Execute(ctx, input) (Session, error)
-    }
-    class AddAiChatMessageUseCase {
-      +Execute(ctx, input) (Message, error)
     }
     class GetAiChatSessionsByUserIDUseCase {
       +Execute(ctx, userID) ([]Session, error)
     }
     class AiChatSessionRepository {
-      <<interface>>
+      <<interface, MariaDB>>
       ListByUserID(ctx, userID)
       Create(ctx, session)
       FindByID(ctx, id)
     }
     class AiChatMessageRepository {
       <<interface, DynamoDB>>
-      Put(ctx, message)
-      Query(ctx, sessionID)
+      Save(ctx, message)
+      ListBySessionID(ctx, sessionID)
     }
     class BedrockClient {
-      <<interface, AWS SDK>>
-      Invoke(ctx, prompt) (string, error)
+      <<interface, infra/bedrock>>
+      Converse(ctx, systemPrompt, history) (string, error)
     }
 
     AiChatHandler --> CreateAiChatSessionUseCase
-    AiChatHandler --> AddAiChatMessageUseCase
     AiChatHandler --> GetAiChatSessionsByUserIDUseCase
-
+    AiChatWsHandler --> SendAiMessageUseCase
+    SendAiMessageUseCase --> CreateAiChatSessionUseCase
+    SendAiMessageUseCase --> AiChatMessageRepository
+    SendAiMessageUseCase --> BedrockClient
     CreateAiChatSessionUseCase --> AiChatSessionRepository
-    AddAiChatMessageUseCase --> AiChatMessageRepository
-    AddAiChatMessageUseCase --> BedrockClient
     GetAiChatSessionsByUserIDUseCase --> AiChatSessionRepository
 ```
 

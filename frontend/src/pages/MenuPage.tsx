@@ -1,4 +1,4 @@
-import { UserGroupIcon, HomeIcon, ChartBarIcon } from '@heroicons/react/24/outline';
+import { HomeIcon, ChartBarIcon } from '@heroicons/react/24/outline';
 import AchievementBadgeCard from '../components/AchievementBadgeCard';
 import StreakCalendarCard from '../components/StreakCalendarCard';
 import CommunicationTipCard from '../components/CommunicationTipCard';
@@ -43,8 +43,6 @@ import { GLOSSARY } from '../constants/glossary';
  */
 export default function MenuPage() {
   const {
-    stats,
-    totalUnread,
     latestScore,
     allScores,
     totalSessions,
@@ -167,20 +165,6 @@ export default function MenuPage() {
         </section>
       )}
 
-      {/* 会話した人数サマリー */}
-      <section className="rounded-lg border border-surface-3 bg-surface-1 p-4" aria-label="会話した人数">
-        <div className="flex items-center gap-3">
-          <UserGroupIcon className="w-5 h-5 text-[var(--color-text-faint)]" aria-hidden="true" />
-          <div>
-            <p className="text-xs text-[var(--color-text-muted)]">会話した人数</p>
-            <p className="text-lg font-semibold text-[var(--color-text-primary)]">
-              {stats?.chatPartnerCount ?? '—'}
-              <span className="text-sm font-normal text-[var(--color-text-muted)] ml-1">人</span>
-            </p>
-          </div>
-        </div>
-      </section>
-
       {/* 週次レポート / パターン分析 */}
       {totalSessions > 0 && (
         <section aria-labelledby="menu-reports">
@@ -234,7 +218,6 @@ export default function MenuPage() {
       </section>
 
       <MenuNavigationCard
-        totalUnread={totalUnread}
         latestScore={latestScore ? latestScore.overallScore : null}
       />
     </div>

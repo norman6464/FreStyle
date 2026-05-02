@@ -20,10 +20,6 @@ const ConfirmForgotPasswordPage = lazy(() => import('./pages/ConfirmForgotPasswo
 // 認証必要ページ
 const MenuPage = lazy(() => import('./pages/MenuPage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
-const MemberPage = lazy(() => import('./pages/MemberPage'));
-const ChatListPage = lazy(() => import('./pages/ChatListPage'));
-const AddUserPage = lazy(() => import('./pages/AddUserPage'));
-const ChatPage = lazy(() => import('./pages/ChatPage'));
 const PracticePage = lazy(() => import('./pages/PracticePage'));
 const ScoreHistoryPage = lazy(() => import('./pages/ScoreHistoryPage'));
 const FavoritesPage = lazy(() => import('./pages/FavoritesPage'));
@@ -85,10 +81,6 @@ export default function App() {
       >
         <Route path="/" element={<MenuPage />} />
         <Route path="/profile/me" element={<ProfilePage />} />
-        <Route path="/chat/members" element={<MemberPage />} />
-        <Route path="/chat" element={<ChatListPage />} />
-        <Route path="/chat/users" element={<AddUserPage />} />
-        <Route path="/chat/users/:roomId" element={<ChatPage />} />
         <Route path="/practice" element={<PracticePage />} />
         <Route path="/scores" element={<ScoreHistoryPage />} />
         <Route path="/favorites" element={<FavoritesPage />} />

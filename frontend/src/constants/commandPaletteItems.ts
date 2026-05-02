@@ -1,9 +1,7 @@
 import {
   HomeIcon,
-  ChatBubbleLeftRightIcon,
   SparklesIcon,
   AcademicCapIcon,
-  MagnifyingGlassIcon,
   ChartBarIcon,
   StarIcon,
   DocumentTextIcon,
@@ -39,15 +37,6 @@ export const COMMAND_ITEMS: CommandItem[] = [
     keywords: ['home', 'メニュー', 'トップ'],
   },
   {
-    id: 'nav-chat',
-    label: 'チャット',
-    description: 'チャット一覧に移動',
-    icon: ChatBubbleLeftRightIcon,
-    category: 'ページ移動',
-    action: { type: 'navigate', path: '/chat' },
-    keywords: ['chat', 'メッセージ', '会話'],
-  },
-  {
     id: 'nav-ai',
     label: 'AI アシスタント',
     description: 'AIアシスタントに移動',
@@ -64,15 +53,6 @@ export const COMMAND_ITEMS: CommandItem[] = [
     category: 'ページ移動',
     action: { type: 'navigate', path: '/practice' },
     keywords: ['practice', '練習', 'トレーニング'],
-  },
-  {
-    id: 'nav-user-search',
-    label: 'ユーザー検索',
-    description: 'ユーザー検索に移動',
-    icon: MagnifyingGlassIcon,
-    category: 'ページ移動',
-    action: { type: 'navigate', path: '/chat/users' },
-    keywords: ['search', 'user', '検索', 'ユーザー'],
   },
   {
     id: 'nav-scores',

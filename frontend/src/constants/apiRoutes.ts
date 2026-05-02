@@ -108,14 +108,6 @@ export const FAVORITE_PHRASES = {
   byId: (id: number | string) => `${API_V2}/favorite-phrases/${id}`,
 } as const;
 
-/** Friendship + フォロー */
-export const FRIENDSHIPS = {
-  following: `${API_V2}/friendships/following`,
-  followers: `${API_V2}/friendships/followers`,
-  follow: (userId: number | string) => `${API_V2}/friendships/${userId}/follow`,
-  status: (userId: number | string) => `${API_V2}/friendships/${userId}/status`,
-} as const;
-
 /** 通知 */
 export const NOTIFICATIONS = {
   list: `${API_V2}/notifications`,

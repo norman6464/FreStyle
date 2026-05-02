@@ -1,6 +1,5 @@
 import { useNavigate } from 'react-router-dom';
 import {
-  ChatBubbleLeftRightIcon,
   SparklesIcon,
   AcademicCapIcon,
   ChartBarIcon,
@@ -13,18 +12,10 @@ import {
 import Card from './Card';
 
 interface MenuNavigationCardProps {
-  totalUnread: number;
   latestScore: number | null;
 }
 
 const MENU_ITEMS = [
-  {
-    icon: ChatBubbleLeftRightIcon,
-    label: 'チャット',
-    description: 'メンバーとメッセージをやり取り',
-    to: '/chat',
-    badgeKey: 'unread' as const,
-  },
   {
     icon: SparklesIcon,
     label: 'AI アシスタント',
@@ -83,11 +74,10 @@ const MENU_ITEMS = [
   },
 ];
 
-export default function MenuNavigationCard({ totalUnread, latestScore }: MenuNavigationCardProps) {
+export default function MenuNavigationCard({ latestScore }: MenuNavigationCardProps) {
   const navigate = useNavigate();
 
-  const getBadge = (badgeKey: 'unread' | 'score' | null): string | null => {
-    if (badgeKey === 'unread' && totalUnread > 0) return `${totalUnread}件の未読`;
+  const getBadge = (badgeKey: 'score' | null): string | null => {
     if (badgeKey === 'score' && latestScore !== null) return `最新: ${latestScore}`;
     return null;
   };

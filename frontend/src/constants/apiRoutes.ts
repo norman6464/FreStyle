@@ -41,21 +41,12 @@ export const PROFILE = {
   meStats: `${API_V2}/users/me/stats`,
 } as const;
 
-/** AI チャット（セッション・メッセージ） */
+/** AI チャット（セッション・メッセージ・言い換え） */
 export const AI_CHAT = {
   sessions: `${API_V2}/ai-chat/sessions`,
   session: (sessionId: number | string) => `${API_V2}/ai-chat/sessions/${sessionId}`,
   sessionMessages: (sessionId: number | string) =>
     `${API_V2}/ai-chat/sessions/${sessionId}/messages`,
-} as const;
-
-/** ユーザー間チャット */
-export const CHAT = {
-  rooms: `${API_V2}/chat/rooms`,
-  roomRead: (roomId: number | string) => `${API_V2}/chat/rooms/${roomId}/read`,
-  users: `${API_V2}/chat/users`,
-  userCreate: (userId: number | string) => `${API_V2}/chat/users/${userId}/create`,
-  userHistory: (roomId: number | string) => `${API_V2}/chat/users/${roomId}/history`,
   aiRephrase: `${API_V2}/chat/ai/rephrase`,
 } as const;
 
@@ -164,8 +155,6 @@ export const EMBEDS = {
 
 /** WebSocket（Cookie 認証 / 通常 ws:// or wss:// にフロント側で書き換え）*/
 export const WS = {
-  /** ルームごとブロードキャスト（ユーザー間チャット） */
-  chatRoom: (roomId: number | string) => `${API_V2}/ws/chat/${roomId}`,
   /** AI チャット（Bedrock 連携） */
   aiChat: `${API_V2}/ws/ai-chat`,
 } as const;

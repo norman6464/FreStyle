@@ -9,8 +9,8 @@ import Sidebar from '../Sidebar';
 const mockHandleLogout = vi.fn();
 vi.mock('../../../hooks/useSidebar', () => ({
   useSidebar: () => ({
-    totalUnread: 0,
     handleLogout: mockHandleLogout,
+    loggingOut: false,
   }),
 }));
 
@@ -35,7 +35,7 @@ describe('Sidebar モバイル動作', () => {
   it('ナビ項目クリック時にonNavigateが呼ばれる', () => {
     const onNavigate = vi.fn();
     renderSidebar(onNavigate);
-    fireEvent.click(screen.getByText('チャット'));
+    fireEvent.click(screen.getByText('AI'));
     expect(onNavigate).toHaveBeenCalledTimes(1);
   });
 
@@ -48,6 +48,6 @@ describe('Sidebar モバイル動作', () => {
 
   it('onNavigateが未指定でもエラーにならない', () => {
     renderSidebar();
-    expect(() => fireEvent.click(screen.getByText('チャット'))).not.toThrow();
+    expect(() => fireEvent.click(screen.getByText('AI'))).not.toThrow();
   });
 });

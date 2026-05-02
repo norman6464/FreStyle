@@ -1,5 +1,5 @@
 import apiClient from '../lib/axios';
-import { AI_CHAT, CHAT, SCORES } from '../constants/apiRoutes';
+import { AI_CHAT, SCORES } from '../constants/apiRoutes';
 import { AiSession, AiMessage, ScoreCard, ScoreHistoryItem } from '../types';
 
 /**
@@ -96,7 +96,7 @@ class AiChatRepository {
    * メッセージの言い換え提案を取得
    */
   async rephrase(request: RephraseRequest): Promise<{ result: string }> {
-    const response = await apiClient.post(CHAT.aiRephrase, request);
+    const response = await apiClient.post(AI_CHAT.aiRephrase, request);
     return response.data;
   }
 

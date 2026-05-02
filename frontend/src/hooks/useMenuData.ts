@@ -3,13 +3,7 @@ import { MenuRepository } from '../repositories/MenuRepository';
 import type { ScoreHistory } from '../types';
 import { getMonday } from '../utils/weekUtils';
 
-interface ChatStats {
-  chatPartnerCount: number;
-}
-
 export function useMenuData() {
-  const [stats, setStats] = useState<ChatStats | null>(null);
-  const [totalUnread, setTotalUnread] = useState(0);
   const [latestScore, setLatestScore] = useState<ScoreHistory | null>(null);
   const [allScores, setAllScores] = useState<ScoreHistory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -18,28 +12,13 @@ export function useMenuData() {
     let cancelled = false;
     const fetchAll = async () => {
       try {
-        const [statsData, roomsData, scoresData] = await Promise.allSettled([
-          MenuRepository.fetchChatStats(),
-          MenuRepository.fetchChatRooms(),
-          MenuRepository.fetchScoreHistory(),
-        ]);
+        const scoresData = await MenuRepository.fetchScoreHistory().catch(() => null);
 
         if (cancelled) return;
 
-        if (statsData.status === 'fulfilled') {
-          setStats(statsData.value);
-        }
-
-        if (roomsData.status === 'fulfilled' && Array.isArray(roomsData.value?.chatUsers)) {
-          const unread = roomsData.value.chatUsers.reduce(
-            (sum, u) => sum + u.unreadCount, 0
-          );
-          setTotalUnread(unread);
-        }
-
-        if (scoresData.status === 'fulfilled' && Array.isArray(scoresData.value) && scoresData.value.length > 0) {
-          setLatestScore(scoresData.value[0]);
-          setAllScores(scoresData.value);
+        if (scoresData && Array.isArray(scoresData) && scoresData.length > 0) {
+          setLatestScore(scoresData[0]);
+          setAllScores(scoresData);
         }
       } catch {
         // サイレントに処理
@@ -69,8 +48,6 @@ export function useMenuData() {
   }, [allScores]);
 
   return {
-    stats,
-    totalUnread,
     latestScore,
     allScores,
     totalSessions,

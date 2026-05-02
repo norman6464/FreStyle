@@ -7,10 +7,8 @@ import { useTheme } from '../../hooks/useTheme';
 import type { RootState } from '../../store';
 import {
   HomeIcon,
-  ChatBubbleLeftRightIcon,
   SparklesIcon,
   AcademicCapIcon,
-  MagnifyingGlassIcon,
   ChartBarIcon,
   StarIcon,
   DocumentTextIcon,
@@ -27,10 +25,8 @@ import {
 
 const navItems = [
   { icon: HomeIcon, label: 'ホーム', to: '/', matchExact: true },
-  { icon: ChatBubbleLeftRightIcon, label: 'チャット', to: '/chat', matchPrefix: '/chat', excludePrefix: ['/chat/ask-ai', '/chat/users'] },
   { icon: SparklesIcon, label: 'AI', to: '/chat/ask-ai', matchPrefix: '/chat/ask-ai' },
   { icon: AcademicCapIcon, label: '練習', to: '/practice', matchPrefix: '/practice' },
-  { icon: MagnifyingGlassIcon, label: 'ユーザー検索', to: '/chat/users', matchExact: true },
   { icon: ChartBarIcon, label: 'スコア履歴', to: '/scores', matchExact: true },
   { icon: StarIcon, label: 'お気に入り', to: '/favorites', matchExact: true },
   { icon: DocumentTextIcon, label: 'ノート', to: '/notes', matchPrefix: '/notes' },
@@ -49,7 +45,7 @@ interface SidebarProps {
 
 export default function Sidebar({ onNavigate }: SidebarProps) {
   const location = useLocation();
-  const { totalUnread, handleLogout, loggingOut } = useSidebar();
+  const { handleLogout, loggingOut } = useSidebar();
   const { theme, toggleTheme } = useTheme();
   const isAdmin = useSelector((state: RootState) => state.auth.isAdmin);
 
@@ -58,11 +54,7 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
       return location.pathname === item.to;
     }
     if (item.matchPrefix) {
-      const matches = location.pathname.startsWith(item.matchPrefix);
-      if (matches && item.excludePrefix) {
-        return !item.excludePrefix.some(p => location.pathname.startsWith(p));
-      }
-      return matches;
+      return location.pathname.startsWith(item.matchPrefix);
     }
     return false;
   };
@@ -86,7 +78,7 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
             to={item.to}
             active={isActive(item)}
             onClick={onNavigate}
-            badge={item.label === 'チャット' ? totalUnread : undefined}
+            badge={undefined}
           />
         ))}
 

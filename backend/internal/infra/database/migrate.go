@@ -26,7 +26,6 @@ func allDomainModels() []any {
 		&domain.LearningReport{},
 		&domain.ConversationTemplate{},
 		&domain.FavoritePhrase{},
-		&domain.Friendship{},
 		&domain.Notification{},
 		&domain.ReminderSetting{},
 		&domain.DailyGoal{},

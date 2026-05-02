@@ -27,7 +27,6 @@ const AskAiPage = lazy(() => import('./pages/AskAiPage'));
 const NotesPage = lazy(() => import('./pages/NotesPage'));
 const NotificationPage = lazy(() => import('./pages/NotificationPage'));
 const LearningReportPage = lazy(() => import('./pages/LearningReportPage'));
-const FriendshipPage = lazy(() => import('./pages/FriendshipPage'));
 const RankingPage = lazy(() => import('./pages/RankingPage'));
 const TemplatePage = lazy(() => import('./pages/TemplatePage'));
 const ReminderPage = lazy(() => import('./pages/ReminderPage'));
@@ -89,7 +88,6 @@ export default function App() {
         <Route path="/notes" element={<NotesPage />} />
         <Route path="/notifications" element={<NotificationPage />} />
         <Route path="/reports" element={<LearningReportPage />} />
-        <Route path="/friends" element={<FriendshipPage />} />
         <Route path="/ranking" element={<RankingPage />} />
         <Route path="/templates" element={<TemplatePage />} />
         <Route path="/reminder" element={<ReminderPage />} />

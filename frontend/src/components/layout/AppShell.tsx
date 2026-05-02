@@ -1,31 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet } from 'react-router-dom';
+import { Bars3Icon } from '@heroicons/react/24/outline';
 import Sidebar from './Sidebar';
-import TopBar from './TopBar';
 import SkipLink from '../SkipLink';
 import ScrollToTop from '../ScrollToTop';
 import CommandPalette from '../CommandPalette';
 
-const pageTitles: Record<string, string> = {
-  '/': 'ホーム',
-  '/chat/ask-ai': 'AI アシスタント',
-  '/practice': '練習モード',
-  '/scores': 'スコア履歴',
-  '/profile/me': 'プロフィール',
-  '/notes': 'ノート',
-};
-
-function getPageTitle(pathname: string): string {
-  if (pageTitles[pathname]) return pageTitles[pathname];
-  if (pathname.startsWith('/chat/ask-ai/')) return 'AI アシスタント';
-  return 'FreStyle';
-}
-
 export default function AppShell() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-  const location = useLocation();
-  const title = getPageTitle(location.pathname);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -40,43 +23,46 @@ export default function AppShell() {
   }, [handleKeyDown]);
 
   return (
-    <div className="h-screen flex bg-surface">
+    <div className="h-screen flex flex-col bg-surface">
       <SkipLink targetId="main-content" />
-      {/* デスクトップサイドバー */}
-      <div className="hidden md:block h-full">
-        <Sidebar />
-      </div>
 
-      {/* モバイルオーバーレイ */}
-      {mobileMenuOpen && (
+      {/* 全幅ヘッダー */}
+      <header className="h-14 w-full bg-surface-1 border-b border-surface-3 flex items-center px-4 flex-shrink-0">
+        <button
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          className="md:hidden p-1.5 -ml-1.5 mr-3 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-surface-2 rounded-md transition-colors"
+          aria-label="メニュー"
+        >
+          <Bars3Icon className="w-5 h-5" />
+        </button>
+        <img src="/logo.svg" alt="FreStyle" className="h-9 w-auto" />
+      </header>
+
+      {/* ヘッダー下: サイドバー + メインコンテンツ */}
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        {/* モバイルオーバーレイ */}
+        {mobileMenuOpen && (
+          <div
+            className="fixed inset-0 bg-black/40 z-40 md:hidden"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+        )}
+
+        {/* モバイルサイドバー */}
         <div
-          className="fixed inset-0 bg-black/40 z-40 md:hidden"
-          onClick={() => setMobileMenuOpen(false)}
-        />
-      )}
+          className={`fixed inset-y-0 left-0 z-50 w-56 transform transition-transform duration-200 md:hidden ${
+            mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
+        >
+          <Sidebar onNavigate={() => setMobileMenuOpen(false)} />
+        </div>
 
-      {/* モバイルサイドバー */}
-      <div
-        className={`fixed inset-y-0 left-0 z-50 w-56 transform transition-transform duration-200 md:hidden ${
-          mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
-      >
-        <Sidebar onNavigate={() => setMobileMenuOpen(false)} />
-      </div>
+        {/* デスクトップサイドバー */}
+        <div className="hidden md:block h-full flex-shrink-0">
+          <Sidebar />
+        </div>
 
-      {/* メインコンテンツ */}
-      {/*
-        flex-1 flex-col / min-h-0 / min-w-0 / overflow-hidden を組み合わせるのが
-        Tailwind + Flexbox 内で「内側だけ overflow-auto してくれ」を成立させる
-        必須レシピ。これらが無いと flex item の default min-height: auto により
-        子コンテンツが column 全体を伸ばしてしまい、AppShell の h-screen を超え、
-        body 側にも 2 本目のスクロールバーが発生する (実際 MenuPage でだけ顕在化していた)。
-      */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
-        <TopBar
-          title={title}
-          onMenuToggle={() => setMobileMenuOpen(!mobileMenuOpen)}
-        />
+        {/* メインコンテンツ */}
         <main
           id="main-content"
           tabIndex={-1}
@@ -86,6 +72,7 @@ export default function AppShell() {
         </main>
         <ScrollToTop targetId="main-content" />
       </div>
+
       <CommandPalette
         isOpen={commandPaletteOpen}
         onClose={() => setCommandPaletteOpen(false)}

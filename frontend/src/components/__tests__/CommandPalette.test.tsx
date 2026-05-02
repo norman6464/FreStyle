@@ -48,7 +48,7 @@ describe('CommandPalette', () => {
   it('全コマンドがデフォルトで表示される', () => {
     renderPalette();
     expect(screen.getByText('ホーム')).toBeInTheDocument();
-    expect(screen.getByText('チャット')).toBeInTheDocument();
+    expect(screen.getByText('AI アシスタント')).toBeInTheDocument();
     expect(screen.getByText('テーマ切替')).toBeInTheDocument();
     expect(screen.getByText('新規ノート作成')).toBeInTheDocument();
   });

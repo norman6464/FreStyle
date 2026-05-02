@@ -336,34 +336,6 @@ export interface NotificationDto {
   createdAt: string;
 }
 
-/** FriendshipUser はフロント表示用 view（friend list 表示で使う）。
- *  backend 1:1 は `FriendshipDto`。 */
-export interface FriendshipUser {
-  id: number;
-  userId: number;
-  username: string;
-  iconUrl: string | null;
-  bio: string | null;
-  mutual: boolean;
-  createdAt: string;
-  status: string | null;
-}
-
-/** FriendshipDto は Go backend `domain.Friendship` と 1:1。
- *  status は `pending` / `accepted` / `rejected`。 */
-export interface FriendshipDto {
-  id: number;
-  requesterId: number;
-  addresseeId: number;
-  status: 'pending' | 'accepted' | 'rejected';
-  createdAt: string;
-}
-
-export interface FollowStatus {
-  isFollowing: boolean;
-  isFollowedBy: boolean;
-  isMutual: boolean;
-}
 
 /** ランキングエントリー */
 export interface RankingEntry {

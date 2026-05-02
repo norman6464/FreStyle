@@ -14,7 +14,6 @@ import {
   DocumentTextIcon,
   BellIcon,
   DocumentChartBarIcon,
-  UsersIcon,
   UserCircleIcon,
   ArrowLeftOnRectangleIcon,
   SunIcon,
@@ -32,7 +31,6 @@ const navItems = [
   { icon: DocumentTextIcon, label: 'ノート', to: '/notes', matchPrefix: '/notes' },
   { icon: BellIcon, label: '通知', to: '/notifications', matchExact: true },
   { icon: DocumentChartBarIcon, label: 'レポート', to: '/reports', matchExact: true },
-  { icon: UsersIcon, label: 'フレンド', to: '/friends', matchExact: true },
 ];
 
 const bottomNavItems = [
@@ -63,11 +61,6 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
     <>
     {loggingOut && <Loading fullscreen message="ログアウト中..." />}
     <aside className="flex flex-col w-56 h-full bg-surface-1 border-r border-surface-3 flex-shrink-0">
-      {/* ロゴ */}
-      <div className="h-14 flex items-center px-3 border-b border-surface-3">
-        <img src="/logo.svg" alt="FreStyle" className="h-9 w-auto" />
-      </div>
-
       {/* メインナビ */}
       <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
         {navItems.map(item => (

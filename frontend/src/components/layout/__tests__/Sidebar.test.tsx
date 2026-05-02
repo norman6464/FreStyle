@@ -60,13 +60,6 @@ describe('Sidebar', () => {
     expect(screen.getByText('ログアウト')).toBeDefined();
   });
 
-  it('FreStyle ロゴ SVG を表示する（F アイコン + テキストを 1 つの SVG に統合）', () => {
-    renderSidebar();
-    const logo = screen.getByAltText('FreStyle');
-    expect(logo).toBeDefined();
-    expect(logo.getAttribute('src')).toBe('/logo.svg');
-  });
-
   it('ホームルートでホームがアクティブになる', () => {
     renderSidebar('/');
     const homeLink = screen.getByText('ホーム').closest('a');

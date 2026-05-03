@@ -32,6 +32,7 @@ func allDomainModels() []any {
 		&domain.WeeklyChallenge{},
 		&domain.WeeklyChallengeProgress{},
 		&domain.AdminInvitation{},
+		&domain.PhpExercise{},
 	}
 }
 

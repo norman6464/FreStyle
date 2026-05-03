@@ -73,6 +73,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	registerSettingsRoutes(authed, deps)
 	registerAdminRoutes(authed, deps)
 	registerEmbedRoutes(authed)
+	registerPhpRoutes(authed, deps)
 	registerWebSocketRoutes(authed, deps)
 
 	return r

@@ -20,12 +20,14 @@ import {
   MoonIcon,
   Cog6ToothIcon,
   UserPlusIcon,
+  CodeBracketIcon,
 } from '@heroicons/react/24/outline';
 
 const navItems = [
   { icon: HomeIcon, label: 'ホーム', to: '/', matchExact: true },
   { icon: SparklesIcon, label: 'AI', to: '/chat/ask-ai', matchPrefix: '/chat/ask-ai' },
   { icon: AcademicCapIcon, label: '練習', to: '/practice', matchPrefix: '/practice' },
+  { icon: CodeBracketIcon, label: 'コード学習', to: '/code-editor', matchPrefix: '/code-editor' },
   { icon: ChartBarIcon, label: 'スコア履歴', to: '/scores', matchExact: true },
   { icon: StarIcon, label: 'お気に入り', to: '/favorites', matchExact: true },
   { icon: DocumentTextIcon, label: 'ノート', to: '/notes', matchPrefix: '/notes' },

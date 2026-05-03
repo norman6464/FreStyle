@@ -433,3 +433,24 @@ export interface WeeklyChallengeProgressDto {
   completed: boolean;
   updatedAt: string;
 }
+
+/** PHP 演習問題（Go backend `domain.PhpExercise` と 1:1）*/
+export interface PhpExercise {
+  id: number;
+  orderIndex: number;
+  category: string;
+  title: string;
+  description: string;
+  starterCode: string;
+  hintText: string;
+  expectedOutput: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** PHP コード実行結果（Go backend `usecase.ExecuteCodeOutput` と 1:1）*/
+export interface CodeExecutionResult {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+}

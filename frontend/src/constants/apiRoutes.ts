@@ -145,6 +145,13 @@ export const EMBEDS = {
   oembed: `${API_V2}/embeds/oembed`,
 } as const;
 
+/** PHP コード実行環境 */
+export const PHP = {
+  exercises: `${API_V2}/php/exercises`,
+  exercise: (id: number) => `${API_V2}/php/exercises/${id}`,
+  execute: `${API_V2}/php/execute`,
+} as const;
+
 /** WebSocket（Cookie 認証 / 通常 ws:// or wss:// にフロント側で書き換え）*/
 export const WS = {
   /** AI チャット（Bedrock 連携） */

@@ -14,9 +14,9 @@ import (
 )
 
 const (
-	maxCodeBytes   = 64 * 1024        // 64 KB
+	maxCodeBytes   = 64 * 1024 // 64 KB
 	execTimeout    = 5 * time.Second
-	maxOutputBytes = 64 * 1024        // 64 KB
+	maxOutputBytes = 64 * 1024 // 64 KB
 )
 
 // 実行を禁止する PHP 関数。ファイル操作・OS 操作・ネットワーク通信などを封じる。

@@ -40,7 +40,7 @@
 - 既存のコミュニケーション練習も "Lesson type=communication" として組み込み可能
 
 ### Phase 2 以降
-- ブラウザ内コード実行サンドボックス（paiza ライク、**最初から多言語対応** = Python / JavaScript / TypeScript / Java / Go）
+- ブラウザ内コード実行サンドボックス（**最初から多言語対応** = Python / JavaScript / TypeScript / Java / Go）
 - 写経モード（メンターのお手本コードを写す → 自動採点）
 - AI 採点（記述式回答・コードレビューを Bedrock で評価）
 - 認定証発行、SCORM/xAPI 互換、SSO（SAML/OIDC）
@@ -121,8 +121,6 @@
 > Vitest + React Testing Library（フロントエンド単体）/ `go test`（バックエンド単体）/ Playwright（本番 E2E スモーク、Chromium）
 
 ### AWS サービス詳細
-
-実際にプロビジョン済みのリソースのみ記載しています（CFn テンプレートは [`norman6464/frestyle-infrastructure`](https://github.com/norman6464/frestyle-infrastructure) で管理）。
 
 | カテゴリ | サービス | 用途 |
 |---------|----------|------|

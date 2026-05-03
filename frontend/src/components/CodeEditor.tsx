@@ -1,18 +1,17 @@
-import { Editor, loader } from '@monaco-editor/react';
+import { useEffect, useRef } from 'react';
 import * as monaco from 'monaco-editor';
 import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
 import { useTheme } from '../hooks/useTheme';
 
-// CSP script-src 'self' 準拠: CDN (jsDelivr) からの動的ロードを禁止し、
-// Vite でバンドルしたローカルの monaco-editor を使う。
-if (typeof self !== 'undefined') {
+// CDN 読み込みを完全回避: Vite バンドル済み monaco-editor を直接使う。
+// @monaco-editor/react は loader が jsDelivr を参照するため使わない。
+if (typeof self !== 'undefined' && !self.MonacoEnvironment) {
   self.MonacoEnvironment = {
-    getWorker(_: unknown, _label: string) {
+    getWorker() {
       return new editorWorker();
     },
   };
 }
-loader.config({ monaco });
 
 interface CodeEditorProps {
   value: string;
@@ -22,10 +21,6 @@ interface CodeEditorProps {
   readOnly?: boolean;
 }
 
-/**
- * CodeEditor — Monaco Editor (VS Code エンジン) のラッパーコンポーネント。
- * テーマは useTheme に追従し、dark/light を自動切り替えする。
- */
 export default function CodeEditor({
   value,
   onChange,
@@ -34,24 +29,56 @@ export default function CodeEditor({
   readOnly = false,
 }: CodeEditorProps) {
   const { theme } = useTheme();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
 
-  return (
-    <Editor
-      height={height}
-      language={language}
-      value={value}
-      theme={theme === 'dark' ? 'vs-dark' : 'vs'}
-      onChange={(v) => onChange(v ?? '')}
-      options={{
-        fontSize: 14,
-        minimap: { enabled: false },
-        scrollBeyondLastLine: false,
-        wordWrap: 'on',
-        readOnly,
-        automaticLayout: true,
-        tabSize: 4,
-        renderLineHighlight: 'line',
-      }}
-    />
-  );
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const editor = monaco.editor.create(containerRef.current, {
+      value,
+      language,
+      theme: theme === 'dark' ? 'vs-dark' : 'vs',
+      fontSize: 14,
+      minimap: { enabled: false },
+      scrollBeyondLastLine: false,
+      wordWrap: 'on',
+      readOnly,
+      automaticLayout: true,
+      tabSize: 4,
+      renderLineHighlight: 'line',
+    });
+    editorRef.current = editor;
+    const sub = editor.onDidChangeModelContent(() => {
+      onChangeRef.current(editor.getValue());
+    });
+    return () => {
+      sub.dispose();
+      editor.dispose();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const model = editorRef.current?.getModel();
+    if (model) monaco.editor.setModelLanguage(model, language);
+  }, [language]);
+
+  useEffect(() => {
+    editorRef.current?.updateOptions({ readOnly });
+  }, [readOnly]);
+
+  useEffect(() => {
+    monaco.editor.setTheme(theme === 'dark' ? 'vs-dark' : 'vs');
+  }, [theme]);
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (editor && editor.getValue() !== value) {
+      editor.setValue(value);
+    }
+  }, [value]);
+
+  return <div ref={containerRef} style={{ height, width: '100%' }} />;
 }

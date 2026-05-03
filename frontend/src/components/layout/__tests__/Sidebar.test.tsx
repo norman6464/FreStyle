@@ -17,16 +17,16 @@ vi.mock('../../../hooks/useTheme', () => ({
   useTheme: () => mockUseTheme(),
 }));
 
-function createTestStore() {
+function createTestStore(isAdmin = false) {
   return configureStore({
     reducer: { auth: authReducer },
-    preloadedState: { auth: { isAuthenticated: true, loading: false } },
+    preloadedState: { auth: { isAuthenticated: true, loading: false, isAdmin } },
   });
 }
 
-function renderSidebar(currentPath = '/') {
+function renderSidebar(currentPath = '/', isAdmin = false) {
   return render(
-    <Provider store={createTestStore()}>
+    <Provider store={createTestStore(isAdmin)}>
       <MemoryRouter initialEntries={[currentPath]}>
         <Sidebar />
       </MemoryRouter>
@@ -62,29 +62,62 @@ describe('Sidebar', () => {
 
   it('ホームルートでホームがアクティブになる', () => {
     renderSidebar('/');
-    // Teams スタイルサイドバーはボタンで実装。アクティブ時に bg-surface-3 クラスを持つ
-    const homeBtn = screen.getByText('ホーム').closest('button');
-    expect(homeBtn?.className).toContain('bg-surface-3');
+    const homeLink = screen.getByText('ホーム').closest('a');
+    expect(homeLink?.className).toContain('bg-surface-3');
   });
 
-  it('ダークモード時にライトボタンを表示する', () => {
+  it('ダークモード時にライトモードボタンを表示する', () => {
     renderSidebar();
-    // 省略ラベル「ライト」が表示される
-    expect(screen.getByText('ライト')).toBeInTheDocument();
+    expect(screen.getByText('ライトモード')).toBeInTheDocument();
   });
 
-  it('ライトモード時にダークボタンを表示する', () => {
+  it('ライトモード時にダークモードボタンを表示する', () => {
     mockUseTheme.mockReturnValue({
       theme: 'light',
       toggleTheme: mockToggleTheme,
     });
     renderSidebar();
-    expect(screen.getByText('ダーク')).toBeInTheDocument();
+    expect(screen.getByText('ダークモード')).toBeInTheDocument();
   });
 
   it('テーマ切り替えボタンクリックでtoggleThemeが呼ばれる', () => {
     renderSidebar();
-    fireEvent.click(screen.getByTitle('ライトモード'));
+    fireEvent.click(screen.getByText('ライトモード'));
     expect(mockToggleTheme).toHaveBeenCalledTimes(1);
+  });
+
+  it('折りたたみボタンでサイドバーが折りたたまれる', () => {
+    renderSidebar();
+    // 展開状態ではラベルが見える
+    expect(screen.getByText('ホーム')).toBeVisible();
+    // 折りたたみボタンをクリック
+    fireEvent.click(screen.getByTitle('サイドバーを閉じる'));
+    // 折りたたみ後はラベルが消える（expanded=false）
+    expect(screen.queryByText('ホーム')).toBeNull();
+  });
+
+  it('折りたたみ後に展開ボタンでラベルが戻る', () => {
+    renderSidebar();
+    fireEvent.click(screen.getByTitle('サイドバーを閉じる'));
+    fireEvent.click(screen.getByTitle('サイドバーを開く'));
+    expect(screen.getByText('ホーム')).toBeVisible();
+  });
+
+  it('admin ユーザーには管理メニューが表示される', () => {
+    renderSidebar('/', true);
+    expect(screen.getByText('管理')).toBeInTheDocument();
+  });
+
+  it('admin メニュークリックでサブメニューが展開される', () => {
+    renderSidebar('/', true);
+    fireEvent.click(screen.getByText('管理'));
+    expect(screen.getByText('会社一覧')).toBeInTheDocument();
+    expect(screen.getByText('シナリオ管理')).toBeInTheDocument();
+    expect(screen.getByText('招待管理')).toBeInTheDocument();
+  });
+
+  it('非 admin ユーザーには管理メニューが表示されない', () => {
+    renderSidebar('/');
+    expect(screen.queryByText('管理')).toBeNull();
   });
 });

@@ -13,7 +13,15 @@ func registerChatRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	aiHandler := NewAiChatHandler(
 		usecase.NewGetAiChatSessionsByUserIDUseCase(aiSessionRepo),
 		usecase.NewCreateAiChatSessionUseCase(aiSessionRepo),
+		usecase.NewGetAiChatSessionUseCase(aiSessionRepo),
+		usecase.NewUpdateAiChatSessionTitleUseCase(aiSessionRepo),
+		usecase.NewDeleteAiChatSessionUseCase(aiSessionRepo),
+		usecase.NewGetAiChatMessagesUseCase(deps.msgRepo),
 	)
 	g.GET("/ai-chat/sessions", aiHandler.GetSessions)
 	g.POST("/ai-chat/sessions", aiHandler.CreateSession)
+	g.GET("/ai-chat/sessions/:id", aiHandler.GetSession)
+	g.PUT("/ai-chat/sessions/:id", aiHandler.UpdateSessionTitle)
+	g.DELETE("/ai-chat/sessions/:id", aiHandler.DeleteSession)
+	g.GET("/ai-chat/sessions/:id/messages", aiHandler.GetMessages)
 }

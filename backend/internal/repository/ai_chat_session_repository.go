@@ -13,6 +13,7 @@ type AiChatSessionRepository interface {
 	FindByID(ctx context.Context, id uint64) (*domain.AiChatSession, error)
 	Create(ctx context.Context, s *domain.AiChatSession) error
 	UpdateTitle(ctx context.Context, id uint64, title string) error
+	Delete(ctx context.Context, id uint64) error
 }
 
 type aiChatSessionRepository struct{ db *gorm.DB }
@@ -47,4 +48,8 @@ func (r *aiChatSessionRepository) UpdateTitle(ctx context.Context, id uint64, ti
 		Model(&domain.AiChatSession{}).
 		Where("id = ?", id).
 		Update("title", title).Error
+}
+
+func (r *aiChatSessionRepository) Delete(ctx context.Context, id uint64) error {
+	return r.db.WithContext(ctx).Delete(&domain.AiChatSession{}, id).Error
 }

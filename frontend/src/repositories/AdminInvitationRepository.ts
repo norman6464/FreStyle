@@ -14,6 +14,7 @@ export interface AdminInvitation {
 }
 
 export interface CreateInvitationForm {
+  companyId: number;
   email: string;
   role: 'trainee' | 'company_admin';
   displayName?: string;

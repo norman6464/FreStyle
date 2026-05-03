@@ -62,27 +62,29 @@ describe('Sidebar', () => {
 
   it('ホームルートでホームがアクティブになる', () => {
     renderSidebar('/');
-    const homeLink = screen.getByText('ホーム').closest('a');
-    expect(homeLink?.className).toContain('bg-surface-3');
+    // Teams スタイルサイドバーはボタンで実装。アクティブ時に bg-surface-3 クラスを持つ
+    const homeBtn = screen.getByText('ホーム').closest('button');
+    expect(homeBtn?.className).toContain('bg-surface-3');
   });
 
-  it('ダークモード時にライトモードボタンを表示する', () => {
+  it('ダークモード時にライトボタンを表示する', () => {
     renderSidebar();
-    expect(screen.getByText('ライトモード')).toBeInTheDocument();
+    // 省略ラベル「ライト」が表示される
+    expect(screen.getByText('ライト')).toBeInTheDocument();
   });
 
-  it('ライトモード時にダークモードボタンを表示する', () => {
+  it('ライトモード時にダークボタンを表示する', () => {
     mockUseTheme.mockReturnValue({
       theme: 'light',
       toggleTheme: mockToggleTheme,
     });
     renderSidebar();
-    expect(screen.getByText('ダークモード')).toBeInTheDocument();
+    expect(screen.getByText('ダーク')).toBeInTheDocument();
   });
 
   it('テーマ切り替えボタンクリックでtoggleThemeが呼ばれる', () => {
     renderSidebar();
-    fireEvent.click(screen.getByText('ライトモード'));
+    fireEvent.click(screen.getByTitle('ライトモード'));
     expect(mockToggleTheme).toHaveBeenCalledTimes(1);
   });
 });

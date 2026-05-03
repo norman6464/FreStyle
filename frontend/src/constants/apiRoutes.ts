@@ -132,8 +132,9 @@ export const WEEKLY_CHALLENGE = {
   progress: `${API_V2}/weekly-challenge/progress`,
 } as const;
 
-/** 管理者ダッシュボード（招待 / シナリオ） */
+/** 管理者ダッシュボード（会社 / 招待 / シナリオ） */
 export const ADMIN = {
+  companies: `${API_V2}/admin/companies`,
   invitations: `${API_V2}/admin/invitations`,
   invitationById: (id: number | string) => `${API_V2}/admin/invitations/${id}`,
   scenarios: `${API_V2}/admin/scenarios`,

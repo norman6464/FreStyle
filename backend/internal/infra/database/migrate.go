@@ -33,6 +33,7 @@ func allDomainModels() []any {
 		&domain.WeeklyChallengeProgress{},
 		&domain.AdminInvitation{},
 		&domain.PhpExercise{},
+		&domain.Company{},
 	}
 }
 
@@ -58,6 +59,21 @@ func Migrate(db *gorm.DB) error {
 	log.Println("migrate: AutoMigrate done")
 	if err := seedPhpExercises(db); err != nil {
 		return err
+	}
+	if err := seedCompanies(db); err != nil {
+		return err
+	}
+	return nil
+}
+
+func seedCompanies(db *gorm.DB) error {
+	seeds := []domain.Company{
+		{ID: 1, Name: "株式会社FreStyle"},
+	}
+	for _, c := range seeds {
+		if err := db.FirstOrCreate(&c, domain.Company{ID: c.ID}).Error; err != nil {
+			return err
+		}
 	}
 	return nil
 }

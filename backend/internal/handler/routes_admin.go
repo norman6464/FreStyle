@@ -9,6 +9,12 @@ import (
 // registerAdminRoutes は管理者向けの招待管理・シナリオ管理エンドポイントを登録する。
 // 認可（super_admin / company_admin のみ操作可能）は handler 層で実施する。
 func registerAdminRoutes(g *gin.RouterGroup, deps *routeDeps) {
+	// Company 一覧 (SuperAdmin 専用)
+	companyHandler := NewAdminCompanyHandler(
+		usecase.NewListCompaniesUseCase(repository.NewCompanyRepository(deps.db)),
+	)
+	g.GET("/admin/companies", companyHandler.List)
+
 	// Phase 25: AdminInvitation
 	adminInvRepo := repository.NewAdminInvitationRepository(deps.db)
 	adminInvHandler := NewAdminInvitationHandler(

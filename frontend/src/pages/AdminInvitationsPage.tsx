@@ -5,29 +5,25 @@ import AdminInvitationRepository, {
   AdminInvitation,
   CreateInvitationForm,
 } from '../repositories/AdminInvitationRepository';
+import CompanyRepository, { Company } from '../repositories/CompanyRepository';
 import type { RootState } from '../store';
 import Loading from '../components/Loading';
 import PageIntro from '../components/ui/PageIntro';
 import { logger } from '../lib/logger';
 
 const EMPTY_FORM: CreateInvitationForm = {
+  companyId: 0,
   email: '',
   role: 'trainee',
   displayName: '',
 };
 
-/**
- * 管理者専用: メール招待管理ページ。
- *
- * <p>CompanyAdmin が新卒研修対象者のメールアドレスを入力 → Cognito 経由で
- * 一時パスワード付きの招待メールが送信される。受信者は Hosted UI でログインし、
- * パスワード変更後に自社のコース・教材にアクセスできる。</p>
- */
 export default function AdminInvitationsPage() {
   const isAdmin = useSelector((state: RootState) => state.auth.isAdmin);
   const authLoading = useSelector((state: RootState) => state.auth.loading);
 
   const [invitations, setInvitations] = useState<AdminInvitation[]>([]);
+  const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<CreateInvitationForm>(EMPTY_FORM);
@@ -37,15 +33,23 @@ export default function AdminInvitationsPage() {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await AdminInvitationRepository.list();
+      const [data, cos] = await Promise.all([
+        AdminInvitationRepository.list(),
+        CompanyRepository.list(),
+      ]);
       setInvitations(data);
+      setCompanies(cos);
+      if (cos.length > 0 && form.companyId === 0) {
+        setForm((f) => ({ ...f, companyId: cos[0].id }));
+      }
       setError(null);
     } catch (e) {
-      setError('招待一覧の取得に失敗しました');
+      setError('データの取得に失敗しました');
       logger.error(e);
     } finally {
       setLoading(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -57,6 +61,10 @@ export default function AdminInvitationsPage() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form.companyId) {
+      setError('会社を選択してください');
+      return;
+    }
     setSubmitting(true);
     setError(null);
     setSuccess(null);
@@ -65,11 +73,14 @@ export default function AdminInvitationsPage() {
       setSuccess(
         `${created.email} 宛に招待メールを送信しました。受信者は Cognito Hosted UI で初回パスワードを変更してログインしてください。`
       );
-      setForm(EMPTY_FORM);
+      setForm((f) => ({ ...EMPTY_FORM, companyId: f.companyId }));
       await fetchAll();
     } catch (err: unknown) {
       const msg =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        (err as { response?: { data?: { message?: string; error?: string } } })?.response?.data
+          ?.message ||
+        (err as { response?: { data?: { message?: string; error?: string } } })?.response?.data
+          ?.error ||
         '招待の作成に失敗しました';
       setError(msg);
       logger.error(err);
@@ -92,7 +103,6 @@ export default function AdminInvitationsPage() {
   const formatDate = (iso: string) => new Date(iso).toLocaleString('ja-JP');
 
   return (
-    // 招待一覧 (テーブル) が長くなるケースで viewport 下端の見切れを防ぐため pb-24
     <div className="px-6 pt-6 pb-24 max-w-3xl mx-auto space-y-6">
       <PageIntro
         title="管理: メンバー招待"
@@ -117,6 +127,21 @@ export default function AdminInvitationsPage() {
 
       <form onSubmit={submit} className="space-y-3 p-4 border rounded-lg bg-[var(--color-surface-1)]">
         <h2 className="text-base font-bold">新規招待</h2>
+
+        <label className="block text-sm">
+          <span className="block mb-1">会社 *</span>
+          <select
+            required
+            value={form.companyId}
+            onChange={(e) => setForm({ ...form, companyId: Number(e.target.value) })}
+            className="w-full border rounded px-2 py-1"
+          >
+            <option value={0} disabled>会社を選択してください</option>
+            {companies.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </label>
 
         <label className="block text-sm">
           <span className="block mb-1">メールアドレス *</span>
@@ -162,7 +187,7 @@ export default function AdminInvitationsPage() {
 
         <button
           type="submit"
-          disabled={submitting}
+          disabled={submitting || form.companyId === 0}
           className="px-4 py-2 rounded bg-emerald-600 text-white disabled:opacity-50"
         >
           {submitting ? '送信中...' : '招待メールを送信'}

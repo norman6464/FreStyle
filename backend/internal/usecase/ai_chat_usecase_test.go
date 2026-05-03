@@ -28,6 +28,9 @@ func (s *stubAiChatSessionRepo) Create(_ context.Context, sess *domain.AiChatSes
 func (s *stubAiChatSessionRepo) UpdateTitle(_ context.Context, _ uint64, _ string) error {
 	return s.err
 }
+func (s *stubAiChatSessionRepo) Delete(_ context.Context, _ uint64) error {
+	return s.err
+}
 
 func TestGetAiChatSessionsByUserID(t *testing.T) {
 	repo := &stubAiChatSessionRepo{rows: []domain.AiChatSession{{ID: 1, UserID: 7, Title: "a"}}}

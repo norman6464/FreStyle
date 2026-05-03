@@ -34,6 +34,9 @@ func (m *mockSessionRepo) Create(ctx context.Context, s *domain.AiChatSession) e
 func (m *mockSessionRepo) UpdateTitle(ctx context.Context, id uint64, title string) error {
 	return m.Called(ctx, id, title).Error(0)
 }
+func (m *mockSessionRepo) Delete(ctx context.Context, id uint64) error {
+	return m.Called(ctx, id).Error(0)
+}
 
 // --- mock: AiChatMessageRepository ---
 

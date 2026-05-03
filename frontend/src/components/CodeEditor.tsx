@@ -1,5 +1,18 @@
-import { Editor } from '@monaco-editor/react';
+import { Editor, loader } from '@monaco-editor/react';
+import * as monaco from 'monaco-editor';
+import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
 import { useTheme } from '../hooks/useTheme';
+
+// CSP script-src 'self' 準拠: CDN (jsDelivr) からの動的ロードを禁止し、
+// Vite でバンドルしたローカルの monaco-editor を使う。
+if (typeof self !== 'undefined') {
+  self.MonacoEnvironment = {
+    getWorker(_: unknown, _label: string) {
+      return new editorWorker();
+    },
+  };
+}
+loader.config({ monaco });
 
 interface CodeEditorProps {
   value: string;

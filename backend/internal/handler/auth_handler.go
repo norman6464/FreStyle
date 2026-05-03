@@ -67,6 +67,13 @@ func (h *AuthHandler) Me(c *gin.Context) {
 	isAdmin := middleware.IsAdminFromGroups(groups) ||
 		user.Role == domain.RoleSuperAdmin ||
 		user.Role == domain.RoleCompanyAdmin
+	// access_token に admin グループがあるが DB role が未昇格の場合はここで同期する。
+	// Google federated ユーザーはログイン時の upsert で groups が取れないケースがある。
+	if middleware.IsAdminFromGroups(groups) && user.Role != domain.RoleSuperAdmin && user.Role != domain.RoleCompanyAdmin {
+		if h.users != nil {
+			_ = h.users.UpdateRole(c.Request.Context(), user.ID, domain.RoleSuperAdmin)
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"id":          user.ID,
 		"cognitoSub":  user.CognitoSub,
@@ -144,7 +151,39 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 	}
 
 	middleware.SetAccessTokenCookie(c, tok.AccessToken, tok.ExpiresIn)
+	// refresh_token grant でも id_token が返る場合は DB role を同期する。
+	// Google federated ユーザーは ID token に cognito:groups が含まれないことがあるため
+	// access_token の claims からも昇格を試みる。
+	if tok.IDToken != "" {
+		h.upsertUserFromIDToken(c, tok.IDToken)
+	} else {
+		h.syncRoleFromAccessToken(c, tok.AccessToken)
+	}
 	c.JSON(http.StatusOK, gin.H{"message": "refreshed"})
+}
+
+// syncRoleFromAccessToken は access_token の cognito:groups を見て DB role を super_admin に昇格する。
+// ID token に groups が含まれない Google federated ユーザー向けのフォールバック。
+func (h *AuthHandler) syncRoleFromAccessToken(c *gin.Context, accessToken string) {
+	if h.users == nil {
+		return
+	}
+	claims, err := middleware.DecodeClaims(accessToken)
+	if err != nil {
+		return
+	}
+	sub, _ := claims["sub"].(string)
+	if sub == "" {
+		return
+	}
+	groups := middleware.ToStringSliceFromClaim(claims["cognito:groups"])
+	if !middleware.IsAdminFromGroups(groups) {
+		return
+	}
+	existing, _ := h.users.FindByCognitoSub(c.Request.Context(), sub)
+	if existing != nil && existing.Role != domain.RoleSuperAdmin && existing.Role != domain.RoleCompanyAdmin {
+		_ = h.users.UpdateRole(c.Request.Context(), existing.ID, domain.RoleSuperAdmin)
+	}
 }
 
 // handleTokenError は cognito.TokenExchanger が返したエラーを HTTP レスポンスに変換する。

@@ -27,6 +27,8 @@ export default defineConfig(({ mode }) => ({
             '@tiptap/starter-kit',
             '@tiptap/core',
           ],
+          // Monaco Editor（CDN ロード禁止のためローカルバンドル、重いので分離）
+          'vendor-monaco': ['monaco-editor'],
         },
       },
     },

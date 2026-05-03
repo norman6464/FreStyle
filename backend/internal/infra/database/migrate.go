@@ -56,5 +56,8 @@ func Migrate(db *gorm.DB) error {
 		return err
 	}
 	log.Println("migrate: AutoMigrate done")
+	if err := seedPhpExercises(db); err != nil {
+		return err
+	}
 	return nil
 }

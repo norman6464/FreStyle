@@ -37,7 +37,7 @@ export default function CodeEditor({
   useEffect(() => {
     if (!containerRef.current) return;
     const editor = monaco.editor.create(containerRef.current, {
-      value,
+      value: value ?? '',
       language,
       theme: theme === 'dark' ? 'vs-dark' : 'vs',
       fontSize: 14,
@@ -75,8 +75,8 @@ export default function CodeEditor({
 
   useEffect(() => {
     const editor = editorRef.current;
-    if (editor && editor.getValue() !== value) {
-      editor.setValue(value);
+    if (editor && editor.getValue() !== (value ?? '')) {
+      editor.setValue(value ?? '');
     }
   }, [value]);
 

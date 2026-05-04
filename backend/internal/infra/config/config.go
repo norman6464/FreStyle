@@ -47,6 +47,7 @@ type CognitoConfig struct {
 	RedirectURI  string
 	TokenURI     string
 	JwkSetURI    string
+	UserPoolID   string // AdminCreateUser API 用
 }
 
 func Load() (*Config, error) {
@@ -65,6 +66,7 @@ func Load() (*Config, error) {
 			RedirectURI:  os.Getenv("COGNITO_REDIRECT_URI"),
 			TokenURI:     os.Getenv("COGNITO_TOKEN_URI"),
 			JwkSetURI:    os.Getenv("COGNITO_JWK_SET_URI"),
+			UserPoolID:   os.Getenv("COGNITO_USER_POOL_ID"),
 		},
 		S3: S3Config{
 			Region:           getEnvOrDefault("AWS_REGION", "ap-northeast-1"),

@@ -22,15 +22,23 @@ import (
 type AuthHandler struct {
 	getCurrentUser *usecase.GetCurrentUserUseCase
 	users          repository.UserRepository
+	invitations    repository.AdminInvitationRepository
 	cognitoCfg     *config.CognitoConfig
 	tokens         *cognito.TokenExchanger
 }
 
 // NewAuthHandler は本番用に http.Client + 10s timeout の TokenExchanger を組み立てて DI する。
-func NewAuthHandler(getCurrentUser *usecase.GetCurrentUserUseCase, users repository.UserRepository, cognitoCfg *config.CognitoConfig) *AuthHandler {
+// invitations は招待受諾フロー（初回ログイン時に invitations から role/companyId を反映）に使う。nil 可。
+func NewAuthHandler(
+	getCurrentUser *usecase.GetCurrentUserUseCase,
+	users repository.UserRepository,
+	invitations repository.AdminInvitationRepository,
+	cognitoCfg *config.CognitoConfig,
+) *AuthHandler {
 	return &AuthHandler{
 		getCurrentUser: getCurrentUser,
 		users:          users,
+		invitations:    invitations,
 		cognitoCfg:     cognitoCfg,
 		tokens: cognito.NewTokenExchanger(cognito.Config{
 			ClientID:     cognitoCfg.ClientID,
@@ -228,25 +236,52 @@ func (h *AuthHandler) upsertUserFromIDToken(c *gin.Context, idToken string) {
 	}
 	email, _ := claims["email"].(string)
 	groups := middleware.ToStringSliceFromClaim(claims["cognito:groups"])
-	desiredRole := domain.RoleTrainee
-	if middleware.IsAdminFromGroups(groups) {
-		desiredRole = domain.RoleSuperAdmin
-	}
+	isCognitoAdmin := middleware.IsAdminFromGroups(groups)
 
 	existing, _ := h.users.FindByCognitoSub(c.Request.Context(), sub)
 	if existing == nil {
-		_ = h.users.Create(c.Request.Context(), &domain.User{
+		// 招待受諾フロー: pending な invitation を email で引いて role / company_id / displayName を反映する
+		role := domain.RoleTrainee
+		var companyID *uint64
+		var acceptedInvID uint64
+		displayName := email
+
+		if isCognitoAdmin {
+			role = domain.RoleSuperAdmin
+		} else if h.invitations != nil && email != "" {
+			inv, _ := h.invitations.FindPendingByEmail(c.Request.Context(), email)
+			if inv != nil {
+				if inv.Role == domain.RoleCompanyAdmin || inv.Role == domain.RoleTrainee {
+					role = inv.Role
+				}
+				cid := inv.CompanyID
+				companyID = &cid
+				acceptedInvID = inv.ID
+				if inv.DisplayName != "" {
+					displayName = inv.DisplayName
+				}
+			}
+		}
+
+		if err := h.users.Create(c.Request.Context(), &domain.User{
 			CognitoSub:  sub,
 			Email:       email,
-			DisplayName: email,
-			Role:        desiredRole,
-		})
+			DisplayName: displayName,
+			Role:        role,
+			CompanyID:   companyID,
+		}); err != nil {
+			log.Printf("upsertUserFromIDToken: create user failed sub=%s email=%s err=%v", sub, email, err)
+			return
+		}
+		// 招待を accepted にマーク（履歴・監査）
+		if h.invitations != nil && acceptedInvID != 0 {
+			_ = h.invitations.UpdateStatus(c.Request.Context(), acceptedInvID, domain.InvitationStatusAccepted)
+		}
 		return
 	}
-	// Cognito group で admin に昇格された場合のみ DB role を上書きする。
-	// 既に DB で super_admin / company_admin が設定されているケースは触らない
-	// （AdminInvitation 系の手動付与が他にある可能性があるため、降格は手動で）。
-	if existing.Role != desiredRole && desiredRole == domain.RoleSuperAdmin {
-		_ = h.users.UpdateRole(c.Request.Context(), existing.ID, desiredRole)
+
+	// 既存ユーザー: Cognito group で admin に昇格された場合のみ DB role を上書きする。
+	if isCognitoAdmin && existing.Role != domain.RoleSuperAdmin {
+		_ = h.users.UpdateRole(c.Request.Context(), existing.ID, domain.RoleSuperAdmin)
 	}
 }

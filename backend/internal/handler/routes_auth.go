@@ -2,6 +2,7 @@ package handler
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/norman6464/FreStyle/backend/internal/repository"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
 
@@ -11,7 +12,8 @@ import (
 // callback / refresh-token は HttpOnly Cookie の発行・更新を行うため middleware.JWTAuth の対象外。
 func registerAuthPublicRoutes(g *gin.RouterGroup, deps *routeDeps) *AuthHandler {
 	getCurrentUser := usecase.NewGetCurrentUserUseCase(deps.userRepo)
-	authHandler := NewAuthHandler(getCurrentUser, deps.userRepo, &deps.cfg.Cognito)
+	invitations := repository.NewAdminInvitationRepository(deps.db)
+	authHandler := NewAuthHandler(getCurrentUser, deps.userRepo, invitations, &deps.cfg.Cognito)
 
 	g.POST("/auth/cognito/logout", authHandler.Logout)
 	// callback は code を受け取って token に交換するので認証不要

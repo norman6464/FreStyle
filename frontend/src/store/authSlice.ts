@@ -14,13 +14,19 @@ const authSlice = createSlice({
     setAuthData(state, action: PayloadAction<{ isAdmin?: boolean } | undefined>) {
       state.isAuthenticated = true;
       state.loading = false;
-      state.isAdmin = action.payload?.isAdmin ?? false;
+      // payload.isAdmin が undefined のときは現在の state を維持する
+      // (caller が isAdmin を明示しない再認証で誤って権限を失わせないため)
+      if (action.payload?.isAdmin !== undefined) {
+        state.isAdmin = action.payload.isAdmin;
+      }
     },
 
     setAuthenticated(state, action: PayloadAction<{ isAdmin?: boolean } | undefined>) {
       state.isAuthenticated = true;
       state.loading = false;
-      state.isAdmin = action.payload?.isAdmin ?? false;
+      if (action.payload?.isAdmin !== undefined) {
+        state.isAdmin = action.payload.isAdmin;
+      }
     },
 
     clearAuth(state) {

@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react';
 import * as monaco from 'monaco-editor';
 import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
-import { useTheme } from '../hooks/useTheme';
 
 // CDN 読み込みを完全回避: Vite バンドル済み monaco-editor を直接使う。
 // @monaco-editor/react は loader が jsDelivr を参照するため使わない。
@@ -36,7 +35,6 @@ export default function CodeEditor({
   height = '400px',
   readOnly = false,
 }: CodeEditorProps) {
-  const { theme } = useTheme();
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const onChangeRef = useRef(onChange);
@@ -47,7 +45,8 @@ export default function CodeEditor({
     const editor = monaco.editor.create(containerRef.current, {
       value: toSafeString(value),
       language,
-      theme: theme === 'dark' ? 'vs-dark' : 'vs',
+      // コードエディタは常にダークテーマで統一（ライト/ダークどちらの UI でも視認性確保）
+      theme: 'vs-dark',
       fontSize: 14,
       minimap: { enabled: false },
       scrollBeyondLastLine: false,
@@ -77,10 +76,6 @@ export default function CodeEditor({
   useEffect(() => {
     editorRef.current?.updateOptions({ readOnly });
   }, [readOnly]);
-
-  useEffect(() => {
-    monaco.editor.setTheme(theme === 'dark' ? 'vs-dark' : 'vs');
-  }, [theme]);
 
   useEffect(() => {
     const editor = editorRef.current;

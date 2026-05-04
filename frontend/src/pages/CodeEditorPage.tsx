@@ -129,8 +129,8 @@ export default function CodeEditorPage() {
                 </button>
               </div>
             </div>
-            <div className="flex-1 overflow-hidden">
-              <Suspense fallback={<div className="h-full bg-[var(--color-surface-1)]" />}>
+            <div className="flex-1 overflow-hidden bg-[#1e1e1e]">
+              <Suspense fallback={<div className="h-full bg-[#1e1e1e]" />}>
                 <CodeEditor
                   value={code}
                   onChange={setCode}

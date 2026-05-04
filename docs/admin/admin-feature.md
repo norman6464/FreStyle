@@ -100,6 +100,47 @@ aws cognito-idp admin-add-user-to-group --region ap-northeast-1 \
 - 直接 URL `/admin/scenarios` に行くと **/ にリダイレクト**
 - 万一 API を直接叩いても **403 Forbidden**
 
+## メンバー招待機能（AdminInvitation）
+
+### 概要
+
+Super Admin が会社・ロール・メールアドレスを指定すると、Cognito `AdminCreateUser` API が一時パスワード付きの招待メールを送信する。  
+受信者は Cognito Hosted UI で初回ログイン時にパスワード変更を要求される。
+
+### バックエンド
+
+| 層 | ファイル |
+|---|---|
+| Handler | `internal/handler/admin_invitation_handler.go` |
+| UseCase | `internal/usecase/create_admin_invitation_usecase.go` |
+| Repository | `internal/repository/admin_invitation_repository.go` |
+| Cognito client | `internal/infra/cognito/admin_client.go` |
+
+`CognitoAdminClient` インターフェースを実装した `AdminClient` が `AdminCreateUser` を呼び出す。  
+環境変数 `COGNITO_USER_POOL_ID` が未設定の場合はスタブにフォールバックし、メールは送信されない（ローカル開発用）。
+
+### 必要な環境変数
+
+| 変数 | 値（本番） | 備考 |
+|---|---|---|
+| `COGNITO_USER_POOL_ID` | `ap-northeast-1_TkRen4lyD` | AdminCreateUser API に必要 |
+
+ECS タスク定義（`ecs.yml`）に追加済み。
+
+### フロントエンド
+
+- `src/pages/AdminInvitationsPage.tsx`: 会社セレクター・メール・ロール・表示名のフォーム
+- `src/repositories/AdminInvitationRepository.ts`: POST に `companyId` を含める
+- `src/repositories/CompanyRepository.ts`: `/admin/companies` から会社一覧を取得
+
+### API
+
+| メソッド | パス | 用途 |
+|---|---|---|
+| GET | `/api/v2/admin/invitations` | 未承諾招待一覧 |
+| POST | `/api/v2/admin/invitations` | 招待メール送信 |
+| DELETE | `/api/v2/admin/invitations/:id` | 招待取り消し |
+
 ## 拡張ポイント
 
 - ユーザー管理（一覧・凍結・admin 付与）

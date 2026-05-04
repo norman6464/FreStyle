@@ -21,6 +21,14 @@ interface CodeEditorProps {
   readOnly?: boolean;
 }
 
+// Monaco の setValue / create({value}) は引数が string でない場合 "Illegal argument" を throw する。
+// API レスポンスが null や undefined を返す可能性があるため必ず string に正規化する。
+function toSafeString(v: unknown): string {
+  if (typeof v === 'string') return v;
+  if (v == null) return '';
+  return String(v);
+}
+
 export default function CodeEditor({
   value,
   onChange,
@@ -37,7 +45,7 @@ export default function CodeEditor({
   useEffect(() => {
     if (!containerRef.current) return;
     const editor = monaco.editor.create(containerRef.current, {
-      value: value ?? '',
+      value: toSafeString(value),
       language,
       theme: theme === 'dark' ? 'vs-dark' : 'vs',
       fontSize: 14,
@@ -56,6 +64,7 @@ export default function CodeEditor({
     return () => {
       sub.dispose();
       editor.dispose();
+      editorRef.current = null;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -75,8 +84,13 @@ export default function CodeEditor({
 
   useEffect(() => {
     const editor = editorRef.current;
-    if (editor && editor.getValue() !== (value ?? '')) {
-      editor.setValue(value ?? '');
+    if (!editor) return;
+    // model が dispose 済みだと setValue が "Illegal argument" を投げるため事前チェック。
+    const model = editor.getModel();
+    if (!model || model.isDisposed()) return;
+    const safeValue = toSafeString(value);
+    if (editor.getValue() !== safeValue) {
+      editor.setValue(safeValue);
     }
   }, [value]);
 

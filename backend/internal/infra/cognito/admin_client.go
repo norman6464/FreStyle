@@ -43,9 +43,9 @@ func (c *AdminClient) InviteUser(ctx context.Context, email, displayName, _ stri
 	}
 
 	out, err := c.client.AdminCreateUser(ctx, &cognitoidentityprovider.AdminCreateUserInput{
-		UserPoolId:        aws.String(c.userPoolID),
-		Username:          aws.String(email),
-		UserAttributes:    attrs,
+		UserPoolId:     aws.String(c.userPoolID),
+		Username:       aws.String(email),
+		UserAttributes: attrs,
 		DesiredDeliveryMediums: []types.DeliveryMediumType{
 			types.DeliveryMediumTypeEmail,
 		},

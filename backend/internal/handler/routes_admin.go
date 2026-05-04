@@ -1,7 +1,11 @@
 package handler
 
 import (
+	"context"
+	"log"
+
 	"github.com/gin-gonic/gin"
+	cognitoinfra "github.com/norman6464/FreStyle/backend/internal/infra/cognito"
 	"github.com/norman6464/FreStyle/backend/internal/repository"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
@@ -15,11 +19,26 @@ func registerAdminRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	)
 	g.GET("/admin/companies", companyHandler.List)
 
-	// Phase 25: AdminInvitation
+	// Phase 25: AdminInvitation — Cognito AdminCreateUser で招待メールを送信
 	adminInvRepo := repository.NewAdminInvitationRepository(deps.db)
+
+	var cognitoClient repository.CognitoAdminClient
+	if deps.cfg.Cognito.UserPoolID != "" {
+		ac, err := cognitoinfra.NewAdminClient(context.Background(), "ap-northeast-1", deps.cfg.Cognito.UserPoolID)
+		if err != nil {
+			log.Printf("WARN: Cognito admin client init failed, falling back to stub: %v", err)
+			cognitoClient = repository.NewStubCognitoAdminClient()
+		} else {
+			cognitoClient = ac
+		}
+	} else {
+		log.Printf("WARN: COGNITO_USER_POOL_ID not set — invitation emails will NOT be sent (stub mode)")
+		cognitoClient = repository.NewStubCognitoAdminClient()
+	}
+
 	adminInvHandler := NewAdminInvitationHandler(
 		usecase.NewListAdminInvitationsUseCase(adminInvRepo),
-		usecase.NewCreateAdminInvitationUseCase(adminInvRepo, repository.NewStubCognitoAdminClient()),
+		usecase.NewCreateAdminInvitationUseCase(adminInvRepo, cognitoClient),
 		usecase.NewCancelAdminInvitationUseCase(adminInvRepo),
 	)
 	g.GET("/admin/invitations", adminInvHandler.List)

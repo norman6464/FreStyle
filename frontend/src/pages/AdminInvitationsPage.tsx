@@ -9,6 +9,7 @@ import CompanyRepository, { Company } from '../repositories/CompanyRepository';
 import type { RootState } from '../store';
 import Loading from '../components/Loading';
 import PageIntro from '../components/ui/PageIntro';
+import ConfirmModal from '../components/ConfirmModal';
 import { logger } from '../lib/logger';
 
 const EMPTY_FORM: CreateInvitationForm = {
@@ -29,6 +30,8 @@ export default function AdminInvitationsPage() {
   const [form, setForm] = useState<CreateInvitationForm>(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<AdminInvitation | null>(null);
+  const [canceling, setCanceling] = useState(false);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -89,14 +92,28 @@ export default function AdminInvitationsPage() {
     }
   };
 
-  const cancel = async (id: number) => {
-    if (!confirm('この招待をキャンセルしますか？')) return;
+  const requestCancel = (inv: AdminInvitation) => {
+    setError(null);
+    setCancelTarget(inv);
+  };
+
+  const closeCancelModal = () => {
+    if (canceling) return;
+    setCancelTarget(null);
+  };
+
+  const confirmCancel = async () => {
+    if (!cancelTarget) return;
+    setCanceling(true);
     try {
-      await AdminInvitationRepository.cancel(id);
+      await AdminInvitationRepository.cancel(cancelTarget.id);
+      setCancelTarget(null);
       await fetchAll();
     } catch (err) {
       setError('招待のキャンセルに失敗しました');
       logger.error(err);
+    } finally {
+      setCanceling(false);
     }
   };
 
@@ -217,8 +234,8 @@ export default function AdminInvitationsPage() {
                   </p>
                 </div>
                 <button
-                  onClick={() => cancel(inv.id)}
-                  className="text-xs px-2 py-1 border border-red-300 rounded text-red-700"
+                  onClick={() => requestCancel(inv)}
+                  className="text-xs px-2 py-1 border border-red-300 rounded text-red-700 hover:bg-red-50 transition-colors"
                 >
                   取り消し
                 </button>
@@ -227,6 +244,21 @@ export default function AdminInvitationsPage() {
           </ul>
         )}
       </section>
+
+      <ConfirmModal
+        isOpen={cancelTarget !== null}
+        title="招待を取り消し"
+        message={
+          cancelTarget
+            ? `${cancelTarget.email} 宛の招待を取り消します。受信者は招待リンクから登録できなくなります。`
+            : ''
+        }
+        confirmText={canceling ? '処理中...' : '取り消す'}
+        cancelText="戻る"
+        onConfirm={confirmCancel}
+        onCancel={closeCancelModal}
+        isDanger={true}
+      />
     </div>
   );
 }

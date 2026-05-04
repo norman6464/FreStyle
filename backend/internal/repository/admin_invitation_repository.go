@@ -22,15 +22,21 @@ func NewAdminInvitationRepository(db *gorm.DB) AdminInvitationRepository {
 	return &adminInvitationRepository{db: db}
 }
 
+// 一覧 API は「未承諾の招待」を返すため pending 以外（accepted / canceled）は除外する。
+// 監査目的で行は物理削除せず status のみ更新している。
 func (r *adminInvitationRepository) ListAll(ctx context.Context) ([]domain.AdminInvitation, error) {
 	var rows []domain.AdminInvitation
-	err := r.db.WithContext(ctx).Order("created_at DESC").Find(&rows).Error
+	err := r.db.WithContext(ctx).
+		Where("status = ?", domain.InvitationStatusPending).
+		Order("created_at DESC").Find(&rows).Error
 	return rows, err
 }
 
 func (r *adminInvitationRepository) ListByCompanyID(ctx context.Context, companyID uint64) ([]domain.AdminInvitation, error) {
 	var rows []domain.AdminInvitation
-	err := r.db.WithContext(ctx).Where("company_id = ?", companyID).Order("created_at DESC").Find(&rows).Error
+	err := r.db.WithContext(ctx).
+		Where("company_id = ? AND status = ?", companyID, domain.InvitationStatusPending).
+		Order("created_at DESC").Find(&rows).Error
 	return rows, err
 }
 

@@ -32,6 +32,9 @@ func (r *fakeAdminInvRepo) ListByCompanyID(_ context.Context, companyID uint64) 
 }
 func (r *fakeAdminInvRepo) Create(_ context.Context, _ *domain.AdminInvitation) error { return nil }
 func (r *fakeAdminInvRepo) UpdateStatus(_ context.Context, _ uint64, _ string) error  { return nil }
+func (r *fakeAdminInvRepo) FindPendingByEmail(_ context.Context, _ string) (*domain.AdminInvitation, error) {
+	return nil, nil
+}
 
 func init() {
 	gin.SetMode(gin.TestMode)

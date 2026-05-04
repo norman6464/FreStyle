@@ -32,6 +32,9 @@ func (s *stubAdminInvRepo) Create(_ context.Context, inv *domain.AdminInvitation
 	return nil
 }
 func (s *stubAdminInvRepo) UpdateStatus(_ context.Context, _ uint64, _ string) error { return s.err }
+func (s *stubAdminInvRepo) FindPendingByEmail(_ context.Context, _ string) (*domain.AdminInvitation, error) {
+	return nil, s.err
+}
 
 type stubCognitoAdmin struct{ err error }
 

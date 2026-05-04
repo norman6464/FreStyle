@@ -19,6 +19,24 @@ const EMPTY_FORM: CreateInvitationForm = {
   displayName: '',
 };
 
+// バックエンドが英語の Cognito エラーをそのまま返した場合のフォールバック日本語化。
+// バックエンドでカテゴリ化済みの日本語メッセージはそのまま通す。
+function translateInviteError(raw: string): string {
+  if (raw.includes('UsernameExistsException') || raw.includes('User account already exists')) {
+    return 'このメールアドレスはすでに登録済みです。再招待は不要です。';
+  }
+  if (raw.includes('InvalidParameterException')) {
+    return '入力値が不正です。メールアドレス形式を確認してください。';
+  }
+  if (raw.includes('LimitExceededException') || raw.includes('TooManyRequestsException')) {
+    return '招待リクエストが多すぎます。しばらく待ってから再試行してください。';
+  }
+  if (raw.includes('AccessDeniedException') || raw.includes('not authorized')) {
+    return '権限エラー: バックエンドの IAM ロール設定を確認してください。';
+  }
+  return raw;
+}
+
 export default function AdminInvitationsPage() {
   const isAdmin = useSelector((state: RootState) => state.auth.isAdmin);
   const authLoading = useSelector((state: RootState) => state.auth.loading);
@@ -79,13 +97,13 @@ export default function AdminInvitationsPage() {
       setForm((f) => ({ ...EMPTY_FORM, companyId: f.companyId }));
       await fetchAll();
     } catch (err: unknown) {
-      const msg =
+      const raw =
         (err as { response?: { data?: { message?: string; error?: string } } })?.response?.data
           ?.message ||
         (err as { response?: { data?: { message?: string; error?: string } } })?.response?.data
           ?.error ||
         '招待の作成に失敗しました';
-      setError(msg);
+      setError(translateInviteError(raw));
       logger.error(err);
     } finally {
       setSubmitting(false);

@@ -22,7 +22,7 @@ export function usePhpEditor() {
         setExercises(list);
         if (list.length > 0) {
           setSelectedExercise(list[0]);
-          setCode(list[0].starterCode);
+          setCode(list[0].starterCode ?? '');
         }
       })
       .catch(() => setError('演習問題の取得に失敗しました'))
@@ -31,7 +31,7 @@ export function usePhpEditor() {
 
   const selectExercise = useCallback((exercise: PhpExercise) => {
     setSelectedExercise(exercise);
-    setCode(exercise.starterCode);
+    setCode(exercise.starterCode ?? '');
     setResult(null);
     setShowHint(false);
   }, []);
@@ -52,7 +52,7 @@ export function usePhpEditor() {
 
   const resetCode = useCallback(() => {
     if (selectedExercise) {
-      setCode(selectedExercise.starterCode);
+      setCode(selectedExercise.starterCode ?? '');
       setResult(null);
     }
   }, [selectedExercise]);

@@ -15,10 +15,15 @@ type Config struct {
 	DBName     string
 	DBSSLMode  string
 
+	// AppBaseURL は招待マジックリンクの組み立てに使う、フロントエンドの絶対 URL。
+	// 例: https://normanblog.com (末尾スラッシュ無し / 有り どちらも可)
+	AppBaseURL string
+
 	Cognito  CognitoConfig
 	S3       S3Config
 	Bedrock  BedrockConfig
 	DynamoDB DynamoDBConfig
+	SES      SESConfig
 }
 
 // S3Config は profile / note 画像 upload の presign 発行に必要な設定。
@@ -40,14 +45,22 @@ type DynamoDBConfig struct {
 	AiChatTable string
 }
 
+// SESConfig は招待マジックリンクメール送信用の SES v2 設定。
+// FromAddress は SES で検証済の送信元（例: "FreStyle <noreply@normanblog.com>"）。
+// 未設定（空文字）のときは送信スキップ → token をログに残してフォールバック。
+type SESConfig struct {
+	Region      string
+	FromAddress string
+}
+
 // CognitoConfig は Cognito Hosted UI / OAuth2 token endpoint との通信に必要な設定。
+// SES マジックリンク方式に切り替えたため AdminCreateUser API は使わない。
 type CognitoConfig struct {
 	ClientID     string
 	ClientSecret string
 	RedirectURI  string
 	TokenURI     string
 	JwkSetURI    string
-	UserPoolID   string // AdminCreateUser API 用
 }
 
 func Load() (*Config, error) {
@@ -60,13 +73,13 @@ func Load() (*Config, error) {
 		DBPassword: os.Getenv("DB_PASSWORD"),
 		DBName:     getEnvOrDefault("DB_NAME", "fre_style"),
 		DBSSLMode:  getEnvOrDefault("DB_SSLMODE", "require"),
+		AppBaseURL: getEnvOrDefault("APP_BASE_URL", ""),
 		Cognito: CognitoConfig{
 			ClientID:     os.Getenv("COGNITO_CLIENT_ID"),
 			ClientSecret: os.Getenv("COGNITO_CLIENT_SECRET"),
 			RedirectURI:  os.Getenv("COGNITO_REDIRECT_URI"),
 			TokenURI:     os.Getenv("COGNITO_TOKEN_URI"),
 			JwkSetURI:    os.Getenv("COGNITO_JWK_SET_URI"),
-			UserPoolID:   os.Getenv("COGNITO_USER_POOL_ID"),
 		},
 		S3: S3Config{
 			Region:           getEnvOrDefault("AWS_REGION", "ap-northeast-1"),
@@ -81,6 +94,10 @@ func Load() (*Config, error) {
 		DynamoDB: DynamoDBConfig{
 			Region:      getEnvOrDefault("AWS_REGION", "ap-northeast-1"),
 			AiChatTable: getEnvOrDefault("DYNAMODB_AI_CHAT_TABLE", "fre_style_ai_chat_dev"),
+		},
+		SES: SESConfig{
+			Region:      getEnvOrDefault("SES_REGION", getEnvOrDefault("AWS_REGION", "ap-northeast-1")),
+			FromAddress: os.Getenv("SES_FROM_ADDRESS"),
 		},
 	}
 	if cfg.DBHost == "" {

@@ -74,13 +74,35 @@ token 検証 API は認証不要だが、レート制限と「該当なし → 4
 
 | PR | スコープ | 状態 |
 |---|---|---|
-| **PR-A** | `invitations.token` カラム追加 + domain/repository 拡張 | ✅ 本 PR |
-| PR-B | SES クライアント新設 + Cognito 事前作成撤去 + 招待メール送信 | 未着手 |
+| PR-A | `invitations.token` カラム追加 + domain/repository 拡張 | ✅ マージ済 (#1629) |
+| **PR-B** | SES クライアント新設 + Cognito 事前作成撤去 + 招待メール送信（コード側） | ✅ 本 PR |
 | PR-C | token 検証 API + ログイン後 invitation 受諾フロー | 未着手 |
 | PR-D | フロント `/invitations/accept` ページ + login 統合 | 未着手 |
-| Infra | SES ドメイン検証（normanblog.com） + IAM `ses:SendEmail` 追加 | 未着手 |
+| Infra | SES ドメイン検証（normanblog.com） + IAM `ses:SendEmail` 追加 | 未着手（[手順](./ses-setup.md)） |
 
 ## SES サンドボックスについて
 
 サンドボックス解除（送信量上限 200 通/日 → 50,000 通/日）は本リリースでは申請しない。
 当面は社内招待用途のみで使うため 200 通/日で十分。必要になったら AWS Console から申請する。
+
+サンドボックス中は **送信元・宛先の両方が SES 上で検証済アドレス** である必要がある点に注意。
+詳しい AWS Console 上の作業手順は [ses-setup.md](./ses-setup.md) を参照。
+
+## PR-B で追加した環境変数
+
+| 変数 | 用途 | 例 |
+|---|---|---|
+| `SES_REGION` | SES エンドポイントのリージョン | `ap-northeast-1` |
+| `SES_FROM_ADDRESS` | 検証済の送信元（空なら送信スキップ） | `FreStyle <noreply@normanblog.com>` |
+| `APP_BASE_URL` | マジックリンクのベース URL | `https://normanblog.com` |
+
+`SES_FROM_ADDRESS` または `APP_BASE_URL` が未設定の場合は招待メール送信をスキップし、
+バックエンドのログに `token=...` を出力するフォールバックモードで動作する（ローカル開発用）。
+
+## PR-B で撤去したもの
+
+- `infra/cognito/admin_client.go` （Cognito `AdminCreateUser` ラッパ）
+- `repository.CognitoAdminClient` interface とその stub
+- `CognitoConfig.UserPoolID` フィールドと `COGNITO_USER_POOL_ID` env
+- `usecase.CreateAdminInvitationUseCase` の `cog repository.CognitoAdminClient` 引数
+- `handler.AdminInvitationHandler.Create` の `ErrUserAlreadyConfirmed` 分岐

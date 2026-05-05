@@ -5,7 +5,7 @@ import (
 	"log"
 
 	"github.com/gin-gonic/gin"
-	cognitoinfra "github.com/norman6464/FreStyle/backend/internal/infra/cognito"
+	"github.com/norman6464/FreStyle/backend/internal/infra/ses"
 	"github.com/norman6464/FreStyle/backend/internal/repository"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
@@ -19,26 +19,36 @@ func registerAdminRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	)
 	g.GET("/admin/companies", companyHandler.List)
 
-	// Phase 25: AdminInvitation — Cognito AdminCreateUser で招待メールを送信
+	// AdminInvitation — SES マジックリンク方式（Path B）。
+	// Cognito 事前作成は撤去し、ここでは UUID token を発行 + SES で独自メールを送る。
 	adminInvRepo := repository.NewAdminInvitationRepository(deps.db)
 
-	var cognitoClient repository.CognitoAdminClient
-	if deps.cfg.Cognito.UserPoolID != "" {
-		ac, err := cognitoinfra.NewAdminClient(context.Background(), "ap-northeast-1", deps.cfg.Cognito.UserPoolID)
+	var sender usecase.MagicLinkSender
+	var linkBuilder usecase.LinkBuilder
+	var mailBuilder usecase.MailBuilder
+
+	switch {
+	case deps.cfg.SES.FromAddress == "" || deps.cfg.AppBaseURL == "":
+		// SES 未設定 / APP_BASE_URL 未設定のローカル環境では送信をスキップしてフローを通すだけにする。
+		// 本番では必ず両方設定する前提（usecase 側でログにリンクを残す）。
+		log.Printf("WARN: SES_FROM_ADDRESS or APP_BASE_URL not set — invitation emails will NOT be sent (token will be logged instead)")
+	default:
+		sesClient, err := ses.NewClient(context.Background(), deps.cfg.SES.Region, deps.cfg.SES.FromAddress)
 		if err != nil {
-			log.Printf("WARN: Cognito admin client init failed, falling back to stub: %v", err)
-			cognitoClient = repository.NewStubCognitoAdminClient()
+			log.Printf("WARN: SES client init failed (invitation emails will not be sent): %v", err)
 		} else {
-			cognitoClient = ac
+			sender = sesClient
+			baseURL := deps.cfg.AppBaseURL
+			linkBuilder = func(token string) string {
+				return ses.MagicLinkURL(baseURL, token)
+			}
+			mailBuilder = ses.BuildInvitationMail
 		}
-	} else {
-		log.Printf("WARN: COGNITO_USER_POOL_ID not set — invitation emails will NOT be sent (stub mode)")
-		cognitoClient = repository.NewStubCognitoAdminClient()
 	}
 
 	adminInvHandler := NewAdminInvitationHandler(
 		usecase.NewListAdminInvitationsUseCase(adminInvRepo),
-		usecase.NewCreateAdminInvitationUseCase(adminInvRepo, cognitoClient),
+		usecase.NewCreateAdminInvitationUseCase(adminInvRepo, sender, linkBuilder, mailBuilder),
 		usecase.NewCancelAdminInvitationUseCase(adminInvRepo),
 	)
 	g.GET("/admin/invitations", adminInvHandler.List)

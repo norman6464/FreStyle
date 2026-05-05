@@ -1,14 +1,12 @@
 package handler
 
 import (
-	"errors"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
-	cognitoinfra "github.com/norman6464/FreStyle/backend/internal/infra/cognito"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
 
@@ -90,12 +88,6 @@ func (h *AdminInvitationHandler) Create(c *gin.Context) {
 		CompanyID: req.CompanyID, Email: req.Email, Role: req.Role, DisplayName: req.DisplayName,
 	})
 	if err != nil {
-		if errors.Is(err, cognitoinfra.ErrUserAlreadyConfirmed) {
-			c.JSON(http.StatusConflict, gin.H{
-				"error": "このメールアドレスはすでに登録済みです。再招待は不要です。",
-			})
-			return
-		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}

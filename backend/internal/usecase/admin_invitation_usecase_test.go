@@ -14,6 +14,8 @@ type stubAdminInvRepo struct {
 	err  error
 	// 直近に呼ばれた絞り込み条件を記録する。"all" / "company:42" のような形式。
 	calledWith string
+	// Create で渡された invitation を保持し、token / status を assert に使う。
+	created *domain.AdminInvitation
 }
 
 func (s *stubAdminInvRepo) ListAll(_ context.Context) ([]domain.AdminInvitation, error) {
@@ -29,6 +31,7 @@ func (s *stubAdminInvRepo) Create(_ context.Context, inv *domain.AdminInvitation
 		return s.err
 	}
 	inv.ID = 91
+	s.created = inv
 	return nil
 }
 func (s *stubAdminInvRepo) UpdateStatus(_ context.Context, _ uint64, _ string) error { return s.err }
@@ -39,13 +42,30 @@ func (s *stubAdminInvRepo) FindPendingByToken(_ context.Context, _ string) (*dom
 	return nil, s.err
 }
 
-type stubCognitoAdmin struct{ err error }
+// stubMailSender は SES SendEmail の代わり。送信内容をフィールドに記録するだけで実際にネットワークアクセスしない。
+type stubMailSender struct {
+	err     error
+	calls   int
+	to      string
+	subject string
+	html    string
+	text    string
+}
 
-func (c *stubCognitoAdmin) InviteUser(_ context.Context, email, _, _ string) (string, error) {
-	if c.err != nil {
-		return "", c.err
-	}
-	return "sub-" + email, nil
+func (s *stubMailSender) SendInvitationEmail(_ context.Context, to, subject, htmlBody, textBody string) error {
+	s.calls++
+	s.to, s.subject, s.html, s.text = to, subject, htmlBody, textBody
+	return s.err
+}
+
+// テスト用のシンプルな builder。フォーマットの正しさは ses パッケージのテストで担保し、
+// usecase 層では「正しく呼ばれたか」だけ検証する。
+func fakeBuildLink(token string) string {
+	return "https://test.example/invitations/accept?token=" + token
+}
+
+func fakeBuildMail(link, displayName, _, role string) (string, string, string) {
+	return "subject", "html-" + link + "-" + displayName + "-" + role, "text-" + link
 }
 
 func TestListAdminInvitations_ListByCompanyID_RequiresCompanyID(t *testing.T) {
@@ -86,28 +106,65 @@ func TestListAdminInvitations_ListAll_DelegatesToRepo(t *testing.T) {
 }
 
 func TestCreateAdminInvitation_Validates(t *testing.T) {
-	uc := NewCreateAdminInvitationUseCase(&stubAdminInvRepo{}, &stubCognitoAdmin{})
+	uc := NewCreateAdminInvitationUseCase(&stubAdminInvRepo{}, &stubMailSender{}, fakeBuildLink, fakeBuildMail)
 	if _, err := uc.Execute(context.Background(), CreateAdminInvitationInput{Email: "a@b"}); err == nil {
 		t.Fatal("expected error")
 	}
 }
 
-func TestCreateAdminInvitation_OK(t *testing.T) {
-	uc := NewCreateAdminInvitationUseCase(&stubAdminInvRepo{}, &stubCognitoAdmin{})
+func TestCreateAdminInvitation_OK_GeneratesTokenAndSendsEmail(t *testing.T) {
+	repo := &stubAdminInvRepo{}
+	sender := &stubMailSender{}
+	uc := NewCreateAdminInvitationUseCase(repo, sender, fakeBuildLink, fakeBuildMail)
+
 	got, err := uc.Execute(context.Background(), CreateAdminInvitationInput{
-		CompanyID: 1, Email: "u@example.com", Role: domain.RoleTrainee,
+		CompanyID: 1, Email: "u@example.com", Role: domain.RoleTrainee, DisplayName: "山田",
 	})
-	if err != nil || got.ID != 91 || got.Status != domain.InvitationStatusPending {
-		t.Fatalf("unexpected: %+v err=%v", got, err)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if got.ID != 91 || got.Status != domain.InvitationStatusPending {
+		t.Fatalf("unexpected: %+v", got)
+	}
+	if got.Token == nil || *got.Token == "" {
+		t.Fatalf("Token must be generated, got %+v", got.Token)
+	}
+	if repo.created == nil || repo.created.Token == nil || *repo.created.Token != *got.Token {
+		t.Fatalf("repo.Create must receive token, got %+v", repo.created)
+	}
+	if sender.calls != 1 {
+		t.Fatalf("expected 1 SES send, got %d", sender.calls)
+	}
+	if sender.to != "u@example.com" {
+		t.Fatalf("expected to=u@example.com, got %q", sender.to)
+	}
+	// magicLink がメール本文に含まれているか（fake builder が link を埋め込む実装）
+	if !contains(sender.html, "/invitations/accept?token="+*got.Token) {
+		t.Fatalf("html body must contain magic link, got %q", sender.html)
 	}
 }
 
-func TestCreateAdminInvitation_CognitoError(t *testing.T) {
-	uc := NewCreateAdminInvitationUseCase(&stubAdminInvRepo{}, &stubCognitoAdmin{err: errors.New("cognito")})
+func TestCreateAdminInvitation_SESError_Propagated(t *testing.T) {
+	uc := NewCreateAdminInvitationUseCase(&stubAdminInvRepo{}, &stubMailSender{err: errors.New("ses down")}, fakeBuildLink, fakeBuildMail)
 	if _, err := uc.Execute(context.Background(), CreateAdminInvitationInput{
 		CompanyID: 1, Email: "u@example.com", Role: domain.RoleTrainee,
 	}); err == nil {
-		t.Fatal("expected error")
+		t.Fatal("expected ses error to be propagated")
+	}
+}
+
+// sender が nil の場合（ローカル開発でフォールバック）は invitation だけ作成して終わる。
+func TestCreateAdminInvitation_NilSender_SkipsEmailWithoutError(t *testing.T) {
+	repo := &stubAdminInvRepo{}
+	uc := NewCreateAdminInvitationUseCase(repo, nil, nil, nil)
+	got, err := uc.Execute(context.Background(), CreateAdminInvitationInput{
+		CompanyID: 1, Email: "u@example.com", Role: domain.RoleTrainee,
+	})
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if got.Token == nil {
+		t.Fatalf("Token must still be generated even when sender is nil")
 	}
 }
 
@@ -116,4 +173,13 @@ func TestCancelAdminInvitation_RequiresID(t *testing.T) {
 	if err := uc.Execute(context.Background(), 0); err == nil {
 		t.Fatal("expected error")
 	}
+}
+
+func contains(s, sub string) bool {
+	for i := 0; i+len(sub) <= len(s); i++ {
+		if s[i:i+len(sub)] == sub {
+			return true
+		}
+	}
+	return false
 }

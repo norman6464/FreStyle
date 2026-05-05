@@ -91,17 +91,3 @@ func (r *adminInvitationRepository) Create(ctx context.Context, inv *domain.Admi
 func (r *adminInvitationRepository) UpdateStatus(ctx context.Context, id uint64, status string) error {
 	return r.db.WithContext(ctx).Model(&domain.AdminInvitation{}).Where("id = ?", id).Update("status", status).Error
 }
-
-// CognitoAdminClient は Cognito AdminCreateUser など管理 API を抽象化する interface。
-// AWS SDK 連携は別 PR で実装する。
-type CognitoAdminClient interface {
-	InviteUser(ctx context.Context, email, displayName, role string) (cognitoSub string, err error)
-}
-
-type stubCognitoAdmin struct{}
-
-func NewStubCognitoAdminClient() CognitoAdminClient { return &stubCognitoAdmin{} }
-
-func (c *stubCognitoAdmin) InviteUser(_ context.Context, email, _, _ string) (string, error) {
-	return "stub-sub-" + email, nil
-}

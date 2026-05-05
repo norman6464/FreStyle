@@ -16,6 +16,9 @@ type AdminInvitationRepository interface {
 	// FindPendingByEmail は招待受諾フローで「ログインしてきたユーザーが招待ユーザーか」
 	// を判定するために使う。同一 email で複数 pending があれば最新を返す。
 	FindPendingByEmail(ctx context.Context, email string) (*domain.AdminInvitation, error)
+	// FindPendingByToken はマジックリンク受諾フロー用。token 一致 & status=pending & expires_at 未経過のみ返す。
+	// 該当なしは (nil, nil) を返し、呼び出し側で「無効/期限切れ token」として扱う。
+	FindPendingByToken(ctx context.Context, token string) (*domain.AdminInvitation, error)
 	Create(ctx context.Context, inv *domain.AdminInvitation) error
 	UpdateStatus(ctx context.Context, id uint64, status string) error
 }
@@ -52,6 +55,27 @@ func (r *adminInvitationRepository) FindPendingByEmail(ctx context.Context, emai
 	if err != nil {
 		// レコードが無いケースは「招待ユーザーではない通常サインアップ」なので nil, nil を返す
 		// （呼び出し側でデフォルトロールにフォールバックする想定）
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &row, nil
+}
+
+func (r *adminInvitationRepository) FindPendingByToken(ctx context.Context, token string) (*domain.AdminInvitation, error) {
+	if token == "" {
+		return nil, nil
+	}
+	var row domain.AdminInvitation
+	// expires_at は招待作成時に必ず未来の値を入れる前提（usecase 側で 7 日後をセット）。
+	// 期限切れを DB 側で弾くことで「フロントで時刻がズレていても安全」な検証になる。
+	// UTC_TIMESTAMP() を使うことで DB サーバーのローカルタイムゾーン設定に依存せず比較する
+	// （RDS が JST に設定されていてもアプリは UTC で時刻を扱う前提なので統一）。
+	err := r.db.WithContext(ctx).
+		Where("token = ? AND status = ? AND expires_at > UTC_TIMESTAMP()", token, domain.InvitationStatusPending).
+		First(&row).Error
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}

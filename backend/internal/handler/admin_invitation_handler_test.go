@@ -35,6 +35,9 @@ func (r *fakeAdminInvRepo) UpdateStatus(_ context.Context, _ uint64, _ string) e
 func (r *fakeAdminInvRepo) FindPendingByEmail(_ context.Context, _ string) (*domain.AdminInvitation, error) {
 	return nil, nil
 }
+func (r *fakeAdminInvRepo) FindPendingByToken(_ context.Context, _ string) (*domain.AdminInvitation, error) {
+	return nil, nil
+}
 
 func init() {
 	gin.SetMode(gin.TestMode)

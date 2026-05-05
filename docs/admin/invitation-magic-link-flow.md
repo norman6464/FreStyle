@@ -47,7 +47,7 @@ CompanyAdmin 招待を **Cognito 事前作成 + Cognito 自動メール** から
 | `role` | string | 付与する role（company_admin / trainee） |
 | `display_name` | string | 表示名（任意） |
 | `status` | string | `pending` / `accepted` / `canceled` |
-| `token` | string UNIQUE size:64 | **PR-A で追加。** マジックリンクの不透明 UUID |
+| `token` | *string UNIQUE size:64 NULL | **PR-A で追加。** マジックリンクの不透明 UUID。NULL 許容（既存 pending を NULL のまま残し UNIQUE 競合を避ける） |
 | `expires_at` | datetime | 招待有効期限（usecase で 7 日後をセット） |
 | `created_at` | datetime | |
 

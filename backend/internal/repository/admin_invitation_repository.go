@@ -69,9 +69,11 @@ func (r *adminInvitationRepository) FindPendingByToken(ctx context.Context, toke
 	}
 	var row domain.AdminInvitation
 	// expires_at は招待作成時に必ず未来の値を入れる前提（usecase 側で 7 日後をセット）。
-	// NOW() 比較で期限切れを DB 側で弾くことで「フロントで時刻がズレていても安全」な検証になる。
+	// 期限切れを DB 側で弾くことで「フロントで時刻がズレていても安全」な検証になる。
+	// UTC_TIMESTAMP() を使うことで DB サーバーのローカルタイムゾーン設定に依存せず比較する
+	// （RDS が JST に設定されていてもアプリは UTC で時刻を扱う前提なので統一）。
 	err := r.db.WithContext(ctx).
-		Where("token = ? AND status = ? AND expires_at > NOW()", token, domain.InvitationStatusPending).
+		Where("token = ? AND status = ? AND expires_at > UTC_TIMESTAMP()", token, domain.InvitationStatusPending).
 		First(&row).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {

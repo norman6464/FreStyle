@@ -43,13 +43,14 @@ export const PROFILE = {
   meOnboardingComplete: `${API_V2}/profile/me/onboarding/complete`,
 } as const;
 
-/** AI チャット（セッション・メッセージ・言い換え） */
+/** AI チャット（セッション CRUD + SSE ストリーミング） */
 export const AI_CHAT = {
   sessions: `${API_V2}/ai-chat/sessions`,
   session: (sessionId: number | string) => `${API_V2}/ai-chat/sessions/${sessionId}`,
   sessionMessages: (sessionId: number | string) =>
     `${API_V2}/ai-chat/sessions/${sessionId}/messages`,
-  aiRephrase: `${API_V2}/chat/ai/rephrase`,
+  /** POST /ai-chat/stream — SSE ストリーミング送信 */
+  stream: `${API_V2}/ai-chat/stream`,
 } as const;
 
 /** Note CRUD と画像 presigned upload */

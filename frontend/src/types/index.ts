@@ -70,13 +70,14 @@ export interface AiChatMessageDto {
 /**
  * AiMessage は AskAi 画面表示用の view 型。
  * `id` (string) を画面側で扱いやすい一意キーとして使う。
+ * `createdAt` は ISO 8601 文字列（backend の SSE / REST 双方が ISO で返す）。
  */
 export interface AiMessage {
   id: string;
   sessionId: number;
   content: string;
   role: 'user' | 'assistant';
-  createdAt?: number;
+  createdAt?: string;
   isSender?: boolean;
   isDeleted?: boolean;
 }

@@ -72,3 +72,98 @@ func (c *Client) Converse(ctx context.Context, systemPrompt string, history []do
 	}
 	return "", fmt.Errorf("bedrock: no text content in response")
 }
+
+// StreamEvent は ConverseStream が emit する 1 イベント。
+// Delta は途中チャンクのテキスト追加分、Done が true なら末尾（StopReason 受信時）。
+// Err が non-nil なら ストリーム途中での失敗。
+type StreamEvent struct {
+	Delta string
+	Done  bool
+	Err   error
+}
+
+// ConverseStream は ConverseStream API を呼び出して、token を逐次 channel に流す。
+//
+// 呼び出し側は返ってきた channel を range でループするだけで token を消費できる:
+//
+//	ch, err := bc.ConverseStream(ctx, prompt, history)
+//	if err != nil { ... }
+//	for ev := range ch {
+//	    if ev.Err != nil { ... break }
+//	    if ev.Done { break }
+//	    write(ev.Delta)
+//	}
+//
+// ctx が cancel されると channel は閉じられる。AWS SDK の EventStream は内部で
+// channel を持っているが、本ラッパでは「アプリケーションが扱いやすい形」に変換して提供する
+// ことで infra 詳細（brtypes の各 Member 型）を usecase 層に漏らさない。
+func (c *Client) ConverseStream(ctx context.Context, systemPrompt string, history []domain.AiChatMessage) (<-chan StreamEvent, error) {
+	messages := make([]brtypes.Message, 0, len(history))
+	for _, m := range history {
+		role := brtypes.ConversationRoleUser
+		if m.Role == domain.AiChatRoleAssistant {
+			role = brtypes.ConversationRoleAssistant
+		}
+		messages = append(messages, brtypes.Message{
+			Role: role,
+			Content: []brtypes.ContentBlock{
+				&brtypes.ContentBlockMemberText{Value: m.Content},
+			},
+		})
+	}
+
+	input := &bedrockruntime.ConverseStreamInput{
+		ModelId:  &c.modelID,
+		Messages: messages,
+	}
+	if systemPrompt != "" {
+		input.System = []brtypes.SystemContentBlock{
+			&brtypes.SystemContentBlockMemberText{Value: systemPrompt},
+		}
+	}
+
+	output, err := c.svc.ConverseStream(ctx, input)
+	if err != nil {
+		return nil, fmt.Errorf("bedrock: converse stream: %w", err)
+	}
+
+	out := make(chan StreamEvent, 16)
+	go func() {
+		defer close(out)
+		defer output.GetStream().Close()
+
+		stream := output.GetStream()
+		for ev := range stream.Events() {
+			switch v := ev.(type) {
+			case *brtypes.ConverseStreamOutputMemberContentBlockDelta:
+				if delta, ok := v.Value.Delta.(*brtypes.ContentBlockDeltaMemberText); ok {
+					select {
+					case out <- StreamEvent{Delta: delta.Value}:
+					case <-ctx.Done():
+						return
+					}
+				}
+			case *brtypes.ConverseStreamOutputMemberMessageStop:
+				// stop reason は本ラッパでは利用しないが、Done を立てて呼び出し側にループ終端を伝える。
+				select {
+				case out <- StreamEvent{Done: true}:
+				case <-ctx.Done():
+				}
+				return
+			case *brtypes.ConverseStreamOutputMemberMessageStart,
+				*brtypes.ConverseStreamOutputMemberContentBlockStart,
+				*brtypes.ConverseStreamOutputMemberContentBlockStop,
+				*brtypes.ConverseStreamOutputMemberMetadata:
+				// メタイベントは UI に流さない（メタデータは保存しない）
+			}
+		}
+		if err := stream.Err(); err != nil {
+			select {
+			case out <- StreamEvent{Err: fmt.Errorf("bedrock: stream err: %w", err)}:
+			case <-ctx.Done():
+			}
+		}
+	}()
+
+	return out, nil
+}

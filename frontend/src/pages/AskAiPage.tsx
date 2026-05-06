@@ -1,34 +1,38 @@
 import MessageBubbleAi from '../components/MessageBubbleAi';
 import MessageInput from '../components/MessageInput';
 import ConfirmModal from '../components/ConfirmModal';
-import ScoreCardComponent from '../components/ScoreCard';
-import PracticeResultSummary from '../components/PracticeResultSummary';
 import SecondaryPanel from '../components/layout/SecondaryPanel';
-import PracticeTimer from '../components/PracticeTimer';
-import SessionNoteEditor from '../components/SessionNoteEditor';
-import ExportSessionButton from '../components/ExportSessionButton';
 import AiSessionListItem from '../components/AiSessionListItem';
 import EmptyState from '../components/EmptyState';
-import ConversationTemplates from '../components/ConversationTemplates';
 import Loading from '../components/Loading';
-import { PlusIcon, Bars3Icon, SparklesIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import {
+  PlusIcon,
+  Bars3Icon,
+  SparklesIcon,
+  MagnifyingGlassIcon,
+} from '@heroicons/react/24/outline';
 import { useAskAi } from '../hooks/useAskAi';
 import { useMobilePanelState } from '../hooks/useMobilePanelState';
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
 
+/**
+ * 汎用 AI チャット画面。
+ *
+ * 旧版で並んでいた練習モード / スコアカード / シナリオ受け渡し / セッションノート /
+ * 言い換え提案などはすべて削除し、純粋な「セッション一覧 + メッセージ表示 + 入力」だけを残す。
+ *
+ * Markdown 表示・カード装飾の除去・SSE ストリーミングは PR-B / PR-C で追加。
+ */
 export default function AskAiPage() {
-  const { isOpen: mobilePanelOpen, open: openMobilePanel, close: closeMobilePanel } = useMobilePanelState();
+  const { isOpen: mobilePanelOpen, open: openMobilePanel, close: closeMobilePanel } =
+    useMobilePanelState();
   const { copiedId, copyToClipboard } = useCopyToClipboard();
   const {
     sessions,
     filteredSessions,
     messages,
-    scoreCard,
     loading,
     messagesEndRef,
-    isPracticeMode,
-    scenarioId,
-    scenarioName,
     currentSessionId,
     deleteModal,
     editingSessionId,
@@ -45,7 +49,6 @@ export default function AskAiPage() {
     handleSaveTitle,
     handleCancelEditTitle,
     handleSend,
-    handleDeleteMessage,
   } = useAskAi();
 
   if (loading && sessions.length === 0) {
@@ -93,7 +96,10 @@ export default function AskAiPage() {
               isActive={currentSessionId === session.id}
               isEditing={editingSessionId === session.id}
               editingTitle={editingTitle}
-              onSelect={(id: number) => { handleSelectSession(id); closeMobilePanel(); }}
+              onSelect={(id: number) => {
+                handleSelectSession(id);
+                closeMobilePanel();
+              }}
               onStartEdit={handleStartEditTitle}
               onDelete={handleDeleteSession}
               onSaveTitle={handleSaveTitle}
@@ -101,105 +107,68 @@ export default function AskAiPage() {
               onEditingTitleChange={setEditingTitle}
             />
           ))}
+          {filteredSessions.length === 0 && (
+            <p className="text-center text-xs text-[var(--color-text-muted)] py-8">
+              セッションがありません
+            </p>
+          )}
         </div>
       </SecondaryPanel>
 
-      {/* メインコンテンツ */}
+      {/* メイン: チャット */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* モバイルヘッダー */}
-        <div className="md:hidden bg-surface-1 border-b border-surface-3 px-4 py-2 flex items-center">
+        {/* モバイル用パネル開閉ボタン */}
+        <div className="md:hidden p-2 border-b border-surface-3">
           <button
             onClick={openMobilePanel}
-            className="p-1.5 hover:bg-surface-2 rounded transition-colors"
-            aria-label="セッション一覧を開く"
+            className="p-2 rounded hover:bg-surface-2"
+            aria-label="セッションを開く"
           >
-            <Bars3Icon className="w-5 h-5 text-[var(--color-text-muted)]" />
+            <Bars3Icon className="w-5 h-5" />
           </button>
-          <span className="ml-2 text-xs text-[var(--color-text-muted)]">セッション一覧</span>
         </div>
 
-        {/* 練習モードヘッダー */}
-        {isPracticeMode && (
-          <div className="bg-surface-1 border-b border-surface-3 px-4 py-3 flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">
-                {scenarioName || '練習モード'}
-              </h2>
-              <p className="text-xs text-[var(--color-text-muted)]">AIが相手役を演じます</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <PracticeTimer />
-              <button
-                onClick={() => handleSend('練習を終了して、今回の会話全体に対するフィードバックとスコアカードをお願いします。')}
-                className="bg-rose-500 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-rose-600 transition-colors"
-              >
-                練習終了
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* メッセージエリア */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
-          {messages.length === 0 && (
-            <div className="flex flex-col items-center justify-center h-full gap-6">
-              <EmptyState
-                icon={SparklesIcon}
-                title="AIアシスタントへようこそ"
-                description="質問や相談を何でも聞いてください"
-              />
-              <ConversationTemplates onSelect={handleSend} />
+        <div className="flex-1 overflow-y-auto px-4 py-6">
+          {messages.length === 0 ? (
+            <EmptyState
+              icon={SparklesIcon}
+              title="質問してみましょう"
+              description="自由に質問・要約・コードのレビュー依頼などができます。"
+            />
+          ) : (
+            <div className="max-w-3xl mx-auto space-y-4">
+              {messages.map((message) => (
+                <MessageBubbleAi
+                  key={message.id}
+                  id={message.id}
+                  type="text"
+                  content={message.content}
+                  isSender={message.role === 'user'}
+                  isCopied={copiedId === message.id}
+                  onCopy={copyToClipboard}
+                />
+              ))}
+              <div ref={messagesEndRef} />
             </div>
           )}
-          {messages.map((msg) => (
-            <div key={msg.id} className="max-w-3xl mx-auto w-full">
-              <MessageBubbleAi
-                {...msg}
-                isSender={msg.role === 'user'}
-                type={msg.role === 'user' ? 'text' : 'bot'}
-                onDelete={handleDeleteMessage}
-                onCopy={copyToClipboard}
-                isCopied={copiedId === msg.id}
-              />
-            </div>
-          ))}
-
-          {scoreCard && (
-            <div className="max-w-3xl mx-auto w-full space-y-3">
-              <ScoreCardComponent scoreCard={scoreCard} />
-              {isPracticeMode && (
-                <PracticeResultSummary scoreCard={scoreCard} scenarioName={scenarioName || '練習'} scenarioId={scenarioId ?? undefined} />
-              )}
-              {currentSessionId && (
-                <SessionNoteEditor sessionId={currentSessionId} />
-              )}
-            </div>
-          )}
-
-          <div ref={messagesEndRef} />
         </div>
 
-        {/* 入力欄 */}
-        <div className="bg-surface-1 border-t border-surface-3 p-4">
-          <div className="max-w-3xl mx-auto w-full flex items-end gap-2">
-            <div className="flex-1">
-              <MessageInput onSend={handleSend} />
-            </div>
-            <ExportSessionButton messages={messages} />
+        <div className="border-t border-surface-3 p-3 bg-[var(--color-surface-1)]">
+          <div className="max-w-3xl mx-auto">
+            <MessageInput onSend={handleSend} />
           </div>
         </div>
       </div>
 
-      {/* セッション削除確認モーダル */}
+      {/* 削除確認モーダル */}
       <ConfirmModal
         isOpen={deleteModal.isOpen}
-        title="セッションを削除"
-        message="このセッションを削除しますか？チャット履歴もすべて削除されます。この操作は取り消せません。"
-        confirmText="削除する"
+        title="セッションを削除しますか？"
+        message="この操作は取り消せません。"
+        confirmText="削除"
         cancelText="キャンセル"
         onConfirm={confirmDeleteSession}
         onCancel={cancelDeleteSession}
-        isDanger={true}
       />
     </div>
   );

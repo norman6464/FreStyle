@@ -20,7 +20,9 @@ vi.mock('../../../hooks/useTheme', () => ({
 function createTestStore(isAdmin = false) {
   return configureStore({
     reducer: { auth: authReducer },
-    preloadedState: { auth: { isAuthenticated: true, loading: false, isAdmin } },
+    preloadedState: {
+      auth: { isAuthenticated: true, loading: false, isAdmin, onboarded: true },
+    },
   });
 }
 
@@ -51,8 +53,18 @@ describe('Sidebar', () => {
     renderSidebar();
     expect(screen.getByText('ホーム')).toBeDefined();
     expect(screen.getByText('AI')).toBeDefined();
-    expect(screen.getByText('練習')).toBeDefined();
+    expect(screen.getByText('コード学習')).toBeDefined();
+    expect(screen.getByText('ノート')).toBeDefined();
+    expect(screen.getByText('レポート')).toBeDefined();
     expect(screen.getByText('プロフィール')).toBeDefined();
+  });
+
+  it('削除済み機能のリンクは表示されない', () => {
+    renderSidebar();
+    // 練習 / お気に入り / スコア履歴 / ランキング などはコア機能整理で削除済
+    expect(screen.queryByText('練習')).toBeNull();
+    expect(screen.queryByText('お気に入り')).toBeNull();
+    expect(screen.queryByText('スコア履歴')).toBeNull();
   });
 
   it('ログアウトボタンを表示する', () => {
@@ -112,8 +124,9 @@ describe('Sidebar', () => {
     renderSidebar('/', true);
     fireEvent.click(screen.getByText('管理'));
     expect(screen.getByText('会社一覧')).toBeInTheDocument();
-    expect(screen.getByText('シナリオ管理')).toBeInTheDocument();
     expect(screen.getByText('招待管理')).toBeInTheDocument();
+    // シナリオ管理は廃止済（コア機能整理）
+    expect(screen.queryByText('シナリオ管理')).toBeNull();
   });
 
   it('非 admin ユーザーには管理メニューが表示されない', () => {

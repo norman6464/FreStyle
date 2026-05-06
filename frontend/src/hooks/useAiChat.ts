@@ -3,41 +3,26 @@ import { classifyApiError } from '../utils/classifyApiError';
 import AiChatRepository, {
   CreateSessionRequest,
   UpdateSessionTitleRequest,
-  AddMessageRequest,
-  RephraseRequest,
 } from '../repositories/AiChatRepository';
-import { AiSession, AiMessage, ScoreCard, ScoreHistoryItem } from '../types';
+import { AiSession, AiMessage } from '../types';
 
 /**
- * AI Chatフック
+ * AI チャットのセッション・メッセージ管理フック。
  *
- * <p>役割:</p>
- * <ul>
- *   <li>AI Chatセッション・メッセージ管理</li>
- *   <li>AiChatRepositoryを使用してAPI呼び出し</li>
- * </ul>
- *
- * <p>Hooks層（Presentation Layer - Business Logic）:</p>
- * <ul>
- *   <li>コンポーネントからビジネスロジックを分離</li>
- *   <li>Repository層を使用してAPI呼び出し</li>
- * </ul>
+ * 旧版にあった「scoreCard / rephrase / scoreHistory / addMessage（HTTP 経由）」は
+ * すべて廃止して、純粋な「セッション CRUD + WebSocket 受信時のローカル state 反映」だけに
+ * 限定する。AI 応答は WebSocket（PR-C で SSE に置換予定）経由でリアルタイムに追加される。
  */
 export const useAiChat = () => {
   const [sessions, setSessions] = useState<AiSession[]>([]);
   const [currentSession, setCurrentSession] = useState<AiSession | null>(null);
   const [messages, setMessages] = useState<AiMessage[]>([]);
-  const [scoreCard, setScoreCard] = useState<ScoreCard | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  /**
-   * セッション一覧を取得
-   */
   const fetchSessions = useCallback(async (): Promise<void> => {
     setLoading(true);
     setError(null);
-
     try {
       const data = await AiChatRepository.getSessions();
       setSessions(data);
@@ -48,13 +33,9 @@ export const useAiChat = () => {
     }
   }, []);
 
-  /**
-   * セッション詳細を取得
-   */
   const fetchSession = useCallback(async (sessionId: number): Promise<void> => {
     setLoading(true);
     setError(null);
-
     try {
       const data = await AiChatRepository.getSession(sessionId);
       setCurrentSession(data);
@@ -65,14 +46,10 @@ export const useAiChat = () => {
     }
   }, []);
 
-  /**
-   * 新規セッションを作成
-   */
   const createSession = useCallback(
     async (request: CreateSessionRequest): Promise<AiSession | null> => {
       setLoading(true);
       setError(null);
-
       try {
         const data = await AiChatRepository.createSession(request);
         setSessions((prev) => [data, ...prev]);
@@ -88,14 +65,10 @@ export const useAiChat = () => {
     []
   );
 
-  /**
-   * セッションタイトルを更新
-   */
   const updateSessionTitle = useCallback(
     async (sessionId: number, request: UpdateSessionTitleRequest): Promise<boolean> => {
       setLoading(true);
       setError(null);
-
       try {
         const updatedSession = await AiChatRepository.updateSessionTitle(sessionId, request);
         setSessions((prev) =>
@@ -115,13 +88,9 @@ export const useAiChat = () => {
     [currentSession]
   );
 
-  /**
-   * セッションを削除
-   */
   const deleteSession = useCallback(async (sessionId: number): Promise<boolean> => {
     setLoading(true);
     setError(null);
-
     try {
       await AiChatRepository.deleteSession(sessionId);
       setSessions((prev) => prev.filter((session) => session.id !== sessionId));
@@ -137,13 +106,9 @@ export const useAiChat = () => {
     }
   }, [currentSession]);
 
-  /**
-   * セッション内のメッセージ一覧を取得
-   */
   const fetchMessages = useCallback(async (sessionId: number): Promise<void> => {
     setLoading(true);
     setError(null);
-
     try {
       const data = await AiChatRepository.getMessages(sessionId);
       setMessages(data);
@@ -154,90 +119,6 @@ export const useAiChat = () => {
     }
   }, []);
 
-  /**
-   * メッセージを追加
-   */
-  const addMessage = useCallback(
-    async (sessionId: number, request: AddMessageRequest): Promise<AiMessage | null> => {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const data = await AiChatRepository.addMessage(sessionId, request);
-        setMessages((prev) => [...prev, data]);
-        return data;
-      } catch (err) {
-        setError(classifyApiError(err, 'メッセージの追加に失敗しました。'));
-        return null;
-      } finally {
-        setLoading(false);
-      }
-    },
-    []
-  );
-
-  /**
-   * メッセージの言い換え提案を取得
-   */
-  const rephrase = useCallback(
-    async (request: RephraseRequest): Promise<string | null> => {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const data = await AiChatRepository.rephrase(request);
-        return data.result;
-      } catch (err) {
-        setError(classifyApiError(err, '言い換え提案の取得に失敗しました。'));
-        return null;
-      } finally {
-        setLoading(false);
-      }
-    },
-    []
-  );
-
-  /**
-   * セッションのスコアカードを取得
-   */
-  const fetchScoreCard = useCallback(async (sessionId: number): Promise<void> => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const data = await AiChatRepository.getScoreCard(sessionId);
-      setScoreCard({
-        ...data,
-        scores: Array.isArray(data.scores) ? data.scores : [],
-      });
-    } catch (err) {
-      setError(classifyApiError(err, 'スコアカードの取得に失敗しました。'));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  /**
-   * スコア履歴を取得
-   */
-  const fetchScoreHistory = useCallback(async (): Promise<ScoreHistoryItem[]> => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const data = await AiChatRepository.getScoreHistory();
-      return data;
-    } catch (err) {
-      setError(classifyApiError(err, 'スコア履歴の取得に失敗しました。'));
-      return [];
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  /**
-   * WebSocketから受信したメッセージをリアルタイムで追加
-   */
   const handleIncomingMessage = useCallback((message: AiMessage) => {
     setMessages((prev) => {
       if (prev.some((m) => m.id === message.id)) return prev;
@@ -245,19 +126,6 @@ export const useAiChat = () => {
     });
   }, []);
 
-  /**
-   * WebSocketから受信したスコアカードをリアルタイムで設定
-   */
-  const handleIncomingScoreCard = useCallback((data: ScoreCard) => {
-    setScoreCard({
-      ...data,
-      scores: Array.isArray(data.scores) ? data.scores : [],
-    });
-  }, []);
-
-  /**
-   * WebSocketから受信した新規セッションをリストに追加
-   */
   const handleIncomingSession = useCallback((session: AiSession) => {
     setSessions((prev) => {
       if (prev.some((s) => s.id === session.id)) return prev;
@@ -269,7 +137,6 @@ export const useAiChat = () => {
     sessions,
     currentSession,
     messages,
-    scoreCard,
     loading,
     error,
     fetchSessions,
@@ -278,12 +145,7 @@ export const useAiChat = () => {
     updateSessionTitle,
     deleteSession,
     fetchMessages,
-    addMessage,
-    rephrase,
-    fetchScoreCard,
-    fetchScoreHistory,
     handleIncomingMessage,
-    handleIncomingScoreCard,
     handleIncomingSession,
   };
 };

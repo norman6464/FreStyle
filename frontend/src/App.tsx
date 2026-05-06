@@ -19,23 +19,17 @@ const ConfirmForgotPasswordPage = lazy(() => import('./pages/ConfirmForgotPasswo
 const AcceptInvitationPage = lazy(() => import('./pages/AcceptInvitationPage'));
 const WelcomePage = lazy(() => import('./pages/WelcomePage'));
 
-// 認証必要ページ
+// 認証必要ページ（コア機能のみ。
+// 削除済 (PR-A): PracticePage / ScoreHistoryPage / FavoritesPage / RankingPage /
+//   TemplatePage / ReminderPage / SharedSessionsPage / WeeklyChallengePage /
+//   AdminScenariosPage）
 const MenuPage = lazy(() => import('./pages/MenuPage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
-const PracticePage = lazy(() => import('./pages/PracticePage'));
-const ScoreHistoryPage = lazy(() => import('./pages/ScoreHistoryPage'));
-const FavoritesPage = lazy(() => import('./pages/FavoritesPage'));
 const AskAiPage = lazy(() => import('./pages/AskAiPage'));
 const NotesPage = lazy(() => import('./pages/NotesPage'));
 const NotificationPage = lazy(() => import('./pages/NotificationPage'));
 const LearningReportPage = lazy(() => import('./pages/LearningReportPage'));
-const RankingPage = lazy(() => import('./pages/RankingPage'));
-const TemplatePage = lazy(() => import('./pages/TemplatePage'));
-const ReminderPage = lazy(() => import('./pages/ReminderPage'));
-const SharedSessionsPage = lazy(() => import('./pages/SharedSessionsPage'));
-const WeeklyChallengePage = lazy(() => import('./pages/WeeklyChallengePage'));
 const HelpPage = lazy(() => import('./pages/HelpPage'));
-const AdminScenariosPage = lazy(() => import('./pages/AdminScenariosPage'));
 const AdminInvitationsPage = lazy(() => import('./pages/AdminInvitationsPage'));
 const AdminCompaniesPage = lazy(() => import('./pages/AdminCompaniesPage'));
 const CodeEditorPage = lazy(() => import('./pages/CodeEditorPage'));
@@ -86,7 +80,7 @@ export default function App() {
         }
       />
 
-      {/* 認証が必要（AppShellレイアウト内） */}
+      {/* 認証が必要（AppShell レイアウト内） */}
       <Route
         element={
           <AuthInitializer>
@@ -98,25 +92,15 @@ export default function App() {
       >
         <Route path="/" element={<MenuPage />} />
         <Route path="/profile/me" element={<ProfilePage />} />
-        <Route path="/practice" element={<PracticePage />} />
-        <Route path="/scores" element={<ScoreHistoryPage />} />
-        <Route path="/favorites" element={<FavoritesPage />} />
         <Route path="/chat/ask-ai" element={<AskAiPage />} />
         <Route path="/chat/ask-ai/:sessionId" element={<AskAiPage />} />
         <Route path="/notes" element={<NotesPage />} />
         <Route path="/notifications" element={<NotificationPage />} />
         <Route path="/reports" element={<LearningReportPage />} />
-        <Route path="/ranking" element={<RankingPage />} />
-        <Route path="/templates" element={<TemplatePage />} />
-        <Route path="/reminder" element={<ReminderPage />} />
-        <Route path="/shared-sessions" element={<SharedSessionsPage />} />
-        <Route path="/weekly-challenge" element={<WeeklyChallengePage />} />
         <Route path="/help" element={<HelpPage />} />
-        {/* Admin 専用（コンポーネント側で isAdmin チェック → 非 admin は / にリダイレクト） */}
         <Route path="/code-editor" element={<CodeEditorPage />} />
         {/* Admin 専用（コンポーネント側で isAdmin チェック → 非 admin は / にリダイレクト） */}
         <Route path="/admin/companies" element={<AdminCompaniesPage />} />
-        <Route path="/admin/scenarios" element={<AdminScenariosPage />} />
         <Route path="/admin/invitations" element={<AdminInvitationsPage />} />
       </Route>
     </Routes>
@@ -127,3 +111,4 @@ export default function App() {
     </ErrorBoundary>
   );
 }
+

@@ -104,6 +104,10 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 
 type cognitoCallbackReq struct {
 	Code string `json:"code" binding:"required"`
+	// InvitationToken はフロントが sessionStorage から復元してくる、招待マジックリンク経由で
+	// 受領した UUID トークン。任意。指定がある場合は upsert 時に email ベースの招待検索より
+	// 優先して照合に使う（同じ email に複数 pending invitation がある異常系での誤一致を防ぐ）。
+	InvitationToken string `json:"invitationToken"`
 }
 
 // Callback は Cognito Hosted UI から戻ってきた認可コードをアクセストークンに交換し、
@@ -134,7 +138,7 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	//   - 既存ユーザーは Cognito group が変わっていれば role を update する
 	// 上記いずれでもない（=招待なし & Cognito admin でもない）新規ユーザーはログイン拒否し、
 	// 直前にセットした Cookie をクリアしてセッションを残さない。
-	if allowed := h.upsertUserFromIDToken(c, tok.IDToken); !allowed {
+	if allowed := h.upsertUserFromIDToken(c, tok.IDToken, req.InvitationToken); !allowed {
 		middleware.ClearAuthCookies(c)
 		c.JSON(http.StatusForbidden, gin.H{
 			"error":   "invitation_required",
@@ -178,7 +182,8 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 	// — DB から削除されたユーザーが refresh する稀ケースは別途 401 にすべきだが、本 PR の
 	// スコープ外として既存挙動を維持する。
 	if tok.IDToken != "" {
-		_ = h.upsertUserFromIDToken(c, tok.IDToken)
+		// refresh は既存ユーザー前提で、新規招待を引く必要はないため invitationToken は空文字を渡す。
+		_ = h.upsertUserFromIDToken(c, tok.IDToken, "")
 	} else {
 		h.syncRoleFromAccessToken(c, tok.AccessToken)
 	}
@@ -243,9 +248,12 @@ func (h *AuthHandler) handleTokenError(c *gin.Context, op string, err error) (in
 //   - true : 既存ユーザー、または「Cognito group admin / pending invitation あり」で新規作成成功
 //   - false: 「招待なし & Cognito admin でもない」新規ユーザー（ログイン拒否）または create 失敗
 //
+// invitationToken はマジックリンク経由の不透明 token（任意）。指定がある場合は email より
+// 優先して照合する（同 email に複数 pending invitation がある異常系での誤一致を防ぐ）。
+//
 // 招待ゲートを usecase ではなく handler 層に置いているのは、認可境界（Cookie 発行 / 401-403 を返す責務）が
 // HTTP 層であり、ユーザーが拒否された理由を上位ハンドラが直接知る必要があるため。
-func (h *AuthHandler) upsertUserFromIDToken(c *gin.Context, idToken string) (allowed bool) {
+func (h *AuthHandler) upsertUserFromIDToken(c *gin.Context, idToken, invitationToken string) (allowed bool) {
 	claims, err := middleware.DecodeClaims(idToken)
 	if err != nil || h.users == nil {
 		// claims を読めない / users repo 無し は内部エラー扱い。Cookie はクリアして拒否する。
@@ -269,12 +277,20 @@ func (h *AuthHandler) upsertUserFromIDToken(c *gin.Context, idToken string) (all
 	}
 
 	// 新規ユーザー: 招待 OR Cognito group "admin" のいずれかが必要。両方無ければ拒否。
+	// 招待検索の優先順位:
+	//   1. invitationToken が指定されていれば FindPendingByToken で照合（マジックリンク経由）
+	//   2. 1 で見つからない場合は email でフォールバック検索（旧フロー互換）
 	var inv *domain.AdminInvitation
-	if h.invitations != nil && email != "" {
-		inv, _ = h.invitations.FindPendingByEmail(c.Request.Context(), email)
+	if h.invitations != nil {
+		if invitationToken != "" {
+			inv, _ = h.invitations.FindPendingByToken(c.Request.Context(), invitationToken)
+		}
+		if inv == nil && email != "" {
+			inv, _ = h.invitations.FindPendingByEmail(c.Request.Context(), email)
+		}
 	}
 	if !isCognitoAdmin && inv == nil {
-		log.Printf("upsertUserFromIDToken: signup blocked — no invitation and not Cognito admin sub=%s email=%s", sub, email)
+		log.Printf("upsertUserFromIDToken: signup blocked — no invitation and not Cognito admin sub=%s email=%s token_provided=%t", sub, email, invitationToken != "")
 		return false
 	}
 

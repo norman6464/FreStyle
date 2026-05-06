@@ -44,9 +44,10 @@ func (r *fakeUserRepo) UpdateRole(_ context.Context, id uint64, role string) err
 }
 
 // fakeInvitationRepo は AdminInvitationRepository の最小スタブ。
-// FindPendingByEmail だけ振る舞いをカスタムにしてテストする。
+// FindPendingByEmail / FindPendingByToken の振る舞いをカスタムにしてテストする。
 type fakeInvitationRepo struct {
 	pendingByEmail map[string]*domain.AdminInvitation
+	pendingByToken map[string]*domain.AdminInvitation
 	updatedID      uint64
 	updatedStatus  string
 }
@@ -63,7 +64,10 @@ func (r *fakeInvitationRepo) FindPendingByEmail(_ context.Context, email string)
 	}
 	return nil, nil
 }
-func (r *fakeInvitationRepo) FindPendingByToken(_ context.Context, _ string) (*domain.AdminInvitation, error) {
+func (r *fakeInvitationRepo) FindPendingByToken(_ context.Context, token string) (*domain.AdminInvitation, error) {
+	if v, ok := r.pendingByToken[token]; ok {
+		return v, nil
+	}
 	return nil, nil
 }
 func (r *fakeInvitationRepo) Create(_ context.Context, _ *domain.AdminInvitation) error { return nil }
@@ -112,7 +116,7 @@ func TestUpsertUserFromIDToken_BlocksNewUserWithoutInvitationOrAdmin(t *testing.
 		// cognito:groups なし、招待もなし → 拒否されるべき
 	})
 
-	allowed := h.upsertUserFromIDToken(newGinCtx(), idToken)
+	allowed := h.upsertUserFromIDToken(newGinCtx(), idToken, "")
 	if allowed {
 		t.Fatalf("expected allowed=false for non-invited non-admin signup")
 	}
@@ -132,7 +136,7 @@ func TestUpsertUserFromIDToken_AllowsCognitoAdminWithoutInvitation(t *testing.T)
 		"cognito:groups": []string{"admin"},
 	})
 
-	allowed := h.upsertUserFromIDToken(newGinCtx(), idToken)
+	allowed := h.upsertUserFromIDToken(newGinCtx(), idToken, "")
 	if !allowed {
 		t.Fatalf("Cognito group admin must be allowed even without invitation")
 	}
@@ -159,7 +163,7 @@ func TestUpsertUserFromIDToken_AllowsInvitedUser_AppliesRoleAndCompany(t *testin
 		"email": "trainee@example.com",
 	})
 
-	allowed := h.upsertUserFromIDToken(newGinCtx(), idToken)
+	allowed := h.upsertUserFromIDToken(newGinCtx(), idToken, "")
 	if !allowed {
 		t.Fatalf("invited user must be allowed")
 	}
@@ -192,7 +196,7 @@ func TestUpsertUserFromIDToken_ExistingUser_AlwaysAllowed(t *testing.T) {
 		"email": "u@example.com",
 	})
 
-	allowed := h.upsertUserFromIDToken(newGinCtx(), idToken)
+	allowed := h.upsertUserFromIDToken(newGinCtx(), idToken, "")
 	if !allowed {
 		t.Fatalf("existing user must always be allowed (no invitation re-check)")
 	}
@@ -211,7 +215,7 @@ func TestUpsertUserFromIDToken_ExistingUser_PromotedByCognitoAdmin(t *testing.T)
 		"email":          "u@example.com",
 		"cognito:groups": []string{"admin"},
 	})
-	if !h.upsertUserFromIDToken(newGinCtx(), idToken) {
+	if !h.upsertUserFromIDToken(newGinCtx(), idToken, "") {
 		t.Fatal("must be allowed")
 	}
 	if users.updateRoleID != 5 || users.updateRoleVal != domain.RoleSuperAdmin {
@@ -221,8 +225,67 @@ func TestUpsertUserFromIDToken_ExistingUser_PromotedByCognitoAdmin(t *testing.T)
 
 func TestUpsertUserFromIDToken_RejectsMalformedToken(t *testing.T) {
 	h := newTestAuthHandler(&fakeUserRepo{}, &fakeInvitationRepo{})
-	if h.upsertUserFromIDToken(newGinCtx(), "not-a-jwt") {
+	if h.upsertUserFromIDToken(newGinCtx(), "not-a-jwt", "") {
 		t.Fatal("malformed token must be rejected")
+	}
+}
+
+// invitationToken が指定されているとき、email ベースより token ベースが優先されることを確認する。
+// email ベースで見つかる古い invitation よりも、token ベースの新しい invitation を採用する。
+func TestUpsertUserFromIDToken_InvitationToken_TakesPrecedenceOverEmail(t *testing.T) {
+	cidByToken := uint64(99)
+	cidByEmail := uint64(1)
+	users := &fakeUserRepo{}
+	invs := &fakeInvitationRepo{
+		pendingByEmail: map[string]*domain.AdminInvitation{
+			"u@example.com": {ID: 1, CompanyID: cidByEmail, Email: "u@example.com", Role: domain.RoleTrainee},
+		},
+		pendingByToken: map[string]*domain.AdminInvitation{
+			"magic-token-xyz": {ID: 7, CompanyID: cidByToken, Email: "u@example.com", Role: domain.RoleCompanyAdmin, DisplayName: "佐藤"},
+		},
+	}
+	h := newTestAuthHandler(users, invs)
+
+	idToken := makeIDToken(t, map[string]any{
+		"sub":   "google-user-1",
+		"email": "u@example.com",
+	})
+	if !h.upsertUserFromIDToken(newGinCtx(), idToken, "magic-token-xyz") {
+		t.Fatal("must be allowed when token matches a pending invitation")
+	}
+	if users.created == nil {
+		t.Fatalf("user must be created")
+	}
+	if users.created.Role != domain.RoleCompanyAdmin {
+		t.Errorf("token-based invitation role should win, got %q", users.created.Role)
+	}
+	if users.created.CompanyID == nil || *users.created.CompanyID != cidByToken {
+		t.Errorf("token-based companyID should win, got %+v", users.created.CompanyID)
+	}
+	if invs.updatedID != 7 || invs.updatedStatus != domain.InvitationStatusAccepted {
+		t.Errorf("token-based invitation must be marked accepted, got id=%d status=%q", invs.updatedID, invs.updatedStatus)
+	}
+}
+
+// invitationToken が無効でも、email ベースで見つかれば許可する（旧フロー互換）。
+func TestUpsertUserFromIDToken_InvalidToken_FallsBackToEmail(t *testing.T) {
+	users := &fakeUserRepo{}
+	invs := &fakeInvitationRepo{
+		pendingByEmail: map[string]*domain.AdminInvitation{
+			"u@example.com": {ID: 1, CompanyID: 1, Email: "u@example.com", Role: domain.RoleTrainee},
+		},
+	}
+	h := newTestAuthHandler(users, invs)
+
+	idToken := makeIDToken(t, map[string]any{
+		"sub":   "google-user-2",
+		"email": "u@example.com",
+	})
+	if !h.upsertUserFromIDToken(newGinCtx(), idToken, "garbage-token") {
+		t.Fatal("must fall back to email-based invitation when token is invalid")
+	}
+	if users.created == nil || users.created.Role != domain.RoleTrainee {
+		t.Errorf("expected trainee from email-based invitation, got %+v", users.created)
 	}
 }
 

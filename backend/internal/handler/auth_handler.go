@@ -108,6 +108,10 @@ type cognitoCallbackReq struct {
 
 // Callback は Cognito Hosted UI から戻ってきた認可コードをアクセストークンに交換し、
 // HttpOnly Cookie に格納する。Spring Boot の CognitoAuthController#callback 相当。
+//
+// 招待ゲート: 新規ユーザー（DB に sub が無い）は「Cognito group admin」または
+// 「pending な invitation 受信者」のいずれかでない限り、ログインを拒否する（403）。
+// これによりトレイニー / company_admin は必ず上位ロールからの招待経由でないとアカウントを作れない。
 func (h *AuthHandler) Callback(c *gin.Context) {
 	var req cognitoCallbackReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -126,10 +130,18 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 
 	// 初回ログインで users 行が無いと /auth/me が 404 になるため自動で upsert する。
 	// id_token の payload から sub / email / cognito:groups を取り出して同期する:
-	//   - 未登録なら role = (group に admin なら super_admin / 無ければ trainee) で create
+	//   - 招待 OR Cognito group "admin" のいずれかが真なら create（role は招待 / group に従う）
 	//   - 既存ユーザーは Cognito group が変わっていれば role を update する
-	// これで Spring Boot 時代と同じ「Cognito group が真のソース」で運用できる。
-	h.upsertUserFromIDToken(c, tok.IDToken)
+	// 上記いずれでもない（=招待なし & Cognito admin でもない）新規ユーザーはログイン拒否し、
+	// 直前にセットした Cookie をクリアしてセッションを残さない。
+	if allowed := h.upsertUserFromIDToken(c, tok.IDToken); !allowed {
+		middleware.ClearAuthCookies(c)
+		c.JSON(http.StatusForbidden, gin.H{
+			"error":   "invitation_required",
+			"message": "FreStyle のご利用には管理者からの招待が必要です。招待メールに記載されたリンクからログインしてください。",
+		})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "ログインしました。"})
 }
@@ -162,8 +174,11 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 	// refresh_token grant でも id_token が返る場合は DB role を同期する。
 	// Google federated ユーザーは ID token に cognito:groups が含まれないことがあるため
 	// access_token の claims からも昇格を試みる。
+	// refresh は既存ユーザーが対象のため、招待ゲート（戻り値 false）はここでは無視する
+	// — DB から削除されたユーザーが refresh する稀ケースは別途 401 にすべきだが、本 PR の
+	// スコープ外として既存挙動を維持する。
 	if tok.IDToken != "" {
-		h.upsertUserFromIDToken(c, tok.IDToken)
+		_ = h.upsertUserFromIDToken(c, tok.IDToken)
 	} else {
 		h.syncRoleFromAccessToken(c, tok.AccessToken)
 	}
@@ -224,64 +239,78 @@ func (h *AuthHandler) handleTokenError(c *gin.Context, op string, err error) (in
 }
 
 // upsertUserFromIDToken は id_token の claim を見て users 行を新規作成 / role 更新する。
-// Cognito group "admin" 所属時のみ super_admin に昇格する。降格は AdminInvitation 経由のみ。
-func (h *AuthHandler) upsertUserFromIDToken(c *gin.Context, idToken string) {
+// 戻り値 allowed:
+//   - true : 既存ユーザー、または「Cognito group admin / pending invitation あり」で新規作成成功
+//   - false: 「招待なし & Cognito admin でもない」新規ユーザー（ログイン拒否）または create 失敗
+//
+// 招待ゲートを usecase ではなく handler 層に置いているのは、認可境界（Cookie 発行 / 401-403 を返す責務）が
+// HTTP 層であり、ユーザーが拒否された理由を上位ハンドラが直接知る必要があるため。
+func (h *AuthHandler) upsertUserFromIDToken(c *gin.Context, idToken string) (allowed bool) {
 	claims, err := middleware.DecodeClaims(idToken)
 	if err != nil || h.users == nil {
-		return
+		// claims を読めない / users repo 無し は内部エラー扱い。Cookie はクリアして拒否する。
+		return false
 	}
 	sub, _ := claims["sub"].(string)
 	if sub == "" {
-		return
+		return false
 	}
 	email, _ := claims["email"].(string)
 	groups := middleware.ToStringSliceFromClaim(claims["cognito:groups"])
 	isCognitoAdmin := middleware.IsAdminFromGroups(groups)
 
 	existing, _ := h.users.FindByCognitoSub(c.Request.Context(), sub)
-	if existing == nil {
-		// 招待受諾フロー: pending な invitation を email で引いて role / company_id / displayName を反映する
-		role := domain.RoleTrainee
-		var companyID *uint64
-		var acceptedInvID uint64
-		displayName := email
-
-		if isCognitoAdmin {
-			role = domain.RoleSuperAdmin
-		} else if h.invitations != nil && email != "" {
-			inv, _ := h.invitations.FindPendingByEmail(c.Request.Context(), email)
-			if inv != nil {
-				if inv.Role == domain.RoleCompanyAdmin || inv.Role == domain.RoleTrainee {
-					role = inv.Role
-				}
-				cid := inv.CompanyID
-				companyID = &cid
-				acceptedInvID = inv.ID
-				if inv.DisplayName != "" {
-					displayName = inv.DisplayName
-				}
-			}
+	if existing != nil {
+		// 既存ユーザー: Cognito group で admin に昇格された場合のみ DB role を上書きする。
+		if isCognitoAdmin && existing.Role != domain.RoleSuperAdmin {
+			_ = h.users.UpdateRole(c.Request.Context(), existing.ID, domain.RoleSuperAdmin)
 		}
-
-		if err := h.users.Create(c.Request.Context(), &domain.User{
-			CognitoSub:  sub,
-			Email:       email,
-			DisplayName: displayName,
-			Role:        role,
-			CompanyID:   companyID,
-		}); err != nil {
-			log.Printf("upsertUserFromIDToken: create user failed sub=%s email=%s err=%v", sub, email, err)
-			return
-		}
-		// 招待を accepted にマーク（履歴・監査）
-		if h.invitations != nil && acceptedInvID != 0 {
-			_ = h.invitations.UpdateStatus(c.Request.Context(), acceptedInvID, domain.InvitationStatusAccepted)
-		}
-		return
+		return true
 	}
 
-	// 既存ユーザー: Cognito group で admin に昇格された場合のみ DB role を上書きする。
-	if isCognitoAdmin && existing.Role != domain.RoleSuperAdmin {
-		_ = h.users.UpdateRole(c.Request.Context(), existing.ID, domain.RoleSuperAdmin)
+	// 新規ユーザー: 招待 OR Cognito group "admin" のいずれかが必要。両方無ければ拒否。
+	var inv *domain.AdminInvitation
+	if h.invitations != nil && email != "" {
+		inv, _ = h.invitations.FindPendingByEmail(c.Request.Context(), email)
 	}
+	if !isCognitoAdmin && inv == nil {
+		log.Printf("upsertUserFromIDToken: signup blocked — no invitation and not Cognito admin sub=%s email=%s", sub, email)
+		return false
+	}
+
+	role := domain.RoleTrainee
+	var companyID *uint64
+	var acceptedInvID uint64
+	displayName := email
+
+	if isCognitoAdmin {
+		role = domain.RoleSuperAdmin
+	}
+	if inv != nil {
+		if inv.Role == domain.RoleCompanyAdmin || inv.Role == domain.RoleTrainee {
+			role = inv.Role
+		}
+		cid := inv.CompanyID
+		companyID = &cid
+		acceptedInvID = inv.ID
+		if inv.DisplayName != "" {
+			displayName = inv.DisplayName
+		}
+	}
+
+	if err := h.users.Create(c.Request.Context(), &domain.User{
+		CognitoSub:  sub,
+		Email:       email,
+		DisplayName: displayName,
+		Role:        role,
+		CompanyID:   companyID,
+	}); err != nil {
+		log.Printf("upsertUserFromIDToken: create user failed sub=%s email=%s err=%v", sub, email, err)
+		return false
+	}
+	// 招待を accepted にマーク（履歴・監査）
+	if h.invitations != nil && acceptedInvID != 0 {
+		_ = h.invitations.UpdateStatus(c.Request.Context(), acceptedInvID, domain.InvitationStatusAccepted)
+	}
+	return true
 }

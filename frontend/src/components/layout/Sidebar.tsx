@@ -4,9 +4,6 @@ import { useSelector } from 'react-redux';
 import {
   HomeIcon,
   SparklesIcon,
-  AcademicCapIcon,
-  ChartBarIcon,
-  StarIcon,
   DocumentTextIcon,
   BellIcon,
   DocumentChartBarIcon,
@@ -43,10 +40,7 @@ interface NavItem {
 const mainNavItems: NavItem[] = [
   { id: 'home', icon: HomeIcon, label: 'ホーム', to: '/', matchExact: true },
   { id: 'ai', icon: SparklesIcon, label: 'AI', to: '/chat/ask-ai', matchPrefix: '/chat/ask-ai' },
-  { id: 'practice', icon: AcademicCapIcon, label: '練習', to: '/practice', matchPrefix: '/practice' },
   { id: 'code', icon: CodeBracketIcon, label: 'コード学習', to: '/code-editor', matchPrefix: '/code-editor' },
-  { id: 'scores', icon: ChartBarIcon, label: 'スコア履歴', to: '/scores', matchExact: true },
-  { id: 'favorites', icon: StarIcon, label: 'お気に入り', to: '/favorites', matchExact: true },
   { id: 'notes', icon: DocumentTextIcon, label: 'ノート', to: '/notes', matchPrefix: '/notes' },
   { id: 'notifications', icon: BellIcon, label: '通知', to: '/notifications', matchExact: true },
   { id: 'reports', icon: DocumentChartBarIcon, label: 'レポート', to: '/reports', matchExact: true },
@@ -63,7 +57,6 @@ const adminNavItem: NavItem = {
   matchPrefix: '/admin',
   subItems: [
     { label: '会社一覧', to: '/admin/companies', matchPrefix: '/admin/companies' },
-    { label: 'シナリオ管理', to: '/admin/scenarios', matchPrefix: '/admin/scenarios' },
     { label: '招待管理', to: '/admin/invitations', matchPrefix: '/admin/invitations' },
   ],
 };

@@ -48,6 +48,9 @@ func (r *fakeUserRepo) UpdateCompanyID(_ context.Context, id uint64, companyID u
 	r.updateCompanyID, r.updateCompanyVal = id, companyID
 	return nil
 }
+func (r *fakeUserRepo) MarkOnboarded(_ context.Context, _ uint64) error {
+	return nil
+}
 
 // fakeInvitationRepo は AdminInvitationRepository の最小スタブ。
 // FindPendingByEmail / FindPendingByToken の振る舞いをカスタムにしてテストする。

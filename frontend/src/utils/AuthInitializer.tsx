@@ -17,7 +17,14 @@ export default function AuthInitializer({ children }: AuthInitializerProps) {
     const checkAuth = async () => {
       try {
         const me = await authRepository.getCurrentUser();
-        dispatch(setAuthData({ isAdmin: !!me.isAdmin }));
+        dispatch(
+          setAuthData({
+            isAdmin: !!me.isAdmin,
+            // Welcome 画面に飛ばすかの判定を Protected で使う。
+            // backend から undefined が返ってきた場合は完了扱い（既存ユーザー保護）。
+            onboarded: me.onboarded ?? true,
+          })
+        );
       } catch {
         dispatch(clearAuth());
       } finally {

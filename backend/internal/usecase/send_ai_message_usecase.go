@@ -110,13 +110,18 @@ func truncateTitle(s string, max int) string {
 	return s
 }
 
-func buildSystemPrompt(sessionType, scene string) string {
-	base := "あなたはビジネスコミュニケーションのコーチです。新卒ITエンジニアがビジネスコミュニケーションを練習できるようサポートしてください。日本語で返答してください。簡潔かつ丁寧に応答してください。"
-	if sessionType == domain.AiChatSessionTypePractice {
-		base += "\n\n【練習モード】ユーザーはビジネスシナリオのロールプレイ練習をしています。指定された役割を演じながら自然に応答し、練習終了後は改善点をフィードバックしてください。"
-	}
-	if scene != "" {
-		base += "\n\n【シーン】" + scene
-	}
-	return base
+// buildSystemPrompt は汎用 AI チャットの system prompt を返す。
+//
+// 旧版は「ビジネスコミュニケーションのコーチ」「ロールプレイ練習」など、
+// 練習モード前提のプロンプトを混ぜていたが、コア機能整理（PR-A）で練習モード
+// 自体を撤去したため、汎用 AI アシスタント向けのプロンプトに書き換える。
+//
+// sessionType / scene 引数は WebSocket 受信側との互換のため残しているが、
+// 現状はどちらもプロンプトに反映しない（次の PR で削除予定）。
+func buildSystemPrompt(_, _ string) string {
+	return "あなたは新卒 IT エンジニア向け学習プラットフォーム『FreStyle』に組み込まれた汎用 AI アシスタントです。" +
+		"ユーザーからの質問・要約依頼・コードレビュー・概念説明など、幅広いトピックに答えます。" +
+		"日本語で簡潔・丁寧に応答してください。" +
+		"回答は **Markdown 形式** で返してください（見出し / 箇条書き / 表 / コードブロックなど、内容に応じて適切に使い分けます）。" +
+		"コードを示すときは ```言語名 で囲み、シンタックスハイライトが効くようにしてください。"
 }

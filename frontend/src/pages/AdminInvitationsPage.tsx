@@ -92,7 +92,7 @@ export default function AdminInvitationsPage() {
     try {
       const created = await AdminInvitationRepository.create(form);
       setSuccess(
-        `${created.email} 宛に招待メールを送信しました。受信者は Cognito Hosted UI で初回パスワードを変更してログインしてください。`
+        `${created.email} 宛に招待メールを送信しました。受信者にメール内のリンクを開いてもらい、画面の案内に従ってログインしてもらってください。`
       );
       setForm((f) => ({ ...EMPTY_FORM, companyId: f.companyId }));
       await fetchAll();
@@ -143,8 +143,9 @@ export default function AdminInvitationsPage() {
         title="管理: メンバー招待"
         description={
           <>
-            メールアドレスを入力すると、Cognito 経由で一時パスワード付きの招待メールが送信されます。
-            受信者は初回ログイン時にパスワード変更を要求されます。
+            メールアドレスを入力すると、招待メールが送信されます。
+            受信者はメール内のリンクから FreStyle の受諾画面に進み、
+            Google アカウントまたはメールアドレスでログインしてアカウントが作成されます。
           </>
         }
       />

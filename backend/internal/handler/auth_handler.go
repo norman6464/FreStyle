@@ -267,17 +267,8 @@ func (h *AuthHandler) upsertUserFromIDToken(c *gin.Context, idToken, invitationT
 	groups := middleware.ToStringSliceFromClaim(claims["cognito:groups"])
 	isCognitoAdmin := middleware.IsAdminFromGroups(groups)
 
-	existing, _ := h.users.FindByCognitoSub(c.Request.Context(), sub)
-	if existing != nil {
-		// 既存ユーザー: Cognito group で admin に昇格された場合のみ DB role を上書きする。
-		if isCognitoAdmin && existing.Role != domain.RoleSuperAdmin {
-			_ = h.users.UpdateRole(c.Request.Context(), existing.ID, domain.RoleSuperAdmin)
-		}
-		return true
-	}
-
-	// 新規ユーザー: 招待 OR Cognito group "admin" のいずれかが必要。両方無ければ拒否。
-	// 招待検索の優先順位:
+	// 招待検索（既存ユーザーの role 昇格・新規ユーザー作成の両方で使う）。
+	// 優先順位:
 	//   1. invitationToken が指定されていれば FindPendingByToken で照合（マジックリンク経由）
 	//   2. 1 で見つからない場合は email でフォールバック検索（旧フロー互換）
 	var inv *domain.AdminInvitation
@@ -289,6 +280,39 @@ func (h *AuthHandler) upsertUserFromIDToken(c *gin.Context, idToken, invitationT
 			inv, _ = h.invitations.FindPendingByEmail(c.Request.Context(), email)
 		}
 	}
+
+	existing, _ := h.users.FindByCognitoSub(c.Request.Context(), sub)
+	if existing != nil {
+		// 既存ユーザー: 招待 / Cognito group の状態で role / company を更新する。
+		// 重要な制約:
+		//   - super_admin は何があっても降格しない（招待での降格は不可、別途 admin API でのみ降格可）
+		//   - 招待による昇格は trainee → company_admin のみ（trainee → super_admin / company_admin → super_admin はしない）
+		//   - Cognito group admin は最強で super_admin に昇格する
+		if isCognitoAdmin && existing.Role != domain.RoleSuperAdmin {
+			_ = h.users.UpdateRole(c.Request.Context(), existing.ID, domain.RoleSuperAdmin)
+		}
+		if inv != nil && existing.Role != domain.RoleSuperAdmin {
+			// 役割昇格: trainee → company_admin だけ反映する（同一 role / 降格は skip）。
+			if existing.Role == domain.RoleTrainee && inv.Role == domain.RoleCompanyAdmin {
+				if err := h.users.UpdateRole(c.Request.Context(), existing.ID, domain.RoleCompanyAdmin); err != nil {
+					log.Printf("upsertUserFromIDToken: existing user role upgrade failed userID=%d: %v", existing.ID, err)
+				} else {
+					log.Printf("upsertUserFromIDToken: existing user upgraded trainee→company_admin userID=%d email=%s", existing.ID, email)
+				}
+			}
+			// company 紐付け: 招待の company_id と異なる、または未設定なら更新する。
+			if inv.CompanyID != 0 && (existing.CompanyID == nil || *existing.CompanyID != inv.CompanyID) {
+				if err := h.users.UpdateCompanyID(c.Request.Context(), existing.ID, inv.CompanyID); err != nil {
+					log.Printf("upsertUserFromIDToken: existing user company update failed userID=%d: %v", existing.ID, err)
+				}
+			}
+			// 招待を accepted にマーク（再利用防止 + 監査）
+			_ = h.invitations.UpdateStatus(c.Request.Context(), inv.ID, domain.InvitationStatusAccepted)
+		}
+		return true
+	}
+
+	// 新規ユーザー: 招待 OR Cognito group "admin" のいずれかが必要。両方無ければ拒否。
 	if !isCognitoAdmin && inv == nil {
 		log.Printf("upsertUserFromIDToken: signup blocked — no invitation and not Cognito admin sub=%s email=%s token_provided=%t", sub, email, invitationToken != "")
 		return false

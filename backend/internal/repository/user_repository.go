@@ -15,8 +15,10 @@ type UserRepository interface {
 	Create(ctx context.Context, user *domain.User) error
 	// UpdateDisplayName は ProfilePage の「ニックネーム」変更で呼ばれる。
 	UpdateDisplayName(ctx context.Context, userID uint64, displayName string) error
-	// UpdateRole は Cognito group → DB role 同期で呼ばれる。
+	// UpdateRole は Cognito group → DB role 同期、または招待受諾時に呼ばれる。
 	UpdateRole(ctx context.Context, userID uint64, role string) error
+	// UpdateCompanyID は既存ユーザーが招待を受けて company に紐付くときに呼ばれる。
+	UpdateCompanyID(ctx context.Context, userID uint64, companyID uint64) error
 }
 
 type userRepository struct {
@@ -67,4 +69,11 @@ func (r *userRepository) UpdateRole(ctx context.Context, userID uint64, role str
 		Model(&domain.User{}).
 		Where("id = ?", userID).
 		Update("role", role).Error
+}
+
+func (r *userRepository) UpdateCompanyID(ctx context.Context, userID uint64, companyID uint64) error {
+	return r.db.WithContext(ctx).
+		Model(&domain.User{}).
+		Where("id = ?", userID).
+		Update("company_id", companyID).Error
 }

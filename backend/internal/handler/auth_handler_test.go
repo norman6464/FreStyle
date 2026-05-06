@@ -13,11 +13,13 @@ import (
 
 // fakeUserRepo は AuthHandler.upsertUserFromIDToken のテスト用 stub。
 type fakeUserRepo struct {
-	existingBySub map[string]*domain.User
-	created       *domain.User
-	createErr     error
-	updateRoleID  uint64
-	updateRoleVal string
+	existingBySub  map[string]*domain.User
+	created        *domain.User
+	createErr      error
+	updateRoleID   uint64
+	updateRoleVal  string
+	updateCompanyID    uint64
+	updateCompanyVal   uint64
 }
 
 func (r *fakeUserRepo) FindByCognitoSub(_ context.Context, sub string) (*domain.User, error) {
@@ -40,6 +42,10 @@ func (r *fakeUserRepo) Create(_ context.Context, u *domain.User) error {
 func (r *fakeUserRepo) UpdateDisplayName(_ context.Context, _ uint64, _ string) error { return nil }
 func (r *fakeUserRepo) UpdateRole(_ context.Context, id uint64, role string) error {
 	r.updateRoleID, r.updateRoleVal = id, role
+	return nil
+}
+func (r *fakeUserRepo) UpdateCompanyID(_ context.Context, id uint64, companyID uint64) error {
+	r.updateCompanyID, r.updateCompanyVal = id, companyID
 	return nil
 }
 
@@ -286,6 +292,53 @@ func TestUpsertUserFromIDToken_InvalidToken_FallsBackToEmail(t *testing.T) {
 	}
 	if users.created == nil || users.created.Role != domain.RoleTrainee {
 		t.Errorf("expected trainee from email-based invitation, got %+v", users.created)
+	}
+}
+
+// 既存の trainee ユーザーが company_admin 招待を受けた場合、role を昇格 + company を反映する。
+// 過去に signup した既存ユーザーが後から CompanyAdmin として招待されたケースの救済。
+func TestUpsertUserFromIDToken_ExistingTrainee_UpgradedByCompanyAdminInvitation(t *testing.T) {
+	existing := &domain.User{ID: 5, CognitoSub: "existing-trainee", Email: "u@example.com", Role: domain.RoleTrainee}
+	users := &fakeUserRepo{existingBySub: map[string]*domain.User{"existing-trainee": existing}}
+	invs := &fakeInvitationRepo{
+		pendingByToken: map[string]*domain.AdminInvitation{
+			"magic-xyz": {ID: 9, CompanyID: 42, Email: "u@example.com", Role: domain.RoleCompanyAdmin},
+		},
+	}
+	h := newTestAuthHandler(users, invs)
+	idToken := makeIDToken(t, map[string]any{"sub": "existing-trainee", "email": "u@example.com"})
+
+	if !h.upsertUserFromIDToken(newGinCtx(), idToken, "magic-xyz") {
+		t.Fatal("must be allowed for existing user with token")
+	}
+	if users.updateRoleVal != domain.RoleCompanyAdmin || users.updateRoleID != 5 {
+		t.Errorf("role must be upgraded to company_admin, got id=%d role=%q", users.updateRoleID, users.updateRoleVal)
+	}
+	if users.updateCompanyID != 5 || users.updateCompanyVal != 42 {
+		t.Errorf("company_id must be updated to 42, got id=%d company=%d", users.updateCompanyID, users.updateCompanyVal)
+	}
+	if invs.updatedID != 9 || invs.updatedStatus != domain.InvitationStatusAccepted {
+		t.Errorf("invitation must be marked accepted, got id=%d status=%q", invs.updatedID, invs.updatedStatus)
+	}
+}
+
+// 既存 super_admin は招待を受けても降格しない。
+func TestUpsertUserFromIDToken_ExistingSuperAdmin_NotDowngradedByInvitation(t *testing.T) {
+	existing := &domain.User{ID: 1, CognitoSub: "ops", Email: "ops@example.com", Role: domain.RoleSuperAdmin}
+	users := &fakeUserRepo{existingBySub: map[string]*domain.User{"ops": existing}}
+	invs := &fakeInvitationRepo{
+		pendingByToken: map[string]*domain.AdminInvitation{
+			"t": {ID: 1, CompanyID: 1, Email: "ops@example.com", Role: domain.RoleTrainee},
+		},
+	}
+	h := newTestAuthHandler(users, invs)
+	idToken := makeIDToken(t, map[string]any{"sub": "ops", "email": "ops@example.com"})
+
+	if !h.upsertUserFromIDToken(newGinCtx(), idToken, "t") {
+		t.Fatal("must be allowed")
+	}
+	if users.updateRoleVal != "" {
+		t.Errorf("super_admin must not be downgraded, but UpdateRole was called with %q", users.updateRoleVal)
 	}
 }
 

@@ -78,12 +78,58 @@ type createAdminInvReq struct {
 	DisplayName string `json:"displayName"`
 }
 
+// Create は POST /api/v2/admin/invitations。
+//
+// 認可ルール（SoD）:
+//   - SuperAdmin: company_admin の招待のみ可能。trainee の招待は CompanyAdmin に任せる。
+//     （運営が顧客企業の trainee 全員を直接管理するのは実運用に合わないため）
+//   - CompanyAdmin: 自社の trainee の招待のみ可能。company_id は自社に固定する。
+//   - その他: 403
+//
+// この境界を backend で確実に守ることで、フロント UI を経由しない API 呼び出しでも
+// SuperAdmin が間違って trainee を直接招待することや、CompanyAdmin が他社に
+// 招待を出すことを防ぐ。フロント UI は UX 改善として同じルールで選択肢を絞る。
 func (h *AdminInvitationHandler) Create(c *gin.Context) {
+	user := middleware.CurrentUserFromContext(c)
+	if user == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
 	var req createAdminInvReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	switch user.Role {
+	case domain.RoleSuperAdmin:
+		if req.Role != domain.RoleCompanyAdmin {
+			c.JSON(http.StatusForbidden, gin.H{
+				"error":   "super_admin_can_only_invite_company_admin",
+				"message": "運営は会社管理者のみ招待できます。受講者の招待は会社管理者から行ってください。",
+			})
+			return
+		}
+	case domain.RoleCompanyAdmin:
+		if req.Role != domain.RoleTrainee {
+			c.JSON(http.StatusForbidden, gin.H{
+				"error":   "company_admin_can_only_invite_trainee",
+				"message": "会社管理者が招待できるのは受講者のみです。",
+			})
+			return
+		}
+		if user.CompanyID == nil || *user.CompanyID == 0 {
+			c.JSON(http.StatusForbidden, gin.H{"error": "company_admin_without_company"})
+			return
+		}
+		// CompanyAdmin の招待先 company は常に自社に固定する（リクエスト値を上書き）。
+		req.CompanyID = *user.CompanyID
+	default:
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
+	}
+
 	got, err := h.create.Execute(c.Request.Context(), usecase.CreateAdminInvitationInput{
 		CompanyID: req.CompanyID, Email: req.Email, Role: req.Role, DisplayName: req.DisplayName,
 	})

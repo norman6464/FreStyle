@@ -1,0 +1,196 @@
+package handler
+
+import (
+	"context"
+	"encoding/json"
+	"io"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
+	"github.com/norman6464/FreStyle/backend/internal/usecase"
+)
+
+// AiChatSseHandler は AI チャット用の Server-Sent Events エンドポイント。
+//
+// 送信フォーマット (text/event-stream):
+//
+//	event: session
+//	data: {"id": 42, "title": "...", ...}
+//
+//	event: token
+//	data: {"sessionId": 42, "delta": "ご"}
+//
+//	event: done
+//	data: {"sessionId": 42, "id": "uuid", "createdAt": "...", "content": "ご質問..."}
+//
+//	event: error
+//	data: {"message": "..."}
+//
+// クライアントは fetch + ReadableStream で line-based に読む（標準の EventSource は POST に
+// 対応しないため、本実装では fetch ベースで送る）。
+type AiChatSseHandler struct {
+	sendStream *usecase.SendAiMessageStreamUseCase
+}
+
+func NewAiChatSseHandler(sendStream *usecase.SendAiMessageStreamUseCase) *AiChatSseHandler {
+	return &AiChatSseHandler{sendStream: sendStream}
+}
+
+type sseRequestBody struct {
+	SessionID   int64   `json:"sessionId"`
+	Content     string  `json:"content"`
+	Scene       string  `json:"scene"`
+	SessionType string  `json:"sessionType"`
+	ScenarioID  *uint64 `json:"scenarioId"`
+}
+
+// Handle は POST /api/v2/ai-chat/stream。
+//
+// gin.Context.SSEvent は `Content-Type: text/event-stream` を自動でセットしないため、
+// 明示的にヘッダを付けて、`c.Writer.Flush()` を伴う書き込みでバッチを流す。
+// HTTP/1.1 chunked transfer で送るのが SSE の前提。CloudFront / ALB のバッファリングは
+// 標準で SSE をサポートしている（`X-Accel-Buffering: no` も併せて立てる）。
+func (h *AiChatSseHandler) Handle(c *gin.Context) {
+	uid := middleware.CurrentUserIDOrZero(c)
+	if uid == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	if h.sendStream == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ai_chat_unavailable"})
+		return
+	}
+
+	var body sseRequestBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if body.Content == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "content_required"})
+		return
+	}
+
+	// SSE ヘッダ
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Header().Set("X-Accel-Buffering", "no")
+	c.Writer.WriteHeader(http.StatusOK)
+	flushOrPanic(c.Writer)
+
+	// usecase の context は client 切断で cancel される c.Request.Context() を渡す。
+	// goroutine が長時間生きないように切断検知を伝播させる。
+	ctx, cancel := context.WithCancel(c.Request.Context())
+	defer cancel()
+
+	stream, err := h.sendStream.Execute(ctx, usecase.SendAiMessageInput{
+		UserID:      uid,
+		SessionID:   uint64(body.SessionID),
+		Content:     body.Content,
+		Scene:       body.Scene,
+		SessionType: body.SessionType,
+		ScenarioID:  body.ScenarioID,
+	})
+	if err != nil {
+		writeSSEEvent(c.Writer, "error", map[string]string{"message": "メッセージの送信に失敗しました"})
+		return
+	}
+
+	// keepalive: 15 秒ごとにコメント行 ":\n\n" を送って ALB / CloudFront のアイドルタイムアウト
+	// （既定 60 秒）で切断されるのを防ぐ。
+	keep := time.NewTicker(15 * time.Second)
+	defer keep.Stop()
+
+	clientGone := c.Writer.CloseNotify()
+
+	for {
+		select {
+		case <-clientGone:
+			return
+		case <-keep.C:
+			if _, err := c.Writer.Write([]byte(": keepalive\n\n")); err != nil {
+				return
+			}
+			c.Writer.Flush()
+		case ev, ok := <-stream:
+			if !ok {
+				// usecase 側の channel が close した = 完了（FinalMessage で done 通知済）
+				return
+			}
+			if ev.Err != nil {
+				log.Printf("AiChat SSE: usecase error: %v", ev.Err)
+				writeSSEEvent(c.Writer, "error", map[string]string{"message": "メッセージの送信に失敗しました"})
+				return
+			}
+			if ev.NewSession != nil {
+				writeSSEEvent(c.Writer, "session", map[string]any{
+					"id":          ev.NewSession.ID,
+					"title":       ev.NewSession.Title,
+					"sessionType": ev.NewSession.SessionType,
+					"scenarioId":  ev.NewSession.ScenarioID,
+					"createdAt":   ev.NewSession.CreatedAt.Format(time.RFC3339),
+				})
+				continue
+			}
+			if ev.Delta != "" {
+				writeSSEEvent(c.Writer, "token", map[string]any{
+					"delta": ev.Delta,
+				})
+				continue
+			}
+			if ev.FinalMessage != nil {
+				writeSSEEvent(c.Writer, "done", map[string]any{
+					"sessionId": ev.FinalMessage.SessionID,
+					"id":        ev.FinalMessage.MessageID,
+					"role":      ev.FinalMessage.Role,
+					"content":   ev.FinalMessage.Content,
+					"createdAt": ev.FinalMessage.CreatedAt.Format(time.RFC3339),
+				})
+				return
+			}
+		}
+	}
+}
+
+// writeSSEEvent は 1 イベントを SSE フォーマットで書き出す。
+//
+// 仕様: `event:` 行の後に空行 / `data:` 行 / 空行で 1 イベント完結。
+// 改行を含む payload は `data:` 行を分割する必要があるが、ここでは JSON を 1 行で
+// 出すので分割不要。
+func writeSSEEvent(w gin.ResponseWriter, event string, payload any) {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("AiChat SSE: marshal failed: %v", err)
+		return
+	}
+	if _, err := w.Write([]byte("event: " + event + "\n")); err != nil {
+		return
+	}
+	if _, err := w.Write([]byte("data: ")); err != nil {
+		return
+	}
+	if _, err := w.Write(body); err != nil {
+		return
+	}
+	if _, err := w.Write([]byte("\n\n")); err != nil {
+		return
+	}
+	w.Flush()
+}
+
+// flushOrPanic は最初のヘッダ送信で flush できないと SSE 自体機能しないので
+// 開発時の bug を早期発見するため panic させる。本番では gin の ResponseWriter は
+// 必ず Flusher を実装するので発生しない。
+func flushOrPanic(w gin.ResponseWriter) {
+	if f, ok := any(w).(interface{ Flush() }); ok {
+		f.Flush()
+		return
+	}
+	if _, ok := any(w).(io.Writer); !ok {
+		panic("ai_chat_sse_handler: ResponseWriter is not flushable")
+	}
+}

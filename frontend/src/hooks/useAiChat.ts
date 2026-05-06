@@ -137,6 +137,8 @@ export const useAiChat = () => {
     sessions,
     currentSession,
     messages,
+    /** ストリーミング受信中の token append に使う。useAskAi 経由の SSE 取り込みで利用。 */
+    setMessages,
     loading,
     error,
     fetchSessions,

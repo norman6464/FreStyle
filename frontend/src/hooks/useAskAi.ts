@@ -2,27 +2,31 @@ import { useEffect, useRef, useMemo, useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from './useAuth';
 import { useAiChat } from './useAiChat';
-import { useWebSocketNative } from './useWebSocketNative';
 import { useAiSession } from './useAiSession';
-import { WS } from '../constants/apiRoutes';
+import { useAiChatSse, SseEvent } from './useAiChatSse';
+import { AI_CHAT } from '../constants/apiRoutes';
+import { AiMessage } from '../types';
 
 /**
- * AskAiPage フック（汎用 AI チャット版）。
+ * AskAiPage フック（SSE ストリーミング版）。
  *
- * 旧版は「練習モード / scoreCard / シナリオ受け渡し / chat-feedback」など複合機能を
- * 引き受けていたが、PR-A の機能整理でアプリは「自由対話の AI チャット」に集約した。
- * このフックも以下のみを扱う:
- *   - セッション一覧 / 検索 / 切替
- *   - メッセージ送受信（WebSocket; SSE への置換は PR-C）
- *   - 編集中タイトルやモーダル状態
+ * メッセージ送信は WebSocket から SSE に切り替え:
+ *   1. ユーザー発話を即座に画面に表示
+ *   2. 「ストリーミング中のアシスタントメッセージ placeholder」を 1 つ追加
+ *   3. token イベントごとに placeholder.content の末尾に append（文字パラパラ）
+ *   4. done イベントで placeholder を確定（id / createdAt が backend から戻る）
+ *   5. session イベントが来た場合は新規セッションをリストに追加 + currentSessionId 切替
  *
- * 削除した機能: 練習モード / scoreCard / scenario / chat-feedback / scene
+ * 進行中の stream は AbortController で中断可能（次の send 時に自動 abort）。
  */
 export function useAskAi() {
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
+  const STREAM_ENDPOINT = `${API_BASE_URL}${AI_CHAT.stream}`;
 
   const [sessionSearchQuery, setSessionSearchQuery] = useState('');
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  // ストリーミング中のアシスタントメッセージ ID（placeholder）
+  const streamingIdRef = useRef<string | null>(null);
 
   const { sessionId: urlSessionId } = useParams<{ sessionId: string }>();
 
@@ -30,56 +34,110 @@ export function useAskAi() {
   const {
     sessions,
     messages,
+    setMessages,
     loading,
     fetchSessions,
     fetchMessages,
     deleteSession,
     updateSessionTitle,
-    handleIncomingMessage,
     handleIncomingSession,
   } = useAiChat();
 
   const aiSession = useAiSession({ deleteSession, updateSessionTitle });
   const { currentSessionId, setCurrentSessionId } = aiSession;
 
-  const wsUrl = user?.id && API_BASE_URL
-    ? toWsUrl(`${API_BASE_URL}${WS.aiChat}`)
-    : null;
-
-  type AiWsInbound =
-    | { type: 'message'; sessionId?: number; [k: string]: unknown }
-    | { type: 'session'; id: number; [k: string]: unknown }
-    | { type: 'session-deleted'; sessionId: number };
-
-  const { send } = useWebSocketNative({
-    url: wsUrl,
-    onMessage: (raw) => {
-      const data = raw as AiWsInbound;
-      if (data.type === 'message') {
-        handleIncomingMessage(data as unknown as Parameters<typeof handleIncomingMessage>[0]);
-        return;
-      }
-      if (data.type === 'session') {
-        handleIncomingSession(data);
-        setCurrentSessionId(data.id);
-        return;
-      }
-      if (data.type === 'session-deleted') {
-        if (currentSessionId === data.sessionId) {
-          setCurrentSessionId(null);
+  const handleEvent = useCallback(
+    (ev: SseEvent) => {
+      switch (ev.type) {
+        case 'session':
+          handleIncomingSession({
+            id: ev.id,
+            title: ev.title,
+            sessionType: ev.sessionType,
+            scenarioId: ev.scenarioId ?? undefined,
+            createdAt: ev.createdAt,
+          });
+          setCurrentSessionId(ev.id);
+          return;
+        case 'token': {
+          const id = streamingIdRef.current;
+          if (!id) return;
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === id ? { ...m, content: m.content + ev.delta } : m
+            )
+          );
+          return;
         }
+        case 'done': {
+          const tempId = streamingIdRef.current;
+          if (!tempId) return;
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === tempId
+                ? {
+                    ...m,
+                    id: ev.id,
+                    content: ev.content,
+                    createdAt: ev.createdAt,
+                  }
+                : m
+            )
+          );
+          streamingIdRef.current = null;
+          return;
+        }
+        case 'error':
+          // placeholder にエラー本文を残す（ユーザーに状況を伝える）
+          if (streamingIdRef.current) {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === streamingIdRef.current
+                  ? { ...m, content: `（エラー）${ev.message}` }
+                  : m
+              )
+            );
+            streamingIdRef.current = null;
+          }
+          return;
       }
     },
+    [handleIncomingSession, setCurrentSessionId, setMessages]
+  );
+
+  const { send: sendSse, abort: abortSse } = useAiChatSse({
+    endpoint: STREAM_ENDPOINT,
+    onEvent: handleEvent,
   });
 
-  const handleSend = useCallback((text: string): void => {
-    send({
-      type: 'send',
-      sessionId: currentSessionId,
-      content: text,
-      role: 'user',
-    });
-  }, [send, currentSessionId]);
+  const handleSend = useCallback(
+    (text: string): void => {
+      if (!text.trim()) return;
+
+      // ユーザー発話 + アシスタント placeholder を即座に追加
+      const now = new Date().toISOString();
+      const userMsg: AiMessage = {
+        id: `local-user-${Date.now()}`,
+        sessionId: currentSessionId ?? 0,
+        role: 'user',
+        content: text,
+        createdAt: now,
+      };
+      const placeholderId = `streaming-${Date.now()}`;
+      streamingIdRef.current = placeholderId;
+      const placeholder: AiMessage = {
+        id: placeholderId,
+        sessionId: currentSessionId ?? 0,
+        role: 'assistant',
+        content: '',
+        createdAt: now,
+      };
+      setMessages((prev) => [...prev, userMsg, placeholder]);
+
+      void sendSse({ sessionId: currentSessionId, content: text });
+    },
+    [sendSse, currentSessionId, setMessages]
+  );
 
   // ユーザー情報取得
   useEffect(() => {
@@ -93,7 +151,7 @@ export function useAskAi() {
     }
   }, [user?.id, fetchSessions]);
 
-  // URL パラメータのセッション ID 変更で current を切替（無いときは null にリセット）
+  // URL パラメータのセッション ID 変更で current を切替
   useEffect(() => {
     if (urlSessionId) {
       setCurrentSessionId(parseInt(urlSessionId, 10));
@@ -114,6 +172,11 @@ export function useAskAi() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // unmount で進行中の stream を abort
+  useEffect(() => {
+    return () => abortSse();
+  }, [abortSse]);
+
   const filteredSessions = useMemo(() => {
     if (!sessionSearchQuery) return sessions;
     const query = sessionSearchQuery.toLowerCase();
@@ -133,8 +196,4 @@ export function useAskAi() {
 
     handleSend,
   };
-}
-
-function toWsUrl(httpUrl: string): string {
-  return httpUrl.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:');
 }

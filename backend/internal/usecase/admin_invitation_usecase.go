@@ -111,6 +111,8 @@ func (u *CreateAdminInvitationUseCase) Execute(ctx context.Context, in CreateAdm
 		ExpiresAt:   time.Now().UTC().Add(u.expiresIn),
 	}
 	if err := u.repo.Create(ctx, inv); err != nil {
+		log.Printf("CreateAdminInvitation: repo.Create failed email=%s role=%s companyID=%d: %v",
+			in.Email, in.Role, in.CompanyID, err)
 		return nil, fmt.Errorf("create invitation: %w", err)
 	}
 
@@ -125,8 +127,14 @@ func (u *CreateAdminInvitationUseCase) Execute(ctx context.Context, in CreateAdm
 	subject, htmlBody, textBody := u.buildMail(link, in.DisplayName, u.companyName, in.Role)
 	if err := u.sender.SendInvitationEmail(ctx, in.Email, subject, htmlBody, textBody); err != nil {
 		// 送信失敗は呼び出し側にエラーで返す。invitation 自体は DB に残るので、UI から再送信機能を作るときに使える。
+		// 詳細をログに残す: AWS SES のエラータイプ（AccessDenied / MessageRejected など）と
+		// 送信元・宛先 email を ログから判定できるようにする。
+		log.Printf("CreateAdminInvitation: SES SendInvitationEmail failed to=%s subject=%q: %v",
+			in.Email, subject, err)
 		return nil, fmt.Errorf("send invitation email: %w", err)
 	}
+	log.Printf("CreateAdminInvitation: invitation sent ok id=%d to=%s role=%s companyID=%d",
+		inv.ID, in.Email, in.Role, in.CompanyID)
 	return inv, nil
 }
 

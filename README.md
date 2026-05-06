@@ -45,7 +45,7 @@
 - AI 採点（記述式回答・コードレビューを Bedrock で評価）
 - 認定証発行、SCORM/xAPI 互換、SSO（SAML/OIDC）
 
-詳細は [docs/architecture/saas-vision.md](./docs/architecture/saas-vision.md) を参照。
+詳細は [frestyle-pdm/docs/architecture/saas-vision.md](https://github.com/norman6464/frestyle-pdm/blob/main/docs/architecture/saas-vision.md) を参照。
 
 ## 対象顧客
 
@@ -222,7 +222,7 @@ backend/
 └── go.mod
 ```
 
-詳細な層責務・パッケージ依存関係・テスト戦略は [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) を参照。
+詳細な層責務・パッケージ依存関係・テスト戦略は [`frestyle-pdm/docs/ARCHITECTURE.md`](https://github.com/norman6464/frestyle-pdm/blob/main/docs/ARCHITECTURE.md) を参照。
 
 #### 層構成（フロントエンド）
 
@@ -510,7 +510,7 @@ GORM 側の AutoMigrate は本番では使わず、明示的な SQL で運用し
 
 ### コーディング規約（要点）
 
-- **クリーンアーキテクチャ**: handler → usecase → repository → domain（Go）/ Controller → UseCase → Service / Repository → Entity（Spring Boot）の依存方向を厳守。詳細は [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)
+- **クリーンアーキテクチャ**: handler → usecase → repository → domain（Go）/ Controller → UseCase → Service / Repository → Entity（Spring Boot）の依存方向を厳守。詳細は [`frestyle-pdm/docs/ARCHITECTURE.md`](https://github.com/norman6464/frestyle-pdm/blob/main/docs/ARCHITECTURE.md)
 - **1 UseCase = 1 ビジネスルール**: 新規機能追加時は usecase ファイルを新規作成し、肥大化させない
 - **DTO ↔ Domain 変換**: 1 箇所に集約。handler / usecase で直接変換しない
 - **テスト必須**: 新規追加コードには必ず単体テストを付ける

@@ -98,4 +98,38 @@ describe('useWebSocketNative', () => {
     act(() => result.current.disconnect());
     expect(MockWebSocket.instances[0].readyState).toBe(MockWebSocket.CLOSED);
   });
+
+  // ALB のアイドルタイムアウトでサーバ側から切断されたケース（onclose のみ発火）
+  // でも、ユーザー操作なしで再接続が走ることを確認する。
+  it('予期せぬ onclose で自動再接続される（指数バックオフ）', () => {
+    vi.useFakeTimers();
+    try {
+      renderHook(() => useWebSocketNative({ url: 'wss://example.com' }));
+      expect(MockWebSocket.instances).toHaveLength(1);
+      // 1 つ目を open → close（ALB が切ったケース）
+      act(() => MockWebSocket.instances[0].open());
+      act(() => MockWebSocket.instances[0].close());
+      // 1 秒後に 2 つ目の接続が作られる
+      expect(MockWebSocket.instances).toHaveLength(1);
+      act(() => vi.advanceTimersByTime(1000));
+      expect(MockWebSocket.instances).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // disconnect されたときは再接続しない（ユーザーが明示的に切ったケース）。
+  it('disconnect 後は再接続しない', () => {
+    vi.useFakeTimers();
+    try {
+      const { result } = renderHook(() => useWebSocketNative({ url: 'wss://example.com' }));
+      act(() => MockWebSocket.instances[0].open());
+      act(() => result.current.disconnect());
+      // disconnect は close も呼ぶ（onclose が発火するが cancelled なので再接続しない）
+      act(() => vi.advanceTimersByTime(60000));
+      expect(MockWebSocket.instances).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

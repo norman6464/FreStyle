@@ -13,9 +13,10 @@ import (
 // 新しい domain を追加したら必ずここにも追記する。
 //
 // 廃止済 (PR-D, 2026-05-07): PracticeScenario / ScenarioBookmark / SharedSession /
-//   ScoreCard / ScoreGoal / ConversationTemplate / FavoritePhrase / ReminderSetting /
-//   DailyGoal / WeeklyChallenge / WeeklyChallengeProgress / SessionNote。
-//   既存テーブルは PR-E の DROP migration で物理削除予定。
+//
+//	ScoreCard / ScoreGoal / ConversationTemplate / FavoritePhrase / ReminderSetting /
+//	DailyGoal / WeeklyChallenge / WeeklyChallengeProgress / SessionNote。
+//	既存テーブルは PR-E の DROP migration で物理削除予定。
 func allDomainModels() []any {
 	return []any{
 		&domain.User{},

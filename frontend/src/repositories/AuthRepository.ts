@@ -77,10 +77,16 @@ class AuthRepository {
   }
 
   /**
-   * OAuthコールバック
+   * OAuth コールバック。
+   *
+   * invitationToken は招待マジックリンク経由のサインアップで sessionStorage から
+   * 引き渡される UUID。指定がある場合 backend は email より優先して照合する。
+   * 未指定（直接 /login から入った既存ユーザー等）は省略可。
    */
-  async callback(code: string): Promise<{ success: string }> {
-    const response = await apiClient.post(AUTH.callback, { code });
+  async callback(code: string, invitationToken?: string | null): Promise<{ success: string }> {
+    const body: { code: string; invitationToken?: string } = { code };
+    if (invitationToken) body.invitationToken = invitationToken;
+    const response = await apiClient.post(AUTH.callback, body);
     return response.data;
   }
 

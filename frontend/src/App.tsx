@@ -16,6 +16,7 @@ const LoginCallback = lazy(() => import('./pages/LoginCallback'));
 const ConfirmPage = lazy(() => import('./pages/ConfirmPage'));
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'));
 const ConfirmForgotPasswordPage = lazy(() => import('./pages/ConfirmForgotPasswordPage'));
+const AcceptInvitationPage = lazy(() => import('./pages/AcceptInvitationPage'));
 
 // 認証必要ページ
 const MenuPage = lazy(() => import('./pages/MenuPage'));
@@ -69,6 +70,8 @@ export default function App() {
         path="/confirm-forgot-password"
         element={<ConfirmForgotPasswordPage />}
       />
+      {/* 招待マジックリンクの受諾画面（認証不要・SES メールから踏まれる） */}
+      <Route path="/invitations/accept" element={<AcceptInvitationPage />} />
 
       {/* 認証が必要（AppShellレイアウト内） */}
       <Route

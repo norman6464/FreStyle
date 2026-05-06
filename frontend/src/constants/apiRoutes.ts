@@ -141,6 +141,12 @@ export const ADMIN = {
   scenarioById: (id: number | string) => `${API_V2}/admin/scenarios/${id}`,
 } as const;
 
+/** 招待マジックリンク受諾フロー（認証不要） */
+export const INVITATIONS = {
+  validateToken: (token: string) =>
+    `${API_V2}/invitations/accept/${encodeURIComponent(token)}`,
+} as const;
+
 /** 外部 URL の OGP / oEmbed メタ情報を取得するプロキシ */
 export const EMBEDS = {
   oembed: `${API_V2}/embeds/oembed`,

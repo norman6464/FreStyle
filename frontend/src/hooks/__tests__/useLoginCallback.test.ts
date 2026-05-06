@@ -42,7 +42,8 @@ describe('useLoginCallback', () => {
       renderHook(() => useLoginCallback());
     });
 
-    expect(authRepository.callback).toHaveBeenCalledWith('test-code');
+    // 第 2 引数 invitationToken は sessionStorage に何も無いとき null。
+    expect(authRepository.callback).toHaveBeenCalledWith('test-code', null);
   });
 
   it('callback成功時にsetAuthDataをdispatchしホームに遷移する', async () => {

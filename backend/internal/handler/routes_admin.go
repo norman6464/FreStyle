@@ -55,16 +55,5 @@ func registerAdminRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	g.POST("/admin/invitations", adminInvHandler.Create)
 	g.DELETE("/admin/invitations/:id", adminInvHandler.Cancel)
 
-	// Phase 26: AdminScenario
-	adminScenarioRepo := repository.NewAdminScenarioRepository(deps.db)
-	adminScenarioHandler := NewAdminScenarioHandler(
-		usecase.NewListAdminScenariosUseCase(adminScenarioRepo),
-		usecase.NewCreateAdminScenarioUseCase(adminScenarioRepo),
-		usecase.NewUpdateAdminScenarioUseCase(adminScenarioRepo),
-		usecase.NewDeleteAdminScenarioUseCase(adminScenarioRepo),
-	)
-	g.GET("/admin/scenarios", adminScenarioHandler.List)
-	g.POST("/admin/scenarios", adminScenarioHandler.Create)
-	g.PUT("/admin/scenarios/:id", adminScenarioHandler.Update)
-	g.DELETE("/admin/scenarios/:id", adminScenarioHandler.Delete)
+	// AdminScenario は廃止 (PR-D, 2026-05-07)。練習モード一式の撤去に伴い、シナリオ管理 API も削除した。
 }

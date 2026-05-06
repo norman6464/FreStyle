@@ -56,8 +56,11 @@
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-hook-form": "^7.65.0",
+    "react-markdown": "^10.1.0",
     "react-redux": "^9.2.0",
     "react-router-dom": "^7.9.4",
+    "rehype-highlight": "^7.0.2",
+    "remark-gfm": "^4.0.1",
     "tippy.js": "^6.3.7",
     "tiptap-markdown": "^0.9.0"
   },

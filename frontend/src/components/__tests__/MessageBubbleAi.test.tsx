@@ -27,17 +27,15 @@ describe('MessageBubbleAi', () => {
     expect(screen.getByAltText('画像')).toBeInTheDocument();
   });
 
-  it('送信者と受信者で異なるスタイルが適用される', () => {
-    const { container: senderContainer } = render(
-      <MessageBubbleAi isSender={true} content="送信" id={1} />
-    );
-    const { container: receiverContainer } = render(
-      <MessageBubbleAi isSender={false} content="受信" id={2} />
-    );
-    const senderWrapper = senderContainer.firstElementChild?.firstElementChild as HTMLElement;
-    const receiverWrapper = receiverContainer.firstElementChild?.firstElementChild as HTMLElement;
-    expect(senderWrapper.className).toContain('ml-auto');
-    expect(receiverWrapper.className).toContain('mr-auto');
+  it('送信者と受信者で aria-label が異なる', () => {
+    // 旧実装の ml-auto / mr-auto による DOM 配置検査は廃止。
+    // 新実装は ChatGPT 風のフラット表示で、送信者/受信者の役割は aria-label と
+    // ロール (article) で表現する。
+    const { unmount } = render(<MessageBubbleAi isSender={true} content="送信" id={1} />);
+    expect(screen.getByRole('article')).toHaveAttribute('aria-label', '自分のメッセージ');
+    unmount();
+    render(<MessageBubbleAi isSender={false} content="受信" id={2} />);
+    expect(screen.getByRole('article')).toHaveAttribute('aria-label', 'AIのメッセージ');
   });
 
   it('長いメッセージも表示される', () => {

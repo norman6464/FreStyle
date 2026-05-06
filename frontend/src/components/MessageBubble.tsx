@@ -1,5 +1,14 @@
-import { memo, useState } from 'react';
-import { ClipboardDocumentIcon, ClipboardDocumentCheckIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { memo, useState, ReactNode } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeHighlight from 'rehype-highlight';
+import {
+  ClipboardDocumentIcon,
+  ClipboardDocumentCheckIcon,
+  TrashIcon,
+  SparklesIcon,
+} from '@heroicons/react/24/outline';
+import 'highlight.js/styles/github-dark.css';
 import { formatHourMinute } from '../utils/formatters';
 
 interface MessageBubbleProps {
@@ -10,12 +19,26 @@ interface MessageBubbleProps {
   senderName?: string;
   createdAt?: string;
   onDelete?: ((id: string) => void) | null;
-  onRephrase?: ((content: string) => void) | null;
   onCopy?: ((id: string, content: string) => void) | null;
   isCopied?: boolean;
   isDeleted?: boolean;
+  /** 旧 API 互換のため受けるが本コンポーネントでは使わない */
+  onRephrase?: ((content: string) => void) | null;
 }
 
+/**
+ * メッセージ表示コンポーネント。
+ *
+ * 設計:
+ *   - 自分のメッセージは右寄せのコンパクトな塊（軽いハイライト背景）
+ *   - アシスタント / 他者のメッセージは左寄せで **背景なしのフラット表示**。
+ *     見出し / リスト / コード / 表など Markdown 要素を本文として描画する
+ *   - カードや角丸の装飾はあえて入れない（一般的な汎用 AI チャット UI に寄せる）
+ *
+ * Markdown:
+ *   - GFM（表 / タスクリスト / strikethrough）対応
+ *   - コードブロックは highlight.js でシンタックスハイライト
+ */
 export default memo(function MessageBubble({
   isSender,
   type = 'text',
@@ -24,99 +47,222 @@ export default memo(function MessageBubble({
   senderName,
   createdAt,
   onDelete,
-  onRephrase,
   onCopy,
   isCopied = false,
   isDeleted = false,
 }: MessageBubbleProps) {
-  const [showDelete, setShowDelete] = useState(false);
+  const [showActions, setShowActions] = useState(false);
 
-  const baseStyle =
-    'px-4 py-2.5 rounded-2xl text-sm whitespace-pre-wrap break-words relative';
+  if (type === 'image') {
+    return (
+      <div
+        className={`my-3 flex ${isSender ? 'justify-end' : 'justify-start'}`}
+        role="article"
+        aria-label="画像メッセージ"
+      >
+        <img src={content} alt="画像" className="max-w-[85%] rounded-lg shadow-md" />
+      </div>
+    );
+  }
 
-  const alignment = isSender
-    ? 'bg-primary-500 text-white rounded-br-sm'
-    : 'bg-surface-3 text-[var(--color-text-primary)] rounded-bl-sm';
+  if (isDeleted) {
+    return (
+      <div
+        className={`my-3 text-xs text-[var(--color-text-muted)] italic ${
+          isSender ? 'text-right' : 'text-left'
+        }`}
+      >
+        メッセージを削除しました
+      </div>
+    );
+  }
 
-  const deletedAlignment = isSender
-    ? 'bg-surface-3 text-[var(--color-text-muted)] italic rounded-br-sm'
-    : 'bg-surface-3 text-[var(--color-text-muted)] italic rounded-bl-sm';
+  if (isSender) {
+    return (
+      <div
+        className="my-4 group flex justify-end"
+        onMouseEnter={() => setShowActions(true)}
+        onMouseLeave={() => setShowActions(false)}
+        role="article"
+        aria-label="自分のメッセージ"
+      >
+        <div className="max-w-[85%] flex flex-col items-end">
+          <div className="px-4 py-2 rounded-2xl bg-[var(--color-surface-3)] text-[var(--color-text-primary)] text-sm whitespace-pre-wrap break-words">
+            {content}
+          </div>
+          <MessageActionRow
+            isSender
+            id={id}
+            content={content}
+            createdAt={createdAt}
+            isCopied={isCopied}
+            onCopy={onCopy}
+            onDelete={onDelete}
+            visible={showActions}
+          />
+        </div>
+      </div>
+    );
+  }
 
-  const ariaLabel = isSender ? '自分のメッセージ' : senderName ? `${senderName}のメッセージ` : 'メッセージ';
-
+  // アシスタント / 他者のメッセージ: フラット、本文に Markdown
   return (
     <div
-      className="my-3 group"
-      onMouseEnter={() => isSender && !isDeleted && setShowDelete(true)}
-      onMouseLeave={() => setShowDelete(false)}
+      className="my-6 group flex gap-3"
+      onMouseEnter={() => setShowActions(true)}
+      onMouseLeave={() => setShowActions(false)}
+      role="article"
+      aria-label={senderName ? `${senderName}のメッセージ` : 'AIのメッセージ'}
     >
-      <div className={`flex flex-col max-w-[85%] ${isSender ? 'items-end ml-auto' : 'items-start mr-auto'}`} role="article" aria-label={ariaLabel}>
-        {!isSender && senderName && (
-          <span className="text-xs text-[var(--color-text-muted)] mb-1 ml-1">{senderName}</span>
+      <div className="flex-shrink-0 w-7 h-7 rounded-full bg-[var(--color-surface-3)] flex items-center justify-center text-[var(--color-text-muted)]">
+        <SparklesIcon className="w-4 h-4" aria-hidden="true" />
+      </div>
+      <div className="flex-1 min-w-0">
+        {senderName && (
+          <p className="text-xs text-[var(--color-text-muted)] mb-1">{senderName}</p>
         )}
-
-        <div className={`${baseStyle} ${isDeleted ? deletedAlignment : alignment}`}>
-          {isDeleted ? (
-            <p>メッセージを削除しました</p>
+        <div className="prose prose-sm max-w-none text-[var(--color-text-primary)] leading-relaxed">
+          {type === 'bot' ? (
+            <p className="italic opacity-80">{content}</p>
           ) : (
-            <>
-              {type === 'text' && <p>{content}</p>}
-              {type === 'image' && (
-                <img
-                  src={content}
-                  alt="画像"
-                  className="max-w-full rounded-lg shadow-md"
-                />
-              )}
-              {type === 'bot' && <p className="italic opacity-80">{content}</p>}
-            </>
-          )}
-
-          {isSender && showDelete && onDelete && !isDeleted && (
-            <button
-              onClick={() => onDelete(id)}
-              className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 transition-colors duration-150"
-              title="削除"
-              aria-label="メッセージを削除"
-            >
-              <TrashIcon className="w-3 h-3" />
-            </button>
+            <MarkdownView content={content} />
           )}
         </div>
-
-        {!isDeleted && (
-          <div className={`flex items-center gap-2 mt-1 ${isSender ? 'justify-end' : 'justify-start'}`}>
-            {createdAt && (
-              <span className={`text-[10px] ${isSender ? 'mr-1 text-[var(--color-text-faint)]' : 'ml-1 text-[var(--color-text-faint)]'}`}>
-                {formatHourMinute(createdAt)}
-              </span>
-            )}
-            {onCopy && (
-              <button
-                onClick={() => onCopy(id, content)}
-                title={isCopied ? 'コピー済み' : 'コピー'}
-                aria-label={isCopied ? 'コピー済み' : 'メッセージをコピー'}
-                className="text-[var(--color-text-faint)] hover:text-[var(--color-text-secondary)] transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
-              >
-                {isCopied ? (
-                  <ClipboardDocumentCheckIcon className="w-3.5 h-3.5 text-green-500" />
-                ) : (
-                  <ClipboardDocumentIcon className="w-3.5 h-3.5" />
-                )}
-              </button>
-            )}
-            {isSender && onRephrase && (
-              <button
-                onClick={() => onRephrase(content)}
-                className="text-[10px] text-primary-500 hover:text-primary-300 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
-                aria-label="メッセージを言い換え"
-              >
-                言い換え
-              </button>
-            )}
-          </div>
-        )}
+        <MessageActionRow
+          isSender={false}
+          id={id}
+          content={content}
+          createdAt={createdAt}
+          isCopied={isCopied}
+          onCopy={onCopy}
+          visible={showActions}
+        />
       </div>
     </div>
   );
 });
+
+interface MessageActionRowProps {
+  isSender: boolean;
+  id: string;
+  content: string;
+  createdAt?: string;
+  isCopied: boolean;
+  onCopy?: ((id: string, content: string) => void) | null;
+  onDelete?: ((id: string) => void) | null;
+  visible: boolean;
+}
+
+function MessageActionRow({
+  isSender,
+  id,
+  content,
+  createdAt,
+  isCopied,
+  onCopy,
+  onDelete,
+  visible,
+}: MessageActionRowProps) {
+  return (
+    <div
+      className={`flex items-center gap-2 mt-1 ${
+        isSender ? 'justify-end' : 'justify-start'
+      } text-[var(--color-text-faint)]`}
+    >
+      {createdAt && (
+        <span className="text-[10px]">{formatHourMinute(createdAt)}</span>
+      )}
+      {onCopy && (
+        <button
+          onClick={() => onCopy(id, content)}
+          title={isCopied ? 'コピー済み' : 'コピー'}
+          aria-label={isCopied ? 'コピー済み' : 'メッセージをコピー'}
+          className={`hover:text-[var(--color-text-secondary)] transition-colors ${
+            visible ? 'opacity-100' : 'opacity-0'
+          } focus:opacity-100`}
+        >
+          {isCopied ? (
+            <ClipboardDocumentCheckIcon className="w-3.5 h-3.5 text-green-500" />
+          ) : (
+            <ClipboardDocumentIcon className="w-3.5 h-3.5" />
+          )}
+        </button>
+      )}
+      {isSender && onDelete && (
+        <button
+          onClick={() => onDelete(id)}
+          title="削除"
+          aria-label="メッセージを削除"
+          className={`hover:text-red-400 transition-colors ${
+            visible ? 'opacity-100' : 'opacity-0'
+          } focus:opacity-100`}
+        >
+          <TrashIcon className="w-3.5 h-3.5" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+// react-markdown のラッパ。コンポーネントマップで pre / code / a / table などを
+// プロジェクトのトーンに揃える。`prose` クラス（Tailwind Typography）が当たって
+// いる前提なので、要素ごとにクラス上書きは最小限。
+function MarkdownView({ content }: { content: string }) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      rehypePlugins={[rehypeHighlight]}
+      components={{
+        a: ({ href, children }) => (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary-400 underline-offset-2 hover:underline"
+          >
+            {children as ReactNode}
+          </a>
+        ),
+        // インラインコード（pre 直下でない code）にだけスタイルを当てる。
+        // ブロックコードは rehype-highlight + highlight.js テーマで装飾済。
+        code: ({ className, children, ...props }) => {
+          const isBlock = className?.includes('language-');
+          if (isBlock) {
+            return (
+              <code className={className} {...props}>
+                {children as ReactNode}
+              </code>
+            );
+          }
+          return (
+            <code className="px-1 py-0.5 rounded bg-[var(--color-surface-3)] text-[0.85em]">
+              {children as ReactNode}
+            </code>
+          );
+        },
+        pre: ({ children }) => (
+          <pre className="p-3 rounded-md bg-[var(--color-surface-3)] overflow-x-auto text-xs">
+            {children as ReactNode}
+          </pre>
+        ),
+        table: ({ children }) => (
+          <div className="overflow-x-auto">
+            <table className="text-sm border-collapse">{children as ReactNode}</table>
+          </div>
+        ),
+        th: ({ children }) => (
+          <th className="border border-[var(--color-surface-3)] px-2 py-1 bg-[var(--color-surface-2)] text-left">
+            {children as ReactNode}
+          </th>
+        ),
+        td: ({ children }) => (
+          <td className="border border-[var(--color-surface-3)] px-2 py-1">
+            {children as ReactNode}
+          </td>
+        ),
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  );
+}

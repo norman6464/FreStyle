@@ -162,8 +162,4 @@ export const PHP = {
   execute: `${API_V2}/php/execute`,
 } as const;
 
-/** WebSocket（Cookie 認証 / 通常 ws:// or wss:// にフロント側で書き換え）*/
-export const WS = {
-  /** AI チャット（Bedrock 連携） */
-  aiChat: `${API_V2}/ws/ai-chat`,
-} as const;
+// WebSocket は SSE (AI_CHAT.stream) への置換で廃止 (PR-D, 2026-05-07)。

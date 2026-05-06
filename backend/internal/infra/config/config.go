@@ -88,8 +88,15 @@ func Load() (*Config, error) {
 			NoteImagesCDNBase: getEnvOrDefault("NOTE_IMAGES_CDN_URL", ""),
 		},
 		Bedrock: BedrockConfig{
-			Region:  getEnvOrDefault("AWS_REGION", "ap-northeast-1"),
-			ModelID: getEnvOrDefault("BEDROCK_MODEL_ID", "anthropic.claude-3-5-haiku-20241022-v1:0"),
+			Region: getEnvOrDefault("AWS_REGION", "ap-northeast-1"),
+			// ap-northeast-1 で ACTIVE な Anthropic モデルを default にする。
+			// 旧 default の "anthropic.claude-3-5-haiku-20241022-v1:0" は当 region に存在せず
+			// Bedrock Converse API が ValidationException: invalid model identifier を返していた
+			// （2026-05-06 本番でユーザーから AI チャット返信なしの報告で発覚）。
+			// 利用可能 model 確認:
+			//   aws bedrock list-foundation-models --region ap-northeast-1 \
+			//     --query 'modelSummaries[?providerName==`Anthropic`].modelId'
+			ModelID: getEnvOrDefault("BEDROCK_MODEL_ID", "anthropic.claude-haiku-4-5-20251001-v1:0"),
 		},
 		DynamoDB: DynamoDBConfig{
 			Region:      getEnvOrDefault("AWS_REGION", "ap-northeast-1"),

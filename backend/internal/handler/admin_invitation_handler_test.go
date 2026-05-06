@@ -159,3 +159,135 @@ func TestAdminInvitationHandler_List_Unauthenticated(t *testing.T) {
 		t.Fatalf("status = %d", w.Code)
 	}
 }
+
+// ===== Create 認可テスト =====
+//
+// SoD ルール:
+//   - SuperAdmin → company_admin の招待のみ可、trainee は禁止
+//   - CompanyAdmin → trainee の招待のみ可、自社固定
+//   - Trainee → 全部禁止
+
+// fakeAdminInvRepoWithCreate は Create を計測する版。
+type fakeAdminInvRepoWithCreate struct {
+	fakeAdminInvRepo
+	createCalls int
+	lastCreate  *domain.AdminInvitation
+}
+
+func (r *fakeAdminInvRepoWithCreate) Create(_ context.Context, inv *domain.AdminInvitation) error {
+	r.createCalls++
+	inv.ID = 100
+	r.lastCreate = inv
+	return nil
+}
+
+// newTestCreateHandler は Create handler 用 harness。usecase は本物 +
+// 上の fake repo を inject。sender 等は nil でフォールバックモード。
+func newTestCreateHandler(repo *fakeAdminInvRepoWithCreate, currentUser *domain.User) *gin.Engine {
+	h := NewAdminInvitationHandler(
+		usecase.NewListAdminInvitationsUseCase(repo),
+		usecase.NewCreateAdminInvitationUseCase(repo, nil, nil, nil),
+		usecase.NewCancelAdminInvitationUseCase(repo),
+	)
+	r := gin.New()
+	r.POST("/admin/invitations", func(c *gin.Context) {
+		if currentUser != nil {
+			c.Set(middleware.ContextKeyCurrentUser, currentUser)
+		}
+		h.Create(c)
+	})
+	return r
+}
+
+func postJSON(t *testing.T, r *gin.Engine, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/admin/invitations", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	return w
+}
+
+func TestAdminInvitationHandler_Create_SuperAdmin_CompanyAdmin_OK(t *testing.T) {
+	repo := &fakeAdminInvRepoWithCreate{}
+	r := newTestCreateHandler(repo, &domain.User{ID: 1, Role: domain.RoleSuperAdmin})
+
+	w := postJSON(t, r, `{"companyId":1,"email":"a@b","role":"company_admin"}`)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("status = %d body = %s", w.Code, w.Body.String())
+	}
+	if repo.createCalls != 1 {
+		t.Errorf("expected 1 create, got %d", repo.createCalls)
+	}
+}
+
+func TestAdminInvitationHandler_Create_SuperAdmin_Trainee_Forbidden(t *testing.T) {
+	repo := &fakeAdminInvRepoWithCreate{}
+	r := newTestCreateHandler(repo, &domain.User{ID: 1, Role: domain.RoleSuperAdmin})
+
+	w := postJSON(t, r, `{"companyId":1,"email":"a@b","role":"trainee"}`)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("status = %d body = %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "super_admin_can_only_invite_company_admin") {
+		t.Errorf("expected error code, got %s", w.Body.String())
+	}
+	if repo.createCalls != 0 {
+		t.Errorf("create must not be called, got %d", repo.createCalls)
+	}
+}
+
+func TestAdminInvitationHandler_Create_CompanyAdmin_Trainee_OK_AndCompanyForcedToOwn(t *testing.T) {
+	repo := &fakeAdminInvRepoWithCreate{}
+	cid := uint64(42)
+	r := newTestCreateHandler(repo, &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, CompanyID: &cid})
+
+	// 別の company_id を指定しても、handler 側で自社に上書きされること
+	w := postJSON(t, r, `{"companyId":999,"email":"t@b","role":"trainee"}`)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("status = %d body = %s", w.Code, w.Body.String())
+	}
+	if repo.lastCreate == nil || repo.lastCreate.CompanyID != cid {
+		t.Errorf("expected companyID forced to %d, got %+v", cid, repo.lastCreate)
+	}
+}
+
+func TestAdminInvitationHandler_Create_CompanyAdmin_CompanyAdmin_Forbidden(t *testing.T) {
+	repo := &fakeAdminInvRepoWithCreate{}
+	cid := uint64(42)
+	r := newTestCreateHandler(repo, &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, CompanyID: &cid})
+
+	w := postJSON(t, r, `{"companyId":42,"email":"a@b","role":"company_admin"}`)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("status = %d body = %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "company_admin_can_only_invite_trainee") {
+		t.Errorf("expected error code, got %s", w.Body.String())
+	}
+}
+
+func TestAdminInvitationHandler_Create_Trainee_Forbidden(t *testing.T) {
+	repo := &fakeAdminInvRepoWithCreate{}
+	r := newTestCreateHandler(repo, &domain.User{ID: 1, Role: domain.RoleTrainee})
+
+	w := postJSON(t, r, `{"companyId":1,"email":"a@b","role":"trainee"}`)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("status = %d", w.Code)
+	}
+}
+
+func TestAdminInvitationHandler_Create_Unauthenticated(t *testing.T) {
+	repo := &fakeAdminInvRepoWithCreate{}
+	r := newTestCreateHandler(repo, nil)
+
+	w := postJSON(t, r, `{"companyId":1,"email":"a@b","role":"trainee"}`)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d", w.Code)
+	}
+}

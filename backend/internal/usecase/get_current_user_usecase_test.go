@@ -26,6 +26,9 @@ func (s *stubUserRepo) UpdateDisplayName(_ context.Context, _ uint64, _ string) 
 func (s *stubUserRepo) UpdateRole(_ context.Context, _ uint64, _ string) error {
 	return s.err
 }
+func (s *stubUserRepo) UpdateCompanyID(_ context.Context, _ uint64, _ uint64) error {
+	return s.err
+}
 
 func TestGetCurrentUserUseCase_Found(t *testing.T) {
 	want := &domain.User{ID: 1, CognitoSub: "abc", Email: "u@example.com"}

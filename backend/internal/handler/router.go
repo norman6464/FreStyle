@@ -56,6 +56,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	v2 := r.Group("/api/v2")
 
 	registerHealthRoutes(v2, deps)
+	registerInvitationPublicRoutes(v2, deps)
 	authHandler := registerAuthPublicRoutes(v2, deps)
 
 	authed := v2.Group("")

@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"gorm.io/gorm"
@@ -70,10 +71,13 @@ func (r *adminInvitationRepository) FindPendingByToken(ctx context.Context, toke
 	var row domain.AdminInvitation
 	// expires_at は招待作成時に必ず未来の値を入れる前提（usecase 側で 7 日後をセット）。
 	// 期限切れを DB 側で弾くことで「フロントで時刻がズレていても安全」な検証になる。
-	// UTC_TIMESTAMP() を使うことで DB サーバーのローカルタイムゾーン設定に依存せず比較する
-	// （RDS が JST に設定されていてもアプリは UTC で時刻を扱う前提なので統一）。
+	//
+	// 時刻比較は DB 関数（NOW() / UTC_TIMESTAMP()）ではなく Go 側で生成した UTC 現在時刻を
+	// パラメータバインドで渡す。理由:
+	//   - DB エンジン横断のポータビリティ（PostgreSQL には UTC_TIMESTAMP() が無い）
+	//   - GORM が time.Time を timestamptz として扱うため、DB のローカル TZ 設定に依存しない
 	err := r.db.WithContext(ctx).
-		Where("token = ? AND status = ? AND expires_at > UTC_TIMESTAMP()", token, domain.InvitationStatusPending).
+		Where("token = ? AND status = ? AND expires_at > ?", token, domain.InvitationStatusPending, time.Now().UTC()).
 		First(&row).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {

@@ -93,6 +93,8 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		"updatedAt":   user.UpdatedAt,
 		"groups":      groups,
 		"isAdmin":     isAdmin,
+		// onboarded: フロントが /welcome リダイレクト判定に使う（true なら Welcome 表示済）。
+		"onboarded": user.OnboardedAt != nil,
 	})
 }
 

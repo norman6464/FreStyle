@@ -41,6 +41,11 @@ func registerProfileRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	// 旧 path /user-stats/:userId と Spring 風 /users/:userId/stats の両方を提供する。
 	g.GET("/user-stats/:userId", statsHandler.Get)
 	g.GET("/users/:userId/stats", statsHandler.Get)
+
+	// Welcome / オンボーディング完了通知。自分自身の users.onboarded_at を NOW() で更新。
+	// 詳細設計: frestyle-pdm docs/auth/auth-flow-screen-transitions.md
+	onboardingHandler := NewOnboardingHandler(usecase.NewCompleteOnboardingUseCase(deps.userRepo))
+	g.POST("/profile/me/onboarding/complete", onboardingHandler.Complete)
 }
 
 // newProfileImagePresignerOrFallback は本番では infra/s3.Presigner で real な PUT presign を返し、

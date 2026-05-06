@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"gorm.io/gorm"
@@ -19,6 +20,9 @@ type UserRepository interface {
 	UpdateRole(ctx context.Context, userID uint64, role string) error
 	// UpdateCompanyID は既存ユーザーが招待を受けて company に紐付くときに呼ばれる。
 	UpdateCompanyID(ctx context.Context, userID uint64, companyID uint64) error
+	// MarkOnboarded は Welcome 画面の「はじめる」ボタン押下時に呼ばれ、
+	// onboarded_at = NOW() に更新する。冪等（既に値が入っていても上書きしない）。
+	MarkOnboarded(ctx context.Context, userID uint64) error
 }
 
 type userRepository struct {
@@ -76,4 +80,14 @@ func (r *userRepository) UpdateCompanyID(ctx context.Context, userID uint64, com
 		Model(&domain.User{}).
 		Where("id = ?", userID).
 		Update("company_id", companyID).Error
+}
+
+func (r *userRepository) MarkOnboarded(ctx context.Context, userID uint64) error {
+	// 冪等性: 既に onboarded_at が入っているレコードには上書きしない（IS NULL でガード）。
+	// これで「Welcome 画面に戻ってもう一度押された」場合でも初回日時を保持できる。
+	now := time.Now().UTC()
+	return r.db.WithContext(ctx).
+		Model(&domain.User{}).
+		Where("id = ? AND onboarded_at IS NULL", userID).
+		Update("onboarded_at", now).Error
 }

@@ -32,13 +32,15 @@ export const AUTH = {
   me: `${API_V2}/auth/me`,
 } as const;
 
-/** プロフィール / アイコン画像 / 統計 */
+/** プロフィール / アイコン画像 / 統計 / オンボーディング */
 export const PROFILE = {
   me: `${API_V2}/profile/me`,
   meUpdate: `${API_V2}/profile/me/update`,
   meImagePresignedUrl: `${API_V2}/profile/me/image/presigned-url`,
   /** GET /users/me/stats — 自分の使い方統計 */
   meStats: `${API_V2}/users/me/stats`,
+  /** POST /profile/me/onboarding/complete — Welcome 画面の「はじめる」押下で onboarded_at を更新 */
+  meOnboardingComplete: `${API_V2}/profile/me/onboarding/complete`,
 } as const;
 
 /** AI チャット（セッション・メッセージ・言い換え） */

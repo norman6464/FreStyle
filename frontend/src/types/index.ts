@@ -98,6 +98,12 @@ export interface AuthState {
   isAuthenticated: boolean;
   loading: boolean;
   isAdmin: boolean;
+  /**
+   * Welcome / オンボーディングを完了済みかどうか。
+   * 未認証 / 未確定の状態（loading 中）は false。確定後は backend の users.onboarded_at の
+   * 有無に応じてセットされる。Protected で /welcome リダイレクト判定に使う。
+   */
+  onboarded: boolean;
 }
 
 /** 言い換え提案結果 */

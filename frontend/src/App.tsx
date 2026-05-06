@@ -17,6 +17,7 @@ const ConfirmPage = lazy(() => import('./pages/ConfirmPage'));
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'));
 const ConfirmForgotPasswordPage = lazy(() => import('./pages/ConfirmForgotPasswordPage'));
 const AcceptInvitationPage = lazy(() => import('./pages/AcceptInvitationPage'));
+const WelcomePage = lazy(() => import('./pages/WelcomePage'));
 
 // 認証必要ページ
 const MenuPage = lazy(() => import('./pages/MenuPage'));
@@ -72,6 +73,18 @@ export default function App() {
       />
       {/* 招待マジックリンクの受諾画面（認証不要・SES メールから踏まれる） */}
       <Route path="/invitations/accept" element={<AcceptInvitationPage />} />
+
+      {/* Welcome / オンボーディング（認証必須・AppShell 外で全画面表示） */}
+      <Route
+        path="/welcome"
+        element={
+          <AuthInitializer>
+            <Protected>
+              <WelcomePage />
+            </Protected>
+          </AuthInitializer>
+        }
+      />
 
       {/* 認証が必要（AppShellレイアウト内） */}
       <Route

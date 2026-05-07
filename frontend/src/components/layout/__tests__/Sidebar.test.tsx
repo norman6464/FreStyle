@@ -17,18 +17,18 @@ vi.mock('../../../hooks/useTheme', () => ({
   useTheme: () => mockUseTheme(),
 }));
 
-function createTestStore(isAdmin = false) {
+function createTestStore(isAdmin = false, role: string | null = null) {
   return configureStore({
     reducer: { auth: authReducer },
     preloadedState: {
-      auth: { isAuthenticated: true, loading: false, isAdmin, onboarded: true },
+      auth: { isAuthenticated: true, loading: false, isAdmin, onboarded: true, role },
     },
   });
 }
 
-function renderSidebar(currentPath = '/', isAdmin = false) {
+function renderSidebar(currentPath = '/', isAdmin = false, role: string | null = null) {
   return render(
-    <Provider store={createTestStore(isAdmin)}>
+    <Provider store={createTestStore(isAdmin, role)}>
       <MemoryRouter initialEntries={[currentPath]}>
         <Sidebar />
       </MemoryRouter>
@@ -132,5 +132,27 @@ describe('Sidebar', () => {
   it('非 admin ユーザーには管理メニューが表示されない', () => {
     renderSidebar('/');
     expect(screen.queryByText('管理')).toBeNull();
+  });
+
+  it('super_admin には trainee 向けメニュー (AI / コード学習 / ノート / レポート) が表示されない', () => {
+    renderSidebar('/', true, 'super_admin');
+    expect(screen.queryByText('AI')).toBeNull();
+    expect(screen.queryByText('コード学習')).toBeNull();
+    expect(screen.queryByText('ノート')).toBeNull();
+    expect(screen.queryByText('レポート')).toBeNull();
+    // ホーム / 通知 / プロフィール / 管理は表示される
+    expect(screen.getByText('ホーム')).toBeInTheDocument();
+    expect(screen.getByText('通知')).toBeInTheDocument();
+    expect(screen.getByText('プロフィール')).toBeInTheDocument();
+    expect(screen.getByText('管理')).toBeInTheDocument();
+  });
+
+  it('company_admin には trainee 向けメニューも表示される', () => {
+    renderSidebar('/', true, 'company_admin');
+    expect(screen.getByText('AI')).toBeInTheDocument();
+    expect(screen.getByText('コード学習')).toBeInTheDocument();
+    expect(screen.getByText('ノート')).toBeInTheDocument();
+    expect(screen.getByText('レポート')).toBeInTheDocument();
+    expect(screen.getByText('管理')).toBeInTheDocument();
   });
 });

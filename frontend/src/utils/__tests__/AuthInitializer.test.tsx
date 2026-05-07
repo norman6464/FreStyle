@@ -96,4 +96,36 @@ describe('AuthInitializer', () => {
       expect(store.getState().auth.loading).toBe(false);
     });
   });
+
+  it('/auth/me が role=super_admin を返した場合 store に反映される', async () => {
+    vi.mocked(authRepository.getCurrentUser).mockResolvedValue({
+      id: 1,
+      email: 'admin@example.com',
+      sub: 'sub-456',
+      role: 'super_admin',
+      onboarded: true,
+      isAdmin: true,
+    });
+
+    const { store } = renderWithStore(true);
+
+    await waitFor(() => {
+      expect(store.getState().auth.role).toBe('super_admin');
+      expect(store.getState().auth.isAdmin).toBe(true);
+    });
+  });
+
+  it('/auth/me に role が無い場合 role=null になる', async () => {
+    vi.mocked(authRepository.getCurrentUser).mockResolvedValue({
+      id: 2,
+      email: 'user@example.com',
+      sub: 'sub-789',
+    });
+
+    const { store } = renderWithStore(true);
+
+    await waitFor(() => {
+      expect(store.getState().auth.role).toBeNull();
+    });
+  });
 });

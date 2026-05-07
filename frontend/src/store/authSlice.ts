@@ -6,19 +6,23 @@ const initialState: AuthState = {
   loading: true,
   isAdmin: false,
   onboarded: false,
+  role: null,
+};
+
+type AuthPayload = {
+  isAdmin?: boolean;
+  onboarded?: boolean;
+  role?: string | null;
 };
 
 const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
-    setAuthData(
-      state,
-      action: PayloadAction<{ isAdmin?: boolean; onboarded?: boolean } | undefined>
-    ) {
+    setAuthData(state, action: PayloadAction<AuthPayload | undefined>) {
       state.isAuthenticated = true;
       state.loading = false;
-      // payload.isAdmin / onboarded が undefined のときは現在の state を維持する
+      // payload の各フィールドが undefined のときは現在の state を維持する
       // (caller が値を明示しない再認証で誤って権限を失わせないため)
       if (action.payload?.isAdmin !== undefined) {
         state.isAdmin = action.payload.isAdmin;
@@ -26,12 +30,12 @@ const authSlice = createSlice({
       if (action.payload?.onboarded !== undefined) {
         state.onboarded = action.payload.onboarded;
       }
+      if (action.payload?.role !== undefined) {
+        state.role = action.payload.role;
+      }
     },
 
-    setAuthenticated(
-      state,
-      action: PayloadAction<{ isAdmin?: boolean; onboarded?: boolean } | undefined>
-    ) {
+    setAuthenticated(state, action: PayloadAction<AuthPayload | undefined>) {
       state.isAuthenticated = true;
       state.loading = false;
       if (action.payload?.isAdmin !== undefined) {
@@ -39,6 +43,9 @@ const authSlice = createSlice({
       }
       if (action.payload?.onboarded !== undefined) {
         state.onboarded = action.payload.onboarded;
+      }
+      if (action.payload?.role !== undefined) {
+        state.role = action.payload.role;
       }
     },
 
@@ -53,6 +60,7 @@ const authSlice = createSlice({
       state.loading = false;
       state.isAdmin = false;
       state.onboarded = false;
+      state.role = null;
     },
 
     finishLoading(state) {

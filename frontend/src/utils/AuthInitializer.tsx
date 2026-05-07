@@ -23,6 +23,7 @@ export default function AuthInitializer({ children }: AuthInitializerProps) {
             // Welcome 画面に飛ばすかの判定を Protected で使う。
             // backend から undefined が返ってきた場合は完了扱い（既存ユーザー保護）。
             onboarded: me.onboarded ?? true,
+            role: me.role ?? null,
           })
         );
       } catch {

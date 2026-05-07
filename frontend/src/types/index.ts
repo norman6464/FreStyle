@@ -105,6 +105,12 @@ export interface AuthState {
    * 有無に応じてセットされる。Protected で /welcome リダイレクト判定に使う。
    */
   onboarded: boolean;
+  /**
+   * 現在ユーザーの role（'super_admin' / 'company_admin' / 'trainee'）。
+   * メニュー出し分け（super_admin は管理機能のみ）と Protected の trainee 用ルート保護に使う。
+   * 未認証 / 未確定は null。
+   */
+  role: string | null;
 }
 
 /** 言い換え提案結果 */

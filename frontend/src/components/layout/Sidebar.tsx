@@ -46,6 +46,10 @@ const mainNavItems: NavItem[] = [
   { id: 'reports', icon: DocumentChartBarIcon, label: 'レポート', to: '/reports', matchExact: true },
 ];
 
+// super_admin に表示する main nav の id 集合。
+// super_admin は企業管理に専念するロールで、trainee 向け学習機能は表示しない。
+const SUPER_ADMIN_MAIN_NAV_IDS = new Set(['home', 'notifications']);
+
 const bottomNavItems: NavItem[] = [
   { id: 'profile', icon: UserCircleIcon, label: 'プロフィール', to: '/profile/me', matchExact: true },
 ];
@@ -77,13 +81,18 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
   const { handleLogout, loggingOut } = useSidebar();
   const { theme, toggleTheme } = useTheme();
   const isAdmin = useSelector((state: RootState) => state.auth.isAdmin);
+  const role = useSelector((state: RootState) => state.auth.role);
+  const isSuperAdmin = role === 'super_admin';
 
   // expanded: パネル（ラベル）表示状態。false = アイコンのみの折りたたみ状態
   const [expanded, setExpanded] = useState(true);
   // 管理サブメニューの開閉
   const [adminOpen, setAdminOpen] = useState(false);
 
-  const allNavItems = [...mainNavItems, ...bottomNavItems, ...(isAdmin ? [adminNavItem] : [])];
+  // super_admin は trainee 向けメニュー（AI / コード / ノート / レポート）を非表示。
+  const visibleMainNavItems = isSuperAdmin
+    ? mainNavItems.filter((item) => SUPER_ADMIN_MAIN_NAV_IDS.has(item.id))
+    : mainNavItems;
   const adminActive = isActive(adminNavItem, location.pathname);
 
   const handleAdminClick = () => {
@@ -119,7 +128,7 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
 
         {/* メインナビ */}
         <nav className="flex-1 px-2 space-y-0.5 overflow-y-auto">
-          {mainNavItems.map((item) => {
+          {visibleMainNavItems.map((item) => {
             const active = isActive(item, location.pathname);
             return (
               <Link

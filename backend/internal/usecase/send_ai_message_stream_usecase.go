@@ -157,6 +157,14 @@ func (u *SendAiMessageStreamUseCase) Execute(ctx context.Context, in SendAiMessa
 			}
 		}
 
+		// Bedrock が token を 1 つも emit しなかった場合は空のアシスタントメッセージに
+		// なる。これを DDB に保存すると将来の history 構築時に「連続 user → 空応答」の
+		// 負のループに陥るため、空応答は保存せずエラーとしてフロントに通知する。
+		if assistantBuf.Len() == 0 {
+			emit(ctx, out, StreamEvent{Err: fmt.Errorf("bedrock returned empty response")})
+			return
+		}
+
 		final := &domain.AiChatMessage{
 			SessionID: sessionID,
 			MessageID: uuid.New().String(),

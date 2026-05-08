@@ -228,6 +228,45 @@ func (f *fakeDownloader) Download(_ context.Context, key string) ([]byte, error)
 	return b, nil
 }
 
+// Bedrock が token を 1 つも emit せず Done だけを返した場合、空アシスタントを
+// DDB に保存しないでエラーを伝える（負のループ防止）。
+func TestSendAiMessageStream_EmptyResponse_DoesNotSaveAndPropagatesErr(t *testing.T) {
+	sessionRepo := new(mockSessionRepo)
+	msgRepo := new(mockMsgRepo)
+	bc := new(mockStreamBedrock)
+
+	msgRepo.On("Save", mock.Anything, mock.AnythingOfType("*domain.AiChatMessage")).Return(nil)
+	msgRepo.On("ListBySessionID", mock.Anything, uint64(8)).Return([]domain.AiChatMessage{}, nil)
+
+	// Delta なし、Done のみ。
+	src := make(chan bedrock.StreamEvent, 1)
+	src <- bedrock.StreamEvent{Done: true}
+	close(src)
+	var ro <-chan bedrock.StreamEvent = src
+	bc.On("ConverseStream", mock.Anything, mock.Anything, mock.Anything).Return(ro, nil)
+
+	uc := usecase.NewSendAiMessageStreamUseCase(sessionRepo, msgRepo, bc, nil)
+	ch, err := uc.Execute(context.Background(), usecase.SendAiMessageInput{
+		UserID: 7, SessionID: 8, Content: "hi",
+	})
+	require.NoError(t, err)
+
+	var sawErr bool
+	var finalCount int
+	for ev := range ch {
+		if ev.Err != nil {
+			sawErr = true
+		}
+		if ev.FinalMessage != nil {
+			finalCount++
+		}
+	}
+	assert.True(t, sawErr, "expected ev.Err for empty response")
+	assert.Equal(t, 0, finalCount, "must not emit FinalMessage when response is empty")
+	// ユーザーメッセージ 1 件だけ保存（assistant の保存はスキップ）
+	msgRepo.AssertNumberOfCalls(t, "Save", 1)
+}
+
 // Bedrock 呼び出しで stream エラー: ev.Err が channel に流れて使い手に伝わる。
 func TestSendAiMessageStream_StreamError_PropagatesErr(t *testing.T) {
 	sessionRepo := new(mockSessionRepo)

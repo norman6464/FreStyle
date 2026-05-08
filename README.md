@@ -152,8 +152,6 @@
 - 旧構成（Spring Boot 時代）の **API Gateway + Lambda + DynamoDB** のサーバレス WS は廃止し、ALB を 1 本にまとめてコスト・運用・可観測性を一元化
 - フロントエンドは `wss://api.normanblog.com/api/v2/ws/...` で接続、Cognito JWT (HttpOnly Cookie) を Origin チェックと併用して認証
 
-> 旧 Lambda + API Gateway 構成を廃止した理由は本 README 末尾の「なぜアーキテクチャーを変えたのか」を参照。
-
 ### ② JWT（HttpOnly Cookie）× Cognito の安全な認証設計
 - JWT を HttpOnly Cookie に保存（XSS 対策）
 - アクセストークンの有効期間を短くしリフレッシュトークンで再発行
@@ -389,28 +387,6 @@ sequenceDiagram
 
 </details>
 
-### なぜアーキテクチャーを変えたのか
-1. AIへのフィードバックにユーザーがより自分の性格を把握できるように複雑なクエリを実行する必要があったのでDynamoDBではサービス層が複雑になるのでRDSに変更をした
-2. Lambda + API Gatewayではトラフィック量が多くなったときに捌きにくいこと
-3. 機能の拡張性を踏まえたらECS一本で使用したほうがSQSなどを設定したときに工数を割くことができる
-
----
-
-## 今年の目標
-
-### 技術・資格
-- AWS SAP、CKA、CKAD
-- GO言語でgRPC通信でサービス間接続
-
-### 機能拡張
-- 音声チャット
-- Polly による AI 音声解答可能
-- SageMakerを使用をしチャットの内容をクラスタリングで感情分析をすること
-- 未読、既読、プッシュ通知機能の作成でSQS、SNSを使用をする
-- チャット以外にもパーソナリティーが見えるシステムを作成する
-
----
-
 ## ローカル開発環境セットアップ
 
 ### バックエンド (Go) — `backend/`
@@ -498,68 +474,6 @@ SELECT COUNT(*) FROM practice_scenarios;
 **注意**: マイグレーションは冪等性があり、複数回実行しても安全です（`IF NOT EXISTS`, `ON CONFLICT DO NOTHING` を使用）。
 
 GORM 側の AutoMigrate は本番では使わず、明示的な SQL で運用します（破壊的変更の検知漏れを防ぐため）。
-
----
-
-## 開発フロー / 貢献ガイド
-
-本プロジェクトは以下の運用ルールで開発されています。
-
-### ブランチ運用
-
-1. Issue を起票（日本語で目的・完了条件を明記）
-2. ブランチを切る（`feat/*` / `fix/*` / `refactor/*` / `docs/*` / `test/*`）
-3. 作業 → コミット（コミットメッセージは日本語）
-4. PR 作成（タイトル・本文とも日本語）
-5. **CodeRabbit によるコードレビューを待つ**
-6. CodeRabbit 指摘に対応
-7. **squash merge**（main への直接コミット禁止、ブランチ保護設定済み）
-
-### コーディング規約（要点）
-
-- **クリーンアーキテクチャ**: handler → usecase → repository → domain（Go）/ Controller → UseCase → Service / Repository → Entity（Spring Boot）の依存方向を厳守。詳細は [`frestyle-pdm/docs/ARCHITECTURE.md`](https://github.com/norman6464/frestyle-pdm/blob/main/docs/ARCHITECTURE.md)
-- **1 UseCase = 1 ビジネスルール**: 新規機能追加時は usecase ファイルを新規作成し、肥大化させない
-- **DTO ↔ Domain 変換**: 1 箇所に集約。handler / usecase で直接変換しない
-- **テスト必須**: 新規追加コードには必ず単体テストを付ける
-- **日本語**: PR / Issue / コミットメッセージ / コメントは日本語、識別子は英語
-
-### テスト
-
-#### バックエンド (Go)
-
-```bash
-cd backend
-go vet ./...
-go test ./...
-```
-
-- 標準 `testing` パッケージ + `github.com/stretchr/testify`（順次導入）
-- usecase: 依存をインターフェイスとしてモック化した単体テスト
-- repository: テスト用 PostgreSQL コンテナまたは sqlite による統合テスト
-- handler: `httptest.NewRecorder` + `gin.New()` でルータごと検証
-
-#### フロントエンド
-
-```bash
-cd frontend
-npm test
-```
-
-- Vitest + React Testing Library
-- 慣習: `vi.stubGlobal('localStorage', createMockStorage())` で localStorage をスタブ、`fireEvent` でイベント発火
-
-#### E2E (Playwright)
-
-```bash
-cd frontend
-npm run e2e:install   # 初回のみ（Chromium + OS deps）
-npm run e2e            # 本番に対してスモーク 6 ケース
-npm run e2e:ui         # UI モードでデバッグ
-PLAYWRIGHT_BASE_URL=http://localhost:5173 npm run e2e   # ローカル dev server 経由
-```
-
-- 認証前スモーク（SPA ロード / セキュリティヘッダー / CSP / API health / 認証 401 / SockJS 廃止確認）を **GitHub Actions の `E2E - Playwright Smoke` workflow** で push to main / PR / `workflow_dispatch` 時に実行
-- 詳細・運用手順・将来の認証付き E2E への拡張ガイドは [`norman6464/frestyle-infrastructure` の docs/17-e2e-playwright-runbook.md](https://github.com/norman6464/frestyle-infrastructure/blob/main/docs/17-e2e-playwright-runbook.md) を参照
 
 ---
 

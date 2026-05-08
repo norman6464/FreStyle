@@ -322,33 +322,29 @@ AI チャットは **Server-Sent Events**（HTTP/1.1 chunked transfer）で ECS 
 
 ## AWSアーキテクチャ構成図
 
-### 現在のAWS全体構成図
+![FreStyle AWS アーキテクチャ構成図](./architecture/aws/freestyle-aws-architecture-current.png)
 
-![AWSアーキテクチャ構成図](./architecture/aws/AWSアーキテクチャー図修正v2.png)
+draw.io ソース: [`architecture/aws/freestyle-aws-architecture-current.drawio`](./architecture/aws/freestyle-aws-architecture-current.drawio)
 
-### 旧AWS構成図
+### 各 AWS サービスの役割
 
-<details>
-<summary>変更前の構成図（クリックで展開）</summary>
-
-#### AWS全体構成図（変更前）
-![AWSアーキテクチャ構成図](./architecture/aws/image.png)
-
-#### ユーザー同士のチャット（変更前）
-![ユーザー同士のチャット](./architecture/aws/aws-architecture-chat.png)
-
-#### AIとユーザーのチャット（変更前）
-![AIとユーザーのチャット](./architecture/aws/aws-architecture-ai-chat.png)
-
-#### 変更後のAWSアーキテクチャー図
-![AWSアーキテクチャ構成図](./architecture/aws/AWSアーキテクチャー設計修正後.png)
-
-</details>
-
-### なぜアーキテクチャーを変えたのか
-1. AIへのフィードバックにユーザーがより自分の性格を把握できるように複雑なクエリを実行する必要があったのでDynamoDBではサービス層が複雑になるのでRDSに変更をした
-2. Lambda + API Gatewayではトラフィック量が多くなったときに捌きにくいこと
-3. 機能の拡張性を踏まえたらECS一本で使用したほうがSQSなどを設定したときに工数を割くことができる
+| サービス | 役割 |
+|---|---|
+| **CloudFront** | フロントエンド SPA（React / Vite ビルド成果物）の CDN 配信 + セキュリティヘッダー / CSP 付与 |
+| **S3 (frontend)** | SPA の静的ファイルホスティング |
+| **ALB** | `api.normanblog.com` 入口の L7 ロードバランサ。HTTP / SSE を ECS にルーティング |
+| **ECS Fargate** | Go (Gin) バックエンドのコンテナ実行環境。0.25 vCPU / 0.5 GB の最小タスクで稼働 |
+| **ECR** | バックエンドの Docker イメージを保存。GitHub Actions から push、ECS が pull |
+| **RDS PostgreSQL 16** | 主な業務データ（users / companies / invitations / notes / master_exercises 等）。Private subnet 配置で外部非公開 |
+| **DynamoDB** | AI チャットメッセージを `fre_style_ai_chat` テーブルに保存（追記主体・session ID Partition Key） |
+| **S3 (uploads)** | ノート画像 + AI チャット添付ファイルの実体。`notes/` と `ai-chat/{userId}/` を prefix で分離、presigned PUT で直接アップロード |
+| **Bedrock** | Claude Sonnet 4.5 を Inference Profile (`jp.*`) 経由で呼び出し、AI チャットを SSE ストリーミング |
+| **Cognito** | OIDC 認可エンドポイント / JWT 発行。フロントは HttpOnly Cookie で受け取り、ECS 側 middleware が JWKS で検証 |
+| **SES** | 招待マジックリンクメールの送信（CompanyAdmin → trainee の招待 / 運営 → CompanyAdmin の招待） |
+| **SQS** | 学習レポート生成の非同期ジョブキュー（重い PDF 生成を ECS のリクエスト処理から切り離し） |
+| **Secrets Manager** | RDS マスターパスワード、Cognito クライアントシークレットを保管。ECS 起動時に環境変数で注入 |
+| **CloudWatch Logs** | ECS タスクの標準出力 / エラーログを集約（access log + アプリログ） |
+| **IAM (OIDC Provider)** | GitHub Actions が長期キー無しで `AssumeRole` してデプロイ実行（OIDC AssumeRoleWithWebIdentity） |
 
 ---
 

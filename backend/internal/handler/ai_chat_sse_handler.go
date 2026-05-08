@@ -42,12 +42,12 @@ func NewAiChatSseHandler(sendStream *usecase.SendAiMessageStreamUseCase) *AiChat
 }
 
 type sseRequestBody struct {
-	SessionID   int64                    `json:"sessionId"`
-	Content     string                   `json:"content"`
-	Scene       string                   `json:"scene"`
-	SessionType string                   `json:"sessionType"`
-	ScenarioID  *uint64                  `json:"scenarioId"`
-	Attachments []sseAttachmentRequest   `json:"attachments"`
+	SessionID   int64                  `json:"sessionId"`
+	Content     string                 `json:"content"`
+	Scene       string                 `json:"scene"`
+	SessionType string                 `json:"sessionType"`
+	ScenarioID  *uint64                `json:"scenarioId"`
+	Attachments []sseAttachmentRequest `json:"attachments"`
 }
 
 // sseAttachmentRequest はフロントが事前に S3 へアップロード済みの添付ファイルを参照する。

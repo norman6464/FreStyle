@@ -83,7 +83,15 @@ func (u *SendAiMessageStreamUseCase) Execute(ctx context.Context, in SendAiMessa
 		sessionID := in.SessionID
 		var newSession *domain.AiChatSession
 		if sessionID == 0 {
+			// 添付のみで本文が空の場合に session タイトルが空文字にならないようフォールバック。
 			title := truncateTitle(in.Content, 30)
+			if title == "" {
+				if len(in.Attachments) > 0 {
+					title = "添付ファイルを送信"
+				} else {
+					title = "新しいチャット"
+				}
+			}
 			s, err := NewCreateAiChatSessionUseCase(u.sessions).Execute(ctx, CreateAiChatSessionInput{
 				UserID:      in.UserID,
 				Title:       title,

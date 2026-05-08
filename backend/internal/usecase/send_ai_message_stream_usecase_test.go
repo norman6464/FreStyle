@@ -211,6 +211,8 @@ func TestSendAiMessageStream_WithAttachment_FetchesBlobAndSavesMetadata(t *testi
 		require.NoError(t, ev.Err)
 	}
 	bc.AssertExpectations(t)
+	// ユーザー（添付メタ付き）+ アシスタント の 2 回保存
+	msgRepo.AssertNumberOfCalls(t, "Save", 2)
 }
 
 // fakeDownloader は in-memory key→bytes map を返す簡易実装。

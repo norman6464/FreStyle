@@ -14,12 +14,14 @@ import { formatHourMinute } from '../utils/formatters';
 /**
  * 自分のメッセージに添付された画像 / ドキュメントの参照（送信中の Object URL も許容）。
  * MessageBubble 内では画像のみインラインプレビュー、それ以外はファイル名カードに落とす。
+ *
+ * `kind` は backend `domain.AttachmentKind*` と整合する `'image' | 'document'`。
  */
 export interface MessageAttachmentView {
   key: string;
   filename: string;
   contentType: string;
-  kind: string;
+  kind: 'image' | 'document';
   sizeBytes: number;
   /** 送信中チップから引き継ぐローカル Object URL */
   previewUrl?: string;

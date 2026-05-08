@@ -74,7 +74,8 @@ func newAiChatAttachmentDownloaderOrNil(deps *routeDeps) usecase.AttachmentDownl
 	if bucket == "" {
 		return nil
 	}
-	dl, err := infraS3.NewDownloader(context.Background(), deps.cfg.S3.Region, bucket)
+	// `ai-chat/` prefix のみ読み出し許可（他用途の S3 オブジェクト読み出しを防止）。
+	dl, err := infraS3.NewDownloader(context.Background(), deps.cfg.S3.Region, bucket, "ai-chat/")
 	if err != nil {
 		log.Printf("[ai-chat-attachment] failed to init S3 downloader (%v) — attachments will be ignored", err)
 		return nil

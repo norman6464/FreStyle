@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -58,6 +59,14 @@ func (h *AiChatAttachmentHandler) IssueUploadURL(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "contentType is required"})
 		return
 	}
+	if body.Filename == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "filename is required"})
+		return
+	}
+	if body.SizeBytes <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "sizeBytes must be positive"})
+		return
+	}
 	out, err := h.issueUseCase.Execute(c.Request.Context(), usecase.IssueAiChatAttachmentUploadURLInput{
 		UserID:      uid,
 		Filename:    body.Filename,
@@ -71,7 +80,9 @@ func (h *AiChatAttachmentHandler) IssueUploadURL(c *gin.Context) {
 		case errors.Is(err, usecase.ErrAttachmentTooLarge):
 			c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": err.Error()})
 		default:
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			// 内部エラー（presigner 障害等）は詳細を漏らさず 500。原因は server log にだけ残す。
+			log.Printf("ai-chat-attachment: presigned URL issue failed: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
 		}
 		return
 	}

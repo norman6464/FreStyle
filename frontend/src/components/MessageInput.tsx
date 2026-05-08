@@ -3,7 +3,7 @@ import { PaperAirplaneIcon, PlusIcon } from '@heroicons/react/24/solid';
 import { XMarkIcon, PhotoIcon } from '@heroicons/react/24/outline';
 import { useAutoResizeTextarea } from '../hooks/useAutoResizeTextarea';
 import aiChatRepository from '../repositories/AiChatRepository';
-import type { AiAttachment } from '../types';
+import type { AiAttachment, AiAttachmentFormat } from '../types';
 
 interface MessageInputProps {
   onSend: (text: string, attachments?: AiAttachment[]) => void;
@@ -23,7 +23,7 @@ const ACCEPTED_CONTENT_TYPES = new Set([
 const MAX_ATTACHMENTS = 4;
 const MAX_BYTES_PER_FILE = 5 * 1024 * 1024; // Bedrock image upper bound
 
-const FORMAT_FROM_CONTENT_TYPE: Record<string, string> = {
+const FORMAT_FROM_CONTENT_TYPE: Record<string, AiAttachmentFormat> = {
   'image/png': 'png',
   'image/jpeg': 'jpeg',
   'image/gif': 'gif',
@@ -45,6 +45,14 @@ export default function MessageInput({ onSend, isSending = false }: MessageInput
   const textareaRef = useAutoResizeTextarea({ text });
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  // pending の最新状態を unmount cleanup から参照するための ref。
+  // setPending と並行して更新し、cleanup が stale な closure に閉じ込められても
+  // 最新の Object URL を revoke できるようにする。
+  const pendingRef = useRef<PendingAttachment[]>([]);
+  useEffect(() => {
+    pendingRef.current = pending;
+  }, [pending]);
+
   const prevIsSendingRef = useRef(isSending);
   useEffect(() => {
     if (prevIsSendingRef.current && !isSending) {
@@ -56,25 +64,34 @@ export default function MessageInput({ onSend, isSending = false }: MessageInput
   // unmount で残った Object URL を確実に revoke する（メモリリーク防止）。
   useEffect(() => {
     return () => {
-      pending.forEach((a) => {
+      pendingRef.current.forEach((a) => {
         if (a.previewUrl) URL.revokeObjectURL(a.previewUrl);
       });
     };
-    // 最終 unmount のみで実行したい。送信ボタン等の通常 setPending では別途 revoke している。
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const anyUploading = pending.some((a) => a.uploading);
-  const canSend = !isSending && !anyUploading && (text.trim().length > 0 || pending.length > 0);
+  // 送信可能条件: テキストがあるか、エラーでないアップロード済 attachment が 1 件以上ある。
+  // errored attachment しか無い状態では送信不可（送ってもユーザーの意図とずれるため）。
+  const hasReadyAttachment = pending.some((a) => !a.uploading && !a.error);
+  const canSend = !isSending && !anyUploading && (text.trim().length > 0 || hasReadyAttachment);
 
   const handleSend = () => {
     if (!canSend) return;
     const ready = pending.filter((a) => !a.uploading && !a.error);
+    // 失敗・送信中の item の previewUrl は不要なので破棄する。
+    // 送信に乗せた item の URL は MessageBubble が描画に使うため revoke せず、
+    // 親（useAskAi の messages 配列）が所有権を引き継ぐ。
+    // セッション内で送信された画像 URL は long-lived（ページ離脱時にブラウザが
+    // 自動回収）。長時間チャットでの累積は PR-G3 (UX 仕上げ) で revoke を
+    // 親側に移して対応する想定。
+    pending.forEach((a) => {
+      if (a.previewUrl && (a.error || a.uploading)) {
+        URL.revokeObjectURL(a.previewUrl);
+      }
+    });
     onSend(text, ready);
     setText('');
-    pending.forEach((a) => {
-      if (a.previewUrl) URL.revokeObjectURL(a.previewUrl);
-    });
     setPending([]);
     setValidationError(null);
   };

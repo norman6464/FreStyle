@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -93,7 +94,7 @@ func (h *AiChatSseHandler) Handle(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "too_many_attachments"})
 		return
 	}
-	attachments, err := buildAttachmentsFromRequest(body.Attachments)
+	attachments, err := buildAttachmentsFromRequest(uid, body.Attachments)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -227,20 +228,22 @@ func flushOrPanic(w gin.ResponseWriter) {
 //   - key / contentType 必須
 //   - contentType は usecase.AllowedAttachmentContentTypes に含まれる必要あり
 //   - sizeBytes は MIME ごとの上限以下
-//   - key は S3 prefix `ai-chat/` に必ず属する（ディレクトリトラバーサル / 他 prefix 参照防止）
+//   - key は **userID 配下の S3 prefix** `ai-chat/{userID}/` に必ず属する
+//     （他ユーザーの添付や他 prefix の S3 オブジェクトをサーバ側で読まされるのを防止）
 //
 // バリデーションを SSE handler 側で 1 回通すのは「presigned URL 取得を経由したか」を
 // 軽く再確認する目的（プロンプトインジェクションで任意 S3 オブジェクトを読み出させない）。
-func buildAttachmentsFromRequest(reqs []sseAttachmentRequest) ([]domain.Attachment, error) {
+func buildAttachmentsFromRequest(userID uint64, reqs []sseAttachmentRequest) ([]domain.Attachment, error) {
 	if len(reqs) == 0 {
 		return nil, nil
 	}
+	expectedPrefix := fmt.Sprintf("ai-chat/%d/", userID)
 	out := make([]domain.Attachment, 0, len(reqs))
 	for _, r := range reqs {
 		if r.Key == "" || r.ContentType == "" {
 			return nil, sseAttachmentError("attachment_invalid")
 		}
-		if !strings.HasPrefix(r.Key, "ai-chat/") {
+		if !strings.HasPrefix(r.Key, expectedPrefix) {
 			return nil, sseAttachmentError("attachment_key_not_allowed")
 		}
 		rule, ok := usecase.AllowedAttachmentContentTypes[r.ContentType]

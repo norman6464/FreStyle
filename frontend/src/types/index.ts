@@ -58,14 +58,35 @@ export interface ScenarioBookmark {
 /**
  * AiChatMessageDto は Go backend `domain.AiChatMessage` と 1:1。
  * `messageId` (DynamoDB key) と `createdAt` (RFC3339 string) を持つ。
+ * `attachments` はユーザー発話に紐付く画像 / ドキュメント（PR-G1: 画像のみ）。
  */
 export interface AiChatMessageDto {
   sessionId: number;
   messageId: string;
   role: 'user' | 'assistant';
   content: string;
+  attachments?: AiAttachment[];
   createdAt: string;
 }
+
+/**
+ * AiAttachmentKind は backend `domain.AttachmentKind*` 定数 と 1:1。
+ * PR-G1 では "image" のみ実用。"document" は PR-G2 で PDF / CSV 対応のため予約。
+ */
+export type AiAttachmentKind = 'image' | 'document';
+
+/**
+ * AiAttachmentFormat は AWS Bedrock Converse の image/document format に渡す短い文字列。
+ * バリデーションは backend 側 (`usecase.AllowedAttachmentContentTypes`) が一次情報。
+ */
+export type AiAttachmentFormat =
+  | 'png'
+  | 'jpeg'
+  | 'gif'
+  | 'webp'
+  | 'pdf'
+  | 'csv'
+  | 'txt';
 
 /**
  * AiAttachment は AI チャットメッセージに添付された画像 / ドキュメントの参照。
@@ -76,10 +97,8 @@ export interface AiAttachment {
   key: string;
   filename: string;
   contentType: string;
-  /** "image" | "document"（PR-G2 で document 追加） */
-  kind: string;
-  /** Bedrock 用の format（png / jpeg / gif / webp / pdf / csv） */
-  format: string;
+  kind: AiAttachmentKind;
+  format: AiAttachmentFormat;
   sizeBytes: number;
   /** ローカル状態用: ブラウザ内 preview URL（送信完了後は破棄） */
   previewUrl?: string;

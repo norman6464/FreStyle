@@ -4,6 +4,7 @@ package bedrock
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
@@ -149,6 +150,10 @@ func (c *Client) ConverseStream(ctx context.Context, systemPrompt string, histor
 // ユーザー発話に Attachments が付いていれば、各添付を image / document ContentBlock に
 // 展開して text の前に並べる（Bedrock の慣習: 画像 → テキストの順が推奨）。
 // BlobData が空の Attachment は無視する（usecase で S3 から取得済みであることが前提）。
+//
+// 空コンテンツ + 添付バイト取得失敗（blocks も text も無い）の場合は当該メッセージを
+// スキップする。Bedrock は空テキストブロックを 400 で弾くため、誤って空メッセージを
+// 送らないための防御。
 func buildBedrockMessages(history []domain.AiChatMessage) []brtypes.Message {
 	messages := make([]brtypes.Message, 0, len(history))
 	for _, m := range history {
@@ -163,12 +168,32 @@ func buildBedrockMessages(history []domain.AiChatMessage) []brtypes.Message {
 				blocks = append(blocks, block)
 			}
 		}
-		if m.Content != "" || len(blocks) == 0 {
-			blocks = append(blocks, &brtypes.ContentBlockMemberText{Value: m.Content})
+		text := m.Content
+		// Bedrock の document ブロックは「同一メッセージに text ブロックがあること」を
+		// 要求する。画像のみの場合は text 無しでも OK だが、document を含むなら
+		// 空でない placeholder を必ず付ける。
+		if text == "" && hasDocumentBlock(blocks) {
+			text = "(添付ファイルを参照してください)"
+		}
+		if text != "" {
+			blocks = append(blocks, &brtypes.ContentBlockMemberText{Value: text})
+		}
+		if len(blocks) == 0 {
+			// 空コンテンツ + 全添付ダウンロード失敗 → skip。
+			continue
 		}
 		messages = append(messages, brtypes.Message{Role: role, Content: blocks})
 	}
 	return messages
+}
+
+func hasDocumentBlock(blocks []brtypes.ContentBlock) bool {
+	for _, b := range blocks {
+		if _, ok := b.(*brtypes.ContentBlockMemberDocument); ok {
+			return true
+		}
+	}
+	return false
 }
 
 // attachmentToBlock は 1 つの添付を Bedrock の ContentBlock に変換する。
@@ -204,7 +229,7 @@ func strPtr(s string) *string { return &s }
 // 拡張子は除外し、許可外文字は '-' に置換する。空になったら "document" にフォールバック。
 func documentName(filename string) string {
 	base := filename
-	if i := lastIndexByte(base, '.'); i >= 0 {
+	if i := strings.LastIndexByte(base, '.'); i >= 0 {
 		base = base[:i]
 	}
 	out := make([]byte, 0, len(base))
@@ -227,13 +252,4 @@ func documentName(filename string) string {
 		out = out[:200]
 	}
 	return string(out)
-}
-
-func lastIndexByte(s string, c byte) int {
-	for i := len(s) - 1; i >= 0; i-- {
-		if s[i] == c {
-			return i
-		}
-	}
-	return -1
 }

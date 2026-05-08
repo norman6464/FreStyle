@@ -261,21 +261,19 @@ sequenceDiagram
     Hook-->>FE: state update → re-render
 ```
 
-### ⑤ 初心者向けUIコンポーネントライブラリ
+### ⑤ 共通 UI コンポーネントライブラリ
 
-新卒エンジニアが迷わず使えるよう、`frontend/src/components/ui/` に共通UIコンポーネント群を整備しています。
+`frontend/src/components/ui/` に共通 UI コンポーネント群を整備しています。
 
 | コンポーネント | 用途 |
 |---|---|
 | `PageIntro` | 全画面統一のページヘッダー |
-| `FirstTimeWelcome` | 初回訪問時の導入カード（localStorage永続化） |
-| `GlossaryTerm` | 専門用語の下線表示＋クリックで用語解説 |
+| `FirstTimeWelcome` | 初回訪問時の導入カード（localStorage 永続化） |
+| `GlossaryTerm` | 専門用語の下線表示 + クリックで用語解説 |
 | `HelpTooltip` | 「?」アイコン付きの補足説明 |
 | `StepIndicator` | 多段階操作の進行状況可視化 |
-| `GuidedHint` | 閉じるボタン付き初心者向けヒント |
-| `ActionCard` | Link/Button両対応の強調CTAカード |
-
-専門用語（5軸評価・論理的構成力・練習モードなど）の定義は `frontend/src/constants/glossary.ts` に集約。
+| `GuidedHint` | 閉じるボタン付きヒント |
+| `ActionCard` | Link / Button 両対応の強調 CTA カード |
 
 ---
 

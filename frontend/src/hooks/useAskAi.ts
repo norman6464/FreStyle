@@ -24,7 +24,6 @@ export function useAskAi() {
   const STREAM_ENDPOINT = `${API_BASE_URL}${AI_CHAT.stream}`;
 
   const [sessionSearchQuery, setSessionSearchQuery] = useState('');
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
   // ストリーミング中のアシスタントメッセージ ID（placeholder）
   const streamingIdRef = useRef<string | null>(null);
 
@@ -192,10 +191,9 @@ export function useAskAi() {
     }
   }, [currentSessionId, fetchMessages, setMessages]);
 
-  // メッセージ最下部へスクロール
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  // 自動スクロールは AskAiPage 側で「ユーザーが下端付近にいる時のみ」の条件付きで実装する。
+  // 旧実装は messages 変化のたびに無条件で scrollIntoView していたため、ストリーミング中
+  // にユーザーが上にスクロールしても強制的に底へ戻されてしまう不具合があった。
 
   // unmount で進行中の stream を abort
   useEffect(() => {
@@ -213,7 +211,6 @@ export function useAskAi() {
     filteredSessions,
     messages,
     loading,
-    messagesEndRef,
     sessionSearchQuery,
     setSessionSearchQuery,
 

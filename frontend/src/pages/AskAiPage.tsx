@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState, useCallback } from 'react';
 import MessageBubbleAi from '../components/MessageBubbleAi';
 import MessageInput from '../components/MessageInput';
 import ConfirmModal from '../components/ConfirmModal';
@@ -10,10 +11,15 @@ import {
   Bars3Icon,
   SparklesIcon,
   MagnifyingGlassIcon,
+  ArrowDownIcon,
 } from '@heroicons/react/24/outline';
 import { useAskAi } from '../hooks/useAskAi';
 import { useMobilePanelState } from '../hooks/useMobilePanelState';
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
+
+// 自動スクロールの「下端付近」と判定する閾値（px）。これ以上スクロールアップしたら
+// auto-scroll を停止し、ユーザーが過去メッセージを読みやすくする。
+const STICK_TO_BOTTOM_THRESHOLD = 80;
 
 /**
  * 汎用 AI チャット画面。
@@ -32,7 +38,6 @@ export default function AskAiPage() {
     filteredSessions,
     messages,
     loading,
-    messagesEndRef,
     currentSessionId,
     deleteModal,
     editingSessionId,
@@ -50,6 +55,39 @@ export default function AskAiPage() {
     handleCancelEditTitle,
     handleSend,
   } = useAskAi();
+
+  // 自動スクロール制御:
+  //   stickToBottom=true → messages 変化のたびに最下部へスクロール（streaming 中の追従）
+  //   stickToBottom=false → ユーザーが上にスクロールしたので auto-scroll を停止
+  // ユーザーが手動で底まで戻したら stickToBottom を再 true に戻す（onScroll で検知）。
+  // ChatGPT / Claude.ai と同じ UX。
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const [stickToBottom, setStickToBottom] = useState(true);
+
+  const handleContainerScroll = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    setStickToBottom(distanceFromBottom < STICK_TO_BOTTOM_THRESHOLD);
+  }, []);
+
+  // messages 変化時に stick している場合のみ最下部へ。stick していない時はそのまま
+  // ユーザーが見ている位置を保つ。
+  useEffect(() => {
+    if (!stickToBottom) return;
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, stickToBottom]);
+
+  // セッション切替で先頭に戻ったときは強制的に底へ（履歴の最後を見せる）。
+  useEffect(() => {
+    setStickToBottom(true);
+  }, [currentSessionId]);
+
+  const jumpToBottom = useCallback(() => {
+    setStickToBottom(true);
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, []);
 
   if (loading && sessions.length === 0) {
     return <Loading message="読み込み中..." className="min-h-[calc(100vh-3.5rem)]" />;
@@ -116,7 +154,7 @@ export default function AskAiPage() {
       </SecondaryPanel>
 
       {/* メイン: チャット */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 relative">
         {/* モバイル用パネル開閉ボタン */}
         <div className="md:hidden p-2 border-b border-surface-3">
           <button
@@ -128,7 +166,11 @@ export default function AskAiPage() {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 py-6">
+        <div
+          ref={containerRef}
+          onScroll={handleContainerScroll}
+          className="flex-1 overflow-y-auto px-4 py-6 relative"
+        >
           {messages.length === 0 ? (
             <EmptyState
               icon={SparklesIcon}
@@ -153,6 +195,21 @@ export default function AskAiPage() {
             </div>
           )}
         </div>
+
+        {/* stick が解除されているとき（= 上にスクロールしている）だけ表示する
+             「最下部へ戻る」ボタン。ChatGPT / Claude.ai と同じ UX */}
+        {!stickToBottom && messages.length > 0 && (
+          <div className="absolute right-6 bottom-24 z-10">
+            <button
+              type="button"
+              onClick={jumpToBottom}
+              aria-label="最下部にスクロール"
+              className="flex items-center justify-center w-10 h-10 rounded-full bg-[var(--color-surface-3)] text-[var(--color-text-primary)] shadow-md hover:bg-[var(--color-surface-2)] border border-[var(--color-surface-3)]"
+            >
+              <ArrowDownIcon className="w-5 h-5" />
+            </button>
+          </div>
+        )}
 
         <div className="border-t border-surface-3 p-3 bg-[var(--color-surface-1)]">
           <div className="max-w-3xl mx-auto">

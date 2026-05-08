@@ -36,17 +36,26 @@ export function useBackendHealth(): UseBackendHealthResult {
   const failureCountRef = useRef(0);
   const cancelledRef = useRef(false);
   const triggerRecheckRef = useRef<() => void>(() => {});
+  // schedule() がレンダーをまたいで最新の status を見るための ref。これがないと
+  // status を useEffect の依存配列に入れる必要があり、状態遷移のたびに余分なヘルスチェックが発生する。
+  const statusRef = useRef<BackendHealth>('unknown');
+  statusRef.current = status;
+  // インフライトの fetch をアンマウントや再チェック時に即座に中断する用。
+  const fetchControllerRef = useRef<AbortController | null>(null);
 
   const apiBase = (import.meta.env.VITE_API_BASE_URL ?? '') as string;
   const url = apiBase + HEALTH_PATH;
 
   const check = useCallback(async () => {
+    fetchControllerRef.current?.abort();
+    const controller = new AbortController();
+    fetchControllerRef.current = controller;
     try {
       const res = await fetch(url, {
         method: 'GET',
         cache: 'no-store',
         credentials: 'omit',
-        signal: AbortSignal.timeout(TIMEOUT_MS),
+        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(TIMEOUT_MS)]),
       });
       if (!res.ok) throw new Error(`health http ${res.status}`);
       if (cancelledRef.current) return;
@@ -67,7 +76,7 @@ export function useBackendHealth(): UseBackendHealthResult {
 
     const schedule = () => {
       if (cancelledRef.current) return;
-      const interval = status === 'unhealthy' ? POLL_INTERVAL_UNHEALTHY_MS : POLL_INTERVAL_HEALTHY_MS;
+      const interval = statusRef.current === 'unhealthy' ? POLL_INTERVAL_UNHEALTHY_MS : POLL_INTERVAL_HEALTHY_MS;
       timer = setTimeout(async () => {
         await check();
         schedule();
@@ -90,9 +99,10 @@ export function useBackendHealth(): UseBackendHealthResult {
 
     return () => {
       cancelledRef.current = true;
+      fetchControllerRef.current?.abort();
       if (timer) clearTimeout(timer);
     };
-  }, [check, status]);
+  }, [check]);
 
   const recheck = useCallback(() => {
     triggerRecheckRef.current();

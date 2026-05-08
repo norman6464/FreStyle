@@ -22,6 +22,9 @@ export default function MaintenancePage({ onRetry }: MaintenancePageProps) {
   // 「再試行中…」を 1.5 秒程度表示してフィードバックを与える
   const [retrying, setRetrying] = useState(false);
 
+  // サポート連絡先は環境変数で注入。未設定時は連絡先行を出さない（プレースホルダ表示で混乱させないため）。
+  const supportEmail = (import.meta.env.VITE_SUPPORT_EMAIL ?? '').trim();
+
   const handleRetry = () => {
     setRetrying(true);
     onRetry();
@@ -72,9 +75,18 @@ export default function MaintenancePage({ onRetry }: MaintenancePageProps) {
           {retrying ? '再接続中...' : '再試行'}
         </button>
 
-        <p className="mt-8 text-xs text-[var(--color-text-faint)]">
-          状況が長く続く場合はサポート（{'sales@frestyle.example'}）までご連絡ください。
-        </p>
+        {supportEmail && (
+          <p className="mt-8 text-xs text-[var(--color-text-faint)]">
+            状況が長く続く場合はサポート（
+            <a
+              href={`mailto:${supportEmail}`}
+              className="underline hover:text-[var(--color-text-muted)]"
+            >
+              {supportEmail}
+            </a>
+            ）までご連絡ください。
+          </p>
+        )}
       </div>
     </div>
   );

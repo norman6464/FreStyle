@@ -55,7 +55,8 @@ sequenceDiagram
     FreStyle->>FreStyle: 承認・会社レコード作成
     FreStyle->>Company: 初代 CompanyAdmin 招待メール送信
     Company->>FreStyle: CompanyAdmin として初回ログイン
-    Company->>Trainee: 教材を作成・新卒メンバーを招待
+    Company->>FreStyle: 教材作成・新卒招待
+    FreStyle->>Trainee: 招待メール送信
     Trainee->>FreStyle: ログインして学習開始
 ```
 
@@ -86,7 +87,7 @@ sequenceDiagram
   <img src="https://skillicons.dev/icons?i=go&theme=light" alt="Backend">
 </a>
 
-> バックエンド (Go / Gin / GORM) は `backend/` 配下で運用。
+> バックエンド（Go）は `backend/` 配下で運用。Gin / GORM などの主要 OSS は `go.mod` を参照。
 
 <h3>Infrastructure</h3>
 <a href="https://skillicons.dev">

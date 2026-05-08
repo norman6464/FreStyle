@@ -86,7 +86,7 @@ func TestSendAiMessageStream_ExistingSession_StreamsTokensAndSavesFinal(t *testi
 	var ro <-chan bedrock.StreamEvent = src
 	bc.On("ConverseStream", mock.Anything, mock.AnythingOfType("string"), history).Return(ro, nil)
 
-	uc := usecase.NewSendAiMessageStreamUseCase(sessionRepo, msgRepo, bc)
+	uc := usecase.NewSendAiMessageStreamUseCase(sessionRepo, msgRepo, bc, nil)
 	ch, err := uc.Execute(context.Background(), usecase.SendAiMessageInput{
 		UserID:    7,
 		SessionID: 5,
@@ -137,7 +137,7 @@ func TestSendAiMessageStream_NewSession_EmitsSessionFirst(t *testing.T) {
 	var ro <-chan bedrock.StreamEvent = src
 	bc.On("ConverseStream", mock.Anything, mock.AnythingOfType("string"), mock.Anything).Return(ro, nil)
 
-	uc := usecase.NewSendAiMessageStreamUseCase(sessionRepo, msgRepo, bc)
+	uc := usecase.NewSendAiMessageStreamUseCase(sessionRepo, msgRepo, bc, nil)
 	ch, err := uc.Execute(context.Background(), usecase.SendAiMessageInput{
 		UserID:  7,
 		Content: "新しい会話を始めたい",
@@ -152,6 +152,80 @@ func TestSendAiMessageStream_NewSession_EmitsSessionFirst(t *testing.T) {
 	for ev := range ch {
 		require.NoError(t, ev.Err)
 	}
+}
+
+// 添付付き発話: Downloader が S3 から bytes を取得し、Bedrock 呼び出し前に
+// 履歴の最新 user メッセージへ BlobData が詰められる。
+func TestSendAiMessageStream_WithAttachment_FetchesBlobAndSavesMetadata(t *testing.T) {
+	sessionRepo := new(mockSessionRepo)
+	msgRepo := new(mockMsgRepo)
+	bc := new(mockStreamBedrock)
+	dl := &fakeDownloader{
+		bytes: map[string][]byte{
+			"ai-chat/7/abc.png": []byte("fake-png-bytes"),
+		},
+	}
+
+	// 履歴: 今回送ったユーザー発話だけ（attachments 付き）
+	saved := &domain.AiChatMessage{
+		SessionID:   5,
+		MessageID:   "u1",
+		Role:        domain.AiChatRoleUser,
+		Content:     "この画像なに？",
+		Attachments: []domain.Attachment{{Key: "ai-chat/7/abc.png", Format: "png", Kind: "image", ContentType: "image/png", SizeBytes: 14}},
+		CreatedAt:   time.Now(),
+	}
+	msgRepo.On("Save", mock.Anything, mock.AnythingOfType("*domain.AiChatMessage")).Return(nil)
+	msgRepo.On("ListBySessionID", mock.Anything, uint64(5)).Return([]domain.AiChatMessage{*saved}, nil)
+
+	src := make(chan bedrock.StreamEvent, 2)
+	src <- bedrock.StreamEvent{Delta: "猫です"}
+	src <- bedrock.StreamEvent{Done: true}
+	close(src)
+	var ro <-chan bedrock.StreamEvent = src
+
+	// Bedrock に渡る history の末尾要素に BlobData が詰まっていることを assert する。
+	bc.On("ConverseStream", mock.Anything, mock.AnythingOfType("string"),
+		mock.MatchedBy(func(history []domain.AiChatMessage) bool {
+			if len(history) == 0 {
+				return false
+			}
+			last := history[len(history)-1]
+			if len(last.Attachments) != 1 {
+				return false
+			}
+			return string(last.Attachments[0].BlobData) == "fake-png-bytes"
+		})).Return(ro, nil)
+
+	uc := usecase.NewSendAiMessageStreamUseCase(sessionRepo, msgRepo, bc, dl)
+	ch, err := uc.Execute(context.Background(), usecase.SendAiMessageInput{
+		UserID:    7,
+		SessionID: 5,
+		Content:   "この画像なに？",
+		Attachments: []domain.Attachment{
+			{Key: "ai-chat/7/abc.png", Format: "png", Kind: "image", ContentType: "image/png", SizeBytes: 14, Filename: "abc.png"},
+		},
+	})
+	require.NoError(t, err)
+	for ev := range ch {
+		require.NoError(t, ev.Err)
+	}
+	bc.AssertExpectations(t)
+	// ユーザー（添付メタ付き）+ アシスタント の 2 回保存
+	msgRepo.AssertNumberOfCalls(t, "Save", 2)
+}
+
+// fakeDownloader は in-memory key→bytes map を返す簡易実装。
+type fakeDownloader struct {
+	bytes map[string][]byte
+}
+
+func (f *fakeDownloader) Download(_ context.Context, key string) ([]byte, error) {
+	b, ok := f.bytes[key]
+	if !ok {
+		return nil, errors.New("not found")
+	}
+	return b, nil
 }
 
 // Bedrock 呼び出しで stream エラー: ev.Err が channel に流れて使い手に伝わる。
@@ -169,7 +243,7 @@ func TestSendAiMessageStream_StreamError_PropagatesErr(t *testing.T) {
 	var ro <-chan bedrock.StreamEvent = src
 	bc.On("ConverseStream", mock.Anything, mock.Anything, mock.Anything).Return(ro, nil)
 
-	uc := usecase.NewSendAiMessageStreamUseCase(sessionRepo, msgRepo, bc)
+	uc := usecase.NewSendAiMessageStreamUseCase(sessionRepo, msgRepo, bc, nil)
 	ch, err := uc.Execute(context.Background(), usecase.SendAiMessageInput{
 		UserID: 7, SessionID: 3, Content: "x",
 	})

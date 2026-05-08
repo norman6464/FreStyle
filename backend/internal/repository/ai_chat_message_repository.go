@@ -39,21 +39,72 @@ func NewAiChatMessageRepository(ctx context.Context, region, table string) (AiCh
 }
 
 // dynamoItem は DynamoDB に保存するアイテムの形式。
+//
+// Attachments は domain.Attachment と 1:1 だが、BlobData（一時バイト列）は永続化しない。
+// 既存メッセージは attachments 列が無いまま保存されており、Unmarshal で空スライスに
+// なるよう omitempty で扱う。
 type dynamoItem struct {
-	SessionID string `dynamodbav:"sessionId"`
-	MessageID string `dynamodbav:"messageId"`
-	Role      string `dynamodbav:"role"`
-	Content   string `dynamodbav:"content"`
-	CreatedAt string `dynamodbav:"createdAt"`
+	SessionID   string         `dynamodbav:"sessionId"`
+	MessageID   string         `dynamodbav:"messageId"`
+	Role        string         `dynamodbav:"role"`
+	Content     string         `dynamodbav:"content"`
+	Attachments []dynamoAttach `dynamodbav:"attachments,omitempty"`
+	CreatedAt   string         `dynamodbav:"createdAt"`
+}
+
+type dynamoAttach struct {
+	Key         string `dynamodbav:"key"`
+	Filename    string `dynamodbav:"filename"`
+	ContentType string `dynamodbav:"contentType"`
+	Format      string `dynamodbav:"format"`
+	Kind        string `dynamodbav:"kind"`
+	SizeBytes   int64  `dynamodbav:"sizeBytes"`
+}
+
+func toDynamoAttachments(in []domain.Attachment) []dynamoAttach {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]dynamoAttach, len(in))
+	for i, a := range in {
+		out[i] = dynamoAttach{
+			Key:         a.Key,
+			Filename:    a.Filename,
+			ContentType: a.ContentType,
+			Format:      a.Format,
+			Kind:        a.Kind,
+			SizeBytes:   a.SizeBytes,
+		}
+	}
+	return out
+}
+
+func fromDynamoAttachments(in []dynamoAttach) []domain.Attachment {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]domain.Attachment, len(in))
+	for i, a := range in {
+		out[i] = domain.Attachment{
+			Key:         a.Key,
+			Filename:    a.Filename,
+			ContentType: a.ContentType,
+			Format:      a.Format,
+			Kind:        a.Kind,
+			SizeBytes:   a.SizeBytes,
+		}
+	}
+	return out
 }
 
 func (r *aiChatMessageRepository) Save(ctx context.Context, msg *domain.AiChatMessage) error {
 	item := dynamoItem{
-		SessionID: strconv.FormatUint(msg.SessionID, 10),
-		MessageID: msg.MessageID,
-		Role:      msg.Role,
-		Content:   msg.Content,
-		CreatedAt: msg.CreatedAt.UTC().Format(time.RFC3339),
+		SessionID:   strconv.FormatUint(msg.SessionID, 10),
+		MessageID:   msg.MessageID,
+		Role:        msg.Role,
+		Content:     msg.Content,
+		Attachments: toDynamoAttachments(msg.Attachments),
+		CreatedAt:   msg.CreatedAt.UTC().Format(time.RFC3339),
 	}
 	av, err := attributevalue.MarshalMap(item)
 	if err != nil {
@@ -87,11 +138,12 @@ func (r *aiChatMessageRepository) ListBySessionID(ctx context.Context, sessionID
 		}
 		t, _ := time.Parse(time.RFC3339, item.CreatedAt)
 		msgs = append(msgs, domain.AiChatMessage{
-			SessionID: sessionID,
-			MessageID: item.MessageID,
-			Role:      item.Role,
-			Content:   item.Content,
-			CreatedAt: t,
+			SessionID:   sessionID,
+			MessageID:   item.MessageID,
+			Role:        item.Role,
+			Content:     item.Content,
+			Attachments: fromDynamoAttachments(item.Attachments),
+			CreatedAt:   t,
 		})
 	}
 	return msgs, nil

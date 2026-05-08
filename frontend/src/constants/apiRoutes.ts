@@ -43,7 +43,7 @@ export const PROFILE = {
   meOnboardingComplete: `${API_V2}/profile/me/onboarding/complete`,
 } as const;
 
-/** AI チャット（セッション CRUD + SSE ストリーミング） */
+/** AI チャット（セッション CRUD + SSE ストリーミング + 添付ファイル） */
 export const AI_CHAT = {
   sessions: `${API_V2}/ai-chat/sessions`,
   session: (sessionId: number | string) => `${API_V2}/ai-chat/sessions/${sessionId}`,
@@ -51,6 +51,8 @@ export const AI_CHAT = {
     `${API_V2}/ai-chat/sessions/${sessionId}/messages`,
   /** POST /ai-chat/stream — SSE ストリーミング送信 */
   stream: `${API_V2}/ai-chat/stream`,
+  /** POST /ai-chat/attachments/upload-url — 添付ファイル PUT 用 presigned URL */
+  attachmentUploadUrl: `${API_V2}/ai-chat/attachments/upload-url`,
 } as const;
 
 /** Note CRUD と画像 presigned upload */

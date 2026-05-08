@@ -49,11 +49,13 @@ test.describe('FreStyle smoke', () => {
   });
 
   test('認証必須エンドポイントは Cookie 無で 401 を返す', async ({ request }) => {
+    // PR-A で `/api/v2/score-goals` 系は撤去済 → 認可ガードの代表として
+    //   /auth/me / /notes / /profile/me / /notifications / /ai-chat/sessions を確認する。
     for (const path of [
       '/api/v2/auth/me',
       '/api/v2/notes',
       '/api/v2/profile/me',
-      '/api/v2/score-goals',
+      '/api/v2/ai-chat/sessions',
       '/api/v2/notifications',
     ]) {
       const res = await request.get(`${API_BASE}${path}`);

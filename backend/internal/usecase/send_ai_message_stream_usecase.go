@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -16,6 +17,15 @@ import (
 // テストでは fake を差し替える。infra/bedrock.Client が満たす想定。
 type StreamingBedrockClient interface {
 	ConverseStream(ctx context.Context, systemPrompt string, history []domain.AiChatMessage) (<-chan bedrock.StreamEvent, error)
+}
+
+// AttachmentDownloader は S3 から attachment のバイト列を取得する抽象。
+// 本番では infra/s3.Downloader が満たす。usecase テストでは in-memory 実装を差し替える。
+//
+// nil でも動作する（その場合は添付なしと同等の振る舞い）。Bedrock / DynamoDB の初期化失敗
+// などで一時的に S3 利用不可になったときも、テキストだけは送れるよう優雅に degrade する。
+type AttachmentDownloader interface {
+	Download(ctx context.Context, key string) ([]byte, error)
 }
 
 // StreamEvent は handler に流すイベント。bedrock.StreamEvent と同形だが、
@@ -37,14 +47,21 @@ type SendAiMessageStreamUseCase struct {
 	sessions      repository.AiChatSessionRepository
 	messages      repository.AiChatMessageRepository
 	bedrockClient StreamingBedrockClient
+	attachments   AttachmentDownloader
 }
 
 func NewSendAiMessageStreamUseCase(
 	sessions repository.AiChatSessionRepository,
 	messages repository.AiChatMessageRepository,
 	bc StreamingBedrockClient,
+	dl AttachmentDownloader,
 ) *SendAiMessageStreamUseCase {
-	return &SendAiMessageStreamUseCase{sessions: sessions, messages: messages, bedrockClient: bc}
+	return &SendAiMessageStreamUseCase{
+		sessions:      sessions,
+		messages:      messages,
+		bedrockClient: bc,
+		attachments:   dl,
+	}
 }
 
 // Execute は handler 側でレスポンス書き込みに使う channel を返す。
@@ -66,7 +83,15 @@ func (u *SendAiMessageStreamUseCase) Execute(ctx context.Context, in SendAiMessa
 		sessionID := in.SessionID
 		var newSession *domain.AiChatSession
 		if sessionID == 0 {
+			// 添付のみで本文が空の場合に session タイトルが空文字にならないようフォールバック。
 			title := truncateTitle(in.Content, 30)
+			if title == "" {
+				if len(in.Attachments) > 0 {
+					title = "添付ファイルを送信"
+				} else {
+					title = "新しいチャット"
+				}
+			}
 			s, err := NewCreateAiChatSessionUseCase(u.sessions).Execute(ctx, CreateAiChatSessionInput{
 				UserID:      in.UserID,
 				Title:       title,
@@ -83,11 +108,12 @@ func (u *SendAiMessageStreamUseCase) Execute(ctx context.Context, in SendAiMessa
 		}
 
 		userMsg := &domain.AiChatMessage{
-			SessionID: sessionID,
-			MessageID: uuid.New().String(),
-			Role:      domain.AiChatRoleUser,
-			Content:   in.Content,
-			CreatedAt: time.Now().UTC(),
+			SessionID:   sessionID,
+			MessageID:   uuid.New().String(),
+			Role:        domain.AiChatRoleUser,
+			Content:     in.Content,
+			Attachments: in.Attachments,
+			CreatedAt:   time.Now().UTC(),
 		}
 		if err := u.messages.Save(ctx, userMsg); err != nil {
 			emit(ctx, out, StreamEvent{Err: fmt.Errorf("save user message: %w", err)})
@@ -98,6 +124,15 @@ func (u *SendAiMessageStreamUseCase) Execute(ctx context.Context, in SendAiMessa
 		if err != nil {
 			emit(ctx, out, StreamEvent{Err: fmt.Errorf("list messages: %w", err)})
 			return
+		}
+
+		// Bedrock 呼び出し直前に最新ユーザー発話の attachment 実体を S3 から取得して詰める。
+		// 過去履歴の画像は再送しない（料金 / latency / Bedrock 上限への配慮）。
+		// 取得失敗した attachment は除外して text だけで送る（部分劣化）。
+		if u.attachments != nil && len(in.Attachments) > 0 {
+			if last := lastUserMessageIndex(history); last >= 0 {
+				history[last].Attachments = u.fetchAttachmentBlobs(ctx, in.Attachments)
+			}
 		}
 
 		systemPrompt := buildSystemPrompt(in.SessionType, in.Scene)
@@ -145,4 +180,38 @@ func emit(ctx context.Context, out chan<- StreamEvent, ev StreamEvent) {
 	case out <- ev:
 	case <-ctx.Done():
 	}
+}
+
+// lastUserMessageIndex は history 末尾から最も近い user メッセージの index を返す。
+// 見つからなければ -1。最新ユーザー発話だけに今回のリクエスト由来 attachments を貼る用途。
+func lastUserMessageIndex(history []domain.AiChatMessage) int {
+	for i := len(history) - 1; i >= 0; i-- {
+		if history[i].Role == domain.AiChatRoleUser {
+			return i
+		}
+	}
+	return -1
+}
+
+// fetchAttachmentBlobs は in.Attachments それぞれを S3 から GetObject して BlobData を埋める。
+//
+// 取得失敗した attachment はスライスから落とす（その 1 枚だけ Bedrock に渡らない）。
+// すべて失敗したら空スライスを返し、Bedrock はテキストのみで応答する。
+// SizeBytes が 0 の attachment は metadata 不整合（フロント側のバグ）なのでスキップする。
+func (u *SendAiMessageStreamUseCase) fetchAttachmentBlobs(ctx context.Context, in []domain.Attachment) []domain.Attachment {
+	out := make([]domain.Attachment, 0, len(in))
+	for _, a := range in {
+		if a.Key == "" {
+			continue
+		}
+		data, err := u.attachments.Download(ctx, a.Key)
+		if err != nil {
+			// 1 件の失敗は致命でない。ログだけ残して続行（Bedrock には残りの添付＋テキストで送る）。
+			log.Printf("ai-chat attachment download failed: key=%s err=%v", a.Key, err)
+			continue
+		}
+		a.BlobData = data
+		out = append(out, a)
+	}
+	return out
 }

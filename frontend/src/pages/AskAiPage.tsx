@@ -143,6 +143,7 @@ export default function AskAiPage() {
                   id={message.id}
                   type="text"
                   content={message.content}
+                  attachments={message.attachments}
                   isSender={message.role === 'user'}
                   isCopied={copiedId === message.id}
                   onCopy={copyToClipboard}

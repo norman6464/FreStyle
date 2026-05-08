@@ -3,12 +3,15 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
@@ -40,12 +43,26 @@ func NewAiChatSseHandler(sendStream *usecase.SendAiMessageStreamUseCase) *AiChat
 }
 
 type sseRequestBody struct {
-	SessionID   int64   `json:"sessionId"`
-	Content     string  `json:"content"`
-	Scene       string  `json:"scene"`
-	SessionType string  `json:"sessionType"`
-	ScenarioID  *uint64 `json:"scenarioId"`
+	SessionID   int64                  `json:"sessionId"`
+	Content     string                 `json:"content"`
+	Scene       string                 `json:"scene"`
+	SessionType string                 `json:"sessionType"`
+	ScenarioID  *uint64                `json:"scenarioId"`
+	Attachments []sseAttachmentRequest `json:"attachments"`
 }
+
+// sseAttachmentRequest はフロントが事前に S3 へアップロード済みの添付ファイルを参照する。
+// 実体バイトは含まず、key とメタだけ送って backend が S3 GetObject で取り出す。
+type sseAttachmentRequest struct {
+	Key         string `json:"key"`
+	Filename    string `json:"filename"`
+	ContentType string `json:"contentType"`
+	SizeBytes   int64  `json:"sizeBytes"`
+}
+
+// 1 リクエストあたりの添付上限。Bedrock 仕様（image 20 / document 5）に対し、
+// UI / 課金観点で 4 枚に絞っている（仕様検討で確定）。
+const maxAttachmentsPerMessage = 4
 
 // Handle は POST /api/v2/ai-chat/stream。
 //
@@ -69,8 +86,17 @@ func (h *AiChatSseHandler) Handle(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if body.Content == "" {
+	if body.Content == "" && len(body.Attachments) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "content_required"})
+		return
+	}
+	if len(body.Attachments) > maxAttachmentsPerMessage {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "too_many_attachments"})
+		return
+	}
+	attachments, err := buildAttachmentsFromRequest(uid, body.Attachments)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -94,6 +120,7 @@ func (h *AiChatSseHandler) Handle(c *gin.Context) {
 		Scene:       body.Scene,
 		SessionType: body.SessionType,
 		ScenarioID:  body.ScenarioID,
+		Attachments: attachments,
 	})
 	if err != nil {
 		writeSSEEvent(c.Writer, "error", map[string]string{"message": "メッセージの送信に失敗しました"})
@@ -194,3 +221,51 @@ func flushOrPanic(w gin.ResponseWriter) {
 		panic("ai_chat_sse_handler: ResponseWriter is not flushable")
 	}
 }
+
+// buildAttachmentsFromRequest はリクエスト body の attachments[] を domain.Attachment に変換する。
+//
+// 各添付について:
+//   - key / contentType 必須
+//   - contentType は usecase.AllowedAttachmentContentTypes に含まれる必要あり
+//   - sizeBytes は MIME ごとの上限以下
+//   - key は **userID 配下の S3 prefix** `ai-chat/{userID}/` に必ず属する
+//     （他ユーザーの添付や他 prefix の S3 オブジェクトをサーバ側で読まされるのを防止）
+//
+// バリデーションを SSE handler 側で 1 回通すのは「presigned URL 取得を経由したか」を
+// 軽く再確認する目的（プロンプトインジェクションで任意 S3 オブジェクトを読み出させない）。
+func buildAttachmentsFromRequest(userID uint64, reqs []sseAttachmentRequest) ([]domain.Attachment, error) {
+	if len(reqs) == 0 {
+		return nil, nil
+	}
+	expectedPrefix := fmt.Sprintf("ai-chat/%d/", userID)
+	out := make([]domain.Attachment, 0, len(reqs))
+	for _, r := range reqs {
+		if r.Key == "" || r.ContentType == "" {
+			return nil, sseAttachmentError("attachment_invalid")
+		}
+		if !strings.HasPrefix(r.Key, expectedPrefix) {
+			return nil, sseAttachmentError("attachment_key_not_allowed")
+		}
+		rule, ok := usecase.AllowedAttachmentContentTypes[r.ContentType]
+		if !ok {
+			return nil, sseAttachmentError("attachment_unsupported_type")
+		}
+		if r.SizeBytes <= 0 || r.SizeBytes > rule.Max {
+			return nil, sseAttachmentError("attachment_too_large")
+		}
+		out = append(out, domain.Attachment{
+			Key:         r.Key,
+			Filename:    r.Filename,
+			ContentType: r.ContentType,
+			Format:      rule.Format,
+			Kind:        rule.Kind,
+			SizeBytes:   r.SizeBytes,
+		})
+	}
+	return out, nil
+}
+
+// sseAttachmentError は handler 内で 400 を返すための軽量エラー型。
+type sseAttachmentError string
+
+func (e sseAttachmentError) Error() string { return string(e) }

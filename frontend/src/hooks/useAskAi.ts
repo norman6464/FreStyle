@@ -5,7 +5,7 @@ import { useAiChat } from './useAiChat';
 import { useAiSession } from './useAiSession';
 import { useAiChatSse, SseEvent } from './useAiChatSse';
 import { AI_CHAT } from '../constants/apiRoutes';
-import { AiMessage } from '../types';
+import { AiAttachment, AiMessage } from '../types';
 
 /**
  * AskAiPage フック（SSE ストリーミング版）。
@@ -111,8 +111,8 @@ export function useAskAi() {
   });
 
   const handleSend = useCallback(
-    (text: string): void => {
-      if (!text.trim()) return;
+    (text: string, attachments: AiAttachment[] = []): void => {
+      if (!text.trim() && attachments.length === 0) return;
 
       // ユーザー発話 + アシスタント placeholder を即座に追加
       const now = new Date().toISOString();
@@ -121,6 +121,7 @@ export function useAskAi() {
         sessionId: currentSessionId ?? 0,
         role: 'user',
         content: text,
+        attachments: attachments.length > 0 ? attachments : undefined,
         createdAt: now,
       };
       const placeholderId = `streaming-${Date.now()}`;
@@ -134,7 +135,17 @@ export function useAskAi() {
       };
       setMessages((prev) => [...prev, userMsg, placeholder]);
 
-      void sendSse({ sessionId: currentSessionId, content: text });
+      void sendSse({
+        sessionId: currentSessionId,
+        content: text,
+        // SSE 送信時は preview URL を含めない（不要 / バックエンドにリーク防止）。
+        attachments: attachments.map(({ key, filename, contentType, sizeBytes }) => ({
+          key,
+          filename,
+          contentType,
+          sizeBytes,
+        })),
+      });
     },
     [sendSse, currentSessionId, setMessages]
   );

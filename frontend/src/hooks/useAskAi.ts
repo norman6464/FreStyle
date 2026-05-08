@@ -171,12 +171,18 @@ export function useAskAi() {
     }
   }, [urlSessionId, setCurrentSessionId]);
 
-  // セッション内のメッセージ履歴取得
+  // セッション内のメッセージ履歴取得。
+  // 「新しいチャット」ボタンや、未確定セッション（URL に sessionId 無し）に切替えた場合は
+  // currentSessionId が null になるので、前セッションのメッセージを画面から明示的に消去する。
+  // クリアしないと前セッションのチャット履歴が残ったまま空打ち状態になり、新規開始
+  // の見た目にならない。
   useEffect(() => {
     if (currentSessionId) {
       fetchMessages(currentSessionId);
+    } else {
+      setMessages([]);
     }
-  }, [currentSessionId, fetchMessages]);
+  }, [currentSessionId, fetchMessages, setMessages]);
 
   // メッセージ最下部へスクロール
   useEffect(() => {

@@ -1,8 +1,9 @@
-import { lazy, Suspense } from 'react';
+import { Suspense } from 'react';
 import { useExerciseEditor } from '../hooks/useExerciseEditor';
 import { MasterExercise } from '../types';
+import { lazyWithReload } from '../utils/lazyWithReload';
 
-const CodeEditor = lazy(() => import('../components/CodeEditor'));
+const CodeEditor = lazyWithReload(() => import('../components/CodeEditor'), 'CodeEditor');
 
 /** CodeEditorPage — PHP コード実行環境ページ。 */
 export default function CodeEditorPage() {

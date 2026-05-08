@@ -41,27 +41,6 @@
 - ロール: `super_admin` / `company_admin` / `trainee` の 3 階
 - **招待マジックリンク方式（SES + token）** で初回サインアップ
 - OIDC（Cognito Hosted UI / Google フェデレーション）+ 招待限定サインアップ
-- 詳細: [frestyle-pdm/docs/auth/auth-flow-screen-transitions.md](https://github.com/norman6464/frestyle-pdm/blob/main/docs/auth/auth-flow-screen-transitions.md)
-
-### 削除した機能（過去に持っていたが整理済）
-
-ゲーミフィケーション系・ビジネスコミュニケーション研修系の機能は、コア機能（AI 自由対話 + コード学習）に集中するため整理しました:
-
-- 練習モード（ロールプレイ）/ シナリオ管理 / スコアカード / スコア履歴
-- お気に入りフレーズ / 会話テンプレート / 練習リマインダー / 共有セッション
-- 達成バッジ / 練習レベル / 今日の目標 / 今週の練習目標 / 本日のチャレンジ
-- 今日の一言 / 今日の Tips / 次のステップ / ウィークリーチャレンジ / ランキング
-
-詳細は [frestyle-pdm/docs/architecture/saas-vision.md](https://github.com/norman6464/frestyle-pdm/blob/main/docs/architecture/saas-vision.md) を参照。
-
-## 対象顧客
-
-**自社開発をしている企業**を主たるターゲットとします。
-
-- 自社プロダクトを開発しており、新卒・中途エンジニアを毎年複数名採用する Web / SaaS / 事業会社
-- 社内に教育担当エンジニア（メンター）を確保できる規模の開発組織
-- 「研修資料は Box / Drive / Notion / Slack に散らばっていて見つからない」という課題感を持つ教育担当者
-- → SIer の元請け企業など、外部委託主体の組織は当面ターゲット外（OJT モデルとマッチしないため）
 
 ## オンボーディング（B2B 申請承認フロー）
 
@@ -103,7 +82,6 @@
 </a>
 
 > バックエンド (Go / Gin / GORM) は `backend/` 配下で運用。
-> 旧 Spring Boot 実装は廃止済み（移行完了後に削除）。
 
 <h3>Infrastructure</h3>
 <a href="https://skillicons.dev">
@@ -137,7 +115,7 @@
 | **Storage** | S3 | フロントエンド静的ホスティング・ノート画像 |
 | **Auth** | Cognito | OAuth 2.0 / OIDC + JWT (HttpOnly Cookie)・SRP / Hosted UI |
 | **Secrets** | Secrets Manager | RDS マスターパスワード（`ManageMasterUserPassword` で自動ローテーション） |
-| **Messaging** | SQS (+ DLQ) | 非同期レポート生成キュー（Spring Boot 時代の遺産、Go 移行後は段階的に整理予定） |
+| **Messaging** | SQS (+ DLQ) | 非同期レポート生成キュー |
 | **Identity** | IAM (OIDC Provider) | GitHub Actions の AssumeRole（長期キー廃止、一時クレデンシャル運用） |
 | **Monitoring** | CloudWatch Logs | ECS Task / RDS のログ集約 |
 | **CI/CD** | GitHub Actions | 自動テスト・E2E (Playwright) ・cd-frontend / cd-backend |
@@ -146,13 +124,11 @@
 
 ## Architecture Highlights（工夫した点）
 
-### ① HTTP / WebSocket を ECS + Go で単一経路化
-- **HTTP API / WebSocket** ともに **ECS Fargate 上の Go (Gin)** に集約
-- WebSocket は `gorilla/websocket` で ALB → ECS Task に直接 upgrade（Sticky Session 不要・stateless 化）
-- 旧構成（Spring Boot 時代）の **API Gateway + Lambda + DynamoDB** のサーバレス WS は廃止し、ALB を 1 本にまとめてコスト・運用・可観測性を一元化
-- フロントエンドは `wss://api.normanblog.com/api/v2/ws/...` で接続、Cognito JWT (HttpOnly Cookie) を Origin チェックと併用して認証
-
-> 旧 Lambda + API Gateway 構成を廃止した理由は本 README 末尾の「なぜアーキテクチャーを変えたのか」を参照。
+### ① HTTP / SSE を ECS + Go で単一経路化
+- **HTTP API / SSE ストリーミング** ともに **ECS Fargate 上の Go (Gin)** に集約
+- AI チャットは **Server-Sent Events**（`POST /api/v2/ai-chat/stream` で fetch + ReadableStream）で token 単位ストリーミング
+- ALB → ECS Task が HTTP/1.1 chunked transfer で 1 経路、Sticky Session 不要・stateless
+- フロントエンドは `https://api.normanblog.com` 経由で接続、Cognito JWT (HttpOnly Cookie) で認証
 
 ### ② JWT（HttpOnly Cookie）× Cognito の安全な認証設計
 - JWT を HttpOnly Cookie に保存（XSS 対策）
@@ -166,29 +142,17 @@
 - OIDC と組み合わせてセキュアなフロント構成
 - Cognito / OIDC ログインで HTTPS が必須なため採用
 
-### ④ Spring Boot → Go (Gin + GORM) 移行完了
+### ④ Go (Gin + GORM) によるリソース効率
 
-**2026 年 4 月 27 日**: 全 28 機能（Phase 1〜28）を Go (Gin + GORM) に移植し、Spring Boot 実装を廃止しました。フロントエンドは `/api/v2/*` 経由で Go バックエンドのみと通信します。
-
-#### Go に移行した結果
-
-| 観点 | Spring Boot (旧、廃止済み) | Go + Gin (現行) |
-|---|---|---|
-| ECS Fargate スペック | 2 vCPU / 4 GB（JVM オーバーヘッド分） | 0.25 vCPU / 0.5 GB（最小） |
-| Fargate コスト見込み | ~$2.40/日 | ~$0.30/日（**約 80% 削減**） |
-| 起動時間 | 数十秒（JVM warmup） | サブ秒 |
-| バイナリサイズ | JRE + jar 約 200 MB+ | distroless + static binary 約 30 MB |
-| 並行処理 | スレッドプール | goroutine（軽量） |
-
-#### 移行手順（履歴）
-
-- Phase 0: `backend/` 基盤（Gin + GORM + クリーンアーキ + Dockerfile + CI）
-- Phase 1〜28: 機能（controller 単位）ごとに独立 issue / PR / squash merge
-- 最終 cutover: フロントエンド repository を `/api/*` → `/api/v2/*` に一括切替、Spring Boot コード (`FreStyle/`) を完全削除
+| 観点 | 数値 |
+|---|---|
+| ECS Fargate スペック | 0.25 vCPU / 0.5 GB（最小） |
+| Fargate コスト | ~$0.30/日 |
+| 起動時間 | サブ秒 |
+| バイナリサイズ | distroless + static binary 約 30 MB |
+| 並行処理 | goroutine（軽量） |
 
 #### Go バックエンドのクリーンアーキテクチャ
-
-Spring Boot 時代に確立した依存方向ルールを Go 側にも忠実に持ち込んでいます。
 
 ```text
 ┌────────────────────────────────────────────────────────────┐
@@ -228,8 +192,6 @@ backend/
 ├── Dockerfile           multi-stage / distroless / static binary
 └── go.mod
 ```
-
-詳細な層責務・パッケージ依存関係・テスト戦略は [`frestyle-pdm/docs/ARCHITECTURE.md`](https://github.com/norman6464/frestyle-pdm/blob/main/docs/ARCHITECTURE.md) を参照。
 
 #### 層構成（フロントエンド）
 
@@ -299,34 +261,32 @@ sequenceDiagram
     Hook-->>FE: state update → re-render
 ```
 
-### ⑤ 初心者向けUIコンポーネントライブラリ
+### ⑤ 共通 UI コンポーネントライブラリ
 
-新卒エンジニアが迷わず使えるよう、`frontend/src/components/ui/` に共通UIコンポーネント群を整備しています。
+`frontend/src/components/ui/` に共通 UI コンポーネント群を整備しています。
 
 | コンポーネント | 用途 |
 |---|---|
 | `PageIntro` | 全画面統一のページヘッダー |
-| `FirstTimeWelcome` | 初回訪問時の導入カード（localStorage永続化） |
-| `GlossaryTerm` | 専門用語の下線表示＋クリックで用語解説 |
+| `FirstTimeWelcome` | 初回訪問時の導入カード（localStorage 永続化） |
+| `GlossaryTerm` | 専門用語の下線表示 + クリックで用語解説 |
 | `HelpTooltip` | 「?」アイコン付きの補足説明 |
 | `StepIndicator` | 多段階操作の進行状況可視化 |
-| `GuidedHint` | 閉じるボタン付き初心者向けヒント |
-| `ActionCard` | Link/Button両対応の強調CTAカード |
-
-専門用語（5軸評価・論理的構成力・練習モードなど）の定義は `frontend/src/constants/glossary.ts` に集約。
+| `GuidedHint` | 閉じるボタン付きヒント |
+| `ActionCard` | Link / Button 両対応の強調 CTA カード |
 
 ---
 
 ## 技術選定理由（HTTP API / ECS Fargate / Go）
 
-1. **Go (Gin + GORM)** で書き直すことでコンテナ要求リソースを最小化
-   - JVM が要求する 2 vCPU / 4 GB → 0.25 vCPU / 0.5 GB へ
+1. **Go (Gin + GORM)** によるリソース効率
+   - 0.25 vCPU / 0.5 GB の最小 Fargate でも快適に稼働
    - 起動時間サブ秒、distroless で 30 MB 級の static binary
    - goroutine による軽量並行処理
 
 2. **ECS Fargate** で Docker 化したアプリを安定稼働
    - サーバープロビジョニング不要 / OS 管理不要
-   - 旧 Spring Boot 版から Go 版への切替は ECS Service 単位で blue/green に近い運用が可能
+   - ECS Service 単位で blue/green に近いデプロイ運用が可能
 
 3. **ALB と連携した柔軟なルーティング**
    - ホストベースルーティングで [BeStyle](https://normanblog.com) にも同じロードバランサーを使用しコスト削減
@@ -339,18 +299,20 @@ sequenceDiagram
 
 ---
 
-## 技術選定理由（WebSocket / ECS 一本化）
+## 技術選定理由（SSE / ECS 一本化）
 
-旧構成（API Gateway + Lambda + DynamoDB）を廃止し、**ECS + Go (`gorilla/websocket`) の単一経路** に統一した理由:
+AI チャットは **Server-Sent Events**（HTTP/1.1 chunked transfer）で ECS + Go の単一経路に統一:
 
 1. **複雑なクエリの直行性**  
-   AI フィードバックでユーザの過去スコア・性格傾向・チャット履歴を組み合わせる必要があり、DynamoDB だけだと application 側の join が肥大化。RDS（PostgreSQL）+ DynamoDB のハイブリッドにし、ECS 上の Go から両方を直接叩く方が単純。
+   ユーザの履歴・進捗・性格傾向などを RDS（PostgreSQL）と DynamoDB の使い分けで保持し、ECS 上の Go から両方を直接叩いて application 側の join を避ける。
 2. **トラフィック増加時のスケール**  
-   Lambda 同時実行数の上限・cold start・WS 切断時の再接続コスト（API Gateway の billing 単位）が運用上のリスクになっていた。ECS Fargate なら `desired count` で水平スケールでき、ALB のヘルスチェックで自己修復可能。
-3. **可観測性とデプロイ単位の統一**  
-   HTTP / WebSocket を 1 つの ECS Service に同居させると、ログ・メトリクス・デプロイ単位が 1 本化されて運用が楽（CloudWatch Logs Group を分けずに済む）。
-4. **コスト**  
-   Go バイナリは 0.25 vCPU / 0.5 GB Fargate で常時稼働しても月 $9 前後。WS のコネクション課金が無くなる分、トラフィックが伸びるほど ECS の方が有利。
+   Lambda 同時実行数や cold start のリスクを避け、ECS Fargate の `desired count` で水平スケール。ALB のヘルスチェックで自己修復。
+3. **SSE がストリーミング用途に十分**  
+   双方向通信（WebSocket）は不要で、サーバ→クライアントの一方向 token ストリーミングは SSE（fetch + ReadableStream）で実装が簡素。Sticky Session 不要、HTTP の標準で動く。
+4. **可観測性とデプロイ単位の統一**  
+   HTTP / SSE を 1 つの ECS Service に同居させると、ログ・メトリクス・デプロイ単位が 1 本化されて運用が楽。
+5. **コスト**  
+   Go バイナリは 0.25 vCPU / 0.5 GB Fargate で常時稼働しても月 $9 前後。
 
 ---
 
@@ -507,9 +469,9 @@ GORM 側の AutoMigrate は本番では使わず、明示的な SQL で運用し
 
 ### コーディング規約（要点）
 
-- **クリーンアーキテクチャ**: handler → usecase → repository → domain（Go）/ Controller → UseCase → Service / Repository → Entity（Spring Boot）の依存方向を厳守。詳細は [`frestyle-pdm/docs/ARCHITECTURE.md`](https://github.com/norman6464/frestyle-pdm/blob/main/docs/ARCHITECTURE.md)
-- **1 UseCase = 1 ビジネスルール**: 新規機能追加時は usecase ファイルを新規作成し、肥大化させない
-- **DTO ↔ Domain 変換**: 1 箇所に集約。handler / usecase で直接変換しない
+- **クリーンアーキテクチャ**: handler → usecase → repository / infra → domain（Go / Gin / GORM）の依存方向を厳守
+- **1 usecase = 1 ビジネスルール**: 新規機能追加時は usecase struct を新規作成し、肥大化させない
+- **request / response 型は handler 内 local 定義**: DTO / Mapper 層は持たず、機密フィールドは domain 構造体側で `json:"-"` で隠す
 - **テスト必須**: 新規追加コードには必ず単体テストを付ける
 - **日本語**: PR / Issue / コミットメッセージ / コメントは日本語、識別子は英語
 

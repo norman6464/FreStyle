@@ -151,9 +151,12 @@ func (c *Client) ConverseStream(ctx context.Context, systemPrompt string, histor
 // 展開して text の前に並べる（Bedrock の慣習: 画像 → テキストの順が推奨）。
 // BlobData が空の Attachment は無視する（usecase で S3 から取得済みであることが前提）。
 //
-// 空コンテンツ + 添付バイト取得失敗（blocks も text も無い）の場合は当該メッセージを
-// スキップする。Bedrock は空テキストブロックを 400 で弾くため、誤って空メッセージを
-// 送らないための防御。
+// 空コンテンツ対応: Bedrock は user/assistant 役割の交互パターンを必須とする。空の
+// assistant 応答が DB に保存されているケースでも会話を成立させるため、空メッセージは
+// **skip しない** で、placeholder テキストを差し込んで Bedrock に渡す。
+// （旧実装で skip した結果、連続する user メッセージが発生して Bedrock が無言の
+// 空応答を返し、それがまた DB に空 assistant として保存されて負のループに陥る不具合
+// が判明したため）。
 func buildBedrockMessages(history []domain.AiChatMessage) []brtypes.Message {
 	messages := make([]brtypes.Message, 0, len(history))
 	for _, m := range history {
@@ -169,17 +172,28 @@ func buildBedrockMessages(history []domain.AiChatMessage) []brtypes.Message {
 			}
 		}
 		text := m.Content
-		// Bedrock の document ブロックは「同一メッセージに text ブロックがあること」を
-		// 要求する。画像のみの場合は text 無しでも OK だが、document を含むなら
-		// 空でない placeholder を必ず付ける。
-		if text == "" && hasDocumentBlock(blocks) {
-			text = "(添付ファイルを参照してください)"
+		if text == "" {
+			switch {
+			case hasDocumentBlock(blocks):
+				// document ブロックは text 必須なので placeholder を付ける。
+				text = "(添付ファイルを参照してください)"
+			case len(blocks) > 0:
+				// image だけのメッセージは Bedrock が text 無しでも受け付ける。
+				// 何も追加しない（text "" のまま skip される）。
+			default:
+				// 何も無いメッセージ。役割交互制約のため placeholder を入れる。
+				if role == brtypes.ConversationRoleAssistant {
+					text = "(応答が空でした)"
+				} else {
+					text = "(空のメッセージ)"
+				}
+			}
 		}
 		if text != "" {
 			blocks = append(blocks, &brtypes.ContentBlockMemberText{Value: text})
 		}
 		if len(blocks) == 0 {
-			// 空コンテンツ + 全添付ダウンロード失敗 → skip。
+			// image only かつ BlobData も無い → 何もない実質空メッセージ。skip。
 			continue
 		}
 		messages = append(messages, brtypes.Message{Role: role, Content: blocks})

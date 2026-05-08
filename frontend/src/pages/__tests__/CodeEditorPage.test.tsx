@@ -2,7 +2,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import CodeEditorPage from '../CodeEditorPage';
-import type { PhpExercise, CodeExecutionResult } from '../../types';
+import type { MasterExercise, CodeExecutionResult } from '../../types';
 
 // Monaco Editor は jsdom で動かないためスタブ化
 vi.mock('../../components/CodeEditor', () => ({
@@ -24,8 +24,10 @@ const mockSelectExercise = vi.fn();
 const mockSetShowHint = vi.fn();
 const mockResetCode = vi.fn();
 
-const baseExercise: PhpExercise = {
+const baseExercise: MasterExercise = {
   id: 1,
+  slug: 'php-1',
+  language: 'php',
   orderIndex: 1,
   category: '基礎',
   title: 'こんにちは世界',
@@ -33,11 +35,13 @@ const baseExercise: PhpExercise = {
   starterCode: '<?php echo "Hello";',
   hintText: 'echo を使います',
   expectedOutput: 'Hello',
+  difficulty: 1,
+  isPublished: true,
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-01T00:00:00Z',
 };
 
-function makeHook(overrides: Partial<ReturnType<typeof import('../../hooks/usePhpEditor').usePhpEditor>> = {}) {
+function makeHook(overrides: Partial<ReturnType<typeof import('../../hooks/useExerciseEditor').useExerciseEditor>> = {}) {
   return {
     exercises: [baseExercise],
     categories: ['基礎'],
@@ -57,11 +61,11 @@ function makeHook(overrides: Partial<ReturnType<typeof import('../../hooks/usePh
   };
 }
 
-vi.mock('../../hooks/usePhpEditor', () => ({
-  usePhpEditor: vi.fn(),
+vi.mock('../../hooks/useExerciseEditor', () => ({
+  useExerciseEditor: vi.fn(),
 }));
 
-import { usePhpEditor } from '../../hooks/usePhpEditor';
+import { useExerciseEditor } from '../../hooks/useExerciseEditor';
 
 function renderPage() {
   return render(
@@ -74,7 +78,7 @@ function renderPage() {
 describe('CodeEditorPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(usePhpEditor).mockReturnValue(makeHook());
+    vi.mocked(useExerciseEditor).mockReturnValue(makeHook());
   });
 
   it('演習タイトルと説明が表示される', () => {
@@ -103,19 +107,19 @@ describe('CodeEditorPage', () => {
   });
 
   it('showHint=true のときヒント文が表示される', () => {
-    vi.mocked(usePhpEditor).mockReturnValue(makeHook({ showHint: true }));
+    vi.mocked(useExerciseEditor).mockReturnValue(makeHook({ showHint: true }));
     renderPage();
     expect(screen.getByText(/echo を使います/)).toBeInTheDocument();
   });
 
   it('running=true のとき「実行中...」と表示される', () => {
-    vi.mocked(usePhpEditor).mockReturnValue(makeHook({ running: true }));
+    vi.mocked(useExerciseEditor).mockReturnValue(makeHook({ running: true }));
     renderPage();
     expect(screen.getByText('実行中...')).toBeInTheDocument();
   });
 
   it('result に stdout がある場合出力パネルに表示される', () => {
-    vi.mocked(usePhpEditor).mockReturnValue(
+    vi.mocked(useExerciseEditor).mockReturnValue(
       makeHook({ result: { stdout: 'Hello, World!', stderr: '', exitCode: 0 } })
     );
     renderPage();
@@ -124,7 +128,7 @@ describe('CodeEditorPage', () => {
   });
 
   it('result にエラーがある場合エラーパネルに表示される', () => {
-    vi.mocked(usePhpEditor).mockReturnValue(
+    vi.mocked(useExerciseEditor).mockReturnValue(
       makeHook({ result: { stdout: '', stderr: 'Parse error', exitCode: 255 } })
     );
     renderPage();
@@ -133,7 +137,7 @@ describe('CodeEditorPage', () => {
   });
 
   it('ローディング中は「読み込み中...」と表示される', () => {
-    vi.mocked(usePhpEditor).mockReturnValue(makeHook({ loadingExercises: true }));
+    vi.mocked(useExerciseEditor).mockReturnValue(makeHook({ loadingExercises: true }));
     renderPage();
     expect(screen.getByText('読み込み中...')).toBeInTheDocument();
   });

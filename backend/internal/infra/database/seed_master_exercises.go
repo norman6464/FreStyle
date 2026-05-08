@@ -1,6 +1,7 @@
 package database
 
 import (
+	"fmt"
 	"log"
 	"time"
 
@@ -9,11 +10,15 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// seedPhpExercises は php_exercises テーブルに初期演習データを投入する。
+// seedMasterExercises は master_exercises テーブルに初期演習データを投入する。
 // ON CONFLICT DO NOTHING で冪等。起動のたびに安全に呼び出せる。
-func seedPhpExercises(db *gorm.DB) error {
+//
+// 旧 seedPhpExercises を MasterExercise 用に汎用化したもの。Language / Slug /
+// IsPublished / Difficulty の共通フィールドはデータ列挙の簡潔さを優先して
+// 末尾の補完ループで一括設定する（Slug は `php-{id}` の規則）。
+func seedMasterExercises(db *gorm.DB) error {
 	now := time.Now()
-	exercises := []domain.PhpExercise{
+	exercises := []domain.MasterExercise{
 		{
 			ID:             1,
 			OrderIndex:     1,
@@ -160,10 +165,21 @@ func seedPhpExercises(db *gorm.DB) error {
 		},
 	}
 
+	// Language / Slug / Difficulty / IsPublished の共通フィールドを後付けで埋める。
+	// 各エントリに毎回書くと冗長なので、PHP 教材の defaults を一括設定する。
+	for i := range exercises {
+		exercises[i].Language = domain.ExerciseLanguagePhp
+		exercises[i].Slug = fmt.Sprintf("php-%d", exercises[i].ID)
+		exercises[i].IsPublished = true
+		if exercises[i].Difficulty == 0 {
+			exercises[i].Difficulty = 1
+		}
+	}
+
 	result := db.Clauses(clause.OnConflict{DoNothing: true}).Create(&exercises)
 	if result.Error != nil {
 		return result.Error
 	}
-	log.Printf("seed: php_exercises %d 件を挿入（既存はスキップ）", result.RowsAffected)
+	log.Printf("seed: master_exercises (php) %d 件を挿入（既存はスキップ）", result.RowsAffected)
 	return nil
 }

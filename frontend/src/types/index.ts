@@ -485,9 +485,17 @@ export interface WeeklyChallengeProgressDto {
   updatedAt: string;
 }
 
-/** PHP 演習問題（Go backend `domain.PhpExercise` と 1:1）*/
-export interface PhpExercise {
+/**
+ * MasterExercise は Go backend `domain.MasterExercise` と 1:1。
+ * 言語非依存の運営マスタ演習問題（旧 `PhpExercise` を汎用化）。
+ *
+ * `language` で 'php' / 'sql' / 'go' / 'javascript' を区別。`chapterId` は将来
+ * PR-H1 で導入する chapters テーブルに紐付く章末演習で使う任意 FK。
+ */
+export interface MasterExercise {
   id: number;
+  slug: string;
+  language: string;
   orderIndex: number;
   category: string;
   title: string;
@@ -495,11 +503,14 @@ export interface PhpExercise {
   starterCode: string;
   hintText: string;
   expectedOutput: string;
+  difficulty: number;
+  isPublished: boolean;
+  chapterId?: number | null;
   createdAt: string;
   updatedAt: string;
 }
 
-/** PHP コード実行結果（Go backend `usecase.ExecuteCodeOutput` と 1:1）*/
+/** コード実行結果（Go backend `usecase.ExecuteCodeOutput` と 1:1）*/
 export interface CodeExecutionResult {
   stdout: string;
   stderr: string;

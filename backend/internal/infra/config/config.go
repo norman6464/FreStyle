@@ -89,14 +89,22 @@ func Load() (*Config, error) {
 		},
 		Bedrock: BedrockConfig{
 			Region: getEnvOrDefault("AWS_REGION", "ap-northeast-1"),
-			// ap-northeast-1 で ACTIVE な Anthropic モデルを default にする。
-			// 旧 default の "anthropic.claude-3-5-haiku-20241022-v1:0" は当 region に存在せず
-			// Bedrock Converse API が ValidationException: invalid model identifier を返していた
-			// （2026-05-06 本番でユーザーから AI チャット返信なしの報告で発覚）。
-			// 利用可能 model 確認:
-			//   aws bedrock list-foundation-models --region ap-northeast-1 \
-			//     --query 'modelSummaries[?providerName==`Anthropic`].modelId'
-			ModelID: getEnvOrDefault("BEDROCK_MODEL_ID", "anthropic.claude-haiku-4-5-20251001-v1:0"),
+			// Claude 4 系（haiku-4-5 / sonnet-4-x / opus-4-x）は on-demand throughput では呼べず、
+			// Inference Profile 経由必須。foundation-model ARN を直接指定すると ConverseStream が
+			// ValidationException で 400 を返す（2026-05-08 本番でユーザーから AI チャット返信なし
+			// の報告で発覚）。
+			//
+			// `jp.anthropic.claude-sonnet-4-5-20250929-v1:0` が ap-northeast-1 用の Japan inference
+			// profile（sonnet-4.5）。IAM 側 (frestyle-infrastructure: BedrockInvokeAccess) でも
+			// `arn:aws:bedrock:${region}:${account}:inference-profile/jp.anthropic.claude-sonnet-4-*`
+			// を許可しておく必要がある。
+			//
+			// モデル選定: 旧 default の haiku-4-5 から sonnet-4-5 にアップグレード。応答品質を優先し、
+			// チャット用途なら latency / コストとも実用範囲（ユーザー指示・2026-05-08）。
+			//
+			// 利用可能 inference profile 一覧:
+			//   aws bedrock list-inference-profiles --region ap-northeast-1
+			ModelID: getEnvOrDefault("BEDROCK_MODEL_ID", "jp.anthropic.claude-sonnet-4-5-20250929-v1:0"),
 		},
 		DynamoDB: DynamoDBConfig{
 			Region:      getEnvOrDefault("AWS_REGION", "ap-northeast-1"),

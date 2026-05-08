@@ -35,7 +35,7 @@ export default function AppShell() {
         >
           <Bars3Icon className="w-5 h-5" />
         </button>
-        <img src="/logo.svg" alt="FreStyle" className="h-9 w-auto" />
+        <img src="/logo.svg" alt="FreStyle" className="h-11 w-auto" />
       </header>
 
       {/* ヘッダー下: サイドバー + メインコンテンツ */}

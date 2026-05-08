@@ -6,16 +6,16 @@
  * ライトテーマ単一構成（ダークモードは廃止）。
  *
  * カラー設計:
- *   - body 全体: #F2EDE4（クリーム）
+ *   - body 全体: #F9F6F1（ごく淡い暖色オフホワイト）
  *   - サイドバー / ヘッダー: #DCE0F2（淡い青紫）→ --color-nav として独立変数化
- *   - カード / raised surface: 白に近い #FFFFFF / #EFEBDD で階層を視認できるように差を付ける
+ *   - カード / raised surface: 白に近い #FFFFFF / #F4F0E8 で階層を視認できるように差を付ける
  *   - サーフェス階層は「ページ背景 < カード < 強調」の順に並べる
  */
 :root {
-  --color-surface: #F2EDE4;
+  --color-surface: #F9F6F1;
   --color-surface-1: #FFFFFF;
-  --color-surface-2: #EFEBDD;
-  --color-surface-3: #E0DBC9;
+  --color-surface-2: #F4F0E8;
+  --color-surface-3: #E5DFCF;
   /* サイドバーとヘッダー専用。 surface-1 と区別して body との差別化を可能にする */
   --color-nav: #DCE0F2;
   --color-text-primary: #191919;
@@ -25,7 +25,7 @@
   --color-text-faint: #D3D3D0;
   --color-text-subtle: #E8E8E6;
   --color-border-hover: #D3D3D0;
-  --scrollbar-track: #F2EDE4;
+  --scrollbar-track: #F9F6F1;
   --scrollbar-thumb: #D3D3D0;
   --scrollbar-thumb-hover: #A4A4A0;
 

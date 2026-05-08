@@ -317,16 +317,6 @@ sequenceDiagram
 
 ---
 
-## 苦労した点・学び
-- **WebSocket の構成方針転換**: 当初は Lambda + API Gateway のサーバレス WebSocket でコスト最適化していたが、トラフィック増加時のスケール特性とコネクション管理（DynamoDB の `connectionId` テーブル）の運用負荷が嵩み、最終的に **ECS + `gorilla/websocket` の単一経路** に統一
-- Spring Security の JWT / JWK / Cookie 設計を Go 移行後は **Gin middleware（`golang-jwt/jwt` + Cognito JWKS キャッシュ）** で再実装
-- ALB の TLS Termination（ACM 証明書）と ECS Backend 間は HTTP（VPC 内）で割り切り、外向き HTTPS 強制は CloudFront の ResponseHeadersPolicy + HSTS で多層化
-- Spring Boot の JVM オーバーヘッドにより Fargate 2 vCPU / 4 GB を要し、ランニングコストが嵩んでいた → Go (Gin + GORM) に置き換えて **0.25 vCPU / 0.5 GB へ縮退（約 80% コスト削減）**
-- 既存資産を捨てない移行戦略の設計（path-based routing による Spring Boot / Go 並行運用 → 全機能 cutover 後に Spring Boot を完全削除）
-- RDS マスターパスワードを **Secrets Manager の自動ローテーション**（`ManageMasterUserPassword=true`）に切替えて、`.env` での平文保管を撤廃
-
----
-
 ## 技術選定理由（HTTP API / ECS Fargate / Go）
 
 1. **Go (Gin + GORM)** で書き直すことでコンテナ要求リソースを最小化

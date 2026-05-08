@@ -82,7 +82,6 @@
 </a>
 
 > バックエンド (Go / Gin / GORM) は `backend/` 配下で運用。
-> 旧 Spring Boot 実装は廃止済み（移行完了後に削除）。
 
 <h3>Infrastructure</h3>
 <a href="https://skillicons.dev">
@@ -116,7 +115,7 @@
 | **Storage** | S3 | フロントエンド静的ホスティング・ノート画像 |
 | **Auth** | Cognito | OAuth 2.0 / OIDC + JWT (HttpOnly Cookie)・SRP / Hosted UI |
 | **Secrets** | Secrets Manager | RDS マスターパスワード（`ManageMasterUserPassword` で自動ローテーション） |
-| **Messaging** | SQS (+ DLQ) | 非同期レポート生成キュー（Spring Boot 時代の遺産、Go 移行後は段階的に整理予定） |
+| **Messaging** | SQS (+ DLQ) | 非同期レポート生成キュー |
 | **Identity** | IAM (OIDC Provider) | GitHub Actions の AssumeRole（長期キー廃止、一時クレデンシャル運用） |
 | **Monitoring** | CloudWatch Logs | ECS Task / RDS のログ集約 |
 | **CI/CD** | GitHub Actions | 自動テスト・E2E (Playwright) ・cd-frontend / cd-backend |
@@ -143,29 +142,17 @@
 - OIDC と組み合わせてセキュアなフロント構成
 - Cognito / OIDC ログインで HTTPS が必須なため採用
 
-### ④ Spring Boot → Go (Gin + GORM) 移行完了
+### ④ Go (Gin + GORM) によるリソース効率
 
-**2026 年 4 月 27 日**: 全 28 機能（Phase 1〜28）を Go (Gin + GORM) に移植し、Spring Boot 実装を廃止しました。フロントエンドは `/api/v2/*` 経由で Go バックエンドのみと通信します。
-
-#### Go に移行した結果
-
-| 観点 | Spring Boot (旧、廃止済み) | Go + Gin (現行) |
-|---|---|---|
-| ECS Fargate スペック | 2 vCPU / 4 GB（JVM オーバーヘッド分） | 0.25 vCPU / 0.5 GB（最小） |
-| Fargate コスト見込み | ~$2.40/日 | ~$0.30/日（**約 80% 削減**） |
-| 起動時間 | 数十秒（JVM warmup） | サブ秒 |
-| バイナリサイズ | JRE + jar 約 200 MB+ | distroless + static binary 約 30 MB |
-| 並行処理 | スレッドプール | goroutine（軽量） |
-
-#### 移行手順（履歴）
-
-- Phase 0: `backend/` 基盤（Gin + GORM + クリーンアーキ + Dockerfile + CI）
-- Phase 1〜28: 機能（controller 単位）ごとに独立 issue / PR / squash merge
-- 最終 cutover: フロントエンド repository を `/api/*` → `/api/v2/*` に一括切替、Spring Boot コード (`FreStyle/`) を完全削除
+| 観点 | 数値 |
+|---|---|
+| ECS Fargate スペック | 0.25 vCPU / 0.5 GB（最小） |
+| Fargate コスト | ~$0.30/日 |
+| 起動時間 | サブ秒 |
+| バイナリサイズ | distroless + static binary 約 30 MB |
+| 並行処理 | goroutine（軽量） |
 
 #### Go バックエンドのクリーンアーキテクチャ
-
-Spring Boot 時代に確立した依存方向ルールを Go 側にも忠実に持ち込んでいます。
 
 ```text
 ┌────────────────────────────────────────────────────────────┐
@@ -294,14 +281,14 @@ sequenceDiagram
 
 ## 技術選定理由（HTTP API / ECS Fargate / Go）
 
-1. **Go (Gin + GORM)** で書き直すことでコンテナ要求リソースを最小化
-   - JVM が要求する 2 vCPU / 4 GB → 0.25 vCPU / 0.5 GB へ
+1. **Go (Gin + GORM)** によるリソース効率
+   - 0.25 vCPU / 0.5 GB の最小 Fargate でも快適に稼働
    - 起動時間サブ秒、distroless で 30 MB 級の static binary
    - goroutine による軽量並行処理
 
 2. **ECS Fargate** で Docker 化したアプリを安定稼働
    - サーバープロビジョニング不要 / OS 管理不要
-   - 旧 Spring Boot 版から Go 版への切替は ECS Service 単位で blue/green に近い運用が可能
+   - ECS Service 単位で blue/green に近いデプロイ運用が可能
 
 3. **ALB と連携した柔軟なルーティング**
    - ホストベースルーティングで [BeStyle](https://normanblog.com) にも同じロードバランサーを使用しコスト削減

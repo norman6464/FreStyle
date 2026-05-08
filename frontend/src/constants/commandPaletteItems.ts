@@ -6,7 +6,6 @@ import {
   StarIcon,
   DocumentTextIcon,
   UserCircleIcon,
-  SunIcon,
   DocumentPlusIcon,
 } from '@heroicons/react/24/outline';
 import type { ComponentType, SVGProps } from 'react';
@@ -91,15 +90,6 @@ export const COMMAND_ITEMS: CommandItem[] = [
     keywords: ['profile', 'プロフィール', '設定'],
   },
   // アクション
-  {
-    id: 'action-toggle-theme',
-    label: 'テーマ切替',
-    description: 'ダークモード / ライトモードを切り替え',
-    icon: SunIcon,
-    category: 'アクション',
-    action: { type: 'action', id: 'toggle-theme' },
-    keywords: ['theme', 'dark', 'light', 'テーマ', 'ダーク', 'ライト'],
-  },
   {
     id: 'action-new-note',
     label: '新規ノート作成',

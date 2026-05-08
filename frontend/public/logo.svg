@@ -1,9 +1,31 @@
-<svg width="400" height="100" viewBox="0 0 400 100" xmlns="http://www.w3.org/2000/svg">
-  <rect x="10" y="15" width="70" height="70" rx="12" fill="#c1a35f" />
+<svg width="400" height="150" viewBox="0 0 400 150" xmlns="http://www.w3.org/2000/svg">
+  <!-- 背景色なし（透過） -->
+  <defs>
+    <!-- image_0.pngの鮮やかなブルーを正確に抽出 -->
+    <style type="text/css">
+      .st0{fill:#2e7df6;} 
+      .text-style {
+        /* キリっとしたモダンなサンセリフ（ゴシック体）書体を指定 */
+        font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', sans-serif;
+        font-weight: 700; /* 太めのウェイトで力強さを出す */
+        font-style: normal;
+        letter-spacing: -1px; /* 文字間を詰めて締まった印象に */
+      }
+    </style>
+  </defs>
   
-  <text x="26" y="68" font-family="Arial, Helvetica, sans-serif" font-weight="bold" font-size="52" fill="#ffffff">F</text>
-  
-  <text x="95" y="70" font-family="Verdana, Geneva, sans-serif" font-weight="bold" font-size="55" fill="#c1a35f" letter-spacing="-2">fre</text>
-  
-  <text x="185" y="70" font-family="Verdana, Geneva, sans-serif" font-weight="bold" font-size="55" fill="#919191" letter-spacing="-1">Style</text>
+  <g transform="translate(20, 85)">
+    <!-- 幾何学的でシャープな抽象飛翔マーク（freeeの鳥をより鋭角化） -->
+    <g transform="translate(0, -35)">
+      <!-- 3つの鋭い翼のモチーフ -->
+      <path class="st0" d="M15,10 L35,25 L15,40 Z" fill-opacity="0.8"/> <!-- 下側の羽 -->
+      <path class="st0" d="M30,5 L50,20 L30,35 Z" fill-opacity="0.9"/> <!-- 中央の羽 -->
+      <path class="st0" d="M45,0 L65,15 L45,30 Z"/> <!-- 上側の羽 -->
+    </g>
+    
+    <!-- キリっとしたサンセリフテキスト「FreStyle」 -->
+    <text x="80" y="0" class="st0 text-style" font-size="52">
+      FreStyle
+    </text>
+  </g>
 </svg>

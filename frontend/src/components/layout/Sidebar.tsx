@@ -9,8 +9,6 @@ import {
   DocumentChartBarIcon,
   UserCircleIcon,
   ArrowLeftOnRectangleIcon,
-  SunIcon,
-  MoonIcon,
   CodeBracketIcon,
   BuildingOffice2Icon,
   ChevronDoubleLeftIcon,
@@ -18,7 +16,6 @@ import {
 } from '@heroicons/react/24/outline';
 import Loading from '../Loading';
 import { useSidebar } from '../../hooks/useSidebar';
-import { useTheme } from '../../hooks/useTheme';
 import type { RootState } from '../../store';
 
 interface SubItem {
@@ -79,7 +76,6 @@ function isActive(item: NavItem, pathname: string): boolean {
 export default function Sidebar({ onNavigate }: SidebarProps) {
   const location = useLocation();
   const { handleLogout, loggingOut } = useSidebar();
-  const { theme, toggleTheme } = useTheme();
   const isAdmin = useSelector((state: RootState) => state.auth.isAdmin);
   const role = useSelector((state: RootState) => state.auth.role);
   const isSuperAdmin = role === 'super_admin';
@@ -108,7 +104,7 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
     <>
       {loggingOut && <Loading fullscreen message="ログアウト中..." />}
       <aside
-        className={`flex flex-col h-full bg-surface-1 border-r border-surface-3 flex-shrink-0 transition-all duration-200 ${
+        className={`flex flex-col h-full bg-[var(--color-nav)] border-r border-surface-3 flex-shrink-0 transition-all duration-200 ${
           expanded ? 'w-56' : 'w-14'
         }`}
       >
@@ -223,19 +219,8 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
           )}
         </nav>
 
-        {/* テーマ切り替え・ログアウト */}
+        {/* ログアウト（ダークモード切替は廃止） */}
         <div className="px-2 py-3 border-t border-surface-3 space-y-0.5">
-          <button
-            onClick={toggleTheme}
-            title={theme === 'dark' ? 'ライトモード' : 'ダークモード'}
-            className="flex items-center gap-3 px-2 py-2 rounded-md text-sm font-medium text-[var(--color-text-muted)] hover:bg-surface-2 hover:text-[var(--color-text-secondary)] transition-colors duration-150 w-full"
-          >
-            {theme === 'dark'
-              ? <SunIcon className="w-5 h-5 flex-shrink-0" />
-              : <MoonIcon className="w-5 h-5 flex-shrink-0" />
-            }
-            {expanded && <span>{theme === 'dark' ? 'ライトモード' : 'ダークモード'}</span>}
-          </button>
           <button
             onClick={() => { onNavigate?.(); handleLogout(); }}
             title="ログアウト"

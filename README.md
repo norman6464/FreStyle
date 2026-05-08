@@ -1,6 +1,6 @@
 ## FreStyle とは
 
-**新卒 IT エンジニア向け統合研修プラットフォーム（B2B SaaS）**
+**新卒 IT エンジニア向け統合研修プラットフォーム**
 
 開発の現場に入ったばかりの新卒エンジニアは、Box / Google Drive / PowerPoint / Notion / Slack / GitHub / 紙資料 …… と **散らばった研修ツールを行き来するだけで疲弊**してしまいがちです。FreStyle は、企業のメンター（教育担当エンジニア）が作った教材・問題集・コーディング課題・ビジネスコミュニケーション練習を **1 つのプラットフォーム上に集約**し、新卒が "学ぶことそのもの" に集中できる環境を提供します。
 
@@ -44,18 +44,20 @@
 
 ## オンボーディング（B2B 申請承認フロー）
 
-```
-顧客企業（教育担当）            FreStyle 運営 (SuperAdmin)         新卒 (Trainee)
-       │                              │                                │
-       │ 1. 利用申請（フォーム）           │                                │
-       │─────────────────────────────►│                                │
-       │                              │ 2. 承認・会社レコード作成              │
-       │                              │ 3. 初代 CompanyAdmin 招待メール送信   │
-       │ ◄────────────────────────────│                                │
-       │ 4. CompanyAdmin として初回ログイン  │                                │
-       │ 5. 教材を作成・新卒メンバーを招待     │                                │
-       │─────────────────────────────────────────────────────────────►│
-       │                              │                                │ 6. ログインして学習開始
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Company as 顧客企業<br/>（教育担当）
+    participant FreStyle as FreStyle 運営<br/>(SuperAdmin)
+    participant Trainee as 新卒<br/>(Trainee)
+
+    Company->>FreStyle: 利用申請（フォーム）
+    FreStyle->>FreStyle: 承認・会社レコード作成
+    FreStyle->>Company: 初代 CompanyAdmin 招待メール送信
+    Company->>FreStyle: CompanyAdmin として初回ログイン
+    Company->>FreStyle: 教材作成・新卒招待
+    FreStyle->>Trainee: 招待メール送信
+    Trainee->>FreStyle: ログインして学習開始
 ```
 
 - セルフサインアップは Phase 3 以降に検討
@@ -82,10 +84,10 @@
 
 <h3>Backend</h3>
 <a href="https://skillicons.dev">
-  <img src="https://skillicons.dev/icons?i=go,gin,docker&theme=light" alt="Backend">
+  <img src="https://skillicons.dev/icons?i=go&theme=light" alt="Backend">
 </a>
 
-> バックエンド (Go / Gin / GORM) は `backend/` 配下で運用。
+> バックエンド（Go）は `backend/` 配下で運用。Gin / GORM などの主要 OSS は `go.mod` を参照。
 
 <h3>Infrastructure</h3>
 <a href="https://skillicons.dev">

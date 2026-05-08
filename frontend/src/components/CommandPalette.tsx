@@ -2,7 +2,6 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { useCommandPalette } from '../hooks/useCommandPalette';
-import { useTheme } from '../hooks/useTheme';
 import type { CommandItem } from '../constants/commandPaletteItems';
 
 interface CommandPaletteProps {
@@ -13,7 +12,6 @@ interface CommandPaletteProps {
 
 export default function CommandPalette({ isOpen, onClose, onCreateNote }: CommandPaletteProps) {
   const navigate = useNavigate();
-  const { toggleTheme } = useTheme();
   const { query, selectedIndex, filteredItems, setQuery, selectNext, selectPrev, close } = useCommandPalette();
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -30,9 +28,6 @@ export default function CommandPalette({ isOpen, onClose, onCreateNote }: Comman
       navigate(item.action.path);
     } else if (item.action.type === 'action') {
       switch (item.action.id) {
-        case 'toggle-theme':
-          toggleTheme();
-          break;
         case 'new-note':
           if (onCreateNote) {
             onCreateNote();
@@ -44,7 +39,7 @@ export default function CommandPalette({ isOpen, onClose, onCreateNote }: Comman
     }
     close();
     onClose();
-  }, [navigate, toggleTheme, onCreateNote, close, onClose]);
+  }, [navigate, onCreateNote, close, onClose]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {

@@ -27,7 +27,7 @@ export default function AppShell() {
       <SkipLink targetId="main-content" />
 
       {/* 全幅ヘッダー */}
-      <header className="h-14 w-full bg-surface-1 border-b border-surface-3 flex items-center px-4 flex-shrink-0">
+      <header className="h-14 w-full bg-[var(--color-nav)] border-b border-surface-3 flex items-center px-4 flex-shrink-0">
         <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           className="md:hidden p-1.5 -ml-1.5 mr-3 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-surface-2 rounded-md transition-colors"

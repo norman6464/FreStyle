@@ -5,8 +5,10 @@ import Protected from './utils/Protected';
 import AppShell from './components/layout/AppShell';
 import ErrorBoundary from './components/ErrorBoundary';
 import Loading from './components/Loading';
+import MaintenancePage from './pages/MaintenancePage';
 import { ToastProvider } from './components/ToastProvider';
 import { useToast } from './hooks/useToast';
+import { useBackendHealth } from './hooks/useBackendHealth';
 import ToastContainer from './components/ToastContainer';
 import { lazyWithReload, clearLazyReloadFlags } from './utils/lazyWithReload';
 
@@ -51,6 +53,19 @@ function NavigationToast() {
 }
 
 export default function App() {
+  const { status: healthStatus, recheck } = useBackendHealth();
+
+  // バックエンドが連続失敗で unhealthy になっているとメンテナンスページを表示。
+  // healthy / unknown は通常通りアプリを描画（unknown は初回 health check 完了前で、
+  // ここで loading を出すと体感が遅くなるので楽観的にアプリを表示する）。
+  if (healthStatus === 'unhealthy') {
+    return (
+      <ErrorBoundary>
+        <MaintenancePage onRetry={recheck} />
+      </ErrorBoundary>
+    );
+  }
+
   return (
     <ErrorBoundary>
     <ToastProvider>

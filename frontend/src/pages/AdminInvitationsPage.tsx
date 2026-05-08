@@ -231,14 +231,14 @@ export default function AdminInvitationsPage() {
         </label>
 
         {/*
-         * 役割は SoD ルールで自動決定する:
+         * 役職は SoD ルールで自動決定する:
          *   - SuperAdmin が招待 → 会社管理者 (company_admin) のみ
          *   - CompanyAdmin が招待 → 受講者 (trainee) のみ
          * select で誤った選択肢を露出させると backend の 403 で弾かれて UX が悪いので、
-         * 一律「役割は固定（変更不可）」と表示する。
+         * 一律「役職は固定（変更不可）」と表示する。
          */}
         <div className="block text-sm">
-          <span className="block mb-1">役割</span>
+          <span className="block mb-1">役職</span>
           <input
             type="text"
             readOnly

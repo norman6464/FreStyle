@@ -1,4 +1,4 @@
-import { useEffect, lazy, Suspense } from 'react';
+import { useEffect, Suspense } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import AuthInitializer from './utils/AuthInitializer';
 import Protected from './utils/Protected';
@@ -8,31 +8,29 @@ import Loading from './components/Loading';
 import { ToastProvider } from './components/ToastProvider';
 import { useToast } from './hooks/useToast';
 import ToastContainer from './components/ToastContainer';
+import { lazyWithReload, clearLazyReloadFlags } from './utils/lazyWithReload';
 
 // 認証不要ページ
-const LoginPage = lazy(() => import('./pages/LoginPage'));
-const SignupPage = lazy(() => import('./pages/SignupPage'));
-const LoginCallback = lazy(() => import('./pages/LoginCallback'));
-const ConfirmPage = lazy(() => import('./pages/ConfirmPage'));
-const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'));
-const ConfirmForgotPasswordPage = lazy(() => import('./pages/ConfirmForgotPasswordPage'));
-const AcceptInvitationPage = lazy(() => import('./pages/AcceptInvitationPage'));
-const WelcomePage = lazy(() => import('./pages/WelcomePage'));
+const LoginPage = lazyWithReload(() => import('./pages/LoginPage'), 'LoginPage');
+const SignupPage = lazyWithReload(() => import('./pages/SignupPage'), 'SignupPage');
+const LoginCallback = lazyWithReload(() => import('./pages/LoginCallback'), 'LoginCallback');
+const ConfirmPage = lazyWithReload(() => import('./pages/ConfirmPage'), 'ConfirmPage');
+const ForgotPasswordPage = lazyWithReload(() => import('./pages/ForgotPasswordPage'), 'ForgotPasswordPage');
+const ConfirmForgotPasswordPage = lazyWithReload(() => import('./pages/ConfirmForgotPasswordPage'), 'ConfirmForgotPasswordPage');
+const AcceptInvitationPage = lazyWithReload(() => import('./pages/AcceptInvitationPage'), 'AcceptInvitationPage');
+const WelcomePage = lazyWithReload(() => import('./pages/WelcomePage'), 'WelcomePage');
 
-// 認証必要ページ（コア機能のみ。
-// 削除済 (PR-A): PracticePage / ScoreHistoryPage / FavoritesPage / RankingPage /
-//   TemplatePage / ReminderPage / SharedSessionsPage / WeeklyChallengePage /
-//   AdminScenariosPage）
-const MenuPage = lazy(() => import('./pages/MenuPage'));
-const ProfilePage = lazy(() => import('./pages/ProfilePage'));
-const AskAiPage = lazy(() => import('./pages/AskAiPage'));
-const NotesPage = lazy(() => import('./pages/NotesPage'));
-const NotificationPage = lazy(() => import('./pages/NotificationPage'));
-const LearningReportPage = lazy(() => import('./pages/LearningReportPage'));
-const HelpPage = lazy(() => import('./pages/HelpPage'));
-const AdminInvitationsPage = lazy(() => import('./pages/AdminInvitationsPage'));
-const AdminCompaniesPage = lazy(() => import('./pages/AdminCompaniesPage'));
-const CodeEditorPage = lazy(() => import('./pages/CodeEditorPage'));
+// 認証必要ページ
+const MenuPage = lazyWithReload(() => import('./pages/MenuPage'), 'MenuPage');
+const ProfilePage = lazyWithReload(() => import('./pages/ProfilePage'), 'ProfilePage');
+const AskAiPage = lazyWithReload(() => import('./pages/AskAiPage'), 'AskAiPage');
+const NotesPage = lazyWithReload(() => import('./pages/NotesPage'), 'NotesPage');
+const NotificationPage = lazyWithReload(() => import('./pages/NotificationPage'), 'NotificationPage');
+const LearningReportPage = lazyWithReload(() => import('./pages/LearningReportPage'), 'LearningReportPage');
+const HelpPage = lazyWithReload(() => import('./pages/HelpPage'), 'HelpPage');
+const AdminInvitationsPage = lazyWithReload(() => import('./pages/AdminInvitationsPage'), 'AdminInvitationsPage');
+const AdminCompaniesPage = lazyWithReload(() => import('./pages/AdminCompaniesPage'), 'AdminCompaniesPage');
+const CodeEditorPage = lazyWithReload(() => import('./pages/CodeEditorPage'), 'CodeEditorPage');
 
 function NavigationToast() {
   const location = useLocation();
@@ -44,6 +42,9 @@ function NavigationToast() {
       showToast('success', toast);
       window.history.replaceState({}, '');
     }
+    // ナビゲーション成功 = 直前の lazy reload で復旧した。次回また chunk が
+    // 失敗したら再度 reload を許可するため、フラグをクリアしておく。
+    clearLazyReloadFlags();
   }, [location, showToast]);
 
   return null;

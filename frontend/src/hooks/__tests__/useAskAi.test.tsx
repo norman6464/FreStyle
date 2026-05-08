@@ -34,11 +34,15 @@ vi.mock('../useAuth', () => ({
   }),
 }));
 
+// onEvent コールバックを後から呼べるように capture する。テスト側で
+// `lastOnEvent({ type: 'session', id: ... })` 等を投げて SSE をシミュレート可能。
+let lastOnEvent: ((ev: unknown) => void) | null = null;
+const mockSseSend = vi.fn();
 vi.mock('../useAiChatSse', () => ({
-  useAiChatSse: () => ({
-    send: vi.fn(),
-    abort: vi.fn(),
-  }),
+  useAiChatSse: (opts: { onEvent: (ev: unknown) => void }) => {
+    lastOnEvent = opts.onEvent;
+    return { send: mockSseSend, abort: vi.fn() };
+  },
 }));
 
 function makeWrapper(initialPath: string) {
@@ -63,6 +67,8 @@ function makeWrapper(initialPath: string) {
 describe('useAskAi', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    lastOnEvent = null;
+    mockSseSend.mockReset();
   });
 
   it('sessionId 付き URL では fetchMessages の結果が messages にロードされる', async () => {
@@ -95,5 +101,50 @@ describe('useAskAi', () => {
     await waitFor(() => {
       expect(result.current.messages).toEqual([]);
     });
+  });
+
+  // PR-J で導入した「session 切替で messages クリア」のロジックが、PR-G1 から動いていた
+  // 「新規セッションを SSE 'session' イベントで受け取って currentSessionId を切替える」flow と
+  // race して、streaming 中の placeholder を fetchMessages が上書きしてしまう不具合があった。
+  // PR-L で streamingIdRef による guard を追加し、streaming 中は fetchMessages を skip する。
+  it('streaming 中に SSE session イベントで currentSessionId が切り替わっても messages を上書きしない', async () => {
+    const aiChatRepo = (await import('../../repositories/AiChatRepository')).default;
+    vi.mocked(aiChatRepo.getMessages).mockClear();
+
+    const { result } = renderHook(() => useAskAi(), {
+      wrapper: makeWrapper('/chat/ask-ai'), // session 無し（新規チャット画面）からスタート
+    });
+
+    // 初期: currentSessionId は null、messages は空
+    await waitFor(() => {
+      expect(result.current.messages).toEqual([]);
+    });
+    expect(aiChatRepo.getMessages).not.toHaveBeenCalled();
+
+    // 新規送信を発火（streamingIdRef がセットされる）
+    act(() => {
+      result.current.handleSend('PHPとGo言語の違いは何？');
+    });
+
+    // ローカルに userMsg + placeholder の 2 件が入った状態
+    expect(result.current.messages).toHaveLength(2);
+
+    // SSE が新規セッション作成イベントを emit したシミュレート
+    act(() => {
+      lastOnEvent?.({
+        type: 'session',
+        id: 99,
+        title: 'PHPとGo言語の違いは何？',
+        sessionType: 'free',
+        createdAt: '2026-05-08T11:21:34Z',
+      });
+    });
+
+    // currentSessionId は 99 に切り替わるが、streaming 中なので fetchMessages は skip される
+    // → messages は handleSend で入れた 2 件のまま保持される
+    await waitFor(() => {
+      expect(aiChatRepo.getMessages).not.toHaveBeenCalled();
+    });
+    expect(result.current.messages).toHaveLength(2);
   });
 });

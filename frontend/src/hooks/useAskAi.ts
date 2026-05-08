@@ -172,12 +172,20 @@ export function useAskAi() {
   }, [urlSessionId, setCurrentSessionId]);
 
   // セッション内のメッセージ履歴取得。
+  //
   // 「新しいチャット」ボタンや、未確定セッション（URL に sessionId 無し）に切替えた場合は
   // currentSessionId が null になるので、前セッションのメッセージを画面から明示的に消去する。
   // クリアしないと前セッションのチャット履歴が残ったまま空打ち状態になり、新規開始
   // の見た目にならない。
+  //
+  // ただし、ストリーミング中は fetchMessages を skip する。新規セッション作成 flow で
+  // SSE が 'session' イベントを emit すると currentSessionId が null → N に切り替わり、
+  // この useEffect が fetchMessages(N) を呼んで在 streaming 中の placeholder を
+  // バックエンドから取得した（まだ user message も保存されていない可能性のある）配列で
+  // 上書きしてしまう race を防ぐ。streaming が終わった次回以降の切替では通常通り fetch する。
   useEffect(() => {
     if (currentSessionId) {
+      if (streamingIdRef.current) return;
       fetchMessages(currentSessionId);
     } else {
       setMessages([]);

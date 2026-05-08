@@ -63,9 +63,13 @@
 
 ---
 
-## デプロイURL（料金の関係上サービスを停止する可能性があります）
+## デプロイURL
 
 [https://normanblog.com](https://normanblog.com)
+
+> ⚠️ 料金節約のため、毎日 22:00 JST（GitHub Actions の `Scheduled - Stop` ワークフロー）で
+> ECS / ALB / RDS を停止し、翌朝 07:00 JST の `Scheduled - Start` で復元します。
+> 停止時間帯はサービスにアクセスできません。
 
 ---
 
@@ -348,21 +352,6 @@ AI チャットは **Server-Sent Events**（HTTP/1.1 chunked transfer）で ECS 
 
 ---
 
-## 今年の目標
-
-### 技術・資格
-- AWS SAP、CKA、CKAD
-- GO言語でgRPC通信でサービス間接続
-
-### 機能拡張
-- 音声チャット
-- Polly による AI 音声解答可能
-- SageMakerを使用をしチャットの内容をクラスタリングで感情分析をすること
-- 未読、既読、プッシュ通知機能の作成でSQS、SNSを使用をする
-- チャット以外にもパーソナリティーが見えるシステムを作成する
-
----
-
 ## ローカル開発環境セットアップ
 
 ### バックエンド (Go) — `backend/`
@@ -419,37 +408,6 @@ npm uninstall tailwindcss
 npm install -D tailwindcss@バージョン指定
 npx tailwindcss init -p
 ```
-
----
-
-## 本番環境DBマイグレーション
-
-本番環境（AWS RDS PostgreSQL）にデプロイする際、スキーマの更新が必要な場合はマイグレーション SQL を実行してください。
-
-### マイグレーション手順
-
-```bash
-# 1. AWS RDS (PostgreSQL) に踏み台 EC2 経由で接続
-ssh -L 5432:<RDS_ENDPOINT>:5432 ec2-user@<BASTION>
-psql -h localhost -U postgres -d fre_style
-
-# 2. マイグレーション SQL を実行
-\i backend/migrations/001_add_practice_mode_support.sql
-
-# 3. 確認
-\d ai_chat_sessions
-SELECT COUNT(*) FROM practice_scenarios;
-```
-
-### マイグレーション一覧
-
-| ファイル名 | 実行日 | 内容 |
-|-----------|--------|------|
-| `001_add_practice_mode_support.sql` | 2026-02-12 | 練習モード機能追加（`ai_chat_sessions` に `session_type`, `scenario_id` カラム追加、`practice_scenarios` テーブル作成、初期データ 12 件投入） |
-
-**注意**: マイグレーションは冪等性があり、複数回実行しても安全です（`IF NOT EXISTS`, `ON CONFLICT DO NOTHING` を使用）。
-
-GORM 側の AutoMigrate は本番では使わず、明示的な SQL で運用します（破壊的変更の検知漏れを防ぐため）。
 
 ---
 

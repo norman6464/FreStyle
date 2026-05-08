@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import MessageBubble from '../MessageBubble';
 
 describe('MessageBubble', () => {
@@ -110,5 +110,57 @@ describe('MessageBubble', () => {
   it('受信メッセージで Markdown の見出しが描画される', () => {
     render(<MessageBubble isSender={false} content="# タイトル" id="m16" />);
     expect(screen.getByRole('heading', { name: 'タイトル' })).toBeInTheDocument();
+  });
+
+  describe('コードブロックのコピー UI', () => {
+    const writeText = vi.fn();
+    beforeEach(() => {
+      writeText.mockReset();
+      writeText.mockResolvedValue(undefined);
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: { writeText },
+      });
+    });
+
+    it('コードブロックには言語ラベルとコピー用ボタンが表示される', () => {
+      const md = '```python\nprint("hi")\n```';
+      render(<MessageBubble isSender={false} content={md} id="cb1" />);
+      expect(screen.getByText('python')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'コードをコピー' })).toBeInTheDocument();
+    });
+
+    it('コピーをクリックするとコードブロックの中身が clipboard に書き込まれる', async () => {
+      const md = '```python\nprint("hi")\n```';
+      render(<MessageBubble isSender={false} content={md} id="cb2" />);
+      fireEvent.click(screen.getByRole('button', { name: 'コードをコピー' }));
+      await waitFor(() => {
+        expect(writeText).toHaveBeenCalledWith('print("hi")');
+      });
+    });
+
+    it('クリック後はラベルが「コピー済み」になり、aria-label も更新される', async () => {
+      const md = '```ts\nconst x = 1;\n```';
+      render(<MessageBubble isSender={false} content={md} id="cb3" />);
+      fireEvent.click(screen.getByRole('button', { name: 'コードをコピー' }));
+      await waitFor(() => {
+        expect(
+          screen.getByRole('button', { name: 'コードをコピーしました' })
+        ).toBeInTheDocument();
+      });
+    });
+
+    it('言語指定なしのコードブロックでは "code" ラベルでフォールバックする', () => {
+      const md = '```\necho hi\n```';
+      render(<MessageBubble isSender={false} content={md} id="cb4" />);
+      expect(screen.getByText('code')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'コードをコピー' })).toBeInTheDocument();
+    });
+
+    it('インラインコードにはコピーボタンが付かない', () => {
+      const md = 'これは `const a = 1` というコードです';
+      render(<MessageBubble isSender={false} content={md} id="cb5" />);
+      expect(screen.queryByRole('button', { name: 'コードをコピー' })).not.toBeInTheDocument();
+    });
   });
 });

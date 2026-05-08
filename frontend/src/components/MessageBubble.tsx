@@ -1,4 +1,4 @@
-import { memo, useState, ReactNode } from 'react';
+import { memo, useState, useMemo, ReactNode, isValidElement } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
@@ -299,11 +299,7 @@ function MarkdownView({ content }: { content: string }) {
             </code>
           );
         },
-        pre: ({ children }) => (
-          <pre className="p-3 rounded-md bg-[var(--color-surface-3)] overflow-x-auto text-xs">
-            {children as ReactNode}
-          </pre>
-        ),
+        pre: ({ children }) => <CodeBlock>{children as ReactNode}</CodeBlock>,
         table: ({ children }) => (
           <div className="overflow-x-auto">
             <table className="text-sm border-collapse">{children as ReactNode}</table>
@@ -324,4 +320,100 @@ function MarkdownView({ content }: { content: string }) {
       {content}
     </ReactMarkdown>
   );
+}
+
+/**
+ * AI 応答の Markdown 内コードブロックに、言語名表示 + コピーボタン付きのヘッダを足す。
+ *
+ * ChatGPT / Claude.ai と同じ UX で、ユーザーは AI 応答のコードを 1 クリックでクリップボードに
+ * 取り込める。「メッセージ全体コピー」ボタンとは別に、コードブロック単位のコピー UI を提供する。
+ *
+ * react-markdown が rehype-highlight 後に渡してくる構造:
+ *
+ *   <pre>            ← この `pre` コンポーネント置換が CodeBlock のエントリ
+ *     <code class="language-py">
+ *       <span class="hljs-keyword">def</span>
+ *       ...
+ *     </code>
+ *   </pre>
+ *
+ * `children` の最も内側の文字列を再帰的に集めて生コードを復元する（rehype-highlight が
+ * 挿入した <span> はクラスだけ付けて textContent は変えないため、テキスト連結で正確に
+ * 元のコードが復元できる）。
+ */
+function CodeBlock({ children }: { children: ReactNode }) {
+  const [copied, setCopied] = useState(false);
+
+  const language = useMemo(() => extractLanguage(children), [children]);
+  const rawCode = useMemo(
+    () => extractTextContent(children).replace(/\n$/, ''),
+    [children]
+  );
+
+  const handleCopy = async () => {
+    if (!rawCode) return;
+    try {
+      await navigator.clipboard.writeText(rawCode);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // clipboard API はブラウザ設定 / HTTP 環境で拒否されることがある。
+      // エラーは握りつぶし、ユーザーには反応なしのままにする（壊れた挙動より無反応の方が安全）。
+    }
+  };
+
+  return (
+    <div className="my-2 rounded-md overflow-hidden bg-[var(--color-surface-3)]">
+      <div className="flex items-center justify-between px-3 py-1 bg-[var(--color-surface-2)] border-b border-[var(--color-surface-3)] text-[11px]">
+        <span className="text-[var(--color-text-muted)] font-mono">
+          {language || 'code'}
+        </span>
+        <button
+          type="button"
+          onClick={handleCopy}
+          aria-label={copied ? 'コードをコピーしました' : 'コードをコピー'}
+          className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-3)] transition-colors"
+        >
+          {copied ? (
+            <>
+              <ClipboardDocumentCheckIcon className="w-3.5 h-3.5 text-green-400" />
+              <span>コピー済み</span>
+            </>
+          ) : (
+            <>
+              <ClipboardDocumentIcon className="w-3.5 h-3.5" />
+              <span>コピー</span>
+            </>
+          )}
+        </button>
+      </div>
+      <pre className="p-3 overflow-x-auto text-xs">{children as ReactNode}</pre>
+    </div>
+  );
+}
+
+/**
+ * 子要素の className から `language-xxx` を抽出する。複数行コードのときだけ言語が付く。
+ * 言語不明（インラインコード相当 / 未知の言語）は空文字を返す。
+ */
+function extractLanguage(node: ReactNode): string {
+  if (!isValidElement(node)) return '';
+  const el = node as React.ReactElement<{ className?: string }>;
+  const match = el.props.className?.match(/language-(\w+)/);
+  return match?.[1] ?? '';
+}
+
+/**
+ * React 要素ツリーから text node だけを連結して返す。
+ * rehype-highlight 後の `<span class="hljs-...">code</span>` 構造から元のコードを復元する用途。
+ */
+function extractTextContent(node: ReactNode): string {
+  if (typeof node === 'string') return node;
+  if (typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(extractTextContent).join('');
+  if (isValidElement(node)) {
+    const props = node.props as { children?: ReactNode };
+    return extractTextContent(props.children);
+  }
+  return '';
 }

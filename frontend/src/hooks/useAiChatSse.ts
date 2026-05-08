@@ -47,9 +47,17 @@ export interface SseErrorEvent {
 
 export type SseEvent = SseSessionEvent | SseTokenEvent | SseDoneEvent | SseErrorEvent;
 
+export interface SendStreamAttachment {
+  key: string;
+  filename: string;
+  contentType: string;
+  sizeBytes: number;
+}
+
 export interface SendStreamRequest {
   sessionId: number | null;
   content: string;
+  attachments?: SendStreamAttachment[];
 }
 
 export interface UseAiChatSseOptions {
@@ -82,6 +90,7 @@ export function useAiChatSse({ endpoint, onEvent, onClose }: UseAiChatSseOptions
           body: JSON.stringify({
             sessionId: req.sessionId ?? 0,
             content: req.content,
+            attachments: req.attachments ?? [],
           }),
           signal: controller.signal,
         });

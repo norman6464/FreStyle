@@ -17,6 +17,18 @@ export interface UpdateSessionTitleRequest {
   title: string;
 }
 
+export interface IssueAttachmentUploadUrlRequest {
+  filename: string;
+  contentType: string;
+  sizeBytes: number;
+}
+
+export interface AttachmentUploadUrlResponse {
+  uploadUrl: string;
+  key: string;
+  expiresIn: number;
+}
+
 class AiChatRepository {
   async getSessions(): Promise<AiSession[]> {
     const response = await apiClient.get(AI_CHAT.sessions);
@@ -44,6 +56,14 @@ class AiChatRepository {
 
   async getMessages(sessionId: number): Promise<AiMessage[]> {
     const response = await apiClient.get(AI_CHAT.sessionMessages(sessionId));
+    return response.data;
+  }
+
+  /** AI チャット添付ファイル用の S3 PUT presigned URL を取得する。 */
+  async issueAttachmentUploadUrl(
+    request: IssueAttachmentUploadUrlRequest
+  ): Promise<AttachmentUploadUrlResponse> {
+    const response = await apiClient.post(AI_CHAT.attachmentUploadUrl, request);
     return response.data;
   }
 }

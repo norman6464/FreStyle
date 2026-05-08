@@ -32,19 +32,7 @@ func NewClient(ctx context.Context, region, modelID string) (*Client, error) {
 // Converse は会話履歴と新規ユーザーメッセージを Bedrock に送り、アシスタント返答テキストを返す。
 // history には直近の会話（user/assistant 交互）を渡す。最後の要素はユーザーの最新発話。
 func (c *Client) Converse(ctx context.Context, systemPrompt string, history []domain.AiChatMessage) (string, error) {
-	messages := make([]brtypes.Message, 0, len(history))
-	for _, m := range history {
-		role := brtypes.ConversationRoleUser
-		if m.Role == domain.AiChatRoleAssistant {
-			role = brtypes.ConversationRoleAssistant
-		}
-		messages = append(messages, brtypes.Message{
-			Role: role,
-			Content: []brtypes.ContentBlock{
-				&brtypes.ContentBlockMemberText{Value: m.Content},
-			},
-		})
-	}
+	messages := buildBedrockMessages(history)
 
 	input := &bedrockruntime.ConverseInput{
 		ModelId:  &c.modelID,
@@ -98,19 +86,7 @@ type StreamEvent struct {
 // channel を持っているが、本ラッパでは「アプリケーションが扱いやすい形」に変換して提供する
 // ことで infra 詳細（brtypes の各 Member 型）を usecase 層に漏らさない。
 func (c *Client) ConverseStream(ctx context.Context, systemPrompt string, history []domain.AiChatMessage) (<-chan StreamEvent, error) {
-	messages := make([]brtypes.Message, 0, len(history))
-	for _, m := range history {
-		role := brtypes.ConversationRoleUser
-		if m.Role == domain.AiChatRoleAssistant {
-			role = brtypes.ConversationRoleAssistant
-		}
-		messages = append(messages, brtypes.Message{
-			Role: role,
-			Content: []brtypes.ContentBlock{
-				&brtypes.ContentBlockMemberText{Value: m.Content},
-			},
-		})
-	}
+	messages := buildBedrockMessages(history)
 
 	input := &bedrockruntime.ConverseStreamInput{
 		ModelId:  &c.modelID,
@@ -166,4 +142,98 @@ func (c *Client) ConverseStream(ctx context.Context, systemPrompt string, histor
 	}()
 
 	return out, nil
+}
+
+// buildBedrockMessages は domain.AiChatMessage を Bedrock Converse の Message 列に変換する。
+//
+// ユーザー発話に Attachments が付いていれば、各添付を image / document ContentBlock に
+// 展開して text の前に並べる（Bedrock の慣習: 画像 → テキストの順が推奨）。
+// BlobData が空の Attachment は無視する（usecase で S3 から取得済みであることが前提）。
+func buildBedrockMessages(history []domain.AiChatMessage) []brtypes.Message {
+	messages := make([]brtypes.Message, 0, len(history))
+	for _, m := range history {
+		role := brtypes.ConversationRoleUser
+		if m.Role == domain.AiChatRoleAssistant {
+			role = brtypes.ConversationRoleAssistant
+		}
+		blocks := make([]brtypes.ContentBlock, 0, len(m.Attachments)+1)
+		for _, a := range m.Attachments {
+			block := attachmentToBlock(a)
+			if block != nil {
+				blocks = append(blocks, block)
+			}
+		}
+		if m.Content != "" || len(blocks) == 0 {
+			blocks = append(blocks, &brtypes.ContentBlockMemberText{Value: m.Content})
+		}
+		messages = append(messages, brtypes.Message{Role: role, Content: blocks})
+	}
+	return messages
+}
+
+// attachmentToBlock は 1 つの添付を Bedrock の ContentBlock に変換する。
+// BlobData が空（S3 取得失敗 / 未取得）なら nil を返してスキップする。
+func attachmentToBlock(a domain.Attachment) brtypes.ContentBlock {
+	if len(a.BlobData) == 0 {
+		return nil
+	}
+	switch a.Kind {
+	case domain.AttachmentKindImage:
+		return &brtypes.ContentBlockMemberImage{
+			Value: brtypes.ImageBlock{
+				Format: brtypes.ImageFormat(a.Format),
+				Source: &brtypes.ImageSourceMemberBytes{Value: a.BlobData},
+			},
+		}
+	case domain.AttachmentKindDocument:
+		return &brtypes.ContentBlockMemberDocument{
+			Value: brtypes.DocumentBlock{
+				Format: brtypes.DocumentFormat(a.Format),
+				Name:   strPtr(documentName(a.Filename)),
+				Source: &brtypes.DocumentSourceMemberBytes{Value: a.BlobData},
+			},
+		}
+	}
+	return nil
+}
+
+func strPtr(s string) *string { return &s }
+
+// documentName は Bedrock document.name 用の identifier を返す。
+// Bedrock 仕様: 1〜200 文字、英数字 / 空白 / ハイフン / 括弧 / 角括弧 のみ許可。
+// 拡張子は除外し、許可外文字は '-' に置換する。空になったら "document" にフォールバック。
+func documentName(filename string) string {
+	base := filename
+	if i := lastIndexByte(base, '.'); i >= 0 {
+		base = base[:i]
+	}
+	out := make([]byte, 0, len(base))
+	for i := 0; i < len(base); i++ {
+		c := base[i]
+		switch {
+		case c >= 'a' && c <= 'z',
+			c >= 'A' && c <= 'Z',
+			c >= '0' && c <= '9',
+			c == ' ', c == '-', c == '(', c == ')', c == '[', c == ']':
+			out = append(out, c)
+		default:
+			out = append(out, '-')
+		}
+	}
+	if len(out) == 0 {
+		return "document"
+	}
+	if len(out) > 200 {
+		out = out[:200]
+	}
+	return string(out)
+}
+
+func lastIndexByte(s string, c byte) int {
+	for i := len(s) - 1; i >= 0; i-- {
+		if s[i] == c {
+			return i
+		}
+	}
+	return -1
 }

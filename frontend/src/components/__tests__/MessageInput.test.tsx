@@ -1,12 +1,28 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import MessageInput from '../MessageInput';
+
+vi.mock('../../repositories/AiChatRepository', () => ({
+  default: {
+    issueAttachmentUploadUrl: vi.fn(),
+  },
+}));
+
+import aiChatRepository from '../../repositories/AiChatRepository';
 
 describe('MessageInput', () => {
   const mockOnSend = vi.fn();
 
   beforeEach(() => {
     mockOnSend.mockClear();
+    vi.mocked(aiChatRepository.issueAttachmentUploadUrl).mockReset();
+    if (!('createObjectURL' in URL)) {
+      // happy-dom fallback: 一部バージョンで未定義
+      (URL as unknown as { createObjectURL?: (b: Blob) => string }).createObjectURL = vi.fn(
+        () => 'blob:mock'
+      );
+      (URL as unknown as { revokeObjectURL?: (u: string) => void }).revokeObjectURL = vi.fn();
+    }
   });
 
   it('テキスト入力と送信ボタンが表示される', () => {
@@ -64,7 +80,7 @@ describe('MessageInput', () => {
     fireEvent.change(textarea, { target: { value: 'テスト送信' } });
     fireEvent.keyDown(textarea, { key: 'Enter', shiftKey: false });
 
-    expect(mockOnSend).toHaveBeenCalledWith('テスト送信');
+    expect(mockOnSend).toHaveBeenCalledWith('テスト送信', []);
   });
 
   it('Shift+Enterでは送信されない', () => {
@@ -97,7 +113,7 @@ describe('MessageInput', () => {
     fireEvent.compositionEnd(textarea);
     fireEvent.keyDown(textarea, { key: 'Enter', shiftKey: false });
 
-    expect(mockOnSend).toHaveBeenCalledWith('テスト');
+    expect(mockOnSend).toHaveBeenCalledWith('テスト', []);
   });
 
   it('空テキストではEnterで送信されない', () => {
@@ -127,7 +143,7 @@ describe('MessageInput', () => {
     });
     fireEvent.click(screen.getByLabelText('送信'));
 
-    expect(mockOnSend).toHaveBeenCalledWith('ボタン送信');
+    expect(mockOnSend).toHaveBeenCalledWith('ボタン送信', []);
   });
 
   it('テキスト入力時に文字数が表示される', () => {
@@ -166,5 +182,62 @@ describe('MessageInput', () => {
 
     const charCount = screen.getByTestId('char-count');
     expect(charCount).toHaveAttribute('aria-live', 'polite');
+  });
+
+  it('画像を選択すると presigned URL を取得して S3 へ PUT する', async () => {
+    vi.mocked(aiChatRepository.issueAttachmentUploadUrl).mockResolvedValue({
+      uploadUrl: 'https://s3.example.com/put',
+      key: 'ai-chat/7/abc.png',
+      expiresIn: 600,
+    });
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(null, { status: 200 })
+    );
+
+    render(<MessageInput onSend={mockOnSend} />);
+
+    const file = new File(['fake-bytes'], 'cat.png', { type: 'image/png' });
+    const fileInput = screen.getByLabelText('添付ファイルを選択') as HTMLInputElement;
+    fireEvent.change(fileInput, { target: { files: [file] } });
+
+    await waitFor(() => {
+      expect(aiChatRepository.issueAttachmentUploadUrl).toHaveBeenCalledWith({
+        filename: 'cat.png',
+        contentType: 'image/png',
+        sizeBytes: file.size,
+      });
+    });
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        'https://s3.example.com/put',
+        expect.objectContaining({ method: 'PUT' })
+      );
+    });
+
+    // 送信ボタンをクリックすると、presigned URL の key で onSend が呼ばれる
+    fireEvent.click(screen.getByLabelText('送信'));
+    await waitFor(() => {
+      expect(mockOnSend).toHaveBeenCalledWith(
+        '',
+        expect.arrayContaining([
+          expect.objectContaining({ key: 'ai-chat/7/abc.png', filename: 'cat.png' }),
+        ])
+      );
+    });
+
+    fetchSpy.mockRestore();
+  });
+
+  it('未対応の MIME はバリデーションエラーで弾かれ presigned URL を呼ばない', async () => {
+    render(<MessageInput onSend={mockOnSend} />);
+
+    const file = new File(['x'], 'a.exe', { type: 'application/x-msdownload' });
+    const fileInput = screen.getByLabelText('添付ファイルを選択') as HTMLInputElement;
+    fireEvent.change(fileInput, { target: { files: [file] } });
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toBeInTheDocument();
+    });
+    expect(aiChatRepository.issueAttachmentUploadUrl).not.toHaveBeenCalled();
   });
 });

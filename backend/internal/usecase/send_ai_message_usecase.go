@@ -1,5 +1,7 @@
 package usecase
 
+import "github.com/norman6464/FreStyle/backend/internal/domain"
+
 // 旧 SendAiMessageUseCase（WebSocket 経由の同期呼び出し）は PR-D で撤去した。
 // SSE ストリーミング版（SendAiMessageStreamUseCase）が後継。
 //
@@ -12,6 +14,10 @@ package usecase
 //
 // Scene / SessionType / ScenarioID は旧フロント仕様の互換のため残しているが、
 // 練習モード撤去（PR-A）以降はどれもプロンプトに反映しない。次のクリーンアップで削除予定。
+//
+// Attachments はユーザー発話に紐付く添付ファイル群（画像 / 将来の PDF / CSV）。
+// フロントは事前に S3 へ presigned PUT でアップロード済みで、ここには key と
+// メタデータだけが渡る。usecase が S3 から実体バイトを取得して Bedrock に渡す。
 type SendAiMessageInput struct {
 	UserID      uint64
 	SessionID   uint64
@@ -19,6 +25,7 @@ type SendAiMessageInput struct {
 	Scene       string
 	SessionType string
 	ScenarioID  *uint64
+	Attachments []domain.Attachment
 }
 
 func truncateTitle(s string, max int) string {

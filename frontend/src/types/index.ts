@@ -68,6 +68,24 @@ export interface AiChatMessageDto {
 }
 
 /**
+ * AiAttachment は AI チャットメッセージに添付された画像 / ドキュメントの参照。
+ * 実体は S3 にあり `key` で一意特定する。`previewUrl` は送信前のローカルプレビュー
+ * （Object URL）を保持する用途で、バックエンドへは送らない。
+ */
+export interface AiAttachment {
+  key: string;
+  filename: string;
+  contentType: string;
+  /** "image" | "document"（PR-G2 で document 追加） */
+  kind: string;
+  /** Bedrock 用の format（png / jpeg / gif / webp / pdf / csv） */
+  format: string;
+  sizeBytes: number;
+  /** ローカル状態用: ブラウザ内 preview URL（送信完了後は破棄） */
+  previewUrl?: string;
+}
+
+/**
  * AiMessage は AskAi 画面表示用の view 型。
  * `id` (string) を画面側で扱いやすい一意キーとして使う。
  * `createdAt` は ISO 8601 文字列（backend の SSE / REST 双方が ISO で返す）。
@@ -77,6 +95,7 @@ export interface AiMessage {
   sessionId: number;
   content: string;
   role: 'user' | 'assistant';
+  attachments?: AiAttachment[];
   createdAt?: string;
   isSender?: boolean;
   isDeleted?: boolean;

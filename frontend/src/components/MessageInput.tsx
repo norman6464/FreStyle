@@ -1,16 +1,49 @@
-import { useState, useRef, useEffect, KeyboardEvent } from 'react';
+import { useState, useRef, useEffect, KeyboardEvent, ChangeEvent } from 'react';
 import { PaperAirplaneIcon, PlusIcon } from '@heroicons/react/24/solid';
+import { XMarkIcon, PhotoIcon } from '@heroicons/react/24/outline';
 import { useAutoResizeTextarea } from '../hooks/useAutoResizeTextarea';
+import aiChatRepository from '../repositories/AiChatRepository';
+import type { AiAttachment } from '../types';
 
 interface MessageInputProps {
-  onSend: (text: string) => void;
+  onSend: (text: string, attachments?: AiAttachment[]) => void;
   isSending?: boolean;
+}
+
+// 画像のみ受け付ける（PR-G1）。PR-G2 で application/pdf, text/csv を追加予定。
+const ACCEPTED_FILE_TYPES = 'image/png,image/jpeg,image/gif,image/webp';
+
+const ACCEPTED_CONTENT_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+]);
+
+const MAX_ATTACHMENTS = 4;
+const MAX_BYTES_PER_FILE = 5 * 1024 * 1024; // Bedrock image upper bound
+
+const FORMAT_FROM_CONTENT_TYPE: Record<string, string> = {
+  'image/png': 'png',
+  'image/jpeg': 'jpeg',
+  'image/gif': 'gif',
+  'image/webp': 'webp',
+};
+
+interface PendingAttachment extends AiAttachment {
+  /** アップロード進行中フラグ（送信ボタンの活性制御用） */
+  uploading?: boolean;
+  /** アップロード失敗時のメッセージ */
+  error?: string;
 }
 
 export default function MessageInput({ onSend, isSending = false }: MessageInputProps) {
   const [text, setText] = useState('');
+  const [pending, setPending] = useState<PendingAttachment[]>([]);
+  const [validationError, setValidationError] = useState<string | null>(null);
   const [isComposing, setIsComposing] = useState(false);
   const textareaRef = useAutoResizeTextarea({ text });
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const prevIsSendingRef = useRef(isSending);
   useEffect(() => {
@@ -20,10 +53,30 @@ export default function MessageInput({ onSend, isSending = false }: MessageInput
     prevIsSendingRef.current = isSending;
   }, [isSending, textareaRef]);
 
+  // unmount で残った Object URL を確実に revoke する（メモリリーク防止）。
+  useEffect(() => {
+    return () => {
+      pending.forEach((a) => {
+        if (a.previewUrl) URL.revokeObjectURL(a.previewUrl);
+      });
+    };
+    // 最終 unmount のみで実行したい。送信ボタン等の通常 setPending では別途 revoke している。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const anyUploading = pending.some((a) => a.uploading);
+  const canSend = !isSending && !anyUploading && (text.trim().length > 0 || pending.length > 0);
+
   const handleSend = () => {
-    if (!text.trim() || isSending) return;
-    onSend(text);
+    if (!canSend) return;
+    const ready = pending.filter((a) => !a.uploading && !a.error);
+    onSend(text, ready);
     setText('');
+    pending.forEach((a) => {
+      if (a.previewUrl) URL.revokeObjectURL(a.previewUrl);
+    });
+    setPending([]);
+    setValidationError(null);
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -33,47 +86,229 @@ export default function MessageInput({ onSend, isSending = false }: MessageInput
     }
   };
 
-  return (
-    <div className="w-full bg-surface-1 flex items-end p-3 border-t border-surface-3">
-      <button
-        className="text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] p-2.5 rounded-full transition-colors duration-150 flex-shrink-0 mb-1"
-        aria-label="添付ファイル"
-      >
-        <PlusIcon className="h-6 w-6" />
-      </button>
+  const handlePickClick = () => {
+    fileInputRef.current?.click();
+  };
 
-      <div className="flex-1 min-w-0">
-        <textarea
-          ref={textareaRef}
-          rows={1}
-          className="w-full bg-transparent text-[var(--color-text-primary)] outline-none resize-none px-3 py-2 placeholder-slate-400 leading-6"
-          placeholder="メッセージを入力..."
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onCompositionStart={() => setIsComposing(true)}
-          onCompositionEnd={() => setIsComposing(false)}
-          disabled={isSending}
+  const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const list = e.target.files;
+    if (!list || list.length === 0) return;
+    const remaining = MAX_ATTACHMENTS - pending.length;
+    const files = Array.from(list).slice(0, remaining);
+
+    if (Array.from(list).length > remaining) {
+      setValidationError(`添付できるのは ${MAX_ATTACHMENTS} 件までです`);
+    } else {
+      setValidationError(null);
+    }
+
+    // input を即時リセットして同じファイルを再選択できるようにする。
+    e.target.value = '';
+
+    for (const file of files) {
+      const validation = validateFile(file);
+      if (validation) {
+        setValidationError(validation);
+        continue;
+      }
+      const previewUrl = URL.createObjectURL(file);
+      const tempKey = `local-${Date.now()}-${file.name}`;
+      const placeholder: PendingAttachment = {
+        key: tempKey,
+        filename: file.name,
+        contentType: file.type,
+        kind: 'image',
+        format: FORMAT_FROM_CONTENT_TYPE[file.type] ?? 'png',
+        sizeBytes: file.size,
+        previewUrl,
+        uploading: true,
+      };
+      setPending((prev) => [...prev, placeholder]);
+
+      try {
+        const { uploadUrl, key } = await aiChatRepository.issueAttachmentUploadUrl({
+          filename: file.name,
+          contentType: file.type,
+          sizeBytes: file.size,
+        });
+        const putRes = await fetch(uploadUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': file.type },
+          body: file,
+        });
+        if (!putRes.ok) {
+          throw new Error(`upload failed: ${putRes.status}`);
+        }
+        setPending((prev) =>
+          prev.map((a) =>
+            a.key === tempKey ? { ...a, key, uploading: false } : a
+          )
+        );
+      } catch (err) {
+        setPending((prev) =>
+          prev.map((a) =>
+            a.key === tempKey
+              ? { ...a, uploading: false, error: 'アップロードに失敗しました' }
+              : a
+          )
+        );
+        console.error('attachment upload failed', err);
+      }
+    }
+  };
+
+  const handleRemove = (key: string) => {
+    setPending((prev) => {
+      const target = prev.find((a) => a.key === key);
+      if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl);
+      return prev.filter((a) => a.key !== key);
+    });
+  };
+
+  return (
+    <div className="w-full bg-surface-1 border-t border-surface-3">
+      {pending.length > 0 && (
+        <div
+          className="flex flex-wrap gap-2 p-3 pb-0"
+          aria-label="添付ファイル"
+        >
+          {pending.map((a) => (
+            <AttachmentChip key={a.key} attachment={a} onRemove={handleRemove} />
+          ))}
+        </div>
+      )}
+      {validationError && (
+        <p className="px-4 pt-2 text-xs text-red-400" role="alert">
+          {validationError}
+        </p>
+      )}
+      <div className="flex items-end p-3">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={ACCEPTED_FILE_TYPES}
+          multiple
+          className="hidden"
+          onChange={handleFileChange}
+          aria-label="添付ファイルを選択"
         />
-        {text.length > 0 && (
-          <span data-testid="char-count" className="block px-3 pb-1 text-[10px] text-[var(--color-text-muted)] text-right" aria-live="polite">
-            {text.length}
-          </span>
+        <button
+          type="button"
+          onClick={handlePickClick}
+          disabled={pending.length >= MAX_ATTACHMENTS || isSending}
+          className="text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] p-2.5 rounded-full transition-colors duration-150 flex-shrink-0 mb-1 disabled:opacity-40 disabled:cursor-not-allowed"
+          aria-label="添付ファイル"
+        >
+          <PlusIcon className="h-6 w-6" />
+        </button>
+
+        <div className="flex-1 min-w-0">
+          <textarea
+            ref={textareaRef}
+            rows={1}
+            className="w-full bg-transparent text-[var(--color-text-primary)] outline-none resize-none px-3 py-2 placeholder-slate-400 leading-6"
+            placeholder="メッセージを入力..."
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onCompositionStart={() => setIsComposing(true)}
+            onCompositionEnd={() => setIsComposing(false)}
+            disabled={isSending}
+          />
+          {text.length > 0 && (
+            <span data-testid="char-count" className="block px-3 pb-1 text-[10px] text-[var(--color-text-muted)] text-right" aria-live="polite">
+              {text.length}
+            </span>
+          )}
+        </div>
+
+        <button
+          onClick={handleSend}
+          className="text-white bg-primary-500 p-2.5 rounded-full hover:bg-primary-600 transition-colors duration-150 flex-shrink-0 disabled:bg-surface-3 mb-1 ml-2"
+          disabled={!canSend}
+          aria-label="送信"
+        >
+          <PaperAirplaneIcon className="h-6 w-6 rotate-90" />
+        </button>
+
+        {isSending && (
+          <span className="text-xs text-[var(--color-text-faint)] ml-2 mb-2 flex-shrink-0">送信中...</span>
         )}
       </div>
-
-      <button
-        onClick={handleSend}
-        className="text-white bg-primary-500 p-2.5 rounded-full hover:bg-primary-600 transition-colors duration-150 flex-shrink-0 disabled:bg-surface-3 mb-1 ml-2"
-        disabled={!text.trim() || isSending}
-        aria-label="送信"
-      >
-        <PaperAirplaneIcon className="h-6 w-6 rotate-90" />
-      </button>
-
-      {isSending && (
-        <span className="text-xs text-[var(--color-text-faint)] ml-2 mb-2 flex-shrink-0">送信中...</span>
-      )}
     </div>
   );
+}
+
+function validateFile(file: File): string | null {
+  if (!ACCEPTED_CONTENT_TYPES.has(file.type)) {
+    return `${file.name}: 対応していない形式です`;
+  }
+  if (file.size > MAX_BYTES_PER_FILE) {
+    return `${file.name}: 5MB を超える画像は送信できません`;
+  }
+  if (file.size <= 0) {
+    return `${file.name}: ファイルが空です`;
+  }
+  return null;
+}
+
+interface AttachmentChipProps {
+  attachment: PendingAttachment;
+  onRemove: (key: string) => void;
+}
+
+/**
+ * 送信前の添付チップ。ChatGPT / Claude.ai の compose UI に倣い、
+ * 画像 thumbnail + filename + サイズ（or 状態）を 1 行で並べる。
+ *
+ * 画像は previewUrl（Object URL）でローカル描画する。アップロード失敗時は赤い枠で通知。
+ */
+function AttachmentChip({ attachment, onRemove }: AttachmentChipProps) {
+  return (
+    <div
+      className={`relative flex items-center gap-2 pr-7 pl-2 py-1.5 rounded-lg border ${
+        attachment.error
+          ? 'border-red-500/60 bg-red-500/10'
+          : 'border-surface-3 bg-surface-2'
+      }`}
+    >
+      <div className="w-9 h-9 rounded overflow-hidden bg-surface-3 flex items-center justify-center flex-shrink-0">
+        {attachment.previewUrl ? (
+          <img
+            src={attachment.previewUrl}
+            alt=""
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <PhotoIcon className="w-5 h-5 text-[var(--color-text-muted)]" />
+        )}
+      </div>
+      <div className="min-w-0 flex flex-col">
+        <span className="text-xs font-medium text-[var(--color-text-primary)] truncate max-w-[180px]">
+          {attachment.filename}
+        </span>
+        <span className="text-[10px] text-[var(--color-text-muted)]">
+          {attachment.uploading
+            ? 'アップロード中...'
+            : attachment.error
+            ? attachment.error
+            : formatBytes(attachment.sizeBytes)}
+        </span>
+      </div>
+      <button
+        type="button"
+        onClick={() => onRemove(attachment.key)}
+        aria-label={`${attachment.filename} を削除`}
+        className="absolute top-1 right-1 p-0.5 rounded-full bg-surface-3 hover:bg-surface-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+      >
+        <XMarkIcon className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  );
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }

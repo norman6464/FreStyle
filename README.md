@@ -41,27 +41,6 @@
 - ロール: `super_admin` / `company_admin` / `trainee` の 3 階
 - **招待マジックリンク方式（SES + token）** で初回サインアップ
 - OIDC（Cognito Hosted UI / Google フェデレーション）+ 招待限定サインアップ
-- 詳細: [frestyle-pdm/docs/auth/auth-flow-screen-transitions.md](https://github.com/norman6464/frestyle-pdm/blob/main/docs/auth/auth-flow-screen-transitions.md)
-
-### 削除した機能（過去に持っていたが整理済）
-
-ゲーミフィケーション系・ビジネスコミュニケーション研修系の機能は、コア機能（AI 自由対話 + コード学習）に集中するため整理しました:
-
-- 練習モード（ロールプレイ）/ シナリオ管理 / スコアカード / スコア履歴
-- お気に入りフレーズ / 会話テンプレート / 練習リマインダー / 共有セッション
-- 達成バッジ / 練習レベル / 今日の目標 / 今週の練習目標 / 本日のチャレンジ
-- 今日の一言 / 今日の Tips / 次のステップ / ウィークリーチャレンジ / ランキング
-
-詳細は [frestyle-pdm/docs/architecture/saas-vision.md](https://github.com/norman6464/frestyle-pdm/blob/main/docs/architecture/saas-vision.md) を参照。
-
-## 対象顧客
-
-**自社開発をしている企業**を主たるターゲットとします。
-
-- 自社プロダクトを開発しており、新卒・中途エンジニアを毎年複数名採用する Web / SaaS / 事業会社
-- 社内に教育担当エンジニア（メンター）を確保できる規模の開発組織
-- 「研修資料は Box / Drive / Notion / Slack に散らばっていて見つからない」という課題感を持つ教育担当者
-- → SIer の元請け企業など、外部委託主体の組織は当面ターゲット外（OJT モデルとマッチしないため）
 
 ## オンボーディング（B2B 申請承認フロー）
 
@@ -146,13 +125,11 @@
 
 ## Architecture Highlights（工夫した点）
 
-### ① HTTP / WebSocket を ECS + Go で単一経路化
-- **HTTP API / WebSocket** ともに **ECS Fargate 上の Go (Gin)** に集約
-- WebSocket は `gorilla/websocket` で ALB → ECS Task に直接 upgrade（Sticky Session 不要・stateless 化）
-- 旧構成（Spring Boot 時代）の **API Gateway + Lambda + DynamoDB** のサーバレス WS は廃止し、ALB を 1 本にまとめてコスト・運用・可観測性を一元化
-- フロントエンドは `wss://api.normanblog.com/api/v2/ws/...` で接続、Cognito JWT (HttpOnly Cookie) を Origin チェックと併用して認証
-
-> 旧 Lambda + API Gateway 構成を廃止した理由は本 README 末尾の「なぜアーキテクチャーを変えたのか」を参照。
+### ① HTTP / SSE を ECS + Go で単一経路化
+- **HTTP API / SSE ストリーミング** ともに **ECS Fargate 上の Go (Gin)** に集約
+- AI チャットは **Server-Sent Events**（`POST /api/v2/ai-chat/stream` で fetch + ReadableStream）で token 単位ストリーミング
+- ALB → ECS Task が HTTP/1.1 chunked transfer で 1 経路、Sticky Session 不要・stateless
+- フロントエンドは `https://api.normanblog.com` 経由で接続、Cognito JWT (HttpOnly Cookie) で認証
 
 ### ② JWT（HttpOnly Cookie）× Cognito の安全な認証設計
 - JWT を HttpOnly Cookie に保存（XSS 対策）
@@ -228,8 +205,6 @@ backend/
 ├── Dockerfile           multi-stage / distroless / static binary
 └── go.mod
 ```
-
-詳細な層責務・パッケージ依存関係・テスト戦略は [`frestyle-pdm/docs/ARCHITECTURE.md`](https://github.com/norman6464/frestyle-pdm/blob/main/docs/ARCHITECTURE.md) を参照。
 
 #### 層構成（フロントエンド）
 
@@ -339,18 +314,20 @@ sequenceDiagram
 
 ---
 
-## 技術選定理由（WebSocket / ECS 一本化）
+## 技術選定理由（SSE / ECS 一本化）
 
-旧構成（API Gateway + Lambda + DynamoDB）を廃止し、**ECS + Go (`gorilla/websocket`) の単一経路** に統一した理由:
+AI チャットは **Server-Sent Events**（HTTP/1.1 chunked transfer）で ECS + Go の単一経路に統一:
 
 1. **複雑なクエリの直行性**  
-   AI フィードバックでユーザの過去スコア・性格傾向・チャット履歴を組み合わせる必要があり、DynamoDB だけだと application 側の join が肥大化。RDS（PostgreSQL）+ DynamoDB のハイブリッドにし、ECS 上の Go から両方を直接叩く方が単純。
+   ユーザの履歴・進捗・性格傾向などを RDS（PostgreSQL）と DynamoDB の使い分けで保持し、ECS 上の Go から両方を直接叩いて application 側の join を避ける。
 2. **トラフィック増加時のスケール**  
-   Lambda 同時実行数の上限・cold start・WS 切断時の再接続コスト（API Gateway の billing 単位）が運用上のリスクになっていた。ECS Fargate なら `desired count` で水平スケールでき、ALB のヘルスチェックで自己修復可能。
-3. **可観測性とデプロイ単位の統一**  
-   HTTP / WebSocket を 1 つの ECS Service に同居させると、ログ・メトリクス・デプロイ単位が 1 本化されて運用が楽（CloudWatch Logs Group を分けずに済む）。
-4. **コスト**  
-   Go バイナリは 0.25 vCPU / 0.5 GB Fargate で常時稼働しても月 $9 前後。WS のコネクション課金が無くなる分、トラフィックが伸びるほど ECS の方が有利。
+   Lambda 同時実行数や cold start のリスクを避け、ECS Fargate の `desired count` で水平スケール。ALB のヘルスチェックで自己修復。
+3. **SSE がストリーミング用途に十分**  
+   双方向通信（WebSocket）は不要で、サーバ→クライアントの一方向 token ストリーミングは SSE（fetch + ReadableStream）で実装が簡素。Sticky Session 不要、HTTP の標準で動く。
+4. **可観測性とデプロイ単位の統一**  
+   HTTP / SSE を 1 つの ECS Service に同居させると、ログ・メトリクス・デプロイ単位が 1 本化されて運用が楽。
+5. **コスト**  
+   Go バイナリは 0.25 vCPU / 0.5 GB Fargate で常時稼働しても月 $9 前後。
 
 ---
 
@@ -507,9 +484,9 @@ GORM 側の AutoMigrate は本番では使わず、明示的な SQL で運用し
 
 ### コーディング規約（要点）
 
-- **クリーンアーキテクチャ**: handler → usecase → repository → domain（Go）/ Controller → UseCase → Service / Repository → Entity（Spring Boot）の依存方向を厳守。詳細は [`frestyle-pdm/docs/ARCHITECTURE.md`](https://github.com/norman6464/frestyle-pdm/blob/main/docs/ARCHITECTURE.md)
-- **1 UseCase = 1 ビジネスルール**: 新規機能追加時は usecase ファイルを新規作成し、肥大化させない
-- **DTO ↔ Domain 変換**: 1 箇所に集約。handler / usecase で直接変換しない
+- **クリーンアーキテクチャ**: handler → usecase → repository / infra → domain（Go / Gin / GORM）の依存方向を厳守
+- **1 usecase = 1 ビジネスルール**: 新規機能追加時は usecase struct を新規作成し、肥大化させない
+- **request / response 型は handler 内 local 定義**: DTO / Mapper 層は持たず、機密フィールドは domain 構造体側で `json:"-"` で隠す
 - **テスト必須**: 新規追加コードには必ず単体テストを付ける
 - **日本語**: PR / Issue / コミットメッセージ / コメントは日本語、識別子は英語
 

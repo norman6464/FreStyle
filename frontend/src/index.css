@@ -2,36 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Dark theme (default) - Navy blue base like Zenn */
+/*
+ * ライトテーマ単一構成（ダークモードは廃止）。
+ *
+ * カラー設計:
+ *   - body 全体: #F2EDE4（クリーム）
+ *   - サイドバー / ヘッダー: #DCE0F2（淡い青紫）→ --color-nav として独立変数化
+ *   - カード / raised surface: 白に近い #FFFFFF / #EFEBDD で階層を視認できるように差を付ける
+ *   - サーフェス階層は「ページ背景 < カード < 強調」の順に並べる
+ */
 :root {
-  --color-surface: #0f1219;
-  --color-surface-1: #171c28;
-  --color-surface-2: #1e2535;
-  --color-surface-3: #2a3245;
-  --color-text-primary: #f1f5f9;
-  --color-text-secondary: #b0bcd0;
-  --color-text-tertiary: #7e8ca4;
-  --color-text-muted: #546178;
-  --color-text-faint: #3a4560;
-  --color-text-subtle: #1e2535;
-  --color-border-hover: #2a3245;
-  --scrollbar-track: #0f1219;
-  --scrollbar-thumb: #2a3245;
-  --scrollbar-thumb-hover: #4a5368;
-  color-scheme: dark;
-}
-
-.light {
-  /*
-   * ライトモードのサーフェスは「ページ背景 < カード < 強調」の階層を視認できるように差をつける。
-   * 旧設定は --color-surface と --color-surface-1 が同じ #FFFFFF だったため、
-   * bg-surface-1 のカードがページ背景と完全に同色になり「カードが消えて見える」レイアウト崩れの
-   * 原因になっていた。ページを薄いオフホワイト、カードを純白にして境界線も濃いめに。
-   */
-  --color-surface: #F7F7F5;
+  --color-surface: #F2EDE4;
   --color-surface-1: #FFFFFF;
-  --color-surface-2: #EFEFEC;
-  --color-surface-3: #DCDCD8;
+  --color-surface-2: #EFEBDD;
+  --color-surface-3: #E0DBC9;
+  /* サイドバーとヘッダー専用。 surface-1 と区別して body との差別化を可能にする */
+  --color-nav: #DCE0F2;
   --color-text-primary: #191919;
   --color-text-secondary: #37352F;
   --color-text-tertiary: #787774;
@@ -39,9 +25,10 @@
   --color-text-faint: #D3D3D0;
   --color-text-subtle: #E8E8E6;
   --color-border-hover: #D3D3D0;
-  --scrollbar-track: #FFFFFF;
+  --scrollbar-track: #F2EDE4;
   --scrollbar-thumb: #D3D3D0;
   --scrollbar-thumb-hover: #A4A4A0;
+  color-scheme: light;
 }
 
 @layer base {
@@ -389,21 +376,14 @@
   border: none;
 }
 
-/* Search & Replace highlights */
+/* Search & Replace highlights — ライトテーマ単一なので .light 上書きは廃止 */
 .ProseMirror .search-match {
-  background-color: rgba(255, 200, 0, 0.3);
+  background-color: rgba(255, 220, 0, 0.4);
   border-radius: 2px;
 }
 .ProseMirror .search-match-current {
-  background-color: rgba(255, 150, 0, 0.5);
-  border-radius: 2px;
-  box-shadow: 0 0 0 1px rgba(255, 150, 0, 0.7);
-}
-.light .ProseMirror .search-match {
-  background-color: rgba(255, 220, 0, 0.4);
-}
-.light .ProseMirror .search-match-current {
   background-color: rgba(255, 165, 0, 0.5);
+  border-radius: 2px;
   box-shadow: 0 0 0 1px rgba(255, 165, 0, 0.7);
 }
 

@@ -15,10 +15,6 @@ vi.mock('../../components/CodeEditor', () => ({
   ),
 }));
 
-vi.mock('../../hooks/useTheme', () => ({
-  useTheme: () => ({ theme: 'dark', toggleTheme: vi.fn() }),
-}));
-
 const mockRunCode = vi.fn();
 const mockSelectExercise = vi.fn();
 const mockSetShowHint = vi.fn();

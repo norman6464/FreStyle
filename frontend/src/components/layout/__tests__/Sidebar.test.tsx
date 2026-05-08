@@ -11,12 +11,6 @@ vi.mock('../../../hooks/useSidebar', () => ({
   useSidebar: () => mockUseSidebar(),
 }));
 
-const mockToggleTheme = vi.fn();
-const mockUseTheme = vi.fn();
-vi.mock('../../../hooks/useTheme', () => ({
-  useTheme: () => mockUseTheme(),
-}));
-
 function createTestStore(isAdmin = false, role: string | null = null) {
   return configureStore({
     reducer: { auth: authReducer },
@@ -42,10 +36,6 @@ describe('Sidebar', () => {
     mockUseSidebar.mockReturnValue({
       handleLogout: vi.fn(),
       loggingOut: false,
-    });
-    mockUseTheme.mockReturnValue({
-      theme: 'dark',
-      toggleTheme: mockToggleTheme,
     });
   });
 
@@ -76,26 +66,6 @@ describe('Sidebar', () => {
     renderSidebar('/');
     const homeLink = screen.getByText('ホーム').closest('a');
     expect(homeLink?.className).toContain('bg-surface-3');
-  });
-
-  it('ダークモード時にライトモードボタンを表示する', () => {
-    renderSidebar();
-    expect(screen.getByText('ライトモード')).toBeInTheDocument();
-  });
-
-  it('ライトモード時にダークモードボタンを表示する', () => {
-    mockUseTheme.mockReturnValue({
-      theme: 'light',
-      toggleTheme: mockToggleTheme,
-    });
-    renderSidebar();
-    expect(screen.getByText('ダークモード')).toBeInTheDocument();
-  });
-
-  it('テーマ切り替えボタンクリックでtoggleThemeが呼ばれる', () => {
-    renderSidebar();
-    fireEvent.click(screen.getByText('ライトモード'));
-    expect(mockToggleTheme).toHaveBeenCalledTimes(1);
   });
 
   it('折りたたみボタンでサイドバーが折りたたまれる', () => {

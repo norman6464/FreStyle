@@ -22,7 +22,7 @@ export default function SecondaryPanel({ title, badge, headerContent, children, 
 
       {/* モバイルパネル */}
       <div
-        className={`fixed inset-y-0 left-0 z-50 w-72 bg-surface-1 border-r border-surface-3 flex flex-col transform transition-transform duration-200 md:hidden ${
+        className={`fixed inset-y-0 left-0 z-50 w-72 bg-[var(--color-nav)] border-r border-surface-3 flex flex-col transform transition-transform duration-200 md:hidden ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -44,7 +44,7 @@ export default function SecondaryPanel({ title, badge, headerContent, children, 
       </div>
 
       {/* デスクトップパネル */}
-      <div className="hidden md:flex w-72 bg-surface-1 border-r border-surface-3 flex-col h-full flex-shrink-0">
+      <div className="hidden md:flex w-72 bg-[var(--color-nav)] border-r border-surface-3 flex-col h-full flex-shrink-0">
         <div className="px-4 py-3 border-b border-surface-3">
           <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">
             {title}

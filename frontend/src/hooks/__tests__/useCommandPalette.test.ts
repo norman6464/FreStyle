@@ -61,20 +61,20 @@ describe('useCommandPalette', () => {
     const { result } = renderHook(() => useCommandPalette());
     act(() => {
       result.current.open();
-      result.current.setQuery('dark');
+      result.current.setQuery('practice');
     });
     const labels = result.current.filteredItems.map(i => i.label);
-    expect(labels).toContain('テーマ切替');
+    expect(labels).toContain('練習モード');
   });
 
   it('descriptionでもフィルタリングできる', () => {
     const { result } = renderHook(() => useCommandPalette());
     act(() => {
       result.current.open();
-      result.current.setQuery('ダークモード');
+      result.current.setQuery('AIアシスタント');
     });
     const labels = result.current.filteredItems.map(i => i.label);
-    expect(labels).toContain('テーマ切替');
+    expect(labels).toContain('AI アシスタント');
   });
 
   it('フィルタリングは大文字小文字を区別しない', () => {

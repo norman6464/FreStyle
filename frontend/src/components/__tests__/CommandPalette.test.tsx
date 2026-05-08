@@ -12,11 +12,6 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
-const mockToggleTheme = vi.fn();
-vi.mock('../../hooks/useTheme', () => ({
-  useTheme: () => ({ theme: 'dark', toggleTheme: mockToggleTheme }),
-}));
-
 describe('CommandPalette', () => {
   const defaultProps = {
     isOpen: true,
@@ -49,7 +44,6 @@ describe('CommandPalette', () => {
     renderPalette();
     expect(screen.getByText('ホーム')).toBeInTheDocument();
     expect(screen.getByText('AI アシスタント')).toBeInTheDocument();
-    expect(screen.getByText('テーマ切替')).toBeInTheDocument();
     expect(screen.getByText('新規ノート作成')).toBeInTheDocument();
   });
 
@@ -73,13 +67,6 @@ describe('CommandPalette', () => {
     renderPalette();
     fireEvent.click(screen.getByText('ノート'));
     expect(mockNavigate).toHaveBeenCalledWith('/notes');
-    expect(defaultProps.onClose).toHaveBeenCalled();
-  });
-
-  it('テーマ切替コマンドをクリックするとテーマが切り替わる', () => {
-    renderPalette();
-    fireEvent.click(screen.getByText('テーマ切替'));
-    expect(mockToggleTheme).toHaveBeenCalled();
     expect(defaultProps.onClose).toHaveBeenCalled();
   });
 

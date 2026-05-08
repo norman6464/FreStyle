@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react';
-import { usePhpEditor } from '../hooks/usePhpEditor';
-import { PhpExercise } from '../types';
+import { useExerciseEditor } from '../hooks/useExerciseEditor';
+import { MasterExercise } from '../types';
 
 const CodeEditor = lazy(() => import('../components/CodeEditor'));
 
@@ -21,7 +21,7 @@ export default function CodeEditorPage() {
     selectExercise,
     runCode,
     resetCode,
-  } = usePhpEditor();
+  } = useExerciseEditor();
 
   if (loadingExercises) {
     return (
@@ -196,7 +196,7 @@ function ExerciseItem({
   isSelected,
   onClick,
 }: {
-  exercise: PhpExercise;
+  exercise: MasterExercise;
   isSelected: boolean;
   onClick: () => void;
 }) {

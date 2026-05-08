@@ -26,7 +26,9 @@ func allDomainModels() []any {
 		&domain.LearningReport{},
 		&domain.Notification{},
 		&domain.AdminInvitation{},
-		&domain.PhpExercise{},
+		&domain.MasterExercise{},
+		&domain.CompanyExercise{},
+		&domain.ExerciseSubmission{},
 		&domain.Company{},
 	}
 }
@@ -51,7 +53,7 @@ func Migrate(db *gorm.DB) error {
 		return err
 	}
 	log.Println("migrate: AutoMigrate done")
-	if err := seedPhpExercises(db); err != nil {
+	if err := seedMasterExercises(db); err != nil {
 		return err
 	}
 	if err := seedCompanies(db); err != nil {

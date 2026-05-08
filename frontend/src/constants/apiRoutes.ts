@@ -157,11 +157,14 @@ export const EMBEDS = {
   oembed: `${API_V2}/embeds/oembed`,
 } as const;
 
-/** PHP コード実行環境 */
-export const PHP = {
-  exercises: `${API_V2}/php/exercises`,
-  exercise: (id: number) => `${API_V2}/php/exercises/${id}`,
-  execute: `${API_V2}/php/execute`,
+/** マスタ演習問題（旧 PHP 専用 API を言語非依存に汎用化）+ コード実行 */
+export const EXERCISES = {
+  list: `${API_V2}/exercises`,
+  byId: (id: number | string) => `${API_V2}/exercises/${id}`,
+} as const;
+
+export const CODE = {
+  execute: `${API_V2}/code/execute`,
 } as const;
 
 // WebSocket は SSE (AI_CHAT.stream) への置換で廃止 (PR-D, 2026-05-07)。

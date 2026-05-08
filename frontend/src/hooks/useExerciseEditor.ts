@@ -1,14 +1,19 @@
 import { useState, useCallback, useEffect } from 'react';
-import PhpRepository from '../repositories/PhpRepository';
-import { PhpExercise, CodeExecutionResult } from '../types';
+import ExerciseRepository from '../repositories/ExerciseRepository';
+import { MasterExercise, CodeExecutionResult } from '../types';
 
 /**
- * usePhpEditor — PHP コード実行環境ページの状態管理フック。
+ * useExerciseEditor — コード演習ページの状態管理フック。
+ *
  * 演習選択・コード編集・実行結果・ヒント表示を管理する。
+ * 当面は PHP 教材しか公開していないため、デフォルトで `language="php"` を
+ * 指定して `master_exercises` から PHP 問題のみを取得する。
+ *
+ * 旧 `usePhpEditor` を MasterExercise (言語非依存) に切替えたもの。
  */
-export function usePhpEditor() {
-  const [exercises, setExercises] = useState<PhpExercise[]>([]);
-  const [selectedExercise, setSelectedExercise] = useState<PhpExercise | null>(null);
+export function useExerciseEditor(language: string = 'php') {
+  const [exercises, setExercises] = useState<MasterExercise[]>([]);
+  const [selectedExercise, setSelectedExercise] = useState<MasterExercise | null>(null);
   const [code, setCode] = useState('');
   const [result, setResult] = useState<CodeExecutionResult | null>(null);
   const [running, setRunning] = useState(false);
@@ -17,7 +22,7 @@ export function usePhpEditor() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    PhpRepository.listExercises()
+    ExerciseRepository.listExercises(language)
       .then((list) => {
         setExercises(list);
         if (list.length > 0) {
@@ -27,9 +32,9 @@ export function usePhpEditor() {
       })
       .catch(() => setError('演習問題の取得に失敗しました'))
       .finally(() => setLoadingExercises(false));
-  }, []);
+  }, [language]);
 
-  const selectExercise = useCallback((exercise: PhpExercise) => {
+  const selectExercise = useCallback((exercise: MasterExercise) => {
     setSelectedExercise(exercise);
     setCode(exercise.starterCode ?? '');
     setResult(null);
@@ -41,14 +46,16 @@ export function usePhpEditor() {
     setRunning(true);
     setResult(null);
     try {
-      const out = await PhpRepository.execute(code);
+      // 選択中の問題と同じ言語で実行する（無ければ初期化時の language）。
+      const lang = selectedExercise?.language ?? language;
+      const out = await ExerciseRepository.execute(code, lang);
       setResult(out);
     } catch {
       setResult({ stdout: '', stderr: 'コードの実行に失敗しました。サーバーエラーが発生しました。', exitCode: 1 });
     } finally {
       setRunning(false);
     }
-  }, [code, running]);
+  }, [code, running, selectedExercise, language]);
 
   const resetCode = useCallback(() => {
     if (selectedExercise) {

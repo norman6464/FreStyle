@@ -35,6 +35,21 @@
   color-scheme: light;
 }
 
+/*
+ * AI チャットの「考え中...」インジケータ用アニメーション。
+ * favicon (3 つの青い三角) をゆったり 1 周させてブランド感を出しつつ「処理中」を可視化する。
+ * `animate-spin` (1s linear) は速すぎて派手なので 2.4s ease-in-out で自然な呼吸感を出す。
+ */
+@keyframes thinking-spin {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.animate-thinking {
+  animation: thinking-spin 2.4s ease-in-out infinite;
+  transform-origin: center;
+}
+
 @layer base {
   /*
    * 外側スクロールバー (Chrome ブラウザ標準) と内側スクロールバー (AppShell の <main>)

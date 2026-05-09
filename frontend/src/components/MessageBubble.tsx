@@ -129,7 +129,10 @@ export default memo(function MessageBubble({
     );
   }
 
-  // アシスタント / 他者のメッセージ: フラット、本文に Markdown
+  // アシスタント / 他者のメッセージ: フラット、本文に Markdown。
+  // 本文が空のときは SSE で最初の token が来るまでの「考え中」状態とみなし、
+  // favicon を回しながら "考え中..." ラベルを出す（Claude / ChatGPT 同様の UX）。
+  const isThinking = type === 'text' && content.trim() === '';
   return (
     <div
       className="my-6 group flex gap-3"
@@ -139,28 +142,44 @@ export default memo(function MessageBubble({
       aria-label={senderName ? `${senderName}のメッセージ` : 'AIのメッセージ'}
     >
       <div className="flex-shrink-0 w-7 h-7 rounded-full bg-[var(--color-surface-2)] flex items-center justify-center">
-        <img src="/favicon.svg" alt="" aria-hidden="true" className="w-4 h-4" />
+        <img
+          src="/favicon.svg"
+          alt=""
+          aria-hidden="true"
+          className={`w-4 h-4 ${isThinking ? 'animate-thinking' : ''}`}
+        />
       </div>
       <div className="flex-1 min-w-0">
         {senderName && (
           <p className="text-xs text-[var(--color-text-muted)] mb-1">{senderName}</p>
         )}
-        <div className="prose prose-sm max-w-none text-[var(--color-text-primary)] leading-relaxed">
-          {type === 'bot' ? (
-            <p className="italic opacity-80">{content}</p>
-          ) : (
-            <MarkdownView content={content} />
-          )}
-        </div>
-        <MessageActionRow
-          isSender={false}
-          id={id}
-          content={content}
-          createdAt={createdAt}
-          isCopied={isCopied}
-          onCopy={onCopy}
-          visible={showActions}
-        />
+        {isThinking ? (
+          <p
+            className="text-sm text-[var(--color-text-muted)] italic"
+            aria-live="polite"
+          >
+            考え中...
+          </p>
+        ) : (
+          <>
+            <div className="prose prose-sm max-w-none text-[var(--color-text-primary)] leading-relaxed">
+              {type === 'bot' ? (
+                <p className="italic opacity-80">{content}</p>
+              ) : (
+                <MarkdownView content={content} />
+              )}
+            </div>
+            <MessageActionRow
+              isSender={false}
+              id={id}
+              content={content}
+              createdAt={createdAt}
+              isCopied={isCopied}
+              onCopy={onCopy}
+              visible={showActions}
+            />
+          </>
+        )}
       </div>
     </div>
   );

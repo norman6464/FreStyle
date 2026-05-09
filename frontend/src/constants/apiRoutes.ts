@@ -160,7 +160,7 @@ export const EMBEDS = {
 /** マスタ演習問題（旧 PHP 専用 API を言語非依存に汎用化）+ コード実行 */
 export const EXERCISES = {
   list: `${API_V2}/exercises`,
-  byId: (id: number | string) => `${API_V2}/exercises/${id}`,
+  bySlug: (slug: string) => `${API_V2}/exercises/${encodeURIComponent(slug)}`,
 } as const;
 
 export const CODE = {

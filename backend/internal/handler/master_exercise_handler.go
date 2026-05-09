@@ -2,7 +2,6 @@ package handler
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
@@ -12,10 +11,11 @@ import (
 //
 // API パスは言語非依存:
 //
-//	GET /api/v2/exercises?language=php
-//	GET /api/v2/exercises/:id
+//	GET /api/v2/exercises?language=php   一覧
+//	GET /api/v2/exercises/:slug          詳細（入出力例の配列を含む）
 //
-// 旧 `/api/v2/php/exercises` 系は撤去（フロントは新 API に追従させる方針）。
+// 詳細は paiza 風 URL（`/code-editor/php-1` のように slug ベース）に揃えるため、
+// 旧 `:id` ルートは廃止し slug 必須にする（フロントは新 API に追従させる）。
 type MasterExerciseHandler struct {
 	listExercises *usecase.ListMasterExercisesUseCase
 	getExercise   *usecase.GetMasterExerciseUseCase
@@ -39,17 +39,17 @@ func (h *MasterExerciseHandler) List(c *gin.Context) {
 	c.JSON(http.StatusOK, exercises)
 }
 
-// Get は GET /api/v2/exercises/:id 。
-func (h *MasterExerciseHandler) Get(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+// GetBySlug は GET /api/v2/exercises/:slug 。 入出力例を含む詳細を返す。
+func (h *MasterExerciseHandler) GetBySlug(c *gin.Context) {
+	slug := c.Param("slug")
+	if slug == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "slug is required"})
 		return
 	}
-	exercise, err := h.getExercise.Execute(id)
+	detail, err := h.getExercise.ExecuteBySlug(slug)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "演習問題が見つかりません"})
 		return
 	}
-	c.JSON(http.StatusOK, exercise)
+	c.JSON(http.StatusOK, detail)
 }

@@ -13,6 +13,7 @@ import (
 type MasterExerciseRepository interface {
 	ListByLanguage(language string) ([]domain.MasterExercise, error)
 	GetByID(id uint64) (*domain.MasterExercise, error)
+	GetBySlug(slug string) (*domain.MasterExercise, error)
 }
 
 type masterExerciseRepository struct {
@@ -38,6 +39,14 @@ func (r *masterExerciseRepository) ListByLanguage(language string) ([]domain.Mas
 func (r *masterExerciseRepository) GetByID(id uint64) (*domain.MasterExercise, error) {
 	var exercise domain.MasterExercise
 	if err := r.db.First(&exercise, id).Error; err != nil {
+		return nil, err
+	}
+	return &exercise, nil
+}
+
+func (r *masterExerciseRepository) GetBySlug(slug string) (*domain.MasterExercise, error) {
+	var exercise domain.MasterExercise
+	if err := r.db.Where("slug = ?", slug).First(&exercise).Error; err != nil {
 		return nil, err
 	}
 	return &exercise, nil

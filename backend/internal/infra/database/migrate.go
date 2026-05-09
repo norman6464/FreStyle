@@ -27,6 +27,7 @@ func allDomainModels() []any {
 		&domain.Notification{},
 		&domain.AdminInvitation{},
 		&domain.MasterExercise{},
+		&domain.MasterExerciseExample{},
 		&domain.CompanyExercise{},
 		&domain.ExerciseSubmission{},
 		&domain.Company{},

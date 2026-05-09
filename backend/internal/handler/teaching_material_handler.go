@@ -13,11 +13,11 @@ import (
 
 // TeachingMaterialHandler は教材 API を扱う。
 //
-//	GET    /api/v2/teaching-materials      一覧（actor role / company で自動フィルタ）
-//	GET    /api/v2/teaching-materials/:id  詳細
-//	POST   /api/v2/teaching-materials      作成（company_admin / super_admin）
-//	PUT    /api/v2/teaching-materials/:id  更新（同上）
-//	DELETE /api/v2/teaching-materials/:id  削除（同上）
+//	GET    /api/v2/courses/:courseId/materials      コース内一覧（actor role で自動フィルタ）
+//	GET    /api/v2/teaching-materials/:id           詳細
+//	POST   /api/v2/teaching-materials               作成（company_admin / super_admin、 course_id 必須）
+//	PUT    /api/v2/teaching-materials/:id           更新（同上）
+//	DELETE /api/v2/teaching-materials/:id           削除（同上）
 type TeachingMaterialHandler struct {
 	uc *usecase.TeachingMaterialUseCase
 }
@@ -39,7 +39,8 @@ func (h *TeachingMaterialHandler) actorContext(c *gin.Context) (uint64, uint64, 
 	return user.ID, companyID, user.Role, true
 }
 
-// List は GET /api/v2/teaching-materials 。
+// List は backward-compat 用 GET /api/v2/teaching-materials 。 frontend がコース対応に
+// 切り替わったら削除予定。
 func (h *TeachingMaterialHandler) List(c *gin.Context) {
 	_, companyID, role, ok := h.actorContext(c)
 	if !ok {
@@ -48,6 +49,26 @@ func (h *TeachingMaterialHandler) List(c *gin.Context) {
 	rows, err := h.uc.List(c.Request.Context(), companyID, role)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "教材の取得に失敗しました"})
+		return
+	}
+	c.JSON(http.StatusOK, rows)
+}
+
+// ListByCourse は GET /api/v2/courses/:id/materials 。 コース配下の教材を返す。
+// path param `:id` はコース ID（ルート競合を避けるため materials path 側で `:id` を流用）。
+func (h *TeachingMaterialHandler) ListByCourse(c *gin.Context) {
+	_, companyID, role, ok := h.actorContext(c)
+	if !ok {
+		return
+	}
+	courseID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid course id"})
+		return
+	}
+	rows, err := h.uc.ListByCourse(c.Request.Context(), courseID, companyID, role)
+	if err != nil {
+		respondTeachingMaterialErr(c, err, "教材の取得に失敗しました")
 		return
 	}
 	c.JSON(http.StatusOK, rows)
@@ -81,19 +102,28 @@ func (h *TeachingMaterialHandler) Get(c *gin.Context) {
 	c.JSON(http.StatusOK, m)
 }
 
-type teachingMaterialRequest struct {
-	Title       string `json:"title"`
-	Content     string `json:"content"`
-	IsPublished bool   `json:"isPublished"`
+type teachingMaterialCreateRequest struct {
+	CourseID      uint64 `json:"courseId" binding:"required"`
+	Title         string `json:"title"`
+	Content       string `json:"content"`
+	OrderInCourse int    `json:"orderInCourse"`
+	IsPublished   bool   `json:"isPublished"`
 }
 
-// Create は POST /api/v2/teaching-materials 。
+type teachingMaterialUpdateRequest struct {
+	Title         string `json:"title"`
+	Content       string `json:"content"`
+	OrderInCourse int    `json:"orderInCourse"`
+	IsPublished   bool   `json:"isPublished"`
+}
+
+// Create は POST /api/v2/teaching-materials 。 body の courseId 必須。
 func (h *TeachingMaterialHandler) Create(c *gin.Context) {
 	uid, companyID, role, ok := h.actorContext(c)
 	if !ok {
 		return
 	}
-	var req teachingMaterialRequest
+	var req teachingMaterialCreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -102,8 +132,10 @@ func (h *TeachingMaterialHandler) Create(c *gin.Context) {
 		ActorUserID:    uid,
 		ActorCompanyID: companyID,
 		ActorRole:      role,
+		CourseID:       req.CourseID,
 		Title:          req.Title,
 		Content:        req.Content,
+		OrderInCourse:  req.OrderInCourse,
 		IsPublished:    req.IsPublished,
 	})
 	if err != nil {
@@ -124,7 +156,7 @@ func (h *TeachingMaterialHandler) Update(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
 		return
 	}
-	var req teachingMaterialRequest
+	var req teachingMaterialUpdateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -135,6 +167,7 @@ func (h *TeachingMaterialHandler) Update(c *gin.Context) {
 		ActorRole:      role,
 		Title:          req.Title,
 		Content:        req.Content,
+		OrderInCourse:  req.OrderInCourse,
 		IsPublished:    req.IsPublished,
 	})
 	if err != nil {

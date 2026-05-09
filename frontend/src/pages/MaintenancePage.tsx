@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { WrenchScrewdriverIcon, ArrowPathIcon, ClockIcon } from '@heroicons/react/24/outline';
+import { ArrowPathIcon, ClockIcon } from '@heroicons/react/24/outline';
 
 interface MaintenancePageProps {
   /** 「再試行」ボタンが押されたときに呼ぶ。useBackendHealth.recheck を渡す。 */
@@ -37,8 +37,14 @@ export default function MaintenancePage({ onRetry }: MaintenancePageProps) {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[var(--color-surface-1)] px-6">
       <div className="max-w-lg w-full text-center">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-amber-500/15 text-amber-400 mb-6">
-          <WrenchScrewdriverIcon className="w-8 h-8" />
+        <div className="inline-flex items-center justify-center w-16 h-16 mb-6">
+          <img
+            src="/favicon.svg"
+            alt="FreStyle"
+            className="w-12 h-12"
+            width={48}
+            height={48}
+          />
         </div>
         <h1 className="text-2xl font-bold text-[var(--color-text-primary)] mb-3">
           ただいまメンテナンス中です

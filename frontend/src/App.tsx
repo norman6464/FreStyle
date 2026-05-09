@@ -34,6 +34,7 @@ const AdminInvitationsPage = lazyWithReload(() => import('./pages/AdminInvitatio
 const AdminCompaniesPage = lazyWithReload(() => import('./pages/AdminCompaniesPage'), 'AdminCompaniesPage');
 const ExerciseListPage = lazyWithReload(() => import('./pages/ExerciseListPage'), 'ExerciseListPage');
 const ExerciseDetailPage = lazyWithReload(() => import('./pages/ExerciseDetailPage'), 'ExerciseDetailPage');
+const TeachingMaterialsPage = lazyWithReload(() => import('./pages/TeachingMaterialsPage'), 'TeachingMaterialsPage');
 
 function NavigationToast() {
   const location = useLocation();
@@ -117,6 +118,7 @@ export default function App() {
         <Route path="/help" element={<HelpPage />} />
         <Route path="/code-editor" element={<ExerciseListPage />} />
         <Route path="/code-editor/:slug" element={<ExerciseDetailPage />} />
+        <Route path="/teaching-materials" element={<TeachingMaterialsPage />} />
         {/* Admin 専用（コンポーネント側で isAdmin チェック → 非 admin は / にリダイレクト） */}
         <Route path="/admin/companies" element={<AdminCompaniesPage />} />
         <Route path="/admin/invitations" element={<AdminInvitationsPage />} />

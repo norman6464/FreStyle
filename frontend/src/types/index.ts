@@ -538,6 +538,24 @@ export interface MasterExerciseDetail {
   examples: MasterExerciseExample[];
 }
 
+/**
+ * TeachingMaterial は Go backend `domain.TeachingMaterial` と 1:1。
+ * company_admin が自社 trainee 向けに作る Markdown 教材。
+ *
+ * - company_admin: 自社の draft 含む全件 list / 編集 / 削除可
+ * - trainee: 自社の `isPublished=true` のみ閲覧可
+ */
+export interface TeachingMaterial {
+  id: number;
+  companyId: number;
+  createdByUserId: number;
+  title: string;
+  content: string;
+  isPublished: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 /** 一覧 API (`GET /api/v2/exercises`) で返る集計値（Go backend `repository.ExerciseSubmissionStats`）。 */
 export interface ExerciseSubmissionStats {
   totalSubmissions: number;

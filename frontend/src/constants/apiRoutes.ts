@@ -169,4 +169,10 @@ export const CODE = {
   execute: `${API_V2}/code/execute`,
 } as const;
 
+/** 教材（company_admin が作成、 自社 trainee + 同社 admin が閲覧）*/
+export const TEACHING_MATERIALS = {
+  list: `${API_V2}/teaching-materials`,
+  byId: (id: number | string) => `${API_V2}/teaching-materials/${id}`,
+} as const;
+
 // WebSocket は SSE (AI_CHAT.stream) への置換で廃止 (PR-D, 2026-05-07)。

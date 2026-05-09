@@ -1,3 +1,5 @@
+import typography from '@tailwindcss/typography';
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
@@ -46,5 +48,7 @@ export default {
       },
     },
   },
-  plugins: [],
+  // @tailwindcss/typography: Markdown 描画 (ノート / 教材 / AI チャット) で `prose` クラスを使う。
+  // これで `# 見出し` `表` `リスト` `引用` などが標準の Typography スタイルで描画される。
+  plugins: [typography],
 };

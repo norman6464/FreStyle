@@ -28,7 +28,7 @@ export function useLoginCallback() {
         .callback(code, invitationToken)
         .then(() => {
           dispatch(setAuthData());
-          navigate('/', { state: { toast: 'ログインしました' } });
+          navigate('/');
         })
         .catch((err) => {
           // backend が PR-OIDC-Gate で返す 403 invitation_required を識別して

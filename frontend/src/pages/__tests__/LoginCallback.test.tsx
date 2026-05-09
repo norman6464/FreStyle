@@ -72,7 +72,7 @@ describe('LoginCallback', () => {
     await waitFor(() => {
       // 第 2 引数 invitationToken は sessionStorage に何も無いとき null。
       expect(authRepository.callback).toHaveBeenCalledWith('valid-code', null);
-      expect(mockNavigate).toHaveBeenCalledWith('/', { state: { toast: 'ログインしました' } });
+      expect(mockNavigate).toHaveBeenCalledWith('/');
     });
   });
 

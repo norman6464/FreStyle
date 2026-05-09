@@ -161,6 +161,8 @@ export const EMBEDS = {
 export const EXERCISES = {
   list: `${API_V2}/exercises`,
   bySlug: (slug: string) => `${API_V2}/exercises/${encodeURIComponent(slug)}`,
+  submit: (slug: string) => `${API_V2}/exercises/${encodeURIComponent(slug)}/submit`,
+  submissions: (slug: string) => `${API_V2}/exercises/${encodeURIComponent(slug)}/submissions`,
 } as const;
 
 export const CODE = {

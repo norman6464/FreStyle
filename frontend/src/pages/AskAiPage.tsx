@@ -304,7 +304,7 @@ export default function AskAiPage() {
           </div>
         )}
 
-        {/* 入力エリア: 角丸カード風 (paiza / 主要 AI チャットの compose UI に倣う) */}
+        {/* 入力エリア: 角丸カード風 (主要 AI チャットの compose UI に倣う) */}
         <div className="px-4 pb-4 pt-2">
           <div className="max-w-3xl mx-auto">
             <MessageInput onSend={handleSend} />

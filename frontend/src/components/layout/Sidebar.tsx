@@ -22,6 +22,11 @@ interface SubItem {
   label: string;
   to: string;
   matchPrefix?: string;
+  /**
+   * このサブメニューを表示できる役職集合。
+   * undefined のときは全 admin（super_admin / company_admin 両方）に表示する。
+   */
+  allowedRoles?: ReadonlyArray<'super_admin' | 'company_admin'>;
 }
 
 interface NavItem {
@@ -57,7 +62,15 @@ const adminNavItem: NavItem = {
   label: '管理',
   matchPrefix: '/admin',
   subItems: [
-    { label: '会社一覧', to: '/admin/companies', matchPrefix: '/admin/companies' },
+    // 会社一覧は全テナントの管理画面なので運営 (super_admin) 専用。
+    // company_admin が見えると越権が起きる印象を与えるため非表示にする。
+    {
+      label: '会社一覧',
+      to: '/admin/companies',
+      matchPrefix: '/admin/companies',
+      allowedRoles: ['super_admin'],
+    },
+    // 招待管理は自社内で trainee を招待する操作のため company_admin / super_admin 双方が利用する。
     { label: '招待管理', to: '/admin/invitations', matchPrefix: '/admin/invitations' },
   ],
 };
@@ -194,7 +207,12 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
               {/* 管理サブメニュー */}
               {expanded && adminOpen && (
                 <div className="ml-4 space-y-0.5">
-                  {adminNavItem.subItems?.map((sub) => {
+                  {adminNavItem.subItems
+                    ?.filter((sub) => {
+                      if (!sub.allowedRoles) return true;
+                      return role !== null && sub.allowedRoles.includes(role as 'super_admin' | 'company_admin');
+                    })
+                    .map((sub) => {
                     const subActive = sub.matchPrefix
                       ? location.pathname.startsWith(sub.matchPrefix)
                       : location.pathname === sub.to;

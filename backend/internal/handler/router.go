@@ -71,6 +71,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	registerAdminRoutes(authed, deps)
 	registerEmbedRoutes(authed)
 	registerExerciseRoutes(authed, deps)
+	registerLearningReportRoutes(authed, deps)
 	// WebSocket (/ws/ai-chat) は SSE (/ai-chat/stream) への置換で廃止 (PR-D)。
 
 	return r

@@ -37,16 +37,16 @@
 
 /*
  * AI チャットの「考え中...」インジケータ用アニメーション。
- * favicon (3 つの青い三角) を「呼吸」のように緩やかに拡大 / 縮小させて「処理中」を可視化する。
- * 回転よりも視線を奪わず、長い思考中も気にならない緩やかな鼓動感に寄せる。
+ * favicon (3 つの青い三角) を呼吸のように拡大縮小 + フェードさせて「処理中」を可視化する。
+ * scale 0.85 ↔ 1.25 / opacity 0.25 ↔ 1 とコントラストを大きめに付け、 視認しやすい呼吸感に。
  */
 @keyframes thinking-pulse {
   0%, 100% {
-    transform: scale(1);
-    opacity: 0.7;
+    transform: scale(0.85);
+    opacity: 0.25;
   }
   50% {
-    transform: scale(1.18);
+    transform: scale(1.25);
     opacity: 1;
   }
 }

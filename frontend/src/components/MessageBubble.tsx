@@ -131,7 +131,9 @@ export default memo(function MessageBubble({
 
   // アシスタント / 他者のメッセージ: フラット、本文に Markdown。
   // 本文が空のときは SSE で最初の token が来るまでの「考え中」状態とみなし、
-  // favicon を回しながら "考え中..." ラベルを出す（Claude / ChatGPT 同様の UX）。
+  // favicon をパルスさせながら "考え中..." ラベルを出す（Claude / ChatGPT 同様の UX）。
+  // 最初の token が来た瞬間に上部のアバターアイコンは消し、本文と末尾の bookend マーカーで
+  // 「処理中 → 応答中 → 完了」の状態遷移を視覚化する。
   const isThinking = type === 'text' && content.trim() === '';
   return (
     <div
@@ -141,14 +143,18 @@ export default memo(function MessageBubble({
       role="article"
       aria-label={senderName ? `${senderName}のメッセージ` : 'AIのメッセージ'}
     >
-      <div className="flex-shrink-0 w-7 h-7 rounded-full bg-[var(--color-surface-2)] flex items-center justify-center">
+      {isThinking ? (
         <img
           src="/favicon.svg"
           alt=""
           aria-hidden="true"
-          className={`w-4 h-4 ${isThinking ? 'animate-thinking' : ''}`}
+          className="w-5 h-5 flex-shrink-0 animate-thinking"
         />
-      </div>
+      ) : (
+        // 応答開始後はアバター枠を持たず本文を左端から始める。
+        // ただし flex のレイアウトが崩れないよう同サイズの空きを確保する。
+        <span className="w-5 h-5 flex-shrink-0" aria-hidden="true" />
+      )}
       <div className="flex-1 min-w-0">
         {senderName && (
           <p className="text-xs text-[var(--color-text-muted)] mb-1">{senderName}</p>

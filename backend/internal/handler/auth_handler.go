@@ -266,6 +266,9 @@ func (h *AuthHandler) upsertUserFromIDToken(c *gin.Context, idToken, invitationT
 		return false
 	}
 	email, _ := claims["email"].(string)
+	// OIDC (Google など) 経由のログインでは id_token に `name` が含まれる。
+	// Cognito User Pool の SRP ログインだと無いこともあるので空許容。
+	oidcName, _ := claims["name"].(string)
 	groups := middleware.ToStringSliceFromClaim(claims["cognito:groups"])
 	isCognitoAdmin := middleware.IsAdminFromGroups(groups)
 
@@ -285,6 +288,15 @@ func (h *AuthHandler) upsertUserFromIDToken(c *gin.Context, idToken, invitationT
 
 	existing, _ := h.users.FindByCognitoSub(c.Request.Context(), sub)
 	if existing != nil {
+		// 既存ユーザの DisplayName が「email そのまま」になっている場合は
+		// id_token の `name` claim で上書きする（旧フローで email を仮の displayName として
+		// 入れていたユーザを OIDC ログイン時に氏名へ自動補正する）。
+		// ユーザが明示的にプロフィールを書き換えている場合（displayName != email）は触らない。
+		if oidcName != "" && existing.Email != "" && existing.DisplayName == existing.Email {
+			if err := h.users.UpdateDisplayName(c.Request.Context(), existing.ID, oidcName); err != nil {
+				log.Printf("upsertUserFromIDToken: backfill displayName failed userID=%d: %v", existing.ID, err)
+			}
+		}
 		// 既存ユーザー: 招待 / Cognito group の状態で role / company を更新する。
 		// 重要な制約:
 		//   - super_admin は何があっても降格しない（招待での降格は不可、別途 admin API でのみ降格可）
@@ -323,7 +335,12 @@ func (h *AuthHandler) upsertUserFromIDToken(c *gin.Context, idToken, invitationT
 	role := domain.RoleTrainee
 	var companyID *uint64
 	var acceptedInvID uint64
+	// displayName の優先順位: 招待 displayName > OIDC `name` claim > email （フォールバック）。
+	// email をそのまま displayName に詰めるのは「氏名がどうしても取れないとき」だけにする。
 	displayName := email
+	if oidcName != "" {
+		displayName = oidcName
+	}
 
 	if isCognitoAdmin {
 		role = domain.RoleSuperAdmin

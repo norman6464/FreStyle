@@ -6,7 +6,6 @@ import {
   ClipboardDocumentIcon,
   ClipboardDocumentCheckIcon,
   TrashIcon,
-  SparklesIcon,
 } from '@heroicons/react/24/outline';
 import 'highlight.js/styles/github-dark.css';
 import { formatHourMinute } from '../utils/formatters';
@@ -139,8 +138,8 @@ export default memo(function MessageBubble({
       role="article"
       aria-label={senderName ? `${senderName}のメッセージ` : 'AIのメッセージ'}
     >
-      <div className="flex-shrink-0 w-7 h-7 rounded-full bg-[var(--color-surface-3)] flex items-center justify-center text-[var(--color-text-muted)]">
-        <SparklesIcon className="w-4 h-4" aria-hidden="true" />
+      <div className="flex-shrink-0 w-7 h-7 rounded-full bg-[var(--color-surface-2)] flex items-center justify-center">
+        <img src="/favicon.svg" alt="" aria-hidden="true" className="w-4 h-4" />
       </div>
       <div className="flex-1 min-w-0">
         {senderName && (

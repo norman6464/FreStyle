@@ -183,10 +183,14 @@ export default function MessageInput({ onSend, isSending = false }: MessageInput
   };
 
   return (
-    <div className="w-full bg-surface-1 border-t border-surface-3">
+    // 角丸カード型の compose UI。 ChatGPT / Claude.ai に倣い、
+    //   1 段目: textarea のみ
+    //   2 段目: 左に + (添付)、右に送信ボタンと送信中ラベル
+    // を縦に並べて、入力にスペースを取りつつ操作系をボトムバーに集約する。
+    <div className="w-full bg-[var(--color-surface-1)] border border-[var(--color-surface-3)] rounded-2xl shadow-sm focus-within:border-[var(--color-text-muted)] transition-colors">
       {pending.length > 0 && (
         <div
-          className="flex flex-wrap gap-2 p-3 pb-0"
+          className="flex flex-wrap gap-2 px-4 pt-3"
           aria-label="添付ファイル"
         >
           {pending.map((a) => (
@@ -195,62 +199,71 @@ export default function MessageInput({ onSend, isSending = false }: MessageInput
         </div>
       )}
       {validationError && (
-        <p className="px-4 pt-2 text-xs text-red-400" role="alert">
+        <p className="px-4 pt-2 text-xs text-red-500" role="alert">
           {validationError}
         </p>
       )}
-      <div className="flex items-end p-3">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept={ACCEPTED_FILE_TYPES}
-          multiple
-          className="hidden"
-          onChange={handleFileChange}
-          aria-label="添付ファイルを選択"
-        />
-        <button
-          type="button"
-          onClick={handlePickClick}
-          disabled={pending.length >= MAX_ATTACHMENTS || isSending}
-          className="text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] p-2.5 rounded-full transition-colors duration-150 flex-shrink-0 mb-1 disabled:opacity-40 disabled:cursor-not-allowed"
-          aria-label="添付ファイル"
-        >
-          <PlusIcon className="h-6 w-6" />
-        </button>
 
-        <div className="flex-1 min-w-0">
-          <textarea
-            ref={textareaRef}
-            rows={1}
-            className="w-full bg-transparent text-[var(--color-text-primary)] outline-none resize-none px-3 py-2 placeholder-slate-400 leading-6"
-            placeholder="メッセージを入力..."
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onCompositionStart={() => setIsComposing(true)}
-            onCompositionEnd={() => setIsComposing(false)}
-            disabled={isSending}
-          />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={ACCEPTED_FILE_TYPES}
+        multiple
+        className="hidden"
+        onChange={handleFileChange}
+        aria-label="添付ファイルを選択"
+      />
+
+      <div className="px-4 pt-3">
+        <textarea
+          ref={textareaRef}
+          rows={1}
+          className="w-full bg-transparent text-[var(--color-text-primary)] outline-none resize-none placeholder:text-[var(--color-text-muted)] text-sm leading-6"
+          placeholder="メッセージを入力..."
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onCompositionStart={() => setIsComposing(true)}
+          onCompositionEnd={() => setIsComposing(false)}
+          disabled={isSending}
+        />
+      </div>
+
+      <div className="flex items-center justify-between px-3 py-2">
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={handlePickClick}
+            disabled={pending.length >= MAX_ATTACHMENTS || isSending}
+            className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-2)] p-1.5 rounded-full transition-colors duration-150 flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+            aria-label="添付ファイル"
+          >
+            <PlusIcon className="h-5 w-5" />
+          </button>
           {text.length > 0 && (
-            <span data-testid="char-count" className="block px-3 pb-1 text-[10px] text-[var(--color-text-muted)] text-right" aria-live="polite">
+            <span
+              data-testid="char-count"
+              className="text-[10px] text-[var(--color-text-muted)]"
+              aria-live="polite"
+            >
               {text.length}
             </span>
           )}
         </div>
 
-        <button
-          onClick={handleSend}
-          className="text-white bg-primary-500 p-2.5 rounded-full hover:bg-primary-600 transition-colors duration-150 flex-shrink-0 disabled:bg-surface-3 mb-1 ml-2"
-          disabled={!canSend}
-          aria-label="送信"
-        >
-          <PaperAirplaneIcon className="h-6 w-6 rotate-90" />
-        </button>
-
-        {isSending && (
-          <span className="text-xs text-[var(--color-text-faint)] ml-2 mb-2 flex-shrink-0">送信中...</span>
-        )}
+        <div className="flex items-center gap-2">
+          {isSending && (
+            <span className="text-xs text-[var(--color-text-muted)]">送信中...</span>
+          )}
+          <button
+            onClick={handleSend}
+            className="text-white bg-[var(--color-text-primary)] p-1.5 rounded-full hover:opacity-80 transition-opacity duration-150 flex-shrink-0 disabled:bg-[var(--color-surface-3)] disabled:text-[var(--color-text-muted)] disabled:cursor-not-allowed"
+            disabled={!canSend}
+            aria-label="送信"
+          >
+            <PaperAirplaneIcon className="h-4 w-4 rotate-90" />
+          </button>
+        </div>
       </div>
     </div>
   );

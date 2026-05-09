@@ -396,7 +396,7 @@ func TestUpsertUserFromIDToken_NewUser_InvitationNameTrumpsOIDCName(t *testing.T
 	}
 	h := newTestAuthHandler(users, invs)
 	idToken := makeIDToken(t, map[string]any{
-		"sub":   "g-2", "email": "u@example.com", "name": "Google Name",
+		"sub": "g-2", "email": "u@example.com", "name": "Google Name",
 	})
 
 	if !h.upsertUserFromIDToken(newGinCtx(), idToken, "") {

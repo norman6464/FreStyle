@@ -36,8 +36,10 @@ func (r *fakeFullSubmissionRepo) ListByUserAndExercise(userID, exerciseID uint64
 	r.lastKind = kind
 	return r.listed, nil
 }
-func (r *fakeFullSubmissionRepo) HasSolved(uint64, uint64, string) (bool, error)    { return false, nil }
-func (r *fakeFullSubmissionRepo) HasAttempted(uint64, uint64, string) (bool, error) { return false, nil }
+func (r *fakeFullSubmissionRepo) HasSolved(uint64, uint64, string) (bool, error) { return false, nil }
+func (r *fakeFullSubmissionRepo) HasAttempted(uint64, uint64, string) (bool, error) {
+	return false, nil
+}
 func (r *fakeFullSubmissionRepo) BatchUserStatuses(uint64, []uint64, string) (map[uint64]string, error) {
 	return nil, nil
 }

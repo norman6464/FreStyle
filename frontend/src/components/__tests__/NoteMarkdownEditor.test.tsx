@@ -72,4 +72,22 @@ describe('NoteMarkdownEditor', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
     expect(screen.getByText('プレビューするコンテンツがありません')).toBeInTheDocument();
   });
+
+  // IME 変換中の Enter（日本語入力の確定）はフォーカス移動しない（誤って textarea に飛んで
+  // 未確定文字列が紛れ込む事故の再発防止）。
+  it('タイトルで IME 変換中の Enter は textarea にフォーカスを移さない', () => {
+    renderEditor();
+    const titleInput = screen.getByRole('textbox', { name: 'ノートのタイトル' });
+    titleInput.focus();
+    fireEvent.keyDown(titleInput, { key: 'Enter', isComposing: true });
+    expect(document.activeElement).toBe(titleInput);
+  });
+
+  it('タイトルで通常の Enter は textarea にフォーカスを移す', () => {
+    renderEditor();
+    const titleInput = screen.getByRole('textbox', { name: 'ノートのタイトル' });
+    titleInput.focus();
+    fireEvent.keyDown(titleInput, { key: 'Enter' });
+    expect(document.activeElement).toBe(getMarkdownTextarea());
+  });
 });

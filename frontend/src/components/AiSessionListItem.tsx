@@ -52,7 +52,10 @@ export default memo(function AiSessionListItem({
               value={editingTitle}
               onChange={(e) => onEditingTitleChange(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && editingTitle.trim()) onSaveTitle(id);
+                // IME 変換中の Enter は確定操作として透過させる（誤って保存しない）。
+                if (e.key === 'Enter' && !e.nativeEvent.isComposing && editingTitle.trim()) {
+                  onSaveTitle(id);
+                }
                 if (e.key === 'Escape') onCancelEdit();
               }}
               className="flex-1 text-xs px-2 py-1 border border-[var(--color-border-hover)] rounded focus:outline-none focus:ring-1 focus:ring-primary-400"

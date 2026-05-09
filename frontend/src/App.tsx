@@ -35,6 +35,7 @@ const AdminCompaniesPage = lazyWithReload(() => import('./pages/AdminCompaniesPa
 const ExerciseListPage = lazyWithReload(() => import('./pages/ExerciseListPage'), 'ExerciseListPage');
 const ExerciseDetailPage = lazyWithReload(() => import('./pages/ExerciseDetailPage'), 'ExerciseDetailPage');
 const TeachingMaterialsPage = lazyWithReload(() => import('./pages/TeachingMaterialsPage'), 'TeachingMaterialsPage');
+const MarkdownSyntaxHelpPage = lazyWithReload(() => import('./pages/MarkdownSyntaxHelpPage'), 'MarkdownSyntaxHelpPage');
 
 function NavigationToast() {
   const location = useLocation();
@@ -113,6 +114,7 @@ export default function App() {
         <Route path="/chat/ask-ai" element={<AskAiPage />} />
         <Route path="/chat/ask-ai/:sessionId" element={<AskAiPage />} />
         <Route path="/notes" element={<NotesPage />} />
+        <Route path="/notes/markdown-help" element={<MarkdownSyntaxHelpPage />} />
         <Route path="/notifications" element={<NotificationPage />} />
         <Route path="/reports" element={<LearningReportPage />} />
         <Route path="/help" element={<HelpPage />} />

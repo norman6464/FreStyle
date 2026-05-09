@@ -6,7 +6,6 @@ import LinkText from '../components/LinkText';
 import { getCognitoAuthUrl } from '../utils/auth';
 import { useLoginPage } from '../hooks/useLoginPage';
 import { XCircleIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
-import { GuidedHint } from '../components/ui';
 
 export default function LoginPage() {
   const { form, loginMessage, flashMessage, loading, handleLogin, handleChange } = useLoginPage();
@@ -21,14 +20,6 @@ export default function LoginPage() {
         </p>
       }
     >
-      {/* 初心者向け導入ヒント（一度閉じると再表示しない） */}
-      <div className="mb-4">
-        <GuidedHint title="FreStyle へようこそ" storageKey="hint:login:intro-v1" tone="info">
-          Google アカウント、またはメールアドレス + パスワードでログインできます。
-          アカウントがない場合は下のリンクから新規登録してください。
-        </GuidedHint>
-      </div>
-
       {/* フラッシュメッセージ（成功） */}
       {flashMessage && (
         <p

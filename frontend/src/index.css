@@ -5,23 +5,22 @@
 /*
  * ライトテーマ単一構成（ダークモードは廃止）。
  *
- * カラー設計:
- *   - body 全体: #FAFAFA（ニュートラルな白寄り）
- *   - サイドバー / ヘッダー: #E4EAF2（淡いブルーグレー）→ --color-nav として独立変数化
- *   - カード / raised surface: 純白 #FFFFFF / 微差 #F0F0F0 で階層を視認できるように差を付ける
- *   - サーフェス階層は「ページ背景 < カード < 強調」の順に並べる
+ * カラー設計（モノクロ最小主義）:
+ *   - body / サイドバー / ヘッダーは全て純白 (#FFFFFF) で統一し、領域の境界は border のみで表現
+ *   - hover / active は色相を持たない暖色グレー (#F5F5F4 / #EAEAE9) で控えめに
+ *   - アクセント色は使用箇所を絞り、視覚ノイズを排除する
  */
 :root {
-  --color-surface: #FAFAFA;
+  --color-surface: #FFFFFF;
   --color-surface-1: #FFFFFF;
-  --color-surface-2: #F0F0F0;
-  --color-surface-3: #E0E0E0;
-  /* サイドバーとヘッダー専用。 surface-1 と区別して body との差別化を可能にする */
-  --color-nav: #E4EAF2;
-  /* nav 上のホバー / アクティブ状態。 nav と同じ色相 (ブルーグレー) を維持しつつ段階的に濃くすることで
-     surface-2 / surface-3 のニュートラルグレーが nav 上で「白い塊」に見える違和感を解消する。 */
-  --color-nav-hover: #D2DAE6;
-  --color-nav-active: #B8C3D4;
+  --color-surface-2: #F5F5F4;
+  --color-surface-3: #E7E5E4;
+  /* サイドバー / ヘッダーは body と同じ白で、border 1px のみで境界を表現する */
+  --color-nav: #FFFFFF;
+  /* nav 上の hover / active 状態。色相を持たないニュートラル寄り暖色グレーで
+     「白い塊」感を出さず、目立ちすぎない控えめなインタラクション表現にする。 */
+  --color-nav-hover: #F5F5F4;
+  --color-nav-active: #EAEAE9;
   --color-text-primary: #191919;
   --color-text-secondary: #37352F;
   --color-text-tertiary: #787774;
@@ -29,7 +28,7 @@
   --color-text-faint: #D3D3D0;
   --color-text-subtle: #E8E8E6;
   --color-border-hover: #D3D3D0;
-  --scrollbar-track: #FAFAFA;
+  --scrollbar-track: #FFFFFF;
   --scrollbar-thumb: #D3D3D0;
   --scrollbar-thumb-hover: #A4A4A0;
 

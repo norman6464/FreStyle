@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, KeyboardEvent, ChangeEvent } from 'react';
-import { PaperAirplaneIcon, PlusIcon } from '@heroicons/react/24/solid';
+import { ArrowUpIcon, PlusIcon } from '@heroicons/react/24/solid';
 import { XMarkIcon, PhotoIcon } from '@heroicons/react/24/outline';
 import { useAutoResizeTextarea } from '../hooks/useAutoResizeTextarea';
 import aiChatRepository from '../repositories/AiChatRepository';
@@ -261,7 +261,7 @@ export default function MessageInput({ onSend, isSending = false }: MessageInput
             disabled={!canSend}
             aria-label="送信"
           >
-            <PaperAirplaneIcon className="h-4 w-4 rotate-90" />
+            <ArrowUpIcon className="h-4 w-4" />
           </button>
         </div>
       </div>
@@ -288,30 +288,54 @@ interface AttachmentChipProps {
 }
 
 /**
- * 送信前の添付チップ。ChatGPT / Claude.ai の compose UI に倣い、
- * 画像 thumbnail + filename + サイズ（or 状態）を 1 行で並べる。
+ * 送信前の添付チップ。
  *
- * 画像は previewUrl（Object URL）でローカル描画する。アップロード失敗時は赤い枠で通知。
+ * 画像 (previewUrl あり / error なし) のときは「実際の画像を 144px の大きめサムネで描画」する
+ * モダン AI チャット UI に寄せたカード型表示にする。 「broken image アイコン + ファイル名」の
+ * 旧表示はユーザに「アップロード失敗」と誤解されやすいため。
+ *
+ * 画像以外（PDF / CSV）や error 時は filename + 状態の row 型 chip にフォールバック。
  */
 function AttachmentChip({ attachment, onRemove }: AttachmentChipProps) {
+  const showImagePreview =
+    attachment.kind === 'image' && !!attachment.previewUrl && !attachment.error;
+
+  if (showImagePreview) {
+    return (
+      <div className="relative inline-block">
+        <img
+          src={attachment.previewUrl}
+          alt={attachment.filename}
+          className="max-h-36 max-w-[240px] rounded-xl border border-[var(--color-surface-3)] object-cover"
+        />
+        {attachment.uploading && (
+          <div className="absolute inset-0 rounded-xl bg-black/40 flex items-center justify-center">
+            <span className="text-white text-xs">アップロード中...</span>
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={() => onRemove(attachment.key)}
+          aria-label={`${attachment.filename} を削除`}
+          className="absolute -top-1.5 -right-1.5 p-0.5 rounded-full bg-white border border-[var(--color-surface-3)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] shadow-sm"
+        >
+          <XMarkIcon className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    );
+  }
+
+  // 画像以外 / 失敗時は従来の row 型 chip にフォールバック
   return (
     <div
       className={`relative flex items-center gap-2 pr-7 pl-2 py-1.5 rounded-lg border ${
         attachment.error
           ? 'border-red-500/60 bg-red-500/10'
-          : 'border-surface-3 bg-surface-2'
+          : 'border-[var(--color-surface-3)] bg-[var(--color-surface-2)]'
       }`}
     >
-      <div className="w-9 h-9 rounded overflow-hidden bg-surface-3 flex items-center justify-center flex-shrink-0">
-        {attachment.previewUrl ? (
-          <img
-            src={attachment.previewUrl}
-            alt=""
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <PhotoIcon className="w-5 h-5 text-[var(--color-text-muted)]" />
-        )}
+      <div className="w-9 h-9 rounded overflow-hidden bg-[var(--color-surface-3)] flex items-center justify-center flex-shrink-0">
+        <PhotoIcon className="w-5 h-5 text-[var(--color-text-muted)]" />
       </div>
       <div className="min-w-0 flex flex-col">
         <span className="text-xs font-medium text-[var(--color-text-primary)] truncate max-w-[180px]">
@@ -329,7 +353,7 @@ function AttachmentChip({ attachment, onRemove }: AttachmentChipProps) {
         type="button"
         onClick={() => onRemove(attachment.key)}
         aria-label={`${attachment.filename} を削除`}
-        className="absolute top-1 right-1 p-0.5 rounded-full bg-surface-3 hover:bg-surface-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+        className="absolute top-1 right-1 p-0.5 rounded-full bg-[var(--color-surface-3)] hover:bg-[var(--color-surface-1)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
       >
         <XMarkIcon className="w-3.5 h-3.5" />
       </button>

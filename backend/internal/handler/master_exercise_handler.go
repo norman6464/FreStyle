@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 	"gorm.io/gorm"
 )
@@ -19,26 +20,37 @@ import (
 // 詳細は slug ベース URL（`/code-editor/php-1` のように人間可読）に揃えるため、
 // 旧 `:id` ルートは廃止し slug 必須にする（フロントは新 API に追従させる）。
 type MasterExerciseHandler struct {
-	listExercises *usecase.ListMasterExercisesUseCase
-	getExercise   *usecase.GetMasterExerciseUseCase
+	listExercises     *usecase.ListMasterExercisesUseCase
+	listWithStatus    *usecase.ListMasterExercisesWithStatusUseCase
+	getExercise       *usecase.GetMasterExerciseUseCase
 }
 
 func NewMasterExerciseHandler(
 	list *usecase.ListMasterExercisesUseCase,
+	listWithStatus *usecase.ListMasterExercisesWithStatusUseCase,
 	get *usecase.GetMasterExerciseUseCase,
 ) *MasterExerciseHandler {
-	return &MasterExerciseHandler{listExercises: list, getExercise: get}
+	return &MasterExerciseHandler{listExercises: list, listWithStatus: listWithStatus, getExercise: get}
 }
 
 // List は GET /api/v2/exercises 。query `language` で絞り込み（空なら全言語）。
+//
+// current user の提出状況（solved / in_progress / 未着手）と
+// 全ユーザ合計の集計（提出数 / 正答ユーザ数）を 1 度に返す。
+// 一覧ページでステータスバッジ + 解答率を出すために必要。
+// 未ログインの場合は status は全 ""、 stats だけ返す。
 func (h *MasterExerciseHandler) List(c *gin.Context) {
 	language := c.Query("language")
-	exercises, err := h.listExercises.Execute(language)
+	uid := middleware.CurrentUserIDOrZero(c)
+	rows, err := h.listWithStatus.Execute(usecase.ListMasterExercisesWithStatusInput{
+		UserID:   uid,
+		Language: language,
+	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "演習問題の取得に失敗しました"})
 		return
 	}
-	c.JSON(http.StatusOK, exercises)
+	c.JSON(http.StatusOK, rows)
 }
 
 // GetBySlug は GET /api/v2/exercises/:slug 。 入出力例を含む詳細を返す。

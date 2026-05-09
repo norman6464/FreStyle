@@ -1,15 +1,13 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import MessageBubbleAi from '../components/MessageBubbleAi';
 import MessageInput from '../components/MessageInput';
 import ConfirmModal from '../components/ConfirmModal';
 import SecondaryPanel from '../components/layout/SecondaryPanel';
 import AiSessionListItem from '../components/AiSessionListItem';
-import EmptyState from '../components/EmptyState';
 import Loading from '../components/Loading';
 import {
   PlusIcon,
   Bars3Icon,
-  SparklesIcon,
   MagnifyingGlassIcon,
   ArrowDownIcon,
 } from '@heroicons/react/24/outline';
@@ -89,6 +87,14 @@ export default function AskAiPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
+  // 左上に出すタイトル。 currentSessionId に該当する session の title が無ければ
+  // 「新しいチャット」をフォールバックにする（ first message が確定するまでの間）。
+  const currentSessionTitle = useMemo(() => {
+    if (!currentSessionId) return '新しいチャット';
+    const found = sessions.find((s) => s.id === currentSessionId);
+    return found?.title?.trim() || '新しいチャット';
+  }, [sessions, currentSessionId]);
+
   if (loading && sessions.length === 0) {
     return <Loading message="読み込み中..." className="min-h-[calc(100vh-3.5rem)]" />;
   }
@@ -155,15 +161,18 @@ export default function AskAiPage() {
 
       {/* メイン: チャット */}
       <div className="flex-1 flex flex-col min-w-0 relative">
-        {/* モバイル用パネル開閉ボタン */}
-        <div className="md:hidden p-2 border-b border-surface-3">
+        {/* 上部ヘッダー: 左上にセッションタイトル、モバイルではハンバーガーも兼ねる */}
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-surface-3">
           <button
             onClick={openMobilePanel}
-            className="p-2 rounded hover:bg-surface-2"
+            className="md:hidden p-1.5 rounded hover:bg-[var(--color-surface-2)]"
             aria-label="セッションを開く"
           >
             <Bars3Icon className="w-5 h-5" />
           </button>
+          <h1 className="text-sm font-medium text-[var(--color-text-primary)] truncate">
+            {currentSessionTitle}
+          </h1>
         </div>
 
         <div
@@ -172,11 +181,7 @@ export default function AskAiPage() {
           className="flex-1 overflow-y-auto px-4 py-6 relative"
         >
           {messages.length === 0 ? (
-            <EmptyState
-              icon={SparklesIcon}
-              title="質問してみましょう"
-              description="自由に質問・要約・コードのレビュー依頼などができます。"
-            />
+            <WelcomeGreeting />
           ) : (
             <div className="max-w-3xl mx-auto space-y-4">
               {messages.map((message) => (
@@ -197,21 +202,22 @@ export default function AskAiPage() {
         </div>
 
         {/* stick が解除されているとき（= 上にスクロールしている）だけ表示する
-             「最下部へ戻る」ボタン。ChatGPT / Claude.ai と同じ UX */}
+             「最下部へ戻る」ボタン */}
         {!stickToBottom && messages.length > 0 && (
-          <div className="absolute right-6 bottom-24 z-10">
+          <div className="absolute right-6 bottom-32 z-10">
             <button
               type="button"
               onClick={jumpToBottom}
               aria-label="最下部にスクロール"
-              className="flex items-center justify-center w-10 h-10 rounded-full bg-[var(--color-surface-3)] text-[var(--color-text-primary)] shadow-md hover:bg-[var(--color-surface-2)] border border-[var(--color-surface-3)]"
+              className="flex items-center justify-center w-10 h-10 rounded-full bg-[var(--color-surface-1)] text-[var(--color-text-primary)] shadow-md hover:bg-[var(--color-surface-2)] border border-[var(--color-surface-3)]"
             >
               <ArrowDownIcon className="w-5 h-5" />
             </button>
           </div>
         )}
 
-        <div className="border-t border-surface-3 p-3 bg-[var(--color-surface-1)]">
+        {/* 入力エリア: 角丸カード風 (paiza / 主要 AI チャットの compose UI に倣う) */}
+        <div className="px-4 pb-4 pt-2">
           <div className="max-w-3xl mx-auto">
             <MessageInput onSend={handleSend} />
           </div>
@@ -228,6 +234,37 @@ export default function AskAiPage() {
         onConfirm={confirmDeleteSession}
         onCancel={cancelDeleteSession}
       />
+    </div>
+  );
+}
+
+/**
+ * 新規セッション時にメッセージ欄が空のときに出すウェルカムグリーティング。
+ *
+ * デザイン:
+ *   - 大きめのブランドアイコン (favicon.svg = 三角の翼ロゴ) を見出しの左に置き、
+ *     「FreStyle 式の AI チャット」であることを最初の一画面で伝える。
+ *   - 中央寄せ、本文は控えめに 1〜2 行。
+ */
+function WelcomeGreeting() {
+  return (
+    <div className="h-full flex items-center justify-center px-4">
+      <div className="max-w-xl w-full text-center">
+        <div className="flex items-center justify-center gap-3 mb-4">
+          <img
+            src="/favicon.svg"
+            alt=""
+            aria-hidden="true"
+            className="w-10 h-10 flex-shrink-0"
+          />
+          <h2 className="text-2xl font-medium text-[var(--color-text-primary)]">
+            なにをお手伝いしましょうか？
+          </h2>
+        </div>
+        <p className="text-sm text-[var(--color-text-muted)]">
+          質問・要約・コードレビューなど、自由にメッセージを送ってください。
+        </p>
+      </div>
     </div>
   );
 }

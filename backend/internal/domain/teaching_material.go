@@ -18,7 +18,9 @@ import "time"
 type TeachingMaterial struct {
 	ID              uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
 	CompanyID       uint64    `gorm:"column:company_id;not null;index" json:"companyId"`
-	CourseID        uint64    `gorm:"column:course_id;not null;index" json:"courseId"`
+	// course_id の NOT NULL 制約は migration 0004 で確定する（既存行への ADD COLUMN を
+	// AutoMigrate で安全に通すため、 GORM tag では not null を指定しない）。
+	CourseID        uint64    `gorm:"column:course_id;index" json:"courseId"`
 	CreatedByUserID uint64    `gorm:"column:created_by_user_id;not null" json:"createdByUserId"`
 	Title           string    `gorm:"column:title;not null;default:''" json:"title"`
 	Content         string    `gorm:"column:content;type:text;not null;default:''" json:"content"`

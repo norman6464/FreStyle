@@ -81,7 +81,7 @@ export default function ProfilePage() {
           className="space-y-4"
         >
           <InputField
-            label="ニックネーム"
+            label="氏名"
             name="displayName"
             value={form.displayName}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateField('displayName', e.target.value)}

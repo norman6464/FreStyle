@@ -3,8 +3,12 @@ import ProfileRepository from '../repositories/ProfileRepository';
 import type { FormMessage, Profile } from '../types';
 
 /**
- * useProfileEdit — ProfilePage で「ニックネーム / 自己紹介 / アイコン / ステータス」
+ * useProfileEdit — ProfilePage で「氏名 / 自己紹介 / アイコン / ステータス」
  * の編集を扱う。フォーム形は backend `domain.ProfileView` のサブセット。
+ *
+ * displayName は OIDC ログイン時に id_token の `name` claim を初期値として
+ * セットするため（auth_handler.upsertUserFromIDToken）、 通常は氏名がそのまま入る。
+ * ユーザは ProfilePage 上で自由に書き換え可能。
  */
 type ProfileForm = Pick<Profile, 'displayName' | 'bio' | 'avatarUrl' | 'status'>;
 
@@ -46,7 +50,7 @@ export function useProfileEdit() {
 
   const handleUpdate = useCallback(async () => {
     if (!form.displayName.trim()) {
-      setMessage({ type: 'error', text: 'ニックネームを入力してください。' });
+      setMessage({ type: 'error', text: '氏名を入力してください。' });
       return;
     }
     setSubmitting(true);

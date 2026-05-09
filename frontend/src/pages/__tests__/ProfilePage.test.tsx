@@ -62,7 +62,7 @@ describe('ProfilePage', () => {
     });
   });
 
-  it('プロファイル取得後にニックネーム欄が表示される', async () => {
+  it('プロファイル取得後に氏名欄が表示される', async () => {
     mockedRepo.fetchProfile.mockResolvedValue({ userId: 1, displayName: 'テストユーザー', bio: '自己紹介文', avatarUrl: '', status: '', updatedAt: '2026-04-28T00:00:00Z' });
 
     render(<ProfilePage />);

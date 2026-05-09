@@ -14,7 +14,8 @@ type UserRepository interface {
 	FindByCognitoSub(ctx context.Context, sub string) (*domain.User, error)
 	FindByID(ctx context.Context, id uint64) (*domain.User, error)
 	Create(ctx context.Context, user *domain.User) error
-	// UpdateDisplayName は ProfilePage の「ニックネーム」変更で呼ばれる。
+	// UpdateDisplayName は ProfilePage の「氏名」変更、 および OIDC ログイン時に
+	// 旧 displayName=email を id_token の name claim で自動補正するときに呼ばれる。
 	UpdateDisplayName(ctx context.Context, userID uint64, displayName string) error
 	// UpdateRole は Cognito group → DB role 同期、または招待受諾時に呼ばれる。
 	UpdateRole(ctx context.Context, userID uint64, role string) error

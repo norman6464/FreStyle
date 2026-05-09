@@ -537,3 +537,47 @@ export interface MasterExerciseDetail {
   exercise: MasterExercise;
   examples: MasterExerciseExample[];
 }
+
+/** 一覧 API (`GET /api/v2/exercises`) で返る集計値（Go backend `repository.ExerciseSubmissionStats`）。 */
+export interface ExerciseSubmissionStats {
+  totalSubmissions: number;
+  solvedUsers: number;
+}
+
+/** 一覧 API のレスポンス 1 行。 MasterExercise + current user 状態 + 全体集計。
+ *  status: "solved" | "in_progress" | "" （未提出）。 */
+export interface MasterExerciseWithStatus extends MasterExercise {
+  status: '' | 'solved' | 'in_progress';
+  stats: ExerciseSubmissionStats;
+}
+
+/** 提出 API (`POST /api/v2/exercises/:slug/submit`) のレスポンス 1 件あたりの採点結果。 */
+export interface ExerciseTestCaseResult {
+  orderIndex: number;
+  input: string;
+  expectedOutput: string;
+  actualOutput: string;
+  stderr: string;
+  passed: boolean;
+}
+
+/** 提出 API のレスポンス。 */
+export interface ExerciseSubmitResult {
+  submissionId: number;
+  isCorrect: boolean;
+  results: ExerciseTestCaseResult[];
+}
+
+/** 提出履歴 1 行（Go backend `domain.ExerciseSubmission`）。 */
+export interface ExerciseSubmission {
+  id: number;
+  userId: number;
+  exerciseKind: 'master' | 'company';
+  exerciseId: number;
+  submittedCode: string;
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+  isCorrect: boolean;
+  submittedAt: string;
+}

@@ -14,9 +14,13 @@ import "time"
 //   - InputText は標準入力に流す内容。問題によっては入力なし（空文字）でも成立する
 //   - 表示 / 採点順序は OrderIndex で安定ソート
 type MasterExerciseExample struct {
-	ID             uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
-	ExerciseID     uint64    `gorm:"column:exercise_id;not null;index:idx_examples_exercise_order,priority:1" json:"exerciseId"`
-	OrderIndex     int16     `gorm:"column:order_index;type:smallint;not null;default:0;index:idx_examples_exercise_order,priority:2" json:"orderIndex"`
+	ID uint64 `gorm:"primaryKey;autoIncrement" json:"id"`
+	// (exercise_id, order_index) で UNIQUE 制約を張ることで、同じ問題内で
+	// OrderIndex が衝突する行を DB レベルで弾く（UI 上「入力例 1」が 2 つ並ぶ事故防止）。
+	ExerciseID uint64 `gorm:"column:exercise_id;not null;uniqueIndex:idx_examples_exercise_order,priority:1" json:"exerciseId"`
+	// OrderIndex は seed / 運営入力時に必ず明示する想定で DB DEFAULT を持たせない。
+	// （default:0 を残すと order_index 未指定の INSERT が黙って 0 を採用して衝突を起こすため）
+	OrderIndex     int16     `gorm:"column:order_index;type:smallint;not null;uniqueIndex:idx_examples_exercise_order,priority:2" json:"orderIndex"`
 	InputText      string    `gorm:"column:input_text;type:text;not null;default:''" json:"inputText"`
 	ExpectedOutput string    `gorm:"column:expected_output;type:text;not null" json:"expectedOutput"`
 	CreatedAt      time.Time `json:"createdAt"`

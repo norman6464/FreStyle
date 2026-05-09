@@ -1,10 +1,12 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"gorm.io/gorm"
 )
 
 // MasterExerciseHandler は運営マスタ演習問題（master_exercises）の一覧 / 取得を返す。
@@ -40,6 +42,9 @@ func (h *MasterExerciseHandler) List(c *gin.Context) {
 }
 
 // GetBySlug は GET /api/v2/exercises/:slug 。 入出力例を含む詳細を返す。
+//
+// `gorm.ErrRecordNotFound` のときだけ 404 を返し、 それ以外の DB / 集計エラーは 500 として
+// 区別する。 全部 404 にすると本物の障害を「該当なし」と誤検知して上流に隠してしまうため。
 func (h *MasterExerciseHandler) GetBySlug(c *gin.Context) {
 	slug := c.Param("slug")
 	if slug == "" {
@@ -48,7 +53,11 @@ func (h *MasterExerciseHandler) GetBySlug(c *gin.Context) {
 	}
 	detail, err := h.getExercise.ExecuteBySlug(slug)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "演習問題が見つかりません"})
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "演習問題が見つかりません"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "演習問題の取得に失敗しました"})
 		return
 	}
 	c.JSON(http.StatusOK, detail)

@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"gorm.io/gorm"
 )
 
 // fakeMasterExerciseRepo は MasterExerciseRepository の最小スタブ。
@@ -102,8 +103,11 @@ func TestMasterExerciseHandler_List_FiltersByLanguage(t *testing.T) {
 func TestMasterExerciseHandler_List_AllLanguages(t *testing.T) {
 	repo := &fakeMasterExerciseRepo{}
 	r := newMasterExerciseTestHandler(repo, nil)
-	req := httptest.NewRequest(http.MethodGet, "/exercises", nil)
-	r.ServeHTTP(httptest.NewRecorder(), req)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/exercises", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
 	if repo.listLanguage != "" {
 		t.Errorf("listLanguage = %q, want empty", repo.listLanguage)
 	}
@@ -148,13 +152,24 @@ func TestMasterExerciseHandler_GetBySlug_Success(t *testing.T) {
 	}
 }
 
-// 存在しない slug → 404。
+// 存在しない slug → 404 (`gorm.ErrRecordNotFound` のケース)。
 func TestMasterExerciseHandler_GetBySlug_NotFound(t *testing.T) {
-	repo := &fakeMasterExerciseRepo{getErr: errors.New("not found")}
+	repo := &fakeMasterExerciseRepo{getErr: gorm.ErrRecordNotFound}
 	r := newMasterExerciseTestHandler(repo, nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/exercises/missing", nil))
 	if w.Code != http.StatusNotFound {
 		t.Errorf("status = %d, want 404", w.Code)
+	}
+}
+
+// `gorm.ErrRecordNotFound` 以外の DB エラーは 500 として返す（404 と区別する）。
+func TestMasterExerciseHandler_GetBySlug_InternalError(t *testing.T) {
+	repo := &fakeMasterExerciseRepo{getErr: errors.New("connection refused")}
+	r := newMasterExerciseTestHandler(repo, nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/exercises/whatever", nil))
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("status = %d, want 500", w.Code)
 	}
 }

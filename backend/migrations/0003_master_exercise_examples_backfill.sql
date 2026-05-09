@@ -20,7 +20,19 @@
 --   - 何度実行しても同じ結果になる
 --
 -- ロールバック:
---   DELETE FROM master_exercise_examples;  -- 全件削除（テーブルは GORM 管理のため残す）
+--   本マイグレーションが挿入した行 = 「OrderIndex=1 / InputText='' で既に master_exercises に
+--   存在していた expected_output と一致するもの」のみを取り消す。 全件 DELETE は運営や PR-W で
+--   後から追加された手動 example を巻き込むため絶対に避けること。
+--
+--   DELETE FROM master_exercise_examples mee
+--    WHERE mee.order_index = 1
+--      AND mee.input_text  = ''
+--      AND EXISTS (
+--          SELECT 1
+--            FROM master_exercises me
+--           WHERE me.id = mee.exercise_id
+--             AND COALESCE(me.expected_output, '') = mee.expected_output
+--      );
 -- =====================================================================
 
 BEGIN;

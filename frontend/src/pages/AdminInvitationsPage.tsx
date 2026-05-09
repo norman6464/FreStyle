@@ -164,7 +164,7 @@ export default function AdminInvitationsPage() {
   const formatDate = (iso: string) => new Date(iso).toLocaleString('ja-JP');
 
   return (
-    <div className="px-6 pt-6 pb-24 max-w-3xl mx-auto space-y-6">
+    <div className="px-6 pt-6 pb-24 max-w-5xl mx-auto space-y-6">
       <PageIntro
         title="管理: メンバー招待"
         description={

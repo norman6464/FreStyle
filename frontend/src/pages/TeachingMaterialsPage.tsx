@@ -14,6 +14,7 @@ import EmptyState from '../components/EmptyState';
 import ConfirmModal from '../components/ConfirmModal';
 import Loading from '../components/Loading';
 import NoteMarkdownEditor from '../components/NoteMarkdownEditor';
+import MarkdownTableOfContents from '../components/MarkdownTableOfContents';
 import { useTeachingMaterials } from '../hooks/useTeachingMaterials';
 import { useTeachingMaterialEditor } from '../hooks/useTeachingMaterialEditor';
 import { useMobilePanelState } from '../hooks/useMobilePanelState';
@@ -283,21 +284,29 @@ function ManagedDetail({
 }
 
 function ReadOnlyDetail({ material }: { material: TeachingMaterial }) {
-  // trainee は読み取り専用のため、 NoteMarkdownEditor を Preview 固定状態で渡す代わりに
-  // 簡易的な表示モードにする（編集不可なので saveStatus / 入力は不要）。
+  // Zenn 風 2 カラム: 左 = 本文 (max-w-3xl 程度) / 右 = sticky な目次サイドバー。
+  // スクロールバーは画面右端に出したいので、 スクロールコンテナは width 制限せず、
+  // 内側のグリッドで本文・目次の幅を制御する。
   return (
-    <div className="flex-1 overflow-y-auto p-6 max-w-3xl mx-auto w-full">
-      <h1 className="text-2xl font-bold text-[var(--color-text-primary)] mb-2">
-        {material.title || '無題の教材'}
-      </h1>
-      <p className="text-xs text-[var(--color-text-muted)] mb-6">
-        最終更新: {formatDate(material.updatedAt)}
-      </p>
-      <div className="prose prose-sm max-w-none">
-        {/* trainee は編集できないので NoteMarkdownEditor の onContentChange は no-op で
-            渡し、 Preview 表示扱いにする。 ただしカスタマイズが面倒なので、
-            最初から <ReactMarkdown> で描画する別経路にする。 */}
-        <ReadOnlyMarkdown content={material.content} />
+    <div className="flex-1 overflow-y-auto">
+      <div className="mx-auto w-full max-w-6xl px-6 py-6 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_240px] gap-8">
+        <article className="min-w-0">
+          <h1 className="text-2xl font-bold text-[var(--color-text-primary)] mb-2">
+            {material.title || '無題の教材'}
+          </h1>
+          <p className="text-xs text-[var(--color-text-muted)] mb-6">
+            最終更新: {formatDate(material.updatedAt)}
+          </p>
+          <div className="prose prose-sm max-w-none">
+            <ReadOnlyMarkdown content={material.content} />
+          </div>
+        </article>
+
+        <aside className="hidden lg:block">
+          <div className="sticky top-6">
+            <MarkdownTableOfContents content={material.content} />
+          </div>
+        </aside>
       </div>
     </div>
   );
@@ -320,6 +329,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import rehypeHighlight from 'rehype-highlight';
+import rehypeSlug from 'rehype-slug';
 import type { ReactNode } from 'react';
 
 function ReadOnlyMarkdown({ content }: { content: string }) {
@@ -329,7 +339,7 @@ function ReadOnlyMarkdown({ content }: { content: string }) {
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm, remarkBreaks]}
-      rehypePlugins={[rehypeHighlight]}
+      rehypePlugins={[rehypeSlug, rehypeHighlight]}
       components={{
         a: ({ href, children }) => (
           <a

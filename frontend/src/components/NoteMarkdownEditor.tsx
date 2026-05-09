@@ -101,7 +101,7 @@ export default function NoteMarkdownEditor({
   }, [displayContent, title]);
 
   return (
-    <div className="flex flex-col h-full p-6 max-w-3xl mx-auto w-full">
+    <div className="flex flex-col h-full p-6 max-w-6xl mx-auto w-full">
       <input
         ref={titleRef}
         type="text"

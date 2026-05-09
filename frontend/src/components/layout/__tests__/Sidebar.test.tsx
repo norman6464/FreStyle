@@ -15,7 +15,7 @@ function createTestStore(isAdmin = false, role: string | null = null) {
   return configureStore({
     reducer: { auth: authReducer },
     preloadedState: {
-      auth: { isAuthenticated: true, loading: false, isAdmin, onboarded: true, role },
+      auth: { isAuthenticated: true, loading: false, isAdmin, role },
     },
   });
 }

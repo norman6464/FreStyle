@@ -240,15 +240,6 @@ export default function MessageInput({ onSend, isSending = false }: MessageInput
           >
             <PlusIcon className="h-5 w-5" />
           </button>
-          {text.length > 0 && (
-            <span
-              data-testid="char-count"
-              className="text-[10px] text-[var(--color-text-muted)]"
-              aria-live="polite"
-            >
-              {text.length}
-            </span>
-          )}
         </div>
 
         <div className="flex items-center gap-2">

@@ -126,14 +126,17 @@ func (uc *SubmitMasterExerciseUseCase) Execute(ctx context.Context, in SubmitMas
 			Passed:         passed,
 		})
 		if !passed && allPassed {
-			// 最初の失敗を representative として記録。
+			// 最初の失敗を representative として記録し allPassed を false に倒す。
+			// 以降のループでは下の if も通らないため、 この値が representative として固定される。
 			representativeStdout = out.Stdout
 			representativeStderr = out.Stderr
 			representativeExit = out.ExitCode
 			allPassed = false
 		}
 		if allPassed {
-			// 全 pass の経路では最後の結果で上書きする（成功例の出力を残す）。
+			// 全件 pass し続けている経路。 ループのたびに最後の出力で上書きすることで、
+			// 最終的に representative が「最後に通ったテストケースの出力」になる。
+			// 1 件でも失敗したら上の if 文で allPassed=false に倒れ、 こちらは以降スキップされる。
 			representativeStdout = out.Stdout
 			representativeStderr = out.Stderr
 			representativeExit = out.ExitCode

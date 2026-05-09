@@ -15,9 +15,14 @@ import (
 )
 
 // fakeFullSubmissionRepo は提出ハンドラの統合テスト用フェイク。
+// ListByUserAndExercise は呼び出し時の引数を last* に記録し、
+// handler が user_id / exercise_id / kind を正しく渡しているかをテスト側で検証できるようにする。
 type fakeFullSubmissionRepo struct {
-	created *domain.ExerciseSubmission
-	listed  []domain.ExerciseSubmission
+	created        *domain.ExerciseSubmission
+	listed         []domain.ExerciseSubmission
+	lastUserID     uint64
+	lastExerciseID uint64
+	lastKind       string
 }
 
 func (r *fakeFullSubmissionRepo) Create(s *domain.ExerciseSubmission) error {
@@ -25,7 +30,10 @@ func (r *fakeFullSubmissionRepo) Create(s *domain.ExerciseSubmission) error {
 	r.created = s
 	return nil
 }
-func (r *fakeFullSubmissionRepo) ListByUserAndExercise(uint64, uint64, string) ([]domain.ExerciseSubmission, error) {
+func (r *fakeFullSubmissionRepo) ListByUserAndExercise(userID, exerciseID uint64, kind string) ([]domain.ExerciseSubmission, error) {
+	r.lastUserID = userID
+	r.lastExerciseID = exerciseID
+	r.lastKind = kind
 	return r.listed, nil
 }
 func (r *fakeFullSubmissionRepo) HasSolved(uint64, uint64, string) (bool, error)    { return false, nil }
@@ -140,7 +148,7 @@ func TestSubmissionHandler_List_Success(t *testing.T) {
 		{ID: 1, UserID: 101, ExerciseID: 7, ExerciseKind: domain.ExerciseKindMaster, IsCorrect: true},
 		{ID: 2, UserID: 101, ExerciseID: 7, ExerciseKind: domain.ExerciseKindMaster, IsCorrect: false},
 	}
-	r, _ := newSubmissionTestRouter(t, exercise, nil, "", listed)
+	r, subRepo := newSubmissionTestRouter(t, exercise, nil, "", listed)
 
 	req := httptest.NewRequest(http.MethodGet, "/exercises/php-7/submissions", nil)
 	w := httptest.NewRecorder()
@@ -155,5 +163,15 @@ func TestSubmissionHandler_List_Success(t *testing.T) {
 	}
 	if len(got) != 2 {
 		t.Errorf("len = %d, want 2", len(got))
+	}
+	// handler が repository に user_id / exercise_id / kind を正しく渡したかを検証する。
+	if subRepo.lastUserID != 101 {
+		t.Errorf("ListByUserAndExercise userID = %d, want 101", subRepo.lastUserID)
+	}
+	if subRepo.lastExerciseID != 7 {
+		t.Errorf("ListByUserAndExercise exerciseID = %d, want 7", subRepo.lastExerciseID)
+	}
+	if subRepo.lastKind != domain.ExerciseKindMaster {
+		t.Errorf("ListByUserAndExercise kind = %s, want %s", subRepo.lastKind, domain.ExerciseKindMaster)
 	}
 }

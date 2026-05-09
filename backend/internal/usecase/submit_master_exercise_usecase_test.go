@@ -131,10 +131,11 @@ func TestSubmitMasterExercise_OneFails(t *testing.T) {
 		{ID: 2, ExerciseID: 7, OrderIndex: 2, InputText: "2", ExpectedOutput: "2"},
 	}}
 	submissions := &fakeSubmissionRepo{}
-	// "2" のとき期待と違う出力を返して失敗にする。
+	// 1 件目を失敗させ、 失敗後も全ケースが実行されることまで検証する
+	// （短絡実装で 2 件目が呼ばれない実装に退化したらこのテストで落ちる）。
 	executor := &fakeExecutor{stdinToOut: map[string]string{
-		"1": "1",
-		"2": "wrong",
+		"1": "wrong",
+		"2": "2",
 	}}
 
 	uc := usecase.NewSubmitMasterExerciseUseCase(exRepo, examples, submissions, executor)
@@ -143,12 +144,14 @@ func TestSubmitMasterExercise_OneFails(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.False(t, out.IsCorrect)
-	assert.True(t, out.Results[0].Passed)
-	assert.False(t, out.Results[1].Passed)
+	assert.False(t, out.Results[0].Passed)
+	assert.True(t, out.Results[1].Passed)
 	require.NotNil(t, submissions.created)
 	assert.False(t, submissions.created.IsCorrect)
-	// 失敗したケースの stdout が representative として記録されている。
+	// 最初の失敗ケースの stdout が representative として記録されている。
 	assert.Equal(t, "wrong", submissions.created.Stdout)
+	// 失敗後も全 example が実行される（短絡しない）。
+	assert.Len(t, executor.calls, 2)
 }
 
 func TestSubmitMasterExercise_NormalizeOutput(t *testing.T) {

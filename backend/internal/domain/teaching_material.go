@@ -16,8 +16,8 @@ import "time"
 //
 // `OrderInCourse` はコース内での並び順。 同値時は ID 昇順。
 type TeachingMaterial struct {
-	ID              uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
-	CompanyID       uint64    `gorm:"column:company_id;not null;index" json:"companyId"`
+	ID        uint64 `gorm:"primaryKey;autoIncrement" json:"id"`
+	CompanyID uint64 `gorm:"column:company_id;not null;index" json:"companyId"`
 	// course_id の NOT NULL 制約は migration 0004 で確定する（既存行への ADD COLUMN を
 	// AutoMigrate で安全に通すため、 GORM tag では not null を指定しない）。
 	CourseID        uint64    `gorm:"column:course_id;index" json:"courseId"`

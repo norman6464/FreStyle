@@ -207,7 +207,7 @@ function Row({ code, children }: { code: string; children: React.ReactNode }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
       <CodeSnippet code={code} />
-      <div className="rounded-md border border-surface-3 bg-surface-1 p-3 prose prose-invert prose-sm max-w-none">
+      <div className="rounded-md border border-surface-3 bg-surface-1 p-3 prose prose-sm max-w-none">
         {children}
       </div>
     </div>

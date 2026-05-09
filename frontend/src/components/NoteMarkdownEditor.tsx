@@ -133,7 +133,7 @@ export default function NoteMarkdownEditor({
             className="w-full h-full resize-none p-4 rounded-md bg-surface-1 border border-surface-3 text-sm font-mono text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-primary-500/50 transition-colors"
           />
         ) : (
-          <div className="w-full h-full overflow-y-auto p-4 rounded-md bg-surface-1 border border-surface-3 prose prose-invert prose-sm max-w-none">
+          <div className="w-full h-full overflow-y-auto p-4 rounded-md bg-surface-1 border border-surface-3 prose prose-sm max-w-none">
             {displayContent.trim() ? (
               <MarkdownView content={displayContent} />
             ) : (

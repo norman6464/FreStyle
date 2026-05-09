@@ -293,7 +293,7 @@ function ReadOnlyDetail({ material }: { material: TeachingMaterial }) {
       <p className="text-xs text-[var(--color-text-muted)] mb-6">
         最終更新: {formatDate(material.updatedAt)}
       </p>
-      <div className="prose prose-invert prose-sm max-w-none">
+      <div className="prose prose-sm max-w-none">
         {/* trainee は編集できないので NoteMarkdownEditor の onContentChange は no-op で
             渡し、 Preview 表示扱いにする。 ただしカスタマイズが面倒なので、
             最初から <ReactMarkdown> で描画する別経路にする。 */}

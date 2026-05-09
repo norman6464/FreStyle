@@ -108,19 +108,40 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
           expanded ? 'w-56' : 'w-14'
         }`}
       >
-        {/* トグルボタン */}
-        <div className={`flex ${expanded ? 'justify-end' : 'justify-center'} px-2 pt-3 pb-1`}>
-          <button
-            onClick={() => { setExpanded((v) => !v); if (expanded) setAdminOpen(false); }}
-            title={expanded ? 'サイドバーを閉じる' : 'サイドバーを開く'}
-            className="p-1.5 rounded-md text-[var(--color-text-muted)] hover:bg-[var(--color-nav-hover)] hover:text-[var(--color-text-primary)] transition-colors"
+        {/* ロゴ + トグルボタン */}
+        <div className={`flex items-center ${expanded ? 'justify-between px-3' : 'justify-center px-2'} pt-3 pb-2`}>
+          <Link
+            to="/"
+            onClick={onNavigate}
+            className="flex items-center gap-2 min-w-0"
+            aria-label="FreStyle ホーム"
           >
-            {expanded
-              ? <ChevronDoubleLeftIcon className="w-4 h-4" />
-              : <ChevronDoubleRightIcon className="w-4 h-4" />
-            }
-          </button>
+            <img src="/favicon.svg" alt="" className="w-7 h-7 flex-shrink-0" />
+            {expanded && (
+              <span className="text-sm font-semibold text-[var(--color-text-primary)] truncate">FreStyle</span>
+            )}
+          </Link>
+          {expanded && (
+            <button
+              onClick={() => { setExpanded(false); setAdminOpen(false); }}
+              title="サイドバーを閉じる"
+              className="p-1.5 rounded-md text-[var(--color-text-muted)] hover:bg-[var(--color-nav-hover)] hover:text-[var(--color-text-primary)] transition-colors flex-shrink-0"
+            >
+              <ChevronDoubleLeftIcon className="w-4 h-4" />
+            </button>
+          )}
         </div>
+        {!expanded && (
+          <div className="flex justify-center px-2 pb-1">
+            <button
+              onClick={() => setExpanded(true)}
+              title="サイドバーを開く"
+              className="p-1.5 rounded-md text-[var(--color-text-muted)] hover:bg-[var(--color-nav-hover)] hover:text-[var(--color-text-primary)] transition-colors"
+            >
+              <ChevronDoubleRightIcon className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
         {/* メインナビ */}
         <nav className="flex-1 px-2 space-y-0.5 overflow-y-auto">

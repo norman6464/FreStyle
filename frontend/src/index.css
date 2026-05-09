@@ -7,7 +7,7 @@
  *
  * カラー設計:
  *   - body 全体: #FAFAFA（ニュートラルな白寄り）
- *   - サイドバー / ヘッダー: #DCE0F2（淡い青紫）→ --color-nav として独立変数化
+ *   - サイドバー / ヘッダー: #E4EAF2（淡いブルーグレー）→ --color-nav として独立変数化
  *   - カード / raised surface: 純白 #FFFFFF / 微差 #F0F0F0 で階層を視認できるように差を付ける
  *   - サーフェス階層は「ページ背景 < カード < 強調」の順に並べる
  */
@@ -17,7 +17,11 @@
   --color-surface-2: #F0F0F0;
   --color-surface-3: #E0E0E0;
   /* サイドバーとヘッダー専用。 surface-1 と区別して body との差別化を可能にする */
-  --color-nav: #DCE0F2;
+  --color-nav: #E4EAF2;
+  /* nav 上のホバー / アクティブ状態。 nav と同じ色相 (ブルーグレー) を維持しつつ段階的に濃くすることで
+     surface-2 / surface-3 のニュートラルグレーが nav 上で「白い塊」に見える違和感を解消する。 */
+  --color-nav-hover: #D2DAE6;
+  --color-nav-active: #B8C3D4;
   --color-text-primary: #191919;
   --color-text-secondary: #37352F;
   --color-text-tertiary: #787774;

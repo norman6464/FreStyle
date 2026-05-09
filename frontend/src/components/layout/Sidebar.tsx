@@ -113,7 +113,7 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
           <button
             onClick={() => { setExpanded((v) => !v); if (expanded) setAdminOpen(false); }}
             title={expanded ? 'サイドバーを閉じる' : 'サイドバーを開く'}
-            className="p-1.5 rounded-md text-[var(--color-text-muted)] hover:bg-surface-2 hover:text-[var(--color-text-primary)] transition-colors"
+            className="p-1.5 rounded-md text-[var(--color-text-muted)] hover:bg-[var(--color-nav-hover)] hover:text-[var(--color-text-primary)] transition-colors"
           >
             {expanded
               ? <ChevronDoubleLeftIcon className="w-4 h-4" />
@@ -134,8 +134,8 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
                 title={!expanded ? item.label : undefined}
                 className={`flex items-center gap-3 px-2 py-2 rounded-md text-sm font-medium transition-colors duration-150 ${
                   active
-                    ? 'bg-surface-3 text-primary-300'
-                    : 'text-[var(--color-text-tertiary)] hover:bg-surface-2 hover:text-[var(--color-text-primary)]'
+                    ? 'bg-[var(--color-nav-active)] text-[var(--color-text-primary)]'
+                    : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-nav-hover)] hover:text-[var(--color-text-primary)]'
                 }`}
               >
                 <item.icon className="w-5 h-5 flex-shrink-0" />
@@ -157,8 +157,8 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
                 title={!expanded ? item.label : undefined}
                 className={`flex items-center gap-3 px-2 py-2 rounded-md text-sm font-medium transition-colors duration-150 ${
                   active
-                    ? 'bg-surface-3 text-primary-300'
-                    : 'text-[var(--color-text-tertiary)] hover:bg-surface-2 hover:text-[var(--color-text-primary)]'
+                    ? 'bg-[var(--color-nav-active)] text-[var(--color-text-primary)]'
+                    : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-nav-hover)] hover:text-[var(--color-text-primary)]'
                 }`}
               >
                 <item.icon className="w-5 h-5 flex-shrink-0" />
@@ -176,8 +176,8 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
                 title={!expanded ? adminNavItem.label : undefined}
                 className={`flex items-center gap-3 px-2 py-2 rounded-md text-sm font-medium w-full transition-colors duration-150 ${
                   adminActive
-                    ? 'bg-surface-3 text-primary-300'
-                    : 'text-[var(--color-text-tertiary)] hover:bg-surface-2 hover:text-[var(--color-text-primary)]'
+                    ? 'bg-[var(--color-nav-active)] text-[var(--color-text-primary)]'
+                    : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-nav-hover)] hover:text-[var(--color-text-primary)]'
                 }`}
               >
                 <adminNavItem.icon className="w-5 h-5 flex-shrink-0" />
@@ -205,8 +205,8 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
                         onClick={onNavigate}
                         className={`flex items-center px-2 py-1.5 rounded-md text-xs transition-colors ${
                           subActive
-                            ? 'bg-surface-3 text-primary-300'
-                            : 'text-[var(--color-text-tertiary)] hover:bg-surface-2 hover:text-[var(--color-text-primary)]'
+                            ? 'bg-[var(--color-nav-active)] text-[var(--color-text-primary)]'
+                            : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-nav-hover)] hover:text-[var(--color-text-primary)]'
                         }`}
                       >
                         {sub.label}

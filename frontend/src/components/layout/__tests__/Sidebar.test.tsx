@@ -65,7 +65,7 @@ describe('Sidebar', () => {
   it('ホームルートでホームがアクティブになる', () => {
     renderSidebar('/');
     const homeLink = screen.getByText('ホーム').closest('a');
-    expect(homeLink?.className).toContain('bg-surface-3');
+    expect(homeLink?.className).toContain('bg-[var(--color-nav-active)]');
   });
 
   it('折りたたみボタンでサイドバーが折りたたまれる', () => {

@@ -68,11 +68,14 @@ export default function NoteMarkdownEditor({
 
   const stats = useMemo(() => getNoteStats(displayContent), [displayContent]);
 
-  const handleTitleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      textareaRef.current?.focus();
-    }
+  const handleTitleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    // IME 変換中の Enter（日本語入力の確定）はフォーカス移動しない。
+    // ここを判定しないと「変換確定の Enter」で textarea にフォーカスが飛び、
+    // 直前の未確定文字列（"ついて" など）がそのまま textarea に入力されてしまう。
+    if (e.key !== 'Enter') return;
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+    e.preventDefault();
+    textareaRef.current?.focus();
   }, []);
 
   const handleCopy = useCallback(async () => {

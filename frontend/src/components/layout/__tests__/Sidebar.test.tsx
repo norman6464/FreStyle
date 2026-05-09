@@ -90,13 +90,20 @@ describe('Sidebar', () => {
     expect(screen.getByText('管理')).toBeInTheDocument();
   });
 
-  it('admin メニュークリックでサブメニューが展開される', () => {
-    renderSidebar('/', true);
+  it('super_admin の管理メニューには会社一覧と招待管理が表示される', () => {
+    renderSidebar('/', true, 'super_admin');
     fireEvent.click(screen.getByText('管理'));
     expect(screen.getByText('会社一覧')).toBeInTheDocument();
     expect(screen.getByText('招待管理')).toBeInTheDocument();
     // シナリオ管理は廃止済（コア機能整理）
     expect(screen.queryByText('シナリオ管理')).toBeNull();
+  });
+
+  it('company_admin の管理メニューには招待管理のみが表示され、会社一覧は出ない', () => {
+    renderSidebar('/', true, 'company_admin');
+    fireEvent.click(screen.getByText('管理'));
+    expect(screen.queryByText('会社一覧')).toBeNull();
+    expect(screen.getByText('招待管理')).toBeInTheDocument();
   });
 
   it('非 admin ユーザーには管理メニューが表示されない', () => {

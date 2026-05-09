@@ -193,7 +193,7 @@ export default memo(function MessageBubble({
                 <img
                   src="/favicon.svg"
                   alt=""
-                  className="w-4 h-4 opacity-60"
+                  className="w-7 h-7"
                 />
               </div>
             )}

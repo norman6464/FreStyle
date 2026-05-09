@@ -3,7 +3,7 @@ import { useLocation, Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import {
   HomeIcon,
-  SparklesIcon,
+  ChatBubbleBottomCenterTextIcon,
   DocumentTextIcon,
   BellIcon,
   DocumentChartBarIcon,
@@ -36,7 +36,7 @@ interface NavItem {
 
 const mainNavItems: NavItem[] = [
   { id: 'home', icon: HomeIcon, label: 'ホーム', to: '/', matchExact: true },
-  { id: 'ai', icon: SparklesIcon, label: 'AI', to: '/chat/ask-ai', matchPrefix: '/chat/ask-ai' },
+  { id: 'ai', icon: ChatBubbleBottomCenterTextIcon, label: 'AI', to: '/chat/ask-ai', matchPrefix: '/chat/ask-ai' },
   { id: 'code', icon: CodeBracketIcon, label: 'コード学習', to: '/code-editor', matchPrefix: '/code-editor' },
   { id: 'notes', icon: DocumentTextIcon, label: 'ノート', to: '/notes', matchPrefix: '/notes' },
   { id: 'notifications', icon: BellIcon, label: '通知', to: '/notifications', matchExact: true },

@@ -22,8 +22,10 @@ func (fakeSubmissionRepoForList) Create(*domain.ExerciseSubmission) error { retu
 func (fakeSubmissionRepoForList) ListByUserAndExercise(uint64, uint64, string) ([]domain.ExerciseSubmission, error) {
 	return nil, nil
 }
-func (fakeSubmissionRepoForList) HasSolved(uint64, uint64, string) (bool, error)    { return false, nil }
-func (fakeSubmissionRepoForList) HasAttempted(uint64, uint64, string) (bool, error) { return false, nil }
+func (fakeSubmissionRepoForList) HasSolved(uint64, uint64, string) (bool, error) { return false, nil }
+func (fakeSubmissionRepoForList) HasAttempted(uint64, uint64, string) (bool, error) {
+	return false, nil
+}
 func (fakeSubmissionRepoForList) BatchUserStatuses(uint64, []uint64, string) (map[uint64]string, error) {
 	return map[uint64]string{}, nil
 }

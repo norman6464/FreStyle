@@ -39,7 +39,7 @@ func (r *fakeExampleRepo) ListByExerciseIDs([]uint64) (map[uint64][]domain.Maste
 }
 
 type fakeSubmissionRepo struct {
-	created *domain.ExerciseSubmission
+	created   *domain.ExerciseSubmission
 	createErr error
 }
 

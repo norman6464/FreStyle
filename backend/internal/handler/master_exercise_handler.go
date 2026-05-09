@@ -20,9 +20,9 @@ import (
 // 詳細は slug ベース URL（`/code-editor/php-1` のように人間可読）に揃えるため、
 // 旧 `:id` ルートは廃止し slug 必須にする（フロントは新 API に追従させる）。
 type MasterExerciseHandler struct {
-	listExercises     *usecase.ListMasterExercisesUseCase
-	listWithStatus    *usecase.ListMasterExercisesWithStatusUseCase
-	getExercise       *usecase.GetMasterExerciseUseCase
+	listExercises  *usecase.ListMasterExercisesUseCase
+	listWithStatus *usecase.ListMasterExercisesWithStatusUseCase
+	getExercise    *usecase.GetMasterExerciseUseCase
 }
 
 func NewMasterExerciseHandler(

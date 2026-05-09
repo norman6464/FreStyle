@@ -16,8 +16,8 @@ import (
 type MasterExerciseWithStatus struct {
 	domain.MasterExercise
 
-	Status string                                  `json:"status"`
-	Stats  repository.ExerciseSubmissionStats      `json:"stats"`
+	Status string                             `json:"status"`
+	Stats  repository.ExerciseSubmissionStats `json:"stats"`
 }
 
 // ListMasterExercisesWithStatusUseCase は問題一覧 + 各問題の current user 状態 + 集計を返す。

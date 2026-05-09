@@ -3,6 +3,14 @@
 @tailwind utilities;
 
 /*
+ * highlight.js の GitHub Dark テーマを import。
+ * rehype-highlight が `<span class="hljs-keyword">` 等にトークンを分けるが、
+ * 対応する CSS が無いと色付けされず読めなくなる。
+ * prose のコードブロック背景は dark なので github-dark を選択。
+ */
+@import 'highlight.js/styles/github-dark.css';
+
+/*
  * ライトテーマ単一構成（ダークモードは廃止）。
  *
  * カラー設計（モノクロ最小主義）:

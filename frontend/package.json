@@ -60,6 +60,7 @@
     "react-redux": "^9.2.0",
     "react-router-dom": "^7.9.4",
     "rehype-highlight": "^7.0.2",
+    "remark-breaks": "^4.0.0",
     "remark-gfm": "^4.0.1",
     "tippy.js": "^6.3.7",
     "tiptap-markdown": "^0.9.0"

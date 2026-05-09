@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
 import rehypeHighlight from 'rehype-highlight';
 import { ArrowDownTrayIcon, ClipboardDocumentIcon } from '@heroicons/react/24/outline';
 import type { SaveStatus } from '../hooks/useNoteEditor';
@@ -221,7 +222,7 @@ function convertLegacyContent(s: string): string {
 function MarkdownView({ content }: { content: string }) {
   return (
     <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
+      remarkPlugins={[remarkGfm, remarkBreaks]}
       rehypePlugins={[rehypeHighlight]}
       components={{
         a: ({ href, children }) => (

@@ -14,7 +14,7 @@ export function useSidebar() {
     try {
       await AuthRepository.logout();
       dispatch(clearAuth());
-      navigate('/login', { state: { toast: 'ログアウトしました' } });
+      navigate('/login');
     } catch {
       setLoggingOut(false);
     }

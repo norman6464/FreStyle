@@ -40,7 +40,7 @@ describe('useSidebar', () => {
 
     expect(mockLogout).toHaveBeenCalledOnce();
     expect(mockDispatch).toHaveBeenCalledWith({ type: 'auth/clearAuth' });
-    expect(mockNavigate).toHaveBeenCalledWith('/login', { state: { toast: 'ログアウトしました' } });
+    expect(mockNavigate).toHaveBeenCalledWith('/login');
   });
 
   it('ログアウト失敗時はnavigate呼ばない', async () => {
@@ -62,7 +62,7 @@ describe('useSidebar', () => {
       await result.current.handleLogout();
     });
 
-    expect(mockNavigate).toHaveBeenCalledWith('/login', { state: { toast: 'ログアウトしました' } });
+    expect(mockNavigate).toHaveBeenCalledWith('/login');
   });
 
   it('ログアウト失敗時にdispatchも呼ばれない', async () => {

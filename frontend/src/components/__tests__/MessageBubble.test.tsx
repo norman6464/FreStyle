@@ -8,6 +8,19 @@ describe('MessageBubble', () => {
     expect(screen.getByText('こんにちは')).toBeInTheDocument();
   });
 
+  it('AI 応答が空文字のときは「考え中...」インジケータが出る', () => {
+    render(<MessageBubble isSender={false} content="" id="thinking-1" />);
+    expect(screen.getByText('考え中...')).toBeInTheDocument();
+  });
+
+  it('AI 応答に最初のトークンが入ると「考え中...」が消える', () => {
+    const { rerender } = render(<MessageBubble isSender={false} content="" id="thinking-2" />);
+    expect(screen.getByText('考え中...')).toBeInTheDocument();
+    rerender(<MessageBubble isSender={false} content="返答" id="thinking-2" />);
+    expect(screen.queryByText('考え中...')).not.toBeInTheDocument();
+    expect(screen.getByText('返答')).toBeInTheDocument();
+  });
+
   it('送信者メッセージが表示される', () => {
     render(<MessageBubble isSender={true} content="テスト送信" id="m2" />);
     expect(screen.getByText('テスト送信')).toBeInTheDocument();

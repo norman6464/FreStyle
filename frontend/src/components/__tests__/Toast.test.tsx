@@ -26,12 +26,12 @@ describe('Toast', () => {
     expect(screen.getByText('お知らせ')).toBeInTheDocument();
   });
 
-  it('3秒後にonCloseが呼ばれる', () => {
+  it('4秒後にonCloseが呼ばれる', () => {
     const onClose = vi.fn();
     render(<Toast type="success" message="テスト" onClose={onClose} />);
     expect(onClose).not.toHaveBeenCalled();
     act(() => {
-      vi.advanceTimersByTime(3000);
+      vi.advanceTimersByTime(4000);
     });
     expect(onClose).toHaveBeenCalled();
   });
@@ -46,11 +46,11 @@ describe('Toast', () => {
     expect(container.querySelector('svg')).toBeInTheDocument();
   });
 
-  it('3秒未満ではonCloseが呼ばれない', () => {
+  it('4秒未満ではonCloseが呼ばれない', () => {
     const onClose = vi.fn();
     render(<Toast type="success" message="テスト" onClose={onClose} />);
     act(() => {
-      vi.advanceTimersByTime(2999);
+      vi.advanceTimersByTime(3999);
     });
     expect(onClose).not.toHaveBeenCalled();
   });

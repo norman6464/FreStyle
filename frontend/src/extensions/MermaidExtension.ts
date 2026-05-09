@@ -1,5 +1,5 @@
 /**
- * Zenn 互換 Mermaid ダイアグラム拡張。
+ * Markdown 互換 Mermaid ダイアグラム拡張。
  *
  * 設計:
  * - markdown 入力では ```mermaid ... ``` のフェンスコードブロックとして書かれる

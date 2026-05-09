@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import ProfileRepository from '../repositories/ProfileRepository';
+import { useToast } from './useToast';
 import type { FormMessage, Profile } from '../types';
 
 /**
@@ -21,9 +22,12 @@ const EMPTY_FORM: ProfileForm = {
 
 export function useProfileEdit() {
   const [form, setForm] = useState<ProfileForm>(EMPTY_FORM);
+  // 失敗系（取得エラー / バリデーション）はインライン表示を維持。
+  // 成功系（更新しました）は Toast で通知する（画面上部からバウンドで降りてくる）。
   const [message, setMessage] = useState<FormMessage | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const { showToast } = useToast();
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -56,13 +60,15 @@ export function useProfileEdit() {
     setSubmitting(true);
     try {
       await ProfileRepository.updateProfile(form);
-      setMessage({ type: 'success', text: 'プロフィールを更新しました。' });
+      // 成功時はインラインメッセージを消して Toast を出す。
+      setMessage(null);
+      showToast('success', 'プロフィールを更新しました。');
     } catch {
       setMessage({ type: 'error', text: '通信エラーが発生しました。' });
     } finally {
       setSubmitting(false);
     }
-  }, [form]);
+  }, [form, showToast]);
 
   return {
     form,

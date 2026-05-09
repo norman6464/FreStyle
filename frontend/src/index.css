@@ -33,6 +33,15 @@
   background-color: transparent;
   color: var(--color-text-primary);
 }
+/*
+ * @tailwindcss/typography は inline code (`<code>`) の前後に ::before / ::after で
+ * バッククォート (`) を装飾として自動挿入する。 これがテーブルセル内などで
+ * 「`GET`」のように リテラルなバッククォートとして見えてしまうので打ち消す。
+ */
+.prose code::before,
+.prose code::after {
+  content: "" !important;
+}
 
 /*
  * ライトテーマ単一構成（ダークモードは廃止）。

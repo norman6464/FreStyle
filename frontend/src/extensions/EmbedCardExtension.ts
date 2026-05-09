@@ -1,5 +1,5 @@
 /**
- * Zenn 互換の埋め込みカード extension。
+ * Markdown 互換の埋め込みカード extension。
  *
  * 仕様:
  *   - markdown 入力で `@[card](https://example.com)` を Tiptap embedCard node に変換

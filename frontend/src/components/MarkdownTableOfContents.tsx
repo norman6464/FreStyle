@@ -8,7 +8,7 @@ interface TocItem {
 }
 
 /**
- * MarkdownTableOfContents — Zenn 風の目次サイドバー。
+ * MarkdownTableOfContents — 拡張記法風の目次サイドバー。
  *
  * Markdown 本文から heading (#, ##, ###) を抽出し、 rehype-slug が生成する id と
  * 同じアルゴリズム（github-slugger）で anchor を組み立てる。

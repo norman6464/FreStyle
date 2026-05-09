@@ -13,6 +13,10 @@ vi.mock('../../hooks/useProfileImageUpload', () => ({
 
 vi.mock('../../repositories/ProfileRepository');
 
+vi.mock('../../hooks/useToast', () => ({
+  useToast: () => ({ showToast: vi.fn(), toasts: [], removeToast: vi.fn() }),
+}));
+
 vi.mock('../../repositories/ProfileStatsRepository', () => ({
   default: {
     fetchStats: vi.fn().mockResolvedValue({

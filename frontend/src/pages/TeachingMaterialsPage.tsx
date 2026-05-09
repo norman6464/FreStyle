@@ -284,7 +284,7 @@ function ManagedDetail({
 }
 
 function ReadOnlyDetail({ material }: { material: TeachingMaterial }) {
-  // Zenn 風 2 カラム: 左 = 本文 (max-w-3xl 程度) / 右 = sticky な目次サイドバー。
+  // 拡張記法風 2 カラム: 左 = 本文 (max-w-3xl 程度) / 右 = sticky な目次サイドバー。
   // スクロールバーは画面右端に出したいので、 スクロールコンテナは width 制限せず、
   // 内側のグリッドで本文・目次の幅を制御する。
   return (

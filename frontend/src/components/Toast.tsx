@@ -1,5 +1,10 @@
 import { useEffect } from 'react';
-import { CheckCircleIcon, ExclamationCircleIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
+import {
+  CheckCircleIcon,
+  ExclamationCircleIcon,
+  InformationCircleIcon,
+  XMarkIcon,
+} from '@heroicons/react/24/outline';
 
 export type ToastType = 'success' | 'error' | 'info';
 
@@ -16,14 +21,28 @@ const ICON_MAP = {
 };
 
 const COLOR_MAP = {
-  success: 'border-emerald-500 bg-emerald-900/20 text-emerald-400',
-  error: 'border-rose-500 bg-rose-900/20 text-rose-400',
-  info: 'border-primary-500 bg-primary-900/20 text-primary-400',
+  // 既存の色設計（emerald / rose / primary）を維持しつつ、 ライトテーマでも
+  // 読めるように背景は淡色 + 文字は濃色のコントラスト。
+  success: 'border-emerald-400 bg-emerald-50 text-emerald-700',
+  error: 'border-rose-400 bg-rose-50 text-rose-700',
+  info: 'border-primary-400 bg-primary-50 text-primary-700',
 };
 
+const ICON_COLOR_MAP = {
+  success: 'text-emerald-500',
+  error: 'text-rose-500',
+  info: 'text-primary-500',
+};
+
+/**
+ * Toast — 画面上部から落ちてバウンドする通知。
+ *
+ * 配置は ToastContainer 側（fixed top center）。 本コンポーネントは見た目と
+ * 4 秒オートクローズ + アニメーションのみ責任を持つ。
+ */
 export default function Toast({ type, message, onClose }: ToastProps) {
   useEffect(() => {
-    const timer = setTimeout(onClose, 3000);
+    const timer = setTimeout(onClose, 4000);
     return () => clearTimeout(timer);
   }, [onClose]);
 
@@ -32,10 +51,18 @@ export default function Toast({ type, message, onClose }: ToastProps) {
   return (
     <div
       role="alert"
-      className={`flex items-center gap-2 px-4 py-3 rounded-lg border shadow-lg ${COLOR_MAP[type]} animate-fade-in`}
+      className={`pointer-events-auto flex items-start gap-3 px-5 py-3.5 rounded-lg border shadow-xl min-w-[280px] max-w-md ${COLOR_MAP[type]} animate-toast-drop`}
     >
-      <Icon className="w-5 h-5 flex-shrink-0" />
-      <p className="text-sm">{message}</p>
+      <Icon className={`w-6 h-6 flex-shrink-0 ${ICON_COLOR_MAP[type]}`} />
+      <p className="text-sm leading-relaxed flex-1">{message}</p>
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="閉じる"
+        className="-mr-1 -mt-0.5 p-1 rounded hover:bg-black/5 transition-colors"
+      >
+        <XMarkIcon className="w-4 h-4" />
+      </button>
     </div>
   );
 }

@@ -9,7 +9,7 @@ import { logger } from '../lib/logger';
  * - mermaid は約 600KB のため dynamic import で初回利用時のみロードする
  *   (Note 編集ページに mermaid を含まないユーザーへの bundle インパクト回避)
  * - parse 失敗時は raw コードブロックをそのまま表示する
- * - Zenn 制約 (公式 docs より) を踏襲:
+ * - 拡張記法 制約 (公式 docs より) を踏襲:
  *     - 1 ブロック 2000 文字以内
  *     - クリックイベントは無効
  *
@@ -44,7 +44,7 @@ export default function MermaidNodeView({ node }: Props) {
         const mermaid = (await import('mermaid')).default;
         mermaid.initialize({
           startOnLoad: false,
-          // Zenn の制約に合わせて click event を発火させない
+          // その制約に合わせて click event を発火させない
           securityLevel: 'strict',
         });
         const id = `mermaid-${Math.random().toString(36).slice(2, 9)}`;

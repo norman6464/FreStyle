@@ -1,5 +1,5 @@
 /**
- * Zenn 仕様の URL 単独行 → サービス専用埋め込み変換。
+ * 拡張記法の URL 単独行 → サービス専用埋め込み変換。
  *
  * 対応:
  *   - YouTube      ( youtu.be / youtube.com/watch?v= )
@@ -110,7 +110,7 @@ export const ServiceEmbed = Node.create({
       markdown: {
         serialize(state: MarkdownSerializerState, node: PMNode) {
           const url = (node.attrs.url as string) || '';
-          // Zenn の表記に合わせて URL 単独行で書き戻す。
+          // その表記に合わせて URL 単独行で書き戻す。
           state.write(url);
           state.closeBlock(node);
         },

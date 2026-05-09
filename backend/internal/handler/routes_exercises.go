@@ -10,7 +10,7 @@ import (
 //
 // 旧 `registerPhpRoutes` を「言語非依存」に汎用化したもの:
 //   - GET  /api/v2/exercises?language=php   一覧（query で言語絞り込み）
-//   - GET  /api/v2/exercises/:slug          詳細（入出力例の配列を含む、 paiza 風 URL）
+//   - GET  /api/v2/exercises/:slug          詳細（入出力例の配列を含む、 slug ベース URL）
 //   - POST /api/v2/code/execute             コード実行（body の language で言語切替）
 //
 // 提出履歴 / 採点 / 集計統計の API は PR-W で追加。

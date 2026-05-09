@@ -19,7 +19,7 @@ type GetMasterExerciseDetailOutput struct {
 
 // GetMasterExerciseUseCase は指定 slug の運営マスタ演習問題 + 入出力例を返す。
 //
-// 旧 API は `:id` ベースだったが、 paiza 風 URL `/code-editor/php-1` を実現するため
+// 旧 API は `:id` ベースだったが、 人間可読な URL `/code-editor/php-1` を実現するため
 // 主導線を slug に切替える。 ID ベースの挙動も互換用に Execute / GetByID で残す。
 type GetMasterExerciseUseCase struct {
 	repo     repository.MasterExerciseRepository
@@ -38,7 +38,7 @@ func (uc *GetMasterExerciseUseCase) Execute(id uint64) (*domain.MasterExercise, 
 	return uc.repo.GetByID(id)
 }
 
-// ExecuteBySlug は paiza 風詳細ページ向け。 examples を含めて 1 度に返す。
+// ExecuteBySlug は slug ベースの詳細ページ向け。 examples を含めて 1 度に返す。
 //
 // `GetBySlug` が GORM の `gorm.ErrRecordNotFound` を返した場合は handler 側で 404 に分岐できるよう
 // そのまま伝搬する。 nil チェックは GORM が `(nil, nil)` を返さない前提だが、 リポジトリ実装の

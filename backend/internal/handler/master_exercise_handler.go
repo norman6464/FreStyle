@@ -16,7 +16,7 @@ import (
 //	GET /api/v2/exercises?language=php   一覧
 //	GET /api/v2/exercises/:slug          詳細（入出力例の配列を含む）
 //
-// 詳細は paiza 風 URL（`/code-editor/php-1` のように slug ベース）に揃えるため、
+// 詳細は slug ベース URL（`/code-editor/php-1` のように人間可読）に揃えるため、
 // 旧 `:id` ルートは廃止し slug 必須にする（フロントは新 API に追従させる）。
 type MasterExerciseHandler struct {
 	listExercises *usecase.ListMasterExercisesUseCase

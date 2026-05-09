@@ -31,6 +31,8 @@ export default {
         'fade-in': 'fadeIn 0.15s ease-in',
         'scale-in': 'scaleIn 0.2s ease-out',
         'skeleton': 'skeleton 1.5s ease-in-out infinite',
+        // Toast 用: 上から落ちてバウンドする 0.6s のアニメーション。
+        'toast-drop': 'toastDrop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)',
       },
       keyframes: {
         fadeIn: {
@@ -44,6 +46,12 @@ export default {
         skeleton: {
           '0%': { backgroundPosition: '200% 0' },
           '100%': { backgroundPosition: '-200% 0' },
+        },
+        toastDrop: {
+          '0%': { transform: 'translateY(-120%)', opacity: '0' },
+          '60%': { transform: 'translateY(12px)', opacity: '1' },
+          '80%': { transform: 'translateY(-6px)' },
+          '100%': { transform: 'translateY(0)', opacity: '1' },
         },
       },
     },

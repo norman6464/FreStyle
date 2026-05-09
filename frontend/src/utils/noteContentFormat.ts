@@ -2,7 +2,7 @@
  * Note エディタのコンテンツ形式判定 / 変換ユーティリティ。
  *
  * 設計方針:
- * - 新規ノートは Zenn 互換 Markdown で保存する（tiptap-markdown が双方向変換を担当）
+ * - 新規ノートは Markdown 互換 Markdown で保存する（tiptap-markdown が双方向変換を担当）
  * - 過去のノートは Tiptap JSON 文字列で保存されているので、判別して Tiptap が読める形に渡す
  * - 過去の旧 Markdown (見出し/リストのみ) は isLegacyMarkdown で判別し markdownToTiptap で
  *   先に Tiptap JSON に変換した上で editor に渡す

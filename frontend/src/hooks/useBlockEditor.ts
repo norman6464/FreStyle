@@ -8,12 +8,12 @@ import { resolveNoteContent } from '../utils/noteContentFormat';
 interface UseBlockEditorOptions {
   /** Note.content (markdown 文字列 or 旧 Tiptap JSON 文字列 or 旧 Markdown 文字列)。 */
   content: string;
-  /** エディタ更新時に呼ばれる。値は Zenn 互換 Markdown 文字列。 */
+  /** エディタ更新時に呼ばれる。値は Markdown 互換 Markdown 文字列。 */
   onChange: (markdown: string) => void;
 }
 
 /**
- * Tiptap エディタを Zenn 互換 Markdown 入出力で使うための共通フック。
+ * Tiptap エディタを Markdown 互換 Markdown 入出力で使うための共通フック。
  *
  * 入力 (content) の解釈:
  *   1. 空文字 → 空エディタ
@@ -53,7 +53,7 @@ export function useBlockEditor({ content, onChange }: UseBlockEditorOptions) {
       : never,
     onUpdate: ({ editor }) => {
       // tiptap-markdown が editor.storage.markdown.getMarkdown() を提供する。
-      // 旧実装は JSON.stringify(editor.getJSON()) を保存していたが、Zenn markdown の
+      // 旧実装は JSON.stringify(editor.getJSON()) を保存していたが、拡張記法 markdown の
       // 持ち出しやすさ・diff レビュー性を優先して Markdown 文字列保存に切り替える。
       const md = editor.storage.markdown.getMarkdown() as string;
       lastEmittedMarkdown.current = md;

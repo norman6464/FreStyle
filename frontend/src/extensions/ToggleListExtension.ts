@@ -32,7 +32,7 @@ export const ToggleSummary = Node.create({
   addStorage() {
     return {
       markdown: {
-        // toggleSummary の中身は Zenn では `:::details タイトル` の "タイトル" 部に直接書くため、
+        // toggleSummary の中身は 拡張記法では `:::details タイトル` の "タイトル" 部に直接書くため、
         // markdown-serialize としては個別に何も書かない（toggleList 側で attrs.title として吸収する）。
         serialize() {
           // no-op: serialize is handled by parent toggleList
@@ -106,7 +106,7 @@ export const ToggleList = Node.create({
   },
 
   /**
-   * Zenn `:::details タイトル` 記法 ↔ Tiptap toggleList の相互変換。
+   * 拡張記法 `:::details タイトル` 記法 ↔ Tiptap toggleList の相互変換。
    *
    * - serialize:
    *     :::details {summary のテキスト}

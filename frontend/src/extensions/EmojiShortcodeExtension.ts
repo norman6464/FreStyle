@@ -1,7 +1,7 @@
 /**
  * `:smile:` のような絵文字 shortcode を Unicode 絵文字に変換する拡張。
  *
- * Zenn の絵文字補完（`:` トリガで候補を出す UI 補完）は SlashCommand 系で
+ * その絵文字補完（`:` トリガで候補を出す UI 補完）は SlashCommand 系で
  * 別途実装する余地を残し、本 PR では markdown 入力時の自動置換のみを実装する。
  *
  * 実装:

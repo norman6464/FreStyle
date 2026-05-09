@@ -20,18 +20,18 @@ import CalloutNodeView from '../components/CalloutNodeView';
 export type CalloutType = 'info' | 'warning' | 'error' | 'success';
 
 /**
- * Zenn の `:::message` / `:::message alert` を CalloutExtension にマッピングする。
+ * 拡張記法の `:::message` / `:::message alert` を CalloutExtension にマッピングする。
  * info  ↔ :::message
  * error ↔ :::message alert
- * warning / success は info にフォールバック（Zenn 標準が info / alert の 2 種のため）。
+ * warning / success は info にフォールバック（標準が info / alert の 2 種のため）。
  */
-type ZennCalloutVariant = 'info' | 'alert';
+type CalloutVariant = 'info' | 'alert';
 
-function zennVariantFromCalloutType(t: CalloutType): ZennCalloutVariant {
+function variantFromCalloutType(t: CalloutType): CalloutVariant {
   return t === 'error' || t === 'warning' ? 'alert' : 'info';
 }
 
-function calloutTypeFromZennVariant(v: ZennCalloutVariant): CalloutType {
+function calloutTypeFromVariant(v: CalloutVariant): CalloutType {
   return v === 'alert' ? 'error' : 'info';
 }
 
@@ -73,7 +73,7 @@ export const Callout = Node.create({
   },
 
   /**
-   * tiptap-markdown 連携。Zenn `:::message` / `:::message alert` 記法を
+   * tiptap-markdown 連携。拡張記法 `:::message` / `:::message alert` 記法を
    * Callout ノードと相互変換する。
    *
    * - serialize: Tiptap callout → markdown `:::message [alert]\n...content...\n:::`
@@ -84,7 +84,7 @@ export const Callout = Node.create({
     return {
       markdown: {
         serialize(state: import('prosemirror-markdown').MarkdownSerializerState, node: import('prosemirror-model').Node) {
-          const variant = zennVariantFromCalloutType((node.attrs.type as CalloutType) || 'info');
+          const variant = variantFromCalloutType((node.attrs.type as CalloutType) || 'info');
           state.write(variant === 'alert' ? ':::message alert\n' : ':::message\n');
           state.renderContent(node);
           state.ensureNewLine();
@@ -99,8 +99,8 @@ export const Callout = Node.create({
                 const token = tokens[idx];
                 if (token.nesting === 1) {
                   const params = token.info.trim();
-                  const variant: ZennCalloutVariant = /\balert\b/.test(params) ? 'alert' : 'info';
-                  const calloutType = calloutTypeFromZennVariant(variant);
+                  const variant: CalloutVariant = /\balert\b/.test(params) ? 'alert' : 'info';
+                  const calloutType = calloutTypeFromVariant(variant);
                   const emoji = variant === 'alert' ? '⚠️' : '💡';
                   return `<div data-callout="" data-callout-type="${calloutType}" data-callout-emoji="${emoji}" class="callout">\n`;
                 }

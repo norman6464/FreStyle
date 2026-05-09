@@ -1,7 +1,7 @@
 /**
  * YouTube / Twitter (X) / GitHub permalink などのサービス専用埋め込み NodeView。
  *
- * Zenn 仕様:
+ * 拡張記法:
  *   - YouTube: 動画 URL 単独行 → iframe
  *   - Twitter (X): ポスト URL 単独行 → blockquote (twitter widget)
  *   - GitHub: ファイル/permalink URL 単独行 → コードブロック (#L行範囲指定 もサポート)

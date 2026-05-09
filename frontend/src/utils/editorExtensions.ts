@@ -110,9 +110,9 @@ export function createEditorExtensions() {
     EmojiShortcode,
     // tiptap-markdown は editor.storage.markdown.getMarkdown() / setContent(md) を提供する。
     // - html: false       editor 内の生 HTML 出力を抑制し pure な Markdown シリアライズに統一
-    // - tightLists: true  リストアイテム間の空行を出力しない (Zenn / GitHub 準拠)
-    // - bulletListMarker  Zenn のサンプルが `-` で統一されているのに合わせる
-    // - linkify: false    URL の自動リンク化はしない（Zenn 風の「URL 行 → カード」は別 PR で扱う）
+    // - tightLists: true  リストアイテム間の空行を出力しない (拡張記法 / GitHub 準拠)
+    // - bulletListMarker  拡張記法のサンプルが `-` で統一されているのに合わせる
+    // - linkify: false    URL の自動リンク化はしない（拡張記法風の「URL 行 → カード」は別 PR で扱う）
     Markdown.configure({
       html: false,
       tightLists: true,

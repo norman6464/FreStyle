@@ -1,7 +1,7 @@
 /**
  * KaTeX 数式 Tiptap extensions。
  *
- * Zenn 互換: `$$...$$` (block) / `$...$` (inline) を KaTeX で描画する。
+ * Markdown 互換: `$$...$$` (block) / `$...$` (inline) を KaTeX で描画する。
  * 構成:
  *   - MathBlock: ProseMirror node (block)
  *   - MathInline: ProseMirror node (inline / atom)

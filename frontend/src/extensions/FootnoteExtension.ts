@@ -1,5 +1,5 @@
 /**
- * Zenn 互換の脚注 extension。
+ * Markdown 互換の脚注 extension。
  *
  * markdown 入力:
  *   本文[^1] / 本文^[インライン脚注]

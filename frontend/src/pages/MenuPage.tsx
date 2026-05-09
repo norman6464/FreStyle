@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import {
   HomeIcon,
-  SparklesIcon,
+  ChatBubbleBottomCenterTextIcon,
   CodeBracketIcon,
   DocumentTextIcon,
   DocumentChartBarIcon,
@@ -59,7 +59,7 @@ export default function MenuPage() {
           <>
             <NavCard
               to="/chat/ask-ai"
-              icon={SparklesIcon}
+              icon={ChatBubbleBottomCenterTextIcon}
               title="AI チャット"
               description="質問・要約・コード補助など、自由に対話できます。"
             />

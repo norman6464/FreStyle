@@ -59,3 +59,38 @@ func TestExecuteCodeUseCase_CodeTooLarge(t *testing.T) {
 	})
 	assert.Error(t, err)
 }
+
+// `<?php` 開始タグが無いコード（例: Java を貼り付けた）は、 PHP CLI のデフォルトで
+// 「ソースをそのまま stdout に出力して exit 0」になるため、 検証層で弾いて分かりやすい
+// stderr メッセージに置き換える。
+func TestExecuteCodeUseCase_PHP_RejectsCodeWithoutOpenTag(t *testing.T) {
+	uc := usecase.NewExecuteCodeUseCase()
+	out, err := uc.Execute(context.Background(), usecase.ExecuteCodeInput{
+		Code: `import java.util.*;
+class Main {
+    public static void main(String[] args) {
+        System.out.println("Hello World");
+    }
+}`,
+		Language: "php",
+	})
+	require.NoError(t, err)
+	assert.Empty(t, out.Stdout)
+	assert.NotEqual(t, 0, out.ExitCode)
+	assert.Contains(t, out.Stderr, "<?php")
+}
+
+// `<?=` (short echo tag) も PHP として扱われる必要があるので、 こちらは通す。
+func TestExecuteCodeUseCase_PHP_AllowsShortEchoTag(t *testing.T) {
+	_, err := exec.LookPath("php")
+	if err != nil {
+		t.Skip("php not found in PATH")
+	}
+	uc := usecase.NewExecuteCodeUseCase()
+	out, err := uc.Execute(context.Background(), usecase.ExecuteCodeInput{
+		Code:     `<?= "Hello"; ?>`,
+		Language: "php",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 0, out.ExitCode)
+}

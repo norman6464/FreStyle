@@ -65,6 +65,17 @@ func (uc *ExecuteCodeUseCase) Execute(ctx context.Context, input ExecuteCodeInpu
 	if input.Language != "php" {
 		return nil, fmt.Errorf("未対応の言語: %s", input.Language)
 	}
+	// PHP CLI は `<?php` 開始タグが無いコードを「ただの HTML テキスト」として扱い、
+	// ソースコードをそのまま stdout に流して exit code 0 を返す。
+	// 別言語 (Java など) のコードを誤って貼り付けると「実行成功 + 出力 = 元コード」になり
+	// ユーザを混乱させるので、 ここで明示的に弾く。
+	if !strings.Contains(input.Code, "<?php") && !strings.Contains(input.Code, "<?=") {
+		return &ExecuteCodeOutput{
+			Stdout:   "",
+			Stderr:   "PHP コードには `<?php` 開始タグが必要です。 PHP 以外のコードは現在実行できません。",
+			ExitCode: 1,
+		}, nil
+	}
 
 	// コードを一時ファイルに書き込む
 	tmpDir := os.TempDir()

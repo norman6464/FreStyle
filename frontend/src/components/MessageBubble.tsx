@@ -178,6 +178,19 @@ export default memo(function MessageBubble({
               onCopy={onCopy}
               visible={showActions}
             />
+            {/* 完了マーカー: ストリーミング placeholder ではない（= done 確定済 / 履歴ロード済）
+                AI 応答の末尾に favicon を 1 つ置いて「ここで応答が締まった」ことを視覚化する。
+                Claude 等のメジャー AI チャットで採用されている bookend 表現に倣う。
+                id は型定義上 string だが、 旧テスト互換のため number が来ても動くよう String 化して判定。 */}
+            {!String(id).startsWith('streaming-') && (
+              <div className="mt-8 flex" aria-hidden="true">
+                <img
+                  src="/favicon.svg"
+                  alt=""
+                  className="w-4 h-4 opacity-60"
+                />
+              </div>
+            )}
           </>
         )}
       </div>

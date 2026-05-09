@@ -10,19 +10,19 @@ import (
 //
 // 旧 `registerPhpRoutes` を「言語非依存」に汎用化したもの:
 //   - GET  /api/v2/exercises?language=php   一覧（query で言語絞り込み）
-//   - GET  /api/v2/exercises/:id            個別取得
+//   - GET  /api/v2/exercises/:slug          詳細（入出力例の配列を含む、 slug ベース URL）
 //   - POST /api/v2/code/execute             コード実行（body の language で言語切替）
 //
-// 会社作成の company_exercises / 提出履歴の exercise_submissions 用 API は
-// 別 PR (PR-H1 以降) で追加する。
+// 提出履歴 / 採点 / 集計統計の API は PR-W で追加。
 func registerExerciseRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	exerciseRepo := repository.NewMasterExerciseRepository(deps.db)
+	examplesRepo := repository.NewMasterExerciseExampleRepository(deps.db)
 	exerciseHandler := NewMasterExerciseHandler(
 		usecase.NewListMasterExercisesUseCase(exerciseRepo),
-		usecase.NewGetMasterExerciseUseCase(exerciseRepo),
+		usecase.NewGetMasterExerciseUseCase(exerciseRepo, examplesRepo),
 	)
 	g.GET("/exercises", exerciseHandler.List)
-	g.GET("/exercises/:id", exerciseHandler.Get)
+	g.GET("/exercises/:slug", exerciseHandler.GetBySlug)
 
 	codeExecuteHandler := NewCodeExecuteHandler(usecase.NewExecuteCodeUseCase())
 	g.POST("/code/execute", codeExecuteHandler.Execute)

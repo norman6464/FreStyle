@@ -181,5 +181,45 @@ func seedMasterExercises(db *gorm.DB) error {
 		return result.Error
 	}
 	log.Printf("seed: master_exercises (php) %d 件を挿入（既存はスキップ）", result.RowsAffected)
+
+	if err := seedMasterExerciseExamples(db, exercises); err != nil {
+		return err
+	}
+	return nil
+}
+
+// seedMasterExerciseExamples は既存の master_exercises.expected_output を
+// master_exercise_examples テーブルに「OrderIndex=1, InputText=空」の 1 行として
+// バックフィルする。既に同じ exercise_id の example が 1 件以上ある場合は skip。
+//
+// 複数 example の追加は将来的に運営側ツールで行う想定。当面の seed は 1 件のみで、
+// 採点ロジック (PR-W) も「example が 1 件のみのケース = 単一テスト」に対応する。
+func seedMasterExerciseExamples(db *gorm.DB, exercises []domain.MasterExercise) error {
+	now := time.Now()
+	inserted := 0
+	for _, ex := range exercises {
+		var count int64
+		if err := db.Model(&domain.MasterExerciseExample{}).
+			Where("exercise_id = ?", ex.ID).
+			Count(&count).Error; err != nil {
+			return err
+		}
+		if count > 0 {
+			continue
+		}
+		example := domain.MasterExerciseExample{
+			ExerciseID:     ex.ID,
+			OrderIndex:     1,
+			InputText:      "",
+			ExpectedOutput: ex.ExpectedOutput,
+			CreatedAt:      now,
+			UpdatedAt:      now,
+		}
+		if err := db.Create(&example).Error; err != nil {
+			return err
+		}
+		inserted++
+	}
+	log.Printf("seed: master_exercise_examples %d 件をバックフィル（既存 example のある問題は skip）", inserted)
 	return nil
 }

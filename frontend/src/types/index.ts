@@ -516,3 +516,24 @@ export interface CodeExecutionResult {
   stderr: string;
   exitCode: number;
 }
+
+/**
+ * 演習問題に紐付く入出力例（テストケース）の 1 ペア。
+ * 詳細ページに「入力例 1 / 入力例 2 / ...」として描画され、
+ * 採点 usecase（PR-W）では同じ全件がテストケースとして実行される。
+ */
+export interface MasterExerciseExample {
+  id: number;
+  exerciseId: number;
+  orderIndex: number;
+  inputText: string;
+  expectedOutput: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 詳細 API (`GET /api/v2/exercises/:slug`) のレスポンス。 */
+export interface MasterExerciseDetail {
+  exercise: MasterExercise;
+  examples: MasterExerciseExample[];
+}

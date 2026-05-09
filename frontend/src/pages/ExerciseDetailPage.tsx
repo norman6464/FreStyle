@@ -176,9 +176,9 @@ export default function ExerciseDetailPage() {
           <button
             onClick={runCode}
             disabled={running || submitting}
-            className="w-full px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium transition-colors"
+            className="w-full px-4 py-2 rounded-md bg-blue-500/80 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-medium transition-colors"
           >
-            {running ? '実行中...' : '提出前動作確認'}
+            {running ? '実行中...' : 'コード実行'}
           </button>
         </div>
       </section>
@@ -195,15 +195,17 @@ export default function ExerciseDetailPage() {
       {/* 採点結果（提出後） */}
       {submitResult && <SubmitResultPanel results={submitResult.results} />}
 
-      {/* 提出ボタン */}
-      <button
-        onClick={submitCode}
-        disabled={running || submitting}
-        className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-md bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white text-base font-semibold transition-colors shadow-md"
-      >
-        <ClipboardDocumentCheckIcon className="w-5 h-5" />
-        {submitting ? '採点中...' : 'コードを提出する'}
-      </button>
+      {/* 提出ボタン: 中央寄せ・控えめなトーン・横幅は max-w-sm */}
+      <div className="flex justify-center">
+        <button
+          onClick={submitCode}
+          disabled={running || submitting}
+          className="w-full max-w-sm flex items-center justify-center gap-2 px-6 py-2.5 rounded-md bg-amber-700/70 hover:bg-amber-700/90 disabled:opacity-50 text-white text-sm font-semibold transition-colors"
+        >
+          <ClipboardDocumentCheckIcon className="w-4 h-4" />
+          {submitting ? '採点中...' : 'コードを提出する'}
+        </button>
+      </div>
 
       {/* 提出履歴 */}
       {submissions.length > 0 && (
@@ -263,28 +265,28 @@ function ExampleBlock({
   const inputDisplay = example.inputText.length > 0 ? example.inputText : 'ありません。';
   return (
     <div className="space-y-3">
-      <div className="rounded-md border border-yellow-500/30 bg-yellow-500/5 p-3 space-y-1.5">
-        <div className="flex items-center gap-2 text-xs text-yellow-400 font-semibold">
-          <InboxIcon className="w-4 h-4" />
+      <div className="space-y-1.5 pb-4 border-b border-surface-3 last:border-b-0 last:pb-0">
+        <div className="flex items-center gap-2 text-sm text-[var(--color-text-primary)] font-semibold">
+          <InboxIcon className="w-4 h-4 text-[var(--color-text-muted)]" />
           入力される値{suffix}
         </div>
-        <pre className="whitespace-pre-wrap break-words text-xs font-mono text-[var(--color-text-primary)]">
+        <pre className="whitespace-pre-wrap break-words text-sm text-[var(--color-text-primary)]">
           {inputDisplay}
         </pre>
         {example.inputText.length === 0 && (
-          <p className="text-[11px] text-[var(--color-text-muted)] leading-relaxed">
+          <p className="text-xs text-[var(--color-text-muted)] leading-relaxed pt-1">
             入力値最終行の末尾に改行が 1 つ入ります。<br />
             文字列は標準入力から渡されます。
           </p>
         )}
       </div>
 
-      <div className="rounded-md border border-green-500/30 bg-green-500/5 p-3 space-y-1.5">
-        <div className="flex items-center gap-2 text-xs text-green-400 font-semibold">
-          <ClipboardDocumentCheckIcon className="w-4 h-4" />
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-2 text-sm text-[var(--color-text-primary)] font-semibold">
+          <ClipboardDocumentCheckIcon className="w-4 h-4 text-[var(--color-text-muted)]" />
           期待する出力{suffix}
         </div>
-        <pre className="whitespace-pre-wrap break-words text-xs font-mono text-[var(--color-text-primary)]">
+        <pre className="whitespace-pre-wrap break-words text-sm text-[var(--color-text-primary)] bg-surface-2 border border-surface-3 rounded px-3 py-2 font-mono">
           {example.expectedOutput}
         </pre>
       </div>

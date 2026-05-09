@@ -6,7 +6,8 @@ import EmptyState from '../components/EmptyState';
 import ConfirmModal from '../components/ConfirmModal';
 import Loading from '../components/Loading';
 import NoteSortMenu from '../components/NoteSortMenu';
-import { DocumentTextIcon, PlusIcon, MagnifyingGlassIcon, Bars3Icon } from '@heroicons/react/24/outline';
+import { DocumentTextIcon, PlusIcon, MagnifyingGlassIcon, Bars3Icon, QuestionMarkCircleIcon } from '@heroicons/react/24/outline';
+import { Link } from 'react-router-dom';
 import { useNotes } from '../hooks/useNotes';
 import { useNoteEditor } from '../hooks/useNoteEditor';
 import { useMobilePanelState } from '../hooks/useMobilePanelState';
@@ -97,6 +98,13 @@ export default function NotesPage() {
               <PlusIcon className="w-4 h-4" />
               新しいノート
             </button>
+            <Link
+              to="/notes/markdown-help"
+              className="w-full flex items-center justify-center gap-1.5 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] py-1 transition-colors"
+            >
+              <QuestionMarkCircleIcon className="w-3.5 h-3.5" />
+              Markdown 記法ヘルプ
+            </Link>
           </div>
         }
       >

@@ -1,5 +1,5 @@
 import apiClient from '../lib/axios';
-import { AUTH, PROFILE } from '../constants/apiRoutes';
+import { AUTH } from '../constants/apiRoutes';
 
 /**
  * 認証リポジトリ
@@ -54,8 +54,6 @@ export interface UserInfo {
   role?: string;
   /** 所属する company の ID。SuperAdmin は null になり得る。 */
   companyId?: number | null;
-  /** Welcome 画面を完了しているか。false なら初回ログイン直後の Welcome へ誘導する。 */
-  onboarded?: boolean;
   /** /auth/me が返す表示名（招待時に displayName として登録された値） */
   displayName?: string;
 }
@@ -134,14 +132,6 @@ class AuthRepository {
    */
   async refreshToken(): Promise<void> {
     await apiClient.post(AUTH.refreshToken);
-  }
-
-  /**
-   * Welcome / オンボーディング完了通知。
-   * users.onboarded_at を NOW() で更新（IS NULL ガード付きで冪等）。
-   */
-  async completeOnboarding(): Promise<void> {
-    await apiClient.post(PROFILE.meOnboardingComplete);
   }
 }
 

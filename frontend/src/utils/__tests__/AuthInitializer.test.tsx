@@ -103,7 +103,6 @@ describe('AuthInitializer', () => {
       email: 'admin@example.com',
       sub: 'sub-456',
       role: 'super_admin',
-      onboarded: true,
       isAdmin: true,
     });
 

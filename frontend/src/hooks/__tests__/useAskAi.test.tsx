@@ -49,7 +49,7 @@ function makeWrapper(initialPath: string) {
   const store = configureStore({
     reducer: { auth: authReducer },
     preloadedState: {
-      auth: { isAuthenticated: true, loading: false, isAdmin: false, onboarded: true, role: 'trainee' },
+      auth: { isAuthenticated: true, loading: false, isAdmin: false, role: 'trainee' },
     },
   });
   return ({ children }: { children: ReactNode }) => (

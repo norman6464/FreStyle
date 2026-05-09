@@ -5,13 +5,11 @@ const initialState: AuthState = {
   isAuthenticated: false,
   loading: true,
   isAdmin: false,
-  onboarded: false,
   role: null,
 };
 
 type AuthPayload = {
   isAdmin?: boolean;
-  onboarded?: boolean;
   role?: string | null;
 };
 
@@ -27,9 +25,6 @@ const authSlice = createSlice({
       if (action.payload?.isAdmin !== undefined) {
         state.isAdmin = action.payload.isAdmin;
       }
-      if (action.payload?.onboarded !== undefined) {
-        state.onboarded = action.payload.onboarded;
-      }
       if (action.payload?.role !== undefined) {
         state.role = action.payload.role;
       }
@@ -41,25 +36,15 @@ const authSlice = createSlice({
       if (action.payload?.isAdmin !== undefined) {
         state.isAdmin = action.payload.isAdmin;
       }
-      if (action.payload?.onboarded !== undefined) {
-        state.onboarded = action.payload.onboarded;
-      }
       if (action.payload?.role !== undefined) {
         state.role = action.payload.role;
       }
-    },
-
-    /** Welcome 画面で「はじめる」を押した直後に dispatch する。store を即時更新して
-     *  Protected の /welcome リダイレクトループを回避する（API 側は IS NULL ガードで冪等）。 */
-    markOnboarded(state) {
-      state.onboarded = true;
     },
 
     clearAuth(state) {
       state.isAuthenticated = false;
       state.loading = false;
       state.isAdmin = false;
-      state.onboarded = false;
       state.role = null;
     },
 
@@ -69,6 +54,6 @@ const authSlice = createSlice({
   },
 });
 
-export const { setAuthData, setAuthenticated, markOnboarded, clearAuth, finishLoading } =
+export const { setAuthData, setAuthenticated, clearAuth, finishLoading } =
   authSlice.actions;
 export default authSlice.reducer;

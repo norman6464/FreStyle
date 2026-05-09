@@ -138,12 +138,6 @@ export interface AuthState {
   loading: boolean;
   isAdmin: boolean;
   /**
-   * Welcome / オンボーディングを完了済みかどうか。
-   * 未認証 / 未確定の状態（loading 中）は false。確定後は backend の users.onboarded_at の
-   * 有無に応じてセットされる。Protected で /welcome リダイレクト判定に使う。
-   */
-  onboarded: boolean;
-  /**
    * 現在ユーザーの role（'super_admin' / 'company_admin' / 'trainee'）。
    * メニュー出し分け（super_admin は管理機能のみ）と Protected の trainee 用ルート保護に使う。
    * 未認証 / 未確定は null。

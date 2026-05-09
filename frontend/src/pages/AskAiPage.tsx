@@ -10,6 +10,9 @@ import {
   Bars3Icon,
   MagnifyingGlassIcon,
   ArrowDownIcon,
+  ChevronDownIcon,
+  PencilIcon,
+  TrashIcon,
 } from '@heroicons/react/24/outline';
 import { useAskAi } from '../hooks/useAskAi';
 import { useMobilePanelState } from '../hooks/useMobilePanelState';
@@ -95,6 +98,38 @@ export default function AskAiPage() {
     return found?.title?.trim() || '新しいチャット';
   }, [sessions, currentSessionId]);
 
+  // タイトルクリックで開くアクションメニュー（名前変更 / 削除）。
+  const [titleMenuOpen, setTitleMenuOpen] = useState(false);
+  const titleMenuRef = useRef<HTMLDivElement | null>(null);
+
+  // メニュー外クリックで閉じる。
+  useEffect(() => {
+    if (!titleMenuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (!titleMenuRef.current) return;
+      if (!titleMenuRef.current.contains(e.target as Node)) {
+        setTitleMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [titleMenuOpen]);
+
+  const handleTitleRename = () => {
+    setTitleMenuOpen(false);
+    if (!currentSessionId) return;
+    const found = sessions.find((s) => s.id === currentSessionId);
+    handleStartEditTitle({ id: currentSessionId, title: found?.title });
+    // モバイルでは編集 UI が左パネル内なので、 メニュー操作と同時にパネルを開いて確認しやすくする。
+    openMobilePanel();
+  };
+
+  const handleTitleDelete = () => {
+    setTitleMenuOpen(false);
+    if (!currentSessionId) return;
+    handleDeleteSession(currentSessionId);
+  };
+
   if (loading && sessions.length === 0) {
     return <Loading message="読み込み中..." className="min-h-[calc(100vh-3.5rem)]" />;
   }
@@ -161,8 +196,8 @@ export default function AskAiPage() {
 
       {/* メイン: チャット */}
       <div className="flex-1 flex flex-col min-w-0 relative">
-        {/* 上部ヘッダー: 左上にセッションタイトル、モバイルではハンバーガーも兼ねる */}
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-surface-3">
+        {/* 上部ヘッダー: 区切り線は出さず、 タイトルはピル型ボタンで「名前を変更 / 削除」を出すドロップダウンにする */}
+        <div className="flex items-center gap-2 px-4 pt-3 pb-2">
           <button
             onClick={openMobilePanel}
             className="md:hidden p-1.5 rounded hover:bg-[var(--color-surface-2)]"
@@ -170,10 +205,63 @@ export default function AskAiPage() {
           >
             <Bars3Icon className="w-5 h-5" />
           </button>
-          <h1 className="text-sm font-medium text-[var(--color-text-primary)] truncate">
-            {currentSessionTitle}
-          </h1>
+          <div className="relative" ref={titleMenuRef}>
+            <button
+              type="button"
+              onClick={() => {
+                if (!currentSessionId) return;
+                setTitleMenuOpen((v) => !v);
+              }}
+              disabled={!currentSessionId}
+              aria-haspopup="menu"
+              aria-expanded={titleMenuOpen}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-md text-sm font-medium text-[var(--color-text-primary)] hover:bg-[var(--color-surface-2)] disabled:cursor-default disabled:hover:bg-transparent transition-colors max-w-[60vw]"
+            >
+              <span className="truncate">{currentSessionTitle}</span>
+              {currentSessionId && (
+                <ChevronDownIcon
+                  className={`w-3.5 h-3.5 flex-shrink-0 text-[var(--color-text-muted)] transition-transform ${
+                    titleMenuOpen ? 'rotate-180' : ''
+                  }`}
+                  aria-hidden="true"
+                />
+              )}
+            </button>
+            {titleMenuOpen && currentSessionId && (
+              <div
+                role="menu"
+                className="absolute left-0 top-full mt-1 z-30 min-w-[180px] bg-[var(--color-surface-1)] border border-[var(--color-surface-3)] rounded-lg shadow-lg py-1"
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={handleTitleRename}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--color-text-primary)] hover:bg-[var(--color-surface-2)] transition-colors"
+                >
+                  <PencilIcon className="w-4 h-4 text-[var(--color-text-muted)]" />
+                  名前を変更
+                </button>
+                <div className="my-1 border-t border-[var(--color-surface-3)]" />
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={handleTitleDelete}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-500/10 transition-colors"
+                >
+                  <TrashIcon className="w-4 h-4" />
+                  削除
+                </button>
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* スクロール領域上部のフェードオーバーレイ。 ヘッダー直下にスクロールしてきた本文が
+            じわっと消えるように見える。 ヘッダーと本文の境界線を引かない代わりにここで視覚分離する。 */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute left-0 right-0 top-[44px] h-6 bg-gradient-to-b from-[var(--color-surface)] to-transparent z-10"
+        />
 
         <div
           ref={containerRef}

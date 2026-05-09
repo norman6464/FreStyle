@@ -6,19 +6,37 @@ import {
   XCircleIcon,
   ChevronDownIcon,
   ChevronUpIcon,
+  DocumentTextIcon,
+  InboxIcon,
+  ClipboardDocumentCheckIcon,
 } from '@heroicons/react/24/outline';
 import Loading from '../components/Loading';
 import { useExerciseDetail } from '../hooks/useExerciseDetail';
 import { lazyWithReload } from '../utils/lazyWithReload';
-import { ExerciseSubmission, ExerciseTestCaseResult } from '../types';
+import {
+  CodeExecutionResult,
+  ExerciseSubmission,
+  ExerciseTestCaseResult,
+  MasterExerciseExample,
+} from '../types';
 
 const CodeEditor = lazyWithReload(() => import('../components/CodeEditor'), 'CodeEditor');
 
 /**
  * ExerciseDetailPage — `/code-editor/:slug` の詳細画面。
  *
- * 上段: 問題タイトル + 説明 + 入出力例 (テストケース表示)
- * 下段: コードエディタ + 実行 / 提出ボタン + 結果パネル + 履歴
+ * 縦 1 カラムのスクロールレイアウト:
+ *   1. ヘッダー (戻るリンク + タイトル + 採点結果バッジ)
+ *   2. 問題カード（説明 + 入出力例ブロック）
+ *   3. ヒント開閉
+ *   4. コードエディタ + 「提出前動作確認」(単発実行)
+ *   5. 実行結果テーブル（status / 出力 / 期待値）
+ *   6. 「コードを提出する」フルワイドボタン
+ *   7. 提出履歴
+ *
+ * 単一テストケースしか表示しない既存 LP よりも、 全テストケースを縦方向に並べる方が
+ * 視認性が高い。 採点後はテーブルで status / 期待出力 / 実出力が並び、 不一致の
+ * 特定が容易になるよう設計。
  */
 export default function ExerciseDetailPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -56,146 +74,150 @@ export default function ExerciseDetailPage() {
   const ex = detail.exercise;
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="px-4 sm:px-6 pt-6 pb-24 max-w-4xl mx-auto space-y-6">
       {/* ヘッダー */}
-      <header className="flex-shrink-0 px-6 py-3 border-b border-surface-3 bg-surface-1 space-y-2">
+      <header className="space-y-3">
         <BackLink />
-        <div className="flex items-center gap-3 flex-wrap">
-          <h1 className="text-lg font-bold text-[var(--color-text-primary)]">{ex.title}</h1>
-          <span className="text-xs px-1.5 py-0.5 rounded bg-surface-3 text-[var(--color-text-muted)] uppercase">
-            {ex.language}
-          </span>
-          {submitResult && (
-            submitResult.isCorrect
-              ? <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-green-500/15 text-green-400 border border-green-500/30">
-                  <CheckCircleIcon className="w-4 h-4" /> 全テストケース合格
-                </span>
-              : <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-red-500/15 text-red-400 border border-red-500/30">
-                  <XCircleIcon className="w-4 h-4" /> 不合格
-                </span>
-          )}
+        <div className="flex items-start gap-3">
+          <div className="flex-shrink-0 w-10 h-10 rounded-md bg-primary-500/10 border border-primary-500/30 flex items-center justify-center">
+            <DocumentTextIcon className="w-5 h-5 text-primary-400" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl font-bold text-[var(--color-text-primary)] leading-tight">
+              {ex.title}
+            </h1>
+            <div className="mt-1 flex items-center gap-2 text-xs text-[var(--color-text-muted)]">
+              <span className="px-1.5 py-0.5 rounded bg-surface-3 uppercase">{ex.language}</span>
+              <span>難易度 {'★'.repeat(Math.max(1, Math.min(5, ex.difficulty)))}</span>
+              <span>#{ex.orderIndex}</span>
+            </div>
+          </div>
+          {submitResult && <ResultBadge isCorrect={submitResult.isCorrect} />}
         </div>
       </header>
 
-      <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
-        {/* 左: 問題説明 + テストケース + 履歴 */}
-        <aside className="lg:w-2/5 lg:flex-shrink-0 overflow-y-auto p-6 space-y-5 border-b lg:border-b-0 lg:border-r border-surface-3 bg-surface-1">
-          <section className="space-y-2">
-            <h2 className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">
-              問題
-            </h2>
-            <p className="text-sm text-[var(--color-text-primary)] whitespace-pre-wrap leading-relaxed">
-              {ex.description}
-            </p>
-          </section>
+      {/* 問題カード */}
+      <section className="rounded-lg border border-surface-3 bg-surface-1 p-5 space-y-5">
+        <div className="space-y-2">
+          <h2 className="text-base font-semibold text-[var(--color-text-primary)] flex items-center gap-2">
+            <span aria-hidden>📃</span>
+            下記の問題をプログラミングしてみよう！
+          </h2>
+          <p className="text-sm text-[var(--color-text-primary)] whitespace-pre-wrap leading-relaxed">
+            {ex.description}
+          </p>
+        </div>
 
-          {ex.hintText && (
-            <section className="space-y-2">
-              <button
-                onClick={() => setShowHint((v) => !v)}
-                className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] flex items-center gap-1"
-              >
-                {showHint ? <ChevronUpIcon className="w-3.5 h-3.5" /> : <ChevronDownIcon className="w-3.5 h-3.5" />}
-                ヒントを{showHint ? '隠す' : '見る'}
-              </button>
-              {showHint && (
-                <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-md text-xs text-[var(--color-text-primary)] whitespace-pre-wrap">
-                  {ex.hintText}
-                </div>
-              )}
-            </section>
-          )}
+        <div className="text-xs text-primary-400">
+          ▼ 下記解答欄にコードを記入してみよう
+        </div>
 
-          <section className="space-y-2">
-            <h2 className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">
-              入出力例 ({detail.examples.length})
-            </h2>
-            <div className="space-y-3">
-              {detail.examples.map((ex, idx) => (
-                <ExampleBlock
-                  key={ex.id}
-                  index={idx + 1}
-                  input={ex.inputText}
-                  expected={ex.expectedOutput}
-                />
-              ))}
-            </div>
-          </section>
+        <div className="space-y-3">
+          {detail.examples.map((example, idx) => (
+            <ExampleBlock
+              key={example.id}
+              index={idx + 1}
+              total={detail.examples.length}
+              example={example}
+            />
+          ))}
+        </div>
 
-          {submissions.length > 0 && (
-            <section className="space-y-2">
-              <h2 className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">
-                提出履歴 ({submissions.length})
-              </h2>
-              <ul className="space-y-1">
-                {submissions.slice(0, 10).map((s) => (
-                  <SubmissionRow key={s.id} submission={s} />
-                ))}
-              </ul>
-            </section>
-          )}
-        </aside>
-
-        {/* 右: エディタ + 結果 */}
-        <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-2 bg-surface-2 border-b border-surface-3 flex-shrink-0">
-            <span className="text-xs text-[var(--color-text-muted)] font-mono uppercase">{ex.language}</span>
-            <div className="flex gap-2">
-              <button
-                onClick={resetCode}
-                className="text-xs px-3 py-1 rounded text-[var(--color-text-muted)] hover:bg-surface-3 hover:text-[var(--color-text-primary)] transition-colors"
-              >
-                リセット
-              </button>
-              <button
-                onClick={runCode}
-                disabled={running || submitting}
-                className="text-xs px-3 py-1 rounded border border-surface-3 text-[var(--color-text-secondary)] hover:bg-surface-3 hover:text-[var(--color-text-primary)] disabled:opacity-50 transition-colors"
-              >
-                {running ? '実行中...' : '▶ 実行'}
-              </button>
-              <button
-                onClick={submitCode}
-                disabled={running || submitting}
-                className="text-xs px-3 py-1 rounded bg-primary-500 hover:bg-primary-600 disabled:opacity-50 text-white font-medium transition-colors"
-              >
-                {submitting ? '採点中...' : '提出'}
-              </button>
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-hidden bg-[#1e1e1e]">
-            <Suspense fallback={<div className="h-full bg-[#1e1e1e]" />}>
-              <CodeEditor
-                value={code}
-                onChange={setCode}
-                language={ex.language === 'php' ? 'php' : 'plaintext'}
-                height="100%"
-              />
-            </Suspense>
-          </div>
-
-          <div className="border-t border-surface-3 bg-surface-1 max-h-[40%] min-h-[140px] overflow-y-auto p-4 text-xs space-y-3">
-            {!executionResult && !submitResult && !submitError && !running && !submitting && (
-              <p className="text-[var(--color-text-muted)]">
-                「▶ 実行」で出力プレビュー、「提出」で全テストケース採点。
-              </p>
-            )}
-
-            {executionResult && !submitResult && (
-              <ExecutionPreview result={executionResult} />
-            )}
-
-            {submitError && (
-              <p className="text-red-400">{submitError}</p>
-            )}
-
-            {submitResult && (
-              <SubmitResultPanel results={submitResult.results} />
+        {ex.hintText && (
+          <div>
+            <button
+              onClick={() => setShowHint((v) => !v)}
+              className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] flex items-center gap-1"
+            >
+              {showHint ? <ChevronUpIcon className="w-3.5 h-3.5" /> : <ChevronDownIcon className="w-3.5 h-3.5" />}
+              ヒントを{showHint ? '隠す' : '見る'}
+            </button>
+            {showHint && (
+              <div className="mt-2 p-3 bg-blue-500/10 border border-blue-500/20 rounded-md text-xs text-[var(--color-text-primary)] whitespace-pre-wrap">
+                {ex.hintText}
+              </div>
             )}
           </div>
-        </main>
-      </div>
+        )}
+      </section>
+
+      {/* テストケース注意書き */}
+      <p className="text-xs text-orange-400 bg-orange-500/10 border border-orange-500/20 rounded-md px-3 py-2">
+        ❓ 複数のテストケースで採点しますので、 動作確認用の入力例だけでなく入力値を変えてのデバッグもおすすめします。
+      </p>
+
+      {/* エディタ */}
+      <section className="rounded-lg border border-surface-3 bg-surface-1 overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-2 bg-surface-2 border-b border-surface-3">
+          <span className="text-sm font-semibold text-[var(--color-text-primary)]">解答コード入力欄</span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={resetCode}
+              className="text-xs px-3 py-1 rounded text-[var(--color-text-muted)] hover:bg-surface-3 hover:text-[var(--color-text-primary)] transition-colors"
+            >
+              リセット
+            </button>
+            <span className="text-xs px-2 py-0.5 rounded bg-surface-3 text-[var(--color-text-muted)] font-mono uppercase">
+              {ex.language}
+            </span>
+          </div>
+        </div>
+        <div className="h-[360px] bg-[#1e1e1e]">
+          <Suspense fallback={<div className="h-full bg-[#1e1e1e]" />}>
+            <CodeEditor
+              value={code}
+              onChange={setCode}
+              language={ex.language === 'php' ? 'php' : 'plaintext'}
+              height="100%"
+            />
+          </Suspense>
+        </div>
+        <div className="px-4 py-3 bg-surface-2 border-t border-surface-3">
+          <button
+            onClick={runCode}
+            disabled={running || submitting}
+            className="w-full px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium transition-colors"
+          >
+            {running ? '実行中...' : '提出前動作確認'}
+          </button>
+        </div>
+      </section>
+
+      {/* 実行結果テーブル */}
+      {(executionResult || submitError) && (
+        <ExecutionResultTable
+          result={executionResult}
+          expected={detail.examples[0]?.expectedOutput ?? ''}
+          submitError={submitError}
+        />
+      )}
+
+      {/* 採点結果（提出後） */}
+      {submitResult && <SubmitResultPanel results={submitResult.results} />}
+
+      {/* 提出ボタン */}
+      <button
+        onClick={submitCode}
+        disabled={running || submitting}
+        className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-md bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white text-base font-semibold transition-colors shadow-md"
+      >
+        <ClipboardDocumentCheckIcon className="w-5 h-5" />
+        {submitting ? '採点中...' : 'コードを提出する'}
+      </button>
+
+      {/* 提出履歴 */}
+      {submissions.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">
+            提出履歴 ({submissions.length})
+          </h2>
+          <ul className="space-y-1">
+            {submissions.slice(0, 10).map((s) => (
+              <SubmissionRow key={s.id} submission={s} />
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }
@@ -212,48 +234,144 @@ function BackLink() {
   );
 }
 
-function ExampleBlock({ index, input, expected }: { index: number; input: string; expected: string }) {
+function ResultBadge({ isCorrect }: { isCorrect: boolean }) {
+  if (isCorrect) {
+    return (
+      <span className="flex-shrink-0 flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-green-500/15 text-green-400 border border-green-500/30">
+        <CheckCircleIcon className="w-4 h-4" /> 全テストケース合格
+      </span>
+    );
+  }
   return (
-    <div className="rounded-md border border-surface-3 bg-surface-2 p-2 space-y-2 text-xs font-mono">
-      <p className="text-[var(--color-text-muted)] not-italic font-sans text-[10px] uppercase tracking-wider">
-        例 {index}
-      </p>
-      {input && (
-        <div>
-          <p className="text-[10px] text-[var(--color-text-muted)] font-sans mb-0.5">入力</p>
-          <pre className="whitespace-pre-wrap break-words bg-[var(--color-surface)] p-1.5 rounded text-[var(--color-text-primary)]">{input}</pre>
+    <span className="flex-shrink-0 flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-red-500/15 text-red-400 border border-red-500/30">
+      <XCircleIcon className="w-4 h-4" /> 不合格
+    </span>
+  );
+}
+
+function ExampleBlock({
+  index,
+  total,
+  example,
+}: {
+  index: number;
+  total: number;
+  example: MasterExerciseExample;
+}) {
+  // 例が複数ある場合は番号を表示し、 1 件しかないときはシンプルに「入力される値 / 期待する出力」だけにする。
+  const suffix = total > 1 ? ` ${index}` : '';
+  const inputDisplay = example.inputText.length > 0 ? example.inputText : 'ありません。';
+  return (
+    <div className="space-y-3">
+      <div className="rounded-md border border-yellow-500/30 bg-yellow-500/5 p-3 space-y-1.5">
+        <div className="flex items-center gap-2 text-xs text-yellow-400 font-semibold">
+          <InboxIcon className="w-4 h-4" />
+          入力される値{suffix}
         </div>
-      )}
-      <div>
-        <p className="text-[10px] text-[var(--color-text-muted)] font-sans mb-0.5">期待出力</p>
-        <pre className="whitespace-pre-wrap break-words bg-[var(--color-surface)] p-1.5 rounded text-[var(--color-text-primary)]">{expected}</pre>
+        <pre className="whitespace-pre-wrap break-words text-xs font-mono text-[var(--color-text-primary)]">
+          {inputDisplay}
+        </pre>
+        {example.inputText.length === 0 && (
+          <p className="text-[11px] text-[var(--color-text-muted)] leading-relaxed">
+            入力値最終行の末尾に改行が 1 つ入ります。<br />
+            文字列は標準入力から渡されます。
+          </p>
+        )}
+      </div>
+
+      <div className="rounded-md border border-green-500/30 bg-green-500/5 p-3 space-y-1.5">
+        <div className="flex items-center gap-2 text-xs text-green-400 font-semibold">
+          <ClipboardDocumentCheckIcon className="w-4 h-4" />
+          期待する出力{suffix}
+        </div>
+        <pre className="whitespace-pre-wrap break-words text-xs font-mono text-[var(--color-text-primary)]">
+          {example.expectedOutput}
+        </pre>
       </div>
     </div>
   );
 }
 
-function ExecutionPreview({ result }: { result: { stdout: string; stderr: string; exitCode: number } }) {
+function ExecutionResultTable({
+  result,
+  expected,
+  submitError,
+}: {
+  result: CodeExecutionResult | null;
+  expected: string;
+  submitError: string | null;
+}) {
+  if (submitError) {
+    return (
+      <div className="rounded-md border border-red-500/30 bg-red-500/5 p-3 text-xs text-red-400">
+        {submitError}
+      </div>
+    );
+  }
+  if (!result) return null;
+
+  const status = result.exitCode === 0 ? 'Success' : `Failure (exit ${result.exitCode})`;
+  const matched = result.exitCode === 0 && normalizeOutput(result.stdout) === normalizeOutput(expected);
+
   return (
-    <div className="space-y-2">
-      <p className="text-[var(--color-text-muted)]">
-        実行結果（exit code: {result.exitCode}）
-      </p>
-      {result.stdout && (
-        <pre className="whitespace-pre-wrap break-words font-mono text-[var(--color-text-primary)]">{result.stdout}</pre>
-      )}
-      {result.stderr && (
-        <pre className="whitespace-pre-wrap break-words font-mono text-red-400">{result.stderr}</pre>
-      )}
+    <div className="rounded-lg border border-surface-3 bg-surface-1 overflow-hidden">
+      <table className="w-full text-xs">
+        <tbody>
+          <tr className="border-b border-surface-3">
+            <th className="text-left px-4 py-2 font-medium text-[var(--color-text-muted)] bg-surface-2 w-1/3">
+              実行結果ステータス
+            </th>
+            <td className="px-4 py-2 text-[var(--color-text-primary)]">{status}</td>
+          </tr>
+          <tr className="border-b border-surface-3">
+            <th className="text-left px-4 py-2 font-medium text-[var(--color-text-muted)] bg-surface-2 align-top">
+              提出コードのアウトプット
+            </th>
+            <td className="px-4 py-2">
+              <pre className="whitespace-pre-wrap break-words font-mono text-[var(--color-text-primary)]">
+                {result.stdout || '(なし)'}
+              </pre>
+              {result.stderr && (
+                <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-red-400">
+                  {result.stderr}
+                </pre>
+              )}
+            </td>
+          </tr>
+          <tr className="border-b border-surface-3">
+            <th className="text-left px-4 py-2 font-medium text-[var(--color-text-muted)] bg-surface-2 align-top">
+              期待する出力
+            </th>
+            <td className="px-4 py-2">
+              <pre className="whitespace-pre-wrap break-words font-mono text-[var(--color-text-primary)]">{expected}</pre>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div
+        className={`px-4 py-2 text-xs font-semibold ${
+          matched
+            ? 'bg-green-500/15 text-green-400 border-t border-green-500/30'
+            : 'bg-red-500/15 text-red-400 border-t border-red-500/30'
+        }`}
+      >
+        コード実行結果: {matched ? '◎ 期待出力と一致' : '✗ 期待出力と不一致'}
+      </div>
     </div>
   );
 }
 
 function SubmitResultPanel({ results }: { results: ExerciseTestCaseResult[] }) {
   return (
-    <div className="space-y-2">
-      {results.map((r) => (
-        <TestCaseResultRow key={r.orderIndex} r={r} />
-      ))}
+    <div className="rounded-lg border border-surface-3 bg-surface-1 p-4 space-y-2">
+      <h3 className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">
+        テストケース採点結果 ({results.filter((r) => r.passed).length}/{results.length} 合格)
+      </h3>
+      <div className="space-y-1.5">
+        {results.map((r) => (
+          <TestCaseResultRow key={r.orderIndex} r={r} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -268,9 +386,7 @@ function TestCaseResultRow({ r }: { r: ExerciseTestCaseResult }) {
           ? <CheckCircleIcon className="w-4 h-4 text-green-400" />
           : <XCircleIcon className="w-4 h-4 text-red-400" />}
         <span className="font-mono text-[var(--color-text-primary)]">テストケース {r.orderIndex}</span>
-        <span className={r.passed ? 'text-green-400' : 'text-red-400'}>
-          {r.passed ? '合格' : '不合格'}
-        </span>
+        <span className={r.passed ? 'text-green-400' : 'text-red-400'}>{r.passed ? '合格' : '不合格'}</span>
       </summary>
       <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px] font-mono">
         {r.input && (
@@ -300,7 +416,7 @@ function TestCaseResultRow({ r }: { r: ExerciseTestCaseResult }) {
 
 function SubmissionRow({ submission }: { submission: ExerciseSubmission }) {
   const date = new Date(submission.submittedAt);
-  const stamp = `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+  const stamp = `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
   return (
     <li className="flex items-center gap-2 text-xs px-2 py-1 rounded border border-surface-3 bg-surface-2">
       {submission.isCorrect
@@ -312,4 +428,14 @@ function SubmissionRow({ submission }: { submission: ExerciseSubmission }) {
       </span>
     </li>
   );
+}
+
+function pad(n: number) {
+  return String(n).padStart(2, '0');
+}
+
+// バックエンドの normalizeOutput と同等の正規化（提出前確認の「期待値と一致」表示用）。
+// 末尾の改行 / 空白を吸収して厳密一致判定する。
+function normalizeOutput(s: string): string {
+  return s.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/[\s]+$/, '');
 }

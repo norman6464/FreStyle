@@ -9,9 +9,32 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/FreStyle/backend/internal/repository"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 	"gorm.io/gorm"
 )
+
+// fakeSubmissionRepoForList はテスト中の status / stats が常に空で良いケース用。
+// 一覧で current user 状態を必要とするテストは別途専用 fake を定義する。
+type fakeSubmissionRepoForList struct{}
+
+func (fakeSubmissionRepoForList) Create(*domain.ExerciseSubmission) error { return nil }
+func (fakeSubmissionRepoForList) ListByUserAndExercise(uint64, uint64, string) ([]domain.ExerciseSubmission, error) {
+	return nil, nil
+}
+func (fakeSubmissionRepoForList) HasSolved(uint64, uint64, string) (bool, error) { return false, nil }
+func (fakeSubmissionRepoForList) HasAttempted(uint64, uint64, string) (bool, error) {
+	return false, nil
+}
+func (fakeSubmissionRepoForList) BatchUserStatuses(uint64, []uint64, string) (map[uint64]string, error) {
+	return map[uint64]string{}, nil
+}
+func (fakeSubmissionRepoForList) ExerciseStats(uint64, string) (repository.ExerciseSubmissionStats, error) {
+	return repository.ExerciseSubmissionStats{}, nil
+}
+func (fakeSubmissionRepoForList) ExerciseStatsBatch([]uint64, string) (map[uint64]repository.ExerciseSubmissionStats, error) {
+	return map[uint64]repository.ExerciseSubmissionStats{}, nil
+}
 
 // fakeMasterExerciseRepo は MasterExerciseRepository の最小スタブ。
 // language / id / slug 引数を記録して assert する。
@@ -60,8 +83,10 @@ func newMasterExerciseTestHandler(repo *fakeMasterExerciseRepo, examples *fakeEx
 	if examples == nil {
 		examples = &fakeExampleRepo{}
 	}
+	subs := fakeSubmissionRepoForList{}
 	h := NewMasterExerciseHandler(
 		usecase.NewListMasterExercisesUseCase(repo),
+		usecase.NewListMasterExercisesWithStatusUseCase(repo, subs),
 		usecase.NewGetMasterExerciseUseCase(repo, examples),
 	)
 	r := gin.New()

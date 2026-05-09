@@ -38,6 +38,9 @@ var disableFunctions = strings.Join([]string{
 type ExecuteCodeInput struct {
 	Code     string
 	Language string // 現時点では "php" のみ
+	// Stdin は実行時に標準入力として流す内容（テストケース採点で使う）。
+	// 空文字なら何も流さない（旧 API 互換）。
+	Stdin string
 }
 
 // ExecuteCodeOutput はコード実行の結果。
@@ -88,6 +91,9 @@ func (uc *ExecuteCodeUseCase) Execute(ctx context.Context, input ExecuteCodeInpu
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
+	if input.Stdin != "" {
+		cmd.Stdin = strings.NewReader(input.Stdin)
+	}
 
 	err := cmd.Run()
 

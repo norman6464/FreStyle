@@ -65,30 +65,66 @@ export default function AskAiPage() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const [stickToBottom, setStickToBottom] = useState(true);
+  // ref 版を 並行で持つ。 streaming 中は messages が ms 単位で更新されるため、
+  // setStickToBottom (非同期) の反映を待たず ref を即時参照することで、
+  // ユーザーが wheel した直後の "残り chunk" による 強制下スクロールを防ぐ。
+  const stickToBottomRef = useRef(true);
+
+  const updateStickToBottom = useCallback((next: boolean) => {
+    stickToBottomRef.current = next;
+    setStickToBottom(next);
+  }, []);
 
   const handleContainerScroll = useCallback(() => {
     const el = containerRef.current;
     if (!el) return;
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    setStickToBottom(distanceFromBottom < STICK_TO_BOTTOM_THRESHOLD);
-  }, []);
+    updateStickToBottom(distanceFromBottom < STICK_TO_BOTTOM_THRESHOLD);
+  }, [updateStickToBottom]);
+
+  // ユーザーが上へ wheel / touchmove したら、 即座に stickToBottom=false に切替えて
+  // 進行中の smooth scroll を含めて 「追従」 を止める。 onScroll より早く拾える。
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (e.deltaY < 0) {
+        // 上方向へのスクロール → 追従停止
+        updateStickToBottom(false);
+      }
+    };
+    const onTouchMove = () => {
+      // touchmove は方向判定が面倒なので、 一旦止める。 底に戻れば onScroll で再 true。
+      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      if (distanceFromBottom > STICK_TO_BOTTOM_THRESHOLD) {
+        updateStickToBottom(false);
+      }
+    };
+    el.addEventListener('wheel', onWheel, { passive: true });
+    el.addEventListener('touchmove', onTouchMove, { passive: true });
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+      el.removeEventListener('touchmove', onTouchMove);
+    };
+  }, [updateStickToBottom]);
 
   // messages 変化時に stick している場合のみ最下部へ。stick していない時はそのまま
-  // ユーザーが見ている位置を保つ。
+  // ユーザーが見ている位置を保つ。 ref で 同期チェックして race を回避。
   useEffect(() => {
-    if (!stickToBottom) return;
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, stickToBottom]);
+    if (!stickToBottomRef.current) return;
+    // smooth animation は wheel と競合しやすいので auto に落として 1 frame で完了させる
+    messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+  }, [messages]);
 
   // セッション切替で先頭に戻ったときは強制的に底へ（履歴の最後を見せる）。
   useEffect(() => {
-    setStickToBottom(true);
-  }, [currentSessionId]);
+    updateStickToBottom(true);
+  }, [currentSessionId, updateStickToBottom]);
 
   const jumpToBottom = useCallback(() => {
-    setStickToBottom(true);
+    updateStickToBottom(true);
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, []);
+  }, [updateStickToBottom]);
 
   // 左上に出すタイトル。 currentSessionId に該当する session の title が無ければ
   // 「新しいチャット」をフォールバックにする（ first message が確定するまでの間）。

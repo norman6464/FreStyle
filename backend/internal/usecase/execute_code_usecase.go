@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/google/uuid"
@@ -192,6 +193,22 @@ func runCommand(cmd *exec.Cmd, stdin string) (*ExecuteCodeOutput, error) {
 	if stdin != "" {
 		cmd.Stdin = strings.NewReader(stdin)
 	}
+
+	// 子プロセスを独立したプロセスグループに置き、 timeout / context cancel 時には
+	// グループ全体に SIGKILL を投げることで、 ユーザコードが起動した バックグラウンド
+	// 子孫プロセス (例: bash で `sleep 600 &` した場合の sleep) も確実に終了させる。
+	// 既定の `exec.CommandContext` は親 PID にしか SIGKILL を送らないため。
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error {
+		if cmd.Process == nil {
+			return os.ErrProcessDone
+		}
+		// -pid を渡すと プロセスグループ全体に signal が飛ぶ (POSIX)。
+		return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+	}
+	// stdout / stderr のパイプが残ったままの子孫がいても、 Wait が無限に張り付かないよう
+	// 小さい WaitDelay を付ける。 timeout 後 1 秒で強制 close + kill。
+	cmd.WaitDelay = 1 * time.Second
 
 	err := cmd.Run()
 

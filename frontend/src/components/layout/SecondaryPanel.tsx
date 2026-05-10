@@ -43,8 +43,8 @@ export default function SecondaryPanel({ title, badge, headerContent, children, 
         <div className="flex-1 overflow-y-auto">{children}</div>
       </div>
 
-      {/* デスクトップパネル */}
-      <div className="hidden md:flex w-72 bg-[var(--color-nav)] border-r border-surface-3 flex-col h-full flex-shrink-0">
+      {/* デスクトップパネル: 右側の縦罫線は背景色の差分で十分なので border-r は付けない */}
+      <div className="hidden md:flex w-72 bg-[var(--color-nav)] flex-col h-full flex-shrink-0">
         <div className="px-4 py-3 border-b border-surface-3">
           <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">
             {title}

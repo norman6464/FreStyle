@@ -92,15 +92,21 @@ export default function SidebarUserMenu({
       {open && (
         <div
           role="menu"
-          className="absolute bottom-full left-0 right-0 mb-2 bg-surface-1 border border-surface-3 rounded-lg shadow-lg overflow-hidden z-50 animate-fade-in"
+          // collapsed (w-14 = 56px) のサイドバーで left-0 right-0 を使うと、
+          // dropdown 自体が 56px に縮み、 「設定 / ログアウト」 の文字が
+          // 1 文字ずつ折り返される。 collapsed のときは固定幅 w-44 (176px) で
+          // 右側 (サイドバー外) に突き出させる。
+          className={`absolute bottom-full mb-2 bg-surface-1 border border-surface-3 rounded-lg shadow-lg overflow-hidden z-50 animate-fade-in ${
+            expanded ? 'left-0 right-0' : 'left-0 w-44'
+          }`}
         >
           <button
             type="button"
             role="menuitem"
             onClick={handleSettings}
-            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--color-text-primary)] hover:bg-[var(--color-nav-hover)] transition-colors"
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--color-text-primary)] hover:bg-[var(--color-nav-hover)] transition-colors whitespace-nowrap"
           >
-            <Cog6ToothIcon className="w-4 h-4" />
+            <Cog6ToothIcon className="w-4 h-4 flex-shrink-0" />
             設定
           </button>
           <div className="border-t border-surface-3" />
@@ -108,9 +114,9 @@ export default function SidebarUserMenu({
             type="button"
             role="menuitem"
             onClick={handleLogout}
-            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--color-text-muted)] hover:bg-red-900/10 hover:text-red-500 transition-colors"
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--color-text-muted)] hover:bg-red-900/10 hover:text-red-500 transition-colors whitespace-nowrap"
           >
-            <ArrowLeftOnRectangleIcon className="w-4 h-4" />
+            <ArrowLeftOnRectangleIcon className="w-4 h-4 flex-shrink-0" />
             ログアウト
           </button>
         </div>

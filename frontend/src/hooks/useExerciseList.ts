@@ -1,6 +1,33 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useCallback, useEffect, useState, useMemo } from 'react';
 import ExerciseRepository from '../repositories/ExerciseRepository';
 import { MasterExerciseWithStatus } from '../types';
+
+// 言語フィルタを localStorage に保存するキー。 ページ離脱 / リロードしても
+// 前回選んだ言語を復元できるよう、 ブラウザに永続化する。
+const LANGUAGE_STORAGE_KEY = 'frestyle:exercise-list:language';
+
+// localStorage が許す言語コード集合 (許容されない値は default に戻す)。
+const VALID_LANGUAGES = new Set(['', 'php', 'go', 'bash', 'docker']);
+
+function loadStoredLanguage(fallback: string): string {
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const v = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+    if (v !== null && VALID_LANGUAGES.has(v)) return v;
+  } catch {
+    // SSR / プライベートブラウジング 等で localStorage が使えない場合は fallback。
+  }
+  return fallback;
+}
+
+function persistLanguage(value: string) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, value);
+  } catch {
+    // 容量制限 / 拒否設定 で書き込めない場合は黙って無視。
+  }
+}
 
 /**
  * useExerciseList — 演習問題リストページの状態管理フック。
@@ -10,10 +37,16 @@ import { MasterExerciseWithStatus } from '../types';
  * バッジ + 解答率を直接表示できる。
  *
  * 言語フィルタは UI 側の `language` state に応じて再 fetch する。
- * 空文字なら全言語を返す（PHP 以外の問題が将来追加されたとき用）。
+ * 空文字なら全言語を返す。 selectedLanguage は localStorage で 永続化するので、
+ * 演習詳細ページから戻っても 前回の選択が復元される。
  */
 export function useExerciseList(initialLanguage: string = 'php') {
-  const [language, setLanguage] = useState(initialLanguage);
+  const [language, setLanguageState] = useState(() => loadStoredLanguage(initialLanguage));
+
+  const setLanguage = useCallback((next: string) => {
+    setLanguageState(next);
+    persistLanguage(next);
+  }, []);
   const [exercises, setExercises] = useState<MasterExerciseWithStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

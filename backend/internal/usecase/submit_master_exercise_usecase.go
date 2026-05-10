@@ -47,10 +47,10 @@ type SubmitMasterExerciseOutput struct {
 //   - mode='qa' の場合: コードを実行せず、 提出文字列と ExpectedOutput を trim 比較するだけ。
 //     docker / kubernetes など サンドボックス実行が困難な題材向け。
 //   - mode='execute' (default) の場合:
-//       - master_exercise_examples が登録されていれば 各 example の InputText を stdin に
-//         流して ExecuteCodeUseCase で実行し、 stdout を normalize して expected_output と比較
-//       - examples が無ければ exercise 自身の ExpectedOutput を 単一テストケースとして使う
-//         (linux / git / go 等の seed.py 経由で投入された演習向け)
+//   - master_exercise_examples が登録されていれば 各 example の InputText を stdin に
+//     流して ExecuteCodeUseCase で実行し、 stdout を normalize して expected_output と比較
+//   - examples が無ければ exercise 自身の ExpectedOutput を 単一テストケースとして使う
+//     (linux / git / go 等の seed.py 経由で投入された演習向け)
 //     stdout を normalize（末尾改行 / CRLF を吸収）して expected_output と完全一致するか比較。
 //     全件 pass で isCorrect=true。1 件でも失敗・実行エラー（exit_code != 0）なら false。
 //     実行コスト削減のため、最初の不一致で打ち切らず全件実行（ユーザに「どこで落ちたか」を全部見せる方針）。

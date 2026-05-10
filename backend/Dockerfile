@@ -33,6 +33,19 @@ RUN groupadd -g 65532 nonroot && useradd -u 65532 -g nonroot -s /sbin/nologin no
 RUN mkdir -p /tmp/go-build-cache && chown -R nonroot:nonroot /tmp/go-build-cache
 ENV GOCACHE=/tmp/go-build-cache GOMODCACHE=/tmp/go-mod-cache
 
+# GOCACHE warmup:
+# 学習者の最初の `go run` で cold compile を 走らせると ECS Fargate の I/O 遅延で
+# 6-8 秒かかり 初回の体験を著しく損なう。 image build 時に hello-world を 1 回
+# `go run` して fmt / runtime / os 等の標準パッケージをプリコンパイルしておくと、
+# 以降の cold start でも 実行は ~1 秒台に収まる。
+#
+# nonroot 切替前に warmup する (cache 所有者を nonroot に揃えるため最後に chown)。
+RUN printf 'package main\nimport "fmt"\nfunc main() { fmt.Println("warmup") }\n' > /tmp/warmup.go && \
+    GOCACHE=/tmp/go-build-cache GO111MODULE=off HOME=/tmp \
+        go run /tmp/warmup.go > /dev/null 2>&1 && \
+    rm /tmp/warmup.go && \
+    chown -R nonroot:nonroot /tmp/go-build-cache
+
 USER nonroot:nonroot
 EXPOSE 8080
 

@@ -14,6 +14,15 @@ vi.mock('../../../hooks/useSidebar', () => ({
   }),
 }));
 
+vi.mock('../../../repositories/ProfileRepository', () => ({
+  default: {
+    fetchProfile: vi.fn().mockResolvedValue({
+      userId: 1, displayName: 'テストユーザー', bio: '', avatarUrl: '', status: '',
+    }),
+    updateProfile: vi.fn(),
+  },
+}));
+
 function createTestStore() {
   return configureStore({
     reducer: { auth: authReducer },
@@ -39,10 +48,14 @@ describe('Sidebar モバイル動作', () => {
     expect(onNavigate).toHaveBeenCalledTimes(1);
   });
 
-  it('ログアウトクリック時にonNavigateが呼ばれる', () => {
+  it('ユーザーメニューからログアウトクリック時にonNavigateが呼ばれる', () => {
     const onNavigate = vi.fn();
     renderSidebar(onNavigate);
-    fireEvent.click(screen.getByText('ログアウト'));
+    // ユーザーボタンを押して dropdown を開く
+    const userButton = screen.getAllByRole('button').find((b) => b.getAttribute('aria-haspopup') === 'menu');
+    expect(userButton).toBeDefined();
+    fireEvent.click(userButton!);
+    fireEvent.click(screen.getByRole('menuitem', { name: /ログアウト/ }));
     expect(onNavigate).toHaveBeenCalledTimes(1);
   });
 

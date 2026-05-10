@@ -11,6 +11,17 @@ vi.mock('../../../hooks/useSidebar', () => ({
   useSidebar: () => mockUseSidebar(),
 }));
 
+// Sidebar はマウント時に ProfileRepository.fetchProfile を呼んで user メニュー (avatar / 名前) を出す。
+// テストでは固定値を返すモックに差し替える。
+vi.mock('../../../repositories/ProfileRepository', () => ({
+  default: {
+    fetchProfile: vi.fn().mockResolvedValue({
+      userId: 1, displayName: 'テストユーザー', bio: '', avatarUrl: '', status: '',
+    }),
+    updateProfile: vi.fn(),
+  },
+}));
+
 function createTestStore(isAdmin = false, role: string | null = null) {
   return configureStore({
     reducer: { auth: authReducer },
@@ -44,9 +55,10 @@ describe('Sidebar', () => {
     expect(screen.getByText('ホーム')).toBeDefined();
     expect(screen.getByText('AI')).toBeDefined();
     expect(screen.getByText('コード学習')).toBeDefined();
+    expect(screen.getByText('コース')).toBeDefined();
     expect(screen.getByText('ノート')).toBeDefined();
     expect(screen.getByText('レポート')).toBeDefined();
-    expect(screen.getByText('プロフィール')).toBeDefined();
+    // プロフィールは sidebar bottom のユーザーメニュー（クリックで開くドロップダウン）に移動済。
   });
 
   it('削除済み機能のリンクは表示されない', () => {
@@ -57,9 +69,15 @@ describe('Sidebar', () => {
     expect(screen.queryByText('スコア履歴')).toBeNull();
   });
 
-  it('ログアウトボタンを表示する', () => {
+  it('ユーザーメニューを開くと「設定」「ログアウト」が表示される', async () => {
     renderSidebar();
-    expect(screen.getByText('ログアウト')).toBeDefined();
+    // 初期表示ではログアウトボタンは非表示（ドロップダウンの中）。
+    expect(screen.queryByText('ログアウト')).toBeNull();
+    // ユーザーボタン（aria-haspopup="menu"）をクリックすると展開する。
+    const userButton = screen.getByRole('button', { expanded: false, name: /./ });
+    fireEvent.click(userButton);
+    expect(screen.getByRole('menuitem', { name: /設定/ })).toBeDefined();
+    expect(screen.getByRole('menuitem', { name: /ログアウト/ })).toBeDefined();
   });
 
   it('ホームルートでホームがアクティブになる', () => {
@@ -111,16 +129,16 @@ describe('Sidebar', () => {
     expect(screen.queryByText('管理')).toBeNull();
   });
 
-  it('super_admin には trainee 向けメニュー (AI / コード学習 / ノート / レポート) が表示されない', () => {
+  it('super_admin には trainee 向けメニュー (AI / コード学習 / ノート / レポート / コース) が表示されない', () => {
     renderSidebar('/', true, 'super_admin');
     expect(screen.queryByText('AI')).toBeNull();
     expect(screen.queryByText('コード学習')).toBeNull();
     expect(screen.queryByText('ノート')).toBeNull();
     expect(screen.queryByText('レポート')).toBeNull();
-    // ホーム / 通知 / プロフィール / 管理は表示される
+    expect(screen.queryByText('コース')).toBeNull();
+    // ホーム / 通知 / 管理は表示される
     expect(screen.getByText('ホーム')).toBeInTheDocument();
     expect(screen.getByText('通知')).toBeInTheDocument();
-    expect(screen.getByText('プロフィール')).toBeInTheDocument();
     expect(screen.getByText('管理')).toBeInTheDocument();
   });
 

@@ -23,7 +23,7 @@ const AcceptInvitationPage = lazyWithReload(() => import('./pages/AcceptInvitati
 
 // 認証必要ページ
 const MenuPage = lazyWithReload(() => import('./pages/MenuPage'), 'MenuPage');
-const ProfilePage = lazyWithReload(() => import('./pages/ProfilePage'), 'ProfilePage');
+const SettingsPage = lazyWithReload(() => import('./pages/SettingsPage'), 'SettingsPage');
 const AskAiPage = lazyWithReload(() => import('./pages/AskAiPage'), 'AskAiPage');
 const NotesPage = lazyWithReload(() => import('./pages/NotesPage'), 'NotesPage');
 const NotificationPage = lazyWithReload(() => import('./pages/NotificationPage'), 'NotificationPage');
@@ -98,7 +98,9 @@ export default function App() {
         }
       >
         <Route path="/" element={<MenuPage />} />
-        <Route path="/profile/me" element={<ProfilePage />} />
+        <Route path="/settings" element={<SettingsPage />} />
+        {/* 旧 /profile/me は /settings に統合（後方互換のため redirect 相当として SettingsPage を出す） */}
+        <Route path="/profile/me" element={<SettingsPage />} />
         <Route path="/chat/ask-ai" element={<AskAiPage />} />
         <Route path="/chat/ask-ai/:sessionId" element={<AskAiPage />} />
         <Route path="/notes" element={<NotesPage />} />

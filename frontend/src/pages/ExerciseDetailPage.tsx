@@ -152,14 +152,32 @@ export default function ExerciseDetailPage() {
         </div>
 
         <div className="space-y-3">
-          {detail.examples.map((example, idx) => (
-            <ExampleBlock
-              key={example.id}
-              index={idx + 1}
-              total={detail.examples.length}
-              example={example}
-            />
-          ))}
+          {detail.examples.length > 0
+            ? detail.examples.map((example, idx) => (
+                <ExampleBlock
+                  key={example.id}
+                  index={idx + 1}
+                  total={detail.examples.length}
+                  example={example}
+                />
+              ))
+            : ex.expectedOutput && (
+                // examples が登録されていない演習 (seed.py 経由の go / linux / git 等)
+                // は exercise 自身の expectedOutput を 単一の入力例として表示する。
+                <ExampleBlock
+                  index={1}
+                  total={1}
+                  example={{
+                    id: 0,
+                    exerciseId: ex.id,
+                    orderIndex: 1,
+                    inputText: '',
+                    expectedOutput: ex.expectedOutput,
+                    createdAt: '',
+                    updatedAt: '',
+                  }}
+                />
+              )}
         </div>
 
         {ex.hintText && (

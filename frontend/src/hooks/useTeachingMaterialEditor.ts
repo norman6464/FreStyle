@@ -22,17 +22,31 @@ export function useTeachingMaterialEditor({ selectedId, selected, update }: Args
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // 既にエディタへロード済みの material id を覚えておくための ref。
+  // autosave 後の materials 再 fetch で `selected` ref が変わっても、
+  // ref が同じ id を指している間は editor state を上書きしない。
+  //
+  // 上書きすると、 ユーザが入力中だった差分が autosave 完了タイミングで
+  // 巻き戻り、 さらに textarea の undo 履歴が壊れて cmd+z が効かなくなる。
+  const loadedIdRef = useRef<number | null>(null);
+
   useEffect(() => {
-    if (selected) {
-      setEditTitle(selected.title);
-      setEditContent(selected.content);
-      setEditIsPublished(selected.isPublished);
-    } else {
+    if (selectedId == null) {
+      loadedIdRef.current = null;
       setEditTitle('');
       setEditContent('');
       setEditIsPublished(false);
+      setSaveStatus('idle');
+      return;
     }
-    setSaveStatus('idle');
+    if (loadedIdRef.current === selectedId) return;
+    if (selected && selected.id === selectedId) {
+      loadedIdRef.current = selectedId;
+      setEditTitle(selected.title);
+      setEditContent(selected.content);
+      setEditIsPublished(selected.isPublished);
+      setSaveStatus('idle');
+    }
   }, [selectedId, selected]);
 
   useEffect(() => {

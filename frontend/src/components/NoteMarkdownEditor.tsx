@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
@@ -6,7 +6,6 @@ import rehypeHighlight from 'rehype-highlight';
 import { ArrowDownTrayIcon, ClipboardDocumentIcon } from '@heroicons/react/24/outline';
 import type { SaveStatus } from '../hooks/useNoteEditor';
 import { useToast } from '../hooks/useToast';
-import { tiptapToMarkdown } from '../utils/tiptapToMarkdown';
 import { getNoteStats } from '../utils/noteStats';
 import WordCount from './WordCount';
 import LineCount from './LineCount';
@@ -29,14 +28,8 @@ const SAVE_STATUS_CONFIG: Record<Exclude<SaveStatus, 'idle'>, { label: string; c
 /**
  * NoteMarkdownEditor — GitHub README 風の Edit / Preview タブ付き Markdown エディタ。
  *
- * 旧実装（BlockEditor + TipTap）から切替: ノートは生 Markdown 文字列として保存され、
- * Preview タブで react-markdown レンダリングする。
- *
- * 互換性:
- *   - 旧データは TipTap JSON で保存されているので、 ロード時に
- *     `{"type":"doc"...` で始まる文字列を検出した場合は tiptapToMarkdown で
- *     変換した結果を初期表示にする（ユーザが保存し直すと Markdown 化される）
- *   - 完全な双方向同期はしない（Preview の WYSIWYG 編集は不可）
+ * ノートは生 Markdown 文字列として保存され、 Preview タブで react-markdown レンダリングする。
+ * 完全な双方向同期はしない（Preview の WYSIWYG 編集は不可）。
  */
 export default function NoteMarkdownEditor({
   title,
@@ -50,24 +43,7 @@ export default function NoteMarkdownEditor({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { showToast } = useToast();
 
-  // 旧 TipTap JSON データの自動 markdown 化（初回ロード時のみ反映）。
-  // ユーザが編集 → 保存すると content が markdown で上書きされ、 以降この分岐は通らない。
-  const displayContent = useMemo(() => convertLegacyContent(content), [content]);
-  const lastConvertedRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (
-      content !== displayContent &&
-      lastConvertedRef.current !== content &&
-      isLikelyTiptapJson(content)
-    ) {
-      // 一度だけ親に通知して store を markdown 化する。
-      lastConvertedRef.current = content;
-      onContentChange(displayContent);
-    }
-  }, [content, displayContent, onContentChange]);
-
-  const stats = useMemo(() => getNoteStats(displayContent), [displayContent]);
+  const stats = useMemo(() => getNoteStats(content), [content]);
 
   const handleTitleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     // IME 変換中の Enter（日本語入力の確定）はフォーカス移動しない。
@@ -81,15 +57,15 @@ export default function NoteMarkdownEditor({
 
   const handleCopy = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(displayContent);
+      await navigator.clipboard.writeText(content);
       showToast('success', 'Markdown をコピーしました');
     } catch {
       showToast('error', 'コピーに失敗しました');
     }
-  }, [displayContent, showToast]);
+  }, [content, showToast]);
 
   const handleDownload = useCallback(() => {
-    const blob = new Blob([displayContent], { type: 'text/markdown;charset=utf-8' });
+    const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -98,7 +74,7 @@ export default function NoteMarkdownEditor({
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  }, [displayContent, title]);
+  }, [content, title]);
 
   return (
     <div className="flex flex-col h-full p-6 max-w-6xl mx-auto w-full">
@@ -126,7 +102,7 @@ export default function NoteMarkdownEditor({
         {tab === 'edit' ? (
           <textarea
             ref={textareaRef}
-            value={displayContent}
+            value={content}
             onChange={(e) => onContentChange(e.target.value)}
             placeholder="# 見出し&#10;&#10;Markdown でノートを書きましょう..."
             spellCheck={false}
@@ -134,8 +110,8 @@ export default function NoteMarkdownEditor({
           />
         ) : (
           <div className="w-full h-full overflow-y-auto p-4 rounded-md bg-surface-1 border border-surface-3 prose prose-sm max-w-none">
-            {displayContent.trim() ? (
-              <MarkdownView content={displayContent} />
+            {content.trim() ? (
+              <MarkdownView content={content} />
             ) : (
               <p className="text-[var(--color-text-muted)] italic">プレビューするコンテンツがありません</p>
             )}
@@ -200,23 +176,6 @@ function TabButton({
       {children}
     </button>
   );
-}
-
-// 旧データが TipTap JSON で保存されているケースを検出する。
-function isLikelyTiptapJson(s: string): boolean {
-  if (!s) return false;
-  const trimmed = s.trim();
-  if (!trimmed.startsWith('{')) return false;
-  try {
-    const parsed = JSON.parse(trimmed);
-    return parsed && typeof parsed === 'object' && parsed.type === 'doc';
-  } catch {
-    return false;
-  }
-}
-
-function convertLegacyContent(s: string): string {
-  return isLikelyTiptapJson(s) ? tiptapToMarkdown(s) : s;
 }
 
 function MarkdownView({ content }: { content: string }) {

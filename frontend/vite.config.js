@@ -21,12 +21,6 @@ export default defineConfig(({ mode }) => ({
           'vendor-react': ['react', 'react-dom', 'react-router-dom'],
           // 状態管理
           'vendor-state': ['@reduxjs/toolkit', 'react-redux', '@tanstack/react-query'],
-          // TipTapエディタ（重いので分離）
-          'vendor-tiptap': [
-            '@tiptap/react',
-            '@tiptap/starter-kit',
-            '@tiptap/core',
-          ],
           // Monaco Editor（CDN ロード禁止のためローカルバンドル、重いので分離）
           'vendor-monaco': ['monaco-editor'],
         },

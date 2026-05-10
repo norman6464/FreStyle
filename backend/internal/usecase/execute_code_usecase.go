@@ -15,7 +15,7 @@ import (
 
 const (
 	maxCodeBytes   = 64 * 1024 // 64 KB
-	execTimeout    = 5 * time.Second
+	execTimeout    = 8 * time.Second
 	maxOutputBytes = 64 * 1024 // 64 KB
 )
 
@@ -37,9 +37,8 @@ var disableFunctions = strings.Join([]string{
 // ExecuteCodeInput はコード実行の入力。
 type ExecuteCodeInput struct {
 	Code     string
-	Language string // 現時点では "php" のみ
+	Language string // "php" / "go"
 	// Stdin は実行時に標準入力として流す内容（テストケース採点で使う）。
-	// 空文字なら何も流さない（旧 API 互換）。
 	Stdin string
 }
 
@@ -51,7 +50,12 @@ type ExecuteCodeOutput struct {
 }
 
 // ExecuteCodeUseCase はユーザーコードをサンドボックスで実行する。
-// PHP CLI を使い、危険な関数を無効化・実行時間を制限する。
+//
+// PHP / Go の 2 言語サポート:
+//   - PHP: php CLI + disable_functions で危険関数を封じる
+//   - Go: go run で単一 main.go ファイルを実行。 build cache は共有して compile 時間短縮
+//
+// 共通制約: 8 秒 timeout / 64 KB code-size / 64 KB output-size。
 type ExecuteCodeUseCase struct{}
 
 func NewExecuteCodeUseCase() *ExecuteCodeUseCase {
@@ -62,9 +66,17 @@ func (uc *ExecuteCodeUseCase) Execute(ctx context.Context, input ExecuteCodeInpu
 	if len(input.Code) > maxCodeBytes {
 		return nil, fmt.Errorf("コードが大きすぎます (最大 64 KB)")
 	}
-	if input.Language != "php" {
+	switch input.Language {
+	case "php":
+		return uc.executePHP(ctx, input)
+	case "go":
+		return uc.executeGo(ctx, input)
+	default:
 		return nil, fmt.Errorf("未対応の言語: %s", input.Language)
 	}
+}
+
+func (uc *ExecuteCodeUseCase) executePHP(ctx context.Context, input ExecuteCodeInput) (*ExecuteCodeOutput, error) {
 	// PHP CLI は `<?php` 開始タグが無いコードを「ただの HTML テキスト」として扱い、
 	// ソースコードをそのまま stdout に流して exit code 0 を返す。
 	// 別言語 (Java など) のコードを誤って貼り付けると「実行成功 + 出力 = 元コード」になり
@@ -77,7 +89,6 @@ func (uc *ExecuteCodeUseCase) Execute(ctx context.Context, input ExecuteCodeInpu
 		}, nil
 	}
 
-	// コードを一時ファイルに書き込む
 	tmpDir := os.TempDir()
 	filename := filepath.Join(tmpDir, "code_"+uuid.NewString()+".php")
 	if err := os.WriteFile(filename, []byte(input.Code), 0o600); err != nil {
@@ -99,11 +110,52 @@ func (uc *ExecuteCodeUseCase) Execute(ctx context.Context, input ExecuteCodeInpu
 		filename,
 	)
 
+	return runCommand(cmd, input.Stdin)
+}
+
+func (uc *ExecuteCodeUseCase) executeGo(ctx context.Context, input ExecuteCodeInput) (*ExecuteCodeOutput, error) {
+	// Go コードは `package main` + `func main()` を必須にする。
+	// 別言語のコードを「Go モード」 で投げて意味不明なコンパイルエラーになるのを避ける。
+	if !strings.Contains(input.Code, "package main") {
+		return &ExecuteCodeOutput{
+			Stdout:   "",
+			Stderr:   "Go コードには `package main` と `func main()` が必要です。",
+			ExitCode: 1,
+		}, nil
+	}
+
+	// 各リクエストごとに独立した GOPATH 用ディレクトリを作る。
+	// build cache は共有 (/tmp/go-build-cache) で compile 時間短縮。
+	tmpDir, err := os.MkdirTemp("", "go-exec-")
+	if err != nil {
+		return nil, fmt.Errorf("一時ディレクトリの作成に失敗: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	filename := filepath.Join(tmpDir, "main.go")
+	if err := os.WriteFile(filename, []byte(input.Code), 0o600); err != nil {
+		return nil, fmt.Errorf("一時ファイルの作成に失敗: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, execTimeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "go", "run", filename)
+	// GO111MODULE=off で単一ファイル実行（go.mod 不要）。 GOCACHE は環境共有で compile 高速化。
+	cmd.Env = append(os.Environ(),
+		"GO111MODULE=off",
+		"HOME="+tmpDir,
+	)
+
+	return runCommand(cmd, input.Stdin)
+}
+
+func runCommand(cmd *exec.Cmd, stdin string) (*ExecuteCodeOutput, error) {
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	if input.Stdin != "" {
-		cmd.Stdin = strings.NewReader(input.Stdin)
+	if stdin != "" {
+		cmd.Stdin = strings.NewReader(stdin)
 	}
 
 	err := cmd.Run()

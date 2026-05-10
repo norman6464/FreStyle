@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/google/uuid"
@@ -37,7 +38,7 @@ var disableFunctions = strings.Join([]string{
 // ExecuteCodeInput はコード実行の入力。
 type ExecuteCodeInput struct {
 	Code     string
-	Language string // "php" / "go"
+	Language string // "php" / "go" / "bash"
 	// Stdin は実行時に標準入力として流す内容（テストケース採点で使う）。
 	Stdin string
 }
@@ -51,9 +52,10 @@ type ExecuteCodeOutput struct {
 
 // ExecuteCodeUseCase はユーザーコードをサンドボックスで実行する。
 //
-// PHP / Go の 2 言語サポート:
+// PHP / Go / bash の 3 言語サポート:
 //   - PHP: php CLI + disable_functions で危険関数を封じる
 //   - Go: go run で単一 main.go ファイルを実行。 build cache は共有して compile 時間短縮
+//   - bash: /bin/bash でシェルスクリプトを実行。 PATH を限定し HOME を temp dir に固定
 //
 // 共通制約: 8 秒 timeout / 64 KB code-size / 64 KB output-size。
 type ExecuteCodeUseCase struct{}
@@ -71,6 +73,8 @@ func (uc *ExecuteCodeUseCase) Execute(ctx context.Context, input ExecuteCodeInpu
 		return uc.executePHP(ctx, input)
 	case "go":
 		return uc.executeGo(ctx, input)
+	case "bash":
+		return uc.executeBash(ctx, input)
 	default:
 		return nil, fmt.Errorf("未対応の言語: %s", input.Language)
 	}
@@ -150,6 +154,38 @@ func (uc *ExecuteCodeUseCase) executeGo(ctx context.Context, input ExecuteCodeIn
 	return runCommand(cmd, input.Stdin)
 }
 
+func (uc *ExecuteCodeUseCase) executeBash(ctx context.Context, input ExecuteCodeInput) (*ExecuteCodeOutput, error) {
+	// 各リクエストごとに独立した一時ディレクトリを作る。
+	// 演習で `cat > /tmp/sample.txt` のような書き込みが起きても他リクエストに影響させないため
+	// HOME / PWD を temp dir に固定し、 副作用を temp に閉じる。
+	tmpDir, err := os.MkdirTemp("", "bash-exec-")
+	if err != nil {
+		return nil, fmt.Errorf("一時ディレクトリの作成に失敗: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	filename := filepath.Join(tmpDir, "script.sh")
+	if err := os.WriteFile(filename, []byte(input.Code), 0o600); err != nil {
+		return nil, fmt.Errorf("一時ファイルの作成に失敗: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, execTimeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "/bin/bash", filename)
+	cmd.Dir = tmpDir
+	// AWS credential や DB password 等を子プロセスに継承しないため、 環境変数は最小限に絞る。
+	cmd.Env = []string{
+		"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+		"HOME=" + tmpDir,
+		"PWD=" + tmpDir,
+		"LANG=C.UTF-8",
+		"LC_ALL=C.UTF-8",
+	}
+
+	return runCommand(cmd, input.Stdin)
+}
+
 func runCommand(cmd *exec.Cmd, stdin string) (*ExecuteCodeOutput, error) {
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -157,6 +193,22 @@ func runCommand(cmd *exec.Cmd, stdin string) (*ExecuteCodeOutput, error) {
 	if stdin != "" {
 		cmd.Stdin = strings.NewReader(stdin)
 	}
+
+	// 子プロセスを独立したプロセスグループに置き、 timeout / context cancel 時には
+	// グループ全体に SIGKILL を投げることで、 ユーザコードが起動した バックグラウンド
+	// 子孫プロセス (例: bash で `sleep 600 &` した場合の sleep) も確実に終了させる。
+	// 既定の `exec.CommandContext` は親 PID にしか SIGKILL を送らないため。
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error {
+		if cmd.Process == nil {
+			return os.ErrProcessDone
+		}
+		// -pid を渡すと プロセスグループ全体に signal が飛ぶ (POSIX)。
+		return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+	}
+	// stdout / stderr のパイプが残ったままの子孫がいても、 Wait が無限に張り付かないよう
+	// 小さい WaitDelay を付ける。 timeout 後 1 秒で強制 close + kill。
+	cmd.WaitDelay = 1 * time.Second
 
 	err := cmd.Run()
 

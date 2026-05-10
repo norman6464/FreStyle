@@ -183,7 +183,30 @@ func (uc *ExecuteCodeUseCase) executeBash(ctx context.Context, input ExecuteCode
 		"LC_ALL=C.UTF-8",
 	}
 
+	// bash はユーザが `sleep 30 &` のような バックグラウンド子プロセスを 起動しうる。
+	// timeout 時にそれら子孫プロセスを 確実に kill するため、 独立プロセスグループに置く。
+	configureProcessGroup(cmd)
+
 	return runCommand(cmd, input.Stdin)
+}
+
+// configureProcessGroup は cmd を独立した process group に置き、 ctx cancel 時に
+// グループ全体へ SIGKILL を送るよう設定する。 bash で バックグラウンド子孫が leak しないよう
+// に bash 実行のみで使う。 PHP / Go の `go run` は普通 子孫を起動しないため不要。
+func configureProcessGroup(cmd *exec.Cmd) {
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error {
+		if cmd.Process == nil {
+			return os.ErrProcessDone
+		}
+		// -pid を渡すと プロセスグループ全体に signal が飛ぶ (POSIX)。
+		// kill が失敗しても (既に終了済 / ESRCH) ExitError 上書きを防ぐため nil を返す。
+		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		return nil
+	}
+	// stdout / stderr のパイプが 残ったままの子孫がいても Wait が 無限に張り付かないよう、
+	// 小さい WaitDelay を付ける。 timeout 後 1 秒で 強制 close + kill。
+	cmd.WaitDelay = 1 * time.Second
 }
 
 func runCommand(cmd *exec.Cmd, stdin string) (*ExecuteCodeOutput, error) {
@@ -193,22 +216,6 @@ func runCommand(cmd *exec.Cmd, stdin string) (*ExecuteCodeOutput, error) {
 	if stdin != "" {
 		cmd.Stdin = strings.NewReader(stdin)
 	}
-
-	// 子プロセスを独立したプロセスグループに置き、 timeout / context cancel 時には
-	// グループ全体に SIGKILL を投げることで、 ユーザコードが起動した バックグラウンド
-	// 子孫プロセス (例: bash で `sleep 600 &` した場合の sleep) も確実に終了させる。
-	// 既定の `exec.CommandContext` は親 PID にしか SIGKILL を送らないため。
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	cmd.Cancel = func() error {
-		if cmd.Process == nil {
-			return os.ErrProcessDone
-		}
-		// -pid を渡すと プロセスグループ全体に signal が飛ぶ (POSIX)。
-		return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-	}
-	// stdout / stderr のパイプが残ったままの子孫がいても、 Wait が無限に張り付かないよう
-	// 小さい WaitDelay を付ける。 timeout 後 1 秒で強制 close + kill。
-	cmd.WaitDelay = 1 * time.Second
 
 	err := cmd.Run()
 

@@ -3,7 +3,12 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import rehypeHighlight from 'rehype-highlight';
-import { ArrowDownTrayIcon, ClipboardDocumentIcon } from '@heroicons/react/24/outline';
+import {
+  ArrowDownTrayIcon,
+  ArrowUturnLeftIcon,
+  ArrowUturnRightIcon,
+  ClipboardDocumentIcon,
+} from '@heroicons/react/24/outline';
 import type { SaveStatus } from '../hooks/useNoteEditor';
 import { useToast } from '../hooks/useToast';
 import { getNoteStats } from '../utils/noteStats';
@@ -63,6 +68,22 @@ export default function NoteMarkdownEditor({
       showToast('error', 'コピーに失敗しました');
     }
   }, [content, showToast]);
+
+  // textarea にフォーカスを戻してから document.execCommand('undo'/'redo')。
+  //
+  // controlled <textarea> でも、 ブラウザはキー入力ベースの undo 履歴を
+  // textarea 自身に保持している（外から value をリセットしない限り）。
+  // execCommand は deprecated だが、 textarea の native undo / redo 操作を
+  // プログラム的にトリガーする最も互換性の高い手段で、 主要ブラウザで動作する。
+  const handleUndo = useCallback(() => {
+    textareaRef.current?.focus();
+    document.execCommand('undo');
+  }, []);
+
+  const handleRedo = useCallback(() => {
+    textareaRef.current?.focus();
+    document.execCommand('redo');
+  }, []);
 
   const handleDownload = useCallback(() => {
     const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
@@ -129,6 +150,25 @@ export default function NoteMarkdownEditor({
           </span>
         )}
         <div className="ml-auto flex items-center gap-1">
+          <button
+            type="button"
+            onClick={handleUndo}
+            aria-label="元に戻す (Cmd+Z / Ctrl+Z)"
+            className="p-1.5 rounded hover:bg-surface-3 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
+            title="元に戻す (Cmd+Z / Ctrl+Z)"
+          >
+            <ArrowUturnLeftIcon className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={handleRedo}
+            aria-label="やり直す (Cmd+Shift+Z / Ctrl+Y)"
+            className="p-1.5 rounded hover:bg-surface-3 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
+            title="やり直す (Cmd+Shift+Z / Ctrl+Y)"
+          >
+            <ArrowUturnRightIcon className="w-4 h-4" />
+          </button>
+          <span className="w-px h-4 bg-surface-3 mx-1" aria-hidden="true" />
           <button
             type="button"
             onClick={handleCopy}

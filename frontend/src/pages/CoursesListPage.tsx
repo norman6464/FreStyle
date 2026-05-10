@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import {
-  AcademicCapIcon,
   PlusIcon,
   CheckCircleIcon,
   ClockIcon,
@@ -10,6 +9,7 @@ import {
   TrashIcon,
 } from '@heroicons/react/24/outline';
 import EmptyState from '../components/EmptyState';
+import FaviconIcon from '../components/icons/FaviconIcon';
 import Loading from '../components/Loading';
 import ConfirmModal from '../components/ConfirmModal';
 import { useCourses } from '../hooks/useCourses';
@@ -82,7 +82,7 @@ export default function CoursesListPage() {
         <Loading className="py-12" />
       ) : filtered.length === 0 ? (
         <EmptyState
-          icon={AcademicCapIcon}
+          icon={FaviconIcon}
           title={searchQuery ? '該当するコースがありません' : 'コースがありません'}
           description={
             searchQuery

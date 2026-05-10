@@ -52,21 +52,6 @@ describe('NoteMarkdownEditor', () => {
     expect(onContentChange).toHaveBeenCalledWith('新しい内容');
   });
 
-  it('TipTap JSON のレガシー content は Markdown に変換して表示される', () => {
-    const tiptapJson = JSON.stringify({
-      type: 'doc',
-      content: [
-        { type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: '旧データ' }] },
-      ],
-    });
-    const onContentChange = vi.fn();
-    renderEditor({ content: tiptapJson, onContentChange });
-    // textarea には変換後の Markdown が出る
-    expect(getMarkdownTextarea().value).toBe('# 旧データ');
-    // 自動的に親に通知して store を Markdown 化する
-    expect(onContentChange).toHaveBeenCalledWith('# 旧データ');
-  });
-
   it('空コンテンツの Preview は案内文を出す', () => {
     renderEditor({ content: '   ' });
     fireEvent.click(screen.getByRole('button', { name: 'Preview' }));

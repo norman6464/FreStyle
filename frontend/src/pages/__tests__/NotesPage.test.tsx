@@ -12,9 +12,6 @@ import { useNotes } from '../../hooks/useNotes';
 import type { Note } from '../../types';
 
 vi.mock('../../hooks/useNotes');
-vi.mock('../../hooks/useBlockEditor', () => ({
-  useBlockEditor: () => ({ editor: null }),
-}));
 const mockShowToast = vi.fn();
 vi.mock('../../hooks/useToast', () => ({
   useToast: () => ({ showToast: mockShowToast, toasts: [], removeToast: vi.fn() }),

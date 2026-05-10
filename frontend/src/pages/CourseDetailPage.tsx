@@ -2,7 +2,6 @@ import { useEffect, useState, useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
-  AcademicCapIcon,
   PlusIcon,
   MagnifyingGlassIcon,
   Bars3Icon,
@@ -13,6 +12,7 @@ import {
 } from '@heroicons/react/24/outline';
 import SecondaryPanel from '../components/layout/SecondaryPanel';
 import EmptyState from '../components/EmptyState';
+import FaviconIcon from '../components/icons/FaviconIcon';
 import ConfirmModal from '../components/ConfirmModal';
 import Loading from '../components/Loading';
 import NoteMarkdownEditor from '../components/NoteMarkdownEditor';
@@ -112,7 +112,7 @@ export default function CourseDetailPage() {
   if (!courseId) {
     return (
       <EmptyState
-        icon={AcademicCapIcon}
+        icon={FaviconIcon}
         title="コースが指定されていません"
         description="コース一覧から選択してください。"
         action={{ label: 'コース一覧へ', onClick: () => navigate('/courses') }}
@@ -127,7 +127,7 @@ export default function CourseDetailPage() {
   if (courseError || !course) {
     return (
       <EmptyState
-        icon={AcademicCapIcon}
+        icon={FaviconIcon}
         title="コースが見つかりませんでした"
         description={courseError ?? '権限がないか、 コースが削除された可能性があります。'}
         action={{ label: 'コース一覧へ', onClick: () => navigate('/courses') }}
@@ -180,7 +180,7 @@ export default function CourseDetailPage() {
           ) : filtered.length === 0 ? (
             <div className="py-12">
               <EmptyState
-                icon={AcademicCapIcon}
+                icon={FaviconIcon}
                 title={searchQuery ? '該当する教材がありません' : '教材がありません'}
                 description={
                   searchQuery
@@ -229,7 +229,7 @@ export default function CourseDetailPage() {
           )
         ) : (
           <EmptyState
-            icon={AcademicCapIcon}
+            icon={FaviconIcon}
             title="教材を選択してください"
             description={
               canManage

@@ -1,4 +1,4 @@
-import { useState, ComponentType, SVGProps } from 'react';
+import { useEffect, useState, ComponentType, SVGProps } from 'react';
 import { useLocation, Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import {
@@ -7,8 +7,6 @@ import {
   DocumentTextIcon,
   BellIcon,
   DocumentChartBarIcon,
-  UserCircleIcon,
-  ArrowLeftOnRectangleIcon,
   CodeBracketIcon,
   BuildingOffice2Icon,
   ChevronDoubleLeftIcon,
@@ -16,7 +14,9 @@ import {
   AcademicCapIcon,
 } from '@heroicons/react/24/outline';
 import Loading from '../Loading';
+import SidebarUserMenu from './SidebarUserMenu';
 import { useSidebar } from '../../hooks/useSidebar';
+import ProfileRepository from '../../repositories/ProfileRepository';
 import type { RootState } from '../../store';
 
 interface SubItem {
@@ -54,10 +54,6 @@ const mainNavItems: NavItem[] = [
 // super_admin は企業管理に専念するロールで、trainee 向け学習機能は表示しない。
 const SUPER_ADMIN_MAIN_NAV_IDS = new Set(['home', 'notifications']);
 
-const bottomNavItems: NavItem[] = [
-  { id: 'profile', icon: UserCircleIcon, label: 'プロフィール', to: '/profile/me', matchExact: true },
-];
-
 const adminNavItem: NavItem = {
   id: 'admin',
   icon: BuildingOffice2Icon,
@@ -88,6 +84,16 @@ function isActive(item: NavItem, pathname: string): boolean {
   return false;
 }
 
+// SidebarUserMenu の subText に出すロール表記。
+function roleLabel(role: string | null): string {
+  switch (role) {
+    case 'super_admin': return '運営管理者';
+    case 'company_admin': return '会社管理者';
+    case 'trainee': return '受講者';
+    default: return '';
+  }
+}
+
 export default function Sidebar({ onNavigate }: SidebarProps) {
   const location = useLocation();
   const { handleLogout, loggingOut } = useSidebar();
@@ -99,6 +105,21 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
   const [expanded, setExpanded] = useState(true);
   // 管理サブメニューの開閉
   const [adminOpen, setAdminOpen] = useState(false);
+  // sidebar bottom のユーザーメニュー用 (アバター / 名前)
+  const [profile, setProfile] = useState<{ displayName: string; avatarUrl: string | null } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    ProfileRepository.fetchProfile()
+      .then((p) => {
+        if (cancelled) return;
+        setProfile({ displayName: p.displayName ?? '', avatarUrl: p.avatarUrl ?? null });
+      })
+      .catch(() => { /* sidebar 表示が壊れない最低限のフォールバックは下で行う */ });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // super_admin は trainee 向けメニュー（AI / コード / ノート / レポート）を非表示。
   const visibleMainNavItems = isSuperAdmin
@@ -177,29 +198,6 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
             );
           })}
 
-          <div className="my-2 border-t border-surface-3" />
-
-          {/* プロフィール */}
-          {bottomNavItems.map((item) => {
-            const active = isActive(item, location.pathname);
-            return (
-              <Link
-                key={item.id}
-                to={item.to!}
-                onClick={onNavigate}
-                title={!expanded ? item.label : undefined}
-                className={`flex items-center gap-3 px-2 py-2 rounded-md text-sm font-medium transition-colors duration-150 ${
-                  active
-                    ? 'bg-[var(--color-nav-active)] text-[var(--color-text-primary)]'
-                    : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-nav-hover)] hover:text-[var(--color-text-primary)]'
-                }`}
-              >
-                <item.icon className="w-5 h-5 flex-shrink-0" />
-                {expanded && <span className="truncate">{item.label}</span>}
-              </Link>
-            );
-          })}
-
           {/* 管理メニュー (admin only) */}
           {isAdmin && (
             <>
@@ -257,16 +255,16 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
           )}
         </nav>
 
-        {/* ログアウト（ダークモード切替は廃止） */}
-        <div className="px-2 py-3 border-t border-surface-3 space-y-0.5">
-          <button
-            onClick={() => { onNavigate?.(); handleLogout(); }}
-            title="ログアウト"
-            className="flex items-center gap-3 px-2 py-2 rounded-md text-sm font-medium text-[var(--color-text-muted)] hover:bg-red-900/30 hover:text-red-400 transition-colors duration-150 w-full"
-          >
-            <ArrowLeftOnRectangleIcon className="w-5 h-5 flex-shrink-0" />
-            {expanded && <span>ログアウト</span>}
-          </button>
+        {/* ユーザーメニュー（アバター + 名前 → クリックで 設定 / ログアウト） */}
+        <div className="px-2 py-3 border-t border-surface-3">
+          <SidebarUserMenu
+            expanded={expanded}
+            displayName={profile?.displayName ?? ''}
+            avatarUrl={profile?.avatarUrl}
+            subText={roleLabel(role)}
+            onLogout={() => { onNavigate?.(); handleLogout(); }}
+            onNavigate={onNavigate}
+          />
         </div>
       </aside>
     </>

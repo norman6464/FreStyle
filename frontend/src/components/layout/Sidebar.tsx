@@ -123,20 +123,18 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
           expanded ? 'w-56' : 'w-14'
         }`}
       >
-        {/* ロゴ + トグルボタン */}
-        <div className={`flex items-center ${expanded ? 'justify-between px-3' : 'justify-center px-2'} pt-3 pb-2`}>
-          <Link
-            to="/"
-            onClick={onNavigate}
-            className="flex items-center gap-2 min-w-0"
-            aria-label="FreStyle ホーム"
-          >
-            <img src="/favicon.svg" alt="" className="w-7 h-7 flex-shrink-0" />
-            {expanded && (
+        {/* ヘッダー: 展開時 = ロゴ + 閉じる ／ 折りたたみ時 = 開くボタンのみ */}
+        {expanded ? (
+          <div className="flex items-center justify-between px-3 pt-3 pb-2">
+            <Link
+              to="/"
+              onClick={onNavigate}
+              className="flex items-center gap-2 min-w-0"
+              aria-label="FreStyle ホーム"
+            >
+              <img src="/favicon.svg" alt="" className="w-7 h-7 flex-shrink-0" />
               <span className="text-sm font-semibold text-[var(--color-text-primary)] truncate">FreStyle</span>
-            )}
-          </Link>
-          {expanded && (
+            </Link>
             <button
               onClick={() => { setExpanded(false); setAdminOpen(false); }}
               title="サイドバーを閉じる"
@@ -144,10 +142,9 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
             >
               <ChevronDoubleLeftIcon className="w-4 h-4" />
             </button>
-          )}
-        </div>
-        {!expanded && (
-          <div className="flex justify-center px-2 pb-1">
+          </div>
+        ) : (
+          <div className="flex justify-center px-2 pt-3 pb-2">
             <button
               onClick={() => setExpanded(true)}
               title="サイドバーを開く"

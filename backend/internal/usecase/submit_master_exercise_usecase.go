@@ -44,11 +44,16 @@ type SubmitMasterExerciseOutput struct {
 // 採点・提出履歴に保存する。
 //
 // 採点ロジック:
-//   - examples を全件取得（OrderIndex 昇順）
-//   - 各 example の InputText を stdin に流して ExecuteCodeUseCase で実行
-//   - stdout を normalize（末尾改行 / CRLF を吸収）して expected_output と完全一致するか比較
-//   - 全件 pass で isCorrect=true。1 件でも失敗・実行エラー（exit_code != 0）なら false
-//   - 実行コスト削減のため、最初の不一致で打ち切らず全件実行（ユーザに「どこで落ちたか」を全部見せる方針）
+//   - mode='qa' の場合: コードを実行せず、 提出文字列と ExpectedOutput を trim 比較するだけ。
+//     docker / kubernetes など サンドボックス実行が困難な題材向け。
+//   - mode='execute' (default) の場合:
+//   - master_exercise_examples が登録されていれば 各 example の InputText を stdin に
+//     流して ExecuteCodeUseCase で実行し、 stdout を normalize して expected_output と比較
+//   - examples が無ければ exercise 自身の ExpectedOutput を 単一テストケースとして使う
+//     (linux / git / go 等の seed.py 経由で投入された演習向け)
+//     stdout を normalize（末尾改行 / CRLF を吸収）して expected_output と完全一致するか比較。
+//     全件 pass で isCorrect=true。1 件でも失敗・実行エラー（exit_code != 0）なら false。
+//     実行コスト削減のため、最初の不一致で打ち切らず全件実行（ユーザに「どこで落ちたか」を全部見せる方針）。
 //
 // 履歴保存はテストケース個別ではなく、まとめて 1 行（最初に失敗した stdout / stderr / exit_code を採用）。
 type SubmitMasterExerciseUseCase struct {
@@ -90,12 +95,26 @@ func (uc *SubmitMasterExerciseUseCase) Execute(ctx context.Context, in SubmitMas
 	if ex == nil {
 		return nil, fmt.Errorf("exercise not found: %s", in.Slug)
 	}
+
+	// QA モード: コード実行せず、 提出文字列と ExpectedOutput を直接比較する。
+	if ex.Mode == domain.ExerciseModeQA {
+		return uc.submitQA(in, ex)
+	}
+
 	examples, err := uc.examples.ListByExerciseID(ex.ID)
 	if err != nil {
 		return nil, err
 	}
+	// examples が登録されていない演習 (seed.py 経由で投入された linux / git / go 等)
+	// は exercise 自身の ExpectedOutput を 単一の仮想テストケースとして使う。
+	// stdin は空、 OrderIndex=1 として扱う。
 	if len(examples) == 0 {
-		return nil, fmt.Errorf("exercise %s has no test cases", in.Slug)
+		examples = []domain.MasterExerciseExample{{
+			ExerciseID:     ex.ID,
+			OrderIndex:     1,
+			InputText:      "",
+			ExpectedOutput: ex.ExpectedOutput,
+		}}
 	}
 
 	results := make([]TestCaseResult, 0, len(examples))
@@ -104,23 +123,23 @@ func (uc *SubmitMasterExerciseUseCase) Execute(ctx context.Context, in SubmitMas
 	var representativeStdout, representativeStderr string
 	var representativeExit int
 
-	for _, ex := range examples {
+	for _, tc := range examples {
 		out, err := uc.executor.Execute(ctx, ExecuteCodeInput{
 			Code:     in.Code,
-			Language: "php",
-			Stdin:    ex.InputText,
+			Language: ex.Language,
+			Stdin:    tc.InputText,
 		})
 		if err != nil {
 			// 実行できなかった場合は提出を保存せずエラーを返す（タイムアウト等）。
 			return nil, fmt.Errorf("execution failed: %w", err)
 		}
 		actual := normalizeOutput(out.Stdout)
-		expected := normalizeOutput(ex.ExpectedOutput)
+		expected := normalizeOutput(tc.ExpectedOutput)
 		passed := out.ExitCode == 0 && actual == expected
 		results = append(results, TestCaseResult{
-			OrderIndex:     ex.OrderIndex,
-			Input:          ex.InputText,
-			ExpectedOutput: ex.ExpectedOutput,
+			OrderIndex:     tc.OrderIndex,
+			Input:          tc.InputText,
+			ExpectedOutput: tc.ExpectedOutput,
 			ActualOutput:   out.Stdout,
 			Stderr:         out.Stderr,
 			Passed:         passed,
@@ -162,6 +181,42 @@ func (uc *SubmitMasterExerciseUseCase) Execute(ctx context.Context, in SubmitMas
 		SubmissionID: submission.ID,
 		IsCorrect:    allPassed,
 		Results:      results,
+	}, nil
+}
+
+// submitQA は QA モードの採点。 提出文字列と ExpectedOutput を normalize 比較するだけで
+// コード実行は行わない。 docker / kubernetes など サンドボックス実行が困難な題材向け。
+func (uc *SubmitMasterExerciseUseCase) submitQA(in SubmitMasterExerciseInput, ex *domain.MasterExercise) (*SubmitMasterExerciseOutput, error) {
+	expected := normalizeOutput(ex.ExpectedOutput)
+	actual := normalizeOutput(in.Code)
+	isCorrect := actual == expected
+
+	submission := &domain.ExerciseSubmission{
+		UserID:        in.UserID,
+		ExerciseKind:  domain.ExerciseKindMaster,
+		ExerciseID:    ex.ID,
+		SubmittedCode: in.Code,
+		Stdout:        in.Code,
+		Stderr:        "",
+		ExitCode:      0,
+		IsCorrect:     isCorrect,
+		SubmittedAt:   time.Now().UTC(),
+	}
+	if err := uc.submissions.Create(submission); err != nil {
+		return nil, err
+	}
+
+	return &SubmitMasterExerciseOutput{
+		SubmissionID: submission.ID,
+		IsCorrect:    isCorrect,
+		Results: []TestCaseResult{{
+			OrderIndex:     1,
+			Input:          "",
+			ExpectedOutput: ex.ExpectedOutput,
+			ActualOutput:   in.Code,
+			Stderr:         "",
+			Passed:         isCorrect,
+		}},
 	}, nil
 }
 

@@ -41,6 +41,7 @@ export default function ExerciseListPage() {
           <option value="php">PHP</option>
           <option value="go">Go</option>
           <option value="bash">Bash / Linux</option>
+          <option value="docker">Docker</option>
         </select>
       </div>
 

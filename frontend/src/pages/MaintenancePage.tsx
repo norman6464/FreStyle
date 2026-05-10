@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowPathIcon, ClockIcon } from '@heroicons/react/24/outline';
+import { ArrowPathIcon } from '@heroicons/react/24/outline';
 
 interface MaintenancePageProps {
   /** 「再試行」ボタンが押されたときに呼ぶ。useBackendHealth.recheck を渡す。 */
@@ -31,9 +31,8 @@ export default function MaintenancePage({ onRetry }: MaintenancePageProps) {
     window.setTimeout(() => setRetrying(false), 1500);
   };
 
-  // バックエンドが停止する時間帯 (JST 22:00〜翌 07:00) を表示。本サービスは scheduled-stop で
-  // 毎日この帯に止まることがアナウンスされている前提のため、ユーザーに「いつ戻るか」の
-  // 期待値を示すことで体験を悪くしないようにする。
+  // 「定期メンテナンス時間帯」の案内カードは ユーザ要望で 削除。
+  // サーバ状態のみシンプルに知らせ、 再試行ボタンで 復帰を試みてもらう。
   return (
     <div className="min-h-screen flex items-center justify-center bg-[var(--color-surface-1)] px-6">
       <div className="max-w-lg w-full text-center">
@@ -54,19 +53,6 @@ export default function MaintenancePage({ onRetry }: MaintenancePageProps) {
           <br />
           自動的に再接続を試みていますので、しばらくお待ちください。
         </p>
-
-        <div className="flex items-start gap-3 px-4 py-3 rounded-lg border border-[var(--color-surface-3)] bg-[var(--color-surface-2)] text-left mb-6">
-          <ClockIcon className="w-5 h-5 text-[var(--color-text-muted)] flex-shrink-0 mt-0.5" />
-          <div className="text-xs text-[var(--color-text-muted)] leading-relaxed">
-            <p className="font-medium text-[var(--color-text-secondary)] mb-1">
-              定期メンテナンス時間帯
-            </p>
-            <p>
-              料金節約のため、毎日 <strong>22:00〜翌 07:00 JST</strong> はサービスを停止しています。
-              この時間帯の利用はできません。
-            </p>
-          </div>
-        </div>
 
         <button
           type="button"

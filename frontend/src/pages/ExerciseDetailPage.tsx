@@ -219,13 +219,15 @@ export default function ExerciseDetailPage() {
             </span>
           </div>
         </div>
-        <div className="h-[360px] bg-[#1e1e1e]">
-          <Suspense fallback={<div className="h-full bg-[#1e1e1e]" />}>
+        <div className="bg-[#1e1e1e]">
+          <Suspense fallback={<div style={{ height: 360 }} className="bg-[#1e1e1e]" />}>
+            {/* autoGrow=true (default) で エディタの高さが行数に合わせて伸びる。 */}
+            {/* ページ側でスクロールするため、 エディタ内部の縦スクロールが発生しない。 */}
             <CodeEditor
               value={code}
               onChange={setCode}
               language={monacoLanguageOf(ex.language)}
-              height="100%"
+              minHeight={260}
             />
           </Suspense>
         </div>

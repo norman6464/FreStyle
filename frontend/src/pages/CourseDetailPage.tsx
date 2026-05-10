@@ -1,5 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useSelector } from 'react-redux';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   AcademicCapIcon,
   PlusIcon,
@@ -8,6 +9,7 @@ import {
   TrashIcon,
   CheckCircleIcon,
   ClockIcon,
+  ArrowLeftIcon,
 } from '@heroicons/react/24/outline';
 import SecondaryPanel from '../components/layout/SecondaryPanel';
 import EmptyState from '../components/EmptyState';
@@ -19,24 +21,32 @@ import { useTeachingMaterials } from '../hooks/useTeachingMaterials';
 import { useTeachingMaterialEditor } from '../hooks/useTeachingMaterialEditor';
 import { useMobilePanelState } from '../hooks/useMobilePanelState';
 import { useToast } from '../hooks/useToast';
-import { useState } from 'react';
+import CourseRepository from '../repositories/CourseRepository';
 import type { RootState } from '../store';
-import type { TeachingMaterial } from '../types';
+import type { Course, TeachingMaterial } from '../types';
 
 /**
- * TeachingMaterialsPage — `/teaching-materials` 教材一覧 + 編集ページ。
+ * CourseDetailPage — `/courses/:id` 配下の教材一覧 + 編集ページ。
  *
- * - company_admin / super_admin: 教材を作成 / 編集 / 削除 / 公開状態切替
- * - trainee: 自社の `isPublished=true` 教材を閲覧のみ
+ * - company_admin / super_admin: コース内教材を作成 / 編集 / 削除 / 公開状態切替
+ * - trainee: published コース + published 教材のみ閲覧
  *
  * 左パネルに教材リスト、 右側に詳細（NoteMarkdownEditor 流用 = Edit/Preview タブ）。
  */
-export default function TeachingMaterialsPage() {
+export default function CourseDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  const courseId = id ? Number(id) : null;
+  const navigate = useNavigate();
+
   const role = useSelector((s: RootState) => s.auth.role);
   const canManage = role === 'company_admin' || role === 'super_admin';
 
   const { showToast } = useToast();
   const { isOpen: mobilePanelOpen, open: openMobilePanel, close: closeMobilePanel } = useMobilePanelState();
+
+  const [course, setCourse] = useState<Course | null>(null);
+  const [courseLoading, setCourseLoading] = useState(true);
+  const [courseError, setCourseError] = useState<string | null>(null);
 
   const {
     materials,
@@ -51,19 +61,34 @@ export default function TeachingMaterialsPage() {
     create,
     update,
     remove,
-    fetchAll,
-  } = useTeachingMaterials();
+  } = useTeachingMaterials(courseId);
 
   const editor = useTeachingMaterialEditor({ selectedId, selected, update });
 
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
 
   useEffect(() => {
-    fetchAll();
-  }, [fetchAll]);
+    if (!courseId) return;
+    setCourseLoading(true);
+    CourseRepository.get(courseId)
+      .then((c) => setCourse(c))
+      .catch(() => setCourseError('コースの取得に失敗しました'))
+      .finally(() => setCourseLoading(false));
+  }, [courseId]);
+
+  // 次の order_in_course を計算（既存の最大値 + 10）。
+  const nextOrder = useMemo(() => {
+    if (materials.length === 0) return 100;
+    return Math.max(...materials.map((m) => m.orderInCourse)) + 10;
+  }, [materials]);
 
   const handleCreate = async () => {
-    const created = await create({ title: '無題の教材', content: '', isPublished: false });
+    const created = await create({
+      title: '無題の教材',
+      content: '',
+      orderInCourse: nextOrder,
+      isPublished: false,
+    });
     if (created) {
       showToast('success', '教材を作成しました');
     } else {
@@ -72,8 +97,8 @@ export default function TeachingMaterialsPage() {
     closeMobilePanel();
   };
 
-  const handleSelect = (id: number) => {
-    selectMaterial(id);
+  const handleSelect = (mid: number) => {
+    selectMaterial(mid);
     closeMobilePanel();
   };
 
@@ -84,15 +109,48 @@ export default function TeachingMaterialsPage() {
     showToast('success', '教材を削除しました');
   };
 
+  if (!courseId) {
+    return (
+      <EmptyState
+        icon={AcademicCapIcon}
+        title="コースが指定されていません"
+        description="コース一覧から選択してください。"
+        action={{ label: 'コース一覧へ', onClick: () => navigate('/courses') }}
+      />
+    );
+  }
+
+  if (courseLoading) {
+    return <Loading className="h-full" />;
+  }
+
+  if (courseError || !course) {
+    return (
+      <EmptyState
+        icon={AcademicCapIcon}
+        title="コースが見つかりませんでした"
+        description={courseError ?? '権限がないか、 コースが削除された可能性があります。'}
+        action={{ label: 'コース一覧へ', onClick: () => navigate('/courses') }}
+      />
+    );
+  }
+
   return (
     <div className="flex h-full">
       <SecondaryPanel
-        title="教材"
+        title={course.title || '無題のコース'}
         badge={`${materials.length}件`}
         mobileOpen={mobilePanelOpen}
         onMobileClose={closeMobilePanel}
         headerContent={
           <div className="space-y-2">
+            <Link
+              to="/courses"
+              className="inline-flex items-center gap-1 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+            >
+              <ArrowLeftIcon className="w-3.5 h-3.5" />
+              コース一覧
+            </Link>
             <div className="relative">
               <MagnifyingGlassIcon className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
               <input
@@ -141,7 +199,7 @@ export default function TeachingMaterialsPage() {
                 material={m}
                 isActive={selectedId === m.id}
                 onSelect={handleSelect}
-                onDelete={canManage ? (id) => setDeleteTargetId(id) : undefined}
+                onDelete={canManage ? (mid) => setDeleteTargetId(mid) : undefined}
               />
             ))
           )}
@@ -158,16 +216,14 @@ export default function TeachingMaterialsPage() {
           >
             <Bars3Icon className="w-5 h-5 text-[var(--color-text-muted)]" />
           </button>
-          <span className="ml-2 text-xs text-[var(--color-text-muted)]">教材一覧</span>
+          <span className="ml-2 text-xs text-[var(--color-text-muted)]">{course.title}</span>
         </div>
 
         {error && <p className="px-6 py-3 text-sm text-red-500">{error}</p>}
 
         {selected ? (
           canManage ? (
-            <ManagedDetail
-              editor={editor}
-            />
+            <ManagedDetail editor={editor} />
           ) : (
             <ReadOnlyDetail material={selected} />
           )
@@ -284,9 +340,6 @@ function ManagedDetail({
 }
 
 function ReadOnlyDetail({ material }: { material: TeachingMaterial }) {
-  // 拡張記法風 2 カラム: 左 = 本文 (max-w-3xl 程度) / 右 = sticky な目次サイドバー。
-  // スクロールバーは画面右端に出したいので、 スクロールコンテナは width 制限せず、
-  // 内側のグリッドで本文・目次の幅を制御する。
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="mx-auto w-full max-w-6xl px-6 py-6 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_240px] gap-8">
@@ -323,8 +376,6 @@ function pad(n: number): string {
 }
 
 // trainee の閲覧用に Markdown を render するだけのコンポーネント。
-// NoteMarkdownEditor の MarkdownView と同じだが import を分離しないために
-// 同じパッケージを直接使う。
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';

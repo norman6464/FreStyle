@@ -33,7 +33,8 @@ const AdminInvitationsPage = lazyWithReload(() => import('./pages/AdminInvitatio
 const AdminCompaniesPage = lazyWithReload(() => import('./pages/AdminCompaniesPage'), 'AdminCompaniesPage');
 const ExerciseListPage = lazyWithReload(() => import('./pages/ExerciseListPage'), 'ExerciseListPage');
 const ExerciseDetailPage = lazyWithReload(() => import('./pages/ExerciseDetailPage'), 'ExerciseDetailPage');
-const TeachingMaterialsPage = lazyWithReload(() => import('./pages/TeachingMaterialsPage'), 'TeachingMaterialsPage');
+const CoursesListPage = lazyWithReload(() => import('./pages/CoursesListPage'), 'CoursesListPage');
+const CourseDetailPage = lazyWithReload(() => import('./pages/CourseDetailPage'), 'CourseDetailPage');
 const MarkdownSyntaxHelpPage = lazyWithReload(() => import('./pages/MarkdownSyntaxHelpPage'), 'MarkdownSyntaxHelpPage');
 
 function NavigationToast() {
@@ -107,7 +108,10 @@ export default function App() {
         <Route path="/help" element={<HelpPage />} />
         <Route path="/code-editor" element={<ExerciseListPage />} />
         <Route path="/code-editor/:slug" element={<ExerciseDetailPage />} />
-        <Route path="/teaching-materials" element={<TeachingMaterialsPage />} />
+        <Route path="/courses" element={<CoursesListPage />} />
+        <Route path="/courses/:id" element={<CourseDetailPage />} />
+        {/* 旧 /teaching-materials へのアクセスは /courses に redirect */}
+        <Route path="/teaching-materials" element={<CoursesListPage />} />
         {/* Admin 専用（コンポーネント側で isAdmin チェック → 非 admin は / にリダイレクト） */}
         <Route path="/admin/companies" element={<AdminCompaniesPage />} />
         <Route path="/admin/invitations" element={<AdminInvitationsPage />} />

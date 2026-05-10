@@ -226,7 +226,11 @@ export default function ExerciseDetailPage() {
       {(executionResult || submitError) && (
         <ExecutionResultTable
           result={executionResult}
-          expected={detail.examples[0]?.expectedOutput ?? ''}
+          // examples が空の演習 (seed.py 経由で投入された linux/git/go 等) は
+          // exercise 自身の expectedOutput を fallback で使う。
+          // これがないと preview 比較が常に空文字 vs 空文字 で 「◎ 一致」 と出てしまい、
+          // 提出時のバックエンド側 fallback と齟齬が出る。
+          expected={detail.examples[0]?.expectedOutput ?? ex.expectedOutput ?? ''}
           submitError={submitError}
         />
       )}

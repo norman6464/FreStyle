@@ -11,6 +11,8 @@ interface SidebarUserMenuProps {
   expanded: boolean;
   displayName: string;
   avatarUrl?: string | null;
+  /** ログインユーザのメールアドレス。 dropdown の最上段に identity 表示として出す */
+  email?: string;
   /** 任意のサブテキスト（例: ロール名）。 collapsed 時は非表示 */
   subText?: string | null;
   onLogout: () => void;
@@ -30,6 +32,7 @@ export default function SidebarUserMenu({
   expanded,
   displayName,
   avatarUrl,
+  email,
   subText,
   onLogout,
   onNavigate,
@@ -97,9 +100,20 @@ export default function SidebarUserMenu({
           // 1 文字ずつ折り返される。 collapsed のときは固定幅 w-44 (176px) で
           // 右側 (サイドバー外) に突き出させる。
           className={`absolute bottom-full mb-2 bg-surface-1 border border-surface-3 rounded-lg shadow-lg overflow-hidden z-50 animate-fade-in ${
-            expanded ? 'left-0 right-0' : 'left-0 w-44'
+            expanded ? 'left-0 right-0' : 'left-0 w-56'
           }`}
         >
+          {email && (
+            <>
+              <div
+                className="px-3 py-2 text-xs text-[var(--color-text-secondary)] truncate"
+                title={email}
+              >
+                {email}
+              </div>
+              <div className="border-t border-surface-3" />
+            </>
+          )}
           <button
             type="button"
             role="menuitem"

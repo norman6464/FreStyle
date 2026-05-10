@@ -289,6 +289,8 @@ export interface Note {
 export interface Profile {
   userId: number;
   displayName: string;
+  /** ログインユーザのメールアドレス。 sidebar のユーザーメニューで表示する。 */
+  email: string;
   bio: string;
   avatarUrl: string;
   status: string;

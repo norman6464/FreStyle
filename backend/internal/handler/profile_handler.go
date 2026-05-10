@@ -142,6 +142,7 @@ func (h *ProfileHandler) buildView(c *gin.Context, uid uint64) (*domain.ProfileV
 	user, _ := h.users.FindByID(c.Request.Context(), uid)
 	if user != nil {
 		view.DisplayName = user.DisplayName
+		view.Email = user.Email
 	}
 	return view, nil
 }

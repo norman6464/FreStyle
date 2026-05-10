@@ -561,7 +561,7 @@ function QaExerciseView({
 
       <section className="rounded-lg border border-surface-3 bg-surface-1 p-5 space-y-4">
         <p className="text-xs text-[var(--color-text-muted)]">
-          適切な語句を入力して、 文の空欄を埋めてください。
+          以下の問題に対応するコマンドを入力してください。
         </p>
         <p className="text-sm text-[var(--color-text-primary)] whitespace-pre-wrap leading-relaxed">
           {ex.description}

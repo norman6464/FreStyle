@@ -22,6 +22,21 @@ import {
 
 const CodeEditor = lazyWithReload(() => import('../components/CodeEditor'), 'CodeEditor');
 
+// master_exercises.language → Monaco のシンタックスハイライト言語ID へのマッピング。
+// Monaco は `php` / `go` / `shell` を組み込みでサポート。 該当しない場合は plaintext に fallback する。
+function monacoLanguageOf(lang: string): string {
+  switch (lang) {
+    case 'php':
+      return 'php';
+    case 'go':
+      return 'go';
+    case 'bash':
+      return 'shell';
+    default:
+      return 'plaintext';
+  }
+}
+
 /**
  * ExerciseDetailPage — `/code-editor/:slug` の詳細画面。
  *
@@ -167,7 +182,7 @@ export default function ExerciseDetailPage() {
             <CodeEditor
               value={code}
               onChange={setCode}
-              language={ex.language === 'php' ? 'php' : 'plaintext'}
+              language={monacoLanguageOf(ex.language)}
               height="100%"
             />
           </Suspense>

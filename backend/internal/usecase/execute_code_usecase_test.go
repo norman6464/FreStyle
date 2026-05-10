@@ -182,3 +182,81 @@ func main() {
 	assert.Equal(t, "got: hello\n", out.Stdout)
 	assert.Equal(t, 0, out.ExitCode)
 }
+
+// --- Bash ---
+
+func TestExecuteCodeUseCase_Bash_HelloWorld(t *testing.T) {
+	if _, err := exec.LookPath("bash"); err != nil {
+		t.Skip("bash not found in PATH")
+	}
+	uc := usecase.NewExecuteCodeUseCase()
+	out, err := uc.Execute(context.Background(), usecase.ExecuteCodeInput{
+		Code:     `echo "Hello, World!"`,
+		Language: "bash",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "Hello, World!\n", out.Stdout)
+	assert.Equal(t, 0, out.ExitCode)
+}
+
+// HOME / PWD は temp dir に固定されるため、 副作用は外に漏れない。
+// echo "$HOME" の結果が `/tmp/...` 始まりであることを確認する。
+func TestExecuteCodeUseCase_Bash_HomeIsTempDir(t *testing.T) {
+	if _, err := exec.LookPath("bash"); err != nil {
+		t.Skip("bash not found in PATH")
+	}
+	uc := usecase.NewExecuteCodeUseCase()
+	out, err := uc.Execute(context.Background(), usecase.ExecuteCodeInput{
+		Code:     `echo "$HOME"`,
+		Language: "bash",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 0, out.ExitCode)
+	// macOS は /var/folders/... 、 Linux は /tmp/... と OS により分岐するため、
+	// "bash-exec-" prefix が含まれることだけ確認する。
+	assert.Contains(t, out.Stdout, "bash-exec-")
+}
+
+// AWS / DB の credential が子プロセスに継承されないことを確認する（環境変数を絞っている）。
+func TestExecuteCodeUseCase_Bash_DropsParentEnv(t *testing.T) {
+	if _, err := exec.LookPath("bash"); err != nil {
+		t.Skip("bash not found in PATH")
+	}
+	t.Setenv("FRESTYLE_SECRET_TEST", "must-not-leak")
+	uc := usecase.NewExecuteCodeUseCase()
+	out, err := uc.Execute(context.Background(), usecase.ExecuteCodeInput{
+		Code:     `echo "value=${FRESTYLE_SECRET_TEST:-missing}"`,
+		Language: "bash",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "value=missing\n", out.Stdout)
+}
+
+func TestExecuteCodeUseCase_Bash_ReadsStdin(t *testing.T) {
+	if _, err := exec.LookPath("bash"); err != nil {
+		t.Skip("bash not found in PATH")
+	}
+	uc := usecase.NewExecuteCodeUseCase()
+	out, err := uc.Execute(context.Background(), usecase.ExecuteCodeInput{
+		Code:     `read line && echo "got: $line"`,
+		Language: "bash",
+		Stdin:    "ping\n",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "got: ping\n", out.Stdout)
+	assert.Equal(t, 0, out.ExitCode)
+}
+
+func TestExecuteCodeUseCase_Bash_ExitCodePropagated(t *testing.T) {
+	if _, err := exec.LookPath("bash"); err != nil {
+		t.Skip("bash not found in PATH")
+	}
+	uc := usecase.NewExecuteCodeUseCase()
+	out, err := uc.Execute(context.Background(), usecase.ExecuteCodeInput{
+		Code:     `echo "before" && exit 7`,
+		Language: "bash",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "before\n", out.Stdout)
+	assert.Equal(t, 7, out.ExitCode)
+}

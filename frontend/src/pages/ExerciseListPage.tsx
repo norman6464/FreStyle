@@ -39,6 +39,8 @@ export default function ExerciseListPage() {
         >
           <option value="">すべて</option>
           <option value="php">PHP</option>
+          <option value="go">Go</option>
+          <option value="bash">Bash / Linux</option>
         </select>
       </div>
 

@@ -55,6 +55,14 @@ export default function CodeEditor({
       automaticLayout: true,
       tabSize: 4,
       renderLineHighlight: 'line',
+      // Monaco は default で mouse wheel イベントを 常に消費するため、 エディタが
+      // 短くて 内部スクロールが要らない状態でも、 ページ全体のスクロールが効かない
+      // 不便な挙動を起こす。 alwaysConsumeMouseWheel=false にすると エディタ内に
+      // スクロール余地が無いとき wheel イベントを 親に bubble させて ページが普通に
+      // スクロールできるようにする。
+      scrollbar: {
+        alwaysConsumeMouseWheel: false,
+      },
     });
     editorRef.current = editor;
     const sub = editor.onDidChangeModelContent(() => {

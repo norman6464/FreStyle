@@ -3,7 +3,6 @@ package usecase_test
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
@@ -196,20 +195,114 @@ func TestSubmitMasterExercise_NonZeroExit_Fails(t *testing.T) {
 	assert.False(t, out.Results[0].Passed)
 }
 
-func TestSubmitMasterExercise_NoExamples_Errors(t *testing.T) {
+// examples が登録されていない演習 (seed.py 経由で投入された linux/git/go 等) は
+// exercise 自身の ExpectedOutput を 単一テストケースとして fallback する。
+func TestSubmitMasterExercise_NoExamples_FallbackToExerciseExpected(t *testing.T) {
 	exRepo := &fakeMasterExerciseRepo{
-		get: &domain.MasterExercise{ID: 1, Slug: "s"},
+		get: &domain.MasterExercise{
+			ID: 1, Slug: "linux-1", Language: "bash",
+			ExpectedOutput: "Hello, Linux!",
+		},
 	}
-	examples := &fakeExampleRepo{}
+	examples := &fakeExampleRepo{} // empty
 	submissions := &fakeSubmissionRepo{}
-	executor := &fakeExecutor{}
+	executor := &fakeExecutor{stdinToOut: map[string]string{"": "Hello, Linux!\n"}}
+
+	uc := usecase.NewSubmitMasterExerciseUseCase(exRepo, examples, submissions, executor)
+	out, err := uc.Execute(context.Background(), usecase.SubmitMasterExerciseInput{
+		UserID: 1, Slug: "linux-1", Code: `echo "Hello, Linux!"`,
+	})
+	require.NoError(t, err)
+	assert.True(t, out.IsCorrect)
+	assert.Len(t, out.Results, 1)
+	// fallback は exercise.Language を passed する (旧実装のように "php" 固定ではない)。
+	assert.Len(t, executor.calls, 1)
+	assert.Equal(t, "bash", executor.calls[0].Language)
+}
+
+// SubmitMasterExerciseUseCase が exercise.Language を ExecuteCodeInput に正しく渡しているか。
+// 旧実装は "php" 固定だったため、 Go / bash / Linux 演習が正しく実行できない不具合があった。
+func TestSubmitMasterExercise_PassesExerciseLanguage(t *testing.T) {
+	exRepo := &fakeMasterExerciseRepo{
+		get: &domain.MasterExercise{ID: 9, Slug: "go-1", Language: "go"},
+	}
+	examples := &fakeExampleRepo{rows: []domain.MasterExerciseExample{
+		{ID: 1, ExerciseID: 9, OrderIndex: 1, InputText: "", ExpectedOutput: "Hello, Go!"},
+	}}
+	submissions := &fakeSubmissionRepo{}
+	executor := &fakeExecutor{stdinToOut: map[string]string{"": "Hello, Go!\n"}}
 
 	uc := usecase.NewSubmitMasterExerciseUseCase(exRepo, examples, submissions, executor)
 	_, err := uc.Execute(context.Background(), usecase.SubmitMasterExerciseInput{
-		UserID: 1, Slug: "s", Code: "<?php",
+		UserID: 1, Slug: "go-1", Code: "package main",
 	})
-	require.Error(t, err)
-	assert.True(t, strings.Contains(err.Error(), "no test cases"))
+	require.NoError(t, err)
+	require.Len(t, executor.calls, 1)
+	assert.Equal(t, "go", executor.calls[0].Language)
+}
+
+func TestSubmitMasterExercise_QA_Correct(t *testing.T) {
+	exRepo := &fakeMasterExerciseRepo{
+		get: &domain.MasterExercise{
+			ID: 100, Slug: "docker-1", Language: "shell",
+			Mode:           domain.ExerciseModeQA,
+			ExpectedOutput: "docker run hello-world",
+		},
+	}
+	submissions := &fakeSubmissionRepo{}
+	executor := &fakeExecutor{}
+
+	uc := usecase.NewSubmitMasterExerciseUseCase(exRepo, &fakeExampleRepo{}, submissions, executor)
+	out, err := uc.Execute(context.Background(), usecase.SubmitMasterExerciseInput{
+		UserID: 1, Slug: "docker-1", Code: "docker run hello-world",
+	})
+	require.NoError(t, err)
+	assert.True(t, out.IsCorrect)
+	require.Len(t, out.Results, 1)
+	assert.True(t, out.Results[0].Passed)
+	// QA モードは executor を呼ばない。
+	assert.Empty(t, executor.calls)
+	require.NotNil(t, submissions.created)
+	assert.True(t, submissions.created.IsCorrect)
+}
+
+func TestSubmitMasterExercise_QA_Wrong(t *testing.T) {
+	exRepo := &fakeMasterExerciseRepo{
+		get: &domain.MasterExercise{
+			ID: 100, Slug: "docker-1", Language: "shell",
+			Mode:           domain.ExerciseModeQA,
+			ExpectedOutput: "docker run hello-world",
+		},
+	}
+	submissions := &fakeSubmissionRepo{}
+	executor := &fakeExecutor{}
+
+	uc := usecase.NewSubmitMasterExerciseUseCase(exRepo, &fakeExampleRepo{}, submissions, executor)
+	out, err := uc.Execute(context.Background(), usecase.SubmitMasterExerciseInput{
+		UserID: 1, Slug: "docker-1", Code: "docker run nginx",
+	})
+	require.NoError(t, err)
+	assert.False(t, out.IsCorrect)
+	assert.False(t, out.Results[0].Passed)
+	assert.Empty(t, executor.calls)
+}
+
+// QA モードでも 末尾改行 / 空白の差異は normalize で吸収する。
+func TestSubmitMasterExercise_QA_NormalizesTrailingWhitespace(t *testing.T) {
+	exRepo := &fakeMasterExerciseRepo{
+		get: &domain.MasterExercise{
+			ID: 100, Slug: "docker-1", Language: "shell",
+			Mode:           domain.ExerciseModeQA,
+			ExpectedOutput: "git init",
+		},
+	}
+	submissions := &fakeSubmissionRepo{}
+	uc := usecase.NewSubmitMasterExerciseUseCase(exRepo, &fakeExampleRepo{}, submissions, &fakeExecutor{})
+	out, err := uc.Execute(context.Background(), usecase.SubmitMasterExerciseInput{
+		UserID: 1, Slug: "docker-1", Code: "git init   \n",
+	})
+	require.NoError(t, err)
+	assert.True(t, out.IsCorrect)
 }
 
 func TestSubmitMasterExercise_ExerciseNotFound(t *testing.T) {

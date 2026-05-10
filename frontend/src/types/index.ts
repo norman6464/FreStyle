@@ -497,6 +497,16 @@ export interface MasterExercise {
   starterCode: string;
   hintText: string;
   expectedOutput: string;
+  /**
+   * 採点モード。 'execute' (default) はサンドボックスでコードを実行し stdout を比較、
+   * 'qa' はコード実行をせず提出文字列と expectedOutput を直接比較する。
+   * docker / kubernetes など サンドボックス実行が困難な題材を Q&A 形式で扱うために導入。
+   */
+  mode: 'execute' | 'qa';
+  /**
+   * QA モードで 正解後に表示される markdown 解説。 execute モードでは未使用 (空文字)。
+   */
+  explanation: string;
   difficulty: number;
   isPublished: boolean;
   chapterId?: number | null;

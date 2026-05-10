@@ -1,5 +1,9 @@
 import { Suspense, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
+import rehypeHighlight from 'rehype-highlight';
 import {
   ArrowLeftIcon,
   CheckCircleIcon,
@@ -16,7 +20,9 @@ import { lazyWithReload } from '../utils/lazyWithReload';
 import {
   CodeExecutionResult,
   ExerciseSubmission,
+  ExerciseSubmitResult,
   ExerciseTestCaseResult,
+  MasterExercise,
   MasterExerciseExample,
 } from '../types';
 
@@ -87,6 +93,24 @@ export default function ExerciseDetailPage() {
   }
 
   const ex = detail.exercise;
+
+  // QA モード: docker / kubernetes など サンドボックス実行が困難な題材は、
+  // Monaco エディタの代わりに 単行 input でコマンド文字列を受け取り、
+  // 提出文字列と expected_output を直接比較する。
+  if (ex.mode === 'qa') {
+    return (
+      <QaExerciseView
+        exercise={ex}
+        starterCode={code}
+        onCodeChange={setCode}
+        submitting={submitting}
+        submitResult={submitResult}
+        submitError={submitError}
+        onSubmit={submitCode}
+        onReset={resetCode}
+      />
+    );
+  }
 
   return (
     <div className="px-4 sm:px-6 pt-6 pb-24 max-w-4xl mx-auto space-y-6">
@@ -455,4 +479,162 @@ function pad(n: number) {
 // 末尾の改行 / 空白を吸収して厳密一致判定する。
 function normalizeOutput(s: string): string {
   return s.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/[\s]+$/, '');
+}
+
+interface QaExerciseViewProps {
+  exercise: MasterExercise;
+  starterCode: string;
+  onCodeChange: (code: string) => void;
+  submitting: boolean;
+  submitResult: ExerciseSubmitResult | null;
+  submitError: string | null;
+  onSubmit: () => void;
+  onReset: () => void;
+}
+
+/**
+ * QaExerciseView — `mode='qa'` の演習向け、 単行 input + 提出 + 解説 表示。
+ *
+ * docker / kubernetes / 多くのネットワーク系コマンドのように、 サンドボックス
+ * 実行が困難な題材を 「コマンドを書き取る」 形式で扱う。
+ *
+ * UX:
+ *   1. 質問文 (description) を表示
+ *   2. `$` プロンプト付きの 単行 input
+ *   3. 提出ボタン (Enter でも提出可)
+ *   4. 採点後:
+ *      - 正解: 緑バナー + 期待コマンドの再表示 + explanation (markdown)
+ *      - 不正解: 赤バナー + 「もう一度入力してください」 (input は維持)
+ */
+function QaExerciseView({
+  exercise: ex,
+  starterCode,
+  onCodeChange,
+  submitting,
+  submitResult,
+  submitError,
+  onSubmit,
+  onReset,
+}: QaExerciseViewProps) {
+  const isCorrect = submitResult?.isCorrect === true;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (submitting || !starterCode.trim()) return;
+    onSubmit();
+  };
+
+  return (
+    <div className="px-4 sm:px-6 pt-6 pb-24 max-w-3xl mx-auto space-y-6">
+      <header className="space-y-3">
+        <BackLink />
+        <div className="flex items-start gap-3">
+          <div className="flex-shrink-0 w-10 h-10 rounded-md bg-primary-500/10 border border-primary-500/30 flex items-center justify-center">
+            <DocumentTextIcon className="w-5 h-5 text-primary-400" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl font-bold text-[var(--color-text-primary)] leading-tight">
+              {ex.title}
+            </h1>
+            <div className="mt-1 flex items-center gap-2 text-xs text-[var(--color-text-muted)]">
+              <span className="px-1.5 py-0.5 rounded bg-surface-3 uppercase">{ex.language}</span>
+              <span>難易度 {'★'.repeat(Math.max(1, Math.min(5, ex.difficulty)))}</span>
+              <span>#{ex.orderIndex}</span>
+            </div>
+          </div>
+          {submitResult && <ResultBadge isCorrect={isCorrect} />}
+        </div>
+      </header>
+
+      {isCorrect && (
+        <div className="rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-3 flex items-center gap-2 text-sm text-green-400">
+          <CheckCircleIcon className="w-5 h-5 flex-shrink-0" />
+          正解です。 詳細については下の解説を確認してください。
+        </div>
+      )}
+      {submitResult && !isCorrect && (
+        <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 flex items-center gap-2 text-sm text-red-400">
+          <XCircleIcon className="w-5 h-5 flex-shrink-0" />
+          不正解です。 もう一度入力してください。
+        </div>
+      )}
+
+      <section className="rounded-lg border border-surface-3 bg-surface-1 p-5 space-y-4">
+        <p className="text-xs text-[var(--color-text-muted)]">
+          適切な語句を入力して、 文の空欄を埋めてください。
+        </p>
+        <p className="text-sm text-[var(--color-text-primary)] whitespace-pre-wrap leading-relaxed">
+          {ex.description}
+        </p>
+
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-[#1e1e1e] border border-surface-3 font-mono text-sm">
+            <span className="text-emerald-400 select-none">$</span>
+            <input
+              type="text"
+              value={starterCode}
+              onChange={(e) => onCodeChange(e.target.value)}
+              disabled={submitting}
+              autoFocus
+              spellCheck={false}
+              autoComplete="off"
+              autoCapitalize="off"
+              className="flex-1 bg-transparent outline-none text-white placeholder:text-[var(--color-text-muted)]"
+              placeholder="ここにコマンドを入力..."
+              aria-label="コマンドを入力"
+            />
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={submitting || !starterCode.trim()}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md bg-amber-700/70 hover:bg-amber-700/90 disabled:opacity-50 text-white text-sm font-semibold transition-colors"
+            >
+              <ClipboardDocumentCheckIcon className="w-4 h-4" />
+              {submitting ? '採点中...' : '解答する'}
+            </button>
+            <button
+              type="button"
+              onClick={onReset}
+              disabled={submitting}
+              className="px-4 py-2 rounded-md text-sm text-[var(--color-text-muted)] hover:bg-surface-2 hover:text-[var(--color-text-primary)] disabled:opacity-50 transition-colors"
+            >
+              リセット
+            </button>
+          </div>
+          {submitError && (
+            <p className="text-xs text-red-400">{submitError}</p>
+          )}
+        </form>
+      </section>
+
+      {isCorrect && (
+        <section className="rounded-lg border border-surface-3 bg-surface-1 overflow-hidden">
+          <div className="px-4 py-3 bg-green-500/10 border-b border-green-500/20">
+            <p className="text-xs font-semibold text-green-400 uppercase tracking-wider mb-1">
+              回答は正解です
+            </p>
+            <code className="text-sm text-[var(--color-text-primary)] font-mono">
+              {ex.expectedOutput}
+            </code>
+          </div>
+          {ex.explanation && (
+            <div className="px-4 py-3">
+              <p className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-2">
+                説明
+              </p>
+              <div className="prose prose-sm max-w-none text-sm text-[var(--color-text-primary)]">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm, remarkBreaks]}
+                  rehypePlugins={[rehypeHighlight]}
+                >
+                  {ex.explanation}
+                </ReactMarkdown>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+    </div>
+  );
 }

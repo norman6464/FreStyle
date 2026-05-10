@@ -56,7 +56,7 @@ function NavigationToast() {
 }
 
 export default function App() {
-  const { status: healthStatus, recheck } = useBackendHealth();
+  const { status: healthStatus } = useBackendHealth();
 
   // バックエンドが連続失敗で unhealthy になっているとメンテナンスページを表示。
   // healthy / unknown は通常通りアプリを描画（unknown は初回 health check 完了前で、
@@ -64,7 +64,7 @@ export default function App() {
   if (healthStatus === 'unhealthy') {
     return (
       <ErrorBoundary>
-        <MaintenancePage onRetry={recheck} />
+        <MaintenancePage />
       </ErrorBoundary>
     );
   }

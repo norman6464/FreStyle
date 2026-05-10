@@ -94,3 +94,91 @@ func TestExecuteCodeUseCase_PHP_AllowsShortEchoTag(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 0, out.ExitCode)
 }
+
+// --- Go ---
+
+func TestExecuteCodeUseCase_Go_HelloWorld(t *testing.T) {
+	_, err := exec.LookPath("go")
+	if err != nil {
+		t.Skip("go not found in PATH, skipping integration test")
+	}
+
+	uc := usecase.NewExecuteCodeUseCase()
+	out, err := uc.Execute(context.Background(), usecase.ExecuteCodeInput{
+		Code: `package main
+
+import "fmt"
+
+func main() {
+	fmt.Println("Hello, World!")
+}
+`,
+		Language: "go",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "Hello, World!\n", out.Stdout)
+	assert.Equal(t, 0, out.ExitCode)
+}
+
+func TestExecuteCodeUseCase_Go_RejectsMissingPackageMain(t *testing.T) {
+	uc := usecase.NewExecuteCodeUseCase()
+	out, err := uc.Execute(context.Background(), usecase.ExecuteCodeInput{
+		Code:     `fmt.Println("hi")`,
+		Language: "go",
+	})
+	require.NoError(t, err)
+	assert.Empty(t, out.Stdout)
+	assert.NotEqual(t, 0, out.ExitCode)
+	assert.Contains(t, out.Stderr, "package main")
+}
+
+func TestExecuteCodeUseCase_Go_CompileError(t *testing.T) {
+	_, err := exec.LookPath("go")
+	if err != nil {
+		t.Skip("go not found in PATH")
+	}
+	uc := usecase.NewExecuteCodeUseCase()
+	out, err := uc.Execute(context.Background(), usecase.ExecuteCodeInput{
+		Code: `package main
+
+func main() {
+	undefinedFn()
+}
+`,
+		Language: "go",
+	})
+	require.NoError(t, err)
+	assert.NotEqual(t, 0, out.ExitCode)
+	// コンパイルエラーは stderr に出る
+	assert.NotEmpty(t, out.Stderr)
+}
+
+func TestExecuteCodeUseCase_Go_ReadsStdin(t *testing.T) {
+	_, err := exec.LookPath("go")
+	if err != nil {
+		t.Skip("go not found in PATH")
+	}
+	uc := usecase.NewExecuteCodeUseCase()
+	out, err := uc.Execute(context.Background(), usecase.ExecuteCodeInput{
+		Code: `package main
+
+import (
+	"bufio"
+	"fmt"
+	"os"
+)
+
+func main() {
+	scanner := bufio.NewScanner(os.Stdin)
+	if scanner.Scan() {
+		fmt.Println("got:", scanner.Text())
+	}
+}
+`,
+		Language: "go",
+		Stdin:    "hello\n",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "got: hello\n", out.Stdout)
+	assert.Equal(t, 0, out.ExitCode)
+}

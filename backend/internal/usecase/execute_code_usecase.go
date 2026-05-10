@@ -15,8 +15,13 @@ import (
 )
 
 const (
-	maxCodeBytes   = 64 * 1024 // 64 KB
-	execTimeout    = 8 * time.Second
+	maxCodeBytes = 64 * 1024 // 64 KB
+	// execTimeout は PHP / bash の デフォルト 上限。 起動 + 実行が ~ms オーダー。
+	execTimeout = 8 * time.Second
+	// goExecTimeout は Go 専用。 `go run` は コンパイル + リンク + 実行 が走るため、
+	// ECS Fargate の ephemeral storage I/O 遅さも勘案して 余裕を持たせる。
+	// production の cold compile は ~6-8s の実測がある。
+	goExecTimeout  = 15 * time.Second
 	maxOutputBytes = 64 * 1024 // 64 KB
 )
 
@@ -141,7 +146,8 @@ func (uc *ExecuteCodeUseCase) executeGo(ctx context.Context, input ExecuteCodeIn
 		return nil, fmt.Errorf("一時ファイルの作成に失敗: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, execTimeout)
+	// Go は コンパイル + 実行 が走るため timeout を 専用の 長めの値で取る。
+	ctx, cancel := context.WithTimeout(ctx, goExecTimeout)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "go", "run", filename)

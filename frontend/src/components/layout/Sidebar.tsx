@@ -105,15 +105,19 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
   const [expanded, setExpanded] = useState(true);
   // 管理サブメニューの開閉
   const [adminOpen, setAdminOpen] = useState(false);
-  // sidebar bottom のユーザーメニュー用 (アバター / 名前)
-  const [profile, setProfile] = useState<{ displayName: string; avatarUrl: string | null } | null>(null);
+  // sidebar bottom のユーザーメニュー用 (アバター / 名前 / email)
+  const [profile, setProfile] = useState<{ displayName: string; avatarUrl: string | null; email: string } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     ProfileRepository.fetchProfile()
       .then((p) => {
         if (cancelled) return;
-        setProfile({ displayName: p.displayName ?? '', avatarUrl: p.avatarUrl ?? null });
+        setProfile({
+          displayName: p.displayName ?? '',
+          avatarUrl: p.avatarUrl ?? null,
+          email: p.email ?? '',
+        });
       })
       .catch(() => { /* sidebar 表示が壊れない最低限のフォールバックは下で行う */ });
     return () => {
@@ -261,6 +265,7 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
             expanded={expanded}
             displayName={profile?.displayName ?? ''}
             avatarUrl={profile?.avatarUrl}
+            email={profile?.email ?? ''}
             subText={roleLabel(role)}
             onLogout={() => { onNavigate?.(); handleLogout(); }}
             onNavigate={onNavigate}

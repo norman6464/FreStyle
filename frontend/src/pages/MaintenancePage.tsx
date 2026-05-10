@@ -1,11 +1,3 @@
-import { useState } from 'react';
-import { ArrowPathIcon } from '@heroicons/react/24/outline';
-
-interface MaintenancePageProps {
-  /** 「再試行」ボタンが押されたときに呼ぶ。useBackendHealth.recheck を渡す。 */
-  onRetry: () => void;
-}
-
 /**
  * バックエンド停止時のメンテナンスページ。
  *
@@ -15,24 +7,13 @@ interface MaintenancePageProps {
  *   - 突発的な ECS 障害 / ALB 設定ミス / DNS 解決失敗
  *
  * 自動復帰: 親 (useBackendHealth) が 15 秒間隔で health を叩き続け、応答が
- * 返るようになった瞬間に App 側で `<Routes>` 表示に戻る。手動「再試行」ボタンは
- * その poll を待たずに即座に再チェックする。
+ * 返るようになった瞬間に App 側で `<Routes>` 表示に戻る。
+ * 「再試行」ボタン / 「定期メンテナンス時間帯」 案内カードは ユーザ要望で 削除済。
  */
-export default function MaintenancePage({ onRetry }: MaintenancePageProps) {
-  // 「再試行中…」を 1.5 秒程度表示してフィードバックを与える
-  const [retrying, setRetrying] = useState(false);
-
+export default function MaintenancePage() {
   // サポート連絡先は環境変数で注入。未設定時は連絡先行を出さない（プレースホルダ表示で混乱させないため）。
   const supportEmail = (import.meta.env.VITE_SUPPORT_EMAIL ?? '').trim();
 
-  const handleRetry = () => {
-    setRetrying(true);
-    onRetry();
-    window.setTimeout(() => setRetrying(false), 1500);
-  };
-
-  // 「定期メンテナンス時間帯」の案内カードは ユーザ要望で 削除。
-  // サーバ状態のみシンプルに知らせ、 再試行ボタンで 復帰を試みてもらう。
   return (
     <div className="min-h-screen flex items-center justify-center bg-[var(--color-surface-1)] px-6">
       <div className="max-w-lg w-full text-center">
@@ -48,24 +29,11 @@ export default function MaintenancePage({ onRetry }: MaintenancePageProps) {
         <h1 className="text-2xl font-bold text-[var(--color-text-primary)] mb-3">
           ただいまメンテナンス中です
         </h1>
-        <p className="text-sm text-[var(--color-text-muted)] leading-relaxed mb-6">
-          サーバが一時的にアクセスできない状態です。
+        <p className="text-sm text-[var(--color-text-muted)] leading-relaxed">
+          サーバーにアクセスできない状態です。
           <br />
           自動的に再接続を試みていますので、しばらくお待ちください。
         </p>
-
-        <button
-          type="button"
-          onClick={handleRetry}
-          disabled={retrying}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-500 text-white text-sm font-medium hover:bg-primary-600 transition-colors disabled:opacity-60 disabled:cursor-wait"
-        >
-          <ArrowPathIcon
-            className={`w-4 h-4 ${retrying ? 'animate-spin' : ''}`}
-            aria-hidden="true"
-          />
-          {retrying ? '再接続中...' : '再試行'}
-        </button>
 
         {supportEmail && (
           <p className="mt-8 text-xs text-[var(--color-text-faint)]">
@@ -83,4 +51,3 @@ export default function MaintenancePage({ onRetry }: MaintenancePageProps) {
     </div>
   );
 }
-

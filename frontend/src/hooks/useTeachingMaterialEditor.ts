@@ -7,7 +7,7 @@ interface Args {
   selected: TeachingMaterial | null;
   update: (
     id: number,
-    payload: { title: string; content: string; isPublished: boolean },
+    payload: { title: string; content: string; orderInCourse: number; isPublished: boolean },
   ) => Promise<void>;
 }
 
@@ -46,17 +46,22 @@ export function useTeachingMaterialEditor({ selectedId, selected, update }: Args
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       setSaveStatus('unsaved');
       saveTimerRef.current = setTimeout(async () => {
-        if (selectedId == null) return;
+        if (selectedId == null || !selected) return;
         setSaveStatus('saving');
         try {
-          await update(selectedId, { title, content, isPublished });
+          await update(selectedId, {
+            title,
+            content,
+            orderInCourse: selected.orderInCourse,
+            isPublished,
+          });
           setSaveStatus('saved');
         } catch {
           setSaveStatus('idle');
         }
       }, 800);
     },
-    [selectedId, update],
+    [selectedId, selected, update],
   );
 
   const handleTitleChange = useCallback(

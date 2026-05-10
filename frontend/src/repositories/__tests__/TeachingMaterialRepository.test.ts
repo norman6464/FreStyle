@@ -20,12 +20,6 @@ const mockedDelete = vi.mocked(apiClient.delete);
 describe('TeachingMaterialRepository', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('list は /api/v2/teaching-materials を GET する', async () => {
-    mockedGet.mockResolvedValue({ data: [] });
-    await TeachingMaterialRepository.list();
-    expect(mockedGet).toHaveBeenCalledWith('/api/v2/teaching-materials');
-  });
-
   it('get は ID 付きで GET する', async () => {
     mockedGet.mockResolvedValue({ data: { id: 5, title: 'X' } });
     const m = await TeachingMaterialRepository.get(5);
@@ -33,22 +27,36 @@ describe('TeachingMaterialRepository', () => {
     expect(m.id).toBe(5);
   });
 
-  it('create は POST する', async () => {
+  it('create は courseId を含めて POST する', async () => {
     mockedPost.mockResolvedValue({ data: { id: 1 } });
-    await TeachingMaterialRepository.create({ title: 'a', content: 'b', isPublished: true });
-    expect(mockedPost).toHaveBeenCalledWith('/api/v2/teaching-materials', {
+    await TeachingMaterialRepository.create({
+      courseId: 5,
       title: 'a',
       content: 'b',
+      orderInCourse: 100,
+      isPublished: true,
+    });
+    expect(mockedPost).toHaveBeenCalledWith('/api/v2/teaching-materials', {
+      courseId: 5,
+      title: 'a',
+      content: 'b',
+      orderInCourse: 100,
       isPublished: true,
     });
   });
 
   it('update は PUT する', async () => {
     mockedPut.mockResolvedValue({ data: { id: 1 } });
-    await TeachingMaterialRepository.update(1, { title: 'x', content: 'y', isPublished: false });
+    await TeachingMaterialRepository.update(1, {
+      title: 'x',
+      content: 'y',
+      orderInCourse: 110,
+      isPublished: false,
+    });
     expect(mockedPut).toHaveBeenCalledWith('/api/v2/teaching-materials/1', {
       title: 'x',
       content: 'y',
+      orderInCourse: 110,
       isPublished: false,
     });
   });

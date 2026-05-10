@@ -533,18 +533,40 @@ export interface MasterExerciseDetail {
 }
 
 /**
- * TeachingMaterial は Go backend `domain.TeachingMaterial` と 1:1。
- * company_admin が自社 trainee 向けに作る Markdown 教材。
+ * Course は教材を束ねる「コース（プロジェクト）」。 backend `domain.Course` と 1:1。
+ *
+ * 階層: Company 1 ── * Course 1 ── * TeachingMaterial
  *
  * - company_admin: 自社の draft 含む全件 list / 編集 / 削除可
- * - trainee: 自社の `isPublished=true` のみ閲覧可
+ * - trainee: 自社の `isPublished=true` コースのみ閲覧可
  */
-export interface TeachingMaterial {
+export interface Course {
   id: number;
   companyId: number;
   createdByUserId: number;
   title: string;
+  description: string;
+  sortOrder: number;
+  isPublished: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * TeachingMaterial は Go backend `domain.TeachingMaterial` と 1:1。
+ * 必ず 1 つの Course に所属する Markdown 教材。
+ *
+ * - company_admin: 自社の draft 含む全件 list / 編集 / 削除可
+ * - trainee: 自社の `isPublished=true` 教材かつ所属コース published のみ閲覧可
+ */
+export interface TeachingMaterial {
+  id: number;
+  companyId: number;
+  courseId: number;
+  createdByUserId: number;
+  title: string;
   content: string;
+  orderInCourse: number;
   isPublished: boolean;
   createdAt: string;
   updatedAt: string;

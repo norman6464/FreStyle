@@ -13,6 +13,9 @@ import { useEffect, useState, useCallback, useRef } from 'react';
  *   - 連続 2 回失敗で `'unhealthy'` → メンテナンス表示
  *   - 1 回でも成功すれば `'healthy'` → 通常表示
  *   - poll 間隔: 通常 60 秒、unhealthy の間は 15 秒に短縮して早く復旧検知
+ *   - 1 回でも失敗したら、 次回 poll を 2 秒後に前倒し。 これで DNS / ALB 落ちの
+ *     ようにバックエンド側が完全に居ない状況でも 最悪 ~12 秒 (5s timeout + 2s + 5s timeout)
+ *     でメンテナンス表示に切り替わる (DNS 即失敗なら ~2 秒)
  *   - timeout は 5 秒（ALB が無い時の DNS / connection 失敗を待ちすぎないため）
  *   - 単体の transient エラーで誤って「メンテナンス」表示にしないように
  *     2 回しきい値を採用
@@ -29,6 +32,9 @@ const HEALTH_PATH = '/api/v2/health';
 const TIMEOUT_MS = 5_000;
 const POLL_INTERVAL_HEALTHY_MS = 60_000;
 const POLL_INTERVAL_UNHEALTHY_MS = 15_000;
+// 1 回失敗したあとは 「メンテナンス確定 (= 連続失敗) 判定」 を急ぐため、
+// 通常 60 秒間隔を待たずに 2 秒で再試行する。
+const POLL_INTERVAL_AFTER_FAILURE_MS = 2_000;
 const FAILURE_THRESHOLD = 2;
 
 export function useBackendHealth(): UseBackendHealthResult {
@@ -76,7 +82,16 @@ export function useBackendHealth(): UseBackendHealthResult {
 
     const schedule = () => {
       if (cancelledRef.current) return;
-      const interval = statusRef.current === 'unhealthy' ? POLL_INTERVAL_UNHEALTHY_MS : POLL_INTERVAL_HEALTHY_MS;
+      let interval: number;
+      if (statusRef.current === 'unhealthy') {
+        interval = POLL_INTERVAL_UNHEALTHY_MS;
+      } else if (failureCountRef.current > 0) {
+        // 失敗カウントが 1 以上 = 「もう 1 回失敗したら unhealthy 確定」 状態。
+        // すぐに 2 回目を打って判定を早める。
+        interval = POLL_INTERVAL_AFTER_FAILURE_MS;
+      } else {
+        interval = POLL_INTERVAL_HEALTHY_MS;
+      }
       timer = setTimeout(async () => {
         await check();
         schedule();

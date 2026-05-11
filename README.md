@@ -466,9 +466,6 @@ npm run e2e:ui         # UI モードでデバッグ
 PLAYWRIGHT_BASE_URL=http://localhost:5173 npm run e2e   # ローカル dev server 経由
 ```
 
-- 認証前スモーク（SPA ロード / セキュリティヘッダー / CSP / API health / 認証 401 / SockJS 廃止確認）を **GitHub Actions の `E2E - Playwright Smoke` workflow** で push to main / PR / `workflow_dispatch` 時に実行
-- 詳細・運用手順・将来の認証付き E2E への拡張ガイドは [`norman6464/frestyle-infrastructure` の docs/17-e2e-playwright-runbook.md](https://github.com/norman6464/frestyle-infrastructure/blob/main/docs/17-e2e-playwright-runbook.md) を参照
-
 ---
 
 ## ライセンス

@@ -43,7 +43,7 @@ interface NavItem {
 const mainNavItems: NavItem[] = [
   { id: 'home', icon: HomeIcon, label: 'ホーム', to: '/', matchExact: true },
   { id: 'ai', icon: ChatBubbleBottomCenterTextIcon, label: 'AI', to: '/chat/ask-ai', matchPrefix: '/chat/ask-ai' },
-  { id: 'code', icon: CodeBracketIcon, label: 'コード学習', to: '/code-editor', matchPrefix: '/code-editor' },
+  { id: 'code', icon: CodeBracketIcon, label: '演習', to: '/code-editor', matchPrefix: '/code-editor' },
   { id: 'courses', icon: AcademicCapIcon, label: 'コース', to: '/courses', matchPrefix: '/courses' },
   { id: 'notes', icon: DocumentTextIcon, label: 'ノート', to: '/notes', matchPrefix: '/notes' },
   { id: 'notifications', icon: BellIcon, label: '通知', to: '/notifications', matchExact: true },

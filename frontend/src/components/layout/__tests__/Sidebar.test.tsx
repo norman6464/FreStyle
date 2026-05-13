@@ -54,7 +54,7 @@ describe('Sidebar', () => {
     renderSidebar();
     expect(screen.getByText('ホーム')).toBeDefined();
     expect(screen.getByText('AI')).toBeDefined();
-    expect(screen.getByText('コード学習')).toBeDefined();
+    expect(screen.getByText('演習')).toBeDefined();
     expect(screen.getByText('コース')).toBeDefined();
     expect(screen.getByText('ノート')).toBeDefined();
     expect(screen.getByText('レポート')).toBeDefined();
@@ -129,10 +129,10 @@ describe('Sidebar', () => {
     expect(screen.queryByText('管理')).toBeNull();
   });
 
-  it('super_admin には trainee 向けメニュー (AI / コード学習 / ノート / レポート / コース) が表示されない', () => {
+  it('super_admin には trainee 向けメニュー (AI / 演習 / ノート / レポート / コース) が表示されない', () => {
     renderSidebar('/', true, 'super_admin');
     expect(screen.queryByText('AI')).toBeNull();
-    expect(screen.queryByText('コード学習')).toBeNull();
+    expect(screen.queryByText('演習')).toBeNull();
     expect(screen.queryByText('ノート')).toBeNull();
     expect(screen.queryByText('レポート')).toBeNull();
     expect(screen.queryByText('コース')).toBeNull();
@@ -145,7 +145,7 @@ describe('Sidebar', () => {
   it('company_admin には trainee 向けメニューも表示される', () => {
     renderSidebar('/', true, 'company_admin');
     expect(screen.getByText('AI')).toBeInTheDocument();
-    expect(screen.getByText('コード学習')).toBeInTheDocument();
+    expect(screen.getByText('演習')).toBeInTheDocument();
     expect(screen.getByText('ノート')).toBeInTheDocument();
     expect(screen.getByText('レポート')).toBeInTheDocument();
     expect(screen.getByText('管理')).toBeInTheDocument();

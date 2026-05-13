@@ -133,13 +133,18 @@ export default function ExerciseDetailPage() {
           <div>
             <button
               onClick={() => setShowHint((v) => !v)}
+              aria-expanded={showHint}
+              aria-controls="exercise-hint-panel"
               className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] flex items-center gap-1"
             >
               {showHint ? <ChevronUpIcon className="w-3.5 h-3.5" /> : <ChevronDownIcon className="w-3.5 h-3.5" />}
               ヒントを{showHint ? '隠す' : '見る'}
             </button>
             {showHint && (
-              <div className="mt-2 p-3 bg-blue-500/10 border border-blue-500/20 rounded-md text-xs text-[var(--color-text-primary)] whitespace-pre-wrap">
+              <div
+                id="exercise-hint-panel"
+                className="mt-2 p-3 bg-blue-500/10 border border-blue-500/20 rounded-md text-xs text-[var(--color-text-primary)] whitespace-pre-wrap"
+              >
                 {ex.hintText}
               </div>
             )}

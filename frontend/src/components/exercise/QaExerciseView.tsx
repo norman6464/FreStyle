@@ -54,13 +54,21 @@ export default function QaExerciseView({
       <ExerciseHeader exercise={ex} submitResult={submitResult} />
 
       {isCorrect && (
-        <div className="rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-3 flex items-center gap-2 text-sm text-green-400">
+        <div
+          role="status"
+          aria-live="polite"
+          className="rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-3 flex items-center gap-2 text-sm text-green-400"
+        >
           <CheckCircleIcon className="w-5 h-5 flex-shrink-0" />
           正解です。 詳細については下の解説を確認してください。
         </div>
       )}
       {submitResult && !isCorrect && (
-        <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 flex items-center gap-2 text-sm text-red-400">
+        <div
+          role="status"
+          aria-live="polite"
+          className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 flex items-center gap-2 text-sm text-red-400"
+        >
           <XCircleIcon className="w-5 h-5 flex-shrink-0" />
           不正解です。 もう一度入力してください。
         </div>
@@ -110,7 +118,7 @@ export default function QaExerciseView({
             </button>
           </div>
           {submitError && (
-            <p className="text-xs text-red-400">{submitError}</p>
+            <p role="alert" className="text-xs text-red-400">{submitError}</p>
           )}
         </form>
       </section>

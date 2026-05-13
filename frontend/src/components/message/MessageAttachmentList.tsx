@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 /**
  * 自分のメッセージに添付された画像 / ドキュメントの参照（送信中の Object URL も許容）。
  * MessageBubble 内では画像のみインラインプレビュー、それ以外はファイル名カードに落とす。
@@ -21,18 +23,31 @@ export interface MessageAttachmentView {
  *
  * 画像は max-w 240px のサムネで横並び（Object URL でローカル送信中も表示できる）。
  * 画像以外（PR-G2 で増える PDF / CSV）は filename カードのフォールバック。
+ *
+ * 画像 読み込み 失敗 (= URL 失効 / 不正 / network エラー) 時 は、 ブラウザ の 壊れた
+ * アイコン ではなく **同 様 の ファイル名 カード** に 落として 体験 を 整える。
  */
 export default function MessageAttachmentList({ attachments }: { attachments: MessageAttachmentView[] }) {
+  const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
+
   return (
     <div className="flex flex-wrap gap-2 justify-end" aria-label="添付ファイル">
       {attachments.map((a) => {
         const src = a.url ?? a.previewUrl;
-        if (a.kind === 'image' && src) {
+        if (a.kind === 'image' && src && !failedImages.has(a.key)) {
           return (
             <img
               key={a.key}
               src={src}
               alt={a.filename}
+              onError={() => {
+                setFailedImages((prev) => {
+                  if (prev.has(a.key)) return prev;
+                  const next = new Set(prev);
+                  next.add(a.key);
+                  return next;
+                });
+              }}
               className="max-w-[240px] max-h-[240px] rounded-lg object-cover border border-[var(--color-surface-3)]"
             />
           );

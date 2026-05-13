@@ -1,4 +1,4 @@
-import { ReactNode, useMemo, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { ClipboardDocumentCheckIcon, ClipboardDocumentIcon } from '@heroicons/react/24/outline';
 import { extractLanguage, extractTextContent } from '../../utils/markdownContent';
 
@@ -23,6 +23,10 @@ import { extractLanguage, extractTextContent } from '../../utils/markdownContent
  */
 export default function CodeBlock({ children }: { children: ReactNode }) {
   const [copied, setCopied] = useState(false);
+  // setTimeout id を ref で 保持し、 再 コピー / アン マウント 時 に clear する。
+  // ref を 使わ ない と 「コピー 直後 に メッセージ が DOM から 消えた」 ケースで
+  // setState on unmounted component の warning が 出る + リーク に なる。
+  const copyTimeoutRef = useRef<number | null>(null);
 
   const language = useMemo(() => extractLanguage(children), [children]);
   const rawCode = useMemo(
@@ -30,12 +34,28 @@ export default function CodeBlock({ children }: { children: ReactNode }) {
     [children]
   );
 
+  // アン マウント 時 に 残った timeout を 確実 に clear。
+  useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current !== null) {
+        window.clearTimeout(copyTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const handleCopy = async () => {
     if (!rawCode) return;
     try {
       await navigator.clipboard.writeText(rawCode);
       setCopied(true);
-      window.setTimeout(() => setCopied(false), 1500);
+      // 連続 クリック で 前回 の timer が 残ら ない よう 先 に clear。
+      if (copyTimeoutRef.current !== null) {
+        window.clearTimeout(copyTimeoutRef.current);
+      }
+      copyTimeoutRef.current = window.setTimeout(() => {
+        setCopied(false);
+        copyTimeoutRef.current = null;
+      }, 1500);
     } catch {
       // clipboard API はブラウザ設定 / HTTP 環境で拒否されることがある。
       // エラーは握りつぶし、ユーザーには反応なしのままにする（壊れた挙動より無反応の方が安全）。

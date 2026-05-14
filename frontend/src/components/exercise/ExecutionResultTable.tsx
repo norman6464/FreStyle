@@ -1,3 +1,4 @@
+import { CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline';
 import { CodeExecutionResult } from '../../types';
 import { normalizeOutput } from '../../utils/exerciseFormat';
 
@@ -10,6 +11,10 @@ interface Props {
 /**
  * 提出前 動作 確認 (= 単発 実行) の 結果 を テーブル 形式 で 表示。
  * stdout / stderr / 期待 出力 を 並列 で 見せて、 末尾 で 「期待値 一致 / 不一致」 を バナー 表示。
+ *
+ * 「実行 ステータス」 は exit code に 応じて 色 + アイコン を 付ける:
+ *   - exit 0 → 緑 + ✓ (Success) で 「コンパイル / 実行 は 通った」 を 視覚 化
+ *   - exit != 0 → 赤 + ✗ (Failure) で 「コンパイル or 実行 で 失敗 した」 を 強調
  */
 export default function ExecutionResultTable({ result, expected, submitError }: Props) {
   if (submitError) {
@@ -21,8 +26,8 @@ export default function ExecutionResultTable({ result, expected, submitError }: 
   }
   if (!result) return null;
 
-  const status = result.exitCode === 0 ? 'Success' : `Failure (exit ${result.exitCode})`;
-  const matched = result.exitCode === 0 && normalizeOutput(result.stdout) === normalizeOutput(expected);
+  const isSuccess = result.exitCode === 0;
+  const matched = isSuccess && normalizeOutput(result.stdout) === normalizeOutput(expected);
 
   return (
     <div className="rounded-lg border border-surface-3 bg-surface-1 overflow-hidden">
@@ -32,7 +37,19 @@ export default function ExecutionResultTable({ result, expected, submitError }: 
             <th className="text-left px-4 py-2 font-medium text-[var(--color-text-muted)] bg-surface-2 w-1/3">
               実行結果ステータス
             </th>
-            <td className="px-4 py-2 text-[var(--color-text-primary)]">{status}</td>
+            <td className="px-4 py-2">
+              {isSuccess ? (
+                <span className="inline-flex items-center gap-1 font-semibold text-green-400">
+                  <CheckCircleIcon className="w-4 h-4" />
+                  Success
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 font-semibold text-red-400">
+                  <XCircleIcon className="w-4 h-4" />
+                  Failure (exit {result.exitCode})
+                </span>
+              )}
+            </td>
           </tr>
           <tr className="border-b border-surface-3">
             <th className="text-left px-4 py-2 font-medium text-[var(--color-text-muted)] bg-surface-2 align-top">

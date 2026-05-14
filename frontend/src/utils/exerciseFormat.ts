@@ -29,7 +29,10 @@ export function normalizeOutput(s: string): string {
   return s.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/[\s]+$/, '');
 }
 
-/** 1 桁数値を 0 埋めの 2 桁文字列にする。日時表示用。 */
+/**
+ * 数値 を 最小 2 桁 の 0 埋め 文字列 に する。 日時 表示 用。
+ * 例: `pad(3)` → `"03"`、 `pad(12)` → `"12"`、 `pad(123)` → `"123"` (3 桁 以上 は そのまま)。
+ */
 export function pad(n: number): string {
   return String(n).padStart(2, '0');
 }

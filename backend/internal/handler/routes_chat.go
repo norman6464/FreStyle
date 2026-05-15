@@ -5,15 +5,16 @@ import (
 	"log"
 
 	"github.com/gin-gonic/gin"
+	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	infraS3 "github.com/norman6464/FreStyle/backend/internal/infra/s3"
-	"github.com/norman6464/FreStyle/backend/internal/legacyrepository"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
 // registerChatRoutes は AI チャットセッションの REST + SSE エンドポイントを登録する。
 // WebSocket は registerWebSocketRoutes 側で別途登録する（SSE 移行完了まで並行運用）。
 func registerChatRoutes(g *gin.RouterGroup, deps *routeDeps) {
-	aiSessionRepo := legacyrepository.NewAiChatSessionRepository(deps.db)
+	aiSessionRepo := persistence.NewAiChatSessionRepository(deps.db)
 	aiHandler := NewAiChatHandler(
 		usecase.NewGetAiChatSessionsByUserIDUseCase(aiSessionRepo),
 		usecase.NewCreateAiChatSessionUseCase(aiSessionRepo),
@@ -53,18 +54,18 @@ func registerChatRoutes(g *gin.RouterGroup, deps *routeDeps) {
 
 // newAiChatAttachmentPresignerOrFallback は本番経路では infra/s3.Presigner を、
 // dev / NOTE_IMAGES_BUCKET 未設定時は stub presigner を返す。Note 系と同じ fail open。
-func newAiChatAttachmentPresignerOrFallback(deps *routeDeps) legacyrepository.AiChatAttachmentPresigner {
+func newAiChatAttachmentPresignerOrFallback(deps *routeDeps) repository.AiChatAttachmentPresigner {
 	bucket := deps.cfg.S3.NoteImagesBucket
 	if bucket == "" {
 		log.Printf("[ai-chat-attachment] NOTE_IMAGES_BUCKET unset — using stub presigner (DEV)")
-		return legacyrepository.NewStubAiChatAttachmentPresigner("stub-bucket")
+		return persistence.NewStubAiChatAttachmentPresigner("stub-bucket")
 	}
 	pre, err := infraS3.NewPresigner(context.Background(), deps.cfg.S3.Region, bucket)
 	if err != nil {
 		log.Printf("[ai-chat-attachment] failed to init S3 presigner (%v) — falling back to stub", err)
-		return legacyrepository.NewStubAiChatAttachmentPresigner(bucket)
+		return persistence.NewStubAiChatAttachmentPresigner(bucket)
 	}
-	return legacyrepository.NewAiChatAttachmentPresigner(pre)
+	return persistence.NewAiChatAttachmentPresigner(pre)
 }
 
 // newAiChatAttachmentDownloaderOrNil は本番では S3 GetObject downloader を返す。

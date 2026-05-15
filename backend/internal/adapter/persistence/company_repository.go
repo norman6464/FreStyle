@@ -1,20 +1,18 @@
-package legacyrepository
+package persistence
 
 import (
 	"context"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"gorm.io/gorm"
 )
 
-type CompanyRepository interface {
-	ListAll(ctx context.Context) ([]domain.Company, error)
-	FindByID(ctx context.Context, id uint64) (*domain.Company, error)
-}
-
+// companyRepository は [repository.CompanyRepository] の GORM 実装。
 type companyRepository struct{ db *gorm.DB }
 
-func NewCompanyRepository(db *gorm.DB) CompanyRepository {
+// NewCompanyRepository は GORM ベース の [repository.CompanyRepository] を 返す。
+func NewCompanyRepository(db *gorm.DB) repository.CompanyRepository {
 	return &companyRepository{db: db}
 }
 

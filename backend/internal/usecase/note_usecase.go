@@ -5,16 +5,16 @@ import (
 	"errors"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/legacyrepository"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
 var ErrNoteForbidden = errors.New("forbidden")
 
 type ListNotesByUserIDUseCase struct {
-	repo legacyrepository.NoteRepository
+	repo repository.NoteRepository
 }
 
-func NewListNotesByUserIDUseCase(r legacyrepository.NoteRepository) *ListNotesByUserIDUseCase {
+func NewListNotesByUserIDUseCase(r repository.NoteRepository) *ListNotesByUserIDUseCase {
 	return &ListNotesByUserIDUseCase{repo: r}
 }
 
@@ -26,10 +26,10 @@ func (u *ListNotesByUserIDUseCase) Execute(ctx context.Context, userID uint64) (
 }
 
 type CreateNoteUseCase struct {
-	repo legacyrepository.NoteRepository
+	repo repository.NoteRepository
 }
 
-func NewCreateNoteUseCase(r legacyrepository.NoteRepository) *CreateNoteUseCase {
+func NewCreateNoteUseCase(r repository.NoteRepository) *CreateNoteUseCase {
 	return &CreateNoteUseCase{repo: r}
 }
 
@@ -62,10 +62,10 @@ func (u *CreateNoteUseCase) Execute(ctx context.Context, in CreateNoteInput) (*d
 }
 
 type UpdateNoteUseCase struct {
-	repo legacyrepository.NoteRepository
+	repo repository.NoteRepository
 }
 
-func NewUpdateNoteUseCase(r legacyrepository.NoteRepository) *UpdateNoteUseCase {
+func NewUpdateNoteUseCase(r repository.NoteRepository) *UpdateNoteUseCase {
 	return &UpdateNoteUseCase{repo: r}
 }
 
@@ -105,10 +105,10 @@ func (u *UpdateNoteUseCase) Execute(ctx context.Context, in UpdateNoteInput) (*d
 }
 
 type DeleteNoteUseCase struct {
-	repo legacyrepository.NoteRepository
+	repo repository.NoteRepository
 }
 
-func NewDeleteNoteUseCase(r legacyrepository.NoteRepository) *DeleteNoteUseCase {
+func NewDeleteNoteUseCase(r repository.NoteRepository) *DeleteNoteUseCase {
 	return &DeleteNoteUseCase{repo: r}
 }
 

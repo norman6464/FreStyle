@@ -6,14 +6,14 @@ import (
 	"time"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/legacyrepository"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
 type ListLearningReportsUseCase struct {
-	repo legacyrepository.LearningReportRepository
+	repo repository.LearningReportRepository
 }
 
-func NewListLearningReportsUseCase(r legacyrepository.LearningReportRepository) *ListLearningReportsUseCase {
+func NewListLearningReportsUseCase(r repository.LearningReportRepository) *ListLearningReportsUseCase {
 	return &ListLearningReportsUseCase{repo: r}
 }
 
@@ -25,11 +25,11 @@ func (u *ListLearningReportsUseCase) Execute(ctx context.Context, userID uint64)
 }
 
 type RequestLearningReportUseCase struct {
-	repo  legacyrepository.LearningReportRepository
-	queue legacyrepository.SqsEnqueuer
+	repo  repository.LearningReportRepository
+	queue repository.SqsEnqueuer
 }
 
-func NewRequestLearningReportUseCase(r legacyrepository.LearningReportRepository, q legacyrepository.SqsEnqueuer) *RequestLearningReportUseCase {
+func NewRequestLearningReportUseCase(r repository.LearningReportRepository, q repository.SqsEnqueuer) *RequestLearningReportUseCase {
 	return &RequestLearningReportUseCase{repo: r, queue: q}
 }
 

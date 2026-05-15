@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/infra/bedrock"
-	"github.com/norman6464/FreStyle/backend/internal/legacyrepository"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
 // StreamingBedrockClient は Bedrock の streaming 呼び出し抽象。
@@ -44,15 +44,15 @@ type StreamEvent struct {
 // SendAiMessageStreamUseCase は WebSocket 版 (SendAiMessageUseCase) の streaming 版。
 // 互換のため両方を残し、フロントが対応した順から SSE に切り替える。
 type SendAiMessageStreamUseCase struct {
-	sessions      legacyrepository.AiChatSessionRepository
-	messages      legacyrepository.AiChatMessageRepository
+	sessions      repository.AiChatSessionRepository
+	messages      repository.AiChatMessageRepository
 	bedrockClient StreamingBedrockClient
 	attachments   AttachmentDownloader
 }
 
 func NewSendAiMessageStreamUseCase(
-	sessions legacyrepository.AiChatSessionRepository,
-	messages legacyrepository.AiChatMessageRepository,
+	sessions repository.AiChatSessionRepository,
+	messages repository.AiChatMessageRepository,
 	bc StreamingBedrockClient,
 	dl AttachmentDownloader,
 ) *SendAiMessageStreamUseCase {

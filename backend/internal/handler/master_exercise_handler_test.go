@@ -9,8 +9,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/legacyrepository"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"gorm.io/gorm"
 )
 
@@ -29,11 +29,11 @@ func (fakeSubmissionRepoForList) HasAttempted(uint64, uint64, string) (bool, err
 func (fakeSubmissionRepoForList) BatchUserStatuses(uint64, []uint64, string) (map[uint64]string, error) {
 	return map[uint64]string{}, nil
 }
-func (fakeSubmissionRepoForList) ExerciseStats(uint64, string) (legacyrepository.ExerciseSubmissionStats, error) {
-	return legacyrepository.ExerciseSubmissionStats{}, nil
+func (fakeSubmissionRepoForList) ExerciseStats(uint64, string) (repository.ExerciseSubmissionStats, error) {
+	return repository.ExerciseSubmissionStats{}, nil
 }
-func (fakeSubmissionRepoForList) ExerciseStatsBatch([]uint64, string) (map[uint64]legacyrepository.ExerciseSubmissionStats, error) {
-	return map[uint64]legacyrepository.ExerciseSubmissionStats{}, nil
+func (fakeSubmissionRepoForList) ExerciseStatsBatch([]uint64, string) (map[uint64]repository.ExerciseSubmissionStats, error) {
+	return map[uint64]repository.ExerciseSubmissionStats{}, nil
 }
 
 // fakeMasterExerciseRepo は MasterExerciseRepository の最小スタブ。

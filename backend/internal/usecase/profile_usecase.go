@@ -5,14 +5,14 @@ import (
 	"errors"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/legacyrepository"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
 type GetProfileUseCase struct {
-	profiles legacyrepository.ProfileRepository
+	profiles repository.ProfileRepository
 }
 
-func NewGetProfileUseCase(p legacyrepository.ProfileRepository) *GetProfileUseCase {
+func NewGetProfileUseCase(p repository.ProfileRepository) *GetProfileUseCase {
 	return &GetProfileUseCase{profiles: p}
 }
 
@@ -24,10 +24,10 @@ func (u *GetProfileUseCase) Execute(ctx context.Context, userID uint64) (*domain
 }
 
 type UpdateProfileUseCase struct {
-	profiles legacyrepository.ProfileRepository
+	profiles repository.ProfileRepository
 }
 
-func NewUpdateProfileUseCase(p legacyrepository.ProfileRepository) *UpdateProfileUseCase {
+func NewUpdateProfileUseCase(p repository.ProfileRepository) *UpdateProfileUseCase {
 	return &UpdateProfileUseCase{profiles: p}
 }
 

@@ -1,25 +1,18 @@
-package legacyrepository
+package persistence
 
 import (
 	"context"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"gorm.io/gorm"
 )
 
-type NoteRepository interface {
-	ListByUserID(ctx context.Context, userID uint64) ([]domain.Note, error)
-	FindByID(ctx context.Context, id uint64) (*domain.Note, error)
-	Create(ctx context.Context, n *domain.Note) error
-	Update(ctx context.Context, n *domain.Note) error
-	// Delete は所有者検証込みで note を削除する。
-	// WHERE で user_id を絞って他人の note を消せないようにする。
-	Delete(ctx context.Context, userID, id uint64) error
-}
-
+// noteRepository は [repository.NoteRepository] の GORM 実装。
 type noteRepository struct{ db *gorm.DB }
 
-func NewNoteRepository(db *gorm.DB) NoteRepository { return &noteRepository{db: db} }
+// NewNoteRepository は GORM ベース の [repository.NoteRepository] を 返す。
+func NewNoteRepository(db *gorm.DB) repository.NoteRepository { return &noteRepository{db: db} }
 
 func (r *noteRepository) ListByUserID(ctx context.Context, userID uint64) ([]domain.Note, error) {
 	var rows []domain.Note

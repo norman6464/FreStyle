@@ -1,4 +1,4 @@
-package legacyrepository
+package persistence
 
 import (
 	"context"
@@ -12,22 +12,18 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	dbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// AiChatMessageRepository は DynamoDB 上の AI チャットメッセージへのアクセスを提供する。
-// PK: sessionId (String)、SK: messageId (UUID String)
-type AiChatMessageRepository interface {
-	Save(ctx context.Context, msg *domain.AiChatMessage) error
-	ListBySessionID(ctx context.Context, sessionID uint64) ([]domain.AiChatMessage, error)
-}
-
+// aiChatMessageRepository は [repository.AiChatMessageRepository] の DynamoDB 実装。
 type aiChatMessageRepository struct {
 	svc   *dynamodb.Client
 	table string
 }
 
-// NewAiChatMessageRepository は DynamoDB クライアントを組み立てて repository を返す。
-func NewAiChatMessageRepository(ctx context.Context, region, table string) (AiChatMessageRepository, error) {
+// NewAiChatMessageRepository は DynamoDB クライアントを組み立てて
+// [repository.AiChatMessageRepository] を 返す。
+func NewAiChatMessageRepository(ctx context.Context, region, table string) (repository.AiChatMessageRepository, error) {
 	cfg, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(region))
 	if err != nil {
 		return nil, fmt.Errorf("dynamodb: load aws config: %w", err)

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/legacyrepository"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
 // CodeExecutor は ExecuteCodeUseCase を抽象化したインターフェイス。
@@ -57,16 +57,16 @@ type SubmitMasterExerciseOutput struct {
 //
 // 履歴保存はテストケース個別ではなく、まとめて 1 行（最初に失敗した stdout / stderr / exit_code を採用）。
 type SubmitMasterExerciseUseCase struct {
-	exercises   legacyrepository.MasterExerciseRepository
-	examples    legacyrepository.MasterExerciseExampleRepository
-	submissions legacyrepository.ExerciseSubmissionRepository
+	exercises   repository.MasterExerciseRepository
+	examples    repository.MasterExerciseExampleRepository
+	submissions repository.ExerciseSubmissionRepository
 	executor    CodeExecutor
 }
 
 func NewSubmitMasterExerciseUseCase(
-	exercises legacyrepository.MasterExerciseRepository,
-	examples legacyrepository.MasterExerciseExampleRepository,
-	submissions legacyrepository.ExerciseSubmissionRepository,
+	exercises repository.MasterExerciseRepository,
+	examples repository.MasterExerciseExampleRepository,
+	submissions repository.ExerciseSubmissionRepository,
 	executor CodeExecutor,
 ) *SubmitMasterExerciseUseCase {
 	return &SubmitMasterExerciseUseCase{

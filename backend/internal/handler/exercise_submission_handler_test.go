@@ -10,8 +10,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/legacyrepository"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
 // fakeFullSubmissionRepo は提出ハンドラの統合テスト用フェイク。
@@ -43,10 +43,10 @@ func (r *fakeFullSubmissionRepo) HasAttempted(uint64, uint64, string) (bool, err
 func (r *fakeFullSubmissionRepo) BatchUserStatuses(uint64, []uint64, string) (map[uint64]string, error) {
 	return nil, nil
 }
-func (r *fakeFullSubmissionRepo) ExerciseStats(uint64, string) (legacyrepository.ExerciseSubmissionStats, error) {
-	return legacyrepository.ExerciseSubmissionStats{}, nil
+func (r *fakeFullSubmissionRepo) ExerciseStats(uint64, string) (repository.ExerciseSubmissionStats, error) {
+	return repository.ExerciseSubmissionStats{}, nil
 }
-func (r *fakeFullSubmissionRepo) ExerciseStatsBatch([]uint64, string) (map[uint64]legacyrepository.ExerciseSubmissionStats, error) {
+func (r *fakeFullSubmissionRepo) ExerciseStatsBatch([]uint64, string) (map[uint64]repository.ExerciseSubmissionStats, error) {
 	return nil, nil
 }
 

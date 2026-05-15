@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/legacyrepository"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
 // CourseUseCase はコース機能の操作（list / get / create / update / delete）を
@@ -18,11 +18,11 @@ import (
 //   - Create / Update / Delete: 同一 company の company_admin、 または super_admin
 //   - Delete: コース内の教材も同時に削除する（cascade）
 type CourseUseCase struct {
-	courses   legacyrepository.CourseRepository
-	materials legacyrepository.TeachingMaterialRepository
+	courses   repository.CourseRepository
+	materials repository.TeachingMaterialRepository
 }
 
-func NewCourseUseCase(courses legacyrepository.CourseRepository, materials legacyrepository.TeachingMaterialRepository) *CourseUseCase {
+func NewCourseUseCase(courses repository.CourseRepository, materials repository.TeachingMaterialRepository) *CourseUseCase {
 	return &CourseUseCase{courses: courses, materials: materials}
 }
 

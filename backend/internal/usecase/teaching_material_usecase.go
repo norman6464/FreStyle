@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/legacyrepository"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
 // TeachingMaterialUseCase は教材機能の 5 操作（list / get / create / update / delete）を
@@ -21,11 +21,11 @@ import (
 //   - Get: 同一 company か super_admin、 trainee は published のみ閲覧可
 //   - Create / Update / Delete: 同一 company の company_admin、 または super_admin
 type TeachingMaterialUseCase struct {
-	repo    legacyrepository.TeachingMaterialRepository
-	courses legacyrepository.CourseRepository
+	repo    repository.TeachingMaterialRepository
+	courses repository.CourseRepository
 }
 
-func NewTeachingMaterialUseCase(repo legacyrepository.TeachingMaterialRepository, courses legacyrepository.CourseRepository) *TeachingMaterialUseCase {
+func NewTeachingMaterialUseCase(repo repository.TeachingMaterialRepository, courses repository.CourseRepository) *TeachingMaterialUseCase {
 	return &TeachingMaterialUseCase{repo: repo, courses: courses}
 }
 

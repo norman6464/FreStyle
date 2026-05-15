@@ -1,4 +1,4 @@
-package legacyrepository
+package persistence
 
 import (
 	"context"
@@ -7,19 +7,11 @@ import (
 	"time"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// ProfileImagePresigner は profile アイコン用 S3 PUT 署名付き URL を発行する。
-type ProfileImagePresigner interface {
-	Generate(ctx context.Context, userID uint64, fileName, contentType string) (*domain.ProfileImageUploadURL, error)
-}
-
-// s3Presigner は infra/s3.Presigner と同等の interface を minimal に切り出した型。
-// repository が infra/s3 パッケージに直接依存しないよう dep direction を反転 (依存性逆転原則)。
-type s3Presigner interface {
-	PresignPut(ctx context.Context, key, contentType string) (url string, ttl time.Duration, err error)
-}
-
+// profileImagePresigner は [repository.ProfileImagePresigner] を 満たす S3 プレゼンタ。
+// profiles/{userId}/{epochNs}{ext} 形式 の キー で PUT URL を 発行 する。
 type profileImagePresigner struct {
 	pre    s3Presigner
 	cdnURL string
@@ -27,13 +19,13 @@ type profileImagePresigner struct {
 
 // NewProfileImagePresigner は infra/s3.Presigner を受けて real な presigner を返す。
 // cdnURL は配信用ベース URL (CloudFront / S3 virtual-hosted-style)。
-func NewProfileImagePresigner(p s3Presigner, cdnURL string) ProfileImagePresigner {
+func NewProfileImagePresigner(p s3Presigner, cdnURL string) repository.ProfileImagePresigner {
 	return &profileImagePresigner{pre: p, cdnURL: strings.TrimRight(cdnURL, "/")}
 }
 
 // NewStubProfileImagePresigner は test / dev 用の stub。
 // 本番では NewProfileImagePresigner(infra/s3.NewPresigner(...), cdnURL) を使う。
-func NewStubProfileImagePresigner(bucket, cdnURL string) ProfileImagePresigner {
+func NewStubProfileImagePresigner(bucket, cdnURL string) repository.ProfileImagePresigner {
 	return &profileImagePresigner{
 		pre:    &stubPresigner{bucket: bucket},
 		cdnURL: strings.TrimRight(cdnURL, "/"),

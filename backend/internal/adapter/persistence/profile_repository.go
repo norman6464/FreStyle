@@ -1,21 +1,21 @@
-package legacyrepository
+package persistence
 
 import (
 	"context"
 	"errors"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"gorm.io/gorm"
 )
 
-type ProfileRepository interface {
-	FindByUserID(ctx context.Context, userID uint64) (*domain.Profile, error)
-	Upsert(ctx context.Context, p *domain.Profile) error
-}
-
+// profileRepository は [repository.ProfileRepository] の GORM 実装。
 type profileRepository struct{ db *gorm.DB }
 
-func NewProfileRepository(db *gorm.DB) ProfileRepository { return &profileRepository{db: db} }
+// NewProfileRepository は GORM ベース の [repository.ProfileRepository] を 返す。
+func NewProfileRepository(db *gorm.DB) repository.ProfileRepository {
+	return &profileRepository{db: db}
+}
 
 func (r *profileRepository) FindByUserID(ctx context.Context, userID uint64) (*domain.Profile, error) {
 	var p domain.Profile

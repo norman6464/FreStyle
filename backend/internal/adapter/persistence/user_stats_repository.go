@@ -1,19 +1,20 @@
-package legacyrepository
+package persistence
 
 import (
 	"context"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"gorm.io/gorm"
 )
 
-type UserStatsRepository interface {
-	Compute(ctx context.Context, userID uint64) (*domain.UserStats, error)
-}
-
+// userStatsRepository は [repository.UserStatsRepository] の GORM 実装。
 type userStatsRepository struct{ db *gorm.DB }
 
-func NewUserStatsRepository(db *gorm.DB) UserStatsRepository { return &userStatsRepository{db: db} }
+// NewUserStatsRepository は GORM ベース の [repository.UserStatsRepository] を 返す。
+func NewUserStatsRepository(db *gorm.DB) repository.UserStatsRepository {
+	return &userStatsRepository{db: db}
+}
 
 // Compute は ai_chat_sessions と score_cards から集計。
 // SQL は最小限に留め、追加のメトリクスは後続 PR で拡張する。

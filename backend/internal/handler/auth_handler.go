@@ -10,7 +10,6 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/infra/cognito"
 	"github.com/norman6464/FreStyle/backend/internal/infra/config"
-	"github.com/norman6464/FreStyle/backend/internal/legacyrepository"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
@@ -23,7 +22,7 @@ import (
 type AuthHandler struct {
 	getCurrentUser *usecase.GetCurrentUserUseCase
 	users          repository.UserRepository
-	invitations    legacyrepository.AdminInvitationRepository
+	invitations    repository.AdminInvitationRepository
 	cognitoCfg     *config.CognitoConfig
 	tokens         *cognito.TokenExchanger
 }
@@ -33,7 +32,7 @@ type AuthHandler struct {
 func NewAuthHandler(
 	getCurrentUser *usecase.GetCurrentUserUseCase,
 	users repository.UserRepository,
-	invitations legacyrepository.AdminInvitationRepository,
+	invitations repository.AdminInvitationRepository,
 	cognitoCfg *config.CognitoConfig,
 ) *AuthHandler {
 	return &AuthHandler{

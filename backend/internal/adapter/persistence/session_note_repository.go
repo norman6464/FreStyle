@@ -1,21 +1,19 @@
-package legacyrepository
+package persistence
 
 import (
 	"context"
 	"errors"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"gorm.io/gorm"
 )
 
-type SessionNoteRepository interface {
-	FindBySessionID(ctx context.Context, sessionID uint64) (*domain.SessionNote, error)
-	Upsert(ctx context.Context, n *domain.SessionNote) error
-}
-
+// sessionNoteRepository は [repository.SessionNoteRepository] の GORM 実装。
 type sessionNoteRepository struct{ db *gorm.DB }
 
-func NewSessionNoteRepository(db *gorm.DB) SessionNoteRepository {
+// NewSessionNoteRepository は GORM ベース の [repository.SessionNoteRepository] を 返す。
+func NewSessionNoteRepository(db *gorm.DB) repository.SessionNoteRepository {
 	return &sessionNoteRepository{db: db}
 }
 

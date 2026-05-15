@@ -5,14 +5,14 @@ import (
 	"errors"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/legacyrepository"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
 type GetSessionNoteUseCase struct {
-	repo legacyrepository.SessionNoteRepository
+	repo repository.SessionNoteRepository
 }
 
-func NewGetSessionNoteUseCase(r legacyrepository.SessionNoteRepository) *GetSessionNoteUseCase {
+func NewGetSessionNoteUseCase(r repository.SessionNoteRepository) *GetSessionNoteUseCase {
 	return &GetSessionNoteUseCase{repo: r}
 }
 
@@ -24,10 +24,10 @@ func (u *GetSessionNoteUseCase) Execute(ctx context.Context, sessionID uint64) (
 }
 
 type UpsertSessionNoteUseCase struct {
-	repo legacyrepository.SessionNoteRepository
+	repo repository.SessionNoteRepository
 }
 
-func NewUpsertSessionNoteUseCase(r legacyrepository.SessionNoteRepository) *UpsertSessionNoteUseCase {
+func NewUpsertSessionNoteUseCase(r repository.SessionNoteRepository) *UpsertSessionNoteUseCase {
 	return &UpsertSessionNoteUseCase{repo: r}
 }
 

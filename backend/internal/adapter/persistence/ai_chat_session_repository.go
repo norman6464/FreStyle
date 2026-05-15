@@ -1,24 +1,18 @@
-package legacyrepository
+package persistence
 
 import (
 	"context"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"gorm.io/gorm"
 )
 
-// AiChatSessionRepository は ai_chat_sessions テーブルへのアクセスを提供する。
-type AiChatSessionRepository interface {
-	ListByUserID(ctx context.Context, userID uint64) ([]domain.AiChatSession, error)
-	FindByID(ctx context.Context, id uint64) (*domain.AiChatSession, error)
-	Create(ctx context.Context, s *domain.AiChatSession) error
-	UpdateTitle(ctx context.Context, id uint64, title string) error
-	Delete(ctx context.Context, id uint64) error
-}
-
+// aiChatSessionRepository は [repository.AiChatSessionRepository] の GORM 実装。
 type aiChatSessionRepository struct{ db *gorm.DB }
 
-func NewAiChatSessionRepository(db *gorm.DB) AiChatSessionRepository {
+// NewAiChatSessionRepository は GORM ベース の [repository.AiChatSessionRepository] を 返す。
+func NewAiChatSessionRepository(db *gorm.DB) repository.AiChatSessionRepository {
 	return &aiChatSessionRepository{db: db}
 }
 

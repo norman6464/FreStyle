@@ -5,14 +5,14 @@ import (
 	"errors"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/legacyrepository"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
 type ListNotificationsUseCase struct {
-	repo legacyrepository.NotificationRepository
+	repo repository.NotificationRepository
 }
 
-func NewListNotificationsUseCase(r legacyrepository.NotificationRepository) *ListNotificationsUseCase {
+func NewListNotificationsUseCase(r repository.NotificationRepository) *ListNotificationsUseCase {
 	return &ListNotificationsUseCase{repo: r}
 }
 
@@ -24,10 +24,10 @@ func (u *ListNotificationsUseCase) Execute(ctx context.Context, userID uint64) (
 }
 
 type MarkNotificationReadUseCase struct {
-	repo legacyrepository.NotificationRepository
+	repo repository.NotificationRepository
 }
 
-func NewMarkNotificationReadUseCase(r legacyrepository.NotificationRepository) *MarkNotificationReadUseCase {
+func NewMarkNotificationReadUseCase(r repository.NotificationRepository) *MarkNotificationReadUseCase {
 	return &MarkNotificationReadUseCase{repo: r}
 }
 
@@ -42,10 +42,10 @@ func (u *MarkNotificationReadUseCase) Execute(ctx context.Context, userID, id ui
 }
 
 type MarkAllNotificationsReadUseCase struct {
-	repo legacyrepository.NotificationRepository
+	repo repository.NotificationRepository
 }
 
-func NewMarkAllNotificationsReadUseCase(r legacyrepository.NotificationRepository) *MarkAllNotificationsReadUseCase {
+func NewMarkAllNotificationsReadUseCase(r repository.NotificationRepository) *MarkAllNotificationsReadUseCase {
 	return &MarkAllNotificationsReadUseCase{repo: r}
 }
 
@@ -57,10 +57,10 @@ func (u *MarkAllNotificationsReadUseCase) Execute(ctx context.Context, userID ui
 }
 
 type CountUnreadNotificationsUseCase struct {
-	repo legacyrepository.NotificationRepository
+	repo repository.NotificationRepository
 }
 
-func NewCountUnreadNotificationsUseCase(r legacyrepository.NotificationRepository) *CountUnreadNotificationsUseCase {
+func NewCountUnreadNotificationsUseCase(r repository.NotificationRepository) *CountUnreadNotificationsUseCase {
 	return &CountUnreadNotificationsUseCase{repo: r}
 }
 

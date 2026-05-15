@@ -5,15 +5,15 @@ import (
 	"errors"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/legacyrepository"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
 // GetAiChatSessionsByUserIDUseCase は指定ユーザーの AI チャットセッション一覧を返す。
 type GetAiChatSessionsByUserIDUseCase struct {
-	sessions legacyrepository.AiChatSessionRepository
+	sessions repository.AiChatSessionRepository
 }
 
-func NewGetAiChatSessionsByUserIDUseCase(s legacyrepository.AiChatSessionRepository) *GetAiChatSessionsByUserIDUseCase {
+func NewGetAiChatSessionsByUserIDUseCase(s repository.AiChatSessionRepository) *GetAiChatSessionsByUserIDUseCase {
 	return &GetAiChatSessionsByUserIDUseCase{sessions: s}
 }
 
@@ -23,10 +23,10 @@ func (u *GetAiChatSessionsByUserIDUseCase) Execute(ctx context.Context, userID u
 
 // CreateAiChatSessionUseCase は新規セッションを作成する。
 type CreateAiChatSessionUseCase struct {
-	sessions legacyrepository.AiChatSessionRepository
+	sessions repository.AiChatSessionRepository
 }
 
-func NewCreateAiChatSessionUseCase(s legacyrepository.AiChatSessionRepository) *CreateAiChatSessionUseCase {
+func NewCreateAiChatSessionUseCase(s repository.AiChatSessionRepository) *CreateAiChatSessionUseCase {
 	return &CreateAiChatSessionUseCase{sessions: s}
 }
 
@@ -58,10 +58,10 @@ func (u *CreateAiChatSessionUseCase) Execute(ctx context.Context, in CreateAiCha
 
 // GetAiChatSessionUseCase は単一セッションを返す。
 type GetAiChatSessionUseCase struct {
-	sessions legacyrepository.AiChatSessionRepository
+	sessions repository.AiChatSessionRepository
 }
 
-func NewGetAiChatSessionUseCase(s legacyrepository.AiChatSessionRepository) *GetAiChatSessionUseCase {
+func NewGetAiChatSessionUseCase(s repository.AiChatSessionRepository) *GetAiChatSessionUseCase {
 	return &GetAiChatSessionUseCase{sessions: s}
 }
 
@@ -71,10 +71,10 @@ func (u *GetAiChatSessionUseCase) Execute(ctx context.Context, id uint64) (*doma
 
 // UpdateAiChatSessionTitleUseCase はセッションタイトルを更新する。
 type UpdateAiChatSessionTitleUseCase struct {
-	sessions legacyrepository.AiChatSessionRepository
+	sessions repository.AiChatSessionRepository
 }
 
-func NewUpdateAiChatSessionTitleUseCase(s legacyrepository.AiChatSessionRepository) *UpdateAiChatSessionTitleUseCase {
+func NewUpdateAiChatSessionTitleUseCase(s repository.AiChatSessionRepository) *UpdateAiChatSessionTitleUseCase {
 	return &UpdateAiChatSessionTitleUseCase{sessions: s}
 }
 
@@ -87,10 +87,10 @@ func (u *UpdateAiChatSessionTitleUseCase) Execute(ctx context.Context, id uint64
 
 // DeleteAiChatSessionUseCase はセッションを削除する。
 type DeleteAiChatSessionUseCase struct {
-	sessions legacyrepository.AiChatSessionRepository
+	sessions repository.AiChatSessionRepository
 }
 
-func NewDeleteAiChatSessionUseCase(s legacyrepository.AiChatSessionRepository) *DeleteAiChatSessionUseCase {
+func NewDeleteAiChatSessionUseCase(s repository.AiChatSessionRepository) *DeleteAiChatSessionUseCase {
 	return &DeleteAiChatSessionUseCase{sessions: s}
 }
 
@@ -107,10 +107,10 @@ func (u *DeleteAiChatSessionUseCase) Execute(ctx context.Context, id uint64, use
 
 // GetAiChatMessagesUseCase は DynamoDB からセッションのメッセージ一覧を返す。
 type GetAiChatMessagesUseCase struct {
-	messages legacyrepository.AiChatMessageRepository
+	messages repository.AiChatMessageRepository
 }
 
-func NewGetAiChatMessagesUseCase(m legacyrepository.AiChatMessageRepository) *GetAiChatMessagesUseCase {
+func NewGetAiChatMessagesUseCase(m repository.AiChatMessageRepository) *GetAiChatMessagesUseCase {
 	return &GetAiChatMessagesUseCase{messages: m}
 }
 

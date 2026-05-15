@@ -1,26 +1,18 @@
-package legacyrepository
+package persistence
 
 import (
 	"context"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"gorm.io/gorm"
 )
 
-type NotificationRepository interface {
-	ListByUserID(ctx context.Context, userID uint64) ([]domain.Notification, error)
-	// MarkRead は所有者検証込みで is_read を立てる。
-	// 自分以外の通知を既読化できないように、必ず WHERE で user_id を絞る。
-	MarkRead(ctx context.Context, userID, id uint64) error
-	// MarkAllRead は current user の全通知を既読化する。
-	MarkAllRead(ctx context.Context, userID uint64) error
-	// CountUnread は current user の未読通知数を返す。
-	CountUnread(ctx context.Context, userID uint64) (int64, error)
-}
-
+// notificationRepository は [repository.NotificationRepository] の GORM 実装。
 type notificationRepository struct{ db *gorm.DB }
 
-func NewNotificationRepository(db *gorm.DB) NotificationRepository {
+// NewNotificationRepository は GORM ベース の [repository.NotificationRepository] を 返す。
+func NewNotificationRepository(db *gorm.DB) repository.NotificationRepository {
 	return &notificationRepository{db: db}
 }
 
@@ -53,13 +45,11 @@ func (r *notificationRepository) CountUnread(ctx context.Context, userID uint64)
 	return n, err
 }
 
-// SnsPublisher は通知 push 用の interface（実装は AWS SDK 連携で別 PR）。
-type SnsPublisher interface {
-	Publish(ctx context.Context, userID uint64, title, body string) error
-}
-
+// stubSnsPublisher は [repository.SnsPublisher] の no-op 実装。
+// 本番 経路 の SNS Publish 実装 は 別 PR で 追加。
 type stubSnsPublisher struct{}
 
-func NewStubSnsPublisher() SnsPublisher { return &stubSnsPublisher{} }
+// NewStubSnsPublisher は test / dev 用 の [repository.SnsPublisher] stub を 返す。
+func NewStubSnsPublisher() repository.SnsPublisher { return &stubSnsPublisher{} }
 
 func (p *stubSnsPublisher) Publish(_ context.Context, _ uint64, _, _ string) error { return nil }

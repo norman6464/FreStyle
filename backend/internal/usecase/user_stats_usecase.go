@@ -5,14 +5,14 @@ import (
 	"errors"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/legacyrepository"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
 type GetUserStatsUseCase struct {
-	stats legacyrepository.UserStatsRepository
+	stats repository.UserStatsRepository
 }
 
-func NewGetUserStatsUseCase(s legacyrepository.UserStatsRepository) *GetUserStatsUseCase {
+func NewGetUserStatsUseCase(s repository.UserStatsRepository) *GetUserStatsUseCase {
 	return &GetUserStatsUseCase{stats: s}
 }
 

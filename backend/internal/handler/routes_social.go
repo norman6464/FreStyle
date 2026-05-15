@@ -2,14 +2,14 @@ package handler
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/norman6464/FreStyle/backend/internal/legacyrepository"
+	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
 
 // registerSocialRoutes は通知の REST エンドポイントを登録する。
 // Friendship / フォロー機能は削除済み。
 func registerSocialRoutes(g *gin.RouterGroup, deps *routeDeps) {
-	notificationRepo := legacyrepository.NewNotificationRepository(deps.db)
+	notificationRepo := persistence.NewNotificationRepository(deps.db)
 	notificationHandler := NewNotificationHandler(
 		usecase.NewListNotificationsUseCase(notificationRepo),
 		usecase.NewMarkNotificationReadUseCase(notificationRepo),

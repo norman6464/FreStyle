@@ -9,14 +9,14 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/legacyrepository"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
 type ListAdminInvitationsUseCase struct {
-	repo legacyrepository.AdminInvitationRepository
+	repo repository.AdminInvitationRepository
 }
 
-func NewListAdminInvitationsUseCase(r legacyrepository.AdminInvitationRepository) *ListAdminInvitationsUseCase {
+func NewListAdminInvitationsUseCase(r repository.AdminInvitationRepository) *ListAdminInvitationsUseCase {
 	return &ListAdminInvitationsUseCase{repo: r}
 }
 
@@ -56,7 +56,7 @@ type MailBuilder func(magicLink, displayName, companyName, role string) (subject
 type LinkBuilder func(token string) string
 
 type CreateAdminInvitationUseCase struct {
-	repo        legacyrepository.AdminInvitationRepository
+	repo        repository.AdminInvitationRepository
 	sender      MagicLinkSender
 	buildLink   LinkBuilder
 	buildMail   MailBuilder
@@ -67,7 +67,7 @@ type CreateAdminInvitationUseCase struct {
 // NewCreateAdminInvitationUseCase は SES マジックリンク方式の招待作成 usecase を組み立てる。
 // sender が nil のときはメール送信をスキップする（ローカル開発時のフォールバック）。
 func NewCreateAdminInvitationUseCase(
-	r legacyrepository.AdminInvitationRepository,
+	r repository.AdminInvitationRepository,
 	sender MagicLinkSender,
 	buildLink LinkBuilder,
 	buildMail MailBuilder,
@@ -131,10 +131,10 @@ func (u *CreateAdminInvitationUseCase) Execute(ctx context.Context, in CreateAdm
 }
 
 type CancelAdminInvitationUseCase struct {
-	repo legacyrepository.AdminInvitationRepository
+	repo repository.AdminInvitationRepository
 }
 
-func NewCancelAdminInvitationUseCase(r legacyrepository.AdminInvitationRepository) *CancelAdminInvitationUseCase {
+func NewCancelAdminInvitationUseCase(r repository.AdminInvitationRepository) *CancelAdminInvitationUseCase {
 	return &CancelAdminInvitationUseCase{repo: r}
 }
 

@@ -1,20 +1,18 @@
-package legacyrepository
+package persistence
 
 import (
 	"context"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"gorm.io/gorm"
 )
 
-type LearningReportRepository interface {
-	ListByUserID(ctx context.Context, userID uint64) ([]domain.LearningReport, error)
-	Create(ctx context.Context, r *domain.LearningReport) error
-}
-
+// learningReportRepository は [repository.LearningReportRepository] の GORM 実装。
 type learningReportRepository struct{ db *gorm.DB }
 
-func NewLearningReportRepository(db *gorm.DB) LearningReportRepository {
+// NewLearningReportRepository は GORM ベース の [repository.LearningReportRepository] を 返す。
+func NewLearningReportRepository(db *gorm.DB) repository.LearningReportRepository {
 	return &learningReportRepository{db: db}
 }
 
@@ -28,14 +26,11 @@ func (r *learningReportRepository) Create(ctx context.Context, lr *domain.Learni
 	return r.db.WithContext(ctx).Create(lr).Error
 }
 
-// SqsEnqueuer はレポート生成ジョブを SQS にキューする interface。
-// 実装は AWS SDK 連携で Phase 17.1 に分離。
-type SqsEnqueuer interface {
-	Enqueue(ctx context.Context, reportID uint64) error
-}
-
+// stubEnqueuer は [repository.SqsEnqueuer] の no-op 実装。
+// 本番 経路 の SQS SendMessage 実装 は 別 PR で 追加。
 type stubEnqueuer struct{}
 
-func NewStubSqsEnqueuer() SqsEnqueuer { return &stubEnqueuer{} }
+// NewStubSqsEnqueuer は test / dev 用 の [repository.SqsEnqueuer] stub を 返す。
+func NewStubSqsEnqueuer() repository.SqsEnqueuer { return &stubEnqueuer{} }
 
 func (e *stubEnqueuer) Enqueue(_ context.Context, _ uint64) error { return nil }

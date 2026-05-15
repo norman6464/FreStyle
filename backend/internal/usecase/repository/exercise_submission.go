@@ -24,9 +24,9 @@ type ExerciseSubmissionRepository interface {
 	HasAttempted(userID, exerciseID uint64, kind string) (bool, error)
 
 	// BatchUserStatuses は user の (kind, exerciseIDs) について、
-	//   exercise_id -> "solved" / "in_progress" / ""
+	//   exercise_id -> "solved" / "in_progress"
 	// を返す。一覧ページの N+1 を避ける用途。
-	// "" は未提出（map に key が存在しない）を表す。
+	// 未提出は map に key が存在しないこと で 表す。
 	BatchUserStatuses(userID uint64, exerciseIDs []uint64, kind string) (map[uint64]string, error)
 
 	// ExerciseStats は exercise_id 単位の集計を返す。

@@ -16,7 +16,7 @@ import (
 type MasterExerciseWithStatus struct {
 	domain.MasterExercise
 
-	Status string                             `json:"status"`
+	Status string                                   `json:"status"`
 	Stats  legacyrepository.ExerciseSubmissionStats `json:"stats"`
 }
 

@@ -10,7 +10,9 @@ import (
 
 var ErrNoteForbidden = errors.New("forbidden")
 
-type ListNotesByUserIDUseCase struct{ repo legacyrepository.NoteRepository }
+type ListNotesByUserIDUseCase struct {
+	repo legacyrepository.NoteRepository
+}
 
 func NewListNotesByUserIDUseCase(r legacyrepository.NoteRepository) *ListNotesByUserIDUseCase {
 	return &ListNotesByUserIDUseCase{repo: r}
@@ -23,7 +25,9 @@ func (u *ListNotesByUserIDUseCase) Execute(ctx context.Context, userID uint64) (
 	return u.repo.ListByUserID(ctx, userID)
 }
 
-type CreateNoteUseCase struct{ repo legacyrepository.NoteRepository }
+type CreateNoteUseCase struct {
+	repo legacyrepository.NoteRepository
+}
 
 func NewCreateNoteUseCase(r legacyrepository.NoteRepository) *CreateNoteUseCase {
 	return &CreateNoteUseCase{repo: r}
@@ -57,7 +61,9 @@ func (u *CreateNoteUseCase) Execute(ctx context.Context, in CreateNoteInput) (*d
 	return n, nil
 }
 
-type UpdateNoteUseCase struct{ repo legacyrepository.NoteRepository }
+type UpdateNoteUseCase struct {
+	repo legacyrepository.NoteRepository
+}
 
 func NewUpdateNoteUseCase(r legacyrepository.NoteRepository) *UpdateNoteUseCase {
 	return &UpdateNoteUseCase{repo: r}
@@ -98,7 +104,9 @@ func (u *UpdateNoteUseCase) Execute(ctx context.Context, in UpdateNoteInput) (*d
 	return existing, nil
 }
 
-type DeleteNoteUseCase struct{ repo legacyrepository.NoteRepository }
+type DeleteNoteUseCase struct {
+	repo legacyrepository.NoteRepository
+}
 
 func NewDeleteNoteUseCase(r legacyrepository.NoteRepository) *DeleteNoteUseCase {
 	return &DeleteNoteUseCase{repo: r}

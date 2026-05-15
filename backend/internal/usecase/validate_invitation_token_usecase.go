@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/repository"
+	"github.com/norman6464/FreStyle/backend/internal/legacyrepository"
 )
 
 // ValidateInvitationTokenUseCase はマジックリンク受諾画面で token を検証する。
@@ -17,13 +17,13 @@ import (
 //   - 本人がメールから踏んでくる前提なので email は本人が知っている
 //   - 万一 token が漏れた場合の被害局所化（招待先 email を覗かれない）
 type ValidateInvitationTokenUseCase struct {
-	invitations repository.AdminInvitationRepository
-	companies   repository.CompanyRepository
+	invitations legacyrepository.AdminInvitationRepository
+	companies   legacyrepository.CompanyRepository
 }
 
 func NewValidateInvitationTokenUseCase(
-	invitations repository.AdminInvitationRepository,
-	companies repository.CompanyRepository,
+	invitations legacyrepository.AdminInvitationRepository,
+	companies legacyrepository.CompanyRepository,
 ) *ValidateInvitationTokenUseCase {
 	return &ValidateInvitationTokenUseCase{invitations: invitations, companies: companies}
 }

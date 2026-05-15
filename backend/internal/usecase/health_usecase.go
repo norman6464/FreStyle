@@ -4,16 +4,16 @@ import (
 	"context"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/repository"
+	"github.com/norman6464/FreStyle/backend/internal/legacyrepository"
 )
 
 // CheckHealthUseCase はバックエンドの稼働状態を判定するユースケース。
 // DB 到達性を確認し、UP/DOWN を返す。
 type CheckHealthUseCase struct {
-	repo repository.HealthRepository
+	repo legacyrepository.HealthRepository
 }
 
-func NewCheckHealthUseCase(repo repository.HealthRepository) *CheckHealthUseCase {
+func NewCheckHealthUseCase(repo legacyrepository.HealthRepository) *CheckHealthUseCase {
 	return &CheckHealthUseCase{repo: repo}
 }
 

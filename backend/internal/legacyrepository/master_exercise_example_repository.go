@@ -1,4 +1,4 @@
-package repository
+package legacyrepository
 
 import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"

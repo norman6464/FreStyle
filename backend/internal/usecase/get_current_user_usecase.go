@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/repository"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
 // GetCurrentUserUseCase は Cognito sub から現在のユーザー情報を引く。

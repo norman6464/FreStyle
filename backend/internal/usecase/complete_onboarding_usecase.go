@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/norman6464/FreStyle/backend/internal/repository"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
 // CompleteOnboardingUseCase はユーザーが Welcome 画面の「はじめる」を押した時に

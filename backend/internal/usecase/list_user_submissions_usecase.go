@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/repository"
+	"github.com/norman6464/FreStyle/backend/internal/legacyrepository"
 )
 
 // ListUserMasterSubmissionsInput は履歴一覧 API への入力。
@@ -15,13 +15,13 @@ type ListUserMasterSubmissionsInput struct {
 
 // ListUserMasterSubmissionsUseCase は current user の指定問題に対する提出履歴を新しい順で返す。
 type ListUserMasterSubmissionsUseCase struct {
-	exercises   repository.MasterExerciseRepository
-	submissions repository.ExerciseSubmissionRepository
+	exercises   legacyrepository.MasterExerciseRepository
+	submissions legacyrepository.ExerciseSubmissionRepository
 }
 
 func NewListUserMasterSubmissionsUseCase(
-	exercises repository.MasterExerciseRepository,
-	submissions repository.ExerciseSubmissionRepository,
+	exercises legacyrepository.MasterExerciseRepository,
+	submissions legacyrepository.ExerciseSubmissionRepository,
 ) *ListUserMasterSubmissionsUseCase {
 	return &ListUserMasterSubmissionsUseCase{exercises: exercises, submissions: submissions}
 }

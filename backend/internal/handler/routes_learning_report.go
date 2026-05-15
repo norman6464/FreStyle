@@ -2,7 +2,7 @@ package handler
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/norman6464/FreStyle/backend/internal/repository"
+	"github.com/norman6464/FreStyle/backend/internal/legacyrepository"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
 
@@ -14,8 +14,8 @@ import (
 // 生成は SQS にキューする非同期ジョブで、 当面は stub enqueuer を使用する
 // （実 SQS 接続は別 PR / 別 infra で導入予定）。
 func registerLearningReportRoutes(g *gin.RouterGroup, deps *routeDeps) {
-	repo := repository.NewLearningReportRepository(deps.db)
-	queue := repository.NewStubSqsEnqueuer()
+	repo := legacyrepository.NewLearningReportRepository(deps.db)
+	queue := legacyrepository.NewStubSqsEnqueuer()
 	h := NewLearningReportHandler(
 		usecase.NewListLearningReportsUseCase(repo),
 		usecase.NewRequestLearningReportUseCase(repo, queue),

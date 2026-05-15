@@ -2,7 +2,7 @@ package usecase
 
 import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/repository"
+	"github.com/norman6464/FreStyle/backend/internal/legacyrepository"
 )
 
 // MasterExerciseWithStatus は一覧ページに渡す「問題 + 現在ユーザの状態 + 全体集計」のセット。
@@ -16,21 +16,21 @@ import (
 type MasterExerciseWithStatus struct {
 	domain.MasterExercise
 
-	Status string                             `json:"status"`
-	Stats  repository.ExerciseSubmissionStats `json:"stats"`
+	Status string                                   `json:"status"`
+	Stats  legacyrepository.ExerciseSubmissionStats `json:"stats"`
 }
 
 // ListMasterExercisesWithStatusUseCase は問題一覧 + 各問題の current user 状態 + 集計を返す。
 //
 // N+1 を避けるため、 user status と stats はそれぞれ batch クエリで取得する。
 type ListMasterExercisesWithStatusUseCase struct {
-	exercises   repository.MasterExerciseRepository
-	submissions repository.ExerciseSubmissionRepository
+	exercises   legacyrepository.MasterExerciseRepository
+	submissions legacyrepository.ExerciseSubmissionRepository
 }
 
 func NewListMasterExercisesWithStatusUseCase(
-	exercises repository.MasterExerciseRepository,
-	submissions repository.ExerciseSubmissionRepository,
+	exercises legacyrepository.MasterExerciseRepository,
+	submissions legacyrepository.ExerciseSubmissionRepository,
 ) *ListMasterExercisesWithStatusUseCase {
 	return &ListMasterExercisesWithStatusUseCase{exercises: exercises, submissions: submissions}
 }

@@ -5,7 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/repository"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
 const (

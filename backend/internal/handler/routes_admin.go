@@ -6,7 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/infra/ses"
-	"github.com/norman6464/FreStyle/backend/internal/repository"
+	"github.com/norman6464/FreStyle/backend/internal/legacyrepository"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
 
@@ -15,13 +15,13 @@ import (
 func registerAdminRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	// Company 一覧 (SuperAdmin 専用)
 	companyHandler := NewAdminCompanyHandler(
-		usecase.NewListCompaniesUseCase(repository.NewCompanyRepository(deps.db)),
+		usecase.NewListCompaniesUseCase(legacyrepository.NewCompanyRepository(deps.db)),
 	)
 	g.GET("/admin/companies", companyHandler.List)
 
 	// AdminInvitation — SES マジックリンク方式（Path B）。
 	// Cognito 事前作成は撤去し、ここでは UUID token を発行 + SES で独自メールを送る。
-	adminInvRepo := repository.NewAdminInvitationRepository(deps.db)
+	adminInvRepo := legacyrepository.NewAdminInvitationRepository(deps.db)
 
 	var sender usecase.MagicLinkSender
 	var linkBuilder usecase.LinkBuilder

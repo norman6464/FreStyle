@@ -2,7 +2,7 @@ package usecase
 
 import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/repository"
+	"github.com/norman6464/FreStyle/backend/internal/legacyrepository"
 )
 
 // ListMasterExercisesUseCase は指定言語の運営マスタ演習問題一覧を返す。
@@ -10,10 +10,10 @@ import (
 // 旧 ListPhpExercisesUseCase の汎用版。言語固定の API（例: /php/exercises）を
 // 残しつつ、本 usecase は language を引数で受け取って多言語対応の準備をする。
 type ListMasterExercisesUseCase struct {
-	repo repository.MasterExerciseRepository
+	repo legacyrepository.MasterExerciseRepository
 }
 
-func NewListMasterExercisesUseCase(repo repository.MasterExerciseRepository) *ListMasterExercisesUseCase {
+func NewListMasterExercisesUseCase(repo legacyrepository.MasterExerciseRepository) *ListMasterExercisesUseCase {
 	return &ListMasterExercisesUseCase{repo: repo}
 }
 

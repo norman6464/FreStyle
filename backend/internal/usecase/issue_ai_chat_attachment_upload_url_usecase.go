@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/norman6464/FreStyle/backend/internal/repository"
+	"github.com/norman6464/FreStyle/backend/internal/legacyrepository"
 )
 
 // IssueAiChatAttachmentUploadURLUseCase は AI チャット添付の S3 PUT presigned URL を発行する。
@@ -17,10 +17,10 @@ import (
 // 上限チェックを usecase 層で行うのは「presigned URL を発行する前に 413 を返す」ためで、
 // クライアント側の不正利用や typo を S3 アップロード前の早い段階で弾く目的。
 type IssueAiChatAttachmentUploadURLUseCase struct {
-	presigner repository.AiChatAttachmentPresigner
+	presigner legacyrepository.AiChatAttachmentPresigner
 }
 
-func NewIssueAiChatAttachmentUploadURLUseCase(p repository.AiChatAttachmentPresigner) *IssueAiChatAttachmentUploadURLUseCase {
+func NewIssueAiChatAttachmentUploadURLUseCase(p legacyrepository.AiChatAttachmentPresigner) *IssueAiChatAttachmentUploadURLUseCase {
 	return &IssueAiChatAttachmentUploadURLUseCase{presigner: p}
 }
 
@@ -57,7 +57,7 @@ var ErrAttachmentUnsupportedType = errors.New("attachment: unsupported content t
 // ErrAttachmentTooLarge はサイズ上限超過。
 var ErrAttachmentTooLarge = errors.New("attachment: file too large")
 
-func (u *IssueAiChatAttachmentUploadURLUseCase) Execute(ctx context.Context, in IssueAiChatAttachmentUploadURLInput) (*repository.AiChatAttachmentUploadURL, error) {
+func (u *IssueAiChatAttachmentUploadURLUseCase) Execute(ctx context.Context, in IssueAiChatAttachmentUploadURLInput) (*legacyrepository.AiChatAttachmentUploadURL, error) {
 	if in.UserID == 0 {
 		return nil, errors.New("userID is required")
 	}

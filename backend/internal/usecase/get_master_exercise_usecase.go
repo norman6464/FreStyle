@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/repository"
+	"github.com/norman6464/FreStyle/backend/internal/legacyrepository"
 )
 
 // GetMasterExerciseDetailOutput は詳細ページに渡す問題本体 + 入出力例セット。
@@ -22,13 +22,13 @@ type GetMasterExerciseDetailOutput struct {
 // 旧 API は `:id` ベースだったが、 人間可読な URL `/code-editor/php-1` を実現するため
 // 主導線を slug に切替える。 ID ベースの挙動も互換用に Execute / GetByID で残す。
 type GetMasterExerciseUseCase struct {
-	repo     repository.MasterExerciseRepository
-	examples repository.MasterExerciseExampleRepository
+	repo     legacyrepository.MasterExerciseRepository
+	examples legacyrepository.MasterExerciseExampleRepository
 }
 
 func NewGetMasterExerciseUseCase(
-	repo repository.MasterExerciseRepository,
-	examples repository.MasterExerciseExampleRepository,
+	repo legacyrepository.MasterExerciseRepository,
+	examples legacyrepository.MasterExerciseExampleRepository,
 ) *GetMasterExerciseUseCase {
 	return &GetMasterExerciseUseCase{repo: repo, examples: examples}
 }

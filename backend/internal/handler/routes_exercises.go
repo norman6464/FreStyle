@@ -2,7 +2,7 @@ package handler
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/norman6464/FreStyle/backend/internal/repository"
+	"github.com/norman6464/FreStyle/backend/internal/legacyrepository"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
 
@@ -15,9 +15,9 @@ import (
 //   - GET  /api/v2/exercises/:slug/submissions     current user の履歴
 //   - POST /api/v2/code/execute                    コード実行（採点せず stdout だけ返す）
 func registerExerciseRoutes(g *gin.RouterGroup, deps *routeDeps) {
-	exerciseRepo := repository.NewMasterExerciseRepository(deps.db)
-	examplesRepo := repository.NewMasterExerciseExampleRepository(deps.db)
-	submissionsRepo := repository.NewExerciseSubmissionRepository(deps.db)
+	exerciseRepo := legacyrepository.NewMasterExerciseRepository(deps.db)
+	examplesRepo := legacyrepository.NewMasterExerciseExampleRepository(deps.db)
+	submissionsRepo := legacyrepository.NewExerciseSubmissionRepository(deps.db)
 	executor := usecase.NewExecuteCodeUseCase()
 
 	exerciseHandler := NewMasterExerciseHandler(

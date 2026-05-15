@@ -2,7 +2,7 @@ package handler
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/norman6464/FreStyle/backend/internal/repository"
+	"github.com/norman6464/FreStyle/backend/internal/legacyrepository"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
 
@@ -13,8 +13,8 @@ import (
 // 認可は無し（受諾前にユーザーが踏むため）。token が無効・期限切れの場合は 404 を返し、
 // 「招待が存在するかどうか」のメタ情報を漏らさない。
 func registerInvitationPublicRoutes(g *gin.RouterGroup, deps *routeDeps) {
-	invRepo := repository.NewAdminInvitationRepository(deps.db)
-	companies := repository.NewCompanyRepository(deps.db)
+	invRepo := legacyrepository.NewAdminInvitationRepository(deps.db)
+	companies := legacyrepository.NewCompanyRepository(deps.db)
 	h := NewPublicInvitationHandler(usecase.NewValidateInvitationTokenUseCase(invRepo, companies))
 	g.GET("/invitations/accept/:token", h.Validate)
 }

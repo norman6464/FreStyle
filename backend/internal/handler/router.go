@@ -5,11 +5,13 @@ import (
 	"log"
 
 	"github.com/gin-gonic/gin"
+	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/infra/bedrock"
 	"github.com/norman6464/FreStyle/backend/internal/infra/config"
-	"github.com/norman6464/FreStyle/backend/internal/repository"
+	"github.com/norman6464/FreStyle/backend/internal/legacyrepository"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"gorm.io/gorm"
 )
 
@@ -19,7 +21,7 @@ type routeDeps struct {
 	cfg           *config.Config
 	userRepo      repository.UserRepository
 	bedrockClient *bedrock.Client
-	msgRepo       repository.AiChatMessageRepository
+	msgRepo       legacyrepository.AiChatMessageRepository
 }
 
 // NewRouter は API ルーティングを組み立てる。
@@ -40,7 +42,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 		log.Printf("WARN: Bedrock client init failed (AI chat WS will be unavailable): %v", err)
 	}
 
-	msgRepo, err := repository.NewAiChatMessageRepository(ctx, cfg.DynamoDB.Region, cfg.DynamoDB.AiChatTable)
+	msgRepo, err := legacyrepository.NewAiChatMessageRepository(ctx, cfg.DynamoDB.Region, cfg.DynamoDB.AiChatTable)
 	if err != nil {
 		log.Printf("WARN: DynamoDB client init failed (AI chat WS will be unavailable): %v", err)
 	}
@@ -48,7 +50,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	deps := &routeDeps{
 		db:            db,
 		cfg:           cfg,
-		userRepo:      repository.NewUserRepository(db),
+		userRepo:      persistence.NewUserRepository(db),
 		bedrockClient: bc,
 		msgRepo:       msgRepo,
 	}
@@ -81,6 +83,6 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 
 // registerHealthRoutes は認証不要のヘルスチェック (/api/v2/health) を登録する。
 func registerHealthRoutes(g *gin.RouterGroup, deps *routeDeps) {
-	h := NewHealthHandler(usecase.NewCheckHealthUseCase(repository.NewHealthRepository(deps.db)))
+	h := NewHealthHandler(usecase.NewCheckHealthUseCase(legacyrepository.NewHealthRepository(deps.db)))
 	g.GET("/health", h.Get)
 }

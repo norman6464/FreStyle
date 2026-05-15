@@ -10,8 +10,9 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/infra/cognito"
 	"github.com/norman6464/FreStyle/backend/internal/infra/config"
-	"github.com/norman6464/FreStyle/backend/internal/repository"
+	"github.com/norman6464/FreStyle/backend/internal/legacyrepository"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
 // AuthHandler は Cognito 関連の認証エンドポイントを提供する。
@@ -22,7 +23,7 @@ import (
 type AuthHandler struct {
 	getCurrentUser *usecase.GetCurrentUserUseCase
 	users          repository.UserRepository
-	invitations    repository.AdminInvitationRepository
+	invitations    legacyrepository.AdminInvitationRepository
 	cognitoCfg     *config.CognitoConfig
 	tokens         *cognito.TokenExchanger
 }
@@ -32,7 +33,7 @@ type AuthHandler struct {
 func NewAuthHandler(
 	getCurrentUser *usecase.GetCurrentUserUseCase,
 	users repository.UserRepository,
-	invitations repository.AdminInvitationRepository,
+	invitations legacyrepository.AdminInvitationRepository,
 	cognitoCfg *config.CognitoConfig,
 ) *AuthHandler {
 	return &AuthHandler{

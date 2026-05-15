@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/repository"
+	"github.com/norman6464/FreStyle/backend/internal/legacyrepository"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -58,10 +58,10 @@ func (r *fakeSubmissionRepo) HasAttempted(uint64, uint64, string) (bool, error) 
 func (r *fakeSubmissionRepo) BatchUserStatuses(uint64, []uint64, string) (map[uint64]string, error) {
 	return nil, nil
 }
-func (r *fakeSubmissionRepo) ExerciseStats(uint64, string) (repository.ExerciseSubmissionStats, error) {
-	return repository.ExerciseSubmissionStats{}, nil
+func (r *fakeSubmissionRepo) ExerciseStats(uint64, string) (legacyrepository.ExerciseSubmissionStats, error) {
+	return legacyrepository.ExerciseSubmissionStats{}, nil
 }
-func (r *fakeSubmissionRepo) ExerciseStatsBatch([]uint64, string) (map[uint64]repository.ExerciseSubmissionStats, error) {
+func (r *fakeSubmissionRepo) ExerciseStatsBatch([]uint64, string) (map[uint64]legacyrepository.ExerciseSubmissionStats, error) {
 	return nil, nil
 }
 

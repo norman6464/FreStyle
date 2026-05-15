@@ -5,14 +5,14 @@ import (
 	"errors"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/repository"
+	"github.com/norman6464/FreStyle/backend/internal/legacyrepository"
 )
 
 type IssueProfileImageUploadURLUseCase struct {
-	presigner repository.ProfileImagePresigner
+	presigner legacyrepository.ProfileImagePresigner
 }
 
-func NewIssueProfileImageUploadURLUseCase(p repository.ProfileImagePresigner) *IssueProfileImageUploadURLUseCase {
+func NewIssueProfileImageUploadURLUseCase(p legacyrepository.ProfileImagePresigner) *IssueProfileImageUploadURLUseCase {
 	return &IssueProfileImageUploadURLUseCase{presigner: p}
 }
 

@@ -2,7 +2,7 @@ package handler
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/norman6464/FreStyle/backend/internal/repository"
+	"github.com/norman6464/FreStyle/backend/internal/legacyrepository"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
 
@@ -19,8 +19,8 @@ import (
 // アクセス制御は usecase 層で actor の company_id / role を検証する。
 // trainee は同一 company の `is_published=true` 教材かつ所属コースが published のときのみ閲覧可。
 func registerTeachingMaterialRoutes(g *gin.RouterGroup, deps *routeDeps) {
-	courseRepo := repository.NewCourseRepository(deps.db)
-	materialRepo := repository.NewTeachingMaterialRepository(deps.db)
+	courseRepo := legacyrepository.NewCourseRepository(deps.db)
+	materialRepo := legacyrepository.NewTeachingMaterialRepository(deps.db)
 	uc := usecase.NewTeachingMaterialUseCase(materialRepo, courseRepo)
 	h := NewTeachingMaterialHandler(uc)
 	g.GET("/teaching-materials", h.List) // backward-compat（frontend のコース対応後に削除予定）

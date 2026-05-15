@@ -5,14 +5,16 @@ import (
 	"errors"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/repository"
+	"github.com/norman6464/FreStyle/backend/internal/legacyrepository"
 )
 
 var ErrNoteForbidden = errors.New("forbidden")
 
-type ListNotesByUserIDUseCase struct{ repo repository.NoteRepository }
+type ListNotesByUserIDUseCase struct {
+	repo legacyrepository.NoteRepository
+}
 
-func NewListNotesByUserIDUseCase(r repository.NoteRepository) *ListNotesByUserIDUseCase {
+func NewListNotesByUserIDUseCase(r legacyrepository.NoteRepository) *ListNotesByUserIDUseCase {
 	return &ListNotesByUserIDUseCase{repo: r}
 }
 
@@ -23,9 +25,11 @@ func (u *ListNotesByUserIDUseCase) Execute(ctx context.Context, userID uint64) (
 	return u.repo.ListByUserID(ctx, userID)
 }
 
-type CreateNoteUseCase struct{ repo repository.NoteRepository }
+type CreateNoteUseCase struct {
+	repo legacyrepository.NoteRepository
+}
 
-func NewCreateNoteUseCase(r repository.NoteRepository) *CreateNoteUseCase {
+func NewCreateNoteUseCase(r legacyrepository.NoteRepository) *CreateNoteUseCase {
 	return &CreateNoteUseCase{repo: r}
 }
 
@@ -57,9 +61,11 @@ func (u *CreateNoteUseCase) Execute(ctx context.Context, in CreateNoteInput) (*d
 	return n, nil
 }
 
-type UpdateNoteUseCase struct{ repo repository.NoteRepository }
+type UpdateNoteUseCase struct {
+	repo legacyrepository.NoteRepository
+}
 
-func NewUpdateNoteUseCase(r repository.NoteRepository) *UpdateNoteUseCase {
+func NewUpdateNoteUseCase(r legacyrepository.NoteRepository) *UpdateNoteUseCase {
 	return &UpdateNoteUseCase{repo: r}
 }
 
@@ -98,9 +104,11 @@ func (u *UpdateNoteUseCase) Execute(ctx context.Context, in UpdateNoteInput) (*d
 	return existing, nil
 }
 
-type DeleteNoteUseCase struct{ repo repository.NoteRepository }
+type DeleteNoteUseCase struct {
+	repo legacyrepository.NoteRepository
+}
 
-func NewDeleteNoteUseCase(r repository.NoteRepository) *DeleteNoteUseCase {
+func NewDeleteNoteUseCase(r legacyrepository.NoteRepository) *DeleteNoteUseCase {
 	return &DeleteNoteUseCase{repo: r}
 }
 

@@ -1,4 +1,10 @@
-package repository
+// Package persistence は usecase 層 が 定義 した port (interface) に 対 する 永続化
+// 実装 (GORM / DynamoDB / S3 presigner 等) を 集約 する。
+//
+// Clean Architecture の Interface Adapters 層 の うち「persistence 関心 事」 担当 部分。
+// usecase 側 は ここ を 知ら ず、 wiring (router.go) で `persistence.NewXxxRepository(...)`
+// を 呼んで 実装 を 組み立て、 各 usecase に 注入 する。
+package persistence
 
 import (
 	"context"
@@ -6,31 +12,17 @@ import (
 	"time"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"gorm.io/gorm"
 )
 
-// UserRepository は users テーブルへのアクセスを提供する。
-type UserRepository interface {
-	FindByCognitoSub(ctx context.Context, sub string) (*domain.User, error)
-	FindByID(ctx context.Context, id uint64) (*domain.User, error)
-	Create(ctx context.Context, user *domain.User) error
-	// UpdateDisplayName は ProfilePage の「氏名」変更、 および OIDC ログイン時に
-	// 旧 displayName=email を id_token の name claim で自動補正するときに呼ばれる。
-	UpdateDisplayName(ctx context.Context, userID uint64, displayName string) error
-	// UpdateRole は Cognito group → DB role 同期、または招待受諾時に呼ばれる。
-	UpdateRole(ctx context.Context, userID uint64, role string) error
-	// UpdateCompanyID は既存ユーザーが招待を受けて company に紐付くときに呼ばれる。
-	UpdateCompanyID(ctx context.Context, userID uint64, companyID uint64) error
-	// MarkOnboarded は Welcome 画面の「はじめる」ボタン押下時に呼ばれ、
-	// onboarded_at = NOW() に更新する。冪等（既に値が入っていても上書きしない）。
-	MarkOnboarded(ctx context.Context, userID uint64) error
-}
-
+// userRepository は [repository.UserRepository] の GORM 実装。
 type userRepository struct {
 	db *gorm.DB
 }
 
-func NewUserRepository(db *gorm.DB) UserRepository {
+// NewUserRepository は GORM ベース の [repository.UserRepository] を 返す。
+func NewUserRepository(db *gorm.DB) repository.UserRepository {
 	return &userRepository{db: db}
 }
 

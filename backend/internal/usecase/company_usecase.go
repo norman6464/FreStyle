@@ -4,14 +4,14 @@ import (
 	"context"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/repository"
+	"github.com/norman6464/FreStyle/backend/internal/legacyrepository"
 )
 
 type ListCompaniesUseCase struct {
-	repo repository.CompanyRepository
+	repo legacyrepository.CompanyRepository
 }
 
-func NewListCompaniesUseCase(r repository.CompanyRepository) *ListCompaniesUseCase {
+func NewListCompaniesUseCase(r legacyrepository.CompanyRepository) *ListCompaniesUseCase {
 	return &ListCompaniesUseCase{repo: r}
 }
 

@@ -1,7 +1,7 @@
-name: Scheduled - Start (restore RDS + recreate ALB + ECS at morning)
+name: Scheduled - Start (restore RDS + recreate ALB + ECS + start bastion EC2 at morning)
 
 # 目的: 毎日 07:00 JST (22:00 UTC) に RDS を昨夜の snapshot から復元し、
-# ALB と ECS を再作成して稼働開始。scheduled-stop.yml と対になる。
+# ALB と ECS を再作成 + 踏み台 EC2 を start して稼働開始。scheduled-stop.yml と対になる。
 #
 # 流れ:
 #   1) RDS スタックが無ければ最新の `frestyle-prod-nightly-*` snapshot から復元
@@ -11,6 +11,7 @@ name: Scheduled - Start (restore RDS + recreate ALB + ECS at morning)
 #   4) Route 53 で api.normanblog.com の Alias レコードを新 ALB に更新
 #      (normanblog.com の Hosted Zone Z02128031IOUNFFKBRXXE)
 #   5) services-stable wait + ヘルスチェック
+#   6) 踏み台 EC2 (frestyle-prod-bastion) を start (`make apply-migration` などの 運用 操作 で 利用)
 #
 # 認証: GitHub OIDC + IAM Role (frestyle-prod-github-actions-role)
 # 必要な追加 IAM 権限:
@@ -45,6 +46,8 @@ env:
   # Route 53: normanblog.com の権威 Hosted Zone（CloudFront も同ゾーンに紐付いている正規ゾーン）
   R53_HOSTED_ZONE_ID: Z02128031IOUNFFKBRXXE
   R53_RECORD_NAME: api.normanblog.com
+  # 踏み台 EC2 を識別する tag:Name（scheduled-stop 側と一致させる）
+  BASTION_NAME_TAG: frestyle-prod-bastion
 
 permissions:
   id-token: write
@@ -348,6 +351,25 @@ jobs:
           done
           echo "❌ Health check failed after 5 attempts"
           exit 1
+
+      - name: Start bastion EC2
+        # scheduled-stop で stop した 踏み台 を 朝 に start。
+        # `make apply-migration` 等 の 運用 操作 が 日中 に 使える 状態 に 戻す。
+        # 踏み台 が 必要 ない 場合 (運用 オペ なし の 日) は CloudWatch で stopped の まま でも 問題 ない が、
+        # 一貫した「朝 起きる」 体験 を 提供 する ため 自動 start にする。
+        continue-on-error: true
+        run: |
+          BASTION_ID=$(aws ec2 describe-instances --region $AWS_REGION \
+            --filters "Name=tag:Name,Values=$BASTION_NAME_TAG" "Name=instance-state-name,Values=stopped,stopping" \
+            --query 'Reservations[*].Instances[*].InstanceId' --output text)
+          if [ -z "$BASTION_ID" ] || [ "$BASTION_ID" = "None" ]; then
+            echo "No stopped bastion EC2 found (tag:Name=$BASTION_NAME_TAG) — skip (既に running か 未作成)"
+            exit 0
+          fi
+          echo "Starting bastion EC2: $BASTION_ID"
+          aws ec2 start-instances --region $AWS_REGION --instance-ids "$BASTION_ID" >/dev/null
+          aws ec2 wait instance-running --region $AWS_REGION --instance-ids "$BASTION_ID"
+          echo "✅ Bastion EC2 started: $BASTION_ID"
 
       - name: Summary
         run: |

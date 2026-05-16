@@ -7,6 +7,42 @@ definitions:
       status:
         type: string
     type: object
+  github_com_norman6464_FreStyle_backend_internal_domain.Note:
+    properties:
+      content:
+        type: string
+      createdAt:
+        type: string
+      id:
+        type: integer
+      isPinned:
+        type: boolean
+      isPublic:
+        type: boolean
+      title:
+        type: string
+      updatedAt:
+        type: string
+      userId:
+        type: integer
+    type: object
+  github_com_norman6464_FreStyle_backend_internal_domain.Notification:
+    properties:
+      body:
+        type: string
+      createdAt:
+        type: string
+      id:
+        type: integer
+      isRead:
+        type: boolean
+      title:
+        type: string
+      type:
+        type: string
+      userId:
+        type: integer
+    type: object
   github_com_norman6464_FreStyle_backend_internal_domain.ProfileView:
     properties:
       avatarUrl:
@@ -22,6 +58,21 @@ definitions:
         type: string
       status:
         type: string
+      updatedAt:
+        type: string
+      userId:
+        type: integer
+    type: object
+  github_com_norman6464_FreStyle_backend_internal_domain.SessionNote:
+    properties:
+      content:
+        type: string
+      createdAt:
+        type: string
+      id:
+        type: integer
+      sessionId:
+        type: integer
       updatedAt:
         type: string
       userId:
@@ -102,6 +153,37 @@ definitions:
     properties:
       message:
         example: ログインしました。
+        type: string
+    type: object
+  internal_handler.noteCreateReq:
+    properties:
+      content:
+        type: string
+      isPinned:
+        type: boolean
+      isPublic:
+        type: boolean
+      title:
+        type: string
+    required:
+    - title
+    type: object
+  internal_handler.noteUpdateReq:
+    properties:
+      content:
+        type: string
+      isPinned:
+        type: boolean
+      isPublic:
+        type: boolean
+      title:
+        type: string
+    required:
+    - title
+    type: object
+  internal_handler.sessionNoteUpsertReq:
+    properties:
+      content:
         type: string
     type: object
   internal_handler.updateProfileReq:
@@ -285,6 +367,229 @@ paths:
       summary: 招待 トークン 検証 (公開 / 認証 不要)
       tags:
       - invitations
+  /notes:
+    get:
+      description: current user の note を 更新 日 降順 で 返す。 IDOR 対策 で userId は 受け取らない。
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.Note'
+            type: array
+        "400":
+          description: DB 取得 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 自分 の ノート 一覧
+      tags:
+      - notes
+    post:
+      consumes:
+      - application/json
+      description: current user 名義 で 新規 note を 作る。 userId は body で 指定 でき ない (current
+        user 固定)。
+      parameters:
+      - description: 作成 内容 (title 必須)
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.noteCreateReq'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.Note'
+        "400":
+          description: バリデーション エラー or DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: ノート 作成
+      tags:
+      - notes
+  /notes/{id}:
+    delete:
+      description: current user 所有 の note を 削除。 WHERE user_id 絞り込み で 他人 の note は そもそも
+        影響 を 受け ない。
+      parameters:
+      - description: ノート ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: 成功 (本文 なし)
+        "400":
+          description: DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: ノート 削除
+      tags:
+      - notes
+    put:
+      consumes:
+      - application/json
+      description: 指定 note を 更新。 所有者 検証 を usecase 層 で 行い、 他人 の note は 403。
+      parameters:
+      - description: ノート ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 更新 内容
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.noteUpdateReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.Note'
+        "400":
+          description: バリデーション or DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: 他人 の note
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: ノート 更新
+      tags:
+      - notes
+  /notifications:
+    get:
+      description: current user の 通知 を 作成 日 降順 で 返す。
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.Notification'
+            type: array
+        "400":
+          description: DB 取得 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 通知 一覧
+      tags:
+      - notifications
+  /notifications/{id}/read:
+    patch:
+      description: 指定 通知 を 既読 に する (所有者 検証 込み)。 同 ハンドラ は 旧 クライアント 互換 で PUT も 同じ パス
+        で 受け付ける が、 OpenAPI で は PATCH を 標準 と して 1 つ だけ 表現 する。
+      parameters:
+      - description: 通知 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: 成功 (本文 なし)
+        "400":
+          description: DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 通知 単一 既読 化
+      tags:
+      - notifications
+  /notifications/read-all:
+    patch:
+      description: current user の 全 未読 通知 を まとめて 既読 に する。 同 パス で PUT も 受け付ける 旧 互換
+        ルート あり、 OpenAPI で は PATCH のみ 表現。
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: 成功 (本文 なし)
+        "400":
+          description: DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 通知 一括 既読 化
+      tags:
+      - notifications
+  /notifications/unread-count:
+    get:
+      description: current user の 未読 通知 数 を 整数 で 返す (バッジ 表示 用)。
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: integer
+        "400":
+          description: DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 未読 通知 数
+      tags:
+      - notifications
   /profile/{userId}:
     get:
       description: 指定 user (or current user) の displayName / bio / avatarUrl / status
@@ -380,6 +685,77 @@ paths:
       summary: オンボーディング 完了 通知
       tags:
       - profile
+  /sessions/{sessionId}/note:
+    get:
+      description: AI チャット セッション に 紐づく ノート (= 学習 者 が セッション ごと に 残した メモ) を 取得。 存在 し
+        ない 場合 は 404。
+      parameters:
+      - description: AI チャット セッション ID
+        in: path
+        name: sessionId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.SessionNote'
+        "400":
+          description: DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "404":
+          description: 未 作成
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: セッション ノート 取得
+      tags:
+      - session-notes
+    put:
+      consumes:
+      - application/json
+      description: 指定 セッション の ノート を upsert。 userId は body で 受け取らず current user 固定
+        (IDOR 対策)。
+      parameters:
+      - description: AI チャット セッション ID
+        in: path
+        name: sessionId
+        required: true
+        type: integer
+      - description: content (userId は current user 固定 / body で 受け取らない)
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.sessionNoteUpsertReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.SessionNote'
+        "400":
+          description: バリデーション or DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: セッション ノート 作成 / 更新
+      tags:
+      - session-notes
 securityDefinitions:
   CookieAuth:
     description: Cognito 由来 の JWT を HttpOnly Cookie で 送る。 ログイン 後 自動 付与。

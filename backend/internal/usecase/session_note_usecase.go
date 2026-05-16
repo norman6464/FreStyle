@@ -8,6 +8,8 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
+// GetSessionNoteUseCase は AI チャット セッション 紐付き の ノート を 取得 する。
+// 依存 port: [repository.SessionNoteRepository]。
 type GetSessionNoteUseCase struct {
 	repo repository.SessionNoteRepository
 }
@@ -23,6 +25,8 @@ func (u *GetSessionNoteUseCase) Execute(ctx context.Context, sessionID uint64) (
 	return u.repo.FindBySessionID(ctx, sessionID)
 }
 
+// UpsertSessionNoteUseCase は セッション ノート を upsert する (新規 or 更新)。
+// 依存 port: [repository.SessionNoteRepository]。
 type UpsertSessionNoteUseCase struct {
 	repo repository.SessionNoteRepository
 }

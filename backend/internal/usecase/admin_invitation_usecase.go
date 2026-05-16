@@ -12,6 +12,8 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
+// ListAdminInvitationsUseCase は 招待 一覧 を 取得 する Use Case。
+// 依存 port: [repository.AdminInvitationRepository] (一覧 取得 を 委譲)。
 type ListAdminInvitationsUseCase struct {
 	repo repository.AdminInvitationRepository
 }
@@ -55,6 +57,8 @@ type MailBuilder func(magicLink, displayName, companyName, role string) (subject
 // infra/ses.MagicLinkURL を直接渡す。
 type LinkBuilder func(token string) string
 
+// CreateAdminInvitationUseCase は 新規 招待 を 発行 + マジック リンク メール を 送る Use Case。
+// 依存 port: [repository.AdminInvitationRepository] (DB 永続化) + [MagicLinkSender] (SES 経由 の メール 送信)。
 type CreateAdminInvitationUseCase struct {
 	repo        repository.AdminInvitationRepository
 	sender      MagicLinkSender
@@ -130,6 +134,8 @@ func (u *CreateAdminInvitationUseCase) Execute(ctx context.Context, in CreateAdm
 	return inv, nil
 }
 
+// CancelAdminInvitationUseCase は 既存 招待 の status を canceled に 更新 する Use Case。
+// 依存 port: [repository.AdminInvitationRepository]。
 type CancelAdminInvitationUseCase struct {
 	repo repository.AdminInvitationRepository
 }

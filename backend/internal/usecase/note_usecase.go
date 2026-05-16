@@ -10,6 +10,8 @@ import (
 
 var ErrNoteForbidden = errors.New("forbidden")
 
+// ListNotesByUserIDUseCase は current user の ノート 一覧 を 返す。
+// 依存 port: [repository.NoteRepository]。
 type ListNotesByUserIDUseCase struct {
 	repo repository.NoteRepository
 }
@@ -25,6 +27,8 @@ func (u *ListNotesByUserIDUseCase) Execute(ctx context.Context, userID uint64) (
 	return u.repo.ListByUserID(ctx, userID)
 }
 
+// CreateNoteUseCase は 新規 ノート を 作成 する。
+// 依存 port: [repository.NoteRepository]。
 type CreateNoteUseCase struct {
 	repo repository.NoteRepository
 }
@@ -61,6 +65,8 @@ func (u *CreateNoteUseCase) Execute(ctx context.Context, in CreateNoteInput) (*d
 	return n, nil
 }
 
+// UpdateNoteUseCase は ノート を 更新 する (所有者 検証 込み)。
+// 依存 port: [repository.NoteRepository] (FindByID で 所有者 検証 → Update)。
 type UpdateNoteUseCase struct {
 	repo repository.NoteRepository
 }
@@ -104,6 +110,8 @@ func (u *UpdateNoteUseCase) Execute(ctx context.Context, in UpdateNoteInput) (*d
 	return existing, nil
 }
 
+// DeleteNoteUseCase は ノート を 削除 する。 repo 側 で 所有者 検証 を 行う。
+// 依存 port: [repository.NoteRepository] (Delete に userID を 渡して WHERE 絞り込み)。
 type DeleteNoteUseCase struct {
 	repo repository.NoteRepository
 }

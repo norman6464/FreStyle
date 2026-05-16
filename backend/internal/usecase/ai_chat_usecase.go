@@ -9,6 +9,7 @@ import (
 )
 
 // GetAiChatSessionsByUserIDUseCase は指定ユーザーの AI チャットセッション一覧を返す。
+// 依存 port: [repository.AiChatSessionRepository]。
 type GetAiChatSessionsByUserIDUseCase struct {
 	sessions repository.AiChatSessionRepository
 }
@@ -22,6 +23,8 @@ func (u *GetAiChatSessionsByUserIDUseCase) Execute(ctx context.Context, userID u
 }
 
 // CreateAiChatSessionUseCase は新規セッションを作成する。
+// 依存 port: [repository.AiChatSessionRepository]。 章 014 で 解説 する Clean Architecture
+// 手書き DI の 標準 例。
 type CreateAiChatSessionUseCase struct {
 	sessions repository.AiChatSessionRepository
 }
@@ -57,6 +60,7 @@ func (u *CreateAiChatSessionUseCase) Execute(ctx context.Context, in CreateAiCha
 }
 
 // GetAiChatSessionUseCase は単一セッションを返す。
+// 依存 port: [repository.AiChatSessionRepository]。
 type GetAiChatSessionUseCase struct {
 	sessions repository.AiChatSessionRepository
 }
@@ -70,6 +74,7 @@ func (u *GetAiChatSessionUseCase) Execute(ctx context.Context, id uint64) (*doma
 }
 
 // UpdateAiChatSessionTitleUseCase はセッションタイトルを更新する。
+// 依存 port: [repository.AiChatSessionRepository]。
 type UpdateAiChatSessionTitleUseCase struct {
 	sessions repository.AiChatSessionRepository
 }
@@ -86,6 +91,7 @@ func (u *UpdateAiChatSessionTitleUseCase) Execute(ctx context.Context, id uint64
 }
 
 // DeleteAiChatSessionUseCase はセッションを削除する。
+// 依存 port: [repository.AiChatSessionRepository]。 削除 前 に FindByID で 所有者 検証。
 type DeleteAiChatSessionUseCase struct {
 	sessions repository.AiChatSessionRepository
 }
@@ -106,6 +112,7 @@ func (u *DeleteAiChatSessionUseCase) Execute(ctx context.Context, id uint64, use
 }
 
 // GetAiChatMessagesUseCase は DynamoDB からセッションのメッセージ一覧を返す。
+// 依存 port: [repository.AiChatMessageRepository] (DynamoDB 実装)。
 type GetAiChatMessagesUseCase struct {
 	messages repository.AiChatMessageRepository
 }

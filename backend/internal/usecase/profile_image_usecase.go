@@ -8,6 +8,9 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
+// IssueProfileImageUploadURLUseCase は profile アイコン 用 S3 PUT 署名 付き URL を 発行 する。
+// 章 009 で 解説 する Presigner port の 標準 例。
+// 依存 port: [repository.ProfileImagePresigner] (S3 presigned URL 生成)。
 type IssueProfileImageUploadURLUseCase struct {
 	presigner repository.ProfileImagePresigner
 }

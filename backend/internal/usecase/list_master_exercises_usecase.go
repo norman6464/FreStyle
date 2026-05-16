@@ -11,6 +11,8 @@ import (
 //
 // 旧 ListPhpExercisesUseCase の汎用版。言語固定の API（例: /php/exercises）を
 // 残しつつ、本 usecase は language を引数で受け取って多言語対応の準備をする。
+//
+// 依存 port: [repository.MasterExerciseRepository]。
 type ListMasterExercisesUseCase struct {
 	repo repository.MasterExerciseRepository
 }

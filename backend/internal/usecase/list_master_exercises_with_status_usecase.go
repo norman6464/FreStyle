@@ -25,6 +25,9 @@ type MasterExerciseWithStatus struct {
 // ListMasterExercisesWithStatusUseCase は問題一覧 + 各問題の current user 状態 + 集計を返す。
 //
 // N+1 を避けるため、 user status と stats はそれぞれ batch クエリで取得する。
+//
+// 依存 port: [repository.MasterExerciseRepository] + [repository.ExerciseSubmissionRepository]
+// (BatchUserStatuses / ExerciseStatsBatch で N+1 回避)。
 type ListMasterExercisesWithStatusUseCase struct {
 	exercises   repository.MasterExerciseRepository
 	submissions repository.ExerciseSubmissionRepository

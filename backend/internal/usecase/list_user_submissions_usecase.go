@@ -15,6 +15,8 @@ type ListUserMasterSubmissionsInput struct {
 }
 
 // ListUserMasterSubmissionsUseCase は current user の指定問題に対する提出履歴を新しい順で返す。
+// 依存 port: [repository.MasterExerciseRepository] (slug 解決) +
+// [repository.ExerciseSubmissionRepository] (履歴 取得)。
 type ListUserMasterSubmissionsUseCase struct {
 	exercises   repository.MasterExerciseRepository
 	submissions repository.ExerciseSubmissionRepository

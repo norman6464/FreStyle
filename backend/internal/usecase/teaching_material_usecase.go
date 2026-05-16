@@ -20,6 +20,9 @@ import (
 //     trainee は所属コースが is_published=false の場合は閲覧不可
 //   - Get: 同一 company か super_admin、 trainee は published のみ閲覧可
 //   - Create / Update / Delete: 同一 company の company_admin、 または super_admin
+//
+// 依存 port: [repository.TeachingMaterialRepository] + [repository.CourseRepository]
+// (course との 整合性 検証 用)。 章 003 で 全 体 walk-through、 章 022 で 詳細 解説。
 type TeachingMaterialUseCase struct {
 	repo    repository.TeachingMaterialRepository
 	courses repository.CourseRepository

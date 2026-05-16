@@ -16,6 +16,9 @@ import (
 // 成功時は ValidatedInvitation (DTO) を返す。email は含めない:
 //   - 本人がメールから踏んでくる前提なので email は本人が知っている
 //   - 万一 token が漏れた場合の被害局所化（招待先 email を覗かれない）
+//
+// 依存 port: [repository.AdminInvitationRepository] (token 検証) +
+// [repository.CompanyRepository] (company 名 取得)。
 type ValidateInvitationTokenUseCase struct {
 	invitations repository.AdminInvitationRepository
 	companies   repository.CompanyRepository

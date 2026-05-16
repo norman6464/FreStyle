@@ -56,6 +56,10 @@ type SubmitMasterExerciseOutput struct {
 //     実行コスト削減のため、最初の不一致で打ち切らず全件実行（ユーザに「どこで落ちたか」を全部見せる方針）。
 //
 // 履歴保存はテストケース個別ではなく、まとめて 1 行（最初に失敗した stdout / stderr / exit_code を採用）。
+//
+// 依存 port: [repository.MasterExerciseRepository] (slug → exercise) +
+// [repository.MasterExerciseExampleRepository] (入出力 例) +
+// [repository.ExerciseSubmissionRepository] (履歴 保存) + [CodeExecutor] (sandbox 実行)。
 type SubmitMasterExerciseUseCase struct {
 	exercises   repository.MasterExerciseRepository
 	examples    repository.MasterExerciseExampleRepository

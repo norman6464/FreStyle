@@ -22,6 +22,9 @@ type GetMasterExerciseDetailOutput struct {
 //
 // 旧 API は `:id` ベースだったが、 人間可読な URL `/code-editor/php-1` を実現するため
 // 主導線を slug に切替える。 ID ベースの挙動も互換用に Execute / GetByID で残す。
+//
+// 依存 port: [repository.MasterExerciseRepository] (exercise 本体) +
+// [repository.MasterExerciseExampleRepository] (入出力例 セット)。
 type GetMasterExerciseUseCase struct {
 	repo     repository.MasterExerciseRepository
 	examples repository.MasterExerciseExampleRepository

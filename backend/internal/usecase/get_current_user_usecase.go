@@ -8,6 +8,7 @@ import (
 )
 
 // GetCurrentUserUseCase は Cognito sub から現在のユーザー情報を引く。
+// 依存 port: [repository.UserRepository] (FindByCognitoSub を 使用)。
 type GetCurrentUserUseCase struct {
 	users repository.UserRepository
 }

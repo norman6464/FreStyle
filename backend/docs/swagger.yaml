@@ -121,7 +121,6 @@ definitions:
       status:
         type: string
     type: object
-host: api.normanblog.com
 info:
   contact:
     name: FreStyle Engineering
@@ -232,6 +231,10 @@ paths:
           description: DB に user が ない (Cognito 側 だけ 存在)
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: DB / repository 取得 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
       security:
       - CookieAuth: []
       summary: current user 情報 取得
@@ -299,6 +302,10 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.ProfileView'
+        "400":
+          description: view 構築 失敗 (profile / users 取得 の 内部 エラー 等)
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
         "401":
           description: 未 認証
           schema:
@@ -373,9 +380,6 @@ paths:
       summary: オンボーディング 完了 通知
       tags:
       - profile
-schemes:
-- https
-- http
 securityDefinitions:
   CookieAuth:
     description: Cognito 由来 の JWT を HttpOnly Cookie で 送る。 ログイン 後 自動 付与。

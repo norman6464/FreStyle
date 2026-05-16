@@ -9,9 +9,11 @@
 // @contact.name    FreStyle Engineering
 // @contact.url     https://normanblog.com
 //
-// @host            api.normanblog.com
 // @BasePath        /api/v2
-// @schemes         https http
+//
+// host / schemes は spec に 焼き込まず、 Swagger UI が ロード 元 と 同じ origin
+// (本番 = api.normanblog.com、 ローカル = localhost:8080 等) を 自動 で 使う ように
+// する。 そう しない と ローカル 開発 で 「Try it out」 が 本番 を 叩いて しまう。
 //
 // @securityDefinitions.apikey  CookieAuth
 // @in                          header

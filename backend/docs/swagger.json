@@ -1,8 +1,4 @@
 {
-    "schemes": [
-        "https",
-        "http"
-    ],
     "swagger": "2.0",
     "info": {
         "description": "新卒 IT エンジニア 向け 統合 研修 プラットフォーム の REST API。\nClean Architecture (port = usecase/repository / adapter = adapter/persistence) で 構築。",
@@ -14,7 +10,6 @@
         },
         "version": "2.0"
     },
-    "host": "api.normanblog.com",
     "basePath": "/api/v2",
     "paths": {
         "/auth/cognito/callback": {
@@ -166,6 +161,12 @@
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
+                    },
+                    "500": {
+                        "description": "DB / repository 取得 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
                     }
                 }
             }
@@ -297,6 +298,12 @@
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.ProfileView"
+                        }
+                    },
+                    "400": {
+                        "description": "view 構築 失敗 (profile / users 取得 の 内部 エラー 等)",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
                         }
                     },
                     "401": {

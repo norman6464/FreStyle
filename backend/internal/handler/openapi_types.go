@@ -1,3 +1,11 @@
+// これら の 型 は handler コード から 直接 参照 さ れず、 swaggo (= `make openapi`)
+// が doc コメント 内 の `@Success` / `@Failure` の `{object}` 識別子 と して
+// 名前 解決 する。 そのため staticcheck の U1000 (unused) 警告 を ファイル 全体 で
+// 抑止 する。 該当 型 を 実際 に handler から JSON marshal に 使う ように なれば
+// この 抑止 は 不要。
+
+//lint:file-ignore U1000 referenced only by swaggo annotations
+
 package handler
 
 import "time"

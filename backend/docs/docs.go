@@ -168,6 +168,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
+                    },
+                    "500": {
+                        "description": "DB / repository 取得 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
                     }
                 }
             }
@@ -299,6 +305,12 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.ProfileView"
+                        }
+                    },
+                    "400": {
+                        "description": "view 構築 失敗 (profile / users 取得 の 内部 エラー 等)",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
                         }
                     },
                     "401": {
@@ -563,9 +575,9 @@ const docTemplate = `{
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
 	Version:          "2.0",
-	Host:             "api.normanblog.com",
+	Host:             "",
 	BasePath:         "/api/v2",
-	Schemes:          []string{"https", "http"},
+	Schemes:          []string{},
 	Title:            "FreStyle Backend API",
 	Description:      "新卒 IT エンジニア 向け 統合 研修 プラットフォーム の REST API。\nClean Architecture (port = usecase/repository / adapter = adapter/persistence) で 構築。",
 	InfoInstanceName: "swagger",

@@ -66,6 +66,7 @@ func (h *ProfileHandler) resolveUserID(c *gin.Context) (uint64, error) {
 //	@Produce      json
 //	@Param        userId  path      string  true   "数字 ID または 'me'"
 //	@Success      200     {object}  domain.ProfileView
+//	@Failure      400     {object}  errorResponse  "view 構築 失敗 (profile / users 取得 の 内部 エラー 等)"
 //	@Failure      401     {object}  errorResponse  "未 認証"
 //	@Failure      403     {object}  errorResponse  "他 user の userId 指定"
 //	@Router       /profile/{userId} [get]

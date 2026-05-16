@@ -64,6 +64,7 @@ func NewAuthHandler(
 //	@Success      200  {object}  meResponse
 //	@Failure      401  {object}  errorResponse  "未 認証"
 //	@Failure      404  {object}  errorResponse  "DB に user が ない (Cognito 側 だけ 存在)"
+//	@Failure      500  {object}  errorResponse  "DB / repository 取得 失敗"
 //	@Router       /auth/me [get]
 //	@Security     CookieAuth
 func (h *AuthHandler) Me(c *gin.Context) {

@@ -1,6 +1,8 @@
 package persistence
 
 import (
+	"context"
+
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"gorm.io/gorm"
@@ -16,13 +18,13 @@ func NewExerciseSubmissionRepository(db *gorm.DB) repository.ExerciseSubmissionR
 	return &exerciseSubmissionRepository{db: db}
 }
 
-func (r *exerciseSubmissionRepository) Create(submission *domain.ExerciseSubmission) error {
-	return r.db.Create(submission).Error
+func (r *exerciseSubmissionRepository) Create(ctx context.Context, submission *domain.ExerciseSubmission) error {
+	return r.db.WithContext(ctx).Create(submission).Error
 }
 
-func (r *exerciseSubmissionRepository) ListByUserAndExercise(userID, exerciseID uint64, kind string) ([]domain.ExerciseSubmission, error) {
+func (r *exerciseSubmissionRepository) ListByUserAndExercise(ctx context.Context, userID, exerciseID uint64, kind string) ([]domain.ExerciseSubmission, error) {
 	var rows []domain.ExerciseSubmission
-	if err := r.db.
+	if err := r.db.WithContext(ctx).
 		Where("user_id = ? AND exercise_id = ? AND exercise_kind = ?", userID, exerciseID, kind).
 		Order("submitted_at desc, id desc").
 		Find(&rows).Error; err != nil {
@@ -31,9 +33,9 @@ func (r *exerciseSubmissionRepository) ListByUserAndExercise(userID, exerciseID 
 	return rows, nil
 }
 
-func (r *exerciseSubmissionRepository) HasSolved(userID, exerciseID uint64, kind string) (bool, error) {
+func (r *exerciseSubmissionRepository) HasSolved(ctx context.Context, userID, exerciseID uint64, kind string) (bool, error) {
 	var count int64
-	if err := r.db.Model(&domain.ExerciseSubmission{}).
+	if err := r.db.WithContext(ctx).Model(&domain.ExerciseSubmission{}).
 		Where("user_id = ? AND exercise_id = ? AND exercise_kind = ? AND is_correct = ?", userID, exerciseID, kind, true).
 		Limit(1).
 		Count(&count).Error; err != nil {
@@ -42,9 +44,9 @@ func (r *exerciseSubmissionRepository) HasSolved(userID, exerciseID uint64, kind
 	return count > 0, nil
 }
 
-func (r *exerciseSubmissionRepository) HasAttempted(userID, exerciseID uint64, kind string) (bool, error) {
+func (r *exerciseSubmissionRepository) HasAttempted(ctx context.Context, userID, exerciseID uint64, kind string) (bool, error) {
 	var count int64
-	if err := r.db.Model(&domain.ExerciseSubmission{}).
+	if err := r.db.WithContext(ctx).Model(&domain.ExerciseSubmission{}).
 		Where("user_id = ? AND exercise_id = ? AND exercise_kind = ?", userID, exerciseID, kind).
 		Limit(1).
 		Count(&count).Error; err != nil {
@@ -55,7 +57,7 @@ func (r *exerciseSubmissionRepository) HasAttempted(userID, exerciseID uint64, k
 
 // BatchUserStatuses は 1 クエリで user × exerciseIDs の (any submission, any solved) を取り、
 // exercise_id -> "solved" / "in_progress" を返す。 結果に含まれない exercise_id は未着手扱い。
-func (r *exerciseSubmissionRepository) BatchUserStatuses(userID uint64, exerciseIDs []uint64, kind string) (map[uint64]string, error) {
+func (r *exerciseSubmissionRepository) BatchUserStatuses(ctx context.Context, userID uint64, exerciseIDs []uint64, kind string) (map[uint64]string, error) {
 	result := make(map[uint64]string, len(exerciseIDs))
 	if len(exerciseIDs) == 0 {
 		return result, nil
@@ -65,7 +67,7 @@ func (r *exerciseSubmissionRepository) BatchUserStatuses(userID uint64, exercise
 		AnySolved  bool
 	}
 	var rows []row
-	if err := r.db.Model(&domain.ExerciseSubmission{}).
+	if err := r.db.WithContext(ctx).Model(&domain.ExerciseSubmission{}).
 		Select("exercise_id, BOOL_OR(is_correct) AS any_solved").
 		Where("user_id = ? AND exercise_kind = ? AND exercise_id IN ?", userID, kind, exerciseIDs).
 		Group("exercise_id").
@@ -82,16 +84,16 @@ func (r *exerciseSubmissionRepository) BatchUserStatuses(userID uint64, exercise
 	return result, nil
 }
 
-func (r *exerciseSubmissionRepository) ExerciseStats(exerciseID uint64, kind string) (repository.ExerciseSubmissionStats, error) {
+func (r *exerciseSubmissionRepository) ExerciseStats(ctx context.Context, exerciseID uint64, kind string) (repository.ExerciseSubmissionStats, error) {
 	var stats repository.ExerciseSubmissionStats
 	// COUNT(*) は全提出数。
-	if err := r.db.Model(&domain.ExerciseSubmission{}).
+	if err := r.db.WithContext(ctx).Model(&domain.ExerciseSubmission{}).
 		Where("exercise_id = ? AND exercise_kind = ?", exerciseID, kind).
 		Count(&stats.TotalSubmissions).Error; err != nil {
 		return stats, err
 	}
 	// COUNT(DISTINCT user_id) は正答ユーザ数。
-	if err := r.db.Model(&domain.ExerciseSubmission{}).
+	if err := r.db.WithContext(ctx).Model(&domain.ExerciseSubmission{}).
 		Where("exercise_id = ? AND exercise_kind = ? AND is_correct = ?", exerciseID, kind, true).
 		Distinct("user_id").
 		Count(&stats.SolvedUsers).Error; err != nil {
@@ -101,7 +103,7 @@ func (r *exerciseSubmissionRepository) ExerciseStats(exerciseID uint64, kind str
 }
 
 // ExerciseStatsBatch は 2 つの GROUP BY クエリで全件まとめて集計する。
-func (r *exerciseSubmissionRepository) ExerciseStatsBatch(exerciseIDs []uint64, kind string) (map[uint64]repository.ExerciseSubmissionStats, error) {
+func (r *exerciseSubmissionRepository) ExerciseStatsBatch(ctx context.Context, exerciseIDs []uint64, kind string) (map[uint64]repository.ExerciseSubmissionStats, error) {
 	result := make(map[uint64]repository.ExerciseSubmissionStats, len(exerciseIDs))
 	if len(exerciseIDs) == 0 {
 		return result, nil
@@ -112,7 +114,7 @@ func (r *exerciseSubmissionRepository) ExerciseStatsBatch(exerciseIDs []uint64, 
 		Total      int64
 	}
 	var totals []totalRow
-	if err := r.db.Model(&domain.ExerciseSubmission{}).
+	if err := r.db.WithContext(ctx).Model(&domain.ExerciseSubmission{}).
 		Select("exercise_id, COUNT(*) AS total").
 		Where("exercise_kind = ? AND exercise_id IN ?", kind, exerciseIDs).
 		Group("exercise_id").
@@ -130,7 +132,7 @@ func (r *exerciseSubmissionRepository) ExerciseStatsBatch(exerciseIDs []uint64, 
 		SolvedUsers int64
 	}
 	var solveds []solvedRow
-	if err := r.db.Model(&domain.ExerciseSubmission{}).
+	if err := r.db.WithContext(ctx).Model(&domain.ExerciseSubmission{}).
 		Select("exercise_id, COUNT(DISTINCT user_id) AS solved_users").
 		Where("exercise_kind = ? AND exercise_id IN ? AND is_correct = ?", kind, exerciseIDs, true).
 		Group("exercise_id").

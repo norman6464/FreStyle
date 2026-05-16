@@ -1,6 +1,10 @@
 package repository
 
-import "github.com/norman6464/FreStyle/backend/internal/domain"
+import (
+	"context"
+
+	"github.com/norman6464/FreStyle/backend/internal/domain"
+)
 
 // MasterExerciseExampleRepository は MasterExercise に紐付く入出力例の永続化を担う。
 //
@@ -8,9 +12,11 @@ import "github.com/norman6464/FreStyle/backend/internal/domain"
 // 詳細画面では特定 exercise の全 example を表示し、採点 usecase では同じ全件を
 // テストケースとしてループ実行する。
 //
+// 全 メソッド は I/O 境界 として `ctx context.Context` を 第 1 引数 で 受ける。
+//
 // 実装: [github.com/norman6464/FreStyle/backend/internal/adapter/persistence] の
 // masterExerciseExampleRepository (GORM)。
 type MasterExerciseExampleRepository interface {
-	ListByExerciseID(exerciseID uint64) ([]domain.MasterExerciseExample, error)
-	ListByExerciseIDs(exerciseIDs []uint64) (map[uint64][]domain.MasterExerciseExample, error)
+	ListByExerciseID(ctx context.Context, exerciseID uint64) ([]domain.MasterExerciseExample, error)
+	ListByExerciseIDs(ctx context.Context, exerciseIDs []uint64) (map[uint64][]domain.MasterExerciseExample, error)
 }

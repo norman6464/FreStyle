@@ -1,6 +1,8 @@
 package usecase
 
 import (
+	"context"
+
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
@@ -41,8 +43,8 @@ type ListMasterExercisesWithStatusInput struct {
 	Language string
 }
 
-func (uc *ListMasterExercisesWithStatusUseCase) Execute(in ListMasterExercisesWithStatusInput) ([]MasterExerciseWithStatus, error) {
-	exercises, err := uc.exercises.ListByLanguage(in.Language)
+func (uc *ListMasterExercisesWithStatusUseCase) Execute(ctx context.Context, in ListMasterExercisesWithStatusInput) ([]MasterExerciseWithStatus, error) {
+	exercises, err := uc.exercises.ListByLanguage(ctx, in.Language)
 	if err != nil {
 		return nil, err
 	}
@@ -56,12 +58,12 @@ func (uc *ListMasterExercisesWithStatusUseCase) Execute(in ListMasterExercisesWi
 
 	statusMap := make(map[uint64]string)
 	if in.UserID != 0 {
-		statusMap, err = uc.submissions.BatchUserStatuses(in.UserID, ids, domain.ExerciseKindMaster)
+		statusMap, err = uc.submissions.BatchUserStatuses(ctx, in.UserID, ids, domain.ExerciseKindMaster)
 		if err != nil {
 			return nil, err
 		}
 	}
-	statsMap, err := uc.submissions.ExerciseStatsBatch(ids, domain.ExerciseKindMaster)
+	statsMap, err := uc.submissions.ExerciseStatsBatch(ctx, ids, domain.ExerciseKindMaster)
 	if err != nil {
 		return nil, err
 	}

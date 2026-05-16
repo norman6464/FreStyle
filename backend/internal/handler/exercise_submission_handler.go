@@ -77,7 +77,7 @@ func (h *ExerciseSubmissionHandler) List(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "slug is required"})
 		return
 	}
-	rows, err := h.list.Execute(usecase.ListUserMasterSubmissionsInput{UserID: uid, Slug: slug})
+	rows, err := h.list.Execute(c.Request.Context(), usecase.ListUserMasterSubmissionsInput{UserID: uid, Slug: slug})
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "演習問題が見つかりません"})

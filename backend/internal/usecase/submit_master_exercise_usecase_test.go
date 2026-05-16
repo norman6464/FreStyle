@@ -18,11 +18,13 @@ type fakeMasterExerciseRepo struct {
 	err error
 }
 
-func (r *fakeMasterExerciseRepo) ListByLanguage(string) ([]domain.MasterExercise, error) {
+func (r *fakeMasterExerciseRepo) ListByLanguage(context.Context, string) ([]domain.MasterExercise, error) {
 	return nil, nil
 }
-func (r *fakeMasterExerciseRepo) GetByID(uint64) (*domain.MasterExercise, error) { return r.get, r.err }
-func (r *fakeMasterExerciseRepo) GetBySlug(string) (*domain.MasterExercise, error) {
+func (r *fakeMasterExerciseRepo) GetByID(context.Context, uint64) (*domain.MasterExercise, error) {
+	return r.get, r.err
+}
+func (r *fakeMasterExerciseRepo) GetBySlug(context.Context, string) (*domain.MasterExercise, error) {
 	return r.get, r.err
 }
 
@@ -30,10 +32,10 @@ type fakeExampleRepo struct {
 	rows []domain.MasterExerciseExample
 }
 
-func (r *fakeExampleRepo) ListByExerciseID(uint64) ([]domain.MasterExerciseExample, error) {
+func (r *fakeExampleRepo) ListByExerciseID(context.Context, uint64) ([]domain.MasterExerciseExample, error) {
 	return r.rows, nil
 }
-func (r *fakeExampleRepo) ListByExerciseIDs([]uint64) (map[uint64][]domain.MasterExerciseExample, error) {
+func (r *fakeExampleRepo) ListByExerciseIDs(context.Context, []uint64) (map[uint64][]domain.MasterExerciseExample, error) {
 	return nil, nil
 }
 
@@ -42,7 +44,7 @@ type fakeSubmissionRepo struct {
 	createErr error
 }
 
-func (r *fakeSubmissionRepo) Create(s *domain.ExerciseSubmission) error {
+func (r *fakeSubmissionRepo) Create(_ context.Context, s *domain.ExerciseSubmission) error {
 	if r.createErr != nil {
 		return r.createErr
 	}
@@ -50,18 +52,22 @@ func (r *fakeSubmissionRepo) Create(s *domain.ExerciseSubmission) error {
 	s.ID = 999
 	return nil
 }
-func (r *fakeSubmissionRepo) ListByUserAndExercise(uint64, uint64, string) ([]domain.ExerciseSubmission, error) {
+func (r *fakeSubmissionRepo) ListByUserAndExercise(context.Context, uint64, uint64, string) ([]domain.ExerciseSubmission, error) {
 	return nil, nil
 }
-func (r *fakeSubmissionRepo) HasSolved(uint64, uint64, string) (bool, error)    { return false, nil }
-func (r *fakeSubmissionRepo) HasAttempted(uint64, uint64, string) (bool, error) { return false, nil }
-func (r *fakeSubmissionRepo) BatchUserStatuses(uint64, []uint64, string) (map[uint64]string, error) {
+func (r *fakeSubmissionRepo) HasSolved(context.Context, uint64, uint64, string) (bool, error) {
+	return false, nil
+}
+func (r *fakeSubmissionRepo) HasAttempted(context.Context, uint64, uint64, string) (bool, error) {
+	return false, nil
+}
+func (r *fakeSubmissionRepo) BatchUserStatuses(context.Context, uint64, []uint64, string) (map[uint64]string, error) {
 	return nil, nil
 }
-func (r *fakeSubmissionRepo) ExerciseStats(uint64, string) (repository.ExerciseSubmissionStats, error) {
+func (r *fakeSubmissionRepo) ExerciseStats(context.Context, uint64, string) (repository.ExerciseSubmissionStats, error) {
 	return repository.ExerciseSubmissionStats{}, nil
 }
-func (r *fakeSubmissionRepo) ExerciseStatsBatch([]uint64, string) (map[uint64]repository.ExerciseSubmissionStats, error) {
+func (r *fakeSubmissionRepo) ExerciseStatsBatch(context.Context, []uint64, string) (map[uint64]repository.ExerciseSubmissionStats, error) {
 	return nil, nil
 }
 

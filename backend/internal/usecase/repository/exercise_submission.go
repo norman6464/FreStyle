@@ -1,6 +1,10 @@
 package repository
 
-import "github.com/norman6464/FreStyle/backend/internal/domain"
+import (
+	"context"
+
+	"github.com/norman6464/FreStyle/backend/internal/domain"
+)
 
 // ExerciseSubmissionRepository は演習提出履歴の永続化を担う。
 //
@@ -8,32 +12,34 @@ import "github.com/norman6464/FreStyle/backend/internal/domain"
 // 集計クエリ ( CountUsersSolved / CountTotal ) は exercise_id 単位で
 // 一覧ページの「正答者数」「提出数」表示に使う。
 //
+// 全 メソッド は I/O 境界 として `ctx context.Context` を 第 1 引数 で 受ける。
+//
 // 実装: [github.com/norman6464/FreStyle/backend/internal/adapter/persistence] の
 // exerciseSubmissionRepository (GORM)。
 type ExerciseSubmissionRepository interface {
 	// Create は新しい提出を保存する。
-	Create(submission *domain.ExerciseSubmission) error
+	Create(ctx context.Context, submission *domain.ExerciseSubmission) error
 
 	// ListByUserAndExercise は user × (kind, exercise_id) の履歴を新しい順に返す。
-	ListByUserAndExercise(userID, exerciseID uint64, kind string) ([]domain.ExerciseSubmission, error)
+	ListByUserAndExercise(ctx context.Context, userID, exerciseID uint64, kind string) ([]domain.ExerciseSubmission, error)
 
 	// HasSolved は user が exercise を 1 回でも is_correct=true で解いたかを返す。
-	HasSolved(userID, exerciseID uint64, kind string) (bool, error)
+	HasSolved(ctx context.Context, userID, exerciseID uint64, kind string) (bool, error)
 
 	// HasAttempted は user が exercise に対して 1 回でも提出したかを返す。
-	HasAttempted(userID, exerciseID uint64, kind string) (bool, error)
+	HasAttempted(ctx context.Context, userID, exerciseID uint64, kind string) (bool, error)
 
 	// BatchUserStatuses は user の (kind, exerciseIDs) について、
 	//   exercise_id -> "solved" / "in_progress"
 	// を返す。一覧ページの N+1 を避ける用途。
 	// 未提出は map に key が存在しないこと で 表す。
-	BatchUserStatuses(userID uint64, exerciseIDs []uint64, kind string) (map[uint64]string, error)
+	BatchUserStatuses(ctx context.Context, userID uint64, exerciseIDs []uint64, kind string) (map[uint64]string, error)
 
 	// ExerciseStats は exercise_id 単位の集計を返す。
-	ExerciseStats(exerciseID uint64, kind string) (ExerciseSubmissionStats, error)
+	ExerciseStats(ctx context.Context, exerciseID uint64, kind string) (ExerciseSubmissionStats, error)
 
 	// ExerciseStatsBatch は複数 exercise_id をまとめて集計する。一覧ページ用。
-	ExerciseStatsBatch(exerciseIDs []uint64, kind string) (map[uint64]ExerciseSubmissionStats, error)
+	ExerciseStatsBatch(ctx context.Context, exerciseIDs []uint64, kind string) (map[uint64]ExerciseSubmissionStats, error)
 }
 
 // ExerciseSubmissionStats は問題単位の集計値。

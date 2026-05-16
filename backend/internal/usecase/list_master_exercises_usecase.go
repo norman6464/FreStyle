@@ -1,6 +1,8 @@
 package usecase
 
 import (
+	"context"
+
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
@@ -18,6 +20,6 @@ func NewListMasterExercisesUseCase(repo repository.MasterExerciseRepository) *Li
 }
 
 // Execute は language 指定があれば該当言語のみ、空文字なら全言語の問題を返す。
-func (uc *ListMasterExercisesUseCase) Execute(language string) ([]domain.MasterExercise, error) {
-	return uc.repo.ListByLanguage(language)
+func (uc *ListMasterExercisesUseCase) Execute(ctx context.Context, language string) ([]domain.MasterExercise, error) {
+	return uc.repo.ListByLanguage(ctx, language)
 }

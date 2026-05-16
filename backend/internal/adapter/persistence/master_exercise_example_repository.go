@@ -1,6 +1,8 @@
 package persistence
 
 import (
+	"context"
+
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"gorm.io/gorm"
@@ -17,9 +19,9 @@ func NewMasterExerciseExampleRepository(db *gorm.DB) repository.MasterExerciseEx
 	return &masterExerciseExampleRepository{db: db}
 }
 
-func (r *masterExerciseExampleRepository) ListByExerciseID(exerciseID uint64) ([]domain.MasterExerciseExample, error) {
+func (r *masterExerciseExampleRepository) ListByExerciseID(ctx context.Context, exerciseID uint64) ([]domain.MasterExerciseExample, error) {
 	var examples []domain.MasterExerciseExample
-	if err := r.db.
+	if err := r.db.WithContext(ctx).
 		Where("exercise_id = ?", exerciseID).
 		Order("order_index asc, id asc").
 		Find(&examples).Error; err != nil {
@@ -30,13 +32,13 @@ func (r *masterExerciseExampleRepository) ListByExerciseID(exerciseID uint64) ([
 
 // ListByExerciseIDs は複数 exercise_id をまとめて取得し、 exercise_id ごとに
 // グルーピングした map を返す。 リストページで N+1 を避けるため。
-func (r *masterExerciseExampleRepository) ListByExerciseIDs(exerciseIDs []uint64) (map[uint64][]domain.MasterExerciseExample, error) {
+func (r *masterExerciseExampleRepository) ListByExerciseIDs(ctx context.Context, exerciseIDs []uint64) (map[uint64][]domain.MasterExerciseExample, error) {
 	result := make(map[uint64][]domain.MasterExerciseExample, len(exerciseIDs))
 	if len(exerciseIDs) == 0 {
 		return result, nil
 	}
 	var examples []domain.MasterExerciseExample
-	if err := r.db.
+	if err := r.db.WithContext(ctx).
 		Where("exercise_id IN ?", exerciseIDs).
 		Order("exercise_id asc, order_index asc, id asc").
 		Find(&examples).Error; err != nil {

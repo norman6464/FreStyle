@@ -1,6 +1,8 @@
 package persistence
 
 import (
+	"context"
+
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"gorm.io/gorm"
@@ -16,9 +18,9 @@ func NewMasterExerciseRepository(db *gorm.DB) repository.MasterExerciseRepositor
 	return &masterExerciseRepository{db: db}
 }
 
-func (r *masterExerciseRepository) ListByLanguage(language string) ([]domain.MasterExercise, error) {
+func (r *masterExerciseRepository) ListByLanguage(ctx context.Context, language string) ([]domain.MasterExercise, error) {
 	var exercises []domain.MasterExercise
-	q := r.db.Where("is_published = ?", true)
+	q := r.db.WithContext(ctx).Where("is_published = ?", true)
 	if language != "" {
 		q = q.Where("language = ?", language)
 	}
@@ -28,17 +30,17 @@ func (r *masterExerciseRepository) ListByLanguage(language string) ([]domain.Mas
 	return exercises, nil
 }
 
-func (r *masterExerciseRepository) GetByID(id uint64) (*domain.MasterExercise, error) {
+func (r *masterExerciseRepository) GetByID(ctx context.Context, id uint64) (*domain.MasterExercise, error) {
 	var exercise domain.MasterExercise
-	if err := r.db.First(&exercise, id).Error; err != nil {
+	if err := r.db.WithContext(ctx).First(&exercise, id).Error; err != nil {
 		return nil, err
 	}
 	return &exercise, nil
 }
 
-func (r *masterExerciseRepository) GetBySlug(slug string) (*domain.MasterExercise, error) {
+func (r *masterExerciseRepository) GetBySlug(ctx context.Context, slug string) (*domain.MasterExercise, error) {
 	var exercise domain.MasterExercise
-	if err := r.db.Where("slug = ?", slug).First(&exercise).Error; err != nil {
+	if err := r.db.WithContext(ctx).Where("slug = ?", slug).First(&exercise).Error; err != nil {
 		return nil, err
 	}
 	return &exercise, nil

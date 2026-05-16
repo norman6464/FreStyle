@@ -23,8 +23,8 @@ func NewLearningReportHandler(l *usecase.ListLearningReportsUseCase, r *usecase.
 // @Tags         learning-reports
 // @Produce      json
 // @Success      200  {array}   github_com_norman6464_FreStyle_backend_internal_domain.LearningReport
-// @Failure      400  {object}  errorResponse  "DB 失敗"
 // @Failure      401  {object}  errorResponse  "未 認証"
+// @Failure      500  {object}  errorResponse  "DB 失敗"
 // @Router       /learning-reports [get]
 // @Security     CookieAuth
 func (h *LearningReportHandler) List(c *gin.Context) {
@@ -35,7 +35,7 @@ func (h *LearningReportHandler) List(c *gin.Context) {
 	}
 	rows, err := h.list.Execute(c.Request.Context(), uid)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, rows)

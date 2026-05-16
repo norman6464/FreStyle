@@ -35,9 +35,10 @@ func NewAdminInvitationHandler(l *usecase.ListAdminInvitationsUseCase, c *usecas
 //	@Produce      json
 //	@Param        companyId  query     string  false  "SuperAdmin の とき のみ 有効: 特定 company の 招待 のみ"
 //	@Success      200        {array}   github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation
+//	@Failure      400        {object}  errorResponse  "ListByCompanyID 失敗 (現状 実装 で 400 を 返す パス あり)"
 //	@Failure      401        {object}  errorResponse  "未 認証"
 //	@Failure      403        {object}  errorResponse  "trainee / company 未 設定 等"
-//	@Failure      500        {object}  errorResponse  "DB 失敗"
+//	@Failure      500        {object}  errorResponse  "DB 失敗 (ListAll 経路)"
 //	@Router       /admin/invitations [get]
 //	@Security     CookieAuth
 func (h *AdminInvitationHandler) List(c *gin.Context) {

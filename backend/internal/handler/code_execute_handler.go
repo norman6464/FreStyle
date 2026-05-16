@@ -35,6 +35,7 @@ type codeExecuteRequest struct {
 // @Param        body  body      codeExecuteRequest  true  "コード + 言語"
 // @Success      200   {object}  usecase.ExecuteCodeOutput
 // @Failure      400   {object}  errorResponse  "バリデーション or 実行 失敗"
+// @Failure      401   {object}  errorResponse  "未 認証"
 // @Router       /code/execute [post]
 // @Security     CookieAuth
 func (h *CodeExecuteHandler) Execute(c *gin.Context) {

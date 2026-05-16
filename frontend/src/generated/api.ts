@@ -84,6 +84,15 @@ export interface paths {
                         "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation"][];
                     };
                 };
+                /** @description ListByCompanyID 失敗 (現状 実装 で 400 を 返す パス あり) */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
                 /** @description 未 認証 */
                 401: {
                     headers: {
@@ -102,7 +111,7 @@ export interface paths {
                         "application/json": components["schemas"]["internal_handler.errorResponse"];
                     };
                 };
-                /** @description DB 失敗 */
+                /** @description DB 失敗 (ListAll 経路) */
                 500: {
                     headers: {
                         [name: string]: unknown;
@@ -684,7 +693,7 @@ export interface paths {
         put?: never;
         /**
          * AI チャット SSE ストリーミング
-         * @description Bedrock Claude へ メッセージ を 送信 し、 token を SSE (text/event-stream) で 配信。 OpenAPI は SSE を 完全 表現 でき ない ので レスポンス は 200 string と して 簡略 化。 実際 の イベント 形式 は session / token / done / error の 4 種。
+         * @description Bedrock Claude へ メッセージ を 送信 し、 token を SSE で 配信。 OpenAPI は SSE の カスタム イベント を 完全 表現 でき ない ので レスポンス は string と して 簡略 表現。 実際 の イベント 形式 は session / token / done / error の 4 種 (詳細 は handler コメント 参照)。 エラー 系 (400/401/503) は 通常 の application/json で 返る。
          */
         post: {
             parameters: {
@@ -693,7 +702,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            /** @description sessionId / content / scene / sessionType / scenarioId / attachments */
+            /** @description sessionId / content / scene / sessionType / scenarioId / attachments (最大 4 件) */
             requestBody: {
                 content: {
                     "application/json": components["schemas"]["internal_handler.sseRequestBody"];
@@ -706,34 +715,34 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "text/plain": string;
+                        "text/event-stream": string;
                     };
                 };
-                /** @description バリデーション */
+                /** @description バリデーション (application/json) */
                 400: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "text/plain": components["schemas"]["internal_handler.errorResponse"];
+                        "text/event-stream": components["schemas"]["internal_handler.errorResponse"];
                     };
                 };
-                /** @description 未 認証 */
+                /** @description 未 認証 (application/json) */
                 401: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "text/plain": components["schemas"]["internal_handler.errorResponse"];
+                        "text/event-stream": components["schemas"]["internal_handler.errorResponse"];
                     };
                 };
-                /** @description Bedrock / DynamoDB 未 設定 (dev/stub) */
+                /** @description Bedrock / DynamoDB 未 設定 (dev/stub、 application/json) */
                 503: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "text/plain": components["schemas"]["internal_handler.errorResponse"];
+                        "text/event-stream": components["schemas"]["internal_handler.errorResponse"];
                     };
                 };
             };
@@ -1033,6 +1042,15 @@ export interface paths {
                 };
                 /** @description バリデーション or 実行 失敗 */
                 400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -1477,6 +1495,15 @@ export interface paths {
                 };
                 /** @description url 欠落 or 無効 URL */
                 400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -1939,8 +1966,8 @@ export interface paths {
                         "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.LearningReport"][];
                     };
                 };
-                /** @description DB 失敗 */
-                400: {
+                /** @description 未 認証 */
+                401: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -1948,8 +1975,8 @@ export interface paths {
                         "application/json": components["schemas"]["internal_handler.errorResponse"];
                     };
                 };
-                /** @description 未 認証 */
-                401: {
+                /** @description DB 失敗 */
+                500: {
                     headers: {
                         [name: string]: unknown;
                     };

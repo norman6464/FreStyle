@@ -86,6 +86,12 @@ const docTemplate = `{
                             }
                         }
                     },
+                    "400": {
+                        "description": "ListByCompanyID 失敗 (現状 実装 で 400 を 返す パス あり)",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
                     "401": {
                         "description": "未 認証",
                         "schema": {
@@ -99,7 +105,7 @@ const docTemplate = `{
                         }
                     },
                     "500": {
-                        "description": "DB 失敗",
+                        "description": "DB 失敗 (ListAll 経路)",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -586,12 +592,12 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "Bedrock Claude へ メッセージ を 送信 し、 token を SSE (text/event-stream) で 配信。 OpenAPI は SSE を 完全 表現 でき ない ので レスポンス は 200 string と して 簡略 化。 実際 の イベント 形式 は session / token / done / error の 4 種。",
+                "description": "Bedrock Claude へ メッセージ を 送信 し、 token を SSE で 配信。 OpenAPI は SSE の カスタム イベント を 完全 表現 でき ない ので レスポンス は string と して 簡略 表現。 実際 の イベント 形式 は session / token / done / error の 4 種 (詳細 は handler コメント 参照)。 エラー 系 (400/401/503) は 通常 の application/json で 返る。",
                 "consumes": [
                     "application/json"
                 ],
                 "produces": [
-                    "text/plain"
+                    "text/event-stream"
                 ],
                 "tags": [
                     "ai-chat"
@@ -599,7 +605,7 @@ const docTemplate = `{
                 "summary": "AI チャット SSE ストリーミング",
                 "parameters": [
                     {
-                        "description": "sessionId / content / scene / sessionType / scenarioId / attachments",
+                        "description": "sessionId / content / scene / sessionType / scenarioId / attachments (最大 4 件)",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -616,19 +622,19 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "バリデーション",
+                        "description": "バリデーション (application/json)",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
                     },
                     "401": {
-                        "description": "未 認証",
+                        "description": "未 認証 (application/json)",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
                     },
                     "503": {
-                        "description": "Bedrock / DynamoDB 未 設定 (dev/stub)",
+                        "description": "Bedrock / DynamoDB 未 設定 (dev/stub、 application/json)",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -833,6 +839,12 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "バリデーション or 実行 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -1212,6 +1224,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
                     },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
                     "422": {
                         "description": "allow-list 外 ホスト",
                         "schema": {
@@ -1550,14 +1568,14 @@ const docTemplate = `{
                             }
                         }
                     },
-                    "400": {
-                        "description": "DB 失敗",
+                    "401": {
+                        "description": "未 認証",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
                     },
-                    "401": {
-                        "description": "未 認証",
+                    "500": {
+                        "description": "DB 失敗",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }

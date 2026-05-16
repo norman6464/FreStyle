@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"errors"
+	"io"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -40,9 +42,11 @@ func (h *NoteImageHandler) IssueUploadURL(c *gin.Context) {
 		return
 	}
 	var req issueUploadURLReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		// body 無し / 一部 だけ は 許容 (contentType は 任意)
-		req = issueUploadURLReq{}
+	// body 無し (EOF) は 許容 する が、 不正 JSON / 型 違い は 400 で 弾く
+	// (silently masking malformed JSON を 避ける)。
+	if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
 	got, err := h.issue.Execute(c.Request.Context(), uid, req.ContentType)
 	if err != nil {

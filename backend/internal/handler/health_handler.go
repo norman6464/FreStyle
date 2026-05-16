@@ -18,6 +18,15 @@ func NewHealthHandler(uc *usecase.CheckHealthUseCase) *HealthHandler {
 	return &HealthHandler{uc: uc}
 }
 
+// Get は /api/v2/health の GET ハンドラ。 DB 疎通 を 確認 し UP / DOWN を 返す。
+//
+//	@Summary      ヘルスチェック
+//	@Description  バックエンド と DB の 疎通 を 確認 する。 ALB / CloudWatch / 監視 から 叩く 想定。
+//	@Tags         health
+//	@Produce      json
+//	@Success      200  {object}  domain.Health  "UP"
+//	@Failure      503  {object}  domain.Health  "DB 切断 等 で DOWN"
+//	@Router       /health [get]
 func (h *HealthHandler) Get(c *gin.Context) {
 	result := h.uc.Execute(c.Request.Context())
 	status := http.StatusOK

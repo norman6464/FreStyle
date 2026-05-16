@@ -1,0 +1,389 @@
+basePath: /api/v2
+definitions:
+  github_com_norman6464_FreStyle_backend_internal_domain.Health:
+    properties:
+      db:
+        type: string
+      status:
+        type: string
+    type: object
+  github_com_norman6464_FreStyle_backend_internal_domain.ProfileView:
+    properties:
+      avatarUrl:
+        type: string
+      bio:
+        type: string
+      displayName:
+        type: string
+      email:
+        description: |-
+          Email は users.email を そのまま返す。 frontend の sidebar ユーザーメニューで
+          「ログイン中のメールアドレスを 表示する」 用途で参照する。
+        type: string
+      status:
+        type: string
+      updatedAt:
+        type: string
+      userId:
+        type: integer
+    type: object
+  internal_handler.cognitoCallbackReq:
+    properties:
+      code:
+        type: string
+      invitationToken:
+        description: |-
+          InvitationToken はフロントが sessionStorage から復元してくる、招待マジックリンク経由で
+          受領した UUID トークン。任意。指定がある場合は upsert 時に email ベースの招待検索より
+          優先して照合に使う（同じ email に複数 pending invitation がある異常系での誤一致を防ぐ）。
+        type: string
+    required:
+    - code
+    type: object
+  internal_handler.errorResponse:
+    properties:
+      error:
+        example: unauthorized
+        type: string
+    type: object
+  internal_handler.invitationValidateResponse:
+    properties:
+      companyId:
+        example: 1
+        type: integer
+      companyName:
+        example: Example Corp
+        type: string
+      displayName:
+        example: 山田 太郎
+        type: string
+      role:
+        example: trainee
+        type: string
+    type: object
+  internal_handler.meResponse:
+    properties:
+      cognitoSub:
+        example: abc-123-uuid
+        type: string
+      companyId:
+        example: 1
+        type: integer
+      createdAt:
+        type: string
+      displayName:
+        example: 山田 太郎
+        type: string
+      email:
+        example: user@example.com
+        type: string
+      groups:
+        example:
+        - admin
+        items:
+          type: string
+        type: array
+      id:
+        example: 42
+        type: integer
+      isAdmin:
+        example: false
+        type: boolean
+      onboarded:
+        example: true
+        type: boolean
+      role:
+        example: trainee
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  internal_handler.messageResponse:
+    properties:
+      message:
+        example: ログインしました。
+        type: string
+    type: object
+  internal_handler.updateProfileReq:
+    properties:
+      avatarUrl:
+        type: string
+      bio:
+        type: string
+      displayName:
+        description: '`name` は旧フロント実装の互換のため受け付け、`displayName` を優先する。'
+        type: string
+      iconUrl:
+        description: 旧フロント実装が `iconUrl` で送ってきた場合の互換。
+        type: string
+      name:
+        type: string
+      status:
+        type: string
+    type: object
+info:
+  contact:
+    name: FreStyle Engineering
+    url: https://normanblog.com
+  description: |-
+    新卒 IT エンジニア 向け 統合 研修 プラットフォーム の REST API。
+    Clean Architecture (port = usecase/repository / adapter = adapter/persistence) で 構築。
+  termsOfService: https://normanblog.com/terms
+  title: FreStyle Backend API
+  version: "2.0"
+paths:
+  /auth/cognito/callback:
+    post:
+      consumes:
+      - application/json
+      description: Cognito Hosted UI から の callback。 authorization code を access /
+        refresh / id token に 交換 し HttpOnly Cookie で 返す。 新規 user は 招待 or Cognito admin
+        group 必須。
+      parameters:
+      - description: Cognito callback (code 必須、 invitationToken 任意)
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.cognitoCallbackReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handler.messageResponse'
+        "400":
+          description: code 欠落 等
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: token 交換 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: 招待 なし の 新規 user
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: Cognito 未 設定 等 の 内部 エラー
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "502":
+          description: Cognito 到達 不可
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      summary: Cognito callback (認可 コード → token 交換)
+      tags:
+      - auth
+  /auth/cognito/logout:
+    post:
+      description: HttpOnly Cookie の access / refresh token を 消去 する。 Cognito 側 の セッション
+        は 別途 hosted UI で 切る。
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handler.messageResponse'
+      summary: ログアウト
+      tags:
+      - auth
+  /auth/cognito/refresh-token:
+    post:
+      description: refresh_token Cookie で access_token を 再 発行 し HttpOnly Cookie に
+        セット する。 失敗 (refresh 切れ 等) は 401 で Cookie クリア。
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handler.messageResponse'
+        "401":
+          description: refresh_token 欠落 / 無効
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "502":
+          description: Cognito 到達 不可
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      summary: アクセス トークン リフレッシュ
+      tags:
+      - auth
+  /auth/me:
+    get:
+      description: Cookie 認証 を 元 に 現在 ログイン 中 の user 情報 (id / email / role / isAdmin
+        / onboarded 等) を 返す。
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handler.meResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "404":
+          description: DB に user が ない (Cognito 側 だけ 存在)
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: DB / repository 取得 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: current user 情報 取得
+      tags:
+      - auth
+  /health:
+    get:
+      description: バックエンド と DB の 疎通 を 確認 する。 ALB / CloudWatch / 監視 から 叩く 想定。
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: UP
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.Health'
+        "503":
+          description: DB 切断 等 で DOWN
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.Health'
+      summary: ヘルスチェック
+      tags:
+      - health
+  /invitations/accept/{token}:
+    get:
+      description: 招待 マジック リンク から 来た 未 ログイン user 用。 該当 / 期限 切れ / 既 受諾 等 は メタ 情報 を
+        漏らさず 全て 404。
+      parameters:
+      - description: 招待 受諾 token (UUID)
+        in: path
+        name: token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handler.invitationValidateResponse'
+        "404":
+          description: 招待 が 無効 / 期限 切れ
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: 内部 エラー
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      summary: 招待 トークン 検証 (公開 / 認証 不要)
+      tags:
+      - invitations
+  /profile/{userId}:
+    get:
+      description: 指定 user (or current user) の displayName / bio / avatarUrl / status
+        を 返す。 IDOR 対策 で 自分 以外 は 403。
+      parameters:
+      - description: 数字 ID または 'me'
+        in: path
+        name: userId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.ProfileView'
+        "400":
+          description: view 構築 失敗 (profile / users 取得 の 内部 エラー 等)
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: 他 user の userId 指定
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: プロフィール 取得
+      tags:
+      - profile
+    put:
+      consumes:
+      - application/json
+      description: current user の displayName / bio / avatarUrl / status を 更新 する。
+        他 user は 403。
+      parameters:
+      - description: 数字 ID または 'me'
+        in: path
+        name: userId
+        required: true
+        type: string
+      - description: 更新 内容 (任意 フィールド の み)
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.updateProfileReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.ProfileView'
+        "400":
+          description: バリデーション エラー
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: 他 user 指定
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: プロフィール 更新
+      tags:
+      - profile
+  /profile/me/onboarding/complete:
+    post:
+      description: Welcome 画面 「はじめる」 押下 で onboarded_at = NOW() に 更新。 冪等 (再 押下 で も
+        初回 日時 保持)。
+      responses:
+        "204":
+          description: 成功 (本文 なし)
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: 内部 エラー
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: オンボーディング 完了 通知
+      tags:
+      - profile
+securityDefinitions:
+  CookieAuth:
+    description: Cognito 由来 の JWT を HttpOnly Cookie で 送る。 ログイン 後 自動 付与。
+    in: header
+    name: Cookie
+    type: apiKey
+swagger: "2.0"

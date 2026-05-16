@@ -1,8 +1,30 @@
+// FreStyle backend (Go / Gin / GORM).
+//
+// @title           FreStyle Backend API
+// @version         2.0
+// @description     新卒 IT エンジニア 向け 統合 研修 プラットフォーム の REST API。
+// @description     Clean Architecture (port = usecase/repository / adapter = adapter/persistence) で 構築。
+// @termsOfService  https://normanblog.com/terms
+//
+// @contact.name    FreStyle Engineering
+// @contact.url     https://normanblog.com
+//
+// @BasePath        /api/v2
+//
+// host / schemes は spec に 焼き込まず、 Swagger UI が ロード 元 と 同じ origin
+// (本番 = api.normanblog.com、 ローカル = localhost:8080 等) を 自動 で 使う ように
+// する。 そう しない と ローカル 開発 で 「Try it out」 が 本番 を 叩いて しまう。
+//
+// @securityDefinitions.apikey  CookieAuth
+// @in                          header
+// @name                        Cookie
+// @description                 Cognito 由来 の JWT を HttpOnly Cookie で 送る。 ログイン 後 自動 付与。
 package main
 
 import (
 	"log"
 
+	_ "github.com/norman6464/FreStyle/backend/docs" // swag init で 生成 さ れる OpenAPI spec
 	"github.com/norman6464/FreStyle/backend/internal/handler"
 	"github.com/norman6464/FreStyle/backend/internal/infra/config"
 	"github.com/norman6464/FreStyle/backend/internal/infra/database"

@@ -56,6 +56,17 @@ func NewAuthHandler(
 //  2. または DB users.role が super_admin / company_admin
 //
 // 上記いずれかで true。フロントは `isAdmin` を見て管理画面の表示可否を決める。
+//
+//	@Summary      current user 情報 取得
+//	@Description  Cookie 認証 を 元 に 現在 ログイン 中 の user 情報 (id / email / role / isAdmin / onboarded 等) を 返す。
+//	@Tags         auth
+//	@Produce      json
+//	@Success      200  {object}  meResponse
+//	@Failure      401  {object}  errorResponse  "未 認証"
+//	@Failure      404  {object}  errorResponse  "DB に user が ない (Cognito 側 だけ 存在)"
+//	@Failure      500  {object}  errorResponse  "DB / repository 取得 失敗"
+//	@Router       /auth/me [get]
+//	@Security     CookieAuth
 func (h *AuthHandler) Me(c *gin.Context) {
 	sub, ok := c.Get(middleware.ContextKeyCognitoSub)
 	if !ok {
@@ -99,6 +110,13 @@ func (h *AuthHandler) Me(c *gin.Context) {
 }
 
 // Logout はリフレッシュ・アクセストークンの Cookie を消去する。
+//
+//	@Summary      ログアウト
+//	@Description  HttpOnly Cookie の access / refresh token を 消去 する。 Cognito 側 の セッション は 別途 hosted UI で 切る。
+//	@Tags         auth
+//	@Produce      json
+//	@Success      200  {object}  messageResponse
+//	@Router       /auth/cognito/logout [post]
 func (h *AuthHandler) Logout(c *gin.Context) {
 	middleware.ClearAuthCookies(c)
 	c.JSON(http.StatusOK, gin.H{"message": "ログアウトしました。"})
@@ -118,6 +136,20 @@ type cognitoCallbackReq struct {
 // 招待ゲート: 新規ユーザー（DB に sub が無い）は「Cognito group admin」または
 // 「pending な invitation 受信者」のいずれかでない限り、ログインを拒否する（403）。
 // これによりトレイニー / company_admin は必ず上位ロールからの招待経由でないとアカウントを作れない。
+//
+//	@Summary      Cognito callback (認可 コード → token 交換)
+//	@Description  Cognito Hosted UI から の callback。 authorization code を access / refresh / id token に 交換 し HttpOnly Cookie で 返す。 新規 user は 招待 or Cognito admin group 必須。
+//	@Tags         auth
+//	@Accept       json
+//	@Produce      json
+//	@Param        body  body      cognitoCallbackReq  true  "Cognito callback (code 必須、 invitationToken 任意)"
+//	@Success      200   {object}  messageResponse
+//	@Failure      400   {object}  errorResponse  "code 欠落 等"
+//	@Failure      401   {object}  errorResponse  "token 交換 失敗"
+//	@Failure      403   {object}  errorResponse  "招待 なし の 新規 user"
+//	@Failure      500   {object}  errorResponse  "Cognito 未 設定 等 の 内部 エラー"
+//	@Failure      502   {object}  errorResponse  "Cognito 到達 不可"
+//	@Router       /auth/cognito/callback [post]
 func (h *AuthHandler) Callback(c *gin.Context) {
 	var req cognitoCallbackReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -153,6 +185,15 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 }
 
 // Refresh は HttpOnly Cookie の refresh_token を使ってアクセストークンを再発行する。
+//
+//	@Summary      アクセス トークン リフレッシュ
+//	@Description  refresh_token Cookie で access_token を 再 発行 し HttpOnly Cookie に セット する。 失敗 (refresh 切れ 等) は 401 で Cookie クリア。
+//	@Tags         auth
+//	@Produce      json
+//	@Success      200  {object}  messageResponse
+//	@Failure      401  {object}  errorResponse  "refresh_token 欠落 / 無効"
+//	@Failure      502  {object}  errorResponse  "Cognito 到達 不可"
+//	@Router       /auth/cognito/refresh-token [post]
 func (h *AuthHandler) Refresh(c *gin.Context) {
 	rt, err := c.Cookie(middleware.CookieRefreshToken)
 	if err != nil || rt == "" {

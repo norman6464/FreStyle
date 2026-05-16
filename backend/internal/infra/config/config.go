@@ -8,6 +8,14 @@ import (
 type Config struct {
 	AppEnv     string
 	ServerPort string
+
+	// DatabaseURL は Supabase 等 の マネージド Postgres 用 の 完全 接続 文字 列。
+	// 例: "postgresql://postgres.xxxx:pwd@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true&sslmode=require"
+	// 環境 変数 DATABASE_URL がセットされていると こちらを 優先 し、 個別 の DB_HOST 等 は 無視 する。
+	// RDS から Supabase へ の 段階 移行 用 (= URL を 切り替える だけ で 接続 先 を 変えられる)。
+	DatabaseURL string
+
+	// 個別 接続 設定 (DATABASE_URL 未 セット 時 の フォールバック / ローカル 開発 用)
 	DBHost     string
 	DBPort     string
 	DBUser     string
@@ -65,15 +73,16 @@ type CognitoConfig struct {
 
 func Load() (*Config, error) {
 	cfg := &Config{
-		AppEnv:     getEnvOrDefault("APP_ENV", "local"),
-		ServerPort: getEnvOrDefault("PORT", "8080"),
-		DBHost:     os.Getenv("DB_HOST"),
-		DBPort:     getEnvOrDefault("DB_PORT", "5432"),
-		DBUser:     getEnvOrDefault("DB_USER", "postgres"),
-		DBPassword: os.Getenv("DB_PASSWORD"),
-		DBName:     getEnvOrDefault("DB_NAME", "fre_style"),
-		DBSSLMode:  getEnvOrDefault("DB_SSLMODE", "require"),
-		AppBaseURL: getEnvOrDefault("APP_BASE_URL", ""),
+		AppEnv:      getEnvOrDefault("APP_ENV", "local"),
+		ServerPort:  getEnvOrDefault("PORT", "8080"),
+		DatabaseURL: os.Getenv("DATABASE_URL"),
+		DBHost:      os.Getenv("DB_HOST"),
+		DBPort:      getEnvOrDefault("DB_PORT", "5432"),
+		DBUser:      getEnvOrDefault("DB_USER", "postgres"),
+		DBPassword:  os.Getenv("DB_PASSWORD"),
+		DBName:      getEnvOrDefault("DB_NAME", "fre_style"),
+		DBSSLMode:   getEnvOrDefault("DB_SSLMODE", "require"),
+		AppBaseURL:  getEnvOrDefault("APP_BASE_URL", ""),
 		Cognito: CognitoConfig{
 			ClientID:     os.Getenv("COGNITO_CLIENT_ID"),
 			ClientSecret: os.Getenv("COGNITO_CLIENT_SECRET"),
@@ -115,13 +124,21 @@ func Load() (*Config, error) {
 			FromAddress: os.Getenv("SES_FROM_ADDRESS"),
 		},
 	}
-	if cfg.DBHost == "" {
-		return nil, fmt.Errorf("DB_HOST is required")
+	// DATABASE_URL がセットされていればそちら 優先 / DB_HOST フォールバック で
+	// 少なくとも どちら か は 設定 されて いる 必要 が ある。
+	if cfg.DatabaseURL == "" && cfg.DBHost == "" {
+		return nil, fmt.Errorf("DATABASE_URL or DB_HOST is required")
 	}
 	return cfg, nil
 }
 
+// PostgresDSN は GORM に 渡す DSN を 返す。
+// DATABASE_URL (例: Supabase pooler の "postgresql://..." 形式) が あれば そのまま 返す。
+// 無ければ 旧 RDS 形式 の 個別 設定 から DSN を 組み立てる (= 後方 互換)。
 func (c *Config) PostgresDSN() string {
+	if c.DatabaseURL != "" {
+		return c.DatabaseURL
+	}
 	return fmt.Sprintf(
 		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		c.DBHost, c.DBPort, c.DBUser, c.DBPassword, c.DBName, c.DBSSLMode,

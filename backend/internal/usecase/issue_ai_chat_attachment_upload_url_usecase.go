@@ -16,6 +16,8 @@ import (
 //
 // 上限チェックを usecase 層で行うのは「presigned URL を発行する前に 413 を返す」ためで、
 // クライアント側の不正利用や typo を S3 アップロード前の早い段階で弾く目的。
+//
+// 依存 port: [repository.AiChatAttachmentPresigner] (S3 presigned URL 生成)。
 type IssueAiChatAttachmentUploadURLUseCase struct {
 	presigner repository.AiChatAttachmentPresigner
 }

@@ -8,6 +8,8 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
+// GetUserStatsUseCase は user の マイページ 集計 (合計 セッション 数 / 平均 スコア 等) を 返す。
+// 依存 port: [repository.UserStatsRepository] (Raw SQL で 集計)。
 type GetUserStatsUseCase struct {
 	stats repository.UserStatsRepository
 }

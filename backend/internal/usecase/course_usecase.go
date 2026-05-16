@@ -17,6 +17,9 @@ import (
 //   - Get: 同一 company か super_admin（trainee は published のみ）
 //   - Create / Update / Delete: 同一 company の company_admin、 または super_admin
 //   - Delete: コース内の教材も同時に削除する（cascade）
+//
+// 依存 port: [repository.CourseRepository] + [repository.TeachingMaterialRepository]
+// (削除 時 の cascade 用)。 章 002 §6 で 「単純 CRUD は 1 構造体 集約 OK」 の 例 と して 解説。
 type CourseUseCase struct {
 	courses   repository.CourseRepository
 	materials repository.TeachingMaterialRepository

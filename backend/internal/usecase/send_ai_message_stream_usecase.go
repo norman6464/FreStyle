@@ -42,7 +42,12 @@ type StreamEvent struct {
 }
 
 // SendAiMessageStreamUseCase は WebSocket 版 (SendAiMessageUseCase) の streaming 版。
-// 互換のため両方を残し、フロントが対応した順から SSE に切り替える。
+// 互換のため両方を残し、フロントが対応した順から SSE に切り替える。 章 006 で SSE / Bedrock
+// streaming を 解説。
+//
+// 依存 port: [repository.AiChatSessionRepository] (RDB session 確認) +
+// [repository.AiChatMessageRepository] (DynamoDB メッセージ 永続化) +
+// [StreamingBedrockClient] (Bedrock token 配信) + [AttachmentDownloader] (S3 添付 取得、 nil OK)。
 type SendAiMessageStreamUseCase struct {
 	sessions      repository.AiChatSessionRepository
 	messages      repository.AiChatMessageRepository

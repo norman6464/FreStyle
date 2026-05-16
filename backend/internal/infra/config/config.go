@@ -10,8 +10,8 @@ type Config struct {
 	ServerPort string
 
 	// DatabaseURL は Supabase 等 の マネージド Postgres 用 の 完全 接続 文字 列。
-	// 例: "postgresql://postgres.xxxx:pwd@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true"
-	// 環境 変数 DATABASE_URL が セット されて いる と こちら を 優先 し、 個別 の DB_HOST 等 は 無視 する。
+	// 例: "postgresql://postgres.xxxx:pwd@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true&sslmode=require"
+	// 環境 変数 DATABASE_URL がセットされていると こちらを 優先 し、 個別 の DB_HOST 等 は 無視 する。
 	// RDS から Supabase へ の 段階 移行 用 (= URL を 切り替える だけ で 接続 先 を 変えられる)。
 	DatabaseURL string
 
@@ -124,7 +124,7 @@ func Load() (*Config, error) {
 			FromAddress: os.Getenv("SES_FROM_ADDRESS"),
 		},
 	}
-	// DATABASE_URL が セット されて いれ ば そちら 優先 / DB_HOST フォールバック で
+	// DATABASE_URL がセットされていればそちら 優先 / DB_HOST フォールバック で
 	// 少なくとも どちら か は 設定 されて いる 必要 が ある。
 	if cfg.DatabaseURL == "" && cfg.DBHost == "" {
 		return nil, fmt.Errorf("DATABASE_URL or DB_HOST is required")

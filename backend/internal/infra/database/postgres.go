@@ -2,6 +2,7 @@ package database
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/norman6464/FreStyle/backend/internal/infra/config"
@@ -47,10 +48,44 @@ func NewPostgres(cfg *config.Config) (*gorm.DB, error) {
 }
 
 // isPgBouncerDSN は DSN が Supabase transaction pooler 等 の pgbouncer 経由 か を 判定 する。
-// 判定 基準: URL 形式 で "pgbouncer=true" クエリ パラメータ が 付いて いる か、
-// または ホスト 名 に "pooler.supabase.com" が 含まれる か。
+//
+// 判定 基準 (順 番 に):
+//  1. URL 形式 (postgres:// / postgresql://) なら net/url で parse し、 query string の
+//     pgbouncer=true / ホスト 名 が pooler.supabase.com を 含む かを 厳密 に 見る。
+//     これ により パスワード / path に 偶然 "pgbouncer=true" の 文字 列 が 含まれて も
+//     false positive に なら ない。
+//  2. key=value 形式 (host=... user=...) なら host= の 値 だけ を 切り 出して 判定。
 func isPgBouncerDSN(dsn string) bool {
-	d := strings.ToLower(dsn)
-	return strings.Contains(d, "pgbouncer=true") ||
-		strings.Contains(d, "pooler.supabase.com")
+	trimmed := strings.TrimSpace(dsn)
+	lower := strings.ToLower(trimmed)
+
+	// 1. URL 形式
+	if strings.HasPrefix(lower, "postgres://") || strings.HasPrefix(lower, "postgresql://") {
+		u, err := url.Parse(trimmed)
+		if err != nil {
+			return false
+		}
+		if u.Query().Get("pgbouncer") == "true" {
+			return true
+		}
+		if strings.Contains(strings.ToLower(u.Host), "pooler.supabase.com") {
+			return true
+		}
+		return false
+	}
+
+	// 2. key=value 形式 (= 旧 RDS DSN フォールバック)
+	// "host=foo.pooler.supabase.com" を 検知 する ため、 host= キー だけ を 厳密 に 取る。
+	for _, kv := range strings.Fields(trimmed) {
+		eq := strings.IndexByte(kv, '=')
+		if eq <= 0 {
+			continue
+		}
+		k := strings.ToLower(kv[:eq])
+		v := strings.ToLower(kv[eq+1:])
+		if k == "host" && strings.Contains(v, "pooler.supabase.com") {
+			return true
+		}
+	}
+	return false
 }

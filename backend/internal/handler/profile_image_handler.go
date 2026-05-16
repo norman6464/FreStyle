@@ -52,6 +52,20 @@ func (h *ProfileImageHandler) resolveUserID(c *gin.Context) (uint64, error) {
 
 // IssueUploadURL は POST /profile/:userId/image/presigned-url。
 // クライアントは { fileName, contentType } を送り、 { uploadUrl, imageUrl, key, expiresIn } を受け取る。
+//
+//	@Summary      プロフィール 画像 PUT 署名 URL
+//	@Description  プロフィール アイコン 用 の S3 PUT 署名 URL を 発行。 "me" / 数字 一致 のみ 許可 (IDOR 対策)。 body は 任意。
+//	@Tags         profile
+//	@Accept       json
+//	@Produce      json
+//	@Param        userId  path      string                 true   "数字 ID または 'me'"
+//	@Param        body    body      issueProfileImageReq   false  "fileName / contentType (任意)"
+//	@Success      200     {object}  github_com_norman6464_FreStyle_backend_internal_domain.ProfileImageUploadURL
+//	@Failure      400     {object}  errorResponse  "発行 失敗"
+//	@Failure      401     {object}  errorResponse  "未 認証"
+//	@Failure      403     {object}  errorResponse  "他 user 指定"
+//	@Router       /profile/{userId}/image/presigned-url [post]
+//	@Security     CookieAuth
 func (h *ProfileImageHandler) IssueUploadURL(c *gin.Context) {
 	uid, err := h.resolveUserID(c)
 	if err != nil {

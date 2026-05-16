@@ -27,6 +27,16 @@ type codeExecuteRequest struct {
 	Language string `json:"language"`
 }
 
+// @Summary      コード サンドボックス 実行
+// @Description  trainee が 書いた コード を サーバ 側 sandbox で 実行 し stdout/stderr/exitCode を 返す。 language は php / go 等。
+// @Tags         code-execution
+// @Accept       json
+// @Produce      json
+// @Param        body  body      codeExecuteRequest  true  "コード + 言語"
+// @Success      200   {object}  usecase.ExecuteCodeOutput
+// @Failure      400   {object}  errorResponse  "バリデーション or 実行 失敗"
+// @Router       /code/execute [post]
+// @Security     CookieAuth
 func (h *CodeExecuteHandler) Execute(c *gin.Context) {
 	var req codeExecuteRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

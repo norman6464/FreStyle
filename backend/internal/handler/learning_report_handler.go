@@ -18,8 +18,15 @@ func NewLearningReportHandler(l *usecase.ListLearningReportsUseCase, r *usecase.
 	return &LearningReportHandler{list: l, request: r}
 }
 
-// List は current user の learning report 一覧を返す。
-// userId はクライアントから受け取らない（IDOR 対策）。
+// @Summary      学習 レポート 一覧
+// @Description  current user の レポート を 期間 降順 で 返す。 userId は IDOR 対策 で 受け取らない。
+// @Tags         learning-reports
+// @Produce      json
+// @Success      200  {array}   github_com_norman6464_FreStyle_backend_internal_domain.LearningReport
+// @Failure      400  {object}  errorResponse  "DB 失敗"
+// @Failure      401  {object}  errorResponse  "未 認証"
+// @Router       /learning-reports [get]
+// @Security     CookieAuth
 func (h *LearningReportHandler) List(c *gin.Context) {
 	uid := middleware.CurrentUserIDOrZero(c)
 	if uid == 0 {
@@ -43,7 +50,17 @@ type requestReportReq struct {
 	Month int `json:"month" binding:"required,min=1,max=12"`
 }
 
-// Request は current user で月次 learning report 生成を要求する。
+// @Summary      月次 学習 レポート 生成 要求
+// @Description  current user で 指定 月 の レポート 生成 ジョブ を 受け付け、 SQS に enqueue (現状 stub)。 202 Accepted を 返す。
+// @Tags         learning-reports
+// @Accept       json
+// @Produce      json
+// @Param        body  body      requestReportReq  true  "year + month"
+// @Success      202   {object}  github_com_norman6464_FreStyle_backend_internal_domain.LearningReport
+// @Failure      400   {object}  errorResponse  "バリデーション"
+// @Failure      401   {object}  errorResponse  "未 認証"
+// @Router       /learning-reports/generate [post]
+// @Security     CookieAuth
 func (h *LearningReportHandler) Request(c *gin.Context) {
 	uid := middleware.CurrentUserIDOrZero(c)
 	if uid == 0 {

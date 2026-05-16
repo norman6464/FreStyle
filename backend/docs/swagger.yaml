@@ -1,10 +1,217 @@
 basePath: /api/v2
 definitions:
+  github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation:
+    properties:
+      companyId:
+        type: integer
+      createdAt:
+        type: string
+      displayName:
+        type: string
+      email:
+        type: string
+      expiresAt:
+        type: string
+      id:
+        type: integer
+      role:
+        type: string
+      status:
+        type: string
+    type: object
+  github_com_norman6464_FreStyle_backend_internal_domain.AiChatMessage:
+    properties:
+      attachments:
+        items:
+          $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.Attachment'
+        type: array
+      content:
+        type: string
+      createdAt:
+        type: string
+      messageId:
+        type: string
+      role:
+        type: string
+      sessionId:
+        type: integer
+    type: object
+  github_com_norman6464_FreStyle_backend_internal_domain.AiChatSession:
+    properties:
+      createdAt:
+        type: string
+      id:
+        type: integer
+      scenarioId:
+        type: integer
+      sessionType:
+        type: string
+      title:
+        type: string
+      updatedAt:
+        type: string
+      userId:
+        type: integer
+    type: object
+  github_com_norman6464_FreStyle_backend_internal_domain.Attachment:
+    properties:
+      contentType:
+        type: string
+      filename:
+        type: string
+      format:
+        type: string
+      key:
+        type: string
+      kind:
+        type: string
+      sizeBytes:
+        type: integer
+    type: object
+  github_com_norman6464_FreStyle_backend_internal_domain.Company:
+    properties:
+      createdAt:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  github_com_norman6464_FreStyle_backend_internal_domain.Course:
+    properties:
+      companyId:
+        type: integer
+      createdAt:
+        type: string
+      createdByUserId:
+        type: integer
+      description:
+        type: string
+      id:
+        type: integer
+      isPublished:
+        type: boolean
+      sortOrder:
+        type: integer
+      title:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  github_com_norman6464_FreStyle_backend_internal_domain.ExerciseSubmission:
+    properties:
+      exerciseId:
+        type: integer
+      exerciseKind:
+        type: string
+      exitCode:
+        type: integer
+      id:
+        type: integer
+      isCorrect:
+        type: boolean
+      stderr:
+        type: string
+      stdout:
+        type: string
+      submittedAt:
+        type: string
+      submittedCode:
+        type: string
+      userId:
+        type: integer
+    type: object
   github_com_norman6464_FreStyle_backend_internal_domain.Health:
     properties:
       db:
         type: string
       status:
+        type: string
+    type: object
+  github_com_norman6464_FreStyle_backend_internal_domain.LearningReport:
+    properties:
+      createdAt:
+        type: string
+      id:
+        type: integer
+      periodFrom:
+        type: string
+      periodTo:
+        type: string
+      s3Key:
+        type: string
+      status:
+        type: string
+      userId:
+        type: integer
+    type: object
+  github_com_norman6464_FreStyle_backend_internal_domain.MasterExercise:
+    properties:
+      category:
+        type: string
+      chapterId:
+        type: integer
+      createdAt:
+        type: string
+      description:
+        type: string
+      difficulty:
+        type: integer
+      expectedOutput:
+        type: string
+      explanation:
+        description: |-
+          Explanation は QA モードで 正解後に表示される markdown 解説。
+          execute モードでは未使用 (空文字)。
+        type: string
+      hintText:
+        type: string
+      id:
+        type: integer
+      isPublished:
+        type: boolean
+      language:
+        type: string
+      mode:
+        description: |-
+          Mode は採点モード。 'execute' (default) は コードを実行して stdout を比較、
+          'qa' は コード実行をせず提出文字列と ExpectedOutput を直接 trim 比較する。
+          docker / kubernetes など サンドボックス実行が困難な題材を Q&A 形式で扱うために導入。
+        type: string
+      orderIndex:
+        type: integer
+      slug:
+        type: string
+      starterCode:
+        type: string
+      title:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  github_com_norman6464_FreStyle_backend_internal_domain.MasterExerciseExample:
+    properties:
+      createdAt:
+        type: string
+      exerciseId:
+        description: |-
+          (exercise_id, order_index) で UNIQUE 制約を張ることで、同じ問題内で
+          OrderIndex が衝突する行を DB レベルで弾く（UI 上「入力例 1」が 2 つ並ぶ事故防止）。
+        type: integer
+      expectedOutput:
+        type: string
+      id:
+        type: integer
+      inputText:
+        type: string
+      orderIndex:
+        description: |-
+          OrderIndex は seed / 運営入力時に必ず明示する想定で DB DEFAULT を持たせない。
+          （default:0 を残すと order_index 未指定の INSERT が黙って 0 を採用して衝突を起こすため）
+        type: integer
+      updatedAt:
         type: string
     type: object
   github_com_norman6464_FreStyle_backend_internal_domain.Note:
@@ -26,6 +233,15 @@ definitions:
       userId:
         type: integer
     type: object
+  github_com_norman6464_FreStyle_backend_internal_domain.NoteImageUploadURL:
+    properties:
+      expiresIn:
+        type: integer
+      key:
+        type: string
+      url:
+        type: string
+    type: object
   github_com_norman6464_FreStyle_backend_internal_domain.Notification:
     properties:
       body:
@@ -42,6 +258,17 @@ definitions:
         type: string
       userId:
         type: integer
+    type: object
+  github_com_norman6464_FreStyle_backend_internal_domain.ProfileImageUploadURL:
+    properties:
+      expiresIn:
+        type: integer
+      imageUrl:
+        type: string
+      key:
+        type: string
+      uploadUrl:
+        type: string
     type: object
   github_com_norman6464_FreStyle_backend_internal_domain.ProfileView:
     properties:
@@ -78,6 +305,187 @@ definitions:
       userId:
         type: integer
     type: object
+  github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial:
+    properties:
+      companyId:
+        type: integer
+      content:
+        type: string
+      courseId:
+        description: |-
+          course_id の NOT NULL 制約は migration 0004 で確定する（既存行への ADD COLUMN を
+          AutoMigrate で安全に通すため、 GORM tag では not null を指定しない）。
+        type: integer
+      createdAt:
+        type: string
+      createdByUserId:
+        type: integer
+      id:
+        type: integer
+      isPublished:
+        type: boolean
+      orderInCourse:
+        type: integer
+      title:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  github_com_norman6464_FreStyle_backend_internal_domain.UserStats:
+    properties:
+      averageScore:
+        type: number
+      longestStreak:
+        type: integer
+      streakDays:
+        type: integer
+      totalSessions:
+        type: integer
+      userId:
+        type: integer
+    type: object
+  github_com_norman6464_FreStyle_backend_internal_infra_embed.Card:
+    properties:
+      description:
+        type: string
+      imageUrl:
+        type: string
+      provider:
+        description: Provider は "ogp" / "youtube" / "github" など、どの戦略で解決したかを示す。
+        type: string
+      siteName:
+        type: string
+      title:
+        type: string
+      url:
+        type: string
+    type: object
+  github_com_norman6464_FreStyle_backend_internal_usecase.ExecuteCodeOutput:
+    properties:
+      exitCode:
+        type: integer
+      stderr:
+        type: string
+      stdout:
+        type: string
+    type: object
+  github_com_norman6464_FreStyle_backend_internal_usecase.GetMasterExerciseDetailOutput:
+    properties:
+      examples:
+        items:
+          $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.MasterExerciseExample'
+        type: array
+      exercise:
+        $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.MasterExercise'
+    type: object
+  github_com_norman6464_FreStyle_backend_internal_usecase.MasterExerciseWithStatus:
+    properties:
+      category:
+        type: string
+      chapterId:
+        type: integer
+      createdAt:
+        type: string
+      description:
+        type: string
+      difficulty:
+        type: integer
+      expectedOutput:
+        type: string
+      explanation:
+        description: |-
+          Explanation は QA モードで 正解後に表示される markdown 解説。
+          execute モードでは未使用 (空文字)。
+        type: string
+      hintText:
+        type: string
+      id:
+        type: integer
+      isPublished:
+        type: boolean
+      language:
+        type: string
+      mode:
+        description: |-
+          Mode は採点モード。 'execute' (default) は コードを実行して stdout を比較、
+          'qa' は コード実行をせず提出文字列と ExpectedOutput を直接 trim 比較する。
+          docker / kubernetes など サンドボックス実行が困難な題材を Q&A 形式で扱うために導入。
+        type: string
+      orderIndex:
+        type: integer
+      slug:
+        type: string
+      starterCode:
+        type: string
+      stats:
+        $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase_repository.ExerciseSubmissionStats'
+      status:
+        type: string
+      title:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  github_com_norman6464_FreStyle_backend_internal_usecase.SubmitMasterExerciseOutput:
+    properties:
+      isCorrect:
+        type: boolean
+      results:
+        items:
+          $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase.TestCaseResult'
+        type: array
+      submissionId:
+        type: integer
+    type: object
+  github_com_norman6464_FreStyle_backend_internal_usecase.TestCaseResult:
+    properties:
+      actualOutput:
+        type: string
+      expectedOutput:
+        type: string
+      input:
+        type: string
+      orderIndex:
+        type: integer
+      passed:
+        type: boolean
+      stderr:
+        type: string
+    type: object
+  github_com_norman6464_FreStyle_backend_internal_usecase_repository.AiChatAttachmentUploadURL:
+    properties:
+      expiresIn:
+        type: integer
+      key:
+        type: string
+      uploadUrl:
+        type: string
+    type: object
+  github_com_norman6464_FreStyle_backend_internal_usecase_repository.ExerciseSubmissionStats:
+    properties:
+      solvedUsers:
+        type: integer
+      totalSubmissions:
+        type: integer
+    type: object
+  internal_handler.aiChatAttachmentUploadURLRequest:
+    properties:
+      contentType:
+        type: string
+      filename:
+        type: string
+      sizeBytes:
+        type: integer
+    type: object
+  internal_handler.codeExecuteRequest:
+    properties:
+      code:
+        type: string
+      language:
+        type: string
+    required:
+    - code
+    type: object
   internal_handler.cognitoCallbackReq:
     properties:
       code:
@@ -90,6 +498,43 @@ definitions:
         type: string
     required:
     - code
+    type: object
+  internal_handler.courseRequest:
+    properties:
+      description:
+        type: string
+      isPublished:
+        type: boolean
+      sortOrder:
+        type: integer
+      title:
+        type: string
+    type: object
+  internal_handler.createAdminInvReq:
+    properties:
+      companyId:
+        type: integer
+      displayName:
+        type: string
+      email:
+        type: string
+      role:
+        type: string
+    required:
+    - companyId
+    - email
+    - role
+    type: object
+  internal_handler.createSessionReq:
+    properties:
+      scenarioId:
+        type: integer
+      sessionType:
+        type: string
+      title:
+        type: string
+    required:
+    - title
     type: object
   internal_handler.errorResponse:
     properties:
@@ -110,6 +555,18 @@ definitions:
         type: string
       role:
         example: trainee
+        type: string
+    type: object
+  internal_handler.issueProfileImageReq:
+    properties:
+      contentType:
+        type: string
+      fileName:
+        type: string
+    type: object
+  internal_handler.issueUploadURLReq:
+    properties:
+      contentType:
         type: string
     type: object
   internal_handler.meResponse:
@@ -181,9 +638,84 @@ definitions:
     required:
     - title
     type: object
+  internal_handler.requestReportReq:
+    properties:
+      month:
+        maximum: 12
+        minimum: 1
+        type: integer
+      year:
+        maximum: 2100
+        minimum: 2000
+        type: integer
+    required:
+    - month
+    - year
+    type: object
   internal_handler.sessionNoteUpsertReq:
     properties:
       content:
+        type: string
+    type: object
+  internal_handler.sseAttachmentRequest:
+    properties:
+      contentType:
+        type: string
+      filename:
+        type: string
+      key:
+        type: string
+      sizeBytes:
+        type: integer
+    type: object
+  internal_handler.sseRequestBody:
+    properties:
+      attachments:
+        items:
+          $ref: '#/definitions/internal_handler.sseAttachmentRequest'
+        type: array
+      content:
+        type: string
+      scenarioId:
+        type: integer
+      scene:
+        type: string
+      sessionId:
+        type: integer
+      sessionType:
+        type: string
+    type: object
+  internal_handler.submitExerciseRequest:
+    properties:
+      code:
+        type: string
+    required:
+    - code
+    type: object
+  internal_handler.teachingMaterialCreateRequest:
+    properties:
+      content:
+        type: string
+      courseId:
+        type: integer
+      isPublished:
+        type: boolean
+      orderInCourse:
+        type: integer
+      title:
+        type: string
+    required:
+    - courseId
+    type: object
+  internal_handler.teachingMaterialUpdateRequest:
+    properties:
+      content:
+        type: string
+      isPublished:
+        type: boolean
+      orderInCourse:
+        type: integer
+      title:
         type: string
     type: object
   internal_handler.updateProfileReq:
@@ -203,6 +735,13 @@ definitions:
       status:
         type: string
     type: object
+  internal_handler.updateSessionTitleReq:
+    properties:
+      title:
+        type: string
+    required:
+    - title
+    type: object
 info:
   contact:
     name: FreStyle Engineering
@@ -214,6 +753,403 @@ info:
   title: FreStyle Backend API
   version: "2.0"
 paths:
+  /admin/companies:
+    get:
+      description: 全 company を 返す。 super_admin 専用 画面 用。 認可 は middleware で 別途 担保。
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.Company'
+            type: array
+        "500":
+          description: DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 会社 一覧 (SuperAdmin)
+      tags:
+      - admin
+  /admin/invitations:
+    get:
+      description: pending な 招待 を 返す。 SuperAdmin は 全社 (?companyId= で 絞り込み 可)、 CompanyAdmin
+        は 自社 のみ。 trainee 等 は 403。
+      parameters:
+      - description: 'SuperAdmin の とき のみ 有効: 特定 company の 招待 のみ'
+        in: query
+        name: companyId
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation'
+            type: array
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: trainee / company 未 設定 等
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 招待 一覧 (admin)
+      tags:
+      - admin
+    post:
+      consumes:
+      - application/json
+      description: 'SES マジック リンク で 招待 メール を 送る。 SoD: SuperAdmin は company_admin のみ
+        招待 可、 CompanyAdmin は trainee のみ 自社 に 招待 可。'
+      parameters:
+      - description: 招待 内容 (CompanyAdmin は companyId が 上書き さ れる)
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.createAdminInvReq'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation'
+        "400":
+          description: バリデーション
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: ロール 違反
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 招待 作成
+      tags:
+      - admin
+  /admin/invitations/{id}:
+    delete:
+      description: 指定 招待 の status を canceled に 更新。 行 は 物理 削除 せず 監査 用 に 残す。
+      parameters:
+      - description: 招待 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: 成功 (本文 なし)
+        "400":
+          description: DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 招待 取り消し
+      tags:
+      - admin
+  /ai-chat/attachments/upload-url:
+    post:
+      consumes:
+      - application/json
+      description: ai-chat/{userId}/{uuid}.{ext} の キー で S3 PUT 用 presigned URL を 発行。
+        contentType は image/png 等 の 許容 セット のみ。 sizeBytes 上限 (image 5MB / document
+        4.5MB) も 事前 検証。
+      parameters:
+      - description: filename / contentType / sizeBytes
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.aiChatAttachmentUploadURLRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase_repository.AiChatAttachmentUploadURL'
+        "400":
+          description: バリデーション 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "413":
+          description: サイズ 上限 超過
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "415":
+          description: 未 サポート MIME
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: S3 presigner 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "503":
+          description: 添付 アップロード 機能 が 設定 されて いない (dev/stub)
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: AI チャット 添付 PUT 署名 URL
+      tags:
+      - ai-chat
+  /ai-chat/sessions:
+    get:
+      description: current user の AI チャット セッション を 新しい 順 で 返す。
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.AiChatSession'
+            type: array
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: AI チャット セッション 一覧
+      tags:
+      - ai-chat
+    post:
+      consumes:
+      - application/json
+      description: current user 名義 で 新規 セッション を 作成。 IDOR 対策 で userId は body から 受け取らない。
+      parameters:
+      - description: title 必須
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.createSessionReq'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.AiChatSession'
+        "400":
+          description: バリデーション
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: AI チャット セッション 作成
+      tags:
+      - ai-chat
+  /ai-chat/sessions/{id}:
+    delete:
+      description: 指定 id の セッション を 削除。 所有者 検証 込み。
+      parameters:
+      - description: セッション ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: 成功 (本文 なし)
+        "400":
+          description: id 不正
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: 他人 の セッション
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "404":
+          description: セッション が ない
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: AI チャット セッション 削除
+      tags:
+      - ai-chat
+    get:
+      description: 指定 id の セッション を 返す。
+      parameters:
+      - description: セッション ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.AiChatSession'
+        "400":
+          description: id 不正
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "404":
+          description: セッション が ない
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: AI チャット セッション 詳細
+      tags:
+      - ai-chat
+    put:
+      consumes:
+      - application/json
+      description: 指定 id の セッション の title を 更新。
+      parameters:
+      - description: セッション ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: title 必須
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.updateSessionTitleReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.AiChatSession'
+        "400":
+          description: バリデーション
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: AI チャット セッション タイトル 更新
+      tags:
+      - ai-chat
+  /ai-chat/sessions/{id}/messages:
+    get:
+      description: 指定 セッション の 会話 履歴 (DynamoDB から) を 古い 順 で 返す。
+      parameters:
+      - description: セッション ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.AiChatMessage'
+            type: array
+        "400":
+          description: id 不正
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: DynamoDB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: AI チャット メッセージ 一覧
+      tags:
+      - ai-chat
+  /ai-chat/stream:
+    post:
+      consumes:
+      - application/json
+      description: Bedrock Claude へ メッセージ を 送信 し、 token を SSE (text/event-stream)
+        で 配信。 OpenAPI は SSE を 完全 表現 でき ない ので レスポンス は 200 string と して 簡略 化。 実際 の イベント
+        形式 は session / token / done / error の 4 種。
+      parameters:
+      - description: sessionId / content / scene / sessionType / scenarioId / attachments
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.sseRequestBody'
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: SSE stream (text/event-stream)
+          schema:
+            type: string
+        "400":
+          description: バリデーション
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "503":
+          description: Bedrock / DynamoDB 未 設定 (dev/stub)
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: AI チャット SSE ストリーミング
+      tags:
+      - ai-chat
   /auth/cognito/callback:
     post:
       consumes:
@@ -322,6 +1258,433 @@ paths:
       summary: current user 情報 取得
       tags:
       - auth
+  /code/execute:
+    post:
+      consumes:
+      - application/json
+      description: trainee が 書いた コード を サーバ 側 sandbox で 実行 し stdout/stderr/exitCode
+        を 返す。 language は php / go 等。
+      parameters:
+      - description: コード + 言語
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.codeExecuteRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase.ExecuteCodeOutput'
+        "400":
+          description: バリデーション or 実行 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: コード サンドボックス 実行
+      tags:
+      - code-execution
+  /courses:
+    get:
+      description: current user の role / company で 自動 フィルタ。 trainee は published のみ、
+        admin 系 は draft 含む。
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.Course'
+            type: array
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: コース 一覧
+      tags:
+      - courses
+    post:
+      consumes:
+      - application/json
+      description: company_admin / super_admin の み。 CompanyAdmin は 自社 固定。
+      parameters:
+      - description: 作成 内容
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.courseRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.Course'
+        "400":
+          description: バリデーション
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: 操作 権限 なし
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: コース 作成
+      tags:
+      - courses
+  /courses/{id}:
+    delete:
+      description: 指定 id を 削除 + 配下 教材 も cascade 削除 (company_admin / super_admin)。
+      parameters:
+      - description: コース ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: 成功 (本文 なし)
+        "400":
+          description: id 不正
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: 操作 権限 なし
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "404":
+          description: コース が ない
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: コース 削除
+      tags:
+      - courses
+    get:
+      description: 指定 id の コース を 返す。 他社 / 未 公開 (trainee 不可) は 403。
+      parameters:
+      - description: コース ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.Course'
+        "400":
+          description: id 不正
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: 操作 権限 なし
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "404":
+          description: コース が ない
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: コース 詳細
+      tags:
+      - courses
+    put:
+      consumes:
+      - application/json
+      description: 指定 id を 更新 (company_admin / super_admin)。
+      parameters:
+      - description: コース ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 更新 内容
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.courseRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.Course'
+        "400":
+          description: バリデーション
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: 操作 権限 なし
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "404":
+          description: コース が ない
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: コース 更新
+      tags:
+      - courses
+  /courses/{id}/materials:
+    get:
+      description: 指定 コース 配下 の 教材 を 返す。 trainee は published のみ。
+      parameters:
+      - description: コース ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial'
+            type: array
+        "400":
+          description: course id 不正
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: 他社 コース
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: コース内 教材 一覧
+      tags:
+      - teaching-materials
+  /embeds/oembed:
+    get:
+      description: ?url= で 指定 した URL の OGP / oEmbed を 解決 し card 形式 で 返す。 allow-list
+        / SSRF / DNS rebinding 対策 は infra/embed.Fetcher が 担う。
+      parameters:
+      - description: メタ 取得 対象 URL
+        in: query
+        name: url
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_infra_embed.Card'
+        "400":
+          description: url 欠落 or 無効 URL
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "422":
+          description: allow-list 外 ホスト
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: 内部 エラー
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "502":
+          description: 到達 不可
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 外部 URL の OGP / oEmbed メタ 取得
+      tags:
+      - embeds
+  /exercises:
+    get:
+      description: '運営 マスタ 演習問題 を 取得。 query language で 絞り込み (例: php / go)。 current
+        user の 提出 状況 と 全 user 集計 を 同時 に 返す。 未 ログイン 時 は status 空。'
+      parameters:
+      - description: '言語 フィルタ (例: php, go, javascript)'
+        in: query
+        name: language
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase.MasterExerciseWithStatus'
+            type: array
+        "500":
+          description: DB / 集計 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 演習問題 一覧 (status + stats 付き)
+      tags:
+      - exercises
+  /exercises/{slug}:
+    get:
+      description: 指定 slug の 演習 問題 + 入 出力 例 一覧 を 返す。 詳細 画面 用。
+      parameters:
+      - description: '問題 slug (例: php-1)'
+        in: path
+        name: slug
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase.GetMasterExerciseDetailOutput'
+        "400":
+          description: slug 欠落
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "404":
+          description: 問題 が 見つから ない
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: DB / 集計 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 演習問題 詳細 (slug)
+      tags:
+      - exercises
+  /exercises/{slug}/submissions:
+    get:
+      description: current user の 指定 問題 へ の 提出 履歴 を 新しい 順 で 返す。
+      parameters:
+      - description: 問題 slug
+        in: path
+        name: slug
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.ExerciseSubmission'
+            type: array
+        "400":
+          description: slug 欠落
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "404":
+          description: 問題 が 見つから ない
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 提出 履歴 一覧
+      tags:
+      - exercises
+  /exercises/{slug}/submit:
+    post:
+      consumes:
+      - application/json
+      description: current user の コード を 提出 し sandbox 実行 + 期待 出力 比較 で 採点。 結果 は 履歴 に
+        append。
+      parameters:
+      - description: 問題 slug
+        in: path
+        name: slug
+        required: true
+        type: string
+      - description: 提出 コード
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.submitExerciseRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase.SubmitMasterExerciseOutput'
+        "400":
+          description: code 欠落 等
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "404":
+          description: 問題 が 見つから ない
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: DB / 採点 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 演習 コード 提出 + 採点
+      tags:
+      - exercises
   /health:
     get:
       description: バックエンド と DB の 疎通 を 確認 する。 ALB / CloudWatch / 監視 から 叩く 想定。
@@ -367,6 +1730,64 @@ paths:
       summary: 招待 トークン 検証 (公開 / 認証 不要)
       tags:
       - invitations
+  /learning-reports:
+    get:
+      description: current user の レポート を 期間 降順 で 返す。 userId は IDOR 対策 で 受け取らない。
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.LearningReport'
+            type: array
+        "400":
+          description: DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 学習 レポート 一覧
+      tags:
+      - learning-reports
+  /learning-reports/generate:
+    post:
+      consumes:
+      - application/json
+      description: current user で 指定 月 の レポート 生成 ジョブ を 受け付け、 SQS に enqueue (現状 stub)。
+        202 Accepted を 返す。
+      parameters:
+      - description: year + month
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.requestReportReq'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.LearningReport'
+        "400":
+          description: バリデーション
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 月次 学習 レポート 生成 要求
+      tags:
+      - learning-reports
   /notes:
     get:
       description: current user の note を 更新 日 降順 で 返す。 IDOR 対策 で userId は 受け取らない。
@@ -490,6 +1911,38 @@ paths:
       security:
       - CookieAuth: []
       summary: ノート 更新
+      tags:
+      - notes
+  /notes/image-upload-url:
+    post:
+      consumes:
+      - application/json
+      description: current user 用 の S3 PUT 署名 URL を 発行。 userId は body から 受け取らず middleware
+        の current user を 使う (IDOR 対策、 Phase 3 で 修正)。
+      parameters:
+      - description: contentType (任意)
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/internal_handler.issueUploadURLReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.NoteImageUploadURL'
+        "400":
+          description: 発行 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: ノート 画像 PUT 署名 URL
       tags:
       - notes
   /notifications:
@@ -665,6 +2118,80 @@ paths:
       summary: プロフィール 更新
       tags:
       - profile
+  /profile/{userId}/image/presigned-url:
+    post:
+      consumes:
+      - application/json
+      description: プロフィール アイコン 用 の S3 PUT 署名 URL を 発行。 "me" / 数字 一致 のみ 許可 (IDOR 対策)。
+        body は 任意。
+      parameters:
+      - description: 数字 ID または 'me'
+        in: path
+        name: userId
+        required: true
+        type: string
+      - description: fileName / contentType (任意)
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/internal_handler.issueProfileImageReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.ProfileImageUploadURL'
+        "400":
+          description: 発行 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: 他 user 指定
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: プロフィール 画像 PUT 署名 URL
+      tags:
+      - profile
+  /profile/{userId}/stats:
+    get:
+      description: 指定 user (or 'me') の マイページ 集計 (合計 セッション / 平均 スコア)。 他 user 指定 は 403。
+      parameters:
+      - description: 数字 ID または 'me'
+        in: path
+        name: userId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.UserStats'
+        "400":
+          description: DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: 他 user 指定
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: ユーザー 統計 取得
+      tags:
+      - profile
   /profile/me/onboarding/complete:
     post:
       description: Welcome 画面 「はじめる」 押下 で onboarded_at = NOW() に 更新。 冪等 (再 押下 で も
@@ -756,6 +2283,183 @@ paths:
       summary: セッション ノート 作成 / 更新
       tags:
       - session-notes
+  /teaching-materials:
+    get:
+      deprecated: true
+      description: backward-compat 用。 company 内 全 教材 を 返す。 frontend が コース 対応 完了 後
+        に 削除 予定。
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial'
+            type: array
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 教材 全 件 一覧 (deprecated)
+      tags:
+      - teaching-materials
+    post:
+      consumes:
+      - application/json
+      description: company_admin / super_admin の み。 courseId 必須。
+      parameters:
+      - description: 作成 内容
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.teachingMaterialCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial'
+        "400":
+          description: バリデーション
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: 操作 権限 なし
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 教材 作成
+      tags:
+      - teaching-materials
+  /teaching-materials/{id}:
+    delete:
+      description: 指定 id の 教材 を 削除 (company_admin / super_admin)。
+      parameters:
+      - description: 教材 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: 成功 (本文 なし)
+        "400":
+          description: id 不正
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: 操作 権限 なし
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "404":
+          description: 教材 が ない
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 教材 削除
+      tags:
+      - teaching-materials
+    get:
+      description: 指定 id の 教材 を 返す。 他社 / 未 公開 (trainee) は 403。
+      parameters:
+      - description: 教材 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial'
+        "400":
+          description: id 不正
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: 操作 権限 なし
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "404":
+          description: 教材 が ない
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 教材 詳細
+      tags:
+      - teaching-materials
+    put:
+      consumes:
+      - application/json
+      description: 指定 id の 教材 を 更新 (company_admin / super_admin)。
+      parameters:
+      - description: 教材 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 更新 内容
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.teachingMaterialUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial'
+        "400":
+          description: バリデーション
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: 操作 権限 なし
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "404":
+          description: 教材 が ない
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 教材 更新
+      tags:
+      - teaching-materials
 securityDefinitions:
   CookieAuth:
     description: Cognito 由来 の JWT を HttpOnly Cookie で 送る。 ログイン 後 自動 付与。

@@ -40,6 +40,21 @@ type aiChatAttachmentUploadURLRequest struct {
 //   - 401: 未認証
 //   - 413: サイズ上限超過
 //   - 415: 未サポートの MIME
+//     @Summary      AI チャット 添付 PUT 署名 URL
+//     @Description  ai-chat/{userId}/{uuid}.{ext} の キー で S3 PUT 用 presigned URL を 発行。 contentType は image/png 等 の 許容 セット のみ。 sizeBytes 上限 (image 5MB / document 4.5MB) も 事前 検証。
+//     @Tags         ai-chat
+//     @Accept       json
+//     @Produce      json
+//     @Param        body  body      aiChatAttachmentUploadURLRequest  true  "filename / contentType / sizeBytes"
+//     @Success      200   {object}  github_com_norman6464_FreStyle_backend_internal_usecase_repository.AiChatAttachmentUploadURL
+//     @Failure      400   {object}  errorResponse  "バリデーション 失敗"
+//     @Failure      401   {object}  errorResponse  "未 認証"
+//     @Failure      413   {object}  errorResponse  "サイズ 上限 超過"
+//     @Failure      415   {object}  errorResponse  "未 サポート MIME"
+//     @Failure      503   {object}  errorResponse  "添付 アップロード 機能 が 設定 されて いない (dev/stub)"
+//     @Failure      500   {object}  errorResponse  "S3 presigner 失敗"
+//     @Router       /ai-chat/attachments/upload-url [post]
+//     @Security     CookieAuth
 func (h *AiChatAttachmentHandler) IssueUploadURL(c *gin.Context) {
 	uid := middleware.CurrentUserIDOrZero(c)
 	if uid == 0 {

@@ -41,6 +41,17 @@ func (h *TeachingMaterialHandler) actorContext(c *gin.Context) (uint64, uint64, 
 
 // List は backward-compat 用 GET /api/v2/teaching-materials 。 frontend がコース対応に
 // 切り替わったら削除予定。
+//
+//	@Summary      教材 全 件 一覧 (deprecated)
+//	@Description  backward-compat 用。 company 内 全 教材 を 返す。 frontend が コース 対応 完了 後 に 削除 予定。
+//	@Tags         teaching-materials
+//	@Produce      json
+//	@Success      200  {array}   github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial
+//	@Failure      401  {object}  errorResponse  "未 認証"
+//	@Failure      500  {object}  errorResponse  "DB 失敗"
+//	@Router       /teaching-materials [get]
+//	@Security     CookieAuth
+//	@Deprecated
 func (h *TeachingMaterialHandler) List(c *gin.Context) {
 	_, companyID, role, ok := h.actorContext(c)
 	if !ok {
@@ -56,6 +67,19 @@ func (h *TeachingMaterialHandler) List(c *gin.Context) {
 
 // ListByCourse は GET /api/v2/courses/:id/materials 。 コース配下の教材を返す。
 // path param `:id` はコース ID（ルート競合を避けるため materials path 側で `:id` を流用）。
+//
+//	@Summary      コース内 教材 一覧
+//	@Description  指定 コース 配下 の 教材 を 返す。 trainee は published のみ。
+//	@Tags         teaching-materials
+//	@Produce      json
+//	@Param        id  path      int  true  "コース ID"
+//	@Success      200  {array}   github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial
+//	@Failure      400  {object}  errorResponse  "course id 不正"
+//	@Failure      401  {object}  errorResponse  "未 認証"
+//	@Failure      403  {object}  errorResponse  "他社 コース"
+//	@Failure      500  {object}  errorResponse  "DB 失敗"
+//	@Router       /courses/{id}/materials [get]
+//	@Security     CookieAuth
 func (h *TeachingMaterialHandler) ListByCourse(c *gin.Context) {
 	_, companyID, role, ok := h.actorContext(c)
 	if !ok {
@@ -74,7 +98,18 @@ func (h *TeachingMaterialHandler) ListByCourse(c *gin.Context) {
 	c.JSON(http.StatusOK, rows)
 }
 
-// Get は GET /api/v2/teaching-materials/:id 。
+// @Summary      教材 詳細
+// @Description  指定 id の 教材 を 返す。 他社 / 未 公開 (trainee) は 403。
+// @Tags         teaching-materials
+// @Produce      json
+// @Param        id  path      int  true  "教材 ID"
+// @Success      200  {object}  github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial
+// @Failure      400  {object}  errorResponse  "id 不正"
+// @Failure      401  {object}  errorResponse  "未 認証"
+// @Failure      403  {object}  errorResponse  "操作 権限 なし"
+// @Failure      404  {object}  errorResponse  "教材 が ない"
+// @Router       /teaching-materials/{id} [get]
+// @Security     CookieAuth
 func (h *TeachingMaterialHandler) Get(c *gin.Context) {
 	_, companyID, role, ok := h.actorContext(c)
 	if !ok {
@@ -117,7 +152,18 @@ type teachingMaterialUpdateRequest struct {
 	IsPublished   bool   `json:"isPublished"`
 }
 
-// Create は POST /api/v2/teaching-materials 。 body の courseId 必須。
+// @Summary      教材 作成
+// @Description  company_admin / super_admin の み。 courseId 必須。
+// @Tags         teaching-materials
+// @Accept       json
+// @Produce      json
+// @Param        body  body      teachingMaterialCreateRequest  true  "作成 内容"
+// @Success      201   {object}  github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial
+// @Failure      400   {object}  errorResponse  "バリデーション"
+// @Failure      401   {object}  errorResponse  "未 認証"
+// @Failure      403   {object}  errorResponse  "操作 権限 なし"
+// @Router       /teaching-materials [post]
+// @Security     CookieAuth
 func (h *TeachingMaterialHandler) Create(c *gin.Context) {
 	uid, companyID, role, ok := h.actorContext(c)
 	if !ok {
@@ -145,7 +191,20 @@ func (h *TeachingMaterialHandler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, m)
 }
 
-// Update は PUT /api/v2/teaching-materials/:id 。
+// @Summary      教材 更新
+// @Description  指定 id の 教材 を 更新 (company_admin / super_admin)。
+// @Tags         teaching-materials
+// @Accept       json
+// @Produce      json
+// @Param        id    path      int                            true  "教材 ID"
+// @Param        body  body      teachingMaterialUpdateRequest  true  "更新 内容"
+// @Success      200   {object}  github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial
+// @Failure      400   {object}  errorResponse  "バリデーション"
+// @Failure      401   {object}  errorResponse  "未 認証"
+// @Failure      403   {object}  errorResponse  "操作 権限 なし"
+// @Failure      404   {object}  errorResponse  "教材 が ない"
+// @Router       /teaching-materials/{id} [put]
+// @Security     CookieAuth
 func (h *TeachingMaterialHandler) Update(c *gin.Context) {
 	_, companyID, role, ok := h.actorContext(c)
 	if !ok {
@@ -177,7 +236,18 @@ func (h *TeachingMaterialHandler) Update(c *gin.Context) {
 	c.JSON(http.StatusOK, m)
 }
 
-// Delete は DELETE /api/v2/teaching-materials/:id 。
+// @Summary      教材 削除
+// @Description  指定 id の 教材 を 削除 (company_admin / super_admin)。
+// @Tags         teaching-materials
+// @Produce      json
+// @Param        id  path  int  true  "教材 ID"
+// @Success      204  "成功 (本文 なし)"
+// @Failure      400  {object}  errorResponse  "id 不正"
+// @Failure      401  {object}  errorResponse  "未 認証"
+// @Failure      403  {object}  errorResponse  "操作 権限 なし"
+// @Failure      404  {object}  errorResponse  "教材 が ない"
+// @Router       /teaching-materials/{id} [delete]
+// @Security     CookieAuth
 func (h *TeachingMaterialHandler) Delete(c *gin.Context) {
 	_, companyID, role, ok := h.actorContext(c)
 	if !ok {

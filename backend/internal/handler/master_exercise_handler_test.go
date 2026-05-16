@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -18,21 +19,25 @@ import (
 // 一覧で current user 状態を必要とするテストは別途専用 fake を定義する。
 type fakeSubmissionRepoForList struct{}
 
-func (fakeSubmissionRepoForList) Create(*domain.ExerciseSubmission) error { return nil }
-func (fakeSubmissionRepoForList) ListByUserAndExercise(uint64, uint64, string) ([]domain.ExerciseSubmission, error) {
+func (fakeSubmissionRepoForList) Create(context.Context, *domain.ExerciseSubmission) error {
+	return nil
+}
+func (fakeSubmissionRepoForList) ListByUserAndExercise(context.Context, uint64, uint64, string) ([]domain.ExerciseSubmission, error) {
 	return nil, nil
 }
-func (fakeSubmissionRepoForList) HasSolved(uint64, uint64, string) (bool, error) { return false, nil }
-func (fakeSubmissionRepoForList) HasAttempted(uint64, uint64, string) (bool, error) {
+func (fakeSubmissionRepoForList) HasSolved(context.Context, uint64, uint64, string) (bool, error) {
 	return false, nil
 }
-func (fakeSubmissionRepoForList) BatchUserStatuses(uint64, []uint64, string) (map[uint64]string, error) {
+func (fakeSubmissionRepoForList) HasAttempted(context.Context, uint64, uint64, string) (bool, error) {
+	return false, nil
+}
+func (fakeSubmissionRepoForList) BatchUserStatuses(context.Context, uint64, []uint64, string) (map[uint64]string, error) {
 	return map[uint64]string{}, nil
 }
-func (fakeSubmissionRepoForList) ExerciseStats(uint64, string) (repository.ExerciseSubmissionStats, error) {
+func (fakeSubmissionRepoForList) ExerciseStats(context.Context, uint64, string) (repository.ExerciseSubmissionStats, error) {
 	return repository.ExerciseSubmissionStats{}, nil
 }
-func (fakeSubmissionRepoForList) ExerciseStatsBatch([]uint64, string) (map[uint64]repository.ExerciseSubmissionStats, error) {
+func (fakeSubmissionRepoForList) ExerciseStatsBatch(context.Context, []uint64, string) (map[uint64]repository.ExerciseSubmissionStats, error) {
 	return map[uint64]repository.ExerciseSubmissionStats{}, nil
 }
 
@@ -46,19 +51,19 @@ type fakeMasterExerciseRepo struct {
 	gotSlug      string
 }
 
-func (r *fakeMasterExerciseRepo) ListByLanguage(language string) ([]domain.MasterExercise, error) {
+func (r *fakeMasterExerciseRepo) ListByLanguage(_ context.Context, language string) ([]domain.MasterExercise, error) {
 	r.listLanguage = language
 	return r.listResult, nil
 }
 
-func (r *fakeMasterExerciseRepo) GetByID(_ uint64) (*domain.MasterExercise, error) {
+func (r *fakeMasterExerciseRepo) GetByID(_ context.Context, _ uint64) (*domain.MasterExercise, error) {
 	if r.getErr != nil {
 		return nil, r.getErr
 	}
 	return r.getResult, nil
 }
 
-func (r *fakeMasterExerciseRepo) GetBySlug(slug string) (*domain.MasterExercise, error) {
+func (r *fakeMasterExerciseRepo) GetBySlug(_ context.Context, slug string) (*domain.MasterExercise, error) {
 	r.gotSlug = slug
 	if r.getErr != nil {
 		return nil, r.getErr
@@ -71,11 +76,11 @@ type fakeExampleRepo struct {
 	byID map[uint64][]domain.MasterExerciseExample
 }
 
-func (r *fakeExampleRepo) ListByExerciseID(exerciseID uint64) ([]domain.MasterExerciseExample, error) {
+func (r *fakeExampleRepo) ListByExerciseID(_ context.Context, exerciseID uint64) ([]domain.MasterExerciseExample, error) {
 	return r.byID[exerciseID], nil
 }
 
-func (r *fakeExampleRepo) ListByExerciseIDs(_ []uint64) (map[uint64][]domain.MasterExerciseExample, error) {
+func (r *fakeExampleRepo) ListByExerciseIDs(context.Context, []uint64) (map[uint64][]domain.MasterExerciseExample, error) {
 	return r.byID, nil
 }
 

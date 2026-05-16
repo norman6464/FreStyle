@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
@@ -34,8 +35,8 @@ func NewGetMasterExerciseUseCase(
 }
 
 // Execute は ID 指定で取得する旧 API 互換。 examples は付かない。
-func (uc *GetMasterExerciseUseCase) Execute(id uint64) (*domain.MasterExercise, error) {
-	return uc.repo.GetByID(id)
+func (uc *GetMasterExerciseUseCase) Execute(ctx context.Context, id uint64) (*domain.MasterExercise, error) {
+	return uc.repo.GetByID(ctx, id)
 }
 
 // ExecuteBySlug は slug ベースの詳細ページ向け。 examples を含めて 1 度に返す。
@@ -43,15 +44,15 @@ func (uc *GetMasterExerciseUseCase) Execute(id uint64) (*domain.MasterExercise, 
 // `GetBySlug` が GORM の `gorm.ErrRecordNotFound` を返した場合は handler 側で 404 に分岐できるよう
 // そのまま伝搬する。 nil チェックは GORM が `(nil, nil)` を返さない前提だが、 リポジトリ実装の
 // バグや fake で `ex == nil` が起きたときの nil pointer panic を防ぐため defensive に弾いておく。
-func (uc *GetMasterExerciseUseCase) ExecuteBySlug(slug string) (*GetMasterExerciseDetailOutput, error) {
-	ex, err := uc.repo.GetBySlug(slug)
+func (uc *GetMasterExerciseUseCase) ExecuteBySlug(ctx context.Context, slug string) (*GetMasterExerciseDetailOutput, error) {
+	ex, err := uc.repo.GetBySlug(ctx, slug)
 	if err != nil {
 		return nil, err
 	}
 	if ex == nil {
 		return nil, fmt.Errorf("exercise not found: %s", slug)
 	}
-	examples, err := uc.examples.ListByExerciseID(ex.ID)
+	examples, err := uc.examples.ListByExerciseID(ctx, ex.ID)
 	if err != nil {
 		return nil, err
 	}

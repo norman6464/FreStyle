@@ -25,28 +25,30 @@ type fakeFullSubmissionRepo struct {
 	lastKind       string
 }
 
-func (r *fakeFullSubmissionRepo) Create(s *domain.ExerciseSubmission) error {
+func (r *fakeFullSubmissionRepo) Create(_ context.Context, s *domain.ExerciseSubmission) error {
 	s.ID = 42
 	r.created = s
 	return nil
 }
-func (r *fakeFullSubmissionRepo) ListByUserAndExercise(userID, exerciseID uint64, kind string) ([]domain.ExerciseSubmission, error) {
+func (r *fakeFullSubmissionRepo) ListByUserAndExercise(_ context.Context, userID, exerciseID uint64, kind string) ([]domain.ExerciseSubmission, error) {
 	r.lastUserID = userID
 	r.lastExerciseID = exerciseID
 	r.lastKind = kind
 	return r.listed, nil
 }
-func (r *fakeFullSubmissionRepo) HasSolved(uint64, uint64, string) (bool, error) { return false, nil }
-func (r *fakeFullSubmissionRepo) HasAttempted(uint64, uint64, string) (bool, error) {
+func (r *fakeFullSubmissionRepo) HasSolved(context.Context, uint64, uint64, string) (bool, error) {
 	return false, nil
 }
-func (r *fakeFullSubmissionRepo) BatchUserStatuses(uint64, []uint64, string) (map[uint64]string, error) {
+func (r *fakeFullSubmissionRepo) HasAttempted(context.Context, uint64, uint64, string) (bool, error) {
+	return false, nil
+}
+func (r *fakeFullSubmissionRepo) BatchUserStatuses(context.Context, uint64, []uint64, string) (map[uint64]string, error) {
 	return nil, nil
 }
-func (r *fakeFullSubmissionRepo) ExerciseStats(uint64, string) (repository.ExerciseSubmissionStats, error) {
+func (r *fakeFullSubmissionRepo) ExerciseStats(context.Context, uint64, string) (repository.ExerciseSubmissionStats, error) {
 	return repository.ExerciseSubmissionStats{}, nil
 }
-func (r *fakeFullSubmissionRepo) ExerciseStatsBatch([]uint64, string) (map[uint64]repository.ExerciseSubmissionStats, error) {
+func (r *fakeFullSubmissionRepo) ExerciseStatsBatch(context.Context, []uint64, string) (map[uint64]repository.ExerciseSubmissionStats, error) {
 	return nil, nil
 }
 

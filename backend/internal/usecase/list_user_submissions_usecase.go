@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
@@ -26,13 +27,13 @@ func NewListUserMasterSubmissionsUseCase(
 	return &ListUserMasterSubmissionsUseCase{exercises: exercises, submissions: submissions}
 }
 
-func (uc *ListUserMasterSubmissionsUseCase) Execute(in ListUserMasterSubmissionsInput) ([]domain.ExerciseSubmission, error) {
-	ex, err := uc.exercises.GetBySlug(in.Slug)
+func (uc *ListUserMasterSubmissionsUseCase) Execute(ctx context.Context, in ListUserMasterSubmissionsInput) ([]domain.ExerciseSubmission, error) {
+	ex, err := uc.exercises.GetBySlug(ctx, in.Slug)
 	if err != nil {
 		return nil, err
 	}
 	if ex == nil {
 		return nil, fmt.Errorf("exercise not found: %s", in.Slug)
 	}
-	return uc.submissions.ListByUserAndExercise(in.UserID, ex.ID, domain.ExerciseKindMaster)
+	return uc.submissions.ListByUserAndExercise(ctx, in.UserID, ex.ID, domain.ExerciseKindMaster)
 }

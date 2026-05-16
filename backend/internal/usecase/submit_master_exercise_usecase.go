@@ -88,7 +88,7 @@ func (uc *SubmitMasterExerciseUseCase) Execute(ctx context.Context, in SubmitMas
 		return nil, fmt.Errorf("code is required")
 	}
 
-	ex, err := uc.exercises.GetBySlug(in.Slug)
+	ex, err := uc.exercises.GetBySlug(ctx, in.Slug)
 	if err != nil {
 		return nil, err
 	}
@@ -98,10 +98,10 @@ func (uc *SubmitMasterExerciseUseCase) Execute(ctx context.Context, in SubmitMas
 
 	// QA モード: コード実行せず、 提出文字列と ExpectedOutput を直接比較する。
 	if ex.Mode == domain.ExerciseModeQA {
-		return uc.submitQA(in, ex)
+		return uc.submitQA(ctx, in, ex)
 	}
 
-	examples, err := uc.examples.ListByExerciseID(ex.ID)
+	examples, err := uc.examples.ListByExerciseID(ctx, ex.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +173,7 @@ func (uc *SubmitMasterExerciseUseCase) Execute(ctx context.Context, in SubmitMas
 		IsCorrect:     allPassed,
 		SubmittedAt:   time.Now().UTC(),
 	}
-	if err := uc.submissions.Create(submission); err != nil {
+	if err := uc.submissions.Create(ctx, submission); err != nil {
 		return nil, err
 	}
 
@@ -186,7 +186,7 @@ func (uc *SubmitMasterExerciseUseCase) Execute(ctx context.Context, in SubmitMas
 
 // submitQA は QA モードの採点。 提出文字列と ExpectedOutput を normalize 比較するだけで
 // コード実行は行わない。 docker / kubernetes など サンドボックス実行が困難な題材向け。
-func (uc *SubmitMasterExerciseUseCase) submitQA(in SubmitMasterExerciseInput, ex *domain.MasterExercise) (*SubmitMasterExerciseOutput, error) {
+func (uc *SubmitMasterExerciseUseCase) submitQA(ctx context.Context, in SubmitMasterExerciseInput, ex *domain.MasterExercise) (*SubmitMasterExerciseOutput, error) {
 	expected := normalizeOutput(ex.ExpectedOutput)
 	actual := normalizeOutput(in.Code)
 	isCorrect := actual == expected
@@ -202,7 +202,7 @@ func (uc *SubmitMasterExerciseUseCase) submitQA(in SubmitMasterExerciseInput, ex
 		IsCorrect:     isCorrect,
 		SubmittedAt:   time.Now().UTC(),
 	}
-	if err := uc.submissions.Create(submission); err != nil {
+	if err := uc.submissions.Create(ctx, submission); err != nil {
 		return nil, err
 	}
 

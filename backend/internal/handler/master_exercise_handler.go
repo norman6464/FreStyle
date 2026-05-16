@@ -42,7 +42,7 @@ func NewMasterExerciseHandler(
 func (h *MasterExerciseHandler) List(c *gin.Context) {
 	language := c.Query("language")
 	uid := middleware.CurrentUserIDOrZero(c)
-	rows, err := h.listWithStatus.Execute(usecase.ListMasterExercisesWithStatusInput{
+	rows, err := h.listWithStatus.Execute(c.Request.Context(), usecase.ListMasterExercisesWithStatusInput{
 		UserID:   uid,
 		Language: language,
 	})
@@ -63,7 +63,7 @@ func (h *MasterExerciseHandler) GetBySlug(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "slug is required"})
 		return
 	}
-	detail, err := h.getExercise.ExecuteBySlug(slug)
+	detail, err := h.getExercise.ExecuteBySlug(c.Request.Context(), slug)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "演習問題が見つかりません"})

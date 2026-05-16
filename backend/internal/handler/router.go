@@ -36,12 +36,6 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 		c.JSON(200, gin.H{"message": "FreStyle Go backend"})
 	})
 
-	// Swagger UI (/swagger/index.html). Production も dev も 同じ パス で 配信。
-	// docs/ は `make openapi` (= swag init) で 生成 さ れる。 main.go の swagger annotation
-	// と 各 handler の @Summary / @Router を 集約 した spec。 cmd/server/main.go の
-	// blank import (`_ "github.com/.../backend/docs"`) で 初期化 さ れる。
-	r.GET("/swagger/*any", ginswagger.WrapHandler(swaggerfiles.Handler))
-
 	ctx := context.Background()
 
 	bc, err := bedrock.NewClient(ctx, cfg.Bedrock.Region, cfg.Bedrock.ModelID)
@@ -63,6 +57,12 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	}
 
 	v2 := r.Group("/api/v2")
+
+	// Swagger UI (/api/v2/swagger/index.html)。 ALB は /api/v2/* のみ backend に
+	// ルーティング する ので v2 group 内 で 配信 する。 認証 不要 (Cookie 認証 を 適用
+	// する authed group に は 入れない)。 docs/ は `make openapi` で 生成、
+	// cmd/server/main.go の blank import で 初期化。
+	v2.GET("/swagger/*any", ginswagger.WrapHandler(swaggerfiles.Handler))
 
 	registerHealthRoutes(v2, deps)
 	registerInvitationPublicRoutes(v2, deps)

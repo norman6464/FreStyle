@@ -17,6 +17,19 @@ func NewSessionNoteHandler(g *usecase.GetSessionNoteUseCase, u *usecase.UpsertSe
 	return &SessionNoteHandler{get: g, upsert: u}
 }
 
+// Get は AI チャット セッション に 紐づく ノート を 取得 する。
+//
+//	@Summary      セッション ノート 取得
+//	@Description  AI チャット セッション に 紐づく ノート (= 学習 者 が セッション ごと に 残した メモ) を 取得。 存在 し ない 場合 は 404。
+//	@Tags         session-notes
+//	@Produce      json
+//	@Param        sessionId  path      int  true  "AI チャット セッション ID"
+//	@Success      200        {object}  github_com_norman6464_FreStyle_backend_internal_domain.SessionNote
+//	@Failure      400        {object}  errorResponse  "DB 失敗"
+//	@Failure      401        {object}  errorResponse  "未 認証"
+//	@Failure      404        {object}  errorResponse  "未 作成"
+//	@Router       /ai-chat/sessions/{sessionId}/note [get]
+//	@Security     CookieAuth
 func (h *SessionNoteHandler) Get(c *gin.Context) {
 	sid, _ := strconv.ParseUint(c.Param("sessionId"), 10, 64)
 	n, err := h.get.Execute(c.Request.Context(), sid)
@@ -36,6 +49,20 @@ type sessionNoteUpsertReq struct {
 	Content string `json:"content"`
 }
 
+// Upsert は セッション ノート を 作成 or 更新 する。
+//
+//	@Summary      セッション ノート 作成 / 更新
+//	@Description  指定 セッション の ノート を upsert (= 無ければ 作る、 ある なら 更新)。
+//	@Tags         session-notes
+//	@Accept       json
+//	@Produce      json
+//	@Param        sessionId  path      int                    true   "AI チャット セッション ID"
+//	@Param        body       body      sessionNoteUpsertReq   true   "userId + content"
+//	@Success      200        {object}  github_com_norman6464_FreStyle_backend_internal_domain.SessionNote
+//	@Failure      400        {object}  errorResponse  "バリデーション or DB 失敗"
+//	@Failure      401        {object}  errorResponse  "未 認証"
+//	@Router       /ai-chat/sessions/{sessionId}/note [put]
+//	@Security     CookieAuth
 func (h *SessionNoteHandler) Upsert(c *gin.Context) {
 	sid, _ := strconv.ParseUint(c.Param("sessionId"), 10, 64)
 	var req sessionNoteUpsertReq

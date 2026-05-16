@@ -13,7 +13,8 @@
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui",
     "e2e:install": "playwright install --with-deps chromium",
-    "tailwind:init": "tailwindcss init -p"
+    "tailwind:init": "tailwindcss init -p",
+    "openapi:generate": "swagger2openapi ../backend/docs/swagger.json --outfile src/generated/openapi.json && openapi-typescript src/generated/openapi.json --output src/generated/api.ts"
   },
   "dependencies": {
     "@fontsource/roboto": "^5.2.8",
@@ -56,7 +57,9 @@
     "eslint-plugin-react-refresh": "^0.4.22",
     "globals": "^16.4.0",
     "jsdom": "^28.0.0",
+    "openapi-typescript": "^7.13.0",
     "postcss": "^8.5.6",
+    "swagger2openapi": "^7.0.8",
     "tailwindcss": "^3.4.1",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.55.0",

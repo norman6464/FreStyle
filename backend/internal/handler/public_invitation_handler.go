@@ -26,6 +26,16 @@ func NewPublicInvitationHandler(v *usecase.ValidateInvitationTokenUseCase) *Publ
 //   - 成功時は role / displayName / companyId / companyName のみ返す（email は返さない）
 //
 // レート制限はミドルウェア層で別途実装する想定（現状は未実装）。
+//
+//	@Summary      招待 トークン 検証 (公開 / 認証 不要)
+//	@Description  招待 マジック リンク から 来た 未 ログイン user 用。 該当 / 期限 切れ / 既 受諾 等 は メタ 情報 を 漏らさず 全て 404。
+//	@Tags         invitations
+//	@Produce      json
+//	@Param        token  path      string  true  "招待 受諾 token (UUID)"
+//	@Success      200    {object}  invitationValidateResponse
+//	@Failure      404    {object}  errorResponse  "招待 が 無効 / 期限 切れ"
+//	@Failure      500    {object}  errorResponse  "内部 エラー"
+//	@Router       /invitations/accept/{token} [get]
 func (h *PublicInvitationHandler) Validate(c *gin.Context) {
 	token := c.Param("token")
 	got, err := h.validate.Execute(c.Request.Context(), token)

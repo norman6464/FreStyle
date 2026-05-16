@@ -11,6 +11,8 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/infra/config"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	swaggerfiles "github.com/swaggo/files"
+	ginswagger "github.com/swaggo/gin-swagger"
 	"gorm.io/gorm"
 )
 
@@ -33,6 +35,12 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	r.GET("/", func(c *gin.Context) {
 		c.JSON(200, gin.H{"message": "FreStyle Go backend"})
 	})
+
+	// Swagger UI (/swagger/index.html). Production も dev も 同じ パス で 配信。
+	// docs/ は `make openapi` (= swag init) で 生成 さ れる。 main.go の swagger annotation
+	// と 各 handler の @Summary / @Router を 集約 した spec。 cmd/server/main.go の
+	// blank import (`_ "github.com/.../backend/docs"`) で 初期化 さ れる。
+	r.GET("/swagger/*any", ginswagger.WrapHandler(swaggerfiles.Handler))
 
 	ctx := context.Background()
 

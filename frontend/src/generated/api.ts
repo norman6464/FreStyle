@@ -4,6 +4,755 @@
  */
 
 export interface paths {
+    "/admin/companies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 会社 一覧 (SuperAdmin)
+         * @description 全 company を 返す。 super_admin 専用 画面 用。 認可 は middleware で 別途 担保。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.Company"][];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 招待 一覧 (admin)
+         * @description pending な 招待 を 返す。 SuperAdmin は 全社 (?companyId= で 絞り込み 可)、 CompanyAdmin は 自社 のみ。 trainee 等 は 403。
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description SuperAdmin の とき のみ 有効: 特定 company の 招待 のみ */
+                    companyId?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation"][];
+                    };
+                };
+                /** @description ListByCompanyID 失敗 (現状 実装 で 400 を 返す パス あり) */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description trainee / company 未 設定 等 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 (ListAll 経路) */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * 招待 作成
+         * @description SES マジック リンク で 招待 メール を 送る。 SoD: SuperAdmin は company_admin のみ 招待 可、 CompanyAdmin は trainee のみ 自社 に 招待 可。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 招待 内容 (CompanyAdmin は companyId が 上書き さ れる) */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_handler.createAdminInvReq"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation"];
+                    };
+                };
+                /** @description バリデーション */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description ロール 違反 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/invitations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * 招待 取り消し
+         * @description 指定 招待 の status を canceled に 更新。 行 は 物理 削除 せず 監査 用 に 残す。
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 招待 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 成功 (本文 なし) */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description DB 失敗 */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai-chat/attachments/upload-url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * AI チャット 添付 PUT 署名 URL
+         * @description ai-chat/{userId}/{uuid}.{ext} の キー で S3 PUT 用 presigned URL を 発行。 contentType は image/png 等 の 許容 セット のみ。 sizeBytes 上限 (image 5MB / document 4.5MB) も 事前 検証。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description filename / contentType / sizeBytes */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_handler.aiChatAttachmentUploadURLRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_usecase_repository.AiChatAttachmentUploadURL"];
+                    };
+                };
+                /** @description バリデーション 失敗 */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description サイズ 上限 超過 */
+                413: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 サポート MIME */
+                415: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description S3 presigner 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 添付 アップロード 機能 が 設定 されて いない (dev/stub) */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai-chat/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * AI チャット セッション 一覧
+         * @description current user の AI チャット セッション を 新しい 順 で 返す。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.AiChatSession"][];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * AI チャット セッション 作成
+         * @description current user 名義 で 新規 セッション を 作成。 IDOR 対策 で userId は body から 受け取らない。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description title 必須 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_handler.createSessionReq"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.AiChatSession"];
+                    };
+                };
+                /** @description バリデーション */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai-chat/sessions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * AI チャット セッション 詳細
+         * @description 指定 id の セッション を 返す。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description セッション ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.AiChatSession"];
+                    };
+                };
+                /** @description id 不正 */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description セッション が ない */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        /**
+         * AI チャット セッション タイトル 更新
+         * @description 指定 id の セッション の title を 更新。
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description セッション ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            /** @description title 必須 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_handler.updateSessionTitleReq"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.AiChatSession"];
+                    };
+                };
+                /** @description バリデーション */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        /**
+         * AI チャット セッション 削除
+         * @description 指定 id の セッション を 削除。 所有者 検証 込み。
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description セッション ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 成功 (本文 なし) */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description id 不正 */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 他人 の セッション */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description セッション が ない */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai-chat/sessions/{id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * AI チャット メッセージ 一覧
+         * @description 指定 セッション の 会話 履歴 (DynamoDB から) を 古い 順 で 返す。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description セッション ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.AiChatMessage"][];
+                    };
+                };
+                /** @description id 不正 */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DynamoDB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai-chat/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * AI チャット SSE ストリーミング
+         * @description Bedrock Claude へ メッセージ を 送信 し、 token を SSE で 配信。 OpenAPI は SSE の カスタム イベント を 完全 表現 でき ない ので レスポンス は string と して 簡略 表現。 実際 の イベント 形式 は session / token / done / error の 4 種 (詳細 は handler コメント 参照)。 エラー 系 (400/401/503) は 通常 の application/json で 返る。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description sessionId / content / scene / sessionType / scenarioId / attachments (最大 4 件) */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_handler.sseRequestBody"];
+                };
+            };
+            responses: {
+                /** @description SSE stream (text/event-stream) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/event-stream": string;
+                    };
+                };
+                /** @description バリデーション (application/json) */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/event-stream": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 (application/json) */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/event-stream": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description Bedrock / DynamoDB 未 設定 (dev/stub、 application/json) */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/event-stream": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/cognito/callback": {
         parameters: {
             query?: never;
@@ -255,6 +1004,831 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/code/execute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * コード サンドボックス 実行
+         * @description trainee が 書いた コード を サーバ 側 sandbox で 実行 し stdout/stderr/exitCode を 返す。 language は php / go 等。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description コード + 言語 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_handler.codeExecuteRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_usecase.ExecuteCodeOutput"];
+                    };
+                };
+                /** @description バリデーション or 実行 失敗 */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/courses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * コース 一覧
+         * @description current user の role / company で 自動 フィルタ。 trainee は published のみ、 admin 系 は draft 含む。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.Course"][];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * コース 作成
+         * @description company_admin / super_admin の み。 CompanyAdmin は 自社 固定。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 作成 内容 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_handler.courseRequest"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.Course"];
+                    };
+                };
+                /** @description バリデーション */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 操作 権限 なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/courses/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * コース 詳細
+         * @description 指定 id の コース を 返す。 他社 / 未 公開 (trainee 不可) は 403。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description コース ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.Course"];
+                    };
+                };
+                /** @description id 不正 */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 操作 権限 なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description コース が ない */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        /**
+         * コース 更新
+         * @description 指定 id を 更新 (company_admin / super_admin)。
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description コース ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            /** @description 更新 内容 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_handler.courseRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.Course"];
+                    };
+                };
+                /** @description バリデーション */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 操作 権限 なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description コース が ない */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        /**
+         * コース 削除
+         * @description 指定 id を 削除 + 配下 教材 も cascade 削除 (company_admin / super_admin)。
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description コース ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 成功 (本文 なし) */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description id 不正 */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 操作 権限 なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description コース が ない */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/courses/{id}/materials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * コース内 教材 一覧
+         * @description 指定 コース 配下 の 教材 を 返す。 trainee は published のみ。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description コース ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial"][];
+                    };
+                };
+                /** @description course id 不正 */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 他社 コース */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/embeds/oembed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 外部 URL の OGP / oEmbed メタ 取得
+         * @description ?url= で 指定 した URL の OGP / oEmbed を 解決 し card 形式 で 返す。 allow-list / SSRF / DNS rebinding 対策 は infra/embed.Fetcher が 担う。
+         */
+        get: {
+            parameters: {
+                query: {
+                    /** @description メタ 取得 対象 URL */
+                    url: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_infra_embed.Card"];
+                    };
+                };
+                /** @description url 欠落 or 無効 URL */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description allow-list 外 ホスト */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 内部 エラー */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 到達 不可 */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exercises": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 演習問題 一覧 (status + stats 付き)
+         * @description 運営 マスタ 演習問題 を 取得。 query language で 絞り込み (例: php / go)。 current user の 提出 状況 と 全 user 集計 を 同時 に 返す。 未 ログイン 時 は status 空。
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description 言語 フィルタ (例: php, go, javascript) */
+                    language?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_usecase.MasterExerciseWithStatus"][];
+                    };
+                };
+                /** @description DB / 集計 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exercises/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 演習問題 詳細 (slug)
+         * @description 指定 slug の 演習 問題 + 入 出力 例 一覧 を 返す。 詳細 画面 用。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 問題 slug (例: php-1) */
+                    slug: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_usecase.GetMasterExerciseDetailOutput"];
+                    };
+                };
+                /** @description slug 欠落 */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 問題 が 見つから ない */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB / 集計 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exercises/{slug}/submissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 提出 履歴 一覧
+         * @description current user の 指定 問題 へ の 提出 履歴 を 新しい 順 で 返す。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 問題 slug */
+                    slug: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.ExerciseSubmission"][];
+                    };
+                };
+                /** @description slug 欠落 */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 問題 が 見つから ない */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exercises/{slug}/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 演習 コード 提出 + 採点
+         * @description current user の コード を 提出 し sandbox 実行 + 期待 出力 比較 で 採点。 結果 は 履歴 に append。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 問題 slug */
+                    slug: string;
+                };
+                cookie?: never;
+            };
+            /** @description 提出 コード */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_handler.submitExerciseRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_usecase.SubmitMasterExerciseOutput"];
+                    };
+                };
+                /** @description code 欠落 等 */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 問題 が 見つから ない */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB / 採点 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -363,6 +1937,125 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/learning-reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 学習 レポート 一覧
+         * @description current user の レポート を 期間 降順 で 返す。 userId は IDOR 対策 で 受け取らない。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.LearningReport"][];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/learning-reports/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 月次 学習 レポート 生成 要求
+         * @description current user で 指定 月 の レポート 生成 ジョブ を 受け付け、 SQS に enqueue (現状 stub)。 202 Accepted を 返す。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description year + month */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_handler.requestReportReq"];
+                };
+            };
+            responses: {
+                /** @description Accepted */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.LearningReport"];
+                    };
+                };
+                /** @description バリデーション */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/notes": {
         parameters: {
             query?: never;
@@ -441,6 +2134,68 @@ export interface paths {
                     };
                 };
                 /** @description バリデーション エラー or DB 失敗 */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notes/image-upload-url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * ノート 画像 PUT 署名 URL
+         * @description current user 用 の S3 PUT 署名 URL を 発行。 userId は body から 受け取らず middleware の current user を 使う (IDOR 対策、 Phase 3 で 修正)。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description contentType (任意) */
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["internal_handler.issueUploadURLReq"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.NoteImageUploadURL"];
+                    };
+                };
+                /** @description 発行 失敗 */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -991,6 +2746,149 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/profile/{userId}/image/presigned-url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * プロフィール 画像 PUT 署名 URL
+         * @description プロフィール アイコン 用 の S3 PUT 署名 URL を 発行。 "me" / 数字 一致 のみ 許可 (IDOR 対策)。 body は 任意。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 数字 ID または 'me' */
+                    userId: string;
+                };
+                cookie?: never;
+            };
+            /** @description fileName / contentType (任意) */
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["internal_handler.issueProfileImageReq"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.ProfileImageUploadURL"];
+                    };
+                };
+                /** @description 発行 失敗 */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 他 user 指定 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/profile/{userId}/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * ユーザー 統計 取得
+         * @description 指定 user (or 'me') の マイページ 集計 (合計 セッション / 平均 スコア)。 他 user 指定 は 403。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 数字 ID または 'me' */
+                    userId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.UserStats"];
+                    };
+                };
+                /** @description DB 失敗 */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 他 user 指定 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sessions/{sessionId}/note": {
         parameters: {
             query?: never;
@@ -1109,13 +3007,449 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/teaching-materials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 教材 全 件 一覧 (deprecated)
+         * @deprecated
+         * @description backward-compat 用。 company 内 全 教材 を 返す。 frontend が コース 対応 完了 後 に 削除 予定。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial"][];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * 教材 作成
+         * @description company_admin / super_admin の み。 courseId 必須。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 作成 内容 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_handler.teachingMaterialCreateRequest"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial"];
+                    };
+                };
+                /** @description バリデーション */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 操作 権限 なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teaching-materials/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 教材 詳細
+         * @description 指定 id の 教材 を 返す。 他社 / 未 公開 (trainee) は 403。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 教材 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial"];
+                    };
+                };
+                /** @description id 不正 */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 操作 権限 なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 教材 が ない */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        /**
+         * 教材 更新
+         * @description 指定 id の 教材 を 更新 (company_admin / super_admin)。
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 教材 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            /** @description 更新 内容 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_handler.teachingMaterialUpdateRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial"];
+                    };
+                };
+                /** @description バリデーション */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 操作 権限 なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 教材 が ない */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        /**
+         * 教材 削除
+         * @description 指定 id の 教材 を 削除 (company_admin / super_admin)。
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 教材 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 成功 (本文 なし) */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description id 不正 */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 操作 権限 なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 教材 が ない */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        "github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation": {
+            companyId?: number;
+            createdAt?: string;
+            displayName?: string;
+            email?: string;
+            expiresAt?: string;
+            id?: number;
+            role?: string;
+            status?: string;
+        };
+        "github_com_norman6464_FreStyle_backend_internal_domain.AiChatMessage": {
+            attachments?: components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.Attachment"][];
+            content?: string;
+            createdAt?: string;
+            messageId?: string;
+            role?: string;
+            sessionId?: number;
+        };
+        "github_com_norman6464_FreStyle_backend_internal_domain.AiChatSession": {
+            createdAt?: string;
+            id?: number;
+            scenarioId?: number;
+            sessionType?: string;
+            title?: string;
+            updatedAt?: string;
+            userId?: number;
+        };
+        "github_com_norman6464_FreStyle_backend_internal_domain.Attachment": {
+            contentType?: string;
+            filename?: string;
+            format?: string;
+            key?: string;
+            kind?: string;
+            sizeBytes?: number;
+        };
+        "github_com_norman6464_FreStyle_backend_internal_domain.Company": {
+            createdAt?: string;
+            id?: number;
+            name?: string;
+            updatedAt?: string;
+        };
+        "github_com_norman6464_FreStyle_backend_internal_domain.Course": {
+            companyId?: number;
+            createdAt?: string;
+            createdByUserId?: number;
+            description?: string;
+            id?: number;
+            isPublished?: boolean;
+            sortOrder?: number;
+            title?: string;
+            updatedAt?: string;
+        };
+        "github_com_norman6464_FreStyle_backend_internal_domain.ExerciseSubmission": {
+            exerciseId?: number;
+            exerciseKind?: string;
+            exitCode?: number;
+            id?: number;
+            isCorrect?: boolean;
+            stderr?: string;
+            stdout?: string;
+            submittedAt?: string;
+            submittedCode?: string;
+            userId?: number;
+        };
         "github_com_norman6464_FreStyle_backend_internal_domain.Health": {
             db?: string;
             status?: string;
+        };
+        "github_com_norman6464_FreStyle_backend_internal_domain.LearningReport": {
+            createdAt?: string;
+            id?: number;
+            periodFrom?: string;
+            periodTo?: string;
+            s3Key?: string;
+            status?: string;
+            userId?: number;
+        };
+        "github_com_norman6464_FreStyle_backend_internal_domain.MasterExercise": {
+            category?: string;
+            chapterId?: number;
+            createdAt?: string;
+            description?: string;
+            difficulty?: number;
+            expectedOutput?: string;
+            /**
+             * @description Explanation は QA モードで 正解後に表示される markdown 解説。
+             *     execute モードでは未使用 (空文字)。
+             */
+            explanation?: string;
+            hintText?: string;
+            id?: number;
+            isPublished?: boolean;
+            language?: string;
+            /**
+             * @description Mode は採点モード。 'execute' (default) は コードを実行して stdout を比較、
+             *     'qa' は コード実行をせず提出文字列と ExpectedOutput を直接 trim 比較する。
+             *     docker / kubernetes など サンドボックス実行が困難な題材を Q&A 形式で扱うために導入。
+             */
+            mode?: string;
+            orderIndex?: number;
+            slug?: string;
+            starterCode?: string;
+            title?: string;
+            updatedAt?: string;
+        };
+        "github_com_norman6464_FreStyle_backend_internal_domain.MasterExerciseExample": {
+            createdAt?: string;
+            /**
+             * @description (exercise_id, order_index) で UNIQUE 制約を張ることで、同じ問題内で
+             *     OrderIndex が衝突する行を DB レベルで弾く（UI 上「入力例 1」が 2 つ並ぶ事故防止）。
+             */
+            exerciseId?: number;
+            expectedOutput?: string;
+            id?: number;
+            inputText?: string;
+            /**
+             * @description OrderIndex は seed / 運営入力時に必ず明示する想定で DB DEFAULT を持たせない。
+             *     （default:0 を残すと order_index 未指定の INSERT が黙って 0 を採用して衝突を起こすため）
+             */
+            orderIndex?: number;
+            updatedAt?: string;
         };
         "github_com_norman6464_FreStyle_backend_internal_domain.Note": {
             content?: string;
@@ -1127,6 +3461,11 @@ export interface components {
             updatedAt?: string;
             userId?: number;
         };
+        "github_com_norman6464_FreStyle_backend_internal_domain.NoteImageUploadURL": {
+            expiresIn?: number;
+            key?: string;
+            url?: string;
+        };
         "github_com_norman6464_FreStyle_backend_internal_domain.Notification": {
             body?: string;
             createdAt?: string;
@@ -1135,6 +3474,12 @@ export interface components {
             title?: string;
             type?: string;
             userId?: number;
+        };
+        "github_com_norman6464_FreStyle_backend_internal_domain.ProfileImageUploadURL": {
+            expiresIn?: number;
+            imageUrl?: string;
+            key?: string;
+            uploadUrl?: string;
         };
         "github_com_norman6464_FreStyle_backend_internal_domain.ProfileView": {
             avatarUrl?: string;
@@ -1157,6 +3502,108 @@ export interface components {
             updatedAt?: string;
             userId?: number;
         };
+        "github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial": {
+            companyId?: number;
+            content?: string;
+            /**
+             * @description course_id の NOT NULL 制約は migration 0004 で確定する（既存行への ADD COLUMN を
+             *     AutoMigrate で安全に通すため、 GORM tag では not null を指定しない）。
+             */
+            courseId?: number;
+            createdAt?: string;
+            createdByUserId?: number;
+            id?: number;
+            isPublished?: boolean;
+            orderInCourse?: number;
+            title?: string;
+            updatedAt?: string;
+        };
+        "github_com_norman6464_FreStyle_backend_internal_domain.UserStats": {
+            averageScore?: number;
+            longestStreak?: number;
+            streakDays?: number;
+            totalSessions?: number;
+            userId?: number;
+        };
+        "github_com_norman6464_FreStyle_backend_internal_infra_embed.Card": {
+            description?: string;
+            imageUrl?: string;
+            /** @description Provider は "ogp" / "youtube" / "github" など、どの戦略で解決したかを示す。 */
+            provider?: string;
+            siteName?: string;
+            title?: string;
+            url?: string;
+        };
+        "github_com_norman6464_FreStyle_backend_internal_usecase.ExecuteCodeOutput": {
+            exitCode?: number;
+            stderr?: string;
+            stdout?: string;
+        };
+        "github_com_norman6464_FreStyle_backend_internal_usecase.GetMasterExerciseDetailOutput": {
+            examples?: components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.MasterExerciseExample"][];
+            exercise?: components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.MasterExercise"];
+        };
+        "github_com_norman6464_FreStyle_backend_internal_usecase.MasterExerciseWithStatus": {
+            category?: string;
+            chapterId?: number;
+            createdAt?: string;
+            description?: string;
+            difficulty?: number;
+            expectedOutput?: string;
+            /**
+             * @description Explanation は QA モードで 正解後に表示される markdown 解説。
+             *     execute モードでは未使用 (空文字)。
+             */
+            explanation?: string;
+            hintText?: string;
+            id?: number;
+            isPublished?: boolean;
+            language?: string;
+            /**
+             * @description Mode は採点モード。 'execute' (default) は コードを実行して stdout を比較、
+             *     'qa' は コード実行をせず提出文字列と ExpectedOutput を直接 trim 比較する。
+             *     docker / kubernetes など サンドボックス実行が困難な題材を Q&A 形式で扱うために導入。
+             */
+            mode?: string;
+            orderIndex?: number;
+            slug?: string;
+            starterCode?: string;
+            stats?: components["schemas"]["github_com_norman6464_FreStyle_backend_internal_usecase_repository.ExerciseSubmissionStats"];
+            status?: string;
+            title?: string;
+            updatedAt?: string;
+        };
+        "github_com_norman6464_FreStyle_backend_internal_usecase.SubmitMasterExerciseOutput": {
+            isCorrect?: boolean;
+            results?: components["schemas"]["github_com_norman6464_FreStyle_backend_internal_usecase.TestCaseResult"][];
+            submissionId?: number;
+        };
+        "github_com_norman6464_FreStyle_backend_internal_usecase.TestCaseResult": {
+            actualOutput?: string;
+            expectedOutput?: string;
+            input?: string;
+            orderIndex?: number;
+            passed?: boolean;
+            stderr?: string;
+        };
+        "github_com_norman6464_FreStyle_backend_internal_usecase_repository.AiChatAttachmentUploadURL": {
+            expiresIn?: number;
+            key?: string;
+            uploadUrl?: string;
+        };
+        "github_com_norman6464_FreStyle_backend_internal_usecase_repository.ExerciseSubmissionStats": {
+            solvedUsers?: number;
+            totalSubmissions?: number;
+        };
+        "internal_handler.aiChatAttachmentUploadURLRequest": {
+            contentType?: string;
+            filename?: string;
+            sizeBytes?: number;
+        };
+        "internal_handler.codeExecuteRequest": {
+            code: string;
+            language?: string;
+        };
         "internal_handler.cognitoCallbackReq": {
             code: string;
             /**
@@ -1165,6 +3612,23 @@ export interface components {
              *     優先して照合に使う（同じ email に複数 pending invitation がある異常系での誤一致を防ぐ）。
              */
             invitationToken?: string;
+        };
+        "internal_handler.courseRequest": {
+            description?: string;
+            isPublished?: boolean;
+            sortOrder?: number;
+            title?: string;
+        };
+        "internal_handler.createAdminInvReq": {
+            companyId: number;
+            displayName?: string;
+            email: string;
+            role: string;
+        };
+        "internal_handler.createSessionReq": {
+            scenarioId?: number;
+            sessionType?: string;
+            title: string;
         };
         "internal_handler.errorResponse": {
             /** @example unauthorized */
@@ -1179,6 +3643,13 @@ export interface components {
             displayName?: string;
             /** @example trainee */
             role?: string;
+        };
+        "internal_handler.issueProfileImageReq": {
+            contentType?: string;
+            fileName?: string;
+        };
+        "internal_handler.issueUploadURLReq": {
+            contentType?: string;
         };
         "internal_handler.meResponse": {
             /** @example abc-123-uuid */
@@ -1222,8 +3693,42 @@ export interface components {
             isPublic?: boolean;
             title: string;
         };
+        "internal_handler.requestReportReq": {
+            month: number;
+            year: number;
+        };
         "internal_handler.sessionNoteUpsertReq": {
             content?: string;
+        };
+        "internal_handler.sseAttachmentRequest": {
+            contentType?: string;
+            filename?: string;
+            key?: string;
+            sizeBytes?: number;
+        };
+        "internal_handler.sseRequestBody": {
+            attachments?: components["schemas"]["internal_handler.sseAttachmentRequest"][];
+            content?: string;
+            scenarioId?: number;
+            scene?: string;
+            sessionId?: number;
+            sessionType?: string;
+        };
+        "internal_handler.submitExerciseRequest": {
+            code: string;
+        };
+        "internal_handler.teachingMaterialCreateRequest": {
+            content?: string;
+            courseId: number;
+            isPublished?: boolean;
+            orderInCourse?: number;
+            title?: string;
+        };
+        "internal_handler.teachingMaterialUpdateRequest": {
+            content?: string;
+            isPublished?: boolean;
+            orderInCourse?: number;
+            title?: string;
         };
         "internal_handler.updateProfileReq": {
             avatarUrl?: string;
@@ -1234,6 +3739,9 @@ export interface components {
             iconUrl?: string;
             name?: string;
             status?: string;
+        };
+        "internal_handler.updateSessionTitleReq": {
+            title: string;
         };
     };
     responses: never;

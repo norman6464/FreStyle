@@ -39,6 +39,15 @@ func (h *CourseHandler) actorContext(c *gin.Context) (uint64, uint64, string, bo
 	return user.ID, companyID, user.Role, true
 }
 
+// @Summary      コース 一覧
+// @Description  current user の role / company で 自動 フィルタ。 trainee は published のみ、 admin 系 は draft 含む。
+// @Tags         courses
+// @Produce      json
+// @Success      200  {array}   github_com_norman6464_FreStyle_backend_internal_domain.Course
+// @Failure      401  {object}  errorResponse  "未 認証"
+// @Failure      500  {object}  errorResponse  "DB 失敗"
+// @Router       /courses [get]
+// @Security     CookieAuth
 func (h *CourseHandler) List(c *gin.Context) {
 	_, companyID, role, ok := h.actorContext(c)
 	if !ok {
@@ -52,6 +61,18 @@ func (h *CourseHandler) List(c *gin.Context) {
 	c.JSON(http.StatusOK, rows)
 }
 
+// @Summary      コース 詳細
+// @Description  指定 id の コース を 返す。 他社 / 未 公開 (trainee 不可) は 403。
+// @Tags         courses
+// @Produce      json
+// @Param        id  path      int  true  "コース ID"
+// @Success      200  {object}  github_com_norman6464_FreStyle_backend_internal_domain.Course
+// @Failure      400  {object}  errorResponse  "id 不正"
+// @Failure      401  {object}  errorResponse  "未 認証"
+// @Failure      403  {object}  errorResponse  "操作 権限 なし"
+// @Failure      404  {object}  errorResponse  "コース が ない"
+// @Router       /courses/{id} [get]
+// @Security     CookieAuth
 func (h *CourseHandler) Get(c *gin.Context) {
 	_, companyID, role, ok := h.actorContext(c)
 	if !ok {
@@ -77,6 +98,18 @@ type courseRequest struct {
 	IsPublished bool   `json:"isPublished"`
 }
 
+// @Summary      コース 作成
+// @Description  company_admin / super_admin の み。 CompanyAdmin は 自社 固定。
+// @Tags         courses
+// @Accept       json
+// @Produce      json
+// @Param        body  body      courseRequest  true  "作成 内容"
+// @Success      201   {object}  github_com_norman6464_FreStyle_backend_internal_domain.Course
+// @Failure      400   {object}  errorResponse  "バリデーション"
+// @Failure      401   {object}  errorResponse  "未 認証"
+// @Failure      403   {object}  errorResponse  "操作 権限 なし"
+// @Router       /courses [post]
+// @Security     CookieAuth
 func (h *CourseHandler) Create(c *gin.Context) {
 	uid, companyID, role, ok := h.actorContext(c)
 	if !ok {
@@ -103,6 +136,20 @@ func (h *CourseHandler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, course)
 }
 
+// @Summary      コース 更新
+// @Description  指定 id を 更新 (company_admin / super_admin)。
+// @Tags         courses
+// @Accept       json
+// @Produce      json
+// @Param        id    path      int            true  "コース ID"
+// @Param        body  body      courseRequest  true  "更新 内容"
+// @Success      200   {object}  github_com_norman6464_FreStyle_backend_internal_domain.Course
+// @Failure      400   {object}  errorResponse  "バリデーション"
+// @Failure      401   {object}  errorResponse  "未 認証"
+// @Failure      403   {object}  errorResponse  "操作 権限 なし"
+// @Failure      404   {object}  errorResponse  "コース が ない"
+// @Router       /courses/{id} [put]
+// @Security     CookieAuth
 func (h *CourseHandler) Update(c *gin.Context) {
 	_, companyID, role, ok := h.actorContext(c)
 	if !ok {
@@ -134,6 +181,18 @@ func (h *CourseHandler) Update(c *gin.Context) {
 	c.JSON(http.StatusOK, course)
 }
 
+// @Summary      コース 削除
+// @Description  指定 id を 削除 + 配下 教材 も cascade 削除 (company_admin / super_admin)。
+// @Tags         courses
+// @Produce      json
+// @Param        id  path  int  true  "コース ID"
+// @Success      204  "成功 (本文 なし)"
+// @Failure      400  {object}  errorResponse  "id 不正"
+// @Failure      401  {object}  errorResponse  "未 認証"
+// @Failure      403  {object}  errorResponse  "操作 権限 なし"
+// @Failure      404  {object}  errorResponse  "コース が ない"
+// @Router       /courses/{id} [delete]
+// @Security     CookieAuth
 func (h *CourseHandler) Delete(c *gin.Context) {
 	_, companyID, role, ok := h.actorContext(c)
 	if !ok {

@@ -64,12 +64,18 @@ type sseAttachmentRequest struct {
 // UI / 課金観点で 4 枚に絞っている（仕様検討で確定）。
 const maxAttachmentsPerMessage = 4
 
-// Handle は POST /api/v2/ai-chat/stream。
-//
-// gin.Context.SSEvent は `Content-Type: text/event-stream` を自動でセットしないため、
-// 明示的にヘッダを付けて、`c.Writer.Flush()` を伴う書き込みでバッチを流す。
-// HTTP/1.1 chunked transfer で送るのが SSE の前提。CloudFront / ALB のバッファリングは
-// 標準で SSE をサポートしている（`X-Accel-Buffering: no` も併せて立てる）。
+// @Summary      AI チャット SSE ストリーミング
+// @Description  Bedrock Claude へ メッセージ を 送信 し、 token を SSE で 配信。 OpenAPI は SSE の カスタム イベント を 完全 表現 でき ない ので レスポンス は string と して 簡略 表現。 実際 の イベント 形式 は session / token / done / error の 4 種 (詳細 は handler コメント 参照)。 エラー 系 (400/401/503) は 通常 の application/json で 返る。
+// @Tags         ai-chat
+// @Accept       json
+// @Produce      text/event-stream
+// @Param        body  body  sseRequestBody  true  "sessionId / content / scene / sessionType / scenarioId / attachments (最大 4 件)"
+// @Success      200   {string}  string  "SSE stream (text/event-stream)"
+// @Failure      400   {object}  errorResponse  "バリデーション (application/json)"
+// @Failure      401   {object}  errorResponse  "未 認証 (application/json)"
+// @Failure      503   {object}  errorResponse  "Bedrock / DynamoDB 未 設定 (dev/stub、 application/json)"
+// @Router       /ai-chat/stream [post]
+// @Security     CookieAuth
 func (h *AiChatSseHandler) Handle(c *gin.Context) {
 	uid := middleware.CurrentUserIDOrZero(c)
 	if uid == 0 {

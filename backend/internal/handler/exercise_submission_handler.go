@@ -32,7 +32,20 @@ type submitExerciseRequest struct {
 	Code string `json:"code" binding:"required"`
 }
 
-// Submit は POST /api/v2/exercises/:slug/submit 。
+// @Summary      演習 コード 提出 + 採点
+// @Description  current user の コード を 提出 し sandbox 実行 + 期待 出力 比較 で 採点。 結果 は 履歴 に append。
+// @Tags         exercises
+// @Accept       json
+// @Produce      json
+// @Param        slug  path      string                  true  "問題 slug"
+// @Param        body  body      submitExerciseRequest   true  "提出 コード"
+// @Success      200   {object}  usecase.SubmitMasterExerciseOutput
+// @Failure      400   {object}  errorResponse  "code 欠落 等"
+// @Failure      401   {object}  errorResponse  "未 認証"
+// @Failure      404   {object}  errorResponse  "問題 が 見つから ない"
+// @Failure      500   {object}  errorResponse  "DB / 採点 失敗"
+// @Router       /exercises/{slug}/submit [post]
+// @Security     CookieAuth
 func (h *ExerciseSubmissionHandler) Submit(c *gin.Context) {
 	uid := middleware.CurrentUserIDOrZero(c)
 	if uid == 0 {
@@ -65,7 +78,18 @@ func (h *ExerciseSubmissionHandler) Submit(c *gin.Context) {
 	c.JSON(http.StatusOK, out)
 }
 
-// List は GET /api/v2/exercises/:slug/submissions 。
+// @Summary      提出 履歴 一覧
+// @Description  current user の 指定 問題 へ の 提出 履歴 を 新しい 順 で 返す。
+// @Tags         exercises
+// @Produce      json
+// @Param        slug  path      string  true  "問題 slug"
+// @Success      200   {array}   github_com_norman6464_FreStyle_backend_internal_domain.ExerciseSubmission
+// @Failure      400   {object}  errorResponse  "slug 欠落"
+// @Failure      401   {object}  errorResponse  "未 認証"
+// @Failure      404   {object}  errorResponse  "問題 が 見つから ない"
+// @Failure      500   {object}  errorResponse  "DB 失敗"
+// @Router       /exercises/{slug}/submissions [get]
+// @Security     CookieAuth
 func (h *ExerciseSubmissionHandler) List(c *gin.Context) {
 	uid := middleware.CurrentUserIDOrZero(c)
 	if uid == 0 {

@@ -28,6 +28,19 @@ func NewAdminInvitationHandler(l *usecase.ListAdminInvitationsUseCase, c *usecas
 //
 // 旧実装は ?companyId= クエリ必須だったが、フロントが渡していなかったため
 // 常に 400 を返していた。current user の role / company_id から自動解決する設計に修正。
+//
+//	@Summary      招待 一覧 (admin)
+//	@Description  pending な 招待 を 返す。 SuperAdmin は 全社 (?companyId= で 絞り込み 可)、 CompanyAdmin は 自社 のみ。 trainee 等 は 403。
+//	@Tags         admin
+//	@Produce      json
+//	@Param        companyId  query     string  false  "SuperAdmin の とき のみ 有効: 特定 company の 招待 のみ"
+//	@Success      200        {array}   github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation
+//	@Failure      400        {object}  errorResponse  "ListByCompanyID 失敗 (現状 実装 で 400 を 返す パス あり)"
+//	@Failure      401        {object}  errorResponse  "未 認証"
+//	@Failure      403        {object}  errorResponse  "trainee / company 未 設定 等"
+//	@Failure      500        {object}  errorResponse  "DB 失敗 (ListAll 経路)"
+//	@Router       /admin/invitations [get]
+//	@Security     CookieAuth
 func (h *AdminInvitationHandler) List(c *gin.Context) {
 	user := middleware.CurrentUserFromContext(c)
 	if user == nil {
@@ -89,6 +102,19 @@ type createAdminInvReq struct {
 // この境界を backend で確実に守ることで、フロント UI を経由しない API 呼び出しでも
 // SuperAdmin が間違って trainee を直接招待することや、CompanyAdmin が他社に
 // 招待を出すことを防ぐ。フロント UI は UX 改善として同じルールで選択肢を絞る。
+//
+//	@Summary      招待 作成
+//	@Description  SES マジック リンク で 招待 メール を 送る。 SoD: SuperAdmin は company_admin のみ 招待 可、 CompanyAdmin は trainee のみ 自社 に 招待 可。
+//	@Tags         admin
+//	@Accept       json
+//	@Produce      json
+//	@Param        body  body      createAdminInvReq  true  "招待 内容 (CompanyAdmin は companyId が 上書き さ れる)"
+//	@Success      201   {object}  github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation
+//	@Failure      400   {object}  errorResponse  "バリデーション"
+//	@Failure      401   {object}  errorResponse  "未 認証"
+//	@Failure      403   {object}  errorResponse  "ロール 違反"
+//	@Router       /admin/invitations [post]
+//	@Security     CookieAuth
 func (h *AdminInvitationHandler) Create(c *gin.Context) {
 	user := middleware.CurrentUserFromContext(c)
 	if user == nil {
@@ -140,6 +166,15 @@ func (h *AdminInvitationHandler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, got)
 }
 
+// @Summary      招待 取り消し
+// @Description  指定 招待 の status を canceled に 更新。 行 は 物理 削除 せず 監査 用 に 残す。
+// @Tags         admin
+// @Produce      json
+// @Param        id  path  int  true  "招待 ID"
+// @Success      204  "成功 (本文 なし)"
+// @Failure      400  {object}  errorResponse  "DB 失敗"
+// @Router       /admin/invitations/{id} [delete]
+// @Security     CookieAuth
 func (h *AdminInvitationHandler) Cancel(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err := h.cancel.Execute(c.Request.Context(), id); err != nil {

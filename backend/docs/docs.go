@@ -19,6 +19,629 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/admin/companies": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "全 company を 返す。 super_admin 専用 画面 用。 認可 は middleware で 別途 担保。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "会社 一覧 (SuperAdmin)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.Company"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/invitations": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "pending な 招待 を 返す。 SuperAdmin は 全社 (?companyId= で 絞り込み 可)、 CompanyAdmin は 自社 のみ。 trainee 等 は 403。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "招待 一覧 (admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "SuperAdmin の とき のみ 有効: 特定 company の 招待 のみ",
+                        "name": "companyId",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "ListByCompanyID 失敗 (現状 実装 で 400 を 返す パス あり)",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "trainee / company 未 設定 等",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗 (ListAll 経路)",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "SES マジック リンク で 招待 メール を 送る。 SoD: SuperAdmin は company_admin のみ 招待 可、 CompanyAdmin は trainee のみ 自社 に 招待 可。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "招待 作成",
+                "parameters": [
+                    {
+                        "description": "招待 内容 (CompanyAdmin は companyId が 上書き さ れる)",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.createAdminInvReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation"
+                        }
+                    },
+                    "400": {
+                        "description": "バリデーション",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "ロール 違反",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/invitations/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "指定 招待 の status を canceled に 更新。 行 は 物理 削除 せず 監査 用 に 残す。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "招待 取り消し",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "招待 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "成功 (本文 なし)"
+                    },
+                    "400": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/ai-chat/attachments/upload-url": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "ai-chat/{userId}/{uuid}.{ext} の キー で S3 PUT 用 presigned URL を 発行。 contentType は image/png 等 の 許容 セット のみ。 sizeBytes 上限 (image 5MB / document 4.5MB) も 事前 検証。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ai-chat"
+                ],
+                "summary": "AI チャット 添付 PUT 署名 URL",
+                "parameters": [
+                    {
+                        "description": "filename / contentType / sizeBytes",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.aiChatAttachmentUploadURLRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase_repository.AiChatAttachmentUploadURL"
+                        }
+                    },
+                    "400": {
+                        "description": "バリデーション 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "サイズ 上限 超過",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "415": {
+                        "description": "未 サポート MIME",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "S3 presigner 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "添付 アップロード 機能 が 設定 されて いない (dev/stub)",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/ai-chat/sessions": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "current user の AI チャット セッション を 新しい 順 で 返す。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ai-chat"
+                ],
+                "summary": "AI チャット セッション 一覧",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.AiChatSession"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "current user 名義 で 新規 セッション を 作成。 IDOR 対策 で userId は body から 受け取らない。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ai-chat"
+                ],
+                "summary": "AI チャット セッション 作成",
+                "parameters": [
+                    {
+                        "description": "title 必須",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.createSessionReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.AiChatSession"
+                        }
+                    },
+                    "400": {
+                        "description": "バリデーション",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/ai-chat/sessions/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "指定 id の セッション を 返す。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ai-chat"
+                ],
+                "summary": "AI チャット セッション 詳細",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "セッション ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.AiChatSession"
+                        }
+                    },
+                    "400": {
+                        "description": "id 不正",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "セッション が ない",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "指定 id の セッション の title を 更新。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ai-chat"
+                ],
+                "summary": "AI チャット セッション タイトル 更新",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "セッション ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "title 必須",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.updateSessionTitleReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.AiChatSession"
+                        }
+                    },
+                    "400": {
+                        "description": "バリデーション",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "指定 id の セッション を 削除。 所有者 検証 込み。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ai-chat"
+                ],
+                "summary": "AI チャット セッション 削除",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "セッション ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "成功 (本文 なし)"
+                    },
+                    "400": {
+                        "description": "id 不正",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "他人 の セッション",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "セッション が ない",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/ai-chat/sessions/{id}/messages": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "指定 セッション の 会話 履歴 (DynamoDB から) を 古い 順 で 返す。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ai-chat"
+                ],
+                "summary": "AI チャット メッセージ 一覧",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "セッション ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.AiChatMessage"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "id 不正",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DynamoDB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/ai-chat/stream": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Bedrock Claude へ メッセージ を 送信 し、 token を SSE で 配信。 OpenAPI は SSE の カスタム イベント を 完全 表現 でき ない ので レスポンス は string と して 簡略 表現。 実際 の イベント 形式 は session / token / done / error の 4 種 (詳細 は handler コメント 参照)。 エラー 系 (400/401/503) は 通常 の application/json で 返る。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "ai-chat"
+                ],
+                "summary": "AI チャット SSE ストリーミング",
+                "parameters": [
+                    {
+                        "description": "sessionId / content / scene / sessionType / scenarioId / attachments (最大 4 件)",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.sseRequestBody"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "SSE stream (text/event-stream)",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "バリデーション (application/json)",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証 (application/json)",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Bedrock / DynamoDB 未 設定 (dev/stub、 application/json)",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/cognito/callback": {
             "post": {
                 "description": "Cognito Hosted UI から の callback。 authorization code を access / refresh / id token に 交換 し HttpOnly Cookie で 返す。 新規 user は 招待 or Cognito admin group 必須。",
@@ -178,6 +801,681 @@ const docTemplate = `{
                 }
             }
         },
+        "/code/execute": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "trainee が 書いた コード を サーバ 側 sandbox で 実行 し stdout/stderr/exitCode を 返す。 language は php / go 等。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "code-execution"
+                ],
+                "summary": "コード サンドボックス 実行",
+                "parameters": [
+                    {
+                        "description": "コード + 言語",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.codeExecuteRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase.ExecuteCodeOutput"
+                        }
+                    },
+                    "400": {
+                        "description": "バリデーション or 実行 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/courses": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "current user の role / company で 自動 フィルタ。 trainee は published のみ、 admin 系 は draft 含む。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "courses"
+                ],
+                "summary": "コース 一覧",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.Course"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "company_admin / super_admin の み。 CompanyAdmin は 自社 固定。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "courses"
+                ],
+                "summary": "コース 作成",
+                "parameters": [
+                    {
+                        "description": "作成 内容",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.courseRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.Course"
+                        }
+                    },
+                    "400": {
+                        "description": "バリデーション",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "操作 権限 なし",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/courses/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "指定 id の コース を 返す。 他社 / 未 公開 (trainee 不可) は 403。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "courses"
+                ],
+                "summary": "コース 詳細",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "コース ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.Course"
+                        }
+                    },
+                    "400": {
+                        "description": "id 不正",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "操作 権限 なし",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "コース が ない",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "指定 id を 更新 (company_admin / super_admin)。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "courses"
+                ],
+                "summary": "コース 更新",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "コース ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新 内容",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.courseRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.Course"
+                        }
+                    },
+                    "400": {
+                        "description": "バリデーション",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "操作 権限 なし",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "コース が ない",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "指定 id を 削除 + 配下 教材 も cascade 削除 (company_admin / super_admin)。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "courses"
+                ],
+                "summary": "コース 削除",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "コース ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "成功 (本文 なし)"
+                    },
+                    "400": {
+                        "description": "id 不正",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "操作 権限 なし",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "コース が ない",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/courses/{id}/materials": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "指定 コース 配下 の 教材 を 返す。 trainee は published のみ。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "teaching-materials"
+                ],
+                "summary": "コース内 教材 一覧",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "コース ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "course id 不正",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "他社 コース",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/embeds/oembed": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "?url= で 指定 した URL の OGP / oEmbed を 解決 し card 形式 で 返す。 allow-list / SSRF / DNS rebinding 対策 は infra/embed.Fetcher が 担う。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "embeds"
+                ],
+                "summary": "外部 URL の OGP / oEmbed メタ 取得",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "メタ 取得 対象 URL",
+                        "name": "url",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_infra_embed.Card"
+                        }
+                    },
+                    "400": {
+                        "description": "url 欠落 or 無効 URL",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "allow-list 外 ホスト",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "内部 エラー",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "到達 不可",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/exercises": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "運営 マスタ 演習問題 を 取得。 query language で 絞り込み (例: php / go)。 current user の 提出 状況 と 全 user 集計 を 同時 に 返す。 未 ログイン 時 は status 空。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "exercises"
+                ],
+                "summary": "演習問題 一覧 (status + stats 付き)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "言語 フィルタ (例: php, go, javascript)",
+                        "name": "language",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase.MasterExerciseWithStatus"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "DB / 集計 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/exercises/{slug}": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "指定 slug の 演習 問題 + 入 出力 例 一覧 を 返す。 詳細 画面 用。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "exercises"
+                ],
+                "summary": "演習問題 詳細 (slug)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "問題 slug (例: php-1)",
+                        "name": "slug",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase.GetMasterExerciseDetailOutput"
+                        }
+                    },
+                    "400": {
+                        "description": "slug 欠落",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "問題 が 見つから ない",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB / 集計 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/exercises/{slug}/submissions": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "current user の 指定 問題 へ の 提出 履歴 を 新しい 順 で 返す。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "exercises"
+                ],
+                "summary": "提出 履歴 一覧",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "問題 slug",
+                        "name": "slug",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.ExerciseSubmission"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "slug 欠落",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "問題 が 見つから ない",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/exercises/{slug}/submit": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "current user の コード を 提出 し sandbox 実行 + 期待 出力 比較 で 採点。 結果 は 履歴 に append。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "exercises"
+                ],
+                "summary": "演習 コード 提出 + 採点",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "問題 slug",
+                        "name": "slug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "提出 コード",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.submitExerciseRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase.SubmitMasterExerciseOutput"
+                        }
+                    },
+                    "400": {
+                        "description": "code 欠落 等",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "問題 が 見つから ない",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB / 採点 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/health": {
             "get": {
                 "description": "バックエンド と DB の 疎通 を 確認 する。 ALB / CloudWatch / 監視 から 叩く 想定。",
@@ -238,6 +1536,97 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "内部 エラー",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/learning-reports": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "current user の レポート を 期間 降順 で 返す。 userId は IDOR 対策 で 受け取らない。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "learning-reports"
+                ],
+                "summary": "学習 レポート 一覧",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.LearningReport"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/learning-reports/generate": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "current user で 指定 月 の レポート 生成 ジョブ を 受け付け、 SQS に enqueue (現状 stub)。 202 Accepted を 返す。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "learning-reports"
+                ],
+                "summary": "月次 学習 レポート 生成 要求",
+                "parameters": [
+                    {
+                        "description": "year + month",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.requestReportReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.LearningReport"
+                        }
+                    },
+                    "400": {
+                        "description": "バリデーション",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -321,6 +1710,56 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "バリデーション エラー or DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/notes/image-upload-url": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "current user 用 の S3 PUT 署名 URL を 発行。 userId は body から 受け取らず middleware の current user を 使う (IDOR 対策、 Phase 3 で 修正)。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "notes"
+                ],
+                "summary": "ノート 画像 PUT 署名 URL",
+                "parameters": [
+                    {
+                        "description": "contentType (任意)",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.issueUploadURLReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.NoteImageUploadURL"
+                        }
+                    },
+                    "400": {
+                        "description": "発行 失敗",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -738,6 +2177,121 @@ const docTemplate = `{
                 }
             }
         },
+        "/profile/{userId}/image/presigned-url": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "プロフィール アイコン 用 の S3 PUT 署名 URL を 発行。 \"me\" / 数字 一致 のみ 許可 (IDOR 対策)。 body は 任意。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "profile"
+                ],
+                "summary": "プロフィール 画像 PUT 署名 URL",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "数字 ID または 'me'",
+                        "name": "userId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "fileName / contentType (任意)",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.issueProfileImageReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.ProfileImageUploadURL"
+                        }
+                    },
+                    "400": {
+                        "description": "発行 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "他 user 指定",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/profile/{userId}/stats": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "指定 user (or 'me') の マイページ 集計 (合計 セッション / 平均 スコア)。 他 user 指定 は 403。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "profile"
+                ],
+                "summary": "ユーザー 統計 取得",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "数字 ID または 'me'",
+                        "name": "userId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.UserStats"
+                        }
+                    },
+                    "400": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "他 user 指定",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/sessions/{sessionId}/note": {
             "get": {
                 "security": [
@@ -845,9 +2399,472 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/teaching-materials": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "backward-compat 用。 company 内 全 教材 を 返す。 frontend が コース 対応 完了 後 に 削除 予定。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "teaching-materials"
+                ],
+                "summary": "教材 全 件 一覧 (deprecated)",
+                "deprecated": true,
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "company_admin / super_admin の み。 courseId 必須。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "teaching-materials"
+                ],
+                "summary": "教材 作成",
+                "parameters": [
+                    {
+                        "description": "作成 内容",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.teachingMaterialCreateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial"
+                        }
+                    },
+                    "400": {
+                        "description": "バリデーション",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "操作 権限 なし",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/teaching-materials/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "指定 id の 教材 を 返す。 他社 / 未 公開 (trainee) は 403。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "teaching-materials"
+                ],
+                "summary": "教材 詳細",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "教材 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial"
+                        }
+                    },
+                    "400": {
+                        "description": "id 不正",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "操作 権限 なし",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "教材 が ない",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "指定 id の 教材 を 更新 (company_admin / super_admin)。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "teaching-materials"
+                ],
+                "summary": "教材 更新",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "教材 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新 内容",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.teachingMaterialUpdateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial"
+                        }
+                    },
+                    "400": {
+                        "description": "バリデーション",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "操作 権限 なし",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "教材 が ない",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "指定 id の 教材 を 削除 (company_admin / super_admin)。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "teaching-materials"
+                ],
+                "summary": "教材 削除",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "教材 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "成功 (本文 なし)"
+                    },
+                    "400": {
+                        "description": "id 不正",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "操作 権限 なし",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "教材 が ない",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
+        "github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation": {
+            "type": "object",
+            "properties": {
+                "companyId": {
+                    "type": "integer"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "displayName": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "expiresAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_norman6464_FreStyle_backend_internal_domain.AiChatMessage": {
+            "type": "object",
+            "properties": {
+                "attachments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.Attachment"
+                    }
+                },
+                "content": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "messageId": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "sessionId": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_norman6464_FreStyle_backend_internal_domain.AiChatSession": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "scenarioId": {
+                    "type": "integer"
+                },
+                "sessionType": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "userId": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_norman6464_FreStyle_backend_internal_domain.Attachment": {
+            "type": "object",
+            "properties": {
+                "contentType": {
+                    "type": "string"
+                },
+                "filename": {
+                    "type": "string"
+                },
+                "format": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "kind": {
+                    "type": "string"
+                },
+                "sizeBytes": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_norman6464_FreStyle_backend_internal_domain.Company": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_norman6464_FreStyle_backend_internal_domain.Course": {
+            "type": "object",
+            "properties": {
+                "companyId": {
+                    "type": "integer"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "createdByUserId": {
+                    "type": "integer"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "isPublished": {
+                    "type": "boolean"
+                },
+                "sortOrder": {
+                    "type": "integer"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_norman6464_FreStyle_backend_internal_domain.ExerciseSubmission": {
+            "type": "object",
+            "properties": {
+                "exerciseId": {
+                    "type": "integer"
+                },
+                "exerciseKind": {
+                    "type": "string"
+                },
+                "exitCode": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "isCorrect": {
+                    "type": "boolean"
+                },
+                "stderr": {
+                    "type": "string"
+                },
+                "stdout": {
+                    "type": "string"
+                },
+                "submittedAt": {
+                    "type": "string"
+                },
+                "submittedCode": {
+                    "type": "string"
+                },
+                "userId": {
+                    "type": "integer"
+                }
+            }
+        },
         "github_com_norman6464_FreStyle_backend_internal_domain.Health": {
             "type": "object",
             "properties": {
@@ -855,6 +2872,118 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_norman6464_FreStyle_backend_internal_domain.LearningReport": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "periodFrom": {
+                    "type": "string"
+                },
+                "periodTo": {
+                    "type": "string"
+                },
+                "s3Key": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "userId": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_norman6464_FreStyle_backend_internal_domain.MasterExercise": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "chapterId": {
+                    "type": "integer"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "difficulty": {
+                    "type": "integer"
+                },
+                "expectedOutput": {
+                    "type": "string"
+                },
+                "explanation": {
+                    "description": "Explanation は QA モードで 正解後に表示される markdown 解説。\nexecute モードでは未使用 (空文字)。",
+                    "type": "string"
+                },
+                "hintText": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "isPublished": {
+                    "type": "boolean"
+                },
+                "language": {
+                    "type": "string"
+                },
+                "mode": {
+                    "description": "Mode は採点モード。 'execute' (default) は コードを実行して stdout を比較、\n'qa' は コード実行をせず提出文字列と ExpectedOutput を直接 trim 比較する。\ndocker / kubernetes など サンドボックス実行が困難な題材を Q\u0026A 形式で扱うために導入。",
+                    "type": "string"
+                },
+                "orderIndex": {
+                    "type": "integer"
+                },
+                "slug": {
+                    "type": "string"
+                },
+                "starterCode": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_norman6464_FreStyle_backend_internal_domain.MasterExerciseExample": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "exerciseId": {
+                    "description": "(exercise_id, order_index) で UNIQUE 制約を張ることで、同じ問題内で\nOrderIndex が衝突する行を DB レベルで弾く（UI 上「入力例 1」が 2 つ並ぶ事故防止）。",
+                    "type": "integer"
+                },
+                "expectedOutput": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "inputText": {
+                    "type": "string"
+                },
+                "orderIndex": {
+                    "description": "OrderIndex は seed / 運営入力時に必ず明示する想定で DB DEFAULT を持たせない。\n（default:0 を残すと order_index 未指定の INSERT が黙って 0 を採用して衝突を起こすため）",
+                    "type": "integer"
+                },
+                "updatedAt": {
                     "type": "string"
                 }
             }
@@ -888,6 +3017,20 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_norman6464_FreStyle_backend_internal_domain.NoteImageUploadURL": {
+            "type": "object",
+            "properties": {
+                "expiresIn": {
+                    "type": "integer"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
         "github_com_norman6464_FreStyle_backend_internal_domain.Notification": {
             "type": "object",
             "properties": {
@@ -911,6 +3054,23 @@ const docTemplate = `{
                 },
                 "userId": {
                     "type": "integer"
+                }
+            }
+        },
+        "github_com_norman6464_FreStyle_backend_internal_domain.ProfileImageUploadURL": {
+            "type": "object",
+            "properties": {
+                "expiresIn": {
+                    "type": "integer"
+                },
+                "imageUrl": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "uploadUrl": {
+                    "type": "string"
                 }
             }
         },
@@ -964,6 +3124,271 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial": {
+            "type": "object",
+            "properties": {
+                "companyId": {
+                    "type": "integer"
+                },
+                "content": {
+                    "type": "string"
+                },
+                "courseId": {
+                    "description": "course_id の NOT NULL 制約は migration 0004 で確定する（既存行への ADD COLUMN を\nAutoMigrate で安全に通すため、 GORM tag では not null を指定しない）。",
+                    "type": "integer"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "createdByUserId": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "isPublished": {
+                    "type": "boolean"
+                },
+                "orderInCourse": {
+                    "type": "integer"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_norman6464_FreStyle_backend_internal_domain.UserStats": {
+            "type": "object",
+            "properties": {
+                "averageScore": {
+                    "type": "number"
+                },
+                "longestStreak": {
+                    "type": "integer"
+                },
+                "streakDays": {
+                    "type": "integer"
+                },
+                "totalSessions": {
+                    "type": "integer"
+                },
+                "userId": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_norman6464_FreStyle_backend_internal_infra_embed.Card": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "imageUrl": {
+                    "type": "string"
+                },
+                "provider": {
+                    "description": "Provider は \"ogp\" / \"youtube\" / \"github\" など、どの戦略で解決したかを示す。",
+                    "type": "string"
+                },
+                "siteName": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_norman6464_FreStyle_backend_internal_usecase.ExecuteCodeOutput": {
+            "type": "object",
+            "properties": {
+                "exitCode": {
+                    "type": "integer"
+                },
+                "stderr": {
+                    "type": "string"
+                },
+                "stdout": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_norman6464_FreStyle_backend_internal_usecase.GetMasterExerciseDetailOutput": {
+            "type": "object",
+            "properties": {
+                "examples": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.MasterExerciseExample"
+                    }
+                },
+                "exercise": {
+                    "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.MasterExercise"
+                }
+            }
+        },
+        "github_com_norman6464_FreStyle_backend_internal_usecase.MasterExerciseWithStatus": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "chapterId": {
+                    "type": "integer"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "difficulty": {
+                    "type": "integer"
+                },
+                "expectedOutput": {
+                    "type": "string"
+                },
+                "explanation": {
+                    "description": "Explanation は QA モードで 正解後に表示される markdown 解説。\nexecute モードでは未使用 (空文字)。",
+                    "type": "string"
+                },
+                "hintText": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "isPublished": {
+                    "type": "boolean"
+                },
+                "language": {
+                    "type": "string"
+                },
+                "mode": {
+                    "description": "Mode は採点モード。 'execute' (default) は コードを実行して stdout を比較、\n'qa' は コード実行をせず提出文字列と ExpectedOutput を直接 trim 比較する。\ndocker / kubernetes など サンドボックス実行が困難な題材を Q\u0026A 形式で扱うために導入。",
+                    "type": "string"
+                },
+                "orderIndex": {
+                    "type": "integer"
+                },
+                "slug": {
+                    "type": "string"
+                },
+                "starterCode": {
+                    "type": "string"
+                },
+                "stats": {
+                    "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase_repository.ExerciseSubmissionStats"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_norman6464_FreStyle_backend_internal_usecase.SubmitMasterExerciseOutput": {
+            "type": "object",
+            "properties": {
+                "isCorrect": {
+                    "type": "boolean"
+                },
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase.TestCaseResult"
+                    }
+                },
+                "submissionId": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_norman6464_FreStyle_backend_internal_usecase.TestCaseResult": {
+            "type": "object",
+            "properties": {
+                "actualOutput": {
+                    "type": "string"
+                },
+                "expectedOutput": {
+                    "type": "string"
+                },
+                "input": {
+                    "type": "string"
+                },
+                "orderIndex": {
+                    "type": "integer"
+                },
+                "passed": {
+                    "type": "boolean"
+                },
+                "stderr": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_norman6464_FreStyle_backend_internal_usecase_repository.AiChatAttachmentUploadURL": {
+            "type": "object",
+            "properties": {
+                "expiresIn": {
+                    "type": "integer"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "uploadUrl": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_norman6464_FreStyle_backend_internal_usecase_repository.ExerciseSubmissionStats": {
+            "type": "object",
+            "properties": {
+                "solvedUsers": {
+                    "type": "integer"
+                },
+                "totalSubmissions": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_handler.aiChatAttachmentUploadURLRequest": {
+            "type": "object",
+            "properties": {
+                "contentType": {
+                    "type": "string"
+                },
+                "filename": {
+                    "type": "string"
+                },
+                "sizeBytes": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_handler.codeExecuteRequest": {
+            "type": "object",
+            "required": [
+                "code"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "language": {
+                    "type": "string"
+                }
+            }
+        },
         "internal_handler.cognitoCallbackReq": {
             "type": "object",
             "required": [
@@ -975,6 +3400,62 @@ const docTemplate = `{
                 },
                 "invitationToken": {
                     "description": "InvitationToken はフロントが sessionStorage から復元してくる、招待マジックリンク経由で\n受領した UUID トークン。任意。指定がある場合は upsert 時に email ベースの招待検索より\n優先して照合に使う（同じ email に複数 pending invitation がある異常系での誤一致を防ぐ）。",
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.courseRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "isPublished": {
+                    "type": "boolean"
+                },
+                "sortOrder": {
+                    "type": "integer"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.createAdminInvReq": {
+            "type": "object",
+            "required": [
+                "companyId",
+                "email",
+                "role"
+            ],
+            "properties": {
+                "companyId": {
+                    "type": "integer"
+                },
+                "displayName": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.createSessionReq": {
+            "type": "object",
+            "required": [
+                "title"
+            ],
+            "properties": {
+                "scenarioId": {
+                    "type": "integer"
+                },
+                "sessionType": {
+                    "type": "string"
+                },
+                "title": {
                     "type": "string"
                 }
             }
@@ -1006,6 +3487,25 @@ const docTemplate = `{
                 "role": {
                     "type": "string",
                     "example": "trainee"
+                }
+            }
+        },
+        "internal_handler.issueProfileImageReq": {
+            "type": "object",
+            "properties": {
+                "contentType": {
+                    "type": "string"
+                },
+                "fileName": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.issueUploadURLReq": {
+            "type": "object",
+            "properties": {
+                "contentType": {
+                    "type": "string"
                 }
             }
         },
@@ -1110,10 +3610,123 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_handler.requestReportReq": {
+            "type": "object",
+            "required": [
+                "month",
+                "year"
+            ],
+            "properties": {
+                "month": {
+                    "type": "integer",
+                    "maximum": 12,
+                    "minimum": 1
+                },
+                "year": {
+                    "type": "integer",
+                    "maximum": 2100,
+                    "minimum": 2000
+                }
+            }
+        },
         "internal_handler.sessionNoteUpsertReq": {
             "type": "object",
             "properties": {
                 "content": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.sseAttachmentRequest": {
+            "type": "object",
+            "properties": {
+                "contentType": {
+                    "type": "string"
+                },
+                "filename": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "sizeBytes": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_handler.sseRequestBody": {
+            "type": "object",
+            "properties": {
+                "attachments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_handler.sseAttachmentRequest"
+                    }
+                },
+                "content": {
+                    "type": "string"
+                },
+                "scenarioId": {
+                    "type": "integer"
+                },
+                "scene": {
+                    "type": "string"
+                },
+                "sessionId": {
+                    "type": "integer"
+                },
+                "sessionType": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.submitExerciseRequest": {
+            "type": "object",
+            "required": [
+                "code"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.teachingMaterialCreateRequest": {
+            "type": "object",
+            "required": [
+                "courseId"
+            ],
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "courseId": {
+                    "type": "integer"
+                },
+                "isPublished": {
+                    "type": "boolean"
+                },
+                "orderInCourse": {
+                    "type": "integer"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.teachingMaterialUpdateRequest": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "isPublished": {
+                    "type": "boolean"
+                },
+                "orderInCourse": {
+                    "type": "integer"
+                },
+                "title": {
                     "type": "string"
                 }
             }
@@ -1139,6 +3752,17 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.updateSessionTitleReq": {
+            "type": "object",
+            "required": [
+                "title"
+            ],
+            "properties": {
+                "title": {
                     "type": "string"
                 }
             }

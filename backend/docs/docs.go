@@ -19,114 +19,6 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/ai-chat/sessions/{sessionId}/note": {
-            "get": {
-                "security": [
-                    {
-                        "CookieAuth": []
-                    }
-                ],
-                "description": "AI チャット セッション に 紐づく ノート (= 学習 者 が セッション ごと に 残した メモ) を 取得。 存在 し ない 場合 は 404。",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "session-notes"
-                ],
-                "summary": "セッション ノート 取得",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "AI チャット セッション ID",
-                        "name": "sessionId",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.SessionNote"
-                        }
-                    },
-                    "400": {
-                        "description": "DB 失敗",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "未 認証",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "未 作成",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    }
-                }
-            },
-            "put": {
-                "security": [
-                    {
-                        "CookieAuth": []
-                    }
-                ],
-                "description": "指定 セッション の ノート を upsert (= 無ければ 作る、 ある なら 更新)。",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "session-notes"
-                ],
-                "summary": "セッション ノート 作成 / 更新",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "AI チャット セッション ID",
-                        "name": "sessionId",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "userId + content",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.sessionNoteUpsertReq"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.SessionNote"
-                        }
-                    },
-                    "400": {
-                        "description": "バリデーション or DB 失敗",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "未 認証",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/auth/cognito/callback": {
             "post": {
                 "description": "Cognito Hosted UI から の callback。 authorization code を access / refresh / id token に 交換 し HttpOnly Cookie で 返す。 新規 user は 招待 or Cognito admin group 必須。",
@@ -512,6 +404,9 @@ const docTemplate = `{
                     }
                 ],
                 "description": "current user 所有 の note を 削除。 WHERE user_id 絞り込み で 他人 の note は そもそも 影響 を 受け ない。",
+                "produces": [
+                    "application/json"
+                ],
                 "tags": [
                     "notes"
                 ],
@@ -591,7 +486,10 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "current user の 全 未読 通知 を まとめて 既読 に する。 PATCH / PUT 両方 受け付ける。",
+                "description": "current user の 全 未読 通知 を まとめて 既読 に する。 同 パス で PUT も 受け付ける 旧 互換 ルート あり、 OpenAPI で は PATCH のみ 表現。",
+                "produces": [
+                    "application/json"
+                ],
                 "tags": [
                     "notifications"
                 ],
@@ -659,7 +557,10 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "指定 通知 を 既読 に する (所有者 検証 込み)。 PATCH / PUT 両方 受け付ける。",
+                "description": "指定 通知 を 既読 に する (所有者 検証 込み)。 同 ハンドラ は 旧 クライアント 互換 で PUT も 同じ パス で 受け付ける が、 OpenAPI で は PATCH を 標準 と して 1 つ だけ 表現 する。",
+                "produces": [
+                    "application/json"
+                ],
                 "tags": [
                     "notifications"
                 ],
@@ -830,6 +731,114 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "他 user 指定",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/sessions/{sessionId}/note": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "AI チャット セッション に 紐づく ノート (= 学習 者 が セッション ごと に 残した メモ) を 取得。 存在 し ない 場合 は 404。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "session-notes"
+                ],
+                "summary": "セッション ノート 取得",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "AI チャット セッション ID",
+                        "name": "sessionId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.SessionNote"
+                        }
+                    },
+                    "400": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "未 作成",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "指定 セッション の ノート を upsert。 userId は body で 受け取らず current user 固定 (IDOR 対策)。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "session-notes"
+                ],
+                "summary": "セッション ノート 作成 / 更新",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "AI チャット セッション ID",
+                        "name": "sessionId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "content (userId は current user 固定 / body で 受け取らない)",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.sessionNoteUpsertReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.SessionNote"
+                        }
+                    },
+                    "400": {
+                        "description": "バリデーション or DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -1103,15 +1112,9 @@ const docTemplate = `{
         },
         "internal_handler.sessionNoteUpsertReq": {
             "type": "object",
-            "required": [
-                "userId"
-            ],
             "properties": {
                 "content": {
                     "type": "string"
-                },
-                "userId": {
-                    "type": "integer"
                 }
             }
         },

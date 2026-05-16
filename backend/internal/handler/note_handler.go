@@ -148,6 +148,7 @@ func (h *NoteHandler) Update(c *gin.Context) {
 //	@Summary      ノート 削除
 //	@Description  current user 所有 の note を 削除。 WHERE user_id 絞り込み で 他人 の note は そもそも 影響 を 受け ない。
 //	@Tags         notes
+//	@Produce      json
 //	@Param        id  path  int  true  "ノート ID"
 //	@Success      204  "成功 (本文 なし)"
 //	@Failure      400  {object}  errorResponse  "DB 失敗"

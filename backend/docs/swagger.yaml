@@ -185,10 +185,6 @@ definitions:
     properties:
       content:
         type: string
-      userId:
-        type: integer
-    required:
-    - userId
     type: object
   internal_handler.updateProfileReq:
     properties:
@@ -218,76 +214,6 @@ info:
   title: FreStyle Backend API
   version: "2.0"
 paths:
-  /ai-chat/sessions/{sessionId}/note:
-    get:
-      description: AI チャット セッション に 紐づく ノート (= 学習 者 が セッション ごと に 残した メモ) を 取得。 存在 し
-        ない 場合 は 404。
-      parameters:
-      - description: AI チャット セッション ID
-        in: path
-        name: sessionId
-        required: true
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.SessionNote'
-        "400":
-          description: DB 失敗
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "401":
-          description: 未 認証
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "404":
-          description: 未 作成
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-      security:
-      - CookieAuth: []
-      summary: セッション ノート 取得
-      tags:
-      - session-notes
-    put:
-      consumes:
-      - application/json
-      description: 指定 セッション の ノート を upsert (= 無ければ 作る、 ある なら 更新)。
-      parameters:
-      - description: AI チャット セッション ID
-        in: path
-        name: sessionId
-        required: true
-        type: integer
-      - description: userId + content
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/internal_handler.sessionNoteUpsertReq'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.SessionNote'
-        "400":
-          description: バリデーション or DB 失敗
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "401":
-          description: 未 認証
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-      security:
-      - CookieAuth: []
-      summary: セッション ノート 作成 / 更新
-      tags:
-      - session-notes
   /auth/cognito/callback:
     post:
       consumes:
@@ -508,6 +434,8 @@ paths:
         name: id
         required: true
         type: integer
+      produces:
+      - application/json
       responses:
         "204":
           description: 成功 (本文 なし)
@@ -591,13 +519,16 @@ paths:
       - notifications
   /notifications/{id}/read:
     patch:
-      description: 指定 通知 を 既読 に する (所有者 検証 込み)。 PATCH / PUT 両方 受け付ける。
+      description: 指定 通知 を 既読 に する (所有者 検証 込み)。 同 ハンドラ は 旧 クライアント 互換 で PUT も 同じ パス
+        で 受け付ける が、 OpenAPI で は PATCH を 標準 と して 1 つ だけ 表現 する。
       parameters:
       - description: 通知 ID
         in: path
         name: id
         required: true
         type: integer
+      produces:
+      - application/json
       responses:
         "204":
           description: 成功 (本文 なし)
@@ -616,7 +547,10 @@ paths:
       - notifications
   /notifications/read-all:
     patch:
-      description: current user の 全 未読 通知 を まとめて 既読 に する。 PATCH / PUT 両方 受け付ける。
+      description: current user の 全 未読 通知 を まとめて 既読 に する。 同 パス で PUT も 受け付ける 旧 互換
+        ルート あり、 OpenAPI で は PATCH のみ 表現。
+      produces:
+      - application/json
       responses:
         "204":
           description: 成功 (本文 なし)
@@ -751,6 +685,77 @@ paths:
       summary: オンボーディング 完了 通知
       tags:
       - profile
+  /sessions/{sessionId}/note:
+    get:
+      description: AI チャット セッション に 紐づく ノート (= 学習 者 が セッション ごと に 残した メモ) を 取得。 存在 し
+        ない 場合 は 404。
+      parameters:
+      - description: AI チャット セッション ID
+        in: path
+        name: sessionId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.SessionNote'
+        "400":
+          description: DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "404":
+          description: 未 作成
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: セッション ノート 取得
+      tags:
+      - session-notes
+    put:
+      consumes:
+      - application/json
+      description: 指定 セッション の ノート を upsert。 userId は body で 受け取らず current user 固定
+        (IDOR 対策)。
+      parameters:
+      - description: AI チャット セッション ID
+        in: path
+        name: sessionId
+        required: true
+        type: integer
+      - description: content (userId は current user 固定 / body で 受け取らない)
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.sessionNoteUpsertReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.SessionNote'
+        "400":
+          description: バリデーション or DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: セッション ノート 作成 / 更新
+      tags:
+      - session-notes
 securityDefinitions:
   CookieAuth:
     description: Cognito 由来 の JWT を HttpOnly Cookie で 送る。 ログイン 後 自動 付与。

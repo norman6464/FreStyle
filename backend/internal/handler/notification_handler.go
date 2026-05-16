@@ -53,8 +53,9 @@ func (h *NotificationHandler) List(c *gin.Context) {
 // MarkRead は所有者検証つきで通知を既読化する。
 //
 //	@Summary      通知 単一 既読 化
-//	@Description  指定 通知 を 既読 に する (所有者 検証 込み)。 PATCH / PUT 両方 受け付ける。
+//	@Description  指定 通知 を 既読 に する (所有者 検証 込み)。 同 ハンドラ は 旧 クライアント 互換 で PUT も 同じ パス で 受け付ける が、 OpenAPI で は PATCH を 標準 と して 1 つ だけ 表現 する。
 //	@Tags         notifications
+//	@Produce      json
 //	@Param        id  path  int  true  "通知 ID"
 //	@Success      204  "成功 (本文 なし)"
 //	@Failure      400  {object}  errorResponse  "DB 失敗"
@@ -78,8 +79,9 @@ func (h *NotificationHandler) MarkRead(c *gin.Context) {
 // MarkAllRead は current user の全通知をまとめて既読化する。
 //
 //	@Summary      通知 一括 既読 化
-//	@Description  current user の 全 未読 通知 を まとめて 既読 に する。 PATCH / PUT 両方 受け付ける。
+//	@Description  current user の 全 未読 通知 を まとめて 既読 に する。 同 パス で PUT も 受け付ける 旧 互換 ルート あり、 OpenAPI で は PATCH のみ 表現。
 //	@Tags         notifications
+//	@Produce      json
 //	@Success      204  "成功 (本文 なし)"
 //	@Failure      400  {object}  errorResponse  "DB 失敗"
 //	@Failure      401  {object}  errorResponse  "未 認証"

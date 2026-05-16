@@ -4,124 +4,6 @@
  */
 
 export interface paths {
-    "/ai-chat/sessions/{sessionId}/note": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * セッション ノート 取得
-         * @description AI チャット セッション に 紐づく ノート (= 学習 者 が セッション ごと に 残した メモ) を 取得。 存在 し ない 場合 は 404。
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description AI チャット セッション ID */
-                    sessionId: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.SessionNote"];
-                    };
-                };
-                /** @description DB 失敗 */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description 未 認証 */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description 未 作成 */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-            };
-        };
-        /**
-         * セッション ノート 作成 / 更新
-         * @description 指定 セッション の ノート を upsert (= 無ければ 作る、 ある なら 更新)。
-         */
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description AI チャット セッション ID */
-                    sessionId: number;
-                };
-                cookie?: never;
-            };
-            /** @description userId + content */
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["internal_handler.sessionNoteUpsertReq"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.SessionNote"];
-                    };
-                };
-                /** @description バリデーション or DB 失敗 */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description 未 認証 */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-            };
-        };
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/auth/cognito/callback": {
         parameters: {
             query?: never;
@@ -681,7 +563,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "*/*": components["schemas"]["internal_handler.errorResponse"];
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
                     };
                 };
                 /** @description 未 認証 */
@@ -690,7 +572,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "*/*": components["schemas"]["internal_handler.errorResponse"];
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
                     };
                 };
             };
@@ -772,7 +654,7 @@ export interface paths {
         head?: never;
         /**
          * 通知 一括 既読 化
-         * @description current user の 全 未読 通知 を まとめて 既読 に する。 PATCH / PUT 両方 受け付ける。
+         * @description current user の 全 未読 通知 を まとめて 既読 に する。 同 パス で PUT も 受け付ける 旧 互換 ルート あり、 OpenAPI で は PATCH のみ 表現。
          */
         patch: {
             parameters: {
@@ -796,7 +678,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "*/*": components["schemas"]["internal_handler.errorResponse"];
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
                     };
                 };
                 /** @description 未 認証 */
@@ -805,7 +687,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "*/*": components["schemas"]["internal_handler.errorResponse"];
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
                     };
                 };
             };
@@ -884,7 +766,7 @@ export interface paths {
         head?: never;
         /**
          * 通知 単一 既読 化
-         * @description 指定 通知 を 既読 に する (所有者 検証 込み)。 PATCH / PUT 両方 受け付ける。
+         * @description 指定 通知 を 既読 に する (所有者 検証 込み)。 同 ハンドラ は 旧 クライアント 互換 で PUT も 同じ パス で 受け付ける が、 OpenAPI で は PATCH を 標準 と して 1 つ だけ 表現 する。
          */
         patch: {
             parameters: {
@@ -911,7 +793,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "*/*": components["schemas"]["internal_handler.errorResponse"];
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
                     };
                 };
                 /** @description 未 認証 */
@@ -920,7 +802,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "*/*": components["schemas"]["internal_handler.errorResponse"];
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
                     };
                 };
             };
@@ -1109,6 +991,124 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sessions/{sessionId}/note": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * セッション ノート 取得
+         * @description AI チャット セッション に 紐づく ノート (= 学習 者 が セッション ごと に 残した メモ) を 取得。 存在 し ない 場合 は 404。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description AI チャット セッション ID */
+                    sessionId: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.SessionNote"];
+                    };
+                };
+                /** @description DB 失敗 */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 作成 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        /**
+         * セッション ノート 作成 / 更新
+         * @description 指定 セッション の ノート を upsert。 userId は body で 受け取らず current user 固定 (IDOR 対策)。
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description AI チャット セッション ID */
+                    sessionId: number;
+                };
+                cookie?: never;
+            };
+            /** @description content (userId は current user 固定 / body で 受け取らない) */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_handler.sessionNoteUpsertReq"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.SessionNote"];
+                    };
+                };
+                /** @description バリデーション or DB 失敗 */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1224,7 +1224,6 @@ export interface components {
         };
         "internal_handler.sessionNoteUpsertReq": {
             content?: string;
-            userId: number;
         };
         "internal_handler.updateProfileReq": {
             avatarUrl?: string;

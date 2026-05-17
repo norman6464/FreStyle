@@ -3,8 +3,13 @@
  *
  * 表示条件: useBackendHealth が `'unhealthy'` のとき App.tsx が本ページを描画する。
  * 主な発生源:
- *   - 毎日 22:00 JST の scheduled-stop で ECS / ALB / RDS が destroy される時間帯
+ *   - cd-backend デプロイ中の rolling update 谷間 (= 数秒〜1 分)
  *   - 突発的な ECS 障害 / ALB 設定ミス / DNS 解決失敗
+ *   - Supabase 側のメンテナンス / 接続エラー
+ *
+ * 経緯: 2026-05 まで「毎日 22:00 JST の scheduled-stop で ECS / ALB / RDS を
+ * destroy する時間帯」が発生源だったが、 Supabase 移行 (PR #1730) で
+ * scheduled-stop / scheduled-start ワークフローを廃止。 現在は 24/7 稼働。
  *
  * 自動復帰: 親 (useBackendHealth) が 15 秒間隔で health を叩き続け、応答が
  * 返るようになった瞬間に App 側で `<Routes>` 表示に戻る。

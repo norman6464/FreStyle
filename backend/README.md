@@ -51,14 +51,18 @@ go run ./cmd/server
 ```
 
 DATABASE_URL の取得方法:
-- ローカル: `~/.config/aws/` 等で credentials 設定後、 `aws secretsmanager get-secret-value --region ap-northeast-1 --secret-id frestyle-prod/database-url --query SecretString --output text`
-- 各自の Supabase project を使う場合: Dashboard → 上部 `Connect` → `Direct` タブ → `Transaction pooler` の URI
+- **ローカル / dev 開発**: 各自で Supabase project を作成し、 Dashboard → 上部 `Connect` → `Direct` タブ → `Transaction pooler` の URI を取得。 個人 dev 用 secret に保存する場合は `frestyle-dev/database-url` のように環境 prefix を分けることを推奨（本番 secret `frestyle-prod/database-url` をローカルから参照すると誤更新リスクあり）
+- **CI / staging**: AWS Secrets Manager の対応する `<env>/database-url` から取得:
+  ```bash
+  aws secretsmanager get-secret-value --region ap-northeast-1 \
+    --secret-id <env>/database-url --query SecretString --output text
+  ```
 
 確認:
 
 ```bash
 curl http://localhost:8080/
-# => {"message":"FreStyle Go backend (Phase 0 bootstrap)"}
+# => {"message":"FreStyle Go backend"}
 ```
 
 ## ビルド（Docker）

@@ -3,9 +3,15 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 /**
  * バックエンド (`/api/v2/health`) の死活ヘルスチェック。
  *
- * 用途: 毎日 22:00〜翌 07:00 JST の scheduled-stop 窓や突発障害で ECS / ALB が
- * 落ちているときに、フロント側で「メンテナンス中ページ」へ切り替えるための
- * シグナルを返す。
+ * 用途: 突発障害 / デプロイ中の rolling update 谷間 / Supabase 側のメンテ等で
+ * ECS / ALB / DB が落ちているときに、フロント側で「メンテナンス中ページ」へ
+ * 切り替えるためのシグナルを返す。
+ *
+ * 経緯: 2026-05 まで存在した「毎日 22:00〜翌 07:00 JST に ECS / ALB / RDS を
+ * 停止する scheduled-stop ワークフロー」は Supabase 移行 (PR #1730) で廃止。
+ * 現在は 24/7 稼働だが、 デプロイ中 / 突発障害 / Cognito 連携障害 等で
+ * 一時的に backend が応答しないケースがあるため、 本ヘルスチェックは継続して
+ * 機能する。
  *
  * 仕様:
  *   - 初期値は `'unknown'`。最初の 1 回のチェックが完了するまでアプリ本体は

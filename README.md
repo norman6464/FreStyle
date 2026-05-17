@@ -69,9 +69,7 @@ sequenceDiagram
 
 [https://normanblog.com](https://normanblog.com)
 
-> ⚠️ 料金節約のため、毎日 22:00 JST（GitHub Actions の `Scheduled - Stop` ワークフロー）で
-> ECS / ALB / RDS を停止し、翌朝 07:00 JST の `Scheduled - Start` で復元します。
-> 停止時間帯はサービスにアクセスできません。
+> 2026-05 に DB を AWS RDS から **Supabase 無料プラン** (Transaction pooler) に移行し、 RDS / 踏み台 EC2 / 旧 scheduled-stop ワークフローは全廃止。 現在は 24/7 稼働で stop/start なし。
 
 ---
 
@@ -117,13 +115,13 @@ sequenceDiagram
 |---------|----------|------|
 | **Compute** | ECS Fargate, ECR | Go (Gin) backend のコンテナ実行・イメージ管理 |
 | **Networking** | CloudFront, ALB, Route 53, ACM | CDN（フロント SPA + セキュリティヘッダー）・ロードバランシング・DNS（旧 Cloudflare から移管）・TLS 証明書 |
-| **Database** | RDS PostgreSQL 16, DynamoDB | リレーショナル DB（GORM 経由）・チャットメッセージ NoSQL |
+| **Database** | Supabase PostgreSQL 17.6, DynamoDB | リレーショナル DB (Transaction pooler / GORM 経由、 2026-05 RDS から移行)・チャットメッセージ NoSQL |
 | **Storage** | S3 | フロントエンド静的ホスティング・ノート画像 |
 | **Auth** | Cognito | OAuth 2.0 / OIDC + JWT (HttpOnly Cookie)・SRP / Hosted UI |
-| **Secrets** | Secrets Manager | RDS マスターパスワード（`ManageMasterUserPassword` で自動ローテーション） |
+| **Secrets** | Secrets Manager | Supabase 接続文字列 (`frestyle-prod/database-url`) ・ Cognito client secret |
 | **Messaging** | SQS (+ DLQ) | 非同期レポート生成キュー |
 | **Identity** | IAM (OIDC Provider) | GitHub Actions の AssumeRole（長期キー廃止、一時クレデンシャル運用） |
-| **Monitoring** | CloudWatch Logs | ECS Task / RDS のログ集約 |
+| **Monitoring** | CloudWatch Logs | ECS Task のログ集約 |
 | **CI/CD** | GitHub Actions | 自動テスト・E2E (Playwright) ・cd-frontend / cd-backend |
 
 ---
@@ -310,7 +308,7 @@ sequenceDiagram
 AI チャットは **Server-Sent Events**（HTTP/1.1 chunked transfer）で ECS + Go の単一経路に統一:
 
 1. **複雑なクエリの直行性**  
-   ユーザの履歴・進捗・性格傾向などを RDS（PostgreSQL）と DynamoDB の使い分けで保持し、ECS 上の Go から両方を直接叩いて application 側の join を避ける。
+   ユーザの履歴・進捗・性格傾向などを Supabase PostgreSQL と DynamoDB の使い分けで保持し、 ECS 上の Go から両方を直接叩いて application 側の join を避ける。
 2. **トラフィック増加時のスケール**  
    Lambda 同時実行数や cold start のリスクを避け、ECS Fargate の `desired count` で水平スケール。ALB のヘルスチェックで自己修復。
 3. **SSE がストリーミング用途に十分**  
@@ -337,14 +335,14 @@ draw.io ソース: [`architecture/aws/freestyle-aws-architecture-current.drawio`
 | **ALB** | `api.normanblog.com` 入口の L7 ロードバランサ。HTTP / SSE を ECS にルーティング |
 | **ECS Fargate** | Go (Gin) バックエンドのコンテナ実行環境。0.25 vCPU / 0.5 GB の最小タスクで稼働 |
 | **ECR** | バックエンドの Docker イメージを保存。GitHub Actions から push、ECS が pull |
-| **RDS PostgreSQL 16** | 主な業務データ（users / companies / invitations / notes / master_exercises 等）。Private subnet 配置で外部非公開 |
+| **Supabase PostgreSQL 17.6** | 主な業務データ（users / companies / invitations / notes / master_exercises 等）。 Tokyo region / Transaction pooler 経由で接続 (2026-05 RDS から移行) |
 | **DynamoDB** | AI チャットメッセージを `fre_style_ai_chat` テーブルに保存（追記主体・session ID Partition Key） |
 | **S3 (uploads)** | ノート画像 + AI チャット添付ファイルの実体。`notes/` と `ai-chat/{userId}/` を prefix で分離、presigned PUT で直接アップロード |
 | **Bedrock** | Claude Sonnet 4.5 を Inference Profile (`jp.*`) 経由で呼び出し、AI チャットを SSE ストリーミング |
 | **Cognito** | OIDC 認可エンドポイント / JWT 発行。フロントは HttpOnly Cookie で受け取り、ECS 側 middleware が JWKS で検証 |
 | **SES** | 招待マジックリンクメールの送信（CompanyAdmin → trainee の招待 / 運営 → CompanyAdmin の招待） |
 | **SQS** | 学習レポート生成の非同期ジョブキュー（重い PDF 生成を ECS のリクエスト処理から切り離し） |
-| **Secrets Manager** | RDS マスターパスワード、Cognito クライアントシークレットを保管。ECS 起動時に環境変数で注入 |
+| **Secrets Manager** | Supabase 接続文字列 (`frestyle-prod/database-url`) と Cognito クライアントシークレットを保管。 ECS 起動時に環境変数で注入 |
 | **CloudWatch Logs** | ECS タスクの標準出力 / エラーログを集約（access log + アプリログ） |
 | **IAM (OIDC Provider)** | GitHub Actions が長期キー無しで `AssumeRole` してデプロイ実行（OIDC AssumeRoleWithWebIdentity） |
 
@@ -360,21 +358,18 @@ cd backend
 # 1) 依存解決
 go mod tidy
 
-# 2) PostgreSQL 接続情報を環境変数に
-export DB_HOST=localhost
-export DB_PORT=5432
-export DB_USER=postgres
-export DB_PASSWORD=<password>
-export DB_NAME=fre_style
-export DB_SSLMODE=disable
+# 2) DB 接続情報を環境変数に
+# 通常は Supabase Transaction pooler URL を使う:
+export DATABASE_URL='postgresql://postgres.xxxxx:PASSWORD@aws-N-ap-northeast-1.pooler.supabase.com:6543/postgres?sslmode=require'
 export PORT=8080
+# (ローカル docker postgres で開発する場合は DB_HOST 等を使うフォールバックも config.go に残してある)
 
 # 3) 起動
 go run ./cmd/server
 
 # 4) 動作確認
 curl http://localhost:8080/
-# => {"message":"FreStyle Go backend (Phase 0 bootstrap)"}
+# => {"message":"FreStyle Go backend"}
 ```
 
 Docker でビルドする場合:
@@ -383,9 +378,7 @@ Docker でビルドする場合:
 cd backend
 docker build -t frestyle-backend:dev .
 docker run --rm -p 8080:8080 \
-  -e DB_HOST=host.docker.internal \
-  -e DB_USER=postgres -e DB_PASSWORD=<password> \
-  -e DB_NAME=fre_style -e DB_SSLMODE=disable \
+  -e DATABASE_URL='postgresql://postgres.xxxxx:PASSWORD@aws-N-ap-northeast-1.pooler.supabase.com:6543/postgres?sslmode=require' \
   frestyle-backend:dev
 ```
 

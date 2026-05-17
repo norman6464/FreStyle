@@ -40,17 +40,19 @@ cd backend
 # 依存解決
 go mod tidy
 
-# 環境変数（最低限）
-export DB_HOST=<RDS-endpoint>
-export DB_USER=postgres
-export DB_PASSWORD=<password>
-export DB_NAME=fre_style
-export DB_SSLMODE=require   # ローカル DB なら disable
+# 環境変数 (最低限)
+# 本番 / staging は Supabase Transaction pooler URL を使う (RDS は 2026-05 廃止)。
+# ローカル docker postgres で開発する場合のみ DB_HOST 系を使う。
+export DATABASE_URL='postgresql://postgres.xxxxx:PASSWORD@aws-N-ap-northeast-1.pooler.supabase.com:6543/postgres?sslmode=require'
 export PORT=8080
 
 # 起動
 go run ./cmd/server
 ```
+
+DATABASE_URL の取得方法:
+- ローカル: `~/.config/aws/` 等で credentials 設定後、 `aws secretsmanager get-secret-value --region ap-northeast-1 --secret-id frestyle-prod/database-url --query SecretString --output text`
+- 各自の Supabase project を使う場合: Dashboard → 上部 `Connect` → `Direct` タブ → `Transaction pooler` の URI
 
 確認:
 

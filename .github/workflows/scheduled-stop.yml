@@ -37,6 +37,13 @@ permissions:
   id-token: write
   contents: read
 
+# scheduled-stop / scheduled-start / cd-backend が CFn deploy/delete で 競合 すると
+# "stack cannot be updated" や resource race で 失敗 する ため、 ECS / ALB を 触る
+# workflow は 同一 concurrency group で 相互 排他 する。
+concurrency:
+  group: frestyle-prod-runtime-stacks
+  cancel-in-progress: false
+
 jobs:
   stop:
     name: Destroy ECS + ALB
@@ -46,8 +53,10 @@ jobs:
     steps:
       - name: Verify input (workflow_dispatch only)
         if: github.event_name == 'workflow_dispatch'
+        env:
+          CONFIRM_INPUT: ${{ inputs.confirm }}
         run: |
-          if [ "${{ inputs.confirm }}" != "stop" ]; then
+          if [ "$CONFIRM_INPUT" != "stop" ]; then
             echo "ERROR: confirm に 'stop' と入力されていません"
             exit 1
           fi

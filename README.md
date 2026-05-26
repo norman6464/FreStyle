@@ -1,10 +1,10 @@
 ## FreStyle とは
 
 新卒エンジニア向けに作成したプロダクとであり、主に研修用のソフトウェアです。
-このソフトウェアは研修用の資料が散在していてさまざまなツールを使用することに慣れていない新卒エンジニアの「探す」という余計な脳のリソースを割くことなく本来の会社に必要な知識を吸収するのに一元化するのに最適化したプロダクトになっている
+このソフトウェアは研修用の資料が散在していてさまざまなツールを使用することに慣れていない新卒エンジニアの「探す」という余計な脳のリソースを
+割くことなく本来の会社に必要な知識を吸収するのに最適化したプロダクトになっている
 
 ## なぜ作るのか（プロダクトの意義）
-- 
 - ツール散乱を解消: 教材・解答・進捗が 1 ヶ所にまとまる
 - メンターのナレッジを資産化: 元々スライドの資料などに書き留めていてDriveにアップロードするなどの手間はなくなりこのアプリだけで完結をする
 - シングルタスク化: 新卒は「アプリを切り替える」「資料を探す」コストをゼロにし、開発・問題演習・写経・実行を 1 画面で完結
@@ -31,32 +31,32 @@
 
 <h3>Frontend</h3>
 <a href="https://skillicons.dev">
-  <img src="https://skillicons.dev/icons?i=react,ts,tailwind,vite&theme=dark" alt="Frontend">
+<img src="https://skillicons.dev/icons?i=react,ts,tailwind,vite&theme=dark" alt="Frontend">
 </a>
 
 <h3>Backend</h3>
 <a href="https://skillicons.dev">
-  <img src="https://skillicons.dev/icons?i=go&theme=dark" alt="Backend">
+<img src="https://skillicons.dev/icons?i=go&theme=dark" alt="Backend">
 </a>
 
 <h3>Infrastructure</h3>
 <a href="https://skillicons.dev">
-  <img src="https://skillicons.dev/icons?i=aws,cloudflare,docker&theme=light" alt="Infrastructure">
+<img src="https://skillicons.dev/icons?i=aws,cloudflare,docker&theme=light" alt="Infrastructure">
 </a>
 
 <h3>Database</h3>
 <a href="https://skillicons.dev">
-  <img src="https://skillicons.dev/icons?i=postgres,dynamodb&theme=light" alt="Database">
+<img src="https://skillicons.dev/icons?i=postgres,dynamodb&theme=light" alt="Database">
 </a>
 
 <h3>CI/CD</h3>
 <a href="https://skillicons.dev">
-  <img src="https://skillicons.dev/icons?i=githubactions&theme=light" alt="CI/CD">
+<img src="https://skillicons.dev/icons?i=githubactions&theme=light" alt="CI/CD">
 </a>
 
 <h3>Testing</h3>
 <a href="https://skillicons.dev">
-  <img src="https://skillicons.dev/icons?i=vitest,playwright&theme=light" alt="Testing">
+<img src="https://skillicons.dev/icons?i=vitest,playwright&theme=light" alt="Testing">
 </a>
 
 > Vitest + React Testing Library（フロントエンド単体）/ `go test`（バックエンド単体）/ Playwright（本番 E2E スモーク、Chromium）
@@ -65,17 +65,17 @@
 ## 工夫した点
 
 ### プロダクト面
-- 今までの経験で自分が苦に感じたことをベースに何をしたら一番早く新卒のエンジニアが現場に入るまでの必要最低限な知識が身につけられるのかを考えました
-- 、まず情報設計について調べました。
+- 今までの経験で自分が苦に感じたことをベースに何をしたら一番早く新卒のエンジニアが現場に入るまでの必要最低限な知識が身につけられるのかを考えました。
+  まず情報設計について調べており、日本人が一覧性のUIを日頃みることが多いらしくスターバックスのUIで日本とアメリカとの違いでありました。
+  なのでその性質上さまざまな情報源が散財していること自体もUIと同様日本人向けではないのではないかと思いこのプロダクト作成に至りました。
 
 
-- AI チャットは **Server-Sent Events**（`POST /api/v2/ai-chat/stream` で fetch + ReadableStream）で token 単位ストリーミング
+### 技術面：
 - JWT を HttpOnly Cookie に保存（XSS 対策）
 - アクセストークンの有効期間を短くしリフレッシュトークンで再発行
-- OIDC & JWK を活用した堅牢な認証フロー
-- 高速配信（CDN）
-- OIDC と組み合わせてセキュアなフロント構成
-- Cognito / OIDC ログインで HTTPS が必須なため採用
+- OIDC & JWK を活用した堅牢な認証フロー（Google認証をできるようにした）
+- NoSQL、RDBのユースケースによって適した使い分け
+- 最初はSpring Bootを採用していたがECSタスク定義のスペックを上げないとJVMの起動時にメモリの消費が激しいため料金がかかっていたのでそこをGoに置き換えた
 
 | 観点 | 数値 |
 |---|---|
@@ -85,195 +85,11 @@
 | バイナリサイズ | distroless + static binary 約 30 MB |
 | 並行処理 | goroutine（軽量） |
 
-#### Go バックエンドのクリーンアーキテクチャ
-
-```text
-┌────────────────────────────────────────────────────────────┐
-│                  Presentation Layer                        │
-│   handler (Gin)                                            │
-└────────────────────────────────────────────────────────────┘
-                       ↓
-┌────────────────────────────────────────────────────────────┐
-│                  Application Layer                         │
-│   usecase（1 ユースケース = 1 ファイル）                    │
-└────────────────────────────────────────────────────────────┘
-                       ↓
-┌────────────────────────────────────────────────────────────┐
-│                    Domain Layer                            │
-│   domain（純粋なドメイン構造体・ロジック）                   │
-└────────────────────────────────────────────────────────────┘
-                       ↓
-┌────────────────────────────────────────────────────────────┐
-│                Infrastructure Layer                        │
-│   repository (GORM) / infra (Cognito / S3 / Bedrock SDK)   │
-└────────────────────────────────────────────────────────────┘
-```
-
-ディレクトリ:
-
-```
-backend/
-├── cmd/server/          エントリーポイント (main.go)
-├── internal/
-│   ├── handler/         HTTP ハンドラ層 (Gin)
-│   ├── usecase/         ユースケース層 (1 ユースケース 1 ファイル)
-│   ├── repository/      リポジトリ層 (GORM)
-│   ├── domain/          ドメインモデル (純粋ドメイン構造体)
-│   └── infra/
-│       ├── config/      環境変数ロード
-│       └── database/    GORM + PostgreSQL 接続
-├── Dockerfile           multi-stage / distroless / static binary
-└── go.mod
-```
-
-#### 層構成（フロントエンド）
-
-バックエンドと同じ発想でフロントエンドもレイヤー化しています。
-
-```text
-Page (画面)  →  Hook (Application)  →  Repository (axios)
-  ↓
-Component (Presentational)
-```
-
-#### 依存関係図（AI チャット機能 - Go 移植版の例）
-
-```mermaid
-classDiagram
-    class AiChatHandler {
-      +CreateSession(c *gin.Context)
-      +AddMessage(c *gin.Context)
-      +GetSessions(c *gin.Context)
-    }
-    class CreateAiChatSessionUseCase
-    class AddAiChatMessageUseCase
-    class GetAiChatSessionsByUserIdUseCase
-    class AiChatSessionRepository {
-      <<GORM / Postgres>>
-    }
-    class AiChatMessageRepository {
-      <<DynamoDB SDK>>
-    }
-    class BedrockClient {
-      <<AWS SDK>>
-    }
-
-    AiChatHandler --> CreateAiChatSessionUseCase
-    AiChatHandler --> AddAiChatMessageUseCase
-    AiChatHandler --> GetAiChatSessionsByUserIdUseCase
-
-    CreateAiChatSessionUseCase --> AiChatSessionRepository
-    AddAiChatMessageUseCase --> AiChatMessageRepository
-    AddAiChatMessageUseCase --> BedrockClient
-    GetAiChatSessionsByUserIdUseCase --> AiChatSessionRepository
-```
-
-#### データフロー: AI チャットへメッセージを送る（Go 版）
-
-```mermaid
-sequenceDiagram
-    participant FE as ChatPage
-    participant Hook as useAiChat Hook
-    participant Repo as AiChatRepository
-    participant H as AiChatHandler (Gin)
-    participant UC as AddAiChatMessageUseCase
-    participant DDB as DynamoDB
-    participant Bed as Bedrock SDK
-
-    FE->>Hook: sendMessage(text)
-    Hook->>Repo: POST /api/v2/ai-chat/sessions/:id/messages
-    Repo->>H: HTTP Request
-    H->>UC: Execute(ctx, sessionId, content)
-    UC->>DDB: PutItem(userMessage)
-    UC->>Bed: InvokeModel(prompt)
-    Bed-->>UC: aiResponse
-    UC->>DDB: PutItem(aiMessage)
-    UC-->>H: MessageDto
-    H-->>Repo: HTTP Response (JSON)
-    Repo-->>Hook: Promise resolve
-    Hook-->>FE: state update → re-render
-```
-
-### ⑤ 共通 UI コンポーネントライブラリ
-
-`frontend/src/components/ui/` に共通 UI コンポーネント群を整備しています。
-
-| コンポーネント | 用途 |
-|---|---|
-| `PageIntro` | 全画面統一のページヘッダー |
-| `FirstTimeWelcome` | 初回訪問時の導入カード（localStorage 永続化） |
-| `GlossaryTerm` | 専門用語の下線表示 + クリックで用語解説 |
-| `HelpTooltip` | 「?」アイコン付きの補足説明 |
-| `StepIndicator` | 多段階操作の進行状況可視化 |
-| `GuidedHint` | 閉じるボタン付きヒント |
-| `ActionCard` | Link / Button 両対応の強調 CTA カード |
-
----
-
-## 技術選定理由（HTTP API / ECS Fargate / Go）
-
-1. **Go (Gin + GORM)** によるリソース効率
-   - 0.25 vCPU / 0.5 GB の最小 Fargate でも快適に稼働
-   - 起動時間サブ秒、distroless で 30 MB 級の static binary
-   - goroutine による軽量並行処理
-
-2. **ECS Fargate** で Docker 化したアプリを安定稼働
-   - サーバープロビジョニング不要 / OS 管理不要
-   - ECS Service 単位で blue/green に近いデプロイ運用が可能
-
-3. **ALB と連携した柔軟なルーティング**
-   - ホストベースルーティングで [BeStyle](https://normanblog.com) にも同じロードバランサーを使用しコスト削減
-   - ヘルスチェックは Go 側で `/api/v2/health` を提供し ALB Target Group が定期チェック
-
-4. **Blue/Green デプロイ**
-   - CodeDeploy と連携
-   - 新バージョンのヘルスチェック後に切替
-   - 即時ロールバック可能
-
----
-
-## 技術選定理由（SSE / ECS 一本化）
-
-AI チャットは **Server-Sent Events**（HTTP/1.1 chunked transfer）で ECS + Go の単一経路に統一:
-
-1. **複雑なクエリの直行性**  
-   ユーザの履歴・進捗・性格傾向などを Supabase PostgreSQL と DynamoDB の使い分けで保持し、 ECS 上の Go から両方を直接叩いて application 側の join を避ける。
-2. **トラフィック増加時のスケール**  
-   Lambda 同時実行数や cold start のリスクを避け、ECS Fargate の `desired count` で水平スケール。ALB のヘルスチェックで自己修復。
-3. **SSE がストリーミング用途に十分**  
-   双方向通信（WebSocket）は不要で、サーバ→クライアントの一方向 token ストリーミングは SSE（fetch + ReadableStream）で実装が簡素。Sticky Session 不要、HTTP の標準で動く。
-4. **可観測性とデプロイ単位の統一**  
-   HTTP / SSE を 1 つの ECS Service に同居させると、ログ・メトリクス・デプロイ単位が 1 本化されて運用が楽。
-5. **コスト**  
-   Go バイナリは 0.25 vCPU / 0.5 GB Fargate で常時稼働しても月 $9 前後。
-
----
-
 ## AWSアーキテクチャ構成図
 
 ![FreStyle AWS アーキテクチャ構成図](./architecture/aws/freestyle-aws-architecture-current.png)
 
 draw.io ソース: [`architecture/aws/freestyle-aws-architecture-current.drawio`](./architecture/aws/freestyle-aws-architecture-current.drawio)
-
-### 各 AWS サービスの役割
-
-| サービス | 役割 |
-|---|---|
-| **CloudFront** | フロントエンド SPA（React / Vite ビルド成果物）の CDN 配信 + セキュリティヘッダー / CSP 付与 |
-| **S3 (frontend)** | SPA の静的ファイルホスティング |
-| **ALB** | `api.normanblog.com` 入口の L7 ロードバランサ。HTTP / SSE を ECS にルーティング |
-| **ECS Fargate** | Go (Gin) バックエンドのコンテナ実行環境。0.25 vCPU / 0.5 GB の最小タスクで稼働 |
-| **ECR** | バックエンドの Docker イメージを保存。GitHub Actions から push、ECS が pull |
-| **Supabase PostgreSQL 17.6** | 主な業務データ（users / companies / invitations / notes / master_exercises 等）。 Tokyo region / Transaction pooler 経由で接続 (2026-05 RDS から移行) |
-| **DynamoDB** | AI チャットメッセージを `fre_style_ai_chat` テーブルに保存（追記主体・session ID Partition Key） |
-| **S3 (uploads)** | ノート画像 + AI チャット添付ファイルの実体。`notes/` と `ai-chat/{userId}/` を prefix で分離、presigned PUT で直接アップロード |
-| **Bedrock** | Claude Sonnet 4.5 を Inference Profile (`jp.*`) 経由で呼び出し、AI チャットを SSE ストリーミング |
-| **Cognito** | OIDC 認可エンドポイント / JWT 発行。フロントは HttpOnly Cookie で受け取り、ECS 側 middleware が JWKS で検証 |
-| **SES** | 招待マジックリンクメールの送信（CompanyAdmin → trainee の招待 / 運営 → CompanyAdmin の招待） |
-| **SQS** | 学習レポート生成の非同期ジョブキュー（重い PDF 生成を ECS のリクエスト処理から切り離し） |
-| **Secrets Manager** | Supabase 接続文字列 (`frestyle-prod/database-url`) と Cognito クライアントシークレットを保管。 ECS 起動時に環境変数で注入 |
-| **CloudWatch Logs** | ECS タスクの標準出力 / エラーログを集約（access log + アプリログ） |
-| **IAM (OIDC Provider)** | GitHub Actions が長期キー無しで `AssumeRole` してデプロイ実行（OIDC AssumeRoleWithWebIdentity） |
 
 ---
 
@@ -331,19 +147,6 @@ npx tailwindcss init -p
 
 ---
 
-## 開発フロー / 貢献ガイド
-
-本プロジェクトは以下の運用ルールで開発されています。
-
-### ブランチ運用
-
-1. Issue を起票（日本語で目的・完了条件を明記）
-2. ブランチを切る（`feat/*` / `fix/*` / `refactor/*` / `docs/*` / `test/*`）
-3. 作業 → コミット（コミットメッセージは日本語）
-4. PR 作成（タイトル・本文とも日本語）
-5. **CodeRabbit によるコードレビューを待つ**
-6. CodeRabbit 指摘に対応
-7. **squash merge**（main への直接コミット禁止、ブランチ保護設定済み）
 
 ### コーディング規約（要点）
 
@@ -351,7 +154,6 @@ npx tailwindcss init -p
 - **1 usecase = 1 ビジネスルール**: 新規機能追加時は usecase struct を新規作成し、肥大化させない
 - **request / response 型は handler 内 local 定義**: DTO / Mapper 層は持たず、機密フィールドは domain 構造体側で `json:"-"` で隠す
 - **テスト必須**: 新規追加コードには必ず単体テストを付ける
-- **日本語**: PR / Issue / コミットメッセージ / コメントは日本語、識別子は英語
 
 ### テスト
 

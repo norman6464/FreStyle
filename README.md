@@ -1,27 +1,13 @@
 ## FreStyle とは
 
-**新卒 IT エンジニア向け統合研修プラットフォーム**
-
-開発の現場に入ったばかりの新卒エンジニアは、Box / Google Drive / PowerPoint / Notion / Slack / GitHub / 紙資料 …… と **散らばった研修ツールを行き来するだけで疲弊**してしまいがちです。FreStyle は、企業のメンター（教育担当エンジニア）が作った教材・問題集・コーディング課題・ビジネスコミュニケーション練習を **1 つのプラットフォーム上に集約**し、新卒が "学ぶことそのもの" に集中できる環境を提供します。
+新卒エンジニア向けに作成したプロダクとであり、主に研修用のソフトウェアです。
+このソフトウェアは研修用の資料が散在していてさまざまなツールを使用することに慣れていない新卒エンジニアの「探す」という余計な脳のリソースを割くことなく本来の会社に必要な知識を吸収するのに一元化するのに最適化したプロダクトになっている
 
 ## なぜ作るのか（プロダクトの意義）
-
-- **ツール散乱を解消**: 教材・解答・進捗・コミュニケーション練習が 1 ヶ所にまとまる
-- **メンターのナレッジを資産化**: 各社の教育担当が時間をかけて作ったスライドや手順書を、再利用可能な構造化教材に変える
-- **シングルタスク化**: 新卒は「アプリを切り替える」「資料を探す」コストをゼロにし、開発・問題演習・写経・実行を 1 画面で完結
-- **早期戦力化を支援**: Git/Git Flow、社内で使うプログラミング言語、コーディング規約、業務上のコミュニケーションを実際にやって覚える設計
-
-## ロール
-
-| ロール | 例 | できること |
-|---|---|---|
-| **SuperAdmin** | FreStyle 運営側 | 顧客企業の登録、CompanyAdmin の招待、課金管理、横断監査 |
-| **CompanyAdmin** (メンター) | 各社の教育担当エンジニア | 自社の教材・問題・解答 CRUD、自社新卒の招待、進捗ダッシュボード |
-| **Trainee** (新卒) | 各社の新卒エンジニア | 自社の教材で学習・問題演習・コード実行・ビジネスコミュニケーション練習 |
-
-## 機能（コア構成）
-
-プロダクトをコア機能だけに絞り、新卒エンジニアが「学ぶこと」と「手を動かすこと」に集中できる最小構成にしました。
+- 
+- ツール散乱を解消: 教材・解答・進捗が 1 ヶ所にまとまる
+- メンターのナレッジを資産化: 元々スライドの資料などに書き留めていてDriveにアップロードするなどの手間はなくなりこのアプリだけで完結をする
+- シングルタスク化: 新卒は「アプリを切り替える」「資料を探す」コストをゼロにし、開発・問題演習・写経・実行を 1 画面で完結
 
 ### コア機能（実装済 / 維持）
 
@@ -35,57 +21,23 @@
 | **プロフィール** | 表示名・アイコン・所属の確認 / 編集 |
 | **管理（SuperAdmin / CompanyAdmin）** | 会社一覧 / 招待管理（CompanyAdmin から trainee を招待） |
 
-### 認証・組織モデル
-
-- マルチテナント（会社単位でデータ分離）
-- ロール: `super_admin` / `company_admin` / `trainee` の 3 階
-- **招待マジックリンク方式（SES + token）** で初回サインアップ
-- OIDC（Cognito Hosted UI / Google フェデレーション）+ 招待限定サインアップ
-
-## オンボーディング（B2B 申請承認フロー）
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant Company as 顧客企業<br/>（教育担当）
-    participant FreStyle as FreStyle 運営<br/>(SuperAdmin)
-    participant Trainee as 新卒<br/>(Trainee)
-
-    Company->>FreStyle: 利用申請（フォーム）
-    FreStyle->>FreStyle: 承認・会社レコード作成
-    FreStyle->>Company: 初代 CompanyAdmin 招待メール送信
-    Company->>FreStyle: CompanyAdmin として初回ログイン
-    Company->>FreStyle: 教材作成・新卒招待
-    FreStyle->>Trainee: 招待メール送信
-    Trainee->>FreStyle: ログインして学習開始
-```
-
-- セルフサインアップは Phase 3 以降に検討
-- 当面は SuperAdmin が手動承認することで、テナント品質と契約管理を担保
-
----
 
 ## デプロイURL
 
 [https://normanblog.com](https://normanblog.com)
 
-> 2026-05 に DB を AWS RDS から **Supabase 無料プラン** (Transaction pooler) に移行し、 RDS / 踏み台 EC2 / 旧 scheduled-stop ワークフローは全廃止。 現在は 24/7 稼働で stop/start なし。
-
----
 
 ## 使用技術
 
 <h3>Frontend</h3>
 <a href="https://skillicons.dev">
-  <img src="https://skillicons.dev/icons?i=react,ts,tailwind,vite&theme=light" alt="Frontend">
+  <img src="https://skillicons.dev/icons?i=react,ts,tailwind,vite&theme=dark" alt="Frontend">
 </a>
 
 <h3>Backend</h3>
 <a href="https://skillicons.dev">
-  <img src="https://skillicons.dev/icons?i=go&theme=light" alt="Backend">
+  <img src="https://skillicons.dev/icons?i=go&theme=dark" alt="Backend">
 </a>
-
-> バックエンド（Go）は `backend/` 配下で運用。Gin / GORM などの主要 OSS は `go.mod` を参照。
 
 <h3>Infrastructure</h3>
 <a href="https://skillicons.dev">
@@ -108,45 +60,22 @@ sequenceDiagram
 </a>
 
 > Vitest + React Testing Library（フロントエンド単体）/ `go test`（バックエンド単体）/ Playwright（本番 E2E スモーク、Chromium）
-
-### AWS サービス詳細
-
-| カテゴリ | サービス | 用途 |
-|---------|----------|------|
-| **Compute** | ECS Fargate, ECR | Go (Gin) backend のコンテナ実行・イメージ管理 |
-| **Networking** | CloudFront, ALB, Route 53, ACM | CDN（フロント SPA + セキュリティヘッダー）・ロードバランシング・DNS（旧 Cloudflare から移管）・TLS 証明書 |
-| **Database** | Supabase PostgreSQL 17.6, DynamoDB | リレーショナル DB (Transaction pooler / GORM 経由、 2026-05 RDS から移行)・チャットメッセージ NoSQL |
-| **Storage** | S3 | フロントエンド静的ホスティング・ノート画像 |
-| **Auth** | Cognito | OAuth 2.0 / OIDC + JWT (HttpOnly Cookie)・SRP / Hosted UI |
-| **Secrets** | Secrets Manager | Supabase 接続文字列 (`frestyle-prod/database-url`) ・ Cognito client secret |
-| **Messaging** | SQS (+ DLQ) | 非同期レポート生成キュー |
-| **Identity** | IAM (OIDC Provider) | GitHub Actions の AssumeRole（長期キー廃止、一時クレデンシャル運用） |
-| **Monitoring** | CloudWatch Logs | ECS Task のログ集約 |
-| **CI/CD** | GitHub Actions | 自動テスト・E2E (Playwright) ・cd-frontend / cd-backend |
-
 ---
 
-## Architecture Highlights（工夫した点）
+## 工夫した点
 
-### ① HTTP / SSE を ECS + Go で単一経路化
-- **HTTP API / SSE ストリーミング** ともに **ECS Fargate 上の Go (Gin)** に集約
+### プロダクト面
+- 今までの経験で自分が苦に感じたことをベースに何をしたら一番早く新卒のエンジニアが現場に入るまでの必要最低限な知識が身につけられるのかを考えました
+- 、まず情報設計について調べました。
+
+
 - AI チャットは **Server-Sent Events**（`POST /api/v2/ai-chat/stream` で fetch + ReadableStream）で token 単位ストリーミング
-- ALB → ECS Task が HTTP/1.1 chunked transfer で 1 経路、Sticky Session 不要・stateless
-- フロントエンドは `https://api.normanblog.com` 経由で接続、Cognito JWT (HttpOnly Cookie) で認証
-
-### ② JWT（HttpOnly Cookie）× Cognito の安全な認証設計
 - JWT を HttpOnly Cookie に保存（XSS 対策）
 - アクセストークンの有効期間を短くしリフレッシュトークンで再発行
 - OIDC & JWK を活用した堅牢な認証フロー
-- OIDC 経由でも当該アプリ経由でも同一ユーザーとして認識
-- Go 側は Gin の middleware で JWT 検証（`golang-jwt/jwt` + AWS Cognito JWKS）を実装
-
-### ③ CloudFront によるグローバル最適化と HTTPS 化
 - 高速配信（CDN）
 - OIDC と組み合わせてセキュアなフロント構成
 - Cognito / OIDC ログインで HTTPS が必須なため採用
-
-### ④ Go (Gin + GORM) によるリソース効率
 
 | 観点 | 数値 |
 |---|---|

@@ -160,8 +160,10 @@ jobs:
             --query 'Stacks[0].Outputs[?OutputKey==`TaskRoleArn`].OutputValue' --output text)
           # Supabase 接続 URL の Secret ARN (Transaction pooler / port 6543)。
           # RDS 撤去後は DATABASE_URL を Secrets Manager から inject する。
+          # `|| true`: set -e 下で secret 不在時に AWS CLI の非ゼロ終了で step が落ちると
+          # 下の親切な ::error:: が出ないため、ここでは握りつぶして空判定に委ねる。
           DB_URL_ARN=$(aws secretsmanager describe-secret --region $AWS_REGION \
-            --secret-id "$DATABASE_URL_SECRET_NAME" --query 'ARN' --output text 2>/dev/null)
+            --secret-id "$DATABASE_URL_SECRET_NAME" --query 'ARN' --output text 2>/dev/null || true)
           if [ -z "$DB_URL_ARN" ] || [ "$DB_URL_ARN" = "None" ]; then
             echo "::error::DATABASE_URL_SECRET_NAME=$DATABASE_URL_SECRET_NAME を Secrets Manager で見つけられませんでした"
             exit 1

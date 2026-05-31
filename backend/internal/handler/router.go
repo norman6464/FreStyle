@@ -29,7 +29,11 @@ type routeDeps struct {
 func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Recovery())
-	r.Use(gin.Logger())
+	// ヘルスチェック (ALB が 30 秒間隔で叩く /api/v2/health) と root の access log は出さない。
+	// 大量の health ログが CloudWatch の取り込み課金を押し上げるのを防ぐ。
+	r.Use(gin.LoggerWithConfig(gin.LoggerConfig{
+		SkipPaths: []string{"/api/v2/health", "/"},
+	}))
 	r.Use(middleware.CORS())
 
 	r.GET("/", func(c *gin.Context) {

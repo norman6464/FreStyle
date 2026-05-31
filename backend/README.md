@@ -79,6 +79,15 @@ go vet ./...
 go test ./...
 ```
 
+## ログ方針（CloudWatch コスト対策）
+
+- アクセスログは `gin.LoggerWithConfig` で出力し、`SkipPaths` に
+  `/api/v2/health`（ALB が 30 秒間隔で叩くヘルスチェック）と `/` を指定して**除外**する。
+  大量の health ログが CloudWatch の取り込み課金を押し上げるのを防ぐため。
+- 認証・業務ロジックの WARN / ERROR は `log.Printf` で従来どおり出力する。
+- ロググループ `/ecs/frestyle-prod` は CFn 側で retention 14 日。Container Insights は
+  コスト削減のため無効（詳細は frestyle-infrastructure の `docs/06-maintenance-cookbook.md` §15）。
+
 ## デプロイ方針（後続 Phase で確立）
 
 - ALB の path-based routing で `/api/v2/*` を Go ECS Service に振り、

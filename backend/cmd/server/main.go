@@ -24,6 +24,7 @@ package main
 import (
 	"log"
 
+	"github.com/gin-gonic/gin"
 	_ "github.com/norman6464/FreStyle/backend/docs" // swag init で 生成 さ れる OpenAPI spec
 	"github.com/norman6464/FreStyle/backend/internal/handler"
 	"github.com/norman6464/FreStyle/backend/internal/infra/config"
@@ -34,6 +35,12 @@ func main() {
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("config load failed: %v", err)
+	}
+
+	// 本番は gin を release モードにする。debug モードのルート登録ログ ([GIN-debug] ...) や
+	// 起動時 warning を抑止して CloudWatch のログ量を減らす。ローカルは debug のまま。
+	if cfg.AppEnv != "local" {
+		gin.SetMode(gin.ReleaseMode)
 	}
 
 	db, err := database.NewPostgres(cfg)

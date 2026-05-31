@@ -85,6 +85,8 @@ go test ./...
   `/api/v2/health`（ALB が 30 秒間隔で叩くヘルスチェック）と `/` を指定して**除外**する。
   大量の health ログが CloudWatch の取り込み課金を押し上げるのを防ぐため。
 - 認証・業務ロジックの WARN / ERROR は `log.Printf` で従来どおり出力する。
+- 本番（`APP_ENV` が `"local"` 以外）は gin を **release モード**にして、起動時の
+  `[GIN-debug]` ルート登録ログ・warning を抑止する（ローカルは debug のまま）。
 - ロググループ `/ecs/frestyle-prod` は CFn 側で retention 14 日。Container Insights は
   コスト削減のため無効（詳細は frestyle-infrastructure の `docs/06-maintenance-cookbook.md` §15）。
 

@@ -11,13 +11,9 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-// NewPostgres は GORM で PostgreSQL に 接続 する。
-//
-// DATABASE_URL が "pgbouncer=true" を 含む (= Supabase transaction pooler 接続) 場合 は
-// GORM の prepared statement キャッシュ を 無効 化 + driver 側 で simple query protocol を
-// 強制 する。 transaction-mode の pgbouncer は 接続 単位 の prepared statement を サポート
-// し ない ため、 デフォルト の まま だ と "prepared statement does not exist" エラー が
-// ランダム に 発生 する。
+// NewPostgres は GORM で PostgreSQL に接続する。
+// pgbouncer 経由（Supabase transaction pooler）の場合は prepared statement を無効化し
+// simple query protocol を強制する（"prepared statement does not exist" 対策）。
 func NewPostgres(cfg *config.Config) (*gorm.DB, error) {
 	gormCfg := &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Warn),
@@ -47,19 +43,14 @@ func NewPostgres(cfg *config.Config) (*gorm.DB, error) {
 	return db, nil
 }
 
-// isPgBouncerDSN は DSN が Supabase transaction pooler 等 の pgbouncer 経由 か を 判定 する。
-//
-// 判定 基準 (順 番 に):
-//  1. URL 形式 (postgres:// / postgresql://) なら net/url で parse し、 query string の
-//     pgbouncer=true / ホスト 名 が pooler.supabase.com を 含む かを 厳密 に 見る。
-//     これ により パスワード / path に 偶然 "pgbouncer=true" の 文字 列 が 含まれて も
-//     false positive に なら ない。
-//  2. key=value 形式 (host=... user=...) なら host= の 値 だけ を 切り 出して 判定。
+// isPgBouncerDSN は DSN が pgbouncer 経由かを判定する。
+// URL 形式は query の pgbouncer=true / host に pooler.supabase.com を厳密に見て
+// パスワードや path に紛れた文字列で false positive にならないようにする。
+// key=value 形式は host= の値だけを切り出して判定する。
 func isPgBouncerDSN(dsn string) bool {
 	trimmed := strings.TrimSpace(dsn)
 	lower := strings.ToLower(trimmed)
 
-	// 1. URL 形式
 	if strings.HasPrefix(lower, "postgres://") || strings.HasPrefix(lower, "postgresql://") {
 		u, err := url.Parse(trimmed)
 		if err != nil {
@@ -74,8 +65,7 @@ func isPgBouncerDSN(dsn string) bool {
 		return false
 	}
 
-	// 2. key=value 形式 (= 旧 RDS DSN フォールバック)
-	// "host=foo.pooler.supabase.com" を 検知 する ため、 host= キー だけ を 厳密 に 取る。
+	// key=value 形式は host= キーだけを厳密に取る。
 	for _, kv := range strings.Fields(trimmed) {
 		eq := strings.IndexByte(kv, '=')
 		if eq <= 0 {

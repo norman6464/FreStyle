@@ -9,7 +9,6 @@ import (
 )
 
 // HealthHandler は /api/v2/health エンドポイントを提供する。
-// Spring Boot の /actuator/health と並行運用する。
 type HealthHandler struct {
 	uc *usecase.CheckHealthUseCase
 }
@@ -18,7 +17,7 @@ func NewHealthHandler(uc *usecase.CheckHealthUseCase) *HealthHandler {
 	return &HealthHandler{uc: uc}
 }
 
-// Get は /api/v2/health の GET ハンドラ。 DB 疎通 を 確認 し UP / DOWN を 返す。
+// Get は DB 疎通を確認し UP / DOWN を返す。
 //
 //	@Summary      ヘルスチェック
 //	@Description  バックエンド と DB の 疎通 を 確認 する。 ALB / CloudWatch / 監視 から 叩く 想定。

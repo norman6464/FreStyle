@@ -7,14 +7,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// MasterExerciseWithStatus は一覧ページに渡す「問題 + 現在ユーザの状態 + 全体集計」のセット。
-//
-// Status の値:
-//   - "solved"      … current user が 1 度でも is_correct=true で解いた
-//   - "in_progress" … current user が提出はあるが正答していない
-//   - ""            … current user が未提出（未着手）
-//
-// Stats は全ユーザ合計の集計値。
+// MasterExerciseWithStatus は問題 + current user の状態（solved / in_progress / 未提出）+ 全体集計のセット。
 type MasterExerciseWithStatus struct {
 	domain.MasterExercise
 
@@ -23,11 +16,7 @@ type MasterExerciseWithStatus struct {
 }
 
 // ListMasterExercisesWithStatusUseCase は問題一覧 + 各問題の current user 状態 + 集計を返す。
-//
-// N+1 を避けるため、 user status と stats はそれぞれ batch クエリで取得する。
-//
-// 依存 port: [repository.MasterExerciseRepository] + [repository.ExerciseSubmissionRepository]
-// (BatchUserStatuses / ExerciseStatsBatch で N+1 回避)。
+// status と stats は batch クエリで取得して N+1 を避ける。
 type ListMasterExercisesWithStatusUseCase struct {
 	exercises   repository.MasterExerciseRepository
 	submissions repository.ExerciseSubmissionRepository

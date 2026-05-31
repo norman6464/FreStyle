@@ -2,16 +2,8 @@ package domain
 
 import "time"
 
-// Course は教材を束ねる「コース（プロジェクト）」。
-//
-// 階層: Company 1 ── * Course 1 ── * TeachingMaterial
-//
-// アクセス制御:
-//   - same company の company_admin: 自社のコースを全件 list / 編集 / 削除可
-//   - same company の trainee: 自社の `is_published=true` コースのみ閲覧可
-//   - super_admin: 横断的に閲覧可（運用上の監査）
-//
-// 並び順は `SortOrder` で明示的に指定する（同値時は ID 昇順）。
+// Course は教材を束ねるコース。階層は Company 1 ── * Course 1 ── * TeachingMaterial。
+// trainee は自社の is_published=true のみ閲覧可。並び順は SortOrder（同値時 ID 昇順）。
 type Course struct {
 	ID              uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
 	CompanyID       uint64    `gorm:"column:company_id;not null;index" json:"companyId"`

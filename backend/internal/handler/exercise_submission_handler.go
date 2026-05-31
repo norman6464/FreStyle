@@ -10,12 +10,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// ExerciseSubmissionHandler は master_exercises に対する提出 API を扱う。
-//
-// API パス:
-//
-//	POST /api/v2/exercises/:slug/submit       コードを提出して採点
-//	GET  /api/v2/exercises/:slug/submissions  current user の履歴
+// ExerciseSubmissionHandler は master_exercises に対する提出 / 履歴 API を扱う。
 type ExerciseSubmissionHandler struct {
 	submit *usecase.SubmitMasterExerciseUseCase
 	list   *usecase.ListUserMasterSubmissionsUseCase

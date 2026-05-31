@@ -6,10 +6,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 )
 
-// CompanyRepository は companies テーブル へ の アクセス を 提供 する。
-//
-// 実装: [github.com/norman6464/FreStyle/backend/internal/adapter/persistence] の
-// companyRepository (GORM)。
+// CompanyRepository は companies テーブルへのアクセスを提供する。
 type CompanyRepository interface {
 	ListAll(ctx context.Context) ([]domain.Company, error)
 	FindByID(ctx context.Context, id uint64) (*domain.Company, error)

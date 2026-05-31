@@ -11,13 +11,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// TeachingMaterialHandler は教材 API を扱う。
-//
-//	GET    /api/v2/courses/:courseId/materials      コース内一覧（actor role で自動フィルタ）
-//	GET    /api/v2/teaching-materials/:id           詳細
-//	POST   /api/v2/teaching-materials               作成（company_admin / super_admin、 course_id 必須）
-//	PUT    /api/v2/teaching-materials/:id           更新（同上）
-//	DELETE /api/v2/teaching-materials/:id           削除（同上）
+// TeachingMaterialHandler は教材の CRUD + コース内一覧 API を扱う。
 type TeachingMaterialHandler struct {
 	uc *usecase.TeachingMaterialUseCase
 }
@@ -39,8 +33,7 @@ func (h *TeachingMaterialHandler) actorContext(c *gin.Context) (uint64, uint64, 
 	return user.ID, companyID, user.Role, true
 }
 
-// List は backward-compat 用 GET /api/v2/teaching-materials 。 frontend がコース対応に
-// 切り替わったら削除予定。
+// List は company 内全教材を返す backward-compat 用（コース対応完了後に削除予定）。
 //
 //	@Summary      教材 全 件 一覧 (deprecated)
 //	@Description  backward-compat 用。 company 内 全 教材 を 返す。 frontend が コース 対応 完了 後 に 削除 予定。
@@ -65,8 +58,7 @@ func (h *TeachingMaterialHandler) List(c *gin.Context) {
 	c.JSON(http.StatusOK, rows)
 }
 
-// ListByCourse は GET /api/v2/courses/:id/materials 。 コース配下の教材を返す。
-// path param `:id` はコース ID（ルート競合を避けるため materials path 側で `:id` を流用）。
+// ListByCourse はコース配下の教材を返す（path の :id はコース ID）。
 //
 //	@Summary      コース内 教材 一覧
 //	@Description  指定 コース 配下 の 教材 を 返す。 trainee は published のみ。
@@ -126,7 +118,6 @@ func (h *TeachingMaterialHandler) Get(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "教材が見つかりません"})
 			return
 		}
-		// usecase が "forbidden" を返したら 403。
 		if err.Error() == "forbidden" {
 			c.JSON(http.StatusForbidden, gin.H{"error": "閲覧権限がありません"})
 			return

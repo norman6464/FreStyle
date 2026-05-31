@@ -41,10 +41,7 @@ func (h *LearningReportHandler) List(c *gin.Context) {
 	c.JSON(http.StatusOK, rows)
 }
 
-// requestReportReq は POST /learning-reports/generate のリクエスト body。
-//
-// フロントエンドは月次サマリの生成しか叩かないため、 期間指定は year + month の
-// 1 形式に揃える。 バックエンド側で月初〜翌月初の period を組み立てて usecase に渡す。
+// requestReportReq は月次レポート生成 body。year + month から月初〜翌月初の period を組み立てる。
 type requestReportReq struct {
 	Year  int `json:"year"  binding:"required,min=2000,max=2100"`
 	Month int `json:"month" binding:"required,min=1,max=12"`
@@ -72,8 +69,7 @@ func (h *LearningReportHandler) Request(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	// year + month → 月初 [00:00:00 UTC] 〜 翌月初 [00:00:00 UTC] の期間に変換。
-	// レポート集計の実装が PeriodFrom <= submitted_at < PeriodTo の半開区間で扱う前提。
+	// year + month を月初〜翌月初の半開区間 [PeriodFrom, PeriodTo) に変換する。
 	from := time.Date(req.Year, time.Month(req.Month), 1, 0, 0, 0, 0, time.UTC)
 	to := from.AddDate(0, 1, 0)
 	got, err := h.request.Execute(c.Request.Context(), usecase.RequestLearningReportInput{

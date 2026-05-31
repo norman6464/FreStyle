@@ -12,7 +12,6 @@ type healthRepository struct {
 	db *gorm.DB
 }
 
-// NewHealthRepository は GORM ベース の [repository.HealthRepository] を 返す。
 func NewHealthRepository(db *gorm.DB) repository.HealthRepository {
 	return &healthRepository{db: db}
 }

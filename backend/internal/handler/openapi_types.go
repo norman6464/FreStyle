@@ -1,8 +1,5 @@
-// これら の 型 は handler コード から 直接 参照 さ れず、 swaggo (= `make openapi`)
-// が doc コメント 内 の `@Success` / `@Failure` の `{object}` 識別子 と して
-// 名前 解決 する。 そのため staticcheck の U1000 (unused) 警告 を ファイル 全体 で
-// 抑止 する。 該当 型 を 実際 に handler から JSON marshal に 使う ように なれば
-// この 抑止 は 不要。
+// このファイルの型は handler から直接参照されず、swaggo が @Success / @Failure の
+// {object} 識別子として名前解決するためだけに存在する（U1000 を抑止する）。
 
 //lint:file-ignore U1000 referenced only by swaggo annotations
 
@@ -10,23 +7,22 @@ package handler
 
 import "time"
 
-// errorResponse は すべて の handler が 返す 共通 エラー JSON 形式。
-// OpenAPI spec で @Failure の レスポンス 型 と して 使う。
+// errorResponse は全 handler 共通のエラー JSON 形式。
 type errorResponse struct {
 	Error string `json:"error" example:"unauthorized"`
 }
 
-// successMessage は 単純 メッセージ のみ を 返す 成功 レスポンス (200 OK で 内容 が プロパティ 1 個 の とき)。
+// successMessage は success プロパティ 1 個の成功レスポンス。
 type successMessage struct {
 	Success string `json:"success" example:"プロフィールを更新しました"`
 }
 
-// messageResponse は ログアウト / ログイン 完了 等 の 一般 success メッセージ。
+// messageResponse は一般的な success メッセージ。
 type messageResponse struct {
 	Message string `json:"message" example:"ログインしました。"`
 }
 
-// meResponse は /auth/me の 戻り 値 形 (gin.H で 返して いる の を OpenAPI 用 に 型 化)。
+// meResponse は /auth/me の戻り値形（OpenAPI 用の型化）。
 type meResponse struct {
 	ID          uint64    `json:"id"          example:"42"`
 	CognitoSub  string    `json:"cognitoSub"  example:"abc-123-uuid"`
@@ -41,8 +37,7 @@ type meResponse struct {
 	Onboarded   bool      `json:"onboarded"   example:"true"`
 }
 
-// invitationValidateResponse は /invitations/accept/{token} (public) の 戻り 値 形。
-// email を 含め ない (= メタ 情報 漏洩 防止)。
+// invitationValidateResponse は /invitations/accept/{token} の戻り値形（email は含めない）。
 type invitationValidateResponse struct {
 	Role        string `json:"role"        example:"trainee"`
 	DisplayName string `json:"displayName" example:"山田 太郎"`

@@ -12,7 +12,6 @@ import (
 // sessionNoteRepository は [repository.SessionNoteRepository] の GORM 実装。
 type sessionNoteRepository struct{ db *gorm.DB }
 
-// NewSessionNoteRepository は GORM ベース の [repository.SessionNoteRepository] を 返す。
 func NewSessionNoteRepository(db *gorm.DB) repository.SessionNoteRepository {
 	return &sessionNoteRepository{db: db}
 }

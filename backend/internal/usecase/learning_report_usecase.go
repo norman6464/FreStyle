@@ -9,8 +9,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// ListLearningReportsUseCase は current user の レポート 一覧 を 返す。
-// 依存 port: [repository.LearningReportRepository]。
+// ListLearningReportsUseCase は current user のレポート一覧を返す。
 type ListLearningReportsUseCase struct {
 	repo repository.LearningReportRepository
 }
@@ -26,9 +25,7 @@ func (u *ListLearningReportsUseCase) Execute(ctx context.Context, userID uint64)
 	return u.repo.ListByUserID(ctx, userID)
 }
 
-// RequestLearningReportUseCase は レポート 生成 ジョブ を 受け付けて DB に pending 行 を 作り、
-// SQS に enqueue する。 章 008 で 解説 する 「2 つ の port を 直列 に 呼ぶ」 例。
-// 依存 port: [repository.LearningReportRepository] (DB) + [repository.SqsEnqueuer] (キュー)。
+// RequestLearningReportUseCase はレポート生成ジョブを DB に pending 行で作り、SQS に enqueue する。
 type RequestLearningReportUseCase struct {
 	repo  repository.LearningReportRepository
 	queue repository.SqsEnqueuer

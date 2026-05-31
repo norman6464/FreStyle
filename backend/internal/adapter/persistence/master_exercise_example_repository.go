@@ -13,8 +13,6 @@ type masterExerciseExampleRepository struct {
 	db *gorm.DB
 }
 
-// NewMasterExerciseExampleRepository は GORM ベース の
-// [repository.MasterExerciseExampleRepository] を 返す。
 func NewMasterExerciseExampleRepository(db *gorm.DB) repository.MasterExerciseExampleRepository {
 	return &masterExerciseExampleRepository{db: db}
 }
@@ -30,8 +28,7 @@ func (r *masterExerciseExampleRepository) ListByExerciseID(ctx context.Context, 
 	return examples, nil
 }
 
-// ListByExerciseIDs は複数 exercise_id をまとめて取得し、 exercise_id ごとに
-// グルーピングした map を返す。 リストページで N+1 を避けるため。
+// ListByExerciseIDs は複数 exercise_id をまとめて取得し exercise_id ごとに map 化する（N+1 回避）。
 func (r *masterExerciseExampleRepository) ListByExerciseIDs(ctx context.Context, exerciseIDs []uint64) (map[uint64][]domain.MasterExerciseExample, error) {
 	result := make(map[uint64][]domain.MasterExerciseExample, len(exerciseIDs))
 	if len(exerciseIDs) == 0 {

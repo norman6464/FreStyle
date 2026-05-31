@@ -9,8 +9,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// aiChatAttachmentPresigner は [repository.AiChatAttachmentPresigner] を 満たす
-// S3 プレゼンタ。 ai-chat/{userId}/{uuid}.{ext} 形式 の キー で PUT URL を 発行 する。
+// aiChatAttachmentPresigner は AI チャット添付用の S3 presigner（ai-chat/{userId}/{uuid}.{ext} キー）。
 type aiChatAttachmentPresigner struct {
 	pre s3Presigner
 }
@@ -25,10 +24,7 @@ func NewStubAiChatAttachmentPresigner(bucket string) repository.AiChatAttachment
 	return &aiChatAttachmentPresigner{pre: &stubPresigner{bucket: bucket}}
 }
 
-// Generate は ai-chat/{userId}/{uuid}.{ext} のキーで PUT presigned URL を返す。
-//
-// filename は拡張子推定 / オブジェクト名表示用にだけ使い、key には埋めない（衝突回避と
-// インジェクション対策）。
+// Generate は PUT presigned URL を返す。filename は拡張子推定にだけ使い key には埋めない（衝突 / インジェクション回避）。
 func (p *aiChatAttachmentPresigner) Generate(ctx context.Context, userID uint64, filename, contentType string) (*repository.AiChatAttachmentUploadURL, error) {
 	if userID == 0 {
 		return nil, fmt.Errorf("userID is required")

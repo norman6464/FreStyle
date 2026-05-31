@@ -6,19 +6,15 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
 
-// registerAuthPublicRoutes は認証不要の Cognito 認証エンドポイント (logout / callback / refresh-token)
-// を登録し、後段の authed group で再利用するため AuthHandler を返す。
-//
-// callback / refresh-token は HttpOnly Cookie の発行・更新を行うため middleware.JWTAuth の対象外。
+// registerAuthPublicRoutes は認証不要の Cognito 認証エンドポイント（logout / callback / refresh-token）を
+// 登録し、authed group で再利用するため AuthHandler を返す。callback / refresh は Cookie を発行・更新するため JWTAuth 対象外。
 func registerAuthPublicRoutes(g *gin.RouterGroup, deps *routeDeps) *AuthHandler {
 	getCurrentUser := usecase.NewGetCurrentUserUseCase(deps.userRepo)
 	invitations := persistence.NewAdminInvitationRepository(deps.db)
 	authHandler := NewAuthHandler(getCurrentUser, deps.userRepo, invitations, &deps.cfg.Cognito)
 
 	g.POST("/auth/cognito/logout", authHandler.Logout)
-	// callback は code を受け取って token に交換するので認証不要
 	g.POST("/auth/cognito/callback", authHandler.Callback)
-	// refresh-token は HttpOnly Cookie の refresh_token を読むため認証 middleware の対象外
 	g.POST("/auth/cognito/refresh-token", authHandler.Refresh)
 
 	return authHandler

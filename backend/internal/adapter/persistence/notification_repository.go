@@ -11,7 +11,6 @@ import (
 // notificationRepository は [repository.NotificationRepository] の GORM 実装。
 type notificationRepository struct{ db *gorm.DB }
 
-// NewNotificationRepository は GORM ベース の [repository.NotificationRepository] を 返す。
 func NewNotificationRepository(db *gorm.DB) repository.NotificationRepository {
 	return &notificationRepository{db: db}
 }
@@ -45,11 +44,9 @@ func (r *notificationRepository) CountUnread(ctx context.Context, userID uint64)
 	return n, err
 }
 
-// stubSnsPublisher は [repository.SnsPublisher] の no-op 実装。
-// 本番 経路 の SNS Publish 実装 は 別 PR で 追加。
+// stubSnsPublisher は [repository.SnsPublisher] の no-op 実装（本番の SNS 実装は別 PR）。
 type stubSnsPublisher struct{}
 
-// NewStubSnsPublisher は test / dev 用 の [repository.SnsPublisher] stub を 返す。
 func NewStubSnsPublisher() repository.SnsPublisher { return &stubSnsPublisher{} }
 
 func (p *stubSnsPublisher) Publish(_ context.Context, _ uint64, _, _ string) error { return nil }

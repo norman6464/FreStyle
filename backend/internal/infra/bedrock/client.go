@@ -71,21 +71,9 @@ type StreamEvent struct {
 	Err   error
 }
 
-// ConverseStream は ConverseStream API を呼び出して、token を逐次 channel に流す。
-//
-// 呼び出し側は返ってきた channel を range でループするだけで token を消費できる:
-//
-//	ch, err := bc.ConverseStream(ctx, prompt, history)
-//	if err != nil { ... }
-//	for ev := range ch {
-//	    if ev.Err != nil { ... break }
-//	    if ev.Done { break }
-//	    write(ev.Delta)
-//	}
-//
-// ctx が cancel されると channel は閉じられる。AWS SDK の EventStream は内部で
-// channel を持っているが、本ラッパでは「アプリケーションが扱いやすい形」に変換して提供する
-// ことで infra 詳細（brtypes の各 Member 型）を usecase 層に漏らさない。
+// ConverseStream は ConverseStream API の token を逐次 StreamEvent channel に流す。
+// SDK の EventStream を usecase が扱いやすい形に変換し、brtypes の詳細を漏らさない。
+// ctx が cancel されると channel は閉じる。
 func (c *Client) ConverseStream(ctx context.Context, systemPrompt string, history []domain.AiChatMessage) (<-chan StreamEvent, error) {
 	messages := buildBedrockMessages(history)
 
@@ -146,17 +134,9 @@ func (c *Client) ConverseStream(ctx context.Context, systemPrompt string, histor
 }
 
 // buildBedrockMessages は domain.AiChatMessage を Bedrock Converse の Message 列に変換する。
-//
-// ユーザー発話に Attachments が付いていれば、各添付を image / document ContentBlock に
-// 展開して text の前に並べる（Bedrock の慣習: 画像 → テキストの順が推奨）。
-// BlobData が空の Attachment は無視する（usecase で S3 から取得済みであることが前提）。
-//
-// 空コンテンツ対応: Bedrock は user/assistant 役割の交互パターンを必須とする。空の
-// assistant 応答が DB に保存されているケースでも会話を成立させるため、空メッセージは
-// **skip しない** で、placeholder テキストを差し込んで Bedrock に渡す。
-// （旧実装で skip した結果、連続する user メッセージが発生して Bedrock が無言の
-// 空応答を返し、それがまた DB に空 assistant として保存されて負のループに陥る不具合
-// が判明したため）。
+// 添付は image / document ブロックとして text の前に並べ、BlobData が空のものは無視する。
+// Bedrock は user/assistant の交互を要求するため、空メッセージは skip せず placeholder を入れる
+// （skip すると連続 user → 空応答の負ループに陥るため）。
 func buildBedrockMessages(history []domain.AiChatMessage) []brtypes.Message {
 	messages := make([]brtypes.Message, 0, len(history))
 	for _, m := range history {

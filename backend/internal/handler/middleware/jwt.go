@@ -18,15 +18,11 @@ const (
 	CookieAccessToken       = "access_token"
 )
 
-// AdminGroupName は Cognito User Pool 上の admin グループ名。
-// resjimkalto89890@gmail.com など管理者ユーザーが所属する。
-// AWS Cognito の group 名は case-sensitive。Pool 2 (ap-northeast-1_TkRen4lyD) の
-// 既存 group `admin` (小文字) を Spring Boot 時代から踏襲している。
+// AdminGroupName は Cognito User Pool 上の admin グループ名（case-sensitive）。
 const AdminGroupName = "admin"
 
 // JWTAuth は HttpOnly Cookie の access_token を検証する Gin middleware。
-// 現状は payload (claims) の base64 デコードのみで、署名 (JWKS) 検証は別 issue で実装する。
-// ハンドラから c.Get(ContextKeyCognitoSub) で本物の Cognito sub を取れる。
+// 現状は payload の base64 デコードのみで、署名（JWKS）検証は別 issue。
 func JWTAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token, err := c.Cookie(CookieAccessToken)
@@ -48,8 +44,7 @@ func JWTAuth() gin.HandlerFunc {
 		if email, ok := claims["email"].(string); ok {
 			c.Set(ContextKeyEmail, email)
 		}
-		// cognito:groups は []string として claim に入る。Spring Boot 時代と同じ
-		// "ADMIN" group を見て管理者判定する想定。
+		// cognito:groups は admin 判定に使う。
 		if raw, ok := claims["cognito:groups"]; ok {
 			groups := ToStringSliceFromClaim(raw)
 			c.Set(ContextKeyCognitoGroups, groups)
@@ -58,9 +53,7 @@ func JWTAuth() gin.HandlerFunc {
 	}
 }
 
-// ToStringSliceFromClaim は claim の `cognito:groups` を []string に変換する。
-// JSON unmarshal 結果が []any なので逐次 string assert する。
-// auth_handler 等の外部からも使うため exported。
+// ToStringSliceFromClaim は claim の cognito:groups を []string に変換する。
 func ToStringSliceFromClaim(v any) []string {
 	arr, ok := v.([]any)
 	if !ok {
@@ -91,11 +84,7 @@ func IsAdminFromGroups(groups []string) bool {
 	return slices.Contains(groups, AdminGroupName)
 }
 
-// DecodeClaims は JWT (3 セグメント) の payload 部だけを base64url デコードして
-// claim マップに変換する。署名検証は行わない（JWKS 検証は別 issue）。
-//
-// middleware.JWTAuth と auth_handler.Callback の両方で利用される共通ヘルパー。
-// 以前は各所に同等実装が複製されていたが DRY 化のため 1 箇所に集約。
+// DecodeClaims は JWT の payload 部を base64url デコードして claim マップに変換する（署名検証はしない）。
 func DecodeClaims(token string) (map[string]any, error) {
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {

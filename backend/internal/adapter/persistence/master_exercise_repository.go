@@ -13,7 +13,6 @@ type masterExerciseRepository struct {
 	db *gorm.DB
 }
 
-// NewMasterExerciseRepository は GORM ベース の [repository.MasterExerciseRepository] を 返す。
 func NewMasterExerciseRepository(db *gorm.DB) repository.MasterExerciseRepository {
 	return &masterExerciseRepository{db: db}
 }

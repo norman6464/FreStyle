@@ -13,12 +13,11 @@ type teachingMaterialRepository struct {
 	db *gorm.DB
 }
 
-// NewTeachingMaterialRepository は GORM ベース の [repository.TeachingMaterialRepository] を 返す。
 func NewTeachingMaterialRepository(db *gorm.DB) repository.TeachingMaterialRepository {
 	return &teachingMaterialRepository{db: db}
 }
 
-// ListByCompany は backward-compat 用。 frontend のコース対応完了後に削除予定。
+// ListByCompany は backward-compat 用（コース対応完了後に削除予定）。
 func (r *teachingMaterialRepository) ListByCompany(ctx context.Context, companyID uint64, includeUnpublished bool) ([]domain.TeachingMaterial, error) {
 	var rows []domain.TeachingMaterial
 	q := r.db.WithContext(ctx).Where("company_id = ?", companyID)
@@ -37,7 +36,6 @@ func (r *teachingMaterialRepository) ListByCourse(ctx context.Context, courseID 
 	if !includeUnpublished {
 		q = q.Where("is_published = ?", true)
 	}
-	// コース内の並び順は order_in_course → id 昇順。
 	if err := q.Order("order_in_course asc, id asc").Find(&rows).Error; err != nil {
 		return nil, err
 	}
@@ -57,7 +55,7 @@ func (r *teachingMaterialRepository) Create(ctx context.Context, m *domain.Teach
 }
 
 func (r *teachingMaterialRepository) Update(ctx context.Context, m *domain.TeachingMaterial) error {
-	// 一部カラムのみ更新（CreatedBy / CompanyID / CourseID は不変）。
+	// CreatedBy / CompanyID / CourseID は不変なので更新対象から外す。
 	return r.db.WithContext(ctx).Model(m).Updates(map[string]any{
 		"title":           m.Title,
 		"content":         m.Content,
@@ -70,8 +68,7 @@ func (r *teachingMaterialRepository) Delete(ctx context.Context, id uint64) erro
 	return r.db.WithContext(ctx).Delete(&domain.TeachingMaterial{}, id).Error
 }
 
-// DeleteByCourse は指定 course に属する教材を全削除する。 コース削除時の
-// cascade 用（FK の ON DELETE は GORM AutoMigrate で安定しないので明示的に消す）。
+// DeleteByCourse はコース削除時の cascade 用に配下教材を全削除する（FK に頼らず明示削除）。
 func (r *teachingMaterialRepository) DeleteByCourse(ctx context.Context, courseID uint64) error {
 	return r.db.WithContext(ctx).Where("course_id = ?", courseID).Delete(&domain.TeachingMaterial{}).Error
 }

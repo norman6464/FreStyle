@@ -9,9 +9,6 @@ import (
 )
 
 // OnboardingHandler は Welcome 画面の完了通知を受ける認証必須エンドポイント。
-// 別途 ProfileHandler に同居させる選択肢もあったが、責務（onboarding 状態管理）が
-// 明確に独立しているので別 handler に切り出す（将来「再オンボーディング」「skipped」
-// などのバリエーションが増えても影響範囲を局所化できる）。
 type OnboardingHandler struct {
 	complete *usecase.CompleteOnboardingUseCase
 }
@@ -20,9 +17,7 @@ func NewOnboardingHandler(complete *usecase.CompleteOnboardingUseCase) *Onboardi
 	return &OnboardingHandler{complete: complete}
 }
 
-// Complete は POST /api/v2/profile/me/onboarding/complete。
-// 自分自身の users.onboarded_at を NOW() に更新する。
-// repo 側で IS NULL ガード付きなので冪等（複数回呼んでも初回日時が保持される）。
+// Complete は自分自身の users.onboarded_at を更新する（IS NULL ガードで冪等）。
 //
 //	@Summary      オンボーディング 完了 通知
 //	@Description  Welcome 画面 「はじめる」 押下 で onboarded_at = NOW() に 更新。 冪等 (再 押下 で も 初回 日時 保持)。

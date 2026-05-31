@@ -10,18 +10,11 @@ import (
 
 const (
 	ContextKeyCurrentUserID = "currentUserID"
-	// ContextKeyCurrentUser は JWTAuth の後段でセットされる *domain.User。
-	// handler 側で role / company_id を見たいケース (admin scope の判定など) で利用する。
+	// ContextKeyCurrentUser は handler が role / company_id を見るための *domain.User。
 	ContextKeyCurrentUser = "currentUser"
 )
 
-// CurrentUser は JWTAuth の後段で動く middleware。
-// JWTAuth が context に詰めた cognito sub から users 行を引き、
-// `currentUserID` を context にセットする。
-//
-// これにより handler は `middleware.CurrentUserIDOrZero(c)` で
-// 認証済みユーザーの users.id を取り出せる。
-// 個別 handler が `:userId` path / `?userId=` クエリを要求しなくても済む。
+// CurrentUser は cognito sub から users 行を引いて currentUserID / currentUser を context にセットする。
 func CurrentUser(users repository.UserRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		raw, ok := c.Get(ContextKeyCognitoSub)
@@ -50,10 +43,7 @@ func CurrentUser(users repository.UserRepository) gin.HandlerFunc {
 	}
 }
 
-// CurrentUserIDOrZero は middleware.CurrentUser がセットした users.id を取り出す。
-// 設定されていなければ 0 を返す（呼び出し側でガードする）。
-// 名前で「未設定なら 0」と明示することで、Must プレフィックスから連想される
-// 「不在なら panic / abort」挙動と取り違えないようにする意図。
+// CurrentUserIDOrZero は CurrentUser がセットした users.id を返す（未設定なら 0）。
 func CurrentUserIDOrZero(c *gin.Context) uint64 {
 	v, ok := c.Get(ContextKeyCurrentUserID)
 	if !ok {
@@ -63,8 +53,7 @@ func CurrentUserIDOrZero(c *gin.Context) uint64 {
 	return id
 }
 
-// CurrentUserFromContext は CurrentUser middleware が保存した *domain.User を返す。
-// 未セット / 型不一致のときは nil。handler 側で role / company_id を扱うために使う。
+// CurrentUserFromContext は CurrentUser が保存した *domain.User を返す（未セット時は nil）。
 func CurrentUserFromContext(c *gin.Context) *domain.User {
 	v, ok := c.Get(ContextKeyCurrentUser)
 	if !ok {

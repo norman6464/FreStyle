@@ -1,11 +1,5 @@
-// Package embed は外部 URL の OGP / oEmbed メタ情報を取得して
-// フロントエンドの Embed カード描画に渡すためのユーティリティを提供する。
-//
-// 設計:
-//   - allow-list 方式（任意の URL を叩かせない）。SSRF / DNS rebinding 対策で
-//     scheme は https のみ許可、host は許可リストか明示的に「Web 一般」のみ
-//   - キャッシュは Note 編集中に同じ URL を何度も叩かれるのを避けるため In-Memory LRU で薄く保持
-//   - フロントは /api/v2/embeds/oembed?url=... で叩く（PR F の EmbedCardExtension が利用）
+// Package embed は外部 URL の OGP / oEmbed メタ情報を取得し、Embed カード描画用に返す。
+// SSRF 対策で https のみ許可、結果は In-Memory LRU で薄くキャッシュする。
 package embed
 
 import (
@@ -58,8 +52,7 @@ func NewFetcher() *Fetcher {
 	}
 }
 
-// NewFetcherWithClient はテスト時に http.Client を差し替える DI コンストラクタ。
-// 同時に allowLoopback=true にして httptest を踏めるようにする (test 限定の admit list)。
+// NewFetcherWithClient はテスト用。http.Client を差し替え、allowLoopback=true で httptest を許可する。
 func NewFetcherWithClient(c *http.Client) *Fetcher {
 	if c == nil {
 		c = &http.Client{Timeout: defaultHTTPTimeout}

@@ -13,7 +13,6 @@ import (
 
 // registerNoteRoutes は Note CRUD・Note 画像 presigned URL・SessionNote のエンドポイントを登録する。
 func registerNoteRoutes(g *gin.RouterGroup, deps *routeDeps) {
-	// Phase 10: Note CRUD
 	noteRepo := persistence.NewNoteRepository(deps.db)
 	noteHandler := NewNoteHandler(
 		usecase.NewListNotesByUserIDUseCase(noteRepo),
@@ -26,13 +25,13 @@ func registerNoteRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	g.PUT("/notes/:id", noteHandler.Update)
 	g.DELETE("/notes/:id", noteHandler.Delete)
 
-	// Phase 11: Note image (S3 presigned upload)
+	// Note 画像の S3 presigned upload。
 	noteImageHandler := NewNoteImageHandler(
 		usecase.NewIssueNoteImageUploadURLUseCase(newNoteImagePresignerOrFallback(deps)),
 	)
 	g.POST("/notes/images/upload-url", noteImageHandler.IssueUploadURL)
 
-	// Phase 12: SessionNote (セッション固有ノート)
+	// セッション固有ノート。
 	sessionNoteRepo := persistence.NewSessionNoteRepository(deps.db)
 	sessionNoteHandler := NewSessionNoteHandler(
 		usecase.NewGetSessionNoteUseCase(sessionNoteRepo),
@@ -42,9 +41,8 @@ func registerNoteRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	g.PUT("/sessions/:sessionId/note", sessionNoteHandler.Upsert)
 }
 
-// newNoteImagePresignerOrFallback は本番では infra/s3.Presigner で real な PUT presign を返し、
-// NOTE_IMAGES_BUCKET 未設定 (ローカル / dev) の場合だけ stub にフォールバックする。
-// presigner 失敗時も fail open で stub に降格 (Note image 機能だけ利用不可になる)。
+// newNoteImagePresignerOrFallback は本番では real な presigner、NOTE_IMAGES_BUCKET 未設定や
+// 初期化失敗時は stub にフォールバックする（fail open）。
 func newNoteImagePresignerOrFallback(deps *routeDeps) repository.NoteImagePresigner {
 	bucket := deps.cfg.S3.NoteImagesBucket
 	if bucket == "" {

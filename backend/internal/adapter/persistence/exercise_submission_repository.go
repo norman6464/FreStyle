@@ -13,7 +13,6 @@ type exerciseSubmissionRepository struct {
 	db *gorm.DB
 }
 
-// NewExerciseSubmissionRepository は GORM ベース の [repository.ExerciseSubmissionRepository] を 返す。
 func NewExerciseSubmissionRepository(db *gorm.DB) repository.ExerciseSubmissionRepository {
 	return &exerciseSubmissionRepository{db: db}
 }
@@ -55,8 +54,7 @@ func (r *exerciseSubmissionRepository) HasAttempted(ctx context.Context, userID,
 	return count > 0, nil
 }
 
-// BatchUserStatuses は 1 クエリで user × exerciseIDs の (any submission, any solved) を取り、
-// exercise_id -> "solved" / "in_progress" を返す。 結果に含まれない exercise_id は未着手扱い。
+// BatchUserStatuses は 1 クエリで exercise_id -> "solved" / "in_progress" を返す（結果に無い id は未着手）。
 func (r *exerciseSubmissionRepository) BatchUserStatuses(ctx context.Context, userID uint64, exerciseIDs []uint64, kind string) (map[uint64]string, error) {
 	result := make(map[uint64]string, len(exerciseIDs))
 	if len(exerciseIDs) == 0 {
@@ -86,13 +84,11 @@ func (r *exerciseSubmissionRepository) BatchUserStatuses(ctx context.Context, us
 
 func (r *exerciseSubmissionRepository) ExerciseStats(ctx context.Context, exerciseID uint64, kind string) (repository.ExerciseSubmissionStats, error) {
 	var stats repository.ExerciseSubmissionStats
-	// COUNT(*) は全提出数。
 	if err := r.db.WithContext(ctx).Model(&domain.ExerciseSubmission{}).
 		Where("exercise_id = ? AND exercise_kind = ?", exerciseID, kind).
 		Count(&stats.TotalSubmissions).Error; err != nil {
 		return stats, err
 	}
-	// COUNT(DISTINCT user_id) は正答ユーザ数。
 	if err := r.db.WithContext(ctx).Model(&domain.ExerciseSubmission{}).
 		Where("exercise_id = ? AND exercise_kind = ? AND is_correct = ?", exerciseID, kind, true).
 		Distinct("user_id").
@@ -108,7 +104,6 @@ func (r *exerciseSubmissionRepository) ExerciseStatsBatch(ctx context.Context, e
 	if len(exerciseIDs) == 0 {
 		return result, nil
 	}
-	// 提出数の集計。
 	type totalRow struct {
 		ExerciseID uint64
 		Total      int64
@@ -126,7 +121,6 @@ func (r *exerciseSubmissionRepository) ExerciseStatsBatch(ctx context.Context, e
 		s.TotalSubmissions = t.Total
 		result[t.ExerciseID] = s
 	}
-	// 正答ユーザ数の集計（DISTINCT user_id）。
 	type solvedRow struct {
 		ExerciseID  uint64
 		SolvedUsers int64

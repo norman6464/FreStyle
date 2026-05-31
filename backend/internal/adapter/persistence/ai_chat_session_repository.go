@@ -11,7 +11,6 @@ import (
 // aiChatSessionRepository は [repository.AiChatSessionRepository] の GORM 実装。
 type aiChatSessionRepository struct{ db *gorm.DB }
 
-// NewAiChatSessionRepository は GORM ベース の [repository.AiChatSessionRepository] を 返す。
 func NewAiChatSessionRepository(db *gorm.DB) repository.AiChatSessionRepository {
 	return &aiChatSessionRepository{db: db}
 }

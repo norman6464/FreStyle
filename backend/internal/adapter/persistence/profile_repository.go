@@ -12,7 +12,6 @@ import (
 // profileRepository は [repository.ProfileRepository] の GORM 実装。
 type profileRepository struct{ db *gorm.DB }
 
-// NewProfileRepository は GORM ベース の [repository.ProfileRepository] を 返す。
 func NewProfileRepository(db *gorm.DB) repository.ProfileRepository {
 	return &profileRepository{db: db}
 }

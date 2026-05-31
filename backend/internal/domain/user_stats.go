@@ -1,7 +1,6 @@
 package domain
 
-// UserStats は集計済みのユーザー統計。テーブル直結ではなく
-// セッション・スコアからの計算結果として扱う。
+// UserStats はセッション・スコアから計算する集計済みユーザー統計（テーブル直結ではない）。
 type UserStats struct {
 	UserID        uint64  `json:"userId"`
 	TotalSessions int     `json:"totalSessions"`

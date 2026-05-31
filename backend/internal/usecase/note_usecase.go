@@ -10,8 +10,7 @@ import (
 
 var ErrNoteForbidden = errors.New("forbidden")
 
-// ListNotesByUserIDUseCase は current user の ノート 一覧 を 返す。
-// 依存 port: [repository.NoteRepository]。
+// ListNotesByUserIDUseCase は current user のノート一覧を返す。
 type ListNotesByUserIDUseCase struct {
 	repo repository.NoteRepository
 }
@@ -27,8 +26,7 @@ func (u *ListNotesByUserIDUseCase) Execute(ctx context.Context, userID uint64) (
 	return u.repo.ListByUserID(ctx, userID)
 }
 
-// CreateNoteUseCase は 新規 ノート を 作成 する。
-// 依存 port: [repository.NoteRepository]。
+// CreateNoteUseCase は新規ノートを作成する。
 type CreateNoteUseCase struct {
 	repo repository.NoteRepository
 }
@@ -65,8 +63,7 @@ func (u *CreateNoteUseCase) Execute(ctx context.Context, in CreateNoteInput) (*d
 	return n, nil
 }
 
-// UpdateNoteUseCase は ノート を 更新 する (所有者 検証 込み)。
-// 依存 port: [repository.NoteRepository] (FindByID で 所有者 検証 → Update)。
+// UpdateNoteUseCase はノートを更新する（所有者検証込み）。
 type UpdateNoteUseCase struct {
 	repo repository.NoteRepository
 }
@@ -84,8 +81,7 @@ type UpdateNoteInput struct {
 	IsPinned bool
 }
 
-// Execute は所有者検証込みで note を更新する。
-// 既存 note の UserID が input.UserID と一致しなければ ErrNoteForbidden を返す。
+// Execute は所有者でなければ ErrNoteForbidden を返し、そうでなければ note を更新する。
 func (u *UpdateNoteUseCase) Execute(ctx context.Context, in UpdateNoteInput) (*domain.Note, error) {
 	if in.UserID == 0 {
 		return nil, errors.New("userID is required")
@@ -110,8 +106,7 @@ func (u *UpdateNoteUseCase) Execute(ctx context.Context, in UpdateNoteInput) (*d
 	return existing, nil
 }
 
-// DeleteNoteUseCase は ノート を 削除 する。 repo 側 で 所有者 検証 を 行う。
-// 依存 port: [repository.NoteRepository] (Delete に userID を 渡して WHERE 絞り込み)。
+// DeleteNoteUseCase はノートを削除する（repo 側で userID により所有者検証）。
 type DeleteNoteUseCase struct {
 	repo repository.NoteRepository
 }

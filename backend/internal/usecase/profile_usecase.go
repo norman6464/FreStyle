@@ -8,9 +8,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// GetProfileUseCase は 指定 user の プロフィール を 返す。 章 002 §3.3 で 解説 する
-// DIP の 標準 例 (usecase は port だけ 知って GORM を 知ら ない)。
-// 依存 port: [repository.ProfileRepository] (FindByUserID)。
+// GetProfileUseCase は指定 user のプロフィールを返す。
 type GetProfileUseCase struct {
 	profiles repository.ProfileRepository
 }
@@ -26,8 +24,7 @@ func (u *GetProfileUseCase) Execute(ctx context.Context, userID uint64) (*domain
 	return u.profiles.FindByUserID(ctx, userID)
 }
 
-// UpdateProfileUseCase は プロフィール の 任意 フィールド を upsert する。
-// 依存 port: [repository.ProfileRepository] (Upsert)。
+// UpdateProfileUseCase はプロフィールの任意フィールドを upsert する。
 type UpdateProfileUseCase struct {
 	profiles repository.ProfileRepository
 }

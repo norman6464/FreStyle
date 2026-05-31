@@ -18,8 +18,7 @@ func NewNoteImageHandler(i *usecase.IssueNoteImageUploadURLUseCase) *NoteImageHa
 	return &NoteImageHandler{issue: i}
 }
 
-// issueUploadURLReq は body 受け取り。 userId は **受け取らない** (current user
-// を middleware 経由 で 強制)。 OpenAPI Phase 3 で IDOR を 修正。
+// issueUploadURLReq は body 受け取り。userId は受け取らず middleware の current user を使う（IDOR 対策）。
 type issueUploadURLReq struct {
 	ContentType string `json:"contentType"`
 }
@@ -42,8 +41,7 @@ func (h *NoteImageHandler) IssueUploadURL(c *gin.Context) {
 		return
 	}
 	var req issueUploadURLReq
-	// body 無し (EOF) は 許容 する が、 不正 JSON / 型 違い は 400 で 弾く
-	// (silently masking malformed JSON を 避ける)。
+	// body 無し (EOF) は許容するが、不正 JSON は 400 で弾く。
 	if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

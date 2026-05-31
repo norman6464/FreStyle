@@ -11,7 +11,6 @@ import (
 // noteRepository は [repository.NoteRepository] の GORM 実装。
 type noteRepository struct{ db *gorm.DB }
 
-// NewNoteRepository は GORM ベース の [repository.NoteRepository] を 返す。
 func NewNoteRepository(db *gorm.DB) repository.NoteRepository { return &noteRepository{db: db} }
 
 func (r *noteRepository) ListByUserID(ctx context.Context, userID uint64) ([]domain.Note, error) {

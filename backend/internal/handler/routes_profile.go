@@ -13,21 +13,18 @@ import (
 
 // registerProfileRoutes は profile / user-stats 関連の REST エンドポイントを登録する。
 func registerProfileRoutes(g *gin.RouterGroup, deps *routeDeps) {
-	// Phase 5: プロフィール
 	profileRepo := persistence.NewProfileRepository(deps.db)
 	profileHandler := NewProfileHandler(
 		usecase.NewGetProfileUseCase(profileRepo),
 		usecase.NewUpdateProfileUseCase(profileRepo),
 		deps.userRepo,
 	)
-	// /profile/:userId は数字 / "me" の両方を受ける（handler.resolveUserID で current user 解決）。
-	// フロント互換のため /profile/:userId/update PUT / /profile/:userId/image/presigned-url POST も提供する。
+	// :userId は数字 / "me" の両方を受ける。/update はフロント互換の別 path。
 	g.GET("/profile/:userId", profileHandler.Get)
 	g.PUT("/profile/:userId", profileHandler.Update)
 	g.PUT("/profile/:userId/update", profileHandler.Update)
 
-	// Profile アイコン画像の S3 presigned-url。bucket / CDN は note image と同じインフラを共有する
-	// （prefix `profiles/` で分離）。
+	// Profile アイコン画像の S3 presigned-url（note image と同じバケットを profiles/ prefix で共有）。
 	profileImageHandler := NewProfileImageHandler(
 		usecase.NewIssueProfileImageUploadURLUseCase(
 			newProfileImagePresignerOrFallback(deps),
@@ -35,25 +32,20 @@ func registerProfileRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	)
 	g.POST("/profile/:userId/image/presigned-url", profileImageHandler.IssueUploadURL)
 
-	// Phase 6: ユーザー統計
+	// ユーザー統計。2 つの path は互換のため両方提供する。
 	statsHandler := NewUserStatsHandler(
 		usecase.NewGetUserStatsUseCase(persistence.NewUserStatsRepository(deps.db)),
 	)
-	// 旧 path /user-stats/:userId と Spring 風 /users/:userId/stats の両方を提供する。
 	g.GET("/user-stats/:userId", statsHandler.Get)
 	g.GET("/users/:userId/stats", statsHandler.Get)
 
-	// Welcome / オンボーディング完了通知。自分自身の users.onboarded_at を NOW() で更新。
-	// 詳細設計: frestyle-pdm docs/auth/auth-flow-screen-transitions.md
+	// オンボーディング完了（自分自身の users.onboarded_at を更新）。
 	onboardingHandler := NewOnboardingHandler(usecase.NewCompleteOnboardingUseCase(deps.userRepo))
 	g.POST("/profile/me/onboarding/complete", onboardingHandler.Complete)
 }
 
-// newProfileImagePresignerOrFallback は本番では infra/s3.Presigner で real な PUT presign を返し、
-// 環境変数 NOTE_IMAGES_BUCKET が未設定 (ローカル / dev) の場合だけ stub にフォールバックする。
-//
-// 配信 URL のベース (CDN) は config.S3.NoteImagesCDNBase を最優先で使う。
-// 未指定なら virtual-hosted-style (https://<bucket>.s3.<region>.amazonaws.com) で組み立てる。
+// newProfileImagePresignerOrFallback は本番では real な presigner、NOTE_IMAGES_BUCKET 未設定や
+// 初期化失敗時は stub にフォールバックする。CDN ベースは未指定時 virtual-hosted-style で組み立てる。
 func newProfileImagePresignerOrFallback(deps *routeDeps) repository.ProfileImagePresigner {
 	bucket := deps.cfg.S3.NoteImagesBucket
 	if bucket == "" {

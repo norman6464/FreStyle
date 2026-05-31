@@ -6,18 +6,8 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 )
 
-// ExerciseSubmissionRepository は演習提出履歴の永続化を担う。
-//
-// 履歴は append-only。ユーザ × 問題で複数行を許容し、合否や最新提出時刻を集計する。
-// 集計クエリ ( CountUsersSolved / CountTotal ) は exercise_id 単位で
-// 一覧ページの「正答者数」「提出数」表示に使う。
-//
-// 全 メソッド は I/O 境界 として `ctx context.Context` を 第 1 引数 で 受ける。
-//
-// 実装: [github.com/norman6464/FreStyle/backend/internal/adapter/persistence] の
-// exerciseSubmissionRepository (GORM)。
+// ExerciseSubmissionRepository は演習提出履歴（append-only）の永続化と集計を担う。
 type ExerciseSubmissionRepository interface {
-	// Create は新しい提出を保存する。
 	Create(ctx context.Context, submission *domain.ExerciseSubmission) error
 
 	// ListByUserAndExercise は user × (kind, exercise_id) の履歴を新しい順に返す。
@@ -26,19 +16,16 @@ type ExerciseSubmissionRepository interface {
 	// HasSolved は user が exercise を 1 回でも is_correct=true で解いたかを返す。
 	HasSolved(ctx context.Context, userID, exerciseID uint64, kind string) (bool, error)
 
-	// HasAttempted は user が exercise に対して 1 回でも提出したかを返す。
+	// HasAttempted は user が exercise に 1 回でも提出したかを返す。
 	HasAttempted(ctx context.Context, userID, exerciseID uint64, kind string) (bool, error)
 
-	// BatchUserStatuses は user の (kind, exerciseIDs) について、
-	//   exercise_id -> "solved" / "in_progress"
-	// を返す。一覧ページの N+1 を避ける用途。
-	// 未提出は map に key が存在しないこと で 表す。
+	// BatchUserStatuses は exercise_id -> "solved" / "in_progress" を返す（未提出は key なし、N+1 回避）。
 	BatchUserStatuses(ctx context.Context, userID uint64, exerciseIDs []uint64, kind string) (map[uint64]string, error)
 
 	// ExerciseStats は exercise_id 単位の集計を返す。
 	ExerciseStats(ctx context.Context, exerciseID uint64, kind string) (ExerciseSubmissionStats, error)
 
-	// ExerciseStatsBatch は複数 exercise_id をまとめて集計する。一覧ページ用。
+	// ExerciseStatsBatch は複数 exercise_id をまとめて集計する。
 	ExerciseStatsBatch(ctx context.Context, exerciseIDs []uint64, kind string) (map[uint64]ExerciseSubmissionStats, error)
 }
 

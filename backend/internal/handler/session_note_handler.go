@@ -18,7 +18,7 @@ func NewSessionNoteHandler(g *usecase.GetSessionNoteUseCase, u *usecase.UpsertSe
 	return &SessionNoteHandler{get: g, upsert: u}
 }
 
-// Get は AI チャット セッション に 紐づく ノート を 取得 する。
+// Get は AI チャットセッションに紐づくノートを取得する。
 //
 //	@Summary      セッション ノート 取得
 //	@Description  AI チャット セッション に 紐づく ノート (= 学習 者 が セッション ごと に 残した メモ) を 取得。 存在 し ない 場合 は 404。
@@ -45,14 +45,12 @@ func (h *SessionNoteHandler) Get(c *gin.Context) {
 	c.JSON(http.StatusOK, n)
 }
 
-// sessionNoteUpsertReq は body 受け取り 形。 userId は **受け取らない** (current user
-// を middleware から 取って 強制 する)。 これ で 他人 名義 の 作成 / 更新 を 防ぐ
-// (CodeRabbit PR #1727 で 指摘 さ れた IDOR 修正)。
+// sessionNoteUpsertReq は body 受け取り形。userId は受け取らず current user に固定する（IDOR 対策）。
 type sessionNoteUpsertReq struct {
 	Content string `json:"content"`
 }
 
-// Upsert は セッション ノート を 作成 or 更新 する。
+// Upsert はセッションノートを作成 or 更新する。
 //
 //	@Summary      セッション ノート 作成 / 更新
 //	@Description  指定 セッション の ノート を upsert。 userId は body で 受け取らず current user 固定 (IDOR 対策)。

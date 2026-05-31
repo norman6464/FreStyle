@@ -7,9 +7,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// CheckHealthUseCase はバックエンドの稼働状態を判定するユースケース。
-// DB 到達性を確認し、UP/DOWN を返す。
-// 依存 port: [repository.HealthRepository] (sql.DB.Ping を 内部 実行)。
+// CheckHealthUseCase は DB 到達性を確認し UP/DOWN を返す。
 type CheckHealthUseCase struct {
 	repo repository.HealthRepository
 }

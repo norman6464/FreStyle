@@ -2,10 +2,7 @@ package domain
 
 import "time"
 
-// Note は学習メモを表す。フロント NotesPage / SessionNote 機能のドメインモデル。
-//
-// IsPinned はユーザーがピン留めしたかどうか（ピン留めは並び順で先頭に固定する用途）。
-// IsPublic は他ユーザーに公開するかどうか。両者は独立した属性。
+// Note は学習メモ。IsPinned と IsPublic は独立した属性。
 type Note struct {
 	ID        uint64    `gorm:"primaryKey" json:"id"`
 	UserID    uint64    `gorm:"column:user_id;index" json:"userId"`

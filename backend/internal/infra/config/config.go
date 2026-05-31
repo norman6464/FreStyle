@@ -9,13 +9,11 @@ type Config struct {
 	AppEnv     string
 	ServerPort string
 
-	// DatabaseURL は Supabase 等 の マネージド Postgres 用 の 完全 接続 文字 列。
-	// 例: "postgresql://postgres.xxxx:pwd@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true&sslmode=require"
-	// 環境 変数 DATABASE_URL がセットされていると こちらを 優先 し、 個別 の DB_HOST 等 は 無視 する。
-	// RDS から Supabase へ の 段階 移行 用 (= URL を 切り替える だけ で 接続 先 を 変えられる)。
+	// DatabaseURL は Supabase 等のマネージド Postgres の完全接続文字列。
+	// セットされていると DB_HOST 等より優先される。
 	DatabaseURL string
 
-	// 個別 接続 設定 (DATABASE_URL 未 セット 時 の フォールバック / ローカル 開発 用)
+	// 個別接続設定（DATABASE_URL 未設定時のフォールバック / ローカル開発用）。
 	DBHost     string
 	DBPort     string
 	DBUser     string
@@ -98,21 +96,9 @@ func Load() (*Config, error) {
 		},
 		Bedrock: BedrockConfig{
 			Region: getEnvOrDefault("AWS_REGION", "ap-northeast-1"),
-			// Claude 4 系（haiku-4-5 / sonnet-4-x / opus-4-x）は on-demand throughput では呼べず、
-			// Inference Profile 経由必須。foundation-model ARN を直接指定すると ConverseStream が
-			// ValidationException で 400 を返す（2026-05-08 本番でユーザーから AI チャット返信なし
-			// の報告で発覚）。
-			//
-			// `jp.anthropic.claude-sonnet-4-5-20250929-v1:0` が ap-northeast-1 用の Japan inference
-			// profile（sonnet-4.5）。IAM 側 (frestyle-infrastructure: BedrockInvokeAccess) でも
-			// `arn:aws:bedrock:${region}:${account}:inference-profile/jp.anthropic.claude-sonnet-4-*`
-			// を許可しておく必要がある。
-			//
-			// モデル選定: 旧 default の haiku-4-5 から sonnet-4-5 にアップグレード。応答品質を優先し、
-			// チャット用途なら latency / コストとも実用範囲（ユーザー指示・2026-05-08）。
-			//
-			// 利用可能 inference profile 一覧:
-			//   aws bedrock list-inference-profiles --region ap-northeast-1
+			// Claude 4 系は on-demand では呼べず Inference Profile 経由必須
+			// （foundation-model ARN 直指定だと ConverseStream が ValidationException を返す）。
+			// IAM 側でも inference-profile ARN を許可しておくこと。
 			ModelID: getEnvOrDefault("BEDROCK_MODEL_ID", "jp.anthropic.claude-sonnet-4-5-20250929-v1:0"),
 		},
 		DynamoDB: DynamoDBConfig{
@@ -124,17 +110,15 @@ func Load() (*Config, error) {
 			FromAddress: os.Getenv("SES_FROM_ADDRESS"),
 		},
 	}
-	// DATABASE_URL がセットされていればそちら 優先 / DB_HOST フォールバック で
-	// 少なくとも どちら か は 設定 されて いる 必要 が ある。
+	// DATABASE_URL か DB_HOST の少なくとも一方は必須。
 	if cfg.DatabaseURL == "" && cfg.DBHost == "" {
 		return nil, fmt.Errorf("DATABASE_URL or DB_HOST is required")
 	}
 	return cfg, nil
 }
 
-// PostgresDSN は GORM に 渡す DSN を 返す。
-// DATABASE_URL (例: Supabase pooler の "postgresql://..." 形式) が あれば そのまま 返す。
-// 無ければ 旧 RDS 形式 の 個別 設定 から DSN を 組み立てる (= 後方 互換)。
+// PostgresDSN は GORM に渡す DSN を返す。DATABASE_URL があればそのまま、
+// 無ければ個別設定から key=value 形式の DSN を組み立てる。
 func (c *Config) PostgresDSN() string {
 	if c.DatabaseURL != "" {
 		return c.DatabaseURL

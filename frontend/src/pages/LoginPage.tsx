@@ -5,7 +5,8 @@ import SNSSignInButton from '../components/SNSSignInButton';
 import LinkText from '../components/LinkText';
 import { getCognitoAuthUrl } from '../utils/auth';
 import { useLoginPage } from '../hooks/useLoginPage';
-import { XCircleIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { Link } from 'react-router-dom';
+import { XCircleIcon, CheckCircleIcon, BuildingOffice2Icon } from '@heroicons/react/24/outline';
 
 export default function LoginPage() {
   const { form, loginMessage, flashMessage, loading, handleLogin, handleChange } = useLoginPage();
@@ -20,6 +21,15 @@ export default function LoginPage() {
         </p>
       }
     >
+      {/* 企業の利用申請（未登録の企業担当者向け） */}
+      <Link
+        to="/company-application"
+        className="flex items-center justify-center gap-2 mb-5 px-4 py-2.5 rounded-lg border border-surface-3 text-sm font-medium text-[var(--color-text-secondary)] hover:bg-surface-2 transition-colors"
+      >
+        <BuildingOffice2Icon className="w-4 h-4" aria-hidden="true" />
+        企業の方はこちら（利用申請）
+      </Link>
+
       {/* フラッシュメッセージ（成功） */}
       {flashMessage && (
         <p

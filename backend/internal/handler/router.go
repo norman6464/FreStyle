@@ -70,6 +70,8 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 
 	registerHealthRoutes(v2, deps)
 	registerInvitationPublicRoutes(v2, deps)
+	companyAppHandler := newCompanyApplicationHandler(deps)
+	registerCompanyApplicationPublicRoutes(v2, companyAppHandler)
 	authHandler := registerAuthPublicRoutes(v2, deps)
 
 	authed := v2.Group("")
@@ -87,6 +89,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	registerLearningReportRoutes(authed, deps)
 	registerCourseRoutes(authed, deps)
 	registerTeachingMaterialRoutes(authed, deps)
+	registerCompanyApplicationAdminRoutes(authed, companyAppHandler)
 	// WebSocket (/ws/ai-chat) は SSE (/ai-chat/stream) への置換で廃止 (PR-D)。
 
 	return r

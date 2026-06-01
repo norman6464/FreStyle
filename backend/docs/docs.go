@@ -53,6 +53,113 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/company-applications": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "受け付けた企業申請を新しい順で返す。super_admin 専用。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "企業申請一覧（super_admin）",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.CompanyApplication"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "未認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "super_admin 以外",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/company-applications/{id}/status": {
+            "patch": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "申請を approved / rejected / pending に更新する。super_admin 専用。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "企業申請の status 更新（super_admin）",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "申請 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "status",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.updateCompanyApplicationStatusReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "成功（本文なし）"
+                    },
+                    "400": {
+                        "description": "status 不正",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "super_admin 以外",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/invitations": {
             "get": {
                 "security": [
@@ -845,6 +952,52 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/company-applications": {
+            "post": {
+                "description": "ログイン前のユーザーが会社名 / 氏名 / メール / 任意メッセージで利用申請を送る。受理時に super_admin へ通知する。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "company-applications"
+                ],
+                "summary": "企業利用申請（公開 / 認証不要）",
+                "parameters": [
+                    {
+                        "description": "申請内容",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.createCompanyApplicationReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.CompanyApplication"
+                        }
+                    },
+                    "400": {
+                        "description": "バリデーションエラー",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "内部エラー",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -2798,6 +2951,35 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_norman6464_FreStyle_backend_internal_domain.CompanyApplication": {
+            "type": "object",
+            "properties": {
+                "applicantName": {
+                    "type": "string"
+                },
+                "companyName": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
         "github_com_norman6464_FreStyle_backend_internal_domain.Course": {
             "type": "object",
             "properties": {
@@ -3443,6 +3625,28 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_handler.createCompanyApplicationReq": {
+            "type": "object",
+            "required": [
+                "applicantName",
+                "companyName",
+                "email"
+            ],
+            "properties": {
+                "applicantName": {
+                    "type": "string"
+                },
+                "companyName": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
         "internal_handler.createSessionReq": {
             "type": "object",
             "required": [
@@ -3727,6 +3931,17 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.updateCompanyApplicationStatusReq": {
+            "type": "object",
+            "required": [
+                "status"
+            ],
+            "properties": {
+                "status": {
                     "type": "string"
                 }
             }

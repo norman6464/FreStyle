@@ -116,8 +116,12 @@ func (uc *ExecuteCodeUseCase) executePHP(ctx context.Context, input ExecuteCodeI
 		"-d", "open_basedir="+tmpDir,
 		"-d", "display_errors=stderr",
 		"-d", "log_errors=0",
+		// variables_order から E を外し $_ENV を空にする（disable_functions=getenv の抜け穴を塞ぐ）。
+		"-d", "variables_order=GPCS",
 		filename,
 	)
+	// AWS 認証情報・注入シークレットを子プロセスに渡さない。
+	cmd.Env = sandboxEnv()
 
 	return runCommand(cmd, input.Stdin)
 }
@@ -151,8 +155,9 @@ func (uc *ExecuteCodeUseCase) executeGo(ctx context.Context, input ExecuteCodeIn
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "go", "run", filename)
-	// GO111MODULE=off で単一ファイル実行（go.mod 不要）。 GOCACHE は環境共有で compile 高速化。
-	cmd.Env = append(os.Environ(),
+	// GO111MODULE=off で単一ファイル実行（go.mod 不要）。GOCACHE 等の go 動作に必要な env は
+	// sandboxEnv が残すが、AWS 認証情報・注入シークレットは除外する。
+	cmd.Env = sandboxEnv(
 		"GO111MODULE=off",
 		"HOME="+tmpDir,
 	)
@@ -237,6 +242,42 @@ func runCommand(cmd *exec.Cmd, stdin string) (*ExecuteCodeOutput, error) {
 		}
 	}
 	return out, nil
+}
+
+// sandboxEnv は os.Environ() から認証情報・秘密の env を除いて返す（末尾に extra を足す）。
+// 特に AWS_CONTAINER_CREDENTIALS_* を落とすことで、ユーザコードが ECS Task Role の
+// 一時クレデンシャル取得エンドポイントへ到達する経路を塞ぐ。DATABASE_URL や
+// COGNITO_CLIENT_SECRET 等の注入シークレットも読めないようにする。
+func sandboxEnv(extra ...string) []string {
+	base := os.Environ()
+	out := make([]string, 0, len(base)+len(extra))
+	for _, kv := range base {
+		eq := strings.IndexByte(kv, '=')
+		if eq <= 0 {
+			continue
+		}
+		if isSensitiveEnvKey(kv[:eq]) {
+			continue
+		}
+		out = append(out, kv)
+	}
+	return append(out, extra...)
+}
+
+// isSensitiveEnvKey はユーザコードに渡してはいけない env 名かを判定する。
+func isSensitiveEnvKey(key string) bool {
+	k := strings.ToUpper(key)
+	for _, p := range []string{"AWS_", "COGNITO_", "DB_", "DATABASE", "SES_", "DYNAMODB_", "NOTE_IMAGES", "BEDROCK_"} {
+		if strings.HasPrefix(k, p) {
+			return true
+		}
+	}
+	for _, s := range []string{"SECRET", "PASSWORD", "TOKEN", "CREDENTIAL", "_KEY"} {
+		if strings.Contains(k, s) {
+			return true
+		}
+	}
+	return false
 }
 
 func truncate(s string, max int) string {

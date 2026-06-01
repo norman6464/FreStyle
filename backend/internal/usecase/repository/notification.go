@@ -11,6 +11,8 @@ import (
 // 実装: [github.com/norman6464/FreStyle/backend/internal/adapter/persistence] の
 // notificationRepository (GORM)。
 type NotificationRepository interface {
+	// Create は通知を 1 件作成する（システムが super_admin 等に通知を出す用途）。
+	Create(ctx context.Context, n *domain.Notification) error
 	ListByUserID(ctx context.Context, userID uint64) ([]domain.Notification, error)
 	// MarkRead は所有者検証込みで is_read を立てる。
 	// 自分以外の通知を既読化できないように、必ず WHERE で user_id を絞る。

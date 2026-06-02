@@ -20,6 +20,7 @@ const ConfirmPage = lazyWithReload(() => import('./pages/ConfirmPage'), 'Confirm
 const ForgotPasswordPage = lazyWithReload(() => import('./pages/ForgotPasswordPage'), 'ForgotPasswordPage');
 const ConfirmForgotPasswordPage = lazyWithReload(() => import('./pages/ConfirmForgotPasswordPage'), 'ConfirmForgotPasswordPage');
 const AcceptInvitationPage = lazyWithReload(() => import('./pages/AcceptInvitationPage'), 'AcceptInvitationPage');
+const CompanyApplicationPage = lazyWithReload(() => import('./pages/CompanyApplicationPage'), 'CompanyApplicationPage');
 
 // 認証必要ページ
 const MenuPage = lazyWithReload(() => import('./pages/MenuPage'), 'MenuPage');
@@ -86,6 +87,7 @@ export default function App() {
       />
       {/* 招待マジックリンクの受諾画面（認証不要・SES メールから踏まれる） */}
       <Route path="/invitations/accept" element={<AcceptInvitationPage />} />
+      <Route path="/company-application" element={<CompanyApplicationPage />} />
 
       {/* 認証が必要（AppShell レイアウト内） */}
       <Route

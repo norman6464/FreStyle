@@ -30,7 +30,7 @@ jobs:
             build-mode: none
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       # Go は backend/go.mod が要求する版でビルドする必要があるため setup-go する。
       - if: matrix.language == 'go'

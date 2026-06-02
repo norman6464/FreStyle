@@ -75,7 +75,7 @@ jobs:
       image_tag: ${{ steps.meta.outputs.image_tag }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -127,7 +127,7 @@ jobs:
     steps:
       # IaC リポを clone（プライベートなので gh CLI 経由でトークン認証）
       - name: Checkout frestyle-infrastructure
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: ${{ env.IAC_REPO }}
           token: ${{ secrets.IAC_REPO_TOKEN }}

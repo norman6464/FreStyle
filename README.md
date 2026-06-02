@@ -95,6 +95,10 @@ draw.io ソース: [`architecture/aws/freestyle-aws-architecture-current.drawio`
 
 ---
 
+## 開発に参加する
+
+開発の規約（ブランチ / コミット / アーキテクチャ / テスト / PR フロー）は **[CONTRIBUTING.md](./CONTRIBUTING.md)** にまとめています。PR / Issue はテンプレートに沿って作成してください。
+
 ## ローカル開発環境セットアップ
 
 ### バックエンド (Go) — `backend/`

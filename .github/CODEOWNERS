@@ -1,0 +1,12 @@
+# CODEOWNERS — PR で該当パスを変更すると、ここに書いたオーナーへレビューが自動アサインされる。
+# ブランチ保護の「Require review from Code Owners」と併用すると、オーナーの承認が必須になる。
+# 記法: https://docs.github.com/articles/about-code-owners
+
+# 既定オーナー（全ファイル）
+*                       @norman6464
+
+# 領域別（メンバーが増えたらここを分割する）
+/backend/               @norman6464
+/frontend/              @norman6464
+/.github/               @norman6464
+/docs/                  @norman6464

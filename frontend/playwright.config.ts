@@ -15,6 +15,8 @@ import { defineConfig, devices } from '@playwright/test';
  */
 export default defineConfig({
   testDir: './e2e',
+  // ローカルビルド + API モック用の e2e/local は別 config (playwright.local.config.ts) で回す。
+  testIgnore: ['**/local/**'],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,

@@ -200,17 +200,26 @@ npm run test:run         # 1 回実行（CI と同じ）
 npm run test:run -- --coverage
 ```
 
-#### E2E (Playwright) — `frontend/e2e/smoke.spec.ts`
+E2E は **2 系統**に分かれる。
 
-デプロイ済み本番（既定 `https://normanblog.com`）に対する **未認証スモーク 6 ケース**: ① SPA ロード + ロゴ / ログイン誘導表示 ② CloudFront セキュリティヘッダー配信 ③ `index.html` の CSP meta ④ `GET /api/v2/health` が 200 ⑤ 認証必須エンドポイントが Cookie 無で 401 ⑥ 廃止済み SockJS フォールバック路が 404 / 401。設定は `frontend/playwright.config.ts`。
+**(a) 本番スモーク（外形監視）** — `frontend/e2e/smoke.spec.ts` / 設定 `playwright.config.ts`
+
+デプロイ済み本番（既定 `https://normanblog.com`）に対する **未認証スモーク 6 ケース**: ① SPA ロード + ロゴ / ログイン誘導表示 ② CloudFront セキュリティヘッダー配信 ③ `index.html` の CSP meta ④ `GET /api/v2/health` が 200 ⑤ 認証必須エンドポイントが Cookie 無で 401 ⑥ 廃止済み SockJS フォールバック路が 404 / 401。
+
+**(b) ローカルビルド + API モック（認証付き導線）** — `frontend/e2e/local/*.spec.ts` / 設定 `playwright.local.config.ts`
+
+`vite preview` で配信したビルド済み SPA に対し、Playwright の `page.route` で `/api/v2/**` をモックして認証付きの主要画面を検証する。`GET /auth/me` のレスポンスで認証状態を制御する（401→未認証で `/login` リダイレクト、200+`role`→認証済みで AppShell 描画）。**本番 Cognito / DB に一切触れない**ため CI で毎回安全に回せる。ビルドは `VITE_API_BASE_URL=''`（同一オリジン相対）で行い、`index.html` の CSP `connect-src 'self'` に収めてモックを差し込める状態にするのが要点。
 
 ```bash
 cd frontend
 npm run e2e:install                                       # 初回のみ（Chromium + OS deps）
-npm run e2e                                                # 本番に対してスモーク
+npm run e2e                                                # (a) 本番スモーク
+npm run e2e:local                                         # (b) ローカルビルド + API モック（要 build）
 npm run e2e:ui                                             # UI モードでデバッグ
-PLAYWRIGHT_BASE_URL=http://localhost:5173 npm run e2e      # ローカル dev server 経由
+PLAYWRIGHT_BASE_URL=http://localhost:5173 npm run e2e      # (a) をローカル dev server に向ける
 ```
+
+CI（`e2e.yml`）は **smoke（本番）** と **local-mocked（ローカル + モック）** の 2 ジョブで実行する。
 
 #### CI でのテスト実行
 

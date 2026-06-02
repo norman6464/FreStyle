@@ -157,8 +157,15 @@ jobs:
         run: go mod download
 
       # 本物の PostgreSQL を起動し healthcheck が通るまで待つ（--wait）。
+      # Docker Hub の pull は runner 上で transient に timeout することがあるためリトライする。
       - name: Start PostgreSQL (docker compose)
-        run: docker compose -f docker-compose.integration.yml up -d --wait
+        run: |
+          for i in 1 2 3; do
+            docker compose -f docker-compose.integration.yml pull --quiet && break
+            echo "image pull failed (attempt $i/3), retrying in 10s..."
+            sleep 10
+          done
+          docker compose -f docker-compose.integration.yml up -d --wait
 
       # -run Integration で結合テスト（命名規約: テスト名に Integration を含む）だけを回す。
       # 単体テストは test ジョブで実行済みで、TEST_DATABASE_URL を env に持つこのジョブで

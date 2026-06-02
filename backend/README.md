@@ -32,6 +32,29 @@ handler  →  usecase  →  repository  →  domain
 - repository は usecase のことを知らない
 - domain は他のどの層にも依存しない
 
+### archlint — 依存方向の静的検証
+
+上記ルールを人手のレビューだけに頼らず CI で機械的に弾くため、自作 linter `cmd/archlint` を用意している（Go 標準の `go/parser` / `go/ast` のみ・外部依存なし）。
+
+```bash
+make archlint        # = go run ./cmd/archlint .
+```
+
+`internal/` 配下の `.go`（`_test.go` は除外）の import を解析し、層をまたぐ禁止依存を検出する。違反は `path:line: メッセージ` 形式で出力し exit 1。
+
+| ソース層 | 禁止する import |
+|---|---|
+| `domain` | 他の内部層すべて / `gin` / `net/http`（標準ライブラリ + GORM tag のみ） |
+| `usecase/repository`（port） | `domain` 以外の内部層 / `gin` / `net/http` |
+| `usecase` | `handler` / `adapter/persistence`（DIP: port に依存）/ `gin` / `net/http` |
+| `adapter/persistence` | `handler` / `usecase` 本体（依存先は port のみ）/ `gin` |
+| `infra` | `handler` / `usecase` / `usecase/repository` / `adapter/persistence` / `gin` |
+| `handler` | `adapter/persistence` の直接 import（**wiring の `router.go` / `routes_*.go` は例外**） |
+
+- `usecase → infra`、`infra → net/http`（HTTP クライアント用途）、`handler → infra`（auth / embed の pragmatic 例外）は **許容**。
+- 意図的に例外を通したいときは、import 行末に `//archlint:allow <理由>`、ファイル全体なら先頭コメントに `//archlint:ignore-file <理由>` を付ける。
+- ルールを追加・変更したら `cmd/archlint/main.go` の `rules` を編集し、`cmd/archlint/main_test.go` にケースを足す。
+
 ## ローカル開発
 
 ```bash
@@ -77,6 +100,8 @@ docker build -t frestyle-backend:latest .
 ```bash
 go vet ./...
 go test ./...
+make archlint   # クリーンアーキテクチャ依存方向チェック
+make verify     # gofmt / vet / build / test / archlint を一括実行
 ```
 
 ## ログ方針（CloudWatch コスト対策）

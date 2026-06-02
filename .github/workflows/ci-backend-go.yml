@@ -64,6 +64,11 @@ jobs:
           go install honnef.co/go/tools/cmd/staticcheck@2025.1.1
           staticcheck ./...
 
+      # クリーンアーキテクチャ依存方向ルール（CLAUDE.md §2）を検証する自作 linter。
+      # handler→usecase→repository/infra→domain の矢印に反する import を CI で弾く。
+      - name: archlint (clean architecture deps)
+        run: go run ./cmd/archlint .
+
       # govulncheck は Go 公式の脆弱性スキャナ。実際に呼んでいるコードパスに該当する
       # 既知 CVE だけを報告する。stdlib の CVE は Go パッチ追随次第で頻出するため、
       # CI を止めずに「可視化」目的の非ブロッキング（continue-on-error）にする。

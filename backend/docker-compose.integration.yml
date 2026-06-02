@@ -13,7 +13,9 @@
 # ローカル開発の 5432 と衝突しないよう host 側は 5433 に publish する。
 services:
   postgres-integration-test:
-    image: postgres:17.6-alpine
+    # Docker Hub 公式 postgres の AWS ECR Public ミラー。Docker Hub は GitHub runner から
+    # の pull が rate limit / 到達不能で flake るため、レート制限なしの ECR Public を使う。
+    image: public.ecr.aws/docker/library/postgres:17.6-alpine
     container_name: frestyle-postgres-integration-test
     environment:
       POSTGRES_USER: frestyle

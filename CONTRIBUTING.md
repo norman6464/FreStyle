@@ -119,3 +119,43 @@ PR では次が走る（詳細は `frestyle-infrastructure/docs/23` / `24`）:
 - 全体: **CodeQL**（SAST）/ E2E（Playwright スモーク + ローカルモック）
 
 **ドキュメント更新の無い PR はマージしない**（軽微なタイポ除く）。取り組んだ内容・手順は `docs/` か該当 README に残す。
+
+---
+
+## 6. シークレット / セキュリティ
+
+秘密情報（AWS キー / `COGNITO_CLIENT_SECRET` / DB パスワード / トークン等）は `.env`（gitignore 済）か AWS Secrets Manager に置き、**コード・docs に直書きしない**。
+
+漏洩対策は多層防御:
+
+| 層 | 仕組み |
+|---|---|
+| push 時 | **GitHub Push Protection**（既知パターンの秘密を含む push をブロック。有効化済み） |
+| CI | **gitleaks**（`.github/workflows/secret-scan.yml`）— PR / main / 週次で**履歴含め**スキャン。検出で CI が落ちる |
+| コミット前（手元） | **lefthook + gitleaks** の pre-commit フック |
+
+pre-commit フックの有効化（推奨）:
+
+```bash
+brew install lefthook gitleaks   # macOS
+lefthook install                 # リポジトリごとに 1 回
+```
+
+テスト用の固定値など**機密でない**ものが誤検知されたら、`.gitleaks.toml` の `allowlist` に追加する（実機密を広く allowlist しないこと）。
+
+## 7. デプロイ（本番保護）
+
+- デプロイは**手動**（`workflow_dispatch` + `confirm=deploy` 入力）。マージ即本番反映ではない。
+- CD の**本番反映ジョブは `production` Environment**（required reviewers = `@norman6464`）に紐付き、**起動しても承認待ちで停止**する。承認されるまで本番には反映されない（誤起動の保険）。
+
+```bash
+# 起動 → GitHub Actions 画面で承認すると反映される
+gh workflow run "CD - Backend Deploy to ECS" -R norman6464/FreStyle -f confirm=deploy
+gh workflow run "CD - Frontend Deploy to S3 + CloudFront" -R norman6464/FreStyle -f confirm=deploy
+```
+
+## 8. マージ権限
+
+- `main` はブランチ保護下: **PR に承認 1 件 + CodeQL green が必須**。自分の PR は self-approve できないため、**必ず誰かのレビューを得てからマージ**する。
+- リポジトリ管理者（`@norman6464`）は admin 権限で要件をバイパスできる（`gh pr merge --admin`）。緊急時・自分の PR の最終マージ用。
+- メンバーを追加するときは **Write / Maintain ロール**で（Admin ロールはバイパスできてしまうため避ける）。

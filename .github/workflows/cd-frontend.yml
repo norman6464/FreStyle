@@ -42,6 +42,8 @@ jobs:
     timeout-minutes: 10
     needs: [guard]
     if: always() && (github.event_name == 'push' || needs.guard.result == 'success')
+    # 本番反映ジョブは production Environment に紐付け、required reviewers の承認待ちで止める。
+    environment: production
     defaults:
       run:
         working-directory: ./frontend

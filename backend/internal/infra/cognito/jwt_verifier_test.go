@@ -163,3 +163,36 @@ func TestVerify_DisabledWhenNoJWKS(t *testing.T) {
 		t.Fatalf("expected ErrVerifierDisabled, got %v", err)
 	}
 }
+
+// TestVerify_EmptyJWKSDoesNotWipeCache は空 JWKS が来ても既存の有効キャッシュを保持し、
+// 既知トークンが通り続けることを確認する。
+func TestVerify_EmptyJWKSDoesNotWipeCache(t *testing.T) {
+	s := newTestSigner(t)
+	empty := false
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if empty {
+			_, _ = w.Write([]byte(`{"keys":[]}`))
+			return
+		}
+		_, _ = w.Write(s.jwksJSON())
+	}))
+	t.Cleanup(srv.Close)
+	v := NewVerifierWithClient(srv.URL, testIssuer, srv.Client())
+	v.refreshCooldown = 0 // 毎回 refresh を許可
+
+	tok := s.sign(t, validClaims(), "RS256", s.kid)
+	if _, err := v.Verify(context.Background(), tok); err != nil {
+		t.Fatalf("first verify should pass: %v", err)
+	}
+
+	// JWKS が空を返す状態に切替。未知 kid を引くと refresh は ErrJWKSUnavailable で失敗するが、
+	// 既存キャッシュは空に潰されない。
+	empty = true
+	if _, err := v.Verify(context.Background(), s.sign(t, validClaims(), "RS256", "unknown")); !errors.Is(err, ErrJWKSUnavailable) {
+		t.Fatalf("unknown kid with empty jwks should be ErrJWKSUnavailable, got %v", err)
+	}
+	// 既存 kid のトークンは引き続き通る（キャッシュが空に潰されていない）。
+	if _, err := v.Verify(context.Background(), tok); err != nil {
+		t.Fatalf("known token should still pass after empty jwks: %v", err)
+	}
+}

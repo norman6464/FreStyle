@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"net/http"
 	"strings"
@@ -30,6 +31,8 @@ type Verifier struct {
 	mu        sync.RWMutex
 	keys      map[string]*rsa.PublicKey
 	fetchedAt time.Time
+	// refreshMu は JWKS 再取得を 1 本に直列化し、未知 kid 同時多発時のスパイクを防ぐ。
+	refreshMu sync.Mutex
 	// refreshCooldown は未知 kid によるリフェッチ連打 (DoS) を防ぐ最小間隔。
 	refreshCooldown time.Duration
 	// leeway は時計ずれを吸収する exp の許容誤差。
@@ -134,27 +137,39 @@ func (v *Verifier) verifyClaims(claims map[string]any) error {
 
 // keyForKid は kid に対応する RSA 公開鍵を返す。キャッシュに無ければ JWKS を再取得する。
 func (v *Verifier) keyForKid(ctx context.Context, kid string) (*rsa.PublicKey, error) {
-	v.mu.RLock()
-	key, ok := v.keys[kid]
-	stale := time.Since(v.fetchedAt) > v.refreshCooldown
-	v.mu.RUnlock()
-	if ok {
+	if key, ok := v.lookup(kid); ok {
 		return key, nil
 	}
-	// 未知 kid。cooldown を超えていれば 1 度だけ再取得する (キー rotation 追従)。
+
+	// 未知 kid。refresh を 1 本に直列化し、待機中に他 goroutine が更新済みか / cooldown 内かを再確認する。
+	v.refreshMu.Lock()
+	defer v.refreshMu.Unlock()
+
+	if key, ok := v.lookup(kid); ok {
+		return key, nil
+	}
+	v.mu.RLock()
+	stale := time.Since(v.fetchedAt) > v.refreshCooldown
+	v.mu.RUnlock()
 	if !stale {
+		// 直前に別 goroutine が refresh 済み（かつ kid は依然見つからない）。連打せず未知扱い。
 		return nil, ErrJWTUnknownKey
 	}
 	if err := v.refresh(ctx); err != nil {
 		return nil, err
 	}
-	v.mu.RLock()
-	key, ok = v.keys[kid]
-	v.mu.RUnlock()
-	if !ok {
-		return nil, ErrJWTUnknownKey
+	if key, ok := v.lookup(kid); ok {
+		return key, nil
 	}
-	return key, nil
+	return nil, ErrJWTUnknownKey
+}
+
+// lookup は kid に対応する鍵をキャッシュから返す。
+func (v *Verifier) lookup(kid string) (*rsa.PublicKey, bool) {
+	v.mu.RLock()
+	defer v.mu.RUnlock()
+	key, ok := v.keys[kid]
+	return key, ok
 }
 
 // jwk は JWKS 内の 1 鍵 (RSA) を表す。
@@ -196,6 +211,10 @@ func (v *Verifier) refresh(ctx context.Context) error {
 		}
 		keys[k.Kid] = pub
 	}
+	// 空 / 壊れた JWKS で既存の有効キャッシュを潰さない（認証全断の回避）。
+	if len(keys) == 0 {
+		return fmt.Errorf("%w: no usable rsa keys", ErrJWKSUnavailable)
+	}
 	v.mu.Lock()
 	v.keys = keys
 	v.fetchedAt = time.Now()
@@ -213,8 +232,13 @@ func (k jwk) toRSAPublicKey() (*rsa.PublicKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	e := new(big.Int).SetBytes(eBytes).Int64()
-	if e == 0 {
+	// 外部入力なので exponent の範囲を検証する（int 変換のオーバーフロー / 異常値を弾く）。
+	eBig := new(big.Int).SetBytes(eBytes)
+	if !eBig.IsInt64() {
+		return nil, errors.New("cognito: jwk exponent too large")
+	}
+	e := eBig.Int64()
+	if e <= 0 || e > math.MaxInt32 {
 		return nil, errors.New("cognito: invalid jwk exponent")
 	}
 	return &rsa.PublicKey{

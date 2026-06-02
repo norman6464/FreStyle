@@ -29,6 +29,16 @@ jobs:
       - name: go mod download
         run: go mod download
 
+      # go.mod / go.sum が tidy か検証する（未使用依存・取りこぼしを CI で検知）。
+      - name: go mod tidy check
+        run: |
+          go mod tidy
+          if ! git diff --quiet go.mod go.sum; then
+            echo "::error::go.mod/go.sum is not tidy. Run 'go mod tidy' in backend/ and commit."
+            git diff go.mod go.sum
+            exit 1
+          fi
+
       # gofmt 未整形のコードがあれば失敗させる。
       # Effective Go の "gofmt'd code is the standard" を CI で強制するための
       # 入り口チェック。`gofmt -l .` が 1 ファイルでも出したら CI を fail にして
@@ -54,8 +64,47 @@ jobs:
           go install honnef.co/go/tools/cmd/staticcheck@2025.1.1
           staticcheck ./...
 
-      - name: go test
-        run: go test ./...
+      # govulncheck は Go 公式の脆弱性スキャナ。実際に呼んでいるコードパスに該当する
+      # 既知 CVE だけを報告する。stdlib の CVE は Go パッチ追随次第で頻出するため、
+      # CI を止めずに「可視化」目的の非ブロッキング（continue-on-error）にする。
+      # ブロッキングなセキュリティ検査は CodeQL (codeql.yml) が担う。
+      - name: govulncheck (advisory)
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+          govulncheck ./... | tee /tmp/govuln.txt
+          {
+            echo "## govulncheck (advisory)"
+            echo '```'
+            tail -5 /tmp/govuln.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # race detector + カバレッジ計測。rate limiter / JWT キャッシュ等の並行コードの
+      # データ競合を CI で検出する。
+      - name: go test (race + coverage)
+        run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
+
+      # 総カバレッジを PR の Checks サマリに表示する。
+      - name: coverage summary
+        run: |
+          total=$(go tool cover -func=coverage.out | tail -1 | awk '{print $3}')
+          echo "## Backend test coverage: ${total}" >> "$GITHUB_STEP_SUMMARY"
+          go tool cover -func=coverage.out | tail -1
+
+      # OpenAPI spec (docs/) が最新かを検証する。handler の swaggo 注釈を変えたのに
+      # `make openapi` を忘れた PR を CI で弾く（フロントの型生成元なので drift を防ぐ）。
+      - name: OpenAPI drift check
+        run: |
+          make openapi
+          # 変更だけでなく未追跡の新規生成ファイルも検知するため porcelain で判定する。
+          if [ -n "$(git status --porcelain -- docs/)" ]; then
+            echo "::error::OpenAPI docs are out of date. Run 'make openapi' in backend/ and commit docs/."
+            git status --porcelain -- docs/
+            git diff -- docs/
+            exit 1
+          fi
 
       - name: go build
         run: go build -trimpath -ldflags="-s -w" -o /tmp/frestyle-backend ./cmd/server

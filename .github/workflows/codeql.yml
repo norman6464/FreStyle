@@ -1,0 +1,58 @@
+name: CodeQL
+
+# GitHub 公式の SAST。Go(backend) と TypeScript(frontend) の脆弱性パターンを検出する。
+# PR / main push / 週次スケジュールで走り、結果は Security タブの code scanning alerts に出る。
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '30 2 * * 1' # 毎週月曜 02:30 UTC
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: go
+            build-mode: manual
+          - language: javascript-typescript
+            build-mode: none
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Go は backend/go.mod が要求する版でビルドする必要があるため setup-go する。
+      - if: matrix.language == 'go'
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+
+      # build-mode: manual の Go は backend/ でビルドして解析対象を作る。
+      - if: matrix.build-mode == 'manual'
+        shell: bash
+        run: |
+          cd backend
+          go build ./...
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: '/language:${{ matrix.language }}'

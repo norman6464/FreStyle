@@ -69,6 +69,11 @@ jobs:
       - name: archlint (clean architecture deps)
         run: go run ./cmd/archlint .
 
+      # Gin ルートと swaggo @Router 注釈の整合（CLAUDE.md §2.7）を検証する自作 linter。
+      # ルートを生やしたのに OpenAPI 注釈を書き忘れた endpoint を CI で弾く。
+      - name: apispec-lint (route ↔ swaggo annotation)
+        run: go run ./cmd/apispec-lint .
+
       # govulncheck は Go 公式の脆弱性スキャナ。実際に呼んでいるコードパスに該当する
       # 既知 CVE だけを報告する。stdlib の CVE は Go パッチ追随次第で頻出するため、
       # CI を止めずに「可視化」目的の非ブロッキング（continue-on-error）にする。

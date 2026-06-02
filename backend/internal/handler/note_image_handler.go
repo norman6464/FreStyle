@@ -32,7 +32,7 @@ type issueUploadURLReq struct {
 // @Success      200   {object}  github_com_norman6464_FreStyle_backend_internal_domain.NoteImageUploadURL
 // @Failure      400   {object}  errorResponse  "発行 失敗"
 // @Failure      401   {object}  errorResponse  "未 認証"
-// @Router       /notes/image-upload-url [post]
+// @Router       /notes/images/upload-url [post]
 // @Security     CookieAuth
 func (h *NoteImageHandler) IssueUploadURL(c *gin.Context) {
 	uid := middleware.CurrentUserIDOrZero(c)

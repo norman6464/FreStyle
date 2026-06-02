@@ -13,6 +13,8 @@ import (
 )
 
 // ListAdminInvitationsUseCase は招待一覧を取得する。
+//
+//naminglint:allow 全社横断 ListAll と自社 ListByCompanyID の 2 系統を公開する集約 read usecase
 type ListAdminInvitationsUseCase struct {
 	repo repository.AdminInvitationRepository
 }

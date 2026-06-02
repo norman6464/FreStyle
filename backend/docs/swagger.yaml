@@ -2084,7 +2084,7 @@ paths:
       summary: ノート 更新
       tags:
       - notes
-  /notes/image-upload-url:
+  /notes/images/upload-url:
     post:
       consumes:
       - application/json
@@ -2328,39 +2328,6 @@ paths:
       security:
       - CookieAuth: []
       summary: プロフィール 画像 PUT 署名 URL
-      tags:
-      - profile
-  /profile/{userId}/stats:
-    get:
-      description: 指定 user (or 'me') の マイページ 集計 (合計 セッション / 平均 スコア)。 他 user 指定 は 403。
-      parameters:
-      - description: 数字 ID または 'me'
-        in: path
-        name: userId
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.UserStats'
-        "400":
-          description: DB 失敗
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "401":
-          description: 未 認証
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "403":
-          description: 他 user 指定
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-      security:
-      - CookieAuth: []
-      summary: ユーザー 統計 取得
       tags:
       - profile
   /profile/me/onboarding/complete:
@@ -2631,6 +2598,39 @@ paths:
       summary: 教材 更新
       tags:
       - teaching-materials
+  /users/{userId}/stats:
+    get:
+      description: 指定 user (or 'me') の マイページ 集計 (合計 セッション / 平均 スコア)。 他 user 指定 は 403。
+      parameters:
+      - description: 数字 ID または 'me'
+        in: path
+        name: userId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.UserStats'
+        "400":
+          description: DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: 他 user 指定
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: ユーザー 統計 取得
+      tags:
+      - profile
 securityDefinitions:
   CookieAuth:
     description: Cognito 由来 の JWT を HttpOnly Cookie で 送る。 ログイン 後 自動 付与。

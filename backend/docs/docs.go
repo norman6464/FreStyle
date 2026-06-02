@@ -1930,7 +1930,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/notes/image-upload-url": {
+        "/notes/images/upload-url": {
             "post": {
                 "security": [
                     {
@@ -2447,58 +2447,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/profile/{userId}/stats": {
-            "get": {
-                "security": [
-                    {
-                        "CookieAuth": []
-                    }
-                ],
-                "description": "指定 user (or 'me') の マイページ 集計 (合計 セッション / 平均 スコア)。 他 user 指定 は 403。",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "profile"
-                ],
-                "summary": "ユーザー 統計 取得",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "数字 ID または 'me'",
-                        "name": "userId",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.UserStats"
-                        }
-                    },
-                    "400": {
-                        "description": "DB 失敗",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "未 認証",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "他 user 指定",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/sessions/{sessionId}/note": {
             "get": {
                 "security": [
@@ -2875,6 +2823,58 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "教材 が ない",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/{userId}/stats": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "指定 user (or 'me') の マイページ 集計 (合計 セッション / 平均 スコア)。 他 user 指定 は 403。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "profile"
+                ],
+                "summary": "ユーザー 統計 取得",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "数字 ID または 'me'",
+                        "name": "userId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.UserStats"
+                        }
+                    },
+                    "400": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "他 user 指定",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }

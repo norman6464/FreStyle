@@ -55,19 +55,31 @@ make archlint        # = go run ./cmd/archlint .
 - 意図的に例外を通したいときは、import 行末に `//archlint:allow <理由>`、ファイル全体なら先頭コメントに `//archlint:ignore-file <理由>` を付ける。
 - ルールを追加・変更したら `cmd/archlint/main.go` の `rules` を編集し、`cmd/archlint/main_test.go` にケースを足す。
 
-### apispec-lint — ルート ↔ swaggo 注釈の整合検証
+### apispec-lint — ルート ↔ swaggo 注釈の整合検証（strict path 照合）
 
-CLAUDE.md §2.7「新しい HTTP endpoint には handler メソッドの直前に swaggo annotation を必ず書く」を機械化した自作 linter（`go/ast` のみ）。ルートを生やしたのに `@Router` 注釈を書き忘れた endpoint を CI で弾く。
+CLAUDE.md §2.7「新しい HTTP endpoint には handler メソッドの直前に swaggo annotation を必ず書く」を機械化した自作 linter（`go/ast` のみ）。ルートと `@Router` 宣言の **HTTP method + path を完全一致で照合**し、注釈漏れ・path 相違・method 相違を CI で弾く。
 
 ```bash
 make apispec-lint    # = go run ./cmd/apispec-lint .
 ```
 
-- `internal/handler` の `g.GET("/path", ..., h.Method)` 形式のルート登録を AST で抽出し、最後の引数（handler メソッド）を特定する。
-- レシーバ付き func の doc コメントに `@Router` を含むメソッド名を「注釈あり」として収集し、ルートが指すメソッドに注釈が無ければ違反として `path:line` で報告し exit 1。
-- SSE / WebSocket / multipart など OpenAPI で表現しない endpoint は、ルート登録行の行末に `//apispec:allow <理由>`、ファイル全体なら先頭コメントに `//apispec:ignore-file <理由>` で抑制する。
+- `internal/handler` の `g.GET("/path", ..., h.Method)` 形式のルート登録を AST で抽出する（最後の引数が handler）。
+- レシーバ付き func の doc コメントの `@Router /path [method]` 宣言を `(method, path)` として全ファイル横断で収集する（1 メソッドが複数 `@Router` を持つ場合は複数宣言）。
+- gin の `:id` / `*filepath` を swaggo の `{id}` / `{filepath}` に正規化し、ルートと一致する `@Router` 宣言が無ければ `path:line` で報告し exit 1。
+- SSE / WebSocket / multipart など OpenAPI で表現しない endpoint や、フロント互換の別 path / 別 method エイリアスは、ルート登録行の行末に `//apispec:allow <理由>`、ファイル全体なら先頭コメントに `//apispec:ignore-file <理由>` で抑制する。
 
-> 注釈の path 文字列まで照合する厳密版ではなく「注釈の有無」を見る軽量ガードレール。書き忘れの一次検知が目的で、生成された spec の正しさは `make openapi` の drift check（CI）が担う。
+> 生成 spec そのものの正しさ（schema 等）は `make openapi` の drift check（CI）が担い、apispec-lint は「ルートに対応する @Router 宣言が正しい method/path で存在するか」を担う。両者は補完関係。
+
+### naminglint — usecase 命名・構造規約の検証
+
+CLAUDE.md §2.3「1 usecase = struct + コンストラクタ + Execute メソッド」を機械化した自作 linter（`go/ast` のみ）。対象は `internal/usecase` 直下（`repository` サブパッケージは除外）。
+
+```bash
+make naminglint    # = go run ./cmd/naminglint .
+```
+
+- 公開 struct `XxxUseCase` に対し、コンストラクタ `NewXxxUseCase` と メソッド `Execute` の存在を検査し、欠けていれば `path:line` で報告し exit 1。
+- 複数 CRUD を束ねる集約 usecase（`CourseUseCase` / `TeachingMaterialUseCase` / `ListAdminInvitationsUseCase`）など `Execute` 単一メソッドにしない正当な例外は、struct の doc コメントに `//naminglint:allow <理由>` を付けて Execute 必須を免除する。ファイル全体は先頭コメントに `//naminglint:ignore-file <理由>`。
 
 ## ローカル開発
 
@@ -115,8 +127,9 @@ docker build -t frestyle-backend:latest .
 go vet ./...
 go test ./...
 make archlint      # クリーンアーキテクチャ依存方向チェック
-make apispec-lint  # ルート ↔ swaggo @Router 注釈チェック
-make verify        # gofmt / vet / build / test / archlint / apispec-lint を一括実行
+make apispec-lint  # ルート ↔ swaggo @Router 注釈チェック（strict path 照合）
+make naminglint    # usecase 命名・構造規約チェック
+make verify        # gofmt / vet / build / test / 3 linter を一括実行
 ```
 
 ## ログ方針（CloudWatch コスト対策）

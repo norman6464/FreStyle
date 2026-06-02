@@ -2,9 +2,10 @@
 #
 # 主要 target:
 #   make openapi      … swag init で OpenAPI spec を 再 生成 (docs/swagger.{json,yaml})
-#   make verify       … gofmt / vet / build / test / archlint / apispec-lint を 一括 実行
+#   make verify       … gofmt / vet / build / test / archlint / apispec-lint / naminglint を 一括 実行
 #   make archlint     … クリーンアーキテクチャ依存方向ルール (CLAUDE.md §2) を 静的 検証
 #   make apispec-lint … Gin ルート ↔ swaggo @Router 注釈 の 整合 (CLAUDE.md §2.7) を 検証
+#   make naminglint   … usecase 命名・構造規約 (CLAUDE.md §2.3) を 検証
 #   make run          … go run ./cmd/server で ローカル サーバ 起動
 #
 # swag CLI が PATH に なければ `go install github.com/swaggo/swag/cmd/swag@v1.16.4` を 自動 実行 する。
@@ -40,6 +41,7 @@ verify:
 	go test ./...
 	$(MAKE) archlint
 	$(MAKE) apispec-lint
+	$(MAKE) naminglint
 
 # クリーンアーキテクチャ依存方向ルール（CLAUDE.md §2）を静的に検証する。
 .PHONY: archlint
@@ -52,6 +54,12 @@ archlint:
 apispec-lint:
 	@echo ">>> apispec-lint: ルート ↔ swaggo 注釈チェック"
 	@go run ./cmd/apispec-lint .
+
+# usecase 命名・構造規約（CLAUDE.md §2.3: struct + コンストラクタ + Execute）を検証する。
+.PHONY: naminglint
+naminglint:
+	@echo ">>> naminglint: usecase 命名規約チェック"
+	@go run ./cmd/naminglint .
 
 .PHONY: run
 run:

@@ -70,9 +70,14 @@ jobs:
         run: go run ./cmd/archlint .
 
       # Gin ルートと swaggo @Router 注釈の整合（CLAUDE.md §2.7）を検証する自作 linter。
-      # ルートを生やしたのに OpenAPI 注釈を書き忘れた endpoint を CI で弾く。
+      # ルート（HTTP method + path）と @Router 宣言の不一致・注釈漏れを CI で弾く。
       - name: apispec-lint (route ↔ swaggo annotation)
         run: go run ./cmd/apispec-lint .
+
+      # usecase の命名・構造規約（CLAUDE.md §2.3）を検証する自作 linter。
+      # XxxUseCase に NewXxxUseCase コンストラクタと Execute メソッドがあるかを CI で検査する。
+      - name: naminglint (usecase naming)
+        run: go run ./cmd/naminglint .
 
       # govulncheck は Go 公式の脆弱性スキャナ。実際に呼んでいるコードパスに該当する
       # 既知 CVE だけを報告する。stdlib の CVE は Go パッチ追随次第で頻出するため、

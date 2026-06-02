@@ -19,7 +19,7 @@ func registerSocialRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	g.GET("/notifications", notificationHandler.List)
 	g.GET("/notifications/unread-count", notificationHandler.UnreadCount)
 	g.PATCH("/notifications/:id/read", notificationHandler.MarkRead)
-	g.PUT("/notifications/:id/read", notificationHandler.MarkRead)
+	g.PUT("/notifications/:id/read", notificationHandler.MarkRead) //apispec:allow フロント互換の別 method（正規は PATCH）
 	g.PATCH("/notifications/read-all", notificationHandler.MarkAllRead)
-	g.PUT("/notifications/read-all", notificationHandler.MarkAllRead)
+	g.PUT("/notifications/read-all", notificationHandler.MarkAllRead) //apispec:allow フロント互換の別 method（正規は PATCH）
 }

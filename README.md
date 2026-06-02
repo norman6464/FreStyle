@@ -157,40 +157,68 @@ npx tailwindcss init -p
 - **request / response 型は handler 内 local 定義**: DTO / Mapper 層は持たず、機密フィールドは domain 構造体側で `json:"-"` で隠す
 - **テスト必須**: 新規追加コードには必ず単体テストを付ける
 
-### テスト
+### テスト戦略（単体 / 結合 / E2E の定義）
 
-#### バックエンド (Go)
+このアプリでの各テスト種別の定義・対象・ツール・配置は次のとおり。
+
+| 種別 | このアプリでの定義 | 主な対象 | ツール / 実行 |
+|---|---|---|---|
+| **単体テスト (unit)** | 1 つの関数・構造体を依存から隔離して検証する。依存は interface 経由で mock / fake / stub に差し替え、DB / HTTP / AWS への実 I/O を行わない | backend: usecase・middleware・infra クライアント・自作 linter / frontend: component・hook・repository | `go test` (testify) / Vitest |
+| **結合テスト (integration)** | 複数層を実際に繋いで 1 プロセス内で検証する。外部サービスはテスト用実体（sqlite / httptest）に差し替える | backend: handler（router〜JSON）・repository（GORM × sqlite）・linter の走査 run | `go test` |
+| **E2E テスト** | 実ブラウザ（Chromium）で本番 URL に対しユーザー導線を端から端まで検証する | デプロイ済み本番のスモーク（SPA ロード / セキュリティヘッダー / 認証境界） | Playwright |
+
+#### バックエンド (Go) — `go test ./...`
+
+標準 `testing` + `github.com/stretchr/testify`。
+
+- **usecase（単体, 22 ファイル）**: 依存する repository / infra を `testify/mock` の `mock.Mock` で差し替え、ビジネスロジックだけを隔離検証する。例: `internal/usecase/*_test.go`。
+- **handler（結合, 9 ファイル）**: `gin.SetMode(gin.TestMode)` + `httptest.NewRecorder()` でルータに `ServeHTTP` し、ルーティング〜ステータス〜JSON を通しで検証する。例: `internal/handler/profile_handler_test.go`。
+- **middleware（単体, 4 ファイル）**: JWT 認証・CurrentUser 注入・レートリミットなど横断処理を個別に検証する。
+- **infra（単体 / 境界, 4 ファイル）**: 外部 I/O を境界で差し替える。Cognito トークン交換・JWKS 検証・oEmbed 取得・SES メールを `httptest` サーバや fake で検証する。例: `internal/infra/cognito/jwt_verifier_test.go`。
+- **repository（結合, 規約）**: 永続化ロジックを足すときは `*gorm.DB` を **sqlite in-memory** に差し替え、実 SQL でクエリを検証する。現状は persistence 層が薄く、データ操作の大半は usecase 単体テスト（mock）で覆っているため専用テストは未追加。
+- **自作 linter（単体 + 結合）**: `cmd/archlint` / `cmd/apispec-lint` / `cmd/naminglint` は、分類・ルール評価の純粋関数（単体）と、一時ディレクトリツリーを走査する `run` / CLI（結合）の両方を検証する（各カバレッジ 87〜89%）。
 
 ```bash
 cd backend
-go vet ./...
-go test ./...
+go test ./...                                   # 全テスト
+go test -race -covermode=atomic ./...           # CI と同条件（競合検出 + カバレッジ）
+go test ./internal/usecase/...                  # 層を絞って実行
 ```
 
-- 標準 `testing` パッケージ + `github.com/stretchr/testify`（順次導入）
-- usecase: 依存をインターフェイスとしてモック化した単体テスト
-- repository: テスト用 PostgreSQL コンテナまたは sqlite による統合テスト
-- handler: `httptest.NewRecorder` + `gin.New()` でルータごと検証
+#### フロントエンド (Vitest + React Testing Library) — `npm test`
 
-#### フロントエンド
+セットアップは `frontend/src/test/setup.ts`。
+
+- **component（単体）**: `render` + `screen.getByRole` でアクセシビリティ込みに描画検証、`fireEvent` でイベント発火。`localStorage` 等は `vi.stubGlobal` でスタブ。
+- **hook（単体）**: `renderHook` で状態遷移・副作用を検証。例: `src/hooks/__tests__/*.test.ts`。
+- **repository（単体）**: axios を `vi.mock` で差し替え、API 呼び出しの URL / payload / レスポンス整形を検証。例: `src/repositories/__tests__/AuthRepository.test.ts`。
 
 ```bash
 cd frontend
-npm test
+npm test                 # watch
+npm run test:run         # 1 回実行（CI と同じ）
+npm run test:run -- --coverage
 ```
 
-- Vitest + React Testing Library
-- 慣習: `vi.stubGlobal('localStorage', createMockStorage())` で localStorage をスタブ、`fireEvent` でイベント発火
+#### E2E (Playwright) — `frontend/e2e/smoke.spec.ts`
 
-#### E2E (Playwright)
+デプロイ済み本番（既定 `https://normanblog.com`）に対する **未認証スモーク 6 ケース**: ① SPA ロード + ロゴ / ログイン誘導表示 ② CloudFront セキュリティヘッダー配信 ③ `index.html` の CSP meta ④ `GET /api/v2/health` が 200 ⑤ 認証必須エンドポイントが Cookie 無で 401 ⑥ 廃止済み SockJS フォールバック路が 404 / 401。設定は `frontend/playwright.config.ts`。
 
 ```bash
 cd frontend
-npm run e2e:install   # 初回のみ（Chromium + OS deps）
-npm run e2e            # 本番に対してスモーク 6 ケース
-npm run e2e:ui         # UI モードでデバッグ
-PLAYWRIGHT_BASE_URL=http://localhost:5173 npm run e2e   # ローカル dev server 経由
+npm run e2e:install                                       # 初回のみ（Chromium + OS deps）
+npm run e2e                                                # 本番に対してスモーク
+npm run e2e:ui                                             # UI モードでデバッグ
+PLAYWRIGHT_BASE_URL=http://localhost:5173 npm run e2e      # ローカル dev server 経由
 ```
+
+#### CI でのテスト実行
+
+| ワークフロー | 実行内容 |
+|---|---|
+| `ci-backend-go.yml` | `go test -race` + カバレッジ / 3 linter（archlint・apispec-lint・naminglint）/ OpenAPI drift |
+| `ci-frontend.yml` | `tsc` / ESLint / Vitest + カバレッジ / build |
+| `e2e.yml` | Playwright スモーク（Chromium） |
 
 ---
 

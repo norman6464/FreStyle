@@ -23,26 +23,67 @@ func parseSrc(t *testing.T, src string) (*token.FileSet, *ast.File) {
 	return fset, f
 }
 
-func TestExtractAnnotatedMethods(t *testing.T) {
+func TestExtractRouterKeys(t *testing.T) {
 	_, f := parseSrc(t, `package handler
 
-// Create は申請を作る。
+// Create は作る。
 //
 //	@Router /company-applications [post]
 func (h *H) Create(c *gin.Context) {}
 
-// List はドキュメント無しのメソッド。
-func (h *H) List(c *gin.Context) {}
-
-// freeFunc は @Router を持つがレシーバ無し（メソッドではない）。
+// MarkRead は既読化（PATCH 正規 + PUT 互換の 2 宣言）。
 //
-//	@Router /x [get]
-func freeFunc() {}
+//	@Router /notifications/{id}/read [patch]
+//	@Router /notifications/{id}/read [put]
+func (h *H) MarkRead(c *gin.Context) {}
+
+// List は注釈無し。
+func (h *H) List(c *gin.Context) {}
 `)
-	got := extractAnnotatedMethods(f)
+	got := extractRouterKeys(f)
 	sort.Strings(got)
-	if len(got) != 1 || got[0] != "Create" {
-		t.Fatalf("extractAnnotatedMethods = %v, want [Create]", got)
+	want := []string{
+		"patch /notifications/{id}/read",
+		"post /company-applications",
+		"put /notifications/{id}/read",
+	}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("extractRouterKeys = %v, want %v", got, want)
+	}
+}
+
+func TestParseRouterLine(t *testing.T) {
+	cases := []struct {
+		text         string
+		method, path string
+		ok           bool
+	}{
+		{"//\t@Router /a/{id} [get]", "get", "/a/{id}", true},
+		{"// @Router   /b   [POST]", "post", "/b", true},
+		{"// just a comment", "", "", false},
+		{"// @Router /c", "", "", false},             // method 欠落
+		{"// @Router relative [get]", "", "", false}, // / 始まりでない
+	}
+	for _, c := range cases {
+		m, p, ok := parseRouterLine(c.text)
+		if ok != c.ok || m != c.method || p != c.path {
+			t.Errorf("parseRouterLine(%q) = (%q,%q,%v), want (%q,%q,%v)", c.text, m, p, ok, c.method, c.path, c.ok)
+		}
+	}
+}
+
+func TestNormalizeGinPath(t *testing.T) {
+	cases := map[string]string{
+		"/profile/:userId":        "/profile/{userId}",
+		"/a/:id/b/:slug":          "/a/{id}/b/{slug}",
+		"/files/*filepath":        "/files/{filepath}",
+		"/no/params":              "/no/params",
+		"/notifications/read-all": "/notifications/read-all",
+	}
+	for in, want := range cases {
+		if got := normalizeGinPath(in); got != want {
+			t.Errorf("normalizeGinPath(%q) = %q, want %q", in, got, want)
+		}
 	}
 }
 
@@ -157,8 +198,46 @@ func reg(g *gin.RouterGroup, h *H) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(vs) != 1 || !strings.Contains(vs[0].msg, "Destroy") {
-			t.Fatalf("want 1 violation for Destroy, got %+v", vs)
+		if len(vs) != 1 || !strings.Contains(vs[0].msg, "/things/:id") {
+			t.Fatalf("want 1 violation for DELETE /things/:id, got %+v", vs)
+		}
+	})
+
+	t.Run("path mismatch is a violation", func(t *testing.T) {
+		// 注釈は /things/{id} だが実ルートは /items/{id} → 不一致。
+		handlerRoot := mkHandlerTree(t, map[string]string{
+			"h.go": annotatedHandler,
+			"routes.go": `package handler
+func reg(g *gin.RouterGroup, h *H) {
+	g.GET("/items/:id", h.Get)
+}
+`,
+		})
+		vs, err := run(handlerRoot)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(vs) != 1 || !strings.Contains(vs[0].msg, "/items/:id") {
+			t.Fatalf("want 1 path-mismatch violation, got %+v", vs)
+		}
+	})
+
+	t.Run("method mismatch is a violation", func(t *testing.T) {
+		// 注釈は [get] だが実ルートは PUT → 不一致。
+		handlerRoot := mkHandlerTree(t, map[string]string{
+			"h.go": annotatedHandler,
+			"routes.go": `package handler
+func reg(g *gin.RouterGroup, h *H) {
+	g.PUT("/things/:id", h.Get)
+}
+`,
+		})
+		vs, err := run(handlerRoot)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(vs) != 1 {
+			t.Fatalf("want 1 method-mismatch violation, got %+v", vs)
 		}
 	})
 
@@ -248,8 +327,8 @@ func TestRunCLI(t *testing.T) {
 		if code := runCLI([]string{root}, &out, &errBuf); code != 1 {
 			t.Fatalf("want 1, got %d", code)
 		}
-		if !strings.Contains(out.String(), "Destroy") {
-			t.Errorf("want Destroy in output, got %q", out.String())
+		if !strings.Contains(out.String(), "/things/:id") {
+			t.Errorf("want /things/:id in output, got %q", out.String())
 		}
 	})
 }

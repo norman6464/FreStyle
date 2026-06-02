@@ -2,11 +2,12 @@
 // CLAUDE.md §2.7「handler メソッドの直前に swaggo annotation を必ず書く」を機械化し、
 // ルートを生やしたのに @Router 注釈を書き忘れた endpoint を CI で弾く。
 //
-// 仕組み:
+// 仕組み（strict path 照合）:
 //   - internal/handler の全 .go を go/ast で解析
-//   - `g.GET("/path", ..., h.Method)` 形式のルート登録から (HTTP method, path, handler メソッド名) を抽出
-//   - レシーバ付き func の doc コメントに @Router を含むメソッド名を「注釈あり」として収集
-//   - ルートが指す handler メソッド名に @Router が一つも無ければ違反として報告
+//   - `g.GET("/path", ..., h.Method)` 形式のルート登録から (HTTP method, path) を抽出
+//   - レシーバ付き func の doc コメントの @Router 宣言を (HTTP method, path) として収集
+//   - gin の `:id` / `*p` を swaggo の `{id}` / `{p}` に正規化し、ルートと完全一致する
+//     @Router 宣言が無ければ違反として報告（注釈漏れ・path 相違・method 相違を検出）
 //
 // 使い方:
 //
@@ -115,8 +116,8 @@ func run(handlerRoot string) ([]violation, error) {
 		if perr != nil {
 			return fmt.Errorf("%s: %w", path, perr)
 		}
-		for _, m := range extractAnnotatedMethods(f) {
-			annotated[m] = true
+		for _, k := range extractRouterKeys(f) {
+			annotated[k] = true
 		}
 		files = append(files, parsedFile{path: path, file: f, ignore: hasIgnoreFile(f)})
 		return nil
@@ -131,32 +132,81 @@ func run(handlerRoot string) ([]violation, error) {
 			continue
 		}
 		for _, r := range extractRoutes(fset, pf.file) {
-			if r.handler == "" || r.suppressed || annotated[r.handler] {
+			// handler が selector/ident でないもの（swagger UI 等）は検査対象外。
+			if r.handler == "" || r.suppressed {
+				continue
+			}
+			key := routerKey(r.method, normalizeGinPath(r.path))
+			if annotated[key] {
 				continue
 			}
 			out = append(out, violation{
 				file: pf.path,
 				line: r.line,
-				msg:  fmt.Sprintf("%s %s → %s に swaggo @Router 注釈がありません（CLAUDE.md §2.7）", r.method, r.path, r.handler),
+				msg: fmt.Sprintf("%s %s → 対応する swaggo @Router（%s %s）がありません（CLAUDE.md §2.7）",
+					r.method, r.path, strings.ToUpper(r.method), normalizeGinPath(r.path)),
 			})
 		}
 	}
 	return out, nil
 }
 
-// extractAnnotatedMethods は doc コメントに @Router を含むレシーバ付きメソッド名を返す。
-func extractAnnotatedMethods(f *ast.File) []string {
-	var names []string
+// extractRouterKeys は doc コメントの @Router 宣言を「METHOD 正規化済みpath」キーに変換して返す。
+// 1 メソッドが複数の @Router を持つ場合は複数キーを返す。
+func extractRouterKeys(f *ast.File) []string {
+	var keys []string
 	for _, decl := range f.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
 		if !ok || fn.Recv == nil || fn.Doc == nil {
 			continue
 		}
-		if commentContains(fn.Doc, "@Router") {
-			names = append(names, fn.Name.Name)
+		for _, c := range fn.Doc.List {
+			if method, path, ok := parseRouterLine(c.Text); ok {
+				keys = append(keys, routerKey(method, path))
+			}
 		}
 	}
-	return names
+	return keys
+}
+
+// parseRouterLine は `// @Router /path/{id} [get]` 形式の 1 行から (method, path) を取り出す。
+func parseRouterLine(text string) (method, path string, ok bool) {
+	idx := strings.Index(text, "@Router")
+	if idx < 0 {
+		return "", "", false
+	}
+	fields := strings.Fields(text[idx+len("@Router"):])
+	if len(fields) < 2 {
+		return "", "", false
+	}
+	path = fields[0]
+	// 末尾の `[get]` から method を取り出す。
+	m := fields[len(fields)-1]
+	if !strings.HasPrefix(m, "[") || !strings.HasSuffix(m, "]") {
+		return "", "", false
+	}
+	method = strings.ToLower(strings.TrimSuffix(strings.TrimPrefix(m, "["), "]"))
+	if path == "" || method == "" || !strings.HasPrefix(path, "/") {
+		return "", "", false
+	}
+	return method, path, true
+}
+
+// normalizeGinPath は gin のパスパラメータ表記を swaggo の {param} 表記に揃える。
+// `:id` → `{id}` / `*filepath` → `{filepath}`。
+func normalizeGinPath(p string) string {
+	segs := strings.Split(p, "/")
+	for i, s := range segs {
+		if strings.HasPrefix(s, ":") || strings.HasPrefix(s, "*") {
+			segs[i] = "{" + s[1:] + "}"
+		}
+	}
+	return strings.Join(segs, "/")
+}
+
+// routerKey は照合用のキー「method path」を作る（method は小文字）。
+func routerKey(method, path string) string {
+	return strings.ToLower(method) + " " + path
 }
 
 // extractRoutes は Gin のルート登録呼び出しを抽出する。

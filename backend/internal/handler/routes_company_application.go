@@ -3,6 +3,7 @@ package handler
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
+	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
 
@@ -18,8 +19,9 @@ func newCompanyApplicationHandler(deps *routeDeps) *CompanyApplicationHandler {
 }
 
 // registerCompanyApplicationPublicRoutes は認証不要の企業申請作成を登録する。
+// 公開フォームのスパム対策として per-IP レートリミット（5 回/分、burst 5）を掛ける。
 func registerCompanyApplicationPublicRoutes(g *gin.RouterGroup, h *CompanyApplicationHandler) {
-	g.POST("/company-applications", h.Create)
+	g.POST("/company-applications", middleware.RateLimitPerMinute(5, 5), h.Create)
 }
 
 // registerCompanyApplicationAdminRoutes は super_admin 用の一覧 / status 更新を登録する（認可は handler 層）。

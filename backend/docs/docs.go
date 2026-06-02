@@ -804,6 +804,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
                     },
+                    "429": {
+                        "description": "レート制限超過",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
                     "500": {
                         "description": "Cognito 未 設定 等 の 内部 エラー",
                         "schema": {
@@ -858,6 +864,12 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "refresh_token 欠落 / 無効",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "レート制限超過",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -998,6 +1010,12 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "バリデーションエラー",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "レート制限超過",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -1689,6 +1707,12 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "招待 が 無効 / 期限 切れ",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "レート制限超過",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }

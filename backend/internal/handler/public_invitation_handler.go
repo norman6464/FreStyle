@@ -35,6 +35,7 @@ func NewPublicInvitationHandler(v *usecase.ValidateInvitationTokenUseCase) *Publ
 //	@Success      200    {object}  invitationValidateResponse
 //	@Failure      404    {object}  errorResponse  "招待 が 無効 / 期限 切れ"
 //	@Failure      500    {object}  errorResponse  "内部 エラー"
+//	@Failure      429    {object}  errorResponse  "レート制限超過"
 //	@Router       /invitations/accept/{token} [get]
 func (h *PublicInvitationHandler) Validate(c *gin.Context) {
 	token := c.Param("token")

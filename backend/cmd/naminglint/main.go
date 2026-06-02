@@ -150,7 +150,8 @@ func analyzeFile(fset *token.FileSet, f *ast.File, path string) (structs []ucStr
 			}
 			for _, spec := range d.Specs {
 				ts, ok := spec.(*ast.TypeSpec)
-				if !ok || !strings.HasSuffix(ts.Name.Name, "UseCase") {
+				// 公開 struct `XxxUseCase` のみを対象にする（非公開の補助型は除外）。
+				if !ok || !ast.IsExported(ts.Name.Name) || !strings.HasSuffix(ts.Name.Name, "UseCase") {
 					continue
 				}
 				if _, ok := ts.Type.(*ast.StructType); !ok {

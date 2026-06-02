@@ -33,6 +33,9 @@ func (u *CourseUseCase) List() {}
 
 // notAUseCase は対象外。
 type Helper struct{}
+
+// privateUseCase は非公開なので対象外。
+type privateUseCase struct{}
 `, parser.ParseComments)
 	if err != nil {
 		t.Fatal(err)
@@ -55,6 +58,9 @@ type Helper struct{}
 	}
 	if _, ok := byName["Helper"]; ok {
 		t.Error("Helper (not *UseCase) should be ignored")
+	}
+	if _, ok := byName["privateUseCase"]; ok {
+		t.Error("non-exported privateUseCase should be ignored")
 	}
 
 	ctorSet := toSet(ctors)

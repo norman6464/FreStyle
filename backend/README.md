@@ -90,6 +90,21 @@ go test ./...
 - ロググループ `/ecs/frestyle-prod` は CFn 側で retention 14 日。Container Insights は
   コスト削減のため無効（詳細は frestyle-infrastructure の `docs/06-maintenance-cookbook.md` §15）。
 
+## レートリミット（公開エンドポイント）
+
+`middleware.RateLimitPerMinute(perMinute, burst)`（per-IP トークンバケット）を公開ルートに適用する。
+
+| エンドポイント | 制限 | 目的 |
+|---|---|---|
+| `POST /company-applications` | 5/分・burst 5 | 公開フォームのスパム対策 |
+| `GET /invitations/accept/:token` | 30/分・burst 10 | 招待 token の総当たり緩和 |
+| `POST /auth/cognito/callback` | 30/分・burst 10 | コールバック総当たり緩和 |
+| `POST /auth/cognito/refresh-token` | 60/分・burst 30 | 正規利用は高頻度なので緩め（NAT 共有 IP 考慮） |
+
+- 超過時は `429 Too Many Requests` + `Retry-After: 60`。
+- **単一 ECS タスク前提の in-memory 実装**。スケールアウト時はインスタンスごとに別カウントになるため共有ストア（Redis 等）が必要。
+- キーは `c.ClientIP()`（ALB / CloudFront の X-Forwarded-For 由来）。詐称を完全には防げないため、軽い総当たり / スパムの緩和が目的。
+
 ## デプロイ方針（後続 Phase で確立）
 
 - ALB の path-based routing で `/api/v2/*` を Go ECS Service に振り、

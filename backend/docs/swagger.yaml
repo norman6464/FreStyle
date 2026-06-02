@@ -1302,6 +1302,14 @@ paths:
           description: 招待 なし の 新規 user
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
+        "429":
+          description: レート制限超過
+          headers:
+            Retry-After:
+              description: '再試行までの秒数 (例: 60)'
+              type: string
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
         "500":
           description: Cognito 未 設定 等 の 内部 エラー
           schema:
@@ -1340,6 +1348,14 @@ paths:
             $ref: '#/definitions/internal_handler.messageResponse'
         "401":
           description: refresh_token 欠落 / 無効
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "429":
+          description: レート制限超過
+          headers:
+            Retry-After:
+              description: '再試行までの秒数 (例: 60)'
+              type: string
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
         "502":
@@ -1431,6 +1447,14 @@ paths:
             $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.CompanyApplication'
         "400":
           description: バリデーションエラー
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "429":
+          description: レート制限超過
+          headers:
+            Retry-After:
+              description: '再試行までの秒数 (例: 60)'
+              type: string
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
         "500":
@@ -1878,6 +1902,14 @@ paths:
             $ref: '#/definitions/internal_handler.invitationValidateResponse'
         "404":
           description: 招待 が 無効 / 期限 切れ
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "429":
+          description: レート制限超過
+          headers:
+            Retry-After:
+              description: '再試行までの秒数 (例: 60)'
+              type: string
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
         "500":

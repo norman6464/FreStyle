@@ -804,6 +804,18 @@ const docTemplate = `{
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
                     },
+                    "429": {
+                        "description": "レート制限超過",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        },
+                        "headers": {
+                            "Retry-After": {
+                                "type": "string",
+                                "description": "再試行までの秒数 (例: 60)"
+                            }
+                        }
+                    },
                     "500": {
                         "description": "Cognito 未 設定 等 の 内部 エラー",
                         "schema": {
@@ -860,6 +872,18 @@ const docTemplate = `{
                         "description": "refresh_token 欠落 / 無効",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "レート制限超過",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        },
+                        "headers": {
+                            "Retry-After": {
+                                "type": "string",
+                                "description": "再試行までの秒数 (例: 60)"
+                            }
                         }
                     },
                     "502": {
@@ -1000,6 +1024,18 @@ const docTemplate = `{
                         "description": "バリデーションエラー",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "レート制限超過",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        },
+                        "headers": {
+                            "Retry-After": {
+                                "type": "string",
+                                "description": "再試行までの秒数 (例: 60)"
+                            }
                         }
                     },
                     "500": {
@@ -1691,6 +1727,18 @@ const docTemplate = `{
                         "description": "招待 が 無効 / 期限 切れ",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "レート制限超過",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        },
+                        "headers": {
+                            "Retry-After": {
+                                "type": "string",
+                                "description": "再試行までの秒数 (例: 60)"
+                            }
                         }
                     },
                     "500": {

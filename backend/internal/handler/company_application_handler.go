@@ -43,6 +43,8 @@ type createCompanyApplicationReq struct {
 //	@Param        body  body      createCompanyApplicationReq  true  "申請内容"
 //	@Success      201   {object}  github_com_norman6464_FreStyle_backend_internal_domain.CompanyApplication
 //	@Failure      400   {object}  errorResponse  "バリデーションエラー"
+//	@Failure      429   {object}  errorResponse  "レート制限超過"
+//	@Header       429  {string}  Retry-After  "再試行までの秒数 (例: 60)"
 //	@Failure      500   {object}  errorResponse  "内部エラー"
 //	@Router       /company-applications [post]
 func (h *CompanyApplicationHandler) Create(c *gin.Context) {

@@ -8,8 +8,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// ListNotificationsUseCase は current user の 通知 一覧 を 返す。
-// 依存 port: [repository.NotificationRepository]。
+// ListNotificationsUseCase は current user の通知一覧を返す。
 type ListNotificationsUseCase struct {
 	repo repository.NotificationRepository
 }
@@ -25,8 +24,7 @@ func (u *ListNotificationsUseCase) Execute(ctx context.Context, userID uint64) (
 	return u.repo.ListByUserID(ctx, userID)
 }
 
-// MarkNotificationReadUseCase は 単一 通知 を 既読 化 する (所有者 検証 込み)。
-// 依存 port: [repository.NotificationRepository]。
+// MarkNotificationReadUseCase は単一通知を既読化する（所有者検証込み）。
 type MarkNotificationReadUseCase struct {
 	repo repository.NotificationRepository
 }
@@ -45,8 +43,7 @@ func (u *MarkNotificationReadUseCase) Execute(ctx context.Context, userID, id ui
 	return u.repo.MarkRead(ctx, userID, id)
 }
 
-// MarkAllNotificationsReadUseCase は current user の 全 通知 を 一括 既読 化 する。
-// 依存 port: [repository.NotificationRepository]。
+// MarkAllNotificationsReadUseCase は current user の全通知を一括既読化する。
 type MarkAllNotificationsReadUseCase struct {
 	repo repository.NotificationRepository
 }
@@ -62,8 +59,7 @@ func (u *MarkAllNotificationsReadUseCase) Execute(ctx context.Context, userID ui
 	return u.repo.MarkAllRead(ctx, userID)
 }
 
-// CountUnreadNotificationsUseCase は current user の 未読 通知 数 を 返す (バッジ 表示 用)。
-// 依存 port: [repository.NotificationRepository]。
+// CountUnreadNotificationsUseCase は current user の未読通知数を返す（バッジ表示用）。
 type CountUnreadNotificationsUseCase struct {
 	repo repository.NotificationRepository
 }

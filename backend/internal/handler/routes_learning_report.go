@@ -7,12 +7,7 @@ import (
 )
 
 // registerLearningReportRoutes は月次学習レポートの取得 / 生成要求を登録する。
-//
-//	GET  /api/v2/learning-reports             current user のレポート一覧
-//	POST /api/v2/learning-reports/generate    `{year, month}` で月次レポート生成を要求
-//
-// 生成は SQS にキューする非同期ジョブで、 当面は stub enqueuer を使用する
-// （実 SQS 接続は別 PR / 別 infra で導入予定）。
+// 生成は SQS 非同期ジョブで、当面は stub enqueuer を使う。
 func registerLearningReportRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	repo := persistence.NewLearningReportRepository(deps.db)
 	queue := persistence.NewStubSqsEnqueuer()

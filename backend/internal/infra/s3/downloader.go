@@ -11,26 +11,18 @@ import (
 	awss3 "github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
-// Downloader はサーバ側で S3 オブジェクトの実体を取得する。
-//
-// 用途: ユーザーが presigned PUT で S3 にアップロードした画像 / ドキュメントを
-// バックエンドが Bedrock Converse に渡す前に GetObject でバイト列として取り出す。
-// presigner.go と分けているのは「presigned URL は短期 / 一方通行（PUT）専用」と
-// 「server-side GetObject は IAM 権限経由 / 任意のサイズ」で責務が違うため。
+// Downloader はサーバ側で S3 オブジェクトの実体を GetObject で取得する
+// （presigned PUT 済みの添付を Bedrock に渡す前にバイト列で読む用途）。
 type Downloader struct {
 	client *awss3.Client
 	bucket string
-	// allowedKeyPrefix は読み出し許容 prefix。空のときは prefix チェックをスキップする。
-	// AI チャット添付では `ai-chat/` を渡して、誤って他用途の prefix を読まれないようにする。
+	// allowedKeyPrefix は読み出し許容 prefix（空ならチェックなし）。他用途の prefix 読み出しを防ぐ。
 	allowedKeyPrefix string
-	// maxBytes は 1 オブジェクトあたりの最大読み込みサイズ（バイト）。
-	// 任意 S3 オブジェクトを読まれた場合の OOM 防止用。
+	// maxBytes は 1 オブジェクトの最大読み込みサイズ（OOM 防止）。
 	maxBytes int64
 }
 
-// 既定の最大読み込みサイズ。Bedrock の image 上限 (5MB) と document 上限 (4.5MB) より
-// 余裕をもたせて 10MB を 1 オブジェクトの上限とする。実際のサイズ検証は usecase / handler 側で
-// 行うが、Downloader でも belt-and-suspenders として強制する。
+// defaultMaxDownloadBytes は 1 オブジェクトの上限（Bedrock 上限より余裕を持たせた 10MB）。
 const defaultMaxDownloadBytes int64 = 10 * 1024 * 1024
 
 // NewDownloader は本番用 (ECS Task Role 経由) で Downloader を組み立てる。
@@ -51,14 +43,8 @@ func NewDownloader(ctx context.Context, region, bucket, allowedKeyPrefix string)
 	}, nil
 }
 
-// Download は指定 key のオブジェクトをメモリに読み込んで返す。
-// Bedrock の image / document ブロックがバイト列を要求するため、ストリーミングではなく
-// 一括ロードで返す。
-//
-// 防御:
-//   - allowedKeyPrefix を持つ場合は prefix 不一致を error で弾く
-//   - maxBytes を超える object は error にしてメモリを使い切らない
-//     （io.LimitReader で +1 byte 余分に読んで超過判定する）
+// Download は指定 key のオブジェクトをメモリに一括ロードして返す。
+// prefix 不一致と maxBytes 超過は error で弾く（超過判定は +1 byte 読みで行う）。
 func (d *Downloader) Download(ctx context.Context, key string) ([]byte, error) {
 	if key == "" {
 		return nil, fmt.Errorf("s3: key is required")

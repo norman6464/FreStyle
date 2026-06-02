@@ -10,8 +10,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// CodeExecutor は ExecuteCodeUseCase を抽象化したインターフェイス。
-// usecase 層が usecase 同士に直接依存するのを避け、テストでは fake に差し替える。
+// CodeExecutor は ExecuteCodeUseCase を抽象化し、usecase 同士の直接依存を避ける。
 type CodeExecutor interface {
 	Execute(ctx context.Context, in ExecuteCodeInput) (*ExecuteCodeOutput, error)
 }
@@ -40,26 +39,15 @@ type SubmitMasterExerciseOutput struct {
 	Results      []TestCaseResult `json:"results"`
 }
 
-// SubmitMasterExerciseUseCase はユーザコードを slug の master_exercise に対して
-// 採点・提出履歴に保存する。
+// SubmitMasterExerciseUseCase はユーザコードを slug の master_exercise に対して採点し履歴に保存する。
 //
-// 採点ロジック:
-//   - mode='qa' の場合: コードを実行せず、 提出文字列と ExpectedOutput を trim 比較するだけ。
-//     docker / kubernetes など サンドボックス実行が困難な題材向け。
-//   - mode='execute' (default) の場合:
-//   - master_exercise_examples が登録されていれば 各 example の InputText を stdin に
-//     流して ExecuteCodeUseCase で実行し、 stdout を normalize して expected_output と比較
-//   - examples が無ければ exercise 自身の ExpectedOutput を 単一テストケースとして使う
-//     (linux / git / go 等の seed.py 経由で投入された演習向け)
-//     stdout を normalize（末尾改行 / CRLF を吸収）して expected_output と完全一致するか比較。
-//     全件 pass で isCorrect=true。1 件でも失敗・実行エラー（exit_code != 0）なら false。
-//     実行コスト削減のため、最初の不一致で打ち切らず全件実行（ユーザに「どこで落ちたか」を全部見せる方針）。
+// 採点は mode で分岐する:
+//   - qa: 実行せず提出文字列と ExpectedOutput を normalize 比較するだけ。
+//   - execute: examples（無ければ exercise 自身の ExpectedOutput を単一ケース化）を全件実行し、
+//     stdout を normalize 比較。全件 pass かつ exit_code 0 で isCorrect=true。
+//     どこで落ちたか全部見せるため最初の不一致で打ち切らず全件実行する。
 //
-// 履歴保存はテストケース個別ではなく、まとめて 1 行（最初に失敗した stdout / stderr / exit_code を採用）。
-//
-// 依存 port: [repository.MasterExerciseRepository] (slug → exercise) +
-// [repository.MasterExerciseExampleRepository] (入出力 例) +
-// [repository.ExerciseSubmissionRepository] (履歴 保存) + [CodeExecutor] (sandbox 実行)。
+// 履歴は 1 行にまとめて保存（失敗時は最初の失敗、成功時は最後の実行結果を採用）。
 type SubmitMasterExerciseUseCase struct {
 	exercises   repository.MasterExerciseRepository
 	examples    repository.MasterExerciseExampleRepository
@@ -100,7 +88,6 @@ func (uc *SubmitMasterExerciseUseCase) Execute(ctx context.Context, in SubmitMas
 		return nil, fmt.Errorf("exercise not found: %s", in.Slug)
 	}
 
-	// QA モード: コード実行せず、 提出文字列と ExpectedOutput を直接比較する。
 	if ex.Mode == domain.ExerciseModeQA {
 		return uc.submitQA(ctx, in, ex)
 	}
@@ -109,9 +96,7 @@ func (uc *SubmitMasterExerciseUseCase) Execute(ctx context.Context, in SubmitMas
 	if err != nil {
 		return nil, err
 	}
-	// examples が登録されていない演習 (seed.py 経由で投入された linux / git / go 等)
-	// は exercise 自身の ExpectedOutput を 単一の仮想テストケースとして使う。
-	// stdin は空、 OrderIndex=1 として扱う。
+	// examples が無い演習は exercise 自身の ExpectedOutput を単一の仮想テストケースとして使う。
 	if len(examples) == 0 {
 		examples = []domain.MasterExerciseExample{{
 			ExerciseID:     ex.ID,
@@ -123,7 +108,7 @@ func (uc *SubmitMasterExerciseUseCase) Execute(ctx context.Context, in SubmitMas
 
 	results := make([]TestCaseResult, 0, len(examples))
 	allPassed := true
-	// 履歴保存用に「最初に失敗した実行結果」を保持。 全件 pass のときは最後の結果を使う。
+	// 履歴保存用の代表結果（失敗時は最初の失敗、全件 pass 時は最後の結果）。
 	var representativeStdout, representativeStderr string
 	var representativeExit int
 
@@ -149,17 +134,14 @@ func (uc *SubmitMasterExerciseUseCase) Execute(ctx context.Context, in SubmitMas
 			Passed:         passed,
 		})
 		if !passed && allPassed {
-			// 最初の失敗を representative として記録し allPassed を false に倒す。
-			// 以降のループでは下の if も通らないため、 この値が representative として固定される。
+			// 最初の失敗を representative に固定する（以降は下の if も通らない）。
 			representativeStdout = out.Stdout
 			representativeStderr = out.Stderr
 			representativeExit = out.ExitCode
 			allPassed = false
 		}
 		if allPassed {
-			// 全件 pass し続けている経路。 ループのたびに最後の出力で上書きすることで、
-			// 最終的に representative が「最後に通ったテストケースの出力」になる。
-			// 1 件でも失敗したら上の if 文で allPassed=false に倒れ、 こちらは以降スキップされる。
+			// 全件 pass の間は最後の出力で上書きし続ける。
 			representativeStdout = out.Stdout
 			representativeStderr = out.Stderr
 			representativeExit = out.ExitCode
@@ -188,8 +170,7 @@ func (uc *SubmitMasterExerciseUseCase) Execute(ctx context.Context, in SubmitMas
 	}, nil
 }
 
-// submitQA は QA モードの採点。 提出文字列と ExpectedOutput を normalize 比較するだけで
-// コード実行は行わない。 docker / kubernetes など サンドボックス実行が困難な題材向け。
+// submitQA は QA モードの採点。コード実行せず提出文字列と ExpectedOutput を normalize 比較する。
 func (uc *SubmitMasterExerciseUseCase) submitQA(ctx context.Context, in SubmitMasterExerciseInput, ex *domain.MasterExercise) (*SubmitMasterExerciseOutput, error) {
 	expected := normalizeOutput(ex.ExpectedOutput)
 	actual := normalizeOutput(in.Code)
@@ -224,12 +205,7 @@ func (uc *SubmitMasterExerciseUseCase) submitQA(ctx context.Context, in SubmitMa
 	}, nil
 }
 
-// normalizeOutput は stdout 比較時の表記揺れを吸収する。
-//   - CRLF / CR を LF に統一
-//   - 末尾の改行・空白をすべて除去（"42\n" と "42" を同一視）
-//
-// PHP の `echo` は末尾改行を付けない / 付けるが問題により混在するため、
-// 「末尾だけ揺れを許容」する方針で十分。 行内の空白は厳密一致。
+// normalizeOutput は CRLF/CR を LF に統一し末尾の改行・空白を除去する（行内の空白は厳密一致）。
 func normalizeOutput(s string) string {
 	s = strings.ReplaceAll(s, "\r\n", "\n")
 	s = strings.ReplaceAll(s, "\r", "\n")

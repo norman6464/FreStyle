@@ -13,13 +13,11 @@ import (
 // adminInvitationRepository は [repository.AdminInvitationRepository] の GORM 実装。
 type adminInvitationRepository struct{ db *gorm.DB }
 
-// NewAdminInvitationRepository は GORM ベース の [repository.AdminInvitationRepository] を 返す。
 func NewAdminInvitationRepository(db *gorm.DB) repository.AdminInvitationRepository {
 	return &adminInvitationRepository{db: db}
 }
 
-// 一覧 API は「未承諾の招待」を返すため pending 以外（accepted / canceled）は除外する。
-// 監査目的で行は物理削除せず status のみ更新している。
+// pending 以外（accepted / canceled）は除外する（行は物理削除せず status のみ更新）。
 func (r *adminInvitationRepository) ListAll(ctx context.Context) ([]domain.AdminInvitation, error) {
 	var rows []domain.AdminInvitation
 	err := r.db.WithContext(ctx).
@@ -42,8 +40,7 @@ func (r *adminInvitationRepository) FindPendingByEmail(ctx context.Context, emai
 		Where("email = ? AND status = ?", email, domain.InvitationStatusPending).
 		Order("created_at DESC").First(&row).Error
 	if err != nil {
-		// レコードが無いケースは「招待ユーザーではない通常サインアップ」なので nil, nil を返す
-		// （呼び出し側でデフォルトロールにフォールバックする想定）
+		// 該当なしは招待ユーザーでない通常サインアップなので nil, nil を返す。
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
@@ -57,13 +54,8 @@ func (r *adminInvitationRepository) FindPendingByToken(ctx context.Context, toke
 		return nil, nil
 	}
 	var row domain.AdminInvitation
-	// expires_at は招待作成時に必ず未来の値を入れる前提（usecase 側で 7 日後をセット）。
-	// 期限切れを DB 側で弾くことで「フロントで時刻がズレていても安全」な検証になる。
-	//
-	// 時刻比較は DB 関数（NOW() / UTC_TIMESTAMP()）ではなく Go 側で生成した UTC 現在時刻を
-	// パラメータバインドで渡す。理由:
-	//   - DB エンジン横断のポータビリティ（PostgreSQL には UTC_TIMESTAMP() が無い）
-	//   - GORM が time.Time を timestamptz として扱うため、DB のローカル TZ 設定に依存しない
+	// 期限切れは DB 側で弾く。比較は DB 関数でなく Go の UTC 現在時刻をバインドする
+	// （DB エンジン非依存 / ローカル TZ 設定に左右されない）。
 	err := r.db.WithContext(ctx).
 		Where("token = ? AND status = ? AND expires_at > ?", token, domain.InvitationStatusPending, time.Now().UTC()).
 		First(&row).Error

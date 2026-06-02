@@ -11,13 +11,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// CourseHandler はコース API を扱う。
-//
-//	GET    /api/v2/courses        一覧（actor role / company で自動フィルタ）
-//	GET    /api/v2/courses/:id    詳細
-//	POST   /api/v2/courses        作成（company_admin / super_admin）
-//	PUT    /api/v2/courses/:id    更新（同上）
-//	DELETE /api/v2/courses/:id    削除（配下教材も cascade で削除）
+// CourseHandler はコースの CRUD API を扱う。
 type CourseHandler struct {
 	uc *usecase.CourseUseCase
 }

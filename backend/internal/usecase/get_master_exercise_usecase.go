@@ -9,22 +9,12 @@ import (
 )
 
 // GetMasterExerciseDetailOutput は詳細ページに渡す問題本体 + 入出力例セット。
-//
-// JSON 表現は handler でそのままシリアライズされる。フロントは `examples` 配列を
-// 入力例 1 / 入力例 2 / ... として全件描画し、提出時には同じ全件をテストケースとして
-// 順に実行して合否を判定する（採点ロジックは PR-W で追加）。
 type GetMasterExerciseDetailOutput struct {
 	Exercise *domain.MasterExercise         `json:"exercise"`
 	Examples []domain.MasterExerciseExample `json:"examples"`
 }
 
-// GetMasterExerciseUseCase は指定 slug の運営マスタ演習問題 + 入出力例を返す。
-//
-// 旧 API は `:id` ベースだったが、 人間可読な URL `/code-editor/php-1` を実現するため
-// 主導線を slug に切替える。 ID ベースの挙動も互換用に Execute / GetByID で残す。
-//
-// 依存 port: [repository.MasterExerciseRepository] (exercise 本体) +
-// [repository.MasterExerciseExampleRepository] (入出力例 セット)。
+// GetMasterExerciseUseCase は slug 指定で運営マスタ演習 + 入出力例を返す（ID 指定は Execute で互換維持）。
 type GetMasterExerciseUseCase struct {
 	repo     repository.MasterExerciseRepository
 	examples repository.MasterExerciseExampleRepository
@@ -42,11 +32,8 @@ func (uc *GetMasterExerciseUseCase) Execute(ctx context.Context, id uint64) (*do
 	return uc.repo.GetByID(ctx, id)
 }
 
-// ExecuteBySlug は slug ベースの詳細ページ向け。 examples を含めて 1 度に返す。
-//
-// `GetBySlug` が GORM の `gorm.ErrRecordNotFound` を返した場合は handler 側で 404 に分岐できるよう
-// そのまま伝搬する。 nil チェックは GORM が `(nil, nil)` を返さない前提だが、 リポジトリ実装の
-// バグや fake で `ex == nil` が起きたときの nil pointer panic を防ぐため defensive に弾いておく。
+// ExecuteBySlug は slug ベースの詳細ページ向けに examples を含めて返す。
+// NotFound は handler で 404 に分岐できるようそのまま伝搬し、ex == nil は defensive に弾く。
 func (uc *GetMasterExerciseUseCase) ExecuteBySlug(ctx context.Context, slug string) (*GetMasterExerciseDetailOutput, error) {
 	ex, err := uc.repo.GetBySlug(ctx, slug)
 	if err != nil {

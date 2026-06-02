@@ -10,15 +10,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// MasterExerciseHandler は運営マスタ演習問題（master_exercises）の一覧 / 取得を返す。
-//
-// API パスは言語非依存:
-//
-//	GET /api/v2/exercises?language=php   一覧
-//	GET /api/v2/exercises/:slug          詳細（入出力例の配列を含む）
-//
-// 詳細は slug ベース URL（`/code-editor/php-1` のように人間可読）に揃えるため、
-// 旧 `:id` ルートは廃止し slug 必須にする（フロントは新 API に追従させる）。
+// MasterExerciseHandler は運営マスタ演習問題の一覧 / 詳細を返す（詳細は slug ベース URL）。
 type MasterExerciseHandler struct {
 	listExercises  *usecase.ListMasterExercisesUseCase
 	listWithStatus *usecase.ListMasterExercisesWithStatusUseCase
@@ -33,12 +25,8 @@ func NewMasterExerciseHandler(
 	return &MasterExerciseHandler{listExercises: list, listWithStatus: listWithStatus, getExercise: get}
 }
 
-// List は GET /api/v2/exercises 。query `language` で絞り込み（空なら全言語）。
-//
-// current user の提出状況（solved / in_progress / 未着手）と
-// 全ユーザ合計の集計（提出数 / 正答ユーザ数）を 1 度に返す。
-// 一覧ページでステータスバッジ + 解答率を出すために必要。
-// 未ログインの場合は status は全 ""、 stats だけ返す。
+// List は演習問題一覧を query language で絞り込んで返す。
+// current user の提出状況と全ユーザ集計を同時に返す（未ログイン時は status 空）。
 //
 //	@Summary      演習問題 一覧 (status + stats 付き)
 //	@Description  運営 マスタ 演習問題 を 取得。 query language で 絞り込み (例: php / go)。 current user の 提出 状況 と 全 user 集計 を 同時 に 返す。 未 ログイン 時 は status 空。
@@ -63,10 +51,8 @@ func (h *MasterExerciseHandler) List(c *gin.Context) {
 	c.JSON(http.StatusOK, rows)
 }
 
-// GetBySlug は GET /api/v2/exercises/:slug 。 入出力例を含む詳細を返す。
-//
-// `gorm.ErrRecordNotFound` のときだけ 404 を返し、 それ以外の DB / 集計エラーは 500 として
-// 区別する。 全部 404 にすると本物の障害を「該当なし」と誤検知して上流に隠してしまうため。
+// GetBySlug は入出力例を含む詳細を返す。
+// NotFound だけ 404、それ以外の DB エラーは 500 にして本物の障害を「該当なし」と誤検知させない。
 //
 //	@Summary      演習問題 詳細 (slug)
 //	@Description  指定 slug の 演習 問題 + 入 出力 例 一覧 を 返す。 詳細 画面 用。

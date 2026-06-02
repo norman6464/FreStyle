@@ -21,8 +21,7 @@ type aiChatMessageRepository struct {
 	table string
 }
 
-// NewAiChatMessageRepository は DynamoDB クライアントを組み立てて
-// [repository.AiChatMessageRepository] を 返す。
+// NewAiChatMessageRepository は DynamoDB クライアントを組み立てて返す。
 func NewAiChatMessageRepository(ctx context.Context, region, table string) (repository.AiChatMessageRepository, error) {
 	cfg, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(region))
 	if err != nil {
@@ -34,11 +33,8 @@ func NewAiChatMessageRepository(ctx context.Context, region, table string) (repo
 	}, nil
 }
 
-// dynamoItem は DynamoDB に保存するアイテムの形式。
-//
-// Attachments は domain.Attachment と 1:1 だが、BlobData（一時バイト列）は永続化しない。
-// 既存メッセージは attachments 列が無いまま保存されており、Unmarshal で空スライスに
-// なるよう omitempty で扱う。
+// dynamoItem は DynamoDB に保存するアイテム形式。BlobData は永続化せず、
+// attachments 列が無い既存メッセージのため omitempty で扱う。
 type dynamoItem struct {
 	SessionID   string         `dynamodbav:"sessionId"`
 	MessageID   string         `dynamodbav:"messageId"`

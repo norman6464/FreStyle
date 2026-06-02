@@ -64,10 +64,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 
 	v2 := r.Group("/api/v2")
 
-	// Swagger UI (/api/v2/swagger/index.html)。 ALB は /api/v2/* のみ backend に
-	// ルーティング する ので v2 group 内 で 配信 する。 認証 不要 (Cookie 認証 を 適用
-	// する authed group に は 入れない)。 docs/ は `make openapi` で 生成、
-	// cmd/server/main.go の blank import で 初期化。
+	// Swagger UI。ALB が /api/v2/* のみ backend に流すため v2 group 内で配信する（認証不要）。
 	v2.GET("/swagger/*any", ginswagger.WrapHandler(swaggerfiles.Handler))
 
 	registerHealthRoutes(v2, deps)
@@ -93,7 +90,6 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	registerTeachingMaterialRoutes(authed, deps)
 	registerCompanyApplicationAdminRoutes(authed, companyAppHandler)
 	// WebSocket (/ws/ai-chat) は SSE (/ai-chat/stream) への置換で廃止 (PR-D)。
-
 	return r
 }
 

@@ -11,7 +11,6 @@ import (
 )
 
 // ProfileImageHandler は profile アイコン用 S3 PUT 署名付き URL を発行する。
-// フロント ProfileRepository.getImagePresignedUrl が叩く /profile/:userId/image/presigned-url を提供する。
 type ProfileImageHandler struct {
 	issue *usecase.IssueProfileImageUploadURLUseCase
 }
@@ -50,8 +49,7 @@ func (h *ProfileImageHandler) resolveUserID(c *gin.Context) (uint64, error) {
 	return uid, nil
 }
 
-// IssueUploadURL は POST /profile/:userId/image/presigned-url。
-// クライアントは { fileName, contentType } を送り、 { uploadUrl, imageUrl, key, expiresIn } を受け取る。
+// IssueUploadURL は { fileName, contentType } を受けて PUT 署名 URL 等を返す。
 //
 //	@Summary      プロフィール 画像 PUT 署名 URL
 //	@Description  プロフィール アイコン 用 の S3 PUT 署名 URL を 発行。 "me" / 数字 一致 のみ 許可 (IDOR 対策)。 body は 任意。

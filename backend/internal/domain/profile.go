@@ -2,11 +2,7 @@ package domain
 
 import "time"
 
-// Profile は users テーブルとは別管理のプロフィール拡張情報。
-//
-// Status はユーザーが任意で公開できるショートメッセージ（例: 「学習中」「取り込み中」）。
-// users.display_name は別テーブル管理だが、フロントは「プロフィール表示」で両者を
-// 合わせて使うため、handler 層で join して返す前提。
+// Profile は users とは別管理のプロフィール拡張情報。
 type Profile struct {
 	UserID    uint64    `gorm:"primaryKey;column:user_id" json:"userId"`
 	Bio       string    `gorm:"column:bio" json:"bio"`
@@ -17,16 +13,13 @@ type Profile struct {
 
 func (Profile) TableName() string { return "profiles" }
 
-// ProfileView は handler 層で users.display_name と Profile を合成した DTO。
-// フロントの「プロフィール表示」が期待する単一オブジェクトの形。
+// ProfileView は users.display_name と Profile を合成した表示用 DTO。
 type ProfileView struct {
-	UserID      uint64 `json:"userId"`
-	DisplayName string `json:"displayName"`
-	// Email は users.email を そのまま返す。 frontend の sidebar ユーザーメニューで
-	// 「ログイン中のメールアドレスを 表示する」 用途で参照する。
-	Email     string    `json:"email"`
-	Bio       string    `json:"bio"`
-	AvatarURL string    `json:"avatarUrl"`
-	Status    string    `json:"status"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	UserID      uint64    `json:"userId"`
+	DisplayName string    `json:"displayName"`
+	Email       string    `json:"email"`
+	Bio         string    `json:"bio"`
+	AvatarURL   string    `json:"avatarUrl"`
+	Status      string    `json:"status"`
+	UpdatedAt   time.Time `json:"updatedAt"`
 }

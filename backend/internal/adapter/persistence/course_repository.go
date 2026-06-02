@@ -13,7 +13,6 @@ type courseRepository struct {
 	db *gorm.DB
 }
 
-// NewCourseRepository は GORM ベース の [repository.CourseRepository] を 返す。
 func NewCourseRepository(db *gorm.DB) repository.CourseRepository {
 	return &courseRepository{db: db}
 }
@@ -43,7 +42,7 @@ func (r *courseRepository) Create(ctx context.Context, c *domain.Course) error {
 }
 
 func (r *courseRepository) Update(ctx context.Context, c *domain.Course) error {
-	// 一部カラムのみ更新（CreatedBy / CompanyID は不変）。
+	// CreatedBy / CompanyID は不変なので更新対象から外す。
 	return r.db.WithContext(ctx).Model(c).Updates(map[string]any{
 		"title":        c.Title,
 		"description":  c.Description,

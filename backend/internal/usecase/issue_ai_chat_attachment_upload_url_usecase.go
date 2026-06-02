@@ -8,16 +8,7 @@ import (
 )
 
 // IssueAiChatAttachmentUploadURLUseCase は AI チャット添付の S3 PUT presigned URL を発行する。
-//
-// 入力検証:
-//   - userID 必須
-//   - contentType は事前に許容セット (image/png 等) であること
-//   - sizeBytes は Bedrock 上限 (5MB / image, 4.5MB / document) 以内であること
-//
-// 上限チェックを usecase 層で行うのは「presigned URL を発行する前に 413 を返す」ためで、
-// クライアント側の不正利用や typo を S3 アップロード前の早い段階で弾く目的。
-//
-// 依存 port: [repository.AiChatAttachmentPresigner] (S3 presigned URL 生成)。
+// contentType / sizeBytes を usecase 層で検証し、不正な添付は presigned URL 発行前に弾く。
 type IssueAiChatAttachmentUploadURLUseCase struct {
 	presigner repository.AiChatAttachmentPresigner
 }
@@ -39,8 +30,7 @@ const (
 	maxDocumentBytes int64 = 4_500_000 // Bedrock document upper bound
 )
 
-// AllowedAttachmentContentTypes は presigned URL 発行 OK / SSE 送信 OK な MIME 一覧。
-// PR-G1 では画像のみ。PR-G2 で application/pdf / text/csv を追加する想定。
+// AllowedAttachmentContentTypes は presigned URL 発行 / SSE 送信が許可される MIME 一覧。
 var AllowedAttachmentContentTypes = map[string]struct {
 	Kind   string // "image" | "document"
 	Format string // Bedrock format (png/jpeg/gif/webp/pdf/csv)
@@ -73,5 +63,5 @@ func (u *IssueAiChatAttachmentUploadURLUseCase) Execute(ctx context.Context, in 
 	return u.presigner.Generate(ctx, in.UserID, in.Filename, in.ContentType)
 }
 
-// _ = maxDocumentBytes は未使用警告抑止 + PR-G2 で利用予定の予約定数の宣言を残す目的。
+// maxDocumentBytes は document 対応で使う予約定数（未使用警告抑止）。
 var _ = maxDocumentBytes

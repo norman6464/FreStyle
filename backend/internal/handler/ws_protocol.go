@@ -5,9 +5,8 @@ import (
 	"time"
 )
 
-// ChatInbound はクライアントから WebSocket 経由で送られるメッセージの正規形。
-// senderId / roomId / id / createdAt はクライアント任意値を信用しないためサーバが埋める。
-// Spring Boot 時代の STOMP destination ベースから純 JSON ベースへ移行。
+// ChatInbound はクライアントから送られるメッセージの正規形。
+// senderId / roomId / id / createdAt はクライアント値を信用せずサーバが埋める。
 type ChatInbound struct {
 	Type    string `json:"type"` // "send" | "delete"
 	Content string `json:"content,omitempty"`
@@ -27,8 +26,7 @@ type ChatOutbound struct {
 	CreatedAt  string `json:"createdAt,omitempty"` // RFC3339
 }
 
-// BuildChatMessage は Inbound の "send" に対して Outbound の "message" を組み立てる。
-// 純粋関数化することでテストしやすい状態にする。
+// BuildChatMessage は Inbound の "send" から Outbound の "message" を組み立てる。
 func BuildChatMessage(in ChatInbound, roomID string, senderID uint64, senderName string, now time.Time) (ChatOutbound, bool) {
 	if in.Type != "send" || in.Content == "" {
 		return ChatOutbound{}, false

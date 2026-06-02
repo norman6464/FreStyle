@@ -7,8 +7,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// ListCompaniesUseCase は 全 company を 返す Use Case。 SuperAdmin 専用 画面 用。
-// 依存 port: [repository.CompanyRepository]。
+// ListCompaniesUseCase は全 company を返す（SuperAdmin 専用）。
 type ListCompaniesUseCase struct {
 	repo repository.CompanyRepository
 }

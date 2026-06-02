@@ -13,9 +13,7 @@ import (
 )
 
 // ProfileHandler は GET / PUT /profile/:userId(or "me") を提供する。
-//
-// 返却 DTO `domain.ProfileView` は users.display_name と profiles テーブルを合成したもの
-// （フロントは displayName / bio / avatarUrl / status を 1 つの object で扱う）。
+// 返却する domain.ProfileView は users.display_name と profiles を合成したもの。
 type ProfileHandler struct {
 	get    *usecase.GetProfileUseCase
 	update *usecase.UpdateProfileUseCase
@@ -35,10 +33,8 @@ var (
 	errProfileUnauthorized = errors.New("unauthorized")
 )
 
-// resolveUserID は path :userId を current user と突き合わせる。
-//   - "me" / 空文字 / 数字以外 → current user に解決（フロント /profile/me に対応）
-//   - 数字で current user と一致 → そのまま
-//   - 数字で current user 以外 → 403（IDOR 対策）
+// resolveUserID は "me" / 空文字 / 数字以外を current user に、数字一致はそのまま、
+// 数字で current user 以外は 403 にする（IDOR 対策）。
 func (h *ProfileHandler) resolveUserID(c *gin.Context) (uint64, error) {
 	cur := middleware.CurrentUserIDOrZero(c)
 	if cur == 0 {
@@ -58,7 +54,7 @@ func (h *ProfileHandler) resolveUserID(c *gin.Context) (uint64, error) {
 	return uid, nil
 }
 
-// Get は GET /profile/:userId (or "me") の ハンドラ。
+// Get は指定 user のプロフィールを返す。
 //
 //	@Summary      プロフィール 取得
 //	@Description  指定 user (or current user) の displayName / bio / avatarUrl / status を 返す。 IDOR 対策 で 自分 以外 は 403。
@@ -86,17 +82,15 @@ func (h *ProfileHandler) Get(c *gin.Context) {
 }
 
 type updateProfileReq struct {
-	// `name` は旧フロント実装の互換のため受け付け、`displayName` を優先する。
 	DisplayName string `json:"displayName"`
-	Name        string `json:"name"`
+	Name        string `json:"name"` // 旧フロント互換。displayName を優先。
 	Bio         string `json:"bio"`
 	AvatarURL   string `json:"avatarUrl"`
-	// 旧フロント実装が `iconUrl` で送ってきた場合の互換。
-	IconURL string `json:"iconUrl"`
-	Status  string `json:"status"`
+	IconURL     string `json:"iconUrl"` // 旧フロント互換。avatarUrl を優先。
+	Status      string `json:"status"`
 }
 
-// Update は PUT /profile/:userId (or "me") の ハンドラ。
+// Update は current user のプロフィールを更新する。
 //
 //	@Summary      プロフィール 更新
 //	@Description  current user の displayName / bio / avatarUrl / status を 更新 する。 他 user は 403。
@@ -153,8 +147,7 @@ func (h *ProfileHandler) Update(c *gin.Context) {
 	c.JSON(http.StatusOK, view)
 }
 
-// buildView は users.display_name と profiles を合成して ProfileView を返す。
-// 未登録ユーザーでも UI が落ちないよう、欠損時は空文字フィールドで埋める。
+// buildView は users.display_name と profiles を合成して ProfileView を返す（欠損時は空文字で埋める）。
 func (h *ProfileHandler) buildView(c *gin.Context, uid uint64) (*domain.ProfileView, error) {
 	p, err := h.get.Execute(c.Request.Context(), uid)
 	if err != nil {

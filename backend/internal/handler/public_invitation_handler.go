@@ -7,9 +7,8 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
 
-// PublicInvitationHandler は招待マジックリンク受諾画面用の **認証不要** エンドポイントを提供する。
-// 通常 admin 系 (POST/GET/DELETE /admin/invitations) は AdminInvitationHandler が担当するが、
-// 受諾画面はログイン前のユーザーが踏むため、認証必須グループの外に切り出す。
+// PublicInvitationHandler は招待受諾画面用の認証不要エンドポイントを提供する
+// （ログイン前のユーザーが踏むため認証必須グループの外に置く）。
 type PublicInvitationHandler struct {
 	validate *usecase.ValidateInvitationTokenUseCase
 }
@@ -18,14 +17,8 @@ func NewPublicInvitationHandler(v *usecase.ValidateInvitationTokenUseCase) *Publ
 	return &PublicInvitationHandler{validate: v}
 }
 
-// Validate は GET /api/v2/invitations/accept/:token。
-//
-// 仕様:
-//   - 認証不要（招待リンクをまだログインしていないユーザーが踏むため）
-//   - token が空・該当なし・期限切れ・既受諾・canceled は **すべて 404** （メタ情報を漏らさない）
-//   - 成功時は role / displayName / companyId / companyName のみ返す（email は返さない）
-//
-// レート制限はミドルウェア層で別途実装する想定（現状は未実装）。
+// Validate は招待 token を検証する。無効・期限切れ・既受諾は全て 404（メタ情報を漏らさない）。
+// 成功時は role / displayName / companyId / companyName のみ返す（email は返さない）。
 //
 //	@Summary      招待 トークン 検証 (公開 / 認証 不要)
 //	@Description  招待 マジック リンク から 来た 未 ログイン user 用。 該当 / 期限 切れ / 既 受諾 等 は メタ 情報 を 漏らさず 全て 404。
@@ -42,7 +35,6 @@ func (h *PublicInvitationHandler) Validate(c *gin.Context) {
 	token := c.Param("token")
 	got, err := h.validate.Execute(c.Request.Context(), token)
 	if err != nil {
-		// 内部エラーは 500 だが、フロントには「招待が無効」とだけ伝えてメタ情報を出さない。
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
 		return
 	}

@@ -1,9 +1,5 @@
-// Package persistence は usecase 層 が 定義 した port (interface) に 対 する 永続化
-// 実装 (GORM / DynamoDB / S3 presigner 等) を 集約 する。
-//
-// Clean Architecture の Interface Adapters 層 の うち「persistence 関心 事」 担当 部分。
-// usecase 側 は ここ を 知ら ず、 wiring (router.go) で `persistence.NewXxxRepository(...)`
-// を 呼んで 実装 を 組み立て、 各 usecase に 注入 する。
+// Package persistence は usecase 層が定義した port の永続化実装
+// （GORM / DynamoDB / S3 presigner 等）を集約する。wiring は router.go で行う。
 package persistence
 
 import (
@@ -21,7 +17,6 @@ type userRepository struct {
 	db *gorm.DB
 }
 
-// NewUserRepository は GORM ベース の [repository.UserRepository] を 返す。
 func NewUserRepository(db *gorm.DB) repository.UserRepository {
 	return &userRepository{db: db}
 }
@@ -84,8 +79,7 @@ func (r *userRepository) UpdateCompanyID(ctx context.Context, userID uint64, com
 }
 
 func (r *userRepository) MarkOnboarded(ctx context.Context, userID uint64) error {
-	// 冪等性: 既に onboarded_at が入っているレコードには上書きしない（IS NULL でガード）。
-	// これで「Welcome 画面に戻ってもう一度押された」場合でも初回日時を保持できる。
+	// IS NULL ガードで二度押しでも初回日時を保持する（冪等）。
 	now := time.Now().UTC()
 	return r.db.WithContext(ctx).
 		Model(&domain.User{}).

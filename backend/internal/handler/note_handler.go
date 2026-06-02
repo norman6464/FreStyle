@@ -26,8 +26,7 @@ func NewNoteHandler(
 	return &NoteHandler{list: l, create: c, update: u, del: d}
 }
 
-// List は current user の note 一覧を返す。
-// userId はクライアントから受け取らない（IDOR 対策）。
+// List は current user の note 一覧を返す（userId は受け取らない、IDOR 対策）。
 //
 //	@Summary      自分 の ノート 一覧
 //	@Description  current user の note を 更新 日 降順 で 返す。 IDOR 対策 で userId は 受け取らない。

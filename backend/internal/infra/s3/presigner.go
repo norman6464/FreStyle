@@ -1,10 +1,5 @@
-// Package s3 は AWS S3 への PutObject presigned URL 発行を担当する Infra 層。
-//
-// 設計:
-//   - aws-sdk-go-v2 の s3.PresignClient を使う
-//   - 認証は default chain (ECS Task Role / EC2 Instance Role / 環境変数 / ~/.aws/credentials)
-//   - 期限は 10 分 (presigned URL は短期で十分)
-//   - bucket / region / 任意の CDN base URL は config から渡す
+// Package s3 は AWS S3 への PutObject presigned URL 発行と GetObject ダウンロードを担う Infra 層。
+// 認証は default chain、presigned URL の期限は 10 分。
 package s3
 
 import (
@@ -43,11 +38,7 @@ func NewPresigner(ctx context.Context, region, bucket string) (*Presigner, error
 }
 
 // PresignPut は指定 key への PutObject presigned URL を返す。
-// クライアント (フロントの axios) は HTTP PUT で同 URL に Content-Type ヘッダ付き
-// で body を送れば S3 が直接受け取る。
-//
-// contentType は presign に焼き込まれるため、PUT 時のヘッダと **完全一致** する必要がある
-// （食い違うと S3 が SignatureDoesNotMatch を返す）。
+// contentType は presign に焼き込まれるため PUT 時のヘッダと完全一致が必要（不一致だと SignatureDoesNotMatch）。
 func (p *Presigner) PresignPut(ctx context.Context, key, contentType string) (string, time.Duration, error) {
 	if key == "" {
 		return "", 0, fmt.Errorf("s3: key is required")

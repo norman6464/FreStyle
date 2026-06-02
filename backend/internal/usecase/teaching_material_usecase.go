@@ -8,21 +8,9 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// TeachingMaterialUseCase は教材機能の 5 操作（list / get / create / update / delete）を
-// まとめて 1 構造体で扱う。 各操作は独立した Execute メソッドではなく
-// 名前付きメソッドにすることで、 handler 側のディスパッチを単純化する。
-//
-// 教材は必ず Course に所属する前提のため、 list は Course 単位、 create は course_id 必須。
-//
-// アクセス制御:
-//   - List: 同一 company の company_admin / trainee / super_admin
-//     trainee は published のみ、 company_admin / super_admin は draft 含む全件
-//     trainee は所属コースが is_published=false の場合は閲覧不可
-//   - Get: 同一 company か super_admin、 trainee は published のみ閲覧可
-//   - Create / Update / Delete: 同一 company の company_admin、 または super_admin
-//
-// 依存 port: [repository.TeachingMaterialRepository] + [repository.CourseRepository]
-// (course との 整合性 検証 用)。 章 003 で 全 体 walk-through、 章 022 で 詳細 解説。
+// TeachingMaterialUseCase は教材の list / get / create / update / delete を 1 構造体で扱う。
+// 教材は必ず Course に所属するため list は Course 単位、create は course_id 必須。
+// trainee は published コース内の published 教材のみ閲覧、編集系は company_admin / super_admin。
 type TeachingMaterialUseCase struct {
 	repo    repository.TeachingMaterialRepository
 	courses repository.CourseRepository
@@ -37,8 +25,7 @@ func canManage(role string) bool {
 	return role == domain.RoleCompanyAdmin || role == domain.RoleSuperAdmin
 }
 
-// List は backward-compat 用。 既存 frontend が GET /teaching-materials を直接叩くため、
-// company 内の全教材を返す。 frontend がコース対応に切り替わったら削除予定。
+// List は company 内の全教材を返す backward-compat 用（コース対応への移行後に削除予定）。
 func (uc *TeachingMaterialUseCase) List(ctx context.Context, actorCompanyID uint64, actorRole string) ([]domain.TeachingMaterial, error) {
 	if actorCompanyID == 0 {
 		return []domain.TeachingMaterial{}, nil
@@ -47,8 +34,7 @@ func (uc *TeachingMaterialUseCase) List(ctx context.Context, actorCompanyID uint
 	return uc.repo.ListByCompany(ctx, actorCompanyID, includeUnpublished)
 }
 
-// ListByCourse は指定コース配下の教材を返す。 actor の role / company を検証してから
-// repository を呼ぶ。 trainee はコース自体が is_published=true の場合のみ閲覧可。
+// ListByCourse は指定コース配下の教材を返す（role / company を検証してから）。
 func (uc *TeachingMaterialUseCase) ListByCourse(ctx context.Context, courseID, actorCompanyID uint64, actorRole string) ([]domain.TeachingMaterial, error) {
 	course, err := uc.courses.GetByID(ctx, courseID)
 	if err != nil {
@@ -61,8 +47,7 @@ func (uc *TeachingMaterialUseCase) ListByCourse(ctx context.Context, courseID, a
 	return uc.repo.ListByCourse(ctx, courseID, includeUnpublished)
 }
 
-// Get は ID 指定で 1 件取得する。 actor の company と一致しないと 403 相当（nil）。
-// 所属コース自体が trainee に対して非公開なら閲覧不可。
+// Get は ID 指定で 1 件取得する（company 不一致 / 非公開コースは閲覧不可）。
 func (uc *TeachingMaterialUseCase) Get(ctx context.Context, id, actorCompanyID uint64, actorRole string) (*domain.TeachingMaterial, error) {
 	m, err := uc.repo.GetByID(ctx, id)
 	if err != nil {
@@ -85,7 +70,7 @@ func canRead(m *domain.TeachingMaterial, course *domain.Course, actorCompanyID u
 	if m.CompanyID != actorCompanyID {
 		return false
 	}
-	// 所属コースも閲覧可能でないと教材も見せない（trainee は published コース内の published 教材のみ）。
+	// 所属コースが閲覧可能でなければ教材も見せない。
 	if !canReadCourse(course, actorCompanyID, actorRole) {
 		return false
 	}
@@ -95,7 +80,7 @@ func canRead(m *domain.TeachingMaterial, course *domain.Course, actorCompanyID u
 	return true
 }
 
-// CreateInput は POST 入力。 CourseID は必須（所属コース）。
+// CreateTeachingMaterialInput は POST 入力。CourseID は必須。
 type CreateTeachingMaterialInput struct {
 	ActorUserID    uint64
 	ActorCompanyID uint64
@@ -117,7 +102,6 @@ func (uc *TeachingMaterialUseCase) Create(ctx context.Context, in CreateTeaching
 	if in.CourseID == 0 {
 		return nil, fmt.Errorf("course_id is required")
 	}
-	// コースの存在 / company 一致を確認する。
 	course, err := uc.courses.GetByID(ctx, in.CourseID)
 	if err != nil {
 		return nil, err

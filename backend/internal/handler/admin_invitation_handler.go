@@ -20,14 +20,8 @@ func NewAdminInvitationHandler(l *usecase.ListAdminInvitationsUseCase, c *usecas
 	return &AdminInvitationHandler{list: l, create: c, cancel: x}
 }
 
-// List は GET /api/v2/admin/invitations。
-// 認可と scope 判定:
-//   - SuperAdmin (運営): 全社横断 → ListAll() / ?companyId= 指定で絞り込みも可
-//   - CompanyAdmin     : 自社の company_id で自動フィルタ → ListByCompanyID()
-//   - その他           : 403 Forbidden
-//
-// 旧実装は ?companyId= クエリ必須だったが、フロントが渡していなかったため
-// 常に 400 を返していた。current user の role / company_id から自動解決する設計に修正。
+// List は招待一覧を返す。SuperAdmin は全社横断（?companyId= で絞り込み可）、
+// CompanyAdmin は自社のみ、それ以外は 403。
 //
 //	@Summary      招待 一覧 (admin)
 //	@Description  pending な 招待 を 返す。 SuperAdmin は 全社 (?companyId= で 絞り込み 可)、 CompanyAdmin は 自社 のみ。 trainee 等 は 403。
@@ -91,17 +85,8 @@ type createAdminInvReq struct {
 	DisplayName string `json:"displayName"`
 }
 
-// Create は POST /api/v2/admin/invitations。
-//
-// 認可ルール（SoD）:
-//   - SuperAdmin: company_admin の招待のみ可能。trainee の招待は CompanyAdmin に任せる。
-//     （運営が顧客企業の trainee 全員を直接管理するのは実運用に合わないため）
-//   - CompanyAdmin: 自社の trainee の招待のみ可能。company_id は自社に固定する。
-//   - その他: 403
-//
-// この境界を backend で確実に守ることで、フロント UI を経由しない API 呼び出しでも
-// SuperAdmin が間違って trainee を直接招待することや、CompanyAdmin が他社に
-// 招待を出すことを防ぐ。フロント UI は UX 改善として同じルールで選択肢を絞る。
+// Create は招待を作成する。SoD: SuperAdmin は company_admin のみ、CompanyAdmin は自社の trainee のみ招待可。
+// この境界は backend で確実に守り、UI を経由しない呼び出しでも越権招待を防ぐ。
 //
 //	@Summary      招待 作成
 //	@Description  SES マジック リンク で 招待 メール を 送る。 SoD: SuperAdmin は company_admin のみ 招待 可、 CompanyAdmin は trainee のみ 自社 に 招待 可。

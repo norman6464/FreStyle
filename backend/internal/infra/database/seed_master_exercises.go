@@ -10,12 +10,8 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// seedMasterExercises は master_exercises テーブルに初期演習データを投入する。
-// ON CONFLICT DO NOTHING で冪等。起動のたびに安全に呼び出せる。
-//
-// 旧 seedPhpExercises を MasterExercise 用に汎用化したもの。Language / Slug /
-// IsPublished / Difficulty の共通フィールドはデータ列挙の簡潔さを優先して
-// 末尾の補完ループで一括設定する（Slug は `php-{id}` の規則）。
+// seedMasterExercises は初期演習データを投入する（ON CONFLICT DO NOTHING で冪等）。
+// Language / Slug / IsPublished / Difficulty の共通値は末尾ループで一括設定する。
 func seedMasterExercises(db *gorm.DB) error {
 	now := time.Now()
 	exercises := []domain.MasterExercise{
@@ -165,8 +161,7 @@ func seedMasterExercises(db *gorm.DB) error {
 		},
 	}
 
-	// Language / Slug / Difficulty / IsPublished の共通フィールドを後付けで埋める。
-	// 各エントリに毎回書くと冗長なので、PHP 教材の defaults を一括設定する。
+	// PHP 教材の共通 defaults を一括設定する。
 	for i := range exercises {
 		exercises[i].Language = domain.ExerciseLanguagePhp
 		exercises[i].Slug = fmt.Sprintf("php-%d", exercises[i].ID)
@@ -188,12 +183,8 @@ func seedMasterExercises(db *gorm.DB) error {
 	return nil
 }
 
-// seedMasterExerciseExamples は既存の master_exercises.expected_output を
-// master_exercise_examples テーブルに「OrderIndex=1, InputText=空」の 1 行として
-// バックフィルする。既に同じ exercise_id の example が 1 件以上ある場合は skip。
-//
-// 複数 example の追加は将来的に運営側ツールで行う想定。当面の seed は 1 件のみで、
-// 採点ロジック (PR-W) も「example が 1 件のみのケース = 単一テスト」に対応する。
+// seedMasterExerciseExamples は各 exercise の expected_output を
+// 「OrderIndex=1, InputText=空」の 1 行として examples にバックフィルする（既存があれば skip）。
 func seedMasterExerciseExamples(db *gorm.DB, exercises []domain.MasterExercise) error {
 	now := time.Now()
 	inserted := 0

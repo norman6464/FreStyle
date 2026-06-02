@@ -11,9 +11,7 @@
 //
 // @BasePath        /api/v2
 //
-// host / schemes は spec に 焼き込まず、 Swagger UI が ロード 元 と 同じ origin
-// (本番 = api.normanblog.com、 ローカル = localhost:8080 等) を 自動 で 使う ように
-// する。 そう しない と ローカル 開発 で 「Try it out」 が 本番 を 叩いて しまう。
+// host / schemes は spec に焼き込まない（ローカルの「Try it out」が本番を叩かないようにするため）。
 //
 // @securityDefinitions.apikey  CookieAuth
 // @in                          header
@@ -25,7 +23,7 @@ import (
 	"log"
 
 	"github.com/gin-gonic/gin"
-	_ "github.com/norman6464/FreStyle/backend/docs" // swag init で 生成 さ れる OpenAPI spec
+	_ "github.com/norman6464/FreStyle/backend/docs" // swag init で生成される OpenAPI spec
 	"github.com/norman6464/FreStyle/backend/internal/handler"
 	"github.com/norman6464/FreStyle/backend/internal/infra/config"
 	"github.com/norman6464/FreStyle/backend/internal/infra/database"
@@ -49,9 +47,6 @@ func main() {
 	}
 
 	// Go domain を「正」とする AutoMigrate。
-	// RESET_DB=true なら DROP SCHEMA → CREATE SCHEMA で完全リセット後 AutoMigrate。
-	// 詳細は backend/internal/infra/database/migrate.go と
-	// docs/16-go-schema-design.md (frestyle-infrastructure) を参照。
 	if err := database.Migrate(db); err != nil {
 		log.Fatalf("migrate failed: %v", err)
 	}

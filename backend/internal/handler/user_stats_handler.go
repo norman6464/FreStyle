@@ -23,8 +23,7 @@ var (
 	errUserStatsUnauthorized = errors.New("unauthorized")
 )
 
-// resolveUserID は profile_handler と同じ規則で path :userId を解決する。
-// "me" / 空文字 → current user、数字は current user と一致した場合のみ通す（IDOR 対策）。
+// resolveUserID は "me" / 空文字を current user に、数字は current user 一致時のみ通す（IDOR 対策）。
 func (h *UserStatsHandler) resolveUserID(c *gin.Context) (uint64, error) {
 	cur := middleware.CurrentUserIDOrZero(c)
 	if cur == 0 {

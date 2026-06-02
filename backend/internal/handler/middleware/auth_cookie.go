@@ -6,28 +6,20 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// 認証 Cookie 関連の定数。値はフロントエンド側 (Cognito callback / axios withCredentials)
-// と整合させる必要があるため、変えるときは双方を同期更新すること。
+// 認証 Cookie 関連の定数。フロント側の設定と同期更新すること。
 const (
-	// CookieRefreshToken は Cognito から取得した refresh_token を格納する Cookie 名。
-	// CookieAccessToken は jwt.go に定義済み（middleware 全体で再利用）。
+	// CookieRefreshToken は refresh_token を格納する Cookie 名（CookieAccessToken は jwt.go）。
 	CookieRefreshToken = "refresh_token"
 
-	// AccessTokenDefaultMaxAgeSeconds は Cognito レスポンスに expires_in が
-	// 含まれていなかったときの fallback (1 時間)。Cognito User Pool の標準寿命と一致。
+	// AccessTokenDefaultMaxAgeSeconds は expires_in 不在時の fallback（1 時間）。
 	AccessTokenDefaultMaxAgeSeconds = 3600
 
-	// RefreshTokenMaxAgeSeconds は refresh_token Cookie の寿命 (30 日)。
-	// Cognito User Pool の refresh-token-validity 設定と整合させる。
+	// RefreshTokenMaxAgeSeconds は refresh_token Cookie の寿命（30 日）。
 	RefreshTokenMaxAgeSeconds = 30 * 24 * 3600
 )
 
 // SetAccessTokenCookie は HttpOnly + Secure + SameSite=None で access_token を設定する。
-// maxAgeSeconds が 0 以下の場合は AccessTokenDefaultMaxAgeSeconds に丸める。
-//
-// Cognito refresh / callback 双方で同じヘッダー設定が必要だったため共通化した。
-// 旧実装では SetSameSite と SetCookie の組み合わせが各 handler に散在し
-// 設定漏れリスクがあったため、責務を 1 箇所に集約する。
+// maxAgeSeconds が 0 以下なら AccessTokenDefaultMaxAgeSeconds に丸める。
 func SetAccessTokenCookie(c *gin.Context, accessToken string, maxAgeSeconds int) {
 	if maxAgeSeconds <= 0 {
 		maxAgeSeconds = AccessTokenDefaultMaxAgeSeconds

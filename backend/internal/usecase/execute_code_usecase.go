@@ -16,11 +16,9 @@ import (
 
 const (
 	maxCodeBytes = 64 * 1024 // 64 KB
-	// execTimeout は PHP / bash の デフォルト 上限。 起動 + 実行が ~ms オーダー。
+	// execTimeout は PHP / bash の上限。
 	execTimeout = 8 * time.Second
-	// goExecTimeout は Go 専用。 `go run` は コンパイル + リンク + 実行 が走るため、
-	// ECS Fargate の ephemeral storage I/O 遅さも勘案して 余裕を持たせる。
-	// production の cold compile は ~6-8s の実測がある。
+	// goExecTimeout は Go 専用。go run はコンパイルも走るため余裕を持たせる（cold compile ~6-8s）。
 	goExecTimeout  = 15 * time.Second
 	maxOutputBytes = 64 * 1024 // 64 KB
 )
@@ -55,14 +53,8 @@ type ExecuteCodeOutput struct {
 	ExitCode int    `json:"exitCode"`
 }
 
-// ExecuteCodeUseCase はユーザーコードをサンドボックスで実行する。
-//
-// PHP / Go / bash の 3 言語サポート:
-//   - PHP: php CLI + disable_functions で危険関数を封じる
-//   - Go: go run で単一 main.go ファイルを実行。 build cache は共有して compile 時間短縮
-//   - bash: /bin/bash でシェルスクリプトを実行。 PATH を限定し HOME を temp dir に固定
-//
-// 共通制約: 8 秒 timeout / 64 KB code-size / 64 KB output-size。
+// ExecuteCodeUseCase は PHP / Go / bash のコードをサンドボックスで実行する。
+// 共通制約: timeout / 64 KB code-size / 64 KB output-size。
 type ExecuteCodeUseCase struct{}
 
 func NewExecuteCodeUseCase() *ExecuteCodeUseCase {
@@ -86,10 +78,7 @@ func (uc *ExecuteCodeUseCase) Execute(ctx context.Context, input ExecuteCodeInpu
 }
 
 func (uc *ExecuteCodeUseCase) executePHP(ctx context.Context, input ExecuteCodeInput) (*ExecuteCodeOutput, error) {
-	// PHP CLI は `<?php` 開始タグが無いコードを「ただの HTML テキスト」として扱い、
-	// ソースコードをそのまま stdout に流して exit code 0 を返す。
-	// 別言語 (Java など) のコードを誤って貼り付けると「実行成功 + 出力 = 元コード」になり
-	// ユーザを混乱させるので、 ここで明示的に弾く。
+	// 開始タグが無いと PHP はソースをそのまま stdout に流すため、別言語の誤貼付けを明示的に弾く。
 	if !strings.Contains(input.Code, "<?php") && !strings.Contains(input.Code, "<?=") {
 		return &ExecuteCodeOutput{
 			Stdout:   "",
@@ -127,8 +116,7 @@ func (uc *ExecuteCodeUseCase) executePHP(ctx context.Context, input ExecuteCodeI
 }
 
 func (uc *ExecuteCodeUseCase) executeGo(ctx context.Context, input ExecuteCodeInput) (*ExecuteCodeOutput, error) {
-	// Go コードは `package main` + `func main()` を必須にする。
-	// 別言語のコードを「Go モード」 で投げて意味不明なコンパイルエラーになるのを避ける。
+	// 別言語コードが意味不明なコンパイルエラーになるのを避けるため package main を必須にする。
 	if !strings.Contains(input.Code, "package main") {
 		return &ExecuteCodeOutput{
 			Stdout:   "",
@@ -137,8 +125,7 @@ func (uc *ExecuteCodeUseCase) executeGo(ctx context.Context, input ExecuteCodeIn
 		}, nil
 	}
 
-	// 各リクエストごとに独立した GOPATH 用ディレクトリを作る。
-	// build cache は共有 (/tmp/go-build-cache) で compile 時間短縮。
+	// リクエストごとに独立した HOME を作る。build cache は共有で compile 短縮。
 	tmpDir, err := os.MkdirTemp("", "go-exec-")
 	if err != nil {
 		return nil, fmt.Errorf("一時ディレクトリの作成に失敗: %w", err)
@@ -150,13 +137,12 @@ func (uc *ExecuteCodeUseCase) executeGo(ctx context.Context, input ExecuteCodeIn
 		return nil, fmt.Errorf("一時ファイルの作成に失敗: %w", err)
 	}
 
-	// Go は コンパイル + 実行 が走るため timeout を 専用の 長めの値で取る。
 	ctx, cancel := context.WithTimeout(ctx, goExecTimeout)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "go", "run", filename)
-	// GO111MODULE=off で単一ファイル実行（go.mod 不要）。GOCACHE 等の go 動作に必要な env は
-	// sandboxEnv が残すが、AWS 認証情報・注入シークレットは除外する。
+	// GO111MODULE=off で単一ファイル実行（go.mod 不要）。AWS 認証情報・注入シークレットは
+	// sandboxEnv が除外する。
 	cmd.Env = sandboxEnv(
 		"GO111MODULE=off",
 		"HOME="+tmpDir,
@@ -166,9 +152,7 @@ func (uc *ExecuteCodeUseCase) executeGo(ctx context.Context, input ExecuteCodeIn
 }
 
 func (uc *ExecuteCodeUseCase) executeBash(ctx context.Context, input ExecuteCodeInput) (*ExecuteCodeOutput, error) {
-	// 各リクエストごとに独立した一時ディレクトリを作る。
-	// 演習で `cat > /tmp/sample.txt` のような書き込みが起きても他リクエストに影響させないため
-	// HOME / PWD を temp dir に固定し、 副作用を temp に閉じる。
+	// リクエストごとに独立した temp dir を HOME / PWD に固定し、副作用を temp に閉じる。
 	tmpDir, err := os.MkdirTemp("", "bash-exec-")
 	if err != nil {
 		return nil, fmt.Errorf("一時ディレクトリの作成に失敗: %w", err)
@@ -194,29 +178,25 @@ func (uc *ExecuteCodeUseCase) executeBash(ctx context.Context, input ExecuteCode
 		"LC_ALL=C.UTF-8",
 	}
 
-	// bash はユーザが `sleep 30 &` のような バックグラウンド子プロセスを 起動しうる。
-	// timeout 時にそれら子孫プロセスを 確実に kill するため、 独立プロセスグループに置く。
+	// bash はバックグラウンド子プロセスを起動しうるので、独立プロセスグループに置いて一括 kill する。
 	configureProcessGroup(cmd)
 
 	return runCommand(cmd, input.Stdin)
 }
 
-// configureProcessGroup は cmd を独立した process group に置き、 ctx cancel 時に
-// グループ全体へ SIGKILL を送るよう設定する。 bash で バックグラウンド子孫が leak しないよう
-// に bash 実行のみで使う。 PHP / Go の `go run` は普通 子孫を起動しないため不要。
+// configureProcessGroup は cmd を独立 process group に置き、cancel 時にグループ全体へ SIGKILL を送る。
+// bash の子孫プロセス leak を防ぐ用途で、bash 実行時のみ使う。
 func configureProcessGroup(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Cancel = func() error {
 		if cmd.Process == nil {
 			return os.ErrProcessDone
 		}
-		// -pid を渡すと プロセスグループ全体に signal が飛ぶ (POSIX)。
-		// kill が失敗しても (既に終了済 / ESRCH) ExitError 上書きを防ぐため nil を返す。
+		// -pid でグループ全体に signal（POSIX）。失敗しても ExitError 上書き防止に nil を返す。
 		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 		return nil
 	}
-	// stdout / stderr のパイプが 残ったままの子孫がいても Wait が 無限に張り付かないよう、
-	// 小さい WaitDelay を付ける。 timeout 後 1 秒で 強制 close + kill。
+	// 残存子孫がいても Wait が張り付かないよう WaitDelay を付ける。
 	cmd.WaitDelay = 1 * time.Second
 }
 

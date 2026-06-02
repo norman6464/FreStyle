@@ -8,15 +8,8 @@ import (
 	"gorm.io/gorm"
 )
 
-// allDomainModels は全 domain 構造体のリスト。
-// AutoMigrate に渡してテーブル作成・列追加を一元管理する。
-// 新しい domain を追加したら必ずここにも追記する。
-//
-// 廃止済 (PR-D, 2026-05-07): PracticeScenario / ScenarioBookmark / SharedSession /
-//
-//	ScoreCard / ScoreGoal / ConversationTemplate / FavoritePhrase / ReminderSetting /
-//	DailyGoal / WeeklyChallenge / WeeklyChallengeProgress / SessionNote。
-//	既存テーブルは PR-E の DROP migration で物理削除予定。
+// allDomainModels は AutoMigrate に渡す全 domain 構造体のリスト。
+// 新しい domain を追加したらここにも追記する。
 func allDomainModels() []any {
 	return []any{
 		&domain.User{},
@@ -37,11 +30,8 @@ func allDomainModels() []any {
 	}
 }
 
-// Migrate は起動時のスキーマ整合チェック。
-//   - RESET_DB=true: DROP SCHEMA public CASCADE → CREATE SCHEMA public で完全 wipe してから AutoMigrate。
-//     リリース前に Go domain を「正」とする初期構築をしたいときの一回限り操作。
-//   - RESET_DB が未指定: AutoMigrate のみ走る（CREATE TABLE IF NOT EXISTS と ADD COLUMN は走るが、
-//     型変更・列削除は GORM の安全側仕様で実行されない）。
+// Migrate は起動時にスキーマを AutoMigrate する。
+// RESET_DB=true のときは public schema を完全 wipe してから再構築する（一回限りの初期構築用）。
 func Migrate(db *gorm.DB) error {
 	if os.Getenv("RESET_DB") == "true" {
 		log.Println("⚠️ RESET_DB=true: dropping public schema and recreating")

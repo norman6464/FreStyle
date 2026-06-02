@@ -40,12 +40,8 @@ type Config struct {
 	TokenURI     string
 }
 
-// TokenExchanger は Cognito User Pool の OAuth2 token endpoint を叩いて
+// TokenExchanger は Cognito の OAuth2 token endpoint を叩いて
 // authorization_code / refresh_token を access/id/refresh token に交換する。
-//
-// 旧実装は handler/auth_handler.go の Callback / Refresh に同じ HTTP 構築・
-// レスポンス処理が ~140 行重複していたが、grant_type だけ違う構造だったため
-// このパッケージに集約した。
 type TokenExchanger struct {
 	cfg        Config
 	httpClient *http.Client
@@ -100,7 +96,6 @@ func (e *TokenExchangeError) Error() string {
 func (e *TokenExchangeError) Unwrap() error { return ErrTokenExchangeFailed }
 
 // ExchangeAuthorizationCode は Cognito Hosted UI から戻った認可コードを token に交換する。
-// Spring Boot CognitoAuthController#callback と等価。
 func (t *TokenExchanger) ExchangeAuthorizationCode(ctx context.Context, code string) (*Token, error) {
 	form := url.Values{}
 	form.Set("grant_type", "authorization_code")
@@ -117,11 +112,9 @@ func (t *TokenExchanger) RefreshAccessToken(ctx context.Context, refreshToken st
 	return t.exchange(ctx, form)
 }
 
-// exchange は authorization_code / refresh_token grant の差を吸収した内部実装。
-//
-// Cognito の OAuth2 token endpoint には「Authorization Basic header 方式」と
-// 「body 方式 (client_id + client_secret を form に入れる)」があるが、両方送ると
-// invalid_client を返すケースがある。本実装では body 方式に統一する（AWS docs 推奨）。
+// exchange は grant 種別の差を吸収した内部実装。
+// 認証は body 方式（client_id + client_secret を form に入れる）に統一する
+// （Basic header と併用すると invalid_client を返すケースがあるため）。
 func (t *TokenExchanger) exchange(ctx context.Context, form url.Values) (*Token, error) {
 	if t.cfg.TokenURI == "" || t.cfg.ClientID == "" {
 		return nil, ErrNotConfigured
@@ -134,8 +127,6 @@ func (t *TokenExchanger) exchange(ctx context.Context, form url.Values) (*Token,
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, t.cfg.TokenURI, strings.NewReader(form.Encode()))
 	if err != nil {
-		// NewRequestWithContext は URL parse 不能などで失敗する。
-		// 設定不備に近いので handler 側で 500 にする想定。
 		return nil, fmt.Errorf("cognito: build request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")

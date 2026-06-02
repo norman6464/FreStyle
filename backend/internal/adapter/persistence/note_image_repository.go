@@ -9,8 +9,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// noteImagePresigner は [repository.NoteImagePresigner] を 満たす infra/s3.Presigner
-// ラッパ。 notes/{userId}/{epochNs}.bin 形式 の キー で PUT URL を 発行 する。
+// noteImagePresigner は note 画像用の S3 presigner（notes/{userId}/{epochNs}.bin キー）。
 type noteImagePresigner struct {
 	pre s3Presigner
 }
@@ -21,7 +20,6 @@ func NewNoteImagePresigner(p s3Presigner) repository.NoteImagePresigner {
 }
 
 // NewStubNoteImagePresigner は test / dev 用 stub。
-// 本番では NewNoteImagePresigner(infra/s3.NewPresigner(...)) を使うこと。
 func NewStubNoteImagePresigner(bucket string) repository.NoteImagePresigner {
 	return &noteImagePresigner{pre: &stubPresigner{bucket: bucket}}
 }

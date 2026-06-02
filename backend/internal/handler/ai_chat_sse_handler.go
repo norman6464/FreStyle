@@ -16,24 +16,9 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
 
-// AiChatSseHandler は AI チャット用の Server-Sent Events エンドポイント。
-//
-// 送信フォーマット (text/event-stream):
-//
-//	event: session
-//	data: {"id": 42, "title": "...", ...}
-//
-//	event: token
-//	data: {"sessionId": 42, "delta": "ご"}
-//
-//	event: done
-//	data: {"sessionId": 42, "id": "uuid", "createdAt": "...", "content": "ご質問..."}
-//
-//	event: error
-//	data: {"message": "..."}
-//
-// クライアントは fetch + ReadableStream で line-based に読む（標準の EventSource は POST に
-// 対応しないため、本実装では fetch ベースで送る）。
+// AiChatSseHandler は AI チャット用の SSE エンドポイント。
+// イベントは session / token / done / error の 4 種。
+// EventSource は POST 非対応なのでクライアントは fetch + ReadableStream で読む。
 type AiChatSseHandler struct {
 	sendStream *usecase.SendAiMessageStreamUseCase
 }
@@ -51,8 +36,7 @@ type sseRequestBody struct {
 	Attachments []sseAttachmentRequest `json:"attachments"`
 }
 
-// sseAttachmentRequest はフロントが事前に S3 へアップロード済みの添付ファイルを参照する。
-// 実体バイトは含まず、key とメタだけ送って backend が S3 GetObject で取り出す。
+// sseAttachmentRequest は S3 へアップロード済みの添付参照（key とメタのみ、実体は backend が取得）。
 type sseAttachmentRequest struct {
 	Key         string `json:"key"`
 	Filename    string `json:"filename"`
@@ -60,8 +44,7 @@ type sseAttachmentRequest struct {
 	SizeBytes   int64  `json:"sizeBytes"`
 }
 
-// 1 リクエストあたりの添付上限。Bedrock 仕様（image 20 / document 5）に対し、
-// UI / 課金観点で 4 枚に絞っている（仕様検討で確定）。
+// maxAttachmentsPerMessage は 1 リクエストの添付上限（UI / 課金観点で 4 枚に絞る）。
 const maxAttachmentsPerMessage = 4
 
 // @Summary      AI チャット SSE ストリーミング
@@ -114,8 +97,7 @@ func (h *AiChatSseHandler) Handle(c *gin.Context) {
 	c.Writer.WriteHeader(http.StatusOK)
 	flushOrPanic(c.Writer)
 
-	// usecase の context は client 切断で cancel される c.Request.Context() を渡す。
-	// goroutine が長時間生きないように切断検知を伝播させる。
+	// client 切断で cancel される ctx を usecase に渡し、goroutine リークを防ぐ。
 	ctx, cancel := context.WithCancel(c.Request.Context())
 	defer cancel()
 
@@ -133,8 +115,7 @@ func (h *AiChatSseHandler) Handle(c *gin.Context) {
 		return
 	}
 
-	// keepalive: 15 秒ごとにコメント行 ":\n\n" を送って ALB / CloudFront のアイドルタイムアウト
-	// （既定 60 秒）で切断されるのを防ぐ。
+	// keepalive: 15 秒ごとにコメント行を送り、ALB / CloudFront のアイドルタイムアウトを防ぐ。
 	keep := time.NewTicker(15 * time.Second)
 	defer keep.Stop()
 
@@ -151,7 +132,6 @@ func (h *AiChatSseHandler) Handle(c *gin.Context) {
 			c.Writer.Flush()
 		case ev, ok := <-stream:
 			if !ok {
-				// usecase 側の channel が close した = 完了（FinalMessage で done 通知済）
 				return
 			}
 			if ev.Err != nil {
@@ -189,11 +169,7 @@ func (h *AiChatSseHandler) Handle(c *gin.Context) {
 	}
 }
 
-// writeSSEEvent は 1 イベントを SSE フォーマットで書き出す。
-//
-// 仕様: `event:` 行の後に空行 / `data:` 行 / 空行で 1 イベント完結。
-// 改行を含む payload は `data:` 行を分割する必要があるが、ここでは JSON を 1 行で
-// 出すので分割不要。
+// writeSSEEvent は 1 イベントを SSE フォーマット（event: 行 + data: 行 + 空行）で書き出す。
 func writeSSEEvent(w gin.ResponseWriter, event string, payload any) {
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -215,9 +191,7 @@ func writeSSEEvent(w gin.ResponseWriter, event string, payload any) {
 	w.Flush()
 }
 
-// flushOrPanic は最初のヘッダ送信で flush できないと SSE 自体機能しないので
-// 開発時の bug を早期発見するため panic させる。本番では gin の ResponseWriter は
-// 必ず Flusher を実装するので発生しない。
+// flushOrPanic は flush 不可なら panic する（SSE が機能しない bug を開発時に早期発見するため）。
 func flushOrPanic(w gin.ResponseWriter) {
 	if f, ok := any(w).(interface{ Flush() }); ok {
 		f.Flush()
@@ -228,17 +202,9 @@ func flushOrPanic(w gin.ResponseWriter) {
 	}
 }
 
-// buildAttachmentsFromRequest はリクエスト body の attachments[] を domain.Attachment に変換する。
-//
-// 各添付について:
-//   - key / contentType 必須
-//   - contentType は usecase.AllowedAttachmentContentTypes に含まれる必要あり
-//   - sizeBytes は MIME ごとの上限以下
-//   - key は **userID 配下の S3 prefix** `ai-chat/{userID}/` に必ず属する
-//     （他ユーザーの添付や他 prefix の S3 オブジェクトをサーバ側で読まされるのを防止）
-//
-// バリデーションを SSE handler 側で 1 回通すのは「presigned URL 取得を経由したか」を
-// 軽く再確認する目的（プロンプトインジェクションで任意 S3 オブジェクトを読み出させない）。
+// buildAttachmentsFromRequest はリクエストの attachments[] を検証して domain.Attachment に変換する。
+// contentType / sizeBytes の検証に加え、key が ai-chat/{userID}/ prefix に属することを必須にして
+// 他ユーザーや他 prefix の S3 オブジェクトをサーバ側で読まされるのを防ぐ。
 func buildAttachmentsFromRequest(userID uint64, reqs []sseAttachmentRequest) ([]domain.Attachment, error) {
 	if len(reqs) == 0 {
 		return nil, nil

@@ -3160,7 +3160,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "explanation": {
-                    "description": "Explanation は QA モードで 正解後に表示される markdown 解説。\nexecute モードでは未使用 (空文字)。",
+                    "description": "Explanation は qa モードで正解後に表示する markdown 解説。",
                     "type": "string"
                 },
                 "hintText": {
@@ -3176,7 +3176,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "mode": {
-                    "description": "Mode は採点モード。 'execute' (default) は コードを実行して stdout を比較、\n'qa' は コード実行をせず提出文字列と ExpectedOutput を直接 trim 比較する。\ndocker / kubernetes など サンドボックス実行が困難な題材を Q\u0026A 形式で扱うために導入。",
+                    "description": "Mode は採点モード。execute は実行して stdout 比較、qa は提出文字列と ExpectedOutput を trim 比較。",
                     "type": "string"
                 },
                 "orderIndex": {
@@ -3203,7 +3203,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "exerciseId": {
-                    "description": "(exercise_id, order_index) で UNIQUE 制約を張ることで、同じ問題内で\nOrderIndex が衝突する行を DB レベルで弾く（UI 上「入力例 1」が 2 つ並ぶ事故防止）。",
+                    "description": "(exercise_id, order_index) の UNIQUE で同一問題内の OrderIndex 衝突を DB レベルで弾く。",
                     "type": "integer"
                 },
                 "expectedOutput": {
@@ -3216,7 +3216,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "orderIndex": {
-                    "description": "OrderIndex は seed / 運営入力時に必ず明示する想定で DB DEFAULT を持たせない。\n（default:0 を残すと order_index 未指定の INSERT が黙って 0 を採用して衝突を起こすため）",
+                    "description": "DEFAULT を持たせない（default:0 だと未指定 INSERT が 0 で衝突するため）。",
                     "type": "integer"
                 },
                 "updatedAt": {
@@ -3323,7 +3323,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "email": {
-                    "description": "Email は users.email を そのまま返す。 frontend の sidebar ユーザーメニューで\n「ログイン中のメールアドレスを 表示する」 用途で参照する。",
                     "type": "string"
                 },
                 "status": {
@@ -3370,7 +3369,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "courseId": {
-                    "description": "course_id の NOT NULL 制約は migration 0004 で確定する（既存行への ADD COLUMN を\nAutoMigrate で安全に通すため、 GORM tag では not null を指定しない）。",
+                    "description": "NOT NULL は migration 0004 で確定するため GORM tag では指定しない（既存行への ADD COLUMN 対策）。",
                     "type": "integer"
                 },
                 "createdAt": {
@@ -3490,7 +3489,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "explanation": {
-                    "description": "Explanation は QA モードで 正解後に表示される markdown 解説。\nexecute モードでは未使用 (空文字)。",
+                    "description": "Explanation は qa モードで正解後に表示する markdown 解説。",
                     "type": "string"
                 },
                 "hintText": {
@@ -3506,7 +3505,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "mode": {
-                    "description": "Mode は採点モード。 'execute' (default) は コードを実行して stdout を比較、\n'qa' は コード実行をせず提出文字列と ExpectedOutput を直接 trim 比較する。\ndocker / kubernetes など サンドボックス実行が困難な題材を Q\u0026A 形式で扱うために導入。",
+                    "description": "Mode は採点モード。execute は実行して stdout 比較、qa は提出文字列と ExpectedOutput を trim 比較。",
                     "type": "string"
                 },
                 "orderIndex": {
@@ -3635,7 +3634,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "invitationToken": {
-                    "description": "InvitationToken はフロントが sessionStorage から復元してくる、招待マジックリンク経由で\n受領した UUID トークン。任意。指定がある場合は upsert 時に email ベースの招待検索より\n優先して照合に使う（同じ email に複数 pending invitation がある異常系での誤一致を防ぐ）。",
+                    "description": "InvitationToken は招待マジックリンク経由の UUID（任意）。指定時は email 検索より優先して照合する。",
                     "type": "string"
                 }
             }
@@ -4010,14 +4009,14 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "displayName": {
-                    "description": "` + "`" + `name` + "`" + ` は旧フロント実装の互換のため受け付け、` + "`" + `displayName` + "`" + ` を優先する。",
                     "type": "string"
                 },
                 "iconUrl": {
-                    "description": "旧フロント実装が ` + "`" + `iconUrl` + "`" + ` で送ってきた場合の互換。",
+                    "description": "旧フロント互換。avatarUrl を優先。",
                     "type": "string"
                 },
                 "name": {
+                    "description": "旧フロント互換。displayName を優先。",
                     "type": "string"
                 },
                 "status": {

@@ -8,18 +8,9 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// CourseUseCase はコース機能の操作（list / get / create / update / delete）を
-// 1 構造体で扱う。 内部ヘルパは teaching_material_usecase の canManage を共有する。
-//
-// アクセス制御:
-//   - List: 同一 company の company_admin / trainee / super_admin
-//     trainee は published のみ、 company_admin / super_admin は draft 含む全件
-//   - Get: 同一 company か super_admin（trainee は published のみ）
-//   - Create / Update / Delete: 同一 company の company_admin、 または super_admin
-//   - Delete: コース内の教材も同時に削除する（cascade）
-//
-// 依存 port: [repository.CourseRepository] + [repository.TeachingMaterialRepository]
-// (削除 時 の cascade 用)。 章 002 §6 で 「単純 CRUD は 1 構造体 集約 OK」 の 例 と して 解説。
+// CourseUseCase はコースの list / get / create / update / delete を 1 構造体で扱う。
+// canManage は teaching_material_usecase と共有。trainee は published のみ閲覧、
+// 編集系は同一 company の company_admin または super_admin。Delete は配下教材も cascade 削除。
 type CourseUseCase struct {
 	courses   repository.CourseRepository
 	materials repository.TeachingMaterialRepository
@@ -123,8 +114,7 @@ func (uc *CourseUseCase) Update(ctx context.Context, in UpdateCourseInput) (*dom
 	return existing, nil
 }
 
-// Delete はコースとその配下の教材を同時に削除する。 教材は repository の
-// DeleteByCourse で一括削除（cascade 相当）。
+// Delete はコースと配下教材を同時に削除する（cascade 相当）。
 func (uc *CourseUseCase) Delete(ctx context.Context, id, actorCompanyID uint64, actorRole string) error {
 	existing, err := uc.courses.GetByID(ctx, id)
 	if err != nil {

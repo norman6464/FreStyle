@@ -11,7 +11,6 @@ import (
 // companyRepository は [repository.CompanyRepository] の GORM 実装。
 type companyRepository struct{ db *gorm.DB }
 
-// NewCompanyRepository は GORM ベース の [repository.CompanyRepository] を 返す。
 func NewCompanyRepository(db *gorm.DB) repository.CompanyRepository {
 	return &companyRepository{db: db}
 }

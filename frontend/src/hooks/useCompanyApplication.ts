@@ -1,8 +1,20 @@
 import { ChangeEvent, FormEvent, useState } from 'react';
+import axios from 'axios';
 import {
   CompanyApplicationForm,
   CompanyApplicationRepository,
 } from '../repositories/CompanyApplicationRepository';
+
+const GENERIC_ERROR = '送信に失敗しました。時間をおいて再度お試しください。';
+
+// serverErrorMessage は axios エラーから backend の {error} メッセージを取り出す（無ければ汎用文言）。
+function serverErrorMessage(err: unknown): string {
+  if (axios.isAxiosError(err)) {
+    const data = err.response?.data as { error?: string; message?: string } | undefined;
+    return data?.message || data?.error || GENERIC_ERROR;
+  }
+  return GENERIC_ERROR;
+}
 
 const EMPTY: CompanyApplicationForm = {
   companyName: '',
@@ -37,8 +49,8 @@ export function useCompanyApplication() {
       await CompanyApplicationRepository.apply(form);
       setSubmitted(true);
       setForm(EMPTY);
-    } catch {
-      setError('送信に失敗しました。時間をおいて再度お試しください。');
+    } catch (err) {
+      setError(serverErrorMessage(err));
     } finally {
       setLoading(false);
     }

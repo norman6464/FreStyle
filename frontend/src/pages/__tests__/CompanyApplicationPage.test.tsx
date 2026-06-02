@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { AxiosError } from 'axios';
 import CompanyApplicationPage from '../CompanyApplicationPage';
 
 const mockApply = vi.fn();
@@ -72,11 +73,29 @@ describe('CompanyApplicationPage', () => {
     expect(mockApply).not.toHaveBeenCalled();
   });
 
-  it('送信が失敗するとエラーメッセージを表示する', async () => {
+  it('送信が失敗すると汎用エラーメッセージを表示する', async () => {
     mockApply.mockRejectedValueOnce(new Error('network'));
     renderPage();
     fillRequired();
     fireEvent.click(screen.getByRole('button', { name: '申請する' }));
     expect(await screen.findByText(/送信に失敗しました/)).toBeInTheDocument();
+  });
+
+  it('サーバーがエラーメッセージを返したらそれを表示する', async () => {
+    mockApply.mockRejectedValueOnce(
+      new AxiosError(
+        'Too Many Requests',
+        '429',
+        undefined,
+        undefined,
+        { data: { error: 'リクエストが多すぎます。しばらくお待ちください。' } } as never,
+      ),
+    );
+    renderPage();
+    fillRequired();
+    fireEvent.click(screen.getByRole('button', { name: '申請する' }));
+    expect(
+      await screen.findByText(/リクエストが多すぎます/),
+    ).toBeInTheDocument();
   });
 });

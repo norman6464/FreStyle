@@ -52,6 +52,153 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/company-applications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 企業申請一覧（super_admin）
+         * @description 受け付けた企業申請を新しい順で返す。super_admin 専用。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.CompanyApplication"][];
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description super_admin 以外 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/company-applications/{id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * 企業申請の status 更新（super_admin）
+         * @description 申請を approved / rejected / pending に更新する。super_admin 専用。
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 申請 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            /** @description status */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_handler.updateCompanyApplicationStatusReq"];
+                };
+            };
+            responses: {
+                /** @description 成功（本文なし） */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description id / status 不正 */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description super_admin 以外 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 更新失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/admin/invitations": {
         parameters: {
             query?: never;
@@ -816,6 +963,17 @@ export interface paths {
                         "application/json": components["schemas"]["internal_handler.errorResponse"];
                     };
                 };
+                /** @description レート制限超過 */
+                429: {
+                    headers: {
+                        /** @description 再試行までの秒数 (例: 60) */
+                        "Retry-After"?: string;
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
                 /** @description Cognito 未 設定 等 の 内部 エラー */
                 500: {
                     headers: {
@@ -915,6 +1073,17 @@ export interface paths {
                 /** @description refresh_token 欠落 / 無効 */
                 401: {
                     headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description レート制限超過 */
+                429: {
+                    headers: {
+                        /** @description 再試行までの秒数 (例: 60) */
+                        "Retry-After"?: string;
                         [name: string]: unknown;
                     };
                     content: {
@@ -1051,6 +1220,79 @@ export interface paths {
                 };
                 /** @description 未 認証 */
                 401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/company-applications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 企業利用申請（公開 / 認証不要）
+         * @description ログイン前のユーザーが会社名 / 氏名 / メール / 任意メッセージで利用申請を送る。受理時に super_admin へ通知する。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 申請内容 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_handler.createCompanyApplicationReq"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.CompanyApplication"];
+                    };
+                };
+                /** @description バリデーションエラー */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description レート制限超過 */
+                429: {
+                    headers: {
+                        /** @description 再試行までの秒数 (例: 60) */
+                        "Retry-After"?: string;
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 内部エラー */
+                500: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -1918,6 +2160,17 @@ export interface paths {
                         "application/json": components["schemas"]["internal_handler.errorResponse"];
                     };
                 };
+                /** @description レート制限超過 */
+                429: {
+                    headers: {
+                        /** @description 再試行までの秒数 (例: 60) */
+                        "Retry-After"?: string;
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
                 /** @description 内部 エラー */
                 500: {
                     headers: {
@@ -2159,7 +2412,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/notes/image-upload-url": {
+    "/notes/images/upload-url": {
         parameters: {
             query?: never;
             header?: never;
@@ -2820,75 +3073,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/profile/{userId}/stats": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * ユーザー 統計 取得
-         * @description 指定 user (or 'me') の マイページ 集計 (合計 セッション / 平均 スコア)。 他 user 指定 は 403。
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description 数字 ID または 'me' */
-                    userId: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.UserStats"];
-                    };
-                };
-                /** @description DB 失敗 */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description 未 認証 */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description 他 user 指定 */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/sessions/{sessionId}/note": {
         parameters: {
             query?: never;
@@ -3325,6 +3509,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/users/{userId}/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * ユーザー 統計 取得
+         * @description 指定 user (or 'me') の マイページ 集計 (合計 セッション / 平均 スコア)。 他 user 指定 は 403。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 数字 ID または 'me' */
+                    userId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.UserStats"];
+                    };
+                };
+                /** @description DB 失敗 */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 他 user 指定 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3370,6 +3623,16 @@ export interface components {
             name?: string;
             updatedAt?: string;
         };
+        "github_com_norman6464_FreStyle_backend_internal_domain.CompanyApplication": {
+            applicantName?: string;
+            companyName?: string;
+            createdAt?: string;
+            email?: string;
+            id?: number;
+            message?: string;
+            status?: string;
+            updatedAt?: string;
+        };
         "github_com_norman6464_FreStyle_backend_internal_domain.Course": {
             companyId?: number;
             createdAt?: string;
@@ -3413,20 +3676,13 @@ export interface components {
             description?: string;
             difficulty?: number;
             expectedOutput?: string;
-            /**
-             * @description Explanation は QA モードで 正解後に表示される markdown 解説。
-             *     execute モードでは未使用 (空文字)。
-             */
+            /** @description Explanation は qa モードで正解後に表示する markdown 解説。 */
             explanation?: string;
             hintText?: string;
             id?: number;
             isPublished?: boolean;
             language?: string;
-            /**
-             * @description Mode は採点モード。 'execute' (default) は コードを実行して stdout を比較、
-             *     'qa' は コード実行をせず提出文字列と ExpectedOutput を直接 trim 比較する。
-             *     docker / kubernetes など サンドボックス実行が困難な題材を Q&A 形式で扱うために導入。
-             */
+            /** @description Mode は採点モード。execute は実行して stdout 比較、qa は提出文字列と ExpectedOutput を trim 比較。 */
             mode?: string;
             orderIndex?: number;
             slug?: string;
@@ -3436,18 +3692,12 @@ export interface components {
         };
         "github_com_norman6464_FreStyle_backend_internal_domain.MasterExerciseExample": {
             createdAt?: string;
-            /**
-             * @description (exercise_id, order_index) で UNIQUE 制約を張ることで、同じ問題内で
-             *     OrderIndex が衝突する行を DB レベルで弾く（UI 上「入力例 1」が 2 つ並ぶ事故防止）。
-             */
+            /** @description (exercise_id, order_index) の UNIQUE で同一問題内の OrderIndex 衝突を DB レベルで弾く。 */
             exerciseId?: number;
             expectedOutput?: string;
             id?: number;
             inputText?: string;
-            /**
-             * @description OrderIndex は seed / 運営入力時に必ず明示する想定で DB DEFAULT を持たせない。
-             *     （default:0 を残すと order_index 未指定の INSERT が黙って 0 を採用して衝突を起こすため）
-             */
+            /** @description DEFAULT を持たせない（default:0 だと未指定 INSERT が 0 で衝突するため）。 */
             orderIndex?: number;
             updatedAt?: string;
         };
@@ -3485,10 +3735,6 @@ export interface components {
             avatarUrl?: string;
             bio?: string;
             displayName?: string;
-            /**
-             * @description Email は users.email を そのまま返す。 frontend の sidebar ユーザーメニューで
-             *     「ログイン中のメールアドレスを 表示する」 用途で参照する。
-             */
             email?: string;
             status?: string;
             updatedAt?: string;
@@ -3505,10 +3751,7 @@ export interface components {
         "github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial": {
             companyId?: number;
             content?: string;
-            /**
-             * @description course_id の NOT NULL 制約は migration 0004 で確定する（既存行への ADD COLUMN を
-             *     AutoMigrate で安全に通すため、 GORM tag では not null を指定しない）。
-             */
+            /** @description NOT NULL は migration 0004 で確定するため GORM tag では指定しない（既存行への ADD COLUMN 対策）。 */
             courseId?: number;
             createdAt?: string;
             createdByUserId?: number;
@@ -3550,20 +3793,13 @@ export interface components {
             description?: string;
             difficulty?: number;
             expectedOutput?: string;
-            /**
-             * @description Explanation は QA モードで 正解後に表示される markdown 解説。
-             *     execute モードでは未使用 (空文字)。
-             */
+            /** @description Explanation は qa モードで正解後に表示する markdown 解説。 */
             explanation?: string;
             hintText?: string;
             id?: number;
             isPublished?: boolean;
             language?: string;
-            /**
-             * @description Mode は採点モード。 'execute' (default) は コードを実行して stdout を比較、
-             *     'qa' は コード実行をせず提出文字列と ExpectedOutput を直接 trim 比較する。
-             *     docker / kubernetes など サンドボックス実行が困難な題材を Q&A 形式で扱うために導入。
-             */
+            /** @description Mode は採点モード。execute は実行して stdout 比較、qa は提出文字列と ExpectedOutput を trim 比較。 */
             mode?: string;
             orderIndex?: number;
             slug?: string;
@@ -3606,11 +3842,7 @@ export interface components {
         };
         "internal_handler.cognitoCallbackReq": {
             code: string;
-            /**
-             * @description InvitationToken はフロントが sessionStorage から復元してくる、招待マジックリンク経由で
-             *     受領した UUID トークン。任意。指定がある場合は upsert 時に email ベースの招待検索より
-             *     優先して照合に使う（同じ email に複数 pending invitation がある異常系での誤一致を防ぐ）。
-             */
+            /** @description InvitationToken は招待マジックリンク経由の UUID（任意）。指定時は email 検索より優先して照合する。 */
             invitationToken?: string;
         };
         "internal_handler.courseRequest": {
@@ -3624,6 +3856,12 @@ export interface components {
             displayName?: string;
             email: string;
             role: string;
+        };
+        "internal_handler.createCompanyApplicationReq": {
+            applicantName: string;
+            companyName: string;
+            email: string;
+            message?: string;
         };
         "internal_handler.createSessionReq": {
             scenarioId?: number;
@@ -3730,13 +3968,16 @@ export interface components {
             orderInCourse?: number;
             title?: string;
         };
+        "internal_handler.updateCompanyApplicationStatusReq": {
+            status: string;
+        };
         "internal_handler.updateProfileReq": {
             avatarUrl?: string;
             bio?: string;
-            /** @description `name` は旧フロント実装の互換のため受け付け、`displayName` を優先する。 */
             displayName?: string;
-            /** @description 旧フロント実装が `iconUrl` で送ってきた場合の互換。 */
+            /** @description 旧フロント互換。avatarUrl を優先。 */
             iconUrl?: string;
+            /** @description 旧フロント互換。displayName を優先。 */
             name?: string;
             status?: string;
         };

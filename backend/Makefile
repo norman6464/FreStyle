@@ -2,7 +2,8 @@
 #
 # 主要 target:
 #   make openapi      … swag init で OpenAPI spec を 再 生成 (docs/swagger.{json,yaml})
-#   make verify       … go build / vet / test を 一括 実行
+#   make verify       … gofmt / vet / build / test / archlint を 一括 実行
+#   make archlint     … クリーンアーキテクチャ依存方向ルール (CLAUDE.md §2) を 静的 検証
 #   make run          … go run ./cmd/server で ローカル サーバ 起動
 #
 # swag CLI が PATH に なければ `go install github.com/swaggo/swag/cmd/swag@v1.16.4` を 自動 実行 する。
@@ -36,6 +37,13 @@ verify:
 	go vet ./...
 	go build ./...
 	go test ./...
+	$(MAKE) archlint
+
+# クリーンアーキテクチャ依存方向ルール（CLAUDE.md §2）を静的に検証する。
+.PHONY: archlint
+archlint:
+	@echo ">>> archlint: クリーンアーキテクチャ依存方向チェック"
+	@go run ./cmd/archlint .
 
 .PHONY: run
 run:

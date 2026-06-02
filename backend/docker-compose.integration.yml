@@ -1,0 +1,31 @@
+# 結合テスト用 PostgreSQL コンテナ。
+#
+# 目的: repository(adapter/persistence) 層の結合テストを「本物の PostgreSQL」に対して回す。
+#   - 本番 Supabase は Postgres 17.x のため、同系統の公式イメージを使う。
+#   - 通常の `go test ./...`（単体）からは独立。`-tags=integration` のテストだけが接続する。
+#
+# 使い方:
+#   docker compose -f docker-compose.integration.yml up -d --wait
+#   TEST_DATABASE_URL='postgres://frestyle:frestyle@localhost:5433/frestyle_integration?sslmode=disable' \
+#     go test -tags=integration ./...
+#   docker compose -f docker-compose.integration.yml down -v
+#
+# ローカル開発の 5432 と衝突しないよう host 側は 5433 に publish する。
+services:
+  postgres-integration-test:
+    image: postgres:17.6-alpine
+    container_name: frestyle-postgres-integration-test
+    environment:
+      POSTGRES_USER: frestyle
+      POSTGRES_PASSWORD: frestyle
+      POSTGRES_DB: frestyle_integration
+    ports:
+      - '5433:5432'
+    # tmpfs でデータを永続化しない（毎回まっさらな DB で結合テストを回す）。
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U frestyle -d frestyle_integration']
+      interval: 2s
+      timeout: 3s
+      retries: 30

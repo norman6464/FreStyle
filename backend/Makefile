@@ -6,6 +6,7 @@
 #   make archlint     … クリーンアーキテクチャ依存方向ルール (CLAUDE.md §2) を 静的 検証
 #   make apispec-lint … Gin ルート ↔ swaggo @Router 注釈 の 整合 (CLAUDE.md §2.7) を 検証
 #   make naminglint   … usecase 命名・構造規約 (CLAUDE.md §2.3) を 検証
+#   make test-integration … docker-compose で PostgreSQL を起動し -tags=integration の結合テストを実行
 #   make run          … go run ./cmd/server で ローカル サーバ 起動
 #
 # swag CLI が PATH に なければ `go install github.com/swaggo/swag/cmd/swag@v1.16.4` を 自動 実行 する。
@@ -60,6 +61,17 @@ apispec-lint:
 naminglint:
 	@echo ">>> naminglint: usecase 命名規約チェック"
 	@go run ./cmd/naminglint .
+
+# 結合テスト: docker-compose で本物の PostgreSQL を起動し、-tags=integration のテストを回す。
+# 終了時は必ずコンテナを破棄する（テスト失敗でも teardown する）。
+INTEGRATION_DSN := postgres://frestyle:frestyle@localhost:5433/frestyle_integration?sslmode=disable
+.PHONY: test-integration
+test-integration:
+	docker compose -f docker-compose.integration.yml up -d --wait
+	@TEST_DATABASE_URL='$(INTEGRATION_DSN)' go test -tags=integration -run Integration ./... ; \
+	  status=$$? ; \
+	  docker compose -f docker-compose.integration.yml down -v ; \
+	  exit $$status
 
 .PHONY: run
 run:

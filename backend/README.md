@@ -55,6 +55,20 @@ make archlint        # = go run ./cmd/archlint .
 - 意図的に例外を通したいときは、import 行末に `//archlint:allow <理由>`、ファイル全体なら先頭コメントに `//archlint:ignore-file <理由>` を付ける。
 - ルールを追加・変更したら `cmd/archlint/main.go` の `rules` を編集し、`cmd/archlint/main_test.go` にケースを足す。
 
+### apispec-lint — ルート ↔ swaggo 注釈の整合検証
+
+CLAUDE.md §2.7「新しい HTTP endpoint には handler メソッドの直前に swaggo annotation を必ず書く」を機械化した自作 linter（`go/ast` のみ）。ルートを生やしたのに `@Router` 注釈を書き忘れた endpoint を CI で弾く。
+
+```bash
+make apispec-lint    # = go run ./cmd/apispec-lint .
+```
+
+- `internal/handler` の `g.GET("/path", ..., h.Method)` 形式のルート登録を AST で抽出し、最後の引数（handler メソッド）を特定する。
+- レシーバ付き func の doc コメントに `@Router` を含むメソッド名を「注釈あり」として収集し、ルートが指すメソッドに注釈が無ければ違反として `path:line` で報告し exit 1。
+- SSE / WebSocket / multipart など OpenAPI で表現しない endpoint は、ルート登録行の行末に `//apispec:allow <理由>`、ファイル全体なら先頭コメントに `//apispec:ignore-file <理由>` で抑制する。
+
+> 注釈の path 文字列まで照合する厳密版ではなく「注釈の有無」を見る軽量ガードレール。書き忘れの一次検知が目的で、生成された spec の正しさは `make openapi` の drift check（CI）が担う。
+
 ## ローカル開発
 
 ```bash
@@ -100,8 +114,9 @@ docker build -t frestyle-backend:latest .
 ```bash
 go vet ./...
 go test ./...
-make archlint   # クリーンアーキテクチャ依存方向チェック
-make verify     # gofmt / vet / build / test / archlint を一括実行
+make archlint      # クリーンアーキテクチャ依存方向チェック
+make apispec-lint  # ルート ↔ swaggo @Router 注釈チェック
+make verify        # gofmt / vet / build / test / archlint / apispec-lint を一括実行
 ```
 
 ## ログ方針（CloudWatch コスト対策）

@@ -144,7 +144,8 @@ make test-integration
 ```
 
 - **DB コンテナ**: `docker-compose.integration.yml` の `postgres-integration-test`（`postgres:17.6-alpine`、host 側 5433、`tmpfs` で毎回まっさら）。
-- **接続先**: `TEST_DATABASE_URL`（既定 `postgres://frestyle:frestyle@localhost:5433/frestyle_integration?sslmode=disable`）。未設定 / 未起動なら結合テストは `t.Skip`。
+- **接続先**: `TEST_DATABASE_URL`（既定 `postgres://frestyle:frestyle@localhost:5433/frestyle_integration?sslmode=disable`）。未設定 / 未起動なら結合テストは `t.Skip`。本番が使う `DATABASE_URL` とは**別の env**で、Supabase / 本番には**接続しない**。
+- **安全弁（本番 Supabase 保護）**: `OpenTestDB` は接続先が `supabase.com` / `pooler.supabase` を含む場合、接続前に `t.Fatal` で**必ず落とす**。結合テストは `TruncateAll`（`TRUNCATE ... CASCADE`）でテーブルを破壊するため、誤って `TEST_DATABASE_URL` に本番を入れてもデータを消さない。
 - **スキーマ**: `testsupport.OpenTestDB(t)` が `database.AutoMigrateAll(db)`（seed なしの全 domain AutoMigrate）でスキーマを構築。テスト間は `testsupport.TruncateAll(t, db, ...)` で独立性を確保。
 - **命名規約**: 結合テストの関数名には `Integration` を含める（CI / make は `-run Integration` で選別実行する。`TEST_DATABASE_URL` を env に持つこのジョブで env 依存の単体テストを巻き込まないため）。
 - **CI**: `ci-backend-go.yml` の `integration` ジョブが docker compose で Postgres を起動して実行する（単体 `test` ジョブとは別ジョブ）。

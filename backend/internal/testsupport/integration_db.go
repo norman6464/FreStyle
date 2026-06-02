@@ -11,6 +11,7 @@ package testsupport
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/norman6464/FreStyle/backend/internal/infra/database"
@@ -33,6 +34,14 @@ func OpenTestDB(t *testing.T) *gorm.DB {
 		dsn = defaultTestDSN
 	}
 
+	// 安全弁: 接続先が Supabase / 本番 pooler の場合は接続前に必ず落とす。
+	// 結合テストは TruncateAll（TRUNCATE ... CASCADE）でテーブルを破壊するため、
+	// 誤って TEST_DATABASE_URL に本番 DATABASE_URL を入れた事故で本番データを消さないようにする。
+	if looksLikeSupabase(dsn) {
+		t.Fatal("結合テストの接続先が Supabase / 本番 pooler を指しています。" +
+			"TEST_DATABASE_URL を解除し、ローカルの postgres-integration-test（make test-integration）を使ってください。")
+	}
+
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
 	})
@@ -51,6 +60,12 @@ func OpenTestDB(t *testing.T) *gorm.DB {
 		t.Fatalf("AutoMigrate 失敗: %v", err)
 	}
 	return db
+}
+
+// looksLikeSupabase は DSN が Supabase / 本番 pooler を指しているかを返す（安全弁用）。
+func looksLikeSupabase(dsn string) bool {
+	l := strings.ToLower(dsn)
+	return strings.Contains(l, "supabase.com") || strings.Contains(l, "pooler.supabase")
 }
 
 // TruncateAll はテーブルを TRUNCATE して連番をリセットする。テスト間の独立性確保用。

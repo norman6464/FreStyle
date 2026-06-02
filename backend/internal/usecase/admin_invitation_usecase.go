@@ -98,6 +98,8 @@ func (u *CreateAdminInvitationUseCase) Execute(ctx context.Context, in CreateAdm
 		ExpiresAt:   time.Now().UTC().Add(u.expiresIn),
 	}
 	if err := u.repo.Create(ctx, inv); err != nil {
+		log.Printf("CreateAdminInvitation: repo.Create failed email=%s role=%s companyID=%d: %v",
+			in.Email, in.Role, in.CompanyID, err)
 		return nil, fmt.Errorf("create invitation: %w", err)
 	}
 
@@ -110,9 +112,13 @@ func (u *CreateAdminInvitationUseCase) Execute(ctx context.Context, in CreateAdm
 	link := u.buildLink(token)
 	subject, htmlBody, textBody := u.buildMail(link, in.DisplayName, u.companyName, in.Role)
 	if err := u.sender.SendInvitationEmail(ctx, in.Email, subject, htmlBody, textBody); err != nil {
-		// 送信失敗はエラーで返す（invitation は DB に残るので再送に使える）。
+		// 送信失敗はエラーで返す（invitation は DB に残るので再送に使える）。SES エラー種別を判定できるよう詳細をログに残す。
+		log.Printf("CreateAdminInvitation: SES SendInvitationEmail failed to=%s subject=%q: %v",
+			in.Email, subject, err)
 		return nil, fmt.Errorf("send invitation email: %w", err)
 	}
+	log.Printf("CreateAdminInvitation: invitation sent ok id=%d to=%s role=%s companyID=%d",
+		inv.ID, in.Email, in.Role, in.CompanyID)
 	return inv, nil
 }
 

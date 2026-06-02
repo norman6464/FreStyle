@@ -1,15 +1,12 @@
 name: CI - Backend (Go)
 
+# path フィルタは付けない: 必須ステータスチェック（branch protection）として使うため、
+# 対象外パスの PR でも必ず report されるよう全 PR / main push で走らせる。
 on:
   push:
     branches: [main]
-    paths:
-      - 'backend/**'
-      - '.github/workflows/ci-backend-go.yml'
   pull_request:
-    paths:
-      - 'backend/**'
-      - '.github/workflows/ci-backend-go.yml'
+    branches: [main]
 
 jobs:
   test:

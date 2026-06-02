@@ -3,17 +3,13 @@ name: CI - Frontend (Vite + Vitest)
 # 目的: PR / push のたびにフロントエンドのテストとビルド検証だけを行う。
 # 本ワークフローは S3 / CloudFront に一切触らない。デプロイは cd-frontend.yml で別途。
 
+# path フィルタは付けない: 必須ステータスチェック（branch protection）として使うため、
+# 対象外パスの PR でも必ず report されるよう全 PR / main push で走らせる。
 on:
   pull_request:
     branches: [main]
-    paths:
-      - 'frontend/**'
-      - '.github/workflows/ci-frontend.yml'
   push:
     branches: [main]
-    paths:
-      - 'frontend/**'
-      - '.github/workflows/ci-frontend.yml'
 
 permissions:
   contents: read

@@ -16,13 +16,15 @@ const API_BASE = 'https://api.normanblog.com';
 
 test.describe('FreStyle smoke', () => {
   test('SPA がロードされ FreStyle ロゴ / ログイン誘導が見える', async ({ page }) => {
-    await page.goto('/');
+    // networkidle は SPA のヘルスポーリング等で「無通信」に到達せず timeout して flake るため使わない。
+    // domcontentloaded で遷移し、描画要素（ログインフォーム）の出現を明示的に待つ。
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
     await expect(page).toHaveTitle(/FreStyle/);
-    // SPA の root が描画されるまで待つ
-    await page.waitForLoadState('networkidle');
-    // ログイン前は LoginPage か Landing が出る。'fre' / 'login' のどちらかが見える前提
-    const visibleText = (await page.locator('body').innerText()).toLowerCase();
-    expect(visibleText.length).toBeGreaterThan(0);
+    // 未認証アクセスは /login にリダイレクトされ、ログインフォームが描画される。
+    // 本番のコールドロード + 認証チェックを見込んで余裕を持った timeout で待つ。
+    await expect(
+      page.getByRole('form', { name: 'ログインフォーム' })
+    ).toBeVisible({ timeout: 20_000 });
   });
 
   test('CloudFront セキュリティヘッダーが配信される', async ({ request }) => {

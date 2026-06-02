@@ -1,5 +1,7 @@
 .env
-.claude/
+# Claude Code: チーム共有設定 (.claude/settings.json) はコミットする。
+# 個人用ローカル設定だけ除外する。
+.claude/settings.local.json
 CLAUDE.md
 
 infrastructure/

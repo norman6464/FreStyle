@@ -1,0 +1,18 @@
+# gitleaks 設定。デフォルトルール（多数の provider パターン + 汎用/高エントロピー）を使いつつ、
+# ローカル・テスト用の「機密ではない固定値 / プレースホルダ」を allowlist して誤検知を防ぐ。
+# 実機密（AWS キー / Cognito シークレット / 本番 DB パスワード等）は引き続き検知される。
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "ローカル/テスト用の非機密値・プレースホルダ"
+paths = [
+  # 環境変数のテンプレート（値はダミー）
+  '''\.env\.example$''',
+]
+regexes = [
+  # 結合テスト用のローカル Postgres（docker-compose の使い捨てコンテナ固定値。機密ではない）
+  '''postgres://frestyle:frestyle@localhost''',
+  '''POSTGRES_(USER|PASSWORD|DB):\s*frestyle''',
+]

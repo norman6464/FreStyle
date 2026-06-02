@@ -1,0 +1,14 @@
+# lefthook — Git フックマネージャ（Go 製）。`lefthook install` で有効化する。
+#
+# コミット前に gitleaks でステージ済み変更にシークレットが含まれていないかを検査し、
+# 漏洩を「手元（CI 往復前）」で止める。CI の secret-scan / GitHub Push Protection と多層防御。
+#
+# 前提: gitleaks と lefthook をインストールしておく:
+#   brew install lefthook gitleaks   # macOS
+#   lefthook install                 # フックを有効化（リポジトリごとに 1 回）
+
+pre-commit:
+  commands:
+    gitleaks:
+      # ステージ済みの差分のみを検査（高速）。検出があれば commit を中止する。
+      run: gitleaks git --staged --redact --no-banner --exit-code 1

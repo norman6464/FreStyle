@@ -51,8 +51,17 @@ jobs:
       - name: ESLint (max-warnings=0)
         run: npx eslint . --max-warnings=0
 
-      - name: Run Vitest
-        run: npm test -- --run
+      # Vitest をカバレッジ付きで実行し、サマリを PR の Checks に表示する。
+      - name: Run Vitest (coverage)
+        run: |
+          set -o pipefail
+          npx vitest run --coverage --coverage.reporter=text-summary | tee /tmp/vitest-out.txt
+          {
+            echo "## Frontend test coverage"
+            echo '```'
+            grep -A6 "Coverage report" /tmp/vitest-out.txt || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Build (verify only)
         # ビルドが通るかだけ確認。S3 sync / CloudFront invalidation は CD 側で実施。

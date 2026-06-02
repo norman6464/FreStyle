@@ -1,4 +1,4 @@
-import { useRef, useMemo } from 'react';
+import { useRef } from 'react';
 import InputField from '../components/InputField';
 import TextareaField from '../components/TextareaField';
 import PrimaryButton from '../components/PrimaryButton';
@@ -6,23 +6,16 @@ import FormMessage from '../components/FormMessage';
 import Avatar from '../components/Avatar';
 import Loading from '../components/Loading';
 import ProfileStatsSection from '../components/profile/ProfileStatsSection';
-import ActivityHeatmap from '../components/ActivityHeatmap';
 import { useProfileEdit } from '../hooks/useProfileEdit';
 import { useProfileImageUpload } from '../hooks/useProfileImageUpload';
 import { useProfileStats } from '../hooks/useProfileStats';
-import { useScoreHistory } from '../hooks/useScoreHistory';
 import { CameraIcon } from '@heroicons/react/24/outline';
 
 export default function ProfilePage() {
   const { form, message, setMessage, loading, submitting, updateField, handleUpdate } = useProfileEdit();
   const { upload, uploading } = useProfileImageUpload();
   const { stats, loading: statsLoading } = useProfileStats();
-  const { history } = useScoreHistory();
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const practiceDates = useMemo(() => {
-    return history.map((h) => h.createdAt.split('T')[0]);
-  }, [history]);
 
   const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -88,7 +81,7 @@ export default function ProfilePage() {
           className="space-y-4"
         >
           <InputField
-            label="ニックネーム"
+            label="氏名"
             name="displayName"
             value={form.displayName}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateField('displayName', e.target.value)}
@@ -116,10 +109,7 @@ export default function ProfilePage() {
         </form>
       </div>
 
-      {/* セクション2: 年間活動ヒートマップ */}
-      <ActivityHeatmap practiceDates={practiceDates} />
-
-      {/* セクション3: 学習統計 */}
+      {/* セクション2: 学習統計 */}
       <ProfileStatsSection stats={stats} loading={statsLoading} />
     </div>
   );

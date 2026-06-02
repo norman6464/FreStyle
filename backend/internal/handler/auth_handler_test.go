@@ -13,11 +13,15 @@ import (
 
 // fakeUserRepo は AuthHandler.upsertUserFromIDToken のテスト用 stub。
 type fakeUserRepo struct {
-	existingBySub map[string]*domain.User
-	created       *domain.User
-	createErr     error
-	updateRoleID  uint64
-	updateRoleVal string
+	existingBySub        map[string]*domain.User
+	created              *domain.User
+	createErr            error
+	updateRoleID         uint64
+	updateRoleVal        string
+	updateCompanyID      uint64
+	updateCompanyVal     uint64
+	updateDisplayNameID  uint64
+	updateDisplayNameVal string
 }
 
 func (r *fakeUserRepo) FindByCognitoSub(_ context.Context, sub string) (*domain.User, error) {
@@ -29,6 +33,9 @@ func (r *fakeUserRepo) FindByCognitoSub(_ context.Context, sub string) (*domain.
 func (r *fakeUserRepo) FindByID(_ context.Context, _ uint64) (*domain.User, error) {
 	return nil, nil
 }
+func (r *fakeUserRepo) ListByRole(_ context.Context, _ string) ([]domain.User, error) {
+	return nil, nil
+}
 func (r *fakeUserRepo) Create(_ context.Context, u *domain.User) error {
 	if r.createErr != nil {
 		return r.createErr
@@ -37,9 +44,19 @@ func (r *fakeUserRepo) Create(_ context.Context, u *domain.User) error {
 	r.created = u
 	return nil
 }
-func (r *fakeUserRepo) UpdateDisplayName(_ context.Context, _ uint64, _ string) error { return nil }
+func (r *fakeUserRepo) UpdateDisplayName(_ context.Context, id uint64, name string) error {
+	r.updateDisplayNameID, r.updateDisplayNameVal = id, name
+	return nil
+}
 func (r *fakeUserRepo) UpdateRole(_ context.Context, id uint64, role string) error {
 	r.updateRoleID, r.updateRoleVal = id, role
+	return nil
+}
+func (r *fakeUserRepo) UpdateCompanyID(_ context.Context, id uint64, companyID uint64) error {
+	r.updateCompanyID, r.updateCompanyVal = id, companyID
+	return nil
+}
+func (r *fakeUserRepo) MarkOnboarded(_ context.Context, _ uint64) error {
 	return nil
 }
 
@@ -289,5 +306,171 @@ func TestUpsertUserFromIDToken_InvalidToken_FallsBackToEmail(t *testing.T) {
 	}
 }
 
+// 既存の trainee ユーザーが company_admin 招待を受けた場合、role を昇格 + company を反映する。
+// 過去に signup した既存ユーザーが後から CompanyAdmin として招待されたケースの救済。
+func TestUpsertUserFromIDToken_ExistingTrainee_UpgradedByCompanyAdminInvitation(t *testing.T) {
+	existing := &domain.User{ID: 5, CognitoSub: "existing-trainee", Email: "u@example.com", Role: domain.RoleTrainee}
+	users := &fakeUserRepo{existingBySub: map[string]*domain.User{"existing-trainee": existing}}
+	invs := &fakeInvitationRepo{
+		pendingByToken: map[string]*domain.AdminInvitation{
+			"magic-xyz": {ID: 9, CompanyID: 42, Email: "u@example.com", Role: domain.RoleCompanyAdmin},
+		},
+	}
+	h := newTestAuthHandler(users, invs)
+	idToken := makeIDToken(t, map[string]any{"sub": "existing-trainee", "email": "u@example.com"})
+
+	if !h.upsertUserFromIDToken(newGinCtx(), idToken, "magic-xyz") {
+		t.Fatal("must be allowed for existing user with token")
+	}
+	if users.updateRoleVal != domain.RoleCompanyAdmin || users.updateRoleID != 5 {
+		t.Errorf("role must be upgraded to company_admin, got id=%d role=%q", users.updateRoleID, users.updateRoleVal)
+	}
+	if users.updateCompanyID != 5 || users.updateCompanyVal != 42 {
+		t.Errorf("company_id must be updated to 42, got id=%d company=%d", users.updateCompanyID, users.updateCompanyVal)
+	}
+	if invs.updatedID != 9 || invs.updatedStatus != domain.InvitationStatusAccepted {
+		t.Errorf("invitation must be marked accepted, got id=%d status=%q", invs.updatedID, invs.updatedStatus)
+	}
+}
+
+// 既存 super_admin は招待を受けても降格しない。
+func TestUpsertUserFromIDToken_ExistingSuperAdmin_NotDowngradedByInvitation(t *testing.T) {
+	existing := &domain.User{ID: 1, CognitoSub: "ops", Email: "ops@example.com", Role: domain.RoleSuperAdmin}
+	users := &fakeUserRepo{existingBySub: map[string]*domain.User{"ops": existing}}
+	invs := &fakeInvitationRepo{
+		pendingByToken: map[string]*domain.AdminInvitation{
+			"t": {ID: 1, CompanyID: 1, Email: "ops@example.com", Role: domain.RoleTrainee},
+		},
+	}
+	h := newTestAuthHandler(users, invs)
+	idToken := makeIDToken(t, map[string]any{"sub": "ops", "email": "ops@example.com"})
+
+	if !h.upsertUserFromIDToken(newGinCtx(), idToken, "t") {
+		t.Fatal("must be allowed")
+	}
+	if users.updateRoleVal != "" {
+		t.Errorf("super_admin must not be downgraded, but UpdateRole was called with %q", users.updateRoleVal)
+	}
+}
+
 // dummy: 使用していないが strings import のリンタを満たすために残す（今後 assert で使う）
 var _ = strings.Contains
+
+// 新規ユーザ作成時に id_token の `name` claim が DisplayName に使われる（email にフォールバックしない）。
+func TestUpsertUserFromIDToken_NewUser_UsesOIDCNameOverEmail(t *testing.T) {
+	users := &fakeUserRepo{}
+	invs := &fakeInvitationRepo{
+		pendingByEmail: map[string]*domain.AdminInvitation{
+			"taro@example.com": {
+				ID: 1, CompanyID: 10, Email: "taro@example.com",
+				Role: domain.RoleTrainee, Status: domain.InvitationStatusPending,
+				// 招待 displayName が空だと OIDC name が採用される。
+			},
+		},
+	}
+	h := newTestAuthHandler(users, invs)
+	idToken := makeIDToken(t, map[string]any{
+		"sub":   "google-1",
+		"email": "taro@example.com",
+		"name":  "山田 太郎",
+	})
+
+	if !h.upsertUserFromIDToken(newGinCtx(), idToken, "") {
+		t.Fatal("must be allowed")
+	}
+	if users.created == nil {
+		t.Fatal("expected user created")
+	}
+	if users.created.DisplayName != "山田 太郎" {
+		t.Errorf("DisplayName = %q, want 山田 太郎 (OIDC name)", users.created.DisplayName)
+	}
+}
+
+// 招待 displayName が指定されているときは招待値が優先で OIDC name は無視。
+func TestUpsertUserFromIDToken_NewUser_InvitationNameTrumpsOIDCName(t *testing.T) {
+	users := &fakeUserRepo{}
+	invs := &fakeInvitationRepo{
+		pendingByEmail: map[string]*domain.AdminInvitation{
+			"u@example.com": {
+				ID: 1, CompanyID: 10, Email: "u@example.com",
+				Role: domain.RoleTrainee, DisplayName: "招待された名前", Status: domain.InvitationStatusPending,
+			},
+		},
+	}
+	h := newTestAuthHandler(users, invs)
+	idToken := makeIDToken(t, map[string]any{
+		"sub": "g-2", "email": "u@example.com", "name": "Google Name",
+	})
+
+	if !h.upsertUserFromIDToken(newGinCtx(), idToken, "") {
+		t.Fatal("must be allowed")
+	}
+	if users.created.DisplayName != "招待された名前" {
+		t.Errorf("DisplayName = %q, want 招待された名前", users.created.DisplayName)
+	}
+}
+
+// name claim が無いケースは email にフォールバックする（後方互換）。
+func TestUpsertUserFromIDToken_NewUser_NoOIDCName_FallsBackToEmail(t *testing.T) {
+	users := &fakeUserRepo{}
+	invs := &fakeInvitationRepo{
+		pendingByEmail: map[string]*domain.AdminInvitation{
+			"a@example.com": {
+				ID: 1, CompanyID: 10, Email: "a@example.com",
+				Role: domain.RoleTrainee, Status: domain.InvitationStatusPending,
+			},
+		},
+	}
+	h := newTestAuthHandler(users, invs)
+	idToken := makeIDToken(t, map[string]any{"sub": "g-3", "email": "a@example.com"})
+
+	if !h.upsertUserFromIDToken(newGinCtx(), idToken, "") {
+		t.Fatal("must be allowed")
+	}
+	if users.created.DisplayName != "a@example.com" {
+		t.Errorf("DisplayName = %q, want a@example.com (fallback)", users.created.DisplayName)
+	}
+}
+
+// 既存ユーザの DisplayName が email と一致 + id_token に name → name で上書きされる。
+func TestUpsertUserFromIDToken_ExistingUser_BackfillDisplayNameFromOIDC(t *testing.T) {
+	existing := &domain.User{
+		ID: 5, CognitoSub: "exists",
+		Email: "old@example.com", DisplayName: "old@example.com",
+		Role: domain.RoleTrainee,
+	}
+	users := &fakeUserRepo{existingBySub: map[string]*domain.User{"exists": existing}}
+	h := newTestAuthHandler(users, &fakeInvitationRepo{})
+	idToken := makeIDToken(t, map[string]any{
+		"sub": "exists", "email": "old@example.com", "name": "本名 太郎",
+	})
+
+	if !h.upsertUserFromIDToken(newGinCtx(), idToken, "") {
+		t.Fatal("must be allowed")
+	}
+	if users.updateDisplayNameID != 5 || users.updateDisplayNameVal != "本名 太郎" {
+		t.Errorf("expected backfill UpdateDisplayName(5, '本名 太郎'), got id=%d val=%q",
+			users.updateDisplayNameID, users.updateDisplayNameVal)
+	}
+}
+
+// 既存ユーザが既にプロフィール編集済（DisplayName != email）なら OIDC name で上書きしない。
+func TestUpsertUserFromIDToken_ExistingUser_NoBackfillIfDisplayNameCustomized(t *testing.T) {
+	existing := &domain.User{
+		ID: 5, CognitoSub: "exists",
+		Email: "u@example.com", DisplayName: "ユーザ自身が編集した名前",
+		Role: domain.RoleTrainee,
+	}
+	users := &fakeUserRepo{existingBySub: map[string]*domain.User{"exists": existing}}
+	h := newTestAuthHandler(users, &fakeInvitationRepo{})
+	idToken := makeIDToken(t, map[string]any{
+		"sub": "exists", "email": "u@example.com", "name": "Google Name",
+	})
+
+	if !h.upsertUserFromIDToken(newGinCtx(), idToken, "") {
+		t.Fatal("must be allowed")
+	}
+	if users.updateDisplayNameVal != "" {
+		t.Errorf("expected no backfill, but UpdateDisplayName called with %q", users.updateDisplayNameVal)
+	}
+}

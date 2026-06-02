@@ -6,7 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// 許可するオリジン。Spring Boot の CorsConfig と同じ値を Go 側でも維持する。
+// allowedOrigins は CORS で許可するオリジン。
 var allowedOrigins = map[string]struct{}{
 	"https://normanblog.com":                                          {},
 	"http://normanblog.com":                                           {},
@@ -21,17 +21,13 @@ const (
 	maxAge       = "3600"
 )
 
-// IsAllowedOrigin は WebSocket Upgrader.CheckOrigin など CORS middleware の外でも
-// 同じ allowlist を使えるようにするヘルパ。
+// IsAllowedOrigin は CORS middleware 外からも同じ allowlist を使えるようにするヘルパ。
 func IsAllowedOrigin(origin string) bool {
 	_, ok := allowedOrigins[origin]
 	return ok
 }
 
-// CORS は Gin 用の CORS middleware。
-// 許可リストにある Origin のみ Access-Control-Allow-Origin を返し、
-// allowCredentials=true で動作するようにする。
-// Preflight (OPTIONS) は本 middleware 内で 204 で返して終端する。
+// CORS は許可リストの Origin のみ credentials 付きで許可し、Preflight は 204 で終端する。
 func CORS() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.GetHeader("Origin")

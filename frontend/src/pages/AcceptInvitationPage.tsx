@@ -11,9 +11,13 @@ import { useAcceptInvitation } from '../hooks/useAcceptInvitation';
  * URL: /invitations/accept?token=<UUID>
  *
  * メールから踏まれた直後の最初の画面。token を backend (`GET /invitations/accept/:token`)
- * で検証して招待先 company / role / displayName を表示し、ユーザーに「ログインへ進む」
+ * で検証して招待先 company / displayName を表示し、ユーザーに「ログインへ進む」
  * ボタンを押してもらう。ボタンを踏んだ時点で token は sessionStorage に保存済みなので、
- * Cognito Hosted UI 経由のログイン後 callback で読み出して使う。
+ * ログイン後 callback で読み出して使う。
+ *
+ * UI で role の生値（company_admin / trainee 等）は表示しない。
+ * 一般ユーザーには社内ロール体系の名称が伝わらないため、ログイン後の機能の出し分けで
+ * 暗黙的に体感してもらう設計。
  */
 export default function AcceptInvitationPage() {
   const { status } = useAcceptInvitation();
@@ -51,7 +55,6 @@ export default function AcceptInvitationPage() {
   }
 
   const { invitation } = status;
-  const roleLabel = roleLabels[invitation.role] ?? invitation.role;
 
   return (
     <AuthLayout
@@ -74,10 +77,6 @@ export default function AcceptInvitationPage() {
               <dd className="font-medium text-right">{invitation.companyName}</dd>
             </div>
           )}
-          <div className="flex justify-between gap-4">
-            <dt className="text-[var(--color-text-muted)]">付与される権限</dt>
-            <dd className="font-medium text-right">{roleLabel}</dd>
-          </div>
           {invitation.displayName && (
             <div className="flex justify-between gap-4">
               <dt className="text-[var(--color-text-muted)]">表示名</dt>
@@ -91,18 +90,10 @@ export default function AcceptInvitationPage() {
         </Link>
 
         <p className="text-xs text-[var(--color-text-muted)] text-center">
-          ボタンを押すと Cognito ログイン画面に遷移します。<br />
-          Google アカウントまたはメールアドレスでログインしてください。
+          ボタンを押すとログイン画面に進みます。<br />
+          Google アカウント、またはメールアドレス + パスワードでログインしてください。
         </p>
       </div>
     </AuthLayout>
   );
 }
-
-// バックエンドから返ってくる role の生値を、画面表示用の日本語ラベルに変換する。
-// 想定外の値は usecase 側で trainee に正規化済みだが、フォールバックとして生値をそのまま出す。
-const roleLabels: Record<string, string> = {
-  super_admin: '運営管理者',
-  company_admin: '会社管理者',
-  trainee: '受講者',
-};

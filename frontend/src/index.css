@@ -2,36 +2,66 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Dark theme (default) - Navy blue base like Zenn */
-:root {
-  --color-surface: #0f1219;
-  --color-surface-1: #171c28;
-  --color-surface-2: #1e2535;
-  --color-surface-3: #2a3245;
-  --color-text-primary: #f1f5f9;
-  --color-text-secondary: #b0bcd0;
-  --color-text-tertiary: #7e8ca4;
-  --color-text-muted: #546178;
-  --color-text-faint: #3a4560;
-  --color-text-subtle: #1e2535;
-  --color-border-hover: #2a3245;
-  --scrollbar-track: #0f1219;
-  --scrollbar-thumb: #2a3245;
-  --scrollbar-thumb-hover: #4a5368;
-  color-scheme: dark;
+/*
+ * highlight.js の GitHub Light テーマを import。
+ * rehype-highlight が `<span class="hljs-keyword">` 等にトークンを分けるが、
+ * 対応する CSS が無いと色付けされず読めなくなる。
+ * FreStyle はライトテーマ単一構成なので、 GitHub README と同じ light を採用。
+ */
+@import 'highlight.js/styles/github.css';
+
+/*
+ * prose のコードブロックを GitHub README 風（明るい背景 + 黒文字）にする。
+ * @tailwindcss/typography の既定では <pre> は dark navy 背景になるが、
+ * FreStyle のライトテーマと噛み合わないので CSS 変数で override する。
+ *
+ * - --tw-prose-pre-bg: コードブロック全体の背景
+ * - --tw-prose-pre-code: コードブロック内のフォールバック文字色（hljs 未色付け部）
+ * - --tw-prose-pre-border: 枠線色
+ */
+.prose {
+  --tw-prose-pre-bg: var(--color-surface-2);
+  --tw-prose-pre-code: var(--color-text-primary);
+  --tw-prose-pre-border: var(--color-surface-3);
+}
+.prose pre {
+  background-color: var(--color-surface-2);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-surface-3);
+}
+.prose pre code {
+  background-color: transparent;
+  color: var(--color-text-primary);
+}
+/*
+ * @tailwindcss/typography は inline code (`<code>`) の前後に ::before / ::after で
+ * バッククォート (`) を装飾として自動挿入する。 これがテーブルセル内などで
+ * 「`GET`」のように リテラルなバッククォートとして見えてしまうので打ち消す。
+ */
+.prose code::before,
+.prose code::after {
+  content: "" !important;
 }
 
-.light {
-  /*
-   * ライトモードのサーフェスは「ページ背景 < カード < 強調」の階層を視認できるように差をつける。
-   * 旧設定は --color-surface と --color-surface-1 が同じ #FFFFFF だったため、
-   * bg-surface-1 のカードがページ背景と完全に同色になり「カードが消えて見える」レイアウト崩れの
-   * 原因になっていた。ページを薄いオフホワイト、カードを純白にして境界線も濃いめに。
-   */
-  --color-surface: #F7F7F5;
+/*
+ * ライトテーマ単一構成（ダークモードは廃止）。
+ *
+ * カラー設計（モノクロ最小主義）:
+ *   - body / サイドバー / ヘッダーは全て純白 (#FFFFFF) で統一し、領域の境界は border のみで表現
+ *   - hover / active は色相を持たない暖色グレー (#F5F5F4 / #EAEAE9) で控えめに
+ *   - アクセント色は使用箇所を絞り、視覚ノイズを排除する
+ */
+:root {
+  --color-surface: #FFFFFF;
   --color-surface-1: #FFFFFF;
-  --color-surface-2: #EFEFEC;
-  --color-surface-3: #DCDCD8;
+  --color-surface-2: #F5F5F4;
+  --color-surface-3: #E7E5E4;
+  /* サイドバー / ヘッダーは body と同じ白で、border 1px のみで境界を表現する */
+  --color-nav: #FFFFFF;
+  /* nav 上の hover / active 状態。色相を持たないニュートラル寄り暖色グレーで
+     「白い塊」感を出さず、目立ちすぎない控えめなインタラクション表現にする。 */
+  --color-nav-hover: #F5F5F4;
+  --color-nav-active: #EAEAE9;
   --color-text-primary: #191919;
   --color-text-secondary: #37352F;
   --color-text-tertiary: #787774;
@@ -42,6 +72,29 @@
   --scrollbar-track: #FFFFFF;
   --scrollbar-thumb: #D3D3D0;
   --scrollbar-thumb-hover: #A4A4A0;
+
+  color-scheme: light;
+}
+
+/*
+ * AI チャットの「考え中...」インジケータ用アニメーション。
+ * favicon (3 つの青い三角) を呼吸のように拡大縮小 + フェードさせて「処理中」を可視化する。
+ * scale 0.85 ↔ 1.25 / opacity 0.25 ↔ 1 とコントラストを大きめに付け、 視認しやすい呼吸感に。
+ */
+@keyframes thinking-pulse {
+  0%, 100% {
+    transform: scale(0.85);
+    opacity: 0.25;
+  }
+  50% {
+    transform: scale(1.25);
+    opacity: 1;
+  }
+}
+
+.animate-thinking {
+  animation: thinking-pulse 1.6s ease-in-out infinite;
+  transform-origin: center;
 }
 
 @layer base {
@@ -389,21 +442,14 @@
   border: none;
 }
 
-/* Search & Replace highlights */
+/* Search & Replace highlights — ライトテーマ単一なので .light 上書きは廃止 */
 .ProseMirror .search-match {
-  background-color: rgba(255, 200, 0, 0.3);
+  background-color: rgba(255, 220, 0, 0.4);
   border-radius: 2px;
 }
 .ProseMirror .search-match-current {
-  background-color: rgba(255, 150, 0, 0.5);
-  border-radius: 2px;
-  box-shadow: 0 0 0 1px rgba(255, 150, 0, 0.7);
-}
-.light .ProseMirror .search-match {
-  background-color: rgba(255, 220, 0, 0.4);
-}
-.light .ProseMirror .search-match-current {
   background-color: rgba(255, 165, 0, 0.5);
+  border-radius: 2px;
   box-shadow: 0 0 0 1px rgba(255, 165, 0, 0.7);
 }
 

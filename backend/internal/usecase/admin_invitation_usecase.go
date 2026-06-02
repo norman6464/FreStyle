@@ -9,9 +9,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/repository"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
+// ListAdminInvitationsUseCase は招待一覧を取得する。
 type ListAdminInvitationsUseCase struct {
 	repo repository.AdminInvitationRepository
 }
@@ -20,8 +21,7 @@ func NewListAdminInvitationsUseCase(r repository.AdminInvitationRepository) *Lis
 	return &ListAdminInvitationsUseCase{repo: r}
 }
 
-// ListAll は全社横断で招待一覧を返す。SuperAdmin (運営側) からのみ呼ばれる想定。
-// 認可は handler 層で current user.role を見て行う。
+// ListAll は全社横断で招待一覧を返す（SuperAdmin 専用、認可は handler 層）。
 func (u *ListAdminInvitationsUseCase) ListAll(ctx context.Context) ([]domain.AdminInvitation, error) {
 	return u.repo.ListAll(ctx)
 }
@@ -34,34 +34,26 @@ func (u *ListAdminInvitationsUseCase) ListByCompanyID(ctx context.Context, compa
 	return u.repo.ListByCompanyID(ctx, companyID)
 }
 
-// MagicLinkSender は invitation メール送信を usecase 側から呼ぶための抽象。
-// infra/ses.Client が満たす想定。テストでは fake を差し込む。
-//
-// usecase 側に interface を置いている理由（DIP）:
-//   - usecase は infra を知らず、infra/ses が「usecase が要求する I/F」を満たす設計にする
-//   - 結果として infra/ses の API 変更が usecase に波及しない
-//
-// magicLink には ?token=<UUID> 付き受諾画面 URL を渡す。token 自体はメール本文には含めず、
-// 必ず magicLink 経由（URL の一部）でしか露出させない。
+// MagicLinkSender は invitation メール送信の抽象（infra/ses.Client が満たす）。
+// usecase 側に置くことで infra の API 変更を波及させない（DIP）。
 type MagicLinkSender interface {
 	SendInvitationEmail(ctx context.Context, to, subject, htmlBody, textBody string) error
 }
 
 // MailBuilder は招待メールの subject / HTML / text を組み立てる関数。
-// infra/ses.BuildInvitationMail を直接渡す（受諾画面 URL の組み立ても呼び出し側で済ませてから渡す）。
 type MailBuilder func(magicLink, displayName, companyName, role string) (subject, htmlBody, textBody string)
 
-// LinkBuilder は invitation の token から「受諾画面の絶対 URL」を組み立てる関数。
-// infra/ses.MagicLinkURL を直接渡す。
+// LinkBuilder は token から受諾画面の絶対 URL を組み立てる関数。
 type LinkBuilder func(token string) string
 
+// CreateAdminInvitationUseCase は新規招待を発行し、マジックリンクメールを送る。
 type CreateAdminInvitationUseCase struct {
 	repo        repository.AdminInvitationRepository
 	sender      MagicLinkSender
 	buildLink   LinkBuilder
 	buildMail   MailBuilder
 	expiresIn   time.Duration
-	companyName string // 任意。空なら本文から省略。会社マスタから引いて渡す未来用に拡張可能。
+	companyName string // 任意。空なら本文から省略。
 }
 
 // NewCreateAdminInvitationUseCase は SES マジックリンク方式の招待作成 usecase を組み立てる。
@@ -88,13 +80,8 @@ type CreateAdminInvitationInput struct {
 	DisplayName string
 }
 
-// Execute は招待を作成する。手順:
-//  1. UUID v4 トークンを発行
-//  2. invitations 行を pending + expires_at=今+7日 で保存
-//  3. SES で受諾画面マジックリンクメールを送信（sender が nil ならスキップ）
-//
-// メール送信失敗は invitation 自体の作成成功と切り離さず、エラーとして返す。
-// （部分的に成功してリンクが分からなくなる事故を避けるため、トランザクション境界はここで揃える）
+// Execute は token 発行 → invitations を pending で保存 → 受諾リンクメール送信、の順で招待を作る。
+// sender 未設定ならメール送信はスキップ。メール送信失敗はエラーとして返す。
 func (u *CreateAdminInvitationUseCase) Execute(ctx context.Context, in CreateAdminInvitationInput) (*domain.AdminInvitation, error) {
 	if in.CompanyID == 0 || in.Email == "" || in.Role == "" {
 		return nil, errors.New("companyID, email, role are required")
@@ -117,8 +104,7 @@ func (u *CreateAdminInvitationUseCase) Execute(ctx context.Context, in CreateAdm
 	}
 
 	if u.sender == nil || u.buildLink == nil || u.buildMail == nil {
-		// ローカル開発などで SES が無いときは、リンクをログ出力してフローを止めない。
-		// 本番では sender が必須なので、APP_BASE_URL / SES 設定がある前提で起動する。
+		// SES 未設定時はリンクをログ出力してフローを止めない（本番では sender 必須）。
 		log.Printf("admin_invitation: sender not configured — skipping email. token=%s email=%s", token, in.Email)
 		return inv, nil
 	}
@@ -126,9 +112,7 @@ func (u *CreateAdminInvitationUseCase) Execute(ctx context.Context, in CreateAdm
 	link := u.buildLink(token)
 	subject, htmlBody, textBody := u.buildMail(link, in.DisplayName, u.companyName, in.Role)
 	if err := u.sender.SendInvitationEmail(ctx, in.Email, subject, htmlBody, textBody); err != nil {
-		// 送信失敗は呼び出し側にエラーで返す。invitation 自体は DB に残るので、UI から再送信機能を作るときに使える。
-		// 詳細をログに残す: AWS SES のエラータイプ（AccessDenied / MessageRejected など）と
-		// 送信元・宛先 email を ログから判定できるようにする。
+		// 送信失敗はエラーで返す（invitation は DB に残るので再送に使える）。SES エラー種別を判定できるよう詳細をログに残す。
 		log.Printf("CreateAdminInvitation: SES SendInvitationEmail failed to=%s subject=%q: %v",
 			in.Email, subject, err)
 		return nil, fmt.Errorf("send invitation email: %w", err)
@@ -138,6 +122,7 @@ func (u *CreateAdminInvitationUseCase) Execute(ctx context.Context, in CreateAdm
 	return inv, nil
 }
 
+// CancelAdminInvitationUseCase は既存招待の status を canceled に更新する。
 type CancelAdminInvitationUseCase struct {
 	repo repository.AdminInvitationRepository
 }

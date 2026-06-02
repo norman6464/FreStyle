@@ -55,7 +55,7 @@ describe('useLoginCallback', () => {
     });
 
     expect(mockDispatch).toHaveBeenCalledWith({ type: 'auth/setAuthData' });
-    expect(mockNavigate).toHaveBeenCalledWith('/', { state: { toast: 'ログインしました' } });
+    expect(mockNavigate).toHaveBeenCalledWith('/');
   });
 
   it('callback失敗時にトースト付きでログインページに遷移する', async () => {
@@ -109,7 +109,7 @@ describe('useLoginCallback', () => {
       renderHook(() => useLoginCallback());
     });
 
-    expect(mockNavigate).toHaveBeenCalledWith('/', { state: { toast: 'ログインしました' } });
+    expect(mockNavigate).toHaveBeenCalledWith('/');
   });
 
   it('callback失敗時にトースト付きで遷移しない', async () => {

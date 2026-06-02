@@ -5,9 +5,10 @@ import (
 	"errors"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/repository"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
+// ListNotificationsUseCase は current user の通知一覧を返す。
 type ListNotificationsUseCase struct {
 	repo repository.NotificationRepository
 }
@@ -23,6 +24,7 @@ func (u *ListNotificationsUseCase) Execute(ctx context.Context, userID uint64) (
 	return u.repo.ListByUserID(ctx, userID)
 }
 
+// MarkNotificationReadUseCase は単一通知を既読化する（所有者検証込み）。
 type MarkNotificationReadUseCase struct {
 	repo repository.NotificationRepository
 }
@@ -41,6 +43,7 @@ func (u *MarkNotificationReadUseCase) Execute(ctx context.Context, userID, id ui
 	return u.repo.MarkRead(ctx, userID, id)
 }
 
+// MarkAllNotificationsReadUseCase は current user の全通知を一括既読化する。
 type MarkAllNotificationsReadUseCase struct {
 	repo repository.NotificationRepository
 }
@@ -56,6 +59,7 @@ func (u *MarkAllNotificationsReadUseCase) Execute(ctx context.Context, userID ui
 	return u.repo.MarkAllRead(ctx, userID)
 }
 
+// CountUnreadNotificationsUseCase は current user の未読通知数を返す（バッジ表示用）。
 type CountUnreadNotificationsUseCase struct {
 	repo repository.NotificationRepository
 }

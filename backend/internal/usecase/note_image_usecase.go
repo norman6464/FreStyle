@@ -5,9 +5,10 @@ import (
 	"errors"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/repository"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
+// IssueNoteImageUploadURLUseCase はノート画像用 S3 PUT 署名付き URL を発行する。
 type IssueNoteImageUploadURLUseCase struct {
 	presigner repository.NoteImagePresigner
 }

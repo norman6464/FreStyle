@@ -23,55 +23,54 @@ export default function AppShell() {
   }, [handleKeyDown]);
 
   return (
-    <div className="h-screen flex flex-col bg-surface">
+    <div className="h-screen flex bg-surface overflow-hidden">
       <SkipLink targetId="main-content" />
 
-      {/* 全幅ヘッダー */}
-      <header className="h-14 w-full bg-surface-1 border-b border-surface-3 flex items-center px-4 flex-shrink-0">
+      {/* モバイル用ハンバーガー（サイドバーが閉じているときのみ表示）
+          右上に配置。 mobile レイアウトでは サイドバーは drawer として 左から滑り出す。 */}
+      {!mobileMenuOpen && (
         <button
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="md:hidden p-1.5 -ml-1.5 mr-3 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-surface-2 rounded-md transition-colors"
+          onClick={() => setMobileMenuOpen(true)}
+          className="md:hidden fixed top-3 right-3 z-30 p-2 bg-[var(--color-nav)] border border-surface-3 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-nav-hover)] rounded-md transition-colors shadow-sm"
           aria-label="メニュー"
         >
           <Bars3Icon className="w-5 h-5" />
         </button>
-        <img src="/logo.svg" alt="FreStyle" className="h-9 w-auto" />
-      </header>
+      )}
 
-      {/* ヘッダー下: サイドバー + メインコンテンツ */}
-      <div className="flex flex-1 min-h-0 overflow-hidden">
-        {/* モバイルオーバーレイ */}
-        {mobileMenuOpen && (
-          <div
-            className="fixed inset-0 bg-black/40 z-40 md:hidden"
-            onClick={() => setMobileMenuOpen(false)}
-          />
-        )}
-
-        {/* モバイルサイドバー */}
+      {/* モバイルオーバーレイ */}
+      {mobileMenuOpen && (
         <div
-          className={`fixed inset-y-0 left-0 z-50 w-56 transform transition-transform duration-200 md:hidden ${
-            mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
-          }`}
-        >
-          <Sidebar onNavigate={() => setMobileMenuOpen(false)} />
-        </div>
+          className="fixed inset-0 bg-black/40 z-40 md:hidden"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
 
-        {/* デスクトップサイドバー */}
-        <div className="hidden md:block h-full flex-shrink-0">
-          <Sidebar />
-        </div>
-
-        {/* メインコンテンツ */}
-        <main
-          id="main-content"
-          tabIndex={-1}
-          className="flex-1 min-h-0 overflow-auto outline-none"
-        >
-          <Outlet />
-        </main>
-        <ScrollToTop targetId="main-content" />
+      {/* モバイルナビゲーションメニュー
+          ハンバーガーが右上にあるので、 drawer も右から 滑り出す方が 視線移動が短く 自然。
+          desktop は変わらず 左固定の Sidebar (`md:hidden` で 切替え)。 */}
+      <div
+        className={`fixed inset-y-0 right-0 z-50 transform transition-transform duration-200 md:hidden ${
+          mobileMenuOpen ? 'translate-x-0' : 'translate-x-full'
+        }`}
+      >
+        <Sidebar onNavigate={() => setMobileMenuOpen(false)} />
       </div>
+
+      {/* デスクトップサイドバー */}
+      <div className="hidden md:block h-full flex-shrink-0">
+        <Sidebar />
+      </div>
+
+      {/* メインコンテンツ */}
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="flex-1 min-h-0 overflow-auto outline-none"
+      >
+        <Outlet />
+      </main>
+      <ScrollToTop targetId="main-content" />
 
       <CommandPalette
         isOpen={commandPaletteOpen}

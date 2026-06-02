@@ -5,9 +5,10 @@ import (
 	"errors"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/repository"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
+// GetProfileUseCase は指定 user のプロフィールを返す。
 type GetProfileUseCase struct {
 	profiles repository.ProfileRepository
 }
@@ -23,6 +24,7 @@ func (u *GetProfileUseCase) Execute(ctx context.Context, userID uint64) (*domain
 	return u.profiles.FindByUserID(ctx, userID)
 }
 
+// UpdateProfileUseCase はプロフィールの任意フィールドを upsert する。
 type UpdateProfileUseCase struct {
 	profiles repository.ProfileRepository
 }

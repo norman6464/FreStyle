@@ -6,6 +6,7 @@ import AdminInvitationRepository, {
   CreateInvitationForm,
 } from '../repositories/AdminInvitationRepository';
 import CompanyRepository, { Company } from '../repositories/CompanyRepository';
+import AuthRepository, { UserInfo } from '../repositories/AuthRepository';
 import type { RootState } from '../store';
 import Loading from '../components/Loading';
 import PageIntro from '../components/ui/PageIntro';
@@ -19,9 +20,15 @@ const EMPTY_FORM: CreateInvitationForm = {
   displayName: '',
 };
 
-// バックエンドが英語の Cognito エラーをそのまま返した場合のフォールバック日本語化。
-// バックエンドでカテゴリ化済みの日本語メッセージはそのまま通す。
+// バックエンドが英語のエラーコードをそのまま返した場合のフォールバック日本語化。
+// バックエンドでカテゴリ化済みの日本語メッセージ（message フィールド）はそのまま通す。
 function translateInviteError(raw: string): string {
+  if (raw.includes('super_admin_can_only_invite_company_admin')) {
+    return '運営は会社管理者のみ招待できます。受講者の招待は会社管理者から行ってください。';
+  }
+  if (raw.includes('company_admin_can_only_invite_trainee')) {
+    return '会社管理者が招待できるのは受講者のみです。';
+  }
   if (raw.includes('UsernameExistsException') || raw.includes('User account already exists')) {
     return 'このメールアドレスはすでに登録済みです。再招待は不要です。';
   }
@@ -41,6 +48,7 @@ export default function AdminInvitationsPage() {
   const isAdmin = useSelector((state: RootState) => state.auth.isAdmin);
   const authLoading = useSelector((state: RootState) => state.auth.loading);
 
+  const [me, setMe] = useState<UserInfo | null>(null);
   const [invitations, setInvitations] = useState<AdminInvitation[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,18 +59,37 @@ export default function AdminInvitationsPage() {
   const [cancelTarget, setCancelTarget] = useState<AdminInvitation | null>(null);
   const [canceling, setCanceling] = useState(false);
 
+  // 認可境界（SoD）に応じて招待 UI を切り替えるため、自分の role / companyId を取得する。
+  // backend 側でも同じ境界を強制しているので、フロントは UX 改善目的（不可能な選択肢を見せない）。
+  //   - super_admin → role=company_admin で固定 / company は任意選択
+  //   - company_admin → role=trainee で固定 / company は自社固定
+  const isSuperAdmin = me?.role === 'super_admin';
+  const isCompanyAdmin = me?.role === 'company_admin';
+
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [data, cos] = await Promise.all([
+      const [user, data, cos] = await Promise.all([
+        AuthRepository.getCurrentUser(),
         AdminInvitationRepository.list(),
         CompanyRepository.list(),
       ]);
+      setMe(user);
       setInvitations(data);
       setCompanies(cos);
-      if (cos.length > 0 && form.companyId === 0) {
-        setForm((f) => ({ ...f, companyId: cos[0].id }));
-      }
+
+      // 役割に応じてフォームの初期値を上書きする。
+      const defaultRole: CreateInvitationForm['role'] =
+        user.role === 'super_admin' ? 'company_admin' : 'trainee';
+      const defaultCompanyId =
+        user.role === 'company_admin' && user.companyId
+          ? user.companyId
+          : cos[0]?.id ?? 0;
+      setForm((f) => ({
+        ...f,
+        role: defaultRole,
+        companyId: f.companyId === 0 ? defaultCompanyId : f.companyId,
+      }));
       setError(null);
     } catch (e) {
       setError('データの取得に失敗しました');
@@ -70,7 +97,6 @@ export default function AdminInvitationsPage() {
     } finally {
       setLoading(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -92,7 +118,7 @@ export default function AdminInvitationsPage() {
     try {
       const created = await AdminInvitationRepository.create(form);
       setSuccess(
-        `${created.email} 宛に招待メールを送信しました。受信者は Cognito Hosted UI で初回パスワードを変更してログインしてください。`
+        `${created.email} 宛に招待メールを送信しました。受信者にメール内のリンクを開いてもらい、画面の案内に従ってログインしてもらってください。`
       );
       setForm((f) => ({ ...EMPTY_FORM, companyId: f.companyId }));
       await fetchAll();
@@ -138,13 +164,14 @@ export default function AdminInvitationsPage() {
   const formatDate = (iso: string) => new Date(iso).toLocaleString('ja-JP');
 
   return (
-    <div className="px-6 pt-6 pb-24 max-w-3xl mx-auto space-y-6">
+    <div className="px-6 pt-6 pb-24 max-w-5xl mx-auto space-y-6">
       <PageIntro
         title="管理: メンバー招待"
         description={
           <>
-            メールアドレスを入力すると、Cognito 経由で一時パスワード付きの招待メールが送信されます。
-            受信者は初回ログイン時にパスワード変更を要求されます。
+            メールアドレスを入力すると、招待メールが送信されます。
+            受信者はメール内のリンクから FreStyle の受諾画面に進み、
+            Google アカウントまたはメールアドレスでログインしてアカウントが作成されます。
           </>
         }
       />
@@ -165,17 +192,29 @@ export default function AdminInvitationsPage() {
 
         <label className="block text-sm">
           <span className="block mb-1">会社 *</span>
-          <select
-            required
-            value={form.companyId}
-            onChange={(e) => setForm({ ...form, companyId: Number(e.target.value) })}
-            className="w-full border rounded px-2 py-1"
-          >
-            <option value={0} disabled>会社を選択してください</option>
-            {companies.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
+          {isCompanyAdmin ? (
+            // CompanyAdmin は自社にしか招待を出せない仕様。会社名を表示するだけにする。
+            <input
+              type="text"
+              readOnly
+              value={
+                companies.find((c) => c.id === form.companyId)?.name ?? '所属会社'
+              }
+              className="w-full border rounded px-2 py-1 bg-[var(--color-surface-2)] text-[var(--color-text-muted)]"
+            />
+          ) : (
+            <select
+              required
+              value={form.companyId}
+              onChange={(e) => setForm({ ...form, companyId: Number(e.target.value) })}
+              className="w-full border rounded px-2 py-1"
+            >
+              <option value={0} disabled>会社を選択してください</option>
+              {companies.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          )}
         </label>
 
         <label className="block text-sm">
@@ -191,20 +230,26 @@ export default function AdminInvitationsPage() {
           />
         </label>
 
-        <label className="block text-sm">
-          <span className="block mb-1">ロール *</span>
-          <select
-            required
-            value={form.role}
-            onChange={(e) =>
-              setForm({ ...form, role: e.target.value as CreateInvitationForm['role'] })
+        {/*
+         * 役職は SoD ルールで自動決定する:
+         *   - SuperAdmin が招待 → 会社管理者 (company_admin) のみ
+         *   - CompanyAdmin が招待 → 受講者 (trainee) のみ
+         * select で誤った選択肢を露出させると backend の 403 で弾かれて UX が悪いので、
+         * 一律「役職は固定（変更不可）」と表示する。
+         */}
+        <div className="block text-sm">
+          <span className="block mb-1">役職</span>
+          <input
+            type="text"
+            readOnly
+            value={
+              isSuperAdmin
+                ? '会社管理者（招待先の会社の管理者）'
+                : '受講者（自社のメンバー）'
             }
-            className="w-full border rounded px-2 py-1"
-          >
-            <option value="trainee">Trainee（新卒研修対象）</option>
-            <option value="company_admin">CompanyAdmin（メンター）</option>
-          </select>
-        </label>
+            className="w-full border rounded px-2 py-1 bg-[var(--color-surface-2)] text-[var(--color-text-muted)]"
+          />
+        </div>
 
         <label className="block text-sm">
           <span className="block mb-1">表示名（任意）</span>

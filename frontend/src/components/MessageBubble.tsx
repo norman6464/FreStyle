@@ -1,6 +1,13 @@
 import { memo, useState } from 'react';
-import { ClipboardDocumentIcon, ClipboardDocumentCheckIcon, TrashIcon } from '@heroicons/react/24/outline';
-import { formatHourMinute } from '../utils/formatters';
+import MessageActionRow from './message/MessageActionRow';
+import MessageAttachmentList, {
+  MessageAttachmentView as _MessageAttachmentView,
+} from './message/MessageAttachmentList';
+import MarkdownView from './message/MarkdownView';
+
+// `MessageAttachmentView` は MessageBubbleAi 経由で外部から import されている。
+// 互換性のため同名で re-export する。
+export type MessageAttachmentView = _MessageAttachmentView;
 
 interface MessageBubbleProps {
   isSender: boolean;
@@ -9,13 +16,34 @@ interface MessageBubbleProps {
   id: string;
   senderName?: string;
   createdAt?: string;
+  attachments?: MessageAttachmentView[];
   onDelete?: ((id: string) => void) | null;
-  onRephrase?: ((content: string) => void) | null;
   onCopy?: ((id: string, content: string) => void) | null;
   isCopied?: boolean;
   isDeleted?: boolean;
+  /** 旧 API 互換のため受けるが本コンポーネントでは使わない */
+  onRephrase?: ((content: string) => void) | null;
 }
 
+/**
+ * メッセージ表示コンポーネント。
+ *
+ * 設計:
+ *   - 自分のメッセージは右寄せのコンパクトな塊（軽いハイライト背景）
+ *   - アシスタント / 他者のメッセージは左寄せで **背景なしのフラット表示**。
+ *     見出し / リスト / コード / 表など Markdown 要素を本文として描画する
+ *   - カードや角丸の装飾はあえて入れない（一般的な汎用 AI チャット UI に寄せる）
+ *
+ * Markdown:
+ *   - GFM（表 / タスクリスト / strikethrough）対応
+ *   - コードブロックは highlight.js でシンタックスハイライト
+ *
+ * 4 つの分岐:
+ *   1. type='image' → 画像のみ
+ *   2. isDeleted → 削除済み プレース ホルダー
+ *   3. isSender → 自分の メッセージ (右 寄せ + 添付 + アクション)
+ *   4. その他 → アシスタント / 他者 (左 寄せ + Markdown + 考え 中 / 完了 マーカー)
+ */
 export default memo(function MessageBubble({
   isSender,
   type = 'text',
@@ -23,98 +51,140 @@ export default memo(function MessageBubble({
   id,
   senderName,
   createdAt,
+  attachments,
   onDelete,
-  onRephrase,
   onCopy,
   isCopied = false,
   isDeleted = false,
 }: MessageBubbleProps) {
-  const [showDelete, setShowDelete] = useState(false);
+  const [showActions, setShowActions] = useState(false);
 
-  const baseStyle =
-    'px-4 py-2.5 rounded-2xl text-sm whitespace-pre-wrap break-words relative';
+  if (type === 'image') {
+    return (
+      <div
+        className={`my-3 flex ${isSender ? 'justify-end' : 'justify-start'}`}
+        role="article"
+        aria-label="画像メッセージ"
+      >
+        <img src={content} alt="画像" className="max-w-[85%] rounded-lg shadow-md" />
+      </div>
+    );
+  }
 
-  const alignment = isSender
-    ? 'bg-primary-500 text-white rounded-br-sm'
-    : 'bg-surface-3 text-[var(--color-text-primary)] rounded-bl-sm';
+  if (isDeleted) {
+    return (
+      <div
+        className={`my-3 text-xs text-[var(--color-text-muted)] italic ${
+          isSender ? 'text-right' : 'text-left'
+        }`}
+      >
+        メッセージを削除しました
+      </div>
+    );
+  }
 
-  const deletedAlignment = isSender
-    ? 'bg-surface-3 text-[var(--color-text-muted)] italic rounded-br-sm'
-    : 'bg-surface-3 text-[var(--color-text-muted)] italic rounded-bl-sm';
+  if (isSender) {
+    return (
+      <div
+        className="my-4 group flex justify-end"
+        onMouseEnter={() => setShowActions(true)}
+        onMouseLeave={() => setShowActions(false)}
+        role="article"
+        aria-label="自分のメッセージ"
+      >
+        <div className="max-w-[85%] flex flex-col items-end gap-1">
+          {attachments && attachments.length > 0 && (
+            <MessageAttachmentList attachments={attachments} />
+          )}
+          {content && (
+            <div className="px-4 py-2 rounded-2xl bg-[var(--color-surface-3)] text-[var(--color-text-primary)] text-sm whitespace-pre-wrap break-words">
+              {content}
+            </div>
+          )}
+          <MessageActionRow
+            isSender
+            id={id}
+            content={content}
+            createdAt={createdAt}
+            isCopied={isCopied}
+            onCopy={onCopy}
+            onDelete={onDelete}
+            visible={showActions}
+          />
+        </div>
+      </div>
+    );
+  }
 
-  const ariaLabel = isSender ? '自分のメッセージ' : senderName ? `${senderName}のメッセージ` : 'メッセージ';
-
+  // アシスタント / 他者のメッセージ: フラット、本文に Markdown。
+  // 本文が空のときは SSE で最初の token が来るまでの「考え中」状態とみなし、
+  // favicon をパルスさせながら "考え中..." ラベルを出す（Claude / ChatGPT 同様の UX）。
+  // 最初の token が来た瞬間に上部のアバターアイコンは消し、本文と末尾の bookend マーカーで
+  // 「処理中 → 応答中 → 完了」の状態遷移を視覚化する。
+  const isThinking = type === 'text' && content.trim() === '';
   return (
     <div
-      className="my-3 group"
-      onMouseEnter={() => isSender && !isDeleted && setShowDelete(true)}
-      onMouseLeave={() => setShowDelete(false)}
+      className="my-6 group flex gap-3"
+      onMouseEnter={() => setShowActions(true)}
+      onMouseLeave={() => setShowActions(false)}
+      role="article"
+      aria-label={senderName ? `${senderName}のメッセージ` : 'AIのメッセージ'}
     >
-      <div className={`flex flex-col max-w-[85%] ${isSender ? 'items-end ml-auto' : 'items-start mr-auto'}`} role="article" aria-label={ariaLabel}>
-        {!isSender && senderName && (
-          <span className="text-xs text-[var(--color-text-muted)] mb-1 ml-1">{senderName}</span>
+      {isThinking ? (
+        <img
+          src="/favicon.svg"
+          alt=""
+          aria-hidden="true"
+          className="w-5 h-5 flex-shrink-0 animate-thinking"
+        />
+      ) : (
+        // 応答開始後はアバター枠を持たず本文を左端から始める。
+        // ただし flex のレイアウトが崩れないよう同サイズの空きを確保する。
+        <span className="w-5 h-5 flex-shrink-0" aria-hidden="true" />
+      )}
+      <div className="flex-1 min-w-0">
+        {senderName && (
+          <p className="text-xs text-[var(--color-text-muted)] mb-1">{senderName}</p>
         )}
-
-        <div className={`${baseStyle} ${isDeleted ? deletedAlignment : alignment}`}>
-          {isDeleted ? (
-            <p>メッセージを削除しました</p>
-          ) : (
-            <>
-              {type === 'text' && <p>{content}</p>}
-              {type === 'image' && (
-                <img
-                  src={content}
-                  alt="画像"
-                  className="max-w-full rounded-lg shadow-md"
-                />
+        {isThinking ? (
+          <p
+            className="text-sm text-[var(--color-text-muted)] italic"
+            aria-live="polite"
+          >
+            考え中...
+          </p>
+        ) : (
+          <>
+            <div className="prose prose-sm max-w-none text-[var(--color-text-primary)] leading-relaxed">
+              {type === 'bot' ? (
+                <p className="italic opacity-80">{content}</p>
+              ) : (
+                <MarkdownView content={content} />
               )}
-              {type === 'bot' && <p className="italic opacity-80">{content}</p>}
-            </>
-          )}
-
-          {isSender && showDelete && onDelete && !isDeleted && (
-            <button
-              onClick={() => onDelete(id)}
-              className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 transition-colors duration-150"
-              title="削除"
-              aria-label="メッセージを削除"
-            >
-              <TrashIcon className="w-3 h-3" />
-            </button>
-          )}
-        </div>
-
-        {!isDeleted && (
-          <div className={`flex items-center gap-2 mt-1 ${isSender ? 'justify-end' : 'justify-start'}`}>
-            {createdAt && (
-              <span className={`text-[10px] ${isSender ? 'mr-1 text-[var(--color-text-faint)]' : 'ml-1 text-[var(--color-text-faint)]'}`}>
-                {formatHourMinute(createdAt)}
-              </span>
+            </div>
+            <MessageActionRow
+              isSender={false}
+              id={id}
+              content={content}
+              createdAt={createdAt}
+              isCopied={isCopied}
+              onCopy={onCopy}
+              visible={showActions}
+            />
+            {/* 完了マーカー: ストリーミング placeholder ではない（= done 確定済 / 履歴ロード済）
+                AI 応答の末尾に favicon を 1 つ置いて「ここで応答が締まった」ことを視覚化する。
+                Claude 等のメジャー AI チャットで採用されている bookend 表現に倣う。
+                id は型定義上 string だが、 旧テスト互換のため number が来ても動くよう String 化して判定。 */}
+            {!String(id).startsWith('streaming-') && (
+              <div className="mt-8 flex" aria-hidden="true">
+                <img
+                  src="/favicon.svg"
+                  alt=""
+                  className="w-7 h-7"
+                />
+              </div>
             )}
-            {onCopy && (
-              <button
-                onClick={() => onCopy(id, content)}
-                title={isCopied ? 'コピー済み' : 'コピー'}
-                aria-label={isCopied ? 'コピー済み' : 'メッセージをコピー'}
-                className="text-[var(--color-text-faint)] hover:text-[var(--color-text-secondary)] transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
-              >
-                {isCopied ? (
-                  <ClipboardDocumentCheckIcon className="w-3.5 h-3.5 text-green-500" />
-                ) : (
-                  <ClipboardDocumentIcon className="w-3.5 h-3.5" />
-                )}
-              </button>
-            )}
-            {isSender && onRephrase && (
-              <button
-                onClick={() => onRephrase(content)}
-                className="text-[10px] text-primary-500 hover:text-primary-300 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
-                aria-label="メッセージを言い換え"
-              >
-                言い換え
-              </button>
-            )}
-          </div>
+          </>
         )}
       </div>
     </div>

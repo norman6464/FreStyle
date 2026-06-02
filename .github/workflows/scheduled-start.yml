@@ -1,27 +1,23 @@
-name: Scheduled - Start (restore RDS + recreate ALB + ECS at morning)
+name: Scheduled - Start (recreate ALB + ECS at morning)
 
-# 目的: 毎日 07:00 JST (22:00 UTC) に RDS を昨夜の snapshot から復元し、
-# ALB と ECS を再作成して稼働開始。scheduled-stop.yml と対になる。
+# 目的: 毎日 07:00 JST (22:00 UTC) に ALB と ECS を再作成して稼働開始。
+#       scheduled-stop.yml と対になる。
 #
 # 流れ:
-#   1) RDS スタックが無ければ最新の `frestyle-prod-nightly-*` snapshot から復元
-#      (CFn deploy with DBSnapshotIdentifier=<latest>)
+#   1) ROLLBACK_COMPLETE で残った stale stack を self-heal で削除
 #   2) ALB を CFn deploy（新しい AWS DNS 名が払い出される）
-#   3) ECS を CFn deploy（IAM Role / Secrets Manager は前夜から残置）
+#   3) ECS を CFn deploy（DATABASE_URL は Secrets Manager から inject）
 #   4) Route 53 で api.normanblog.com の Alias レコードを新 ALB に更新
 #      (normanblog.com の Hosted Zone Z02128031IOUNFFKBRXXE)
 #   5) services-stable wait + ヘルスチェック
 #
 # 認証: GitHub OIDC + IAM Role (frestyle-prod-github-actions-role)
-# 必要な追加 IAM 権限:
-#   - rds:DescribeDBSnapshots
-#   - cloudformation:CreateStack / UpdateStack / DescribeStacks（既存）
 #
-# 前提:
-#   - frestyle-infrastructure 側の rds-postgres.yml が `DBSnapshotIdentifier`
-#     パラメータを受け取る形に対応していること（テンプレ未対応の場合は
-#     scheduled-start 初回実行時に param 不一致で fail するので、その時点で
-#     インフラ側に PR を出す）。
+# 2026-05 Supabase 移行 後 の 構成:
+#   - DB は Supabase (24/7 稼働、CFn 管理外)
+#   - 旧 RDS / 旧 nightly snapshot 復元 step は 削除済
+#   - ECS の DATABASE_URL は Secrets Manager (`frestyle-prod/database-url`) から
+#     ECS Task Secrets 経由 で 注入 (env var ではなく secret として)
 
 on:
   schedule:
@@ -37,11 +33,10 @@ on:
 env:
   AWS_REGION: ap-northeast-1
   STACK_PFX: frestyle-prod
-  RDS_STACK: frestyle-prod-rds-postgres
   AWS_ROLE_ARN: arn:aws:iam::010928196665:role/frestyle-prod-github-actions-role
   IAC_REPO: norman6464/frestyle-infrastructure
-  # nightly snapshot の prefix（scheduled-stop 側と一致させる）
-  NIGHTLY_SNAPSHOT_PREFIX: frestyle-prod-nightly
+  # Supabase Transaction pooler URL を保存した Secrets Manager の name
+  DATABASE_URL_SECRET_NAME: frestyle-prod/database-url
   # Route 53: normanblog.com の権威 Hosted Zone（CloudFront も同ゾーンに紐付いている正規ゾーン）
   R53_HOSTED_ZONE_ID: Z02128031IOUNFFKBRXXE
   R53_RECORD_NAME: api.normanblog.com
@@ -49,6 +44,13 @@ env:
 permissions:
   id-token: write
   contents: read
+
+# scheduled-stop / scheduled-start / cd-backend が CFn deploy/delete で 競合 すると
+# "stack cannot be updated" や resource race で 失敗 する ため、 ECS / ALB を 触る
+# workflow は 同一 concurrency group で 相互 排他 する。
+concurrency:
+  group: frestyle-prod-runtime-stacks
+  cancel-in-progress: false
 
 jobs:
   start:
@@ -59,8 +61,10 @@ jobs:
     steps:
       - name: Verify input (workflow_dispatch only)
         if: github.event_name == 'workflow_dispatch'
+        env:
+          CONFIRM_INPUT: ${{ inputs.confirm }}
         run: |
-          if [ "${{ inputs.confirm }}" != "start" ]; then
+          if [ "$CONFIRM_INPUT" != "start" ]; then
             echo "ERROR: confirm に 'start' と入力されていません"
             exit 1
           fi
@@ -83,7 +87,7 @@ jobs:
         run: |
           # 前夜の scheduled-stop / 前回の cd-backend が ROLLBACK_COMPLETE で残っていると
           # 今回の deploy が "stack cannot be updated" で失敗する。先に削除しておく。
-          for STACK in $STACK_PFX-ecs $STACK_PFX-alb $RDS_STACK; do
+          for STACK in $STACK_PFX-ecs $STACK_PFX-alb; do
             STATUS=$(aws cloudformation describe-stacks --region $AWS_REGION \
               --stack-name $STACK --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "ABSENT")
             case "$STATUS" in
@@ -97,56 +101,6 @@ jobs:
                 ;;
             esac
           done
-
-      - name: Restore RDS from latest nightly snapshot (if RDS stack absent)
-        id: restore_rds
-        run: |
-          # RDS スタックが既に存在すれば、昼間の手動運用 (例: バックアップ確認) などで
-          # 起き上がっているので何もしない。
-          if aws cloudformation describe-stacks --region $AWS_REGION --stack-name $RDS_STACK >/dev/null 2>&1; then
-            echo "$RDS_STACK already exists — skip restore"
-            echo "skipped=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          # 昨夜 scheduled-stop が作った最新の nightly snapshot を取得。
-          LATEST=$(aws rds describe-db-snapshots --region $AWS_REGION \
-            --snapshot-type manual \
-            --query "DBSnapshots[?starts_with(DBSnapshotIdentifier, '${NIGHTLY_SNAPSHOT_PREFIX}-') && Status=='available'] | sort_by(@, &SnapshotCreateTime)[-1].DBSnapshotIdentifier" \
-            --output text)
-          if [ -z "$LATEST" ] || [ "$LATEST" = "None" ]; then
-            echo "::error::No nightly snapshot found for prefix '${NIGHTLY_SNAPSHOT_PREFIX}-'"
-            exit 1
-          fi
-          echo "Restoring from snapshot: $LATEST"
-          # rds-postgres.yml の必須 / 重要パラメータを sg スタックの Output から解決する。
-          # 旧コードは Environment と SnapshotIdentifier しか渡していなかったため
-          #   ValidationError: Parameters: [RdsSecurityGroupId] must have values
-          # で復元自体が起動しないバグがあった (2026-04-30 のロスト)。
-          #
-          # - RdsSecurityGroupId: rds-postgres.yml の必須 param (frestyle-prod-sg の Output)
-          # - ManageMasterUserPassword=false: snapshot 復元では AWS が snapshot 内の master
-          #   password を引き継ぐ。true のままだと CFn が新規 secret を作ろうとして整合性エラー。
-          # - SnapshotIdentifier を指定すると Conditions.RestoreFromSnapshot=true になり、
-          #   DBSnapshotIdentifier 経由で CFn が DB を復元する。
-          RDS_SG=$(aws cloudformation describe-stacks --region $AWS_REGION \
-            --stack-name $STACK_PFX-sg \
-            --query 'Stacks[0].Outputs[?OutputKey==`RdsSecurityGroupId`].OutputValue' --output text)
-          if [ -z "$RDS_SG" ] || [ "$RDS_SG" = "None" ]; then
-            echo "::error::Could not resolve RdsSecurityGroupId from $STACK_PFX-sg outputs"
-            exit 1
-          fi
-          aws cloudformation deploy --region $AWS_REGION \
-            --stack-name $RDS_STACK \
-            --template-file iac/infrastructure/cloudformation/templates/runtime/rds-postgres.yml \
-            --parameter-overrides \
-              Environment=prod \
-              RdsSecurityGroupId="$RDS_SG" \
-              SnapshotIdentifier="$LATEST" \
-              ManageMasterUserPassword=false \
-            --capabilities CAPABILITY_IAM --no-fail-on-empty-changeset \
-            --tags Project=FreStyle Environment=prod ManagedBy=CloudFormation
-          echo "✅ RDS restored from $LATEST"
-          echo "skipped=false" >> "$GITHUB_OUTPUT"
 
       - name: Deploy ALB stack
         run: |
@@ -169,16 +123,6 @@ jobs:
           TG_ARN=$(aws cloudformation describe-stacks --region $AWS_REGION \
             --stack-name $STACK_PFX-alb \
             --query 'Stacks[0].Outputs[?OutputKey==`TargetGroupArn`].OutputValue' --output text)
-          # PostgreSQL に切替済 (frestyle-prod-rds-postgres)
-          DB_HOST=$(aws cloudformation describe-stacks --region $AWS_REGION \
-            --stack-name $STACK_PFX-rds-postgres \
-            --query 'Stacks[0].Outputs[?OutputKey==`DBEndpoint`].OutputValue' --output text)
-          DB_PORT=$(aws cloudformation describe-stacks --region $AWS_REGION \
-            --stack-name $STACK_PFX-rds-postgres \
-            --query 'Stacks[0].Outputs[?OutputKey==`DBPort`].OutputValue' --output text)
-          DB_NAME=$(aws cloudformation describe-stacks --region $AWS_REGION \
-            --stack-name $STACK_PFX-rds-postgres \
-            --query 'Stacks[0].Outputs[?OutputKey==`DBName`].OutputValue' --output text)
           S3_BUCKET=$(aws cloudformation describe-stacks --region $AWS_REGION \
             --stack-name $STACK_PFX-s3 \
             --query 'Stacks[0].Outputs[?OutputKey==`NoteImagesBucketName`].OutputValue' --output text)
@@ -191,37 +135,12 @@ jobs:
           TASK_ROLE=$(aws cloudformation describe-stacks --region $AWS_REGION \
             --stack-name $STACK_PFX-iam \
             --query 'Stacks[0].Outputs[?OutputKey==`TaskRoleArn`].OutputValue' --output text)
-          # PostgreSQL master password の Secret ARN を解決する（短期 credential 方針）。
-          # 解決順序:
-          #   1) RDS スタックの Output `MasterUserSecretArn`（テンプレが ManageMasterUserPassword=true で
-          #      deploy された場合のみ存在）
-          #   2) `aws rds describe-db-instances` の `MasterUserSecret.SecretArn`
-          #      （`aws rds modify-db-instance --manage-master-user-password` で後付け管理化された
-          #      既存 DB はこちら経由でしか取れない）
-          #   3) 旧来の手動 Secret `frestyle-prod/pg-master-password`（plain string、後方互換）
-          # AWS Managed Secret は JSON `{"username":..,"password":..}` 形式なので、ECS Task の
-          # Secrets で参照するときは `:password::` の jsonField suffix を付ける必要がある。
-          MANAGED_SECRET_ARN=$(aws cloudformation describe-stacks --region $AWS_REGION \
-            --stack-name $STACK_PFX-rds-postgres \
-            --query 'Stacks[0].Outputs[?OutputKey==`MasterUserSecretArn`].OutputValue' --output text 2>/dev/null || true)
-          if [ -z "$MANAGED_SECRET_ARN" ] || [ "$MANAGED_SECRET_ARN" = "None" ]; then
-            DB_INSTANCE_ID=$(aws cloudformation list-stack-resources --region $AWS_REGION \
-              --stack-name $STACK_PFX-rds-postgres \
-              --query "StackResourceSummaries[?ResourceType=='AWS::RDS::DBInstance'].PhysicalResourceId | [0]" \
-              --output text 2>/dev/null || true)
-            if [ -n "$DB_INSTANCE_ID" ] && [ "$DB_INSTANCE_ID" != "None" ]; then
-              MANAGED_SECRET_ARN=$(aws rds describe-db-instances --region $AWS_REGION \
-                --db-instance-identifier "$DB_INSTANCE_ID" \
-                --query 'DBInstances[0].MasterUserSecret.SecretArn' --output text 2>/dev/null || true)
-            fi
-          fi
-          if [ -n "$MANAGED_SECRET_ARN" ] && [ "$MANAGED_SECRET_ARN" != "None" ]; then
-            echo "Using AWS-managed master user secret: $MANAGED_SECRET_ARN"
-            DB_PWD_ARN="${MANAGED_SECRET_ARN}:password::"
-          else
-            echo "Managed secret not found — fallback to manual Secret pg-master-password"
-            DB_PWD_ARN=$(aws secretsmanager describe-secret --region $AWS_REGION \
-              --secret-id $STACK_PFX/pg-master-password --query 'ARN' --output text)
+          # Supabase 接続 URL の Secret ARN (Transaction pooler / port 6543)
+          DB_URL_ARN=$(aws secretsmanager describe-secret --region $AWS_REGION \
+            --secret-id "$DATABASE_URL_SECRET_NAME" --query 'ARN' --output text 2>/dev/null)
+          if [ -z "$DB_URL_ARN" ] || [ "$DB_URL_ARN" = "None" ]; then
+            echo "::error::DATABASE_URL_SECRET_NAME=$DATABASE_URL_SECRET_NAME を Secrets Manager で見つけられませんでした"
+            exit 1
           fi
           COG_SEC_ARN=$(aws secretsmanager describe-secret --region $AWS_REGION \
             --secret-id $STACK_PFX/cognito-client-secret --query 'ARN' --output text)
@@ -239,14 +158,11 @@ jobs:
           {
             echo "ecs_sg=$ECS_SG"
             echo "tg_arn=$TG_ARN"
-            echo "db_host=$DB_HOST"
-            echo "db_port=$DB_PORT"
-            echo "db_name=$DB_NAME"
             echo "s3_bucket=$S3_BUCKET"
             echo "sqs_url=$SQS_URL"
             echo "exec_role=$EXEC_ROLE"
             echo "task_role=$TASK_ROLE"
-            echo "db_pwd_arn=$DB_PWD_ARN"
+            echo "db_url_arn=$DB_URL_ARN"
             echo "cog_sec_arn=$COG_SEC_ARN"
             echo "alb_dns=$ALB_DNS"
             echo "alb_hosted_zone_id=$ALB_HOSTED_ZONE_ID"
@@ -256,16 +172,15 @@ jobs:
         env:
           ECS_SG: ${{ steps.deps.outputs.ecs_sg }}
           TG_ARN: ${{ steps.deps.outputs.tg_arn }}
-          DB_HOST: ${{ steps.deps.outputs.db_host }}
-          DB_PORT: ${{ steps.deps.outputs.db_port }}
-          DB_NAME: ${{ steps.deps.outputs.db_name }}
           S3_BUCKET: ${{ steps.deps.outputs.s3_bucket }}
           SQS_URL: ${{ steps.deps.outputs.sqs_url }}
           EXEC_ROLE: ${{ steps.deps.outputs.exec_role }}
           TASK_ROLE: ${{ steps.deps.outputs.task_role }}
-          DB_PWD_ARN: ${{ steps.deps.outputs.db_pwd_arn }}
+          DB_URL_ARN: ${{ steps.deps.outputs.db_url_arn }}
           COG_SEC_ARN: ${{ steps.deps.outputs.cog_sec_arn }}
         run: |
+          # DBHost / DBPasswordSecretArn は Supabase 運用 では 空文字 で 明示 的 に 渡す
+          # (CFn の 前回値 retain を 回避 する ため)。
           aws cloudformation deploy --region $AWS_REGION \
             --stack-name $STACK_PFX-ecs \
             --template-file iac/infrastructure/cloudformation/templates/runtime/ecs.yml \
@@ -273,16 +188,11 @@ jobs:
               Environment=prod \
               EcsServiceSecurityGroupId="$ECS_SG" \
               TargetGroupArn="$TG_ARN" \
-              DBHost="$DB_HOST" \
-              DBPort="$DB_PORT" \
-              DBName="$DB_NAME" \
-              DBUser=postgres \
-              DBPasswordSecretArn="$DB_PWD_ARN" \
+              DatabaseUrlSecretArn="$DB_URL_ARN" \
+              DBHost= \
+              DBPasswordSecretArn= \
               CognitoClientId="${{ secrets.COGNITO_CLIENT_ID }}" \
               CognitoClientSecretArn="$COG_SEC_ARN" \
-              CognitoRedirectUri="${{ secrets.COGNITO_REDIRECT_URI }}" \
-              CognitoTokenUri="${{ secrets.COGNITO_TOKEN_URI }}" \
-              CognitoJwkSetUri="${{ secrets.COGNITO_JWK_SET_URI }}" \
               NoteImagesBucket="$S3_BUCKET" \
               SqsReportQueueUrl="$SQS_URL" \
               ExecutionRoleArn="$EXEC_ROLE" \
@@ -299,8 +209,8 @@ jobs:
             echo "::error::ALB_DNS or ALB_HOSTED_ZONE_ID is empty"
             exit 1
           fi
-          # ALB の DNSName は dualstack. を付けないと正常解決されないことがある
-          # → Alias の DNSName には ALB の DNSName をそのまま使う（CanonicalHostedZoneId 経由で AWS が解決）
+          # ALB の DNSName を Alias の DNSName にそのまま使う
+          # (CanonicalHostedZoneId 経由で AWS が解決する)
           CHANGE_BATCH=$(jq -n \
             --arg name "$R53_RECORD_NAME" \
             --arg dns "$ALB_DNS" \

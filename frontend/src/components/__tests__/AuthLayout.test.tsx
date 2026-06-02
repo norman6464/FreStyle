@@ -52,9 +52,9 @@ describe('AuthLayout', () => {
     expect(screen.getByText('フッター内容')).toBeInTheDocument();
   });
 
-  it('アイコンが表示される', () => {
+  it('ブランドアイコン (favicon) が表示される', () => {
     const { container } = render(<AuthLayout><div>テスト</div></AuthLayout>);
-    const svg = container.querySelector('svg');
-    expect(svg).toBeTruthy();
+    const img = container.querySelector('img[src="/favicon.svg"]');
+    expect(img).toBeTruthy();
   });
 });

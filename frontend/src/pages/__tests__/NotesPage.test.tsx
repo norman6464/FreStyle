@@ -1,13 +1,17 @@
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render as rtlRender, screen, fireEvent, act, type RenderOptions } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
+import type { ReactElement } from 'react';
 import NotesPage from '../NotesPage';
+
+// react-router-dom の Link が `/notes/markdown-help` 等で使われるため、
+// テストでは MemoryRouter で包む必要がある（PR #1687 で Markdown ヘルプリンク追加）。
+const render = (ui: ReactElement, options?: RenderOptions) =>
+  rtlRender(ui, { wrapper: ({ children }) => <MemoryRouter>{children}</MemoryRouter>, ...options });
 import { useNotes } from '../../hooks/useNotes';
 import type { Note } from '../../types';
 
 vi.mock('../../hooks/useNotes');
-vi.mock('../../hooks/useBlockEditor', () => ({
-  useBlockEditor: () => ({ editor: null }),
-}));
 const mockShowToast = vi.fn();
 vi.mock('../../hooks/useToast', () => ({
   useToast: () => ({ showToast: mockShowToast, toasts: [], removeToast: vi.fn() }),
@@ -106,7 +110,9 @@ describe('NotesPage', () => {
     });
     render(<NotesPage />);
     expect(screen.getByDisplayValue('選択ノート')).toBeInTheDocument();
-    expect(screen.getByTestId('block-editor')).toBeInTheDocument();
+    // Edit / Preview タブが表示されることを確認（旧 block-editor から markdown editor へ）
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Preview' })).toBeInTheDocument();
   });
 
   it('新しいノートボタンでcreateNoteが呼ばれる', async () => {

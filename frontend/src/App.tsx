@@ -1,43 +1,42 @@
-import { useEffect, lazy, Suspense } from 'react';
+import { useEffect, Suspense } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import AuthInitializer from './utils/AuthInitializer';
 import Protected from './utils/Protected';
 import AppShell from './components/layout/AppShell';
 import ErrorBoundary from './components/ErrorBoundary';
 import Loading from './components/Loading';
+import MaintenancePage from './pages/MaintenancePage';
 import { ToastProvider } from './components/ToastProvider';
 import { useToast } from './hooks/useToast';
+import { useBackendHealth } from './hooks/useBackendHealth';
 import ToastContainer from './components/ToastContainer';
+import { lazyWithReload, clearLazyReloadFlags } from './utils/lazyWithReload';
 
 // 認証不要ページ
-const LoginPage = lazy(() => import('./pages/LoginPage'));
-const SignupPage = lazy(() => import('./pages/SignupPage'));
-const LoginCallback = lazy(() => import('./pages/LoginCallback'));
-const ConfirmPage = lazy(() => import('./pages/ConfirmPage'));
-const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'));
-const ConfirmForgotPasswordPage = lazy(() => import('./pages/ConfirmForgotPasswordPage'));
-const AcceptInvitationPage = lazy(() => import('./pages/AcceptInvitationPage'));
+const LoginPage = lazyWithReload(() => import('./pages/LoginPage'), 'LoginPage');
+const SignupPage = lazyWithReload(() => import('./pages/SignupPage'), 'SignupPage');
+const LoginCallback = lazyWithReload(() => import('./pages/LoginCallback'), 'LoginCallback');
+const ConfirmPage = lazyWithReload(() => import('./pages/ConfirmPage'), 'ConfirmPage');
+const ForgotPasswordPage = lazyWithReload(() => import('./pages/ForgotPasswordPage'), 'ForgotPasswordPage');
+const ConfirmForgotPasswordPage = lazyWithReload(() => import('./pages/ConfirmForgotPasswordPage'), 'ConfirmForgotPasswordPage');
+const AcceptInvitationPage = lazyWithReload(() => import('./pages/AcceptInvitationPage'), 'AcceptInvitationPage');
+const CompanyApplicationPage = lazyWithReload(() => import('./pages/CompanyApplicationPage'), 'CompanyApplicationPage');
 
 // 認証必要ページ
-const MenuPage = lazy(() => import('./pages/MenuPage'));
-const ProfilePage = lazy(() => import('./pages/ProfilePage'));
-const PracticePage = lazy(() => import('./pages/PracticePage'));
-const ScoreHistoryPage = lazy(() => import('./pages/ScoreHistoryPage'));
-const FavoritesPage = lazy(() => import('./pages/FavoritesPage'));
-const AskAiPage = lazy(() => import('./pages/AskAiPage'));
-const NotesPage = lazy(() => import('./pages/NotesPage'));
-const NotificationPage = lazy(() => import('./pages/NotificationPage'));
-const LearningReportPage = lazy(() => import('./pages/LearningReportPage'));
-const RankingPage = lazy(() => import('./pages/RankingPage'));
-const TemplatePage = lazy(() => import('./pages/TemplatePage'));
-const ReminderPage = lazy(() => import('./pages/ReminderPage'));
-const SharedSessionsPage = lazy(() => import('./pages/SharedSessionsPage'));
-const WeeklyChallengePage = lazy(() => import('./pages/WeeklyChallengePage'));
-const HelpPage = lazy(() => import('./pages/HelpPage'));
-const AdminScenariosPage = lazy(() => import('./pages/AdminScenariosPage'));
-const AdminInvitationsPage = lazy(() => import('./pages/AdminInvitationsPage'));
-const AdminCompaniesPage = lazy(() => import('./pages/AdminCompaniesPage'));
-const CodeEditorPage = lazy(() => import('./pages/CodeEditorPage'));
+const MenuPage = lazyWithReload(() => import('./pages/MenuPage'), 'MenuPage');
+const SettingsPage = lazyWithReload(() => import('./pages/SettingsPage'), 'SettingsPage');
+const AskAiPage = lazyWithReload(() => import('./pages/AskAiPage'), 'AskAiPage');
+const NotesPage = lazyWithReload(() => import('./pages/NotesPage'), 'NotesPage');
+const NotificationPage = lazyWithReload(() => import('./pages/NotificationPage'), 'NotificationPage');
+const LearningReportPage = lazyWithReload(() => import('./pages/LearningReportPage'), 'LearningReportPage');
+const HelpPage = lazyWithReload(() => import('./pages/HelpPage'), 'HelpPage');
+const AdminInvitationsPage = lazyWithReload(() => import('./pages/AdminInvitationsPage'), 'AdminInvitationsPage');
+const AdminCompaniesPage = lazyWithReload(() => import('./pages/AdminCompaniesPage'), 'AdminCompaniesPage');
+const ExerciseListPage = lazyWithReload(() => import('./pages/ExerciseListPage'), 'ExerciseListPage');
+const ExerciseDetailPage = lazyWithReload(() => import('./pages/ExerciseDetailPage'), 'ExerciseDetailPage');
+const CoursesListPage = lazyWithReload(() => import('./pages/CoursesListPage'), 'CoursesListPage');
+const CourseDetailPage = lazyWithReload(() => import('./pages/CourseDetailPage'), 'CourseDetailPage');
+const MarkdownSyntaxHelpPage = lazyWithReload(() => import('./pages/MarkdownSyntaxHelpPage'), 'MarkdownSyntaxHelpPage');
 
 function NavigationToast() {
   const location = useLocation();
@@ -49,12 +48,28 @@ function NavigationToast() {
       showToast('success', toast);
       window.history.replaceState({}, '');
     }
+    // ナビゲーション成功 = 直前の lazy reload で復旧した。次回また chunk が
+    // 失敗したら再度 reload を許可するため、フラグをクリアしておく。
+    clearLazyReloadFlags();
   }, [location, showToast]);
 
   return null;
 }
 
 export default function App() {
+  const { status: healthStatus } = useBackendHealth();
+
+  // バックエンドが連続失敗で unhealthy になっているとメンテナンスページを表示。
+  // healthy / unknown は通常通りアプリを描画（unknown は初回 health check 完了前で、
+  // ここで loading を出すと体感が遅くなるので楽観的にアプリを表示する）。
+  if (healthStatus === 'unhealthy') {
+    return (
+      <ErrorBoundary>
+        <MaintenancePage />
+      </ErrorBoundary>
+    );
+  }
+
   return (
     <ErrorBoundary>
     <ToastProvider>
@@ -72,8 +87,9 @@ export default function App() {
       />
       {/* 招待マジックリンクの受諾画面（認証不要・SES メールから踏まれる） */}
       <Route path="/invitations/accept" element={<AcceptInvitationPage />} />
+      <Route path="/company-application" element={<CompanyApplicationPage />} />
 
-      {/* 認証が必要（AppShellレイアウト内） */}
+      {/* 認証が必要（AppShell レイアウト内） */}
       <Route
         element={
           <AuthInitializer>
@@ -84,26 +100,24 @@ export default function App() {
         }
       >
         <Route path="/" element={<MenuPage />} />
-        <Route path="/profile/me" element={<ProfilePage />} />
-        <Route path="/practice" element={<PracticePage />} />
-        <Route path="/scores" element={<ScoreHistoryPage />} />
-        <Route path="/favorites" element={<FavoritesPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
+        {/* 旧 /profile/me は /settings に統合（後方互換のため redirect 相当として SettingsPage を出す） */}
+        <Route path="/profile/me" element={<SettingsPage />} />
         <Route path="/chat/ask-ai" element={<AskAiPage />} />
         <Route path="/chat/ask-ai/:sessionId" element={<AskAiPage />} />
         <Route path="/notes" element={<NotesPage />} />
+        <Route path="/notes/markdown-help" element={<MarkdownSyntaxHelpPage />} />
         <Route path="/notifications" element={<NotificationPage />} />
         <Route path="/reports" element={<LearningReportPage />} />
-        <Route path="/ranking" element={<RankingPage />} />
-        <Route path="/templates" element={<TemplatePage />} />
-        <Route path="/reminder" element={<ReminderPage />} />
-        <Route path="/shared-sessions" element={<SharedSessionsPage />} />
-        <Route path="/weekly-challenge" element={<WeeklyChallengePage />} />
         <Route path="/help" element={<HelpPage />} />
-        {/* Admin 専用（コンポーネント側で isAdmin チェック → 非 admin は / にリダイレクト） */}
-        <Route path="/code-editor" element={<CodeEditorPage />} />
+        <Route path="/code-editor" element={<ExerciseListPage />} />
+        <Route path="/code-editor/:slug" element={<ExerciseDetailPage />} />
+        <Route path="/courses" element={<CoursesListPage />} />
+        <Route path="/courses/:id" element={<CourseDetailPage />} />
+        {/* 旧 /teaching-materials へのアクセスは /courses に redirect */}
+        <Route path="/teaching-materials" element={<CoursesListPage />} />
         {/* Admin 専用（コンポーネント側で isAdmin チェック → 非 admin は / にリダイレクト） */}
         <Route path="/admin/companies" element={<AdminCompaniesPage />} />
-        <Route path="/admin/scenarios" element={<AdminScenariosPage />} />
         <Route path="/admin/invitations" element={<AdminInvitationsPage />} />
       </Route>
     </Routes>
@@ -114,3 +128,4 @@ export default function App() {
     </ErrorBoundary>
   );
 }
+

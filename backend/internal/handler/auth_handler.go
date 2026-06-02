@@ -10,15 +10,12 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/infra/cognito"
 	"github.com/norman6464/FreStyle/backend/internal/infra/config"
-	"github.com/norman6464/FreStyle/backend/internal/repository"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
 // AuthHandler は Cognito 関連の認証エンドポイントを提供する。
-// Spring Boot の CognitoAuthController に相当。
-//
-// HTTP / OAuth2 通信の詳細は infra/cognito.TokenExchanger に切り出してあり、
-// このハンドラは HTTP プロトコル境界とユーザー upsert ロジックだけを持つ。
+// OAuth2 通信は infra/cognito.TokenExchanger に切り出し、ここは HTTP 境界と user upsert だけを持つ。
 type AuthHandler struct {
 	getCurrentUser *usecase.GetCurrentUserUseCase
 	users          repository.UserRepository
@@ -49,13 +46,19 @@ func NewAuthHandler(
 	}
 }
 
-// Me は現在ログイン中のユーザー情報を返す。
-// レスポンスは domain.User の各フィールド + 派生 `isAdmin` / `groups` を含める。
-// isAdmin の判定:
-//  1. Cognito の `cognito:groups` claim に "admin" が含まれている (Spring Boot 時代と同等)
-//  2. または DB users.role が super_admin / company_admin
+// Me は現在ログイン中のユーザー情報（+ 派生 isAdmin / groups）を返す。
+// isAdmin は Cognito groups に "admin" を含むか、DB role が super_admin / company_admin なら true。
 //
-// 上記いずれかで true。フロントは `isAdmin` を見て管理画面の表示可否を決める。
+//	@Summary      current user 情報 取得
+//	@Description  Cookie 認証 を 元 に 現在 ログイン 中 の user 情報 (id / email / role / isAdmin / onboarded 等) を 返す。
+//	@Tags         auth
+//	@Produce      json
+//	@Success      200  {object}  meResponse
+//	@Failure      401  {object}  errorResponse  "未 認証"
+//	@Failure      404  {object}  errorResponse  "DB に user が ない (Cognito 側 だけ 存在)"
+//	@Failure      500  {object}  errorResponse  "DB / repository 取得 失敗"
+//	@Router       /auth/me [get]
+//	@Security     CookieAuth
 func (h *AuthHandler) Me(c *gin.Context) {
 	sub, ok := c.Get(middleware.ContextKeyCognitoSub)
 	if !ok {
@@ -75,8 +78,7 @@ func (h *AuthHandler) Me(c *gin.Context) {
 	isAdmin := middleware.IsAdminFromGroups(groups) ||
 		user.Role == domain.RoleSuperAdmin ||
 		user.Role == domain.RoleCompanyAdmin
-	// access_token に admin グループがあるが DB role が未昇格の場合はここで同期する。
-	// Google federated ユーザーはログイン時の upsert で groups が取れないケースがある。
+	// Cognito group admin だが DB role が未昇格なら同期する（federated ユーザー対策）。
 	if middleware.IsAdminFromGroups(groups) && user.Role != domain.RoleSuperAdmin && user.Role != domain.RoleCompanyAdmin {
 		if h.users != nil {
 			_ = h.users.UpdateRole(c.Request.Context(), user.ID, domain.RoleSuperAdmin)
@@ -93,10 +95,19 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		"updatedAt":   user.UpdatedAt,
 		"groups":      groups,
 		"isAdmin":     isAdmin,
+		// onboarded: フロントの /welcome リダイレクト判定に使う。
+		"onboarded": user.OnboardedAt != nil,
 	})
 }
 
 // Logout はリフレッシュ・アクセストークンの Cookie を消去する。
+//
+//	@Summary      ログアウト
+//	@Description  HttpOnly Cookie の access / refresh token を 消去 する。 Cognito 側 の セッション は 別途 hosted UI で 切る。
+//	@Tags         auth
+//	@Produce      json
+//	@Success      200  {object}  messageResponse
+//	@Router       /auth/cognito/logout [post]
 func (h *AuthHandler) Logout(c *gin.Context) {
 	middleware.ClearAuthCookies(c)
 	c.JSON(http.StatusOK, gin.H{"message": "ログアウトしました。"})
@@ -104,18 +115,28 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 
 type cognitoCallbackReq struct {
 	Code string `json:"code" binding:"required"`
-	// InvitationToken はフロントが sessionStorage から復元してくる、招待マジックリンク経由で
-	// 受領した UUID トークン。任意。指定がある場合は upsert 時に email ベースの招待検索より
-	// 優先して照合に使う（同じ email に複数 pending invitation がある異常系での誤一致を防ぐ）。
+	// InvitationToken は招待マジックリンク経由の UUID（任意）。指定時は email 検索より優先して照合する。
 	InvitationToken string `json:"invitationToken"`
 }
 
-// Callback は Cognito Hosted UI から戻ってきた認可コードをアクセストークンに交換し、
-// HttpOnly Cookie に格納する。Spring Boot の CognitoAuthController#callback 相当。
+// Callback は認可コードを token に交換して HttpOnly Cookie に格納する。
+// 招待ゲート: 新規ユーザーは Cognito group admin か pending invitation 受信者でなければ 403 で拒否する。
 //
-// 招待ゲート: 新規ユーザー（DB に sub が無い）は「Cognito group admin」または
-// 「pending な invitation 受信者」のいずれかでない限り、ログインを拒否する（403）。
-// これによりトレイニー / company_admin は必ず上位ロールからの招待経由でないとアカウントを作れない。
+//	@Summary      Cognito callback (認可 コード → token 交換)
+//	@Description  Cognito Hosted UI から の callback。 authorization code を access / refresh / id token に 交換 し HttpOnly Cookie で 返す。 新規 user は 招待 or Cognito admin group 必須。
+//	@Tags         auth
+//	@Accept       json
+//	@Produce      json
+//	@Param        body  body      cognitoCallbackReq  true  "Cognito callback (code 必須、 invitationToken 任意)"
+//	@Success      200   {object}  messageResponse
+//	@Failure      400   {object}  errorResponse  "code 欠落 等"
+//	@Failure      401   {object}  errorResponse  "token 交換 失敗"
+//	@Failure      403   {object}  errorResponse  "招待 なし の 新規 user"
+//	@Failure      500   {object}  errorResponse  "Cognito 未 設定 等 の 内部 エラー"
+//	@Failure      502   {object}  errorResponse  "Cognito 到達 不可"
+//	@Failure      429   {object}  errorResponse  "レート制限超過"
+//	@Header       429  {string}  Retry-After  "再試行までの秒数 (例: 60)"
+//	@Router       /auth/cognito/callback [post]
 func (h *AuthHandler) Callback(c *gin.Context) {
 	var req cognitoCallbackReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -132,12 +153,8 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	middleware.SetAccessTokenCookie(c, tok.AccessToken, tok.ExpiresIn)
 	middleware.SetRefreshTokenCookie(c, tok.RefreshToken)
 
-	// 初回ログインで users 行が無いと /auth/me が 404 になるため自動で upsert する。
-	// id_token の payload から sub / email / cognito:groups を取り出して同期する:
-	//   - 招待 OR Cognito group "admin" のいずれかが真なら create（role は招待 / group に従う）
-	//   - 既存ユーザーは Cognito group が変わっていれば role を update する
-	// 上記いずれでもない（=招待なし & Cognito admin でもない）新規ユーザーはログイン拒否し、
-	// 直前にセットした Cookie をクリアしてセッションを残さない。
+	// 初回ログインで users 行が無いと /auth/me が 404 になるため upsert する。
+	// 拒否された新規ユーザーは Cookie をクリアしてセッションを残さない。
 	if allowed := h.upsertUserFromIDToken(c, tok.IDToken, req.InvitationToken); !allowed {
 		middleware.ClearAuthCookies(c)
 		c.JSON(http.StatusForbidden, gin.H{
@@ -151,6 +168,17 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 }
 
 // Refresh は HttpOnly Cookie の refresh_token を使ってアクセストークンを再発行する。
+//
+//	@Summary      アクセス トークン リフレッシュ
+//	@Description  refresh_token Cookie で access_token を 再 発行 し HttpOnly Cookie に セット する。 失敗 (refresh 切れ 等) は 401 で Cookie クリア。
+//	@Tags         auth
+//	@Produce      json
+//	@Success      200  {object}  messageResponse
+//	@Failure      401  {object}  errorResponse  "refresh_token 欠落 / 無効"
+//	@Failure      502  {object}  errorResponse  "Cognito 到達 不可"
+//	@Failure      429   {object}  errorResponse  "レート制限超過"
+//	@Header       429  {string}  Retry-After  "再試行までの秒数 (例: 60)"
+//	@Router       /auth/cognito/refresh-token [post]
 func (h *AuthHandler) Refresh(c *gin.Context) {
 	rt, err := c.Cookie(middleware.CookieRefreshToken)
 	if err != nil || rt == "" {
@@ -160,8 +188,7 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 
 	tok, err := h.tokens.RefreshAccessToken(c.Request.Context(), rt)
 	if err != nil {
-		// refresh_token が無効と判明した時はログイン状態をクリアして 401。
-		// それ以外（502: Cognito 不到達など）は Cookie を残してリトライ余地を残す。
+		// refresh_token 無効は Cookie クリアして 401。それ以外（502 等）は Cookie を残す。
 		var exErr *cognito.TokenExchangeError
 		if errors.As(err, &exErr) {
 			log.Printf("cognito refresh: status=%d body=%s", exErr.HTTPStatus, exErr.Body)
@@ -175,14 +202,9 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 	}
 
 	middleware.SetAccessTokenCookie(c, tok.AccessToken, tok.ExpiresIn)
-	// refresh_token grant でも id_token が返る場合は DB role を同期する。
-	// Google federated ユーザーは ID token に cognito:groups が含まれないことがあるため
-	// access_token の claims からも昇格を試みる。
-	// refresh は既存ユーザーが対象のため、招待ゲート（戻り値 false）はここでは無視する
-	// — DB から削除されたユーザーが refresh する稀ケースは別途 401 にすべきだが、本 PR の
-	// スコープ外として既存挙動を維持する。
+	// id_token があれば DB role を同期する。無ければ access_token の claims から昇格を試みる
+	// （federated ユーザーは id_token に groups が無いことがある）。refresh は既存ユーザー前提。
 	if tok.IDToken != "" {
-		// refresh は既存ユーザー前提で、新規招待を引く必要はないため invitationToken は空文字を渡す。
 		_ = h.upsertUserFromIDToken(c, tok.IDToken, "")
 	} else {
 		h.syncRoleFromAccessToken(c, tok.AccessToken)
@@ -226,8 +248,7 @@ func (h *AuthHandler) handleTokenError(c *gin.Context, op string, err error) (in
 	case errors.Is(err, cognito.ErrNotConfigured):
 		return http.StatusInternalServerError, gin.H{"error": "cognito_not_configured"}, true
 	case errors.As(err, &exErr):
-		// 本物の理由 (invalid_grant / invalid_client / redirect_uri_mismatch 等) を残す。
-		// クライアントには簡素なエラーだけ返す。
+		// 本物の理由は log に残し、クライアントには簡素なエラーだけ返す。
 		log.Printf("cognito %s: token exchange status=%d body=%s redirect_uri=%s client_id_set=%t client_secret_set=%t",
 			op, exErr.HTTPStatus, exErr.Body, h.cognitoCfg.RedirectURI, h.cognitoCfg.ClientID != "", h.cognitoCfg.ClientSecret != "")
 		return http.StatusUnauthorized, gin.H{"error": "token_exchange_failed"}, true
@@ -243,20 +264,13 @@ func (h *AuthHandler) handleTokenError(c *gin.Context, op string, err error) (in
 	}
 }
 
-// upsertUserFromIDToken は id_token の claim を見て users 行を新規作成 / role 更新する。
-// 戻り値 allowed:
-//   - true : 既存ユーザー、または「Cognito group admin / pending invitation あり」で新規作成成功
-//   - false: 「招待なし & Cognito admin でもない」新規ユーザー（ログイン拒否）または create 失敗
-//
-// invitationToken はマジックリンク経由の不透明 token（任意）。指定がある場合は email より
-// 優先して照合する（同 email に複数 pending invitation がある異常系での誤一致を防ぐ）。
-//
-// 招待ゲートを usecase ではなく handler 層に置いているのは、認可境界（Cookie 発行 / 401-403 を返す責務）が
-// HTTP 層であり、ユーザーが拒否された理由を上位ハンドラが直接知る必要があるため。
+// upsertUserFromIDToken は id_token の claim から users 行を新規作成 / role 更新する。
+// allowed=false は「招待なし & Cognito admin でもない」新規ユーザー（ログイン拒否）または create 失敗。
+// invitationToken 指定時は email より優先して照合する（同 email 複数 pending での誤一致防止）。
+// 招待ゲートを handler 層に置くのは、Cookie 発行 / 401-403 を返す認可境界が HTTP 層だから。
 func (h *AuthHandler) upsertUserFromIDToken(c *gin.Context, idToken, invitationToken string) (allowed bool) {
 	claims, err := middleware.DecodeClaims(idToken)
 	if err != nil || h.users == nil {
-		// claims を読めない / users repo 無し は内部エラー扱い。Cookie はクリアして拒否する。
 		return false
 	}
 	sub, _ := claims["sub"].(string)
@@ -264,22 +278,12 @@ func (h *AuthHandler) upsertUserFromIDToken(c *gin.Context, idToken, invitationT
 		return false
 	}
 	email, _ := claims["email"].(string)
+	// OIDC 経由は id_token に name を含む（Cognito SRP では無いこともあるので空許容）。
+	oidcName, _ := claims["name"].(string)
 	groups := middleware.ToStringSliceFromClaim(claims["cognito:groups"])
 	isCognitoAdmin := middleware.IsAdminFromGroups(groups)
 
-	existing, _ := h.users.FindByCognitoSub(c.Request.Context(), sub)
-	if existing != nil {
-		// 既存ユーザー: Cognito group で admin に昇格された場合のみ DB role を上書きする。
-		if isCognitoAdmin && existing.Role != domain.RoleSuperAdmin {
-			_ = h.users.UpdateRole(c.Request.Context(), existing.ID, domain.RoleSuperAdmin)
-		}
-		return true
-	}
-
-	// 新規ユーザー: 招待 OR Cognito group "admin" のいずれかが必要。両方無ければ拒否。
-	// 招待検索の優先順位:
-	//   1. invitationToken が指定されていれば FindPendingByToken で照合（マジックリンク経由）
-	//   2. 1 で見つからない場合は email でフォールバック検索（旧フロー互換）
+	// 招待検索: invitationToken 優先、無ければ email でフォールバック。
 	var inv *domain.AdminInvitation
 	if h.invitations != nil {
 		if invitationToken != "" {
@@ -289,6 +293,43 @@ func (h *AuthHandler) upsertUserFromIDToken(c *gin.Context, idToken, invitationT
 			inv, _ = h.invitations.FindPendingByEmail(c.Request.Context(), email)
 		}
 	}
+
+	existing, _ := h.users.FindByCognitoSub(c.Request.Context(), sub)
+	if existing != nil {
+		// DisplayName が email のまま（旧フローの仮値）なら OIDC name で自動補正する。
+		// ユーザーが明示的に書き換えている場合は触らない。
+		if oidcName != "" && existing.Email != "" && existing.DisplayName == existing.Email {
+			if err := h.users.UpdateDisplayName(c.Request.Context(), existing.ID, oidcName); err != nil {
+				log.Printf("upsertUserFromIDToken: backfill displayName failed userID=%d: %v", existing.ID, err)
+			}
+		}
+		// role 更新の制約: super_admin は降格しない / 招待昇格は trainee → company_admin のみ /
+		// Cognito group admin は super_admin に昇格する。
+		if isCognitoAdmin && existing.Role != domain.RoleSuperAdmin {
+			_ = h.users.UpdateRole(c.Request.Context(), existing.ID, domain.RoleSuperAdmin)
+		}
+		if inv != nil && existing.Role != domain.RoleSuperAdmin {
+			// 昇格は trainee → company_admin だけ反映する。
+			if existing.Role == domain.RoleTrainee && inv.Role == domain.RoleCompanyAdmin {
+				if err := h.users.UpdateRole(c.Request.Context(), existing.ID, domain.RoleCompanyAdmin); err != nil {
+					log.Printf("upsertUserFromIDToken: existing user role upgrade failed userID=%d: %v", existing.ID, err)
+				} else {
+					log.Printf("upsertUserFromIDToken: existing user upgraded trainee→company_admin userID=%d email=%s", existing.ID, email)
+				}
+			}
+			// company 紐付け: 招待の company_id と異なる / 未設定なら更新する。
+			if inv.CompanyID != 0 && (existing.CompanyID == nil || *existing.CompanyID != inv.CompanyID) {
+				if err := h.users.UpdateCompanyID(c.Request.Context(), existing.ID, inv.CompanyID); err != nil {
+					log.Printf("upsertUserFromIDToken: existing user company update failed userID=%d: %v", existing.ID, err)
+				}
+			}
+			// 招待を accepted にマーク（再利用防止 + 監査）。
+			_ = h.invitations.UpdateStatus(c.Request.Context(), inv.ID, domain.InvitationStatusAccepted)
+		}
+		return true
+	}
+
+	// 新規ユーザー: 招待 OR Cognito group "admin" のいずれかが必要。両方無ければ拒否。
 	if !isCognitoAdmin && inv == nil {
 		log.Printf("upsertUserFromIDToken: signup blocked — no invitation and not Cognito admin sub=%s email=%s token_provided=%t", sub, email, invitationToken != "")
 		return false
@@ -297,7 +338,11 @@ func (h *AuthHandler) upsertUserFromIDToken(c *gin.Context, idToken, invitationT
 	role := domain.RoleTrainee
 	var companyID *uint64
 	var acceptedInvID uint64
+	// displayName の優先順位: 招待 displayName > OIDC name > email（フォールバック）。
 	displayName := email
+	if oidcName != "" {
+		displayName = oidcName
+	}
 
 	if isCognitoAdmin {
 		role = domain.RoleSuperAdmin
@@ -324,7 +369,7 @@ func (h *AuthHandler) upsertUserFromIDToken(c *gin.Context, idToken, invitationT
 		log.Printf("upsertUserFromIDToken: create user failed sub=%s email=%s err=%v", sub, email, err)
 		return false
 	}
-	// 招待を accepted にマーク（履歴・監査）
+	// 招待を accepted にマーク（履歴・監査）。
 	if h.invitations != nil && acceptedInvID != 0 {
 		_ = h.invitations.UpdateStatus(c.Request.Context(), acceptedInvID, domain.InvitationStatusAccepted)
 	}

@@ -2,7 +2,7 @@ package domain
 
 import "time"
 
-// AiChatSession は AI チャットの 1 セッション。Spring Boot の entity.AiChatSession に相当。
+// AiChatSession は AI チャットの 1 セッション。
 type AiChatSession struct {
 	ID          uint64    `gorm:"primaryKey" json:"id"`
 	UserID      uint64    `gorm:"column:user_id;index" json:"userId"`
@@ -20,17 +20,33 @@ const (
 	AiChatSessionTypePractice = "practice"
 )
 
-// AiChatMessage は AI チャットの 1 メッセージ。実体は DynamoDB に保存されるが、
-// API ではこの形で返却する。
+// AiChatMessage は AI チャットの 1 メッセージ。実体は DynamoDB に保存し、API ではこの形で返す。
 type AiChatMessage struct {
-	SessionID uint64    `json:"sessionId"`
-	MessageID string    `json:"messageId"`
-	Role      string    `json:"role"`
-	Content   string    `json:"content"`
-	CreatedAt time.Time `json:"createdAt"`
+	SessionID   uint64       `json:"sessionId"`
+	MessageID   string       `json:"messageId"`
+	Role        string       `json:"role"`
+	Content     string       `json:"content"`
+	Attachments []Attachment `json:"attachments,omitempty"`
+	CreatedAt   time.Time    `json:"createdAt"`
+}
+
+// Attachment は AI チャット送信時の添付ファイル。
+// Format は Bedrock Converse API が要求する短い文字列（"png" / "jpeg" など）。
+// BlobData は Bedrock 呼び出し直前に S3 から詰める一時フィールドで、永続化はしない。
+type Attachment struct {
+	Key         string `json:"key"`
+	Filename    string `json:"filename"`
+	ContentType string `json:"contentType"`
+	Format      string `json:"format"`
+	Kind        string `json:"kind"`
+	SizeBytes   int64  `json:"sizeBytes"`
+	BlobData    []byte `json:"-"`
 }
 
 const (
 	AiChatRoleUser      = "user"
 	AiChatRoleAssistant = "assistant"
+
+	AttachmentKindImage    = "image"
+	AttachmentKindDocument = "document"
 )

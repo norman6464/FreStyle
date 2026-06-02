@@ -5,12 +5,15 @@ import (
 	"errors"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/repository"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
 var ErrNoteForbidden = errors.New("forbidden")
 
-type ListNotesByUserIDUseCase struct{ repo repository.NoteRepository }
+// ListNotesByUserIDUseCase は current user のノート一覧を返す。
+type ListNotesByUserIDUseCase struct {
+	repo repository.NoteRepository
+}
 
 func NewListNotesByUserIDUseCase(r repository.NoteRepository) *ListNotesByUserIDUseCase {
 	return &ListNotesByUserIDUseCase{repo: r}
@@ -23,7 +26,10 @@ func (u *ListNotesByUserIDUseCase) Execute(ctx context.Context, userID uint64) (
 	return u.repo.ListByUserID(ctx, userID)
 }
 
-type CreateNoteUseCase struct{ repo repository.NoteRepository }
+// CreateNoteUseCase は新規ノートを作成する。
+type CreateNoteUseCase struct {
+	repo repository.NoteRepository
+}
 
 func NewCreateNoteUseCase(r repository.NoteRepository) *CreateNoteUseCase {
 	return &CreateNoteUseCase{repo: r}
@@ -57,7 +63,10 @@ func (u *CreateNoteUseCase) Execute(ctx context.Context, in CreateNoteInput) (*d
 	return n, nil
 }
 
-type UpdateNoteUseCase struct{ repo repository.NoteRepository }
+// UpdateNoteUseCase はノートを更新する（所有者検証込み）。
+type UpdateNoteUseCase struct {
+	repo repository.NoteRepository
+}
 
 func NewUpdateNoteUseCase(r repository.NoteRepository) *UpdateNoteUseCase {
 	return &UpdateNoteUseCase{repo: r}
@@ -72,8 +81,7 @@ type UpdateNoteInput struct {
 	IsPinned bool
 }
 
-// Execute は所有者検証込みで note を更新する。
-// 既存 note の UserID が input.UserID と一致しなければ ErrNoteForbidden を返す。
+// Execute は所有者でなければ ErrNoteForbidden を返し、そうでなければ note を更新する。
 func (u *UpdateNoteUseCase) Execute(ctx context.Context, in UpdateNoteInput) (*domain.Note, error) {
 	if in.UserID == 0 {
 		return nil, errors.New("userID is required")
@@ -98,7 +106,10 @@ func (u *UpdateNoteUseCase) Execute(ctx context.Context, in UpdateNoteInput) (*d
 	return existing, nil
 }
 
-type DeleteNoteUseCase struct{ repo repository.NoteRepository }
+// DeleteNoteUseCase はノートを削除する（repo 側で userID により所有者検証）。
+type DeleteNoteUseCase struct {
+	repo repository.NoteRepository
+}
 
 func NewDeleteNoteUseCase(r repository.NoteRepository) *DeleteNoteUseCase {
 	return &DeleteNoteUseCase{repo: r}

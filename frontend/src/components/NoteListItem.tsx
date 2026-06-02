@@ -2,7 +2,6 @@ import { memo, useMemo } from 'react';
 import { TrashIcon } from '@heroicons/react/24/outline';
 import { MapPinIcon as MapPinOutline } from '@heroicons/react/24/outline';
 import { MapPinIcon as MapPinSolid } from '@heroicons/react/24/solid';
-import { tiptapToPlainText } from '../utils/tiptapToPlainText';
 import { formatMonthDay } from '../utils/formatters';
 import { getNoteStats } from '../utils/noteStats';
 import ReadingTime from './ReadingTime';
@@ -32,7 +31,7 @@ export default memo(function NoteListItem({
   onTogglePin,
 }: NoteListItemProps) {
   const displayTitle = title || '無題';
-  const preview = tiptapToPlainText(content).replace(/\n/g, ' ').slice(0, 60);
+  const preview = content.replace(/\n+/g, ' ').slice(0, 60);
   const dateStr = formatMonthDay(updatedAt);
   const stats = useMemo(() => getNoteStats(content), [content]);
 

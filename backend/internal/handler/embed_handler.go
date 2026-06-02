@@ -18,14 +18,22 @@ func NewEmbedHandler(f *embed.Fetcher) *EmbedHandler {
 	return &EmbedHandler{fetcher: f}
 }
 
-// Resolve は GET /api/v2/embeds/oembed?url=...
+// Resolve は ?url= の OGP / oEmbed を解決して返す。
+// 失敗は InvalidURL→400 / UnsupportedHost→422 / Unreachable→502 / その他→500 にマップする。
 //
-// ?url= が必須クエリパラメータ。fetcher が allow-list / SSRF ガードを担う。
-// 失敗時のステータスマップ:
-//   - ErrInvalidURL      → 400
-//   - ErrUnsupportedHost → 422
-//   - ErrUnreachable     → 502
-//   - その他             → 500
+//	@Summary      外部 URL の OGP / oEmbed メタ 取得
+//	@Description  ?url= で 指定 した URL の OGP / oEmbed を 解決 し card 形式 で 返す。 allow-list / SSRF / DNS rebinding 対策 は infra/embed.Fetcher が 担う。
+//	@Tags         embeds
+//	@Produce      json
+//	@Param        url  query     string  true  "メタ 取得 対象 URL"
+//	@Success      200  {object}  github_com_norman6464_FreStyle_backend_internal_infra_embed.Card
+//	@Failure      400  {object}  errorResponse  "url 欠落 or 無効 URL"
+//	@Failure      401  {object}  errorResponse  "未 認証"
+//	@Failure      422  {object}  errorResponse  "allow-list 外 ホスト"
+//	@Failure      502  {object}  errorResponse  "到達 不可"
+//	@Failure      500  {object}  errorResponse  "内部 エラー"
+//	@Router       /embeds/oembed [get]
+//	@Security     CookieAuth
 func (h *EmbedHandler) Resolve(c *gin.Context) {
 	raw := c.Query("url")
 	if raw == "" {

@@ -26,8 +26,17 @@ func NewNoteHandler(
 	return &NoteHandler{list: l, create: c, update: u, del: d}
 }
 
-// List は current user の note 一覧を返す。
-// userId はクライアントから受け取らない（IDOR 対策）。
+// List は current user の note 一覧を返す（userId は受け取らない、IDOR 対策）。
+//
+//	@Summary      自分 の ノート 一覧
+//	@Description  current user の note を 更新 日 降順 で 返す。 IDOR 対策 で userId は 受け取らない。
+//	@Tags         notes
+//	@Produce      json
+//	@Success      200  {array}   github_com_norman6464_FreStyle_backend_internal_domain.Note
+//	@Failure      400  {object}  errorResponse  "DB 取得 失敗"
+//	@Failure      401  {object}  errorResponse  "未 認証"
+//	@Router       /notes [get]
+//	@Security     CookieAuth
 func (h *NoteHandler) List(c *gin.Context) {
 	uid := middleware.CurrentUserIDOrZero(c)
 	if uid == 0 {
@@ -50,6 +59,18 @@ type noteCreateReq struct {
 }
 
 // Create は current user 名義で note を作る。userId は受け取らず固定する。
+//
+//	@Summary      ノート 作成
+//	@Description  current user 名義 で 新規 note を 作る。 userId は body で 指定 でき ない (current user 固定)。
+//	@Tags         notes
+//	@Accept       json
+//	@Produce      json
+//	@Param        body  body      noteCreateReq  true  "作成 内容 (title 必須)"
+//	@Success      201   {object}  github_com_norman6464_FreStyle_backend_internal_domain.Note
+//	@Failure      400   {object}  errorResponse  "バリデーション エラー or DB 失敗"
+//	@Failure      401   {object}  errorResponse  "未 認証"
+//	@Router       /notes [post]
+//	@Security     CookieAuth
 func (h *NoteHandler) Create(c *gin.Context) {
 	uid := middleware.CurrentUserIDOrZero(c)
 	if uid == 0 {
@@ -80,6 +101,20 @@ type noteUpdateReq struct {
 }
 
 // Update は current user 所有の note のみ更新可能。usecase 側で所有者検証する。
+//
+//	@Summary      ノート 更新
+//	@Description  指定 note を 更新。 所有者 検証 を usecase 層 で 行い、 他人 の note は 403。
+//	@Tags         notes
+//	@Accept       json
+//	@Produce      json
+//	@Param        id    path      int            true  "ノート ID"
+//	@Param        body  body      noteUpdateReq  true  "更新 内容"
+//	@Success      200   {object}  github_com_norman6464_FreStyle_backend_internal_domain.Note
+//	@Failure      400   {object}  errorResponse  "バリデーション or DB 失敗"
+//	@Failure      401   {object}  errorResponse  "未 認証"
+//	@Failure      403   {object}  errorResponse  "他人 の note"
+//	@Router       /notes/{id} [put]
+//	@Security     CookieAuth
 func (h *NoteHandler) Update(c *gin.Context) {
 	uid := middleware.CurrentUserIDOrZero(c)
 	if uid == 0 {
@@ -108,6 +143,17 @@ func (h *NoteHandler) Update(c *gin.Context) {
 }
 
 // Delete は WHERE で user_id を絞るため他人の note は消せない。
+//
+//	@Summary      ノート 削除
+//	@Description  current user 所有 の note を 削除。 WHERE user_id 絞り込み で 他人 の note は そもそも 影響 を 受け ない。
+//	@Tags         notes
+//	@Produce      json
+//	@Param        id  path  int  true  "ノート ID"
+//	@Success      204  "成功 (本文 なし)"
+//	@Failure      400  {object}  errorResponse  "DB 失敗"
+//	@Failure      401  {object}  errorResponse  "未 認証"
+//	@Router       /notes/{id} [delete]
+//	@Security     CookieAuth
 func (h *NoteHandler) Delete(c *gin.Context) {
 	uid := middleware.CurrentUserIDOrZero(c)
 	if uid == 0 {

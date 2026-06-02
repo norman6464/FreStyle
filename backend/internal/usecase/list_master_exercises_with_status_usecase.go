@@ -1,0 +1,72 @@
+package usecase
+
+import (
+	"context"
+
+	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+)
+
+// MasterExerciseWithStatus は問題 + current user の状態（solved / in_progress / 未提出）+ 全体集計のセット。
+type MasterExerciseWithStatus struct {
+	domain.MasterExercise
+
+	Status string                             `json:"status"`
+	Stats  repository.ExerciseSubmissionStats `json:"stats"`
+}
+
+// ListMasterExercisesWithStatusUseCase は問題一覧 + 各問題の current user 状態 + 集計を返す。
+// status と stats は batch クエリで取得して N+1 を避ける。
+type ListMasterExercisesWithStatusUseCase struct {
+	exercises   repository.MasterExerciseRepository
+	submissions repository.ExerciseSubmissionRepository
+}
+
+func NewListMasterExercisesWithStatusUseCase(
+	exercises repository.MasterExerciseRepository,
+	submissions repository.ExerciseSubmissionRepository,
+) *ListMasterExercisesWithStatusUseCase {
+	return &ListMasterExercisesWithStatusUseCase{exercises: exercises, submissions: submissions}
+}
+
+// ListMasterExercisesWithStatusInput は入力。 UserID=0 は未ログイン扱いで status は全部 ""。
+type ListMasterExercisesWithStatusInput struct {
+	UserID   uint64
+	Language string
+}
+
+func (uc *ListMasterExercisesWithStatusUseCase) Execute(ctx context.Context, in ListMasterExercisesWithStatusInput) ([]MasterExerciseWithStatus, error) {
+	exercises, err := uc.exercises.ListByLanguage(ctx, in.Language)
+	if err != nil {
+		return nil, err
+	}
+	if len(exercises) == 0 {
+		return []MasterExerciseWithStatus{}, nil
+	}
+	ids := make([]uint64, 0, len(exercises))
+	for _, e := range exercises {
+		ids = append(ids, e.ID)
+	}
+
+	statusMap := make(map[uint64]string)
+	if in.UserID != 0 {
+		statusMap, err = uc.submissions.BatchUserStatuses(ctx, in.UserID, ids, domain.ExerciseKindMaster)
+		if err != nil {
+			return nil, err
+		}
+	}
+	statsMap, err := uc.submissions.ExerciseStatsBatch(ctx, ids, domain.ExerciseKindMaster)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]MasterExerciseWithStatus, 0, len(exercises))
+	for _, e := range exercises {
+		out = append(out, MasterExerciseWithStatus{
+			MasterExercise: e,
+			Status:         statusMap[e.ID],
+			Stats:          statsMap[e.ID],
+		})
+	}
+	return out, nil
+}

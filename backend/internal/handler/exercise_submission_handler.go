@@ -1,0 +1,109 @@
+package handler
+
+import (
+	"errors"
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
+	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"gorm.io/gorm"
+)
+
+// ExerciseSubmissionHandler は master_exercises に対する提出 / 履歴 API を扱う。
+type ExerciseSubmissionHandler struct {
+	submit *usecase.SubmitMasterExerciseUseCase
+	list   *usecase.ListUserMasterSubmissionsUseCase
+}
+
+func NewExerciseSubmissionHandler(
+	submit *usecase.SubmitMasterExerciseUseCase,
+	list *usecase.ListUserMasterSubmissionsUseCase,
+) *ExerciseSubmissionHandler {
+	return &ExerciseSubmissionHandler{submit: submit, list: list}
+}
+
+type submitExerciseRequest struct {
+	Code string `json:"code" binding:"required"`
+}
+
+// @Summary      演習 コード 提出 + 採点
+// @Description  current user の コード を 提出 し sandbox 実行 + 期待 出力 比較 で 採点。 結果 は 履歴 に append。
+// @Tags         exercises
+// @Accept       json
+// @Produce      json
+// @Param        slug  path      string                  true  "問題 slug"
+// @Param        body  body      submitExerciseRequest   true  "提出 コード"
+// @Success      200   {object}  usecase.SubmitMasterExerciseOutput
+// @Failure      400   {object}  errorResponse  "code 欠落 等"
+// @Failure      401   {object}  errorResponse  "未 認証"
+// @Failure      404   {object}  errorResponse  "問題 が 見つから ない"
+// @Failure      500   {object}  errorResponse  "DB / 採点 失敗"
+// @Router       /exercises/{slug}/submit [post]
+// @Security     CookieAuth
+func (h *ExerciseSubmissionHandler) Submit(c *gin.Context) {
+	uid := middleware.CurrentUserIDOrZero(c)
+	if uid == 0 {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	slug := c.Param("slug")
+	if slug == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "slug is required"})
+		return
+	}
+	var req submitExerciseRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	out, err := h.submit.Execute(c.Request.Context(), usecase.SubmitMasterExerciseInput{
+		UserID: uid,
+		Slug:   slug,
+		Code:   req.Code,
+	})
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "演習問題が見つかりません"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "コードの採点に失敗しました"})
+		return
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+// @Summary      提出 履歴 一覧
+// @Description  current user の 指定 問題 へ の 提出 履歴 を 新しい 順 で 返す。
+// @Tags         exercises
+// @Produce      json
+// @Param        slug  path      string  true  "問題 slug"
+// @Success      200   {array}   github_com_norman6464_FreStyle_backend_internal_domain.ExerciseSubmission
+// @Failure      400   {object}  errorResponse  "slug 欠落"
+// @Failure      401   {object}  errorResponse  "未 認証"
+// @Failure      404   {object}  errorResponse  "問題 が 見つから ない"
+// @Failure      500   {object}  errorResponse  "DB 失敗"
+// @Router       /exercises/{slug}/submissions [get]
+// @Security     CookieAuth
+func (h *ExerciseSubmissionHandler) List(c *gin.Context) {
+	uid := middleware.CurrentUserIDOrZero(c)
+	if uid == 0 {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	slug := c.Param("slug")
+	if slug == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "slug is required"})
+		return
+	}
+	rows, err := h.list.Execute(c.Request.Context(), usecase.ListUserMasterSubmissionsInput{UserID: uid, Slug: slug})
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "演習問題が見つかりません"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "履歴の取得に失敗しました"})
+		return
+	}
+	c.JSON(http.StatusOK, rows)
+}

@@ -9,5 +9,12 @@ frestyle-infrastructure/
 # PdM 用プライベートリポ（FreStyle 配下に clone する運用、本リポの管理対象外）
 frestyle-pdm/
 
+# 教材コンテンツ（Markdown 原本）の管理用プライベートリポ（FreStyle 配下に clone する運用、本リポの管理対象外）
+frestyle-teaching-materials/
+
 # IntelliJ IDEA / GoLand
 .idea/
+
+# macOS
+.DS_Store
+**/.DS_Store

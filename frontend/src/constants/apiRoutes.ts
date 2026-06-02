@@ -41,13 +41,16 @@ export const PROFILE = {
   meStats: `${API_V2}/users/me/stats`,
 } as const;
 
-/** AI チャット（セッション・メッセージ・言い換え） */
+/** AI チャット（セッション CRUD + SSE ストリーミング + 添付ファイル） */
 export const AI_CHAT = {
   sessions: `${API_V2}/ai-chat/sessions`,
   session: (sessionId: number | string) => `${API_V2}/ai-chat/sessions/${sessionId}`,
   sessionMessages: (sessionId: number | string) =>
     `${API_V2}/ai-chat/sessions/${sessionId}/messages`,
-  aiRephrase: `${API_V2}/chat/ai/rephrase`,
+  /** POST /ai-chat/stream — SSE ストリーミング送信 */
+  stream: `${API_V2}/ai-chat/stream`,
+  /** POST /ai-chat/attachments/upload-url — 添付ファイル PUT 用 presigned URL */
+  attachmentUploadUrl: `${API_V2}/ai-chat/attachments/upload-url`,
 } as const;
 
 /** Note CRUD と画像 presigned upload */
@@ -152,15 +155,42 @@ export const EMBEDS = {
   oembed: `${API_V2}/embeds/oembed`,
 } as const;
 
-/** PHP コード実行環境 */
-export const PHP = {
-  exercises: `${API_V2}/php/exercises`,
-  exercise: (id: number) => `${API_V2}/php/exercises/${id}`,
-  execute: `${API_V2}/php/execute`,
+/** マスタ演習問題（旧 PHP 専用 API を言語非依存に汎用化）+ コード実行 */
+export const EXERCISES = {
+  list: `${API_V2}/exercises`,
+  bySlug: (slug: string) => `${API_V2}/exercises/${encodeURIComponent(slug)}`,
+  submit: (slug: string) => `${API_V2}/exercises/${encodeURIComponent(slug)}/submit`,
+  submissions: (slug: string) => `${API_V2}/exercises/${encodeURIComponent(slug)}/submissions`,
 } as const;
 
-/** WebSocket（Cookie 認証 / 通常 ws:// or wss:// にフロント側で書き換え）*/
-export const WS = {
-  /** AI チャット（Bedrock 連携） */
-  aiChat: `${API_V2}/ws/ai-chat`,
+export const CODE = {
+  execute: `${API_V2}/code/execute`,
 } as const;
+
+/** コース（company_admin が作成、 自社 trainee + 同社 admin が閲覧）*/
+export const COURSES = {
+  list: `${API_V2}/courses`,
+  byId: (id: number | string) => `${API_V2}/courses/${id}`,
+  /** GET /api/v2/courses/:id/materials — コース内教材一覧 */
+  materials: (id: number | string) => `${API_V2}/courses/${id}/materials`,
+} as const;
+
+/** 教材 個別 CRUD（コース配下）*/
+export const TEACHING_MATERIALS = {
+  byId: (id: number | string) => `${API_V2}/teaching-materials/${id}`,
+  /** POST /api/v2/teaching-materials — body の courseId 必須 */
+  create: `${API_V2}/teaching-materials`,
+} as const;
+
+/** 企業利用申請（公開フォーム → super_admin 通知）*/
+export const COMPANY_APPLICATIONS = {
+  /** POST /api/v2/company-applications — 認証不要の申請作成 */
+  create: `${API_V2}/company-applications`,
+  /** GET /api/v2/admin/company-applications — super_admin 専用一覧 */
+  adminList: `${API_V2}/admin/company-applications`,
+  /** PATCH /api/v2/admin/company-applications/:id/status — status 更新 */
+  adminUpdateStatus: (id: number | string) =>
+    `${API_V2}/admin/company-applications/${id}/status`,
+} as const;
+
+// WebSocket は SSE (AI_CHAT.stream) への置換で廃止 (PR-D, 2026-05-07)。

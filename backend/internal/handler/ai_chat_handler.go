@@ -39,8 +39,15 @@ func NewAiChatHandler(
 	}
 }
 
-// GetSessions は GET /ai-chat/sessions
-// userId はクライアントから受け取らず、middleware の current user を使う。
+// @Summary      AI チャット セッション 一覧
+// @Description  current user の AI チャット セッション を 新しい 順 で 返す。
+// @Tags         ai-chat
+// @Produce      json
+// @Success      200  {array}   github_com_norman6464_FreStyle_backend_internal_domain.AiChatSession
+// @Failure      401  {object}  errorResponse  "未 認証"
+// @Failure      500  {object}  errorResponse  "DB 失敗"
+// @Router       /ai-chat/sessions [get]
+// @Security     CookieAuth
 func (h *AiChatHandler) GetSessions(c *gin.Context) {
 	uid := middleware.CurrentUserIDOrZero(c)
 	if uid == 0 {
@@ -61,8 +68,17 @@ type createSessionReq struct {
 	ScenarioID  *uint64 `json:"scenarioId"`
 }
 
-// CreateSession は POST /ai-chat/sessions
-// userId はクライアントから受け取らず current user で固定する（IDOR 対策）。
+// @Summary      AI チャット セッション 作成
+// @Description  current user 名義 で 新規 セッション を 作成。 IDOR 対策 で userId は body から 受け取らない。
+// @Tags         ai-chat
+// @Accept       json
+// @Produce      json
+// @Param        body  body      createSessionReq  true  "title 必須"
+// @Success      201   {object}  github_com_norman6464_FreStyle_backend_internal_domain.AiChatSession
+// @Failure      400   {object}  errorResponse  "バリデーション"
+// @Failure      401   {object}  errorResponse  "未 認証"
+// @Router       /ai-chat/sessions [post]
+// @Security     CookieAuth
 func (h *AiChatHandler) CreateSession(c *gin.Context) {
 	uid := middleware.CurrentUserIDOrZero(c)
 	if uid == 0 {
@@ -97,7 +113,17 @@ func parseSessionID(c *gin.Context) (uint64, bool) {
 	return id, true
 }
 
-// GetSession は GET /ai-chat/sessions/:id
+// @Summary      AI チャット セッション 詳細
+// @Description  指定 id の セッション を 返す。
+// @Tags         ai-chat
+// @Produce      json
+// @Param        id  path      int  true  "セッション ID"
+// @Success      200  {object}  github_com_norman6464_FreStyle_backend_internal_domain.AiChatSession
+// @Failure      400  {object}  errorResponse  "id 不正"
+// @Failure      404  {object}  errorResponse  "セッション が ない"
+// @Failure      500  {object}  errorResponse  "DB 失敗"
+// @Router       /ai-chat/sessions/{id} [get]
+// @Security     CookieAuth
 func (h *AiChatHandler) GetSession(c *gin.Context) {
 	id, ok := parseSessionID(c)
 	if !ok {
@@ -119,7 +145,18 @@ type updateSessionTitleReq struct {
 	Title string `json:"title" binding:"required"`
 }
 
-// UpdateSessionTitle は PUT /ai-chat/sessions/:id
+// @Summary      AI チャット セッション タイトル 更新
+// @Description  指定 id の セッション の title を 更新。
+// @Tags         ai-chat
+// @Accept       json
+// @Produce      json
+// @Param        id    path      int                      true  "セッション ID"
+// @Param        body  body      updateSessionTitleReq    true  "title 必須"
+// @Success      200   {object}  github_com_norman6464_FreStyle_backend_internal_domain.AiChatSession
+// @Failure      400   {object}  errorResponse  "バリデーション"
+// @Failure      500   {object}  errorResponse  "DB 失敗"
+// @Router       /ai-chat/sessions/{id} [put]
+// @Security     CookieAuth
 func (h *AiChatHandler) UpdateSessionTitle(c *gin.Context) {
 	id, ok := parseSessionID(c)
 	if !ok {
@@ -138,7 +175,19 @@ func (h *AiChatHandler) UpdateSessionTitle(c *gin.Context) {
 	c.JSON(http.StatusOK, s)
 }
 
-// DeleteSession は DELETE /ai-chat/sessions/:id
+// @Summary      AI チャット セッション 削除
+// @Description  指定 id の セッション を 削除。 所有者 検証 込み。
+// @Tags         ai-chat
+// @Produce      json
+// @Param        id  path  int  true  "セッション ID"
+// @Success      204  "成功 (本文 なし)"
+// @Failure      400  {object}  errorResponse  "id 不正"
+// @Failure      401  {object}  errorResponse  "未 認証"
+// @Failure      403  {object}  errorResponse  "他人 の セッション"
+// @Failure      404  {object}  errorResponse  "セッション が ない"
+// @Failure      500  {object}  errorResponse  "DB 失敗"
+// @Router       /ai-chat/sessions/{id} [delete]
+// @Security     CookieAuth
 func (h *AiChatHandler) DeleteSession(c *gin.Context) {
 	uid := middleware.CurrentUserIDOrZero(c)
 	if uid == 0 {
@@ -164,7 +213,16 @@ func (h *AiChatHandler) DeleteSession(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// GetMessages は GET /ai-chat/sessions/:id/messages
+// @Summary      AI チャット メッセージ 一覧
+// @Description  指定 セッション の 会話 履歴 (DynamoDB から) を 古い 順 で 返す。
+// @Tags         ai-chat
+// @Produce      json
+// @Param        id  path      int  true  "セッション ID"
+// @Success      200  {array}   github_com_norman6464_FreStyle_backend_internal_domain.AiChatMessage
+// @Failure      400  {object}  errorResponse  "id 不正"
+// @Failure      500  {object}  errorResponse  "DynamoDB 失敗"
+// @Router       /ai-chat/sessions/{id}/messages [get]
+// @Security     CookieAuth
 func (h *AiChatHandler) GetMessages(c *gin.Context) {
 	id, ok := parseSessionID(c)
 	if !ok {

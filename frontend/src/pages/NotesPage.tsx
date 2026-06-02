@@ -1,13 +1,13 @@
 import { useEffect } from 'react';
 import SecondaryPanel from '../components/layout/SecondaryPanel';
 import NoteListItem from '../components/NoteListItem';
-import NoteEditor from '../components/NoteEditor';
+import NoteMarkdownEditor from '../components/NoteMarkdownEditor';
 import EmptyState from '../components/EmptyState';
 import ConfirmModal from '../components/ConfirmModal';
 import Loading from '../components/Loading';
-import SortSelector from '../components/SortSelector';
-import { NOTE_SORT_OPTIONS } from '../constants/sortOptions';
-import { DocumentTextIcon, PlusIcon, MagnifyingGlassIcon, Bars3Icon } from '@heroicons/react/24/outline';
+import NoteSortMenu from '../components/NoteSortMenu';
+import { DocumentTextIcon, PlusIcon, MagnifyingGlassIcon, Bars3Icon, QuestionMarkCircleIcon } from '@heroicons/react/24/outline';
+import { Link } from 'react-router-dom';
 import { useNotes } from '../hooks/useNotes';
 import { useNoteEditor } from '../hooks/useNoteEditor';
 import { useMobilePanelState } from '../hooks/useMobilePanelState';
@@ -90,11 +90,7 @@ export default function NotesPage() {
                 className="w-full pl-8 pr-3 py-1.5 bg-surface-2 border border-surface-3 rounded-lg text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-primary-500 transition-colors"
               />
             </div>
-            <SortSelector
-              options={NOTE_SORT_OPTIONS}
-              selected={noteSort}
-              onChange={setNoteSort}
-            />
+            <NoteSortMenu selected={noteSort} onChange={setNoteSort} />
             <button
               onClick={handleCreateNote}
               className="w-full bg-primary-500 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-primary-600 transition-colors flex items-center justify-center gap-2"
@@ -102,6 +98,13 @@ export default function NotesPage() {
               <PlusIcon className="w-4 h-4" />
               新しいノート
             </button>
+            <Link
+              to="/notes/markdown-help"
+              className="w-full flex items-center justify-center gap-1.5 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] py-1 transition-colors"
+            >
+              <QuestionMarkCircleIcon className="w-3.5 h-3.5" />
+              Markdown 記法ヘルプ
+            </Link>
           </div>
         }
       >
@@ -150,10 +153,9 @@ export default function NotesPage() {
         </div>
 
         {selectedNote ? (
-          <NoteEditor
+          <NoteMarkdownEditor
             title={editTitle}
             content={editContent}
-            noteId={selectedNoteId}
             saveStatus={saveStatus}
             onTitleChange={handleTitleChange}
             onContentChange={handleContentChange}

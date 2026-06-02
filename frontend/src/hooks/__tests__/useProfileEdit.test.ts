@@ -4,12 +4,21 @@ import { useProfileEdit } from '../useProfileEdit';
 
 const mockFetchProfile = vi.fn();
 const mockUpdateProfile = vi.fn();
+const mockShowToast = vi.fn();
 
 vi.mock('../../repositories/ProfileRepository', () => ({
   default: {
     fetchProfile: (...args: unknown[]) => mockFetchProfile(...args),
     updateProfile: (...args: unknown[]) => mockUpdateProfile(...args),
   },
+}));
+
+vi.mock('../useToast', () => ({
+  useToast: () => ({
+    showToast: mockShowToast,
+    toasts: [],
+    removeToast: vi.fn(),
+  }),
 }));
 
 const fixtureProfile = {
@@ -24,6 +33,7 @@ const fixtureProfile = {
 describe('useProfileEdit', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockShowToast.mockReset();
     mockFetchProfile.mockResolvedValue({ ...fixtureProfile });
     mockUpdateProfile.mockResolvedValue({ ...fixtureProfile });
   });
@@ -67,7 +77,7 @@ describe('useProfileEdit', () => {
     expect(result.current.form.displayName).toBe('新しい名前');
   });
 
-  it('handleUpdate成功時に成功メッセージが表示される', async () => {
+  it('handleUpdate成功時に Toast で成功メッセージが表示される', async () => {
     const { result } = renderHook(() => useProfileEdit());
 
     await waitFor(() => {
@@ -78,8 +88,9 @@ describe('useProfileEdit', () => {
       await result.current.handleUpdate();
     });
 
-    expect(result.current.message?.type).toBe('success');
-    expect(result.current.message?.text).toBe('プロフィールを更新しました。');
+    // 成功時はインラインメッセージはクリアされ、 Toast 経由で通知される。
+    expect(result.current.message).toBeNull();
+    expect(mockShowToast).toHaveBeenCalledWith('success', 'プロフィールを更新しました。');
   });
 
   it('handleUpdate失敗時にエラーメッセージが表示される', async () => {
@@ -175,7 +186,7 @@ describe('useProfileEdit', () => {
     });
   });
 
-  it('ニックネームが空の場合エラーメッセージが表示されAPIが呼ばれない', async () => {
+  it('氏名が空の場合エラーメッセージが表示されAPIが呼ばれない', async () => {
     const { result } = renderHook(() => useProfileEdit());
 
     await waitFor(() => {
@@ -191,11 +202,11 @@ describe('useProfileEdit', () => {
     });
 
     expect(result.current.message?.type).toBe('error');
-    expect(result.current.message?.text).toBe('ニックネームを入力してください。');
+    expect(result.current.message?.text).toBe('氏名を入力してください。');
     expect(mockUpdateProfile).not.toHaveBeenCalled();
   });
 
-  it('ニックネームが空白のみの場合エラーメッセージが表示されAPIが呼ばれない', async () => {
+  it('氏名が空白のみの場合エラーメッセージが表示されAPIが呼ばれない', async () => {
     const { result } = renderHook(() => useProfileEdit());
 
     await waitFor(() => {
@@ -211,7 +222,7 @@ describe('useProfileEdit', () => {
     });
 
     expect(result.current.message?.type).toBe('error');
-    expect(result.current.message?.text).toBe('ニックネームを入力してください。');
+    expect(result.current.message?.text).toBe('氏名を入力してください。');
     expect(mockUpdateProfile).not.toHaveBeenCalled();
   });
 

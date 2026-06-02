@@ -6,9 +6,10 @@ import (
 	"time"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/repository"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
+// ListLearningReportsUseCase は current user のレポート一覧を返す。
 type ListLearningReportsUseCase struct {
 	repo repository.LearningReportRepository
 }
@@ -24,6 +25,7 @@ func (u *ListLearningReportsUseCase) Execute(ctx context.Context, userID uint64)
 	return u.repo.ListByUserID(ctx, userID)
 }
 
+// RequestLearningReportUseCase はレポート生成ジョブを DB に pending 行で作り、SQS に enqueue する。
 type RequestLearningReportUseCase struct {
 	repo  repository.LearningReportRepository
 	queue repository.SqsEnqueuer

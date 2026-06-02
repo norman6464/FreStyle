@@ -58,25 +58,64 @@ export interface ScenarioBookmark {
 /**
  * AiChatMessageDto は Go backend `domain.AiChatMessage` と 1:1。
  * `messageId` (DynamoDB key) と `createdAt` (RFC3339 string) を持つ。
+ * `attachments` はユーザー発話に紐付く画像 / ドキュメント（PR-G1: 画像のみ）。
  */
 export interface AiChatMessageDto {
   sessionId: number;
   messageId: string;
   role: 'user' | 'assistant';
   content: string;
+  attachments?: AiAttachment[];
   createdAt: string;
+}
+
+/**
+ * AiAttachmentKind は backend `domain.AttachmentKind*` 定数 と 1:1。
+ * PR-G1 では "image" のみ実用。"document" は PR-G2 で PDF / CSV 対応のため予約。
+ */
+export type AiAttachmentKind = 'image' | 'document';
+
+/**
+ * AiAttachmentFormat は AWS Bedrock Converse の image/document format に渡す短い文字列。
+ * バリデーションは backend 側 (`usecase.AllowedAttachmentContentTypes`) が一次情報。
+ */
+export type AiAttachmentFormat =
+  | 'png'
+  | 'jpeg'
+  | 'gif'
+  | 'webp'
+  | 'pdf'
+  | 'csv'
+  | 'txt';
+
+/**
+ * AiAttachment は AI チャットメッセージに添付された画像 / ドキュメントの参照。
+ * 実体は S3 にあり `key` で一意特定する。`previewUrl` は送信前のローカルプレビュー
+ * （Object URL）を保持する用途で、バックエンドへは送らない。
+ */
+export interface AiAttachment {
+  key: string;
+  filename: string;
+  contentType: string;
+  kind: AiAttachmentKind;
+  format: AiAttachmentFormat;
+  sizeBytes: number;
+  /** ローカル状態用: ブラウザ内 preview URL（送信完了後は破棄） */
+  previewUrl?: string;
 }
 
 /**
  * AiMessage は AskAi 画面表示用の view 型。
  * `id` (string) を画面側で扱いやすい一意キーとして使う。
+ * `createdAt` は ISO 8601 文字列（backend の SSE / REST 双方が ISO で返す）。
  */
 export interface AiMessage {
   id: string;
   sessionId: number;
   content: string;
   role: 'user' | 'assistant';
-  createdAt?: number;
+  attachments?: AiAttachment[];
+  createdAt?: string;
   isSender?: boolean;
   isDeleted?: boolean;
 }
@@ -98,6 +137,12 @@ export interface AuthState {
   isAuthenticated: boolean;
   loading: boolean;
   isAdmin: boolean;
+  /**
+   * 現在ユーザーの role（'super_admin' / 'company_admin' / 'trainee'）。
+   * メニュー出し分け（super_admin は管理機能のみ）と Protected の trainee 用ルート保護に使う。
+   * 未認証 / 未確定は null。
+   */
+  role: string | null;
 }
 
 /** 言い換え提案結果 */
@@ -244,6 +289,8 @@ export interface Note {
 export interface Profile {
   userId: number;
   displayName: string;
+  /** ログインユーザのメールアドレス。 sidebar のユーザーメニューで表示する。 */
+  email: string;
   bio: string;
   avatarUrl: string;
   status: string;
@@ -434,9 +481,17 @@ export interface WeeklyChallengeProgressDto {
   updatedAt: string;
 }
 
-/** PHP 演習問題（Go backend `domain.PhpExercise` と 1:1）*/
-export interface PhpExercise {
+/**
+ * MasterExercise は Go backend `domain.MasterExercise` と 1:1。
+ * 言語非依存の運営マスタ演習問題（旧 `PhpExercise` を汎用化）。
+ *
+ * `language` で 'php' / 'sql' / 'go' / 'javascript' を区別。`chapterId` は将来
+ * PR-H1 で導入する chapters テーブルに紐付く章末演習で使う任意 FK。
+ */
+export interface MasterExercise {
   id: number;
+  slug: string;
+  language: string;
   orderIndex: number;
   category: string;
   title: string;
@@ -444,13 +499,131 @@ export interface PhpExercise {
   starterCode: string;
   hintText: string;
   expectedOutput: string;
+  /**
+   * 採点モード。 'execute' (default) はサンドボックスでコードを実行し stdout を比較、
+   * 'qa' はコード実行をせず提出文字列と expectedOutput を直接比較する。
+   * docker / kubernetes など サンドボックス実行が困難な題材を Q&A 形式で扱うために導入。
+   */
+  mode: 'execute' | 'qa';
+  /**
+   * QA モードで 正解後に表示される markdown 解説。 execute モードでは未使用 (空文字)。
+   */
+  explanation: string;
+  difficulty: number;
+  isPublished: boolean;
+  chapterId?: number | null;
   createdAt: string;
   updatedAt: string;
 }
 
-/** PHP コード実行結果（Go backend `usecase.ExecuteCodeOutput` と 1:1）*/
+/** コード実行結果（Go backend `usecase.ExecuteCodeOutput` と 1:1）*/
 export interface CodeExecutionResult {
   stdout: string;
   stderr: string;
   exitCode: number;
+}
+
+/**
+ * 演習問題に紐付く入出力例（テストケース）の 1 ペア。
+ * 詳細ページに「入力例 1 / 入力例 2 / ...」として描画され、
+ * 採点 usecase（PR-W）では同じ全件がテストケースとして実行される。
+ */
+export interface MasterExerciseExample {
+  id: number;
+  exerciseId: number;
+  orderIndex: number;
+  inputText: string;
+  expectedOutput: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 詳細 API (`GET /api/v2/exercises/:slug`) のレスポンス。 */
+export interface MasterExerciseDetail {
+  exercise: MasterExercise;
+  examples: MasterExerciseExample[];
+}
+
+/**
+ * Course は教材を束ねる「コース（プロジェクト）」。 backend `domain.Course` と 1:1。
+ *
+ * 階層: Company 1 ── * Course 1 ── * TeachingMaterial
+ *
+ * - company_admin: 自社の draft 含む全件 list / 編集 / 削除可
+ * - trainee: 自社の `isPublished=true` コースのみ閲覧可
+ */
+export interface Course {
+  id: number;
+  companyId: number;
+  createdByUserId: number;
+  title: string;
+  description: string;
+  sortOrder: number;
+  isPublished: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * TeachingMaterial は Go backend `domain.TeachingMaterial` と 1:1。
+ * 必ず 1 つの Course に所属する Markdown 教材。
+ *
+ * - company_admin: 自社の draft 含む全件 list / 編集 / 削除可
+ * - trainee: 自社の `isPublished=true` 教材かつ所属コース published のみ閲覧可
+ */
+export interface TeachingMaterial {
+  id: number;
+  companyId: number;
+  courseId: number;
+  createdByUserId: number;
+  title: string;
+  content: string;
+  orderInCourse: number;
+  isPublished: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 一覧 API (`GET /api/v2/exercises`) で返る集計値（Go backend `repository.ExerciseSubmissionStats`）。 */
+export interface ExerciseSubmissionStats {
+  totalSubmissions: number;
+  solvedUsers: number;
+}
+
+/** 一覧 API のレスポンス 1 行。 MasterExercise + current user 状態 + 全体集計。
+ *  status: "solved" | "in_progress" | "" （未提出）。 */
+export interface MasterExerciseWithStatus extends MasterExercise {
+  status: '' | 'solved' | 'in_progress';
+  stats: ExerciseSubmissionStats;
+}
+
+/** 提出 API (`POST /api/v2/exercises/:slug/submit`) のレスポンス 1 件あたりの採点結果。 */
+export interface ExerciseTestCaseResult {
+  orderIndex: number;
+  input: string;
+  expectedOutput: string;
+  actualOutput: string;
+  stderr: string;
+  passed: boolean;
+}
+
+/** 提出 API のレスポンス。 */
+export interface ExerciseSubmitResult {
+  submissionId: number;
+  isCorrect: boolean;
+  results: ExerciseTestCaseResult[];
+}
+
+/** 提出履歴 1 行（Go backend `domain.ExerciseSubmission`）。 */
+export interface ExerciseSubmission {
+  id: number;
+  userId: number;
+  exerciseKind: 'master' | 'company';
+  exerciseId: number;
+  submittedCode: string;
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+  isCorrect: boolean;
+  submittedAt: string;
 }

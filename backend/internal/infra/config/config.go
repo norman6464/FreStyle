@@ -8,6 +8,12 @@ import (
 type Config struct {
 	AppEnv     string
 	ServerPort string
+
+	// DatabaseURL は Supabase 等のマネージド Postgres の完全接続文字列。
+	// セットされていると DB_HOST 等より優先される。
+	DatabaseURL string
+
+	// 個別接続設定（DATABASE_URL 未設定時のフォールバック / ローカル開発用）。
 	DBHost     string
 	DBPort     string
 	DBUser     string
@@ -65,15 +71,16 @@ type CognitoConfig struct {
 
 func Load() (*Config, error) {
 	cfg := &Config{
-		AppEnv:     getEnvOrDefault("APP_ENV", "local"),
-		ServerPort: getEnvOrDefault("PORT", "8080"),
-		DBHost:     os.Getenv("DB_HOST"),
-		DBPort:     getEnvOrDefault("DB_PORT", "5432"),
-		DBUser:     getEnvOrDefault("DB_USER", "postgres"),
-		DBPassword: os.Getenv("DB_PASSWORD"),
-		DBName:     getEnvOrDefault("DB_NAME", "fre_style"),
-		DBSSLMode:  getEnvOrDefault("DB_SSLMODE", "require"),
-		AppBaseURL: getEnvOrDefault("APP_BASE_URL", ""),
+		AppEnv:      getEnvOrDefault("APP_ENV", "local"),
+		ServerPort:  getEnvOrDefault("PORT", "8080"),
+		DatabaseURL: os.Getenv("DATABASE_URL"),
+		DBHost:      os.Getenv("DB_HOST"),
+		DBPort:      getEnvOrDefault("DB_PORT", "5432"),
+		DBUser:      getEnvOrDefault("DB_USER", "postgres"),
+		DBPassword:  os.Getenv("DB_PASSWORD"),
+		DBName:      getEnvOrDefault("DB_NAME", "fre_style"),
+		DBSSLMode:   getEnvOrDefault("DB_SSLMODE", "require"),
+		AppBaseURL:  getEnvOrDefault("APP_BASE_URL", ""),
 		Cognito: CognitoConfig{
 			ClientID:     os.Getenv("COGNITO_CLIENT_ID"),
 			ClientSecret: os.Getenv("COGNITO_CLIENT_SECRET"),
@@ -88,8 +95,11 @@ func Load() (*Config, error) {
 			NoteImagesCDNBase: getEnvOrDefault("NOTE_IMAGES_CDN_URL", ""),
 		},
 		Bedrock: BedrockConfig{
-			Region:  getEnvOrDefault("AWS_REGION", "ap-northeast-1"),
-			ModelID: getEnvOrDefault("BEDROCK_MODEL_ID", "anthropic.claude-3-5-haiku-20241022-v1:0"),
+			Region: getEnvOrDefault("AWS_REGION", "ap-northeast-1"),
+			// Claude 4 系は on-demand では呼べず Inference Profile 経由必須
+			// （foundation-model ARN 直指定だと ConverseStream が ValidationException を返す）。
+			// IAM 側でも inference-profile ARN を許可しておくこと。
+			ModelID: getEnvOrDefault("BEDROCK_MODEL_ID", "jp.anthropic.claude-sonnet-4-5-20250929-v1:0"),
 		},
 		DynamoDB: DynamoDBConfig{
 			Region:      getEnvOrDefault("AWS_REGION", "ap-northeast-1"),
@@ -100,13 +110,19 @@ func Load() (*Config, error) {
 			FromAddress: os.Getenv("SES_FROM_ADDRESS"),
 		},
 	}
-	if cfg.DBHost == "" {
-		return nil, fmt.Errorf("DB_HOST is required")
+	// DATABASE_URL か DB_HOST の少なくとも一方は必須。
+	if cfg.DatabaseURL == "" && cfg.DBHost == "" {
+		return nil, fmt.Errorf("DATABASE_URL or DB_HOST is required")
 	}
 	return cfg, nil
 }
 
+// PostgresDSN は GORM に渡す DSN を返す。DATABASE_URL があればそのまま、
+// 無ければ個別設定から key=value 形式の DSN を組み立てる。
 func (c *Config) PostgresDSN() string {
+	if c.DatabaseURL != "" {
+		return c.DatabaseURL
+	}
 	return fmt.Sprintf(
 		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		c.DBHost, c.DBPort, c.DBUser, c.DBPassword, c.DBName, c.DBSSLMode,

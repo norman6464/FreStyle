@@ -23,8 +23,7 @@ var (
 	errUserStatsUnauthorized = errors.New("unauthorized")
 )
 
-// resolveUserID は profile_handler と同じ規則で path :userId を解決する。
-// "me" / 空文字 → current user、数字は current user と一致した場合のみ通す（IDOR 対策）。
+// resolveUserID は "me" / 空文字を current user に、数字は current user 一致時のみ通す（IDOR 対策）。
 func (h *UserStatsHandler) resolveUserID(c *gin.Context) (uint64, error) {
 	cur := middleware.CurrentUserIDOrZero(c)
 	if cur == 0 {
@@ -44,6 +43,17 @@ func (h *UserStatsHandler) resolveUserID(c *gin.Context) (uint64, error) {
 	return uid, nil
 }
 
+// @Summary      ユーザー 統計 取得
+// @Description  指定 user (or 'me') の マイページ 集計 (合計 セッション / 平均 スコア)。 他 user 指定 は 403。
+// @Tags         profile
+// @Produce      json
+// @Param        userId  path      string  true  "数字 ID または 'me'"
+// @Success      200     {object}  github_com_norman6464_FreStyle_backend_internal_domain.UserStats
+// @Failure      401     {object}  errorResponse  "未 認証"
+// @Failure      403     {object}  errorResponse  "他 user 指定"
+// @Failure      400     {object}  errorResponse  "DB 失敗"
+// @Router       /profile/{userId}/stats [get]
+// @Security     CookieAuth
 func (h *UserStatsHandler) Get(c *gin.Context) {
 	uid, err := h.resolveUserID(c)
 	if err != nil {

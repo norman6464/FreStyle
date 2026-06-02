@@ -1,225 +1,113 @@
-import { HomeIcon, ChartBarIcon } from '@heroicons/react/24/outline';
-import AchievementBadgeCard from '../components/AchievementBadgeCard';
-import StreakCalendarCard from '../components/StreakCalendarCard';
-import CommunicationTipCard from '../components/CommunicationTipCard';
-import DailyChallengeCard from '../components/DailyChallengeCard';
-import MotivationQuoteCard from '../components/MotivationQuoteCard';
-import DailyGoalCard from '../components/DailyGoalCard';
-import LearningInsightsCard from '../components/LearningInsightsCard';
-import NextStepCard from '../components/NextStepCard';
-import PracticeLevelCard from '../components/PracticeLevelCard';
-import PracticeReminderCard from '../components/PracticeReminderCard';
-import RecentNotesCard from '../components/RecentNotesCard';
-import RecentSessionsCard from '../components/RecentSessionsCard';
-import WeeklyGoalProgressCard from '../components/WeeklyGoalProgressCard';
-import WeeklyReportCard from '../components/WeeklyReportCard';
-import LearningPatternCard from '../components/LearningPatternCard';
-import ScoreGrowthTrendCard from '../components/ScoreGrowthTrendCard';
-import PracticeFrequencyCard from '../components/PracticeFrequencyCard';
-import MenuNavigationCard from '../components/MenuNavigationCard';
-import SessionCountMilestoneCard from '../components/SessionCountMilestoneCard';
-import ScoreSparkline from '../components/ScoreSparkline';
-import RecommendedScenarioCard from '../components/RecommendedScenarioCard';
-import BookmarkedScenariosCard from '../components/BookmarkedScenariosCard';
-import QuickStartButton from '../components/QuickStartButton';
-import Loading from '../components/Loading';
-import { useMemo } from 'react';
-import { useMenuData } from '../hooks/useMenuData';
-import { useScoreHistory } from '../hooks/useScoreHistory';
-import { useRecommendedScenario } from '../hooks/useRecommendedScenario';
-import { PageIntro, FirstTimeWelcome, GlossaryTerm } from '../components/ui';
-import { GLOSSARY } from '../constants/glossary';
+import { Link } from 'react-router-dom';
+import { useSelector } from 'react-redux';
+import {
+  HomeIcon,
+  ChatBubbleBottomCenterTextIcon,
+  CodeBracketIcon,
+  DocumentTextIcon,
+  DocumentChartBarIcon,
+  BuildingOffice2Icon,
+  EnvelopeIcon,
+} from '@heroicons/react/24/outline';
+import type { RootState } from '../store';
 
 /**
- * 初心者向けに上から順に並ぶホーム画面。
+ * シンプルなホーム画面。
+ * 旧版で並んでいたゲーミフィケーション系（バッジ / レベル / チャレンジ / 名言 等）は
+ * すべて削除し、コア機能（AI / コード学習 / ノート / レポート）への導線だけを残す。
  *
- * 情報設計:
- *   1. ウェルカム（初回のみ） / クイックスタート
- *   2. 今日やること（デイリーゴール・チャレンジ）
- *   3. 成長サマリー（インサイト・スコア推移）
- *   4. 継続を促すエンゲージメント（バッジ・ストリーク・マイルストーン）
- *   5. 振り返り（週次レポート・パターン）
- *   6. 参考情報（ヒント・名言）
+ * 設計判断:
+ *   - ヘッダーのアイコン + タイトルで現在地を明示
+ *   - 4 枚のリンクカードで主要機能に直接遷移
+ *   - 表示する数値・進捗系は一切持たない（store / API 依存なし）
+ *   - super_admin は trainee 向け学習機能を使わないため、企業管理 / 招待管理のみ表示
  */
 export default function MenuPage() {
-  const {
-    latestScore,
-    allScores,
-    totalSessions,
-    averageScore,
-    uniqueDays,
-    practiceDates,
-    sessionsThisWeek,
-    loading,
-  } = useMenuData();
-  const { weakestAxis } = useScoreHistory();
-  const { scenario: recommendedScenario } = useRecommendedScenario(weakestAxis);
-  // Hooks は条件付きの early return より前に呼ぶ（Rules of Hooks）。
-  // 以前は loading 早期 return 直後に useMemo を置いており、再レンダー時に
-  // フック呼び出し数が変わって React error #310 を引き起こしていた。
-  const overallScores = useMemo(() => allScores.map((s) => s.overallScore), [allScores]);
-
-  if (loading) {
-    return <Loading message="読み込み中..." className="min-h-[calc(100vh-3.5rem)]" />;
-  }
-
-  const isFirstTimeUser = totalSessions === 0;
+  const role = useSelector((state: RootState) => state.auth.role);
+  const isSuperAdmin = role === 'super_admin';
 
   return (
-    // 下にスクロールしたとき最後のカードが viewport 下端で見切れる問題を回避するため、
-    // 縦方向は px-6 pt-6 pb-24 に分割して bottom padding を 6rem 確保する
-    // (p-6 のままだと 1.5rem しか取れず、最終カードと viewport 端が密着して見切れる)。
-    <div className="px-6 pt-6 pb-24 max-w-2xl mx-auto space-y-6">
-      <PageIntro
-        icon={<HomeIcon className="h-6 w-6" />}
-        title="ホーム"
-        description={
+    <div className="px-6 pt-6 pb-24 max-w-3xl mx-auto space-y-6">
+      <header className="flex items-center gap-2">
+        <HomeIcon className="w-6 h-6 text-[var(--color-text-muted)]" />
+        <h1 className="text-2xl font-bold">ホーム</h1>
+      </header>
+
+      <p className="text-sm text-[var(--color-text-muted)] leading-relaxed">
+        {isSuperAdmin
+          ? '管理者向けの操作メニューです。'
+          : '左のメニューから機能を選んでください。下のカードからもアクセスできます。'}
+      </p>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {isSuperAdmin ? (
           <>
-            今日の{' '}
-            <GlossaryTerm
-              term={GLOSSARY.practiceMode.term}
-              definition={GLOSSARY.practiceMode.definition}
-            />{' '}
-            と学習の振り返りがここにまとまります。
-          </>
-        }
-      />
-
-      {/* 初回ユーザー向けウェルカム */}
-      {isFirstTimeUser && (
-        <FirstTimeWelcome
-          storageKey="welcome:menu:v1"
-          steps={[
-            {
-              title: 'シナリオを選んで AI と練習',
-              description:
-                '「練習モード」には 12 件のビジネスシーンがあります。まずは 1 つ選んで会話してみましょう。',
-            },
-            {
-              title: '5 軸評価で自分の強みを知る',
-              description:
-                '会話が終わると AI が自動でスコアカードを作成。論理的構成力や配慮表現などを可視化します。',
-            },
-            {
-              title: '毎日少しずつ続ける',
-              description:
-                '日次目標・週次目標・ストリークカレンダーで継続を応援します。1 日 1 回が理想的です。',
-            },
-          ]}
-        />
-      )}
-
-      {/* クイックスタート */}
-      <section aria-label="今すぐ始める">
-        <QuickStartButton scenario={recommendedScenario} />
-      </section>
-
-      {/* 学習インサイト */}
-      {totalSessions > 0 && (
-        <section aria-labelledby="menu-insights">
-          <h2 id="menu-insights" className="sr-only">
-            学習の進捗サマリー
-          </h2>
-          <div className="space-y-6">
-            <LearningInsightsCard
-              totalSessions={totalSessions}
-              averageScore={averageScore}
-              streakDays={uniqueDays}
+            <NavCard
+              to="/admin/companies"
+              icon={BuildingOffice2Icon}
+              title="会社一覧"
+              description="登録済み企業の管理を行います。"
             />
-
-            {overallScores.length >= 2 && <ScoreSparkline scores={overallScores} />}
-            {overallScores.length >= 2 && <ScoreGrowthTrendCard scores={overallScores} />}
-          </div>
-        </section>
-      )}
-
-      {/* 弱点シナリオ推薦 */}
-      {recommendedScenario && weakestAxis && (
-        <RecommendedScenarioCard scenario={recommendedScenario} weakAxis={weakestAxis.axis} />
-      )}
-
-      {/* 次のステップ */}
-      <section aria-labelledby="menu-nextstep">
-        <h2 id="menu-nextstep" className="sr-only">
-          次にやるといいこと
-        </h2>
-        <div className="space-y-6">
-          <NextStepCard totalSessions={totalSessions} averageScore={averageScore} />
-          <PracticeLevelCard totalSessions={totalSessions} />
-          <AchievementBadgeCard totalSessions={totalSessions} />
-          <SessionCountMilestoneCard sessionCount={totalSessions} />
-        </div>
-      </section>
-
-      {/* 練習頻度・継続 */}
-      {(practiceDates.length > 0 || latestScore) && (
-        <section aria-labelledby="menu-engagement">
-          <h2 id="menu-engagement" className="sr-only">
-            継続とエンゲージメント
-          </h2>
-          <div className="space-y-6">
-            {practiceDates.length > 0 && <PracticeFrequencyCard dates={practiceDates} />}
-            <StreakCalendarCard practiceDates={practiceDates} />
-            {latestScore && <PracticeReminderCard lastPracticeDate={latestScore.createdAt} />}
-          </div>
-        </section>
-      )}
-
-      {/* 週次レポート / パターン分析 */}
-      {totalSessions > 0 && (
-        <section aria-labelledby="menu-reports">
-          <h2
-            id="menu-reports"
-            className="mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--color-text-secondary)]"
-          >
-            <ChartBarIcon className="h-4 w-4 text-primary-300" aria-hidden="true" />
-            振り返り
-          </h2>
-          <div className="space-y-6">
-            <WeeklyReportCard allScores={allScores} />
-            {practiceDates.length > 0 && <LearningPatternCard practiceDates={practiceDates} />}
-          </div>
-        </section>
-      )}
-
-      {/* 目標 */}
-      <section aria-labelledby="menu-goals">
-        <h2 id="menu-goals" className="sr-only">
-          日々の目標
-        </h2>
-        <div className="space-y-6">
-          <WeeklyGoalProgressCard sessionsThisWeek={sessionsThisWeek} weeklyGoal={5} />
-          <DailyGoalCard />
-        </div>
-      </section>
-
-      {/* 直近のコンテンツ */}
-      <section aria-labelledby="menu-recent">
-        <h2 id="menu-recent" className="sr-only">
-          最近のアクティビティ
-        </h2>
-        <div className="space-y-6">
-          {allScores.length > 0 && <RecentSessionsCard sessions={allScores} />}
-          <BookmarkedScenariosCard />
-          <RecentNotesCard />
-        </div>
-      </section>
-
-      {/* 参考情報 */}
-      <section aria-labelledby="menu-tips">
-        <h2 id="menu-tips" className="sr-only">
-          毎日のヒント
-        </h2>
-        <div className="space-y-6">
-          <DailyChallengeCard />
-          <MotivationQuoteCard />
-          <CommunicationTipCard />
-        </div>
-      </section>
-
-      <MenuNavigationCard
-        latestScore={latestScore ? latestScore.overallScore : null}
-      />
+            <NavCard
+              to="/admin/invitations"
+              icon={EnvelopeIcon}
+              title="招待管理"
+              description="企業管理者への招待を作成・管理できます。"
+            />
+          </>
+        ) : (
+          <>
+            <NavCard
+              to="/chat/ask-ai"
+              icon={ChatBubbleBottomCenterTextIcon}
+              title="AI チャット"
+              description="質問・要約・コード補助など、自由に対話できます。"
+            />
+            <NavCard
+              to="/code-editor"
+              icon={CodeBracketIcon}
+              title="コード学習"
+              description="演習問題を解いて手を動かしながら学べます。"
+            />
+            <NavCard
+              to="/notes"
+              icon={DocumentTextIcon}
+              title="ノート"
+              description="学習メモを残す・振り返ることができます。"
+            />
+            <NavCard
+              to="/reports"
+              icon={DocumentChartBarIcon}
+              title="レポート"
+              description="月次の学習サマリーを確認できます。"
+            />
+          </>
+        )}
+      </div>
     </div>
+  );
+}
+
+interface NavCardProps {
+  to: string;
+  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
+  title: string;
+  description: string;
+}
+
+function NavCard({ to, icon: Icon, title, description }: NavCardProps) {
+  return (
+    <Link
+      to={to}
+      className="block p-4 rounded-lg border border-[var(--color-surface-3)] bg-[var(--color-surface-1)] hover:bg-[var(--color-surface-2)] transition-colors"
+    >
+      <div className="flex items-start gap-3">
+        <Icon className="w-5 h-5 mt-0.5 text-[var(--color-text-muted)] flex-shrink-0" />
+        <div className="flex-1">
+          <h2 className="font-medium text-[var(--color-text-primary)]">{title}</h2>
+          <p className="text-xs text-[var(--color-text-muted)] mt-1">{description}</p>
+        </div>
+      </div>
+    </Link>
   );
 }

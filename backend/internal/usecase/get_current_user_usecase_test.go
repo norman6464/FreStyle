@@ -19,11 +19,20 @@ func (s *stubUserRepo) FindByCognitoSub(_ context.Context, _ string) (*domain.Us
 func (s *stubUserRepo) FindByID(_ context.Context, _ uint64) (*domain.User, error) {
 	return s.user, s.err
 }
+func (s *stubUserRepo) ListByRole(_ context.Context, _ string) ([]domain.User, error) {
+	return nil, s.err
+}
 func (s *stubUserRepo) Create(_ context.Context, _ *domain.User) error { return s.err }
 func (s *stubUserRepo) UpdateDisplayName(_ context.Context, _ uint64, _ string) error {
 	return s.err
 }
 func (s *stubUserRepo) UpdateRole(_ context.Context, _ uint64, _ string) error {
+	return s.err
+}
+func (s *stubUserRepo) UpdateCompanyID(_ context.Context, _ uint64, _ uint64) error {
+	return s.err
+}
+func (s *stubUserRepo) MarkOnboarded(_ context.Context, _ uint64) error {
 	return s.err
 }
 

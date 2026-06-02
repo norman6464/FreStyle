@@ -5,9 +5,10 @@ import (
 	"errors"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/repository"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
+// GetUserStatsUseCase は user のマイページ集計（合計セッション数 / 平均スコア等）を返す。
 type GetUserStatsUseCase struct {
 	stats repository.UserStatsRepository
 }

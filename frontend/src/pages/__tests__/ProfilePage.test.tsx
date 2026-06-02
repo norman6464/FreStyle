@@ -13,6 +13,10 @@ vi.mock('../../hooks/useProfileImageUpload', () => ({
 
 vi.mock('../../repositories/ProfileRepository');
 
+vi.mock('../../hooks/useToast', () => ({
+  useToast: () => ({ showToast: vi.fn(), toasts: [], removeToast: vi.fn() }),
+}));
+
 vi.mock('../../repositories/ProfileStatsRepository', () => ({
   default: {
     fetchStats: vi.fn().mockResolvedValue({
@@ -62,7 +66,7 @@ describe('ProfilePage', () => {
     });
   });
 
-  it('プロファイル取得後にニックネーム欄が表示される', async () => {
+  it('プロファイル取得後に氏名欄が表示される', async () => {
     mockedRepo.fetchProfile.mockResolvedValue({ userId: 1, displayName: 'テストユーザー', bio: '自己紹介文', avatarUrl: '', status: '', updatedAt: '2026-04-28T00:00:00Z' });
 
     render(<ProfilePage />);

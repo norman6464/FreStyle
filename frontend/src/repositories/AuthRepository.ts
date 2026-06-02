@@ -50,6 +50,12 @@ export interface UserInfo {
   sub?: string;
   groups?: string[];
   isAdmin?: boolean;
+  /** バックエンド users テーブルの role: super_admin / company_admin / trainee */
+  role?: string;
+  /** 所属する company の ID。SuperAdmin は null になり得る。 */
+  companyId?: number | null;
+  /** /auth/me が返す表示名（招待時に displayName として登録された値） */
+  displayName?: string;
 }
 
 class AuthRepository {

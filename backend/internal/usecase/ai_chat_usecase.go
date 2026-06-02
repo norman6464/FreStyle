@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/repository"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
 // GetAiChatSessionsByUserIDUseCase は指定ユーザーの AI チャットセッション一覧を返す。
@@ -85,7 +85,7 @@ func (u *UpdateAiChatSessionTitleUseCase) Execute(ctx context.Context, id uint64
 	return u.sessions.UpdateTitle(ctx, id, title)
 }
 
-// DeleteAiChatSessionUseCase はセッションを削除する。
+// DeleteAiChatSessionUseCase はセッションを削除する（FindByID で所有者検証してから）。
 type DeleteAiChatSessionUseCase struct {
 	sessions repository.AiChatSessionRepository
 }

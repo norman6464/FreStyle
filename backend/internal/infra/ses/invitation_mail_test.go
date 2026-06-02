@@ -52,7 +52,25 @@ func TestBuildInvitationMail_EscapesHTMLInjection(t *testing.T) {
 func TestBuildInvitationMail_OmitsScopeWhenEmpty(t *testing.T) {
 	_, htmlBody, textBody := BuildInvitationMail("https://x", "", "", "")
 	if strings.Contains(htmlBody, "招待元の会社") || strings.Contains(textBody, "招待元の会社") {
-		t.Errorf("scope sections should be omitted when companyName/role are empty")
+		t.Errorf("scope sections should be omitted when companyName is empty")
+	}
+}
+
+// role の生値（company_admin / trainee 等）はメール本文に出さない。
+// 一般受信者には社内ロール体系の名称が伝わらないため、本文では会社名と表示名のみ示し、
+// 権限はログイン後の機能体験で暗黙的に理解してもらう設計。
+func TestBuildInvitationMail_DoesNotExposeRawRole(t *testing.T) {
+	for _, role := range []string{"company_admin", "trainee", "super_admin"} {
+		_, htmlBody, textBody := BuildInvitationMail("https://x", "", "ACME", role)
+		if strings.Contains(htmlBody, role) {
+			t.Errorf("htmlBody must not contain raw role %q, got: %s", role, htmlBody)
+		}
+		if strings.Contains(textBody, role) {
+			t.Errorf("textBody must not contain raw role %q, got: %s", role, textBody)
+		}
+		if strings.Contains(htmlBody, "付与される権限") || strings.Contains(textBody, "付与される権限") {
+			t.Errorf("body must not contain 付与される権限 label (role=%s)", role)
+		}
 	}
 }
 

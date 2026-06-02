@@ -4,9 +4,10 @@ import (
 	"context"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/repository"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
+// ListCompaniesUseCase は全 company を返す（SuperAdmin 専用）。
 type ListCompaniesUseCase struct {
 	repo repository.CompanyRepository
 }

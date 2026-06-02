@@ -12,6 +12,7 @@
     "test:run": "vitest run",
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui",
+    "e2e:local": "playwright test --config=playwright.local.config.ts",
     "e2e:install": "playwright install --with-deps chromium",
     "tailwind:init": "tailwindcss init -p",
     "openapi:generate": "swagger2openapi ../backend/docs/swagger.json --outfile src/generated/openapi.json && openapi-typescript src/generated/openapi.json --output src/generated/api.ts"

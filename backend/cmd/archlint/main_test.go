@@ -77,70 +77,78 @@ func TestViolationsFor(t *testing.T) {
 	imp := func(target string) importRef { return importRef{path: "p", line: 1, target: target} }
 
 	t.Run("domain importing usecase is a violation", func(t *testing.T) {
-		vs := violationsFor(layerDomain, "user.go", "internal/domain/user.go", []importRef{imp(layerUsecase)})
+		vs := violationsFor(layerDomain, "domain", "user.go", "internal/domain/user.go", []importRef{imp(layerUsecase)})
 		if len(vs) != 1 {
 			t.Fatalf("want 1 violation, got %d", len(vs))
 		}
 	})
 
 	t.Run("usecase importing persistence is a violation (DIP)", func(t *testing.T) {
-		vs := violationsFor(layerUsecase, "foo_usecase.go", "p", []importRef{imp(layerPersistence)})
+		vs := violationsFor(layerUsecase, "usecase", "foo_usecase.go", "p", []importRef{imp(layerPersistence)})
 		if len(vs) != 1 {
 			t.Fatalf("want 1 violation, got %d", len(vs))
 		}
 	})
 
 	t.Run("usecase importing infra is allowed", func(t *testing.T) {
-		vs := violationsFor(layerUsecase, "foo_usecase.go", "p", []importRef{imp(layerInfra)})
+		vs := violationsFor(layerUsecase, "usecase", "foo_usecase.go", "p", []importRef{imp(layerInfra)})
 		if len(vs) != 0 {
 			t.Fatalf("want 0 violation, got %d", len(vs))
 		}
 	})
 
 	t.Run("usecase importing gin is a violation", func(t *testing.T) {
-		vs := violationsFor(layerUsecase, "foo_usecase.go", "p", []importRef{imp(targetGin)})
+		vs := violationsFor(layerUsecase, "usecase", "foo_usecase.go", "p", []importRef{imp(targetGin)})
 		if len(vs) != 1 {
 			t.Fatalf("want 1 violation, got %d", len(vs))
 		}
 	})
 
 	t.Run("handler importing persistence in wiring file is allowed", func(t *testing.T) {
-		vs := violationsFor(layerHandler, "router.go", "p", []importRef{imp(layerPersistence)})
+		vs := violationsFor(layerHandler, "handler", "router.go", "p", []importRef{imp(layerPersistence)})
 		if len(vs) != 0 {
 			t.Fatalf("wiring file should be exempt, got %d", len(vs))
 		}
 	})
 
 	t.Run("handler importing persistence in non-wiring file is a violation", func(t *testing.T) {
-		vs := violationsFor(layerHandler, "foo_handler.go", "p", []importRef{imp(layerPersistence)})
+		vs := violationsFor(layerHandler, "handler", "foo_handler.go", "p", []importRef{imp(layerPersistence)})
 		if len(vs) != 1 {
 			t.Fatalf("want 1 violation, got %d", len(vs))
 		}
 	})
 
+	t.Run("wiring-named file in handler subdir is NOT exempt", func(t *testing.T) {
+		// handler/middleware/routes_x.go のような別ディレクトリでは wiring 例外を効かせない。
+		vs := violationsFor(layerHandler, "handler/middleware", "routes_x.go", "p", []importRef{imp(layerPersistence)})
+		if len(vs) != 1 {
+			t.Fatalf("subdir wiring-named file should NOT be exempt, got %d", len(vs))
+		}
+	})
+
 	t.Run("handler importing infra is allowed (pragmatic exception)", func(t *testing.T) {
-		vs := violationsFor(layerHandler, "auth_handler.go", "p", []importRef{imp(layerInfra)})
+		vs := violationsFor(layerHandler, "handler", "auth_handler.go", "p", []importRef{imp(layerInfra)})
 		if len(vs) != 0 {
 			t.Fatalf("want 0 violation, got %d", len(vs))
 		}
 	})
 
 	t.Run("infra importing net/http is allowed (client use)", func(t *testing.T) {
-		vs := violationsFor(layerInfra, "fetcher.go", "p", []importRef{imp(targetNetHTTP)})
+		vs := violationsFor(layerInfra, "infra/embed", "fetcher.go", "p", []importRef{imp(targetNetHTTP)})
 		if len(vs) != 0 {
 			t.Fatalf("want 0 violation, got %d", len(vs))
 		}
 	})
 
 	t.Run("persistence importing usecase business is a violation", func(t *testing.T) {
-		vs := violationsFor(layerPersistence, "user_repository.go", "p", []importRef{imp(layerUsecase)})
+		vs := violationsFor(layerPersistence, "adapter/persistence", "user_repository.go", "p", []importRef{imp(layerUsecase)})
 		if len(vs) != 1 {
 			t.Fatalf("want 1 violation, got %d", len(vs))
 		}
 	})
 
 	t.Run("persistence importing port is allowed", func(t *testing.T) {
-		vs := violationsFor(layerPersistence, "user_repository.go", "p", []importRef{imp(layerUsecaseRepo)})
+		vs := violationsFor(layerPersistence, "adapter/persistence", "user_repository.go", "p", []importRef{imp(layerUsecaseRepo)})
 		if len(vs) != 0 {
 			t.Fatalf("want 0 violation, got %d", len(vs))
 		}
@@ -148,7 +156,7 @@ func TestViolationsFor(t *testing.T) {
 
 	t.Run("suppressed import is skipped", func(t *testing.T) {
 		ref := importRef{path: "p", line: 1, target: layerUsecase, suppressed: true}
-		vs := violationsFor(layerDomain, "user.go", "p", []importRef{ref})
+		vs := violationsFor(layerDomain, "domain", "user.go", "p", []importRef{ref})
 		if len(vs) != 0 {
 			t.Fatalf("suppressed import should be skipped, got %d", len(vs))
 		}
@@ -205,7 +213,7 @@ var _ = context.Background
 		}
 	})
 
-	t.Run("file-level ignore", func(t *testing.T) {
+	t.Run("file-level ignore (先頭コメント)", func(t *testing.T) {
 		p := write("b.go", `//archlint:ignore-file 生成ファイルのため除外
 package x
 
@@ -217,6 +225,22 @@ import _ "`+testPrefix+`adapter/persistence"
 		}
 		if !ignore {
 			t.Fatal("ignoreFile should be true")
+		}
+	})
+
+	t.Run("mid-file ignore-file は無効", func(t *testing.T) {
+		// package 宣言より後のコメントでは抑制できない（回避防止）。
+		p := write("c.go", `package x
+
+// archlint:ignore-file ここでは効かないはず
+import _ "`+testPrefix+`adapter/persistence"
+`)
+		_, ignore, err := parseImports(p, testPrefix)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ignore {
+			t.Fatal("ignoreFile should be false for non-leading comment")
 		}
 	})
 }
@@ -313,6 +337,15 @@ func TestReadModulePath(t *testing.T) {
 	}
 	if got != "example.com/foo/bar" {
 		t.Errorf("readModulePath = %q, want example.com/foo/bar", got)
+	}
+
+	// タブ区切り・複数スペースでも読めること。
+	tabbed := filepath.Join(dir, "tab.mod")
+	if err := os.WriteFile(tabbed, []byte("module\texample.com/tab\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := readModulePath(tabbed); err != nil || got != "example.com/tab" {
+		t.Errorf("readModulePath(tab) = %q, %v; want example.com/tab", got, err)
 	}
 
 	if _, err := readModulePath(filepath.Join(dir, "missing.go.mod")); err == nil {

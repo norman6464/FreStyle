@@ -34,13 +34,13 @@ handler  →  usecase  →  repository  →  domain
 
 ### archlint — 依存方向の静的検証
 
-上記ルールを人手のレビューだけに頼らず CI で機械的に弾くため、自作 linter `cmd/archlint` を用意している（`go/ast` のみ・外部依存なし）。
+上記ルールを人手のレビューだけに頼らず CI で機械的に弾くため、自作 linter `cmd/archlint` を用意している（Go 標準の `go/parser` / `go/ast` のみ・外部依存なし）。
 
 ```bash
 make archlint        # = go run ./cmd/archlint .
 ```
 
-各 `.go`（`_test.go` は除外）の import を解析し、層をまたぐ禁止依存を検出する。違反は `path:line: メッセージ` 形式で出力し exit 1。
+`internal/` 配下の `.go`（`_test.go` は除外）の import を解析し、層をまたぐ禁止依存を検出する。違反は `path:line: メッセージ` 形式で出力し exit 1。
 
 | ソース層 | 禁止する import |
 |---|---|

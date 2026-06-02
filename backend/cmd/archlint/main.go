@@ -171,16 +171,19 @@ func run(internalRoot, internalPrefix string) ([]violation, error) {
 		if ignoreFile {
 			return nil
 		}
-		out = append(out, violationsFor(src, filepath.Base(path), path, imports)...)
+		out = append(out, violationsFor(src, filepath.ToSlash(relDir), filepath.Base(path), path, imports)...)
 		return nil
 	})
 	return out, err
 }
 
 // violationsFor は 1 ファイル分の import 列からルール違反を抽出する（純粋関数: テスト容易）。
-func violationsFor(src, filename, fullpath string, imports []importRef) []violation {
+// relDir は internal/ からの相対ディレクトリ（slash 区切り）。wiring 例外の厳密判定に使う。
+func violationsFor(src, relDir, filename, fullpath string, imports []importRef) []violation {
 	forbidden := rules[src]
-	wiring := isWiringFile(filename)
+	// wiring 例外は handler 直下の router.go / routes_*.go のみに限定する。
+	// handler/middleware など別ディレクトリの同名ファイルでは例外を効かせない。
+	wiring := relDir == layerHandler && isWiringFile(filename)
 	var vs []violation
 	for _, imp := range imports {
 		if imp.suppressed || imp.target == "" {
@@ -207,7 +210,12 @@ func parseImports(path, internalPrefix string) (imports []importRef, ignoreFile 
 		return nil, false, err
 	}
 
+	// ignore-file は「ファイル先頭（package 宣言より前）」のコメントだけを対象にする。
+	// 途中コメントでルールを回避できないようにするため。
 	for _, cg := range f.Comments {
+		if cg.End() > f.Package {
+			break // f.Comments は位置順。package 宣言以降は対象外。
+		}
 		if commentContains(cg, "archlint:ignore-file") {
 			return nil, true, nil
 		}
@@ -300,9 +308,10 @@ func readModulePath(goModPath string) (string, error) {
 
 	sc := bufio.NewScanner(f)
 	for sc.Scan() {
-		line := strings.TrimSpace(sc.Text())
-		if strings.HasPrefix(line, "module ") {
-			return strings.TrimSpace(strings.TrimPrefix(line, "module ")), nil
+		// タブ区切り・複数スペースでも読めるよう Fields でトークン化する。
+		fields := strings.Fields(sc.Text())
+		if len(fields) >= 2 && fields[0] == "module" {
+			return fields[1], nil
 		}
 	}
 	if err := sc.Err(); err != nil {

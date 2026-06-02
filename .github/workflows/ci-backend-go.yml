@@ -101,12 +101,21 @@ jobs:
       - name: go test (race + coverage)
         run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
 
-      # 総カバレッジを PR の Checks サマリに表示する。
-      - name: coverage summary
+      # 総カバレッジを PR の Checks サマリに表示しつつ、floor を下回ったら fail させる。
+      # COVERAGE_MIN は回帰防止の floor（domain / docs / cmd / 薄い infra など 0% 群を含む
+      # 総計のため低め）。カバレッジ向上に合わせてラチェット的に引き上げる。
+      - name: coverage summary + gate
+        env:
+          COVERAGE_MIN: '38'
         run: |
           total=$(go tool cover -func=coverage.out | tail -1 | awk '{print $3}')
-          echo "## Backend test coverage: ${total}" >> "$GITHUB_STEP_SUMMARY"
-          go tool cover -func=coverage.out | tail -1
+          echo "## Backend test coverage: ${total} (min ${COVERAGE_MIN}%)" >> "$GITHUB_STEP_SUMMARY"
+          echo "total coverage: ${total} (min ${COVERAGE_MIN}%)"
+          num=${total%\%}
+          if awk -v t="$num" -v m="$COVERAGE_MIN" 'BEGIN { exit !(t+0 < m+0) }'; then
+            echo "::error::backend coverage ${total} is below floor ${COVERAGE_MIN}%"
+            exit 1
+          fi
 
       # OpenAPI spec (docs/) が最新かを検証する。handler の swaggo 注釈を変えたのに
       # `make openapi` を忘れた PR を CI で弾く（フロントの型生成元なので drift を防ぐ）。
@@ -148,8 +157,15 @@ jobs:
         run: go mod download
 
       # 本物の PostgreSQL を起動し healthcheck が通るまで待つ（--wait）。
+      # Docker Hub の pull は runner 上で transient に timeout することがあるためリトライする。
       - name: Start PostgreSQL (docker compose)
-        run: docker compose -f docker-compose.integration.yml up -d --wait
+        run: |
+          for i in 1 2 3; do
+            docker compose -f docker-compose.integration.yml pull --quiet && break
+            echo "image pull failed (attempt $i/3), retrying in 10s..."
+            sleep 10
+          done
+          docker compose -f docker-compose.integration.yml up -d --wait
 
       # -run Integration で結合テスト（命名規約: テスト名に Integration を含む）だけを回す。
       # 単体テストは test ジョブで実行済みで、TEST_DATABASE_URL を env に持つこのジョブで

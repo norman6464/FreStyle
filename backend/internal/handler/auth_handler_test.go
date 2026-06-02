@@ -33,6 +33,9 @@ func (r *fakeUserRepo) FindByCognitoSub(_ context.Context, sub string) (*domain.
 func (r *fakeUserRepo) FindByID(_ context.Context, _ uint64) (*domain.User, error) {
 	return nil, nil
 }
+func (r *fakeUserRepo) ListByRole(_ context.Context, _ string) ([]domain.User, error) {
+	return nil, nil
+}
 func (r *fakeUserRepo) Create(_ context.Context, u *domain.User) error {
 	if r.createErr != nil {
 		return r.createErr

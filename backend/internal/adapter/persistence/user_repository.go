@@ -50,6 +50,14 @@ func (r *userRepository) FindByID(ctx context.Context, id uint64) (*domain.User,
 	return &u, nil
 }
 
+func (r *userRepository) ListByRole(ctx context.Context, role string) ([]domain.User, error) {
+	var rows []domain.User
+	err := r.db.WithContext(ctx).
+		Where("role = ? AND deleted_at IS NULL", role).
+		Find(&rows).Error
+	return rows, err
+}
+
 func (r *userRepository) Create(ctx context.Context, user *domain.User) error {
 	return r.db.WithContext(ctx).Create(user).Error
 }

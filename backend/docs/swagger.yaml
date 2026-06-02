@@ -79,6 +79,25 @@ definitions:
       updatedAt:
         type: string
     type: object
+  github_com_norman6464_FreStyle_backend_internal_domain.CompanyApplication:
+    properties:
+      applicantName:
+        type: string
+      companyName:
+        type: string
+      createdAt:
+        type: string
+      email:
+        type: string
+      id:
+        type: integer
+      message:
+        type: string
+      status:
+        type: string
+      updatedAt:
+        type: string
+    type: object
   github_com_norman6464_FreStyle_backend_internal_domain.Course:
     properties:
       companyId:
@@ -162,9 +181,7 @@ definitions:
       expectedOutput:
         type: string
       explanation:
-        description: |-
-          Explanation は QA モードで 正解後に表示される markdown 解説。
-          execute モードでは未使用 (空文字)。
+        description: Explanation は qa モードで正解後に表示する markdown 解説。
         type: string
       hintText:
         type: string
@@ -175,10 +192,8 @@ definitions:
       language:
         type: string
       mode:
-        description: |-
-          Mode は採点モード。 'execute' (default) は コードを実行して stdout を比較、
-          'qa' は コード実行をせず提出文字列と ExpectedOutput を直接 trim 比較する。
-          docker / kubernetes など サンドボックス実行が困難な題材を Q&A 形式で扱うために導入。
+        description: Mode は採点モード。execute は実行して stdout 比較、qa は提出文字列と ExpectedOutput
+          を trim 比較。
         type: string
       orderIndex:
         type: integer
@@ -196,9 +211,8 @@ definitions:
       createdAt:
         type: string
       exerciseId:
-        description: |-
-          (exercise_id, order_index) で UNIQUE 制約を張ることで、同じ問題内で
-          OrderIndex が衝突する行を DB レベルで弾く（UI 上「入力例 1」が 2 つ並ぶ事故防止）。
+        description: (exercise_id, order_index) の UNIQUE で同一問題内の OrderIndex 衝突を DB
+          レベルで弾く。
         type: integer
       expectedOutput:
         type: string
@@ -207,9 +221,7 @@ definitions:
       inputText:
         type: string
       orderIndex:
-        description: |-
-          OrderIndex は seed / 運営入力時に必ず明示する想定で DB DEFAULT を持たせない。
-          （default:0 を残すと order_index 未指定の INSERT が黙って 0 を採用して衝突を起こすため）
+        description: DEFAULT を持たせない（default:0 だと未指定 INSERT が 0 で衝突するため）。
         type: integer
       updatedAt:
         type: string
@@ -279,9 +291,6 @@ definitions:
       displayName:
         type: string
       email:
-        description: |-
-          Email は users.email を そのまま返す。 frontend の sidebar ユーザーメニューで
-          「ログイン中のメールアドレスを 表示する」 用途で参照する。
         type: string
       status:
         type: string
@@ -312,9 +321,8 @@ definitions:
       content:
         type: string
       courseId:
-        description: |-
-          course_id の NOT NULL 制約は migration 0004 で確定する（既存行への ADD COLUMN を
-          AutoMigrate で安全に通すため、 GORM tag では not null を指定しない）。
+        description: NOT NULL は migration 0004 で確定するため GORM tag では指定しない（既存行への ADD
+          COLUMN 対策）。
         type: integer
       createdAt:
         type: string
@@ -393,9 +401,7 @@ definitions:
       expectedOutput:
         type: string
       explanation:
-        description: |-
-          Explanation は QA モードで 正解後に表示される markdown 解説。
-          execute モードでは未使用 (空文字)。
+        description: Explanation は qa モードで正解後に表示する markdown 解説。
         type: string
       hintText:
         type: string
@@ -406,10 +412,8 @@ definitions:
       language:
         type: string
       mode:
-        description: |-
-          Mode は採点モード。 'execute' (default) は コードを実行して stdout を比較、
-          'qa' は コード実行をせず提出文字列と ExpectedOutput を直接 trim 比較する。
-          docker / kubernetes など サンドボックス実行が困難な題材を Q&A 形式で扱うために導入。
+        description: Mode は採点モード。execute は実行して stdout 比較、qa は提出文字列と ExpectedOutput
+          を trim 比較。
         type: string
       orderIndex:
         type: integer
@@ -491,10 +495,7 @@ definitions:
       code:
         type: string
       invitationToken:
-        description: |-
-          InvitationToken はフロントが sessionStorage から復元してくる、招待マジックリンク経由で
-          受領した UUID トークン。任意。指定がある場合は upsert 時に email ベースの招待検索より
-          優先して照合に使う（同じ email に複数 pending invitation がある異常系での誤一致を防ぐ）。
+        description: InvitationToken は招待マジックリンク経由の UUID（任意）。指定時は email 検索より優先して照合する。
         type: string
     required:
     - code
@@ -524,6 +525,21 @@ definitions:
     - companyId
     - email
     - role
+    type: object
+  internal_handler.createCompanyApplicationReq:
+    properties:
+      applicantName:
+        type: string
+      companyName:
+        type: string
+      email:
+        type: string
+      message:
+        type: string
+    required:
+    - applicantName
+    - companyName
+    - email
     type: object
   internal_handler.createSessionReq:
     properties:
@@ -718,6 +734,13 @@ definitions:
       title:
         type: string
     type: object
+  internal_handler.updateCompanyApplicationStatusReq:
+    properties:
+      status:
+        type: string
+    required:
+    - status
+    type: object
   internal_handler.updateProfileReq:
     properties:
       avatarUrl:
@@ -725,12 +748,12 @@ definitions:
       bio:
         type: string
       displayName:
-        description: '`name` は旧フロント実装の互換のため受け付け、`displayName` を優先する。'
         type: string
       iconUrl:
-        description: 旧フロント実装が `iconUrl` で送ってきた場合の互換。
+        description: 旧フロント互換。avatarUrl を優先。
         type: string
       name:
+        description: 旧フロント互換。displayName を優先。
         type: string
       status:
         type: string
@@ -772,6 +795,78 @@ paths:
       security:
       - CookieAuth: []
       summary: 会社 一覧 (SuperAdmin)
+      tags:
+      - admin
+  /admin/company-applications:
+    get:
+      description: 受け付けた企業申請を新しい順で返す。super_admin 専用。
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.CompanyApplication'
+            type: array
+        "401":
+          description: 未認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: super_admin 以外
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 企業申請一覧（super_admin）
+      tags:
+      - admin
+  /admin/company-applications/{id}/status:
+    patch:
+      consumes:
+      - application/json
+      description: 申請を approved / rejected / pending に更新する。super_admin 専用。
+      parameters:
+      - description: 申請 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: status
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.updateCompanyApplicationStatusReq'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: 成功（本文なし）
+        "400":
+          description: id / status 不正
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: super_admin 以外
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: DB 更新失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 企業申請の status 更新（super_admin）
       tags:
       - admin
   /admin/invitations:
@@ -1189,6 +1284,14 @@ paths:
           description: 招待 なし の 新規 user
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
+        "429":
+          description: レート制限超過
+          headers:
+            Retry-After:
+              description: '再試行までの秒数 (例: 60)'
+              type: string
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
         "500":
           description: Cognito 未 設定 等 の 内部 エラー
           schema:
@@ -1227,6 +1330,14 @@ paths:
             $ref: '#/definitions/internal_handler.messageResponse'
         "401":
           description: refresh_token 欠落 / 無効
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "429":
+          description: レート制限超過
+          headers:
+            Retry-After:
+              description: '再試行までの秒数 (例: 60)'
+              type: string
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
         "502":
@@ -1297,6 +1408,44 @@ paths:
       summary: コード サンドボックス 実行
       tags:
       - code-execution
+  /company-applications:
+    post:
+      consumes:
+      - application/json
+      description: ログイン前のユーザーが会社名 / 氏名 / メール / 任意メッセージで利用申請を送る。受理時に super_admin へ通知する。
+      parameters:
+      - description: 申請内容
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.createCompanyApplicationReq'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.CompanyApplication'
+        "400":
+          description: バリデーションエラー
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "429":
+          description: レート制限超過
+          headers:
+            Retry-After:
+              description: '再試行までの秒数 (例: 60)'
+              type: string
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: 内部エラー
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      summary: 企業利用申請（公開 / 認証不要）
+      tags:
+      - company-applications
   /courses:
     get:
       description: current user の role / company で 自動 フィルタ。 trainee は published のみ、
@@ -1735,6 +1884,14 @@ paths:
             $ref: '#/definitions/internal_handler.invitationValidateResponse'
         "404":
           description: 招待 が 無効 / 期限 切れ
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "429":
+          description: レート制限超過
+          headers:
+            Retry-After:
+              description: '再試行までの秒数 (例: 60)'
+              type: string
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
         "500":

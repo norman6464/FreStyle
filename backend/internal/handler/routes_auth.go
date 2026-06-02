@@ -3,6 +3,7 @@ package handler
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
+	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
 
@@ -14,8 +15,10 @@ func registerAuthPublicRoutes(g *gin.RouterGroup, deps *routeDeps) *AuthHandler 
 	authHandler := NewAuthHandler(getCurrentUser, deps.userRepo, invitations, &deps.cfg.Cognito)
 
 	g.POST("/auth/cognito/logout", authHandler.Logout)
-	g.POST("/auth/cognito/callback", authHandler.Callback)
-	g.POST("/auth/cognito/refresh-token", authHandler.Refresh)
+	// callback は認証不要のため、総当たり緩和に per-IP 制限を掛ける。
+	g.POST("/auth/cognito/callback", middleware.RateLimitPerMinute(30, 10), authHandler.Callback)
+	// refresh-token は正規ユーザーが定期的に叩くため、NAT 共有 IP を考慮して緩めに設定する。
+	g.POST("/auth/cognito/refresh-token", middleware.RateLimitPerMinute(60, 30), authHandler.Refresh)
 
 	return authHandler
 }

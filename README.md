@@ -54,6 +54,8 @@
 <img src="https://skillicons.dev/icons?i=githubactions&theme=light" alt="CI/CD">
 </a>
 
+> GitHub Actions / gofmt / go vet / staticcheck / govulncheck / CodeQL / race detector / go test -cover / OpenAPI drift check / Vitest coverage / ESLint / tsc
+
 <h3>Testing</h3>
 <a href="https://skillicons.dev">
 <img src="https://skillicons.dev/icons?i=vitest,playwright&theme=light" alt="Testing">

@@ -1,11 +1,16 @@
 package middleware
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/gin-gonic/gin"
 )
 
 // makeJWT は header.payload.signature 形式のダミー JWT を組み立てる。
@@ -101,5 +106,65 @@ func TestToStringSliceFromClaim(t *testing.T) {
 	}
 	if ToStringSliceFromClaim("not-an-array") != nil {
 		t.Fatal("non-array should return nil")
+	}
+}
+
+// runJWTAuth は JWTAuth を 1 リクエスト分実行し、status と context にセットされた sub を返す。
+func runJWTAuth(t *testing.T, verify VerifyFunc, cookie string) (int, string) {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	var gotSub string
+	r.GET("/x", JWTAuth(verify), func(c *gin.Context) {
+		if v, ok := c.Get(ContextKeyCognitoSub); ok {
+			gotSub, _ = v.(string)
+		}
+		c.Status(http.StatusOK)
+	})
+	req := httptest.NewRequest(http.MethodGet, "/x", nil)
+	if cookie != "" {
+		req.AddCookie(&http.Cookie{Name: CookieAccessToken, Value: cookie})
+	}
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	return w.Code, gotSub
+}
+
+func TestJWTAuth_NoCookie(t *testing.T) {
+	verify := func(context.Context, string) (map[string]any, error) { return nil, nil }
+	if code, _ := runJWTAuth(t, verify, ""); code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", code)
+	}
+}
+
+func TestJWTAuth_VerifyFails(t *testing.T) {
+	// 偽造トークン相当: verify がエラーを返したら 401 で弾く。
+	verify := func(context.Context, string) (map[string]any, error) {
+		return nil, errors.New("bad signature")
+	}
+	if code, _ := runJWTAuth(t, verify, "forged"); code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 on verify failure, got %d", code)
+	}
+}
+
+func TestJWTAuth_VerifySucceeds(t *testing.T) {
+	verify := func(context.Context, string) (map[string]any, error) {
+		return map[string]any{"sub": "user-9"}, nil
+	}
+	code, sub := runJWTAuth(t, verify, "good")
+	if code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", code)
+	}
+	if sub != "user-9" {
+		t.Fatalf("expected sub user-9, got %q", sub)
+	}
+}
+
+func TestJWTAuth_MissingSub(t *testing.T) {
+	verify := func(context.Context, string) (map[string]any, error) {
+		return map[string]any{"email": "u@example.com"}, nil
+	}
+	if code, _ := runJWTAuth(t, verify, "good"); code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 when sub missing, got %d", code)
 	}
 }

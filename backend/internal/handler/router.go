@@ -2,12 +2,14 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"log"
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/infra/bedrock"
+	"github.com/norman6464/FreStyle/backend/internal/infra/cognito"
 	"github.com/norman6464/FreStyle/backend/internal/infra/config"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
@@ -29,7 +31,11 @@ type routeDeps struct {
 func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Recovery())
-	r.Use(gin.Logger())
+	// ヘルスチェック (ALB が 30 秒間隔で叩く /api/v2/health) と root の access log は出さない。
+	// 大量の health ログが CloudWatch の取り込み課金を押し上げるのを防ぐ。
+	r.Use(gin.LoggerWithConfig(gin.LoggerConfig{
+		SkipPaths: []string{"/api/v2/health", "/"},
+	}))
 	r.Use(middleware.CORS())
 
 	r.GET("/", func(c *gin.Context) {
@@ -63,10 +69,12 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 
 	registerHealthRoutes(v2, deps)
 	registerInvitationPublicRoutes(v2, deps)
+	companyAppHandler := newCompanyApplicationHandler(deps)
+	registerCompanyApplicationPublicRoutes(v2, companyAppHandler)
 	authHandler := registerAuthPublicRoutes(v2, deps)
 
 	authed := v2.Group("")
-	authed.Use(middleware.JWTAuth())
+	authed.Use(middleware.JWTAuth(buildJWTVerify(cfg)))
 	authed.Use(middleware.CurrentUser(deps.userRepo))
 
 	registerAuthAuthedRoutes(authed, authHandler)
@@ -80,7 +88,30 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	registerLearningReportRoutes(authed, deps)
 	registerCourseRoutes(authed, deps)
 	registerTeachingMaterialRoutes(authed, deps)
+	registerCompanyApplicationAdminRoutes(authed, companyAppHandler)
+	// WebSocket (/ws/ai-chat) は SSE (/ai-chat/stream) への置換で廃止 (PR-D)。
 	return r
+}
+
+// buildJWTVerify は JWTAuth に渡す access_token 検証関数を組み立てる。
+//   - JWKS URI 設定あり: cognito.Verifier で JWKS 署名検証する（本番の正規経路）
+//   - JWKS 未設定 & local: 署名未検証の decode にフォールバック（Cognito 無しのローカル開発用）
+//   - JWKS 未設定 & 非 local: fail closed（全リクエストを拒否し、未検証で本番が動くのを防ぐ）
+func buildJWTVerify(cfg *config.Config) middleware.VerifyFunc {
+	if cfg.Cognito.JwkSetURI != "" {
+		v := cognito.NewVerifier(cfg.Cognito.JwkSetURI)
+		return v.Verify
+	}
+	if cfg.AppEnv == "local" {
+		log.Printf("WARN: COGNITO_JWK_SET_URI 未設定 — ローカル開発のため JWT 署名検証をスキップします（本番では設定必須）")
+		return func(_ context.Context, token string) (map[string]any, error) {
+			return middleware.DecodeClaims(token)
+		}
+	}
+	log.Printf("ERROR: COGNITO_JWK_SET_URI 未設定 — 署名検証できないため認証付きリクエストを全拒否します")
+	return func(_ context.Context, _ string) (map[string]any, error) {
+		return nil, errors.New("jwt verifier not configured")
+	}
 }
 
 // registerHealthRoutes は認証不要のヘルスチェック (/api/v2/health) を登録する。

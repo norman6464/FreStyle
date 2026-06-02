@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -10,6 +11,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+// VerifyFunc は access_token を検証して claims を返す関数。
+// 本番は infra/cognito.Verifier.Verify（JWKS 署名検証）を注入する。
+type VerifyFunc func(ctx context.Context, token string) (map[string]any, error)
 
 const (
 	ContextKeyCognitoSub    = "cognitoSub"
@@ -21,16 +26,16 @@ const (
 // AdminGroupName は Cognito User Pool 上の admin グループ名（case-sensitive）。
 const AdminGroupName = "admin"
 
-// JWTAuth は HttpOnly Cookie の access_token を検証する Gin middleware。
-// 現状は payload の base64 デコードのみで、署名（JWKS）検証は別 issue。
-func JWTAuth() gin.HandlerFunc {
+// JWTAuth は HttpOnly Cookie の access_token を verify で検証する Gin middleware。
+// verify は JWKS 署名検証を行う関数を注入する（偽造トークンを弾く）。
+func JWTAuth(verify VerifyFunc) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token, err := c.Cookie(CookieAccessToken)
 		if err != nil || token == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 			return
 		}
-		claims, err := DecodeClaims(token)
+		claims, err := verify(c.Request.Context(), token)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid_token"})
 			return

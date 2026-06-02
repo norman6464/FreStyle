@@ -15,6 +15,10 @@ func NewNotificationRepository(db *gorm.DB) repository.NotificationRepository {
 	return &notificationRepository{db: db}
 }
 
+func (r *notificationRepository) Create(ctx context.Context, n *domain.Notification) error {
+	return r.db.WithContext(ctx).Create(n).Error
+}
+
 func (r *notificationRepository) ListByUserID(ctx context.Context, userID uint64) ([]domain.Notification, error) {
 	var rows []domain.Notification
 	err := r.db.WithContext(ctx).Where("user_id = ?", userID).Order("created_at DESC").Find(&rows).Error

@@ -12,6 +12,8 @@ import (
 type UserRepository interface {
 	FindByCognitoSub(ctx context.Context, sub string) (*domain.User, error)
 	FindByID(ctx context.Context, id uint64) (*domain.User, error)
+	// ListByRole は指定 role のユーザー一覧を返す（super_admin への一斉通知などに使う）。
+	ListByRole(ctx context.Context, role string) ([]domain.User, error)
 	Create(ctx context.Context, user *domain.User) error
 	// UpdateDisplayName は氏名変更、および OIDC ログイン時の displayName 自動補正で呼ばれる。
 	UpdateDisplayName(ctx context.Context, userID uint64, displayName string) error

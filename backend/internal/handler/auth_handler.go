@@ -150,6 +150,7 @@ type cognitoCallbackReq struct {
 //	@Failure      500   {object}  errorResponse  "Cognito 未 設定 等 の 内部 エラー"
 //	@Failure      502   {object}  errorResponse  "Cognito 到達 不可"
 //	@Failure      429   {object}  errorResponse  "レート制限超過"
+//	@Header       429  {string}  Retry-After  "再試行までの秒数 (例: 60)"
 //	@Router       /auth/cognito/callback [post]
 func (h *AuthHandler) Callback(c *gin.Context) {
 	var req cognitoCallbackReq
@@ -195,6 +196,7 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 //	@Failure      401  {object}  errorResponse  "refresh_token 欠落 / 無効"
 //	@Failure      502  {object}  errorResponse  "Cognito 到達 不可"
 //	@Failure      429   {object}  errorResponse  "レート制限超過"
+//	@Header       429  {string}  Retry-After  "再試行までの秒数 (例: 60)"
 //	@Router       /auth/cognito/refresh-token [post]
 func (h *AuthHandler) Refresh(c *gin.Context) {
 	rt, err := c.Cookie(middleware.CookieRefreshToken)

@@ -808,6 +808,12 @@ const docTemplate = `{
                         "description": "レート制限超過",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
+                        },
+                        "headers": {
+                            "Retry-After": {
+                                "type": "string",
+                                "description": "再試行までの秒数 (例: 60)"
+                            }
                         }
                     },
                     "500": {
@@ -872,6 +878,12 @@ const docTemplate = `{
                         "description": "レート制限超過",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
+                        },
+                        "headers": {
+                            "Retry-After": {
+                                "type": "string",
+                                "description": "再試行までの秒数 (例: 60)"
+                            }
                         }
                     },
                     "502": {
@@ -1018,6 +1030,12 @@ const docTemplate = `{
                         "description": "レート制限超過",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
+                        },
+                        "headers": {
+                            "Retry-After": {
+                                "type": "string",
+                                "description": "再試行までの秒数 (例: 60)"
+                            }
                         }
                     },
                     "500": {
@@ -1715,6 +1733,12 @@ const docTemplate = `{
                         "description": "レート制限超過",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
+                        },
+                        "headers": {
+                            "Retry-After": {
+                                "type": "string",
+                                "description": "再試行までの秒数 (例: 60)"
+                            }
                         }
                     },
                     "500": {

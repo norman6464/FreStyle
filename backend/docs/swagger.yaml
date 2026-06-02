@@ -1304,6 +1304,10 @@ paths:
             $ref: '#/definitions/internal_handler.errorResponse'
         "429":
           description: レート制限超過
+          headers:
+            Retry-After:
+              description: '再試行までの秒数 (例: 60)'
+              type: string
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
         "500":
@@ -1348,6 +1352,10 @@ paths:
             $ref: '#/definitions/internal_handler.errorResponse'
         "429":
           description: レート制限超過
+          headers:
+            Retry-After:
+              description: '再試行までの秒数 (例: 60)'
+              type: string
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
         "502":
@@ -1443,6 +1451,10 @@ paths:
             $ref: '#/definitions/internal_handler.errorResponse'
         "429":
           description: レート制限超過
+          headers:
+            Retry-After:
+              description: '再試行までの秒数 (例: 60)'
+              type: string
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
         "500":
@@ -1894,6 +1906,10 @@ paths:
             $ref: '#/definitions/internal_handler.errorResponse'
         "429":
           description: レート制限超過
+          headers:
+            Retry-After:
+              description: '再試行までの秒数 (例: 60)'
+              type: string
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
         "500":

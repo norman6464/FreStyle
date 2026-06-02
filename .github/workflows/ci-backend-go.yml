@@ -71,7 +71,8 @@ jobs:
       - name: govulncheck (advisory)
         continue-on-error: true
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
+          set -o pipefail
+          go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
           govulncheck ./... | tee /tmp/govuln.txt
           {
             echo "## govulncheck (advisory)"
@@ -97,9 +98,11 @@ jobs:
       - name: OpenAPI drift check
         run: |
           make openapi
-          if ! git diff --quiet docs/; then
+          # 変更だけでなく未追跡の新規生成ファイルも検知するため porcelain で判定する。
+          if [ -n "$(git status --porcelain -- docs/)" ]; then
             echo "::error::OpenAPI docs are out of date. Run 'make openapi' in backend/ and commit docs/."
-            git diff --stat docs/
+            git status --porcelain -- docs/
+            git diff -- docs/
             exit 1
           fi
 

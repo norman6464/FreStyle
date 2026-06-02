@@ -125,12 +125,30 @@ docker build -t frestyle-backend:latest .
 
 ```bash
 go vet ./...
-go test ./...
+go test ./...        # 単体テスト（DB 不要）
 make archlint      # クリーンアーキテクチャ依存方向チェック
 make apispec-lint  # ルート ↔ swaggo @Router 注釈チェック（strict path 照合）
 make naminglint    # usecase 命名・構造規約チェック
 make verify        # gofmt / vet / build / test / 3 linter を一括実行
 ```
+
+### 結合テスト（本物の PostgreSQL）
+
+`adapter/persistence` 層は、GORM の実 SQL を **本物の PostgreSQL** に対して検証する結合テストを持つ。単体テスト（usecase の mock）とは独立し、`//go:build integration` タグで隔離しているため通常の `go test ./...` には含まれない。
+
+```bash
+make test-integration
+# = docker compose -f docker-compose.integration.yml up -d --wait
+#   → TEST_DATABASE_URL=... go test -tags=integration -run Integration ./...
+#   → docker compose ... down -v（テスト失敗でも teardown）
+```
+
+- **DB コンテナ**: `docker-compose.integration.yml` の `postgres-integration-test`（`postgres:17.6-alpine`、host 側 5433、`tmpfs` で毎回まっさら）。
+- **接続先**: `TEST_DATABASE_URL`（既定 `postgres://frestyle:frestyle@localhost:5433/frestyle_integration?sslmode=disable`）。未設定 / 未起動なら結合テストは `t.Skip`。
+- **スキーマ**: `testsupport.OpenTestDB(t)` が `database.AutoMigrateAll(db)`（seed なしの全 domain AutoMigrate）でスキーマを構築。テスト間は `testsupport.TruncateAll(t, db, ...)` で独立性を確保。
+- **命名規約**: 結合テストの関数名には `Integration` を含める（CI / make は `-run Integration` で選別実行する。`TEST_DATABASE_URL` を env に持つこのジョブで env 依存の単体テストを巻き込まないため）。
+- **CI**: `ci-backend-go.yml` の `integration` ジョブが docker compose で Postgres を起動して実行する（単体 `test` ジョブとは別ジョブ）。
+- 新しい repository を足したら `internal/adapter/persistence/{entity}_repository_integration_test.go` を追加する。
 
 ## ログ方針（CloudWatch コスト対策）
 

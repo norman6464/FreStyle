@@ -30,6 +30,12 @@ func allDomainModels() []any {
 	}
 }
 
+// AutoMigrateAll は全 domain モデルを AutoMigrate する（seed なし）。
+// 起動時の Migrate と、結合テストのスキーマ初期化の両方から使う（モデル一覧の単一情報源）。
+func AutoMigrateAll(db *gorm.DB) error {
+	return db.AutoMigrate(allDomainModels()...)
+}
+
 // Migrate は起動時にスキーマを AutoMigrate する。
 // RESET_DB=true のときは public schema を完全 wipe してから再構築する（一回限りの初期構築用）。
 func Migrate(db *gorm.DB) error {
@@ -43,7 +49,7 @@ func Migrate(db *gorm.DB) error {
 		}
 	}
 	log.Println("migrate: AutoMigrate start")
-	if err := db.AutoMigrate(allDomainModels()...); err != nil {
+	if err := AutoMigrateAll(db); err != nil {
 		return err
 	}
 	log.Println("migrate: AutoMigrate done")

@@ -106,7 +106,7 @@ jobs:
       # 総計のため低め）。カバレッジ向上に合わせてラチェット的に引き上げる。
       - name: coverage summary + gate
         env:
-          COVERAGE_MIN: '48'
+          COVERAGE_MIN: '49'
         run: |
           total=$(go tool cover -func=coverage.out | tail -1 | awk '{print $3}')
           echo "## Backend test coverage: ${total} (min ${COVERAGE_MIN}%)" >> "$GITHUB_STEP_SUMMARY"

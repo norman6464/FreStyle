@@ -140,7 +140,7 @@ const docTemplate = `{
                         "description": "成功（本文なし）"
                     },
                     "400": {
-                        "description": "status 不正",
+                        "description": "id / status 不正",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -153,6 +153,12 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "super_admin 以外",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 更新失敗",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }

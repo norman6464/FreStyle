@@ -106,27 +106,33 @@ type updateCompanyApplicationStatusReq struct {
 //	@Param        id    path      int                                 true  "申請 ID"
 //	@Param        body  body      updateCompanyApplicationStatusReq   true  "status"
 //	@Success      204   "成功（本文なし）"
-//	@Failure      400   {object}  errorResponse  "status 不正"
+//	@Failure      400   {object}  errorResponse  "id / status 不正"
 //	@Failure      401   {object}  errorResponse  "未認証"
 //	@Failure      403   {object}  errorResponse  "super_admin 以外"
+//	@Failure      500   {object}  errorResponse  "DB 更新失敗"
 //	@Router       /admin/company-applications/{id}/status [patch]
 //	@Security     CookieAuth
 func (h *CompanyApplicationHandler) UpdateStatus(c *gin.Context) {
 	if !h.requireSuperAdmin(c) {
 		return
 	}
-	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil || id == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
 	var req updateCompanyApplicationStatusReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	if err := h.updateStatus.Execute(c.Request.Context(), id, req.Status); err != nil {
+		// status 不正のみ 400。DB 更新失敗等の内部エラーは詳細を漏らさず 500。
 		if errors.Is(err, usecase.ErrCompanyApplicationBadStatus) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
 		return
 	}
 	c.Status(http.StatusNoContent)

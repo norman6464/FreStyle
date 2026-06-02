@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
@@ -24,12 +25,14 @@ func (u *UpdateCompanyApplicationStatusUseCase) Execute(ctx context.Context, id 
 	if id == 0 {
 		return errors.New("id is required")
 	}
-	switch status {
+	// 前後空白・大文字混在を正規化してから検証する。
+	normalized := strings.ToLower(strings.TrimSpace(status))
+	switch normalized {
 	case domain.CompanyApplicationStatusPending,
 		domain.CompanyApplicationStatusApproved,
 		domain.CompanyApplicationStatusRejected:
 	default:
 		return ErrCompanyApplicationBadStatus
 	}
-	return u.apps.UpdateStatus(ctx, id, status)
+	return u.apps.UpdateStatus(ctx, id, normalized)
 }

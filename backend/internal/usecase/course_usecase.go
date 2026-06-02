@@ -11,6 +11,8 @@ import (
 // CourseUseCase はコースの list / get / create / update / delete を 1 構造体で扱う。
 // canManage は teaching_material_usecase と共有。trainee は published のみ閲覧、
 // 編集系は同一 company の company_admin または super_admin。Delete は配下教材も cascade 削除。
+//
+//naminglint:allow 複数 CRUD を束ねる集約 usecase のため Execute 単一メソッドではなく List/Get/Create 等で公開する
 type CourseUseCase struct {
 	courses   repository.CourseRepository
 	materials repository.TeachingMaterialRepository

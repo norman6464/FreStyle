@@ -11,6 +11,8 @@ import (
 // TeachingMaterialUseCase は教材の list / get / create / update / delete を 1 構造体で扱う。
 // 教材は必ず Course に所属するため list は Course 単位、create は course_id 必須。
 // trainee は published コース内の published 教材のみ閲覧、編集系は company_admin / super_admin。
+//
+//naminglint:allow 複数 CRUD を束ねる集約 usecase のため Execute 単一メソッドではなく List/Get/Create 等で公開する
 type TeachingMaterialUseCase struct {
 	repo    repository.TeachingMaterialRepository
 	courses repository.CourseRepository

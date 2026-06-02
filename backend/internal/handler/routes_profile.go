@@ -22,7 +22,7 @@ func registerProfileRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	// :userId は数字 / "me" の両方を受ける。/update はフロント互換の別 path。
 	g.GET("/profile/:userId", profileHandler.Get)
 	g.PUT("/profile/:userId", profileHandler.Update)
-	g.PUT("/profile/:userId/update", profileHandler.Update)
+	g.PUT("/profile/:userId/update", profileHandler.Update) //apispec:allow フロント互換の別 path（正規は PUT /profile/:userId）
 
 	// Profile アイコン画像の S3 presigned-url（note image と同じバケットを profiles/ prefix で共有）。
 	profileImageHandler := NewProfileImageHandler(
@@ -36,7 +36,7 @@ func registerProfileRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	statsHandler := NewUserStatsHandler(
 		usecase.NewGetUserStatsUseCase(persistence.NewUserStatsRepository(deps.db)),
 	)
-	g.GET("/user-stats/:userId", statsHandler.Get)
+	g.GET("/user-stats/:userId", statsHandler.Get) //apispec:allow 互換用エイリアス（正規は GET /users/:userId/stats）
 	g.GET("/users/:userId/stats", statsHandler.Get)
 
 	// オンボーディング完了（自分自身の users.onboarded_at を更新）。

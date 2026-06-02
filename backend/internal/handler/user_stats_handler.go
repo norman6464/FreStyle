@@ -52,7 +52,7 @@ func (h *UserStatsHandler) resolveUserID(c *gin.Context) (uint64, error) {
 // @Failure      401     {object}  errorResponse  "未 認証"
 // @Failure      403     {object}  errorResponse  "他 user 指定"
 // @Failure      400     {object}  errorResponse  "DB 失敗"
-// @Router       /profile/{userId}/stats [get]
+// @Router       /users/{userId}/stats [get]
 // @Security     CookieAuth
 func (h *UserStatsHandler) Get(c *gin.Context) {
 	uid, err := h.resolveUserID(c)

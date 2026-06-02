@@ -175,7 +175,7 @@ npx tailwindcss init -p
 - **handler（結合, 9 ファイル）**: `gin.SetMode(gin.TestMode)` + `httptest.NewRecorder()` でルータに `ServeHTTP` し、ルーティング〜ステータス〜JSON を通しで検証する。例: `internal/handler/profile_handler_test.go`。
 - **middleware（単体, 4 ファイル）**: JWT 認証・CurrentUser 注入・レートリミットなど横断処理を個別に検証する。
 - **infra（単体 / 境界, 4 ファイル）**: 外部 I/O を境界で差し替える。Cognito トークン交換・JWKS 検証・oEmbed 取得・SES メールを `httptest` サーバや fake で検証する。例: `internal/infra/cognito/jwt_verifier_test.go`。
-- **repository（結合）**: `adapter/persistence` 層を **本物の PostgreSQL**（`docker-compose.integration.yml` の `postgres-integration-test`、本番と同系の 17.x）に対して検証する。`//go:build integration` で隔離し、`make test-integration`（compose 起動 → `go test -tags=integration -run Integration` → teardown）で実行する。通常の `go test ./...`（単体）からは独立。例: `internal/adapter/persistence/company_application_repository_integration_test.go`。
+- **repository（結合）**: `adapter/persistence` 層を **本物の PostgreSQL**（`docker-compose.integration.yml` の `postgres-integration-test`、本番と同系の 17.x）に対して検証する。`//go:build integration` で隔離し、`make test-integration`（compose 起動 → `go test -tags=integration -run Integration` → teardown）で実行する。通常の `go test ./...`（単体）からは独立。対象例: `company_application`（Create / ListAll 降順 / UpdateStatus）/ `note`（`WHERE user_id` 所有権スコープ・`updated_at DESC`）/ `course`（company 絞り・`is_published` フィルタ・`sort_order` 昇順）の各 `*_repository_integration_test.go`。実 SQL の WHERE / ORDER / 制約を本物の Postgres で検証する。
 - **自作 linter（単体 + 結合）**: `cmd/archlint` / `cmd/apispec-lint` / `cmd/naminglint` は、分類・ルール評価の純粋関数（単体）と、一時ディレクトリツリーを走査する `run` / CLI（結合）の両方を検証する（各カバレッジ 87〜89%）。
 
 ```bash

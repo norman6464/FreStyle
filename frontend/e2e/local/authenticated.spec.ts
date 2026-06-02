@@ -128,3 +128,63 @@ test.describe('認証済み導線（super_admin）', () => {
     await expect(page).toHaveURL(/\/admin\/companies/);
   });
 });
+
+test.describe('ノート作成導線（POST モック）', () => {
+  test('「新しいノート」で POST /notes が呼ばれ一覧に追加される', async ({ page }) => {
+    await mockAuthenticated(page);
+
+    let postCalled = false;
+    // GET /notes（既存 1 件で空状態を回避）と POST /notes（作成）を method で出し分ける。
+    // mockAuthenticated の後に登録するため /notes ではこの handler が優先される。
+    await page.route('**/api/v2/notes', (route) => {
+      if (route.request().method() === 'POST') {
+        postCalled = true;
+        return route.fulfill({
+          status: 201,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            id: 999,
+            userId: 7,
+            title: '無題',
+            content: '',
+            isPublic: false,
+            isPinned: false,
+            createdAt: '2026-01-01T00:00:00Z',
+            updatedAt: '2026-01-01T00:00:00Z',
+          }),
+        });
+      }
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          {
+            id: 1,
+            userId: 7,
+            title: '既存ノート',
+            content: '',
+            isPublic: false,
+            isPinned: false,
+            createdAt: '2026-01-01T00:00:00Z',
+            updatedAt: '2026-01-01T00:00:00Z',
+          },
+        ]),
+      });
+    });
+
+    await page.goto('/notes');
+    await expect(page).toHaveURL(/\/notes/);
+    // 既存ノートが一覧に出ている（GET モックが効いている）。
+    await expect(page.getByText('既存ノート').filter({ visible: true }).first()).toBeVisible();
+
+    await page
+      .getByRole('button', { name: '新しいノート' })
+      .filter({ visible: true })
+      .first()
+      .click();
+
+    // POST が呼ばれ、作成された「無題」ノートが一覧に追加される。
+    await expect(page.getByText('無題').filter({ visible: true }).first()).toBeVisible();
+    expect(postCalled).toBe(true);
+  });
+});

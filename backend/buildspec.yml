@@ -1,0 +1,43 @@
+# CodeBuild ビルド定義（ECS Blue/Green デプロイ用）。
+#
+# CodePipeline の Build ステージから呼ばれる。backend を docker build して ECR に push し、
+# CodeDeploy(ECS Blue/Green) が使う taskdef.json / appspec.yaml / imageDetail.json を
+# artifact として出力する。
+#
+# 環境変数は frestyle-infrastructure の cicd/codepipeline.yml の CodeBuild Project が渡す:
+#   AWS_ACCOUNT_ID / AWS_REGION / ECR_REPOSITORY / CONTAINER_NAME
+#
+# 注: CodeBuild の作業ディレクトリはリポジトリのルート（appspec.yaml と同じ階層）。
+
+version: 0.2
+
+phases:
+  pre_build:
+    commands:
+      - REPO_URI=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPOSITORY
+      # コミット SHA をタグにする（imageDetail.json 経由で CodeDeploy が taskdef に焼き込む）。
+      - IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION:-latest}
+      - aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
+  build:
+    commands:
+      - docker build --platform linux/amd64 -t "$REPO_URI:$IMAGE_TAG" backend
+      - docker tag "$REPO_URI:$IMAGE_TAG" "$REPO_URI:latest"
+  post_build:
+    commands:
+      - docker push "$REPO_URI:$IMAGE_TAG"
+      - docker push "$REPO_URI:latest"
+      # 現行の本番タスク定義を取得し、image だけ CodeDeploy 用プレースホルダに差し替える。
+      # env / secrets / roles は現行定義をそのまま引き継ぐ（image 以外は ecs.yml が管理）。
+      - aws ecs describe-task-definition --task-definition frestyle-prod-task --query taskDefinition > taskdef-full.json
+      - >-
+        jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)
+            | .containerDefinitions[0].image = "<IMAGE1_NAME>"' taskdef-full.json > taskdef.json
+      # CodeDeploy が <IMAGE1_NAME> をこの ImageURI で置換する。
+      - printf '{"ImageURI":"%s"}' "$REPO_URI:$IMAGE_TAG" > imageDetail.json
+
+artifacts:
+  files:
+    - taskdef.json
+    - appspec.yaml
+    - imageDetail.json
+  discard-paths: yes

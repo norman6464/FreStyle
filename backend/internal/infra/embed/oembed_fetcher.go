@@ -92,7 +92,7 @@ func (f *Fetcher) Resolve(ctx context.Context, raw string) (*Card, error) {
 func (f *Fetcher) validateURL(raw string) (*url.URL, error) {
 	u, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidURL, err)
+		return nil, fmt.Errorf("%w: %w", ErrInvalidURL, err)
 	}
 	if u.Scheme != "https" {
 		return nil, fmt.Errorf("%w: scheme must be https", ErrInvalidURL)
@@ -138,14 +138,14 @@ func isPrivateOrLocalHost(host string) bool {
 func (f *Fetcher) resolveOGP(ctx context.Context, u *url.URL) (*Card, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidURL, err)
+		return nil, fmt.Errorf("%w: %w", ErrInvalidURL, err)
 	}
 	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("Accept", "text/html,application/xhtml+xml")
 
 	resp, err := f.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrUnreachable, err)
+		return nil, fmt.Errorf("%w: %w", ErrUnreachable, err)
 	}
 	defer resp.Body.Close()
 

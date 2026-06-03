@@ -1,0 +1,51 @@
+# golangci-lint v2 設定。
+# 既存 CI の staticcheck / govet / govulncheck を補完し、以下を追加で強制する:
+#   - errorlint : errors.Is/As と %w ラップを強制（エラーの文脈喪失を防ぐ）
+#   - bodyclose : HTTP response body の Close 漏れ（リーク）検出
+#   - gosec     : セキュリティ静的解析（誤検知は下で正当に除外）
+#   - misspell  : コメント/識別子のスペルミス
+#   - unconvert : 不要な型変換
+# default で errcheck / govet / ineffassign / staticcheck / unused も走る。
+
+version: "2"
+
+linters:
+  enable:
+    - errorlint
+    - bodyclose
+    - gosec
+    - misspell
+    - unconvert
+  settings:
+    gosec:
+      excludes:
+        # G204: サンドボックス(execute_code_usecase)はユーザコードを意図的に exec する。
+        # 引数(filename/tmpDir)は内部生成で外部入力をそのまま渡していない。
+        - G204
+  exclusions:
+    rules:
+      # 自作 lint ツール(archlint/apispec-lint/naminglint)は自分のソースツリーを
+      # WalkDir / os.Open するため Path traversal(G304/G703)は誤検知。
+      - path: cmd/(archlint|apispec-lint|naminglint)/
+        linters:
+          - gosec
+      # テストのディレクトリ権限(G301) / Cookie 属性(G124) / ダミー認証情報(G101)は
+      # 検証用途であり実害がないため除外。
+      - path: _test\.go
+        linters:
+          - gosec
+      # defer Close() / os.Remove() / CLI の fmt.Fprint は慣例的に戻り値を無視する。
+      - linters:
+          - errcheck
+        source: 'defer .*\.Close\(\)'
+      - linters:
+          - errcheck
+        source: 'defer os\.Remove'
+      - linters:
+          - errcheck
+        source: 'fmt\.Fprint'
+
+# 同種・同 linter の指摘を省略せず全件報告する（CI で取りこぼさないため）。
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

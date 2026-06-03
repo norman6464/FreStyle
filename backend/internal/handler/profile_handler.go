@@ -169,10 +169,10 @@ func (h *ProfileHandler) buildView(c *gin.Context, uid uint64) (*domain.ProfileV
 }
 
 func writeProfileError(c *gin.Context, err error) {
-	switch err {
-	case errProfileUnauthorized:
+	switch {
+	case errors.Is(err, errProfileUnauthorized):
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-	case errProfileForbidden:
+	case errors.Is(err, errProfileForbidden):
 		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 	default:
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})

@@ -133,7 +133,7 @@ func (t *TokenExchanger) exchange(ctx context.Context, form url.Values) (*Token,
 
 	resp, err := t.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrUnreachable, err)
+		return nil, fmt.Errorf("%w: %w", ErrUnreachable, err)
 	}
 	defer resp.Body.Close()
 
@@ -145,7 +145,7 @@ func (t *TokenExchanger) exchange(ctx context.Context, form url.Values) (*Token,
 
 	var tok Token
 	if err := json.Unmarshal(body, &tok); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidResponse, err)
+		return nil, fmt.Errorf("%w: %w", ErrInvalidResponse, err)
 	}
 	return &tok, nil
 }

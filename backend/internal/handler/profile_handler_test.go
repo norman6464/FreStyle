@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http/httptest"
 	"testing"
 
@@ -49,14 +50,14 @@ func TestProfileResolveUserID_MatchingNumeric(t *testing.T) {
 
 func TestProfileResolveUserID_MismatchNumericIsForbidden(t *testing.T) {
 	h := &ProfileHandler{}
-	if _, err := h.resolveUserID(makeCtx(7, "99")); err != errProfileForbidden {
+	if _, err := h.resolveUserID(makeCtx(7, "99")); !errors.Is(err, errProfileForbidden) {
 		t.Fatalf("mismatch numeric should be forbidden; got %v", err)
 	}
 }
 
 func TestProfileResolveUserID_NoCurrentUserIsUnauthorized(t *testing.T) {
 	h := &ProfileHandler{}
-	if _, err := h.resolveUserID(makeCtx(0, "me")); err != errProfileUnauthorized {
+	if _, err := h.resolveUserID(makeCtx(0, "me")); !errors.Is(err, errProfileUnauthorized) {
 		t.Fatalf("no current user should be unauthorized; got %v", err)
 	}
 }

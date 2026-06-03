@@ -70,14 +70,14 @@ jobs:
           fi
 
       - name: Checkout frestyle-infrastructure
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: ${{ env.IAC_REPO }}
           token: ${{ secrets.IAC_REPO_TOKEN }}
           path: iac
 
       - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: frestyle-scheduled-start

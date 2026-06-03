@@ -75,10 +75,10 @@ jobs:
       image_tag: ${{ steps.meta.outputs.image_tag }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: frestyle-cd-backend-build
@@ -97,7 +97,7 @@ jobs:
           echo "image_tag=$ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Build production image (Go backend)
         working-directory: backend
@@ -127,14 +127,14 @@ jobs:
     steps:
       # IaC リポを clone（プライベートなので gh CLI 経由でトークン認証）
       - name: Checkout frestyle-infrastructure
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: ${{ env.IAC_REPO }}
           token: ${{ secrets.IAC_REPO_TOKEN }}
           path: iac
 
       - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           role-session-name: frestyle-cd-backend-deploy

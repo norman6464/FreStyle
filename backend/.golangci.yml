@@ -16,14 +16,15 @@ linters:
     - gosec
     - misspell
     - unconvert
-  settings:
-    gosec:
-      excludes:
-        # G204: サンドボックス(execute_code_usecase)はユーザコードを意図的に exec する。
-        # 引数(filename/tmpDir)は内部生成で外部入力をそのまま渡していない。
-        - G204
   exclusions:
     rules:
+      # サンドボックス(execute_code_usecase)はユーザコードを意図的に exec する。
+      # 引数(filename/tmpDir)は内部生成で外部入力をそのまま渡していない。G204 は
+      # このファイルに限定して除外し、他箇所の危険な exec は検出を維持する。
+      - path: internal/usecase/execute_code_usecase\.go
+        linters:
+          - gosec
+        text: 'G204'
       # 自作 lint ツール(archlint/apispec-lint/naminglint)は自分のソースツリーを
       # WalkDir / os.Open するため Path traversal(G304/G703)は誤検知。
       - path: cmd/(archlint|apispec-lint|naminglint)/

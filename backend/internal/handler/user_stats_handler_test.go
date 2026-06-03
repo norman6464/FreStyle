@@ -1,6 +1,9 @@
 package handler
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 func TestUserStatsResolveUserID_MeKeyword(t *testing.T) {
 	h := &UserStatsHandler{}
@@ -12,14 +15,14 @@ func TestUserStatsResolveUserID_MeKeyword(t *testing.T) {
 
 func TestUserStatsResolveUserID_MismatchNumericIsForbidden(t *testing.T) {
 	h := &UserStatsHandler{}
-	if _, err := h.resolveUserID(makeCtx(7, "99")); err != errUserStatsForbidden {
+	if _, err := h.resolveUserID(makeCtx(7, "99")); !errors.Is(err, errUserStatsForbidden) {
 		t.Fatalf("mismatch numeric should be forbidden; got %v", err)
 	}
 }
 
 func TestUserStatsResolveUserID_NoCurrentUserIsUnauthorized(t *testing.T) {
 	h := &UserStatsHandler{}
-	if _, err := h.resolveUserID(makeCtx(0, "me")); err != errUserStatsUnauthorized {
+	if _, err := h.resolveUserID(makeCtx(0, "me")); !errors.Is(err, errUserStatsUnauthorized) {
 		t.Fatalf("no current user should be unauthorized; got %v", err)
 	}
 }

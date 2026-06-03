@@ -28,7 +28,7 @@ func NewAiChatSseHandler(sendStream *usecase.SendAiMessageStreamUseCase) *AiChat
 }
 
 type sseRequestBody struct {
-	SessionID   int64                  `json:"sessionId"`
+	SessionID   uint64                 `json:"sessionId"`
 	Content     string                 `json:"content"`
 	Scene       string                 `json:"scene"`
 	SessionType string                 `json:"sessionType"`
@@ -103,7 +103,7 @@ func (h *AiChatSseHandler) Handle(c *gin.Context) {
 
 	stream, err := h.sendStream.Execute(ctx, usecase.SendAiMessageInput{
 		UserID:      uid,
-		SessionID:   uint64(body.SessionID),
+		SessionID:   body.SessionID,
 		Content:     body.Content,
 		Scene:       body.Scene,
 		SessionType: body.SessionType,

@@ -184,11 +184,11 @@ type jwk struct {
 func (v *Verifier) refresh(ctx context.Context) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, v.jwksURI, nil)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrJWKSUnavailable, err)
+		return fmt.Errorf("%w: %w", ErrJWKSUnavailable, err)
 	}
 	resp, err := v.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrJWKSUnavailable, err)
+		return fmt.Errorf("%w: %w", ErrJWKSUnavailable, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
@@ -198,7 +198,7 @@ func (v *Verifier) refresh(ctx context.Context) error {
 		Keys []jwk `json:"keys"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&doc); err != nil {
-		return fmt.Errorf("%w: %v", ErrJWKSUnavailable, err)
+		return fmt.Errorf("%w: %w", ErrJWKSUnavailable, err)
 	}
 	keys := make(map[string]*rsa.PublicKey, len(doc.Keys))
 	for _, k := range doc.Keys {

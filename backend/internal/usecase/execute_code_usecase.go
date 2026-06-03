@@ -3,6 +3,7 @@ package usecase
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -215,7 +216,8 @@ func runCommand(cmd *exec.Cmd, stdin string) (*ExecuteCodeOutput, error) {
 		Stderr: truncate(stderr.String(), maxOutputBytes),
 	}
 	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
 			out.ExitCode = exitErr.ExitCode()
 		} else {
 			out.ExitCode = 1

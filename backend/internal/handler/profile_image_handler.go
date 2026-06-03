@@ -67,10 +67,10 @@ func (h *ProfileImageHandler) resolveUserID(c *gin.Context) (uint64, error) {
 func (h *ProfileImageHandler) IssueUploadURL(c *gin.Context) {
 	uid, err := h.resolveUserID(c)
 	if err != nil {
-		switch err {
-		case errProfileImageUnauthorized:
+		switch {
+		case errors.Is(err, errProfileImageUnauthorized):
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-		case errProfileImageForbidden:
+		case errors.Is(err, errProfileImageForbidden):
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 		default:
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})

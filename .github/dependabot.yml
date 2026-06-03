@@ -26,6 +26,16 @@ updates:
     labels:
       - dependencies
       - frontend
+    # メジャー更新は破壊的変更（移行作業 + 目視リグレッション）を伴うため
+    # Dependabot の自動 PR からは除外し、専用ブランチで段階移行する。
+    # tailwindcss 3→4 / eslint 9→10 系がこれに該当（patch/minor は通常どおり受け取る）。
+    ignore:
+      - dependency-name: 'tailwindcss'
+        update-types: ['version-update:semver-major']
+      - dependency-name: '@eslint/js'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'eslint'
+        update-types: ['version-update:semver-major']
 
   - package-ecosystem: github-actions
     directory: /

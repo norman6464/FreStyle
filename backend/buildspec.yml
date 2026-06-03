@@ -5,7 +5,9 @@
 # artifact として出力する。
 #
 # 環境変数は frestyle-infrastructure の cicd/codepipeline.yml の CodeBuild Project が渡す:
-#   AWS_ACCOUNT_ID / AWS_REGION / ECR_REPOSITORY / CONTAINER_NAME
+#   AWS_ACCOUNT_ID / AWS_REGION / ECR_REPOSITORY
+# コンテナ名は appspec.yaml で固定（fre-style）。taskdef も現行定義の name を引き継ぐため
+# buildspec では扱わない。
 #
 # 注: CodeBuild の作業ディレクトリはリポジトリのルート（appspec.yaml と同じ階層）。
 

@@ -9,7 +9,7 @@ name: CD - Backend Deploy to ECS
 #
 # 仕組み:
 #   1) Docker image を ECR に push (:latest と :${sha} の両方)
-#   2) frestyle-infrastructure リポの CFn テンプレートを使って
+#   2) IaC リポ リポの CFn テンプレートを使って
 #      ECS Cluster + Service + Task Definition を CFn deploy
 #      （GitHub Secrets を parameter-overrides 経由で渡す）
 #   3) force-new-deployment でローリング再起動
@@ -22,7 +22,7 @@ name: CD - Backend Deploy to ECS
 #   - COGNITO_CLIENT_ID / COGNITO_REDIRECT_URI / COGNITO_TOKEN_URI / COGNITO_JWK_SET_URI
 #     ※ COGNITO_CLIENT_SECRET と DB password は AWS Secrets Manager に保管済み（Step 2 で導入）
 #     ※ ECS タスクは Task Role を使うため SPRING_AWS_ACCESS_KEY/SECRET は廃止（Step 1 で導入）
-#   - IAC_REPO_TOKEN  : frestyle-infrastructure (private repo) 読み取り用 PAT
+#   - IAC_REPO_TOKEN  : IaC リポ (private repo) 読み取り用 PAT
 # 詳細は .github/workflows/README.md 参照
 
 on:
@@ -41,7 +41,7 @@ env:
   PROJECT: frestyle
   ENV: prod
   STACK_PFX: frestyle-prod
-  IAC_REPO: norman6464/frestyle-infrastructure
+  IAC_REPO: ${{ secrets.IAC_REPO }}
   AWS_ROLE_ARN: arn:aws:iam::010928196665:role/frestyle-prod-github-actions-role
   # DATABASE_URL は Supabase の Transaction pooler URL を Secrets Manager から inject する
   # (2026-05 の RDS 撤去後の構成。scheduled-start.yml / infra Makefile と同じ secret 名)。
@@ -126,7 +126,7 @@ jobs:
 
     steps:
       # IaC リポを clone（プライベートなので gh CLI 経由でトークン認証）
-      - name: Checkout frestyle-infrastructure
+      - name: Checkout IaC リポ
         uses: actions/checkout@v6
         with:
           repository: ${{ env.IAC_REPO }}

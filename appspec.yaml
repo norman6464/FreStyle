@@ -2,7 +2,7 @@
 #
 # CodeBuild が artifact として出力し（backend/buildspec.yml）、CodePipeline の Deploy ステージ
 # （CodeDeployToECS）が使う。<TASK_DEFINITION> は CodeDeploy が登録した新タスク定義の ARN に
-# 置換される。ContainerName / ContainerPort は frestyle-infrastructure の ecs.yml と一致させる。
+# 置換される。ContainerName / ContainerPort は IaC リポ の ecs.yml と一致させる。
 version: 0.0
 Resources:
   - TargetService:

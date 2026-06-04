@@ -160,7 +160,7 @@ make test-integration
 - 本番（`APP_ENV` が `"local"` 以外）は gin を **release モード**にして、起動時の
   `[GIN-debug]` ルート登録ログ・warning を抑止する（ローカルは debug のまま）。
 - ロググループ `/ecs/frestyle-prod` は CFn 側で retention 14 日。Container Insights は
-  コスト削減のため無効（詳細は frestyle-infrastructure の `docs/06-maintenance-cookbook.md` §15）。
+  コスト削減のため無効（詳細は IaC リポ の `docs/06-maintenance-cookbook.md` §15）。
 
 ## レートリミット（公開エンドポイント）
 

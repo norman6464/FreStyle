@@ -145,14 +145,20 @@ lefthook install                 # リポジトリごとに 1 回
 
 ## 7. デプロイ（本番保護）
 
-- デプロイは**手動**（`workflow_dispatch` + `confirm=deploy` 入力）。マージ即本番反映ではない。
-- CD の**本番反映ジョブは `production` Environment**（required reviewers = `@norman6464`）に紐付き、**起動しても承認待ちで停止**する。承認されるまで本番には反映されない（誤起動の保険）。
+いずれも**マージ即本番反映ではない**（誤起動の保険）。
+
+- **backend は CodePipeline（ECS Blue/Green）経由**。green を**本番投入前に test listener で検証**してから、CodeDeploy で手動トラフィック移行 → Canary（10%→全体）。異常時は 5xx アラームで**自動ロールバック**。切替はダウンタイムゼロ。
+  - 注: ECS が CODE_DEPLOY controller のため、旧 `cd-backend.yml`（GitHub Actions ローリング）の `force-new-deployment` は**使えない**。backend のデプロイは CodePipeline 一本。
+- **frontend は手動**（`workflow_dispatch` + `confirm=deploy`）。`production` Environment（required reviewers = `@norman6464`）の**承認待ちで停止**する。
 
 ```bash
-# 起動 → GitHub Actions 画面で承認すると反映される
-gh workflow run "CD - Backend Deploy to ECS" -R norman6464/FreStyle -f confirm=deploy
+# backend: パイプライン起動 → green を test listener で検証 → CodeDeploy でトラフィック移行を承認
+aws codepipeline start-pipeline-execution --name frestyle-prod-pipeline
+# frontend: 起動 → GitHub Actions 画面で承認すると反映される
 gh workflow run "CD - Frontend Deploy to S3 + CloudFront" -R norman6464/FreStyle -f confirm=deploy
 ```
+
+> backend の Blue/Green デプロイ手順の詳細（test 検証・トラフィック移行・ロールバック）は IaC リポの `docs/30` を参照。
 
 ## 8. マージ権限
 

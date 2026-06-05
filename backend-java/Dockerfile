@@ -18,7 +18,8 @@ FROM eclipse-temurin:21-jre-noble
 
 WORKDIR /
 
-# nonroot ユーザー (UID=65532) は Go 版 / distroless 互換値を踏襲。
+# root で実行するとコンテナ侵害時の被害が大きいため、非 root ユーザーで動かす。
+# UID=65532 は distroless 由来の慣例値。
 RUN groupadd -g 65532 nonroot && useradd -u 65532 -g nonroot -s /sbin/nologin nonroot
 
 COPY --from=builder /app/build/libs/*-SNAPSHOT.jar /app.jar

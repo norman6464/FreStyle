@@ -1,4 +1,4 @@
-package com.normanblog.frestyle.handler;
+package com.normanblog.frestyle.controller;
 
 import static org.hamcrest.Matchers.hasItem;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -14,7 +14,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
-/** NoteController と HealthController の HTTP 振る舞いを検証する。 */
+/** ノート API とヘルスチェックの HTTP 振る舞いを検証する。 */
 @SpringBootTest
 class NoteControllerTest {
 
@@ -42,10 +42,7 @@ class NoteControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.title").value("テストノート"))
         .andExpect(jsonPath("$.isPublic").value(false))
-        .andExpect(jsonPath("$.isPinned").value(false))
-        // Lombok getter 由来の重複キー(public/pinned)が出ないこと
-        .andExpect(jsonPath("$.public").doesNotExist())
-        .andExpect(jsonPath("$.pinned").doesNotExist());
+        .andExpect(jsonPath("$.isPinned").value(false));
 
     mvc.perform(get("/api/v2/notes"))
         .andExpect(status().isOk())

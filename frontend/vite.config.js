@@ -16,13 +16,27 @@ export default defineConfig(({ mode }) => ({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          // React本体
-          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          // 状態管理
-          'vendor-state': ['@reduxjs/toolkit', 'react-redux', '@tanstack/react-query'],
-          // Monaco Editor（CDN ロード禁止のためローカルバンドル、重いので分離）
-          'vendor-monaco': ['monaco-editor'],
+        // vite 8 のデフォルトバンドラ(Rolldown)はオブジェクト形式の manualChunks を
+        // 受け付けず関数形式のみ対応するため、id ベースの関数で同じ分割を表現する。
+        // react-router-dom / react-dom を react より先に判定する(部分一致の取りこぼし防止)。
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+          if (id.includes('node_modules/monaco-editor')) return 'vendor-monaco';
+          if (
+            id.includes('node_modules/@reduxjs/toolkit') ||
+            id.includes('node_modules/react-redux') ||
+            id.includes('node_modules/@tanstack/react-query')
+          ) {
+            return 'vendor-state';
+          }
+          if (
+            id.includes('node_modules/react-router-dom') ||
+            id.includes('node_modules/react-dom') ||
+            id.includes('node_modules/react/')
+          ) {
+            return 'vendor-react';
+          }
+          return undefined;
         },
       },
     },

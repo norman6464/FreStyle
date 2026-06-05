@@ -22,6 +22,12 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+	// DB マイグレーションは Flyway で版管理する(スキーマ変更は SQL を db/migration に積む)。
+	// Spring Boot 4.0 は autoconfig がモジュール分割されたため、Flyway 連携には
+	// spring-boot-flyway モジュールが必要(これが無いと migration が実行されない)。
+	implementation 'org.springframework.boot:spring-boot-flyway'
+	implementation 'org.flywaydb:flyway-core'
+	implementation 'org.flywaydb:flyway-database-postgresql'
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'org.postgresql:postgresql'
 	// メモリ実測 / ローカル動作確認用のインメモリ DB（本番は Supabase=postgresql）。

@@ -10,7 +10,18 @@ FreStyle のバックエンドを Java / Spring Boot で実装するプロジェ
 
 - Java 21 / Spring Boot 4.0.6 / Gradle 9.5.1（Wrapper 同梱、システム Gradle 不要）
 - Spring MVC（`spring-boot-starter-webmvc`）/ Spring Data JPA / Bean Validation / Actuator / Lombok
+- DB マイグレーション: Flyway（スキーマの正は `db/migration` の SQL）
 - DB: ローカル/テストは H2（インメモリ）、本番は Supabase(PostgreSQL) を環境変数で注入
+
+## DB マイグレーション（Flyway）
+
+スキーマは Flyway が所有する。Hibernate の自動 DDL は使わない（`spring.jpa.hibernate.ddl-auto=none`）。
+
+- マイグレーション SQL は `src/main/resources/db/migration/V{n}__{説明}.sql` に積む（版番号は連番）
+- 起動時に Flyway が未適用分を順に流し、`flyway_schema_history` で適用済みを管理する
+- SQL は H2（テスト/ローカル）と PostgreSQL（本番）の双方で通る書き方にする
+- 既存 GORM 製スキーマが入った本番 DB に後から載せる場合に備え `baseline-on-migrate=true` を設定済
+- Spring Boot 4.0 は autoconfig がモジュール分割されたため、Flyway 連携には `spring-boot-flyway` モジュールが必要
 
 ## パッケージ構成
 

@@ -2,6 +2,7 @@ package com.normanblog.frestyle.handler;
 
 import com.normanblog.frestyle.domain.Note;
 import com.normanblog.frestyle.usecase.NoteService;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -33,7 +34,7 @@ public class NoteController {
   }
 
   @PostMapping
-  public Note create(@RequestBody CreateNoteRequest req) {
+  public Note create(@Valid @RequestBody CreateNoteRequest req) {
     return noteService.create(TEMP_USER_ID, req.title(), req.content());
   }
 

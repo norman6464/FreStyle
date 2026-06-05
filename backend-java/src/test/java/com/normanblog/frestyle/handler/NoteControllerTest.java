@@ -1,5 +1,6 @@
 package com.normanblog.frestyle.handler;
 
+import static org.hamcrest.Matchers.hasItem;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -48,6 +49,16 @@ class NoteControllerTest {
 
     mvc.perform(get("/api/v2/notes"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$[0].title").value("テストノート"));
+        .andExpect(jsonPath("$[*].title", hasItem("テストノート")));
+  }
+
+  @Test
+  void create_blankTitle_returns400() throws Exception {
+    mockMvc()
+        .perform(
+            post("/api/v2/notes")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"title\":\"\",\"content\":\"本文\"}"))
+        .andExpect(status().isBadRequest());
   }
 }

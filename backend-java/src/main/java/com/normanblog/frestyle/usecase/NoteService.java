@@ -24,12 +24,13 @@ public class NoteService {
     return notes.findByUserIdOrderByIsPinnedDescUpdatedAtDesc(userId);
   }
 
+  // title は handler 層(@Valid + @NotBlank)で検証済みである前提。
   public Note create(Long userId, String title, String content) {
     Instant now = Instant.now();
     Note note =
         Note.builder()
             .userId(userId)
-            .title(title == null || title.isBlank() ? "無題" : title)
+            .title(title)
             .content(content == null ? "" : content)
             .isPublic(false)
             .isPinned(false)

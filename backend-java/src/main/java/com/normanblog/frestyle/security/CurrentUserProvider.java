@@ -25,7 +25,8 @@ public class CurrentUserProvider {
 
   public CurrentUserProvider(UserRepository users, CognitoProperties cognito) {
     this.users = users;
-    this.adminGroup = cognito.adminGroup();
+    // 設定未投入でも admin 判定が無効化しないよう既定 "admin" にフォールバック。
+    this.adminGroup = cognito.adminGroup() != null ? cognito.adminGroup() : "admin";
   }
 
   /** 認証済み JWT の sub から users 行を引く。未登録なら 401。 */

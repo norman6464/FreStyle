@@ -71,7 +71,9 @@ class UserProvisioningServiceTest {
     assertThat(u.getCompanyId()).isEqualTo(42L);
     assertThat(u.getDisplayName()).isEqualTo("Invited");
     // 招待は accepted にマークされ再利用できない。
-    assertThat(invitations.findFirstByEmailAndStatusOrderByCreatedAtDesc("inv@x.com", InvitationStatus.PENDING))
+    assertThat(
+            invitations.findFirstByEmailAndStatusAndExpiresAtAfterOrderByCreatedAtDesc(
+                "inv@x.com", InvitationStatus.PENDING, Instant.now()))
         .isEmpty();
   }
 
@@ -90,6 +92,24 @@ class UserProvisioningServiceTest {
     // token は期限切れで弾かれ、email フォールバックも無い(別 email)ので拒否。
     boolean allowed =
         provisioning.upsertFromIdToken(claims("s4", "other@x.com", List.of()), "tok-expired");
+    assertThat(allowed).isFalse();
+  }
+
+  @Test
+  void newUser_withTokenInvitationButMismatchedEmail_isBlocked() {
+    invitations.save(
+        AdminInvitation.builder()
+            .email("invited@x.com")
+            .role(Role.TRAINEE)
+            .token("tok1")
+            .status(InvitationStatus.PENDING)
+            .expiresAt(Instant.now().plus(1, ChronoUnit.DAYS))
+            .createdAt(Instant.now())
+            .build());
+
+    // トークンは有効だがログイン email が招待先と違う → 横取り防止で拒否。
+    boolean allowed =
+        provisioning.upsertFromIdToken(claims("s9", "attacker@x.com", List.of()), "tok1");
     assertThat(allowed).isFalse();
   }
 

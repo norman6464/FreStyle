@@ -12,6 +12,7 @@ public interface AdminInvitationRepository extends JpaRepository<AdminInvitation
   Optional<AdminInvitation> findFirstByTokenAndStatusAndExpiresAtAfter(
       String token, String status, Instant now);
 
-  // email フォールバックは複数 pending を考慮して新しい順に 1 件。
-  Optional<AdminInvitation> findFirstByEmailAndStatusOrderByCreatedAtDesc(String email, String status);
+  // email フォールバックも期限切れを弾く。複数 pending は新しい順に 1 件。
+  Optional<AdminInvitation> findFirstByEmailAndStatusAndExpiresAtAfterOrderByCreatedAtDesc(
+      String email, String status, Instant now);
 }

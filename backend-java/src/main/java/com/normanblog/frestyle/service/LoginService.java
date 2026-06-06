@@ -25,13 +25,19 @@ public class LoginService {
     return new LoginResult(tokens, allowed);
   }
 
-  /** refresh_token で access_token を再発行し、id_token があれば role を同期する。 */
-  public CognitoTokens refresh(String refreshToken) {
+  /**
+   * refresh_token で access_token を再発行し、id_token があれば role を同期する。
+   *
+   * <p>id_token があり upsert が false(招待が取り消された / ユーザー削除 等)なら allowed=false を返し、
+   * controller 側で Cookie を破棄して 401 にする。id_token が無い場合は既存セッション前提で許可する。
+   */
+  public LoginResult refresh(String refreshToken) {
     CognitoTokens tokens = tokenClient.refreshAccessToken(refreshToken);
+    boolean allowed = true;
     if (tokens.idToken() != null && !tokens.idToken().isBlank()) {
-      provisioning.upsertFromIdToken(IdTokenClaims.decode(tokens.idToken()), null);
+      allowed = provisioning.upsertFromIdToken(IdTokenClaims.decode(tokens.idToken()), null);
     }
-    return tokens;
+    return new LoginResult(tokens, allowed);
   }
 
   /** callback の結果。allowed=false は招待ゲートで弾かれた新規ユーザー。 */

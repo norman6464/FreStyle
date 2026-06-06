@@ -30,7 +30,8 @@ public class UserProvisioningService {
       UserRepository users, AdminInvitationRepository invitations, CognitoProperties cognito) {
     this.users = users;
     this.invitations = invitations;
-    this.adminGroup = cognito.adminGroup();
+    // 設定未投入でも admin 判定が無効化しないよう既定 "admin" にフォールバック。
+    this.adminGroup = cognito.adminGroup() != null ? cognito.adminGroup() : "admin";
   }
 
   /**
@@ -55,22 +56,33 @@ public class UserProvisioningService {
     return createNew(sub, claims, isCognitoAdmin, invitation);
   }
 
-  // 招待検索: invitationToken 優先(期限内 pending)、無ければ email でフォールバック(pending の最新)。
+  // 招待検索: invitationToken 優先(期限内 pending)、無ければ email でフォールバック(期限内 pending)。
   private AdminInvitation findInvitation(String token, String email) {
+    Instant now = Instant.now();
     if (token != null && !token.isBlank()) {
-      Optional<AdminInvitation> byToken =
-          invitations.findFirstByTokenAndStatusAndExpiresAtAfter(
-              token, InvitationStatus.PENDING, Instant.now());
-      if (byToken.isPresent()) {
-        return byToken.get();
+      AdminInvitation byToken =
+          invitations
+              .findFirstByTokenAndStatusAndExpiresAtAfter(token, InvitationStatus.PENDING, now)
+              .orElse(null);
+      // トークンが漏れても別アカウントで消費できないよう、招待先 email とログイン email を照合する。
+      if (byToken != null && emailMatches(byToken, email)) {
+        return byToken;
       }
     }
     if (email != null && !email.isBlank()) {
       return invitations
-          .findFirstByEmailAndStatusOrderByCreatedAtDesc(email, InvitationStatus.PENDING)
+          .findFirstByEmailAndStatusAndExpiresAtAfterOrderByCreatedAtDesc(
+              email, InvitationStatus.PENDING, now)
           .orElse(null);
     }
     return null;
+  }
+
+  // 招待先 email とログイン email が一致するか(大小無視)。email が確認できなければ不一致扱い(安全側)。
+  private boolean emailMatches(AdminInvitation invitation, String loginEmail) {
+    return invitation.getEmail() != null
+        && loginEmail != null
+        && invitation.getEmail().equalsIgnoreCase(loginEmail);
   }
 
   private void updateExisting(

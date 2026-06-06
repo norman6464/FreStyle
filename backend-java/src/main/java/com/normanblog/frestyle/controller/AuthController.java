@@ -63,6 +63,8 @@ public class AuthController {
     try {
       result = loginService.callback(request.code(), request.invitationToken());
     } catch (TokenExchangeException e) {
+      // 交換失敗時は古いセッションを残さないよう既存 Cookie もクリアする。
+      cookies.clear(response);
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
           .body(Map.of("error", "login_failed"));
     }
@@ -102,8 +104,13 @@ public class AuthController {
           .body(Map.of("error", "refresh_token_missing"));
     }
     try {
-      CognitoTokens tokens = loginService.refresh(refreshToken);
-      cookies.setAccessToken(response, tokens.accessToken(), tokens.expiresIn());
+      LoginService.LoginResult result = loginService.refresh(refreshToken);
+      if (!result.allowed()) {
+        // 招待取り消し / ユーザー削除等で許可が外れたらセッションを破棄する。
+        cookies.clear(response);
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "not_allowed"));
+      }
+      cookies.setAccessToken(response, result.tokens().accessToken(), result.tokens().expiresIn());
       return ResponseEntity.ok(Map.of("message", "refreshed"));
     } catch (TokenExchangeException e) {
       cookies.clear(response);

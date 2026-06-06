@@ -24,7 +24,8 @@ public class CognitoCookieBearerTokenResolver implements BearerTokenResolver {
           "/api/v2/health",
           "/api/v2/auth/login",
           "/api/v2/auth/logout",
-          "/api/v2/auth/refresh");
+          "/api/v2/auth/refresh",
+          "/api/v2/company-applications");
 
   @Override
   public String resolve(HttpServletRequest request) {

@@ -30,10 +30,11 @@ describe('AuthLayout', () => {
 
   it('中央寄せレイアウトが適用される', () => {
     const { container } = render(<AuthLayout><div>テスト</div></AuthLayout>);
-    const wrapper = container.firstElementChild as HTMLElement;
-    expect(wrapper.className).toContain('flex');
-    expect(wrapper.className).toContain('items-center');
-    expect(wrapper.className).toContain('justify-center');
+    // 外枠は min-h-screen の縦並び、内側に中央寄せの領域を持つ(header スロット追加に伴う構造)。
+    const root = container.firstElementChild as HTMLElement;
+    expect(root.className).toContain('min-h-screen');
+    const centered = container.querySelector('.items-center.justify-center') as HTMLElement;
+    expect(centered).not.toBeNull();
   });
 
   it('カードに角丸が適用される', () => {

@@ -1,59 +1,14 @@
-import { useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from './useAuth';
-import { useFormField } from './useFormField';
-
-interface LoginMessage {
-  type: 'success' | 'error';
-  text: string;
-}
+import { useLocation } from 'react-router-dom';
 
 /**
- * LoginPageフック
+ * LoginPage 用フック。
  *
- * <p>役割:</p>
- * <ul>
- *   <li>LoginPageのフォーム管理・バリデーション</li>
- *   <li>ログイン処理のロジック</li>
- * </ul>
+ * ログインは Cognito Hosted UI に一本化したため、フォーム状態は持たない。
+ * ログアウト後や招待受諾後などに遷移元から渡されるフラッシュメッセージだけを取り出す。
  */
 export function useLoginPage() {
-  const { form, handleChange } = useFormField({ email: '', password: '' });
-  const [loginMessage, setLoginMessage] = useState<LoginMessage | null>(null);
-  const [loading, setLoading] = useState(false);
-
   const location = useLocation();
-  const navigate = useNavigate();
-  const { login } = useAuth();
-
   const flashMessage = (location.state as { message?: string })?.message || '';
 
-  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setLoading(true);
-
-    try {
-      const success = await login({ email: form.email, password: form.password });
-
-      if (success) {
-        navigate('/');
-      } else {
-        setLoginMessage({
-          type: 'error',
-          text: 'ログインに失敗しました。',
-        });
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return {
-    form,
-    loginMessage,
-    flashMessage,
-    loading,
-    handleLogin,
-    handleChange,
-  };
+  return { flashMessage };
 }

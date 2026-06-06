@@ -1,6 +1,7 @@
 package com.normanblog.frestyle.security;
 
 import com.normanblog.frestyle.config.CognitoProperties;
+import com.normanblog.frestyle.entity.Role;
 import com.normanblog.frestyle.entity.User;
 import com.normanblog.frestyle.repository.UserRepository;
 import java.util.List;
@@ -35,6 +36,16 @@ public class CurrentUserProvider {
     return users
         .findByCognitoSubAndDeletedAtIsNull(sub)
         .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "user_not_found"));
+  }
+
+  /** super_admin であることを要求する。違えば 403。管理 API の認可境界に使う。 */
+  public User requireSuperAdmin() {
+    User user = require();
+    if (!Role.SUPER_ADMIN.equals(user.getRole())) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "forbidden");
+    }
+
+    return user;
   }
 
   /** 検証済みの JWT を取り出す。未認証なら 401。 */

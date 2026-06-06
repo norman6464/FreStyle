@@ -10,4 +10,7 @@ public interface TeachingMaterialRepository extends JpaRepository<TeachingMateri
   List<TeachingMaterial> findByCourseIdOrderByOrderInCourseAscIdAsc(Long courseId);
 
   List<TeachingMaterial> findByCourseIdAndIsPublishedTrueOrderByOrderInCourseAscIdAsc(Long courseId);
+
+  // コース削除時の cascade 用(呼び出し側を @Transactional にする)。
+  void deleteByCourseId(Long courseId);
 }

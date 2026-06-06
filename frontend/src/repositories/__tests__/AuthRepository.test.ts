@@ -44,7 +44,7 @@ describe('AuthRepository', () => {
 
     const result = await authRepository.callback('auth-code-123');
 
-    expect(mockedApiClient.post).toHaveBeenCalledWith('/api/v2/auth/cognito/callback', { code: 'auth-code-123' });
+    expect(mockedApiClient.post).toHaveBeenCalledWith('/api/v2/auth/login', { code: 'auth-code-123' });
     expect(result).toEqual(mockData);
   });
 
@@ -79,7 +79,7 @@ describe('AuthRepository', () => {
 
     await authRepository.logout();
 
-    expect(mockedApiClient.post).toHaveBeenCalledWith('/api/v2/auth/cognito/logout');
+    expect(mockedApiClient.post).toHaveBeenCalledWith('/api/v2/auth/logout');
   });
 
   it('getCurrentUser: 現在のユーザー情報を取得できる', async () => {
@@ -97,6 +97,6 @@ describe('AuthRepository', () => {
 
     await authRepository.refreshToken();
 
-    expect(mockedApiClient.post).toHaveBeenCalledWith('/api/v2/auth/cognito/refresh-token');
+    expect(mockedApiClient.post).toHaveBeenCalledWith('/api/v2/auth/refresh');
   });
 });

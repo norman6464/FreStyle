@@ -81,7 +81,7 @@ class AuthCognitoFlowControllerTest {
             new CognitoTokens("access-jwt", fakeIdToken("sub1", "inv@x.com", List.of()), "refresh-jwt", 3600));
 
     mvc.perform(
-            post("/api/v2/auth/cognito/callback")
+            post("/api/v2/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"code\":\"abc\"}"))
         .andExpect(status().isOk())
@@ -98,7 +98,7 @@ class AuthCognitoFlowControllerTest {
             new CognitoTokens("access-jwt", fakeIdToken("sub2", "nobody@x.com", List.of()), "refresh-jwt", 3600));
 
     mvc.perform(
-            post("/api/v2/auth/cognito/callback")
+            post("/api/v2/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"code\":\"abc\"}"))
         .andExpect(status().isForbidden())
@@ -112,7 +112,7 @@ class AuthCognitoFlowControllerTest {
         .thenThrow(new TokenExchangeException(400, "invalid_grant"));
 
     mvc.perform(
-            post("/api/v2/auth/cognito/callback")
+            post("/api/v2/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"code\":\"bad\"}"))
         .andExpect(status().isUnauthorized());
@@ -120,7 +120,7 @@ class AuthCognitoFlowControllerTest {
 
   @Test
   void logout_clearsCookies() throws Exception {
-    mvc.perform(post("/api/v2/auth/cognito/logout"))
+    mvc.perform(post("/api/v2/auth/logout"))
         .andExpect(status().isOk())
         .andExpect(cookie().maxAge("access_token", 0))
         .andExpect(cookie().maxAge("refresh_token", 0));
@@ -131,13 +131,13 @@ class AuthCognitoFlowControllerTest {
     when(tokenClient.refreshAccessToken(any()))
         .thenReturn(new CognitoTokens("new-access", "", "", 3600));
 
-    mvc.perform(post("/api/v2/auth/cognito/refresh-token").cookie(new Cookie("refresh_token", "rt")))
+    mvc.perform(post("/api/v2/auth/refresh").cookie(new Cookie("refresh_token", "rt")))
         .andExpect(status().isOk())
         .andExpect(cookie().value("access_token", "new-access"));
   }
 
   @Test
   void refresh_withoutCookie_returns401() throws Exception {
-    mvc.perform(post("/api/v2/auth/cognito/refresh-token")).andExpect(status().isUnauthorized());
+    mvc.perform(post("/api/v2/auth/refresh")).andExpect(status().isUnauthorized());
   }
 }

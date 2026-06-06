@@ -140,4 +140,19 @@ class AuthCognitoFlowControllerTest {
   void refresh_withoutCookie_returns401() throws Exception {
     mvc.perform(post("/api/v2/auth/refresh")).andExpect(status().isUnauthorized());
   }
+
+  @Test
+  void refresh_withExpiredAccessTokenCookie_stillReachesController() throws Exception {
+    // refresh は access_token が期限切れの状態で叩かれる。壊れた access_token Cookie が
+    // 付いていても JWT 検証で 401 にならず、controller に到達して再発行できること。
+    when(tokenClient.refreshAccessToken(any()))
+        .thenReturn(new CognitoTokens("new-access", "", "", 3600));
+
+    mvc.perform(
+            post("/api/v2/auth/refresh")
+                .cookie(new Cookie("refresh_token", "rt"))
+                .cookie(new Cookie("access_token", "expired-or-garbage")))
+        .andExpect(status().isOk())
+        .andExpect(cookie().value("access_token", "new-access"));
+  }
 }

@@ -50,7 +50,7 @@ export default function LoginPage() {
       />
 
       <p className="mt-5 text-center text-sm text-[var(--color-text-muted)]">
-        ログインには所属企業からの招待が必要です。
+        招待された方は招待メールのリンクからログインしてください。
         <br />
         企業の方は <LinkText to="/company-application">利用申請</LinkText> から。
       </p>

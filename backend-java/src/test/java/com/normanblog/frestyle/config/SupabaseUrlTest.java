@@ -37,6 +37,12 @@ class SupabaseUrlTest {
   }
 
   @Test
+  void toString_masksPassword() {
+    SupabaseUrl r = SupabaseUrl.parse("postgresql://user:topsecret@db.example.com:5432/postgres");
+    assertThat(r.toString()).doesNotContain("topsecret").contains("password=***");
+  }
+
+  @Test
   void parse_missingCredentials_throws() {
     assertThatThrownBy(() -> SupabaseUrl.parse("postgresql://db.example.com:5432/postgres"))
         .isInstanceOf(IllegalArgumentException.class);

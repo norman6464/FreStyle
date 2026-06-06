@@ -14,6 +14,13 @@ import java.nio.charset.StandardCharsets;
  */
 public record SupabaseUrl(String jdbcUrl, String username, String password) {
 
+  // record の自動生成 toString は password を平文で出すため、ログ/スタックトレース漏洩を防ぐよう
+  // マスクして上書きする(jdbcUrl には password を含めていないのでそのまま出してよい)。
+  @Override
+  public String toString() {
+    return "SupabaseUrl[jdbcUrl=" + jdbcUrl + ", username=" + username + ", password=***]";
+  }
+
   /** libpq 形式の DATABASE_URL を解析する。host 名で pgbouncer を判定し prepared statement を無効化する。 */
   public static SupabaseUrl parse(String databaseUrl) {
     URI uri = URI.create(databaseUrl.trim());

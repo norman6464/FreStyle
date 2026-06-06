@@ -88,11 +88,18 @@ Cognito の **access_token(JWT)を HttpOnly Cookie で受け取り、Cognito の
 | `POST /api/v2/auth/cognito/refresh-token` | access_token 再発行 | 不要 |
 | `GET /api/v2/notes` | ノート一覧（認証ユーザーのもの） | 必須 |
 | `POST /api/v2/notes` | ノート作成（`title` 必須） | 必須 |
+| `GET /api/v2/courses` | コース一覧（company/role でフィルタ） | 必須 |
+| `GET /api/v2/courses/{id}` | コース詳細 | 必須 |
+| `GET /api/v2/courses/{id}/materials` | コース内教材一覧 | 必須 |
+| `GET /api/v2/teaching-materials/{id}` | 教材詳細 | 必須 |
+
+コース/教材の閲覧権: trainee は自社の published のみ、company_admin / super_admin は draft 含む。
+super_admin は会社を跨いで閲覧可。アクセス制御は `CourseService` で actor の company/role を見て判定。
 
 ### 今後追加する機能（1 機能 = 1 PR）
 
-AI チャット(Bedrock SSE) / コース・教材 / 演習(サンドボックス実行) / 通知 / レポート(SQS) +
-S3 / DynamoDB / SES 連携。CSRF 対策。
+コース/教材の CRUD(company_admin) / AI チャット(Bedrock SSE) / 演習(サンドボックス実行) /
+通知 / レポート(SQS) + S3 / DynamoDB / SES 連携。CSRF 対策。
 
 ## メモリ実測（ECS スペック検証）
 

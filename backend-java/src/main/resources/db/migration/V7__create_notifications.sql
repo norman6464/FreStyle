@@ -9,7 +9,8 @@ CREATE TABLE IF NOT EXISTS notifications (
     title      VARCHAR(255) NOT NULL DEFAULT '',
     body       VARCHAR      NOT NULL DEFAULT '',
     is_read    BOOLEAN      NOT NULL DEFAULT FALSE,
-    created_at TIMESTAMP
+    -- 一覧の「作成日降順」契約を固定するため、未設定でも NULL が混ざらないよう DB 側で既定値を持つ。
+    created_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 一覧・未読数はユーザー単位で引くため user_id に索引を張る。

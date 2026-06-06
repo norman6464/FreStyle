@@ -55,6 +55,7 @@ public class CognitoTokenClient {
     if (cognito.clientSecret() != null && !cognito.clientSecret().isBlank()) {
       form.add("client_secret", cognito.clientSecret());
     }
+
     return http.post()
         .uri(cognito.tokenUri())
         .contentType(MediaType.APPLICATION_FORM_URLENCODED)

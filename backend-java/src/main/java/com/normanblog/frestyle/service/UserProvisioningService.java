@@ -45,36 +45,42 @@ public class UserProvisioningService {
     if (sub == null || sub.isBlank()) {
       return false;
     }
+
     boolean isCognitoAdmin = claims.groups().contains(adminGroup);
     AdminInvitation invitation = findInvitation(invitationToken, claims.email());
-
     Optional<User> existing = users.findByCognitoSubAndDeletedAtIsNull(sub);
+
     if (existing.isPresent()) {
       updateExisting(existing.get(), claims, isCognitoAdmin, invitation);
       return true;
     }
+
     return createNew(sub, claims, isCognitoAdmin, invitation);
   }
 
   // 招待検索: invitationToken 優先(期限内 pending)、無ければ email でフォールバック(期限内 pending)。
   private AdminInvitation findInvitation(String token, String email) {
     Instant now = Instant.now();
+
     if (token != null && !token.isBlank()) {
       AdminInvitation byToken =
           invitations
               .findFirstByTokenAndStatusAndExpiresAtAfter(token, InvitationStatus.PENDING, now)
               .orElse(null);
+
       // トークンが漏れても別アカウントで消費できないよう、招待先 email とログイン email を照合する。
       if (byToken != null && emailMatches(byToken, email)) {
         return byToken;
       }
     }
+
     if (email != null && !email.isBlank()) {
       return invitations
           .findFirstByEmailAndStatusAndExpiresAtAfterOrderByCreatedAtDesc(
               email, InvitationStatus.PENDING, now)
           .orElse(null);
     }
+
     return null;
   }
 
@@ -128,10 +134,12 @@ public class UserProvisioningService {
     if (!isCognitoAdmin && invitation == null) {
       return false;
     }
+
     String role = isCognitoAdmin ? Role.SUPER_ADMIN : Role.TRAINEE;
     Long companyId = null;
     String displayName =
         (claims.name() != null && !claims.name().isBlank()) ? claims.name() : claims.email();
+
     if (invitation != null) {
       // 招待の role(company_admin / trainee)を優先する。
       if (Role.COMPANY_ADMIN.equals(invitation.getRole())
@@ -143,6 +151,7 @@ public class UserProvisioningService {
         displayName = invitation.getDisplayName();
       }
     }
+
     Instant now = Instant.now();
     users.save(
         User.builder()
@@ -154,9 +163,11 @@ public class UserProvisioningService {
             .createdAt(now)
             .updatedAt(now)
             .build());
+
     if (invitation != null) {
       markAccepted(invitation);
     }
+
     return true;
   }
 

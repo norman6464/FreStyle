@@ -21,11 +21,13 @@ public record IdTokenClaims(String sub, String email, String name, List<String> 
     if (idToken == null || idToken.isBlank()) {
       throw new IllegalArgumentException("invalid id_token");
     }
+
     // payload(parts[1])のみ使うため header.payload があれば足りる(署名は検証しない)。
     String[] parts = idToken.split("\\.");
     if (parts.length < 2) {
       throw new IllegalArgumentException("invalid id_token");
     }
+
     try {
       JsonNode claims = MAPPER.readTree(base64UrlDecode(parts[1]));
       return new IdTokenClaims(

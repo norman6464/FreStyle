@@ -124,7 +124,7 @@ test.describe('演習フロー', () => {
 });
 
 test.describe('ログイン画面', () => {
-  test('未認証で /login を開くとログインフォームが表示される', async ({ page }) => {
+  test('未認証で /login を開くと Hosted UI ログイン導線が表示される', async ({ page }) => {
     // すべての API を 401 にして未認証状態にする。
     await page.route('**/api/v2/**', (route) =>
       route.fulfill({
@@ -137,6 +137,9 @@ test.describe('ログイン画面', () => {
     await page.goto('/login');
 
     await expect(page).toHaveURL(/\/login/);
-    await expect(page.getByRole('button', { name: 'ログイン', exact: true })).toBeVisible();
+    // ログインは Cognito Hosted UI に一本化したため「ログイン / 新規登録」ボタンを出す。
+    await expect(
+      page.getByRole('button', { name: 'ログイン / 新規登録' })
+    ).toBeVisible();
   });
 });

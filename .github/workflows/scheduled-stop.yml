@@ -68,6 +68,20 @@ jobs:
           role-session-name: frestyle-scheduled-stop
           aws-region: ${{ env.AWS_REGION }}
 
+      # 監視スタックは alb の Export(LoadBalancerFullName / TargetGroupFullName)を
+      # ImportValue しているため、alb より先に消さないと alb 削除が「Export 使用中」で
+      # 失敗する。日中の監視は scheduled-start が朝に作り直す。
+      - name: Destroy monitoring stack
+        run: |
+          if aws cloudformation describe-stacks --region $AWS_REGION --stack-name $STACK_PFX-monitoring >/dev/null 2>&1; then
+            echo "Deleting $STACK_PFX-monitoring ..."
+            aws cloudformation delete-stack --region $AWS_REGION --stack-name $STACK_PFX-monitoring
+            aws cloudformation wait stack-delete-complete --region $AWS_REGION --stack-name $STACK_PFX-monitoring
+            echo "✅ monitoring deleted"
+          else
+            echo "monitoring stack already absent, skip"
+          fi
+
       - name: Destroy ECS stack
         run: |
           if aws cloudformation describe-stacks --region $AWS_REGION --stack-name $STACK_PFX-ecs >/dev/null 2>&1; then

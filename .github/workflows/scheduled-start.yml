@@ -200,6 +200,20 @@ jobs:
             --capabilities CAPABILITY_IAM --no-fail-on-empty-changeset \
             --tags Project=FreStyle Environment=prod ManagedBy=CloudFormation
 
+      # 監視スタックは scheduled-stop で毎晩消えるため、ここで作り直す。
+      # alb の Export を ImportValue し、ecs が作る LogGroup(/ecs/frestyle-prod)に
+      # メトリクスフィルタを張るので、alb・ecs より後に deploy する。
+      # 注: SNS 購読(メール通知)を将来足す場合、毎晩 topic が作り直されると購読が消える。
+      #     その時は SNS topic を別の永続スタックに分離すること(現状は購読 0 件で無害)。
+      - name: Deploy monitoring stack
+        run: |
+          aws cloudformation deploy --region $AWS_REGION \
+            --stack-name $STACK_PFX-monitoring \
+            --template-file iac/infrastructure/cloudformation/templates/monitoring/cloudwatch.yml \
+            --parameter-overrides Environment=prod AlbStackName=$STACK_PFX-alb \
+            --capabilities CAPABILITY_IAM --no-fail-on-empty-changeset \
+            --tags Project=FreStyle Environment=prod ManagedBy=CloudFormation
+
       - name: Upsert Route 53 Alias record (api.normanblog.com → ALB)
         env:
           ALB_DNS: ${{ steps.deps.outputs.alb_dns }}

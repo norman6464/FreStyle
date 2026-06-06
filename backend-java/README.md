@@ -69,12 +69,12 @@ Cognito の **access_token(JWT)を HttpOnly Cookie で受け取り、Cognito の
 
 ### ログインフロー
 
-- `POST /api/v2/auth/cognito/callback`: 認可コードを Cognito token endpoint で token に交換し、
+- `POST /api/v2/auth/login`: 認可コードを Cognito token endpoint で token に交換し、
   `access_token` / `refresh_token` を HttpOnly Cookie で発行（`CognitoTokenClient` / `AuthCookies`）
 - **招待ゲート**（`UserProvisioningService`）: 新規ユーザーは「pending な招待」か「Cognito admin
   グループ」のいずれかが必要。無ければ 403 で拒否。招待の role / company を反映し accepted にマーク
-- `POST /api/v2/auth/cognito/logout`: Cookie を破棄
-- `POST /api/v2/auth/cognito/refresh-token`: `refresh_token` Cookie で access_token を再発行
+- `POST /api/v2/auth/logout`: Cookie を破棄
+- `POST /api/v2/auth/refresh`: `refresh_token` Cookie で access_token を再発行
 - ⚠️ 未対応(フォローアップ): Cookie 認証向け CSRF 対策（Go の `CsrfMiddleware` 相当）
 
 ## 現在の実装範囲
@@ -83,9 +83,9 @@ Cognito の **access_token(JWT)を HttpOnly Cookie で受け取り、Cognito の
 |---|---|---|
 | `GET /api/v2/health` | 死活確認（`{"status":"UP"}`、ロードバランサ用） | 不要 |
 | `GET /api/v2/auth/me` | 現在ユーザー（+ groups / isAdmin / onboarded） | 必須 |
-| `POST /api/v2/auth/cognito/callback` | 認可コード→token 交換 + Cookie 発行（招待ゲート） | 不要 |
-| `POST /api/v2/auth/cognito/logout` | Cookie 破棄 | 不要 |
-| `POST /api/v2/auth/cognito/refresh-token` | access_token 再発行 | 不要 |
+| `POST /api/v2/auth/login` | 認可コード→token 交換 + Cookie 発行（招待ゲート） | 不要 |
+| `POST /api/v2/auth/logout` | Cookie 破棄 | 不要 |
+| `POST /api/v2/auth/refresh` | access_token 再発行 | 不要 |
 | `GET /api/v2/notes` | ノート一覧（認証ユーザーのもの） | 必須 |
 | `POST /api/v2/notes` | ノート作成（`title` 必須） | 必須 |
 | `GET /api/v2/courses` | コース一覧（company/role でフィルタ） | 必須 |

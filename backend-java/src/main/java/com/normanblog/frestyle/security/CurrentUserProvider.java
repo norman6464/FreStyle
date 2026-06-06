@@ -1,9 +1,9 @@
 package com.normanblog.frestyle.security;
 
+import com.normanblog.frestyle.config.CognitoProperties;
 import com.normanblog.frestyle.entity.User;
 import com.normanblog.frestyle.repository.UserRepository;
 import java.util.List;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -23,10 +23,10 @@ public class CurrentUserProvider {
   private final UserRepository users;
   private final String adminGroup;
 
-  public CurrentUserProvider(
-      UserRepository users, @Value("${frestyle.cognito.admin-group:admin}") String adminGroup) {
+  public CurrentUserProvider(UserRepository users, CognitoProperties cognito) {
     this.users = users;
-    this.adminGroup = adminGroup;
+    // 設定未投入でも admin 判定が無効化しないよう既定 "admin" にフォールバック。
+    this.adminGroup = cognito.adminGroup() != null ? cognito.adminGroup() : "admin";
   }
 
   /** 認証済み JWT の sub から users 行を引く。未登録なら 401。 */

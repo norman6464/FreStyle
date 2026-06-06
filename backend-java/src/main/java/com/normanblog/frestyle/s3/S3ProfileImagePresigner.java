@@ -13,7 +13,7 @@ import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignReques
  * <p>contentType は署名に焼き込まれるため、クライアントの PUT ヘッダと完全一致が必要
  * (不一致だと SignatureDoesNotMatch)。配信用 URL は CDN ベース + key で組み立てる。
  */
-public class S3ProfileImagePresigner implements ProfileImagePresigner {
+public class S3ProfileImagePresigner implements ProfileImagePresigner, AutoCloseable {
 
   private static final Duration TTL = Duration.ofMinutes(10);
   private static final String DEFAULT_CONTENT_TYPE = "image/png";
@@ -42,8 +42,18 @@ public class S3ProfileImagePresigner implements ProfileImagePresigner {
             .build();
     PresignedPutObjectRequest presigned = presigner.presignPutObject(presignRequest);
 
+    // CDN ベース未設定なら S3 仮想ホスト形式の絶対 URL にフォールバックする(stub と挙動を揃える)。
+    String base = cdnBase.isBlank() ? "https://" + bucket + ".s3.amazonaws.com" : cdnBase;
+
     return new ProfileImageUploadUrl(
-        presigned.url().toString(), cdnBase + "/" + key, key, (int) TTL.getSeconds());
+        presigned.url().toString(), base + "/" + key, key, (int) TTL.getSeconds());
+  }
+
+  // S3Presigner は Closeable。Spring の destroy-method 推論でコンテキスト終了時に閉じ、
+  // HTTP クライアント / コネクションプールのリークを防ぐ。
+  @Override
+  public void close() {
+    presigner.close();
   }
 
   private static String trimTrailingSlash(String s) {

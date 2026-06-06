@@ -1,9 +1,11 @@
 package com.normanblog.frestyle.controller;
 
+import com.normanblog.frestyle.dto.ProfileImageUploadUrl;
 import com.normanblog.frestyle.dto.ProfileResponse;
 import com.normanblog.frestyle.dto.ProfileUpdateRequest;
 import com.normanblog.frestyle.entity.User;
 import com.normanblog.frestyle.security.CurrentUserProvider;
+import com.normanblog.frestyle.service.ProfileImageService;
 import com.normanblog.frestyle.service.ProfileService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,12 +28,20 @@ import org.springframework.web.server.ResponseStatusException;
 public class ProfileController {
 
   private final ProfileService profileService;
+  private final ProfileImageService profileImageService;
   private final CurrentUserProvider currentUser;
 
-  public ProfileController(ProfileService profileService, CurrentUserProvider currentUser) {
+  public ProfileController(
+      ProfileService profileService,
+      ProfileImageService profileImageService,
+      CurrentUserProvider currentUser) {
     this.profileService = profileService;
+    this.profileImageService = profileImageService;
     this.currentUser = currentUser;
   }
+
+  /** プロフィール画像アップロード URL 発行のリクエスト(body は任意)。 */
+  public record IssueImageUrlRequest(String fileName, String contentType) {}
 
   @GetMapping("/{userId}")
   public ProfileResponse get(@PathVariable String userId) {
@@ -56,6 +66,20 @@ public class ProfileController {
     profileService.completeOnboarding(currentUser.require());
 
     return ResponseEntity.noContent().build();
+  }
+
+  /**
+   * プロフィールアイコン用の S3 PUT 署名付き URL を発行する。
+   *
+   * <p>"me" か自分の id のみ許可(IDOR 対策)。body は任意で、無ければ既定値で処理する。
+   */
+  @PostMapping("/{userId}/image/presigned-url")
+  public ProfileImageUploadUrl issueImageUploadUrl(
+      @PathVariable String userId, @RequestBody(required = false) IssueImageUrlRequest request) {
+    Long actorId = requireSelf(userId).getId();
+    IssueImageUrlRequest body = request == null ? new IssueImageUrlRequest(null, null) : request;
+
+    return profileImageService.issueUploadUrl(actorId, body.fileName(), body.contentType());
   }
 
   // userId が "me" か自分の id のときだけ許可。他人の id は 403(IDOR 対策)。

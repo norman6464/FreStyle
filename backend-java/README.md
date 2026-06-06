@@ -40,18 +40,32 @@ com.normanblog.frestyle
 - `@Entity` は永続化専用とし、API には公開しない。レスポンスは `dto` の record（例: `NoteResponse`）に詰め替える
 - リクエストボディは `dto` の record に Bean Validation（`@NotBlank` 等）を付け、`controller` で `@Valid` 検証する
 
+## 認証（Cognito JWT）
+
+Cognito の **access_token(JWT)を HttpOnly Cookie で受け取り、Cognito の JWKS で署名検証**する
+（Spring Security OAuth2 Resource Server）。検証済み JWT の `sub` をキーに users 行を引き、
+業務処理では内部の数値 `id` を使う 2 層 ID 構成。
+
+- `GET /api/v2/health` は認証なしで通す。それ以外は JWT 必須（無ければ 401）
+- 標準の `Authorization: Bearer` ではなく、`access_token` Cookie からトークンを取り出す
+  （`CognitoCookieBearerTokenResolver`）。XSS 耐性のため HttpOnly Cookie 方式
+- `cognito:groups` に admin が含まれると `super_admin` に自動昇格（`AuthService`）
+- ⚠️ 未対応(フォローアップ): ログインフロー（認可コード→token 交換 / Cookie 発行）、logout /
+  refresh、Cookie 認証向け CSRF 対策（Go の `CsrfMiddleware` 相当）
+
 ## 現在の実装範囲
 
-| エンドポイント | 説明 | 状態 |
+| エンドポイント | 説明 | 認証 |
 |---|---|---|
-| `GET /api/v2/health` | 死活確認（`{"status":"UP"}`、ロードバランサ用） | ✅ |
-| `GET /api/v2/notes` | ノート一覧 | ✅（認証は未実装、暫定 userId=1） |
-| `POST /api/v2/notes` | ノート作成（`title` 必須） | ✅（同上） |
+| `GET /api/v2/health` | 死活確認（`{"status":"UP"}`、ロードバランサ用） | 不要 |
+| `GET /api/v2/auth/me` | 現在ユーザー（+ groups / isAdmin / onboarded） | 必須 |
+| `GET /api/v2/notes` | ノート一覧（認証ユーザーのもの） | 必須 |
+| `POST /api/v2/notes` | ノート作成（`title` 必須） | 必須 |
 
 ### 今後追加する機能（1 機能 = 1 PR）
 
-認証(Cognito JWT) / AI チャット(Bedrock SSE) / コース・教材 / 演習(サンドボックス実行) /
-通知 / レポート(SQS) + S3 / DynamoDB / SES 連携。
+ログインフロー(token 交換 / logout / refresh) + 本番 Supabase 接続 / AI チャット(Bedrock SSE) /
+コース・教材 / 演習(サンドボックス実行) / 通知 / レポート(SQS) + S3 / DynamoDB / SES 連携。
 
 ## メモリ実測（ECS スペック検証）
 

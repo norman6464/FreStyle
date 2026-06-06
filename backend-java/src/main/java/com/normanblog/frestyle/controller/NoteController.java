@@ -2,6 +2,7 @@ package com.normanblog.frestyle.controller;
 
 import com.normanblog.frestyle.dto.CreateNoteRequest;
 import com.normanblog.frestyle.dto.NoteResponse;
+import com.normanblog.frestyle.security.CurrentUserProvider;
 import com.normanblog.frestyle.service.NoteService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -16,24 +17,23 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v2/notes")
 public class NoteController {
 
-  // 認証(Cognito JWT)が未実装の段階でも notes の動作とメモリ実測を進められるよう、
-  // 暫定で固定ユーザーにしている。認証導入時に認証情報から userId を取得する形へ差し替える。
-  private static final Long TEMP_USER_ID = 1L;
-
   private final NoteService noteService;
+  private final CurrentUserProvider currentUser;
 
-  public NoteController(NoteService noteService) {
+  public NoteController(NoteService noteService, CurrentUserProvider currentUser) {
     this.noteService = noteService;
+    this.currentUser = currentUser;
   }
 
   @GetMapping
   public List<NoteResponse> list() {
-    return noteService.findByUser(TEMP_USER_ID).stream().map(NoteResponse::from).toList();
+    Long userId = currentUser.require().getId();
+    return noteService.findByUser(userId).stream().map(NoteResponse::from).toList();
   }
 
   @PostMapping
   public NoteResponse create(@Valid @RequestBody CreateNoteRequest request) {
-    return NoteResponse.from(
-        noteService.create(TEMP_USER_ID, request.title(), request.content()));
+    Long userId = currentUser.require().getId();
+    return NoteResponse.from(noteService.create(userId, request.title(), request.content()));
   }
 }

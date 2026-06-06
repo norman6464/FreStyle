@@ -29,6 +29,8 @@
       "Bash(git stash:*)",
       "Bash(git fetch:*)",
       "Bash(git pull:*)",
+      "Bash(git push:*)",
+      "Bash(git push)",
       "Bash(gh pr create:*)",
       "Bash(gh pr view:*)",
       "Bash(gh pr list:*)",
@@ -39,8 +41,6 @@
       "Bash(trivy:*)"
     ],
     "ask": [
-      "Bash(git push:*)",
-      "Bash(git push)",
       "Bash(gh pr merge:*)",
       "Bash(gh pr review:*)",
       "Bash(gh workflow run:*)",

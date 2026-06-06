@@ -5,7 +5,7 @@
  *   1. /invitations/accept?token=<UUID> を踏むと AcceptInvitationPage が saveInvitationToken
  *   2. ユーザーが「ログインへ進む」ボタンで /login → Cognito Hosted UI へリダイレクト
  *   3. /login/callback (LoginCallback) が consumeInvitationToken で取り出して
- *      POST /auth/cognito/callback の body に invitationToken として含めて送る
+ *      POST /auth/login の body に invitationToken として含めて送る
  *
  * sessionStorage を選んだ理由:
  *   - localStorage だと別タブの誤読込みリスクがある

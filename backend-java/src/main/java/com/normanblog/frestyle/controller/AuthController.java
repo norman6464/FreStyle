@@ -56,8 +56,8 @@ public class AuthController {
   }
 
   /** 認可コードを token に交換し、HttpOnly Cookie を発行する。招待が無い新規ユーザーは 403。 */
-  @PostMapping("/cognito/callback")
-  public ResponseEntity<Map<String, String>> callback(
+  @PostMapping("/login")
+  public ResponseEntity<Map<String, String>> login(
       @Valid @RequestBody CallbackRequest request, HttpServletResponse response) {
     LoginService.LoginResult result;
     try {
@@ -78,7 +78,7 @@ public class AuthController {
                   "error",
                   "invitation_required",
                   "message",
-                  "FreStyle のご利用には管理者からの招待が必要です。招待メールに記載されたリンクからログインしてください。"));
+                  "ご利用には企業申請、または所属企業からの招待が必要です。招待メールに記載されたリンクからログインしてください。"));
     }
 
     CognitoTokens tokens = result.tokens();
@@ -88,14 +88,14 @@ public class AuthController {
   }
 
   /** access/refresh Cookie を破棄する。 */
-  @PostMapping("/cognito/logout")
+  @PostMapping("/logout")
   public ResponseEntity<Map<String, String>> logout(HttpServletResponse response) {
     cookies.clear(response);
     return ResponseEntity.ok(Map.of("message", "ログアウトしました。"));
   }
 
   /** refresh_token Cookie で access_token を再発行する。失効していれば Cookie を破棄して 401。 */
-  @PostMapping("/cognito/refresh-token")
+  @PostMapping("/refresh")
   public ResponseEntity<Map<String, String>> refresh(
       @CookieValue(name = "refresh_token", required = false) String refreshToken,
       HttpServletResponse response) {

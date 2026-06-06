@@ -1,4 +1,5 @@
 import AuthLayout from '../components/AuthLayout';
+import PublicHeader from '../components/PublicHeader';
 import InputField from '../components/InputField';
 import TextareaField from '../components/TextareaField';
 import PrimaryButton from '../components/PrimaryButton';
@@ -14,6 +15,7 @@ export default function CompanyApplicationPage() {
   return (
     <AuthLayout
       title="企業の利用申請"
+      header={<PublicHeader />}
       footer={
         <p className="text-sm text-[var(--color-text-muted)]">
           すでにアカウントをお持ちの方{' '}

@@ -27,9 +27,9 @@ public class SecurityConfig {
             auth ->
                 auth.requestMatchers("/api/v2/health")
                     .permitAll()
-                    // ログインフロー(callback/logout/refresh)は Cookie を発行・破棄する側なので
+                    // ログインフロー(login/logout/refresh)は Cookie を発行・破棄する側なので
                     // JWT 検証の前段。認証不要で通す。
-                    .requestMatchers("/api/v2/auth/cognito/**")
+                    .requestMatchers("/api/v2/auth/login", "/api/v2/auth/logout", "/api/v2/auth/refresh")
                     .permitAll()
                     // 例外発生時に Spring Boot が /error へフォワードする。ここが認証必須だと
                     // バリデーション 400 等が 401 に化けるため公開する(本来の status を返させる)。

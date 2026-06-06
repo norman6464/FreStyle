@@ -24,11 +24,13 @@ export const AUTH = {
   login: `${API_V2}/auth/cognito/login`,
   signup: `${API_V2}/auth/cognito/signup`,
   confirm: `${API_V2}/auth/cognito/confirm`,
-  callback: `${API_V2}/auth/cognito/callback`,
+  // OAuth Hosted UI ログイン(認可コード→token 交換)/ logout / refresh は
+  // provider 非依存の REST パスに統一(/auth/login, /auth/logout, /auth/refresh)。
+  callback: `${API_V2}/auth/login`,
   forgotPassword: `${API_V2}/auth/cognito/forgot-password`,
   confirmForgotPassword: `${API_V2}/auth/cognito/confirm-forgot-password`,
-  logout: `${API_V2}/auth/cognito/logout`,
-  refreshToken: `${API_V2}/auth/cognito/refresh-token`,
+  logout: `${API_V2}/auth/logout`,
+  refreshToken: `${API_V2}/auth/refresh`,
   me: `${API_V2}/auth/me`,
 } as const;
 

@@ -1,89 +1,51 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { Provider } from 'react-redux';
-import { configureStore } from '@reduxjs/toolkit';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import LoginPage from '../LoginPage';
-import authReducer from '../../store/authSlice';
 
-const mockLogin = vi.fn();
-const mockNavigate = vi.fn();
+// Hosted UI への遷移は window.location.href への代入で行うため、副作用を検証できるようにする。
+const hrefSetter = vi.fn();
 
-vi.mock('../../hooks/useAuth', () => ({
-  useAuth: () => ({
-    login: mockLogin,
-    loading: false,
-    error: null,
-    isAuthenticated: false,
-  }),
-}));
-
-vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual('react-router-dom');
-  return {
-    ...actual,
-    useNavigate: () => mockNavigate,
-  };
+beforeEach(() => {
+  vi.clearAllMocks();
+  Object.defineProperty(window, 'location', {
+    value: { set href(v: string) { hrefSetter(v); } },
+    writable: true,
+  });
 });
 
 function renderLoginPage() {
-  const store = configureStore({ reducer: { auth: authReducer } });
   return render(
-    <Provider store={store}>
-      <MemoryRouter>
-        <LoginPage />
-      </MemoryRouter>
-    </Provider>
+    <MemoryRouter>
+      <LoginPage />
+    </MemoryRouter>
   );
 }
 
 describe('LoginPage', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it('ログインフォームが表示される', () => {
+  it('Hosted UI ログインへの導線と公開ヘッダーが表示される', () => {
     renderLoginPage();
 
     expect(screen.getByRole('heading', { name: 'ログイン' })).toBeInTheDocument();
-    expect(screen.getByLabelText('メールアドレス')).toBeInTheDocument();
-    expect(screen.getByLabelText('パスワード')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'ログイン / 新規登録' })).toBeInTheDocument();
+    // SRP のメール/パスワードフォームは廃止されている。
+    expect(screen.queryByLabelText('メールアドレス')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('パスワード')).not.toBeInTheDocument();
   });
 
-  it('リンクテキストが表示される', () => {
+  it('利用申請への導線がある', () => {
     renderLoginPage();
 
-    expect(screen.getByText('パスワードを忘れた方')).toBeInTheDocument();
-    expect(screen.getByText('新規登録')).toBeInTheDocument();
+    // ヘッダーと本文の双方に企業利用申請への導線がある。
+    const applyLinks = screen.getAllByRole('link', { name: /利用申請/ });
+    expect(applyLinks.length).toBeGreaterThan(0);
   });
 
-  it('ログイン成功時にホームに遷移する', async () => {
-    mockLogin.mockResolvedValue(true);
+  it('ログインボタンで Cognito Hosted UI へ遷移する', () => {
     renderLoginPage();
 
-    fireEvent.change(screen.getByLabelText('メールアドレス'), { target: { value: 'test@example.com', name: 'email' } });
-    fireEvent.change(screen.getByLabelText('パスワード'), { target: { value: 'password123', name: 'password' } });
-
-    const loginButtons = screen.getAllByText('ログイン');
-    const submitButton = loginButtons.find(el => el.tagName === 'BUTTON' && el.getAttribute('type') === 'submit');
-    fireEvent.click(submitButton!);
-
-    await waitFor(() => {
-      expect(mockLogin).toHaveBeenCalledWith({ email: 'test@example.com', password: 'password123' });
-      expect(mockNavigate).toHaveBeenCalledWith('/');
-    });
-  });
-
-  it('ログイン失敗時にエラーメッセージが表示される', async () => {
-    mockLogin.mockResolvedValue(false);
-    renderLoginPage();
-
-    const loginButtons = screen.getAllByText('ログイン');
-    const submitButton = loginButtons.find(el => el.tagName === 'BUTTON' && el.getAttribute('type') === 'submit');
-    fireEvent.click(submitButton!);
-
-    await waitFor(() => {
-      expect(screen.getByText(/ログインに失敗しました/)).toBeInTheDocument();
-    });
+    screen.getByRole('button', { name: 'ログイン / 新規登録' }).click();
+    expect(hrefSetter).toHaveBeenCalledTimes(1);
+    expect(hrefSetter.mock.calls[0][0]).toContain('/oauth2/authorize');
   });
 });

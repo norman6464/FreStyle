@@ -77,12 +77,19 @@ public class TeachingMaterialService {
     Course course = findCourseOrThrow(material.getCourseId());
     courseService.requireManage(course, actor);
 
-    material.setTitle(request.title());
-    material.setContent(request.content());
+    // 省略(null)されたフィールドは既存値を保持する(誤って空にしないため)。
+    if (request.title() != null) {
+      material.setTitle(request.title());
+    }
+    if (request.content() != null) {
+      material.setContent(request.content());
+    }
     if (request.orderInCourse() != null) {
       material.setOrderInCourse(request.orderInCourse());
     }
-    material.setPublished(Boolean.TRUE.equals(request.isPublished()));
+    if (request.isPublished() != null) {
+      material.setPublished(request.isPublished());
+    }
     material.setUpdatedAt(Instant.now());
 
     return materials.save(material);

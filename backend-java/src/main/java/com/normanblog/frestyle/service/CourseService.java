@@ -94,12 +94,20 @@ public class CourseService {
     Course course = findOrThrow(id);
     requireManage(course, actor);
 
-    course.setTitle(request.title());
-    course.setDescription(request.description());
+    // 省略(null)されたフィールドは既存値を保持する(誤って空にしないため)。
+    // 明示的な空文字でクリアは可能。
+    if (request.title() != null) {
+      course.setTitle(request.title());
+    }
+    if (request.description() != null) {
+      course.setDescription(request.description());
+    }
     if (request.sortOrder() != null) {
       course.setSortOrder(request.sortOrder());
     }
-    course.setPublished(Boolean.TRUE.equals(request.isPublished()));
+    if (request.isPublished() != null) {
+      course.setPublished(request.isPublished());
+    }
     course.setUpdatedAt(Instant.now());
 
     return courses.save(course);

@@ -115,6 +115,33 @@ class CourseCrudControllerTest {
   }
 
   @Test
+  void update_omittedFields_arePreserved() throws Exception {
+    seedUser("a1", 1L, Role.COMPANY_ADMIN);
+    Long courseId =
+        courses
+            .save(
+                Course.builder()
+                    .companyId(1L)
+                    .createdByUserId(1L)
+                    .title("元タイトル")
+                    .description("元説明")
+                    .isPublished(true)
+                    .build())
+            .getId();
+
+    // title だけ更新。description / isPublished は省略 → 既存値を保持する。
+    mvc.perform(
+            put("/api/v2/courses/" + courseId)
+                .with(jwt().jwt(j -> j.subject("a1")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"title\":\"新タイトル\"}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.title").value("新タイトル"))
+        .andExpect(jsonPath("$.description").value("元説明"))
+        .andExpect(jsonPath("$.isPublished").value(true));
+  }
+
+  @Test
   void createMaterial_withoutCourseId_returns400() throws Exception {
     seedUser("a1", 1L, Role.COMPANY_ADMIN);
 

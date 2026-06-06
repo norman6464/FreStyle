@@ -2,6 +2,7 @@ package com.normanblog.frestyle.service;
 
 import com.normanblog.frestyle.entity.Notification;
 import com.normanblog.frestyle.repository.NotificationRepository;
+import java.time.Instant;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,6 +15,21 @@ public class NotificationService {
 
   public NotificationService(NotificationRepository notifications) {
     this.notifications = notifications;
+  }
+
+  /** 通知を 1 件作成する(システムがユーザーへ通知を出す用途)。 */
+  public Notification create(Long userId, String type, String title, String body) {
+    Notification notification =
+        Notification.builder()
+            .userId(userId)
+            .type(type)
+            .title(title)
+            .body(body)
+            .isRead(false)
+            .createdAt(Instant.now())
+            .build();
+
+    return notifications.save(notification);
   }
 
   /** current user の通知を作成日降順で返す。 */

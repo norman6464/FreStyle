@@ -91,17 +91,24 @@ Cognito の **access_token(JWT)を HttpOnly Cookie で受け取り、Cognito の
 | `GET /api/v2/courses` | コース一覧（company/role でフィルタ） | 必須 |
 | `GET /api/v2/courses/{id}` | コース詳細 | 必須 |
 | `GET /api/v2/courses/{id}/materials` | コース内教材一覧 | 必須 |
+| `POST /api/v2/courses` | コース作成 | 管理者 |
+| `PUT /api/v2/courses/{id}` | コース更新 | 管理者 |
+| `DELETE /api/v2/courses/{id}` | コース削除（配下教材も cascade） | 管理者 |
 | `GET /api/v2/teaching-materials/{id}` | 教材詳細 | 必須 |
+| `POST /api/v2/teaching-materials` | 教材作成（`courseId` 必須） | 管理者 |
+| `PUT /api/v2/teaching-materials/{id}` | 教材更新 | 管理者 |
+| `DELETE /api/v2/teaching-materials/{id}` | 教材削除 | 管理者 |
 | `POST /api/v2/company-applications` | 企業の利用申請（公開フォーム） | 不要 |
 | `GET /api/v2/admin/company-applications` | 申請一覧（新しい順） | super_admin |
 | `PATCH /api/v2/admin/company-applications/{id}/status` | 申請 status 更新（approved/rejected/pending） | super_admin |
 
-コース/教材の閲覧権: trainee は自社の published のみ、company_admin / super_admin は draft 含む。
-super_admin は会社を跨いで閲覧可。アクセス制御は `CourseService` で actor の company/role を見て判定。
+コース/教材の権限: 閲覧は trainee=自社の published のみ / 管理者(company_admin・super_admin)=draft 含む、
+super_admin は会社跨ぎ可。編集系は管理者かつ(super_admin または同一会社)。アクセス制御は
+`CourseService` / `TeachingMaterialService` に集約。
 
 ### 今後追加する機能（1 機能 = 1 PR）
 
-企業申請受理時の super_admin 通知 / コース/教材の CRUD(company_admin) / AI チャット(Bedrock SSE) / 演習(サンドボックス実行) /
+企業申請受理時の super_admin 通知 / AI チャット(Bedrock SSE) / 演習(サンドボックス実行) /
 通知 / レポート(SQS) + S3 / DynamoDB / SES 連携。CSRF 対策。
 
 ## メモリ実測（ECS スペック検証）

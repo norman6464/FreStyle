@@ -1,14 +1,17 @@
 package com.normanblog.frestyle.service;
 
+import com.normanblog.frestyle.dto.CourseRequest;
 import com.normanblog.frestyle.entity.Course;
 import com.normanblog.frestyle.entity.Role;
 import com.normanblog.frestyle.entity.TeachingMaterial;
 import com.normanblog.frestyle.entity.User;
 import com.normanblog.frestyle.repository.CourseRepository;
 import com.normanblog.frestyle.repository.TeachingMaterialRepository;
+import java.time.Instant;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
@@ -19,6 +22,8 @@ import org.springframework.web.server.ResponseStatusException;
  */
 @Service
 public class CourseService {
+
+  private static final int DEFAULT_SORT_ORDER = 100;
 
   private final CourseRepository courses;
   private final TeachingMaterialRepository materials;
@@ -62,6 +67,62 @@ public class CourseService {
     return materials.findByCourseIdAndIsPublishedTrueOrderByOrderInCourseAscIdAsc(courseId);
   }
 
+  /** コースを作成する。管理者(company_admin / super_admin)かつ会社所属が必要。 */
+  @Transactional
+  public Course create(User actor, CourseRequest request) {
+    requireManagerWithCompany(actor);
+
+    Instant now = Instant.now();
+    Course course =
+        Course.builder()
+            .companyId(actor.getCompanyId())
+            .createdByUserId(actor.getId())
+            .title(request.title())
+            .description(request.description())
+            .sortOrder(request.sortOrder() != null ? request.sortOrder() : DEFAULT_SORT_ORDER)
+            .isPublished(Boolean.TRUE.equals(request.isPublished()))
+            .createdAt(now)
+            .updatedAt(now)
+            .build();
+
+    return courses.save(course);
+  }
+
+  /** コースを更新する。管理権が無ければ 403、未存在は 404。 */
+  @Transactional
+  public Course update(Long id, User actor, CourseRequest request) {
+    Course course = findOrThrow(id);
+    requireManage(course, actor);
+
+    // 省略(null)されたフィールドは既存値を保持する(誤って空にしないため)。
+    // 明示的な空文字でクリアは可能。
+    if (request.title() != null) {
+      course.setTitle(request.title());
+    }
+    if (request.description() != null) {
+      course.setDescription(request.description());
+    }
+    if (request.sortOrder() != null) {
+      course.setSortOrder(request.sortOrder());
+    }
+    if (request.isPublished() != null) {
+      course.setPublished(request.isPublished());
+    }
+    course.setUpdatedAt(Instant.now());
+
+    return courses.save(course);
+  }
+
+  /** コースと配下教材を削除する(cascade 相当)。管理権が無ければ 403、未存在は 404。 */
+  @Transactional
+  public void delete(Long id, User actor) {
+    Course course = findOrThrow(id);
+    requireManage(course, actor);
+
+    materials.deleteByCourseId(id);
+    courses.delete(course);
+  }
+
   private Course findOrThrow(Long id) {
     return courses
         .findById(id)
@@ -71,6 +132,27 @@ public class CourseService {
   void requireReadable(Course course, User actor) {
     if (!canRead(course, actor)) {
       throw new ResponseStatusException(HttpStatus.FORBIDDEN, "forbidden");
+    }
+  }
+
+  // 編集権: 管理者であり、super_admin か同一会社であること。
+  void requireManage(Course course, User actor) {
+    if (!isManager(actor.getRole())) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "forbidden");
+    }
+    if (!Role.SUPER_ADMIN.equals(actor.getRole())
+        && !course.getCompanyId().equals(actor.getCompanyId())) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "forbidden");
+    }
+  }
+
+  // 作成権: 管理者であり、会社に所属していること(作成物の会社を決められるため)。
+  void requireManagerWithCompany(User actor) {
+    if (!isManager(actor.getRole())) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "forbidden");
+    }
+    if (actor.getCompanyId() == null) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "actor_must_belong_to_company");
     }
   }
 

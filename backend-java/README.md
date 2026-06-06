@@ -101,6 +101,12 @@ Cognito の **access_token(JWT)を HttpOnly Cookie で受け取り、Cognito の
 | `POST /api/v2/company-applications` | 企業の利用申請（公開フォーム） | 不要 |
 | `GET /api/v2/admin/company-applications` | 申請一覧（新しい順） | super_admin |
 | `PATCH /api/v2/admin/company-applications/{id}/status` | 申請 status 更新（approved/rejected/pending） | super_admin |
+| `GET /api/v2/profile/{userId}` | プロフィール取得（`me` か自分の id のみ。他者 403） | 必須 |
+| `PUT /api/v2/profile/{userId}`（+ `/update` 別名） | プロフィール更新（displayName / bio / avatarUrl / status） | 必須 |
+| `POST /api/v2/profile/me/onboarding/complete` | Welcome 完了（`onboarded_at` を冪等にセット） | 必須 |
+
+プロフィールは自分のみ操作可（IDOR 対策）。displayName は `users`、bio/avatar/status は `profiles` に保存。
+更新は省略フィールドの既存値を保持。画像アップロード（presigned URL）は S3 連携で別 PR。
 
 コース/教材の権限: 閲覧は trainee=自社の published のみ / 管理者(company_admin・super_admin)=draft 含む、
 super_admin は会社跨ぎ可。編集系は管理者かつ(super_admin または同一会社)。アクセス制御は

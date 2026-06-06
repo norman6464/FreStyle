@@ -14,9 +14,13 @@ class MigrationTest {
   @Autowired private Flyway flyway;
 
   @Test
-  void flyway_appliedV1() {
-    // 起動時に適用済みの migration が 1 件以上あり、最新版が V1 であること。
-    assertThat(flyway.info().applied()).isNotEmpty();
-    assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("1");
+  void flyway_appliesAllMigrations() {
+    // 起動時に全 migration が順に適用され、最新が末尾の版になっていること。
+    var applied =
+        java.util.Arrays.stream(flyway.info().applied())
+            .map(m -> m.getVersion().getVersion())
+            .toList();
+    assertThat(applied).contains("1", "2");
+    assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("2");
   }
 }

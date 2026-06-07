@@ -1,6 +1,9 @@
 package com.normanblog.frestyle.config;
 
 import com.normanblog.frestyle.security.CognitoCookieBearerTokenResolver;
+import java.util.Arrays;
+import java.util.List;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
@@ -10,16 +13,30 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 /** Cognito の access_token(JWT)を JWKS 検証する Spring Security 設定。 */
 @Configuration
 public class SecurityConfig {
+
+  // CORS 許可オリジン(Go 版 CorsMiddleware と同じ allowlist)。env FRESTYLE_CORS_ALLOWED_ORIGINS で上書き可。
+  // 末尾スラッシュ無しの完全一致。credentials を返すため "*" は使わない。
+  @Value(
+      "${frestyle.cors.allowed-origins:"
+          + "https://normanblog.com,http://normanblog.com,http://localhost:5173,"
+          + "https://dcd3m6lwt0z8u.cloudfront.net,"
+          + "http://fre-style-bucket.s3-website-ap-northeast-1.amazonaws.com}")
+  private String allowedOrigins;
 
   // ヘルスチェックは LB が認証なしで叩くため誰でも通す。それ以外は JWT 必須。
   @Bean
   SecurityFilterChain securityFilterChain(HttpSecurity http, BearerTokenResolver bearerTokenResolver)
       throws Exception {
     http
+        // フロント(normanblog.com)と API(api.normanblog.com)は別オリジンのため CORS を有効化する。
+        .cors(Customizer.withDefaults())
         // JWT を Cookie で運ぶステートレス API のため、セッションは持たない。
         .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         // TODO(認証フォローアップ): Cookie 認証向けの CSRF 対策(Go の CsrfMiddleware 相当)を追加する。
@@ -50,5 +67,24 @@ public class SecurityConfig {
   @Bean
   BearerTokenResolver cognitoCookieBearerTokenResolver() {
     return new CognitoCookieBearerTokenResolver();
+  }
+
+  /**
+   * CORS 設定。フロント(別オリジン)から Cookie 付き(credentials)で API を叩くため、許可オリジンは
+   * allowlist の完全一致にし、ワイルドカードは使わない(credentials と "*" は併用不可)。
+   */
+  @Bean
+  CorsConfigurationSource corsConfigurationSource() {
+    CorsConfiguration config = new CorsConfiguration();
+    config.setAllowedOrigins(
+        Arrays.stream(allowedOrigins.split(",")).map(String::trim).filter(s -> !s.isEmpty()).toList());
+    config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+    config.setAllowedHeaders(List.of("Content-Type", "Authorization", "X-Requested-With"));
+    config.setAllowCredentials(true);
+    config.setMaxAge(3600L);
+
+    UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+    source.registerCorsConfiguration("/**", config);
+    return source;
   }
 }

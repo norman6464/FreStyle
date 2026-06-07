@@ -63,7 +63,7 @@ public class ProcessCodeExecutor implements CodeExecutor {
   }
 
   @Override
-  public CodeExecuteResponse execute(String language, String code) {
+  public CodeExecuteResponse execute(String language, String code, String stdin) {
     if (!supportedLanguages().contains(language)) {
       return new CodeExecuteResponse("", "未対応の言語です: " + language, 1);
     }
@@ -72,9 +72,9 @@ public class ProcessCodeExecutor implements CodeExecutor {
     try {
       dir = Files.createTempDirectory("codeexec-");
       return switch (language) {
-        case "java" -> runJava(dir, code);
-        case "php" -> runPhp(dir, code);
-        case "go" -> runGo(dir, code);
+        case "java" -> runJava(dir, code, stdin);
+        case "php" -> runPhp(dir, code, stdin);
+        case "go" -> runGo(dir, code, stdin);
         default -> new CodeExecuteResponse("", "未対応の言語です: " + language, 1);
       };
     } catch (IOException e) {
@@ -86,7 +86,7 @@ public class ProcessCodeExecutor implements CodeExecutor {
   }
 
   // Java: 単一ファイル実行(java Main.java)。内部のクラス名は任意で良い。
-  private CodeExecuteResponse runJava(Path dir, String code) throws IOException {
+  private CodeExecuteResponse runJava(Path dir, String code, String stdin) throws IOException {
     Path source = dir.resolve("Main.java");
     Files.writeString(source, code, StandardCharsets.UTF_8);
 
@@ -96,11 +96,11 @@ public class ProcessCodeExecutor implements CodeExecutor {
     pb.directory(dir.toFile());
     cleanEnv(pb, dir);
 
-    return runWithLimits(pb, timeoutSeconds);
+    return runWithLimits(pb, timeoutSeconds, stdin);
   }
 
   // PHP: 開始タグ必須。disable_functions / open_basedir / memory_limit / max_execution_time で堅牢化。
-  private CodeExecuteResponse runPhp(Path dir, String code) throws IOException {
+  private CodeExecuteResponse runPhp(Path dir, String code, String stdin) throws IOException {
     String trimmed = code.stripLeading();
     if (!trimmed.startsWith("<?php") && !trimmed.startsWith("<?=")) {
       return new CodeExecuteResponse("", "PHP コードには `<?php` 開始タグが必要です。", 1);
@@ -123,11 +123,11 @@ public class ProcessCodeExecutor implements CodeExecutor {
     pb.directory(dir.toFile());
     cleanEnv(pb, dir);
 
-    return runWithLimits(pb, timeoutSeconds);
+    return runWithLimits(pb, timeoutSeconds, stdin);
   }
 
   // Go: package main 必須。go run で単一ファイル実行。コンパイルがあるため timeout は長めにする。
-  private CodeExecuteResponse runGo(Path dir, String code) throws IOException {
+  private CodeExecuteResponse runGo(Path dir, String code, String stdin) throws IOException {
     if (!GO_PACKAGE_MAIN.matcher(code).find()) {
       return new CodeExecuteResponse("", "Go コードには `package main` と `func main()` が必要です。", 1);
     }
@@ -144,7 +144,7 @@ public class ProcessCodeExecutor implements CodeExecutor {
     env.put("GOPATH", dir.resolve(".gopath").toString());
     env.put("GO111MODULE", "off");
 
-    return runWithLimits(pb, Math.max(timeoutSeconds, 20));
+    return runWithLimits(pb, Math.max(timeoutSeconds, 20), stdin);
   }
 
   // 子プロセスに親の環境(= シークレット)を継承させない。最小限だけ通す。
@@ -156,7 +156,7 @@ public class ProcessCodeExecutor implements CodeExecutor {
     pb.environment().put("TMPDIR", dir.toString());
   }
 
-  private CodeExecuteResponse runWithLimits(ProcessBuilder pb, long timeout) {
+  private CodeExecuteResponse runWithLimits(ProcessBuilder pb, long timeout, String stdin) {
     Process process;
     try {
       process = pb.start();
@@ -165,11 +165,15 @@ public class ProcessCodeExecutor implements CodeExecutor {
       return new CodeExecuteResponse("", "実行環境を利用できません", 1);
     }
 
-    // stdout/stderr を並行に汲む(片方のパイプが詰まると deadlock するため)。
+    // stdin / stdout / stderr はすべて別スレッドで捌く。
+    // stdin の write を同期で行うと、子プロセスが出力を吐き続けて stdin を読まない場合に
+    // ここでブロックし、下の waitFor(timeout) に到達できず timeout 制御が効かなくなるため。
     StringBuilder stdout = new StringBuilder();
     StringBuilder stderr = new StringBuilder();
+    Thread inThread = feedStdin(process, stdin);
     Thread outThread = drain(process.getInputStream(), stdout);
     Thread errThread = drain(process.getErrorStream(), stderr);
+    inThread.start();
     outThread.start();
     errThread.start();
 
@@ -177,11 +181,13 @@ public class ProcessCodeExecutor implements CodeExecutor {
       boolean finished = process.waitFor(timeout, TimeUnit.SECONDS);
       if (!finished) {
         killTree(process);
+        joinQuietly(inThread);
         joinQuietly(outThread);
         joinQuietly(errThread);
         return new CodeExecuteResponse(
             stdout.toString(), append(stderr, "実行がタイムアウトしました").toString(), 124);
       }
+      joinQuietly(inThread);
       joinQuietly(outThread);
       joinQuietly(errThread);
 
@@ -191,6 +197,21 @@ public class ProcessCodeExecutor implements CodeExecutor {
       Thread.currentThread().interrupt();
       return new CodeExecuteResponse(stdout.toString(), "実行が中断されました", 1);
     }
+  }
+
+  // stdin を子プロセスへ書き込んで閉じるスレッドを作る(start はしない)。
+  // 同期書き込みだと出力過多の子プロセス相手にブロックし得るため別スレッドに分離する。
+  private static Thread feedStdin(Process process, String stdin) {
+    return new Thread(
+        () -> {
+          try (var os = process.getOutputStream()) {
+            if (stdin != null && !stdin.isEmpty()) {
+              os.write(stdin.getBytes(StandardCharsets.UTF_8));
+            }
+          } catch (IOException ignored) {
+            // 既にプロセスが終了して stdin が閉じている場合がある。致命ではない。
+          }
+        });
   }
 
   // ユーザーコードが起動した子孫プロセスごと止める(destroyForcibly だけだと孫が残り得る)。

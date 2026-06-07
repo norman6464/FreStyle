@@ -40,10 +40,10 @@ class CodeExecuteControllerTest {
     mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
   }
 
-  // CI 等で java が PATH に無い場合は実行系テストを skip する。
-  private static boolean javaAvailable() {
+  // CI 等で対象言語のランタイムが PATH に無い場合は実行系テストを skip する。
+  private static boolean available(String... command) {
     try {
-      Process p = new ProcessBuilder("java", "--version").start();
+      Process p = new ProcessBuilder(command).start();
       return p.waitFor(10, TimeUnit.SECONDS) && p.exitValue() == 0;
     } catch (Exception e) {
       return false;
@@ -71,7 +71,7 @@ class CodeExecuteControllerTest {
 
   @Test
   void execute_validJava_runsAndReturnsStdout() throws Exception {
-    assumeTrue(javaAvailable(), "java が PATH に無いため skip");
+    assumeTrue(available("java", "--version"), "java が PATH に無いため skip");
     String code =
         "public class Main { public static void main(String[] a) { System.out.println(\"Hello FreStyle\"); } }";
     mvc.perform(
@@ -86,7 +86,7 @@ class CodeExecuteControllerTest {
 
   @Test
   void execute_nonCompilingJava_returnsNonZeroExit() throws Exception {
-    assumeTrue(javaAvailable(), "java が PATH に無いため skip");
+    assumeTrue(available("java", "--version"), "java が PATH に無いため skip");
     String code = "public class Main { this does not compile }";
     mvc.perform(
             post(URL)
@@ -96,6 +96,60 @@ class CodeExecuteControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.exitCode").value(Matchers.not(0)))
         .andExpect(jsonPath("$.stderr").value(Matchers.not(Matchers.emptyString())));
+  }
+
+  @Test
+  void execute_validPhp_runsAndReturnsStdout() throws Exception {
+    assumeTrue(available("php", "--version"), "php が PATH に無いため skip");
+    String code = "<?php echo \"Hello PHP\";";
+    mvc.perform(
+            post(URL)
+                .with(jwt().jwt(j -> j.subject(SUB)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"code\":" + jsonString(code) + ",\"language\":\"php\"}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.exitCode").value(0))
+        .andExpect(jsonPath("$.stdout").value(Matchers.containsString("Hello PHP")));
+  }
+
+  @Test
+  void execute_phpWithoutOpeningTag_returnsError() throws Exception {
+    // 開始タグ無しは実行前に弾く(他言語の誤貼付け防止)。
+    mvc.perform(
+            post(URL)
+                .with(jwt().jwt(j -> j.subject(SUB)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"code\":\"echo 1;\",\"language\":\"php\"}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.exitCode").value(Matchers.not(0)))
+        .andExpect(jsonPath("$.stderr").value(Matchers.containsString("<?php")));
+  }
+
+  @Test
+  void execute_validGo_runsAndReturnsStdout() throws Exception {
+    assumeTrue(available("go", "version"), "go が PATH に無いため skip");
+    String code =
+        "package main\nimport \"fmt\"\nfunc main() { fmt.Println(\"Hello Go\") }";
+    mvc.perform(
+            post(URL)
+                .with(jwt().jwt(j -> j.subject(SUB)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"code\":" + jsonString(code) + ",\"language\":\"go\"}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.exitCode").value(0))
+        .andExpect(jsonPath("$.stdout").value(Matchers.containsString("Hello Go")));
+  }
+
+  @Test
+  void execute_goWithoutPackageMain_returnsError() throws Exception {
+    mvc.perform(
+            post(URL)
+                .with(jwt().jwt(j -> j.subject(SUB)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"code\":\"fmt.Println(1)\",\"language\":\"go\"}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.exitCode").value(Matchers.not(0)))
+        .andExpect(jsonPath("$.stderr").value(Matchers.containsString("package main")));
   }
 
   // 文字列を JSON 文字列リテラルに変換する(エスケープ込み)。

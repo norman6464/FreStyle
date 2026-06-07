@@ -20,6 +20,12 @@ FROM eclipse-temurin:21-jdk-noble
 
 WORKDIR /
 
+# コード演習サンドボックスの対応言語ランタイム(php / go)を入れる。java は base に含まれる。
+# untrusted コードはクリーン環境 + timeout + 非 root + (php は disable_functions)で隔離する。
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends php-cli golang-go \
+    && rm -rf /var/lib/apt/lists/*
+
 # root で実行するとコンテナ侵害時の被害が大きいため、非 root ユーザーで動かす。
 # UID=65532 は distroless 由来の慣例値。
 RUN groupadd -g 65532 nonroot && useradd -u 65532 -g nonroot -s /sbin/nologin nonroot

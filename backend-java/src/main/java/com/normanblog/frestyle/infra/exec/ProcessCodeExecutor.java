@@ -6,23 +6,26 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * ユーザーコードを子プロセスとして実行する本番サンドボックス。
+ * ユーザーコードを子プロセスとして実行する本番サンドボックス。java / php / go に対応する。
  *
  * <p>セキュリティの肝:
  *
  * <ul>
  *   <li><b>環境クリーン化</b>: 子プロセスに backend のシークレット(DB/AWS/Cognito 等)を一切渡さない
- *       (PATH/LANG だけ通す)。これが無いと提出コードから getenv で機密が抜ける
- *   <li><b>timeout</b>: 上限秒で destroyForcibly。無限ループを止める
+ *       (PATH/LANG + 言語ごとの最小限だけ通す)。これが無いと提出コードから機密が抜ける
+ *   <li><b>言語別ハードニング</b>: php は disable_functions / open_basedir、go は単一ファイル実行で隔離
+ *   <li><b>timeout</b>: 上限秒で子孫ごと destroyForcibly。無限ループを止める
  *   <li><b>出力上限</b>: stdout/stderr を上限バイトで打ち切り、巨大出力でメモリを潰されない
- *   <li><b>JVM ヒープ上限</b>: java は -Xmx で制限。専用 temp ディレクトリで実行し後始末する
+ *   <li><b>JVM ヒープ上限 / 専用 temp / 非 root</b>
  * </ul>
  *
  * <p>ネットワーク egress の遮断は infra(セキュリティグループ等)側で担保する前提。
@@ -30,6 +33,22 @@ import org.slf4j.LoggerFactory;
 public class ProcessCodeExecutor implements CodeExecutor {
 
   private static final Logger log = LoggerFactory.getLogger(ProcessCodeExecutor.class);
+
+  // 実行を禁止する PHP 関数(ファイル操作・OS 操作・ネットワーク・env 露出などを封じる)。
+  private static final String PHP_DISABLE_FUNCTIONS =
+      String.join(
+          ",",
+          "exec", "system", "shell_exec", "passthru", "popen", "proc_open",
+          "pcntl_exec", "proc_get_status", "proc_terminate", "proc_close",
+          "file_get_contents", "file_put_contents", "file", "fopen", "fwrite",
+          "fread", "fclose", "fgets", "fputs", "file_exists", "unlink",
+          "rename", "copy", "mkdir", "rmdir", "opendir", "readdir", "closedir",
+          "glob", "scandir", "tempnam", "tmpfile",
+          "socket_create", "fsockopen", "pfsockopen",
+          "curl_init", "curl_exec", "curl_multi_exec",
+          "dl", "phpinfo", "posix_kill", "posix_setuid",
+          "getenv", "putenv", "apache_getenv",
+          "syslog", "openlog", "closelog");
 
   private final long timeoutSeconds;
   private final int maxOutputBytes;
@@ -41,28 +60,19 @@ public class ProcessCodeExecutor implements CodeExecutor {
 
   @Override
   public CodeExecuteResponse execute(String language, String code) {
-    if (!"java".equals(language)) {
+    if (!supportedLanguages().contains(language)) {
       return new CodeExecuteResponse("", "未対応の言語です: " + language, 1);
     }
 
     Path dir = null;
     try {
       dir = Files.createTempDirectory("codeexec-");
-      // Java 単一ファイル実行(java Main.java)。内部のクラス名は任意で良い。
-      Path source = dir.resolve("Main.java");
-      Files.writeString(source, code, StandardCharsets.UTF_8);
-
-      ProcessBuilder pb =
-          new ProcessBuilder(
-              "java", "-Xmx64m", "-XX:+UseSerialGC", "-XX:TieredStopAtLevel=1", source.toString());
-      pb.directory(dir.toFile());
-      // 子プロセスに親の環境(= シークレット)を継承させない。最小限だけ通す。
-      pb.environment().clear();
-      String path = System.getenv("PATH");
-      pb.environment().put("PATH", path == null ? "/usr/bin:/bin" : path);
-      pb.environment().put("LANG", "C.UTF-8");
-
-      return runWithLimits(pb);
+      return switch (language) {
+        case "java" -> runJava(dir, code);
+        case "php" -> runPhp(dir, code);
+        case "go" -> runGo(dir, code);
+        default -> new CodeExecuteResponse("", "未対応の言語です: " + language, 1);
+      };
     } catch (IOException e) {
       log.warn("code execution setup failed", e);
       return new CodeExecuteResponse("", "実行環境を利用できません", 1);
@@ -71,7 +81,77 @@ public class ProcessCodeExecutor implements CodeExecutor {
     }
   }
 
-  private CodeExecuteResponse runWithLimits(ProcessBuilder pb) {
+  // Java: 単一ファイル実行(java Main.java)。内部のクラス名は任意で良い。
+  private CodeExecuteResponse runJava(Path dir, String code) throws IOException {
+    Path source = dir.resolve("Main.java");
+    Files.writeString(source, code, StandardCharsets.UTF_8);
+
+    ProcessBuilder pb =
+        new ProcessBuilder(
+            "java", "-Xmx64m", "-XX:+UseSerialGC", "-XX:TieredStopAtLevel=1", source.toString());
+    pb.directory(dir.toFile());
+    cleanEnv(pb, dir);
+
+    return runWithLimits(pb, timeoutSeconds);
+  }
+
+  // PHP: 開始タグ必須。disable_functions / open_basedir / memory_limit / max_execution_time で堅牢化。
+  private CodeExecuteResponse runPhp(Path dir, String code) throws IOException {
+    if (!code.contains("<?php") && !code.contains("<?=")) {
+      return new CodeExecuteResponse("", "PHP コードには `<?php` 開始タグが必要です。", 1);
+    }
+    Path source = dir.resolve("Main.php");
+    Files.writeString(source, code, StandardCharsets.UTF_8);
+
+    ProcessBuilder pb =
+        new ProcessBuilder(
+            "php",
+            "-d", "disable_functions=" + PHP_DISABLE_FUNCTIONS,
+            "-d", "memory_limit=64M",
+            "-d", "max_execution_time=5",
+            "-d", "open_basedir=" + dir,
+            "-d", "display_errors=stderr",
+            "-d", "log_errors=0",
+            // variables_order から E を外し $_ENV を空にする(getenv 抜け穴を塞ぐ)。
+            "-d", "variables_order=GPCS",
+            source.toString());
+    pb.directory(dir.toFile());
+    cleanEnv(pb, dir);
+
+    return runWithLimits(pb, timeoutSeconds);
+  }
+
+  // Go: package main 必須。go run で単一ファイル実行。コンパイルがあるため timeout は長めにする。
+  private CodeExecuteResponse runGo(Path dir, String code) throws IOException {
+    if (!code.contains("package main")) {
+      return new CodeExecuteResponse("", "Go コードには `package main` と `func main()` が必要です。", 1);
+    }
+    Path source = dir.resolve("main.go");
+    Files.writeString(source, code, StandardCharsets.UTF_8);
+
+    ProcessBuilder pb = new ProcessBuilder("go", "run", source.toString());
+    pb.directory(dir.toFile());
+    cleanEnv(pb, dir);
+    // go は HOME / build cache が要る。専用 temp に閉じ込め、go.mod 不要の単一ファイル実行にする。
+    Map<String, String> env = pb.environment();
+    env.put("HOME", dir.toString());
+    env.put("GOCACHE", dir.resolve(".gocache").toString());
+    env.put("GOPATH", dir.resolve(".gopath").toString());
+    env.put("GO111MODULE", "off");
+
+    return runWithLimits(pb, Math.max(timeoutSeconds, 20));
+  }
+
+  // 子プロセスに親の環境(= シークレット)を継承させない。最小限だけ通す。
+  private void cleanEnv(ProcessBuilder pb, Path dir) {
+    pb.environment().clear();
+    String path = System.getenv("PATH");
+    pb.environment().put("PATH", path == null ? "/usr/local/bin:/usr/bin:/bin" : path);
+    pb.environment().put("LANG", "C.UTF-8");
+    pb.environment().put("TMPDIR", dir.toString());
+  }
+
+  private CodeExecuteResponse runWithLimits(ProcessBuilder pb, long timeout) {
     Process process;
     try {
       process = pb.start();
@@ -89,7 +169,7 @@ public class ProcessCodeExecutor implements CodeExecutor {
     errThread.start();
 
     try {
-      boolean finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
+      boolean finished = process.waitFor(timeout, TimeUnit.SECONDS);
       if (!finished) {
         killTree(process);
         joinQuietly(outThread);
@@ -171,8 +251,12 @@ public class ProcessCodeExecutor implements CodeExecutor {
     }
   }
 
-  // 対応言語一覧(将来 php/go を足すならここに追加)。
+  // 対応言語一覧。
   public static List<String> supportedLanguages() {
-    return List.of("java");
+    List<String> langs = new ArrayList<>();
+    langs.add("java");
+    langs.add("php");
+    langs.add("go");
+    return langs;
   }
 }

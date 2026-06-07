@@ -31,10 +31,11 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-flyway'
 	implementation 'org.flywaydb:flyway-core'
 	implementation 'org.flywaydb:flyway-database-postgresql'
-	// 画像 S3 presign / AI チャットメッセージ DynamoDB に使う(AWS SDK v2)。
+	// 画像 S3 presign / AI チャット DynamoDB / Bedrock ストリーミングに使う(AWS SDK v2)。
 	implementation platform('software.amazon.awssdk:bom:2.46.5')
 	implementation 'software.amazon.awssdk:s3'
 	implementation 'software.amazon.awssdk:dynamodb'
+	implementation 'software.amazon.awssdk:bedrockruntime'
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'org.postgresql:postgresql'
 	// メモリ実測 / ローカル動作確認用のインメモリ DB（本番は Supabase=postgresql）。

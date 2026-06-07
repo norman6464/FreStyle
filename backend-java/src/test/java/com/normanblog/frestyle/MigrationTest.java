@@ -20,7 +20,8 @@ class MigrationTest {
         java.util.Arrays.stream(flyway.info().applied())
             .map(m -> m.getVersion().getVersion())
             .toList();
-    assertThat(applied).contains("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12");
-    assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("12");
+    assertThat(applied)
+        .contains("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13");
+    assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("13");
   }
 }

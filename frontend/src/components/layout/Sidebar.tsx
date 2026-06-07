@@ -99,6 +99,9 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
   const { handleLogout, loggingOut } = useSidebar();
   const isAdmin = useSelector((state: RootState) => state.auth.isAdmin);
   const role = useSelector((state: RootState) => state.auth.role);
+  const aiChatEnabledForTrainees = useSelector(
+    (state: RootState) => state.auth.aiChatEnabledForTrainees
+  );
   const isSuperAdmin = role === 'super_admin';
 
   // expanded: パネル（ラベル）表示状態。false = アイコンのみの折りたたみ状態
@@ -126,9 +129,12 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
   }, []);
 
   // super_admin は trainee 向けメニュー（AI / コード / ノート / レポート）を非表示。
-  const visibleMainNavItems = isSuperAdmin
-    ? mainNavItems.filter((item) => SUPER_ADMIN_MAIN_NAV_IDS.has(item.id))
-    : mainNavItems;
+  // trainee は、自社が AI を無効化している場合だけ「AI」を非表示にする（company_admin は常に表示）。
+  const visibleMainNavItems = (
+    isSuperAdmin
+      ? mainNavItems.filter((item) => SUPER_ADMIN_MAIN_NAV_IDS.has(item.id))
+      : mainNavItems
+  ).filter((item) => !(item.id === 'ai' && role === 'trainee' && !aiChatEnabledForTrainees));
   const adminActive = isActive(adminNavItem, location.pathname);
 
   const handleAdminClick = () => {

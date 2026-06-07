@@ -1,30 +1,37 @@
-import { UserCircleIcon } from '@heroicons/react/24/outline';
+import { useState } from 'react';
+import { UserCircleIcon, SparklesIcon } from '@heroicons/react/24/outline';
+import { useSelector } from 'react-redux';
+import type { RootState } from '../store';
 import ProfilePage from './ProfilePage';
+import CompanyAiSettings from '../components/settings/CompanyAiSettings';
 
 /**
  * SettingsPage — `/settings` 配下の設定ページ。
  *
  * 左に設定カテゴリのサブメニュー、 右に選択中カテゴリのコンテンツ。
- * 現状はカテゴリが「プロフィール」のみ。 将来「アカウント」「プライバシー」「通知設定」等を
- * 追加するときは、 SETTINGS_SECTIONS に追加して右側のコンテンツ条件分岐に追記する。
+ * 「プロフィール」は全ロール、「AI エージェント」は company_admin / super_admin のみ表示する。
  */
-const SETTINGS_SECTIONS = [
-  {
-    id: 'profile',
-    label: 'プロフィール',
-    icon: UserCircleIcon,
-  },
-  // 将来:
-  // { id: 'account', label: 'アカウント', icon: ... },
-  // { id: 'privacy', label: 'プライバシー', icon: ... },
-] as const;
+type SectionId = 'profile' | 'ai';
 
-type SectionId = (typeof SETTINGS_SECTIONS)[number]['id'];
+interface Section {
+  id: SectionId;
+  label: string;
+  icon: typeof UserCircleIcon;
+}
 
 export default function SettingsPage() {
-  // 現状はカテゴリが 1 つしかないので、 アクティブカテゴリは固定で「profile」 とする。
-  // useState を入れる準備はしてあるので、 カテゴリ追加時は state を導入。
-  const activeSection: SectionId = 'profile';
+  const role = useSelector((state: RootState) => state.auth.role);
+  const isCompanyManager = role === 'company_admin' || role === 'super_admin';
+
+  // 表示するセクション（AI 設定は管理者のみ）。
+  const sections: Section[] = [
+    { id: 'profile', label: 'プロフィール', icon: UserCircleIcon },
+    ...(isCompanyManager
+      ? [{ id: 'ai' as const, label: 'AI エージェント', icon: SparklesIcon }]
+      : []),
+  ];
+
+  const [activeSection, setActiveSection] = useState<SectionId>('profile');
 
   return (
     <div className="flex h-full">
@@ -32,13 +39,14 @@ export default function SettingsPage() {
       <aside className="w-56 flex-shrink-0 border-r border-surface-3 bg-surface-1 p-4 hidden md:block">
         <h1 className="text-lg font-bold text-[var(--color-text-primary)] mb-4">設定</h1>
         <nav className="space-y-0.5">
-          {SETTINGS_SECTIONS.map((section) => {
+          {sections.map((section) => {
             const Icon = section.icon;
             const active = activeSection === section.id;
             return (
               <button
                 key={section.id}
                 type="button"
+                onClick={() => setActiveSection(section.id)}
                 aria-current={active ? 'page' : undefined}
                 className={`flex items-center gap-2 w-full px-2 py-2 rounded-md text-sm transition-colors ${
                   active
@@ -58,10 +66,11 @@ export default function SettingsPage() {
       <div className="flex-1 min-w-0 overflow-y-auto">
         {/* モバイル用ヘッダ（左サブメニューが隠れるとき） */}
         <div className="md:hidden border-b border-surface-3 px-4 py-3 bg-surface-1">
-          <h1 className="text-lg font-bold text-[var(--color-text-primary)]">設定 / プロフィール</h1>
+          <h1 className="text-lg font-bold text-[var(--color-text-primary)]">設定</h1>
         </div>
 
         {activeSection === 'profile' && <ProfilePage />}
+        {activeSection === 'ai' && isCompanyManager && <CompanyAiSettings />}
       </div>
     </div>
   );

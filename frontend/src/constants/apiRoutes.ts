@@ -195,4 +195,10 @@ export const COMPANY_APPLICATIONS = {
     `${API_V2}/admin/company-applications/${id}/status`,
 } as const;
 
+/** 会社設定（company_admin / super_admin が自社の設定を取得・更新）*/
+export const COMPANY_SETTINGS = {
+  /** GET / PUT /api/v2/company/settings */
+  base: `${API_V2}/company/settings`,
+} as const;
+
 // WebSocket は SSE (AI_CHAT.stream) への置換で廃止 (PR-D, 2026-05-07)。

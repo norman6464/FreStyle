@@ -16,9 +16,11 @@ public record MeResponse(
     Instant updatedAt,
     List<String> groups,
     boolean isAdmin,
-    boolean onboarded) {
+    boolean onboarded,
+    boolean aiChatEnabledForTrainees) {
 
-  public static MeResponse of(User user, List<String> groups, boolean isAdmin) {
+  public static MeResponse of(
+      User user, List<String> groups, boolean isAdmin, boolean aiChatEnabledForTrainees) {
     return new MeResponse(
         user.getId(),
         user.getCognitoSub(),
@@ -30,6 +32,7 @@ public record MeResponse(
         user.getUpdatedAt(),
         groups,
         isAdmin,
-        user.getOnboardedAt() != null);
+        user.getOnboardedAt() != null,
+        aiChatEnabledForTrainees);
   }
 }

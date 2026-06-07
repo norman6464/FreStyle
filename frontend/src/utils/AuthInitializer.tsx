@@ -21,6 +21,8 @@ export default function AuthInitializer({ children }: AuthInitializerProps) {
           setAuthData({
             isAdmin: !!me.isAdmin,
             role: me.role ?? null,
+            // 未定義(古い backend 等)は true にフォールバックし、誤って AI を隠さない。
+            aiChatEnabledForTrainees: me.aiChatEnabledForTrainees ?? true,
           })
         );
       } catch {

@@ -1,7 +1,10 @@
 package com.normanblog.frestyle.config;
 
+import com.normanblog.frestyle.s3.AiChatAttachmentPresigner;
 import com.normanblog.frestyle.s3.ProfileImagePresigner;
+import com.normanblog.frestyle.s3.S3AiChatAttachmentPresigner;
 import com.normanblog.frestyle.s3.S3ProfileImagePresigner;
+import com.normanblog.frestyle.s3.StubAiChatAttachmentPresigner;
 import com.normanblog.frestyle.s3.StubProfileImagePresigner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,5 +34,17 @@ public class S3Config {
         S3Presigner.builder().region(Region.of(props.regionOrDefault())).build();
 
     return new S3ProfileImagePresigner(presigner, props.bucket(), props.cdnBase());
+  }
+
+  @Bean
+  public AiChatAttachmentPresigner aiChatAttachmentPresigner(S3Properties props) {
+    if (props.bucket() == null || props.bucket().isBlank()) {
+      log.info("frestyle.s3.bucket 未設定のため AI チャット添付は stub presigner を使用します");
+      return new StubAiChatAttachmentPresigner(props.bucket());
+    }
+    S3Presigner presigner =
+        S3Presigner.builder().region(Region.of(props.regionOrDefault())).build();
+
+    return new S3AiChatAttachmentPresigner(presigner, props.bucket());
   }
 }

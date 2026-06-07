@@ -1,4 +1,4 @@
-package com.normanblog.frestyle.cognito;
+package com.normanblog.frestyle.infra.cognito;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.normanblog.frestyle.config.CognitoProperties;

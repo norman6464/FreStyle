@@ -1,4 +1,4 @@
-package com.normanblog.frestyle.sqs;
+package com.normanblog.frestyle.infra.sqs;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

@@ -1,8 +1,8 @@
 package com.normanblog.frestyle.config;
 
-import com.normanblog.frestyle.dynamo.AiChatMessageReader;
-import com.normanblog.frestyle.dynamo.DynamoAiChatMessageReader;
-import com.normanblog.frestyle.dynamo.StubAiChatMessageReader;
+import com.normanblog.frestyle.infra.dynamo.AiChatMessageReader;
+import com.normanblog.frestyle.infra.dynamo.DynamoAiChatMessageReader;
+import com.normanblog.frestyle.infra.dynamo.StubAiChatMessageReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;

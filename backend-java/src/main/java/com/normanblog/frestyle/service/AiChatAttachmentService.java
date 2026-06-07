@@ -1,7 +1,7 @@
 package com.normanblog.frestyle.service;
 
 import com.normanblog.frestyle.dto.AiChatAttachmentUploadUrl;
-import com.normanblog.frestyle.s3.AiChatAttachmentPresigner;
+import com.normanblog.frestyle.infra.s3.AiChatAttachmentPresigner;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.http.HttpStatus;

@@ -1,4 +1,4 @@
-package com.normanblog.frestyle.s3;
+package com.normanblog.frestyle.infra.s3;
 
 import java.time.Instant;
 import java.util.UUID;

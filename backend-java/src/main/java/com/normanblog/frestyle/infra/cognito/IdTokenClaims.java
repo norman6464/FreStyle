@@ -1,4 +1,4 @@
-package com.normanblog.frestyle.cognito;
+package com.normanblog.frestyle.infra.cognito;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

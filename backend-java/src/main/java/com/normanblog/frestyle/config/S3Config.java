@@ -1,11 +1,11 @@
 package com.normanblog.frestyle.config;
 
-import com.normanblog.frestyle.s3.AiChatAttachmentPresigner;
-import com.normanblog.frestyle.s3.ProfileImagePresigner;
-import com.normanblog.frestyle.s3.S3AiChatAttachmentPresigner;
-import com.normanblog.frestyle.s3.S3ProfileImagePresigner;
-import com.normanblog.frestyle.s3.StubAiChatAttachmentPresigner;
-import com.normanblog.frestyle.s3.StubProfileImagePresigner;
+import com.normanblog.frestyle.infra.s3.AiChatAttachmentPresigner;
+import com.normanblog.frestyle.infra.s3.ProfileImagePresigner;
+import com.normanblog.frestyle.infra.s3.S3AiChatAttachmentPresigner;
+import com.normanblog.frestyle.infra.s3.S3ProfileImagePresigner;
+import com.normanblog.frestyle.infra.s3.StubAiChatAttachmentPresigner;
+import com.normanblog.frestyle.infra.s3.StubProfileImagePresigner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;

@@ -2,7 +2,7 @@ package com.normanblog.frestyle.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.normanblog.frestyle.cognito.IdTokenClaims;
+import com.normanblog.frestyle.infra.cognito.IdTokenClaims;
 import com.normanblog.frestyle.entity.AdminInvitation;
 import com.normanblog.frestyle.entity.InvitationStatus;
 import com.normanblog.frestyle.entity.Role;

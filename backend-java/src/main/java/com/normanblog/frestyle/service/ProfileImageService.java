@@ -1,7 +1,7 @@
 package com.normanblog.frestyle.service;
 
 import com.normanblog.frestyle.dto.ProfileImageUploadUrl;
-import com.normanblog.frestyle.s3.ProfileImagePresigner;
+import com.normanblog.frestyle.infra.s3.ProfileImagePresigner;
 import org.springframework.stereotype.Service;
 
 /** プロフィールアイコン用の S3 PUT 署名付き URL 発行を担うサービス。 */

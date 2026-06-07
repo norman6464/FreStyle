@@ -1,4 +1,4 @@
-package com.normanblog.frestyle.cognito;
+package com.normanblog.frestyle.infra.cognito;
 
 /** Cognito の token endpoint レスポンス(必要項目のみ)。 */
 public record CognitoTokens(

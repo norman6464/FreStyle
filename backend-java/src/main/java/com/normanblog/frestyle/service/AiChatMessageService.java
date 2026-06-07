@@ -1,7 +1,7 @@
 package com.normanblog.frestyle.service;
 
 import com.normanblog.frestyle.dto.AiChatMessageResponse;
-import com.normanblog.frestyle.dynamo.AiChatMessageReader;
+import com.normanblog.frestyle.infra.dynamo.AiChatMessageReader;
 import com.normanblog.frestyle.entity.User;
 import java.util.List;
 import org.springframework.stereotype.Service;

@@ -15,3 +15,15 @@ CREATE TABLE IF NOT EXISTS exercise_submissions (
 -- ユーザーの提出を新しい順に引くための索引。
 CREATE INDEX IF NOT EXISTS idx_submissions_user_at
     ON exercise_submissions (user_id, submitted_at DESC);
+
+-- ある演習へのユーザー提出履歴(新しい順): findByUserIdAndExerciseKindAndExerciseIdOrderBySubmittedAtDesc 用。
+CREATE INDEX IF NOT EXISTS idx_submissions_user_kind_exercise_at
+    ON exercise_submissions (user_id, exercise_kind, exercise_id, submitted_at DESC);
+
+-- 演習ごとの提出総数集計 / status 判定: exercise_kind + exercise_id 走査用。
+CREATE INDEX IF NOT EXISTS idx_submissions_kind_exercise
+    ON exercise_submissions (exercise_kind, exercise_id);
+
+-- 正答ユーザー数集計(is_correct = true の distinct user)を絞り込む索引。
+CREATE INDEX IF NOT EXISTS idx_submissions_kind_correct_exercise_user
+    ON exercise_submissions (exercise_kind, is_correct, exercise_id, user_id);

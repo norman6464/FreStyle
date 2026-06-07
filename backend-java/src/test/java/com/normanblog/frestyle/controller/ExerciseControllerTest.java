@@ -179,17 +179,24 @@ class ExerciseControllerTest {
   @Test
   void submissions_returnsHistoryNewestFirst() throws Exception {
     seedQaExercise();
+    // 2 件提出し、後から送った方が先頭(新しい順)に来ることまで検証する。
     mvc.perform(
             post("/api/v2/exercises/java-qa-1/submit")
                 .with(jwt().jwt(j -> j.subject(SUB)))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"code\":\"int x = 1;\"}"))
         .andExpect(status().isOk());
+    mvc.perform(
+            post("/api/v2/exercises/java-qa-1/submit")
+                .with(jwt().jwt(j -> j.subject(SUB)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"code\":\"int x = 2;\"}"))
+        .andExpect(status().isOk());
 
     mvc.perform(get("/api/v2/exercises/java-qa-1/submissions").with(jwt().jwt(j -> j.subject(SUB))))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$[0].isCorrect").value(true))
-        .andExpect(jsonPath("$[0].submittedCode").value("int x = 1;"));
+        .andExpect(jsonPath("$[0].submittedCode").value("int x = 2;"))
+        .andExpect(jsonPath("$[1].submittedCode").value("int x = 1;"));
   }
 
   @Test
@@ -216,7 +223,11 @@ class ExerciseControllerTest {
   private static boolean available(String... command) {
     try {
       Process p = new ProcessBuilder(command).start();
-      return p.waitFor(10, TimeUnit.SECONDS) && p.exitValue() == 0;
+      if (!p.waitFor(10, TimeUnit.SECONDS)) {
+        p.destroyForcibly();
+        return false;
+      }
+      return p.exitValue() == 0;
     } catch (Exception e) {
       return false;
     }

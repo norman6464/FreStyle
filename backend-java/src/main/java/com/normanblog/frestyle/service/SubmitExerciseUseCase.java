@@ -17,7 +17,6 @@ import java.util.ArrayList;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
@@ -45,12 +44,17 @@ public class SubmitExerciseUseCase {
     this.executor = executor;
   }
 
-  /** slug の演習に対してコードを採点し、提出履歴を保存して結果を返す。 */
-  @Transactional
+  /**
+   * slug の演習に対してコードを採点し、提出履歴を保存して結果を返す。
+   *
+   * <p>採点はコード実行(外部プロセス / ブロッキング)を伴うため、ここに DB トランザクションを張らない。
+   * 各リポジトリ呼び出しが自前の短いトランザクションで完結し、実行中に接続を握り続けないようにする。
+   */
   public ExerciseSubmitResult execute(Long userId, String slug, String code) {
     MasterExercise exercise =
         exercises
             .findBySlug(slug)
+            .filter(MasterExercise::isPublished)
             .orElseThrow(
                 () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "演習問題が見つかりません"));
 

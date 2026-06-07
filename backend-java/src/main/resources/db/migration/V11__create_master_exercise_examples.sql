@@ -6,7 +6,10 @@ CREATE TABLE IF NOT EXISTS master_exercise_examples (
     input_text      TEXT     NOT NULL DEFAULT '',
     expected_output TEXT     NOT NULL,
     created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    updated_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- 例は必ず実在する演習に紐付く。親削除時は例も道連れにし孤児データを防ぐ。
+    CONSTRAINT fk_master_exercise_examples_exercise
+        FOREIGN KEY (exercise_id) REFERENCES master_exercises (id) ON DELETE CASCADE
 );
 
 -- 同一問題内での順序衝突を DB レベルで弾く。

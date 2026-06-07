@@ -165,20 +165,15 @@ public class ProcessCodeExecutor implements CodeExecutor {
       return new CodeExecuteResponse("", "実行環境を利用できません", 1);
     }
 
-    // stdin を流して閉じる(テストケースの入力)。無ければ即 close で EOF を渡す。
-    try (var os = process.getOutputStream()) {
-      if (stdin != null && !stdin.isEmpty()) {
-        os.write(stdin.getBytes(StandardCharsets.UTF_8));
-      }
-    } catch (IOException ignored) {
-      // 既にプロセスが終了して stdin が閉じている場合がある。致命ではない。
-    }
-
-    // stdout/stderr を並行に汲む(片方のパイプが詰まると deadlock するため)。
+    // stdin / stdout / stderr はすべて別スレッドで捌く。
+    // stdin の write を同期で行うと、子プロセスが出力を吐き続けて stdin を読まない場合に
+    // ここでブロックし、下の waitFor(timeout) に到達できず timeout 制御が効かなくなるため。
     StringBuilder stdout = new StringBuilder();
     StringBuilder stderr = new StringBuilder();
+    Thread inThread = feedStdin(process, stdin);
     Thread outThread = drain(process.getInputStream(), stdout);
     Thread errThread = drain(process.getErrorStream(), stderr);
+    inThread.start();
     outThread.start();
     errThread.start();
 
@@ -186,11 +181,13 @@ public class ProcessCodeExecutor implements CodeExecutor {
       boolean finished = process.waitFor(timeout, TimeUnit.SECONDS);
       if (!finished) {
         killTree(process);
+        joinQuietly(inThread);
         joinQuietly(outThread);
         joinQuietly(errThread);
         return new CodeExecuteResponse(
             stdout.toString(), append(stderr, "実行がタイムアウトしました").toString(), 124);
       }
+      joinQuietly(inThread);
       joinQuietly(outThread);
       joinQuietly(errThread);
 
@@ -200,6 +197,21 @@ public class ProcessCodeExecutor implements CodeExecutor {
       Thread.currentThread().interrupt();
       return new CodeExecuteResponse(stdout.toString(), "実行が中断されました", 1);
     }
+  }
+
+  // stdin を子プロセスへ書き込んで閉じるスレッドを作る(start はしない)。
+  // 同期書き込みだと出力過多の子プロセス相手にブロックし得るため別スレッドに分離する。
+  private static Thread feedStdin(Process process, String stdin) {
+    return new Thread(
+        () -> {
+          try (var os = process.getOutputStream()) {
+            if (stdin != null && !stdin.isEmpty()) {
+              os.write(stdin.getBytes(StandardCharsets.UTF_8));
+            }
+          } catch (IOException ignored) {
+            // 既にプロセスが終了して stdin が閉じている場合がある。致命ではない。
+          }
+        });
   }
 
   // ユーザーコードが起動した子孫プロセスごと止める(destroyForcibly だけだと孫が残り得る)。

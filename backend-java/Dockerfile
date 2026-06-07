@@ -13,8 +13,10 @@ COPY src ./src
 RUN ./gradlew --no-daemon clean bootJar
 
 # --- Runtime stage ---
-# JRE のみの軽量 image。ECS 0.5GB 制約に合わせ container-aware な JVM 設定で起動する。
-FROM eclipse-temurin:21-jre-noble
+# JDK image を使う。理由: コード演習サンドボックスが `java Main.java`(単一ファイル実行)で
+# ユーザーの Java コードをコンパイル+実行するため、JRE ではなく javac を含む JDK が要る。
+# ECS 0.5GB 制約に合わせ container-aware な JVM 設定で起動する。
+FROM eclipse-temurin:21-jdk-noble
 
 WORKDIR /
 

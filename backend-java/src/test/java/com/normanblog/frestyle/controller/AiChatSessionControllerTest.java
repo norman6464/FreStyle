@@ -180,4 +180,33 @@ class AiChatSessionControllerTest {
 
     assertThat(sessions.findById(id)).isPresent();
   }
+
+  @Test
+  void messages_withoutAuth_returns401() throws Exception {
+    mvc.perform(get("/api/v2/ai-chat/sessions/1/messages")).andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void messages_ownSession_returnsEmptyList_withStubReader() throws Exception {
+    // テストは table 未設定で stub reader が使われるため、所有者検証を通って空配列が返る。
+    Long id = saveSession(myId, "自分の会話", Instant.now());
+
+    mvc.perform(get("/api/v2/ai-chat/sessions/" + id + "/messages").with(jwt().jwt(j -> j.subject(SUB))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.length()").value(0));
+  }
+
+  @Test
+  void messages_othersSession_returns403() throws Exception {
+    Long id = saveSession(otherId, "他人の会話", Instant.now());
+
+    mvc.perform(get("/api/v2/ai-chat/sessions/" + id + "/messages").with(jwt().jwt(j -> j.subject(SUB))))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void messages_missingSession_returns404() throws Exception {
+    mvc.perform(get("/api/v2/ai-chat/sessions/999999/messages").with(jwt().jwt(j -> j.subject(SUB))))
+        .andExpect(status().isNotFound());
+  }
 }

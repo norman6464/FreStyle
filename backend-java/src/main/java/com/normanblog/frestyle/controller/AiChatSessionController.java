@@ -1,10 +1,12 @@
 package com.normanblog.frestyle.controller;
 
+import com.normanblog.frestyle.dto.AiChatMessageResponse;
 import com.normanblog.frestyle.dto.AiChatSessionResponse;
 import com.normanblog.frestyle.dto.CreateAiChatSessionRequest;
 import com.normanblog.frestyle.dto.UpdateSessionTitleRequest;
 import com.normanblog.frestyle.entity.User;
 import com.normanblog.frestyle.security.CurrentUserProvider;
+import com.normanblog.frestyle.service.AiChatMessageService;
 import com.normanblog.frestyle.service.AiChatSessionService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -30,11 +32,15 @@ import org.springframework.web.bind.annotation.RestController;
 public class AiChatSessionController {
 
   private final AiChatSessionService sessions;
+  private final AiChatMessageService messages;
   private final CurrentUserProvider currentUser;
 
   public AiChatSessionController(
-      AiChatSessionService sessions, CurrentUserProvider currentUser) {
+      AiChatSessionService sessions,
+      AiChatMessageService messages,
+      CurrentUserProvider currentUser) {
     this.sessions = sessions;
+    this.messages = messages;
     this.currentUser = currentUser;
   }
 
@@ -74,5 +80,12 @@ public class AiChatSessionController {
     sessions.delete(id, actor);
 
     return ResponseEntity.noContent().build();
+  }
+
+  /** 自分のセッションのメッセージ履歴(DynamoDB)を作成順で返す。他人は 403 / 不在 404。 */
+  @GetMapping("/{id}/messages")
+  public List<AiChatMessageResponse> messages(@PathVariable Long id) {
+    User actor = currentUser.require();
+    return messages.listMessages(id, actor);
   }
 }

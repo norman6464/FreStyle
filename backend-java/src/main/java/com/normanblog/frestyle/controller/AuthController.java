@@ -7,6 +7,7 @@ import com.normanblog.frestyle.dto.MeResponse;
 import com.normanblog.frestyle.entity.User;
 import com.normanblog.frestyle.security.AuthCookies;
 import com.normanblog.frestyle.security.CurrentUserProvider;
+import com.normanblog.frestyle.service.AiChatAccessPolicy;
 import com.normanblog.frestyle.service.AuthService;
 import com.normanblog.frestyle.service.LoginService;
 import jakarta.servlet.http.HttpServletResponse;
@@ -32,19 +33,22 @@ public class AuthController {
   private final AuthService authService;
   private final LoginService loginService;
   private final AuthCookies cookies;
+  private final AiChatAccessPolicy aiChatAccessPolicy;
 
   public AuthController(
       CurrentUserProvider currentUser,
       AuthService authService,
       LoginService loginService,
-      AuthCookies cookies) {
+      AuthCookies cookies,
+      AiChatAccessPolicy aiChatAccessPolicy) {
     this.currentUser = currentUser;
     this.authService = authService;
     this.loginService = loginService;
     this.cookies = cookies;
+    this.aiChatAccessPolicy = aiChatAccessPolicy;
   }
 
-  /** 現在ログイン中のユーザー情報(+ groups / isAdmin / onboarded)を返す。 */
+  /** 現在ログイン中のユーザー情報(+ groups / isAdmin / onboarded / AI 利用可否)を返す。 */
   @GetMapping("/me")
   public MeResponse me() {
     Jwt jwt = currentUser.currentJwt();
@@ -52,7 +56,9 @@ public class AuthController {
     List<String> groups = currentUser.groups(jwt);
     boolean isAdmin = currentUser.isAdmin(groups);
     user = authService.syncAdminRole(user, isAdmin);
-    return MeResponse.of(user, groups, isAdmin);
+    // frontend がサイドバーの AI メニュー表示判定に使う(会社設定 + ロール由来)。
+    boolean aiEnabled = aiChatAccessPolicy.isEnabledFor(user);
+    return MeResponse.of(user, groups, isAdmin, aiEnabled);
   }
 
   /** 認可コードを token に交換し、HttpOnly Cookie を発行する。招待が無い新規ユーザーは 403。 */

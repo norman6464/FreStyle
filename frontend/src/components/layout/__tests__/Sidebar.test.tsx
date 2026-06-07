@@ -22,18 +22,29 @@ vi.mock('../../../repositories/ProfileRepository', () => ({
   },
 }));
 
-function createTestStore(isAdmin = false, role: string | null = null) {
+function createTestStore(isAdmin = false, role: string | null = null, aiEnabled = true) {
   return configureStore({
     reducer: { auth: authReducer },
     preloadedState: {
-      auth: { isAuthenticated: true, loading: false, isAdmin, role },
+      auth: {
+        isAuthenticated: true,
+        loading: false,
+        isAdmin,
+        role,
+        aiChatEnabledForTrainees: aiEnabled,
+      },
     },
   });
 }
 
-function renderSidebar(currentPath = '/', isAdmin = false, role: string | null = null) {
+function renderSidebar(
+  currentPath = '/',
+  isAdmin = false,
+  role: string | null = null,
+  aiEnabled = true
+) {
   return render(
-    <Provider store={createTestStore(isAdmin, role)}>
+    <Provider store={createTestStore(isAdmin, role, aiEnabled)}>
       <MemoryRouter initialEntries={[currentPath]}>
         <Sidebar />
       </MemoryRouter>
@@ -149,5 +160,23 @@ describe('Sidebar', () => {
     expect(screen.getByText('ノート')).toBeInTheDocument();
     expect(screen.getByText('レポート')).toBeInTheDocument();
     expect(screen.getByText('管理')).toBeInTheDocument();
+  });
+
+  it('trainee は会社が AI 無効なら「AI」が非表示になる', () => {
+    renderSidebar('/', false, 'trainee', false);
+    expect(screen.queryByText('AI')).toBeNull();
+    // 他の trainee 向けメニューは残る
+    expect(screen.getByText('演習')).toBeInTheDocument();
+    expect(screen.getByText('ノート')).toBeInTheDocument();
+  });
+
+  it('trainee は会社が AI 有効なら「AI」が表示される', () => {
+    renderSidebar('/', false, 'trainee', true);
+    expect(screen.getByText('AI')).toBeInTheDocument();
+  });
+
+  it('company_admin は会社が AI 無効でも自分の「AI」は表示される', () => {
+    renderSidebar('/', true, 'company_admin', false);
+    expect(screen.getByText('AI')).toBeInTheDocument();
   });
 });

@@ -6,11 +6,14 @@ const initialState: AuthState = {
   loading: true,
   isAdmin: false,
   role: null,
+  // 既定 true: /auth/me 未取得や会社未所属でも AI を出す(後方互換)。trainee の会社設定で false になる。
+  aiChatEnabledForTrainees: true,
 };
 
 type AuthPayload = {
   isAdmin?: boolean;
   role?: string | null;
+  aiChatEnabledForTrainees?: boolean;
 };
 
 const authSlice = createSlice({
@@ -28,6 +31,9 @@ const authSlice = createSlice({
       if (action.payload?.role !== undefined) {
         state.role = action.payload.role;
       }
+      if (action.payload?.aiChatEnabledForTrainees !== undefined) {
+        state.aiChatEnabledForTrainees = action.payload.aiChatEnabledForTrainees;
+      }
     },
 
     setAuthenticated(state, action: PayloadAction<AuthPayload | undefined>) {
@@ -39,6 +45,9 @@ const authSlice = createSlice({
       if (action.payload?.role !== undefined) {
         state.role = action.payload.role;
       }
+      if (action.payload?.aiChatEnabledForTrainees !== undefined) {
+        state.aiChatEnabledForTrainees = action.payload.aiChatEnabledForTrainees;
+      }
     },
 
     clearAuth(state) {
@@ -46,6 +55,12 @@ const authSlice = createSlice({
       state.loading = false;
       state.isAdmin = false;
       state.role = null;
+      state.aiChatEnabledForTrainees = true;
+    },
+
+    // 設定画面で company_admin がトグルした結果を即座に反映する(自分が trainee でなくても整合のため保持)。
+    setAiChatEnabledForTrainees(state, action: PayloadAction<boolean>) {
+      state.aiChatEnabledForTrainees = action.payload;
     },
 
     finishLoading(state) {
@@ -54,6 +69,11 @@ const authSlice = createSlice({
   },
 });
 
-export const { setAuthData, setAuthenticated, clearAuth, finishLoading } =
-  authSlice.actions;
+export const {
+  setAuthData,
+  setAuthenticated,
+  clearAuth,
+  finishLoading,
+  setAiChatEnabledForTrainees,
+} = authSlice.actions;
 export default authSlice.reducer;

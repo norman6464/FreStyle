@@ -4,6 +4,7 @@ import authReducer, {
   setAuthenticated,
   clearAuth,
   finishLoading,
+  setAiChatEnabledForTrainees,
 } from '../authSlice';
 
 describe('authSlice', () => {
@@ -12,9 +13,10 @@ describe('authSlice', () => {
     loading: true,
     isAdmin: false,
     role: null,
+    aiChatEnabledForTrainees: true,
   };
 
-  it('初期状態はisAuthenticated=false, loading=true, isAdmin=false, role=null', () => {
+  it('初期状態はisAuthenticated=false, loading=true, isAdmin=false, role=null, AI 有効=true', () => {
     const state = authReducer(undefined, { type: 'unknown' });
     expect(state).toEqual(initialState);
   });
@@ -48,6 +50,24 @@ describe('authSlice', () => {
     expect(state.role).toBe('super_admin');
   });
 
+  it('setAuthDataでaiChatEnabledForTrainees=falseを渡すと反映される', () => {
+    const state = authReducer(initialState, setAuthData({ aiChatEnabledForTrainees: false }));
+    expect(state.aiChatEnabledForTrainees).toBe(false);
+  });
+
+  it('setAuthDataでaiChatEnabledForTrainees未指定なら既存値を保持する', () => {
+    const disabled = { ...initialState, aiChatEnabledForTrainees: false };
+    const state = authReducer(disabled, setAuthData({ isAdmin: true }));
+    expect(state.aiChatEnabledForTrainees).toBe(false);
+  });
+
+  it('setAiChatEnabledForTraineesでフラグだけ更新できる', () => {
+    const state = authReducer(initialState, setAiChatEnabledForTrainees(false));
+    expect(state.aiChatEnabledForTrainees).toBe(false);
+    const back = authReducer(state, setAiChatEnabledForTrainees(true));
+    expect(back.aiChatEnabledForTrainees).toBe(true);
+  });
+
   it('setAuthenticatedでisAuthenticated=true, loading=falseになる', () => {
     const state = authReducer(initialState, setAuthenticated());
     expect(state.isAuthenticated).toBe(true);
@@ -79,6 +99,7 @@ describe('authSlice', () => {
     expect(state.loading).toBe(false);
     expect(state.isAdmin).toBe(false);
     expect(state.role).toBeNull();
+    expect(state.aiChatEnabledForTrainees).toBe(true);
   });
 
   it('finishLoadingでloading=falseになりisAuthenticatedは変わらない', () => {

@@ -1,7 +1,7 @@
 # 0001: trainee 向け AI エージェント機能の利用可否トグル
 
 > これは Design Doc テンプレートの最初の適用例（試作）です。実装着手前の提案であり、ステータスは Draft。
-> 対応する Design Doc Issue: #未採番（起票時にここへリンク）
+> 対応する Design Doc Issue: [#1846](https://github.com/norman6464/FreStyle/issues/1846)
 
 ## 1. 基本情報
 

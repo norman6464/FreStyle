@@ -8,9 +8,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.normanblog.frestyle.cognito.CognitoTokenClient;
-import com.normanblog.frestyle.cognito.CognitoTokens;
-import com.normanblog.frestyle.cognito.TokenExchangeException;
+import com.normanblog.frestyle.infra.cognito.CognitoTokenClient;
+import com.normanblog.frestyle.infra.cognito.CognitoTokens;
+import com.normanblog.frestyle.infra.cognito.TokenExchangeException;
 import com.normanblog.frestyle.entity.AdminInvitation;
 import com.normanblog.frestyle.entity.InvitationStatus;
 import com.normanblog.frestyle.entity.Role;

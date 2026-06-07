@@ -1,6 +1,6 @@
 package com.normanblog.frestyle.service;
 
-import com.normanblog.frestyle.cognito.IdTokenClaims;
+import com.normanblog.frestyle.infra.cognito.IdTokenClaims;
 import com.normanblog.frestyle.config.CognitoProperties;
 import com.normanblog.frestyle.entity.AdminInvitation;
 import com.normanblog.frestyle.entity.InvitationStatus;

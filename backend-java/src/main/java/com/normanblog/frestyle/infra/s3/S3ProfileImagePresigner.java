@@ -1,4 +1,4 @@
-package com.normanblog.frestyle.s3;
+package com.normanblog.frestyle.infra.s3;
 
 import com.normanblog.frestyle.dto.ProfileImageUploadUrl;
 import java.time.Duration;

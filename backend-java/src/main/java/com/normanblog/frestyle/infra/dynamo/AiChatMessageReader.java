@@ -1,4 +1,4 @@
-package com.normanblog.frestyle.dynamo;
+package com.normanblog.frestyle.infra.dynamo;
 
 import com.normanblog.frestyle.dto.AiChatMessageResponse;
 import java.util.List;

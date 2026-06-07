@@ -46,21 +46,25 @@ Spring Boot の標準的なレイヤ構成。
 ```
 com.normanblog.frestyle
 ├── FrestyleBackendApplication   起動クラス
-├── controller   HTTP エンドポイント (@RestController)
-├── service      ビジネスロジック (@Service)
+├── controller   HTTP エンドポイント (@RestController) ＝ inbound adapter
+├── service      ビジネスロジック (@Service)。外部連携は infra のポート interface に依存
 ├── repository   永続化 (Spring Data JPA, JpaRepository)
 ├── entity       JPA エンティティ (@Entity)
 ├── dto          リクエスト/レスポンスの転送オブジェクト (record)
-├── config       設定 (@ConfigurationProperties / @Configuration / Security)
-├── security     認証ヘルパー (CurrentUserProvider 等)
-├── cognito      Cognito token 交換クライアント
-├── s3           画像アップロードの S3 presigner (本番実装 + stub)
-├── sqs          学習レポート生成ジョブの enqueuer (現状 no-op stub)
-└── dynamo       AI チャットメッセージの DynamoDB reader (本番実装 + stub)
+├── config       設定 (@ConfigurationProperties / @Configuration / Security / 各 infra の bean 組み立て)
+├── security     認証ヘルパー (CurrentUserProvider 等。横断的関心事)
+└── infra        外部システムへの outbound adapter（ポート interface + 本番実装 + stub）
+    ├── cognito  Cognito token 交換クライアント
+    ├── s3       画像アップロードの S3 presigner
+    ├── sqs      学習レポート生成ジョブの enqueuer (現状 no-op stub)
+    └── dynamo   AI チャットメッセージの DynamoDB reader
 ```
 
 - `@Entity` は永続化専用とし、API には公開しない。レスポンスは `dto` の record（例: `NoteResponse`）に詰め替える
 - リクエストボディは `dto` の record に Bean Validation（`@NotBlank` 等）を付け、`controller` で `@Valid` 検証する
+- **外部システム連携（AWS SDK / 外部 HTTP）は `infra/<システム>` に集約**する。`service` はポート interface
+  （例: `ReportEnqueuer` / `ProfileImagePresigner` / `AiChatMessageReader`）にのみ依存し、実装は `infra` 側に置く
+  （依存性逆転）。資格情報の無い環境向けに各 infra は stub 実装を持ち、`config` が設定有無で実装を切り替える
 
 ## 認証（Cognito JWT）
 

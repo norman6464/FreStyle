@@ -3,7 +3,7 @@ package com.normanblog.frestyle.service;
 import com.normanblog.frestyle.entity.LearningReport;
 import com.normanblog.frestyle.entity.LearningReportStatus;
 import com.normanblog.frestyle.repository.LearningReportRepository;
-import com.normanblog.frestyle.sqs.ReportEnqueuer;
+import com.normanblog.frestyle.infra.sqs.ReportEnqueuer;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;

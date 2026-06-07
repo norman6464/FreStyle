@@ -1,4 +1,4 @@
-package com.normanblog.frestyle.cognito;
+package com.normanblog.frestyle.infra.cognito;
 
 /**
  * Cognito の token endpoint が non-2xx を返したときの例外。

@@ -1,8 +1,8 @@
 package com.normanblog.frestyle.service;
 
-import com.normanblog.frestyle.cognito.CognitoTokenClient;
-import com.normanblog.frestyle.cognito.CognitoTokens;
-import com.normanblog.frestyle.cognito.IdTokenClaims;
+import com.normanblog.frestyle.infra.cognito.CognitoTokenClient;
+import com.normanblog.frestyle.infra.cognito.CognitoTokens;
+import com.normanblog.frestyle.infra.cognito.IdTokenClaims;
 import org.springframework.stereotype.Service;
 
 /** ログインフロー(認可コード交換 / refresh)をオーケストレーションするサービス。 */

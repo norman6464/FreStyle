@@ -1,7 +1,7 @@
 package com.normanblog.frestyle.controller;
 
-import com.normanblog.frestyle.cognito.CognitoTokens;
-import com.normanblog.frestyle.cognito.TokenExchangeException;
+import com.normanblog.frestyle.infra.cognito.CognitoTokens;
+import com.normanblog.frestyle.infra.cognito.TokenExchangeException;
 import com.normanblog.frestyle.dto.CallbackRequest;
 import com.normanblog.frestyle.dto.MeResponse;
 import com.normanblog.frestyle.entity.User;

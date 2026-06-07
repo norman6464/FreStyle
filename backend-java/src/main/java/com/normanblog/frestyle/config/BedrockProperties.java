@@ -12,6 +12,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record BedrockProperties(String modelId, String region) {
 
   public String regionOrDefault() {
-    return region == null || region.isBlank() ? "ap-northeast-1" : region;
+    return region == null || region.isBlank() ? "ap-northeast-1" : region.trim();
   }
 }

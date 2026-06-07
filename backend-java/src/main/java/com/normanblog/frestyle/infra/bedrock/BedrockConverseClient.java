@@ -2,6 +2,7 @@ package com.normanblog.frestyle.infra.bedrock;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeAsyncClient;
@@ -22,6 +23,9 @@ import software.amazon.awssdk.services.bedrockruntime.model.SystemContentBlock;
  * 呼び出しスレッドは {@code future.join()} でストリーム完了までブロックする。
  */
 public class BedrockConverseClient implements BedrockChatClient, AutoCloseable {
+
+  // 応答が来ない Bedrock 呼び出しでスレッドが永久にブロックしないよう全体タイムアウトを設ける。
+  private static final long STREAM_TIMEOUT_SECONDS = 120;
 
   private final BedrockRuntimeAsyncClient client;
   private final String modelId;
@@ -58,7 +62,11 @@ public class BedrockConverseClient implements BedrockChatClient, AutoCloseable {
         ConverseStreamResponseHandler.builder().subscriber(visitor).build();
 
     // join() は EventStream 完了までブロックし、失敗時は例外を伝播する(呼び出し側で扱う)。
-    client.converseStream(request.build(), handler).join();
+    // orTimeout で上限を設け、ハングした呼び出しがスレッドを占有し続けないようにする。
+    client
+        .converseStream(request.build(), handler)
+        .orTimeout(STREAM_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .join();
 
     return full.toString();
   }

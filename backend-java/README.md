@@ -200,7 +200,7 @@ AI チャットは **セッション(メタデータ=RDS) + メッセージ(Dyna
 (`frestyle.dynamo.ai-chat-table` = `DYNAMODB_AI_CHAT_TABLE`、PK=sessionId / SK=messageId) を Query。
 添付は画像のみ許可・5MB 上限を `AiChatAttachmentRules` で検証し、未対応 MIME は 415 / サイズ超過は 413。
 
-**SSE ストリーム** (`POST /ai-chat/stream`): 事前検証(本文/添付 key prefix/所有者)を同期で行い不正は
+**SSE ストリーム** (`POST /api/v2/ai-chat/stream`): 事前検証(本文/添付 key prefix/所有者)を同期で行い不正は
 400/403、通過後に `SseEmitter` で session/token/done/error を配信する。複数ポート(session/message/S3/
 Bedrock)を跨ぐため `SendAiMessageUseCase`(@Component)に切り出し、別スレッドで実行して listener 経由で
 SSE へ書く(アプリ層は HTTP/SSE を知らない)。Bedrock は `frestyle.bedrock.model-id`(= `BEDROCK_MODEL_ID`)

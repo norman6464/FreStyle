@@ -16,8 +16,11 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,7 +50,9 @@ public class AiChatStreamController {
   private final AiChatSessionService sessions;
   private final CurrentUserProvider currentUser;
   // SSE は接続を保持し続けるため、リクエストスレッドとは別の専用プールで usecase を走らせる。
-  private final ExecutorService executor = Executors.newFixedThreadPool(16);
+  // 無制限キューだと SSE 集中時に待ちタスクが際限なく積まれるため、境界付きキュー + reject で 503 にする。
+  private final ExecutorService executor =
+      new ThreadPoolExecutor(4, 16, 60L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(32));
 
   public AiChatStreamController(
       SendAiMessageUseCase sendMessage,
@@ -67,16 +72,21 @@ public class AiChatStreamController {
     AtomicBoolean closed = new AtomicBoolean(false);
     AiMessageStreamListener listener = newListener(emitter, closed);
 
-    executor.execute(
-        () -> {
-          try {
-            sendMessage.execute(actor, request, listener);
-          } catch (RuntimeException e) {
-            log.warn("ai-chat stream task failed", e);
-            sendEvent(emitter, closed, "error", Map.of("message", "メッセージの送信に失敗しました"));
-            complete(emitter, closed);
-          }
-        });
+    try {
+      executor.execute(
+          () -> {
+            try {
+              sendMessage.execute(actor, request, listener);
+            } catch (RuntimeException e) {
+              log.warn("ai-chat stream task failed", e);
+              sendEvent(emitter, closed, "error", Map.of("message", "メッセージの送信に失敗しました"));
+              complete(emitter, closed);
+            }
+          });
+    } catch (RejectedExecutionException e) {
+      // 処理待ちが上限に達した。SSE を始めず 503 で明示的に断る(emitter は破棄される)。
+      throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "ai_chat_busy");
+    }
 
     return emitter;
   }
@@ -91,7 +101,7 @@ public class AiChatStreamController {
     if (request.attachments() != null) {
       String expectedPrefix = "ai-chat/" + actor.getId() + "/";
       for (AiChatStreamAttachment a : request.attachments()) {
-        if (a.key() == null || a.contentType() == null) {
+        if (a == null || a.key() == null || a.contentType() == null) {
           throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "attachment_invalid");
         }
         if (!a.key().startsWith(expectedPrefix)) {

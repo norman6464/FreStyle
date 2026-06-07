@@ -13,6 +13,6 @@ public record S3Properties(String bucket, String cdnBase, String region) {
 
   /** region 未設定でも presigner が成立するよう既定リージョンにフォールバックする。 */
   public String regionOrDefault() {
-    return region == null || region.isBlank() ? "ap-northeast-1" : region;
+    return region == null || region.isBlank() ? "ap-northeast-1" : region.trim();
   }
 }

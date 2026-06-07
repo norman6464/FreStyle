@@ -12,6 +12,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record DynamoProperties(String aiChatTable, String region) {
 
   public String regionOrDefault() {
-    return region == null || region.isBlank() ? "ap-northeast-1" : region;
+    return region == null || region.isBlank() ? "ap-northeast-1" : region.trim();
   }
 }

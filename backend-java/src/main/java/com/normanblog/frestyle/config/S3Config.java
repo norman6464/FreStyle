@@ -1,16 +1,20 @@
 package com.normanblog.frestyle.config;
 
 import com.normanblog.frestyle.infra.s3.AiChatAttachmentPresigner;
+import com.normanblog.frestyle.infra.s3.AttachmentDownloader;
 import com.normanblog.frestyle.infra.s3.ProfileImagePresigner;
 import com.normanblog.frestyle.infra.s3.S3AiChatAttachmentPresigner;
+import com.normanblog.frestyle.infra.s3.S3AttachmentDownloader;
 import com.normanblog.frestyle.infra.s3.S3ProfileImagePresigner;
 import com.normanblog.frestyle.infra.s3.StubAiChatAttachmentPresigner;
+import com.normanblog.frestyle.infra.s3.StubAttachmentDownloader;
 import com.normanblog.frestyle.infra.s3.StubProfileImagePresigner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 /**
@@ -46,5 +50,16 @@ public class S3Config {
         S3Presigner.builder().region(Region.of(props.regionOrDefault())).build();
 
     return new S3AiChatAttachmentPresigner(presigner, props.bucket());
+  }
+
+  @Bean
+  public AttachmentDownloader attachmentDownloader(S3Properties props) {
+    if (props.bucket() == null || props.bucket().isBlank()) {
+      log.info("frestyle.s3.bucket 未設定のため添付取得は stub downloader を使用します");
+      return new StubAttachmentDownloader();
+    }
+    S3Client client = S3Client.builder().region(Region.of(props.regionOrDefault())).build();
+
+    return new S3AttachmentDownloader(client, props.bucket());
   }
 }

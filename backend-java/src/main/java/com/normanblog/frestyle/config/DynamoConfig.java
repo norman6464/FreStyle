@@ -1,8 +1,11 @@
 package com.normanblog.frestyle.config;
 
 import com.normanblog.frestyle.infra.dynamo.AiChatMessageReader;
+import com.normanblog.frestyle.infra.dynamo.AiChatMessageWriter;
 import com.normanblog.frestyle.infra.dynamo.DynamoAiChatMessageReader;
+import com.normanblog.frestyle.infra.dynamo.DynamoAiChatMessageWriter;
 import com.normanblog.frestyle.infra.dynamo.StubAiChatMessageReader;
+import com.normanblog.frestyle.infra.dynamo.StubAiChatMessageWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
@@ -31,5 +34,17 @@ public class DynamoConfig {
         DynamoDbClient.builder().region(Region.of(props.regionOrDefault())).build();
 
     return new DynamoAiChatMessageReader(client, props.aiChatTable());
+  }
+
+  @Bean
+  public AiChatMessageWriter aiChatMessageWriter(DynamoProperties props) {
+    if (props.aiChatTable() == null || props.aiChatTable().isBlank()) {
+      log.info("frestyle.dynamo.ai-chat-table 未設定のため stub message writer を使用します");
+      return new StubAiChatMessageWriter();
+    }
+    DynamoDbClient client =
+        DynamoDbClient.builder().region(Region.of(props.regionOrDefault())).build();
+
+    return new DynamoAiChatMessageWriter(client, props.aiChatTable());
   }
 }

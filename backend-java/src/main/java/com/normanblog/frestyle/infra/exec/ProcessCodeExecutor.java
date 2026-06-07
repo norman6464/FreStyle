@@ -91,7 +91,7 @@ public class ProcessCodeExecutor implements CodeExecutor {
     try {
       boolean finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
       if (!finished) {
-        process.destroyForcibly();
+        killTree(process);
         joinQuietly(outThread);
         joinQuietly(errThread);
         return new CodeExecuteResponse(
@@ -102,10 +102,16 @@ public class ProcessCodeExecutor implements CodeExecutor {
 
       return new CodeExecuteResponse(stdout.toString(), stderr.toString(), process.exitValue());
     } catch (InterruptedException e) {
-      process.destroyForcibly();
+      killTree(process);
       Thread.currentThread().interrupt();
       return new CodeExecuteResponse(stdout.toString(), "実行が中断されました", 1);
     }
+  }
+
+  // ユーザーコードが起動した子孫プロセスごと止める(destroyForcibly だけだと孫が残り得る)。
+  private static void killTree(Process process) {
+    process.descendants().forEach(ProcessHandle::destroyForcibly);
+    process.destroyForcibly();
   }
 
   // 入力ストリームを上限バイトまで buf に読み込むスレッドを作る(start はしない)。
@@ -117,13 +123,12 @@ public class ProcessCodeExecutor implements CodeExecutor {
           try (InputStream is = in) {
             int n;
             while ((n = is.read(chunk)) != -1) {
-              int allowed = Math.min(n, maxOutputBytes - total);
-              if (allowed > 0) {
+              // 上限まではバッファに記録。上限後も read は止めず読み捨てる
+              // (止めると pipe が詰まり子プロセスの write がブロックして終了できなくなる)。
+              if (total < maxOutputBytes) {
+                int allowed = Math.min(n, maxOutputBytes - total);
                 buf.append(new String(chunk, 0, allowed, StandardCharsets.UTF_8));
                 total += allowed;
-              }
-              if (total >= maxOutputBytes) {
-                break; // 上限到達。以降は捨てる(プロセスはやがて終了/タイムアウト)。
               }
             }
           } catch (IOException ignored) {

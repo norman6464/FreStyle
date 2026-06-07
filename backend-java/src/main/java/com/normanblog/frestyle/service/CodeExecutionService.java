@@ -4,6 +4,7 @@ import com.normanblog.frestyle.config.CodeExecProperties;
 import com.normanblog.frestyle.dto.CodeExecuteResponse;
 import com.normanblog.frestyle.infra.exec.CodeExecutor;
 import com.normanblog.frestyle.infra.exec.ProcessCodeExecutor;
+import java.nio.charset.StandardCharsets;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -32,7 +33,8 @@ public class CodeExecutionService {
     if (!ProcessCodeExecutor.supportedLanguages().contains(lang)) {
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported_language");
     }
-    if (code == null || code.length() > props.maxCodeBytesOrDefault()) {
+    if (code == null
+        || code.getBytes(StandardCharsets.UTF_8).length > props.maxCodeBytesOrDefault()) {
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "code_too_large");
     }
 

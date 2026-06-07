@@ -34,21 +34,31 @@ public class DynamoAiChatMessageReader implements AiChatMessageReader, AutoClose
 
   @Override
   public List<AiChatMessageResponse> listBySession(Long sessionId) {
-    QueryRequest request =
-        QueryRequest.builder()
-            .tableName(table)
-            .keyConditionExpression("sessionId = :sid")
-            .expressionAttributeValues(
-                Map.of(":sid", AttributeValue.fromS(String.valueOf(sessionId))))
-            // SK(messageId)昇順 = 作成順。
-            .scanIndexForward(true)
-            .build();
-    QueryResponse response = client.query(request);
+    List<AiChatMessageResponse> messages = new ArrayList<>();
+    Map<String, AttributeValue> startKey = null;
 
-    List<AiChatMessageResponse> messages = new ArrayList<>(response.items().size());
-    for (Map<String, AttributeValue> item : response.items()) {
-      messages.add(toMessage(sessionId, item));
-    }
+    // Query は 1 回 1MB 上限のため、lastEvaluatedKey が尽きるまでページを辿って全件取得する。
+    do {
+      QueryRequest request =
+          QueryRequest.builder()
+              .tableName(table)
+              .keyConditionExpression("sessionId = :sid")
+              .expressionAttributeValues(
+                  Map.of(":sid", AttributeValue.fromS(String.valueOf(sessionId))))
+              // SK(messageId)昇順 = 作成順。
+              .scanIndexForward(true)
+              .exclusiveStartKey(startKey)
+              .build();
+      QueryResponse response = client.query(request);
+      for (Map<String, AttributeValue> item : response.items()) {
+        messages.add(toMessage(sessionId, item));
+      }
+      // 空マップが返ることもあるため、空なら終了とみなす。
+      startKey =
+          (response.lastEvaluatedKey() == null || response.lastEvaluatedKey().isEmpty())
+              ? null
+              : response.lastEvaluatedKey();
+    } while (startKey != null);
 
     return messages;
   }
@@ -69,6 +79,10 @@ public class DynamoAiChatMessageReader implements AiChatMessageReader, AutoClose
     }
     List<AiChatAttachmentDto> attachments = new ArrayList<>(value.l().size());
     for (AttributeValue element : value.l()) {
+      // データ破損 / スキーマ変更で Map でない要素が混ざっても NPE を起こさない。
+      if (!element.hasM()) {
+        continue;
+      }
       Map<String, AttributeValue> m = element.m();
       attachments.add(
           new AiChatAttachmentDto(

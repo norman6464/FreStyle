@@ -1415,97 +1415,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/learning-reports": {
-            "get": {
-                "security": [
-                    {
-                        "CookieAuth": []
-                    }
-                ],
-                "description": "current user の レポート を 期間 降順 で 返す。 userId は IDOR 対策 で 受け取らない。",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "learning-reports"
-                ],
-                "summary": "学習 レポート 一覧",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.LearningReport"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "未 認証",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "DB 失敗",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/learning-reports/generate": {
-            "post": {
-                "security": [
-                    {
-                        "CookieAuth": []
-                    }
-                ],
-                "description": "current user で 指定 月 の レポート 生成 ジョブ を 受け付け、 SQS に enqueue (現状 stub)。 202 Accepted を 返す。",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "learning-reports"
-                ],
-                "summary": "月次 学習 レポート 生成 要求",
-                "parameters": [
-                    {
-                        "description": "year + month",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.requestReportReq"
-                        }
-                    }
-                ],
-                "responses": {
-                    "202": {
-                        "description": "Accepted",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.LearningReport"
-                        }
-                    },
-                    "400": {
-                        "description": "バリデーション",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "未 認証",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/notes": {
             "get": {
                 "security": [
@@ -2470,32 +2379,6 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_norman6464_FreStyle_backend_internal_domain.LearningReport": {
-            "type": "object",
-            "properties": {
-                "createdAt": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "periodFrom": {
-                    "type": "string"
-                },
-                "periodTo": {
-                    "type": "string"
-                },
-                "s3Key": {
-                    "type": "string"
-                },
-                "status": {
-                    "type": "string"
-                },
-                "userId": {
-                    "type": "integer"
-                }
-            }
-        },
         "github_com_norman6464_FreStyle_backend_internal_domain.MasterExercise": {
             "type": "object",
             "properties": {
@@ -3169,25 +3052,6 @@ const docTemplate = `{
                 },
                 "title": {
                     "type": "string"
-                }
-            }
-        },
-        "internal_handler.requestReportReq": {
-            "type": "object",
-            "required": [
-                "month",
-                "year"
-            ],
-            "properties": {
-                "month": {
-                    "type": "integer",
-                    "maximum": 12,
-                    "minimum": 1
-                },
-                "year": {
-                    "type": "integer",
-                    "maximum": 2100,
-                    "minimum": 2000
                 }
             }
         },

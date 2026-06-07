@@ -7,7 +7,7 @@ import { MasterExerciseWithStatus } from '../types';
 const LANGUAGE_STORAGE_KEY = 'frestyle:exercise-list:language';
 
 // localStorage が許す言語コード集合 (許容されない値は default に戻す)。
-const VALID_LANGUAGES = new Set(['', 'php', 'go', 'bash', 'docker']);
+const VALID_LANGUAGES = new Set(['', 'java', 'php', 'go', 'bash', 'docker']);
 
 function loadStoredLanguage(fallback: string): string {
   if (typeof window === 'undefined') return fallback;

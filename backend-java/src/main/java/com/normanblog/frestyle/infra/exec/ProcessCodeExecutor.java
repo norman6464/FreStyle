@@ -11,6 +11,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,6 +50,9 @@ public class ProcessCodeExecutor implements CodeExecutor {
           "dl", "phpinfo", "posix_kill", "posix_setuid",
           "getenv", "putenv", "apache_getenv",
           "syslog", "openlog", "closelog");
+
+  // go の package 宣言を「行頭(空白許容)」で判定する(文字列/コメント内の誤通過を防ぐ)。
+  private static final Pattern GO_PACKAGE_MAIN = Pattern.compile("(?m)^\\s*package\\s+main\\b");
 
   private final long timeoutSeconds;
   private final int maxOutputBytes;
@@ -97,7 +101,8 @@ public class ProcessCodeExecutor implements CodeExecutor {
 
   // PHP: 開始タグ必須。disable_functions / open_basedir / memory_limit / max_execution_time で堅牢化。
   private CodeExecuteResponse runPhp(Path dir, String code) throws IOException {
-    if (!code.contains("<?php") && !code.contains("<?=")) {
+    String trimmed = code.stripLeading();
+    if (!trimmed.startsWith("<?php") && !trimmed.startsWith("<?=")) {
       return new CodeExecuteResponse("", "PHP コードには `<?php` 開始タグが必要です。", 1);
     }
     Path source = dir.resolve("Main.php");
@@ -123,7 +128,7 @@ public class ProcessCodeExecutor implements CodeExecutor {
 
   // Go: package main 必須。go run で単一ファイル実行。コンパイルがあるため timeout は長めにする。
   private CodeExecuteResponse runGo(Path dir, String code) throws IOException {
-    if (!code.contains("package main")) {
+    if (!GO_PACKAGE_MAIN.matcher(code).find()) {
       return new CodeExecuteResponse("", "Go コードには `package main` と `func main()` が必要です。", 1);
     }
     Path source = dir.resolve("main.go");

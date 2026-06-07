@@ -257,8 +257,9 @@ curl localhost:8080/api/v2/notes
 
 ## Docker
 
-`Dockerfile` は 2 stage（Temurin 21 JDK でビルド → JRE で実行）。コンテナの memory limit から
-ヒープを自動計算する `-XX:MaxRAMPercentage=70` で起動し、nonroot(UID=65532) / port 8080 で動く。
+`Dockerfile` は 2 stage（Temurin 21 JDK でビルド → **JDK** で実行）。コード演習サンドボックスが
+`java`/`php`/`go` を実行するため runtime image は JDK（+ apt で `php-cli` / `golang-go` を同梱）。コンテナの
+memory limit からヒープを自動計算する `-XX:MaxRAMPercentage=70` で起動し、nonroot(UID=65532) / port 8080 で動く。
 
 ```bash
 docker build -t frestyle-backend-java .

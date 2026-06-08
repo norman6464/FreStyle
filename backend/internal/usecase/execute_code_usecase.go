@@ -20,8 +20,10 @@ const (
 	// execTimeout は PHP / bash の上限。
 	execTimeout = 8 * time.Second
 	// goExecTimeout は Go 専用。go run はコンパイルも走るため余裕を持たせる（cold compile ~6-8s）。
-	goExecTimeout  = 15 * time.Second
-	maxOutputBytes = 64 * 1024 // 64 KB
+	goExecTimeout = 15 * time.Second
+	// javaExecTimeout は Java 専用。`java Main.java` は in-memory コンパイル + JVM 起動を含むため長め。
+	javaExecTimeout = 20 * time.Second
+	maxOutputBytes  = 64 * 1024 // 64 KB
 )
 
 // 実行を禁止する PHP 関数。ファイル操作・OS 操作・ネットワーク通信などを封じる。
@@ -42,7 +44,7 @@ var disableFunctions = strings.Join([]string{
 // ExecuteCodeInput はコード実行の入力。
 type ExecuteCodeInput struct {
 	Code     string
-	Language string // "php" / "go" / "bash"
+	Language string // "php" / "go" / "bash" / "java"
 	// Stdin は実行時に標準入力として流す内容（テストケース採点で使う）。
 	Stdin string
 }
@@ -54,7 +56,7 @@ type ExecuteCodeOutput struct {
 	ExitCode int    `json:"exitCode"`
 }
 
-// ExecuteCodeUseCase は PHP / Go / bash のコードをサンドボックスで実行する。
+// ExecuteCodeUseCase は PHP / Go / bash / Java のコードをサンドボックスで実行する。
 // 共通制約: timeout / 64 KB code-size / 64 KB output-size。
 type ExecuteCodeUseCase struct{}
 
@@ -73,6 +75,8 @@ func (uc *ExecuteCodeUseCase) Execute(ctx context.Context, input ExecuteCodeInpu
 		return uc.executeGo(ctx, input)
 	case "bash":
 		return uc.executeBash(ctx, input)
+	case "java":
+		return uc.executeJava(ctx, input)
 	default:
 		return nil, fmt.Errorf("未対応の言語: %s", input.Language)
 	}
@@ -185,8 +189,54 @@ func (uc *ExecuteCodeUseCase) executeBash(ctx context.Context, input ExecuteCode
 	return runCommand(cmd, input.Stdin)
 }
 
+func (uc *ExecuteCodeUseCase) executeJava(ctx context.Context, input ExecuteCodeInput) (*ExecuteCodeOutput, error) {
+	// 単一ファイル実行 `java Main.java` はソース内に Main クラスが要る。別言語の誤貼付けも弾く。
+	if !strings.Contains(input.Code, "class Main") {
+		return &ExecuteCodeOutput{
+			Stdout:   "",
+			Stderr:   "Java コードには `public class Main` が必要です。",
+			ExitCode: 1,
+		}, nil
+	}
+
+	// リクエストごとに独立した temp dir を作り、ソース / in-memory コンパイル産物を閉じ込める。
+	tmpDir, err := os.MkdirTemp("", "java-exec-")
+	if err != nil {
+		return nil, fmt.Errorf("一時ディレクトリの作成に失敗: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// 単一ファイルソースランチャ（Java 11+）は `java Main.java` でコンパイル+実行する。
+	// ファイル名はクラス名に合わせて Main.java とする。
+	filename := filepath.Join(tmpDir, "Main.java")
+	if err := os.WriteFile(filename, []byte(input.Code), 0o600); err != nil {
+		return nil, fmt.Errorf("一時ファイルの作成に失敗: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, javaExecTimeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx,
+		"java",
+		// 短命プログラム向けに起動を速くする（C1 のみ / SerialGC）+ ヒープと stack を制限。
+		"-XX:+UseSerialGC",
+		"-XX:TieredStopAtLevel=1",
+		"-Xss16m",
+		"-Xmx256m",
+		filename,
+	)
+	cmd.Dir = tmpDir
+	// AWS 認証情報・注入シークレットを子プロセスに渡さない。HOME は temp に固定。
+	cmd.Env = sandboxEnv("HOME=" + tmpDir)
+
+	// 学習者コードが Runtime.exec 等で子プロセスを作っても道連れに kill できるようにする。
+	configureProcessGroup(cmd)
+
+	return runCommand(cmd, input.Stdin)
+}
+
 // configureProcessGroup は cmd を独立 process group に置き、cancel 時にグループ全体へ SIGKILL を送る。
-// bash の子孫プロセス leak を防ぐ用途で、bash 実行時のみ使う。
+// bash / Java など、子孫プロセスを起動しうる言語の leak を防ぐ用途で使う。
 func configureProcessGroup(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Cancel = func() error {

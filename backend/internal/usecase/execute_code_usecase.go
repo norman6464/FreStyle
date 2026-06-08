@@ -8,12 +8,17 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+// javaMainClassRe は `public class Main` を検出する。Java は class と識別子の間に
+// 空白・タブ・改行を許すため、固定文字列一致ではなく \s+ で柔軟に判定する。
+var javaMainClassRe = regexp.MustCompile(`\bclass\s+Main\b`)
 
 const (
 	maxCodeBytes = 64 * 1024 // 64 KB
@@ -191,7 +196,8 @@ func (uc *ExecuteCodeUseCase) executeBash(ctx context.Context, input ExecuteCode
 
 func (uc *ExecuteCodeUseCase) executeJava(ctx context.Context, input ExecuteCodeInput) (*ExecuteCodeOutput, error) {
 	// 単一ファイル実行 `java Main.java` はソース内に Main クラスが要る。別言語の誤貼付けも弾く。
-	if !strings.Contains(input.Code, "class Main") {
+	// class と Main の間の空白/タブ/改行を許容するため正規表現で判定する。
+	if !javaMainClassRe.MatchString(input.Code) {
 		return &ExecuteCodeOutput{
 			Stdout:   "",
 			Stderr:   "Java コードには `public class Main` が必要です。",

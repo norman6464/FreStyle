@@ -207,10 +207,18 @@ jobs:
       #     その時は SNS topic を別の永続スタックに分離すること(現状は購読 0 件で無害)。
       - name: Deploy monitoring stack
         run: |
+          # 永続 chatbot スタックがあれば ERROR ログ整形 Lambda の ARN を取得し、
+          # ERROR サブスクリプションフィルタ(→Slack #incident)を毎朝張り直す。
+          NOTIFY_ARN=$(aws cloudformation describe-stacks --region $AWS_REGION \
+            --stack-name $STACK_PFX-chatbot \
+            --query 'Stacks[0].Outputs[?OutputKey==`ErrorNotifyLambdaArn`].OutputValue' \
+            --output text 2>/dev/null || true)
+          [ "$NOTIFY_ARN" = "None" ] && NOTIFY_ARN=""
+          echo "ErrorNotifyLambdaArn=${NOTIFY_ARN:-(なし)}"
           aws cloudformation deploy --region $AWS_REGION \
             --stack-name $STACK_PFX-monitoring \
             --template-file iac/infrastructure/cloudformation/templates/monitoring/cloudwatch.yml \
-            --parameter-overrides Environment=prod AlbStackName=$STACK_PFX-alb \
+            --parameter-overrides Environment=prod AlbStackName=$STACK_PFX-alb ErrorNotifyLambdaArn="$NOTIFY_ARN" \
             --capabilities CAPABILITY_IAM --no-fail-on-empty-changeset \
             --tags Project=FreStyle Environment=prod ManagedBy=CloudFormation
 

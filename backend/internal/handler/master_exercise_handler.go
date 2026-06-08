@@ -33,7 +33,7 @@ func NewMasterExerciseHandler(
 //	@Tags         exercises
 //	@Produce      json
 //	@Param        language  query     string  false  "言語 フィルタ (例: php, go, javascript)"
-//	@Success      200       {array}   repository.MasterExerciseWithStatus
+//	@Success      200       {array}   usecase.MasterExerciseWithStatus
 //	@Failure      500       {object}  errorResponse  "DB / 集計 失敗"
 //	@Router       /exercises [get]
 //	@Security     CookieAuth

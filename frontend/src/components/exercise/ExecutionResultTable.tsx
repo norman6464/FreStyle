@@ -1,6 +1,5 @@
 import { CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline';
 import { CodeExecutionResult } from '../../types';
-import { normalizeOutput } from '../../utils/exerciseFormat';
 
 interface Props {
   result: CodeExecutionResult | null;
@@ -27,7 +26,6 @@ export default function ExecutionResultTable({ result, expected, submitError }: 
   if (!result) return null;
 
   const isSuccess = result.exitCode === 0;
-  const matched = isSuccess && normalizeOutput(result.stdout) === normalizeOutput(expected);
 
   return (
     <div className="rounded-lg border border-surface-3 bg-surface-1 overflow-hidden">
@@ -76,14 +74,9 @@ export default function ExecutionResultTable({ result, expected, submitError }: 
           </tr>
         </tbody>
       </table>
-      <div
-        className={`px-4 py-2 text-xs font-semibold ${
-          matched
-            ? 'bg-green-500/15 text-green-400 border-t border-green-500/30'
-            : 'bg-red-500/15 text-red-400 border-t border-red-500/30'
-        }`}
-      >
-        コード実行結果: {matched ? '◎ 期待出力と一致' : '✗ 期待出力と不一致'}
+      {/* 採点はサーバ側で行う(フロントでローカル判定しない)。ここは実行結果のプレビューのみ。 */}
+      <div className="px-4 py-2 text-xs text-[var(--color-text-muted)] border-t border-surface-3">
+        ここは実行プレビューです。正誤は「提出する」でサーバ側採点されます。
       </div>
     </div>
   );

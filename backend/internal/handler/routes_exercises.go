@@ -15,7 +15,7 @@ func registerExerciseRoutes(g *gin.RouterGroup, deps *routeDeps) {
 
 	exerciseHandler := NewMasterExerciseHandler(
 		usecase.NewListMasterExercisesUseCase(exerciseRepo),
-		usecase.NewListMasterExercisesWithStatusUseCase(exerciseRepo, submissionsRepo),
+		usecase.NewListMasterExercisesWithStatusUseCase(exerciseRepo),
 		usecase.NewGetMasterExerciseUseCase(exerciseRepo, examplesRepo),
 	)
 	g.GET("/exercises", exerciseHandler.List)

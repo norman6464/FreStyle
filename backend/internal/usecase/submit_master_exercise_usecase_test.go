@@ -27,6 +27,9 @@ func (r *fakeMasterExerciseRepo) GetByID(context.Context, uint64) (*domain.Maste
 func (r *fakeMasterExerciseRepo) GetBySlug(context.Context, string) (*domain.MasterExercise, error) {
 	return r.get, r.err
 }
+func (r *fakeMasterExerciseRepo) ListWithStatusByLanguage(context.Context, uint64, string) ([]repository.MasterExerciseWithStatus, error) {
+	return nil, nil
+}
 
 type fakeExampleRepo struct {
 	rows []domain.MasterExerciseExample
@@ -60,15 +63,6 @@ func (r *fakeSubmissionRepo) HasSolved(context.Context, uint64, uint64, string) 
 }
 func (r *fakeSubmissionRepo) HasAttempted(context.Context, uint64, uint64, string) (bool, error) {
 	return false, nil
-}
-func (r *fakeSubmissionRepo) BatchUserStatuses(context.Context, uint64, []uint64, string) (map[uint64]string, error) {
-	return nil, nil
-}
-func (r *fakeSubmissionRepo) ExerciseStats(context.Context, uint64, string) (repository.ExerciseSubmissionStats, error) {
-	return repository.ExerciseSubmissionStats{}, nil
-}
-func (r *fakeSubmissionRepo) ExerciseStatsBatch(context.Context, []uint64, string) (map[uint64]repository.ExerciseSubmissionStats, error) {
-	return nil, nil
 }
 
 // fakeExecutor は ExecuteCodeUseCase の代わり。 入力 stdin で出力を切り替える。

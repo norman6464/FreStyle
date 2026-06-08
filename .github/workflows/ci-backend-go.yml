@@ -59,7 +59,7 @@ jobs:
       # gosec(セキュリティ) / misspell / unconvert を有効化。設定は backend/.golangci.yml。
       # 従来の単体 staticcheck step を置き換える(staticcheck は golangci に内包)。
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v8
+        uses: golangci/golangci-lint-action@v9
         with:
           version: v2.12.2
           working-directory: backend

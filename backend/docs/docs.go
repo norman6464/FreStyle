@@ -755,7 +755,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/auth/cognito/callback": {
+        "/auth/login": {
             "post": {
                 "description": "Cognito Hosted UI から の callback。 authorization code を access / refresh / id token に 交換 し HttpOnly Cookie で 返す。 新規 user は 招待 or Cognito admin group 必須。",
                 "consumes": [
@@ -767,7 +767,7 @@ const docTemplate = `{
                 "tags": [
                     "auth"
                 ],
-                "summary": "Cognito callback (認可 コード → token 交換)",
+                "summary": "ログイン (認可 コード → token 交換)",
                 "parameters": [
                     {
                         "description": "Cognito callback (code 必須、 invitationToken 任意)",
@@ -831,7 +831,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/auth/cognito/logout": {
+        "/auth/logout": {
             "post": {
                 "description": "HttpOnly Cookie の access / refresh token を 消去 する。 Cognito 側 の セッション は 別途 hosted UI で 切る。",
                 "produces": [
@@ -846,50 +846,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.messageResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/auth/cognito/refresh-token": {
-            "post": {
-                "description": "refresh_token Cookie で access_token を 再 発行 し HttpOnly Cookie に セット する。 失敗 (refresh 切れ 等) は 401 で Cookie クリア。",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "auth"
-                ],
-                "summary": "アクセス トークン リフレッシュ",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.messageResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "refresh_token 欠落 / 無効",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
-                    "429": {
-                        "description": "レート制限超過",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        },
-                        "headers": {
-                            "Retry-After": {
-                                "type": "string",
-                                "description": "再試行までの秒数 (例: 60)"
-                            }
-                        }
-                    },
-                    "502": {
-                        "description": "Cognito 到達 不可",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
                         }
                     }
                 }
@@ -931,6 +887,50 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "DB / repository 取得 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/refresh": {
+            "post": {
+                "description": "refresh_token Cookie で access_token を 再 発行 し HttpOnly Cookie に セット する。 失敗 (refresh 切れ 等) は 401 で Cookie クリア。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "アクセス トークン リフレッシュ",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.messageResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "refresh_token 欠落 / 無効",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "レート制限超過",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        },
+                        "headers": {
+                            "Retry-After": {
+                                "type": "string",
+                                "description": "再試行までの秒数 (例: 60)"
+                            }
+                        }
+                    },
+                    "502": {
+                        "description": "Cognito 到達 不可",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }

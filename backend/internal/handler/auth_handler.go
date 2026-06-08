@@ -107,7 +107,7 @@ func (h *AuthHandler) Me(c *gin.Context) {
 //	@Tags         auth
 //	@Produce      json
 //	@Success      200  {object}  messageResponse
-//	@Router       /auth/cognito/logout [post]
+//	@Router       /auth/logout [post]
 func (h *AuthHandler) Logout(c *gin.Context) {
 	middleware.ClearAuthCookies(c)
 	c.JSON(http.StatusOK, gin.H{"message": "ログアウトしました。"})
@@ -122,7 +122,7 @@ type cognitoCallbackReq struct {
 // Callback は認可コードを token に交換して HttpOnly Cookie に格納する。
 // 招待ゲート: 新規ユーザーは Cognito group admin か pending invitation 受信者でなければ 403 で拒否する。
 //
-//	@Summary      Cognito callback (認可 コード → token 交換)
+//	@Summary      ログイン (認可 コード → token 交換)
 //	@Description  Cognito Hosted UI から の callback。 authorization code を access / refresh / id token に 交換 し HttpOnly Cookie で 返す。 新規 user は 招待 or Cognito admin group 必須。
 //	@Tags         auth
 //	@Accept       json
@@ -136,7 +136,7 @@ type cognitoCallbackReq struct {
 //	@Failure      502   {object}  errorResponse  "Cognito 到達 不可"
 //	@Failure      429   {object}  errorResponse  "レート制限超過"
 //	@Header       429  {string}  Retry-After  "再試行までの秒数 (例: 60)"
-//	@Router       /auth/cognito/callback [post]
+//	@Router       /auth/login [post]
 func (h *AuthHandler) Callback(c *gin.Context) {
 	var req cognitoCallbackReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -178,7 +178,7 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 //	@Failure      502  {object}  errorResponse  "Cognito 到達 不可"
 //	@Failure      429   {object}  errorResponse  "レート制限超過"
 //	@Header       429  {string}  Retry-After  "再試行までの秒数 (例: 60)"
-//	@Router       /auth/cognito/refresh-token [post]
+//	@Router       /auth/refresh [post]
 func (h *AuthHandler) Refresh(c *gin.Context) {
 	rt, err := c.Cookie(middleware.CookieRefreshToken)
 	if err != nil || rt == "" {

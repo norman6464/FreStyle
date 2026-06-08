@@ -1137,7 +1137,7 @@ paths:
       summary: AI チャット SSE ストリーミング
       tags:
       - ai-chat
-  /auth/cognito/callback:
+  /auth/login:
     post:
       consumes:
       - application/json
@@ -1186,10 +1186,10 @@ paths:
           description: Cognito 到達 不可
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
-      summary: Cognito callback (認可 コード → token 交換)
+      summary: ログイン (認可 コード → token 交換)
       tags:
       - auth
-  /auth/cognito/logout:
+  /auth/logout:
     post:
       description: HttpOnly Cookie の access / refresh token を 消去 する。 Cognito 側 の セッション
         は 別途 hosted UI で 切る。
@@ -1201,36 +1201,6 @@ paths:
           schema:
             $ref: '#/definitions/internal_handler.messageResponse'
       summary: ログアウト
-      tags:
-      - auth
-  /auth/cognito/refresh-token:
-    post:
-      description: refresh_token Cookie で access_token を 再 発行 し HttpOnly Cookie に
-        セット する。 失敗 (refresh 切れ 等) は 401 で Cookie クリア。
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/internal_handler.messageResponse'
-        "401":
-          description: refresh_token 欠落 / 無効
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "429":
-          description: レート制限超過
-          headers:
-            Retry-After:
-              description: '再試行までの秒数 (例: 60)'
-              type: string
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "502":
-          description: Cognito 到達 不可
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-      summary: アクセス トークン リフレッシュ
       tags:
       - auth
   /auth/me:
@@ -1259,6 +1229,36 @@ paths:
       security:
       - CookieAuth: []
       summary: current user 情報 取得
+      tags:
+      - auth
+  /auth/refresh:
+    post:
+      description: refresh_token Cookie で access_token を 再 発行 し HttpOnly Cookie に
+        セット する。 失敗 (refresh 切れ 等) は 401 で Cookie クリア。
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handler.messageResponse'
+        "401":
+          description: refresh_token 欠落 / 無効
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "429":
+          description: レート制限超過
+          headers:
+            Retry-After:
+              description: '再試行までの秒数 (例: 60)'
+              type: string
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "502":
+          description: Cognito 到達 不可
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      summary: アクセス トークン リフレッシュ
       tags:
       - auth
   /code/execute:

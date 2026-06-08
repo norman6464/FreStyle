@@ -31,6 +31,10 @@ func TestMasterExerciseRepository_ListWithStatusByLanguage_Integration(t *testin
 	for i := range exercises {
 		require.NoError(t, db.WithContext(ctx).Create(&exercises[i]).Error)
 	}
+	// is_published は GORM タグ `default:true` のため、bool ゼロ値 (false) を Create に渡しても
+	// 「未指定」とみなされ DB 側で true になる。draft-1 を明示的に非公開へ更新して非公開除外を検証する。
+	require.NoError(t, db.WithContext(ctx).Model(&domain.MasterExercise{}).
+		Where("slug = ?", "draft-1").Update("is_published", false).Error)
 	php1ID := exercises[0].ID
 
 	// 提出: php-1 に user7 正解 + user7 不正解 + user8 正解（総提出3 / 正解 distinct 2）。

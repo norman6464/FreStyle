@@ -15,12 +15,13 @@ ENV CGO_ENABLED=0 GOOS=linux GOARCH=amd64
 RUN go build -trimpath -ldflags="-s -w" -o /out/server ./cmd/server
 
 # --- Runtime stage ---
-# サンドボックスでユーザコードを実行するため、 PHP CLI と Go ツールチェインを同居させる。
+# サンドボックスでユーザコードを実行するため、 PHP CLI / Go ツールチェイン / JDK を同居させる。
 # golang:1.26-bookworm をそのまま runtime に使い、 必要なパッケージのみ apt-install。
+# Java は単一ファイルソースランチャ (`java Main.java`) を使うため javac 入りの JDK が要る。
 FROM golang:1.26-bookworm
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends php-cli ca-certificates && \
+    apt-get install -y --no-install-recommends php-cli default-jdk-headless ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /

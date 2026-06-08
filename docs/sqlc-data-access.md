@@ -10,7 +10,7 @@
 
 ## 全体方針（段階移行）
 
-```
+```text
 GORM は当面「接続 + AutoMigrate」に残す
   └ クエリは repository 層の中だけで sqlc に順次置換（usecase は不変・archlint 維持）
   └ 接続は GORM の *gorm.DB.DB() で得た *sql.DB を sqlc に共有（別 pool を持たない）

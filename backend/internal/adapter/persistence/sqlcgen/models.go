@@ -5,7 +5,7 @@
 package sqlcgen
 
 import (
-	"database/sql"
+	"time"
 )
 
 type MasterExerciseExample struct {
@@ -14,6 +14,6 @@ type MasterExerciseExample struct {
 	OrderIndex     int16
 	InputText      string
 	ExpectedOutput string
-	CreatedAt      sql.NullTime
-	UpdatedAt      sql.NullTime
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }

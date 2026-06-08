@@ -30,6 +30,13 @@ linters:
       - path: cmd/(archlint|apispec-lint|naminglint)/
         linters:
           - gosec
+      # persistence の id 境界は DB が bigint(int64)、domain が uint64。値は採番シーケンス
+      # 由来で常に非負・int64 範囲内のため、int64↔uint64 変換の overflow(G115)は誤検知。
+      # sqlc 生成コードへの段階移行で各 repository に現れるため persistence 配下で除外する。
+      - path: internal/adapter/persistence/
+        linters:
+          - gosec
+        text: 'G115'
       # テストのディレクトリ権限(G301) / Cookie 属性(G124) / ダミー認証情報(G101)は
       # 検証用途であり実害がないため除外。
       - path: _test\.go

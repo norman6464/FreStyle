@@ -20,6 +20,8 @@ func NewMasterExerciseExampleRepository(db *gorm.DB) repository.MasterExerciseEx
 }
 
 // toDomainExample は sqlc 生成モデル → domain への詰め替え。
+// id 系は DB が bigint(int64) で持ち domain が uint64。値は採番シーケンス由来で常に非負・
+// int64 範囲内のため変換は安全（gosec G115 は persistence の id 境界として .golangci.yml で除外）。
 func toDomainExample(row sqlcgen.MasterExerciseExample) domain.MasterExerciseExample {
 	return domain.MasterExerciseExample{
 		ID:             uint64(row.ID),
@@ -27,8 +29,8 @@ func toDomainExample(row sqlcgen.MasterExerciseExample) domain.MasterExerciseExa
 		OrderIndex:     row.OrderIndex,
 		InputText:      row.InputText,
 		ExpectedOutput: row.ExpectedOutput,
-		CreatedAt:      row.CreatedAt.Time,
-		UpdatedAt:      row.UpdatedAt.Time,
+		CreatedAt:      row.CreatedAt,
+		UpdatedAt:      row.UpdatedAt,
 	}
 }
 

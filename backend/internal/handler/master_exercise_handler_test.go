@@ -15,32 +15,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// fakeSubmissionRepoForList はテスト中の status / stats が常に空で良いケース用。
-// 一覧で current user 状態を必要とするテストは別途専用 fake を定義する。
-type fakeSubmissionRepoForList struct{}
-
-func (fakeSubmissionRepoForList) Create(context.Context, *domain.ExerciseSubmission) error {
-	return nil
-}
-func (fakeSubmissionRepoForList) ListByUserAndExercise(context.Context, uint64, uint64, string) ([]domain.ExerciseSubmission, error) {
-	return nil, nil
-}
-func (fakeSubmissionRepoForList) HasSolved(context.Context, uint64, uint64, string) (bool, error) {
-	return false, nil
-}
-func (fakeSubmissionRepoForList) HasAttempted(context.Context, uint64, uint64, string) (bool, error) {
-	return false, nil
-}
-func (fakeSubmissionRepoForList) BatchUserStatuses(context.Context, uint64, []uint64, string) (map[uint64]string, error) {
-	return map[uint64]string{}, nil
-}
-func (fakeSubmissionRepoForList) ExerciseStats(context.Context, uint64, string) (repository.ExerciseSubmissionStats, error) {
-	return repository.ExerciseSubmissionStats{}, nil
-}
-func (fakeSubmissionRepoForList) ExerciseStatsBatch(context.Context, []uint64, string) (map[uint64]repository.ExerciseSubmissionStats, error) {
-	return map[uint64]repository.ExerciseSubmissionStats{}, nil
-}
-
 // fakeMasterExerciseRepo は MasterExerciseRepository の最小スタブ。
 // language / id / slug 引数を記録して assert する。
 type fakeMasterExerciseRepo struct {
@@ -54,6 +28,15 @@ type fakeMasterExerciseRepo struct {
 func (r *fakeMasterExerciseRepo) ListByLanguage(_ context.Context, language string) ([]domain.MasterExercise, error) {
 	r.listLanguage = language
 	return r.listResult, nil
+}
+
+func (r *fakeMasterExerciseRepo) ListWithStatusByLanguage(_ context.Context, _ uint64, language string) ([]repository.MasterExerciseWithStatus, error) {
+	r.listLanguage = language
+	out := make([]repository.MasterExerciseWithStatus, 0, len(r.listResult))
+	for _, e := range r.listResult {
+		out = append(out, repository.MasterExerciseWithStatus{MasterExercise: e})
+	}
+	return out, nil
 }
 
 func (r *fakeMasterExerciseRepo) GetByID(_ context.Context, _ uint64) (*domain.MasterExercise, error) {
@@ -88,10 +71,9 @@ func newMasterExerciseTestHandler(repo *fakeMasterExerciseRepo, examples *fakeEx
 	if examples == nil {
 		examples = &fakeExampleRepo{}
 	}
-	subs := fakeSubmissionRepoForList{}
 	h := NewMasterExerciseHandler(
 		usecase.NewListMasterExercisesUseCase(repo),
-		usecase.NewListMasterExercisesWithStatusUseCase(repo, subs),
+		usecase.NewListMasterExercisesWithStatusUseCase(repo),
 		usecase.NewGetMasterExerciseUseCase(repo, examples),
 	)
 	r := gin.New()

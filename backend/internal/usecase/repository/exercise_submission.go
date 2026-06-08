@@ -18,15 +18,6 @@ type ExerciseSubmissionRepository interface {
 
 	// HasAttempted は user が exercise に 1 回でも提出したかを返す。
 	HasAttempted(ctx context.Context, userID, exerciseID uint64, kind string) (bool, error)
-
-	// BatchUserStatuses は exercise_id -> "solved" / "in_progress" を返す（未提出は key なし、N+1 回避）。
-	BatchUserStatuses(ctx context.Context, userID uint64, exerciseIDs []uint64, kind string) (map[uint64]string, error)
-
-	// ExerciseStats は exercise_id 単位の集計を返す。
-	ExerciseStats(ctx context.Context, exerciseID uint64, kind string) (ExerciseSubmissionStats, error)
-
-	// ExerciseStatsBatch は複数 exercise_id をまとめて集計する。
-	ExerciseStatsBatch(ctx context.Context, exerciseIDs []uint64, kind string) (map[uint64]ExerciseSubmissionStats, error)
 }
 
 // ExerciseSubmissionStats は問題単位の集計値。

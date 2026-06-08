@@ -22,6 +22,20 @@ GO_INSTALL_DIR := $(shell go env GOPATH)/bin
 endif
 SWAG := $(GO_INSTALL_DIR)/swag
 
+SQLC_VERSION := v1.31.1
+SQLC := $(GO_INSTALL_DIR)/sqlc
+
+# sqlc 生成: queries/*.sql + schema.sql → 型安全な Go (internal/adapter/persistence/sqlcgen)。
+# 生成物はコミット対象。クエリ / schema を変更したら必ず `make sqlc` で再生成する。
+.PHONY: sqlc
+sqlc:
+	@if [ ! -x "$(SQLC)" ]; then \
+	  echo ">>> installing sqlc CLI ($(SQLC_VERSION))..."; \
+	  go install github.com/sqlc-dev/sqlc/cmd/sqlc@$(SQLC_VERSION); \
+	fi
+	@echo ">>> sqlc generate"
+	@$(SQLC) generate
+
 .PHONY: openapi
 openapi:
 	@if [ ! -x "$(SWAG)" ]; then \

@@ -3,12 +3,14 @@ package persistence
 import (
 	"context"
 
+	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"gorm.io/gorm"
 )
 
-// masterExerciseExampleRepository は [repository.MasterExerciseExampleRepository] の GORM 実装。
+// masterExerciseExampleRepository は [repository.MasterExerciseExampleRepository] の実装。
+// クエリは sqlc 生成コード（生 SQL 直書き）へ段階移行中。接続は GORM の *sql.DB を共有する。
 type masterExerciseExampleRepository struct {
 	db *gorm.DB
 }
@@ -17,13 +19,32 @@ func NewMasterExerciseExampleRepository(db *gorm.DB) repository.MasterExerciseEx
 	return &masterExerciseExampleRepository{db: db}
 }
 
+// toDomainExample は sqlc 生成モデル → domain への詰め替え。
+func toDomainExample(row sqlcgen.MasterExerciseExample) domain.MasterExerciseExample {
+	return domain.MasterExerciseExample{
+		ID:             uint64(row.ID),
+		ExerciseID:     uint64(row.ExerciseID),
+		OrderIndex:     row.OrderIndex,
+		InputText:      row.InputText,
+		ExpectedOutput: row.ExpectedOutput,
+		CreatedAt:      row.CreatedAt.Time,
+		UpdatedAt:      row.UpdatedAt.Time,
+	}
+}
+
 func (r *masterExerciseExampleRepository) ListByExerciseID(ctx context.Context, exerciseID uint64) ([]domain.MasterExerciseExample, error) {
-	var examples []domain.MasterExerciseExample
-	if err := r.db.WithContext(ctx).
-		Where("exercise_id = ?", exerciseID).
-		Order("order_index asc, id asc").
-		Find(&examples).Error; err != nil {
+	// GORM の接続プールを共有して sqlc 生成クエリ（生 SQL）を実行する。
+	sqlDB, err := r.db.DB()
+	if err != nil {
 		return nil, err
+	}
+	rows, err := sqlcgen.New(sqlDB).ListMasterExerciseExamplesByExerciseID(ctx, int64(exerciseID))
+	if err != nil {
+		return nil, err
+	}
+	examples := make([]domain.MasterExerciseExample, 0, len(rows))
+	for _, row := range rows {
+		examples = append(examples, toDomainExample(row))
 	}
 	return examples, nil
 }

@@ -1,0 +1,23 @@
+# sqlc 設定（生 SQL 直書き → 型安全な Go を生成）。
+#
+# 方針（docs/design 0002 / データアクセスの生 SQL 化）:
+#   - GORM は接続・AutoMigrate に当面残し、クエリは順次 sqlc に移行する。
+#   - 生成コードは database/sql モード。GORM の *gorm.DB から取り出した *sql.DB を
+#     そのまま DBTX として渡し、接続プールを共有する（別 pool を持たない）。
+#   - schema.sql は sqlc の型付け専用（実スキーマは GORM AutoMigrate が作る）。
+#     repository を sqlc へ移すたびに対象テーブルの CREATE TABLE をここへ追記する。
+#
+# 生成: backend/ で `sqlc generate`
+version: "2"
+sql:
+  - engine: "postgresql"
+    schema: "internal/adapter/persistence/queries/schema.sql"
+    queries: "internal/adapter/persistence/queries"
+    gen:
+      go:
+        package: "sqlcgen"
+        out: "internal/adapter/persistence/sqlcgen"
+        sql_package: "database/sql"
+        emit_empty_slices: true
+        emit_json_tags: false
+        emit_interface: false

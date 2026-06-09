@@ -67,6 +67,8 @@ type CognitoConfig struct {
 	RedirectURI  string
 	TokenURI     string
 	JwkSetURI    string
+	// Region は USER_PASSWORD_AUTH の InitiateAuth を呼ぶ cognitoidp クライアント用。
+	Region string
 }
 
 func Load() (*Config, error) {
@@ -87,6 +89,7 @@ func Load() (*Config, error) {
 			RedirectURI:  os.Getenv("COGNITO_REDIRECT_URI"),
 			TokenURI:     os.Getenv("COGNITO_TOKEN_URI"),
 			JwkSetURI:    os.Getenv("COGNITO_JWK_SET_URI"),
+			Region:       getEnvOrDefault("AWS_REGION", "ap-northeast-1"),
 		},
 		S3: S3Config{
 			Region:           getEnvOrDefault("AWS_REGION", "ap-northeast-1"),

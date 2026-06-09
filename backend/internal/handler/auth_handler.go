@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"log"
 	"net/http"
@@ -14,6 +15,12 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
+// passwordAuthenticator は email / password を Cognito で検証して token を返す境界。
+// infra/cognito.PasswordAuthenticator が実装し、テストでは fake を注入する。
+type passwordAuthenticator interface {
+	Authenticate(ctx context.Context, email, password string) (*cognito.Token, error)
+}
+
 // AuthHandler は Cognito 関連の認証エンドポイントを提供する。
 // OAuth2 通信は infra/cognito.TokenExchanger に切り出し、ここは HTTP 境界と user upsert だけを持つ。
 type AuthHandler struct {
@@ -22,6 +29,7 @@ type AuthHandler struct {
 	invitations    repository.AdminInvitationRepository
 	cognitoCfg     *config.CognitoConfig
 	tokens         *cognito.TokenExchanger
+	passwordAuth   passwordAuthenticator
 	aiChatAccess   *usecase.AiChatEnabledForUserUseCase
 }
 
@@ -33,6 +41,7 @@ func NewAuthHandler(
 	users repository.UserRepository,
 	invitations repository.AdminInvitationRepository,
 	cognitoCfg *config.CognitoConfig,
+	passwordAuth passwordAuthenticator,
 	aiChatAccess *usecase.AiChatEnabledForUserUseCase,
 ) *AuthHandler {
 	return &AuthHandler{
@@ -40,6 +49,7 @@ func NewAuthHandler(
 		users:          users,
 		invitations:    invitations,
 		cognitoCfg:     cognitoCfg,
+		passwordAuth:   passwordAuth,
 		aiChatAccess:   aiChatAccess,
 		tokens: cognito.NewTokenExchanger(cognito.Config{
 			ClientID:     cognitoCfg.ClientID,
@@ -124,6 +134,70 @@ func (h *AuthHandler) Me(c *gin.Context) {
 func (h *AuthHandler) Logout(c *gin.Context) {
 	middleware.ClearAuthCookies(c)
 	c.JSON(http.StatusOK, gin.H{"message": "ログアウトしました。"})
+}
+
+type passwordLoginReq struct {
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required"`
+}
+
+// Login は email / password を Cognito(USER_PASSWORD_AUTH)で検証して HttpOnly Cookie を発行する。
+// Hosted UI を経由しないアプリ内ログインフォーム用。招待ゲートは Callback と同じく upsert 側で効かせる。
+//
+//	@Summary      ログイン (メール / パスワード)
+//	@Description  email / password を Cognito の USER_PASSWORD_AUTH で 検証 し、 access / refresh token を HttpOnly Cookie で 返す。 新規 user は 招待 or Cognito admin group 必須。
+//	@Tags         auth
+//	@Accept       json
+//	@Produce      json
+//	@Param        body  body      passwordLoginReq  true  "メール / パスワード"
+//	@Success      200   {object}  messageResponse
+//	@Failure      400   {object}  errorResponse  "入力 不正 (email 形式 / password 欠落)"
+//	@Failure      401   {object}  errorResponse  "資格 情報 誤り"
+//	@Failure      403   {object}  errorResponse  "招待 なし の 新規 user"
+//	@Failure      500   {object}  errorResponse  "Cognito 未 設定"
+//	@Failure      502   {object}  errorResponse  "Cognito 到達 不可"
+//	@Failure      429   {object}  errorResponse  "レート制限超過"
+//	@Header       429  {string}  Retry-After  "再試行までの秒数 (例: 60)"
+//	@Router       /auth/cognito/login [post]
+func (h *AuthHandler) Login(c *gin.Context) {
+	var req passwordLoginReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if h.passwordAuth == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "cognito_not_configured"})
+		return
+	}
+
+	tok, err := h.passwordAuth.Authenticate(c.Request.Context(), req.Email, req.Password)
+	if err != nil {
+		switch {
+		case errors.Is(err, cognito.ErrInvalidCredentials):
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid_credentials"})
+		case errors.Is(err, cognito.ErrNotConfigured):
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "cognito_not_configured"})
+		default:
+			log.Printf("cognito password login: unexpected error: %v", err)
+			c.JSON(http.StatusBadGateway, gin.H{"error": "cognito_unreachable"})
+		}
+		return
+	}
+
+	middleware.SetAccessTokenCookie(c, tok.AccessToken, tok.ExpiresIn)
+	middleware.SetRefreshTokenCookie(c, tok.RefreshToken)
+
+	// Callback と同じ招待ゲート。拒否された新規ユーザーは Cookie をクリアしてセッションを残さない。
+	if allowed := h.upsertUserFromIDToken(c, tok.IDToken, ""); !allowed {
+		middleware.ClearAuthCookies(c)
+		c.JSON(http.StatusForbidden, gin.H{
+			"error":   "invitation_required",
+			"message": "FreStyle のご利用には管理者からの招待が必要です。招待メールに記載されたリンクからログインしてください。",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "ログインしました。"})
 }
 
 type cognitoCallbackReq struct {

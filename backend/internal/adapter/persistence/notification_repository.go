@@ -3,12 +3,14 @@ package persistence
 import (
 	"context"
 
+	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"gorm.io/gorm"
 )
 
-// notificationRepository は [repository.NotificationRepository] の GORM 実装。
+// notificationRepository は [repository.NotificationRepository] の実装。
+// 読み取り（ListByUserID / CountUnread）は sqlc 生成コード（生 SQL）、書き込みは GORM。
 type notificationRepository struct{ db *gorm.DB }
 
 func NewNotificationRepository(db *gorm.DB) repository.NotificationRepository {
@@ -20,9 +22,31 @@ func (r *notificationRepository) Create(ctx context.Context, n *domain.Notificat
 }
 
 func (r *notificationRepository) ListByUserID(ctx context.Context, userID uint64) ([]domain.Notification, error) {
-	var rows []domain.Notification
-	err := r.db.WithContext(ctx).Where("user_id = ?", userID).Order("created_at DESC").Find(&rows).Error
-	return rows, err
+	uid, ok := toInt64ID(userID)
+	if !ok {
+		return []domain.Notification{}, nil // 存在し得ない user_id = 0 件
+	}
+	sqlDB, err := r.db.DB()
+	if err != nil {
+		return nil, err
+	}
+	rows, err := sqlcgen.New(sqlDB).ListNotificationsByUserID(ctx, uid)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.Notification, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, domain.Notification{
+			ID:        uint64(row.ID),
+			UserID:    uint64(row.UserID),
+			Type:      row.Type,
+			Title:     row.Title,
+			Body:      row.Body,
+			IsRead:    row.IsRead,
+			CreatedAt: row.CreatedAt,
+		})
+	}
+	return out, nil
 }
 
 func (r *notificationRepository) MarkRead(ctx context.Context, userID, id uint64) error {
@@ -40,12 +64,15 @@ func (r *notificationRepository) MarkAllRead(ctx context.Context, userID uint64)
 }
 
 func (r *notificationRepository) CountUnread(ctx context.Context, userID uint64) (int64, error) {
-	var n int64
-	err := r.db.WithContext(ctx).
-		Model(&domain.Notification{}).
-		Where("user_id = ? AND is_read = ?", userID, false).
-		Count(&n).Error
-	return n, err
+	uid, ok := toInt64ID(userID)
+	if !ok {
+		return 0, nil
+	}
+	sqlDB, err := r.db.DB()
+	if err != nil {
+		return 0, err
+	}
+	return sqlcgen.New(sqlDB).CountUnreadNotifications(ctx, uid)
 }
 
 // stubSnsPublisher は [repository.SnsPublisher] の no-op 実装（本番の SNS 実装は別 PR）。

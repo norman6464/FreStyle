@@ -16,6 +16,7 @@ func allDomainModels() []any {
 		&domain.Profile{},
 		&domain.AiChatSession{},
 		&domain.Note{},
+		&domain.SessionNote{},
 		&domain.Notification{},
 		&domain.AdminInvitation{},
 		&domain.MasterExercise{},

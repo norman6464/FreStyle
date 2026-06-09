@@ -43,6 +43,9 @@ GORM は当面「接続 + AutoMigrate」に残す
 - `master_exercise_example_repository`（`ListByExerciseID`）
 - `user_repository`（`FindByCognitoSub` / `FindByID` / `ListByRole`）— 書き込み（`Create` / `Update*` / `MarkOnboarded`）は autoTime・採番のため GORM のまま。nullable 列（`company_id` / `onboarded_at` / `deleted_at`）は `sql.Null*` → ポインタへ詰め替え。`:one` の not-found は `sql.ErrNoRows` を `(nil, nil)` に変換
 - `note_repository`（`ListByUserID` / `FindByID`）— 書き込み（`Create` / `Update` / `Delete`）は GORM のまま。`FindByID` の not-found は 404 シグナルを保つため `sql.ErrNoRows` を **`gorm.ErrRecordNotFound`** に変換（usecase が伝播し handler が 404 にする契約）
+- `profile_repository`（`FindByUserID`）— 未作成は `(nil, nil)`。`avatar_url` 列は sqlc が `AvatarUrl` 生成 → domain `AvatarURL` へ詰め替え
+- `notification_repository`（`ListByUserID` / `CountUnread`）— `CountUnread` は `SELECT count(*)`（`:one` → `int64`）。書き込み（`Create` / `MarkRead` / `MarkAllRead`）は GORM のまま
+- `session_note_repository`（`FindBySessionID`）— 未作成は `(nil, nil)`。あわせて `domain.SessionNote` が AutoMigrate 対象から漏れていた（テスト DB / 新規環境でテーブルが作られない）gap を `migrate.go` の `allDomainModels` に追加して修正
 
 > uint64 の id → DB の bigint(int64) 変換は `toInt64ID`（`ids.go`）で上限チェックする（CodeQL / gosec の整数オーバーフロー検知対策）。
 

@@ -203,22 +203,31 @@ jobs:
       # 監視スタックは scheduled-stop で毎晩消えるため、ここで作り直す。
       # alb の Export を ImportValue し、ecs が作る LogGroup(/ecs/frestyle-prod)に
       # メトリクスフィルタを張るので、alb・ecs より後に deploy する。
-      # 注: SNS 購読(メール通知)を将来足す場合、毎晩 topic が作り直されると購読が消える。
-      #     その時は SNS topic を別の永続スタックに分離すること(現状は購読 0 件で無害)。
+      # アラーム通知トピック(AlarmTopic)は永続 chatbot スタック側にあり、monitoring はその ARN を
+      # 参照するだけ(毎朝 recreate で Chatbot 購読が切れるのを防ぐ。infra docs/33)。cloudwatch.yml は
+      # AlarmTopicArn を必須パラメータにしているため、ここで chatbot スタックの Output から解決して渡す。
       - name: Deploy monitoring stack
         run: |
-          # 永続 chatbot スタックがあれば ERROR ログ整形 Lambda の ARN を取得し、
-          # ERROR サブスクリプションフィルタ(→Slack #incident)を毎朝張り直す。
+          # 永続 chatbot スタックから ERROR 整形 Lambda ARN(サブスクリプションフィルタ用)と
+          # アラーム通知トピック ARN を取得する。
           NOTIFY_ARN=$(aws cloudformation describe-stacks --region $AWS_REGION \
             --stack-name $STACK_PFX-chatbot \
             --query 'Stacks[0].Outputs[?OutputKey==`ErrorNotifyLambdaArn`].OutputValue' \
             --output text 2>/dev/null || true)
           [ "$NOTIFY_ARN" = "None" ] && NOTIFY_ARN=""
           echo "ErrorNotifyLambdaArn=${NOTIFY_ARN:-(なし)}"
+          ALARM_TOPIC_ARN=$(aws cloudformation describe-stacks --region $AWS_REGION \
+            --stack-name $STACK_PFX-chatbot \
+            --query 'Stacks[0].Outputs[?OutputKey==`AlarmTopicArn`].OutputValue' \
+            --output text 2>/dev/null || true)
+          if [ -z "$ALARM_TOPIC_ARN" ] || [ "$ALARM_TOPIC_ARN" = "None" ]; then
+            ALARM_TOPIC_ARN="arn:aws:sns:${AWS_REGION}:$(aws sts get-caller-identity --query Account --output text):${STACK_PFX}-alarms"
+          fi
+          echo "AlarmTopicArn=$ALARM_TOPIC_ARN"
           aws cloudformation deploy --region $AWS_REGION \
             --stack-name $STACK_PFX-monitoring \
             --template-file iac/infrastructure/cloudformation/templates/monitoring/cloudwatch.yml \
-            --parameter-overrides Environment=prod AlbStackName=$STACK_PFX-alb ErrorNotifyLambdaArn="$NOTIFY_ARN" \
+            --parameter-overrides Environment=prod AlbStackName=$STACK_PFX-alb AlarmTopicArn="$ALARM_TOPIC_ARN" ErrorNotifyLambdaArn="$NOTIFY_ARN" \
             --capabilities CAPABILITY_IAM --no-fail-on-empty-changeset \
             --tags Project=FreStyle Environment=prod ManagedBy=CloudFormation
 

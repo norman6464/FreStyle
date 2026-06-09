@@ -18,7 +18,7 @@ labels: task
 
 ## 想定する変更
 
-<!-- 触る範囲: backend-java(controller / service / repository / entity / dto) / frontend / infra / docs -->
+<!-- 触る範囲: backend(handler / usecase / repository / domain) / frontend / infra / docs -->
 <!-- 追加・変更する API パス、画面、マイグレーション(V{n}) など -->
 
 ## 進行（カンバンのステータスに対応）

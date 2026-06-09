@@ -2,8 +2,8 @@
 blank_issues_enabled: false
 
 contact_links:
-  - name: backend-java の構成・コーディング規約
-    url: https://github.com/norman6464/FreStyle/blob/main/backend-java/README.md
+  - name: backend(Go) の構成・コーディング規約
+    url: https://github.com/norman6464/FreStyle/blob/main/backend/README.md
     about: Java バックエンドのレイヤ構成・空行ルール・移植状況はこちら
   - name: Markdown 記法ヘルプ
     url: https://normanblog.com/notes/markdown-help

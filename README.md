@@ -36,10 +36,10 @@
 
 <h3>Backend</h3>
 <a href="https://skillicons.dev">
-<img src="https://skillicons.dev/icons?i=java,spring&theme=dark" alt="Backend">
+<img src="https://skillicons.dev/icons?i=go,gin&theme=dark" alt="Backend">
 </a>
 
-> Java 21 / Spring Boot（`backend-java/`）。レイヤードアーキテクチャ（インフラ境界のみ DIP）。
+> Go / Gin / GORM / PostgreSQL（`backend/`）。クリーンアーキテクチャ（依存方向を archlint で強制）。
 
 <h3>Infrastructure</h3>
 <a href="https://skillicons.dev">
@@ -79,15 +79,15 @@
 - アクセストークンの有効期間を短くしリフレッシュトークンで再発行
 - OIDC & JWK を活用した堅牢な認証フロー（Google認証をできるようにした）
 - NoSQL、RDBのユースケースによって適した使い分け
-- バックエンドはアーキテクチャを言語非依存に保ち、Go と Java/Spring Boot を行き来して比較検証してきた。現在は **Java 21 / Spring Boot** を本番採用し、**レイヤードアーキテクチャ（インフラ境界のみ DIP）** で構成している（`backend-java/`）。lazy-initialization で起動時間を抑え、ECS Fargate 最小スペックで運用
+- バックエンドはアーキテクチャを言語非依存に保ち、Go と Java/Spring Boot を行き来して比較検証してきた。極小 Fargate + 夜間 teardown の構成では **Go の即起動・低メモリ** が有利なため、現在は **Go / Gin / GORM** を本番採用し、**クリーンアーキテクチャ（依存方向を `archlint` で強制）** で構成している（`backend/`）。ECS Fargate 最小スペックで運用
 - 夜間は ECS を停止してコストを抑える運用（詳細は[インフラリポジトリ](https://github.com/norman6464/frestyle-infrastructure)の docs を参照）
 
 | 観点 | 数値 |
 |---|---|
 | ECS Fargate スペック | 0.25 vCPU / 0.5 GB（最小） |
-| ランタイム | Java 21（Temurin）/ Spring Boot |
-| スキーマ管理 | Flyway（マイグレーション）|
-| 永続化 | Spring Data JPA（PostgreSQL）/ AWS SDK v2（DynamoDB・S3・Bedrock・SQS）|
+| ランタイム | Go（静的バイナリ）/ Gin |
+| スキーマ管理 | GORM AutoMigrate（破壊系は手動 SQL）|
+| 永続化 | 読み取り=生 SQL 直書き（`db.Raw` / sqlc）・書き込み=GORM（PostgreSQL）/ AWS SDK v2（DynamoDB・S3・Bedrock・SQS）|
 
 ## AWSアーキテクチャ構成図
 
@@ -103,35 +103,35 @@ draw.io ソース: [`architecture/aws/freestyle-aws-architecture-current.drawio`
 
 ## ローカル開発環境セットアップ
 
-### バックエンド (Java / Spring Boot) — `backend-java/`
+### バックエンド (Go / Gin) — `backend/`
 
 ```bash
-cd backend-java
+cd backend
 
-# 1) ビルド + テスト（Gradle Wrapper が同梱・Java 21 toolchain）
-./gradlew build            # コンパイル + 全テスト
-./gradlew test             # テストのみ
+# 1) ビルド + 検証（gofumpt 整形 / vet / build / test / archlint 等を一括）
+go mod download
+make verify
+make fmt                   # gofumpt -w で整形（commit 前）
 
-# 2) ローカル起動（DB 未指定ならインメモリ H2 で起動する）
-./gradlew bootRun
+# 2) ローカル起動
+go run ./cmd/server
 # 本番相当の Supabase に繋ぐ場合は環境変数で注入:
-#   export SPRING_DATASOURCE_URL='jdbc:postgresql://...pooler.supabase.com:6543/postgres?sslmode=require'
-#   ./gradlew bootRun
+#   export DATABASE_URL='postgresql://...pooler.supabase.com:6543/postgres?sslmode=require'
+#   go run ./cmd/server
 
 # 3) 動作確認
 curl http://localhost:8080/api/v2/health
-# => {"status":"UP"}
 ```
 
 Docker でビルドする場合:
 
 ```bash
-cd backend-java
-docker build -t frestyle-backend:dev .
-docker run --rm -p 8080:8080 frestyle-backend:dev   # 未指定なら H2 で起動
+cd backend
+docker build -t frestyle-backend:dev .   # PHP/Go/JDK 同梱(コード実行サンドボックス用)
+docker run --rm -p 8080:8080 frestyle-backend:dev
 ```
 
-> レイヤ構成・コーディング規約・移植状況の詳細は [`backend-java/README.md`](./backend-java/README.md) を参照。
+> レイヤ構成・コーディング規約・データアクセス方針の詳細は [`backend/README.md`](./backend/README.md) を参照。
 
 ### フロントエンド
 
@@ -156,14 +156,14 @@ npx tailwindcss init -p
 
 ### コーディング規約（要点）
 
-バックエンドは **Java 21 / Spring Boot** で、**レイヤードアーキテクチャ（インフラ境界のみ DIP）** を採用する。
+バックエンドは **Go / Gin / GORM** で、**クリーンアーキテクチャ**（依存方向を `archlint` で機械的に強制）を採用する。
 
-- **依存方向**: `controller → service / usecase → repository → entity` の一方向を厳守。外部サービス（S3 / DynamoDB / Bedrock / SQS / Cognito）との境界 = `infra` のみ **interface で DIP** し、本番実装と stub を差し替え可能にする
-- **1 usecase = 1 ビジネスルール**: 新規機能は usecase / service を新規作成し、肥大化させない（採点のように関心が跨る処理は専用 usecase に切り出す）
-- **request / response 型は controller 内に local 定義**: 専用の Mapper 層は持たず、`record` で受ける。機密フィールドは隠す方針で扱う
-- **テスト必須**: 新規追加コードには必ずテスト（JUnit 5）を付ける。TDD（テスト先行）を基本とする
+- **依存方向**: `handler → usecase → repository(port) / infra → domain` の一方向を厳守。port は `usecase/repository`、実装は `adapter/persistence`。外部サービス（S3 / DynamoDB / Bedrock / SQS / Cognito）との境界 = `infra` を **interface で DIP** し、本番実装と stub を差し替え可能にする
+- **1 usecase = 1 ビジネスルール**: 新規機能は usecase を新規作成し、肥大化させない（採点のように関心が跨る処理は専用 usecase に切り出す）
+- **データアクセス**: 読み取り=生 SQL 直書き（`db.Raw` / 段階的に sqlc）・書き込み=GORM のハイブリッド（[`docs/sqlc-data-access.md`](./docs/sqlc-data-access.md)）
+- **テスト必須**: 新規追加コードには必ずテスト（`testing` + testify）を付ける。TDD を基本とし、**古典学派**（[`docs/testing-philosophy.md`](./docs/testing-philosophy.md)）
 
-> レイヤ構成・空行ルール・移植状況の詳細は [`backend-java/README.md`](./backend-java/README.md) を参照。
+> レイヤ構成・コーディング規約・データアクセス方針の詳細は [`backend/README.md`](./backend/README.md) を参照。
 
 ### テスト戦略（単体 / 結合 / E2E の定義）
 
@@ -171,25 +171,25 @@ npx tailwindcss init -p
 
 | 種別 | このアプリでの定義 | 主な対象 | ツール / 実行 |
 |---|---|---|---|
-| **単体テスト (unit)** | 1 つのクラス・関数を依存から隔離して検証する。外部依存（DB / HTTP / AWS）は interface 経由で mock / fake / stub に差し替え、実 I/O を行わない | backend: 純粋ロジック（採点等）・service / frontend: component・hook・repository | JUnit 5（+ Mockito / AssertJ）/ Vitest |
-| **結合テスト (integration)** | 複数層を実際に繋いで 1 プロセス内で検証する。DB は使い捨ての H2、外部 AWS は stub に差し替える | backend: controller（`@SpringBootTest` + `MockMvc` で HTTP〜JSON）・repository（本物の H2 で SQL / 制約）・Flyway 適用 | JUnit 5 / Spring Boot Test |
+| **単体テスト (unit)** | 1 つの関数・ユースケースを依存から隔離して検証する。外部依存（DB / HTTP / AWS）は interface 経由で **手書き fake / stub** に差し替え、実 I/O を行わない（古典学派＝状態検証） | backend: usecase / 純粋ロジック（採点等） / frontend: component・hook・repository | `testing` + testify / Vitest |
+| **結合テスト (integration)** | 複数層を実際に繋いで検証する。DB は本物の PostgreSQL（`//go:build integration`）、外部 AWS は stub に差し替える | backend: handler（`httptest` で本物の Gin ルータ）・repository（本物の Postgres で SQL / 制約 / 並び順） | `testing` / Postgres |
 | **E2E テスト** | 実ブラウザ（Chromium）で本番 URL に対しユーザー導線を端から端まで検証する | デプロイ済み本番のスモーク（SPA ロード / セキュリティヘッダー / 認証境界） | Playwright |
 
-#### バックエンド (Java / Spring Boot) — `./gradlew test`
+#### バックエンド (Go) — `go test` / `make verify`
 
-JUnit 5（Jupiter）+ Spring Boot Test。テストの詳しい技法はアプリ内コース「テスト徹底入門（Java / JUnit 5）」も参照。
+`testing` + testify。古典学派（実 DB・実ルータ + 手書き fake）。技法はアプリ内コース「テスト徹底入門（Go）」も参照。
 
-- **純粋ロジック（単体）**: 採点（`ExerciseGrading`）など依存ゼロのロジックは `new` して直接検証（最速・コンテキスト不要）。
-- **service（単体 / 結合）**: 外部依存は interface で切り、Mockito（`@MockitoBean`）や手書き stub に差し替えてビジネスルールを検証。
-- **controller（結合）**: `@SpringBootTest` + `MockMvc` でルータ〜認証〜ステータス〜JSON を通しで検証（`springSecurity()` で JWT 認証も込み）。
-- **repository（結合）**: 本物の **H2（`MODE=PostgreSQL`）** に対して実 SQL を流し、マッピング・並び順・集計・NOT NULL / FK 制約まで検証。スキーマは Flyway が所有（`MigrationTest` が適用を見張る）。
+- **純粋ロジック / usecase（単体）**: 依存は interface を満たす **手書き fake**（map で状態・`err` フィールドでエラー注入）に差し替え、`Execute` の戻り値・状態を検証。
+- **handler（結合）**: `httptest` + 本物の `gin` ルータでルーティング〜バインド〜ステータス〜JSON を通しで検証。認証はテスト用 middleware で context に user を注入。
+- **repository（結合）**: 本物の **PostgreSQL**（`//go:build integration`）に実 SQL を流し、マッピング・並び順・集計・`FILTER` / `BOOL_OR` 等まで検証。
 - **infra（境界）**: Bedrock / DynamoDB / S3 / SQS / Cognito は `Stub*` 実装に差し替え、AWS 資格情報の無い環境でも起動・テストできる。
+- **相互作用検証（testify/mock）**は「呼ばれたこと自体が仕様」のときだけ（[`docs/testing-philosophy.md`](./docs/testing-philosophy.md)）。
 
 ```bash
-cd backend-java
-./gradlew test                                           # 全テスト
-./gradlew test --tests "com.normanblog.frestyle.service.*"   # 層を絞って実行
-./gradlew build                                          # コンパイル + テスト
+cd backend
+go test ./...                          # 単体（DB 不要）
+make test-integration                  # 本物の Postgres に対する結合テスト
+make verify                            # gofumpt / vet / build / test / 3 linter を一括
 ```
 
 #### フロントエンド (Vitest + React Testing Library) — `npm test`

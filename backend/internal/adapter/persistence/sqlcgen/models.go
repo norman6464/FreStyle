@@ -30,6 +30,33 @@ type Note struct {
 	UpdatedAt time.Time
 }
 
+type Notification struct {
+	ID        int64
+	UserID    int64
+	Type      string
+	Title     string
+	Body      string
+	IsRead    bool
+	CreatedAt time.Time
+}
+
+type Profile struct {
+	UserID    int64
+	Bio       string
+	AvatarUrl string
+	Status    string
+	UpdatedAt time.Time
+}
+
+type SessionNote struct {
+	ID        int64
+	SessionID int64
+	UserID    int64
+	Content   string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
 type User struct {
 	ID          int64
 	CognitoSub  string

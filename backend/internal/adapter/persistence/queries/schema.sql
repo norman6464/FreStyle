@@ -42,3 +42,33 @@ CREATE TABLE notes (
     created_at timestamptz NOT NULL,
     updated_at timestamptz NOT NULL
 );
+
+-- users とは別管理のプロフィール拡張（user_id が PK）。全列 domain.Profile と 1:1。
+CREATE TABLE profiles (
+    user_id    bigint PRIMARY KEY,
+    bio        text NOT NULL DEFAULT '',
+    avatar_url text NOT NULL DEFAULT '',
+    status     text NOT NULL DEFAULT '',
+    updated_at timestamptz NOT NULL
+);
+
+-- アプリ内通知。全列 domain.Notification と 1:1。
+CREATE TABLE notifications (
+    id         bigint PRIMARY KEY,
+    user_id    bigint NOT NULL,
+    type       text NOT NULL DEFAULT '',
+    title      text NOT NULL DEFAULT '',
+    body       text NOT NULL DEFAULT '',
+    is_read    boolean NOT NULL DEFAULT false,
+    created_at timestamptz NOT NULL
+);
+
+-- AI チャットセッション固有のメモ。全列 domain.SessionNote と 1:1。
+CREATE TABLE session_notes (
+    id         bigint PRIMARY KEY,
+    session_id bigint NOT NULL,
+    user_id    bigint NOT NULL,
+    content    text NOT NULL DEFAULT '',
+    created_at timestamptz NOT NULL,
+    updated_at timestamptz NOT NULL
+);

@@ -1,3 +1,9 @@
+---
+status: approved
+area: backend
+date: 2026-06-09
+---
+
 # 0002: バックエンドを Java(Spring Boot) から Go へ差し戻す
 
 ## 1. 基本情報

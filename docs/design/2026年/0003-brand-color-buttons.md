@@ -1,8 +1,12 @@
+---
+status: approved
+area: frontend
+date: 2026-06-09
+---
+
 # 0003 ブランドカラー（青）でアクションボタンを統一
 
-- ステータス: 採用
-- 日付: 2026-06-09
-- 関連: フロントエンド `frontend/tailwind.config.js` / `frontend/src/index.css`
+> 関連: フロントエンド `frontend/tailwind.config.js` / `frontend/src/index.css`
 
 ## 背景
 

@@ -1,3 +1,10 @@
+---
+status: approved
+area: backend
+date: 2026-06-08
+issue: norman6464/FreStyle#1846
+---
+
 # 0001: trainee 向け AI エージェント機能の利用可否トグル
 
 > これは Design Doc テンプレートの最初の適用例（試作）です。実装着手前の提案であり、ステータスは Draft。

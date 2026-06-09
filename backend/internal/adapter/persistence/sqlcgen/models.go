@@ -9,6 +9,25 @@ import (
 	"time"
 )
 
+type Company struct {
+	ID                       int64
+	Name                     string
+	AiChatEnabledForTrainees bool
+	CreatedAt                time.Time
+	UpdatedAt                time.Time
+}
+
+type CompanyApplication struct {
+	ID            int64
+	CompanyName   string
+	ApplicantName string
+	Email         string
+	Message       string
+	Status        string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
 type MasterExerciseExample struct {
 	ID             int64
 	ExerciseID     int64

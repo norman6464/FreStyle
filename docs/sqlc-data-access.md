@@ -46,6 +46,8 @@ GORM は当面「接続 + AutoMigrate」に残す
 - `profile_repository`（`FindByUserID`）— 未作成は `(nil, nil)`。`avatar_url` 列は sqlc が `AvatarUrl` 生成 → domain `AvatarURL` へ詰め替え
 - `notification_repository`（`ListByUserID` / `CountUnread`）— `CountUnread` は `SELECT count(*)`（`:one` → `int64`）。書き込み（`Create` / `MarkRead` / `MarkAllRead`）は GORM のまま
 - `session_note_repository`（`FindBySessionID`）— 未作成は `(nil, nil)`。あわせて `domain.SessionNote` が AutoMigrate 対象から漏れていた（テスト DB / 新規環境でテーブルが作られない）gap を `migrate.go` の `allDomainModels` に追加して修正
+- `company_repository`（`ListAll` / `FindByID`）— `FindByID` の not-found は `gorm.ErrRecordNotFound`（`AiChatEnabledForUserUseCase` が会社行なし＝既定 true にする契約）。`UpdateAiChatEnabled` は生 SQL の `Exec` のまま
+- `company_application_repository`（`ListAll`）— 書き込み（`Create` / `UpdateStatus`）は GORM のまま
 
 > uint64 の id → DB の bigint(int64) 変換は `toInt64ID`（`ids.go`）で上限チェックする（CodeQL / gosec の整数オーバーフロー検知対策）。
 

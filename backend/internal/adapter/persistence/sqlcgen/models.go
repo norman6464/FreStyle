@@ -5,6 +5,7 @@
 package sqlcgen
 
 import (
+	"database/sql"
 	"time"
 )
 
@@ -16,4 +17,17 @@ type MasterExerciseExample struct {
 	ExpectedOutput string
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+}
+
+type User struct {
+	ID          int64
+	CognitoSub  string
+	Email       string
+	DisplayName string
+	CompanyID   sql.NullInt64
+	Role        string
+	OnboardedAt sql.NullTime
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	DeletedAt   sql.NullTime
 }

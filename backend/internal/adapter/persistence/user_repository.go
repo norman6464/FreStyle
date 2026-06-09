@@ -69,11 +69,15 @@ func (r *userRepository) FindByCognitoSub(ctx context.Context, sub string) (*dom
 }
 
 func (r *userRepository) FindByID(ctx context.Context, id uint64) (*domain.User, error) {
+	id64, ok := toInt64ID(id)
+	if !ok {
+		return nil, nil // int64 範囲外 = 存在し得ない id
+	}
 	sqlDB, err := r.db.DB()
 	if err != nil {
 		return nil, err
 	}
-	row, err := sqlcgen.New(sqlDB).GetUserByID(ctx, int64(id))
+	row, err := sqlcgen.New(sqlDB).GetUserByID(ctx, id64)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}

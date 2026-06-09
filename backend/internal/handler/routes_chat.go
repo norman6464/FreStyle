@@ -6,12 +6,14 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
+	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	infraS3 "github.com/norman6464/FreStyle/backend/internal/infra/s3"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
 // registerChatRoutes は AI チャットセッションの REST + SSE エンドポイントを登録する。
+// 会社設定で trainee の AI 利用が無効化されている場合は RequireAiChatEnabled ゲートで 403。
 func registerChatRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	aiSessionRepo := persistence.NewAiChatSessionRepository(deps.db)
 	aiHandler := NewAiChatHandler(
@@ -22,19 +24,25 @@ func registerChatRoutes(g *gin.RouterGroup, deps *routeDeps) {
 		usecase.NewDeleteAiChatSessionUseCase(aiSessionRepo),
 		usecase.NewGetAiChatMessagesUseCase(deps.msgRepo),
 	)
-	g.GET("/ai-chat/sessions", aiHandler.GetSessions)
-	g.POST("/ai-chat/sessions", aiHandler.CreateSession)
-	g.GET("/ai-chat/sessions/:id", aiHandler.GetSession)
-	g.PUT("/ai-chat/sessions/:id", aiHandler.UpdateSessionTitle)
-	g.DELETE("/ai-chat/sessions/:id", aiHandler.DeleteSession)
-	g.GET("/ai-chat/sessions/:id/messages", aiHandler.GetMessages)
+
+	// ai-chat 配下は会社の AI 有効化ゲートを通す（管理者・会社未所属は常に通過）。
+	gate := usecase.NewAiChatEnabledForUserUseCase(persistence.NewCompanyRepository(deps.db))
+	chat := g.Group("")
+	chat.Use(middleware.RequireAiChatEnabled(gate))
+
+	chat.GET("/ai-chat/sessions", aiHandler.GetSessions)
+	chat.POST("/ai-chat/sessions", aiHandler.CreateSession)
+	chat.GET("/ai-chat/sessions/:id", aiHandler.GetSession)
+	chat.PUT("/ai-chat/sessions/:id", aiHandler.UpdateSessionTitle)
+	chat.DELETE("/ai-chat/sessions/:id", aiHandler.DeleteSession)
+	chat.GET("/ai-chat/sessions/:id/messages", aiHandler.GetMessages)
 
 	// 添付用 presigned PUT URL。note image と同じバケットを ai-chat/ prefix で再利用する。
 	attachmentPresigner := newAiChatAttachmentPresignerOrFallback(deps)
 	attachmentHandler := NewAiChatAttachmentHandler(
 		usecase.NewIssueAiChatAttachmentUploadURLUseCase(attachmentPresigner),
 	)
-	g.POST("/ai-chat/attachments/upload-url", attachmentHandler.IssueUploadURL)
+	chat.POST("/ai-chat/attachments/upload-url", attachmentHandler.IssueUploadURL)
 
 	// SSE ストリーミング。Bedrock / DynamoDB 初期化失敗時は nil なので登録自体をスキップする。
 	if deps.bedrockClient != nil && deps.msgRepo != nil {
@@ -42,7 +50,7 @@ func registerChatRoutes(g *gin.RouterGroup, deps *routeDeps) {
 		sseHandler := NewAiChatSseHandler(
 			usecase.NewSendAiMessageStreamUseCase(aiSessionRepo, deps.msgRepo, deps.bedrockClient, downloader),
 		)
-		g.POST("/ai-chat/stream", sseHandler.Handle)
+		chat.POST("/ai-chat/stream", sseHandler.Handle)
 	}
 }
 

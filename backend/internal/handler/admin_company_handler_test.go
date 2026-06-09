@@ -23,6 +23,8 @@ func (f *fakeCompanyRepo) FindByID(context.Context, uint64) (*domain.Company, er
 	return nil, f.err
 }
 
+func (f *fakeCompanyRepo) UpdateAiChatEnabled(context.Context, uint64, bool) error { return nil }
+
 func newAdminCompanyHandler(repo *fakeCompanyRepo) *AdminCompanyHandler {
 	return NewAdminCompanyHandler(usecase.NewListCompaniesUseCase(repo))
 }

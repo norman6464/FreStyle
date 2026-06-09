@@ -28,3 +28,9 @@ func (r *companyRepository) FindByID(ctx context.Context, id uint64) (*domain.Co
 	}
 	return &c, nil
 }
+
+// UpdateAiChatEnabled は ai_chat_enabled_for_trainees を更新する（生 SQL 直書き / updated_at も更新）。
+func (r *companyRepository) UpdateAiChatEnabled(ctx context.Context, companyID uint64, enabled bool) error {
+	const q = `UPDATE companies SET ai_chat_enabled_for_trainees = ?, updated_at = NOW() WHERE id = ?`
+	return r.db.WithContext(ctx).Exec(q, enabled, companyID).Error
+}

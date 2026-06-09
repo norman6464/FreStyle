@@ -24,9 +24,11 @@ type fakeNoteRepo struct {
 func (f *fakeNoteRepo) ListByUserID(context.Context, uint64) ([]domain.Note, error) {
 	return f.rows, f.err
 }
+
 func (f *fakeNoteRepo) FindByID(context.Context, uint64) (*domain.Note, error) {
 	return f.one, f.err
 }
+
 func (f *fakeNoteRepo) Create(_ context.Context, n *domain.Note) error {
 	if f.err == nil {
 		n.ID = 100

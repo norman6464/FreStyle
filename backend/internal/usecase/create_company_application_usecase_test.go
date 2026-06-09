@@ -22,6 +22,7 @@ func (r *fakeAppRepo) Create(_ context.Context, app *domain.CompanyApplication) 
 	r.created = app
 	return nil
 }
+
 func (r *fakeAppRepo) ListAll(context.Context) ([]domain.CompanyApplication, error) { return nil, nil }
 func (r *fakeAppRepo) UpdateStatus(context.Context, uint64, string) error           { return nil }
 
@@ -31,7 +32,9 @@ type fakeUsersForApp struct{ admins []domain.User }
 func (f *fakeUsersForApp) FindByCognitoSub(context.Context, string) (*domain.User, error) {
 	return nil, nil
 }
+
 func (f *fakeUsersForApp) FindByID(context.Context, uint64) (*domain.User, error) { return nil, nil }
+
 func (f *fakeUsersForApp) ListByRole(_ context.Context, role string) ([]domain.User, error) {
 	if role == domain.RoleSuperAdmin {
 		return f.admins, nil
@@ -50,6 +53,7 @@ func (r *recordingNotifRepo) Create(_ context.Context, n *domain.Notification) e
 	r.created = append(r.created, *n)
 	return nil
 }
+
 func (r *recordingNotifRepo) ListByUserID(context.Context, uint64) ([]domain.Notification, error) {
 	return nil, nil
 }

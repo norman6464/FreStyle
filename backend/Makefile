@@ -2,7 +2,8 @@
 #
 # 主要 target:
 #   make openapi      … swag init で OpenAPI spec を 再 生成 (docs/swagger.{json,yaml})
-#   make verify       … gofmt / vet / build / test / archlint / apispec-lint / naminglint を 一括 実行
+#   make fmt          … gofumpt -w でコードを自動整形（commit 前に実行）
+#   make verify       … gofumpt / vet / build / test / archlint / apispec-lint / naminglint を 一括 実行
 #   make archlint     … クリーンアーキテクチャ依存方向ルール (CLAUDE.md §2) を 静的 検証
 #   make apispec-lint … Gin ルート ↔ swaggo @Router 注釈 の 整合 (CLAUDE.md §2.7) を 検証
 #   make naminglint   … usecase 命名・構造規約 (CLAUDE.md §2.3) を 検証
@@ -45,11 +46,26 @@ openapi:
 	@echo ">>> regenerating OpenAPI spec at docs/"
 	@$(SWAG) init --generalInfo cmd/server/main.go --output docs --parseDependency --parseInternal
 
+GOFUMPT_VERSION := v0.10.0
+GOFUMPT := $(GO_INSTALL_DIR)/gofumpt
+
+# gofumpt(gofmt 上位互換)でコードを自動整形する。CI(gofumpt check)が未整形を fail にするので、
+# commit 前に `make fmt` で整える運用。生成コードは gofumpt clean のため対象外。
+.PHONY: fmt
+fmt:
+	@if [ ! -x "$(GOFUMPT)" ]; then \
+	  echo ">>> installing gofumpt ($(GOFUMPT_VERSION))..."; \
+	  go install mvdan.cc/gofumpt@$(GOFUMPT_VERSION); \
+	fi
+	@echo ">>> gofumpt -w ."
+	@$(GOFUMPT) -w .
+
 .PHONY: verify
 verify:
+	@if [ ! -x "$(GOFUMPT)" ]; then go install mvdan.cc/gofumpt@$(GOFUMPT_VERSION); fi
 	@GOFMT_TMP=$$(mktemp) && \
-	  gofmt -l . | tee "$$GOFMT_TMP" && \
-	  if [ -s "$$GOFMT_TMP" ]; then echo "ERROR: gofmt issues above"; rm -f "$$GOFMT_TMP"; exit 1; fi && \
+	  $(GOFUMPT) -l . | tee "$$GOFMT_TMP" && \
+	  if [ -s "$$GOFMT_TMP" ]; then echo "ERROR: gofumpt issues above (run 'make fmt')"; rm -f "$$GOFMT_TMP"; exit 1; fi && \
 	  rm -f "$$GOFMT_TMP"
 	go vet ./...
 	go build ./...

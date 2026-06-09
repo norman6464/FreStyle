@@ -36,17 +36,20 @@ jobs:
             exit 1
           fi
 
-      # gofmt 未整形のコードがあれば失敗させる。
-      # Effective Go の "gofmt'd code is the standard" を CI で強制するための
-      # 入り口チェック。`gofmt -l .` が 1 ファイルでも出したら CI を fail にして
-      # ローカル `gofmt -w .` で直してもらう運用にする。
-      - name: gofmt check
+      # gofumpt 未整形のコードがあれば失敗させる。
+      # gofmt は構文整形のみだが gofumpt はその上位互換で、空行・連続宣言の整列・
+      # 不要な括弧改行など「人が迷う整形」も機械的に統一する。Effective Go の
+      # "gofmt'd code is the standard" を一段強く CI で強制する入り口チェック。
+      # `gofumpt -l .` が 1 ファイルでも出したら fail にし、ローカル `make fmt`
+      # (= gofumpt -w) で直してもらう運用にする。生成コードは gofumpt clean のため除外不要。
+      - name: gofumpt check
         run: |
-          unformatted=$(gofmt -l .)
+          go install mvdan.cc/gofumpt@v0.10.0
+          unformatted=$("$(go env GOPATH)/bin/gofumpt" -l .)
           if [ -n "$unformatted" ]; then
-            echo "::error::The following files are not gofmt-formatted:"
+            echo "::error::The following files are not gofumpt-formatted:"
             echo "$unformatted"
-            echo "Run 'gofmt -w backend/' locally and commit the result."
+            echo "Run 'make fmt' (gofumpt -w) in backend/ locally and commit the result."
             exit 1
           fi
 

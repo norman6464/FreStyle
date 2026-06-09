@@ -22,6 +22,7 @@ func (m *mockSessionRepo) ListByUserID(ctx context.Context, userID uint64) ([]do
 	args := m.Called(ctx, userID)
 	return args.Get(0).([]domain.AiChatSession), args.Error(1)
 }
+
 func (m *mockSessionRepo) FindByID(ctx context.Context, id uint64) (*domain.AiChatSession, error) {
 	args := m.Called(ctx, id)
 	if args.Get(0) == nil {
@@ -29,13 +30,16 @@ func (m *mockSessionRepo) FindByID(ctx context.Context, id uint64) (*domain.AiCh
 	}
 	return args.Get(0).(*domain.AiChatSession), args.Error(1)
 }
+
 func (m *mockSessionRepo) Create(ctx context.Context, s *domain.AiChatSession) error {
 	args := m.Called(ctx, s)
 	return args.Error(0)
 }
+
 func (m *mockSessionRepo) UpdateTitle(ctx context.Context, id uint64, title string) error {
 	return m.Called(ctx, id, title).Error(0)
 }
+
 func (m *mockSessionRepo) Delete(ctx context.Context, id uint64) error {
 	return m.Called(ctx, id).Error(0)
 }
@@ -47,6 +51,7 @@ type mockMsgRepo struct{ mock.Mock }
 func (m *mockMsgRepo) Save(ctx context.Context, msg *domain.AiChatMessage) error {
 	return m.Called(ctx, msg).Error(0)
 }
+
 func (m *mockMsgRepo) ListBySessionID(ctx context.Context, sessionID uint64) ([]domain.AiChatMessage, error) {
 	args := m.Called(ctx, sessionID)
 	return args.Get(0).([]domain.AiChatMessage), args.Error(1)

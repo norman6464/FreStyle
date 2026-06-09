@@ -22,10 +22,12 @@ func (s *stubAdminInvRepo) ListAll(_ context.Context) ([]domain.AdminInvitation,
 	s.calledWith = "all"
 	return s.rows, s.err
 }
+
 func (s *stubAdminInvRepo) ListByCompanyID(_ context.Context, companyID uint64) ([]domain.AdminInvitation, error) {
 	s.calledWith = "company:" + strconv.FormatUint(companyID, 10)
 	return s.rows, s.err
 }
+
 func (s *stubAdminInvRepo) Create(_ context.Context, inv *domain.AdminInvitation) error {
 	if s.err != nil {
 		return s.err
@@ -34,10 +36,13 @@ func (s *stubAdminInvRepo) Create(_ context.Context, inv *domain.AdminInvitation
 	s.created = inv
 	return nil
 }
+
 func (s *stubAdminInvRepo) UpdateStatus(_ context.Context, _ uint64, _ string) error { return s.err }
+
 func (s *stubAdminInvRepo) FindPendingByEmail(_ context.Context, _ string) (*domain.AdminInvitation, error) {
 	return nil, s.err
 }
+
 func (s *stubAdminInvRepo) FindPendingByToken(_ context.Context, _ string) (*domain.AdminInvitation, error) {
 	return nil, s.err
 }

@@ -129,12 +129,16 @@ func run(usecaseRoot string) ([]violation, error) {
 	var out []violation
 	for _, s := range structs {
 		if !constructors["New"+s.name] {
-			out = append(out, violation{s.file, s.line,
-				fmt.Sprintf("%s にはコンストラクタ New%s がありません（CLAUDE.md §2.3）", s.name, s.name)})
+			out = append(out, violation{
+				s.file, s.line,
+				fmt.Sprintf("%s にはコンストラクタ New%s がありません（CLAUDE.md §2.3）", s.name, s.name),
+			})
 		}
 		if !s.suppressed && !executeRecv[s.name] {
-			out = append(out, violation{s.file, s.line,
-				fmt.Sprintf("%s には Execute メソッドがありません（CLAUDE.md §2.3。集約 usecase 等の例外は //naminglint:allow）", s.name)})
+			out = append(out, violation{
+				s.file, s.line,
+				fmt.Sprintf("%s には Execute メソッドがありません（CLAUDE.md §2.3。集約 usecase 等の例外は //naminglint:allow）", s.name),
+			})
 		}
 	}
 	return out, nil

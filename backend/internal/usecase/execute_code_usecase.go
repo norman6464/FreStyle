@@ -107,7 +107,8 @@ func (uc *ExecuteCodeUseCase) executePHP(ctx context.Context, input ExecuteCodeI
 	ctx, cancel := context.WithTimeout(ctx, execTimeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx,
+	cmd := exec.CommandContext(
+		ctx,
 		"php",
 		"-d", "max_execution_time=5",
 		"-d", "memory_limit=32M",
@@ -222,7 +223,8 @@ func (uc *ExecuteCodeUseCase) executeJava(ctx context.Context, input ExecuteCode
 	ctx, cancel := context.WithTimeout(ctx, javaExecTimeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx,
+	cmd := exec.CommandContext(
+		ctx,
 		"java",
 		// 短命プログラム向けに起動を速くする（C1 のみ / SerialGC）+ ヒープと stack を制限。
 		"-XX:+UseSerialGC",

@@ -22,9 +22,11 @@ type fakeCompanyAppRepo struct {
 }
 
 func (f *fakeCompanyAppRepo) Create(context.Context, *domain.CompanyApplication) error { return nil }
+
 func (f *fakeCompanyAppRepo) ListAll(context.Context) ([]domain.CompanyApplication, error) {
 	return f.listRows, f.listErr
 }
+
 func (f *fakeCompanyAppRepo) UpdateStatus(context.Context, uint64, string) error { return f.updateErr }
 
 func newCompanyAppHandler(repo repository.CompanyApplicationRepository) *CompanyApplicationHandler {

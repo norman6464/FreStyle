@@ -18,6 +18,7 @@ type fakeCompanyRepo struct {
 }
 
 func (f *fakeCompanyRepo) ListAll(context.Context) ([]domain.Company, error) { return f.rows, f.err }
+
 func (f *fakeCompanyRepo) FindByID(context.Context, uint64) (*domain.Company, error) {
 	return nil, f.err
 }

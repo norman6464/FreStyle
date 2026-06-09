@@ -30,12 +30,15 @@ func (r *fakeUserRepo) FindByCognitoSub(_ context.Context, sub string) (*domain.
 	}
 	return nil, nil
 }
+
 func (r *fakeUserRepo) FindByID(_ context.Context, _ uint64) (*domain.User, error) {
 	return nil, nil
 }
+
 func (r *fakeUserRepo) ListByRole(_ context.Context, _ string) ([]domain.User, error) {
 	return nil, nil
 }
+
 func (r *fakeUserRepo) Create(_ context.Context, u *domain.User) error {
 	if r.createErr != nil {
 		return r.createErr
@@ -44,18 +47,22 @@ func (r *fakeUserRepo) Create(_ context.Context, u *domain.User) error {
 	r.created = u
 	return nil
 }
+
 func (r *fakeUserRepo) UpdateDisplayName(_ context.Context, id uint64, name string) error {
 	r.updateDisplayNameID, r.updateDisplayNameVal = id, name
 	return nil
 }
+
 func (r *fakeUserRepo) UpdateRole(_ context.Context, id uint64, role string) error {
 	r.updateRoleID, r.updateRoleVal = id, role
 	return nil
 }
+
 func (r *fakeUserRepo) UpdateCompanyID(_ context.Context, id uint64, companyID uint64) error {
 	r.updateCompanyID, r.updateCompanyVal = id, companyID
 	return nil
 }
+
 func (r *fakeUserRepo) MarkOnboarded(_ context.Context, _ uint64) error {
 	return nil
 }
@@ -72,22 +79,27 @@ type fakeInvitationRepo struct {
 func (r *fakeInvitationRepo) ListAll(_ context.Context) ([]domain.AdminInvitation, error) {
 	return nil, nil
 }
+
 func (r *fakeInvitationRepo) ListByCompanyID(_ context.Context, _ uint64) ([]domain.AdminInvitation, error) {
 	return nil, nil
 }
+
 func (r *fakeInvitationRepo) FindPendingByEmail(_ context.Context, email string) (*domain.AdminInvitation, error) {
 	if v, ok := r.pendingByEmail[email]; ok {
 		return v, nil
 	}
 	return nil, nil
 }
+
 func (r *fakeInvitationRepo) FindPendingByToken(_ context.Context, token string) (*domain.AdminInvitation, error) {
 	if v, ok := r.pendingByToken[token]; ok {
 		return v, nil
 	}
 	return nil, nil
 }
+
 func (r *fakeInvitationRepo) Create(_ context.Context, _ *domain.AdminInvitation) error { return nil }
+
 func (r *fakeInvitationRepo) UpdateStatus(_ context.Context, id uint64, status string) error {
 	r.updatedID, r.updatedStatus = id, status
 	return nil

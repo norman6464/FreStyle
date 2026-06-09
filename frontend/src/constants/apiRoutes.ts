@@ -22,8 +22,6 @@ const API_V2 = '/api/v2' as const;
 /** 認証 (Cognito Hosted UI / SRP / 自己情報取得) */
 export const AUTH = {
   login: `${API_V2}/auth/cognito/login`,
-  signup: `${API_V2}/auth/cognito/signup`,
-  confirm: `${API_V2}/auth/cognito/confirm`,
   // OAuth Hosted UI ログイン(認可コード→token 交換)/ logout / refresh は
   // provider 非依存の REST パスに統一(/auth/login, /auth/logout, /auth/refresh)。
   callback: `${API_V2}/auth/login`,

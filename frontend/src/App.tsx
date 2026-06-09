@@ -14,9 +14,7 @@ import { lazyWithReload, clearLazyReloadFlags } from './utils/lazyWithReload';
 
 // 認証不要ページ
 const LoginPage = lazyWithReload(() => import('./pages/LoginPage'), 'LoginPage');
-const SignupPage = lazyWithReload(() => import('./pages/SignupPage'), 'SignupPage');
 const LoginCallback = lazyWithReload(() => import('./pages/LoginCallback'), 'LoginCallback');
-const ConfirmPage = lazyWithReload(() => import('./pages/ConfirmPage'), 'ConfirmPage');
 const ForgotPasswordPage = lazyWithReload(() => import('./pages/ForgotPasswordPage'), 'ForgotPasswordPage');
 const ConfirmForgotPasswordPage = lazyWithReload(() => import('./pages/ConfirmForgotPasswordPage'), 'ConfirmForgotPasswordPage');
 const AcceptInvitationPage = lazyWithReload(() => import('./pages/AcceptInvitationPage'), 'AcceptInvitationPage');
@@ -78,8 +76,6 @@ export default function App() {
       {/* 誰でもアクセス可能 */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/login/callback" element={<LoginCallback />} />
-      <Route path="/signup" element={<SignupPage />} />
-      <Route path="/confirm" element={<ConfirmPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route
         path="/confirm-forgot-password"

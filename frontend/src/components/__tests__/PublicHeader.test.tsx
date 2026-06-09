@@ -12,22 +12,16 @@ function renderAt(path: string) {
 }
 
 describe('PublicHeader', () => {
-  it('ログインページでは CTA が「新規登録」(→/signup)', () => {
+  it('企業の利用申請への導線がある', () => {
     renderAt('/login');
-    const cta = screen.getByRole('link', { name: '新規登録' });
-    expect(cta).toHaveAttribute('href', '/signup');
-    expect(screen.queryByRole('link', { name: 'ログイン' })).not.toBeInTheDocument();
+    const apply = screen.getByRole('link', { name: /企業の利用申請/ });
+    expect(apply).toHaveAttribute('href', '/company-application');
   });
 
-  it('新規登録ページでは CTA が「ログイン」(→/login)', () => {
-    renderAt('/signup');
-    const cta = screen.getByRole('link', { name: 'ログイン' });
-    expect(cta).toHaveAttribute('href', '/login');
+  it('招待制のためログイン/新規登録の CTA ボタンは出さない', () => {
+    renderAt('/login');
     expect(screen.queryByRole('link', { name: '新規登録' })).not.toBeInTheDocument();
-  });
-
-  it('企業の利用申請への導線は常にある', () => {
-    renderAt('/login');
-    expect(screen.getByRole('link', { name: /企業の利用申請/ })).toBeInTheDocument();
+    // ロゴリンクの aria-label は「FreStyle ホーム」なので「ログイン」名のリンクは存在しない。
+    expect(screen.queryByRole('link', { name: 'ログイン' })).not.toBeInTheDocument();
   });
 });

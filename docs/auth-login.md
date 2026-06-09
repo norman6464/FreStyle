@@ -45,6 +45,20 @@ API は Cookie 認証で動く。新規ユーザーは「招待」または Cogn
 本番クライアントは手動管理のため、有効化手順は infra リポの
 `make enable-cognito-user-password-auth`（docs/18 系）に集約している。
 
+## 自己サインアップ（新規登録）は無い — 招待制
+
+FreStyle は B2B の招待制で、新規ユーザーは **管理者の招待マジックリンク**（SES メール）から
+アカウントを作る。自己サインアップ（`/signup`）は仕組み上も成立しない（招待が無いユーザーは
+ログイン時に招待ゲートで 403 になる）ため、フロント/バックエンドとも **signup 系は持たない**:
+
+- フロント: `SignupPage` / `ConfirmPage` / `useSignupPage` / `useConfirmSignup` と `/signup`・`/confirm`
+  ルート、`AuthRepository.signup`/`confirmSignup`、`AUTH.signup`/`confirm` は撤去済。
+- 公開ヘッダー(`PublicHeader`)の導線は **「企業の利用申請」のみ**（ログイン/新規登録 CTA は出さない）。
+- バックエンドに signup エンドポイントは元から無い（`upsertUserFromIDToken` の「signup blocked」ログは
+  招待なしユーザーを弾く招待ゲートであり、登録 API ではない）。
+
+新規メンバーの導線は「管理者が招待 → 招待メールのリンク → Google or メール/パスワードでログイン」。
+
 ## OpenAPI
 
 `/auth/cognito/login` は swaggo annotation 付き。handler 変更時は `make openapi` で

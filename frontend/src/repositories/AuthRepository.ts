@@ -22,17 +22,6 @@ export interface LoginRequest {
   password: string;
 }
 
-export interface SignupRequest {
-  email: string;
-  password: string;
-  name: string;
-}
-
-export interface ConfirmSignupRequest {
-  email: string;
-  code: string;
-}
-
 export interface ForgotPasswordRequest {
   email: string;
 }
@@ -66,21 +55,6 @@ class AuthRepository {
    */
   async login(request: LoginRequest): Promise<UserInfo> {
     const response = await apiClient.post(AUTH.login, request);
-    return response.data;
-  }
-
-  /**
-   * サインアップ
-   */
-  async signup(request: SignupRequest): Promise<void> {
-    await apiClient.post(AUTH.signup, request);
-  }
-
-  /**
-   * サインアップ確認
-   */
-  async confirmSignup(request: ConfirmSignupRequest): Promise<{ message: string }> {
-    const response = await apiClient.post(AUTH.confirm, request);
     return response.data;
   }
 

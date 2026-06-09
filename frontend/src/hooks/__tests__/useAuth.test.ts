@@ -63,19 +63,6 @@ describe('useAuth', () => {
     expect(result.current.error).toBe('ログインに失敗しました。');
   });
 
-  it('signup: サインアップ成功時にtrueを返す', async () => {
-    mockedRepo.signup.mockResolvedValue(undefined);
-
-    const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
-
-    let success: boolean = false;
-    await act(async () => {
-      success = await result.current.signup({ email: 'test@example.com', password: 'password', name: 'テスト' });
-    });
-
-    expect(success).toBe(true);
-  });
-
   it('logout: ログアウト成功時にログインページに遷移する', async () => {
     mockedRepo.logout.mockResolvedValue(undefined);
 
@@ -102,20 +89,6 @@ describe('useAuth', () => {
 
     expect(user).toEqual(mockUser);
     expect(result.current.isAuthenticated).toBe(true);
-  });
-
-  it('signup: サインアップ失敗時にfalseとエラーメッセージを返す', async () => {
-    mockedRepo.signup.mockRejectedValue(new Error('メールアドレスが既に使用されています'));
-
-    const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
-
-    let success: boolean = true;
-    await act(async () => {
-      success = await result.current.signup({ email: 'test@example.com', password: 'password', name: 'テスト' });
-    });
-
-    expect(success).toBe(false);
-    expect(result.current.error).toBe('サインアップに失敗しました。');
   });
 
   it('getCurrentUser: ユーザー情報取得失敗時にnullを返す', async () => {

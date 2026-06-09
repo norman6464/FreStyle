@@ -124,7 +124,7 @@ test.describe('演習フロー', () => {
 });
 
 test.describe('ログイン画面', () => {
-  test('未認証で /login を開くと Hosted UI ログイン導線が表示される', async ({ page }) => {
+  test('未認証で /login を開くとメール/パスワードのログインフォームが表示される', async ({ page }) => {
     // すべての API を 401 にして未認証状態にする。
     await page.route('**/api/v2/**', (route) =>
       route.fulfill({
@@ -137,9 +137,11 @@ test.describe('ログイン画面', () => {
     await page.goto('/login');
 
     await expect(page).toHaveURL(/\/login/);
-    // ログインは Cognito Hosted UI に一本化したため「ログイン / 新規登録」ボタンを出す。
-    await expect(
-      page.getByRole('button', { name: 'ログイン / 新規登録' })
-    ).toBeVisible();
+    // メール/パスワードフォーム + Google(Hosted UI) の 2 経路。
+    await expect(page.getByRole('form', { name: 'ログインフォーム' })).toBeVisible();
+    await expect(page.getByLabel('メールアドレス')).toBeVisible();
+    // 「パスワードを表示」トグルボタンと衝突するので完全一致で入力欄だけを取る。
+    await expect(page.getByLabel('パスワード', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Google/ })).toBeVisible();
   });
 });

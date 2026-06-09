@@ -664,6 +664,17 @@ definitions:
     required:
     - title
     type: object
+  internal_handler.passwordLoginReq:
+    properties:
+      email:
+        format: email
+        type: string
+      password:
+        type: string
+    required:
+    - email
+    - password
+    type: object
   internal_handler.requestReportReq:
     properties:
       month:
@@ -1269,6 +1280,58 @@ paths:
       summary: AI チャット SSE ストリーミング
       tags:
       - ai-chat
+  /auth/cognito/login:
+    post:
+      consumes:
+      - application/json
+      description: email / password を Cognito の USER_PASSWORD_AUTH で 検証 し、 access
+        / refresh token を HttpOnly Cookie で 返す。 新規 user は 招待 or Cognito admin group
+        必須。
+      parameters:
+      - description: メール / パスワード
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.passwordLoginReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handler.messageResponse'
+        "400":
+          description: 入力 不正 (email 形式 / password 欠落)
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 資格 情報 誤り
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: 招待 なし の 新規 user
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "429":
+          description: レート制限超過
+          headers:
+            Retry-After:
+              description: '再試行までの秒数 (例: 60)'
+              type: string
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: 内部 エラー (Cognito 未 設定 / DB 失敗 等)
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "502":
+          description: Cognito 到達 不可
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      summary: ログイン (メール / パスワード)
+      tags:
+      - auth
   /auth/login:
     post:
       consumes:

@@ -1,16 +1,19 @@
 import AuthLayout from '../components/AuthLayout';
 import PublicHeader from '../components/PublicHeader';
+import InputField from '../components/InputField';
+import PrimaryButton from '../components/PrimaryButton';
 import SNSSignInButton from '../components/SNSSignInButton';
 import LinkText from '../components/LinkText';
 import { getCognitoAuthUrl } from '../utils/auth';
 import { useLoginPage } from '../hooks/useLoginPage';
-import { CheckCircleIcon } from '@heroicons/react/24/outline';
+import { XCircleIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 
 export default function LoginPage() {
-  const { flashMessage } = useLoginPage();
+  const { form, loginMessage, flashMessage, loading, handleLogin, handleChange } = useLoginPage();
 
   return (
     <AuthLayout title="ログイン" header={<PublicHeader />}>
+      {/* フラッシュメッセージ（ログアウト後・招待受諾後などの成功通知） */}
       {flashMessage && (
         <p
           role="status"
@@ -21,17 +24,41 @@ export default function LoginPage() {
         </p>
       )}
 
-      {/* ログインは Cognito Hosted UI に一本化(メール/パスワード + ソーシャルを Hosted UI 側で選択)。 */}
-      <button
-        type="button"
-        onClick={() => {
-          window.location.href = getCognitoAuthUrl();
-        }}
-        className="w-full rounded-lg bg-brand-500 py-2.5 font-medium text-white transition-colors duration-150 hover:bg-brand-600 active:bg-brand-700"
-      >
-        ログイン / 新規登録
-      </button>
+      {/* エラーメッセージ */}
+      {loginMessage?.type === 'error' && (
+        <p
+          role="alert"
+          className="mb-4 flex items-center justify-center gap-1 rounded-lg bg-rose-900/30 p-3 text-center font-medium text-rose-400"
+        >
+          <XCircleIcon className="h-4 w-4" aria-hidden="true" />
+          {loginMessage.text}
+        </p>
+      )}
 
+      {/* メール・パスワードフォーム（Cognito USER_PASSWORD_AUTH） */}
+      <form onSubmit={handleLogin} aria-label="ログインフォーム">
+        <InputField
+          label="メールアドレス"
+          name="email"
+          type="email"
+          value={form.email}
+          onChange={handleChange}
+          disabled={loading}
+        />
+        <InputField
+          label="パスワード"
+          name="password"
+          type="password"
+          value={form.password}
+          onChange={handleChange}
+          disabled={loading}
+        />
+        <PrimaryButton type="submit" loading={loading}>
+          {loading ? 'ログイン中...' : 'ログイン'}
+        </PrimaryButton>
+      </form>
+
+      {/* 区切り線 */}
       <div className="relative my-5">
         <div className="absolute inset-0 flex items-center">
           <div className="w-full border-t border-surface-3"></div>
@@ -41,7 +68,7 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* Google で直接ログイン */}
+      {/* Google で直接ログイン（Hosted UI） */}
       <SNSSignInButton
         provider="google"
         onClick={() => {

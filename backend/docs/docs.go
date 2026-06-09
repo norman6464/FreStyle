@@ -755,6 +755,82 @@ const docTemplate = `{
                 }
             }
         },
+        "/auth/cognito/login": {
+            "post": {
+                "description": "email / password を Cognito の USER_PASSWORD_AUTH で 検証 し、 access / refresh token を HttpOnly Cookie で 返す。 新規 user は 招待 or Cognito admin group 必須。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "ログイン (メール / パスワード)",
+                "parameters": [
+                    {
+                        "description": "メール / パスワード",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.passwordLoginReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.messageResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "入力 不正 (email 形式 / password 欠落)",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "資格 情報 誤り",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "招待 なし の 新規 user",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "レート制限超過",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        },
+                        "headers": {
+                            "Retry-After": {
+                                "type": "string",
+                                "description": "再試行までの秒数 (例: 60)"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "内部 エラー (Cognito 未 設定 / DB 失敗 等)",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "Cognito 到達 不可",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/login": {
             "post": {
                 "description": "Cognito Hosted UI から の callback。 authorization code を access / refresh / id token に 交換 し HttpOnly Cookie で 返す。 新規 user は 招待 or Cognito admin group 必須。",
@@ -3979,6 +4055,22 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.passwordLoginReq": {
+            "type": "object",
+            "required": [
+                "email",
+                "password"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "format": "email"
+                },
+                "password": {
                     "type": "string"
                 }
             }

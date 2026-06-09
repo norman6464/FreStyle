@@ -145,7 +145,7 @@ func TestUpsertUserFromIDToken_BlocksNewUserWithoutInvitationOrAdmin(t *testing.
 		// cognito:groups なし、招待もなし → 拒否されるべき
 	})
 
-	allowed := h.upsertUserFromIDToken(newGinCtx(), idToken, "")
+	allowed := upsertAllowed(h, newGinCtx(), idToken, "")
 	if allowed {
 		t.Fatalf("expected allowed=false for non-invited non-admin signup")
 	}
@@ -165,7 +165,7 @@ func TestUpsertUserFromIDToken_AllowsCognitoAdminWithoutInvitation(t *testing.T)
 		"cognito:groups": []string{"admin"},
 	})
 
-	allowed := h.upsertUserFromIDToken(newGinCtx(), idToken, "")
+	allowed := upsertAllowed(h, newGinCtx(), idToken, "")
 	if !allowed {
 		t.Fatalf("Cognito group admin must be allowed even without invitation")
 	}
@@ -192,7 +192,7 @@ func TestUpsertUserFromIDToken_AllowsInvitedUser_AppliesRoleAndCompany(t *testin
 		"email": "trainee@example.com",
 	})
 
-	allowed := h.upsertUserFromIDToken(newGinCtx(), idToken, "")
+	allowed := upsertAllowed(h, newGinCtx(), idToken, "")
 	if !allowed {
 		t.Fatalf("invited user must be allowed")
 	}
@@ -225,7 +225,7 @@ func TestUpsertUserFromIDToken_ExistingUser_AlwaysAllowed(t *testing.T) {
 		"email": "u@example.com",
 	})
 
-	allowed := h.upsertUserFromIDToken(newGinCtx(), idToken, "")
+	allowed := upsertAllowed(h, newGinCtx(), idToken, "")
 	if !allowed {
 		t.Fatalf("existing user must always be allowed (no invitation re-check)")
 	}
@@ -244,7 +244,7 @@ func TestUpsertUserFromIDToken_ExistingUser_PromotedByCognitoAdmin(t *testing.T)
 		"email":          "u@example.com",
 		"cognito:groups": []string{"admin"},
 	})
-	if !h.upsertUserFromIDToken(newGinCtx(), idToken, "") {
+	if !upsertAllowed(h, newGinCtx(), idToken, "") {
 		t.Fatal("must be allowed")
 	}
 	if users.updateRoleID != 5 || users.updateRoleVal != domain.RoleSuperAdmin {
@@ -254,7 +254,7 @@ func TestUpsertUserFromIDToken_ExistingUser_PromotedByCognitoAdmin(t *testing.T)
 
 func TestUpsertUserFromIDToken_RejectsMalformedToken(t *testing.T) {
 	h := newTestAuthHandler(&fakeUserRepo{}, &fakeInvitationRepo{})
-	if h.upsertUserFromIDToken(newGinCtx(), "not-a-jwt", "") {
+	if upsertAllowed(h, newGinCtx(), "not-a-jwt", "") {
 		t.Fatal("malformed token must be rejected")
 	}
 }
@@ -279,7 +279,7 @@ func TestUpsertUserFromIDToken_InvitationToken_TakesPrecedenceOverEmail(t *testi
 		"sub":   "google-user-1",
 		"email": "u@example.com",
 	})
-	if !h.upsertUserFromIDToken(newGinCtx(), idToken, "magic-token-xyz") {
+	if !upsertAllowed(h, newGinCtx(), idToken, "magic-token-xyz") {
 		t.Fatal("must be allowed when token matches a pending invitation")
 	}
 	if users.created == nil {
@@ -310,7 +310,7 @@ func TestUpsertUserFromIDToken_InvalidToken_FallsBackToEmail(t *testing.T) {
 		"sub":   "google-user-2",
 		"email": "u@example.com",
 	})
-	if !h.upsertUserFromIDToken(newGinCtx(), idToken, "garbage-token") {
+	if !upsertAllowed(h, newGinCtx(), idToken, "garbage-token") {
 		t.Fatal("must fall back to email-based invitation when token is invalid")
 	}
 	if users.created == nil || users.created.Role != domain.RoleTrainee {
@@ -331,7 +331,7 @@ func TestUpsertUserFromIDToken_ExistingTrainee_UpgradedByCompanyAdminInvitation(
 	h := newTestAuthHandler(users, invs)
 	idToken := makeIDToken(t, map[string]any{"sub": "existing-trainee", "email": "u@example.com"})
 
-	if !h.upsertUserFromIDToken(newGinCtx(), idToken, "magic-xyz") {
+	if !upsertAllowed(h, newGinCtx(), idToken, "magic-xyz") {
 		t.Fatal("must be allowed for existing user with token")
 	}
 	if users.updateRoleVal != domain.RoleCompanyAdmin || users.updateRoleID != 5 {
@@ -357,7 +357,7 @@ func TestUpsertUserFromIDToken_ExistingSuperAdmin_NotDowngradedByInvitation(t *t
 	h := newTestAuthHandler(users, invs)
 	idToken := makeIDToken(t, map[string]any{"sub": "ops", "email": "ops@example.com"})
 
-	if !h.upsertUserFromIDToken(newGinCtx(), idToken, "t") {
+	if !upsertAllowed(h, newGinCtx(), idToken, "t") {
 		t.Fatal("must be allowed")
 	}
 	if users.updateRoleVal != "" {
@@ -387,7 +387,7 @@ func TestUpsertUserFromIDToken_NewUser_UsesOIDCNameOverEmail(t *testing.T) {
 		"name":  "山田 太郎",
 	})
 
-	if !h.upsertUserFromIDToken(newGinCtx(), idToken, "") {
+	if !upsertAllowed(h, newGinCtx(), idToken, "") {
 		t.Fatal("must be allowed")
 	}
 	if users.created == nil {
@@ -414,7 +414,7 @@ func TestUpsertUserFromIDToken_NewUser_InvitationNameTrumpsOIDCName(t *testing.T
 		"sub": "g-2", "email": "u@example.com", "name": "Google Name",
 	})
 
-	if !h.upsertUserFromIDToken(newGinCtx(), idToken, "") {
+	if !upsertAllowed(h, newGinCtx(), idToken, "") {
 		t.Fatal("must be allowed")
 	}
 	if users.created.DisplayName != "招待された名前" {
@@ -436,7 +436,7 @@ func TestUpsertUserFromIDToken_NewUser_NoOIDCName_FallsBackToEmail(t *testing.T)
 	h := newTestAuthHandler(users, invs)
 	idToken := makeIDToken(t, map[string]any{"sub": "g-3", "email": "a@example.com"})
 
-	if !h.upsertUserFromIDToken(newGinCtx(), idToken, "") {
+	if !upsertAllowed(h, newGinCtx(), idToken, "") {
 		t.Fatal("must be allowed")
 	}
 	if users.created.DisplayName != "a@example.com" {
@@ -457,7 +457,7 @@ func TestUpsertUserFromIDToken_ExistingUser_BackfillDisplayNameFromOIDC(t *testi
 		"sub": "exists", "email": "old@example.com", "name": "本名 太郎",
 	})
 
-	if !h.upsertUserFromIDToken(newGinCtx(), idToken, "") {
+	if !upsertAllowed(h, newGinCtx(), idToken, "") {
 		t.Fatal("must be allowed")
 	}
 	if users.updateDisplayNameID != 5 || users.updateDisplayNameVal != "本名 太郎" {
@@ -479,7 +479,7 @@ func TestUpsertUserFromIDToken_ExistingUser_NoBackfillIfDisplayNameCustomized(t 
 		"sub": "exists", "email": "u@example.com", "name": "Google Name",
 	})
 
-	if !h.upsertUserFromIDToken(newGinCtx(), idToken, "") {
+	if !upsertAllowed(h, newGinCtx(), idToken, "") {
 		t.Fatal("must be allowed")
 	}
 	if users.updateDisplayNameVal != "" {

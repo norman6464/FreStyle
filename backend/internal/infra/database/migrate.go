@@ -26,6 +26,7 @@ func allDomainModels() []any {
 		&domain.CompanyApplication{},
 		&domain.Course{},
 		&domain.TeachingMaterial{},
+		&domain.LearningReport{},
 	}
 }
 

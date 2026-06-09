@@ -149,6 +149,23 @@ definitions:
       status:
         type: string
     type: object
+  github_com_norman6464_FreStyle_backend_internal_domain.LearningReport:
+    properties:
+      createdAt:
+        type: string
+      id:
+        type: integer
+      periodFrom:
+        type: string
+      periodTo:
+        type: string
+      s3Key:
+        type: string
+      status:
+        type: string
+      userId:
+        type: integer
+    type: object
   github_com_norman6464_FreStyle_backend_internal_domain.MasterExercise:
     properties:
       category:
@@ -636,6 +653,20 @@ definitions:
         type: string
     required:
     - title
+    type: object
+  internal_handler.requestReportReq:
+    properties:
+      month:
+        maximum: 12
+        minimum: 1
+        type: integer
+      year:
+        maximum: 2100
+        minimum: 2000
+        type: integer
+    required:
+    - month
+    - year
     type: object
   internal_handler.sessionNoteUpsertReq:
     properties:
@@ -1870,6 +1901,64 @@ paths:
       summary: 招待 トークン 検証 (公開 / 認証 不要)
       tags:
       - invitations
+  /learning-reports:
+    get:
+      description: current user の レポート を 期間 降順 で 返す。 userId は IDOR 対策 で 受け取らない。
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.LearningReport'
+            type: array
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 学習 レポート 一覧
+      tags:
+      - learning-reports
+  /learning-reports/generate:
+    post:
+      consumes:
+      - application/json
+      description: current user で 指定 月 の レポート 生成 ジョブ を 受け付け、 SQS に enqueue (現状 stub)。
+        202 Accepted を 返す。
+      parameters:
+      - description: year + month
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.requestReportReq'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.LearningReport'
+        "400":
+          description: バリデーション
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 月次 学習 レポート 生成 要求
+      tags:
+      - learning-reports
   /notes:
     get:
       description: current user の note を 更新 日 降順 で 返す。 IDOR 対策 で userId は 受け取らない。

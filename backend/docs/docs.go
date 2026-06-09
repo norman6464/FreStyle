@@ -817,7 +817,7 @@ const docTemplate = `{
                         }
                     },
                     "500": {
-                        "description": "Cognito 未 設定",
+                        "description": "内部 エラー (Cognito 未 設定 / DB 失敗 等)",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -4067,7 +4067,8 @@ const docTemplate = `{
             ],
             "properties": {
                 "email": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "email"
                 },
                 "password": {
                     "type": "string"

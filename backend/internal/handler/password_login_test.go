@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -97,6 +98,26 @@ func TestLogin_BadRequest_MissingPassword_400(t *testing.T) {
 
 func TestLogin_NotConfigured_500(t *testing.T) {
 	h := &AuthHandler{} // passwordAuth nil
+	c, rec := postLoginCtx(`{"email":"u@example.com","password":"secret123"}`)
+	h.Login(c)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("want 500, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+// 認証は成功したが upsert が DB 失敗で落ちたケースは 403 ではなく 500（招待拒否と切り分け）。
+func TestLogin_UpsertInternalError_500(t *testing.T) {
+	idTok := makeIDToken(t, map[string]any{"sub": "s1", "email": "u@example.com"})
+	users := &fakeUserRepo{createErr: errors.New("db down")}
+	inv := &fakeInvitationRepo{pendingByEmail: map[string]*domain.AdminInvitation{
+		"u@example.com": {ID: 1, Role: domain.RoleTrainee, CompanyID: 1},
+	}}
+	h := &AuthHandler{
+		users:        users,
+		invitations:  inv,
+		passwordAuth: &fakePasswordAuth{token: &cognito.Token{AccessToken: "AT", IDToken: idTok, RefreshToken: "RT"}},
+	}
 	c, rec := postLoginCtx(`{"email":"u@example.com","password":"secret123"}`)
 	h.Login(c)
 

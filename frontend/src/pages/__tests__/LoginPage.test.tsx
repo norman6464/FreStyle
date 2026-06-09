@@ -28,9 +28,10 @@ describe('LoginPage', () => {
     expect(screen.getByRole('button', { name: /Google/ })).toBeInTheDocument();
   });
 
-  it('利用申請への導線がある（ヘッダー + 本文）', () => {
+  it('利用申請への導線がヘッダーと本文の両方にある', () => {
     renderLoginPage();
+    // ヘッダー（企業の利用申請）と本文（利用申請）の 2 箇所。
     const applyLinks = screen.getAllByRole('link', { name: /利用申請/ });
-    expect(applyLinks.length).toBeGreaterThan(0);
+    expect(applyLinks.length).toBeGreaterThanOrEqual(2);
   });
 });

@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -137,7 +138,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 }
 
 type passwordLoginReq struct {
-	Email    string `json:"email" binding:"required,email"`
+	Email    string `json:"email" binding:"required,email" format:"email"`
 	Password string `json:"password" binding:"required"`
 }
 
@@ -154,7 +155,7 @@ type passwordLoginReq struct {
 //	@Failure      400   {object}  errorResponse  "入力 不正 (email 形式 / password 欠落)"
 //	@Failure      401   {object}  errorResponse  "資格 情報 誤り"
 //	@Failure      403   {object}  errorResponse  "招待 なし の 新規 user"
-//	@Failure      500   {object}  errorResponse  "Cognito 未 設定"
+//	@Failure      500   {object}  errorResponse  "内部 エラー (Cognito 未 設定 / DB 失敗 等)"
 //	@Failure      502   {object}  errorResponse  "Cognito 到達 不可"
 //	@Failure      429   {object}  errorResponse  "レート制限超過"
 //	@Header       429  {string}  Retry-After  "再試行までの秒数 (例: 60)"
@@ -187,8 +188,15 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	middleware.SetAccessTokenCookie(c, tok.AccessToken, tok.ExpiresIn)
 	middleware.SetRefreshTokenCookie(c, tok.RefreshToken)
 
-	// Callback と同じ招待ゲート。拒否された新規ユーザーは Cookie をクリアしてセッションを残さない。
-	if allowed := h.upsertUserFromIDToken(c, tok.IDToken, ""); !allowed {
+	// Callback と同じ招待ゲート。内部エラー(DB/decode)は 500、招待拒否は 403 に切り分ける。
+	allowed, upErr := h.upsertUserFromIDToken(c, tok.IDToken, "")
+	if upErr != nil {
+		log.Printf("cognito password login: upsert failed: %v", upErr)
+		middleware.ClearAuthCookies(c)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
+		return
+	}
+	if !allowed {
 		middleware.ClearAuthCookies(c)
 		c.JSON(http.StatusForbidden, gin.H{
 			"error":   "invitation_required",
@@ -241,8 +249,15 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	middleware.SetRefreshTokenCookie(c, tok.RefreshToken)
 
 	// 初回ログインで users 行が無いと /auth/me が 404 になるため upsert する。
-	// 拒否された新規ユーザーは Cookie をクリアしてセッションを残さない。
-	if allowed := h.upsertUserFromIDToken(c, tok.IDToken, req.InvitationToken); !allowed {
+	// 内部エラー(DB/decode)は 500、招待拒否は 403。拒否時は Cookie をクリアしてセッションを残さない。
+	allowed, upErr := h.upsertUserFromIDToken(c, tok.IDToken, req.InvitationToken)
+	if upErr != nil {
+		log.Printf("cognito callback: upsert failed: %v", upErr)
+		middleware.ClearAuthCookies(c)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
+		return
+	}
+	if !allowed {
 		middleware.ClearAuthCookies(c)
 		c.JSON(http.StatusForbidden, gin.H{
 			"error":   "invitation_required",
@@ -292,7 +307,8 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 	// id_token があれば DB role を同期する。無ければ access_token の claims から昇格を試みる
 	// （federated ユーザーは id_token に groups が無いことがある）。refresh は既存ユーザー前提。
 	if tok.IDToken != "" {
-		_ = h.upsertUserFromIDToken(c, tok.IDToken, "")
+		// refresh は既存ユーザー前提。role 同期の best-effort なので結果は無視する。
+		_, _ = h.upsertUserFromIDToken(c, tok.IDToken, "")
 	} else {
 		h.syncRoleFromAccessToken(c, tok.AccessToken)
 	}
@@ -352,17 +368,22 @@ func (h *AuthHandler) handleTokenError(c *gin.Context, op string, err error) (in
 }
 
 // upsertUserFromIDToken は id_token の claim から users 行を新規作成 / role 更新する。
-// allowed=false は「招待なし & Cognito admin でもない」新規ユーザー（ログイン拒否）または create 失敗。
+// 戻り値は (allowed, err)。allowed=false かつ err=nil は「招待なし & Cognito admin でもない」新規
+// ユーザーの **ログイン拒否（403）** を表す。err!=nil は decode 失敗 / DB 失敗等の **内部エラー（500）**で、
+// 招待拒否と切り分けて呼び元がレスポンスを出し分けられるようにする。
 // invitationToken 指定時は email より優先して照合する（同 email 複数 pending での誤一致防止）。
 // 招待ゲートを handler 層に置くのは、Cookie 発行 / 401-403 を返す認可境界が HTTP 層だから。
-func (h *AuthHandler) upsertUserFromIDToken(c *gin.Context, idToken, invitationToken string) (allowed bool) {
-	claims, err := middleware.DecodeClaims(idToken)
-	if err != nil || h.users == nil {
-		return false
+func (h *AuthHandler) upsertUserFromIDToken(c *gin.Context, idToken, invitationToken string) (allowed bool, err error) {
+	claims, derr := middleware.DecodeClaims(idToken)
+	if derr != nil {
+		return false, fmt.Errorf("decode id_token: %w", derr)
+	}
+	if h.users == nil {
+		return false, errors.New("user repository not configured")
 	}
 	sub, _ := claims["sub"].(string)
 	if sub == "" {
-		return false
+		return false, errors.New("id_token missing sub")
 	}
 	email, _ := claims["email"].(string)
 	// OIDC 経由は id_token に name を含む（Cognito SRP では無いこともあるので空許容）。
@@ -413,13 +434,13 @@ func (h *AuthHandler) upsertUserFromIDToken(c *gin.Context, idToken, invitationT
 			// 招待を accepted にマーク（再利用防止 + 監査）。
 			_ = h.invitations.UpdateStatus(c.Request.Context(), inv.ID, domain.InvitationStatusAccepted)
 		}
-		return true
+		return true, nil
 	}
 
-	// 新規ユーザー: 招待 OR Cognito group "admin" のいずれかが必要。両方無ければ拒否。
+	// 新規ユーザー: 招待 OR Cognito group "admin" のいずれかが必要。両方無ければ拒否（403、内部エラーではない）。
 	if !isCognitoAdmin && inv == nil {
 		log.Printf("upsertUserFromIDToken: signup blocked — no invitation and not Cognito admin sub=%s email=%s token_provided=%t", sub, email, invitationToken != "")
-		return false
+		return false, nil
 	}
 
 	role := domain.RoleTrainee
@@ -454,11 +475,11 @@ func (h *AuthHandler) upsertUserFromIDToken(c *gin.Context, idToken, invitationT
 		CompanyID:   companyID,
 	}); err != nil {
 		log.Printf("upsertUserFromIDToken: create user failed sub=%s email=%s err=%v", sub, email, err)
-		return false
+		return false, fmt.Errorf("create user: %w", err)
 	}
 	// 招待を accepted にマーク（履歴・監査）。
 	if h.invitations != nil && acceptedInvID != 0 {
 		_ = h.invitations.UpdateStatus(c.Request.Context(), acceptedInvID, domain.InvitationStatusAccepted)
 	}
-	return true
+	return true, nil
 }

@@ -667,6 +667,7 @@ definitions:
   internal_handler.passwordLoginReq:
     properties:
       email:
+        format: email
         type: string
       password:
         type: string
@@ -1321,7 +1322,7 @@ paths:
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
         "500":
-          description: Cognito 未 設定
+          description: 内部 エラー (Cognito 未 設定 / DB 失敗 等)
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
         "502":

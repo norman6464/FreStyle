@@ -89,7 +89,8 @@ func Load() (*Config, error) {
 			RedirectURI:  os.Getenv("COGNITO_REDIRECT_URI"),
 			TokenURI:     os.Getenv("COGNITO_TOKEN_URI"),
 			JwkSetURI:    os.Getenv("COGNITO_JWK_SET_URI"),
-			Region:       getEnvOrDefault("AWS_REGION", "ap-northeast-1"),
+			// Cognito が別リージョンの構成も表現できるよう COGNITO_REGION を優先し、未設定時のみ AWS_REGION。
+			Region: getEnvOrDefault("COGNITO_REGION", getEnvOrDefault("AWS_REGION", "ap-northeast-1")),
 		},
 		S3: S3Config{
 			Region:           getEnvOrDefault("AWS_REGION", "ap-northeast-1"),

@@ -28,7 +28,7 @@ export default function PublicHeader() {
           </Link>
           <Link
             to="/login"
-            className="rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-600"
+            className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-600"
           >
             ログイン
           </Link>

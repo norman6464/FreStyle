@@ -57,7 +57,7 @@ export default function CoursesListPage() {
         {canManage && (
           <button
             onClick={() => setEditTarget('new')}
-            className="bg-primary-500 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-primary-600 transition-colors flex items-center gap-2"
+            className="bg-brand-500 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-brand-600 transition-colors flex items-center gap-2"
           >
             <PlusIcon className="w-4 h-4" />
             新しいコース
@@ -310,7 +310,7 @@ function CourseFormModal({ initial, onClose, onSubmit }: CourseFormProps) {
             <button
               type="submit"
               disabled={!title.trim() || submitting}
-              className="bg-primary-500 text-white px-4 py-1.5 rounded text-sm font-medium hover:bg-primary-600 transition-colors disabled:opacity-50"
+              className="bg-brand-500 text-white px-4 py-1.5 rounded text-sm font-medium hover:bg-brand-600 transition-colors disabled:opacity-50"
             >
               {submitting ? '保存中...' : initial ? '更新' : '作成'}
             </button>

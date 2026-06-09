@@ -193,7 +193,7 @@ export default function AskAiPage() {
             </div>
             <button
               onClick={handleNewSession}
-              className="w-full bg-primary-500 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-primary-600 transition-colors flex items-center justify-center gap-2"
+              className="w-full bg-brand-500 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-brand-600 transition-colors flex items-center justify-center gap-2"
             >
               <PlusIcon className="w-4 h-4" />
               新しいチャット

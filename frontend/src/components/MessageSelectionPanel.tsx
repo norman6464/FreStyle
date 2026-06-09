@@ -65,7 +65,7 @@ export default function MessageSelectionPanel({
           disabled={selectedCount === 0}
           className={`flex-1 font-medium py-2.5 px-4 rounded-lg text-sm transition-colors ${
             selectedCount > 0
-              ? 'bg-primary-500 hover:bg-primary-600 text-white'
+              ? 'bg-brand-500 hover:bg-brand-600 text-white'
               : 'bg-surface-3 text-[var(--color-text-muted)] cursor-not-allowed'
           }`}
         >

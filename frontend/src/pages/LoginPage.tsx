@@ -17,7 +17,7 @@ export default function LoginPage() {
       {flashMessage && (
         <p
           role="status"
-          className="mb-4 flex items-center justify-center gap-1 rounded-lg bg-emerald-900/30 p-3 text-center font-medium text-emerald-400"
+          className="mb-4 flex items-center justify-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-center font-medium text-emerald-700"
         >
           <CheckCircleIcon className="h-4 w-4" aria-hidden="true" />
           {flashMessage}
@@ -28,7 +28,7 @@ export default function LoginPage() {
       {loginMessage?.type === 'error' && (
         <p
           role="alert"
-          className="mb-4 flex items-center justify-center gap-1 rounded-lg bg-rose-900/30 p-3 text-center font-medium text-rose-400"
+          className="mb-4 flex items-center justify-center gap-1 rounded-lg border border-rose-200 bg-rose-50 p-3 text-center font-medium text-rose-700"
         >
           <XCircleIcon className="h-4 w-4" aria-hidden="true" />
           {loginMessage.text}

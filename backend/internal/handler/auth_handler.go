@@ -22,21 +22,25 @@ type AuthHandler struct {
 	invitations    repository.AdminInvitationRepository
 	cognitoCfg     *config.CognitoConfig
 	tokens         *cognito.TokenExchanger
+	aiChatAccess   *usecase.AiChatEnabledForUserUseCase
 }
 
 // NewAuthHandler は本番用に http.Client + 10s timeout の TokenExchanger を組み立てて DI する。
 // invitations は招待受諾フロー（初回ログイン時に invitations から role/companyId を反映）に使う。nil 可。
+// aiChatAccess は /auth/me で aiChatEnabledForTrainees を算出するのに使う。nil 可（その場合は既定 true）。
 func NewAuthHandler(
 	getCurrentUser *usecase.GetCurrentUserUseCase,
 	users repository.UserRepository,
 	invitations repository.AdminInvitationRepository,
 	cognitoCfg *config.CognitoConfig,
+	aiChatAccess *usecase.AiChatEnabledForUserUseCase,
 ) *AuthHandler {
 	return &AuthHandler{
 		getCurrentUser: getCurrentUser,
 		users:          users,
 		invitations:    invitations,
 		cognitoCfg:     cognitoCfg,
+		aiChatAccess:   aiChatAccess,
 		tokens: cognito.NewTokenExchanger(cognito.Config{
 			ClientID:     cognitoCfg.ClientID,
 			ClientSecret: cognitoCfg.ClientSecret,
@@ -84,6 +88,13 @@ func (h *AuthHandler) Me(c *gin.Context) {
 			_ = h.users.UpdateRole(c.Request.Context(), user.ID, domain.RoleSuperAdmin)
 		}
 	}
+	// trainee への AI チャット表示判定。会社設定が無効なら false。算出失敗・未配線時は既定 true。
+	aiEnabled := true
+	if h.aiChatAccess != nil {
+		if ok, err := h.aiChatAccess.Execute(c.Request.Context(), user); err == nil {
+			aiEnabled = ok
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"id":          user.ID,
 		"cognitoSub":  user.CognitoSub,
@@ -97,6 +108,8 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		"isAdmin":     isAdmin,
 		// onboarded: フロントの /welcome リダイレクト判定に使う。
 		"onboarded": user.OnboardedAt != nil,
+		// aiChatEnabledForTrainees: フロントのサイドバー AI 表示判定に使う。
+		"aiChatEnabledForTrainees": aiEnabled,
 	})
 }
 

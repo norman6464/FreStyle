@@ -1047,6 +1047,110 @@ const docTemplate = `{
                 }
             }
         },
+        "/company/settings": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "自社の trainee への AI チャット有効化フラグを返す。company_admin / super_admin のみ。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "company"
+                ],
+                "summary": "会社設定 取得 (AI 有効化)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.companySettingsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "会社未所属",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "管理者以外",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "会社が存在しない",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "自社の trainee への AI チャット有効化フラグを更新する。company_admin / super_admin のみ。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "company"
+                ],
+                "summary": "会社設定 更新 (AI 有効化)",
+                "parameters": [
+                    {
+                        "description": "aiChatEnabledForTrainees",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.updateCompanySettingsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.companySettingsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "バリデーション / 会社未所属",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "管理者以外",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/courses": {
             "get": {
                 "security": [
@@ -2991,6 +3095,10 @@ const docTemplate = `{
         "github_com_norman6464_FreStyle_backend_internal_domain.Company": {
             "type": "object",
             "properties": {
+                "aiChatEnabledForTrainees": {
+                    "description": "AiChatEnabledForTrainees は自社 trainee に AI チャットを許可するか（既定 true）。\ncompany_admin / super_admin が /company/settings で切り替える。AutoMigrate が列を追加する。",
+                    "type": "boolean"
+                },
                 "createdAt": {
                     "type": "string"
                 },
@@ -3639,6 +3747,14 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_handler.companySettingsResponse": {
+            "type": "object",
+            "properties": {
+                "aiChatEnabledForTrainees": {
+                    "type": "boolean"
+                }
+            }
+        },
         "internal_handler.courseRequest": {
             "type": "object",
             "properties": {
@@ -3996,6 +4112,18 @@ const docTemplate = `{
             "properties": {
                 "status": {
                     "type": "string"
+                }
+            }
+        },
+        "internal_handler.updateCompanySettingsRequest": {
+            "type": "object",
+            "required": [
+                "aiChatEnabledForTrainees"
+            ],
+            "properties": {
+                "aiChatEnabledForTrainees": {
+                    "description": "bool の必須を binding:\"required\" で表現すると false が弾かれるため、ポインタで「指定の有無」を判定する。",
+                    "type": "boolean"
                 }
             }
         },

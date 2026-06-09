@@ -70,6 +70,11 @@ definitions:
     type: object
   github_com_norman6464_FreStyle_backend_internal_domain.Company:
     properties:
+      aiChatEnabledForTrainees:
+        description: |-
+          AiChatEnabledForTrainees は自社 trainee に AI チャットを許可するか（既定 true）。
+          company_admin / super_admin が /company/settings で切り替える。AutoMigrate が列を追加する。
+        type: boolean
       createdAt:
         type: string
       id:
@@ -500,6 +505,11 @@ definitions:
     required:
     - code
     type: object
+  internal_handler.companySettingsResponse:
+    properties:
+      aiChatEnabledForTrainees:
+        type: boolean
+    type: object
   internal_handler.courseRequest:
     properties:
       description:
@@ -740,6 +750,14 @@ definitions:
         type: string
     required:
     - status
+    type: object
+  internal_handler.updateCompanySettingsRequest:
+    properties:
+      aiChatEnabledForTrainees:
+        description: bool の必須を binding:"required" で表現すると false が弾かれるため、ポインタで「指定の有無」を判定する。
+        type: boolean
+    required:
+    - aiChatEnabledForTrainees
     type: object
   internal_handler.updateProfileReq:
     properties:
@@ -1446,6 +1464,72 @@ paths:
       summary: 企業利用申請（公開 / 認証不要）
       tags:
       - company-applications
+  /company/settings:
+    get:
+      description: 自社の trainee への AI チャット有効化フラグを返す。company_admin / super_admin のみ。
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handler.companySettingsResponse'
+        "400":
+          description: 会社未所属
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: 管理者以外
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "404":
+          description: 会社が存在しない
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 会社設定 取得 (AI 有効化)
+      tags:
+      - company
+    put:
+      consumes:
+      - application/json
+      description: 自社の trainee への AI チャット有効化フラグを更新する。company_admin / super_admin のみ。
+      parameters:
+      - description: aiChatEnabledForTrainees
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.updateCompanySettingsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handler.companySettingsResponse'
+        "400":
+          description: バリデーション / 会社未所属
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: 管理者以外
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 会社設定 更新 (AI 有効化)
+      tags:
+      - company
   /courses:
     get:
       description: current user の role / company で 自動 フィルタ。 trainee は published のみ、

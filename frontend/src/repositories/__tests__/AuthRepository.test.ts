@@ -21,23 +21,6 @@ describe('AuthRepository', () => {
     expect(result).toEqual(mockUser);
   });
 
-  it('signup: サインアップできる', async () => {
-    mockedApiClient.post.mockResolvedValue({});
-
-    await authRepository.signup({ email: 'test@example.com', password: 'password123', name: 'テスト' });
-
-    expect(mockedApiClient.post).toHaveBeenCalledWith('/api/v2/auth/cognito/signup', { email: 'test@example.com', password: 'password123', name: 'テスト' });
-  });
-
-  it('confirmSignup: サインアップ確認ができる', async () => {
-    mockedApiClient.post.mockResolvedValue({ data: { message: '確認成功' } });
-
-    const result = await authRepository.confirmSignup({ email: 'test@example.com', code: '123456' });
-
-    expect(mockedApiClient.post).toHaveBeenCalledWith('/api/v2/auth/cognito/confirm', { email: 'test@example.com', code: '123456' });
-    expect(result).toEqual({ message: '確認成功' });
-  });
-
   it('callback: OAuthコールバックを処理できる', async () => {
     const mockData = { user: { id: 1, name: 'テスト' } };
     mockedApiClient.post.mockResolvedValue({ data: mockData });

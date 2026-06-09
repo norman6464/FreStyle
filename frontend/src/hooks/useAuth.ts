@@ -4,8 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import { classifyApiError } from '../utils/classifyApiError';
 import AuthRepository, {
   LoginRequest,
-  SignupRequest,
-  ConfirmSignupRequest,
   ForgotPasswordRequest,
   ConfirmForgotPasswordRequest,
   UserInfo,
@@ -59,42 +57,6 @@ export const useAuth = () => {
     },
     [dispatch]
   );
-
-  /**
-   * サインアップ
-   */
-  const signup = useCallback(async (request: SignupRequest): Promise<boolean> => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      await AuthRepository.signup(request);
-      return true;
-    } catch (err) {
-      setError(classifyApiError(err, 'サインアップに失敗しました。'));
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  /**
-   * サインアップ確認
-   */
-  const confirmSignup = useCallback(async (request: ConfirmSignupRequest): Promise<boolean> => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      await AuthRepository.confirmSignup(request);
-      return true;
-    } catch (err) {
-      setError(classifyApiError(err, '確認に失敗しました。'));
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
 
   /**
    * パスワード再設定リクエスト
@@ -196,8 +158,6 @@ export const useAuth = () => {
     error,
     isAuthenticated: authState.isAuthenticated,
     login,
-    signup,
-    confirmSignup,
     forgotPassword,
     confirmForgotPassword,
     logout,

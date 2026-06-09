@@ -1,4 +1,5 @@
 import AuthLayout from '../components/AuthLayout';
+import PublicHeader from '../components/PublicHeader';
 import InputField from '../components/InputField';
 import PrimaryButton from '../components/PrimaryButton';
 import LinkText from '../components/LinkText';
@@ -9,7 +10,7 @@ export default function SignupPage() {
   const { form, message, loading, handleChange, handleSignup, clearMessage } = useSignupPage();
 
   return (
-    <AuthLayout>
+    <AuthLayout header={<PublicHeader />}>
       <FormMessage message={message} onDismiss={clearMessage} />
       <h2 className="text-3xl font-bold mb-2 text-center text-[var(--color-text-primary)]">
         アカウント作成

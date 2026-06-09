@@ -25,10 +25,10 @@ func (q *Queries) CountUnreadNotifications(ctx context.Context, userID int64) (i
 const listNotificationsByUserID = `-- name: ListNotificationsByUserID :many
 SELECT id, user_id, type, title, body, is_read, created_at FROM notifications
 WHERE user_id = $1
-ORDER BY created_at DESC
+ORDER BY created_at DESC, id DESC
 `
 
-// 自分の通知を新しい順で返す。
+// 自分の通知を新しい順で返す。同時刻の順序を安定させるため id DESC をタイブレークに付ける。
 func (q *Queries) ListNotificationsByUserID(ctx context.Context, userID int64) ([]Notification, error) {
 	rows, err := q.db.QueryContext(ctx, listNotificationsByUserID, userID)
 	if err != nil {

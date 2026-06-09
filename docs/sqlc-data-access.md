@@ -36,6 +36,15 @@ GORM は当面「接続 + AutoMigrate」に残す
 
 参照実装: `internal/adapter/persistence/master_exercise_example_repository.go` の `ListByExerciseID`。
 
+## 移行状況
+
+読み取りクエリを sqlc 化済みのリポジトリ:
+
+- `master_exercise_example_repository`（`ListByExerciseID`）
+- `user_repository`（`FindByCognitoSub` / `FindByID` / `ListByRole`）— 書き込み（`Create` / `Update*` / `MarkOnboarded`）は autoTime・採番のため GORM のまま。nullable 列（`company_id` / `onboarded_at` / `deleted_at`）は `sql.Null*` → ポインタへ詰め替え。`:one` の not-found は `sql.ErrNoRows` を `(nil, nil)` に変換
+
+残りは順次置換していく（survey: `grep -c` で各 repo の GORM クエリ数を確認）。
+
 ## 既知の制約
 
 - **IN 句のスライス展開（`sqlc.slice`）は PostgreSQL × `database/sql` モードでは正しく生成されない**。バッチ取得（`WHERE id IN (...)`）は当面 GORM のまま残し、GORM 撤去で接続を **pgx** に寄せる際に `= ANY($1)` で書き直す

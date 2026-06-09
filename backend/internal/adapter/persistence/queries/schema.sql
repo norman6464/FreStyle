@@ -13,3 +13,19 @@ CREATE TABLE master_exercise_examples (
     created_at      timestamptz NOT NULL,
     updated_at      timestamptz NOT NULL
 );
+
+-- cognito_sub / email / display_name / role はアプリが必ず値を入れるため NOT NULL とみなす
+-- （sqlc が string を生成し domain への詰め替えが綺麗になる）。company_id / onboarded_at /
+-- deleted_at は実際に NULL になり得る（SuperAdmin は company 無し等）ので nullable のまま。
+CREATE TABLE users (
+    id           bigint PRIMARY KEY,
+    cognito_sub  text NOT NULL,
+    email        text NOT NULL DEFAULT '',
+    display_name text NOT NULL DEFAULT '',
+    company_id   bigint,
+    role         text NOT NULL,
+    onboarded_at timestamptz,
+    created_at   timestamptz NOT NULL,
+    updated_at   timestamptz NOT NULL,
+    deleted_at   timestamptz
+);

@@ -15,6 +15,7 @@ type stubProfileRepo struct {
 func (s *stubProfileRepo) FindByUserID(_ context.Context, _ uint64) (*domain.Profile, error) {
 	return s.p, s.err
 }
+
 func (s *stubProfileRepo) Upsert(_ context.Context, p *domain.Profile) error {
 	if s.err != nil {
 		return s.err

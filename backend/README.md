@@ -129,7 +129,8 @@ go test ./...        # 単体テスト（DB 不要）
 make archlint      # クリーンアーキテクチャ依存方向チェック
 make apispec-lint  # ルート ↔ swaggo @Router 注釈チェック（strict path 照合）
 make naminglint    # usecase 命名・構造規約チェック
-make verify        # gofmt / vet / build / test / 3 linter を一括実行
+make fmt           # gofumpt -w でコードを自動整形（commit 前に実行）
+make verify        # gofumpt / vet / build / test / 3 linter を一括実行
 ```
 
 ### 結合テスト（本物の PostgreSQL）

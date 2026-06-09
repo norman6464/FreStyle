@@ -6,8 +6,17 @@
 #   - misspell  : コメント/識別子のスペルミス
 #   - unconvert : 不要な型変換
 # default で errcheck / govet / ineffassign / staticcheck / unused も走る。
+#
+# formatters: gofumpt（gofmt の上位互換。空行・連続宣言の整列など追加ルールを強制）。
+#   `make fmt`（= golangci-lint fmt / gofumpt -w）で自動整形、CI は未整形を fail にする。
 
 version: "2"
+
+formatters:
+  enable:
+    - gofumpt
+  exclusions:
+    generated: lax # 生成コード(sqlcgen 等 "Code generated ... DO NOT EDIT")は整形対象外
 
 linters:
   enable:

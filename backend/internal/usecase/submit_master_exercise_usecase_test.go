@@ -21,12 +21,15 @@ type fakeMasterExerciseRepo struct {
 func (r *fakeMasterExerciseRepo) ListByLanguage(context.Context, string) ([]domain.MasterExercise, error) {
 	return nil, nil
 }
+
 func (r *fakeMasterExerciseRepo) GetByID(context.Context, uint64) (*domain.MasterExercise, error) {
 	return r.get, r.err
 }
+
 func (r *fakeMasterExerciseRepo) GetBySlug(context.Context, string) (*domain.MasterExercise, error) {
 	return r.get, r.err
 }
+
 func (r *fakeMasterExerciseRepo) ListWithStatusByLanguage(context.Context, uint64, string) ([]repository.MasterExerciseWithStatus, error) {
 	return nil, nil
 }
@@ -38,6 +41,7 @@ type fakeExampleRepo struct {
 func (r *fakeExampleRepo) ListByExerciseID(context.Context, uint64) ([]domain.MasterExerciseExample, error) {
 	return r.rows, nil
 }
+
 func (r *fakeExampleRepo) ListByExerciseIDs(context.Context, []uint64) (map[uint64][]domain.MasterExerciseExample, error) {
 	return nil, nil
 }
@@ -55,12 +59,15 @@ func (r *fakeSubmissionRepo) Create(_ context.Context, s *domain.ExerciseSubmiss
 	s.ID = 999
 	return nil
 }
+
 func (r *fakeSubmissionRepo) ListByUserAndExercise(context.Context, uint64, uint64, string) ([]domain.ExerciseSubmission, error) {
 	return nil, nil
 }
+
 func (r *fakeSubmissionRepo) HasSolved(context.Context, uint64, uint64, string) (bool, error) {
 	return false, nil
 }
+
 func (r *fakeSubmissionRepo) HasAttempted(context.Context, uint64, uint64, string) (bool, error) {
 	return false, nil
 }

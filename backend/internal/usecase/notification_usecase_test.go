@@ -15,6 +15,7 @@ type stubNotificationRepo struct {
 func (s *stubNotificationRepo) Create(_ context.Context, _ *domain.Notification) error {
 	return s.err
 }
+
 func (s *stubNotificationRepo) ListByUserID(_ context.Context, _ uint64) ([]domain.Notification, error) {
 	return s.rows, s.err
 }

@@ -15,6 +15,7 @@ type stubSessionNoteRepo struct {
 func (s *stubSessionNoteRepo) FindBySessionID(_ context.Context, _ uint64) (*domain.SessionNote, error) {
 	return s.n, s.err
 }
+
 func (s *stubSessionNoteRepo) Upsert(_ context.Context, n *domain.SessionNote) error {
 	if s.err != nil {
 		return s.err

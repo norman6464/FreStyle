@@ -18,6 +18,7 @@ type statusRepo struct {
 
 func (r *statusRepo) Create(context.Context, *domain.CompanyApplication) error     { return nil }
 func (r *statusRepo) ListAll(context.Context) ([]domain.CompanyApplication, error) { return nil, nil }
+
 func (r *statusRepo) UpdateStatus(_ context.Context, id uint64, status string) error {
 	r.gotID, r.gotStatus = id, status
 	return r.err

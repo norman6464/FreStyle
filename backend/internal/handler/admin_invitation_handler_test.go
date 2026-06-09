@@ -26,6 +26,7 @@ func (r *fakeAdminInvRepo) ListAll(_ context.Context) ([]domain.AdminInvitation,
 	r.called = "all"
 	return r.all, nil
 }
+
 func (r *fakeAdminInvRepo) ListByCompanyID(_ context.Context, companyID uint64) ([]domain.AdminInvitation, error) {
 	r.called = "company"
 	return r.company, nil
@@ -35,6 +36,7 @@ func (r *fakeAdminInvRepo) UpdateStatus(_ context.Context, _ uint64, _ string) e
 func (r *fakeAdminInvRepo) FindPendingByEmail(_ context.Context, _ string) (*domain.AdminInvitation, error) {
 	return nil, nil
 }
+
 func (r *fakeAdminInvRepo) FindPendingByToken(_ context.Context, _ string) (*domain.AdminInvitation, error) {
 	return nil, nil
 }

@@ -15,9 +15,11 @@ type stubAiChatSessionRepo struct {
 func (s *stubAiChatSessionRepo) ListByUserID(_ context.Context, _ uint64) ([]domain.AiChatSession, error) {
 	return s.rows, s.err
 }
+
 func (s *stubAiChatSessionRepo) FindByID(_ context.Context, _ uint64) (*domain.AiChatSession, error) {
 	return nil, nil
 }
+
 func (s *stubAiChatSessionRepo) Create(_ context.Context, sess *domain.AiChatSession) error {
 	if s.err != nil {
 		return s.err
@@ -25,9 +27,11 @@ func (s *stubAiChatSessionRepo) Create(_ context.Context, sess *domain.AiChatSes
 	sess.ID = 42
 	return nil
 }
+
 func (s *stubAiChatSessionRepo) UpdateTitle(_ context.Context, _ uint64, _ string) error {
 	return s.err
 }
+
 func (s *stubAiChatSessionRepo) Delete(_ context.Context, _ uint64) error {
 	return s.err
 }

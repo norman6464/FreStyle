@@ -20,9 +20,11 @@ type stubNoteRepo struct {
 func (s *stubNoteRepo) ListByUserID(_ context.Context, _ uint64) ([]domain.Note, error) {
 	return s.rows, s.err
 }
+
 func (s *stubNoteRepo) FindByID(_ context.Context, _ uint64) (*domain.Note, error) {
 	return s.one, s.err
 }
+
 func (s *stubNoteRepo) Create(_ context.Context, n *domain.Note) error {
 	if s.err != nil {
 		return s.err
@@ -30,6 +32,7 @@ func (s *stubNoteRepo) Create(_ context.Context, n *domain.Note) error {
 	n.ID = 21
 	return nil
 }
+
 func (s *stubNoteRepo) Update(_ context.Context, n *domain.Note) error {
 	if s.err != nil {
 		return s.err
@@ -37,6 +40,7 @@ func (s *stubNoteRepo) Update(_ context.Context, n *domain.Note) error {
 	s.updatedNote = n
 	return nil
 }
+
 func (s *stubNoteRepo) Delete(_ context.Context, userID, id uint64) error {
 	s.deletedUserID = userID
 	s.deletedID = id

@@ -29,15 +29,18 @@ func (r *fakeFullSubmissionRepo) Create(_ context.Context, s *domain.ExerciseSub
 	r.created = s
 	return nil
 }
+
 func (r *fakeFullSubmissionRepo) ListByUserAndExercise(_ context.Context, userID, exerciseID uint64, kind string) ([]domain.ExerciseSubmission, error) {
 	r.lastUserID = userID
 	r.lastExerciseID = exerciseID
 	r.lastKind = kind
 	return r.listed, nil
 }
+
 func (r *fakeFullSubmissionRepo) HasSolved(context.Context, uint64, uint64, string) (bool, error) {
 	return false, nil
 }
+
 func (r *fakeFullSubmissionRepo) HasAttempted(context.Context, uint64, uint64, string) (bool, error) {
 	return false, nil
 }

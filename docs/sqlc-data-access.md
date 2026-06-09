@@ -57,3 +57,4 @@ GORM は当面「接続 + AutoMigrate」に残す
 
 - **IN 句のスライス展開（`sqlc.slice`）は PostgreSQL × `database/sql` モードでは正しく生成されない**。バッチ取得（`WHERE id IN (...)`）は当面 GORM のまま残し、GORM 撤去で接続を **pgx** に寄せる際に `= ANY($1)` で書き直す
 - repository テストは `//go:build integration` の実 Postgres（`testsupport.OpenTestDB`）。`FILTER` / `BOOL_OR` など Postgres 固有構文は CI の `integration tests (postgres)` ジョブで担保する
+- **カバレッジ計測**: CI の `vet / test / build` ジョブのカバレッジは **integration タグ無し** で計測するため、sqlc 化で repository のクエリコードが integration テスト側に寄ると unit カバレッジが下がる（コード自体は integration job が検証済み）。移行中は `COVERAGE_MIN` を実態に合わせて下げている。**移行完了後に、integration を含めた計測（`go test -tags=integration -coverprofile ./...`）へ切り替えて floor を引き上げ直す**予定

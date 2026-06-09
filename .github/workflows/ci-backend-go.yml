@@ -105,11 +105,15 @@ jobs:
         run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
 
       # 総カバレッジを PR の Checks サマリに表示しつつ、floor を下回ったら fail させる。
-      # COVERAGE_MIN は回帰防止の floor（domain / docs / cmd / 薄い infra など 0% 群を含む
-      # 総計のため低め）。カバレッジ向上に合わせてラチェット的に引き上げる。
+      # COVERAGE_MIN は回帰防止の floor（domain / docs / cmd / 薄い infra など 0% 群を含む総計のため低め）。
+      #
+      # 注意: この計測は unit ジョブ（integration タグ無し）。GORM→sqlc 移行で repository の
+      # クエリコードが integration テスト側へ寄ると、その分 unit カバレッジは下がる（該当コードは
+      # "integration tests (postgres)" ジョブが実 Postgres で検証している）。移行中は floor を実態に
+      # 合わせて下げ、移行完了後に integration 込みの計測へ切り替えて引き上げ直す（docs/sqlc-data-access.md）。
       - name: coverage summary + gate
         env:
-          COVERAGE_MIN: '49'
+          COVERAGE_MIN: '45'
         run: |
           total=$(go tool cover -func=coverage.out | tail -1 | awk '{print $3}')
           echo "## Backend test coverage: ${total} (min ${COVERAGE_MIN}%)" >> "$GITHUB_STEP_SUMMARY"

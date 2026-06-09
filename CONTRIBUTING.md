@@ -102,12 +102,12 @@ npm run e2e          # Playwright 本番スモーク
 npm run e2e:local    # ローカルビルド + API モックの認証導線 E2E（要 build）
 ```
 
-- **単体**: 依存を interface で mock 化（backend usecase / handler、frontend component / hook / repository）
-- **結合**: handler（httptest）/ repository（`//go:build integration` で本物の Postgres）
+- **単体**: 依存を interface で差し替え（**手書き fake が基本**・状態 / 戻り値を検証。`testify/mock` は相互作用が仕様のときだけ）
+- **結合**: handler（httptest で本物の Gin ルータ）/ repository（`//go:build integration` で本物の Postgres）
 - **E2E**: 本番スモーク + ローカルモック（`/auth/me` のレスポンスで認証状態を制御。本番 Cognito/DB に触れない）
 - **カバレッジゲート**: frontend は閾値（lines 85 等）、backend は総計 floor（`COVERAGE_MIN`）を下回ると CI が落ちる。テスト追加に合わせて floor を引き上げる
 
-テスト戦略の詳細は `IaC リポ/docs/25` / `26`、[トップ README のテスト節](./README.md) を参照。
+**テストの哲学（古典学派 vs ロンドン学派・FreStyle は古典派）は [`docs/testing-philosophy.md`](./docs/testing-philosophy.md) を参照。** そのほかの詳細は `IaC リポ/docs/25` / `26`、[トップ README のテスト節](./README.md)。
 
 ---
 

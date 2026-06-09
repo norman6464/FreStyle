@@ -39,7 +39,7 @@ export default function SessionCompleteCard({
       <div className="flex gap-2">
         <button
           onClick={onViewScores}
-          className="flex-1 bg-primary-500 hover:bg-primary-600 text-white font-medium py-2.5 px-4 rounded-lg text-sm transition-colors"
+          className="flex-1 bg-brand-500 hover:bg-brand-600 text-white font-medium py-2.5 px-4 rounded-lg text-sm transition-colors"
         >
           スコアを確認
         </button>

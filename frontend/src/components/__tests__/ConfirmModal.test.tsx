@@ -72,12 +72,12 @@ describe('ConfirmModal', () => {
     expect(mockOnCancel).toHaveBeenCalled();
   });
 
-  it('isDanger=falseで確認ボタンがprimaryスタイルになる', () => {
+  it('isDanger=falseで確認ボタンがブランド(青)スタイルになる', () => {
     render(
       <ConfirmModal isOpen={true} message="実行しますか？" isDanger={false} onConfirm={mockOnConfirm} onCancel={mockOnCancel} />
     );
     const confirmBtn = screen.getByText('削除');
-    expect(confirmBtn.className).toContain('bg-primary-500');
+    expect(confirmBtn.className).toContain('bg-brand-500');
   });
 
   it('isDanger=trueで確認ボタンがredスタイルになる', () => {

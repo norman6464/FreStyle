@@ -51,7 +51,7 @@ export default function ProfilePage() {
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="absolute bottom-0 right-0 bg-primary-500 text-white rounded-full p-1 hover:bg-primary-600 transition-colors disabled:opacity-50"
+              className="absolute bottom-0 right-0 bg-brand-500 text-white rounded-full p-1 hover:bg-brand-600 transition-colors disabled:opacity-50"
               aria-label="プロフィール画像を変更"
             >
               <CameraIcon className="w-4 h-4" />

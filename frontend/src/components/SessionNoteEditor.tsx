@@ -34,7 +34,7 @@ export default function SessionNoteEditor({ sessionId }: SessionNoteEditorProps)
         {saved && <span className="text-xs text-emerald-400">保存しました</span>}
         <button
           onClick={handleSave}
-          className="text-xs font-medium text-white bg-primary-500 px-3 py-1.5 rounded-lg hover:bg-primary-600 transition-colors"
+          className="text-xs font-medium text-white bg-brand-500 px-3 py-1.5 rounded-lg hover:bg-brand-600 transition-colors"
         >
           保存
         </button>

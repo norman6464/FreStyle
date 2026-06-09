@@ -20,7 +20,7 @@ export default function PrimaryButton({
       type={type}
       onClick={onClick}
       disabled={disabled || loading}
-      className="w-full bg-primary-500 text-white font-medium py-2.5 rounded-lg hover:bg-primary-600 active:bg-primary-700 transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+      className="w-full bg-brand-500 text-white font-medium py-2.5 rounded-lg hover:bg-brand-600 active:bg-brand-700 transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
     >
       {loading && (
         <svg data-testid="loading-spinner" aria-hidden="true" className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">

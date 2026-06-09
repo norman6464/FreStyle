@@ -27,7 +27,7 @@ export default function LoginPage() {
         onClick={() => {
           window.location.href = getCognitoAuthUrl();
         }}
-        className="w-full rounded-lg bg-primary-500 py-2.5 font-medium text-white transition-colors duration-150 hover:bg-primary-600 active:bg-primary-700"
+        className="w-full rounded-lg bg-brand-500 py-2.5 font-medium text-white transition-colors duration-150 hover:bg-brand-600 active:bg-brand-700"
       >
         ログイン / 新規登録
       </button>

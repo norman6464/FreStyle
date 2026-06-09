@@ -98,6 +98,27 @@ definitions:
       updatedAt:
         type: string
     type: object
+  github_com_norman6464_FreStyle_backend_internal_domain.Course:
+    properties:
+      companyId:
+        type: integer
+      createdAt:
+        type: string
+      createdByUserId:
+        type: integer
+      description:
+        type: string
+      id:
+        type: integer
+      isPublished:
+        type: boolean
+      sortOrder:
+        type: integer
+      title:
+        type: string
+      updatedAt:
+        type: string
+    type: object
   github_com_norman6464_FreStyle_backend_internal_domain.ExerciseSubmission:
     properties:
       exerciseId:
@@ -276,6 +297,31 @@ definitions:
       userId:
         type: integer
     type: object
+  github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial:
+    properties:
+      companyId:
+        type: integer
+      content:
+        type: string
+      courseId:
+        description: NOT NULL は migration 0004 で確定するため GORM tag では指定しない（既存行への ADD
+          COLUMN 対策）。
+        type: integer
+      createdAt:
+        type: string
+      createdByUserId:
+        type: integer
+      id:
+        type: integer
+      isPublished:
+        type: boolean
+      orderInCourse:
+        type: integer
+      title:
+        type: string
+      updatedAt:
+        type: string
+    type: object
   github_com_norman6464_FreStyle_backend_internal_domain.UserStats:
     properties:
       averageScore:
@@ -436,6 +482,17 @@ definitions:
         type: string
     required:
     - code
+    type: object
+  internal_handler.courseRequest:
+    properties:
+      description:
+        type: string
+      isPublished:
+        type: boolean
+      sortOrder:
+        type: integer
+      title:
+        type: string
     type: object
   internal_handler.createAdminInvReq:
     properties:
@@ -619,6 +676,32 @@ definitions:
         type: string
     required:
     - code
+    type: object
+  internal_handler.teachingMaterialCreateRequest:
+    properties:
+      content:
+        type: string
+      courseId:
+        type: integer
+      isPublished:
+        type: boolean
+      orderInCourse:
+        type: integer
+      title:
+        type: string
+    required:
+    - courseId
+    type: object
+  internal_handler.teachingMaterialUpdateRequest:
+    properties:
+      content:
+        type: string
+      isPublished:
+        type: boolean
+      orderInCourse:
+        type: integer
+      title:
+        type: string
     type: object
   internal_handler.updateCompanyApplicationStatusReq:
     properties:
@@ -1332,6 +1415,221 @@ paths:
       summary: 企業利用申請（公開 / 認証不要）
       tags:
       - company-applications
+  /courses:
+    get:
+      description: current user の role / company で 自動 フィルタ。 trainee は published のみ、
+        admin 系 は draft 含む。
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.Course'
+            type: array
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: コース 一覧
+      tags:
+      - courses
+    post:
+      consumes:
+      - application/json
+      description: company_admin / super_admin の み。 CompanyAdmin は 自社 固定。
+      parameters:
+      - description: 作成 内容
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.courseRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.Course'
+        "400":
+          description: バリデーション
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: 操作 権限 なし
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: コース 作成
+      tags:
+      - courses
+  /courses/{id}:
+    delete:
+      description: 指定 id を 削除 + 配下 教材 も cascade 削除 (company_admin / super_admin)。
+      parameters:
+      - description: コース ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: 成功 (本文 なし)
+        "400":
+          description: id 不正
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: 操作 権限 なし
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "404":
+          description: コース が ない
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: コース 削除
+      tags:
+      - courses
+    get:
+      description: 指定 id の コース を 返す。 他社 / 未 公開 (trainee 不可) は 403。
+      parameters:
+      - description: コース ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.Course'
+        "400":
+          description: id 不正
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: 操作 権限 なし
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "404":
+          description: コース が ない
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: コース 詳細
+      tags:
+      - courses
+    put:
+      consumes:
+      - application/json
+      description: 指定 id を 更新 (company_admin / super_admin)。
+      parameters:
+      - description: コース ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 更新 内容
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.courseRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.Course'
+        "400":
+          description: バリデーション
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: 操作 権限 なし
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "404":
+          description: コース が ない
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: コース 更新
+      tags:
+      - courses
+  /courses/{id}/materials:
+    get:
+      description: 指定 コース 配下 の 教材 を 返す。 trainee は published のみ。
+      parameters:
+      - description: コース ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial'
+            type: array
+        "400":
+          description: course id 不正
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: 他社 コース
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: コース内 教材 一覧
+      tags:
+      - teaching-materials
   /embeds/oembed:
     get:
       description: ?url= で 指定 した URL の OGP / oEmbed を 解決 し card 形式 で 返す。 allow-list
@@ -2034,6 +2332,183 @@ paths:
       summary: セッション ノート 作成 / 更新
       tags:
       - session-notes
+  /teaching-materials:
+    get:
+      deprecated: true
+      description: backward-compat 用。 company 内 全 教材 を 返す。 frontend が コース 対応 完了 後
+        に 削除 予定。
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial'
+            type: array
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 教材 全 件 一覧 (deprecated)
+      tags:
+      - teaching-materials
+    post:
+      consumes:
+      - application/json
+      description: company_admin / super_admin の み。 courseId 必須。
+      parameters:
+      - description: 作成 内容
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.teachingMaterialCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial'
+        "400":
+          description: バリデーション
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: 操作 権限 なし
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 教材 作成
+      tags:
+      - teaching-materials
+  /teaching-materials/{id}:
+    delete:
+      description: 指定 id の 教材 を 削除 (company_admin / super_admin)。
+      parameters:
+      - description: 教材 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: 成功 (本文 なし)
+        "400":
+          description: id 不正
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: 操作 権限 なし
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "404":
+          description: 教材 が ない
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 教材 削除
+      tags:
+      - teaching-materials
+    get:
+      description: 指定 id の 教材 を 返す。 他社 / 未 公開 (trainee) は 403。
+      parameters:
+      - description: 教材 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial'
+        "400":
+          description: id 不正
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: 操作 権限 なし
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "404":
+          description: 教材 が ない
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 教材 詳細
+      tags:
+      - teaching-materials
+    put:
+      consumes:
+      - application/json
+      description: 指定 id の 教材 を 更新 (company_admin / super_admin)。
+      parameters:
+      - description: 教材 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 更新 内容
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.teachingMaterialUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.TeachingMaterial'
+        "400":
+          description: バリデーション
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: 操作 権限 なし
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "404":
+          description: 教材 が ない
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 教材 更新
+      tags:
+      - teaching-materials
   /users/{userId}/stats:
     get:
       description: 指定 user (or 'me') の マイページ 集計 (合計 セッション / 平均 スコア)。 他 user 指定 は 403。

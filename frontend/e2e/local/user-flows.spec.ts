@@ -140,7 +140,8 @@ test.describe('ログイン画面', () => {
     // メール/パスワードフォーム + Google(Hosted UI) の 2 経路。
     await expect(page.getByRole('form', { name: 'ログインフォーム' })).toBeVisible();
     await expect(page.getByLabel('メールアドレス')).toBeVisible();
-    await expect(page.getByLabel('パスワード')).toBeVisible();
+    // 「パスワードを表示」トグルボタンと衝突するので完全一致で入力欄だけを取る。
+    await expect(page.getByLabel('パスワード', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: /Google/ })).toBeVisible();
   });
 });

@@ -1,7 +1,15 @@
 <!--
 蒸留用テンプレート。docs/design/<年>/000N-<feature-slug>.md にコピーして使う。
 Design Doc Issue が承認(status:approved)されたら、確定した設計をここに残す。
+冒頭の frontmatter は README の索引表に集計される（_scripts/build_index.py で再生成）。
 -->
+---
+status: draft        # draft / reviewing / approved / superseded / rejected
+area: backend        # auth / backend / frontend / infra / data / docs
+date: YYYY-MM-DD     # 蒸留した日
+issue: norman6464/FreStyle#NN   # 対応 Issue があれば（無ければこの行を削除）
+# supersedes: 000N   # 置き換える旧 doc があれば記載
+---
 
 # 000N: <タイトル>
 

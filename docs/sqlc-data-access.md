@@ -46,6 +46,8 @@ GORM は当面「接続 + AutoMigrate」に残す
 - `profile_repository`（`FindByUserID`）— 未作成は `(nil, nil)`。`avatar_url` 列は sqlc が `AvatarUrl` 生成 → domain `AvatarURL` へ詰め替え
 - `notification_repository`（`ListByUserID` / `CountUnread`）— `CountUnread` は `SELECT count(*)`（`:one` → `int64`）。書き込み（`Create` / `MarkRead` / `MarkAllRead`）は GORM のまま
 - `session_note_repository`（`FindBySessionID`）— 未作成は `(nil, nil)`。あわせて `domain.SessionNote` が AutoMigrate 対象から漏れていた（テスト DB / 新規環境でテーブルが作られない）gap を `migrate.go` の `allDomainModels` に追加して修正
+- `company_repository`（`ListAll` / `FindByID`）— `FindByID` の not-found は `gorm.ErrRecordNotFound`（`AiChatEnabledForUserUseCase` が会社行なし＝既定 true にする契約）。`UpdateAiChatEnabled` は生 SQL の `Exec` のまま
+- `company_application_repository`（`ListAll`）— 書き込み（`Create` / `UpdateStatus`）は GORM のまま
 
 > uint64 の id → DB の bigint(int64) 変換は `toInt64ID`（`ids.go`）で上限チェックする（CodeQL / gosec の整数オーバーフロー検知対策）。
 
@@ -55,3 +57,4 @@ GORM は当面「接続 + AutoMigrate」に残す
 
 - **IN 句のスライス展開（`sqlc.slice`）は PostgreSQL × `database/sql` モードでは正しく生成されない**。バッチ取得（`WHERE id IN (...)`）は当面 GORM のまま残し、GORM 撤去で接続を **pgx** に寄せる際に `= ANY($1)` で書き直す
 - repository テストは `//go:build integration` の実 Postgres（`testsupport.OpenTestDB`）。`FILTER` / `BOOL_OR` など Postgres 固有構文は CI の `integration tests (postgres)` ジョブで担保する
+- **カバレッジ計測**: CI の `vet / test / build` ジョブのカバレッジは **integration タグ無し** で計測するため、sqlc 化で repository のクエリコードが integration テスト側に寄ると unit カバレッジが下がる（コード自体は integration job が検証済み）。移行中は `COVERAGE_MIN` を実態に合わせて下げている。**移行完了後に、integration を含めた計測（`go test -tags=integration -coverprofile ./...`）へ切り替えて floor を引き上げ直す**予定

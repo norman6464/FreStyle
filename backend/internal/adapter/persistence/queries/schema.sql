@@ -72,3 +72,24 @@ CREATE TABLE session_notes (
     created_at timestamptz NOT NULL,
     updated_at timestamptz NOT NULL
 );
+
+-- 企業。ai_chat_enabled_for_trainees は AutoMigrate が追加する列（domain と 1:1）。
+CREATE TABLE companies (
+    id                           bigint PRIMARY KEY,
+    name                         text NOT NULL,
+    ai_chat_enabled_for_trainees boolean NOT NULL DEFAULT true,
+    created_at                   timestamptz NOT NULL,
+    updated_at                   timestamptz NOT NULL
+);
+
+-- 公開フォームからの利用申請。message は空文字許容（NULL は来ない想定で NOT NULL とみなす）。
+CREATE TABLE company_applications (
+    id             bigint PRIMARY KEY,
+    company_name   text NOT NULL,
+    applicant_name text NOT NULL,
+    email          text NOT NULL,
+    message        text NOT NULL DEFAULT '',
+    status         text NOT NULL DEFAULT 'pending',
+    created_at     timestamptz NOT NULL,
+    updated_at     timestamptz NOT NULL
+);

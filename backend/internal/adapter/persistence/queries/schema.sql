@@ -29,3 +29,16 @@ CREATE TABLE users (
     updated_at   timestamptz NOT NULL,
     deleted_at   timestamptz
 );
+
+-- 学習メモ。全列アプリが必ず値を入れる（user_id / title / content / is_public / is_pinned）ため
+-- NOT NULL とみなす。domain.Note も全フィールド非ポインタなので 1:1 に詰め替えられる。
+CREATE TABLE notes (
+    id         bigint PRIMARY KEY,
+    user_id    bigint NOT NULL,
+    title      text NOT NULL DEFAULT '',
+    content    text NOT NULL DEFAULT '',
+    is_public  boolean NOT NULL DEFAULT false,
+    is_pinned  boolean NOT NULL DEFAULT false,
+    created_at timestamptz NOT NULL,
+    updated_at timestamptz NOT NULL
+);

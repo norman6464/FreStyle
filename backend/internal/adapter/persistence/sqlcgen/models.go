@@ -19,6 +19,17 @@ type MasterExerciseExample struct {
 	UpdatedAt      time.Time
 }
 
+type Note struct {
+	ID        int64
+	UserID    int64
+	Title     string
+	Content   string
+	IsPublic  bool
+	IsPinned  bool
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
 type User struct {
 	ID          int64
 	CognitoSub  string

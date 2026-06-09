@@ -42,6 +42,9 @@ GORM は当面「接続 + AutoMigrate」に残す
 
 - `master_exercise_example_repository`（`ListByExerciseID`）
 - `user_repository`（`FindByCognitoSub` / `FindByID` / `ListByRole`）— 書き込み（`Create` / `Update*` / `MarkOnboarded`）は autoTime・採番のため GORM のまま。nullable 列（`company_id` / `onboarded_at` / `deleted_at`）は `sql.Null*` → ポインタへ詰め替え。`:one` の not-found は `sql.ErrNoRows` を `(nil, nil)` に変換
+- `note_repository`（`ListByUserID` / `FindByID`）— 書き込み（`Create` / `Update` / `Delete`）は GORM のまま。`FindByID` の not-found は 404 シグナルを保つため `sql.ErrNoRows` を **`gorm.ErrRecordNotFound`** に変換（usecase が伝播し handler が 404 にする契約）
+
+> uint64 の id → DB の bigint(int64) 変換は `toInt64ID`（`ids.go`）で上限チェックする（CodeQL / gosec の整数オーバーフロー検知対策）。
 
 残りは順次置換していく（survey: `grep -c` で各 repo の GORM クエリ数を確認）。
 

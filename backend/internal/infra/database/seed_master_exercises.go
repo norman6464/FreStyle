@@ -177,6 +177,13 @@ func seedMasterExercises(db *gorm.DB) error {
 	}
 	log.Printf("seed: master_exercises (php) %d 件を挿入（既存はスキップ）", result.RowsAffected)
 
+	// 上の php seed は明示 ID(1..N) で insert するが、Postgres は明示 ID の insert で
+	// identity sequence を進めない。そのため後続の autoIncrement insert（clean-arch /
+	// company_admin 作成）が ID=1 で PK 衝突する。sequence を MAX(id) に合わせて回避する。
+	if err := resetMasterExerciseSeq(db); err != nil {
+		return err
+	}
+
 	if err := seedMasterExerciseExamples(db, exercises); err != nil {
 		return err
 	}
@@ -184,6 +191,18 @@ func seedMasterExercises(db *gorm.DB) error {
 		return err
 	}
 	return nil
+}
+
+// resetMasterExerciseSeq は master_exercises の identity sequence を現在の MAX(id) に合わせる。
+// 明示 ID の seed 後に呼び、autoIncrement insert の PK 衝突を防ぐ（Postgres のみ）。
+// 第 3 引数 is_called=(MAX(id) IS NOT NULL) で、空テーブルでも次の採番が 1 になるよう扱う。
+func resetMasterExerciseSeq(db *gorm.DB) error {
+	if db.Dialector.Name() != "postgres" {
+		return nil
+	}
+	return db.Exec(
+		`SELECT setval(pg_get_serial_sequence('master_exercises', 'id'), COALESCE(MAX(id), 1), MAX(id) IS NOT NULL) FROM master_exercises`,
+	).Error
 }
 
 // seedCleanArchitectureExercise はクリーンアーキテクチャ（依存性逆転）を 1 ファイルの Go で

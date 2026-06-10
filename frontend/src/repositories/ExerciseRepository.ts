@@ -34,6 +34,14 @@ const ExerciseRepository = {
     return res.data;
   },
 
+  /**
+   * エディタ入場時に実行環境を事前ウォームアップする（Go はコンパイルキャッシュ、php/bash は no-op）。
+   * 実行時に立ち上げるのではなく、入場時に warm にしておき最初の Run を即時化する。
+   */
+  async warmup(language: string): Promise<void> {
+    await api.post(CODE.warmup, { language });
+  },
+
   async submit(slug: string, code: string): Promise<ExerciseSubmitResult> {
     const res = await api.post<ExerciseSubmitResult>(EXERCISES.submit(slug), { code });
     return res.data;

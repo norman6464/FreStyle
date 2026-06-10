@@ -1,4 +1,4 @@
-package usecase
+package sandbox
 
 import (
 	"os"
@@ -17,6 +17,7 @@ func TestIsSensitiveEnvKey(t *testing.T) {
 		"COGNITO_CLIENT_SECRET",
 		"SES_FROM_ADDRESS",
 		"BEDROCK_MODEL_ID",
+		"CODE_RUNNER_URL",
 		"SOME_API_TOKEN",
 		"MY_PRIVATE_KEY",
 	}

@@ -48,8 +48,8 @@ func (r *fakeFullSubmissionRepo) HasAttempted(context.Context, uint64, uint64, s
 // stubExecutorForHandlerTest は ExecuteCodeUseCase の代替。
 type stubExecutorForHandlerTest struct{ stdout string }
 
-func (s *stubExecutorForHandlerTest) Execute(_ context.Context, in usecase.ExecuteCodeInput) (*usecase.ExecuteCodeOutput, error) {
-	return &usecase.ExecuteCodeOutput{Stdout: s.stdout}, nil
+func (s *stubExecutorForHandlerTest) Execute(_ context.Context, in domain.CodeExecutionInput) (*domain.CodeExecutionResult, error) {
+	return &domain.CodeExecutionResult{Stdout: s.stdout}, nil
 }
 
 func newSubmissionTestRouter(t *testing.T, exercise *domain.MasterExercise, examples []domain.MasterExerciseExample, executorOut string, listed []domain.ExerciseSubmission) (*gin.Engine, *fakeFullSubmissionRepo) {

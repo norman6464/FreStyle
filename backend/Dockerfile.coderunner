@@ -1,0 +1,48 @@
+# --- Build stage ---
+# code-runner（cmd/coderunner）をビルドする。go/php 実行のため runtime も bookworm に揃える。
+FROM golang:1.26-bookworm AS builder
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+ENV CGO_ENABLED=0 GOOS=linux GOARCH=amd64
+RUN go build -trimpath -ldflags="-s -w" -o /out/coderunner ./cmd/coderunner
+
+# --- Runtime stage ---
+# 学習者コード（php / go / bash）をサンドボックス実行するため、PHP CLI / Go ツールチェインを同居させる。
+# backend 本体（cmd/server）はこのランタイムを含まない distroless に分離する（Design Doc 0004）。
+# runner には DB / Cognito / AWS の機密 env を注入しない（ECS タスク定義で env を渡さない）。
+FROM golang:1.26-bookworm
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends php-cli ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /
+COPY --from=builder /out/coderunner /coderunner
+
+# nonroot ユーザー (UID=65532) は distroless 互換値を踏襲。
+RUN groupadd -g 65532 nonroot && useradd -u 65532 -g nonroot -s /sbin/nologin nonroot
+
+# Go の build cache を nonroot が書ける場所に置く（共有してコンパイル高速化）。
+RUN mkdir -p /tmp/go-build-cache && chown -R nonroot:nonroot /tmp/go-build-cache
+ENV GOCACHE=/tmp/go-build-cache GOMODCACHE=/tmp/go-mod-cache
+
+# GOCACHE warmup:
+# 学習者の最初の `go run` の cold compile は ECS Fargate の I/O 遅延で 6-8 秒かかる。
+# image build 時に hello-world を 1 回 `go run` して標準パッケージをプリコンパイルしておくと、
+# 以降の cold start でも実行は ~1 秒台に収まる。nonroot 切替前に warmup する。
+RUN printf 'package main\nimport "fmt"\nfunc main() { fmt.Println("warmup") }\n' > /tmp/warmup.go && \
+    GOCACHE=/tmp/go-build-cache GO111MODULE=off HOME=/tmp \
+        go run /tmp/warmup.go > /dev/null 2>&1 && \
+    rm /tmp/warmup.go && \
+    chown -R nonroot:nonroot /tmp/go-build-cache
+
+USER nonroot:nonroot
+EXPOSE 9000
+
+ENTRYPOINT ["/coderunner"]

@@ -900,7 +900,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/auth/cognito/callback": {
+    "/auth/cognito/login": {
         parameters: {
             query?: never;
             header?: never;
@@ -910,7 +910,107 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Cognito callback (認可 コード → token 交換)
+         * ログイン (メール / パスワード)
+         * @description email / password を Cognito の USER_PASSWORD_AUTH で 検証 し、 access / refresh token を HttpOnly Cookie で 返す。 新規 user は 招待 or Cognito admin group 必須。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description メール / パスワード */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_handler.passwordLoginReq"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.messageResponse"];
+                    };
+                };
+                /** @description 入力 不正 (email 形式 / password 欠落) */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 資格 情報 誤り */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 招待 なし の 新規 user */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description レート制限超過 */
+                429: {
+                    headers: {
+                        /** @description 再試行までの秒数 (例: 60) */
+                        "Retry-After"?: string;
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 内部 エラー (Cognito 未 設定 / DB 失敗 等) */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description Cognito 到達 不可 */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * ログイン (認可 コード → token 交換)
          * @description Cognito Hosted UI から の callback。 authorization code を access / refresh / id token に 交換 し HttpOnly Cookie で 返す。 新規 user は 招待 or Cognito admin group 必須。
          */
         post: {
@@ -1000,7 +1100,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/auth/cognito/logout": {
+    "/auth/logout": {
         parameters: {
             query?: never;
             header?: never;
@@ -1029,74 +1129,6 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["internal_handler.messageResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/auth/cognito/refresh-token": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * アクセス トークン リフレッシュ
-         * @description refresh_token Cookie で access_token を 再 発行 し HttpOnly Cookie に セット する。 失敗 (refresh 切れ 等) は 401 で Cookie クリア。
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.messageResponse"];
-                    };
-                };
-                /** @description refresh_token 欠落 / 無効 */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description レート制限超過 */
-                429: {
-                    headers: {
-                        /** @description 再試行までの秒数 (例: 60) */
-                        "Retry-After"?: string;
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description Cognito 到達 不可 */
-                502: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["internal_handler.errorResponse"];
                     };
                 };
             };
@@ -1173,6 +1205,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * アクセス トークン リフレッシュ
+         * @description refresh_token Cookie で access_token を 再 発行 し HttpOnly Cookie に セット する。 失敗 (refresh 切れ 等) は 401 で Cookie クリア。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.messageResponse"];
+                    };
+                };
+                /** @description refresh_token 欠落 / 無効 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description レート制限超過 */
+                429: {
+                    headers: {
+                        /** @description 再試行までの秒数 (例: 60) */
+                        "Retry-After"?: string;
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description Cognito 到達 不可 */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/code/execute": {
         parameters: {
             query?: never;
@@ -1184,7 +1284,7 @@ export interface paths {
         put?: never;
         /**
          * コード サンドボックス 実行
-         * @description trainee が 書いた コード を サーバ 側 sandbox で 実行 し stdout/stderr/exitCode を 返す。 language は php / go 等。
+         * @description trainee が 書いた コード を サーバ 側 sandbox で 実行 し stdout/stderr/exitCode を 返す。 language は php / go / bash。
          */
         post: {
             parameters: {
@@ -1206,10 +1306,72 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_usecase.ExecuteCodeOutput"];
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.CodeExecutionResult"];
                     };
                 };
                 /** @description バリデーション or 実行 失敗 */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/code/warmup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 実行環境 ウォームアップ
+         * @description コードエディタ 入場 時 に 呼び、 指定 言語 の 実行 環境 を 事前 に 温める（Go は コンパイル キャッシュ、 php/bash は no-op）。 実行時 に 起動 する のではなく、 入場 時 に warm に する。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 言語 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_handler.codeWarmupRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.codeWarmupResponse"];
+                    };
+                };
+                /** @description バリデーション 失敗 */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -1302,6 +1464,136 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/company/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 会社設定 取得 (AI 有効化)
+         * @description 自社の trainee への AI チャット有効化フラグを返す。company_admin / super_admin のみ。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.companySettingsResponse"];
+                    };
+                };
+                /** @description 会社未所属 */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 管理者以外 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 会社が存在しない */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        /**
+         * 会社設定 更新 (AI 有効化)
+         * @description 自社の trainee への AI チャット有効化フラグを更新する。company_admin / super_admin のみ。
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description aiChatEnabledForTrainees */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_handler.updateCompanySettingsRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.companySettingsResponse"];
+                    };
+                };
+                /** @description バリデーション / 会社未所属 */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 管理者以外 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3617,7 +3909,17 @@ export interface components {
             kind?: string;
             sizeBytes?: number;
         };
+        "github_com_norman6464_FreStyle_backend_internal_domain.CodeExecutionResult": {
+            exitCode?: number;
+            stderr?: string;
+            stdout?: string;
+        };
         "github_com_norman6464_FreStyle_backend_internal_domain.Company": {
+            /**
+             * @description AiChatEnabledForTrainees は自社 trainee に AI チャットを許可するか（既定 true）。
+             *     company_admin / super_admin が /company/settings で切り替える。AutoMigrate が列を追加する。
+             */
+            aiChatEnabledForTrainees?: boolean;
             createdAt?: string;
             id?: number;
             name?: string;
@@ -3777,11 +4079,6 @@ export interface components {
             title?: string;
             url?: string;
         };
-        "github_com_norman6464_FreStyle_backend_internal_usecase.ExecuteCodeOutput": {
-            exitCode?: number;
-            stderr?: string;
-            stdout?: string;
-        };
         "github_com_norman6464_FreStyle_backend_internal_usecase.GetMasterExerciseDetailOutput": {
             examples?: components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.MasterExerciseExample"][];
             exercise?: components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.MasterExercise"];
@@ -3840,10 +4137,19 @@ export interface components {
             code: string;
             language?: string;
         };
+        "internal_handler.codeWarmupRequest": {
+            language: string;
+        };
+        "internal_handler.codeWarmupResponse": {
+            ready?: boolean;
+        };
         "internal_handler.cognitoCallbackReq": {
             code: string;
             /** @description InvitationToken は招待マジックリンク経由の UUID（任意）。指定時は email 検索より優先して照合する。 */
             invitationToken?: string;
+        };
+        "internal_handler.companySettingsResponse": {
+            aiChatEnabledForTrainees?: boolean;
         };
         "internal_handler.courseRequest": {
             description?: string;
@@ -3931,6 +4237,11 @@ export interface components {
             isPublic?: boolean;
             title: string;
         };
+        "internal_handler.passwordLoginReq": {
+            /** Format: email */
+            email: string;
+            password: string;
+        };
         "internal_handler.requestReportReq": {
             month: number;
             year: number;
@@ -3970,6 +4281,10 @@ export interface components {
         };
         "internal_handler.updateCompanyApplicationStatusReq": {
             status: string;
+        };
+        "internal_handler.updateCompanySettingsRequest": {
+            /** @description bool の必須を binding:"required" で表現すると false が弾かれるため、ポインタで「指定の有無」を判定する。 */
+            aiChatEnabledForTrainees: boolean;
         };
         "internal_handler.updateProfileReq": {
             avatarUrl?: string;

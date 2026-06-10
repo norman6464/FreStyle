@@ -74,7 +74,7 @@ func (r *fakeSubmissionRepo) HasAttempted(context.Context, uint64, uint64, strin
 
 // fakeExecutor は ExecuteCodeUseCase の代わり。 入力 stdin で出力を切り替える。
 type fakeExecutor struct {
-	calls []usecase.ExecuteCodeInput
+	calls []domain.CodeExecutionInput
 	// stdinToOut: stdin に対応する stdout を返す。 なければ空。
 	stdinToOut map[string]string
 	// runErr が non-nil なら Execute がエラーを返す。
@@ -83,12 +83,12 @@ type fakeExecutor struct {
 	failExit map[string]int
 }
 
-func (f *fakeExecutor) Execute(_ context.Context, in usecase.ExecuteCodeInput) (*usecase.ExecuteCodeOutput, error) {
+func (f *fakeExecutor) Execute(_ context.Context, in domain.CodeExecutionInput) (*domain.CodeExecutionResult, error) {
 	if f.runErr != nil {
 		return nil, f.runErr
 	}
 	f.calls = append(f.calls, in)
-	out := &usecase.ExecuteCodeOutput{Stdout: f.stdinToOut[in.Stdin]}
+	out := &domain.CodeExecutionResult{Stdout: f.stdinToOut[in.Stdin]}
 	if code, ok := f.failExit[in.Stdin]; ok {
 		out.ExitCode = code
 		out.Stderr = "boom"
@@ -227,7 +227,7 @@ func TestSubmitMasterExercise_NoExamples_FallbackToExerciseExpected(t *testing.T
 	assert.Equal(t, "bash", executor.calls[0].Language)
 }
 
-// SubmitMasterExerciseUseCase が exercise.Language を ExecuteCodeInput に正しく渡しているか。
+// SubmitMasterExerciseUseCase が exercise.Language を domain.CodeExecutionInput に正しく渡しているか。
 // 旧実装は "php" 固定だったため、 Go / bash / Linux 演習が正しく実行できない不具合があった。
 func TestSubmitMasterExercise_PassesExerciseLanguage(t *testing.T) {
 	exRepo := &fakeMasterExerciseRepo{

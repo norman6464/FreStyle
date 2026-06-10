@@ -43,6 +43,12 @@ describe('ExerciseRepository', () => {
     expect(mockedPost).toHaveBeenCalledWith('/api/v2/code/execute', { code: '<?php echo "ok";', language: 'php' });
   });
 
+  it('warmup: 言語を指定して実行環境を温める', async () => {
+    mockedPost.mockResolvedValue({ data: { ready: true } });
+    await ExerciseRepository.warmup('go');
+    expect(mockedPost).toHaveBeenCalledWith('/api/v2/code/warmup', { language: 'go' });
+  });
+
   it('submit: コードを提出する', async () => {
     mockedPost.mockResolvedValue({ data: { submissionId: 1, isCorrect: true, results: [] } });
     const out = await ExerciseRepository.submit('php-1', '<?php');

@@ -165,6 +165,7 @@ export const EXERCISES = {
 
 export const CODE = {
   execute: `${API_V2}/code/execute`,
+  warmup: `${API_V2}/code/warmup`,
 } as const;
 
 /** コース（company_admin が作成、 自社 trainee + 同社 admin が閲覧）*/

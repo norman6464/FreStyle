@@ -7,6 +7,7 @@ vi.mock('../../repositories/ExerciseRepository', () => ({
   default: {
     getDetail: vi.fn(),
     execute: vi.fn(),
+    warmup: vi.fn(),
     submit: vi.fn(),
     listSubmissions: vi.fn(),
   },
@@ -25,6 +26,7 @@ describe('useExerciseDetail', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.listSubmissions.mockResolvedValue([]);
+    mocks.warmup.mockResolvedValue(undefined);
   });
 
   it('slug を渡すと detail と starterCode をロードする', async () => {
@@ -34,6 +36,14 @@ describe('useExerciseDetail', () => {
     expect(result.current.detail?.exercise.slug).toBe('php-1');
     expect(result.current.code).toBe('<?php echo "hi";');
     expect(mocks.listSubmissions).toHaveBeenCalledWith('php-1');
+  });
+
+  it('入場時に exercise の言語で warmup を呼び warmupReady を立てる', async () => {
+    mocks.getDetail.mockResolvedValue({ exercise: baseExercise, examples: [] });
+    const { result } = renderHook(() => useExerciseDetail('php-1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(mocks.warmup).toHaveBeenCalledWith('php');
+    await waitFor(() => expect(result.current.warmupReady).toBe(true));
   });
 
   it('runCode は実行結果を保存する', async () => {

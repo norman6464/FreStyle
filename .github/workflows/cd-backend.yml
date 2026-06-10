@@ -51,6 +51,13 @@ permissions:
   id-token: write
   contents: read
 
+# 同時実行を直列化する。mutable タグ(:latest / :coderunner-latest)への push と
+# cfn-deploy/force-new-deployment が並行 run で競合し、意図しないイメージが反映されるのを防ぐ。
+# 進行中の deploy は中断しない(cancel-in-progress: false)。後続 run は待機して順に実行する。
+concurrency:
+  group: cd-backend-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   guard:
     name: Confirm input (workflow_dispatch only)
@@ -114,6 +121,21 @@ jobs:
           docker image tag temp_api_image_name:latest $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}
+
+      # コード実行サイドカー(code-runner)のイメージを同じ ECR リポに coderunner-* タグで push する。
+      # ECS タスク定義(infra ecs.yml)が CodeRunnerImage=...:coderunner-latest を参照する。
+      # 同一 run の後続 cfn-deploy より前に push されるため、サイドカー参照が解決できる(docs/36 §6)。
+      - name: Build & push code-runner image
+        working-directory: backend
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ secrets.AWS_ECR_API_SERVER_REPOSITORY }}
+        run: |
+          docker buildx build --platform linux/amd64 \
+            -f Dockerfile.coderunner \
+            -t "$ECR_REGISTRY/$ECR_REPOSITORY:coderunner-latest" \
+            -t "$ECR_REGISTRY/$ECR_REPOSITORY:coderunner-${{ github.sha }}" \
+            --push .
 
   cfn-deploy:
     name: CloudFormation Deploy (ECS Stack)

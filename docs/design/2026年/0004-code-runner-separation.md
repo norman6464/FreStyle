@@ -152,10 +152,14 @@ GET  /healthz （200 = 実行可能）
 
 `CODE_RUNNER_URL` 未設定が既定なので、本番は当面 in-process（現行と同挙動・同イメージ）。runtime の切替・イメージ分離は Phase 2 / 3 で行う。
 
-### Phase 2（infra・未着手）
+### Phase 2（infra・実装/本番反映済み）
 
-ECS タスク定義に runner サイドカー（`Dockerfile.coderunner`、`essential:false`）を追加し、backend に `CODE_RUNNER_URL=http://127.0.0.1:9000` を注入。CI で 2 イメージを build/push。コールドスタートを実測。
+ECS タスク定義に runner サイドカー（`Dockerfile.coderunner`、`essential:false`）を追加し、backend に `CODE_RUNNER_URL=http://127.0.0.1:9000` を注入。CI で 2 イメージを build/push。`Memory` 512→1024（runner の go コンパイル用）。**本番反映済み（task def rev78 / 2 コンテナ RUNNING / health 200）**。infra PR norman6464/frestyle-infrastructure#146 / app CD PR #1945。
 
-### Phase 3（distroless 化・未着手）
+### Phase 3（distroless 化・実装済み）
 
-Phase 2 で HTTP 経路が安定したら、`backend/Dockerfile` を distroless（go/php を含まない）に絞り API イメージを ~60MB 化する。
+`backend/Dockerfile` の runtime を `golang:1.26-bookworm`（+php）から **`gcr.io/distroless/static-debian12:nonroot`** に変更し、純静的 Go バイナリのみを載せた。ローカル build で **約 18.8MB**（330MB から大幅縮小、目標 ~60MB を下回る）。
+
+- **重要な不変条件**: distroless backend は go/php を含まないため **`CODE_RUNNER_URL` 必須**（in-process フォールバックは効かない）。本番 ECS は ecs.yml で注入済み。ローカル開発は Docker イメージではなく `go run ./cmd/server` を使うため影響なし
+- distroless は ca-certificates / tzdata / nonroot(65532) 同梱で HTTPS 呼び出し可
+- コールドスタート効果（軽い backend が runner pull 完了前に起動・ALB 登録できるか）は次回の夜間 teardown→朝の start で実測する（docs/36 の「要実証」）

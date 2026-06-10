@@ -115,6 +115,21 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}
 
+      # コード実行サイドカー(code-runner)のイメージを同じ ECR リポに coderunner-* タグで push する。
+      # ECS タスク定義(infra ecs.yml)が CodeRunnerImage=...:coderunner-latest を参照する。
+      # 同一 run の後続 cfn-deploy より前に push されるため、サイドカー参照が解決できる(docs/36 §6)。
+      - name: Build & push code-runner image
+        working-directory: backend
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ secrets.AWS_ECR_API_SERVER_REPOSITORY }}
+        run: |
+          docker buildx build --platform linux/amd64 \
+            -f Dockerfile.coderunner \
+            -t "$ECR_REGISTRY/$ECR_REPOSITORY:coderunner-latest" \
+            -t "$ECR_REGISTRY/$ECR_REPOSITORY:coderunner-${{ github.sha }}" \
+            --push .
+
   cfn-deploy:
     name: CloudFormation Deploy (ECS Stack)
     runs-on: ubuntu-latest

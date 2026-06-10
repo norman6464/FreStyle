@@ -23,6 +23,12 @@ env:
 permissions:
   contents: read
 
+# 同時実行を直列化する。並行 deploy が s3 sync --delete + CloudFront 無効化で競合し、
+# index.html が存在しないチャンクを参照して 404(MIME text/html) になる事故を防ぐ。
+concurrency:
+  group: cd-frontend-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   guard:
     name: Confirm input (workflow_dispatch only)
@@ -81,8 +87,21 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Sync to S3
-        run: aws s3 sync dist/ s3://fre-style-bucket --delete
+      # 1) ハッシュ付きアセットは内容不変なので immutable + 長期キャッシュで配信する。
+      #    index.html は別ステップで no-cache にするため、ここでは除外する。
+      - name: Sync hashed assets to S3 (immutable, long cache)
+        run: |
+          aws s3 sync dist/ s3://fre-style-bucket --delete \
+            --cache-control "public, max-age=31536000, immutable" \
+            --exclude "index.html"
+
+      # 2) index.html は no-cache。これがないと古い index.html がブラウザにキャッシュされ、
+      #    次デプロイの --delete で消えた旧チャンクを参照して 404(MIME text/html)になる。
+      - name: Upload index.html (no-cache)
+        run: |
+          aws s3 cp dist/index.html s3://fre-style-bucket/index.html \
+            --cache-control "no-cache, must-revalidate" \
+            --content-type "text/html; charset=utf-8"
 
       - name: Invalidate CloudFront cache
         run: |

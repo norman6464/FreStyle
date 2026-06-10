@@ -28,6 +28,8 @@ interface CodeEditorProps {
   minHeight?: number;
   /** autoGrow 時の最大高さ (px)。 巨大入力で 画面を埋め尽くさないための上限。 */
   maxHeight?: number;
+  /** Ctrl+Enter / Cmd+Enter で呼ばれる実行ハンドラ（コード実行ショートカット）。 */
+  onRun?: () => void;
 }
 
 // Monaco の setValue / create({value}) は引数が string でない場合 "Illegal argument" を throw する。
@@ -47,11 +49,15 @@ export default function CodeEditor({
   autoGrow = true,
   minHeight = 240,
   maxHeight = 2000,
+  onRun,
 }: CodeEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  // 最新の onRun を ref で保持し、エディタ再生成なしにショートカットから呼べるようにする。
+  const onRunRef = useRef(onRun);
+  onRunRef.current = onRun;
 
   // autoGrow=true のときの 動的 height (px)。
   const [autoHeight, setAutoHeight] = useState<number>(minHeight);
@@ -81,6 +87,11 @@ export default function CodeEditor({
       },
     });
     editorRef.current = editor;
+
+    // Ctrl+Enter / Cmd+Enter でコードを実行する（CtrlCmd は Win/Linux=Ctrl, Mac=Cmd）。
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
+      onRunRef.current?.();
+    });
 
     const sub = editor.onDidChangeModelContent(() => {
       onChangeRef.current(editor.getValue());

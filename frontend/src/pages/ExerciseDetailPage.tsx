@@ -1,6 +1,6 @@
 import { Suspense, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { ChevronDownIcon, ChevronUpIcon, ClipboardDocumentCheckIcon } from '@heroicons/react/24/outline';
+import { CheckCircleIcon, ChevronDownIcon, ChevronUpIcon, ClipboardDocumentCheckIcon } from '@heroicons/react/24/outline';
 import Loading from '../components/Loading';
 import BackLink from '../components/exercise/BackLink';
 import ExerciseHeader from '../components/exercise/ExerciseHeader';
@@ -9,6 +9,7 @@ import ExecutionResultTable from '../components/exercise/ExecutionResultTable';
 import SubmitResultPanel from '../components/exercise/SubmitResultPanel';
 import SubmissionRow from '../components/exercise/SubmissionRow';
 import QaExerciseView from '../components/exercise/QaExerciseView';
+import MarkdownView from '../components/message/MarkdownView';
 import { useExerciseDetail } from '../hooks/useExerciseDetail';
 import { lazyWithReload } from '../utils/lazyWithReload';
 import { monacoLanguageOf } from '../utils/exerciseFormat';
@@ -65,6 +66,9 @@ export default function ExerciseDetailPage() {
   }
 
   const ex = detail.exercise;
+  // 正解済みなら提出はもう不可（正解するまでのみ提出できる）。今回の提出 or 過去履歴に
+  // 正解があれば solved とみなす。
+  const solved = !!submitResult?.isCorrect || submissions.some((s) => s.isCorrect);
 
   if (ex.mode === 'qa') {
     return (
@@ -92,9 +96,9 @@ export default function ExerciseDetailPage() {
             <span aria-hidden>📃</span>
             下記の問題をプログラミングしてみよう！
           </h2>
-          <p className="text-sm text-[var(--color-text-primary)] whitespace-pre-wrap leading-relaxed">
-            {ex.description}
-          </p>
+          <div className="prose prose-sm max-w-none text-sm text-[var(--color-text-primary)] leading-relaxed">
+            <MarkdownView content={ex.description} />
+          </div>
         </div>
 
         <div className="text-xs text-primary-400">
@@ -189,6 +193,7 @@ export default function ExerciseDetailPage() {
               onChange={setCode}
               language={monacoLanguageOf(ex.language)}
               minHeight={260}
+              onRun={runCode}
             />
           </Suspense>
         </div>
@@ -196,9 +201,11 @@ export default function ExerciseDetailPage() {
           <button
             onClick={runCode}
             disabled={running || submitting}
-            className="w-full px-4 py-2 rounded-md bg-blue-500/80 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-medium transition-colors"
+            title="Ctrl+Enter (Mac は Cmd+Enter) でも実行できます"
+            className="w-full px-4 py-2 rounded-md bg-blue-500/80 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-medium transition-colors inline-flex items-center justify-center gap-2"
           >
             {running ? '実行中...' : 'コード実行'}
+            <kbd className="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded bg-white/20 font-mono">⌘/Ctrl + ↵</kbd>
           </button>
         </div>
       </section>
@@ -219,17 +226,30 @@ export default function ExerciseDetailPage() {
       {/* 採点結果（提出後） */}
       {submitResult && <SubmitResultPanel results={submitResult.results} />}
 
-      {/* 提出ボタン: 中央寄せ・控えめなトーン・横幅は max-w-sm */}
-      <div className="flex justify-center">
-        <button
-          onClick={submitCode}
-          disabled={running || submitting}
-          className="w-full max-w-sm flex items-center justify-center gap-2 px-6 py-2.5 rounded-md bg-amber-700/70 hover:bg-amber-700/90 disabled:opacity-50 text-white text-sm font-semibold transition-colors"
-        >
-          <ClipboardDocumentCheckIcon className="w-4 h-4" />
-          {submitting ? '採点中...' : 'コードを提出する'}
-        </button>
-      </div>
+      {/* 提出ボタン: 中央寄せ・控えめなトーン・横幅は max-w-sm。
+          正解済みは提出をロックする（正解するまでのみ提出できる）。 */}
+      {solved ? (
+        <div className="flex justify-center">
+          <p
+            role="status"
+            className="w-full max-w-sm flex items-center justify-center gap-2 px-6 py-2.5 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm font-semibold"
+          >
+            <CheckCircleIcon className="w-4 h-4" />
+            正解済みです（提出は正解するまで）
+          </p>
+        </div>
+      ) : (
+        <div className="flex justify-center">
+          <button
+            onClick={submitCode}
+            disabled={running || submitting}
+            className="w-full max-w-sm flex items-center justify-center gap-2 px-6 py-2.5 rounded-md bg-amber-700/70 hover:bg-amber-700/90 disabled:opacity-50 text-white text-sm font-semibold transition-colors"
+          >
+            <ClipboardDocumentCheckIcon className="w-4 h-4" />
+            {submitting ? '採点中...' : 'コードを提出する'}
+          </button>
+        </div>
+      )}
 
       {/* 提出履歴 */}
       {submissions.length > 0 && (

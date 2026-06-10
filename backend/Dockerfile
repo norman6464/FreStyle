@@ -23,6 +23,9 @@ FROM gcr.io/distroless/static-debian12:nonroot
 
 COPY --from=builder /out/server /server
 
+# distroless:nonroot は既定 user が nonroot(65532) だが、trivy DS-0002 対策に明示する。
+USER nonroot:nonroot
+
 EXPOSE 8080
 
 ENTRYPOINT ["/server"]

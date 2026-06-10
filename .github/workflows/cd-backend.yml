@@ -51,6 +51,13 @@ permissions:
   id-token: write
   contents: read
 
+# 同時実行を直列化する。mutable タグ(:latest / :coderunner-latest)への push と
+# cfn-deploy/force-new-deployment が並行 run で競合し、意図しないイメージが反映されるのを防ぐ。
+# 進行中の deploy は中断しない(cancel-in-progress: false)。後続 run は待機して順に実行する。
+concurrency:
+  group: cd-backend-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   guard:
     name: Confirm input (workflow_dispatch only)

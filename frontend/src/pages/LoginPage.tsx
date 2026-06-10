@@ -6,7 +6,7 @@ import SNSSignInButton from '../components/SNSSignInButton';
 import LinkText from '../components/LinkText';
 import { getCognitoAuthUrl } from '../utils/auth';
 import { useLoginPage } from '../hooks/useLoginPage';
-import { XCircleIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { CheckCircleIcon } from '@heroicons/react/24/outline';
 
 export default function LoginPage() {
   const { form, loginMessage, flashMessage, loading, handleLogin, handleChange } = useLoginPage();
@@ -28,9 +28,8 @@ export default function LoginPage() {
       {loginMessage?.type === 'error' && (
         <p
           role="alert"
-          className="mb-4 flex items-center justify-center gap-1 rounded-lg border border-rose-200 bg-rose-50 p-3 text-center font-medium text-rose-700"
+          className="mb-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-center font-medium text-rose-700"
         >
-          <XCircleIcon className="h-4 w-4" aria-hidden="true" />
           {loginMessage.text}
         </p>
       )}

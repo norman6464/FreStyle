@@ -197,7 +197,7 @@ func seedMasterExercises(db *gorm.DB) error {
 // 明示 ID の seed 後に呼び、autoIncrement insert の PK 衝突を防ぐ（Postgres のみ）。
 // 第 3 引数 is_called=(MAX(id) IS NOT NULL) で、空テーブルでも次の採番が 1 になるよう扱う。
 func resetMasterExerciseSeq(db *gorm.DB) error {
-	if db.Dialector.Name() != "postgres" {
+	if db.Name() != "postgres" {
 		return nil
 	}
 	return db.Exec(

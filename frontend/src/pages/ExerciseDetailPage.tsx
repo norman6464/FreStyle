@@ -189,6 +189,7 @@ export default function ExerciseDetailPage() {
               onChange={setCode}
               language={monacoLanguageOf(ex.language)}
               minHeight={260}
+              onRun={runCode}
             />
           </Suspense>
         </div>
@@ -196,9 +197,11 @@ export default function ExerciseDetailPage() {
           <button
             onClick={runCode}
             disabled={running || submitting}
-            className="w-full px-4 py-2 rounded-md bg-blue-500/80 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-medium transition-colors"
+            title="Ctrl+Enter (Mac は Cmd+Enter) でも実行できます"
+            className="w-full px-4 py-2 rounded-md bg-blue-500/80 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-medium transition-colors inline-flex items-center justify-center gap-2"
           >
             {running ? '実行中...' : 'コード実行'}
+            <kbd className="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded bg-white/20 font-mono">⌘/Ctrl + ↵</kbd>
           </button>
         </div>
       </section>

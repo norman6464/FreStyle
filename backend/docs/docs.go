@@ -1021,7 +1021,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "trainee が 書いた コード を サーバ 側 sandbox で 実行 し stdout/stderr/exitCode を 返す。 language は php / go / bash / java。",
+                "description": "trainee が 書いた コード を サーバ 側 sandbox で 実行 し stdout/stderr/exitCode を 返す。 language は php / go / bash。",
                 "consumes": [
                     "application/json"
                 ],

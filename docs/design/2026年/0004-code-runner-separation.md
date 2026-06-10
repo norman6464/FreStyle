@@ -56,7 +56,7 @@ issue: norman6464/FreStyle#NN
                         │              └ CodeRunner port(interface)
                         │                   └ infra coderunner.HTTPClient
                         ▼ POST http://127.0.0.1:9000/run （内部のみ）
-                   [code-runner container]  golang+php+jdk ~474MB
+                   [code-runner container]  golang+php（JDK 撤去で縮小、実測は Phase 2）
                         └ os/exec で php / go run / bash を実行
                           （AWS 認証情報・DB secret を一切持たない env）
 ```
@@ -126,7 +126,7 @@ GET  /healthz （200 = 実行可能）
 - **監視・ログ**: runner コンテナの stdout を CloudWatch Logs に分離。`/healthz` を CloudWatch アラーム対象に追加検討
 - **セキュリティ**: runner コンテナには DB/Cognito/AWS の env を**注入しない**。`sandboxEnv` による env フィルタは引き続き多層防御として残す。ネットワークは `127.0.0.1` のみ（サイドカー）で外部到達不可
 - **パフォーマンス**: 目標はコールドスタート時の API 応答開始までの短縮。Phase 2 で「pull → ALB healthy までの秒数」を slim 化前後で計測する
-- **移行・リリース計画**: Phase 1（本体: port 化 + runner バイナリ + 2 Dockerfile、機能は単一タスク内で完結）→ Phase 2（infra: タスク定義サイドカー化 + 計測、ユーザー GO で実反映）。ロールバックは ECS タスク定義 revision を戻すだけ（旧 474MB 単一イメージへ即復帰可）
+- **移行・リリース計画**: Phase 1（本体: port 化 + runner バイナリ + 2 Dockerfile、機能は単一タスク内で完結）→ Phase 2（infra: タスク定義サイドカー化 + 計測、ユーザー GO で実反映）。ロールバックは ECS タスク定義 revision を戻すだけ（分離前の単一イメージへ即復帰可）
 
 ## 7. テストプラン
 

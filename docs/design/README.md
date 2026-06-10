@@ -74,6 +74,7 @@ doc を追加・更新したら **`python3 docs/design/_scripts/build_index.py`*
 | [0001](2026年/0001-trainee-ai-agent-toggle.md) | trainee 向け AI エージェント機能の利用可否トグル | backend | approved | 2026-06-08 |
 | [0002](2026年/0002-backend-java-to-go-revert.md) | バックエンドを Java(Spring Boot) から Go へ差し戻す | backend | approved | 2026-06-09 |
 | [0003](2026年/0003-brand-color-buttons.md) | ブランドカラー（青）でアクションボタンを統一 | frontend | approved | 2026-06-09 |
+| [0004](2026年/0004-code-runner-separation.md) | コード実行サンドボックスを backend から分離してイメージを軽量化 | infra | reviewing | 2026-06-10 |
 <!-- INDEX:END -->
 
 ## テンプレート

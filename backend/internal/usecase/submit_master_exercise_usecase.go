@@ -205,9 +205,15 @@ func (uc *SubmitMasterExerciseUseCase) submitQA(ctx context.Context, in SubmitMa
 	}, nil
 }
 
-// normalizeOutput は CRLF/CR を LF に統一し末尾の改行・空白を除去する（行内の空白は厳密一致）。
+// normalizeOutput は CRLF/CR を LF に統一し、各行末と出力全体末尾の空白・改行を除去する。
+// 学習者に見えない行末の空白（例: `fmt.Printf("%d \n")` の余分なスペース）で不合格にしない
+// ため、行内（先頭側）の空白は保持しつつ行末の空白/タブだけを落とす。
 func normalizeOutput(s string) string {
 	s = strings.ReplaceAll(s, "\r\n", "\n")
 	s = strings.ReplaceAll(s, "\r", "\n")
-	return strings.TrimRight(s, " \t\n")
+	lines := strings.Split(s, "\n")
+	for i, line := range lines {
+		lines[i] = strings.TrimRight(line, " \t")
+	}
+	return strings.TrimRight(strings.Join(lines, "\n"), " \t\n")
 }

@@ -1,9 +1,11 @@
 ---
-status: reviewing
+status: approved
 area: infra
 date: 2026-06-10
 issue: norman6464/FreStyle#NN
 ---
+
+> **決定（2026-06-10）**: デプロイ構成は **A. 同一タスク内サイドカー（runner=`essential:false`、コスト増なし）** を採用。Phase 1（本体コード分離）→ Phase 2（infra サイドカー化 + コールドスタート実測、ユーザー GO で実反映）の順で進める。
 
 # 0004 コード実行サンドボックスを backend から分離してイメージを軽量化
 

@@ -24,6 +24,8 @@ export function useExerciseDetail(slug: string | undefined) {
 
   const [running, setRunning] = useState(false);
   const [executionResult, setExecutionResult] = useState<CodeExecutionResult | null>(null);
+  // エディタ入場時の事前ウォームアップが完了したか（UI に「実行環境 準備完了」を出す用）。
+  const [warmupReady, setWarmupReady] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [submitResult, setSubmitResult] = useState<ExerciseSubmitResult | null>(null);
@@ -52,11 +54,21 @@ export function useExerciseDetail(slug: string | undefined) {
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setWarmupReady(false);
     ExerciseRepository.getDetail(slug)
       .then((d) => {
         if (cancelled) return;
         setDetail(d);
         setCode(d.exercise.starterCode ?? '');
+        // 言語が確定した時点で実行環境を warm にしておく（最初の Run を即時化）。
+        // 失敗してもエディタは使えるので fire-and-forget の silent fail 扱い。
+        ExerciseRepository.warmup(d.exercise.language)
+          .then(() => {
+            if (!cancelled) setWarmupReady(true);
+          })
+          .catch(() => {
+            /* warmup 失敗は無視（実行自体は可能） */
+          });
       })
       .catch(() => {
         if (!cancelled) setError('演習問題の取得に失敗しました');
@@ -121,6 +133,7 @@ export function useExerciseDetail(slug: string | undefined) {
     error,
     running,
     executionResult,
+    warmupReady,
     submitting,
     submitResult,
     submitError,

@@ -40,6 +40,7 @@ export default function ExerciseDetailPage() {
     error,
     running,
     executionResult,
+    warmupReady,
     submitting,
     submitResult,
     submitError,
@@ -171,6 +172,12 @@ export default function ExerciseDetailPage() {
             <span className="text-xs px-2 py-0.5 rounded bg-surface-3 text-[var(--color-text-muted)] font-mono uppercase">
               {ex.language}
             </span>
+            {warmupReady && (
+              <span className="text-xs px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 inline-flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" aria-hidden />
+                実行環境 準備完了
+              </span>
+            )}
           </div>
         </div>
         <div className="bg-[#1e1e1e]">

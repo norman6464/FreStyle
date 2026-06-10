@@ -133,3 +133,29 @@ GET  /healthz （200 = 実行可能）
 - **ユニット**: `ExecuteCodeUseCase` を fake `CodeRunner` でモックし、言語ルーティング / バリデーション / 503 ハンドリングを検証
 - **結合**: runner パッケージのサンドボックス実行テスト（現 `execute_code_usecase_test.go` / `execute_code_sandbox_test.go` を runner 側へ移送）。php/go/bash の stdout/exitCode、timeout、secret 非漏洩（sandboxEnv）を担保
 - **手動・本番検証**: Phase 2 で「夜間 teardown → 朝のコールドスタート」を実測し、`/api/v2/health` 200 までの時間が短縮されたことを確認。演習画面で各言語の Run が成功することを確認
+
+## 8. 実装状況
+
+### Phase 1（アプリコード分離・挙動不変）— 実装済み
+
+| 役割 | 配置 |
+|---|---|
+| 境界の値型 | `backend/internal/domain/code_execution.go`（`CodeExecutionInput` / `CodeExecutionResult`） |
+| port（usecase が依存する抽象） | `backend/internal/usecase/execute_code_usecase.go` の `CodeRunner` interface（`Run` + `Warmup`） |
+| in-process 実装（os/exec サンドボックス） | `backend/internal/infra/sandbox/runner.go`（php / go / bash） |
+| HTTP クライアント（サイドカー委譲） | `backend/internal/infra/coderunner/client.go` |
+| runner サーバ（別バイナリ） | `backend/cmd/coderunner/main.go`（`POST /run` / `POST /warmup` / `GET /healthz`） |
+| warmup usecase / handler | `WarmupCodeUseCase` + `POST /api/v2/code/warmup` |
+| 実行系の選択 | `routes_exercises.go` が `CODE_RUNNER_URL` の有無で `coderunner.Client`（HTTP）か `sandbox.Runner`（in-process）を注入 |
+| frontend warmup | `useExerciseDetail` が detail ロード時に `ExerciseRepository.warmup(language)` を fire-and-forget、`warmupReady` で「実行環境 準備完了」を表示 |
+| runner イメージ | `backend/Dockerfile.coderunner`（golang+php、Phase 2 で CI が build） |
+
+`CODE_RUNNER_URL` 未設定が既定なので、本番は当面 in-process（現行と同挙動・同イメージ）。runtime の切替・イメージ分離は Phase 2 / 3 で行う。
+
+### Phase 2（infra・未着手）
+
+ECS タスク定義に runner サイドカー（`Dockerfile.coderunner`、`essential:false`）を追加し、backend に `CODE_RUNNER_URL=http://127.0.0.1:9000` を注入。CI で 2 イメージを build/push。コールドスタートを実測。
+
+### Phase 3（distroless 化・未着手）
+
+Phase 2 で HTTP 経路が安定したら、`backend/Dockerfile` を distroless（go/php を含まない）に絞り API イメージを ~60MB 化する。

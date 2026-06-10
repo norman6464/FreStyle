@@ -12,7 +12,7 @@ import (
 
 // CodeExecutor は ExecuteCodeUseCase を抽象化し、usecase 同士の直接依存を避ける。
 type CodeExecutor interface {
-	Execute(ctx context.Context, in ExecuteCodeInput) (*ExecuteCodeOutput, error)
+	Execute(ctx context.Context, in domain.CodeExecutionInput) (*domain.CodeExecutionResult, error)
 }
 
 // SubmitMasterExerciseInput は提出 API への入力。
@@ -113,7 +113,7 @@ func (uc *SubmitMasterExerciseUseCase) Execute(ctx context.Context, in SubmitMas
 	var representativeExit int
 
 	for _, tc := range examples {
-		out, err := uc.executor.Execute(ctx, ExecuteCodeInput{
+		out, err := uc.executor.Execute(ctx, domain.CodeExecutionInput{
 			Code:     in.Code,
 			Language: ex.Language,
 			Stdin:    tc.InputText,

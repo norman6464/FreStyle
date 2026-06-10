@@ -68,6 +68,15 @@ definitions:
       sizeBytes:
         type: integer
     type: object
+  github_com_norman6464_FreStyle_backend_internal_domain.CodeExecutionResult:
+    properties:
+      exitCode:
+        type: integer
+      stderr:
+        type: string
+      stdout:
+        type: string
+    type: object
   github_com_norman6464_FreStyle_backend_internal_domain.Company:
     properties:
       aiChatEnabledForTrainees:
@@ -373,15 +382,6 @@ definitions:
       url:
         type: string
     type: object
-  github_com_norman6464_FreStyle_backend_internal_usecase.ExecuteCodeOutput:
-    properties:
-      exitCode:
-        type: integer
-      stderr:
-        type: string
-      stdout:
-        type: string
-    type: object
   github_com_norman6464_FreStyle_backend_internal_usecase.GetMasterExerciseDetailOutput:
     properties:
       examples:
@@ -494,6 +494,18 @@ definitions:
         type: string
     required:
     - code
+    type: object
+  internal_handler.codeWarmupRequest:
+    properties:
+      language:
+        type: string
+    required:
+    - language
+    type: object
+  internal_handler.codeWarmupResponse:
+    properties:
+      ready:
+        type: boolean
     type: object
   internal_handler.cognitoCallbackReq:
     properties:
@@ -1475,7 +1487,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase.ExecuteCodeOutput'
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.CodeExecutionResult'
         "400":
           description: バリデーション or 実行 失敗
           schema:
@@ -1487,6 +1499,39 @@ paths:
       security:
       - CookieAuth: []
       summary: コード サンドボックス 実行
+      tags:
+      - code-execution
+  /code/warmup:
+    post:
+      consumes:
+      - application/json
+      description: コードエディタ 入場 時 に 呼び、 指定 言語 の 実行 環境 を 事前 に 温める（Go は コンパイル キャッシュ、 php/bash
+        は no-op）。 実行時 に 起動 する のではなく、 入場 時 に warm に する。
+      parameters:
+      - description: 言語
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.codeWarmupRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handler.codeWarmupResponse'
+        "400":
+          description: バリデーション 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 実行環境 ウォームアップ
       tags:
       - code-execution
   /company-applications:

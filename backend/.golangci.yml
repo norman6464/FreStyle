@@ -27,10 +27,10 @@ linters:
     - unconvert
   exclusions:
     rules:
-      # サンドボックス(execute_code_usecase)はユーザコードを意図的に exec する。
+      # サンドボックス(infra/sandbox)はユーザコードを意図的に exec する。
       # 引数(filename/tmpDir)は内部生成で外部入力をそのまま渡していない。G204 は
       # このファイルに限定して除外し、他箇所の危険な exec は検出を維持する。
-      - path: internal/usecase/execute_code_usecase\.go
+      - path: internal/infra/sandbox/runner\.go
         linters:
           - gosec
         text: 'G204'

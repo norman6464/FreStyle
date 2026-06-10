@@ -1047,11 +1047,62 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase.ExecuteCodeOutput"
+                            "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.CodeExecutionResult"
                         }
                     },
                     "400": {
                         "description": "バリデーション or 実行 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/code/warmup": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "コードエディタ 入場 時 に 呼び、 指定 言語 の 実行 環境 を 事前 に 温める（Go は コンパイル キャッシュ、 php/bash は no-op）。 実行時 に 起動 する のではなく、 入場 時 に warm に する。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "code-execution"
+                ],
+                "summary": "実行環境 ウォームアップ",
+                "parameters": [
+                    {
+                        "description": "言語",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.codeWarmupRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.codeWarmupResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "バリデーション 失敗",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -3168,6 +3219,20 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_norman6464_FreStyle_backend_internal_domain.CodeExecutionResult": {
+            "type": "object",
+            "properties": {
+                "exitCode": {
+                    "type": "integer"
+                },
+                "stderr": {
+                    "type": "string"
+                },
+                "stdout": {
+                    "type": "string"
+                }
+            }
+        },
         "github_com_norman6464_FreStyle_backend_internal_domain.Company": {
             "type": "object",
             "properties": {
@@ -3623,20 +3688,6 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_norman6464_FreStyle_backend_internal_usecase.ExecuteCodeOutput": {
-            "type": "object",
-            "properties": {
-                "exitCode": {
-                    "type": "integer"
-                },
-                "stderr": {
-                    "type": "string"
-                },
-                "stdout": {
-                    "type": "string"
-                }
-            }
-        },
         "github_com_norman6464_FreStyle_backend_internal_usecase.GetMasterExerciseDetailOutput": {
             "type": "object",
             "properties": {
@@ -3805,6 +3856,25 @@ const docTemplate = `{
                 },
                 "language": {
                     "type": "string"
+                }
+            }
+        },
+        "internal_handler.codeWarmupRequest": {
+            "type": "object",
+            "required": [
+                "language"
+            ],
+            "properties": {
+                "language": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.codeWarmupResponse": {
+            "type": "object",
+            "properties": {
+                "ready": {
+                    "type": "boolean"
                 }
             }
         },

@@ -913,13 +913,113 @@
                 }
             }
         },
-        "/auth/cognito/callback": {
+        "/auth/cognito/login": {
+            "post": {
+                "description": "email / password を Cognito の USER_PASSWORD_AUTH で 検証 し、 access / refresh token を HttpOnly Cookie で 返す。 新規 user は 招待 or Cognito admin group 必須。",
+                "tags": [
+                    "auth"
+                ],
+                "summary": "ログイン (メール / パスワード)",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_handler.passwordLoginReq"
+                            }
+                        }
+                    },
+                    "description": "メール / パスワード",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.messageResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "入力 不正 (email 形式 / password 欠落)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "資格 情報 誤り",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "招待 なし の 新規 user",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "レート制限超過",
+                        "headers": {
+                            "Retry-After": {
+                                "description": "再試行までの秒数 (例: 60)",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "内部 エラー (Cognito 未 設定 / DB 失敗 等)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "502": {
+                        "description": "Cognito 到達 不可",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/login": {
             "post": {
                 "description": "Cognito Hosted UI から の callback。 authorization code を access / refresh / id token に 交換 し HttpOnly Cookie で 返す。 新規 user は 招待 or Cognito admin group 必須。",
                 "tags": [
                     "auth"
                 ],
-                "summary": "Cognito callback (認可 コード → token 交換)",
+                "summary": "ログイン (認可 コード → token 交換)",
                 "requestBody": {
                     "content": {
                         "application/json": {
@@ -1013,7 +1113,7 @@
                 }
             }
         },
-        "/auth/cognito/logout": {
+        "/auth/logout": {
             "post": {
                 "description": "HttpOnly Cookie の access / refresh token を 消去 する。 Cognito 側 の セッション は 別途 hosted UI で 切る。",
                 "tags": [
@@ -1027,65 +1127,6 @@
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/internal_handler.messageResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/auth/cognito/refresh-token": {
-            "post": {
-                "description": "refresh_token Cookie で access_token を 再 発行 し HttpOnly Cookie に セット する。 失敗 (refresh 切れ 等) は 401 で Cookie クリア。",
-                "tags": [
-                    "auth"
-                ],
-                "summary": "アクセス トークン リフレッシュ",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/internal_handler.messageResponse"
-                                }
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "refresh_token 欠落 / 無効",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "429": {
-                        "description": "レート制限超過",
-                        "headers": {
-                            "Retry-After": {
-                                "description": "再試行までの秒数 (例: 60)",
-                                "schema": {
-                                    "type": "string"
-                                }
-                            }
-                        },
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "502": {
-                        "description": "Cognito 到達 不可",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
                                 }
                             }
                         }
@@ -1149,6 +1190,65 @@
                 }
             }
         },
+        "/auth/refresh": {
+            "post": {
+                "description": "refresh_token Cookie で access_token を 再 発行 し HttpOnly Cookie に セット する。 失敗 (refresh 切れ 等) は 401 で Cookie クリア。",
+                "tags": [
+                    "auth"
+                ],
+                "summary": "アクセス トークン リフレッシュ",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.messageResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "refresh_token 欠落 / 無効",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "レート制限超過",
+                        "headers": {
+                            "Retry-After": {
+                                "description": "再試行までの秒数 (例: 60)",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "502": {
+                        "description": "Cognito 到達 不可",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/code/execute": {
             "post": {
                 "security": [
@@ -1156,7 +1256,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "trainee が 書いた コード を サーバ 側 sandbox で 実行 し stdout/stderr/exitCode を 返す。 language は php / go 等。",
+                "description": "trainee が 書いた コード を サーバ 側 sandbox で 実行 し stdout/stderr/exitCode を 返す。 language は php / go / bash。",
                 "tags": [
                     "code-execution"
                 ],
@@ -1178,13 +1278,70 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/github_com_norman6464_FreStyle_backend_internal_usecase.ExecuteCodeOutput"
+                                    "$ref": "#/components/schemas/github_com_norman6464_FreStyle_backend_internal_domain.CodeExecutionResult"
                                 }
                             }
                         }
                     },
                     "400": {
                         "description": "バリデーション or 実行 失敗",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/code/warmup": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "コードエディタ 入場 時 に 呼び、 指定 言語 の 実行 環境 を 事前 に 温める（Go は コンパイル キャッシュ、 php/bash は no-op）。 実行時 に 起動 する のではなく、 入場 時 に warm に する。",
+                "tags": [
+                    "code-execution"
+                ],
+                "summary": "実行環境 ウォームアップ",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_handler.codeWarmupRequest"
+                            }
+                        }
+                    },
+                    "description": "言語",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.codeWarmupResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "バリデーション 失敗",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -1265,6 +1422,137 @@
                     },
                     "500": {
                         "description": "内部エラー",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/company/settings": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "自社の trainee への AI チャット有効化フラグを返す。company_admin / super_admin のみ。",
+                "tags": [
+                    "company"
+                ],
+                "summary": "会社設定 取得 (AI 有効化)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.companySettingsResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "会社未所属",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "未認証",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "管理者以外",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "会社が存在しない",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "自社の trainee への AI チャット有効化フラグを更新する。company_admin / super_admin のみ。",
+                "tags": [
+                    "company"
+                ],
+                "summary": "会社設定 更新 (AI 有効化)",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/internal_handler.updateCompanySettingsRequest"
+                            }
+                        }
+                    },
+                    "description": "aiChatEnabledForTrainees",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.companySettingsResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "バリデーション / 会社未所属",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "未認証",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "管理者以外",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -3674,9 +3962,27 @@
                     }
                 }
             },
+            "github_com_norman6464_FreStyle_backend_internal_domain.CodeExecutionResult": {
+                "type": "object",
+                "properties": {
+                    "exitCode": {
+                        "type": "integer"
+                    },
+                    "stderr": {
+                        "type": "string"
+                    },
+                    "stdout": {
+                        "type": "string"
+                    }
+                }
+            },
             "github_com_norman6464_FreStyle_backend_internal_domain.Company": {
                 "type": "object",
                 "properties": {
+                    "aiChatEnabledForTrainees": {
+                        "description": "AiChatEnabledForTrainees は自社 trainee に AI チャットを許可するか（既定 true）。\ncompany_admin / super_admin が /company/settings で切り替える。AutoMigrate が列を追加する。",
+                        "type": "boolean"
+                    },
                     "createdAt": {
                         "type": "string"
                     },
@@ -4125,20 +4431,6 @@
                     }
                 }
             },
-            "github_com_norman6464_FreStyle_backend_internal_usecase.ExecuteCodeOutput": {
-                "type": "object",
-                "properties": {
-                    "exitCode": {
-                        "type": "integer"
-                    },
-                    "stderr": {
-                        "type": "string"
-                    },
-                    "stdout": {
-                        "type": "string"
-                    }
-                }
-            },
             "github_com_norman6464_FreStyle_backend_internal_usecase.GetMasterExerciseDetailOutput": {
                 "type": "object",
                 "properties": {
@@ -4310,6 +4602,25 @@
                     }
                 }
             },
+            "internal_handler.codeWarmupRequest": {
+                "type": "object",
+                "required": [
+                    "language"
+                ],
+                "properties": {
+                    "language": {
+                        "type": "string"
+                    }
+                }
+            },
+            "internal_handler.codeWarmupResponse": {
+                "type": "object",
+                "properties": {
+                    "ready": {
+                        "type": "boolean"
+                    }
+                }
+            },
             "internal_handler.cognitoCallbackReq": {
                 "type": "object",
                 "required": [
@@ -4322,6 +4633,14 @@
                     "invitationToken": {
                         "description": "InvitationToken は招待マジックリンク経由の UUID（任意）。指定時は email 検索より優先して照合する。",
                         "type": "string"
+                    }
+                }
+            },
+            "internal_handler.companySettingsResponse": {
+                "type": "object",
+                "properties": {
+                    "aiChatEnabledForTrainees": {
+                        "type": "boolean"
                     }
                 }
             },
@@ -4553,6 +4872,22 @@
                     }
                 }
             },
+            "internal_handler.passwordLoginReq": {
+                "type": "object",
+                "required": [
+                    "email",
+                    "password"
+                ],
+                "properties": {
+                    "email": {
+                        "type": "string",
+                        "format": "email"
+                    },
+                    "password": {
+                        "type": "string"
+                    }
+                }
+            },
             "internal_handler.requestReportReq": {
                 "type": "object",
                 "required": [
@@ -4682,6 +5017,18 @@
                 "properties": {
                     "status": {
                         "type": "string"
+                    }
+                }
+            },
+            "internal_handler.updateCompanySettingsRequest": {
+                "type": "object",
+                "required": [
+                    "aiChatEnabledForTrainees"
+                ],
+                "properties": {
+                    "aiChatEnabledForTrainees": {
+                        "description": "bool の必須を binding:\"required\" で表現すると false が弾かれるため、ポインタで「指定の有無」を判定する。",
+                        "type": "boolean"
                     }
                 }
             },

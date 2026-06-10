@@ -154,7 +154,13 @@ func (r *Runner) executeGo(ctx context.Context, input domain.CodeExecutionInput)
 		"HOME="+tmpDir,
 	)
 
-	return runCommand(cmd, input.Stdin)
+	out, err := runCommand(cmd, input.Stdin)
+	if out != nil {
+		// go のコンパイルエラーは一時ディレクトリの絶対パス（/tmp/go-exec-XXX/main.go:7:9:）を
+		// 出力する。内部パスを学習者に見せず、`./main.go:7:9:` の形に整える。
+		out.Stderr = strings.ReplaceAll(out.Stderr, tmpDir+string(os.PathSeparator), "./")
+	}
+	return out, err
 }
 
 func (r *Runner) executeBash(ctx context.Context, input domain.CodeExecutionInput) (*domain.CodeExecutionResult, error) {

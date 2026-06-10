@@ -147,6 +147,9 @@ func main() {
 	assert.NotEqual(t, 0, out.ExitCode)
 	// コンパイルエラーは stderr に出る
 	assert.NotEmpty(t, out.Stderr)
+	// 一時ディレクトリの内部パスを露出せず、`./main.go` に整形される。
+	assert.NotContains(t, out.Stderr, "go-exec-")
+	assert.Contains(t, out.Stderr, "./main.go")
 }
 
 func TestRunner_Go_ReadsStdin(t *testing.T) {

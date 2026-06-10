@@ -18,6 +18,15 @@ func registerAdminRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	)
 	g.GET("/admin/companies", companyHandler.List)
 
+	// 従業員管理（自社の従業員一覧 + 各従業員の AI 利用可否を個別上書き）。
+	memberRepo := persistence.NewUserRepository(deps.db)
+	memberHandler := NewAdminMemberHandler(
+		usecase.NewListCompanyMembersUseCase(memberRepo),
+		usecase.NewUpdateMemberAiAccessUseCase(memberRepo),
+	)
+	g.GET("/admin/members", memberHandler.List)
+	g.PATCH("/admin/members/:userId/ai-access", memberHandler.UpdateAiAccess)
+
 	// AdminInvitation — SES マジックリンク方式（UUID token 発行 + SES でメール送信）。
 	adminInvRepo := persistence.NewAdminInvitationRepository(deps.db)
 

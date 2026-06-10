@@ -7,10 +7,11 @@ package sqlcgen
 
 import (
 	"context"
+	"database/sql"
 )
 
 const getUserByCognitoSub = `-- name: GetUserByCognitoSub :one
-SELECT id, cognito_sub, email, display_name, company_id, role, onboarded_at, created_at, updated_at, deleted_at FROM users
+SELECT id, cognito_sub, email, display_name, company_id, role, ai_chat_enabled, onboarded_at, created_at, updated_at, deleted_at FROM users
 WHERE cognito_sub = $1 AND deleted_at IS NULL
 `
 
@@ -25,6 +26,7 @@ func (q *Queries) GetUserByCognitoSub(ctx context.Context, cognitoSub string) (U
 		&i.DisplayName,
 		&i.CompanyID,
 		&i.Role,
+		&i.AiChatEnabled,
 		&i.OnboardedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -34,7 +36,7 @@ func (q *Queries) GetUserByCognitoSub(ctx context.Context, cognitoSub string) (U
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, cognito_sub, email, display_name, company_id, role, onboarded_at, created_at, updated_at, deleted_at FROM users
+SELECT id, cognito_sub, email, display_name, company_id, role, ai_chat_enabled, onboarded_at, created_at, updated_at, deleted_at FROM users
 WHERE id = $1 AND deleted_at IS NULL
 `
 
@@ -49,6 +51,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
 		&i.DisplayName,
 		&i.CompanyID,
 		&i.Role,
+		&i.AiChatEnabled,
 		&i.OnboardedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -57,8 +60,50 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
 	return i, err
 }
 
+const listUsersByCompanyID = `-- name: ListUsersByCompanyID :many
+SELECT id, cognito_sub, email, display_name, company_id, role, ai_chat_enabled, onboarded_at, created_at, updated_at, deleted_at FROM users
+WHERE company_id = $1 AND deleted_at IS NULL
+ORDER BY id ASC
+`
+
+// 会社単位の従業員一覧（論理削除は除外）。company_admin の従業員管理画面用。
+func (q *Queries) ListUsersByCompanyID(ctx context.Context, companyID sql.NullInt64) ([]User, error) {
+	rows, err := q.db.QueryContext(ctx, listUsersByCompanyID, companyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []User{}
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.CognitoSub,
+			&i.Email,
+			&i.DisplayName,
+			&i.CompanyID,
+			&i.Role,
+			&i.AiChatEnabled,
+			&i.OnboardedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUsersByRole = `-- name: ListUsersByRole :many
-SELECT id, cognito_sub, email, display_name, company_id, role, onboarded_at, created_at, updated_at, deleted_at FROM users
+SELECT id, cognito_sub, email, display_name, company_id, role, ai_chat_enabled, onboarded_at, created_at, updated_at, deleted_at FROM users
 WHERE role = $1 AND deleted_at IS NULL
 ORDER BY id ASC
 `
@@ -80,6 +125,7 @@ func (q *Queries) ListUsersByRole(ctx context.Context, role string) ([]User, err
 			&i.DisplayName,
 			&i.CompanyID,
 			&i.Role,
+			&i.AiChatEnabled,
 			&i.OnboardedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,

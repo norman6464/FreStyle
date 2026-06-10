@@ -381,6 +381,153 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 従業員一覧
+         * @description 自社（company_admin の所属会社）の従業員一覧を返す。company_admin / super_admin のみ。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.memberResponse"][];
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 管理者以外 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 内部エラー */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/members/{userId}/ai-access": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * 従業員の AI 利用可否を個別更新
+         * @description 自社の従業員の AI 利用可否を個別に上書きする（null で会社設定に従う）。別会社の従業員は更新できない。company_admin / super_admin のみ。
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 従業員の数値 ID */
+                    userId: string;
+                };
+                cookie?: never;
+            };
+            /** @description enabled (null=会社設定に従う) */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_handler.updateMemberAiRequest"];
+                };
+            };
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description バリデーション失敗 */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 管理者以外 / 別会社の従業員 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 内部エラー */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/ai-chat/attachments/upload-url": {
         parameters: {
             query?: never;
@@ -4221,6 +4368,14 @@ export interface components {
             role?: string;
             updatedAt?: string;
         };
+        "internal_handler.memberResponse": {
+            /** @description AiChatEnabled は AI 利用可否の個別上書き。null = 会社設定に従う。 */
+            aiChatEnabled?: boolean;
+            displayName?: string;
+            email?: string;
+            id?: number;
+            role?: string;
+        };
         "internal_handler.messageResponse": {
             /** @example ログインしました。 */
             message?: string;
@@ -4285,6 +4440,10 @@ export interface components {
         "internal_handler.updateCompanySettingsRequest": {
             /** @description bool の必須を binding:"required" で表現すると false が弾かれるため、ポインタで「指定の有無」を判定する。 */
             aiChatEnabledForTrainees: boolean;
+        };
+        "internal_handler.updateMemberAiRequest": {
+            /** @description Enabled は AI 利用可否の個別上書き。null（未指定）で会社設定に従う状態へ戻す。 */
+            enabled?: boolean;
         };
         "internal_handler.updateProfileReq": {
             avatarUrl?: string;

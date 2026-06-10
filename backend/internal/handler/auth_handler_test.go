@@ -67,6 +67,14 @@ func (r *fakeUserRepo) MarkOnboarded(_ context.Context, _ uint64) error {
 	return nil
 }
 
+func (r *fakeUserRepo) ListByCompanyID(_ context.Context, _ uint64) ([]domain.User, error) {
+	return nil, nil
+}
+
+func (r *fakeUserRepo) UpdateAiChatEnabled(_ context.Context, _ uint64, _ *bool) error {
+	return nil
+}
+
 // fakeInvitationRepo は AdminInvitationRepository の最小スタブ。
 // FindPendingByEmail / FindPendingByToken の振る舞いをカスタムにしてテストする。
 type fakeInvitationRepo struct {

@@ -13,3 +13,9 @@ WHERE id = $1 AND deleted_at IS NULL;
 SELECT * FROM users
 WHERE role = $1 AND deleted_at IS NULL
 ORDER BY id ASC;
+
+-- name: ListUsersByCompanyID :many
+-- 会社単位の従業員一覧（論理削除は除外）。company_admin の従業員管理画面用。
+SELECT * FROM users
+WHERE company_id = $1 AND deleted_at IS NULL
+ORDER BY id ASC;

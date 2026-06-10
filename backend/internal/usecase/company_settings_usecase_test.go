@@ -102,4 +102,20 @@ func TestAiChatEnabledForUser(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, got)
 	})
+
+	t.Run("個別 OFF は会社設定(true)より優先される", func(t *testing.T) {
+		repo := &settingsCompanyRepo{company: &domain.Company{AiChatEnabledForTrainees: true}}
+		uc := usecase.NewAiChatEnabledForUserUseCase(repo)
+		got, err := uc.Execute(context.Background(), &domain.User{Role: domain.RoleTrainee, CompanyID: u64p(1), AiChatEnabled: ptrBool(false)})
+		require.NoError(t, err)
+		assert.False(t, got)
+	})
+
+	t.Run("個別 ON は会社設定(false)より優先される", func(t *testing.T) {
+		repo := &settingsCompanyRepo{company: &domain.Company{AiChatEnabledForTrainees: false}}
+		uc := usecase.NewAiChatEnabledForUserUseCase(repo)
+		got, err := uc.Execute(context.Background(), &domain.User{Role: domain.RoleTrainee, CompanyID: u64p(1), AiChatEnabled: ptrBool(true)})
+		require.NoError(t, err)
+		assert.True(t, got)
+	})
 }

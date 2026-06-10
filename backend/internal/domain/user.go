@@ -10,6 +10,9 @@ type User struct {
 	DisplayName string  `gorm:"column:display_name" json:"displayName"`
 	CompanyID   *uint64 `gorm:"column:company_id" json:"companyId,omitempty"`
 	Role        string  `gorm:"column:role" json:"role"`
+	// AiChatEnabled は AI チャット利用可否の個別上書き。nil = 会社設定に従う、
+	// true/false = この user 個別に強制 ON/OFF（company_admin が従業員ごとに設定）。
+	AiChatEnabled *bool `gorm:"column:ai_chat_enabled" json:"aiChatEnabled,omitempty"`
 	// OnboardedAt は Welcome 完了日時。NULL なら Welcome を表示する。一度入ったら変えない。
 	OnboardedAt *time.Time `gorm:"column:onboarded_at" json:"onboardedAt,omitempty"`
 	CreatedAt   time.Time  `gorm:"column:created_at" json:"createdAt"`

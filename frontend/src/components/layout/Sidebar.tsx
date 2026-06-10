@@ -68,6 +68,8 @@ const adminNavItem: NavItem = {
       matchPrefix: '/admin/companies',
       allowedRoles: ['super_admin'],
     },
+    // 従業員一覧は自社の従業員管理（AI 利用可否の個別設定）。company_admin / super_admin 双方が利用する。
+    { label: '従業員一覧', to: '/admin/members', matchPrefix: '/admin/members' },
     // 招待管理は自社内で trainee を招待する操作のため company_admin / super_admin 双方が利用する。
     { label: '招待管理', to: '/admin/invitations', matchPrefix: '/admin/invitations' },
   ],

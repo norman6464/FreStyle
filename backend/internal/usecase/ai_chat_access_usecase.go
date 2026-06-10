@@ -34,6 +34,10 @@ func (uc *AiChatEnabledForUserUseCase) Execute(ctx context.Context, user *domain
 	if user.CompanyID == nil {
 		return true, nil
 	}
+	// 個別上書き(ai_chat_enabled)が設定されていれば会社一括設定より優先する。
+	if user.AiChatEnabled != nil {
+		return *user.AiChatEnabled, nil
+	}
 	company, err := uc.companies.FindByID(ctx, *user.CompanyID)
 	if err != nil {
 		// 会社行が無い場合は既定 true（後方互換）。それ以外の DB エラーは伝搬する。

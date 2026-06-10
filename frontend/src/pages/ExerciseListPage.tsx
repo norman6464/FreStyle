@@ -38,7 +38,6 @@ export default function ExerciseListPage() {
           className="px-2 py-1 rounded-md bg-surface-2 border border-surface-3 text-[var(--color-text-primary)] focus:outline-none focus:border-primary-500"
         >
           <option value="">すべて</option>
-          <option value="java">Java</option>
           <option value="php">PHP</option>
           <option value="go">Go</option>
           <option value="bash">Bash / Linux</option>

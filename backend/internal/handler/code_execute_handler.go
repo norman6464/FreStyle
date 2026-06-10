@@ -22,7 +22,7 @@ type codeExecuteRequest struct {
 }
 
 // @Summary      コード サンドボックス 実行
-// @Description  trainee が 書いた コード を サーバ 側 sandbox で 実行 し stdout/stderr/exitCode を 返す。 language は php / go / bash / java。
+// @Description  trainee が 書いた コード を サーバ 側 sandbox で 実行 し stdout/stderr/exitCode を 返す。 language は php / go / bash。
 // @Tags         code-execution
 // @Accept       json
 // @Produce      json

@@ -19,11 +19,16 @@
 
 ## 2. 演習を追加する
 
-初期演習は `backend/internal/infra/database/seed_master_exercises.go` が起動時に投入する（冪等）。
+言語別演習（PHP / Go / Docker / Linux / Git など）の**正本は非公開の教材リポ** [`norman6464/frestyle-teaching-materials`](https://github.com/norman6464/frestyle-teaching-materials) の `exercises/<lang>/*.md`。問題文・期待出力を公開リポに露出させないため、本体（公開リポ）には埋め込まない。
 
-- **PHP 演習**: `exercises []domain.MasterExercise` に追加。末尾の一括ループが `Language=php` / `Slug=php-{ID}` を自動設定する
-- **他言語（go / bash）演習**: 一括ループは php 固定なので、**独立した seed 関数**で `Language` を明示して入れる。参照実装が `seedCleanArchitectureExercise`（slug 存在チェックで冪等 → autoIncrement で採番 → その ID で example を 1 件作成）
-- company_admin が UI から作成することも可能。その場合は後で seed にバックポートして整合を取る
+- **追加 / 編集**: 教材リポの `exercises/<lang>/<slug>.md`（YAML frontmatter + 本文）を編集する
+- **DB 反映**: 2 つの作業ディレクトリで順に実行する（公開リポでの誤実行を避けるため実行場所を明示）
+  1. **教材リポ直下**（`frestyle-teaching-materials/`）で SQL を生成: `python3 exercises/_scripts/seed.py > /tmp/seed-exercises.sql`（slug をキーにした `ON CONFLICT (slug) DO UPDATE` の UPSERT SQL）
+  2. **インフラリポ直下**（`frestyle-infrastructure/`）で Supabase に流す: `make apply-migration-supabase FILE=/tmp/seed-exercises.sql DATABASE_URL_SECRET_NAME=frestyle-prod/database-url`（非破壊・冪等）
+- **採点**: `master_exercise_examples` が無い演習は `master_exercises.expected_output` を単一の仮想テストケースとして使う（seed.py は examples を作らず expected_output のみ投入する）
+- company_admin が UI から作成することも可能。その場合は後で教材リポの `.md` にバックポートして整合を取る
+
+> **例外（本体コードと密結合な演習のみ埋め込み）**: `backend/internal/infra/database/seed_master_exercises.go` は起動時にクリーンアーキテクチャ体験用の Go 演習（`seedCleanArchitectureExercise` / slug `go-clean-arch-greeting`）だけを冪等に投入する。本プロジェクトの層構造そのものを最小例で示す教材のため例外的に埋め込んでいる。PHP 演習の埋め込み seed は教材リポ `.md` への一本化に伴い撤去済み。
 
 ### 参照: クリーンアーキテクチャの Go 演習
 

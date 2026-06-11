@@ -1,3 +1,4 @@
+import { useState, useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import { Navigate } from 'react-router-dom';
 import type { RootState } from '../store';
@@ -34,6 +35,19 @@ export default function AdminMembersPage() {
   const isAdmin = useSelector((state: RootState) => state.auth.isAdmin);
   const authLoading = useSelector((state: RootState) => state.auth.loading);
   const { members, loading, error, updatingId, setAiAccess, setActive, remove } = useAdminMembers();
+  const [query, setQuery] = useState('');
+
+  // 氏名・メールアドレス・役割で部分一致（大文字小文字を無視）フィルタ。
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return members;
+    return members.filter(
+      (m) =>
+        (m.displayName || '').toLowerCase().includes(q) ||
+        m.email.toLowerCase().includes(q) ||
+        roleLabel(m.role).toLowerCase().includes(q),
+    );
+  }, [members, query]);
 
   if (authLoading) return <Loading message="読み込み中..." className="min-h-[50vh]" />;
   if (!isAdmin) return <Navigate to="/" replace />;
@@ -56,8 +70,22 @@ export default function AdminMembersPage() {
       ) : members.length === 0 ? (
         <p className="mt-6 text-[var(--color-text-muted)]">従業員がまだいません。</p>
       ) : (
-        <div className="mt-6 overflow-x-auto rounded-lg border border-surface-3">
-          <table className="w-full text-sm">
+        <>
+          <div className="mt-6">
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="氏名・メールアドレス・役割で検索"
+              aria-label="従業員を検索"
+              className="w-full sm:max-w-xs px-3 py-2 rounded-md bg-surface-2 border border-surface-3 text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-brand-500"
+            />
+          </div>
+          {filtered.length === 0 ? (
+            <p className="mt-4 text-[var(--color-text-muted)]">「{query}」に一致する従業員がいません。</p>
+          ) : (
+            <div className="mt-4 overflow-x-auto rounded-lg border border-surface-3">
+              <table className="w-full text-sm">
             <thead>
               <tr className="bg-surface-2 text-left text-[var(--color-text-muted)]">
                 <th className="px-4 py-2 font-medium">氏名</th>
@@ -69,7 +97,7 @@ export default function AdminMembersPage() {
               </tr>
             </thead>
             <tbody>
-              {members.map((m) => (
+              {filtered.map((m) => (
                 <tr key={m.id} className="border-t border-surface-3">
                   <td className="px-4 py-2 text-[var(--color-text-primary)]">{m.displayName || '—'}</td>
                   <td className="px-4 py-2 text-[var(--color-text-muted)]">{m.email}</td>
@@ -128,8 +156,10 @@ export default function AdminMembersPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
-        </div>
+              </table>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

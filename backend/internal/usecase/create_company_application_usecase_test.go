@@ -46,6 +46,10 @@ func (f *fakeUsersForApp) UpdateDisplayName(context.Context, uint64, string) err
 func (f *fakeUsersForApp) UpdateRole(context.Context, uint64, string) error        { return nil }
 func (f *fakeUsersForApp) UpdateCompanyID(context.Context, uint64, uint64) error   { return nil }
 func (f *fakeUsersForApp) MarkOnboarded(context.Context, uint64) error             { return nil }
+func (f *fakeUsersForApp) ListByCompanyID(context.Context, uint64) ([]domain.User, error) {
+	return nil, nil
+}
+func (f *fakeUsersForApp) UpdateAiChatEnabled(context.Context, uint64, *bool) error { return nil }
 
 type recordingNotifRepo struct{ created []domain.Notification }
 

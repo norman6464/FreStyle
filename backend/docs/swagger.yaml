@@ -644,6 +644,20 @@ definitions:
       updatedAt:
         type: string
     type: object
+  internal_handler.memberResponse:
+    properties:
+      aiChatEnabled:
+        description: AiChatEnabled は AI 利用可否の個別上書き。null = 会社設定に従う。
+        type: boolean
+      displayName:
+        type: string
+      email:
+        type: string
+      id:
+        type: integer
+      role:
+        type: string
+    type: object
   internal_handler.messageResponse:
     properties:
       message:
@@ -781,6 +795,12 @@ definitions:
         type: boolean
     required:
     - aiChatEnabledForTrainees
+    type: object
+  internal_handler.updateMemberAiRequest:
+    properties:
+      enabled:
+        description: Enabled は AI 利用可否の個別上書き。null（未指定）で会社設定に従う状態へ戻す。
+        type: boolean
     type: object
   internal_handler.updateProfileReq:
     properties:
@@ -1006,6 +1026,79 @@ paths:
       security:
       - CookieAuth: []
       summary: 招待 取り消し
+      tags:
+      - admin
+  /admin/members:
+    get:
+      description: 自社（company_admin の所属会社）の従業員一覧を返す。company_admin / super_admin のみ。
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/internal_handler.memberResponse'
+            type: array
+        "401":
+          description: 未認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: 管理者以外
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: 内部エラー
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 従業員一覧
+      tags:
+      - admin
+  /admin/members/{userId}/ai-access:
+    patch:
+      consumes:
+      - application/json
+      description: 自社の従業員の AI 利用可否を個別に上書きする（null で会社設定に従う）。別会社の従業員は更新できない。company_admin
+        / super_admin のみ。
+      parameters:
+      - description: 従業員の数値 ID
+        in: path
+        name: userId
+        required: true
+        type: string
+      - description: enabled (null=会社設定に従う)
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.updateMemberAiRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: バリデーション失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: 管理者以外 / 別会社の従業員
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: 内部エラー
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 従業員の AI 利用可否を個別更新
       tags:
       - admin
   /ai-chat/attachments/upload-url:

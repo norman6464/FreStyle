@@ -311,6 +311,119 @@
                 }
             }
         },
+        "/admin/members": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "自社（company_admin の所属会社）の従業員一覧を返す。company_admin / super_admin のみ。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "従業員一覧",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/internal_handler.memberResponse"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "未認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "管理者以外",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "内部エラー",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/members/{userId}/ai-access": {
+            "patch": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "自社の従業員の AI 利用可否を個別に上書きする（null で会社設定に従う）。別会社の従業員は更新できない。company_admin / super_admin のみ。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "従業員の AI 利用可否を個別更新",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "従業員の数値 ID",
+                        "name": "userId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "enabled (null=会社設定に従う)",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.updateMemberAiRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "バリデーション失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "管理者以外 / 別会社の従業員",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "内部エラー",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/ai-chat/attachments/upload-url": {
             "post": {
                 "security": [
@@ -4073,6 +4186,27 @@
                 }
             }
         },
+        "internal_handler.memberResponse": {
+            "type": "object",
+            "properties": {
+                "aiChatEnabled": {
+                    "description": "AiChatEnabled は AI 利用可否の個別上書き。null = 会社設定に従う。",
+                    "type": "boolean"
+                },
+                "displayName": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "role": {
+                    "type": "string"
+                }
+            }
+        },
         "internal_handler.messageResponse": {
             "type": "object",
             "properties": {
@@ -4278,6 +4412,15 @@
             "properties": {
                 "aiChatEnabledForTrainees": {
                     "description": "bool の必須を binding:\"required\" で表現すると false が弾かれるため、ポインタで「指定の有無」を判定する。",
+                    "type": "boolean"
+                }
+            }
+        },
+        "internal_handler.updateMemberAiRequest": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "description": "Enabled は AI 利用可否の個別上書き。null（未指定）で会社設定に従う状態へ戻す。",
                     "type": "boolean"
                 }
             }

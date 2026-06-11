@@ -14,7 +14,11 @@ type UserRepository interface {
 	FindByID(ctx context.Context, id uint64) (*domain.User, error)
 	// ListByRole は指定 role のユーザー一覧を返す（super_admin への一斉通知などに使う）。
 	ListByRole(ctx context.Context, role string) ([]domain.User, error)
+	// ListByCompanyID は会社単位の従業員一覧を返す（company_admin の従業員管理画面用）。
+	ListByCompanyID(ctx context.Context, companyID uint64) ([]domain.User, error)
 	Create(ctx context.Context, user *domain.User) error
+	// UpdateAiChatEnabled は AI チャットの個別上書きを更新する（nil で会社設定に従う）。
+	UpdateAiChatEnabled(ctx context.Context, userID uint64, enabled *bool) error
 	// UpdateDisplayName は氏名変更、および OIDC ログイン時の displayName 自動補正で呼ばれる。
 	UpdateDisplayName(ctx context.Context, userID uint64, displayName string) error
 	// UpdateRole は Cognito group → DB role 同期、または招待受諾時に呼ばれる。

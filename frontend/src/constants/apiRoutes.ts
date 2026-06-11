@@ -138,6 +138,8 @@ export const WEEKLY_CHALLENGE = {
 /** 管理者ダッシュボード（会社 / 招待 / シナリオ） */
 export const ADMIN = {
   companies: `${API_V2}/admin/companies`,
+  members: `${API_V2}/admin/members`,
+  memberAiAccess: (userId: number | string) => `${API_V2}/admin/members/${userId}/ai-access`,
   invitations: `${API_V2}/admin/invitations`,
   invitationById: (id: number | string) => `${API_V2}/admin/invitations/${id}`,
   scenarios: `${API_V2}/admin/scenarios`,

@@ -42,6 +42,10 @@ func toDomainUser(row sqlcgen.User) *domain.User {
 		cid := uint64(row.CompanyID.Int64)
 		u.CompanyID = &cid
 	}
+	if row.AiChatEnabled.Valid {
+		v := row.AiChatEnabled.Bool
+		u.AiChatEnabled = &v
+	}
 	if row.OnboardedAt.Valid {
 		t := row.OnboardedAt.Time
 		u.OnboardedAt = &t
@@ -103,8 +107,40 @@ func (r *userRepository) ListByRole(ctx context.Context, role string) ([]domain.
 	return users, nil
 }
 
+func (r *userRepository) ListByCompanyID(ctx context.Context, companyID uint64) ([]domain.User, error) {
+	cid, ok := toInt64ID(companyID)
+	if !ok {
+		return nil, nil
+	}
+	sqlDB, err := r.db.DB()
+	if err != nil {
+		return nil, err
+	}
+	rows, err := sqlcgen.New(sqlDB).ListUsersByCompanyID(ctx, sql.NullInt64{Int64: cid, Valid: true})
+	if err != nil {
+		return nil, err
+	}
+	users := make([]domain.User, 0, len(rows))
+	for _, row := range rows {
+		users = append(users, *toDomainUser(row))
+	}
+	return users, nil
+}
+
 func (r *userRepository) Create(ctx context.Context, user *domain.User) error {
 	return r.db.WithContext(ctx).Create(user).Error
+}
+
+// UpdateAiChatEnabled は AI チャットの個別上書きを更新する。enabled=nil で NULL（会社設定に従う）に戻す。
+func (r *userRepository) UpdateAiChatEnabled(ctx context.Context, userID uint64, enabled *bool) error {
+	var value any = gorm.Expr("NULL")
+	if enabled != nil {
+		value = *enabled
+	}
+	return r.db.WithContext(ctx).
+		Model(&domain.User{}).
+		Where("id = ?", userID).
+		Update("ai_chat_enabled", value).Error
 }
 
 func (r *userRepository) UpdateDisplayName(ctx context.Context, userID uint64, displayName string) error {

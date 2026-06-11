@@ -22,7 +22,9 @@
 言語別演習（PHP / Go / Docker / Linux / Git など）の**正本は非公開の教材リポ** [`norman6464/frestyle-teaching-materials`](https://github.com/norman6464/frestyle-teaching-materials) の `exercises/<lang>/*.md`。問題文・期待出力を公開リポに露出させないため、本体（公開リポ）には埋め込まない。
 
 - **追加 / 編集**: 教材リポの `exercises/<lang>/<slug>.md`（YAML frontmatter + 本文）を編集する
-- **DB 反映**: `python3 exercises/_scripts/seed.py > /tmp/seed-exercises.sql` で slug をキーにした `ON CONFLICT (slug) DO UPDATE` の UPSERT SQL を生成し、`frestyle-infrastructure` の `make apply-migration-supabase FILE=/tmp/seed-exercises.sql DATABASE_URL_SECRET_NAME=frestyle-prod/database-url` で Supabase に流す（非破壊・冪等）
+- **DB 反映**: 2 つの作業ディレクトリで順に実行する（公開リポでの誤実行を避けるため実行場所を明示）
+  1. **教材リポ直下**（`frestyle-teaching-materials/`）で SQL を生成: `python3 exercises/_scripts/seed.py > /tmp/seed-exercises.sql`（slug をキーにした `ON CONFLICT (slug) DO UPDATE` の UPSERT SQL）
+  2. **インフラリポ直下**（`frestyle-infrastructure/`）で Supabase に流す: `make apply-migration-supabase FILE=/tmp/seed-exercises.sql DATABASE_URL_SECRET_NAME=frestyle-prod/database-url`（非破壊・冪等）
 - **採点**: `master_exercise_examples` が無い演習は `master_exercises.expected_output` を単一の仮想テストケースとして使う（seed.py は examples を作らず expected_output のみ投入する）
 - company_admin が UI から作成することも可能。その場合は後で教材リポの `.md` にバックポートして整合を取る
 

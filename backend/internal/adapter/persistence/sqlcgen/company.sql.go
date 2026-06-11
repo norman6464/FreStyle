@@ -10,7 +10,7 @@ import (
 )
 
 const getCompanyByID = `-- name: GetCompanyByID :one
-SELECT id, name, ai_chat_enabled_for_trainees, created_at, updated_at FROM companies
+SELECT id, name, ai_chat_enabled_for_trainees, is_active, created_at, updated_at FROM companies
 WHERE id = $1
 `
 
@@ -22,6 +22,7 @@ func (q *Queries) GetCompanyByID(ctx context.Context, id int64) (Company, error)
 		&i.ID,
 		&i.Name,
 		&i.AiChatEnabledForTrainees,
+		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -29,7 +30,7 @@ func (q *Queries) GetCompanyByID(ctx context.Context, id int64) (Company, error)
 }
 
 const listCompanies = `-- name: ListCompanies :many
-SELECT id, name, ai_chat_enabled_for_trainees, created_at, updated_at FROM companies
+SELECT id, name, ai_chat_enabled_for_trainees, is_active, created_at, updated_at FROM companies
 ORDER BY name ASC
 `
 
@@ -47,6 +48,7 @@ func (q *Queries) ListCompanies(ctx context.Context) ([]Company, error) {
 			&i.ID,
 			&i.Name,
 			&i.AiChatEnabledForTrainees,
+			&i.IsActive,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {

@@ -74,7 +74,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 
 	authed := v2.Group("")
 	authed.Use(middleware.JWTAuth(buildJWTVerify(cfg)))
-	authed.Use(middleware.CurrentUser(deps.userRepo))
+	authed.Use(middleware.CurrentUser(deps.userRepo, persistence.NewCompanyRepository(deps.db)))
 
 	registerAuthAuthedRoutes(authed, authHandler)
 	registerChatRoutes(authed, deps)

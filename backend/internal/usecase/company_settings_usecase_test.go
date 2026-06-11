@@ -24,6 +24,8 @@ func (s *settingsCompanyRepo) FindByID(context.Context, uint64) (*domain.Company
 	return s.company, s.findErr
 }
 
+func (s *settingsCompanyRepo) UpdateActive(context.Context, uint64, bool) error { return nil }
+
 func (s *settingsCompanyRepo) UpdateAiChatEnabled(_ context.Context, _ uint64, enabled bool) error {
 	s.lastEnable = &enabled
 	return nil

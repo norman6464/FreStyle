@@ -13,10 +13,14 @@ import (
 // registerAdminRoutes は管理者向けの招待管理エンドポイントを登録する。
 // 認可（super_admin / company_admin のみ）は handler 層で実施する。
 func registerAdminRoutes(g *gin.RouterGroup, deps *routeDeps) {
+	companyRepo := persistence.NewCompanyRepository(deps.db)
 	companyHandler := NewAdminCompanyHandler(
-		usecase.NewListCompaniesUseCase(persistence.NewCompanyRepository(deps.db)),
+		usecase.NewListCompaniesUseCase(companyRepo),
+		usecase.NewSetCompanyActiveUseCase(companyRepo),
 	)
 	g.GET("/admin/companies", companyHandler.List)
+	// 会社アカウントの有効/無効（super_admin 専用。無効化でその会社の全ユーザーを利用不可に）。
+	g.PATCH("/admin/companies/:id/active", companyHandler.SetActive)
 
 	// 従業員管理（自社の従業員一覧 + 各従業員の AI 利用可否を個別上書き）。
 	memberRepo := persistence.NewUserRepository(deps.db)

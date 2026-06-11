@@ -1,11 +1,13 @@
 package middleware
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"gorm.io/gorm"
 )
 
 const (
@@ -15,7 +17,8 @@ const (
 )
 
 // CurrentUser は cognito sub から users 行を引いて currentUserID / currentUser を context にセットする。
-func CurrentUser(users repository.UserRepository) gin.HandlerFunc {
+// 併せて、所属会社が無効化されている場合はその会社の全ユーザーを弾く（即時にログイン/利用不可）。
+func CurrentUser(users repository.UserRepository, companies repository.CompanyRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		raw, ok := c.Get(ContextKeyCognitoSub)
 		if !ok {
@@ -37,6 +40,23 @@ func CurrentUser(users repository.UserRepository) gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "user_not_found"})
 			return
 		}
+
+		// 会社アカウントが無効化されていれば、その会社のユーザーは利用不可。
+		// 会社行が無い（データ不整合）場合は素通り、DB エラーは 500。
+		if user.CompanyID != nil {
+			company, err := companies.FindByID(c.Request.Context(), *user.CompanyID)
+			switch {
+			case errors.Is(err, gorm.ErrRecordNotFound):
+				// 会社行なし: 何もしない（弾かない）。
+			case err != nil:
+				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "company_lookup_failed"})
+				return
+			case company != nil && !company.IsActive:
+				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "company_disabled"})
+				return
+			}
+		}
+
 		c.Set(ContextKeyCurrentUserID, user.ID)
 		c.Set(ContextKeyCurrentUser, user)
 		c.Next()

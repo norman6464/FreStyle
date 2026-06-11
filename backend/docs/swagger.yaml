@@ -88,6 +88,11 @@ definitions:
         type: string
       id:
         type: integer
+      isActive:
+        description: |-
+          IsActive は会社アカウントの有効/無効。false（無効）にすると、その会社の全ユーザーが
+          ログイン/利用不可になる（middleware で弾く）。super_admin が会社一覧から切り替える。
+        type: boolean
       name:
         type: string
       updatedAt:
@@ -720,6 +725,13 @@ definitions:
       content:
         type: string
     type: object
+  internal_handler.setCompanyActiveRequest:
+    properties:
+      active:
+        type: boolean
+    required:
+    - active
+    type: object
   internal_handler.sseAttachmentRequest:
     properties:
       contentType:
@@ -856,6 +868,47 @@ paths:
       security:
       - CookieAuth: []
       summary: 会社 一覧 (SuperAdmin)
+      tags:
+      - admin
+  /admin/companies/{id}/active:
+    patch:
+      consumes:
+      - application/json
+      description: 会社を無効化すると、その会社の全ユーザーがログイン/利用不可になる（middleware で弾く）。super_admin のみ。
+      parameters:
+      - description: 会社 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: active=false で無効化
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.setCompanyActiveRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handler.messageResponse'
+        "400":
+          description: 不正な ID / body
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: super_admin 以外
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: 更新失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 会社アカウントの有効/無効を切り替え（super_admin 専用）
       tags:
       - admin
   /admin/company-applications:

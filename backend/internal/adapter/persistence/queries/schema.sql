@@ -79,6 +79,7 @@ CREATE TABLE companies (
     id                           bigint PRIMARY KEY,
     name                         text NOT NULL,
     ai_chat_enabled_for_trainees boolean NOT NULL DEFAULT true,
+    is_active                    boolean NOT NULL DEFAULT true,
     created_at                   timestamptz NOT NULL,
     updated_at                   timestamptz NOT NULL
 );

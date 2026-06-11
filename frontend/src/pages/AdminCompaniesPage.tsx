@@ -11,10 +11,13 @@ import { BuildingOffice2Icon, UserPlusIcon, Cog6ToothIcon } from '@heroicons/rea
 export default function AdminCompaniesPage() {
   const isAdmin = useSelector((state: RootState) => state.auth.isAdmin);
   const authLoading = useSelector((state: RootState) => state.auth.loading);
+  const role = useSelector((state: RootState) => state.auth.role);
+  const isSuperAdmin = role === 'super_admin';
 
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [updatingId, setUpdatingId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -26,6 +29,22 @@ export default function AdminCompaniesPage() {
       })
       .finally(() => setLoading(false));
   }, [isAdmin]);
+
+  // 会社アカウントの有効/無効を切り替える（super_admin 専用）。楽観的更新 + 失敗時ロールバック。
+  const setActive = async (id: number, active: boolean) => {
+    setUpdatingId(id);
+    setError(null);
+    setCompanies((prev) => prev.map((c) => (c.id === id ? { ...c, isActive: active } : c)));
+    try {
+      await CompanyRepository.updateActive(id, active);
+    } catch (e) {
+      logger.error(e);
+      setCompanies((prev) => prev.map((c) => (c.id === id ? { ...c, isActive: !active } : c)));
+      setError('会社状態の更新に失敗しました');
+    } finally {
+      setUpdatingId(null);
+    }
+  };
 
   if (authLoading) return <Loading message="認証情報を確認中..." />;
   if (!isAdmin) return <Navigate to="/" replace />;
@@ -57,14 +76,35 @@ export default function AdminCompaniesPage() {
               <div className="flex items-center gap-3 flex-1">
                 <BuildingOffice2Icon className="w-8 h-8 text-[var(--color-text-muted)] flex-shrink-0" />
                 <div>
-                  <p className="font-semibold text-sm">{company.name}</p>
+                  <p className="font-semibold text-sm flex items-center gap-2">
+                    {company.name}
+                    {!company.isActive && (
+                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-rose-100 text-rose-700">
+                        無効
+                      </span>
+                    )}
+                  </p>
                   <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
                     登録日: {new Date(company.createdAt).toLocaleDateString('ja-JP')}
                   </p>
                 </div>
               </div>
 
-              <div className="flex gap-2 flex-shrink-0">
+              <div className="flex gap-2 flex-shrink-0 items-center">
+                {isSuperAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => setActive(company.id, !company.isActive)}
+                    disabled={updatingId === company.id}
+                    className={`text-xs px-3 py-1.5 rounded border transition-colors disabled:opacity-50 ${
+                      company.isActive
+                        ? 'border-rose-300 text-rose-700 hover:bg-rose-50'
+                        : 'border-emerald-300 text-emerald-700 hover:bg-emerald-50'
+                    }`}
+                  >
+                    {company.isActive ? '無効化' : '有効化'}
+                  </button>
+                )}
                 <Link
                   to={`/admin/scenarios?companyId=${company.id}`}
                   className="flex items-center gap-1 text-xs px-3 py-1.5 border rounded text-[var(--color-text-secondary)] hover:bg-surface-2 transition-colors"

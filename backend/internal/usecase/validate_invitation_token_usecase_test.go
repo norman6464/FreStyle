@@ -15,6 +15,7 @@ type stubCompanies struct {
 
 func (s *stubCompanies) ListAll(_ context.Context) ([]domain.Company, error)     { return nil, s.err }
 func (s *stubCompanies) UpdateAiChatEnabled(context.Context, uint64, bool) error { return nil }
+func (s *stubCompanies) UpdateActive(context.Context, uint64, bool) error        { return nil }
 func (s *stubCompanies) FindByID(_ context.Context, id uint64) (*domain.Company, error) {
 	if s.err != nil {
 		return nil, s.err

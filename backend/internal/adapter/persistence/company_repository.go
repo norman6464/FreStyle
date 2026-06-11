@@ -24,6 +24,7 @@ func toDomainCompany(row sqlcgen.Company) domain.Company {
 		ID:                       uint64(row.ID),
 		Name:                     row.Name,
 		AiChatEnabledForTrainees: row.AiChatEnabledForTrainees,
+		IsActive:                 row.IsActive,
 		CreatedAt:                row.CreatedAt,
 		UpdatedAt:                row.UpdatedAt,
 	}
@@ -70,4 +71,10 @@ func (r *companyRepository) FindByID(ctx context.Context, id uint64) (*domain.Co
 func (r *companyRepository) UpdateAiChatEnabled(ctx context.Context, companyID uint64, enabled bool) error {
 	const q = `UPDATE companies SET ai_chat_enabled_for_trainees = ?, updated_at = NOW() WHERE id = ?`
 	return r.db.WithContext(ctx).Exec(q, enabled, companyID).Error
+}
+
+// UpdateActive は会社アカウントの有効/無効を更新する。false で無効化（その会社の全ユーザーが利用不可）。
+func (r *companyRepository) UpdateActive(ctx context.Context, companyID uint64, active bool) error {
+	const q = `UPDATE companies SET is_active = ?, updated_at = NOW() WHERE id = ?`
+	return r.db.WithContext(ctx).Exec(q, active, companyID).Error
 }

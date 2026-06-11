@@ -12,6 +12,8 @@ type stubMarkOnboardedRepo struct {
 	err      error
 }
 
+func (s *stubMarkOnboardedRepo) UpdateActive(context.Context, uint64, bool) error { return nil }
+func (s *stubMarkOnboardedRepo) SoftDelete(context.Context, uint64) error         { return nil }
 func (s *stubMarkOnboardedRepo) MarkOnboarded(_ context.Context, userID uint64) error {
 	s.calledID = userID
 	return s.err

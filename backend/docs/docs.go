@@ -440,6 +440,140 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/members/{userId}": {
+            "delete": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "従業員を一覧から退会させる（論理削除）。以後ログイン/利用不可。super_admin は全社、company_admin は自社の従業員のみ。自分自身は不可。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "従業員を論理削除",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "従業員の数値 ID",
+                        "name": "userId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "不正な ID / 自分自身",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "管理者以外 / 別会社の従業員",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "従業員が存在しない",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "内部エラー",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/members/{userId}/active": {
+            "patch": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "無効化すると、その従業員はログイン/利用不可になる（middleware で弾く）。super_admin は全社、company_admin は自社の従業員のみ。自分自身は不可。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "従業員アカウントの有効/無効を切り替え",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "従業員の数値 ID",
+                        "name": "userId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "active=false で無効化",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.setMemberActiveRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "不正な ID / body / 自分自身",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "管理者以外 / 別会社の従業員",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "従業員が存在しない",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "内部エラー",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/members/{userId}/ai-access": {
             "patch": {
                 "security": [
@@ -4289,6 +4423,10 @@ const docTemplate = `{
                 "id": {
                     "type": "integer"
                 },
+                "isActive": {
+                    "description": "IsActive はアカウントの有効/無効。false = 無効（ログイン/利用不可）。",
+                    "type": "boolean"
+                },
                 "role": {
                     "type": "string"
                 }
@@ -4387,6 +4525,17 @@ const docTemplate = `{
             }
         },
         "internal_handler.setCompanyActiveRequest": {
+            "type": "object",
+            "required": [
+                "active"
+            ],
+            "properties": {
+                "active": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "internal_handler.setMemberActiveRequest": {
             "type": "object",
             "required": [
                 "active"

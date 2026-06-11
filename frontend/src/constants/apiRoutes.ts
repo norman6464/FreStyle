@@ -142,6 +142,10 @@ export const ADMIN = {
   companyActive: (id: number | string) => `${API_V2}/admin/companies/${id}/active`,
   members: `${API_V2}/admin/members`,
   memberAiAccess: (userId: number | string) => `${API_V2}/admin/members/${userId}/ai-access`,
+  /** PATCH /api/v2/admin/members/:userId/active — 従業員アカウントの有効/無効 */
+  memberActive: (userId: number | string) => `${API_V2}/admin/members/${userId}/active`,
+  /** DELETE /api/v2/admin/members/:userId — 従業員の論理削除 */
+  member: (userId: number | string) => `${API_V2}/admin/members/${userId}`,
   invitations: `${API_V2}/admin/invitations`,
   invitationById: (id: number | string) => `${API_V2}/admin/invitations/${id}`,
   scenarios: `${API_V2}/admin/scenarios`,

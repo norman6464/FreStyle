@@ -28,6 +28,8 @@ func (s *stubUsers) UpdateAiChatEnabled(context.Context, uint64, *bool) error   
 func (s *stubUsers) UpdateDisplayName(context.Context, uint64, string) error        { return nil }
 func (s *stubUsers) UpdateRole(context.Context, uint64, string) error               { return nil }
 func (s *stubUsers) UpdateCompanyID(context.Context, uint64, uint64) error          { return nil }
+func (s *stubUsers) UpdateActive(context.Context, uint64, bool) error               { return nil }
+func (s *stubUsers) SoftDelete(context.Context, uint64) error                       { return nil }
 func (s *stubUsers) MarkOnboarded(context.Context, uint64) error                    { return nil }
 
 // stubCompanies は CompanyRepository の最小 stub。FindByID で company / err を返す。
@@ -56,7 +58,7 @@ func runCurrentUser(t *testing.T, users *stubUsers, companies *stubCompanies) (*
 func uintPtr(v uint64) *uint64 { return &v }
 
 func TestCurrentUser_BlocksDisabledCompany(t *testing.T) {
-	users := &stubUsers{user: &domain.User{ID: 1, Role: domain.RoleTrainee, CompanyID: uintPtr(7)}}
+	users := &stubUsers{user: &domain.User{ID: 1, Role: domain.RoleTrainee, IsActive: true, CompanyID: uintPtr(7)}}
 	companies := &stubCompanies{company: &domain.Company{ID: 7, IsActive: false}}
 
 	w, c := runCurrentUser(t, users, companies)
@@ -70,7 +72,7 @@ func TestCurrentUser_BlocksDisabledCompany(t *testing.T) {
 }
 
 func TestCurrentUser_AllowsActiveCompany(t *testing.T) {
-	users := &stubUsers{user: &domain.User{ID: 1, Role: domain.RoleTrainee, CompanyID: uintPtr(7)}}
+	users := &stubUsers{user: &domain.User{ID: 1, Role: domain.RoleTrainee, IsActive: true, CompanyID: uintPtr(7)}}
 	companies := &stubCompanies{company: &domain.Company{ID: 7, IsActive: true}}
 
 	_, c := runCurrentUser(t, users, companies)
@@ -85,7 +87,7 @@ func TestCurrentUser_AllowsActiveCompany(t *testing.T) {
 
 func TestCurrentUser_SuperAdminNoCompany_Allowed(t *testing.T) {
 	// super_admin は company_id なし → 会社チェックをスキップして通す。
-	users := &stubUsers{user: &domain.User{ID: 1, Role: domain.RoleSuperAdmin, CompanyID: nil}}
+	users := &stubUsers{user: &domain.User{ID: 1, Role: domain.RoleSuperAdmin, IsActive: true, CompanyID: nil}}
 	companies := &stubCompanies{err: gorm.ErrRecordNotFound}
 
 	_, c := runCurrentUser(t, users, companies)
@@ -97,12 +99,27 @@ func TestCurrentUser_SuperAdminNoCompany_Allowed(t *testing.T) {
 
 func TestCurrentUser_CompanyNotFound_Allowed(t *testing.T) {
 	// company_id はあるが会社行が無い（データ不整合）→ 弾かない。
-	users := &stubUsers{user: &domain.User{ID: 1, Role: domain.RoleTrainee, CompanyID: uintPtr(99)}}
+	users := &stubUsers{user: &domain.User{ID: 1, Role: domain.RoleTrainee, IsActive: true, CompanyID: uintPtr(99)}}
 	companies := &stubCompanies{err: gorm.ErrRecordNotFound}
 
 	_, c := runCurrentUser(t, users, companies)
 
 	if c.IsAborted() {
 		t.Fatal("会社行なしは弾かない")
+	}
+}
+
+func TestCurrentUser_BlocksDisabledUser(t *testing.T) {
+	// IsActive=false のユーザーは会社が有効でも弾く（即時に利用不可）。
+	users := &stubUsers{user: &domain.User{ID: 1, Role: domain.RoleTrainee, IsActive: false, CompanyID: uintPtr(7)}}
+	companies := &stubCompanies{company: &domain.Company{ID: 7, IsActive: true}}
+
+	w, c := runCurrentUser(t, users, companies)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("want 403, got %d", w.Code)
+	}
+	if !c.IsAborted() {
+		t.Fatal("無効ユーザーは abort されるべき")
 	}
 }

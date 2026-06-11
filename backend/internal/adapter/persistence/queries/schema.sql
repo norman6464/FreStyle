@@ -25,6 +25,7 @@ CREATE TABLE users (
     company_id   bigint,
     role         text NOT NULL,
     ai_chat_enabled boolean,
+    is_active    boolean NOT NULL DEFAULT true,
     onboarded_at timestamptz,
     created_at   timestamptz NOT NULL,
     updated_at   timestamptz NOT NULL,

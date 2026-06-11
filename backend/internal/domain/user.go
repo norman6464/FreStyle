@@ -13,6 +13,9 @@ type User struct {
 	// AiChatEnabled は AI チャット利用可否の個別上書き。nil = 会社設定に従う、
 	// true/false = この user 個別に強制 ON/OFF（company_admin が従業員ごとに設定）。
 	AiChatEnabled *bool `gorm:"column:ai_chat_enabled" json:"aiChatEnabled,omitempty"`
+	// IsActive はユーザーアカウントの有効/無効。false（無効）にすると、このユーザーは
+	// ログイン/利用不可になる（middleware で弾く）。super_admin / company_admin が個別に停止できる。
+	IsActive bool `gorm:"column:is_active;not null;default:true" json:"isActive"`
 	// OnboardedAt は Welcome 完了日時。NULL なら Welcome を表示する。一度入ったら変えない。
 	OnboardedAt *time.Time `gorm:"column:onboarded_at" json:"onboardedAt,omitempty"`
 	CreatedAt   time.Time  `gorm:"column:created_at" json:"createdAt"`

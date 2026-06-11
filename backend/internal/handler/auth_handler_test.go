@@ -63,6 +63,8 @@ func (r *fakeUserRepo) UpdateCompanyID(_ context.Context, id uint64, companyID u
 	return nil
 }
 
+func (r *fakeUserRepo) UpdateActive(context.Context, uint64, bool) error { return nil }
+func (r *fakeUserRepo) SoftDelete(context.Context, uint64) error         { return nil }
 func (r *fakeUserRepo) MarkOnboarded(_ context.Context, _ uint64) error {
 	return nil
 }

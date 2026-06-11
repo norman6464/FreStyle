@@ -9,6 +9,8 @@ export interface Member {
   role: string;
   /** AI 利用可否の個別上書き。null = 会社設定に従う。 */
   aiChatEnabled: boolean | null;
+  /** アカウントの有効/無効。false = 無効（ログイン/利用不可）。 */
+  isActive: boolean;
 }
 
 /**
@@ -26,6 +28,16 @@ const AdminMemberRepository = {
    */
   async updateAiAccess(userId: number, enabled: boolean | null): Promise<void> {
     await api.patch(ADMIN.memberAiAccess(userId), { enabled });
+  },
+
+  /** 従業員アカウントの有効/無効を切り替える（false で停止 → ログイン/利用不可）。 */
+  async updateActive(userId: number, active: boolean): Promise<void> {
+    await api.patch(ADMIN.memberActive(userId), { active });
+  },
+
+  /** 従業員を論理削除する（一覧から退会させる）。 */
+  async remove(userId: number): Promise<void> {
+    await api.delete(ADMIN.member(userId));
   },
 };
 

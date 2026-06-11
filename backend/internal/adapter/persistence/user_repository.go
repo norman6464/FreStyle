@@ -35,6 +35,7 @@ func toDomainUser(row sqlcgen.User) *domain.User {
 		Email:       row.Email,
 		DisplayName: row.DisplayName,
 		Role:        row.Role,
+		IsActive:    row.IsActive,
 		CreatedAt:   row.CreatedAt,
 		UpdatedAt:   row.UpdatedAt,
 	}
@@ -141,6 +142,38 @@ func (r *userRepository) UpdateAiChatEnabled(ctx context.Context, userID uint64,
 		Model(&domain.User{}).
 		Where("id = ?", userID).
 		Update("ai_chat_enabled", value).Error
+}
+
+// UpdateActive はユーザーアカウントの有効/無効を更新する（false で無効化 → ログイン/利用不可）。
+// 対象が存在しなければ gorm.ErrRecordNotFound を返す（handler が 404 にマップ）。
+func (r *userRepository) UpdateActive(ctx context.Context, userID uint64, active bool) error {
+	res := r.db.WithContext(ctx).
+		Model(&domain.User{}).
+		Where("id = ?", userID).
+		Update("is_active", active)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+// SoftDelete はユーザーを論理削除する（deleted_at = NOW()）。以後 FindByCognitoSub 等で除外され、
+// 認証時にも弾かれる。既に削除済み / 存在しない場合は gorm.ErrRecordNotFound を返す。
+func (r *userRepository) SoftDelete(ctx context.Context, userID uint64) error {
+	res := r.db.WithContext(ctx).
+		Model(&domain.User{}).
+		Where("id = ? AND deleted_at IS NULL", userID).
+		Update("deleted_at", gorm.Expr("NOW()"))
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 func (r *userRepository) UpdateDisplayName(ctx context.Context, userID uint64, displayName string) error {

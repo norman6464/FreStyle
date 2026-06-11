@@ -46,6 +46,8 @@ func (f *fakeMemberUserRepo) UpdateDisplayName(context.Context, uint64, string) 
 }
 func (f *fakeMemberUserRepo) UpdateRole(context.Context, uint64, string) error      { return nil }
 func (f *fakeMemberUserRepo) UpdateCompanyID(context.Context, uint64, uint64) error { return nil }
+func (f *fakeMemberUserRepo) UpdateActive(context.Context, uint64, bool) error      { return nil }
+func (f *fakeMemberUserRepo) SoftDelete(context.Context, uint64) error              { return nil }
 func (f *fakeMemberUserRepo) MarkOnboarded(context.Context, uint64) error           { return nil }
 func (f *fakeMemberUserRepo) UpdateAiChatEnabled(_ context.Context, userID uint64, enabled *bool) error {
 	f.updated[userID] = enabled

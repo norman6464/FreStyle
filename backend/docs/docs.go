@@ -102,8 +102,20 @@ const docTemplate = `{
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
                     },
+                    "401": {
+                        "description": "未認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
                     "403": {
                         "description": "super_admin 以外",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "会社が存在しない",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }

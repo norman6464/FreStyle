@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"gorm.io/gorm"
 )
 
 // isSuperAdmin は actor が super_admin（運営管理者）かを判定する。
@@ -58,7 +60,9 @@ type setCompanyActiveRequest struct {
 //	@Param        body  body      setCompanyActiveRequest  true  "active=false で無効化"
 //	@Success      200   {object}  messageResponse
 //	@Failure      400   {object}  errorResponse  "不正な ID / body"
+//	@Failure      401   {object}  errorResponse  "未認証"
 //	@Failure      403   {object}  errorResponse  "super_admin 以外"
+//	@Failure      404   {object}  errorResponse  "会社が存在しない"
 //	@Failure      500   {object}  errorResponse  "更新失敗"
 //	@Router       /admin/companies/{id}/active [patch]
 //	@Security     CookieAuth
@@ -81,10 +85,15 @@ func (h *AdminCompanyHandler) SetActive(c *gin.Context) {
 		return
 	}
 
-	if err := h.setActive.Execute(c.Request.Context(), usecase.SetCompanyActiveInput{
+	err = h.setActive.Execute(c.Request.Context(), usecase.SetCompanyActiveInput{
 		CompanyID: id,
 		Active:    *body.Active,
-	}); err != nil {
+	})
+	switch {
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		c.JSON(http.StatusNotFound, errorResponse{Error: "company_not_found"})
+		return
+	case err != nil:
 		c.JSON(http.StatusInternalServerError, errorResponse{Error: "update_failed"})
 		return
 	}

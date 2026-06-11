@@ -23,7 +23,7 @@
 
 ## 2. レイヤー構成（クリーンアーキテクチャ）
 
-```
+```text
 AdminCompaniesPage / CompanyRepository.updateActive (frontend)
         │  PATCH /api/v2/admin/companies/:id/active
         ▼

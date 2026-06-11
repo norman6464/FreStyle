@@ -74,7 +74,15 @@ func (r *companyRepository) UpdateAiChatEnabled(ctx context.Context, companyID u
 }
 
 // UpdateActive は会社アカウントの有効/無効を更新する。false で無効化（その会社の全ユーザーが利用不可）。
+// 対象会社が存在せず 0 件更新だった場合は gorm.ErrRecordNotFound を返す（handler が 404 にマップ）。
 func (r *companyRepository) UpdateActive(ctx context.Context, companyID uint64, active bool) error {
 	const q = `UPDATE companies SET is_active = ?, updated_at = NOW() WHERE id = ?`
-	return r.db.WithContext(ctx).Exec(q, active, companyID).Error
+	res := r.db.WithContext(ctx).Exec(q, active, companyID)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }

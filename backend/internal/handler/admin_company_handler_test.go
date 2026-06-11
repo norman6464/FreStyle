@@ -11,6 +11,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"gorm.io/gorm"
 )
 
 // fakeCompanyRepo は repository.CompanyRepository の最小 fake。
@@ -112,5 +113,15 @@ func TestAdminCompanyHandler_SetActive_InvalidBody_BadRequest(t *testing.T) {
 	w := patchCompanyActive(t, actor, "5", `{}`, repo)
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("want 400, got %d", w.Code)
+	}
+}
+
+func TestAdminCompanyHandler_SetActive_NotFound(t *testing.T) {
+	// 存在しない会社 ID（0 件更新）は repository が ErrRecordNotFound を返し、handler が 404 にマップ。
+	repo := &fakeCompanyRepo{err: gorm.ErrRecordNotFound}
+	actor := &domain.User{ID: 1, Role: domain.RoleSuperAdmin}
+	w := patchCompanyActive(t, actor, "999", `{"active":false}`, repo)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("want 404, got %d", w.Code)
 	}
 }

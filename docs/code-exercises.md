@@ -28,11 +28,11 @@
 - **採点**: `master_exercise_examples` が無い演習は `master_exercises.expected_output` を単一の仮想テストケースとして使う（seed.py は examples を作らず expected_output のみ投入する）
 - company_admin が UI から作成することも可能。その場合は後で教材リポの `.md` にバックポートして整合を取る
 
-> **例外（本体コードと密結合な演習のみ埋め込み）**: `backend/internal/infra/database/seed_master_exercises.go` は起動時にクリーンアーキテクチャ体験用の Go 演習（`seedCleanArchitectureExercise` / slug `go-clean-arch-greeting`）だけを冪等に投入する。本プロジェクトの層構造そのものを最小例で示す教材のため例外的に埋め込んでいる。PHP 演習の埋め込み seed は教材リポ `.md` への一本化に伴い撤去済み。
+> **本体に演習の埋め込み seed は無い**: PHP に続きクリーンアーキ体験用の Go 演習（slug `go-clean-arch-greeting`）も `.md` へ移し、`seed_master_exercises.go` は撤去済み。`Migrate` は AutoMigrate と会社 seed のみを行い、演習は一切埋め込まない。新環境の初期投入も上記の `seed.py` → `apply-migration-supabase` で行う。
 
 ### 参照: クリーンアーキテクチャの Go 演習
 
-`seedCleanArchitectureExercise`（slug `go-clean-arch-greeting`）は、**1 ファイルの Go で依存性逆転 (DIP) を体験**する演習。domain（エンティティ）/ port（インターフェース）/ usecase / infra（実装）/ main（wiring）を 1 ファイルに置き、`GreetUseCase.Execute` の未実装部分を学習者が埋める。期待出力 `Hello, FreStyle! (clean architecture)` と一致で正解。「usecase は具体実装でなく port に依存し、実装は main で注入する」という本プロジェクトのクリーンアーキテクチャ（依存方向 handler→usecase→repository/infra→domain）を最小例で示す教材。
+教材リポの `exercises/go/go-clean-arch-greeting.md`（slug `go-clean-arch-greeting`）は、**1 ファイルの Go で依存性逆転 (DIP) を体験**する演習。domain（エンティティ）/ port（インターフェース）/ usecase / infra（実装）/ main（wiring）を 1 ファイルに置き、`GreetUseCase.Execute` の未実装部分を学習者が埋める。期待出力 `Hello, FreStyle! (clean architecture)` と一致で正解。「usecase は具体実装でなく port に依存し、実装は main で注入する」という本プロジェクトのクリーンアーキテクチャ（依存方向 handler→usecase→repository/infra→domain）を最小例で示す教材。
 
 > 単一ファイル実行（sandbox は 1 ファイルを `go run`）なので、複数パッケージに分けず**役割をコメントで区切って 1 ファイルに収める**のがコツ。
 

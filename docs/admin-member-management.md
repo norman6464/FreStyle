@@ -31,3 +31,4 @@ AI チャットを使ってよいかは [`usecase.AiChatEnabledForUserUseCase`](
 
 - backend: `list_company_members_usecase.go` / `update_member_ai_access_usecase.go` / `admin_member_handler.go` / `routes_admin.go`。repository は `UserRepository.ListByCompanyID`（sqlc）+ `UpdateAiChatEnabled`（GORM、`nil` で `NULL` に戻す）
 - frontend: `AdminMembersPage` / `useAdminMembers` / `AdminMemberRepository`。一覧表で各従業員の AI 利用を「会社設定に従う / 有効 / 無効」のセレクトで設定（trainee のみ対象）
+- **一覧の検索**: 一覧上部の検索ボックスで **氏名・メールアドレス・役割**を部分一致（大文字小文字無視）でクライアント側フィルタ（`AdminMembersPage` の `useMemo`）。一覧は自社分のみで件数が少ないため、追加の API は持たずクライアントで絞り込む。一致が無いときは「〜に一致する従業員がいません」を表示。

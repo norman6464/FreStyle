@@ -17,8 +17,11 @@ type stubUsers struct{ user *domain.User }
 func (s *stubUsers) FindByCognitoSub(context.Context, string) (*domain.User, error) {
 	return s.user, nil
 }
-func (s *stubUsers) FindByID(context.Context, uint64) (*domain.User, error)         { return s.user, nil }
-func (s *stubUsers) ListByRole(context.Context, string) ([]domain.User, error)      { return nil, nil }
+
+func (s *stubUsers) FindByID(context.Context, uint64) (*domain.User, error) { return s.user, nil }
+
+func (s *stubUsers) ListByRole(context.Context, string) ([]domain.User, error) { return nil, nil }
+
 func (s *stubUsers) ListByCompanyID(context.Context, uint64) ([]domain.User, error) { return nil, nil }
 func (s *stubUsers) Create(context.Context, *domain.User) error                     { return nil }
 func (s *stubUsers) UpdateAiChatEnabled(context.Context, uint64, *bool) error       { return nil }

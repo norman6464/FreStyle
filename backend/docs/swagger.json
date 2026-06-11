@@ -46,6 +46,82 @@
                 }
             }
         },
+        "/admin/companies/{id}/active": {
+            "patch": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "会社を無効化すると、その会社の全ユーザーがログイン/利用不可になる（middleware で弾く）。super_admin のみ。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "会社アカウントの有効/無効を切り替え（super_admin 専用）",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "会社 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "active=false で無効化",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.setCompanyActiveRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.messageResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "不正な ID / body",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "super_admin 以外",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "会社が存在しない",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "更新失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/company-applications": {
             "get": {
                 "security": [
@@ -3352,6 +3428,10 @@
                 "id": {
                     "type": "integer"
                 },
+                "isActive": {
+                    "description": "IsActive は会社アカウントの有効/無効。false（無効）にすると、その会社の全ユーザーが\nログイン/利用不可になる（middleware で弾く）。super_admin が会社一覧から切り替える。",
+                    "type": "boolean"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -4296,6 +4376,17 @@
             "properties": {
                 "content": {
                     "type": "string"
+                }
+            }
+        },
+        "internal_handler.setCompanyActiveRequest": {
+            "type": "object",
+            "required": [
+                "active"
+            ],
+            "properties": {
+                "active": {
+                    "type": "boolean"
                 }
             }
         },

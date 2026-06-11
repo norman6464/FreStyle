@@ -54,9 +54,9 @@ func Migrate(db *gorm.DB) error {
 		return err
 	}
 	log.Println("migrate: AutoMigrate done")
-	if err := seedMasterExercises(db); err != nil {
-		return err
-	}
+	// 演習データ(PHP / Go / Docker / Linux / Git など)は問題文・期待出力を公開リポに露出させない
+	// ため本体には埋め込まず、非公開の教材リポ(frestyle-teaching-materials/exercises/<lang>/*.md)を
+	// 唯一の正本とし、seed.py が生成する UPSERT SQL を Supabase に流して投入する(docs/code-exercises.md)。
 	if err := seedCompanies(db); err != nil {
 		return err
 	}

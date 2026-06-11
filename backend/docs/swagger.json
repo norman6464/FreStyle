@@ -424,6 +424,57 @@
                 }
             }
         },
+        "/admin/sql": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "super_admin が入力した単一の SELECT / WITH クエリを read-only トランザクション内で実行し、列・行を返す。書き込み系は DB レベルで拒否され、行数は上限で打ち切られる（truncated=true）。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "read-only SQL を実行（super_admin 専用）",
+                "parameters": [
+                    {
+                        "description": "実行する SELECT / WITH クエリ",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.runSQLRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.runSQLResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "クエリが空 / 読み取り専用でない / SQL エラー",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "super_admin 以外",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/ai-chat/attachments/upload-url": {
             "post": {
                 "security": [
@@ -4288,6 +4339,41 @@
                     "type": "integer",
                     "maximum": 2100,
                     "minimum": 2000
+                }
+            }
+        },
+        "internal_handler.runSQLRequest": {
+            "type": "object",
+            "required": [
+                "query"
+            ],
+            "properties": {
+                "query": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.runSQLResponse": {
+            "type": "object",
+            "properties": {
+                "columns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "rowCount": {
+                    "type": "integer"
+                },
+                "rows": {
+                    "type": "array",
+                    "items": {
+                        "type": "array",
+                        "items": {}
+                    }
+                },
+                "truncated": {
+                    "type": "boolean"
                 }
             }
         },

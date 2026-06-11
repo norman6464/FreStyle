@@ -27,6 +27,12 @@ func registerAdminRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	g.GET("/admin/members", memberHandler.List)
 	g.PATCH("/admin/members/:userId/ai-access", memberHandler.UpdateAiAccess)
 
+	// read-only SQL コンソール（super_admin 専用。認可は handler 層 + DB の read-only トランザクションで二重に担保）。
+	sqlHandler := NewAdminSQLHandler(
+		usecase.NewExecuteReadOnlySQLUseCase(persistence.NewSQLConsoleRepository(deps.db)),
+	)
+	g.POST("/admin/sql", sqlHandler.Run)
+
 	// AdminInvitation — SES マジックリンク方式（UUID token 発行 + SES でメール送信）。
 	adminInvRepo := persistence.NewAdminInvitationRepository(deps.db)
 

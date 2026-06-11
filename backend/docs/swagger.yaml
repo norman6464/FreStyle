@@ -715,6 +715,29 @@ definitions:
     - month
     - year
     type: object
+  internal_handler.runSQLRequest:
+    properties:
+      query:
+        type: string
+    required:
+    - query
+    type: object
+  internal_handler.runSQLResponse:
+    properties:
+      columns:
+        items:
+          type: string
+        type: array
+      rowCount:
+        type: integer
+      rows:
+        items:
+          items: {}
+          type: array
+        type: array
+      truncated:
+        type: boolean
+    type: object
   internal_handler.sessionNoteUpsertReq:
     properties:
       content:
@@ -1099,6 +1122,39 @@ paths:
       security:
       - CookieAuth: []
       summary: 従業員の AI 利用可否を個別更新
+      tags:
+      - admin
+  /admin/sql:
+    post:
+      consumes:
+      - application/json
+      description: super_admin が入力した単一の SELECT / WITH クエリを read-only トランザクション内で実行し、列・行を返す。書き込み系は
+        DB レベルで拒否され、行数は上限で打ち切られる（truncated=true）。
+      parameters:
+      - description: 実行する SELECT / WITH クエリ
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.runSQLRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handler.runSQLResponse'
+        "400":
+          description: クエリが空 / 読み取り専用でない / SQL エラー
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: super_admin 以外
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: read-only SQL を実行（super_admin 専用）
       tags:
       - admin
   /ai-chat/attachments/upload-url:

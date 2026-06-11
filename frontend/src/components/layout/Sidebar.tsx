@@ -72,6 +72,13 @@ const adminNavItem: NavItem = {
     { label: '従業員一覧', to: '/admin/members', matchPrefix: '/admin/members' },
     // 招待管理は自社内で trainee を招待する操作のため company_admin / super_admin 双方が利用する。
     { label: '招待管理', to: '/admin/invitations', matchPrefix: '/admin/invitations' },
+    // SQL コンソールは本番 DB への read-only クエリ。運営 (super_admin) 専用。
+    {
+      label: 'SQL コンソール',
+      to: '/admin/sql',
+      matchPrefix: '/admin/sql',
+      allowedRoles: ['super_admin'],
+    },
   ],
 };
 

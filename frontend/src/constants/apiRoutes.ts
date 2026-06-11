@@ -140,6 +140,8 @@ export const ADMIN = {
   companies: `${API_V2}/admin/companies`,
   members: `${API_V2}/admin/members`,
   memberAiAccess: (userId: number | string) => `${API_V2}/admin/members/${userId}/ai-access`,
+  /** POST /api/v2/admin/sql — super_admin 専用 read-only SQL コンソール */
+  sql: `${API_V2}/admin/sql`,
   invitations: `${API_V2}/admin/invitations`,
   invitationById: (id: number | string) => `${API_V2}/admin/invitations/${id}`,
   scenarios: `${API_V2}/admin/scenarios`,

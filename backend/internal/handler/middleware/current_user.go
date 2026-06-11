@@ -41,6 +41,12 @@ func CurrentUser(users repository.UserRepository, companies repository.CompanyRe
 			return
 		}
 
+		// ユーザーアカウントが無効化されていれば利用不可（有効な JWT でも即時に弾く）。
+		if !user.IsActive {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "user_disabled"})
+			return
+		}
+
 		// 会社アカウントが無効化されていれば、その会社のユーザーは利用不可。
 		// 会社行が無い（データ不整合）場合は素通り、DB エラーは 500。
 		if user.CompanyID != nil {

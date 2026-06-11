@@ -85,6 +85,7 @@ type User struct {
 	CompanyID     sql.NullInt64
 	Role          string
 	AiChatEnabled sql.NullBool
+	IsActive      bool
 	OnboardedAt   sql.NullTime
 	CreatedAt     time.Time
 	UpdatedAt     time.Time

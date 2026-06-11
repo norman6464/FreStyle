@@ -33,7 +33,7 @@ function roleLabel(role: string): string {
 export default function AdminMembersPage() {
   const isAdmin = useSelector((state: RootState) => state.auth.isAdmin);
   const authLoading = useSelector((state: RootState) => state.auth.loading);
-  const { members, loading, error, updatingId, setAiAccess } = useAdminMembers();
+  const { members, loading, error, updatingId, setAiAccess, setActive, remove } = useAdminMembers();
 
   if (authLoading) return <Loading message="読み込み中..." className="min-h-[50vh]" />;
   if (!isAdmin) return <Navigate to="/" replace />;
@@ -42,13 +42,17 @@ export default function AdminMembersPage() {
     <div className="px-4 sm:px-6 pt-6 pb-24 max-w-4xl mx-auto">
       <PageIntro
         title="管理: 従業員一覧"
-        description="自社の従業員の一覧です。各従業員の AI 利用可否を個別に設定できます（会社の一括設定を上書きします）。"
+        description="自社の従業員の一覧です。AI 利用可否の個別設定に加え、アカウントの有効/無効（停止）と削除ができます。無効化された従業員はログイン/利用不可になります。"
       />
+
+      {error && (
+        <p role="alert" className="mt-4 text-rose-600">
+          {error}
+        </p>
+      )}
 
       {loading ? (
         <Loading message="読み込み中..." className="min-h-[30vh]" />
-      ) : error ? (
-        <p className="mt-6 text-rose-600">{error}</p>
       ) : members.length === 0 ? (
         <p className="mt-6 text-[var(--color-text-muted)]">従業員がまだいません。</p>
       ) : (
@@ -60,6 +64,8 @@ export default function AdminMembersPage() {
                 <th className="px-4 py-2 font-medium">メールアドレス</th>
                 <th className="px-4 py-2 font-medium">役割</th>
                 <th className="px-4 py-2 font-medium">AI 利用</th>
+                <th className="px-4 py-2 font-medium">状態</th>
+                <th className="px-4 py-2 font-medium">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -83,6 +89,41 @@ export default function AdminMembersPage() {
                       <option value="on">有効（個別ON）</option>
                       <option value="off">無効（個別OFF）</option>
                     </select>
+                  </td>
+                  <td className="px-4 py-2">
+                    {m.isActive ? (
+                      <span className="text-emerald-600">有効</span>
+                    ) : (
+                      <span className="text-rose-600 font-medium">無効</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2">
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setActive(m.id, !m.isActive)}
+                        disabled={updatingId === m.id}
+                        className={`text-xs px-2.5 py-1 rounded border transition-colors disabled:opacity-50 ${
+                          m.isActive
+                            ? 'border-rose-300 text-rose-700 hover:bg-rose-50'
+                            : 'border-emerald-300 text-emerald-700 hover:bg-emerald-50'
+                        }`}
+                      >
+                        {m.isActive ? '無効化' : '有効化'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm(`${m.displayName || m.email} を削除します。よろしいですか？`)) {
+                            remove(m.id);
+                          }
+                        }}
+                        disabled={updatingId === m.id}
+                        className="text-xs px-2.5 py-1 rounded border border-surface-3 text-[var(--color-text-muted)] hover:bg-surface-2 transition-colors disabled:opacity-50"
+                      >
+                        削除
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

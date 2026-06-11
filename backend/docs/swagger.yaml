@@ -660,6 +660,9 @@ definitions:
         type: string
       id:
         type: integer
+      isActive:
+        description: IsActive はアカウントの有効/無効。false = 無効（ログイン/利用不可）。
+        type: boolean
       role:
         type: string
     type: object
@@ -726,6 +729,13 @@ definitions:
         type: string
     type: object
   internal_handler.setCompanyActiveRequest:
+    properties:
+      active:
+        type: boolean
+    required:
+    - active
+    type: object
+  internal_handler.setMemberActiveRequest:
     properties:
       active:
         type: boolean
@@ -1116,6 +1126,93 @@ paths:
       security:
       - CookieAuth: []
       summary: 従業員一覧
+      tags:
+      - admin
+  /admin/members/{userId}:
+    delete:
+      description: 従業員を一覧から退会させる（論理削除）。以後ログイン/利用不可。super_admin は全社、company_admin は自社の従業員のみ。自分自身は不可。
+      parameters:
+      - description: 従業員の数値 ID
+        in: path
+        name: userId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: 不正な ID / 自分自身
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: 管理者以外 / 別会社の従業員
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "404":
+          description: 従業員が存在しない
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: 内部エラー
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 従業員を論理削除
+      tags:
+      - admin
+  /admin/members/{userId}/active:
+    patch:
+      consumes:
+      - application/json
+      description: 無効化すると、その従業員はログイン/利用不可になる（middleware で弾く）。super_admin は全社、company_admin
+        は自社の従業員のみ。自分自身は不可。
+      parameters:
+      - description: 従業員の数値 ID
+        in: path
+        name: userId
+        required: true
+        type: string
+      - description: active=false で無効化
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.setMemberActiveRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: 不正な ID / body / 自分自身
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: 管理者以外 / 別会社の従業員
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "404":
+          description: 従業員が存在しない
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: 内部エラー
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 従業員アカウントの有効/無効を切り替え
       tags:
       - admin
   /admin/members/{userId}/ai-access:

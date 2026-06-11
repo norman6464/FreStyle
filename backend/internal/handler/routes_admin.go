@@ -27,9 +27,14 @@ func registerAdminRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	memberHandler := NewAdminMemberHandler(
 		usecase.NewListCompanyMembersUseCase(memberRepo),
 		usecase.NewUpdateMemberAiAccessUseCase(memberRepo),
+		usecase.NewSetMemberActiveUseCase(memberRepo),
+		usecase.NewSoftDeleteMemberUseCase(memberRepo),
 	)
 	g.GET("/admin/members", memberHandler.List)
 	g.PATCH("/admin/members/:userId/ai-access", memberHandler.UpdateAiAccess)
+	// 従業員アカウントの有効/無効（停止）と論理削除（super_admin は全社 / company_admin は自社）。
+	g.PATCH("/admin/members/:userId/active", memberHandler.SetActive)
+	g.DELETE("/admin/members/:userId", memberHandler.Delete)
 
 	// AdminInvitation — SES マジックリンク方式（UUID token 発行 + SES でメール送信）。
 	adminInvRepo := persistence.NewAdminInvitationRepository(deps.db)

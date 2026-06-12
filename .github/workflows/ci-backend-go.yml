@@ -110,7 +110,7 @@ jobs:
       # 注意: この計測は unit ジョブ（integration タグ無し）。GORM→sqlc 移行で repository の
       # クエリコードが integration テスト側へ寄ると、その分 unit カバレッジは下がる（該当コードは
       # "integration tests (postgres)" ジョブが実 Postgres で検証している）。移行中は floor を実態に
-      # 合わせて下げ、移行完了後に integration 込みの計測へ切り替えて引き上げ直す（docs/sqlc-data-access.md）。
+      # 合わせて下げ、移行完了後に integration 込みの計測へ切り替えて引き上げ直す。
       - name: coverage summary + gate
         env:
           COVERAGE_MIN: '45'

@@ -1,6 +1,6 @@
 # sqlc 設定（生 SQL 直書き → 型安全な Go を生成）。
 #
-# 方針（docs/design 0002 / データアクセスの生 SQL 化）:
+# 方針（データアクセスの生 SQL 化）:
 #   - GORM は接続・AutoMigrate に当面残し、クエリは順次 sqlc に移行する。
 #   - 生成コードは database/sql モード。GORM の *gorm.DB から取り出した *sql.DB を
 #     そのまま DBTX として渡し、接続プールを共有する（別 pool を持たない）。

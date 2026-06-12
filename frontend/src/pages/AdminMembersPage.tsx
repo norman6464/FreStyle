@@ -88,12 +88,12 @@ export default function AdminMembersPage() {
               <table className="w-full text-sm">
             <thead>
               <tr className="bg-surface-2 text-left text-[var(--color-text-muted)]">
-                <th className="px-4 py-2 font-medium">氏名</th>
-                <th className="px-4 py-2 font-medium">メールアドレス</th>
-                <th className="px-4 py-2 font-medium">役割</th>
-                <th className="px-4 py-2 font-medium">AI 利用</th>
-                <th className="px-4 py-2 font-medium">状態</th>
-                <th className="px-4 py-2 font-medium">操作</th>
+                <th className="px-4 py-2 font-medium whitespace-nowrap">氏名</th>
+                <th className="px-4 py-2 font-medium whitespace-nowrap">メールアドレス</th>
+                <th className="px-4 py-2 font-medium whitespace-nowrap">役割</th>
+                <th className="px-4 py-2 font-medium whitespace-nowrap">AI 利用</th>
+                <th className="px-4 py-2 font-medium whitespace-nowrap">状態</th>
+                <th className="px-4 py-2 font-medium whitespace-nowrap">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -101,7 +101,7 @@ export default function AdminMembersPage() {
                 <tr key={m.id} className="border-t border-surface-3">
                   <td className="px-4 py-2 text-[var(--color-text-primary)]">{m.displayName || '—'}</td>
                   <td className="px-4 py-2 text-[var(--color-text-muted)]">{m.email}</td>
-                  <td className="px-4 py-2 text-[var(--color-text-muted)]">{roleLabel(m.role)}</td>
+                  <td className="px-4 py-2 text-[var(--color-text-muted)] whitespace-nowrap">{roleLabel(m.role)}</td>
                   <td className="px-4 py-2">
                     <select
                       aria-label={`${m.displayName || m.email} の AI 利用可否`}
@@ -118,20 +118,20 @@ export default function AdminMembersPage() {
                       <option value="off">無効（個別OFF）</option>
                     </select>
                   </td>
-                  <td className="px-4 py-2">
+                  <td className="px-4 py-2 whitespace-nowrap">
                     {m.isActive ? (
                       <span className="text-emerald-600">有効</span>
                     ) : (
                       <span className="text-rose-600 font-medium">無効</span>
                     )}
                   </td>
-                  <td className="px-4 py-2">
+                  <td className="px-4 py-2 whitespace-nowrap">
                     <div className="flex gap-2">
                       <button
                         type="button"
                         onClick={() => setActive(m.id, !m.isActive)}
                         disabled={updatingId === m.id}
-                        className={`text-xs px-2.5 py-1 rounded border transition-colors disabled:opacity-50 ${
+                        className={`text-xs px-2.5 py-1 rounded border whitespace-nowrap transition-colors disabled:opacity-50 ${
                           m.isActive
                             ? 'border-rose-300 text-rose-700 hover:bg-rose-50'
                             : 'border-emerald-300 text-emerald-700 hover:bg-emerald-50'
@@ -147,7 +147,7 @@ export default function AdminMembersPage() {
                           }
                         }}
                         disabled={updatingId === m.id}
-                        className="text-xs px-2.5 py-1 rounded border border-surface-3 text-[var(--color-text-muted)] hover:bg-surface-2 transition-colors disabled:opacity-50"
+                        className="text-xs px-2.5 py-1 rounded border border-surface-3 text-[var(--color-text-muted)] whitespace-nowrap hover:bg-surface-2 transition-colors disabled:opacity-50"
                       >
                         削除
                       </button>

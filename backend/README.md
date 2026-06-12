@@ -2,12 +2,11 @@
 
 FreStyle のバックエンド（Go / Gin / GORM / PostgreSQL）。クリーンアーキテクチャ（依存方向を
 `archlint` で強制）。一時的に進めた Java/Spring Boot 版は性能面（極小 Fargate + 夜間 teardown）の
-理由で取りやめ、Go へ差し戻した（設計書 `docs/design/2026年/0002`、2026-06-09 に機能パリティ回復）。
+理由で取りやめ、Go へ差し戻した（2026-06-09 に機能パリティ回復）。
 
 **データアクセス方針**: クエリは「読み取り＝生 SQL 直書き（`db.Raw` / 段階的に sqlc）/ 書き込み＝
-GORM（採番 ID・autoTime の利便）」のハイブリッド。GORM は接続・AutoMigrate にも使う。詳細は
-[`docs/sqlc-data-access.md`](../docs/sqlc-data-access.md)。テストの考え方（古典学派）は
-[`docs/testing-philosophy.md`](../docs/testing-philosophy.md)。
+GORM（採番 ID・autoTime の利便）」のハイブリッド。GORM は接続・AutoMigrate にも使う。テストは
+古典学派（実 DB・実ルータ + 手書き fake で状態検証）を採用する。
 
 ## ディレクトリ構造（クリーンアーキテクチャ）
 

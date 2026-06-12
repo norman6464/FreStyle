@@ -10,7 +10,7 @@ import (
 
 // courseRepository は [repository.CourseRepository] の実装。
 // 読み取りは生 SQL 直書き(db.Raw)、書き込み(Create/Update/Delete)は採番 ID・autoTime の
-// 利便のため GORM を使う(ハイブリッド方針。docs/sqlc-data-access.md / testing-philosophy.md)。
+// 利便のため GORM を使う(ハイブリッド方針)。
 type courseRepository struct {
 	db *gorm.DB
 }

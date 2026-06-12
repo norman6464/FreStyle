@@ -1,0 +1,38 @@
+<mxfile host="app.diagrams.net" type="device">
+  <diagram name="clean-arch" id="clean-arch">
+    <mxGraphModel dx="1000" dy="760" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="980" pageHeight="560" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="c_handler" value="handler（Gin）&#10;HTTP / SSE 受付・認証取得・JSON 返却" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="330" y="20" width="320" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="c_usecase" value="usecase（Application）&#10;1 usecase = 1 struct・Execute(ctx, in) (out, err)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="330" y="140" width="320" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="c_port" value="repository（port / interface）&#10;internal/usecase/repository — usecase が依存する“抽象”" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="300" y="260" width="380" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="c_domain" value="domain（Entity）&#10;エンティティ + ビジネスルール定数。どの層にも依存しない" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="300" y="440" width="380" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="c_persistence" value="adapter/persistence（impl）&#10;GORM 書き込み / sqlc 読み取り / DynamoDB / S3" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="20" y="350" width="250" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="c_infra" value="infra（外部 SDK）&#10;bedrock / ses / cognito / database" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="710" y="350" width="250" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="e0" value="依存" style="endArrow=block;html=1;rounded=0;fontSize=11" edge="1" parent="1" source="c_handler" target="c_usecase">
+          <mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e1" value="interface に依存" style="endArrow=block;html=1;rounded=0;fontSize=11" edge="1" parent="1" source="c_usecase" target="c_port">
+          <mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e2" value="" style="endArrow=block;html=1;rounded=0;fontSize=11" edge="1" parent="1" source="c_port" target="c_domain">
+          <mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e3" value="implements (DIP)" style="endArrow=block;html=1;rounded=0;fontSize=11;dashed=1" edge="1" parent="1" source="c_persistence" target="c_port">
+          <mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e4" value="implements (DIP)" style="endArrow=block;html=1;rounded=0;fontSize=11;dashed=1" edge="1" parent="1" source="c_infra" target="c_port">
+          <mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

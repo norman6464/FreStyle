@@ -1,0 +1,38 @@
+<mxfile host="app.diagrams.net" type="device">
+  <diagram name="frontend-arch" id="frontend-arch">
+    <mxGraphModel dx="1000" dy="760" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="900" pageHeight="340" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="c_page" value="Page（src/pages）&#10;画面。ビジネスロジックは持たない" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="260" height="65" as="geometry" />
+        </mxCell>
+        <mxCell id="c_hook" value="Hook（src/hooks）&#10;画面固有の状態管理・API 呼び出し" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="340" y="40" width="260" height="65" as="geometry" />
+        </mxCell>
+        <mxCell id="c_repo" value="Repository（src/repositories）&#10;axios をここに集約" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="640" y="40" width="230" height="65" as="geometry" />
+        </mxCell>
+        <mxCell id="c_api" value="Go backend（/api/v2）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="640" y="230" width="230" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="c_comp" value="Component（src/components）&#10;副作用なしの表示" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="40" y="230" width="260" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="c_store" value="Store（Redux Toolkit）&#10;auth 等のグローバル状態" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="340" y="230" width="260" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="e0" value="" style="endArrow=block;html=1;rounded=0;fontSize=11" edge="1" parent="1" source="c_page" target="c_hook">
+          <mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e1" value="" style="endArrow=block;html=1;rounded=0;fontSize=11" edge="1" parent="1" source="c_hook" target="c_repo">
+          <mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e2" value="HTTP" style="endArrow=block;html=1;rounded=0;fontSize=11" edge="1" parent="1" source="c_repo" target="c_api">
+          <mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e3" value="" style="endArrow=block;html=1;rounded=0;fontSize=11" edge="1" parent="1" source="c_page" target="c_comp">
+          <mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e4" value="" style="endArrow=block;html=1;rounded=0;fontSize=11;dashed=1" edge="1" parent="1" source="c_hook" target="c_store">
+          <mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -1,0 +1,52 @@
+<mxfile host="app.diagrams.net" type="device">
+  <diagram name="testing-dependencies" id="testing-dependencies">
+    <mxGraphModel dx="1000" dy="760" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1340" pageHeight="770" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="c_uc" value="テスト対象&#10;usecase&#10;（例: SendAiMessageStream&#10;UseCase）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="550" y="320" width="240" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="c_lh" value="プライベート依存（多くは不変）&#10;→ 本物を使う（real instance）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="80" y="50" width="380" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="c_l1" value="domain エンティティ&#10;User / AiChatSession などの構造体" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="80" y="160" width="380" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="c_l2" value="純粋ロジック&#10;採点・バリデーション（副作用なし）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="80" y="320" width="380" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="c_l3" value="値オブジェクト / 入出力 DTO&#10;（Input / Request / Response）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="80" y="480" width="380" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="c_rh" value="共有 / プロセス外依存&#10;→ テストダブルに差し替え" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="880" y="50" width="380" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="c_r1" value="PostgreSQL（RDB）&#10;共有 ＆ プロセス外（テスト間で状態を共有）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="880" y="160" width="380" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="c_r2" value="DynamoDB / S3 / SQS&#10;プロセス外（一部は共有）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="880" y="320" width="380" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="c_r3" value="Bedrock / Cognito / SES&#10;プロセス外（外部 API）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="880" y="480" width="380" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="c_def" value="【共有依存】テスト間で状態を共有し、互いの結果に影響しうる依存（DB・ファイル・グローバル可変状態）。テスト分離を壊すのでダブルに差し替える。&#10;【プライベート依存】共有でない依存。とくに不変（値）なら本物を使ってよい。&#10;【古典学派の原則】本物を使えるなら本物。共有 / プロセス外依存だけ差し替える（ロンドン派のように協力者を全部モックしない）。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="80" y="620" width="1180" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="e0" value="本物" style="endArrow=block;html=1;rounded=0;fontSize=11;strokeColor=#82b366" edge="1" parent="1" source="c_uc" target="c_l1">
+          <mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e1" value="本物" style="endArrow=block;html=1;rounded=0;fontSize=11;strokeColor=#82b366" edge="1" parent="1" source="c_uc" target="c_l2">
+          <mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e2" value="本物" style="endArrow=block;html=1;rounded=0;fontSize=11;strokeColor=#82b366" edge="1" parent="1" source="c_uc" target="c_l3">
+          <mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e3" value="fake / stub" style="endArrow=block;html=1;rounded=0;fontSize=11;strokeColor=#b85450" edge="1" parent="1" source="c_uc" target="c_r1">
+          <mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e4" value="fake / stub" style="endArrow=block;html=1;rounded=0;fontSize=11;strokeColor=#d79b00" edge="1" parent="1" source="c_uc" target="c_r2">
+          <mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e5" value="fake / stub" style="endArrow=block;html=1;rounded=0;fontSize=11;strokeColor=#d79b00" edge="1" parent="1" source="c_uc" target="c_r3">
+          <mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

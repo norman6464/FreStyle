@@ -1,0 +1,56 @@
+<mxfile host="app.diagrams.net" type="device">
+  <diagram name="testing-doubles" id="testing-doubles">
+    <mxGraphModel dx="1000" dy="760" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1360" pageHeight="790" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="c_uc" value="テスト対象 usecase" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="560" y="30" width="240" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="c_q1" value="入ってくる依存（query）&#10;例: repository.FindByID が&#10;データを返す（入力をエミュレート）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="120" y="170" width="320" height="84" as="geometry" />
+        </mxCell>
+        <mxCell id="c_q2" value="Stub / 手書き Fake&#10;（map ベースの軽量実装）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="120" y="310" width="320" height="72" as="geometry" />
+        </mxCell>
+        <mxCell id="c_q3" value="状態・戻り値を検証&#10;（fake 自体にはアサートしない）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="120" y="430" width="320" height="72" as="geometry" />
+        </mxCell>
+        <mxCell id="c_q4" value="✅ FreStyle の既定&#10;usecase の手書き fake: 22 ファイル" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="120" y="550" width="320" height="72" as="geometry" />
+        </mxCell>
+        <mxCell id="c_c1" value="出ていく依存・副作用（command）&#10;例: メール送信 / SQS enqueue&#10;（出力をエミュレート）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="920" y="170" width="320" height="84" as="geometry" />
+        </mxCell>
+        <mxCell id="c_c2" value="管理下（DB 等・アプリ専用）&#10;→ Fake で状態検証&#10;（実装詳細なのでモックしない）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="700" y="310" width="270" height="84" as="geometry" />
+        </mxCell>
+        <mxCell id="c_c3" value="管理外（外部から観測可能）&#10;メール・SQS・通知&#10;→ Mock で相互作用検証&#10;（呼ばれた回数・引数）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="1010" y="310" width="300" height="96" as="geometry" />
+        </mxCell>
+        <mxCell id="c_c4" value="✅ 限定使用&#10;testify/mock: 1 ファイル&#10;（SendAiMessageStream の&#10;SQS / 保存呼び出しなど）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="1010" y="440" width="300" height="96" as="geometry" />
+        </mxCell>
+        <mxCell id="c_lg" value="【Fake】動く軽量実装（map ベースの手書き repository）。本物の代わりにそのまま使える。&#10;【Stub】入ってくる値（query）に決まった答えを返すだけ。アサート対象にしない（過剰指定を避ける）。&#10;【Mock】出ていく呼び出し（command）の呼ばれ方を検証する。アサートする。&#10;方針: まず状態検証（Stub / Fake）で書けないか考え、書けないときだけ相互作用検証（Mock）。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="120" y="650" width="1190" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="e0" value="値を返す" style="endArrow=block;html=1;rounded=0;fontSize=11" edge="1" parent="1" source="c_uc" target="c_q1">
+          <mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e1" value="副作用を起こす" style="endArrow=block;html=1;rounded=0;fontSize=11" edge="1" parent="1" source="c_uc" target="c_c1">
+          <mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e2" value="" style="endArrow=block;html=1;rounded=0;fontSize=11" edge="1" parent="1" source="c_q1" target="c_q2">
+          <mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e3" value="" style="endArrow=block;html=1;rounded=0;fontSize=11" edge="1" parent="1" source="c_q2" target="c_q3">
+          <mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e4" value="" style="endArrow=block;html=1;rounded=0;fontSize=11" edge="1" parent="1" source="c_q3" target="c_q4">
+          <mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e5" value="" style="endArrow=block;html=1;rounded=0;fontSize=11" edge="1" parent="1" source="c_c1" target="c_c2">
+          <mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e6" value="" style="endArrow=block;html=1;rounded=0;fontSize=11" edge="1" parent="1" source="c_c1" target="c_c3">
+          <mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e7" value="" style="endArrow=block;html=1;rounded=0;fontSize=11" edge="1" parent="1" source="c_c3" target="c_c4">
+          <mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -1,0 +1,53 @@
+<mxfile host="app.diagrams.net" type="device">
+  <diagram name="system" id="system">
+    <mxGraphModel dx="1000" dy="760" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="960" pageHeight="430" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="c_browser" value="ユーザーのブラウザ" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="380" y="20" width="200" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="c_front" value="フロントエンド&#10;React 19 / TypeScript / Vite / Tailwind&#10;（CloudFront + S3 で配信）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="40" y="140" width="360" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="c_back" value="バックエンド&#10;Go / Gin / GORM&#10;（ALB + ECS Fargate ＋ code-runner サイドカー）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="540" y="140" width="380" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="c_supa" value="Supabase&#10;(PostgreSQL)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="40" y="300" width="150" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="c_dynamo" value="DynamoDB&#10;(AIチャット履歴)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="200" y="300" width="150" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="c_sqs" value="SQS&#10;(非同期)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="360" y="300" width="110" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="c_bedrock" value="Bedrock&#10;(Claude / AI)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="480" y="300" width="140" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="c_ses" value="SES&#10;(メール)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="630" y="300" width="110" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="c_cognito" value="Cognito&#10;(認証 / JWT)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="750" y="300" width="140" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="e0" value="静的配信" style="endArrow=block;html=1;rounded=0;fontSize=11" edge="1" parent="1" source="c_browser" target="c_front">
+          <mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e1" value="API（/api/v2 / SSE）" style="endArrow=block;html=1;rounded=0;fontSize=11" edge="1" parent="1" source="c_browser" target="c_back">
+          <mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e2" value="" style="endArrow=block;html=1;rounded=0;fontSize=11" edge="1" parent="1" source="c_back" target="c_supa">
+          <mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e3" value="" style="endArrow=block;html=1;rounded=0;fontSize=11" edge="1" parent="1" source="c_back" target="c_dynamo">
+          <mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e4" value="" style="endArrow=block;html=1;rounded=0;fontSize=11" edge="1" parent="1" source="c_back" target="c_sqs">
+          <mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e5" value="" style="endArrow=block;html=1;rounded=0;fontSize=11" edge="1" parent="1" source="c_back" target="c_bedrock">
+          <mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e6" value="" style="endArrow=block;html=1;rounded=0;fontSize=11" edge="1" parent="1" source="c_back" target="c_ses">
+          <mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e7" value="" style="endArrow=block;html=1;rounded=0;fontSize=11" edge="1" parent="1" source="c_back" target="c_cognito">
+          <mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

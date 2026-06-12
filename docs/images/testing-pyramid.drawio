@@ -1,0 +1,27 @@
+<mxfile host="app.diagrams.net" type="device">
+  <diagram name="testing-pyramid" id="testing-pyramid">
+    <mxGraphModel dx="1000" dy="760" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1320" pageHeight="560" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="c_e2e" value="E2E（Playwright）&#10;実ブラウザ Chromium で本番 URL をユーザー導線で端から端まで検証&#10;対象: デプロイ済み本番のスモーク（SPA ロード / セキュリティヘッダー / 認証境界）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="460" y="40" width="400" height="86" as="geometry" />
+        </mxCell>
+        <mxCell id="c_integ" value="結合テスト（testing / 実 Postgres）&#10;複数層を実際に繋ぐ。DB＝本物の PostgreSQL（//go:build integration）、外部 AWS＝stub&#10;対象: handler（httptest で本物の Gin ルータ・20 ファイル） / repository（本物の Postgres で SQL・制約・並び順・11 ファイル）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="340" y="150" width="640" height="104" as="geometry" />
+        </mxCell>
+        <mxCell id="c_unit" value="単体テスト（testing + testify / Vitest）&#10;1 関数・1 ユースケースを依存から隔離。外部依存（DB / HTTP / AWS）は interface 経由で手書き fake・stub に差し替え、実 I/O しない（古典学派＝状態検証）&#10;対象: backend = usecase・純粋ロジック（採点等・fake 22 ファイル） / frontend = component・hook・repository" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="210" y="280" width="900" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="c_ntop" value="↑ 上ほど&#10;数 少・遅い・高コスト&#10;（本物に近い確信）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="60" width="170" height="86" as="geometry" />
+        </mxCell>
+        <mxCell id="c_nbot" value="↓ 下ほど&#10;数 多い・速い・安い&#10;（CI で大量に回す）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="300" width="170" height="86" as="geometry" />
+        </mxCell>
+        <mxCell id="e0" value="" style="endArrow=block;startArrow=block;html=1;rounded=0;fontSize=11;dashed=1" edge="1" parent="1" source="c_ntop" target="c_nbot">
+          <mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

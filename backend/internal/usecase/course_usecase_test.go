@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCourseUseCase_List_TraineeOnlyPublished(t *testing.T) {
+func Test_コース_一覧_traineeは公開のみ(t *testing.T) {
 	crepo := &fakeCourseRepo{rows: []domain.Course{{ID: 1}}}
 	mrepo := &fakeTeachingMaterialRepo{}
 	uc := usecase.NewCourseUseCase(crepo, mrepo)
@@ -18,7 +18,7 @@ func TestCourseUseCase_List_TraineeOnlyPublished(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestCourseUseCase_List_NoCompanyReturnsEmpty(t *testing.T) {
+func Test_コース_一覧_会社未所属は空(t *testing.T) {
 	crepo := &fakeCourseRepo{rows: []domain.Course{{ID: 1}}}
 	mrepo := &fakeTeachingMaterialRepo{}
 	uc := usecase.NewCourseUseCase(crepo, mrepo)
@@ -27,7 +27,7 @@ func TestCourseUseCase_List_NoCompanyReturnsEmpty(t *testing.T) {
 	assert.Empty(t, out)
 }
 
-func TestCourseUseCase_Get_TraineeCannotReadDraft(t *testing.T) {
+func Test_コース_取得_traineeは下書き不可(t *testing.T) {
 	crepo := &fakeCourseRepo{getResp: &domain.Course{ID: 5, CompanyID: 10, IsPublished: false}}
 	mrepo := &fakeTeachingMaterialRepo{}
 	uc := usecase.NewCourseUseCase(crepo, mrepo)
@@ -36,7 +36,7 @@ func TestCourseUseCase_Get_TraineeCannotReadDraft(t *testing.T) {
 	assert.Contains(t, err.Error(), "forbidden")
 }
 
-func TestCourseUseCase_Get_TraineeCanReadPublishedSameCompany(t *testing.T) {
+func Test_コース_取得_traineeは自社の公開を読める(t *testing.T) {
 	crepo := &fakeCourseRepo{getResp: &domain.Course{ID: 5, CompanyID: 10, IsPublished: true}}
 	mrepo := &fakeTeachingMaterialRepo{}
 	uc := usecase.NewCourseUseCase(crepo, mrepo)
@@ -45,7 +45,7 @@ func TestCourseUseCase_Get_TraineeCanReadPublishedSameCompany(t *testing.T) {
 	assert.Equal(t, uint64(5), got.ID)
 }
 
-func TestCourseUseCase_Get_CrossCompanyForbidden(t *testing.T) {
+func Test_コース_取得_別会社は禁止(t *testing.T) {
 	crepo := &fakeCourseRepo{getResp: &domain.Course{ID: 5, CompanyID: 10, IsPublished: true}}
 	mrepo := &fakeTeachingMaterialRepo{}
 	uc := usecase.NewCourseUseCase(crepo, mrepo)
@@ -53,7 +53,7 @@ func TestCourseUseCase_Get_CrossCompanyForbidden(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestCourseUseCase_Create_TraineeForbidden(t *testing.T) {
+func Test_コース_作成_traineeは禁止(t *testing.T) {
 	crepo := &fakeCourseRepo{}
 	mrepo := &fakeTeachingMaterialRepo{}
 	uc := usecase.NewCourseUseCase(crepo, mrepo)
@@ -64,7 +64,7 @@ func TestCourseUseCase_Create_TraineeForbidden(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestCourseUseCase_Create_CompanyAdminSucceeds(t *testing.T) {
+func Test_コース_作成_会社管理者は成功(t *testing.T) {
 	crepo := &fakeCourseRepo{}
 	mrepo := &fakeTeachingMaterialRepo{}
 	uc := usecase.NewCourseUseCase(crepo, mrepo)
@@ -80,7 +80,7 @@ func TestCourseUseCase_Create_CompanyAdminSucceeds(t *testing.T) {
 	assert.Equal(t, 10, got.SortOrder)
 }
 
-func TestCourseUseCase_Create_NoCompanyForbidden(t *testing.T) {
+func Test_コース_作成_会社未所属は禁止(t *testing.T) {
 	crepo := &fakeCourseRepo{}
 	mrepo := &fakeTeachingMaterialRepo{}
 	uc := usecase.NewCourseUseCase(crepo, mrepo)
@@ -91,7 +91,7 @@ func TestCourseUseCase_Create_NoCompanyForbidden(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestCourseUseCase_Update_CrossCompanyForbidden(t *testing.T) {
+func Test_コース_更新_別会社は禁止(t *testing.T) {
 	crepo := &fakeCourseRepo{getResp: &domain.Course{ID: 1, CompanyID: 10, Title: "old"}}
 	mrepo := &fakeTeachingMaterialRepo{}
 	uc := usecase.NewCourseUseCase(crepo, mrepo)
@@ -102,7 +102,7 @@ func TestCourseUseCase_Update_CrossCompanyForbidden(t *testing.T) {
 	assert.Nil(t, crepo.updated)
 }
 
-func TestCourseUseCase_Update_SameCompanyAdminSucceeds(t *testing.T) {
+func Test_コース_更新_自社管理者は成功(t *testing.T) {
 	crepo := &fakeCourseRepo{getResp: &domain.Course{ID: 1, CompanyID: 10, Title: "old"}}
 	mrepo := &fakeTeachingMaterialRepo{}
 	uc := usecase.NewCourseUseCase(crepo, mrepo)
@@ -115,7 +115,7 @@ func TestCourseUseCase_Update_SameCompanyAdminSucceeds(t *testing.T) {
 	assert.NotNil(t, crepo.updated)
 }
 
-func TestCourseUseCase_Delete_TraineeForbidden(t *testing.T) {
+func Test_コース_削除_traineeは禁止(t *testing.T) {
 	crepo := &fakeCourseRepo{getResp: &domain.Course{ID: 1, CompanyID: 10}}
 	mrepo := &fakeTeachingMaterialRepo{}
 	uc := usecase.NewCourseUseCase(crepo, mrepo)
@@ -123,7 +123,7 @@ func TestCourseUseCase_Delete_TraineeForbidden(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestCourseUseCase_Delete_SameCompanyAdminCascadesMaterials(t *testing.T) {
+func Test_コース_削除_自社管理者は教材も連鎖削除(t *testing.T) {
 	crepo := &fakeCourseRepo{getResp: &domain.Course{ID: 1, CompanyID: 10}}
 	mrepo := &fakeTeachingMaterialRepo{}
 	uc := usecase.NewCourseUseCase(crepo, mrepo)

@@ -30,14 +30,14 @@ type stubEnqueuer struct{ err error }
 
 func (s *stubEnqueuer) Enqueue(_ context.Context, _ uint64) error { return s.err }
 
-func TestListLearningReports_RequiresUserID(t *testing.T) {
+func Test_学習レポート一覧_ユーザーIDが必須(t *testing.T) {
 	uc := NewListLearningReportsUseCase(&stubLearningReportRepo{})
 	if _, err := uc.Execute(context.Background(), 0); err == nil {
 		t.Fatal("expected error")
 	}
 }
 
-func TestRequestLearningReport_Validates(t *testing.T) {
+func Test_学習レポート要求_バリデーション(t *testing.T) {
 	uc := NewRequestLearningReportUseCase(&stubLearningReportRepo{}, &stubEnqueuer{})
 	now := time.Now()
 	if _, err := uc.Execute(context.Background(), RequestLearningReportInput{UserID: 1, PeriodFrom: now, PeriodTo: now}); err == nil {
@@ -45,7 +45,7 @@ func TestRequestLearningReport_Validates(t *testing.T) {
 	}
 }
 
-func TestRequestLearningReport_OK(t *testing.T) {
+func Test_学習レポート要求_正常系(t *testing.T) {
 	uc := NewRequestLearningReportUseCase(&stubLearningReportRepo{}, &stubEnqueuer{})
 	now := time.Now()
 	got, err := uc.Execute(context.Background(), RequestLearningReportInput{
@@ -56,7 +56,7 @@ func TestRequestLearningReport_OK(t *testing.T) {
 	}
 }
 
-func TestRequestLearningReport_EnqueueError(t *testing.T) {
+func Test_学習レポート要求_enqueueエラー(t *testing.T) {
 	uc := NewRequestLearningReportUseCase(&stubLearningReportRepo{}, &stubEnqueuer{err: errors.New("sqs")})
 	now := time.Now()
 	if _, err := uc.Execute(context.Background(), RequestLearningReportInput{

@@ -25,35 +25,35 @@ func (s *stubNotificationRepo) CountUnread(_ context.Context, _ uint64) (int64, 
 	return int64(len(s.rows)), s.err
 }
 
-func TestListNotifications_RequiresUserID(t *testing.T) {
+func Test_通知一覧_ユーザーIDが必須(t *testing.T) {
 	uc := NewListNotificationsUseCase(&stubNotificationRepo{})
 	if _, err := uc.Execute(context.Background(), 0); err == nil {
 		t.Fatal("expected error")
 	}
 }
 
-func TestMarkRead_RequiresUserID(t *testing.T) {
+func Test_既読化_ユーザーIDが必須(t *testing.T) {
 	uc := NewMarkNotificationReadUseCase(&stubNotificationRepo{})
 	if err := uc.Execute(context.Background(), 0, 1); err == nil {
 		t.Fatal("expected error")
 	}
 }
 
-func TestMarkRead_RequiresID(t *testing.T) {
+func Test_既読化_IDが必須(t *testing.T) {
 	uc := NewMarkNotificationReadUseCase(&stubNotificationRepo{})
 	if err := uc.Execute(context.Background(), 1, 0); err == nil {
 		t.Fatal("expected error")
 	}
 }
 
-func TestMarkAllNotificationsRead_RequiresUserID(t *testing.T) {
+func Test_全通知既読化_ユーザーIDが必須(t *testing.T) {
 	uc := NewMarkAllNotificationsReadUseCase(&stubNotificationRepo{})
 	if err := uc.Execute(context.Background(), 0); err == nil {
 		t.Fatal("expected error")
 	}
 }
 
-func TestCountUnreadNotifications_RequiresUserID(t *testing.T) {
+func Test_未読数取得_ユーザーIDが必須(t *testing.T) {
 	uc := NewCountUnreadNotificationsUseCase(&stubNotificationRepo{})
 	if _, err := uc.Execute(context.Background(), 0); err == nil {
 		t.Fatal("expected error")

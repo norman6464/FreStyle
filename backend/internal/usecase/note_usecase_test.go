@@ -47,21 +47,21 @@ func (s *stubNoteRepo) Delete(_ context.Context, userID, id uint64) error {
 	return s.err
 }
 
-func TestListNotes_RequiresUserID(t *testing.T) {
+func Test_ノート一覧_ユーザーIDが必須(t *testing.T) {
 	uc := NewListNotesByUserIDUseCase(&stubNoteRepo{})
 	if _, err := uc.Execute(context.Background(), 0); err == nil {
 		t.Fatal("expected error")
 	}
 }
 
-func TestCreateNote_RequiresTitle(t *testing.T) {
+func Test_ノート作成_タイトルが必須(t *testing.T) {
 	uc := NewCreateNoteUseCase(&stubNoteRepo{})
 	if _, err := uc.Execute(context.Background(), CreateNoteInput{UserID: 1}); err == nil {
 		t.Fatal("expected error")
 	}
 }
 
-func TestCreateNote_AssignsID(t *testing.T) {
+func Test_ノート作成_IDを採番(t *testing.T) {
 	uc := NewCreateNoteUseCase(&stubNoteRepo{})
 	got, err := uc.Execute(context.Background(), CreateNoteInput{UserID: 1, Title: "t"})
 	if err != nil || got.ID != 21 {
@@ -69,21 +69,21 @@ func TestCreateNote_AssignsID(t *testing.T) {
 	}
 }
 
-func TestUpdateNote_RequiresUserID(t *testing.T) {
+func Test_ノート更新_ユーザーIDが必須(t *testing.T) {
 	uc := NewUpdateNoteUseCase(&stubNoteRepo{one: &domain.Note{ID: 1, UserID: 1}})
 	if _, err := uc.Execute(context.Background(), UpdateNoteInput{ID: 1, Title: "x"}); err == nil {
 		t.Fatal("expected error when userID is 0")
 	}
 }
 
-func TestUpdateNote_RequiresID(t *testing.T) {
+func Test_ノート更新_IDが必須(t *testing.T) {
 	uc := NewUpdateNoteUseCase(&stubNoteRepo{one: &domain.Note{ID: 1, UserID: 1}})
 	if _, err := uc.Execute(context.Background(), UpdateNoteInput{UserID: 1, Title: "x"}); err == nil {
 		t.Fatal("expected error when id is 0")
 	}
 }
 
-func TestUpdateNote_RejectsForeignOwner(t *testing.T) {
+func Test_ノート更新_他人の所有を拒否(t *testing.T) {
 	repo := &stubNoteRepo{one: &domain.Note{ID: 1, UserID: 99}}
 	uc := NewUpdateNoteUseCase(repo)
 	_, err := uc.Execute(context.Background(), UpdateNoteInput{UserID: 1, ID: 1, Title: "x"})
@@ -95,7 +95,7 @@ func TestUpdateNote_RejectsForeignOwner(t *testing.T) {
 	}
 }
 
-func TestUpdateNote_AllowsOwner(t *testing.T) {
+func Test_ノート更新_所有者は許可(t *testing.T) {
 	repo := &stubNoteRepo{one: &domain.Note{ID: 1, UserID: 1, Title: "old"}}
 	uc := NewUpdateNoteUseCase(repo)
 	got, err := uc.Execute(context.Background(), UpdateNoteInput{UserID: 1, ID: 1, Title: "new"})
@@ -110,21 +110,21 @@ func TestUpdateNote_AllowsOwner(t *testing.T) {
 	}
 }
 
-func TestDeleteNote_RequiresUserID(t *testing.T) {
+func Test_ノート削除_ユーザーIDが必須(t *testing.T) {
 	uc := NewDeleteNoteUseCase(&stubNoteRepo{})
 	if err := uc.Execute(context.Background(), 0, 1); err == nil {
 		t.Fatal("expected error when userID is 0")
 	}
 }
 
-func TestDeleteNote_RequiresID(t *testing.T) {
+func Test_ノート削除_IDが必須(t *testing.T) {
 	uc := NewDeleteNoteUseCase(&stubNoteRepo{})
 	if err := uc.Execute(context.Background(), 1, 0); err == nil {
 		t.Fatal("expected error when id is 0")
 	}
 }
 
-func TestDeleteNote_PassesUserIDToRepo(t *testing.T) {
+func Test_ノート削除_ユーザーIDをリポジトリへ渡す(t *testing.T) {
 	repo := &stubNoteRepo{}
 	uc := NewDeleteNoteUseCase(repo)
 	if err := uc.Execute(context.Background(), 7, 11); err != nil {

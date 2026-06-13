@@ -73,14 +73,14 @@ func fakeBuildMail(link, displayName, _, role string) (string, string, string) {
 	return "subject", "html-" + link + "-" + displayName + "-" + role, "text-" + link
 }
 
-func TestListAdminInvitations_ListByCompanyID_RequiresCompanyID(t *testing.T) {
+func Test_招待一覧_会社ID指定_会社IDが必須(t *testing.T) {
 	uc := NewListAdminInvitationsUseCase(&stubAdminInvRepo{})
 	if _, err := uc.ListByCompanyID(context.Background(), 0); err == nil {
 		t.Fatal("expected error")
 	}
 }
 
-func TestListAdminInvitations_ListByCompanyID_DelegatesToRepo(t *testing.T) {
+func Test_招待一覧_会社ID指定_リポジトリへ委譲(t *testing.T) {
 	repo := &stubAdminInvRepo{rows: []domain.AdminInvitation{{ID: 1}}}
 	uc := NewListAdminInvitationsUseCase(repo)
 	got, err := uc.ListByCompanyID(context.Background(), 42)
@@ -95,7 +95,7 @@ func TestListAdminInvitations_ListByCompanyID_DelegatesToRepo(t *testing.T) {
 	}
 }
 
-func TestListAdminInvitations_ListAll_DelegatesToRepo(t *testing.T) {
+func Test_招待一覧_全件_リポジトリへ委譲(t *testing.T) {
 	repo := &stubAdminInvRepo{rows: []domain.AdminInvitation{{ID: 7}, {ID: 8}}}
 	uc := NewListAdminInvitationsUseCase(repo)
 	got, err := uc.ListAll(context.Background())
@@ -110,14 +110,14 @@ func TestListAdminInvitations_ListAll_DelegatesToRepo(t *testing.T) {
 	}
 }
 
-func TestCreateAdminInvitation_Validates(t *testing.T) {
+func Test_招待作成_バリデーション(t *testing.T) {
 	uc := NewCreateAdminInvitationUseCase(&stubAdminInvRepo{}, &stubMailSender{}, fakeBuildLink, fakeBuildMail)
 	if _, err := uc.Execute(context.Background(), CreateAdminInvitationInput{Email: "a@b"}); err == nil {
 		t.Fatal("expected error")
 	}
 }
 
-func TestCreateAdminInvitation_OK_GeneratesTokenAndSendsEmail(t *testing.T) {
+func Test_招待作成_正常系_token生成とメール送信(t *testing.T) {
 	repo := &stubAdminInvRepo{}
 	sender := &stubMailSender{}
 	uc := NewCreateAdminInvitationUseCase(repo, sender, fakeBuildLink, fakeBuildMail)
@@ -149,7 +149,7 @@ func TestCreateAdminInvitation_OK_GeneratesTokenAndSendsEmail(t *testing.T) {
 	}
 }
 
-func TestCreateAdminInvitation_SESError_Propagated(t *testing.T) {
+func Test_招待作成_SESエラーを伝播(t *testing.T) {
 	uc := NewCreateAdminInvitationUseCase(&stubAdminInvRepo{}, &stubMailSender{err: errors.New("ses down")}, fakeBuildLink, fakeBuildMail)
 	if _, err := uc.Execute(context.Background(), CreateAdminInvitationInput{
 		CompanyID: 1, Email: "u@example.com", Role: domain.RoleTrainee,
@@ -159,7 +159,7 @@ func TestCreateAdminInvitation_SESError_Propagated(t *testing.T) {
 }
 
 // sender が nil の場合（ローカル開発でフォールバック）は invitation だけ作成して終わる。
-func TestCreateAdminInvitation_NilSender_SkipsEmailWithoutError(t *testing.T) {
+func Test_招待作成_送信者nilはメールをスキップ(t *testing.T) {
 	repo := &stubAdminInvRepo{}
 	uc := NewCreateAdminInvitationUseCase(repo, nil, nil, nil)
 	got, err := uc.Execute(context.Background(), CreateAdminInvitationInput{
@@ -173,7 +173,7 @@ func TestCreateAdminInvitation_NilSender_SkipsEmailWithoutError(t *testing.T) {
 	}
 }
 
-func TestCancelAdminInvitation_RequiresID(t *testing.T) {
+func Test_招待取消_IDが必須(t *testing.T) {
 	uc := NewCancelAdminInvitationUseCase(&stubAdminInvRepo{})
 	if err := uc.Execute(context.Background(), 0); err == nil {
 		t.Fatal("expected error")

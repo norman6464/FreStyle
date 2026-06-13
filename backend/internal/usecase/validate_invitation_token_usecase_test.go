@@ -44,7 +44,7 @@ func (s *stubAdminInvRepoWithToken) FindPendingByToken(_ context.Context, token 
 	return nil, nil
 }
 
-func TestValidateInvitationToken_EmptyToken_ReturnsNil(t *testing.T) {
+func Test_招待token検証_空tokenはnil(t *testing.T) {
 	uc := NewValidateInvitationTokenUseCase(&stubAdminInvRepoWithToken{}, &stubCompanies{})
 	got, err := uc.Execute(context.Background(), "")
 	if err != nil {
@@ -55,7 +55,7 @@ func TestValidateInvitationToken_EmptyToken_ReturnsNil(t *testing.T) {
 	}
 }
 
-func TestValidateInvitationToken_NotFound_ReturnsNil(t *testing.T) {
+func Test_招待token検証_見つからなければnil(t *testing.T) {
 	uc := NewValidateInvitationTokenUseCase(&stubAdminInvRepoWithToken{}, &stubCompanies{})
 	got, err := uc.Execute(context.Background(), "missing-token")
 	if err != nil || got != nil {
@@ -63,7 +63,7 @@ func TestValidateInvitationToken_NotFound_ReturnsNil(t *testing.T) {
 	}
 }
 
-func TestValidateInvitationToken_OK_AttachesCompanyName(t *testing.T) {
+func Test_招待token検証_正常系_会社名を付与(t *testing.T) {
 	repo := &stubAdminInvRepoWithToken{
 		pendingByToken: map[string]*domain.AdminInvitation{
 			"abc-123": {
@@ -97,7 +97,7 @@ func TestValidateInvitationToken_OK_AttachesCompanyName(t *testing.T) {
 	}
 }
 
-func TestValidateInvitationToken_CompanyLookupFails_StillReturnsInvitation(t *testing.T) {
+func Test_招待token検証_会社参照失敗でも招待を返す(t *testing.T) {
 	// company 取得失敗は invitation 自体の有効性を否定しない。
 	// CompanyName 空でも受諾画面を表示できる方が UX として良い。
 	repo := &stubAdminInvRepoWithToken{
@@ -120,7 +120,7 @@ func TestValidateInvitationToken_CompanyLookupFails_StillReturnsInvitation(t *te
 	}
 }
 
-func TestValidateInvitationToken_NormalizesUnknownRole(t *testing.T) {
+func Test_招待token検証_未知のroleを正規化(t *testing.T) {
 	repo := &stubAdminInvRepoWithToken{
 		pendingByToken: map[string]*domain.AdminInvitation{
 			"t": {ID: 9, CompanyID: 1, Role: "garbage_role"},

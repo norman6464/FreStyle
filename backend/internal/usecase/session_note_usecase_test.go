@@ -24,21 +24,21 @@ func (s *stubSessionNoteRepo) Upsert(_ context.Context, n *domain.SessionNote) e
 	return nil
 }
 
-func TestGetSessionNote_RequiresSessionID(t *testing.T) {
+func Test_セッションノート取得_セッションIDが必須(t *testing.T) {
 	uc := NewGetSessionNoteUseCase(&stubSessionNoteRepo{})
 	if _, err := uc.Execute(context.Background(), 0); err == nil {
 		t.Fatal("expected error")
 	}
 }
 
-func TestUpsertSessionNote_Validates(t *testing.T) {
+func Test_セッションノート保存_バリデーション(t *testing.T) {
 	uc := NewUpsertSessionNoteUseCase(&stubSessionNoteRepo{})
 	if _, err := uc.Execute(context.Background(), UpsertSessionNoteInput{}); err == nil {
 		t.Fatal("expected error")
 	}
 }
 
-func TestUpsertSessionNote_Persists(t *testing.T) {
+func Test_セッションノート保存_永続化する(t *testing.T) {
 	repo := &stubSessionNoteRepo{}
 	uc := NewUpsertSessionNoteUseCase(repo)
 	got, err := uc.Execute(context.Background(), UpsertSessionNoteInput{SessionID: 1, UserID: 2, Content: "hello"})

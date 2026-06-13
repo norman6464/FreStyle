@@ -53,7 +53,7 @@ func (f *fakeManageRepo) UpdateCompanyID(context.Context, uint64, uint64) error 
 
 func (f *fakeManageRepo) MarkOnboarded(context.Context, uint64) error { return nil }
 
-func TestSetMemberActive_CompanyAdmin_OwnCompany_OK(t *testing.T) {
+func Test_メンバー有効化_会社管理者_自社_OK(t *testing.T) {
 	repo := &fakeManageRepo{target: &domain.User{ID: 2, Role: domain.RoleTrainee, CompanyID: u64ptr(10)}}
 	uc := usecase.NewSetMemberActiveUseCase(repo)
 	actor := &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, CompanyID: u64ptr(10)}
@@ -65,7 +65,7 @@ func TestSetMemberActive_CompanyAdmin_OwnCompany_OK(t *testing.T) {
 	assert.False(t, *repo.updateActiveGot)
 }
 
-func TestSetMemberActive_CompanyAdmin_OtherCompany_Forbidden(t *testing.T) {
+func Test_メンバー有効化_会社管理者_別会社_禁止(t *testing.T) {
 	repo := &fakeManageRepo{target: &domain.User{ID: 2, Role: domain.RoleTrainee, CompanyID: u64ptr(99)}}
 	uc := usecase.NewSetMemberActiveUseCase(repo)
 	actor := &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, CompanyID: u64ptr(10)}
@@ -76,7 +76,7 @@ func TestSetMemberActive_CompanyAdmin_OtherCompany_Forbidden(t *testing.T) {
 	assert.Nil(t, repo.updateActiveGot, "別会社では更新してはならない")
 }
 
-func TestSetMemberActive_SuperAdmin_AnyCompany_OK(t *testing.T) {
+func Test_メンバー有効化_運営管理者_任意の会社_OK(t *testing.T) {
 	repo := &fakeManageRepo{target: &domain.User{ID: 2, Role: domain.RoleTrainee, CompanyID: u64ptr(10)}}
 	uc := usecase.NewSetMemberActiveUseCase(repo)
 	actor := &domain.User{ID: 1, Role: domain.RoleSuperAdmin, CompanyID: nil}
@@ -87,7 +87,7 @@ func TestSetMemberActive_SuperAdmin_AnyCompany_OK(t *testing.T) {
 	require.NotNil(t, repo.updateActiveGot)
 }
 
-func TestSetMemberActive_Self_Forbidden(t *testing.T) {
+func Test_メンバー有効化_自分自身_禁止(t *testing.T) {
 	repo := &fakeManageRepo{target: &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, CompanyID: u64ptr(10)}}
 	uc := usecase.NewSetMemberActiveUseCase(repo)
 	actor := &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, CompanyID: u64ptr(10)}
@@ -98,7 +98,7 @@ func TestSetMemberActive_Self_Forbidden(t *testing.T) {
 	assert.Nil(t, repo.updateActiveGot, "自分自身は無効化できない")
 }
 
-func TestSetMemberActive_NotFound(t *testing.T) {
+func Test_メンバー有効化_見つからない(t *testing.T) {
 	repo := &fakeManageRepo{target: nil}
 	uc := usecase.NewSetMemberActiveUseCase(repo)
 	actor := &domain.User{ID: 1, Role: domain.RoleSuperAdmin}
@@ -108,7 +108,7 @@ func TestSetMemberActive_NotFound(t *testing.T) {
 	require.ErrorIs(t, err, usecase.ErrMemberNotFound)
 }
 
-func TestSoftDeleteMember_CompanyAdmin_OwnCompany_OK(t *testing.T) {
+func Test_メンバー論理削除_会社管理者_自社_OK(t *testing.T) {
 	repo := &fakeManageRepo{target: &domain.User{ID: 2, Role: domain.RoleTrainee, CompanyID: u64ptr(10)}}
 	uc := usecase.NewSoftDeleteMemberUseCase(repo)
 	actor := &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, CompanyID: u64ptr(10)}
@@ -119,7 +119,7 @@ func TestSoftDeleteMember_CompanyAdmin_OwnCompany_OK(t *testing.T) {
 	assert.True(t, repo.softDeleted)
 }
 
-func TestSoftDeleteMember_Self_Forbidden(t *testing.T) {
+func Test_メンバー論理削除_自分自身_禁止(t *testing.T) {
 	repo := &fakeManageRepo{target: &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, CompanyID: u64ptr(10)}}
 	uc := usecase.NewSoftDeleteMemberUseCase(repo)
 	actor := &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, CompanyID: u64ptr(10)}
@@ -130,7 +130,7 @@ func TestSoftDeleteMember_Self_Forbidden(t *testing.T) {
 	assert.False(t, repo.softDeleted, "自分自身は削除できない")
 }
 
-func TestSoftDeleteMember_CompanyAdmin_OtherCompany_Forbidden(t *testing.T) {
+func Test_メンバー論理削除_会社管理者_別会社_禁止(t *testing.T) {
 	repo := &fakeManageRepo{target: &domain.User{ID: 2, Role: domain.RoleTrainee, CompanyID: u64ptr(99)}}
 	uc := usecase.NewSoftDeleteMemberUseCase(repo)
 	actor := &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, CompanyID: u64ptr(10)}

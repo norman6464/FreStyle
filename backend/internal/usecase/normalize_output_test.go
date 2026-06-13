@@ -4,7 +4,7 @@ import "testing"
 
 // normalizeOutput は採点の出力比較で使う正規化。学習者に見えない行末空白で
 // 不合格にしないことを検証する（`fmt.Printf("%d \n")` の余分なスペース等）。
-func TestNormalizeOutput(t *testing.T) {
+func Test_出力の正規化(t *testing.T) {
 	tests := []struct {
 		name string
 		in   string

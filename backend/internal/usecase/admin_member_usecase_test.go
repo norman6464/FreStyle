@@ -57,7 +57,7 @@ func (f *fakeMemberUserRepo) UpdateAiChatEnabled(_ context.Context, userID uint6
 func ptrBool(b bool) *bool    { return &b }
 func u64ptr(v uint64) *uint64 { return &v }
 
-func TestListCompanyMembersUseCase(t *testing.T) {
+func Test_会社メンバー一覧ユースケース(t *testing.T) {
 	repo := newFakeMemberUserRepo()
 	repo.byCompany[10] = []domain.User{{ID: 1, CompanyID: u64ptr(10)}, {ID: 2, CompanyID: u64ptr(10)}}
 	uc := usecase.NewListCompanyMembersUseCase(repo)
@@ -74,7 +74,7 @@ func TestListCompanyMembersUseCase(t *testing.T) {
 	})
 }
 
-func TestUpdateMemberAiAccessUseCase(t *testing.T) {
+func Test_メンバーAI利用可否更新ユースケース(t *testing.T) {
 	repo := newFakeMemberUserRepo()
 	repo.byID[1] = &domain.User{ID: 1, CompanyID: u64ptr(10), Role: domain.RoleTrainee}
 	repo.byID[2] = &domain.User{ID: 2, CompanyID: u64ptr(20), Role: domain.RoleTrainee} // 別会社

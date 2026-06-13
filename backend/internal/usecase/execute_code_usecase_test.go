@@ -33,7 +33,7 @@ func (f *fakeCodeRunner) Warmup(_ context.Context, language string) error {
 	return f.warmupErr
 }
 
-func TestExecuteCodeUseCase_DelegatesToRunner(t *testing.T) {
+func Test_コード実行_ランナーへ委譲(t *testing.T) {
 	fake := &fakeCodeRunner{result: &domain.CodeExecutionResult{Stdout: "ok", ExitCode: 0}}
 	uc := usecase.NewExecuteCodeUseCase(fake)
 
@@ -49,7 +49,7 @@ func TestExecuteCodeUseCase_DelegatesToRunner(t *testing.T) {
 	assert.Equal(t, "x", fake.gotInput.Stdin)
 }
 
-func TestExecuteCodeUseCase_PropagatesRunnerError(t *testing.T) {
+func Test_コード実行_ランナーエラーを伝播(t *testing.T) {
 	fake := &fakeCodeRunner{runErr: errors.New("boom")}
 	uc := usecase.NewExecuteCodeUseCase(fake)
 
@@ -57,7 +57,7 @@ func TestExecuteCodeUseCase_PropagatesRunnerError(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestWarmupCodeUseCase_DelegatesLanguage(t *testing.T) {
+func Test_コードウォームアップ_言語を委譲(t *testing.T) {
 	fake := &fakeCodeRunner{}
 	uc := usecase.NewWarmupCodeUseCase(fake)
 
@@ -65,7 +65,7 @@ func TestWarmupCodeUseCase_DelegatesLanguage(t *testing.T) {
 	assert.Equal(t, "go", fake.gotWarmup)
 }
 
-func TestWarmupCodeUseCase_PropagatesError(t *testing.T) {
+func Test_コードウォームアップ_エラーを伝播(t *testing.T) {
 	fake := &fakeCodeRunner{warmupErr: errors.New("warm failed")}
 	uc := usecase.NewWarmupCodeUseCase(fake)
 

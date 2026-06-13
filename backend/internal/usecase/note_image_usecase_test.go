@@ -16,14 +16,14 @@ func (s *stubPresigner) Generate(_ context.Context, _ uint64, _ string) (*domain
 	return s.url, s.err
 }
 
-func TestIssueNoteImageUploadURL_RequiresUserID(t *testing.T) {
+func Test_ノート画像アップロードURL発行_ユーザーIDが必須(t *testing.T) {
 	uc := NewIssueNoteImageUploadURLUseCase(&stubPresigner{})
 	if _, err := uc.Execute(context.Background(), 0, "image/png"); err == nil {
 		t.Fatal("expected error")
 	}
 }
 
-func TestIssueNoteImageUploadURL_Returns(t *testing.T) {
+func Test_ノート画像アップロードURL発行_URLを返す(t *testing.T) {
 	uc := NewIssueNoteImageUploadURLUseCase(&stubPresigner{
 		url: &domain.NoteImageUploadURL{URL: "https://example", Key: "k", ExpiresIn: 60},
 	})

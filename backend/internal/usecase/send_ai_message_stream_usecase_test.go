@@ -70,7 +70,7 @@ func (m *mockStreamBedrock) ConverseStream(ctx context.Context, systemPrompt str
 }
 
 // 既存セッションの場合: Delta が逐次流れて、最後に FinalMessage で完了する。
-func TestSendAiMessageStream_ExistingSession_StreamsTokensAndSavesFinal(t *testing.T) {
+func Test_AIメッセージ送信ストリーム_既存セッション_トークン配信と最終保存(t *testing.T) {
 	sessionRepo := new(mockSessionRepo)
 	msgRepo := new(mockMsgRepo)
 	bc := new(mockStreamBedrock)
@@ -120,7 +120,7 @@ func TestSendAiMessageStream_ExistingSession_StreamsTokensAndSavesFinal(t *testi
 }
 
 // 新規セッションの場合: NewSession イベントが先に流れて、token + Final が続く。
-func TestSendAiMessageStream_NewSession_EmitsSessionFirst(t *testing.T) {
+func Test_AIメッセージ送信ストリーム_新規セッション_先にセッションを通知(t *testing.T) {
 	sessionRepo := new(mockSessionRepo)
 	msgRepo := new(mockMsgRepo)
 	bc := new(mockStreamBedrock)
@@ -161,7 +161,7 @@ func TestSendAiMessageStream_NewSession_EmitsSessionFirst(t *testing.T) {
 
 // 添付付き発話: Downloader が S3 から bytes を取得し、Bedrock 呼び出し前に
 // 履歴の最新 user メッセージへ BlobData が詰められる。
-func TestSendAiMessageStream_WithAttachment_FetchesBlobAndSavesMetadata(t *testing.T) {
+func Test_AIメッセージ送信ストリーム_添付あり_blob取得とメタ保存(t *testing.T) {
 	sessionRepo := new(mockSessionRepo)
 	msgRepo := new(mockMsgRepo)
 	bc := new(mockStreamBedrock)
@@ -235,7 +235,7 @@ func (f *fakeDownloader) Download(_ context.Context, key string) ([]byte, error)
 
 // Bedrock が token を 1 つも emit せず Done だけを返した場合、空アシスタントを
 // DDB に保存しないでエラーを伝える（負のループ防止）。
-func TestSendAiMessageStream_EmptyResponse_DoesNotSaveAndPropagatesErr(t *testing.T) {
+func Test_AIメッセージ送信ストリーム_空応答_保存せずエラー伝播(t *testing.T) {
 	sessionRepo := new(mockSessionRepo)
 	msgRepo := new(mockMsgRepo)
 	bc := new(mockStreamBedrock)
@@ -273,7 +273,7 @@ func TestSendAiMessageStream_EmptyResponse_DoesNotSaveAndPropagatesErr(t *testin
 }
 
 // Bedrock 呼び出しで stream エラー: ev.Err が channel に流れて使い手に伝わる。
-func TestSendAiMessageStream_StreamError_PropagatesErr(t *testing.T) {
+func Test_AIメッセージ送信ストリーム_ストリームエラーを伝播(t *testing.T) {
 	sessionRepo := new(mockSessionRepo)
 	msgRepo := new(mockMsgRepo)
 	bc := new(mockStreamBedrock)

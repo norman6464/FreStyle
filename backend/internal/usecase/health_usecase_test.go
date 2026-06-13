@@ -14,7 +14,7 @@ type stubHealthRepo struct {
 
 func (s *stubHealthRepo) PingDB(_ context.Context) error { return s.err }
 
-func TestCheckHealthUseCase_DBUp(t *testing.T) {
+func Test_ヘルスチェック_DB正常(t *testing.T) {
 	uc := NewCheckHealthUseCase(&stubHealthRepo{err: nil})
 	got := uc.Execute(context.Background())
 	if got.Status != domain.StatusUp || got.DBStatus != domain.StatusUp {
@@ -22,7 +22,7 @@ func TestCheckHealthUseCase_DBUp(t *testing.T) {
 	}
 }
 
-func TestCheckHealthUseCase_DBDown(t *testing.T) {
+func Test_ヘルスチェック_DB異常(t *testing.T) {
 	uc := NewCheckHealthUseCase(&stubHealthRepo{err: errors.New("ping failed")})
 	got := uc.Execute(context.Background())
 	if got.Status != domain.StatusDown || got.DBStatus != domain.StatusDown {

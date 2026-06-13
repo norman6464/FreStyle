@@ -51,7 +51,7 @@ func (s *stubUserRepo) MarkOnboarded(_ context.Context, _ uint64) error {
 	return s.err
 }
 
-func TestGetCurrentUserUseCase_Found(t *testing.T) {
+func Test_現在ユーザー取得_見つかる(t *testing.T) {
 	want := &domain.User{ID: 1, CognitoSub: "abc", Email: "u@example.com"}
 	uc := NewGetCurrentUserUseCase(&stubUserRepo{user: want})
 	got, err := uc.Execute(context.Background(), "abc")
@@ -63,7 +63,7 @@ func TestGetCurrentUserUseCase_Found(t *testing.T) {
 	}
 }
 
-func TestGetCurrentUserUseCase_NotFound(t *testing.T) {
+func Test_現在ユーザー取得_見つからない(t *testing.T) {
 	uc := NewGetCurrentUserUseCase(&stubUserRepo{user: nil})
 	got, err := uc.Execute(context.Background(), "missing")
 	if err != nil {
@@ -74,7 +74,7 @@ func TestGetCurrentUserUseCase_NotFound(t *testing.T) {
 	}
 }
 
-func TestGetCurrentUserUseCase_Error(t *testing.T) {
+func Test_現在ユーザー取得_エラー(t *testing.T) {
 	uc := NewGetCurrentUserUseCase(&stubUserRepo{err: errors.New("db down")})
 	if _, err := uc.Execute(context.Background(), "x"); err == nil {
 		t.Fatal("expected error")

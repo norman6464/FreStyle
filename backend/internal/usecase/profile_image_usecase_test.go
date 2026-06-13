@@ -31,14 +31,14 @@ func (s *stubProfileImagePresigner) Generate(_ context.Context, userID uint64, f
 	}, nil
 }
 
-func TestIssueProfileImageUploadURL_RequiresUserID(t *testing.T) {
+func Test_プロフィール画像アップロードURL発行_ユーザーIDが必須(t *testing.T) {
 	uc := NewIssueProfileImageUploadURLUseCase(&stubProfileImagePresigner{})
 	if _, err := uc.Execute(context.Background(), 0, "a.png", "image/png"); err == nil {
 		t.Fatal("expected error")
 	}
 }
 
-func TestIssueProfileImageUploadURL_PassesArgsToPresigner(t *testing.T) {
+func Test_プロフィール画像アップロードURL発行_presignerへ引数を渡す(t *testing.T) {
 	stub := &stubProfileImagePresigner{}
 	uc := NewIssueProfileImageUploadURLUseCase(stub)
 	got, err := uc.Execute(context.Background(), 7, "icon.jpg", "image/jpeg")

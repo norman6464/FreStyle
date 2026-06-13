@@ -69,7 +69,7 @@ func (r *recordingNotifRepo) CountUnread(context.Context, uint64) (int64, error)
 	return 0, nil
 }
 
-func TestCreateCompanyApplication_NotifiesSuperAdmins(t *testing.T) {
+func Test_会社申請作成_運営管理者へ通知(t *testing.T) {
 	apps := &fakeAppRepo{}
 	users := &fakeUsersForApp{admins: []domain.User{{ID: 10}, {ID: 11}}}
 	notifs := &recordingNotifRepo{}
@@ -95,7 +95,7 @@ func TestCreateCompanyApplication_NotifiesSuperAdmins(t *testing.T) {
 	}
 }
 
-func TestCreateCompanyApplication_Validation(t *testing.T) {
+func Test_会社申請作成_バリデーション(t *testing.T) {
 	uc := usecase.NewCreateCompanyApplicationUseCase(&fakeAppRepo{}, &fakeUsersForApp{}, &recordingNotifRepo{})
 	cases := []usecase.CreateCompanyApplicationInput{
 		{CompanyName: "", ApplicantName: "a", Email: "a@b.com"},     // company 欠落
@@ -110,7 +110,7 @@ func TestCreateCompanyApplication_Validation(t *testing.T) {
 	}
 }
 
-func TestCreateCompanyApplication_SavesEvenIfNotifyFails(t *testing.T) {
+func Test_会社申請作成_通知失敗でも保存(t *testing.T) {
 	// 通知作成に失敗しても申請保存は成功扱い（best-effort）。
 	apps := &fakeAppRepo{}
 	users := &fakeUsersForApp{admins: []domain.User{{ID: 10}}}

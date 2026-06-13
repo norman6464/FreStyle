@@ -33,7 +33,7 @@ func (s *settingsCompanyRepo) UpdateAiChatEnabled(_ context.Context, _ uint64, e
 
 func u64p(v uint64) *uint64 { return &v }
 
-func TestGetCompanyAiChatSetting(t *testing.T) {
+func Test_会社AIチャット設定取得(t *testing.T) {
 	t.Run("trainee は forbidden", func(t *testing.T) {
 		uc := usecase.NewGetCompanyAiChatSettingUseCase(&settingsCompanyRepo{})
 		_, err := uc.Execute(context.Background(), &domain.User{Role: domain.RoleTrainee, CompanyID: u64p(1)})
@@ -55,7 +55,7 @@ func TestGetCompanyAiChatSetting(t *testing.T) {
 	})
 }
 
-func TestUpdateCompanyAiChatSetting(t *testing.T) {
+func Test_会社AIチャット設定更新(t *testing.T) {
 	t.Run("非 admin は forbidden", func(t *testing.T) {
 		uc := usecase.NewUpdateCompanyAiChatSettingUseCase(&settingsCompanyRepo{})
 		_, err := uc.Execute(context.Background(), &domain.User{Role: domain.RoleTrainee, CompanyID: u64p(1)}, false)
@@ -73,7 +73,7 @@ func TestUpdateCompanyAiChatSetting(t *testing.T) {
 	})
 }
 
-func TestAiChatEnabledForUser(t *testing.T) {
+func Test_ユーザーのAIチャット利用可否(t *testing.T) {
 	t.Run("admin は会社設定に関わらず常に true", func(t *testing.T) {
 		repo := &settingsCompanyRepo{company: &domain.Company{AiChatEnabledForTrainees: false}}
 		uc := usecase.NewAiChatEnabledForUserUseCase(repo)

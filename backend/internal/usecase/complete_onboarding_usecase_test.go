@@ -19,14 +19,14 @@ func (s *stubMarkOnboardedRepo) MarkOnboarded(_ context.Context, userID uint64) 
 	return s.err
 }
 
-func TestCompleteOnboarding_RequiresUserID(t *testing.T) {
+func Test_オンボーディング完了_ユーザーIDが必須(t *testing.T) {
 	uc := NewCompleteOnboardingUseCase(&stubMarkOnboardedRepo{})
 	if err := uc.Execute(context.Background(), 0); err == nil {
 		t.Fatal("expected error for userID=0")
 	}
 }
 
-func TestCompleteOnboarding_DelegatesToRepo(t *testing.T) {
+func Test_オンボーディング完了_リポジトリへ委譲(t *testing.T) {
 	repo := &stubMarkOnboardedRepo{}
 	uc := NewCompleteOnboardingUseCase(repo)
 	if err := uc.Execute(context.Background(), 42); err != nil {
@@ -37,7 +37,7 @@ func TestCompleteOnboarding_DelegatesToRepo(t *testing.T) {
 	}
 }
 
-func TestCompleteOnboarding_RepoErrorBubbles(t *testing.T) {
+func Test_オンボーディング完了_リポジトリエラーを伝播(t *testing.T) {
 	uc := NewCompleteOnboardingUseCase(&stubMarkOnboardedRepo{err: errors.New("db down")})
 	if err := uc.Execute(context.Background(), 1); err == nil {
 		t.Fatal("expected error to bubble")

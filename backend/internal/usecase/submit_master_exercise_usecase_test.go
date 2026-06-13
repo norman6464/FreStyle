@@ -96,7 +96,7 @@ func (f *fakeExecutor) Execute(_ context.Context, in domain.CodeExecutionInput) 
 	return out, nil
 }
 
-func TestSubmitMasterExercise_AllPass(t *testing.T) {
+func Test_演習提出_全テスト成功(t *testing.T) {
 	exRepo := &fakeMasterExerciseRepo{
 		get: &domain.MasterExercise{ID: 7, Slug: "php-7", Language: "php"},
 	}
@@ -128,7 +128,7 @@ func TestSubmitMasterExercise_AllPass(t *testing.T) {
 	assert.Len(t, executor.calls, 2)
 }
 
-func TestSubmitMasterExercise_OneFails(t *testing.T) {
+func Test_演習提出_一部失敗(t *testing.T) {
 	exRepo := &fakeMasterExerciseRepo{
 		get: &domain.MasterExercise{ID: 7, Slug: "php-7", Language: "php"},
 	}
@@ -160,7 +160,7 @@ func TestSubmitMasterExercise_OneFails(t *testing.T) {
 	assert.Len(t, executor.calls, 2)
 }
 
-func TestSubmitMasterExercise_NormalizeOutput(t *testing.T) {
+func Test_演習提出_出力を正規化(t *testing.T) {
 	exRepo := &fakeMasterExerciseRepo{
 		get: &domain.MasterExercise{ID: 1, Slug: "s", Language: "php"},
 	}
@@ -179,7 +179,7 @@ func TestSubmitMasterExercise_NormalizeOutput(t *testing.T) {
 	assert.True(t, out.IsCorrect)
 }
 
-func TestSubmitMasterExercise_NonZeroExit_Fails(t *testing.T) {
+func Test_演習提出_非ゼロ終了は失敗(t *testing.T) {
 	exRepo := &fakeMasterExerciseRepo{
 		get: &domain.MasterExercise{ID: 1, Slug: "s", Language: "php"},
 	}
@@ -204,7 +204,7 @@ func TestSubmitMasterExercise_NonZeroExit_Fails(t *testing.T) {
 
 // examples が登録されていない演習 (seed.py 経由で投入された linux/git/go 等) は
 // exercise 自身の ExpectedOutput を 単一テストケースとして fallback する。
-func TestSubmitMasterExercise_NoExamples_FallbackToExerciseExpected(t *testing.T) {
+func Test_演習提出_例なしは期待出力にフォールバック(t *testing.T) {
 	exRepo := &fakeMasterExerciseRepo{
 		get: &domain.MasterExercise{
 			ID: 1, Slug: "linux-1", Language: "bash",
@@ -229,7 +229,7 @@ func TestSubmitMasterExercise_NoExamples_FallbackToExerciseExpected(t *testing.T
 
 // SubmitMasterExerciseUseCase が exercise.Language を domain.CodeExecutionInput に正しく渡しているか。
 // 旧実装は "php" 固定だったため、 Go / bash / Linux 演習が正しく実行できない不具合があった。
-func TestSubmitMasterExercise_PassesExerciseLanguage(t *testing.T) {
+func Test_演習提出_演習の言語を渡す(t *testing.T) {
 	exRepo := &fakeMasterExerciseRepo{
 		get: &domain.MasterExercise{ID: 9, Slug: "go-1", Language: "go"},
 	}
@@ -248,7 +248,7 @@ func TestSubmitMasterExercise_PassesExerciseLanguage(t *testing.T) {
 	assert.Equal(t, "go", executor.calls[0].Language)
 }
 
-func TestSubmitMasterExercise_QA_Correct(t *testing.T) {
+func Test_演習提出_QA_正解(t *testing.T) {
 	exRepo := &fakeMasterExerciseRepo{
 		get: &domain.MasterExercise{
 			ID: 100, Slug: "docker-1", Language: "shell",
@@ -273,7 +273,7 @@ func TestSubmitMasterExercise_QA_Correct(t *testing.T) {
 	assert.True(t, submissions.created.IsCorrect)
 }
 
-func TestSubmitMasterExercise_QA_Wrong(t *testing.T) {
+func Test_演習提出_QA_不正解(t *testing.T) {
 	exRepo := &fakeMasterExerciseRepo{
 		get: &domain.MasterExercise{
 			ID: 100, Slug: "docker-1", Language: "shell",
@@ -295,7 +295,7 @@ func TestSubmitMasterExercise_QA_Wrong(t *testing.T) {
 }
 
 // QA モードでも 末尾改行 / 空白の差異は normalize で吸収する。
-func TestSubmitMasterExercise_QA_NormalizesTrailingWhitespace(t *testing.T) {
+func Test_演習提出_QA_末尾空白を正規化(t *testing.T) {
 	exRepo := &fakeMasterExerciseRepo{
 		get: &domain.MasterExercise{
 			ID: 100, Slug: "docker-1", Language: "shell",
@@ -312,7 +312,7 @@ func TestSubmitMasterExercise_QA_NormalizesTrailingWhitespace(t *testing.T) {
 	assert.True(t, out.IsCorrect)
 }
 
-func TestSubmitMasterExercise_ExerciseNotFound(t *testing.T) {
+func Test_演習提出_演習が見つからない(t *testing.T) {
 	exRepo := &fakeMasterExerciseRepo{err: errors.New("record not found")}
 	uc := usecase.NewSubmitMasterExerciseUseCase(exRepo, &fakeExampleRepo{}, &fakeSubmissionRepo{}, &fakeExecutor{})
 	_, err := uc.Execute(context.Background(), usecase.SubmitMasterExerciseInput{
@@ -321,7 +321,7 @@ func TestSubmitMasterExercise_ExerciseNotFound(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestSubmitMasterExercise_RequiresInput(t *testing.T) {
+func Test_演習提出_入力が必須(t *testing.T) {
 	uc := usecase.NewSubmitMasterExerciseUseCase(&fakeMasterExerciseRepo{}, &fakeExampleRepo{}, &fakeSubmissionRepo{}, &fakeExecutor{})
 	_, err := uc.Execute(context.Background(), usecase.SubmitMasterExerciseInput{
 		UserID: 0, Slug: "s", Code: "x",

@@ -24,7 +24,7 @@ func (r *statusRepo) UpdateStatus(_ context.Context, id uint64, status string) e
 	return r.err
 }
 
-func TestUpdateCompanyApplicationStatus_NormalizesAndUpdates(t *testing.T) {
+func Test_会社申請ステータス更新_正規化して更新(t *testing.T) {
 	repo := &statusRepo{}
 	uc := usecase.NewUpdateCompanyApplicationStatusUseCase(repo)
 	if err := uc.Execute(context.Background(), 5, "  Approved "); err != nil {
@@ -35,21 +35,21 @@ func TestUpdateCompanyApplicationStatus_NormalizesAndUpdates(t *testing.T) {
 	}
 }
 
-func TestUpdateCompanyApplicationStatus_RejectsBadStatus(t *testing.T) {
+func Test_会社申請ステータス更新_不正なステータスを拒否(t *testing.T) {
 	uc := usecase.NewUpdateCompanyApplicationStatusUseCase(&statusRepo{})
 	if err := uc.Execute(context.Background(), 5, "banana"); !errors.Is(err, usecase.ErrCompanyApplicationBadStatus) {
 		t.Fatalf("expected ErrCompanyApplicationBadStatus, got %v", err)
 	}
 }
 
-func TestUpdateCompanyApplicationStatus_RequiresID(t *testing.T) {
+func Test_会社申請ステータス更新_IDが必須(t *testing.T) {
 	uc := usecase.NewUpdateCompanyApplicationStatusUseCase(&statusRepo{})
 	if err := uc.Execute(context.Background(), 0, "approved"); err == nil {
 		t.Fatal("expected error when id == 0")
 	}
 }
 
-func TestUpdateCompanyApplicationStatus_PropagatesRepoError(t *testing.T) {
+func Test_会社申請ステータス更新_リポジトリエラーを伝播(t *testing.T) {
 	repo := &statusRepo{err: errors.New("db down")}
 	uc := usecase.NewUpdateCompanyApplicationStatusUseCase(repo)
 	if err := uc.Execute(context.Background(), 5, "rejected"); err == nil {

@@ -24,14 +24,14 @@ func (s *stubProfileRepo) Upsert(_ context.Context, p *domain.Profile) error {
 	return nil
 }
 
-func TestGetProfile_RequiresUserID(t *testing.T) {
+func Test_プロフィール取得_ユーザーIDが必須(t *testing.T) {
 	uc := NewGetProfileUseCase(&stubProfileRepo{})
 	if _, err := uc.Execute(context.Background(), 0); err == nil {
 		t.Fatal("expected error")
 	}
 }
 
-func TestGetProfile_NotFoundReturnsNil(t *testing.T) {
+func Test_プロフィール取得_見つからなければnil(t *testing.T) {
 	uc := NewGetProfileUseCase(&stubProfileRepo{p: nil})
 	got, err := uc.Execute(context.Background(), 1)
 	if err != nil || got != nil {
@@ -39,14 +39,14 @@ func TestGetProfile_NotFoundReturnsNil(t *testing.T) {
 	}
 }
 
-func TestUpdateProfile_RequiresUserID(t *testing.T) {
+func Test_プロフィール更新_ユーザーIDが必須(t *testing.T) {
 	uc := NewUpdateProfileUseCase(&stubProfileRepo{})
 	if _, err := uc.Execute(context.Background(), UpdateProfileInput{}); err == nil {
 		t.Fatal("expected error")
 	}
 }
 
-func TestUpdateProfile_Persists(t *testing.T) {
+func Test_プロフィール更新_永続化する(t *testing.T) {
 	repo := &stubProfileRepo{}
 	uc := NewUpdateProfileUseCase(repo)
 	got, err := uc.Execute(context.Background(), UpdateProfileInput{UserID: 1, Bio: "hi"})

@@ -25,7 +25,7 @@ func (f *fakeInitiateAuth) InitiateAuth(_ context.Context, in *cip.InitiateAuthI
 	return f.out, f.err
 }
 
-func TestPasswordAuthenticator_Authenticate_Success(t *testing.T) {
+func Test_パスワード認証_成功(t *testing.T) {
 	fake := &fakeInitiateAuth{out: &cip.InitiateAuthOutput{
 		AuthenticationResult: &types.AuthenticationResultType{
 			AccessToken:  aws.String("AT"),
@@ -56,7 +56,7 @@ func TestPasswordAuthenticator_Authenticate_Success(t *testing.T) {
 	}
 }
 
-func TestPasswordAuthenticator_Authenticate_InvalidCredentials(t *testing.T) {
+func Test_パスワード認証_認証情報不正(t *testing.T) {
 	for _, awsErr := range []error{
 		&types.NotAuthorizedException{},
 		&types.UserNotFoundException{},
@@ -70,7 +70,7 @@ func TestPasswordAuthenticator_Authenticate_InvalidCredentials(t *testing.T) {
 	}
 }
 
-func TestPasswordAuthenticator_Authenticate_NoSecretHashWithoutSecret(t *testing.T) {
+func Test_パスワード認証_secretなしはSecretHashなし(t *testing.T) {
 	fake := &fakeInitiateAuth{out: &cip.InitiateAuthOutput{
 		AuthenticationResult: &types.AuthenticationResultType{AccessToken: aws.String("AT")},
 	}}
@@ -83,14 +83,14 @@ func TestPasswordAuthenticator_Authenticate_NoSecretHashWithoutSecret(t *testing
 	}
 }
 
-func TestPasswordAuthenticator_Authenticate_NotConfigured(t *testing.T) {
+func Test_パスワード認証_未設定(t *testing.T) {
 	a := newPasswordAuthenticatorWithClient(&fakeInitiateAuth{}, "", "secret")
 	if _, err := a.Authenticate(context.Background(), "u", "pw"); !errors.Is(err, ErrNotConfigured) {
 		t.Fatalf("want ErrNotConfigured, got %v", err)
 	}
 }
 
-func TestPasswordAuthenticator_SecretHash(t *testing.T) {
+func Test_パスワード認証_SecretHash算出(t *testing.T) {
 	a := newPasswordAuthenticatorWithClient(nil, "id", "secret")
 	got := a.secretHash("user")
 

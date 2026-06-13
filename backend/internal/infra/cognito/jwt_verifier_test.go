@@ -80,7 +80,7 @@ func validClaims() map[string]any {
 	}
 }
 
-func TestVerify_Success(t *testing.T) {
+func Test_検証_成功(t *testing.T) {
 	s := newTestSigner(t)
 	v := newVerifier(t, s)
 	tok := s.sign(t, validClaims(), "RS256", s.kid)
@@ -93,7 +93,7 @@ func TestVerify_Success(t *testing.T) {
 	}
 }
 
-func TestVerify_TamperedSignature(t *testing.T) {
+func Test_検証_署名改ざん(t *testing.T) {
 	s := newTestSigner(t)
 	v := newVerifier(t, s)
 	tok := s.sign(t, validClaims(), "RS256", s.kid)
@@ -110,7 +110,7 @@ func TestVerify_TamperedSignature(t *testing.T) {
 	}
 }
 
-func TestVerify_Expired(t *testing.T) {
+func Test_検証_期限切れ(t *testing.T) {
 	s := newTestSigner(t)
 	v := newVerifier(t, s)
 	c := validClaims()
@@ -121,7 +121,7 @@ func TestVerify_Expired(t *testing.T) {
 	}
 }
 
-func TestVerify_BadIssuer(t *testing.T) {
+func Test_検証_不正なissuer(t *testing.T) {
 	s := newTestSigner(t)
 	v := newVerifier(t, s)
 	c := validClaims()
@@ -132,7 +132,7 @@ func TestVerify_BadIssuer(t *testing.T) {
 	}
 }
 
-func TestVerify_RejectNonRS256(t *testing.T) {
+func Test_検証_RS256以外を拒否(t *testing.T) {
 	s := newTestSigner(t)
 	v := newVerifier(t, s)
 	tok := s.sign(t, validClaims(), "none", s.kid)
@@ -141,7 +141,7 @@ func TestVerify_RejectNonRS256(t *testing.T) {
 	}
 }
 
-func TestVerify_UnknownKid(t *testing.T) {
+func Test_検証_未知のkid(t *testing.T) {
 	s := newTestSigner(t)
 	v := newVerifier(t, s)
 	tok := s.sign(t, validClaims(), "RS256", "some-other-kid")
@@ -150,14 +150,14 @@ func TestVerify_UnknownKid(t *testing.T) {
 	}
 }
 
-func TestVerify_Malformed(t *testing.T) {
+func Test_検証_不正な形式(t *testing.T) {
 	v := newVerifier(t, newTestSigner(t))
 	if _, err := v.Verify(context.Background(), "not-a-jwt"); !errors.Is(err, ErrJWTMalformed) {
 		t.Fatalf("expected ErrJWTMalformed, got %v", err)
 	}
 }
 
-func TestVerify_DisabledWhenNoJWKS(t *testing.T) {
+func Test_検証_JWKSなしは無効(t *testing.T) {
 	v := NewVerifier("")
 	if _, err := v.Verify(context.Background(), "a.b.c"); !errors.Is(err, ErrVerifierDisabled) {
 		t.Fatalf("expected ErrVerifierDisabled, got %v", err)
@@ -166,7 +166,7 @@ func TestVerify_DisabledWhenNoJWKS(t *testing.T) {
 
 // TestVerify_EmptyJWKSDoesNotWipeCache は空 JWKS が来ても既存の有効キャッシュを保持し、
 // 既知トークンが通り続けることを確認する。
-func TestVerify_EmptyJWKSDoesNotWipeCache(t *testing.T) {
+func Test_検証_空JWKSはキャッシュを消さない(t *testing.T) {
 	s := newTestSigner(t)
 	empty := false
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

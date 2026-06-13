@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRunner_PHP_HelloWorld(t *testing.T) {
+func Test_ランナー_PHP_HelloWorld(t *testing.T) {
 	if _, err := exec.LookPath("php"); err != nil {
 		t.Skip("php not found in PATH, skipping integration test")
 	}
@@ -27,7 +27,7 @@ func TestRunner_PHP_HelloWorld(t *testing.T) {
 	assert.Equal(t, 0, out.ExitCode)
 }
 
-func TestRunner_PHP_SyntaxError(t *testing.T) {
+func Test_ランナー_PHP_構文エラー(t *testing.T) {
 	if _, err := exec.LookPath("php"); err != nil {
 		t.Skip("php not found in PATH, skipping integration test")
 	}
@@ -41,7 +41,7 @@ func TestRunner_PHP_SyntaxError(t *testing.T) {
 	assert.NotEqual(t, 0, out.ExitCode)
 }
 
-func TestRunner_UnsupportedLanguage(t *testing.T) {
+func Test_ランナー_非対応言語(t *testing.T) {
 	r := sandbox.NewRunner()
 	_, err := r.Run(context.Background(), domain.CodeExecutionInput{
 		Code:     `print("hi")`,
@@ -50,7 +50,7 @@ func TestRunner_UnsupportedLanguage(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestRunner_CodeTooLarge(t *testing.T) {
+func Test_ランナー_コードが大きすぎる(t *testing.T) {
 	r := sandbox.NewRunner()
 	bigCode := make([]byte, 65*1024)
 	_, err := r.Run(context.Background(), domain.CodeExecutionInput{
@@ -62,7 +62,7 @@ func TestRunner_CodeTooLarge(t *testing.T) {
 
 // `<?php` 開始タグが無いコードは、 PHP CLI のデフォルトで「ソースをそのまま stdout に
 // 出力して exit 0」になるため、 検証層で弾いて分かりやすい stderr メッセージに置き換える。
-func TestRunner_PHP_RejectsCodeWithoutOpenTag(t *testing.T) {
+func Test_ランナー_PHP_開始タグなしを拒否(t *testing.T) {
 	r := sandbox.NewRunner()
 	out, err := r.Run(context.Background(), domain.CodeExecutionInput{
 		Code: `import java.util.*;
@@ -80,7 +80,7 @@ class Main {
 }
 
 // `<?=` (short echo tag) も PHP として扱われる必要があるので、 こちらは通す。
-func TestRunner_PHP_AllowsShortEchoTag(t *testing.T) {
+func Test_ランナー_PHP_短縮echoタグを許可(t *testing.T) {
 	if _, err := exec.LookPath("php"); err != nil {
 		t.Skip("php not found in PATH")
 	}
@@ -95,7 +95,7 @@ func TestRunner_PHP_AllowsShortEchoTag(t *testing.T) {
 
 // --- Go ---
 
-func TestRunner_Go_HelloWorld(t *testing.T) {
+func Test_ランナー_Go_HelloWorld(t *testing.T) {
 	if _, err := exec.LookPath("go"); err != nil {
 		t.Skip("go not found in PATH, skipping integration test")
 	}
@@ -117,7 +117,7 @@ func main() {
 	assert.Equal(t, 0, out.ExitCode)
 }
 
-func TestRunner_Go_RejectsMissingPackageMain(t *testing.T) {
+func Test_ランナー_Go_package_main欠落を拒否(t *testing.T) {
 	r := sandbox.NewRunner()
 	out, err := r.Run(context.Background(), domain.CodeExecutionInput{
 		Code:     `fmt.Println("hi")`,
@@ -129,7 +129,7 @@ func TestRunner_Go_RejectsMissingPackageMain(t *testing.T) {
 	assert.Contains(t, out.Stderr, "package main")
 }
 
-func TestRunner_Go_CompileError(t *testing.T) {
+func Test_ランナー_Go_コンパイルエラー(t *testing.T) {
 	if _, err := exec.LookPath("go"); err != nil {
 		t.Skip("go not found in PATH")
 	}
@@ -152,7 +152,7 @@ func main() {
 	assert.Contains(t, out.Stderr, "./main.go")
 }
 
-func TestRunner_Go_ReadsStdin(t *testing.T) {
+func Test_ランナー_Go_標準入力を読む(t *testing.T) {
 	if _, err := exec.LookPath("go"); err != nil {
 		t.Skip("go not found in PATH")
 	}
@@ -182,7 +182,7 @@ func main() {
 }
 
 // Warmup(go) はコンパイルキャッシュを温める。go があれば成功する。
-func TestRunner_Warmup_Go(t *testing.T) {
+func Test_ランナー_ウォームアップ_Go(t *testing.T) {
 	if _, err := exec.LookPath("go"); err != nil {
 		t.Skip("go not found in PATH")
 	}
@@ -191,7 +191,7 @@ func TestRunner_Warmup_Go(t *testing.T) {
 }
 
 // Warmup(php/bash/未対応) は no-op で常に成功する。
-func TestRunner_Warmup_NonGoIsNoop(t *testing.T) {
+func Test_ランナー_ウォームアップ_Go以外は何もしない(t *testing.T) {
 	r := sandbox.NewRunner()
 	require.NoError(t, r.Warmup(context.Background(), "php"))
 	require.NoError(t, r.Warmup(context.Background(), "bash"))
@@ -200,7 +200,7 @@ func TestRunner_Warmup_NonGoIsNoop(t *testing.T) {
 
 // --- Bash ---
 
-func TestRunner_Bash_HelloWorld(t *testing.T) {
+func Test_ランナー_Bash_HelloWorld(t *testing.T) {
 	if _, err := exec.LookPath("/bin/bash"); err != nil {
 		t.Skip("/bin/bash not found")
 	}
@@ -215,7 +215,7 @@ func TestRunner_Bash_HelloWorld(t *testing.T) {
 }
 
 // HOME / PWD は temp dir に固定されるため、 副作用は外に漏れない。
-func TestRunner_Bash_HomeIsTempDir(t *testing.T) {
+func Test_ランナー_Bash_HOMEは一時ディレクトリ(t *testing.T) {
 	if _, err := exec.LookPath("/bin/bash"); err != nil {
 		t.Skip("/bin/bash not found")
 	}
@@ -232,7 +232,7 @@ func TestRunner_Bash_HomeIsTempDir(t *testing.T) {
 }
 
 // AWS / DB の credential が子プロセスに継承されないことを確認する（環境変数を絞っている）。
-func TestRunner_Bash_DropsParentEnv(t *testing.T) {
+func Test_ランナー_Bash_親envを落とす(t *testing.T) {
 	if _, err := exec.LookPath("/bin/bash"); err != nil {
 		t.Skip("/bin/bash not found")
 	}
@@ -246,7 +246,7 @@ func TestRunner_Bash_DropsParentEnv(t *testing.T) {
 	assert.Equal(t, "value=missing\n", out.Stdout)
 }
 
-func TestRunner_Bash_ReadsStdin(t *testing.T) {
+func Test_ランナー_Bash_標準入力を読む(t *testing.T) {
 	if _, err := exec.LookPath("/bin/bash"); err != nil {
 		t.Skip("/bin/bash not found")
 	}
@@ -261,7 +261,7 @@ func TestRunner_Bash_ReadsStdin(t *testing.T) {
 	assert.Equal(t, 0, out.ExitCode)
 }
 
-func TestRunner_Bash_ExitCodePropagated(t *testing.T) {
+func Test_ランナー_Bash_終了コードを伝播(t *testing.T) {
 	if _, err := exec.LookPath("/bin/bash"); err != nil {
 		t.Skip("/bin/bash not found")
 	}
@@ -278,7 +278,7 @@ func TestRunner_Bash_ExitCodePropagated(t *testing.T) {
 // timeout 時に bash 配下の子孫プロセスもまとめて kill されることを確認する regression test。
 // `Setpgid + cmd.Cancel = group SIGKILL + WaitDelay 1s` で、timeout(1s)+WaitDelay(1s) で
 // 必ず数秒以内に return する。
-func TestRunner_Bash_TimeoutKillsBackgroundChildren(t *testing.T) {
+func Test_ランナー_Bash_タイムアウトで子プロセスを停止(t *testing.T) {
 	if _, err := exec.LookPath("/bin/bash"); err != nil {
 		t.Skip("/bin/bash not found")
 	}

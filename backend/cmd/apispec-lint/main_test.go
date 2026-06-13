@@ -23,7 +23,7 @@ func parseSrc(t *testing.T, src string) (*token.FileSet, *ast.File) {
 	return fset, f
 }
 
-func TestExtractRouterKeys(t *testing.T) {
+func Test_ルーターキー抽出(t *testing.T) {
 	_, f := parseSrc(t, `package handler
 
 // Create は作る。
@@ -52,7 +52,7 @@ func (h *H) List(c *gin.Context) {}
 	}
 }
 
-func TestParseRouterLine(t *testing.T) {
+func Test_ルーター行のパース(t *testing.T) {
 	cases := []struct {
 		text         string
 		method, path string
@@ -72,7 +72,7 @@ func TestParseRouterLine(t *testing.T) {
 	}
 }
 
-func TestNormalizeGinPath(t *testing.T) {
+func Test_Ginパス正規化(t *testing.T) {
 	cases := map[string]string{
 		"/profile/:userId":        "/profile/{userId}",
 		"/a/:id/b/:slug":          "/a/{id}/b/{slug}",
@@ -87,7 +87,7 @@ func TestNormalizeGinPath(t *testing.T) {
 	}
 }
 
-func TestExtractRoutes(t *testing.T) {
+func Test_ルート抽出(t *testing.T) {
 	fset, f := parseSrc(t, `package handler
 
 func reg(g *gin.RouterGroup, h *H) {
@@ -126,7 +126,7 @@ func reg(g *gin.RouterGroup, h *H) {
 	}
 }
 
-func TestHandlerName(t *testing.T) {
+func Test_ハンドラ名抽出(t *testing.T) {
 	mustExpr := func(src string) ast.Expr {
 		_, f := parseSrc(t, "package p\nvar _ = "+src+"\n")
 		return f.Decls[0].(*ast.GenDecl).Specs[0].(*ast.ValueSpec).Values[0]
@@ -142,7 +142,7 @@ func TestHandlerName(t *testing.T) {
 	}
 }
 
-func TestHasIgnoreFile(t *testing.T) {
+func Test_ignoreファイル判定(t *testing.T) {
 	_, lead := parseSrc(t, "//apispec:ignore-file 生成物\npackage handler\n")
 	if !hasIgnoreFile(lead) {
 		t.Error("leading //apispec:ignore-file should be detected")
@@ -298,7 +298,7 @@ func reg(g *gin.RouterGroup, h *H) {
 	})
 }
 
-func TestRunCLI(t *testing.T) {
+func Test_CLI実行(t *testing.T) {
 	handlerRoot := func(t *testing.T, violating bool) string {
 		routes := "g.POST(\"/things\", h.Create)"
 		if violating {

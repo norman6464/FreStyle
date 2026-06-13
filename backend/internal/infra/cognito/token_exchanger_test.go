@@ -25,7 +25,7 @@ func newTestServer(t *testing.T, handler http.HandlerFunc) (*httptest.Server, Co
 	return srv, cfg
 }
 
-func TestExchangeAuthorizationCode_Success(t *testing.T) {
+func Test_認可コード交換_成功(t *testing.T) {
 	_, cfg := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		if got := r.Header.Get("Content-Type"); got != "application/x-www-form-urlencoded" {
 			t.Errorf("Content-Type = %q", got)
@@ -51,7 +51,7 @@ func TestExchangeAuthorizationCode_Success(t *testing.T) {
 	}
 }
 
-func TestRefreshAccessToken_Success(t *testing.T) {
+func Test_アクセストークン更新_成功(t *testing.T) {
 	_, cfg := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		form := string(body)
@@ -74,7 +74,7 @@ func TestRefreshAccessToken_Success(t *testing.T) {
 	}
 }
 
-func TestExchange_NotConfigured(t *testing.T) {
+func Test_トークン交換_未設定(t *testing.T) {
 	tx := NewTokenExchanger(Config{}) // ClientID / TokenURI 共に空
 	_, err := tx.ExchangeAuthorizationCode(context.Background(), "code")
 	if !errors.Is(err, ErrNotConfigured) {
@@ -82,7 +82,7 @@ func TestExchange_NotConfigured(t *testing.T) {
 	}
 }
 
-func TestExchange_TokenExchangeFailedWraps(t *testing.T) {
+func Test_トークン交換_失敗をラップ(t *testing.T) {
 	_, cfg := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		_, _ = w.Write([]byte(`{"error":"invalid_grant"}`))
@@ -105,7 +105,7 @@ func TestExchange_TokenExchangeFailedWraps(t *testing.T) {
 	}
 }
 
-func TestExchange_InvalidResponse(t *testing.T) {
+func Test_トークン交換_不正なレスポンス(t *testing.T) {
 	_, cfg := newTestServer(t, func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`not-json`))
 	})
@@ -117,7 +117,7 @@ func TestExchange_InvalidResponse(t *testing.T) {
 	}
 }
 
-func TestExchange_Unreachable(t *testing.T) {
+func Test_トークン交換_到達不能(t *testing.T) {
 	cfg := Config{ClientID: "x", TokenURI: "http://127.0.0.1:1"} // 接続失敗
 	tx := NewTokenExchangerWithClient(cfg, &http.Client{Timeout: 100 * time.Millisecond})
 	_, err := tx.ExchangeAuthorizationCode(context.Background(), "code")
@@ -126,7 +126,7 @@ func TestExchange_Unreachable(t *testing.T) {
 	}
 }
 
-func TestExchange_OmitsSecretWhenEmpty(t *testing.T) {
+func Test_トークン交換_secret空は省略(t *testing.T) {
 	_, cfg := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		if strings.Contains(string(body), "client_secret=") {

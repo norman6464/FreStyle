@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-func TestAnalyzeFile(t *testing.T) {
+func Test_ファイル解析(t *testing.T) {
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, "x.go", `package usecase
 
@@ -84,7 +84,7 @@ func toSet(ss []string) map[string]bool {
 	return m
 }
 
-func TestReceiverTypeName(t *testing.T) {
+func Test_レシーバ型名(t *testing.T) {
 	fset := token.NewFileSet()
 	f, _ := parser.ParseFile(fset, "x.go", `package p
 type T struct{}
@@ -233,7 +233,7 @@ type FooUseCase struct{}
 	})
 }
 
-func TestRunCLI(t *testing.T) {
+func Test_CLI実行(t *testing.T) {
 	good := mkUsecaseTree(t, map[string]string{
 		"a.go": `package usecase
 type FooUseCase struct{}

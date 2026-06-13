@@ -23,7 +23,7 @@ func newTestFetcher(t *testing.T, handler http.HandlerFunc) (*httptest.Server, *
 	return srv, tx
 }
 
-func TestResolve_Success(t *testing.T) {
+func Test_解決_成功(t *testing.T) {
 	srv, tx := newTestFetcher(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
 		_, _ = w.Write([]byte(`
@@ -54,7 +54,7 @@ func TestResolve_Success(t *testing.T) {
 	}
 }
 
-func TestResolve_FallbackTitleTag(t *testing.T) {
+func Test_解決_titleタグにフォールバック(t *testing.T) {
 	srv, tx := newTestFetcher(t, func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`<html><head><title>Plain Title</title></head><body></body></html>`))
 	})
@@ -68,7 +68,7 @@ func TestResolve_FallbackTitleTag(t *testing.T) {
 	}
 }
 
-func TestResolve_RejectsNonHTTPS(t *testing.T) {
+func Test_解決_非HTTPSを拒否(t *testing.T) {
 	tx := NewFetcher()
 	_, err := tx.Resolve(context.Background(), "http://example.com")
 	if !errors.Is(err, ErrInvalidURL) {
@@ -76,7 +76,7 @@ func TestResolve_RejectsNonHTTPS(t *testing.T) {
 	}
 }
 
-func TestResolve_RejectsInvalidURL(t *testing.T) {
+func Test_解決_不正なURLを拒否(t *testing.T) {
 	tx := NewFetcher()
 	_, err := tx.Resolve(context.Background(), "::not a url::")
 	if !errors.Is(err, ErrInvalidURL) {
@@ -84,7 +84,7 @@ func TestResolve_RejectsInvalidURL(t *testing.T) {
 	}
 }
 
-func TestResolve_RejectsPrivateHost(t *testing.T) {
+func Test_解決_プライベートホストを拒否(t *testing.T) {
 	tx := NewFetcher()
 	for _, host := range []string{
 		"https://localhost/",
@@ -99,7 +99,7 @@ func TestResolve_RejectsPrivateHost(t *testing.T) {
 	}
 }
 
-func TestResolve_Unreachable(t *testing.T) {
+func Test_解決_到達不能(t *testing.T) {
 	srv, tx := newTestFetcher(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	})
@@ -109,7 +109,7 @@ func TestResolve_Unreachable(t *testing.T) {
 	}
 }
 
-func TestResolve_Cache(t *testing.T) {
+func Test_解決_キャッシュ(t *testing.T) {
 	calls := 0
 	srv, tx := newTestFetcher(t, func(w http.ResponseWriter, _ *http.Request) {
 		calls++
@@ -126,7 +126,7 @@ func TestResolve_Cache(t *testing.T) {
 	}
 }
 
-func TestResolve_FallbackHostAsTitle(t *testing.T) {
+func Test_解決_ホスト名をタイトルにフォールバック(t *testing.T) {
 	srv, tx := newTestFetcher(t, func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`<html><body>no title</body></html>`))
 	})

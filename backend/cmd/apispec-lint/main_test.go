@@ -184,7 +184,7 @@ func (h *H) Create(c *gin.Context) {}
 func (h *H) Get(c *gin.Context) {}
 `
 
-	t.Run("missing annotation is a violation", func(t *testing.T) {
+	t.Run("注釈なしは違反", func(t *testing.T) {
 		handlerRoot := mkHandlerTree(t, map[string]string{
 			"h.go": annotatedHandler,
 			"routes.go": `package handler
@@ -203,7 +203,7 @@ func reg(g *gin.RouterGroup, h *H) {
 		}
 	})
 
-	t.Run("path mismatch is a violation", func(t *testing.T) {
+	t.Run("path 不一致は違反", func(t *testing.T) {
 		// 注釈は /things/{id} だが実ルートは /items/{id} → 不一致。
 		handlerRoot := mkHandlerTree(t, map[string]string{
 			"h.go": annotatedHandler,
@@ -222,7 +222,7 @@ func reg(g *gin.RouterGroup, h *H) {
 		}
 	})
 
-	t.Run("method mismatch is a violation", func(t *testing.T) {
+	t.Run("method 不一致は違反", func(t *testing.T) {
 		// 注釈は [get] だが実ルートは PUT → 不一致。
 		handlerRoot := mkHandlerTree(t, map[string]string{
 			"h.go": annotatedHandler,
@@ -241,7 +241,7 @@ func reg(g *gin.RouterGroup, h *H) {
 		}
 	})
 
-	t.Run("all annotated -> no violation", func(t *testing.T) {
+	t.Run("全て注釈あり → 違反なし", func(t *testing.T) {
 		handlerRoot := mkHandlerTree(t, map[string]string{
 			"h.go": annotatedHandler,
 			"routes.go": `package handler
@@ -260,7 +260,7 @@ func reg(g *gin.RouterGroup, h *H) {
 		}
 	})
 
-	t.Run("//apispec:allow suppresses", func(t *testing.T) {
+	t.Run("//apispec:allow で抑制される", func(t *testing.T) {
 		handlerRoot := mkHandlerTree(t, map[string]string{
 			"h.go": annotatedHandler,
 			"routes.go": `package handler
@@ -278,7 +278,7 @@ func reg(g *gin.RouterGroup, h *H) {
 		}
 	})
 
-	t.Run("//apispec:ignore-file skips file", func(t *testing.T) {
+	t.Run("//apispec:ignore-file でファイルをスキップ", func(t *testing.T) {
 		handlerRoot := mkHandlerTree(t, map[string]string{
 			"h.go": annotatedHandler,
 			"routes.go": `//apispec:ignore-file レガシー
@@ -310,7 +310,7 @@ func TestRunCLI(t *testing.T) {
 		})
 	}
 
-	t.Run("clean returns 0", func(t *testing.T) {
+	t.Run("クリーンなら 0 を返す", func(t *testing.T) {
 		root := filepath.Dir(filepath.Dir(handlerRoot(t, false))) // root that contains internal/handler
 		var out, errBuf bytes.Buffer
 		if code := runCLI([]string{root}, &out, &errBuf); code != 0 {
@@ -321,7 +321,7 @@ func TestRunCLI(t *testing.T) {
 		}
 	})
 
-	t.Run("violation returns 1", func(t *testing.T) {
+	t.Run("違反があれば 1 を返す", func(t *testing.T) {
 		root := filepath.Dir(filepath.Dir(handlerRoot(t, true)))
 		var out, errBuf bytes.Buffer
 		if code := runCLI([]string{root}, &out, &errBuf); code != 1 {

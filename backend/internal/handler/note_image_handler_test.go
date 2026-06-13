@@ -24,28 +24,28 @@ func newNoteImageHandler(p repository.NoteImagePresigner) *NoteImageHandler {
 }
 
 func TestNoteImageHandler_IssueUploadURL(t *testing.T) {
-	t.Run("unauthorized", func(t *testing.T) {
+	t.Run("未認証", func(t *testing.T) {
 		w, c := noteCtx(http.MethodPost, `{}`, 0, "")
 		newNoteImageHandler(fakeNoteImagePresigner{}).IssueUploadURL(c)
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("want 401, got %d", w.Code)
 		}
 	})
-	t.Run("invalid json -> 400", func(t *testing.T) {
+	t.Run("不正な JSON → 400", func(t *testing.T) {
 		w, c := noteCtx(http.MethodPost, `not-json`, 7, "")
 		newNoteImageHandler(fakeNoteImagePresigner{}).IssueUploadURL(c)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("want 400, got %d", w.Code)
 		}
 	})
-	t.Run("ok", func(t *testing.T) {
+	t.Run("正常系", func(t *testing.T) {
 		w, c := noteCtx(http.MethodPost, `{"contentType":"image/png"}`, 7, "")
 		newNoteImageHandler(fakeNoteImagePresigner{url: &domain.NoteImageUploadURL{}}).IssueUploadURL(c)
 		if w.Code != http.StatusOK {
 			t.Fatalf("want 200, got %d", w.Code)
 		}
 	})
-	t.Run("presigner error -> 400", func(t *testing.T) {
+	t.Run("presigner エラー → 400", func(t *testing.T) {
 		w, c := noteCtx(http.MethodPost, `{"contentType":"image/png"}`, 7, "")
 		newNoteImageHandler(fakeNoteImagePresigner{err: context.DeadlineExceeded}).IssueUploadURL(c)
 		if w.Code != http.StatusBadRequest {

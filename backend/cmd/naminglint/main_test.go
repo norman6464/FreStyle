@@ -128,7 +128,7 @@ func mkUsecaseTree(t *testing.T, files map[string]string) string {
 }
 
 func TestRunIntegration(t *testing.T) {
-	t.Run("missing Execute is a violation", func(t *testing.T) {
+	t.Run("Execute なしは違反", func(t *testing.T) {
 		usecaseRoot := mkUsecaseTree(t, map[string]string{
 			"a.go": `package usecase
 type FooUseCase struct{}
@@ -144,7 +144,7 @@ func NewFooUseCase() *FooUseCase { return &FooUseCase{} }
 		}
 	})
 
-	t.Run("missing constructor is a violation", func(t *testing.T) {
+	t.Run("コンストラクタなしは違反", func(t *testing.T) {
 		usecaseRoot := mkUsecaseTree(t, map[string]string{
 			"a.go": `package usecase
 type FooUseCase struct{}
@@ -160,7 +160,7 @@ func (u *FooUseCase) Execute() {}
 		}
 	})
 
-	t.Run("compliant usecase passes", func(t *testing.T) {
+	t.Run("規約準拠の usecase は通過", func(t *testing.T) {
 		usecaseRoot := mkUsecaseTree(t, map[string]string{
 			"a.go": `package usecase
 type FooUseCase struct{}
@@ -177,7 +177,7 @@ func (u *FooUseCase) Execute() {}
 		}
 	})
 
-	t.Run("//naminglint:allow suppresses Execute requirement", func(t *testing.T) {
+	t.Run("//naminglint:allow で Execute 必須を抑制", func(t *testing.T) {
 		usecaseRoot := mkUsecaseTree(t, map[string]string{
 			"a.go": `package usecase
 
@@ -196,7 +196,7 @@ func (u *FooUseCase) List() {}
 		}
 	})
 
-	t.Run("repository subpackage is ignored", func(t *testing.T) {
+	t.Run("repository サブパッケージは対象外", func(t *testing.T) {
 		usecaseRoot := mkUsecaseTree(t, map[string]string{
 			"a.go": `package usecase
 type FooUseCase struct{}
@@ -216,7 +216,7 @@ type BrokenUseCase struct{}
 		}
 	})
 
-	t.Run("//naminglint:ignore-file skips file", func(t *testing.T) {
+	t.Run("//naminglint:ignore-file でファイルをスキップ", func(t *testing.T) {
 		usecaseRoot := mkUsecaseTree(t, map[string]string{
 			"a.go": `//naminglint:ignore-file レガシー
 package usecase

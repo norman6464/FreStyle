@@ -14,7 +14,7 @@ func newTMHandler() *TeachingMaterialHandler {
 	return NewTeachingMaterialHandler(usecase.NewTeachingMaterialUseCase(fakeMaterialRepo{}, &fakeCourseRepo{}))
 }
 
-func TestTeachingMaterialHandler_List(t *testing.T) {
+func Test_教材ハンドラ_一覧(t *testing.T) {
 	t.Run("未認証", func(t *testing.T) {
 		w, c := ctxJSON(http.MethodGet, "", nil, nil)
 		newTMHandler().List(c)
@@ -31,7 +31,7 @@ func TestTeachingMaterialHandler_List(t *testing.T) {
 	})
 }
 
-func TestTeachingMaterialHandler_ListByCourse(t *testing.T) {
+func Test_教材ハンドラ_コース別一覧(t *testing.T) {
 	t.Run("未認証", func(t *testing.T) {
 		w, c := ctxJSON(http.MethodGet, "", idParam("1"), nil)
 		newTMHandler().ListByCourse(c)
@@ -48,7 +48,7 @@ func TestTeachingMaterialHandler_ListByCourse(t *testing.T) {
 	})
 }
 
-func TestTeachingMaterialHandler_Get_BadID(t *testing.T) {
+func Test_教材ハンドラ_取得_不正なID(t *testing.T) {
 	w, c := ctxJSON(http.MethodGet, "", idParam("abc"), superAdminCo())
 	newTMHandler().Get(c)
 	if w.Code != http.StatusBadRequest {
@@ -56,7 +56,7 @@ func TestTeachingMaterialHandler_Get_BadID(t *testing.T) {
 	}
 }
 
-func TestTeachingMaterialHandler_Create_BadJSON(t *testing.T) {
+func Test_教材ハンドラ_作成_不正なJSON(t *testing.T) {
 	w, c := ctxJSON(http.MethodPost, `{`, nil, superAdminCo())
 	newTMHandler().Create(c)
 	if w.Code != http.StatusBadRequest {
@@ -64,7 +64,7 @@ func TestTeachingMaterialHandler_Create_BadJSON(t *testing.T) {
 	}
 }
 
-func TestTeachingMaterialHandler_Update_BadID(t *testing.T) {
+func Test_教材ハンドラ_更新_不正なID(t *testing.T) {
 	w, c := ctxJSON(http.MethodPut, `{"title":"X"}`, idParam("abc"), superAdminCo())
 	newTMHandler().Update(c)
 	if w.Code != http.StatusBadRequest {
@@ -72,7 +72,7 @@ func TestTeachingMaterialHandler_Update_BadID(t *testing.T) {
 	}
 }
 
-func TestTeachingMaterialHandler_Delete_BadID(t *testing.T) {
+func Test_教材ハンドラ_削除_不正なID(t *testing.T) {
 	w, c := ctxJSON(http.MethodDelete, "", idParam("abc"), superAdminCo())
 	newTMHandler().Delete(c)
 	if w.Code != http.StatusBadRequest {

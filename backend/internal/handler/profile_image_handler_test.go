@@ -40,7 +40,7 @@ func userIDCtx(body string, cur uint64, userIDParam string) (*httptest.ResponseR
 	return w, c
 }
 
-func TestProfileImageHandler_IssueUploadURL(t *testing.T) {
+func Test_プロフィール画像ハンドラ_アップロードURL発行(t *testing.T) {
 	t.Run("未認証", func(t *testing.T) {
 		w, c := userIDCtx(`{}`, 0, "me")
 		newProfileImageHandler(fakeProfileImagePresigner{}).IssueUploadURL(c)

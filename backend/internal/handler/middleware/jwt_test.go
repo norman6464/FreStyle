@@ -35,7 +35,7 @@ func encodeSegment(t *testing.T, v any) string {
 	return s
 }
 
-func TestDecodeClaims_Success(t *testing.T) {
+func Test_クレームデコード_成功(t *testing.T) {
 	want := map[string]any{
 		"sub":            "abc-123",
 		"email":          "u@example.com",
@@ -54,7 +54,7 @@ func TestDecodeClaims_Success(t *testing.T) {
 	}
 }
 
-func TestDecodeClaims_InvalidFormat(t *testing.T) {
+func Test_クレームデコード_不正な形式(t *testing.T) {
 	cases := []string{"", "only.two", "a.b.c.d"}
 	for _, c := range cases {
 		if _, err := DecodeClaims(c); !errors.Is(err, ErrInvalidJWT) {
@@ -63,14 +63,14 @@ func TestDecodeClaims_InvalidFormat(t *testing.T) {
 	}
 }
 
-func TestDecodeClaims_InvalidBase64(t *testing.T) {
+func Test_クレームデコード_不正なBase64(t *testing.T) {
 	tok := "header.!!!notbase64!!!.sig"
 	if _, err := DecodeClaims(tok); err == nil {
 		t.Fatal("expected error")
 	}
 }
 
-func TestDecodeClaims_InvalidJSON(t *testing.T) {
+func Test_クレームデコード_不正なJSON(t *testing.T) {
 	header := encodeSegment(t, map[string]any{"alg": "RS256"})
 	bogus := strings.NewReplacer("+", "-", "/", "_").Replace(
 		strings.TrimRight(base64.StdEncoding.EncodeToString([]byte("not-json")), "="),
@@ -81,7 +81,7 @@ func TestDecodeClaims_InvalidJSON(t *testing.T) {
 	}
 }
 
-func TestIsAdminFromGroups(t *testing.T) {
+func Test_グループからadmin判定(t *testing.T) {
 	if !IsAdminFromGroups([]string{"trainee", "admin"}) {
 		t.Fatal("admin should be detected")
 	}
@@ -93,7 +93,7 @@ func TestIsAdminFromGroups(t *testing.T) {
 	}
 }
 
-func TestToStringSliceFromClaim(t *testing.T) {
+func Test_クレームから文字列スライス変換(t *testing.T) {
 	got := ToStringSliceFromClaim([]any{"a", "b", 42, "c"})
 	want := []string{"a", "b", "c"}
 	if len(got) != len(want) {
@@ -130,14 +130,14 @@ func runJWTAuth(t *testing.T, verify VerifyFunc, cookie string) (int, string) {
 	return w.Code, gotSub
 }
 
-func TestJWTAuth_NoCookie(t *testing.T) {
+func Test_JWT認証_Cookieなし(t *testing.T) {
 	verify := func(context.Context, string) (map[string]any, error) { return nil, nil }
 	if code, _ := runJWTAuth(t, verify, ""); code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", code)
 	}
 }
 
-func TestJWTAuth_VerifyFails(t *testing.T) {
+func Test_JWT認証_検証失敗(t *testing.T) {
 	// 偽造トークン相当: verify がエラーを返したら 401 で弾く。
 	verify := func(context.Context, string) (map[string]any, error) {
 		return nil, errors.New("bad signature")
@@ -147,7 +147,7 @@ func TestJWTAuth_VerifyFails(t *testing.T) {
 	}
 }
 
-func TestJWTAuth_VerifySucceeds(t *testing.T) {
+func Test_JWT認証_検証成功(t *testing.T) {
 	verify := func(context.Context, string) (map[string]any, error) {
 		return map[string]any{"sub": "user-9"}, nil
 	}
@@ -160,7 +160,7 @@ func TestJWTAuth_VerifySucceeds(t *testing.T) {
 	}
 }
 
-func TestJWTAuth_MissingSub(t *testing.T) {
+func Test_JWT認証_sub欠落(t *testing.T) {
 	verify := func(context.Context, string) (map[string]any, error) {
 		return map[string]any{"email": "u@example.com"}, nil
 	}

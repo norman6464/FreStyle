@@ -53,7 +53,7 @@ func newCompanySettingsTestRouter(repo *settingsCompanyRepo, actor *domain.User)
 	return r
 }
 
-func TestCompanySettingsHandler_Get_Admin(t *testing.T) {
+func Test_会社設定ハンドラ_取得_管理者(t *testing.T) {
 	repo := &settingsCompanyRepo{company: &domain.Company{ID: 1, AiChatEnabledForTrainees: false}}
 	actor := &domain.User{Role: domain.RoleCompanyAdmin, CompanyID: u64ptr(1)}
 	r := newCompanySettingsTestRouter(repo, actor)
@@ -73,7 +73,7 @@ func TestCompanySettingsHandler_Get_Admin(t *testing.T) {
 	}
 }
 
-func TestCompanySettingsHandler_Get_TraineeForbidden(t *testing.T) {
+func Test_会社設定ハンドラ_取得_traineeは禁止(t *testing.T) {
 	repo := &settingsCompanyRepo{company: &domain.Company{ID: 1}}
 	actor := &domain.User{Role: domain.RoleTrainee, CompanyID: u64ptr(1)}
 	r := newCompanySettingsTestRouter(repo, actor)
@@ -85,7 +85,7 @@ func TestCompanySettingsHandler_Get_TraineeForbidden(t *testing.T) {
 	}
 }
 
-func TestCompanySettingsHandler_Update_Admin(t *testing.T) {
+func Test_会社設定ハンドラ_更新_管理者(t *testing.T) {
 	repo := &settingsCompanyRepo{company: &domain.Company{ID: 1, AiChatEnabledForTrainees: true}}
 	actor := &domain.User{Role: domain.RoleCompanyAdmin, CompanyID: u64ptr(1)}
 	r := newCompanySettingsTestRouter(repo, actor)
@@ -103,7 +103,7 @@ func TestCompanySettingsHandler_Update_Admin(t *testing.T) {
 	}
 }
 
-func TestCompanySettingsHandler_Update_MissingBody(t *testing.T) {
+func Test_会社設定ハンドラ_更新_ボディ欠落(t *testing.T) {
 	repo := &settingsCompanyRepo{company: &domain.Company{ID: 1}}
 	actor := &domain.User{Role: domain.RoleCompanyAdmin, CompanyID: u64ptr(1)}
 	r := newCompanySettingsTestRouter(repo, actor)

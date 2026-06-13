@@ -52,7 +52,7 @@ func notifCtx(uid uint64, idVal string) (*httptest.ResponseRecorder, *gin.Contex
 	return w, c
 }
 
-func TestNotificationHandler_List(t *testing.T) {
+func Test_通知ハンドラ_一覧(t *testing.T) {
 	t.Run("未認証", func(t *testing.T) {
 		w, c := notifCtx(0, "")
 		newNotifHandler(&fakeNotifRepo{}).List(c)
@@ -76,7 +76,7 @@ func TestNotificationHandler_List(t *testing.T) {
 	})
 }
 
-func TestNotificationHandler_MarkRead(t *testing.T) {
+func Test_通知ハンドラ_既読化(t *testing.T) {
 	t.Run("未認証", func(t *testing.T) {
 		w, c := notifCtx(0, "1")
 		newNotifHandler(&fakeNotifRepo{}).MarkRead(c)
@@ -100,7 +100,7 @@ func TestNotificationHandler_MarkRead(t *testing.T) {
 	})
 }
 
-func TestNotificationHandler_MarkAllRead(t *testing.T) {
+func Test_通知ハンドラ_全既読化(t *testing.T) {
 	t.Run("未認証", func(t *testing.T) {
 		w, c := notifCtx(0, "")
 		newNotifHandler(&fakeNotifRepo{}).MarkAllRead(c)
@@ -124,7 +124,7 @@ func TestNotificationHandler_MarkAllRead(t *testing.T) {
 	})
 }
 
-func TestNotificationHandler_UnreadCount(t *testing.T) {
+func Test_通知ハンドラ_未読数(t *testing.T) {
 	t.Run("未認証", func(t *testing.T) {
 		w, c := notifCtx(0, "")
 		newNotifHandler(&fakeNotifRepo{}).UnreadCount(c)

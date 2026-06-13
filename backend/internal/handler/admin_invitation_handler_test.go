@@ -63,7 +63,7 @@ func newTestHandler(repo *fakeAdminInvRepo, currentUser *domain.User) (*AdminInv
 	return h, r
 }
 
-func TestAdminInvitationHandler_List_SuperAdmin_AllScope(t *testing.T) {
+func Test_招待ハンドラ_一覧_運営管理者_全件(t *testing.T) {
 	repo := &fakeAdminInvRepo{
 		all:     []domain.AdminInvitation{{ID: 1}, {ID: 2}},
 		company: []domain.AdminInvitation{{ID: 99}},
@@ -87,7 +87,7 @@ func TestAdminInvitationHandler_List_SuperAdmin_AllScope(t *testing.T) {
 	}
 }
 
-func TestAdminInvitationHandler_List_SuperAdmin_WithCompanyIDQuery(t *testing.T) {
+func Test_招待ハンドラ_一覧_運営管理者_会社IDクエリ付き(t *testing.T) {
 	repo := &fakeAdminInvRepo{company: []domain.AdminInvitation{{ID: 99}}}
 	_, r := newTestHandler(repo, &domain.User{ID: 1, Role: domain.RoleSuperAdmin})
 
@@ -103,7 +103,7 @@ func TestAdminInvitationHandler_List_SuperAdmin_WithCompanyIDQuery(t *testing.T)
 	}
 }
 
-func TestAdminInvitationHandler_List_CompanyAdmin_AutoFiltersOwnCompany(t *testing.T) {
+func Test_招待ハンドラ_一覧_会社管理者_自社に自動絞り込み(t *testing.T) {
 	repo := &fakeAdminInvRepo{company: []domain.AdminInvitation{{ID: 7}}}
 	cid := uint64(123)
 	_, r := newTestHandler(repo, &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, CompanyID: &cid})
@@ -120,7 +120,7 @@ func TestAdminInvitationHandler_List_CompanyAdmin_AutoFiltersOwnCompany(t *testi
 	}
 }
 
-func TestAdminInvitationHandler_List_CompanyAdmin_WithoutCompanyIDIsForbidden(t *testing.T) {
+func Test_招待ハンドラ_一覧_会社管理者_会社IDなしは禁止(t *testing.T) {
 	repo := &fakeAdminInvRepo{}
 	_, r := newTestHandler(repo, &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, CompanyID: nil})
 
@@ -133,7 +133,7 @@ func TestAdminInvitationHandler_List_CompanyAdmin_WithoutCompanyIDIsForbidden(t 
 	}
 }
 
-func TestAdminInvitationHandler_List_Trainee_Forbidden(t *testing.T) {
+func Test_招待ハンドラ_一覧_traineeは禁止(t *testing.T) {
 	repo := &fakeAdminInvRepo{}
 	_, r := newTestHandler(repo, &domain.User{ID: 1, Role: domain.RoleTrainee})
 
@@ -149,7 +149,7 @@ func TestAdminInvitationHandler_List_Trainee_Forbidden(t *testing.T) {
 	}
 }
 
-func TestAdminInvitationHandler_List_Unauthenticated(t *testing.T) {
+func Test_招待ハンドラ_一覧_未認証(t *testing.T) {
 	repo := &fakeAdminInvRepo{}
 	_, r := newTestHandler(repo, nil) // current user 未設定
 
@@ -210,7 +210,7 @@ func postJSON(t *testing.T, r *gin.Engine, body string) *httptest.ResponseRecord
 	return w
 }
 
-func TestAdminInvitationHandler_Create_SuperAdmin_CompanyAdmin_OK(t *testing.T) {
+func Test_招待ハンドラ_作成_運営管理者_会社管理者_正常系(t *testing.T) {
 	repo := &fakeAdminInvRepoWithCreate{}
 	r := newTestCreateHandler(repo, &domain.User{ID: 1, Role: domain.RoleSuperAdmin})
 
@@ -224,7 +224,7 @@ func TestAdminInvitationHandler_Create_SuperAdmin_CompanyAdmin_OK(t *testing.T) 
 	}
 }
 
-func TestAdminInvitationHandler_Create_SuperAdmin_Trainee_Forbidden(t *testing.T) {
+func Test_招待ハンドラ_作成_運営管理者_trainee_禁止(t *testing.T) {
 	repo := &fakeAdminInvRepoWithCreate{}
 	r := newTestCreateHandler(repo, &domain.User{ID: 1, Role: domain.RoleSuperAdmin})
 
@@ -241,7 +241,7 @@ func TestAdminInvitationHandler_Create_SuperAdmin_Trainee_Forbidden(t *testing.T
 	}
 }
 
-func TestAdminInvitationHandler_Create_CompanyAdmin_Trainee_OK_AndCompanyForcedToOwn(t *testing.T) {
+func Test_招待ハンドラ_作成_会社管理者_trainee_正常系かつ自社に強制(t *testing.T) {
 	repo := &fakeAdminInvRepoWithCreate{}
 	cid := uint64(42)
 	r := newTestCreateHandler(repo, &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, CompanyID: &cid})
@@ -257,7 +257,7 @@ func TestAdminInvitationHandler_Create_CompanyAdmin_Trainee_OK_AndCompanyForcedT
 	}
 }
 
-func TestAdminInvitationHandler_Create_CompanyAdmin_CompanyAdmin_Forbidden(t *testing.T) {
+func Test_招待ハンドラ_作成_会社管理者_会社管理者_禁止(t *testing.T) {
 	repo := &fakeAdminInvRepoWithCreate{}
 	cid := uint64(42)
 	r := newTestCreateHandler(repo, &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, CompanyID: &cid})
@@ -272,7 +272,7 @@ func TestAdminInvitationHandler_Create_CompanyAdmin_CompanyAdmin_Forbidden(t *te
 	}
 }
 
-func TestAdminInvitationHandler_Create_Trainee_Forbidden(t *testing.T) {
+func Test_招待ハンドラ_作成_traineeは禁止(t *testing.T) {
 	repo := &fakeAdminInvRepoWithCreate{}
 	r := newTestCreateHandler(repo, &domain.User{ID: 1, Role: domain.RoleTrainee})
 
@@ -283,7 +283,7 @@ func TestAdminInvitationHandler_Create_Trainee_Forbidden(t *testing.T) {
 	}
 }
 
-func TestAdminInvitationHandler_Create_Unauthenticated(t *testing.T) {
+func Test_招待ハンドラ_作成_未認証(t *testing.T) {
 	repo := &fakeAdminInvRepoWithCreate{}
 	r := newTestCreateHandler(repo, nil)
 

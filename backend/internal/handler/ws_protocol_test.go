@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-func TestBuildChatMessage(t *testing.T) {
+func Test_チャットメッセージ構築(t *testing.T) {
 	now := time.Date(2026, 4, 28, 6, 30, 0, 0, time.UTC)
 	got, ok := BuildChatMessage(ChatInbound{Type: "send", Content: "hi"}, "42", 7, "alice", now)
 	if !ok {
@@ -28,19 +28,19 @@ func TestBuildChatMessage(t *testing.T) {
 	}
 }
 
-func TestBuildChatMessage_RejectsNonSend(t *testing.T) {
+func Test_チャットメッセージ構築_send以外を拒否(t *testing.T) {
 	if _, ok := BuildChatMessage(ChatInbound{Type: "delete", Content: "x"}, "1", 1, "a", time.Now()); ok {
 		t.Fatal("should reject non-send type")
 	}
 }
 
-func TestBuildChatMessage_RejectsEmptyContent(t *testing.T) {
+func Test_チャットメッセージ構築_空内容を拒否(t *testing.T) {
 	if _, ok := BuildChatMessage(ChatInbound{Type: "send"}, "1", 1, "a", time.Now()); ok {
 		t.Fatal("should reject empty content")
 	}
 }
 
-func TestBuildChatDelete(t *testing.T) {
+func Test_チャット削除構築(t *testing.T) {
 	got, ok := BuildChatDelete(ChatInbound{Type: "delete", CreatedAtRef: "2026-04-28T00:00:00Z"}, "42")
 	if !ok {
 		t.Fatal("should succeed for valid delete")
@@ -50,13 +50,13 @@ func TestBuildChatDelete(t *testing.T) {
 	}
 }
 
-func TestBuildChatDelete_RequiresRef(t *testing.T) {
+func Test_チャット削除構築_refが必須(t *testing.T) {
 	if _, ok := BuildChatDelete(ChatInbound{Type: "delete"}, "1"); ok {
 		t.Fatal("should reject empty CreatedAtRef")
 	}
 }
 
-func TestDecodeInbound(t *testing.T) {
+func Test_受信デコード(t *testing.T) {
 	in, err := DecodeInbound([]byte(`{"type":"send","content":"hello"}`))
 	if err != nil {
 		t.Fatalf("err: %v", err)
@@ -66,7 +66,7 @@ func TestDecodeInbound(t *testing.T) {
 	}
 }
 
-func TestEncodeOutbound(t *testing.T) {
+func Test_送信エンコード(t *testing.T) {
 	raw, err := EncodeOutbound(ChatOutbound{Type: "message", Content: "hi"})
 	if err != nil {
 		t.Fatalf("err: %v", err)

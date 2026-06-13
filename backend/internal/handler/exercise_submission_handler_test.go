@@ -74,7 +74,7 @@ func newSubmissionTestRouter(t *testing.T, exercise *domain.MasterExercise, exam
 	return r, subRepo
 }
 
-func TestSubmissionHandler_Submit_Success(t *testing.T) {
+func Test_演習提出ハンドラ_提出_成功(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	exercise := &domain.MasterExercise{ID: 7, Slug: "php-7"}
 	examples := []domain.MasterExerciseExample{
@@ -102,7 +102,7 @@ func TestSubmissionHandler_Submit_Success(t *testing.T) {
 	}
 }
 
-func TestSubmissionHandler_Submit_Unauthorized(t *testing.T) {
+func Test_演習提出ハンドラ_提出_未認証(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	exercise := &domain.MasterExercise{ID: 7, Slug: "php-7"}
 	r, _ := newSubmissionTestRouter(t, exercise, []domain.MasterExerciseExample{
@@ -138,7 +138,7 @@ func TestSubmissionHandler_Submit_Unauthorized(t *testing.T) {
 	}
 }
 
-func TestSubmissionHandler_List_Success(t *testing.T) {
+func Test_演習提出ハンドラ_一覧_成功(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	exercise := &domain.MasterExercise{ID: 7, Slug: "php-7"}
 	listed := []domain.ExerciseSubmission{

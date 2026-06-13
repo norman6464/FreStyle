@@ -65,7 +65,7 @@ func superAdminCo() *domain.User {
 	return &domain.User{ID: 1, Role: domain.RoleSuperAdmin, CompanyID: &cid}
 }
 
-func TestCourseHandler_List(t *testing.T) {
+func Test_コースハンドラ_一覧(t *testing.T) {
 	t.Run("未認証", func(t *testing.T) {
 		w, c := ctxJSON(http.MethodGet, "", nil, nil)
 		newCourseHandler(&fakeCourseRepo{}).List(c)
@@ -89,7 +89,7 @@ func TestCourseHandler_List(t *testing.T) {
 	})
 }
 
-func TestCourseHandler_Get(t *testing.T) {
+func Test_コースハンドラ_取得(t *testing.T) {
 	t.Run("不正な id → 400", func(t *testing.T) {
 		w, c := ctxJSON(http.MethodGet, "", idParam("abc"), superAdminCo())
 		newCourseHandler(&fakeCourseRepo{}).Get(c)
@@ -106,7 +106,7 @@ func TestCourseHandler_Get(t *testing.T) {
 	})
 }
 
-func TestCourseHandler_Create(t *testing.T) {
+func Test_コースハンドラ_作成(t *testing.T) {
 	t.Run("不正な JSON → 400", func(t *testing.T) {
 		w, c := ctxJSON(http.MethodPost, `{`, nil, superAdminCo())
 		newCourseHandler(&fakeCourseRepo{}).Create(c)
@@ -123,7 +123,7 @@ func TestCourseHandler_Create(t *testing.T) {
 	})
 }
 
-func TestCourseHandler_Update(t *testing.T) {
+func Test_コースハンドラ_更新(t *testing.T) {
 	t.Run("不正な id → 400", func(t *testing.T) {
 		w, c := ctxJSON(http.MethodPut, `{"title":"X"}`, idParam("abc"), superAdminCo())
 		newCourseHandler(&fakeCourseRepo{}).Update(c)
@@ -140,7 +140,7 @@ func TestCourseHandler_Update(t *testing.T) {
 	})
 }
 
-func TestCourseHandler_Delete(t *testing.T) {
+func Test_コースハンドラ_削除(t *testing.T) {
 	t.Run("不正な id → 400", func(t *testing.T) {
 		w, c := ctxJSON(http.MethodDelete, "", idParam("abc"), superAdminCo())
 		newCourseHandler(&fakeCourseRepo{}).Delete(c)

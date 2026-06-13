@@ -83,7 +83,7 @@ func newMasterExerciseTestHandler(repo *fakeMasterExerciseRepo, examples *fakeEx
 }
 
 // /exercises?language=php → repo に "php" が伝わり、結果が JSON で返る。
-func TestMasterExerciseHandler_List_FiltersByLanguage(t *testing.T) {
+func Test_演習問題ハンドラ_一覧_言語で絞り込み(t *testing.T) {
 	repo := &fakeMasterExerciseRepo{
 		listResult: []domain.MasterExercise{
 			{ID: 1, Slug: "php-1", Language: "php", Title: "Hello", IsPublished: true},
@@ -112,7 +112,7 @@ func TestMasterExerciseHandler_List_FiltersByLanguage(t *testing.T) {
 }
 
 // language 未指定なら全言語（repo 側に空文字が伝わる）。
-func TestMasterExerciseHandler_List_AllLanguages(t *testing.T) {
+func Test_演習問題ハンドラ_一覧_全言語(t *testing.T) {
 	repo := &fakeMasterExerciseRepo{}
 	r := newMasterExerciseTestHandler(repo, nil)
 	w := httptest.NewRecorder()
@@ -126,7 +126,7 @@ func TestMasterExerciseHandler_List_AllLanguages(t *testing.T) {
 }
 
 // /exercises/:slug → exercise + examples を含むレスポンスを返す。
-func TestMasterExerciseHandler_GetBySlug_Success(t *testing.T) {
+func Test_演習問題ハンドラ_slug取得_成功(t *testing.T) {
 	repo := &fakeMasterExerciseRepo{
 		getResult: &domain.MasterExercise{ID: 7, Slug: "php-7", Language: "php", Title: "OOP"},
 	}
@@ -165,7 +165,7 @@ func TestMasterExerciseHandler_GetBySlug_Success(t *testing.T) {
 }
 
 // 存在しない slug → 404 (`gorm.ErrRecordNotFound` のケース)。
-func TestMasterExerciseHandler_GetBySlug_NotFound(t *testing.T) {
+func Test_演習問題ハンドラ_slug取得_見つからない(t *testing.T) {
 	repo := &fakeMasterExerciseRepo{getErr: gorm.ErrRecordNotFound}
 	r := newMasterExerciseTestHandler(repo, nil)
 	w := httptest.NewRecorder()
@@ -176,7 +176,7 @@ func TestMasterExerciseHandler_GetBySlug_NotFound(t *testing.T) {
 }
 
 // `gorm.ErrRecordNotFound` 以外の DB エラーは 500 として返す（404 と区別する）。
-func TestMasterExerciseHandler_GetBySlug_InternalError(t *testing.T) {
+func Test_演習問題ハンドラ_slug取得_内部エラー(t *testing.T) {
 	repo := &fakeMasterExerciseRepo{getErr: errors.New("connection refused")}
 	r := newMasterExerciseTestHandler(repo, nil)
 	w := httptest.NewRecorder()

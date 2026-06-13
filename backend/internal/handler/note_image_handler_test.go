@@ -23,7 +23,7 @@ func newNoteImageHandler(p repository.NoteImagePresigner) *NoteImageHandler {
 	return NewNoteImageHandler(usecase.NewIssueNoteImageUploadURLUseCase(p))
 }
 
-func TestNoteImageHandler_IssueUploadURL(t *testing.T) {
+func Test_ノート画像ハンドラ_アップロードURL発行(t *testing.T) {
 	t.Run("未認証", func(t *testing.T) {
 		w, c := noteCtx(http.MethodPost, `{}`, 0, "")
 		newNoteImageHandler(fakeNoteImagePresigner{}).IssueUploadURL(c)

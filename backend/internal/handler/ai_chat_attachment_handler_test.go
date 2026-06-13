@@ -23,7 +23,7 @@ func newAttachHandler(p repository.AiChatAttachmentPresigner) *AiChatAttachmentH
 }
 
 func TestAiChatAttachmentHandler_IssueUploadURL(t *testing.T) {
-	t.Run("unauthorized", func(t *testing.T) {
+	t.Run("未認証", func(t *testing.T) {
 		w, c := noteCtx(http.MethodPost, `{}`, 0, "")
 		newAttachHandler(fakeAttachPresigner{}).IssueUploadURL(c)
 		if w.Code != http.StatusUnauthorized {
@@ -37,14 +37,14 @@ func TestAiChatAttachmentHandler_IssueUploadURL(t *testing.T) {
 			t.Fatalf("want 503, got %d", w.Code)
 		}
 	})
-	t.Run("invalid json -> 400", func(t *testing.T) {
+	t.Run("不正な JSON → 400", func(t *testing.T) {
 		w, c := noteCtx(http.MethodPost, `not-json`, 7, "")
 		newAttachHandler(fakeAttachPresigner{}).IssueUploadURL(c)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("want 400, got %d", w.Code)
 		}
 	})
-	t.Run("missing contentType -> 400", func(t *testing.T) {
+	t.Run("contentType 欠落 → 400", func(t *testing.T) {
 		w, c := noteCtx(http.MethodPost, `{"filename":"a.png","sizeBytes":100}`, 7, "")
 		newAttachHandler(fakeAttachPresigner{}).IssueUploadURL(c)
 		if w.Code != http.StatusBadRequest {

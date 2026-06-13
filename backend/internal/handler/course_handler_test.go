@@ -66,21 +66,21 @@ func superAdminCo() *domain.User {
 }
 
 func TestCourseHandler_List(t *testing.T) {
-	t.Run("unauthorized", func(t *testing.T) {
+	t.Run("未認証", func(t *testing.T) {
 		w, c := ctxJSON(http.MethodGet, "", nil, nil)
 		newCourseHandler(&fakeCourseRepo{}).List(c)
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("want 401, got %d", w.Code)
 		}
 	})
-	t.Run("ok", func(t *testing.T) {
+	t.Run("正常系", func(t *testing.T) {
 		w, c := ctxJSON(http.MethodGet, "", nil, superAdminCo())
 		newCourseHandler(&fakeCourseRepo{rows: []domain.Course{{ID: 1, Title: "C"}}}).List(c)
 		if w.Code != http.StatusOK {
 			t.Fatalf("want 200, got %d", w.Code)
 		}
 	})
-	t.Run("repo error -> 500", func(t *testing.T) {
+	t.Run("リポジトリエラー → 500", func(t *testing.T) {
 		w, c := ctxJSON(http.MethodGet, "", nil, superAdminCo())
 		newCourseHandler(&fakeCourseRepo{listErr: context.DeadlineExceeded}).List(c)
 		if w.Code != http.StatusInternalServerError {
@@ -90,14 +90,14 @@ func TestCourseHandler_List(t *testing.T) {
 }
 
 func TestCourseHandler_Get(t *testing.T) {
-	t.Run("bad id -> 400", func(t *testing.T) {
+	t.Run("不正な id → 400", func(t *testing.T) {
 		w, c := ctxJSON(http.MethodGet, "", idParam("abc"), superAdminCo())
 		newCourseHandler(&fakeCourseRepo{}).Get(c)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("want 400, got %d", w.Code)
 		}
 	})
-	t.Run("ok", func(t *testing.T) {
+	t.Run("正常系", func(t *testing.T) {
 		w, c := ctxJSON(http.MethodGet, "", idParam("5"), superAdminCo())
 		newCourseHandler(&fakeCourseRepo{one: &domain.Course{ID: 5, CompanyID: 1, Title: "C"}}).Get(c)
 		if w.Code != http.StatusOK {
@@ -107,14 +107,14 @@ func TestCourseHandler_Get(t *testing.T) {
 }
 
 func TestCourseHandler_Create(t *testing.T) {
-	t.Run("bad json -> 400", func(t *testing.T) {
+	t.Run("不正な JSON → 400", func(t *testing.T) {
 		w, c := ctxJSON(http.MethodPost, `{`, nil, superAdminCo())
 		newCourseHandler(&fakeCourseRepo{}).Create(c)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("want 400, got %d", w.Code)
 		}
 	})
-	t.Run("ok -> 201", func(t *testing.T) {
+	t.Run("正常系 → 201", func(t *testing.T) {
 		w, c := ctxJSON(http.MethodPost, `{"title":"New"}`, nil, superAdminCo())
 		newCourseHandler(&fakeCourseRepo{}).Create(c)
 		if w.Code != http.StatusCreated {
@@ -124,14 +124,14 @@ func TestCourseHandler_Create(t *testing.T) {
 }
 
 func TestCourseHandler_Update(t *testing.T) {
-	t.Run("bad id -> 400", func(t *testing.T) {
+	t.Run("不正な id → 400", func(t *testing.T) {
 		w, c := ctxJSON(http.MethodPut, `{"title":"X"}`, idParam("abc"), superAdminCo())
 		newCourseHandler(&fakeCourseRepo{}).Update(c)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("want 400, got %d", w.Code)
 		}
 	})
-	t.Run("ok -> 200", func(t *testing.T) {
+	t.Run("正常系 → 200", func(t *testing.T) {
 		w, c := ctxJSON(http.MethodPut, `{"title":"X"}`, idParam("5"), superAdminCo())
 		newCourseHandler(&fakeCourseRepo{one: &domain.Course{ID: 5, CompanyID: 1}}).Update(c)
 		if w.Code != http.StatusOK {
@@ -141,14 +141,14 @@ func TestCourseHandler_Update(t *testing.T) {
 }
 
 func TestCourseHandler_Delete(t *testing.T) {
-	t.Run("bad id -> 400", func(t *testing.T) {
+	t.Run("不正な id → 400", func(t *testing.T) {
 		w, c := ctxJSON(http.MethodDelete, "", idParam("abc"), superAdminCo())
 		newCourseHandler(&fakeCourseRepo{}).Delete(c)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("want 400, got %d", w.Code)
 		}
 	})
-	t.Run("ok -> 204", func(t *testing.T) {
+	t.Run("正常系 → 204", func(t *testing.T) {
 		_, c := ctxJSON(http.MethodDelete, "", idParam("5"), superAdminCo())
 		newCourseHandler(&fakeCourseRepo{one: &domain.Course{ID: 5, CompanyID: 1}}).Delete(c)
 		if c.Writer.Status() != http.StatusNoContent {

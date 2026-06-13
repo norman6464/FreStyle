@@ -47,7 +47,7 @@ func TestCourseRepository_Integration(t *testing.T) {
 		require.Equal(t, "published", all[1].Title)
 	})
 
-	t.Run("Create→GetByID→Update→Delete", func(t *testing.T) {
+	t.Run("Create→GetByID→Update→Delete の一連", func(t *testing.T) {
 		testsupport.TruncateAll(t, db, "courses")
 
 		c := mk(1, "lifecycle", true, 1)

@@ -76,49 +76,49 @@ func TestIsWiringFile(t *testing.T) {
 func TestViolationsFor(t *testing.T) {
 	imp := func(target string) importRef { return importRef{path: "p", line: 1, target: target} }
 
-	t.Run("domain importing usecase is a violation", func(t *testing.T) {
+	t.Run("domain が usecase を import するのは違反", func(t *testing.T) {
 		vs := violationsFor(layerDomain, "domain", "user.go", "internal/domain/user.go", []importRef{imp(layerUsecase)})
 		if len(vs) != 1 {
 			t.Fatalf("want 1 violation, got %d", len(vs))
 		}
 	})
 
-	t.Run("usecase importing persistence is a violation (DIP)", func(t *testing.T) {
+	t.Run("usecase が persistence を import するのは違反（DIP）", func(t *testing.T) {
 		vs := violationsFor(layerUsecase, "usecase", "foo_usecase.go", "p", []importRef{imp(layerPersistence)})
 		if len(vs) != 1 {
 			t.Fatalf("want 1 violation, got %d", len(vs))
 		}
 	})
 
-	t.Run("usecase importing infra is allowed", func(t *testing.T) {
+	t.Run("usecase が infra を import するのは許容", func(t *testing.T) {
 		vs := violationsFor(layerUsecase, "usecase", "foo_usecase.go", "p", []importRef{imp(layerInfra)})
 		if len(vs) != 0 {
 			t.Fatalf("want 0 violation, got %d", len(vs))
 		}
 	})
 
-	t.Run("usecase importing gin is a violation", func(t *testing.T) {
+	t.Run("usecase が gin を import するのは違反", func(t *testing.T) {
 		vs := violationsFor(layerUsecase, "usecase", "foo_usecase.go", "p", []importRef{imp(targetGin)})
 		if len(vs) != 1 {
 			t.Fatalf("want 1 violation, got %d", len(vs))
 		}
 	})
 
-	t.Run("handler importing persistence in wiring file is allowed", func(t *testing.T) {
+	t.Run("wiring ファイルでの handler→persistence import は許容", func(t *testing.T) {
 		vs := violationsFor(layerHandler, "handler", "router.go", "p", []importRef{imp(layerPersistence)})
 		if len(vs) != 0 {
 			t.Fatalf("wiring file should be exempt, got %d", len(vs))
 		}
 	})
 
-	t.Run("handler importing persistence in non-wiring file is a violation", func(t *testing.T) {
+	t.Run("非 wiring ファイルでの handler→persistence import は違反", func(t *testing.T) {
 		vs := violationsFor(layerHandler, "handler", "foo_handler.go", "p", []importRef{imp(layerPersistence)})
 		if len(vs) != 1 {
 			t.Fatalf("want 1 violation, got %d", len(vs))
 		}
 	})
 
-	t.Run("wiring-named file in handler subdir is NOT exempt", func(t *testing.T) {
+	t.Run("handler サブディレクトリの wiring 名ファイルは例外扱いしない", func(t *testing.T) {
 		// handler/middleware/routes_x.go のような別ディレクトリでは wiring 例外を効かせない。
 		vs := violationsFor(layerHandler, "handler/middleware", "routes_x.go", "p", []importRef{imp(layerPersistence)})
 		if len(vs) != 1 {
@@ -126,35 +126,35 @@ func TestViolationsFor(t *testing.T) {
 		}
 	})
 
-	t.Run("handler importing infra is allowed (pragmatic exception)", func(t *testing.T) {
+	t.Run("handler が infra を import するのは許容（実用上の例外）", func(t *testing.T) {
 		vs := violationsFor(layerHandler, "handler", "auth_handler.go", "p", []importRef{imp(layerInfra)})
 		if len(vs) != 0 {
 			t.Fatalf("want 0 violation, got %d", len(vs))
 		}
 	})
 
-	t.Run("infra importing net/http is allowed (client use)", func(t *testing.T) {
+	t.Run("infra が net/http を import するのは許容（クライアント用途）", func(t *testing.T) {
 		vs := violationsFor(layerInfra, "infra/embed", "fetcher.go", "p", []importRef{imp(targetNetHTTP)})
 		if len(vs) != 0 {
 			t.Fatalf("want 0 violation, got %d", len(vs))
 		}
 	})
 
-	t.Run("persistence importing usecase business is a violation", func(t *testing.T) {
+	t.Run("persistence が usecase 本体を import するのは違反", func(t *testing.T) {
 		vs := violationsFor(layerPersistence, "adapter/persistence", "user_repository.go", "p", []importRef{imp(layerUsecase)})
 		if len(vs) != 1 {
 			t.Fatalf("want 1 violation, got %d", len(vs))
 		}
 	})
 
-	t.Run("persistence importing port is allowed", func(t *testing.T) {
+	t.Run("persistence が port を import するのは許容", func(t *testing.T) {
 		vs := violationsFor(layerPersistence, "adapter/persistence", "user_repository.go", "p", []importRef{imp(layerUsecaseRepo)})
 		if len(vs) != 0 {
 			t.Fatalf("want 0 violation, got %d", len(vs))
 		}
 	})
 
-	t.Run("suppressed import is skipped", func(t *testing.T) {
+	t.Run("抑制された import はスキップ", func(t *testing.T) {
 		ref := importRef{path: "p", line: 1, target: layerUsecase, suppressed: true}
 		vs := violationsFor(layerDomain, "domain", "user.go", "p", []importRef{ref})
 		if len(vs) != 0 {
@@ -175,7 +175,7 @@ func TestParseImports(t *testing.T) {
 		return p
 	}
 
-	t.Run("classifies and detects suppression", func(t *testing.T) {
+	t.Run("分類し抑制を検出する", func(t *testing.T) {
 		p := write("a.go", `package x
 
 import (
@@ -295,7 +295,7 @@ func TestRunIntegration(t *testing.T) {
 }
 
 func TestRunCLI(t *testing.T) {
-	t.Run("clean tree returns 0", func(t *testing.T) {
+	t.Run("クリーンなツリーは 0 を返す", func(t *testing.T) {
 		root := buildTree(t, false)
 		var out, errBuf bytes.Buffer
 		if code := runCLI([]string{root}, &out, &errBuf); code != 0 {
@@ -306,7 +306,7 @@ func TestRunCLI(t *testing.T) {
 		}
 	})
 
-	t.Run("violating tree returns 1", func(t *testing.T) {
+	t.Run("違反のあるツリーは 1 を返す", func(t *testing.T) {
 		root := buildTree(t, true)
 		var out, errBuf bytes.Buffer
 		if code := runCLI([]string{root}, &out, &errBuf); code != 1 {
@@ -317,7 +317,7 @@ func TestRunCLI(t *testing.T) {
 		}
 	})
 
-	t.Run("missing go.mod returns 2", func(t *testing.T) {
+	t.Run("go.mod なしは 2 を返す", func(t *testing.T) {
 		var out, errBuf bytes.Buffer
 		if code := runCLI([]string{t.TempDir()}, &out, &errBuf); code != 2 {
 			t.Fatalf("want exit 2, got %d", code)

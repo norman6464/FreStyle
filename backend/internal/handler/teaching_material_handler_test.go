@@ -15,14 +15,14 @@ func newTMHandler() *TeachingMaterialHandler {
 }
 
 func TestTeachingMaterialHandler_List(t *testing.T) {
-	t.Run("unauthorized", func(t *testing.T) {
+	t.Run("未認証", func(t *testing.T) {
 		w, c := ctxJSON(http.MethodGet, "", nil, nil)
 		newTMHandler().List(c)
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("want 401, got %d", w.Code)
 		}
 	})
-	t.Run("ok", func(t *testing.T) {
+	t.Run("正常系", func(t *testing.T) {
 		w, c := ctxJSON(http.MethodGet, "", nil, superAdminCo())
 		newTMHandler().List(c)
 		if w.Code != http.StatusOK {
@@ -32,14 +32,14 @@ func TestTeachingMaterialHandler_List(t *testing.T) {
 }
 
 func TestTeachingMaterialHandler_ListByCourse(t *testing.T) {
-	t.Run("unauthorized", func(t *testing.T) {
+	t.Run("未認証", func(t *testing.T) {
 		w, c := ctxJSON(http.MethodGet, "", idParam("1"), nil)
 		newTMHandler().ListByCourse(c)
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("want 401, got %d", w.Code)
 		}
 	})
-	t.Run("bad id -> 400", func(t *testing.T) {
+	t.Run("不正な id → 400", func(t *testing.T) {
 		w, c := ctxJSON(http.MethodGet, "", idParam("abc"), superAdminCo())
 		newTMHandler().ListByCourse(c)
 		if w.Code != http.StatusBadRequest {

@@ -63,21 +63,21 @@ func noteCtx(method, body string, uid uint64, idVal string) (*httptest.ResponseR
 }
 
 func TestNoteHandler_List(t *testing.T) {
-	t.Run("unauthorized", func(t *testing.T) {
+	t.Run("未認証", func(t *testing.T) {
 		w, c := noteCtx(http.MethodGet, "", 0, "")
 		newNoteHandler(&fakeNoteRepo{}).List(c)
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("want 401, got %d", w.Code)
 		}
 	})
-	t.Run("ok", func(t *testing.T) {
+	t.Run("正常系", func(t *testing.T) {
 		w, c := noteCtx(http.MethodGet, "", 7, "")
 		newNoteHandler(&fakeNoteRepo{rows: []domain.Note{{ID: 1, Title: "n"}}}).List(c)
 		if w.Code != http.StatusOK {
 			t.Fatalf("want 200, got %d", w.Code)
 		}
 	})
-	t.Run("repo error -> 400", func(t *testing.T) {
+	t.Run("リポジトリエラー → 400", func(t *testing.T) {
 		w, c := noteCtx(http.MethodGet, "", 7, "")
 		newNoteHandler(&fakeNoteRepo{err: context.DeadlineExceeded}).List(c)
 		if w.Code != http.StatusBadRequest {
@@ -87,21 +87,21 @@ func TestNoteHandler_List(t *testing.T) {
 }
 
 func TestNoteHandler_Create(t *testing.T) {
-	t.Run("unauthorized", func(t *testing.T) {
+	t.Run("未認証", func(t *testing.T) {
 		w, c := noteCtx(http.MethodPost, `{"title":"X"}`, 0, "")
 		newNoteHandler(&fakeNoteRepo{}).Create(c)
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("want 401, got %d", w.Code)
 		}
 	})
-	t.Run("missing title -> 400", func(t *testing.T) {
+	t.Run("title 欠落 → 400", func(t *testing.T) {
 		w, c := noteCtx(http.MethodPost, `{}`, 7, "")
 		newNoteHandler(&fakeNoteRepo{}).Create(c)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("want 400, got %d", w.Code)
 		}
 	})
-	t.Run("ok -> 201", func(t *testing.T) {
+	t.Run("正常系 → 201", func(t *testing.T) {
 		w, c := noteCtx(http.MethodPost, `{"title":"X"}`, 7, "")
 		newNoteHandler(&fakeNoteRepo{}).Create(c)
 		if w.Code != http.StatusCreated {
@@ -111,21 +111,21 @@ func TestNoteHandler_Create(t *testing.T) {
 }
 
 func TestNoteHandler_Update(t *testing.T) {
-	t.Run("unauthorized", func(t *testing.T) {
+	t.Run("未認証", func(t *testing.T) {
 		w, c := noteCtx(http.MethodPut, `{"title":"X"}`, 0, "5")
 		newNoteHandler(&fakeNoteRepo{}).Update(c)
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("want 401, got %d", w.Code)
 		}
 	})
-	t.Run("missing title -> 400", func(t *testing.T) {
+	t.Run("title 欠落 → 400", func(t *testing.T) {
 		w, c := noteCtx(http.MethodPut, `{}`, 7, "5")
 		newNoteHandler(&fakeNoteRepo{}).Update(c)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("want 400, got %d", w.Code)
 		}
 	})
-	t.Run("ok -> 200", func(t *testing.T) {
+	t.Run("正常系 → 200", func(t *testing.T) {
 		w, c := noteCtx(http.MethodPut, `{"title":"X"}`, 7, "5")
 		newNoteHandler(&fakeNoteRepo{one: &domain.Note{ID: 5, UserID: 7}}).Update(c)
 		if w.Code != http.StatusOK {
@@ -135,21 +135,21 @@ func TestNoteHandler_Update(t *testing.T) {
 }
 
 func TestNoteHandler_Delete(t *testing.T) {
-	t.Run("unauthorized", func(t *testing.T) {
+	t.Run("未認証", func(t *testing.T) {
 		w, c := noteCtx(http.MethodDelete, "", 0, "5")
 		newNoteHandler(&fakeNoteRepo{}).Delete(c)
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("want 401, got %d", w.Code)
 		}
 	})
-	t.Run("ok -> 204", func(t *testing.T) {
+	t.Run("正常系 → 204", func(t *testing.T) {
 		_, c := noteCtx(http.MethodDelete, "", 7, "5")
 		newNoteHandler(&fakeNoteRepo{}).Delete(c)
 		if c.Writer.Status() != http.StatusNoContent {
 			t.Fatalf("want 204, got %d", c.Writer.Status())
 		}
 	})
-	t.Run("repo error -> 400", func(t *testing.T) {
+	t.Run("リポジトリエラー → 400", func(t *testing.T) {
 		w, c := noteCtx(http.MethodDelete, "", 7, "5")
 		newNoteHandler(&fakeNoteRepo{err: context.DeadlineExceeded}).Delete(c)
 		if w.Code != http.StatusBadRequest {

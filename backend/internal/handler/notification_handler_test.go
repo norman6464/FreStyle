@@ -53,21 +53,21 @@ func notifCtx(uid uint64, idVal string) (*httptest.ResponseRecorder, *gin.Contex
 }
 
 func TestNotificationHandler_List(t *testing.T) {
-	t.Run("unauthorized", func(t *testing.T) {
+	t.Run("未認証", func(t *testing.T) {
 		w, c := notifCtx(0, "")
 		newNotifHandler(&fakeNotifRepo{}).List(c)
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("want 401, got %d", w.Code)
 		}
 	})
-	t.Run("ok", func(t *testing.T) {
+	t.Run("正常系", func(t *testing.T) {
 		w, c := notifCtx(7, "")
 		newNotifHandler(&fakeNotifRepo{rows: []domain.Notification{{ID: 1}}}).List(c)
 		if w.Code != http.StatusOK {
 			t.Fatalf("want 200, got %d", w.Code)
 		}
 	})
-	t.Run("repo error -> 400", func(t *testing.T) {
+	t.Run("リポジトリエラー → 400", func(t *testing.T) {
 		w, c := notifCtx(7, "")
 		newNotifHandler(&fakeNotifRepo{err: context.DeadlineExceeded}).List(c)
 		if w.Code != http.StatusBadRequest {
@@ -77,21 +77,21 @@ func TestNotificationHandler_List(t *testing.T) {
 }
 
 func TestNotificationHandler_MarkRead(t *testing.T) {
-	t.Run("unauthorized", func(t *testing.T) {
+	t.Run("未認証", func(t *testing.T) {
 		w, c := notifCtx(0, "1")
 		newNotifHandler(&fakeNotifRepo{}).MarkRead(c)
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("want 401, got %d", w.Code)
 		}
 	})
-	t.Run("ok -> 204", func(t *testing.T) {
+	t.Run("正常系 → 204", func(t *testing.T) {
 		_, c := notifCtx(7, "1")
 		newNotifHandler(&fakeNotifRepo{}).MarkRead(c)
 		if c.Writer.Status() != http.StatusNoContent {
 			t.Fatalf("want 204, got %d", c.Writer.Status())
 		}
 	})
-	t.Run("repo error -> 400", func(t *testing.T) {
+	t.Run("リポジトリエラー → 400", func(t *testing.T) {
 		w, c := notifCtx(7, "1")
 		newNotifHandler(&fakeNotifRepo{err: context.DeadlineExceeded}).MarkRead(c)
 		if w.Code != http.StatusBadRequest {
@@ -101,21 +101,21 @@ func TestNotificationHandler_MarkRead(t *testing.T) {
 }
 
 func TestNotificationHandler_MarkAllRead(t *testing.T) {
-	t.Run("unauthorized", func(t *testing.T) {
+	t.Run("未認証", func(t *testing.T) {
 		w, c := notifCtx(0, "")
 		newNotifHandler(&fakeNotifRepo{}).MarkAllRead(c)
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("want 401, got %d", w.Code)
 		}
 	})
-	t.Run("ok -> 204", func(t *testing.T) {
+	t.Run("正常系 → 204", func(t *testing.T) {
 		_, c := notifCtx(7, "")
 		newNotifHandler(&fakeNotifRepo{}).MarkAllRead(c)
 		if c.Writer.Status() != http.StatusNoContent {
 			t.Fatalf("want 204, got %d", c.Writer.Status())
 		}
 	})
-	t.Run("repo error -> 400", func(t *testing.T) {
+	t.Run("リポジトリエラー → 400", func(t *testing.T) {
 		w, c := notifCtx(7, "")
 		newNotifHandler(&fakeNotifRepo{err: context.DeadlineExceeded}).MarkAllRead(c)
 		if w.Code != http.StatusBadRequest {
@@ -125,21 +125,21 @@ func TestNotificationHandler_MarkAllRead(t *testing.T) {
 }
 
 func TestNotificationHandler_UnreadCount(t *testing.T) {
-	t.Run("unauthorized", func(t *testing.T) {
+	t.Run("未認証", func(t *testing.T) {
 		w, c := notifCtx(0, "")
 		newNotifHandler(&fakeNotifRepo{}).UnreadCount(c)
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("want 401, got %d", w.Code)
 		}
 	})
-	t.Run("ok", func(t *testing.T) {
+	t.Run("正常系", func(t *testing.T) {
 		w, c := notifCtx(7, "")
 		newNotifHandler(&fakeNotifRepo{count: 3}).UnreadCount(c)
 		if w.Code != http.StatusOK {
 			t.Fatalf("want 200, got %d", w.Code)
 		}
 	})
-	t.Run("repo error -> 400", func(t *testing.T) {
+	t.Run("リポジトリエラー → 400", func(t *testing.T) {
 		w, c := notifCtx(7, "")
 		newNotifHandler(&fakeNotifRepo{err: context.DeadlineExceeded}).UnreadCount(c)
 		if w.Code != http.StatusBadRequest {

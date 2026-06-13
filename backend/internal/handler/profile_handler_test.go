@@ -24,7 +24,7 @@ func makeCtx(currentUserID uint64, paramUserID string) *gin.Context {
 	return c
 }
 
-func TestProfileResolveUserID_MeKeyword(t *testing.T) {
+func Test_プロフィール_ユーザーID解決_meキーワード(t *testing.T) {
 	h := &ProfileHandler{}
 	uid, err := h.resolveUserID(makeCtx(7, "me"))
 	if err != nil || uid != 7 {
@@ -32,7 +32,7 @@ func TestProfileResolveUserID_MeKeyword(t *testing.T) {
 	}
 }
 
-func TestProfileResolveUserID_EmptyParam(t *testing.T) {
+func Test_プロフィール_ユーザーID解決_空パラメータ(t *testing.T) {
 	h := &ProfileHandler{}
 	uid, err := h.resolveUserID(makeCtx(7, ""))
 	if err != nil || uid != 7 {
@@ -40,7 +40,7 @@ func TestProfileResolveUserID_EmptyParam(t *testing.T) {
 	}
 }
 
-func TestProfileResolveUserID_MatchingNumeric(t *testing.T) {
+func Test_プロフィール_ユーザーID解決_一致する数値(t *testing.T) {
 	h := &ProfileHandler{}
 	uid, err := h.resolveUserID(makeCtx(7, "7"))
 	if err != nil || uid != 7 {
@@ -48,14 +48,14 @@ func TestProfileResolveUserID_MatchingNumeric(t *testing.T) {
 	}
 }
 
-func TestProfileResolveUserID_MismatchNumericIsForbidden(t *testing.T) {
+func Test_プロフィール_ユーザーID解決_不一致の数値は禁止(t *testing.T) {
 	h := &ProfileHandler{}
 	if _, err := h.resolveUserID(makeCtx(7, "99")); !errors.Is(err, errProfileForbidden) {
 		t.Fatalf("mismatch numeric should be forbidden; got %v", err)
 	}
 }
 
-func TestProfileResolveUserID_NoCurrentUserIsUnauthorized(t *testing.T) {
+func Test_プロフィール_ユーザーID解決_カレントユーザーなしは未認証(t *testing.T) {
 	h := &ProfileHandler{}
 	if _, err := h.resolveUserID(makeCtx(0, "me")); !errors.Is(err, errProfileUnauthorized) {
 		t.Fatalf("no current user should be unauthorized; got %v", err)

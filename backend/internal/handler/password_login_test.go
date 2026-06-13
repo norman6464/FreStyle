@@ -35,7 +35,7 @@ func postLoginCtx(body string) (*gin.Context, *httptest.ResponseRecorder) {
 	return c, rec
 }
 
-func TestLogin_Success_ExistingUser(t *testing.T) {
+func Test_ログイン_成功_既存ユーザー(t *testing.T) {
 	users := &fakeUserRepo{existingBySub: map[string]*domain.User{
 		"sub-1": {ID: 1, CognitoSub: "sub-1", Email: "u@example.com", Role: domain.RoleTrainee},
 	}}
@@ -57,7 +57,7 @@ func TestLogin_Success_ExistingUser(t *testing.T) {
 	}
 }
 
-func TestLogin_InvalidCredentials_401(t *testing.T) {
+func Test_ログイン_認証情報不正_401(t *testing.T) {
 	h := &AuthHandler{
 		users:        &fakeUserRepo{},
 		invitations:  &fakeInvitationRepo{},
@@ -71,7 +71,7 @@ func TestLogin_InvalidCredentials_401(t *testing.T) {
 	}
 }
 
-func TestLogin_NewUserWithoutInvitation_403(t *testing.T) {
+func Test_ログイン_招待なし新規ユーザー_403(t *testing.T) {
 	idTok := makeIDToken(t, map[string]any{"sub": "new-sub", "email": "new@example.com"})
 	h := &AuthHandler{
 		users:        &fakeUserRepo{},       // 既存ユーザーなし
@@ -86,7 +86,7 @@ func TestLogin_NewUserWithoutInvitation_403(t *testing.T) {
 	}
 }
 
-func TestLogin_BadRequest_MissingPassword_400(t *testing.T) {
+func Test_ログイン_パスワード欠落_400(t *testing.T) {
 	h := &AuthHandler{passwordAuth: &fakePasswordAuth{}}
 	c, rec := postLoginCtx(`{"email":"u@example.com"}`)
 	h.Login(c)
@@ -96,7 +96,7 @@ func TestLogin_BadRequest_MissingPassword_400(t *testing.T) {
 	}
 }
 
-func TestLogin_NotConfigured_500(t *testing.T) {
+func Test_ログイン_未設定_500(t *testing.T) {
 	h := &AuthHandler{} // passwordAuth nil
 	c, rec := postLoginCtx(`{"email":"u@example.com","password":"secret123"}`)
 	h.Login(c)
@@ -107,7 +107,7 @@ func TestLogin_NotConfigured_500(t *testing.T) {
 }
 
 // 認証は成功したが upsert が DB 失敗で落ちたケースは 403 ではなく 500（招待拒否と切り分け）。
-func TestLogin_UpsertInternalError_500(t *testing.T) {
+func Test_ログイン_upsert内部エラー_500(t *testing.T) {
 	idTok := makeIDToken(t, map[string]any{"sub": "s1", "email": "u@example.com"})
 	users := &fakeUserRepo{createErr: errors.New("db down")}
 	inv := &fakeInvitationRepo{pendingByEmail: map[string]*domain.AdminInvitation{

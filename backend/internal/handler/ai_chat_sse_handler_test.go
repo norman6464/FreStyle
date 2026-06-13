@@ -8,7 +8,7 @@ import (
 
 // buildAttachmentsFromRequest はクロスユーザの S3 key を弾く必要がある。
 // userID=7 のユーザーが userID=42 配下の key を渡してきたら attachment_key_not_allowed を返す。
-func TestBuildAttachmentsFromRequest_RejectsCrossUserKey(t *testing.T) {
+func Test_リクエストから添付構築_別ユーザーのkeyを拒否(t *testing.T) {
 	_, err := buildAttachmentsFromRequest(7, []sseAttachmentRequest{
 		{
 			Key:         "ai-chat/42/abc.png",
@@ -21,7 +21,7 @@ func TestBuildAttachmentsFromRequest_RejectsCrossUserKey(t *testing.T) {
 }
 
 // 自分の userID 配下の key は正しく domain.Attachment に変換されること。
-func TestBuildAttachmentsFromRequest_AcceptsOwnKey(t *testing.T) {
+func Test_リクエストから添付構築_自分のkeyは許可(t *testing.T) {
 	out, err := buildAttachmentsFromRequest(7, []sseAttachmentRequest{
 		{
 			Key:         "ai-chat/7/abc.png",
@@ -38,7 +38,7 @@ func TestBuildAttachmentsFromRequest_AcceptsOwnKey(t *testing.T) {
 }
 
 // MIME 未対応 / 容量超過 / ai-chat 以外の prefix はそれぞれ専用エラーで弾く。
-func TestBuildAttachmentsFromRequest_RejectsUnsupportedAndOversize(t *testing.T) {
+func Test_リクエストから添付構築_非対応とサイズ超過を拒否(t *testing.T) {
 	cases := []struct {
 		name string
 		req  sseAttachmentRequest

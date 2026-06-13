@@ -10,7 +10,7 @@ import (
 
 // TestEmbedHandler_Resolve_MissingURL は url クエリ欠落で 400 を返すことを検証する。
 // fetcher 到達前のガードのため fetcher は nil で安全。
-func TestEmbedHandler_Resolve_MissingURL(t *testing.T) {
+func Test_埋め込みハンドラ_解決_URL欠落(t *testing.T) {
 	h := &EmbedHandler{}
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)

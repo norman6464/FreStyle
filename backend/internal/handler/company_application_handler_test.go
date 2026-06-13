@@ -57,7 +57,7 @@ func companyAdmin() *domain.User { return &domain.User{ID: 2, Role: domain.RoleC
 
 // --- List ---
 
-func TestCompanyApplicationHandler_List_Unauthorized(t *testing.T) {
+func Test_会社申請ハンドラ_一覧_未認証(t *testing.T) {
 	h := newCompanyAppHandler(&fakeCompanyAppRepo{})
 	w, c := ctxJSON(http.MethodGet, "", nil, nil)
 	h.List(c)
@@ -66,7 +66,7 @@ func TestCompanyApplicationHandler_List_Unauthorized(t *testing.T) {
 	}
 }
 
-func TestCompanyApplicationHandler_List_Forbidden(t *testing.T) {
+func Test_会社申請ハンドラ_一覧_禁止(t *testing.T) {
 	h := newCompanyAppHandler(&fakeCompanyAppRepo{})
 	w, c := ctxJSON(http.MethodGet, "", nil, companyAdmin())
 	h.List(c)
@@ -75,7 +75,7 @@ func TestCompanyApplicationHandler_List_Forbidden(t *testing.T) {
 	}
 }
 
-func TestCompanyApplicationHandler_List_OK(t *testing.T) {
+func Test_会社申請ハンドラ_一覧_正常系(t *testing.T) {
 	repo := &fakeCompanyAppRepo{listRows: []domain.CompanyApplication{{ID: 1, CompanyName: "A"}}}
 	h := newCompanyAppHandler(repo)
 	w, c := ctxJSON(http.MethodGet, "", nil, superAdmin())
@@ -88,7 +88,7 @@ func TestCompanyApplicationHandler_List_OK(t *testing.T) {
 	}
 }
 
-func TestCompanyApplicationHandler_List_RepoErrorIs500(t *testing.T) {
+func Test_会社申請ハンドラ_一覧_リポジトリエラーは500(t *testing.T) {
 	h := newCompanyAppHandler(&fakeCompanyAppRepo{listErr: context.DeadlineExceeded})
 	w, c := ctxJSON(http.MethodGet, "", nil, superAdmin())
 	h.List(c)
@@ -101,7 +101,7 @@ func TestCompanyApplicationHandler_List_RepoErrorIs500(t *testing.T) {
 
 func idParam(v string) gin.Params { return gin.Params{{Key: "id", Value: v}} }
 
-func TestCompanyApplicationHandler_UpdateStatus_Forbidden(t *testing.T) {
+func Test_会社申請ハンドラ_ステータス更新_禁止(t *testing.T) {
 	h := newCompanyAppHandler(&fakeCompanyAppRepo{})
 	w, c := ctxJSON(http.MethodPatch, `{"status":"approved"}`, idParam("1"), companyAdmin())
 	h.UpdateStatus(c)
@@ -110,7 +110,7 @@ func TestCompanyApplicationHandler_UpdateStatus_Forbidden(t *testing.T) {
 	}
 }
 
-func TestCompanyApplicationHandler_UpdateStatus_BadID(t *testing.T) {
+func Test_会社申請ハンドラ_ステータス更新_不正なID(t *testing.T) {
 	h := newCompanyAppHandler(&fakeCompanyAppRepo{})
 	w, c := ctxJSON(http.MethodPatch, `{"status":"approved"}`, idParam("abc"), superAdmin())
 	h.UpdateStatus(c)
@@ -119,7 +119,7 @@ func TestCompanyApplicationHandler_UpdateStatus_BadID(t *testing.T) {
 	}
 }
 
-func TestCompanyApplicationHandler_UpdateStatus_BadJSON(t *testing.T) {
+func Test_会社申請ハンドラ_ステータス更新_不正なJSON(t *testing.T) {
 	h := newCompanyAppHandler(&fakeCompanyAppRepo{})
 	w, c := ctxJSON(http.MethodPatch, `{`, idParam("1"), superAdmin())
 	h.UpdateStatus(c)
@@ -128,7 +128,7 @@ func TestCompanyApplicationHandler_UpdateStatus_BadJSON(t *testing.T) {
 	}
 }
 
-func TestCompanyApplicationHandler_UpdateStatus_BadStatusIs400(t *testing.T) {
+func Test_会社申請ハンドラ_ステータス更新_不正なステータスは400(t *testing.T) {
 	h := newCompanyAppHandler(&fakeCompanyAppRepo{})
 	w, c := ctxJSON(http.MethodPatch, `{"status":"weird"}`, idParam("1"), superAdmin())
 	h.UpdateStatus(c)
@@ -137,7 +137,7 @@ func TestCompanyApplicationHandler_UpdateStatus_BadStatusIs400(t *testing.T) {
 	}
 }
 
-func TestCompanyApplicationHandler_UpdateStatus_OK(t *testing.T) {
+func Test_会社申請ハンドラ_ステータス更新_正常系(t *testing.T) {
 	h := newCompanyAppHandler(&fakeCompanyAppRepo{})
 	_, c := ctxJSON(http.MethodPatch, `{"status":"approved"}`, idParam("1"), superAdmin())
 	h.UpdateStatus(c)
@@ -148,7 +148,7 @@ func TestCompanyApplicationHandler_UpdateStatus_OK(t *testing.T) {
 	}
 }
 
-func TestCompanyApplicationHandler_UpdateStatus_RepoErrorIs500(t *testing.T) {
+func Test_会社申請ハンドラ_ステータス更新_リポジトリエラーは500(t *testing.T) {
 	h := newCompanyAppHandler(&fakeCompanyAppRepo{updateErr: context.DeadlineExceeded})
 	w, c := ctxJSON(http.MethodPatch, `{"status":"approved"}`, idParam("1"), superAdmin())
 	h.UpdateStatus(c)
@@ -159,7 +159,7 @@ func TestCompanyApplicationHandler_UpdateStatus_RepoErrorIs500(t *testing.T) {
 
 // --- Create（公開 / 入力検証のみ）---
 
-func TestCompanyApplicationHandler_Create_BadJSON(t *testing.T) {
+func Test_会社申請ハンドラ_作成_不正なJSON(t *testing.T) {
 	h := newCompanyAppHandler(&fakeCompanyAppRepo{})
 	w, c := ctxJSON(http.MethodPost, `{`, nil, nil)
 	h.Create(c)
@@ -168,7 +168,7 @@ func TestCompanyApplicationHandler_Create_BadJSON(t *testing.T) {
 	}
 }
 
-func TestCompanyApplicationHandler_Create_InvalidEmailIs400(t *testing.T) {
+func Test_会社申請ハンドラ_作成_不正なメールは400(t *testing.T) {
 	h := newCompanyAppHandler(&fakeCompanyAppRepo{})
 	body := `{"companyName":"X","applicantName":"Y","email":"not-an-email"}`
 	w, c := ctxJSON(http.MethodPost, body, nil, nil)

@@ -62,7 +62,7 @@ func noteCtx(method, body string, uid uint64, idVal string) (*httptest.ResponseR
 	return w, c
 }
 
-func TestNoteHandler_List(t *testing.T) {
+func Test_ノートハンドラ_一覧(t *testing.T) {
 	t.Run("未認証", func(t *testing.T) {
 		w, c := noteCtx(http.MethodGet, "", 0, "")
 		newNoteHandler(&fakeNoteRepo{}).List(c)
@@ -86,7 +86,7 @@ func TestNoteHandler_List(t *testing.T) {
 	})
 }
 
-func TestNoteHandler_Create(t *testing.T) {
+func Test_ノートハンドラ_作成(t *testing.T) {
 	t.Run("未認証", func(t *testing.T) {
 		w, c := noteCtx(http.MethodPost, `{"title":"X"}`, 0, "")
 		newNoteHandler(&fakeNoteRepo{}).Create(c)
@@ -110,7 +110,7 @@ func TestNoteHandler_Create(t *testing.T) {
 	})
 }
 
-func TestNoteHandler_Update(t *testing.T) {
+func Test_ノートハンドラ_更新(t *testing.T) {
 	t.Run("未認証", func(t *testing.T) {
 		w, c := noteCtx(http.MethodPut, `{"title":"X"}`, 0, "5")
 		newNoteHandler(&fakeNoteRepo{}).Update(c)
@@ -134,7 +134,7 @@ func TestNoteHandler_Update(t *testing.T) {
 	})
 }
 
-func TestNoteHandler_Delete(t *testing.T) {
+func Test_ノートハンドラ_削除(t *testing.T) {
 	t.Run("未認証", func(t *testing.T) {
 		w, c := noteCtx(http.MethodDelete, "", 0, "5")
 		newNoteHandler(&fakeNoteRepo{}).Delete(c)

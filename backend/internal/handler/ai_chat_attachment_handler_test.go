@@ -22,7 +22,7 @@ func newAttachHandler(p repository.AiChatAttachmentPresigner) *AiChatAttachmentH
 	return NewAiChatAttachmentHandler(usecase.NewIssueAiChatAttachmentUploadURLUseCase(p))
 }
 
-func TestAiChatAttachmentHandler_IssueUploadURL(t *testing.T) {
+func Test_AIチャット添付ハンドラ_アップロードURL発行(t *testing.T) {
 	t.Run("未認証", func(t *testing.T) {
 		w, c := noteCtx(http.MethodPost, `{}`, 0, "")
 		newAttachHandler(fakeAttachPresigner{}).IssueUploadURL(c)

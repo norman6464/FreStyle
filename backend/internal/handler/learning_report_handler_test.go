@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestLearningReportHandler_List_Unauthorized(t *testing.T) {
+func Test_学習レポートハンドラ_一覧_未認証(t *testing.T) {
 	w, c := noteCtx(http.MethodGet, "", 0, "")
 	(&LearningReportHandler{}).List(c)
 	if w.Code != http.StatusUnauthorized {
@@ -13,7 +13,7 @@ func TestLearningReportHandler_List_Unauthorized(t *testing.T) {
 	}
 }
 
-func TestLearningReportHandler_Request_Unauthorized(t *testing.T) {
+func Test_学習レポートハンドラ_要求_未認証(t *testing.T) {
 	w, c := noteCtx(http.MethodPost, `{}`, 0, "")
 	(&LearningReportHandler{}).Request(c)
 	if w.Code != http.StatusUnauthorized {
@@ -21,7 +21,7 @@ func TestLearningReportHandler_Request_Unauthorized(t *testing.T) {
 	}
 }
 
-func TestLearningReportHandler_Request_BadJSON(t *testing.T) {
+func Test_学習レポートハンドラ_要求_不正なJSON(t *testing.T) {
 	w, c := noteCtx(http.MethodPost, `not-json`, 7, "")
 	(&LearningReportHandler{}).Request(c)
 	if w.Code != http.StatusBadRequest {

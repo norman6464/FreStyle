@@ -144,7 +144,7 @@ func newGinCtx() *gin.Context {
 	return c
 }
 
-func TestUpsertUserFromIDToken_BlocksNewUserWithoutInvitationOrAdmin(t *testing.T) {
+func Test_IDトークンからユーザー登録_招待もadminもない新規を拒否(t *testing.T) {
 	users := &fakeUserRepo{}
 	invs := &fakeInvitationRepo{}
 	h := newTestAuthHandler(users, invs)
@@ -164,7 +164,7 @@ func TestUpsertUserFromIDToken_BlocksNewUserWithoutInvitationOrAdmin(t *testing.
 	}
 }
 
-func TestUpsertUserFromIDToken_AllowsCognitoAdminWithoutInvitation(t *testing.T) {
+func Test_IDトークンからユーザー登録_Cognito_adminは招待なしでも許可(t *testing.T) {
 	users := &fakeUserRepo{}
 	invs := &fakeInvitationRepo{}
 	h := newTestAuthHandler(users, invs)
@@ -184,7 +184,7 @@ func TestUpsertUserFromIDToken_AllowsCognitoAdminWithoutInvitation(t *testing.T)
 	}
 }
 
-func TestUpsertUserFromIDToken_AllowsInvitedUser_AppliesRoleAndCompany(t *testing.T) {
+func Test_IDトークンからユーザー登録_招待済みはroleと会社を適用(t *testing.T) {
 	users := &fakeUserRepo{}
 	cid := uint64(42)
 	invs := &fakeInvitationRepo{
@@ -224,7 +224,7 @@ func TestUpsertUserFromIDToken_AllowsInvitedUser_AppliesRoleAndCompany(t *testin
 	}
 }
 
-func TestUpsertUserFromIDToken_ExistingUser_AlwaysAllowed(t *testing.T) {
+func Test_IDトークンからユーザー登録_既存ユーザーは常に許可(t *testing.T) {
 	existing := &domain.User{ID: 5, CognitoSub: "existing", Email: "u@example.com", Role: domain.RoleTrainee}
 	users := &fakeUserRepo{existingBySub: map[string]*domain.User{"existing": existing}}
 	invs := &fakeInvitationRepo{}
@@ -244,7 +244,7 @@ func TestUpsertUserFromIDToken_ExistingUser_AlwaysAllowed(t *testing.T) {
 	}
 }
 
-func TestUpsertUserFromIDToken_ExistingUser_PromotedByCognitoAdmin(t *testing.T) {
+func Test_IDトークンからユーザー登録_既存ユーザーはCognito_adminで昇格(t *testing.T) {
 	existing := &domain.User{ID: 5, CognitoSub: "existing", Email: "u@example.com", Role: domain.RoleTrainee}
 	users := &fakeUserRepo{existingBySub: map[string]*domain.User{"existing": existing}}
 	h := newTestAuthHandler(users, &fakeInvitationRepo{})
@@ -262,7 +262,7 @@ func TestUpsertUserFromIDToken_ExistingUser_PromotedByCognitoAdmin(t *testing.T)
 	}
 }
 
-func TestUpsertUserFromIDToken_RejectsMalformedToken(t *testing.T) {
+func Test_IDトークンからユーザー登録_不正な形式のトークンを拒否(t *testing.T) {
 	h := newTestAuthHandler(&fakeUserRepo{}, &fakeInvitationRepo{})
 	if upsertAllowed(h, newGinCtx(), "not-a-jwt", "") {
 		t.Fatal("malformed token must be rejected")
@@ -271,7 +271,7 @@ func TestUpsertUserFromIDToken_RejectsMalformedToken(t *testing.T) {
 
 // invitationToken が指定されているとき、email ベースより token ベースが優先されることを確認する。
 // email ベースで見つかる古い invitation よりも、token ベースの新しい invitation を採用する。
-func TestUpsertUserFromIDToken_InvitationToken_TakesPrecedenceOverEmail(t *testing.T) {
+func Test_IDトークンからユーザー登録_招待tokenはメールより優先(t *testing.T) {
 	cidByToken := uint64(99)
 	cidByEmail := uint64(1)
 	users := &fakeUserRepo{}
@@ -307,7 +307,7 @@ func TestUpsertUserFromIDToken_InvitationToken_TakesPrecedenceOverEmail(t *testi
 }
 
 // invitationToken が無効でも、email ベースで見つかれば許可する（旧フロー互換）。
-func TestUpsertUserFromIDToken_InvalidToken_FallsBackToEmail(t *testing.T) {
+func Test_IDトークンからユーザー登録_無効なtokenはメールにフォールバック(t *testing.T) {
 	users := &fakeUserRepo{}
 	invs := &fakeInvitationRepo{
 		pendingByEmail: map[string]*domain.AdminInvitation{
@@ -330,7 +330,7 @@ func TestUpsertUserFromIDToken_InvalidToken_FallsBackToEmail(t *testing.T) {
 
 // 既存の trainee ユーザーが company_admin 招待を受けた場合、role を昇格 + company を反映する。
 // 過去に signup した既存ユーザーが後から CompanyAdmin として招待されたケースの救済。
-func TestUpsertUserFromIDToken_ExistingTrainee_UpgradedByCompanyAdminInvitation(t *testing.T) {
+func Test_IDトークンからユーザー登録_既存traineeは会社管理者招待で昇格(t *testing.T) {
 	existing := &domain.User{ID: 5, CognitoSub: "existing-trainee", Email: "u@example.com", Role: domain.RoleTrainee}
 	users := &fakeUserRepo{existingBySub: map[string]*domain.User{"existing-trainee": existing}}
 	invs := &fakeInvitationRepo{
@@ -356,7 +356,7 @@ func TestUpsertUserFromIDToken_ExistingTrainee_UpgradedByCompanyAdminInvitation(
 }
 
 // 既存 super_admin は招待を受けても降格しない。
-func TestUpsertUserFromIDToken_ExistingSuperAdmin_NotDowngradedByInvitation(t *testing.T) {
+func Test_IDトークンからユーザー登録_既存運営管理者は招待で降格しない(t *testing.T) {
 	existing := &domain.User{ID: 1, CognitoSub: "ops", Email: "ops@example.com", Role: domain.RoleSuperAdmin}
 	users := &fakeUserRepo{existingBySub: map[string]*domain.User{"ops": existing}}
 	invs := &fakeInvitationRepo{
@@ -379,7 +379,7 @@ func TestUpsertUserFromIDToken_ExistingSuperAdmin_NotDowngradedByInvitation(t *t
 var _ = strings.Contains
 
 // 新規ユーザ作成時に id_token の `name` claim が DisplayName に使われる（email にフォールバックしない）。
-func TestUpsertUserFromIDToken_NewUser_UsesOIDCNameOverEmail(t *testing.T) {
+func Test_IDトークンからユーザー登録_新規はOIDC名をメールより優先(t *testing.T) {
 	users := &fakeUserRepo{}
 	invs := &fakeInvitationRepo{
 		pendingByEmail: map[string]*domain.AdminInvitation{
@@ -409,7 +409,7 @@ func TestUpsertUserFromIDToken_NewUser_UsesOIDCNameOverEmail(t *testing.T) {
 }
 
 // 招待 displayName が指定されているときは招待値が優先で OIDC name は無視。
-func TestUpsertUserFromIDToken_NewUser_InvitationNameTrumpsOIDCName(t *testing.T) {
+func Test_IDトークンからユーザー登録_新規は招待名がOIDC名に優先(t *testing.T) {
 	users := &fakeUserRepo{}
 	invs := &fakeInvitationRepo{
 		pendingByEmail: map[string]*domain.AdminInvitation{
@@ -433,7 +433,7 @@ func TestUpsertUserFromIDToken_NewUser_InvitationNameTrumpsOIDCName(t *testing.T
 }
 
 // name claim が無いケースは email にフォールバックする（後方互換）。
-func TestUpsertUserFromIDToken_NewUser_NoOIDCName_FallsBackToEmail(t *testing.T) {
+func Test_IDトークンからユーザー登録_新規でOIDC名なしはメールにフォールバック(t *testing.T) {
 	users := &fakeUserRepo{}
 	invs := &fakeInvitationRepo{
 		pendingByEmail: map[string]*domain.AdminInvitation{
@@ -455,7 +455,7 @@ func TestUpsertUserFromIDToken_NewUser_NoOIDCName_FallsBackToEmail(t *testing.T)
 }
 
 // 既存ユーザの DisplayName が email と一致 + id_token に name → name で上書きされる。
-func TestUpsertUserFromIDToken_ExistingUser_BackfillDisplayNameFromOIDC(t *testing.T) {
+func Test_IDトークンからユーザー登録_既存ユーザーは表示名をOIDCから補完(t *testing.T) {
 	existing := &domain.User{
 		ID: 5, CognitoSub: "exists",
 		Email: "old@example.com", DisplayName: "old@example.com",
@@ -477,7 +477,7 @@ func TestUpsertUserFromIDToken_ExistingUser_BackfillDisplayNameFromOIDC(t *testi
 }
 
 // 既存ユーザが既にプロフィール編集済（DisplayName != email）なら OIDC name で上書きしない。
-func TestUpsertUserFromIDToken_ExistingUser_NoBackfillIfDisplayNameCustomized(t *testing.T) {
+func Test_IDトークンからユーザー登録_表示名カスタム済みは補完しない(t *testing.T) {
 	existing := &domain.User{
 		ID: 5, CognitoSub: "exists",
 		Email: "u@example.com", DisplayName: "ユーザ自身が編集した名前",

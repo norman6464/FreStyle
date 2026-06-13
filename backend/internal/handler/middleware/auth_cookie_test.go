@@ -22,7 +22,7 @@ func runHandler(handler gin.HandlerFunc) *httptest.ResponseRecorder {
 	return w
 }
 
-func TestSetAccessTokenCookie_DefaultsMaxAge(t *testing.T) {
+func Test_アクセストークンCookie設定_MaxAge既定(t *testing.T) {
 	w := runHandler(func(c *gin.Context) {
 		SetAccessTokenCookie(c, "AT", 0)
 	})
@@ -44,7 +44,7 @@ func TestSetAccessTokenCookie_DefaultsMaxAge(t *testing.T) {
 	}
 }
 
-func TestSetAccessTokenCookie_RespectsExplicitMaxAge(t *testing.T) {
+func Test_アクセストークンCookie設定_明示MaxAgeを尊重(t *testing.T) {
 	w := runHandler(func(c *gin.Context) {
 		SetAccessTokenCookie(c, "AT", 7200)
 	})
@@ -54,7 +54,7 @@ func TestSetAccessTokenCookie_RespectsExplicitMaxAge(t *testing.T) {
 	}
 }
 
-func TestSetRefreshTokenCookie_SkipsEmpty(t *testing.T) {
+func Test_リフレッシュトークンCookie設定_空はスキップ(t *testing.T) {
 	w := runHandler(func(c *gin.Context) {
 		SetRefreshTokenCookie(c, "")
 	})
@@ -65,7 +65,7 @@ func TestSetRefreshTokenCookie_SkipsEmpty(t *testing.T) {
 	}
 }
 
-func TestSetRefreshTokenCookie_LongMaxAge(t *testing.T) {
+func Test_リフレッシュトークンCookie設定_長いMaxAge(t *testing.T) {
 	w := runHandler(func(c *gin.Context) {
 		SetRefreshTokenCookie(c, "RT")
 	})
@@ -78,7 +78,7 @@ func TestSetRefreshTokenCookie_LongMaxAge(t *testing.T) {
 	}
 }
 
-func TestClearAuthCookies_BothExpired(t *testing.T) {
+func Test_認証Cookieクリア_両方失効(t *testing.T) {
 	w := runHandler(ClearAuthCookies)
 	for _, name := range []string{CookieAccessToken, CookieRefreshToken} {
 		cookie := findCookie(t, w, name)

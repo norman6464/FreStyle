@@ -27,7 +27,7 @@ func runHealthGet(t *testing.T, repoErr error) *httptest.ResponseRecorder {
 	return w
 }
 
-func TestHealthHandler_Get_Up(t *testing.T) {
+func Test_ヘルスハンドラ_取得_正常(t *testing.T) {
 	w := runHealthGet(t, nil)
 	if w.Code != http.StatusOK {
 		t.Fatalf("want 200, got %d", w.Code)
@@ -41,7 +41,7 @@ func TestHealthHandler_Get_Up(t *testing.T) {
 	}
 }
 
-func TestHealthHandler_Get_Down(t *testing.T) {
+func Test_ヘルスハンドラ_取得_異常(t *testing.T) {
 	w := runHealthGet(t, errors.New("db unreachable"))
 	if w.Code != http.StatusServiceUnavailable {
 		t.Fatalf("want 503, got %d", w.Code)

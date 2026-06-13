@@ -38,7 +38,7 @@ func captureLogs(t *testing.T, run func(r *gin.Engine)) []map[string]any {
 	return out
 }
 
-func TestRequestLogger_EmitsStructuredFields(t *testing.T) {
+func Test_リクエストロガー_構造化フィールドを出力(t *testing.T) {
 	logs := captureLogs(t, func(r *gin.Engine) {
 		r.Use(RequestLogger())
 		r.GET("/ping", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"ok": true}) })
@@ -73,7 +73,7 @@ func TestRequestLogger_EmitsStructuredFields(t *testing.T) {
 	}
 }
 
-func TestRequestLogger_SkipPaths(t *testing.T) {
+func Test_リクエストロガー_スキップパス(t *testing.T) {
 	logs := captureLogs(t, func(r *gin.Engine) {
 		r.Use(RequestLogger("/api/v2/health"))
 		r.GET("/api/v2/health", func(c *gin.Context) { c.Status(http.StatusOK) })
@@ -85,7 +85,7 @@ func TestRequestLogger_SkipPaths(t *testing.T) {
 	}
 }
 
-func TestRequestLogger_5xxIsErrorLevel(t *testing.T) {
+func Test_リクエストロガー_5xxはErrorレベル(t *testing.T) {
 	logs := captureLogs(t, func(r *gin.Engine) {
 		r.Use(RequestLogger())
 		r.GET("/boom", func(c *gin.Context) { c.Status(http.StatusInternalServerError) })
@@ -97,7 +97,7 @@ func TestRequestLogger_5xxIsErrorLevel(t *testing.T) {
 	}
 }
 
-func TestRequestLogger_HonorsIncomingRequestID(t *testing.T) {
+func Test_リクエストロガー_受信RequestIDを尊重(t *testing.T) {
 	const incoming = "abc-123"
 	logs := captureLogs(t, func(r *gin.Engine) {
 		r.Use(RequestLogger())

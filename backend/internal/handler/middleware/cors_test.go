@@ -2,7 +2,7 @@ package middleware
 
 import "testing"
 
-func TestIsAllowedOrigin(t *testing.T) {
+func Test_許可オリジン判定(t *testing.T) {
 	cases := []struct {
 		origin string
 		want   bool

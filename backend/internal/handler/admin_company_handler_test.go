@@ -44,7 +44,7 @@ func newAdminCompanyHandler(repo *fakeCompanyRepo) *AdminCompanyHandler {
 	)
 }
 
-func TestAdminCompanyHandler_List_OK(t *testing.T) {
+func Test_会社管理ハンドラ_一覧_正常系(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/admin/companies", nil)
@@ -54,7 +54,7 @@ func TestAdminCompanyHandler_List_OK(t *testing.T) {
 	}
 }
 
-func TestAdminCompanyHandler_List_Error(t *testing.T) {
+func Test_会社管理ハンドラ_一覧_エラー(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/admin/companies", nil)
@@ -78,7 +78,7 @@ func patchCompanyActive(t *testing.T, actor *domain.User, id, body string, repo 
 	return w
 }
 
-func TestAdminCompanyHandler_SetActive_SuperAdmin_OK(t *testing.T) {
+func Test_会社管理ハンドラ_有効化_運営管理者_正常系(t *testing.T) {
 	repo := &fakeCompanyRepo{}
 	actor := &domain.User{ID: 1, Role: domain.RoleSuperAdmin}
 
@@ -92,7 +92,7 @@ func TestAdminCompanyHandler_SetActive_SuperAdmin_OK(t *testing.T) {
 	}
 }
 
-func TestAdminCompanyHandler_SetActive_NonSuperAdmin_Forbidden(t *testing.T) {
+func Test_会社管理ハンドラ_有効化_運営管理者以外_禁止(t *testing.T) {
 	for _, role := range []string{domain.RoleCompanyAdmin, domain.RoleTrainee} {
 		t.Run(role, func(t *testing.T) {
 			repo := &fakeCompanyRepo{}
@@ -107,7 +107,7 @@ func TestAdminCompanyHandler_SetActive_NonSuperAdmin_Forbidden(t *testing.T) {
 	}
 }
 
-func TestAdminCompanyHandler_SetActive_InvalidBody_BadRequest(t *testing.T) {
+func Test_会社管理ハンドラ_有効化_不正なボディ_400(t *testing.T) {
 	repo := &fakeCompanyRepo{}
 	actor := &domain.User{ID: 1, Role: domain.RoleSuperAdmin}
 	w := patchCompanyActive(t, actor, "5", `{}`, repo)
@@ -116,7 +116,7 @@ func TestAdminCompanyHandler_SetActive_InvalidBody_BadRequest(t *testing.T) {
 	}
 }
 
-func TestAdminCompanyHandler_SetActive_NotFound(t *testing.T) {
+func Test_会社管理ハンドラ_有効化_見つからない(t *testing.T) {
 	// 存在しない会社 ID（0 件更新）は repository が ErrRecordNotFound を返し、handler が 404 にマップ。
 	repo := &fakeCompanyRepo{err: gorm.ErrRecordNotFound}
 	actor := &domain.User{ID: 1, Role: domain.RoleSuperAdmin}

@@ -57,7 +57,7 @@ func runCurrentUser(t *testing.T, users *stubUsers, companies *stubCompanies) (*
 
 func uintPtr(v uint64) *uint64 { return &v }
 
-func TestCurrentUser_BlocksDisabledCompany(t *testing.T) {
+func Test_カレントユーザー_無効な会社を遮断(t *testing.T) {
 	users := &stubUsers{user: &domain.User{ID: 1, Role: domain.RoleTrainee, IsActive: true, CompanyID: uintPtr(7)}}
 	companies := &stubCompanies{company: &domain.Company{ID: 7, IsActive: false}}
 
@@ -71,7 +71,7 @@ func TestCurrentUser_BlocksDisabledCompany(t *testing.T) {
 	}
 }
 
-func TestCurrentUser_AllowsActiveCompany(t *testing.T) {
+func Test_カレントユーザー_有効な会社は許可(t *testing.T) {
 	users := &stubUsers{user: &domain.User{ID: 1, Role: domain.RoleTrainee, IsActive: true, CompanyID: uintPtr(7)}}
 	companies := &stubCompanies{company: &domain.Company{ID: 7, IsActive: true}}
 
@@ -85,7 +85,7 @@ func TestCurrentUser_AllowsActiveCompany(t *testing.T) {
 	}
 }
 
-func TestCurrentUser_SuperAdminNoCompany_Allowed(t *testing.T) {
+func Test_カレントユーザー_運営管理者は会社なしでも許可(t *testing.T) {
 	// super_admin は company_id なし → 会社チェックをスキップして通す。
 	users := &stubUsers{user: &domain.User{ID: 1, Role: domain.RoleSuperAdmin, IsActive: true, CompanyID: nil}}
 	companies := &stubCompanies{err: gorm.ErrRecordNotFound}
@@ -97,7 +97,7 @@ func TestCurrentUser_SuperAdminNoCompany_Allowed(t *testing.T) {
 	}
 }
 
-func TestCurrentUser_CompanyNotFound_Allowed(t *testing.T) {
+func Test_カレントユーザー_会社が見つからなくても許可(t *testing.T) {
 	// company_id はあるが会社行が無い（データ不整合）→ 弾かない。
 	users := &stubUsers{user: &domain.User{ID: 1, Role: domain.RoleTrainee, IsActive: true, CompanyID: uintPtr(99)}}
 	companies := &stubCompanies{err: gorm.ErrRecordNotFound}
@@ -109,7 +109,7 @@ func TestCurrentUser_CompanyNotFound_Allowed(t *testing.T) {
 	}
 }
 
-func TestCurrentUser_BlocksDisabledUser(t *testing.T) {
+func Test_カレントユーザー_無効なユーザーを遮断(t *testing.T) {
 	// IsActive=false のユーザーは会社が有効でも弾く（即時に利用不可）。
 	users := &stubUsers{user: &domain.User{ID: 1, Role: domain.RoleTrainee, IsActive: false, CompanyID: uintPtr(7)}}
 	companies := &stubCompanies{company: &domain.Company{ID: 7, IsActive: true}}

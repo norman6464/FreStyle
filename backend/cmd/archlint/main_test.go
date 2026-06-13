@@ -10,7 +10,7 @@ import (
 
 const testPrefix = "github.com/norman6464/FreStyle/backend/internal/"
 
-func TestClassifyRel(t *testing.T) {
+func Test_相対パス分類(t *testing.T) {
 	cases := map[string]string{
 		"domain":                       layerDomain,
 		"domain/sub":                   layerDomain,
@@ -35,7 +35,7 @@ func TestClassifyRel(t *testing.T) {
 	}
 }
 
-func TestClassifyImport(t *testing.T) {
+func Test_import分類(t *testing.T) {
 	cases := map[string]string{
 		"net/http":                         targetNetHTTP,
 		"github.com/gin-gonic/gin":         targetGin,
@@ -57,7 +57,7 @@ func TestClassifyImport(t *testing.T) {
 	}
 }
 
-func TestIsWiringFile(t *testing.T) {
+func Test_wiringファイル判定(t *testing.T) {
 	cases := map[string]bool{
 		"router.go":                     true,
 		"routes_auth.go":                true,
@@ -73,7 +73,7 @@ func TestIsWiringFile(t *testing.T) {
 	}
 }
 
-func TestViolationsFor(t *testing.T) {
+func Test_違反検出(t *testing.T) {
 	imp := func(target string) importRef { return importRef{path: "p", line: 1, target: target} }
 
 	t.Run("domain が usecase を import するのは違反", func(t *testing.T) {
@@ -164,7 +164,7 @@ func TestViolationsFor(t *testing.T) {
 }
 
 // TestParseImports は実ファイルを書き出して import 解析と抑制を検証する。
-func TestParseImports(t *testing.T) {
+func Test_import解析(t *testing.T) {
 	dir := t.TempDir()
 
 	write := func(name, content string) string {
@@ -294,7 +294,7 @@ func TestRunIntegration(t *testing.T) {
 	}
 }
 
-func TestRunCLI(t *testing.T) {
+func Test_CLI実行(t *testing.T) {
 	t.Run("クリーンなツリーは 0 を返す", func(t *testing.T) {
 		root := buildTree(t, false)
 		var out, errBuf bytes.Buffer
@@ -325,7 +325,7 @@ func TestRunCLI(t *testing.T) {
 	})
 }
 
-func TestReadModulePath(t *testing.T) {
+func Test_モジュールパス読み取り(t *testing.T) {
 	dir := t.TempDir()
 	good := filepath.Join(dir, "go.mod")
 	if err := os.WriteFile(good, []byte("// comment\nmodule example.com/foo/bar\n\ngo 1.26\n"), 0o600); err != nil {

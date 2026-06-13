@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestClient_Run_SendsInputAndDecodesResult(t *testing.T) {
+func Test_クライアント_実行_入力送信と結果デコード(t *testing.T) {
 	var gotPath string
 	var gotBody domain.CodeExecutionInput
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -34,7 +34,7 @@ func TestClient_Run_SendsInputAndDecodesResult(t *testing.T) {
 	assert.Equal(t, "hi\n", out.Stdout)
 }
 
-func TestClient_Warmup_SendsLanguage(t *testing.T) {
+func Test_クライアント_ウォームアップ_言語送信(t *testing.T) {
 	var gotPath string
 	var gotBody map[string]string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -50,7 +50,7 @@ func TestClient_Warmup_SendsLanguage(t *testing.T) {
 	assert.Equal(t, "go", gotBody["language"])
 }
 
-func TestClient_Run_ErrorsOnNon200(t *testing.T) {
+func Test_クライアント_実行_非200でエラー(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "boom", http.StatusInternalServerError)
 	}))

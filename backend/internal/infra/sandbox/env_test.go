@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestIsSensitiveEnvKey(t *testing.T) {
+func Test_機密env判定(t *testing.T) {
 	sensitive := []string{
 		"AWS_CONTAINER_CREDENTIALS_RELATIVE_URI",
 		"AWS_ACCESS_KEY_ID",
@@ -34,7 +34,7 @@ func TestIsSensitiveEnvKey(t *testing.T) {
 	}
 }
 
-func TestSandboxEnv_StripsSecretsKeepsBenign(t *testing.T) {
+func Test_サンドボックスenv_機密を除去し無害は残す(t *testing.T) {
 	t.Setenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI", "/v2/credentials/abc")
 	t.Setenv("DATABASE_URL", "postgresql://user:pw@host/db")
 	t.Setenv("COGNITO_CLIENT_SECRET", "super-secret")

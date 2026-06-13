@@ -18,7 +18,7 @@ func newTestServer() *httptest.Server {
 	return httptest.NewServer(newMux(sandbox.NewRunner()))
 }
 
-func TestServer_Healthz(t *testing.T) {
+func Test_サーバー_ヘルスチェック(t *testing.T) {
 	srv := newTestServer()
 	defer srv.Close()
 
@@ -28,7 +28,7 @@ func TestServer_Healthz(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
-func TestServer_Run_PHP(t *testing.T) {
+func Test_サーバー_実行_PHP(t *testing.T) {
 	if _, err := exec.LookPath("php"); err != nil {
 		t.Skip("php not found in PATH")
 	}
@@ -47,7 +47,7 @@ func TestServer_Run_PHP(t *testing.T) {
 	assert.Equal(t, 0, out.ExitCode)
 }
 
-func TestServer_Run_InvalidBody(t *testing.T) {
+func Test_サーバー_実行_不正なボディ(t *testing.T) {
 	srv := newTestServer()
 	defer srv.Close()
 
@@ -57,7 +57,7 @@ func TestServer_Run_InvalidBody(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
-func TestServer_Warmup(t *testing.T) {
+func Test_サーバー_ウォームアップ(t *testing.T) {
 	srv := newTestServer()
 	defer srv.Close()
 

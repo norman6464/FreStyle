@@ -6,7 +6,7 @@ import type { RootState } from '../store';
 import Loading from '../components/Loading';
 import PageIntro from '../components/ui/PageIntro';
 import { logger } from '../lib/logger';
-import { BuildingOffice2Icon, UserPlusIcon, Cog6ToothIcon } from '@heroicons/react/24/outline';
+import { BuildingOffice2Icon, UserPlusIcon } from '@heroicons/react/24/outline';
 
 export default function AdminCompaniesPage() {
   const isAdmin = useSelector((state: RootState) => state.auth.isAdmin);
@@ -53,7 +53,7 @@ export default function AdminCompaniesPage() {
     <div className="px-6 pt-6 pb-24 max-w-3xl mx-auto space-y-6">
       <PageIntro
         title="管理: 会社一覧"
-        description="登録されている会社の一覧です。会社を選択してシナリオや招待を管理できます。"
+        description="登録されている会社の一覧です。各社のアカウントの有効/無効を切り替えたり、招待を管理できます。"
       />
 
       {error && (
@@ -105,13 +105,6 @@ export default function AdminCompaniesPage() {
                     {company.isActive ? '無効化' : '有効化'}
                   </button>
                 )}
-                <Link
-                  to={`/admin/scenarios?companyId=${company.id}`}
-                  className="flex items-center gap-1 text-xs px-3 py-1.5 border rounded text-[var(--color-text-secondary)] hover:bg-surface-2 transition-colors"
-                >
-                  <Cog6ToothIcon className="w-3.5 h-3.5" />
-                  シナリオ
-                </Link>
                 <Link
                   to={`/admin/invitations?companyId=${company.id}`}
                   className="flex items-center gap-1 text-xs px-3 py-1.5 border rounded text-[var(--color-text-secondary)] hover:bg-surface-2 transition-colors"

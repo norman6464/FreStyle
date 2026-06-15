@@ -86,6 +86,13 @@ const adminNavItem: NavItem = {
     { label: '従業員一覧', to: '/admin/members', matchPrefix: '/admin/members' },
     // 招待管理は自社内で trainee を招待する操作のため company_admin / super_admin 双方が利用する。
     { label: '招待管理', to: '/admin/invitations', matchPrefix: '/admin/invitations' },
+    // 監査ログは全テナント横断の運営機能なので super_admin 専用。
+    {
+      label: '監査ログ',
+      to: '/admin/audit',
+      matchPrefix: '/admin/audit',
+      allowedRoles: ['super_admin'],
+    },
   ],
 };
 

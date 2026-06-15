@@ -19,6 +19,52 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/admin/audit-events": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "管理者の重要操作（会社の有効/無効・従業員の停止/削除・招待など）の監査記録を新しい順で最大 200 件返す。super_admin 専用。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "監査ログ一覧（super_admin）",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.AuditEvent"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "未認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "super_admin 以外",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/companies": {
             "get": {
                 "security": [
@@ -3584,6 +3630,34 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "sizeBytes": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_norman6464_FreStyle_backend_internal_domain.AuditEvent": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "description": "Action は「METHOD ルートパターン」（例: \"PATCH /api/v2/admin/companies/:id/active\"）。",
+                    "type": "string"
+                },
+                "actorEmail": {
+                    "type": "string"
+                },
+                "actorId": {
+                    "type": "integer"
+                },
+                "actorRole": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "targetId": {
+                    "description": "TargetID は操作対象の ID（会社 ID / ユーザー ID など。取得できないときは 0）。",
                     "type": "integer"
                 }
             }

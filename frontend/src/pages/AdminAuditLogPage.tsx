@@ -28,6 +28,7 @@ function actionLabel(action: string): string {
   if (a.startsWith('DELETE') && a.includes('/MEMBERS/')) return '従業員を削除';
   if (a.startsWith('POST') && a.includes('/INVITATIONS')) return '招待を作成';
   if (a.startsWith('DELETE') && a.includes('/INVITATIONS/')) return '招待を取消';
+  if (a.includes('/COMPANY-APPLICATIONS/') && a.includes('STATUS')) return '利用申請を承認/却下';
   return action;
 }
 

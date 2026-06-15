@@ -9,17 +9,15 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/infra/ses"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"gorm.io/gorm"
 )
 
-// registerAdminRoutes は管理者向けの招待管理エンドポイントを登録する。
-// 認可（super_admin / company_admin のみ）は handler 層で実施する。
-func registerAdminRoutes(g *gin.RouterGroup, deps *routeDeps) {
-	// 監査ログ: 管理者の変更操作（会社の有効/無効・従業員の停止/削除・招待）を記録する middleware。
-	// 記録は best-effort（監査記録の失敗で本処理は壊さない）。
-	auditRepo := persistence.NewAuditRepository(deps.db)
-	auditRecorder := usecase.NewRecordAuditEventUseCase(auditRepo)
-	audit := middleware.AuditLog(func(ctx context.Context, e middleware.AuditEntry) {
-		_ = auditRecorder.Execute(ctx, usecase.RecordAuditEventInput{
+// newAuditMiddleware は管理者の変更操作（会社の有効/無効・従業員の停止/削除・招待・利用申請の承認/却下）
+// を監査ログに記録する middleware を作る。記録は best-effort（監査記録の失敗で本処理は壊さない）。
+func newAuditMiddleware(db *gorm.DB) gin.HandlerFunc {
+	recorder := usecase.NewRecordAuditEventUseCase(persistence.NewAuditRepository(db))
+	return middleware.AuditLog(func(ctx context.Context, e middleware.AuditEntry) {
+		_ = recorder.Execute(ctx, usecase.RecordAuditEventInput{
 			ActorID:    e.ActorID,
 			ActorEmail: e.ActorEmail,
 			ActorRole:  e.ActorRole,
@@ -27,7 +25,12 @@ func registerAdminRoutes(g *gin.RouterGroup, deps *routeDeps) {
 			TargetID:   e.TargetID,
 		})
 	})
+}
 
+// registerAdminRoutes は管理者向けの招待管理エンドポイントを登録する。
+// 認可（super_admin / company_admin のみ）は handler 層で実施する。
+// audit は変更操作を監査ログに記録する middleware（router で生成して共有する）。
+func registerAdminRoutes(g *gin.RouterGroup, deps *routeDeps, audit gin.HandlerFunc) {
 	companyRepo := persistence.NewCompanyRepository(deps.db)
 	companyHandler := NewAdminCompanyHandler(
 		usecase.NewListCompaniesUseCase(companyRepo),
@@ -88,7 +91,7 @@ func registerAdminRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	g.POST("/admin/invitations", audit, adminInvHandler.Create)
 	g.DELETE("/admin/invitations/:id", audit, adminInvHandler.Cancel)
 
-	// 監査ログ閲覧（super_admin 専用）。
-	auditHandler := NewAdminAuditHandler(usecase.NewListAuditEventsUseCase(auditRepo))
+	// 監査ログ閲覧（super_admin 専用）。記録は audit middleware が横断的に行う。
+	auditHandler := NewAdminAuditHandler(usecase.NewListAuditEventsUseCase(persistence.NewAuditRepository(deps.db)))
 	g.GET("/admin/audit-events", auditHandler.List)
 }

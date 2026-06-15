@@ -76,19 +76,22 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	authed.Use(middleware.JWTAuth(buildJWTVerify(cfg)))
 	authed.Use(middleware.CurrentUser(deps.userRepo, persistence.NewCompanyRepository(deps.db)))
 
+	// 監査ログ記録 middleware（admin の変更操作で共有する）。
+	audit := newAuditMiddleware(deps.db)
+
 	registerAuthAuthedRoutes(authed, authHandler)
 	registerChatRoutes(authed, deps)
 	registerProfileRoutes(authed, deps)
 	registerNoteRoutes(authed, deps)
 	registerSocialRoutes(authed, deps)
-	registerAdminRoutes(authed, deps)
+	registerAdminRoutes(authed, deps, audit)
 	registerEmbedRoutes(authed)
 	registerExerciseRoutes(authed, deps)
 	registerCourseRoutes(authed, deps)
 	registerTeachingMaterialRoutes(authed, deps)
 	registerLearningReportRoutes(authed, deps)
 	registerCompanySettingsRoutes(authed, deps)
-	registerCompanyApplicationAdminRoutes(authed, companyAppHandler)
+	registerCompanyApplicationAdminRoutes(authed, companyAppHandler, audit)
 	// WebSocket (/ws/ai-chat) は SSE (/ai-chat/stream) への置換で廃止 (PR-D)。
 	return r
 }

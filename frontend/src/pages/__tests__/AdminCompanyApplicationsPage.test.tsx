@@ -36,7 +36,6 @@ const applications = [
     updatedAt: '2026-05-21T00:00:00Z',
   },
 ];
-let hookReturn: ReturnType<typeof makeHookReturn>;
 function makeHookReturn() {
   return {
     applications,
@@ -48,6 +47,8 @@ function makeHookReturn() {
     reload: vi.fn(),
   };
 }
+// 宣言時に初期化しておく（モック factory がモジュール読み込み時に評価されても undefined にならないように）。
+let hookReturn = makeHookReturn();
 vi.mock('../../hooks/useCompanyApplications', () => ({
   useCompanyApplications: () => hookReturn,
 }));

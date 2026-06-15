@@ -37,24 +37,36 @@ export function useCompanyApplications() {
     [applications],
   );
 
-  // status を更新する。楽観的に反映し、失敗時は再取得で整合を取る。
+  // status を更新する。楽観的に反映し、失敗時は更新前の status へ確実にロールバックする
+  // （再取得 load 依存だと、再取得自体が失敗したときにサーバー未反映の状態が画面に残るため）。
   const setStatus = useCallback(
     async (id: number, status: CompanyApplicationStatus): Promise<boolean> => {
       setUpdatingId(id);
       setError(null);
-      setApplications((prev) => prev.map((a) => (a.id === id ? { ...a, status } : a)));
+      let previous: CompanyApplicationStatus | undefined;
+      setApplications((prev) =>
+        prev.map((a) => {
+          if (a.id !== id) return a;
+          previous = a.status;
+          return { ...a, status };
+        }),
+      );
       try {
         await CompanyApplicationRepository.adminUpdateStatus(id, status);
         return true;
       } catch {
-        await load();
+        if (previous !== undefined) {
+          setApplications((prev) =>
+            prev.map((a) => (a.id === id ? { ...a, status: previous as CompanyApplicationStatus } : a)),
+          );
+        }
         setError('ステータスの更新に失敗しました');
         return false;
       } finally {
         setUpdatingId(null);
       }
     },
-    [load],
+    [],
   );
 
   return { applications, pendingCount, loading, error, updatingId, setStatus, reload: load };

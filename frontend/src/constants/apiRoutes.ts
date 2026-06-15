@@ -150,6 +150,8 @@ export const ADMIN = {
   member: (userId: number | string) => `${API_V2}/admin/members/${userId}`,
   invitations: `${API_V2}/admin/invitations`,
   invitationById: (id: number | string) => `${API_V2}/admin/invitations/${id}`,
+  /** GET /api/v2/admin/audit-events — 監査ログ一覧（super_admin） */
+  auditEvents: `${API_V2}/admin/audit-events`,
   scenarios: `${API_V2}/admin/scenarios`,
   scenarioById: (id: number | string) => `${API_V2}/admin/scenarios/${id}`,
 } as const;

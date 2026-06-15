@@ -36,6 +36,7 @@ const AdminCompanyApplicationsPage = lazyWithReload(
   'AdminCompanyApplicationsPage',
 );
 const AdminDashboardPage = lazyWithReload(() => import('./pages/AdminDashboardPage'), 'AdminDashboardPage');
+const AdminAuditLogPage = lazyWithReload(() => import('./pages/AdminAuditLogPage'), 'AdminAuditLogPage');
 const ExerciseListPage = lazyWithReload(() => import('./pages/ExerciseListPage'), 'ExerciseListPage');
 const ExerciseDetailPage = lazyWithReload(() => import('./pages/ExerciseDetailPage'), 'ExerciseDetailPage');
 const CoursesListPage = lazyWithReload(() => import('./pages/CoursesListPage'), 'CoursesListPage');
@@ -123,6 +124,7 @@ export default function App() {
         <Route path="/admin/companies" element={<AdminCompaniesPage />} />
         <Route path="/admin/applications" element={<AdminCompanyApplicationsPage />} />
         <Route path="/admin/members" element={<AdminMembersPage />} />
+        <Route path="/admin/audit" element={<AdminAuditLogPage />} />
         <Route path="/admin/invitations" element={<AdminInvitationsPage />} />
       </Route>
     </Routes>

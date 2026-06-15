@@ -17,14 +17,20 @@ func isSuperAdmin(actor *domain.User) bool {
 	return actor != nil && actor.Role == domain.RoleSuperAdmin
 }
 
-// AdminCompanyHandler は super_admin 向けの会社一覧と、会社アカウントの有効/無効を扱う。
+// AdminCompanyHandler は super_admin 向けの会社一覧 / 横断ビュー(メンバー集計) /
+// 会社アカウントの有効・無効を扱う。
 type AdminCompanyHandler struct {
 	list      *usecase.ListCompaniesUseCase
+	stats     *usecase.ListCompanyStatsUseCase
 	setActive *usecase.SetCompanyActiveUseCase
 }
 
-func NewAdminCompanyHandler(l *usecase.ListCompaniesUseCase, s *usecase.SetCompanyActiveUseCase) *AdminCompanyHandler {
-	return &AdminCompanyHandler{list: l, setActive: s}
+func NewAdminCompanyHandler(
+	l *usecase.ListCompaniesUseCase,
+	st *usecase.ListCompanyStatsUseCase,
+	s *usecase.SetCompanyActiveUseCase,
+) *AdminCompanyHandler {
+	return &AdminCompanyHandler{list: l, stats: st, setActive: s}
 }
 
 // @Summary      会社 一覧 (SuperAdmin)
@@ -42,6 +48,31 @@ func (h *AdminCompanyHandler) List(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, companies)
+}
+
+// Stats は各社のメンバー集計を付けた会社横断ビューを返す（super_admin 専用）。
+//
+//	@Summary      会社横断ビュー（メンバー集計・super_admin）
+//	@Description  全 company に、各社の在籍メンバー数（総数 / 有効 / trainee）を付けて返す。super_admin 専用画面用。認可は middleware で別途担保。
+//	@Tags         admin
+//	@Produce      json
+//	@Success      200  {array}   usecase.CompanyStat
+//	@Failure      401  {object}  errorResponse  "未認証"
+//	@Failure      403  {object}  errorResponse  "super_admin 以外"
+//	@Failure      500  {object}  errorResponse  "DB 失敗"
+//	@Router       /admin/companies/stats [get]
+//	@Security     CookieAuth
+func (h *AdminCompanyHandler) Stats(c *gin.Context) {
+	if !isSuperAdmin(middleware.CurrentUserFromContext(c)) {
+		c.JSON(http.StatusForbidden, errorResponse{Error: "forbidden"})
+		return
+	}
+	rows, err := h.stats.Execute(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, errorResponse{Error: "internal_error"})
+		return
+	}
+	c.JSON(http.StatusOK, rows)
 }
 
 // setCompanyActiveRequest は会社アカウントの有効/無効更新の入力。

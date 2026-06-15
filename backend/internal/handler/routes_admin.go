@@ -16,9 +16,12 @@ func registerAdminRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	companyRepo := persistence.NewCompanyRepository(deps.db)
 	companyHandler := NewAdminCompanyHandler(
 		usecase.NewListCompaniesUseCase(companyRepo),
+		usecase.NewListCompanyStatsUseCase(companyRepo, persistence.NewCompanyStatsRepository(deps.db)),
 		usecase.NewSetCompanyActiveUseCase(companyRepo),
 	)
 	g.GET("/admin/companies", companyHandler.List)
+	// 会社横断ビュー（各社のメンバー集計付き。super_admin 専用）。
+	g.GET("/admin/companies/stats", companyHandler.Stats)
 	// 会社アカウントの有効/無効（super_admin 専用。無効化でその会社の全ユーザーを利用不可に）。
 	g.PATCH("/admin/companies/:id/active", companyHandler.SetActive)
 

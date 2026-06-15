@@ -60,6 +60,13 @@ const adminNavItem: NavItem = {
   label: '管理',
   matchPrefix: '/admin',
   subItems: [
+    // 運営ダッシュボード（概況）は全テナント横断なので super_admin 専用。
+    {
+      label: '概況',
+      to: '/admin/dashboard',
+      matchPrefix: '/admin/dashboard',
+      allowedRoles: ['super_admin'],
+    },
     // 会社一覧は全テナントの管理画面なので運営 (super_admin) 専用。
     // company_admin が見えると越権が起きる印象を与えるため非表示にする。
     {

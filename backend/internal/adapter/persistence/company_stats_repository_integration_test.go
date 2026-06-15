@@ -35,7 +35,12 @@ func TestCompanyStatsRepository_Integration(t *testing.T) {
 	}
 	// 会社1: trainee有効 / trainee無効 / company_admin有効 / trainee(論理削除→除外)
 	require.NoError(t, userRepo.Create(ctx, mk("a", &c1, domain.RoleTrainee, true)))
-	require.NoError(t, userRepo.Create(ctx, mk("b", &c1, domain.RoleTrainee, false)))
+	// b は無効ユーザー。GORM は is_active の default:true 指定によりゼロ値(false)を省略して
+	// DB デフォルト true で挿入するため、Create 後に明示的に UpdateActive(false) で無効化する。
+	require.NoError(t, userRepo.Create(ctx, mk("b", &c1, domain.RoleTrainee, true)))
+	bUser, err := userRepo.FindByCognitoSub(ctx, "b")
+	require.NoError(t, err)
+	require.NoError(t, userRepo.UpdateActive(ctx, bUser.ID, false))
 	require.NoError(t, userRepo.Create(ctx, mk("c", &c1, domain.RoleCompanyAdmin, true)))
 	require.NoError(t, userRepo.Create(ctx, mk("d", &c1, domain.RoleTrainee, true)))
 	dUser, err := userRepo.FindByCognitoSub(ctx, "d")

@@ -16,6 +16,9 @@ export function useAuditLog(enabled = true) {
       return;
     }
     let cancelled = false;
+    // 取得開始時に loading/error を初期化（enabled が false→true に変わる再取得でも整合を取る）。
+    setLoading(true);
+    setError(null);
     AuditRepository.list()
       .then((e) => {
         if (!cancelled) setEvents(e);

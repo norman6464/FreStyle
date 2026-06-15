@@ -20,7 +20,7 @@ func NewAdminAuditHandler(l *usecase.ListAuditEventsUseCase) *AdminAuditHandler 
 // List は監査ログを新しい順で返す（super_admin 専用）。
 //
 //	@Summary      監査ログ一覧（super_admin）
-//	@Description  管理者の重要操作（会社の有効/無効・従業員の停止/削除・招待など）の監査記録を新しい順で返す。super_admin 専用。
+//	@Description  管理者の重要操作（会社の有効/無効・従業員の停止/削除・招待など）の監査記録を新しい順で最大 200 件返す。super_admin 専用。
 //	@Tags         admin
 //	@Produce      json
 //	@Success      200  {array}   github_com_norman6464_FreStyle_backend_internal_domain.AuditEvent

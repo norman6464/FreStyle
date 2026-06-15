@@ -19,7 +19,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "管理者の重要操作（会社の有効/無効・従業員の停止/削除・招待など）の監査記録を新しい順で返す。super_admin 専用。",
+                "description": "管理者の重要操作（会社の有効/無効・従業員の停止/削除・招待など）の監査記録を新しい順で最大 200 件返す。super_admin 専用。",
                 "produces": [
                     "application/json"
                 ],

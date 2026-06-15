@@ -11,8 +11,18 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"gorm.io/gorm"
 )
+
+// fakeCompanyCounter は CompanyMemberCounter の最小 fake。
+type fakeCompanyCounter struct {
+	rows []repository.CompanyMemberCount
+}
+
+func (f *fakeCompanyCounter) CountMembersByCompany(context.Context) ([]repository.CompanyMemberCount, error) {
+	return f.rows, nil
+}
 
 // fakeCompanyRepo は repository.CompanyRepository の最小 fake。
 type fakeCompanyRepo struct {
@@ -40,8 +50,31 @@ func (f *fakeCompanyRepo) UpdateActive(_ context.Context, id uint64, active bool
 func newAdminCompanyHandler(repo *fakeCompanyRepo) *AdminCompanyHandler {
 	return NewAdminCompanyHandler(
 		usecase.NewListCompaniesUseCase(repo),
+		usecase.NewListCompanyStatsUseCase(repo, &fakeCompanyCounter{}),
 		usecase.NewSetCompanyActiveUseCase(repo),
 	)
+}
+
+func Test_会社管理ハンドラ_横断ビュー_super_admin_正常系(t *testing.T) {
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Set(middleware.ContextKeyCurrentUser, &domain.User{ID: 1, Role: domain.RoleSuperAdmin})
+	c.Request = httptest.NewRequest(http.MethodGet, "/admin/companies/stats", nil)
+	newAdminCompanyHandler(&fakeCompanyRepo{rows: []domain.Company{{ID: 1, Name: "Co"}}}).Stats(c)
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d", w.Code)
+	}
+}
+
+func Test_会社管理ハンドラ_横断ビュー_super_admin以外は禁止(t *testing.T) {
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Set(middleware.ContextKeyCurrentUser, &domain.User{ID: 2, Role: domain.RoleCompanyAdmin})
+	c.Request = httptest.NewRequest(http.MethodGet, "/admin/companies/stats", nil)
+	newAdminCompanyHandler(&fakeCompanyRepo{}).Stats(c)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("want 403, got %d", w.Code)
+	}
 }
 
 func Test_会社管理ハンドラ_一覧_正常系(t *testing.T) {

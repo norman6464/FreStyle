@@ -46,6 +46,52 @@
                 }
             }
         },
+        "/admin/companies/stats": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "全 company に、各社の在籍メンバー数（総数 / 有効 / trainee）を付けて返す。super_admin 専用画面用。認可は middleware で別途担保。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "会社横断ビュー（メンバー集計・super_admin）",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase.CompanyStat"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "未認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "super_admin 以外",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/companies/{id}/active": {
             "patch": {
                 "security": [
@@ -4005,6 +4051,32 @@
                 },
                 "url": {
                     "type": "string"
+                }
+            }
+        },
+        "github_com_norman6464_FreStyle_backend_internal_usecase.CompanyStat": {
+            "type": "object",
+            "properties": {
+                "activeMembers": {
+                    "type": "integer"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "isActive": {
+                    "type": "boolean"
+                },
+                "memberTotal": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "traineeCount": {
+                    "type": "integer"
                 }
             }
         },

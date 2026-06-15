@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { Navigate, Link } from 'react-router-dom';
-import CompanyRepository, { Company } from '../repositories/CompanyRepository';
+import CompanyRepository, { CompanyStat } from '../repositories/CompanyRepository';
 import type { RootState } from '../store';
 import Loading from '../components/Loading';
 import PageIntro from '../components/ui/PageIntro';
@@ -14,14 +14,14 @@ export default function AdminCompaniesPage() {
   const role = useSelector((state: RootState) => state.auth.role);
   const isSuperAdmin = role === 'super_admin';
 
-  const [companies, setCompanies] = useState<Company[]>([]);
+  const [companies, setCompanies] = useState<CompanyStat[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!isAdmin) return;
-    CompanyRepository.list()
+    CompanyRepository.listStats()
       .then(setCompanies)
       .catch((e) => {
         setError('会社一覧の取得に失敗しました');
@@ -83,6 +83,10 @@ export default function AdminCompaniesPage() {
                         無効
                       </span>
                     )}
+                  </p>
+                  <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+                    メンバー {company.memberTotal}（有効 {company.activeMembers} / 受講者{' '}
+                    {company.traineeCount}）
                   </p>
                   <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
                     登録日: {new Date(company.createdAt).toLocaleDateString('ja-JP')}

@@ -53,4 +53,11 @@ describe('AdminCompaniesPage（会社横断ビュー）', () => {
     ).toBeInTheDocument();
     expect(listStats).toHaveBeenCalled();
   });
+
+  it('super_admin 以外はリダイレクトし、集計 API を呼ばない', () => {
+    mockState.auth = { isAdmin: true, loading: false, role: 'company_admin' };
+    renderPage();
+    expect(screen.queryByText('アクメ社')).not.toBeInTheDocument();
+    expect(listStats).not.toHaveBeenCalled();
+  });
 });

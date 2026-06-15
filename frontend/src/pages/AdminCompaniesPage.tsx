@@ -9,9 +9,10 @@ import { logger } from '../lib/logger';
 import { BuildingOffice2Icon, UserPlusIcon } from '@heroicons/react/24/outline';
 
 export default function AdminCompaniesPage() {
-  const isAdmin = useSelector((state: RootState) => state.auth.isAdmin);
   const authLoading = useSelector((state: RootState) => state.auth.loading);
   const role = useSelector((state: RootState) => state.auth.role);
+  // 会社一覧 / 横断ビュー（/admin/companies/stats）は super_admin 専用エンドポイント。
+  // company_admin が到達しても 403 を踏ませないよう、判定は super_admin に統一する。
   const isSuperAdmin = role === 'super_admin';
 
   const [companies, setCompanies] = useState<CompanyStat[]>([]);
@@ -20,7 +21,7 @@ export default function AdminCompaniesPage() {
   const [updatingId, setUpdatingId] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!isSuperAdmin) return;
     CompanyRepository.listStats()
       .then(setCompanies)
       .catch((e) => {
@@ -28,7 +29,7 @@ export default function AdminCompaniesPage() {
         logger.error(e);
       })
       .finally(() => setLoading(false));
-  }, [isAdmin]);
+  }, [isSuperAdmin]);
 
   // 会社アカウントの有効/無効を切り替える（super_admin 専用）。楽観的更新 + 失敗時ロールバック。
   const setActive = async (id: number, active: boolean) => {
@@ -47,7 +48,7 @@ export default function AdminCompaniesPage() {
   };
 
   if (authLoading) return <Loading message="認証情報を確認中..." />;
-  if (!isAdmin) return <Navigate to="/" replace />;
+  if (!isSuperAdmin) return <Navigate to="/" replace />;
 
   return (
     <div className="px-6 pt-6 pb-24 max-w-3xl mx-auto space-y-6">

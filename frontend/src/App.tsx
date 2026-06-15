@@ -35,6 +35,7 @@ const AdminCompanyApplicationsPage = lazyWithReload(
   () => import('./pages/AdminCompanyApplicationsPage'),
   'AdminCompanyApplicationsPage',
 );
+const AdminDashboardPage = lazyWithReload(() => import('./pages/AdminDashboardPage'), 'AdminDashboardPage');
 const ExerciseListPage = lazyWithReload(() => import('./pages/ExerciseListPage'), 'ExerciseListPage');
 const ExerciseDetailPage = lazyWithReload(() => import('./pages/ExerciseDetailPage'), 'ExerciseDetailPage');
 const CoursesListPage = lazyWithReload(() => import('./pages/CoursesListPage'), 'CoursesListPage');
@@ -118,6 +119,7 @@ export default function App() {
         {/* 旧 /teaching-materials へのアクセスは /courses に redirect */}
         <Route path="/teaching-materials" element={<CoursesListPage />} />
         {/* Admin 専用（コンポーネント側で isAdmin チェック → 非 admin は / にリダイレクト） */}
+        <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
         <Route path="/admin/companies" element={<AdminCompaniesPage />} />
         <Route path="/admin/applications" element={<AdminCompanyApplicationsPage />} />
         <Route path="/admin/members" element={<AdminMembersPage />} />

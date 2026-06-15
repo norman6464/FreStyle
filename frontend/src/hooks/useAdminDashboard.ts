@@ -19,13 +19,18 @@ export interface AdminDashboardSummary {
 /**
  * useAdminDashboard — 運営（super_admin）ダッシュボードの概況を取得するフック。
  * 専用の集計 API は持たず、会社一覧 + 利用申請一覧をクライアントで集計する（会社数が少ない前提）。
+ * `enabled=false`（super_admin 以外 / 認証確認中）のときは admin API を叩かない。
  */
-export function useAdminDashboard() {
+export function useAdminDashboard(enabled = true) {
   const [summary, setSummary] = useState<AdminDashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
     (async () => {
       setLoading(true);
@@ -37,7 +42,10 @@ export function useAdminDashboard() {
         ]);
         if (cancelled) return;
         const companyActive = companies.filter((c) => c.isActive).length;
-        const pending = applications.filter((a) => a.status === 'pending');
+        // 直近順は backend の返却順に依存しないよう createdAt 降順で明示的にソートする。
+        const pending = applications
+          .filter((a) => a.status === 'pending')
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         setSummary({
           companyTotal: companies.length,
           companyActive,
@@ -55,7 +63,7 @@ export function useAdminDashboard() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [enabled]);
 
   return { summary, loading, error };
 }

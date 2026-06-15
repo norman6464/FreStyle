@@ -43,11 +43,13 @@ export default function AdminDashboardPage() {
   const isAdmin = useSelector((state: RootState) => state.auth.isAdmin);
   const authLoading = useSelector((state: RootState) => state.auth.loading);
   const role = useSelector((state: RootState) => state.auth.role);
-  const { summary, loading, error } = useAdminDashboard();
+  // super_admin のときだけ admin API を取得する（リダイレクト対象に権限外アクセスを試行させない）。
+  const canView = isAdmin && role === 'super_admin';
+  const { summary, loading, error } = useAdminDashboard(canView);
 
   if (authLoading) return <Loading message="認証情報を確認中..." className="min-h-[50vh]" />;
   // 運営ダッシュボードは全テナント横断の概況なので super_admin 専用。
-  if (!isAdmin || role !== 'super_admin') return <Navigate to="/" replace />;
+  if (!canView) return <Navigate to="/" replace />;
 
   return (
     <div className="px-4 sm:px-6 pt-6 pb-24 max-w-3xl mx-auto space-y-6">

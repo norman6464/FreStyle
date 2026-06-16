@@ -89,6 +89,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	registerExerciseRoutes(authed, deps)
 	registerCourseRoutes(authed, deps)
 	registerTeachingMaterialRoutes(authed, deps)
+	registerLessonProgressRoutes(authed, deps)
 	registerLearningReportRoutes(authed, deps)
 	registerCompanySettingsRoutes(authed, deps)
 	registerCompanyApplicationAdminRoutes(authed, companyAppHandler, audit)

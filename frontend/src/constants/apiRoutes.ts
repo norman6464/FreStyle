@@ -195,6 +195,16 @@ export const TEACHING_MATERIALS = {
   create: `${API_V2}/teaching-materials`,
 } as const;
 
+/** 学習進捗（trainee 自身の教材完了状態。 current user 固定で userId は受け取らない）*/
+export const LESSON_PROGRESS = {
+  /** GET /api/v2/lesson-progress — 自分の完了レッスン一覧 */
+  list: `${API_V2}/lesson-progress`,
+  /** POST /api/v2/lesson-progress — body の teachingMaterialId を完了として記録 */
+  complete: `${API_V2}/lesson-progress`,
+  /** DELETE /api/v2/lesson-progress/:teachingMaterialId — 完了を取り消す */
+  incomplete: (id: number | string) => `${API_V2}/lesson-progress/${id}`,
+} as const;
+
 /** 企業利用申請（公開フォーム → super_admin 通知）*/
 export const COMPANY_APPLICATIONS = {
   /** POST /api/v2/company-applications — 認証不要の申請作成 */

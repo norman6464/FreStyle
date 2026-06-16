@@ -47,6 +47,8 @@ export default function CourseDetailPage() {
 
   const { showToast } = useToast();
   const { isOpen: mobilePanelOpen, open: openMobilePanel, close: closeMobilePanel } = useMobilePanelState();
+  // デスクトップの章一覧パネルの開閉。 教材を切り替えても継続するよう localStorage に保持（既定は表示）。
+  const [panelOpen, setPanelOpen] = useLocalStorage('course-panel-open', true);
 
   const [course, setCourse] = useState<Course | null>(null);
   const [courseLoading, setCourseLoading] = useState(true);
@@ -162,6 +164,9 @@ export default function CourseDetailPage() {
         badge={`${materials.length}件`}
         mobileOpen={mobilePanelOpen}
         onMobileClose={closeMobilePanel}
+        collapsible
+        collapsed={!panelOpen}
+        onToggleCollapsed={() => setPanelOpen((v) => !v)}
         headerContent={
           <div className="space-y-2">
             <Link

@@ -1,14 +1,17 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
 /*
  * highlight.js の GitHub Light テーマを import。
  * rehype-highlight が `<span class="hljs-keyword">` 等にトークンを分けるが、
  * 対応する CSS が無いと色付けされず読めなくなる。
  * FreStyle はライトテーマ単一構成なので、 GitHub README と同じ light を採用。
+ *
+ * ⚠️ `@import` は CSS 仕様上すべての規則より前に置く必要がある（@tailwind より後ろだと
+ *    postcss-import に無視され、 コードがハイライトされなくなる）。 必ずこの位置に置く。
  */
 @import 'highlight.js/styles/github.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 /*
  * prose のコードブロックを GitHub README 風（明るい背景 + 黒文字）にする。
@@ -28,10 +31,17 @@
   background-color: var(--color-surface-2);
   color: var(--color-text-primary);
   border: 1px solid var(--color-surface-3);
+  /* prose-sm は pre(0.857em) × code(0.857em) の複合縮小で本文より小さくなりすぎるため、
+   * 読みやすいサイズ(本文相当)に固定する。 */
+  font-size: 0.875rem;
+  line-height: 1.6;
 }
 .prose pre code {
   background-color: transparent;
+  /* color は hljs のトークン色を活かすための未色付け部フォールバックのみ。 */
   color: var(--color-text-primary);
+  /* typography の code(0.857em) による二重縮小を打ち消し、 pre のサイズを継承する。 */
+  font-size: inherit;
 }
 /*
  * @tailwindcss/typography は inline code (`<code>`) の前後に ::before / ::after で

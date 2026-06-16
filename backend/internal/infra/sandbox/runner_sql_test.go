@@ -18,7 +18,8 @@ import (
 // executeSQL が参照する CODE_PG_* env をセットする。t.Cleanup で停止 + 後始末する。
 // initdb / pg_ctl / psql が無い環境（Go-only CI コンテナ等）では Skip する。
 // runner コンテナの「socket 専用・非 superuser student」構成をローカルで再現する。
-func startTestPG(t *testing.T) {
+// startTestPG は使い捨て PG を起動し、server log ファイルのパスを返す。
+func startTestPG(t *testing.T) string {
 	t.Helper()
 	for _, bin := range []string{"initdb", "pg_ctl", "psql"} {
 		if _, err := exec.LookPath(bin); err != nil {
@@ -42,6 +43,14 @@ func startTestPG(t *testing.T) {
 	// trust auth + locale C で素早く初期化（使い捨てなので耐久性設定は不要）。
 	run("initdb", "-D", dataDir, "-U", "postgres", "-A", "trust", "--encoding=UTF8", "--locale=C")
 
+	// 本番(Dockerfile.coderunner)と同じく client エラー(ERROR/WARNING)を server log に出さない。
+	// → 学習者の SQL ミスが incident 監視(?ERROR)に拾われて誤報になるのを防ぐ。
+	f, err := os.OpenFile(filepath.Join(dataDir, "postgresql.conf"), os.O_APPEND|os.O_WRONLY, 0o644)
+	require.NoError(t, err)
+	_, err = f.WriteString("log_min_messages = log\nlog_min_error_statement = panic\n")
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+
 	logFile := filepath.Join(dataDir, "pg.log")
 	// -h '' で TCP を開かず socket 専用。-k で socket をテスト用 dir に置く。
 	run("pg_ctl", "-D", dataDir, "-l", logFile, "-o", "-k "+sockDir+" -h ''", "-w", "start")
@@ -60,6 +69,7 @@ func startTestPG(t *testing.T) {
 	t.Setenv("CODE_PG_PORT", "5432")
 	t.Setenv("CODE_PG_ADMIN", "dbadmin")
 	t.Setenv("CODE_PG_STUDENT", "student")
+	return logFile
 }
 
 func Test_ランナー_SQL_単純SELECT(t *testing.T) {
@@ -138,6 +148,27 @@ func Test_ランナー_SQL_COPYPROGRAMは権限拒否(t *testing.T) {
 	assert.NotEqual(t, 0, out.ExitCode)
 	// superuser 限定操作なので permission/ superuser 系のエラーになる。
 	assert.NotEmpty(t, out.Stderr)
+}
+
+// 学習者の SQL ミスは「クライアントにはエラーを返す」が「server log には ERROR を残さない」。
+// postgres の client エラーが ECS ログ経由で incident 監視(?ERROR)に拾われ #incident を
+// 誤報で埋めるのを防ぐための regression（log_min_messages=log）。
+func Test_ランナー_SQL_失敗クエリはserverlogにERRORを残さない(t *testing.T) {
+	logFile := startTestPG(t)
+	r := sandbox.NewRunner()
+	out, err := r.Run(context.Background(), domain.CodeExecutionInput{
+		Code:     `SELECT * FROM definitely_no_such_table;`,
+		Language: "sql",
+	})
+	require.NoError(t, err)
+	// 学習者にはエラーが返る（学習体験は維持）。
+	assert.NotEqual(t, 0, out.ExitCode)
+	assert.Contains(t, out.Stderr, "definitely_no_such_table")
+
+	// しかし server log（= ECS ログ → incident 監視）には ERROR 行を残さない。
+	logBytes, err := os.ReadFile(logFile)
+	require.NoError(t, err)
+	assert.NotContains(t, string(logBytes), "ERROR", "postgres server log に ERROR 行が出てはいけない")
 }
 
 // denylist は PG 起動前の入力検証なので PG 無しでも動く。

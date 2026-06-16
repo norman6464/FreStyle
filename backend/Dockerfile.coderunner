@@ -71,6 +71,12 @@ RUN initdb -D /pgdata -U postgres -A trust --encoding=UTF8 --locale=C && \
       echo "synchronous_commit = off"; \
       echo "full_page_writes = off"; \
       echo "max_wal_size = 256MB"; \
+      # 学習者の SQL ミス（構文/権限エラー）は postgres が `ERROR:` で server log に出すが、\
+      # その行が ECS ロググループ経由で incident 監視(?ERROR 一致)に拾われ #incident を誤報で\
+      # 埋めるため、log_min_messages=log で client エラー(ERROR/WARNING)をログに出さない。\
+      # LOG/FATAL は残すので起動診断と真の障害は見える（どちらも ERROR/Exception を含まない）。\
+      echo "log_min_messages = log"; \
+      echo "log_min_error_statement = panic"; \
     } >> /pgdata/postgresql.conf && \
     pg_ctl -D /pgdata -o "-k /tmp/pgsock -h ''" -w -t 30 start && \
     psql -h /tmp/pgsock -U postgres -d postgres -v ON_ERROR_STOP=1 \

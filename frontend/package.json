@@ -17,6 +17,9 @@
     "tailwind:init": "tailwindcss init -p",
     "openapi:generate": "swagger2openapi ../backend/docs/swagger.json --outfile src/generated/openapi.json && openapi-typescript src/generated/openapi.json --output src/generated/api.ts"
   },
+  "overrides": {
+    "form-data": "^4.0.6"
+  },
   "dependencies": {
     "@fontsource/roboto": "^5.2.10",
     "@heroicons/react": "^2.2.0",

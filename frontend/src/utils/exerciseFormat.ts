@@ -5,7 +5,7 @@
 
 /**
  * master_exercises.language → Monaco のシンタックスハイライト言語ID へのマッピング。
- * Monaco は php / go / python / javascript / typescript / shell などを組み込みでサポートする。
+ * Monaco は php / go / python / javascript / typescript / sql / shell などを組み込みでサポートする。
  * 未対応の言語(docker など)は plaintext に fallback する。
  */
 export function monacoLanguageOf(lang: string): string {
@@ -14,6 +14,8 @@ export function monacoLanguageOf(lang: string): string {
       return 'php';
     case 'go':
       return 'go';
+    case 'sql':
+      return 'sql';
     case 'python':
       return 'python';
     case 'javascript':

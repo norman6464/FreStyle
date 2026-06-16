@@ -18,6 +18,9 @@ func Test_機密env判定(t *testing.T) {
 		"SES_FROM_ADDRESS",
 		"BEDROCK_MODEL_ID",
 		"CODE_RUNNER_URL",
+		"CODE_PG_SUPERUSER_PASSWORD",
+		"PGPASSWORD",
+		"PGHOST",
 		"SOME_API_TOKEN",
 		"MY_PRIVATE_KEY",
 	}

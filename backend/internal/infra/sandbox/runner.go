@@ -26,7 +26,31 @@ const (
 	// goExecTimeout は Go 専用。go run はコンパイルも走るため余裕を持たせる（cold compile ~6-8s）。
 	goExecTimeout  = 15 * time.Second
 	maxOutputBytes = 64 * 1024 // 64 KB
+
+	// sqlExecTimeout は SQL 1 提出あたりの上限（CREATE/実行/DROP を含む全体）。
+	sqlExecTimeout = 10 * time.Second
+	// sqlStatementTimeoutMS は個々の文の上限（暴走クエリ・pg_sleep を打ち切る）。
+	sqlStatementTimeoutMS = "5000"
+	// sqlLockTimeoutMS / sqlIdleTxTimeoutMS でロック待ち・放置トランザクションも縛る。
+	sqlLockTimeoutMS   = "2000"
+	sqlIdleTxTimeoutMS = "5000"
 )
+
+// sqlDeniedMeta は psql の backslash メタコマンドのうち、psql クライアント側で
+// ホスト shell / ファイル / プロセスへ逃げられるものを禁止する denylist。
+// 真の権限境界は非 superuser ロール `student` だが、多層防御として入力段でも弾く。
+// 部分一致（大文字小文字無視）で過検出気味に倒す（学習用 SQL に実害は無い）。
+var sqlDeniedMeta = []string{
+	`\!`,      // ホスト shell 実行
+	`\copy`,   // クライアント側 COPY（runner のファイル読み書き）
+	`\g`,      // \g| でパイプ先プログラム実行されうる
+	`\o`,      // 出力をファイルへ
+	`\w`,      // クエリバッファをファイルへ
+	`\i`,      // \i / \ir でファイル include
+	`\e`,      // \e / \ef / \ev でエディタプロセス起動
+	`\lo_`,    // ラージオブジェクト import/export（ファイル I/O）
+	`\setenv`, // 環境変数操作
+}
 
 // 実行を禁止する PHP 関数。ファイル操作・OS 操作・ネットワーク通信などを封じる。
 var disableFunctions = strings.Join([]string{
@@ -64,6 +88,8 @@ func (r *Runner) Run(ctx context.Context, input domain.CodeExecutionInput) (*dom
 		return r.executeGo(ctx, input)
 	case "bash":
 		return r.executeBash(ctx, input)
+	case "sql":
+		return r.executeSQL(ctx, input)
 	default:
 		return nil, fmt.Errorf("未対応の言語: %s", input.Language)
 	}
@@ -196,6 +222,136 @@ func (r *Runner) executeBash(ctx context.Context, input domain.CodeExecutionInpu
 	return runCommand(cmd, input.Stdin)
 }
 
+// pgConn は psql 接続に必要な最小情報。host が "/" 始まりなら unix socket ディレクトリ。
+type pgConn struct {
+	host, port, user, password string
+}
+
+// env は指定 database へ接続する psql 用の最小環境変数を返す（os.Environ は継承しない）。
+func (c pgConn) env(database string, extra ...string) []string {
+	e := []string{
+		"PGHOST=" + c.host,
+		"PGPORT=" + c.port,
+		"PGUSER=" + c.user,
+		"PGDATABASE=" + database,
+		"PGCONNECT_TIMEOUT=5",
+		// psql 自身と libpq の動作に必要な最小 PATH のみ。秘匿 env は一切渡さない。
+		"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+	}
+	if c.password != "" {
+		e = append(e, "PGPASSWORD="+c.password)
+	}
+	return append(e, extra...)
+}
+
+// sqlPgConfig は同居 PostgreSQL への接続情報を env から組む（既定はコンテナの socket）。
+//   - super: CREATE/DROP DATABASE を行う superuser
+//   - student: 学習者 SQL を実行する非 superuser ロール
+func sqlPgConfig() (super, student pgConn) {
+	host := getenvDefault("CODE_PG_HOST", "/var/run/postgresql")
+	port := getenvDefault("CODE_PG_PORT", "5432")
+	super = pgConn{host, port, getenvDefault("CODE_PG_SUPERUSER", "postgres"), os.Getenv("CODE_PG_SUPERUSER_PASSWORD")}
+	student = pgConn{host, port, getenvDefault("CODE_PG_STUDENT", "student"), os.Getenv("CODE_PG_STUDENT_PASSWORD")}
+	return super, student
+}
+
+func getenvDefault(key, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return def
+}
+
+// validateSQLInput は危険な psql メタコマンドを含む入力を弾く（多層防御）。空文字なら OK。
+func validateSQLInput(code string) string {
+	lower := strings.ToLower(code)
+	for _, m := range sqlDeniedMeta {
+		if strings.Contains(lower, m) {
+			return "このメタコマンドは sandbox では使用できません: " + strings.TrimSpace(m)
+		}
+	}
+	return ""
+}
+
+// executeSQL は学習者 SQL を、提出ごとの使い捨て DB に対し非 superuser で実行する。
+// 同居 PostgreSQL（unix socket 専用 / ネットワーク無し）に対してのみ動き、本番 DB には到達しない。
+func (r *Runner) executeSQL(ctx context.Context, input domain.CodeExecutionInput) (*domain.CodeExecutionResult, error) {
+	if msg := validateSQLInput(input.Code); msg != "" {
+		return &domain.CodeExecutionResult{Stderr: msg, ExitCode: 1}, nil
+	}
+
+	super, student := sqlPgConfig()
+	// db 名は識別子として安全な hex のみ（uuid のハイフンを除去）。
+	dbName := "s_" + strings.ReplaceAll(uuid.NewString(), "-", "")
+
+	ctx, cancel := context.WithTimeout(ctx, sqlExecTimeout)
+	defer cancel()
+
+	// 1) 使い捨て DB を作成（superuser）。
+	if err := runPsqlAdmin(ctx, super, "postgres", `CREATE DATABASE "`+dbName+`"`); err != nil {
+		return nil, fmt.Errorf("sql sandbox の準備に失敗: %w", err)
+	}
+	// 後始末は必ず実行する（ctx が timeout していても別 ctx で DROP する）。
+	defer func() {
+		dctx, dcancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer dcancel()
+		_ = runPsqlAdmin(dctx, super, "postgres", `DROP DATABASE IF EXISTS "`+dbName+`" WITH (FORCE)`)
+	}()
+
+	// 2) PG15+ は public スキーマの CREATE 権限が PUBLIC から剥がれているため student に付与。
+	if err := runPsqlAdmin(ctx, super, dbName, `GRANT ALL ON SCHEMA public TO "`+student.user+`"`); err != nil {
+		return nil, fmt.Errorf("sql sandbox の権限設定に失敗: %w", err)
+	}
+
+	// 3) 学習者 SQL を student で実行。出力は採点が安定するよう unaligned + '|' 区切り + footer 無し。
+	tmpDir, err := os.MkdirTemp("", "sql-exec-")
+	if err != nil {
+		return nil, fmt.Errorf("一時ディレクトリの作成に失敗: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+	filename := filepath.Join(tmpDir, "query.sql")
+	if err := os.WriteFile(filename, []byte(input.Code), 0o600); err != nil {
+		return nil, fmt.Errorf("一時ファイルの作成に失敗: %w", err)
+	}
+
+	cmd := exec.CommandContext(
+		ctx, "psql",
+		"-v", "ON_ERROR_STOP=1",
+		"--no-psqlrc", "-q",
+		"-A", "-F", "|", "-P", "footer=off",
+		"-f", filename,
+	)
+	cmd.Env = student.env(
+		dbName,
+		"PGOPTIONS=-c statement_timeout="+sqlStatementTimeoutMS+
+			" -c lock_timeout="+sqlLockTimeoutMS+
+			" -c idle_in_transaction_session_timeout="+sqlIdleTxTimeoutMS,
+	)
+
+	out, runErr := runCommand(cmd, input.Stdin)
+	if out != nil {
+		// 一時パスを学習者に見せない。
+		out.Stderr = strings.ReplaceAll(out.Stderr, filename, "query.sql")
+	}
+	return out, runErr
+}
+
+// runPsqlAdmin は superuser で 1 つの SQL を実行する管理コマンド（CREATE/DROP/GRANT 用）。
+func runPsqlAdmin(ctx context.Context, c pgConn, database, sql string) error {
+	cmd := exec.CommandContext(
+		ctx, "psql",
+		"-v", "ON_ERROR_STOP=1", "--no-psqlrc", "-q",
+		"-c", sql,
+	)
+	cmd.Env = c.env(database)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("%w: %s", err, strings.TrimSpace(stderr.String()))
+	}
+	return nil
+}
+
 // configureProcessGroup は cmd を独立 process group に置き、cancel 時にグループ全体へ SIGKILL を送る。
 // bash など、子孫プロセスを起動しうる言語の leak を防ぐ用途で使う。
 func configureProcessGroup(cmd *exec.Cmd) {
@@ -260,7 +416,7 @@ func sandboxEnv(extra ...string) []string {
 // isSensitiveEnvKey はユーザコードに渡してはいけない env 名かを判定する。
 func isSensitiveEnvKey(key string) bool {
 	k := strings.ToUpper(key)
-	for _, p := range []string{"AWS_", "COGNITO_", "DB_", "DATABASE", "SES_", "DYNAMODB_", "NOTE_IMAGES", "BEDROCK_", "CODE_RUNNER"} {
+	for _, p := range []string{"AWS_", "COGNITO_", "DB_", "DATABASE", "SES_", "DYNAMODB_", "NOTE_IMAGES", "BEDROCK_", "CODE_RUNNER", "CODE_PG", "PG"} {
 		if strings.HasPrefix(k, p) {
 			return true
 		}

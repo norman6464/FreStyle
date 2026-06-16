@@ -54,5 +54,5 @@ func newNoteImagePresignerOrFallback(deps *routeDeps) repository.NoteImagePresig
 		log.Printf("[note-image] failed to init S3 presigner (%v) — falling back to stub", err)
 		return persistence.NewStubNoteImagePresigner(bucket)
 	}
-	return persistence.NewNoteImagePresigner(pre)
+	return persistence.NewNoteImagePresigner(pre, deps.cfg.S3.NoteImagesCDNBase)
 }

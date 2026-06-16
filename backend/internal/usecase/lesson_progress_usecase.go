@@ -6,37 +6,69 @@ import (
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"gorm.io/gorm"
 )
 
-// ErrLessonNotFound は完了対象の教材が存在しないときに返す。
-var ErrLessonNotFound = errors.New("lesson_not_found")
+var (
+	// ErrLessonNotFound は完了対象の教材が存在しないときに返す。
+	ErrLessonNotFound = errors.New("lesson_not_found")
+	// ErrLessonForbidden は他社の教材 / 閲覧不可な教材を完了にしようとしたときに返す。
+	ErrLessonForbidden = errors.New("lesson_forbidden")
+)
 
 // MarkLessonCompletedUseCase は教材を完了として記録する（trainee 自身の進捗）。
-// 教材から course_id を解決して記録するため、クライアントが course を詐称できない。
+// 教材から course_id を解決して記録するため、 クライアントが course を詐称できない。
+// さらに actor の company / role で可視性を検証し、 他社・非公開教材の完了を弾く（IDOR 対策）。
 type MarkLessonCompletedUseCase struct {
 	progress  repository.LessonProgressRepository
 	materials repository.TeachingMaterialRepository
+	courses   repository.CourseRepository
 }
 
 func NewMarkLessonCompletedUseCase(
 	p repository.LessonProgressRepository,
 	m repository.TeachingMaterialRepository,
+	c repository.CourseRepository,
 ) *MarkLessonCompletedUseCase {
-	return &MarkLessonCompletedUseCase{progress: p, materials: m}
+	return &MarkLessonCompletedUseCase{progress: p, materials: m, courses: c}
 }
 
-func (u *MarkLessonCompletedUseCase) Execute(ctx context.Context, userID, materialID uint64) error {
-	m, err := u.materials.GetByID(ctx, materialID)
+// MarkLessonCompletedInput は完了記録の入力。 actor の company / role で可視性を検証する。
+type MarkLessonCompletedInput struct {
+	UserID             uint64
+	ActorCompanyID     uint64
+	ActorRole          string
+	TeachingMaterialID uint64
+}
+
+func (u *MarkLessonCompletedUseCase) Execute(ctx context.Context, in MarkLessonCompletedInput) error {
+	m, err := u.materials.GetByID(ctx, in.TeachingMaterialID)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrLessonNotFound
+		}
 		return err
 	}
 	if m == nil {
 		return ErrLessonNotFound
 	}
-	return u.progress.MarkCompleted(ctx, userID, materialID, m.CourseID)
+	course, err := u.courses.GetByID(ctx, m.CourseID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrLessonNotFound
+		}
+		return err
+	}
+	// 自社かつ閲覧可能な教材のみ完了にできる（他社教材 / trainee に未公開の教材を弾く）。
+	// 既存の単一教材取得 (TeachingMaterialUseCase.Get) と同じ canRead で判定する。
+	if !canRead(m, course, in.ActorCompanyID, in.ActorRole) {
+		return ErrLessonForbidden
+	}
+	return u.progress.MarkCompleted(ctx, in.UserID, in.TeachingMaterialID, m.CourseID)
 }
 
 // MarkLessonIncompleteUseCase は完了記録を取り消す。
+// 対象は (user, material) 一致の自分の行のみで、 他人の進捗には触れられない。
 type MarkLessonIncompleteUseCase struct {
 	progress repository.LessonProgressRepository
 }

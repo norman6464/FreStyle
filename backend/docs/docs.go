@@ -2532,7 +2532,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "current user 名義で教材（レッスン）を完了として記録する。冪等（二重実行しても 1 件）。course は教材から解決する。",
+                "description": "current user 名義で教材（レッスン）を完了として記録する。冪等（二重実行しても 1 件）。course は教材から解決する。自社かつ閲覧可能な教材のみ完了にできる。",
                 "consumes": [
                     "application/json"
                 ],
@@ -2566,6 +2566,12 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "未認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "他社 / 閲覧不可な教材",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }

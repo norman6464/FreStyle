@@ -58,7 +58,7 @@ func (h *LessonProgressHandler) List(c *gin.Context) {
 // Complete は教材を完了として記録する（冪等）。
 //
 //	@Summary      レッスンを完了にする
-//	@Description  current user 名義で教材（レッスン）を完了として記録する。冪等（二重実行しても 1 件）。course は教材から解決する。
+//	@Description  current user 名義で教材（レッスン）を完了として記録する。冪等（二重実行しても 1 件）。course は教材から解決する。自社かつ閲覧可能な教材のみ完了にできる。
 //	@Tags         lesson-progress
 //	@Accept       json
 //	@Produce      json
@@ -66,13 +66,14 @@ func (h *LessonProgressHandler) List(c *gin.Context) {
 //	@Success      204   "成功（本文なし）"
 //	@Failure      400   {object}  errorResponse  "不正な body"
 //	@Failure      401   {object}  errorResponse  "未認証"
+//	@Failure      403   {object}  errorResponse  "他社 / 閲覧不可な教材"
 //	@Failure      404   {object}  errorResponse  "教材が存在しない"
 //	@Failure      500   {object}  errorResponse  "DB 失敗"
 //	@Router       /lesson-progress [post]
 //	@Security     CookieAuth
 func (h *LessonProgressHandler) Complete(c *gin.Context) {
-	uid := middleware.CurrentUserIDOrZero(c)
-	if uid == 0 {
+	user := middleware.CurrentUserFromContext(c)
+	if user == nil {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
@@ -81,10 +82,22 @@ func (h *LessonProgressHandler) Complete(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
 		return
 	}
-	err := h.complete.Execute(c.Request.Context(), uid, req.TeachingMaterialID)
+	var companyID uint64
+	if user.CompanyID != nil {
+		companyID = *user.CompanyID
+	}
+	err := h.complete.Execute(c.Request.Context(), usecase.MarkLessonCompletedInput{
+		UserID:             user.ID,
+		ActorCompanyID:     companyID,
+		ActorRole:          user.Role,
+		TeachingMaterialID: req.TeachingMaterialID,
+	})
 	switch {
 	case errors.Is(err, usecase.ErrLessonNotFound):
 		c.JSON(http.StatusNotFound, errorResponse{Error: "lesson_not_found"})
+		return
+	case errors.Is(err, usecase.ErrLessonForbidden):
+		c.JSON(http.StatusForbidden, errorResponse{Error: "lesson_forbidden"})
 		return
 	case err != nil:
 		c.JSON(http.StatusInternalServerError, errorResponse{Error: "internal_error"})

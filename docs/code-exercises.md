@@ -50,6 +50,11 @@ frontend ExerciseDetailPage (Monaco / monacoLanguageOf)
 - `statement_timeout` ほか + 提出ごと throwaway DB（提出間でデータ混在なし）
 - psql には `sandboxEnv`/明示 env で秘匿情報を渡さない（PG 接続 env も `isSensitiveEnvKey` で他言語へは遮断）
 
+### ログと incident 監視
+- 学習者の SQL ミス（構文/権限エラー）は postgres が `ERROR:` で server log に出すが、`/ecs/frestyle-prod` のサブスクリプションフィルタ `?ERROR ?Exception` が拾って Slack #incident を**誤報で埋める**ため、`postgresql.conf` で **`log_min_messages = log`**（+ `log_min_error_statement = panic`）にして client エラーを server log に出さない。
+- 学習者には**クライアント応答としてエラーは返る**ので学習体験は維持される。`LOG:`/`FATAL:` は残すので起動診断・真の障害は見える（どちらも `ERROR`/`Exception` を含まないので incident は鳴らない）。
+- 将来の堅牢化（infra）: incident サブスクリプションフィルタを backend の構造化ログ `{ $.level = "ERROR" }` 一致に絞る / coderunner ログを別ロググループへ分離。
+
 ### 接続設定（env / 既定はコンテナの socket）
 `CODE_PG_HOST`（既定 `/var/run/postgresql`、コンテナでは `/tmp/pgsock`）/ `CODE_PG_PORT` / `CODE_PG_ADMIN`（DB 作成用 CREATEDB ロール・既定 `dbadmin`）/ `CODE_PG_STUDENT`（既定 `student`）/ `CODE_PG_*_PASSWORD`。
 `Dockerfile.coderunner` が build 時に `initdb` + 極小チューニング（`shared_buffers=32MB` / `fsync=off` 等、使い捨て前提）+ `dbadmin`/`student` ロール作成 + pg_hba（postgres reject）を済ませ、entrypoint が socket 専用で `pg_ctl start` する。

@@ -179,7 +179,9 @@ export default function Header() {
                 onClick={() => setAdminOpen((p) => !p)}
                 aria-haspopup="true"
                 aria-expanded={adminOpen}
-                className={`${navLinkClass(location.pathname.startsWith('/admin'))} inline-flex items-center gap-1`}
+                // 管理はドロップダウンのトリガーなので、 /admin 配下でもアクティブ背景を付けず
+                // 他のナビ項目と同じ通常表示に揃える（実際のページは sub 項目側でハイライトする）。
+                className={`${navLinkClass(false)} inline-flex items-center gap-1`}
               >
                 管理
                 <ChevronDownIcon className={`w-3.5 h-3.5 transition-transform ${adminOpen ? 'rotate-180' : ''}`} />

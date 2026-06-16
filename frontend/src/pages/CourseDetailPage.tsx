@@ -9,6 +9,7 @@ import {
   CheckCircleIcon,
   ClockIcon,
   ArrowLeftIcon,
+  ListBulletIcon,
 } from '@heroicons/react/24/outline';
 import { CheckCircleIcon as CheckCircleSolidIcon } from '@heroicons/react/24/solid';
 import SecondaryPanel from '../components/layout/SecondaryPanel';
@@ -22,6 +23,7 @@ import { useTeachingMaterials } from '../hooks/useTeachingMaterials';
 import { useTeachingMaterialEditor } from '../hooks/useTeachingMaterialEditor';
 import { useLessonProgress } from '../hooks/useLessonProgress';
 import { useMobilePanelState } from '../hooks/useMobilePanelState';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 import { useToast } from '../hooks/useToast';
 import CourseRepository from '../repositories/CourseRepository';
 import type { RootState } from '../store';
@@ -395,9 +397,17 @@ function ReadOnlyDetail({
   completed: boolean;
   onToggleComplete: (done: boolean) => void;
 }) {
+  // 目次の表示状態は localStorage に保持し、 教材を切り替えても選択が続くようにする（既定は表示）。
+  // 横幅が狭いときに本文幅を稼げるよう trainee が出し入れできる。
+  const [tocOpen, setTocOpen] = useLocalStorage('course-toc-open', true);
+
   return (
     <div className="flex-1 overflow-y-auto">
-      <div className="mx-auto w-full max-w-6xl px-6 py-6 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_240px] gap-8">
+      <div
+        className={`mx-auto w-full max-w-6xl px-6 py-6 grid grid-cols-1 gap-8 ${
+          tocOpen ? 'lg:grid-cols-[minmax(0,1fr)_240px]' : ''
+        }`}
+      >
         <article className="min-w-0">
           <h1 className="text-2xl font-bold text-[var(--color-text-primary)] mb-2">
             {material.title || '無題の教材'}
@@ -406,7 +416,24 @@ function ReadOnlyDetail({
             <p className="text-xs text-[var(--color-text-muted)]">
               最終更新: {formatDate(material.updatedAt)}
             </p>
-            <CompleteToggleButton completed={completed} onToggle={onToggleComplete} />
+            <div className="flex items-center gap-2">
+              {/* 目次は lg 以上でのみ表示されるため、 トグルも lg 未満では隠す。 */}
+              <button
+                type="button"
+                onClick={() => setTocOpen((v) => !v)}
+                aria-pressed={tocOpen}
+                title={tocOpen ? '目次を隠す' : '目次を表示'}
+                className={`hidden lg:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                  tocOpen
+                    ? 'border-primary-500 text-primary-400'
+                    : 'border-surface-3 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'
+                }`}
+              >
+                <ListBulletIcon className="w-4 h-4" />
+                目次
+              </button>
+              <CompleteToggleButton completed={completed} onToggle={onToggleComplete} />
+            </div>
           </div>
           <div className="prose prose-sm max-w-none">
             <ReadOnlyMarkdown content={material.content} />
@@ -418,11 +445,13 @@ function ReadOnlyDetail({
           </div>
         </article>
 
-        <aside className="hidden lg:block">
-          <div className="sticky top-6">
-            <MarkdownTableOfContents content={material.content} />
-          </div>
-        </aside>
+        {tocOpen && (
+          <aside className="hidden lg:block">
+            <div className="sticky top-6">
+              <MarkdownTableOfContents content={material.content} />
+            </div>
+          </aside>
+        )}
       </div>
     </div>
   );

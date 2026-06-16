@@ -41,15 +41,17 @@ const (
 // 真の権限境界は非 superuser ロール `student` だが、多層防御として入力段でも弾く。
 // 部分一致（大文字小文字無視）で過検出気味に倒す（学習用 SQL に実害は無い）。
 var sqlDeniedMeta = []string{
-	`\!`,      // ホスト shell 実行
-	`\copy`,   // クライアント側 COPY（runner のファイル読み書き）
-	`\g`,      // \g| でパイプ先プログラム実行されうる
-	`\o`,      // 出力をファイルへ
-	`\w`,      // クエリバッファをファイルへ
-	`\i`,      // \i / \ir でファイル include
-	`\e`,      // \e / \ef / \ev でエディタプロセス起動
-	`\lo_`,    // ラージオブジェクト import/export（ファイル I/O）
-	`\setenv`, // 環境変数操作
+	`\!`,       // ホスト shell 実行
+	`\copy`,    // クライアント側 COPY（runner のファイル読み書き）
+	`\c`,       // \c / \connect で別ロール（CREATEDB の dbadmin 等）へ再接続させない
+	`\connect`, // 同上（明示）
+	`\g`,       // \g| でパイプ先プログラム実行されうる
+	`\o`,       // 出力をファイルへ
+	`\w`,       // クエリバッファをファイルへ
+	`\i`,       // \i / \ir でファイル include
+	`\e`,       // \e / \ef / \ev でエディタプロセス起動
+	`\lo_`,     // ラージオブジェクト import/export（ファイル I/O）
+	`\setenv`,  // 環境変数操作
 }
 
 // 実行を禁止する PHP 関数。ファイル操作・OS 操作・ネットワーク通信などを封じる。
@@ -245,14 +247,17 @@ func (c pgConn) env(database string, extra ...string) []string {
 }
 
 // sqlPgConfig は同居 PostgreSQL への接続情報を env から組む（既定はコンテナの socket）。
-//   - super: CREATE/DROP DATABASE を行う superuser
+//   - admin: CREATE/DROP DATABASE を行う CREATEDB ロール（superuser ではない）
 //   - student: 学習者 SQL を実行する非 superuser ロール
-func sqlPgConfig() (super, student pgConn) {
+//
+// superuser は socket からの接続自体を pg_hba で reject するため、学習者が `\c` 等で
+// superuser へ昇格する経路を塞ぐ。admin が CREATEDB の非 superuser でも DB の作成/破棄は可能。
+func sqlPgConfig() (admin, student pgConn) {
 	host := getenvDefault("CODE_PG_HOST", "/var/run/postgresql")
 	port := getenvDefault("CODE_PG_PORT", "5432")
-	super = pgConn{host, port, getenvDefault("CODE_PG_SUPERUSER", "postgres"), os.Getenv("CODE_PG_SUPERUSER_PASSWORD")}
+	admin = pgConn{host, port, getenvDefault("CODE_PG_ADMIN", "dbadmin"), os.Getenv("CODE_PG_ADMIN_PASSWORD")}
 	student = pgConn{host, port, getenvDefault("CODE_PG_STUDENT", "student"), os.Getenv("CODE_PG_STUDENT_PASSWORD")}
-	return super, student
+	return admin, student
 }
 
 func getenvDefault(key, def string) string {
@@ -280,26 +285,27 @@ func (r *Runner) executeSQL(ctx context.Context, input domain.CodeExecutionInput
 		return &domain.CodeExecutionResult{Stderr: msg, ExitCode: 1}, nil
 	}
 
-	super, student := sqlPgConfig()
+	admin, student := sqlPgConfig()
 	// db 名は識別子として安全な hex のみ（uuid のハイフンを除去）。
 	dbName := "s_" + strings.ReplaceAll(uuid.NewString(), "-", "")
 
 	ctx, cancel := context.WithTimeout(ctx, sqlExecTimeout)
 	defer cancel()
 
-	// 1) 使い捨て DB を作成（superuser）。
-	if err := runPsqlAdmin(ctx, super, "postgres", `CREATE DATABASE "`+dbName+`"`); err != nil {
+	// 1) 使い捨て DB を作成（CREATEDB ロール。作成者が owner になる）。
+	if err := runPsqlAdmin(ctx, admin, "postgres", `CREATE DATABASE "`+dbName+`"`); err != nil {
 		return nil, fmt.Errorf("sql sandbox の準備に失敗: %w", err)
 	}
 	// 後始末は必ず実行する（ctx が timeout していても別 ctx で DROP する）。
 	defer func() {
 		dctx, dcancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer dcancel()
-		_ = runPsqlAdmin(dctx, super, "postgres", `DROP DATABASE IF EXISTS "`+dbName+`" WITH (FORCE)`)
+		_ = runPsqlAdmin(dctx, admin, "postgres", `DROP DATABASE IF EXISTS "`+dbName+`" WITH (FORCE)`)
 	}()
 
 	// 2) PG15+ は public スキーマの CREATE 権限が PUBLIC から剥がれているため student に付与。
-	if err := runPsqlAdmin(ctx, super, dbName, `GRANT ALL ON SCHEMA public TO "`+student.user+`"`); err != nil {
+	//    admin は DB owner（= pg_database_owner）なので public スキーマに GRANT できる。
+	if err := runPsqlAdmin(ctx, admin, dbName, `GRANT ALL ON SCHEMA public TO "`+student.user+`"`); err != nil {
 		return nil, fmt.Errorf("sql sandbox の権限設定に失敗: %w", err)
 	}
 

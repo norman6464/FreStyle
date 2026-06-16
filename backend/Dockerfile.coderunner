@@ -26,10 +26,11 @@ RUN apt-get update && \
 
 # initdb / pg_ctl / postgres の server バイナリは /usr/lib/postgresql/15/bin にあり PATH 外なので通す。
 ENV PATH="/usr/lib/postgresql/15/bin:${PATH}"
-# runner の executeSQL が参照する接続情報（socket 専用 / 非 superuser student）。
+# runner の executeSQL が参照する接続情報（socket 専用 / DB 作成は CREATEDB の dbadmin /
+# 学習者 SQL は非 superuser の student）。superuser は pg_hba で socket 接続を reject する。
 ENV PGDATA=/pgdata \
     CODE_PG_HOST=/tmp/pgsock \
-    CODE_PG_SUPERUSER=postgres \
+    CODE_PG_ADMIN=dbadmin \
     CODE_PG_STUDENT=student
 
 WORKDIR /
@@ -73,8 +74,17 @@ RUN initdb -D /pgdata -U postgres -A trust --encoding=UTF8 --locale=C && \
     } >> /pgdata/postgresql.conf && \
     pg_ctl -D /pgdata -o "-k /tmp/pgsock -h ''" -w -t 30 start && \
     psql -h /tmp/pgsock -U postgres -d postgres -v ON_ERROR_STOP=1 \
+        -c "CREATE ROLE dbadmin LOGIN CREATEDB NOSUPERUSER NOCREATEROLE" \
         -c "CREATE ROLE student LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE" && \
-    pg_ctl -D /pgdata -m fast -w stop
+    pg_ctl -D /pgdata -m fast -w stop && \
+    # superuser(postgres)の socket 接続を reject し、学習者が \c 等で昇格する経路を塞ぐ。
+    # dbadmin(CREATEDB) と student のみ trust（socket 専用 + 非 superuser が真の境界）。
+    { \
+      echo "local   all   postgres   reject"; \
+      echo "local   all   dbadmin    trust"; \
+      echo "local   all   student    trust"; \
+      echo "local   all   all        reject"; \
+    } > /pgdata/pg_hba.conf
 
 EXPOSE 9000
 

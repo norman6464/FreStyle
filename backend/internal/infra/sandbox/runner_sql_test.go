@@ -49,13 +49,16 @@ func startTestPG(t *testing.T) {
 		_ = exec.Command("pg_ctl", "-D", dataDir, "-m", "immediate", "-w", "stop").Run()
 	})
 
-	// 学習者ロール（非 superuser）を作る。
-	run("psql", "-h", sockDir, "-U", "postgres", "-d", "postgres",
-		"-v", "ON_ERROR_STOP=1", "-c", "CREATE ROLE student LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE")
+	// admin: DB の作成/破棄を行う CREATEDB ロール（superuser ではない）。
+	// student: 学習者 SQL を実行する非 superuser ロール。コンテナの本番構成と同じ。
+	run("psql", "-h", sockDir, "-U", "postgres", "-d", "postgres", "-v", "ON_ERROR_STOP=1",
+		"-c", "CREATE ROLE dbadmin LOGIN CREATEDB NOSUPERUSER NOCREATEROLE")
+	run("psql", "-h", sockDir, "-U", "postgres", "-d", "postgres", "-v", "ON_ERROR_STOP=1",
+		"-c", "CREATE ROLE student LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE")
 
 	t.Setenv("CODE_PG_HOST", sockDir)
 	t.Setenv("CODE_PG_PORT", "5432")
-	t.Setenv("CODE_PG_SUPERUSER", "postgres")
+	t.Setenv("CODE_PG_ADMIN", "dbadmin")
 	t.Setenv("CODE_PG_STUDENT", "student")
 }
 
@@ -140,11 +143,11 @@ func Test_ランナー_SQL_COPYPROGRAMは権限拒否(t *testing.T) {
 // denylist は PG 起動前の入力検証なので PG 無しでも動く。
 func Test_ランナー_SQL_危険メタコマンドを拒否(t *testing.T) {
 	r := sandbox.NewRunner()
-	out, err := r.Run(context.Background(), domain.CodeExecutionInput{
-		Code:     "\\! echo pwned",
-		Language: "sql",
-	})
-	require.NoError(t, err)
-	assert.NotEqual(t, 0, out.ExitCode)
-	assert.Contains(t, out.Stderr, "メタコマンド")
+	// \! はホスト shell、\c / \connect は別ロールへの再接続（昇格）を狙うため必ず弾く。
+	for _, code := range []string{"\\! echo pwned", "\\c - dbadmin", "\\connect postgres"} {
+		out, err := r.Run(context.Background(), domain.CodeExecutionInput{Code: code, Language: "sql"})
+		require.NoError(t, err)
+		assert.NotEqual(t, 0, out.ExitCode, "code=%q は拒否されるべき", code)
+		assert.Contains(t, out.Stderr, "メタコマンド", "code=%q", code)
+	}
 }

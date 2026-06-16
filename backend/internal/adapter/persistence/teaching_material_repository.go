@@ -33,8 +33,11 @@ ORDER BY updated_at DESC, id DESC`
 
 // ListByCourse はコース内の教材を order_in_course 昇順で返す。
 func (r *teachingMaterialRepository) ListByCourse(ctx context.Context, courseID uint64, includeUnpublished bool) ([]domain.TeachingMaterial, error) {
+	// 一覧は content(本文 markdown)を返さない（章ごとに重く、 全章を先読みすると非効率）。
+	// 本文は選択時に GetByID で都度取得する。Content は空文字のままになる。
 	const q = `
-SELECT * FROM teaching_materials
+SELECT id, company_id, course_id, created_by_user_id, title, order_in_course, is_published, created_at, updated_at
+FROM teaching_materials
 WHERE course_id = ? AND (? OR is_published = TRUE)
 ORDER BY order_in_course ASC, id ASC`
 	var rows []domain.TeachingMaterial

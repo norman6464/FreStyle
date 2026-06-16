@@ -68,7 +68,7 @@ describe('useTeachingMaterials', () => {
     expect(result.current.error).toBe('教材の取得に失敗しました');
   });
 
-  it('searchQuery でタイトル / 本文がフィルタされる', async () => {
+  it('searchQuery でタイトルがフィルタされる', async () => {
     courseMocks.listMaterials.mockResolvedValue([
       sample(1, { title: 'PHP 入門' }),
       sample(2, { title: 'Go 入門' }),
@@ -78,6 +78,26 @@ describe('useTeachingMaterials', () => {
     act(() => result.current.setSearchQuery('php'));
     expect(result.current.filtered).toHaveLength(1);
     expect(result.current.filtered[0].title).toBe('PHP 入門');
+  });
+
+  it('選択した教材だけ本文を都度取得して selected に入る（全章は先読みしない）', async () => {
+    courseMocks.listMaterials.mockResolvedValue([sample(1), sample(2)]);
+    materialMocks.get.mockResolvedValue({ ...sample(1), content: '# 本文1' });
+    const { result } = renderHook(() => useTeachingMaterials(5));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    // 一覧取得だけでは本文取得(get)は呼ばれない。
+    expect(materialMocks.get).not.toHaveBeenCalled();
+
+    act(() => result.current.selectMaterial(1));
+    await waitFor(() => expect(result.current.selected?.content).toBe('# 本文1'));
+    expect(materialMocks.get).toHaveBeenCalledWith(1);
+    expect(materialMocks.get).toHaveBeenCalledTimes(1);
+
+    // 再選択しても キャッシュ済みなら get は増えない。
+    act(() => result.current.selectMaterial(2));
+    act(() => result.current.selectMaterial(1));
+    await waitFor(() => expect(result.current.selected?.id).toBe(1));
+    expect(materialMocks.get).toHaveBeenCalledTimes(2); // 1 と 2 の計2回（1 の再取得は無し）
   });
 
   it('create 成功時にリストに追加され selected になる', async () => {
@@ -101,10 +121,12 @@ describe('useTeachingMaterials', () => {
 
   it('remove 成功時にリストから消え selected もクリア', async () => {
     courseMocks.listMaterials.mockResolvedValue([sample(1)]);
+    materialMocks.get.mockResolvedValue(sample(1));
     materialMocks.remove.mockResolvedValue(undefined);
     const { result } = renderHook(() => useTeachingMaterials(5));
     await waitFor(() => expect(result.current.loading).toBe(false));
     act(() => result.current.selectMaterial(1));
+    await waitFor(() => expect(result.current.selected?.id).toBe(1));
     await act(async () => {
       await result.current.remove(1);
     });

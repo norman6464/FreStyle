@@ -83,7 +83,9 @@ test.describe('コース学習フロー', () => {
     await mockAuthed(page, {
       '**/api/v2/courses': [course],
       '**/api/v2/courses/1': course,
+      // 一覧はメタデータのみ、 本文は選択時に GET /teaching-materials/:id で取得する。
       '**/api/v2/courses/1/materials': [material],
+      '**/api/v2/teaching-materials/11': material,
     });
 
     await page.goto('/courses');

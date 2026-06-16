@@ -27,6 +27,7 @@ import { useMobilePanelState } from '../hooks/useMobilePanelState';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { useToast } from '../hooks/useToast';
 import CourseRepository from '../repositories/CourseRepository';
+import ImageUploadRepository from '../repositories/ImageUploadRepository';
 import type { RootState } from '../store';
 import type { Course, TeachingMaterial } from '../types';
 
@@ -397,6 +398,7 @@ function ManagedDetail({
           saveStatus={editor.saveStatus}
           onTitleChange={editor.handleTitleChange}
           onContentChange={editor.handleContentChange}
+          onImageUpload={(file) => ImageUploadRepository.upload(file)}
         />
       </div>
     </div>

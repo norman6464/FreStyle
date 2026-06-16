@@ -8,6 +8,7 @@ import {
   ArrowUturnLeftIcon,
   ArrowUturnRightIcon,
   ClipboardDocumentIcon,
+  PhotoIcon,
 } from '@heroicons/react/24/outline';
 import type { SaveStatus } from '../hooks/useNoteEditor';
 import { useToast } from '../hooks/useToast';
@@ -22,6 +23,9 @@ interface NoteMarkdownEditorProps {
   saveStatus: SaveStatus;
   onTitleChange: (title: string) => void;
   onContentChange: (content: string) => void;
+  // 画像アップロード（任意）。File を受け取り公開 URL を返す。 指定すると textarea への
+  // ドラッグ&ドロップ / 貼り付け / ボタンで画像を挿入できる（教材で draw.io 図を埋め込む用途）。
+  onImageUpload?: (file: File) => Promise<string>;
 }
 
 const SAVE_STATUS_CONFIG: Record<Exclude<SaveStatus, 'idle'>, { label: string; color: string }> = {
@@ -42,10 +46,13 @@ export default function NoteMarkdownEditor({
   saveStatus,
   onTitleChange,
   onContentChange,
+  onImageUpload,
 }: NoteMarkdownEditorProps) {
   const [tab, setTab] = useState<'edit' | 'preview'>('edit');
+  const [uploading, setUploading] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { showToast } = useToast();
 
   const stats = useMemo(() => getNoteStats(content), [content]);
@@ -97,6 +104,75 @@ export default function NoteMarkdownEditor({
     URL.revokeObjectURL(url);
   }, [content, title]);
 
+  // textarea のカーソル位置に text を挿入する（controlled value を更新）。
+  const insertAtCursor = useCallback(
+    (text: string) => {
+      const ta = textareaRef.current;
+      if (!ta) {
+        onContentChange(content + text);
+        return;
+      }
+      const start = ta.selectionStart ?? content.length;
+      const end = ta.selectionEnd ?? content.length;
+      onContentChange(content.slice(0, start) + text + content.slice(end));
+      requestAnimationFrame(() => {
+        ta.focus();
+        const pos = start + text.length;
+        ta.setSelectionRange(pos, pos);
+      });
+    },
+    [content, onContentChange],
+  );
+
+  // 画像をアップロードして ![alt](url) を挿入する。
+  const uploadImage = useCallback(
+    async (file: File) => {
+      if (!onImageUpload) return;
+      if (!file.type.startsWith('image/')) {
+        showToast('error', '画像ファイルのみアップロードできます');
+        return;
+      }
+      setUploading(true);
+      try {
+        const url = await onImageUpload(file);
+        const alt = file.name.replace(/\.[^.]+$/, '') || 'image';
+        insertAtCursor(`\n![${alt}](${url})\n`);
+        showToast('success', '画像を挿入しました');
+      } catch {
+        showToast('error', '画像のアップロードに失敗しました');
+      } finally {
+        setUploading(false);
+      }
+    },
+    [onImageUpload, showToast, insertAtCursor],
+  );
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent<HTMLTextAreaElement>) => {
+      if (!onImageUpload) return;
+      const file = Array.from(e.dataTransfer.files).find((f) => f.type.startsWith('image/'));
+      if (file) {
+        e.preventDefault();
+        uploadImage(file);
+      }
+    },
+    [onImageUpload, uploadImage],
+  );
+
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      if (!onImageUpload) return;
+      const file = Array.from(e.clipboardData.items)
+        .find((i) => i.type.startsWith('image/'))
+        ?.getAsFile();
+      if (file) {
+        e.preventDefault();
+        uploadImage(file);
+      }
+    },
+    [onImageUpload, uploadImage],
+  );
+
   return (
     <div className="flex flex-col h-full p-6 max-w-6xl mx-auto w-full">
       <input
@@ -125,6 +201,9 @@ export default function NoteMarkdownEditor({
             ref={textareaRef}
             value={content}
             onChange={(e) => onContentChange(e.target.value)}
+            onDrop={handleDrop}
+            onPaste={handlePaste}
+            onDragOver={onImageUpload ? (e) => e.preventDefault() : undefined}
             placeholder="# 見出し&#10;&#10;Markdown でノートを書きましょう..."
             spellCheck={false}
             className="w-full h-full resize-none p-4 rounded-md bg-surface-1 border border-surface-3 text-sm font-mono text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-primary-500/50 transition-colors"
@@ -149,7 +228,36 @@ export default function NoteMarkdownEditor({
             {SAVE_STATUS_CONFIG[saveStatus].label}
           </span>
         )}
+        {uploading && (
+          <span className="text-xs text-[var(--color-text-muted)]">画像アップロード中...</span>
+        )}
         <div className="ml-auto flex items-center gap-1">
+          {onImageUpload && (
+            <>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                aria-label="画像を挿入"
+                title="画像を挿入（ドラッグ&ドロップ / 貼り付けも可）"
+                className="p-1.5 rounded hover:bg-surface-3 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors disabled:opacity-50"
+              >
+                <PhotoIcon className="w-4 h-4" />
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) uploadImage(f);
+                  e.target.value = '';
+                }}
+              />
+              <span className="w-px h-4 bg-surface-3 mx-1" aria-hidden="true" />
+            </>
+          )}
           <button
             type="button"
             onClick={handleUndo}

@@ -61,6 +61,12 @@ export const NOTES = {
     `${API_V2}/notes/${noteId}/images/presigned-url`,
 } as const;
 
+/** 画像アップロード（current user 名義の S3 PUT 署名 URL。ノート/教材で共有）*/
+export const IMAGES = {
+  /** POST /api/v2/notes/images/upload-url — {contentType} → {url, key, publicUrl} */
+  uploadUrl: `${API_V2}/notes/images/upload-url`,
+} as const;
+
 /** SessionNote (セッション固有ノート) */
 export const SESSION_NOTES = {
   byId: (sessionId: number | string) => `${API_V2}/session-notes/${sessionId}`,

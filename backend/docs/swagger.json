@@ -4104,6 +4104,10 @@
                 "key": {
                     "type": "string"
                 },
+                "publicUrl": {
+                    "description": "PublicURL はアップロード後に img / Markdown から参照する配信用 URL（CDN 経由）。",
+                    "type": "string"
+                },
                 "url": {
                     "type": "string"
                 }

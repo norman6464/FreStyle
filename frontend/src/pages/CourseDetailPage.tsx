@@ -462,7 +462,7 @@ function ReadOnlyDetail({
               <CompleteToggleButton completed={completed} onToggle={onToggleComplete} />
             </div>
           </div>
-          <div className="prose prose-sm max-w-none">
+          <div className="prose prose-sm max-w-none course-prose">
             <ReadOnlyMarkdown content={material.content} />
           </div>
 
@@ -587,6 +587,28 @@ function ReadOnlyMarkdown({ content }: { content: string }) {
             {children as ReactNode}
           </a>
         ),
+        // 図（draw.io から書き出した PNG/SVG 等）を本文に埋め込めるようにする。
+        // 中央寄せ + 枠 + 白背景（透過 SVG が見えるよう）+ クリックで原寸を別タブ表示。
+        img: ({ src, alt }) => {
+          const url = typeof src === 'string' ? src : undefined;
+          return (
+            <figure className="my-5">
+              <a href={url} target="_blank" rel="noopener noreferrer" className="block">
+                <img
+                  src={url}
+                  alt={alt ?? ''}
+                  loading="lazy"
+                  className="mx-auto max-w-full h-auto rounded-lg border border-surface-3 bg-white"
+                />
+              </a>
+              {alt && (
+                <figcaption className="mt-2 text-center text-xs text-[var(--color-text-muted)]">
+                  {alt}
+                </figcaption>
+              )}
+            </figure>
+          );
+        },
         code: ({ className, children, ...props }) => {
           const isBlock = className?.includes('language-');
           if (isBlock) {

@@ -31,7 +31,7 @@ function renderAppShell() {
 }
 
 describe('AppShell', () => {
-  it('サイドバーを表示する', () => {
+  it('ヘッダーのナビを表示する', () => {
     renderAppShell();
     expect(screen.getAllByText('ホーム').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('AI').length).toBeGreaterThanOrEqual(1);

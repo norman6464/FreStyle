@@ -1,36 +1,37 @@
 /*
- * highlight.js の Atom One Dark テーマ（VS Code Dark 風）を import。
+ * highlight.js の Atom One Light テーマ（IDE ライト風）を import。
  * rehype-highlight が `<span class="hljs-keyword">` 等にトークンを分けるが、対応する CSS が
  * 無いと色付けされない。 GitHub Light は配色が地味（文字列 #032f62 がほぼ黒に見える等）で
- * 「赤しか無い」印象になるため、 キーワード / 型 / 関数 / 文字列 / 数値がはっきり色分けされる
- * Atom One Dark を採用し、 コードブロックはエディタ風のダーク背景にする。
+ * 「赤しか無い」印象になり、 Atom One Dark はダーク背景になってしまうため、 ライト背景のまま
+ * キーワード(紫) / 型(橙) / 関数(青) / 文字列(緑) / 数値 がはっきり色分けされる Atom One Light を
+ * 採用する（IDE のライトテーマ相当）。
  *
  * ⚠️ `@import` は CSS 仕様上すべての規則より前に置く必要がある（@tailwind より後ろだと
  *    postcss-import に無視され、 コードがハイライトされなくなる）。 必ずこの位置に置く。
  */
-@import 'highlight.js/styles/atom-one-dark.css';
+@import 'highlight.js/styles/atom-one-light.css';
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /*
- * prose のコードブロックを VS Code Dark 風（ダーク背景 + Atom One Dark の鮮やかな配色）にする。
- * 本文はライトのまま、 コードブロックだけエディタ風のダークにして可読性と色分けを上げる。
+ * prose のコードブロックを IDE ライト風（ライト背景 + Atom One Light の鮮やかな配色）にする。
+ * 背景はアプリのライトテーマに合わせ、 トークンだけ Atom One Light の色で IDE 風に色分けする。
  *
  * - --tw-prose-pre-bg: コードブロック全体の背景
  * - --tw-prose-pre-code: コードブロック内のフォールバック文字色（hljs 未色付け部）
  * - --tw-prose-pre-border: 枠線色
  */
 .prose {
-  --tw-prose-pre-bg: #282c34;
-  --tw-prose-pre-code: #abb2bf;
-  --tw-prose-pre-border: #3a3f4b;
+  --tw-prose-pre-bg: var(--color-surface-2);
+  --tw-prose-pre-code: #383a42;
+  --tw-prose-pre-border: var(--color-surface-3);
 }
 .prose pre {
-  background-color: #282c34;
-  color: #abb2bf;
-  border: 1px solid #3a3f4b;
+  background-color: var(--color-surface-2);
+  color: #383a42;
+  border: 1px solid var(--color-surface-3);
   /* prose-sm は pre(0.857em) × code(0.857em) の複合縮小で本文より小さくなりすぎるため、
    * 読みやすいサイズ(本文相当)に固定する。 */
   font-size: 0.875rem;
@@ -38,7 +39,7 @@
 }
 .prose pre code {
   background-color: transparent;
-  /* Atom One Dark の token 色 / .hljs ベース色(#abb2bf)をそのまま活かす。 */
+  /* Atom One Light の token 色 / .hljs ベース色(#383a42)をそのまま活かす。 */
   color: inherit;
   /* typography の code(0.857em) による二重縮小を打ち消し、 pre のサイズを継承する。 */
   font-size: inherit;

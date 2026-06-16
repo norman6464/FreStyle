@@ -179,7 +179,7 @@ export default function Header() {
               <button
                 type="button"
                 onClick={() => setAdminOpen((p) => !p)}
-                aria-haspopup="menu"
+                aria-haspopup="true"
                 aria-expanded={adminOpen}
                 className={`${navLinkClass(location.pathname.startsWith('/admin'))} inline-flex items-center gap-1`}
               >
@@ -187,12 +187,11 @@ export default function Header() {
                 <ChevronDownIcon className={`w-3.5 h-3.5 transition-transform ${adminOpen ? 'rotate-180' : ''}`} />
               </button>
               {adminOpen && (
-                <div role="menu" className="absolute top-full right-0 mt-2 w-44 bg-surface-1 border border-surface-3 rounded-lg shadow-lg overflow-hidden z-50 animate-fade-in">
+                <div className="absolute top-full right-0 mt-2 w-44 bg-surface-1 border border-surface-3 rounded-lg shadow-lg overflow-hidden z-50 animate-fade-in">
                   {visibleAdminSubs.map((sub) => (
                     <Link
                       key={sub.to}
                       to={sub.to}
-                      role="menuitem"
                       className={`block px-3 py-2 text-sm transition-colors ${
                         location.pathname.startsWith(sub.matchPrefix)
                           ? 'bg-[var(--color-nav-active)] text-[var(--color-text-primary)]'

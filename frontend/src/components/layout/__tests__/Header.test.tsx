@@ -93,12 +93,11 @@ describe('Header', () => {
     expect(screen.getByText('ログアウト')).toBeInTheDocument();
   });
 
-  it('ユーザーメニューを開くと設定/ログアウトの menuitem が出る', async () => {
+  it('ユーザーメニューを開くと設定/ログアウトが出る', async () => {
     renderHeader({ role: 'trainee', aiChatEnabledForTrainees: true });
     const userButton = await screen.findByText('テスト太郎');
     fireEvent.click(userButton);
-    const items = screen.getAllByRole('menuitem');
-    expect(items.some((m) => m.textContent?.includes('設定'))).toBe(true);
-    expect(items.some((m) => m.textContent?.includes('ログアウト'))).toBe(true);
+    expect(screen.getByRole('button', { name: '設定' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'ログアウト' })).toBeInTheDocument();
   });
 });

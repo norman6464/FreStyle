@@ -63,7 +63,7 @@ export default function HeaderUserMenu({
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        aria-haspopup="menu"
+        aria-haspopup="true"
         aria-expanded={open}
         className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-[var(--color-nav-hover)] transition-colors"
       >
@@ -75,10 +75,8 @@ export default function HeaderUserMenu({
       </button>
 
       {open && (
-        <div
-          role="menu"
-          className="absolute top-full right-0 mt-2 w-56 bg-surface-1 border border-surface-3 rounded-lg shadow-lg overflow-hidden z-50 animate-fade-in"
-        >
+        <div className="absolute top-full right-0 mt-2 w-56 bg-surface-1 border border-surface-3 rounded-lg shadow-lg overflow-hidden z-50 animate-fade-in">
+
           {(email || subText) && (
             <>
               <div className="px-3 py-2">
@@ -96,7 +94,6 @@ export default function HeaderUserMenu({
           )}
           <button
             type="button"
-            role="menuitem"
             onClick={handleSettings}
             className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--color-text-primary)] hover:bg-[var(--color-nav-hover)] transition-colors whitespace-nowrap"
           >
@@ -106,7 +103,6 @@ export default function HeaderUserMenu({
           <div className="border-t border-surface-3" />
           <button
             type="button"
-            role="menuitem"
             onClick={handleLogout}
             className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--color-text-muted)] hover:bg-red-900/10 hover:text-red-500 transition-colors whitespace-nowrap"
           >

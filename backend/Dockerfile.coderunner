@@ -13,17 +13,30 @@ ENV CGO_ENABLED=0 GOOS=linux GOARCH=amd64
 RUN go build -trimpath -ldflags="-s -w" -o /out/coderunner ./cmd/coderunner
 
 # --- Runtime stage ---
-# 学習者コード（php / go / bash）をサンドボックス実行するため、PHP CLI / Go ツールチェインを同居させる。
-# backend 本体（cmd/server）はこのランタイムを含まない distroless に分離する。
+# 学習者コード（php / go / bash / sql）をサンドボックス実行するため、PHP CLI / Go ツールチェイン /
+# 使い捨て PostgreSQL を同居させる。backend 本体（cmd/server）はこのランタイムを含まない distroless に分離する。
 # runner には DB / Cognito / AWS の機密 env を注入しない（ECS タスク定義で env を渡さない）。
 FROM golang:1.26-bookworm
 
+# php-cli: PHP 実行 / postgresql-15: SQL 実行用の同居 PostgreSQL（socket 専用・使い捨て DB）。
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends php-cli ca-certificates && \
+    apt-get install -y --no-install-recommends \
+        php-cli ca-certificates postgresql-15 postgresql-client-15 && \
     rm -rf /var/lib/apt/lists/*
+
+# initdb / pg_ctl / postgres の server バイナリは /usr/lib/postgresql/15/bin にあり PATH 外なので通す。
+ENV PATH="/usr/lib/postgresql/15/bin:${PATH}"
+# runner の executeSQL が参照する接続情報（socket 専用 / DB 作成は CREATEDB の dbadmin /
+# 学習者 SQL は非 superuser の student）。superuser は pg_hba で socket 接続を reject する。
+ENV PGDATA=/pgdata \
+    CODE_PG_HOST=/tmp/pgsock \
+    CODE_PG_ADMIN=dbadmin \
+    CODE_PG_STUDENT=student
 
 WORKDIR /
 COPY --from=builder /out/coderunner /coderunner
+COPY scripts/coderunner-entrypoint.sh /coderunner-entrypoint.sh
+RUN chmod +x /coderunner-entrypoint.sh
 
 # nonroot ユーザー (UID=65532) は distroless 互換値を踏襲。
 RUN groupadd -g 65532 nonroot && useradd -u 65532 -g nonroot -s /sbin/nologin nonroot
@@ -42,7 +55,37 @@ RUN printf 'package main\nimport "fmt"\nfunc main() { fmt.Println("warmup") }\n'
     rm /tmp/warmup.go && \
     chown -R nonroot:nonroot /tmp/go-build-cache
 
+# 使い捨て PostgreSQL を build 時に初期化する（socket 専用 / 極小チューニング / 非 superuser student）。
+# data dir をイメージに焼き込み、起動時は entrypoint が pg_ctl start するだけにする。
+# 耐久性設定（fsync 等）は使い捨て前提で off にし、512MB タスクでも軽量に動かす。
+RUN mkdir -p /pgdata /tmp/pgsock && chown -R nonroot:nonroot /pgdata /tmp/pgsock
 USER nonroot:nonroot
+RUN initdb -D /pgdata -U postgres -A trust --encoding=UTF8 --locale=C && \
+    { \
+      echo "listen_addresses = ''"; \
+      echo "unix_socket_directories = '/tmp/pgsock'"; \
+      echo "shared_buffers = 32MB"; \
+      echo "work_mem = 8MB"; \
+      echo "max_connections = 20"; \
+      echo "fsync = off"; \
+      echo "synchronous_commit = off"; \
+      echo "full_page_writes = off"; \
+      echo "max_wal_size = 256MB"; \
+    } >> /pgdata/postgresql.conf && \
+    pg_ctl -D /pgdata -o "-k /tmp/pgsock -h ''" -w -t 30 start && \
+    psql -h /tmp/pgsock -U postgres -d postgres -v ON_ERROR_STOP=1 \
+        -c "CREATE ROLE dbadmin LOGIN CREATEDB NOSUPERUSER NOCREATEROLE" \
+        -c "CREATE ROLE student LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE" && \
+    pg_ctl -D /pgdata -m fast -w stop && \
+    # superuser(postgres)の socket 接続を reject し、学習者が \c 等で昇格する経路を塞ぐ。
+    # dbadmin(CREATEDB) と student のみ trust（socket 専用 + 非 superuser が真の境界）。
+    { \
+      echo "local   all   postgres   reject"; \
+      echo "local   all   dbadmin    trust"; \
+      echo "local   all   student    trust"; \
+      echo "local   all   all        reject"; \
+    } > /pgdata/pg_hba.conf
+
 EXPOSE 9000
 
-ENTRYPOINT ["/coderunner"]
+ENTRYPOINT ["/coderunner-entrypoint.sh"]

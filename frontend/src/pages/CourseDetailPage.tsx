@@ -408,9 +408,9 @@ function ReadOnlyDetail({
           tocOpen ? 'lg:grid-cols-[minmax(0,1fr)_240px]' : ''
         }`}
       >
-        {/* 目次を隠したときは本文が全幅に伸びて読みにくいため、 読みやすい幅(~896px)に
+        {/* 目次を隠したときは本文が全幅に伸びて読みにくいため、 読みやすい幅(800px)に
             収めて中央寄せする。 目次表示時は 1fr カラムが既に同程度の幅になる。 */}
-        <article className={`min-w-0 ${!tocOpen ? 'mx-auto w-full max-w-4xl' : ''}`}>
+        <article className={`min-w-0 ${!tocOpen ? 'mx-auto w-full max-w-[800px]' : ''}`}>
           <h1 className="text-2xl font-bold text-[var(--color-text-primary)] mb-2">
             {material.title || '無題の教材'}
           </h1>

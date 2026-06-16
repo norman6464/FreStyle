@@ -3,8 +3,6 @@ import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import {
   PlusIcon,
-  CheckCircleIcon,
-  ClockIcon,
   PencilSquareIcon,
   TrashIcon,
 } from '@heroicons/react/24/outline';
@@ -173,11 +171,6 @@ function CourseCard({
     >
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="flex items-center gap-2 min-w-0">
-          {course.isPublished ? (
-            <CheckCircleIcon className="w-4 h-4 text-green-500 flex-shrink-0" />
-          ) : (
-            <ClockIcon className="w-4 h-4 text-amber-500 flex-shrink-0" />
-          )}
           <h2 className="text-base font-semibold text-[var(--color-text-primary)] truncate">
             {course.title || '無題のコース'}
           </h2>

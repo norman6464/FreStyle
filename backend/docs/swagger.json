@@ -2480,6 +2480,153 @@
                 }
             }
         },
+        "/lesson-progress": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "current user が完了した教材（レッスン）の一覧を返す。進捗バー / 完了チェック表示用。userId は受け取らない（current user 固定）。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "lesson-progress"
+                ],
+                "summary": "自分の学習進捗（完了レッスン一覧）",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.UserLessonProgress"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "未認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "current user 名義で教材（レッスン）を完了として記録する。冪等（二重実行しても 1 件）。course は教材から解決する。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "lesson-progress"
+                ],
+                "summary": "レッスンを完了にする",
+                "parameters": [
+                    {
+                        "description": "完了する教材 ID",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.markLessonCompleteRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "成功（本文なし）"
+                    },
+                    "400": {
+                        "description": "不正な body",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "教材が存在しない",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/lesson-progress/{teachingMaterialId}": {
+            "delete": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "current user の当該教材の完了記録を取り消す（未記録でも 204）。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "lesson-progress"
+                ],
+                "summary": "レッスンの完了を取り消す",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "教材 ID",
+                        "name": "teachingMaterialId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "成功（本文なし）"
+                    },
+                    "400": {
+                        "description": "不正な ID",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/notes": {
             "get": {
                 "security": [
@@ -4084,6 +4231,29 @@
                 }
             }
         },
+        "github_com_norman6464_FreStyle_backend_internal_domain.UserLessonProgress": {
+            "type": "object",
+            "properties": {
+                "completedAt": {
+                    "type": "string"
+                },
+                "courseId": {
+                    "type": "integer"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "teachingMaterialId": {
+                    "type": "integer"
+                },
+                "userId": {
+                    "type": "integer"
+                }
+            }
+        },
         "github_com_norman6464_FreStyle_backend_internal_domain.UserStats": {
             "type": "object",
             "properties": {
@@ -4491,6 +4661,17 @@
             "properties": {
                 "contentType": {
                     "type": "string"
+                }
+            }
+        },
+        "internal_handler.markLessonCompleteRequest": {
+            "type": "object",
+            "required": [
+                "teachingMaterialId"
+            ],
+            "properties": {
+                "teachingMaterialId": {
+                    "type": "integer"
                 }
             }
         },

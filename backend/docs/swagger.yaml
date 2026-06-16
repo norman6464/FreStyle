@@ -377,6 +377,21 @@ definitions:
       updatedAt:
         type: string
     type: object
+  github_com_norman6464_FreStyle_backend_internal_domain.UserLessonProgress:
+    properties:
+      completedAt:
+        type: string
+      courseId:
+        type: integer
+      createdAt:
+        type: string
+      id:
+        type: integer
+      teachingMaterialId:
+        type: integer
+      userId:
+        type: integer
+    type: object
   github_com_norman6464_FreStyle_backend_internal_domain.UserStats:
     properties:
       averageScore:
@@ -647,6 +662,13 @@ definitions:
     properties:
       contentType:
         type: string
+    type: object
+  internal_handler.markLessonCompleteRequest:
+    properties:
+      teachingMaterialId:
+        type: integer
+    required:
+    - teachingMaterialId
     type: object
   internal_handler.meResponse:
     properties:
@@ -2498,6 +2520,100 @@ paths:
       summary: 月次 学習 レポート 生成 要求
       tags:
       - learning-reports
+  /lesson-progress:
+    get:
+      description: current user が完了した教材（レッスン）の一覧を返す。進捗バー / 完了チェック表示用。userId は受け取らない（current
+        user 固定）。
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.UserLessonProgress'
+            type: array
+        "401":
+          description: 未認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 自分の学習進捗（完了レッスン一覧）
+      tags:
+      - lesson-progress
+    post:
+      consumes:
+      - application/json
+      description: current user 名義で教材（レッスン）を完了として記録する。冪等（二重実行しても 1 件）。course は教材から解決する。
+      parameters:
+      - description: 完了する教材 ID
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.markLessonCompleteRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: 成功（本文なし）
+        "400":
+          description: 不正な body
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "404":
+          description: 教材が存在しない
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: レッスンを完了にする
+      tags:
+      - lesson-progress
+  /lesson-progress/{teachingMaterialId}:
+    delete:
+      description: current user の当該教材の完了記録を取り消す（未記録でも 204）。
+      parameters:
+      - description: 教材 ID
+        in: path
+        name: teachingMaterialId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: 成功（本文なし）
+        "400":
+          description: 不正な ID
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: レッスンの完了を取り消す
+      tags:
+      - lesson-progress
   /notes:
     get:
       description: current user の note を 更新 日 降順 で 返す。 IDOR 対策 で userId は 受け取らない。

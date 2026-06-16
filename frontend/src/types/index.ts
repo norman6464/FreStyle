@@ -589,6 +589,19 @@ export interface TeachingMaterial {
   updatedAt: string;
 }
 
+/**
+ * UserLessonProgress は trainee 自身の教材（レッスン）完了記録。 backend `domain.UserLessonProgress` と 1:1。
+ * current user 固定で、 他人の進捗は取得・操作できない。
+ */
+export interface UserLessonProgress {
+  id: number;
+  userId: number;
+  teachingMaterialId: number;
+  courseId: number;
+  completedAt: string;
+  createdAt: string;
+}
+
 /** 一覧 API (`GET /api/v2/exercises`) で返る集計値（Go backend `repository.ExerciseSubmissionStats`）。 */
 export interface ExerciseSubmissionStats {
   totalSubmissions: number;

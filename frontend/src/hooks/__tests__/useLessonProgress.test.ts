@@ -71,6 +71,28 @@ describe('useLessonProgress', () => {
     expect(result.current.isCompleted(10)).toBe(false);
   });
 
+  it('同一教材への連打は in-flight 中の重複呼び出しを無視する', async () => {
+    mocks.list.mockResolvedValue([]);
+    let resolveComplete: () => void = () => {};
+    mocks.complete.mockReturnValue(
+      new Promise<void>((res) => {
+        resolveComplete = res;
+      }),
+    );
+    const { result } = renderHook(() => useLessonProgress(true));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      // 1 回目は in-flight、 2 回目は即無視される。
+      const p1 = result.current.toggle(10, true);
+      const p2 = result.current.toggle(10, true);
+      resolveComplete();
+      await Promise.all([p1, p2]);
+    });
+    expect(mocks.complete).toHaveBeenCalledTimes(1);
+    expect(result.current.isCompleted(10)).toBe(true);
+  });
+
   it('API 失敗時は元の状態へロールバックする', async () => {
     mocks.list.mockResolvedValue([]);
     mocks.complete.mockRejectedValue(new Error('network'));

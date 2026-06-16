@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import LessonProgressRepository from '../repositories/LessonProgressRepository';
 
 /**
@@ -10,6 +10,9 @@ import LessonProgressRepository from '../repositories/LessonProgressRepository';
 export function useLessonProgress(enabled: boolean) {
   const [completedIds, setCompletedIds] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(enabled);
+  // 同一教材への連打（冒頭/末尾の 2 ボタン）で toggle が並行し、
+  // 失敗ロールバックが完了順依存でズレるのを防ぐ in-flight ガード。
+  const inFlightRef = useRef<Set<number>>(new Set());
 
   useEffect(() => {
     if (!enabled) {
@@ -52,6 +55,8 @@ export function useLessonProgress(enabled: boolean) {
   /** toggle は materialId を done の状態へ更新する。 楽観的更新し、 失敗時は false を返してロールバック。 */
   const toggle = useCallback(
     async (materialId: number, done: boolean): Promise<boolean> => {
+      if (inFlightRef.current.has(materialId)) return true; // 同一教材の二重送信を無視
+      inFlightRef.current.add(materialId);
       setLocal(materialId, done);
       try {
         if (done) await LessonProgressRepository.complete(materialId);
@@ -60,6 +65,8 @@ export function useLessonProgress(enabled: boolean) {
       } catch {
         setLocal(materialId, !done);
         return false;
+      } finally {
+        inFlightRef.current.delete(materialId);
       }
     },
     [setLocal],

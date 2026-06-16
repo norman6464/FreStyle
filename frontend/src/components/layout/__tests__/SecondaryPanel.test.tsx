@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
 import SecondaryPanel from '../SecondaryPanel';
 
 describe('SecondaryPanel', () => {
@@ -40,5 +40,30 @@ describe('SecondaryPanel', () => {
       </SecondaryPanel>
     );
     expect(screen.getByLabelText('パネルを閉じる')).toBeDefined();
+  });
+
+  it('collapsible のとき折りたたみボタンを出し、クリックでトグルを呼ぶ', () => {
+    const onToggle = vi.fn();
+    render(
+      <SecondaryPanel title="テスト" collapsible collapsed={false} onToggleCollapsed={onToggle}>
+        <div>内容</div>
+      </SecondaryPanel>
+    );
+    const btn = screen.getByLabelText('パネルを折りたたむ');
+    fireEvent.click(btn);
+    expect(onToggle).toHaveBeenCalledTimes(1);
+  });
+
+  it('折りたたみ中は「開く」ボタンを出し、折りたたみボタンは出さない', () => {
+    const onToggle = vi.fn();
+    render(
+      <SecondaryPanel title="テスト" collapsible collapsed onToggleCollapsed={onToggle}>
+        <div>章リスト内容</div>
+      </SecondaryPanel>
+    );
+    // 折りたたみ中はデスクトップの全幅パネル（折りたたむボタン）を描画しない。
+    expect(screen.queryByLabelText('パネルを折りたたむ')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('パネルを開く'));
+    expect(onToggle).toHaveBeenCalledTimes(1);
   });
 });

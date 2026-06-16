@@ -7,15 +7,18 @@ import TeachingMaterialRepository, {
 import type { TeachingMaterial } from '../types';
 
 /**
- * useTeachingMaterials — 指定コース配下の教材一覧 + 選択 + CRUD の状態管理。
+ * useTeachingMaterials — 指定コース配下の教材の「一覧(メタデータ) + 選択 + CRUD」の状態管理。
  *
- * `courseId` が 0 / null なら何もせず空配列を保持する（routing で `/courses/:id` に
- * 入った瞬間にコース ID が確定する想定）。 autosave は別 hook (useTeachingMaterialEditor) に分離。
+ * 効率化のため一覧は本文(content)を含まない軽量メタデータで取得し、 選択された教材の本文だけ
+ * `GetByID` で都度取得してキャッシュする（全章を先読みしない）。autosave は useTeachingMaterialEditor。
  */
 export function useTeachingMaterials(courseId: number | null) {
+  // materials は content を持たないメタデータ一覧。 detailCache は本文込みの取得済み教材。
   const [materials, setMaterials] = useState<TeachingMaterial[]>([]);
+  const [detailCache, setDetailCache] = useState<Record<number, TeachingMaterial>>({});
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -41,17 +44,40 @@ export function useTeachingMaterials(courseId: number | null) {
     fetchAll();
   }, [fetchAll]);
 
-  const selected = useMemo(
-    () => materials.find((m) => m.id === selectedId) ?? null,
-    [materials, selectedId],
-  );
+  // コースが変わったら選択 / 本文キャッシュをリセットする。
+  useEffect(() => {
+    setSelectedId(null);
+    setDetailCache({});
+  }, [courseId]);
+
+  // 選択された教材の本文を都度取得してキャッシュする（未取得時のみ）。
+  useEffect(() => {
+    if (selectedId == null || detailCache[selectedId]) return;
+    let active = true;
+    setDetailLoading(true);
+    TeachingMaterialRepository.get(selectedId)
+      .then((m) => {
+        if (active) setDetailCache((prev) => ({ ...prev, [m.id]: m }));
+      })
+      .catch(() => {
+        if (active) setError('教材の取得に失敗しました');
+      })
+      .finally(() => {
+        if (active) setDetailLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [selectedId, detailCache]);
+
+  // selected は本文込みのキャッシュから返す（未取得なら null = 取得中）。
+  const selected = selectedId != null ? (detailCache[selectedId] ?? null) : null;
 
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return materials;
-    return materials.filter(
-      (m) => m.title.toLowerCase().includes(q) || m.content.toLowerCase().includes(q),
-    );
+    // 一覧は本文を持たないためタイトル検索のみ（本文全文検索は別途 backend 検索で対応）。
+    return materials.filter((m) => m.title.toLowerCase().includes(q));
   }, [materials, searchQuery]);
 
   const create = useCallback(
@@ -62,7 +88,8 @@ export function useTeachingMaterials(courseId: number | null) {
       }
       try {
         const created = await TeachingMaterialRepository.create({ ...initial, courseId });
-        setMaterials((prev) => [...prev, created].sort(byOrderThenId));
+        setMaterials((prev) => [...prev, stripContent(created)].sort(byOrderThenId));
+        setDetailCache((prev) => ({ ...prev, [created.id]: created }));
         setSelectedId(created.id);
         return created;
       } catch {
@@ -73,23 +100,26 @@ export function useTeachingMaterials(courseId: number | null) {
     [courseId],
   );
 
-  const update = useCallback(
-    async (id: number, payload: TeachingMaterialUpdatePayload): Promise<void> => {
-      try {
-        const updated = await TeachingMaterialRepository.update(id, payload);
-        setMaterials((prev) => prev.map((m) => (m.id === id ? updated : m)).sort(byOrderThenId));
-      } catch {
-        setError('教材の更新に失敗しました');
-      }
-    },
-    [],
-  );
+  const update = useCallback(async (id: number, payload: TeachingMaterialUpdatePayload): Promise<void> => {
+    try {
+      const updated = await TeachingMaterialRepository.update(id, payload);
+      setMaterials((prev) => prev.map((m) => (m.id === id ? stripContent(updated) : m)).sort(byOrderThenId));
+      setDetailCache((prev) => ({ ...prev, [id]: updated }));
+    } catch {
+      setError('教材の更新に失敗しました');
+    }
+  }, []);
 
   const remove = useCallback(
     async (id: number): Promise<void> => {
       try {
         await TeachingMaterialRepository.remove(id);
         setMaterials((prev) => prev.filter((m) => m.id !== id));
+        setDetailCache((prev) => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
         if (selectedId === id) setSelectedId(null);
       } catch {
         setError('教材の削除に失敗しました');
@@ -104,6 +134,7 @@ export function useTeachingMaterials(courseId: number | null) {
     selectedId,
     selected,
     loading,
+    detailLoading,
     error,
     searchQuery,
     setSearchQuery,
@@ -113,6 +144,11 @@ export function useTeachingMaterials(courseId: number | null) {
     update,
     remove,
   };
+}
+
+// 一覧(メタデータ)に本文を持たせない（先読み抑制 + 一貫性のため content を空にする）。
+function stripContent(m: TeachingMaterial): TeachingMaterial {
+  return { ...m, content: '' };
 }
 
 function byOrderThenId(a: TeachingMaterial, b: TeachingMaterial): number {

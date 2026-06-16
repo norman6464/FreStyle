@@ -62,6 +62,7 @@ export default function CourseDetailPage() {
     selectedId,
     selected,
     loading,
+    detailLoading,
     error,
     searchQuery,
     setSearchQuery,
@@ -260,7 +261,10 @@ export default function CourseDetailPage() {
 
         {error && <p className="px-6 py-3 text-sm text-red-500">{error}</p>}
 
-        {selected ? (
+        {detailLoading && !selected ? (
+          // 章を選択したら本文を都度取得する。取得中はスピナーを出す。
+          <Loading className="h-full" />
+        ) : selected ? (
           canManage ? (
             <ManagedDetail editor={editor} />
           ) : (

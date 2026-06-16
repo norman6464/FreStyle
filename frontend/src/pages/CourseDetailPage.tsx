@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useSelector } from 'react-redux';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
@@ -9,6 +9,7 @@ import {
   CheckCircleIcon,
   ClockIcon,
   ArrowLeftIcon,
+  ArrowRightIcon,
   ListBulletIcon,
 } from '@heroicons/react/24/outline';
 import { CheckCircleIcon as CheckCircleSolidIcon } from '@heroicons/react/24/solid';
@@ -77,6 +78,13 @@ export default function CourseDetailPage() {
     () => materials.filter((m) => progress.completedIds.has(m.id)).length,
     [materials, progress.completedIds],
   );
+
+  // 表示順で「次の章」を求める（読み終えたら順に進める導線用）。
+  const nextMaterial = useMemo(() => {
+    if (selectedId == null) return null;
+    const idx = materials.findIndex((m) => m.id === selectedId);
+    return idx >= 0 && idx < materials.length - 1 ? materials[idx + 1] : null;
+  }, [materials, selectedId]);
 
   const handleToggleComplete = async (materialId: number, done: boolean) => {
     const ok = await progress.toggle(materialId, done);
@@ -259,6 +267,8 @@ export default function CourseDetailPage() {
               material={selected}
               completed={progress.completedIds.has(selected.id)}
               onToggleComplete={(done) => handleToggleComplete(selected.id, done)}
+              nextMaterial={nextMaterial}
+              onGoNext={nextMaterial ? () => selectMaterial(nextMaterial.id) : undefined}
             />
           )
         ) : (
@@ -397,17 +407,27 @@ function ReadOnlyDetail({
   material,
   completed,
   onToggleComplete,
+  nextMaterial,
+  onGoNext,
 }: {
   material: TeachingMaterial;
   completed: boolean;
   onToggleComplete: (done: boolean) => void;
+  nextMaterial?: TeachingMaterial | null;
+  onGoNext?: () => void;
 }) {
   // 目次の表示状態は localStorage に保持し、 教材を切り替えても選択が続くようにする（既定は表示）。
   // 横幅が狭いときに本文幅を稼げるよう trainee が出し入れできる。
   const [tocOpen, setTocOpen] = useLocalStorage('course-toc-open', true);
 
+  // 章を切り替えたら本文の先頭までスクロールを戻す（末尾の「次の章へ」から進んでも頭から読める）。
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: 0 });
+  }, [material.id]);
+
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div ref={scrollRef} className="flex-1 overflow-y-auto">
       <div
         className={`mx-auto w-full max-w-6xl px-6 py-6 grid grid-cols-1 gap-8 ${
           tocOpen ? 'lg:grid-cols-[minmax(0,1fr)_240px]' : ''
@@ -446,9 +466,20 @@ function ReadOnlyDetail({
             <ReadOnlyMarkdown content={material.content} />
           </div>
 
-          {/* 末尾にも完了ボタンを置き、 読み終えた位置から戻らず完了にできるようにする。 */}
-          <div className="mt-10 pt-6 border-t border-surface-3 flex justify-center">
+          {/* 末尾に「完了にする」と「次の章へ」を並べ、 読み終えた位置から次へ進めるようにする。 */}
+          <div className="mt-10 pt-6 border-t border-surface-3 flex flex-col sm:flex-row items-center justify-center gap-3">
             <CompleteToggleButton completed={completed} onToggle={onToggleComplete} large />
+            {nextMaterial && onGoNext && (
+              <button
+                type="button"
+                onClick={onGoNext}
+                title={`次の章へ: ${nextMaterial.title || '無題の教材'}`}
+                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium bg-surface-2 border border-surface-3 text-[var(--color-text-primary)] hover:bg-surface-3 transition-colors max-w-full"
+              >
+                <span className="truncate">次の章へ: {nextMaterial.title || '無題の教材'}</span>
+                <ArrowRightIcon className="w-4 h-4 flex-shrink-0" />
+              </button>
+            )}
           </div>
         </article>
 

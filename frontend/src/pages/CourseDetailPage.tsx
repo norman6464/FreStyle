@@ -589,7 +589,7 @@ function ReadOnlyMarkdown({ content }: { content: string }) {
                   src={url}
                   alt={alt ?? ''}
                   loading="lazy"
-                  className="mx-auto max-w-full h-auto rounded-lg border border-surface-3 bg-white"
+                  className="mx-auto max-w-[90%] h-auto rounded-lg border border-surface-3 bg-white"
                 />
               </a>
               {alt && (

@@ -33,8 +33,8 @@
   color: #383a42;
   border: 1px solid var(--color-surface-3);
   /* prose-sm は pre(0.857em) × code(0.857em) の複合縮小で本文より小さくなりすぎるため、
-   * 読みやすいサイズ(本文相当)に固定する。 */
-  font-size: 0.875rem;
+   * 読みやすいサイズに固定する（本文よりほんの少し小さめ）。 */
+  font-size: 0.8125rem;
   line-height: 1.6;
 }
 .prose pre code {
@@ -52,7 +52,8 @@
   font-size: 0.9375rem;
 }
 .prose.course-prose pre {
-  font-size: 0.9375rem;
+  /* コース本文(15px)よりほんの少し小さめのコードサイズ。 */
+  font-size: 0.875rem;
 }
 /*
  * @tailwindcss/typography は inline code (`<code>`) の前後に ::before / ::after で

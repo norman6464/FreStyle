@@ -73,6 +73,13 @@ export function useTeachingMaterials(courseId: number | null) {
   // selected は本文込みのキャッシュから返す（未取得なら null = 取得中）。
   const selected = selectedId != null ? (detailCache[selectedId] ?? null) : null;
 
+  // 章を選ぶときは前章で出た取得エラーを先にクリアする。 こうしないと別章へ切り替えても
+  // 古い error が残り、「取得中ローディング」ではなくエラー扱いのまま表示されてしまう。
+  const selectMaterial = useCallback((id: number | null) => {
+    setError(null);
+    setSelectedId(id);
+  }, []);
+
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return materials;
@@ -138,7 +145,7 @@ export function useTeachingMaterials(courseId: number | null) {
     error,
     searchQuery,
     setSearchQuery,
-    selectMaterial: setSelectedId,
+    selectMaterial,
     fetchAll,
     create,
     update,

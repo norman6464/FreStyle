@@ -60,7 +60,6 @@ export default function CourseDetailPage() {
     selectedId,
     selected,
     loading,
-    detailLoading,
     error,
     searchQuery,
     setSearchQuery,
@@ -259,9 +258,12 @@ export default function CourseDetailPage() {
 
         {error && <p className="px-6 py-3 text-sm text-red-500">{error}</p>}
 
-        {detailLoading && !selected ? (
-          // 章を選択したら本文を都度取得する。取得中はスピナーを出す。
-          <Loading className="h-full" />
+        {selectedId != null && !selected && !error ? (
+          // 章を選択した瞬間から本文取得が終わるまでローディングを出す。
+          // detailLoading は effect 後に立つため、それを待つと一瞬「未選択」表示が
+          // ちらつく。 selectedId があるのに本文が無い = 取得中、として即座に出す。
+          // 読み手にはレイアウトを保つスケルトン、編集者にはスピナーを表示する。
+          canManage ? <Loading className="h-full" /> : <MaterialSkeleton />
         ) : selected ? (
           canManage ? (
             <ManagedDetail editor={editor} />
@@ -482,6 +484,37 @@ function ReadOnlyDetail({
           </aside>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * MaterialSkeleton は章本文の取得中に出す骨組み。
+ *
+ * バーのスピナーではなく記事レイアウト（タイトル / メタ / 本文行 / 図ブロック）を
+ * 模した pulse プレースホルダにすることで、 章切り替え時のちらつきを抑え体感速度を上げる。
+ */
+function MaterialSkeleton() {
+  return (
+    <div className="flex-1 overflow-y-auto">
+      <div className="mx-auto w-full max-w-[800px] px-6 py-6 animate-pulse" aria-hidden="true">
+        <div className="h-7 w-2/3 rounded bg-surface-3" />
+        <div className="mt-3 h-3 w-32 rounded bg-surface-2" />
+        <div className="mt-8 space-y-3">
+          <div className="h-4 w-full rounded bg-surface-2" />
+          <div className="h-4 w-11/12 rounded bg-surface-2" />
+          <div className="h-4 w-4/5 rounded bg-surface-2" />
+        </div>
+        <div className="mt-6 h-40 w-full rounded-lg bg-surface-2" />
+        <div className="mt-6 space-y-3">
+          <div className="h-4 w-full rounded bg-surface-2" />
+          <div className="h-4 w-10/12 rounded bg-surface-2" />
+          <div className="h-4 w-3/4 rounded bg-surface-2" />
+        </div>
+      </div>
+      <span className="sr-only" role="status">
+        読み込み中
+      </span>
     </div>
   );
 }

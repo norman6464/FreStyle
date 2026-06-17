@@ -17,6 +17,8 @@ export function useTeachingMaterials(courseId: number | null) {
   const [materials, setMaterials] = useState<TeachingMaterial[]>([]);
   const [detailCache, setDetailCache] = useState<Record<number, TeachingMaterial>>({});
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  // 同一章を選び直したときも本文取得 effect を再実行させるためのトリガ（取得失敗からの再試行用）。
+  const [selectionSeq, setSelectionSeq] = useState(0);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,10 +70,20 @@ export function useTeachingMaterials(courseId: number | null) {
     return () => {
       active = false;
     };
-  }, [selectedId, detailCache]);
+    // selectionSeq を依存に入れることで、 同じ章を選び直したとき（取得失敗後の再試行）も
+    // この effect が再実行され、 ローディングのまま固まらないようにする。
+  }, [selectedId, detailCache, selectionSeq]);
 
   // selected は本文込みのキャッシュから返す（未取得なら null = 取得中）。
   const selected = selectedId != null ? (detailCache[selectedId] ?? null) : null;
+
+  // 章を選ぶときは前章で出た取得エラーを先にクリアする。 こうしないと別章へ切り替えても
+  // 古い error が残り、「取得中ローディング」ではなくエラー扱いのまま表示されてしまう。
+  const selectMaterial = useCallback((id: number | null) => {
+    setError(null);
+    setSelectedId(id);
+    setSelectionSeq((v) => v + 1);
+  }, []);
 
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -138,7 +150,7 @@ export function useTeachingMaterials(courseId: number | null) {
     error,
     searchQuery,
     setSearchQuery,
-    selectMaterial: setSelectedId,
+    selectMaterial,
     fetchAll,
     create,
     update,

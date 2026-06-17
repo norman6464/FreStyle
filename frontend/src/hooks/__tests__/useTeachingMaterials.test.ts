@@ -100,6 +100,41 @@ describe('useTeachingMaterials', () => {
     expect(materialMocks.get).toHaveBeenCalledTimes(2); // 1 と 2 の計2回（1 の再取得は無し）
   });
 
+  it('別の章を選択すると前章の取得エラーはクリアされる（取得中ローディングに戻せる）', async () => {
+    courseMocks.listMaterials.mockResolvedValue([sample(1), sample(2)]);
+    materialMocks.get
+      .mockRejectedValueOnce(new Error('boom'))
+      .mockResolvedValueOnce({ ...sample(2), content: '# 本文2' });
+    const { result } = renderHook(() => useTeachingMaterials(5));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    act(() => result.current.selectMaterial(1));
+    await waitFor(() => expect(result.current.error).toBe('教材の取得に失敗しました'));
+
+    // 別章へ切り替えた瞬間に error はクリアされ、新章の本文取得が走る。
+    act(() => result.current.selectMaterial(2));
+    expect(result.current.error).toBeNull();
+    await waitFor(() => expect(result.current.selected?.content).toBe('# 本文2'));
+  });
+
+  it('取得失敗後に同じ章を選び直すと再取得が走る（ローディングで固まらない）', async () => {
+    courseMocks.listMaterials.mockResolvedValue([sample(1)]);
+    materialMocks.get
+      .mockRejectedValueOnce(new Error('boom'))
+      .mockResolvedValueOnce({ ...sample(1), content: '# 本文1' });
+    const { result } = renderHook(() => useTeachingMaterials(5));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    act(() => result.current.selectMaterial(1));
+    await waitFor(() => expect(result.current.error).toBe('教材の取得に失敗しました'));
+
+    // 同じ章を選び直す → selectedId は不変だが selectionSeq が進むので effect が再実行される。
+    act(() => result.current.selectMaterial(1));
+    expect(result.current.error).toBeNull();
+    await waitFor(() => expect(result.current.selected?.content).toBe('# 本文1'));
+    expect(materialMocks.get).toHaveBeenCalledTimes(2);
+  });
+
   it('create 成功時にリストに追加され selected になる', async () => {
     courseMocks.listMaterials.mockResolvedValue([]);
     materialMocks.create.mockResolvedValue(sample(99, { orderInCourse: 100 }));

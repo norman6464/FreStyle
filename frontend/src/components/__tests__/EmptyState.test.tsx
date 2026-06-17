@@ -83,9 +83,9 @@ describe('EmptyState', () => {
     expect(screen.getByText('操作')).toBeDefined();
   });
 
-  it('アイコンがbg-surface-3の丸い背景内に表示される', () => {
+  it('アイコンがページ背景と同色(bg-surface-2)の丸い背景内に表示される', () => {
     const { container } = render(<EmptyState icon={ChatBubbleLeftRightIcon} title="テスト" />);
-    const iconWrapper = container.querySelector('.bg-surface-3.rounded-full');
+    const iconWrapper = container.querySelector('.bg-surface-2.rounded-full');
     expect(iconWrapper).toBeTruthy();
     expect(iconWrapper?.querySelector('svg')).toBeTruthy();
   });

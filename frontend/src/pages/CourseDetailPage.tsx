@@ -6,8 +6,6 @@ import {
   MagnifyingGlassIcon,
   Bars3Icon,
   TrashIcon,
-  CheckCircleIcon,
-  ClockIcon,
   ArrowLeftIcon,
   ArrowRightIcon,
   ListBulletIcon,
@@ -334,22 +332,9 @@ function MaterialListItem({
       }`}
     >
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5">
-          {showCompletion ? (
-            completed ? (
-              <CheckCircleSolidIcon className="w-4 h-4 text-green-500 flex-shrink-0" />
-            ) : (
-              <span className="w-3.5 h-3.5 rounded-full border-2 border-[var(--color-text-muted)] flex-shrink-0" />
-            )
-          ) : material.isPublished ? (
-            <CheckCircleIcon className="w-3 h-3 text-green-400 flex-shrink-0" />
-          ) : (
-            <ClockIcon className="w-3 h-3 text-amber-400 flex-shrink-0" />
-          )}
-          <p className="text-sm text-[var(--color-text-primary)] truncate font-medium">
-            {material.title || '無題の教材'}
-          </p>
-        </div>
+        <p className="text-sm text-[var(--color-text-primary)] truncate font-medium">
+          {material.title || '無題の教材'}
+        </p>
         <p className="text-xs text-[var(--color-text-muted)] mt-0.5 truncate">
           {showCompletion
             ? completed

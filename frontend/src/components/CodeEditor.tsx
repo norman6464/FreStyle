@@ -89,8 +89,17 @@ export default function CodeEditor({
     editorRef.current = editor;
 
     // Ctrl+Enter / Cmd+Enter でコードを実行する（CtrlCmd は Win/Linux=Ctrl, Mac=Cmd）。
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
-      onRunRef.current?.();
+    // addCommand は ESM バンドルの monaco だとキーバインドが発火しないことがあるため、
+    // 公式に推奨される addAction を使う（キーバインド + 右クリックメニュー + コマンドパレットに登録）。
+    editor.addAction({
+      id: 'frestyle.runCode',
+      label: 'コードを実行 (Ctrl/Cmd + Enter)',
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter],
+      contextMenuGroupId: 'navigation',
+      contextMenuOrder: 1,
+      run: () => {
+        onRunRef.current?.();
+      },
     });
 
     const sub = editor.onDidChangeModelContent(() => {

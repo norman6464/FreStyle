@@ -2,6 +2,10 @@
 
 学習者が演習エディタ（Monaco）でコードを書いて実行・採点する機構の設計メモ。
 
+## エディタの実行ショートカット
+
+[CodeEditor.tsx](../frontend/src/components/CodeEditor.tsx) は **Ctrl+Enter / Cmd+Enter** でコード実行（`onRun` = `runCode`）をトリガーする。キーバインドは `editor.addCommand` ではなく **`editor.addAction`** で登録する（ESM バンドルの monaco では `addCommand` のキーバインドが発火しないことがあるため）。`addAction` なら右クリックメニュー / コマンドパレットにも載り発火も安定する。`onRun` は最新の `runCode` を ref 経由で参照するためエディタ再生成は不要。
+
 ## アーキテクチャ
 
 ```text

@@ -8,7 +8,7 @@ interface EmptyStateProps {
 export default function EmptyState({ icon: Icon, title, description, action }: EmptyStateProps) {
   return (
     <div className="flex flex-col items-center justify-center h-full text-center px-6">
-      <div className="bg-surface-3 rounded-full p-4 mb-4">
+      <div className="bg-surface-2 rounded-full p-4 mb-4">
         <Icon className="w-8 h-8 text-[var(--color-text-faint)]" />
       </div>
       <h3 className="text-base font-semibold text-[var(--color-text-secondary)] mb-1">{title}</h3>

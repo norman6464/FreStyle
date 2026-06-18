@@ -57,7 +57,7 @@ export default function FirstTimeWelcome({
   return (
     <section
       aria-labelledby="first-time-welcome-title"
-      className="relative rounded-2xl border border-primary-400/30 bg-gradient-to-br from-primary-500/10 via-surface-1 to-surface-1 p-6 shadow-sm animate-scale-in"
+      className="relative rounded-2xl border border-taupe-400/30 bg-gradient-to-br from-taupe-500/10 via-surface-1 to-surface-1 p-6 shadow-sm animate-scale-in"
     >
       <button
         type="button"
@@ -69,7 +69,7 @@ export default function FirstTimeWelcome({
       </button>
 
       <div className="flex items-center gap-2">
-        <SparklesIcon className="h-6 w-6 text-primary-300" aria-hidden="true" />
+        <SparklesIcon className="h-6 w-6 text-taupe-300" aria-hidden="true" />
         <h2
           id="first-time-welcome-title"
           className="text-lg font-bold text-[var(--color-text-primary)] sm:text-xl"
@@ -86,7 +86,7 @@ export default function FirstTimeWelcome({
         {steps.map((step, index) => (
           <li key={step.title} className="flex items-start gap-3">
             <span
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary-500/20 text-xs font-semibold text-primary-300"
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-taupe-500/20 text-xs font-semibold text-taupe-300"
               aria-hidden="true"
             >
               {index + 1}

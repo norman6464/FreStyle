@@ -27,7 +27,7 @@ export default function Avatar({ name, src, size = 'md' }: AvatarProps) {
 
   return (
     <div
-      className={`${styles.container} rounded-full bg-primary-500 flex items-center justify-center flex-shrink-0`}
+      className={`${styles.container} rounded-full bg-taupe-500 flex items-center justify-center flex-shrink-0`}
     >
       <span className={`text-white ${styles.text} font-bold`}>{initial}</span>
     </div>

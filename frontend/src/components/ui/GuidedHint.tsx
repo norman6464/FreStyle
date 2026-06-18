@@ -17,13 +17,13 @@ type GuidedHintProps = {
 };
 
 const TONE_CLASSES: Record<NonNullable<GuidedHintProps['tone']>, string> = {
-  info: 'border-l-primary-400 bg-primary-500/10',
+  info: 'border-l-taupe-400 bg-taupe-500/10',
   success: 'border-l-emerald-400 bg-emerald-500/10',
   warning: 'border-l-amber-400 bg-amber-500/10',
 };
 
 const ICON_TONE_CLASSES: Record<NonNullable<GuidedHintProps['tone']>, string> = {
-  info: 'text-primary-300',
+  info: 'text-taupe-300',
   success: 'text-emerald-300',
   warning: 'text-amber-300',
 };

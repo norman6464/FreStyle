@@ -25,7 +25,7 @@ export default function ReportCard({ report }: ReportCardProps) {
 
       <div className="grid grid-cols-3 gap-3 mb-3">
         <div className="text-center">
-          <p className="text-lg font-bold text-primary-500">{report.totalSessions}</p>
+          <p className="text-lg font-bold text-taupe-500">{report.totalSessions}</p>
           <p className="text-[10px] text-[var(--color-text-faint)]">セッション数</p>
         </div>
         <div className="text-center">

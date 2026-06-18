@@ -85,7 +85,7 @@ export default function ConfirmModal({
             {isDanger ? (
               <TrashIcon className="w-7 h-7 text-red-600" />
             ) : (
-              <QuestionMarkCircleIcon className="w-7 h-7 text-primary-400" />
+              <QuestionMarkCircleIcon className="w-7 h-7 text-taupe-400" />
             )}
           </div>
         </div>

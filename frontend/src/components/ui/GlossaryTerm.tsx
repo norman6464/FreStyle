@@ -19,7 +19,7 @@ type GlossaryTermProps = {
 export default function GlossaryTerm({ term, definition, className = '' }: GlossaryTermProps) {
   return (
     <span className={`inline-flex items-center gap-1 ${className}`}>
-      <span className="underline decoration-dotted decoration-primary-300 underline-offset-2">
+      <span className="underline decoration-dotted decoration-taupe-300 underline-offset-2">
         {term}
       </span>
       <HelpTooltip label={`${term}の意味を表示`}>{definition}</HelpTooltip>

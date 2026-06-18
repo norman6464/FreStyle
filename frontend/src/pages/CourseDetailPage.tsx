@@ -445,7 +445,7 @@ function ReadOnlyDetail({
                 title={tocOpen ? '目次を隠す' : '目次を表示'}
                 className={`hidden lg:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
                   tocOpen
-                    ? 'border-primary-500 text-primary-400'
+                    ? 'border-taupe-500 text-taupe-400'
                     : 'border-surface-3 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'
                 }`}
               >

@@ -61,7 +61,7 @@ export default function MarkdownTableOfContents({ content }: { content: string }
                 href={`#${it.id}`}
                 className={`block -ml-px pl-3 py-0.5 border-l-2 transition-colors ${
                   isActive
-                    ? 'border-primary-500 text-[var(--color-text-primary)] font-medium'
+                    ? 'border-taupe-500 text-[var(--color-text-primary)] font-medium'
                     : 'border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'
                 }`}
               >

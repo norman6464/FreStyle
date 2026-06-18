@@ -18,8 +18,10 @@ export default {
           800: '#242220',
           900: '#181716',
         },
-        // FreStyle ブランドカラー（ロゴの青 #2E7DF6）。アクション系ボタンの色をこれに統一する。
-        // primary(taupe) はチャート / プログレス等の非ボタンアクセントに引き続き使う。
+        // FreStyle ブランドカラー（ロゴの青 #2E7DF6）。
+        // 使い分けルール:
+        //   brand-* → CTA ボタン / フォーカスリング / インタラクティブ要素
+        //   primary-* (taupe) → ステップインジケーター / プログレスバー / アバター背景などの非ボタンアクセント
         brand: {
           50: '#EFF5FF',
           100: '#DBE8FE',
@@ -37,6 +39,11 @@ export default {
         'surface-2': 'var(--color-surface-2)',
         'surface-3': 'var(--color-surface-3)',
       },
+      // 角丸ルール:
+      //   rounded-xl  → カード / パネル / モーダル / フローティングメニュー
+      //   rounded-lg  → ボタン / インプット / セレクト / タグ / バッジ
+      //   rounded-full → アバター / 円形アイコンボタン / ドット / ピル
+      //   rounded-md  → 小さいインライン要素（コードブロック枠 / ミニアイコンボタン等）
       borderRadius: {
         xl: '1rem',
         '2xl': '1.5rem',

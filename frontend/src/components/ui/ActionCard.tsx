@@ -44,7 +44,7 @@ export default function ActionCard({
 }: ActionCardProps) {
   const isPrimary = emphasis === 'primary';
 
-  const containerClasses = `group relative flex w-full items-start gap-4 rounded-xl border p-4 text-left transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-offset-2 focus:ring-offset-[var(--color-surface)] ${
+  const containerClasses = `group relative flex w-full items-start gap-4 rounded-xl border p-4 text-left transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-2 focus:ring-offset-[var(--color-surface)] ${
     isPrimary
       ? 'border-primary-400/40 bg-gradient-to-br from-primary-500/15 to-surface-1 hover:from-primary-500/25 hover:-translate-y-0.5 hover:shadow-lg'
       : 'border-surface-3 bg-surface-1 hover:border-primary-400/40 hover:-translate-y-0.5 hover:shadow-md'

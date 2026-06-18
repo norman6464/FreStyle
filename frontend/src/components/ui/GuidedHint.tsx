@@ -81,7 +81,7 @@ export default function GuidedHint({
           type="button"
           onClick={handleDismiss}
           aria-label="ヒントを閉じる"
-          className="shrink-0 rounded p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] hover:bg-surface-3 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-400"
+          className="shrink-0 rounded p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] hover:bg-surface-3 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-400"
         >
           <XMarkIcon className="h-4 w-4" aria-hidden="true" />
         </button>

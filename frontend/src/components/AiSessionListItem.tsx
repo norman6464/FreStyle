@@ -58,7 +58,7 @@ export default memo(function AiSessionListItem({
                 }
                 if (e.key === 'Escape') onCancelEdit();
               }}
-              className="flex-1 text-xs px-2 py-1 border border-[var(--color-border-hover)] rounded focus:outline-none focus:ring-1 focus:ring-primary-400"
+              className="flex-1 text-xs px-2 py-1 border border-[var(--color-border-hover)] rounded focus:outline-none focus:ring-1 focus:ring-brand-400"
               autoFocus
             />
             <button onClick={() => onSaveTitle(id)} disabled={!editingTitle.trim()} className="p-0.5 hover:bg-green-900/30 rounded disabled:opacity-30 disabled:cursor-not-allowed" aria-label="保存">

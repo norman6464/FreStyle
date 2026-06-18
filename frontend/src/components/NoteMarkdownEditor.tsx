@@ -206,10 +206,10 @@ export default function NoteMarkdownEditor({
             onDragOver={onImageUpload ? (e) => e.preventDefault() : undefined}
             placeholder="# 見出し&#10;&#10;Markdown でノートを書きましょう..."
             spellCheck={false}
-            className="w-full h-full resize-none p-4 rounded-md bg-surface-1 border border-surface-3 text-sm font-mono text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-primary-500/50 transition-colors"
+            className="w-full h-full resize-none p-4 rounded-lg bg-surface-1 border border-surface-3 text-sm font-mono text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-brand-400/50 transition-colors"
           />
         ) : (
-          <div className="w-full h-full overflow-y-auto p-4 rounded-md bg-surface-1 border border-surface-3 prose prose-sm max-w-none">
+          <div className="w-full h-full overflow-y-auto p-4 rounded-lg bg-surface-1 border border-surface-3 prose prose-sm max-w-none">
             {content.trim() ? (
               <MarkdownView content={content} />
             ) : (

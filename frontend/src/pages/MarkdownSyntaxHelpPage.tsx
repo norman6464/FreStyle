@@ -92,7 +92,7 @@ export default function MarkdownSyntaxHelpPage() {
               href="https://normanblog.com"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-primary-400 underline-offset-2 hover:underline"
+              className="text-brand-400 underline-offset-2 hover:underline"
             >
               FreStyle
             </a>
@@ -167,7 +167,7 @@ export default function MarkdownSyntaxHelpPage() {
               href="https://normanblog.com"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-primary-400 underline-offset-2 hover:underline"
+              className="text-brand-400 underline-offset-2 hover:underline"
             >
               https://normanblog.com
             </a>
@@ -182,7 +182,7 @@ export default function MarkdownSyntaxHelpPage() {
           href="https://github.github.com/gfm/"
           target="_blank"
           rel="noopener noreferrer"
-          className="text-primary-400 underline-offset-2 hover:underline"
+          className="text-brand-400 underline-offset-2 hover:underline"
         >
           GitHub Flavored Markdown 仕様
         </a>{' '}

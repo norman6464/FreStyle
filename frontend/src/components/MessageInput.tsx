@@ -281,7 +281,8 @@ interface AttachmentChipProps {
 /**
  * 送信前の添付チップ。
  *
- * 画像は 56px 正方形サムネ。onError で blob URL が読めない場合は row 型にフォールバック。
+ * 画像は 72px 正方形サムネ（blob: URL は CSP で許可済）。
+ * onError で読込失敗時は row 型にフォールバック。
  * 画像以外・エラー・読込失敗は row 型（PhotoIcon + ファイル名 + サイズ）。
  */
 function AttachmentChip({ attachment, onRemove }: AttachmentChipProps) {
@@ -291,17 +292,17 @@ function AttachmentChip({ attachment, onRemove }: AttachmentChipProps) {
 
   if (canShowImage) {
     return (
-      <div className="relative flex-shrink-0 w-14 h-14">
+      <div className="relative flex-shrink-0 w-[72px] h-[72px]" title={attachment.filename}>
         <img
           src={attachment.previewUrl}
           alt=""
           onError={() => setImgFailed(true)}
-          className="w-full h-full rounded-xl border border-[var(--color-surface-3)] object-cover bg-[var(--color-surface-2)]"
+          className="w-full h-full rounded-xl border border-[var(--color-surface-3)] object-cover bg-[var(--color-surface-2)] shadow-sm"
         />
         {attachment.uploading && (
-          <div className="absolute inset-0 rounded-xl bg-black/40 flex items-center justify-center">
+          <div className="absolute inset-0 rounded-xl bg-black/45 flex flex-col items-center justify-center gap-1">
             <svg
-              className="animate-spin h-4 w-4 text-white"
+              className="animate-spin h-5 w-5 text-white"
               aria-hidden="true"
               viewBox="0 0 24 24"
               fill="none"
@@ -318,15 +319,16 @@ function AttachmentChip({ attachment, onRemove }: AttachmentChipProps) {
                 d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
               />
             </svg>
+            <span className="text-white text-[9px] font-medium">送信中</span>
           </div>
         )}
         <button
           type="button"
           onClick={() => onRemove(attachment.key)}
           aria-label={`${attachment.filename} を削除`}
-          className="absolute -top-1.5 -right-1.5 w-[18px] h-[18px] flex items-center justify-center rounded-full bg-[var(--color-text-primary)] text-white shadow-sm"
+          className="absolute -top-1.5 -right-1.5 w-5 h-5 flex items-center justify-center rounded-full bg-[var(--color-text-secondary)] text-white shadow-md hover:bg-[var(--color-text-primary)] transition-colors"
         >
-          <XMarkIcon className="w-2.5 h-2.5" />
+          <XMarkIcon className="w-3 h-3" />
         </button>
       </div>
     );
@@ -335,20 +337,29 @@ function AttachmentChip({ attachment, onRemove }: AttachmentChipProps) {
   // 画像以外 / 読込失敗 / アップロードエラー時の row 型チップ
   return (
     <div
-      className={`relative flex items-center gap-2 pl-2.5 pr-7 py-1.5 rounded-xl border max-w-[200px] ${
+      className={`relative flex items-center gap-2.5 pl-2.5 pr-8 py-2 rounded-xl border max-w-[220px] ${
         attachment.error
-          ? 'border-red-400/60 bg-red-500/8'
+          ? 'border-red-400/60 bg-red-50'
           : 'border-[var(--color-surface-3)] bg-[var(--color-surface-2)]'
       }`}
+      title={attachment.filename}
     >
-      <div className="w-7 h-7 rounded-lg bg-[var(--color-surface-3)] flex items-center justify-center flex-shrink-0">
-        <PhotoIcon className="w-4 h-4 text-[var(--color-text-muted)]" />
+      <div
+        className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+          attachment.error ? 'bg-red-100' : 'bg-[var(--color-surface-3)]'
+        }`}
+      >
+        <PhotoIcon
+          className={`w-4 h-4 ${
+            attachment.error ? 'text-red-400' : 'text-[var(--color-text-muted)]'
+          }`}
+        />
       </div>
       <div className="min-w-0">
-        <p className="text-xs font-medium text-[var(--color-text-primary)] truncate">
+        <p className="text-xs font-medium text-[var(--color-text-primary)] truncate leading-snug">
           {attachment.filename}
         </p>
-        <p className="text-[10px] text-[var(--color-text-muted)]">
+        <p className={`text-[10px] leading-snug ${attachment.error ? 'text-red-500' : 'text-[var(--color-text-muted)]'}`}>
           {attachment.uploading
             ? 'アップロード中...'
             : attachment.error
@@ -360,9 +371,9 @@ function AttachmentChip({ attachment, onRemove }: AttachmentChipProps) {
         type="button"
         onClick={() => onRemove(attachment.key)}
         aria-label={`${attachment.filename} を削除`}
-        className="absolute right-1.5 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center rounded-full hover:bg-[var(--color-surface-3)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
+        className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center rounded-full bg-[var(--color-surface-3)] hover:bg-[var(--color-border-hover)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
       >
-        <XMarkIcon className="w-3 h-3" />
+        <XMarkIcon className="w-2.5 h-2.5" />
       </button>
     </div>
   );

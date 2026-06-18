@@ -132,6 +132,12 @@
   #root {
     height: 100%;
   }
+
+  /* キーボードナビゲーション時のフォーカスリング。マウスクリック時は非表示。 */
+  *:focus-visible {
+    outline: 2px solid theme('colors.brand.400');
+    outline-offset: 2px;
+  }
   body {
     @apply bg-surface text-[var(--color-text-primary)];
     overflow: hidden;
@@ -168,6 +174,6 @@
   }
 
   .input-primary {
-    @apply w-full border border-surface-3 rounded-lg px-4 py-2.5 bg-surface-2 text-[var(--color-text-primary)] focus:border-primary-400 focus:ring-1 focus:ring-primary-400 focus:outline-none transition-colors duration-150 placeholder:text-[var(--color-text-faint)];
+    @apply w-full border border-surface-3 rounded-lg px-4 py-2.5 bg-surface-2 text-[var(--color-text-primary)] focus:border-brand-400 focus:ring-1 focus:ring-brand-400 focus:outline-none transition-colors duration-150 placeholder:text-[var(--color-text-faint)];
   }
 }

@@ -41,9 +41,9 @@ export default function StepIndicator({ steps, currentStep, className = '' }: St
               <span
                 className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-semibold transition-colors ${
                   isCompleted
-                    ? 'bg-primary-500 border-primary-500 text-white'
+                    ? 'bg-emerald-500 border-emerald-500 text-white'
                     : isActive
-                    ? 'bg-primary-500/20 border-primary-400 text-primary-300'
+                    ? 'bg-emerald-100 border-emerald-400 text-emerald-700'
                     : 'bg-surface-2 border-surface-3 text-[var(--color-text-muted)]'
                 }`}
                 aria-hidden="true"
@@ -75,7 +75,7 @@ export default function StepIndicator({ steps, currentStep, className = '' }: St
             {index < steps.length - 1 && (
               <div
                 className={`hidden sm:block h-0.5 flex-1 rounded ${
-                  isCompleted ? 'bg-primary-500' : 'bg-surface-3'
+                  isCompleted ? 'bg-emerald-500' : 'bg-surface-3'
                 }`}
                 aria-hidden="true"
               />

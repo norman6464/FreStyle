@@ -74,8 +74,8 @@
  *   - アクセント色は使用箇所を絞り、視覚ノイズを排除する
  */
 :root {
-  --color-surface: #FFFFFF;
-  --color-surface-1: #FFFFFF;
+  --color-surface: #FAFAF8;
+  --color-surface-1: #FAFAF8;
   --color-surface-2: #F5F5F4;
   --color-surface-3: #E7E5E4;
   /* サイドバー / ヘッダーは body と同じ白で、border 1px のみで境界を表現する */

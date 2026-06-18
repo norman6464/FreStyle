@@ -35,6 +35,16 @@ describe('Button', () => {
     expect(screen.getByRole('button')).toBeDisabled();
   });
 
+  it('loading時にaria-busyがtrueになる', () => {
+    render(<Button loading>送信</Button>);
+    expect(screen.getByRole('button')).toHaveAttribute('aria-busy', 'true');
+  });
+
+  it('loading=false時にaria-busyが付かない', () => {
+    render(<Button>送信</Button>);
+    expect(screen.getByRole('button')).not.toHaveAttribute('aria-busy');
+  });
+
   it('loading=false時にスピナーが非表示', () => {
     const { container } = render(<Button>送信</Button>);
     expect(container.querySelector('[data-testid="loading-spinner"]')).not.toBeInTheDocument();

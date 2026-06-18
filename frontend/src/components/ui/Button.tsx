@@ -40,6 +40,7 @@ export default function Button({
   return (
     <button
       type={type}
+      aria-busy={loading || undefined}
       disabled={disabled || loading}
       className={[
         'font-medium transition-colors duration-150',

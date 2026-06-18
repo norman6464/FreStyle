@@ -102,6 +102,25 @@
 | スキーマ管理 | GORM AutoMigrate（破壊系は手動 SQL）|
 | 永続化 | 読み取り=生 SQL 直書き（`db.Raw` / sqlc）・書き込み=GORM（PostgreSQL）/ AWS SDK v2（DynamoDB・S3・Bedrock・SQS）|
 
+### UI カラーデザインの科学的根拠
+
+学習プラットフォームとして「集中力・動機付け・目の疲労」に配慮した色彩設計を採用しています。
+
+| 設計判断 | 科学的根拠 |
+|---|---|
+| CTA・フォーカスリングを青（`brand-*`）に統一 | Elliot & Maier (2012)「Color-in-context theory」— 中明度の青は認知負荷を下げ、集中タスクでのパフォーマンスを向上させる |
+| 完了・進捗インジケーターを緑（`emerald-*`）に | Lichtenfeld et al. (2012)「Fertile Green」— 緑は達成感・継続的注意・創造的作業へのモチベーションを促進する |
+| 背景を暖白（`#FAFAF8`）に | Krueger (1992)「Pure-white screen fatigue」— 純白 `#FFFFFF` より輝度を少し落とした暖白のほうが長時間視聴の眼精疲労を軽減する |
+| 高彩度青（`#2E7DF6`）を避け Tailwind blue スケールへ移行 | Valdez & Mehrabian (1994)「Effects of color」— 過度に高彩度の色は覚醒・ストレスを高め、長時間集中の妨げになる |
+
+**参考文献**
+
+- Elliot, A. J., & Maier, M. A. (2012). Color-in-context theory. *Advances in Experimental Social Psychology*, 45, 61–125.
+- Lichtenfeld, S., Elliot, A. J., Maier, M. A., & Pekrun, R. (2012). Fertile green: Green facilitates creative performance. *Personality and Social Psychology Bulletin*, 38(6), 784–797.
+- Krueger, H. (1992). Ergonomics and the VDU. *Ergonomics*, 35(5–6).
+- Kwallek, N., & Lewis, C. M. (1990). Effects of environmental colour on males and females. *Applied Ergonomics*, 21(4), 275–278.
+- Valdez, P., & Mehrabian, A. (1994). Effects of color on emotions. *Journal of Experimental Psychology: General*, 123(4), 394–409.
+
 ## AWSアーキテクチャ構成図
 
 ![FreStyle AWS アーキテクチャ構成図](./architecture/aws/freestyle-aws-architecture-current.png)

@@ -32,7 +32,7 @@ export default function LearningReportPage() {
         <button
           onClick={handleGenerate}
           disabled={generating}
-          className="text-xs text-primary-500 hover:text-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="text-xs text-brand-500 hover:text-brand-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {generating ? '生成中...' : '今月のレポートを生成'}
         </button>

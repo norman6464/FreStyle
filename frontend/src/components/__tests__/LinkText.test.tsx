@@ -42,7 +42,7 @@ describe('LinkText', () => {
     );
 
     const link = screen.getByText('テスト').closest('a');
-    expect(link?.className).toContain('text-primary-500');
+    expect(link?.className).toContain('text-brand-500');
     expect(link?.className).toContain('font-medium');
   });
 

@@ -70,7 +70,7 @@ export default function CoursesListPage() {
           aria-label="コースを検索"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full px-3 py-1.5 bg-surface-2 border border-surface-3 rounded-lg text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-primary-500 transition-colors"
+          className="w-full px-3 py-1.5 bg-surface-2 border border-surface-3 rounded-lg text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-brand-400 transition-colors"
         />
       </div>
 
@@ -259,7 +259,7 @@ function CourseFormModal({ initial, onClose, onSubmit }: CourseFormProps) {
               maxLength={200}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-3 py-1.5 bg-surface-2 border border-surface-3 rounded text-sm focus:outline-none focus:border-primary-500"
+              className="w-full px-3 py-1.5 bg-surface-2 border border-surface-3 rounded-lg text-sm focus:outline-none focus:border-brand-400"
             />
           </label>
           <label className="block">
@@ -269,7 +269,7 @@ function CourseFormModal({ initial, onClose, onSubmit }: CourseFormProps) {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="このコースで学べる内容の概要"
-              className="w-full px-3 py-1.5 bg-surface-2 border border-surface-3 rounded text-sm focus:outline-none focus:border-primary-500 resize-y"
+              className="w-full px-3 py-1.5 bg-surface-2 border border-surface-3 rounded-lg text-sm focus:outline-none focus:border-brand-400 resize-y"
             />
           </label>
           <label className="block">
@@ -278,7 +278,7 @@ function CourseFormModal({ initial, onClose, onSubmit }: CourseFormProps) {
               type="number"
               value={sortOrder}
               onChange={(e) => setSortOrder(Number(e.target.value) || 0)}
-              className="w-32 px-3 py-1.5 bg-surface-2 border border-surface-3 rounded text-sm focus:outline-none focus:border-primary-500"
+              className="w-32 px-3 py-1.5 bg-surface-2 border border-surface-3 rounded-lg text-sm focus:outline-none focus:border-brand-400"
             />
             <span className="block text-xs text-[var(--color-text-muted)] mt-1">
               小さい値が上に来ます。 既定: 100

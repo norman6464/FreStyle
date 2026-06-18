@@ -63,7 +63,7 @@ export default function FirstTimeWelcome({
         type="button"
         onClick={handleDismiss}
         aria-label="このカードを閉じる"
-        className="absolute right-3 top-3 rounded-full p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] hover:bg-surface-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
+        className="absolute right-3 top-3 rounded-full p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] hover:bg-surface-3 focus:outline-none focus:ring-2 focus:ring-brand-400"
       >
         <XMarkIcon className="h-4 w-4" aria-hidden="true" />
       </button>
@@ -107,7 +107,7 @@ export default function FirstTimeWelcome({
         <button
           type="button"
           onClick={onPrimaryAction}
-          className="mt-5 inline-flex items-center justify-center rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-600 active:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-offset-2 focus:ring-offset-[var(--color-surface-1)]"
+          className="mt-5 inline-flex items-center justify-center rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-600 active:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-2 focus:ring-offset-[var(--color-surface-1)]"
         >
           {primaryActionLabel}
         </button>

@@ -35,7 +35,7 @@ export default function ExerciseListPage() {
         <select
           value={language}
           onChange={(e) => setLanguage(e.target.value)}
-          className="px-2 py-1 rounded-md bg-surface-2 border border-surface-3 text-[var(--color-text-primary)] focus:outline-none focus:border-primary-500"
+          className="px-2 py-1 rounded-lg bg-surface-2 border border-surface-3 text-[var(--color-text-primary)] focus:outline-none focus:border-brand-400"
         >
           <option value="">すべて</option>
           <option value="php">PHP</option>

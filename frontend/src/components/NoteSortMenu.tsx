@@ -77,7 +77,7 @@ export default function NoteSortMenu({ selected, onChange }: NoteSortMenuProps) 
                 }`}
               >
                 <span>{label}</span>
-                {isSelected && <CheckIcon className="w-3.5 h-3.5 text-primary-400" />}
+                {isSelected && <CheckIcon className="w-3.5 h-3.5 text-taupe-400" />}
               </button>
             );
           })}

@@ -30,10 +30,10 @@ describe('AxisScoreBar', () => {
     expect(inner.className).toContain('bg-emerald-500');
   });
 
-  it('デフォルトでbg-primary-500が適用される', () => {
+  it('デフォルトでbg-taupe-500が適用される', () => {
     render(<AxisScoreBar score={5} />);
     const bar = screen.getByRole('progressbar');
     const inner = bar.firstChild as HTMLElement;
-    expect(inner.className).toContain('bg-primary-500');
+    expect(inner.className).toContain('bg-taupe-500');
   });
 });

@@ -38,7 +38,7 @@ export default memo(function AiSessionListItem({
       aria-label={title || '新しいチャット'}
       className={`group flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${
         isActive
-          ? 'bg-surface-2 text-primary-300'
+          ? 'bg-surface-2 text-taupe-300'
           : 'hover:bg-surface-2'
       }`}
       onClick={() => !isEditing && onSelect(id)}

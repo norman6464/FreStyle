@@ -3,7 +3,7 @@ interface AxisScoreBarProps {
   barColorClass?: string;
 }
 
-export default function AxisScoreBar({ score, barColorClass = 'bg-primary-500' }: AxisScoreBarProps) {
+export default function AxisScoreBar({ score, barColorClass = 'bg-taupe-500' }: AxisScoreBarProps) {
   return (
     <div role="progressbar" className="w-full bg-surface-3 rounded-full h-1.5">
       <div

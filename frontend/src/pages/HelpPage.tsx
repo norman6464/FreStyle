@@ -174,7 +174,7 @@ export default function HelpPage() {
         </p>
         <dl className="mt-3 grid gap-3 sm:grid-cols-2">
           <div className="rounded-lg border border-surface-3 bg-surface-1 p-3">
-            <dt className="text-sm font-semibold text-primary-300">
+            <dt className="text-sm font-semibold text-taupe-300">
               {GLOSSARY.logicalStructure.term}
             </dt>
             <dd className="mt-1 text-xs text-[var(--color-text-secondary)] leading-relaxed">
@@ -182,7 +182,7 @@ export default function HelpPage() {
             </dd>
           </div>
           <div className="rounded-lg border border-surface-3 bg-surface-1 p-3">
-            <dt className="text-sm font-semibold text-primary-300">
+            <dt className="text-sm font-semibold text-taupe-300">
               {GLOSSARY.considerateExpression.term}
             </dt>
             <dd className="mt-1 text-xs text-[var(--color-text-secondary)] leading-relaxed">
@@ -190,7 +190,7 @@ export default function HelpPage() {
             </dd>
           </div>
           <div className="rounded-lg border border-surface-3 bg-surface-1 p-3">
-            <dt className="text-sm font-semibold text-primary-300">
+            <dt className="text-sm font-semibold text-taupe-300">
               {GLOSSARY.summarization.term}
             </dt>
             <dd className="mt-1 text-xs text-[var(--color-text-secondary)] leading-relaxed">
@@ -198,7 +198,7 @@ export default function HelpPage() {
             </dd>
           </div>
           <div className="rounded-lg border border-surface-3 bg-surface-1 p-3">
-            <dt className="text-sm font-semibold text-primary-300">
+            <dt className="text-sm font-semibold text-taupe-300">
               {GLOSSARY.proposalSkill.term}
             </dt>
             <dd className="mt-1 text-xs text-[var(--color-text-secondary)] leading-relaxed">
@@ -206,7 +206,7 @@ export default function HelpPage() {
             </dd>
           </div>
           <div className="rounded-lg border border-surface-3 bg-surface-1 p-3 sm:col-span-2">
-            <dt className="text-sm font-semibold text-primary-300">
+            <dt className="text-sm font-semibold text-taupe-300">
               {GLOSSARY.listeningSkill.term}
             </dt>
             <dd className="mt-1 text-xs text-[var(--color-text-secondary)] leading-relaxed">
@@ -275,7 +275,7 @@ export default function HelpPage() {
           <li>
             <details className="rounded-lg border border-surface-3 bg-surface-1 p-3 open:bg-surface-2/40">
               <summary className="cursor-pointer text-sm font-semibold text-[var(--color-text-primary)]">
-                <QuestionMarkCircleIcon className="mr-1 inline h-4 w-4 text-primary-300" aria-hidden="true" />
+                <QuestionMarkCircleIcon className="mr-1 inline h-4 w-4 text-taupe-300" aria-hidden="true" />
                 スコアが低くて落ち込みます
               </summary>
               <p className="mt-2 text-xs text-[var(--color-text-secondary)] leading-relaxed">
@@ -286,7 +286,7 @@ export default function HelpPage() {
           <li>
             <details className="rounded-lg border border-surface-3 bg-surface-1 p-3 open:bg-surface-2/40">
               <summary className="cursor-pointer text-sm font-semibold text-[var(--color-text-primary)]">
-                <QuestionMarkCircleIcon className="mr-1 inline h-4 w-4 text-primary-300" aria-hidden="true" />
+                <QuestionMarkCircleIcon className="mr-1 inline h-4 w-4 text-taupe-300" aria-hidden="true" />
                 どのシナリオから始めればいい？
               </summary>
               <p className="mt-2 text-xs text-[var(--color-text-secondary)] leading-relaxed">
@@ -297,7 +297,7 @@ export default function HelpPage() {
           <li>
             <details className="rounded-lg border border-surface-3 bg-surface-1 p-3 open:bg-surface-2/40">
               <summary className="cursor-pointer text-sm font-semibold text-[var(--color-text-primary)]">
-                <QuestionMarkCircleIcon className="mr-1 inline h-4 w-4 text-primary-300" aria-hidden="true" />
+                <QuestionMarkCircleIcon className="mr-1 inline h-4 w-4 text-taupe-300" aria-hidden="true" />
                 AI の返答がしっくり来ないとき
               </summary>
               <p className="mt-2 text-xs text-[var(--color-text-secondary)] leading-relaxed">
@@ -308,7 +308,7 @@ export default function HelpPage() {
           <li>
             <details className="rounded-lg border border-surface-3 bg-surface-1 p-3 open:bg-surface-2/40">
               <summary className="cursor-pointer text-sm font-semibold text-[var(--color-text-primary)]">
-                <QuestionMarkCircleIcon className="mr-1 inline h-4 w-4 text-primary-300" aria-hidden="true" />
+                <QuestionMarkCircleIcon className="mr-1 inline h-4 w-4 text-taupe-300" aria-hidden="true" />
                 続かない / 気が乗らない
               </summary>
               <p className="mt-2 text-xs text-[var(--color-text-secondary)] leading-relaxed">

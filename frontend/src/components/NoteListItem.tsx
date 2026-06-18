@@ -62,7 +62,7 @@ export default memo(function NoteListItem({
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">
-            {isPinned && <PinIcon className="w-3.5 h-3.5 inline mr-1 text-primary-500" />}
+            {isPinned && <PinIcon className="w-3.5 h-3.5 inline mr-1 text-taupe-500" />}
             {displayTitle}
           </p>
           {preview && (
@@ -79,7 +79,7 @@ export default memo(function NoteListItem({
             onClick={handleTogglePin}
             aria-label={isPinned ? 'ピン留め解除' : 'ピン留め'}
             className={`p-1 rounded transition-all ${
-              isPinned ? 'opacity-100 text-primary-500' : 'opacity-0 group-hover:opacity-100 hover:bg-surface-3'
+              isPinned ? 'opacity-100 text-taupe-500' : 'opacity-0 group-hover:opacity-100 hover:bg-surface-3'
             }`}
           >
             <PinIcon className="w-3.5 h-3.5" />

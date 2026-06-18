@@ -101,7 +101,7 @@ export default function ExerciseDetailPage() {
           </div>
         </div>
 
-        <div className="text-xs text-primary-400">
+        <div className="text-xs text-taupe-400">
           ▼ 下記解答欄にコードを記入してみよう
         </div>
 

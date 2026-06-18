@@ -35,7 +35,7 @@ export default function PageIntro({
     >
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          {icon && <span className="text-primary-300 shrink-0">{icon}</span>}
+          {icon && <span className="text-taupe-300 shrink-0">{icon}</span>}
           <Heading className="text-xl font-bold text-[var(--color-text-primary)] sm:text-2xl">
             {title}
           </Heading>

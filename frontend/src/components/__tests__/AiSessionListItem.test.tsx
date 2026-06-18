@@ -43,7 +43,7 @@ describe('AiSessionListItem', () => {
   it('アクティブ時にアクティブスタイルが適用される', () => {
     const { container } = render(<AiSessionListItem {...baseProps} isActive={true} />);
     const item = container.firstElementChild as HTMLElement;
-    expect(item.className).toContain('text-primary-300');
+    expect(item.className).toContain('text-taupe-300');
   });
 
   it('編集モードで入力欄が表示される', () => {

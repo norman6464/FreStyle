@@ -167,7 +167,7 @@ function CourseCard({
           onOpen();
         }
       }}
-      className="group bg-surface-1 border border-surface-3 rounded-lg p-4 cursor-pointer hover:border-primary-500/50 hover:shadow-md transition-all"
+      className="group bg-surface-1 border border-surface-3 rounded-lg p-4 cursor-pointer hover:border-taupe-500/50 hover:shadow-md transition-all"
     >
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="flex items-center gap-2 min-w-0">

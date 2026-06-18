@@ -46,8 +46,8 @@ export default function ActionCard({
 
   const containerClasses = `group relative flex w-full items-start gap-4 rounded-xl border p-4 text-left transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-2 focus:ring-offset-[var(--color-surface)] ${
     isPrimary
-      ? 'border-primary-400/40 bg-gradient-to-br from-primary-500/15 to-surface-1 hover:from-primary-500/25 hover:-translate-y-0.5 hover:shadow-lg'
-      : 'border-surface-3 bg-surface-1 hover:border-primary-400/40 hover:-translate-y-0.5 hover:shadow-md'
+      ? 'border-taupe-400/40 bg-gradient-to-br from-taupe-500/15 to-surface-1 hover:from-taupe-500/25 hover:-translate-y-0.5 hover:shadow-lg'
+      : 'border-surface-3 bg-surface-1 hover:border-taupe-400/40 hover:-translate-y-0.5 hover:shadow-md'
   }`;
 
   const content = (
@@ -56,8 +56,8 @@ export default function ActionCard({
         <span
           className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
             isPrimary
-              ? 'bg-primary-500 text-white'
-              : 'bg-surface-2 text-primary-300'
+              ? 'bg-taupe-500 text-white'
+              : 'bg-surface-2 text-taupe-300'
           }`}
           aria-hidden="true"
         >
@@ -68,7 +68,7 @@ export default function ActionCard({
         <div className="flex items-center justify-between gap-2">
           <p className="text-base font-semibold text-[var(--color-text-primary)]">{title}</p>
           {badge && (
-            <span className="shrink-0 rounded-full border border-primary-400/40 bg-primary-500/10 px-2 py-0.5 text-xs font-medium text-primary-300">
+            <span className="shrink-0 rounded-full border border-taupe-400/40 bg-taupe-500/10 px-2 py-0.5 text-xs font-medium text-taupe-300">
               {badge}
             </span>
           )}
@@ -80,7 +80,7 @@ export default function ActionCard({
         )}
       </div>
       <ArrowRightIcon
-        className="mt-2 h-4 w-4 shrink-0 text-[var(--color-text-muted)] transition-transform group-hover:translate-x-0.5 group-hover:text-primary-300"
+        className="mt-2 h-4 w-4 shrink-0 text-[var(--color-text-muted)] transition-transform group-hover:translate-x-0.5 group-hover:text-taupe-300"
         aria-hidden="true"
       />
     </>

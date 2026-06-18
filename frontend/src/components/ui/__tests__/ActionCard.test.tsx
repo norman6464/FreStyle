@@ -45,6 +45,6 @@ describe('ActionCard', () => {
   it('emphasis=primary のとき class に primary 系が含まれる', () => {
     render(<ActionCard title="t" onClick={() => {}} emphasis="primary" />);
     const btn = screen.getByRole('button', { name: /t/ });
-    expect(btn.className).toMatch(/primary-400\/40|from-primary-500/);
+    expect(btn.className).toMatch(/taupe-400\/40|from-taupe-500/);
   });
 });

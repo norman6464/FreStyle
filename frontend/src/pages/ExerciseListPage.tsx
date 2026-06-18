@@ -82,7 +82,7 @@ function ExerciseCard({ ex }: { ex: MasterExerciseWithStatus }) {
   return (
     <Link
       to={`/code-editor/${encodeURIComponent(ex.slug)}`}
-      className="group block rounded-lg border border-surface-3 bg-surface-1 hover:bg-surface-2 hover:border-primary-500/50 transition-colors p-4 space-y-3"
+      className="group block rounded-lg border border-surface-3 bg-surface-1 hover:bg-surface-2 hover:border-taupe-500/50 transition-colors p-4 space-y-3"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -93,7 +93,7 @@ function ExerciseCard({ ex }: { ex: MasterExerciseWithStatus }) {
             </span>
             <DifficultyBadge level={ex.difficulty} />
           </div>
-          <h3 className="mt-1 text-base font-semibold text-[var(--color-text-primary)] group-hover:text-primary-400 transition-colors truncate">
+          <h3 className="mt-1 text-base font-semibold text-[var(--color-text-primary)] group-hover:text-taupe-400 transition-colors truncate">
             {ex.title}
           </h3>
         </div>

@@ -19,8 +19,8 @@ export default function ExerciseHeader({ exercise: ex, submitResult }: Props) {
     <header className="space-y-3">
       <BackLink />
       <div className="flex items-start gap-3">
-        <div className="flex-shrink-0 w-10 h-10 rounded-md bg-primary-500/10 border border-primary-500/30 flex items-center justify-center">
-          <DocumentTextIcon className="w-5 h-5 text-primary-400" />
+        <div className="flex-shrink-0 w-10 h-10 rounded-md bg-taupe-500/10 border border-taupe-500/30 flex items-center justify-center">
+          <DocumentTextIcon className="w-5 h-5 text-taupe-400" />
         </div>
         <div className="min-w-0 flex-1">
           <h1 className="text-xl font-bold text-[var(--color-text-primary)] leading-tight">

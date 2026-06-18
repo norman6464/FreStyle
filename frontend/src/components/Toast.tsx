@@ -25,13 +25,13 @@ const COLOR_MAP = {
   // 読めるように背景は淡色 + 文字は濃色のコントラスト。
   success: 'border-emerald-400 bg-emerald-50 text-emerald-700',
   error: 'border-rose-400 bg-rose-50 text-rose-700',
-  info: 'border-primary-400 bg-primary-50 text-primary-700',
+  info: 'border-taupe-400 bg-taupe-50 text-taupe-700',
 };
 
 const ICON_COLOR_MAP = {
   success: 'text-emerald-500',
   error: 'text-rose-500',
-  info: 'text-primary-500',
+  info: 'text-taupe-500',
 };
 
 /**

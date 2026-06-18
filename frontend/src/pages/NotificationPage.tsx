@@ -21,13 +21,13 @@ export default function NotificationPage() {
         <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">
           通知
           {unreadCount > 0 && (
-            <span className="ml-2 text-xs font-normal text-primary-500">{unreadCount}件の未読</span>
+            <span className="ml-2 text-xs font-normal text-taupe-500">{unreadCount}件の未読</span>
           )}
         </h2>
         {unreadCount > 0 && (
           <button
             onClick={markAllAsRead}
-            className="text-xs text-primary-500 hover:text-primary-600 transition-colors"
+            className="text-xs text-taupe-500 hover:text-taupe-600 transition-colors"
           >
             すべて既読にする
           </button>

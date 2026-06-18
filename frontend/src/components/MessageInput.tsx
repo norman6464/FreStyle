@@ -281,72 +281,88 @@ interface AttachmentChipProps {
 /**
  * 送信前の添付チップ。
  *
- * 画像 (previewUrl あり / error なし) のときは「実際の画像を 144px の大きめサムネで描画」する
- * モダン AI チャット UI に寄せたカード型表示にする。 「broken image アイコン + ファイル名」の
- * 旧表示はユーザに「アップロード失敗」と誤解されやすいため。
- *
- * 画像以外（PDF / CSV）や error 時は filename + 状態の row 型 chip にフォールバック。
+ * 画像は 56px 正方形サムネ。onError で blob URL が読めない場合は row 型にフォールバック。
+ * 画像以外・エラー・読込失敗は row 型（PhotoIcon + ファイル名 + サイズ）。
  */
 function AttachmentChip({ attachment, onRemove }: AttachmentChipProps) {
-  const showImagePreview =
-    attachment.kind === 'image' && !!attachment.previewUrl && !attachment.error;
+  const [imgFailed, setImgFailed] = useState(false);
+  const canShowImage =
+    attachment.kind === 'image' && !!attachment.previewUrl && !attachment.error && !imgFailed;
 
-  if (showImagePreview) {
+  if (canShowImage) {
     return (
-      <div className="relative inline-block">
+      <div className="relative flex-shrink-0 w-14 h-14">
         <img
           src={attachment.previewUrl}
-          alt={attachment.filename}
-          className="max-h-36 max-w-[240px] rounded-xl border border-[var(--color-surface-3)] object-cover"
+          alt=""
+          onError={() => setImgFailed(true)}
+          className="w-full h-full rounded-xl border border-[var(--color-surface-3)] object-cover bg-[var(--color-surface-2)]"
         />
         {attachment.uploading && (
           <div className="absolute inset-0 rounded-xl bg-black/40 flex items-center justify-center">
-            <span className="text-white text-xs">アップロード中...</span>
+            <svg
+              className="animate-spin h-4 w-4 text-white"
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              fill="none"
+            >
+              <circle
+                className="opacity-25"
+                cx="12" cy="12" r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              />
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+              />
+            </svg>
           </div>
         )}
         <button
           type="button"
           onClick={() => onRemove(attachment.key)}
           aria-label={`${attachment.filename} を削除`}
-          className="absolute -top-1.5 -right-1.5 p-0.5 rounded-full bg-white border border-[var(--color-surface-3)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] shadow-sm"
+          className="absolute -top-1.5 -right-1.5 w-[18px] h-[18px] flex items-center justify-center rounded-full bg-[var(--color-text-primary)] text-white shadow-sm"
         >
-          <XMarkIcon className="w-3.5 h-3.5" />
+          <XMarkIcon className="w-2.5 h-2.5" />
         </button>
       </div>
     );
   }
 
-  // 画像以外 / 失敗時は従来の row 型 chip にフォールバック
+  // 画像以外 / 読込失敗 / アップロードエラー時の row 型チップ
   return (
     <div
-      className={`relative flex items-center gap-2 pr-7 pl-2 py-1.5 rounded-lg border ${
+      className={`relative flex items-center gap-2 pl-2.5 pr-7 py-1.5 rounded-xl border max-w-[200px] ${
         attachment.error
-          ? 'border-red-500/60 bg-red-500/10'
+          ? 'border-red-400/60 bg-red-500/8'
           : 'border-[var(--color-surface-3)] bg-[var(--color-surface-2)]'
       }`}
     >
-      <div className="w-9 h-9 rounded overflow-hidden bg-[var(--color-surface-3)] flex items-center justify-center flex-shrink-0">
-        <PhotoIcon className="w-5 h-5 text-[var(--color-text-muted)]" />
+      <div className="w-7 h-7 rounded-lg bg-[var(--color-surface-3)] flex items-center justify-center flex-shrink-0">
+        <PhotoIcon className="w-4 h-4 text-[var(--color-text-muted)]" />
       </div>
-      <div className="min-w-0 flex flex-col">
-        <span className="text-xs font-medium text-[var(--color-text-primary)] truncate max-w-[180px]">
+      <div className="min-w-0">
+        <p className="text-xs font-medium text-[var(--color-text-primary)] truncate">
           {attachment.filename}
-        </span>
-        <span className="text-[10px] text-[var(--color-text-muted)]">
+        </p>
+        <p className="text-[10px] text-[var(--color-text-muted)]">
           {attachment.uploading
             ? 'アップロード中...'
             : attachment.error
             ? attachment.error
             : formatBytes(attachment.sizeBytes)}
-        </span>
+        </p>
       </div>
       <button
         type="button"
         onClick={() => onRemove(attachment.key)}
         aria-label={`${attachment.filename} を削除`}
-        className="absolute top-1 right-1 p-0.5 rounded-full bg-[var(--color-surface-3)] hover:bg-[var(--color-surface-1)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+        className="absolute right-1.5 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center rounded-full hover:bg-[var(--color-surface-3)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
       >
-        <XMarkIcon className="w-3.5 h-3.5" />
+        <XMarkIcon className="w-3 h-3" />
       </button>
     </div>
   );

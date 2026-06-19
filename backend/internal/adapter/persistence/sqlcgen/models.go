@@ -81,7 +81,7 @@ type User struct {
 	ID            int64
 	CognitoSub    string
 	Email         string
-	DisplayName   string
+	Name          string
 	CompanyID     sql.NullInt64
 	Role          string
 	AiChatEnabled sql.NullBool

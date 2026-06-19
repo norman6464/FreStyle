@@ -41,7 +41,7 @@ func (f *fakeMemberUserRepo) ListByCompanyID(_ context.Context, companyID uint64
 	return f.byCompany[companyID], nil
 }
 func (f *fakeMemberUserRepo) Create(context.Context, *domain.User) error { return nil }
-func (f *fakeMemberUserRepo) UpdateDisplayName(context.Context, uint64, string) error {
+func (f *fakeMemberUserRepo) UpdateName(context.Context, uint64, string) error {
 	return nil
 }
 func (f *fakeMemberUserRepo) UpdateRole(context.Context, uint64, string) error      { return nil }

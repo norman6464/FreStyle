@@ -106,22 +106,24 @@ func (h *AuthHandler) Me(c *gin.Context) {
 			aiEnabled = ok
 		}
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"id":          user.ID,
-		"cognitoSub":  user.CognitoSub,
-		"email":       user.Email,
-		"displayName": user.DisplayName,
-		"companyId":   user.CompanyID,
-		"role":        user.Role,
-		"createdAt":   user.CreatedAt,
-		"updatedAt":   user.UpdatedAt,
-		"groups":      groups,
-		"isAdmin":     isAdmin,
-		// onboarded: フロントの /welcome リダイレクト判定に使う。
-		"onboarded": user.OnboardedAt != nil,
-		// aiChatEnabledForTrainees: フロントのサイドバー AI 表示判定に使う。
+	resp := gin.H{
+		"id":                       user.ID,
+		"cognitoSub":               user.CognitoSub,
+		"email":                    user.Email,
+		"name":                     user.Name,
+		"role":                     user.Role,
+		"createdAt":                user.CreatedAt,
+		"updatedAt":                user.UpdatedAt,
+		"groups":                   groups,
+		"isAdmin":                  isAdmin,
+		"onboarded":                user.OnboardedAt != nil,
 		"aiChatEnabledForTrainees": aiEnabled,
-	})
+	}
+	// companyId は nil 時に JSON フィールド自体を省略する（omitempty 相当）。
+	if user.CompanyID != nil {
+		resp["companyId"] = user.CompanyID
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 // Logout はリフレッシュ・アクセストークンの Cookie を消去する。
@@ -404,11 +406,11 @@ func (h *AuthHandler) upsertUserFromIDToken(c *gin.Context, idToken, invitationT
 
 	existing, _ := h.users.FindByCognitoSub(c.Request.Context(), sub)
 	if existing != nil {
-		// DisplayName が email のまま（旧フローの仮値）なら OIDC name で自動補正する。
+		// Name が email のまま（旧フローの仮値）なら OIDC name で自動補正する。
 		// ユーザーが明示的に書き換えている場合は触らない。
-		if oidcName != "" && existing.Email != "" && existing.DisplayName == existing.Email {
-			if err := h.users.UpdateDisplayName(c.Request.Context(), existing.ID, oidcName); err != nil {
-				log.Printf("upsertUserFromIDToken: backfill displayName failed userID=%d: %v", existing.ID, err)
+		if oidcName != "" && existing.Email != "" && existing.Name == existing.Email {
+			if err := h.users.UpdateName(c.Request.Context(), existing.ID, oidcName); err != nil {
+				log.Printf("upsertUserFromIDToken: backfill name failed userID=%d: %v", existing.ID, err)
 			}
 		}
 		// role 更新の制約: super_admin は降格しない / 招待昇格は trainee → company_admin のみ /
@@ -446,10 +448,10 @@ func (h *AuthHandler) upsertUserFromIDToken(c *gin.Context, idToken, invitationT
 	role := domain.RoleTrainee
 	var companyID *uint64
 	var acceptedInvID uint64
-	// displayName の優先順位: 招待 displayName > OIDC name > email（フォールバック）。
-	displayName := email
+	// name の優先順位: 招待 name > OIDC name > email（フォールバック）。
+	name := email
 	if oidcName != "" {
-		displayName = oidcName
+		name = oidcName
 	}
 
 	if isCognitoAdmin {
@@ -462,17 +464,17 @@ func (h *AuthHandler) upsertUserFromIDToken(c *gin.Context, idToken, invitationT
 		cid := inv.CompanyID
 		companyID = &cid
 		acceptedInvID = inv.ID
-		if inv.DisplayName != "" {
-			displayName = inv.DisplayName
+		if inv.Name != "" {
+			name = inv.Name
 		}
 	}
 
 	if err := h.users.Create(c.Request.Context(), &domain.User{
-		CognitoSub:  sub,
-		Email:       email,
-		DisplayName: displayName,
-		Role:        role,
-		CompanyID:   companyID,
+		CognitoSub: sub,
+		Email:      email,
+		Name:       name,
+		Role:       role,
+		CompanyID:  companyID,
 	}); err != nil {
 		log.Printf("upsertUserFromIDToken: create user failed sub=%s email=%s err=%v", sub, email, err)
 		return false, fmt.Errorf("create user: %w", err)

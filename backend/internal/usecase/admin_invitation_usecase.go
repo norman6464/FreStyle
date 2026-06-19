@@ -76,10 +76,10 @@ func NewCreateAdminInvitationUseCase(
 }
 
 type CreateAdminInvitationInput struct {
-	CompanyID   uint64
-	Email       string
-	Role        string
-	DisplayName string
+	CompanyID uint64
+	Email     string
+	Role      string
+	Name      string
 }
 
 // Execute は token 発行 → invitations を pending で保存 → 受諾リンクメール送信、の順で招待を作る。
@@ -91,11 +91,11 @@ func (u *CreateAdminInvitationUseCase) Execute(ctx context.Context, in CreateAdm
 
 	token := uuid.NewString()
 	inv := &domain.AdminInvitation{
-		CompanyID:   in.CompanyID,
-		Email:       in.Email,
-		Role:        in.Role,
-		DisplayName: in.DisplayName,
-		Status:      domain.InvitationStatusPending,
+		CompanyID: in.CompanyID,
+		Email:     in.Email,
+		Role:      in.Role,
+		Name:      in.Name,
+		Status:    domain.InvitationStatusPending,
 		Token:       &token,
 		ExpiresAt:   time.Now().UTC().Add(u.expiresIn),
 	}
@@ -112,7 +112,7 @@ func (u *CreateAdminInvitationUseCase) Execute(ctx context.Context, in CreateAdm
 	}
 
 	link := u.buildLink(token)
-	subject, htmlBody, textBody := u.buildMail(link, in.DisplayName, u.companyName, in.Role)
+	subject, htmlBody, textBody := u.buildMail(link, in.Name, u.companyName, in.Role)
 	if err := u.sender.SendInvitationEmail(ctx, in.Email, subject, htmlBody, textBody); err != nil {
 		// 送信失敗はエラーで返す（invitation は DB に残るので再送に使える）。SES エラー種別を判定できるよう詳細をログに残す。
 		log.Printf("CreateAdminInvitation: SES SendInvitationEmail failed to=%s subject=%q: %v",

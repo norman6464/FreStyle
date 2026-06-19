@@ -68,7 +68,7 @@ func Test_招待token検証_正常系_会社名を付与(t *testing.T) {
 		pendingByToken: map[string]*domain.AdminInvitation{
 			"abc-123": {
 				ID: 9, CompanyID: 42, Email: "u@example.com",
-				Role: domain.RoleCompanyAdmin, DisplayName: "山田",
+				Role: domain.RoleCompanyAdmin, Name: "山田",
 			},
 		},
 	}
@@ -89,8 +89,8 @@ func Test_招待token検証_正常系_会社名を付与(t *testing.T) {
 	if got.Role != domain.RoleCompanyAdmin {
 		t.Errorf("Role = %q, want company_admin", got.Role)
 	}
-	if got.DisplayName != "山田" {
-		t.Errorf("DisplayName = %q, want 山田", got.DisplayName)
+	if got.Name != "山田" {
+		t.Errorf("Name = %q, want 山田", got.Name)
 	}
 	if got.CompanyID != 42 || got.CompanyName != "株式会社FreStyle" {
 		t.Errorf("Company = %d/%q, want 42/株式会社FreStyle", got.CompanyID, got.CompanyName)

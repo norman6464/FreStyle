@@ -7,7 +7,7 @@ type User struct {
 	ID          uint64  `gorm:"primaryKey" json:"id"`
 	CognitoSub  string  `gorm:"column:cognito_sub;uniqueIndex" json:"cognitoSub"`
 	Email       string  `gorm:"column:email" json:"email"`
-	DisplayName string  `gorm:"column:display_name" json:"displayName"`
+	Name string  `gorm:"column:name" json:"name"`
 	CompanyID   *uint64 `gorm:"column:company_id" json:"companyId,omitempty"`
 	Role        string  `gorm:"column:role" json:"role"`
 	// AiChatEnabled は AI チャット利用可否の個別上書き。nil = 会社設定に従う、

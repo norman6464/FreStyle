@@ -11,7 +11,7 @@ import (
 )
 
 const getUserByCognitoSub = `-- name: GetUserByCognitoSub :one
-SELECT id, cognito_sub, email, display_name, company_id, role, ai_chat_enabled, is_active, onboarded_at, created_at, updated_at, deleted_at FROM users
+SELECT id, cognito_sub, email, name, company_id, role, ai_chat_enabled, is_active, onboarded_at, created_at, updated_at, deleted_at FROM users
 WHERE cognito_sub = $1 AND deleted_at IS NULL
 `
 
@@ -23,7 +23,7 @@ func (q *Queries) GetUserByCognitoSub(ctx context.Context, cognitoSub string) (U
 		&i.ID,
 		&i.CognitoSub,
 		&i.Email,
-		&i.DisplayName,
+		&i.Name,
 		&i.CompanyID,
 		&i.Role,
 		&i.AiChatEnabled,
@@ -37,7 +37,7 @@ func (q *Queries) GetUserByCognitoSub(ctx context.Context, cognitoSub string) (U
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, cognito_sub, email, display_name, company_id, role, ai_chat_enabled, is_active, onboarded_at, created_at, updated_at, deleted_at FROM users
+SELECT id, cognito_sub, email, name, company_id, role, ai_chat_enabled, is_active, onboarded_at, created_at, updated_at, deleted_at FROM users
 WHERE id = $1 AND deleted_at IS NULL
 `
 
@@ -49,7 +49,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
 		&i.ID,
 		&i.CognitoSub,
 		&i.Email,
-		&i.DisplayName,
+		&i.Name,
 		&i.CompanyID,
 		&i.Role,
 		&i.AiChatEnabled,
@@ -63,7 +63,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
 }
 
 const listUsersByCompanyID = `-- name: ListUsersByCompanyID :many
-SELECT id, cognito_sub, email, display_name, company_id, role, ai_chat_enabled, is_active, onboarded_at, created_at, updated_at, deleted_at FROM users
+SELECT id, cognito_sub, email, name, company_id, role, ai_chat_enabled, is_active, onboarded_at, created_at, updated_at, deleted_at FROM users
 WHERE company_id = $1 AND deleted_at IS NULL
 ORDER BY id ASC
 `
@@ -82,7 +82,7 @@ func (q *Queries) ListUsersByCompanyID(ctx context.Context, companyID sql.NullIn
 			&i.ID,
 			&i.CognitoSub,
 			&i.Email,
-			&i.DisplayName,
+			&i.Name,
 			&i.CompanyID,
 			&i.Role,
 			&i.AiChatEnabled,
@@ -106,7 +106,7 @@ func (q *Queries) ListUsersByCompanyID(ctx context.Context, companyID sql.NullIn
 }
 
 const listUsersByRole = `-- name: ListUsersByRole :many
-SELECT id, cognito_sub, email, display_name, company_id, role, ai_chat_enabled, is_active, onboarded_at, created_at, updated_at, deleted_at FROM users
+SELECT id, cognito_sub, email, name, company_id, role, ai_chat_enabled, is_active, onboarded_at, created_at, updated_at, deleted_at FROM users
 WHERE role = $1 AND deleted_at IS NULL
 ORDER BY id ASC
 `
@@ -125,7 +125,7 @@ func (q *Queries) ListUsersByRole(ctx context.Context, role string) ([]User, err
 			&i.ID,
 			&i.CognitoSub,
 			&i.Email,
-			&i.DisplayName,
+			&i.Name,
 			&i.CompanyID,
 			&i.Role,
 			&i.AiChatEnabled,

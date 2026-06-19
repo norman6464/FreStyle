@@ -44,7 +44,7 @@ func (h *PublicInvitationHandler) Validate(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"role":        got.Role,
-		"displayName": got.DisplayName,
+		"name": got.Name,
 		"companyId":   got.CompanyID,
 		"companyName": got.CompanyName,
 	})

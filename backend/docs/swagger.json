@@ -3765,9 +3765,6 @@
                 "createdAt": {
                     "type": "string"
                 },
-                "displayName": {
-                    "type": "string"
-                },
                 "email": {
                     "type": "string"
                 },
@@ -3776,6 +3773,9 @@
                 },
                 "id": {
                     "type": "integer"
+                },
+                "name": {
+                    "type": "string"
                 },
                 "role": {
                     "type": "string"
@@ -4245,10 +4245,10 @@
                 "bio": {
                     "type": "string"
                 },
-                "displayName": {
+                "email": {
                     "type": "string"
                 },
-                "email": {
+                "name": {
                     "type": "string"
                 },
                 "status": {
@@ -4669,10 +4669,10 @@
                 "companyId": {
                     "type": "integer"
                 },
-                "displayName": {
+                "email": {
                     "type": "string"
                 },
-                "email": {
+                "name": {
                     "type": "string"
                 },
                 "role": {
@@ -4739,7 +4739,7 @@
                     "type": "string",
                     "example": "Example Corp"
                 },
-                "displayName": {
+                "name": {
                     "type": "string",
                     "example": "山田 太郎"
                 },
@@ -4832,10 +4832,6 @@
                 "createdAt": {
                     "type": "string"
                 },
-                "displayName": {
-                    "type": "string",
-                    "example": "山田 太郎"
-                },
                 "email": {
                     "type": "string",
                     "example": "user@example.com"
@@ -4857,6 +4853,10 @@
                     "type": "boolean",
                     "example": false
                 },
+                "name": {
+                    "type": "string",
+                    "example": "山田 太郎"
+                },
                 "onboarded": {
                     "type": "boolean",
                     "example": true
@@ -4877,9 +4877,6 @@
                     "description": "AiChatEnabled は AI 利用可否の個別上書き。null = 会社設定に従う。",
                     "type": "boolean"
                 },
-                "displayName": {
-                    "type": "string"
-                },
                 "email": {
                     "type": "string"
                 },
@@ -4889,6 +4886,9 @@
                 "isActive": {
                     "description": "IsActive はアカウントの有効/無効。false = 無効（ログイン/利用不可）。",
                     "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
                 },
                 "role": {
                     "type": "string"
@@ -5144,15 +5144,11 @@
                 "bio": {
                     "type": "string"
                 },
-                "displayName": {
-                    "type": "string"
-                },
                 "iconUrl": {
                     "description": "旧フロント互換。avatarUrl を優先。",
                     "type": "string"
                 },
                 "name": {
-                    "description": "旧フロント互換。displayName を優先。",
                     "type": "string"
                 },
                 "status": {

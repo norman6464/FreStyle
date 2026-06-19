@@ -33,7 +33,7 @@ func (s *stubUserRepo) UpdateAiChatEnabled(_ context.Context, _ uint64, _ *bool)
 	return s.err
 }
 func (s *stubUserRepo) Create(_ context.Context, _ *domain.User) error { return s.err }
-func (s *stubUserRepo) UpdateDisplayName(_ context.Context, _ uint64, _ string) error {
+func (s *stubUserRepo) UpdateName(_ context.Context, _ uint64, _ string) error {
 	return s.err
 }
 

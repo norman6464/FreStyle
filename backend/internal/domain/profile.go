@@ -13,13 +13,13 @@ type Profile struct {
 
 func (Profile) TableName() string { return "profiles" }
 
-// ProfileView は users.display_name と Profile を合成した表示用 DTO。
+// ProfileView は users.name と Profile を合成した表示用 DTO。
 type ProfileView struct {
-	UserID      uint64    `json:"userId"`
-	DisplayName string    `json:"displayName"`
-	Email       string    `json:"email"`
-	Bio         string    `json:"bio"`
-	AvatarURL   string    `json:"avatarUrl"`
-	Status      string    `json:"status"`
-	UpdatedAt   time.Time `json:"updatedAt"`
+	UserID    uint64    `json:"userId"`
+	Name      string    `json:"name"`
+	Email     string    `json:"email"`
+	Bio       string    `json:"bio"`
+	AvatarURL string    `json:"avatarUrl"`
+	Status    string    `json:"status"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }

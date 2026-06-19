@@ -33,10 +33,10 @@ func NewAdminMemberHandler(
 
 // memberResponse は従業員一覧の 1 行（cognito_sub 等の機密は出さない）。
 type memberResponse struct {
-	ID          uint64 `json:"id"`
-	Email       string `json:"email"`
-	DisplayName string `json:"displayName"`
-	Role        string `json:"role"`
+	ID    uint64 `json:"id"`
+	Email string `json:"email"`
+	Name  string `json:"name"`
+	Role  string `json:"role"`
 	// AiChatEnabled は AI 利用可否の個別上書き。null = 会社設定に従う。
 	AiChatEnabled *bool `json:"aiChatEnabled"`
 	// IsActive はアカウントの有効/無効。false = 無効（ログイン/利用不可）。
@@ -47,7 +47,7 @@ func toMemberResponse(u domain.User) memberResponse {
 	return memberResponse{
 		ID:            u.ID,
 		Email:         u.Email,
-		DisplayName:   u.DisplayName,
+		Name:          u.Name,
 		Role:          u.Role,
 		AiChatEnabled: u.AiChatEnabled,
 		IsActive:      u.IsActive,

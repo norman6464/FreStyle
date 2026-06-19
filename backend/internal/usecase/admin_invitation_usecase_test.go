@@ -123,7 +123,7 @@ func Test_招待作成_正常系_token生成とメール送信(t *testing.T) {
 	uc := NewCreateAdminInvitationUseCase(repo, sender, fakeBuildLink, fakeBuildMail)
 
 	got, err := uc.Execute(context.Background(), CreateAdminInvitationInput{
-		CompanyID: 1, Email: "u@example.com", Role: domain.RoleTrainee, DisplayName: "山田",
+		CompanyID: 1, Email: "u@example.com", Role: domain.RoleTrainee, Name: "山田",
 	})
 	if err != nil {
 		t.Fatalf("err: %v", err)

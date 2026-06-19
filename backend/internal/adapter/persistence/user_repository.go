@@ -30,11 +30,11 @@ func NewUserRepository(db *gorm.DB) repository.UserRepository {
 // 変換は安全（gosec G115 は persistence の id 境界として .golangci.yml で除外）。
 func toDomainUser(row sqlcgen.User) *domain.User {
 	u := &domain.User{
-		ID:          uint64(row.ID),
-		CognitoSub:  row.CognitoSub,
-		Email:       row.Email,
-		DisplayName: row.DisplayName,
-		Role:        row.Role,
+		ID:         uint64(row.ID),
+		CognitoSub: row.CognitoSub,
+		Email:      row.Email,
+		Name:       row.Name,
+		Role:       row.Role,
 		IsActive:    row.IsActive,
 		CreatedAt:   row.CreatedAt,
 		UpdatedAt:   row.UpdatedAt,
@@ -176,11 +176,11 @@ func (r *userRepository) SoftDelete(ctx context.Context, userID uint64) error {
 	return nil
 }
 
-func (r *userRepository) UpdateDisplayName(ctx context.Context, userID uint64, displayName string) error {
+func (r *userRepository) UpdateName(ctx context.Context, userID uint64, name string) error {
 	return r.db.WithContext(ctx).
 		Model(&domain.User{}).
 		Where("id = ?", userID).
-		Update("display_name", displayName).Error
+		Update("name", name).Error
 }
 
 func (r *userRepository) UpdateRole(ctx context.Context, userID uint64, role string) error {

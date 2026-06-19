@@ -7,7 +7,7 @@ type AdminInvitation struct {
 	CompanyID   uint64 `gorm:"column:company_id;index" json:"companyId"`
 	Email       string `gorm:"column:email" json:"email"`
 	Role        string `gorm:"column:role" json:"role"`
-	DisplayName string `gorm:"column:display_name" json:"displayName"`
+	Name string `gorm:"column:name" json:"name"`
 	Status      string `gorm:"column:status" json:"status"`
 	// Token はマジックリンク用の不透明 UUID（秘匿値なので json では返さない）。
 	// 未設定値を NULL にして UNIQUE 制約に引っかけないため *string にしている。

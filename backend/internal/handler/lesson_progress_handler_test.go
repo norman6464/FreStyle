@@ -17,7 +17,9 @@ import (
 // fakeProgressRepoH / fakeMaterialRepoH / fakeCourseRepoH は handler テスト用の最小 fake。
 type fakeProgressRepoH struct{ rows []domain.UserLessonProgress }
 
-func (f *fakeProgressRepoH) MarkCompleted(context.Context, uint64, uint64, uint64) error { return nil }
+func (f *fakeProgressRepoH) MarkCompleted(context.Context, uint64, uint64, uint64) (bool, error) {
+	return true, nil
+}
 
 func (f *fakeProgressRepoH) MarkIncomplete(context.Context, uint64, uint64) error { return nil }
 

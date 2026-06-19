@@ -16,12 +16,16 @@ export default function LearningCalendar({ activities }: Props) {
     actMap.set(dateKey, (a.exerciseCount + a.lessonCount + a.aiChatCount + a.noteCount));
   }
 
-  // 今日から 90 日分の日付リストを生成（新しい順）。
-  const today = new Date();
+  // 今日から 90 日分の日付リストを生成（UTC 基準 — activityDate の UTC 文字列と一致させる）。
+  const todayUtc = new Date(Date.UTC(
+    new Date().getUTCFullYear(),
+    new Date().getUTCMonth(),
+    new Date().getUTCDate(),
+  ));
   const days: string[] = [];
   for (let i = 89; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(today.getDate() - i);
+    const d = new Date(todayUtc);
+    d.setUTCDate(todayUtc.getUTCDate() - i);
     days.push(d.toISOString().slice(0, 10));
   }
 

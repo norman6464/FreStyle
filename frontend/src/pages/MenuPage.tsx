@@ -33,7 +33,7 @@ export default function MenuPage() {
   const showAi = !isTrainee || aiEnabled;
 
   // ダッシュボード統計（super_admin は学習機能を使わないので取得しない）。
-  const { dashboard } = useUserDashboard();
+  const { dashboard } = useUserDashboard({ enabled: !isSuperAdmin });
 
   return (
     <div className="px-4 sm:px-6 pt-8 pb-24 max-w-4xl mx-auto space-y-10">

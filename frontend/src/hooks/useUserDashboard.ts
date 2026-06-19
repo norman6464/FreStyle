@@ -2,13 +2,19 @@ import { useState, useEffect } from 'react';
 import DashboardRepository from '../repositories/DashboardRepository';
 import type { UserDashboard } from '../types';
 
-/** useUserDashboard はログインユーザーの学習サマリーを取得する。 */
-export function useUserDashboard() {
+interface Options {
+  enabled?: boolean;
+}
+
+/** useUserDashboard はログインユーザーの学習サマリーを取得する。enabled=false のときはリクエストを発行しない。 */
+export function useUserDashboard(options?: Options) {
+  const enabled = options?.enabled ?? true;
   const [dashboard, setDashboard] = useState<UserDashboard | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!enabled) return;
     let cancelled = false;
     setLoading(true);
     DashboardRepository.get()
@@ -22,7 +28,7 @@ export function useUserDashboard() {
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
-  }, []);
+  }, [enabled]);
 
   return { dashboard, loading, error };
 }

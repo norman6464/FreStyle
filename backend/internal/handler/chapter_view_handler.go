@@ -33,8 +33,8 @@ func NewChapterViewHandler(r *usecase.RecordChapterViewUseCase) *ChapterViewHand
 //	@Router       /teaching-materials/{id}/view [post]
 //	@Security     CookieAuth
 func (h *ChapterViewHandler) RecordView(c *gin.Context) {
-	uid := middleware.CurrentUserIDOrZero(c)
-	if uid == 0 {
+	user := middleware.CurrentUserFromContext(c)
+	if user == nil {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
@@ -43,9 +43,15 @@ func (h *ChapterViewHandler) RecordView(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_id"})
 		return
 	}
+	var companyID uint64
+	if user.CompanyID != nil {
+		companyID = *user.CompanyID
+	}
 	// ベストエフォート — 失敗しても 204 で返す。
 	_ = h.record.Execute(c.Request.Context(), usecase.RecordChapterViewInput{
-		UserID:             uid,
+		UserID:             user.ID,
+		ActorCompanyID:     companyID,
+		ActorRole:          user.Role,
 		TeachingMaterialID: mid,
 	})
 	c.Status(http.StatusNoContent)

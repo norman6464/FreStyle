@@ -173,7 +173,7 @@ func (uc *SubmitMasterExerciseUseCase) Execute(ctx context.Context, in SubmitMas
 	if allPassed {
 		correct = 1
 	}
-	if err := uc.activity.Increment(ctx, in.UserID, time.Now().UTC(), repository.UserDailyActivityIncrement{
+	if err := uc.activity.Increment(ctx, in.UserID, submission.SubmittedAt, repository.UserDailyActivityIncrement{
 		ExerciseCount: 1,
 		CorrectCount:  correct,
 	}); err != nil {
@@ -212,7 +212,7 @@ func (uc *SubmitMasterExerciseUseCase) submitQA(ctx context.Context, in SubmitMa
 	if isCorrect {
 		correct = 1
 	}
-	if err := uc.activity.Increment(ctx, in.UserID, time.Now().UTC(), repository.UserDailyActivityIncrement{
+	if err := uc.activity.Increment(ctx, in.UserID, submission.SubmittedAt, repository.UserDailyActivityIncrement{
 		ExerciseCount: 1,
 		CorrectCount:  correct,
 	}); err != nil {

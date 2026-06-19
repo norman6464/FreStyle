@@ -56,8 +56,10 @@ func (r *userDailyActivityRepository) ListByUser(
 	from, to time.Time,
 ) ([]domain.UserDailyActivity, error) {
 	var rows []domain.UserDailyActivity
+	fromDate := from.UTC().Truncate(24 * time.Hour)
+	toDate := to.UTC().Truncate(24 * time.Hour)
 	err := r.db.WithContext(ctx).
-		Where("user_id = ? AND activity_date BETWEEN ? AND ?", userID, from.UTC(), to.UTC()).
+		Where("user_id = ? AND activity_date BETWEEN ? AND ?", userID, fromDate, toDate).
 		Order("activity_date ASC").
 		Find(&rows).Error
 	return rows, err

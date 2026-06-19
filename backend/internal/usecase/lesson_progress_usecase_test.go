@@ -23,12 +23,13 @@ func newFakeLessonProgressRepo() *fakeLessonProgressRepo {
 	return &fakeLessonProgressRepo{completed: map[uint64]uint64{}}
 }
 
-func (f *fakeLessonProgressRepo) MarkCompleted(_ context.Context, _, materialID, courseID uint64) error {
+func (f *fakeLessonProgressRepo) MarkCompleted(_ context.Context, _, materialID, courseID uint64) (bool, error) {
 	if f.completeErr != nil {
-		return f.completeErr
+		return false, f.completeErr
 	}
+	_, alreadyDone := f.completed[materialID]
 	f.completed[materialID] = courseID
-	return nil
+	return !alreadyDone, nil
 }
 
 func (f *fakeLessonProgressRepo) MarkIncomplete(_ context.Context, _, materialID uint64) error {

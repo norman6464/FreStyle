@@ -69,14 +69,17 @@ func (u *MarkLessonCompletedUseCase) Execute(ctx context.Context, in MarkLessonC
 	if !canRead(m, course, in.ActorCompanyID, in.ActorRole) {
 		return ErrLessonForbidden
 	}
-	if err := u.progress.MarkCompleted(ctx, in.UserID, in.TeachingMaterialID, m.CourseID); err != nil {
+	changed, err := u.progress.MarkCompleted(ctx, in.UserID, in.TeachingMaterialID, m.CourseID)
+	if err != nil {
 		return err
 	}
-	// 日次活動サマリーを更新（失敗しても完了記録には影響させない）。
-	if err := u.activity.Increment(ctx, in.UserID, time.Now().UTC(), repository.UserDailyActivityIncrement{
-		LessonCount: 1,
-	}); err != nil {
-		slog.WarnContext(ctx, "user_daily_activities increment failed", "userID", in.UserID, "err", err)
+	// 初回完了時のみカウントを加算する（重複リクエストでは changed=false なのでスキップ）。
+	if changed {
+		if err := u.activity.Increment(ctx, in.UserID, time.Now().UTC(), repository.UserDailyActivityIncrement{
+			LessonCount: 1,
+		}); err != nil {
+			slog.WarnContext(ctx, "user_daily_activities increment failed", "userID", in.UserID, "err", err)
+		}
 	}
 	return nil
 }

@@ -3,11 +3,11 @@
 CREATE TABLE IF NOT EXISTS user_daily_activities (
     user_id        BIGINT  NOT NULL,
     activity_date  DATE    NOT NULL,
-    exercise_count INTEGER NOT NULL DEFAULT 0,
-    correct_count  INTEGER NOT NULL DEFAULT 0,
-    lesson_count   INTEGER NOT NULL DEFAULT 0,
-    ai_chat_count  INTEGER NOT NULL DEFAULT 0,
-    note_count     INTEGER NOT NULL DEFAULT 0,
+    exercise_count INTEGER NOT NULL DEFAULT 0 CHECK (exercise_count >= 0),
+    correct_count  INTEGER NOT NULL DEFAULT 0 CHECK (correct_count  >= 0),
+    lesson_count   INTEGER NOT NULL DEFAULT 0 CHECK (lesson_count   >= 0),
+    ai_chat_count  INTEGER NOT NULL DEFAULT 0 CHECK (ai_chat_count  >= 0),
+    note_count     INTEGER NOT NULL DEFAULT 0 CHECK (note_count     >= 0),
     PRIMARY KEY (user_id, activity_date)
 );
 
@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS user_chapter_views (
     course_id            BIGINT      NOT NULL,
     first_viewed_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     last_viewed_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    view_count           INTEGER     NOT NULL DEFAULT 1,
+    view_count           INTEGER     NOT NULL DEFAULT 1 CHECK (view_count >= 1),
     PRIMARY KEY (user_id, teaching_material_id)
 );
 

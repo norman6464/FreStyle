@@ -28,6 +28,7 @@ INSERT INTO user_chapter_views
 VALUES
   (?, ?, ?, NOW(), NOW(), 1)
 ON CONFLICT (user_id, teaching_material_id) DO UPDATE SET
+  course_id      = EXCLUDED.course_id,
   last_viewed_at = NOW(),
   view_count     = user_chapter_views.view_count + 1
 `

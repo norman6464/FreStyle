@@ -22,6 +22,6 @@ func registerTeachingMaterialRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	g.DELETE("/teaching-materials/:id", h.Delete)
 
 	// 章閲覧記録（「続きから」カードの基盤）。ベストエフォートなので失敗しても 204 を返す。
-	cvh := NewChapterViewHandler(usecase.NewRecordChapterViewUseCase(chapterViewRepo, materialRepo))
+	cvh := NewChapterViewHandler(usecase.NewRecordChapterViewUseCase(chapterViewRepo, materialRepo, courseRepo))
 	g.POST("/teaching-materials/:id/view", cvh.RecordView)
 }

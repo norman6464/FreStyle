@@ -1,9 +1,6 @@
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import remarkBreaks from 'remark-breaks';
-import rehypeHighlight from 'rehype-highlight';
 import { CheckCircleIcon, XCircleIcon, ClipboardDocumentCheckIcon } from '@heroicons/react/24/outline';
 import ExerciseHeader from './ExerciseHeader';
+import MarkdownView from '../message/MarkdownView';
 import { MasterExercise, ExerciseSubmitResult } from '../../types';
 
 interface Props {
@@ -78,9 +75,9 @@ export default function QaExerciseView({
         <p className="text-xs text-[var(--color-text-muted)]">
           以下の問題に対応するコマンドを入力してください。
         </p>
-        <p className="text-sm text-[var(--color-text-primary)] whitespace-pre-wrap leading-relaxed">
-          {ex.description}
-        </p>
+        <div className="prose prose-sm max-w-none text-sm text-[var(--color-text-primary)] leading-relaxed">
+          <MarkdownView content={ex.description} />
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-3">
           <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-[#1e1e1e] border border-surface-3 font-mono text-sm">
@@ -139,12 +136,7 @@ export default function QaExerciseView({
                 説明
               </p>
               <div className="prose prose-sm max-w-none text-sm text-[var(--color-text-primary)]">
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm, remarkBreaks]}
-                  rehypePlugins={[rehypeHighlight]}
-                >
-                  {ex.explanation}
-                </ReactMarkdown>
+                <MarkdownView content={ex.explanation} />
               </div>
             </div>
           )}

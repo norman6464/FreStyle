@@ -209,7 +209,7 @@ export default function CourseDetailPage() {
           </div>
         }
       >
-        <div className="p-2 space-y-0.5">
+        <div className="py-2">
           {loading && materials.length === 0 ? (
             <Loading className="py-8" />
           ) : filtered.length === 0 ? (
@@ -228,10 +228,11 @@ export default function CourseDetailPage() {
               />
             </div>
           ) : (
-            filtered.map((m) => (
+            filtered.map((m, idx) => (
               <MaterialListItem
                 key={m.id}
                 material={m}
+                index={idx + 1}
                 isActive={selectedId === m.id}
                 onSelect={handleSelect}
                 onDelete={canManage ? (mid) => setDeleteTargetId(mid) : undefined}
@@ -302,6 +303,7 @@ export default function CourseDetailPage() {
 
 function MaterialListItem({
   material,
+  index,
   isActive,
   onSelect,
   onDelete,
@@ -309,10 +311,10 @@ function MaterialListItem({
   completed = false,
 }: {
   material: TeachingMaterial;
+  index?: number;
   isActive: boolean;
   onSelect: (id: number) => void;
   onDelete?: (id: number) => void;
-  // showCompletion=true（trainee）のときは公開状態の代わりに完了状態を表示する。
   showCompletion?: boolean;
   completed?: boolean;
 }) {
@@ -327,34 +329,45 @@ function MaterialListItem({
           onSelect(material.id);
         }
       }}
-      className={`group flex items-start gap-2 px-3 py-2 rounded-md cursor-pointer transition-colors ${
+      className={`group flex items-start gap-2.5 pl-4 pr-2 py-2.5 cursor-pointer transition-colors border-l-2 ${
         isActive
-          ? 'bg-[var(--color-nav-active)]'
-          : 'hover:bg-[var(--color-nav-hover)]'
+          ? 'border-brand-500 bg-[var(--color-nav-active)]'
+          : 'border-transparent hover:bg-[var(--color-nav-hover)]'
       }`}
     >
-      <div className="flex-1 min-w-0">
-        <p className="text-sm text-[var(--color-text-primary)] truncate font-medium">
-          {material.title || '無題の教材'}
-        </p>
-        <p className="text-xs text-[var(--color-text-muted)] mt-0.5 truncate">
-          {showCompletion
-            ? completed
-              ? '完了済み'
-              : '未完了'
-            : material.isPublished
-              ? '公開中'
-              : '下書き'}{' '}
-          ・ {formatDate(material.updatedAt)}
-        </p>
-      </div>
+      {/* 完了アイコン（trainee）/ 公開ステータスドット（管理者） */}
+      <span className="mt-[3px] flex-shrink-0">
+        {showCompletion ? (
+          completed ? (
+            <CheckCircleSolidIcon className="w-4 h-4 text-green-500" />
+          ) : (
+            <span className="block w-4 h-4 rounded-full border border-[var(--color-text-muted)]/50" />
+          )
+        ) : (
+          <span className={`block w-2 h-2 mt-1 rounded-full ${
+            material.isPublished ? 'bg-green-500' : 'bg-[var(--color-text-muted)]/30'
+          }`} />
+        )}
+      </span>
+
+      <p className={`flex-1 min-w-0 text-[13px] leading-snug line-clamp-2 ${
+        isActive
+          ? 'font-medium text-[var(--color-text-primary)]'
+          : 'text-[var(--color-text-secondary)]'
+      }`}>
+        {index !== undefined && (
+          <span className="text-[var(--color-text-muted)] mr-1.5 font-normal">{index}.</span>
+        )}
+        {material.title || '無題の教材'}
+      </p>
+
       {onDelete && (
         <button
           onClick={(e) => {
             e.stopPropagation();
             onDelete(material.id);
           }}
-          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-900/30 rounded transition-opacity"
+          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-900/30 rounded transition-opacity flex-shrink-0"
           aria-label="教材を削除"
         >
           <TrashIcon className="w-3.5 h-3.5 text-[var(--color-text-muted)] hover:text-red-400" />

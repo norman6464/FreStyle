@@ -106,22 +106,24 @@ func (h *AuthHandler) Me(c *gin.Context) {
 			aiEnabled = ok
 		}
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"id":         user.ID,
-		"cognitoSub": user.CognitoSub,
-		"email":      user.Email,
-		"name":       user.Name,
-		"companyId":  user.CompanyID,
-		"role":        user.Role,
-		"createdAt":   user.CreatedAt,
-		"updatedAt":   user.UpdatedAt,
-		"groups":      groups,
-		"isAdmin":     isAdmin,
-		// onboarded: フロントの /welcome リダイレクト判定に使う。
-		"onboarded": user.OnboardedAt != nil,
-		// aiChatEnabledForTrainees: フロントのサイドバー AI 表示判定に使う。
+	resp := gin.H{
+		"id":                       user.ID,
+		"cognitoSub":               user.CognitoSub,
+		"email":                    user.Email,
+		"name":                     user.Name,
+		"role":                     user.Role,
+		"createdAt":                user.CreatedAt,
+		"updatedAt":                user.UpdatedAt,
+		"groups":                   groups,
+		"isAdmin":                  isAdmin,
+		"onboarded":                user.OnboardedAt != nil,
 		"aiChatEnabledForTrainees": aiEnabled,
-	})
+	}
+	// companyId は nil 時に JSON フィールド自体を省略する（omitempty 相当）。
+	if user.CompanyID != nil {
+		resp["companyId"] = user.CompanyID
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 // Logout はリフレッシュ・アクセストークンの Cookie を消去する。

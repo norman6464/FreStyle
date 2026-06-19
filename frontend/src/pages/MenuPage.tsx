@@ -11,6 +11,8 @@ import {
   ArrowRightIcon,
 } from '@heroicons/react/24/outline';
 import type { RootState } from '../store';
+import { useUserDashboard } from '../hooks/useUserDashboard';
+import DashboardStats from '../components/dashboard/DashboardStats';
 
 /**
  * ホーム画面（ダッシュボード）。
@@ -30,6 +32,9 @@ export default function MenuPage() {
   const isTrainee = role === 'trainee';
   const showAi = !isTrainee || aiEnabled;
 
+  // ダッシュボード統計（super_admin は学習機能を使わないので取得しない）。
+  const { dashboard } = useUserDashboard({ enabled: !isSuperAdmin });
+
   return (
     <div className="px-4 sm:px-6 pt-8 pb-24 max-w-4xl mx-auto space-y-10">
 
@@ -47,6 +52,9 @@ export default function MenuPage() {
             : 'コースや演習で学習を進め、AI チャットで疑問を解決しましょう。'}
         </p>
       </section>
+
+      {/* 学習者向けパーソナライズ統計（super_admin には表示しない）*/}
+      {!isSuperAdmin && dashboard && <DashboardStats dashboard={dashboard} />}
 
       {isSuperAdmin ? (
         <FeatureSection title="管理機能">

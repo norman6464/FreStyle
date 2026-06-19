@@ -19,18 +19,22 @@ func NewLessonProgressRepository(db *gorm.DB) repository.LessonProgressRepositor
 	return &lessonProgressRepository{db: db}
 }
 
-func (r *lessonProgressRepository) MarkCompleted(ctx context.Context, userID, materialID, courseID uint64) error {
+func (r *lessonProgressRepository) MarkCompleted(ctx context.Context, userID, materialID, courseID uint64) (bool, error) {
 	row := &domain.UserLessonProgress{
 		UserID:             userID,
 		TeachingMaterialID: materialID,
 		CourseID:           courseID,
 		CompletedAt:        time.Now(),
 	}
-	// (user_id, teaching_material_id) が衝突したら何もしない（冪等）。
-	return r.db.WithContext(ctx).Clauses(clause.OnConflict{
+	// (user_id, teaching_material_id) が衝突したら何もしない（冪等）。RowsAffected で初回かを判定。
+	result := r.db.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "user_id"}, {Name: "teaching_material_id"}},
 		DoNothing: true,
-	}).Create(row).Error
+	}).Create(row)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
 }
 
 func (r *lessonProgressRepository) MarkIncomplete(ctx context.Context, userID, materialID uint64) error {

@@ -41,7 +41,7 @@ func (f *fakeNoteRepo) Delete(context.Context, uint64, uint64) error { return f.
 func newNoteHandler(repo repository.NoteRepository) *NoteHandler {
 	return NewNoteHandler(
 		usecase.NewListNotesByUserIDUseCase(repo),
-		usecase.NewCreateNoteUseCase(repo),
+		usecase.NewCreateNoteUseCase(repo, &nopActivityRepo{}),
 		usecase.NewUpdateNoteUseCase(repo),
 		usecase.NewDeleteNoteUseCase(repo),
 	)

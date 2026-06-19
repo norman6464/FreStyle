@@ -14,9 +14,10 @@ import (
 // registerNoteRoutes は Note CRUD・Note 画像 presigned URL・SessionNote のエンドポイントを登録する。
 func registerNoteRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	noteRepo := persistence.NewNoteRepository(deps.db)
+	activityRepo := persistence.NewUserDailyActivityRepository(deps.db)
 	noteHandler := NewNoteHandler(
 		usecase.NewListNotesByUserIDUseCase(noteRepo),
-		usecase.NewCreateNoteUseCase(noteRepo),
+		usecase.NewCreateNoteUseCase(noteRepo, activityRepo),
 		usecase.NewUpdateNoteUseCase(noteRepo),
 		usecase.NewDeleteNoteUseCase(noteRepo),
 	)

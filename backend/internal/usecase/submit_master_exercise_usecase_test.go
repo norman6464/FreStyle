@@ -110,7 +110,7 @@ func Test_演習提出_全テスト成功(t *testing.T) {
 		"x": "x",
 	}}
 
-	uc := usecase.NewSubmitMasterExerciseUseCase(exRepo, examples, submissions, executor)
+	uc := usecase.NewSubmitMasterExerciseUseCase(exRepo, examples, submissions, executor, &nopActivityRepo{})
 	out, err := uc.Execute(context.Background(), usecase.SubmitMasterExerciseInput{
 		UserID: 1, Slug: "php-7", Code: "<?php echo 'Hello';",
 	})
@@ -144,7 +144,7 @@ func Test_演習提出_一部失敗(t *testing.T) {
 		"2": "2",
 	}}
 
-	uc := usecase.NewSubmitMasterExerciseUseCase(exRepo, examples, submissions, executor)
+	uc := usecase.NewSubmitMasterExerciseUseCase(exRepo, examples, submissions, executor, &nopActivityRepo{})
 	out, err := uc.Execute(context.Background(), usecase.SubmitMasterExerciseInput{
 		UserID: 1, Slug: "php-7", Code: "<?php",
 	})
@@ -171,7 +171,7 @@ func Test_演習提出_出力を正規化(t *testing.T) {
 	// 末尾に \r\n を含めても normalize で吸収される。
 	executor := &fakeExecutor{stdinToOut: map[string]string{"": "42\r\n"}}
 
-	uc := usecase.NewSubmitMasterExerciseUseCase(exRepo, examples, submissions, executor)
+	uc := usecase.NewSubmitMasterExerciseUseCase(exRepo, examples, submissions, executor, &nopActivityRepo{})
 	out, err := uc.Execute(context.Background(), usecase.SubmitMasterExerciseInput{
 		UserID: 1, Slug: "s", Code: "<?php",
 	})
@@ -192,7 +192,7 @@ func Test_演習提出_非ゼロ終了は失敗(t *testing.T) {
 		failExit:   map[string]int{"": 1},
 	}
 
-	uc := usecase.NewSubmitMasterExerciseUseCase(exRepo, examples, submissions, executor)
+	uc := usecase.NewSubmitMasterExerciseUseCase(exRepo, examples, submissions, executor, &nopActivityRepo{})
 	out, err := uc.Execute(context.Background(), usecase.SubmitMasterExerciseInput{
 		UserID: 1, Slug: "s", Code: "<?php",
 	})
@@ -215,7 +215,7 @@ func Test_演習提出_例なしは期待出力にフォールバック(t *testi
 	submissions := &fakeSubmissionRepo{}
 	executor := &fakeExecutor{stdinToOut: map[string]string{"": "Hello, Linux!\n"}}
 
-	uc := usecase.NewSubmitMasterExerciseUseCase(exRepo, examples, submissions, executor)
+	uc := usecase.NewSubmitMasterExerciseUseCase(exRepo, examples, submissions, executor, &nopActivityRepo{})
 	out, err := uc.Execute(context.Background(), usecase.SubmitMasterExerciseInput{
 		UserID: 1, Slug: "linux-1", Code: `echo "Hello, Linux!"`,
 	})
@@ -239,7 +239,7 @@ func Test_演習提出_演習の言語を渡す(t *testing.T) {
 	submissions := &fakeSubmissionRepo{}
 	executor := &fakeExecutor{stdinToOut: map[string]string{"": "Hello, Go!\n"}}
 
-	uc := usecase.NewSubmitMasterExerciseUseCase(exRepo, examples, submissions, executor)
+	uc := usecase.NewSubmitMasterExerciseUseCase(exRepo, examples, submissions, executor, &nopActivityRepo{})
 	_, err := uc.Execute(context.Background(), usecase.SubmitMasterExerciseInput{
 		UserID: 1, Slug: "go-1", Code: "package main",
 	})
@@ -259,7 +259,7 @@ func Test_演習提出_QA_正解(t *testing.T) {
 	submissions := &fakeSubmissionRepo{}
 	executor := &fakeExecutor{}
 
-	uc := usecase.NewSubmitMasterExerciseUseCase(exRepo, &fakeExampleRepo{}, submissions, executor)
+	uc := usecase.NewSubmitMasterExerciseUseCase(exRepo, &fakeExampleRepo{}, submissions, executor, &nopActivityRepo{})
 	out, err := uc.Execute(context.Background(), usecase.SubmitMasterExerciseInput{
 		UserID: 1, Slug: "docker-1", Code: "docker run hello-world",
 	})
@@ -284,7 +284,7 @@ func Test_演習提出_QA_不正解(t *testing.T) {
 	submissions := &fakeSubmissionRepo{}
 	executor := &fakeExecutor{}
 
-	uc := usecase.NewSubmitMasterExerciseUseCase(exRepo, &fakeExampleRepo{}, submissions, executor)
+	uc := usecase.NewSubmitMasterExerciseUseCase(exRepo, &fakeExampleRepo{}, submissions, executor, &nopActivityRepo{})
 	out, err := uc.Execute(context.Background(), usecase.SubmitMasterExerciseInput{
 		UserID: 1, Slug: "docker-1", Code: "docker run nginx",
 	})
@@ -304,7 +304,7 @@ func Test_演習提出_QA_末尾空白を正規化(t *testing.T) {
 		},
 	}
 	submissions := &fakeSubmissionRepo{}
-	uc := usecase.NewSubmitMasterExerciseUseCase(exRepo, &fakeExampleRepo{}, submissions, &fakeExecutor{})
+	uc := usecase.NewSubmitMasterExerciseUseCase(exRepo, &fakeExampleRepo{}, submissions, &fakeExecutor{}, &nopActivityRepo{})
 	out, err := uc.Execute(context.Background(), usecase.SubmitMasterExerciseInput{
 		UserID: 1, Slug: "docker-1", Code: "git init   \n",
 	})
@@ -314,7 +314,7 @@ func Test_演習提出_QA_末尾空白を正規化(t *testing.T) {
 
 func Test_演習提出_演習が見つからない(t *testing.T) {
 	exRepo := &fakeMasterExerciseRepo{err: errors.New("record not found")}
-	uc := usecase.NewSubmitMasterExerciseUseCase(exRepo, &fakeExampleRepo{}, &fakeSubmissionRepo{}, &fakeExecutor{})
+	uc := usecase.NewSubmitMasterExerciseUseCase(exRepo, &fakeExampleRepo{}, &fakeSubmissionRepo{}, &fakeExecutor{}, &nopActivityRepo{})
 	_, err := uc.Execute(context.Background(), usecase.SubmitMasterExerciseInput{
 		UserID: 1, Slug: "missing", Code: "<?php",
 	})
@@ -322,7 +322,7 @@ func Test_演習提出_演習が見つからない(t *testing.T) {
 }
 
 func Test_演習提出_入力が必須(t *testing.T) {
-	uc := usecase.NewSubmitMasterExerciseUseCase(&fakeMasterExerciseRepo{}, &fakeExampleRepo{}, &fakeSubmissionRepo{}, &fakeExecutor{})
+	uc := usecase.NewSubmitMasterExerciseUseCase(&fakeMasterExerciseRepo{}, &fakeExampleRepo{}, &fakeSubmissionRepo{}, &fakeExecutor{}, &nopActivityRepo{})
 	_, err := uc.Execute(context.Background(), usecase.SubmitMasterExerciseInput{
 		UserID: 0, Slug: "s", Code: "x",
 	})

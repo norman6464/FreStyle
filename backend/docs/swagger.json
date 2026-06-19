@@ -2633,6 +2633,43 @@
                 }
             }
         },
+        "/me/dashboard": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "過去 90 日間の日次活動サマリー・連続学習日数・直近の閲覧章を返す。 カレンダーヒートマップ や 「続きから」 カード の 描画 に 使う。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dashboard"
+                ],
+                "summary": "ダッシュボード データ 取得",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase.GetUserDashboardOutput"
+                        }
+                    },
+                    "401": {
+                        "description": "未認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "集計失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/notes": {
             "get": {
                 "security": [
@@ -3622,6 +3659,49 @@
                 }
             }
         },
+        "/teaching-materials/{id}/view": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "ユーザーが教材（章）を開いたときに呼び出す。user_chapter_views を upsert し「続きから」カードの基盤データを更新する。 エラーは握り潰し 204 を返す（ベストエフォート）。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "teaching-materials"
+                ],
+                "summary": "章の閲覧を記録する",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "教材 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "記録成功（本文なし）"
+                    },
+                    "400": {
+                        "description": "不正な ID",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/users/{userId}/stats": {
             "get": {
                 "security": [
@@ -4241,6 +4321,55 @@
                 }
             }
         },
+        "github_com_norman6464_FreStyle_backend_internal_domain.UserChapterView": {
+            "type": "object",
+            "properties": {
+                "courseId": {
+                    "type": "integer"
+                },
+                "firstViewedAt": {
+                    "type": "string"
+                },
+                "lastViewedAt": {
+                    "type": "string"
+                },
+                "teachingMaterialId": {
+                    "type": "integer"
+                },
+                "userId": {
+                    "type": "integer"
+                },
+                "viewCount": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_norman6464_FreStyle_backend_internal_domain.UserDailyActivity": {
+            "type": "object",
+            "properties": {
+                "activityDate": {
+                    "type": "string"
+                },
+                "aiChatCount": {
+                    "type": "integer"
+                },
+                "correctCount": {
+                    "type": "integer"
+                },
+                "exerciseCount": {
+                    "type": "integer"
+                },
+                "lessonCount": {
+                    "type": "integer"
+                },
+                "noteCount": {
+                    "type": "integer"
+                },
+                "userId": {
+                    "type": "integer"
+                }
+            }
+        },
         "github_com_norman6464_FreStyle_backend_internal_domain.UserLessonProgress": {
             "type": "object",
             "properties": {
@@ -4345,6 +4474,35 @@
                 },
                 "exercise": {
                     "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.MasterExercise"
+                }
+            }
+        },
+        "github_com_norman6464_FreStyle_backend_internal_usecase.GetUserDashboardOutput": {
+            "type": "object",
+            "properties": {
+                "recentActivity": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.UserDailyActivity"
+                    }
+                },
+                "recentChapterViews": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.UserChapterView"
+                    }
+                },
+                "streak": {
+                    "type": "integer"
+                },
+                "totalCorrect": {
+                    "type": "integer"
+                },
+                "totalExercises": {
+                    "type": "integer"
+                },
+                "totalLessons": {
+                    "type": "integer"
                 }
             }
         },

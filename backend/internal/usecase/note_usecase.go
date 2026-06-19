@@ -3,6 +3,8 @@ package usecase
 import (
 	"context"
 	"errors"
+	"log/slog"
+	"time"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
@@ -27,12 +29,14 @@ func (u *ListNotesByUserIDUseCase) Execute(ctx context.Context, userID uint64) (
 }
 
 // CreateNoteUseCase は新規ノートを作成する。
+// 作成後に user_daily_activities をベストエフォートでインクリメントする。
 type CreateNoteUseCase struct {
-	repo repository.NoteRepository
+	repo     repository.NoteRepository
+	activity repository.UserDailyActivityRepository
 }
 
-func NewCreateNoteUseCase(r repository.NoteRepository) *CreateNoteUseCase {
-	return &CreateNoteUseCase{repo: r}
+func NewCreateNoteUseCase(r repository.NoteRepository, activity repository.UserDailyActivityRepository) *CreateNoteUseCase {
+	return &CreateNoteUseCase{repo: r, activity: activity}
 }
 
 type CreateNoteInput struct {
@@ -59,6 +63,11 @@ func (u *CreateNoteUseCase) Execute(ctx context.Context, in CreateNoteInput) (*d
 	}
 	if err := u.repo.Create(ctx, n); err != nil {
 		return nil, err
+	}
+	if err := u.activity.Increment(ctx, in.UserID, time.Now().UTC(), repository.UserDailyActivityIncrement{
+		NoteCount: 1,
+	}); err != nil {
+		slog.WarnContext(ctx, "user_daily_activities increment failed", "userID", in.UserID, "err", err)
 	}
 	return n, nil
 }

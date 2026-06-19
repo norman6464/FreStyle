@@ -21,8 +21,13 @@ func TestLessonProgressRepository_Integration(t *testing.T) {
 	t.Run("MarkCompleted は冪等（二重実行でも 1 件）", func(t *testing.T) {
 		testsupport.TruncateAll(t, db, "user_lesson_progress")
 
-		require.NoError(t, repo.MarkCompleted(ctx, 1, 10, 100))
-		require.NoError(t, repo.MarkCompleted(ctx, 1, 10, 100)) // 二重実行
+		changed, err := repo.MarkCompleted(ctx, 1, 10, 100)
+		require.NoError(t, err)
+		require.True(t, changed, "初回は true")
+
+		changed2, err := repo.MarkCompleted(ctx, 1, 10, 100) // 二重実行
+		require.NoError(t, err)
+		require.False(t, changed2, "重複は false")
 
 		rows, err := repo.ListByUser(ctx, 1)
 		require.NoError(t, err)
@@ -33,9 +38,12 @@ func TestLessonProgressRepository_Integration(t *testing.T) {
 	t.Run("ListByUser は user で絞り込む", func(t *testing.T) {
 		testsupport.TruncateAll(t, db, "user_lesson_progress")
 
-		require.NoError(t, repo.MarkCompleted(ctx, 1, 10, 100))
-		require.NoError(t, repo.MarkCompleted(ctx, 1, 11, 100))
-		require.NoError(t, repo.MarkCompleted(ctx, 2, 10, 100)) // 別 user
+		_, err := repo.MarkCompleted(ctx, 1, 10, 100)
+		require.NoError(t, err)
+		_, err = repo.MarkCompleted(ctx, 1, 11, 100)
+		require.NoError(t, err)
+		_, err = repo.MarkCompleted(ctx, 2, 10, 100) // 別 user
+		require.NoError(t, err)
 
 		rows, err := repo.ListByUser(ctx, 1)
 		require.NoError(t, err)
@@ -45,7 +53,8 @@ func TestLessonProgressRepository_Integration(t *testing.T) {
 	t.Run("MarkIncomplete は行を削除する（未記録でもエラーにしない）", func(t *testing.T) {
 		testsupport.TruncateAll(t, db, "user_lesson_progress")
 
-		require.NoError(t, repo.MarkCompleted(ctx, 1, 10, 100))
+		_, err := repo.MarkCompleted(ctx, 1, 10, 100)
+		require.NoError(t, err)
 		require.NoError(t, repo.MarkIncomplete(ctx, 1, 10))
 
 		rows, err := repo.ListByUser(ctx, 1)

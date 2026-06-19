@@ -657,3 +657,36 @@ export interface ExerciseSubmission {
   isCorrect: boolean;
   submittedAt: string;
 }
+
+// ─── ダッシュボード ──────────────────────────────────────────────────────────
+
+/** 日次学習活動サマリー（`GET /api/v2/me/dashboard` の recentActivity 要素）。 */
+export interface UserDailyActivity {
+  userId: number;
+  activityDate: string; // ISO 8601 date e.g. "2026-06-19T00:00:00Z"
+  exerciseCount: number;
+  correctCount: number;
+  lessonCount: number;
+  aiChatCount: number;
+  noteCount: number;
+}
+
+/** 章閲覧記録（`GET /api/v2/me/dashboard` の recentChapterViews 要素）。 */
+export interface UserChapterView {
+  userId: number;
+  teachingMaterialId: number;
+  courseId: number;
+  firstViewedAt: string;
+  lastViewedAt: string;
+  viewCount: number;
+}
+
+/** `GET /api/v2/me/dashboard` のレスポンス全体。 */
+export interface UserDashboard {
+  streak: number;
+  totalExercises: number;
+  totalCorrect: number;
+  totalLessons: number;
+  recentActivity: UserDailyActivity[];
+  recentChapterViews: UserChapterView[];
+}

@@ -380,6 +380,38 @@ definitions:
       updatedAt:
         type: string
     type: object
+  github_com_norman6464_FreStyle_backend_internal_domain.UserChapterView:
+    properties:
+      courseId:
+        type: integer
+      firstViewedAt:
+        type: string
+      lastViewedAt:
+        type: string
+      teachingMaterialId:
+        type: integer
+      userId:
+        type: integer
+      viewCount:
+        type: integer
+    type: object
+  github_com_norman6464_FreStyle_backend_internal_domain.UserDailyActivity:
+    properties:
+      activityDate:
+        type: string
+      aiChatCount:
+        type: integer
+      correctCount:
+        type: integer
+      exerciseCount:
+        type: integer
+      lessonCount:
+        type: integer
+      noteCount:
+        type: integer
+      userId:
+        type: integer
+    type: object
   github_com_norman6464_FreStyle_backend_internal_domain.UserLessonProgress:
     properties:
       completedAt:
@@ -449,6 +481,25 @@ definitions:
         type: array
       exercise:
         $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.MasterExercise'
+    type: object
+  github_com_norman6464_FreStyle_backend_internal_usecase.GetUserDashboardOutput:
+    properties:
+      recentActivity:
+        items:
+          $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.UserDailyActivity'
+        type: array
+      recentChapterViews:
+        items:
+          $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.UserChapterView'
+        type: array
+      streak:
+        type: integer
+      totalCorrect:
+        type: integer
+      totalExercises:
+        type: integer
+      totalLessons:
+        type: integer
     type: object
   github_com_norman6464_FreStyle_backend_internal_usecase.SubmitMasterExerciseOutput:
     properties:
@@ -2603,6 +2654,30 @@ paths:
       summary: レッスンの完了を取り消す
       tags:
       - lesson-progress
+  /me/dashboard:
+    get:
+      description: 過去 90 日間の日次活動サマリー・連続学習日数・直近の閲覧章を返す。 カレンダーヒートマップ や 「続きから」 カード の
+        描画 に 使う。
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase.GetUserDashboardOutput'
+        "401":
+          description: 未認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: 集計失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: ダッシュボード データ 取得
+      tags:
+      - dashboard
   /notes:
     get:
       description: current user の note を 更新 日 降順 で 返す。 IDOR 対策 で userId は 受け取らない。
@@ -3240,6 +3315,34 @@ paths:
       security:
       - CookieAuth: []
       summary: 教材 更新
+      tags:
+      - teaching-materials
+  /teaching-materials/{id}/view:
+    post:
+      description: ユーザーが教材（章）を開いたときに呼び出す。user_chapter_views を upsert し「続きから」カードの基盤データを更新する。
+        エラーは握り潰し 204 を返す（ベストエフォート）。
+      parameters:
+      - description: 教材 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: 記録成功（本文なし）
+        "400":
+          description: 不正な ID
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 章の閲覧を記録する
       tags:
       - teaching-materials
   /users/{userId}/stats:

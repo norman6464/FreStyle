@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
+	repository "github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 	"gorm.io/gorm"
 )
@@ -25,6 +26,24 @@ func NewMasterExerciseHandler(
 	return &MasterExerciseHandler{listExercises: list, listWithStatus: listWithStatus, getExercise: get}
 }
 
+// masterExerciseListItemResponse は一覧カード表示に必要な最小フィールドのみを持つレスポンス型。
+// description / starterCode / hintText / expectedOutput / explanation などの重いフィールドは
+// 詳細 API (GetBySlug) でのみ返す。
+type masterExerciseListItemResponse struct {
+	ID          uint64 `json:"id"`
+	Slug        string `json:"slug"`
+	Language    string `json:"language"`
+	OrderIndex  int    `json:"orderIndex"`
+	Category    string `json:"category"`
+	Title       string `json:"title"`
+	Difficulty  int16  `json:"difficulty"`
+	Mode        string `json:"mode"`
+	IsPublished bool   `json:"isPublished"`
+	// Status は current user の提出状況。"solved" / "in_progress" / ""（未提出）。
+	Status string                            `json:"status"`
+	Stats  repository.ExerciseSubmissionStats `json:"stats"`
+}
+
 // List は演習問題一覧を query language で絞り込んで返す。
 // current user の提出状況と全ユーザ集計を同時に返す（未ログイン時は status 空）。
 //
@@ -33,7 +52,7 @@ func NewMasterExerciseHandler(
 //	@Tags         exercises
 //	@Produce      json
 //	@Param        language  query     string  false  "言語 フィルタ (例: php, go, javascript)"
-//	@Success      200       {array}   usecase.MasterExerciseWithStatus
+//	@Success      200       {array}   masterExerciseListItemResponse
 //	@Failure      500       {object}  errorResponse  "DB / 集計 失敗"
 //	@Router       /exercises [get]
 //	@Security     CookieAuth
@@ -48,7 +67,23 @@ func (h *MasterExerciseHandler) List(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "演習問題の取得に失敗しました"})
 		return
 	}
-	c.JSON(http.StatusOK, rows)
+	items := make([]masterExerciseListItemResponse, len(rows))
+	for i, r := range rows {
+		items[i] = masterExerciseListItemResponse{
+			ID:          r.ID,
+			Slug:        r.Slug,
+			Language:    r.Language,
+			OrderIndex:  r.OrderIndex,
+			Category:    r.Category,
+			Title:       r.Title,
+			Difficulty:  r.Difficulty,
+			Mode:        r.Mode,
+			IsPublished: r.IsPublished,
+			Status:      r.Status,
+			Stats:       r.Stats,
+		}
+	}
+	c.JSON(http.StatusOK, items)
 }
 
 // GetBySlug は入出力例を含む詳細を返す。

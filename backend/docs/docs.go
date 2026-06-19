@@ -2121,7 +2121,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase.MasterExerciseWithStatus"
+                                "$ref": "#/definitions/internal_handler.masterExerciseListItemResponse"
                             }
                         }
                     },
@@ -4355,70 +4355,6 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_norman6464_FreStyle_backend_internal_usecase.MasterExerciseWithStatus": {
-            "type": "object",
-            "properties": {
-                "category": {
-                    "type": "string"
-                },
-                "chapterId": {
-                    "type": "integer"
-                },
-                "createdAt": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "difficulty": {
-                    "type": "integer"
-                },
-                "expectedOutput": {
-                    "type": "string"
-                },
-                "explanation": {
-                    "description": "Explanation は qa モードで正解後に表示する markdown 解説。",
-                    "type": "string"
-                },
-                "hintText": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "isPublished": {
-                    "type": "boolean"
-                },
-                "language": {
-                    "type": "string"
-                },
-                "mode": {
-                    "description": "Mode は採点モード。execute は実行して stdout 比較、qa は提出文字列と ExpectedOutput を trim 比較。",
-                    "type": "string"
-                },
-                "orderIndex": {
-                    "type": "integer"
-                },
-                "slug": {
-                    "type": "string"
-                },
-                "starterCode": {
-                    "type": "string"
-                },
-                "stats": {
-                    "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase_repository.ExerciseSubmissionStats"
-                },
-                "status": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "updatedAt": {
-                    "type": "string"
-                }
-            }
-        },
         "github_com_norman6464_FreStyle_backend_internal_usecase.SubmitMasterExerciseOutput": {
             "type": "object",
             "properties": {
@@ -4689,6 +4625,45 @@ const docTemplate = `{
             "properties": {
                 "teachingMaterialId": {
                     "type": "integer"
+                }
+            }
+        },
+        "internal_handler.masterExerciseListItemResponse": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "difficulty": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "isPublished": {
+                    "type": "boolean"
+                },
+                "language": {
+                    "type": "string"
+                },
+                "mode": {
+                    "type": "string"
+                },
+                "orderIndex": {
+                    "type": "integer"
+                },
+                "slug": {
+                    "type": "string"
+                },
+                "stats": {
+                    "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase_repository.ExerciseSubmissionStats"
+                },
+                "status": {
+                    "description": "Status は current user の提出状況。\"solved\" / \"in_progress\" / \"\"（未提出）。",
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
                 }
             }
         },

@@ -228,15 +228,13 @@ export default function CourseDetailPage() {
               />
             </div>
           ) : (
-            filtered.map((m, idx) => (
+            filtered.map((m) => (
               <MaterialListItem
                 key={m.id}
                 material={m}
-                index={idx + 1}
                 isActive={selectedId === m.id}
                 onSelect={handleSelect}
                 onDelete={canManage ? (mid) => setDeleteTargetId(mid) : undefined}
-                showCompletion={!canManage}
                 completed={progress.completedIds.has(m.id)}
               />
             ))
@@ -303,19 +301,15 @@ export default function CourseDetailPage() {
 
 function MaterialListItem({
   material,
-  index,
   isActive,
   onSelect,
   onDelete,
-  showCompletion = false,
   completed = false,
 }: {
   material: TeachingMaterial;
-  index?: number;
   isActive: boolean;
   onSelect: (id: number) => void;
   onDelete?: (id: number) => void;
-  showCompletion?: boolean;
   completed?: boolean;
 }) {
   return (
@@ -335,29 +329,11 @@ function MaterialListItem({
           : 'border-transparent hover:bg-[var(--color-nav-hover)]'
       }`}
     >
-      {/* 完了アイコン（trainee）/ 公開ステータスドット（管理者） */}
-      <span className="mt-[3px] flex-shrink-0">
-        {showCompletion ? (
-          completed ? (
-            <CheckCircleSolidIcon className="w-4 h-4 text-green-500" />
-          ) : (
-            <span className="block w-4 h-4 rounded-full border border-[var(--color-text-muted)]/50" />
-          )
-        ) : (
-          <span className={`block w-2 h-2 mt-1 rounded-full ${
-            material.isPublished ? 'bg-green-500' : 'bg-[var(--color-text-muted)]/30'
-          }`} />
-        )}
-      </span>
-
       <p className={`flex-1 min-w-0 text-[13px] leading-snug line-clamp-2 ${
         isActive
           ? 'font-medium text-[var(--color-text-primary)]'
           : 'text-[var(--color-text-secondary)]'
       }`}>
-        {index !== undefined && (
-          <span className="text-[var(--color-text-muted)] mr-1.5 font-normal">{index}.</span>
-        )}
         {material.title || '無題の教材'}
       </p>
 

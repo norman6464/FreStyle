@@ -107,7 +107,7 @@ func publishedSetup(materialID, companyID, courseID uint64) (*fakeMaterialRepoFo
 func Test_レッスン完了_自社の公開教材はcourse_idを解決して記録する(t *testing.T) {
 	progress := newFakeLessonProgressRepo()
 	mat, crs := publishedSetup(5, 10, 99)
-	uc := usecase.NewMarkLessonCompletedUseCase(progress, mat, crs)
+	uc := usecase.NewMarkLessonCompletedUseCase(progress, mat, crs, &nopActivityRepo{})
 
 	err := uc.Execute(context.Background(), usecase.MarkLessonCompletedInput{
 		UserID: 1, ActorCompanyID: 10, ActorRole: domain.RoleTrainee, TeachingMaterialID: 5,
@@ -119,7 +119,7 @@ func Test_レッスン完了_自社の公開教材はcourse_idを解決して記
 func Test_レッスン完了_他社の教材は403相当で弾く(t *testing.T) {
 	progress := newFakeLessonProgressRepo()
 	mat, crs := publishedSetup(5, 10, 99) // company 10 の教材
-	uc := usecase.NewMarkLessonCompletedUseCase(progress, mat, crs)
+	uc := usecase.NewMarkLessonCompletedUseCase(progress, mat, crs, &nopActivityRepo{})
 
 	err := uc.Execute(context.Background(), usecase.MarkLessonCompletedInput{
 		UserID: 1, ActorCompanyID: 20, ActorRole: domain.RoleTrainee, TeachingMaterialID: 5, // 別 company
@@ -134,7 +134,7 @@ func Test_レッスン完了_trainee_に未公開の教材は403相当(t *testin
 		ID: 5, CompanyID: 10, CourseID: 99, IsPublished: false, // 下書き
 	}}
 	crs := &fakeCourseRepoForProgress{course: &domain.Course{ID: 99, CompanyID: 10, IsPublished: true}}
-	uc := usecase.NewMarkLessonCompletedUseCase(progress, mat, crs)
+	uc := usecase.NewMarkLessonCompletedUseCase(progress, mat, crs, &nopActivityRepo{})
 
 	err := uc.Execute(context.Background(), usecase.MarkLessonCompletedInput{
 		UserID: 1, ActorCompanyID: 10, ActorRole: domain.RoleTrainee, TeachingMaterialID: 5,
@@ -147,6 +147,7 @@ func Test_レッスン完了_存在しない教材は404相当(t *testing.T) {
 		newFakeLessonProgressRepo(),
 		&fakeMaterialRepoForProgress{getErr: gorm.ErrRecordNotFound},
 		&fakeCourseRepoForProgress{},
+		&nopActivityRepo{},
 	)
 	err := uc.Execute(context.Background(), usecase.MarkLessonCompletedInput{
 		UserID: 1, ActorCompanyID: 10, ActorRole: domain.RoleTrainee, TeachingMaterialID: 404,
@@ -158,7 +159,7 @@ func Test_レッスン完了_記録失敗を伝播(t *testing.T) {
 	progress := newFakeLessonProgressRepo()
 	progress.completeErr = errors.New("db")
 	mat, crs := publishedSetup(5, 10, 1)
-	uc := usecase.NewMarkLessonCompletedUseCase(progress, mat, crs)
+	uc := usecase.NewMarkLessonCompletedUseCase(progress, mat, crs, &nopActivityRepo{})
 
 	err := uc.Execute(context.Background(), usecase.MarkLessonCompletedInput{
 		UserID: 1, ActorCompanyID: 10, ActorRole: domain.RoleTrainee, TeachingMaterialID: 5,

@@ -228,4 +228,16 @@ export const COMPANY_SETTINGS = {
   base: `${API_V2}/company/settings`,
 } as const;
 
+/** ダッシュボード（streak / 活動カレンダー / 章閲覧履歴）*/
+export const DASHBOARD = {
+  /** GET /api/v2/me/dashboard — ログインユーザーの学習サマリー */
+  get: `${API_V2}/me/dashboard`,
+} as const;
+
+/** 章閲覧記録（フロントが教材ページを開いた瞬間に POST する）*/
+export const CHAPTER_VIEW = {
+  /** POST /api/v2/teaching-materials/:id/view */
+  record: (id: number | string) => `${API_V2}/teaching-materials/${id}/view`,
+} as const;
+
 // WebSocket は SSE (AI_CHAT.stream) への置換で廃止 (PR-D, 2026-05-07)。

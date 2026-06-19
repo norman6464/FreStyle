@@ -3,6 +3,8 @@ package usecase
 import (
 	"context"
 	"errors"
+	"log/slog"
+	"time"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
@@ -22,12 +24,17 @@ func (u *GetAiChatSessionsByUserIDUseCase) Execute(ctx context.Context, userID u
 }
 
 // CreateAiChatSessionUseCase は新規セッションを作成する。
+// 作成後に user_daily_activities をベストエフォートでインクリメントする。
 type CreateAiChatSessionUseCase struct {
 	sessions repository.AiChatSessionRepository
+	activity repository.UserDailyActivityRepository
 }
 
-func NewCreateAiChatSessionUseCase(s repository.AiChatSessionRepository) *CreateAiChatSessionUseCase {
-	return &CreateAiChatSessionUseCase{sessions: s}
+func NewCreateAiChatSessionUseCase(
+	s repository.AiChatSessionRepository,
+	activity repository.UserDailyActivityRepository,
+) *CreateAiChatSessionUseCase {
+	return &CreateAiChatSessionUseCase{sessions: s, activity: activity}
 }
 
 type CreateAiChatSessionInput struct {
@@ -52,6 +59,11 @@ func (u *CreateAiChatSessionUseCase) Execute(ctx context.Context, in CreateAiCha
 	}
 	if err := u.sessions.Create(ctx, s); err != nil {
 		return nil, err
+	}
+	if err := u.activity.Increment(ctx, in.UserID, time.Now().UTC(), repository.UserDailyActivityIncrement{
+		AiChatCount: 1,
+	}); err != nil {
+		slog.WarnContext(ctx, "user_daily_activities increment failed", "userID", in.UserID, "err", err)
 	}
 	return s, nil
 }

@@ -3,9 +3,21 @@ package usecase
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
+
+// nopActivityRepo は UserDailyActivityRepository の何もしない stub。
+type nopActivityRepo struct{}
+
+func (n *nopActivityRepo) Increment(_ context.Context, _ uint64, _ time.Time, _ repository.UserDailyActivityIncrement) error {
+	return nil
+}
+func (n *nopActivityRepo) ListByUser(_ context.Context, _ uint64, _, _ time.Time) ([]domain.UserDailyActivity, error) {
+	return nil, nil
+}
 
 type stubAiChatSessionRepo struct {
 	rows []domain.AiChatSession
@@ -49,7 +61,7 @@ func Test_AIチャットセッション一覧_ユーザー別(t *testing.T) {
 }
 
 func Test_AIチャットセッション作成_タイトルが必須(t *testing.T) {
-	uc := NewCreateAiChatSessionUseCase(&stubAiChatSessionRepo{})
+	uc := NewCreateAiChatSessionUseCase(&stubAiChatSessionRepo{}, &nopActivityRepo{})
 	_, err := uc.Execute(context.Background(), CreateAiChatSessionInput{UserID: 1})
 	if err == nil {
 		t.Fatal("expected error for empty title")
@@ -57,7 +69,7 @@ func Test_AIチャットセッション作成_タイトルが必須(t *testing.T
 }
 
 func Test_AIチャットセッション作成_種別は既定でfree(t *testing.T) {
-	uc := NewCreateAiChatSessionUseCase(&stubAiChatSessionRepo{})
+	uc := NewCreateAiChatSessionUseCase(&stubAiChatSessionRepo{}, &nopActivityRepo{})
 	got, err := uc.Execute(context.Background(), CreateAiChatSessionInput{UserID: 1, Title: "x"})
 	if err != nil {
 		t.Fatalf("err: %v", err)

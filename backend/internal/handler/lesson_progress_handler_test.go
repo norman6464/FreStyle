@@ -86,7 +86,7 @@ func newLessonProgressEngine(o engineOpts) *gin.Engine {
 	}
 	courses := &fakeCourseRepoH{c: o.course}
 	h := NewLessonProgressHandler(
-		usecase.NewMarkLessonCompletedUseCase(progress, materials, courses),
+		usecase.NewMarkLessonCompletedUseCase(progress, materials, courses, &nopActivityRepo{}),
 		usecase.NewMarkLessonIncompleteUseCase(progress),
 		usecase.NewListLessonProgressUseCase(progress),
 	)

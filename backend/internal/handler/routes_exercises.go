@@ -13,6 +13,7 @@ func registerExerciseRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	exerciseRepo := persistence.NewMasterExerciseRepository(deps.db)
 	examplesRepo := persistence.NewMasterExerciseExampleRepository(deps.db)
 	submissionsRepo := persistence.NewExerciseSubmissionRepository(deps.db)
+	activityRepo := persistence.NewUserDailyActivityRepository(deps.db)
 
 	// CODE_RUNNER_URL がセットされていれば別コンテナ（サイドカー）の code-runner へ HTTP 委譲、
 	// 未設定なら同プロセス内でサンドボックス実行する（ローカル / 単一イメージ運用）。
@@ -29,7 +30,7 @@ func registerExerciseRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	g.GET("/exercises/:slug", exerciseHandler.GetBySlug)
 
 	submissionHandler := NewExerciseSubmissionHandler(
-		usecase.NewSubmitMasterExerciseUseCase(exerciseRepo, examplesRepo, submissionsRepo, executor),
+		usecase.NewSubmitMasterExerciseUseCase(exerciseRepo, examplesRepo, submissionsRepo, executor, activityRepo),
 		usecase.NewListUserMasterSubmissionsUseCase(exerciseRepo, submissionsRepo),
 	)
 	g.POST("/exercises/:slug/submit", submissionHandler.Submit)

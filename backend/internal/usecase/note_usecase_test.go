@@ -55,14 +55,14 @@ func Test_ノート一覧_ユーザーIDが必須(t *testing.T) {
 }
 
 func Test_ノート作成_タイトルが必須(t *testing.T) {
-	uc := NewCreateNoteUseCase(&stubNoteRepo{})
+	uc := NewCreateNoteUseCase(&stubNoteRepo{}, &nopActivityRepo{})
 	if _, err := uc.Execute(context.Background(), CreateNoteInput{UserID: 1}); err == nil {
 		t.Fatal("expected error")
 	}
 }
 
 func Test_ノート作成_IDを採番(t *testing.T) {
-	uc := NewCreateNoteUseCase(&stubNoteRepo{})
+	uc := NewCreateNoteUseCase(&stubNoteRepo{}, &nopActivityRepo{})
 	got, err := uc.Execute(context.Background(), CreateNoteInput{UserID: 1, Title: "t"})
 	if err != nil || got.ID != 21 {
 		t.Fatalf("unexpected: %+v err=%v", got, err)

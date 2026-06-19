@@ -16,9 +16,10 @@ import (
 // 会社設定で trainee の AI 利用が無効化されている場合は RequireAiChatEnabled ゲートで 403。
 func registerChatRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	aiSessionRepo := persistence.NewAiChatSessionRepository(deps.db)
+	activityRepo := persistence.NewUserDailyActivityRepository(deps.db)
 	aiHandler := NewAiChatHandler(
 		usecase.NewGetAiChatSessionsByUserIDUseCase(aiSessionRepo),
-		usecase.NewCreateAiChatSessionUseCase(aiSessionRepo),
+		usecase.NewCreateAiChatSessionUseCase(aiSessionRepo, activityRepo),
 		usecase.NewGetAiChatSessionUseCase(aiSessionRepo),
 		usecase.NewUpdateAiChatSessionTitleUseCase(aiSessionRepo),
 		usecase.NewDeleteAiChatSessionUseCase(aiSessionRepo),
@@ -48,7 +49,7 @@ func registerChatRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	if deps.bedrockClient != nil && deps.msgRepo != nil {
 		downloader := newAiChatAttachmentDownloaderOrNil(deps)
 		sseHandler := NewAiChatSseHandler(
-			usecase.NewSendAiMessageStreamUseCase(aiSessionRepo, deps.msgRepo, deps.bedrockClient, downloader),
+			usecase.NewSendAiMessageStreamUseCase(aiSessionRepo, deps.msgRepo, deps.bedrockClient, downloader, activityRepo),
 		)
 		chat.POST("/ai-chat/stream", sseHandler.Handle)
 	}

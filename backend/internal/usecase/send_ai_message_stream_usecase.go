@@ -40,6 +40,7 @@ type SendAiMessageStreamUseCase struct {
 	messages      repository.AiChatMessageRepository
 	bedrockClient StreamingBedrockClient
 	attachments   AttachmentDownloader
+	activity      repository.UserDailyActivityRepository
 }
 
 func NewSendAiMessageStreamUseCase(
@@ -47,12 +48,14 @@ func NewSendAiMessageStreamUseCase(
 	messages repository.AiChatMessageRepository,
 	bc StreamingBedrockClient,
 	dl AttachmentDownloader,
+	activity repository.UserDailyActivityRepository,
 ) *SendAiMessageStreamUseCase {
 	return &SendAiMessageStreamUseCase{
 		sessions:      sessions,
 		messages:      messages,
 		bedrockClient: bc,
 		attachments:   dl,
+		activity:      activity,
 	}
 }
 
@@ -77,7 +80,7 @@ func (u *SendAiMessageStreamUseCase) Execute(ctx context.Context, in SendAiMessa
 					title = "新しいチャット"
 				}
 			}
-			s, err := NewCreateAiChatSessionUseCase(u.sessions).Execute(ctx, CreateAiChatSessionInput{
+			s, err := NewCreateAiChatSessionUseCase(u.sessions, u.activity).Execute(ctx, CreateAiChatSessionInput{
 				UserID:      in.UserID,
 				Title:       title,
 				SessionType: in.SessionType,

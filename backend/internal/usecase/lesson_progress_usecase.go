@@ -3,6 +3,8 @@ package usecase
 import (
 	"context"
 	"errors"
+	"log/slog"
+	"time"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
@@ -19,18 +21,21 @@ var (
 // MarkLessonCompletedUseCase は教材を完了として記録する（trainee 自身の進捗）。
 // 教材から course_id を解決して記録するため、 クライアントが course を詐称できない。
 // さらに actor の company / role で可視性を検証し、 他社・非公開教材の完了を弾く（IDOR 対策）。
+// 完了後に user_daily_activities をベストエフォートでインクリメントする。
 type MarkLessonCompletedUseCase struct {
 	progress  repository.LessonProgressRepository
 	materials repository.TeachingMaterialRepository
 	courses   repository.CourseRepository
+	activity  repository.UserDailyActivityRepository
 }
 
 func NewMarkLessonCompletedUseCase(
 	p repository.LessonProgressRepository,
 	m repository.TeachingMaterialRepository,
 	c repository.CourseRepository,
+	activity repository.UserDailyActivityRepository,
 ) *MarkLessonCompletedUseCase {
-	return &MarkLessonCompletedUseCase{progress: p, materials: m, courses: c}
+	return &MarkLessonCompletedUseCase{progress: p, materials: m, courses: c, activity: activity}
 }
 
 // MarkLessonCompletedInput は完了記録の入力。 actor の company / role で可視性を検証する。
@@ -64,7 +69,16 @@ func (u *MarkLessonCompletedUseCase) Execute(ctx context.Context, in MarkLessonC
 	if !canRead(m, course, in.ActorCompanyID, in.ActorRole) {
 		return ErrLessonForbidden
 	}
-	return u.progress.MarkCompleted(ctx, in.UserID, in.TeachingMaterialID, m.CourseID)
+	if err := u.progress.MarkCompleted(ctx, in.UserID, in.TeachingMaterialID, m.CourseID); err != nil {
+		return err
+	}
+	// 日次活動サマリーを更新（失敗しても完了記録には影響させない）。
+	if err := u.activity.Increment(ctx, in.UserID, time.Now().UTC(), repository.UserDailyActivityIncrement{
+		LessonCount: 1,
+	}); err != nil {
+		slog.WarnContext(ctx, "user_daily_activities increment failed", "userID", in.UserID, "err", err)
+	}
+	return nil
 }
 
 // MarkLessonIncompleteUseCase は完了記録を取り消す。

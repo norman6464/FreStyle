@@ -60,7 +60,7 @@ func newSubmissionTestRouter(t *testing.T, exercise *domain.MasterExercise, exam
 	executor := &stubExecutorForHandlerTest{stdout: executorOut}
 
 	h := NewExerciseSubmissionHandler(
-		usecase.NewSubmitMasterExerciseUseCase(exRepo, exampleRepo, subRepo, executor),
+		usecase.NewSubmitMasterExerciseUseCase(exRepo, exampleRepo, subRepo, executor, &nopActivityRepo{}),
 		usecase.NewListUserMasterSubmissionsUseCase(exRepo, subRepo),
 	)
 	r := gin.New()
@@ -122,7 +122,7 @@ func Test_演習提出ハンドラ_提出_未認証(t *testing.T) {
 	subRepo := &fakeFullSubmissionRepo{}
 	executor := &stubExecutorForHandlerTest{}
 	h := NewExerciseSubmissionHandler(
-		usecase.NewSubmitMasterExerciseUseCase(exRepo, exampleRepo, subRepo, executor),
+		usecase.NewSubmitMasterExerciseUseCase(exRepo, exampleRepo, subRepo, executor, &nopActivityRepo{}),
 		usecase.NewListUserMasterSubmissionsUseCase(exRepo, subRepo),
 	)
 	r2.POST("/exercises/:slug/submit", h.Submit)

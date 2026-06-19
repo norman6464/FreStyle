@@ -100,10 +100,6 @@ function ExerciseCard({ ex }: { ex: MasterExerciseWithStatus }) {
         <StatusBadge status={ex.status} />
       </div>
 
-      <p className="text-xs text-[var(--color-text-tertiary)] line-clamp-2">
-        {ex.description}
-      </p>
-
       <div className="flex items-center gap-4 text-xs text-[var(--color-text-muted)] pt-1 border-t border-surface-3">
         <span>提出 {ex.stats.totalSubmissions}</span>
         <span>正答ユーザ {ex.stats.solvedUsers}</span>

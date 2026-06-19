@@ -608,9 +608,21 @@ export interface ExerciseSubmissionStats {
   solvedUsers: number;
 }
 
-/** 一覧 API のレスポンス 1 行。 MasterExercise + current user 状態 + 全体集計。
- *  status: "solved" | "in_progress" | "" （未提出）。 */
-export interface MasterExerciseWithStatus extends MasterExercise {
+/**
+ * 一覧 API のレスポンス 1 行。詳細 API (MasterExercise) より軽量で
+ * description / starterCode / hintText / expectedOutput / explanation は含まない。
+ * status: "solved" | "in_progress" | "" （未提出）。
+ */
+export interface MasterExerciseWithStatus {
+  id: number;
+  slug: string;
+  language: string;
+  orderIndex: number;
+  category: string;
+  title: string;
+  difficulty: number;
+  mode: 'execute' | 'qa';
+  isPublished: boolean;
   status: '' | 'solved' | 'in_progress';
   stats: ExerciseSubmissionStats;
 }

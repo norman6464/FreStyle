@@ -13,7 +13,7 @@ import (
 )
 
 // ProfileHandler は GET / PUT /profile/:userId(or "me") を提供する。
-// 返却する domain.ProfileView は users.display_name と profiles を合成したもの。
+// 返却する domain.ProfileView は users.name と profiles を合成したもの。
 type ProfileHandler struct {
 	get    *usecase.GetProfileUseCase
 	update *usecase.UpdateProfileUseCase
@@ -82,12 +82,11 @@ func (h *ProfileHandler) Get(c *gin.Context) {
 }
 
 type updateProfileReq struct {
-	DisplayName string `json:"displayName"`
-	Name        string `json:"name"` // 旧フロント互換。displayName を優先。
-	Bio         string `json:"bio"`
-	AvatarURL   string `json:"avatarUrl"`
-	IconURL     string `json:"iconUrl"` // 旧フロント互換。avatarUrl を優先。
-	Status      string `json:"status"`
+	Name      string `json:"name"`
+	Bio       string `json:"bio"`
+	AvatarURL string `json:"avatarUrl"`
+	IconURL   string `json:"iconUrl"` // 旧フロント互換。avatarUrl を優先。
+	Status    string `json:"status"`
 }
 
 // Update は current user のプロフィールを更新する。
@@ -116,16 +115,13 @@ func (h *ProfileHandler) Update(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	displayName := req.DisplayName
-	if displayName == "" {
-		displayName = req.Name
-	}
+	name := req.Name
 	avatarURL := req.AvatarURL
 	if avatarURL == "" {
 		avatarURL = req.IconURL
 	}
-	if displayName != "" {
-		if err := h.users.UpdateDisplayName(c.Request.Context(), uid, displayName); err != nil {
+	if name != "" {
+		if err := h.users.UpdateName(c.Request.Context(), uid, name); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
@@ -147,7 +143,7 @@ func (h *ProfileHandler) Update(c *gin.Context) {
 	c.JSON(http.StatusOK, view)
 }
 
-// buildView は users.display_name と profiles を合成して ProfileView を返す（欠損時は空文字で埋める）。
+// buildView は users.name と profiles を合成して ProfileView を返す（欠損時は空文字で埋める）。
 func (h *ProfileHandler) buildView(c *gin.Context, uid uint64) (*domain.ProfileView, error) {
 	p, err := h.get.Execute(c.Request.Context(), uid)
 	if err != nil {
@@ -162,7 +158,7 @@ func (h *ProfileHandler) buildView(c *gin.Context, uid uint64) (*domain.ProfileV
 	}
 	user, _ := h.users.FindByID(c.Request.Context(), uid)
 	if user != nil {
-		view.DisplayName = user.DisplayName
+		view.Name = user.Name
 		view.Email = user.Email
 	}
 	return view, nil

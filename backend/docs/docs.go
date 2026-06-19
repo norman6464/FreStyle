@@ -3772,9 +3772,6 @@ const docTemplate = `{
                 "createdAt": {
                     "type": "string"
                 },
-                "displayName": {
-                    "type": "string"
-                },
                 "email": {
                     "type": "string"
                 },
@@ -3783,6 +3780,9 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "integer"
+                },
+                "name": {
+                    "type": "string"
                 },
                 "role": {
                     "type": "string"
@@ -4252,10 +4252,10 @@ const docTemplate = `{
                 "bio": {
                     "type": "string"
                 },
-                "displayName": {
+                "email": {
                     "type": "string"
                 },
-                "email": {
+                "name": {
                     "type": "string"
                 },
                 "status": {
@@ -4676,10 +4676,10 @@ const docTemplate = `{
                 "companyId": {
                     "type": "integer"
                 },
-                "displayName": {
+                "email": {
                     "type": "string"
                 },
-                "email": {
+                "name": {
                     "type": "string"
                 },
                 "role": {
@@ -4746,7 +4746,7 @@ const docTemplate = `{
                     "type": "string",
                     "example": "Example Corp"
                 },
-                "displayName": {
+                "name": {
                     "type": "string",
                     "example": "山田 太郎"
                 },
@@ -4839,10 +4839,6 @@ const docTemplate = `{
                 "createdAt": {
                     "type": "string"
                 },
-                "displayName": {
-                    "type": "string",
-                    "example": "山田 太郎"
-                },
                 "email": {
                     "type": "string",
                     "example": "user@example.com"
@@ -4864,6 +4860,10 @@ const docTemplate = `{
                     "type": "boolean",
                     "example": false
                 },
+                "name": {
+                    "type": "string",
+                    "example": "山田 太郎"
+                },
                 "onboarded": {
                     "type": "boolean",
                     "example": true
@@ -4884,9 +4884,6 @@ const docTemplate = `{
                     "description": "AiChatEnabled は AI 利用可否の個別上書き。null = 会社設定に従う。",
                     "type": "boolean"
                 },
-                "displayName": {
-                    "type": "string"
-                },
                 "email": {
                     "type": "string"
                 },
@@ -4896,6 +4893,9 @@ const docTemplate = `{
                 "isActive": {
                     "description": "IsActive はアカウントの有効/無効。false = 無効（ログイン/利用不可）。",
                     "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
                 },
                 "role": {
                     "type": "string"
@@ -5151,15 +5151,11 @@ const docTemplate = `{
                 "bio": {
                     "type": "string"
                 },
-                "displayName": {
-                    "type": "string"
-                },
                 "iconUrl": {
                     "description": "旧フロント互換。avatarUrl を優先。",
                     "type": "string"
                 },
                 "name": {
-                    "description": "旧フロント互換。displayName を優先。",
                     "type": "string"
                 },
                 "status": {

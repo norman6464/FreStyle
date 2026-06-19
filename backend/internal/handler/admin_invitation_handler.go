@@ -79,10 +79,10 @@ func (h *AdminInvitationHandler) List(c *gin.Context) {
 }
 
 type createAdminInvReq struct {
-	CompanyID   uint64 `json:"companyId" binding:"required"`
-	Email       string `json:"email" binding:"required"`
-	Role        string `json:"role" binding:"required"`
-	DisplayName string `json:"displayName"`
+	CompanyID uint64 `json:"companyId" binding:"required"`
+	Email     string `json:"email" binding:"required"`
+	Role      string `json:"role" binding:"required"`
+	Name      string `json:"name"`
 }
 
 // Create は招待を作成する。SoD: SuperAdmin は company_admin のみ、CompanyAdmin は自社の trainee のみ招待可。
@@ -142,7 +142,7 @@ func (h *AdminInvitationHandler) Create(c *gin.Context) {
 	}
 
 	got, err := h.create.Execute(c.Request.Context(), usecase.CreateAdminInvitationInput{
-		CompanyID: req.CompanyID, Email: req.Email, Role: req.Role, DisplayName: req.DisplayName,
+		CompanyID: req.CompanyID, Email: req.Email, Role: req.Role, Name: req.Name,
 	})
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

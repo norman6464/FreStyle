@@ -23,8 +23,8 @@ type UserRepository interface {
 	UpdateActive(ctx context.Context, userID uint64, active bool) error
 	// SoftDelete はユーザーを論理削除する（deleted_at = NOW()）。認証時にも除外される。
 	SoftDelete(ctx context.Context, userID uint64) error
-	// UpdateDisplayName は氏名変更、および OIDC ログイン時の displayName 自動補正で呼ばれる。
-	UpdateDisplayName(ctx context.Context, userID uint64, displayName string) error
+	// UpdateName は氏名変更、および OIDC ログイン時の name 自動補正で呼ばれる。
+	UpdateName(ctx context.Context, userID uint64, name string) error
 	// UpdateRole は Cognito group → DB role 同期、または招待受諾時に呼ばれる。
 	UpdateRole(ctx context.Context, userID uint64, role string) error
 	// UpdateCompanyID は既存ユーザーが招待を受けて company に紐付くときに呼ばれる。

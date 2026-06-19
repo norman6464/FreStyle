@@ -29,7 +29,7 @@ func TestCompanyStatsRepository_Integration(t *testing.T) {
 	c2 := uint64(2)
 	mk := func(sub string, cid *uint64, role string, active bool) *domain.User {
 		return &domain.User{
-			CognitoSub: sub, Email: sub + "@example.com", DisplayName: sub,
+			CognitoSub: sub, Email: sub + "@example.com", Name: sub,
 			Role: role, CompanyID: cid, IsActive: active,
 		}
 	}

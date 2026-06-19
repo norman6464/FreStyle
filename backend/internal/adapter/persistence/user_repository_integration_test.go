@@ -25,7 +25,7 @@ func TestUserRepository_Integration(t *testing.T) {
 
 		cid := uint64(42)
 		require.NoError(t, repo.Create(ctx, &domain.User{
-			CognitoSub: "sub-1", Email: "u@example.com", DisplayName: "山田",
+			CognitoSub: "sub-1", Email: "u@example.com", Name: "山田",
 			Role: domain.RoleTrainee, CompanyID: &cid,
 		}))
 
@@ -34,7 +34,7 @@ func TestUserRepository_Integration(t *testing.T) {
 		require.NotNil(t, got)
 		require.Equal(t, "sub-1", got.CognitoSub)
 		require.Equal(t, "u@example.com", got.Email)
-		require.Equal(t, "山田", got.DisplayName)
+		require.Equal(t, "山田", got.Name)
 		require.Equal(t, domain.RoleTrainee, got.Role)
 		require.NotNil(t, got.CompanyID)
 		require.Equal(t, uint64(42), *got.CompanyID)
@@ -50,7 +50,7 @@ func TestUserRepository_Integration(t *testing.T) {
 	t.Run("company 無し（SuperAdmin）は CompanyID が nil", func(t *testing.T) {
 		testsupport.TruncateAll(t, db, "users")
 		require.NoError(t, repo.Create(ctx, &domain.User{
-			CognitoSub: "admin-1", Email: "a@example.com", DisplayName: "管理者", Role: domain.RoleSuperAdmin,
+			CognitoSub: "admin-1", Email: "a@example.com", Name: "管理者", Role: domain.RoleSuperAdmin,
 		}))
 
 		got, err := repo.FindByCognitoSub(ctx, "admin-1")
@@ -74,7 +74,7 @@ func TestUserRepository_Integration(t *testing.T) {
 	t.Run("MarkOnboarded 後は OnboardedAt が入る", func(t *testing.T) {
 		testsupport.TruncateAll(t, db, "users")
 		require.NoError(t, repo.Create(ctx, &domain.User{
-			CognitoSub: "ob-1", Email: "o@example.com", DisplayName: "ob", Role: domain.RoleTrainee,
+			CognitoSub: "ob-1", Email: "o@example.com", Name: "ob", Role: domain.RoleTrainee,
 		}))
 
 		u, err := repo.FindByCognitoSub(ctx, "ob-1")
@@ -88,9 +88,9 @@ func TestUserRepository_Integration(t *testing.T) {
 
 	t.Run("ListByRole は role で絞り id 昇順", func(t *testing.T) {
 		testsupport.TruncateAll(t, db, "users")
-		require.NoError(t, repo.Create(ctx, &domain.User{CognitoSub: "t1", Email: "t1@e.com", DisplayName: "t1", Role: domain.RoleTrainee}))
-		require.NoError(t, repo.Create(ctx, &domain.User{CognitoSub: "a1", Email: "a1@e.com", DisplayName: "a1", Role: domain.RoleCompanyAdmin}))
-		require.NoError(t, repo.Create(ctx, &domain.User{CognitoSub: "t2", Email: "t2@e.com", DisplayName: "t2", Role: domain.RoleTrainee}))
+		require.NoError(t, repo.Create(ctx, &domain.User{CognitoSub: "t1", Email: "t1@e.com", Name: "t1", Role: domain.RoleTrainee}))
+		require.NoError(t, repo.Create(ctx, &domain.User{CognitoSub: "a1", Email: "a1@e.com", Name: "a1", Role: domain.RoleCompanyAdmin}))
+		require.NoError(t, repo.Create(ctx, &domain.User{CognitoSub: "t2", Email: "t2@e.com", Name: "t2", Role: domain.RoleTrainee}))
 
 		trainees, err := repo.ListByRole(ctx, domain.RoleTrainee)
 		require.NoError(t, err)

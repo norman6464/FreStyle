@@ -6,14 +6,14 @@ definitions:
         type: integer
       createdAt:
         type: string
-      displayName:
-        type: string
       email:
         type: string
       expiresAt:
         type: string
       id:
         type: integer
+      name:
+        type: string
       role:
         type: string
       status:
@@ -329,9 +329,9 @@ definitions:
         type: string
       bio:
         type: string
-      displayName:
-        type: string
       email:
+        type: string
+      name:
         type: string
       status:
         type: string
@@ -603,9 +603,9 @@ definitions:
     properties:
       companyId:
         type: integer
-      displayName:
-        type: string
       email:
+        type: string
+      name:
         type: string
       role:
         type: string
@@ -654,7 +654,7 @@ definitions:
       companyName:
         example: Example Corp
         type: string
-      displayName:
+      name:
         example: 山田 太郎
         type: string
       role:
@@ -716,9 +716,6 @@ definitions:
         type: integer
       createdAt:
         type: string
-      displayName:
-        example: 山田 太郎
-        type: string
       email:
         example: user@example.com
         type: string
@@ -734,6 +731,9 @@ definitions:
       isAdmin:
         example: false
         type: boolean
+      name:
+        example: 山田 太郎
+        type: string
       onboarded:
         example: true
         type: boolean
@@ -748,8 +748,6 @@ definitions:
       aiChatEnabled:
         description: AiChatEnabled は AI 利用可否の個別上書き。null = 会社設定に従う。
         type: boolean
-      displayName:
-        type: string
       email:
         type: string
       id:
@@ -757,6 +755,8 @@ definitions:
       isActive:
         description: IsActive はアカウントの有効/無効。false = 無効（ログイン/利用不可）。
         type: boolean
+      name:
+        type: string
       role:
         type: string
     type: object
@@ -924,13 +924,10 @@ definitions:
         type: string
       bio:
         type: string
-      displayName:
-        type: string
       iconUrl:
         description: 旧フロント互換。avatarUrl を優先。
         type: string
       name:
-        description: 旧フロント互換。displayName を優先。
         type: string
       status:
         type: string

@@ -45,7 +45,7 @@ func (f *fakeManageRepo) Create(context.Context, *domain.User) error { return ni
 
 func (f *fakeManageRepo) UpdateAiChatEnabled(context.Context, uint64, *bool) error { return nil }
 
-func (f *fakeManageRepo) UpdateDisplayName(context.Context, uint64, string) error { return nil }
+func (f *fakeManageRepo) UpdateName(context.Context, uint64, string) error { return nil }
 
 func (f *fakeManageRepo) UpdateRole(context.Context, uint64, string) error { return nil }
 

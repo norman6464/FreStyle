@@ -3,7 +3,6 @@ import { useSelector } from 'react-redux';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   PlusIcon,
-  MagnifyingGlassIcon,
   Bars3Icon,
   TrashIcon,
   ArrowLeftIcon,
@@ -56,13 +55,10 @@ export default function CourseDetailPage() {
 
   const {
     materials,
-    filtered,
     selectedId,
     selected,
     loading,
     error,
-    searchQuery,
-    setSearchQuery,
     selectMaterial,
     create,
     update,
@@ -183,17 +179,6 @@ export default function CourseDetailPage() {
               <ArrowLeftIcon className="w-3.5 h-3.5" />
               コース一覧
             </Link>
-            <div className="relative">
-              <MagnifyingGlassIcon className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
-              <input
-                type="text"
-                placeholder="教材を検索..."
-                aria-label="教材を検索"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 bg-surface-2 border border-surface-3 rounded-lg text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-brand-400 transition-colors"
-              />
-            </div>
             {canManage && (
               <button
                 onClick={handleCreate}
@@ -212,23 +197,21 @@ export default function CourseDetailPage() {
         <div className="py-2">
           {loading && materials.length === 0 ? (
             <Loading className="py-8" />
-          ) : filtered.length === 0 ? (
+          ) : materials.length === 0 ? (
             <div className="py-12">
               <EmptyState
                 icon={FaviconIcon}
-                title={searchQuery ? '該当する教材がありません' : '教材がありません'}
+                title="教材がありません"
                 description={
-                  searchQuery
-                    ? '検索条件を変更してみてください'
-                    : canManage
-                      ? '新しい教材を作成しましょう'
-                      : '管理者が教材を公開すると、 ここに表示されます'
+                  canManage
+                    ? '新しい教材を作成しましょう'
+                    : '管理者が教材を公開すると、 ここに表示されます'
                 }
-                action={canManage && !searchQuery ? { label: '新しい教材', onClick: handleCreate } : undefined}
+                action={canManage ? { label: '新しい教材', onClick: handleCreate } : undefined}
               />
             </div>
           ) : (
-            filtered.map((m) => (
+            materials.map((m) => (
               <MaterialListItem
                 key={m.id}
                 material={m}

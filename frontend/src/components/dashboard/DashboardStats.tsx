@@ -19,8 +19,8 @@ export default function DashboardStats({ dashboard }: Props) {
 
   return (
     <div className="space-y-4 p-4 rounded-xl border border-[var(--color-surface-3)] bg-[var(--color-surface-1)]">
-      {/* KPI バー */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {/* KPI（2×2 グリッド） */}
+      <div className="grid grid-cols-2 gap-3">
         <StatChip
           icon={<FireIcon className="w-4 h-4" />}
           label="連続学習"

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import CourseRepository from '../repositories/CourseRepository';
 import TeachingMaterialRepository, {
   type TeachingMaterialCreatePayload,
@@ -22,7 +22,6 @@ export function useTeachingMaterials(courseId: number | null) {
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
 
   const fetchAll = useCallback(async () => {
     if (!courseId) {
@@ -85,13 +84,6 @@ export function useTeachingMaterials(courseId: number | null) {
     setSelectionSeq((v) => v + 1);
   }, []);
 
-  const filtered = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return materials;
-    // 一覧は本文を持たないためタイトル検索のみ（本文全文検索は別途 backend 検索で対応）。
-    return materials.filter((m) => m.title.toLowerCase().includes(q));
-  }, [materials, searchQuery]);
-
   const create = useCallback(
     async (initial: Omit<TeachingMaterialCreatePayload, 'courseId'>): Promise<TeachingMaterial | null> => {
       if (!courseId) {
@@ -142,14 +134,11 @@ export function useTeachingMaterials(courseId: number | null) {
 
   return {
     materials,
-    filtered,
     selectedId,
     selected,
     loading,
     detailLoading,
     error,
-    searchQuery,
-    setSearchQuery,
     selectMaterial,
     fetchAll,
     create,

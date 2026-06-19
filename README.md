@@ -106,20 +106,12 @@
 
 学習プラットフォームとして「集中力・動機付け・目の疲労」に配慮した色彩設計を採用しています。
 
-| 設計判断 | 科学的根拠 |
+| 設計判断 | 根拠 |
 |---|---|
-| CTA・フォーカスリングを青（`brand-*`）に統一 | Elliot & Maier (2012)「Color-in-context theory」— 中明度の青は認知負荷を下げ、集中タスクでのパフォーマンスを向上させる |
-| 完了・進捗インジケーターを緑（`emerald-*`）に | Lichtenfeld et al. (2012)「Fertile Green」— 緑は達成感・継続的注意・創造的作業へのモチベーションを促進する |
-| 背景を暖白（`#FAFAF8`）に | Krueger (1992)「Pure-white screen fatigue」— 純白 `#FFFFFF` より輝度を少し落とした暖白のほうが長時間視聴の眼精疲労を軽減する |
-| 高彩度青（`#2E7DF6`）を避け Tailwind blue スケールへ移行 | Valdez & Mehrabian (1994)「Effects of color」— 過度に高彩度の色は覚醒・ストレスを高め、長時間集中の妨げになる |
-
-**参考文献**
-
-- Elliot, A. J., & Maier, M. A. (2012). Color-in-context theory. *Advances in Experimental Social Psychology*, 45, 61–125.
-- Lichtenfeld, S., Elliot, A. J., Maier, M. A., & Pekrun, R. (2012). Fertile green: Green facilitates creative performance. *Personality and Social Psychology Bulletin*, 38(6), 784–797.
-- Krueger, H. (1992). Ergonomics and the VDU. *Ergonomics*, 35(5–6).
-- Kwallek, N., & Lewis, C. M. (1990). Effects of environmental colour on males and females. *Applied Ergonomics*, 21(4), 275–278.
-- Valdez, P., & Mehrabian, A. (1994). Effects of color on emotions. *Journal of Experimental Psychology: General*, 123(4), 394–409.
+| CTA・フォーカスリングを青（`brand-*`）に統一 | 青は集中力を高める色として知られており、学習・作業タスクへの取り組みを促しやすい |
+| 完了・進捗インジケーターを緑（`emerald-*`）に | 緑は達成感や安心感と結びつきやすく、学習の継続意欲を高める効果が期待できる |
+| 背景を暖白（`#FAFAF8`）に | 純白（`#FFFFFF`）より輝度を抑えた暖白のほうが長時間の画面閲覧による眼精疲労を軽減しやすい |
+| 高彩度青（`#2E7DF6`）を避け Tailwind blue スケールへ移行 | 過度に高彩度の色は刺激が強く覚醒・ストレスを高めるため、長時間の集中学習には落ち着いたトーンが適している |
 
 ## AWSアーキテクチャ構成図
 

@@ -46,12 +46,9 @@ func (r *masterExerciseRepository) GetBySlug(ctx context.Context, slug string) (
 }
 
 // ListWithStatusByLanguage は公開済み問題を「current user の提出状態 + 全体集計」付きで 1 クエリで返す。
-// 旧実装は usecase 側で 3 回（一覧 / ユーザ状態 batch / 集計 batch）DB に往復していたが、
-// master_exercises に exercise_submissions の集計を LEFT JOIN し、 Postgres の FILTER 句で
-// 1 パスに統合した（生 SQL 直書き）。一覧ページのたびに走るホットパスのため往復 3→1 に削減。
+// in.Limit > 0 のとき LIMIT/OFFSET を適用する。Limit=0 は全件取得。
 // userID=0（未ログイン）は usr サブクエリが空になり status は全て "".
-func (r *masterExerciseRepository) ListWithStatusByLanguage(ctx context.Context, userID uint64, language string) ([]repository.MasterExerciseWithStatus, error) {
-	// 集計列を埋め込み MasterExercise と一緒に 1 行へスキャンする。
+func (r *masterExerciseRepository) ListWithStatusByLanguage(ctx context.Context, in repository.ListWithStatusInput) ([]repository.MasterExerciseWithStatus, error) {
 	type row struct {
 		domain.MasterExercise
 
@@ -60,7 +57,7 @@ func (r *masterExerciseRepository) ListWithStatusByLanguage(ctx context.Context,
 		SolvedUsers      int64  `gorm:"column:solved_users"`
 	}
 
-	const q = `
+	const baseQ = `
 SELECT e.*,
        COALESCE(agg.total_submissions, 0) AS total_submissions,
        COALESCE(agg.solved_users, 0)      AS solved_users,
@@ -88,10 +85,19 @@ WHERE e.is_published = TRUE
   AND (? = '' OR e.language = ?)
 ORDER BY e.order_index ASC`
 
+	var q string
+	var args []interface{}
+	args = []interface{}{domain.ExerciseKindMaster, domain.ExerciseKindMaster, in.UserID, in.Language, in.Language}
+
+	if in.Limit > 0 {
+		q = baseQ + "\nLIMIT ? OFFSET ?"
+		args = append(args, in.Limit, in.Offset)
+	} else {
+		q = baseQ
+	}
+
 	var rows []row
-	if err := r.db.WithContext(ctx).
-		Raw(q, domain.ExerciseKindMaster, domain.ExerciseKindMaster, userID, language, language).
-		Scan(&rows).Error; err != nil {
+	if err := r.db.WithContext(ctx).Raw(q, args...).Scan(&rows).Error; err != nil {
 		return nil, err
 	}
 

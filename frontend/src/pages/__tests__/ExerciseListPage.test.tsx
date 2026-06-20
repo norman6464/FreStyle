@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import ExerciseListPage from '../ExerciseListPage';
 import ExerciseRepository from '../../repositories/ExerciseRepository';
+import { ExercisePage } from '../../types';
 
 vi.mock('../../repositories/ExerciseRepository', () => ({
   default: {
@@ -11,6 +12,8 @@ vi.mock('../../repositories/ExerciseRepository', () => ({
 }));
 
 const mockListExercises = vi.mocked(ExerciseRepository.listExercises);
+
+const emptyPage: ExercisePage = { items: [], hasNext: false, offset: 0, limit: 20 };
 
 function renderPage() {
   return render(
@@ -26,7 +29,7 @@ describe('ExerciseListPage', () => {
   });
 
   it('ヘッダーに「コード学習」が表示される', async () => {
-    mockListExercises.mockResolvedValue([]);
+    mockListExercises.mockResolvedValue(emptyPage);
     renderPage();
     await waitFor(() => expect(screen.getByRole('heading', { name: 'コード学習' })).toBeInTheDocument());
   });
@@ -38,22 +41,23 @@ describe('ExerciseListPage', () => {
   });
 
   it('空配列なら「該当する問題がありません」を表示する', async () => {
-    mockListExercises.mockResolvedValue([]);
+    mockListExercises.mockResolvedValue(emptyPage);
     renderPage();
     await waitFor(() => expect(screen.getByText('該当する問題がありません。')).toBeInTheDocument());
   });
 
   it('問題カードが status バッジと統計を表示する', async () => {
-    mockListExercises.mockResolvedValue([
-      {
+    mockListExercises.mockResolvedValue({
+      items: [{
         id: 1, slug: 'php-1', language: 'php', orderIndex: 1, category: '基礎',
-        title: 'Hello World', description: '出力する', starterCode: '', hintText: '',
-        expectedOutput: 'Hello', difficulty: 1, isPublished: true,
-        createdAt: '', updatedAt: '',
+        title: 'Hello World', difficulty: 1, mode: 'execute', isPublished: true,
         status: 'solved' as const,
         stats: { totalSubmissions: 12, solvedUsers: 10 },
-      },
-    ]);
+      }],
+      hasNext: false,
+      offset: 0,
+      limit: 20,
+    });
     renderPage();
     await waitFor(() => expect(screen.getByText('Hello World')).toBeInTheDocument());
     expect(screen.getByText('解いた')).toBeInTheDocument();
@@ -62,32 +66,34 @@ describe('ExerciseListPage', () => {
   });
 
   it('未着手のカードには未着手バッジが付く', async () => {
-    mockListExercises.mockResolvedValue([
-      {
+    mockListExercises.mockResolvedValue({
+      items: [{
         id: 2, slug: 'php-2', language: 'php', orderIndex: 2, category: '基礎',
-        title: '変数', description: '変数を使う', starterCode: '', hintText: '',
-        expectedOutput: '1', difficulty: 1, isPublished: true,
-        createdAt: '', updatedAt: '',
+        title: '変数', difficulty: 1, mode: 'execute', isPublished: true,
         status: '' as const,
         stats: { totalSubmissions: 0, solvedUsers: 0 },
-      },
-    ]);
+      }],
+      hasNext: false,
+      offset: 0,
+      limit: 20,
+    });
     renderPage();
     await waitFor(() => expect(screen.getByText('変数')).toBeInTheDocument());
     expect(screen.getByText('未着手')).toBeInTheDocument();
   });
 
   it('カードクリックで /code-editor/:slug へのリンクを描画する', async () => {
-    mockListExercises.mockResolvedValue([
-      {
+    mockListExercises.mockResolvedValue({
+      items: [{
         id: 3, slug: 'php-3', language: 'php', orderIndex: 3, category: '基礎',
-        title: '配列', description: '', starterCode: '', hintText: '',
-        expectedOutput: '', difficulty: 2, isPublished: true,
-        createdAt: '', updatedAt: '',
+        title: '配列', difficulty: 2, mode: 'execute', isPublished: true,
         status: 'in_progress' as const,
         stats: { totalSubmissions: 5, solvedUsers: 2 },
-      },
-    ]);
+      }],
+      hasNext: false,
+      offset: 0,
+      limit: 20,
+    });
     renderPage();
     await waitFor(() => expect(screen.getByText('配列')).toBeInTheDocument());
     const link = screen.getByRole('link', { name: /配列/ });

@@ -1,7 +1,7 @@
 import api from '../lib/axios';
 import { EXERCISES, CODE } from '../constants/apiRoutes';
 import {
-  MasterExerciseWithStatus,
+  ExercisePage,
   MasterExerciseDetail,
   CodeExecutionResult,
   ExerciseSubmitResult,
@@ -16,11 +16,13 @@ import {
  * 提出 API はテストケース全件を採点して履歴に保存する。
  */
 const ExerciseRepository = {
-  async listExercises(language?: string): Promise<MasterExerciseWithStatus[]> {
-    const url = language
-      ? `${EXERCISES.list}?language=${encodeURIComponent(language)}`
-      : EXERCISES.list;
-    const res = await api.get<MasterExerciseWithStatus[]>(url);
+  async listExercises(language?: string, offset = 0, limit = 20): Promise<ExercisePage> {
+    const params = new URLSearchParams();
+    if (language) params.set('language', language);
+    params.set('offset', String(offset));
+    params.set('limit', String(limit));
+    const url = `${EXERCISES.list}?${params.toString()}`;
+    const res = await api.get<ExercisePage>(url);
     return res.data;
   },
 

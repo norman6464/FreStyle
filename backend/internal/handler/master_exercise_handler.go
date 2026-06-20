@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
@@ -40,33 +41,73 @@ type masterExerciseListItemResponse struct {
 	Mode        string `json:"mode"`
 	IsPublished bool   `json:"isPublished"`
 	// Status は current user の提出状況。"solved" / "in_progress" / ""（未提出）。
-	Status string                            `json:"status"`
+	Status string                             `json:"status"`
 	Stats  repository.ExerciseSubmissionStats `json:"stats"`
 }
 
-// List は演習問題一覧を query language で絞り込んで返す。
-// current user の提出状況と全ユーザ集計を同時に返す（未ログイン時は status 空）。
+// exercisePageResponse はスクロール型ページネーションのレスポンス。
+// Items は limit 件以下の問題リスト。HasNext が true のとき次のページが存在する。
+type exercisePageResponse struct {
+	Items   []masterExerciseListItemResponse `json:"items"`
+	HasNext bool                             `json:"hasNext"`
+	Offset  int                              `json:"offset"`
+	Limit   int                              `json:"limit"`
+}
+
+const (
+	exerciseDefaultLimit = 20
+	exerciseMaxLimit     = 100
+)
+
+// List は演習問題一覧をスクロール型ページネーションで返す。
+// limit（デフォルト 20・最大 100）と offset（デフォルト 0）で取得範囲を指定する。
+// hasNext が true のとき次ページが存在する。
 //
-//	@Summary      演習問題 一覧 (status + stats 付き)
-//	@Description  運営 マスタ 演習問題 を 取得。 query language で 絞り込み (例: php / go)。 current user の 提出 状況 と 全 user 集計 を 同時 に 返す。 未 ログイン 時 は status 空。
+//	@Summary      演習問題 一覧 (status + stats + ページネーション付き)
+//	@Description  運営 マスタ 演習問題 を 取得。 query language で 絞り込み。 limit/offset で ページネーション。 current user の 提出 状況 と 全 user 集計 を 返す。
 //	@Tags         exercises
 //	@Produce      json
-//	@Param        language  query     string  false  "言語 フィルタ (例: php, go, javascript)"
-//	@Success      200       {array}   masterExerciseListItemResponse
+//	@Param        language  query     string  false  "言語 フィルタ (例: php, go, bash, git)"
+//	@Param        limit     query     int     false  "1 ページの 件数 (デフォルト 20、最大 100)"
+//	@Param        offset    query     int     false  "取得 開始 位置 (デフォルト 0)"
+//	@Success      200       {object}  exercisePageResponse
 //	@Failure      500       {object}  errorResponse  "DB / 集計 失敗"
 //	@Router       /exercises [get]
 //	@Security     CookieAuth
 func (h *MasterExerciseHandler) List(c *gin.Context) {
 	language := c.Query("language")
 	uid := middleware.CurrentUserIDOrZero(c)
+
+	limit := exerciseDefaultLimit
+	if v := c.Query("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			limit = min(n, exerciseMaxLimit)
+		}
+	}
+	offset := 0
+	if v := c.Query("offset"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			offset = n
+		}
+	}
+
+	// limit+1 件取得して hasNext を判定する（COUNT クエリを別途発行しない）。
 	rows, err := h.listWithStatus.Execute(c.Request.Context(), usecase.ListMasterExercisesWithStatusInput{
 		UserID:   uid,
 		Language: language,
+		Offset:   offset,
+		Limit:    limit + 1,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "演習問題の取得に失敗しました"})
 		return
 	}
+
+	hasNext := len(rows) > limit
+	if hasNext {
+		rows = rows[:limit]
+	}
+
 	items := make([]masterExerciseListItemResponse, len(rows))
 	for i, r := range rows {
 		items[i] = masterExerciseListItemResponse{
@@ -83,7 +124,21 @@ func (h *MasterExerciseHandler) List(c *gin.Context) {
 			Stats:       r.Stats,
 		}
 	}
-	c.JSON(http.StatusOK, items)
+	c.JSON(http.StatusOK, exercisePageResponse{
+		Items:   items,
+		HasNext: hasNext,
+		Offset:  offset,
+		Limit:   limit,
+	})
+}
+
+// min は Go 1.21+ 組み込みと競合しないよう、ローカル定義は不要。
+// Go 1.21+ では builtin の min を使える。
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // GetBySlug は入出力例を含む詳細を返す。

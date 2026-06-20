@@ -1,13 +1,10 @@
-import { useCallback, useEffect, useState, useMemo } from 'react';
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import ExerciseRepository from '../repositories/ExerciseRepository';
 import { MasterExerciseWithStatus } from '../types';
 
-// 言語フィルタを localStorage に保存するキー。 ページ離脱 / リロードしても
-// 前回選んだ言語を復元できるよう、 ブラウザに永続化する。
 const LANGUAGE_STORAGE_KEY = 'frestyle:exercise-list:language';
-
-// localStorage が許す言語コード集合 (許容されない値は default に戻す)。
-const VALID_LANGUAGES = new Set(['', 'php', 'go', 'bash', 'docker']);
+const VALID_LANGUAGES = new Set(['', 'php', 'go', 'bash', 'git', 'docker']);
+const PAGE_SIZE = 20;
 
 function loadStoredLanguage(fallback: string): string {
   if (typeof window === 'undefined') return fallback;
@@ -15,7 +12,7 @@ function loadStoredLanguage(fallback: string): string {
     const v = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
     if (v !== null && VALID_LANGUAGES.has(v)) return v;
   } catch {
-    // SSR / プライベートブラウジング 等で localStorage が使えない場合は fallback。
+    // SSR / プライベートブラウジング等で localStorage が使えない場合は fallback。
   }
   return fallback;
 }
@@ -25,20 +22,16 @@ function persistLanguage(value: string) {
   try {
     window.localStorage.setItem(LANGUAGE_STORAGE_KEY, value);
   } catch {
-    // 容量制限 / 拒否設定 で書き込めない場合は黙って無視。
+    // 容量制限 / 拒否設定で書き込めない場合は黙って無視。
   }
 }
 
 /**
  * useExerciseList — 演習問題リストページの状態管理フック。
  *
- * 一覧 API は current user のステータス（solved / in_progress / 未着手）と
- * 全ユーザ合計の集計（提出数 / 正答ユーザ数）を含むので、 リスト UI で
- * バッジ + 解答率を直接表示できる。
- *
- * 言語フィルタは UI 側の `language` state に応じて再 fetch する。
- * 空文字なら全言語を返す。 selectedLanguage は localStorage で 永続化するので、
- * 演習詳細ページから戻っても 前回の選択が復元される。
+ * スクロール型ページネーション（無限スクロール）対応。
+ * 言語フィルタを切り替えると蓄積リストをリセットしてページ先頭から再取得する。
+ * loadMore() を呼ぶと次ページを取得して items に追記する。
  */
 export function useExerciseList(initialLanguage: string = 'php') {
   const [language, setLanguageState] = useState(() => loadStoredLanguage(initialLanguage));
@@ -47,17 +40,29 @@ export function useExerciseList(initialLanguage: string = 'php') {
     setLanguageState(next);
     persistLanguage(next);
   }, []);
-  const [exercises, setExercises] = useState<MasterExerciseWithStatus[]>([]);
+
+  const [items, setItems] = useState<MasterExerciseWithStatus[]>([]);
+  const [hasNext, setHasNext] = useState(false);
+  const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // 言語変更時にリストをリセットして最初のページを再取得する。
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    ExerciseRepository.listExercises(language || undefined)
-      .then((list) => {
-        if (!cancelled) setExercises(list);
+    setItems([]);
+    setOffset(0);
+    setHasNext(false);
+
+    ExerciseRepository.listExercises(language || undefined, 0, PAGE_SIZE)
+      .then((page) => {
+        if (cancelled) return;
+        setItems(page.items);
+        setHasNext(page.hasNext);
+        setOffset(PAGE_SIZE);
       })
       .catch(() => {
         if (!cancelled) setError('演習問題の取得に失敗しました');
@@ -65,22 +70,61 @@ export function useExerciseList(initialLanguage: string = 'php') {
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
-    return () => {
-      cancelled = true;
-    };
+
+    return () => { cancelled = true; };
   }, [language]);
 
+  // 次ページを追加取得する（IntersectionObserver から呼ばれる）。
+  const loadMore = useCallback(() => {
+    if (loadingMore || !hasNext) return;
+    setLoadingMore(true);
+
+    ExerciseRepository.listExercises(language || undefined, offset, PAGE_SIZE)
+      .then((page) => {
+        setItems((prev) => [...prev, ...page.items]);
+        setHasNext(page.hasNext);
+        setOffset((prev) => prev + PAGE_SIZE);
+      })
+      .catch(() => {
+        setError('追加取得に失敗しました');
+      })
+      .finally(() => {
+        setLoadingMore(false);
+      });
+  }, [language, offset, hasNext, loadingMore]);
+
+  // カテゴリのユニーク一覧（出現順）。
   const categories = useMemo(
-    () => Array.from(new Set(exercises.map((e) => e.category))),
-    [exercises],
+    () => Array.from(new Set(items.map((e) => e.category))),
+    [items],
   );
+
+  // sentinelRef を渡し、要素が viewport に入ったら loadMore を呼ぶ。
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || !hasNext) return;
+
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) loadMore();
+      },
+      { rootMargin: '200px' },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [hasNext, loadMore]);
 
   return {
     language,
     setLanguage,
-    exercises,
+    exercises: items,
     categories,
     loading,
+    loadingMore,
+    hasNext,
     error,
+    sentinelRef,
+    loadMore,
   };
 }

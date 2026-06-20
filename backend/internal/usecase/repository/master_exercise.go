@@ -15,6 +15,15 @@ type MasterExerciseWithStatus struct {
 	Stats  ExerciseSubmissionStats `json:"stats"`
 }
 
+// ListWithStatusInput は ListWithStatusByLanguage の入力パラメータ。
+// Limit=0 はページネーション無効（全件）を表す。Offset は 0-based。
+type ListWithStatusInput struct {
+	UserID   uint64
+	Language string
+	Offset   int
+	Limit    int
+}
+
 // MasterExerciseRepository は運営マスタ演習問題の永続化を担う（言語フィルタは ListByLanguage）。
 type MasterExerciseRepository interface {
 	ListByLanguage(ctx context.Context, language string) ([]domain.MasterExercise, error)
@@ -23,5 +32,6 @@ type MasterExerciseRepository interface {
 
 	// ListWithStatusByLanguage は公開済み問題を、 current user の提出状態 + 全体集計付きで
 	// 1 クエリ（master_exercises ⟕ exercise_submissions 集計）で返す。userID=0 は未ログイン扱いで status="".
-	ListWithStatusByLanguage(ctx context.Context, userID uint64, language string) ([]MasterExerciseWithStatus, error)
+	// Limit > 0 のとき LIMIT/OFFSET を適用する。Limit=0 は全件取得。
+	ListWithStatusByLanguage(ctx context.Context, in ListWithStatusInput) ([]MasterExerciseWithStatus, error)
 }

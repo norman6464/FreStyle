@@ -9,6 +9,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/stretchr/testify/require"
 )
 
@@ -47,8 +48,12 @@ func TestMasterExerciseRepository_ListWithStatusByLanguage_Integration(t *testin
 		require.NoError(t, subRepo.Create(ctx, &subs[i]))
 	}
 
+	in := func(userID uint64, language string) repository.ListWithStatusInput {
+		return repository.ListWithStatusInput{UserID: userID, Language: language}
+	}
+
 	t.Run("言語フィルタ + 非公開除外 + order_index 昇順", func(t *testing.T) {
-		rows, err := exRepo.ListWithStatusByLanguage(ctx, 0, "php")
+		rows, err := exRepo.ListWithStatusByLanguage(ctx, in(0, "php"))
 		require.NoError(t, err)
 		require.Len(t, rows, 2, "php の公開問題のみ（draft は除外）")
 		require.Equal(t, "php-1", rows[0].Slug)
@@ -56,24 +61,36 @@ func TestMasterExerciseRepository_ListWithStatusByLanguage_Integration(t *testin
 	})
 
 	t.Run("未ログイン(userID=0)は status 空 + 全体集計は付く", func(t *testing.T) {
-		rows, err := exRepo.ListWithStatusByLanguage(ctx, 0, "php")
+		rows, err := exRepo.ListWithStatusByLanguage(ctx, in(0, "php"))
 		require.NoError(t, err)
 		require.Equal(t, "", rows[0].Status)
 		require.Equal(t, int64(3), rows[0].Stats.TotalSubmissions)
 		require.Equal(t, int64(2), rows[0].Stats.SolvedUsers)
-		require.Equal(t, int64(0), rows[1].Stats.TotalSubmissions) // php-2 は提出なし
+		require.Equal(t, int64(0), rows[1].Stats.TotalSubmissions)
 	})
 
 	t.Run("ログインユーザの status(solved)が付く", func(t *testing.T) {
-		rows, err := exRepo.ListWithStatusByLanguage(ctx, 7, "php")
+		rows, err := exRepo.ListWithStatusByLanguage(ctx, in(7, "php"))
 		require.NoError(t, err)
 		require.Equal(t, "solved", rows[0].Status, "user7 は php-1 を正解済み")
 		require.Equal(t, "", rows[1].Status, "php-2 は未提出")
 	})
 
 	t.Run("language 空なら全公開問題", func(t *testing.T) {
-		rows, err := exRepo.ListWithStatusByLanguage(ctx, 0, "")
+		rows, err := exRepo.ListWithStatusByLanguage(ctx, in(0, ""))
 		require.NoError(t, err)
 		require.Len(t, rows, 3, "php-1 / php-2 / go-1（draft 除外）")
+	})
+
+	t.Run("LIMIT/OFFSET でページネーション", func(t *testing.T) {
+		rows1, err := exRepo.ListWithStatusByLanguage(ctx, repository.ListWithStatusInput{UserID: 0, Language: "", Offset: 0, Limit: 2})
+		require.NoError(t, err)
+		require.Len(t, rows1, 2)
+
+		rows2, err := exRepo.ListWithStatusByLanguage(ctx, repository.ListWithStatusInput{UserID: 0, Language: "", Offset: 2, Limit: 2})
+		require.NoError(t, err)
+		require.Len(t, rows2, 1, "3 件目（残り 1 件）")
+
+		require.NotEqual(t, rows1[0].Slug, rows2[0].Slug, "ページが重複しない")
 	})
 }

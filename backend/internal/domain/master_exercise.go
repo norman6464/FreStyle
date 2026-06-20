@@ -29,10 +29,12 @@ func (MasterExercise) TableName() string { return "master_exercises" }
 
 // 対応言語の定数。追加時は usecase / フロント側の許容セットも揃える。
 const (
-	ExerciseLanguagePhp = "php"
-	ExerciseLanguageSql = "sql"
-	ExerciseLanguageGo  = "go"
-	ExerciseLanguageJs  = "javascript"
+	ExerciseLanguagePhp  = "php"
+	ExerciseLanguageSql  = "sql"
+	ExerciseLanguageGo   = "go"
+	ExerciseLanguageJs   = "javascript"
+	ExerciseLanguageBash = "bash"
+	ExerciseLanguageGit  = "git"
 )
 
 // 採点モードの定数。

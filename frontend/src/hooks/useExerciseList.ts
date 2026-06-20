@@ -60,8 +60,9 @@ export function useExerciseList(initialLanguage: string = 'php') {
     ExerciseRepository.listExercises(language || undefined, 0, PAGE_SIZE)
       .then((page) => {
         if (cancelled) return;
-        setItems(page.items);
-        setHasNext(page.hasNext);
+        // page.items が null/undefined のとき（旧バックエンドが配列を直接返す等）でもクラッシュしない。
+        setItems(Array.isArray(page?.items) ? page.items : []);
+        setHasNext(page?.hasNext ?? false);
         setOffset(PAGE_SIZE);
       })
       .catch(() => {
@@ -81,8 +82,9 @@ export function useExerciseList(initialLanguage: string = 'php') {
 
     ExerciseRepository.listExercises(language || undefined, offset, PAGE_SIZE)
       .then((page) => {
-        setItems((prev) => [...prev, ...page.items]);
-        setHasNext(page.hasNext);
+        const newItems = Array.isArray(page?.items) ? page.items : [];
+        setItems((prev) => [...prev, ...newItems]);
+        setHasNext(page?.hasNext ?? false);
         setOffset((prev) => prev + PAGE_SIZE);
       })
       .catch(() => {

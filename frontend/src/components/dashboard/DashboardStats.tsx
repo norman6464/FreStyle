@@ -67,7 +67,7 @@ function StatChip({
   color: string;
 }) {
   return (
-    <div className="flex flex-col gap-1 p-3 rounded-lg bg-[var(--color-surface-2)]">
+    <div className="flex flex-col gap-1 pt-3 px-3 pb-4 rounded-lg bg-[var(--color-surface-2)]">
       <span className={`${color}`}>{icon}</span>
       <span className="text-xs text-[var(--color-text-muted)]">{label}</span>
       <span className="text-base font-bold text-[var(--color-text-primary)]">{value}</span>

@@ -504,7 +504,7 @@ function CourseProgressBar({ completed, total }: { completed: number; total: num
       </div>
       <div className="h-1.5 w-full rounded-full bg-surface-3 overflow-hidden">
         <div
-          className="h-full rounded-full bg-green-500 transition-all"
+          className="h-full rounded-full bg-green-400 transition-all"
           style={{ width: `${pct}%` }}
           role="progressbar"
           aria-label="学習の進捗"
@@ -533,7 +533,7 @@ function CompleteToggleButton({
       onClick={() => onToggle(!completed)}
       aria-pressed={completed}
       className={`inline-flex items-center justify-center gap-1.5 rounded-lg font-medium transition-colors ${
-        large ? 'px-5 py-2.5 text-sm' : 'px-3 py-1.5 text-sm'
+        large ? 'px-5 pt-[9px] pb-[11px] text-sm' : 'px-3 pt-[5px] pb-[7px] text-sm'
       } ${
         completed
           ? 'bg-green-500/15 text-green-500 hover:bg-green-500/25'

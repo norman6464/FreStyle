@@ -30,11 +30,15 @@ func (r *fakeMasterExerciseRepo) ListByLanguage(_ context.Context, language stri
 	return r.listResult, nil
 }
 
-func (r *fakeMasterExerciseRepo) ListWithStatusByLanguage(_ context.Context, _ uint64, language string) ([]repository.MasterExerciseWithStatus, error) {
-	r.listLanguage = language
+func (r *fakeMasterExerciseRepo) ListWithStatusByLanguage(_ context.Context, in repository.ListWithStatusInput) ([]repository.MasterExerciseWithStatus, error) {
+	r.listLanguage = in.Language
 	out := make([]repository.MasterExerciseWithStatus, 0, len(r.listResult))
 	for _, e := range r.listResult {
 		out = append(out, repository.MasterExerciseWithStatus{MasterExercise: e})
+	}
+	// Limit+1 件要求に対して limit+1 件まで返す（hasNext 判定テスト用）。
+	if in.Limit > 0 && len(out) > in.Limit {
+		out = out[:in.Limit]
 	}
 	return out, nil
 }
@@ -102,12 +106,15 @@ func Test_演習問題ハンドラ_一覧_言語で絞り込み(t *testing.T) {
 	if repo.listLanguage != "php" {
 		t.Errorf("listLanguage = %q, want %q", repo.listLanguage, "php")
 	}
-	var got []domain.MasterExercise
+	var got struct {
+		Items   []domain.MasterExercise `json:"items"`
+		HasNext bool                    `json:"hasNext"`
+	}
 	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if len(got) != 2 {
-		t.Errorf("len = %d, want 2", len(got))
+	if len(got.Items) != 2 {
+		t.Errorf("len(items) = %d, want 2", len(got.Items))
 	}
 }
 

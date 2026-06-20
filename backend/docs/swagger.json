@@ -2092,19 +2092,31 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "運営 マスタ 演習問題 を 取得。 query language で 絞り込み (例: php / go)。 current user の 提出 状況 と 全 user 集計 を 同時 に 返す。 未 ログイン 時 は status 空。",
+                "description": "運営 マスタ 演習問題 を 取得。 query language で 絞り込み。 limit/offset で ページネーション。 current user の 提出 状況 と 全 user 集計 を 返す。",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "exercises"
                 ],
-                "summary": "演習問題 一覧 (status + stats 付き)",
+                "summary": "演習問題 一覧 (status + stats + ページネーション付き)",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "言語 フィルタ (例: php, go, javascript)",
+                        "description": "言語 フィルタ (例: php, go, bash, git)",
                         "name": "language",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "1 ページの 件数 (デフォルト 20、最大 100)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "取得 開始 位置 (デフォルト 0)",
+                        "name": "offset",
                         "in": "query"
                     }
                 ],
@@ -2112,10 +2124,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/internal_handler.masterExerciseListItemResponse"
-                            }
+                            "$ref": "#/definitions/internal_handler.exercisePageResponse"
                         }
                     },
                     "500": {
@@ -4725,6 +4734,26 @@
                 "error": {
                     "type": "string",
                     "example": "unauthorized"
+                }
+            }
+        },
+        "internal_handler.exercisePageResponse": {
+            "type": "object",
+            "properties": {
+                "hasNext": {
+                    "type": "boolean"
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_handler.masterExerciseListItemResponse"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "offset": {
+                    "type": "integer"
                 }
             }
         },

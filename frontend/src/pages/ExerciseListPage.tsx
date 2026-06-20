@@ -6,16 +6,21 @@ import { MasterExerciseWithStatus } from '../types';
 /**
  * ExerciseListPage — `/code-editor` のリスト画面。
  *
- * - カード形式で全演習問題を一覧表示
- * - 各カードに current user のステータス（解いた / 取り組み中 / 未着手）と
- *   全体集計（提出数 / 正答ユーザ数）を表示
- * - クリックで詳細ページ `/code-editor/:slug` へ遷移
- *
- * 言語フィルタは UI 上で切替可能。 PHP のみ運用中の現時点では実用性は薄いが、
- * 多言語化を見据えて入口だけ用意する。
+ * - カード形式で演習問題を一覧表示
+ * - スクロール型ページネーション（IntersectionObserver）で次ページを自動取得
+ * - カテゴリ見出しは蓄積されたリストから動的に生成する
  */
 export default function ExerciseListPage() {
-  const { language, setLanguage, exercises, categories, loading, error } = useExerciseList();
+  const {
+    language,
+    setLanguage,
+    exercises,
+    categories,
+    loading,
+    loadingMore,
+    error,
+    sentinelRef,
+  } = useExerciseList();
 
   return (
     <div className="px-4 sm:px-6 pt-6 pb-24 max-w-5xl mx-auto space-y-6">
@@ -40,6 +45,7 @@ export default function ExerciseListPage() {
           <option value="">すべて</option>
           <option value="php">PHP</option>
           <option value="go">Go</option>
+          <option value="git">Git</option>
           <option value="bash">Bash / Linux</option>
           <option value="docker">Docker</option>
         </select>
@@ -70,6 +76,13 @@ export default function ExerciseListPage() {
           </div>
         </section>
       ))}
+
+      {/* IntersectionObserver のターゲット。viewport に入ると次ページを自動取得する。 */}
+      <div ref={sentinelRef} className="h-1" aria-hidden />
+
+      {loadingMore && (
+        <p className="text-sm text-center text-[var(--color-text-muted)] py-4">読み込み中...</p>
+      )}
     </div>
   );
 }

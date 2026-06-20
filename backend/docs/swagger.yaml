@@ -646,6 +646,19 @@ definitions:
         example: unauthorized
         type: string
     type: object
+  internal_handler.exercisePageResponse:
+    properties:
+      hasNext:
+        type: boolean
+      items:
+        items:
+          $ref: '#/definitions/internal_handler.masterExerciseListItemResponse'
+        type: array
+      limit:
+        type: integer
+      offset:
+        type: integer
+    type: object
   internal_handler.invitationValidateResponse:
     properties:
       companyId:
@@ -2299,29 +2312,35 @@ paths:
       - embeds
   /exercises:
     get:
-      description: '運営 マスタ 演習問題 を 取得。 query language で 絞り込み (例: php / go)。 current
-        user の 提出 状況 と 全 user 集計 を 同時 に 返す。 未 ログイン 時 は status 空。'
+      description: 運営 マスタ 演習問題 を 取得。 query language で 絞り込み。 limit/offset で ページネーション。
+        current user の 提出 状況 と 全 user 集計 を 返す。
       parameters:
-      - description: '言語 フィルタ (例: php, go, javascript)'
+      - description: '言語 フィルタ (例: php, go, bash, git)'
         in: query
         name: language
         type: string
+      - description: 1 ページの 件数 (デフォルト 20、最大 100)
+        in: query
+        name: limit
+        type: integer
+      - description: 取得 開始 位置 (デフォルト 0)
+        in: query
+        name: offset
+        type: integer
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/internal_handler.masterExerciseListItemResponse'
-            type: array
+            $ref: '#/definitions/internal_handler.exercisePageResponse'
         "500":
           description: DB / 集計 失敗
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
       security:
       - CookieAuth: []
-      summary: 演習問題 一覧 (status + stats 付き)
+      summary: 演習問題 一覧 (status + stats + ページネーション付き)
       tags:
       - exercises
   /exercises/{slug}:

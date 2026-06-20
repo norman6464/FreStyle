@@ -627,6 +627,14 @@ export interface MasterExerciseWithStatus {
   stats: ExerciseSubmissionStats;
 }
 
+/** 演習問題一覧 API のページネーションレスポンス。 */
+export interface ExercisePage {
+  items: MasterExerciseWithStatus[];
+  hasNext: boolean;
+  offset: number;
+  limit: number;
+}
+
 /** 提出 API (`POST /api/v2/exercises/:slug/submit`) のレスポンス 1 件あたりの採点結果。 */
 export interface ExerciseTestCaseResult {
   orderIndex: number;

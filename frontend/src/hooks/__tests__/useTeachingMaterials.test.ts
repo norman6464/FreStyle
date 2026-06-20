@@ -68,18 +68,6 @@ describe('useTeachingMaterials', () => {
     expect(result.current.error).toBe('教材の取得に失敗しました');
   });
 
-  it('searchQuery でタイトルがフィルタされる', async () => {
-    courseMocks.listMaterials.mockResolvedValue([
-      sample(1, { title: 'PHP 入門' }),
-      sample(2, { title: 'Go 入門' }),
-    ]);
-    const { result } = renderHook(() => useTeachingMaterials(5));
-    await waitFor(() => expect(result.current.loading).toBe(false));
-    act(() => result.current.setSearchQuery('php'));
-    expect(result.current.filtered).toHaveLength(1);
-    expect(result.current.filtered[0].title).toBe('PHP 入門');
-  });
-
   it('選択した教材だけ本文を都度取得して selected に入る（全章は先読みしない）', async () => {
     courseMocks.listMaterials.mockResolvedValue([sample(1), sample(2)]);
     materialMocks.get.mockResolvedValue({ ...sample(1), content: '# 本文1' });

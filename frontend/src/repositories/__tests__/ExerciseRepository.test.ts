@@ -19,15 +19,21 @@ describe('ExerciseRepository', () => {
   });
 
   it('listExercises: 言語フィルタ付きで一覧を取得する', async () => {
-    mockedGet.mockResolvedValue({ data: [] });
+    mockedGet.mockResolvedValue({ data: { items: [], hasNext: false, offset: 0, limit: 20 } });
     await ExerciseRepository.listExercises('php');
-    expect(mockedGet).toHaveBeenCalledWith('/api/v2/exercises?language=php');
+    expect(mockedGet).toHaveBeenCalledWith('/api/v2/exercises?language=php&offset=0&limit=20');
   });
 
   it('listExercises: 言語未指定なら全言語を取得する', async () => {
-    mockedGet.mockResolvedValue({ data: [] });
+    mockedGet.mockResolvedValue({ data: { items: [], hasNext: false, offset: 0, limit: 20 } });
     await ExerciseRepository.listExercises();
-    expect(mockedGet).toHaveBeenCalledWith('/api/v2/exercises');
+    expect(mockedGet).toHaveBeenCalledWith('/api/v2/exercises?offset=0&limit=20');
+  });
+
+  it('listExercises: offset と limit を指定できる', async () => {
+    mockedGet.mockResolvedValue({ data: { items: [], hasNext: true, offset: 20, limit: 20 } });
+    await ExerciseRepository.listExercises('go', 20, 20);
+    expect(mockedGet).toHaveBeenCalledWith('/api/v2/exercises?language=go&offset=20&limit=20');
   });
 
   it('getDetail: slug で詳細を取得する', async () => {

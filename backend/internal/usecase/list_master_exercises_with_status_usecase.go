@@ -23,11 +23,19 @@ func NewListMasterExercisesWithStatusUseCase(
 }
 
 // ListMasterExercisesWithStatusInput は入力。 UserID=0 は未ログイン扱いで status は全部 ""。
+// Offset/Limit はスクロール型ページネーション用。Limit=0 は全件取得。
 type ListMasterExercisesWithStatusInput struct {
 	UserID   uint64
 	Language string
+	Offset   int
+	Limit    int
 }
 
 func (uc *ListMasterExercisesWithStatusUseCase) Execute(ctx context.Context, in ListMasterExercisesWithStatusInput) ([]repository.MasterExerciseWithStatus, error) {
-	return uc.exercises.ListWithStatusByLanguage(ctx, in.UserID, in.Language)
+	return uc.exercises.ListWithStatusByLanguage(ctx, repository.ListWithStatusInput{
+		UserID:   in.UserID,
+		Language: in.Language,
+		Offset:   in.Offset,
+		Limit:    in.Limit,
+	})
 }

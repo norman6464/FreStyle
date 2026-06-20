@@ -30,7 +30,7 @@ func (r *fakeMasterExerciseRepo) GetBySlug(context.Context, string) (*domain.Mas
 	return r.get, r.err
 }
 
-func (r *fakeMasterExerciseRepo) ListWithStatusByLanguage(context.Context, uint64, string) ([]repository.MasterExerciseWithStatus, error) {
+func (r *fakeMasterExerciseRepo) ListWithStatusByLanguage(context.Context, repository.ListWithStatusInput) ([]repository.MasterExerciseWithStatus, error) {
 	return nil, nil
 }
 

@@ -199,12 +199,12 @@ function FeatureCard({ to, icon: Icon, title, description, color, badge }: Featu
       className="group relative flex flex-col gap-4 p-5 rounded-xl border border-[var(--color-surface-3)] bg-[var(--color-surface-1)] hover:bg-[var(--color-surface-2)] hover:border-[var(--color-text-muted)]/40 hover:shadow-sm transition-all duration-150"
     >
       {badge && (
-        <span className="absolute top-3 right-3 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+        <span className="absolute top-3 right-3 text-[10px] font-semibold px-2 pt-px pb-[3px] rounded-full bg-emerald-100 text-emerald-700">
           {badge}
         </span>
       )}
       <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${iconBg[color]}`}>
-        <Icon className="w-5 h-5" />
+        <Icon className="w-5 h-5 -translate-y-px" />
       </div>
       <div className="flex-1 space-y-1">
         <h3 className="font-semibold text-[var(--color-text-primary)] text-sm group-hover:text-brand-500 transition-colors">

@@ -25,7 +25,7 @@ func (s *stubUsers) ListByRole(context.Context, string) ([]domain.User, error) {
 func (s *stubUsers) ListByCompanyID(context.Context, uint64) ([]domain.User, error) { return nil, nil }
 func (s *stubUsers) Create(context.Context, *domain.User) error                     { return nil }
 func (s *stubUsers) UpdateAiChatEnabled(context.Context, uint64, *bool) error       { return nil }
-func (s *stubUsers) UpdateName(context.Context, uint64, string) error        { return nil }
+func (s *stubUsers) UpdateName(context.Context, uint64, string) error               { return nil }
 func (s *stubUsers) UpdateRole(context.Context, uint64, string) error               { return nil }
 func (s *stubUsers) UpdateCompanyID(context.Context, uint64, uint64) error          { return nil }
 func (s *stubUsers) UpdateActive(context.Context, uint64, bool) error               { return nil }

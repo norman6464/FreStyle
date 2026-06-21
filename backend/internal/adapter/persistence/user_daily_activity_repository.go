@@ -40,7 +40,8 @@ ON CONFLICT (user_id, activity_date) DO UPDATE SET
   ai_chat_count  = user_daily_activities.ai_chat_count  + EXCLUDED.ai_chat_count,
   note_count     = user_daily_activities.note_count     + EXCLUDED.note_count
 `
-	return r.db.WithContext(ctx).Exec(sql,
+	return r.db.WithContext(ctx).Exec(
+		sql,
 		userID, d,
 		delta.ExerciseCount,
 		delta.CorrectCount,

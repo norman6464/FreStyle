@@ -35,9 +35,9 @@ func toDomainUser(row sqlcgen.User) *domain.User {
 		Email:      row.Email,
 		Name:       row.Name,
 		Role:       row.Role,
-		IsActive:    row.IsActive,
-		CreatedAt:   row.CreatedAt,
-		UpdatedAt:   row.UpdatedAt,
+		IsActive:   row.IsActive,
+		CreatedAt:  row.CreatedAt,
+		UpdatedAt:  row.UpdatedAt,
 	}
 	if row.CompanyID.Valid {
 		cid := uint64(row.CompanyID.Int64)

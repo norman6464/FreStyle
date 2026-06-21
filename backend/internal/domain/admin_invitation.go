@@ -3,12 +3,12 @@ package domain
 import "time"
 
 type AdminInvitation struct {
-	ID          uint64 `gorm:"primaryKey" json:"id"`
-	CompanyID   uint64 `gorm:"column:company_id;index" json:"companyId"`
-	Email       string `gorm:"column:email" json:"email"`
-	Role        string `gorm:"column:role" json:"role"`
-	Name string `gorm:"column:name" json:"name"`
-	Status      string `gorm:"column:status" json:"status"`
+	ID        uint64 `gorm:"primaryKey" json:"id"`
+	CompanyID uint64 `gorm:"column:company_id;index" json:"companyId"`
+	Email     string `gorm:"column:email" json:"email"`
+	Role      string `gorm:"column:role" json:"role"`
+	Name      string `gorm:"column:name" json:"name"`
+	Status    string `gorm:"column:status" json:"status"`
 	// Token はマジックリンク用の不透明 UUID（秘匿値なので json では返さない）。
 	// 未設定値を NULL にして UNIQUE 制約に引っかけないため *string にしている。
 	Token     *string   `gorm:"column:token;uniqueIndex;size:64" json:"-"`

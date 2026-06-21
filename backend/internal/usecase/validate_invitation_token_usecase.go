@@ -25,7 +25,7 @@ func NewValidateInvitationTokenUseCase(
 // ValidatedInvitation は受諾画面に表示する最低限の情報。
 type ValidatedInvitation struct {
 	Role        string
-	Name string
+	Name        string
 	CompanyID   uint64
 	CompanyName string
 }
@@ -52,7 +52,7 @@ func (u *ValidateInvitationTokenUseCase) Execute(ctx context.Context, token stri
 
 	return &ValidatedInvitation{
 		Role:        normalizeInvitationRole(inv.Role),
-		Name: inv.Name,
+		Name:        inv.Name,
 		CompanyID:   inv.CompanyID,
 		CompanyName: companyName,
 	}, nil

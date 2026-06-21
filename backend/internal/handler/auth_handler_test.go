@@ -13,15 +13,15 @@ import (
 
 // fakeUserRepo は AuthHandler.upsertUserFromIDToken のテスト用 stub。
 type fakeUserRepo struct {
-	existingBySub        map[string]*domain.User
-	created              *domain.User
-	createErr            error
-	updateRoleID         uint64
-	updateRoleVal        string
-	updateCompanyID      uint64
-	updateCompanyVal     uint64
-	updateNameID  uint64
-	updateNameVal string
+	existingBySub    map[string]*domain.User
+	created          *domain.User
+	createErr        error
+	updateRoleID     uint64
+	updateRoleVal    string
+	updateCompanyID  uint64
+	updateCompanyVal uint64
+	updateNameID     uint64
+	updateNameVal    string
 }
 
 func (r *fakeUserRepo) FindByCognitoSub(_ context.Context, sub string) (*domain.User, error) {

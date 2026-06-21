@@ -96,8 +96,8 @@ func (u *CreateAdminInvitationUseCase) Execute(ctx context.Context, in CreateAdm
 		Role:      in.Role,
 		Name:      in.Name,
 		Status:    domain.InvitationStatusPending,
-		Token:       &token,
-		ExpiresAt:   time.Now().UTC().Add(u.expiresIn),
+		Token:     &token,
+		ExpiresAt: time.Now().UTC().Add(u.expiresIn),
 	}
 	if err := u.repo.Create(ctx, inv); err != nil {
 		log.Printf("CreateAdminInvitation: repo.Create failed email=%s role=%s companyID=%d: %v",

@@ -1,14 +1,11 @@
 package handler
 
 import (
-	"errors"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
-	"gorm.io/gorm"
 )
 
 // CourseHandler はコースの CRUD API を扱う。
@@ -18,19 +15,6 @@ type CourseHandler struct {
 
 func NewCourseHandler(uc *usecase.CourseUseCase) *CourseHandler {
 	return &CourseHandler{uc: uc}
-}
-
-func (h *CourseHandler) actorContext(c *gin.Context) (uint64, uint64, string, bool) {
-	user := middleware.CurrentUserFromContext(c)
-	if user == nil {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-		return 0, 0, "", false
-	}
-	companyID := uint64(0)
-	if user.CompanyID != nil {
-		companyID = *user.CompanyID
-	}
-	return user.ID, companyID, user.Role, true
 }
 
 // @Summary      コース 一覧
@@ -43,7 +27,7 @@ func (h *CourseHandler) actorContext(c *gin.Context) (uint64, uint64, string, bo
 // @Router       /courses [get]
 // @Security     CookieAuth
 func (h *CourseHandler) List(c *gin.Context) {
-	_, companyID, role, ok := h.actorContext(c)
+	_, companyID, role, ok := actorFromContext(c)
 	if !ok {
 		return
 	}
@@ -68,7 +52,7 @@ func (h *CourseHandler) List(c *gin.Context) {
 // @Router       /courses/{id} [get]
 // @Security     CookieAuth
 func (h *CourseHandler) Get(c *gin.Context) {
-	_, companyID, role, ok := h.actorContext(c)
+	_, companyID, role, ok := actorFromContext(c)
 	if !ok {
 		return
 	}
@@ -79,7 +63,7 @@ func (h *CourseHandler) Get(c *gin.Context) {
 	}
 	course, err := h.uc.Get(c.Request.Context(), id, companyID, role)
 	if err != nil {
-		respondCourseErr(c, err, "コースの取得に失敗しました")
+		respondEntityErr(c, err, "コースが見つかりません", "コースの取得に失敗しました")
 		return
 	}
 	c.JSON(http.StatusOK, course)
@@ -105,7 +89,7 @@ type courseRequest struct {
 // @Router       /courses [post]
 // @Security     CookieAuth
 func (h *CourseHandler) Create(c *gin.Context) {
-	uid, companyID, role, ok := h.actorContext(c)
+	uid, companyID, role, ok := actorFromContext(c)
 	if !ok {
 		return
 	}
@@ -124,7 +108,7 @@ func (h *CourseHandler) Create(c *gin.Context) {
 		IsPublished:    req.IsPublished,
 	})
 	if err != nil {
-		respondCourseErr(c, err, "コースの作成に失敗しました")
+		respondEntityErr(c, err, "コースが見つかりません", "コースの作成に失敗しました")
 		return
 	}
 	c.JSON(http.StatusCreated, course)
@@ -145,7 +129,7 @@ func (h *CourseHandler) Create(c *gin.Context) {
 // @Router       /courses/{id} [put]
 // @Security     CookieAuth
 func (h *CourseHandler) Update(c *gin.Context) {
-	_, companyID, role, ok := h.actorContext(c)
+	_, companyID, role, ok := actorFromContext(c)
 	if !ok {
 		return
 	}
@@ -169,7 +153,7 @@ func (h *CourseHandler) Update(c *gin.Context) {
 		IsPublished:    req.IsPublished,
 	})
 	if err != nil {
-		respondCourseErr(c, err, "コースの更新に失敗しました")
+		respondEntityErr(c, err, "コースが見つかりません", "コースの更新に失敗しました")
 		return
 	}
 	c.JSON(http.StatusOK, course)
@@ -188,7 +172,7 @@ func (h *CourseHandler) Update(c *gin.Context) {
 // @Router       /courses/{id} [delete]
 // @Security     CookieAuth
 func (h *CourseHandler) Delete(c *gin.Context) {
-	_, companyID, role, ok := h.actorContext(c)
+	_, companyID, role, ok := actorFromContext(c)
 	if !ok {
 		return
 	}
@@ -198,20 +182,8 @@ func (h *CourseHandler) Delete(c *gin.Context) {
 		return
 	}
 	if err := h.uc.Delete(c.Request.Context(), id, companyID, role); err != nil {
-		respondCourseErr(c, err, "コースの削除に失敗しました")
+		respondEntityErr(c, err, "コースが見つかりません", "コースの削除に失敗しました")
 		return
 	}
 	c.Status(http.StatusNoContent)
-}
-
-func respondCourseErr(c *gin.Context, err error, fallback string) {
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		c.JSON(http.StatusNotFound, gin.H{"error": "コースが見つかりません"})
-		return
-	}
-	if err.Error() == "forbidden" || err.Error() == "forbidden: only company_admin or super_admin can create courses" || err.Error() == "actor must belong to a company" {
-		c.JSON(http.StatusForbidden, gin.H{"error": "操作権限がありません"})
-		return
-	}
-	c.JSON(http.StatusInternalServerError, gin.H{"error": fallback})
 }

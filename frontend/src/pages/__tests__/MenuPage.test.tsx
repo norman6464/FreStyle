@@ -22,11 +22,11 @@ const sampleDashboard: UserDashboard = {
   recentChapterViews: [],
 };
 
-function renderMenu(role: string) {
+function renderMenu(role: string, aiChatEnabledForTrainees = true) {
   const store = configureStore({
     reducer: { auth: authReducer },
     preloadedState: {
-      auth: { role, aiChatEnabledForTrainees: true } as never,
+      auth: { role, aiChatEnabledForTrainees } as never,
     },
   });
   return render(
@@ -75,6 +75,37 @@ describe('MenuPage', () => {
     expect(screen.getByRole('heading', { name: '管理メニュー', level: 1 })).toBeInTheDocument();
     expect(screen.getByText('会社一覧')).toBeInTheDocument();
     // 学習統計は出さない
+    expect(screen.queryByText('連続学習')).not.toBeInTheDocument();
+  });
+
+  it('company_admin は学習・ツール・管理セクションと AI カードを表示する', () => {
+    mockUseUserDashboard.mockReturnValue({ dashboard: sampleDashboard, loading: false, error: null });
+    renderMenu('company_admin');
+
+    expect(screen.getByRole('heading', { name: 'FreStyle へようこそ', level: 1 })).toBeInTheDocument();
+    expect(screen.getByText('コース')).toBeInTheDocument();
+    expect(screen.getByText('AI チャット')).toBeInTheDocument();
+    expect(screen.getByText('従業員一覧')).toBeInTheDocument();
+    expect(screen.getByText('連続学習')).toBeInTheDocument();
+  });
+
+  it('trainee で AI 無効のとき AI チャットカードを出さない', () => {
+    mockUseUserDashboard.mockReturnValue({ dashboard: sampleDashboard, loading: false, error: null });
+    renderMenu('trainee', false);
+
+    expect(screen.getByText('ノート')).toBeInTheDocument();
+    expect(screen.queryByText('AI チャット')).not.toBeInTheDocument();
+  });
+
+  it('統計取得に失敗してもメニューは表示し、サイドバー統計は出さない', () => {
+    mockUseUserDashboard.mockReturnValue({
+      dashboard: null,
+      loading: false,
+      error: 'ダッシュボードの取得に失敗しました',
+    });
+    renderMenu('trainee');
+
+    expect(screen.getByText('コース')).toBeInTheDocument();
     expect(screen.queryByText('連続学習')).not.toBeInTheDocument();
   });
 });

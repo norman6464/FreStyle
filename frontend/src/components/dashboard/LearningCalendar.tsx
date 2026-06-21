@@ -5,8 +5,11 @@ interface Props {
 }
 
 /**
- * LearningCalendar は過去 90 日間の学習活動を GitHub スタイルのヒートマップで表示する。
+ * LearningCalendar は過去 90 日間の学習活動をヒートマップで表示する。
  * 活動量（exercise + lesson + ai + note の合計）に応じて 4 段階の色を割り当てる。
+ *
+ * セルは曜日（行）× 週（列）のグリッドに並べる。先頭の曜日ぶんは空セルで詰めて
+ * 各列が日曜始まりの 1 週間に揃うようにし、flex-wrap で崩れて見える問題を防ぐ。
  */
 export default function LearningCalendar({ activities }: Props) {
   // date string → 合計アクティビティ数 のマップを作る。
@@ -29,6 +32,9 @@ export default function LearningCalendar({ activities }: Props) {
     days.push(d.toISOString().slice(0, 10));
   }
 
+  // 先頭の曜日に合わせて空セルを詰める（列＝週、行＝曜日 で日曜始まりに揃える）。
+  const leadingPad = new Date(`${days[0]}T00:00:00Z`).getUTCDay();
+
   const colorClass = (count: number) => {
     if (count === 0) return 'bg-[var(--color-surface-3)]';
     if (count <= 2) return 'bg-emerald-200 dark:bg-emerald-900';
@@ -37,11 +43,14 @@ export default function LearningCalendar({ activities }: Props) {
   };
 
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       <h3 className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-widest">
         学習カレンダー（過去 90 日）
       </h3>
-      <div className="flex flex-wrap gap-[3px]">
+      <div className="grid grid-flow-col grid-rows-7 gap-[3px] w-max">
+        {Array.from({ length: leadingPad }).map((_, i) => (
+          <div key={`pad-${i}`} className="w-3 h-3" />
+        ))}
         {days.map((day) => {
           const count = actMap.get(day) ?? 0;
           return (

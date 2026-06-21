@@ -22,8 +22,11 @@ import DashboardStats from '../components/dashboard/DashboardStats';
  *   - company_admin : 管理 + 学習機能（AI はテナント設定に関わらず常時表示）
  *   - trainee       : 学習機能のみ。aiChatEnabledForTrainees が false なら AI カードを非表示
  *
- * API 依存なし（auth store のみ参照）。 将来的に「最近の演習」等の Quick Stats を
- * 追加する場合はここに useXxxStats() を差し込む。
+ * 表示タイミング:
+ *   学習者向けはメニューカードとパーソナライズ統計（右サイドバー）を **同時に** 出す。
+ *   統計 API のロード中はメニューを先出しせずスケルトンで待ち、レイアウトシフトと
+ *   「メニューだけ先に出てサイドバーが後から差し込まれる」ちらつきを防ぐ。
+ *   super_admin は統計を持たないので即時表示。
  */
 export default function MenuPage() {
   const role = useSelector((state: RootState) => state.auth.role);
@@ -33,31 +36,34 @@ export default function MenuPage() {
   const showAi = !isTrainee || aiEnabled;
 
   // ダッシュボード統計（super_admin は学習機能を使わないので取得しない）。
-  const { dashboard } = useUserDashboard({ enabled: !isSuperAdmin });
+  const { dashboard, loading } = useUserDashboard({ enabled: !isSuperAdmin });
+
+  // 学習者向けは統計ロード完了まで本体を出さず、両カラムを同時に出す。
+  const waitingForStats = !isSuperAdmin && loading;
 
   return (
     <div className="px-4 sm:px-6 pt-8 pb-24 max-w-6xl mx-auto">
+      {/* ウェルカムセクション（データ非依存・即時表示） */}
+      <section className="mb-8">
+        <p className="text-xs font-semibold text-brand-500 uppercase tracking-widest mb-1">
+          {isSuperAdmin ? '運営管理者ダッシュボード' : isTrainee ? '学習ダッシュボード' : '管理者ダッシュボード'}
+        </p>
+        <h1 className="text-3xl font-bold text-[var(--color-text-primary)]">
+          {isSuperAdmin ? '管理メニュー' : 'FreStyle へようこそ'}
+        </h1>
+        <p className="mt-2 text-sm text-[var(--color-text-muted)]">
+          {isSuperAdmin
+            ? '企業管理・招待などの運営操作を行えます。'
+            : 'コースや演習で学習を進め、AI チャットで疑問を解決しましょう。'}
+        </p>
+      </section>
+
       <div className="flex flex-col lg:flex-row gap-8 items-start">
-
         {/* ── 左メインコンテンツ ── */}
-        <div className="flex-1 min-w-0 space-y-10">
-
-          {/* ウェルカムセクション */}
-          <section>
-            <p className="text-xs font-semibold text-brand-500 uppercase tracking-widest mb-1">
-              {isSuperAdmin ? '運営管理者ダッシュボード' : isTrainee ? '学習ダッシュボード' : '管理者ダッシュボード'}
-            </p>
-            <h1 className="text-3xl font-bold text-[var(--color-text-primary)]">
-              {isSuperAdmin ? '管理メニュー' : 'FreStyle へようこそ'}
-            </h1>
-            <p className="mt-2 text-sm text-[var(--color-text-muted)]">
-              {isSuperAdmin
-                ? '企業管理・招待などの運営操作を行えます。'
-                : 'コースや演習で学習を進め、AI チャットで疑問を解決しましょう。'}
-            </p>
-          </section>
-
-          {isSuperAdmin ? (
+        <div className="flex-1 min-w-0 space-y-8 w-full">
+          {waitingForStats ? (
+            <MenuSkeleton />
+          ) : isSuperAdmin ? (
             <FeatureSection title="管理機能">
               <FeatureCard
                 to="/admin/companies"
@@ -143,12 +149,15 @@ export default function MenuPage() {
         </div>
 
         {/* ── 右サイドバー（学習統計）── super_admin には非表示 */}
-        {!isSuperAdmin && dashboard && (
+        {!isSuperAdmin && (
           <div className="w-full lg:w-72 shrink-0">
-            <DashboardStats dashboard={dashboard} />
+            {waitingForStats ? (
+              <StatsSkeleton />
+            ) : (
+              dashboard && <DashboardStats dashboard={dashboard} />
+            )}
           </div>
         )}
-
       </div>
     </div>
   );
@@ -167,7 +176,7 @@ function FeatureSection({ title, children }: FeatureSectionProps) {
       <h2 className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-widest">
         {title}
       </h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {children}
       </div>
     </section>
@@ -196,28 +205,77 @@ function FeatureCard({ to, icon: Icon, title, description, color, badge }: Featu
   return (
     <Link
       to={to}
-      className="group relative flex flex-col gap-4 p-5 rounded-xl border border-[var(--color-surface-3)] bg-[var(--color-surface-1)] hover:bg-[var(--color-surface-2)] hover:border-[var(--color-text-muted)]/40 hover:shadow-sm transition-all duration-150"
+      className="group relative flex h-full flex-col p-5 rounded-xl border border-[var(--color-surface-3)] bg-[var(--color-surface-1)] hover:bg-[var(--color-surface-2)] hover:border-[var(--color-text-muted)]/40 hover:shadow-sm transition-all duration-150"
     >
       {badge && (
-        <span className="absolute top-3 right-3 text-[10px] font-semibold px-2 pt-px pb-[3px] rounded-full bg-emerald-100 text-emerald-700">
+        <span className="absolute top-4 right-4 text-[10px] font-semibold px-2 pt-px pb-[3px] rounded-full bg-emerald-100 text-emerald-700">
           {badge}
         </span>
       )}
-      <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${iconBg[color]}`}>
-        <Icon className="w-5 h-5 -translate-y-px" />
+      <div className="flex items-start gap-3">
+        <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${iconBg[color]}`}>
+          <Icon className="w-5 h-5 -translate-y-px" />
+        </div>
+        <div className="min-w-0 pt-1">
+          <h3 className="font-semibold text-[var(--color-text-primary)] text-sm group-hover:text-brand-500 transition-colors">
+            {title}
+          </h3>
+        </div>
       </div>
-      <div className="flex-1 space-y-1">
-        <h3 className="font-semibold text-[var(--color-text-primary)] text-sm group-hover:text-brand-500 transition-colors">
-          {title}
-        </h3>
-        <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
-          {description}
-        </p>
-      </div>
-      <div className="flex items-center gap-1 text-xs text-[var(--color-text-muted)] group-hover:text-brand-500 transition-colors">
+      <p className="mt-3 text-xs text-[var(--color-text-muted)] leading-relaxed">
+        {description}
+      </p>
+      <div className="mt-4 flex items-center gap-1 text-xs text-[var(--color-text-muted)] group-hover:text-brand-500 transition-colors">
         <span>開く</span>
-        <ArrowRightIcon className="w-3 h-3 translate-x-0 group-hover:translate-x-0.5 transition-transform" />
+        <ArrowRightIcon className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
       </div>
     </Link>
+  );
+}
+
+// ─── スケルトン（ロード中のプレースホルダ）─────────────────────────────────
+
+/** MenuSkeleton はメニューカード読み込み中のプレースホルダ。実レイアウトと寸法を揃える。 */
+function MenuSkeleton() {
+  return (
+    <div className="space-y-8" aria-hidden="true">
+      {[2, 3].map((count, s) => (
+        <section key={s} className="space-y-3">
+          <div className="h-3 w-16 rounded bg-[var(--color-surface-3)] animate-pulse" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {Array.from({ length: count }).map((_, i) => (
+              <div
+                key={i}
+                className="h-[148px] rounded-xl border border-[var(--color-surface-3)] bg-[var(--color-surface-1)] p-5"
+              >
+                <div className="w-9 h-9 rounded-lg bg-[var(--color-surface-3)] animate-pulse" />
+                <div className="mt-3 h-3.5 w-24 rounded bg-[var(--color-surface-3)] animate-pulse" />
+                <div className="mt-3 h-3 w-full rounded bg-[var(--color-surface-3)] animate-pulse" />
+              </div>
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+/** StatsSkeleton は右サイドバー（学習統計）読み込み中のプレースホルダ。 */
+function StatsSkeleton() {
+  return (
+    <div
+      className="space-y-4 p-4 rounded-xl border border-[var(--color-surface-3)] bg-[var(--color-surface-1)]"
+      aria-hidden="true"
+    >
+      <div className="grid grid-cols-2 gap-3">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="h-[88px] rounded-lg bg-[var(--color-surface-2)] animate-pulse" />
+        ))}
+      </div>
+      <div className="space-y-2">
+        <div className="h-3 w-40 rounded bg-[var(--color-surface-3)] animate-pulse" />
+        <div className="h-20 w-full rounded bg-[var(--color-surface-2)] animate-pulse" />
+      </div>
+    </div>
   );
 }

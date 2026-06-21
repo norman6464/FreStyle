@@ -26,7 +26,7 @@ export default function CompanyApplicationPage() {
       {submitted ? (
         <p
           role="status"
-          className="flex items-center justify-center gap-1 text-emerald-400 text-center p-4 bg-emerald-900/30 rounded-lg font-medium"
+          className="flex items-center justify-center gap-1 text-emerald-700 text-center p-4 bg-emerald-50 border border-emerald-200 rounded-lg font-medium"
         >
           <CheckCircleIcon className="w-5 h-5" aria-hidden="true" />
           申請を受け付けました。担当者より追ってご連絡いたします。
@@ -40,7 +40,7 @@ export default function CompanyApplicationPage() {
           {error && (
             <p
               role="alert"
-              className="flex items-center justify-center gap-1 text-rose-400 text-center mb-4 p-3 bg-rose-900/30 rounded-lg font-medium"
+              className="flex items-center justify-center gap-1 text-rose-700 text-center mb-4 p-3 bg-rose-50 border border-rose-200 rounded-lg font-medium"
             >
               <XCircleIcon className="w-4 h-4" aria-hidden="true" />
               {error}

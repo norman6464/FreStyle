@@ -4,12 +4,12 @@ import "time"
 
 // User はアプリケーション利用者のドメインモデル。
 type User struct {
-	ID          uint64  `gorm:"primaryKey" json:"id"`
-	CognitoSub  string  `gorm:"column:cognito_sub;uniqueIndex" json:"cognitoSub"`
-	Email       string  `gorm:"column:email" json:"email"`
-	Name string  `gorm:"column:name" json:"name"`
-	CompanyID   *uint64 `gorm:"column:company_id" json:"companyId,omitempty"`
-	Role        string  `gorm:"column:role" json:"role"`
+	ID         uint64  `gorm:"primaryKey" json:"id"`
+	CognitoSub string  `gorm:"column:cognito_sub;uniqueIndex" json:"cognitoSub"`
+	Email      string  `gorm:"column:email" json:"email"`
+	Name       string  `gorm:"column:name" json:"name"`
+	CompanyID  *uint64 `gorm:"column:company_id" json:"companyId,omitempty"`
+	Role       string  `gorm:"column:role" json:"role"`
 	// AiChatEnabled は AI チャット利用可否の個別上書き。nil = 会社設定に従う、
 	// true/false = この user 個別に強制 ON/OFF（company_admin が従業員ごとに設定）。
 	AiChatEnabled *bool `gorm:"column:ai_chat_enabled" json:"aiChatEnabled,omitempty"`
@@ -24,6 +24,15 @@ type User struct {
 }
 
 func (User) TableName() string { return "users" }
+
+// CompanyIDValue は CompanyID を非ポインタで返す。未所属(nil)なら 0。
+// handler/usecase で「nil なら 0」の展開を繰り返さないための小道具。
+func (u User) CompanyIDValue() uint64 {
+	if u.CompanyID == nil {
+		return 0
+	}
+	return *u.CompanyID
+}
 
 const (
 	RoleSuperAdmin   = "super_admin"

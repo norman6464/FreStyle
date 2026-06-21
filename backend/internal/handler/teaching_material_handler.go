@@ -6,7 +6,6 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 	"gorm.io/gorm"
 )
@@ -18,19 +17,6 @@ type TeachingMaterialHandler struct {
 
 func NewTeachingMaterialHandler(uc *usecase.TeachingMaterialUseCase) *TeachingMaterialHandler {
 	return &TeachingMaterialHandler{uc: uc}
-}
-
-func (h *TeachingMaterialHandler) actorContext(c *gin.Context) (uint64, uint64, string, bool) {
-	user := middleware.CurrentUserFromContext(c)
-	if user == nil {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-		return 0, 0, "", false
-	}
-	companyID := uint64(0)
-	if user.CompanyID != nil {
-		companyID = *user.CompanyID
-	}
-	return user.ID, companyID, user.Role, true
 }
 
 // List は company 内全教材を返す backward-compat 用（コース対応完了後に削除予定）。
@@ -46,7 +32,7 @@ func (h *TeachingMaterialHandler) actorContext(c *gin.Context) (uint64, uint64, 
 //	@Security     CookieAuth
 //	@Deprecated
 func (h *TeachingMaterialHandler) List(c *gin.Context) {
-	_, companyID, role, ok := h.actorContext(c)
+	_, companyID, role, ok := actorFromContext(c)
 	if !ok {
 		return
 	}
@@ -73,7 +59,7 @@ func (h *TeachingMaterialHandler) List(c *gin.Context) {
 //	@Router       /courses/{id}/materials [get]
 //	@Security     CookieAuth
 func (h *TeachingMaterialHandler) ListByCourse(c *gin.Context) {
-	_, companyID, role, ok := h.actorContext(c)
+	_, companyID, role, ok := actorFromContext(c)
 	if !ok {
 		return
 	}
@@ -84,7 +70,7 @@ func (h *TeachingMaterialHandler) ListByCourse(c *gin.Context) {
 	}
 	rows, err := h.uc.ListByCourse(c.Request.Context(), courseID, companyID, role)
 	if err != nil {
-		respondTeachingMaterialErr(c, err, "教材の取得に失敗しました")
+		respondEntityErr(c, err, "教材が見つかりません", "教材の取得に失敗しました")
 		return
 	}
 	c.JSON(http.StatusOK, rows)
@@ -103,7 +89,7 @@ func (h *TeachingMaterialHandler) ListByCourse(c *gin.Context) {
 // @Router       /teaching-materials/{id} [get]
 // @Security     CookieAuth
 func (h *TeachingMaterialHandler) Get(c *gin.Context) {
-	_, companyID, role, ok := h.actorContext(c)
+	_, companyID, role, ok := actorFromContext(c)
 	if !ok {
 		return
 	}
@@ -156,7 +142,7 @@ type teachingMaterialUpdateRequest struct {
 // @Router       /teaching-materials [post]
 // @Security     CookieAuth
 func (h *TeachingMaterialHandler) Create(c *gin.Context) {
-	uid, companyID, role, ok := h.actorContext(c)
+	uid, companyID, role, ok := actorFromContext(c)
 	if !ok {
 		return
 	}
@@ -176,7 +162,7 @@ func (h *TeachingMaterialHandler) Create(c *gin.Context) {
 		IsPublished:    req.IsPublished,
 	})
 	if err != nil {
-		respondTeachingMaterialErr(c, err, "教材の作成に失敗しました")
+		respondEntityErr(c, err, "教材が見つかりません", "教材の作成に失敗しました")
 		return
 	}
 	c.JSON(http.StatusCreated, m)
@@ -197,7 +183,7 @@ func (h *TeachingMaterialHandler) Create(c *gin.Context) {
 // @Router       /teaching-materials/{id} [put]
 // @Security     CookieAuth
 func (h *TeachingMaterialHandler) Update(c *gin.Context) {
-	_, companyID, role, ok := h.actorContext(c)
+	_, companyID, role, ok := actorFromContext(c)
 	if !ok {
 		return
 	}
@@ -221,7 +207,7 @@ func (h *TeachingMaterialHandler) Update(c *gin.Context) {
 		IsPublished:    req.IsPublished,
 	})
 	if err != nil {
-		respondTeachingMaterialErr(c, err, "教材の更新に失敗しました")
+		respondEntityErr(c, err, "教材が見つかりません", "教材の更新に失敗しました")
 		return
 	}
 	c.JSON(http.StatusOK, m)
@@ -240,7 +226,7 @@ func (h *TeachingMaterialHandler) Update(c *gin.Context) {
 // @Router       /teaching-materials/{id} [delete]
 // @Security     CookieAuth
 func (h *TeachingMaterialHandler) Delete(c *gin.Context) {
-	_, companyID, role, ok := h.actorContext(c)
+	_, companyID, role, ok := actorFromContext(c)
 	if !ok {
 		return
 	}
@@ -250,20 +236,8 @@ func (h *TeachingMaterialHandler) Delete(c *gin.Context) {
 		return
 	}
 	if err := h.uc.Delete(c.Request.Context(), id, companyID, role); err != nil {
-		respondTeachingMaterialErr(c, err, "教材の削除に失敗しました")
+		respondEntityErr(c, err, "教材が見つかりません", "教材の削除に失敗しました")
 		return
 	}
 	c.Status(http.StatusNoContent)
-}
-
-func respondTeachingMaterialErr(c *gin.Context, err error, fallback string) {
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		c.JSON(http.StatusNotFound, gin.H{"error": "教材が見つかりません"})
-		return
-	}
-	if err.Error() == "forbidden" || err.Error() == "forbidden: only company_admin or super_admin can create materials" || err.Error() == "actor must belong to a company" {
-		c.JSON(http.StatusForbidden, gin.H{"error": "操作権限がありません"})
-		return
-	}
-	c.JSON(http.StatusInternalServerError, gin.H{"error": fallback})
 }

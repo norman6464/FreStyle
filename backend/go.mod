@@ -9,7 +9,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/bedrockruntime v1.53.5
 	github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider v1.61.4
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.59.0
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.103.3
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.104.0
 	github.com/aws/aws-sdk-go-v2/service/sesv2 v1.62.4
 	github.com/gin-gonic/gin v1.12.0
 	github.com/google/uuid v1.6.0

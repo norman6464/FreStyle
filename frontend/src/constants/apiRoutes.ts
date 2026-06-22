@@ -72,13 +72,6 @@ export const SESSION_NOTES = {
   byId: (sessionId: number | string) => `${API_V2}/session-notes/${sessionId}`,
 } as const;
 
-/** スコア / トレンド / ランキング / ゴール / カード / 学習レポート */
-export const SCORES = {
-  sessionScore: (sessionId: number | string) => `${API_V2}/scores/sessions/${sessionId}`,
-  cards: `${API_V2}/score-cards`,
-  goals: `${API_V2}/score-goals`,
-} as const;
-
 export const RANKING = `${API_V2}/ranking` as const;
 
 export const LEARNING_REPORTS = {

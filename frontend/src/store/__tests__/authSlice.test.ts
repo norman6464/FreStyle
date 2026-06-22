@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import authReducer, {
   setAuthData,
-  setAuthenticated,
   clearAuth,
   finishLoading,
   setAiChatEnabledForTrainees,
@@ -66,25 +65,6 @@ describe('authSlice', () => {
     expect(state.aiChatEnabledForTrainees).toBe(false);
     const back = authReducer(state, setAiChatEnabledForTrainees(true));
     expect(back.aiChatEnabledForTrainees).toBe(true);
-  });
-
-  it('setAuthenticatedでisAuthenticated=true, loading=falseになる', () => {
-    const state = authReducer(initialState, setAuthenticated());
-    expect(state.isAuthenticated).toBe(true);
-    expect(state.loading).toBe(false);
-    expect(state.isAdmin).toBe(false);
-  });
-
-  it('setAuthenticatedでpayload未指定の場合は既存のisAdminを保持する', () => {
-    const adminState = {
-      isAuthenticated: true,
-      loading: false,
-      isAdmin: true,
-      role: 'company_admin',
-    };
-    const state = authReducer(adminState, setAuthenticated());
-    expect(state.isAdmin).toBe(true);
-    expect(state.role).toBe('company_admin');
   });
 
   it('clearAuthで全フィールドが初期値にリセットされる', () => {

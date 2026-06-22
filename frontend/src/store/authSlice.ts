@@ -36,20 +36,6 @@ const authSlice = createSlice({
       }
     },
 
-    setAuthenticated(state, action: PayloadAction<AuthPayload | undefined>) {
-      state.isAuthenticated = true;
-      state.loading = false;
-      if (action.payload?.isAdmin !== undefined) {
-        state.isAdmin = action.payload.isAdmin;
-      }
-      if (action.payload?.role !== undefined) {
-        state.role = action.payload.role;
-      }
-      if (action.payload?.aiChatEnabledForTrainees !== undefined) {
-        state.aiChatEnabledForTrainees = action.payload.aiChatEnabledForTrainees;
-      }
-    },
-
     clearAuth(state) {
       state.isAuthenticated = false;
       state.loading = false;
@@ -71,7 +57,6 @@ const authSlice = createSlice({
 
 export const {
   setAuthData,
-  setAuthenticated,
   clearAuth,
   finishLoading,
   setAiChatEnabledForTrainees,

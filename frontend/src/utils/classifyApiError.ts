@@ -48,3 +48,33 @@ export function extractServerErrorMessage(error: unknown, fallback: string): str
   }
   return classifyApiError(error, fallback);
 }
+
+/** API エラーから取り出した情報。axios 依存をこの module 内に閉じ込めるための型。 */
+export interface ApiErrorInfo {
+  /** HTTP ステータス（レスポンスがある場合）。 */
+  status?: number;
+  /** axios のエラーコード（ERR_NETWORK / ECONNABORTED など）。 */
+  code?: string;
+  /** backend が返す機械可読コード（{"error":"invitation_required"} の値）。 */
+  serverCode?: string;
+  /** backend が返す人間向けメッセージ（{"message":"..."} の値）。 */
+  serverMessage?: string;
+}
+
+/**
+ * getApiError は unknown なエラーから status / code / サーバ返却フィールドを取り出す。
+ * hooks / pages が `axios.isAxiosError` を直接呼ばず、この helper 経由でステータスコード
+ * 分岐できるようにする（axios への依存をこの module に集約する）。
+ */
+export function getApiError(error: unknown): ApiErrorInfo {
+  if (error instanceof AxiosError) {
+    const data = error.response?.data as { error?: string; message?: string } | undefined;
+    return {
+      status: error.response?.status,
+      code: error.code,
+      serverCode: data?.error,
+      serverMessage: data?.message,
+    };
+  }
+  return {};
+}

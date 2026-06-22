@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { AxiosError, AxiosHeaders } from 'axios';
-import { classifyApiError, extractServerErrorMessage } from '../classifyApiError';
+import { classifyApiError, extractServerErrorMessage, getApiError } from '../classifyApiError';
 
 function createAxiosError(status: number, message = 'Request failed', data: Record<string, unknown> = {}): AxiosError {
   const headers = new AxiosHeaders();
@@ -105,5 +105,30 @@ describe('extractServerErrorMessage', () => {
     const error = new Error('something went wrong');
     const result = extractServerErrorMessage(error, '通信エラーが発生しました。');
     expect(result).toBe('通信エラーが発生しました。');
+  });
+});
+
+describe('getApiError', () => {
+  it('axios エラーから status / serverCode / serverMessage を取り出す', () => {
+    const error = createAxiosError(403, 'Forbidden', {
+      error: 'invitation_required',
+      message: '招待が必要です',
+    });
+    expect(getApiError(error)).toEqual({
+      status: 403,
+      code: 'ERR_BAD_REQUEST',
+      serverCode: 'invitation_required',
+      serverMessage: '招待が必要です',
+    });
+  });
+
+  it('ネットワークエラーは code を返し status は undefined', () => {
+    const result = getApiError(createNetworkError());
+    expect(result.code).toBe('ERR_NETWORK');
+    expect(result.status).toBeUndefined();
+  });
+
+  it('axios 以外のエラーは空オブジェクトを返す', () => {
+    expect(getApiError(new Error('boom'))).toEqual({});
   });
 });

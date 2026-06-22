@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import axios from 'axios';
 import invitationRepository, {
   ValidatedInvitation,
 } from '../repositories/InvitationRepository';
 import { saveInvitationToken, clearInvitationToken } from '../lib/invitationToken';
+import { getApiError } from '../utils/classifyApiError';
 
 export type AcceptInvitationStatus =
   | { kind: 'loading' }
@@ -49,7 +49,7 @@ export function useAcceptInvitation() {
         if (cancelled) return;
         clearInvitationToken();
         // 404 は「無効/期限切れリンク」として明示。それ以外はネットワーク等の障害扱い。
-        if (axios.isAxiosError(err) && err.response?.status === 404) {
+        if (getApiError(err).status === 404) {
           setStatus({ kind: 'invalid' });
           return;
         }

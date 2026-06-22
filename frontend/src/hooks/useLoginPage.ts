@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import axios from 'axios';
 import { useFormField } from './useFormField';
 import authRepository from '../repositories/AuthRepository';
+import { getApiError } from '../utils/classifyApiError';
 
 interface LoginMessage {
   type: 'success' | 'error';
@@ -35,11 +35,11 @@ export function useLoginPage() {
       window.location.assign('/');
     } catch (err) {
       // 招待なしの新規ユーザーは backend が 403 invitation_required を返す。専用文言を出す。
-      if (axios.isAxiosError(err) && err.response?.status === 403) {
-        const data = err.response.data as { message?: string } | undefined;
+      const { status, serverMessage } = getApiError(err);
+      if (status === 403) {
         setLoginMessage({
           type: 'error',
-          text: data?.message || 'FreStyle のご利用には管理者からの招待が必要です。',
+          text: serverMessage || 'FreStyle のご利用には管理者からの招待が必要です。',
         });
       } else {
         setLoginMessage({

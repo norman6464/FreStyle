@@ -108,8 +108,10 @@ test.describe('演習フロー', () => {
   test('演習一覧 → リンクで詳細に遷移し演習が描画される', async ({ page }) => {
     // 一覧は ?language=php クエリ付きで叩くため glob は ** で末尾も許容する。
     // 詳細/submissions の専用パターンは後勝ちで優先される。
+    // 一覧はスクロール型ページネーション化（ExercisePage = { items, hasNext, offset, limit }）
+    // されたので、配列直返しではなくページオブジェクトでモックする。
     await mockAuthed(page, {
-      '**/api/v2/exercises**': [exercise],
+      '**/api/v2/exercises**': { items: [exercise], hasNext: false, offset: 0, limit: 20 },
       '**/api/v2/exercises/e2e-fizzbuzz': { exercise, examples: [] },
       '**/api/v2/exercises/e2e-fizzbuzz/submissions': [],
     });

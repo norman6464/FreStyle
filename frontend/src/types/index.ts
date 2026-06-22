@@ -318,24 +318,6 @@ export interface User {
   deletedAt?: string | null;
 }
 
-/** スコア履歴 */
-export interface ScoreHistory {
-  sessionId: number;
-  sessionTitle: string;
-  overallScore: number;
-  createdAt: string;
-}
-
-/** スコア履歴アイテム（スコア詳細付き） */
-export interface ScoreHistoryItem {
-  sessionId: number;
-  sessionTitle: string;
-  scenarioId: number | null;
-  overallScore: number;
-  scores: AxisScore[];
-  createdAt: string;
-}
-
 /** 学習レポート（フロント表示用 view）。
  *  backend 1:1 は `LearningReportDto` を参照すること。 */
 export interface LearningReport {

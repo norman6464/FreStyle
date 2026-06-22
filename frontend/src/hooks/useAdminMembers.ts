@@ -1,15 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import axios from 'axios';
 import AdminMemberRepository, { Member } from '../repositories/AdminMemberRepository';
+import { getApiError } from '../utils/classifyApiError';
 
 // backend のエラーコードを日本語メッセージにする。cannot_manage_self は自己操作の防止。
 function messageFor(e: unknown, fallback: string): string {
-  if (axios.isAxiosError(e)) {
-    const code = (e.response?.data as { error?: string } | undefined)?.error;
-    if (code === 'cannot_manage_self') return '自分自身は無効化・削除できません';
-    if (code === 'forbidden') return 'この従業員を操作する権限がありません';
-    if (code === 'member_not_found') return '対象の従業員が見つかりません';
-  }
+  const code = getApiError(e).serverCode;
+  if (code === 'cannot_manage_self') return '自分自身は無効化・削除できません';
+  if (code === 'forbidden') return 'この従業員を操作する権限がありません';
+  if (code === 'member_not_found') return '対象の従業員が見つかりません';
   return fallback;
 }
 

@@ -7,8 +7,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
-	repository "github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	repository "github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"gorm.io/gorm"
 )
 

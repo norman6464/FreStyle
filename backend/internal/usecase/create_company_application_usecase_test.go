@@ -41,13 +41,13 @@ func (f *fakeUsersForApp) ListByRole(_ context.Context, role string) ([]domain.U
 	}
 	return nil, nil
 }
-func (f *fakeUsersForApp) Create(context.Context, *domain.User) error              { return nil }
-func (f *fakeUsersForApp) UpdateName(context.Context, uint64, string) error { return nil }
-func (f *fakeUsersForApp) UpdateRole(context.Context, uint64, string) error        { return nil }
-func (f *fakeUsersForApp) UpdateCompanyID(context.Context, uint64, uint64) error   { return nil }
-func (f *fakeUsersForApp) UpdateActive(context.Context, uint64, bool) error        { return nil }
-func (f *fakeUsersForApp) SoftDelete(context.Context, uint64) error                { return nil }
-func (f *fakeUsersForApp) MarkOnboarded(context.Context, uint64) error             { return nil }
+func (f *fakeUsersForApp) Create(context.Context, *domain.User) error            { return nil }
+func (f *fakeUsersForApp) UpdateName(context.Context, uint64, string) error      { return nil }
+func (f *fakeUsersForApp) UpdateRole(context.Context, uint64, string) error      { return nil }
+func (f *fakeUsersForApp) UpdateCompanyID(context.Context, uint64, uint64) error { return nil }
+func (f *fakeUsersForApp) UpdateActive(context.Context, uint64, bool) error      { return nil }
+func (f *fakeUsersForApp) SoftDelete(context.Context, uint64) error              { return nil }
+func (f *fakeUsersForApp) MarkOnboarded(context.Context, uint64) error           { return nil }
 func (f *fakeUsersForApp) ListByCompanyID(context.Context, uint64) ([]domain.User, error) {
 	return nil, nil
 }

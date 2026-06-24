@@ -63,9 +63,11 @@ describe('Button', () => {
       expect(screen.getByRole('button').className).toContain('bg-brand-500');
     });
 
-    it('secondary: border border-surface-3クラスが付く', () => {
+    it('secondary: 境界線と影で輪郭が出る（白背景に埋もれない）', () => {
       render(<Button variant="secondary">テスト</Button>);
-      expect(screen.getByRole('button').className).toContain('border-surface-3');
+      const cls = screen.getByRole('button').className;
+      expect(cls).toContain('border-[var(--color-border-hover)]');
+      expect(cls).toContain('shadow-sm');
     });
 
     it('danger: bg-red-500クラスが付く', () => {

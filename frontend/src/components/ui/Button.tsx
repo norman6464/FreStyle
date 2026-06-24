@@ -12,9 +12,9 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 }
 
 const VARIANT: Record<ButtonVariant, string> = {
-  primary: 'bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white',
+  primary: 'bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white shadow-sm hover:shadow',
   secondary:
-    'border border-surface-3 bg-surface-1 hover:bg-surface-2 active:bg-surface-3 text-[var(--color-text-secondary)]',
+    'border border-[var(--color-border-hover)] bg-surface-1 shadow-sm hover:bg-surface-2 hover:shadow active:bg-surface-3 text-[var(--color-text-secondary)]',
   ghost: 'hover:bg-surface-2 active:bg-surface-3 text-[var(--color-text-secondary)]',
   danger: 'bg-red-500 hover:bg-red-600 active:bg-red-700 text-white',
 };

@@ -205,7 +205,7 @@ function FeatureCard({ to, icon: Icon, title, description, color, badge }: Featu
   return (
     <Link
       to={to}
-      className="group relative flex h-full flex-col p-5 rounded-xl border border-[var(--color-surface-3)] bg-[var(--color-surface-1)] hover:bg-[var(--color-surface-2)] hover:border-[var(--color-text-muted)]/40 hover:shadow-sm transition-all duration-150"
+      className="group relative flex h-full flex-col p-5 rounded-xl border border-[var(--color-surface-3)] bg-[var(--color-surface-1)] shadow-sm hover:border-brand-300 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:shadow-sm transition-all duration-150"
     >
       {badge && (
         <span className="absolute top-4 right-4 text-[10px] font-semibold px-2 pt-px pb-[3px] rounded-full bg-emerald-100 text-emerald-700">

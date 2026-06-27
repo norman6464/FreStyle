@@ -291,16 +291,16 @@ func generate(modulePath string, ifaces []iface, aliasToPath map[string]string, 
 
 	for _, iv := range ifaces {
 		fakeName := "Fake" + iv.name
-		b.WriteString(fmt.Sprintf("// %s は %s.%s の生成済み fake。\n", fakeName, repoPkgName, iv.name))
+		fmt.Fprintf(&b, "// %s は %s.%s の生成済み fake。\n", fakeName, repoPkgName, iv.name)
 		b.WriteString("type " + fakeName + " struct {\n")
 		for _, m := range iv.methods {
-			b.WriteString(fmt.Sprintf("\t%sFunc func(%s)%s\n", m.name, strings.Join(m.params, ", "), resultSig(m.results)))
-			b.WriteString(fmt.Sprintf("\t%sCalls int\n", m.name))
+			fmt.Fprintf(&b, "\t%sFunc func(%s)%s\n", m.name, strings.Join(m.params, ", "), resultSig(m.results))
+			fmt.Fprintf(&b, "\t%sCalls int\n", m.name)
 		}
 		b.WriteString("}\n\n")
 
 		// compile-time に interface を満たすことを保証。
-		b.WriteString(fmt.Sprintf("var _ %s.%s = (*%s)(nil)\n\n", repoPkgName, iv.name, fakeName))
+		fmt.Fprintf(&b, "var _ %s.%s = (*%s)(nil)\n\n", repoPkgName, iv.name, fakeName)
 
 		for _, m := range iv.methods {
 			writeMethod(&b, fakeName, m)
@@ -324,24 +324,24 @@ func writeMethod(b *strings.Builder, fakeName string, m method) {
 		}
 	}
 
-	b.WriteString(fmt.Sprintf("func (f *%s) %s(%s)%s {\n",
-		fakeName, m.name, strings.Join(paramDecls, ", "), resultSig(m.results)))
-	b.WriteString(fmt.Sprintf("\tf.%sCalls++\n", m.name))
-	b.WriteString(fmt.Sprintf("\tif f.%sFunc != nil {\n", m.name))
+	fmt.Fprintf(b, "func (f *%s) %s(%s)%s {\n",
+		fakeName, m.name, strings.Join(paramDecls, ", "), resultSig(m.results))
+	fmt.Fprintf(b, "\tf.%sCalls++\n", m.name)
+	fmt.Fprintf(b, "\tif f.%sFunc != nil {\n", m.name)
 	if len(m.results) == 0 {
-		b.WriteString(fmt.Sprintf("\t\tf.%sFunc(%s)\n\t\treturn\n", m.name, strings.Join(callArgs, ", ")))
+		fmt.Fprintf(b, "\t\tf.%sFunc(%s)\n\t\treturn\n", m.name, strings.Join(callArgs, ", "))
 		b.WriteString("\t}\n")
 		b.WriteString("}\n\n")
 		return
 	}
-	b.WriteString(fmt.Sprintf("\t\treturn f.%sFunc(%s)\n", m.name, strings.Join(callArgs, ", ")))
+	fmt.Fprintf(b, "\t\treturn f.%sFunc(%s)\n", m.name, strings.Join(callArgs, ", "))
 	b.WriteString("\t}\n")
 	// ゼロ値を返す。
 	retNames := make([]string, len(m.results))
 	for i, t := range m.results {
 		rn := fmt.Sprintf("r%d", i)
 		retNames[i] = rn
-		b.WriteString(fmt.Sprintf("\tvar %s %s\n", rn, t))
+		fmt.Fprintf(b, "\tvar %s %s\n", rn, t)
 	}
 	b.WriteString("\treturn " + strings.Join(retNames, ", ") + "\n")
 	b.WriteString("}\n\n")

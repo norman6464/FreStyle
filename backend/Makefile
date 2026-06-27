@@ -3,10 +3,11 @@
 # 主要 target:
 #   make openapi      … swag init で OpenAPI spec を 再 生成 (docs/swagger.{json,yaml})
 #   make fmt          … gofumpt -w でコードを自動整形（commit 前に実行）
-#   make verify       … gofumpt / vet / build / test / archlint / apispec-lint / naminglint を 一括 実行
+#   make verify       … gofumpt / vet / build / test / archlint / apispec-lint / naminglint / debtlint を 一括 実行
 #   make archlint     … クリーンアーキテクチャ依存方向ルール (CLAUDE.md §2) を 静的 検証
 #   make apispec-lint … Gin ルート ↔ swaggo @Router 注釈 の 整合 (CLAUDE.md §2.7) を 検証
 #   make naminglint   … usecase 命名・構造規約 (CLAUDE.md §2.3) を 検証
+#   make debtlint     … TODO(debt: YYYY-MM-DD) の 期限切れ / 期限未設定 を 検出
 #   make test-integration … docker-compose で PostgreSQL を起動し -tags=integration の結合テストを実行
 #   make run          … go run ./cmd/server で ローカル サーバ 起動
 #
@@ -73,6 +74,7 @@ verify:
 	$(MAKE) archlint
 	$(MAKE) apispec-lint
 	$(MAKE) naminglint
+	$(MAKE) debtlint
 
 # クリーンアーキテクチャ依存方向ルール（CLAUDE.md §2）を静的に検証する。
 .PHONY: archlint
@@ -91,6 +93,12 @@ apispec-lint:
 naminglint:
 	@echo ">>> naminglint: usecase 命名規約チェック"
 	@go run ./cmd/naminglint .
+
+# 期限付き技術的負債コメント TODO(debt: YYYY-MM-DD) の期限切れ / 期限未設定を検出する。
+.PHONY: debtlint
+debtlint:
+	@echo ">>> debtlint: 技術的負債コメントの期限チェック"
+	@go run ./cmd/debtlint .
 
 # 結合テスト: docker-compose で本物の PostgreSQL を起動し、-tags=integration のテストを回す。
 # 終了時は必ずコンテナを破棄する（テスト失敗でも teardown する）。

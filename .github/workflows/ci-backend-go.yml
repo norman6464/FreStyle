@@ -82,6 +82,10 @@ jobs:
       - name: naminglint (usecase naming)
         run: go run ./cmd/naminglint .
 
+      # 期限付き技術的負債コメント TODO(debt: YYYY-MM-DD) の期限切れ / 期限未設定を検出する自作 linter。
+      - name: debtlint (technical-debt TODO deadlines)
+        run: go run ./cmd/debtlint .
+
       # govulncheck は Go 公式の脆弱性スキャナ。実際に呼んでいるコードパスに該当する
       # 既知 CVE だけを報告する。stdlib の CVE は Go パッチ追随次第で頻出するため、
       # CI を止めずに「可視化」目的の非ブロッキング（continue-on-error）にする。

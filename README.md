@@ -69,14 +69,14 @@
 <img src="https://skillicons.dev/icons?i=githubactions&theme=light" alt="CI/CD">
 </a>
 
-> GitHub Actions / Gradle / JUnit 5 / Spring Boot Test + H2 / CodeQL / Trivy / gitleaks / Vitest coverage / ESLint / tsc
+> GitHub Actions / gofumpt / go vet / go test / archlint・naminglint・apispec-lint / CodeQL / Trivy / gitleaks / Vitest coverage / ESLint / tsc
 
 <h3>Testing</h3>
 <a href="https://skillicons.dev">
 <img src="https://skillicons.dev/icons?i=vitest,playwright&theme=light" alt="Testing">
 </a>
 
-> Vitest + React Testing Library（フロントエンド単体）/ JUnit 5 + Spring Boot Test（バックエンド単体・結合）/ Playwright（本番 E2E スモーク、Chromium）
+> Vitest + React Testing Library（フロントエンド単体）/ `testing` + testify（バックエンド単体・結合: usecase は fake、repository は SQLite メモリ、handler は httptest）/ Playwright（本番 E2E スモーク、Chromium）
 ---
 
 ## 工夫した点

@@ -92,6 +92,15 @@ naminglint:
 	@echo ">>> naminglint: usecase 命名規約チェック"
 	@go run ./cmd/naminglint .
 
+# repository interface(port) から テスト用 fake を 自動生成する（手書き fake の代替）。
+# 生成後に gofumpt で整形して CI(gofumpt -l) を通す。port を変えたら再実行する。
+.PHONY: fakegen
+fakegen:
+	@if [ ! -x "$(GOFUMPT)" ]; then go install mvdan.cc/gofumpt@$(GOFUMPT_VERSION); fi
+	@echo ">>> fakegen: repository port から fake を生成"
+	@go run ./cmd/fakegen .
+	@$(GOFUMPT) -w ./internal/usecase/repository/repofakes
+
 # 結合テスト: docker-compose で本物の PostgreSQL を起動し、-tags=integration のテストを回す。
 # 終了時は必ずコンテナを破棄する（テスト失敗でも teardown する）。
 INTEGRATION_DSN := postgres://frestyle:frestyle@localhost:5433/frestyle_integration?sslmode=disable

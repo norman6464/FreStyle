@@ -1,0 +1,6 @@
+<svg width="120" height="120" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="FreStyle">
+  <!-- google-oauth-logo-120.png と同じ「鋭角な3枚の飛翔マーク」を二色ブルーで再現（透過背景） -->
+  <path d="M8,52 L52,72 L8,92 Z" fill="#7fb0f9"/>
+  <path d="M30,40 L74,60 L30,80 Z" fill="#4a8bf6"/>
+  <path d="M52,28 L96,48 L52,68 Z" fill="#2e7df6"/>
+</svg>

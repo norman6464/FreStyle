@@ -1,295 +1,41 @@
-name: Scheduled - Start (recreate ALB + ECS at morning)
+name: Scheduled - Start (scale ECS to 1 at morning)
 
-# 目的: 毎日 07:00 JST (22:00 UTC) に ALB と ECS を再作成して稼働開始。
-#       scheduled-stop.yml と対になる。
-#
-# 流れ:
-#   1) ROLLBACK_COMPLETE で残った stale stack を self-heal で削除
-#   2) ALB を CFn deploy（新しい AWS DNS 名が払い出される）
-#   3) ECS を CFn deploy（DATABASE_URL は Secrets Manager から inject）
-#   4) Route 53 で api.normanblog.com の Alias レコードを新 ALB に更新
-#      (normanblog.com の Hosted Zone Z02128031IOUNFFKBRXXE)
-#   5) services-stable wait + ヘルスチェック
-#
-# 認証: GitHub OIDC + IAM Role (frestyle-prod-github-actions-role)
-#
-# 2026-05 Supabase 移行 後 の 構成:
-#   - DB は Supabase (24/7 稼働、CFn 管理外)
-#   - 旧 RDS / 旧 nightly snapshot 復元 step は 削除済
-#   - ECS の DATABASE_URL は Secrets Manager (`frestyle-prod/database-url`) から
-#     ECS Task Secrets 経由 で 注入 (env var ではなく secret として)
-
+# 朝起動: ECS サービスの desiredCount を 1 に戻す(ALB は常時維持)。
+# desiredCount 0↔1 方式(FRESTYLE-58)。万一 cron 不発でも ALB は生きており、
+# 手動で desired=1 に戻すだけで復旧できる(旧 CFn 方式のような全断 recreate は不要)。
 on:
   schedule:
-    # 07:00 JST = 22:00 UTC（前日）、毎日
-    - cron: '0 22 * * *'
+    - cron: '0 22 * * *' # 07:00 JST
   workflow_dispatch:
-    inputs:
-      confirm:
-        description: '手動実行時は "start" と入力'
-        required: true
-        type: string
-
-env:
-  AWS_REGION: ap-northeast-1
-  STACK_PFX: frestyle-prod
-  AWS_ROLE_ARN: arn:aws:iam::010928196665:role/frestyle-prod-github-actions-role
-  IAC_REPO: ${{ secrets.IAC_REPO }}
-  # Supabase Transaction pooler URL を保存した Secrets Manager の name
-  DATABASE_URL_SECRET_NAME: frestyle-prod/database-url
-  # Route 53: normanblog.com の権威 Hosted Zone（CloudFront も同ゾーンに紐付いている正規ゾーン）
-  R53_HOSTED_ZONE_ID: Z02128031IOUNFFKBRXXE
-  R53_RECORD_NAME: api.normanblog.com
 
 permissions:
   id-token: write
   contents: read
 
-# scheduled-stop / scheduled-start / cd-backend が CFn deploy/delete で 競合 すると
-# "stack cannot be updated" や resource race で 失敗 する ため、 ECS / ALB を 触る
-# workflow は 同一 concurrency group で 相互 排他 する。
-concurrency:
-  group: frestyle-prod-runtime-stacks
-  cancel-in-progress: false
+env:
+  AWS_REGION: ap-northeast-1
+  CLUSTER: frestyle-prod
+  SERVICE: frestyle-prod-svc
+  WAKE_ALARMS: "frestyle-prod-no-healthy-host frestyle-prod-ecs-cpu frestyle-prod-ecs-memory"
 
 jobs:
   start:
-    name: Recreate ALB + ECS
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-
     steps:
-      - name: Verify input (workflow_dispatch only)
-        if: github.event_name == 'workflow_dispatch'
-        env:
-          CONFIRM_INPUT: ${{ inputs.confirm }}
-        run: |
-          if [ "$CONFIRM_INPUT" != "start" ]; then
-            echo "ERROR: confirm に 'start' と入力されていません"
-            exit 1
-          fi
-
-      - name: Checkout IaC リポ
-        uses: actions/checkout@v6
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
-          repository: ${{ env.IAC_REPO }}
-          token: ${{ secrets.IAC_REPO_TOKEN }}
-          path: iac
-
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v6
-        with:
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
-          role-session-name: frestyle-scheduled-start
+          role-to-assume: arn:aws:iam::010928196665:role/frestyle-prod-github-actions-scale-role
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Cleanup stale ROLLBACK_COMPLETE stacks (self-healing)
+      - name: Scale ECS service to 1
         run: |
-          # 前夜の scheduled-stop / 前回の cd-backend が ROLLBACK_COMPLETE で残っていると
-          # 今回の deploy が "stack cannot be updated" で失敗する。先に削除しておく。
-          for STACK in $STACK_PFX-ecs $STACK_PFX-alb; do
-            STATUS=$(aws cloudformation describe-stacks --region $AWS_REGION \
-              --stack-name $STACK --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "ABSENT")
-            case "$STATUS" in
-              ROLLBACK_COMPLETE|UPDATE_ROLLBACK_COMPLETE|CREATE_FAILED)
-                echo "Stack $STACK is in $STATUS — deleting before redeploy"
-                aws cloudformation delete-stack --region $AWS_REGION --stack-name $STACK
-                aws cloudformation wait stack-delete-complete --region $AWS_REGION --stack-name $STACK || true
-                ;;
-              *)
-                echo "Stack $STACK status=$STATUS (no cleanup needed)"
-                ;;
-            esac
-          done
+          aws ecs update-service --region "$AWS_REGION" --cluster "$CLUSTER" --service "$SERVICE" --desired-count 1 >/dev/null
+          echo ">>> desiredCount=1 に設定しました。"
 
-      - name: Deploy ALB stack
-        run: |
-          ALB_SG=$(aws cloudformation describe-stacks --region $AWS_REGION \
-            --stack-name $STACK_PFX-sg \
-            --query 'Stacks[0].Outputs[?OutputKey==`AlbSecurityGroupId`].OutputValue' --output text)
-          aws cloudformation deploy --region $AWS_REGION \
-            --stack-name $STACK_PFX-alb \
-            --template-file iac/infrastructure/cloudformation/templates/runtime/alb.yml \
-            --parameter-overrides Environment=prod AlbSecurityGroupId=$ALB_SG \
-            --capabilities CAPABILITY_IAM --no-fail-on-empty-changeset \
-            --tags Project=FreStyle Environment=prod ManagedBy=CloudFormation
+      # 監視を先に戻す。これにより、この後 ECS が安定しなくても no-healthy-host アラームが
+      # 発報して #incident に通知が飛ぶ(=朝起動不発の安全網。既存 SNS→Chatbot→Slack 配線)。
+      - name: Unmute alarms (safety net)
+        run: aws cloudwatch enable-alarm-actions --region "$AWS_REGION" --alarm-names $WAKE_ALARMS
 
-      - name: Resolve dependent stack outputs
-        id: deps
-        run: |
-          ECS_SG=$(aws cloudformation describe-stacks --region $AWS_REGION \
-            --stack-name $STACK_PFX-sg \
-            --query 'Stacks[0].Outputs[?OutputKey==`EcsServiceSecurityGroupId`].OutputValue' --output text)
-          TG_ARN=$(aws cloudformation describe-stacks --region $AWS_REGION \
-            --stack-name $STACK_PFX-alb \
-            --query 'Stacks[0].Outputs[?OutputKey==`TargetGroupArn`].OutputValue' --output text)
-          S3_BUCKET=$(aws cloudformation describe-stacks --region $AWS_REGION \
-            --stack-name $STACK_PFX-s3 \
-            --query 'Stacks[0].Outputs[?OutputKey==`NoteImagesBucketName`].OutputValue' --output text)
-          SQS_URL=$(aws cloudformation describe-stacks --region $AWS_REGION \
-            --stack-name $STACK_PFX-sqs \
-            --query 'Stacks[0].Outputs[?OutputKey==`ReportQueueUrl`].OutputValue' --output text)
-          EXEC_ROLE=$(aws cloudformation describe-stacks --region $AWS_REGION \
-            --stack-name $STACK_PFX-iam \
-            --query 'Stacks[0].Outputs[?OutputKey==`TaskExecutionRoleArn`].OutputValue' --output text)
-          TASK_ROLE=$(aws cloudformation describe-stacks --region $AWS_REGION \
-            --stack-name $STACK_PFX-iam \
-            --query 'Stacks[0].Outputs[?OutputKey==`TaskRoleArn`].OutputValue' --output text)
-          # Supabase 接続 URL の Secret ARN (Transaction pooler / port 6543)
-          DB_URL_ARN=$(aws secretsmanager describe-secret --region $AWS_REGION \
-            --secret-id "$DATABASE_URL_SECRET_NAME" --query 'ARN' --output text 2>/dev/null)
-          if [ -z "$DB_URL_ARN" ] || [ "$DB_URL_ARN" = "None" ]; then
-            echo "::error::DATABASE_URL_SECRET_NAME=$DATABASE_URL_SECRET_NAME を Secrets Manager で見つけられませんでした"
-            exit 1
-          fi
-          COG_SEC_ARN=$(aws secretsmanager describe-secret --region $AWS_REGION \
-            --secret-id $STACK_PFX/cognito-client-secret --query 'ARN' --output text)
-          ALB_ARN=$(aws cloudformation describe-stacks --region $AWS_REGION \
-            --stack-name $STACK_PFX-alb \
-            --query 'Stacks[0].Outputs[?OutputKey==`LoadBalancerArn`].OutputValue' --output text)
-          ALB_DNS=$(aws elbv2 describe-load-balancers --region $AWS_REGION \
-            --load-balancer-arns "$ALB_ARN" \
-            --query 'LoadBalancers[0].DNSName' --output text)
-          # ALB の CanonicalHostedZoneId（Route 53 Alias レコードで参照する固定値）
-          ALB_HOSTED_ZONE_ID=$(aws elbv2 describe-load-balancers --region $AWS_REGION \
-            --load-balancer-arns "$ALB_ARN" \
-            --query 'LoadBalancers[0].CanonicalHostedZoneId' --output text)
-
-          {
-            echo "ecs_sg=$ECS_SG"
-            echo "tg_arn=$TG_ARN"
-            echo "s3_bucket=$S3_BUCKET"
-            echo "sqs_url=$SQS_URL"
-            echo "exec_role=$EXEC_ROLE"
-            echo "task_role=$TASK_ROLE"
-            echo "db_url_arn=$DB_URL_ARN"
-            echo "cog_sec_arn=$COG_SEC_ARN"
-            echo "alb_dns=$ALB_DNS"
-            echo "alb_hosted_zone_id=$ALB_HOSTED_ZONE_ID"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Deploy ECS stack
-        env:
-          ECS_SG: ${{ steps.deps.outputs.ecs_sg }}
-          TG_ARN: ${{ steps.deps.outputs.tg_arn }}
-          S3_BUCKET: ${{ steps.deps.outputs.s3_bucket }}
-          SQS_URL: ${{ steps.deps.outputs.sqs_url }}
-          EXEC_ROLE: ${{ steps.deps.outputs.exec_role }}
-          TASK_ROLE: ${{ steps.deps.outputs.task_role }}
-          DB_URL_ARN: ${{ steps.deps.outputs.db_url_arn }}
-          COG_SEC_ARN: ${{ steps.deps.outputs.cog_sec_arn }}
-        run: |
-          # DBHost / DBPasswordSecretArn は Supabase 運用 では 空文字 で 明示 的 に 渡す
-          # (CFn の 前回値 retain を 回避 する ため)。
-          aws cloudformation deploy --region $AWS_REGION \
-            --stack-name $STACK_PFX-ecs \
-            --template-file iac/infrastructure/cloudformation/templates/runtime/ecs.yml \
-            --parameter-overrides \
-              Environment=prod \
-              EcsServiceSecurityGroupId="$ECS_SG" \
-              TargetGroupArn="$TG_ARN" \
-              DatabaseUrlSecretArn="$DB_URL_ARN" \
-              DBHost= \
-              DBPasswordSecretArn= \
-              CognitoClientId="${{ secrets.COGNITO_CLIENT_ID }}" \
-              CognitoClientSecretArn="$COG_SEC_ARN" \
-              NoteImagesBucket="$S3_BUCKET" \
-              SqsReportQueueUrl="$SQS_URL" \
-              ExecutionRoleArn="$EXEC_ROLE" \
-              TaskRoleArn="$TASK_ROLE" \
-            --capabilities CAPABILITY_IAM --no-fail-on-empty-changeset \
-            --tags Project=FreStyle Environment=prod ManagedBy=CloudFormation
-
-      # 監視スタックは scheduled-stop で毎晩消えるため、ここで作り直す。
-      # alb の Export を ImportValue し、ecs が作る LogGroup(/ecs/frestyle-prod)に
-      # メトリクスフィルタを張るので、alb・ecs より後に deploy する。
-      # アラーム通知トピック(AlarmTopic)は永続 chatbot スタック側にあり、monitoring はその ARN を
-      # 参照するだけ(毎朝 recreate で Chatbot 購読が切れるのを防ぐ。infra docs/33)。cloudwatch.yml は
-      # AlarmTopicArn を必須パラメータにしているため、ここで chatbot スタックの Output から解決して渡す。
-      - name: Deploy monitoring stack
-        run: |
-          # 永続 chatbot スタックから ERROR 整形 Lambda ARN(サブスクリプションフィルタ用)と
-          # アラーム通知トピック ARN を取得する。
-          NOTIFY_ARN=$(aws cloudformation describe-stacks --region $AWS_REGION \
-            --stack-name $STACK_PFX-chatbot \
-            --query 'Stacks[0].Outputs[?OutputKey==`ErrorNotifyLambdaArn`].OutputValue' \
-            --output text 2>/dev/null || true)
-          [ "$NOTIFY_ARN" = "None" ] && NOTIFY_ARN=""
-          echo "ErrorNotifyLambdaArn=${NOTIFY_ARN:-(なし)}"
-          ALARM_TOPIC_ARN=$(aws cloudformation describe-stacks --region $AWS_REGION \
-            --stack-name $STACK_PFX-chatbot \
-            --query 'Stacks[0].Outputs[?OutputKey==`AlarmTopicArn`].OutputValue' \
-            --output text 2>/dev/null || true)
-          if [ -z "$ALARM_TOPIC_ARN" ] || [ "$ALARM_TOPIC_ARN" = "None" ]; then
-            ALARM_TOPIC_ARN="arn:aws:sns:${AWS_REGION}:$(aws sts get-caller-identity --query Account --output text):${STACK_PFX}-alarms"
-          fi
-          echo "AlarmTopicArn=$ALARM_TOPIC_ARN"
-          aws cloudformation deploy --region $AWS_REGION \
-            --stack-name $STACK_PFX-monitoring \
-            --template-file iac/infrastructure/cloudformation/templates/monitoring/cloudwatch.yml \
-            --parameter-overrides Environment=prod AlbStackName=$STACK_PFX-alb AlarmTopicArn="$ALARM_TOPIC_ARN" ErrorNotifyLambdaArn="$NOTIFY_ARN" \
-            --capabilities CAPABILITY_IAM --no-fail-on-empty-changeset \
-            --tags Project=FreStyle Environment=prod ManagedBy=CloudFormation
-
-      - name: Upsert Route 53 Alias record (api.normanblog.com → ALB)
-        env:
-          ALB_DNS: ${{ steps.deps.outputs.alb_dns }}
-          ALB_HOSTED_ZONE_ID: ${{ steps.deps.outputs.alb_hosted_zone_id }}
-        run: |
-          if [ -z "$ALB_DNS" ] || [ -z "$ALB_HOSTED_ZONE_ID" ]; then
-            echo "::error::ALB_DNS or ALB_HOSTED_ZONE_ID is empty"
-            exit 1
-          fi
-          # ALB の DNSName を Alias の DNSName にそのまま使う
-          # (CanonicalHostedZoneId 経由で AWS が解決する)
-          CHANGE_BATCH=$(jq -n \
-            --arg name "$R53_RECORD_NAME" \
-            --arg dns "$ALB_DNS" \
-            --arg hz "$ALB_HOSTED_ZONE_ID" \
-            '{
-              Comment: "Upsert api.normanblog.com Alias to ALB by scheduled-start.yml",
-              Changes: [{
-                Action: "UPSERT",
-                ResourceRecordSet: {
-                  Name: $name,
-                  Type: "A",
-                  AliasTarget: {
-                    HostedZoneId: $hz,
-                    DNSName: $dns,
-                    EvaluateTargetHealth: false
-                  }
-                }
-              }]
-            }')
-          CHANGE_ID=$(aws route53 change-resource-record-sets --region $AWS_REGION \
-            --hosted-zone-id "$R53_HOSTED_ZONE_ID" \
-            --change-batch "$CHANGE_BATCH" \
-            --query 'ChangeInfo.Id' --output text)
-          echo "Change submitted: $CHANGE_ID"
-          # Route 53 への伝播完了を待つ（INSYNC になるまで最大 60 秒）
-          aws route53 wait resource-record-sets-changed --id "$CHANGE_ID"
-          echo "✅ DNS record api.normanblog.com -> $ALB_DNS is INSYNC"
-
-      - name: Wait for ECS service to stabilize
-        run: |
-          aws ecs wait services-stable --region $AWS_REGION \
-            --cluster $STACK_PFX --services $STACK_PFX-svc
-
-      - name: Health check via ALB DNS (Route 53 伝播前でも確認可)
-        env:
-          ALB_DNS: ${{ steps.deps.outputs.alb_dns }}
-        run: |
-          for i in 1 2 3 4 5; do
-            if curl -fsS "http://$ALB_DNS/api/v2/health"; then
-              echo "✅ Healthy"
-              exit 0
-            fi
-            echo "Attempt $i failed, retrying in 15s..."
-            sleep 15
-          done
-          echo "❌ Health check failed after 5 attempts"
-          exit 1
-
-      - name: Summary
-        run: |
-          echo "☀️ Morning start complete at $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+      - name: Wait for service stable
+        run: aws ecs wait services-stable --region "$AWS_REGION" --cluster "$CLUSTER" --services "$SERVICE"

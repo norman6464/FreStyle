@@ -33,7 +33,7 @@ export default function CompanyApplicationPage() {
         </p>
       ) : (
         <>
-          <p className="text-sm text-[var(--color-text-muted)] mb-4">
+          <p className="text-sm text-[var(--color-text-muted)] mb-3">
             FreStyle の導入をご検討の企業さまはこちらからお申し込みください。運営が内容を確認し、ご登録手続きのご案内をいたします。
           </p>
 
@@ -47,7 +47,14 @@ export default function CompanyApplicationPage() {
             </p>
           )}
 
-          <form onSubmit={handleSubmit} aria-label="企業利用申請フォーム">
+          {/* このページは項目数が多く縦長になりやすいため、フィールド間余白(共有 InputField の
+              mb-6)をこの画面だけ mb-4 に詰める。共有コンポーネントは他の認証ページでも使うため
+              変更せず、ここでの子セレクタ上書きで完結させる。 */}
+          <form
+            onSubmit={handleSubmit}
+            aria-label="企業利用申請フォーム"
+            className="[&>div]:mb-4"
+          >
             <InputField
               label="会社名"
               name="companyName"
@@ -73,17 +80,15 @@ export default function CompanyApplicationPage() {
               disabled={loading}
               maxLength={255}
             />
-            <div className="mb-4">
-              <TextareaField
-                label="メッセージ（任意）"
-                name="message"
-                value={form.message}
-                onChange={handleChange}
-                rows={4}
-                maxLength={2000}
-                placeholder="ご利用人数や導入時期など、ご要望があればご記入ください。"
-              />
-            </div>
+            <TextareaField
+              label="メッセージ（任意）"
+              name="message"
+              value={form.message}
+              onChange={handleChange}
+              rows={3}
+              maxLength={2000}
+              placeholder="ご利用人数や導入時期など、ご要望があればご記入ください。"
+            />
             <PrimaryButton type="submit" loading={loading}>
               {loading ? '送信中...' : '申請する'}
             </PrimaryButton>

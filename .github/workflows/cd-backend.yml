@@ -41,8 +41,9 @@ env:
   SERVICE: frestyle-prod-svc
   AWS_ROLE_ARN: arn:aws:iam::010928196665:role/frestyle-prod-github-actions-role
 
+# OIDC(id-token: write) は AWS 認証を行うジョブ(build-and-push / deploy)だけに
+# ジョブレベルで付与する(最小権限。guard には不要)。
 permissions:
-  id-token: write
   contents: read
 
 # 同時実行を直列化する。mutable タグ(:latest / :coderunner-latest)への push と
@@ -71,6 +72,9 @@ jobs:
     timeout-minutes: 20
     needs: [guard]
     if: always() && (github.event_name == 'push' || needs.guard.result == 'success')
+    permissions:
+      id-token: write
+      contents: read
 
     outputs:
       image_tag: ${{ steps.meta.outputs.image_tag }}
@@ -136,6 +140,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build-and-push]
     timeout-minutes: 20
+    permissions:
+      id-token: write
+      contents: read
     # 本番反映ジョブは production Environment に紐付け、required reviewers の承認待ちで止める。
     # ＝ 誰が起動しても、norman6464 が承認するまで本番には反映されない。
     environment: production

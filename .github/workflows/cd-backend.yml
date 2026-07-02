@@ -9,20 +9,19 @@ name: CD - Backend Deploy to ECS
 #
 # 仕組み:
 #   1) Docker image を ECR に push (:latest と :${sha} の両方)
-#   2) IaC リポ リポの CFn テンプレートを使って
-#      ECS Cluster + Service + Task Definition を CFn deploy
-#      （GitHub Secrets を parameter-overrides 経由で渡す）
-#   3) force-new-deployment でローリング再起動
+#   2) force-new-deployment でローリング再起動（新タスクが :latest を pull）
+#
+# タスク定義・ECS サービス・ALB は infra リポの Terraform（ecs.tf）が管理する（2026-06 移行済・
+# 旧 CloudFormation スタックは全撤去）。本 CD はイメージ push と再起動だけを担い、
+# インフラ定義には触れない（FRESTYLE-61）。
 #
 # 認証: GitHub OIDC + IAM Role (frestyle-prod-github-actions-role)
 #       Step 3 で導入。長寿命の AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY は廃止。
 #
 # 必要な GitHub Secrets（事前セットアップが必要）:
-#   - AWS_ECR_API_SERVER_REPOSITORY              : 例 fre-style
-#   - COGNITO_CLIENT_ID / COGNITO_REDIRECT_URI / COGNITO_TOKEN_URI / COGNITO_JWK_SET_URI
-#     ※ COGNITO_CLIENT_SECRET と DB password は AWS Secrets Manager に保管済み（Step 2 で導入）
-#     ※ ECS タスクは Task Role を使うため SPRING_AWS_ACCESS_KEY/SECRET は廃止（Step 1 で導入）
-#   - IAC_REPO_TOKEN  : IaC リポ (private repo) 読み取り用 PAT
+#   - AWS_ECR_API_SERVER_REPOSITORY : 例 fre-style
+#     ※ 旧 CFn デプロイ時代の COGNITO_* / IAC_REPO / IAC_REPO_TOKEN は不要になった
+#       （タスク定義の env / secrets は infra リポの Terraform ecs.tf が持つ）
 # 詳細は .github/workflows/README.md 参照
 
 on:
@@ -38,21 +37,17 @@ on:
 
 env:
   AWS_REGION: ap-northeast-1
-  PROJECT: frestyle
-  ENV: prod
-  STACK_PFX: frestyle-prod
-  IAC_REPO: ${{ secrets.IAC_REPO }}
+  CLUSTER: frestyle-prod
+  SERVICE: frestyle-prod-svc
   AWS_ROLE_ARN: arn:aws:iam::010928196665:role/frestyle-prod-github-actions-role
-  # DATABASE_URL は Supabase の Transaction pooler URL を Secrets Manager から inject する
-  # (2026-05 の RDS 撤去後の構成。scheduled-start.yml / infra Makefile と同じ secret 名)。
-  DATABASE_URL_SECRET_NAME: frestyle-prod/database-url
 
+# OIDC(id-token: write) は AWS 認証を行うジョブ(build-and-push / deploy)だけに
+# ジョブレベルで付与する(最小権限。guard には不要)。
 permissions:
-  id-token: write
   contents: read
 
 # 同時実行を直列化する。mutable タグ(:latest / :coderunner-latest)への push と
-# cfn-deploy/force-new-deployment が並行 run で競合し、意図しないイメージが反映されるのを防ぐ。
+# deploy(force-new-deployment) が並行 run で競合し、意図しないイメージが反映されるのを防ぐ。
 # 進行中の deploy は中断しない(cancel-in-progress: false)。後続 run は待機して順に実行する。
 concurrency:
   group: cd-backend-${{ github.ref }}
@@ -77,6 +72,9 @@ jobs:
     timeout-minutes: 20
     needs: [guard]
     if: always() && (github.event_name == 'push' || needs.guard.result == 'success')
+    permissions:
+      id-token: write
+      contents: read
 
     outputs:
       image_tag: ${{ steps.meta.outputs.image_tag }}
@@ -123,8 +121,8 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}
 
       # コード実行サイドカー(code-runner)のイメージを同じ ECR リポに coderunner-* タグで push する。
-      # ECS タスク定義(infra ecs.yml)が CodeRunnerImage=...:coderunner-latest を参照する。
-      # 同一 run の後続 cfn-deploy より前に push されるため、サイドカー参照が解決できる(docs/36 §6)。
+      # ECS タスク定義(infra Terraform ecs.tf)が :coderunner-latest を参照する。
+      # 同一 run の後続 deploy より前に push されるため、サイドカー参照が解決できる(docs/36 §6)。
       - name: Build & push code-runner image
         working-directory: backend
         env:
@@ -137,24 +135,19 @@ jobs:
             -t "$ECR_REGISTRY/$ECR_REPOSITORY:coderunner-${{ github.sha }}" \
             --push .
 
-  cfn-deploy:
-    name: CloudFormation Deploy (ECS Stack)
+  deploy:
+    name: ECS Rolling Deploy
     runs-on: ubuntu-latest
     needs: [build-and-push]
     timeout-minutes: 20
+    permissions:
+      id-token: write
+      contents: read
     # 本番反映ジョブは production Environment に紐付け、required reviewers の承認待ちで止める。
     # ＝ 誰が起動しても、norman6464 が承認するまで本番には反映されない。
     environment: production
 
     steps:
-      # IaC リポを clone（プライベートなので gh CLI 経由でトークン認証）
-      - name: Checkout IaC リポ
-        uses: actions/checkout@v6
-        with:
-          repository: ${{ env.IAC_REPO }}
-          token: ${{ secrets.IAC_REPO_TOKEN }}
-          path: iac
-
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v6
         with:
@@ -162,105 +155,28 @@ jobs:
           role-session-name: frestyle-cd-backend-deploy
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Resolve dependent stack outputs
-        id: deps
-        run: |
-          ECS_SG=$(aws cloudformation describe-stacks --region $AWS_REGION \
-            --stack-name $STACK_PFX-sg \
-            --query 'Stacks[0].Outputs[?OutputKey==`EcsServiceSecurityGroupId`].OutputValue' --output text)
-          TG_ARN=$(aws cloudformation describe-stacks --region $AWS_REGION \
-            --stack-name $STACK_PFX-alb \
-            --query 'Stacks[0].Outputs[?OutputKey==`TargetGroupArn`].OutputValue' --output text)
-          S3_BUCKET=$(aws cloudformation describe-stacks --region $AWS_REGION \
-            --stack-name $STACK_PFX-s3 \
-            --query 'Stacks[0].Outputs[?OutputKey==`NoteImagesBucketName`].OutputValue' --output text)
-          SQS_URL=$(aws cloudformation describe-stacks --region $AWS_REGION \
-            --stack-name $STACK_PFX-sqs \
-            --query 'Stacks[0].Outputs[?OutputKey==`ReportQueueUrl`].OutputValue' --output text)
-          EXEC_ROLE=$(aws cloudformation describe-stacks --region $AWS_REGION \
-            --stack-name $STACK_PFX-iam \
-            --query 'Stacks[0].Outputs[?OutputKey==`TaskExecutionRoleArn`].OutputValue' --output text)
-          TASK_ROLE=$(aws cloudformation describe-stacks --region $AWS_REGION \
-            --stack-name $STACK_PFX-iam \
-            --query 'Stacks[0].Outputs[?OutputKey==`TaskRoleArn`].OutputValue' --output text)
-          # Supabase 接続 URL の Secret ARN (Transaction pooler / port 6543)。
-          # RDS 撤去後は DATABASE_URL を Secrets Manager から inject する。
-          # `|| true`: set -e 下で secret 不在時に AWS CLI の非ゼロ終了で step が落ちると
-          # 下の親切な ::error:: が出ないため、ここでは握りつぶして空判定に委ねる。
-          DB_URL_ARN=$(aws secretsmanager describe-secret --region $AWS_REGION \
-            --secret-id "$DATABASE_URL_SECRET_NAME" --query 'ARN' --output text 2>/dev/null || true)
-          if [ -z "$DB_URL_ARN" ] || [ "$DB_URL_ARN" = "None" ]; then
-            echo "::error::DATABASE_URL_SECRET_NAME=$DATABASE_URL_SECRET_NAME を Secrets Manager で見つけられませんでした"
-            exit 1
-          fi
-          COG_SEC_ARN=$(aws secretsmanager describe-secret --region $AWS_REGION \
-            --secret-id $STACK_PFX/cognito-client-secret --query 'ARN' --output text)
-
-          echo "ecs_sg=$ECS_SG" >> "$GITHUB_OUTPUT"
-          echo "tg_arn=$TG_ARN" >> "$GITHUB_OUTPUT"
-          echo "db_url_arn=$DB_URL_ARN" >> "$GITHUB_OUTPUT"
-          echo "s3_bucket=$S3_BUCKET" >> "$GITHUB_OUTPUT"
-          echo "sqs_url=$SQS_URL" >> "$GITHUB_OUTPUT"
-          echo "exec_role=$EXEC_ROLE" >> "$GITHUB_OUTPUT"
-          echo "task_role=$TASK_ROLE" >> "$GITHUB_OUTPUT"
-          echo "cog_sec_arn=$COG_SEC_ARN" >> "$GITHUB_OUTPUT"
-
-      - name: Deploy ECS stack
-        env:
-          ECS_SG: ${{ steps.deps.outputs.ecs_sg }}
-          TG_ARN: ${{ steps.deps.outputs.tg_arn }}
-          DB_URL_ARN: ${{ steps.deps.outputs.db_url_arn }}
-          S3_BUCKET: ${{ steps.deps.outputs.s3_bucket }}
-          SQS_URL: ${{ steps.deps.outputs.sqs_url }}
-          EXEC_ROLE: ${{ steps.deps.outputs.exec_role }}
-          TASK_ROLE: ${{ steps.deps.outputs.task_role }}
-          COG_SEC_ARN: ${{ steps.deps.outputs.cog_sec_arn }}
-        run: |
-          # DBHost / DBPasswordSecretArn は Supabase 運用では空文字で明示的に渡す
-          # (CFn の前回値 retain を回避するため)。DATABASE_URL は DatabaseUrlSecretArn で inject。
-          aws cloudformation deploy --region $AWS_REGION \
-            --stack-name $STACK_PFX-ecs \
-            --template-file iac/infrastructure/cloudformation/templates/runtime/ecs.yml \
-            --parameter-overrides \
-              Environment=$ENV \
-              EcsServiceSecurityGroupId="$ECS_SG" \
-              TargetGroupArn="$TG_ARN" \
-              DatabaseUrlSecretArn="$DB_URL_ARN" \
-              DBHost= \
-              DBPasswordSecretArn= \
-              CognitoClientId="${{ secrets.COGNITO_CLIENT_ID }}" \
-              CognitoClientSecretArn="$COG_SEC_ARN" \
-              CognitoRedirectUri="${{ secrets.COGNITO_REDIRECT_URI }}" \
-              CognitoTokenUri="${{ secrets.COGNITO_TOKEN_URI }}" \
-              CognitoJwkSetUri="${{ secrets.COGNITO_JWK_SET_URI }}" \
-              NoteImagesBucket="$S3_BUCKET" \
-              SqsReportQueueUrl="$SQS_URL" \
-              ExecutionRoleArn="$EXEC_ROLE" \
-              TaskRoleArn="$TASK_ROLE" \
-            --capabilities CAPABILITY_IAM \
-            --no-fail-on-empty-changeset \
-            --tags Project=FreStyle Environment=$ENV ManagedBy=CloudFormation
-
+      # タスク定義は infra リポの Terraform(ecs.tf)が :latest / :coderunner-latest を参照して
+      # 管理する。build-and-push が新イメージを push 済みなので、force-new-deployment の
+      # ローリング再起動だけで新イメージが pull される(タスク定義の再登録は不要)。
       - name: Force new deployment (rolling restart)
         run: |
-          aws ecs update-service --region $AWS_REGION \
-            --cluster $STACK_PFX --service $STACK_PFX-svc \
+          aws ecs update-service --region "$AWS_REGION" \
+            --cluster "$CLUSTER" --service "$SERVICE" \
             --force-new-deployment \
             --query 'service.deployments[0].status' --output text
 
       - name: Wait for service to stabilize
         run: |
-          aws ecs wait services-stable --region $AWS_REGION \
-            --cluster $STACK_PFX --services $STACK_PFX-svc
+          aws ecs wait services-stable --region "$AWS_REGION" \
+            --cluster "$CLUSTER" --services "$SERVICE"
 
+      # normanblog.com/api/* は CloudFront(SPA fallback)が一律 200 を返して誤判定するため、
+      # ALB に直結する api.normanblog.com を叩く。パスは Go/Gin の /api/v2/health
+      # (旧 Spring の /actuator/health は撤去済)。
       - name: Verify health
         run: |
-          ALB_DNS=$(aws cloudformation describe-stacks --region $AWS_REGION \
-            --stack-name $STACK_PFX-alb \
-            --query 'Stacks[0].Outputs[?OutputKey==`LoadBalancerDnsName`].OutputValue' --output text)
-          echo "ALB DNS: $ALB_DNS"
           for i in 1 2 3 4 5; do
-            if curl -fsS "http://$ALB_DNS/actuator/health"; then
+            if curl -fsS "https://api.normanblog.com/api/v2/health"; then
               echo "✅ Healthy"
               exit 0
             fi

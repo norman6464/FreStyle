@@ -156,3 +156,20 @@ func Test_コースハンドラ_削除(t *testing.T) {
 		}
 	})
 }
+
+func Test_コースハンドラ_作成_カテゴリ(t *testing.T) {
+	t.Run("不正なカテゴリ → 400", func(t *testing.T) {
+		w, c := ctxJSON(http.MethodPost, `{"title":"X","category":"not-a-category"}`, nil, superAdminCo())
+		newCourseHandler(&fakeCourseRepo{}).Create(c)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("want 400, got %d", w.Code)
+		}
+	})
+	t.Run("定義済みカテゴリ → 201", func(t *testing.T) {
+		w, c := ctxJSON(http.MethodPost, `{"title":"PostgreSQL","category":"database"}`, nil, superAdminCo())
+		newCourseHandler(&fakeCourseRepo{}).Create(c)
+		if w.Code != http.StatusCreated {
+			t.Fatalf("want 201, got %d", w.Code)
+		}
+	})
+}

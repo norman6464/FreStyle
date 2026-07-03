@@ -132,3 +132,65 @@ func Test_コース_削除_自社管理者は教材も連鎖削除(t *testing.T)
 	assert.Equal(t, uint64(1), crepo.deleted)
 	assert.Equal(t, uint64(1), mrepo.deletedByCo, "コース配下の教材も cascade で削除される")
 }
+
+func Test_コース_作成_カテゴリ付きで成功(t *testing.T) {
+	crepo := &fakeCourseRepo{}
+	mrepo := &fakeTeachingMaterialRepo{}
+	uc := usecase.NewCourseUseCase(crepo, mrepo)
+	got, err := uc.Create(context.Background(), usecase.CreateCourseInput{
+		ActorUserID: 7, ActorCompanyID: 10, ActorRole: domain.RoleCompanyAdmin,
+		Title: "PostgreSQL 徹底入門", Category: domain.CourseCategoryDatabase,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, domain.CourseCategoryDatabase, got.Category)
+}
+
+func Test_コース_作成_不正なカテゴリは拒否(t *testing.T) {
+	crepo := &fakeCourseRepo{}
+	mrepo := &fakeTeachingMaterialRepo{}
+	uc := usecase.NewCourseUseCase(crepo, mrepo)
+	_, err := uc.Create(context.Background(), usecase.CreateCourseInput{
+		ActorUserID: 7, ActorCompanyID: 10, ActorRole: domain.RoleCompanyAdmin,
+		Title: "X", Category: "unknown-category",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid course category")
+	assert.Nil(t, crepo.created)
+}
+
+func Test_コース_作成_カテゴリ未分類は許可(t *testing.T) {
+	crepo := &fakeCourseRepo{}
+	mrepo := &fakeTeachingMaterialRepo{}
+	uc := usecase.NewCourseUseCase(crepo, mrepo)
+	got, err := uc.Create(context.Background(), usecase.CreateCourseInput{
+		ActorUserID: 7, ActorCompanyID: 10, ActorRole: domain.RoleCompanyAdmin,
+		Title: "X", Category: "",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "", got.Category)
+}
+
+func Test_コース_更新_カテゴリを変更できる(t *testing.T) {
+	crepo := &fakeCourseRepo{getResp: &domain.Course{ID: 1, CompanyID: 10, Category: domain.CourseCategoryDevBasics}}
+	mrepo := &fakeTeachingMaterialRepo{}
+	uc := usecase.NewCourseUseCase(crepo, mrepo)
+	got, err := uc.Update(context.Background(), usecase.UpdateCourseInput{
+		ID: 1, ActorCompanyID: 10, ActorRole: domain.RoleCompanyAdmin,
+		Title: "Terraform 入門", Category: domain.CourseCategoryInfra,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, domain.CourseCategoryInfra, got.Category)
+}
+
+func Test_コース_更新_不正なカテゴリは拒否(t *testing.T) {
+	crepo := &fakeCourseRepo{getResp: &domain.Course{ID: 1, CompanyID: 10}}
+	mrepo := &fakeTeachingMaterialRepo{}
+	uc := usecase.NewCourseUseCase(crepo, mrepo)
+	_, err := uc.Update(context.Background(), usecase.UpdateCourseInput{
+		ID: 1, ActorCompanyID: 10, ActorRole: domain.RoleCompanyAdmin,
+		Title: "X", Category: "nope",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid course category")
+	assert.Nil(t, crepo.updated)
+}

@@ -11,6 +11,8 @@ import type { Course, TeachingMaterial } from '../types';
 export interface CoursePayload {
   title: string;
   description: string;
+  /** 学習領域カテゴリ（空 = 未分類） */
+  category: string;
   sortOrder: number;
   isPublished: boolean;
 }

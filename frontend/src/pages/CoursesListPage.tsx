@@ -12,6 +12,7 @@ import Loading from '../components/Loading';
 import ConfirmModal from '../components/ConfirmModal';
 import { useCourses } from '../hooks/useCourses';
 import { useToast } from '../hooks/useToast';
+import { COURSE_CATEGORIES, findCourseCategory } from '../constants/courseCategories';
 import type { RootState } from '../store';
 import type { Course } from '../types';
 
@@ -156,6 +157,9 @@ function CourseCard({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  // 「色＝学習領域」の連想(FRESTYLE-67)。左の色帯 + カテゴリ名バッジで表現し、
+  // 色のみに依存しない(未分類は無色 = 従来表示)。
+  const category = findCourseCategory(course.category);
   return (
     <div
       role="button"
@@ -167,7 +171,9 @@ function CourseCard({
           onOpen();
         }
       }}
-      className="group bg-surface-1 border border-surface-3 rounded-lg p-4 cursor-pointer hover:border-taupe-500/50 hover:shadow-md transition-all"
+      className={`group bg-surface-1 border border-surface-3 border-l-4 ${
+        category ? category.barClass : 'border-l-surface-3'
+      } rounded-lg p-4 cursor-pointer hover:border-taupe-500/50 hover:shadow-md transition-all`}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="flex items-center gap-2 min-w-0">
@@ -200,9 +206,16 @@ function CourseCard({
           </div>
         )}
       </div>
-      <p className="text-xs text-[var(--color-text-muted)] mb-3">
-        {course.isPublished ? '公開中' : '下書き'} ・ 更新 {formatDate(course.updatedAt)}
-      </p>
+      <div className="flex items-center gap-2 mb-3">
+        {category && (
+          <span className={`text-[11px] px-2 py-0.5 rounded-full flex-shrink-0 ${category.badgeClass}`}>
+            {category.label}
+          </span>
+        )}
+        <p className="text-xs text-[var(--color-text-muted)]">
+          {course.isPublished ? '公開中' : '下書き'} ・ 更新 {formatDate(course.updatedAt)}
+        </p>
+      </div>
       <p className="text-sm text-[var(--color-text-secondary)] line-clamp-3 min-h-[3.6em]">
         {course.description || 'コース説明が未設定です'}
       </p>
@@ -216,6 +229,7 @@ interface CourseFormProps {
   onSubmit: (payload: {
     title: string;
     description: string;
+    category: string;
     sortOrder: number;
     isPublished: boolean;
   }) => Promise<void>;
@@ -224,6 +238,7 @@ interface CourseFormProps {
 function CourseFormModal({ initial, onClose, onSubmit }: CourseFormProps) {
   const [title, setTitle] = useState(initial?.title ?? '');
   const [description, setDescription] = useState(initial?.description ?? '');
+  const [category, setCategory] = useState(initial?.category ?? '');
   const [sortOrder, setSortOrder] = useState(initial?.sortOrder ?? 100);
   const [isPublished, setIsPublished] = useState(initial?.isPublished ?? false);
   const [submitting, setSubmitting] = useState(false);
@@ -233,7 +248,7 @@ function CourseFormModal({ initial, onClose, onSubmit }: CourseFormProps) {
     if (!title.trim()) return;
     setSubmitting(true);
     try {
-      await onSubmit({ title: title.trim(), description: description.trim(), sortOrder, isPublished });
+      await onSubmit({ title: title.trim(), description: description.trim(), category, sortOrder, isPublished });
     } finally {
       setSubmitting(false);
     }
@@ -271,6 +286,24 @@ function CourseFormModal({ initial, onClose, onSubmit }: CourseFormProps) {
               placeholder="このコースで学べる内容の概要"
               className="w-full px-3 py-1.5 bg-surface-2 border border-surface-3 rounded-lg text-sm focus:outline-none focus:border-brand-400 resize-y"
             />
+          </label>
+          <label className="block">
+            <span className="block text-sm text-[var(--color-text-secondary)] mb-1">カテゴリ（学習領域）</span>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="w-full px-3 py-1.5 bg-surface-2 border border-surface-3 rounded-lg text-sm focus:outline-none focus:border-brand-400"
+            >
+              <option value="">未分類</option>
+              {COURSE_CATEGORIES.map((c) => (
+                <option key={c.key} value={c.key}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+            <span className="block text-xs text-[var(--color-text-muted)] mt-1">
+              一覧カードの色分けに使われます（色＝学習領域）
+            </span>
           </label>
           <label className="block">
             <span className="block text-sm text-[var(--color-text-secondary)] mb-1">並び順 (昇順)</span>

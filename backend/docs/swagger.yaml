@@ -138,6 +138,8 @@ definitions:
     type: object
   github_com_norman6464_FreStyle_backend_internal_domain.Course:
     properties:
+      category:
+        type: string
       companyId:
         type: integer
       createdAt:
@@ -590,6 +592,19 @@ definitions:
     type: object
   internal_handler.courseRequest:
     properties:
+      category:
+        description: |-
+          Category は定義済みの学習領域のみ許可(空 = 未分類)。値の正本は domain.ValidCourseCategories。
+          oneof で宣言的に 400 を返し、usecase 側でも防衛的に検証する。
+        enum:
+        - dev-basics
+        - backend
+        - architecture
+        - database
+        - infra
+        - security
+        - product
+        type: string
       description:
         type: string
       isPublished:

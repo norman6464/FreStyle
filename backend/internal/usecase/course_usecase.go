@@ -60,6 +60,7 @@ type CreateCourseInput struct {
 	ActorRole      string
 	Title          string
 	Description    string
+	Category       string
 	SortOrder      int
 	IsPublished    bool
 }
@@ -71,11 +72,15 @@ func (uc *CourseUseCase) Create(ctx context.Context, in CreateCourseInput) (*dom
 	if in.ActorCompanyID == 0 {
 		return nil, fmt.Errorf("actor must belong to a company")
 	}
+	if !domain.IsValidCourseCategory(in.Category) {
+		return nil, fmt.Errorf("invalid course category: %s", in.Category)
+	}
 	c := &domain.Course{
 		CompanyID:       in.ActorCompanyID,
 		CreatedByUserID: in.ActorUserID,
 		Title:           in.Title,
 		Description:     in.Description,
+		Category:        in.Category,
 		SortOrder:       in.SortOrder,
 		IsPublished:     in.IsPublished,
 	}
@@ -91,6 +96,7 @@ type UpdateCourseInput struct {
 	ActorRole      string
 	Title          string
 	Description    string
+	Category       string
 	SortOrder      int
 	IsPublished    bool
 }
@@ -106,8 +112,12 @@ func (uc *CourseUseCase) Update(ctx context.Context, in UpdateCourseInput) (*dom
 	if in.ActorRole != domain.RoleSuperAdmin && existing.CompanyID != in.ActorCompanyID {
 		return nil, fmt.Errorf("forbidden")
 	}
+	if !domain.IsValidCourseCategory(in.Category) {
+		return nil, fmt.Errorf("invalid course category: %s", in.Category)
+	}
 	existing.Title = in.Title
 	existing.Description = in.Description
+	existing.Category = in.Category
 	existing.SortOrder = in.SortOrder
 	existing.IsPublished = in.IsPublished
 	if err := uc.courses.Update(ctx, existing); err != nil {

@@ -4,6 +4,72 @@
  */
 
 export interface paths {
+    "/admin/audit-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 監査ログ一覧（super_admin）
+         * @description 管理者の重要操作（会社の有効/無効・従業員の停止/削除・招待など）の監査記録を新しい順で最大 200 件返す。super_admin 専用。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.AuditEvent"][];
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description super_admin 以外 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/companies": {
         parameters: {
             query?: never;
@@ -50,6 +116,164 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/admin/companies/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 会社横断ビュー（メンバー集計・super_admin）
+         * @description 全 company に、各社の在籍メンバー数（総数 / 有効 / trainee）を付けて返す。super_admin 専用画面用。認可は middleware で別途担保。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_usecase.CompanyStat"][];
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description super_admin 以外 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/companies/{id}/active": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * 会社アカウントの有効/無効を切り替え（super_admin 専用）
+         * @description 会社を無効化すると、その会社の全ユーザーがログイン/利用不可になる（middleware で弾く）。super_admin のみ。
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 会社 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            /** @description active=false で無効化 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_handler.setCompanyActiveRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.messageResponse"];
+                    };
+                };
+                /** @description 不正な ID / body */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description super_admin 以外 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 会社が存在しない */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 更新失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
         trace?: never;
     };
     "/admin/company-applications": {
@@ -445,6 +669,181 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/admin/members/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * 従業員を論理削除
+         * @description 従業員を一覧から退会させる（論理削除）。以後ログイン/利用不可。super_admin は全社、company_admin は自社の従業員のみ。自分自身は不可。
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 従業員の数値 ID */
+                    userId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description 不正な ID / 自分自身 */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 管理者以外 / 別会社の従業員 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 従業員が存在しない */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 内部エラー */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/members/{userId}/active": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * 従業員アカウントの有効/無効を切り替え
+         * @description 無効化すると、その従業員はログイン/利用不可になる（middleware で弾く）。super_admin は全社、company_admin は自社の従業員のみ。自分自身は不可。
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 従業員の数値 ID */
+                    userId: string;
+                };
+                cookie?: never;
+            };
+            /** @description active=false で無効化 */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_handler.setMemberActiveRequest"];
+                };
+            };
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description 不正な ID / body / 自分自身 */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 管理者以外 / 別会社の従業員 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 従業員が存在しない */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 内部エラー */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
         trace?: never;
     };
     "/admin/members/{userId}/ai-access": {
@@ -2237,14 +2636,18 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * 演習問題 一覧 (status + stats 付き)
-         * @description 運営 マスタ 演習問題 を 取得。 query language で 絞り込み (例: php / go)。 current user の 提出 状況 と 全 user 集計 を 同時 に 返す。 未 ログイン 時 は status 空。
+         * 演習問題 一覧 (status + stats + ページネーション付き)
+         * @description 運営 マスタ 演習問題 を 取得。 query language で 絞り込み。 limit/offset で ページネーション。 current user の 提出 状況 と 全 user 集計 を 返す。
          */
         get: {
             parameters: {
                 query?: {
-                    /** @description 言語 フィルタ (例: php, go, javascript) */
+                    /** @description 言語 フィルタ (例: php, go, bash, git) */
                     language?: string;
+                    /** @description 1 ページの 件数 (デフォルト 20、最大 100) */
+                    limit?: number;
+                    /** @description 取得 開始 位置 (デフォルト 0) */
+                    offset?: number;
                 };
                 header?: never;
                 path?: never;
@@ -2258,7 +2661,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_usecase.MasterExerciseWithStatus"][];
+                        "application/json": components["schemas"]["internal_handler.exercisePageResponse"];
                     };
                 };
                 /** @description DB / 集計 失敗 */
@@ -2742,6 +3145,258 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/lesson-progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 自分の学習進捗（完了レッスン一覧）
+         * @description current user が完了した教材（レッスン）の一覧を返す。進捗バー / 完了チェック表示用。userId は受け取らない（current user 固定）。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.UserLessonProgress"][];
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * レッスンを完了にする
+         * @description current user 名義で教材（レッスン）を完了として記録する。冪等（二重実行しても 1 件）。course は教材から解決する。自社かつ閲覧可能な教材のみ完了にできる。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description 完了する教材 ID */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_handler.markLessonCompleteRequest"];
+                };
+            };
+            responses: {
+                /** @description 成功（本文なし） */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description 不正な body */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 他社 / 閲覧不可な教材 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 教材が存在しない */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/lesson-progress/{teachingMaterialId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * レッスンの完了を取り消す
+         * @description current user の当該教材の完了記録を取り消す（未記録でも 204）。
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 教材 ID */
+                    teachingMaterialId: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 成功（本文なし） */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description 不正な ID */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description DB 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * ダッシュボード データ 取得
+         * @description 過去 90 日間の日次活動サマリー・連続学習日数・直近の閲覧章を返す。 カレンダーヒートマップ や 「続きから」 カード の 描画 に 使う。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_usecase.GetUserDashboardOutput"];
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 集計失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3948,6 +4603,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/teaching-materials/{id}/view": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 章の閲覧を記録する
+         * @description ユーザーが教材（章）を開いたときに呼び出す。user_chapter_views を upsert し「続きから」カードの基盤データを更新する。 エラーは握り潰し 204 を返す（ベストエフォート）。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description 教材 ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 記録成功（本文なし） */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description 不正な ID */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users/{userId}/stats": {
         parameters: {
             query?: never;
@@ -4024,10 +4737,10 @@ export interface components {
         "github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation": {
             companyId?: number;
             createdAt?: string;
-            displayName?: string;
             email?: string;
             expiresAt?: string;
             id?: number;
+            name?: string;
             role?: string;
             status?: string;
         };
@@ -4056,6 +4769,17 @@ export interface components {
             kind?: string;
             sizeBytes?: number;
         };
+        "github_com_norman6464_FreStyle_backend_internal_domain.AuditEvent": {
+            /** @description Action は「METHOD ルートパターン」（例: "PATCH /api/v2/admin/companies/:id/active"）。 */
+            action?: string;
+            actorEmail?: string;
+            actorId?: number;
+            actorRole?: string;
+            createdAt?: string;
+            id?: number;
+            /** @description TargetID は操作対象の ID（会社 ID / ユーザー ID など。取得できないときは 0）。 */
+            targetId?: number;
+        };
         "github_com_norman6464_FreStyle_backend_internal_domain.CodeExecutionResult": {
             exitCode?: number;
             stderr?: string;
@@ -4069,6 +4793,11 @@ export interface components {
             aiChatEnabledForTrainees?: boolean;
             createdAt?: string;
             id?: number;
+            /**
+             * @description IsActive は会社アカウントの有効/無効。false（無効）にすると、その会社の全ユーザーが
+             *     ログイン/利用不可になる（middleware で弾く）。super_admin が会社一覧から切り替える。
+             */
+            isActive?: boolean;
             name?: string;
             updatedAt?: string;
         };
@@ -4083,6 +4812,7 @@ export interface components {
             updatedAt?: string;
         };
         "github_com_norman6464_FreStyle_backend_internal_domain.Course": {
+            category?: string;
             companyId?: number;
             createdAt?: string;
             createdByUserId?: number;
@@ -4163,6 +4893,8 @@ export interface components {
         "github_com_norman6464_FreStyle_backend_internal_domain.NoteImageUploadURL": {
             expiresIn?: number;
             key?: string;
+            /** @description PublicURL はアップロード後に img / Markdown から参照する配信用 URL（CDN 経由）。 */
+            publicUrl?: string;
             url?: string;
         };
         "github_com_norman6464_FreStyle_backend_internal_domain.Notification": {
@@ -4183,8 +4915,8 @@ export interface components {
         "github_com_norman6464_FreStyle_backend_internal_domain.ProfileView": {
             avatarUrl?: string;
             bio?: string;
-            displayName?: string;
             email?: string;
+            name?: string;
             status?: string;
             updatedAt?: string;
             userId?: number;
@@ -4210,6 +4942,31 @@ export interface components {
             title?: string;
             updatedAt?: string;
         };
+        "github_com_norman6464_FreStyle_backend_internal_domain.UserChapterView": {
+            courseId?: number;
+            firstViewedAt?: string;
+            lastViewedAt?: string;
+            teachingMaterialId?: number;
+            userId?: number;
+            viewCount?: number;
+        };
+        "github_com_norman6464_FreStyle_backend_internal_domain.UserDailyActivity": {
+            activityDate?: string;
+            aiChatCount?: number;
+            correctCount?: number;
+            exerciseCount?: number;
+            lessonCount?: number;
+            noteCount?: number;
+            userId?: number;
+        };
+        "github_com_norman6464_FreStyle_backend_internal_domain.UserLessonProgress": {
+            completedAt?: string;
+            courseId?: number;
+            createdAt?: string;
+            id?: number;
+            teachingMaterialId?: number;
+            userId?: number;
+        };
         "github_com_norman6464_FreStyle_backend_internal_domain.UserStats": {
             averageScore?: number;
             longestStreak?: number;
@@ -4226,32 +4983,26 @@ export interface components {
             title?: string;
             url?: string;
         };
+        "github_com_norman6464_FreStyle_backend_internal_usecase.CompanyStat": {
+            activeMembers?: number;
+            createdAt?: string;
+            id?: number;
+            isActive?: boolean;
+            memberTotal?: number;
+            name?: string;
+            traineeCount?: number;
+        };
         "github_com_norman6464_FreStyle_backend_internal_usecase.GetMasterExerciseDetailOutput": {
             examples?: components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.MasterExerciseExample"][];
             exercise?: components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.MasterExercise"];
         };
-        "github_com_norman6464_FreStyle_backend_internal_usecase.MasterExerciseWithStatus": {
-            category?: string;
-            chapterId?: number;
-            createdAt?: string;
-            description?: string;
-            difficulty?: number;
-            expectedOutput?: string;
-            /** @description Explanation は qa モードで正解後に表示する markdown 解説。 */
-            explanation?: string;
-            hintText?: string;
-            id?: number;
-            isPublished?: boolean;
-            language?: string;
-            /** @description Mode は採点モード。execute は実行して stdout 比較、qa は提出文字列と ExpectedOutput を trim 比較。 */
-            mode?: string;
-            orderIndex?: number;
-            slug?: string;
-            starterCode?: string;
-            stats?: components["schemas"]["github_com_norman6464_FreStyle_backend_internal_usecase_repository.ExerciseSubmissionStats"];
-            status?: string;
-            title?: string;
-            updatedAt?: string;
+        "github_com_norman6464_FreStyle_backend_internal_usecase.GetUserDashboardOutput": {
+            recentActivity?: components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.UserDailyActivity"][];
+            recentChapterViews?: components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.UserChapterView"][];
+            streak?: number;
+            totalCorrect?: number;
+            totalExercises?: number;
+            totalLessons?: number;
         };
         "github_com_norman6464_FreStyle_backend_internal_usecase.SubmitMasterExerciseOutput": {
             isCorrect?: boolean;
@@ -4299,6 +5050,12 @@ export interface components {
             aiChatEnabledForTrainees?: boolean;
         };
         "internal_handler.courseRequest": {
+            /**
+             * @description Category は定義済みの学習領域のみ許可(空 = 未分類)。値の正本は domain.ValidCourseCategories。
+             *     oneof で宣言的に 400 を返し、usecase 側でも防衛的に検証する。
+             * @enum {string}
+             */
+            category?: "dev-basics" | "backend" | "architecture" | "database" | "infra" | "security" | "product";
             description?: string;
             isPublished?: boolean;
             sortOrder?: number;
@@ -4306,8 +5063,8 @@ export interface components {
         };
         "internal_handler.createAdminInvReq": {
             companyId: number;
-            displayName?: string;
             email: string;
+            name?: string;
             role: string;
         };
         "internal_handler.createCompanyApplicationReq": {
@@ -4325,13 +5082,19 @@ export interface components {
             /** @example unauthorized */
             error?: string;
         };
+        "internal_handler.exercisePageResponse": {
+            hasNext?: boolean;
+            items?: components["schemas"]["internal_handler.masterExerciseListItemResponse"][];
+            limit?: number;
+            offset?: number;
+        };
         "internal_handler.invitationValidateResponse": {
             /** @example 1 */
             companyId?: number;
             /** @example Example Corp */
             companyName?: string;
             /** @example 山田 太郎 */
-            displayName?: string;
+            name?: string;
             /** @example trainee */
             role?: string;
         };
@@ -4342,14 +5105,29 @@ export interface components {
         "internal_handler.issueUploadURLReq": {
             contentType?: string;
         };
+        "internal_handler.markLessonCompleteRequest": {
+            teachingMaterialId: number;
+        };
+        "internal_handler.masterExerciseListItemResponse": {
+            category?: string;
+            difficulty?: number;
+            id?: number;
+            isPublished?: boolean;
+            language?: string;
+            mode?: string;
+            orderIndex?: number;
+            slug?: string;
+            stats?: components["schemas"]["github_com_norman6464_FreStyle_backend_internal_usecase_repository.ExerciseSubmissionStats"];
+            /** @description Status は current user の提出状況。"solved" / "in_progress" / ""（未提出）。 */
+            status?: string;
+            title?: string;
+        };
         "internal_handler.meResponse": {
             /** @example abc-123-uuid */
             cognitoSub?: string;
             /** @example 1 */
             companyId?: number;
             createdAt?: string;
-            /** @example 山田 太郎 */
-            displayName?: string;
             /** @example user@example.com */
             email?: string;
             /**
@@ -4362,6 +5140,8 @@ export interface components {
             id?: number;
             /** @example false */
             isAdmin?: boolean;
+            /** @example 山田 太郎 */
+            name?: string;
             /** @example true */
             onboarded?: boolean;
             /** @example trainee */
@@ -4371,9 +5151,11 @@ export interface components {
         "internal_handler.memberResponse": {
             /** @description AiChatEnabled は AI 利用可否の個別上書き。null = 会社設定に従う。 */
             aiChatEnabled?: boolean;
-            displayName?: string;
             email?: string;
             id?: number;
+            /** @description IsActive はアカウントの有効/無効。false = 無効（ログイン/利用不可）。 */
+            isActive?: boolean;
+            name?: string;
             role?: string;
         };
         "internal_handler.messageResponse": {
@@ -4403,6 +5185,12 @@ export interface components {
         };
         "internal_handler.sessionNoteUpsertReq": {
             content?: string;
+        };
+        "internal_handler.setCompanyActiveRequest": {
+            active: boolean;
+        };
+        "internal_handler.setMemberActiveRequest": {
+            active: boolean;
         };
         "internal_handler.sseAttachmentRequest": {
             contentType?: string;
@@ -4448,10 +5236,8 @@ export interface components {
         "internal_handler.updateProfileReq": {
             avatarUrl?: string;
             bio?: string;
-            displayName?: string;
             /** @description 旧フロント互換。avatarUrl を優先。 */
             iconUrl?: string;
-            /** @description 旧フロント互換。displayName を優先。 */
             name?: string;
             status?: string;
         };

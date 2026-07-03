@@ -3975,6 +3975,9 @@ const docTemplate = `{
         "github_com_norman6464_FreStyle_backend_internal_domain.Course": {
             "type": "object",
             "properties": {
+                "category": {
+                    "type": "string"
+                },
                 "companyId": {
                     "type": "integer"
                 },
@@ -4660,6 +4663,19 @@ const docTemplate = `{
         "internal_handler.courseRequest": {
             "type": "object",
             "properties": {
+                "category": {
+                    "description": "Category は定義済みの学習領域のみ許可(空 = 未分類)。値の正本は domain.ValidCourseCategories。\noneof で宣言的に 400 を返し、usecase 側でも防衛的に検証する。",
+                    "type": "string",
+                    "enum": [
+                        "dev-basics",
+                        "backend",
+                        "architecture",
+                        "database",
+                        "infra",
+                        "security",
+                        "product"
+                    ]
+                },
                 "description": {
                     "type": "string"
                 },

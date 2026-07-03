@@ -545,6 +545,8 @@ export interface Course {
   createdByUserId: number;
   title: string;
   description: string;
+  /** 学習領域カテゴリ（空 = 未分類。constants/courseCategories の key と対応） */
+  category: string;
   sortOrder: number;
   isPublished: boolean;
   createdAt: string;

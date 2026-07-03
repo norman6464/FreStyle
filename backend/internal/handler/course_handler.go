@@ -72,6 +72,9 @@ func (h *CourseHandler) Get(c *gin.Context) {
 type courseRequest struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`
+	// Category は定義済みの学習領域のみ許可(空 = 未分類)。値の正本は domain.ValidCourseCategories。
+	// oneof で宣言的に 400 を返し、usecase 側でも防衛的に検証する。
+	Category    string `json:"category" binding:"omitempty,oneof=dev-basics backend architecture database infra security product"`
 	SortOrder   int    `json:"sortOrder"`
 	IsPublished bool   `json:"isPublished"`
 }
@@ -104,6 +107,7 @@ func (h *CourseHandler) Create(c *gin.Context) {
 		ActorRole:      role,
 		Title:          req.Title,
 		Description:    req.Description,
+		Category:       req.Category,
 		SortOrder:      req.SortOrder,
 		IsPublished:    req.IsPublished,
 	})
@@ -149,6 +153,7 @@ func (h *CourseHandler) Update(c *gin.Context) {
 		ActorRole:      role,
 		Title:          req.Title,
 		Description:    req.Description,
+		Category:       req.Category,
 		SortOrder:      req.SortOrder,
 		IsPublished:    req.IsPublished,
 	})

@@ -139,11 +139,9 @@ function StatusBadge({ status }: { status: MasterExerciseWithStatus['status'] })
       </span>
     );
   }
-  return (
-    <span className="text-xs px-2 py-0.5 rounded-full bg-surface-3 text-[var(--color-text-muted)] flex-shrink-0">
-      未着手
-    </span>
-  );
+  // 未着手はデフォルト状態なのでバッジを出さない。全カードに付く「未着手」チップは
+  // 視覚ノイズになり、意味のある状態(解いた/取り組み中)の視認性を下げるため(FRESTYLE-64)。
+  return null;
 }
 
 function DifficultyBadge({ level }: { level: number }) {

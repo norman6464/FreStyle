@@ -3,9 +3,9 @@ import { render, screen } from '@testing-library/react';
 import ReadingTime from '../ReadingTime';
 
 describe('ReadingTime', () => {
-  it('0文字の場合「約0分」を表示する', () => {
-    render(<ReadingTime charCount={0} />);
-    expect(screen.getByText('約0分')).toBeInTheDocument();
+  it('0文字の場合は何も表示しない（「約0分」は情報量ゼロのため）', () => {
+    const { container } = render(<ReadingTime charCount={0} />);
+    expect(container).toBeEmptyDOMElement();
   });
 
   it('400文字の場合「約1分」を表示する', () => {

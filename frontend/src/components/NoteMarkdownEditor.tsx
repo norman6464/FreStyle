@@ -188,10 +188,10 @@ export default function NoteMarkdownEditor({
 
       <div className="flex items-center gap-1 mb-3">
         <TabButton active={tab === 'edit'} onClick={() => setTab('edit')}>
-          Edit
+          編集
         </TabButton>
         <TabButton active={tab === 'preview'} onClick={() => setTab('preview')}>
-          Preview
+          プレビュー
         </TabButton>
       </div>
 

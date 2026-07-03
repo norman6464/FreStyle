@@ -79,7 +79,10 @@ describe('CoursesListPage カテゴリ色分け (FRESTYLE-67)', () => {
   it('管理者の作成フォームにカテゴリ選択（未分類 + 全カテゴリ）が表示される', async () => {
     mockList.mockResolvedValue([]);
     renderPage('company_admin');
-    await waitFor(() => expect(screen.getByRole('button', { name: /新しいコース/ })).toBeInTheDocument());
+    // 空一覧時はヘッダーと EmptyState の 2 箇所に「新しいコース」が出るため getAllByRole で扱う
+    await waitFor(() =>
+      expect(screen.getAllByRole('button', { name: /新しいコース/ }).length).toBeGreaterThan(0),
+    );
     fireEvent.click(screen.getAllByRole('button', { name: /新しいコース/ })[0]);
     const select = screen.getByRole('combobox');
     expect(select).toBeInTheDocument();

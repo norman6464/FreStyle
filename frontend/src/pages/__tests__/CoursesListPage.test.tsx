@@ -60,20 +60,70 @@ describe('CoursesListPage カテゴリ色分け (FRESTYLE-67)', () => {
     vi.clearAllMocks();
   });
 
-  it('カテゴリ付きコースはカテゴリ名バッジを表示する', async () => {
+  it('カテゴリ付きコースはセクション見出し(バッジ + 件数)の下に表示される', async () => {
     mockList.mockResolvedValue([makeCourse({ category: 'database' })]);
     renderPage();
     await waitFor(() => expect(screen.getByText('PostgreSQL 徹底入門')).toBeInTheDocument());
-    expect(screen.getByText('データベース')).toBeInTheDocument();
+    // セクション見出し = 「データベース 1 件」の折りたたみボタン
+    expect(screen.getByRole('button', { name: /データベース\s*1 件/ })).toBeInTheDocument();
   });
 
-  it('未分類コースはカテゴリバッジを表示しない', async () => {
+  it('未分類コースは「未分類」セクションに入り、カテゴリ名は表示されない', async () => {
     mockList.mockResolvedValue([makeCourse({ category: '' })]);
     renderPage();
     await waitFor(() => expect(screen.getByText('PostgreSQL 徹底入門')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: /未分類\s*1 件/ })).toBeInTheDocument();
     for (const c of COURSE_CATEGORIES) {
       expect(screen.queryByText(c.label)).not.toBeInTheDocument();
     }
+  });
+
+  it('セクション見出しクリックで閉じ開きできる', async () => {
+    mockList.mockResolvedValue([makeCourse({ category: 'database' })]);
+    renderPage();
+    await waitFor(() => expect(screen.getByText('PostgreSQL 徹底入門')).toBeInTheDocument());
+    const header = screen.getByRole('button', { name: /データベース\s*1 件/ });
+    expect(header).toHaveAttribute('aria-expanded', 'true');
+
+    fireEvent.click(header);
+    expect(header).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText('PostgreSQL 徹底入門')).not.toBeInTheDocument();
+
+    fireEvent.click(header);
+    expect(header).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('PostgreSQL 徹底入門')).toBeInTheDocument();
+  });
+
+  it('カテゴリチップで絞り込み・再クリックで解除できる', async () => {
+    mockList.mockResolvedValue([
+      makeCourse({ id: 1, title: 'PostgreSQL 徹底入門', category: 'database' }),
+      makeCourse({ id: 2, title: 'Terraform 入門', category: 'infra' }),
+    ]);
+    renderPage();
+    await waitFor(() => expect(screen.getByText('Terraform 入門')).toBeInTheDocument());
+
+    const chip = screen.getByRole('button', { name: 'データベース' });
+    fireEvent.click(chip);
+    expect(chip).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('PostgreSQL 徹底入門')).toBeInTheDocument();
+    expect(screen.queryByText('Terraform 入門')).not.toBeInTheDocument();
+
+    fireEvent.click(chip);
+    expect(chip).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByText('Terraform 入門')).toBeInTheDocument();
+  });
+
+  it('絞り込みで 0 件になったら該当なしの EmptyState を出す', async () => {
+    mockList.mockResolvedValue([
+      makeCourse({ id: 1, title: 'PostgreSQL 徹底入門', category: 'database' }),
+      makeCourse({ id: 2, title: 'Terraform 入門', category: 'infra' }),
+    ]);
+    renderPage();
+    await waitFor(() => expect(screen.getByText('Terraform 入門')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'データベース' }));
+    fireEvent.change(screen.getByLabelText('コースを検索'), { target: { value: 'terraform' } });
+    expect(screen.getByText('該当するコースがありません')).toBeInTheDocument();
   });
 
   it('管理者の作成フォームにカテゴリ選択（未分類 + 全カテゴリ）が表示される', async () => {

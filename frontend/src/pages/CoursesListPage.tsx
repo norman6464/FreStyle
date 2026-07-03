@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import {
+  ChevronDownIcon,
   PlusIcon,
   PencilSquareIcon,
   TrashIcon,
@@ -16,13 +17,19 @@ import { COURSE_CATEGORIES, findCourseCategory } from '../constants/courseCatego
 import type { RootState } from '../store';
 import type { Course } from '../types';
 
+/** 未分類('')や未知の値を未分類バケットの key('') に正規化する。 */
+function normalizeCategoryKey(category: string): string {
+  return findCourseCategory(category) ? category : '';
+}
+
 /**
  * CoursesListPage — `/courses` コース一覧ページ。
  *
  * - company_admin / super_admin: コースを作成 / 編集 / 削除可
  * - trainee: published コースを閲覧のみ（クリックすると `/courses/:id` 詳細へ）
  *
- * カードグリッドで表示し、 各カードに教材数 / 公開状態 / 説明文を出す。
+ * カテゴリ（学習領域 = 色）ごとのセクションでカードグリッドを表示する(FRESTYLE-68)。
+ * セクションは閉じ開きでき、上部のチップでカテゴリ絞り込みができる。
  */
 export default function CoursesListPage() {
   const role = useSelector((s: RootState) => s.auth.role);
@@ -36,6 +43,39 @@ export default function CoursesListPage() {
 
   const [editTarget, setEditTarget] = useState<Course | 'new' | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
+  // カテゴリ絞り込み(null = すべて)と、セクションごとの折りたたみ状態。
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+
+  const toggleGroup = (key: string) =>
+    setCollapsed((prev) => ({ ...prev, [key]: !prev[key] }));
+
+  // 絞り込みチップに出すカテゴリ = 実際にコースが存在するものだけ(死にチップを出さない)。
+  const chipCategories = useMemo(() => {
+    const present = new Set(courses.map((c) => normalizeCategoryKey(c.category)));
+    return {
+      cats: COURSE_CATEGORIES.filter((c) => present.has(c.key)),
+      hasUncategorized: present.has(''),
+    };
+  }, [courses]);
+
+  // 検索(filtered) → カテゴリ絞り込み → 定義順のセクションにグルーピング。
+  const visible = useMemo(
+    () =>
+      categoryFilter === null
+        ? filtered
+        : filtered.filter((c) => normalizeCategoryKey(c.category) === categoryFilter),
+    [filtered, categoryFilter],
+  );
+  const groups = useMemo(() => {
+    const order = [...COURSE_CATEGORIES.map((c) => c.key), ''];
+    return order
+      .map((key) => ({
+        key,
+        courses: visible.filter((c) => normalizeCategoryKey(c.category) === key),
+      }))
+      .filter((g) => g.courses.length > 0);
+  }, [visible]);
 
   const handleConfirmDelete = async () => {
     if (deleteTargetId == null) return;
@@ -75,39 +115,101 @@ export default function CoursesListPage() {
         />
       </div>
 
+      {/* カテゴリ絞り込みチップ(色＝学習領域で分別できるように。メンター/trainee 共通) */}
+      {courses.length > 0 && (chipCategories.cats.length > 0 || chipCategories.hasUncategorized) && (
+        <div className="flex items-center gap-2 flex-wrap" role="group" aria-label="カテゴリで絞り込み">
+          <FilterChip
+            label="すべて"
+            active={categoryFilter === null}
+            onClick={() => setCategoryFilter(null)}
+          />
+          {chipCategories.cats.map((c) => (
+            <FilterChip
+              key={c.key}
+              label={c.label}
+              active={categoryFilter === c.key}
+              activeClass={c.badgeClass}
+              onClick={() => setCategoryFilter((prev) => (prev === c.key ? null : c.key))}
+            />
+          ))}
+          {chipCategories.hasUncategorized && (
+            <FilterChip
+              label="未分類"
+              active={categoryFilter === ''}
+              onClick={() => setCategoryFilter((prev) => (prev === '' ? null : ''))}
+            />
+          )}
+        </div>
+      )}
+
       {error && <p className="text-sm text-red-500">{error}</p>}
 
       {loading && courses.length === 0 ? (
         <Loading className="py-12" />
-      ) : filtered.length === 0 ? (
+      ) : visible.length === 0 ? (
         <EmptyState
           icon={FaviconIcon}
-          title={searchQuery ? '該当するコースがありません' : 'コースがありません'}
+          title={searchQuery || categoryFilter !== null ? '該当するコースがありません' : 'コースがありません'}
           description={
-            searchQuery
-              ? '検索条件を変更してみてください'
+            searchQuery || categoryFilter !== null
+              ? '検索条件やカテゴリの絞り込みを変更してみてください'
               : canManage
                 ? '最初のコースを作成しましょう'
                 : '管理者がコースを公開すると、 ここに表示されます'
           }
           action={
-            canManage && !searchQuery
+            canManage && !searchQuery && categoryFilter === null
               ? { label: '新しいコース', onClick: () => setEditTarget('new') }
               : undefined
           }
         />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map((c) => (
-            <CourseCard
-              key={c.id}
-              course={c}
-              canManage={canManage}
-              onOpen={() => navigate(`/courses/${c.id}`)}
-              onEdit={() => setEditTarget(c)}
-              onDelete={() => setDeleteTargetId(c.id)}
-            />
-          ))}
+        <div className="space-y-6">
+          {groups.map((g) => {
+            const def = findCourseCategory(g.key);
+            const isCollapsed = !!collapsed[g.key];
+            return (
+              <section key={g.key || 'uncategorized'} aria-label={def ? def.label : '未分類'}>
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(g.key)}
+                  aria-expanded={!isCollapsed}
+                  className="flex items-center gap-2 mb-3 rounded-md px-1 py-0.5 hover:bg-surface-2 transition-colors"
+                >
+                  <ChevronDownIcon
+                    aria-hidden="true"
+                    className={`w-4 h-4 text-[var(--color-text-muted)] transition-transform ${
+                      isCollapsed ? '-rotate-90' : ''
+                    }`}
+                  />
+                  {def ? (
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${def.badgeClass}`}>
+                      {def.label}
+                    </span>
+                  ) : (
+                    <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-surface-3 text-[var(--color-text-muted)]">
+                      未分類
+                    </span>
+                  )}
+                  <span className="text-xs text-[var(--color-text-muted)]">{g.courses.length} 件</span>
+                </button>
+                {!isCollapsed && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {g.courses.map((c) => (
+                      <CourseCard
+                        key={c.id}
+                        course={c}
+                        canManage={canManage}
+                        onOpen={() => navigate(`/courses/${c.id}`)}
+                        onEdit={() => setEditTarget(c)}
+                        onDelete={() => setDeleteTargetId(c.id)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </section>
+            );
+          })}
         </div>
       )}
 
@@ -144,6 +246,34 @@ export default function CoursesListPage() {
   );
 }
 
+// カテゴリ絞り込みチップ。active 時はカテゴリ色(badgeClass)、それ以外は muted。
+function FilterChip({
+  label,
+  active,
+  activeClass,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  activeClass?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`text-xs font-medium px-3 py-1 rounded-full border transition-colors ${
+        active
+          ? (activeClass ?? 'bg-brand-500/15 text-brand-600 border-brand-500/30')
+          : 'bg-surface-1 text-[var(--color-text-muted)] border-surface-3 hover:bg-surface-2'
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
 function CourseCard({
   course,
   canManage,
@@ -157,8 +287,8 @@ function CourseCard({
   onEdit: () => void;
   onDelete: () => void;
 }) {
-  // 「色＝学習領域」の連想(FRESTYLE-67)。左の色帯 + カテゴリ名バッジで表現し、
-  // 色のみに依存しない(未分類は無色 = 従来表示)。
+  // 「色＝学習領域」の連想(FRESTYLE-67)。カードは左の色帯のみで表現し、
+  // カテゴリ名ラベルはセクション見出しが担う(同一セクション内での繰り返しを避ける。FRESTYLE-68)。
   const category = findCourseCategory(course.category);
   return (
     <div
@@ -206,16 +336,9 @@ function CourseCard({
           </div>
         )}
       </div>
-      <div className="flex items-center gap-2 mb-3">
-        {category && (
-          <span className={`text-[11px] px-2 py-0.5 rounded-full flex-shrink-0 ${category.badgeClass}`}>
-            {category.label}
-          </span>
-        )}
-        <p className="text-xs text-[var(--color-text-muted)]">
-          {course.isPublished ? '公開中' : '下書き'} ・ 更新 {formatDate(course.updatedAt)}
-        </p>
-      </div>
+      <p className="text-xs text-[var(--color-text-muted)] mb-3">
+        {course.isPublished ? '公開中' : '下書き'} ・ 更新 {formatDate(course.updatedAt)}
+      </p>
       <p className="text-sm text-[var(--color-text-secondary)] line-clamp-3 min-h-[3.6em]">
         {course.description || 'コース説明が未設定です'}
       </p>

@@ -65,7 +65,7 @@ describe('ExerciseListPage', () => {
     expect(screen.getByText(/正答ユーザ 10/)).toBeInTheDocument();
   });
 
-  it('未着手のカードには未着手バッジが付く', async () => {
+  it('未着手のカードには状態バッジを表示しない', async () => {
     mockListExercises.mockResolvedValue({
       items: [{
         id: 2, slug: 'php-2', language: 'php', orderIndex: 2, category: '基礎',
@@ -79,7 +79,8 @@ describe('ExerciseListPage', () => {
     });
     renderPage();
     await waitFor(() => expect(screen.getByText('変数')).toBeInTheDocument());
-    expect(screen.getByText('未着手')).toBeInTheDocument();
+    // 未着手はデフォルト状態なのでバッジを出さない(視覚ノイズ削減 / FRESTYLE-64)。
+    expect(screen.queryByText('未着手')).not.toBeInTheDocument();
   });
 
   it('カードクリックで /code-editor/:slug へのリンクを描画する', async () => {

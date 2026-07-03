@@ -32,7 +32,7 @@ describe('NoteMarkdownEditor', () => {
 
   it('Preview タブをクリックすると Markdown レンダリングが表示される', () => {
     renderEditor();
-    fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
+    fireEvent.click(screen.getByRole('button', { name: 'プレビュー' }));
     // Markdown の見出しがレンダリングされ、 textarea は消える
     expect(screen.getByRole('heading', { name: '見出し' })).toBeInTheDocument();
     expect(document.querySelector('textarea')).toBeNull();
@@ -40,8 +40,8 @@ describe('NoteMarkdownEditor', () => {
 
   it('Edit タブに戻ると textarea が再表示される', () => {
     renderEditor();
-    fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    fireEvent.click(screen.getByRole('button', { name: 'プレビュー' }));
+    fireEvent.click(screen.getByRole('button', { name: '編集' }));
     expect(getMarkdownTextarea().value).toBe('# 見出し\n\n本文');
   });
 
@@ -54,7 +54,7 @@ describe('NoteMarkdownEditor', () => {
 
   it('空コンテンツの Preview は案内文を出す', () => {
     renderEditor({ content: '   ' });
-    fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
+    fireEvent.click(screen.getByRole('button', { name: 'プレビュー' }));
     expect(screen.getByText('プレビューするコンテンツがありません')).toBeInTheDocument();
   });
 

@@ -109,8 +109,18 @@ describe('NoteListItem', () => {
     expect(screen.getByText(/約\d+分/)).toBeInTheDocument();
   });
 
-  it('空の内容では読了時間が約0分と表示される', () => {
+  it('空の内容では読了時間を表示しない', () => {
     render(<NoteListItem {...defaultProps} content="" />);
-    expect(screen.getByText('約0分')).toBeInTheDocument();
+    expect(screen.queryByText(/約\d+分/)).not.toBeInTheDocument();
+  });
+
+  it('空の内容では「本文なし」プレースホルダを表示する', () => {
+    render(<NoteListItem {...defaultProps} content="" />);
+    expect(screen.getByText('本文なし')).toBeInTheDocument();
+  });
+
+  it('本文がある場合は「本文なし」を表示しない', () => {
+    render(<NoteListItem {...defaultProps} content="テスト内容" />);
+    expect(screen.queryByText('本文なし')).not.toBeInTheDocument();
   });
 });

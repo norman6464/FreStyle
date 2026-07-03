@@ -111,8 +111,8 @@ describe('NotesPage', () => {
     render(<NotesPage />);
     expect(screen.getByDisplayValue('選択ノート')).toBeInTheDocument();
     // Edit / Preview タブが表示されることを確認（旧 block-editor から markdown editor へ）
-    expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Preview' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '編集' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'プレビュー' })).toBeInTheDocument();
   });
 
   it('新しいノートボタンでcreateNoteが呼ばれる', async () => {

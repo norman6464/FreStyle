@@ -65,13 +65,23 @@ export default memo(function NoteListItem({
             {isPinned && <PinIcon className="w-3.5 h-3.5 inline mr-1 text-taupe-500" />}
             {displayTitle}
           </p>
-          {preview && (
+          {preview ? (
             <p className="text-xs text-[var(--color-text-muted)] truncate mt-0.5">
               {preview}
             </p>
+          ) : (
+            <p className="text-xs text-[var(--color-text-faint)] truncate mt-0.5">
+              本文なし
+            </p>
           )}
           <p className="text-[11px] text-[var(--color-text-faint)] mt-1">
-            {dateStr} · <ReadingTime charCount={stats.charCount} />
+            {dateStr}
+            {stats.charCount > 0 && (
+              <>
+                {' · '}
+                <ReadingTime charCount={stats.charCount} />
+              </>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-0.5">

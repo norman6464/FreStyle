@@ -47,5 +47,19 @@
 ## DB への反映
 
 - 列追加は GORM AutoMigrate が ECS 起動時に自動適用（破壊なし）
-- 既存コースへのカテゴリ割当は UPDATE SQL を `make apply-migration-supabase` で適用する
+- 既存 22 コースへのカテゴリ割当は
+  [`backend/migrations/0007_course_categories_backfill.sql`](../backend/migrations/0007_course_categories_backfill.sql)
+  を `make apply-migration-supabase` で適用済（2026-07-03）
 - 教材リポ（frestyle-teaching-materials）の `course.yaml` にも `category` を追記して正本の整合を保つ
+
+### 既存コースの割当
+
+| カテゴリ | コース id |
+|---|---|
+| dev-basics | 1, 2, 3, 4 |
+| backend | 5, 6, 15, 16, 18, 22 |
+| architecture | 7, 8, 9, 14, 21 |
+| database | 10 |
+| product | 11, 12 |
+| infra | 13, 17, 19 |
+| security | 20 |

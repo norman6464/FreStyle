@@ -254,3 +254,15 @@ describe('findCourseCategory', () => {
     expect(new Set(keys).size).toBe(keys.length);
   });
 });
+
+describe('API が null を返す場合の防御 (FRESTYLE-70)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('コース一覧 API が null でもクラッシュせず EmptyState を表示する', async () => {
+    mockList.mockResolvedValue(null as unknown as Course[]);
+    renderPage();
+    await waitFor(() => expect(screen.getByText('コースがありません')).toBeInTheDocument());
+  });
+});

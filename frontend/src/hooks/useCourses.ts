@@ -21,7 +21,8 @@ export function useCourses() {
     setError(null);
     try {
       const rows = await CourseRepository.list();
-      setCourses(rows);
+      // backend が 0 件時に null を返す事故に備えた防御(FRESTYLE-70)。
+      setCourses(rows ?? []);
     } catch {
       setError('コースの取得に失敗しました');
     } finally {

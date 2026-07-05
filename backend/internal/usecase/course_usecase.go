@@ -27,7 +27,16 @@ func (uc *CourseUseCase) List(ctx context.Context, actorCompanyID uint64, actorR
 		return []domain.Course{}, nil
 	}
 	includeUnpublished := canManage(actorRole)
-	return uc.courses.ListByCompany(ctx, actorCompanyID, includeUnpublished)
+	rows, err := uc.courses.ListByCompany(ctx, actorCompanyID, includeUnpublished)
+	if err != nil {
+		return nil, err
+	}
+	// GORM の Find は 0 件時に nil スライスを返し、JSON では null になって
+	// フロントがクラッシュするため空スライスへ正規化する(FRESTYLE-70)。
+	if rows == nil {
+		rows = []domain.Course{}
+	}
+	return rows, nil
 }
 
 func (uc *CourseUseCase) Get(ctx context.Context, id, actorCompanyID uint64, actorRole string) (*domain.Course, error) {

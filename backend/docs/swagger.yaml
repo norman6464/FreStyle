@@ -467,7 +467,9 @@ definitions:
         description: ActiveToday は今日(UTC)学習活動があった trainee 数。
         type: integer
       recentMembers:
-        description: RecentMembers は最終活動日の新しい順の直近アクティブメンバー(最大 5 名。活動が無い trainee は含めない)。
+        description: |-
+          RecentMembers は最終活動日の新しい順の直近アクティブメンバー
+          (直近 7 日間に活動があるメンバーのみ、最大 5 名)。
         items:
           $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase.MemberLearningSummaryItem'
         type: array

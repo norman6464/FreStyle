@@ -4572,7 +4572,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "recentMembers": {
-                    "description": "RecentMembers は最終活動日の新しい順の直近アクティブメンバー(最大 5 名。活動が無い trainee は含めない)。",
+                    "description": "RecentMembers は最終活動日の新しい順の直近アクティブメンバー\n(直近 7 日間に活動があるメンバーのみ、最大 5 名)。",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase.MemberLearningSummaryItem"

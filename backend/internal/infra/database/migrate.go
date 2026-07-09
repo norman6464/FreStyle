@@ -30,6 +30,9 @@ func allDomainModels() []any {
 		&domain.LearningReport{},
 		&domain.AuditEvent{},
 		&domain.UserLessonProgress{},
+		// user_chapter_views の実テーブルは migration 0005 で作成済。ここに載せるのは
+		// 結合テスト DB のスキーマ構築のため(タグは 0005 と一致させ、本番では no-op)。
+		&domain.UserChapterView{},
 	}
 }
 

@@ -10,7 +10,9 @@ type UserChapterView struct {
 	CourseID           uint64    `gorm:"column:course_id"                       json:"courseId"`
 	FirstViewedAt      time.Time `gorm:"column:first_viewed_at"                 json:"firstViewedAt"`
 	LastViewedAt       time.Time `gorm:"column:last_viewed_at"                  json:"lastViewedAt"`
-	ViewCount          int       `gorm:"column:view_count;default:1"            json:"viewCount"`
+	// type:integer は migration 0005 の実テーブル定義に合わせるための明示
+	// (省略すると AutoMigrate が bigint への ALTER を発行してしまう)。
+	ViewCount int `gorm:"column:view_count;default:1;type:integer" json:"viewCount"`
 }
 
 func (UserChapterView) TableName() string { return "user_chapter_views" }

@@ -10,11 +10,12 @@ import CourseRepository from '../../repositories/CourseRepository';
 import TeachingMaterialRepository from '../../repositories/TeachingMaterialRepository';
 import LessonProgressRepository from '../../repositories/LessonProgressRepository';
 import DashboardRepository from '../../repositories/DashboardRepository';
-import type { Course, TeachingMaterial, UserChapterView } from '../../types';
+import type { Course, CourseWithProgress, TeachingMaterial, UserChapterView } from '../../types';
 
 vi.mock('../../repositories/CourseRepository', () => ({
   default: {
     get: vi.fn(),
+    list: vi.fn(),
     listMaterials: vi.fn(),
     lastViewed: vi.fn(),
   },
@@ -45,6 +46,7 @@ vi.mock('../../repositories/DashboardRepository', () => ({
 }));
 
 const mockGetCourse = vi.mocked(CourseRepository.get);
+const mockCourseList = vi.mocked(CourseRepository.list);
 const mockListMaterials = vi.mocked(CourseRepository.listMaterials);
 const mockLastViewed = vi.mocked(CourseRepository.lastViewed);
 const mockGetMaterial = vi.mocked(TeachingMaterialRepository.get);
@@ -64,6 +66,17 @@ function course(): Course {
     isPublished: true,
     createdAt: '2026-07-01T00:00:00Z',
     updatedAt: '2026-07-01T00:00:00Z',
+  };
+}
+
+function listedCourse(id: number, title: string): CourseWithProgress {
+  return {
+    ...course(),
+    id,
+    title,
+    sortOrder: id * 10,
+    materialCount: 5,
+    completedCount: 0,
   };
 }
 
@@ -117,6 +130,7 @@ describe('CourseDetailPage 続きから表示 + 完了トグル (FRESTYLE-99 / F
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetCourse.mockResolvedValue(course());
+    mockCourseList.mockResolvedValue([listedCourse(5, 'Git 入門'), listedCourse(6, 'Docker 入門')]);
     mockListMaterials.mockResolvedValue([material(11), material(12)]);
     mockLastViewed.mockResolvedValue(view(12));
     mockGetMaterial.mockImplementation(async (id: number) => material(id, '本文テキスト'));
@@ -183,6 +197,42 @@ describe('CourseDetailPage 続きから表示 + 完了トグル (FRESTYLE-99 / F
       expect(screen.getByRole('heading', { level: 1, name: '章 12' })).toBeInTheDocument(),
     );
     await waitFor(() => expect(mockRecordView).toHaveBeenCalledWith(12));
+  });
+
+  it('最終章の末尾に「次のコースへ」が表示され、クリックで次のコースへ遷移する (FRESTYLE-102)', async () => {
+    // lastViewed = 章 12(最終章)。次の章が無いので「次のコースへ」が出る。
+    renderPage('trainee');
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { level: 1, name: '章 12' })).toBeInTheDocument(),
+    );
+    expect(screen.queryByRole('button', { name: /次の章へ/ })).not.toBeInTheDocument();
+    const nextCourseBtn = screen.getByRole('button', { name: /次のコースへ: Docker 入門/ });
+    expect(nextCourseBtn).toBeInTheDocument();
+
+    fireEvent.click(nextCourseBtn);
+    // /courses/6 へ遷移し、次のコースのデータ取得が始まる。
+    await waitFor(() => expect(mockGetCourse).toHaveBeenCalledWith(6));
+    await waitFor(() => expect(mockListMaterials).toHaveBeenCalledWith(6));
+  });
+
+  it('最終章以外では「次の章へ」が出て「次のコースへ」は出ない', async () => {
+    mockLastViewed.mockResolvedValue(view(11));
+    renderPage('trainee');
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { level: 1, name: '章 11' })).toBeInTheDocument(),
+    );
+    expect(screen.getByRole('button', { name: /次の章へ/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /次のコースへ/ })).not.toBeInTheDocument();
+  });
+
+  it('並び順で最後のコースでは最終章でも「次のコースへ」を出さない', async () => {
+    mockCourseList.mockResolvedValue([listedCourse(4, 'Linux'), listedCourse(5, 'Git 入門')]);
+    renderPage('trainee'); // lastViewed = 章 12(最終章)
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { level: 1, name: '章 12' })).toBeInTheDocument(),
+    );
+    expect(screen.queryByRole('button', { name: /次のコースへ/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /次の章へ/ })).not.toBeInTheDocument();
   });
 
   it('本文の取得に失敗したらエラーメッセージを表示する', async () => {

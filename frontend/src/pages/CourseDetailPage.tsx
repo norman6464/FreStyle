@@ -21,6 +21,7 @@ import MarkdownTableOfContents from '../components/MarkdownTableOfContents';
 import { useTeachingMaterials } from '../hooks/useTeachingMaterials';
 import { useTeachingMaterialEditor } from '../hooks/useTeachingMaterialEditor';
 import { useChapterResume } from '../hooks/useChapterResume';
+import { useNextCourse } from '../hooks/useNextCourse';
 import { useLessonProgress } from '../hooks/useLessonProgress';
 import { useMobilePanelState } from '../hooks/useMobilePanelState';
 import { useLocalStorage } from '../hooks/useLocalStorage';
@@ -29,7 +30,7 @@ import CourseRepository from '../repositories/CourseRepository';
 import DashboardRepository from '../repositories/DashboardRepository';
 import ImageUploadRepository from '../repositories/ImageUploadRepository';
 import type { RootState } from '../store';
-import type { Course, TeachingMaterial } from '../types';
+import type { Course, CourseWithProgress, TeachingMaterial } from '../types';
 
 /**
  * CourseDetailPage — `/courses/:id` 配下の教材一覧 + 編集ページ。
@@ -72,6 +73,9 @@ export default function CourseDetailPage() {
 
   // 受講者がコースを開いたら「最後に閲覧した章(無ければ先頭)」を自動表示する(FRESTYLE-99)。
   useChapterResume({ enabled: !canManage, courseId, materials, loading, selectedId, selectMaterial });
+
+  // 最終章の末尾から一覧に戻らず次のコースへ直行できるようにする(FRESTYLE-102)。
+  const { nextCourse } = useNextCourse(courseId, !canManage);
 
   // 章を表示したら閲覧を記録する(受講者のみ・ベストエフォート)。
   // レジュームとダッシュボード「続きから」の基盤データになる。
@@ -269,6 +273,8 @@ export default function CourseDetailPage() {
               onToggleComplete={(done) => handleToggleComplete(selected.id, done)}
               nextMaterial={nextMaterial}
               onGoNext={nextMaterial ? () => selectMaterial(nextMaterial.id) : undefined}
+              nextCourse={nextCourse}
+              onGoNextCourse={nextCourse ? () => navigate(`/courses/${nextCourse.id}`) : undefined}
             />
           )
         ) : (
@@ -387,12 +393,16 @@ function ReadOnlyDetail({
   onToggleComplete,
   nextMaterial,
   onGoNext,
+  nextCourse,
+  onGoNextCourse,
 }: {
   material: TeachingMaterial;
   completed: boolean;
   onToggleComplete: (done: boolean) => void;
   nextMaterial?: TeachingMaterial | null;
   onGoNext?: () => void;
+  nextCourse?: CourseWithProgress | null;
+  onGoNextCourse?: () => void;
 }) {
   // 目次の表示状態は localStorage に保持し、 教材を切り替えても選択が続くようにする（既定は表示）。
   // 横幅が狭いときに本文幅を稼げるよう trainee が出し入れできる。
@@ -447,10 +457,12 @@ function ReadOnlyDetail({
             <ReadOnlyMarkdown content={material.content} />
           </div>
 
-          {/* 末尾に「完了にする」と「次の章へ」を並べ、 読み終えた位置から次へ進めるようにする。 */}
+          {/* 末尾に「完了にする」と「次の章へ」を並べ、 読み終えた位置から次へ進めるようにする。
+              最終章では代わりに「次のコースへ」を出し、 一覧に戻らず次のコースへ直行できるようにする
+              (FRESTYLE-102。 遷移先はレジュームにより 1 章目が自動表示される)。 */}
           <div className="mt-10 pt-6 border-t border-surface-3 flex flex-col sm:flex-row items-center justify-center gap-3">
             <CompleteToggleButton completed={completed} onToggle={onToggleComplete} large />
-            {nextMaterial && onGoNext && (
+            {nextMaterial && onGoNext ? (
               <button
                 type="button"
                 onClick={onGoNext}
@@ -460,7 +472,17 @@ function ReadOnlyDetail({
                 <span className="truncate">次の章へ: {nextMaterial.title || '無題の教材'}</span>
                 <ArrowRightIcon className="w-4 h-4 flex-shrink-0" />
               </button>
-            )}
+            ) : nextCourse && onGoNextCourse ? (
+              <button
+                type="button"
+                onClick={onGoNextCourse}
+                title={`次のコースへ: ${nextCourse.title || '無題のコース'}`}
+                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium bg-surface-2 border border-surface-3 text-[var(--color-text-primary)] hover:bg-surface-3 transition-colors max-w-full"
+              >
+                <span className="truncate">次のコースへ: {nextCourse.title || '無題のコース'}</span>
+                <ArrowRightIcon className="w-4 h-4 flex-shrink-0" />
+              </button>
+            ) : null}
           </div>
         </article>
 

@@ -11,9 +11,11 @@ import (
 func registerCourseRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	courseRepo := persistence.NewCourseRepository(deps.db)
 	materialRepo := persistence.NewTeachingMaterialRepository(deps.db)
+	progressRepo := persistence.NewLessonProgressRepository(deps.db)
 
 	courseUC := usecase.NewCourseUseCase(courseRepo, materialRepo)
-	courseHandler := NewCourseHandler(courseUC)
+	listWithProgressUC := usecase.NewListCoursesWithProgressUseCase(courseRepo, materialRepo, progressRepo)
+	courseHandler := NewCourseHandler(courseUC, listWithProgressUC)
 
 	materialUC := usecase.NewTeachingMaterialUseCase(materialRepo, courseRepo)
 	materialHandler := NewTeachingMaterialHandler(materialUC)

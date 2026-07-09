@@ -8,11 +8,12 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// CourseUseCase はコースの list / get / create / update / delete を 1 構造体で扱う。
+// CourseUseCase はコースの get / create / update / delete を 1 構造体で扱う。
 // canManage は teaching_material_usecase と共有。trainee は published のみ閲覧、
 // 編集系は同一 company の company_admin または super_admin。Delete は配下教材も cascade 削除。
+// 一覧は進捗集計を伴うため ListCoursesWithProgressUseCase が担う(FRESTYLE-98)。
 //
-//naminglint:allow 複数 CRUD を束ねる集約 usecase のため Execute 単一メソッドではなく List/Get/Create 等で公開する
+//naminglint:allow 複数 CRUD を束ねる集約 usecase のため Execute 単一メソッドではなく Get/Create 等で公開する
 type CourseUseCase struct {
 	courses   repository.CourseRepository
 	materials repository.TeachingMaterialRepository
@@ -20,23 +21,6 @@ type CourseUseCase struct {
 
 func NewCourseUseCase(courses repository.CourseRepository, materials repository.TeachingMaterialRepository) *CourseUseCase {
 	return &CourseUseCase{courses: courses, materials: materials}
-}
-
-func (uc *CourseUseCase) List(ctx context.Context, actorCompanyID uint64, actorRole string) ([]domain.Course, error) {
-	if actorCompanyID == 0 {
-		return []domain.Course{}, nil
-	}
-	includeUnpublished := canManage(actorRole)
-	rows, err := uc.courses.ListByCompany(ctx, actorCompanyID, includeUnpublished)
-	if err != nil {
-		return nil, err
-	}
-	// GORM の Find は 0 件時に nil スライスを返し、JSON では null になって
-	// フロントがクラッシュするため空スライスへ正規化する(FRESTYLE-70)。
-	if rows == nil {
-		rows = []domain.Course{}
-	}
-	return rows, nil
 }
 
 func (uc *CourseUseCase) Get(ctx context.Context, id, actorCompanyID uint64, actorRole string) (*domain.Course, error) {

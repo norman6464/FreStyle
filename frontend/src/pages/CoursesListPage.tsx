@@ -11,11 +11,12 @@ import EmptyState from '../components/EmptyState';
 import FaviconIcon from '../components/icons/FaviconIcon';
 import Loading from '../components/Loading';
 import ConfirmModal from '../components/ConfirmModal';
+import CourseProgressBar from '../components/CourseProgressBar';
 import { useCourses } from '../hooks/useCourses';
 import { useToast } from '../hooks/useToast';
 import { COURSE_CATEGORIES, findCourseCategory } from '../constants/courseCategories';
 import type { RootState } from '../store';
-import type { Course } from '../types';
+import type { Course, CourseWithProgress } from '../types';
 
 /** 未分類('')や未知の値を未分類バケットの key('') に正規化する。 */
 function normalizeCategoryKey(category: string): string {
@@ -281,7 +282,7 @@ function CourseCard({
   onEdit,
   onDelete,
 }: {
-  course: Course;
+  course: CourseWithProgress;
   canManage: boolean;
   onOpen: () => void;
   onEdit: () => void;
@@ -342,6 +343,12 @@ function CourseCard({
       <p className="text-sm text-[var(--color-text-secondary)] line-clamp-3 min-h-[3.6em]">
         {course.description || 'コース説明が未設定です'}
       </p>
+      {/* 受講者のみ進捗を表示(FRESTYLE-98)。0 章のコースはバーを出さない。 */}
+      {!canManage && course.materialCount > 0 && (
+        <div className="mt-3">
+          <CourseProgressBar completed={course.completedCount} total={course.materialCount} />
+        </div>
+      )}
     </div>
   );
 }

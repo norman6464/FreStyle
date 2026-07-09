@@ -2098,11 +2098,11 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "current user の role / company で 自動 フィルタ。 trainee は published のみ、 admin 系 は draft 含む。",
+                "description": "current user の role / company で 自動 フィルタ。 trainee は published のみ、 admin 系 は draft 含む。 各コース に 章数 materialCount と 自身 の 完了 章数 completedCount を 付与 して 返す。",
                 "tags": [
                     "courses"
                 ],
-                "summary": "コース 一覧",
+                "summary": "コース 一覧 (進捗付き)",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -2111,7 +2111,7 @@
                                 "schema": {
                                     "type": "array",
                                     "items": {
-                                        "$ref": "#/components/schemas/github_com_norman6464_FreStyle_backend_internal_domain.Course"
+                                        "$ref": "#/components/schemas/github_com_norman6464_FreStyle_backend_internal_usecase.CourseWithProgress"
                                     }
                                 }
                             }
@@ -5388,6 +5388,49 @@
                     },
                     "traineeCount": {
                         "type": "integer"
+                    }
+                }
+            },
+            "github_com_norman6464_FreStyle_backend_internal_usecase.CourseWithProgress": {
+                "type": "object",
+                "properties": {
+                    "category": {
+                        "type": "string"
+                    },
+                    "companyId": {
+                        "type": "integer"
+                    },
+                    "completedCount": {
+                        "description": "CompletedCount は actor 自身が完了した章数(現存する published 章のみ。常に MaterialCount 以下)。",
+                        "type": "integer"
+                    },
+                    "createdAt": {
+                        "type": "string"
+                    },
+                    "createdByUserId": {
+                        "type": "integer"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "integer"
+                    },
+                    "isPublished": {
+                        "type": "boolean"
+                    },
+                    "materialCount": {
+                        "description": "MaterialCount はコース内の章数。trainee は published のみ、admin 系は下書き込み。",
+                        "type": "integer"
+                    },
+                    "sortOrder": {
+                        "type": "integer"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "updatedAt": {
+                        "type": "string"
                     }
                 }
             },

@@ -8,7 +8,7 @@ import { ToastProvider } from '../../components/ToastProvider';
 import authReducer from '../../store/authSlice';
 import CourseRepository from '../../repositories/CourseRepository';
 import { COURSE_CATEGORIES, findCourseCategory } from '../../constants/courseCategories';
-import type { Course } from '../../types';
+import type { CourseWithProgress } from '../../types';
 
 vi.mock('../../repositories/CourseRepository', () => ({
   default: {
@@ -21,7 +21,7 @@ vi.mock('../../repositories/CourseRepository', () => ({
 
 const mockList = vi.mocked(CourseRepository.list);
 
-function makeCourse(overrides: Partial<Course> = {}): Course {
+function makeCourse(overrides: Partial<CourseWithProgress> = {}): CourseWithProgress {
   return {
     id: 1,
     companyId: 10,
@@ -31,6 +31,8 @@ function makeCourse(overrides: Partial<Course> = {}): Course {
     category: 'database',
     sortOrder: 100,
     isPublished: true,
+    materialCount: 8,
+    completedCount: 0,
     createdAt: '2026-07-01T00:00:00Z',
     updatedAt: '2026-07-01T00:00:00Z',
     ...overrides,
@@ -261,8 +263,50 @@ describe('API が null を返す場合の防御 (FRESTYLE-70)', () => {
   });
 
   it('コース一覧 API が null でもクラッシュせず EmptyState を表示する', async () => {
-    mockList.mockResolvedValue(null as unknown as Course[]);
+    mockList.mockResolvedValue(null as unknown as CourseWithProgress[]);
     renderPage();
     await waitFor(() => expect(screen.getByText('コースがありません')).toBeInTheDocument());
+  });
+});
+
+describe('CoursesListPage カード進捗表示 (FRESTYLE-98)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('受講者のカードに完了章数/全章数と進捗バーが表示される', async () => {
+    mockList.mockResolvedValue([makeCourse({ id: 1, materialCount: 8, completedCount: 2 })]);
+    renderPage('trainee');
+    await waitFor(() => expect(screen.getByText('2/8（25%）')).toBeInTheDocument());
+    expect(screen.getByRole('progressbar', { name: '学習の進捗' })).toHaveAttribute(
+      'aria-valuenow',
+      '25',
+    );
+  });
+
+  it('完了記録が無いコースは 0/N と表示される', async () => {
+    mockList.mockResolvedValue([makeCourse({ id: 1, materialCount: 8, completedCount: 0 })]);
+    renderPage('trainee');
+    await waitFor(() => expect(screen.getByText('0/8（0%）')).toBeInTheDocument());
+  });
+
+  it('管理ロールには進捗バーを表示しない', async () => {
+    mockList.mockResolvedValue([makeCourse({ id: 1, materialCount: 8, completedCount: 3 })]);
+    renderPage('company_admin');
+    await waitFor(() => expect(screen.getByText('PostgreSQL 徹底入門')).toBeInTheDocument());
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+  });
+
+  it('章が 0 件のコースには進捗バーを出さない', async () => {
+    mockList.mockResolvedValue([makeCourse({ id: 1, materialCount: 0 })]);
+    renderPage('trainee');
+    await waitFor(() => expect(screen.getByText('PostgreSQL 徹底入門')).toBeInTheDocument());
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+  });
+
+  it('全章完了は 100% と表示される', async () => {
+    mockList.mockResolvedValue([makeCourse({ id: 1, materialCount: 5, completedCount: 5 })]);
+    renderPage('trainee');
+    await waitFor(() => expect(screen.getByText('5/5（100%）')).toBeInTheDocument());
   });
 });

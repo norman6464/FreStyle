@@ -554,6 +554,17 @@ export interface Course {
 }
 
 /**
+ * CourseWithProgress はコース一覧 API (`GET /api/v2/courses`) の要素。
+ * backend `usecase.CourseWithProgress` と 1:1(Course に章数と完了章数を合成したフラット JSON)。
+ */
+export interface CourseWithProgress extends Course {
+  /** コース内の教材(章)数。trainee は published のみ、admin 系は下書き込み。 */
+  materialCount: number;
+  /** current user が完了した章数(現存する published 章のみ。常に materialCount 以下)。 */
+  completedCount: number;
+}
+
+/**
  * TeachingMaterial は Go backend `domain.TeachingMaterial` と 1:1。
  * 必ず 1 つの Course に所属する Markdown 教材。
  *

@@ -50,13 +50,20 @@ func (fakeMaterialRepo) ListByCourse(context.Context, uint64, bool) ([]domain.Te
 func (fakeMaterialRepo) GetByID(context.Context, uint64) (*domain.TeachingMaterial, error) {
 	return nil, nil
 }
+
+func (fakeMaterialRepo) CountByCourseForCompany(context.Context, uint64, bool) (map[uint64]int, error) {
+	return map[uint64]int{}, nil
+}
 func (fakeMaterialRepo) Create(context.Context, *domain.TeachingMaterial) error { return nil }
 func (fakeMaterialRepo) Update(context.Context, *domain.TeachingMaterial) error { return nil }
 func (fakeMaterialRepo) Delete(context.Context, uint64) error                   { return nil }
 func (fakeMaterialRepo) DeleteByCourse(context.Context, uint64) error           { return nil }
 
 func newCourseHandler(cr repository.CourseRepository) *CourseHandler {
-	return NewCourseHandler(usecase.NewCourseUseCase(cr, fakeMaterialRepo{}))
+	return NewCourseHandler(
+		usecase.NewCourseUseCase(cr, fakeMaterialRepo{}),
+		usecase.NewListCoursesWithProgressUseCase(cr, fakeMaterialRepo{}, &fakeProgressRepoH{}),
+	)
 }
 
 // superAdminCo は company_id 付きの super_admin（course handler の actorContext 用）。

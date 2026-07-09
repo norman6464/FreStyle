@@ -10,28 +10,33 @@ import (
 
 // CourseHandler はコースの CRUD API を扱う。
 type CourseHandler struct {
-	uc *usecase.CourseUseCase
+	uc               *usecase.CourseUseCase
+	listWithProgress *usecase.ListCoursesWithProgressUseCase
 }
 
-func NewCourseHandler(uc *usecase.CourseUseCase) *CourseHandler {
-	return &CourseHandler{uc: uc}
+func NewCourseHandler(uc *usecase.CourseUseCase, listWithProgress *usecase.ListCoursesWithProgressUseCase) *CourseHandler {
+	return &CourseHandler{uc: uc, listWithProgress: listWithProgress}
 }
 
-// @Summary      コース 一覧
-// @Description  current user の role / company で 自動 フィルタ。 trainee は published のみ、 admin 系 は draft 含む。
+// @Summary      コース 一覧 (進捗付き)
+// @Description  current user の role / company で 自動 フィルタ。 trainee は published のみ、 admin 系 は draft 含む。 各コース に 章数 materialCount と 自身 の 完了 章数 completedCount を 付与 して 返す。
 // @Tags         courses
 // @Produce      json
-// @Success      200  {array}   github_com_norman6464_FreStyle_backend_internal_domain.Course
+// @Success      200  {array}   usecase.CourseWithProgress
 // @Failure      401  {object}  errorResponse  "未 認証"
 // @Failure      500  {object}  errorResponse  "DB 失敗"
 // @Router       /courses [get]
 // @Security     CookieAuth
 func (h *CourseHandler) List(c *gin.Context) {
-	_, companyID, role, ok := actorFromContext(c)
+	uid, companyID, role, ok := actorFromContext(c)
 	if !ok {
 		return
 	}
-	rows, err := h.uc.List(c.Request.Context(), companyID, role)
+	rows, err := h.listWithProgress.Execute(c.Request.Context(), usecase.ListCoursesWithProgressInput{
+		ActorUserID:    uid,
+		ActorCompanyID: companyID,
+		ActorRole:      role,
+	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "コースの取得に失敗しました"})
 		return

@@ -75,4 +75,17 @@ describe('useNextCourse', () => {
     await waitFor(() => expect(mockList).toHaveBeenCalled());
     expect(result.current.nextCourse).toBeNull();
   });
+
+  it('コース切替の再取得中は前回の値を残さない(即クリア)', async () => {
+    mockList.mockResolvedValueOnce([course(7, 'A'), course(8, 'B')]);
+    const { result, rerender } = renderHook(({ id }: { id: number }) => useNextCourse(id, true), {
+      initialProps: { id: 7 },
+    });
+    await waitFor(() => expect(result.current.nextCourse?.id).toBe(8));
+
+    // 2 回目の取得は解決させないままにして、切替直後の状態を観察する。
+    mockList.mockReturnValue(new Promise(() => {}));
+    rerender({ id: 8 });
+    expect(result.current.nextCourse).toBeNull();
+  });
 });

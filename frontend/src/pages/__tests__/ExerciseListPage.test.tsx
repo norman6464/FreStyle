@@ -1,8 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import ExerciseListPage from '../ExerciseListPage';
 import ExerciseRepository from '../../repositories/ExerciseRepository';
+import { createMockStorage } from '../../test/mockStorage';
 import { ExercisePage } from '../../types';
 
 vi.mock('../../repositories/ExerciseRepository', () => ({
@@ -123,6 +124,54 @@ describe('ExerciseListPage', () => {
       expect(screen.getByRole('button', { name: 'すべて' })).toHaveAttribute('aria-pressed', 'true'),
     );
     expect(screen.getByRole('button', { name: 'Docker' })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  describe('言語選択の localStorage 永続化 (FRESTYLE-101)', () => {
+    // jsdom 環境の localStorage は都度スタブする方針(src/test/mockStorage.ts)。
+    // スタブしないと getItem が使えず hook が常に既定値へフォールバックし、
+    // 「保存 → 復元」の経路がテストで一切実行されない。
+    beforeEach(() => {
+      vi.stubGlobal('localStorage', createMockStorage());
+    });
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('保存済みの言語で初期表示される', async () => {
+      window.localStorage.setItem('frestyle:exercise-list:language', 'go');
+      mockListExercises.mockResolvedValue(emptyPage);
+      renderPage();
+      await waitFor(() => expect(mockListExercises).toHaveBeenCalledWith('go', 0, 20));
+      expect(screen.getByRole('button', { name: 'Go' })).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    it('アクティブチップの再クリックで選んだ「すべて」も再マウント後に復元される', async () => {
+      window.localStorage.setItem('frestyle:exercise-list:language', 'docker');
+      mockListExercises.mockResolvedValue(emptyPage);
+      const { unmount } = renderPage();
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Docker' })).toHaveAttribute('aria-pressed', 'true'),
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Docker' })); // 再クリック → すべて('')
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'すべて' })).toHaveAttribute('aria-pressed', 'true'),
+      );
+
+      unmount();
+      renderPage();
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'すべて' })).toHaveAttribute('aria-pressed', 'true'),
+      );
+      expect(screen.getByRole('button', { name: 'Docker' })).toHaveAttribute('aria-pressed', 'false');
+    });
+
+    it('不正な保存値は既定の PHP にフォールバックする', async () => {
+      window.localStorage.setItem('frestyle:exercise-list:language', 'cobol');
+      mockListExercises.mockResolvedValue(emptyPage);
+      renderPage();
+      await waitFor(() => expect(mockListExercises).toHaveBeenCalledWith('php', 0, 20));
+      expect(screen.getByRole('button', { name: 'PHP' })).toHaveAttribute('aria-pressed', 'true');
+    });
   });
 
   it('カードクリックで /code-editor/:slug へのリンクを描画する', async () => {

@@ -3,6 +3,8 @@
 このディレクトリの **`settings.json` はリポジトリにコミットして共有する**チーム共通の Claude Code 設定です。
 個人ごとの上書きは **`settings.local.json`（`.gitignore` 済 / 共有されない）** に書きます。
 
+開発規約（クリーンアーキテクチャ規約 / PR・Jira フロー / テスト方針など）は **[`CLAUDE.md`](./CLAUDE.md)** にあり、こちらもコミットして共有します。本リポジトリは PUBLIC のため、CLAUDE.md には秘匿情報（接続情報・シークレット名等）を書かず、private リポ `frestyle-infrastructure` の docs を参照します。個人ローカルのメモはリポ直下の `CLAUDE.md`（`/CLAUDE.md` として gitignore 済）に置けます。
+
 ## 共有ポリシー（settings.json）
 
 人的ミス・暴走を防ぐため、`bypassPermissions`（全許可）は**共有設定では使いません**。allow / ask / deny で制御します。

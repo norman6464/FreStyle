@@ -1,12 +1,15 @@
 .env
-# Claude Code: チーム共有設定 (.claude/settings.json) はコミットする。
-# 個人用ローカル設定だけ除外する。
+# Claude Code: チーム共有設定 (.claude/settings.json) と規約 (.claude/CLAUDE.md) はコミットする。
+# 個人用ローカル設定・リポ直下の個人メモ用 CLAUDE.md だけ除外する。
 .claude/settings.local.json
-CLAUDE.md
+/CLAUDE.md
 
 infrastructure/
 
 frestyle-infrastructure/
+
+# ステージング環境の管理用プライベートリポ（FreStyle 配下に clone する運用、本リポの管理対象外）
+frestyle-staging/
 
 # PdM 用プライベートリポ（FreStyle 配下に clone する運用、本リポの管理対象外）
 frestyle-pdm/

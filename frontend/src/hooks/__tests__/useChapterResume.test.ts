@@ -148,4 +148,38 @@ describe('useChapterResume', () => {
     await new Promise((r) => setTimeout(r, 10));
     expect(mockLastViewed).not.toHaveBeenCalled();
   });
+
+  it('取得中に別コースへ切り替わったら前コースの応答では選択しない(stale ガード)', async () => {
+    let resolveCourse5: (v: UserChapterView | null) => void = () => {};
+    mockLastViewed.mockImplementationOnce(
+      () =>
+        new Promise<UserChapterView | null>((resolve) => {
+          resolveCourse5 = resolve;
+        }),
+    );
+    const selectMaterial = vi.fn();
+    const { rerender } = renderHook((p: Params) => useChapterResume(p), {
+      initialProps: baseParams({ selectMaterial }), // courseId=5
+    });
+    await waitFor(() => expect(mockLastViewed).toHaveBeenCalledWith(5));
+
+    // コース 6 へ遷移(選択リセット + 新コースの一覧ロード完了)。コース 6 の履歴は即 null。
+    mockLastViewed.mockResolvedValue(null);
+    rerender(
+      baseParams({
+        courseId: 6,
+        materials: [material(61, 6), material(62, 6)],
+        selectedId: null,
+        selectMaterial,
+      }),
+    );
+    await waitFor(() => expect(mockLastViewed).toHaveBeenCalledWith(6));
+
+    // 遅れて届いたコース 5 の応答はコース 6 の画面を上書きしない。
+    resolveCourse5(view(12, 5));
+    await new Promise((r) => setTimeout(r, 10));
+    expect(selectMaterial).not.toHaveBeenCalledWith(12);
+    // コース 6 側のレジューム(履歴なし → 先頭章)は正常に動く。
+    await waitFor(() => expect(selectMaterial).toHaveBeenCalledWith(61));
+  });
 });

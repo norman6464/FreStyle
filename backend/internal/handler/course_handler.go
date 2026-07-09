@@ -79,6 +79,8 @@ func (h *CourseHandler) Get(c *gin.Context) {
 	c.JSON(http.StatusOK, course)
 }
 
+// LastViewed は current user がコース内で最後に閲覧した章の閲覧記録を返す。
+//
 // @Summary      コース内の最終閲覧章
 // @Description  current user が この コース で 最後 に 閲覧 した 章 の 閲覧 記録 を 返す。 コース詳細 の 「続き から 表示」 用。 履歴 なし は 204。
 // @Tags         courses

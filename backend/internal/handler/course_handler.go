@@ -8,14 +8,19 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
 
-// CourseHandler はコースの CRUD API を扱う。
+// CourseHandler はコースの CRUD + 最終閲覧章 API を扱う。
 type CourseHandler struct {
 	uc               *usecase.CourseUseCase
 	listWithProgress *usecase.ListCoursesWithProgressUseCase
+	lastViewed       *usecase.GetLastViewedChapterUseCase
 }
 
-func NewCourseHandler(uc *usecase.CourseUseCase, listWithProgress *usecase.ListCoursesWithProgressUseCase) *CourseHandler {
-	return &CourseHandler{uc: uc, listWithProgress: listWithProgress}
+func NewCourseHandler(
+	uc *usecase.CourseUseCase,
+	listWithProgress *usecase.ListCoursesWithProgressUseCase,
+	lastViewed *usecase.GetLastViewedChapterUseCase,
+) *CourseHandler {
+	return &CourseHandler{uc: uc, listWithProgress: listWithProgress, lastViewed: lastViewed}
 }
 
 // @Summary      コース 一覧 (進捗付き)
@@ -72,6 +77,48 @@ func (h *CourseHandler) Get(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, course)
+}
+
+// LastViewed は current user がコース内で最後に閲覧した章の閲覧記録を返す。
+//
+// @Summary      コース内の最終閲覧章
+// @Description  current user が この コース で 最後 に 閲覧 した 章 の 閲覧 記録 を 返す。 コース詳細 の 「続き から 表示」 用。 履歴 なし は 204。
+// @Tags         courses
+// @Produce      json
+// @Param        id  path      int  true  "コース ID"
+// @Success      200  {object}  github_com_norman6464_FreStyle_backend_internal_domain.UserChapterView
+// @Success      204  "履歴 なし (本文 なし)"
+// @Failure      400  {object}  errorResponse  "id 不正"
+// @Failure      401  {object}  errorResponse  "未 認証"
+// @Failure      403  {object}  errorResponse  "閲覧 権限 なし"
+// @Failure      404  {object}  errorResponse  "コース が ない"
+// @Router       /courses/{id}/last-viewed [get]
+// @Security     CookieAuth
+func (h *CourseHandler) LastViewed(c *gin.Context) {
+	uid, companyID, role, ok := actorFromContext(c)
+	if !ok {
+		return
+	}
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	view, err := h.lastViewed.Execute(c.Request.Context(), usecase.GetLastViewedChapterInput{
+		UserID:         uid,
+		ActorCompanyID: companyID,
+		ActorRole:      role,
+		CourseID:       id,
+	})
+	if err != nil {
+		respondEntityErr(c, err, "コースが見つかりません", "閲覧履歴の取得に失敗しました")
+		return
+	}
+	if view == nil {
+		c.Status(http.StatusNoContent)
+		return
+	}
+	c.JSON(http.StatusOK, view)
 }
 
 type courseRequest struct {

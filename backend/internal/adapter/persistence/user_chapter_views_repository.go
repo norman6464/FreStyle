@@ -48,3 +48,24 @@ func (r *userChapterViewRepository) ListRecentByUser(
 		Find(&rows).Error
 	return rows, err
 }
+
+// GetLastViewedByUserAndCourse は (user, course) の閲覧記録から last_viewed_at 最大の 1 件を返す。
+// 履歴なしはエラーではなく (nil, nil)(「初めて開くコース」は正常系のため)。
+func (r *userChapterViewRepository) GetLastViewedByUserAndCourse(
+	ctx context.Context,
+	userID, courseID uint64,
+) (*domain.UserChapterView, error) {
+	var rows []domain.UserChapterView
+	err := r.db.WithContext(ctx).
+		Where("user_id = ? AND course_id = ?", userID, courseID).
+		Order("last_viewed_at DESC").
+		Limit(1).
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return nil, nil
+	}
+	return &rows[0], nil
+}

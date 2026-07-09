@@ -185,6 +185,8 @@ export const COURSES = {
   byId: (id: number | string) => `${API_V2}/courses/${id}`,
   /** GET /api/v2/courses/:id/materials — コース内教材一覧 */
   materials: (id: number | string) => `${API_V2}/courses/${id}/materials`,
+  /** GET /api/v2/courses/:id/last-viewed — コース内で最後に閲覧した章（履歴なしは 204）*/
+  lastViewed: (id: number | string) => `${API_V2}/courses/${id}/last-viewed`,
 } as const;
 
 /** 教材 個別 CRUD（コース配下）*/

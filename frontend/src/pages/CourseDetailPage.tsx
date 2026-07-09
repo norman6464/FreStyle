@@ -20,11 +20,13 @@ import NoteMarkdownEditor from '../components/NoteMarkdownEditor';
 import MarkdownTableOfContents from '../components/MarkdownTableOfContents';
 import { useTeachingMaterials } from '../hooks/useTeachingMaterials';
 import { useTeachingMaterialEditor } from '../hooks/useTeachingMaterialEditor';
+import { useChapterResume } from '../hooks/useChapterResume';
 import { useLessonProgress } from '../hooks/useLessonProgress';
 import { useMobilePanelState } from '../hooks/useMobilePanelState';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { useToast } from '../hooks/useToast';
 import CourseRepository from '../repositories/CourseRepository';
+import DashboardRepository from '../repositories/DashboardRepository';
 import ImageUploadRepository from '../repositories/ImageUploadRepository';
 import type { RootState } from '../store';
 import type { Course, TeachingMaterial } from '../types';
@@ -67,6 +69,16 @@ export default function CourseDetailPage() {
   } = useTeachingMaterials(courseId);
 
   const editor = useTeachingMaterialEditor({ selectedId, selected, update });
+
+  // 受講者がコースを開いたら「最後に閲覧した章(無ければ先頭)」を自動表示する(FRESTYLE-99)。
+  useChapterResume({ enabled: !canManage, courseId, materials, loading, selectedId, selectMaterial });
+
+  // 章を表示したら閲覧を記録する(受講者のみ・ベストエフォート)。
+  // レジュームとダッシュボード「続きから」の基盤データになる。
+  useEffect(() => {
+    if (canManage || selectedId == null) return;
+    DashboardRepository.recordChapterView(selectedId);
+  }, [canManage, selectedId]);
 
   // 進捗トラッキングは学習者（trainee）向け。 教材を管理するロールでは API を叩かない。
   const progress = useLessonProgress(!canManage);

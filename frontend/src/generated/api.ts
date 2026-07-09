@@ -671,6 +671,72 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/members/learning-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 自社メンバーの学習状況サマリー
+         * @description 在籍 trainee 数・今日/直近 7 日に学習した人数・直近アクティブメンバー(最大 5 名)を返す。company_admin / super_admin のみ。会社未所属は空サマリー。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_usecase.CompanyLearningSummaryOutput"];
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 管理者以外 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 内部エラー */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/members/{userId}": {
         parameters: {
             query?: never;
@@ -5068,6 +5134,16 @@ export interface components {
             title?: string;
             url?: string;
         };
+        "github_com_norman6464_FreStyle_backend_internal_usecase.CompanyLearningSummaryOutput": {
+            /** @description ActiveThisWeek は直近 7 日間(今日を含む)に学習活動があった trainee 数。 */
+            activeThisWeek?: number;
+            /** @description ActiveToday は今日(UTC)学習活動があった trainee 数。 */
+            activeToday?: number;
+            /** @description RecentMembers は最終活動日の新しい順の直近アクティブメンバー(最大 5 名。活動が無い trainee は含めない)。 */
+            recentMembers?: components["schemas"]["github_com_norman6464_FreStyle_backend_internal_usecase.MemberLearningSummaryItem"][];
+            /** @description TraineeCount は在籍 trainee 数(論理削除済みを除く)。 */
+            traineeCount?: number;
+        };
         "github_com_norman6464_FreStyle_backend_internal_usecase.CompanyStat": {
             activeMembers?: number;
             createdAt?: string;
@@ -5104,6 +5180,14 @@ export interface components {
             totalCorrect?: number;
             totalExercises?: number;
             totalLessons?: number;
+        };
+        "github_com_norman6464_FreStyle_backend_internal_usecase.MemberLearningSummaryItem": {
+            /** @description LastActiveDate は最後に学習活動があった日(YYYY-MM-DD、UTC 基準)。 */
+            lastActiveDate?: string;
+            name?: string;
+            /** @description RecentActivityCount は直近 7 日間の活動回数合計。 */
+            recentActivityCount?: number;
+            userId?: number;
         };
         "github_com_norman6464_FreStyle_backend_internal_usecase.SubmitMasterExerciseOutput": {
             isCorrect?: boolean;

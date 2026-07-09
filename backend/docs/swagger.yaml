@@ -458,6 +458,23 @@ definitions:
       url:
         type: string
     type: object
+  github_com_norman6464_FreStyle_backend_internal_usecase.CompanyLearningSummaryOutput:
+    properties:
+      activeThisWeek:
+        description: ActiveThisWeek は直近 7 日間(今日を含む)に学習活動があった trainee 数。
+        type: integer
+      activeToday:
+        description: ActiveToday は今日(UTC)学習活動があった trainee 数。
+        type: integer
+      recentMembers:
+        description: RecentMembers は最終活動日の新しい順の直近アクティブメンバー(最大 5 名。活動が無い trainee は含めない)。
+        items:
+          $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase.MemberLearningSummaryItem'
+        type: array
+      traineeCount:
+        description: TraineeCount は在籍 trainee 数(論理削除済みを除く)。
+        type: integer
+    type: object
   github_com_norman6464_FreStyle_backend_internal_usecase.CompanyStat:
     properties:
       activeMembers:
@@ -531,6 +548,19 @@ definitions:
       totalExercises:
         type: integer
       totalLessons:
+        type: integer
+    type: object
+  github_com_norman6464_FreStyle_backend_internal_usecase.MemberLearningSummaryItem:
+    properties:
+      lastActiveDate:
+        description: LastActiveDate は最後に学習活動があった日(YYYY-MM-DD、UTC 基準)。
+        type: string
+      name:
+        type: string
+      recentActivityCount:
+        description: RecentActivityCount は直近 7 日間の活動回数合計。
+        type: integer
+      userId:
         type: integer
     type: object
   github_com_norman6464_FreStyle_backend_internal_usecase.SubmitMasterExerciseOutput:
@@ -1466,6 +1496,34 @@ paths:
       security:
       - CookieAuth: []
       summary: 従業員の AI 利用可否を個別更新
+      tags:
+      - admin
+  /admin/members/learning-summary:
+    get:
+      description: 在籍 trainee 数・今日/直近 7 日に学習した人数・直近アクティブメンバー(最大 5 名)を返す。company_admin
+        / super_admin のみ。会社未所属は空サマリー。
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase.CompanyLearningSummaryOutput'
+        "401":
+          description: 未認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: 管理者以外
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: 内部エラー
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 自社メンバーの学習状況サマリー
       tags:
       - admin
   /ai-chat/attachments/upload-url:

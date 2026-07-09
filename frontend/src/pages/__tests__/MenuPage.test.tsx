@@ -6,12 +6,16 @@ import { MemoryRouter } from 'react-router-dom';
 import MenuPage from '../MenuPage';
 import authReducer from '../../store/authSlice';
 import { useUserDashboard } from '../../hooks/useUserDashboard';
+import { useCompanyLearningSummary } from '../../hooks/useCompanyLearningSummary';
 import type { UserDashboard } from '../../types';
+import type { CompanyLearningSummary } from '../../repositories/AdminMemberRepository';
 import { createMockStorage } from '../../test/mockStorage';
 
 vi.mock('../../hooks/useUserDashboard');
+vi.mock('../../hooks/useCompanyLearningSummary');
 
 const mockUseUserDashboard = vi.mocked(useUserDashboard);
+const mockUseCompanyLearningSummary = vi.mocked(useCompanyLearningSummary);
 
 const sampleDashboard: UserDashboard = {
   streak: 2,
@@ -20,6 +24,15 @@ const sampleDashboard: UserDashboard = {
   totalLessons: 6,
   recentActivity: [],
   recentChapterViews: [],
+};
+
+const sampleSummary: CompanyLearningSummary = {
+  traineeCount: 4,
+  activeToday: 1,
+  activeThisWeek: 2,
+  recentMembers: [
+    { userId: 11, name: '山田 太郎', lastActiveDate: '2026-07-09', recentActivityCount: 3 },
+  ],
 };
 
 function renderMenu(role: string, aiChatEnabledForTrainees = true) {
@@ -41,6 +54,9 @@ function renderMenu(role: string, aiChatEnabledForTrainees = true) {
 describe('MenuPage', () => {
   beforeEach(() => {
     vi.stubGlobal('localStorage', createMockStorage());
+    // 既定はどちらのサイドバー hook も「無効(取得なし)」相当。各テストで上書きする。
+    mockUseUserDashboard.mockReturnValue({ dashboard: null, loading: false, error: null });
+    mockUseCompanyLearningSummary.mockReturnValue({ summary: null, loading: false, error: null });
   });
 
   afterEach(() => {
@@ -79,14 +95,32 @@ describe('MenuPage', () => {
   });
 
   it('company_admin は学習・ツール・管理セクションと AI カードを表示する', () => {
-    mockUseUserDashboard.mockReturnValue({ dashboard: sampleDashboard, loading: false, error: null });
+    mockUseCompanyLearningSummary.mockReturnValue({ summary: sampleSummary, loading: false, error: null });
     renderMenu('company_admin');
 
     expect(screen.getByRole('heading', { name: 'FreStyle へようこそ', level: 1 })).toBeInTheDocument();
     expect(screen.getByText('コース')).toBeInTheDocument();
     expect(screen.getByText('AI チャット')).toBeInTheDocument();
     expect(screen.getByText('従業員一覧')).toBeInTheDocument();
-    expect(screen.getByText('連続学習')).toBeInTheDocument();
+  });
+
+  it('company_admin のサイドバーは自分の統計ではなくメンバーの学習状況を表示する (FRESTYLE-103)', () => {
+    mockUseCompanyLearningSummary.mockReturnValue({ summary: sampleSummary, loading: false, error: null });
+    renderMenu('company_admin');
+
+    expect(screen.getByText('メンバーの学習状況')).toBeInTheDocument();
+    expect(screen.getByText('在籍メンバー')).toBeInTheDocument();
+    expect(screen.getByText('山田 太郎')).toBeInTheDocument();
+    // 自分の学習統計(連続学習)は出さない。
+    expect(screen.queryByText('連続学習')).not.toBeInTheDocument();
+  });
+
+  it('company_admin はサマリーロード中スケルトン待ちになる', () => {
+    mockUseCompanyLearningSummary.mockReturnValue({ summary: null, loading: true, error: null });
+    renderMenu('company_admin');
+
+    expect(screen.queryByText('コース')).not.toBeInTheDocument();
+    expect(screen.queryByText('メンバーの学習状況')).not.toBeInTheDocument();
   });
 
   it('trainee で AI 無効のとき AI チャットカードを出さない', () => {

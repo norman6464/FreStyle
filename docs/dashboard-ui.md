@@ -43,3 +43,29 @@
 セルは **曜日（行）× 週（列）のグリッド**（`grid-flow-col grid-rows-7`）に並べ、先頭の曜日ぶんを
 空セルで詰めて各列が日曜始まりの 1 週間に揃うようにしている。以前は `flex-wrap` で折り返していたが、
 週の境界が揃わず崩れて見えたためグリッドに変更した。
+
+## ロール別サイドバー（FRESTYLE-103）
+
+ホーム右サイドバーの中身はロールで出し分ける:
+
+| ロール | サイドバー | データ源 |
+|---|---|---|
+| trainee | 自分の学習統計（`DashboardStats`。従来どおり） | `GET /api/v2/me/dashboard` |
+| company_admin | **メンバーの学習状況**（`CompanyLearningPanel`） | `GET /api/v2/admin/members/learning-summary` |
+| super_admin | 非表示（従来どおり） | — |
+
+company_admin はメンター（自社メンバーの学習支援・管理）が主用途のため、
+自分の学習統計ではなく自社 trainee の学習状況サマリーを表示する。
+自分用の `/me/dashboard` は取得しない。
+
+### メンバーの学習状況サマリーの中身
+
+- 在籍メンバー数（論理削除済みを除く自社 trainee）
+- 今日学習した人数 / 直近 7 日（今日を含む）で学習した人数
+- 直近アクティブメンバー最大 5 名（名前・最終学習日・直近 7 日の活動回数）
+- 従業員一覧（/admin/members）へのリンク
+
+集計は backend の `GetCompanyLearningSummaryUseCase` +
+`CompanyLearningActivitySummarizer`（users × user_daily_activities の
+LEFT JOIN・GROUP BY 1 クエリ、N+1 回避）。日付境界は `/me/dashboard` と同じ UTC。
+「活動」の定義も従来どおり user_daily_activities（演習提出・章完了・AI チャット・ノート作成）。

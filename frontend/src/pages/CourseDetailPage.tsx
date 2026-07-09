@@ -417,7 +417,10 @@ function ReadOnlyDetail({
           <h1 className="text-2xl font-bold text-[var(--color-text-primary)] mb-2">
             {material.title || '無題の教材'}
           </h1>
-          <div className="flex items-center justify-between gap-3 mb-6">
+          {/* 完了トグルを含むメタ行は sticky でスクロールコンテナ上部に残し、
+              本文の途中でも完了操作できるようにする(FRESTYLE-100)。
+              bg はページ背景(surface=白)と同じにして、通過する本文が透けないようにする。 */}
+          <div className="sticky top-0 z-10 bg-surface py-2 border-b border-surface-3 flex items-center justify-between gap-3 mb-6">
             <p className="text-xs text-[var(--color-text-muted)]">
               最終更新: {formatDate(material.updatedAt)}
             </p>

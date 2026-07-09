@@ -63,3 +63,15 @@
 - 管理ロール（company_admin / super_admin）は従来どおり自動選択なし（編集フローを変えない）
 
 関連テスト: [useChapterResume.test.ts](../frontend/src/hooks/__tests__/useChapterResume.test.ts)
+
+## 完了トグルの固定表示（FRESTYLE-100）
+
+受講者向け本文（ReadOnlyDetail）のメタ行（最終更新日・目次トグル・完了トグル）は
+`sticky top-0` + ページ背景色（`bg-surface`）+ 下ボーダーで、スクロールコンテナの
+上部に常時残る。本文を読み進めている途中でも、先頭へ戻らずに「完了にする」を押せる。
+
+- sticky の基準はウィンドウではなく ReadOnlyDetail の `overflow-y-auto` コンテナ
+  （body は overflow:hidden。目次 aside の `sticky top-6` と同じ仕組み）
+- z-index は 10（ツールチップ z-30 / モーダル z-50 の下）
+- 本文末尾の大きい完了ボタン + 「次の章へ」は読了導線としてそのまま残している
+- 連打の二重送信は useLessonProgress の in-flight ガードで防止済み

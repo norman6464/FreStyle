@@ -13,7 +13,7 @@ type UserChapterView struct {
 	CourseID           uint64    `gorm:"column:course_id"                       json:"courseId"`
 	FirstViewedAt      time.Time `gorm:"column:first_viewed_at"                 json:"firstViewedAt"`
 	LastViewedAt       time.Time `gorm:"column:last_viewed_at"                  json:"lastViewedAt"`
-	ViewCount int `gorm:"column:view_count;default:1;type:integer" json:"viewCount"`
+	ViewCount          int       `gorm:"column:view_count;default:1;type:integer" json:"viewCount"`
 }
 
 func (UserChapterView) TableName() string { return "user_chapter_views" }

@@ -12,6 +12,7 @@ import FaviconIcon from '../components/icons/FaviconIcon';
 import Loading from '../components/Loading';
 import ConfirmModal from '../components/ConfirmModal';
 import CourseProgressBar from '../components/CourseProgressBar';
+import { FilterChip } from '../components/ui';
 import { useCourses } from '../hooks/useCourses';
 import { useToast } from '../hooks/useToast';
 import { COURSE_CATEGORIES, findCourseCategory } from '../constants/courseCategories';
@@ -244,34 +245,6 @@ export default function CoursesListPage() {
         isDanger={true}
       />
     </div>
-  );
-}
-
-// カテゴリ絞り込みチップ。active 時はカテゴリ色(badgeClass)、それ以外は muted。
-function FilterChip({
-  label,
-  active,
-  activeClass,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  activeClass?: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={`text-xs font-medium px-3 py-1 rounded-full border transition-colors ${
-        active
-          ? (activeClass ?? 'bg-brand-500/15 text-brand-600 border-brand-500/30')
-          : 'bg-surface-1 text-[var(--color-text-muted)] border-surface-3 hover:bg-surface-2'
-      }`}
-    >
-      {label}
-    </button>
   );
 }
 

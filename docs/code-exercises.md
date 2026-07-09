@@ -81,3 +81,17 @@ frontend ExerciseDetailPage (Monaco / monacoLanguageOf)
 ## テスト
 - [backend/internal/infra/sandbox/runner_sql_test.go](../backend/internal/infra/sandbox/runner_sql_test.go): `initdb`+`pg_ctl` で使い捨て PG（`dbadmin`/`student` ロール）をローカル起動して executeSQL を実検証。`initdb`/`psql` が無い環境では Skip
   - `Test_ランナー_SQL_単純SELECT` / `Test_ランナー_SQL_複数文と集計` / `Test_ランナー_SQL_文タイムアウトで打ち切る` / `Test_ランナー_SQL_提出間はDBが隔離される` / `Test_ランナー_SQL_COPYPROGRAMは権限拒否` / `Test_ランナー_SQL_危険メタコマンドを拒否`（`\!` / `\c` / `\connect`）
+
+## 言語フィルタ UI（FRESTYLE-101）
+
+演習一覧（/code-editor）の言語絞り込みは、プルダウン（select）ではなく
+コース一覧のカテゴリ絞り込みと同じ**チップ型セレクタ**（常時見える一覧）で行う。
+
+- チップ本体は共有コンポーネント `src/components/ui/FilterChip.tsx`
+  （コース一覧 FRESTYLE-68 のローカル実装を昇格。`aria-pressed` + `role="group"`）
+- 選択肢と有効値の単一情報源は `src/constants/exerciseLanguages.ts`。
+  `useExerciseList` の localStorage 復元時の検証セットもここから導出する
+  （チップの選択肢と検証セットの二重管理を防ぐ。言語を増やすときはこの定数だけ触る）
+- 操作感はコース一覧と統一: 「すべて」+ 各言語、**アクティブなチップの再クリックで「すべて」に戻る**
+- 初期言語は localStorage 復元（既定 PHP）、絞り込みはサーバーサイド
+  （`GET /api/v2/exercises?language=`）という既存仕様は変更していない

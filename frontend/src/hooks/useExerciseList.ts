@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import ExerciseRepository from '../repositories/ExerciseRepository';
+import { EXERCISE_LANGUAGES } from '../constants/exerciseLanguages';
 import { MasterExerciseWithStatus } from '../types';
 
 const LANGUAGE_STORAGE_KEY = 'frestyle:exercise-list:language';
-const VALID_LANGUAGES = new Set(['', 'php', 'go', 'bash', 'git', 'docker']);
+// '' = すべて。選択肢の定義(EXERCISE_LANGUAGES)から導出して二重管理を防ぐ(FRESTYLE-101)。
+const VALID_LANGUAGES = new Set(['', ...EXERCISE_LANGUAGES.map((l) => l.key)]);
 const PAGE_SIZE = 20;
 
 function loadStoredLanguage(fallback: string): string {

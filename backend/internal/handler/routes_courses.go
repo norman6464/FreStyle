@@ -13,7 +13,8 @@ func registerCourseRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	materialRepo := persistence.NewTeachingMaterialRepository(deps.db)
 
 	courseUC := usecase.NewCourseUseCase(courseRepo, materialRepo)
-	courseHandler := NewCourseHandler(courseUC)
+	listWithCountUC := usecase.NewListCoursesWithMaterialCountUseCase(courseRepo, materialRepo)
+	courseHandler := NewCourseHandler(courseUC, listWithCountUC)
 
 	materialUC := usecase.NewTeachingMaterialUseCase(materialRepo, courseRepo)
 	materialHandler := NewTeachingMaterialHandler(materialUC)

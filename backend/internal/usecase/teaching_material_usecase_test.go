@@ -22,6 +22,18 @@ type fakeTeachingMaterialRepo struct {
 	deletedByCo    uint64
 	listCourseID   uint64
 	listIncludeAll bool
+	// CountByCourseForCompany 用
+	countsByCourse              map[uint64]int
+	countErr                    error
+	lastCountIncludeUnpublished *bool
+}
+
+func (r *fakeTeachingMaterialRepo) CountByCourseForCompany(_ context.Context, _ uint64, includeUnpublished bool) (map[uint64]int, error) {
+	r.lastCountIncludeUnpublished = &includeUnpublished
+	if r.countErr != nil {
+		return nil, r.countErr
+	}
+	return r.countsByCourse, nil
 }
 
 func (r *fakeTeachingMaterialRepo) ListByCompany(_ context.Context, _ uint64, _ bool) ([]domain.TeachingMaterial, error) {

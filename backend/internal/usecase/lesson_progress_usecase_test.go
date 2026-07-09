@@ -62,6 +62,10 @@ func (f *fakeMaterialRepoForProgress) ListByCourse(context.Context, uint64, bool
 	return nil, nil
 }
 
+func (f *fakeMaterialRepoForProgress) CountByCourseForCompany(context.Context, uint64, bool) (map[uint64]int, error) {
+	return nil, nil
+}
+
 func (f *fakeMaterialRepoForProgress) Create(context.Context, *domain.TeachingMaterial) error {
 	return nil
 }

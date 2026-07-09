@@ -2154,8 +2154,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * コース 一覧
-         * @description current user の role / company で 自動 フィルタ。 trainee は published のみ、 admin 系 は draft 含む。
+         * コース 一覧 (章数付き)
+         * @description current user の role / company で 自動 フィルタ。 trainee は published のみ、 admin 系 は draft 含む。 各コース に 教材(章)数 materialCount を 付与 して 返す。
          */
         get: {
             parameters: {
@@ -2172,7 +2172,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.Course"][];
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_usecase.CourseWithMaterialCount"][];
                     };
                 };
                 /** @description 未 認証 */
@@ -4991,6 +4991,19 @@ export interface components {
             memberTotal?: number;
             name?: string;
             traineeCount?: number;
+        };
+        "github_com_norman6464_FreStyle_backend_internal_usecase.CourseWithMaterialCount": {
+            category?: string;
+            companyId?: number;
+            createdAt?: string;
+            createdByUserId?: number;
+            description?: string;
+            id?: number;
+            isPublished?: boolean;
+            materialCount?: number;
+            sortOrder?: number;
+            title?: string;
+            updatedAt?: string;
         };
         "github_com_norman6464_FreStyle_backend_internal_usecase.GetMasterExerciseDetailOutput": {
             examples?: components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.MasterExerciseExample"][];

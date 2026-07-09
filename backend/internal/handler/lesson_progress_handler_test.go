@@ -46,6 +46,9 @@ func (f *fakeMaterialRepoH) ListByCompany(context.Context, uint64, bool) ([]doma
 func (f *fakeMaterialRepoH) ListByCourse(context.Context, uint64, bool) ([]domain.TeachingMaterial, error) {
 	return nil, nil
 }
+func (f *fakeMaterialRepoH) CountByCourseForCompany(context.Context, uint64, bool) (map[uint64]int, error) {
+	return nil, nil
+}
 func (f *fakeMaterialRepoH) Create(context.Context, *domain.TeachingMaterial) error { return nil }
 func (f *fakeMaterialRepoH) Update(context.Context, *domain.TeachingMaterial) error { return nil }
 func (f *fakeMaterialRepoH) Delete(context.Context, uint64) error                   { return nil }

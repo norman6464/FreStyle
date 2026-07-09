@@ -11,6 +11,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { CheckCircleIcon as CheckCircleSolidIcon } from '@heroicons/react/24/solid';
 import SecondaryPanel from '../components/layout/SecondaryPanel';
+import CourseProgressBar from '../components/CourseProgressBar';
 import EmptyState from '../components/EmptyState';
 import FaviconIcon from '../components/icons/FaviconIcon';
 import ConfirmModal from '../components/ConfirmModal';
@@ -487,32 +488,6 @@ function MaterialSkeleton() {
       <span className="sr-only" role="status">
         読み込み中
       </span>
-    </div>
-  );
-}
-
-/** CourseProgressBar はコース内の完了割合を示す進捗バー。 trainee の左パネルに表示する。 */
-function CourseProgressBar({ completed, total }: { completed: number; total: number }) {
-  const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between text-xs text-[var(--color-text-muted)]">
-        <span>学習の進捗</span>
-        <span>
-          {completed}/{total}（{pct}%）
-        </span>
-      </div>
-      <div className="h-1.5 w-full rounded-full bg-surface-3 overflow-hidden">
-        <div
-          className="h-full rounded-full bg-green-400 transition-all"
-          style={{ width: `${pct}%` }}
-          role="progressbar"
-          aria-label="学習の進捗"
-          aria-valuenow={pct}
-          aria-valuemin={0}
-          aria-valuemax={100}
-        />
-      </div>
     </div>
   );
 }

@@ -60,6 +60,27 @@ func (r *teachingMaterialRepository) GetByID(ctx context.Context, id uint64) (*d
 	return &m, nil
 }
 
+// CountByCourseForCompany は course_id ごとの教材件数を 1 クエリで集計する。
+// trainee 向け(includeUnpublished=false)は published のみ数え、コース詳細の進捗分母と一致させる。
+func (r *teachingMaterialRepository) CountByCourseForCompany(ctx context.Context, companyID uint64, includeUnpublished bool) (map[uint64]int, error) {
+	const q = `
+SELECT course_id, COUNT(*) AS cnt FROM teaching_materials
+WHERE company_id = ? AND (? OR is_published = TRUE)
+GROUP BY course_id`
+	var rows []struct {
+		CourseID uint64
+		Cnt      int
+	}
+	if err := r.db.WithContext(ctx).Raw(q, companyID, includeUnpublished).Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	counts := make(map[uint64]int, len(rows))
+	for _, row := range rows {
+		counts[row.CourseID] = row.Cnt
+	}
+	return counts, nil
+}
+
 func (r *teachingMaterialRepository) Create(ctx context.Context, m *domain.TeachingMaterial) error {
 	return r.db.WithContext(ctx).Create(m).Error
 }

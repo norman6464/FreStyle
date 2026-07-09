@@ -1700,21 +1700,21 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "current user の role / company で 自動 フィルタ。 trainee は published のみ、 admin 系 は draft 含む。",
+                "description": "current user の role / company で 自動 フィルタ。 trainee は published のみ、 admin 系 は draft 含む。 各コース に 教材(章)数 materialCount を 付与 して 返す。",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "courses"
                 ],
-                "summary": "コース 一覧",
+                "summary": "コース 一覧 (章数付き)",
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.Course"
+                                "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase.CourseWithMaterialCount"
                             }
                         }
                     },
@@ -4479,6 +4479,44 @@ const docTemplate = `{
                 },
                 "traineeCount": {
                     "type": "integer"
+                }
+            }
+        },
+        "github_com_norman6464_FreStyle_backend_internal_usecase.CourseWithMaterialCount": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "companyId": {
+                    "type": "integer"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "createdByUserId": {
+                    "type": "integer"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "isPublished": {
+                    "type": "boolean"
+                },
+                "materialCount": {
+                    "type": "integer"
+                },
+                "sortOrder": {
+                    "type": "integer"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
                 }
             }
         },

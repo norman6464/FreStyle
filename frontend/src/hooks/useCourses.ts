@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import CourseRepository, {
   type CoursePayload,
 } from '../repositories/CourseRepository';
-import type { Course } from '../types';
+import type { Course, CourseWithMaterialCount } from '../types';
 
 /**
  * useCourses — コース一覧 + 検索 + CRUD の状態管理。
@@ -11,7 +11,7 @@ import type { Course } from '../types';
  * （フィルタは backend 側）。
  */
 export function useCourses() {
-  const [courses, setCourses] = useState<Course[]>([]);
+  const [courses, setCourses] = useState<CourseWithMaterialCount[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -45,7 +45,8 @@ export function useCourses() {
   const create = useCallback(async (initial: CoursePayload): Promise<Course | null> => {
     try {
       const created = await CourseRepository.create(initial);
-      setCourses((prev) => [...prev, created].sort(byOrderThenId));
+      // 作成 API は materialCount を返さないが、新規コースの章数は必ず 0。
+      setCourses((prev) => [...prev, { ...created, materialCount: 0 }].sort(byOrderThenId));
       return created;
     } catch {
       setError('コースの作成に失敗しました');
@@ -57,7 +58,12 @@ export function useCourses() {
     async (id: number, payload: CoursePayload): Promise<Course | null> => {
       try {
         const updated = await CourseRepository.update(id, payload);
-        setCourses((prev) => prev.map((c) => (c.id === id ? updated : c)).sort(byOrderThenId));
+        // 更新 API は materialCount を返さないため、取得済みの章数を引き継ぐ。
+        setCourses((prev) =>
+          prev
+            .map((c) => (c.id === id ? { ...updated, materialCount: c.materialCount } : c))
+            .sort(byOrderThenId),
+        );
         return updated;
       } catch {
         setError('コースの更新に失敗しました');

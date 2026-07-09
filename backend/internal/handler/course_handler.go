@@ -10,18 +10,19 @@ import (
 
 // CourseHandler はコースの CRUD API を扱う。
 type CourseHandler struct {
-	uc *usecase.CourseUseCase
+	uc            *usecase.CourseUseCase
+	listWithCount *usecase.ListCoursesWithMaterialCountUseCase
 }
 
-func NewCourseHandler(uc *usecase.CourseUseCase) *CourseHandler {
-	return &CourseHandler{uc: uc}
+func NewCourseHandler(uc *usecase.CourseUseCase, listWithCount *usecase.ListCoursesWithMaterialCountUseCase) *CourseHandler {
+	return &CourseHandler{uc: uc, listWithCount: listWithCount}
 }
 
-// @Summary      コース 一覧
-// @Description  current user の role / company で 自動 フィルタ。 trainee は published のみ、 admin 系 は draft 含む。
+// @Summary      コース 一覧 (章数付き)
+// @Description  current user の role / company で 自動 フィルタ。 trainee は published のみ、 admin 系 は draft 含む。 各コース に 教材(章)数 materialCount を 付与 して 返す。
 // @Tags         courses
 // @Produce      json
-// @Success      200  {array}   github_com_norman6464_FreStyle_backend_internal_domain.Course
+// @Success      200  {array}   usecase.CourseWithMaterialCount
 // @Failure      401  {object}  errorResponse  "未 認証"
 // @Failure      500  {object}  errorResponse  "DB 失敗"
 // @Router       /courses [get]
@@ -31,7 +32,10 @@ func (h *CourseHandler) List(c *gin.Context) {
 	if !ok {
 		return
 	}
-	rows, err := h.uc.List(c.Request.Context(), companyID, role)
+	rows, err := h.listWithCount.Execute(c.Request.Context(), usecase.ListCoursesWithMaterialCountInput{
+		ActorCompanyID: companyID,
+		ActorRole:      role,
+	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "コースの取得に失敗しました"})
 		return

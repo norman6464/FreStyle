@@ -11,11 +11,13 @@ import EmptyState from '../components/EmptyState';
 import FaviconIcon from '../components/icons/FaviconIcon';
 import Loading from '../components/Loading';
 import ConfirmModal from '../components/ConfirmModal';
+import CourseProgressBar from '../components/CourseProgressBar';
 import { useCourses } from '../hooks/useCourses';
+import { useCourseCompletionCounts } from '../hooks/useCourseCompletionCounts';
 import { useToast } from '../hooks/useToast';
 import { COURSE_CATEGORIES, findCourseCategory } from '../constants/courseCategories';
 import type { RootState } from '../store';
-import type { Course } from '../types';
+import type { Course, CourseWithMaterialCount } from '../types';
 
 /** 未分類('')や未知の値を未分類バケットの key('') に正規化する。 */
 function normalizeCategoryKey(category: string): string {
@@ -40,6 +42,8 @@ export default function CoursesListPage() {
 
   const { filtered, courses, loading, error, searchQuery, setSearchQuery, create, update, remove } =
     useCourses();
+  // 受講者のみ完了章数を取得してカードに進捗を出す(FRESTYLE-98)。管理ロールは進捗記録を持たない。
+  const { countByCourse } = useCourseCompletionCounts(!canManage);
 
   const [editTarget, setEditTarget] = useState<Course | 'new' | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
@@ -200,6 +204,7 @@ export default function CoursesListPage() {
                         key={c.id}
                         course={c}
                         canManage={canManage}
+                        completedCount={countByCourse.get(c.id) ?? 0}
                         onOpen={() => navigate(`/courses/${c.id}`)}
                         onEdit={() => setEditTarget(c)}
                         onDelete={() => setDeleteTargetId(c.id)}
@@ -277,12 +282,14 @@ function FilterChip({
 function CourseCard({
   course,
   canManage,
+  completedCount,
   onOpen,
   onEdit,
   onDelete,
 }: {
-  course: Course;
+  course: CourseWithMaterialCount;
   canManage: boolean;
+  completedCount: number;
   onOpen: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -342,6 +349,16 @@ function CourseCard({
       <p className="text-sm text-[var(--color-text-secondary)] line-clamp-3 min-h-[3.6em]">
         {course.description || 'コース説明が未設定です'}
       </p>
+      {/* 受講者のみ進捗を表示(FRESTYLE-98)。完了後に章が非公開/削除されると
+          完了数が章数を上回り得るためクランプする。0 章のコースはバーを出さない。 */}
+      {!canManage && course.materialCount > 0 && (
+        <div className="mt-3">
+          <CourseProgressBar
+            completed={Math.min(completedCount, course.materialCount)}
+            total={course.materialCount}
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -12,7 +12,9 @@ import {
 } from '@heroicons/react/24/outline';
 import type { RootState } from '../store';
 import { useUserDashboard } from '../hooks/useUserDashboard';
+import { useCompanyLearningSummary } from '../hooks/useCompanyLearningSummary';
 import DashboardStats from '../components/dashboard/DashboardStats';
+import CompanyLearningPanel from '../components/dashboard/CompanyLearningPanel';
 
 /**
  * ホーム画面（ダッシュボード）。
@@ -33,13 +35,17 @@ export default function MenuPage() {
   const aiEnabled = useSelector((state: RootState) => state.auth.aiChatEnabledForTrainees);
   const isSuperAdmin = role === 'super_admin';
   const isTrainee = role === 'trainee';
+  const isCompanyAdmin = role === 'company_admin';
   const showAi = !isTrainee || aiEnabled;
 
-  // ダッシュボード統計（super_admin は学習機能を使わないので取得しない）。
-  const { dashboard, loading } = useUserDashboard({ enabled: !isSuperAdmin });
+  // サイドバーの中身はロールで出し分ける(FRESTYLE-103):
+  //   trainee = 自分の学習統計 / company_admin = 自社メンバーの学習状況 / super_admin = なし。
+  // company_admin は学習者ではないため自分用の /me/dashboard は取得しない。
+  const { dashboard, loading: dashboardLoading } = useUserDashboard({ enabled: isTrainee });
+  const { summary, loading: summaryLoading } = useCompanyLearningSummary({ enabled: isCompanyAdmin });
 
-  // 学習者向けは統計ロード完了まで本体を出さず、両カラムを同時に出す。
-  const waitingForStats = !isSuperAdmin && loading;
+  // 学習者/管理者向けはサイドバーのロード完了まで本体を出さず、両カラムを同時に出す。
+  const waitingForStats = (isTrainee && dashboardLoading) || (isCompanyAdmin && summaryLoading);
 
   return (
     <div className="px-4 sm:px-6 pt-8 pb-24 max-w-6xl mx-auto">
@@ -148,13 +154,16 @@ export default function MenuPage() {
           )}
         </div>
 
-        {/* ── 右サイドバー（学習統計）── super_admin には非表示 */}
+        {/* ── 右サイドバー ── trainee = 自分の学習統計 / company_admin = メンバーの学習状況 /
+            super_admin = 非表示 (FRESTYLE-103) */}
         {!isSuperAdmin && (
           <div className="w-full lg:w-72 shrink-0">
             {waitingForStats ? (
               <StatsSkeleton />
-            ) : (
+            ) : isTrainee ? (
               dashboard && <DashboardStats dashboard={dashboard} />
+            ) : (
+              summary && <CompanyLearningPanel summary={summary} />
             )}
           </div>
         )}

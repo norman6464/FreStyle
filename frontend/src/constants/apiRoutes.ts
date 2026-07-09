@@ -142,6 +142,8 @@ export const ADMIN = {
   /** PATCH /api/v2/admin/companies/:id/active — 会社アカウントの有効/無効（super_admin） */
   companyActive: (id: number | string) => `${API_V2}/admin/companies/${id}/active`,
   members: `${API_V2}/admin/members`,
+  /** GET /api/v2/admin/members/learning-summary — 自社メンバーの学習状況サマリー（company_admin のホーム用）*/
+  membersLearningSummary: `${API_V2}/admin/members/learning-summary`,
   memberAiAccess: (userId: number | string) => `${API_V2}/admin/members/${userId}/ai-access`,
   /** PATCH /api/v2/admin/members/:userId/active — 従業員アカウントの有効/無効 */
   memberActive: (userId: number | string) => `${API_V2}/admin/members/${userId}/active`,

@@ -13,22 +13,30 @@ import (
 )
 
 // AdminMemberHandler は company_admin / super_admin が従業員一覧と、各従業員の AI 利用可否・
-// アカウントの有効/無効・論理削除を管理する。
+// アカウントの有効/無効・論理削除・学習状況サマリーを扱う。
 type AdminMemberHandler struct {
-	list       *usecase.ListCompanyMembersUseCase
-	update     *usecase.UpdateMemberAiAccessUseCase
-	setActive  *usecase.SetMemberActiveUseCase
-	softDelete *usecase.SoftDeleteMemberUseCase
+	list            *usecase.ListCompanyMembersUseCase
+	update          *usecase.UpdateMemberAiAccessUseCase
+	setActive       *usecase.SetMemberActiveUseCase
+	softDelete      *usecase.SoftDeleteMemberUseCase
+	learningSummary *usecase.GetCompanyLearningSummaryUseCase
 }
 
-// NewAdminMemberHandler は一覧 / AI 更新 / 有効無効 / 論理削除 usecase を注入して handler を返す。
+// NewAdminMemberHandler は一覧 / AI 更新 / 有効無効 / 論理削除 / 学習サマリー usecase を注入して handler を返す。
 func NewAdminMemberHandler(
 	list *usecase.ListCompanyMembersUseCase,
 	update *usecase.UpdateMemberAiAccessUseCase,
 	setActive *usecase.SetMemberActiveUseCase,
 	softDelete *usecase.SoftDeleteMemberUseCase,
+	learningSummary *usecase.GetCompanyLearningSummaryUseCase,
 ) *AdminMemberHandler {
-	return &AdminMemberHandler{list: list, update: update, setActive: setActive, softDelete: softDelete}
+	return &AdminMemberHandler{
+		list:            list,
+		update:          update,
+		setActive:       setActive,
+		softDelete:      softDelete,
+		learningSummary: learningSummary,
+	}
 }
 
 // memberResponse は従業員一覧の 1 行（cognito_sub 等の機密は出さない）。
@@ -86,6 +94,32 @@ func (h *AdminMemberHandler) List(c *gin.Context) {
 		out = append(out, toMemberResponse(m))
 	}
 	c.JSON(http.StatusOK, out)
+}
+
+// LearningSummary は自社 trainee の学習状況サマリーを返す(company_admin のホーム用)。
+//
+//	@Summary      自社メンバーの学習状況サマリー
+//	@Description  在籍 trainee 数・今日/直近 7 日に学習した人数・直近アクティブメンバー(最大 5 名)を返す。company_admin / super_admin のみ。会社未所属は空サマリー。
+//	@Tags         admin
+//	@Produce      json
+//	@Success      200  {object}  usecase.CompanyLearningSummaryOutput
+//	@Failure      401  {object}  errorResponse  "未認証"
+//	@Failure      403  {object}  errorResponse  "管理者以外"
+//	@Failure      500  {object}  errorResponse  "内部エラー"
+//	@Router       /admin/members/learning-summary [get]
+//	@Security     CookieAuth
+func (h *AdminMemberHandler) LearningSummary(c *gin.Context) {
+	actor := middleware.CurrentUserFromContext(c)
+	if !isAdminActor(actor) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
+	}
+	summary, err := h.learningSummary.Execute(c.Request.Context(), actor)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
+		return
+	}
+	c.JSON(http.StatusOK, summary)
 }
 
 type updateMemberAiRequest struct {

@@ -1,6 +1,6 @@
 import api from '../lib/axios';
 import { COURSES } from '../constants/apiRoutes';
-import type { Course, CourseWithProgress, TeachingMaterial } from '../types';
+import type { Course, CourseWithProgress, TeachingMaterial, UserChapterView } from '../types';
 
 /**
  * コース API ラッパ。
@@ -31,6 +31,12 @@ const CourseRepository = {
   async listMaterials(courseId: number): Promise<TeachingMaterial[]> {
     const res = await api.get<TeachingMaterial[]>(COURSES.materials(courseId));
     return res.data;
+  },
+
+  /** コース内で最後に閲覧した章の閲覧記録を返す。履歴なし（204）のときは null。 */
+  async lastViewed(courseId: number): Promise<UserChapterView | null> {
+    const res = await api.get<UserChapterView | undefined>(COURSES.lastViewed(courseId));
+    return res.status === 204 || !res.data ? null : res.data;
   },
 
   async create(payload: CoursePayload): Promise<Course> {

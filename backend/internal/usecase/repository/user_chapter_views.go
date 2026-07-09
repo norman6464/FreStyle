@@ -15,4 +15,8 @@ type UserChapterViewRepository interface {
 	// ListRecentByUser は最後に閲覧した章を新しい順で最大 limit 件返す。
 	// 「続きから」カード用。
 	ListRecentByUser(ctx context.Context, userID uint64, limit int) ([]domain.UserChapterView, error)
+
+	// GetLastViewedByUserAndCourse は user がコース内で最後に閲覧した 1 件を返す。
+	// コース詳細のレジューム(続きから表示)用。履歴が無い場合は (nil, nil)。
+	GetLastViewedByUserAndCourse(ctx context.Context, userID, courseID uint64) (*domain.UserChapterView, error)
 }

@@ -33,3 +33,33 @@
 本文領域はローディングを抜けて上部のエラーバナーで通知する。
 
 関連テスト: [useTeachingMaterials.test.ts](../frontend/src/hooks/__tests__/useTeachingMaterials.test.ts)
+
+## 続きから表示（レジューム、FRESTYLE-99）
+
+受講者（trainee）がコース詳細を開くと、**最後に閲覧した章**（無ければ先頭の章）を自動選択して
+「教材を選択してください」の空表示を経由せず学習を再開できる。
+
+### 閲覧の記録
+
+- 受講者が章を表示したとき [CourseDetailPage](../frontend/src/pages/CourseDetailPage.tsx) が
+  `DashboardRepository.recordChapterView`（`POST /api/v2/teaching-materials/:id/view`）を呼ぶ。
+  ベストエフォート（失敗は黙殺）で、`user_chapter_views` の `last_viewed_at` / `view_count` が upsert される
+- この記録はダッシュボードの「続きから」基盤データも兼ねる。なお PR #2014 で API と repository は
+  用意されていたが frontend からの呼び出し配線が無く、FRESTYLE-99 で初めて配線された
+
+### 復元（自動選択）
+
+- backend: `GET /api/v2/courses/:id/last-viewed` が「そのコース内で last_viewed_at 最大の 1 件」を返す
+  （履歴なしは 204。usecase `GetLastViewedChapterUseCase` がコースの閲覧権限を検証）
+- frontend: [useChapterResume](../frontend/src/hooks/useChapterResume.ts) が章一覧のロード完了後に
+  一度だけ発火し、履歴の章（一覧に無ければ / 履歴なし / 取得失敗なら先頭の章）を `selectMaterial` する
+
+### ガード（重要）
+
+- **コースごとに一度だけ**発火（`resumedCourseRef`）。手動選択済みなら発火済み扱い
+- 履歴の取得中にユーザーが手動で章を選んだ場合は**上書きしない**（`selectedIdRef` で解決時に再判定）
+- コース切替直後は前コースの `materials` が残っている commit があるため、
+  `materials[0].courseId === courseId` になってから発火する
+- 管理ロール（company_admin / super_admin）は従来どおり自動選択なし（編集フローを変えない）
+
+関連テスト: [useChapterResume.test.ts](../frontend/src/hooks/__tests__/useChapterResume.test.ts)

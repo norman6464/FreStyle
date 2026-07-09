@@ -1967,6 +1967,67 @@ const docTemplate = `{
                 }
             }
         },
+        "/courses/{id}/last-viewed": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "current user が この コース で 最後 に 閲覧 した 章 の 閲覧 記録 を 返す。 コース詳細 の 「続き から 表示」 用。 履歴 なし は 204。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "courses"
+                ],
+                "summary": "コース内の最終閲覧章",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "コース ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.UserChapterView"
+                        }
+                    },
+                    "204": {
+                        "description": "履歴 なし (本文 なし)"
+                    },
+                    "400": {
+                        "description": "id 不正",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "閲覧 権限 なし",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "コース が ない",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/courses/{id}/materials": {
             "get": {
                 "security": [

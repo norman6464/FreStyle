@@ -12,16 +12,19 @@ func registerCourseRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	courseRepo := persistence.NewCourseRepository(deps.db)
 	materialRepo := persistence.NewTeachingMaterialRepository(deps.db)
 	progressRepo := persistence.NewLessonProgressRepository(deps.db)
+	chapterViewRepo := persistence.NewUserChapterViewRepository(deps.db)
 
 	courseUC := usecase.NewCourseUseCase(courseRepo, materialRepo)
 	listWithProgressUC := usecase.NewListCoursesWithProgressUseCase(courseRepo, materialRepo, progressRepo)
-	courseHandler := NewCourseHandler(courseUC, listWithProgressUC)
+	lastViewedUC := usecase.NewGetLastViewedChapterUseCase(courseRepo, chapterViewRepo)
+	courseHandler := NewCourseHandler(courseUC, listWithProgressUC, lastViewedUC)
 
 	materialUC := usecase.NewTeachingMaterialUseCase(materialRepo, courseRepo)
 	materialHandler := NewTeachingMaterialHandler(materialUC)
 
 	g.GET("/courses", courseHandler.List)
 	g.GET("/courses/:id", courseHandler.Get)
+	g.GET("/courses/:id/last-viewed", courseHandler.LastViewed)
 	g.POST("/courses", courseHandler.Create)
 	g.PUT("/courses/:id", courseHandler.Update)
 	g.DELETE("/courses/:id", courseHandler.Delete)

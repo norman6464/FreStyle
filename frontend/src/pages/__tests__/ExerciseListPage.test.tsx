@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import ExerciseListPage from '../ExerciseListPage';
 import ExerciseRepository from '../../repositories/ExerciseRepository';
@@ -81,6 +81,48 @@ describe('ExerciseListPage', () => {
     await waitFor(() => expect(screen.getByText('変数')).toBeInTheDocument());
     // 未着手はデフォルト状態なのでバッジを出さない(視覚ノイズ削減 / FRESTYLE-64)。
     expect(screen.queryByText('未着手')).not.toBeInTheDocument();
+  });
+
+  it('言語チップが常時表示され、クリックで language 付き再取得になる (FRESTYLE-101)', async () => {
+    mockListExercises.mockResolvedValue(emptyPage);
+    renderPage();
+    // 初期言語は localStorage 復元(既定 php)なので PHP チップがアクティブ。
+    await waitFor(() => expect(mockListExercises).toHaveBeenCalledWith('php', 0, 20));
+    const group = screen.getByRole('group', { name: '言語で絞り込み' });
+    expect(group).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'PHP' })).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Go' }));
+    await waitFor(() => expect(mockListExercises).toHaveBeenCalledWith('go', 0, 20));
+    expect(screen.getByRole('button', { name: 'Go' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'PHP' })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('「すべて」チップで全言語(クエリなし)の再取得になる', async () => {
+    mockListExercises.mockResolvedValue(emptyPage);
+    renderPage();
+    await waitFor(() => expect(mockListExercises).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole('button', { name: 'すべて' }));
+    await waitFor(() => expect(mockListExercises).toHaveBeenCalledWith(undefined, 0, 20));
+    expect(screen.getByRole('button', { name: 'すべて' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('アクティブな言語チップの再クリックで「すべて」に戻る(コース一覧と同じトグル操作)', async () => {
+    mockListExercises.mockResolvedValue(emptyPage);
+    renderPage();
+    await waitFor(() => expect(mockListExercises).toHaveBeenCalled());
+
+    // Docker を選んでから再クリック → すべて('')へ。
+    fireEvent.click(screen.getByRole('button', { name: 'Docker' }));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Docker' })).toHaveAttribute('aria-pressed', 'true'),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Docker' }));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'すべて' })).toHaveAttribute('aria-pressed', 'true'),
+    );
+    expect(screen.getByRole('button', { name: 'Docker' })).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('カードクリックで /code-editor/:slug へのリンクを描画する', async () => {

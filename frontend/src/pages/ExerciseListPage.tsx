@@ -1,5 +1,7 @@
 import { Link } from 'react-router-dom';
 import { CheckCircleIcon, ClockIcon, CodeBracketIcon } from '@heroicons/react/24/outline';
+import { FilterChip } from '../components/ui';
+import { EXERCISE_LANGUAGES } from '../constants/exerciseLanguages';
 import { useExerciseList } from '../hooks/useExerciseList';
 import { MasterExerciseWithStatus } from '../types';
 
@@ -35,20 +37,18 @@ export default function ExerciseListPage() {
         </p>
       </header>
 
-      <div className="flex items-center gap-2 text-sm">
-        <label className="text-[var(--color-text-muted)]">言語:</label>
-        <select
-          value={language}
-          onChange={(e) => setLanguage(e.target.value)}
-          className="px-2 py-1 rounded-lg bg-surface-2 border border-surface-3 text-[var(--color-text-primary)] focus:outline-none focus:border-brand-400"
-        >
-          <option value="">すべて</option>
-          <option value="php">PHP</option>
-          <option value="go">Go</option>
-          <option value="git">Git</option>
-          <option value="bash">Bash / Linux</option>
-          <option value="docker">Docker</option>
-        </select>
+      {/* 言語の絞り込みはコース一覧のカテゴリチップと同じ操作感(常時見える一覧 +
+          アクティブチップの再クリックで「すべて」に戻る)にする(FRESTYLE-101)。 */}
+      <div className="flex items-center gap-2 flex-wrap" role="group" aria-label="言語で絞り込み">
+        <FilterChip label="すべて" active={language === ''} onClick={() => setLanguage('')} />
+        {EXERCISE_LANGUAGES.map((l) => (
+          <FilterChip
+            key={l.key}
+            label={l.label}
+            active={language === l.key}
+            onClick={() => setLanguage(language === l.key ? '' : l.key)}
+          />
+        ))}
       </div>
 
       {loading && (

@@ -1,6 +1,8 @@
 export { default as Button } from './Button';
 export type { ButtonProps, ButtonVariant, ButtonSize } from './Button';
 export { default as ActionCard } from './ActionCard';
+export { default as FilterChip } from './FilterChip';
+export type { FilterChipProps } from './FilterChip';
 export { default as FirstTimeWelcome } from './FirstTimeWelcome';
 export { default as GlossaryTerm } from './GlossaryTerm';
 export { default as GuidedHint } from './GuidedHint';

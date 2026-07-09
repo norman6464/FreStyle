@@ -19,6 +19,8 @@ export function useNextCourse(courseId: number | null, enabled: boolean) {
       return;
     }
     let active = true;
+    // コース切替・権限切替の直後に前回の「次のコース」が一瞬残らないよう、再取得開始時にクリアする。
+    setNextCourse(null);
     CourseRepository.list()
       .then((rows) => {
         if (!active) return;

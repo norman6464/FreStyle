@@ -62,7 +62,7 @@ func (fakeMaterialRepo) DeleteByCourse(context.Context, uint64) error           
 func newCourseHandler(cr repository.CourseRepository) *CourseHandler {
 	return NewCourseHandler(
 		usecase.NewCourseUseCase(cr, fakeMaterialRepo{}),
-		usecase.NewListCoursesWithMaterialCountUseCase(cr, fakeMaterialRepo{}),
+		usecase.NewListCoursesWithProgressUseCase(cr, fakeMaterialRepo{}, &fakeProgressRepoH{}),
 	)
 }
 

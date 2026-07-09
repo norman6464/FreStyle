@@ -1693,21 +1693,21 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "current user の role / company で 自動 フィルタ。 trainee は published のみ、 admin 系 は draft 含む。 各コース に 教材(章)数 materialCount を 付与 して 返す。",
+                "description": "current user の role / company で 自動 フィルタ。 trainee は published のみ、 admin 系 は draft 含む。 各コース に 章数 materialCount と 自身 の 完了 章数 completedCount を 付与 して 返す。",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "courses"
                 ],
-                "summary": "コース 一覧 (章数付き)",
+                "summary": "コース 一覧 (進捗付き)",
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase.CourseWithMaterialCount"
+                                "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase.CourseWithProgress"
                             }
                         }
                     },
@@ -4475,13 +4475,17 @@
                 }
             }
         },
-        "github_com_norman6464_FreStyle_backend_internal_usecase.CourseWithMaterialCount": {
+        "github_com_norman6464_FreStyle_backend_internal_usecase.CourseWithProgress": {
             "type": "object",
             "properties": {
                 "category": {
                     "type": "string"
                 },
                 "companyId": {
+                    "type": "integer"
+                },
+                "completedCount": {
+                    "description": "CompletedCount は actor 自身が完了した章数(現存する published 章のみ。常に MaterialCount 以下)。",
                     "type": "integer"
                 },
                 "createdAt": {
@@ -4500,6 +4504,7 @@
                     "type": "boolean"
                 },
                 "materialCount": {
+                    "description": "MaterialCount はコース内の章数。trainee は published のみ、admin 系は下書き込み。",
                     "type": "integer"
                 },
                 "sortOrder": {

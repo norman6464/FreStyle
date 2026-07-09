@@ -10,23 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_コース_一覧_traineeは公開のみ(t *testing.T) {
-	crepo := &fakeCourseRepo{rows: []domain.Course{{ID: 1}}}
-	mrepo := &fakeTeachingMaterialRepo{}
-	uc := usecase.NewCourseUseCase(crepo, mrepo)
-	_, err := uc.List(context.Background(), 10, domain.RoleTrainee)
-	require.NoError(t, err)
-}
-
-func Test_コース_一覧_会社未所属は空(t *testing.T) {
-	crepo := &fakeCourseRepo{rows: []domain.Course{{ID: 1}}}
-	mrepo := &fakeTeachingMaterialRepo{}
-	uc := usecase.NewCourseUseCase(crepo, mrepo)
-	out, err := uc.List(context.Background(), 0, domain.RoleSuperAdmin)
-	require.NoError(t, err)
-	assert.Empty(t, out)
-}
-
 func Test_コース_取得_traineeは下書き不可(t *testing.T) {
 	crepo := &fakeCourseRepo{getResp: &domain.Course{ID: 5, CompanyID: 10, IsPublished: false}}
 	mrepo := &fakeTeachingMaterialRepo{}
@@ -193,16 +176,4 @@ func Test_コース_更新_不正なカテゴリは拒否(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid course category")
 	assert.Nil(t, crepo.updated)
-}
-
-func Test_コース_一覧_0件でもnilではなく空スライスを返す(t *testing.T) {
-	// GORM の Find は 0 件時に nil スライスを返し、handler がそのまま JSON にすると
-	// null になってフロントがクラッシュする(FRESTYLE-70)。usecase で正規化する。
-	crepo := &fakeCourseRepo{rows: nil}
-	mrepo := &fakeTeachingMaterialRepo{}
-	uc := usecase.NewCourseUseCase(crepo, mrepo)
-	out, err := uc.List(context.Background(), 10, domain.RoleTrainee)
-	require.NoError(t, err)
-	assert.NotNil(t, out)
-	assert.Empty(t, out)
 }

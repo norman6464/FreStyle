@@ -10,29 +10,30 @@ import (
 
 // CourseHandler はコースの CRUD API を扱う。
 type CourseHandler struct {
-	uc            *usecase.CourseUseCase
-	listWithCount *usecase.ListCoursesWithMaterialCountUseCase
+	uc               *usecase.CourseUseCase
+	listWithProgress *usecase.ListCoursesWithProgressUseCase
 }
 
-func NewCourseHandler(uc *usecase.CourseUseCase, listWithCount *usecase.ListCoursesWithMaterialCountUseCase) *CourseHandler {
-	return &CourseHandler{uc: uc, listWithCount: listWithCount}
+func NewCourseHandler(uc *usecase.CourseUseCase, listWithProgress *usecase.ListCoursesWithProgressUseCase) *CourseHandler {
+	return &CourseHandler{uc: uc, listWithProgress: listWithProgress}
 }
 
-// @Summary      コース 一覧 (章数付き)
-// @Description  current user の role / company で 自動 フィルタ。 trainee は published のみ、 admin 系 は draft 含む。 各コース に 教材(章)数 materialCount を 付与 して 返す。
+// @Summary      コース 一覧 (進捗付き)
+// @Description  current user の role / company で 自動 フィルタ。 trainee は published のみ、 admin 系 は draft 含む。 各コース に 章数 materialCount と 自身 の 完了 章数 completedCount を 付与 して 返す。
 // @Tags         courses
 // @Produce      json
-// @Success      200  {array}   usecase.CourseWithMaterialCount
+// @Success      200  {array}   usecase.CourseWithProgress
 // @Failure      401  {object}  errorResponse  "未 認証"
 // @Failure      500  {object}  errorResponse  "DB 失敗"
 // @Router       /courses [get]
 // @Security     CookieAuth
 func (h *CourseHandler) List(c *gin.Context) {
-	_, companyID, role, ok := actorFromContext(c)
+	uid, companyID, role, ok := actorFromContext(c)
 	if !ok {
 		return
 	}
-	rows, err := h.listWithCount.Execute(c.Request.Context(), usecase.ListCoursesWithMaterialCountInput{
+	rows, err := h.listWithProgress.Execute(c.Request.Context(), usecase.ListCoursesWithProgressInput{
+		ActorUserID:    uid,
 		ActorCompanyID: companyID,
 		ActorRole:      role,
 	})

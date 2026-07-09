@@ -7,19 +7,30 @@
 
 ## データの流れ
 
+進捗の分母・分子とも **backend がコース一覧 API のレスポンスに同梱**する。
+frontend は一覧表示のために追加のリクエストを送らない。
+
 ```
-GET /api/v2/courses          → 各コースの materialCount（全章数）を含む一覧
-GET /api/v2/lesson-progress  → current user の完了行（teachingMaterialId / courseId / completedAt）
+GET /api/v2/courses → CourseWithProgress[]（Course + materialCount + completedCount）
 ```
 
-- **全章数（分母）**: backend の `ListCoursesWithMaterialCountUseCase` が
-  `TeachingMaterialRepository.CountByCourseForCompany`（`GROUP BY course_id` の 1 クエリ、N+1 回避）で集計し、
-  一覧レスポンスの各要素に `materialCount` として付与する。
-  - trainee: published の章のみカウント（詳細ページの分母と一致させる）
-  - company_admin / super_admin: 下書き章も含む
-- **完了章数（分子）**: frontend の `useCourseCompletionCounts` hook が既存の
-  `GET /api/v2/lesson-progress`（current user 固定・1 リクエスト）を courseId 別に集計する。
-  backend に新しい進捗集計 API は作らない。
+`ListCoursesWithProgressUseCase` が 1 回の Execute で次を集計する:
+
+- **materialCount（分母 = 章数）**: `TeachingMaterialRepository.CountByCourseForCompany`
+  （`GROUP BY course_id` の 1 クエリ、N+1 回避）。trainee は published のみ / admin 系は下書き込み
+- **completedCount（分子 = 完了章数）**: `LessonProgressRepository.CountCompletedByUserGroupedByCourse`。
+  `user_lesson_progress` を `teaching_materials` に **JOIN して「現存する published 章」のみ**数える。
+  管理ロールは完了記録を持たないため集計自体をスキップ（completedCount = 0）
+
+## 分子を JOIN で数える理由（重要な設計判断）
+
+完了記録（`user_lesson_progress`）は章の**非公開化・削除では消えない**。
+生の完了行数を分子にすると「幽霊完了行」で進捗が過大表示され、
+コース詳細ページ（表示中の章一覧と完了記録の積集合で分子を計算）と数値が食い違う。
+JOIN で「現存する published 章の完了行」だけを数えることで、
+
+- 分子 ≤ 分母が常に成立する
+- 一覧カードと詳細ページの進捗が同じ意味論になる
 
 ## 表示ルール
 
@@ -30,20 +41,20 @@ GET /api/v2/lesson-progress  → current user の完了行（teachingMaterialId 
 
 - `CourseProgressBar` は `{completed}/{total}（{pct}%）` のラベル + `role="progressbar"`（aria-valuenow/min/max）の緑バー。
   もともと `CourseDetailPage` 内のローカル実装だったものを `src/components/CourseProgressBar.tsx` へ抽出して共用している
-- 管理ロールには進捗を表示しない（完了記録を持たないロールのため。`useCourseCompletionCounts(enabled=false)` は API を叩かない）
+- コンポーネント内部で `completed` を `[0, total]` にクランプする（呼び出し元のデータ差に対する防御）
 
-## 設計判断・落とし穴
+## そのほかの実装メモ
 
-- **完了数 > 全章数になり得る**: 完了記録（`user_lesson_progress`）は章の非公開化・削除時に消えないため、
-  完了後に章が減ると分子が分母を上回る。一覧カードでは `Math.min(completed, total)` でクランプして 100% 止まりにしている
-- **create/update 応答に materialCount は無い**: `POST/PUT /courses` は従来どおり `domain.Course` を返す。
-  `useCourses` が作成時は `materialCount: 0`、更新時は取得済みの値を引き継いで補完する
-- **0 件時の null 防御**: 一覧 usecase は 0 件でも空スライスを返す（FRESTYLE-70 と同じ理由）。
-  hook 側も `rows ?? []` で防御している
+- `POST/PUT /courses` の応答は従来どおり `domain.Course`（進捗フィールド無し）。
+  `useCourses` が作成時は 0、更新時は取得済みの値を引き継いで補完する
+- 一覧 usecase は 0 件でも空スライスを返す（FRESTYLE-70 の null 防御と同じ理由）
+- 旧 `CourseUseCase.List` は一覧が進捗集計を伴うようになったため削除し、
+  一覧の可視性ロジック（company / role フィルタ）は `ListCoursesWithProgressUseCase` に一本化した
 
 ## 関連
 
 - Jira: FRESTYLE-98（一覧カード進捗）/ FRESTYLE-70（null 防御）/ FRESTYLE-68（カテゴリセクション + チップ）
-- backend: `internal/usecase/list_courses_with_material_count_usecase.go` /
-  `internal/adapter/persistence/teaching_material_repository.go`（`CountByCourseForCompany`）
-- frontend: `src/hooks/useCourseCompletionCounts.ts` / `src/components/CourseProgressBar.tsx`
+- backend: `internal/usecase/list_courses_with_progress_usecase.go` /
+  `internal/adapter/persistence/teaching_material_repository.go`（`CountByCourseForCompany`）/
+  `internal/adapter/persistence/lesson_progress_repository.go`（`CountCompletedByUserGroupedByCourse`）
+- frontend: `src/components/CourseProgressBar.tsx` / `src/types/index.ts`（`CourseWithProgress`）

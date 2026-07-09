@@ -2154,8 +2154,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * コース 一覧 (章数付き)
-         * @description current user の role / company で 自動 フィルタ。 trainee は published のみ、 admin 系 は draft 含む。 各コース に 教材(章)数 materialCount を 付与 して 返す。
+         * コース 一覧 (進捗付き)
+         * @description current user の role / company で 自動 フィルタ。 trainee は published のみ、 admin 系 は draft 含む。 各コース に 章数 materialCount と 自身 の 完了 章数 completedCount を 付与 して 返す。
          */
         get: {
             parameters: {
@@ -2172,7 +2172,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_usecase.CourseWithMaterialCount"][];
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_usecase.CourseWithProgress"][];
                     };
                 };
                 /** @description 未 認証 */
@@ -4992,14 +4992,17 @@ export interface components {
             name?: string;
             traineeCount?: number;
         };
-        "github_com_norman6464_FreStyle_backend_internal_usecase.CourseWithMaterialCount": {
+        "github_com_norman6464_FreStyle_backend_internal_usecase.CourseWithProgress": {
             category?: string;
             companyId?: number;
+            /** @description CompletedCount は actor 自身が完了した章数(現存する published 章のみ。常に MaterialCount 以下)。 */
+            completedCount?: number;
             createdAt?: string;
             createdByUserId?: number;
             description?: string;
             id?: number;
             isPublished?: boolean;
+            /** @description MaterialCount はコース内の章数。trainee は published のみ、admin 系は下書き込み。 */
             materialCount?: number;
             sortOrder?: number;
             title?: string;

@@ -7,9 +7,8 @@ import CoursesListPage from '../CoursesListPage';
 import { ToastProvider } from '../../components/ToastProvider';
 import authReducer from '../../store/authSlice';
 import CourseRepository from '../../repositories/CourseRepository';
-import LessonProgressRepository from '../../repositories/LessonProgressRepository';
 import { COURSE_CATEGORIES, findCourseCategory } from '../../constants/courseCategories';
-import type { CourseWithMaterialCount, UserLessonProgress } from '../../types';
+import type { CourseWithProgress } from '../../types';
 
 vi.mock('../../repositories/CourseRepository', () => ({
   default: {
@@ -20,18 +19,9 @@ vi.mock('../../repositories/CourseRepository', () => ({
   },
 }));
 
-vi.mock('../../repositories/LessonProgressRepository', () => ({
-  default: {
-    list: vi.fn(),
-    complete: vi.fn(),
-    incomplete: vi.fn(),
-  },
-}));
-
 const mockList = vi.mocked(CourseRepository.list);
-const mockProgressList = vi.mocked(LessonProgressRepository.list);
 
-function makeCourse(overrides: Partial<CourseWithMaterialCount> = {}): CourseWithMaterialCount {
+function makeCourse(overrides: Partial<CourseWithProgress> = {}): CourseWithProgress {
   return {
     id: 1,
     companyId: 10,
@@ -42,20 +32,10 @@ function makeCourse(overrides: Partial<CourseWithMaterialCount> = {}): CourseWit
     sortOrder: 100,
     isPublished: true,
     materialCount: 8,
+    completedCount: 0,
     createdAt: '2026-07-01T00:00:00Z',
     updatedAt: '2026-07-01T00:00:00Z',
     ...overrides,
-  };
-}
-
-function progressRow(teachingMaterialId: number, courseId: number): UserLessonProgress {
-  return {
-    id: teachingMaterialId,
-    userId: 1,
-    teachingMaterialId,
-    courseId,
-    completedAt: '2026-07-01T00:00:00Z',
-    createdAt: '2026-07-01T00:00:00Z',
   };
 }
 
@@ -80,7 +60,6 @@ function renderPage(role = 'trainee') {
 describe('CoursesListPage カテゴリ色分け (FRESTYLE-67)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockProgressList.mockResolvedValue([]);
   });
 
   it('カテゴリ付きコースはセクション見出し(バッジ + 件数)の下に表示される', async () => {
@@ -169,7 +148,6 @@ describe('CoursesListPage カテゴリ色分け (FRESTYLE-67)', () => {
 describe('CoursesListPage CRUD フロー', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockProgressList.mockResolvedValue([]);
   });
 
   it('trainee には「新しいコース」ボタンを表示しない', async () => {
@@ -282,11 +260,10 @@ describe('findCourseCategory', () => {
 describe('API が null を返す場合の防御 (FRESTYLE-70)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockProgressList.mockResolvedValue([]);
   });
 
   it('コース一覧 API が null でもクラッシュせず EmptyState を表示する', async () => {
-    mockList.mockResolvedValue(null as unknown as CourseWithMaterialCount[]);
+    mockList.mockResolvedValue(null as unknown as CourseWithProgress[]);
     renderPage();
     await waitFor(() => expect(screen.getByText('コースがありません')).toBeInTheDocument());
   });
@@ -295,12 +272,10 @@ describe('API が null を返す場合の防御 (FRESTYLE-70)', () => {
 describe('CoursesListPage カード進捗表示 (FRESTYLE-98)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockProgressList.mockResolvedValue([]);
   });
 
   it('受講者のカードに完了章数/全章数と進捗バーが表示される', async () => {
-    mockList.mockResolvedValue([makeCourse({ id: 1, materialCount: 8 })]);
-    mockProgressList.mockResolvedValue([progressRow(11, 1), progressRow(12, 1)]);
+    mockList.mockResolvedValue([makeCourse({ id: 1, materialCount: 8, completedCount: 2 })]);
     renderPage('trainee');
     await waitFor(() => expect(screen.getByText('2/8（25%）')).toBeInTheDocument());
     expect(screen.getByRole('progressbar', { name: '学習の進捗' })).toHaveAttribute(
@@ -310,29 +285,16 @@ describe('CoursesListPage カード進捗表示 (FRESTYLE-98)', () => {
   });
 
   it('完了記録が無いコースは 0/N と表示される', async () => {
-    mockList.mockResolvedValue([makeCourse({ id: 1, materialCount: 8 })]);
+    mockList.mockResolvedValue([makeCourse({ id: 1, materialCount: 8, completedCount: 0 })]);
     renderPage('trainee');
     await waitFor(() => expect(screen.getByText('0/8（0%）')).toBeInTheDocument());
   });
 
-  it('管理ロールには進捗を表示せず進捗 API も叩かない', async () => {
-    mockList.mockResolvedValue([makeCourse({ id: 1, materialCount: 8 })]);
+  it('管理ロールには進捗バーを表示しない', async () => {
+    mockList.mockResolvedValue([makeCourse({ id: 1, materialCount: 8, completedCount: 3 })]);
     renderPage('company_admin');
     await waitFor(() => expect(screen.getByText('PostgreSQL 徹底入門')).toBeInTheDocument());
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
-    expect(mockProgressList).not.toHaveBeenCalled();
-  });
-
-  it('完了数が章数を上回る場合はクランプして 100% 止まりにする', async () => {
-    // 完了記録後に章が非公開/削除されると完了行だけが残るケース。
-    mockList.mockResolvedValue([makeCourse({ id: 1, materialCount: 2 })]);
-    mockProgressList.mockResolvedValue([
-      progressRow(11, 1),
-      progressRow(12, 1),
-      progressRow(13, 1),
-    ]);
-    renderPage('trainee');
-    await waitFor(() => expect(screen.getByText('2/2（100%）')).toBeInTheDocument());
   });
 
   it('章が 0 件のコースには進捗バーを出さない', async () => {
@@ -340,5 +302,11 @@ describe('CoursesListPage カード進捗表示 (FRESTYLE-98)', () => {
     renderPage('trainee');
     await waitFor(() => expect(screen.getByText('PostgreSQL 徹底入門')).toBeInTheDocument());
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+  });
+
+  it('全章完了は 100% と表示される', async () => {
+    mockList.mockResolvedValue([makeCourse({ id: 1, materialCount: 5, completedCount: 5 })]);
+    renderPage('trainee');
+    await waitFor(() => expect(screen.getByText('5/5（100%）')).toBeInTheDocument());
   });
 });

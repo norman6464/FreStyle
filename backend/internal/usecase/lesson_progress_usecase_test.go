@@ -17,6 +17,18 @@ type fakeLessonProgressRepo struct {
 	completed   map[uint64]uint64 // materialID -> courseID
 	listRows    []domain.UserLessonProgress
 	completeErr error
+	// CountCompletedByUserGroupedByCourse 用
+	countsByCourse map[uint64]int
+	countErr       error
+	countCalled    bool
+}
+
+func (f *fakeLessonProgressRepo) CountCompletedByUserGroupedByCourse(context.Context, uint64) (map[uint64]int, error) {
+	f.countCalled = true
+	if f.countErr != nil {
+		return nil, f.countErr
+	}
+	return f.countsByCourse, nil
 }
 
 func newFakeLessonProgressRepo() *fakeLessonProgressRepo {

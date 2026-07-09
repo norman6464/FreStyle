@@ -1,6 +1,6 @@
 import api from '../lib/axios';
 import { COURSES } from '../constants/apiRoutes';
-import type { Course, CourseWithMaterialCount, TeachingMaterial } from '../types';
+import type { Course, CourseWithProgress, TeachingMaterial } from '../types';
 
 /**
  * コース API ラッパ。
@@ -18,8 +18,8 @@ export interface CoursePayload {
 }
 
 const CourseRepository = {
-  async list(): Promise<CourseWithMaterialCount[]> {
-    const res = await api.get<CourseWithMaterialCount[]>(COURSES.list);
+  async list(): Promise<CourseWithProgress[]> {
+    const res = await api.get<CourseWithProgress[]>(COURSES.list);
     return res.data;
   },
 

@@ -23,4 +23,15 @@ describe('CourseProgressBar', () => {
     expect(screen.getByText('8/8（100%）')).toBeInTheDocument();
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '100');
   });
+
+  it('completed > total はクランプして 100% 止まり(呼び出し元のデータ差に対する防御)', () => {
+    render(<CourseProgressBar completed={5} total={3} />);
+    expect(screen.getByText('3/3（100%）')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '100');
+  });
+
+  it('負の completed は 0 にクランプする', () => {
+    render(<CourseProgressBar completed={-1} total={3} />);
+    expect(screen.getByText('0/3（0%）')).toBeInTheDocument();
+  });
 });

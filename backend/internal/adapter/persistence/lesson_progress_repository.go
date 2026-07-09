@@ -43,6 +43,30 @@ func (r *lessonProgressRepository) MarkIncomplete(ctx context.Context, userID, m
 		Delete(&domain.UserLessonProgress{}).Error
 }
 
+// CountCompletedByUserGroupedByCourse は「現存する published 教材」の完了行のみを
+// course_id ごとに 1 クエリで集計する。教材削除で JOIN から落ち、非公開化は is_published で
+// 除外されるため、分子が分母(published 章数)を上回ることはない。
+func (r *lessonProgressRepository) CountCompletedByUserGroupedByCourse(ctx context.Context, userID uint64) (map[uint64]int, error) {
+	const q = `
+SELECT tm.course_id, COUNT(*) AS cnt
+FROM user_lesson_progress ulp
+JOIN teaching_materials tm ON tm.id = ulp.teaching_material_id
+WHERE ulp.user_id = ? AND tm.is_published = TRUE
+GROUP BY tm.course_id`
+	var rows []struct {
+		CourseID uint64
+		Cnt      int
+	}
+	if err := r.db.WithContext(ctx).Raw(q, userID).Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	counts := make(map[uint64]int, len(rows))
+	for _, row := range rows {
+		counts[row.CourseID] = row.Cnt
+	}
+	return counts, nil
+}
+
 func (r *lessonProgressRepository) ListByUser(ctx context.Context, userID uint64) ([]domain.UserLessonProgress, error) {
 	var rows []domain.UserLessonProgress
 	err := r.db.WithContext(ctx).

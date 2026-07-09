@@ -160,4 +160,63 @@ describe('CourseDetailPage 続きから表示 + 完了トグル (FRESTYLE-99 / F
       expect(screen.getByRole('heading', { level: 1, name: '章 11' })).toBeInTheDocument(),
     );
   });
+
+  it('管理ロールでは自動選択も閲覧記録もされない', async () => {
+    renderPage('company_admin');
+    await waitFor(() => expect(mockListMaterials).toHaveBeenCalled());
+    // 章メニューはモバイル drawer とデスクトップパネルの 2 箇所に描画される。
+    await waitFor(() => expect(screen.getAllByText('章 11').length).toBeGreaterThan(0));
+    expect(mockLastViewed).not.toHaveBeenCalled();
+    expect(mockRecordView).not.toHaveBeenCalled();
+    // 自動選択されないため本文見出しは出ない。
+    expect(screen.queryByRole('heading', { level: 1, name: /章 1[12]/ })).not.toBeInTheDocument();
+  });
+
+  it('「次の章へ」で次の教材に切り替わり、閲覧も記録される', async () => {
+    mockLastViewed.mockResolvedValue(view(11));
+    renderPage('trainee');
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { level: 1, name: '章 11' })).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole('button', { name: /次の章へ/ }));
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { level: 1, name: '章 12' })).toBeInTheDocument(),
+    );
+    await waitFor(() => expect(mockRecordView).toHaveBeenCalledWith(12));
+  });
+
+  it('本文の取得に失敗したらエラーメッセージを表示する', async () => {
+    mockGetMaterial.mockRejectedValue(new Error('network'));
+    renderPage('trainee');
+    await waitFor(() => expect(screen.getByText('教材の取得に失敗しました')).toBeInTheDocument());
+  });
+
+  it('コースの取得に失敗したらエラー表示になる', async () => {
+    mockGetCourse.mockRejectedValue(new Error('network'));
+    renderPage('trainee');
+    await waitFor(() =>
+      expect(screen.getByText('コースの取得に失敗しました')).toBeInTheDocument(),
+    );
+  });
+
+  it('完了済みの章は「完了済み」表示になり、クリックで完了解除 API を呼ぶ', async () => {
+    const mockIncomplete = vi.mocked(LessonProgressRepository.incomplete);
+    mockIncomplete.mockResolvedValue(undefined);
+    mockProgressList.mockResolvedValue([
+      {
+        id: 1,
+        userId: 7,
+        teachingMaterialId: 12,
+        courseId: 5,
+        completedAt: '2026-07-08T00:00:00Z',
+        createdAt: '2026-07-08T00:00:00Z',
+      },
+    ]);
+    renderPage('trainee'); // lastViewed = 章 12
+    await waitFor(() =>
+      expect(screen.getAllByRole('button', { name: '完了済み' }).length).toBeGreaterThan(0),
+    );
+    fireEvent.click(screen.getAllByRole('button', { name: '完了済み' })[0]);
+    await waitFor(() => expect(mockIncomplete).toHaveBeenCalledWith(12));
+  });
 });

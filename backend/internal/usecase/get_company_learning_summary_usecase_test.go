@@ -54,9 +54,10 @@ func Test_メンバー学習サマリー_集計される(t *testing.T) {
 	assert.Equal(t, 4, out.TraineeCount)
 	assert.Equal(t, 1, out.ActiveToday)
 	assert.Equal(t, 2, out.ActiveThisWeek, "直近 7 日の活動回数 > 0 の 2 名")
-	require.Len(t, out.RecentMembers, 3, "未学習の trainee は直近リストに含めない")
+	require.Len(t, out.RecentMembers, 2, "直近 7 日に活動が無い trainee は直近アクティブに含めない")
 	assert.Equal(t, "今日学習した人", out.RecentMembers[0].Name)
 	assert.Equal(t, today.Format("2006-01-02"), out.RecentMembers[0].LastActiveDate)
+	assert.Equal(t, "昨日学習した人", out.RecentMembers[1].Name)
 }
 
 func Test_メンバー学習サマリー_直近リストは5名まで(t *testing.T) {

@@ -32,7 +32,8 @@ type CompanyLearningSummaryOutput struct {
 	ActiveToday int `json:"activeToday"`
 	// ActiveThisWeek は直近 7 日間(今日を含む)に学習活動があった trainee 数。
 	ActiveThisWeek int `json:"activeThisWeek"`
-	// RecentMembers は最終活動日の新しい順の直近アクティブメンバー(最大 5 名。活動が無い trainee は含めない)。
+	// RecentMembers は最終活動日の新しい順の直近アクティブメンバー
+	// (直近 7 日間に活動があるメンバーのみ、最大 5 名)。
 	RecentMembers []MemberLearningSummaryItem `json:"recentMembers"`
 }
 
@@ -72,7 +73,9 @@ func (u *GetCompanyLearningSummaryUseCase) Execute(ctx context.Context, actor *d
 			out.ActiveThisWeek++
 		}
 		// repository は最終活動日の新しい順(未活動は末尾)で返す。
-		if r.LastActiveDate != nil && len(out.RecentMembers) < recentMembersLimit {
+		// 「直近アクティブ」の見出しと矛盾しないよう、直近 7 日間に活動があるメンバーだけを載せる
+		// (7 日超前の活動しか無い人を 0 回で並べない)。
+		if r.LastActiveDate != nil && r.RecentActivityCount > 0 && len(out.RecentMembers) < recentMembersLimit {
 			out.RecentMembers = append(out.RecentMembers, MemberLearningSummaryItem{
 				UserID:              r.UserID,
 				Name:                r.Name,

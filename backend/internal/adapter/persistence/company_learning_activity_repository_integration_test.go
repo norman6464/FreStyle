@@ -47,14 +47,16 @@ func TestCompanyLearningActivityRepository_Integration(t *testing.T) {
 	mkUser(16, "other-company", domain.RoleTrainee, otherCompany, false)
 
 	today := time.Now().UTC()
+	boundaryDay := today.AddDate(0, 0, -6) // 集計ウィンドウの境界日(7 日間の初日)
 	tenDaysAgo := today.AddDate(0, 0, -10)
 	inc := repository.UserDailyActivityIncrement{LessonCount: 1}
 	require.NoError(t, activities.Increment(ctx, 11, today, inc))
-	require.NoError(t, activities.Increment(ctx, 11, today, inc)) // 同日 2 回目
+	require.NoError(t, activities.Increment(ctx, 11, boundaryDay, inc)) // 境界日の活動も数える
 	require.NoError(t, activities.Increment(ctx, 12, tenDaysAgo, inc))
 	require.NoError(t, activities.Increment(ctx, 16, today, inc)) // 他社
 
-	fromDate := today.AddDate(0, 0, -6)
+	// fromDate に時刻成分が残っていても境界日(当日)の活動が漏れないこと(日付へ丸めて比較)。
+	fromDate := boundaryDay
 	rows, err := repo.ListMemberActivities(ctx, companyID, fromDate)
 	require.NoError(t, err)
 	require.Len(t, rows, 3, "自社 trainee のみ(論理削除・admin・他社は除外)")
@@ -63,7 +65,7 @@ func TestCompanyLearningActivityRepository_Integration(t *testing.T) {
 	require.Equal(t, uint64(11), rows[0].UserID)
 	require.NotNil(t, rows[0].LastActiveDate)
 	require.Equal(t, today.Format("2006-01-02"), rows[0].LastActiveDate.Format("2006-01-02"))
-	require.Equal(t, 2, rows[0].RecentActivityCount, "期間内の活動回数が合算される")
+	require.Equal(t, 2, rows[0].RecentActivityCount, "今日 + 境界日の活動が合算される")
 
 	require.Equal(t, uint64(12), rows[1].UserID)
 	require.Equal(t, 0, rows[1].RecentActivityCount, "期間外の活動は数えない")

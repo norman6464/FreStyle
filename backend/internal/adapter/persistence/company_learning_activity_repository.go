@@ -47,8 +47,11 @@ ORDER BY MAX(a.activity_date) DESC NULLS LAST, u.id ASC`
 		LastActiveDate      *time.Time
 		RecentActivityCount int
 	}
+	// activity_date は DATE 列。時刻成分が残っていると比較が timestamp に昇格して
+	// 境界日(fromDate 当日)の活動が漏れるため、日付に丸めてから比較する(ListByUser と同じ流儀)。
+	from := fromDate.UTC().Truncate(24 * time.Hour)
 	if err := r.db.WithContext(ctx).
-		Raw(q, fromDate, companyID, domain.RoleTrainee).
+		Raw(q, from, companyID, domain.RoleTrainee).
 		Scan(&rows).Error; err != nil {
 		return nil, err
 	}

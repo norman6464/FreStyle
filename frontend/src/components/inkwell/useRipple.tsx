@@ -15,12 +15,14 @@ export function useRipple(color = 'currentColor') {
   const [ripples, setRipples] = useState<RippleItem[]>([]);
 
   const addRipple = useCallback((e: React.PointerEvent<HTMLElement>) => {
-    const el = e.currentTarget;
-    const rect = el.getBoundingClientRect();
-    // クリック点を覆いきる直径 = 点から最遠角までの距離 × 2。
-    const size = Math.max(rect.width, rect.height) * 2;
-    const x = e.clientX - rect.left - size / 2;
-    const y = e.clientY - rect.top - size / 2;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const px = e.clientX - rect.left;
+    const py = e.clientY - rect.top;
+    // クリック点から最遠角までの距離を半径にして要素を覆いきる。
+    const radius = Math.hypot(Math.max(px, rect.width - px), Math.max(py, rect.height - py));
+    const size = radius * 2;
+    const x = px - radius;
+    const y = py - radius;
     setRipples((prev) => [...prev, { key: prev.length ? prev[prev.length - 1].key + 1 : 0, x, y, size }]);
   }, []);
 

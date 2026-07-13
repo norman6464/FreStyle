@@ -14,14 +14,33 @@
 - アプリ本体のテーマ（`brand-*` / `taupe-*` のモノクロ最小構成）とは**分離**。既存 `components/ui/` は不変。
 
 ```tsx
-import { InkwellButton, InkwellTextField, InkwellCard, InkwellCheckbox, InkwellSwitch } from '../components/inkwell';
+import { useState } from 'react';
+import {
+  InkwellButton,
+  InkwellTextField,
+  InkwellCard,
+  InkwellCardContent,
+  InkwellCheckbox,
+  InkwellSwitch,
+} from '../components/inkwell';
 
-<InkwellButton color="primary">保存</InkwellButton>
-<InkwellButton variant="outlined">キャンセル</InkwellButton>
-<InkwellTextField label="メール" helperText="社内アドレス" error={hasError} />
-<InkwellCard elevation={2}><InkwellCardContent>...</InkwellCardContent></InkwellCard>
-<InkwellCheckbox label="同意する" checked={ok} onChange={e => setOk(e.target.checked)} />
-<InkwellSwitch label="通知" checked={on} onChange={e => setOn(e.target.checked)} />
+function Example() {
+  const [ok, setOk] = useState(false);
+  const [on, setOn] = useState(true);
+  const hasError = false;
+  return (
+    <>
+      <InkwellButton color="primary">保存</InkwellButton>
+      <InkwellButton variant="outlined">キャンセル</InkwellButton>
+      <InkwellTextField label="メール" helperText="社内アドレス" error={hasError} />
+      <InkwellCard elevation={2}>
+        <InkwellCardContent>本文</InkwellCardContent>
+      </InkwellCard>
+      <InkwellCheckbox label="同意する" checked={ok} onChange={(e) => setOk(e.target.checked)} />
+      <InkwellSwitch label="通知" checked={on} onChange={(e) => setOn(e.target.checked)} />
+    </>
+  );
+}
 ```
 
 ## コンポーネント

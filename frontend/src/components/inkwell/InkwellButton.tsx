@@ -67,6 +67,16 @@ export default function InkwellButton({
   const { addRipple, rippleOverlay } = useRipple(rippleColor[variant]);
   const VARIANT = variant === 'contained' ? CONTAINED : variant === 'outlined' ? OUTLINED : TEXT;
 
+  // disabled のときは配色クラスを丸ごと差し替える（配色クラスの枠線・背景が残って
+  // 定義順依存で勝敗が変わるのを避ける）。
+  const stateClass = disabled
+    ? variant === 'contained'
+      ? 'bg-black/[0.12] shadow-none'
+      : variant === 'outlined'
+        ? 'border border-black/[0.12]'
+        : ''
+    : VARIANT[color];
+
   return (
     <button
       type={type}
@@ -75,9 +85,7 @@ export default function InkwellButton({
         if (!disabled) addRipple(e);
         onPointerDown?.(e);
       }}
-      className={`relative inline-flex items-center justify-center gap-2 overflow-hidden rounded font-roboto font-medium uppercase leading-[1.75] tracking-[0.02857em] transition-[background-color,box-shadow,border-color] duration-200 select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inkwell-primary/50 disabled:pointer-events-none disabled:text-inkwell-text-disabled ${
-        disabled && variant === 'contained' ? 'bg-black/[0.12] shadow-none' : VARIANT[color]
-      } ${disabled && variant === 'outlined' ? 'border-black/[0.12]' : ''} ${SIZE[size]} ${
+      className={`relative inline-flex items-center justify-center gap-2 overflow-hidden rounded font-roboto font-medium uppercase leading-[1.75] tracking-[0.02857em] transition-[background-color,box-shadow,border-color] duration-200 select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inkwell-primary/50 disabled:pointer-events-none disabled:text-inkwell-text-disabled ${stateClass} ${SIZE[size]} ${
         fullWidth ? 'w-full' : ''
       } ${className}`}
       {...props}

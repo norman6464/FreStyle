@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { CheckCircleIcon, ClockIcon, CodeBracketIcon } from '@heroicons/react/24/outline';
 import { FilterChip } from '../components/ui';
 import { EXERCISE_LANGUAGES } from '../constants/exerciseLanguages';
+import LanguageBadge from '../components/LanguageBadge';
 import { useExerciseList } from '../hooks/useExerciseList';
 import { MasterExerciseWithStatus } from '../types';
 
@@ -101,9 +102,7 @@ function ExerciseCard({ ex }: { ex: MasterExerciseWithStatus }) {
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs text-[var(--color-text-muted)]">
             <span className="font-mono">#{ex.orderIndex}</span>
-            <span className="px-1.5 py-0.5 rounded bg-surface-3 uppercase tracking-wide">
-              {ex.language}
-            </span>
+            <LanguageBadge language={ex.language} />
             <DifficultyBadge level={ex.difficulty} />
           </div>
           <h3 className="mt-1 text-base font-semibold text-[var(--color-text-primary)] group-hover:text-taupe-400 transition-colors truncate">

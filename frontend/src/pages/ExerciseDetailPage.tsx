@@ -11,6 +11,7 @@ import SubmissionRow from '../components/exercise/SubmissionRow';
 import QaExerciseView from '../components/exercise/QaExerciseView';
 import MarkdownView from '../components/message/MarkdownView';
 import { useExerciseDetail } from '../hooks/useExerciseDetail';
+import LanguageBadge from '../components/LanguageBadge';
 import { lazyWithReload } from '../utils/lazyWithReload';
 import { monacoLanguageOf } from '../utils/exerciseFormat';
 
@@ -173,9 +174,8 @@ export default function ExerciseDetailPage() {
             >
               リセット
             </button>
-            <span className="text-xs px-2 py-0.5 rounded bg-surface-3 text-[var(--color-text-muted)] font-mono uppercase">
-              {ex.language}
-            </span>
+            <LanguageBadge language={ex.language} mono />
+
             {warmupReady && (
               <span className="text-xs px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 inline-flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" aria-hidden />

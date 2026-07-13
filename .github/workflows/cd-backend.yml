@@ -129,11 +129,22 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ secrets.AWS_ECR_API_SERVER_REPOSITORY }}
         run: |
-          docker buildx build --platform linux/amd64 \
-            -f Dockerfile.coderunner \
-            -t "$ECR_REGISTRY/$ECR_REPOSITORY:coderunner-latest" \
-            -t "$ECR_REGISTRY/$ECR_REPOSITORY:coderunner-${{ github.sha }}" \
-            --push .
+          # Docker Hub の pull(node:24-bookworm 等)は runner 上で transient に timeout する
+          # ことがあるためリトライする(ci-backend-go.yml の integration と同じ方針)。
+          # backend :latest push 済みの後にここが失敗すると :coderunner-latest だけ旧のまま
+          # 残り「新 backend + 旧 coderunner」が生まれるため、諦める前に 3 回試す。
+          # buildx は docker-container driver でキャッシュが daemon と分離されているので、
+          # 先行 docker pull ではなく buildx build 自体をリトライで包む必要がある。
+          for i in 1 2 3; do
+            docker buildx build --platform linux/amd64 \
+              -f Dockerfile.coderunner \
+              -t "$ECR_REGISTRY/$ECR_REPOSITORY:coderunner-latest" \
+              -t "$ECR_REGISTRY/$ECR_REPOSITORY:coderunner-${{ github.sha }}" \
+              --push . && exit 0
+            echo "coderunner build failed (attempt $i/3), retrying in 10s..."
+            sleep 10
+          done
+          exit 1
 
   deploy:
     name: ECS Rolling Deploy

@@ -318,8 +318,11 @@ func Test_ランナー_JavaScript_構文エラーで内部パスを隠す(t *tes
 	assert.NotEqual(t, 0, out.ExitCode)
 	assert.NotEmpty(t, out.Stderr)
 	// 一時ディレクトリの内部パスを露出せず、`./main.js` に整形される。
+	// Node は realpath 解決してから出力するため、symlink な temp dir（macOS の
+	// /var → /private/var）でも `/private./main.js` に崩れないこと。
 	assert.NotContains(t, out.Stderr, "node-exec-")
-	assert.Contains(t, out.Stderr, "main.js")
+	assert.Contains(t, out.Stderr, "./main.js")
+	assert.NotContains(t, out.Stderr, "/private.")
 }
 
 func Test_ランナー_JavaScript_標準入力を読む(t *testing.T) {

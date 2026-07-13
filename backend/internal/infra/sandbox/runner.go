@@ -21,7 +21,7 @@ import (
 
 const (
 	maxCodeBytes = 64 * 1024 // 64 KB
-	// execTimeout は PHP / bash の上限。
+	// execTimeout は PHP / bash / javascript / typescript の上限。
 	execTimeout = 8 * time.Second
 	// goExecTimeout は Go 専用。go run はコンパイルも走るため余裕を持たせる（cold compile ~6-8s）。
 	goExecTimeout  = 15 * time.Second
@@ -279,8 +279,16 @@ func (r *Runner) executeNode(ctx context.Context, input domain.CodeExecutionInpu
 	out, runErr := runCommand(cmd, input.Stdin)
 	if out != nil {
 		// スタックトレース等に出る一時ディレクトリの絶対パスを学習者に見せない。
-		out.Stderr = strings.ReplaceAll(out.Stderr, tmpDir+string(os.PathSeparator), "./")
-		out.Stderr = strings.ReplaceAll(out.Stderr, tmpDir, ".")
+		// Node は main モジュールを realpath 解決してから出力する（macOS は /var → /private/var の
+		// symlink）ため、解決後のパスを先に置換しないと部分一致で `/private./main.js` に崩れる。
+		paths := []string{tmpDir}
+		if real, err := filepath.EvalSymlinks(tmpDir); err == nil && real != tmpDir {
+			paths = []string{real, tmpDir}
+		}
+		for _, p := range paths {
+			out.Stderr = strings.ReplaceAll(out.Stderr, p+string(os.PathSeparator), "./")
+			out.Stderr = strings.ReplaceAll(out.Stderr, p, ".")
+		}
 	}
 	return out, runErr
 }

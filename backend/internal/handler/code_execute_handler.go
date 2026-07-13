@@ -68,7 +68,7 @@ type codeWarmupResponse struct {
 }
 
 // @Summary      実行環境 ウォームアップ
-// @Description  コードエディタ 入場 時 に 呼び、 指定 言語 の 実行 環境 を 事前 に 温める（Go は コンパイル キャッシュ、 php/bash/javascript/typescript は no-op）。 実行時 に 起動 する のではなく、 入場 時 に warm に する。
+// @Description  コードエディタ 入場 時 に 呼び、 指定 言語 の 実行 環境 を 事前 に 温める（Go は コンパイル キャッシュ、 php/bash/sql/javascript/typescript は no-op）。 実行時 に 起動 する のではなく、 入場 時 に warm に する。
 // @Tags         code-execution
 // @Accept       json
 // @Produce      json

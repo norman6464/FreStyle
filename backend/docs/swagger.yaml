@@ -2025,7 +2025,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: コードエディタ 入場 時 に 呼び、 指定 言語 の 実行 環境 を 事前 に 温める（Go は コンパイル キャッシュ、 php/bash/javascript/typescript
+      description: コードエディタ 入場 時 に 呼び、 指定 言語 の 実行 環境 を 事前 に 温める（Go は コンパイル キャッシュ、 php/bash/sql/javascript/typescript
         は no-op）。 実行時 に 起動 する のではなく、 入場 時 に warm に する。
       parameters:
       - description: 言語

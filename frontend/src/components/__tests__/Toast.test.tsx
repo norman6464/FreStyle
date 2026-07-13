@@ -64,4 +64,24 @@ describe('Toast', () => {
     const { container } = render(<Toast type="info" message="情報" onClose={vi.fn()} />);
     expect(container.querySelector('svg')).toBeInTheDocument();
   });
+
+  it('count が 2 以上のとき「×N」バッジを表示する', () => {
+    render(<Toast type="success" message="作成しました" count={5} onClose={vi.fn()} />);
+    expect(screen.getByText('×5')).toBeInTheDocument();
+  });
+
+  it('count が 1（既定）のとき「×N」バッジを出さない', () => {
+    render(<Toast type="success" message="作成しました" onClose={vi.fn()} />);
+    expect(screen.queryByText(/^×\d/)).not.toBeInTheDocument();
+  });
+
+  it('成功は塗り（濃い緑・白文字）スタイル', () => {
+    render(<Toast type="success" message="OK" onClose={vi.fn()} />);
+    expect(screen.getByRole('alert')).toHaveClass('bg-emerald-600', 'text-white');
+  });
+
+  it('エラーは塗り（濃い赤・白文字）スタイル', () => {
+    render(<Toast type="error" message="NG" onClose={vi.fn()} />);
+    expect(screen.getByRole('alert')).toHaveClass('bg-rose-600', 'text-white');
+  });
 });

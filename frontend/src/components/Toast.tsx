@@ -11,6 +11,8 @@ export type ToastType = 'success' | 'error' | 'info';
 interface ToastProps {
   type: ToastType;
   message: string;
+  /** 同一メッセージのまとめ件数。2 以上で「×N」バッジを出す。 */
+  count?: number;
   onClose: () => void;
 }
 
@@ -20,18 +22,11 @@ const ICON_MAP = {
   info: InformationCircleIcon,
 };
 
+// 塗りスタイル: 濃い面 + 白文字・白アイコンで視認性を上げる。
 const COLOR_MAP = {
-  // 既存の色設計（emerald / rose / primary）を維持しつつ、 ライトテーマでも
-  // 読めるように背景は淡色 + 文字は濃色のコントラスト。
-  success: 'border-emerald-400 bg-emerald-50 text-emerald-700',
-  error: 'border-rose-400 bg-rose-50 text-rose-700',
-  info: 'border-taupe-400 bg-taupe-50 text-taupe-700',
-};
-
-const ICON_COLOR_MAP = {
-  success: 'text-emerald-500',
-  error: 'text-rose-500',
-  info: 'text-taupe-500',
+  success: 'bg-emerald-600 text-white',
+  error: 'bg-rose-600 text-white',
+  info: 'bg-taupe-700 text-white',
 };
 
 /**
@@ -40,7 +35,7 @@ const ICON_COLOR_MAP = {
  * 配置は ToastContainer 側（fixed top center）。 本コンポーネントは見た目と
  * 4 秒オートクローズ + アニメーションのみ責任を持つ。
  */
-export default function Toast({ type, message, onClose }: ToastProps) {
+export default function Toast({ type, message, count = 1, onClose }: ToastProps) {
   useEffect(() => {
     const timer = setTimeout(onClose, 4000);
     return () => clearTimeout(timer);
@@ -51,15 +46,20 @@ export default function Toast({ type, message, onClose }: ToastProps) {
   return (
     <div
       role="alert"
-      className={`pointer-events-auto flex items-start gap-3 px-5 py-3.5 rounded-lg border shadow-xl min-w-[280px] max-w-md ${COLOR_MAP[type]} animate-toast-drop`}
+      className={`pointer-events-auto flex items-start gap-3 px-5 py-3.5 rounded-lg shadow-xl min-w-[280px] max-w-md ${COLOR_MAP[type]} animate-toast-drop`}
     >
-      <Icon className={`w-6 h-6 flex-shrink-0 ${ICON_COLOR_MAP[type]}`} />
+      <Icon className="w-6 h-6 flex-shrink-0 text-white" />
       <p className="text-sm leading-relaxed flex-1">{message}</p>
+      {count > 1 && (
+        <span className="flex-shrink-0 self-center rounded-full bg-white/25 px-2 py-0.5 text-xs font-semibold tabular-nums">
+          ×{count}
+        </span>
+      )}
       <button
         type="button"
         onClick={onClose}
         aria-label="閉じる"
-        className="-mr-1 -mt-0.5 p-1 rounded hover:bg-black/5 transition-colors"
+        className="-mr-1 -mt-0.5 p-1 rounded hover:bg-white/20 transition-colors"
       >
         <XMarkIcon className="w-4 h-4" />
       </button>

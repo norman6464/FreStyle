@@ -5,6 +5,8 @@ export interface ToastItem {
   id: string;
   type: ToastType;
   message: string;
+  /** 同一メッセージが連続したときのまとめ件数（1 のときは無表示）。 */
+  count: number;
 }
 
 export interface ToastContextValue {

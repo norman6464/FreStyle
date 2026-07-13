@@ -11,8 +11,6 @@ export type ToastType = 'success' | 'error' | 'info';
 interface ToastProps {
   type: ToastType;
   message: string;
-  /** 同一メッセージのまとめ件数。2 以上で「×N」バッジを出す。 */
-  count?: number;
   onClose: () => void;
 }
 
@@ -22,9 +20,9 @@ const ICON_MAP = {
   info: InformationCircleIcon,
 };
 
-// 塗りスタイル: 濃い面 + 白文字・白アイコンで視認性を上げる。
+// 塗りスタイル: 濃い面 + 白文字・白アイコンで視認性を上げる。成功は黄緑。
 const COLOR_MAP = {
-  success: 'bg-emerald-600 text-white',
+  success: 'bg-lime-600 text-white',
   error: 'bg-rose-600 text-white',
   info: 'bg-taupe-700 text-white',
 };
@@ -35,7 +33,7 @@ const COLOR_MAP = {
  * 配置は ToastContainer 側（fixed top center）。 本コンポーネントは見た目と
  * 4 秒オートクローズ + アニメーションのみ責任を持つ。
  */
-export default function Toast({ type, message, count = 1, onClose }: ToastProps) {
+export default function Toast({ type, message, onClose }: ToastProps) {
   useEffect(() => {
     const timer = setTimeout(onClose, 4000);
     return () => clearTimeout(timer);
@@ -50,11 +48,6 @@ export default function Toast({ type, message, count = 1, onClose }: ToastProps)
     >
       <Icon className="w-6 h-6 flex-shrink-0 text-white" />
       <p className="text-sm leading-relaxed flex-1">{message}</p>
-      {count > 1 && (
-        <span className="flex-shrink-0 self-center rounded-full bg-white/25 px-2 py-0.5 text-xs font-semibold tabular-nums">
-          ×{count}
-        </span>
-      )}
       <button
         type="button"
         onClick={onClose}

@@ -20,7 +20,7 @@ describe('LearningReportRepository', () => {
 
   it('getAll: レポート一覧を取得する', async () => {
     const reports = [
-      { id: 1, year: 2024, month: 6, totalSessions: 10, averageScore: 7.5, practiceDays: 8 },
+      { id: 1, userId: 7, periodFrom: '2024-06-01T00:00:00Z', periodTo: '2024-07-01T00:00:00Z', status: 'pending', createdAt: '2024-06-30T00:00:00Z' },
     ];
     mockedGet.mockResolvedValue({ data: reports });
 
@@ -30,7 +30,7 @@ describe('LearningReportRepository', () => {
   });
 
   it('getMonthly: 指定月のレポートを取得する', async () => {
-    const report = { id: 1, year: 2024, month: 6, totalSessions: 10, averageScore: 7.5, practiceDays: 8 };
+    const report = { id: 1, userId: 7, periodFrom: '2024-06-01T00:00:00Z', periodTo: '2024-07-01T00:00:00Z', status: 'ready', s3Key: 'reports/2024-06.pdf', createdAt: '2024-06-30T00:00:00Z' };
     mockedGet.mockResolvedValue({ data: report });
 
     const result = await LearningReportRepository.getMonthly(2024, 6);

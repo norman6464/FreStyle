@@ -30,8 +30,28 @@ frontend ExerciseDetailPage (Monaco / monacoLanguageOf)
 | `go` | `go run`（単一ファイル） | `package main` 必須。GOCACHE 共有で cold compile を短縮 |
 | `bash` | `/bin/bash` | 独立 process group で timeout 時に子孫まで kill |
 | `sql` | 同居 PostgreSQL + `psql` | **使い捨て DB を提出ごとに作成し非 superuser で実行**（下記） |
+| `javascript` | `node`（単一ファイル） | コンパイル不要で起動が速い。最小 env + 独立 process group（下記） |
+| `typescript` | `node --experimental-transform-types`（単一ファイル） | Node 組み込みの型除去で実行（tsc 等の別工程なし）。下記 |
 
 共通制約: コード 64KB / 出力 64KB 上限、言語別 timeout、`sandboxEnv` が AWS/DB/Cognito 等の機密 env を子プロセスから除去。
+
+## JavaScript / TypeScript 実行系（Node.js）— FRESTYLE-110
+
+Go 演習は `go run` のコンパイルを伴い初回実行が重い。起動が速いスクリプト言語の選択肢として
+Node.js による `javascript` / `typescript` 実行を追加した（[`executeNode`](../backend/internal/infra/sandbox/runner.go)）。
+
+- **TypeScript は Node 組み込みの型除去（type stripping）でそのまま実行**する。`main.ts` の拡張子 +
+  `--experimental-transform-types`（enum 等、型除去だけでは動かない構文も変換）で起動し、
+  **`--disable-warning=ExperimentalWarning`** で実験機能の警告が学習者の stderr に混ざるのを防ぐ
+  - 型チェックはしない（型エラーでも動く構文なら実行される）。採点は他言語と同じ stdout 比較
+- bash と同じ隔離方針: **os.Environ を継承せず最小 env のみ**（PATH/HOME/PWD/LANG。`NODE_OPTIONS`
+  注入も防げる）、HOME/PWD はリクエストごとの temp dir、独立 process group で timeout 時に
+  `child_process` の子孫ごと SIGKILL、timeout 8s
+- `--max-old-space-size=128` でヒープ上限を絞る（512MB タスクに PG 等と同居するため）
+- stderr のスタックトレースに出る temp dir の絶対パスは `./` に整形して内部パスを隠す
+- ランタイムは `Dockerfile.coderunner` が **公式 node:24-bookworm イメージから `node` バイナリだけ** を
+  取り込む。npm は同梱しない（演習実行に不要・サンドボックス内の攻撃面を増やさない）。
+  backend 本体イメージには Node を追加しない
 
 ## SQL 実行系（PostgreSQL）
 
@@ -79,6 +99,8 @@ frontend ExerciseDetailPage (Monaco / monacoLanguageOf)
 `exercises/_scripts/seed.py` が UPSERT SQL を生成 → infra リポ `make apply-migration-supabase` で Supabase に投入（詳細は CLAUDE.md §7-bis）。
 
 ## テスト
+- [backend/internal/infra/sandbox/runner_test.go](../backend/internal/infra/sandbox/runner_test.go): php / go / bash / javascript / typescript の実実行テスト。ランタイムが PATH に無い環境では Skip（TS は `--experimental-transform-types` 未対応の古い node でも Skip）
+  - JS/TS 分: HelloWorld / 構文エラーで内部パス隠蔽 / stdin / 終了コード伝播 / 親 env 遮断 / 無限ループ timeout / 型注釈 / enum（transform-types の regression）/ ExperimentalWarning 非混入
 - [backend/internal/infra/sandbox/runner_sql_test.go](../backend/internal/infra/sandbox/runner_sql_test.go): `initdb`+`pg_ctl` で使い捨て PG（`dbadmin`/`student` ロール）をローカル起動して executeSQL を実検証。`initdb`/`psql` が無い環境では Skip
   - `Test_ランナー_SQL_単純SELECT` / `Test_ランナー_SQL_複数文と集計` / `Test_ランナー_SQL_文タイムアウトで打ち切る` / `Test_ランナー_SQL_提出間はDBが隔離される` / `Test_ランナー_SQL_COPYPROGRAMは権限拒否` / `Test_ランナー_SQL_危険メタコマンドを拒否`（`\!` / `\c` / `\connect`）
 

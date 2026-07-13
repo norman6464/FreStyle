@@ -1,7 +1,8 @@
 package domain
 
 // CodeExecutionInput は学習者コードのサンドボックス実行入力。
-// Language は "php" / "go" / "bash"。Stdin はテストケース採点で標準入力として流す。
+// Language は "php" / "go" / "bash" / "sql" / "javascript" / "typescript"。
+// Stdin はテストケース採点で標準入力として流す。
 type CodeExecutionInput struct {
 	Code     string `json:"code"`
 	Language string `json:"language"`

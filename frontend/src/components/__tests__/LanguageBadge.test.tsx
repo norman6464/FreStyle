@@ -10,12 +10,14 @@ describe('LanguageBadge', () => {
     expect(badge.className).toContain('text-sky-700');
   });
 
-  it('言語ごとに異なる色になる（go=cyan / php=indigo / git=orange / bash=slate）', () => {
+  it('言語ごとに異なる色になる（go=cyan / php=indigo / git=orange / bash=slate / javascript=yellow / typescript=blue）', () => {
     const cases: Array<[string, string]> = [
       ['go', 'bg-cyan-500/15'],
       ['php', 'bg-indigo-500/15'],
       ['git', 'bg-orange-500/15'],
       ['bash', 'bg-slate-500/15'],
+      ['javascript', 'bg-yellow-500/15'],
+      ['typescript', 'bg-blue-500/15'],
     ];
     for (const [lang, cls] of cases) {
       const { unmount } = render(<LanguageBadge language={lang} />);

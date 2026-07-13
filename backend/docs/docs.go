@@ -1479,7 +1479,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "trainee が 書いた コード を サーバ 側 sandbox で 実行 し stdout/stderr/exitCode を 返す。 language は php / go / bash。",
+                "description": "trainee が 書いた コード を サーバ 側 sandbox で 実行 し stdout/stderr/exitCode を 返す。 language は php / go / bash / sql / javascript / typescript。",
                 "consumes": [
                     "application/json"
                 ],
@@ -1530,7 +1530,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "コードエディタ 入場 時 に 呼び、 指定 言語 の 実行 環境 を 事前 に 温める（Go は コンパイル キャッシュ、 php/bash は no-op）。 実行時 に 起動 する のではなく、 入場 時 に warm に する。",
+                "description": "コードエディタ 入場 時 に 呼び、 指定 言語 の 実行 環境 を 事前 に 温める（Go は コンパイル キャッシュ、 php/bash/javascript/typescript は no-op）。 実行時 に 起動 する のではなく、 入場 時 に warm に する。",
                 "consumes": [
                     "application/json"
                 ],

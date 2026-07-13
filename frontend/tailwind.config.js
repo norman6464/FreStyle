@@ -77,6 +77,13 @@ export default {
         // font-roboto を付けた要素だけに適用（アプリ全体の既定フォントは変えない）。
         roboto: ['Roboto', 'Helvetica', 'Arial', 'sans-serif'],
       },
+      transitionTimingFunction: {
+        // 名前付きイージング。standard=往復 / decelerate=出現 / accelerate=退場 / sharp=即戻り。
+        'inkwell-standard': 'cubic-bezier(0.4, 0, 0.2, 1)',
+        'inkwell-decelerate': 'cubic-bezier(0, 0, 0.2, 1)',
+        'inkwell-accelerate': 'cubic-bezier(0.4, 0, 1, 1)',
+        'inkwell-sharp': 'cubic-bezier(0.4, 0, 0.6, 1)',
+      },
       boxShadow: {
         // 標高シャドウ: 数字が大きいほど浮いて見える（3 層合成）。
         'inkwell-1': '0px 2px 1px -1px rgba(0,0,0,0.2), 0px 1px 1px 0px rgba(0,0,0,0.14), 0px 1px 3px 0px rgba(0,0,0,0.12)',
@@ -93,6 +100,10 @@ export default {
         'toast-drop': 'toastDrop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)',
         // 押した位置から広がりながら消える波紋。
         'inkwell-ripple': 'inkwellRipple 0.55s linear',
+        // 成功チェックの線を描く。
+        'inkwell-draw': 'inkwellDraw 0.22s ease-out forwards',
+        // 線形プログレスの indeterminate 帯（左から右へ流れる）。
+        'inkwell-bar': 'inkwellBar 1.4s ease-in-out infinite',
       },
       keyframes: {
         fadeIn: {
@@ -116,6 +127,14 @@ export default {
         inkwellRipple: {
           '0%': { transform: 'scale(0)', opacity: '0.3' },
           '100%': { transform: 'scale(1)', opacity: '0' },
+        },
+        inkwellDraw: {
+          to: { strokeDashoffset: '0' },
+        },
+        inkwellBar: {
+          '0%': { transform: 'translateX(-100%) scaleX(0.3)' },
+          '50%': { transform: 'translateX(0%) scaleX(0.6)' },
+          '100%': { transform: 'translateX(100%) scaleX(0.3)' },
         },
       },
     },

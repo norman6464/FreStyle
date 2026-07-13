@@ -52,13 +52,25 @@ function Example() {
 | `InkwellCard` + `InkwellCardContent` / `InkwellCardActions` | `elevation`(0/1/2/3/4/8) | 標高シャドウ。0 は影の代わりに枠線 |
 | `InkwellCheckbox` | `label` / 標準 input 属性 | チェックで塗り＋レ点・押下波紋・ホバー円 |
 | `InkwellSwitch` | `label` / 標準 input 属性 | トラック上をサムが滑る・ON で色付き |
+| `InkwellLoadingButton` | `onAction`(Promise) / `variant` `color` `size` / `loadingLabel` `successLabel` `errorLabel` | 押下でラベル→スピナー→（成功でチェック / 失敗で×）。状態機械で二重送信防止・幅固定 |
+| `InkwellCircularProgress` | `value?`(0-100) / `size` `thickness` | value 省略で回転スピナー、指定で確定リング |
+| `InkwellLinearProgress` | `value?`(0-100) | value 省略で流れる帯、指定で確定バー（transform 伸縮） |
+| `InkwellSkeleton` | `variant`(text/rect/circle) / `width` `height` | 読み込み中の光沢プレースホルダ |
+| `useAsyncAction(fn)` | — | idle → loading →（success/error）→ idle の状態機械 hook（LoadingButton の中核） |
 
 ## デザイントークン（`tailwind.config.js`、名前空間 `inkwell-*`）
 
 - 色: `inkwell-primary`(#1976d2) / `-secondary`(#9c27b0) / `-error`(#d32f2f) と各 dark、`inkwell-text-*`、`inkwell-outline` / `-divider`
 - フォント: `font-roboto`（`@fontsource/roboto` を自己ホスト。CSP `font-src 'self'` 準拠。付けた要素だけに適用）
 - 影: `shadow-inkwell-1|2|3|4|8`（3 層合成の標高）
-- アニメ: `animate-inkwell-ripple`（押下波紋）
+- アニメ: `animate-inkwell-ripple`（押下波紋）/ `animate-inkwell-draw`（成功チェックの線描き）/ `animate-inkwell-bar`（線形プログレスの不確定帯）
+- イージング: `ease-inkwell-standard|decelerate|accelerate|sharp`（往復 / 出現 / 退場 / 即戻り）
+
+## アニメーションの方針
+
+- **transform / opacity のみ**をアニメートしてレイアウトシフトと再レイアウトを避ける（線形プログレスは幅ではなく `scaleX`、円形は `rotate` + `stroke-dashoffset`）。
+- **`prefers-reduced-motion` を尊重**: 各アニメに `motion-reduce:animate-none` を併用し、動きは止めてもフィードバック（状態テキスト・確定表示）は残す。
+- **ローディングボタンは状態機械**（`useAsyncAction`）で idle 以外からの実行を弾き二重送信を防ぐ。native `disabled` ではなく `aria-disabled` + クリックガードでフォーカスを保ち、状態は `role="status"` の sr-only テキストで支援技術に伝える。スピナー / チェック / × は `aria-hidden`。
 
 いずれも名前空間付きで、既存の `brand-*` / `taupe-*` / `surface-*` には影響しない。
 

@@ -7,7 +7,15 @@ import {
   InkwellCardActions,
   InkwellCheckbox,
   InkwellSwitch,
+  InkwellLoadingButton,
+  InkwellCircularProgress,
+  InkwellLinearProgress,
+  InkwellSkeleton,
 } from '../components/inkwell';
+
+/** デモ用: n ミリ秒後に解決/reject する擬似非同期処理。 */
+const wait = (ms: number, fail = false) =>
+  new Promise<void>((resolve, reject) => setTimeout(() => (fail ? reject() : resolve()), ms));
 
 /**
  * inkwell プリミティブの見た目確認用カタログ（開発・レビュー用）。
@@ -16,6 +24,7 @@ import {
 export default function InkwellShowcasePage() {
   const [checked, setChecked] = useState(true);
   const [on, setOn] = useState(true);
+  const [progress, setProgress] = useState(50);
 
   return (
     <div className="min-h-screen bg-[#f5f5f5] font-roboto text-inkwell-text-primary">
@@ -79,6 +88,49 @@ export default function InkwellShowcasePage() {
             <InkwellCheckbox label="無効" disabled />
             <InkwellSwitch label="通知" checked={on} onChange={(e) => setOn(e.target.checked)} />
             <InkwellSwitch label="無効" disabled />
+          </div>
+        </Section>
+
+        <Section title="LoadingButton — 押下で送信中→完了/失敗">
+          <InkwellLoadingButton onAction={() => wait(1400)} successLabel="保存しました">
+            保存する
+          </InkwellLoadingButton>
+          <InkwellLoadingButton
+            color="error"
+            onAction={() => wait(1400, true)}
+            errorLabel="削除に失敗しました"
+          >
+            削除する
+          </InkwellLoadingButton>
+          <InkwellLoadingButton variant="outlined" onAction={() => wait(1400)}>
+            送信する
+          </InkwellLoadingButton>
+        </Section>
+
+        <Section title="Progress — 円形 / 線形（確定・不確定）">
+          <div className="flex w-full flex-col gap-5">
+            <div className="flex items-center gap-6 text-inkwell-primary">
+              <InkwellCircularProgress />
+              <InkwellCircularProgress value={progress} />
+              <InkwellCircularProgress value={progress} size={28} thickness={3} />
+              <InkwellButton size="small" variant="outlined" onClick={() => setProgress((p) => (p >= 100 ? 0 : p + 25))}>
+                進める（{progress}%）
+              </InkwellButton>
+            </div>
+            <div className="space-y-3">
+              <InkwellLinearProgress />
+              <InkwellLinearProgress value={progress} />
+            </div>
+          </div>
+        </Section>
+
+        <Section title="Skeleton — 読み込み中プレースホルダ">
+          <div className="flex w-full max-w-sm items-center gap-3">
+            <InkwellSkeleton variant="circle" />
+            <div className="flex-1 space-y-2">
+              <InkwellSkeleton variant="text" className="w-2/3" />
+              <InkwellSkeleton variant="text" />
+            </div>
           </div>
         </Section>
       </div>

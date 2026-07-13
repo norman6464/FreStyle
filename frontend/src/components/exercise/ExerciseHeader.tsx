@@ -1,6 +1,7 @@
 import { DocumentTextIcon } from '@heroicons/react/24/outline';
 import BackLink from './BackLink';
 import ResultBadge from './ResultBadge';
+import LanguageBadge from '../LanguageBadge';
 import { MasterExercise, ExerciseSubmitResult } from '../../types';
 
 interface Props {
@@ -27,7 +28,7 @@ export default function ExerciseHeader({ exercise: ex, submitResult }: Props) {
             {ex.title}
           </h1>
           <div className="mt-1 flex items-center gap-2 text-xs text-[var(--color-text-muted)]">
-            <span className="px-1.5 py-0.5 rounded bg-surface-3 uppercase">{ex.language}</span>
+            <LanguageBadge language={ex.language} />
             <span>難易度 {'★'.repeat(Math.max(1, Math.min(5, ex.difficulty)))}</span>
             <span>#{ex.orderIndex}</span>
           </div>

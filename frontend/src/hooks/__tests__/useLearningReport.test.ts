@@ -15,8 +15,8 @@ vi.mock('../../repositories/LearningReportRepository', () => ({
 }));
 
 const mockReports = [
-  { id: 1, year: 2026, month: 2, totalSessions: 8, averageScore: 80.0, previousAverageScore: 75.0, scoreChange: 5.0, bestAxis: '論理的構成力', worstAxis: '配慮表現', practiceDays: 5, createdAt: '2026-03-01T00:00:00' },
-  { id: 2, year: 2026, month: 1, totalSessions: 5, averageScore: 75.0, previousAverageScore: null, scoreChange: null, bestAxis: '要約力', worstAxis: '提案力', practiceDays: 3, createdAt: '2026-02-01T00:00:00' },
+  { id: 1, userId: 7, periodFrom: '2026-02-01T00:00:00Z', periodTo: '2026-03-01T00:00:00Z', status: 'pending', createdAt: '2026-02-28T00:00:00Z' },
+  { id: 2, userId: 7, periodFrom: '2026-01-01T00:00:00Z', periodTo: '2026-02-01T00:00:00Z', status: 'ready', s3Key: 'reports/2026-01.pdf', createdAt: '2026-01-31T00:00:00Z' },
 ];
 
 describe('useLearningReport', () => {

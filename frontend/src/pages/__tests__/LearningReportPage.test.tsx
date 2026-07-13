@@ -8,16 +8,11 @@ vi.mock('../../hooks/useLearningReport');
 
 const mockReport: LearningReport = {
   id: 1,
-  year: 2026,
-  month: 2,
-  totalSessions: 5,
-  averageScore: 75.0,
-  previousAverageScore: 70.0,
-  scoreChange: 5.0,
-  bestAxis: '論理的構成力',
-  worstAxis: '配慮表現',
-  practiceDays: 3,
-  createdAt: '2026-02-01T00:00:00',
+  userId: 7,
+  periodFrom: '2026-02-01T00:00:00Z',
+  periodTo: '2026-03-01T00:00:00Z',
+  status: 'pending',
+  createdAt: '2026-02-28T00:00:00Z',
 };
 
 describe('LearningReportPage', () => {

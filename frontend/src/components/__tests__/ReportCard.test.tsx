@@ -3,39 +3,52 @@ import { render, screen } from '@testing-library/react';
 import ReportCard from '../ReportCard';
 import type { LearningReport } from '../../types';
 
-const baseReport: LearningReport = {
-  id: 1,
-  year: 2024,
-  month: 6,
-  totalSessions: 15,
-  averageScore: 7.8,
-  practiceDays: 10,
-  scoreChange: 0.5,
-  bestAxis: '傾聴力',
-  worstAxis: '説得力',
-};
+function makeReport(overrides: Partial<LearningReport> = {}): LearningReport {
+  return {
+    id: 1,
+    userId: 7,
+    periodFrom: '2026-06-01T00:00:00Z',
+    periodTo: '2026-07-01T00:00:00Z',
+    status: 'pending',
+    createdAt: '2026-06-30T09:00:00Z',
+    ...overrides,
+  };
+}
 
 describe('ReportCard', () => {
-  it('年月が表示される', () => {
-    render(<ReportCard report={baseReport} />);
-    expect(screen.getByText('2024年6月')).toBeInTheDocument();
+  it('対象月（periodFrom 由来）を表示する', () => {
+    render(<ReportCard report={makeReport()} />);
+    expect(screen.getByText('2026年6月 の学習レポート')).toBeInTheDocument();
   });
 
-  it('統計データが表示される', () => {
-    render(<ReportCard report={baseReport} />);
-    expect(screen.getByText('15')).toBeInTheDocument();
-    expect(screen.getByText('7.8')).toBeInTheDocument();
-    expect(screen.getByText('10')).toBeInTheDocument();
+  it('作成日を表示する', () => {
+    render(<ReportCard report={makeReport()} />);
+    expect(screen.getByText(/作成日: 2026\/06\/30/)).toBeInTheDocument();
   });
 
-  it('スコア変動が表示される', () => {
-    render(<ReportCard report={baseReport} />);
-    expect(screen.getByText('+0.5')).toBeInTheDocument();
+  it('pending は「作成中」バッジ', () => {
+    render(<ReportCard report={makeReport({ status: 'pending' })} />);
+    expect(screen.getByText('作成中')).toBeInTheDocument();
   });
 
-  it('強みと課題が表示される', () => {
-    render(<ReportCard report={baseReport} />);
-    expect(screen.getByText('強み: 傾聴力')).toBeInTheDocument();
-    expect(screen.getByText('課題: 説得力')).toBeInTheDocument();
+  it('ready は「完成」バッジ', () => {
+    render(<ReportCard report={makeReport({ status: 'ready' })} />);
+    expect(screen.getByText('完成')).toBeInTheDocument();
+  });
+
+  it('failed は「失敗」バッジ', () => {
+    render(<ReportCard report={makeReport({ status: 'failed' })} />);
+    expect(screen.getByText('失敗')).toBeInTheDocument();
+  });
+
+  it('欠損データでもクラッシュしない（旧スキーマ由来の不整合耐性）', () => {
+    const broken = { id: 2, status: 'pending' } as unknown as LearningReport;
+    expect(() => render(<ReportCard report={broken} />)).not.toThrow();
+    expect(screen.getByText('作成中')).toBeInTheDocument();
+  });
+
+  it('作成日が未設定なら「—」を表示する', () => {
+    render(<ReportCard report={makeReport({ createdAt: '' })} />);
+    expect(screen.getByText(/作成日: —/)).toBeInTheDocument();
   });
 });

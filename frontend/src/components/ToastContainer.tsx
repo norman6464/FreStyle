@@ -20,6 +20,7 @@ export default function ToastContainer() {
           key={toast.id}
           type={toast.type}
           message={toast.message}
+          count={toast.count}
           onClose={() => removeToast(toast.id)}
         />
       ))}

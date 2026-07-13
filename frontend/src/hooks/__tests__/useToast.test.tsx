@@ -52,4 +52,36 @@ describe('useToast', () => {
     });
     expect(result.current.toasts).toHaveLength(2);
   });
+
+  it('同一メッセージを連続で出すと 1 枚にまとまり count が増える', () => {
+    const { result } = renderHook(() => useToast(), { wrapper });
+    act(() => {
+      result.current.showToast('success', 'ノートを作成しました');
+      result.current.showToast('success', 'ノートを作成しました');
+      result.current.showToast('success', 'ノートを作成しました');
+    });
+    expect(result.current.toasts).toHaveLength(1);
+    expect(result.current.toasts[0].count).toBe(3);
+  });
+
+  it('type が違えば同じ文言でも別枠になる', () => {
+    const { result } = renderHook(() => useToast(), { wrapper });
+    act(() => {
+      result.current.showToast('success', '完了');
+      result.current.showToast('error', '完了');
+    });
+    expect(result.current.toasts).toHaveLength(2);
+  });
+
+  it('総数は上限(3)でクランプされ古いものから落ちる', () => {
+    const { result } = renderHook(() => useToast(), { wrapper });
+    act(() => {
+      result.current.showToast('info', 'A');
+      result.current.showToast('info', 'B');
+      result.current.showToast('info', 'C');
+      result.current.showToast('info', 'D');
+    });
+    expect(result.current.toasts).toHaveLength(3);
+    expect(result.current.toasts.map((t) => t.message)).toEqual(['B', 'C', 'D']);
+  });
 });

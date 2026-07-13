@@ -42,6 +42,8 @@ const ExerciseDetailPage = lazyWithReload(() => import('./pages/ExerciseDetailPa
 const CoursesListPage = lazyWithReload(() => import('./pages/CoursesListPage'), 'CoursesListPage');
 const CourseDetailPage = lazyWithReload(() => import('./pages/CourseDetailPage'), 'CourseDetailPage');
 const MarkdownSyntaxHelpPage = lazyWithReload(() => import('./pages/MarkdownSyntaxHelpPage'), 'MarkdownSyntaxHelpPage');
+// inkwell プリミティブの見た目確認用カタログ（認証不要・削除可）。
+const InkwellShowcasePage = lazyWithReload(() => import('./pages/InkwellShowcasePage'), 'InkwellShowcasePage');
 
 function NavigationToast() {
   const location = useLocation();
@@ -91,6 +93,8 @@ export default function App() {
       {/* 招待マジックリンクの受諾画面（認証不要・SES メールから踏まれる） */}
       <Route path="/invitations/accept" element={<AcceptInvitationPage />} />
       <Route path="/company-application" element={<CompanyApplicationPage />} />
+      {/* inkwell UI カタログ（見た目確認用・認証不要） */}
+      <Route path="/dev/inkwell" element={<InkwellShowcasePage />} />
 
       {/* 認証が必要（AppShell レイアウト内） */}
       <Route

@@ -34,17 +34,18 @@ export default function ReportCard({ report }: ReportCardProps) {
   );
 }
 
-/** ISO 文字列（対象期間の月初）から「YYYY年M月」を作る。不正値はそのまま返す。 */
+/** ISO 文字列（対象期間の月初、UTC）から「YYYY年M月」を作る。不正値はそのまま返す。
+ *  期間境界は UTC 深夜のため、UTC メソッドで解釈しないと後ろの TZ で前月にずれる。 */
 function formatPeriod(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso || '対象月不明';
-  return `${d.getFullYear()}年${d.getMonth() + 1}月`;
+  return `${d.getUTCFullYear()}年${d.getUTCMonth() + 1}月`;
 }
 
-/** ISO 文字列から「YYYY/MM/DD」を作る。未設定・不正値は「—」。 */
+/** ISO 文字列（UTC）から「YYYY/MM/DD」を作る。未設定・不正値は「—」。 */
 function formatDate(iso?: string): string {
   if (!iso) return '—';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '—';
-  return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
+  return `${d.getUTCFullYear()}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${String(d.getUTCDate()).padStart(2, '0')}`;
 }

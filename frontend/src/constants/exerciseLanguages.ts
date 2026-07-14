@@ -13,10 +13,13 @@ export interface ExerciseLanguageDef {
   badgeClass: string;
 }
 
-// 各言語の一般的なイメージカラーに寄せる（Docker=青 / Go=シアン / PHP=藍紫 / Git=橙 / Bash・Linux=スレート）。
+// 各言語の一般的なイメージカラーに寄せる
+// （Docker=青 / Go=シアン / PHP=藍紫 / Git=橙 / Bash・Linux=スレート / JavaScript=黄 / TypeScript=青）。
 export const EXERCISE_LANGUAGES: ExerciseLanguageDef[] = [
   { key: 'php', label: 'PHP', badgeClass: 'bg-indigo-500/15 text-indigo-700 border-indigo-500/30' },
   { key: 'go', label: 'Go', badgeClass: 'bg-cyan-500/15 text-cyan-700 border-cyan-500/30' },
+  { key: 'javascript', label: 'JavaScript', badgeClass: 'bg-yellow-500/15 text-yellow-700 border-yellow-500/30' },
+  { key: 'typescript', label: 'TypeScript', badgeClass: 'bg-blue-500/15 text-blue-700 border-blue-500/30' },
   { key: 'git', label: 'Git', badgeClass: 'bg-orange-500/15 text-orange-700 border-orange-500/30' },
   { key: 'bash', label: 'Bash / Linux', badgeClass: 'bg-slate-500/15 text-slate-700 border-slate-500/30' },
   { key: 'docker', label: 'Docker', badgeClass: 'bg-sky-500/15 text-sky-700 border-sky-500/30' },

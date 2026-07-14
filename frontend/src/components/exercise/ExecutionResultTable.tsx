@@ -13,8 +13,7 @@ interface Props {
  */
 function normalizeOutput(s: string): string {
   return s
-    .replace(/\r\n/g, '\n')
-    .replace(/\r/g, '\n')
+    .replace(/\r\n?/g, '\n')
     .split('\n')
     .map((line) => line.replace(/[ \t]+$/, ''))
     .join('\n')

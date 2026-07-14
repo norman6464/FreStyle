@@ -34,7 +34,7 @@ describe('ExecutionResultTable', () => {
     );
     const status = screen.getByText('実行成功・期待する出力と一致');
     expect(status).toBeInTheDocument();
-    expect(status.className).toContain('text-green-400');
+    expect(status).toHaveClass('text-green-400');
   });
 
   it('exit 0 でも出力が期待と不一致なら緑にせず、琥珀色の「まだ一致していません」を表示する', () => {
@@ -47,8 +47,8 @@ describe('ExecutionResultTable', () => {
     );
     const status = screen.getByText(/実行成功（エラーなし）・期待する出力とはまだ一致していません/);
     expect(status).toBeInTheDocument();
-    expect(status.className).toContain('text-amber-500');
-    expect(status.className).not.toContain('text-green-400');
+    expect(status).toHaveClass('text-amber-500');
+    expect(status).not.toHaveClass('text-green-400');
   });
 
   it('末尾改行や行末スペースの差だけなら一致として扱う（サーバ採点の正規化と同じ）', () => {

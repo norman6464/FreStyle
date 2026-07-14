@@ -37,7 +37,7 @@ describe('ExecutionResultTable', () => {
     expect(status).toHaveClass('text-green-400');
   });
 
-  it('exit 0 でも出力が期待と不一致なら緑にせず、琥珀色の「まだ一致していません」を表示する', () => {
+  it('exit 0 でも出力が期待と不一致なら緑にせず、琥珀色の断定形「期待する出力と不一致」を表示する', () => {
     render(
       <ExecutionResultTable
         result={result({ stdout: '{"id":2}', exitCode: 0 })}
@@ -45,10 +45,64 @@ describe('ExecutionResultTable', () => {
         submitError={null}
       />,
     );
-    const status = screen.getByText(/実行成功（エラーなし）・期待する出力とはまだ一致していません/);
+    const status = screen.getByText(/実行成功（エラーなし）・期待する出力と不一致/);
     expect(status).toBeInTheDocument();
     expect(status).toHaveClass('text-amber-500');
     expect(status).not.toHaveClass('text-green-400');
+  });
+
+  it('不一致のとき、最初に異なる行の行番号と両方の行を表示する', () => {
+    render(
+      <ExecutionResultTable
+        result={result({
+          stdout: '✓ testIsEven\n✓ testFindUserMissing\n\nOK (2 tests, 0 assertions)\n',
+          exitCode: 0,
+        })}
+        expected={'✓ testIsEven\n✓ testFindUserMissing\n\nOK (2 tests, 3 assertions)'}
+        submitError={null}
+      />,
+    );
+    const hint = screen.getByText(/4 行目が異なります/);
+    expect(hint).toBeInTheDocument();
+    expect(hint.textContent).toContain('OK (2 tests, 0 assertions)');
+    expect(hint.textContent).toContain('OK (2 tests, 3 assertions)');
+  });
+
+  it('出力の行数が足りないときは「この行がありません」と表示する', () => {
+    render(
+      <ExecutionResultTable
+        result={result({ stdout: 'Hello, World!', exitCode: 0 })}
+        expected={'Hello, World!\nHello, FreStyle!'}
+        submitError={null}
+      />,
+    );
+    const hint = screen.getByText(/2 行目が異なります/);
+    expect(hint.textContent).toContain('この行がありません');
+    expect(hint.textContent).toContain('Hello, FreStyle!');
+  });
+
+  it('出力に余分な行があるときも行番号を特定して表示する', () => {
+    render(
+      <ExecutionResultTable
+        result={result({ stdout: 'Hello, World!\nextra line', exitCode: 0 })}
+        expected={'Hello, World!'}
+        submitError={null}
+      />,
+    );
+    const hint = screen.getByText(/2 行目が異なります/);
+    expect(hint.textContent).toContain('extra line');
+    expect(hint.textContent).toContain('この行がありません');
+  });
+
+  it('一致しているときは差分ヒントを表示しない', () => {
+    render(
+      <ExecutionResultTable
+        result={result({ stdout: '{"id":1}', exitCode: 0 })}
+        expected={expected}
+        submitError={null}
+      />,
+    );
+    expect(screen.queryByText(/行目が異なります/)).not.toBeInTheDocument();
   });
 
   it('末尾改行や行末スペースの差だけなら一致として扱う（サーバ採点の正規化と同じ）', () => {

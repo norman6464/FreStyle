@@ -20,6 +20,31 @@ function normalizeOutput(s: string): string {
     .replace(/[ \t\n]+$/, '');
 }
 
+interface DiffLine {
+  /** 1 始まりの行番号。 */
+  line: number;
+  /** 該当行。片方に行が存在しない（行数が違う）場合は undefined。 */
+  actual?: string;
+  expected?: string;
+}
+
+/**
+ * 正規化済みの出力と期待出力を行単位で比較し、最初に異なる行を返す（一致なら null）。
+ * 「どこが違うのか」を学習者が自力で見つけなくて済むようにするための情報(FRESTYLE-113)。
+ */
+function firstDiffLine(normalizedActual: string, normalizedExpected: string): DiffLine | null {
+  if (normalizedActual === normalizedExpected) return null;
+  const actualLines = normalizedActual.split('\n');
+  const expectedLines = normalizedExpected.split('\n');
+  const max = Math.max(actualLines.length, expectedLines.length);
+  for (let i = 0; i < max; i++) {
+    if (actualLines[i] !== expectedLines[i]) {
+      return { line: i + 1, actual: actualLines[i], expected: expectedLines[i] };
+    }
+  }
+  return null;
+}
+
 /**
  * 提出前 動作 確認 (= 単発 実行) の 結果 を テーブル 形式 で 表示。
  * stdout / stderr / 期待 出力 を 並列 で 見せる。
@@ -28,7 +53,8 @@ function normalizeOutput(s: string): string {
  * exit 0 なら 常に 緑 だと 「エラー なく 動いた ＝ 正解」 と 色 の 印象 で 誤解 され やすい ため
  * (FRESTYLE-111)。 正誤 の 確定 は 従来 どおり 提出 時 の サーバ 側 採点 (複数 テストケース):
  *   - exit 0 + 出力 一致   → 緑 + ✓ 「実行 成功・期待 する 出力 と 一致」
- *   - exit 0 + 出力 不一致 → 琥珀 + ⚠ 「実行 成功 (エラー なし)・期待 する 出力 とは まだ 一致 して いません」
+ *   - exit 0 + 出力 不一致 → 琥珀 + ⚠ 「実行 成功 (エラー なし)・期待 する 出力 と 不一致」
+ *                            + 最初 に 異なる 行 の 提示 (どこ が 違う か を 自力 で 探さ せ ない / FRESTYLE-113)
  *   - exit != 0            → 赤 + ✗ 「実行 エラー (exit N)」
  * 期待 出力 が 空 の 演習 は 比較 でき ない ので 従来 の 中立 表示 に フォールバック。
  * さらに exit 0 でも stdout が 空 の とき は 「まだ 出力 が ない」 ヒント を 出す。
@@ -45,9 +71,11 @@ export default function ExecutionResultTable({ result, expected, submitError }: 
 
   const isSuccess = result.exitCode === 0;
   const hasNoOutput = isSuccess && !result.stdout;
+  const normalizedStdout = normalizeOutput(result.stdout);
   const normalizedExpected = normalizeOutput(expected);
   const comparable = normalizedExpected !== '';
-  const matches = comparable && normalizeOutput(result.stdout) === normalizedExpected;
+  const matches = comparable && normalizedStdout === normalizedExpected;
+  const diff = comparable && !matches ? firstDiffLine(normalizedStdout, normalizedExpected) : null;
 
   return (
     <div className="rounded-lg border border-surface-3 bg-surface-1 overflow-hidden">
@@ -74,10 +102,28 @@ export default function ExecutionResultTable({ result, expected, submitError }: 
                   実行成功・期待する出力と一致
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 font-semibold text-amber-500">
-                  <ExclamationTriangleIcon className="w-4 h-4" />
-                  実行成功（エラーなし）・期待する出力とはまだ一致していません
-                </span>
+                <>
+                  <span className="inline-flex items-center gap-1 font-semibold text-amber-500">
+                    <ExclamationTriangleIcon className="w-4 h-4" />
+                    実行成功（エラーなし）・期待する出力と不一致
+                  </span>
+                  {diff && (
+                    <p className="mt-1.5 text-amber-600">
+                      {diff.line} 行目が異なります — あなたの出力:{' '}
+                      {diff.actual !== undefined ? (
+                        <code className="font-mono">「{diff.actual}」</code>
+                      ) : (
+                        '(この行がありません)'
+                      )}{' '}
+                      / 期待:{' '}
+                      {diff.expected !== undefined ? (
+                        <code className="font-mono">「{diff.expected}」</code>
+                      ) : (
+                        '(この行がありません)'
+                      )}
+                    </p>
+                  )}
+                </>
               )}
             </td>
           </tr>

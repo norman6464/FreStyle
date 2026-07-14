@@ -1,4 +1,4 @@
-import { CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline';
+import { CheckCircleIcon, ExclamationTriangleIcon, XCircleIcon } from '@heroicons/react/24/outline';
 import { CodeExecutionResult } from '../../types';
 
 interface Props {
@@ -8,16 +8,30 @@ interface Props {
 }
 
 /**
+ * サーバ採点の normalizeOutput と同じ正規化（改行コード統一・各行の末尾空白除去・
+ * 末尾の空行除去）。末尾改行の有無だけでプレビュー比較が不一致にならないようにする。
+ */
+function normalizeOutput(s: string): string {
+  return s
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map((line) => line.replace(/[ \t]+$/, ''))
+    .join('\n')
+    .replace(/[ \t\n]+$/, '');
+}
+
+/**
  * 提出前 動作 確認 (= 単発 実行) の 結果 を テーブル 形式 で 表示。
- * stdout / stderr / 期待 出力 を 並列 で 見せる。 採点 (正誤) は 行わ ず、 末尾 で
- * 「ここ は 実行 プレビュー」 と 明示 する (正誤 は サーバ 側 採点)。
+ * stdout / stderr / 期待 出力 を 並列 で 見せる。
  *
- * 「実行 ステータス」 は exit code に 応じた 「実行 が 通った / エラー」 を 表す だけ で、
- * 「答え が 正しい か どうか」 とは 無関係 (= ここ を 正誤 と 誤解 され ない 文言 に する):
- *   - exit 0 → 緑 + ✓ 「実行 成功 (エラー なし)」
- *   - exit != 0 → 赤 + ✗ 「実行 エラー (exit N)」
- * さらに exit 0 でも stdout が 空 の とき は 「まだ 出力 が ない」 ヒント を 出し、
- * 「出力 ゼロ なのに Success」 で 正解 と 誤解 され る の を 防ぐ。
+ * 「実行 ステータス」 は 3 状態 に 分け、 緑 は 「期待 出力 と 一致 した とき だけ」 に 予約 する。
+ * exit 0 なら 常に 緑 だと 「エラー なく 動いた ＝ 正解」 と 色 の 印象 で 誤解 され やすい ため
+ * (FRESTYLE-111)。 正誤 の 確定 は 従来 どおり 提出 時 の サーバ 側 採点 (複数 テストケース):
+ *   - exit 0 + 出力 一致   → 緑 + ✓ 「実行 成功・期待 する 出力 と 一致」
+ *   - exit 0 + 出力 不一致 → 琥珀 + ⚠ 「実行 成功 (エラー なし)・期待 する 出力 とは まだ 一致 して いません」
+ *   - exit != 0            → 赤 + ✗ 「実行 エラー (exit N)」
+ * 期待 出力 が 空 の 演習 は 比較 でき ない ので 従来 の 中立 表示 に フォールバック。
+ * さらに exit 0 でも stdout が 空 の とき は 「まだ 出力 が ない」 ヒント を 出す。
  */
 export default function ExecutionResultTable({ result, expected, submitError }: Props) {
   if (submitError) {
@@ -31,6 +45,9 @@ export default function ExecutionResultTable({ result, expected, submitError }: 
 
   const isSuccess = result.exitCode === 0;
   const hasNoOutput = isSuccess && !result.stdout;
+  const normalizedExpected = normalizeOutput(expected);
+  const comparable = normalizedExpected !== '';
+  const matches = comparable && normalizeOutput(result.stdout) === normalizedExpected;
 
   return (
     <div className="rounded-lg border border-surface-3 bg-surface-1 overflow-hidden">
@@ -41,15 +58,25 @@ export default function ExecutionResultTable({ result, expected, submitError }: 
               実行結果ステータス
             </th>
             <td className="px-4 py-2">
-              {isSuccess ? (
+              {!isSuccess ? (
+                <span className="inline-flex items-center gap-1 font-semibold text-red-400">
+                  <XCircleIcon className="w-4 h-4" />
+                  実行エラー（exit {result.exitCode}）
+                </span>
+              ) : !comparable ? (
                 <span className="inline-flex items-center gap-1 font-semibold text-green-400">
                   <CheckCircleIcon className="w-4 h-4" />
                   実行成功（エラーなし）
                 </span>
+              ) : matches ? (
+                <span className="inline-flex items-center gap-1 font-semibold text-green-400">
+                  <CheckCircleIcon className="w-4 h-4" />
+                  実行成功・期待する出力と一致
+                </span>
               ) : (
-                <span className="inline-flex items-center gap-1 font-semibold text-red-400">
-                  <XCircleIcon className="w-4 h-4" />
-                  実行エラー（exit {result.exitCode}）
+                <span className="inline-flex items-center gap-1 font-semibold text-amber-500">
+                  <ExclamationTriangleIcon className="w-4 h-4" />
+                  実行成功（エラーなし）・期待する出力とはまだ一致していません
                 </span>
               )}
             </td>
@@ -84,9 +111,9 @@ export default function ExecutionResultTable({ result, expected, submitError }: 
           </tr>
         </tbody>
       </table>
-      {/* 採点はサーバ側で行う(フロントでローカル判定しない)。ここは実行結果のプレビューのみ。 */}
+      {/* 一致判定はこの画面の期待出力 1 件とのプレビュー比較。正誤の確定はサーバ側採点。 */}
       <div className="px-4 py-2 text-xs text-[var(--color-text-muted)] border-t border-surface-3">
-        「実行成功」はコードがエラーなく動いたという意味で、正誤の判定ではありません。正誤は「提出する」で複数のテストケースによりサーバ側採点されます。
+        「一致」はこの画面に表示中の期待出力とのプレビュー比較です。正誤は「提出する」で複数のテストケースによりサーバ側採点されます。
       </div>
     </div>
   );

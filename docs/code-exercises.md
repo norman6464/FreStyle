@@ -104,6 +104,30 @@ Node.js による `javascript` / `typescript` 実行を追加した（[`executeN
 - [backend/internal/infra/sandbox/runner_sql_test.go](../backend/internal/infra/sandbox/runner_sql_test.go): `initdb`+`pg_ctl` で使い捨て PG（`dbadmin`/`student` ロール）をローカル起動して executeSQL を実検証。`initdb`/`psql` が無い環境では Skip
   - `Test_ランナー_SQL_単純SELECT` / `Test_ランナー_SQL_複数文と集計` / `Test_ランナー_SQL_文タイムアウトで打ち切る` / `Test_ランナー_SQL_提出間はDBが隔離される` / `Test_ランナー_SQL_COPYPROGRAMは権限拒否` / `Test_ランナー_SQL_危険メタコマンドを拒否`（`\!` / `\c` / `\connect`）
 
+## 実行結果プレビューの 3 状態表示（FRESTYLE-111）
+
+「コード実行」の結果ステータスは、exit 0 なら常に緑だと「エラーなく動いた ＝ 正解」と色の印象で誤解されやすい。
+[`ExecutionResultTable`](../frontend/src/components/exercise/ExecutionResultTable.tsx) は stdout をサーバ採点と同じ正規化
+（改行コード統一・行末空白/末尾改行の除去）で期待出力とプレビュー比較し、**緑を「一致したときだけ」に予約**する:
+
+- exit 0 + 出力一致 → 緑 ✓「実行成功・期待する出力と一致」
+- exit 0 + 出力不一致 → 琥珀 ⚠「実行成功（エラーなし）・期待する出力とはまだ一致していません」
+- exit != 0 → 赤 ✗「実行エラー（exit N）」
+- 期待出力が空の演習は比較不能なので中立の「実行成功（エラーなし）」にフォールバック
+
+正誤の**確定**は従来どおり提出時のサーバ側採点（複数テストケース）で、この比較は画面に表示中の期待出力 1 件とのプレビュー。
+
+## 演習一覧の視認性（FRESTYLE-112）
+
+いずれも「バッジ類が淡くて見えにくい」というユーザー要望への対応:
+
+- **カテゴリ見出し**: [`CategoryBadge`](../frontend/src/components/CategoryBadge.tsx) の濃色塗り + 白文字バッジ。色は
+  [`utils/categoryColor`](../frontend/src/utils/categoryColor.ts) がカテゴリ名の決定的ハッシュで固定 10 色パレットから選ぶ
+  （カテゴリは DB の自由文字列で本番 36 種類 — 手書きの対応表は保守不能）。名前ハッシュ単体だと本番データで隣接ブロックの
+  同色が複数発生するため、`assignCategoryColors` が**直前ブロックと衝突したときだけ次の色へずらす**（それ以外は名前で安定）
+- **ステータスバッジ**: 解いた = `bg-emerald-600` / 取り組み中 = `bg-amber-600`（塗り + 白文字。淡色 /15 は白背景で薄すぎた）
+- **言語バッジ**: 背景 /15 → /25・枠 /30 → /50 にコントラスト強化（色相は FRESTYLE-109 のまま）
+
 ## 言語フィルタ UI（FRESTYLE-101）
 
 演習一覧（/code-editor）の言語絞り込みは、プルダウン（select）ではなく

@@ -1,8 +1,11 @@
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { CheckCircleIcon, ClockIcon, CodeBracketIcon } from '@heroicons/react/24/outline';
 import { FilterChip } from '../components/ui';
 import { EXERCISE_LANGUAGES } from '../constants/exerciseLanguages';
 import LanguageBadge from '../components/LanguageBadge';
+import CategoryBadge from '../components/CategoryBadge';
+import { assignCategoryColors } from '../utils/categoryColor';
 import { useExerciseList } from '../hooks/useExerciseList';
 import { MasterExerciseWithStatus } from '../types';
 
@@ -24,6 +27,9 @@ export default function ExerciseListPage() {
     error,
     sentinelRef,
   } = useExerciseList();
+
+  // カテゴリ色は名前ハッシュ基本 + 隣接ブロックの同色だけ回避(FRESTYLE-112)。
+  const categoryColors = useMemo(() => assignCategoryColors(categories), [categories]);
 
   return (
     <div className="px-4 sm:px-6 pt-6 pb-24 max-w-5xl mx-auto space-y-6">
@@ -65,8 +71,9 @@ export default function ExerciseListPage() {
 
       {!loading && !error && categories.map((cat) => (
         <section key={cat} className="space-y-3">
-          <h2 className="text-sm font-semibold text-[var(--color-text-secondary)] tracking-wide">
-            {cat}
+          {/* カテゴリブロックを色で区別できるよう、見出しは色付きバッジで出す(FRESTYLE-112)。 */}
+          <h2 className="text-sm font-semibold tracking-wide">
+            <CategoryBadge category={cat} colorClass={categoryColors.get(cat)} />
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {exercises
@@ -122,9 +129,10 @@ function ExerciseCard({ ex }: { ex: MasterExerciseWithStatus }) {
 }
 
 function StatusBadge({ status }: { status: MasterExerciseWithStatus['status'] }) {
+  // 淡色だと白背景で薄く「見えにくい」ため、濃色塗り + 白文字ではっきり区別する(FRESTYLE-112)。
   if (status === 'solved') {
     return (
-      <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-green-500/15 text-green-400 border border-green-500/30 flex-shrink-0">
+      <span className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-600 text-white flex-shrink-0">
         <CheckCircleIcon className="w-3.5 h-3.5" />
         解いた
       </span>
@@ -132,7 +140,7 @@ function StatusBadge({ status }: { status: MasterExerciseWithStatus['status'] })
   }
   if (status === 'in_progress') {
     return (
-      <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400 border border-yellow-500/30 flex-shrink-0">
+      <span className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-600 text-white flex-shrink-0">
         <ClockIcon className="w-3.5 h-3.5" />
         取り組み中
       </span>

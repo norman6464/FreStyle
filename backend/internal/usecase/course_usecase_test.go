@@ -165,6 +165,43 @@ func Test_コース_更新_カテゴリを変更できる(t *testing.T) {
 	assert.Equal(t, domain.CourseCategoryInfra, got.Category)
 }
 
+func Test_コース_作成_言語付きで成功(t *testing.T) {
+	crepo := &fakeCourseRepo{}
+	mrepo := &fakeTeachingMaterialRepo{}
+	uc := usecase.NewCourseUseCase(crepo, mrepo)
+	got, err := uc.Create(context.Background(), usecase.CreateCourseInput{
+		ActorUserID: 7, ActorCompanyID: 10, ActorRole: domain.RoleCompanyAdmin,
+		Title: "Go 言語徹底攻略", Category: domain.CourseCategoryBackend, Language: "go",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "go", got.Language)
+	assert.Equal(t, "go", crepo.created.Language)
+}
+
+func Test_コース_更新_言語を変更できる(t *testing.T) {
+	crepo := &fakeCourseRepo{getResp: &domain.Course{ID: 1, CompanyID: 10, Language: "go"}}
+	mrepo := &fakeTeachingMaterialRepo{}
+	uc := usecase.NewCourseUseCase(crepo, mrepo)
+	got, err := uc.Update(context.Background(), usecase.UpdateCourseInput{
+		ID: 1, ActorCompanyID: 10, ActorRole: domain.RoleCompanyAdmin,
+		Title: "Terraform 入門", Language: "terraform",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "terraform", got.Language)
+}
+
+func Test_コース_更新_言語は空にもできる(t *testing.T) {
+	crepo := &fakeCourseRepo{getResp: &domain.Course{ID: 1, CompanyID: 10, Language: "go"}}
+	mrepo := &fakeTeachingMaterialRepo{}
+	uc := usecase.NewCourseUseCase(crepo, mrepo)
+	got, err := uc.Update(context.Background(), usecase.UpdateCourseInput{
+		ID: 1, ActorCompanyID: 10, ActorRole: domain.RoleCompanyAdmin,
+		Title: "Design Doc 入門", Language: "",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "", got.Language)
+}
+
 func Test_コース_更新_不正なカテゴリは拒否(t *testing.T) {
 	crepo := &fakeCourseRepo{getResp: &domain.Course{ID: 1, CompanyID: 10}}
 	mrepo := &fakeTeachingMaterialRepo{}

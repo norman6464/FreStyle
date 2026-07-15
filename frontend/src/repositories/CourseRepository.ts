@@ -13,6 +13,8 @@ export interface CoursePayload {
   description: string;
   /** 学習領域カテゴリ（空 = 未分類） */
   category: string;
+  /** 主に扱う言語・技術（空 = 言語が主題でない） */
+  language: string;
   sortOrder: number;
   isPublished: boolean;
 }

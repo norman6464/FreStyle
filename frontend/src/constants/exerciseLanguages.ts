@@ -6,28 +6,22 @@
  * 単一情報源にして二重管理を防ぐ(FRESTYLE-101)。
  * 'linux' という独立値は存在せず bash に統合されている(表示名で併記)。
  */
+import { LANGUAGE_BADGE_CLASSES } from './languageBadgeClasses';
+
 export interface ExerciseLanguageDef {
   key: string;
   label: string;
-  /** 言語バッジの配色。淡色背景 + 濃色文字 + 枠でライトテーマでも読める。 */
+  /** 言語バッジの配色。色の正本は languageBadgeClasses（コースの言語バッジと共用）。 */
   badgeClass: string;
 }
 
-// 各言語の一般的なイメージカラーに寄せる
-// （Docker=青 / Go=シアン / PHP=藍紫 / Git=橙 / Bash・Linux=スレート / JavaScript=黄 / TypeScript=青）。
-// 背景 /25 + 枠 /50 は「淡すぎて見えにくい」というユーザー要望によるコントラスト強化(FRESTYLE-112)。
 export const EXERCISE_LANGUAGES: ExerciseLanguageDef[] = [
-  { key: 'php', label: 'PHP', badgeClass: 'bg-indigo-500/25 text-indigo-700 border-indigo-500/50' },
-  { key: 'go', label: 'Go', badgeClass: 'bg-cyan-500/25 text-cyan-700 border-cyan-500/50' },
-  { key: 'javascript', label: 'JavaScript', badgeClass: 'bg-yellow-500/25 text-yellow-700 border-yellow-500/50' },
-  { key: 'typescript', label: 'TypeScript', badgeClass: 'bg-blue-500/25 text-blue-700 border-blue-500/50' },
-  { key: 'git', label: 'Git', badgeClass: 'bg-orange-500/25 text-orange-700 border-orange-500/50' },
-  { key: 'bash', label: 'Bash / Linux', badgeClass: 'bg-slate-500/25 text-slate-700 border-slate-500/50' },
-  { key: 'docker', label: 'Docker', badgeClass: 'bg-sky-500/25 text-sky-700 border-sky-500/50' },
+  { key: 'php', label: 'PHP', badgeClass: LANGUAGE_BADGE_CLASSES.php },
+  { key: 'go', label: 'Go', badgeClass: LANGUAGE_BADGE_CLASSES.go },
+  { key: 'javascript', label: 'JavaScript', badgeClass: LANGUAGE_BADGE_CLASSES.javascript },
+  { key: 'typescript', label: 'TypeScript', badgeClass: LANGUAGE_BADGE_CLASSES.typescript },
+  { key: 'git', label: 'Git', badgeClass: LANGUAGE_BADGE_CLASSES.git },
+  { key: 'bash', label: 'Bash / Linux', badgeClass: LANGUAGE_BADGE_CLASSES.bash },
+  { key: 'docker', label: 'Docker', badgeClass: LANGUAGE_BADGE_CLASSES.docker },
 ];
 
-/** language 値（大文字小文字を無視）から定義を引く。未知は undefined。 */
-export function findExerciseLanguage(language: string): ExerciseLanguageDef | undefined {
-  const key = language.toLowerCase();
-  return EXERCISE_LANGUAGES.find((l) => l.key === key);
-}

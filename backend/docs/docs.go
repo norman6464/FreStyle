@@ -4100,6 +4100,10 @@ const docTemplate = `{
                 "isPublished": {
                     "type": "boolean"
                 },
+                "language": {
+                    "description": "Language は主に扱う言語・技術（例: \"go\" / \"docker\" / \"terraform\"。空 = 言語が主題でない）。\n演習の language と同じ自由文字列方式で、表示色は frontend のカラーマップが持つ。",
+                    "type": "string"
+                },
                 "sortOrder": {
                     "type": "integer"
                 },
@@ -4638,6 +4642,10 @@ const docTemplate = `{
                 "isPublished": {
                     "type": "boolean"
                 },
+                "language": {
+                    "description": "Language は主に扱う言語・技術（例: \"go\" / \"docker\" / \"terraform\"。空 = 言語が主題でない）。\n演習の language と同じ自由文字列方式で、表示色は frontend のカラーマップが持つ。",
+                    "type": "string"
+                },
                 "materialCount": {
                     "description": "MaterialCount はコース内の章数。trainee は published のみ、admin 系は下書き込み。",
                     "type": "integer"
@@ -4871,6 +4879,11 @@ const docTemplate = `{
                 },
                 "isPublished": {
                     "type": "boolean"
+                },
+                "language": {
+                    "description": "Language は主に扱う言語・技術(例: \"go\" / \"docker\"。空 = 言語が主題でない)。\n演習の language と同じ自由文字列方式(表示色は frontend のカラーマップが持つ)。",
+                    "type": "string",
+                    "maxLength": 50
                 },
                 "sortOrder": {
                     "type": "integer"

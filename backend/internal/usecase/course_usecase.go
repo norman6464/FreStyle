@@ -54,6 +54,7 @@ type CreateCourseInput struct {
 	Title          string
 	Description    string
 	Category       string
+	Language       string
 	SortOrder      int
 	IsPublished    bool
 }
@@ -74,6 +75,7 @@ func (uc *CourseUseCase) Create(ctx context.Context, in CreateCourseInput) (*dom
 		Title:           in.Title,
 		Description:     in.Description,
 		Category:        in.Category,
+		Language:        in.Language,
 		SortOrder:       in.SortOrder,
 		IsPublished:     in.IsPublished,
 	}
@@ -90,6 +92,7 @@ type UpdateCourseInput struct {
 	Title          string
 	Description    string
 	Category       string
+	Language       string
 	SortOrder      int
 	IsPublished    bool
 }
@@ -111,6 +114,7 @@ func (uc *CourseUseCase) Update(ctx context.Context, in UpdateCourseInput) (*dom
 	existing.Title = in.Title
 	existing.Description = in.Description
 	existing.Category = in.Category
+	existing.Language = in.Language
 	existing.SortOrder = in.SortOrder
 	existing.IsPublished = in.IsPublished
 	if err := uc.courses.Update(ctx, existing); err != nil {

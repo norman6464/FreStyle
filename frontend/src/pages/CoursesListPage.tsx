@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import {
+  CheckCircleIcon,
   ChevronDownIcon,
   PlusIcon,
   PencilSquareIcon,
@@ -12,10 +13,12 @@ import FaviconIcon from '../components/icons/FaviconIcon';
 import Loading from '../components/Loading';
 import ConfirmModal from '../components/ConfirmModal';
 import CourseProgressBar from '../components/CourseProgressBar';
+import LanguageBadge from '../components/LanguageBadge';
 import { FilterChip } from '../components/ui';
 import { useCourses } from '../hooks/useCourses';
 import { useToast } from '../hooks/useToast';
 import { COURSE_CATEGORIES, findCourseCategory } from '../constants/courseCategories';
+import { COURSE_LANGUAGES } from '../constants/courseLanguages';
 import type { RootState } from '../store';
 import type { Course, CourseWithProgress } from '../types';
 
@@ -264,6 +267,8 @@ function CourseCard({
   // 「色＝学習領域」の連想(FRESTYLE-67)。カードは左の色帯のみで表現し、
   // カテゴリ名ラベルはセクション見出しが担う(同一セクション内での繰り返しを避ける。FRESTYLE-68)。
   const category = findCourseCategory(course.category);
+  // 受講者視点で全章完了したコースは一目で分かる見た目にする(FRESTYLE-114)。
+  const isCompleted = !canManage && course.materialCount > 0 && course.completedCount >= course.materialCount;
   return (
     <div
       role="button"
@@ -275,8 +280,12 @@ function CourseCard({
           onOpen();
         }
       }}
-      className={`group bg-surface-1 border border-surface-3 border-l-4 ${
+      className={`group border border-l-4 ${
         category ? category.barClass : 'border-l-surface-3'
+      } ${
+        isCompleted
+          ? 'bg-emerald-500/5 border-emerald-500/40'
+          : 'bg-surface-1 border-surface-3'
       } rounded-lg p-4 cursor-pointer hover:border-taupe-500/50 hover:shadow-md transition-all`}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
@@ -285,6 +294,12 @@ function CourseCard({
             {course.title || '無題のコース'}
           </h2>
         </div>
+        {isCompleted && (
+          <span className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-600 text-white flex-shrink-0">
+            <CheckCircleIcon className="w-3.5 h-3.5" />
+            完了
+          </span>
+        )}
         {canManage && (
           <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
             <button
@@ -310,8 +325,12 @@ function CourseCard({
           </div>
         )}
       </div>
-      <p className="text-xs text-[var(--color-text-muted)] mb-3">
-        {course.isPublished ? '公開中' : '下書き'} ・ 更新 {formatDate(course.updatedAt)}
+      <p className="flex items-center gap-2 text-xs text-[var(--color-text-muted)] mb-3">
+        {/* パッと見てどんな言語のコースか分かるように言語バッジを出す(FRESTYLE-114)。 */}
+        {course.language && <LanguageBadge language={course.language} />}
+        <span>
+          {course.isPublished ? '公開中' : '下書き'} ・ 更新 {formatDate(course.updatedAt)}
+        </span>
       </p>
       <p className="text-sm text-[var(--color-text-secondary)] line-clamp-3 min-h-[3.6em]">
         {course.description || 'コース説明が未設定です'}
@@ -333,6 +352,7 @@ interface CourseFormProps {
     title: string;
     description: string;
     category: string;
+    language: string;
     sortOrder: number;
     isPublished: boolean;
   }) => Promise<void>;
@@ -342,6 +362,7 @@ function CourseFormModal({ initial, onClose, onSubmit }: CourseFormProps) {
   const [title, setTitle] = useState(initial?.title ?? '');
   const [description, setDescription] = useState(initial?.description ?? '');
   const [category, setCategory] = useState(initial?.category ?? '');
+  const [language, setLanguage] = useState(initial?.language ?? '');
   const [sortOrder, setSortOrder] = useState(initial?.sortOrder ?? 100);
   const [isPublished, setIsPublished] = useState(initial?.isPublished ?? false);
   const [submitting, setSubmitting] = useState(false);
@@ -351,7 +372,14 @@ function CourseFormModal({ initial, onClose, onSubmit }: CourseFormProps) {
     if (!title.trim()) return;
     setSubmitting(true);
     try {
-      await onSubmit({ title: title.trim(), description: description.trim(), category, sortOrder, isPublished });
+      await onSubmit({
+        title: title.trim(),
+        description: description.trim(),
+        category,
+        language,
+        sortOrder,
+        isPublished,
+      });
     } finally {
       setSubmitting(false);
     }
@@ -406,6 +434,24 @@ function CourseFormModal({ initial, onClose, onSubmit }: CourseFormProps) {
             </select>
             <span className="block text-xs text-[var(--color-text-muted)] mt-1">
               一覧カードの色分けに使われます（色＝学習領域）
+            </span>
+          </label>
+          <label className="block">
+            <span className="block text-sm text-[var(--color-text-secondary)] mb-1">主に扱う言語・技術</span>
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              className="w-full px-3 py-1.5 bg-surface-2 border border-surface-3 rounded-lg text-sm focus:outline-none focus:border-brand-400"
+            >
+              <option value="">未設定（言語が主題でないコース）</option>
+              {COURSE_LANGUAGES.map((l) => (
+                <option key={l.key} value={l.key}>
+                  {l.label}
+                </option>
+              ))}
+            </select>
+            <span className="block text-xs text-[var(--color-text-muted)] mt-1">
+              一覧カードに言語バッジとして表示されます
             </span>
           </label>
           <label className="block">

@@ -534,6 +534,8 @@ export interface Course {
   description: string;
   /** 学習領域カテゴリ（空 = 未分類。constants/courseCategories の key と対応） */
   category: string;
+  /** 主に扱う言語・技術（例: 'go' / 'docker'。空 = 言語が主題でない → バッジ非表示） */
+  language: string;
   sortOrder: number;
   isPublished: boolean;
   createdAt: string;

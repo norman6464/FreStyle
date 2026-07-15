@@ -126,7 +126,10 @@ type courseRequest struct {
 	Description string `json:"description"`
 	// Category は定義済みの学習領域のみ許可(空 = 未分類)。値の正本は domain.ValidCourseCategories。
 	// oneof で宣言的に 400 を返し、usecase 側でも防衛的に検証する。
-	Category    string `json:"category" binding:"omitempty,oneof=dev-basics backend architecture database infra security product"`
+	Category string `json:"category" binding:"omitempty,oneof=dev-basics backend architecture database infra security product"`
+	// Language は主に扱う言語・技術(例: "go" / "docker"。空 = 言語が主題でない)。
+	// 演習の language と同じ自由文字列方式(表示色は frontend のカラーマップが持つ)。
+	Language    string `json:"language" binding:"omitempty,max=50"`
 	SortOrder   int    `json:"sortOrder"`
 	IsPublished bool   `json:"isPublished"`
 }
@@ -160,6 +163,7 @@ func (h *CourseHandler) Create(c *gin.Context) {
 		Title:          req.Title,
 		Description:    req.Description,
 		Category:       req.Category,
+		Language:       req.Language,
 		SortOrder:      req.SortOrder,
 		IsPublished:    req.IsPublished,
 	})
@@ -206,6 +210,7 @@ func (h *CourseHandler) Update(c *gin.Context) {
 		Title:          req.Title,
 		Description:    req.Description,
 		Category:       req.Category,
+		Language:       req.Language,
 		SortOrder:      req.SortOrder,
 		IsPublished:    req.IsPublished,
 	})

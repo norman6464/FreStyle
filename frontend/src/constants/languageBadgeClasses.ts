@@ -23,7 +23,8 @@ export const LANGUAGE_BADGE_CLASSES: Record<string, string> = {
   web: 'bg-rose-500/25 text-rose-700 border-rose-500/50',
 };
 
-/** 言語・技術名（大文字小文字を無視）から配色を引く。未知は undefined。 */
+/** 言語・技術名（大文字小文字を無視）から配色を引く。未知・空は undefined。 */
 export function languageBadgeClass(language: string): string | undefined {
-  return LANGUAGE_BADGE_CLASSES[language.toLowerCase()];
+  // API のデータ欠損等で実行時に falsy が来ても toLowerCase でクラッシュしないよう防御する。
+  return language ? LANGUAGE_BADGE_CLASSES[language.toLowerCase()] : undefined;
 }

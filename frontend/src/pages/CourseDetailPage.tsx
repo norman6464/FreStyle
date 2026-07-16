@@ -429,15 +429,19 @@ function ReadOnlyDetail({
   const [tocOpen, setTocOpen] = useLocalStorage('course-toc-open', true);
 
   // 章を切り替えたら本文の先頭までスクロールを戻す（末尾の「次の章へ」から進んでも頭から読める）。
+  // スクロールは AppShell のドキュメントスクロールコンテナ(FRESTYLE-122)側で起きるため、
+  // そちらへ遡って scrollTo する（テスト等で見つからない場合は自要素へフォールバック）。
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: 0 });
+    const scroller = scrollRef.current?.closest('[data-app-scroll]') ?? scrollRef.current;
+    scroller?.scrollTo({ top: 0 });
   }, [material.id]);
 
   return (
     // 背景は body と同じ灰青(--color-surface)、本文は白カード。背景と内容のコントラストで
     // 読み物として視線が本文に集まるようにする(FRESTYLE-118 → 119 で body と統一)。
-    <div ref={scrollRef} className="flex-1 overflow-y-auto bg-surface">
+    // 内部スクロールは持たない(FRESTYLE-122 でページ全体のスクロールに変更しヘッダーも流れる)。
+    <div ref={scrollRef} className="flex-1 bg-surface">
       {/* 読み物ページなので外側の余白は広め(FRESTYLE-115)。中央寄せなので左右は自然に余白になる。 */}
       <div
         className={`mx-auto w-full max-w-6xl px-6 sm:px-10 py-8 sm:py-10 grid grid-cols-1 gap-8 ${
@@ -616,7 +620,7 @@ function ChapterNav({
 function MaterialSkeleton() {
   return (
     // 実表示(灰青背景 + 白カード)と同じ配色にして、取得完了時の切り替わりで背景が変わらないようにする。
-    <div className="flex-1 overflow-y-auto bg-surface">
+    <div className="flex-1 bg-surface">
       <div
         className="mx-auto w-full max-w-[860px] px-6 sm:px-10 py-8 sm:py-10 animate-pulse"
         aria-hidden="true"

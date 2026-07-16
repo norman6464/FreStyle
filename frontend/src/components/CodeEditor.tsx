@@ -30,6 +30,11 @@ interface CodeEditorProps {
   maxHeight?: number;
   /** Ctrl+Enter / Cmd+Enter で呼ばれる実行ハンドラ（コード実行ショートカット）。 */
   onRun?: () => void;
+  /**
+   * 実行エラーの行マーカー(FRESTYLE-117)。該当行のガターに ✕ グリフ + 行の薄い赤
+   * ハイライト + ホバーでエラーメッセージを表示する。空なら何も出さない。
+   */
+  errorMarkers?: { line: number; message: string }[];
 }
 
 // Monaco の setValue / create({value}) は引数が string でない場合 "Illegal argument" を throw する。
@@ -50,9 +55,12 @@ export default function CodeEditor({
   minHeight = 240,
   maxHeight = 2000,
   onRun,
+  errorMarkers = [],
 }: CodeEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+  // エラー行のガター装飾。マーカー更新時に前回分をまとめて差し替えるためコレクションで保持する。
+  const decorationsRef = useRef<monaco.editor.IEditorDecorationsCollection | null>(null);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   // 最新の onRun を ref で保持し、エディタ再生成なしにショートカットから呼べるようにする。
@@ -142,6 +150,49 @@ export default function CodeEditor({
   useEffect(() => {
     editorRef.current?.updateOptions({ readOnly });
   }, [readOnly]);
+
+  // 実行エラーの行マーカー(FRESTYLE-117)。
+  // - setModelMarkers: 赤波線 + ホバーでエラーメッセージ
+  // - decorations: ガターの ✕ グリフ + 行の薄い赤ハイライト(スタイルは index.css)
+  // ガター余白(glyphMargin)はマーカーがあるときだけ確保し、普段の見た目を変えない。
+  useEffect(() => {
+    const editor = editorRef.current;
+    const model = editor?.getModel();
+    if (!editor || !model || model.isDisposed()) return;
+
+    const lineCount = model.getLineCount();
+    const valid = errorMarkers
+      .map((m) => ({ ...m, line: Math.min(Math.max(1, m.line), lineCount) }))
+      .filter((m, i, arr) => arr.findIndex((x) => x.line === m.line) === i);
+
+    editor.updateOptions({ glyphMargin: valid.length > 0 });
+    monaco.editor.setModelMarkers(
+      model,
+      'frestyle-exec',
+      valid.map((m) => ({
+        severity: monaco.MarkerSeverity.Error,
+        message: m.message,
+        startLineNumber: m.line,
+        startColumn: 1,
+        endLineNumber: m.line,
+        endColumn: model.getLineMaxColumn(m.line),
+      })),
+    );
+    decorationsRef.current?.clear();
+    if (valid.length > 0) {
+      decorationsRef.current = editor.createDecorationsCollection(
+        valid.map((m) => ({
+          range: new monaco.Range(m.line, 1, m.line, 1),
+          options: {
+            isWholeLine: true,
+            className: 'exec-error-line',
+            glyphMarginClassName: 'exec-error-glyph',
+            glyphMarginHoverMessage: { value: m.message },
+          },
+        })),
+      );
+    }
+  }, [errorMarkers]);
 
   useEffect(() => {
     const editor = editorRef.current;

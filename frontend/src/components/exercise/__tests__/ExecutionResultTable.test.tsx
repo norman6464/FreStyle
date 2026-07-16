@@ -140,6 +140,56 @@ describe('ExecutionResultTable', () => {
     expect(screen.getByText('Parse error')).toBeInTheDocument();
   });
 
+  it('stderr は専用の「エラーメッセージ」行に表示され、アウトプット行は stdout のみになる', () => {
+    render(
+      <ExecutionResultTable
+        result={result({ stdout: 'partial', stderr: 'boom', exitCode: 1 })}
+        expected={expected}
+        submitError={null}
+      />,
+    );
+    expect(screen.getByText('エラーメッセージ')).toBeInTheDocument();
+    const errorCell = screen.getByText('boom');
+    const outputCell = screen.getByText('partial');
+    expect(errorCell.closest('tr')).not.toBe(outputCell.closest('tr'));
+  });
+
+  it('go のコンパイル失敗（stderr に main.go:N）は「コンパイル時エラーメッセージ」ラベルになる', () => {
+    render(
+      <ExecutionResultTable
+        result={result({ stderr: './main.go:7:9: undefined: foo', exitCode: 1 })}
+        expected={expected}
+        submitError={null}
+        language="go"
+      />,
+    );
+    expect(screen.getByText('コンパイル時エラーメッセージ')).toBeInTheDocument();
+  });
+
+  it('go 以外の言語のエラーは汎用の「エラーメッセージ」ラベルのまま', () => {
+    render(
+      <ExecutionResultTable
+        result={result({ stderr: './main.js:3\nSyntaxError: bad', exitCode: 1 })}
+        expected={expected}
+        submitError={null}
+        language="javascript"
+      />,
+    );
+    expect(screen.getByText('エラーメッセージ')).toBeInTheDocument();
+    expect(screen.queryByText('コンパイル時エラーメッセージ')).not.toBeInTheDocument();
+  });
+
+  it('stderr が空ならエラーメッセージ行を出さない', () => {
+    render(
+      <ExecutionResultTable
+        result={result({ stdout: '{"id":1}', exitCode: 0 })}
+        expected={expected}
+        submitError={null}
+      />,
+    );
+    expect(screen.queryByText(/エラーメッセージ/)).not.toBeInTheDocument();
+  });
+
   it('エラーなしでも出力が空なら「まだ出力がありません」ヒントを出す（空っぽで成功＝正解と誤解させない）', () => {
     render(
       <ExecutionResultTable

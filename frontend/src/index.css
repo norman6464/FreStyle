@@ -226,3 +226,27 @@
     @apply w-full border border-surface-3 rounded-lg px-4 py-2.5 bg-surface-2 text-[var(--color-text-primary)] focus:border-brand-400 focus:ring-1 focus:ring-brand-400 focus:outline-none transition-colors duration-150 placeholder:text-[var(--color-text-faint)];
   }
 }
+
+/*
+ * 実行エラーの行マーカー(FRESTYLE-117)。CodeEditor(Monaco) の decoration から参照する。
+ * ガターに赤丸 + 白 ✕、該当行はダークテーマ上で薄い赤のハイライト。
+ */
+.exec-error-glyph::after {
+  content: '✕';
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+  margin-left: 2px;
+  border-radius: 9999px;
+  background: #dc2626;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+.exec-error-line {
+  background: rgba(220, 38, 38, 0.12);
+}

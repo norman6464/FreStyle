@@ -323,3 +323,28 @@ describe('CourseDetailPage 右サイドバーの章一覧 (FRESTYLE-118)', () =>
     expect(nav).toHaveTextContent('2');
   });
 });
+
+describe('CourseDetailPage 本文内の画像 (FRESTYLE-125)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetCourse.mockResolvedValue(course());
+    mockCourseList.mockResolvedValue([]);
+    mockListMaterials.mockResolvedValue([material(11)]);
+    mockLastViewed.mockResolvedValue(null);
+    // 見出し付き本文にすると TOC の IntersectionObserver(jsdom 未実装)が動くため画像のみにする。
+    mockGetMaterial.mockImplementation(async (id: number) =>
+      material(id, '![構成図](https://example.com/diagram.png)'),
+    );
+    mockProgressList.mockResolvedValue([]);
+    mockRecordView.mockResolvedValue(undefined);
+  });
+
+  it('画像はリンクで包まれない（クリックで別タブに原寸が開かない）', async () => {
+    renderPage('trainee');
+    const img = await screen.findByRole('img', { name: '構成図' });
+    expect(img.closest('a')).toBeNull();
+    // キャプション(figcaption)は維持される
+    expect(img.closest('figure')).not.toBeNull();
+    expect(screen.getByText('構成図', { selector: 'figcaption' })).toBeInTheDocument();
+  });
+});

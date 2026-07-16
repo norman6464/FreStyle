@@ -416,21 +416,22 @@ function ReadOnlyDetail({
 
   return (
     <div ref={scrollRef} className="flex-1 overflow-y-auto">
+      {/* 読み物ページなので外側の余白は広め(FRESTYLE-115)。 */}
       <div
-        className={`mx-auto w-full max-w-6xl px-6 py-6 grid grid-cols-1 gap-8 ${
+        className={`mx-auto w-full max-w-6xl px-6 sm:px-10 py-8 sm:py-10 grid grid-cols-1 gap-8 ${
           tocOpen ? 'lg:grid-cols-[minmax(0,1fr)_240px]' : ''
         }`}
       >
         {/* 目次を隠したときは本文が全幅に伸びて読みにくいため、 読みやすい幅(800px)に
             収めて中央寄せする。 目次表示時は 1fr カラムが既に同程度の幅になる。 */}
         <article className={`min-w-0 ${!tocOpen ? 'mx-auto w-full max-w-[800px]' : ''}`}>
-          <h1 className="text-2xl font-bold text-[var(--color-text-primary)] mb-2">
+          <h1 className="text-3xl font-bold text-[var(--color-text-primary)] mb-3 leading-snug">
             {material.title || '無題の教材'}
           </h1>
           {/* 完了トグルを含むメタ行は sticky でスクロールコンテナ上部に残し、
               本文の途中でも完了操作できるようにする(FRESTYLE-100)。
               bg はページ背景(surface=白)と同じにして、通過する本文が透けないようにする。 */}
-          <div className="sticky top-0 z-10 bg-surface py-2 border-b border-surface-3 flex items-center justify-between gap-3 mb-6">
+          <div className="sticky top-0 z-10 bg-surface py-2 border-b border-surface-3 flex items-center justify-between gap-3 mb-10">
             <p className="text-xs text-[var(--color-text-muted)]">
               最終更新: {formatDate(material.updatedAt)}
             </p>

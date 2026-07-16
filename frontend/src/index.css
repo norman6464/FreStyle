@@ -45,15 +45,60 @@
   font-size: inherit;
 }
 /*
- * コース閲覧の本文は prose-sm(14px) だと少し小さいので、 少し大きく(15px)して読みやすくする。
- * 子要素は em 指定なので比例して大きくなる。 コードブロックも本文サイズに合わせる。
+ * コース教材の本文タイポグラフィ(FRESTYLE-115)。
+ * prose-sm のプリセットは行間・段落間が詰まって「読み物」に向かないため、
+ * 教材専用スコープ(.course-prose)だけ本文 16px・行間 2.0 のゆったりした
+ * 余白に上書きする。ノート / AI チャットの prose には影響しない。
  */
 .prose.course-prose {
-  font-size: 0.9375rem;
+  font-size: 1rem;
+  line-height: 2;
+}
+.prose.course-prose p {
+  margin-top: 1.4em;
+  margin-bottom: 1.4em;
+}
+/* 大見出しは章内の話題の切り替わり。前に大きく空け、下線でセクション境界を示す
+   (色はニュートラルな枠色 = surface-3。モノクロ最小主義のトーンを崩さない)。 */
+.prose.course-prose h2 {
+  margin-top: 3.2em;
+  margin-bottom: 1.2em;
+  padding-bottom: 0.6em;
+  border-bottom: 1px solid var(--color-surface-3);
+  line-height: 1.4;
+}
+.prose.course-prose h3 {
+  margin-top: 2.4em;
+  margin-bottom: 1em;
+  line-height: 1.5;
+}
+.prose.course-prose > :first-child {
+  margin-top: 0;
+}
+.prose.course-prose ul,
+.prose.course-prose ol {
+  margin-top: 1.4em;
+  margin-bottom: 1.4em;
+}
+.prose.course-prose li {
+  margin-top: 0.6em;
+  margin-bottom: 0.6em;
 }
 .prose.course-prose pre {
-  /* コース本文(15px)よりほんの少し小さめのコードサイズ。 */
+  /* コース本文(16px)より少し小さめのコードサイズ。行間は本文ほど広げない。 */
   font-size: 0.875rem;
+  line-height: 1.7;
+  margin-top: 1.8em;
+  margin-bottom: 1.8em;
+}
+.prose.course-prose img,
+.prose.course-prose table {
+  margin-top: 2em;
+  margin-bottom: 2em;
+}
+.prose.course-prose blockquote {
+  margin-top: 1.8em;
+  margin-bottom: 1.8em;
 }
 /*
  * @tailwindcss/typography は inline code (`<code>`) の前後に ::before / ::after で

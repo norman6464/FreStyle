@@ -149,14 +149,14 @@ describe('CourseDetailPage 続きから表示 + 完了トグル (FRESTYLE-99 / F
     await waitFor(() => expect(mockRecordView).toHaveBeenCalledWith(12));
   });
 
-  it('完了トグルは sticky なメタ行と本文末尾の 2 箇所に表示される', async () => {
+  it('完了トグルはメタ行と本文末尾の 2 箇所に表示される', async () => {
     renderPage('trainee');
     await waitFor(() =>
       expect(screen.getAllByRole('button', { name: '完了にする' })).toHaveLength(2),
     );
-    // 先頭(メタ行)のトグルはスクロールしても画面に残るよう sticky な行に入っている(FRESTYLE-100)。
+    // メタ行のトグルは通常の行に入っている(FRESTYLE-119 で sticky 解除。固定表示しない)。
     const [metaToggle] = screen.getAllByRole('button', { name: '完了にする' });
-    expect(metaToggle.closest('.sticky')).not.toBeNull();
+    expect(metaToggle.closest('.sticky')).toBeNull();
   });
 
   it('メタ行の完了トグルをクリックすると完了 API を呼ぶ', async () => {

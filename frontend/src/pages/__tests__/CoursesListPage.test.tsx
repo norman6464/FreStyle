@@ -361,13 +361,13 @@ describe('CoursesListPage 言語バッジ (FRESTYLE-114)', () => {
     mockList.mockResolvedValue([makeCourse({ id: 1, language: 'go', title: 'Go 言語徹底攻略' })]);
     renderPage('trainee');
     await waitFor(() => expect(screen.getByText('Go 言語徹底攻略')).toBeInTheDocument());
-    expect(screen.getByText('go')).toBeInTheDocument();
+    expect(screen.getByText('Go')).toBeInTheDocument();
   });
 
   it('language が空のコースはバッジを出さない', async () => {
     mockList.mockResolvedValue([makeCourse({ id: 1, language: '' })]);
     renderPage('trainee');
     await waitFor(() => expect(screen.getByText('PostgreSQL 徹底入門')).toBeInTheDocument());
-    expect(screen.queryByText('go')).not.toBeInTheDocument();
+    expect(screen.queryByText('Go')).not.toBeInTheDocument();
   });
 });

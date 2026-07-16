@@ -1,11 +1,8 @@
-import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { CheckCircleIcon, ClockIcon, CodeBracketIcon } from '@heroicons/react/24/outline';
 import { FilterChip } from '../components/ui';
 import { EXERCISE_LANGUAGES } from '../constants/exerciseLanguages';
 import LanguageBadge from '../components/LanguageBadge';
-import CategoryBadge from '../components/CategoryBadge';
-import { assignCategoryColors } from '../utils/categoryColor';
 import { useExerciseList } from '../hooks/useExerciseList';
 import { MasterExerciseWithStatus } from '../types';
 
@@ -27,9 +24,6 @@ export default function ExerciseListPage() {
     error,
     sentinelRef,
   } = useExerciseList();
-
-  // カテゴリ色は名前ハッシュ基本 + 隣接ブロックの同色だけ回避(FRESTYLE-112)。
-  const categoryColors = useMemo(() => assignCategoryColors(categories), [categories]);
 
   return (
     <div className="px-4 sm:px-6 pt-6 pb-24 max-w-5xl mx-auto space-y-6">
@@ -71,9 +65,9 @@ export default function ExerciseListPage() {
 
       {!loading && !error && categories.map((cat) => (
         <section key={cat} className="space-y-3">
-          {/* カテゴリブロックを色で区別できるよう、見出しは色付きバッジで出す(FRESTYLE-112)。 */}
-          <h2 className="text-sm font-semibold tracking-wide">
-            <CategoryBadge category={cat} colorClass={categoryColors.get(cat)} />
+          {/* カテゴリ見出しは無色のテキスト(FRESTYLE-112 の色付けはユーザー要望で撤回)。 */}
+          <h2 className="text-sm font-semibold text-[var(--color-text-secondary)] tracking-wide">
+            {cat}
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {exercises

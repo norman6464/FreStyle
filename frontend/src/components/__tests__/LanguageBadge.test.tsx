@@ -5,7 +5,7 @@ import LanguageBadge from '../LanguageBadge';
 describe('LanguageBadge', () => {
   it('docker は青系(sky)の色クラスになる', () => {
     render(<LanguageBadge language="docker" />);
-    const badge = screen.getByText('docker');
+    const badge = screen.getByText('Docker');
     expect(badge.className).toContain('bg-sky-500/25');
     expect(badge.className).toContain('text-sky-700');
   });
@@ -21,25 +21,26 @@ describe('LanguageBadge', () => {
     ];
     for (const [lang, cls] of cases) {
       const { unmount } = render(<LanguageBadge language={lang} />);
-      expect(screen.getByText(lang).className).toContain(cls);
+      const label = lang.charAt(0).toUpperCase() + lang.slice(1);
+      expect(screen.getByText(label).className).toContain(cls);
       unmount();
     }
   });
 
-  it('大文字小文字を無視して色を引く', () => {
-    render(<LanguageBadge language="Docker" />);
+  it('大文字小文字を無視して色を引き、表記は先頭のみ大文字に整形される', () => {
+    render(<LanguageBadge language="DOCKER" />);
     expect(screen.getByText('Docker').className).toContain('bg-sky-500/25');
   });
 
   it('未知の言語は無彩色（surface-3）にフォールバックする', () => {
     render(<LanguageBadge language="rust" />);
-    const badge = screen.getByText('rust');
+    const badge = screen.getByText('Rust');
     expect(badge.className).toContain('bg-surface-3');
     expect(badge.className).not.toContain('bg-sky-500/25');
   });
 
   it('mono 指定で等幅フォントになる', () => {
     render(<LanguageBadge language="go" mono />);
-    expect(screen.getByText('go').className).toContain('font-mono');
+    expect(screen.getByText('Go').className).toContain('font-mono');
   });
 });

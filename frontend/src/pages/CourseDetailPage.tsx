@@ -715,19 +715,18 @@ function ReadOnlyMarkdown({ content }: { content: string }) {
           </a>
         ),
         // 図（draw.io から書き出した PNG/SVG 等）を本文に埋め込めるようにする。
-        // 中央寄せ + 枠 + 白背景（透過 SVG が見えるよう）+ クリックで原寸を別タブ表示。
+        // 中央寄せ + 枠 + 白背景（透過 SVG が見えるよう）。リンクにはしない
+        // （クリックで画像 URL が別タブに開き学習が中断される、というユーザー要望で FRESTYLE-125 にて除去）。
         img: ({ src, alt }) => {
           const url = typeof src === 'string' ? src : undefined;
           return (
             <figure className="my-5">
-              <a href={url} target="_blank" rel="noopener noreferrer" className="block">
-                <img
-                  src={url}
-                  alt={alt ?? ''}
-                  loading="lazy"
-                  className="mx-auto max-w-[90%] h-auto rounded-lg border border-surface-3 bg-white"
-                />
-              </a>
+              <img
+                src={url}
+                alt={alt ?? ''}
+                loading="lazy"
+                className="mx-auto max-w-[90%] h-auto rounded-lg border border-surface-3 bg-white"
+              />
               {alt && (
                 <figcaption className="mt-2 text-center text-xs text-[var(--color-text-muted)]">
                   {alt}

@@ -117,6 +117,21 @@ Node.js による `javascript` / `typescript` 実行を追加した（[`executeN
 
 正誤の**確定**は従来どおり提出時のサーバ側採点（複数テストケース）で、この比較は画面に表示中の期待出力 1 件とのプレビュー。
 
+## 実行エラーの行マーカーとエラーメッセージ行（FRESTYLE-117）
+
+エラーになったとき「どの行が原因か」を自力で stderr から読み解かなくて済むようにする。
+
+- [`utils/executionErrors.ts`](../frontend/src/utils/executionErrors.ts) が stderr から行番号を言語別に抽出する
+  （go: `main.go:N` / javascript・typescript: `main.js|ts:N` / php: `on line N` / bash: `script.sh: line N`。
+  実行系が内部パスを `./main.go` 等に整形しているため行番号はエディタとそのまま一致する）。
+  node のスタックトレース形式は例外行（`SyntaxError: ...`）をホバー用メッセージに添える
+- `CodeEditor` の `errorMarkers` prop が monaco の `setModelMarkers`（赤波線 + ホバーでメッセージ）と
+  `createDecorationsCollection`（ガターの赤丸 ✕ + 行の薄い赤ハイライト。スタイルは index.css）を適用。
+  ガター余白はマーカーがあるときだけ確保する。行番号は 1〜行数にクランプ
+- `ExecutionResultTable` は stderr を「エラーメッセージ」行に分離（Go のコンパイル失敗 =
+  stderr に `main.go:N` があるときはラベルを「コンパイル時エラーメッセージ」に）。
+  テーブルは「実行結果ステータス / エラーメッセージ / 提出コードのアウトプット / 期待する出力」の構成
+
 ## 演習一覧の視認性（FRESTYLE-112）
 
 いずれも「バッジ類が淡くて見えにくい」というユーザー要望への対応:

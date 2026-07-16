@@ -5,6 +5,8 @@ interface Props {
   result: CodeExecutionResult | null;
   expected: string;
   submitError: string | null;
+  /** 演習の言語(エラーメッセージ行のラベル判定に使用。省略時は汎用ラベル)。 */
+  language?: string;
 }
 
 /**
@@ -59,7 +61,7 @@ function firstDiffLine(normalizedActual: string, normalizedExpected: string): Di
  * 期待 出力 が 空 の 演習 は 比較 でき ない ので 従来 の 中立 表示 に フォールバック。
  * さらに exit 0 でも stdout が 空 の とき は 「まだ 出力 が ない」 ヒント を 出す。
  */
-export default function ExecutionResultTable({ result, expected, submitError }: Props) {
+export default function ExecutionResultTable({ result, expected, submitError, language }: Props) {
   if (submitError) {
     return (
       <div className="rounded-md border border-red-500/30 bg-red-500/5 p-3 text-xs text-red-400">
@@ -71,6 +73,12 @@ export default function ExecutionResultTable({ result, expected, submitError }: 
 
   const isSuccess = result.exitCode === 0;
   const hasNoOutput = isSuccess && !result.stdout;
+  // Go の実行失敗で stderr に main.go:N が出ているのはコンパイル段階のエラー
+  // (コンパイルが通れば stdout が出得る)。ラベルを具体的にして原因の区別を助ける。
+  const errorLabel =
+    language === 'go' && !isSuccess && /main\.go:\d+/.test(result.stderr)
+      ? 'コンパイル時エラーメッセージ'
+      : 'エラーメッセージ';
   const normalizedStdout = normalizeOutput(result.stdout);
   const normalizedExpected = normalizeOutput(expected);
   const comparable = normalizedExpected !== '';
@@ -127,6 +135,20 @@ export default function ExecutionResultTable({ result, expected, submitError }: 
               )}
             </td>
           </tr>
+          {/* stderr は stdout と混ぜず専用の行に分ける(FRESTYLE-117)。
+              エラーの本文を探す場所が一定になり、エディタの行マーカーと突き合わせやすい。 */}
+          {result.stderr && (
+            <tr className="border-b border-surface-3">
+              <th className="text-left px-4 py-2 font-medium text-[var(--color-text-muted)] bg-surface-2 align-top">
+                {errorLabel}
+              </th>
+              <td className="px-4 py-2">
+                <pre className="whitespace-pre-wrap break-words font-mono text-red-500 bg-red-500/5 border border-red-500/20 rounded-md p-3">
+                  {result.stderr}
+                </pre>
+              </td>
+            </tr>
+          )}
           <tr className="border-b border-surface-3">
             <th className="text-left px-4 py-2 font-medium text-[var(--color-text-muted)] bg-surface-2 align-top">
               提出コードのアウトプット
@@ -135,11 +157,6 @@ export default function ExecutionResultTable({ result, expected, submitError }: 
               <pre className="whitespace-pre-wrap break-words font-mono text-[var(--color-text-primary)]">
                 {result.stdout || '(なし)'}
               </pre>
-              {result.stderr && (
-                <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-red-400">
-                  {result.stderr}
-                </pre>
-              )}
               {hasNoOutput && (
                 <p className="mt-2 text-amber-500">
                   まだ出力がありません。<code>echo</code> や <code>print</code> などで結果を出力すると、ここに表示されます。

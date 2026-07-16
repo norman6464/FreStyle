@@ -1,4 +1,4 @@
-import { Suspense, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { CheckCircleIcon, ChevronDownIcon, ChevronUpIcon, ClipboardDocumentCheckIcon } from '@heroicons/react/24/outline';
 import Loading from '../components/Loading';
@@ -14,6 +14,7 @@ import { useExerciseDetail } from '../hooks/useExerciseDetail';
 import LanguageBadge from '../components/LanguageBadge';
 import { lazyWithReload } from '../utils/lazyWithReload';
 import { monacoLanguageOf } from '../utils/exerciseFormat';
+import { parseErrorLines } from '../utils/executionErrors';
 
 const CodeEditor = lazyWithReload(() => import('../components/CodeEditor'), 'CodeEditor');
 
@@ -53,6 +54,15 @@ export default function ExerciseDetailPage() {
   } = useExerciseDetail(slug);
 
   const [showHint, setShowHint] = useState(false);
+
+  // 実行エラー時は stderr から行番号を抽出し、エディタのガターに ✕ マーカーを出す(FRESTYLE-117)。
+  const errorMarkers = useMemo(
+    () =>
+      executionResult && executionResult.exitCode !== 0 && detail
+        ? parseErrorLines(executionResult.stderr, detail.exercise.language)
+        : [],
+    [executionResult, detail],
+  );
 
   if (loading) {
     return <Loading message="読み込み中..." className="min-h-[50vh]" />;
@@ -194,6 +204,7 @@ export default function ExerciseDetailPage() {
               language={monacoLanguageOf(ex.language)}
               minHeight={260}
               onRun={runCode}
+              errorMarkers={errorMarkers}
             />
           </Suspense>
         </div>
@@ -220,6 +231,7 @@ export default function ExerciseDetailPage() {
           // 提出時のバックエンド側 fallback と齟齬が出る。
           expected={detail.examples[0]?.expectedOutput ?? ex.expectedOutput ?? ''}
           submitError={submitError}
+          language={ex.language}
         />
       )}
 

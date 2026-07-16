@@ -72,10 +72,10 @@ export default {
       // 値はスケールごと一段控えめ（角を少し立てる。FRESTYLE-120 のユーザー要望）。
       // 使い分けルールは変えず、トークン値だけで全画面に一括反映する。
       borderRadius: {
-        md: '0.25rem',
-        lg: '0.375rem',
-        xl: '0.5rem',
-        '2xl': '0.75rem',
+        md: '0.1875rem',
+        lg: '0.25rem',
+        xl: '0.375rem',
+        '2xl': '0.5rem',
       },
       fontFamily: {
         // font-roboto を付けた要素だけに適用（アプリ全体の既定フォントは変えない）。

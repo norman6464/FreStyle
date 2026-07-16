@@ -435,9 +435,9 @@ function ReadOnlyDetail({
   }, [material.id]);
 
   return (
-    // 背景は灰青(#EDF2F7 = rgb(237,242,247))、本文は白カード。背景と内容のコントラストで
-    // 読み物として視線が本文に集まるようにする(FRESTYLE-118。ユーザー指定の配色)。
-    <div ref={scrollRef} className="flex-1 overflow-y-auto bg-[#EDF2F7]">
+    // 背景は body と同じ灰青(--color-surface)、本文は白カード。背景と内容のコントラストで
+    // 読み物として視線が本文に集まるようにする(FRESTYLE-118 → 119 で body と統一)。
+    <div ref={scrollRef} className="flex-1 overflow-y-auto bg-surface">
       {/* 読み物ページなので外側の余白は広め(FRESTYLE-115)。中央寄せなので左右は自然に余白になる。 */}
       <div
         className={`mx-auto w-full max-w-6xl px-6 sm:px-10 py-8 sm:py-10 grid grid-cols-1 gap-8 ${
@@ -454,10 +454,9 @@ function ReadOnlyDetail({
           <h1 className="text-3xl font-bold text-[var(--color-text-primary)] mb-3 leading-snug">
             {material.title || '無題の教材'}
           </h1>
-          {/* 完了トグルを含むメタ行は sticky でスクロールコンテナ上部に残し、
-              本文の途中でも完了操作できるようにする(FRESTYLE-100)。
-              bg はカードと同じ白にして、通過する本文が透けないようにする。 */}
-          <div className="sticky top-0 z-10 bg-white py-2 border-b border-surface-3 flex items-center justify-between gap-3 mb-10">
+          {/* メタ行は通常の行として本文と一緒に流す(FRESTYLE-119 でユーザー要望により sticky 解除)。
+              スクロール途中の完了操作は本文末尾の大きい完了ボタン(FRESTYLE-100)で行える。 */}
+          <div className="py-2 border-b border-surface-3 flex items-center justify-between gap-3 mb-10">
             <p className="text-xs text-[var(--color-text-muted)]">
               最終更新: {formatDate(material.updatedAt)}
             </p>
@@ -617,7 +616,7 @@ function ChapterNav({
 function MaterialSkeleton() {
   return (
     // 実表示(灰青背景 + 白カード)と同じ配色にして、取得完了時の切り替わりで背景が変わらないようにする。
-    <div className="flex-1 overflow-y-auto bg-[#EDF2F7]">
+    <div className="flex-1 overflow-y-auto bg-surface">
       <div
         className="mx-auto w-full max-w-[860px] px-6 sm:px-10 py-8 sm:py-10 animate-pulse"
         aria-hidden="true"

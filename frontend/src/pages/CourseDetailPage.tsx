@@ -179,6 +179,10 @@ export default function CourseDetailPage() {
 
   return (
     <div className="flex h-full">
+      {/* 受講者は章一覧を右サイドバーに出すため、デスクトップの左パネルは出さない(FRESTYLE-118)。
+          モバイル(md 未満)は右サイドバーが無いので、従来のドロワーを章切替の導線として残す。
+          canManage は編集導線(作成/削除)があるため従来の左パネルのまま。 */}
+      <div className={canManage ? 'contents' : 'md:hidden'}>
       <SecondaryPanel
         title={course.title || '無題のコース'}
         badge={`${materials.length}件`}
@@ -241,6 +245,7 @@ export default function CourseDetailPage() {
           )}
         </div>
       </SecondaryPanel>
+      </div>
 
       <div className="flex-1 flex flex-col min-w-0">
         {/* モバイルヘッダー */}
@@ -275,6 +280,11 @@ export default function CourseDetailPage() {
               onGoNext={nextMaterial ? () => selectMaterial(nextMaterial.id) : undefined}
               nextCourse={nextCourse}
               onGoNextCourse={nextCourse ? () => navigate(`/courses/${nextCourse.id}`) : undefined}
+              course={course}
+              materials={materials}
+              completedIds={progress.completedIds}
+              onSelectMaterial={selectMaterial}
+              completedCount={completedCount}
             />
           )
         ) : (
@@ -284,7 +294,7 @@ export default function CourseDetailPage() {
             description={
               canManage
                 ? '左のリストから教材を選択するか、 新しい教材を作成しましょう。'
-                : '左のリストから教材を選択してください。'
+                : '章の一覧から教材を選択してください。'
             }
             action={canManage ? { label: '新しい教材', onClick: handleCreate } : undefined}
           />
@@ -395,6 +405,11 @@ function ReadOnlyDetail({
   onGoNext,
   nextCourse,
   onGoNextCourse,
+  course,
+  materials,
+  completedIds,
+  onSelectMaterial,
+  completedCount,
 }: {
   material: TeachingMaterial;
   completed: boolean;
@@ -403,6 +418,11 @@ function ReadOnlyDetail({
   onGoNext?: () => void;
   nextCourse?: CourseWithProgress | null;
   onGoNextCourse?: () => void;
+  course: Course;
+  materials: TeachingMaterial[];
+  completedIds: Set<number>;
+  onSelectMaterial: (id: number) => void;
+  completedCount: number;
 }) {
   // 目次の表示状態は localStorage に保持し、 教材を切り替えても選択が続くようにする（既定は表示）。
   // 横幅が狭いときに本文幅を稼げるよう trainee が出し入れできる。
@@ -415,23 +435,29 @@ function ReadOnlyDetail({
   }, [material.id]);
 
   return (
-    <div ref={scrollRef} className="flex-1 overflow-y-auto">
-      {/* 読み物ページなので外側の余白は広め(FRESTYLE-115)。 */}
+    // 背景は灰青(#EDF2F7 = rgb(237,242,247))、本文は白カード。背景と内容のコントラストで
+    // 読み物として視線が本文に集まるようにする(FRESTYLE-118。ユーザー指定の配色)。
+    <div ref={scrollRef} className="flex-1 overflow-y-auto bg-[#EDF2F7]">
+      {/* 読み物ページなので外側の余白は広め(FRESTYLE-115)。中央寄せなので左右は自然に余白になる。 */}
       <div
         className={`mx-auto w-full max-w-6xl px-6 sm:px-10 py-8 sm:py-10 grid grid-cols-1 gap-8 ${
-          tocOpen ? 'lg:grid-cols-[minmax(0,1fr)_240px]' : ''
+          tocOpen ? 'lg:grid-cols-[minmax(0,1fr)_280px]' : ''
         }`}
       >
-        {/* 目次を隠したときは本文が全幅に伸びて読みにくいため、 読みやすい幅(800px)に
-            収めて中央寄せする。 目次表示時は 1fr カラムが既に同程度の幅になる。 */}
-        <article className={`min-w-0 ${!tocOpen ? 'mx-auto w-full max-w-[800px]' : ''}`}>
+        {/* サイドバーを隠したときは本文が全幅に伸びて読みにくいため、 読みやすい幅(860px)に
+            収めて中央寄せする。 サイドバー表示時は 1fr カラムが既に同程度の幅になる。 */}
+        <article
+          className={`min-w-0 bg-white border border-surface-3 rounded-xl shadow-sm px-6 sm:px-10 py-8 sm:py-10 ${
+            !tocOpen ? 'mx-auto w-full max-w-[860px]' : ''
+          }`}
+        >
           <h1 className="text-3xl font-bold text-[var(--color-text-primary)] mb-3 leading-snug">
             {material.title || '無題の教材'}
           </h1>
           {/* 完了トグルを含むメタ行は sticky でスクロールコンテナ上部に残し、
               本文の途中でも完了操作できるようにする(FRESTYLE-100)。
-              bg はページ背景(surface=白)と同じにして、通過する本文が透けないようにする。 */}
-          <div className="sticky top-0 z-10 bg-surface py-2 border-b border-surface-3 flex items-center justify-between gap-3 mb-10">
+              bg はカードと同じ白にして、通過する本文が透けないようにする。 */}
+          <div className="sticky top-0 z-10 bg-white py-2 border-b border-surface-3 flex items-center justify-between gap-3 mb-10">
             <p className="text-xs text-[var(--color-text-muted)]">
               最終更新: {formatDate(material.updatedAt)}
             </p>
@@ -489,12 +515,95 @@ function ReadOnlyDetail({
 
         {tocOpen && (
           <aside className="hidden lg:block">
-            <div className="sticky top-6">
-              <MarkdownTableOfContents content={material.content} />
+            <div className="sticky top-6 space-y-4">
+              <div className="bg-white border border-surface-3 rounded-xl shadow-sm p-4">
+                <MarkdownTableOfContents content={material.content} />
+              </div>
+              {/* 章一覧は左パネルから右サイドバー(目次の下)へ移動(FRESTYLE-118)。 */}
+              <div className="bg-white border border-surface-3 rounded-xl shadow-sm p-4">
+                <ChapterNav
+                  course={course}
+                  materials={materials}
+                  selectedId={material.id}
+                  completedIds={completedIds}
+                  completedCount={completedCount}
+                  onSelect={onSelectMaterial}
+                />
+              </div>
             </div>
           </aside>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * ChapterNav — 閲覧ビューの右サイドバーに出す章一覧(FRESTYLE-118)。
+ * コース一覧への戻り + コース名 + 進捗バー + 章リスト(完了はチェック・現在章はハイライト)。
+ */
+function ChapterNav({
+  course,
+  materials,
+  selectedId,
+  completedIds,
+  completedCount,
+  onSelect,
+}: {
+  course: Course;
+  materials: TeachingMaterial[];
+  selectedId: number;
+  completedIds: Set<number>;
+  completedCount: number;
+  onSelect: (id: number) => void;
+}) {
+  return (
+    <div>
+      <Link
+        to="/courses"
+        className="inline-flex items-center gap-1 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+      >
+        <ArrowLeftIcon className="w-3.5 h-3.5" />
+        コース一覧
+      </Link>
+      <p className="mt-2 text-sm font-semibold text-[var(--color-text-primary)]">
+        {course.title || '無題のコース'}
+        <span className="ml-2 text-xs font-normal text-[var(--color-text-muted)]">
+          {materials.length} 章
+        </span>
+      </p>
+      {materials.length > 0 && (
+        <div className="mt-2">
+          <CourseProgressBar completed={completedCount} total={materials.length} />
+        </div>
+      )}
+      <nav aria-label="章一覧" className="mt-3 space-y-0.5">
+        {materials.map((m, i) => {
+          const active = m.id === selectedId;
+          return (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => onSelect(m.id)}
+              aria-current={active ? 'page' : undefined}
+              className={`w-full flex items-start gap-2 rounded-md px-2 py-1.5 text-left text-[13px] leading-snug transition-colors ${
+                active
+                  ? 'bg-brand-500/10 font-medium text-[var(--color-text-primary)]'
+                  : 'text-[var(--color-text-secondary)] hover:bg-surface-2'
+              }`}
+            >
+              {completedIds.has(m.id) ? (
+                <CheckCircleSolidIcon className="w-4 h-4 mt-0.5 text-emerald-500 flex-shrink-0" aria-label="完了" />
+              ) : (
+                <span className="w-4 h-4 mt-0.5 flex items-center justify-center text-[10px] rounded-full border border-surface-3 text-[var(--color-text-muted)] flex-shrink-0">
+                  {i + 1}
+                </span>
+              )}
+              <span className="line-clamp-2">{m.title || '無題の教材'}</span>
+            </button>
+          );
+        })}
+      </nav>
     </div>
   );
 }
@@ -507,20 +616,26 @@ function ReadOnlyDetail({
  */
 function MaterialSkeleton() {
   return (
-    <div className="flex-1 overflow-y-auto">
-      <div className="mx-auto w-full max-w-[800px] px-6 py-6 animate-pulse" aria-hidden="true">
-        <div className="h-7 w-2/3 rounded bg-surface-3" />
-        <div className="mt-3 h-3 w-32 rounded bg-surface-2" />
-        <div className="mt-8 space-y-3">
-          <div className="h-4 w-full rounded bg-surface-2" />
-          <div className="h-4 w-11/12 rounded bg-surface-2" />
-          <div className="h-4 w-4/5 rounded bg-surface-2" />
-        </div>
-        <div className="mt-6 h-40 w-full rounded-lg bg-surface-2" />
-        <div className="mt-6 space-y-3">
-          <div className="h-4 w-full rounded bg-surface-2" />
-          <div className="h-4 w-10/12 rounded bg-surface-2" />
-          <div className="h-4 w-3/4 rounded bg-surface-2" />
+    // 実表示(灰青背景 + 白カード)と同じ配色にして、取得完了時の切り替わりで背景が変わらないようにする。
+    <div className="flex-1 overflow-y-auto bg-[#EDF2F7]">
+      <div
+        className="mx-auto w-full max-w-[860px] px-6 sm:px-10 py-8 sm:py-10 animate-pulse"
+        aria-hidden="true"
+      >
+        <div className="bg-white border border-surface-3 rounded-xl shadow-sm px-6 sm:px-10 py-8 sm:py-10">
+          <div className="h-7 w-2/3 rounded bg-surface-3" />
+          <div className="mt-3 h-3 w-32 rounded bg-surface-2" />
+          <div className="mt-8 space-y-3">
+            <div className="h-4 w-full rounded bg-surface-2" />
+            <div className="h-4 w-11/12 rounded bg-surface-2" />
+            <div className="h-4 w-4/5 rounded bg-surface-2" />
+          </div>
+          <div className="mt-6 h-40 w-full rounded-lg bg-surface-2" />
+          <div className="mt-6 space-y-3">
+            <div className="h-4 w-full rounded bg-surface-2" />
+            <div className="h-4 w-10/12 rounded bg-surface-2" />
+            <div className="h-4 w-3/4 rounded bg-surface-2" />
+          </div>
         </div>
       </div>
       <span className="sr-only" role="status">

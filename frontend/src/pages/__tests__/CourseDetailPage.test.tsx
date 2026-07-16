@@ -62,6 +62,7 @@ function course(): Course {
     title: 'Git 入門',
     description: '',
     category: 'dev-basics',
+    language: 'git',
     sortOrder: 20,
     isPublished: true,
     createdAt: '2026-07-01T00:00:00Z',
@@ -268,5 +269,57 @@ describe('CourseDetailPage 続きから表示 + 完了トグル (FRESTYLE-99 / F
     );
     fireEvent.click(screen.getAllByRole('button', { name: '完了済み' })[0]);
     await waitFor(() => expect(mockIncomplete).toHaveBeenCalledWith(12));
+  });
+});
+
+describe('CourseDetailPage 右サイドバーの章一覧 (FRESTYLE-118)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetCourse.mockResolvedValue(course());
+    mockCourseList.mockResolvedValue([]);
+    mockListMaterials.mockResolvedValue([material(11), material(12)]);
+    mockLastViewed.mockResolvedValue(view(11));
+    // 見出し付き本文にすると TOC の IntersectionObserver(jsdom 未実装)が動くため見出しなしにする。
+    mockGetMaterial.mockImplementation(async (id: number) => material(id, '本文テキスト'));
+    mockProgressList.mockResolvedValue([
+      {
+        id: 1,
+        userId: 7,
+        teachingMaterialId: 11,
+        courseId: 5,
+        completedAt: '2026-07-08T00:00:00Z',
+      } as never,
+    ]);
+    mockRecordView.mockResolvedValue(undefined);
+  });
+
+  it('受講者ビューでは右サイドバーに章一覧(コース名・章数つき)が表示される', async () => {
+    renderPage('trainee');
+    await waitFor(() => expect(screen.getByRole('navigation', { name: '章一覧' })).toBeInTheDocument());
+    const nav = screen.getByRole('navigation', { name: '章一覧' });
+    expect(nav).toHaveTextContent('章 11');
+    expect(nav).toHaveTextContent('章 12');
+    // 現在表示中の章が aria-current でハイライトされる
+    const current = nav.querySelector('[aria-current="page"]');
+    expect(current).toHaveTextContent('章 11');
+  });
+
+  it('章一覧の章をクリックすると本文が切り替わる', async () => {
+    renderPage('trainee');
+    await waitFor(() => expect(screen.getByRole('navigation', { name: '章一覧' })).toBeInTheDocument());
+    const nav = screen.getByRole('navigation', { name: '章一覧' });
+    const target = Array.from(nav.querySelectorAll('button')).find((b) => b.textContent?.includes('章 12'));
+    expect(target).toBeDefined();
+    fireEvent.click(target!);
+    await waitFor(() => expect(mockGetMaterial).toHaveBeenCalledWith(12));
+  });
+
+  it('完了済みの章にはチェックアイコン、未完了の章には番号が出る', async () => {
+    renderPage('trainee');
+    await waitFor(() => expect(screen.getByRole('navigation', { name: '章一覧' })).toBeInTheDocument());
+    const nav = screen.getByRole('navigation', { name: '章一覧' });
+    // 11 は完了(チェック)、12 は未完了(番号 2)
+    expect(nav.querySelectorAll('[aria-label="完了"]')).toHaveLength(1);
+    expect(nav).toHaveTextContent('2');
   });
 });

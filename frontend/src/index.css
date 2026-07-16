@@ -114,7 +114,7 @@
  * ライトテーマ単一構成（ダークモードは廃止）。
  *
  * カラー設計（灰青ボディ + 白カード。FRESTYLE-119）:
- *   - body は灰青 (#EDF2F7 = rgb(237,242,247))、コンテンツは白カード (surface-1) で
+ *   - body は灰青 (#F4F6F9)、コンテンツは白カード (surface-1) で
  *     背景とのコントラストを作る（ユーザー指定の配色。教材閲覧の FRESTYLE-118 を全画面へ統一）
  *   - サイドバー / ヘッダーは白 (--color-nav) + border 1px で境界を表現
  *   - hover / active は色相を持たない暖色グレー (#F5F5F4 / #EAEAE9) で控えめに
@@ -122,7 +122,7 @@
  */
 :root {
   /* body は灰青。カード (surface-1) の白とコントラストを作る（FRESTYLE-119）。 */
-  --color-surface: #EDF2F7;
+  --color-surface: #F4F6F9;
   --color-surface-1: #FFFFFF;
   --color-surface-2: #F5F5F4;
   --color-surface-3: #E7E5E4;
@@ -140,7 +140,7 @@
   --color-text-faint: #D3D3D0;
   --color-text-subtle: #E8E8E6;
   --color-border-hover: #D3D3D0;
-  --scrollbar-track: #EDF2F7;
+  --scrollbar-track: #F4F6F9;
   --scrollbar-thumb: #D3D3D0;
   --scrollbar-thumb-hover: #A4A4A0;
 

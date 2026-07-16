@@ -27,8 +27,9 @@ export function parseErrorLines(stderr: string, language: string): ExecutionErro
   const pattern = LINE_PATTERNS[language.toLowerCase()];
   if (!pattern || !stderr) return [];
 
+  const lines = stderr.split('\n');
   const byLine = new Map<number, string>();
-  for (const raw of stderr.split('\n')) {
+  for (const raw of lines) {
     const m = raw.match(pattern);
     if (!m) continue;
     const line = Number(m[1]);
@@ -40,7 +41,7 @@ export function parseErrorLines(stderr: string, language: string): ExecutionErro
 
   // node のスタックトレースのように「行番号の行」と「例外メッセージの行」が分かれる形式では、
   // 例外メッセージ(例: SyntaxError: ...)をホバーに添える方が原因が分かりやすい。
-  const exception = stderr.split('\n').find((l) => /^[A-Za-z]*(?:Error|Exception): /.test(l.trim()));
+  const exception = lines.find((l) => /^[A-Za-z]*(?:Error|Exception): /.test(l.trim()));
   const result = [...byLine.entries()]
     .sort((a, b) => a[0] - b[0])
     .map(([line, message]) => ({

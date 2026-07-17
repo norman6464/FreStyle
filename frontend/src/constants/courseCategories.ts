@@ -60,6 +60,12 @@ export const COURSE_CATEGORIES: CourseCategoryDef[] = [
     badgeClass: 'bg-cyan-500/15 text-cyan-700 border border-cyan-500/30',
     barClass: 'border-l-cyan-500',
   },
+  {
+    key: 'design',
+    label: 'デザインパターン',
+    badgeClass: 'bg-pink-500/15 text-pink-700 border border-pink-500/30',
+    barClass: 'border-l-pink-500',
+  },
 ];
 
 /** key からカテゴリ定義を引く。未分類('')や未知の値は undefined（無色表示）。 */

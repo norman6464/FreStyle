@@ -11,7 +11,7 @@
   frontend の [`constants/courseCategories.ts`](../frontend/src/constants/courseCategories.ts) が
   同じ key に対して表示名（日本語）と色（Tailwind クラス）を持つ
 
-## カテゴリ一覧（7 分類）
+## カテゴリ一覧（8 分類）
 
 | key | 表示名 | 色 |
 |---|---|---|
@@ -22,6 +22,7 @@
 | `infra` | インフラ・クラウド | 橙 (orange) |
 | `security` | セキュリティ | 赤 (rose) |
 | `product` | プロダクト・仕様 | 水色 (cyan) |
+| `design` | デザインパターン | 桃 (pink)。コース「デザインパターン入門 (PHP)」向けに FRESTYLE-127 で追加 |
 
 未分類（`''`）は無色 = 従来表示のまま。
 

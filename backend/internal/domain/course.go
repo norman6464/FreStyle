@@ -13,6 +13,7 @@ const (
 	CourseCategoryInfra        = "infra"        // インフラ・クラウド
 	CourseCategorySecurity     = "security"     // セキュリティ
 	CourseCategoryProduct      = "product"      // プロダクト・仕様
+	CourseCategoryDesign       = "design"       // 設計・デザインパターン
 )
 
 // ValidCourseCategories は選択可能なカテゴリの一覧（未分類 = 空文字は含まない）。
@@ -24,6 +25,7 @@ var ValidCourseCategories = []string{
 	CourseCategoryInfra,
 	CourseCategorySecurity,
 	CourseCategoryProduct,
+	CourseCategoryDesign,
 }
 
 // IsValidCourseCategory は c が未分類("")または定義済みカテゴリかを返す。

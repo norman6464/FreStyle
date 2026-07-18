@@ -437,6 +437,10 @@ function ReadOnlyDetail({
     scroller?.scrollTo({ top: 0 });
   }, [material.id]);
 
+  // 本文先頭の h1(= タイトル)は、下のヘッダーで material.title を大きく出すため取り除く。
+  // 残すとカードの外(ヘッダー)とカードの中(本文)でタイトルが二重に見える(FRESTYLE-131)。
+  const bodyContent = useMemo(() => stripLeadingTitle(material.content), [material.content]);
+
   return (
     // 背景は body と同じ灰青(--color-surface)、本文は白カード。背景と内容のコントラストで
     // 読み物として視線が本文に集まるようにする(FRESTYLE-118 → 119 で body と統一)。
@@ -449,22 +453,20 @@ function ReadOnlyDetail({
         }`}
       >
         {/* サイドバーを隠したときは本文が全幅に伸びて読みにくいため、 読みやすい幅(860px)に
-            収めて中央寄せする。 サイドバー表示時は 1fr カラムが既に同程度の幅になる。 */}
-        <article
-          className={`min-w-0 bg-white border border-surface-3 rounded-xl shadow-sm px-6 sm:px-10 py-8 sm:py-10 ${
-            !tocOpen ? 'mx-auto w-full max-w-[860px]' : ''
-          }`}
-        >
-          <h1 className="text-3xl font-bold text-[var(--color-text-primary)] mb-3 leading-snug">
-            {material.title || '無題の教材'}
-          </h1>
-          {/* メタ行は通常の行として本文と一緒に流す(FRESTYLE-119 でユーザー要望により sticky 解除)。
-              スクロール途中の完了操作は本文末尾の大きい完了ボタン(FRESTYLE-100)で行える。 */}
-          <div className="py-2 border-b border-surface-3 flex items-center justify-between gap-3 mb-10">
-            <p className="text-xs text-[var(--color-text-muted)]">
-              最終更新: {formatDate(material.updatedAt)}
-            </p>
-            <div className="flex items-center gap-2">
+            収めて中央寄せする。 サイドバー表示時は 1fr カラムが既に同程度の幅になる。
+            タイトル/メタのヘッダーはカードの外・上に置き、 本文だけを白カードに入れる(FRESTYLE-131)。 */}
+        <div className={`min-w-0 ${!tocOpen ? 'mx-auto w-full max-w-[860px]' : ''}`}>
+          {/* 記事サイト風ヘッダー: 灰青背景の上にタイトル + メタを中央寄せで置く(FRESTYLE-131)。 */}
+          <header className="mb-6 text-center">
+            <h1 className="text-3xl sm:text-4xl font-bold text-[var(--color-text-primary)] leading-snug">
+              {material.title || '無題の教材'}
+            </h1>
+            {/* メタ(最終更新 / 目次トグル / 完了トグル)。 sticky にはしない(FRESTYLE-119)。
+                スクロール途中の完了操作は本文末尾の大きい完了ボタン(FRESTYLE-100)で行える。 */}
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+              <p className="text-xs text-[var(--color-text-muted)]">
+                最終更新: {formatDate(material.updatedAt)}
+              </p>
               {/* 目次は lg 以上でのみ表示されるため、 トグルも lg 未満では隠す。 */}
               <button
                 type="button"
@@ -482,45 +484,49 @@ function ReadOnlyDetail({
               </button>
               <CompleteToggleButton completed={completed} onToggle={onToggleComplete} />
             </div>
-          </div>
-          <div className="prose prose-sm max-w-none course-prose">
-            <ReadOnlyMarkdown content={material.content} />
-          </div>
+          </header>
 
-          {/* 末尾に「完了にする」と「次の章へ」を並べ、 読み終えた位置から次へ進めるようにする。
-              最終章では代わりに「次のコースへ」を出し、 一覧に戻らず次のコースへ直行できるようにする
-              (FRESTYLE-102。 遷移先はレジュームにより 1 章目が自動表示される)。 */}
-          <div className="mt-10 pt-6 border-t border-surface-3 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <CompleteToggleButton completed={completed} onToggle={onToggleComplete} large />
-            {nextMaterial && onGoNext ? (
-              <button
-                type="button"
-                onClick={onGoNext}
-                title={`次の章へ: ${nextMaterial.title || '無題の教材'}`}
-                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium bg-surface-2 border border-surface-3 text-[var(--color-text-primary)] hover:bg-surface-3 transition-colors max-w-full"
-              >
-                <span className="truncate">次の章へ: {nextMaterial.title || '無題の教材'}</span>
-                <ArrowRightIcon className="w-4 h-4 flex-shrink-0" />
-              </button>
-            ) : nextCourse && onGoNextCourse ? (
-              <button
-                type="button"
-                onClick={onGoNextCourse}
-                title={`次のコースへ: ${nextCourse.title || '無題のコース'}`}
-                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium bg-surface-2 border border-surface-3 text-[var(--color-text-primary)] hover:bg-surface-3 transition-colors max-w-full"
-              >
-                <span className="truncate">次のコースへ: {nextCourse.title || '無題のコース'}</span>
-                <ArrowRightIcon className="w-4 h-4 flex-shrink-0" />
-              </button>
-            ) : null}
-          </div>
-        </article>
+          <article className="bg-white border border-surface-3 rounded-xl shadow-sm px-6 sm:px-10 py-8 sm:py-10">
+            <div className="prose prose-sm max-w-none course-prose">
+              <ReadOnlyMarkdown content={bodyContent} />
+            </div>
+
+            {/* 末尾に「完了にする」と「次の章へ」を並べ、 読み終えた位置から次へ進めるようにする。
+                最終章では代わりに「次のコースへ」を出し、 一覧に戻らず次のコースへ直行できるようにする
+                (FRESTYLE-102。 遷移先はレジュームにより 1 章目が自動表示される)。 */}
+            <div className="mt-10 pt-6 border-t border-surface-3 flex flex-col sm:flex-row items-center justify-center gap-3">
+              <CompleteToggleButton completed={completed} onToggle={onToggleComplete} large />
+              {nextMaterial && onGoNext ? (
+                <button
+                  type="button"
+                  onClick={onGoNext}
+                  title={`次の章へ: ${nextMaterial.title || '無題の教材'}`}
+                  className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium bg-surface-2 border border-surface-3 text-[var(--color-text-primary)] hover:bg-surface-3 transition-colors max-w-full"
+                >
+                  <span className="truncate">次の章へ: {nextMaterial.title || '無題の教材'}</span>
+                  <ArrowRightIcon className="w-4 h-4 flex-shrink-0" />
+                </button>
+              ) : nextCourse && onGoNextCourse ? (
+                <button
+                  type="button"
+                  onClick={onGoNextCourse}
+                  title={`次のコースへ: ${nextCourse.title || '無題のコース'}`}
+                  className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium bg-surface-2 border border-surface-3 text-[var(--color-text-primary)] hover:bg-surface-3 transition-colors max-w-full"
+                >
+                  <span className="truncate">次のコースへ: {nextCourse.title || '無題のコース'}</span>
+                  <ArrowRightIcon className="w-4 h-4 flex-shrink-0" />
+                </button>
+              ) : null}
+            </div>
+          </article>
+        </div>
 
         {tocOpen && (
           <aside className="hidden lg:block">
             <div className="sticky top-6 space-y-4">
               <div className="bg-white border border-surface-3 rounded-xl shadow-sm p-4">
-                <MarkdownTableOfContents content={material.content} />
+                {/* タイトルはヘッダーで大きく出すため、 目次からも先頭 h1 を除いた本文を渡す。 */}
+                <MarkdownTableOfContents content={bodyContent} />
               </div>
               {/* 章一覧は左パネルから右サイドバー(目次の下)へ移動(FRESTYLE-118)。 */}
               <div className="bg-white border border-surface-3 rounded-xl shadow-sm p-4">
@@ -625,10 +631,13 @@ function MaterialSkeleton() {
         className="mx-auto w-full max-w-[860px] px-6 sm:px-10 py-8 sm:py-10 animate-pulse"
         aria-hidden="true"
       >
+        {/* タイトル + メタはカードの外・上(FRESTYLE-131 の実表示に合わせて跳ねを防ぐ)。 */}
+        <div className="mb-6 flex flex-col items-center gap-3">
+          <div className="h-8 w-3/4 rounded bg-surface-3" />
+          <div className="h-3 w-40 rounded bg-surface-2" />
+        </div>
         <div className="bg-white border border-surface-3 rounded-xl shadow-sm px-6 sm:px-10 py-8 sm:py-10">
-          <div className="h-7 w-2/3 rounded bg-surface-3" />
-          <div className="mt-3 h-3 w-32 rounded bg-surface-2" />
-          <div className="mt-8 space-y-3">
+          <div className="space-y-3">
             <div className="h-4 w-full rounded bg-surface-2" />
             <div className="h-4 w-11/12 rounded bg-surface-2" />
             <div className="h-4 w-4/5 rounded bg-surface-2" />
@@ -685,6 +694,25 @@ function formatDate(iso: string): string {
 
 function pad(n: number): string {
   return String(n).padStart(2, '0');
+}
+
+/**
+ * stripLeadingTitle — 本文の先頭にある h1(章タイトル)を取り除く(FRESTYLE-131)。
+ *
+ * 教材本文は規約により `# タイトル`(= material.title と同じ)で始まる。閲覧ビューでは
+ * タイトルをカード外のヘッダーで大きく表示するため、本文側の先頭 h1 を消して二重表示を防ぐ。
+ * 「先頭の空行を飛ばした最初の非空行が h1 のときだけ」除去するので、コードブロック内の
+ * `# コメント` や 2 個目以降の見出しには一切触れない(先頭の 1 個だけが対象)。
+ */
+function stripLeadingTitle(content: string): string {
+  if (!content) return content;
+  const lines = content.split('\n');
+  let i = 0;
+  while (i < lines.length && lines[i].trim() === '') i++;
+  if (i >= lines.length || !/^#\s+\S/.test(lines[i])) return content;
+  lines.splice(0, i + 1);
+  while (lines.length && lines[0].trim() === '') lines.shift();
+  return lines.join('\n');
 }
 
 // trainee の閲覧用に Markdown を render するだけのコンポーネント。

@@ -348,3 +348,36 @@ describe('CourseDetailPage 本文内の画像 (FRESTYLE-125)', () => {
     expect(screen.getByText('構成図', { selector: 'figcaption' })).toBeInTheDocument();
   });
 });
+
+describe('CourseDetailPage タイトルのカード外配置 (FRESTYLE-131)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetCourse.mockResolvedValue(course());
+    mockCourseList.mockResolvedValue([]);
+    mockListMaterials.mockResolvedValue([material(11)]);
+    mockLastViewed.mockResolvedValue(null);
+    mockProgressList.mockResolvedValue([]);
+    mockRecordView.mockResolvedValue(undefined);
+  });
+
+  it('タイトル h1 は白カード(article)の外に置かれる', async () => {
+    // 見出し付き本文にすると TOC の IntersectionObserver(jsdom 未実装)が動くため見出しなしにする。
+    mockGetMaterial.mockImplementation(async (id: number) => material(id, '本文テキスト'));
+    renderPage('trainee');
+    const heading = await screen.findByRole('heading', { level: 1, name: '章 11' });
+    // h1 は article の中に入っていない(カードの外のヘッダーにある)。
+    expect(heading.closest('article')).toBeNull();
+    expect(heading.closest('header')).not.toBeNull();
+  });
+
+  it('本文先頭の重複タイトル(# タイトル)はカード内に二重表示しない', async () => {
+    // 本文が material.title と同じ h1 で始まっても、カード内にタイトル h1 を出さない。
+    mockGetMaterial.mockImplementation(async (id: number) =>
+      material(id, '# 章 11\n\n本文テキストです。'),
+    );
+    renderPage('trainee');
+    await screen.findByText('本文テキストです。');
+    // 「章 11」という heading はヘッダーの1つだけ(本文側の重複 h1 は除去済み)。
+    expect(screen.getAllByRole('heading', { name: '章 11' })).toHaveLength(1);
+  });
+});

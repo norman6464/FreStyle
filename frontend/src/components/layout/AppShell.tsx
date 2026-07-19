@@ -38,7 +38,11 @@ export default function AppShell() {
         // ドキュメントスクロール: ヘッダーと main を 1 つのスクロールコンテナに入れ、
         // スクロールするとヘッダーが本文と一緒に流れる。章切替時の先頭スクロールも
         // このコンテナ([data-app-scroll])に対して行う。
-        <div id="app-scroll" data-app-scroll className="flex-1 min-h-0 overflow-y-auto">
+        <div
+          id="app-scroll"
+          data-app-scroll
+          className="flex-1 min-h-0 overflow-y-auto bg-[var(--color-reading-surface)]"
+        >
           {/* 上部ヘッダー（テキスト横並びナビ + 右側に通知/管理/ユーザー）。モバイルメニューも Header が持つ。 */}
           <Header />
           <main id="main-content" tabIndex={-1} className="outline-none">

@@ -1,19 +1,36 @@
-import { ReactNode } from 'react';
+import { ReactNode, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import CodeBlock from './CodeBlock';
+import rehypeFadeSegments from './rehypeFadeSegments';
 
 /**
  * react-markdown のラッパ。コンポーネントマップで pre / code / a / table などを
  * プロジェクトのトーンに揃える。`prose` クラス（Tailwind Typography）が当たって
  * いる前提なので、要素ごとにクラス上書きは最小限。
+ *
+ * `isStreaming` が true の間だけ、本文を語(word)単位の `<span class="fade-seg">` に分割する
+ * rehype プラグインを差し込み、新しく現れた語を CSS でフェードインさせる(Gemini 風)。
+ * 完了後・履歴・非ストリーミング時はプラグインを外し、素の Markdown(span なし)に戻すことで、
+ * DOM を軽く保ち、既存テストの `getByText` 完全一致も維持する。
  */
-export default function MarkdownView({ content }: { content: string }) {
+export default function MarkdownView({
+  content,
+  isStreaming = false,
+}: {
+  content: string;
+  isStreaming?: boolean;
+}) {
+  const rehypePlugins = useMemo(
+    () => (isStreaming ? [rehypeHighlight, rehypeFadeSegments] : [rehypeHighlight]),
+    [isStreaming],
+  );
+
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
-      rehypePlugins={[rehypeHighlight]}
+      rehypePlugins={rehypePlugins}
       components={{
         a: ({ href, children }) => (
           <a

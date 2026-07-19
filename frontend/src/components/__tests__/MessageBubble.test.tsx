@@ -125,6 +125,25 @@ describe('MessageBubble', () => {
     expect(screen.getByRole('heading', { name: 'タイトル' })).toBeInTheDocument();
   });
 
+  it('ストリーミング中(id が streaming- 始まり)は本文が語単位の fade-seg span になる', () => {
+    const { container } = render(
+      <MessageBubble isSender={false} content="今日は良い天気です" id="streaming-123" />,
+    );
+    expect(container.querySelectorAll('.fade-seg').length).toBeGreaterThan(1);
+    // 末尾 bookend favicon は streaming 中は出さない。
+    expect(container.querySelector('img[src="/favicon.svg"]')).toBeNull();
+  });
+
+  it('確定済みメッセージ(通常 id)はフェード span を作らず bookend を出す', () => {
+    const { container } = render(
+      <MessageBubble isSender={false} content="今日は良い天気です" id="m17" />,
+    );
+    expect(container.querySelectorAll('.fade-seg')).toHaveLength(0);
+    expect(screen.getByText('今日は良い天気です')).toBeInTheDocument();
+    // done 済みは末尾 bookend favicon が出る。
+    expect(container.querySelector('img[src="/favicon.svg"]')).not.toBeNull();
+  });
+
   describe('コードブロックのコピー UI', () => {
     const writeText = vi.fn();
     beforeEach(() => {

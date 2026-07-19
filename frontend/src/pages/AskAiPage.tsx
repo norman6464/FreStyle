@@ -63,6 +63,7 @@ export default function AskAiPage() {
   // ユーザーが手動で底まで戻したら stickToBottom を再 true に戻す（onScroll で検知）。
   // ChatGPT / Claude.ai と同じ UX。
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const messagesListRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const [stickToBottom, setStickToBottom] = useState(true);
   // ref 版を 並行で持つ。 streaming 中は messages が ms 単位で更新されるため、
@@ -115,6 +116,24 @@ export default function AskAiPage() {
     // smooth animation は wheel と競合しやすいので auto に落として 1 frame で完了させる
     messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
   }, [messages]);
+
+  // ペーシング(useSmoothReveal)の放出は messages state と非同期に DOM の高さを伸ばすため、
+  // messages 依存の effect だけでは追従できない(特に done 後の drain 中)。リストの高さ変化を
+  // ResizeObserver で拾い、stick 中のみ最下部へ追従する(FRESTYLE-146)。jsdom には
+  // ResizeObserver が無いので存在ガードを入れる。
+  const hasMessages = messages.length > 0;
+  useEffect(() => {
+    if (!hasMessages) return;
+    const list = messagesListRef.current;
+    if (!list || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => {
+      if (stickToBottomRef.current) {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+      }
+    });
+    observer.observe(list);
+    return () => observer.disconnect();
+  }, [hasMessages]);
 
   // セッション切替で先頭に戻ったときは強制的に底へ（履歴の最後を見せる）。
   useEffect(() => {
@@ -307,10 +326,12 @@ export default function AskAiPage() {
           {messages.length === 0 ? (
             <WelcomeGreeting />
           ) : (
-            <div className="max-w-3xl mx-auto space-y-4">
+            <div ref={messagesListRef} className="max-w-3xl mx-auto space-y-4">
               {messages.map((message) => (
                 <MessageBubbleAi
-                  key={message.id}
+                  // done で id が streaming-… → サーバ確定値に変わっても remount しないよう、
+                  // ストリーミング由来のメッセージは clientId で key を安定させる(FRESTYLE-146)。
+                  key={message.clientId ?? message.id}
                   id={message.id}
                   type="text"
                   content={message.content}

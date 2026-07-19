@@ -118,6 +118,12 @@ export interface AiMessage {
   createdAt?: string;
   isSender?: boolean;
   isDeleted?: boolean;
+  /**
+   * ストリーミング placeholder 由来のクライアント側 ID(FRESTYLE-146)。
+   * done で id がサーバ確定値に差し替わっても React の key をこれで安定させ、
+   * バブルの remount(ペーシングの残り放出が全文ジャンプになる)を防ぐ。
+   */
+  clientId?: string;
 }
 
 /** フラッシュメッセージ */

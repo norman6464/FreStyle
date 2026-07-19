@@ -86,19 +86,25 @@ export function useAskAi() {
           streamingIdRef.current = null;
           return;
         }
-        case 'error':
-          // placeholder にエラー本文を残す（ユーザーに状況を伝える）
-          if (streamingIdRef.current) {
+        case 'error': {
+          // placeholder にエラー本文を残す（ユーザーに状況を伝える）。
+          // id を非 streaming 値へ差し替えて「ストリーミング中」状態を閉じる。 これをしないと
+          // isStreaming が true のまま固まり、 句読点を含まないエラー文が useSmoothReveal の
+          // 未完チャンク保留で永久に非表示になる（FRESTYLE-146 レビュー指摘）。 clientId は
+          // spread で保持されるので key は安定し、 バブルは remount しない。
+          const errId = streamingIdRef.current;
+          if (errId) {
             setMessages((prev) =>
               prev.map((m) =>
-                m.id === streamingIdRef.current
-                  ? { ...m, content: `（エラー）${ev.message}` }
+                m.id === errId
+                  ? { ...m, id: `error-${errId}`, content: `（エラー）${ev.message}` }
                   : m
               )
             );
             streamingIdRef.current = null;
           }
           return;
+        }
       }
     },
     [handleIncomingSession, setCurrentSessionId, setMessages]
@@ -123,6 +129,11 @@ export function useAskAi() {
         attachments: attachments.length > 0 ? attachments : undefined,
         createdAt: now,
       };
+      // 連投時は useAiChatSse が前の stream を abort する（done/error は届かない）。
+      // その旧 placeholder が `streaming-` id のまま残ると active が閉じず、 受信済みの末尾が
+      // 未完チャンク保留で欠けたり「考え中」で固まる（FRESTYLE-146 レビュー指摘）。 新 placeholder を
+      // 積む前に旧 placeholder を非 streaming id へ確定させ、 受信済みぶんを流し切らせる。
+      const prevStreamingId = streamingIdRef.current;
       const placeholderId = `streaming-${Date.now()}`;
       streamingIdRef.current = placeholderId;
       const placeholder: AiMessage = {
@@ -130,9 +141,19 @@ export function useAskAi() {
         sessionId: currentSessionId ?? 0,
         role: 'assistant',
         content: '',
+        // done で id がサーバ確定値へ差し替わっても React の key を安定させるための
+        // クライアント側 ID(FRESTYLE-146)。done handler の spread で自動的に保持される。
+        clientId: placeholderId,
         createdAt: now,
       };
-      setMessages((prev) => [...prev, userMsg, placeholder]);
+      setMessages((prev) => {
+        const base = prevStreamingId
+          ? prev.map((m) =>
+              m.id === prevStreamingId ? { ...m, id: `aborted-${prevStreamingId}` } : m,
+            )
+          : prev;
+        return [...base, userMsg, placeholder];
+      });
 
       void sendSse({
         sessionId: currentSessionId,

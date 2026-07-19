@@ -147,4 +147,100 @@ describe('useAskAi', () => {
     });
     expect(result.current.messages).toHaveLength(2);
   });
+
+  // done で id がサーバ確定値に差し替わっても clientId は保持され、AskAiPage の
+  // key(clientId ?? id)が安定してバブルが remount しない(FRESTYLE-146)。
+  it('done イベント後も placeholder の clientId が保持される', async () => {
+    const { result } = renderHook(() => useAskAi(), {
+      wrapper: makeWrapper('/chat/ask-ai'),
+    });
+    await waitFor(() => {
+      expect(result.current.messages).toEqual([]);
+    });
+
+    act(() => {
+      result.current.handleSend('こんにちは');
+    });
+    const placeholder = result.current.messages[1];
+    expect(placeholder.clientId).toBeDefined();
+    expect(placeholder.clientId).toBe(placeholder.id);
+
+    act(() => {
+      lastOnEvent?.({ type: 'token', delta: 'やあ。' });
+      lastOnEvent?.({
+        type: 'done',
+        sessionId: 1,
+        id: 'srv-99',
+        role: 'assistant',
+        content: 'やあ。こんにちは。',
+        createdAt: '2026-07-19T00:00:00Z',
+      });
+    });
+
+    const finalMsg = result.current.messages[1];
+    expect(finalMsg.id).toBe('srv-99');
+    expect(finalMsg.content).toBe('やあ。こんにちは。');
+    // id が差し替わっても clientId は元の placeholder のものが残る。
+    expect(finalMsg.clientId).toBe(placeholder.clientId);
+  });
+
+  // 最初の token より前に SSE error が来たケース。 error はエラー文を残しつつ id を
+  // 非 streaming 値へ差し替える。 これをしないと isStreaming が true のまま固まり、
+  // 句読点を含まないエラー文が useSmoothReveal の未完チャンク保留で永久に非表示になる
+  // (FRESTYLE-146 レビューで確定した regression)。
+  it('token 到着前の SSE error でも placeholder が非 streaming id + エラー文になる', async () => {
+    const { result } = renderHook(() => useAskAi(), {
+      wrapper: makeWrapper('/chat/ask-ai'),
+    });
+    await waitFor(() => {
+      expect(result.current.messages).toEqual([]);
+    });
+
+    act(() => {
+      result.current.handleSend('質問です');
+    });
+    expect(result.current.messages[1].id).toMatch(/^streaming-/);
+
+    act(() => {
+      lastOnEvent?.({ type: 'error', message: 'ネットワークエラーが発生しました' });
+    });
+
+    const msg = result.current.messages[1];
+    // id は streaming- で始まらない → isStreaming=false → active が閉じてエラー文が表示される。
+    expect(msg.id.startsWith('streaming-')).toBe(false);
+    expect(msg.content).toBe('（エラー）ネットワークエラーが発生しました');
+  });
+
+  // 連投(前 stream の abort)では旧 placeholder に done/error が届かない。 新送信の前に
+  // 旧 placeholder を非 streaming id へ確定させ、 「考え中」固定・末尾欠落を防ぐ。
+  it('ストリーミング中に再送信すると旧 placeholder が非 streaming id へ確定される', async () => {
+    const { result } = renderHook(() => useAskAi(), {
+      wrapper: makeWrapper('/chat/ask-ai'),
+    });
+    await waitFor(() => {
+      expect(result.current.messages).toEqual([]);
+    });
+
+    act(() => {
+      result.current.handleSend('1回目');
+    });
+    act(() => {
+      lastOnEvent?.({ type: 'token', delta: '途中まで、' });
+    });
+    const firstPlaceholderId = result.current.messages[1].id;
+    expect(firstPlaceholderId).toMatch(/^streaming-/);
+
+    // 応答中に 2 回目を送信 → 旧 placeholder が abort される。
+    act(() => {
+      result.current.handleSend('2回目');
+    });
+
+    // 旧 placeholder(index 1)は非 streaming id へ確定し、受信済み content は残る。
+    const oldPlaceholder = result.current.messages[1];
+    expect(oldPlaceholder.id.startsWith('streaming-')).toBe(false);
+    expect(oldPlaceholder.content).toBe('途中まで、');
+    // 新しい placeholder(末尾)は streaming- のまま。
+    const newPlaceholder = result.current.messages[result.current.messages.length - 1];
+    expect(newPlaceholder.id).toMatch(/^streaming-/);
+  });
 });

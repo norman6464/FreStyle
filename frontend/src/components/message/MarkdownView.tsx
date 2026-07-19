@@ -1,4 +1,4 @@
-import { ReactNode, useMemo } from 'react';
+import { ReactNode, memo, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
@@ -10,12 +10,15 @@ import rehypeFadeSegments from './rehypeFadeSegments';
  * プロジェクトのトーンに揃える。`prose` クラス（Tailwind Typography）が当たって
  * いる前提なので、要素ごとにクラス上書きは最小限。
  *
- * `isStreaming` が true の間だけ、本文を語(word)単位の `<span class="fade-seg">` に分割する
- * rehype プラグインを差し込み、新しく現れた語を CSS でフェードインさせる(Gemini 風)。
+ * `isStreaming` が true の間だけ、本文を句読点チャンク単位の `<span class="fade-seg">` に分割する
+ * rehype プラグインを差し込み、新しく現れたチャンクを CSS でフェードインさせる(Gemini 実物仕様)。
  * 完了後・履歴・非ストリーミング時はプラグインを外し、素の Markdown(span なし)に戻すことで、
  * DOM を軽く保ち、既存テストの `getByText` 完全一致も維持する。
+ *
+ * memo 化: ストリーミング中の再パースを「SSE token 毎」ではなく「ペーシングの放出毎」に
+ * 抑えるため(props の content は useSmoothReveal の visible prefix が変わったときだけ変わる)。
  */
-export default function MarkdownView({
+export default memo(function MarkdownView({
   content,
   isStreaming = false,
 }: {
@@ -80,4 +83,4 @@ export default function MarkdownView({
       {content}
     </ReactMarkdown>
   );
-}
+});

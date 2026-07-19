@@ -122,7 +122,8 @@ export function useAskAi() {
       // ユーザー発話 + アシスタント placeholder を即座に追加
       const now = new Date().toISOString();
       const userMsg: AiMessage = {
-        id: `local-user-${Date.now()}`,
+        // Date.now() は同一ミリ秒の連投で衝突し得る（clientId=key が重複する）ため UUID を使う。
+        id: `local-user-${crypto.randomUUID()}`,
         sessionId: currentSessionId ?? 0,
         role: 'user',
         content: text,
@@ -134,7 +135,7 @@ export function useAskAi() {
       // 未完チャンク保留で欠けたり「考え中」で固まる（FRESTYLE-146 レビュー指摘）。 新 placeholder を
       // 積む前に旧 placeholder を非 streaming id へ確定させ、 受信済みぶんを流し切らせる。
       const prevStreamingId = streamingIdRef.current;
-      const placeholderId = `streaming-${Date.now()}`;
+      const placeholderId = `streaming-${crypto.randomUUID()}`;
       streamingIdRef.current = placeholderId;
       const placeholder: AiMessage = {
         id: placeholderId,

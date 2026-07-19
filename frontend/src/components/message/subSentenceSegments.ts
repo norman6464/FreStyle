@@ -20,10 +20,9 @@ export function splitSubSentences(text: string): string[] {
   if (!text) return [];
   const out: string[] = [];
   let last = 0;
-  BOUNDARY_RE.lastIndex = 0;
-  let m: RegExpExecArray | null;
-  while ((m = BOUNDARY_RE.exec(text)) !== null) {
-    const end = m.index + m[0].length;
+  // matchAll でグローバル regex の lastIndex 共有状態を避ける(呼び出しが増えても安全)。
+  for (const m of text.matchAll(BOUNDARY_RE)) {
+    const end = (m.index ?? 0) + m[0].length;
     out.push(text.slice(last, end));
     last = end;
   }

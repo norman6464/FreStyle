@@ -45,11 +45,13 @@ export default function MarkdownTableOfContents({ content }: { content: string }
   if (items.length === 0) return null;
 
   return (
-    <nav aria-label="目次" className="text-sm">
-      <h2 className="text-xs font-semibold text-[var(--color-text-secondary)] tracking-wider uppercase mb-3">
+    // 親カードが高さを制限したときに見出し(目次)は固定し、リストだけを内側でスクロールさせる。
+    // 親が flex カラムで min-h-0 を張っている前提で、ul が余りの高さを取り overflow で溢れを吸収する。
+    <nav aria-label="目次" className="flex min-h-0 flex-col text-sm">
+      <h2 className="mb-3 flex-shrink-0 text-xs font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">
         目次
       </h2>
-      <ul className="space-y-1.5 border-l border-surface-3">
+      <ul className="min-h-0 flex-1 space-y-1.5 overflow-y-auto border-l border-surface-3 pr-1">
         {items.map((it) => {
           const isActive = activeId === it.id;
           return (

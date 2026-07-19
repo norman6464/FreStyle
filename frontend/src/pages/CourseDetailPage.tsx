@@ -442,10 +442,10 @@ function ReadOnlyDetail({
   const bodyContent = useMemo(() => stripLeadingTitle(material.content), [material.content]);
 
   return (
-    // 背景は body と同じ灰青(--color-surface)、本文は白カード。背景と内容のコントラストで
-    // 読み物として視線が本文に集まるようにする(FRESTYLE-118 → 119 で body と統一)。
-    // 内部スクロールは持たない(FRESTYLE-122 でページ全体のスクロールに変更しヘッダーも流れる)。
-    <div ref={scrollRef} className="flex-1 bg-surface">
+    // 背景は読み物用の灰青(--color-reading-surface)、本文は白カード。背景と内容のコントラストで
+    // 読み物として視線が本文に集まるようにする(FRESTYLE-118)。body は白に戻したが、教材閲覧だけ
+    // 灰青を維持する(FRESTYLE-147)。内部スクロールは持たない(FRESTYLE-122 でページ全体スクロール)。
+    <div ref={scrollRef} className="flex-1 bg-[var(--color-reading-surface)]">
       {/* 読み物ページなので外側の余白は広め(FRESTYLE-115)。中央寄せなので左右は自然に余白になる。 */}
       <div
         className={`mx-auto w-full max-w-6xl px-6 sm:px-10 py-8 sm:py-10 grid grid-cols-1 gap-8 ${
@@ -632,7 +632,7 @@ function ChapterNav({
 function MaterialSkeleton() {
   return (
     // 実表示(灰青背景 + 白カード)と同じ配色にして、取得完了時の切り替わりで背景が変わらないようにする。
-    <div className="flex-1 bg-surface">
+    <div className="flex-1 bg-[var(--color-reading-surface)]">
       <div
         className="mx-auto w-full max-w-[860px] px-6 sm:px-10 py-8 sm:py-10 animate-pulse"
         aria-hidden="true"

@@ -113,19 +113,22 @@
 /*
  * ライトテーマ単一構成（ダークモードは廃止）。
  *
- * カラー設計（灰青ボディ + 白カード。FRESTYLE-119）:
- *   - body は灰青 (#F4F6F9)、コンテンツは白カード (surface-1) で
- *     背景とのコントラストを作る（ユーザー指定の配色。教材閲覧の FRESTYLE-118 を全画面へ統一）
+ * カラー設計（白ボディ + 白カード + border/影。FRESTYLE-147 で FRESTYLE-119 の灰青統一を撤回）:
+ *   - body は白 (#FFFFFF)。カードは border 1px + 影で白 body から浮かせる
+ *   - 例外: 教材コース閲覧 (/courses/:id) だけは読み物レイアウトのため灰青
+ *     (--color-reading-surface) を背景にし、白カードとのコントラストを作る（FRESTYLE-118 の配色を維持）
  *   - サイドバー / ヘッダーは白 (--color-nav) + border 1px で境界を表現
  *   - hover / active は色相を持たない暖色グレー (#F5F5F4 / #EAEAE9) で控えめに
  *   - アクセント色は使用箇所を絞り、視覚ノイズを排除する
  */
 :root {
-  /* body は灰青。カード (surface-1) の白とコントラストを作る（FRESTYLE-119）。 */
-  --color-surface: #F4F6F9;
+  /* body は白。カードは border + 影で浮かせる（FRESTYLE-147）。 */
+  --color-surface: #FFFFFF;
   --color-surface-1: #FFFFFF;
   --color-surface-2: #F5F5F4;
   --color-surface-3: #E7E5E4;
+  /* 教材コース閲覧 (/courses/:id) の読み物背景（灰青）。白カードとのコントラスト用。 */
+  --color-reading-surface: #F4F6F9;
   /* サイドバー / ヘッダーは body と同じ白で、border 1px のみで境界を表現する */
   --color-nav: #FFFFFF;
   /* nav 上の hover / active 状態。色相を持たないニュートラル寄り暖色グレーで
@@ -140,7 +143,7 @@
   --color-text-faint: #D3D3D0;
   --color-text-subtle: #E8E8E6;
   --color-border-hover: #D3D3D0;
-  --scrollbar-track: #F4F6F9;
+  --scrollbar-track: #FFFFFF;
   --scrollbar-thumb: #D3D3D0;
   --scrollbar-thumb-hover: #A4A4A0;
 

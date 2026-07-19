@@ -122,6 +122,9 @@ export default memo(function MessageBubble({
   // 最初の token が来た瞬間に上部のアバターアイコンは消し、本文と末尾の bookend マーカーで
   // 「処理中 → 応答中 → 完了」の状態遷移を視覚化する。
   const isThinking = type === 'text' && content.trim() === '';
+  // ストリーミング中(placeholder)判定。 useAskAi が done まで id を `streaming-…` に保つので
+  // それを流用する(末尾 bookend の出し分けと同じ signal)。 数値 id(履歴/テスト)でも落ちないよう String 化。
+  const isStreaming = String(id).startsWith('streaming-');
   return (
     <div
       className="my-6 group flex gap-3"
@@ -159,7 +162,7 @@ export default memo(function MessageBubble({
               {type === 'bot' ? (
                 <p className="italic opacity-80">{content}</p>
               ) : (
-                <MarkdownView content={content} />
+                <MarkdownView content={content} isStreaming={isStreaming} />
               )}
             </div>
             <MessageActionRow
@@ -174,8 +177,8 @@ export default memo(function MessageBubble({
             {/* 完了マーカー: ストリーミング placeholder ではない（= done 確定済 / 履歴ロード済）
                 AI 応答の末尾に favicon を 1 つ置いて「ここで応答が締まった」ことを視覚化する。
                 Claude 等のメジャー AI チャットで採用されている bookend 表現に倣う。
-                id は型定義上 string だが、 旧テスト互換のため number が来ても動くよう String 化して判定。 */}
-            {!String(id).startsWith('streaming-') && (
+                streaming 中(placeholder)は出さず、 done で id が確定した瞬間に出す。 */}
+            {!isStreaming && (
               <div className="mt-8 flex" aria-hidden="true">
                 <img
                   src="/favicon.svg"

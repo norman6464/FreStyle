@@ -168,6 +168,49 @@
   transform-origin: center;
 }
 
+/*
+ * AI チャットのストリーミング表示: 新しく現れた語(word)を 1 回だけフェードイン(Gemini 風, FRESTYLE-145)。
+ * rehypeFadeSegments が本文の語を <span class="fade-seg"> に包み、mount 時にこのアニメが 1 回再生される。
+ * 既表示の語は React が DOM を再利用するため再生し直されない。
+ *
+ * - 主役は opacity。inline 要素なので transform(translateY) は効かない/使わない。 高さも変えないので
+ *   ストリーミング中の自動スクロール追従(distanceFromBottom 判定)を乱さない。
+ * - blur(ぼかし→くっきり)は「動きOK」のユーザーにだけ上乗せ(no-preference)。 blur は毎フレーム連続で
+ *   animate せず 4px→0 の 1 回きり。
+ * - prefers-reduced-motion: reduce では実質即時表示にする(animationend は残すため 0 でなく 0.01ms)。
+ */
+@keyframes fade-seg-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.fade-seg {
+  animation: fade-seg-in 240ms ease-out both;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes fade-seg-in {
+    from {
+      opacity: 0;
+      filter: blur(4px);
+    }
+    to {
+      opacity: 1;
+      filter: blur(0);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-seg {
+    animation-duration: 0.01ms;
+  }
+}
+
 @layer base {
   /*
    * 外側スクロールバー (Chrome ブラウザ標準) と内側スクロールバー (AppShell の <main>)

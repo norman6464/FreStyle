@@ -1,87 +1,90 @@
-# AI チャットのストリーミング表示と語単位フェードイン
+# AI チャットのストリーミング表示（Gemini 実物仕様のペーシング＋フェードイン）
 
-`/ask-ai`（[AskAiPage](../frontend/src/pages/AskAiPage.tsx)）のアシスタント応答を SSE で受けて描画する仕組みと、
-本文を Gemini 風に「新しく現れた語がふわっとフェードインする」表示にする実装（FRESTYLE-145）について。
+`/chat/ask-ai`（[AskAiPage](../frontend/src/pages/AskAiPage.tsx)）のアシスタント応答を SSE で受けて描画する仕組みと、
+本文を Gemini と同じリズム・アニメーションで表示する実装（FRESTYLE-145 → 146）について。
 
 ## ストリーミングの描画経路
 
 1. 受信: [useAiChatSse](../frontend/src/hooks/useAiChatSse.ts) が `fetch` + `ReadableStream` で SSE を読み、
    `event: token` / `data: {"delta": "..."}` をパースして `onEvent` に渡す（標準 `EventSource` は POST 不可のため使わない）。
-2. 反映: [useAskAi](../frontend/src/hooks/useAskAi.ts) が送信時に `id = "streaming-{ts}"`・`content: ""` の
-   アシスタント placeholder を 1 つ積み、`token` ごとに `content` の末尾へ `delta` を**そのまま文字連結**する。
-   `done` で `id` を backend の確定 id に、`content` を全文に差し替える。
-3. 描画: [AskAiPage](../frontend/src/pages/AskAiPage.tsx) の `messages.map` が `key={message.id}` で
-   [MessageBubble](../frontend/src/components/MessageBubble.tsx) を並べる。本文は
-   [MarkdownView](../frontend/src/components/message/MarkdownView.tsx)（react-markdown）で描画され、
-   **token 追記のたびに `content` 文字列全体が再パースされる**。
+2. 反映: [useAskAi](../frontend/src/hooks/useAskAi.ts) が送信時に `id = clientId = "streaming-{ts}"`・`content: ""` の
+   アシスタント placeholder を積み、`token` ごとに `content` へ `delta` を文字連結する。`done` で `id` を backend の
+   確定 id に、`content` を全文に差し替える（`clientId` は spread で保持される）。
+3. 描画: [AskAiPage](../frontend/src/pages/AskAiPage.tsx) の `messages.map` が **`key={message.clientId ?? message.id}`** で
+   [MessageBubble](../frontend/src/components/MessageBubble.tsx) を並べる。key を clientId で安定させるのは、
+   done の id 差し替えでバブルが remount して**ペーシングの残り放出が全文ジャンプになる**のを防ぐため（FRESTYLE-146）。
 
-`content` が空の間は「考え中...」（favicon の `animate-thinking` パルス）を出し、最初の token で本文へ切り替わる。
+## Gemini 実物の仕様（一次調査の結果）
 
-## 語単位フェードイン（FRESTYLE-145）
+FRESTYLE-146 で Gemini web 本体の配信バンドル（gemini.gstatic.com）原文と、headless ブラウザで実際に応答を
+ストリーミングさせた計測（`document.getAnimations()` サンプリング）から、実物のアルゴリズムを特定した:
 
-### 何を真似たか（Gemini 調査結果）
+- **放出単位**: 本文を句読点 regex `/[,:\.!\?、。，۔]+/`（sub-sentence 粒度 = 読点でも切る）で分割し、
+  `<span class="pending">`（display:none）として先行挿入。
+- **放出機構**: rAF ループが適応間隔 **fb = (チャンク到着間隔の逐次平均 EMA + 600) / (残チャンク数 + 1)**
+  （EMA サンプルは 1000ms キャップ・初期 3000ms）で 1 チャンクずつ `.pending`→`.animating` に付け替え。
+  遅延が fb×10 を超えたら floor(遅延/fb) 個を一括表示（catch-up）。応答完了（COMPLETE）で EMA×0.8 に加速。
+- **アニメ**: `@keyframes fade-in-text { 0%{opacity:0} to{opacity:1} }` — **opacity のみ（blur / translate 無し）**。
+  実測 400ms / ease-out / fill forwards / 1 回。
 
-Gemini の本文ストリーミングは 2 層構造:
+## FreStyle での再現実装
 
-- **バッファ＆リペース**: モデルは大小まちまちの大きい塊で返すため、UI 側で溜めて一定レートで放出する。
-- **語（word）単位のフェードイン**: 放出された各セグメントを `opacity: 0→1` を主役に、可読性のため控えめな
-  `blur(数px→0)` を併用（~200〜400ms・ease-out）。各セグメントは **mount 時に一度だけ**再生し、既表示テキストは
-  再アニメしない。日本語など空白で区切らない言語は `Intl.Segmenter`（`granularity: 'word'`）で語分節する。
+### ペーシング: [useSmoothReveal](../frontend/src/hooks/useSmoothReveal.ts)
 
-（※よく見つかる「1500ms・`background-position-x` のグラデーション横ワイプ」は Gemini の**トップ挨拶文の別アニメ**で、
-チャット本文のフェードとは別系統。）
+MessageBubble 内で `content`（真の受信全文）から「表示してよい prefix」を Gemini と同じ適応リズムで進める。
+messages state には手を入れず、**表示ポリシーだけを component 層で持つ**（done の id 差し替え・error 置換・
+streaming 中 fetchMessages skip の race guard をすべて無傷に保つため）。
 
-### 実装方式
+- 放出単位は [subSentenceSegments](../frontend/src/components/message/subSentenceSegments.ts) の句読点チャンク
+  （Gemini の regex ＋ **改行も境界に追加** — コードブロック等の句読点が無い行でも行単位で放出できるようにする独自拡張）。
+- 放出間隔・catch-up・完了時の加速は Gemini の式をそのまま実装（fb = (EMA+600)/(pending+1)、fb×10 超で一括、×0.8）。
+- **mount 時は全文即時表示**（履歴ロード・確定メッセージ・既存テストをこのルール 1 つで無変更に保つ）。
+- **未完チャンクの保留**: 句読点で終わっていない末尾は streaming 中は出さない（出すと次の delta で span テキストが
+  書き換わり、フェード無しで文字が増える）。120 文字を超えたら停滞防止のため放出。完了時は全部出し切る。
+- `content` が表示済み prefix の延長でないとき（既に一部表示済みで SSE error に全文置換された等）は**即スナップ**。
+- 完了（`active` true→false）後は残りをリズム付きで流し切り、`settled` になってから bookend favicon を出す。
 
-react-markdown の **rehype 段でテキストノードを語 `<span class="fade-seg">` に分割**し、CSS でフェードさせる
-（[rehypeFadeSegments](../frontend/src/components/message/rehypeFadeSegments.ts)）。
+**`done` 以外の終端（error / 連投 abort）の扱い**（[useAskAi](../frontend/src/hooks/useAskAi.ts)）: これらは placeholder の
+`id` を `streaming-` のままにすると `active` が永久に true に張り付き、句読点を含まないエラー文が未完チャンク保留で
+永久に非表示になる。そのため error ハンドラは `id` を `error-…` に、連投時の旧 placeholder は `aborted-…` に差し替えて
+**ストリーミング状態を閉じる**（`clientId` は保持されるので key は安定し remount しない）。id が非 streaming になると
+`active` が false になり、useSmoothReveal の drain 経路が受信済みぶん（未完チャンク含む）を流し切る。
 
-- **ストリーミング中だけ**適用する（`MarkdownView` の `isStreaming` prop。判定は `String(id).startsWith('streaming-')`
-  ＝末尾 bookend favicon の出し分けと同じ signal）。完了後・履歴・テストでは**素の Markdown（span なし）**に戻すので、
-  DOM が軽く保たれ、既存テストの `getByText` 完全一致も維持される。
-- 語分割は `Intl.Segmenter('ja', {granularity:'word'})`（無い環境は空白区切りにフォールバック）。**空白のみの
-  セグメントは span で包まず素のテキストで残す**（折り返し・レイアウトを保つ）。
-- **`pre` / `code` 配下は分割しない**（`rehype-highlight` のハイライトとコピー UI を壊さない／コードを 1 文字ずつ
-  光らせない）。`rehypePlugins` は `[rehypeHighlight, rehypeFadeSegments]` の順（highlight 済みの code は skip される）。
+### フェード: [rehypeFadeSegments](../frontend/src/components/message/rehypeFadeSegments.ts) + [index.css](../frontend/src/index.css)
 
-### 「既表示テキストを再アニメさせない」仕組み（最重要）
+- ストリーミング中だけ、react-markdown の rehype 段でテキストノードを**句読点チャンクの `<span class="fade-seg">`**
+  に分割（`pre`/`code` 配下は分割しない）。放出境界とチャンク境界が一致するので、span テキストの書き換えは起きない。
+- `.fade-seg { animation: fade-seg-in 400ms ease-out both }` — **Gemini 実測値そのまま（opacity のみ）**。
+  blur・translate は実物に存在しないため使わない（FRESTYLE-145 の blur は 146 で撤去）。
+- 既表示チャンクは React が DOM ノードを再利用するためアニメが再生し直されない。新しく mount した span だけが
+  1 回フェードする（[MarkdownView.test](../frontend/src/components/message/__tests__/MarkdownView.test.tsx) が
+  DOM ノード同一性でガード）。
+- `prefers-reduced-motion: reduce` は `animation-duration: 0.01ms`（実質即時。`animationend` を残すため 0 にしない）。
+- 完了後（settled）はプラグインを外し素の Markdown（span ゼロ）に戻す。[MarkdownView](../frontend/src/components/message/MarkdownView.tsx)
+  は memo 化してあり、再パースは「SSE token 毎」ではなく「放出毎」に抑えられる。
 
-再パースのたびに全 hast を作り直すが、**追記のみのストリーミングでは既出プレフィックスの語 span は位置（順序）が
-不変**なので、React が DOM ノードを再利用する（＝CSS アニメが再生し直されない）。新しく mount した末尾の語 span
-だけが 1 回フェードする。この「プレフィックスの span DOM が同一ノードとして再利用される」ことは
-[MarkdownView.test](../frontend/src/components/message/__tests__/MarkdownView.test.tsx) で **DOM ノードの同一性**を
-アサートして守っている（崩れると全文チラつきになるため）。
+### 自動スクロール
 
-char-offset で「既出語」を潰して `animation: none` にする方式は採らなかった。フェード途中の語が次 token で
-「既出」判定され opacity 1 へ瞬間スナップする（pop）副作用があるため、DOM 再利用に委ねる方が滑らか。
+ペーシングの放出は messages state と非同期に DOM の高さを伸ばすため、既存の `[messages]` 依存 effect に加えて
+**ResizeObserver**（jsdom には無いので存在ガード付き）でリストの高さ変化を拾い、`stickToBottomRef` が立っている
+ときだけ最下部へ追従する。ユーザーが上へスクロールしたら追従しない挙動（wheel/touchmove 検知）は従来のまま。
 
-なお、**末尾ブロックの種別が確定する瞬間**（段落→見出し/表、`**強調**` が閉じて `<strong>` になる等）だけは、
-その部分の subtree が unmount→mount され一度だけ再フェードする。影響は「今まさにストリーミング中の末尾」に限定され、
-確定済みの先行テキストは再フェードしないため、全文チラつきにはならない（許容する。char-offset skip の pop を避けた
-トレードオフ）。
+## 調整パラメータ（体感チューニングの入口）
 
-### CSS とアクセシビリティ
-
-[index.css](../frontend/src/index.css) に `@keyframes fade-seg-in` と `.fade-seg` を定義（`thinking-pulse` と同じ流儀）。
-
-- 主役は **opacity**。`.fade-seg` は inline 要素なので `transform`（translateY）は効かない／使わない。高さも変えないので
-  ストリーミング中の**自動スクロール追従**（`distanceFromBottom` 判定）を乱さない。
-- **blur は `prefers-reduced-motion: no-preference` の時だけ**上乗せ（`@keyframes` を media 内で再定義。
-  `4px→0` の 1 回きりで、毎フレーム連続 animate はしない）。GPU コストの高い blur を「動き OK」ユーザーに限定する。
-- **`prefers-reduced-motion: reduce`** では `animation-duration: 0.01ms`（実質即時。`animationend` を残すため 0 にしない）。
+| 場所 | 値 | 意味 |
+|---|---|---|
+| `useSmoothReveal.ts` `FB_BASE_MS` | 600 | fb 式の基底。大きいほどゆっくり |
+| `useSmoothReveal.ts` `EMA_INITIAL_MS` / `EMA_SAMPLE_CAP_MS` | 3000 / 1000 | 到着間隔平均の初期値・上限 |
+| `useSmoothReveal.ts` `COMPLETE_ACCEL` | 0.8 | 完了後の加速率 |
+| `useSmoothReveal.ts` `MAX_TAIL_HOLD_CHARS` | 120 | 未完チャンク保留の上限 |
+| `index.css` `.fade-seg` | 400ms ease-out | フェードの長さ（Gemini 実測値） |
 
 ## テスト
 
-- [rehypeFadeSegments.test](../frontend/src/components/message/__tests__/rehypeFadeSegments.test.ts): 語分割・テキスト保持・
-  `pre`/`code` 非分割・空白の扱い。
-- [MarkdownView.test](../frontend/src/components/message/__tests__/MarkdownView.test.tsx): `isStreaming` の有無での分割/非分割、
-  コード非分割、**DOM ノード再利用（再フェード防止）**、見出し配下、GFM（リンク/表/太字）との共存。
-- [MessageBubble.test](../frontend/src/components/__tests__/MessageBubble.test.tsx): `id` が `streaming-` 始まりのとき
-  fade span・bookend 非表示／確定 id では素の描画・bookend 表示。
-
-## 今後の選択肢（未実装）
-
-実機で「高速モデルが 1 commit に大量語を返してもたつく」場合は、`useAskAi` の token 反映に軽い
-reveal バッファ（`requestAnimationFrame` で 1 フレーム 1 フラッシュ）を足して放出レートを分離する余地がある
-（Gemini のバッファ＆リペースに相当）。長文で jank が出る場合は、段落ブロック単位の `React.memo`（raw ソースキー）で
-末尾以外の再パースを止める最適化も可能。いずれも今回はスコープ外。
+- [useSmoothReveal.test](../frontend/src/hooks/__tests__/useSmoothReveal.test.ts): fake timers で mount 即時全文 /
+  初回チャンク即時 / タイマー放出 / 未完チャンク保留 / fast-drain / エラー時スナップ / catch-up / unmount cleanup。
+- [rehypeFadeSegments.test](../frontend/src/components/message/__tests__/rehypeFadeSegments.test.ts):
+  句読点チャンク分割・全文保存・`pre`/`code` 非分割・空白の扱い。
+- [MessageBubble.test](../frontend/src/components/__tests__/MessageBubble.test.tsx): streaming id での span 付与・
+  ペーシングの時間経過検証・bookend の出し分け。
+- [useAskAi.test](../frontend/src/hooks/__tests__/useAskAi.test.tsx): done 後の clientId 保持（key 安定化の前提）。

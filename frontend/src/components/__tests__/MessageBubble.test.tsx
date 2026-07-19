@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import MessageBubble from '../MessageBubble';
 
 describe('MessageBubble', () => {
@@ -125,13 +125,42 @@ describe('MessageBubble', () => {
     expect(screen.getByRole('heading', { name: 'タイトル' })).toBeInTheDocument();
   });
 
-  it('ストリーミング中(id が streaming- 始まり)は本文が語単位の fade-seg span になる', () => {
+  it('ストリーミング中(id が streaming- 始まり)は本文が句読点チャンクの fade-seg span になる', () => {
     const { container } = render(
-      <MessageBubble isSender={false} content="今日は良い天気です" id="streaming-123" />,
+      <MessageBubble isSender={false} content="今日は晴れ。明日は雨。" id="streaming-123" />,
     );
+    // mount 時スナップショットは即時表示され、チャンク span が付く。
     expect(container.querySelectorAll('.fade-seg').length).toBeGreaterThan(1);
     // 末尾 bookend favicon は streaming 中は出さない。
     expect(container.querySelector('img[src="/favicon.svg"]')).toBeNull();
+  });
+
+  it('ストリーミング中の後続チャンクはペーシングされ、時間経過で現れる', () => {
+    vi.useFakeTimers();
+    try {
+      const { container, rerender } = render(
+        <MessageBubble isSender={false} content="こんにちは、" id="streaming-9" />,
+      );
+      // mount 時スナップショットは即時表示。
+      expect(container.textContent).toContain('こんにちは、');
+
+      act(() => {
+        vi.advanceTimersByTime(100);
+      });
+      rerender(
+        <MessageBubble isSender={false} content="こんにちは、今日は晴れ。" id="streaming-9" />,
+      );
+      // 放出タイマー前は後続チャンクはまだ見えない(Gemini 同様の溜め)。
+      expect(container.textContent).not.toContain('今日は晴れ。');
+
+      act(() => {
+        vi.advanceTimersByTime(3000);
+      });
+      // 適応間隔の tick でフェードイン用 span として現れる。
+      expect(container.textContent).toContain('今日は晴れ。');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('確定済みメッセージ(通常 id)はフェード span を作らず bookend を出す', () => {

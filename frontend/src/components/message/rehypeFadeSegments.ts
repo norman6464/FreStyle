@@ -1,18 +1,27 @@
 /**
- * rehypeFadeSegments — ストリーミング中の Markdown 本文を「語(word)単位でフェードイン」させる rehype プラグイン。
+ * rehypeFadeSegments — ストリーミング中の Markdown 本文を「句読点チャンク単位でフェードイン」
+ * させる rehype プラグイン(Gemini 実物仕様の再現、FRESTYLE-145 → 146 で語単位から変更)。
  *
- * react-markdown が生成した hast のテキストノードを Intl.Segmenter で語に分割し、可視な語を
- * `<span class="fade-seg">` で包む。実際のフェードは CSS 側(.fade-seg)で mount 時に一度だけ
- * opacity(+ reduced-motion でない時のみ blur) を再生する。
+ * Gemini web の実装(配信バンドルで確認)は、本文を句読点 regex で sub-sentence チャンクに分割して
+ * span 化し、1 チャンクずつ opacity 0→1 (400ms / ease-out / 1 回) でフェードインさせる。
+ * 本プラグインは react-markdown が生成した hast のテキストノードを同じ規則
+ * (subSentenceSegments.splitSubSentences) で分割し、`<span class="fade-seg">` で包む。
+ * 実際のフェードは CSS 側(.fade-seg)が mount 時に一度だけ再生する。
  *
- * 既表示の語は再パースで位置が変わらなければ React が DOM ノードを再利用するため、アニメが
- * 再生し直されない(＝新しく mount した span だけがフェードする)。char-offset で「既出」を潰す
- * 方式を採らないのは、フェード途中の語を potenzialに opacity:1 へ瞬間スナップさせてしまう(pop)ため。
+ * 既表示のチャンクは、再パースで位置が変わらなければ React が DOM ノードを再利用するため
+ * アニメが再生し直されない(＝新しく mount した span だけがフェードする)。放出タイミングは
+ * useSmoothReveal(ペーシング)が句読点境界で visible prefix を伸ばすことで揃うので、
+ * プレーンテキスト部分ではチャンク境界がずれて span テキストが書き換わることはない。
+ * ただし markdown 構文がチャンク境界をまたいで後から確定する場合(例: `**強調、太字**` が
+ * 閉じて段落が strong 要素へ再構成される、連続句読点が delta を跨ぐ)は、その部分の hast が
+ * 作り直されて既表示 span が再マウント・再フェードすることがある(FRESTYLE-145 から続く既知の
+ * 局所アーティファクト。今まさにストリーミング中の末尾に限られ全文チラつきにはならない)。
  *
- * - pre / code 配下は分割しない(コードのハイライト・コピーを壊さない / 1 文字ずつ光らせない)。
- * - 空白のみのセグメントは span で包まず素のテキストで残す(折り返しとレイアウトを保つ)。
+ * - pre / code 配下は分割しない(コードのハイライト・コピーを壊さない)。
+ * - 空白のみのセグメントは span で包まず素のテキストで残す。
  * - 非ストリーミング時(完了・履歴・テスト)はこのプラグインを付けず、素の Markdown に戻す。
  */
+import { splitSubSentences } from './subSentenceSegments';
 
 interface HastText {
   type: 'text';
@@ -33,34 +42,8 @@ interface HastRoot {
   children: HastChild[];
 }
 
-// Intl.Segmenter は ES2020 の lib 型に含まれないため、必要な部分だけローカルに型定義する。
-interface WordSegmenter {
-  segment(input: string): Iterable<{ segment: string }>;
-}
-interface WordSegmenterCtor {
-  new (
-    locale?: string,
-    options?: { granularity?: 'grapheme' | 'word' | 'sentence' },
-  ): WordSegmenter;
-}
-
 // pre / code 配下のテキストは分割対象外。
 const SKIP_TAGS = new Set(['pre', 'code']);
-
-// 語分割器。Intl.Segmenter があれば日本語などの非空白区切り言語も語単位に分けられる。
-// 無い実行環境向けに空白区切りのフォールバックを持つ。
-const SegmenterImpl = (Intl as unknown as { Segmenter?: WordSegmenterCtor }).Segmenter;
-const segmenter: WordSegmenter | null = SegmenterImpl
-  ? new SegmenterImpl('ja', { granularity: 'word' })
-  : null;
-
-function segments(text: string): string[] {
-  if (segmenter) {
-    return Array.from(segmenter.segment(text), (s) => s.segment);
-  }
-  // フォールバック: 空白を保持したまま語と空白に分ける。
-  return text.split(/(\s+)/).filter((s) => s.length > 0);
-}
 
 function isText(node: HastChild): node is HastText {
   return node.type === 'text';
@@ -72,7 +55,7 @@ function isElement(node: HastChild): node is HastElement {
 
 function wrapText(value: string): HastChild[] {
   const out: HastChild[] = [];
-  for (const seg of segments(value)) {
+  for (const seg of splitSubSentences(value)) {
     if (!/\S/.test(seg)) {
       // 空白のみのセグメントは折り返しのためそのまま残す。
       out.push({ type: 'text', value: seg });
@@ -105,7 +88,7 @@ function transform(node: HastElement | HastRoot): void {
   node.children = next;
 }
 
-/** ストリーミング中の本文をフェードイン用の語 span に分割する rehype プラグイン。 */
+/** ストリーミング中の本文をフェードイン用の句読点チャンク span に分割する rehype プラグイン。 */
 export default function rehypeFadeSegments() {
   return (tree: HastRoot): void => {
     transform(tree);

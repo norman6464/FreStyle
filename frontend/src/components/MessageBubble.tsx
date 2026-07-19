@@ -4,6 +4,7 @@ import MessageAttachmentList, {
   MessageAttachmentView as _MessageAttachmentView,
 } from './message/MessageAttachmentList';
 import MarkdownView from './message/MarkdownView';
+import { useSmoothReveal } from '../hooks/useSmoothReveal';
 
 // `MessageAttachmentView` は MessageBubbleAi 経由で外部から import されている。
 // 互換性のため同名で re-export する。
@@ -58,6 +59,16 @@ export default memo(function MessageBubble({
   isDeleted = false,
 }: MessageBubbleProps) {
   const [showActions, setShowActions] = useState(false);
+
+  // ストリーミング中(placeholder)判定。 useAskAi が done まで id を `streaming-…` に保つので
+  // それを流用する。 数値 id(履歴/テスト)でも落ちないよう String 化。
+  const isStreaming = String(id).startsWith('streaming-');
+  // ストリーミング本文を Gemini 実物と同じリズム(句読点チャンク + 適応間隔)で放出する(FRESTYLE-146)。
+  // アシスタントのテキスト応答のみ有効。それ以外(自分の発話・画像・履歴)は全文即時表示。
+  const { text: shown, settled } = useSmoothReveal(
+    content,
+    isStreaming && !isSender && type === 'text' && !isDeleted,
+  );
 
   if (type === 'image') {
     return (
@@ -121,10 +132,9 @@ export default memo(function MessageBubble({
   // favicon をパルスさせながら "考え中..." ラベルを出す（Claude / ChatGPT 同様の UX）。
   // 最初の token が来た瞬間に上部のアバターアイコンは消し、本文と末尾の bookend マーカーで
   // 「処理中 → 応答中 → 完了」の状態遷移を視覚化する。
-  const isThinking = type === 'text' && content.trim() === '';
-  // ストリーミング中(placeholder)判定。 useAskAi が done まで id を `streaming-…` に保つので
-  // それを流用する(末尾 bookend の出し分けと同じ signal)。 数値 id(履歴/テスト)でも落ちないよう String 化。
-  const isStreaming = String(id).startsWith('streaming-');
+  // 「考え中...」はペーシング後の表示テキスト(shown)基準で判定する。 最初のチャンクが
+  // 放出されるまでインジケータを保ち、 空本文のバブルがちらつかないようにする。
+  const isThinking = type === 'text' && shown.trim() === '';
   return (
     <div
       className="my-6 group flex gap-3"
@@ -162,7 +172,9 @@ export default memo(function MessageBubble({
               {type === 'bot' ? (
                 <p className="italic opacity-80">{content}</p>
               ) : (
-                <MarkdownView content={content} isStreaming={isStreaming} />
+                // done 直後の drain 中(!settled)もフェードプラグインを維持し、 残りチャンクに
+                // フェードを効かせる。 出し切ったら素の Markdown(span なし)に戻る。
+                <MarkdownView content={shown} isStreaming={isStreaming || !settled} />
               )}
             </div>
             <MessageActionRow
@@ -177,8 +189,8 @@ export default memo(function MessageBubble({
             {/* 完了マーカー: ストリーミング placeholder ではない（= done 確定済 / 履歴ロード済）
                 AI 応答の末尾に favicon を 1 つ置いて「ここで応答が締まった」ことを視覚化する。
                 Claude 等のメジャー AI チャットで採用されている bookend 表現に倣う。
-                streaming 中(placeholder)は出さず、 done で id が確定した瞬間に出す。 */}
-            {!isStreaming && (
+                streaming 中(placeholder)は出さず、 done 後に残りを流し切って(settled)から出す。 */}
+            {!isStreaming && settled && (
               <div className="mt-8 flex" aria-hidden="true">
                 <img
                   src="/favicon.svg"

@@ -523,13 +523,16 @@ function ReadOnlyDetail({
 
         {tocOpen && (
           <aside className="hidden lg:block">
-            <div className="sticky top-6 space-y-4">
-              <div className="bg-white border border-surface-3 rounded-xl shadow-sm p-4">
+            {/* サイドバー全体をビューポート高さに収める(FRESTYLE-144)。目次カードと章一覧カードは
+                内容ぶんの高さを取りつつ、合計が収まらないときは flex で縮み各カードが内部スクロールする。
+                これで章が長くてもサイドバーが間延びせず、各カードに独立したスクロールバーが出る。 */}
+            <div className="sticky top-6 flex max-h-[calc(100vh-3rem)] flex-col gap-4">
+              <div className="flex min-h-0 flex-col rounded-xl border border-surface-3 bg-white p-4 shadow-sm">
                 {/* タイトルはヘッダーで大きく出すため、 目次からも先頭 h1 を除いた本文を渡す。 */}
                 <MarkdownTableOfContents content={bodyContent} />
               </div>
               {/* 章一覧は左パネルから右サイドバー(目次の下)へ移動(FRESTYLE-118)。 */}
-              <div className="bg-white border border-surface-3 rounded-xl shadow-sm p-4">
+              <div className="flex min-h-0 flex-col rounded-xl border border-surface-3 bg-white p-4 shadow-sm">
                 <ChapterNav
                   course={course}
                   materials={materials}
@@ -567,26 +570,29 @@ function ChapterNav({
   onSelect: (id: number) => void;
 }) {
   return (
-    <div>
-      <Link
-        to="/courses"
-        className="inline-flex items-center gap-1 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
-      >
-        <ArrowLeftIcon className="w-3.5 h-3.5" />
-        コース一覧
-      </Link>
-      <p className="mt-2 text-sm font-semibold text-[var(--color-text-primary)]">
-        {course.title || '無題のコース'}
-        <span className="ml-2 text-xs font-normal text-[var(--color-text-muted)]">
-          {materials.length} 章
-        </span>
-      </p>
-      {materials.length > 0 && (
-        <div className="mt-2">
-          <CourseProgressBar completed={completedCount} total={materials.length} />
-        </div>
-      )}
-      <nav aria-label="章一覧" className="mt-3 space-y-0.5">
+    // 親カードが高さを制限したとき、見出し(コース名・進捗)は固定して章リストだけを内側でスクロールさせる(FRESTYLE-144)。
+    <div className="flex min-h-0 flex-col">
+      <div className="flex-shrink-0">
+        <Link
+          to="/courses"
+          className="inline-flex items-center gap-1 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+        >
+          <ArrowLeftIcon className="w-3.5 h-3.5" />
+          コース一覧
+        </Link>
+        <p className="mt-2 text-sm font-semibold text-[var(--color-text-primary)]">
+          {course.title || '無題のコース'}
+          <span className="ml-2 text-xs font-normal text-[var(--color-text-muted)]">
+            {materials.length} 章
+          </span>
+        </p>
+        {materials.length > 0 && (
+          <div className="mt-2">
+            <CourseProgressBar completed={completedCount} total={materials.length} />
+          </div>
+        )}
+      </div>
+      <nav aria-label="章一覧" className="mt-3 min-h-0 flex-1 space-y-0.5 overflow-y-auto pr-1">
         {materials.map((m, i) => {
           const active = m.id === selectedId;
           return (

@@ -1,7 +1,7 @@
 import { useNotification } from '@/hooks/useNotification';
 import EmptyState from '@/shared/ui/EmptyState';
 import Loading from '@/shared/ui/Loading';
-import NotificationItem from '@/components/NotificationItem';
+import { NotificationItem } from '@/entities/notification';
 import { BellIcon } from '@heroicons/react/24/outline';
 
 export default function NotificationPage() {

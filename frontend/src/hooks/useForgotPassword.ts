@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import authRepository from '../repositories/AuthRepository';
-import type { FormMessage } from '@/types';
+import authRepository from '@/entities/user/api/authRepository';
+import type { FormMessage } from '@/shared/ui/FormMessage';
 import { extractServerErrorMessage } from '@/shared/lib/classifyApiError';
 
 export function useForgotPassword() {

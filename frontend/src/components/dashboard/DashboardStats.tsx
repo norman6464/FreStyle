@@ -1,5 +1,5 @@
 import { FireIcon, CheckCircleIcon, BookOpenIcon, CodeBracketIcon } from '@heroicons/react/24/outline';
-import type { UserDashboard } from '@/types';
+import type { UserDashboard } from '@/entities/user';
 import LearningCalendar from './LearningCalendar';
 
 interface Props {

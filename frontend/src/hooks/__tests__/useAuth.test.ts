@@ -5,10 +5,10 @@ import { configureStore } from '@reduxjs/toolkit';
 import { MemoryRouter } from 'react-router-dom';
 import { createElement } from 'react';
 import { useAuth } from '../useAuth';
-import AuthRepository from '../../repositories/AuthRepository';
-import authReducer from '../../store/authSlice';
+import { AuthRepository } from '@/entities/user';
+import authReducer from '@/entities/user/model/authSlice';
 
-vi.mock('../../repositories/AuthRepository');
+vi.mock('@/entities/user/api/authRepository');
 
 const mockedRepo = vi.mocked(AuthRepository);
 

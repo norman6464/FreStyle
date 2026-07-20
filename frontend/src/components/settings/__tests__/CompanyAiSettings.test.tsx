@@ -2,11 +2,11 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
-import authReducer from '../../../store/authSlice';
+import authReducer from '@/entities/user/model/authSlice';
 import CompanyAiSettings from '../CompanyAiSettings';
-import CompanySettingsRepository from '../../../repositories/CompanySettingsRepository';
+import { CompanySettingsRepository } from '@/entities/company';
 
-vi.mock('../../../repositories/CompanySettingsRepository', () => ({
+vi.mock('@/entities/company/api/companySettingsRepository', () => ({
   default: {
     get: vi.fn(),
     update: vi.fn(),

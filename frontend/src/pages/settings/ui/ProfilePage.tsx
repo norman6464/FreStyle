@@ -5,7 +5,7 @@ import Button from '@/shared/ui/Button';
 import FormMessage from '@/shared/ui/FormMessage';
 import Avatar from '@/shared/ui/Avatar';
 import Loading from '@/shared/ui/Loading';
-import ProfileStatsSection from '@/components/profile/ProfileStatsSection';
+import { ProfileStatsSection } from '@/entities/user';
 import { useProfileEdit } from '@/hooks/useProfileEdit';
 import { useProfileImageUpload } from '@/hooks/useProfileImageUpload';
 import { useProfileStats } from '@/hooks/useProfileStats';

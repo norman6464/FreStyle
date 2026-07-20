@@ -3,8 +3,8 @@ import { classifyApiError } from '@/shared/lib/classifyApiError';
 import AiChatRepository, {
   CreateSessionRequest,
   UpdateSessionTitleRequest,
-} from '../repositories/AiChatRepository';
-import { AiSession, AiMessage } from '@/types';
+} from '@/entities/ai-chat/api/aiChatRepository';
+import type { AiSession, AiMessage } from '@/entities/ai-chat';
 
 /**
  * AI チャットのセッション・メッセージ管理フック。

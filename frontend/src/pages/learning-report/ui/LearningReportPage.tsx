@@ -1,7 +1,7 @@
 import { useLearningReport } from '@/hooks/useLearningReport';
 import EmptyState from '@/shared/ui/EmptyState';
 import Loading from '@/shared/ui/Loading';
-import ReportCard from '@/components/ReportCard';
+import { ReportCard } from '@/entities/learning-report';
 import { DocumentChartBarIcon } from '@heroicons/react/24/outline';
 
 export default function LearningReportPage() {

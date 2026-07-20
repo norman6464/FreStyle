@@ -11,7 +11,7 @@ vi.mock('react-router-dom', () => ({
   useLocation: () => ({ state: { email: 'test@example.com' } }),
 }));
 
-vi.mock('../../repositories/AuthRepository', () => ({
+vi.mock('@/entities/user/api/authRepository', () => ({
   default: {
     confirmForgotPassword: (...args: unknown[]) => mockConfirmForgotPassword(...args),
   },

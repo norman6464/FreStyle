@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import MessageBubbleAi from '@/components/MessageBubbleAi';
+import { MessageBubbleAi } from '@/entities/ai-chat';
 import MessageInput from '@/components/MessageInput';
 import ConfirmModal from '@/shared/ui/ConfirmModal';
 import { SecondaryPanel } from '@/widgets/secondary-panel';
-import AiSessionListItem from '@/components/AiSessionListItem';
+import { AiSessionListItem } from '@/entities/ai-chat';
 import Loading from '@/shared/ui/Loading';
 import {
   PlusIcon,

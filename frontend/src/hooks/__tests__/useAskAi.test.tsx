@@ -4,7 +4,7 @@ import { ReactNode } from 'react';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
-import authReducer from '../../store/authSlice';
+import authReducer from '@/entities/user/model/authSlice';
 import { ToastProvider } from '@/app/providers/ToastProvider';
 import { useAskAi } from '../useAskAi';
 
@@ -12,7 +12,7 @@ import { useAskAi } from '../useAskAi';
 // バックエンド呼び出しはすべてモックして、純粋な state 遷移ロジック（特に
 // 「new chat ボタン → currentSessionId=null → messages がクリアされる」） を検証する。
 
-vi.mock('../../repositories/AiChatRepository', () => ({
+vi.mock('@/entities/ai-chat/api/aiChatRepository', () => ({
   default: {
     getSessions: vi.fn().mockResolvedValue([]),
     getMessages: vi.fn().mockResolvedValue([
@@ -112,7 +112,7 @@ describe('useAskAi', () => {
   // race して、streaming 中の placeholder を fetchMessages が上書きしてしまう不具合があった。
   // PR-L で streamingIdRef による guard を追加し、streaming 中は fetchMessages を skip する。
   it('streaming 中に SSE session イベントで currentSessionId が切り替わっても messages を上書きしない', async () => {
-    const aiChatRepo = (await import('../../repositories/AiChatRepository')).default;
+    const aiChatRepo = (await import('@/entities/ai-chat/api/aiChatRepository')).default;
     vi.mocked(aiChatRepo.getMessages).mockClear();
 
     const { result } = renderHook(() => useAskAi(), {

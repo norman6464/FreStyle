@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import CompanyLearningPanel from '../CompanyLearningPanel';
-import type { CompanyLearningSummary } from '../../../repositories/AdminMemberRepository';
+import type { CompanyLearningSummary } from '@/entities/member/api/adminMemberRepository';
 
 function renderPanel(summary: CompanyLearningSummary) {
   return render(

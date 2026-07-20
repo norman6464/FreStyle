@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useProfileImageUpload } from '../useProfileImageUpload';
-import ProfileRepository from '../../repositories/ProfileRepository';
+import { ProfileRepository } from '@/entities/user';
 
-vi.mock('../../repositories/ProfileRepository', () => ({
+vi.mock('@/entities/user/api/profileRepository', () => ({
   default: {
     getImagePresignedUrl: vi.fn(),
     uploadToS3: vi.fn(),

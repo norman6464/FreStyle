@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import ProfilePage from '../ui/ProfilePage';
-import ProfileRepository from '@/repositories/ProfileRepository';
+import { ProfileRepository } from '@/entities/user';
 
 const mockUpload = vi.fn();
 vi.mock('@/hooks/useProfileImageUpload', () => ({
@@ -11,13 +11,13 @@ vi.mock('@/hooks/useProfileImageUpload', () => ({
   }),
 }));
 
-vi.mock('@/repositories/ProfileRepository');
+vi.mock('@/entities/user/api/profileRepository');
 
 vi.mock('@/hooks/useToast', () => ({
   useToast: () => ({ showToast: vi.fn(), toasts: [], removeToast: vi.fn() }),
 }));
 
-vi.mock('@/repositories/ProfileStatsRepository', () => ({
+vi.mock('@/entities/user/api/profileStatsRepository', () => ({
   default: {
     fetchStats: vi.fn().mockResolvedValue({
       totalSessions: 10,

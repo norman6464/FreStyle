@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AuditRepository, AuditEvent } from '../repositories/AuditRepository';
+import { AuditRepository, AuditEvent } from '@/entities/audit/api/auditRepository';
 
 /**
  * useAuditLog — 監査ログ（super_admin）を取得するフック。

@@ -10,8 +10,8 @@ import {
 import Loading from '@/shared/ui/Loading';
 import HeaderUserMenu from './HeaderUserMenu';
 import { useSidebar } from '@/hooks/useSidebar';
-import { NotificationRepository } from '@/repositories/NotificationRepository';
-import ProfileRepository from '@/repositories/ProfileRepository';
+import { NotificationRepository } from '@/entities/notification/api/notificationRepository';
+import { ProfileRepository } from '@/entities/user';
 import type { RootState } from '@/store';
 
 interface NavItem {

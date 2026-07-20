@@ -4,11 +4,11 @@ import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 import { MemoryRouter } from 'react-router-dom';
 import MenuPage from '../ui/MenuPage';
-import authReducer from '@/store/authSlice';
+import authReducer from '@/entities/user/model/authSlice';
 import { useUserDashboard } from '@/hooks/useUserDashboard';
 import { useCompanyLearningSummary } from '@/hooks/useCompanyLearningSummary';
-import type { UserDashboard } from '@/types';
-import type { CompanyLearningSummary } from '@/repositories/AdminMemberRepository';
+import type { UserDashboard } from '@/entities/user';
+import type { CompanyLearningSummary } from '@/entities/member/api/adminMemberRepository';
 import { createMockStorage } from '@/test/mockStorage';
 
 vi.mock('@/hooks/useUserDashboard');

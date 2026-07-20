@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useFormField } from './useFormField';
-import authRepository from '../repositories/AuthRepository';
+import authRepository from '@/entities/user/api/authRepository';
 import { getApiError } from '@/shared/lib/classifyApiError';
 
 interface LoginMessage {

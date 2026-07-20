@@ -5,7 +5,7 @@ import QaExerciseView from '../QaExerciseView';
 import type { MasterExercise, ExerciseSubmitResult } from '../../model/types';
 
 // MarkdownView は remark 一式を読み込むため、ここでは本文が渡ることだけ確認する
-vi.mock('@/components/message/MarkdownView', () => ({
+vi.mock('@/shared/ui/MarkdownView', () => ({
   default: ({ content }: { content: string }) => <div data-testid="markdown">{content}</div>,
 }));
 

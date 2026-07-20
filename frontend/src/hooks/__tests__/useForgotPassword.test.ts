@@ -10,7 +10,7 @@ vi.mock('react-router-dom', () => ({
   useNavigate: () => mockNavigate,
 }));
 
-vi.mock('../../repositories/AuthRepository', () => ({
+vi.mock('@/entities/user/api/authRepository', () => ({
   default: {
     forgotPassword: (...args: unknown[]) => mockForgotPassword(...args),
   },

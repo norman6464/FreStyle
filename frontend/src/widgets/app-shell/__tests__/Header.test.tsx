@@ -3,10 +3,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
-import authReducer from '@/store/authSlice';
+import authReducer from '@/entities/user/model/authSlice';
 import Header from '../ui/Header';
 
-vi.mock('../../../repositories/ProfileRepository', () => ({
+vi.mock('@/entities/user/api/profileRepository', () => ({
   default: {
     fetchProfile: vi.fn().mockResolvedValue({
       displayName: 'テスト太郎',
@@ -16,7 +16,7 @@ vi.mock('../../../repositories/ProfileRepository', () => ({
   },
 }));
 
-vi.mock('../../../repositories/NotificationRepository', () => ({
+vi.mock('@/entities/notification/api/notificationRepository', () => ({
   NotificationRepository: {
     getUnreadCount: vi.fn().mockResolvedValue(3),
   },

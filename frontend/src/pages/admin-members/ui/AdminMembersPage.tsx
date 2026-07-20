@@ -5,7 +5,7 @@ import type { RootState } from '@/store';
 import Loading from '@/shared/ui/Loading';
 import PageIntro from '@/shared/ui/PageIntro';
 import { useAdminMembers } from '@/hooks/useAdminMembers';
-import { Member } from '@/repositories/AdminMemberRepository';
+import { Member } from '@/entities/member/api/adminMemberRepository';
 
 // AI 利用可否の 3 状態 ↔ select の値。
 function aiValue(m: Member): 'inherit' | 'on' | 'off' {

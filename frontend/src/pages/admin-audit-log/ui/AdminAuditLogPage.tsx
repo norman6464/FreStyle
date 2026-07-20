@@ -4,7 +4,7 @@ import type { RootState } from '@/store';
 import Loading from '@/shared/ui/Loading';
 import PageIntro from '@/shared/ui/PageIntro';
 import { useAuditLog } from '@/hooks/useAuditLog';
-import type { AuditEvent } from '@/repositories/AuditRepository';
+import type { AuditEvent } from '@/entities/audit/api/auditRepository';
 
 // actor の role を日本語表記に。
 function roleLabel(role: string): string {

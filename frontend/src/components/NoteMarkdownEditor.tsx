@@ -12,7 +12,7 @@ import {
 } from '@heroicons/react/24/outline';
 import type { SaveStatus } from '../hooks/useNoteEditor';
 import { useToast } from '../hooks/useToast';
-import { getNoteStats } from '../utils/noteStats';
+import { getNoteStats } from '@/entities/note';
 import WordCount from '@/shared/ui/WordCount';
 import LineCount from '@/shared/ui/LineCount';
 import ReadingTime from '@/shared/ui/ReadingTime';

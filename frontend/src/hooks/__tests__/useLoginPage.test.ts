@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { AxiosError, AxiosHeaders } from 'axios';
 import { useLoginPage } from '../useLoginPage';
-import authRepository from '../../repositories/AuthRepository';
+import authRepository from '@/entities/user/api/authRepository';
 
 const mockLocationState: { message: string } = { message: '' };
 
@@ -10,7 +10,7 @@ vi.mock('react-router-dom', () => ({
   useLocation: () => ({ state: mockLocationState }),
 }));
 
-vi.mock('../../repositories/AuthRepository', () => ({
+vi.mock('@/entities/user/api/authRepository', () => ({
   default: { login: vi.fn() },
 }));
 

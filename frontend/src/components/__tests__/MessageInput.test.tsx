@@ -2,13 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import MessageInput from '../MessageInput';
 
-vi.mock('../../repositories/AiChatRepository', () => ({
+vi.mock('@/entities/ai-chat/api/aiChatRepository', () => ({
   default: {
     issueAttachmentUploadUrl: vi.fn(),
   },
 }));
 
-import aiChatRepository from '../../repositories/AiChatRepository';
+import aiChatRepository from '@/entities/ai-chat/api/aiChatRepository';
 
 describe('MessageInput', () => {
   const mockOnSend = vi.fn();

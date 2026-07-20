@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import ProfileRepository from '../repositories/ProfileRepository';
+import { ProfileRepository } from '@/entities/user';
 import { logger } from '@/shared/lib/logger';
 
 const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];

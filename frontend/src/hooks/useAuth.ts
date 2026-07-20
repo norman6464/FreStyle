@@ -7,8 +7,8 @@ import AuthRepository, {
   ForgotPasswordRequest,
   ConfirmForgotPasswordRequest,
   UserInfo,
-} from '../repositories/AuthRepository';
-import { setAuthData, clearAuth, finishLoading } from '../store/authSlice';
+} from '@/entities/user/api/authRepository';
+import { setAuthData, clearAuth, finishLoading } from '@/entities/user';
 import { RootState } from '../store';
 
 /**

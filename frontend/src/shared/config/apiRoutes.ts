@@ -88,12 +88,6 @@ export const PRACTICE = {
   sessions: `${API_V2}/practice/sessions`,
 } as const;
 
-export const SCENARIO_BOOKMARKS = {
-  list: `${API_V2}/scenario-bookmarks`,
-  byScenario: (scenarioId: number | string) =>
-    `${API_V2}/scenario-bookmarks/${scenarioId}`,
-} as const;
-
 export const SHARED_SESSIONS = {
   list: `${API_V2}/shared-sessions`,
   byId: (sessionId: number | string) => `${API_V2}/shared-sessions/${sessionId}`,

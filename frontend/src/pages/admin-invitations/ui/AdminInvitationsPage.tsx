@@ -4,9 +4,9 @@ import { Navigate } from 'react-router-dom';
 import AdminInvitationRepository, {
   AdminInvitation,
   CreateInvitationForm,
-} from '@/repositories/AdminInvitationRepository';
-import CompanyRepository, { Company } from '@/repositories/CompanyRepository';
-import AuthRepository, { UserInfo } from '@/repositories/AuthRepository';
+} from '@/entities/invitation/api/adminInvitationRepository';
+import CompanyRepository, { Company } from '@/entities/company/api/companyRepository';
+import AuthRepository, { UserInfo } from '@/entities/user/api/authRepository';
 import type { RootState } from '@/store';
 import Loading from '@/shared/ui/Loading';
 import PageIntro from '@/shared/ui/PageIntro';

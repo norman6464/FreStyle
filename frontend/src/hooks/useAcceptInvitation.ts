@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import invitationRepository, {
   ValidatedInvitation,
-} from '../repositories/InvitationRepository';
+} from '@/entities/invitation/api/invitationRepository';
 import { saveInvitationToken, clearInvitationToken } from '../lib/invitationToken';
 import { getApiError } from '@/shared/lib/classifyApiError';
 

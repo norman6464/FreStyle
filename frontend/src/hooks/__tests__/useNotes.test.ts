@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useNotes } from '../useNotes';
-import NoteRepository from '../../repositories/NoteRepository';
-import type { Note } from '@/types';
+import { NoteRepository } from '@/entities/note';
+import type { Note } from '@/entities/note';
 
-vi.mock('../../repositories/NoteRepository');
+vi.mock('@/entities/note/api/noteRepository');
 
 // backend `domain.Note` と 1:1。createdAt / updatedAt は RFC3339 string。
 const mockNotes: Note[] = [

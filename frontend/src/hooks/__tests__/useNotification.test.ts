@@ -7,7 +7,7 @@ const mockMarkAsRead = vi.fn();
 const mockMarkAllAsRead = vi.fn();
 const mockGetUnreadCount = vi.fn();
 
-vi.mock('../../repositories/NotificationRepository', () => ({
+vi.mock('@/entities/notification/api/notificationRepository', () => ({
   NotificationRepository: {
     getAll: (...args: unknown[]) => mockGetAll(...args),
     markAsRead: (...args: unknown[]) => mockMarkAsRead(...args),

@@ -2,7 +2,7 @@ import { ChangeEvent, FormEvent, useState } from 'react';
 import {
   CompanyApplicationForm,
   CompanyApplicationRepository,
-} from '../repositories/CompanyApplicationRepository';
+} from '@/entities/company/api/companyApplicationRepository';
 import { getApiError } from '@/shared/lib/classifyApiError';
 
 const GENERIC_ERROR = '送信に失敗しました。時間をおいて再度お試しください。';

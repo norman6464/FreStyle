@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import AdminMemberRepository, { Member } from '../repositories/AdminMemberRepository';
+import AdminMemberRepository, { Member } from '@/entities/member/api/adminMemberRepository';
 import { getApiError } from '@/shared/lib/classifyApiError';
 
 // backend のエラーコードを日本語メッセージにする。cannot_manage_self は自己操作の防止。

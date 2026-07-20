@@ -27,8 +27,8 @@ import { useMobilePanelState } from '@/hooks/useMobilePanelState';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { useToast } from '@/hooks/useToast';
 import { CourseRepository } from '@/entities/course';
-import DashboardRepository from '@/repositories/DashboardRepository';
-import ImageUploadRepository from '@/repositories/ImageUploadRepository';
+import { DashboardRepository } from '@/entities/user';
+import { ImageUploadRepository } from '@/entities/user';
 import type { RootState } from '@/store';
 import type { Course, CourseWithProgress, TeachingMaterial } from '@/entities/course';
 

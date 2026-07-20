@@ -1,7 +1,7 @@
 import { AuthLayout } from '@/widgets/auth-layout';
-import InputField from '@/components/InputField';
-import PrimaryButton from '@/components/PrimaryButton';
-import FormMessage from '@/components/FormMessage';
+import InputField from '@/shared/ui/InputField';
+import Button from '@/shared/ui/Button';
+import FormMessage from '@/shared/ui/FormMessage';
 import { useConfirmForgotPassword } from '@/hooks/useConfirmForgotPassword';
 
 export default function ConfirmForgotPasswordPage() {
@@ -45,9 +45,9 @@ export default function ConfirmForgotPasswordPage() {
           onChange={handleChange}
           disabled={loading}
         />
-        <PrimaryButton type="submit" loading={loading}>
+        <Button variant="primary" fullWidth type="submit" loading={loading}>
           {loading ? 'リセット中...' : 'パスワードをリセット'}
-        </PrimaryButton>
+        </Button>
       </form>
     </AuthLayout>
   );

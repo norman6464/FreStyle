@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import MessageBubbleAi from '@/components/MessageBubbleAi';
 import MessageInput from '@/components/MessageInput';
-import ConfirmModal from '@/components/ConfirmModal';
+import ConfirmModal from '@/shared/ui/ConfirmModal';
 import { SecondaryPanel } from '@/widgets/secondary-panel';
 import AiSessionListItem from '@/components/AiSessionListItem';
-import Loading from '@/components/Loading';
+import Loading from '@/shared/ui/Loading';
 import {
   PlusIcon,
   Bars3Icon,

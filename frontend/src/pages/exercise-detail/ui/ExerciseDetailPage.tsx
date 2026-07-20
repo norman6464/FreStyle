@@ -1,7 +1,7 @@
 import { Suspense, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { CheckCircleIcon, ChevronDownIcon, ChevronUpIcon, ClipboardDocumentCheckIcon } from '@heroicons/react/24/outline';
-import Loading from '@/components/Loading';
+import Loading from '@/shared/ui/Loading';
 import BackLink from '@/components/exercise/BackLink';
 import ExerciseHeader from '@/components/exercise/ExerciseHeader';
 import ExampleBlock from '@/components/exercise/ExampleBlock';
@@ -11,12 +11,12 @@ import SubmissionRow from '@/components/exercise/SubmissionRow';
 import QaExerciseView from '@/components/exercise/QaExerciseView';
 import MarkdownView from '@/components/message/MarkdownView';
 import { useExerciseDetail } from '@/hooks/useExerciseDetail';
-import LanguageBadge from '@/components/LanguageBadge';
+import LanguageBadge from '@/shared/ui/LanguageBadge';
 import { lazyWithReload } from '@/shared/lib/lazyWithReload';
 import { monacoLanguageOf } from '@/utils/exerciseFormat';
 import { parseErrorLines } from '@/utils/executionErrors';
 
-const CodeEditor = lazyWithReload(() => import('@/components/CodeEditor'), 'CodeEditor');
+const CodeEditor = lazyWithReload(() => import('@/shared/ui/CodeEditor'), 'CodeEditor');
 
 /**
  * ExerciseDetailPage — `/code-editor/:slug` の詳細画面。

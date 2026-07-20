@@ -3,7 +3,7 @@ import { useSelector } from 'react-redux';
 import { Navigate, Link } from 'react-router-dom';
 import CompanyRepository, { CompanyStat } from '@/repositories/CompanyRepository';
 import type { RootState } from '@/store';
-import Loading from '@/components/Loading';
+import Loading from '@/shared/ui/Loading';
 import PageIntro from '@/shared/ui/PageIntro';
 import { logger } from '@/shared/lib/logger';
 import { BuildingOffice2Icon, UserPlusIcon } from '@heroicons/react/24/outline';

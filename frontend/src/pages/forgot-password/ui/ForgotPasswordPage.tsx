@@ -1,7 +1,7 @@
 import { AuthLayout } from '@/widgets/auth-layout';
-import InputField from '@/components/InputField';
-import PrimaryButton from '@/components/PrimaryButton';
-import FormMessage from '@/components/FormMessage';
+import InputField from '@/shared/ui/InputField';
+import Button from '@/shared/ui/Button';
+import FormMessage from '@/shared/ui/FormMessage';
 import { useForgotPassword } from '@/hooks/useForgotPassword';
 
 export default function ForgotPasswordPage() {
@@ -22,9 +22,9 @@ export default function ForgotPasswordPage() {
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
           disabled={loading}
         />
-        <PrimaryButton type="submit" loading={loading}>
+        <Button variant="primary" fullWidth type="submit" loading={loading}>
           {loading ? '送信中...' : '確認コードを送信'}
-        </PrimaryButton>
+        </Button>
       </form>
     </AuthLayout>
   );

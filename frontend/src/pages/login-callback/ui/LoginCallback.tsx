@@ -1,4 +1,4 @@
-import Loading from '@/components/Loading';
+import Loading from '@/shared/ui/Loading';
 import { useLoginCallback } from '@/hooks/useLoginCallback';
 
 export default function LoginCallback() {

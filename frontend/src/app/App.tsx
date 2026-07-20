@@ -4,12 +4,12 @@ import AuthInitializer from './providers/AuthInitializer';
 import Protected from './providers/Protected';
 import { AppShell } from '@/widgets/app-shell';
 import ErrorBoundary from './providers/ErrorBoundary';
-import Loading from '@/components/Loading';
+import Loading from '@/shared/ui/Loading';
 import { MaintenancePage } from '@/pages/maintenance';
 import { ToastProvider } from './providers/ToastProvider';
 import { useToast } from '@/hooks/useToast';
 import { useBackendHealth } from '@/hooks/useBackendHealth';
-import ToastContainer from '@/components/ToastContainer';
+import ToastContainer from '@/app/providers/ToastContainer';
 import { lazyWithReload, clearLazyReloadFlags } from '@/shared/lib/lazyWithReload';
 
 // 認証不要ページ

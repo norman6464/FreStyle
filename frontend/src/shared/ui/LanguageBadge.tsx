@@ -1,4 +1,4 @@
-import { languageBadgeClass } from '../constants/languageBadgeClasses';
+import { languageBadgeClass } from '@/shared/config/languageBadgeClasses';
 
 interface LanguageBadgeProps {
   /** 言語・技術の値（例: 'docker' / 'go' / 'terraform'）。 */

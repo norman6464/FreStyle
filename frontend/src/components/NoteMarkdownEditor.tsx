@@ -13,9 +13,9 @@ import {
 import type { SaveStatus } from '../hooks/useNoteEditor';
 import { useToast } from '../hooks/useToast';
 import { getNoteStats } from '../utils/noteStats';
-import WordCount from './WordCount';
-import LineCount from './LineCount';
-import ReadingTime from './ReadingTime';
+import WordCount from '@/shared/ui/WordCount';
+import LineCount from '@/shared/ui/LineCount';
+import ReadingTime from '@/shared/ui/ReadingTime';
 
 interface NoteMarkdownEditorProps {
   title: string;

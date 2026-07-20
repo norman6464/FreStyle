@@ -1,6 +1,6 @@
 import { useLearningReport } from '@/hooks/useLearningReport';
-import EmptyState from '@/components/EmptyState';
-import Loading from '@/components/Loading';
+import EmptyState from '@/shared/ui/EmptyState';
+import Loading from '@/shared/ui/Loading';
 import ReportCard from '@/components/ReportCard';
 import { DocumentChartBarIcon } from '@heroicons/react/24/outline';
 

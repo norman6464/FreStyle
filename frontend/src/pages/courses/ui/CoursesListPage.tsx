@@ -8,12 +8,12 @@ import {
   PencilSquareIcon,
   TrashIcon,
 } from '@heroicons/react/24/outline';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/shared/ui/EmptyState';
 import FaviconIcon from '@/shared/ui/icons/FaviconIcon';
-import Loading from '@/components/Loading';
-import ConfirmModal from '@/components/ConfirmModal';
+import Loading from '@/shared/ui/Loading';
+import ConfirmModal from '@/shared/ui/ConfirmModal';
 import CourseProgressBar from '@/components/CourseProgressBar';
-import LanguageBadge from '@/components/LanguageBadge';
+import LanguageBadge from '@/shared/ui/LanguageBadge';
 import { FilterChip } from '@/shared/ui';
 import { useCourses } from '@/hooks/useCourses';
 import { useToast } from '@/hooks/useToast';

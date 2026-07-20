@@ -6,7 +6,7 @@
  * 単一情報源にして二重管理を防ぐ(FRESTYLE-101)。
  * 'linux' という独立値は存在せず bash に統合されている(表示名で併記)。
  */
-import { LANGUAGE_BADGE_CLASSES } from './languageBadgeClasses';
+import { LANGUAGE_BADGE_CLASSES } from '@/shared/config/languageBadgeClasses';
 
 export interface ExerciseLanguageDef {
   key: string;

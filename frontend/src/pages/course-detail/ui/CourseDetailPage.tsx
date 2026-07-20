@@ -12,12 +12,12 @@ import {
 import { CheckCircleIcon as CheckCircleSolidIcon } from '@heroicons/react/24/solid';
 import { SecondaryPanel } from '@/widgets/secondary-panel';
 import CourseProgressBar from '@/components/CourseProgressBar';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/shared/ui/EmptyState';
 import FaviconIcon from '@/shared/ui/icons/FaviconIcon';
-import ConfirmModal from '@/components/ConfirmModal';
-import Loading from '@/components/Loading';
+import ConfirmModal from '@/shared/ui/ConfirmModal';
+import Loading from '@/shared/ui/Loading';
 import NoteMarkdownEditor from '@/components/NoteMarkdownEditor';
-import MarkdownTableOfContents from '@/components/MarkdownTableOfContents';
+import MarkdownTableOfContents from '@/shared/ui/MarkdownTableOfContents';
 import { useTeachingMaterials } from '@/hooks/useTeachingMaterials';
 import { useTeachingMaterialEditor } from '@/hooks/useTeachingMaterialEditor';
 import { useChapterResume } from '@/hooks/useChapterResume';

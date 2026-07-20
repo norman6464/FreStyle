@@ -1,7 +1,7 @@
 import { useSelector } from 'react-redux';
 import { Navigate } from 'react-router-dom';
 import type { RootState } from '@/store';
-import Loading from '@/components/Loading';
+import Loading from '@/shared/ui/Loading';
 import PageIntro from '@/shared/ui/PageIntro';
 import { useAuditLog } from '@/hooks/useAuditLog';
 import type { AuditEvent } from '@/repositories/AuditRepository';

@@ -7,7 +7,7 @@ import {
   XMarkIcon,
   ChevronDownIcon,
 } from '@heroicons/react/24/outline';
-import Loading from '@/components/Loading';
+import Loading from '@/shared/ui/Loading';
 import HeaderUserMenu from './HeaderUserMenu';
 import { useSidebar } from '@/hooks/useSidebar';
 import { NotificationRepository } from '@/repositories/NotificationRepository';

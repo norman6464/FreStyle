@@ -1,9 +1,9 @@
 import { AuthLayout } from '@/widgets/auth-layout';
 import PublicHeader from '@/components/PublicHeader';
-import InputField from '@/components/InputField';
-import TextareaField from '@/components/TextareaField';
-import PrimaryButton from '@/components/PrimaryButton';
-import LinkText from '@/components/LinkText';
+import InputField from '@/shared/ui/InputField';
+import TextareaField from '@/shared/ui/TextareaField';
+import Button from '@/shared/ui/Button';
+import LinkText from '@/shared/ui/LinkText';
 import { useCompanyApplication } from '@/hooks/useCompanyApplication';
 import { XCircleIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 
@@ -89,9 +89,9 @@ export default function CompanyApplicationPage() {
               maxLength={2000}
               placeholder="ご利用人数や導入時期など、ご要望があればご記入ください。"
             />
-            <PrimaryButton type="submit" loading={loading}>
+            <Button variant="primary" fullWidth type="submit" loading={loading}>
               {loading ? '送信中...' : '申請する'}
-            </PrimaryButton>
+            </Button>
           </form>
         </>
       )}

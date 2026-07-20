@@ -1,9 +1,9 @@
 import { AuthLayout } from '@/widgets/auth-layout';
 import PublicHeader from '@/components/PublicHeader';
-import InputField from '@/components/InputField';
-import PrimaryButton from '@/components/PrimaryButton';
+import InputField from '@/shared/ui/InputField';
+import Button from '@/shared/ui/Button';
 import SNSSignInButton from '@/components/SNSSignInButton';
-import LinkText from '@/components/LinkText';
+import LinkText from '@/shared/ui/LinkText';
 import { getCognitoAuthUrl } from '@/utils/auth';
 import { useLoginPage } from '@/hooks/useLoginPage';
 import { CheckCircleIcon } from '@heroicons/react/24/outline';
@@ -52,9 +52,9 @@ export default function LoginPage() {
           onChange={handleChange}
           disabled={loading}
         />
-        <PrimaryButton type="submit" loading={loading}>
+        <Button variant="primary" fullWidth type="submit" loading={loading}>
           {loading ? 'ログイン中...' : 'ログイン'}
-        </PrimaryButton>
+        </Button>
       </form>
 
       {/* 区切り線 */}

@@ -139,7 +139,7 @@ export default function Header() {
   return (
     <>
       {loggingOut && <Loading fullscreen message="ログアウト中..." />}
-      <header className="flex-shrink-0 h-14 bg-[var(--color-nav)] border-b border-surface-3 flex items-center gap-2 px-3">
+      <header className="flex-shrink-0 h-16 bg-[var(--color-nav)] border-b border-surface-3 flex items-center gap-2 px-3">
         {/* ロゴ（PNG と同じ二色の飛翔マーク = brand-mark.svg。色付き箱で囲うとロゴ自体が青いため埋もれる）。 */}
         <Link to="/" className="flex items-center gap-2 flex-shrink-0 mr-2" aria-label="FreStyle ホーム">
           <img src="/brand-mark.svg" alt="" className="w-7 h-7 flex-shrink-0" />

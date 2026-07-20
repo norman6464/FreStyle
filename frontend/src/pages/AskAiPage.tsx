@@ -186,7 +186,7 @@ export default function AskAiPage() {
   };
 
   if (loading && sessions.length === 0) {
-    return <Loading message="読み込み中..." className="min-h-[calc(100vh-3.5rem)]" />;
+    return <Loading message="読み込み中..." className="min-h-[calc(100vh-4rem)]" />;
   }
 
   return (

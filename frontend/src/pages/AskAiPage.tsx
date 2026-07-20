@@ -57,13 +57,12 @@ export default function AskAiPage() {
     handleSend,
   } = useAskAi();
 
-  // 自動スクロール制御:
-  //   stickToBottom=true → messages 変化のたびに最下部へスクロール（streaming 中の追従）
-  //   stickToBottom=false → ユーザーが上にスクロールしたので auto-scroll を停止
-  // ユーザーが手動で底まで戻したら stickToBottom を再 true に戻す（onScroll で検知）。
-  // ChatGPT / Claude.ai と同じ UX。
+  // スクロール制御(FRESTYLE-149 でストリーミング中の自動追従を撤去):
+  //   最下部へ寄せるのは「メッセージ件数が変わったとき」= 送信 / セッション読込 のみ。
+  //   ストリーミングのトークン追記(件数は変わらず本文だけ伸びる)では追従しない
+  //   ＝本文が下端を越えても勝手にスクロールしない(ユーザー要望)。
+  //   手動で上へスクロールしたら stickToBottom=false になり「最下部へ戻る」ボタンを出す。
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const messagesListRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const [stickToBottom, setStickToBottom] = useState(true);
   // ref 版を 並行で持つ。 streaming 中は messages が ms 単位で更新されるため、
@@ -109,31 +108,15 @@ export default function AskAiPage() {
     };
   }, [updateStickToBottom]);
 
-  // messages 変化時に stick している場合のみ最下部へ。stick していない時はそのまま
-  // ユーザーが見ている位置を保つ。 ref で 同期チェックして race を回避。
+  // メッセージ「件数」が変わったとき(送信 / セッション読込)だけ、stick していれば最下部へ。
+  // トークン追記(件数不変・本文だけ伸びる)では発火しないので、ストリーミング中は追従しない
+  // (FRESTYLE-149。 本文が下端を越えても勝手にスクロールしない)。 stick していないときは
+  // ユーザーが見ている位置を保つ。 ref で同期チェックして race を回避。
   useEffect(() => {
     if (!stickToBottomRef.current) return;
     // smooth animation は wheel と競合しやすいので auto に落として 1 frame で完了させる
     messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
-  }, [messages]);
-
-  // ペーシング(useSmoothReveal)の放出は messages state と非同期に DOM の高さを伸ばすため、
-  // messages 依存の effect だけでは追従できない(特に done 後の drain 中)。リストの高さ変化を
-  // ResizeObserver で拾い、stick 中のみ最下部へ追従する(FRESTYLE-146)。jsdom には
-  // ResizeObserver が無いので存在ガードを入れる。
-  const hasMessages = messages.length > 0;
-  useEffect(() => {
-    if (!hasMessages) return;
-    const list = messagesListRef.current;
-    if (!list || typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(() => {
-      if (stickToBottomRef.current) {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
-      }
-    });
-    observer.observe(list);
-    return () => observer.disconnect();
-  }, [hasMessages]);
+  }, [messages.length]);
 
   // セッション切替で先頭に戻ったときは強制的に底へ（履歴の最後を見せる）。
   useEffect(() => {
@@ -326,7 +309,7 @@ export default function AskAiPage() {
           {messages.length === 0 ? (
             <WelcomeGreeting />
           ) : (
-            <div ref={messagesListRef} className="max-w-3xl mx-auto space-y-4">
+            <div className="max-w-3xl mx-auto space-y-4">
               {messages.map((message) => (
                 <MessageBubbleAi
                   // done で id が streaming-… → サーバ確定値に変わっても remount しないよう、
@@ -364,7 +347,15 @@ export default function AskAiPage() {
         {/* 入力エリア: 角丸カード風 (主要 AI チャットの compose UI に倣う) */}
         <div className="px-4 pb-4 pt-2">
           <div className="max-w-3xl mx-auto">
-            <MessageInput onSend={handleSend} />
+            {/* 送信時は最下部追従を再開する。 上へスクロール中に送っても、 自分の発言と
+                返答の頭が見えるようにするため(件数変化の scroll effect が最下部へ寄せる)。
+                ストリーミング中の追従は復活しない(scroll は [messages.length] 依存のまま)。 */}
+            <MessageInput
+              onSend={(text, attachments) => {
+                updateStickToBottom(true);
+                handleSend(text, attachments);
+              }}
+            />
           </div>
         </div>
       </div>

@@ -2,7 +2,7 @@ import { useSelector } from 'react-redux';
 import { Navigate, Link } from 'react-router-dom';
 import { BuildingOffice2Icon, CheckIcon, XMarkIcon, UserPlusIcon } from '@heroicons/react/24/outline';
 import type { RootState } from '@/store';
-import Loading from '@/components/Loading';
+import Loading from '@/shared/ui/Loading';
 import PageIntro from '@/shared/ui/PageIntro';
 import { useToast } from '@/hooks/useToast';
 import { useCompanyApplications } from '@/hooks/useCompanyApplications';

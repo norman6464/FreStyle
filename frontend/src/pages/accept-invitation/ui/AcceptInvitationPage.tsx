@@ -1,8 +1,8 @@
 import { Link } from 'react-router-dom';
 import { AuthLayout } from '@/widgets/auth-layout';
-import PrimaryButton from '@/components/PrimaryButton';
-import LinkText from '@/components/LinkText';
-import Loading from '@/components/Loading';
+import Button from '@/shared/ui/Button';
+import LinkText from '@/shared/ui/LinkText';
+import Loading from '@/shared/ui/Loading';
 import { useAcceptInvitation } from '@/hooks/useAcceptInvitation';
 
 /**
@@ -86,7 +86,7 @@ export default function AcceptInvitationPage() {
         </dl>
 
         <Link to="/login" className="block">
-          <PrimaryButton type="button">ログインへ進む</PrimaryButton>
+          <Button variant="primary" fullWidth type="button">ログインへ進む</Button>
         </Link>
 
         <p className="text-xs text-[var(--color-text-muted)] text-center">

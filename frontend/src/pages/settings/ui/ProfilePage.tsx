@@ -1,10 +1,10 @@
 import { useRef } from 'react';
-import InputField from '@/components/InputField';
-import TextareaField from '@/components/TextareaField';
-import PrimaryButton from '@/components/PrimaryButton';
-import FormMessage from '@/components/FormMessage';
-import Avatar from '@/components/Avatar';
-import Loading from '@/components/Loading';
+import InputField from '@/shared/ui/InputField';
+import TextareaField from '@/shared/ui/TextareaField';
+import Button from '@/shared/ui/Button';
+import FormMessage from '@/shared/ui/FormMessage';
+import Avatar from '@/shared/ui/Avatar';
+import Loading from '@/shared/ui/Loading';
 import ProfileStatsSection from '@/components/profile/ProfileStatsSection';
 import { useProfileEdit } from '@/hooks/useProfileEdit';
 import { useProfileImageUpload } from '@/hooks/useProfileImageUpload';
@@ -103,9 +103,9 @@ export default function ProfilePage() {
             placeholder="例: 学習中、チャット可能、取り込み中..."
             maxLength={100}
           />
-          <PrimaryButton type="submit" disabled={submitting}>
+          <Button variant="primary" fullWidth type="submit" disabled={submitting}>
             {submitting ? '更新中...' : '基本情報を保存'}
-          </PrimaryButton>
+          </Button>
         </form>
       </div>
 

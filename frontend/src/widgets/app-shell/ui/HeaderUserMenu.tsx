@@ -5,7 +5,7 @@ import {
   ArrowLeftOnRectangleIcon,
   ChevronDownIcon,
 } from '@heroicons/react/24/outline';
-import Avatar from '@/components/Avatar';
+import Avatar from '@/shared/ui/Avatar';
 
 interface HeaderUserMenuProps {
   displayName: string;

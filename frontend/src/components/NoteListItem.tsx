@@ -4,7 +4,7 @@ import { MapPinIcon as MapPinOutline } from '@heroicons/react/24/outline';
 import { MapPinIcon as MapPinSolid } from '@heroicons/react/24/solid';
 import { formatMonthDay } from '@/shared/lib/formatters';
 import { getNoteStats } from '../utils/noteStats';
-import ReadingTime from './ReadingTime';
+import ReadingTime from '@/shared/ui/ReadingTime';
 
 interface NoteListItemProps {
   noteId: number;

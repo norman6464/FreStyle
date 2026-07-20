@@ -1,18 +1,18 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import ToastContainer from '../ToastContainer';
+import ToastContainer from '@/app/providers/ToastContainer';
 
 const mockToasts: { id: string; type: 'success' | 'error' | 'info'; message: string }[] = [];
 const mockRemoveToast = vi.fn();
 
-vi.mock('../../hooks/useToast', () => ({
+vi.mock('@/hooks/useToast', () => ({
   useToast: () => ({
     toasts: mockToasts,
     removeToast: mockRemoveToast,
   }),
 }));
 
-vi.mock('../Toast', () => ({
+vi.mock('@/shared/ui/Toast', () => ({
   default: ({ message, onClose }: { message: string; onClose: () => void }) => (
     <div data-testid="toast" onClick={onClose}>{message}</div>
   ),

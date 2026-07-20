@@ -1,5 +1,5 @@
 import { createContext } from 'react';
-import type { ToastType } from '../components/Toast';
+import type { ToastType } from '@/shared/ui/Toast';
 
 export interface ToastItem {
   id: string;

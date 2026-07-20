@@ -1,8 +1,8 @@
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeftIcon, CheckCircleIcon, ClockIcon } from '@heroicons/react/24/outline';
 import { EXERCISE_LANGUAGES } from '@/constants/exerciseLanguages';
-import LanguageBadge from '@/components/LanguageBadge';
-import LanguageIcon from '@/components/LanguageIcon';
+import LanguageBadge from '@/shared/ui/LanguageBadge';
+import LanguageIcon from '@/shared/ui/LanguageIcon';
 import { useExerciseList } from '@/hooks/useExerciseList';
 import { MasterExerciseWithStatus } from '@/types';
 

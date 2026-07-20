@@ -1,5 +1,5 @@
-import Toast from './Toast';
-import { useToast } from '../hooks/useToast';
+import Toast from '@/shared/ui/Toast';
+import { useToast } from '@/hooks/useToast';
 
 /**
  * 画面上部中央に Toast を積む。 pointer-events-none で本体クリックを邪魔しないように

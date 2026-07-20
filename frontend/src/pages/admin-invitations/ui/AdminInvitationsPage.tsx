@@ -8,9 +8,9 @@ import AdminInvitationRepository, {
 import CompanyRepository, { Company } from '@/repositories/CompanyRepository';
 import AuthRepository, { UserInfo } from '@/repositories/AuthRepository';
 import type { RootState } from '@/store';
-import Loading from '@/components/Loading';
+import Loading from '@/shared/ui/Loading';
 import PageIntro from '@/shared/ui/PageIntro';
-import ConfirmModal from '@/components/ConfirmModal';
+import ConfirmModal from '@/shared/ui/ConfirmModal';
 import { logger } from '@/shared/lib/logger';
 
 const EMPTY_FORM: CreateInvitationForm = {

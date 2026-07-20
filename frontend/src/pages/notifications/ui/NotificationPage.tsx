@@ -1,6 +1,6 @@
 import { useNotification } from '@/hooks/useNotification';
-import EmptyState from '@/components/EmptyState';
-import Loading from '@/components/Loading';
+import EmptyState from '@/shared/ui/EmptyState';
+import Loading from '@/shared/ui/Loading';
 import NotificationItem from '@/components/NotificationItem';
 import { BellIcon } from '@heroicons/react/24/outline';
 

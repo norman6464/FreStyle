@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { CodeBracketIcon } from '@heroicons/react/24/outline';
-import LanguageIcon from '@/components/LanguageIcon';
+import LanguageIcon from '@/shared/ui/LanguageIcon';
 import { useExerciseLanguageSummary, type ExerciseLanguageCard } from '@/hooks/useExerciseLanguageSummary';
 
 /**

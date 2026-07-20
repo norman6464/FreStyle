@@ -3,6 +3,7 @@ import globals from 'globals';
 import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 import { defineConfig, globalIgnores } from 'eslint/config';
+import { readdirSync } from 'node:fs';
 import tseslint from 'typescript-eslint';
 
 /*
@@ -99,8 +100,41 @@ const fsdBoundaryConfigs = FSD_LAYERS
     },
   }));
 
+/*
+ * Slice の自己参照禁止（テストも対象にする）。
+ *
+ * `entities/note/api/noteRepository.ts` が `@/entities/note`（自分の barrel）を参照すると
+ * 循環になるうえ、テストで自分の barrel を読むと Slice 内の全ファイルが読み込まれて
+ * カバレッジの分母に未テストのファイルまで入る。自分の Slice 内は相対パスで参照する。
+ *
+ * 上の層間ルールはテストを対象外にしている（テストが上位層の Provider で包むのは正当なため）が、
+ * 自己参照は正当なケースが無いのでテストにも適用する。
+ */
+const entitySlices = readdirSync(new URL('./src/entities', import.meta.url), { withFileTypes: true })
+  .filter((e) => e.isDirectory() && !e.name.startsWith('@'))
+  .map((e) => e.name);
+
+const selfReferenceConfigs = entitySlices.map((slice) => ({
+  files: [`src/entities/${slice}/**/*.{ts,tsx}`],
+  rules: {
+    'no-restricted-imports': [
+      'warn',
+      {
+        patterns: [
+          {
+            group: [`@/entities/${slice}`, `@/entities/${slice}/*`, `@/entities/${slice}/**`],
+            message:
+              `FSD 違反: entities/${slice} の中から自分自身（@/entities/${slice}）を参照しないでください。` +
+              ' 循環になり、テストでは Slice 全体を読み込んでカバレッジの分母も膨らみます。相対パスで参照してください。',
+          },
+        ],
+      },
+    ],
+  },
+}));
+
 export default defineConfig([
-  globalIgnores(['dist']),
+  globalIgnores(['dist', 'coverage']),
   {
     files: ['**/*.{js,jsx,ts,tsx}'],
     extends: [
@@ -125,4 +159,5 @@ export default defineConfig([
     },
   },
   ...fsdBoundaryConfigs,
+  ...selfReferenceConfigs,
 ]);

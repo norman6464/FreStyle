@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import ProfileStatsSection from '../ProfileStatsSection';
-import type { ProfileStats } from '@/entities/user/api/profileStatsRepository';
+import type { ProfileStats } from '../../api/profileStatsRepository';
 
 const mockStats: ProfileStats = {
   totalSessions: 42,

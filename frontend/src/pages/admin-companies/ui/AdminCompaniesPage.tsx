@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { Navigate, Link } from 'react-router-dom';
-import CompanyRepository, { CompanyStat } from '@/entities/company/api/companyRepository';
+import { CompanyRepository, CompanyStat } from '@/entities/company';
 import type { RootState } from '@/store';
 import Loading from '@/shared/ui/Loading';
 import PageIntro from '@/shared/ui/PageIntro';

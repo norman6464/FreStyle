@@ -10,7 +10,7 @@ import {
 import Loading from '@/shared/ui/Loading';
 import HeaderUserMenu from './HeaderUserMenu';
 import { useSidebar } from '@/hooks/useSidebar';
-import { NotificationRepository } from '@/entities/notification/api/notificationRepository';
+import { NotificationRepository } from '@/entities/notification';
 import { ProfileRepository } from '@/entities/user';
 import type { RootState } from '@/store';
 

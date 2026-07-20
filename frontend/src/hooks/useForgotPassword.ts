@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import authRepository from '@/entities/user/api/authRepository';
+import { AuthRepository as authRepository } from '@/entities/user';
 import type { FormMessage } from '@/shared/ui/FormMessage';
 import { extractServerErrorMessage } from '@/shared/lib/classifyApiError';
 

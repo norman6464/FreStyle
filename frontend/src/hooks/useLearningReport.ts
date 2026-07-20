@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { LearningReportRepository } from '@/entities/learning-report/api/learningReportRepository';
+import { LearningReportRepository } from '@/entities/learning-report';
 import type { LearningReport } from '@/entities/learning-report';
 
 export function useLearningReport() {

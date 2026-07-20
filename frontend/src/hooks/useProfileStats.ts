@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import ProfileStatsRepository, { type ProfileStats } from '@/entities/user/api/profileStatsRepository';
+import { ProfileStatsRepository, type ProfileStats } from '@/entities/user';
 
 export function useProfileStats() {
   const [stats, setStats] = useState<ProfileStats | null>(null);

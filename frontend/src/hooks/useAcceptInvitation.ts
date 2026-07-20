@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import invitationRepository, {
-  ValidatedInvitation,
-} from '@/entities/invitation/api/invitationRepository';
+import { InvitationRepository as invitationRepository, ValidatedInvitation } from '@/entities/invitation';
 import { saveInvitationToken, clearInvitationToken } from '../lib/invitationToken';
 import { getApiError } from '@/shared/lib/classifyApiError';
 

@@ -3,7 +3,7 @@ import {
   CompanyApplicationRepository,
   CompanyApplication,
   CompanyApplicationStatus,
-} from '@/entities/company/api/companyApplicationRepository';
+} from '@/entities/company';
 
 /**
  * useCompanyApplications — 利用申請（企業）の承認ページの状態管理フック。

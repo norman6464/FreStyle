@@ -3,7 +3,7 @@ import { CompanyRepository } from '@/entities/company';
 import {
   CompanyApplicationRepository,
   CompanyApplication,
-} from '@/entities/company/api/companyApplicationRepository';
+} from '@/entities/company';
 
 /** 運営ダッシュボードの概況サマリ（既存 API の集計）。 */
 export interface AdminDashboardSummary {

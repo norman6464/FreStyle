@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { NotificationRepository } from '@/entities/notification/api/notificationRepository';
+import { NotificationRepository } from '@/entities/notification';
 import type { Notification } from '@/entities/notification';
 
 export function useNotification() {

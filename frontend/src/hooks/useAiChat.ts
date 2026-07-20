@@ -1,9 +1,7 @@
 import { useState, useCallback } from 'react';
 import { classifyApiError } from '@/shared/lib/classifyApiError';
-import AiChatRepository, {
-  CreateSessionRequest,
-  UpdateSessionTitleRequest,
-} from '@/entities/ai-chat/api/aiChatRepository';
+import { AiChatRepository, CreateSessionRequest,
+  UpdateSessionTitleRequest } from '@/entities/ai-chat';
 import type { AiSession, AiMessage } from '@/entities/ai-chat';
 
 /**

@@ -1,6 +1,6 @@
 import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { ToastProvider } from '../../components/ToastProvider';
+import { ToastProvider } from '@/app/providers/ToastProvider';
 import { useToast } from '../useToast';
 import { ReactNode } from 'react';
 

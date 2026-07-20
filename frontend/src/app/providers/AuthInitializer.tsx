@@ -1,9 +1,9 @@
 import { ReactNode, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { setAuthData, clearAuth, finishLoading } from '../store/authSlice';
-import type { RootState } from '../store';
-import authRepository from '../repositories/AuthRepository';
-import Loading from '../components/Loading';
+import { setAuthData, clearAuth, finishLoading } from '@/store/authSlice';
+import type { RootState } from '@/store';
+import authRepository from '@/repositories/AuthRepository';
+import Loading from '@/components/Loading';
 
 interface AuthInitializerProps {
   children: ReactNode;

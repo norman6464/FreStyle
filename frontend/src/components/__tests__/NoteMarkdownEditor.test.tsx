@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import NoteMarkdownEditor from '../NoteMarkdownEditor';
-import { ToastProvider } from '../ToastProvider';
+import { ToastProvider } from '@/app/providers/ToastProvider';
 
 function renderEditor(props: Partial<React.ComponentProps<typeof NoteMarkdownEditor>> = {}) {
   const defaults: React.ComponentProps<typeof NoteMarkdownEditor> = {

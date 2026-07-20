@@ -5,7 +5,7 @@ import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 import authReducer from '../../../store/authSlice';
 import AppShell from '../AppShell';
-import { ToastProvider } from '../../ToastProvider';
+import { ToastProvider } from '@/app/providers/ToastProvider';
 
 function createTestStore(role: string | null = null) {
   return configureStore({

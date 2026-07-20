@@ -1,6 +1,6 @@
 import { useCallback, useState, ReactNode } from 'react';
-import { ToastContext, type ToastItem } from '../hooks/useToastContext';
-import type { ToastType } from './Toast';
+import { ToastContext, type ToastItem } from '@/hooks/useToastContext';
+import type { ToastType } from '@/components/Toast';
 
 let toastId = 0;
 

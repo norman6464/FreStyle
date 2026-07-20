@@ -1,50 +1,50 @@
 import { useEffect, Suspense } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
-import AuthInitializer from './utils/AuthInitializer';
-import Protected from './utils/Protected';
-import AppShell from './components/layout/AppShell';
-import ErrorBoundary from './components/ErrorBoundary';
-import Loading from './components/Loading';
-import MaintenancePage from './pages/MaintenancePage';
-import { ToastProvider } from './components/ToastProvider';
-import { useToast } from './hooks/useToast';
-import { useBackendHealth } from './hooks/useBackendHealth';
-import ToastContainer from './components/ToastContainer';
-import { lazyWithReload, clearLazyReloadFlags } from './utils/lazyWithReload';
+import AuthInitializer from './providers/AuthInitializer';
+import Protected from './providers/Protected';
+import AppShell from '@/components/layout/AppShell';
+import ErrorBoundary from './providers/ErrorBoundary';
+import Loading from '@/components/Loading';
+import MaintenancePage from '@/pages/MaintenancePage';
+import { ToastProvider } from './providers/ToastProvider';
+import { useToast } from '@/hooks/useToast';
+import { useBackendHealth } from '@/hooks/useBackendHealth';
+import ToastContainer from '@/components/ToastContainer';
+import { lazyWithReload, clearLazyReloadFlags } from '@/utils/lazyWithReload';
 
 // 認証不要ページ
-const LoginPage = lazyWithReload(() => import('./pages/LoginPage'), 'LoginPage');
-const LoginCallback = lazyWithReload(() => import('./pages/LoginCallback'), 'LoginCallback');
-const ForgotPasswordPage = lazyWithReload(() => import('./pages/ForgotPasswordPage'), 'ForgotPasswordPage');
-const ConfirmForgotPasswordPage = lazyWithReload(() => import('./pages/ConfirmForgotPasswordPage'), 'ConfirmForgotPasswordPage');
-const AcceptInvitationPage = lazyWithReload(() => import('./pages/AcceptInvitationPage'), 'AcceptInvitationPage');
-const CompanyApplicationPage = lazyWithReload(() => import('./pages/CompanyApplicationPage'), 'CompanyApplicationPage');
+const LoginPage = lazyWithReload(() => import('@/pages/LoginPage'), 'LoginPage');
+const LoginCallback = lazyWithReload(() => import('@/pages/LoginCallback'), 'LoginCallback');
+const ForgotPasswordPage = lazyWithReload(() => import('@/pages/ForgotPasswordPage'), 'ForgotPasswordPage');
+const ConfirmForgotPasswordPage = lazyWithReload(() => import('@/pages/ConfirmForgotPasswordPage'), 'ConfirmForgotPasswordPage');
+const AcceptInvitationPage = lazyWithReload(() => import('@/pages/AcceptInvitationPage'), 'AcceptInvitationPage');
+const CompanyApplicationPage = lazyWithReload(() => import('@/pages/CompanyApplicationPage'), 'CompanyApplicationPage');
 
 // 認証必要ページ
-const MenuPage = lazyWithReload(() => import('./pages/MenuPage'), 'MenuPage');
-const SettingsPage = lazyWithReload(() => import('./pages/SettingsPage'), 'SettingsPage');
-const AskAiPage = lazyWithReload(() => import('./pages/AskAiPage'), 'AskAiPage');
-const NotesPage = lazyWithReload(() => import('./pages/NotesPage'), 'NotesPage');
-const NotificationPage = lazyWithReload(() => import('./pages/NotificationPage'), 'NotificationPage');
-const LearningReportPage = lazyWithReload(() => import('./pages/LearningReportPage'), 'LearningReportPage');
-const HelpPage = lazyWithReload(() => import('./pages/HelpPage'), 'HelpPage');
-const AdminInvitationsPage = lazyWithReload(() => import('./pages/AdminInvitationsPage'), 'AdminInvitationsPage');
-const AdminCompaniesPage = lazyWithReload(() => import('./pages/AdminCompaniesPage'), 'AdminCompaniesPage');
-const AdminMembersPage = lazyWithReload(() => import('./pages/AdminMembersPage'), 'AdminMembersPage');
+const MenuPage = lazyWithReload(() => import('@/pages/MenuPage'), 'MenuPage');
+const SettingsPage = lazyWithReload(() => import('@/pages/SettingsPage'), 'SettingsPage');
+const AskAiPage = lazyWithReload(() => import('@/pages/AskAiPage'), 'AskAiPage');
+const NotesPage = lazyWithReload(() => import('@/pages/NotesPage'), 'NotesPage');
+const NotificationPage = lazyWithReload(() => import('@/pages/NotificationPage'), 'NotificationPage');
+const LearningReportPage = lazyWithReload(() => import('@/pages/LearningReportPage'), 'LearningReportPage');
+const HelpPage = lazyWithReload(() => import('@/pages/HelpPage'), 'HelpPage');
+const AdminInvitationsPage = lazyWithReload(() => import('@/pages/AdminInvitationsPage'), 'AdminInvitationsPage');
+const AdminCompaniesPage = lazyWithReload(() => import('@/pages/AdminCompaniesPage'), 'AdminCompaniesPage');
+const AdminMembersPage = lazyWithReload(() => import('@/pages/AdminMembersPage'), 'AdminMembersPage');
 const AdminCompanyApplicationsPage = lazyWithReload(
-  () => import('./pages/AdminCompanyApplicationsPage'),
+  () => import('@/pages/AdminCompanyApplicationsPage'),
   'AdminCompanyApplicationsPage',
 );
-const AdminDashboardPage = lazyWithReload(() => import('./pages/AdminDashboardPage'), 'AdminDashboardPage');
-const AdminAuditLogPage = lazyWithReload(() => import('./pages/AdminAuditLogPage'), 'AdminAuditLogPage');
-const ExerciseLanguageSelectPage = lazyWithReload(() => import('./pages/ExerciseLanguageSelectPage'), 'ExerciseLanguageSelectPage');
-const ExerciseListPage = lazyWithReload(() => import('./pages/ExerciseListPage'), 'ExerciseListPage');
-const ExerciseDetailPage = lazyWithReload(() => import('./pages/ExerciseDetailPage'), 'ExerciseDetailPage');
-const CoursesListPage = lazyWithReload(() => import('./pages/CoursesListPage'), 'CoursesListPage');
-const CourseDetailPage = lazyWithReload(() => import('./pages/CourseDetailPage'), 'CourseDetailPage');
-const MarkdownSyntaxHelpPage = lazyWithReload(() => import('./pages/MarkdownSyntaxHelpPage'), 'MarkdownSyntaxHelpPage');
+const AdminDashboardPage = lazyWithReload(() => import('@/pages/AdminDashboardPage'), 'AdminDashboardPage');
+const AdminAuditLogPage = lazyWithReload(() => import('@/pages/AdminAuditLogPage'), 'AdminAuditLogPage');
+const ExerciseLanguageSelectPage = lazyWithReload(() => import('@/pages/ExerciseLanguageSelectPage'), 'ExerciseLanguageSelectPage');
+const ExerciseListPage = lazyWithReload(() => import('@/pages/ExerciseListPage'), 'ExerciseListPage');
+const ExerciseDetailPage = lazyWithReload(() => import('@/pages/ExerciseDetailPage'), 'ExerciseDetailPage');
+const CoursesListPage = lazyWithReload(() => import('@/pages/CoursesListPage'), 'CoursesListPage');
+const CourseDetailPage = lazyWithReload(() => import('@/pages/CourseDetailPage'), 'CourseDetailPage');
+const MarkdownSyntaxHelpPage = lazyWithReload(() => import('@/pages/MarkdownSyntaxHelpPage'), 'MarkdownSyntaxHelpPage');
 // inkwell プリミティブの見た目確認用カタログ（認証不要・削除可）。
-const InkwellShowcasePage = lazyWithReload(() => import('./pages/InkwellShowcasePage'), 'InkwellShowcasePage');
+const InkwellShowcasePage = lazyWithReload(() => import('@/pages/InkwellShowcasePage'), 'InkwellShowcasePage');
 
 function NavigationToast() {
   const location = useLocation();

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import ExecutionResultTable from '../ExecutionResultTable';
-import type { CodeExecutionResult } from '@/entities/exercise';
+import type { CodeExecutionResult } from '../../model/types';
 
 const expected = '{"id":1}';
 

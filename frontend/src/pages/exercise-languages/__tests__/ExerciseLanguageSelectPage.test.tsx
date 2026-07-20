@@ -36,7 +36,7 @@ describe('ExerciseLanguageSelectPage (FRESTYLE-152)', () => {
     expect(screen.getByText('10 問')).toBeInTheDocument();
   });
 
-  it('進捗に応じてボタン文言が変わる（未着手 / 途中 / 完了）', async () => {
+  it('ボタン文言は進捗によらず「問題を見る」で統一する（遷移先が同じため）', async () => {
     mockSummary.mockResolvedValue([
       { language: 'php', total: 20, solved: 0 },
       { language: 'go', total: 10, solved: 4 },
@@ -44,9 +44,11 @@ describe('ExerciseLanguageSelectPage (FRESTYLE-152)', () => {
     ]);
     renderPage();
 
-    await waitFor(() => expect(screen.getByText('はじめる')).toBeInTheDocument());
-    expect(screen.getByText('続きからはじめる')).toBeInTheDocument();
-    expect(screen.getByText('もう一度解く')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByText('問題を見る')).toHaveLength(3));
+    // 「続きからはじめる」は未解答の問題から再開すると読めるが、実際は一覧に戻るだけだった。
+    expect(screen.queryByText('続きからはじめる')).not.toBeInTheDocument();
+    expect(screen.queryByText('もう一度解く')).not.toBeInTheDocument();
+    // 進捗の伝達は進捗バーと「すべて完了」バッジが担う。
     expect(screen.getByText('すべて完了')).toBeInTheDocument();
   });
 

@@ -3,13 +3,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import type { ReactElement } from 'react';
 import NotesPage from '../ui/NotesPage';
+import { useNotes } from '@/hooks/useNotes';
+import type { Note } from '@/types';
 
 // react-router-dom の Link が `/notes/markdown-help` 等で使われるため、
 // テストでは MemoryRouter で包む必要がある（PR #1687 で Markdown ヘルプリンク追加）。
 const render = (ui: ReactElement, options?: RenderOptions) =>
   rtlRender(ui, { wrapper: ({ children }) => <MemoryRouter>{children}</MemoryRouter>, ...options });
-import { useNotes } from '@/hooks/useNotes';
-import type { Note } from '@/types';
 
 vi.mock('@/hooks/useNotes');
 const mockShowToast = vi.fn();

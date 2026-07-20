@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import NotificationPage from '../ui/NotificationPage';
+import { useNotification } from '@/hooks/useNotification';
 
 const mockMarkAsRead = vi.fn();
 const mockMarkAllAsRead = vi.fn();
@@ -9,7 +10,6 @@ vi.mock('@/hooks/useNotification', () => ({
   useNotification: vi.fn(),
 }));
 
-import { useNotification } from '@/hooks/useNotification';
 const mockedUseNotification = vi.mocked(useNotification);
 
 describe('NotificationPage', () => {

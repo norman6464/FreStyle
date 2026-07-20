@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeftIcon } from '@heroicons/react/24/outline';
+import { ArrowLeftIcon, ClipboardDocumentIcon, CheckIcon } from '@heroicons/react/24/outline';
 
 /**
  * MarkdownSyntaxHelpPage — `/notes/markdown-help` で表示される Markdown 記法のチートシート。
@@ -225,9 +226,6 @@ function CodeSnippet({ code }: { code: string }) {
   );
 }
 
-import { useState } from 'react';
-import { ClipboardDocumentIcon, CheckIcon } from '@heroicons/react/24/outline';
-
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   const handleCopy = async () => {
@@ -236,7 +234,7 @@ function CopyButton({ text }: { text: string }) {
       setCopied(true);
       setTimeout(() => setCopied(false), 1200);
     } catch {
-      // クリップボード非対応環境では sileng fail。
+      // クリップボード非対応環境では silent fail。
     }
   };
   return (

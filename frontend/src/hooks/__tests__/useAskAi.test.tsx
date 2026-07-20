@@ -5,6 +5,7 @@ import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import authReducer from '../../store/authSlice';
+import { ToastProvider } from '../../components/ToastProvider';
 import { useAskAi } from '../useAskAi';
 
 // useAskAi は useAiChatSse / AiChatRepository / fetchSessions / fetchMessages を内部で叩く。
@@ -52,14 +53,17 @@ function makeWrapper(initialPath: string) {
       auth: { isAuthenticated: true, loading: false, isAdmin: false, role: 'trainee' },
     },
   });
+  // useAiSession がセッション操作のトーストを出すため ToastProvider が必要(FRESTYLE-151)。
   return ({ children }: { children: ReactNode }) => (
     <Provider store={store}>
-      <MemoryRouter initialEntries={[initialPath]}>
-        <Routes>
-          <Route path="/chat/ask-ai" element={<>{children}</>} />
-          <Route path="/chat/ask-ai/:sessionId" element={<>{children}</>} />
-        </Routes>
-      </MemoryRouter>
+      <ToastProvider>
+        <MemoryRouter initialEntries={[initialPath]}>
+          <Routes>
+            <Route path="/chat/ask-ai" element={<>{children}</>} />
+            <Route path="/chat/ask-ai/:sessionId" element={<>{children}</>} />
+          </Routes>
+        </MemoryRouter>
+      </ToastProvider>
     </Provider>
   );
 }

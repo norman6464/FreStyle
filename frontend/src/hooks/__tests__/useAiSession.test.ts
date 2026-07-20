@@ -5,9 +5,15 @@ import { useAiSession } from '../useAiSession';
 const mockNavigate = vi.fn();
 const mockDeleteSession = vi.fn();
 const mockUpdateSessionTitle = vi.fn();
+const mockShowToast = vi.fn();
 
 vi.mock('react-router-dom', () => ({
   useNavigate: () => mockNavigate,
+}));
+
+// トースト通知(FRESTYLE-151)。 Provider を張らずに呼び出しだけ検証したいのでモックする。
+vi.mock('../useToast', () => ({
+  useToast: () => ({ showToast: mockShowToast, removeToast: vi.fn(), toasts: [] }),
 }));
 
 describe('useAiSession', () => {
@@ -45,6 +51,8 @@ describe('useAiSession', () => {
 
     expect(result.current.currentSessionId).toBeNull();
     expect(mockNavigate).toHaveBeenCalledWith('/chat/ask-ai');
+    // 新しいチャット開始をトーストで知らせる(FRESTYLE-151)。
+    expect(mockShowToast).toHaveBeenCalledWith('success', '新しいチャットを開始しました');
   });
 
   it('セッション削除確認モーダルの開閉ができる', () => {
@@ -85,6 +93,31 @@ describe('useAiSession', () => {
 
     expect(mockDeleteSession).toHaveBeenCalledWith(5);
     expect(result.current.currentSessionId).toBeNull();
+    // 削除成功をトーストで知らせる(FRESTYLE-151)。
+    expect(mockShowToast).toHaveBeenCalledWith('success', 'セッションを削除しました');
+  });
+
+  it('セッション削除に失敗したらエラートーストを出す', async () => {
+    mockDeleteSession.mockResolvedValue(false);
+    const { result } = renderHook(() =>
+      useAiSession({ deleteSession: mockDeleteSession, updateSessionTitle: mockUpdateSessionTitle })
+    );
+
+    act(() => {
+      result.current.handleSelectSession(5);
+    });
+
+    act(() => {
+      result.current.handleDeleteSession(5);
+    });
+
+    await act(async () => {
+      await result.current.confirmDeleteSession();
+    });
+
+    expect(mockShowToast).toHaveBeenCalledWith('error', 'セッションの削除に失敗しました');
+    // 失敗時は選択中セッションを維持する。
+    expect(result.current.currentSessionId).toBe(5);
   });
 
   it('タイトル編集の開始・保存・キャンセルができる', async () => {
@@ -111,6 +144,8 @@ describe('useAiSession', () => {
 
     expect(mockUpdateSessionTitle).toHaveBeenCalledWith(10, { title: '新しいタイトル' });
     expect(result.current.editingSessionId).toBeNull();
+    // タイトル変更成功をトーストで知らせる(FRESTYLE-151)。
+    expect(mockShowToast).toHaveBeenCalledWith('success', 'タイトルを変更しました');
   });
 
   it('deleteModal初期値がclosed状態', () => {

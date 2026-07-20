@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import CourseRepository from '../repositories/CourseRepository';
-import type { CourseWithProgress } from '../types';
+import { CourseRepository } from '@/entities/course';
+import type { CourseWithProgress } from '@/entities/course';
 
 /**
  * useNextCourse — 現在のコースの「次のコース」を返す(FRESTYLE-102)。

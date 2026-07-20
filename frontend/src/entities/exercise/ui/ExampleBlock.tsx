@@ -1,5 +1,5 @@
 import { InboxIcon, ClipboardDocumentCheckIcon } from '@heroicons/react/24/outline';
-import { MasterExerciseExample } from '../../types';
+import { MasterExerciseExample } from '../model/types';
 
 interface Props {
   index: number;

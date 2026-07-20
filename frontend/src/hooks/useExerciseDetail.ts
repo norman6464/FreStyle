@@ -1,11 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import ExerciseRepository from '../repositories/ExerciseRepository';
-import {
-  CodeExecutionResult,
-  ExerciseSubmission,
-  ExerciseSubmitResult,
-  MasterExerciseDetail,
-} from '../types';
+import { ExerciseRepository } from '@/entities/exercise';
+import type { CodeExecutionResult, ExerciseSubmission, ExerciseSubmitResult, MasterExerciseDetail } from '@/entities/exercise';
 
 /**
  * useExerciseDetail — 詳細ページの状態管理フック。

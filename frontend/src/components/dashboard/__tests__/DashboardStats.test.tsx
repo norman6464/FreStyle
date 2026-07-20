@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import DashboardStats from '../DashboardStats';
-import type { UserDashboard } from '../../../types';
+import type { UserDashboard } from '@/types';
 
 function makeDashboard(overrides: Partial<UserDashboard> = {}): UserDashboard {
   return {

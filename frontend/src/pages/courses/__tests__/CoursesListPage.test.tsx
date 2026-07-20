@@ -6,12 +6,12 @@ import { MemoryRouter } from 'react-router-dom';
 import CoursesListPage from '../ui/CoursesListPage';
 import { ToastProvider } from '@/app/providers/ToastProvider';
 import authReducer from '@/store/authSlice';
-import CourseRepository from '@/repositories/CourseRepository';
-import { COURSE_CATEGORIES, findCourseCategory } from '@/constants/courseCategories';
-import { COURSE_LANGUAGES } from '@/constants/courseLanguages';
-import type { CourseWithProgress } from '@/types';
+import { CourseRepository } from '@/entities/course';
+import { COURSE_CATEGORIES, findCourseCategory } from '@/entities/course';
+import { COURSE_LANGUAGES } from '@/entities/course';
+import type { CourseWithProgress } from '@/entities/course';
 
-vi.mock('@/repositories/CourseRepository', () => ({
+vi.mock('@/entities/course/api/courseRepository', () => ({
   default: {
     list: vi.fn(),
     create: vi.fn(),

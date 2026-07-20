@@ -4,7 +4,7 @@ import AiChatRepository, {
   CreateSessionRequest,
   UpdateSessionTitleRequest,
 } from '../repositories/AiChatRepository';
-import { AiSession, AiMessage } from '../types';
+import { AiSession, AiMessage } from '@/types';
 
 /**
  * AI チャットのセッション・メッセージ管理フック。

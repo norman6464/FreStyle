@@ -1,4 +1,4 @@
-import type { SnsProvider } from '../types';
+import type { SnsProvider } from '@/types';
 
 interface SNSSignInButtonProps {
   provider: SnsProvider;

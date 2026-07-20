@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { useExerciseList } from '../useExerciseList';
-import ExerciseRepository from '../../repositories/ExerciseRepository';
-import { ExercisePage } from '../../types';
+import { ExerciseRepository } from '@/entities/exercise';
+import type { ExercisePage } from '@/entities/exercise';
 
-vi.mock('../../repositories/ExerciseRepository', () => ({
+vi.mock('@/entities/exercise/api/exerciseRepository', () => ({
   default: { listExercises: vi.fn() },
 }));
 

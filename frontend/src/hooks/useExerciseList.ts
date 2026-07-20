@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
-import ExerciseRepository from '../repositories/ExerciseRepository';
-import { MasterExerciseWithStatus } from '../types';
+import { ExerciseRepository } from '@/entities/exercise';
+import type { MasterExerciseWithStatus } from '@/entities/exercise';
 
 const PAGE_SIZE = 20;
 

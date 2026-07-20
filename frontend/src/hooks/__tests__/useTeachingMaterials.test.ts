@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { useTeachingMaterials } from '../useTeachingMaterials';
-import CourseRepository from '../../repositories/CourseRepository';
-import TeachingMaterialRepository from '../../repositories/TeachingMaterialRepository';
+import { CourseRepository } from '@/entities/course';
+import { TeachingMaterialRepository } from '@/entities/course';
 
-vi.mock('../../repositories/CourseRepository', () => ({
+vi.mock('@/entities/course/api/courseRepository', () => ({
   default: {
     list: vi.fn(),
     get: vi.fn(),
@@ -15,7 +15,7 @@ vi.mock('../../repositories/CourseRepository', () => ({
   },
 }));
 
-vi.mock('../../repositories/TeachingMaterialRepository', () => ({
+vi.mock('@/entities/course/api/teachingMaterialRepository', () => ({
   default: {
     get: vi.fn(),
     create: vi.fn(),

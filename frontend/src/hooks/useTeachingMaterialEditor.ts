@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { TeachingMaterial } from '../types';
+import type { TeachingMaterial } from '@/entities/course';
 import type { SaveStatus } from './useNoteEditor';
 
 interface Args {

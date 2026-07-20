@@ -3,7 +3,7 @@ import { ArrowUpIcon, PlusIcon } from '@heroicons/react/24/solid';
 import { XMarkIcon, PhotoIcon } from '@heroicons/react/24/outline';
 import { useAutoResizeTextarea } from '../hooks/useAutoResizeTextarea';
 import aiChatRepository from '../repositories/AiChatRepository';
-import type { AiAttachment, AiAttachmentFormat } from '../types';
+import type { AiAttachment, AiAttachmentFormat } from '@/types';
 
 interface MessageInputProps {
   onSend: (text: string, attachments?: AiAttachment[]) => void;

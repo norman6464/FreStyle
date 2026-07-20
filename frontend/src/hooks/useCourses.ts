@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import CourseRepository, {
-  type CoursePayload,
-} from '../repositories/CourseRepository';
-import type { Course, CourseWithProgress } from '../types';
+import { CourseRepository, type CoursePayload } from '@/entities/course';
+import type { Course, CourseWithProgress } from '@/entities/course';
 
 /**
  * useCourses — コース一覧 + 検索 + CRUD の状態管理。

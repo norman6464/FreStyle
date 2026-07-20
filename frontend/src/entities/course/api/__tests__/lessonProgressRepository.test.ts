@@ -9,7 +9,7 @@ vi.mock('@/shared/api/axios', () => ({
 }));
 
 import apiClient from '@/shared/api/axios';
-import LessonProgressRepository from '../LessonProgressRepository';
+import LessonProgressRepository from '../lessonProgressRepository';
 
 const mockedGet = vi.mocked(apiClient.get);
 const mockedPost = vi.mocked(apiClient.post);

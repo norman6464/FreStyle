@@ -1,6 +1,6 @@
 import { CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline';
-import { ExerciseSubmission } from '../../types';
-import { pad } from '../../utils/exerciseFormat';
+import { ExerciseSubmission } from '../model/types';
+import { pad } from '../lib/exerciseFormat';
 
 /**
  * 提出 履歴 1 件 を 1 行 で 表示。

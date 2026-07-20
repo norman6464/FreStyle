@@ -1,6 +1,6 @@
 import apiClient from '@/shared/api/axios';
 import { NOTES } from '@/shared/config/apiRoutes';
-import type { Note } from '../types';
+import type { Note } from '@/types';
 
 /**
  * Note 関連 API の薄いラッパ。

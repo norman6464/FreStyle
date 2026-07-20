@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import ProfileRepository from '../repositories/ProfileRepository';
 import { useToast } from './useToast';
-import type { FormMessage, Profile } from '../types';
+import type { FormMessage, Profile } from '@/types';
 
 /**
  * useProfileEdit — ProfilePage で「氏名 / 自己紹介 / アイコン / ステータス」

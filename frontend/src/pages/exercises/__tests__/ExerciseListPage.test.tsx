@@ -2,10 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import ExerciseListPage from '../ui/ExerciseListPage';
-import ExerciseRepository from '@/repositories/ExerciseRepository';
-import { ExercisePage } from '@/types';
+import { ExerciseRepository } from '@/entities/exercise';
+import type { ExercisePage } from '@/entities/exercise';
 
-vi.mock('@/repositories/ExerciseRepository', () => ({
+vi.mock('@/entities/exercise/api/exerciseRepository', () => ({
   default: {
     listExercises: vi.fn(),
   },

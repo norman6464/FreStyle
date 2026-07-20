@@ -1,7 +1,7 @@
 import apiClient from '@/shared/api/axios';
 import axios from 'axios';
 import { PROFILE } from '@/shared/config/apiRoutes';
-import type { Profile } from '../types';
+import type { Profile } from '@/types';
 
 /**
  * Profile 関連 API の薄いラッパ。

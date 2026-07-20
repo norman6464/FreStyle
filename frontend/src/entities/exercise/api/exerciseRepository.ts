@@ -7,7 +7,7 @@ import {
   CodeExecutionResult,
   ExerciseSubmitResult,
   ExerciseSubmission,
-} from '../types';
+} from '../model/types';
 
 /**
  * 運営マスタ演習問題 + コード実行 + 提出 API のラッパー。

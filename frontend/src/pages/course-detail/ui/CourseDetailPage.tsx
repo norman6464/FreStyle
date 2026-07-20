@@ -11,7 +11,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { CheckCircleIcon as CheckCircleSolidIcon } from '@heroicons/react/24/solid';
 import { SecondaryPanel } from '@/widgets/secondary-panel';
-import CourseProgressBar from '@/components/CourseProgressBar';
+import { CourseProgressBar } from '@/entities/course';
 import EmptyState from '@/shared/ui/EmptyState';
 import FaviconIcon from '@/shared/ui/icons/FaviconIcon';
 import ConfirmModal from '@/shared/ui/ConfirmModal';
@@ -26,11 +26,11 @@ import { useLessonProgress } from '@/hooks/useLessonProgress';
 import { useMobilePanelState } from '@/hooks/useMobilePanelState';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { useToast } from '@/hooks/useToast';
-import CourseRepository from '@/repositories/CourseRepository';
+import { CourseRepository } from '@/entities/course';
 import DashboardRepository from '@/repositories/DashboardRepository';
 import ImageUploadRepository from '@/repositories/ImageUploadRepository';
 import type { RootState } from '@/store';
-import type { Course, CourseWithProgress, TeachingMaterial } from '@/types';
+import type { Course, CourseWithProgress, TeachingMaterial } from '@/entities/course';
 
 /**
  * CourseDetailPage — `/courses/:id` 配下の教材一覧 + 編集ページ。

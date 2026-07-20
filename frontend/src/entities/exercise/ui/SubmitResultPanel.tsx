@@ -1,5 +1,5 @@
 import { CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline';
-import { ExerciseTestCaseResult } from '../../types';
+import { ExerciseTestCaseResult } from '../model/types';
 
 /**
  * 提出 後 の 採点 結果 を 「テストケース 単位」 で 折りたたみ 表示。

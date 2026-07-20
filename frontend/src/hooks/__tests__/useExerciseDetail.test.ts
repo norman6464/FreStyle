@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { useExerciseDetail } from '../useExerciseDetail';
-import ExerciseRepository from '../../repositories/ExerciseRepository';
+import { ExerciseRepository } from '@/entities/exercise';
 
-vi.mock('../../repositories/ExerciseRepository', () => ({
+vi.mock('@/entities/exercise/api/exerciseRepository', () => ({
   default: {
     getDetail: vi.fn(),
     execute: vi.fn(),

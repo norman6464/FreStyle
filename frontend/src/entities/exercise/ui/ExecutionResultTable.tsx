@@ -1,5 +1,5 @@
 import { CheckCircleIcon, ExclamationTriangleIcon, XCircleIcon } from '@heroicons/react/24/outline';
-import { CodeExecutionResult } from '../../types';
+import { CodeExecutionResult } from '../model/types';
 
 interface Props {
   result: CodeExecutionResult | null;

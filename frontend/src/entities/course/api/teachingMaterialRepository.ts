@@ -1,6 +1,6 @@
 import api from '@/shared/api/axios';
 import { TEACHING_MATERIALS } from '@/shared/config/apiRoutes';
-import type { TeachingMaterial } from '../types';
+import type { TeachingMaterial } from '../model/types';
 
 /**
  * 教材 API ラッパ（個別 CRUD）。

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import authRepository from '../repositories/AuthRepository';
-import type { FormMessage } from '../types';
+import type { FormMessage } from '@/types';
 import { extractServerErrorMessage } from '@/shared/lib/classifyApiError';
 import { useFormField } from './useFormField';
 

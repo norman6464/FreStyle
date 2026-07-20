@@ -1,10 +1,10 @@
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeftIcon, CheckCircleIcon, ClockIcon } from '@heroicons/react/24/outline';
-import { EXERCISE_LANGUAGES } from '@/constants/exerciseLanguages';
+import { EXERCISE_LANGUAGES } from '@/entities/exercise';
 import LanguageBadge from '@/shared/ui/LanguageBadge';
 import LanguageIcon from '@/shared/ui/LanguageIcon';
 import { useExerciseList } from '@/hooks/useExerciseList';
-import { MasterExerciseWithStatus } from '@/types';
+import type { MasterExerciseWithStatus } from '@/entities/exercise';
 
 /**
  * ExerciseListPage — `/code-editor/lang/:language` の問題一覧画面。

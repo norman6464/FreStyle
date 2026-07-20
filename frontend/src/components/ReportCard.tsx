@@ -1,4 +1,4 @@
-import type { LearningReport } from '../types';
+import type { LearningReport } from '@/types';
 
 interface ReportCardProps {
   report: LearningReport;

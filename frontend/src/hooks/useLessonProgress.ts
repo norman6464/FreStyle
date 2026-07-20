@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import LessonProgressRepository from '../repositories/LessonProgressRepository';
+import { LessonProgressRepository } from '@/entities/course';
 
 /**
  * useLessonProgress — current user の教材（レッスン）完了状態を管理する。

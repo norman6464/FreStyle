@@ -1,6 +1,6 @@
 import api from '@/shared/api/axios';
 import { COURSES } from '@/shared/config/apiRoutes';
-import type { Course, CourseWithProgress, TeachingMaterial, UserChapterView } from '../types';
+import type { Course, CourseWithProgress, TeachingMaterial, UserChapterView } from '../model/types';
 
 /**
  * コース API ラッパ。

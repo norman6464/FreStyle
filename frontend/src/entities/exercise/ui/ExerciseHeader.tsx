@@ -2,7 +2,7 @@ import { DocumentTextIcon } from '@heroicons/react/24/outline';
 import BackLink from './BackLink';
 import ResultBadge from './ResultBadge';
 import LanguageBadge from '@/shared/ui/LanguageBadge';
-import { MasterExercise, ExerciseSubmitResult } from '../../types';
+import { MasterExercise, ExerciseSubmitResult } from '../model/types';
 
 interface Props {
   exercise: MasterExercise;

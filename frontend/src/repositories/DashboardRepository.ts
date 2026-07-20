@@ -1,6 +1,6 @@
 import api from '@/shared/api/axios';
 import { DASHBOARD, CHAPTER_VIEW } from '@/shared/config/apiRoutes';
-import type { UserDashboard } from '../types';
+import type { UserDashboard } from '@/types';
 
 /** ダッシュボード API ラッパ。 */
 const DashboardRepository = {

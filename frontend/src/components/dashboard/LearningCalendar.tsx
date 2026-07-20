@@ -1,4 +1,4 @@
-import type { UserDailyActivity } from '../../types';
+import type { UserDailyActivity } from '@/types';
 
 interface Props {
   activities: UserDailyActivity[];

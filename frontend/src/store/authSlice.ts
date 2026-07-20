@@ -1,5 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import type { AuthState } from '../types';
+import type { AuthState } from '@/types';
 
 const initialState: AuthState = {
   isAuthenticated: false,

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
-import CourseRepository from '../repositories/CourseRepository';
-import type { TeachingMaterial } from '../types';
+import { CourseRepository } from '@/entities/course';
+import type { TeachingMaterial } from '@/entities/course';
 
 interface UseChapterResumeParams {
   /** false（管理ロール等）のときは何もしない。 */

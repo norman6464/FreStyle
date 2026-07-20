@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { CheckIcon } from '@heroicons/react/24/outline';
-import type { Notification } from '../types';
+import type { Notification } from '@/types';
 
 const TYPE_LABELS: Record<string, string> = {
   NEW_MESSAGE: 'メッセージ',

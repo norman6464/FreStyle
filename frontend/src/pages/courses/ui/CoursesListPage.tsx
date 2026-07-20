@@ -12,15 +12,15 @@ import EmptyState from '@/shared/ui/EmptyState';
 import FaviconIcon from '@/shared/ui/icons/FaviconIcon';
 import Loading from '@/shared/ui/Loading';
 import ConfirmModal from '@/shared/ui/ConfirmModal';
-import CourseProgressBar from '@/components/CourseProgressBar';
+import { CourseProgressBar } from '@/entities/course';
 import LanguageBadge from '@/shared/ui/LanguageBadge';
 import { FilterChip } from '@/shared/ui';
 import { useCourses } from '@/hooks/useCourses';
 import { useToast } from '@/hooks/useToast';
-import { COURSE_CATEGORIES, findCourseCategory } from '@/constants/courseCategories';
-import { COURSE_LANGUAGES } from '@/constants/courseLanguages';
+import { COURSE_CATEGORIES, findCourseCategory } from '@/entities/course';
+import { COURSE_LANGUAGES } from '@/entities/course';
 import type { RootState } from '@/store';
-import type { Course, CourseWithProgress } from '@/types';
+import type { Course, CourseWithProgress } from '@/entities/course';
 
 /** 未分類('')や未知の値を未分類バケットの key('') に正規化する。 */
 function normalizeCategoryKey(category: string): string {

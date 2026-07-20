@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { Note } from '../types';
+import type { Note } from '@/types';
 
 export type SaveStatus = 'idle' | 'unsaved' | 'saving' | 'saved';
 

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useNotes } from '../useNotes';
 import NoteRepository from '../../repositories/NoteRepository';
-import type { Note } from '../../types';
+import type { Note } from '@/types';
 
 vi.mock('../../repositories/NoteRepository');
 

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import CourseRepository from '../repositories/CourseRepository';
-import TeachingMaterialRepository, {
+import { CourseRepository } from '@/entities/course';
+import {
+  TeachingMaterialRepository,
   type TeachingMaterialCreatePayload,
   type TeachingMaterialUpdatePayload,
-} from '../repositories/TeachingMaterialRepository';
-import type { TeachingMaterial } from '../types';
+} from '@/entities/course';
+import type { TeachingMaterial } from '@/entities/course';
 
 /**
  * useTeachingMaterials — 指定コース配下の教材の「一覧(メタデータ) + 選択 + CRUD」の状態管理。

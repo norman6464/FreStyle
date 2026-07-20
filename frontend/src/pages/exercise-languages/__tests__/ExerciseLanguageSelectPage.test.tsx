@@ -2,9 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import ExerciseLanguageSelectPage from '../ui/ExerciseLanguageSelectPage';
-import ExerciseRepository from '@/repositories/ExerciseRepository';
+import { ExerciseRepository } from '@/entities/exercise';
 
-vi.mock('@/repositories/ExerciseRepository', () => ({
+vi.mock('@/entities/exercise/api/exerciseRepository', () => ({
   default: {
     listLanguageSummary: vi.fn(),
   },

@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { useChapterResume } from '../useChapterResume';
-import CourseRepository from '../../repositories/CourseRepository';
-import type { TeachingMaterial, UserChapterView } from '../../types';
+import { CourseRepository } from '@/entities/course';
+import type { TeachingMaterial, UserChapterView } from '@/entities/course';
 
-vi.mock('../../repositories/CourseRepository', () => ({
+vi.mock('@/entities/course/api/courseRepository', () => ({
   default: {
     lastViewed: vi.fn(),
   },

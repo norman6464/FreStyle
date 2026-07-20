@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { useUserDashboard } from '../useUserDashboard';
 import DashboardRepository from '../../repositories/DashboardRepository';
-import type { UserDashboard } from '../../types';
+import type { UserDashboard } from '@/types';
 
 vi.mock('../../repositories/DashboardRepository');
 

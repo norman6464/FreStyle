@@ -6,13 +6,13 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import CourseDetailPage from '../ui/CourseDetailPage';
 import { ToastProvider } from '@/app/providers/ToastProvider';
 import authReducer from '@/store/authSlice';
-import CourseRepository from '@/repositories/CourseRepository';
-import TeachingMaterialRepository from '@/repositories/TeachingMaterialRepository';
-import LessonProgressRepository from '@/repositories/LessonProgressRepository';
+import { CourseRepository } from '@/entities/course';
+import { TeachingMaterialRepository } from '@/entities/course';
+import { LessonProgressRepository } from '@/entities/course';
 import DashboardRepository from '@/repositories/DashboardRepository';
-import type { Course, CourseWithProgress, TeachingMaterial, UserChapterView } from '@/types';
+import type { Course, CourseWithProgress, TeachingMaterial, UserChapterView } from '@/entities/course';
 
-vi.mock('@/repositories/CourseRepository', () => ({
+vi.mock('@/entities/course/api/courseRepository', () => ({
   default: {
     get: vi.fn(),
     list: vi.fn(),
@@ -21,7 +21,7 @@ vi.mock('@/repositories/CourseRepository', () => ({
   },
 }));
 
-vi.mock('@/repositories/TeachingMaterialRepository', () => ({
+vi.mock('@/entities/course/api/teachingMaterialRepository', () => ({
   default: {
     get: vi.fn(),
     create: vi.fn(),
@@ -30,7 +30,7 @@ vi.mock('@/repositories/TeachingMaterialRepository', () => ({
   },
 }));
 
-vi.mock('@/repositories/LessonProgressRepository', () => ({
+vi.mock('@/entities/course/api/lessonProgressRepository', () => ({
   default: {
     list: vi.fn(),
     complete: vi.fn(),

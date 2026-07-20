@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import NotificationItem from '../NotificationItem';
-import type { Notification } from '../../types';
+import type { Notification } from '@/types';
 
 const baseNotification: Notification = {
   id: 1,

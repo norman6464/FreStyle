@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import ReportCard from '../ReportCard';
-import type { LearningReport } from '../../types';
+import type { LearningReport } from '@/types';
 
 function makeReport(overrides: Partial<LearningReport> = {}): LearningReport {
   return {

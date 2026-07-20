@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import ExerciseRepository from '../repositories/ExerciseRepository';
-import { EXERCISE_LANGUAGES } from '../constants/exerciseLanguages';
-import { ExerciseLanguageSummary } from '../types';
+import { ExerciseRepository } from '@/entities/exercise';
+import { EXERCISE_LANGUAGES } from '@/entities/exercise';
+import type { ExerciseLanguageSummary } from '@/entities/exercise';
 
 /** 言語選択カード 1 枚ぶんの表示データ。 */
 export interface ExerciseLanguageCard extends ExerciseLanguageSummary {

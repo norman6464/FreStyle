@@ -1,6 +1,6 @@
 import apiClient from '@/shared/api/axios';
 import { NOTIFICATIONS } from '@/shared/config/apiRoutes';
-import type { Notification } from '../types';
+import type { Notification } from '@/types';
 
 // Go バックエンドは PATCH を REST 標準として提供する。フロントは PATCH に揃える。
 export const NotificationRepository = {

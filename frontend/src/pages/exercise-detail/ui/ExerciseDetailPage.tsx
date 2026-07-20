@@ -2,19 +2,19 @@ import { Suspense, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { CheckCircleIcon, ChevronDownIcon, ChevronUpIcon, ClipboardDocumentCheckIcon } from '@heroicons/react/24/outline';
 import Loading from '@/shared/ui/Loading';
-import BackLink from '@/components/exercise/BackLink';
-import ExerciseHeader from '@/components/exercise/ExerciseHeader';
-import ExampleBlock from '@/components/exercise/ExampleBlock';
-import ExecutionResultTable from '@/components/exercise/ExecutionResultTable';
-import SubmitResultPanel from '@/components/exercise/SubmitResultPanel';
-import SubmissionRow from '@/components/exercise/SubmissionRow';
-import QaExerciseView from '@/components/exercise/QaExerciseView';
+import { BackLink } from '@/entities/exercise';
+import { ExerciseHeader } from '@/entities/exercise';
+import { ExampleBlock } from '@/entities/exercise';
+import { ExecutionResultTable } from '@/entities/exercise';
+import { SubmitResultPanel } from '@/entities/exercise';
+import { SubmissionRow } from '@/entities/exercise';
+import { QaExerciseView } from '@/entities/exercise';
 import MarkdownView from '@/components/message/MarkdownView';
 import { useExerciseDetail } from '@/hooks/useExerciseDetail';
 import LanguageBadge from '@/shared/ui/LanguageBadge';
 import { lazyWithReload } from '@/shared/lib/lazyWithReload';
-import { monacoLanguageOf } from '@/utils/exerciseFormat';
-import { parseErrorLines } from '@/utils/executionErrors';
+import { monacoLanguageOf } from '@/entities/exercise';
+import { parseErrorLines } from '@/entities/exercise';
 
 const CodeEditor = lazyWithReload(() => import('@/shared/ui/CodeEditor'), 'CodeEditor');
 

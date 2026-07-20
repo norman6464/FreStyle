@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef } from 'react';
-import type { Note } from '../types';
+import type { Note } from '@/types';
 import type { NoteSortOption } from '../constants/sortOptions';
 import NoteRepository from '../repositories/NoteRepository';
 

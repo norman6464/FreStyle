@@ -1,6 +1,6 @@
 import apiClient from '@/shared/api/axios';
 import { AI_CHAT } from '@/shared/config/apiRoutes';
-import { AiSession, AiMessage } from '../types';
+import { AiSession, AiMessage } from '@/types';
 
 /**
  * AI チャットリポジトリ。

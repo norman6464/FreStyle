@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useTeachingMaterialEditor } from '../useTeachingMaterialEditor';
-import type { TeachingMaterial } from '../../types';
+import type { TeachingMaterial } from '@/entities/course';
 
 const sample = (id: number, content = ''): TeachingMaterial => ({
   id,

@@ -23,6 +23,19 @@ type fakeMasterExerciseRepo struct {
 	getResult    *domain.MasterExercise
 	getErr       error
 	gotSlug      string
+
+	// 言語別集計(FRESTYLE-152)用。
+	summaryResult    []repository.ExerciseLanguageSummary
+	summaryErr       error
+	gotSummaryUserID uint64
+}
+
+func (r *fakeMasterExerciseRepo) SummaryByLanguage(_ context.Context, userID uint64) ([]repository.ExerciseLanguageSummary, error) {
+	r.gotSummaryUserID = userID
+	if r.summaryErr != nil {
+		return nil, r.summaryErr
+	}
+	return r.summaryResult, nil
 }
 
 func (r *fakeMasterExerciseRepo) ListByLanguage(_ context.Context, language string) ([]domain.MasterExercise, error) {
@@ -79,11 +92,62 @@ func newMasterExerciseTestHandler(repo *fakeMasterExerciseRepo, examples *fakeEx
 		usecase.NewListMasterExercisesUseCase(repo),
 		usecase.NewListMasterExercisesWithStatusUseCase(repo),
 		usecase.NewGetMasterExerciseUseCase(repo, examples),
+		usecase.NewGetExerciseLanguageSummaryUseCase(repo),
 	)
 	r := gin.New()
 	r.GET("/exercises", h.List)
+	// 静的セグメントを :slug より先に解決できることも兼ねて本番と同じ順で登録する。
+	r.GET("/exercises/summary", h.Summary)
 	r.GET("/exercises/:slug", h.GetBySlug)
 	return r
+}
+
+// /exercises/summary → 言語別の 問題数 / 正解済み件数 が JSON 配列で返る（FRESTYLE-152）。
+func Test_演習問題ハンドラ_言語別集計(t *testing.T) {
+	repo := &fakeMasterExerciseRepo{
+		summaryResult: []repository.ExerciseLanguageSummary{
+			{Language: "go", Total: 10, Solved: 3},
+			{Language: "php", Total: 20, Solved: 20},
+		},
+	}
+	r := newMasterExerciseTestHandler(repo, nil)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/exercises/summary", nil))
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	var got []struct {
+		Language string `json:"language"`
+		Total    int64  `json:"total"`
+		Solved   int64  `json:"solved"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatalf("unmarshal: %v (body=%s)", err, w.Body.String())
+	}
+	if len(got) != 2 {
+		t.Fatalf("len = %d, want 2 (body=%s)", len(got), w.Body.String())
+	}
+	if got[0].Language != "go" || got[0].Total != 10 || got[0].Solved != 3 {
+		t.Errorf("got[0] = %+v, want {go 10 3}", got[0])
+	}
+	if got[1].Language != "php" || got[1].Solved != 20 {
+		t.Errorf("got[1] = %+v, want php solved=20", got[1])
+	}
+}
+
+// 集計が DB エラーになったら 500 を返す（"該当なし" と誤認させない）。
+func Test_演習問題ハンドラ_言語別集計_失敗は500(t *testing.T) {
+	repo := &fakeMasterExerciseRepo{summaryErr: errors.New("db down")}
+	r := newMasterExerciseTestHandler(repo, nil)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/exercises/summary", nil))
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", w.Code)
+	}
 }
 
 // /exercises?language=php → repo に "php" が伝わり、結果が JSON で返る。

@@ -14,17 +14,57 @@ import (
 
 // MasterExerciseHandler は運営マスタ演習問題の一覧 / 詳細を返す（詳細は slug ベース URL）。
 type MasterExerciseHandler struct {
-	listExercises  *usecase.ListMasterExercisesUseCase
-	listWithStatus *usecase.ListMasterExercisesWithStatusUseCase
-	getExercise    *usecase.GetMasterExerciseUseCase
+	listExercises   *usecase.ListMasterExercisesUseCase
+	listWithStatus  *usecase.ListMasterExercisesWithStatusUseCase
+	getExercise     *usecase.GetMasterExerciseUseCase
+	languageSummary *usecase.GetExerciseLanguageSummaryUseCase
 }
 
 func NewMasterExerciseHandler(
 	list *usecase.ListMasterExercisesUseCase,
 	listWithStatus *usecase.ListMasterExercisesWithStatusUseCase,
 	get *usecase.GetMasterExerciseUseCase,
+	languageSummary *usecase.GetExerciseLanguageSummaryUseCase,
 ) *MasterExerciseHandler {
-	return &MasterExerciseHandler{listExercises: list, listWithStatus: listWithStatus, getExercise: get}
+	return &MasterExerciseHandler{
+		listExercises:   list,
+		listWithStatus:  listWithStatus,
+		getExercise:     get,
+		languageSummary: languageSummary,
+	}
+}
+
+// exerciseLanguageSummaryResponse は言語ごとの問題数 / 正解済み件数。
+type exerciseLanguageSummaryResponse struct {
+	Language string `json:"language"`
+	Total    int64  `json:"total"`
+	Solved   int64  `json:"solved"`
+}
+
+// Summary は公開済み演習を言語ごとに集計して返す（コード学習の言語選択カード用）。
+//
+//	@Summary      演習の 言語別 集計 (問題数 + 正解済み 件数)
+//	@Description  公開済み の 運営 マスタ 演習問題 を 言語 ごとに 集計 して 返す。 solved は current user が 正解済み の 問題数 (未 ログイン は 0)。 言語 選択 カード の 進捗 表示 に 使う。
+//	@Tags         exercises
+//	@Produce      json
+//	@Success      200  {array}   exerciseLanguageSummaryResponse
+//	@Failure      500  {object}  errorResponse  "集計 失敗"
+//	@Router       /exercises/summary [get]
+//	@Security     CookieAuth
+func (h *MasterExerciseHandler) Summary(c *gin.Context) {
+	uid := middleware.CurrentUserIDOrZero(c)
+
+	rows, err := h.languageSummary.Execute(c.Request.Context(), uid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "演習の集計に失敗しました"})
+		return
+	}
+
+	out := make([]exerciseLanguageSummaryResponse, len(rows))
+	for i, r := range rows {
+		out[i] = exerciseLanguageSummaryResponse{Language: r.Language, Total: r.Total, Solved: r.Solved}
+	}
+	c.JSON(http.StatusOK, out)
 }
 
 // masterExerciseListItemResponse は一覧カード表示に必要な最小フィールドのみを持つレスポンス型。

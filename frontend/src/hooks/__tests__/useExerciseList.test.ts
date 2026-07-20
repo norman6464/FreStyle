@@ -25,25 +25,30 @@ const baseItem = {
 describe('useExerciseList', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('初期化時に PHP の一覧を取得する', async () => {
+  it('引数の言語で一覧を取得する', async () => {
     mockList.mockResolvedValue(emptyPage);
-    const { result } = renderHook(() => useExerciseList());
+    const { result } = renderHook(() => useExerciseList('php'));
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(mockList).toHaveBeenCalledWith('php', 0, 20);
   });
 
-  it('language を切り替えると items をリセットして再 fetch する', async () => {
+  // 言語は URL(引数)が正なので、切り替えは rerender で表現される(FRESTYLE-152)。
+  it('language 引数が変わると items をリセットして再 fetch する', async () => {
     mockList.mockResolvedValue(emptyPage);
-    const { result } = renderHook(() => useExerciseList());
+    const { result, rerender } = renderHook(({ lang }) => useExerciseList(lang), {
+      initialProps: { lang: 'php' },
+    });
     await waitFor(() => expect(result.current.loading).toBe(false));
-    act(() => result.current.setLanguage(''));
+    expect(mockList).toHaveBeenCalledWith('php', 0, 20);
+
+    rerender({ lang: 'go' });
     await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2));
-    expect(mockList).toHaveBeenLastCalledWith(undefined, 0, 20);
+    expect(mockList).toHaveBeenLastCalledWith('go', 0, 20);
   });
 
   it('取得失敗時は error をセットする', async () => {
     mockList.mockRejectedValue(new Error('boom'));
-    const { result } = renderHook(() => useExerciseList());
+    const { result } = renderHook(() => useExerciseList('php'));
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.error).toBe('演習問題の取得に失敗しました');
   });
@@ -54,7 +59,7 @@ describe('useExerciseList', () => {
       { ...baseItem, id: 2, slug: 'b', category: '基礎' },
       { ...baseItem, id: 3, slug: 'c', category: '応用', difficulty: 2 },
     ]));
-    const { result } = renderHook(() => useExerciseList());
+    const { result } = renderHook(() => useExerciseList('php'));
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.categories).toEqual(['基礎', '応用']);
   });
@@ -64,7 +69,7 @@ describe('useExerciseList', () => {
       .mockResolvedValueOnce(makePage([{ ...baseItem, id: 1, slug: 'p1' }], true))
       .mockResolvedValueOnce(makePage([{ ...baseItem, id: 2, slug: 'p2' }], false));
 
-    const { result } = renderHook(() => useExerciseList());
+    const { result } = renderHook(() => useExerciseList('php'));
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.exercises).toHaveLength(1);
 
@@ -76,7 +81,7 @@ describe('useExerciseList', () => {
 
   it('hasNext が false のとき loadMore は何もしない', async () => {
     mockList.mockResolvedValue(emptyPage);
-    const { result } = renderHook(() => useExerciseList());
+    const { result } = renderHook(() => useExerciseList('php'));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     act(() => result.current.loadMore());

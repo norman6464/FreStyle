@@ -1,48 +1,21 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import ExerciseRepository from '../repositories/ExerciseRepository';
-import { EXERCISE_LANGUAGES } from '../constants/exerciseLanguages';
 import { MasterExerciseWithStatus } from '../types';
 
-const LANGUAGE_STORAGE_KEY = 'frestyle:exercise-list:language';
-// '' = すべて。選択肢の定義(EXERCISE_LANGUAGES)から導出して二重管理を防ぐ(FRESTYLE-101)。
-const VALID_LANGUAGES = new Set(['', ...EXERCISE_LANGUAGES.map((l) => l.key)]);
 const PAGE_SIZE = 20;
-
-function loadStoredLanguage(fallback: string): string {
-  if (typeof window === 'undefined') return fallback;
-  try {
-    const v = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
-    if (v !== null && VALID_LANGUAGES.has(v)) return v;
-  } catch {
-    // SSR / プライベートブラウジング等で localStorage が使えない場合は fallback。
-  }
-  return fallback;
-}
-
-function persistLanguage(value: string) {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, value);
-  } catch {
-    // 容量制限 / 拒否設定で書き込めない場合は黙って無視。
-  }
-}
 
 /**
  * useExerciseList — 演習問題リストページの状態管理フック。
  *
+ * 対象言語は **引数（= URL の `/code-editor/lang/:language`）が正**（FRESTYLE-152）。
+ * 以前はページ内のチップで切り替えて localStorage に保存していたが、言語選択カード画面を
+ * 入口にしたため、選択状態は URL だけが持つ（戻る / 共有 / リロードでもぶれない）。
+ *
  * スクロール型ページネーション（無限スクロール）対応。
- * 言語フィルタを切り替えると蓄積リストをリセットしてページ先頭から再取得する。
+ * language が変わると蓄積リストをリセットしてページ先頭から再取得する。
  * loadMore() を呼ぶと次ページを取得して items に追記する。
  */
-export function useExerciseList(initialLanguage: string = 'php') {
-  const [language, setLanguageState] = useState(() => loadStoredLanguage(initialLanguage));
-
-  const setLanguage = useCallback((next: string) => {
-    setLanguageState(next);
-    persistLanguage(next);
-  }, []);
-
+export function useExerciseList(language: string) {
   const [items, setItems] = useState<MasterExerciseWithStatus[]>([]);
   const [hasNext, setHasNext] = useState(false);
   const [offset, setOffset] = useState(0);
@@ -120,8 +93,6 @@ export function useExerciseList(initialLanguage: string = 'php') {
   }, [hasNext, loadMore]);
 
   return {
-    language,
-    setLanguage,
     exercises: items,
     categories,
     loading,

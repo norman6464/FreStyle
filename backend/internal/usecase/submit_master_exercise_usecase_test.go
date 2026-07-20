@@ -34,6 +34,10 @@ func (r *fakeMasterExerciseRepo) ListWithStatusByLanguage(context.Context, repos
 	return nil, nil
 }
 
+func (r *fakeMasterExerciseRepo) SummaryByLanguage(context.Context, uint64) ([]repository.ExerciseLanguageSummary, error) {
+	return nil, nil
+}
+
 type fakeExampleRepo struct {
 	rows []domain.MasterExerciseExample
 }

@@ -141,16 +141,42 @@ Node.js による `javascript` / `typescript` 実行を追加した（[`executeN
 - **ステータスバッジ**: 解いた = `bg-emerald-600` / 取り組み中 = `bg-amber-600`（塗り + 白文字。淡色 /15 は白背景で薄すぎた）
 - **言語バッジ**: 背景 /15 → /25・枠 /30 → /50 にコントラスト強化（色相は FRESTYLE-109 のまま）。表記は全大文字をやめ先頭のみ大文字（FRESTYLE-121）
 
-## 言語フィルタ UI（FRESTYLE-101）
+## 言語選択カード → 問題一覧（FRESTYLE-152。旧: 言語フィルタチップ FRESTYLE-101）
 
-演習一覧（/code-editor）の言語絞り込みは、プルダウン（select）ではなく
-コース一覧のカテゴリ絞り込みと同じ**チップ型セレクタ**（常時見える一覧）で行う。
+全言語の問題を 1 画面に縦積みしていて見通しが悪かったため、**「言語を選ぶ → その言語の問題一覧」**の
+2 段構成にした（学習サービスで一般的な入口）。
 
-- チップ本体は共有コンポーネント `src/components/ui/FilterChip.tsx`
-  （コース一覧 FRESTYLE-68 のローカル実装を昇格。`aria-pressed` + `role="group"`）
-- 選択肢と有効値の単一情報源は `src/constants/exerciseLanguages.ts`。
-  `useExerciseList` の localStorage 復元時の検証セットもここから導出する
-  （チップの選択肢と検証セットの二重管理を防ぐ。言語を増やすときはこの定数だけ触る）
-- 操作感はコース一覧と統一: 「すべて」+ 各言語、**アクティブなチップの再クリックで「すべて」に戻る**
-- 初期言語は localStorage 復元（既定 PHP）、絞り込みはサーバーサイド
-  （`GET /api/v2/exercises?language=`）という既存仕様は変更していない
+### 画面と URL
+
+| URL | 画面 | 中身 |
+|---|---|---|
+| `/code-editor` | [ExerciseLanguageSelectPage](../frontend/src/pages/ExerciseLanguageSelectPage.tsx) | 言語カードのグリッド（ロゴ + 問題数 + 進捗バー + はじめる/続きから） |
+| `/code-editor/lang/:language` | [ExerciseListPage](../frontend/src/pages/ExerciseListPage.tsx) | その言語の問題一覧（無限スクロール） |
+| `/code-editor/:slug` | ExerciseDetailPage | 問題 + エディタ |
+
+`/code-editor/lang/:language` は 2 セグメントなので 1 セグメントの `:slug` とルート衝突しない。
+
+### 進捗の集計 API
+
+`GET /api/v2/exercises/summary` が公開済み問題を言語ごとに集計し `{ language, total, solved }` を返す
+（`solved` は current user が 1 回でも正解した問題数。未ログインは 0）。問題本文を含まないので一覧 API より軽い。
+
+- repository: `SummaryByLanguage`（1 クエリ。`master_exercises` ⟕ 自分の提出の `BOOL_OR(is_correct)`）
+- usecase: `GetExerciseLanguageSummaryUseCase` / handler: `MasterExerciseHandler.Summary`
+- frontend: [useExerciseLanguageSummary](../frontend/src/hooks/useExerciseLanguageSummary.ts) が取得し、
+  表示名を `exerciseLanguages.ts` から解決する
+
+### 並び順・未知言語の扱い
+
+- カードの並びは `EXERCISE_LANGUAGES` の**定義順**（学習の入口として見せたい順）。定数に無い言語は
+  後ろに言語名順で続き、表示名は key をそのまま出す（教材が先に増えても壊れない）
+- 問題が 0 件の言語は API が返さないのでカードにも出ない
+
+### 言語の選択状態
+
+対象言語は **URL が単一の正**。旧実装の「チップ + localStorage 復元」は撤去した
+（戻る / 共有 / リロードで状態がぶれないため）。`useExerciseList(language)` は引数の言語で取得するだけ。
+
+### アイコン
+
+言語ロゴは Devicon（MIT）の SVG を vendoring。詳細は [exercise-language-icons.md](./exercise-language-icons.md)。

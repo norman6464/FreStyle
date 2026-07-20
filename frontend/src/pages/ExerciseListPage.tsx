@@ -1,56 +1,53 @@
-import { Link } from 'react-router-dom';
-import { CheckCircleIcon, ClockIcon, CodeBracketIcon } from '@heroicons/react/24/outline';
-import { FilterChip } from '../components/ui';
+import { Link, useParams } from 'react-router-dom';
+import { ArrowLeftIcon, CheckCircleIcon, ClockIcon } from '@heroicons/react/24/outline';
 import { EXERCISE_LANGUAGES } from '../constants/exerciseLanguages';
 import LanguageBadge from '../components/LanguageBadge';
+import LanguageIcon from '../components/LanguageIcon';
 import { useExerciseList } from '../hooks/useExerciseList';
 import { MasterExerciseWithStatus } from '../types';
 
 /**
- * ExerciseListPage — `/code-editor` のリスト画面。
+ * ExerciseListPage — `/code-editor/lang/:language` の問題一覧画面。
  *
+ * - 言語は URL から決まる（言語選択カード `/code-editor` から遷移してくる。FRESTYLE-152）
  * - カード形式で演習問題を一覧表示
  * - スクロール型ページネーション（IntersectionObserver）で次ページを自動取得
  * - カテゴリ見出しは蓄積されたリストから動的に生成する
  */
 export default function ExerciseListPage() {
+  const { language: routeLanguage = '' } = useParams<{ language: string }>();
   const {
-    language,
-    setLanguage,
     exercises,
     categories,
     loading,
     loadingMore,
     error,
     sentinelRef,
-  } = useExerciseList();
+  } = useExerciseList(routeLanguage);
+
+  const label =
+    EXERCISE_LANGUAGES.find((l) => l.key === routeLanguage)?.label ?? routeLanguage;
 
   return (
     <div className="px-4 sm:px-6 pt-6 pb-24 max-w-5xl mx-auto space-y-6">
-      <header className="space-y-2">
-        <div className="flex items-center gap-2 text-[var(--color-text-muted)]">
-          <CodeBracketIcon className="w-5 h-5" />
-          <span className="text-xs uppercase tracking-wider">Code Practice</span>
+      <header className="space-y-3">
+        <Link
+          to="/code-editor"
+          className="inline-flex items-center gap-1 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+        >
+          <ArrowLeftIcon className="w-3.5 h-3.5" />
+          言語を選びなおす
+        </Link>
+        <div className="flex items-center gap-3">
+          <LanguageIcon language={routeLanguage} className="w-9 h-9 flex-shrink-0" />
+          <div>
+            <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">{label}</h1>
+            <p className="text-sm text-[var(--color-text-tertiary)]">
+              解きたい問題を選んでください。提出すると採点結果が履歴に残ります。
+            </p>
+          </div>
         </div>
-        <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">コード学習</h1>
-        <p className="text-sm text-[var(--color-text-tertiary)]">
-          解きたい問題を選んでください。提出すると採点結果が履歴に残ります。
-        </p>
       </header>
-
-      {/* 言語の絞り込みはコース一覧のカテゴリチップと同じ操作感(常時見える一覧 +
-          アクティブチップの再クリックで「すべて」に戻る)にする(FRESTYLE-101)。 */}
-      <div className="flex items-center gap-2 flex-wrap" role="group" aria-label="言語で絞り込み">
-        <FilterChip label="すべて" active={language === ''} onClick={() => setLanguage('')} />
-        {EXERCISE_LANGUAGES.map((l) => (
-          <FilterChip
-            key={l.key}
-            label={l.label}
-            active={language === l.key}
-            onClick={() => setLanguage(language === l.key ? '' : l.key)}
-          />
-        ))}
-      </div>
 
       {loading && (
         <p className="text-sm text-[var(--color-text-muted)]">読み込み中...</p>

@@ -2247,6 +2247,40 @@ const docTemplate = `{
                 }
             }
         },
+        "/exercises/summary": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "公開済み の 運営 マスタ 演習問題 を 言語 ごとに 集計 して 返す。 solved は current user が 正解済み の 問題数 (未 ログイン は 0)。 言語 選択 カード の 進捗 表示 に 使う。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "exercises"
+                ],
+                "summary": "演習の 言語別 集計 (問題数 + 正解済み 件数)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/internal_handler.exerciseLanguageSummaryResponse"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "集計 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/exercises/{slug}": {
             "get": {
                 "security": [
@@ -4960,6 +4994,20 @@ const docTemplate = `{
                 "error": {
                     "type": "string",
                     "example": "unauthorized"
+                }
+            }
+        },
+        "internal_handler.exerciseLanguageSummaryResponse": {
+            "type": "object",
+            "properties": {
+                "language": {
+                    "type": "string"
+                },
+                "solved": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
                 }
             }
         },

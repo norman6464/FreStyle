@@ -625,6 +625,16 @@ export interface ExercisePage {
   limit: number;
 }
 
+/**
+ * 言語別の演習集計（`GET /api/v2/exercises/summary`）。
+ * 言語選択カードの進捗表示に使う（FRESTYLE-152）。solved は current user が正解済みの問題数。
+ */
+export interface ExerciseLanguageSummary {
+  language: string;
+  total: number;
+  solved: number;
+}
+
 /** 提出 API (`POST /api/v2/exercises/:slug/submit`) のレスポンス 1 件あたりの採点結果。 */
 export interface ExerciseTestCaseResult {
   orderIndex: number;

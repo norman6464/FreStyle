@@ -50,8 +50,6 @@ function LanguageCard({ card }: { card: ExerciseLanguageCard }) {
   const { language, label, total, solved } = card;
   const percent = total > 0 ? Math.round((solved / total) * 100) : 0;
   const completed = total > 0 && solved >= total;
-  // 1 問でも解いていれば「続きから」。完了済みは「もう一度解く」。
-  const actionLabel = completed ? 'もう一度解く' : solved > 0 ? '続きからはじめる' : 'はじめる';
 
   return (
     <Link
@@ -96,8 +94,11 @@ function LanguageCard({ card }: { card: ExerciseLanguageCard }) {
         </div>
       </div>
 
+      {/* 遷移先はどの状態でも同じ「その言語の問題一覧」なので、ラベルも状態で出し分けない。
+          「続きからはじめる」は未解答の問題から再開すると読めてしまうが実際は一覧に戻るだけで、
+          文言が挙動を偽っていた（FRESTYLE-161）。進捗は上の進捗バーと「すべて完了」で示す。 */}
       <span className="mt-auto inline-flex items-center justify-center rounded-lg border border-surface-3 px-4 py-2 text-sm font-medium text-[var(--color-text-primary)] transition-colors group-hover:border-taupe-500/50 group-hover:bg-surface-1">
-        {actionLabel}
+        問題を見る
       </span>
     </Link>
   );

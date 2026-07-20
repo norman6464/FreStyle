@@ -18,9 +18,12 @@ export default function LanguageIcon({
   language: string;
   className?: string;
 }) {
-  const [failed, setFailed] = useState(false);
+  // 「失敗したかどうか」ではなく「どの言語で失敗したか」を持つ。 boolean だと、 言語一覧を
+  // 行き来して language prop だけが変わったとき(コンポーネントは mount されたまま)に
+  // 失敗状態が引き継がれ、 アイコンがある言語でもフォールバックのままになる。
+  const [failedLanguage, setFailedLanguage] = useState<string | null>(null);
 
-  if (failed) {
+  if (failedLanguage === language) {
     return (
       <CodeBracketIcon
         className={`${className} text-[var(--color-text-muted)]`}
@@ -36,7 +39,7 @@ export default function LanguageIcon({
       aria-hidden="true"
       loading="lazy"
       className={className}
-      onError={() => setFailed(true)}
+      onError={() => setFailedLanguage(language)}
     />
   );
 }

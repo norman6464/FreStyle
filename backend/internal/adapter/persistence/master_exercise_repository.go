@@ -45,6 +45,32 @@ func (r *masterExerciseRepository) GetBySlug(ctx context.Context, slug string) (
 	return &exercise, nil
 }
 
+// SummaryByLanguage は公開済み問題を言語ごとに集計し、問題数と current user の正解済み件数を返す。
+// 言語選択カード（FRESTYLE-152）用。問題本文を返さないので一覧 API より軽い。
+// userID=0（未ログイン）は usr サブクエリが空になり solved は全て 0。
+func (r *masterExerciseRepository) SummaryByLanguage(ctx context.Context, userID uint64) ([]repository.ExerciseLanguageSummary, error) {
+	const q = `
+SELECT e.language                                   AS language,
+       COUNT(*)                                     AS total,
+       COUNT(*) FILTER (WHERE usr.any_solved IS TRUE) AS solved
+FROM master_exercises e
+LEFT JOIN (
+    SELECT exercise_id, BOOL_OR(is_correct) AS any_solved
+    FROM exercise_submissions
+    WHERE exercise_kind = ? AND user_id = ?
+    GROUP BY exercise_id
+) usr ON usr.exercise_id = e.id
+WHERE e.is_published = TRUE
+GROUP BY e.language
+ORDER BY e.language ASC`
+
+	var rows []repository.ExerciseLanguageSummary
+	if err := r.db.WithContext(ctx).Raw(q, domain.ExerciseKindMaster, userID).Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
 // ListWithStatusByLanguage は公開済み問題を「current user の提出状態 + 全体集計」付きで 1 クエリで返す。
 // in.Limit > 0 のとき LIMIT/OFFSET を適用する。Limit=0 は全件取得。
 // userID=0（未ログイン）は usr サブクエリが空になり status は全て "".

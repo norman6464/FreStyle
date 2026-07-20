@@ -37,6 +37,7 @@ const AdminCompanyApplicationsPage = lazyWithReload(
 );
 const AdminDashboardPage = lazyWithReload(() => import('./pages/AdminDashboardPage'), 'AdminDashboardPage');
 const AdminAuditLogPage = lazyWithReload(() => import('./pages/AdminAuditLogPage'), 'AdminAuditLogPage');
+const ExerciseLanguageSelectPage = lazyWithReload(() => import('./pages/ExerciseLanguageSelectPage'), 'ExerciseLanguageSelectPage');
 const ExerciseListPage = lazyWithReload(() => import('./pages/ExerciseListPage'), 'ExerciseListPage');
 const ExerciseDetailPage = lazyWithReload(() => import('./pages/ExerciseDetailPage'), 'ExerciseDetailPage');
 const CoursesListPage = lazyWithReload(() => import('./pages/CoursesListPage'), 'CoursesListPage');
@@ -117,7 +118,10 @@ export default function App() {
         <Route path="/notifications" element={<NotificationPage />} />
         <Route path="/reports" element={<LearningReportPage />} />
         <Route path="/help" element={<HelpPage />} />
-        <Route path="/code-editor" element={<ExerciseListPage />} />
+        {/* コード学習は「言語選択カード → その言語の問題一覧 → 問題」の 3 段(FRESTYLE-152)。
+            /lang/:language は 2 セグメントなので 1 セグメントの :slug とは衝突しない。 */}
+        <Route path="/code-editor" element={<ExerciseLanguageSelectPage />} />
+        <Route path="/code-editor/lang/:language" element={<ExerciseListPage />} />
         <Route path="/code-editor/:slug" element={<ExerciseDetailPage />} />
         <Route path="/courses" element={<CoursesListPage />} />
         <Route path="/courses/:id" element={<CourseDetailPage />} />

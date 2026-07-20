@@ -2,6 +2,7 @@ import api from '../lib/axios';
 import { EXERCISES, CODE } from '../constants/apiRoutes';
 import {
   ExercisePage,
+  ExerciseLanguageSummary,
   MasterExerciseDetail,
   CodeExecutionResult,
   ExerciseSubmitResult,
@@ -24,6 +25,12 @@ const ExerciseRepository = {
     const url = `${EXERCISES.list}?${params.toString()}`;
     const res = await api.get<ExercisePage>(url);
     return res.data;
+  },
+
+  /** 言語別の問題数 / 正解済み件数を取得する（言語選択カード用・FRESTYLE-152）。 */
+  async listLanguageSummary(): Promise<ExerciseLanguageSummary[]> {
+    const res = await api.get<ExerciseLanguageSummary[]>(EXERCISES.summary);
+    return Array.isArray(res.data) ? res.data : [];
   },
 
   async getDetail(slug: string): Promise<MasterExerciseDetail> {

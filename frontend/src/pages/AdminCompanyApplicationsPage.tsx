@@ -3,7 +3,7 @@ import { Navigate, Link } from 'react-router-dom';
 import { BuildingOffice2Icon, CheckIcon, XMarkIcon, UserPlusIcon } from '@heroicons/react/24/outline';
 import type { RootState } from '../store';
 import Loading from '../components/Loading';
-import PageIntro from '../components/ui/PageIntro';
+import PageIntro from '@/shared/ui/PageIntro';
 import { useToast } from '../hooks/useToast';
 import { useCompanyApplications } from '../hooks/useCompanyApplications';
 import type {

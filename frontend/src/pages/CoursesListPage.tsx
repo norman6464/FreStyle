@@ -9,12 +9,12 @@ import {
   TrashIcon,
 } from '@heroicons/react/24/outline';
 import EmptyState from '../components/EmptyState';
-import FaviconIcon from '../components/icons/FaviconIcon';
+import FaviconIcon from '@/shared/ui/icons/FaviconIcon';
 import Loading from '../components/Loading';
 import ConfirmModal from '../components/ConfirmModal';
 import CourseProgressBar from '../components/CourseProgressBar';
 import LanguageBadge from '../components/LanguageBadge';
-import { FilterChip } from '../components/ui';
+import { FilterChip } from '@/shared/ui';
 import { useCourses } from '../hooks/useCourses';
 import { useToast } from '../hooks/useToast';
 import { COURSE_CATEGORIES, findCourseCategory } from '../constants/courseCategories';

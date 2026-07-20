@@ -11,7 +11,7 @@ import {
   InkwellCircularProgress,
   InkwellLinearProgress,
   InkwellSkeleton,
-} from '../components/inkwell';
+} from '@/shared/ui/inkwell';
 
 /** デモ用: n ミリ秒後に解決/reject する擬似非同期処理。 */
 const wait = (ms: number, fail = false) =>

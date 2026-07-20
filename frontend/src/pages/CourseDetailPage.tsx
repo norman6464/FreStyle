@@ -13,7 +13,7 @@ import { CheckCircleIcon as CheckCircleSolidIcon } from '@heroicons/react/24/sol
 import SecondaryPanel from '../components/layout/SecondaryPanel';
 import CourseProgressBar from '../components/CourseProgressBar';
 import EmptyState from '../components/EmptyState';
-import FaviconIcon from '../components/icons/FaviconIcon';
+import FaviconIcon from '@/shared/ui/icons/FaviconIcon';
 import ConfirmModal from '../components/ConfirmModal';
 import Loading from '../components/Loading';
 import NoteMarkdownEditor from '../components/NoteMarkdownEditor';

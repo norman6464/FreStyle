@@ -3,7 +3,7 @@ import { Navigate, Link } from 'react-router-dom';
 import { BuildingOffice2Icon, InboxArrowDownIcon } from '@heroicons/react/24/outline';
 import type { RootState } from '../store';
 import Loading from '../components/Loading';
-import PageIntro from '../components/ui/PageIntro';
+import PageIntro from '@/shared/ui/PageIntro';
 import { useAdminDashboard } from '../hooks/useAdminDashboard';
 
 /** 概況の数値カード。クリックで該当の管理画面へ遷移する。 */

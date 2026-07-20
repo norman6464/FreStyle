@@ -4,7 +4,7 @@ import { useDispatch } from 'react-redux';
 import { setAuthData } from '../store/authSlice';
 import authRepository from '../repositories/AuthRepository';
 import { consumeInvitationToken } from '../lib/invitationToken';
-import { classifyApiError, getApiError } from '../utils/classifyApiError';
+import { classifyApiError, getApiError } from '@/shared/lib/classifyApiError';
 
 export function useLoginCallback() {
   const [searchParams] = useSearchParams();

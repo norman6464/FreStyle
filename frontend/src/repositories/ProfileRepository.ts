@@ -1,6 +1,6 @@
-import apiClient from '../lib/axios';
+import apiClient from '@/shared/api/axios';
 import axios from 'axios';
-import { PROFILE } from '../constants/apiRoutes';
+import { PROFILE } from '@/shared/config/apiRoutes';
 import type { Profile } from '../types';
 
 /**

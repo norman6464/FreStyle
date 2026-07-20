@@ -1,5 +1,5 @@
-import apiClient from '../lib/axios';
-import { AI_CHAT } from '../constants/apiRoutes';
+import apiClient from '@/shared/api/axios';
+import { AI_CHAT } from '@/shared/config/apiRoutes';
 import { AiSession, AiMessage } from '../types';
 
 /**

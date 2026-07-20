@@ -1,5 +1,5 @@
-import apiClient from '../lib/axios';
-import { LEARNING_REPORTS } from '../constants/apiRoutes';
+import apiClient from '@/shared/api/axios';
+import { LEARNING_REPORTS } from '@/shared/config/apiRoutes';
 import type { LearningReport } from '../types';
 
 // Go バックエンドの正規パスは /learning-reports（旧 Spring Boot 時代の /reports は廃止）。

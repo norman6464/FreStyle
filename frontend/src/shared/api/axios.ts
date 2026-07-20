@@ -1,5 +1,5 @@
 import axios, { AxiosError, AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios';
-import { AUTH } from '../constants/apiRoutes';
+import { AUTH } from '@/shared/config/apiRoutes';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 

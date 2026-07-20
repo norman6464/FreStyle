@@ -1,5 +1,5 @@
-import apiClient from '../lib/axios';
-import { SESSION_NOTES } from '../constants/apiRoutes';
+import apiClient from '@/shared/api/axios';
+import { SESSION_NOTES } from '@/shared/config/apiRoutes';
 import type { SessionNote } from '../types';
 
 const STORAGE_KEY = 'freestyle_session_notes';

@@ -4,7 +4,7 @@ import invitationRepository, {
   ValidatedInvitation,
 } from '../repositories/InvitationRepository';
 import { saveInvitationToken, clearInvitationToken } from '../lib/invitationToken';
-import { getApiError } from '../utils/classifyApiError';
+import { getApiError } from '@/shared/lib/classifyApiError';
 
 export type AcceptInvitationStatus =
   | { kind: 'loading' }

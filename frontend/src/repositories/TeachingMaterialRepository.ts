@@ -1,5 +1,5 @@
-import api from '../lib/axios';
-import { TEACHING_MATERIALS } from '../constants/apiRoutes';
+import api from '@/shared/api/axios';
+import { TEACHING_MATERIALS } from '@/shared/config/apiRoutes';
 import type { TeachingMaterial } from '../types';
 
 /**

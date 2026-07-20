@@ -1,5 +1,5 @@
-import apiClient from '../lib/axios';
-import { DAILY_GOALS, PROFILE } from '../constants/apiRoutes';
+import apiClient from '@/shared/api/axios';
+import { DAILY_GOALS, PROFILE } from '@/shared/config/apiRoutes';
 
 export interface ProfileStats {
   totalSessions: number;

@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { classifyApiError } from '../utils/classifyApiError';
+import { classifyApiError } from '@/shared/lib/classifyApiError';
 import AiChatRepository, {
   CreateSessionRequest,
   UpdateSessionTitleRequest,

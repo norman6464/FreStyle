@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('../../lib/axios', () => ({
+vi.mock('@/shared/api/axios', () => ({
   default: {
     get: vi.fn(),
     post: vi.fn(),
@@ -8,7 +8,7 @@ vi.mock('../../lib/axios', () => ({
   },
 }));
 
-import apiClient from '../../lib/axios';
+import apiClient from '@/shared/api/axios';
 import LessonProgressRepository from '../LessonProgressRepository';
 
 const mockedGet = vi.mocked(apiClient.get);

@@ -1,6 +1,6 @@
-import apiClient from '../lib/axios';
+import apiClient from '@/shared/api/axios';
 import axios from 'axios';
-import { IMAGES } from '../constants/apiRoutes';
+import { IMAGES } from '@/shared/config/apiRoutes';
 
 interface UploadUrlResponse {
   url: string; // S3 への PUT 用署名付き URL

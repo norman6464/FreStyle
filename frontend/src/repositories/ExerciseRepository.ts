@@ -1,5 +1,5 @@
-import api from '../lib/axios';
-import { EXERCISES, CODE } from '../constants/apiRoutes';
+import api from '@/shared/api/axios';
+import { EXERCISES, CODE } from '@/shared/config/apiRoutes';
 import {
   ExercisePage,
   ExerciseLanguageSummary,

@@ -2,7 +2,7 @@ import { memo, useMemo } from 'react';
 import { TrashIcon } from '@heroicons/react/24/outline';
 import { MapPinIcon as MapPinOutline } from '@heroicons/react/24/outline';
 import { MapPinIcon as MapPinSolid } from '@heroicons/react/24/solid';
-import { formatMonthDay } from '../utils/formatters';
+import { formatMonthDay } from '@/shared/lib/formatters';
 import { getNoteStats } from '../utils/noteStats';
 import ReadingTime from './ReadingTime';
 

@@ -1,5 +1,5 @@
-import apiClient from '../lib/axios';
-import { NOTES } from '../constants/apiRoutes';
+import apiClient from '@/shared/api/axios';
+import { NOTES } from '@/shared/config/apiRoutes';
 import type { Note } from '../types';
 
 /**

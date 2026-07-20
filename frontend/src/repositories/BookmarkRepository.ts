@@ -1,5 +1,5 @@
-import apiClient from '../lib/axios';
-import { SCENARIO_BOOKMARKS } from '../constants/apiRoutes';
+import apiClient from '@/shared/api/axios';
+import { SCENARIO_BOOKMARKS } from '@/shared/config/apiRoutes';
 
 const STORAGE_KEY = 'freestyle_scenario_bookmarks';
 

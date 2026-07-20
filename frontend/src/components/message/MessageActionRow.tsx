@@ -3,7 +3,7 @@ import {
   ClipboardDocumentIcon,
   TrashIcon,
 } from '@heroicons/react/24/outline';
-import { formatHourMinute } from '../../utils/formatters';
+import { formatHourMinute } from '@/shared/lib/formatters';
 
 interface Props {
   isSender: boolean;

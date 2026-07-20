@@ -1,5 +1,5 @@
-import apiClient from '../lib/axios';
-import { COMPANY_SETTINGS } from '../constants/apiRoutes';
+import apiClient from '@/shared/api/axios';
+import { COMPANY_SETTINGS } from '@/shared/config/apiRoutes';
 
 /** 会社設定（trainee への AI エージェント機能の有効/無効）。 */
 export interface CompanySettings {

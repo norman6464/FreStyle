@@ -1,5 +1,5 @@
-import api from '../lib/axios';
-import { ADMIN } from '../constants/apiRoutes';
+import api from '@/shared/api/axios';
+import { ADMIN } from '@/shared/config/apiRoutes';
 
 /** 直近アクティブメンバー 1 人分（backend usecase.MemberLearningSummaryItem と 1:1）。 */
 export interface MemberLearningSummaryItem {

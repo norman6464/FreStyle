@@ -1,5 +1,5 @@
-import apiClient from '../lib/axios';
-import { COMPANY_APPLICATIONS } from '../constants/apiRoutes';
+import apiClient from '@/shared/api/axios';
+import { COMPANY_APPLICATIONS } from '@/shared/config/apiRoutes';
 
 /** 企業利用申請フォームの送信内容（公開・認証不要）。 */
 export interface CompanyApplicationForm {

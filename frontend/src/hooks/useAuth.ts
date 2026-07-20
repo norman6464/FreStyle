@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { classifyApiError } from '../utils/classifyApiError';
+import { classifyApiError } from '@/shared/lib/classifyApiError';
 import AuthRepository, {
   LoginRequest,
   ForgotPasswordRequest,

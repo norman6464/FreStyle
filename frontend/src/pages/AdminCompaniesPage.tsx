@@ -5,7 +5,7 @@ import CompanyRepository, { CompanyStat } from '../repositories/CompanyRepositor
 import type { RootState } from '../store';
 import Loading from '../components/Loading';
 import PageIntro from '@/shared/ui/PageIntro';
-import { logger } from '../lib/logger';
+import { logger } from '@/shared/lib/logger';
 import { BuildingOffice2Icon, UserPlusIcon } from '@heroicons/react/24/outline';
 
 export default function AdminCompaniesPage() {

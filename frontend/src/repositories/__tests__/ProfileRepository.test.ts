@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import ProfileRepository from '../ProfileRepository';
-import apiClient from '../../lib/axios';
+import apiClient from '@/shared/api/axios';
 import axios from 'axios';
 
-vi.mock('../../lib/axios', () => ({
+vi.mock('@/shared/api/axios', () => ({
   default: {
     get: vi.fn(),
     put: vi.fn(),

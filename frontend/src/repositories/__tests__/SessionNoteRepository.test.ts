@@ -4,7 +4,7 @@ import { SessionNoteRepository } from '../SessionNoteRepository';
 const mockGet = vi.fn();
 const mockPut = vi.fn();
 
-vi.mock('../../lib/axios', () => ({
+vi.mock('@/shared/api/axios', () => ({
   default: {
     get: (...args: unknown[]) => mockGet(...args),
     put: (...args: unknown[]) => mockPut(...args),

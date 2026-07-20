@@ -1,5 +1,5 @@
-import api from '../lib/axios';
-import { COURSES } from '../constants/apiRoutes';
+import api from '@/shared/api/axios';
+import { COURSES } from '@/shared/config/apiRoutes';
 import type { Course, CourseWithProgress, TeachingMaterial, UserChapterView } from '../types';
 
 /**

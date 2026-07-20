@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import CompanySettingsRepository from '../repositories/CompanySettingsRepository';
 import { setAiChatEnabledForTrainees } from '../store/authSlice';
-import { classifyApiError } from '../utils/classifyApiError';
+import { classifyApiError } from '@/shared/lib/classifyApiError';
 
 /**
  * 会社の AI 設定（trainee への AI 有効化）を読み書きするフック。

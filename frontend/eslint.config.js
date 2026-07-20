@@ -21,12 +21,19 @@ import tseslint from 'typescript-eslint';
  */
 const FSD_LAYERS = ['app', 'pages', 'widgets', 'features', 'entities', 'shared'];
 
+/*
+ * app と shared は Slice を持たない層（公式仕様）。
+ * 「App と Shared は互いに自由に import してよく、層内の Segment 同士も同様」とされているため、
+ * この 2 層については自分自身と相手を禁止対象から外す。
+ */
+const SLICELESS_LAYERS = ['app', 'shared'];
+
 /** その層が import してはいけない層（＝自分と同じか上の層）のパターンを作る。 */
 function forbiddenLayersFor(layer) {
   const index = FSD_LAYERS.indexOf(layer);
-  // app と shared は相互参照可（公式の例外）なので、shared からの app 参照は禁止しない。
   const upperOrSame = FSD_LAYERS.slice(0, index + 1).filter((l) => {
-    if (layer === 'shared' && l === 'app') return false;
+    // app / shared は相互参照可 + 層内の Segment 同士も可（公式の例外）。
+    if (SLICELESS_LAYERS.includes(layer) && SLICELESS_LAYERS.includes(l)) return false;
     return true;
   });
   return upperOrSame.flatMap((l) => [`@/${l}/*`, `@/${l}`]);
@@ -40,25 +47,28 @@ function forbiddenLayersFor(layer) {
  */
 const TEST_FILE_PATTERNS = ['**/__tests__/**', '**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}'];
 
-const fsdBoundaryConfigs = FSD_LAYERS.map((layer) => ({
-  files: [`src/${layer}/**/*.{ts,tsx}`],
-  ignores: TEST_FILE_PATTERNS,
-  rules: {
-    'no-restricted-imports': [
-      'warn',
-      {
-        patterns: [
-          {
-            group: forbiddenLayersFor(layer),
-            message:
-              `FSD 違反: ${layer} 層は自分と同じか上の層を import できません（下向きの一方通行）。` +
-              ' 共通化したいものは下の層へ降ろすか、上の層で組み合わせてください。',
-          },
-        ],
-      },
-    ],
-  },
-}));
+const fsdBoundaryConfigs = FSD_LAYERS
+  // app は最上位なので禁止対象が空になる。ESLint は空の group を受け付けないため設定自体を出さない。
+  .filter((layer) => forbiddenLayersFor(layer).length > 0)
+  .map((layer) => ({
+    files: [`src/${layer}/**/*.{ts,tsx}`],
+    ignores: TEST_FILE_PATTERNS,
+    rules: {
+      'no-restricted-imports': [
+        'warn',
+        {
+          patterns: [
+            {
+              group: forbiddenLayersFor(layer),
+              message:
+                `FSD 違反: ${layer} 層は自分と同じか上の層を import できません（下向きの一方通行）。` +
+                ' 共通化したいものは下の層へ降ろすか、上の層で組み合わせてください。',
+            },
+          ],
+        },
+      ],
+    },
+  }));
 
 export default defineConfig([
   globalIgnores(['dist']),

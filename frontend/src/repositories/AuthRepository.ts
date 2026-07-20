@@ -1,5 +1,5 @@
-import apiClient from '../lib/axios';
-import { AUTH } from '../constants/apiRoutes';
+import apiClient from '@/shared/api/axios';
+import { AUTH } from '@/shared/config/apiRoutes';
 
 /**
  * 認証リポジトリ

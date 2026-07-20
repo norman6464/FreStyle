@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { PencilSquareIcon, TrashIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
-import { formatDate } from '../utils/formatters';
+import { formatDate } from '@/shared/lib/formatters';
 
 interface AiSessionListItemProps {
   id: number;

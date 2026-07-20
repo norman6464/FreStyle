@@ -1,5 +1,5 @@
-import apiClient from '../lib/axios';
-import { INVITATIONS } from '../constants/apiRoutes';
+import apiClient from '@/shared/api/axios';
+import { INVITATIONS } from '@/shared/config/apiRoutes';
 
 /**
  * 招待マジックリンク受諾フロー用のリポジトリ。

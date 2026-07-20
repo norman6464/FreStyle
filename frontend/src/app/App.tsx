@@ -10,7 +10,7 @@ import { ToastProvider } from './providers/ToastProvider';
 import { useToast } from '@/hooks/useToast';
 import { useBackendHealth } from '@/hooks/useBackendHealth';
 import ToastContainer from '@/components/ToastContainer';
-import { lazyWithReload, clearLazyReloadFlags } from '@/utils/lazyWithReload';
+import { lazyWithReload, clearLazyReloadFlags } from '@/shared/lib/lazyWithReload';
 
 // 認証不要ページ
 const LoginPage = lazyWithReload(() => import('@/pages/LoginPage'), 'LoginPage');

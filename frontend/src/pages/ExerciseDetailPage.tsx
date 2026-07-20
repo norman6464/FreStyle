@@ -12,7 +12,7 @@ import QaExerciseView from '../components/exercise/QaExerciseView';
 import MarkdownView from '../components/message/MarkdownView';
 import { useExerciseDetail } from '../hooks/useExerciseDetail';
 import LanguageBadge from '../components/LanguageBadge';
-import { lazyWithReload } from '../utils/lazyWithReload';
+import { lazyWithReload } from '@/shared/lib/lazyWithReload';
 import { monacoLanguageOf } from '../utils/exerciseFormat';
 import { parseErrorLines } from '../utils/executionErrors';
 

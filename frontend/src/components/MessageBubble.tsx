@@ -1,10 +1,11 @@
-import { memo, useState } from 'react';
+import { memo, useRef, useState } from 'react';
 import MessageActionRow from './message/MessageActionRow';
 import MessageAttachmentList, {
   MessageAttachmentView as _MessageAttachmentView,
 } from './message/MessageAttachmentList';
 import MarkdownView from './message/MarkdownView';
 import { useSmoothReveal } from '../hooks/useSmoothReveal';
+import { useFadeOnVisible } from '../hooks/useFadeOnVisible';
 
 // `MessageAttachmentView` は MessageBubbleAi 経由で外部から import されている。
 // 互換性のため同名で re-export する。
@@ -69,6 +70,12 @@ export default memo(function MessageBubble({
     content,
     isStreaming && !isSender && type === 'text' && !isDeleted,
   );
+
+  // 画面外で mount したチャンクのフェードは、スクロールで見えた瞬間まで保留する(FRESTYLE-153)。
+  // 自動スクロール追従をやめた(FRESTYLE-149)ため、これが無いと画面外でフェードを再生し終えてしまい、
+  // 自分でスクロールして読むとアニメーションが一切見えない。
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+  useFadeOnVisible(bodyRef, isStreaming || !settled, shown);
 
   if (type === 'image') {
     return (
@@ -168,7 +175,10 @@ export default memo(function MessageBubble({
           </p>
         ) : (
           <>
-            <div className="prose prose-sm max-w-none text-[var(--color-text-primary)] leading-relaxed">
+            <div
+              ref={bodyRef}
+              className="prose prose-sm max-w-none text-[var(--color-text-primary)] leading-relaxed"
+            >
               {type === 'bot' ? (
                 <p className="italic opacity-80">{content}</p>
               ) : (

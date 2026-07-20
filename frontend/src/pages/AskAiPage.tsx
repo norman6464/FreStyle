@@ -347,7 +347,15 @@ export default function AskAiPage() {
         {/* 入力エリア: 角丸カード風 (主要 AI チャットの compose UI に倣う) */}
         <div className="px-4 pb-4 pt-2">
           <div className="max-w-3xl mx-auto">
-            <MessageInput onSend={handleSend} />
+            {/* 送信時は最下部追従を再開する。 上へスクロール中に送っても、 自分の発言と
+                返答の頭が見えるようにするため(件数変化の scroll effect が最下部へ寄せる)。
+                ストリーミング中の追従は復活しない(scroll は [messages.length] 依存のまま)。 */}
+            <MessageInput
+              onSend={(text, attachments) => {
+                updateStickToBottom(true);
+                handleSend(text, attachments);
+              }}
+            />
           </div>
         </div>
       </div>

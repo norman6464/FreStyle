@@ -1,6 +1,6 @@
-import apiClient from '../lib/axios';
+import apiClient from '@/shared/api/axios';
 import axios from 'axios';
-import { NOTES } from '../constants/apiRoutes';
+import { NOTES } from '@/shared/config/apiRoutes';
 
 interface PresignedUrlResponse {
   uploadUrl: string;

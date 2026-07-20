@@ -1,5 +1,5 @@
-import api from '../lib/axios';
-import { LESSON_PROGRESS } from '../constants/apiRoutes';
+import api from '@/shared/api/axios';
+import { LESSON_PROGRESS } from '@/shared/config/apiRoutes';
 import type { UserLessonProgress } from '../types';
 
 /**

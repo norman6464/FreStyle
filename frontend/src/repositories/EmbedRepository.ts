@@ -1,5 +1,5 @@
-import apiClient from '../lib/axios';
-import { EMBEDS } from '../constants/apiRoutes';
+import apiClient from '@/shared/api/axios';
+import { EMBEDS } from '@/shared/config/apiRoutes';
 
 /**
  * 外部 URL の OGP / oEmbed メタを Go backend のプロキシ経由で取得する。

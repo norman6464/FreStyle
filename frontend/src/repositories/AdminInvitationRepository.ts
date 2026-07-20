@@ -1,5 +1,5 @@
-import apiClient from '../lib/axios';
-import { ADMIN } from '../constants/apiRoutes';
+import apiClient from '@/shared/api/axios';
+import { ADMIN } from '@/shared/config/apiRoutes';
 
 export interface AdminInvitation {
   id: number;

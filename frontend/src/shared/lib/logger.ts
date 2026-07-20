@@ -9,7 +9,7 @@
  *   将来 Sentry / Datadog RUM 等への送信に切り替えるときの単一切替点にする
  *
  * 使い方:
- *   import { logger } from '@/lib/logger';
+ *   import { logger } from '@/shared/lib/logger';
  *   logger.error('プロフィール画像のアップロードに失敗しました:', error);
  *
  * 注: テストコード (vitest 配下) では console.* / vi.spyOn(console, ...) を直接使い続ける。

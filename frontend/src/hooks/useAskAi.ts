@@ -4,7 +4,7 @@ import { useAuth } from './useAuth';
 import { useAiChat } from './useAiChat';
 import { useAiSession } from './useAiSession';
 import { useAiChatSse, SseEvent } from './useAiChatSse';
-import { AI_CHAT } from '../constants/apiRoutes';
+import { AI_CHAT } from '@/shared/config/apiRoutes';
 import { AiAttachment, AiMessage } from '../types';
 
 /**

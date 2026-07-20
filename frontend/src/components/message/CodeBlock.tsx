@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { ClipboardDocumentCheckIcon, ClipboardDocumentIcon } from '@heroicons/react/24/outline';
-import { extractLanguage, extractTextContent } from '../../utils/markdownContent';
+import { extractLanguage, extractTextContent } from '@/shared/lib/markdownContent';
 
 /**
  * AI 応答の Markdown 内コードブロックに、言語名表示 + コピーボタン付きのヘッダを足す。

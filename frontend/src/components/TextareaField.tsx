@@ -1,6 +1,6 @@
 import { ChangeEvent } from 'react';
 import FormFieldError from './FormFieldError';
-import { getFieldBorderClass } from '../utils/fieldStyles';
+import { getFieldBorderClass } from '@/shared/lib/fieldStyles';
 
 interface TextareaFieldProps {
   label: string;

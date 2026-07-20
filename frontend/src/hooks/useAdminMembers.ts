@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import AdminMemberRepository, { Member } from '../repositories/AdminMemberRepository';
-import { getApiError } from '../utils/classifyApiError';
+import { getApiError } from '@/shared/lib/classifyApiError';
 
 // backend のエラーコードを日本語メッセージにする。cannot_manage_self は自己操作の防止。
 function messageFor(e: unknown, fallback: string): string {

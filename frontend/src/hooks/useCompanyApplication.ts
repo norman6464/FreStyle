@@ -3,7 +3,7 @@ import {
   CompanyApplicationForm,
   CompanyApplicationRepository,
 } from '../repositories/CompanyApplicationRepository';
-import { getApiError } from '../utils/classifyApiError';
+import { getApiError } from '@/shared/lib/classifyApiError';
 
 const GENERIC_ERROR = '送信に失敗しました。時間をおいて再度お試しください。';
 

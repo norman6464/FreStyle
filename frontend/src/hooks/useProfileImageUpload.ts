@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import ProfileRepository from '../repositories/ProfileRepository';
-import { logger } from '../lib/logger';
+import { logger } from '@/shared/lib/logger';
 
 const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
 

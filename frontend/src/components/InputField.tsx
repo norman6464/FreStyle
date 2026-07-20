@@ -1,7 +1,7 @@
 import { ChangeEvent, useState } from 'react';
 import { XMarkIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/solid';
 import FormFieldError from './FormFieldError';
-import { getFieldBorderClass } from '../utils/fieldStyles';
+import { getFieldBorderClass } from '@/shared/lib/fieldStyles';
 
 interface InputFieldProps {
   label: string;

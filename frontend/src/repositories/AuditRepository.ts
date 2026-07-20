@@ -1,5 +1,5 @@
-import apiClient from '../lib/axios';
-import { ADMIN } from '../constants/apiRoutes';
+import apiClient from '@/shared/api/axios';
+import { ADMIN } from '@/shared/config/apiRoutes';
 
 /** 監査イベント（管理者の重要操作の記録）。super_admin 専用。 */
 export interface AuditEvent {

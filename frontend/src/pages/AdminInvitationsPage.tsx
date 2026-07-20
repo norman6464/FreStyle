@@ -11,7 +11,7 @@ import type { RootState } from '../store';
 import Loading from '../components/Loading';
 import PageIntro from '@/shared/ui/PageIntro';
 import ConfirmModal from '../components/ConfirmModal';
-import { logger } from '../lib/logger';
+import { logger } from '@/shared/lib/logger';
 
 const EMPTY_FORM: CreateInvitationForm = {
   companyId: 0,

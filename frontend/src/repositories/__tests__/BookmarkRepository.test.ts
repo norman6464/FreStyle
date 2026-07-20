@@ -5,7 +5,7 @@ const mockGet = vi.fn();
 const mockPost = vi.fn();
 const mockDelete = vi.fn();
 
-vi.mock('../../lib/axios', () => ({
+vi.mock('@/shared/api/axios', () => ({
   default: {
     get: (...args: unknown[]) => mockGet(...args),
     post: (...args: unknown[]) => mockPost(...args),

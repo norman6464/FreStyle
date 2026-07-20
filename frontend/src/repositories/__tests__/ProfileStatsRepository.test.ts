@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import ProfileStatsRepository from '../ProfileStatsRepository';
 
 const mockGet = vi.fn();
-vi.mock('../../lib/axios', () => ({
+vi.mock('@/shared/api/axios', () => ({
   default: { get: (...args: unknown[]) => mockGet(...args) },
 }));
 

@@ -1,5 +1,5 @@
-import api from '../lib/axios';
-import { DASHBOARD, CHAPTER_VIEW } from '../constants/apiRoutes';
+import api from '@/shared/api/axios';
+import { DASHBOARD, CHAPTER_VIEW } from '@/shared/config/apiRoutes';
 import type { UserDashboard } from '../types';
 
 /** ダッシュボード API ラッパ。 */

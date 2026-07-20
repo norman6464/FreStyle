@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('../../lib/axios', () => ({
+vi.mock('@/shared/api/axios', () => ({
   default: {
     get: vi.fn(),
     patch: vi.fn(),
   },
 }));
 
-import apiClient from '../../lib/axios';
+import apiClient from '@/shared/api/axios';
 import { NotificationRepository } from '../NotificationRepository';
 
 const mockedGet = vi.mocked(apiClient.get);

@@ -196,9 +196,25 @@
   animation: fade-seg-in 400ms ease-out both;
 }
 
+/*
+ * 画面外で mount したチャンクはフェードを保留し、スクロールで見えた瞬間に再生する
+ * (FRESTYLE-153。useFadeOnVisible が data-fade を付け外しする)。
+ * 保留が付くのは画面外の要素だけなので、見えている本文が隠れることはない。
+ */
+.fade-seg[data-fade='defer'] {
+  animation: none;
+  opacity: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .fade-seg {
     animation-duration: 0.01ms;
+  }
+
+  /* 動きを減らす設定では保留もしない（スクロールしても即座に読める状態を優先）。 */
+  .fade-seg[data-fade='defer'] {
+    animation: none;
+    opacity: 1;
   }
 }
 

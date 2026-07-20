@@ -105,18 +105,28 @@ test.describe('コース学習フロー', () => {
 });
 
 test.describe('演習フロー', () => {
-  test('演習一覧 → リンクで詳細に遷移し演習が描画される', async ({ page }) => {
-    // 一覧は ?language=php クエリ付きで叩くため glob は ** で末尾も許容する。
-    // 詳細/submissions の専用パターンは後勝ちで優先される。
+  // コード学習は「言語選択カード → その言語の問題一覧 → 問題」の 3 段（FRESTYLE-152）。
+  test('言語選択 → 問題一覧 → リンクで詳細に遷移し演習が描画される', async ({ page }) => {
+    // 一覧は ?language=go クエリ付きで叩くため glob は ** で末尾も許容する。
+    // summary / 詳細 / submissions の専用パターンは後勝ちで優先される。
     // 一覧はスクロール型ページネーション化（ExercisePage = { items, hasNext, offset, limit }）
     // されたので、配列直返しではなくページオブジェクトでモックする。
     await mockAuthed(page, {
       '**/api/v2/exercises**': { items: [exercise], hasNext: false, offset: 0, limit: 20 },
+      '**/api/v2/exercises/summary': [{ language: 'go', total: 1, solved: 0 }],
       '**/api/v2/exercises/e2e-fizzbuzz': { exercise, examples: [] },
       '**/api/v2/exercises/e2e-fizzbuzz/submissions': [],
     });
 
+    // 入口は言語選択カード。
     await page.goto('/code-editor');
+    const languageCard = page.getByRole('link', { name: /Go の問題一覧へ/ });
+    await expect(languageCard).toBeVisible();
+
+    await languageCard.click();
+
+    // その言語の問題一覧へ。
+    await expect(page).toHaveURL(/\/code-editor\/lang\/go/);
     const link = page.getByRole('link', { name: /E2E FizzBuzz 演習/ });
     await expect(link).toBeVisible();
 

@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import type { RootState } from '../../store';
+import type { RootState } from '@/store';
 import Header from './Header';
-import SkipLink from '../SkipLink';
-import ScrollToTop from '../ScrollToTop';
-import CommandPalette from '../CommandPalette';
+import SkipLink from './SkipLink';
+import ScrollToTop from './ScrollToTop';
+import CommandPalette from './CommandPalette';
 
 export default function AppShell() {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);

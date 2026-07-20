@@ -10,7 +10,7 @@ import {
   ListBulletIcon,
 } from '@heroicons/react/24/outline';
 import { CheckCircleIcon as CheckCircleSolidIcon } from '@heroicons/react/24/solid';
-import SecondaryPanel from '../components/layout/SecondaryPanel';
+import { SecondaryPanel } from '@/widgets/secondary-panel';
 import CourseProgressBar from '../components/CourseProgressBar';
 import EmptyState from '../components/EmptyState';
 import FaviconIcon from '@/shared/ui/icons/FaviconIcon';

@@ -2,7 +2,7 @@ import { useEffect, Suspense } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import AuthInitializer from './providers/AuthInitializer';
 import Protected from './providers/Protected';
-import AppShell from '@/components/layout/AppShell';
+import { AppShell } from '@/widgets/app-shell';
 import ErrorBoundary from './providers/ErrorBoundary';
 import Loading from '@/components/Loading';
 import MaintenancePage from '@/pages/MaintenancePage';

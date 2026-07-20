@@ -1,4 +1,4 @@
-import AuthLayout from '../components/AuthLayout';
+import { AuthLayout } from '@/widgets/auth-layout';
 import PublicHeader from '../components/PublicHeader';
 import InputField from '../components/InputField';
 import TextareaField from '../components/TextareaField';

@@ -3,8 +3,8 @@ import { describe, it, expect } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
-import authReducer from '../../../store/authSlice';
-import AppShell from '../AppShell';
+import authReducer from '@/store/authSlice';
+import AppShell from '../ui/AppShell';
 import { ToastProvider } from '@/app/providers/ToastProvider';
 
 function createTestStore(role: string | null = null) {

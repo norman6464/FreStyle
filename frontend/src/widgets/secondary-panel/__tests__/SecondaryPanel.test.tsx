@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
-import SecondaryPanel from '../SecondaryPanel';
+import SecondaryPanel from '../ui/SecondaryPanel';
 
 describe('SecondaryPanel', () => {
   it('タイトルを表示する', () => {

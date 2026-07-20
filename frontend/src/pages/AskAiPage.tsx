@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import MessageBubbleAi from '../components/MessageBubbleAi';
 import MessageInput from '../components/MessageInput';
 import ConfirmModal from '../components/ConfirmModal';
-import SecondaryPanel from '../components/layout/SecondaryPanel';
+import { SecondaryPanel } from '@/widgets/secondary-panel';
 import AiSessionListItem from '../components/AiSessionListItem';
 import Loading from '../components/Loading';
 import {

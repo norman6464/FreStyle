@@ -1,7 +1,7 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { BrowserRouter } from 'react-router-dom';
-import CommandPalette from '../CommandPalette';
+import CommandPalette from '../ui/CommandPalette';
 
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', async () => {

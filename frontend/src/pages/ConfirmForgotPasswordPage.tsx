@@ -1,4 +1,4 @@
-import AuthLayout from '../components/AuthLayout';
+import { AuthLayout } from '@/widgets/auth-layout';
 import InputField from '../components/InputField';
 import PrimaryButton from '../components/PrimaryButton';
 import FormMessage from '../components/FormMessage';

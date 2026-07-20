@@ -31,3 +31,6 @@ dist-ssr
 *.sln
 *.sw?
 coverage
+
+# TypeScript のインクリメンタルビルド成果物（生成物なので管理しない）
+*.tsbuildinfo

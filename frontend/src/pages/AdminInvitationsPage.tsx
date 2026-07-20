@@ -9,7 +9,7 @@ import CompanyRepository, { Company } from '../repositories/CompanyRepository';
 import AuthRepository, { UserInfo } from '../repositories/AuthRepository';
 import type { RootState } from '../store';
 import Loading from '../components/Loading';
-import PageIntro from '../components/ui/PageIntro';
+import PageIntro from '@/shared/ui/PageIntro';
 import ConfirmModal from '../components/ConfirmModal';
 import { logger } from '../lib/logger';
 

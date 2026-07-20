@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import Button from './ui/Button';
+import Button from '@/shared/ui/Button';
 
 interface PrimaryButtonProps {
   children: ReactNode;

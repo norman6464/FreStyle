@@ -4,7 +4,7 @@ import { Navigate, Link } from 'react-router-dom';
 import CompanyRepository, { CompanyStat } from '../repositories/CompanyRepository';
 import type { RootState } from '../store';
 import Loading from '../components/Loading';
-import PageIntro from '../components/ui/PageIntro';
+import PageIntro from '@/shared/ui/PageIntro';
 import { logger } from '../lib/logger';
 import { BuildingOffice2Icon, UserPlusIcon } from '@heroicons/react/24/outline';
 

@@ -3,7 +3,7 @@ import { useSelector } from 'react-redux';
 import { Navigate } from 'react-router-dom';
 import type { RootState } from '../store';
 import Loading from '../components/Loading';
-import PageIntro from '../components/ui/PageIntro';
+import PageIntro from '@/shared/ui/PageIntro';
 import { useAdminMembers } from '../hooks/useAdminMembers';
 import { Member } from '../repositories/AdminMemberRepository';
 

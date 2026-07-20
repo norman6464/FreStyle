@@ -32,8 +32,17 @@ function forbiddenLayersFor(layer) {
   return upperOrSame.flatMap((l) => [`@/${l}/*`, `@/${l}`]);
 }
 
+/*
+ * テストは層構造の対象外にする。
+ * テストは対象を描画するために上位層の Provider でラップすることが正当にあり
+ * （例: pages のテストが app の ToastProvider を使う）、これを違反として扱うと
+ * 実装の依存グラフとは無関係なノイズになるため。
+ */
+const TEST_FILE_PATTERNS = ['**/__tests__/**', '**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}'];
+
 const fsdBoundaryConfigs = FSD_LAYERS.map((layer) => ({
   files: [`src/${layer}/**/*.{ts,tsx}`],
+  ignores: TEST_FILE_PATTERNS,
   rules: {
     'no-restricted-imports': [
       'warn',

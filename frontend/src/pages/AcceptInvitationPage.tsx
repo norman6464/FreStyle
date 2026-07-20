@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import AuthLayout from '../components/AuthLayout';
+import { AuthLayout } from '@/widgets/auth-layout';
 import PrimaryButton from '../components/PrimaryButton';
 import LinkText from '../components/LinkText';
 import Loading from '../components/Loading';

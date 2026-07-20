@@ -3,8 +3,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
-import authReducer from '../../../store/authSlice';
-import Header from '../Header';
+import authReducer from '@/store/authSlice';
+import Header from '../ui/Header';
 
 vi.mock('../../../repositories/ProfileRepository', () => ({
   default: {

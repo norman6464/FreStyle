@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
-import ScrollToTop from '../ScrollToTop';
+import ScrollToTop from '../ui/ScrollToTop';
 
 describe('ScrollToTop', () => {
   let scrollContainer: HTMLDivElement;

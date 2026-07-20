@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import SecondaryPanel from '../components/layout/SecondaryPanel';
+import { SecondaryPanel } from '@/widgets/secondary-panel';
 import NoteListItem from '../components/NoteListItem';
 import NoteMarkdownEditor from '../components/NoteMarkdownEditor';
 import EmptyState from '../components/EmptyState';

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import SkipLink from '../SkipLink';
+import SkipLink from '../ui/SkipLink';
 
 describe('SkipLink', () => {
   it('リンクがレンダリングされる', () => {

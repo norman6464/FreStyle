@@ -7,12 +7,12 @@ import {
   XMarkIcon,
   ChevronDownIcon,
 } from '@heroicons/react/24/outline';
-import Loading from '../Loading';
+import Loading from '@/components/Loading';
 import HeaderUserMenu from './HeaderUserMenu';
-import { useSidebar } from '../../hooks/useSidebar';
-import { NotificationRepository } from '../../repositories/NotificationRepository';
-import ProfileRepository from '../../repositories/ProfileRepository';
-import type { RootState } from '../../store';
+import { useSidebar } from '@/hooks/useSidebar';
+import { NotificationRepository } from '@/repositories/NotificationRepository';
+import ProfileRepository from '@/repositories/ProfileRepository';
+import type { RootState } from '@/store';
 
 interface NavItem {
   id: string;

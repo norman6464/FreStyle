@@ -10,7 +10,7 @@ import { SubmitResultPanel } from '@/entities/exercise';
 import { SubmissionRow } from '@/entities/exercise';
 import { QaExerciseView } from '@/entities/exercise';
 import MarkdownView from '@/shared/ui/MarkdownView';
-import { useExerciseDetail } from '@/hooks/useExerciseDetail';
+import { useExerciseDetail } from '../model/useExerciseDetail';
 import LanguageBadge from '@/shared/ui/LanguageBadge';
 import { lazyWithReload } from '@/shared/lib/lazyWithReload';
 import { monacoLanguageOf } from '@/entities/exercise';

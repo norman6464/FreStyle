@@ -15,7 +15,7 @@ import ConfirmModal from '@/shared/ui/ConfirmModal';
 import { CourseProgressBar } from '@/entities/course';
 import LanguageBadge from '@/shared/ui/LanguageBadge';
 import { FilterChip } from '@/shared/ui';
-import { useCourses } from '@/hooks/useCourses';
+import { useCourses } from '../model/useCourses';
 import { useToast } from '@/shared/lib/hooks/useToast';
 import { COURSE_CATEGORIES, findCourseCategory } from '@/entities/course';
 import { COURSE_LANGUAGES } from '@/entities/course';

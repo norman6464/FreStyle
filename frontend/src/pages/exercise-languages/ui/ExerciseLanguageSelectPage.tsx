@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { CodeBracketIcon } from '@heroicons/react/24/outline';
 import LanguageIcon from '@/shared/ui/LanguageIcon';
-import { useExerciseLanguageSummary, type ExerciseLanguageCard } from '@/hooks/useExerciseLanguageSummary';
+import { useExerciseLanguageSummary, type ExerciseLanguageCard } from '../model/useExerciseLanguageSummary';
 
 /**
  * ExerciseLanguageSelectPage — `/code-editor` の入口（FRESTYLE-152）。

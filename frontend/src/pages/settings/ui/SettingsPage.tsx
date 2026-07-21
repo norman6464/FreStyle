@@ -3,7 +3,7 @@ import { UserCircleIcon, SparklesIcon } from '@heroicons/react/24/outline';
 import { useSelector } from 'react-redux';
 import type { RootState } from '@/store';
 import ProfilePage from './ProfilePage';
-import CompanyAiSettings from '@/components/settings/CompanyAiSettings';
+import CompanyAiSettings from './CompanyAiSettings';
 
 /**
  * SettingsPage — `/settings` 配下の設定ページ。

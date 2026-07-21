@@ -1,4 +1,4 @@
-import { useCompanyAiSettings } from '../../hooks/useCompanyAiSettings';
+import { useCompanyAiSettings } from '../model/useCompanyAiSettings';
 
 /**
  * 会社設定: trainee への AI エージェント機能の有効/無効トグル。

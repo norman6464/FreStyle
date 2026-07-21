@@ -2,9 +2,9 @@ import { AuthLayout } from '@/widgets/auth-layout';
 import PublicHeader from '@/shared/ui/PublicHeader';
 import InputField from '@/shared/ui/InputField';
 import Button from '@/shared/ui/Button';
-import SNSSignInButton from '@/components/SNSSignInButton';
+import SNSSignInButton from './SNSSignInButton';
 import LinkText from '@/shared/ui/LinkText';
-import { getCognitoAuthUrl } from '@/utils/auth';
+import { getCognitoAuthUrl } from '../lib/auth';
 import { useLoginPage } from '../model/useLoginPage';
 import { CheckCircleIcon } from '@heroicons/react/24/outline';
 

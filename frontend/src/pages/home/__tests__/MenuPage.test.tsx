@@ -5,14 +5,14 @@ import { configureStore } from '@reduxjs/toolkit';
 import { MemoryRouter } from 'react-router-dom';
 import MenuPage from '../ui/MenuPage';
 import authReducer from '@/entities/user/model/authSlice';
-import { useUserDashboard } from '@/hooks/useUserDashboard';
-import { useCompanyLearningSummary } from '@/hooks/useCompanyLearningSummary';
+import { useUserDashboard } from '../model/useUserDashboard';
+import { useCompanyLearningSummary } from '../model/useCompanyLearningSummary';
 import type { UserDashboard } from '@/entities/user';
 import type { CompanyLearningSummary } from '@/entities/member/api/adminMemberRepository';
 import { createMockStorage } from '@/test/mockStorage';
 
-vi.mock('@/hooks/useUserDashboard');
-vi.mock('@/hooks/useCompanyLearningSummary');
+vi.mock('../model/useUserDashboard');
+vi.mock('../model/useCompanyLearningSummary');
 
 const mockUseUserDashboard = vi.mocked(useUserDashboard);
 const mockUseCompanyLearningSummary = vi.mocked(useCompanyLearningSummary);

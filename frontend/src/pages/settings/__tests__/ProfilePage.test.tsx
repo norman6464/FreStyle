@@ -4,7 +4,7 @@ import ProfilePage from '../ui/ProfilePage';
 import { ProfileRepository } from '@/entities/user';
 
 const mockUpload = vi.fn();
-vi.mock('@/hooks/useProfileImageUpload', () => ({
+vi.mock('../model/useProfileImageUpload', () => ({
   useProfileImageUpload: () => ({
     upload: mockUpload,
     uploading: false,

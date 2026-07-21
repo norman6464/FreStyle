@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import { useAppSelector } from '@/shared/lib/store';
 import { useLocation, Link } from 'react-router-dom';
-import { useSelector } from 'react-redux';
+
 import {
   BellIcon,
   Bars3Icon,
@@ -12,7 +13,6 @@ import HeaderUserMenu from './HeaderUserMenu';
 import { useSidebar } from '../model/useSidebar';
 import { NotificationRepository } from '@/entities/notification';
 import { ProfileRepository } from '@/entities/user';
-import type { RootState } from '@/store';
 
 interface NavItem {
   id: string;
@@ -76,9 +76,9 @@ function roleLabel(role: string | null): string {
 export default function Header() {
   const location = useLocation();
   const { handleLogout, loggingOut } = useSidebar();
-  const isAdmin = useSelector((s: RootState) => s.auth.isAdmin);
-  const role = useSelector((s: RootState) => s.auth.role);
-  const aiChatEnabledForTrainees = useSelector((s: RootState) => s.auth.aiChatEnabledForTrainees);
+  const isAdmin = useAppSelector((s) => s.auth.isAdmin);
+  const role = useAppSelector((s) => s.auth.role);
+  const aiChatEnabledForTrainees = useAppSelector((s) => s.auth.aiChatEnabledForTrainees);
   const isSuperAdmin = role === 'super_admin';
 
   const [profile, setProfile] = useState<{ displayName: string; avatarUrl: string | null; email: string } | null>(null);

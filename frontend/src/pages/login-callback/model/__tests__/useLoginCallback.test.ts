@@ -10,8 +10,8 @@ vi.mock('react-router-dom', () => ({
   useNavigate: () => mockNavigate,
 }));
 
-vi.mock('react-redux', () => ({
-  useDispatch: () => mockDispatch,
+vi.mock('@/shared/lib/store', () => ({
+  useAppDispatch: () => mockDispatch,
 }));
 
 vi.mock('@/entities/user/api/authRepository', () => ({

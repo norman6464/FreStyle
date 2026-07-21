@@ -28,7 +28,7 @@ vi.mock('@/entities/ai-chat/api/aiChatRepository', () => ({
   },
 }));
 
-vi.mock('../useAuth', () => ({
+vi.mock('@/features/auth/model/useAuth', () => ({
   useAuth: () => ({
     user: { id: 1, email: 'a@example.com' },
     getCurrentUser: vi.fn(),

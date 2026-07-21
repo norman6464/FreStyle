@@ -1,7 +1,8 @@
-import { useSelector } from 'react-redux';
+
 import { Navigate, Link } from 'react-router-dom';
+import { useAppSelector } from '@/shared/lib/store';
 import { BuildingOffice2Icon, CheckIcon, XMarkIcon, UserPlusIcon } from '@heroicons/react/24/outline';
-import type { RootState } from '@/store';
+
 import Loading from '@/shared/ui/Loading';
 import PageIntro from '@/shared/ui/PageIntro';
 import { useToast } from '@/shared/lib/hooks/useToast';
@@ -29,9 +30,9 @@ const STATUS_CLASS: Record<CompanyApplicationStatus, string> = {
  * 承認しても会社は自動作成されないため、承認後は「招待管理」から会社管理者を招待する。
  */
 export default function AdminCompanyApplicationsPage() {
-  const isAdmin = useSelector((state: RootState) => state.auth.isAdmin);
-  const authLoading = useSelector((state: RootState) => state.auth.loading);
-  const role = useSelector((state: RootState) => state.auth.role);
+  const isAdmin = useAppSelector((state) => state.auth.isAdmin);
+  const authLoading = useAppSelector((state) => state.auth.loading);
+  const role = useAppSelector((state) => state.auth.role);
   const { applications, pendingCount, loading, error, updatingId, setStatus } =
     useCompanyApplications();
   const { showToast } = useToast();

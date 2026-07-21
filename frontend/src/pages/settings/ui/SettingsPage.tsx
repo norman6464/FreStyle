@@ -1,7 +1,7 @@
 import { useState } from 'react';
+import { useAppSelector } from '@/shared/lib/store';
 import { UserCircleIcon, SparklesIcon } from '@heroicons/react/24/outline';
-import { useSelector } from 'react-redux';
-import type { RootState } from '@/store';
+
 import ProfilePage from './ProfilePage';
 import CompanyAiSettings from './CompanyAiSettings';
 
@@ -20,7 +20,7 @@ interface Section {
 }
 
 export default function SettingsPage() {
-  const role = useSelector((state: RootState) => state.auth.role);
+  const role = useAppSelector((state) => state.auth.role);
   const isCompanyManager = role === 'company_admin' || role === 'super_admin';
 
   // 表示するセクション（AI 設定は管理者のみ）。

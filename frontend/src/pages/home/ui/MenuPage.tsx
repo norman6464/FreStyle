@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
-import { useSelector } from 'react-redux';
+import { useAppSelector } from '@/shared/lib/store';
+
 import {
   ChatBubbleBottomCenterTextIcon,
   CodeBracketIcon,
@@ -10,7 +11,7 @@ import {
   BookOpenIcon,
   ArrowRightIcon,
 } from '@heroicons/react/24/outline';
-import type { RootState } from '@/store';
+
 import { useUserDashboard } from '../model/useUserDashboard';
 import { useCompanyLearningSummary } from '../model/useCompanyLearningSummary';
 import DashboardStats from './DashboardStats';
@@ -31,8 +32,8 @@ import CompanyLearningPanel from './CompanyLearningPanel';
  *   super_admin は統計を持たないので即時表示。
  */
 export default function MenuPage() {
-  const role = useSelector((state: RootState) => state.auth.role);
-  const aiEnabled = useSelector((state: RootState) => state.auth.aiChatEnabledForTrainees);
+  const role = useAppSelector((state) => state.auth.role);
+  const aiEnabled = useAppSelector((state) => state.auth.aiChatEnabledForTrainees);
   const isSuperAdmin = role === 'super_admin';
   const isTrainee = role === 'trainee';
   const isCompanyAdmin = role === 'company_admin';

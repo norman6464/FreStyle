@@ -1,7 +1,7 @@
 import { ReactNode } from 'react';
-import { useSelector } from 'react-redux';
+import { useAppSelector } from '@/shared/lib/store';
+
 import { Navigate, useLocation } from 'react-router-dom';
-import type { RootState } from '@/store';
 
 interface ProtectedProps {
   children: ReactNode;
@@ -19,7 +19,7 @@ const TRAINEE_ONLY_PATH_PREFIXES = ['/chat/ask-ai', '/code-editor', '/notes', '/
  * 3. それ以外は子コンポーネントを描画
  */
 export default function Protected({ children }: ProtectedProps) {
-  const { isAuthenticated, role } = useSelector((state: RootState) => state.auth);
+  const { isAuthenticated, role } = useAppSelector((state) => state.auth);
   const location = useLocation();
 
   if (!isAuthenticated) {

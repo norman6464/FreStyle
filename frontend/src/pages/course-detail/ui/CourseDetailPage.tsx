@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
-import { useSelector } from 'react-redux';
+import { useAppSelector } from '@/shared/lib/store';
+
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   PlusIcon,
@@ -29,7 +30,7 @@ import { useToast } from '@/shared/lib/hooks/useToast';
 import { CourseRepository } from '@/entities/course';
 import { DashboardRepository } from '@/entities/user';
 import { ImageUploadRepository } from '@/entities/user';
-import type { RootState } from '@/store';
+
 import type { Course, CourseWithProgress, TeachingMaterial } from '@/entities/course';
 
 /**
@@ -45,7 +46,7 @@ export default function CourseDetailPage() {
   const courseId = id ? Number(id) : null;
   const navigate = useNavigate();
 
-  const role = useSelector((s: RootState) => s.auth.role);
+  const role = useAppSelector((s) => s.auth.role);
   const canManage = role === 'company_admin' || role === 'super_admin';
 
   const { showToast } = useToast();

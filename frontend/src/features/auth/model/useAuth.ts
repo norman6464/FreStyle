@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
+import { useAppSelector, useAppDispatch } from '@/shared/lib/store';
+
 import { useNavigate } from 'react-router-dom';
 import { classifyApiError } from '@/shared/lib/classifyApiError';
 import { AuthRepository, LoginRequest,
@@ -7,7 +8,6 @@ import { AuthRepository, LoginRequest,
   ConfirmForgotPasswordRequest,
   UserInfo } from '@/entities/user';
 import { setAuthData, clearAuth, finishLoading } from '@/entities/user';
-import { RootState } from '../store';
 
 /**
  * 認証フック
@@ -29,9 +29,9 @@ export const useAuth = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const dispatch = useDispatch();
+  const dispatch = useAppDispatch();
   const navigate = useNavigate();
-  const authState = useSelector((state: RootState) => state.auth);
+  const authState = useAppSelector((state) => state.auth);
 
   /**
    * ログイン

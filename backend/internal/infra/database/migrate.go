@@ -30,6 +30,8 @@ func allDomainModels() []any {
 		&domain.LearningReport{},
 		&domain.AuditEvent{},
 		&domain.UserLessonProgress{},
+		// UserChapterProgress は UserLessonProgress の後継(FRESTYLE-186)。移行期は両方を管理する。
+		&domain.UserChapterProgress{},
 		// user_chapter_views / user_daily_activities の実テーブルは migration 0005 で作成済。
 		// ここに載せるのは結合テスト DB のスキーマ構築のため(タグは 0005 と一致させ、本番では no-op)。
 		&domain.UserChapterView{},

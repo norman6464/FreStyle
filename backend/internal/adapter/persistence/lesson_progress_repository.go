@@ -37,11 +37,16 @@ func (r *lessonProgressRepository) MarkCompleted(ctx context.Context, userID, ma
 	}
 	// Expand フェーズ: 後継テーブル user_chapter_progress にも同じ行を upsert する(dual-write)。
 	// Contract で読み書きを新テーブルへ切り替え、旧テーブルを削除する。
-	const shadow = `
-INSERT INTO user_chapter_progress (user_id, chapter_id, course_id, completed_at, created_at)
-VALUES (?, ?, ?, ?, NOW())
-ON CONFLICT (user_id, chapter_id) DO NOTHING`
-	if err := r.db.WithContext(ctx).Exec(shadow, userID, materialID, courseID, completedAt).Error; err != nil {
+	shadow := &domain.UserChapterProgress{
+		UserID:      userID,
+		ChapterID:   materialID,
+		CourseID:    courseID,
+		CompletedAt: completedAt,
+	}
+	if err := r.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "user_id"}, {Name: "chapter_id"}},
+		DoNothing: true,
+	}).Create(shadow).Error; err != nil {
 		return false, err
 	}
 	return result.RowsAffected > 0, nil
@@ -55,7 +60,8 @@ func (r *lessonProgressRepository) MarkIncomplete(ctx context.Context, userID, m
 	}
 	// Expand フェーズ: 後継テーブルからも削除する(dual-write)。
 	return r.db.WithContext(ctx).
-		Exec(`DELETE FROM user_chapter_progress WHERE user_id = ? AND chapter_id = ?`, userID, materialID).Error
+		Where("user_id = ? AND chapter_id = ?", userID, materialID).
+		Delete(&domain.UserChapterProgress{}).Error
 }
 
 // CountCompletedByUserGroupedByCourse は「現存する published 教材」の完了行のみを

@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import type { ReactElement } from 'react';
 import NotesPage from '../ui/NotesPage';
-import { useNotes } from '@/hooks/useNotes';
+import { useNotes } from '../model/useNotes';
 import type { Note } from '@/entities/note';
 
 // react-router-dom の Link が `/notes/markdown-help` 等で使われるため、
@@ -11,7 +11,7 @@ import type { Note } from '@/entities/note';
 const render = (ui: ReactElement, options?: RenderOptions) =>
   rtlRender(ui, { wrapper: ({ children }) => <MemoryRouter>{children}</MemoryRouter>, ...options });
 
-vi.mock('@/hooks/useNotes');
+vi.mock('../model/useNotes');
 const mockShowToast = vi.fn();
 vi.mock('@/shared/lib/hooks/useToast', () => ({
   useToast: () => ({ showToast: mockShowToast, toasts: [], removeToast: vi.fn() }),

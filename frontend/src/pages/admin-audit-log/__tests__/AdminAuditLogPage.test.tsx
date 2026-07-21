@@ -35,7 +35,7 @@ function makeHookReturn() {
   };
 }
 let hookReturn = makeHookReturn();
-vi.mock('@/hooks/useAuditLog', () => ({
+vi.mock('../model/useAuditLog', () => ({
   useAuditLog: () => hookReturn,
 }));
 

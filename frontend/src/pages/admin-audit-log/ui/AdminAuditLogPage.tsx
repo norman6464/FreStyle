@@ -3,7 +3,7 @@ import { Navigate } from 'react-router-dom';
 import type { RootState } from '@/store';
 import Loading from '@/shared/ui/Loading';
 import PageIntro from '@/shared/ui/PageIntro';
-import { useAuditLog } from '@/hooks/useAuditLog';
+import { useAuditLog } from '../model/useAuditLog';
 import type { AuditEvent } from '@/entities/audit';
 
 // actor の role を日本語表記に。

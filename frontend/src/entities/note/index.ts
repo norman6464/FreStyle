@@ -16,3 +16,8 @@ export type {
 export { default as NoteListItem } from './ui/NoteListItem';
 
 export { getNoteStats } from './lib/noteStats';
+
+// ノート編集（複数画面で共有される model + ui）
+export { useNoteEditor } from './model/useNoteEditor';
+export type { SaveStatus } from './model/useNoteEditor';
+export { default as NoteMarkdownEditor } from './ui/NoteMarkdownEditor';

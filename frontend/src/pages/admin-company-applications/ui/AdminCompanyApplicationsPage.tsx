@@ -5,7 +5,7 @@ import type { RootState } from '@/store';
 import Loading from '@/shared/ui/Loading';
 import PageIntro from '@/shared/ui/PageIntro';
 import { useToast } from '@/shared/lib/hooks/useToast';
-import { useCompanyApplications } from '@/hooks/useCompanyApplications';
+import { useCompanyApplications } from '../model/useCompanyApplications';
 import type {
   CompanyApplication,
   CompanyApplicationStatus,

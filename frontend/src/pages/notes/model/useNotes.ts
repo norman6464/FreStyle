@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useRef } from 'react';
 import type { Note } from '@/entities/note';
-import type { NoteSortOption } from '../constants/sortOptions';
+import type { NoteSortOption } from '../config/sortOptions';
 import { NoteRepository } from '@/entities/note';
 
 /**

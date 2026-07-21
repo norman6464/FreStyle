@@ -4,7 +4,7 @@ import { Navigate } from 'react-router-dom';
 import type { RootState } from '@/store';
 import Loading from '@/shared/ui/Loading';
 import PageIntro from '@/shared/ui/PageIntro';
-import { useAdminMembers } from '@/hooks/useAdminMembers';
+import { useAdminMembers } from '../model/useAdminMembers';
 import { Member } from '@/entities/member';
 
 // AI 利用可否の 3 状態 ↔ select の値。

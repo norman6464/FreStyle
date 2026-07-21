@@ -10,9 +10,9 @@ import {
   ClipboardDocumentIcon,
   PhotoIcon,
 } from '@heroicons/react/24/outline';
-import type { SaveStatus } from '../hooks/useNoteEditor';
+import type { SaveStatus } from '../model/useNoteEditor';
 import { useToast } from '@/shared/lib/hooks/useToast';
-import { getNoteStats } from '@/entities/note';
+import { getNoteStats } from '../lib/noteStats';
 import WordCount from '@/shared/ui/WordCount';
 import LineCount from '@/shared/ui/LineCount';
 import ReadingTime from '@/shared/ui/ReadingTime';

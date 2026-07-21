@@ -28,7 +28,7 @@ const members = [
     isActive: true,
   },
 ];
-vi.mock('@/hooks/useAdminMembers', () => ({
+vi.mock('../model/useAdminMembers', () => ({
   useAdminMembers: () => ({
     members,
     loading: false,

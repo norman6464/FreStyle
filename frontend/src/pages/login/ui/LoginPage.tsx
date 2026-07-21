@@ -5,7 +5,7 @@ import Button from '@/shared/ui/Button';
 import SNSSignInButton from '@/components/SNSSignInButton';
 import LinkText from '@/shared/ui/LinkText';
 import { getCognitoAuthUrl } from '@/utils/auth';
-import { useLoginPage } from '@/hooks/useLoginPage';
+import { useLoginPage } from '../model/useLoginPage';
 import { CheckCircleIcon } from '@heroicons/react/24/outline';
 
 export default function LoginPage() {

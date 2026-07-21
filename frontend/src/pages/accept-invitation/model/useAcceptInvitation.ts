@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { InvitationRepository as invitationRepository, ValidatedInvitation } from '@/entities/invitation';
-import { saveInvitationToken, clearInvitationToken } from '../lib/invitationToken';
+import { saveInvitationToken, clearInvitationToken } from '@/shared/lib/invitationToken';
 import { getApiError } from '@/shared/lib/classifyApiError';
 
 export type AcceptInvitationStatus =

@@ -3,7 +3,7 @@ import { AuthLayout } from '@/widgets/auth-layout';
 import Button from '@/shared/ui/Button';
 import LinkText from '@/shared/ui/LinkText';
 import Loading from '@/shared/ui/Loading';
-import { useAcceptInvitation } from '@/hooks/useAcceptInvitation';
+import { useAcceptInvitation } from '../model/useAcceptInvitation';
 
 /**
  * 招待マジックリンク受諾画面。

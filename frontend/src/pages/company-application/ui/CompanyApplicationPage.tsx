@@ -4,7 +4,7 @@ import InputField from '@/shared/ui/InputField';
 import TextareaField from '@/shared/ui/TextareaField';
 import Button from '@/shared/ui/Button';
 import LinkText from '@/shared/ui/LinkText';
-import { useCompanyApplication } from '@/hooks/useCompanyApplication';
+import { useCompanyApplication } from '../model/useCompanyApplication';
 import { XCircleIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 
 /** CompanyApplicationPage は未登録の企業担当者がログイン前に出す利用申請フォーム。 */

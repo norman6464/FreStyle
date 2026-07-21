@@ -2,7 +2,7 @@ import { AuthLayout } from '@/widgets/auth-layout';
 import InputField from '@/shared/ui/InputField';
 import Button from '@/shared/ui/Button';
 import FormMessage from '@/shared/ui/FormMessage';
-import { useConfirmForgotPassword } from '@/hooks/useConfirmForgotPassword';
+import { useConfirmForgotPassword } from '../model/useConfirmForgotPassword';
 
 export default function ConfirmForgotPasswordPage() {
   const { form, message, loading, handleChange, handleConfirm, clearMessage } = useConfirmForgotPassword();

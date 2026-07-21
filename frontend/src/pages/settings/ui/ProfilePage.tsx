@@ -6,9 +6,9 @@ import FormMessage from '@/shared/ui/FormMessage';
 import Avatar from '@/shared/ui/Avatar';
 import Loading from '@/shared/ui/Loading';
 import { ProfileStatsSection } from '@/entities/user';
-import { useProfileEdit } from '@/hooks/useProfileEdit';
-import { useProfileImageUpload } from '@/hooks/useProfileImageUpload';
-import { useProfileStats } from '@/hooks/useProfileStats';
+import { useProfileEdit } from '../model/useProfileEdit';
+import { useProfileImageUpload } from '../model/useProfileImageUpload';
+import { useProfileStats } from '../model/useProfileStats';
 import { CameraIcon } from '@heroicons/react/24/outline';
 
 export default function ProfilePage() {

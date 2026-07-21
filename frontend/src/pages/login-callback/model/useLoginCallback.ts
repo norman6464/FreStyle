@@ -3,7 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { setAuthData } from '@/entities/user';
 import { AuthRepository as authRepository } from '@/entities/user';
-import { consumeInvitationToken } from '../lib/invitationToken';
+import { consumeInvitationToken } from '@/shared/lib/invitationToken';
 import { classifyApiError, getApiError } from '@/shared/lib/classifyApiError';
 
 export function useLoginCallback() {

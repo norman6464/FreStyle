@@ -2,7 +2,7 @@ import { AuthLayout } from '@/widgets/auth-layout';
 import InputField from '@/shared/ui/InputField';
 import Button from '@/shared/ui/Button';
 import FormMessage from '@/shared/ui/FormMessage';
-import { useForgotPassword } from '@/hooks/useForgotPassword';
+import { useForgotPassword } from '../model/useForgotPassword';
 
 export default function ForgotPasswordPage() {
   const { email, setEmail, message, loading, handleSubmit, clearMessage } = useForgotPassword();

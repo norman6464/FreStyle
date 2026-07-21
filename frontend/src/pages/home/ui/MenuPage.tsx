@@ -11,8 +11,8 @@ import {
   ArrowRightIcon,
 } from '@heroicons/react/24/outline';
 import type { RootState } from '@/store';
-import { useUserDashboard } from '@/hooks/useUserDashboard';
-import { useCompanyLearningSummary } from '@/hooks/useCompanyLearningSummary';
+import { useUserDashboard } from '../model/useUserDashboard';
+import { useCompanyLearningSummary } from '../model/useCompanyLearningSummary';
 import DashboardStats from '@/components/dashboard/DashboardStats';
 import CompanyLearningPanel from '@/components/dashboard/CompanyLearningPanel';
 

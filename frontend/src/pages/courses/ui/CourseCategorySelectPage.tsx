@@ -5,20 +5,13 @@ import { useAppSelector } from '@/shared/lib/store';
 import Loading from '@/shared/ui/Loading';
 import EmptyState from '@/shared/ui/EmptyState';
 import FaviconIcon from '@/shared/ui/icons/FaviconIcon';
-import { COURSE_CATEGORIES, findCourseCategory } from '@/entities/course';
+import { COURSE_CATEGORIES } from '@/entities/course';
 import type { CourseCategoryDef, CourseWithProgress } from '@/entities/course';
 import { useToast } from '@/shared/lib/hooks/useToast';
 import { useCourses } from '../model/useCourses';
+import { UNCATEGORIZED_SLUG, normalizeCategoryKey } from '../model/categorySlug';
 import CategoryIcon from './CategoryIcon';
 import CourseFormModal from './CourseFormModal';
-
-/** 未分類('')や未知の値を未分類バケットの key('') に正規化する。 */
-function normalizeCategoryKey(category: string): string {
-  return findCourseCategory(category) ? category : '';
-}
-
-/** URL で未分類を表す予約語。'' はパスに使えないため。 */
-const UNCATEGORIZED_SLUG = 'uncategorized';
 
 interface CategoryBucket {
   /** COURSE_CATEGORIES の定義。未分類は null。 */

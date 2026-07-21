@@ -9,18 +9,11 @@ import ConfirmModal from '@/shared/ui/ConfirmModal';
 import { COURSE_CATEGORIES, findCourseCategory } from '@/entities/course';
 import type { Course } from '@/entities/course';
 import { useCourses } from '../model/useCourses';
+import { UNCATEGORIZED_SLUG, normalizeCategoryKey } from '../model/categorySlug';
 import { useToast } from '@/shared/lib/hooks/useToast';
 import CourseCard from './CourseCard';
 import CourseFormModal from './CourseFormModal';
 import CategoryIcon from './CategoryIcon';
-
-/** 未分類('')や未知の値を未分類バケットの key('') に正規化する。 */
-function normalizeCategoryKey(category: string): string {
-  return findCourseCategory(category) ? category : '';
-}
-
-/** URL の :category（'uncategorized' は未分類の '' に対応）。 */
-const UNCATEGORIZED_SLUG = 'uncategorized';
 
 /**
  * CoursesListPage — `/courses/category/:category` の領域スコープ一覧（FRESTYLE-177）。

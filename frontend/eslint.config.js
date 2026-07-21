@@ -16,9 +16,10 @@ import tseslint from 'typescript-eslint';
  *
  * 例外: app と shared のあいだは相互に import してよい。
  *
- * 移行中（Phase 1〜6）は **警告** に留める。旧構造と新構造が混在する期間に
- * エラーにすると CI が常時赤になり、移行そのものが進まなくなるため。
- * 旧ディレクトリを撤去する Phase 7 で 'error' へ昇格する。
+ * FSD 移行（Phase 0〜7）が完了したので **'error'** で強制する。移行中は旧新構造の
+ * 混在で CI が常時赤にならないよう 'warn' に留めていたが、レイヤー移行が完了し
+ * 違反 0 になったため Phase 7（FRESTYLE-176）で 'error' へ昇格した。以後、層の
+ * 逆流・Slice 間の直接 import・Slice の自己参照は CI（`--max-warnings 0`）で弾かれる。
  */
 const FSD_LAYERS = ['app', 'pages', 'widgets', 'features', 'entities', 'shared'];
 
@@ -75,7 +76,7 @@ const fsdBoundaryConfigs = FSD_LAYERS
     ignores: TEST_FILE_PATTERNS,
     rules: {
       'no-restricted-imports': [
-        'warn',
+        'error',
         {
           patterns:
             layer === 'entities'
@@ -118,7 +119,7 @@ const selfReferenceConfigs = entitySlices.map((slice) => ({
   files: [`src/entities/${slice}/**/*.{ts,tsx}`],
   rules: {
     'no-restricted-imports': [
-      'warn',
+      'error',
       {
         patterns: [
           {

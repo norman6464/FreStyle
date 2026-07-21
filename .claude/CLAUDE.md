@@ -60,14 +60,31 @@ handler → usecase → repository / infra → domain
 - usecase の入力は `XxxInput` struct、戻り値は `*domain.Xxx` または primitive
 - 機密フィールド（パスワード hash、招待 token、BlobData 等）は domain 側で `json:"-"` を付けて除外する
 
-### 2.5 フロントエンドのレイヤー
+### 2.5 フロントエンドのレイヤー（FSD / Feature-Sliced Design）
+
+`frontend/src/` は **Feature-Sliced Design** で構成する（FRESTYLE-154 で移行完了。旧 `components/hooks/repositories/utils/constants/lib/store/types` は撤去済）。
+
+**レイヤー（上ほど上位・import は下向きの一方通行）**
 
 ```
-Page (src/pages/) → Hook (src/hooks/) → Repository (src/repositories/) → axios
+app > pages > widgets > features > entities > shared
 ```
 
-- Page はビジネスロジックを書かない / Hook に状態管理・API 呼び出しを集約 / axios の直接利用は Repository に集約
-- Component（`src/components/`）はプレゼンテーショナルで副作用を持たない / Store（`src/store/`）は Redux Toolkit slice でグローバル状態のみ（auth, flash message 等）
+- **app**: エントリ・Provider・ルーティング・store 組み立て（`app/store`）
+- **pages**: 1 画面 = 1 Slice。その画面専用の hook / component は `pages/<slice>/{ui,model,lib,config}` に同居
+- **widgets**: 複数機能を組み合わせた自立 UI ブロック（例: `app-shell` = ヘッダ + サイドバー + コマンドパレット）
+- **features**: 再利用されるユーザー操作（例: `auth` = ログイン / ログアウト / 認証状態取得）
+- **entities**: ビジネス上の「もの」（`course` / `exercise` / `user` / `note` / `ai-chat` など）。`api`(リポジトリ) / `model`(型・slice) / `ui`(単体表示)
+- **shared**: ビジネスを知らない再利用資産。UI キット（`shared/ui`）/ axios（`shared/api`）/ 汎用 hook・関数（`shared/lib`）/ 型付き Redux hooks（`shared/lib/store`）/ 定数（`shared/config`）
+
+**ルール（境界 lint `eslint.config.js` が CI で `error` 強制）**
+
+- 自分と同じか上の層は import できない（下向きのみ）。**app と shared のあいだだけ相互 import 可**（公式の例外。typed Redux hooks が RootState を参照するため）
+- 各 Slice は **Public API（`index.ts`）経由**で使う。名前付き re-export のみ（`export *` 禁止）。Slice 内部は相対パス（自分の barrel を参照しない）
+- entity 同士がどうしても参照し合う場合のみ **`@x` 記法**（`entities/<相手>/@x/<自分>`）。増えたら Slice の切り方を疑う
+- **単一画面専用のものは page の model/ui に置く**（features は 2 画面以上で共有される操作に限る）。「どのプロジェクトでも使えるか」で shared か上位かを判断する
+- テスト（`__tests__`）は層間ルールの対象外だが、**Slice の自己参照は禁止**（barrel を読むとカバレッジ分母が膨らむため深いパスで mock する）
+- 詳細と移行の実績・ハマりどころは `docs/frontend-fsd.md` / `frontend/src/entities/README.md` / `frontend/src/shared/README.md`
 
 ### 2.6 Repository 配置規約（物理分離）
 

@@ -127,8 +127,9 @@
   --color-surface-1: #FFFFFF;
   --color-surface-2: #F5F5F4;
   --color-surface-3: #E7E5E4;
-  /* 教材コース閲覧 (/courses/:id) の読み物背景（灰青）。白カードとのコントラスト用。 */
-  --color-reading-surface: #F4F6F9;
+  /* 教材コース閲覧 (/courses/:id) の読み物背景（無彩色寄りグレー）。白カードとのコントラスト用。
+     この変数はコース閲覧ページでしか使わないため、他ページの白背景には影響しない（FRESTYLE-178）。 */
+  --color-reading-surface: #f5f6f6;
   /* サイドバー / ヘッダーは body と同じ白で、border 1px のみで境界を表現する */
   --color-nav: #FFFFFF;
   /* nav 上の hover / active 状態。色相を持たないニュートラル寄り暖色グレーで

@@ -360,13 +360,13 @@ describe('CourseDetailPage タイトルのカード外配置 (FRESTYLE-131)', ()
     mockRecordView.mockResolvedValue(undefined);
   });
 
-  it('タイトル h1 は白カード(article)の外に置かれる', async () => {
+  it('タイトル h1 は本文カード(article)内の先頭ヘッダーに置かれる (FRESTYLE-178)', async () => {
     // 見出し付き本文にすると TOC の IntersectionObserver(jsdom 未実装)が動くため見出しなしにする。
     mockGetMaterial.mockImplementation(async (id: number) => material(id, '本文テキスト'));
     renderPage('trainee');
     const heading = await screen.findByRole('heading', { level: 1, name: '章 11' });
-    // h1 は article の中に入っていない(カードの外のヘッダーにある)。
-    expect(heading.closest('article')).toBeNull();
+    // h1 は本文カード(article)の中の先頭ヘッダーに入る(Qiita 風。カードを上げてタイトルを内包)。
+    expect(heading.closest('article')).not.toBeNull();
     expect(heading.closest('header')).not.toBeNull();
   });
 

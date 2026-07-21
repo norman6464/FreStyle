@@ -453,43 +453,42 @@ function ReadOnlyDetail({
           tocOpen ? 'lg:grid-cols-[minmax(0,1fr)_280px]' : ''
         }`}
       >
-        {/* 記事サイト風ヘッダー(Zenn 風): タイトル + メタをグリッド直下の子にして col-span-full で
-            行全体に広げる。 本文カード(左カラム)と右サイドバー(目次/章一覧)は次の行に並ぶので、
-            右の目次カードが本文カードと同じ高さから始まる(FRESTYLE-150 / 131)。
-            行間は grid の gap-8 が担うので header に mb は付けない。 */}
-        <header className="col-span-full text-center">
-          <h1 className="text-3xl sm:text-4xl font-bold text-[var(--color-text-primary)] leading-snug">
-            {material.title || '無題の教材'}
-          </h1>
-          {/* メタ(最終更新 / 目次トグル / 完了トグル)。 sticky にはしない(FRESTYLE-119)。
-              スクロール途中の完了操作は本文末尾の大きい完了ボタン(FRESTYLE-100)で行える。 */}
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
-            <p className="text-xs text-[var(--color-text-muted)]">
-              最終更新: {formatDate(material.updatedAt)}
-            </p>
-            {/* 目次は lg 以上でのみ表示されるため、 トグルも lg 未満では隠す。 */}
-            <button
-              type="button"
-              onClick={() => setTocOpen((v) => !v)}
-              aria-pressed={tocOpen}
-              title={tocOpen ? '目次を隠す' : '目次を表示'}
-              className={`hidden lg:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                tocOpen
-                  ? 'border-taupe-500 text-taupe-400'
-                  : 'border-surface-3 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'
-              }`}
-            >
-              <ListBulletIcon className="w-4 h-4" />
-              目次
-            </button>
-            <CompleteToggleButton completed={completed} onToggle={onToggleComplete} />
-          </div>
-        </header>
-
         {/* 本文カラム。 サイドバーを隠したときは本文が全幅に伸びて読みにくいため、 読みやすい幅(860px)に
             収めて中央寄せする。 サイドバー表示時は 1fr カラムが既に同程度の幅になる。 */}
         <div className={`min-w-0 ${!tocOpen ? 'mx-auto w-full max-w-[860px]' : ''}`}>
           <article className="bg-white border border-surface-3 rounded-xl shadow-sm px-6 sm:px-10 py-8 sm:py-10">
+            {/* 記事サイト風ヘッダー(Qiita 風): タイトル + メタを本文カードの先頭に入れる。
+                以前はカード外の別ヘッダーに置いていたが、カードをタイトル位置まで上げて
+                タイトルもカード内に収めた(FRESTYLE-178)。目次サイドバーは同じグリッド行に来るので
+                カード上端と揃う(FRESTYLE-150)。本文先頭の重複 h1 は stripLeadingTitle で除去済み(FRESTYLE-131)。 */}
+            <header className="mb-6 pb-6 border-b border-surface-3">
+              <h1 className="text-2xl sm:text-3xl font-bold text-[var(--color-text-primary)] leading-snug">
+                {material.title || '無題の教材'}
+              </h1>
+              {/* メタ(最終更新 / 目次トグル / 完了トグル)。 sticky にはしない(FRESTYLE-119)。
+                  スクロール途中の完了操作は本文末尾の大きい完了ボタン(FRESTYLE-100)で行える。 */}
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <p className="text-xs text-[var(--color-text-muted)]">
+                  最終更新: {formatDate(material.updatedAt)}
+                </p>
+                {/* 目次は lg 以上でのみ表示されるため、 トグルも lg 未満では隠す。 */}
+                <button
+                  type="button"
+                  onClick={() => setTocOpen((v) => !v)}
+                  aria-pressed={tocOpen}
+                  title={tocOpen ? '目次を隠す' : '目次を表示'}
+                  className={`hidden lg:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                    tocOpen
+                      ? 'border-taupe-500 text-taupe-400'
+                      : 'border-surface-3 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'
+                  }`}
+                >
+                  <ListBulletIcon className="w-4 h-4" />
+                  目次
+                </button>
+                <CompleteToggleButton completed={completed} onToggle={onToggleComplete} />
+              </div>
+            </header>
             <div className="prose prose-sm max-w-none course-prose">
               <ReadOnlyMarkdown content={bodyContent} />
             </div>
@@ -640,12 +639,12 @@ function MaterialSkeleton() {
         className="mx-auto w-full max-w-[860px] px-6 sm:px-10 py-8 sm:py-10 animate-pulse"
         aria-hidden="true"
       >
-        {/* タイトル + メタはカードの外・上(FRESTYLE-131 の実表示に合わせて跳ねを防ぐ)。 */}
-        <div className="mb-6 flex flex-col items-center gap-3">
-          <div className="h-8 w-3/4 rounded bg-surface-3" />
-          <div className="h-3 w-40 rounded bg-surface-2" />
-        </div>
         <div className="bg-white border border-surface-3 rounded-xl shadow-sm px-6 sm:px-10 py-8 sm:py-10">
+          {/* タイトル + メタはカードの先頭(FRESTYLE-178 の実表示に合わせて跳ねを防ぐ)。 */}
+          <div className="mb-6 pb-6 border-b border-surface-3 space-y-3">
+            <div className="h-8 w-3/4 rounded bg-surface-3" />
+            <div className="h-3 w-40 rounded bg-surface-2" />
+          </div>
           <div className="space-y-3">
             <div className="h-4 w-full rounded bg-surface-2" />
             <div className="h-4 w-11/12 rounded bg-surface-2" />

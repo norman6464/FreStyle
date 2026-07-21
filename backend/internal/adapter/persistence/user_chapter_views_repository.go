@@ -22,20 +22,17 @@ func (r *userChapterViewRepository) UpsertView(
 	ctx context.Context,
 	userID, teachingMaterialID, courseID uint64,
 ) error {
-	// Expand フェーズ: 旧 teaching_material_id と新 chapter_id の両方へ同値を書く(dual-write)。
-	// 読みと ON CONFLICT は当面旧列。Contract で新列へ切り替えて旧列を削除する。
 	sql := `
 INSERT INTO user_chapter_views
-  (user_id, teaching_material_id, chapter_id, course_id, first_viewed_at, last_viewed_at, view_count)
+  (user_id, chapter_id, course_id, first_viewed_at, last_viewed_at, view_count)
 VALUES
-  (?, ?, ?, ?, NOW(), NOW(), 1)
-ON CONFLICT (user_id, teaching_material_id) DO UPDATE SET
-  chapter_id     = EXCLUDED.chapter_id,
+  (?, ?, ?, NOW(), NOW(), 1)
+ON CONFLICT (user_id, chapter_id) DO UPDATE SET
   course_id      = EXCLUDED.course_id,
   last_viewed_at = NOW(),
   view_count     = user_chapter_views.view_count + 1
 `
-	return r.db.WithContext(ctx).Exec(sql, userID, teachingMaterialID, teachingMaterialID, courseID).Error
+	return r.db.WithContext(ctx).Exec(sql, userID, teachingMaterialID, courseID).Error
 }
 
 func (r *userChapterViewRepository) ListRecentByUser(

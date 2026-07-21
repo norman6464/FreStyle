@@ -8,7 +8,7 @@ import (
 
 // UserChapterViewRepository は章閲覧記録の永続化 port。
 type UserChapterViewRepository interface {
-	// UpsertView は (user_id, teaching_material_id) の行を upsert する。
+	// UpsertView は (user_id, chapter_id) の行を upsert する。
 	// 初回: INSERT。2回目以降: last_viewed_at を現在時刻に更新し view_count を +1。
 	UpsertView(ctx context.Context, userID, teachingMaterialID, courseID uint64) error
 

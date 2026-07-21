@@ -1,8 +1,8 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
-import { useCommandPalette } from '@/hooks/useCommandPalette';
-import type { CommandItem } from '@/constants/commandPaletteItems';
+import { useCommandPalette } from '../model/useCommandPalette';
+import type { CommandItem } from '../config/commandPaletteItems';
 
 interface CommandPaletteProps {
   isOpen: boolean;

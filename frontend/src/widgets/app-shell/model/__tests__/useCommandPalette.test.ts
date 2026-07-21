@@ -1,7 +1,7 @@
 import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { useCommandPalette } from '../useCommandPalette';
-import { COMMAND_ITEMS } from '../../constants/commandPaletteItems';
+import { COMMAND_ITEMS } from '../../config/commandPaletteItems';
 
 describe('useCommandPalette', () => {
   beforeEach(() => {

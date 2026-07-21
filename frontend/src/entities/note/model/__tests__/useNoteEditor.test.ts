@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useNoteEditor } from '../useNoteEditor';
-import type { Note } from '@/entities/note';
+import type { Note } from '../types';
 
 const mockUpdateNote = vi.fn();
 

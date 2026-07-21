@@ -1,5 +1,5 @@
 import { AuthLayout } from '@/widgets/auth-layout';
-import PublicHeader from '@/components/PublicHeader';
+import PublicHeader from '@/shared/ui/PublicHeader';
 import InputField from '@/shared/ui/InputField';
 import TextareaField from '@/shared/ui/TextareaField';
 import Button from '@/shared/ui/Button';

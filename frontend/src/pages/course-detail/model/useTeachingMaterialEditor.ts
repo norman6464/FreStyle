@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TeachingMaterial } from '@/entities/course';
-import type { SaveStatus } from './useNoteEditor';
+import type { SaveStatus } from '@/entities/note';
 
 interface Args {
   selectedId: number | null;

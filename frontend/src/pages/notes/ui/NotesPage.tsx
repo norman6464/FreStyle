@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { SecondaryPanel } from '@/widgets/secondary-panel';
 import { NoteListItem } from '@/entities/note';
-import NoteMarkdownEditor from '@/components/NoteMarkdownEditor';
+import { NoteMarkdownEditor } from '@/entities/note';
 import EmptyState from '@/shared/ui/EmptyState';
 import ConfirmModal from '@/shared/ui/ConfirmModal';
 import Loading from '@/shared/ui/Loading';
@@ -9,7 +9,7 @@ import NoteSortMenu from './NoteSortMenu';
 import { DocumentTextIcon, PlusIcon, MagnifyingGlassIcon, Bars3Icon, QuestionMarkCircleIcon } from '@heroicons/react/24/outline';
 import { Link } from 'react-router-dom';
 import { useNotes } from '../model/useNotes';
-import { useNoteEditor } from '@/hooks/useNoteEditor';
+import { useNoteEditor } from '@/entities/note';
 import { useMobilePanelState } from '@/shared/lib/hooks/useMobilePanelState';
 import { useToast } from '@/shared/lib/hooks/useToast';
 import { useNoteKeyboardShortcuts } from '../model/useNoteKeyboardShortcuts';

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowsUpDownIcon, CheckIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
-import { NOTE_SORT_OPTIONS, type NoteSortOption } from '../constants/sortOptions';
+import { NOTE_SORT_OPTIONS, type NoteSortOption } from '../config/sortOptions';
 
 interface NoteSortMenuProps {
   selected: NoteSortOption;

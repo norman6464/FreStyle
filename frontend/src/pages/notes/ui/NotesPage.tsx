@@ -5,14 +5,14 @@ import NoteMarkdownEditor from '@/components/NoteMarkdownEditor';
 import EmptyState from '@/shared/ui/EmptyState';
 import ConfirmModal from '@/shared/ui/ConfirmModal';
 import Loading from '@/shared/ui/Loading';
-import NoteSortMenu from '@/components/NoteSortMenu';
+import NoteSortMenu from './NoteSortMenu';
 import { DocumentTextIcon, PlusIcon, MagnifyingGlassIcon, Bars3Icon, QuestionMarkCircleIcon } from '@heroicons/react/24/outline';
 import { Link } from 'react-router-dom';
-import { useNotes } from '@/hooks/useNotes';
+import { useNotes } from '../model/useNotes';
 import { useNoteEditor } from '@/hooks/useNoteEditor';
 import { useMobilePanelState } from '@/shared/lib/hooks/useMobilePanelState';
 import { useToast } from '@/shared/lib/hooks/useToast';
-import { useNoteKeyboardShortcuts } from '@/hooks/useNoteKeyboardShortcuts';
+import { useNoteKeyboardShortcuts } from '../model/useNoteKeyboardShortcuts';
 
 export default function NotesPage() {
   const { showToast } = useToast();

@@ -1,4 +1,4 @@
-import { useNotification } from '@/hooks/useNotification';
+import { useNotification } from '../model/useNotification';
 import EmptyState from '@/shared/ui/EmptyState';
 import Loading from '@/shared/ui/Loading';
 import { NotificationItem } from '@/entities/notification';

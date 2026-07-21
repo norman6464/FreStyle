@@ -26,7 +26,7 @@ function makeHookReturn() {
   };
 }
 let hookReturn = makeHookReturn();
-vi.mock('@/hooks/useAdminDashboard', () => ({
+vi.mock('../model/useAdminDashboard', () => ({
   useAdminDashboard: () => hookReturn,
 }));
 

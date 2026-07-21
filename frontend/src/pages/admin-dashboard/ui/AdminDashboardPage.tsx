@@ -4,7 +4,7 @@ import { BuildingOffice2Icon, InboxArrowDownIcon } from '@heroicons/react/24/out
 import type { RootState } from '@/store';
 import Loading from '@/shared/ui/Loading';
 import PageIntro from '@/shared/ui/PageIntro';
-import { useAdminDashboard } from '@/hooks/useAdminDashboard';
+import { useAdminDashboard } from '../model/useAdminDashboard';
 
 /** 概況の数値カード。クリックで該当の管理画面へ遷移する。 */
 function StatCard(props: {

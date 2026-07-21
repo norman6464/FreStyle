@@ -49,7 +49,7 @@ function makeHookReturn() {
 }
 // 宣言時に初期化しておく（モック factory がモジュール読み込み時に評価されても undefined にならないように）。
 let hookReturn = makeHookReturn();
-vi.mock('@/hooks/useCompanyApplications', () => ({
+vi.mock('../model/useCompanyApplications', () => ({
   useCompanyApplications: () => hookReturn,
 }));
 

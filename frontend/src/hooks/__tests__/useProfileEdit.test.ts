@@ -13,7 +13,7 @@ vi.mock('@/entities/user/api/profileRepository', () => ({
   },
 }));
 
-vi.mock('../useToast', () => ({
+vi.mock('@/shared/lib/hooks/useToast', () => ({
   useToast: () => ({
     showToast: mockShowToast,
     toasts: [],

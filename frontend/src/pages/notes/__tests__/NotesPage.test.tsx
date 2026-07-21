@@ -13,7 +13,7 @@ const render = (ui: ReactElement, options?: RenderOptions) =>
 
 vi.mock('@/hooks/useNotes');
 const mockShowToast = vi.fn();
-vi.mock('@/hooks/useToast', () => ({
+vi.mock('@/shared/lib/hooks/useToast', () => ({
   useToast: () => ({ showToast: mockShowToast, toasts: [], removeToast: vi.fn() }),
 }));
 

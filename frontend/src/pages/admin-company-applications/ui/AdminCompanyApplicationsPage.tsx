@@ -4,7 +4,7 @@ import { BuildingOffice2Icon, CheckIcon, XMarkIcon, UserPlusIcon } from '@heroic
 import type { RootState } from '@/store';
 import Loading from '@/shared/ui/Loading';
 import PageIntro from '@/shared/ui/PageIntro';
-import { useToast } from '@/hooks/useToast';
+import { useToast } from '@/shared/lib/hooks/useToast';
 import { useCompanyApplications } from '@/hooks/useCompanyApplications';
 import type {
   CompanyApplication,

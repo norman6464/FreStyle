@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { AuthRepository as authRepository } from '@/entities/user';
 import type { FormMessage } from '@/shared/ui/FormMessage';
 import { extractServerErrorMessage } from '@/shared/lib/classifyApiError';
-import { useFormField } from './useFormField';
+import { useFormField } from '@/shared/lib/hooks/useFormField';
 
 export function useConfirmForgotPassword() {
   const location = useLocation();

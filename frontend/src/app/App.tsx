@@ -7,8 +7,8 @@ import ErrorBoundary from './providers/ErrorBoundary';
 import Loading from '@/shared/ui/Loading';
 import { MaintenancePage } from '@/pages/maintenance';
 import { ToastProvider } from './providers/ToastProvider';
-import { useToast } from '@/hooks/useToast';
-import { useBackendHealth } from '@/hooks/useBackendHealth';
+import { useToast } from '@/shared/lib/hooks/useToast';
+import { useBackendHealth } from '@/shared/lib/hooks/useBackendHealth';
 import ToastContainer from '@/app/providers/ToastContainer';
 import { lazyWithReload, clearLazyReloadFlags } from '@/shared/lib/lazyWithReload';
 

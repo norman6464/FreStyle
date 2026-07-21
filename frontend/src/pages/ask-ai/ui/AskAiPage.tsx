@@ -15,8 +15,8 @@ import {
   TrashIcon,
 } from '@heroicons/react/24/outline';
 import { useAskAi } from '@/hooks/useAskAi';
-import { useMobilePanelState } from '@/hooks/useMobilePanelState';
-import { useCopyToClipboard } from '@/hooks/useCopyToClipboard';
+import { useMobilePanelState } from '@/shared/lib/hooks/useMobilePanelState';
+import { useCopyToClipboard } from '@/shared/lib/hooks/useCopyToClipboard';
 
 // 自動スクロールの「下端付近」と判定する閾値（px）。これ以上スクロールアップしたら
 // auto-scroll を停止し、ユーザーが過去メッセージを読みやすくする。

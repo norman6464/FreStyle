@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useToast } from './useToast';
+import { useToast } from '@/shared/lib/hooks/useToast';
 
 interface DeleteModal {
   isOpen: boolean;

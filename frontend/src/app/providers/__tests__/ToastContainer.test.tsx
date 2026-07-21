@@ -5,7 +5,7 @@ import ToastContainer from '@/app/providers/ToastContainer';
 const mockToasts: { id: string; type: 'success' | 'error' | 'info'; message: string }[] = [];
 const mockRemoveToast = vi.fn();
 
-vi.mock('@/hooks/useToast', () => ({
+vi.mock('@/shared/lib/hooks/useToast', () => ({
   useToast: () => ({
     toasts: mockToasts,
     removeToast: mockRemoveToast,

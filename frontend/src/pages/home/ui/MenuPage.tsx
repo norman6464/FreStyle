@@ -11,6 +11,7 @@ import {
   BookOpenIcon,
   ArrowRightIcon,
 } from '@heroicons/react/24/outline';
+import LanguageIcon from '@/shared/ui/LanguageIcon';
 
 import { useUserDashboard } from '../model/useUserDashboard';
 import { useCompanyLearningSummary } from '../model/useCompanyLearningSummary';
@@ -97,6 +98,7 @@ export default function MenuPage() {
                   description="体系的なカリキュラムで段階的に学べます。"
                   color="emerald"
                   badge="おすすめ"
+                  techLogos={['git', 'go', 'docker', 'php']}
                 />
                 <FeatureCard
                   to="/code-editor"
@@ -104,6 +106,7 @@ export default function MenuPage() {
                   title="コード演習"
                   description="実際にコードを書いて手を動かしながら学べます。"
                   color="emerald"
+                  techLogos={['go', 'php', 'javascript', 'typescript']}
                 />
               </FeatureSection>
 
@@ -202,6 +205,9 @@ interface FeatureCardProps {
   description: string;
   color: CardColor;
   badge?: string;
+  /** 学べる技術のロゴ（Devicon）。指定時に説明の下へミニロゴ列を出す（FRESTYLE-179）。
+      vendoring 済みの key（public/lang/*.svg）だけ渡すこと（未 vendoring は汎用アイコンにフォールバックし列が不揃いになる）。 */
+  techLogos?: string[];
 }
 
 const iconBg: Record<CardColor, string> = {
@@ -211,7 +217,7 @@ const iconBg: Record<CardColor, string> = {
   blue:    'bg-blue-100 text-blue-600',
 };
 
-function FeatureCard({ to, icon: Icon, title, description, color, badge }: FeatureCardProps) {
+function FeatureCard({ to, icon: Icon, title, description, color, badge, techLogos }: FeatureCardProps) {
   return (
     <Link
       to={to}
@@ -235,6 +241,14 @@ function FeatureCard({ to, icon: Icon, title, description, color, badge }: Featu
       <p className="mt-3 text-xs text-[var(--color-text-muted)] leading-relaxed">
         {description}
       </p>
+      {/* 学べる技術のロゴ列（Devicon）。コース/演習カードにだけ付き、技術感を出す（FRESTYLE-179）。 */}
+      {techLogos && techLogos.length > 0 && (
+        <div className="mt-3 flex items-center gap-2" aria-hidden="true">
+          {techLogos.map((t) => (
+            <LanguageIcon key={t} language={t} className="w-5 h-5" />
+          ))}
+        </div>
+      )}
       <div className="mt-4 flex items-center gap-1 text-xs text-[var(--color-text-muted)] group-hover:text-brand-500 transition-colors">
         <span>開く</span>
         <ArrowRightIcon className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />

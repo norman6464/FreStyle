@@ -84,6 +84,16 @@ describe('MenuPage', () => {
     expect(screen.getByText('連続学習')).toBeInTheDocument();
   });
 
+  it('コース/演習カードに学べる技術ロゴ(Devicon)が出る (FRESTYLE-179)', () => {
+    mockUseUserDashboard.mockReturnValue({ dashboard: sampleDashboard, loading: false, error: null });
+    const { container } = renderMenu('trainee');
+    // LanguageIcon は /lang/<key>.svg を img で描画する。コース(git 等)・演習(go 等)のロゴが出る。
+    expect(container.querySelector('img[src="/lang/git.svg"]')).not.toBeNull();
+    expect(container.querySelector('img[src="/lang/typescript.svg"]')).not.toBeNull();
+    // go は両カードに出るため 2 つ以上。
+    expect(container.querySelectorAll('img[src="/lang/go.svg"]').length).toBeGreaterThanOrEqual(2);
+  });
+
   it('super_admin は統計を取得せず即時に管理メニューを表示する', () => {
     mockUseUserDashboard.mockReturnValue({ dashboard: null, loading: false, error: null });
     renderMenu('super_admin');

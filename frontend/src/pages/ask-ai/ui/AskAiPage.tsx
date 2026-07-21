@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { MessageBubbleAi } from '@/entities/ai-chat';
-import MessageInput from '@/components/MessageInput';
+import MessageInput from './MessageInput';
 import ConfirmModal from '@/shared/ui/ConfirmModal';
 import { SecondaryPanel } from '@/widgets/secondary-panel';
 import { AiSessionListItem } from '@/entities/ai-chat';
@@ -14,7 +14,7 @@ import {
   PencilIcon,
   TrashIcon,
 } from '@heroicons/react/24/outline';
-import { useAskAi } from '@/hooks/useAskAi';
+import { useAskAi } from '../model/useAskAi';
 import { useMobilePanelState } from '@/shared/lib/hooks/useMobilePanelState';
 import { useCopyToClipboard } from '@/shared/lib/hooks/useCopyToClipboard';
 

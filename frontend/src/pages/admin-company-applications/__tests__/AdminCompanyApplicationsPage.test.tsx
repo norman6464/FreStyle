@@ -10,7 +10,7 @@ vi.mock('react-redux', () => ({
 }));
 
 const showToast = vi.fn();
-vi.mock('@/hooks/useToast', () => ({ useToast: () => ({ showToast }) }));
+vi.mock('@/shared/lib/hooks/useToast', () => ({ useToast: () => ({ showToast }) }));
 
 // useCompanyApplications フックは固定データを返す（API/axios は呼ばない）。
 const setStatus = vi.fn().mockResolvedValue(true);

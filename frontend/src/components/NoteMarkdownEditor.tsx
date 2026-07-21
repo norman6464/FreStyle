@@ -11,7 +11,7 @@ import {
   PhotoIcon,
 } from '@heroicons/react/24/outline';
 import type { SaveStatus } from '../hooks/useNoteEditor';
-import { useToast } from '../hooks/useToast';
+import { useToast } from '@/shared/lib/hooks/useToast';
 import { getNoteStats } from '@/entities/note';
 import WordCount from '@/shared/ui/WordCount';
 import LineCount from '@/shared/ui/LineCount';

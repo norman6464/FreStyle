@@ -4,8 +4,8 @@ import MessageAttachmentList, {
   MessageAttachmentView as _MessageAttachmentView,
 } from './MessageAttachmentList';
 import MarkdownView from '@/shared/ui/MarkdownView';
-import { useSmoothReveal } from '@/hooks/useSmoothReveal';
-import { useFadeOnVisible } from '@/hooks/useFadeOnVisible';
+import { useSmoothReveal } from '@/shared/lib/hooks/useSmoothReveal';
+import { useFadeOnVisible } from '@/shared/lib/hooks/useFadeOnVisible';
 
 // `MessageAttachmentView` は MessageBubbleAi 経由で外部から import されている。
 // 互換性のため同名で re-export する。

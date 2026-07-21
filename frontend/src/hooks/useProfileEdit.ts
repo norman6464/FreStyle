@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ProfileRepository } from '@/entities/user';
-import { useToast } from './useToast';
+import { useToast } from '@/shared/lib/hooks/useToast';
 import type { FormMessage } from '@/shared/ui/FormMessage';
 import type { Profile } from '@/entities/user';
 

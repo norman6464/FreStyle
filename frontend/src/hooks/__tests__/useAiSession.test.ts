@@ -12,7 +12,7 @@ vi.mock('react-router-dom', () => ({
 }));
 
 // トースト通知(FRESTYLE-151)。 Provider を張らずに呼び出しだけ検証したいのでモックする。
-vi.mock('../useToast', () => ({
+vi.mock('@/shared/lib/hooks/useToast', () => ({
   useToast: () => ({ showToast: mockShowToast, removeToast: vi.fn(), toasts: [] }),
 }));
 

@@ -10,8 +10,8 @@ import { DocumentTextIcon, PlusIcon, MagnifyingGlassIcon, Bars3Icon, QuestionMar
 import { Link } from 'react-router-dom';
 import { useNotes } from '@/hooks/useNotes';
 import { useNoteEditor } from '@/hooks/useNoteEditor';
-import { useMobilePanelState } from '@/hooks/useMobilePanelState';
-import { useToast } from '@/hooks/useToast';
+import { useMobilePanelState } from '@/shared/lib/hooks/useMobilePanelState';
+import { useToast } from '@/shared/lib/hooks/useToast';
 import { useNoteKeyboardShortcuts } from '@/hooks/useNoteKeyboardShortcuts';
 
 export default function NotesPage() {

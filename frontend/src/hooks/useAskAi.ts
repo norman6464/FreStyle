@@ -5,7 +5,7 @@ import { useAiChat } from './useAiChat';
 import { useAiSession } from './useAiSession';
 import { useAiChatSse, SseEvent } from './useAiChatSse';
 import { AI_CHAT } from '@/shared/config/apiRoutes';
-import { AiAttachment, AiMessage } from '@/types';
+import type { AiAttachment, AiMessage } from '@/entities/ai-chat';
 
 /**
  * AskAiPage フック（SSE ストリーミング版）。

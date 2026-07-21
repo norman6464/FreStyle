@@ -14,17 +14,17 @@ vi.mock('react-redux', () => ({
   useDispatch: () => mockDispatch,
 }));
 
-vi.mock('../../repositories/AuthRepository', () => ({
+vi.mock('@/entities/user/api/authRepository', () => ({
   default: {
     callback: vi.fn(),
   },
 }));
 
-vi.mock('../../store/authSlice', () => ({
+vi.mock('@/entities/user/model/authSlice', () => ({
   setAuthData: () => ({ type: 'auth/setAuthData' }),
 }));
 
-import authRepository from '../../repositories/AuthRepository';
+import authRepository from '@/entities/user/api/authRepository';
 
 let mockSearchParams = '';
 

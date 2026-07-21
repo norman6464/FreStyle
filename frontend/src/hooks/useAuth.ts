@@ -2,13 +2,11 @@ import { useState, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { classifyApiError } from '@/shared/lib/classifyApiError';
-import AuthRepository, {
-  LoginRequest,
+import { AuthRepository, LoginRequest,
   ForgotPasswordRequest,
   ConfirmForgotPasswordRequest,
-  UserInfo,
-} from '../repositories/AuthRepository';
-import { setAuthData, clearAuth, finishLoading } from '../store/authSlice';
+  UserInfo } from '@/entities/user';
+import { setAuthData, clearAuth, finishLoading } from '@/entities/user';
 import { RootState } from '../store';
 
 /**

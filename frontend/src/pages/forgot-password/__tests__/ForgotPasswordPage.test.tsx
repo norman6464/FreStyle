@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import ForgotPasswordPage from '../ui/ForgotPasswordPage';
-import authRepository from '@/repositories/AuthRepository';
+import authRepository from '@/entities/user/api/authRepository';
 import { AxiosError } from 'axios';
 
 const mockNavigate = vi.fn();
@@ -15,7 +15,7 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
-vi.mock('@/repositories/AuthRepository');
+vi.mock('@/entities/user/api/authRepository');
 
 describe('ForgotPasswordPage', () => {
   beforeEach(() => {

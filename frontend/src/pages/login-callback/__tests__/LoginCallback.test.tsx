@@ -4,8 +4,8 @@ import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 import { MemoryRouter } from 'react-router-dom';
 import LoginCallback from '../ui/LoginCallback';
-import authReducer from '@/store/authSlice';
-import authRepository from '@/repositories/AuthRepository';
+import authReducer from '@/entities/user/model/authSlice';
+import authRepository from '@/entities/user/api/authRepository';
 import { ToastProvider } from '@/app/providers/ToastProvider';
 
 const mockNavigate = vi.fn();
@@ -18,7 +18,7 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
-vi.mock('@/repositories/AuthRepository');
+vi.mock('@/entities/user/api/authRepository');
 
 function renderWithRoute(search: string) {
   const store = configureStore({ reducer: { auth: authReducer } });

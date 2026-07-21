@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { UsersIcon, FireIcon, CalendarDaysIcon, ArrowRightIcon } from '@heroicons/react/24/outline';
-import type { CompanyLearningSummary } from '../../repositories/AdminMemberRepository';
+import type { CompanyLearningSummary } from '@/entities/member';
 
 interface Props {
   summary: CompanyLearningSummary;

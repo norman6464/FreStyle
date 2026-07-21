@@ -3,9 +3,9 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { useCompanyLearningSummary } from '../useCompanyLearningSummary';
 import AdminMemberRepository, {
   type CompanyLearningSummary,
-} from '../../repositories/AdminMemberRepository';
+} from '@/entities/member/api/adminMemberRepository';
 
-vi.mock('../../repositories/AdminMemberRepository', () => ({
+vi.mock('@/entities/member/api/adminMemberRepository', () => ({
   default: {
     learningSummary: vi.fn(),
   },

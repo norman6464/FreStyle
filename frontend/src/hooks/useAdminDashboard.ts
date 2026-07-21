@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import CompanyRepository from '../repositories/CompanyRepository';
+import { CompanyRepository } from '@/entities/company';
 import {
   CompanyApplicationRepository,
   CompanyApplication,
-} from '../repositories/CompanyApplicationRepository';
+} from '@/entities/company';
 
 /** 運営ダッシュボードの概況サマリ（既存 API の集計）。 */
 export interface AdminDashboardSummary {

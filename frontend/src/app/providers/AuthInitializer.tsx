@@ -1,8 +1,8 @@
 import { ReactNode, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { setAuthData, clearAuth, finishLoading } from '@/store/authSlice';
+import { setAuthData, clearAuth, finishLoading } from '@/entities/user';
 import type { RootState } from '@/store';
-import authRepository from '@/repositories/AuthRepository';
+import { AuthRepository as authRepository } from '@/entities/user';
 import Loading from '@/shared/ui/Loading';
 
 interface AuthInitializerProps {

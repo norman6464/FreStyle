@@ -5,11 +5,11 @@ import { configureStore } from '@reduxjs/toolkit';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import CourseDetailPage from '../ui/CourseDetailPage';
 import { ToastProvider } from '@/app/providers/ToastProvider';
-import authReducer from '@/store/authSlice';
+import authReducer from '@/entities/user/model/authSlice';
 import { CourseRepository } from '@/entities/course';
 import { TeachingMaterialRepository } from '@/entities/course';
 import { LessonProgressRepository } from '@/entities/course';
-import DashboardRepository from '@/repositories/DashboardRepository';
+import { DashboardRepository } from '@/entities/user';
 import type { Course, CourseWithProgress, TeachingMaterial, UserChapterView } from '@/entities/course';
 
 vi.mock('@/entities/course/api/courseRepository', () => ({
@@ -38,7 +38,7 @@ vi.mock('@/entities/course/api/lessonProgressRepository', () => ({
   },
 }));
 
-vi.mock('@/repositories/DashboardRepository', () => ({
+vi.mock('@/entities/user/api/dashboardRepository', () => ({
   default: {
     get: vi.fn(),
     recordChapterView: vi.fn(),

@@ -3,10 +3,10 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 import AuthInitializer from '../AuthInitializer';
-import authReducer from '@/store/authSlice';
-import authRepository from '@/repositories/AuthRepository';
+import authReducer from '@/entities/user/model/authSlice';
+import authRepository from '@/entities/user/api/authRepository';
 
-vi.mock('@/repositories/AuthRepository');
+vi.mock('@/entities/user/api/authRepository');
 
 function renderWithStore(initialLoading = true) {
   const store = configureStore({

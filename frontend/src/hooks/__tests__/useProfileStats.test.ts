@@ -2,13 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { useProfileStats } from '../useProfileStats';
 
-vi.mock('../../repositories/ProfileStatsRepository', () => ({
+vi.mock('@/entities/user/api/profileStatsRepository', () => ({
   default: {
     fetchStats: vi.fn(),
   },
 }));
 
-import ProfileStatsRepository from '../../repositories/ProfileStatsRepository';
+import { ProfileStatsRepository } from '@/entities/user';
 
 const mockFetchStats = ProfileStatsRepository.fetchStats as ReturnType<typeof vi.fn>;
 

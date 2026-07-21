@@ -1,12 +1,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useSelector } from 'react-redux';
 import { Navigate } from 'react-router-dom';
-import AdminInvitationRepository, {
-  AdminInvitation,
-  CreateInvitationForm,
-} from '@/repositories/AdminInvitationRepository';
-import CompanyRepository, { Company } from '@/repositories/CompanyRepository';
-import AuthRepository, { UserInfo } from '@/repositories/AuthRepository';
+import { AdminInvitationRepository, AdminInvitation,
+  CreateInvitationForm } from '@/entities/invitation';
+import { CompanyRepository, Company } from '@/entities/company';
+import { AuthRepository, UserInfo } from '@/entities/user';
 import type { RootState } from '@/store';
 import Loading from '@/shared/ui/Loading';
 import PageIntro from '@/shared/ui/PageIntro';

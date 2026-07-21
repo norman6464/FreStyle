@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useRef } from 'react';
-import type { Note } from '@/types';
+import type { Note } from '@/entities/note';
 import type { NoteSortOption } from '../constants/sortOptions';
-import NoteRepository from '../repositories/NoteRepository';
+import { NoteRepository } from '@/entities/note';
 
 /**
  * useNotes — Note の一覧取得・選択・並び替え・CRUD を担う hook。

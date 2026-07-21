@@ -4,7 +4,7 @@ import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import Protected from '../Protected';
-import authReducer from '@/store/authSlice';
+import authReducer from '@/entities/user/model/authSlice';
 
 function renderWithAuth(isAuthenticated: boolean) {
   const store = configureStore({

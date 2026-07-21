@@ -1,7 +1,5 @@
 import { useEffect, useState } from 'react';
-import AdminMemberRepository, {
-  type CompanyLearningSummary,
-} from '../repositories/AdminMemberRepository';
+import { AdminMemberRepository, type CompanyLearningSummary } from '@/entities/member';
 
 interface Options {
   enabled?: boolean;

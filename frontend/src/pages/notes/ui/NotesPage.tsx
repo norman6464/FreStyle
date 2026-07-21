@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { SecondaryPanel } from '@/widgets/secondary-panel';
-import NoteListItem from '@/components/NoteListItem';
+import { NoteListItem } from '@/entities/note';
 import NoteMarkdownEditor from '@/components/NoteMarkdownEditor';
 import EmptyState from '@/shared/ui/EmptyState';
 import ConfirmModal from '@/shared/ui/ConfirmModal';

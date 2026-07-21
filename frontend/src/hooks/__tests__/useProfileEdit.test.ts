@@ -6,7 +6,7 @@ const mockFetchProfile = vi.fn();
 const mockUpdateProfile = vi.fn();
 const mockShowToast = vi.fn();
 
-vi.mock('../../repositories/ProfileRepository', () => ({
+vi.mock('@/entities/user/api/profileRepository', () => ({
   default: {
     fetchProfile: (...args: unknown[]) => mockFetchProfile(...args),
     updateProfile: (...args: unknown[]) => mockUpdateProfile(...args),

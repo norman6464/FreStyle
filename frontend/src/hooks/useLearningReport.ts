@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { LearningReportRepository } from '../repositories/LearningReportRepository';
-import type { LearningReport } from '@/types';
+import { LearningReportRepository } from '@/entities/learning-report';
+import type { LearningReport } from '@/entities/learning-report';
 
 export function useLearningReport() {
   const [reports, setReports] = useState<LearningReport[]>([]);

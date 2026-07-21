@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import DashboardRepository from '../repositories/DashboardRepository';
-import type { UserDashboard } from '@/types';
+import { DashboardRepository } from '@/entities/user';
+import type { UserDashboard } from '@/entities/user';
 
 interface Options {
   enabled?: boolean;

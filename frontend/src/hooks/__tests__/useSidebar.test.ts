@@ -13,13 +13,13 @@ vi.mock('react-router-dom', () => ({
   useNavigate: () => mockNavigate,
 }));
 
-vi.mock('../../store/authSlice', () => ({
+vi.mock('@/entities/user/model/authSlice', () => ({
   clearAuth: () => ({ type: 'auth/clearAuth' }),
 }));
 
 const mockLogout = vi.fn();
 
-vi.mock('../../repositories/AuthRepository', () => ({
+vi.mock('@/entities/user/api/authRepository', () => ({
   default: {
     logout: (...args: unknown[]) => mockLogout(...args),
   },

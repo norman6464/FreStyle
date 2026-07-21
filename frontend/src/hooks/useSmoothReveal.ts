@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { splitSubSentences, endsAtBoundary } from '../components/message/subSentenceSegments';
+import { splitSubSentences, endsAtBoundary } from '@/shared/lib/subSentenceSegments';
 
 /**
  * useSmoothReveal — ストリーミング本文を Gemini 実物と同じリズムで放出するペーシングフック

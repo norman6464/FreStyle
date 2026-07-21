@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import LearningCalendar from '../LearningCalendar';
-import type { UserDailyActivity } from '@/types';
+import type { UserDailyActivity } from '@/entities/user';
 
 function dayOffset(daysAgo: number): string {
   const t = new Date();

@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
-import { setAuthData } from '../store/authSlice';
-import authRepository from '../repositories/AuthRepository';
+import { setAuthData } from '@/entities/user';
+import { AuthRepository as authRepository } from '@/entities/user';
 import { consumeInvitationToken } from '../lib/invitationToken';
 import { classifyApiError, getApiError } from '@/shared/lib/classifyApiError';
 

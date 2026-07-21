@@ -11,7 +11,7 @@ vi.mock('react-redux', () => ({
 // CompanyRepository（default export インスタンス）をモック。listStats が横断ビューを返す。
 const listStats = vi.fn();
 const updateActive = vi.fn();
-vi.mock('@/repositories/CompanyRepository', () => ({
+vi.mock('@/entities/company/api/companyRepository', () => ({
   default: {
     listStats: () => listStats(),
     updateActive: (...args: unknown[]) => updateActive(...args),

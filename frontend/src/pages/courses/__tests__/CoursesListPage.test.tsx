@@ -5,7 +5,7 @@ import { configureStore } from '@reduxjs/toolkit';
 import { MemoryRouter } from 'react-router-dom';
 import CoursesListPage from '../ui/CoursesListPage';
 import { ToastProvider } from '@/app/providers/ToastProvider';
-import authReducer from '@/store/authSlice';
+import authReducer from '@/entities/user/model/authSlice';
 import { CourseRepository } from '@/entities/course';
 import { COURSE_CATEGORIES, findCourseCategory } from '@/entities/course';
 import { COURSE_LANGUAGES } from '@/entities/course';

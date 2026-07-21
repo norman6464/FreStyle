@@ -6,7 +6,7 @@ import CompanyApplicationPage from '../ui/CompanyApplicationPage';
 
 const mockApply = vi.fn();
 
-vi.mock('@/repositories/CompanyApplicationRepository', () => ({
+vi.mock('@/entities/company/api/companyApplicationRepository', () => ({
   CompanyApplicationRepository: {
     apply: (form: unknown) => mockApply(form),
   },

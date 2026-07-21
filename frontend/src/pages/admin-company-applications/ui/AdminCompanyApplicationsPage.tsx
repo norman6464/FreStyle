@@ -9,7 +9,7 @@ import { useCompanyApplications } from '@/hooks/useCompanyApplications';
 import type {
   CompanyApplication,
   CompanyApplicationStatus,
-} from '@/repositories/CompanyApplicationRepository';
+} from '@/entities/company';
 
 const STATUS_LABEL: Record<CompanyApplicationStatus, string> = {
   pending: '承認待ち',

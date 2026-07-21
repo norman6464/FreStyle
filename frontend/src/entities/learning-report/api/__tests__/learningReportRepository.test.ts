@@ -1,0 +1,55 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+vi.mock('@/shared/api/axios', () => ({
+  default: {
+    get: vi.fn(),
+    post: vi.fn(),
+  },
+}));
+
+import apiClient from '@/shared/api/axios';
+import { LearningReportRepository } from '../learningReportRepository';
+
+const mockedGet = vi.mocked(apiClient.get);
+const mockedPost = vi.mocked(apiClient.post);
+
+describe('LearningReportRepository', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('getAll: レポート一覧を取得する', async () => {
+    const reports = [
+      { id: 1, userId: 7, periodFrom: '2024-06-01T00:00:00Z', periodTo: '2024-07-01T00:00:00Z', status: 'pending', createdAt: '2024-06-30T00:00:00Z' },
+    ];
+    mockedGet.mockResolvedValue({ data: reports });
+
+    const result = await LearningReportRepository.getAll();
+    expect(result).toEqual(reports);
+    expect(mockedGet).toHaveBeenCalledWith('/api/v2/learning-reports');
+  });
+
+  it('getMonthly: 指定月のレポートを取得する', async () => {
+    const report = { id: 1, userId: 7, periodFrom: '2024-06-01T00:00:00Z', periodTo: '2024-07-01T00:00:00Z', status: 'ready', s3Key: 'reports/2024-06.pdf', createdAt: '2024-06-30T00:00:00Z' };
+    mockedGet.mockResolvedValue({ data: report });
+
+    const result = await LearningReportRepository.getMonthly(2024, 6);
+    expect(result).toEqual(report);
+    expect(mockedGet).toHaveBeenCalledWith('/api/v2/learning-reports/2024/6');
+  });
+
+  it('getMonthly: 該当レポートがない場合はnullを返す', async () => {
+    mockedGet.mockRejectedValue(new Error('Not Found'));
+
+    const result = await LearningReportRepository.getMonthly(2024, 12);
+    expect(result).toBeNull();
+  });
+
+  it('generate: レポート生成リクエストを送る', async () => {
+    mockedPost.mockResolvedValue({ data: { status: 'generated' } });
+
+    const result = await LearningReportRepository.generate(2024, 6);
+    expect(result).toEqual({ status: 'generated' });
+    expect(mockedPost).toHaveBeenCalledWith('/api/v2/learning-reports/generate', { year: 2024, month: 6 });
+  });
+});

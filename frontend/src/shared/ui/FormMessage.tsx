@@ -1,8 +1,17 @@
 import { useEffect } from 'react';
 import { CheckCircleIcon, ExclamationCircleIcon, XMarkIcon } from '@heroicons/react/24/solid';
 
+/**
+ * フォームの通知メッセージ。
+ * 特定の業務ドメインに属さない汎用の表示用型なので、描画する本コンポーネントと同居させる。
+ */
+export interface FormMessage {
+  type: 'success' | 'error';
+  text: string;
+}
+
 interface FormMessageProps {
-  message: { type: 'error' | 'success'; text: string } | null;
+  message: FormMessage | null;
   onDismiss?: () => void;
 }
 

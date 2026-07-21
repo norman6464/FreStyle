@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import LearningReportPage from '../ui/LearningReportPage';
 import * as useLearningReportModule from '@/hooks/useLearningReport';
-import type { LearningReport } from '@/types';
+import type { LearningReport } from '@/entities/learning-report';
 
 vi.mock('@/hooks/useLearningReport');
 

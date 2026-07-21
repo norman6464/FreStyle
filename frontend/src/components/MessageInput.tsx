@@ -2,8 +2,8 @@ import { useState, useRef, useEffect, KeyboardEvent, ChangeEvent } from 'react';
 import { ArrowUpIcon, PlusIcon } from '@heroicons/react/24/solid';
 import { XMarkIcon, PhotoIcon } from '@heroicons/react/24/outline';
 import { useAutoResizeTextarea } from '../hooks/useAutoResizeTextarea';
-import aiChatRepository from '../repositories/AiChatRepository';
-import type { AiAttachment, AiAttachmentFormat } from '@/types';
+import { AiChatRepository as aiChatRepository } from '@/entities/ai-chat';
+import type { AiAttachment, AiAttachmentFormat } from '@/entities/ai-chat';
 
 interface MessageInputProps {
   onSend: (text: string, attachments?: AiAttachment[]) => void;

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
-import CompanySettingsRepository from '../repositories/CompanySettingsRepository';
-import { setAiChatEnabledForTrainees } from '../store/authSlice';
+import { CompanySettingsRepository } from '@/entities/company';
+import { setAiChatEnabledForTrainees } from '@/entities/user';
 import { classifyApiError } from '@/shared/lib/classifyApiError';
 
 /**

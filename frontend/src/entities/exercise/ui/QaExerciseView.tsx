@@ -1,6 +1,6 @@
 import { CheckCircleIcon, XCircleIcon, ClipboardDocumentCheckIcon } from '@heroicons/react/24/outline';
 import ExerciseHeader from './ExerciseHeader';
-import MarkdownView from '@/components/message/MarkdownView';
+import MarkdownView from '@/shared/ui/MarkdownView';
 import { MasterExercise, ExerciseSubmitResult } from '../model/types';
 
 interface Props {

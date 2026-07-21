@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { useUserDashboard } from '../useUserDashboard';
-import DashboardRepository from '../../repositories/DashboardRepository';
-import type { UserDashboard } from '@/types';
+import { DashboardRepository } from '@/entities/user';
+import type { UserDashboard } from '@/entities/user';
 
-vi.mock('../../repositories/DashboardRepository');
+vi.mock('@/entities/user/api/dashboardRepository');
 
 const mockGet = vi.mocked(DashboardRepository.get);
 

@@ -6,7 +6,7 @@ const mockGetAll = vi.fn();
 const mockGetMonthly = vi.fn();
 const mockGenerate = vi.fn();
 
-vi.mock('../../repositories/LearningReportRepository', () => ({
+vi.mock('@/entities/learning-report/api/learningReportRepository', () => ({
   LearningReportRepository: {
     getAll: (...args: unknown[]) => mockGetAll(...args),
     getMonthly: (...args: unknown[]) => mockGetMonthly(...args),

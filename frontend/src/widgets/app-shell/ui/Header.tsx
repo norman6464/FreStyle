@@ -9,7 +9,7 @@ import {
 } from '@heroicons/react/24/outline';
 import Loading from '@/shared/ui/Loading';
 import HeaderUserMenu from './HeaderUserMenu';
-import { useSidebar } from '@/hooks/useSidebar';
+import { useSidebar } from '../model/useSidebar';
 import { NotificationRepository } from '@/entities/notification';
 import { ProfileRepository } from '@/entities/user';
 import type { RootState } from '@/store';

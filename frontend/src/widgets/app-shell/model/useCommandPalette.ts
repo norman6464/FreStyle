@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import { COMMAND_ITEMS, type CommandItem } from '../constants/commandPaletteItems';
+import { COMMAND_ITEMS, type CommandItem } from '../config/commandPaletteItems';
 
 function filterItems(items: CommandItem[], query: string): CommandItem[] {
   if (!query.trim()) return items;

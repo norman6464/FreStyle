@@ -1,4 +1,4 @@
-import { useLearningReport } from '@/hooks/useLearningReport';
+import { useLearningReport } from '../model/useLearningReport';
 import EmptyState from '@/shared/ui/EmptyState';
 import Loading from '@/shared/ui/Loading';
 import { ReportCard } from '@/entities/learning-report';

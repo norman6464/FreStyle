@@ -3,7 +3,7 @@ import { ArrowLeftIcon, CheckCircleIcon, ClockIcon } from '@heroicons/react/24/o
 import { EXERCISE_LANGUAGES } from '@/entities/exercise';
 import LanguageBadge from '@/shared/ui/LanguageBadge';
 import LanguageIcon from '@/shared/ui/LanguageIcon';
-import { useExerciseList } from '@/hooks/useExerciseList';
+import { useExerciseList } from '../model/useExerciseList';
 import type { MasterExerciseWithStatus } from '@/entities/exercise';
 
 /**

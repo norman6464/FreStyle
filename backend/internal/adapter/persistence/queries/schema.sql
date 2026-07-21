@@ -50,8 +50,6 @@ CREATE TABLE profiles (
     user_id    bigint PRIMARY KEY,
     bio            text NOT NULL DEFAULT '',
     avatar_url     text NOT NULL DEFAULT '',
-    -- status(旧) と status_message(新) は Expand-Contract 移行中の一時的な併存。Contract で status を削除する。
-    status         text NOT NULL DEFAULT '',
     status_message text NOT NULL DEFAULT '',
     updated_at     timestamptz NOT NULL
 );

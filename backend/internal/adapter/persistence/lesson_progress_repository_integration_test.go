@@ -76,7 +76,7 @@ func TestLessonProgressRepository_CountCompletedByUserGroupedByCourse_Integratio
 	ctx := context.Background()
 
 	testsupport.TruncateAll(t, db, "user_lesson_progress")
-	testsupport.TruncateAll(t, db, "teaching_materials")
+	testsupport.TruncateAll(t, db, "course_chapters")
 
 	mk := func(courseID uint64, title string, published bool) *domain.TeachingMaterial {
 		m := &domain.TeachingMaterial{

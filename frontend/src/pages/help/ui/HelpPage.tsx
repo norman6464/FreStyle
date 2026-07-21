@@ -10,7 +10,7 @@ import {
   BookmarkIcon,
 } from '@heroicons/react/24/outline';
 import { PageIntro, StepIndicator, GuidedHint, GlossaryTerm, ActionCard } from '@/shared/ui';
-import { GLOSSARY } from '@/constants/glossary';
+import { GLOSSARY } from '../config/glossary';
 
 /**
  * 新卒新入社員向けの「使い方ガイド」ページ。

@@ -13,8 +13,8 @@ import {
 import type { RootState } from '@/store';
 import { useUserDashboard } from '../model/useUserDashboard';
 import { useCompanyLearningSummary } from '../model/useCompanyLearningSummary';
-import DashboardStats from '@/components/dashboard/DashboardStats';
-import CompanyLearningPanel from '@/components/dashboard/CompanyLearningPanel';
+import DashboardStats from './DashboardStats';
+import CompanyLearningPanel from './CompanyLearningPanel';
 
 /**
  * ホーム画面（ダッシュボード）。

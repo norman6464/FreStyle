@@ -1,6 +1,6 @@
 import { useEffect, useRef, useMemo, useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { useAuth } from './useAuth';
+import { useAuth } from '@/features/auth';
 import { useAiChat } from './useAiChat';
 import { useAiSession } from './useAiSession';
 import { useAiChatSse, SseEvent } from './useAiChatSse';

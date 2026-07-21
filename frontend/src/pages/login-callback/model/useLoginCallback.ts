@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
+import { useAppDispatch } from '@/shared/lib/store';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { useDispatch } from 'react-redux';
+
 import { setAuthData } from '@/entities/user';
 import { AuthRepository as authRepository } from '@/entities/user';
 import { consumeInvitationToken } from '@/shared/lib/invitationToken';
@@ -9,7 +10,7 @@ import { classifyApiError, getApiError } from '@/shared/lib/classifyApiError';
 export function useLoginCallback() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const dispatch = useDispatch();
+  const dispatch = useAppDispatch();
   const code = searchParams.get('code');
   const error = searchParams.get('error');
 

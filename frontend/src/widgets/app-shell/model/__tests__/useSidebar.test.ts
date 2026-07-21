@@ -5,8 +5,8 @@ import { useSidebar } from '../useSidebar';
 const mockDispatch = vi.fn();
 const mockNavigate = vi.fn();
 
-vi.mock('react-redux', () => ({
-  useDispatch: () => mockDispatch,
+vi.mock('@/shared/lib/store', () => ({
+  useAppDispatch: () => mockDispatch,
 }));
 
 vi.mock('react-router-dom', () => ({

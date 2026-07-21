@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useDispatch } from 'react-redux';
+import { useAppDispatch } from '@/shared/lib/store';
+
 import { CompanySettingsRepository } from '@/entities/company';
 import { setAiChatEnabledForTrainees } from '@/entities/user';
 import { classifyApiError } from '@/shared/lib/classifyApiError';
@@ -9,7 +10,7 @@ import { classifyApiError } from '@/shared/lib/classifyApiError';
  * 取得・更新の状態を持ち、更新後は Redux にも反映して即座にサイドバー表示へ波及させる。
  */
 export function useCompanyAiSettings() {
-  const dispatch = useDispatch();
+  const dispatch = useAppDispatch();
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

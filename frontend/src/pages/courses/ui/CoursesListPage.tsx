@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { useSelector } from 'react-redux';
+import { useAppSelector } from '@/shared/lib/store';
+
 import { useNavigate } from 'react-router-dom';
 import {
   CheckCircleIcon,
@@ -19,7 +20,7 @@ import { useCourses } from '../model/useCourses';
 import { useToast } from '@/shared/lib/hooks/useToast';
 import { COURSE_CATEGORIES, findCourseCategory } from '@/entities/course';
 import { COURSE_LANGUAGES } from '@/entities/course';
-import type { RootState } from '@/store';
+
 import type { Course, CourseWithProgress } from '@/entities/course';
 
 /** 未分類('')や未知の値を未分類バケットの key('') に正規化する。 */
@@ -37,7 +38,7 @@ function normalizeCategoryKey(category: string): string {
  * セクションは閉じ開きでき、上部のチップでカテゴリ絞り込みができる。
  */
 export default function CoursesListPage() {
-  const role = useSelector((s: RootState) => s.auth.role);
+  const role = useAppSelector((s) => s.auth.role);
   const canManage = role === 'company_admin' || role === 'super_admin';
 
   const { showToast } = useToast();

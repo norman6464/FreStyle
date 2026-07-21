@@ -1,7 +1,8 @@
-import { useSelector } from 'react-redux';
+
 import { Navigate, Link } from 'react-router-dom';
+import { useAppSelector } from '@/shared/lib/store';
 import { BuildingOffice2Icon, InboxArrowDownIcon } from '@heroicons/react/24/outline';
-import type { RootState } from '@/store';
+
 import Loading from '@/shared/ui/Loading';
 import PageIntro from '@/shared/ui/PageIntro';
 import { useAdminDashboard } from '../model/useAdminDashboard';
@@ -40,9 +41,9 @@ function StatCard(props: {
  * 会社数（有効/無効）と承認待ちの利用申請件数を一目で把握し、各管理画面へ導く。
  */
 export default function AdminDashboardPage() {
-  const isAdmin = useSelector((state: RootState) => state.auth.isAdmin);
-  const authLoading = useSelector((state: RootState) => state.auth.loading);
-  const role = useSelector((state: RootState) => state.auth.role);
+  const isAdmin = useAppSelector((state) => state.auth.isAdmin);
+  const authLoading = useAppSelector((state) => state.auth.loading);
+  const role = useAppSelector((state) => state.auth.role);
   // super_admin のときだけ admin API を取得する（リダイレクト対象に権限外アクセスを試行させない）。
   const canView = isAdmin && role === 'super_admin';
   const { summary, loading, error } = useAdminDashboard(canView);

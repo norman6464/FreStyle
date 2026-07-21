@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react';
-import { useSelector } from 'react-redux';
+import { useAppSelector } from '@/shared/lib/store';
+
 import { Navigate } from 'react-router-dom';
-import type { RootState } from '@/store';
+
 import Loading from '@/shared/ui/Loading';
 import PageIntro from '@/shared/ui/PageIntro';
 import { useAdminMembers } from '../model/useAdminMembers';
@@ -32,8 +33,8 @@ function roleLabel(role: string): string {
  * （会社一括設定は従来どおり別途残る。個別設定が会社設定を上書きする）。
  */
 export default function AdminMembersPage() {
-  const isAdmin = useSelector((state: RootState) => state.auth.isAdmin);
-  const authLoading = useSelector((state: RootState) => state.auth.loading);
+  const isAdmin = useAppSelector((state) => state.auth.isAdmin);
+  const authLoading = useAppSelector((state) => state.auth.loading);
   const { members, loading, error, updatingId, setAiAccess, setActive, remove } = useAdminMembers();
   const [query, setQuery] = useState('');
 

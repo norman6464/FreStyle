@@ -1,11 +1,12 @@
 import { useEffect, useState, useCallback } from 'react';
-import { useSelector } from 'react-redux';
+import { useAppSelector } from '@/shared/lib/store';
+
 import { Navigate } from 'react-router-dom';
 import { AdminInvitationRepository, AdminInvitation,
   CreateInvitationForm } from '@/entities/invitation';
 import { CompanyRepository, Company } from '@/entities/company';
 import { AuthRepository, UserInfo } from '@/entities/user';
-import type { RootState } from '@/store';
+
 import Loading from '@/shared/ui/Loading';
 import PageIntro from '@/shared/ui/PageIntro';
 import ConfirmModal from '@/shared/ui/ConfirmModal';
@@ -43,8 +44,8 @@ function translateInviteError(raw: string): string {
 }
 
 export default function AdminInvitationsPage() {
-  const isAdmin = useSelector((state: RootState) => state.auth.isAdmin);
-  const authLoading = useSelector((state: RootState) => state.auth.loading);
+  const isAdmin = useAppSelector((state) => state.auth.isAdmin);
+  const authLoading = useAppSelector((state) => state.auth.loading);
 
   const [me, setMe] = useState<UserInfo | null>(null);
   const [invitations, setInvitations] = useState<AdminInvitation[]>([]);

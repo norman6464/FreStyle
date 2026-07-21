@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react';
-import { useSelector } from 'react-redux';
+import { useAppSelector } from '@/shared/lib/store';
+
 import { Navigate, Link } from 'react-router-dom';
 import { CompanyRepository, CompanyStat } from '@/entities/company';
-import type { RootState } from '@/store';
+
 import Loading from '@/shared/ui/Loading';
 import PageIntro from '@/shared/ui/PageIntro';
 import { logger } from '@/shared/lib/logger';
 import { BuildingOffice2Icon, UserPlusIcon } from '@heroicons/react/24/outline';
 
 export default function AdminCompaniesPage() {
-  const authLoading = useSelector((state: RootState) => state.auth.loading);
-  const role = useSelector((state: RootState) => state.auth.role);
+  const authLoading = useAppSelector((state) => state.auth.loading);
+  const role = useAppSelector((state) => state.auth.role);
   // 会社一覧 / 横断ビュー（/admin/companies/stats）は super_admin 専用エンドポイント。
   // company_admin が到達しても 403 を踏ませないよう、判定は super_admin に統一する。
   const isSuperAdmin = role === 'super_admin';

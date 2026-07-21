@@ -1,6 +1,7 @@
-import { useSelector } from 'react-redux';
+
 import { Navigate } from 'react-router-dom';
-import type { RootState } from '@/store';
+import { useAppSelector } from '@/shared/lib/store';
+
 import Loading from '@/shared/ui/Loading';
 import PageIntro from '@/shared/ui/PageIntro';
 import { useAuditLog } from '../model/useAuditLog';
@@ -54,8 +55,8 @@ function AuditRow({ e }: { e: AuditEvent }) {
  * 管理者の重要操作（会社の有効/無効・従業員の停止/削除・招待）を新しい順で確認できる。
  */
 export default function AdminAuditLogPage() {
-  const authLoading = useSelector((state: RootState) => state.auth.loading);
-  const role = useSelector((state: RootState) => state.auth.role);
+  const authLoading = useAppSelector((state) => state.auth.loading);
+  const role = useAppSelector((state) => state.auth.role);
   const isSuperAdmin = role === 'super_admin';
   const { events, loading, error } = useAuditLog(isSuperAdmin);
 

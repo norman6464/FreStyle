@@ -5,7 +5,8 @@ import { authReducer } from '@/entities/user';
  * Redux ストア本体。
  *
  * slice の実体は各 entity（`entities/user/model/authSlice` など）が持ち、
- * ここは組み立てだけを担う。FSD 移行の Phase 6 で `app/store` へ移す予定。
+ * app レイヤーで各 slice の reducer を集約する。各層は RootState を直接 import せず、
+ * `@/shared/lib/store` の useAppSelector / useAppDispatch 経由で状態にアクセスする。
  */
 export const store = configureStore({
   reducer: {

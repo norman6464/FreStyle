@@ -21,7 +21,7 @@ func TestProfileRepository_Integration(t *testing.T) {
 	t.Run("FindByUserID は profile を返す", func(t *testing.T) {
 		testsupport.TruncateAll(t, db, "profiles")
 		require.NoError(t, db.WithContext(ctx).Create(&domain.Profile{
-			UserID: 7, Bio: "自己紹介", AvatarURL: "https://example.com/a.png", StatusMessage: "active",
+			UserID: 7, Bio: "自己紹介", AvatarURL: "https://example.com/a.png", Status: "active",
 		}).Error)
 
 		got, err := repo.FindByUserID(ctx, 7)
@@ -30,7 +30,7 @@ func TestProfileRepository_Integration(t *testing.T) {
 		require.Equal(t, uint64(7), got.UserID)
 		require.Equal(t, "自己紹介", got.Bio)
 		require.Equal(t, "https://example.com/a.png", got.AvatarURL)
-		require.Equal(t, "active", got.StatusMessage)
+		require.Equal(t, "active", got.Status)
 	})
 
 	t.Run("未作成は (nil, nil)", func(t *testing.T) {

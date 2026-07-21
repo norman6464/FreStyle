@@ -14,14 +14,14 @@ CREATE TABLE master_exercise_examples (
     updated_at      timestamptz NOT NULL
 );
 
--- cognito_sub / email / display_name / role はアプリが必ず値を入れるため NOT NULL とみなす
+-- cognito_sub / email / name / role はアプリが必ず値を入れるため NOT NULL とみなす
 -- （sqlc が string を生成し domain への詰め替えが綺麗になる）。company_id / onboarded_at /
 -- deleted_at は実際に NULL になり得る（SuperAdmin は company 無し等）ので nullable のまま。
 CREATE TABLE users (
     id           bigint PRIMARY KEY,
     cognito_sub  text NOT NULL,
     email        text NOT NULL DEFAULT '',
-    display_name text NOT NULL DEFAULT '',
+    name       text NOT NULL DEFAULT '',
     company_id   bigint,
     role         text NOT NULL,
     ai_chat_enabled boolean,
@@ -48,10 +48,12 @@ CREATE TABLE notes (
 -- users とは別管理のプロフィール拡張（user_id が PK）。全列 domain.Profile と 1:1。
 CREATE TABLE profiles (
     user_id    bigint PRIMARY KEY,
-    bio        text NOT NULL DEFAULT '',
-    avatar_url text NOT NULL DEFAULT '',
-    status     text NOT NULL DEFAULT '',
-    updated_at timestamptz NOT NULL
+    bio            text NOT NULL DEFAULT '',
+    avatar_url     text NOT NULL DEFAULT '',
+    -- status(旧) と status_message(新) は Expand-Contract 移行中の一時的な併存。Contract で status を削除する。
+    status         text NOT NULL DEFAULT '',
+    status_message text NOT NULL DEFAULT '',
+    updated_at     timestamptz NOT NULL
 );
 
 -- アプリ内通知。全列 domain.Notification と 1:1。

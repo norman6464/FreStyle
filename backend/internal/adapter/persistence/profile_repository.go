@@ -36,11 +36,12 @@ func (r *profileRepository) FindByUserID(ctx context.Context, userID uint64) (*d
 		return nil, err
 	}
 	return &domain.Profile{
-		UserID:    uint64(row.UserID),
-		Bio:       row.Bio,
-		AvatarURL: row.AvatarUrl,
-		Status:    row.Status,
-		UpdatedAt: row.UpdatedAt,
+		UserID:        uint64(row.UserID),
+		Bio:           row.Bio,
+		AvatarURL:     row.AvatarUrl,
+		Status:        row.Status,
+		StatusMessage: row.StatusMessage,
+		UpdatedAt:     row.UpdatedAt,
 	}, nil
 }
 

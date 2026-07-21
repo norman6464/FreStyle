@@ -20,9 +20,11 @@ func NewLessonProgressRepository(db *gorm.DB) repository.LessonProgressRepositor
 }
 
 func (r *lessonProgressRepository) MarkCompleted(ctx context.Context, userID, materialID, courseID uint64) (bool, error) {
+	// Expand フェーズ: 旧 teaching_material_id と新 chapter_id の両方へ同値を書く(dual-write)。
 	row := &domain.UserLessonProgress{
 		UserID:             userID,
 		TeachingMaterialID: materialID,
+		ChapterID:          materialID,
 		CourseID:           courseID,
 		CompletedAt:        time.Now(),
 	}

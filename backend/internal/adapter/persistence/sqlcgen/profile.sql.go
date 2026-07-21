@@ -10,7 +10,7 @@ import (
 )
 
 const getProfileByUserID = `-- name: GetProfileByUserID :one
-SELECT user_id, bio, avatar_url, status, updated_at FROM profiles
+SELECT user_id, bio, avatar_url, status, status_message, updated_at FROM profiles
 WHERE user_id = $1
 `
 
@@ -23,6 +23,7 @@ func (q *Queries) GetProfileByUserID(ctx context.Context, userID int64) (Profile
 		&i.Bio,
 		&i.AvatarUrl,
 		&i.Status,
+		&i.StatusMessage,
 		&i.UpdatedAt,
 	)
 	return i, err

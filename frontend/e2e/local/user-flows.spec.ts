@@ -40,8 +40,12 @@ const course = {
   createdByUserId: 1,
   title: 'E2E 学習コース',
   description: 'Playwright によるフロー検証用コース',
+  category: 'database',
+  language: 'postgresql',
   sortOrder: 10,
   isPublished: true,
+  materialCount: 1,
+  completedCount: 0,
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-01T00:00:00Z',
 };
@@ -88,7 +92,10 @@ test.describe('コース学習フロー', () => {
       '**/api/v2/teaching-materials/11': material,
     });
 
+    // コースは「学習領域の選択 → その領域の一覧 → 詳細」の 3 段(FRESTYLE-177)。
     await page.goto('/courses');
+    await page.getByRole('link', { name: /データベース のコース一覧へ/ }).click();
+    await expect(page).toHaveURL(/\/courses\/category\/database/);
     await expect(page.getByText('E2E 学習コース')).toBeVisible();
 
     // カード（div の onClick で navigate）を開く。

@@ -4495,6 +4495,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "teachingMaterialId": {
+                    "description": "TeachingMaterialID は章(course_chapters)の ID。DB 列は chapter_id(FRESTYLE-185 で改名)。\nJSON キーは互換のため teachingMaterialId のまま。",
                     "type": "integer"
                 },
                 "userId": {
@@ -4521,6 +4522,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "lessonCount": {
+                    "description": "LessonCount は完了した章の数。DB 列は chapter_count(FRESTYLE-185 で改名)。\nJSON キーは互換のため lessonCount のまま。",
                     "type": "integer"
                 },
                 "noteCount": {
@@ -4547,6 +4549,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "teachingMaterialId": {
+                    "description": "TeachingMaterialID は章(course_chapters)の ID。DB 列は chapter_id(FRESTYLE-185 で改名)。\nJSON キーは互換のため teachingMaterialId のまま。",
                     "type": "integer"
                 },
                 "userId": {

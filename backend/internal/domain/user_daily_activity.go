@@ -11,11 +11,11 @@ type UserDailyActivity struct {
 	ActivityDate  time.Time `gorm:"column:activity_date;type:date;primaryKey" json:"activityDate"`
 	ExerciseCount int       `gorm:"column:exercise_count;default:0;type:integer" json:"exerciseCount"`
 	CorrectCount  int       `gorm:"column:correct_count;default:0;type:integer"  json:"correctCount"`
-	LessonCount   int       `gorm:"column:lesson_count;default:0;type:integer"   json:"lessonCount"`
-	// ChapterCount は lesson_count の後継(章を数えるカウンタ)。Expand では dual-write で同値に保つ。
-	ChapterCount int `gorm:"column:chapter_count;default:0;type:integer" json:"-"`
-	AiChatCount  int `gorm:"column:ai_chat_count;default:0;type:integer"  json:"aiChatCount"`
-	NoteCount    int `gorm:"column:note_count;default:0;type:integer"     json:"noteCount"`
+	// LessonCount は完了した章の数。DB 列は chapter_count(FRESTYLE-185 で改名)。
+	// JSON キーは互換のため lessonCount のまま。
+	LessonCount int `gorm:"column:chapter_count;default:0;type:integer"  json:"lessonCount"`
+	AiChatCount int `gorm:"column:ai_chat_count;default:0;type:integer"  json:"aiChatCount"`
+	NoteCount   int `gorm:"column:note_count;default:0;type:integer"     json:"noteCount"`
 }
 
 func (UserDailyActivity) TableName() string { return "user_daily_activities" }

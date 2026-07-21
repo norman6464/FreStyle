@@ -33,7 +33,7 @@ SELECT u.id AS user_id,
        MAX(a.activity_date) AS last_active_date,
        COALESCE(SUM(
          CASE WHEN a.activity_date >= ?
-              THEN a.exercise_count + a.lesson_count + a.ai_chat_count + a.note_count
+              THEN a.exercise_count + a.chapter_count + a.ai_chat_count + a.note_count
               ELSE 0 END
        ), 0) AS recent_activity_count
 FROM users u

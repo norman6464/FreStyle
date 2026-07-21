@@ -26,7 +26,7 @@ func TestTeachingMaterialRepository_CountByCourseForCompany_Integration(t *testi
 		}
 	}
 
-	testsupport.TruncateAll(t, db, "teaching_materials")
+	testsupport.TruncateAll(t, db, "course_chapters")
 
 	// company 1: course 10 に published 2 + draft 1、course 20 に published 1
 	require.NoError(t, repo.Create(ctx, mk(1, 10, "c10-pub-1", true)))

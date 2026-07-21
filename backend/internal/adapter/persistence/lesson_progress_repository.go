@@ -50,7 +50,7 @@ func (r *lessonProgressRepository) CountCompletedByUserGroupedByCourse(ctx conte
 	const q = `
 SELECT tm.course_id, COUNT(*) AS cnt
 FROM user_lesson_progress ulp
-JOIN teaching_materials tm ON tm.id = ulp.teaching_material_id
+JOIN course_chapters tm ON tm.id = ulp.teaching_material_id
 WHERE ulp.user_id = ? AND tm.is_published = TRUE
 GROUP BY tm.course_id`
 	var rows []struct {

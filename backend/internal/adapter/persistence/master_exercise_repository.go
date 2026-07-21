@@ -23,7 +23,7 @@ func (r *masterExerciseRepository) ListByLanguage(ctx context.Context, language 
 	if language != "" {
 		q = q.Where("language = ?", language)
 	}
-	if err := q.Order("order_index asc").Find(&exercises).Error; err != nil {
+	if err := q.Order("sort_order asc").Find(&exercises).Error; err != nil {
 		return nil, err
 	}
 	return exercises, nil
@@ -109,7 +109,7 @@ LEFT JOIN (
 ) usr ON usr.exercise_id = e.id
 WHERE e.is_published = TRUE
   AND (? = '' OR e.language = ?)
-ORDER BY e.order_index ASC`
+ORDER BY e.sort_order ASC`
 
 	var q string
 	var args []interface{}

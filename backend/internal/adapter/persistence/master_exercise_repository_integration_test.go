@@ -24,10 +24,10 @@ func TestMasterExerciseRepository_ListWithStatusByLanguage_Integration(t *testin
 
 	// 問題: php-1(公開) / php-2(公開) / go-1(公開) / draft-1(非公開) を用意。
 	exercises := []domain.MasterExercise{
-		{Slug: "php-1", Language: "php", Title: "PHP1", OrderIndex: 1, IsPublished: true},
-		{Slug: "php-2", Language: "php", Title: "PHP2", OrderIndex: 2, IsPublished: true},
-		{Slug: "go-1", Language: "go", Title: "Go1", OrderIndex: 3, IsPublished: true},
-		{Slug: "draft-1", Language: "php", Title: "Draft", OrderIndex: 4, IsPublished: false},
+		{Slug: "php-1", Language: "php", Title: "PHP1", SortOrder: 1, IsPublished: true},
+		{Slug: "php-2", Language: "php", Title: "PHP2", SortOrder: 2, IsPublished: true},
+		{Slug: "go-1", Language: "go", Title: "Go1", SortOrder: 3, IsPublished: true},
+		{Slug: "draft-1", Language: "php", Title: "Draft", SortOrder: 4, IsPublished: false},
 	}
 	for i := range exercises {
 		require.NoError(t, db.WithContext(ctx).Create(&exercises[i]).Error)
@@ -52,7 +52,7 @@ func TestMasterExerciseRepository_ListWithStatusByLanguage_Integration(t *testin
 		return repository.ListWithStatusInput{UserID: userID, Language: language}
 	}
 
-	t.Run("言語フィルタ + 非公開除外 + order_index 昇順", func(t *testing.T) {
+	t.Run("言語フィルタ + 非公開除外 + sort_order 昇順", func(t *testing.T) {
 		rows, err := exRepo.ListWithStatusByLanguage(ctx, in(0, "php"))
 		require.NoError(t, err)
 		require.Len(t, rows, 2, "php の公開問題のみ（draft は除外）")

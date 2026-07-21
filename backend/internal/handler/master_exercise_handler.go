@@ -154,7 +154,7 @@ func (h *MasterExerciseHandler) List(c *gin.Context) {
 			ID:          r.ID,
 			Slug:        r.Slug,
 			Language:    r.Language,
-			OrderIndex:  r.OrderIndex,
+			OrderIndex:  r.SortOrder,
 			Category:    r.Category,
 			Title:       r.Title,
 			Difficulty:  r.Difficulty,

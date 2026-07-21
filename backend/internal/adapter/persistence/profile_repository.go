@@ -39,7 +39,6 @@ func (r *profileRepository) FindByUserID(ctx context.Context, userID uint64) (*d
 		UserID:        uint64(row.UserID),
 		Bio:           row.Bio,
 		AvatarURL:     row.AvatarUrl,
-		Status:        row.Status,
 		StatusMessage: row.StatusMessage,
 		UpdatedAt:     row.UpdatedAt,
 	}, nil

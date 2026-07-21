@@ -58,15 +58,14 @@ func Test_プロフィール更新_永続化する(t *testing.T) {
 	}
 }
 
-// Expand フェーズの dual-write を検証: StatusMessage の入力が status と status_message の
-// 両列(Profile の両フィールド)へ同値で書かれること。
-func Test_プロフィール更新_Expand期はstatusとstatus_messageに二重書きする(t *testing.T) {
+// Contract フェーズ: StatusMessage の入力が status_message へ書かれること(status 列は廃止)。
+func Test_プロフィール更新_status_messageに書き込む(t *testing.T) {
 	repo := &stubProfileRepo{}
 	uc := NewUpdateProfileUseCase(repo)
 	if _, err := uc.Execute(context.Background(), UpdateProfileInput{UserID: 1, StatusMessage: "元気です"}); err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	if repo.p.Status != "元気です" || repo.p.StatusMessage != "元気です" {
-		t.Fatalf("dual-write 失敗: status=%q status_message=%q", repo.p.Status, repo.p.StatusMessage)
+	if repo.p.StatusMessage != "元気です" {
+		t.Fatalf("status_message 未書き込み: %q", repo.p.StatusMessage)
 	}
 }

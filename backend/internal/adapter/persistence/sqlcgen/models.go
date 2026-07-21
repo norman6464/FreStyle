@@ -64,7 +64,6 @@ type Profile struct {
 	UserID        int64
 	Bio           string
 	AvatarUrl     string
-	Status        string
 	StatusMessage string
 	UpdatedAt     time.Time
 }

@@ -40,6 +40,7 @@ const AdminAuditLogPage = lazyWithReload(() => import('@/pages/admin-audit-log')
 const ExerciseLanguageSelectPage = lazyWithReload(() => import('@/pages/exercise-languages').then((m) => ({ default: m.ExerciseLanguageSelectPage })), 'ExerciseLanguageSelectPage');
 const ExerciseListPage = lazyWithReload(() => import('@/pages/exercises').then((m) => ({ default: m.ExerciseListPage })), 'ExerciseListPage');
 const ExerciseDetailPage = lazyWithReload(() => import('@/pages/exercise-detail').then((m) => ({ default: m.ExerciseDetailPage })), 'ExerciseDetailPage');
+const CourseCategorySelectPage = lazyWithReload(() => import('@/pages/courses').then((m) => ({ default: m.CourseCategorySelectPage })), 'CourseCategorySelectPage');
 const CoursesListPage = lazyWithReload(() => import('@/pages/courses').then((m) => ({ default: m.CoursesListPage })), 'CoursesListPage');
 const CourseDetailPage = lazyWithReload(() => import('@/pages/course-detail').then((m) => ({ default: m.CourseDetailPage })), 'CourseDetailPage');
 const MarkdownSyntaxHelpPage = lazyWithReload(() => import('@/pages/markdown-syntax-help').then((m) => ({ default: m.MarkdownSyntaxHelpPage })), 'MarkdownSyntaxHelpPage');
@@ -123,10 +124,13 @@ export default function App() {
         <Route path="/code-editor" element={<ExerciseLanguageSelectPage />} />
         <Route path="/code-editor/lang/:language" element={<ExerciseListPage />} />
         <Route path="/code-editor/:slug" element={<ExerciseDetailPage />} />
-        <Route path="/courses" element={<CoursesListPage />} />
+        {/* コースは「学習領域の選択 → その領域の一覧 → 詳細」の 3 段(FRESTYLE-177)。
+            /category/:category は 2 セグメントなので 1 セグメントの :id とは衝突しない。 */}
+        <Route path="/courses" element={<CourseCategorySelectPage />} />
+        <Route path="/courses/category/:category" element={<CoursesListPage />} />
         <Route path="/courses/:id" element={<CourseDetailPage />} />
         {/* 旧 /teaching-materials へのアクセスは /courses に redirect */}
-        <Route path="/teaching-materials" element={<CoursesListPage />} />
+        <Route path="/teaching-materials" element={<CourseCategorySelectPage />} />
         {/* Admin 専用（コンポーネント側で isAdmin チェック → 非 admin は / にリダイレクト） */}
         <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
         <Route path="/admin/companies" element={<AdminCompaniesPage />} />

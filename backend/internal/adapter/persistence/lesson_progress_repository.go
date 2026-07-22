@@ -35,33 +35,13 @@ func (r *lessonProgressRepository) MarkCompleted(ctx context.Context, userID, ma
 	if result.Error != nil {
 		return false, result.Error
 	}
-	// Expand フェーズ: 後継テーブル user_chapter_progress にも同じ行を upsert する(dual-write)。
-	// Contract で読み書きを新テーブルへ切り替え、旧テーブルを削除する。
-	shadow := &domain.UserChapterProgress{
-		UserID:      userID,
-		ChapterID:   materialID,
-		CourseID:    courseID,
-		CompletedAt: completedAt,
-	}
-	if err := r.db.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "user_id"}, {Name: "chapter_id"}},
-		DoNothing: true,
-	}).Create(shadow).Error; err != nil {
-		return false, err
-	}
 	return result.RowsAffected > 0, nil
 }
 
 func (r *lessonProgressRepository) MarkIncomplete(ctx context.Context, userID, materialID uint64) error {
-	if err := r.db.WithContext(ctx).
-		Where("user_id = ? AND chapter_id = ?", userID, materialID).
-		Delete(&domain.UserLessonProgress{}).Error; err != nil {
-		return err
-	}
-	// Expand フェーズ: 後継テーブルからも削除する(dual-write)。
 	return r.db.WithContext(ctx).
 		Where("user_id = ? AND chapter_id = ?", userID, materialID).
-		Delete(&domain.UserChapterProgress{}).Error
+		Delete(&domain.UserLessonProgress{}).Error
 }
 
 // CountCompletedByUserGroupedByCourse は「現存する published 教材」の完了行のみを
@@ -70,7 +50,7 @@ func (r *lessonProgressRepository) MarkIncomplete(ctx context.Context, userID, m
 func (r *lessonProgressRepository) CountCompletedByUserGroupedByCourse(ctx context.Context, userID uint64) (map[uint64]int, error) {
 	const q = `
 SELECT tm.course_id, COUNT(*) AS cnt
-FROM user_lesson_progress ulp
+FROM user_chapter_progress ulp
 JOIN course_chapters tm ON tm.id = ulp.chapter_id
 WHERE ulp.user_id = ? AND tm.is_published = TRUE
 GROUP BY tm.course_id`

@@ -9,6 +9,7 @@ import {
   ArrowLeftIcon,
   ArrowRightIcon,
   ListBulletIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline';
 import { CheckCircleIcon as CheckCircleSolidIcon } from '@heroicons/react/24/solid';
 import { SecondaryPanel } from '@/widgets/secondary-panel';
@@ -442,6 +443,11 @@ function ReadOnlyDetail({
   // 残すとカードの外(ヘッダー)とカードの中(本文)でタイトルが二重に見える(FRESTYLE-131)。
   const bodyContent = useMemo(() => stripLeadingTitle(material.content), [material.content]);
 
+  // 本文内の画像クリックでモーダル拡大表示する(FRESTYLE-191)。ページを離れずに図の細部を
+  // 確認できる(別タブで開くリンクは学習が中断されるため FRESTYLE-125 で除去済み)。
+  const [lightboxImage, setLightboxImage] = useState<{ src: string; alt: string } | null>(null);
+  useEffect(() => setLightboxImage(null), [material.id]);
+
   return (
     // 背景は読み物用の灰青(--color-reading-surface)、本文は白カード。背景と内容のコントラストで
     // 読み物として視線が本文に集まるようにする(FRESTYLE-118)。body は白に戻したが、教材閲覧だけ
@@ -490,7 +496,7 @@ function ReadOnlyDetail({
               </div>
             </header>
             <div className="prose prose-sm max-w-none course-prose">
-              <ReadOnlyMarkdown content={bodyContent} />
+              <ReadOnlyMarkdown content={bodyContent} onImageClick={setLightboxImage} />
             </div>
 
             {/* 末尾に「完了にする」と「次の章へ」を並べ、 読み終えた位置から次へ進めるようにする。
@@ -524,6 +530,14 @@ function ReadOnlyDetail({
               ) : null}
             </div>
           </article>
+
+          {lightboxImage && (
+            <ImageLightbox
+              src={lightboxImage.src}
+              alt={lightboxImage.alt}
+              onClose={() => setLightboxImage(null)}
+            />
+          )}
         </div>
 
         {tocOpen && (
@@ -736,7 +750,53 @@ import rehypeHighlight from 'rehype-highlight';
 import rehypeSlug from 'rehype-slug';
 import type { ReactNode } from 'react';
 
-function ReadOnlyMarkdown({ content }: { content: string }) {
+/** ImageLightbox は本文内の画像をモーダルで拡大表示する(FRESTYLE-191)。
+    背景クリック / 閉じるボタン / Esc キーで閉じる。開いたら閉じるボタンへフォーカスを移す。 */
+function ImageLightbox({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
+  const closeRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    closeRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={alt || '画像の拡大表示'}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 sm:p-10"
+      onClick={onClose}
+    >
+      <button
+        ref={closeRef}
+        type="button"
+        onClick={onClose}
+        aria-label="閉じる"
+        className="absolute top-4 right-4 rounded-full bg-white/90 p-2 text-gray-700 shadow hover:bg-white transition-colors"
+      >
+        <XMarkIcon className="w-5 h-5" />
+      </button>
+      {/* 画像自体のクリックでは閉じない(誤タップで閉じるのを防ぐ)。背景クリックのみで閉じる。 */}
+      <img
+        src={src}
+        alt={alt}
+        className="max-h-full max-w-full rounded-lg bg-white shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      />
+    </div>
+  );
+}
+
+function ReadOnlyMarkdown({
+  content,
+  onImageClick,
+}: {
+  content: string;
+  onImageClick?: (image: { src: string; alt: string }) => void;
+}) {
   if (!content.trim()) {
     return <p className="text-[var(--color-text-muted)]">この教材にはまだ本文がありません。</p>;
   }
@@ -758,16 +818,31 @@ function ReadOnlyMarkdown({ content }: { content: string }) {
         // 図（draw.io から書き出した PNG/SVG 等）を本文に埋め込めるようにする。
         // 中央寄せ + 枠 + 白背景（透過 SVG が見えるよう）。リンクにはしない
         // （クリックで画像 URL が別タブに開き学習が中断される、というユーザー要望で FRESTYLE-125 にて除去）。
+        // 代わりにクリックでモーダル拡大表示する(FRESTYLE-191。ページを離れないので中断されない)。
         img: ({ src, alt }) => {
           const url = typeof src === 'string' ? src : undefined;
+          const image = (
+            <img
+              src={url}
+              alt={alt ?? ''}
+              loading="lazy"
+              className="mx-auto max-w-[90%] h-auto rounded-lg border border-surface-3 bg-white"
+            />
+          );
           return (
             <figure className="my-5">
-              <img
-                src={url}
-                alt={alt ?? ''}
-                loading="lazy"
-                className="mx-auto max-w-[90%] h-auto rounded-lg border border-surface-3 bg-white"
-              />
+              {onImageClick && url ? (
+                <button
+                  type="button"
+                  onClick={() => onImageClick({ src: url, alt: alt ?? '' })}
+                  aria-label={`${alt || '図'}を拡大表示`}
+                  className="block w-full cursor-zoom-in"
+                >
+                  {image}
+                </button>
+              ) : (
+                image
+              )}
               {alt && (
                 <figcaption className="mt-2 text-center text-xs text-[var(--color-text-muted)]">
                   {alt}

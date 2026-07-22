@@ -32,13 +32,13 @@
 
 ユーザーのブラウザから、フロントエンド（静的配信）とバックエンド（API / SSE）に分かれて届き、バックエンドが各データストア・AI・認証サービスを束ねます。
 
-![FreStyle システム構成: ブラウザ → フロント(React/CloudFront+S3) / バックエンド(Go/ALB+ECS) → Supabase・DynamoDB・SQS・Bedrock・SES・Cognito](docs/images/readme-system.png)
+![FreStyle システム構成: ブラウザ → フロント(React/CloudFront+S3) / バックエンド(Go/ALB+ECS) → Supabase・DynamoDB・SQS・Bedrock・SES・Cognito](./architecture/readme-system.png)
 
 - **フロントエンド**: React 19 / TypeScript / Vite / Tailwind。ビルド成果物を **CloudFront + S3** で配信。
 - **バックエンド**: Go / Gin / GORM。**ALB + ECS Fargate**（+ コード実行用の `code-runner` サイドカー）。
 - **データ / 連携**: メイン DB は **Supabase(PostgreSQL)**、AI チャット履歴は **DynamoDB**、非同期は **SQS**、AI は **Bedrock(Claude)**、メールは **SES**、認証は **Cognito(JWT を HttpOnly Cookie)**。
 
-> 図のソース: [`docs/images/readme-system.drawio`](docs/images/readme-system.drawio)（draw.io で編集 → `drawio --export` で再生成）。AWS リソースレベルの詳細図は下の「[AWSアーキテクチャ構成図](#awsアーキテクチャ構成図)」を参照。
+> 図のソース: [`architecture/readme-system.drawio`](architecture/readme-system.drawio)（draw.io で編集 → `drawio --export` で再生成）。AWS リソースレベルの詳細図は下の「[AWSアーキテクチャ構成図](#awsアーキテクチャ構成図)」を参照。
 
 ## 使用技術
 
@@ -114,7 +114,7 @@ draw.io ソース: [`architecture/aws/freestyle-aws-architecture-current.drawio`
 
 バックエンドは **クリーンアーキテクチャ**で構成し、**依存方向は常に内側（domain）へ**向けます。`usecase` は具体実装ではなく **repository の interface（port）**に依存し、実装（`adapter/persistence` / `infra`）が DIP でその interface を満たします。この依存方向は自作の **`archlint`** が CI で機械的に強制します。
 
-![クリーンアーキテクチャ: handler(Gin) → usecase → repository(port) → domain。persistence / infra が DIP で port を実装](docs/images/readme-clean-arch.png)
+![クリーンアーキテクチャ: handler(Gin) → usecase → repository(port) → domain。persistence / infra が DIP で port を実装](./architecture/readme-clean-arch.png)
 
 | 層 | パッケージ | 責務 | 許される依存 |
 |---|---|---|---|
@@ -129,12 +129,12 @@ draw.io ソース: [`architecture/aws/freestyle-aws-architecture-current.drawio`
 
 フロントエンドにも同じ発想でレイヤーを適用します（`Page → Hook → Repository → API`）。
 
-![フロントエンド層: Page → Hook → Repository → Go backend。Component(表示) / Store(Redux) は横断](docs/images/readme-frontend-arch.png)
+![フロントエンド層: Page → Hook → Repository → Go backend。Component(表示) / Store(Redux) は横断](./architecture/readme-frontend-arch.png)
 
 - **Page**（`src/pages`）は画面のみ・ロジックを持たない。**Hook**（`src/hooks`）が状態管理と API 呼び出しをまとめ、**Repository**（`src/repositories`）に axios を集約。
 - **Component**（`src/components`）は副作用なしの表示、**Store**（Redux Toolkit）は auth 等のグローバル状態。
 
-> 図のソース: [`docs/images/readme-clean-arch.drawio`](docs/images/readme-clean-arch.drawio) / [`docs/images/readme-frontend-arch.drawio`](docs/images/readme-frontend-arch.drawio)。各層の責務・命名規約の詳細は [`backend/README.md`](./backend/README.md) を参照。
+> 図のソース: [`architecture/readme-clean-arch.drawio`](architecture/readme-clean-arch.drawio) / [`architecture/readme-frontend-arch.drawio`](architecture/readme-frontend-arch.drawio)。各層の責務・命名規約の詳細は [`backend/README.md`](./backend/README.md) を参照。
 
 ---
 

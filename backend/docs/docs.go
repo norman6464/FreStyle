@@ -3260,7 +3260,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "指定 user (or current user) の displayName / bio / avatarUrl / status を 返す。 IDOR 対策 で 自分 以外 は 403。",
+                "description": "指定 user (or current user) の name / bio / avatarUrl / status を 返す。 IDOR 対策 で 自分 以外 は 403。",
                 "produces": [
                     "application/json"
                 ],
@@ -3310,7 +3310,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "current user の displayName / bio / avatarUrl / status を 更新 する。 他 user は 403。",
+                "description": "current user の name / bio / avatarUrl / status を 更新 する。 他 user は 403。",
                 "consumes": [
                     "application/json"
                 ],

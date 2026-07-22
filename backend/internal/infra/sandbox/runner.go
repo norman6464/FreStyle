@@ -1,6 +1,6 @@
-// Package sandbox は学習者コード（php / go / bash）を os/exec でサンドボックス実行する
-// in-process 実装を提供する。backend 本体に同居させる場合（CODE_RUNNER_URL 未設定）と、
-// 別バイナリ cmd/coderunner（HTTP サーバ）の中身の双方から共有して使う。
+// Package sandbox は学習者コード（php / go / bash / sql / javascript / typescript）を
+// os/exec でサンドボックス実行する in-process 実装を提供する。backend 本体に同居させる場合
+// （CODE_RUNNER_URL 未設定）と、別バイナリ cmd/coderunner（HTTP サーバ）の中身の双方から共有して使う。
 package sandbox
 
 import (
@@ -21,7 +21,7 @@ import (
 
 const (
 	maxCodeBytes = 64 * 1024 // 64 KB
-	// execTimeout は PHP / bash の上限。
+	// execTimeout は PHP / bash / javascript / typescript の上限。
 	execTimeout = 8 * time.Second
 	// goExecTimeout は Go 専用。go run はコンパイルも走るため余裕を持たせる（cold compile ~6-8s）。
 	goExecTimeout  = 15 * time.Second
@@ -69,8 +69,8 @@ var disableFunctions = strings.Join([]string{
 	"syslog", "openlog", "closelog",
 }, ",")
 
-// Runner は php / go / bash を os/exec でサンドボックス実行する in-process 実装。
-// 共通制約: timeout / 64 KB code-size / 64 KB output-size。
+// Runner は php / go / bash / sql / javascript / typescript を os/exec でサンドボックス実行する
+// in-process 実装。共通制約: timeout / 64 KB code-size / 64 KB output-size。
 type Runner struct{}
 
 // NewRunner は in-process サンドボックス Runner を返す。
@@ -92,13 +92,16 @@ func (r *Runner) Run(ctx context.Context, input domain.CodeExecutionInput) (*dom
 		return r.executeBash(ctx, input)
 	case "sql":
 		return r.executeSQL(ctx, input)
+	case "javascript", "typescript":
+		return r.executeNode(ctx, input)
 	default:
 		return nil, fmt.Errorf("未対応の言語: %s", input.Language)
 	}
 }
 
 // Warmup は実行環境を事前に温める。Go は go run のコンパイルキャッシュを温めるため
-// trivial なプログラムを 1 回コンパイル/実行する。php / bash は起動が軽量なので no-op。
+// trivial なプログラムを 1 回コンパイル/実行する。php / bash / javascript / typescript は
+// 起動が軽量なので no-op。
 func (r *Runner) Warmup(ctx context.Context, language string) error {
 	if language != "go" {
 		return nil
@@ -222,6 +225,72 @@ func (r *Runner) executeBash(ctx context.Context, input domain.CodeExecutionInpu
 	configureProcessGroup(cmd)
 
 	return runCommand(cmd, input.Stdin)
+}
+
+// executeNode は javascript / typescript を Node.js で実行する。TypeScript は Node 組み込みの
+// 型除去（type stripping）でそのまま実行し、別途のコンパイル工程を持たない（起動が速い）。
+// enum 等の型除去だけでは動かない構文も --experimental-transform-types で変換して通す。
+func (r *Runner) executeNode(ctx context.Context, input domain.CodeExecutionInput) (*domain.CodeExecutionResult, error) {
+	// リクエストごとに独立した temp dir を HOME / PWD に固定し、副作用を temp に閉じる。
+	tmpDir, err := os.MkdirTemp("", "node-exec-")
+	if err != nil {
+		return nil, fmt.Errorf("一時ディレクトリの作成に失敗: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// 拡張子で Node の TypeScript 処理（型除去）が切り替わるため、言語に合わせる。
+	name := "main.js"
+	args := []string{}
+	if input.Language == "typescript" {
+		name = "main.ts"
+		args = append(
+			args,
+			"--experimental-transform-types",
+			// 実験機能の警告が stderr に混ざると学習者の実行結果を汚すため抑止する。
+			"--disable-warning=ExperimentalWarning",
+		)
+	}
+	// 512MB タスクに同居する他プロセスを圧迫しないようヒープ上限を絞る（学習用途には十分）。
+	args = append(args, "--max-old-space-size=128", name)
+
+	filename := filepath.Join(tmpDir, name)
+	if err := os.WriteFile(filename, []byte(input.Code), 0o600); err != nil {
+		return nil, fmt.Errorf("一時ファイルの作成に失敗: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, execTimeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "node", args...)
+	cmd.Dir = tmpDir
+	// AWS credential や DB password 等を子プロセスに継承しないため、環境変数は最小限に絞る
+	// （NODE_OPTIONS 等の注入も防ぐ）。
+	cmd.Env = []string{
+		"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+		"HOME=" + tmpDir,
+		"PWD=" + tmpDir,
+		"LANG=C.UTF-8",
+		"LC_ALL=C.UTF-8",
+	}
+
+	// child_process 等で子孫プロセスを起動しうるので、独立プロセスグループに置いて一括 kill する。
+	configureProcessGroup(cmd)
+
+	out, runErr := runCommand(cmd, input.Stdin)
+	if out != nil {
+		// スタックトレース等に出る一時ディレクトリの絶対パスを学習者に見せない。
+		// Node は main モジュールを realpath 解決してから出力する（macOS は /var → /private/var の
+		// symlink）ため、解決後のパスを先に置換しないと部分一致で `/private./main.js` に崩れる。
+		paths := []string{tmpDir}
+		if real, err := filepath.EvalSymlinks(tmpDir); err == nil && real != tmpDir {
+			paths = []string{real, tmpDir}
+		}
+		for _, p := range paths {
+			out.Stderr = strings.ReplaceAll(out.Stderr, p+string(os.PathSeparator), "./")
+			out.Stderr = strings.ReplaceAll(out.Stderr, p, ".")
+		}
+	}
+	return out, runErr
 }
 
 // pgConn は psql 接続に必要な最小情報。host が "/" 始まりなら unix socket ディレクトリ。

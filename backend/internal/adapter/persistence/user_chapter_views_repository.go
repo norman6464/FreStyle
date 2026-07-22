@@ -24,10 +24,10 @@ func (r *userChapterViewRepository) UpsertView(
 ) error {
 	sql := `
 INSERT INTO user_chapter_views
-  (user_id, teaching_material_id, course_id, first_viewed_at, last_viewed_at, view_count)
+  (user_id, chapter_id, course_id, first_viewed_at, last_viewed_at, view_count)
 VALUES
   (?, ?, ?, NOW(), NOW(), 1)
-ON CONFLICT (user_id, teaching_material_id) DO UPDATE SET
+ON CONFLICT (user_id, chapter_id) DO UPDATE SET
   course_id      = EXCLUDED.course_id,
   last_viewed_at = NOW(),
   view_count     = user_chapter_views.view_count + 1
@@ -47,4 +47,25 @@ func (r *userChapterViewRepository) ListRecentByUser(
 		Limit(limit).
 		Find(&rows).Error
 	return rows, err
+}
+
+// GetLastViewedByUserAndCourse は (user, course) の閲覧記録から last_viewed_at 最大の 1 件を返す。
+// 履歴なしはエラーではなく (nil, nil)(「初めて開くコース」は正常系のため)。
+func (r *userChapterViewRepository) GetLastViewedByUserAndCourse(
+	ctx context.Context,
+	userID, courseID uint64,
+) (*domain.UserChapterView, error) {
+	var rows []domain.UserChapterView
+	err := r.db.WithContext(ctx).
+		Where("user_id = ? AND course_id = ?", userID, courseID).
+		Order("last_viewed_at DESC").
+		Limit(1).
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return nil, nil
+	}
+	return &rows[0], nil
 }

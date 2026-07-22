@@ -7,7 +7,7 @@ type MasterExercise struct {
 	ID             uint64 `gorm:"primaryKey;autoIncrement" json:"id"`
 	Slug           string `gorm:"size:64;not null;uniqueIndex" json:"slug"`
 	Language       string `gorm:"size:32;not null;index" json:"language"`
-	OrderIndex     int    `gorm:"not null;default:0" json:"orderIndex"`
+	SortOrder      int    `gorm:"column:sort_order;not null;default:0" json:"orderIndex"`
 	Category       string `gorm:"size:64;not null" json:"category"`
 	Title          string `gorm:"size:200;not null" json:"title"`
 	Description    string `gorm:"type:text;not null" json:"description"`

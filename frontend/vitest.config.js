@@ -1,8 +1,16 @@
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
+import { fileURLToPath, URL } from 'node:url';
 
 export default defineConfig({
   plugins: [react()],
+  // vite.config.js / tsconfig.json と同じ '@' → src のエイリアス（FRESTYLE-155）。
+  // ここが無いと、テストだけが絶対パスを解決できず一斉に落ちる。
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
   test: {
     environment: 'jsdom',
     globals: true,

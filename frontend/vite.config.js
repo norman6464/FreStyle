@@ -1,9 +1,19 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { fileURLToPath, URL } from 'node:url';
 
 // 本番ビルドでは console.log/info/debug を除去し、必要最小限のログにする
 export default defineConfig(({ mode }) => ({
   plugins: [react()],
+  // '@' → src の絶対パス。FSD は層をまたぐ参照を絶対パスで書く前提なので、
+  // tsconfig.json の paths と同じ内容をビルド側にも定義する（FRESTYLE-155）。
+  // 型チェック・ビルド・テストの 3 か所すべてに無いと、
+  // 「型は通るがビルドで落ちる」状態になるため必ず揃える。
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
   define: {
     global: 'window', // ここで global をブラウザの window に置き換える
   },

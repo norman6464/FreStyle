@@ -1,0 +1,116 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { BrowserRouter } from 'react-router-dom';
+import ForgotPasswordPage from '../ui/ForgotPasswordPage';
+import authRepository from '@/entities/user/api/authRepository';
+import { AxiosError } from 'axios';
+
+const mockNavigate = vi.fn();
+
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom');
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+  };
+});
+
+vi.mock('@/entities/user/api/authRepository');
+
+describe('ForgotPasswordPage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('タイトルが表示される', () => {
+    render(<BrowserRouter><ForgotPasswordPage /></BrowserRouter>);
+
+    expect(screen.getByText('パスワードリセット')).toBeInTheDocument();
+  });
+
+  it('メールアドレス入力欄が表示される', () => {
+    render(<BrowserRouter><ForgotPasswordPage /></BrowserRouter>);
+
+    expect(screen.getByLabelText('メールアドレス')).toBeInTheDocument();
+  });
+
+  it('送信ボタンが表示される', () => {
+    render(<BrowserRouter><ForgotPasswordPage /></BrowserRouter>);
+
+    expect(screen.getByText('確認コードを送信')).toBeInTheDocument();
+  });
+
+  it('送信成功時にリセット確認ページへ遷移する', async () => {
+    vi.mocked(authRepository.forgotPassword).mockResolvedValue({ message: '確認コードを送信しました' });
+
+    render(<BrowserRouter><ForgotPasswordPage /></BrowserRouter>);
+
+    fireEvent.change(screen.getByLabelText('メールアドレス'), {
+      target: { value: 'test@example.com' },
+    });
+    fireEvent.click(screen.getByText('確認コードを送信'));
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/confirm-forgot-password', {
+        state: { email: 'test@example.com' },
+      });
+    });
+  });
+
+  it('送信失敗時にエラーメッセージを表示する', async () => {
+    const axiosError = new AxiosError('Request failed');
+    (axiosError as any).response = { data: { error: 'メールアドレスが見つかりません' } };
+    vi.mocked(authRepository.forgotPassword).mockRejectedValue(axiosError);
+
+    render(<BrowserRouter><ForgotPasswordPage /></BrowserRouter>);
+
+    fireEvent.change(screen.getByLabelText('メールアドレス'), {
+      target: { value: 'invalid@example.com' },
+    });
+    fireEvent.click(screen.getByText('確認コードを送信'));
+
+    await waitFor(() => {
+      expect(screen.getByText('メールアドレスが見つかりません')).toBeInTheDocument();
+    });
+  });
+
+  it('メールアドレス未入力で送信するとバリデーションエラーが表示される', async () => {
+    render(<BrowserRouter><ForgotPasswordPage /></BrowserRouter>);
+
+    fireEvent.click(screen.getByText('確認コードを送信'));
+
+    await waitFor(() => {
+      expect(screen.getByText('メールアドレスを入力してください。')).toBeInTheDocument();
+    });
+    expect(authRepository.forgotPassword).not.toHaveBeenCalled();
+  });
+
+  it('無効なメールアドレスで送信するとバリデーションエラーが表示される', async () => {
+    render(<BrowserRouter><ForgotPasswordPage /></BrowserRouter>);
+
+    fireEvent.change(screen.getByLabelText('メールアドレス'), {
+      target: { value: 'invalid-email' },
+    });
+    fireEvent.submit(screen.getByText('確認コードを送信').closest('form')!);
+
+    await waitFor(() => {
+      expect(screen.getByText('有効なメールアドレスを入力してください。')).toBeInTheDocument();
+    });
+    expect(authRepository.forgotPassword).not.toHaveBeenCalled();
+  });
+
+  it('通信エラー時にエラーメッセージを表示する', async () => {
+    vi.mocked(authRepository.forgotPassword).mockRejectedValue(new Error('Network error'));
+
+    render(<BrowserRouter><ForgotPasswordPage /></BrowserRouter>);
+
+    fireEvent.change(screen.getByLabelText('メールアドレス'), {
+      target: { value: 'test@example.com' },
+    });
+    fireEvent.click(screen.getByText('確認コードを送信'));
+
+    await waitFor(() => {
+      expect(screen.getByText('通信エラーが発生しました。')).toBeInTheDocument();
+    });
+  });
+});

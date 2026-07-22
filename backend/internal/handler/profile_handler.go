@@ -127,10 +127,10 @@ func (h *ProfileHandler) Update(c *gin.Context) {
 		}
 	}
 	if _, err := h.update.Execute(c.Request.Context(), usecase.UpdateProfileInput{
-		UserID:    uid,
-		Bio:       req.Bio,
-		AvatarURL: avatarURL,
-		Status:    req.Status,
+		UserID:        uid,
+		Bio:           req.Bio,
+		AvatarURL:     avatarURL,
+		StatusMessage: req.Status,
 	}); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -153,7 +153,7 @@ func (h *ProfileHandler) buildView(c *gin.Context, uid uint64) (*domain.ProfileV
 	if p != nil {
 		view.Bio = p.Bio
 		view.AvatarURL = p.AvatarURL
-		view.Status = p.Status
+		view.StatusMessage = p.StatusMessage
 		view.UpdatedAt = p.UpdatedAt
 	}
 	user, _ := h.users.FindByID(c.Request.Context(), uid)

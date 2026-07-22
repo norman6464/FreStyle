@@ -8,11 +8,12 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// CourseUseCase はコースの list / get / create / update / delete を 1 構造体で扱う。
+// CourseUseCase はコースの get / create / update / delete を 1 構造体で扱う。
 // canManage は teaching_material_usecase と共有。trainee は published のみ閲覧、
 // 編集系は同一 company の company_admin または super_admin。Delete は配下教材も cascade 削除。
+// 一覧は進捗集計を伴うため ListCoursesWithProgressUseCase が担う(FRESTYLE-98)。
 //
-//naminglint:allow 複数 CRUD を束ねる集約 usecase のため Execute 単一メソッドではなく List/Get/Create 等で公開する
+//naminglint:allow 複数 CRUD を束ねる集約 usecase のため Execute 単一メソッドではなく Get/Create 等で公開する
 type CourseUseCase struct {
 	courses   repository.CourseRepository
 	materials repository.TeachingMaterialRepository
@@ -20,14 +21,6 @@ type CourseUseCase struct {
 
 func NewCourseUseCase(courses repository.CourseRepository, materials repository.TeachingMaterialRepository) *CourseUseCase {
 	return &CourseUseCase{courses: courses, materials: materials}
-}
-
-func (uc *CourseUseCase) List(ctx context.Context, actorCompanyID uint64, actorRole string) ([]domain.Course, error) {
-	if actorCompanyID == 0 {
-		return []domain.Course{}, nil
-	}
-	includeUnpublished := canManage(actorRole)
-	return uc.courses.ListByCompany(ctx, actorCompanyID, includeUnpublished)
 }
 
 func (uc *CourseUseCase) Get(ctx context.Context, id, actorCompanyID uint64, actorRole string) (*domain.Course, error) {
@@ -60,6 +53,8 @@ type CreateCourseInput struct {
 	ActorRole      string
 	Title          string
 	Description    string
+	Category       string
+	Language       string
 	SortOrder      int
 	IsPublished    bool
 }
@@ -71,11 +66,16 @@ func (uc *CourseUseCase) Create(ctx context.Context, in CreateCourseInput) (*dom
 	if in.ActorCompanyID == 0 {
 		return nil, fmt.Errorf("actor must belong to a company")
 	}
+	if !domain.IsValidCourseCategory(in.Category) {
+		return nil, fmt.Errorf("invalid course category: %s", in.Category)
+	}
 	c := &domain.Course{
 		CompanyID:       in.ActorCompanyID,
 		CreatedByUserID: in.ActorUserID,
 		Title:           in.Title,
 		Description:     in.Description,
+		Category:        in.Category,
+		Language:        in.Language,
 		SortOrder:       in.SortOrder,
 		IsPublished:     in.IsPublished,
 	}
@@ -91,6 +91,8 @@ type UpdateCourseInput struct {
 	ActorRole      string
 	Title          string
 	Description    string
+	Category       string
+	Language       string
 	SortOrder      int
 	IsPublished    bool
 }
@@ -106,8 +108,13 @@ func (uc *CourseUseCase) Update(ctx context.Context, in UpdateCourseInput) (*dom
 	if in.ActorRole != domain.RoleSuperAdmin && existing.CompanyID != in.ActorCompanyID {
 		return nil, fmt.Errorf("forbidden")
 	}
+	if !domain.IsValidCourseCategory(in.Category) {
+		return nil, fmt.Errorf("invalid course category: %s", in.Category)
+	}
 	existing.Title = in.Title
 	existing.Description = in.Description
+	existing.Category = in.Category
+	existing.Language = in.Language
 	existing.SortOrder = in.SortOrder
 	existing.IsPublished = in.IsPublished
 	if err := uc.courses.Update(ctx, existing); err != nil {

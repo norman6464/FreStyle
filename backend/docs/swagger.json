@@ -525,6 +525,49 @@
                 }
             }
         },
+        "/admin/members/learning-summary": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "在籍 trainee 数・今日/直近 7 日に学習した人数・直近アクティブメンバー(最大 5 名)を返す。company_admin / super_admin のみ。会社未所属は空サマリー。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "自社メンバーの学習状況サマリー",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase.CompanyLearningSummaryOutput"
+                        }
+                    },
+                    "401": {
+                        "description": "未認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "管理者以外",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "内部エラー",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/members/{userId}": {
             "delete": {
                 "security": [
@@ -1429,7 +1472,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "trainee が 書いた コード を サーバ 側 sandbox で 実行 し stdout/stderr/exitCode を 返す。 language は php / go / bash。",
+                "description": "trainee が 書いた コード を サーバ 側 sandbox で 実行 し stdout/stderr/exitCode を 返す。 language は php / go / bash / sql / javascript / typescript。",
                 "consumes": [
                     "application/json"
                 ],
@@ -1480,7 +1523,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "コードエディタ 入場 時 に 呼び、 指定 言語 の 実行 環境 を 事前 に 温める（Go は コンパイル キャッシュ、 php/bash は no-op）。 実行時 に 起動 する のではなく、 入場 時 に warm に する。",
+                "description": "コードエディタ 入場 時 に 呼び、 指定 言語 の 実行 環境 を 事前 に 温める（Go は コンパイル キャッシュ、 php/bash/sql/javascript/typescript は no-op）。 実行時 に 起動 する のではなく、 入場 時 に warm に する。",
                 "consumes": [
                     "application/json"
                 ],
@@ -1693,21 +1736,21 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "current user の role / company で 自動 フィルタ。 trainee は published のみ、 admin 系 は draft 含む。",
+                "description": "current user の role / company で 自動 フィルタ。 trainee は published のみ、 admin 系 は draft 含む。 各コース に 章数 materialCount と 自身 の 完了 章数 completedCount を 付与 して 返す。",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "courses"
                 ],
-                "summary": "コース 一覧",
+                "summary": "コース 一覧 (進捗付き)",
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.Course"
+                                "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase.CourseWithProgress"
                             }
                         }
                     },
@@ -1960,6 +2003,67 @@
                 }
             }
         },
+        "/courses/{id}/last-viewed": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "current user が この コース で 最後 に 閲覧 した 章 の 閲覧 記録 を 返す。 コース詳細 の 「続き から 表示」 用。 履歴 なし は 204。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "courses"
+                ],
+                "summary": "コース内の最終閲覧章",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "コース ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.UserChapterView"
+                        }
+                    },
+                    "204": {
+                        "description": "履歴 なし (本文 なし)"
+                    },
+                    "400": {
+                        "description": "id 不正",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "閲覧 権限 なし",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "コース が ない",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/courses/{id}/materials": {
             "get": {
                 "security": [
@@ -2129,6 +2233,40 @@
                     },
                     "500": {
                         "description": "DB / 集計 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/exercises/summary": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "公開済み の 運営 マスタ 演習問題 を 言語 ごとに 集計 して 返す。 solved は current user が 正解済み の 問題数 (未 ログイン は 0)。 言語 選択 カード の 進捗 表示 に 使う。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "exercises"
+                ],
+                "summary": "演習の 言語別 集計 (問題数 + 正解済み 件数)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/internal_handler.exerciseLanguageSummaryResponse"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "集計 失敗",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -3968,6 +4106,9 @@
         "github_com_norman6464_FreStyle_backend_internal_domain.Course": {
             "type": "object",
             "properties": {
+                "category": {
+                    "type": "string"
+                },
                 "companyId": {
                     "type": "integer"
                 },
@@ -3985,6 +4126,10 @@
                 },
                 "isPublished": {
                     "type": "boolean"
+                },
+                "language": {
+                    "description": "Language は主に扱う言語・技術（例: \"go\" / \"docker\" / \"terraform\"。空 = 言語が主題でない）。\n演習の language と同じ自由文字列方式で、表示色は frontend のカラーマップが持つ。",
+                    "type": "string"
                 },
                 "sortOrder": {
                     "type": "integer"
@@ -4343,6 +4488,7 @@
                     "type": "string"
                 },
                 "teachingMaterialId": {
+                    "description": "TeachingMaterialID は章(course_chapters)の ID。DB 列は chapter_id(FRESTYLE-185 で改名)。\nJSON キーは互換のため teachingMaterialId のまま。",
                     "type": "integer"
                 },
                 "userId": {
@@ -4369,6 +4515,7 @@
                     "type": "integer"
                 },
                 "lessonCount": {
+                    "description": "LessonCount は完了した章の数。DB 列は chapter_count(FRESTYLE-185 で改名)。\nJSON キーは互換のため lessonCount のまま。",
                     "type": "integer"
                 },
                 "noteCount": {
@@ -4395,6 +4542,7 @@
                     "type": "integer"
                 },
                 "teachingMaterialId": {
+                    "description": "TeachingMaterialID は章(course_chapters)の ID。DB 列は chapter_id(FRESTYLE-185 で改名)。\nJSON キーは互換のため teachingMaterialId のまま。",
                     "type": "integer"
                 },
                 "userId": {
@@ -4446,6 +4594,30 @@
                 }
             }
         },
+        "github_com_norman6464_FreStyle_backend_internal_usecase.CompanyLearningSummaryOutput": {
+            "type": "object",
+            "properties": {
+                "activeThisWeek": {
+                    "description": "ActiveThisWeek は直近 7 日間(今日を含む)に学習活動があった trainee 数。",
+                    "type": "integer"
+                },
+                "activeToday": {
+                    "description": "ActiveToday は今日(UTC)学習活動があった trainee 数。",
+                    "type": "integer"
+                },
+                "recentMembers": {
+                    "description": "RecentMembers は最終活動日の新しい順の直近アクティブメンバー\n(直近 7 日間に活動があるメンバーのみ、最大 5 名)。",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase.MemberLearningSummaryItem"
+                    }
+                },
+                "traineeCount": {
+                    "description": "TraineeCount は在籍 trainee 数(論理削除済みを除く)。",
+                    "type": "integer"
+                }
+            }
+        },
         "github_com_norman6464_FreStyle_backend_internal_usecase.CompanyStat": {
             "type": "object",
             "properties": {
@@ -4469,6 +4641,53 @@
                 },
                 "traineeCount": {
                     "type": "integer"
+                }
+            }
+        },
+        "github_com_norman6464_FreStyle_backend_internal_usecase.CourseWithProgress": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "companyId": {
+                    "type": "integer"
+                },
+                "completedCount": {
+                    "description": "CompletedCount は actor 自身が完了した章数(現存する published 章のみ。常に MaterialCount 以下)。",
+                    "type": "integer"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "createdByUserId": {
+                    "type": "integer"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "isPublished": {
+                    "type": "boolean"
+                },
+                "language": {
+                    "description": "Language は主に扱う言語・技術（例: \"go\" / \"docker\" / \"terraform\"。空 = 言語が主題でない）。\n演習の language と同じ自由文字列方式で、表示色は frontend のカラーマップが持つ。",
+                    "type": "string"
+                },
+                "materialCount": {
+                    "description": "MaterialCount はコース内の章数。trainee は published のみ、admin 系は下書き込み。",
+                    "type": "integer"
+                },
+                "sortOrder": {
+                    "type": "integer"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
                 }
             }
         },
@@ -4511,6 +4730,25 @@
                     "type": "integer"
                 },
                 "totalLessons": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_norman6464_FreStyle_backend_internal_usecase.MemberLearningSummaryItem": {
+            "type": "object",
+            "properties": {
+                "lastActiveDate": {
+                    "description": "LastActiveDate は最後に学習活動があった日(YYYY-MM-DD、UTC 基準)。",
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "recentActivityCount": {
+                    "description": "RecentActivityCount は直近 7 日間の活動回数合計。",
+                    "type": "integer"
+                },
+                "userId": {
                     "type": "integer"
                 }
             }
@@ -4653,11 +4891,29 @@
         "internal_handler.courseRequest": {
             "type": "object",
             "properties": {
+                "category": {
+                    "description": "Category は定義済みの学習領域のみ許可(空 = 未分類)。値の正本は domain.ValidCourseCategories。\noneof で宣言的に 400 を返し、usecase 側でも防衛的に検証する。",
+                    "type": "string",
+                    "enum": [
+                        "dev-basics",
+                        "backend",
+                        "architecture",
+                        "database",
+                        "infra",
+                        "security",
+                        "product"
+                    ]
+                },
                 "description": {
                     "type": "string"
                 },
                 "isPublished": {
                     "type": "boolean"
+                },
+                "language": {
+                    "description": "Language は主に扱う言語・技術(例: \"go\" / \"docker\"。空 = 言語が主題でない)。\n演習の language と同じ自由文字列方式(表示色は frontend のカラーマップが持つ)。",
+                    "type": "string",
+                    "maxLength": 50
                 },
                 "sortOrder": {
                     "type": "integer"
@@ -4734,6 +4990,20 @@
                 "error": {
                     "type": "string",
                     "example": "unauthorized"
+                }
+            }
+        },
+        "internal_handler.exerciseLanguageSummaryResponse": {
+            "type": "object",
+            "properties": {
+                "language": {
+                    "type": "string"
+                },
+                "solved": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
                 }
             }
         },

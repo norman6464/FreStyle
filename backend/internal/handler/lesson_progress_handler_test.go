@@ -23,6 +23,14 @@ func (f *fakeProgressRepoH) MarkCompleted(context.Context, uint64, uint64, uint6
 
 func (f *fakeProgressRepoH) MarkIncomplete(context.Context, uint64, uint64) error { return nil }
 
+func (f *fakeProgressRepoH) CountCompletedByUserGroupedByCourse(context.Context, uint64) (map[uint64]int, error) {
+	counts := map[uint64]int{}
+	for _, r := range f.rows {
+		counts[r.CourseID]++
+	}
+	return counts, nil
+}
+
 func (f *fakeProgressRepoH) ListByUser(context.Context, uint64) ([]domain.UserLessonProgress, error) {
 	return f.rows, nil
 }
@@ -44,6 +52,10 @@ func (f *fakeMaterialRepoH) ListByCompany(context.Context, uint64, bool) ([]doma
 }
 
 func (f *fakeMaterialRepoH) ListByCourse(context.Context, uint64, bool) ([]domain.TeachingMaterial, error) {
+	return nil, nil
+}
+
+func (f *fakeMaterialRepoH) CountByCourseForCompany(context.Context, uint64, bool) (map[uint64]int, error) {
 	return nil, nil
 }
 func (f *fakeMaterialRepoH) Create(context.Context, *domain.TeachingMaterial) error { return nil }

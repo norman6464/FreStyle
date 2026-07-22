@@ -1,0 +1,304 @@
+/*
+ * highlight.js の Atom One Light テーマ（IDE ライト風）を import。
+ * rehype-highlight が `<span class="hljs-keyword">` 等にトークンを分けるが、対応する CSS が
+ * 無いと色付けされない。 GitHub Light は配色が地味（文字列 #032f62 がほぼ黒に見える等）で
+ * 「赤しか無い」印象になり、 Atom One Dark はダーク背景になってしまうため、 ライト背景のまま
+ * キーワード(紫) / 型(橙) / 関数(青) / 文字列(緑) / 数値 がはっきり色分けされる Atom One Light を
+ * 採用する（IDE のライトテーマ相当）。
+ *
+ * ⚠️ `@import` は CSS 仕様上すべての規則より前に置く必要がある（@tailwind より後ろだと
+ *    postcss-import に無視され、 コードがハイライトされなくなる）。 必ずこの位置に置く。
+ */
+@import 'highlight.js/styles/atom-one-light.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * prose のコードブロックを IDE ライト風（ライト背景 + Atom One Light の鮮やかな配色）にする。
+ * 背景はアプリのライトテーマに合わせ、 トークンだけ Atom One Light の色で IDE 風に色分けする。
+ *
+ * - --tw-prose-pre-bg: コードブロック全体の背景
+ * - --tw-prose-pre-code: コードブロック内のフォールバック文字色（hljs 未色付け部）
+ * - --tw-prose-pre-border: 枠線色
+ */
+.prose {
+  --tw-prose-pre-bg: var(--color-surface-2);
+  --tw-prose-pre-code: #383a42;
+  --tw-prose-pre-border: var(--color-surface-3);
+}
+.prose pre {
+  background-color: var(--color-surface-2);
+  color: #383a42;
+  border: 1px solid var(--color-surface-3);
+  /* prose-sm は pre(0.857em) × code(0.857em) の複合縮小で本文より小さくなりすぎるため、
+   * 読みやすいサイズに固定する（本文よりほんの少し小さめ）。 */
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+.prose pre code {
+  background-color: transparent;
+  /* Atom One Light の token 色 / .hljs ベース色(#383a42)をそのまま活かす。 */
+  color: inherit;
+  /* typography の code(0.857em) による二重縮小を打ち消し、 pre のサイズを継承する。 */
+  font-size: inherit;
+}
+/*
+ * コース教材の本文タイポグラフィ(FRESTYLE-115)。
+ * prose-sm のプリセットは行間・段落間が詰まって「読み物」に向かないため、
+ * 教材専用スコープ(.course-prose)だけ本文 16px・行間 2.0 のゆったりした
+ * 余白に上書きする。ノート / AI チャットの prose には影響しない。
+ */
+.prose.course-prose {
+  font-size: 1rem;
+  line-height: 2;
+}
+.prose.course-prose p {
+  margin-top: 1.4em;
+  margin-bottom: 1.4em;
+}
+/* 大見出しは章内の話題の切り替わり。前に大きく空け、下線でセクション境界を示す
+   (色はニュートラルな枠色 = surface-3。モノクロ最小主義のトーンを崩さない)。 */
+.prose.course-prose h2 {
+  margin-top: 3.2em;
+  margin-bottom: 1.2em;
+  padding-bottom: 0.6em;
+  border-bottom: 1px solid var(--color-surface-3);
+  line-height: 1.4;
+}
+.prose.course-prose h3 {
+  margin-top: 2.4em;
+  margin-bottom: 1em;
+  line-height: 1.5;
+}
+.prose.course-prose > :first-child {
+  margin-top: 0;
+}
+.prose.course-prose ul,
+.prose.course-prose ol {
+  margin-top: 1.4em;
+  margin-bottom: 1.4em;
+}
+.prose.course-prose li {
+  margin-top: 0.6em;
+  margin-bottom: 0.6em;
+}
+.prose.course-prose pre {
+  /* コース本文(16px)より少し小さめのコードサイズ。行間は本文ほど広げない。 */
+  font-size: 0.875rem;
+  line-height: 1.7;
+  margin-top: 1.8em;
+  margin-bottom: 1.8em;
+}
+.prose.course-prose img,
+.prose.course-prose table {
+  margin-top: 2em;
+  margin-bottom: 2em;
+}
+.prose.course-prose blockquote {
+  margin-top: 1.8em;
+  margin-bottom: 1.8em;
+}
+/*
+ * @tailwindcss/typography は inline code (`<code>`) の前後に ::before / ::after で
+ * バッククォート (`) を装飾として自動挿入する。 これがテーブルセル内などで
+ * 「`GET`」のように リテラルなバッククォートとして見えてしまうので打ち消す。
+ */
+.prose code::before,
+.prose code::after {
+  content: "" !important;
+}
+
+/*
+ * ライトテーマ単一構成（ダークモードは廃止）。
+ *
+ * カラー設計（白ボディ + 白カード + border/影。FRESTYLE-147 で FRESTYLE-119 の灰青統一を撤回）:
+ *   - body は白 (#FFFFFF)。カードは border 1px + 影で白 body から浮かせる
+ *   - 例外: 教材コース閲覧 (/courses/:id) だけは読み物レイアウトのため灰青
+ *     (--color-reading-surface) を背景にし、白カードとのコントラストを作る（FRESTYLE-118 の配色を維持）
+ *   - サイドバー / ヘッダーは白 (--color-nav) + border 1px で境界を表現
+ *   - hover / active は色相を持たない暖色グレー (#F5F5F4 / #EAEAE9) で控えめに
+ *   - アクセント色は使用箇所を絞り、視覚ノイズを排除する
+ */
+:root {
+  /* body は白。カードは border + 影で浮かせる（FRESTYLE-147）。 */
+  --color-surface: #FFFFFF;
+  --color-surface-1: #FFFFFF;
+  --color-surface-2: #F5F5F4;
+  --color-surface-3: #E7E5E4;
+  /* 教材コース閲覧 (/courses/:id) の読み物背景（無彩色寄りグレー）。白カードとのコントラスト用。
+     この変数はコース閲覧ページでしか使わないため、他ページの白背景には影響しない（FRESTYLE-178）。 */
+  --color-reading-surface: #f5f6f6;
+  /* サイドバー / ヘッダーは body と同じ白で、border 1px のみで境界を表現する */
+  --color-nav: #FFFFFF;
+  /* nav 上の hover / active 状態。色相を持たないニュートラル寄り暖色グレーで
+     「白い塊」感を出さず、目立ちすぎない控えめなインタラクション表現にする。 */
+  --color-nav-hover: #F5F5F4;
+  --color-nav-active: #EAEAE9;
+  --color-text-primary: #191919;
+  --color-text-secondary: #37352F;
+  /* WCAG AA(4.5:1) を満たすよう微調整（旧 #787774 は 4.48:1 で未達）。現 4.68:1。 */
+  --color-text-tertiary: #757470;
+  --color-text-muted: #A4A4A0;
+  --color-text-faint: #D3D3D0;
+  --color-text-subtle: #E8E8E6;
+  --color-border-hover: #D3D3D0;
+  --scrollbar-track: #FFFFFF;
+  --scrollbar-thumb: #D3D3D0;
+  --scrollbar-thumb-hover: #A4A4A0;
+
+  color-scheme: light;
+}
+
+/*
+ * AI チャットの「考え中...」インジケータ用アニメーション。
+ * favicon (3 つの青い三角) を呼吸のように拡大縮小 + フェードさせて「処理中」を可視化する。
+ * scale 0.85 ↔ 1.25 / opacity 0.25 ↔ 1 とコントラストを大きめに付け、 視認しやすい呼吸感に。
+ */
+@keyframes thinking-pulse {
+  0%, 100% {
+    transform: scale(0.85);
+    opacity: 0.25;
+  }
+  50% {
+    transform: scale(1.25);
+    opacity: 1;
+  }
+}
+
+.animate-thinking {
+  animation: thinking-pulse 1.6s ease-in-out infinite;
+  transform-origin: center;
+}
+
+/*
+ * AI チャットのストリーミング表示: 新しく現れた句読点チャンクを 1 回だけフェードイン
+ * (FRESTYLE-145 → 146 で Gemini 実物仕様に変更)。
+ * rehypeFadeSegments が本文を句読点チャンクの <span class="fade-seg"> に包み、mount 時に
+ * このアニメが 1 回再生される。既表示のチャンクは React が DOM を再利用するため再生し直されない。
+ * 放出リズムは useSmoothReveal(適応ペーシング)が制御する。
+ *
+ * 値は Gemini web の実測(配信バンドル + getAnimations 計測)に合わせる:
+ *   opacity 0→1 のみ / 400ms / ease-out / fill forwards / 1 回。blur や translate は使わない
+ *   (実物に存在しない。inline のまま高さも変えないのでスクロール追従も乱さない)。
+ * prefers-reduced-motion: reduce では実質即時表示(animationend は残すため 0 でなく 0.01ms)。
+ */
+@keyframes fade-seg-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.fade-seg {
+  animation: fade-seg-in 400ms ease-out both;
+}
+
+/*
+ * 画面外で mount したチャンクはフェードを保留し、スクロールで見えた瞬間に再生する
+ * (FRESTYLE-153。useFadeOnVisible が data-fade を付け外しする)。
+ * 保留が付くのは画面外の要素だけなので、見えている本文が隠れることはない。
+ */
+.fade-seg[data-fade='defer'] {
+  animation: none;
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-seg {
+    animation-duration: 0.01ms;
+  }
+
+  /* 動きを減らす設定では保留もしない（スクロールしても即座に読める状態を優先）。 */
+  .fade-seg[data-fade='defer'] {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+@layer base {
+  /*
+   * 外側スクロールバー (Chrome ブラウザ標準) と内側スクロールバー (AppShell の <main>)
+   * の二重表示を防ぐため、ルート要素を viewport 高さに固定し overflow を切る。
+   * h-screen の AppShell がこの 100% 領域を占有し、子の <main overflow-auto>
+   * のみがスクロール対象になる。
+   */
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  /* キーボードナビゲーション時のフォーカスリング。マウスクリック時は非表示。 */
+  *:focus-visible {
+    outline: 2px solid theme('colors.brand.400');
+    outline-offset: 2px;
+  }
+  body {
+    @apply bg-surface text-[var(--color-text-primary)];
+    overflow: hidden;
+  }
+
+  select,
+  textarea,
+  input {
+    color: var(--color-text-primary);
+    background-color: var(--color-surface-2);
+  }
+
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  input:-webkit-autofill:active {
+    -webkit-text-fill-color: var(--color-text-primary);
+    -webkit-box-shadow: 0 0 0px 1000px var(--color-surface-2) inset;
+    transition: background-color 5000s ease-in-out 0s;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-brand-500 text-white font-medium py-2.5 rounded-lg shadow-sm hover:bg-brand-600 hover:shadow active:bg-brand-700 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  /* 純白の body に埋もれないよう、輪郭が見える境界色 + 影で「押せる」感を出す。 */
+  .btn-secondary {
+    @apply border border-[var(--color-border-hover)] bg-surface-1 text-[var(--color-text-tertiary)] font-medium py-2.5 rounded-lg shadow-sm hover:bg-surface-2 hover:shadow active:bg-surface-3 transition-all duration-150;
+  }
+
+  /* カードは白い body から浮いて見えるよう、安静時から影を持たせ境界を明確にする。 */
+  .card {
+    @apply bg-surface-1 rounded-xl shadow p-6 border border-surface-3;
+  }
+
+  .input-primary {
+    @apply w-full border border-surface-3 rounded-lg px-4 py-2.5 bg-surface-2 text-[var(--color-text-primary)] focus:border-brand-400 focus:ring-1 focus:ring-brand-400 focus:outline-none transition-colors duration-150 placeholder:text-[var(--color-text-faint)];
+  }
+}
+
+/*
+ * 実行エラーの行マーカー(FRESTYLE-117)。CodeEditor(Monaco) の decoration から参照する。
+ * ガターに赤丸 + 白 ✕、該当行はダークテーマ上で薄い赤のハイライト。
+ */
+.exec-error-glyph::after {
+  content: '✕';
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+  margin-left: 2px;
+  border-radius: 9999px;
+  background: #dc2626;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+.exec-error-line {
+  background: rgba(220, 38, 38, 0.12);
+}

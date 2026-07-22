@@ -1,116 +1,48 @@
-name: Scheduled - Stop (destroy ECS + ALB at night)
+name: Scheduled - Stop (scale ECS to 0 at night)
 
-# 目的: 毎日 22:00 JST (13:00 UTC) に ECS + ALB を destroy してコスト節約。
-#       翌朝 scheduled-start.yml が ALB と ECS を再作成する。
-#
-# 順序:
-#   1) ECS destroy（DB connection を全断するため最初に）
-#   2) ALB destroy
-#
-# 復旧は scheduled-start.yml が翌日 07:00 JST に自動実行。
-# 緊急で起こしたい場合は手動で `gh workflow run scheduled-start.yml -f confirm=start` を叩く。
-#
-# 認証: GitHub OIDC + IAM Role (frestyle-prod-github-actions-role)
-#
-# 2026-05 Supabase 移行 後 の 構成:
-#   - DB は Supabase (24/7 稼働、 CFn 管理外、 destroy 対象 外)
-#   - 旧 RDS / nightly snapshot 関連 step は 全て 削除済
-#   - 残るは ECS + ALB の destroy のみ (Supabase 自体 は 別 サービス なので 影響 なし)
-
+# 夜間コスト最適化: ECS サービスの desiredCount を 0 にする(ALB は維持)。
+# 旧 CFn destroy 方式は runtime の Terraform 移行で衝突するため廃止し、
+# desiredCount 0↔1 方式に変更した(FRESTYLE-58)。ALB を残すので朝の不発でも全断にはならない。
 on:
   schedule:
-    # 22:00 JST = 13:00 UTC、毎日
-    - cron: '0 13 * * *'
+    - cron: '0 13 * * *' # 22:00 JST
   workflow_dispatch:
     inputs:
       confirm:
-        description: '手動実行時は "stop" と入力'
+        description: "stop と入力すると実行"
         required: true
-        type: string
-
-env:
-  AWS_REGION: ap-northeast-1
-  STACK_PFX: frestyle-prod
-  AWS_ROLE_ARN: arn:aws:iam::010928196665:role/frestyle-prod-github-actions-role
 
 permissions:
   id-token: write
   contents: read
 
-# scheduled-stop / scheduled-start / cd-backend が CFn deploy/delete で 競合 すると
-# "stack cannot be updated" や resource race で 失敗 する ため、 ECS / ALB を 触る
-# workflow は 同一 concurrency group で 相互 排他 する。
-concurrency:
-  group: frestyle-prod-runtime-stacks
-  cancel-in-progress: false
+env:
+  AWS_REGION: ap-northeast-1
+  CLUSTER: frestyle-prod
+  SERVICE: frestyle-prod-svc
+  # desired=0 で誤発報するアラーム(healthy host=0 / タスク無しで CPU/メモリ欠測)。
+  MUTE_ALARMS: "frestyle-prod-no-healthy-host frestyle-prod-ecs-cpu frestyle-prod-ecs-memory"
 
 jobs:
   stop:
-    name: Destroy ECS + ALB
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-
     steps:
       - name: Verify input (workflow_dispatch only)
-        if: github.event_name == 'workflow_dispatch'
-        env:
-          CONFIRM_INPUT: ${{ inputs.confirm }}
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.confirm != 'stop'
         run: |
-          if [ "$CONFIRM_INPUT" != "stop" ]; then
-            echo "ERROR: confirm に 'stop' と入力されていません"
-            exit 1
-          fi
+          echo "::error::confirm に 'stop' を入力してください"
+          exit 1
 
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v6
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
-          role-session-name: frestyle-scheduled-stop
+          role-to-assume: arn:aws:iam::010928196665:role/frestyle-prod-github-actions-scale-role
           aws-region: ${{ env.AWS_REGION }}
 
-      # 監視スタックは alb の Export(LoadBalancerFullName / TargetGroupFullName)を
-      # ImportValue しているため、alb より先に消さないと alb 削除が「Export 使用中」で
-      # 失敗する。日中の監視は scheduled-start が朝に作り直す。
-      - name: Destroy monitoring stack
-        run: |
-          if aws cloudformation describe-stacks --region $AWS_REGION --stack-name $STACK_PFX-monitoring >/dev/null 2>&1; then
-            echo "Deleting $STACK_PFX-monitoring ..."
-            aws cloudformation delete-stack --region $AWS_REGION --stack-name $STACK_PFX-monitoring
-            aws cloudformation wait stack-delete-complete --region $AWS_REGION --stack-name $STACK_PFX-monitoring
-            echo "✅ monitoring deleted"
-          else
-            echo "monitoring stack already absent, skip"
-          fi
+      # 先にアラームアクションを無効化してから 0 にする(夜間の誤通知を防ぐ)。
+      - name: Mute alarms
+        run: aws cloudwatch disable-alarm-actions --region "$AWS_REGION" --alarm-names $MUTE_ALARMS
 
-      - name: Destroy ECS stack
+      - name: Scale ECS service to 0
         run: |
-          if aws cloudformation describe-stacks --region $AWS_REGION --stack-name $STACK_PFX-ecs >/dev/null 2>&1; then
-            echo "Deleting $STACK_PFX-ecs ..."
-            aws cloudformation delete-stack --region $AWS_REGION --stack-name $STACK_PFX-ecs
-            aws cloudformation wait stack-delete-complete --region $AWS_REGION --stack-name $STACK_PFX-ecs
-            echo "✅ ECS deleted"
-          else
-            echo "ECS stack already absent, skip"
-          fi
-
-      - name: Destroy ALB stack
-        run: |
-          if aws cloudformation describe-stacks --region $AWS_REGION --stack-name $STACK_PFX-alb >/dev/null 2>&1; then
-            echo "Deleting $STACK_PFX-alb ..."
-            aws cloudformation delete-stack --region $AWS_REGION --stack-name $STACK_PFX-alb
-            aws cloudformation wait stack-delete-complete --region $AWS_REGION --stack-name $STACK_PFX-alb
-            echo "✅ ALB deleted"
-          else
-            echo "ALB stack already absent, skip"
-          fi
-
-      # Summary は非クリティカル。GitHub Actions IAM Role に
-      # cloudformation:ListStacks 権限が無くても本筋 (ECS / ALB destroy) は完了済み。
-      # 失敗で workflow 全体を red にしないため continue-on-error / `|| true` で吸収する。
-      - name: Summary
-        continue-on-error: true
-        run: |
-          echo "🌙 Cost-saving stop complete at $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-          aws cloudformation list-stacks --region $AWS_REGION \
-            --query 'StackSummaries[?starts_with(StackName, `frestyle-prod-`) && StackStatus != `DELETE_COMPLETE`].[StackName,StackStatus]' \
-            --output table || echo "(ListStacks denied; not fatal)"
+          aws ecs update-service --region "$AWS_REGION" --cluster "$CLUSTER" --service "$SERVICE" --desired-count 0 >/dev/null
+          echo ">>> desiredCount=0 に設定しました(ALB は維持)。"

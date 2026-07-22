@@ -57,3 +57,15 @@ func Test_プロフィール更新_永続化する(t *testing.T) {
 		t.Fatalf("expected bio=hi, got %q", got.Bio)
 	}
 }
+
+// Contract フェーズ: StatusMessage の入力が status_message へ書かれること(status 列は廃止)。
+func Test_プロフィール更新_status_messageに書き込む(t *testing.T) {
+	repo := &stubProfileRepo{}
+	uc := NewUpdateProfileUseCase(repo)
+	if _, err := uc.Execute(context.Background(), UpdateProfileInput{UserID: 1, StatusMessage: "元気です"}); err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if repo.p.StatusMessage != "元気です" {
+		t.Fatalf("status_message 未書き込み: %q", repo.p.StatusMessage)
+	}
+}

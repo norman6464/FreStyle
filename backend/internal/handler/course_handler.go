@@ -8,30 +8,40 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
 
-// CourseHandler はコースの CRUD API を扱う。
+// CourseHandler はコースの CRUD + 最終閲覧章 API を扱う。
 type CourseHandler struct {
-	uc *usecase.CourseUseCase
+	uc               *usecase.CourseUseCase
+	listWithProgress *usecase.ListCoursesWithProgressUseCase
+	lastViewed       *usecase.GetLastViewedChapterUseCase
 }
 
-func NewCourseHandler(uc *usecase.CourseUseCase) *CourseHandler {
-	return &CourseHandler{uc: uc}
+func NewCourseHandler(
+	uc *usecase.CourseUseCase,
+	listWithProgress *usecase.ListCoursesWithProgressUseCase,
+	lastViewed *usecase.GetLastViewedChapterUseCase,
+) *CourseHandler {
+	return &CourseHandler{uc: uc, listWithProgress: listWithProgress, lastViewed: lastViewed}
 }
 
-// @Summary      コース 一覧
-// @Description  current user の role / company で 自動 フィルタ。 trainee は published のみ、 admin 系 は draft 含む。
+// @Summary      コース 一覧 (進捗付き)
+// @Description  current user の role / company で 自動 フィルタ。 trainee は published のみ、 admin 系 は draft 含む。 各コース に 章数 materialCount と 自身 の 完了 章数 completedCount を 付与 して 返す。
 // @Tags         courses
 // @Produce      json
-// @Success      200  {array}   github_com_norman6464_FreStyle_backend_internal_domain.Course
+// @Success      200  {array}   usecase.CourseWithProgress
 // @Failure      401  {object}  errorResponse  "未 認証"
 // @Failure      500  {object}  errorResponse  "DB 失敗"
 // @Router       /courses [get]
 // @Security     CookieAuth
 func (h *CourseHandler) List(c *gin.Context) {
-	_, companyID, role, ok := actorFromContext(c)
+	uid, companyID, role, ok := actorFromContext(c)
 	if !ok {
 		return
 	}
-	rows, err := h.uc.List(c.Request.Context(), companyID, role)
+	rows, err := h.listWithProgress.Execute(c.Request.Context(), usecase.ListCoursesWithProgressInput{
+		ActorUserID:    uid,
+		ActorCompanyID: companyID,
+		ActorRole:      role,
+	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "コースの取得に失敗しました"})
 		return
@@ -69,9 +79,57 @@ func (h *CourseHandler) Get(c *gin.Context) {
 	c.JSON(http.StatusOK, course)
 }
 
+// LastViewed は current user がコース内で最後に閲覧した章の閲覧記録を返す。
+//
+// @Summary      コース内の最終閲覧章
+// @Description  current user が この コース で 最後 に 閲覧 した 章 の 閲覧 記録 を 返す。 コース詳細 の 「続き から 表示」 用。 履歴 なし は 204。
+// @Tags         courses
+// @Produce      json
+// @Param        id  path      int  true  "コース ID"
+// @Success      200  {object}  github_com_norman6464_FreStyle_backend_internal_domain.UserChapterView
+// @Success      204  "履歴 なし (本文 なし)"
+// @Failure      400  {object}  errorResponse  "id 不正"
+// @Failure      401  {object}  errorResponse  "未 認証"
+// @Failure      403  {object}  errorResponse  "閲覧 権限 なし"
+// @Failure      404  {object}  errorResponse  "コース が ない"
+// @Router       /courses/{id}/last-viewed [get]
+// @Security     CookieAuth
+func (h *CourseHandler) LastViewed(c *gin.Context) {
+	uid, companyID, role, ok := actorFromContext(c)
+	if !ok {
+		return
+	}
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	view, err := h.lastViewed.Execute(c.Request.Context(), usecase.GetLastViewedChapterInput{
+		UserID:         uid,
+		ActorCompanyID: companyID,
+		ActorRole:      role,
+		CourseID:       id,
+	})
+	if err != nil {
+		respondEntityErr(c, err, "コースが見つかりません", "閲覧履歴の取得に失敗しました")
+		return
+	}
+	if view == nil {
+		c.Status(http.StatusNoContent)
+		return
+	}
+	c.JSON(http.StatusOK, view)
+}
+
 type courseRequest struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`
+	// Category は定義済みの学習領域のみ許可(空 = 未分類)。値の正本は domain.ValidCourseCategories。
+	// oneof で宣言的に 400 を返し、usecase 側でも防衛的に検証する。
+	Category string `json:"category" binding:"omitempty,oneof=dev-basics backend architecture database infra security product"`
+	// Language は主に扱う言語・技術(例: "go" / "docker"。空 = 言語が主題でない)。
+	// 演習の language と同じ自由文字列方式(表示色は frontend のカラーマップが持つ)。
+	Language    string `json:"language" binding:"omitempty,max=50"`
 	SortOrder   int    `json:"sortOrder"`
 	IsPublished bool   `json:"isPublished"`
 }
@@ -104,6 +162,8 @@ func (h *CourseHandler) Create(c *gin.Context) {
 		ActorRole:      role,
 		Title:          req.Title,
 		Description:    req.Description,
+		Category:       req.Category,
+		Language:       req.Language,
 		SortOrder:      req.SortOrder,
 		IsPublished:    req.IsPublished,
 	})
@@ -149,6 +209,8 @@ func (h *CourseHandler) Update(c *gin.Context) {
 		ActorRole:      role,
 		Title:          req.Title,
 		Description:    req.Description,
+		Category:       req.Category,
+		Language:       req.Language,
 		SortOrder:      req.SortOrder,
 		IsPublished:    req.IsPublished,
 	})

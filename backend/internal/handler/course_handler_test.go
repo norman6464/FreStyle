@@ -50,13 +50,40 @@ func (fakeMaterialRepo) ListByCourse(context.Context, uint64, bool) ([]domain.Te
 func (fakeMaterialRepo) GetByID(context.Context, uint64) (*domain.TeachingMaterial, error) {
 	return nil, nil
 }
+
+func (fakeMaterialRepo) CountByCourseForCompany(context.Context, uint64, bool) (map[uint64]int, error) {
+	return map[uint64]int{}, nil
+}
 func (fakeMaterialRepo) Create(context.Context, *domain.TeachingMaterial) error { return nil }
 func (fakeMaterialRepo) Update(context.Context, *domain.TeachingMaterial) error { return nil }
 func (fakeMaterialRepo) Delete(context.Context, uint64) error                   { return nil }
 func (fakeMaterialRepo) DeleteByCourse(context.Context, uint64) error           { return nil }
 
+// fakeChapterViewRepoH は repository.UserChapterViewRepository の最小 fake。
+type fakeChapterViewRepoH struct {
+	lastViewed *domain.UserChapterView
+}
+
+func (f *fakeChapterViewRepoH) UpsertView(context.Context, uint64, uint64, uint64) error { return nil }
+
+func (f *fakeChapterViewRepoH) ListRecentByUser(context.Context, uint64, int) ([]domain.UserChapterView, error) {
+	return nil, nil
+}
+
+func (f *fakeChapterViewRepoH) GetLastViewedByUserAndCourse(context.Context, uint64, uint64) (*domain.UserChapterView, error) {
+	return f.lastViewed, nil
+}
+
 func newCourseHandler(cr repository.CourseRepository) *CourseHandler {
-	return NewCourseHandler(usecase.NewCourseUseCase(cr, fakeMaterialRepo{}))
+	return newCourseHandlerWithViews(cr, &fakeChapterViewRepoH{})
+}
+
+func newCourseHandlerWithViews(cr repository.CourseRepository, cv repository.UserChapterViewRepository) *CourseHandler {
+	return NewCourseHandler(
+		usecase.NewCourseUseCase(cr, fakeMaterialRepo{}),
+		usecase.NewListCoursesWithProgressUseCase(cr, fakeMaterialRepo{}, &fakeProgressRepoH{}),
+		usecase.NewGetLastViewedChapterUseCase(cr, cv),
+	)
 }
 
 // superAdminCo は company_id 付きの super_admin（course handler の actorContext 用）。
@@ -153,6 +180,57 @@ func Test_コースハンドラ_削除(t *testing.T) {
 		newCourseHandler(&fakeCourseRepo{one: &domain.Course{ID: 5, CompanyID: 1}}).Delete(c)
 		if c.Writer.Status() != http.StatusNoContent {
 			t.Fatalf("want 204, got %d", c.Writer.Status())
+		}
+	})
+}
+
+func Test_コースハンドラ_最終閲覧章(t *testing.T) {
+	course := &domain.Course{ID: 5, CompanyID: 1, IsPublished: true}
+
+	t.Run("不正な id → 400", func(t *testing.T) {
+		w, c := ctxJSON(http.MethodGet, "", idParam("abc"), superAdminCo())
+		newCourseHandler(&fakeCourseRepo{one: course}).LastViewed(c)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("want 400, got %d", w.Code)
+		}
+	})
+	t.Run("未認証 → 401", func(t *testing.T) {
+		w, c := ctxJSON(http.MethodGet, "", idParam("5"), nil)
+		newCourseHandler(&fakeCourseRepo{one: course}).LastViewed(c)
+		if w.Code != http.StatusUnauthorized {
+			t.Fatalf("want 401, got %d", w.Code)
+		}
+	})
+	t.Run("履歴あり → 200", func(t *testing.T) {
+		view := &domain.UserChapterView{UserID: 1, TeachingMaterialID: 42, CourseID: 5}
+		w, c := ctxJSON(http.MethodGet, "", idParam("5"), superAdminCo())
+		newCourseHandlerWithViews(&fakeCourseRepo{one: course}, &fakeChapterViewRepoH{lastViewed: view}).LastViewed(c)
+		if w.Code != http.StatusOK {
+			t.Fatalf("want 200, got %d", w.Code)
+		}
+	})
+	t.Run("履歴なし → 204", func(t *testing.T) {
+		_, c := ctxJSON(http.MethodGet, "", idParam("5"), superAdminCo())
+		newCourseHandlerWithViews(&fakeCourseRepo{one: course}, &fakeChapterViewRepoH{}).LastViewed(c)
+		if c.Writer.Status() != http.StatusNoContent {
+			t.Fatalf("want 204, got %d", c.Writer.Status())
+		}
+	})
+}
+
+func Test_コースハンドラ_作成_カテゴリ(t *testing.T) {
+	t.Run("不正なカテゴリ → 400", func(t *testing.T) {
+		w, c := ctxJSON(http.MethodPost, `{"title":"X","category":"not-a-category"}`, nil, superAdminCo())
+		newCourseHandler(&fakeCourseRepo{}).Create(c)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("want 400, got %d", w.Code)
+		}
+	})
+	t.Run("定義済みカテゴリ → 201", func(t *testing.T) {
+		w, c := ctxJSON(http.MethodPost, `{"title":"PostgreSQL","category":"database"}`, nil, superAdminCo())
+		newCourseHandler(&fakeCourseRepo{}).Create(c)
+		if w.Code != http.StatusCreated {
+			t.Fatalf("want 201, got %d", w.Code)
 		}
 	})
 }

@@ -1,0 +1,220 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { renderHook, act } from '@testing-library/react';
+import { useAiSession } from '../useAiSession';
+
+const mockNavigate = vi.fn();
+const mockDeleteSession = vi.fn();
+const mockUpdateSessionTitle = vi.fn();
+const mockShowToast = vi.fn();
+
+vi.mock('react-router-dom', () => ({
+  useNavigate: () => mockNavigate,
+}));
+
+// トースト通知(FRESTYLE-151)。 Provider を張らずに呼び出しだけ検証したいのでモックする。
+vi.mock('@/shared/lib/hooks/useToast', () => ({
+  useToast: () => ({ showToast: mockShowToast, removeToast: vi.fn(), toasts: [] }),
+}));
+
+describe('useAiSession', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockDeleteSession.mockResolvedValue(true);
+    mockUpdateSessionTitle.mockResolvedValue(true);
+  });
+
+  it('セッション選択でcurrentSessionIdが更新される', () => {
+    const { result } = renderHook(() =>
+      useAiSession({ deleteSession: mockDeleteSession, updateSessionTitle: mockUpdateSessionTitle })
+    );
+
+    act(() => {
+      result.current.handleSelectSession(42);
+    });
+
+    expect(result.current.currentSessionId).toBe(42);
+    expect(mockNavigate).toHaveBeenCalledWith('/chat/ask-ai/42');
+  });
+
+  it('新規セッション作成でcurrentSessionIdがnullになる', () => {
+    const { result } = renderHook(() =>
+      useAiSession({ deleteSession: mockDeleteSession, updateSessionTitle: mockUpdateSessionTitle })
+    );
+
+    act(() => {
+      result.current.handleSelectSession(42);
+    });
+
+    act(() => {
+      result.current.handleNewSession();
+    });
+
+    expect(result.current.currentSessionId).toBeNull();
+    expect(mockNavigate).toHaveBeenCalledWith('/chat/ask-ai');
+    // 新しいチャット開始をトーストで知らせる(FRESTYLE-151)。
+    expect(mockShowToast).toHaveBeenCalledWith('success', '新しいチャットを開始しました');
+  });
+
+  it('セッション削除確認モーダルの開閉ができる', () => {
+    const { result } = renderHook(() =>
+      useAiSession({ deleteSession: mockDeleteSession, updateSessionTitle: mockUpdateSessionTitle })
+    );
+
+    act(() => {
+      result.current.handleDeleteSession(5);
+    });
+
+    expect(result.current.deleteModal.isOpen).toBe(true);
+    expect(result.current.deleteModal.sessionId).toBe(5);
+
+    act(() => {
+      result.current.cancelDeleteSession();
+    });
+
+    expect(result.current.deleteModal.isOpen).toBe(false);
+  });
+
+  it('セッション削除確定でdeleteSessionが呼ばれる', async () => {
+    const { result } = renderHook(() =>
+      useAiSession({ deleteSession: mockDeleteSession, updateSessionTitle: mockUpdateSessionTitle })
+    );
+
+    act(() => {
+      result.current.handleSelectSession(5);
+    });
+
+    act(() => {
+      result.current.handleDeleteSession(5);
+    });
+
+    await act(async () => {
+      await result.current.confirmDeleteSession();
+    });
+
+    expect(mockDeleteSession).toHaveBeenCalledWith(5);
+    expect(result.current.currentSessionId).toBeNull();
+    // 削除成功をトーストで知らせる(FRESTYLE-151)。
+    expect(mockShowToast).toHaveBeenCalledWith('success', 'セッションを削除しました');
+  });
+
+  it('セッション削除に失敗したらエラートーストを出す', async () => {
+    mockDeleteSession.mockResolvedValue(false);
+    const { result } = renderHook(() =>
+      useAiSession({ deleteSession: mockDeleteSession, updateSessionTitle: mockUpdateSessionTitle })
+    );
+
+    act(() => {
+      result.current.handleSelectSession(5);
+    });
+
+    act(() => {
+      result.current.handleDeleteSession(5);
+    });
+
+    await act(async () => {
+      await result.current.confirmDeleteSession();
+    });
+
+    expect(mockShowToast).toHaveBeenCalledWith('error', 'セッションの削除に失敗しました');
+    // 失敗時は選択中セッションを維持する。
+    expect(result.current.currentSessionId).toBe(5);
+  });
+
+  it('タイトル編集の開始・保存・キャンセルができる', async () => {
+    const session = { id: 10, title: '既存タイトル', createdAt: '2026-01-01' };
+
+    const { result } = renderHook(() =>
+      useAiSession({ deleteSession: mockDeleteSession, updateSessionTitle: mockUpdateSessionTitle })
+    );
+
+    act(() => {
+      result.current.handleStartEditTitle(session);
+    });
+
+    expect(result.current.editingSessionId).toBe(10);
+    expect(result.current.editingTitle).toBe('既存タイトル');
+
+    act(() => {
+      result.current.setEditingTitle('新しいタイトル');
+    });
+
+    await act(async () => {
+      await result.current.handleSaveTitle(10);
+    });
+
+    expect(mockUpdateSessionTitle).toHaveBeenCalledWith(10, { title: '新しいタイトル' });
+    expect(result.current.editingSessionId).toBeNull();
+    // タイトル変更成功をトーストで知らせる(FRESTYLE-151)。
+    expect(mockShowToast).toHaveBeenCalledWith('success', 'タイトルを変更しました');
+  });
+
+  it('deleteModal初期値がclosed状態', () => {
+    const { result } = renderHook(() =>
+      useAiSession({ deleteSession: mockDeleteSession, updateSessionTitle: mockUpdateSessionTitle })
+    );
+
+    expect(result.current.deleteModal.isOpen).toBe(false);
+    expect(result.current.deleteModal.sessionId).toBeNull();
+  });
+
+  it('空タイトル保存時に編集モードが維持される', async () => {
+    const { result } = renderHook(() =>
+      useAiSession({ deleteSession: mockDeleteSession, updateSessionTitle: mockUpdateSessionTitle })
+    );
+
+    act(() => {
+      result.current.handleStartEditTitle({ id: 10, title: 'テスト' });
+    });
+
+    act(() => {
+      result.current.setEditingTitle('   ');
+    });
+
+    await act(async () => {
+      await result.current.handleSaveTitle(10);
+    });
+
+    expect(mockUpdateSessionTitle).not.toHaveBeenCalled();
+    expect(result.current.editingSessionId).toBe(10);
+  });
+
+  it('空文字タイトル保存時に編集モードが維持されAPIが呼ばれない', async () => {
+    const { result } = renderHook(() =>
+      useAiSession({ deleteSession: mockDeleteSession, updateSessionTitle: mockUpdateSessionTitle })
+    );
+
+    act(() => {
+      result.current.handleStartEditTitle({ id: 5, title: '元のタイトル' });
+    });
+
+    act(() => {
+      result.current.setEditingTitle('');
+    });
+
+    await act(async () => {
+      await result.current.handleSaveTitle(5);
+    });
+
+    expect(mockUpdateSessionTitle).not.toHaveBeenCalled();
+    expect(result.current.editingSessionId).toBe(5);
+  });
+
+  it('handleCancelEditTitleでeditingTitleが空に戻る', () => {
+    const { result } = renderHook(() =>
+      useAiSession({ deleteSession: mockDeleteSession, updateSessionTitle: mockUpdateSessionTitle })
+    );
+
+    act(() => {
+      result.current.handleStartEditTitle({ id: 10, title: '既存' });
+    });
+
+    expect(result.current.editingTitle).toBe('既存');
+
+    act(() => {
+      result.current.handleCancelEditTitle();
+    });
+
+    expect(result.current.editingSessionId).toBeNull();
+    expect(result.current.editingTitle).toBe('');
+  });
+});

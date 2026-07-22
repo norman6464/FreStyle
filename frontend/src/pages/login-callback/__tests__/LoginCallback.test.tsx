@@ -1,0 +1,88 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import { Provider } from 'react-redux';
+import { configureStore } from '@reduxjs/toolkit';
+import { MemoryRouter } from 'react-router-dom';
+import LoginCallback from '../ui/LoginCallback';
+import authReducer from '@/entities/user/model/authSlice';
+import authRepository from '@/entities/user/api/authRepository';
+import { ToastProvider } from '@/app/providers/ToastProvider';
+
+const mockNavigate = vi.fn();
+
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom');
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+  };
+});
+
+vi.mock('@/entities/user/api/authRepository');
+
+function renderWithRoute(search: string) {
+  const store = configureStore({ reducer: { auth: authReducer } });
+  return render(
+    <Provider store={store}>
+      <MemoryRouter initialEntries={[`/callback${search}`]}>
+        <ToastProvider>
+          <LoginCallback />
+        </ToastProvider>
+      </MemoryRouter>
+    </Provider>,
+  );
+}
+
+describe('LoginCallback', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal('alert', vi.fn());
+  });
+
+  it('ローディング表示がされる', () => {
+    vi.mocked(authRepository.callback).mockResolvedValue({});
+
+    renderWithRoute('?code=test-code');
+
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(screen.getByText('ログイン中...')).toBeInTheDocument();
+  });
+
+  it('codeがない場合はログインページへリダイレクトする', async () => {
+    renderWithRoute('');
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/login');
+    });
+  });
+
+  it('errorパラメータがある場合はトースト付きでログインページへリダイレクトする', async () => {
+    renderWithRoute('?error=access_denied');
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/login', { state: { toast: '認証エラーが発生しました' } });
+    });
+  });
+
+  it('認証成功時にホームページへリダイレクトする', async () => {
+    vi.mocked(authRepository.callback).mockResolvedValue({ user: { id: 1, name: 'テスト' } });
+
+    renderWithRoute('?code=valid-code');
+
+    await waitFor(() => {
+      // 第 2 引数 invitationToken は sessionStorage に何も無いとき null。
+      expect(authRepository.callback).toHaveBeenCalledWith('valid-code', null);
+      expect(mockNavigate).toHaveBeenCalledWith('/');
+    });
+  });
+
+  it('認証失敗時にトースト付きでログインページへリダイレクトする', async () => {
+    vi.mocked(authRepository.callback).mockRejectedValue(new Error('認証失敗'));
+
+    renderWithRoute('?code=invalid-code');
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/login', { state: { toast: '認証に失敗しました' } });
+    });
+  });
+});

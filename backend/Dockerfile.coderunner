@@ -13,8 +13,9 @@ ENV CGO_ENABLED=0 GOOS=linux GOARCH=amd64
 RUN go build -trimpath -ldflags="-s -w" -o /out/coderunner ./cmd/coderunner
 
 # --- Runtime stage ---
-# 学習者コード（php / go / bash / sql）をサンドボックス実行するため、PHP CLI / Go ツールチェイン /
-# 使い捨て PostgreSQL を同居させる。backend 本体（cmd/server）はこのランタイムを含まない distroless に分離する。
+# 学習者コード（php / go / bash / sql / javascript / typescript）をサンドボックス実行するため、
+# PHP CLI / Go ツールチェイン / 使い捨て PostgreSQL / Node.js を同居させる。
+# backend 本体（cmd/server）はこのランタイムを含まない distroless に分離する。
 # runner には DB / Cognito / AWS の機密 env を注入しない（ECS タスク定義で env を渡さない）。
 FROM golang:1.26-bookworm
 
@@ -23,6 +24,15 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         php-cli ca-certificates postgresql-15 postgresql-client-15 && \
     rm -rf /var/lib/apt/lists/*
+
+# Node.js: javascript / typescript 演習の実行用。公式 node イメージ（同じ bookworm 系）から
+# 実行バイナリだけを取り込む。npm 等のパッケージマネージャは同梱しない
+# （学習者コードの実行に不要で、サンドボックス内の攻撃面を増やさないため）。
+# TypeScript は Node 組み込みの型除去（+ --experimental-transform-types）で実行するため
+# tsc 等の追加ツールも不要。
+COPY --from=node:24-bookworm /usr/local/bin/node /usr/local/bin/node
+RUN node --version && \
+    node --experimental-transform-types -e 'const ok: string = "ts-ok"; console.log(ok)'
 
 # initdb / pg_ctl / postgres の server バイナリは /usr/lib/postgresql/15/bin にあり PATH 外なので通す。
 ENV PATH="/usr/lib/postgresql/15/bin:${PATH}"

@@ -40,8 +40,12 @@ const course = {
   createdByUserId: 1,
   title: 'E2E 学習コース',
   description: 'Playwright によるフロー検証用コース',
+  category: 'database',
+  language: 'postgresql',
   sortOrder: 10,
   isPublished: true,
+  materialCount: 1,
+  completedCount: 0,
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-01T00:00:00Z',
 };
@@ -88,7 +92,10 @@ test.describe('コース学習フロー', () => {
       '**/api/v2/teaching-materials/11': material,
     });
 
+    // コースは「学習領域の選択 → その領域の一覧 → 詳細」の 3 段(FRESTYLE-177)。
     await page.goto('/courses');
+    await page.getByRole('link', { name: /データベース のコース一覧へ/ }).click();
+    await expect(page).toHaveURL(/\/courses\/category\/database/);
     await expect(page.getByText('E2E 学習コース')).toBeVisible();
 
     // カード（div の onClick で navigate）を開く。
@@ -105,18 +112,28 @@ test.describe('コース学習フロー', () => {
 });
 
 test.describe('演習フロー', () => {
-  test('演習一覧 → リンクで詳細に遷移し演習が描画される', async ({ page }) => {
-    // 一覧は ?language=php クエリ付きで叩くため glob は ** で末尾も許容する。
-    // 詳細/submissions の専用パターンは後勝ちで優先される。
+  // コード学習は「言語選択カード → その言語の問題一覧 → 問題」の 3 段（FRESTYLE-152）。
+  test('言語選択 → 問題一覧 → リンクで詳細に遷移し演習が描画される', async ({ page }) => {
+    // 一覧は ?language=go クエリ付きで叩くため glob は ** で末尾も許容する。
+    // summary / 詳細 / submissions の専用パターンは後勝ちで優先される。
     // 一覧はスクロール型ページネーション化（ExercisePage = { items, hasNext, offset, limit }）
     // されたので、配列直返しではなくページオブジェクトでモックする。
     await mockAuthed(page, {
       '**/api/v2/exercises**': { items: [exercise], hasNext: false, offset: 0, limit: 20 },
+      '**/api/v2/exercises/summary': [{ language: 'go', total: 1, solved: 0 }],
       '**/api/v2/exercises/e2e-fizzbuzz': { exercise, examples: [] },
       '**/api/v2/exercises/e2e-fizzbuzz/submissions': [],
     });
 
+    // 入口は言語選択カード。
     await page.goto('/code-editor');
+    const languageCard = page.getByRole('link', { name: /Go の問題一覧へ/ });
+    await expect(languageCard).toBeVisible();
+
+    await languageCard.click();
+
+    // その言語の問題一覧へ。
+    await expect(page).toHaveURL(/\/code-editor\/lang\/go/);
     const link = page.getByRole('link', { name: /E2E FizzBuzz 演習/ });
     await expect(link).toBeVisible();
 

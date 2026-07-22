@@ -25,8 +25,11 @@ func registerExerciseRoutes(g *gin.RouterGroup, deps *routeDeps) {
 		usecase.NewListMasterExercisesUseCase(exerciseRepo),
 		usecase.NewListMasterExercisesWithStatusUseCase(exerciseRepo),
 		usecase.NewGetMasterExerciseUseCase(exerciseRepo, examplesRepo),
+		usecase.NewGetExerciseLanguageSummaryUseCase(exerciseRepo),
 	)
 	g.GET("/exercises", exerciseHandler.List)
+	// 静的セグメントは :slug より優先して解決される（gin v1.12 で動作確認済）。
+	g.GET("/exercises/summary", exerciseHandler.Summary)
 	g.GET("/exercises/:slug", exerciseHandler.GetBySlug)
 
 	submissionHandler := NewExerciseSubmissionHandler(

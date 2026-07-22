@@ -119,7 +119,7 @@ PR では次が走る（詳細は `IaC リポ/docs/23` / `24`）:
 - frontend: tsc / ESLint(max-warnings=0) / **Vitest + coverage 閾値** / build
 - 全体: **CodeQL**（SAST）/ E2E（Playwright スモーク + ローカルモック）
 
-**ドキュメント更新の無い PR はマージしない**（軽微なタイポ除く）。取り組んだ内容・手順は `docs/` か該当 README に残す。
+本リポジトリに `docs/` フォルダは置かない（README はアプリケーションの説明に限定）。取り組んだ内容・手順は **Jira チケット**に残し、必要なら該当ディレクトリの README（`backend/README.md` 等）を更新する。設計・運用の詳細は private リポ（`frestyle-pdm` / `frestyle-infrastructure`）の `docs/` に置く。
 
 ---
 

@@ -69,14 +69,14 @@
 <img src="https://skillicons.dev/icons?i=githubactions&theme=light" alt="CI/CD">
 </a>
 
-> GitHub Actions / Gradle / JUnit 5 / Spring Boot Test + H2 / CodeQL / Trivy / gitleaks / Vitest coverage / ESLint / tsc
+> GitHub Actions / gofumpt / go vet / go test / archlint・naminglint・apispec-lint / CodeQL / Trivy / gitleaks / Vitest coverage / ESLint / tsc
 
 <h3>Testing</h3>
 <a href="https://skillicons.dev">
 <img src="https://skillicons.dev/icons?i=vitest,playwright&theme=light" alt="Testing">
 </a>
 
-> Vitest + React Testing Library（フロントエンド単体）/ JUnit 5 + Spring Boot Test（バックエンド単体・結合）/ Playwright（本番 E2E スモーク、Chromium）
+> Vitest + React Testing Library（フロントエンド単体）/ `testing` + testify（バックエンド単体・結合: usecase は fake、repository は SQLite メモリ、handler は httptest）/ Playwright（本番 E2E スモーク、Chromium）
 ---
 
 ## 工夫した点
@@ -101,17 +101,6 @@
 | ランタイム | Go（静的バイナリ）/ Gin |
 | スキーマ管理 | GORM AutoMigrate（破壊系は手動 SQL）|
 | 永続化 | 読み取り=生 SQL 直書き（`db.Raw` / sqlc）・書き込み=GORM（PostgreSQL）/ AWS SDK v2（DynamoDB・S3・Bedrock・SQS）|
-
-### UI カラーデザインの科学的根拠
-
-学習プラットフォームとして「集中力・動機付け・目の疲労」に配慮した色彩設計を採用しています。
-
-| 設計判断 | 根拠 |
-|---|---|
-| CTA・フォーカスリングを青（`brand-*`）に統一 | 青は集中力を高める色として知られており、学習・作業タスクへの取り組みを促しやすい |
-| 完了・進捗インジケーターを緑（`emerald-*`）に | 緑は達成感や安心感と結びつきやすく、学習の継続意欲を高める効果が期待できる |
-| 背景を暖白（`#FAFAF8`）に | 純白（`#FFFFFF`）より輝度を抑えた暖白のほうが長時間の画面閲覧による眼精疲労を軽減しやすい |
-| 高彩度青（`#2E7DF6`）を避け Tailwind blue スケールへ移行 | 過度に高彩度の色は刺激が強く覚醒・ストレスを高めるため、長時間の集中学習には落ち着いたトーンが適している |
 
 ## AWSアーキテクチャ構成図
 

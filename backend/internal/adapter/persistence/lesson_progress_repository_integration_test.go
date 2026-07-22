@@ -20,7 +20,7 @@ func TestLessonProgressRepository_Integration(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("MarkCompleted は冪等（二重実行でも 1 件）", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "user_lesson_progress", "user_chapter_progress")
+		testsupport.TruncateAll(t, db, "user_chapter_progress")
 
 		changed, err := repo.MarkCompleted(ctx, 1, 10, 100)
 		require.NoError(t, err)
@@ -37,7 +37,7 @@ func TestLessonProgressRepository_Integration(t *testing.T) {
 	})
 
 	t.Run("ListByUser は user で絞り込む", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "user_lesson_progress", "user_chapter_progress")
+		testsupport.TruncateAll(t, db, "user_chapter_progress")
 
 		_, err := repo.MarkCompleted(ctx, 1, 10, 100)
 		require.NoError(t, err)
@@ -52,7 +52,7 @@ func TestLessonProgressRepository_Integration(t *testing.T) {
 	})
 
 	t.Run("MarkIncomplete は行を削除する（未記録でもエラーにしない）", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "user_lesson_progress", "user_chapter_progress")
+		testsupport.TruncateAll(t, db, "user_chapter_progress")
 
 		_, err := repo.MarkCompleted(ctx, 1, 10, 100)
 		require.NoError(t, err)
@@ -75,7 +75,7 @@ func TestLessonProgressRepository_CountCompletedByUserGroupedByCourse_Integratio
 	materials := persistence.NewTeachingMaterialRepository(db)
 	ctx := context.Background()
 
-	testsupport.TruncateAll(t, db, "user_lesson_progress", "user_chapter_progress")
+	testsupport.TruncateAll(t, db, "user_chapter_progress")
 	testsupport.TruncateAll(t, db, "course_chapters")
 
 	mk := func(courseID uint64, title string, published bool) *domain.TeachingMaterial {

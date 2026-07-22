@@ -3153,8 +3153,8 @@ paths:
       - notifications
   /profile/{userId}:
     get:
-      description: 指定 user (or current user) の displayName / bio / avatarUrl / status
-        を 返す。 IDOR 対策 で 自分 以外 は 403。
+      description: 指定 user (or current user) の name / bio / avatarUrl / status を 返す。
+        IDOR 対策 で 自分 以外 は 403。
       parameters:
       - description: 数字 ID または 'me'
         in: path
@@ -3188,8 +3188,8 @@ paths:
     put:
       consumes:
       - application/json
-      description: current user の displayName / bio / avatarUrl / status を 更新 する。
-        他 user は 403。
+      description: current user の name / bio / avatarUrl / status を 更新 する。 他 user
+        は 403。
       parameters:
       - description: 数字 ID または 'me'
         in: path

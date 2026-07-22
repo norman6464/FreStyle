@@ -57,7 +57,7 @@ func (h *ProfileHandler) resolveUserID(c *gin.Context) (uint64, error) {
 // Get は指定 user のプロフィールを返す。
 //
 //	@Summary      プロフィール 取得
-//	@Description  指定 user (or current user) の displayName / bio / avatarUrl / status を 返す。 IDOR 対策 で 自分 以外 は 403。
+//	@Description  指定 user (or current user) の name / bio / avatarUrl / status を 返す。 IDOR 対策 で 自分 以外 は 403。
 //	@Tags         profile
 //	@Produce      json
 //	@Param        userId  path      string  true   "数字 ID または 'me'"
@@ -92,7 +92,7 @@ type updateProfileReq struct {
 // Update は current user のプロフィールを更新する。
 //
 //	@Summary      プロフィール 更新
-//	@Description  current user の displayName / bio / avatarUrl / status を 更新 する。 他 user は 403。
+//	@Description  current user の name / bio / avatarUrl / status を 更新 する。 他 user は 403。
 //	@Tags         profile
 //	@Accept       json
 //	@Produce      json

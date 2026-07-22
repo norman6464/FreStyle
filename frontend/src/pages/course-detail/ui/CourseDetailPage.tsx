@@ -493,36 +493,37 @@ function ReadOnlyDetail({
               <ReadOnlyMarkdown content={bodyContent} />
             </div>
 
+            {/* 末尾に「完了にする」と「次の章へ」を並べ、 読み終えた位置から次へ進めるようにする。
+                崩れ対策(FRESTYLE-189): 完了ボタンは shrink-0 / whitespace-nowrap で常に 1 行を保ち、
+                次へボタンは min-w-0 + truncate で長い章タイトルを省略しつつ、 幅を取りすぎないよう
+                上限(sm:max-w-[55%])を設けて 2 つのボタンのバランスを取る。
+                最終章では代わりに「次のコースへ」を出し、 一覧に戻らず次のコースへ直行できるようにする
+                (FRESTYLE-102。 遷移先はレジュームにより 1 章目が自動表示される)。 */}
+            <div className="mt-10 pt-6 border-t border-surface-3 flex flex-col sm:flex-row items-center justify-center gap-3">
+              <CompleteToggleButton completed={completed} onToggle={onToggleComplete} large />
+              {nextMaterial && onGoNext ? (
+                <button
+                  type="button"
+                  onClick={onGoNext}
+                  title={`次の章へ: ${nextMaterial.title || '無題の教材'}`}
+                  className="inline-flex min-w-0 max-w-full sm:max-w-[55%] items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium bg-surface-2 border border-surface-3 text-[var(--color-text-primary)] hover:bg-surface-3 transition-colors"
+                >
+                  <span className="truncate">次の章へ: {nextMaterial.title || '無題の教材'}</span>
+                  <ArrowRightIcon className="w-4 h-4 flex-shrink-0" />
+                </button>
+              ) : nextCourse && onGoNextCourse ? (
+                <button
+                  type="button"
+                  onClick={onGoNextCourse}
+                  title={`次のコースへ: ${nextCourse.title || '無題のコース'}`}
+                  className="inline-flex min-w-0 max-w-full sm:max-w-[55%] items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium bg-surface-2 border border-surface-3 text-[var(--color-text-primary)] hover:bg-surface-3 transition-colors"
+                >
+                  <span className="truncate">次のコースへ: {nextCourse.title || '無題のコース'}</span>
+                  <ArrowRightIcon className="w-4 h-4 flex-shrink-0" />
+                </button>
+              ) : null}
+            </div>
           </article>
-
-          {/* 読み終わりのアクション(完了 / 次へ)は本文カードの外に置き、本文と操作を視覚的に分ける
-              (FRESTYLE-188。 以前はカード内の末尾にあった)。 最終章では代わりに「次のコースへ」を出し、
-              一覧に戻らず次のコースへ直行できるようにする
-              (FRESTYLE-102。 遷移先はレジュームにより 1 章目が自動表示される)。 */}
-          <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <CompleteToggleButton completed={completed} onToggle={onToggleComplete} large />
-            {nextMaterial && onGoNext ? (
-              <button
-                type="button"
-                onClick={onGoNext}
-                title={`次の章へ: ${nextMaterial.title || '無題の教材'}`}
-                className="inline-flex min-w-0 items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium bg-surface-2 border border-surface-3 text-[var(--color-text-primary)] hover:bg-surface-3 transition-colors max-w-full"
-              >
-                <span className="truncate">次の章へ: {nextMaterial.title || '無題の教材'}</span>
-                <ArrowRightIcon className="w-4 h-4 flex-shrink-0" />
-              </button>
-            ) : nextCourse && onGoNextCourse ? (
-              <button
-                type="button"
-                onClick={onGoNextCourse}
-                title={`次のコースへ: ${nextCourse.title || '無題のコース'}`}
-                className="inline-flex min-w-0 items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium bg-surface-2 border border-surface-3 text-[var(--color-text-primary)] hover:bg-surface-3 transition-colors max-w-full"
-              >
-                <span className="truncate">次のコースへ: {nextCourse.title || '無題のコース'}</span>
-                <ArrowRightIcon className="w-4 h-4 flex-shrink-0" />
-              </button>
-            ) : null}
-          </div>
         </div>
 
         {tocOpen && (

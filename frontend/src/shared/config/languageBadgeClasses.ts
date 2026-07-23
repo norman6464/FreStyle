@@ -12,6 +12,7 @@ export const LANGUAGE_BADGE_CLASSES: Record<string, string> = {
   javascript: 'bg-yellow-500/25 text-yellow-700 border-yellow-500/50',
   typescript: 'bg-blue-500/25 text-blue-700 border-blue-500/50',
   git: 'bg-orange-500/25 text-orange-700 border-orange-500/50',
+  java: 'bg-red-500/25 text-red-700 border-red-500/50',
   bash: 'bg-slate-500/25 text-slate-700 border-slate-500/50',
   linux: 'bg-slate-500/25 text-slate-700 border-slate-500/50',
   docker: 'bg-sky-500/25 text-sky-700 border-sky-500/50',

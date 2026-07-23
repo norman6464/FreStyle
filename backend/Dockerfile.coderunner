@@ -13,17 +13,24 @@ ENV CGO_ENABLED=0 GOOS=linux GOARCH=amd64
 RUN go build -trimpath -ldflags="-s -w" -o /out/coderunner ./cmd/coderunner
 
 # --- Runtime stage ---
-# 学習者コード（php / go / bash / sql / javascript / typescript）をサンドボックス実行するため、
-# PHP CLI / Go ツールチェイン / 使い捨て PostgreSQL / Node.js を同居させる。
+# 学習者コード（php / go / bash / sql / javascript / typescript / java）をサンドボックス実行するため、
+# PHP CLI / Go ツールチェイン / 使い捨て PostgreSQL / Node.js / JDK を同居させる。
 # backend 本体（cmd/server）はこのランタイムを含まない distroless に分離する。
 # runner には DB / Cognito / AWS の機密 env を注入しない（ECS タスク定義で env を渡さない）。
 FROM golang:1.26-bookworm
 
 # php-cli: PHP 実行 / postgresql-15: SQL 実行用の同居 PostgreSQL（socket 専用・使い捨て DB）。
+# openjdk-17-jdk-headless: Java 実行用。single-file source launcher（java Main.java）で
+# 明示コンパイルなしに実行する。source launcher は jdk.compiler モジュールを要するため
+# JRE ではなく JDK（headless で GUI 系は含まない）。
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        php-cli ca-certificates postgresql-15 postgresql-client-15 && \
-    rm -rf /var/lib/apt/lists/*
+        php-cli ca-certificates postgresql-15 postgresql-client-15 \
+        openjdk-17-jdk-headless && \
+    rm -rf /var/lib/apt/lists/* && \
+    java -version && \
+    printf 'public class Smoke { public static void main(String[] a) { System.out.println("java-ok"); } }\n' > /tmp/Smoke.java && \
+    java /tmp/Smoke.java && rm /tmp/Smoke.java
 
 # Node.js: javascript / typescript 演習の実行用。公式 node イメージ（同じ bookworm 系）から
 # 実行バイナリだけを取り込む。npm 等のパッケージマネージャは同梱しない

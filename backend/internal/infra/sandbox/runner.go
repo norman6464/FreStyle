@@ -1,4 +1,4 @@
-// Package sandbox は学習者コード（php / go / bash / sql / javascript / typescript）を
+// Package sandbox は学習者コード（php / go / bash / sql / javascript / typescript / java）を
 // os/exec でサンドボックス実行する in-process 実装を提供する。backend 本体に同居させる場合
 // （CODE_RUNNER_URL 未設定）と、別バイナリ cmd/coderunner（HTTP サーバ）の中身の双方から共有して使う。
 package sandbox
@@ -24,8 +24,11 @@ const (
 	// execTimeout は PHP / bash / javascript / typescript の上限。
 	execTimeout = 8 * time.Second
 	// goExecTimeout は Go 専用。go run はコンパイルも走るため余裕を持たせる（cold compile ~6-8s）。
-	goExecTimeout  = 15 * time.Second
-	maxOutputBytes = 64 * 1024 // 64 KB
+	goExecTimeout = 15 * time.Second
+	// javaExecTimeout は Java 専用。JVM 起動 + source launcher のメモリ内コンパイルが
+	// Fargate では数秒かかるため Go と同水準に取る。
+	javaExecTimeout = 15 * time.Second
+	maxOutputBytes  = 64 * 1024 // 64 KB
 
 	// sqlExecTimeout は SQL 1 提出あたりの上限（CREATE/実行/DROP を含む全体）。
 	sqlExecTimeout = 10 * time.Second
@@ -69,7 +72,7 @@ var disableFunctions = strings.Join([]string{
 	"syslog", "openlog", "closelog",
 }, ",")
 
-// Runner は php / go / bash / sql / javascript / typescript を os/exec でサンドボックス実行する
+// Runner は php / go / bash / sql / javascript / typescript / java を os/exec でサンドボックス実行する
 // in-process 実装。共通制約: timeout / 64 KB code-size / 64 KB output-size。
 type Runner struct{}
 
@@ -94,14 +97,16 @@ func (r *Runner) Run(ctx context.Context, input domain.CodeExecutionInput) (*dom
 		return r.executeSQL(ctx, input)
 	case "javascript", "typescript":
 		return r.executeNode(ctx, input)
+	case "java":
+		return r.executeJava(ctx, input)
 	default:
 		return nil, fmt.Errorf("未対応の言語: %s", input.Language)
 	}
 }
 
 // Warmup は実行環境を事前に温める。Go は go run のコンパイルキャッシュを温めるため
-// trivial なプログラムを 1 回コンパイル/実行する。php / bash / javascript / typescript は
-// 起動が軽量なので no-op。
+// trivial なプログラムを 1 回コンパイル/実行する。php / bash / javascript / typescript / java は
+// 永続キャッシュを持たないため no-op（Java の起動コストは javaExecTimeout 側で吸収する）。
 func (r *Runner) Warmup(ctx context.Context, language string) error {
 	if language != "go" {
 		return nil
@@ -289,6 +294,60 @@ func (r *Runner) executeNode(ctx context.Context, input domain.CodeExecutionInpu
 			out.Stderr = strings.ReplaceAll(out.Stderr, p+string(os.PathSeparator), "./")
 			out.Stderr = strings.ReplaceAll(out.Stderr, p, ".")
 		}
+	}
+	return out, runErr
+}
+
+// executeJava は Java を JDK の single-file source launcher（`java Main.java`）で実行する。
+// javac の明示コンパイル工程を持たず、メモリ内コンパイルで直接実行される（Java 11+）。
+func (r *Runner) executeJava(ctx context.Context, input domain.CodeExecutionInput) (*domain.CodeExecutionResult, error) {
+	// 別言語コードが意味不明なコンパイルエラーになるのを避けるため、Java の骨格を必須にする
+	// （executeGo の package main チェックと同型のフェイルファスト）。
+	if !strings.Contains(input.Code, "class") || !strings.Contains(input.Code, "static void main") {
+		return &domain.CodeExecutionResult{
+			Stdout:   "",
+			Stderr:   "Java コードには `class` と `public static void main(String[] args)` が必要です。",
+			ExitCode: 1,
+		}, nil
+	}
+
+	tmpDir, err := os.MkdirTemp("", "java-exec-")
+	if err != nil {
+		return nil, fmt.Errorf("一時ディレクトリの作成に失敗: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// source launcher はファイル名とクラス名の一致を要求しない（javac と異なる）ため、
+	// 学習者がどんなクラス名を書いても Main.java で受けられる。
+	filename := filepath.Join(tmpDir, "Main.java")
+	if err := os.WriteFile(filename, []byte(input.Code), 0o600); err != nil {
+		return nil, fmt.Errorf("一時ファイルの作成に失敗: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, javaExecTimeout)
+	defer cancel()
+
+	// 512MB タスクに同居する他プロセスを圧迫しないようヒープ上限を絞る（学習用途には十分）。
+	// SerialGC は極小ヒープ + 単発実行で最速・最小フットプリント。
+	cmd := exec.CommandContext(ctx, "java", "-XX:+UseSerialGC", "-Xmx128m", "Main.java")
+	cmd.Dir = tmpDir
+	// AWS credential や DB password 等を子プロセスに継承しない（JAVA_TOOL_OPTIONS 等の注入も防ぐ）。
+	cmd.Env = []string{
+		"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+		"HOME=" + tmpDir,
+		"PWD=" + tmpDir,
+		"LANG=C.UTF-8",
+		"LC_ALL=C.UTF-8",
+	}
+
+	// ProcessBuilder 等で子孫プロセスを起動しうるので、独立プロセスグループに置いて一括 kill する。
+	configureProcessGroup(cmd)
+
+	out, runErr := runCommand(cmd, input.Stdin)
+	if out != nil {
+		// コンパイルエラーやスタックトレースに出る一時ディレクトリの絶対パスを学習者に見せない。
+		out.Stderr = strings.ReplaceAll(out.Stderr, tmpDir+string(os.PathSeparator), "./")
+		out.Stderr = strings.ReplaceAll(out.Stderr, tmpDir, ".")
 	}
 	return out, runErr
 }

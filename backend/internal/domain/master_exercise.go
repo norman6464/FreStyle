@@ -35,6 +35,7 @@ const (
 	ExerciseLanguageJs   = "javascript"
 	ExerciseLanguageBash = "bash"
 	ExerciseLanguageGit  = "git"
+	ExerciseLanguageJava = "java"
 )
 
 // 採点モードの定数。

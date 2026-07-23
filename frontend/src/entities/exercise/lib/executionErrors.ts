@@ -15,6 +15,8 @@ const LINE_PATTERNS: Record<string, RegExp> = {
   go: /main\.go:(\d+)(?::\d+)?:/,
   javascript: /main\.js:(\d+)(?::\d+)?/,
   typescript: /main\.ts:(\d+)(?::\d+)?/,
+  // javac のコンパイルエラー(./Main.java:3: エラー:)と実行時スタックトレース(Main.java:5)の両方に一致。
+  java: /Main\.java:(\d+)/,
   php: /on line (\d+)/,
   bash: /script\.sh: (?:line )?(\d+):/,
 };

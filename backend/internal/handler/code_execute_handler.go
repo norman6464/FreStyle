@@ -26,7 +26,7 @@ type codeExecuteRequest struct {
 }
 
 // @Summary      コード サンドボックス 実行
-// @Description  trainee が 書いた コード を サーバ 側 sandbox で 実行 し stdout/stderr/exitCode を 返す。 language は php / go / bash / sql / javascript / typescript。
+// @Description  trainee が 書いた コード を サーバ 側 sandbox で 実行 し stdout/stderr/exitCode を 返す。 language は php / go / bash / sql / javascript / typescript / java。
 // @Tags         code-execution
 // @Accept       json
 // @Produce      json
@@ -68,7 +68,7 @@ type codeWarmupResponse struct {
 }
 
 // @Summary      実行環境 ウォームアップ
-// @Description  コードエディタ 入場 時 に 呼び、 指定 言語 の 実行 環境 を 事前 に 温める（Go は コンパイル キャッシュ、 php/bash/sql/javascript/typescript は no-op）。 実行時 に 起動 する のではなく、 入場 時 に warm に する。
+// @Description  コードエディタ 入場 時 に 呼び、 指定 言語 の 実行 環境 を 事前 に 温める（Go は コンパイル キャッシュ、 php/bash/sql/javascript/typescript/java は no-op）。 実行時 に 起動 する のではなく、 入場 時 に warm に する。
 // @Tags         code-execution
 // @Accept       json
 // @Produce      json

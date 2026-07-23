@@ -450,3 +450,78 @@ sleep 30
 	assert.NotZero(t, out.ExitCode, "process should be killed by timeout")
 	assert.Less(t, elapsed, 5*time.Second, "should NOT wait for orphan sleep child to exit")
 }
+
+func Test_ランナー_Java_HelloWorld(t *testing.T) {
+	if _, err := exec.LookPath("java"); err != nil {
+		t.Skip("java not found in PATH, skipping integration test")
+	}
+
+	r := sandbox.NewRunner()
+	out, err := r.Run(context.Background(), domain.CodeExecutionInput{
+		Code: `public class Main {
+    public static void main(String[] args) {
+        System.out.println("Hello, Java!");
+    }
+}`,
+		Language: "java",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "Hello, Java!\n", out.Stdout)
+	assert.Equal(t, 0, out.ExitCode)
+}
+
+func Test_ランナー_Java_標準入力を読める(t *testing.T) {
+	if _, err := exec.LookPath("java"); err != nil {
+		t.Skip("java not found in PATH, skipping integration test")
+	}
+
+	r := sandbox.NewRunner()
+	out, err := r.Run(context.Background(), domain.CodeExecutionInput{
+		Code: `import java.util.Scanner;
+
+public class Main {
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in);
+        String name = sc.nextLine();
+        System.out.println("Hello, " + name + "!");
+    }
+}`,
+		Language: "java",
+		Stdin:    "FreStyle\n",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "Hello, FreStyle!\n", out.Stdout)
+	assert.Equal(t, 0, out.ExitCode)
+}
+
+func Test_ランナー_Java_コンパイルエラーは一時パスを隠す(t *testing.T) {
+	if _, err := exec.LookPath("java"); err != nil {
+		t.Skip("java not found in PATH, skipping integration test")
+	}
+
+	r := sandbox.NewRunner()
+	out, err := r.Run(context.Background(), domain.CodeExecutionInput{
+		Code: `public class Main {
+    public static void main(String[] args) {
+        System.out.println("missing semicolon")
+    }
+}`,
+		Language: "java",
+	})
+	require.NoError(t, err)
+	assert.NotEqual(t, 0, out.ExitCode)
+	// 学習者にコンテナ内部の絶対パス(/tmp/java-exec-XXX/)を見せない。
+	assert.NotContains(t, out.Stderr, "java-exec-")
+}
+
+func Test_ランナー_Java_骨格がないコードを実行前に拒否(t *testing.T) {
+	// バリデーションは java CLI 無しでも動く(実行前チェックのため skip 不要)。
+	r := sandbox.NewRunner()
+	out, err := r.Run(context.Background(), domain.CodeExecutionInput{
+		Code:     `console.log("this is javascript");`,
+		Language: "java",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 1, out.ExitCode)
+	assert.Contains(t, out.Stderr, "static void main")
+}

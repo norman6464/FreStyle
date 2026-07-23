@@ -22,6 +22,8 @@ export function monacoLanguageOf(lang: string): string {
       return 'javascript';
     case 'typescript':
       return 'typescript';
+    case 'java':
+      return 'java';
     case 'bash':
     case 'sh':
       return 'shell';

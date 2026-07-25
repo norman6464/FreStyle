@@ -2692,6 +2692,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/daily-goals/streak": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 連続 学習 日数 統計 取得
+         * @description 現在 の 連続 学習 日数 / 最長 連続 日数 / 累計 学習 日数 を 返す。 設定 画面 の プロフィール 統計 用。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_usecase.GetDailyStreakOutput"];
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 集計失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/embeds/oembed": {
         parameters: {
             query?: never;
@@ -5241,6 +5298,11 @@ export interface components {
             sortOrder?: number;
             title?: string;
             updatedAt?: string;
+        };
+        "github_com_norman6464_FreStyle_backend_internal_usecase.GetDailyStreakOutput": {
+            currentStreak?: number;
+            longestStreak?: number;
+            totalAchievedDays?: number;
         };
         "github_com_norman6464_FreStyle_backend_internal_usecase.GetMasterExerciseDetailOutput": {
             examples?: components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.MasterExerciseExample"][];

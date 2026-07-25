@@ -2125,6 +2125,43 @@
                 }
             }
         },
+        "/daily-goals/streak": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "現在 の 連続 学習 日数 / 最長 連続 日数 / 累計 学習 日数 を 返す。 設定 画面 の プロフィール 統計 用。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "daily-goals"
+                ],
+                "summary": "連続 学習 日数 統計 取得",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase.GetDailyStreakOutput"
+                        }
+                    },
+                    "401": {
+                        "description": "未認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "集計失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/embeds/oembed": {
             "get": {
                 "security": [
@@ -4688,6 +4725,20 @@
                 },
                 "updatedAt": {
                     "type": "string"
+                }
+            }
+        },
+        "github_com_norman6464_FreStyle_backend_internal_usecase.GetDailyStreakOutput": {
+            "type": "object",
+            "properties": {
+                "currentStreak": {
+                    "type": "integer"
+                },
+                "longestStreak": {
+                    "type": "integer"
+                },
+                "totalAchievedDays": {
+                    "type": "integer"
                 }
             }
         },

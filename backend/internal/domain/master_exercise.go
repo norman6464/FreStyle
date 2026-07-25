@@ -37,6 +37,9 @@ const (
 	ExerciseLanguageGit  = "git"
 	ExerciseLanguageJava = "java"
 	ExerciseLanguageHTML = "html"
+	ExerciseLanguageRuby = "ruby"
+	ExerciseLanguageC    = "c"
+	ExerciseLanguageCpp  = "cpp"
 )
 
 // 採点モードの定数。

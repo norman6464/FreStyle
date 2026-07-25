@@ -32,6 +32,22 @@ describe('LanguageBadge', () => {
     expect(screen.getByText('Docker').className).toContain('bg-sky-500/25');
   });
 
+  it('cpp は機械整形の Cpp ではなく C++ と表示される', () => {
+    render(<LanguageBadge language="cpp" />);
+    expect(screen.getByText('C++').className).toContain('bg-violet-500/25');
+  });
+
+  it('ruby と c にも識別色が付く（ruby=rose / c=emerald）', () => {
+    render(
+      <>
+        <LanguageBadge language="ruby" />
+        <LanguageBadge language="c" />
+      </>,
+    );
+    expect(screen.getByText('Ruby').className).toContain('bg-rose-500/25');
+    expect(screen.getByText('C').className).toContain('bg-emerald-500/25');
+  });
+
   it('未知の言語は無彩色（surface-3）にフォールバックする', () => {
     render(<LanguageBadge language="rust" />);
     const badge = screen.getByText('Rust');

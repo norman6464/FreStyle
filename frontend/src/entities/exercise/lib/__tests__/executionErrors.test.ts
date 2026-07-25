@@ -32,6 +32,29 @@ SyntaxError: Invalid or unexpected token
     expect(markers[0].message).toContain('SyntaxError: Invalid or unexpected token');
   });
 
+  it('ruby の構文エラーと例外バックトレースから行番号を抽出する', () => {
+    const syntaxErr = `main.rb:3: syntax error, unexpected end-of-input`;
+    expect(parseErrorLines(syntaxErr, 'ruby').map((m) => m.line)).toEqual([3]);
+
+    const runtimeErr = `main.rb:5:in \`<main>': undefined method \`upcase' for nil (NoMethodError)`;
+    expect(parseErrorLines(runtimeErr, 'ruby').map((m) => m.line)).toEqual([5]);
+  });
+
+  it('c のコンパイルエラーから行番号を抽出する', () => {
+    const stderr = `main.c:4:20: error: 'undefined_var' undeclared (first use in this function)
+    4 |     printf("%d\\n", undefined_var);`;
+    const markers = parseErrorLines(stderr, 'c');
+    expect(markers.map((m) => m.line)).toEqual([4]);
+    expect(markers[0].message).toContain("undeclared");
+  });
+
+  it('cpp のコンパイルエラーから行番号を抽出する', () => {
+    const stderr = `main.cpp:4:18: error: 'missing_symbol' was not declared in this scope`;
+    const markers = parseErrorLines(stderr, 'cpp');
+    expect(markers.map((m) => m.line)).toEqual([4]);
+    expect(markers[0].message).toContain('was not declared');
+  });
+
   it('typescript の実行エラーから行番号を抽出する', () => {
     const stderr = `./main.ts:5
 throw new Error("boom");

@@ -17,6 +17,11 @@ const LINE_PATTERNS: Record<string, RegExp> = {
   typescript: /main\.ts:(\d+)(?::\d+)?/,
   // javac のコンパイルエラー(./Main.java:3: エラー:)と実行時スタックトレース(Main.java:5)の両方に一致。
   java: /Main\.java:(\d+)/,
+  // ruby の構文エラー(main.rb:3: syntax error)と例外バックトレース(main.rb:3:in `...')の両方に一致。
+  ruby: /main\.rb:(\d+)/,
+  // gcc / g++ のコンパイルエラー(main.c:3:5: error:)。実行時エラーは行番号を持たない。
+  c: /main\.c:(\d+)/,
+  cpp: /main\.cpp:(\d+)/,
   php: /on line (\d+)/,
   bash: /script\.sh: (?:line )?(\d+):/,
 };

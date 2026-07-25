@@ -21,6 +21,7 @@ export const EXERCISE_LANGUAGES: ExerciseLanguageDef[] = [
   { key: 'javascript', label: 'JavaScript', badgeClass: LANGUAGE_BADGE_CLASSES.javascript },
   { key: 'typescript', label: 'TypeScript', badgeClass: LANGUAGE_BADGE_CLASSES.typescript },
   { key: 'java', label: 'Java', badgeClass: LANGUAGE_BADGE_CLASSES.java },
+  { key: 'html', label: 'HTML / CSS', badgeClass: LANGUAGE_BADGE_CLASSES.html },
   { key: 'git', label: 'Git', badgeClass: LANGUAGE_BADGE_CLASSES.git },
   { key: 'bash', label: 'Bash / Linux', badgeClass: LANGUAGE_BADGE_CLASSES.bash },
   { key: 'docker', label: 'Docker', badgeClass: LANGUAGE_BADGE_CLASSES.docker },

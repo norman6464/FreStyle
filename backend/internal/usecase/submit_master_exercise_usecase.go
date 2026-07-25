@@ -96,6 +96,9 @@ func (uc *SubmitMasterExerciseUseCase) Execute(ctx context.Context, in SubmitMas
 	if ex.Mode == domain.ExerciseModeQA {
 		return uc.submitQA(ctx, in, ex)
 	}
+	if ex.Mode == domain.ExerciseModePreview {
+		return uc.submitPreview(ctx, in, ex)
+	}
 
 	examples, err := uc.examples.ListByExerciseID(ctx, ex.ID)
 	if err != nil {
@@ -188,6 +191,39 @@ func (uc *SubmitMasterExerciseUseCase) Execute(ctx context.Context, in SubmitMas
 }
 
 // submitQA は QA モードの採点。コード実行せず提出文字列と ExpectedOutput を normalize 比較する。
+// submitPreview は HTML/CSS 等のライブプレビュー演習の提出を記録する。
+// 出来栄えは学習者が見本とプレビューを見比べて判断する(視覚的セルフチェック)ため、
+// サーバー側では実行も出力比較もせず、「できた!」の宣言を完了として提出コードごと保存する。
+func (uc *SubmitMasterExerciseUseCase) submitPreview(ctx context.Context, in SubmitMasterExerciseInput, ex *domain.MasterExercise) (*SubmitMasterExerciseOutput, error) {
+	submission := &domain.ExerciseSubmission{
+		UserID:        in.UserID,
+		ExerciseKind:  domain.ExerciseKindMaster,
+		ExerciseID:    ex.ID,
+		SubmittedCode: in.Code,
+		Stdout:        "",
+		Stderr:        "",
+		ExitCode:      0,
+		IsCorrect:     true,
+		SubmittedAt:   time.Now().UTC(),
+	}
+	if err := uc.submissions.Create(ctx, submission); err != nil {
+		return nil, err
+	}
+
+	if err := uc.activity.Increment(ctx, in.UserID, submission.SubmittedAt, repository.UserDailyActivityIncrement{
+		ExerciseCount: 1,
+		CorrectCount:  1,
+	}); err != nil {
+		slog.WarnContext(ctx, "user_daily_activities increment failed", "userID", in.UserID, "err", err)
+	}
+
+	return &SubmitMasterExerciseOutput{
+		SubmissionID: submission.ID,
+		IsCorrect:    true,
+		Results:      []TestCaseResult{},
+	}, nil
+}
+
 func (uc *SubmitMasterExerciseUseCase) submitQA(ctx context.Context, in SubmitMasterExerciseInput, ex *domain.MasterExercise) (*SubmitMasterExerciseOutput, error) {
 	expected := normalizeOutput(ex.ExpectedOutput)
 	actual := normalizeOutput(in.Code)

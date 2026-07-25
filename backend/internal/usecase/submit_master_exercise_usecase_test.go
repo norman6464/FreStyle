@@ -340,3 +340,24 @@ func Test_演習提出_入力が必須(t *testing.T) {
 	})
 	require.Error(t, err)
 }
+
+func Test_演習提出_previewモードは実行せずセルフチェック完了として記録(t *testing.T) {
+	exRepo := &fakeMasterExerciseRepo{
+		get: &domain.MasterExercise{ID: 9, Slug: "html-1", Language: "html", Mode: domain.ExerciseModePreview},
+	}
+	submissions := &fakeSubmissionRepo{}
+	// executor が呼ばれたら失敗にする(preview はサーバー実行しないことの検証)。
+	executor := &fakeExecutor{stdinToOut: map[string]string{}}
+
+	uc := usecase.NewSubmitMasterExerciseUseCase(exRepo, &fakeExampleRepo{}, submissions, executor, &nopActivityRepo{})
+	out, err := uc.Execute(context.Background(), usecase.SubmitMasterExerciseInput{
+		UserID: 1, Slug: "html-1", Code: "<h1>HELLO WORLD</h1>",
+	})
+	require.NoError(t, err)
+	assert.True(t, out.IsCorrect)
+	assert.Empty(t, out.Results)
+	require.NotNil(t, submissions.created)
+	assert.Equal(t, "<h1>HELLO WORLD</h1>", submissions.created.SubmittedCode)
+	assert.True(t, submissions.created.IsCorrect)
+	assert.Empty(t, submissions.created.Stdout)
+}

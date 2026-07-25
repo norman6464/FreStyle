@@ -24,7 +24,7 @@ func (f *fakeDailyActivityRepo) ListByUser(_ context.Context, _ uint64, _, _ tim
 }
 
 func day(offset int) time.Time {
-	return time.Now().UTC().Truncate(24 * time.Hour).AddDate(0, 0, offset)
+	return time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, offset)
 }
 
 func act(offset, exercises int) domain.UserDailyActivity {

@@ -3,6 +3,7 @@ package persistence
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strconv"
 	"time"
 
@@ -138,5 +139,24 @@ func (r *aiChatMessageRepository) ListBySessionID(ctx context.Context, sessionID
 			CreatedAt:   t,
 		})
 	}
+	// SK(messageId) はランダム UUID のため、Query の返却順(SK 辞書順)は時系列にならない。
+	// 会話履歴は「モデルへの入力」と「画面の表示順」の両方が時系列前提なので、ここで必ず整列する。
+	// 整列しないと履歴がシャッフルされたままモデルに渡り、支離滅裂な応答になる(FRESTYLE-195)。
+	sortAiChatMessages(msgs)
 	return msgs, nil
+}
+
+// sortAiChatMessages は会話履歴を時系列(created_at 昇順)に整列する。
+// created_at は秒精度(RFC3339)のため同一秒がありうる。同一秒内は user → assistant の順
+// (質問が先・応答が後)とし、それも同じなら messageId で決定的に安定させる。
+func sortAiChatMessages(msgs []domain.AiChatMessage) {
+	sort.Slice(msgs, func(i, j int) bool {
+		if !msgs[i].CreatedAt.Equal(msgs[j].CreatedAt) {
+			return msgs[i].CreatedAt.Before(msgs[j].CreatedAt)
+		}
+		if msgs[i].Role != msgs[j].Role {
+			return msgs[i].Role == domain.AiChatRoleUser
+		}
+		return msgs[i].MessageID < msgs[j].MessageID
+	})
 }

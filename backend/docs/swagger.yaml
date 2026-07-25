@@ -336,9 +336,9 @@ definitions:
         type: string
       bio:
         type: string
-      email:
+      displayName:
         type: string
-      name:
+      email:
         type: string
       status:
         type: string
@@ -1048,10 +1048,13 @@ definitions:
         type: string
       bio:
         type: string
+      displayName:
+        description: |-
+          Name はフロントの送信キー displayName で受ける (name では常に空になり
+          users.UpdateName が呼ばれず氏名が保存されない: FRESTYLE-198)。
+        type: string
       iconUrl:
         description: 旧フロント互換。avatarUrl を優先。
-        type: string
-      name:
         type: string
       status:
         type: string
@@ -3188,8 +3191,8 @@ paths:
     put:
       consumes:
       - application/json
-      description: current user の name / bio / avatarUrl / status を 更新 する。 他 user
-        は 403。
+      description: current user の displayName / bio / avatarUrl / status を 更新 する。
+        他 user は 403。
       parameters:
       - description: 数字 ID または 'me'
         in: path

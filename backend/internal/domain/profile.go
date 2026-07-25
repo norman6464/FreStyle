@@ -16,9 +16,11 @@ type Profile struct {
 func (Profile) TableName() string { return "profiles" }
 
 // ProfileView は users.name と Profile を合成した表示用 DTO。
+// Name の JSON キーはフロント (entities/user の Profile 型) に合わせて displayName
+// (name だと取得・更新の両方向でフロントと食い違い氏名が消える: FRESTYLE-198)。
 type ProfileView struct {
 	UserID        uint64    `json:"userId"`
-	Name          string    `json:"name"`
+	Name          string    `json:"displayName"`
 	Email         string    `json:"email"`
 	Bio           string    `json:"bio"`
 	AvatarURL     string    `json:"avatarUrl"`

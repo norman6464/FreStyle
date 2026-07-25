@@ -1896,7 +1896,7 @@ export interface paths {
         put?: never;
         /**
          * コード サンドボックス 実行
-         * @description trainee が 書いた コード を サーバ 側 sandbox で 実行 し stdout/stderr/exitCode を 返す。 language は php / go / bash。
+         * @description trainee が 書いた コード を サーバ 側 sandbox で 実行 し stdout/stderr/exitCode を 返す。 language は php / go / bash / sql / javascript / typescript / java。
          */
         post: {
             parameters: {
@@ -1958,7 +1958,7 @@ export interface paths {
         put?: never;
         /**
          * 実行環境 ウォームアップ
-         * @description コードエディタ 入場 時 に 呼び、 指定 言語 の 実行 環境 を 事前 に 温める（Go は コンパイル キャッシュ、 php/bash は no-op）。 実行時 に 起動 する のではなく、 入場 時 に warm に する。
+         * @description コードエディタ 入場 時 に 呼び、 指定 言語 の 実行 環境 を 事前 に 温める（Go は コンパイル キャッシュ、 php/bash/sql/javascript/typescript/java は no-op）。 実行時 に 起動 する のではなく、 入場 時 に warm に する。
          */
         post: {
             parameters: {
@@ -2816,6 +2816,54 @@ export interface paths {
                     };
                 };
                 /** @description DB / 集計 失敗 */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/exercises/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 演習の 言語別 集計 (問題数 + 正解済み 件数)
+         * @description 公開済み の 運営 マスタ 演習問題 を 言語 ごとに 集計 して 返す。 solved は current user が 正解済み の 問題数 (未 ログイン は 0)。 言語 選択 カード の 進捗 表示 に 使う。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.exerciseLanguageSummaryResponse"][];
+                    };
+                };
+                /** @description 集計 失敗 */
                 500: {
                     headers: {
                         [name: string]: unknown;
@@ -4126,7 +4174,7 @@ export interface paths {
         };
         /**
          * プロフィール 取得
-         * @description 指定 user (or current user) の displayName / bio / avatarUrl / status を 返す。 IDOR 対策 で 自分 以外 は 403。
+         * @description 指定 user (or current user) の name / bio / avatarUrl / status を 返す。 IDOR 対策 で 自分 以外 は 403。
          */
         get: {
             parameters: {
@@ -4970,6 +5018,11 @@ export interface components {
             description?: string;
             id?: number;
             isPublished?: boolean;
+            /**
+             * @description Language は主に扱う言語・技術（例: "go" / "docker" / "terraform"。空 = 言語が主題でない）。
+             *     演習の language と同じ自由文字列方式で、表示色は frontend のカラーマップが持つ。
+             */
+            language?: string;
             sortOrder?: number;
             title?: string;
             updatedAt?: string;
@@ -5066,8 +5119,8 @@ export interface components {
         "github_com_norman6464_FreStyle_backend_internal_domain.ProfileView": {
             avatarUrl?: string;
             bio?: string;
+            displayName?: string;
             email?: string;
-            name?: string;
             status?: string;
             updatedAt?: string;
             userId?: number;
@@ -5097,6 +5150,10 @@ export interface components {
             courseId?: number;
             firstViewedAt?: string;
             lastViewedAt?: string;
+            /**
+             * @description TeachingMaterialID は章(course_chapters)の ID。DB 列は chapter_id(FRESTYLE-185 で改名)。
+             *     JSON キーは互換のため teachingMaterialId のまま。
+             */
             teachingMaterialId?: number;
             userId?: number;
             viewCount?: number;
@@ -5106,6 +5163,10 @@ export interface components {
             aiChatCount?: number;
             correctCount?: number;
             exerciseCount?: number;
+            /**
+             * @description LessonCount は完了した章の数。DB 列は chapter_count(FRESTYLE-185 で改名)。
+             *     JSON キーは互換のため lessonCount のまま。
+             */
             lessonCount?: number;
             noteCount?: number;
             userId?: number;
@@ -5115,6 +5176,10 @@ export interface components {
             courseId?: number;
             createdAt?: string;
             id?: number;
+            /**
+             * @description TeachingMaterialID は章(course_chapters)の ID。DB 列は chapter_id(FRESTYLE-185 で改名)。
+             *     JSON キーは互換のため teachingMaterialId のまま。
+             */
             teachingMaterialId?: number;
             userId?: number;
         };
@@ -5139,7 +5204,10 @@ export interface components {
             activeThisWeek?: number;
             /** @description ActiveToday は今日(UTC)学習活動があった trainee 数。 */
             activeToday?: number;
-            /** @description RecentMembers は最終活動日の新しい順の直近アクティブメンバー(最大 5 名。活動が無い trainee は含めない)。 */
+            /**
+             * @description RecentMembers は最終活動日の新しい順の直近アクティブメンバー
+             *     (直近 7 日間に活動があるメンバーのみ、最大 5 名)。
+             */
             recentMembers?: components["schemas"]["github_com_norman6464_FreStyle_backend_internal_usecase.MemberLearningSummaryItem"][];
             /** @description TraineeCount は在籍 trainee 数(論理削除済みを除く)。 */
             traineeCount?: number;
@@ -5163,6 +5231,11 @@ export interface components {
             description?: string;
             id?: number;
             isPublished?: boolean;
+            /**
+             * @description Language は主に扱う言語・技術（例: "go" / "docker" / "terraform"。空 = 言語が主題でない）。
+             *     演習の language と同じ自由文字列方式で、表示色は frontend のカラーマップが持つ。
+             */
+            language?: string;
             /** @description MaterialCount はコース内の章数。trainee は published のみ、admin 系は下書き込み。 */
             materialCount?: number;
             sortOrder?: number;
@@ -5243,6 +5316,11 @@ export interface components {
             category?: "dev-basics" | "backend" | "architecture" | "database" | "infra" | "security" | "product";
             description?: string;
             isPublished?: boolean;
+            /**
+             * @description Language は主に扱う言語・技術(例: "go" / "docker"。空 = 言語が主題でない)。
+             *     演習の language と同じ自由文字列方式(表示色は frontend のカラーマップが持つ)。
+             */
+            language?: string;
             sortOrder?: number;
             title?: string;
         };
@@ -5266,6 +5344,11 @@ export interface components {
         "internal_handler.errorResponse": {
             /** @example unauthorized */
             error?: string;
+        };
+        "internal_handler.exerciseLanguageSummaryResponse": {
+            language?: string;
+            solved?: number;
+            total?: number;
         };
         "internal_handler.exercisePageResponse": {
             hasNext?: boolean;
@@ -5421,9 +5504,13 @@ export interface components {
         "internal_handler.updateProfileReq": {
             avatarUrl?: string;
             bio?: string;
+            /**
+             * @description Name はフロントの送信キー displayName で受ける (name では常に空になり
+             *     users.UpdateName が呼ばれず氏名が保存されない: FRESTYLE-198)。
+             */
+            displayName?: string;
             /** @description 旧フロント互換。avatarUrl を優先。 */
             iconUrl?: string;
-            name?: string;
             status?: string;
         };
         "internal_handler.updateSessionTitleReq": {

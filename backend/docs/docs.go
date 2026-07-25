@@ -3310,7 +3310,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "current user の name / bio / avatarUrl / status を 更新 する。 他 user は 403。",
+                "description": "current user の displayName / bio / avatarUrl / status を 更新 する。 他 user は 403。",
                 "consumes": [
                     "application/json"
                 ],
@@ -4406,10 +4406,10 @@ const docTemplate = `{
                 "bio": {
                     "type": "string"
                 },
-                "email": {
+                "displayName": {
                     "type": "string"
                 },
-                "name": {
+                "email": {
                     "type": "string"
                 },
                 "status": {
@@ -5450,11 +5450,12 @@ const docTemplate = `{
                 "bio": {
                     "type": "string"
                 },
-                "iconUrl": {
-                    "description": "旧フロント互換。avatarUrl を優先。",
+                "displayName": {
+                    "description": "Name はフロントの送信キー displayName で受ける (name では常に空になり\nusers.UpdateName が呼ばれず氏名が保存されない: FRESTYLE-198)。",
                     "type": "string"
                 },
-                "name": {
+                "iconUrl": {
+                    "description": "旧フロント互換。avatarUrl を優先。",
                     "type": "string"
                 },
                 "status": {

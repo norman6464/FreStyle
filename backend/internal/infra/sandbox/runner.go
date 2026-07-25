@@ -32,6 +32,9 @@ const (
 
 	// sqlExecTimeout は SQL 1 提出あたりの上限（CREATE/実行/DROP を含む全体）。
 	sqlExecTimeout = 10 * time.Second
+	// nativeExecTimeout は C / C++ 専用。gcc / g++ のコンパイル + 実行の合計に適用する
+	// （学習用の単一ファイルならコンパイルは数百 ms だが、余裕を持たせて Go / Java と同水準）。
+	nativeExecTimeout = 15 * time.Second
 	// sqlStatementTimeoutMS は個々の文の上限（暴走クエリ・pg_sleep を打ち切る）。
 	sqlStatementTimeoutMS = "5000"
 	// sqlLockTimeoutMS / sqlIdleTxTimeoutMS でロック待ち・放置トランザクションも縛る。
@@ -72,8 +75,9 @@ var disableFunctions = strings.Join([]string{
 	"syslog", "openlog", "closelog",
 }, ",")
 
-// Runner は php / go / bash / sql / javascript / typescript / java を os/exec でサンドボックス実行する
-// in-process 実装。共通制約: timeout / 64 KB code-size / 64 KB output-size。
+// Runner は php / go / bash / sql / javascript / typescript / java / ruby / c / c++ を
+// os/exec でサンドボックス実行する in-process 実装。
+// 共通制約: timeout / 64 KB code-size / 64 KB output-size。
 type Runner struct{}
 
 // NewRunner は in-process サンドボックス Runner を返す。
@@ -99,14 +103,21 @@ func (r *Runner) Run(ctx context.Context, input domain.CodeExecutionInput) (*dom
 		return r.executeNode(ctx, input)
 	case "java":
 		return r.executeJava(ctx, input)
+	case "ruby":
+		return r.executeRuby(ctx, input)
+	case "c":
+		return r.executeC(ctx, input)
+	case "cpp":
+		return r.executeCpp(ctx, input)
 	default:
 		return nil, fmt.Errorf("未対応の言語: %s", input.Language)
 	}
 }
 
 // Warmup は実行環境を事前に温める。Go は go run のコンパイルキャッシュを温めるため
-// trivial なプログラムを 1 回コンパイル/実行する。php / bash / javascript / typescript / java は
-// 永続キャッシュを持たないため no-op（Java の起動コストは javaExecTimeout 側で吸収する）。
+// trivial なプログラムを 1 回コンパイル/実行する。php / bash / javascript / typescript / java /
+// ruby / c / cpp は永続キャッシュを持たないため no-op
+// （Java の起動コストは javaExecTimeout、C / C++ のコンパイルは nativeExecTimeout 側で吸収する）。
 func (r *Runner) Warmup(ctx context.Context, language string) error {
 	if language != "go" {
 		return nil
@@ -349,6 +360,132 @@ func (r *Runner) executeJava(ctx context.Context, input domain.CodeExecutionInpu
 		out.Stderr = strings.ReplaceAll(out.Stderr, tmpDir+string(os.PathSeparator), "./")
 		out.Stderr = strings.ReplaceAll(out.Stderr, tmpDir, ".")
 	}
+	return out, runErr
+}
+
+// executeRuby は Ruby を ruby CLI で実行する。インタプリタ起動は軽量なため PHP と同じ
+// execTimeout を使う。骨格チェックは行わない（任意のテキストが構文的に Ruby になり得るため、
+// 誤貼付けは ruby 自身の構文エラーで十分分かりやすく伝わる）。
+func (r *Runner) executeRuby(ctx context.Context, input domain.CodeExecutionInput) (*domain.CodeExecutionResult, error) {
+	tmpDir, err := os.MkdirTemp("", "ruby-exec-")
+	if err != nil {
+		return nil, fmt.Errorf("一時ディレクトリの作成に失敗: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	filename := filepath.Join(tmpDir, "main.rb")
+	if err := os.WriteFile(filename, []byte(input.Code), 0o600); err != nil {
+		return nil, fmt.Errorf("一時ファイルの作成に失敗: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, execTimeout)
+	defer cancel()
+
+	// Dir=tmpDir + 相対パス指定により、エラー表示は `main.rb:N` の相対形になる。
+	cmd := exec.CommandContext(ctx, "ruby", "main.rb")
+	cmd.Dir = tmpDir
+	// AWS credential や DB password 等を子プロセスに継承しない（RUBYOPT 等の注入も防ぐ）。
+	cmd.Env = []string{
+		"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+		"HOME=" + tmpDir,
+		"PWD=" + tmpDir,
+		"LANG=C.UTF-8",
+		"LC_ALL=C.UTF-8",
+	}
+
+	// Process.spawn 等で子孫プロセスを起動しうるので、独立プロセスグループに置いて一括 kill する。
+	configureProcessGroup(cmd)
+
+	out, runErr := runCommand(cmd, input.Stdin)
+	if out != nil {
+		// 例外バックトレース等に出る一時ディレクトリの絶対パスを学習者に見せない。
+		out.Stderr = strings.ReplaceAll(out.Stderr, tmpDir+string(os.PathSeparator), "./")
+		out.Stderr = strings.ReplaceAll(out.Stderr, tmpDir, ".")
+	}
+	return out, runErr
+}
+
+// executeC は C を gcc でコンパイルして実行する。
+func (r *Runner) executeC(ctx context.Context, input domain.CodeExecutionInput) (*domain.CodeExecutionResult, error) {
+	// 別言語コードが意味不明なコンパイルエラーになるのを避けるため、C の骨格を必須にする
+	// （executeGo の package main チェックと同型のフェイルファスト）。
+	if !strings.Contains(input.Code, "int main") {
+		return &domain.CodeExecutionResult{
+			Stdout:   "",
+			Stderr:   "C コードには `int main` 関数が必要です。",
+			ExitCode: 1,
+		}, nil
+	}
+	// -lm: 学習用途で math.h を使う際にリンク指定を意識させないため常に付ける（未使用でも無害）。
+	return r.compileAndRunNative(ctx, input, "main.c",
+		"gcc", []string{"-std=c17", "-O0", "-o", "main", "main.c", "-lm"})
+}
+
+// executeCpp は C++ を g++ -std=c++17 でコンパイルして実行する。
+func (r *Runner) executeCpp(ctx context.Context, input domain.CodeExecutionInput) (*domain.CodeExecutionResult, error) {
+	if !strings.Contains(input.Code, "int main") {
+		return &domain.CodeExecutionResult{
+			Stdout:   "",
+			Stderr:   "C++ コードには `int main` 関数が必要です。",
+			ExitCode: 1,
+		}, nil
+	}
+	return r.compileAndRunNative(ctx, input, "main.cpp",
+		"g++", []string{"-std=c++17", "-O0", "-o", "main", "main.cpp"})
+}
+
+// compileAndRunNative は C / C++ 共通のコンパイル → 実行の 2 段階を nativeExecTimeout の
+// 1 つの deadline 内で行う。コンパイル失敗時はコンパイラの stderr をそのまま学習者に返す
+// （Dir=tmpDir + 相対パス指定により `main.c:N` の相対形で表示される）。
+func (r *Runner) compileAndRunNative(ctx context.Context, input domain.CodeExecutionInput, srcName, compiler string, compileArgs []string) (*domain.CodeExecutionResult, error) {
+	tmpDir, err := os.MkdirTemp("", "native-exec-")
+	if err != nil {
+		return nil, fmt.Errorf("一時ディレクトリの作成に失敗: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	filename := filepath.Join(tmpDir, srcName)
+	if err := os.WriteFile(filename, []byte(input.Code), 0o600); err != nil {
+		return nil, fmt.Errorf("一時ファイルの作成に失敗: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, nativeExecTimeout)
+	defer cancel()
+
+	// コンパイラにも機密 env を渡さない。TMPDIR は gcc の中間ファイル用に tmpDir を指す。
+	minEnv := []string{
+		"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+		"HOME=" + tmpDir,
+		"PWD=" + tmpDir,
+		"TMPDIR=" + tmpDir,
+		"LANG=C.UTF-8",
+		"LC_ALL=C.UTF-8",
+	}
+
+	hidePath := func(out *domain.CodeExecutionResult) {
+		if out == nil {
+			return
+		}
+		out.Stderr = strings.ReplaceAll(out.Stderr, tmpDir+string(os.PathSeparator), "./")
+		out.Stderr = strings.ReplaceAll(out.Stderr, tmpDir, ".")
+	}
+
+	compile := exec.CommandContext(ctx, compiler, compileArgs...)
+	compile.Dir = tmpDir
+	compile.Env = minEnv
+	configureProcessGroup(compile)
+	if out, runErr := runCommand(compile, ""); runErr != nil || out == nil || out.ExitCode != 0 {
+		hidePath(out)
+		return out, runErr
+	}
+
+	run := exec.CommandContext(ctx, "./main")
+	run.Dir = tmpDir
+	run.Env = minEnv
+	configureProcessGroup(run)
+
+	out, runErr := runCommand(run, input.Stdin)
+	hidePath(out)
 	return out, runErr
 }
 

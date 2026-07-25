@@ -15,6 +15,12 @@ export const LANGUAGE_BADGE_CLASSES: Record<string, string> = {
   html: 'bg-amber-500/25 text-amber-700 border-amber-500/50',
   git: 'bg-orange-500/25 text-orange-700 border-orange-500/50',
   java: 'bg-red-500/25 text-red-700 border-red-500/50',
+  // Ruby の定番赤は java と重複するため rose を使う（web と同色だが web は演習には出ないため可）。
+  ruby: 'bg-rose-500/25 text-rose-700 border-rose-500/50',
+  // C++ の定番青は typescript と重複するため violet を使う（terraform と同色だが演習には出ないため可）。
+  cpp: 'bg-violet-500/25 text-violet-700 border-violet-500/50',
+  // C は emerald（openapi と同色だが演習には出ないため可）。
+  c: 'bg-emerald-500/25 text-emerald-700 border-emerald-500/50',
   bash: 'bg-slate-500/25 text-slate-700 border-slate-500/50',
   linux: 'bg-slate-500/25 text-slate-700 border-slate-500/50',
   docker: 'bg-sky-500/25 text-sky-700 border-sky-500/50',

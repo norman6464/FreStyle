@@ -13,8 +13,9 @@ ENV CGO_ENABLED=0 GOOS=linux GOARCH=amd64
 RUN go build -trimpath -ldflags="-s -w" -o /out/coderunner ./cmd/coderunner
 
 # --- Runtime stage ---
-# 学習者コード（php / go / bash / sql / javascript / typescript / java）をサンドボックス実行するため、
-# PHP CLI / Go ツールチェイン / 使い捨て PostgreSQL / Node.js / JDK を同居させる。
+# 学習者コード（php / go / bash / sql / javascript / typescript / java / ruby / c / c++）を
+# サンドボックス実行するため、
+# PHP CLI / Go ツールチェイン / 使い捨て PostgreSQL / Node.js / JDK / Ruby / gcc / g++ を同居させる。
 # backend 本体（cmd/server）はこのランタイムを含まない distroless に分離する。
 # runner には DB / Cognito / AWS の機密 env を注入しない（ECS タスク定義で env を渡さない）。
 FROM golang:1.26-bookworm
@@ -23,14 +24,22 @@ FROM golang:1.26-bookworm
 # openjdk-17-jdk-headless: Java 実行用。single-file source launcher（java Main.java）で
 # 明示コンパイルなしに実行する。source launcher は jdk.compiler モジュールを要するため
 # JRE ではなく JDK（headless で GUI 系は含まない）。
+# ruby: Ruby 実行用（bookworm は ruby 3.1）/ gcc + g++ + libc6-dev: C / C++ のコンパイル実行用。
+# いずれも build 時に実行スモークを焼き込み、イメージ更新でランタイム欠落があれば build で落とす。
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         php-cli ca-certificates postgresql-15 postgresql-client-15 \
-        openjdk-17-jdk-headless && \
+        openjdk-17-jdk-headless ruby gcc g++ libc6-dev && \
     rm -rf /var/lib/apt/lists/* && \
     java -version && \
     printf 'public class Smoke { public static void main(String[] a) { System.out.println("java-ok"); } }\n' > /tmp/Smoke.java && \
-    java /tmp/Smoke.java && rm /tmp/Smoke.java
+    java /tmp/Smoke.java && rm /tmp/Smoke.java && \
+    ruby -e 'puts "ruby-ok"' && \
+    printf '#include <stdio.h>\nint main(void) { printf("c-ok\\n"); return 0; }\n' > /tmp/smoke.c && \
+    gcc -std=c17 -o /tmp/smoke_c /tmp/smoke.c -lm && /tmp/smoke_c && \
+    printf '#include <iostream>\nint main() { std::cout << "cpp-ok" << std::endl; return 0; }\n' > /tmp/smoke.cpp && \
+    g++ -std=c++17 -o /tmp/smoke_cpp /tmp/smoke.cpp && /tmp/smoke_cpp && \
+    rm /tmp/smoke.c /tmp/smoke_c /tmp/smoke.cpp /tmp/smoke_cpp
 
 # Node.js: javascript / typescript 演習の実行用。公式 node イメージ（同じ bookworm 系）から
 # 実行バイナリだけを取り込む。npm 等のパッケージマネージャは同梱しない

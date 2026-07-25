@@ -3,6 +3,7 @@ package sandbox_test
 import (
 	"context"
 	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
@@ -524,4 +525,192 @@ func Test_ランナー_Java_骨格がないコードを実行前に拒否(t *tes
 	require.NoError(t, err)
 	assert.Equal(t, 1, out.ExitCode)
 	assert.Contains(t, out.Stderr, "static void main")
+}
+
+func Test_ランナー_Ruby_HelloWorld(t *testing.T) {
+	if _, err := exec.LookPath("ruby"); err != nil {
+		t.Skip("ruby not found in PATH, skipping integration test")
+	}
+	r := sandbox.NewRunner()
+	out, err := r.Run(context.Background(), domain.CodeExecutionInput{
+		Language: "ruby",
+		Code:     `puts "Hello, Ruby!"`,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.ExitCode != 0 || out.Stdout != "Hello, Ruby!\n" {
+		t.Fatalf("unexpected result: %+v", out)
+	}
+}
+
+func Test_ランナー_Ruby_標準入力を読む(t *testing.T) {
+	if _, err := exec.LookPath("ruby"); err != nil {
+		t.Skip("ruby not found in PATH, skipping integration test")
+	}
+	r := sandbox.NewRunner()
+	out, err := r.Run(context.Background(), domain.CodeExecutionInput{
+		Language: "ruby",
+		Code:     `name = gets.chomp` + "\n" + `puts "Hello, #{name}!"`,
+		Stdin:    "FreStyle\n",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.ExitCode != 0 || out.Stdout != "Hello, FreStyle!\n" {
+		t.Fatalf("unexpected result: %+v", out)
+	}
+}
+
+func Test_ランナー_Ruby_例外で内部パスを隠す(t *testing.T) {
+	if _, err := exec.LookPath("ruby"); err != nil {
+		t.Skip("ruby not found in PATH, skipping integration test")
+	}
+	r := sandbox.NewRunner()
+	out, err := r.Run(context.Background(), domain.CodeExecutionInput{
+		Language: "ruby",
+		Code:     `raise "boom"`,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.ExitCode == 0 {
+		t.Fatalf("expected non-zero exit, got %+v", out)
+	}
+	if !strings.Contains(out.Stderr, "main.rb") {
+		t.Fatalf("stderr should reference main.rb: %q", out.Stderr)
+	}
+	if strings.Contains(out.Stderr, "ruby-exec-") {
+		t.Fatalf("stderr must not leak tmp dir: %q", out.Stderr)
+	}
+}
+
+func Test_ランナー_C_HelloWorld(t *testing.T) {
+	if _, err := exec.LookPath("gcc"); err != nil {
+		t.Skip("gcc not found in PATH, skipping integration test")
+	}
+	r := sandbox.NewRunner()
+	out, err := r.Run(context.Background(), domain.CodeExecutionInput{
+		Language: "c",
+		Code:     "#include <stdio.h>\n\nint main(void) {\n    printf(\"Hello, C!\\n\");\n    return 0;\n}\n",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.ExitCode != 0 || out.Stdout != "Hello, C!\n" {
+		t.Fatalf("unexpected result: %+v", out)
+	}
+}
+
+func Test_ランナー_C_int_main欠落を拒否(t *testing.T) {
+	r := sandbox.NewRunner()
+	out, err := r.Run(context.Background(), domain.CodeExecutionInput{
+		Language: "c",
+		Code:     `puts "this is ruby"`,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.ExitCode == 0 || !strings.Contains(out.Stderr, "int main") {
+		t.Fatalf("should reject code without int main: %+v", out)
+	}
+}
+
+func Test_ランナー_C_コンパイルエラーで内部パスを隠す(t *testing.T) {
+	if _, err := exec.LookPath("gcc"); err != nil {
+		t.Skip("gcc not found in PATH, skipping integration test")
+	}
+	r := sandbox.NewRunner()
+	out, err := r.Run(context.Background(), domain.CodeExecutionInput{
+		Language: "c",
+		Code:     "#include <stdio.h>\n\nint main(void) {\n    printf(\"%d\\n\", undefined_var);\n    return 0;\n}\n",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.ExitCode == 0 {
+		t.Fatalf("expected compile error, got %+v", out)
+	}
+	if !strings.Contains(out.Stderr, "main.c") {
+		t.Fatalf("stderr should reference main.c: %q", out.Stderr)
+	}
+	if strings.Contains(out.Stderr, "native-exec-") {
+		t.Fatalf("stderr must not leak tmp dir: %q", out.Stderr)
+	}
+}
+
+func Test_ランナー_C_標準入力を読む(t *testing.T) {
+	if _, err := exec.LookPath("gcc"); err != nil {
+		t.Skip("gcc not found in PATH, skipping integration test")
+	}
+	r := sandbox.NewRunner()
+	out, err := r.Run(context.Background(), domain.CodeExecutionInput{
+		Language: "c",
+		Code:     "#include <stdio.h>\n\nint main(void) {\n    int n;\n    scanf(\"%d\", &n);\n    printf(\"%d\\n\", n * 2);\n    return 0;\n}\n",
+		Stdin:    "21\n",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.ExitCode != 0 || out.Stdout != "42\n" {
+		t.Fatalf("unexpected result: %+v", out)
+	}
+}
+
+func Test_ランナー_Cpp_HelloWorld(t *testing.T) {
+	if _, err := exec.LookPath("g++"); err != nil {
+		t.Skip("g++ not found in PATH, skipping integration test")
+	}
+	r := sandbox.NewRunner()
+	out, err := r.Run(context.Background(), domain.CodeExecutionInput{
+		Language: "cpp",
+		Code:     "#include <iostream>\n\nint main() {\n    std::cout << \"Hello, C++!\" << std::endl;\n    return 0;\n}\n",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.ExitCode != 0 || out.Stdout != "Hello, C++!\n" {
+		t.Fatalf("unexpected result: %+v", out)
+	}
+}
+
+func Test_ランナー_Cpp_標準入力を読む(t *testing.T) {
+	if _, err := exec.LookPath("g++"); err != nil {
+		t.Skip("g++ not found in PATH, skipping integration test")
+	}
+	r := sandbox.NewRunner()
+	out, err := r.Run(context.Background(), domain.CodeExecutionInput{
+		Language: "cpp",
+		Code:     "#include <iostream>\n#include <string>\n\nint main() {\n    std::string name;\n    std::getline(std::cin, name);\n    std::cout << \"Hello, \" << name << \"!\" << std::endl;\n    return 0;\n}\n",
+		Stdin:    "FreStyle\n",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.ExitCode != 0 || out.Stdout != "Hello, FreStyle!\n" {
+		t.Fatalf("unexpected result: %+v", out)
+	}
+}
+
+func Test_ランナー_Cpp_コンパイルエラーで内部パスを隠す(t *testing.T) {
+	if _, err := exec.LookPath("g++"); err != nil {
+		t.Skip("g++ not found in PATH, skipping integration test")
+	}
+	r := sandbox.NewRunner()
+	out, err := r.Run(context.Background(), domain.CodeExecutionInput{
+		Language: "cpp",
+		Code:     "#include <iostream>\n\nint main() {\n    std::cout << missing_symbol << std::endl;\n}\n",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.ExitCode == 0 {
+		t.Fatalf("expected compile error, got %+v", out)
+	}
+	if !strings.Contains(out.Stderr, "main.cpp") {
+		t.Fatalf("stderr should reference main.cpp: %q", out.Stderr)
+	}
+	if strings.Contains(out.Stderr, "native-exec-") {
+		t.Fatalf("stderr must not leak tmp dir: %q", out.Stderr)
+	}
 }

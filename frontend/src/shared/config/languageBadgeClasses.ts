@@ -32,6 +32,14 @@ export const LANGUAGE_BADGE_CLASSES: Record<string, string> = {
   web: 'bg-rose-500/25 text-rose-700 border-rose-500/50',
 };
 
+/**
+ * 「先頭のみ大文字」の機械整形(FRESTYLE-121)では正しく表せない表示名の上書き。
+ * 例: cpp → "Cpp" になってしまうため "C++" を明示する。
+ */
+export const LANGUAGE_DISPLAY_OVERRIDES: Record<string, string> = {
+  cpp: 'C++',
+};
+
 /** 言語・技術名（大文字小文字を無視）から配色を引く。未知・空は undefined。 */
 export function languageBadgeClass(language: string): string | undefined {
   // API のデータ欠損等で実行時に falsy が来ても toLowerCase でクラッシュしないよう防御する。

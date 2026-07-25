@@ -82,7 +82,9 @@ func (h *ProfileHandler) Get(c *gin.Context) {
 }
 
 type updateProfileReq struct {
-	Name      string `json:"name"`
+	// Name はフロントの送信キー displayName で受ける (name では常に空になり
+	// users.UpdateName が呼ばれず氏名が保存されない: FRESTYLE-198)。
+	Name      string `json:"displayName"`
 	Bio       string `json:"bio"`
 	AvatarURL string `json:"avatarUrl"`
 	IconURL   string `json:"iconUrl"` // 旧フロント互換。avatarUrl を優先。
@@ -92,7 +94,7 @@ type updateProfileReq struct {
 // Update は current user のプロフィールを更新する。
 //
 //	@Summary      プロフィール 更新
-//	@Description  current user の name / bio / avatarUrl / status を 更新 する。 他 user は 403。
+//	@Description  current user の displayName / bio / avatarUrl / status を 更新 する。 他 user は 403。
 //	@Tags         profile
 //	@Accept       json
 //	@Produce      json

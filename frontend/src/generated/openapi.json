@@ -1839,7 +1839,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "trainee が 書いた コード を サーバ 側 sandbox で 実行 し stdout/stderr/exitCode を 返す。 language は php / go / bash。",
+                "description": "trainee が 書いた コード を サーバ 側 sandbox で 実行 し stdout/stderr/exitCode を 返す。 language は php / go / bash / sql / javascript / typescript / java。",
                 "tags": [
                     "code-execution"
                 ],
@@ -1896,7 +1896,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "コードエディタ 入場 時 に 呼び、 指定 言語 の 実行 環境 を 事前 に 温める（Go は コンパイル キャッシュ、 php/bash は no-op）。 実行時 に 起動 する のではなく、 入場 時 に warm に する。",
+                "description": "コードエディタ 入場 時 に 呼び、 指定 言語 の 実行 環境 を 事前 に 温める（Go は コンパイル キャッシュ、 php/bash/sql/javascript/typescript/java は no-op）。 実行時 に 起動 する のではなく、 入場 時 に warm に する。",
                 "tags": [
                     "code-execution"
                 ],
@@ -2790,6 +2790,45 @@
                     },
                     "500": {
                         "description": "DB / 集計 失敗",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/internal_handler.errorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/exercises/summary": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "公開済み の 運営 マスタ 演習問題 を 言語 ごとに 集計 して 返す。 solved は current user が 正解済み の 問題数 (未 ログイン は 0)。 言語 選択 カード の 進捗 表示 に 使う。",
+                "tags": [
+                    "exercises"
+                ],
+                "summary": "演習の 言語別 集計 (問題数 + 正解済み 件数)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/internal_handler.exerciseLanguageSummaryResponse"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "集計 失敗",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -3992,7 +4031,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "指定 user (or current user) の displayName / bio / avatarUrl / status を 返す。 IDOR 対策 で 自分 以外 は 403。",
+                "description": "指定 user (or current user) の name / bio / avatarUrl / status を 返す。 IDOR 対策 で 自分 以外 は 403。",
                 "tags": [
                     "profile"
                 ],
@@ -5041,6 +5080,10 @@
                     "isPublished": {
                         "type": "boolean"
                     },
+                    "language": {
+                        "description": "Language は主に扱う言語・技術（例: \"go\" / \"docker\" / \"terraform\"。空 = 言語が主題でない）。\n演習の language と同じ自由文字列方式で、表示色は frontend のカラーマップが持つ。",
+                        "type": "string"
+                    },
                     "sortOrder": {
                         "type": "integer"
                     },
@@ -5309,10 +5352,10 @@
                     "bio": {
                         "type": "string"
                     },
-                    "email": {
+                    "displayName": {
                         "type": "string"
                     },
-                    "name": {
+                    "email": {
                         "type": "string"
                     },
                     "status": {
@@ -5398,6 +5441,7 @@
                         "type": "string"
                     },
                     "teachingMaterialId": {
+                        "description": "TeachingMaterialID は章(course_chapters)の ID。DB 列は chapter_id(FRESTYLE-185 で改名)。\nJSON キーは互換のため teachingMaterialId のまま。",
                         "type": "integer"
                     },
                     "userId": {
@@ -5424,6 +5468,7 @@
                         "type": "integer"
                     },
                     "lessonCount": {
+                        "description": "LessonCount は完了した章の数。DB 列は chapter_count(FRESTYLE-185 で改名)。\nJSON キーは互換のため lessonCount のまま。",
                         "type": "integer"
                     },
                     "noteCount": {
@@ -5450,6 +5495,7 @@
                         "type": "integer"
                     },
                     "teachingMaterialId": {
+                        "description": "TeachingMaterialID は章(course_chapters)の ID。DB 列は chapter_id(FRESTYLE-185 で改名)。\nJSON キーは互換のため teachingMaterialId のまま。",
                         "type": "integer"
                     },
                     "userId": {
@@ -5513,7 +5559,7 @@
                         "type": "integer"
                     },
                     "recentMembers": {
-                        "description": "RecentMembers は最終活動日の新しい順の直近アクティブメンバー(最大 5 名。活動が無い trainee は含めない)。",
+                        "description": "RecentMembers は最終活動日の新しい順の直近アクティブメンバー\n(直近 7 日間に活動があるメンバーのみ、最大 5 名)。",
                         "type": "array",
                         "items": {
                             "$ref": "#/components/schemas/github_com_norman6464_FreStyle_backend_internal_usecase.MemberLearningSummaryItem"
@@ -5578,6 +5624,10 @@
                     },
                     "isPublished": {
                         "type": "boolean"
+                    },
+                    "language": {
+                        "description": "Language は主に扱う言語・技術（例: \"go\" / \"docker\" / \"terraform\"。空 = 言語が主題でない）。\n演習の language と同じ自由文字列方式で、表示色は frontend のカラーマップが持つ。",
+                        "type": "string"
                     },
                     "materialCount": {
                         "description": "MaterialCount はコース内の章数。trainee は published のみ、admin 系は下書き込み。",
@@ -5813,6 +5863,11 @@
                     "isPublished": {
                         "type": "boolean"
                     },
+                    "language": {
+                        "description": "Language は主に扱う言語・技術(例: \"go\" / \"docker\"。空 = 言語が主題でない)。\n演習の language と同じ自由文字列方式(表示色は frontend のカラーマップが持つ)。",
+                        "type": "string",
+                        "maxLength": 50
+                    },
                     "sortOrder": {
                         "type": "integer"
                     },
@@ -5888,6 +5943,20 @@
                     "error": {
                         "type": "string",
                         "example": "unauthorized"
+                    }
+                }
+            },
+            "internal_handler.exerciseLanguageSummaryResponse": {
+                "type": "object",
+                "properties": {
+                    "language": {
+                        "type": "string"
+                    },
+                    "solved": {
+                        "type": "integer"
+                    },
+                    "total": {
+                        "type": "integer"
                     }
                 }
             },
@@ -6327,11 +6396,12 @@
                     "bio": {
                         "type": "string"
                     },
-                    "iconUrl": {
-                        "description": "旧フロント互換。avatarUrl を優先。",
+                    "displayName": {
+                        "description": "Name はフロントの送信キー displayName で受ける (name では常に空になり\nusers.UpdateName が呼ばれず氏名が保存されない: FRESTYLE-198)。",
                         "type": "string"
                     },
-                    "name": {
+                    "iconUrl": {
+                        "description": "旧フロント互換。avatarUrl を優先。",
                         "type": "string"
                     },
                     "status": {

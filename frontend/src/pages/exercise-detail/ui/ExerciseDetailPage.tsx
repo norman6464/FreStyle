@@ -11,6 +11,7 @@ import { SubmissionRow } from '@/entities/exercise';
 import { QaExerciseView } from '@/entities/exercise';
 import MarkdownView from '@/shared/ui/MarkdownView';
 import { useExerciseDetail } from '../model/useExerciseDetail';
+import PreviewExerciseView from './PreviewExerciseView';
 import LanguageBadge from '@/shared/ui/LanguageBadge';
 import { lazyWithReload } from '@/shared/lib/lazyWithReload';
 import { monacoLanguageOf } from '@/entities/exercise';
@@ -30,8 +31,8 @@ const CodeEditor = lazyWithReload(() => import('@/shared/ui/CodeEditor'), 'CodeE
  *   6. 「コードを提出する」フルワイドボタン
  *   7. 提出履歴
  *
- * mode='qa' (docker / kubernetes など サンドボックス実行が困難な題材) は QaExerciseView に
- * 描画を委譲する。
+ * mode='qa' (docker / kubernetes など サンドボックス実行が困難な題材) は QaExerciseView に、
+ * mode='preview' (HTML/CSS ライブプレビュー演習) は PreviewExerciseView に描画を委譲する。
  */
 export default function ExerciseDetailPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -90,6 +91,22 @@ export default function ExerciseDetailPage() {
         submitting={submitting}
         submitResult={submitResult}
         submitError={submitError}
+        onSubmit={submitCode}
+        onReset={resetCode}
+      />
+    );
+  }
+
+  if (ex.mode === 'preview') {
+    return (
+      <PreviewExerciseView
+        exercise={ex}
+        code={code}
+        onCodeChange={setCode}
+        submitting={submitting}
+        submitResult={submitResult}
+        submitError={submitError}
+        solved={solved}
         onSubmit={submitCode}
         onReset={resetCode}
       />

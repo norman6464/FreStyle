@@ -36,10 +36,14 @@ const (
 	ExerciseLanguageBash = "bash"
 	ExerciseLanguageGit  = "git"
 	ExerciseLanguageJava = "java"
+	ExerciseLanguageHTML = "html"
 )
 
 // 採点モードの定数。
 const (
 	ExerciseModeExecute = "execute"
 	ExerciseModeQA      = "qa"
+	// ExerciseModePreview はブラウザ描画のライブプレビュー演習(HTML/CSS 等)。
+	// サーバー実行せず、学習者が見本と見比べて完了を宣言する(視覚的セルフチェック)。
+	ExerciseModePreview = "preview"
 )

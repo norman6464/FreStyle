@@ -24,8 +24,10 @@ export interface MasterExercise {
    * 採点モード。 'execute' (default) はサンドボックスでコードを実行し stdout を比較、
    * 'qa' はコード実行をせず提出文字列と expectedOutput を直接比較する。
    * docker / kubernetes など サンドボックス実行が困難な題材を Q&A 形式で扱うために導入。
+   * 'preview' は HTML/CSS のライブプレビュー演習。 実行・比較採点をせず、 学習者の
+   * 自己申告（できた！）で提出する（backend は isCorrect=true / results=[] を返す）。
    */
-  mode: 'execute' | 'qa';
+  mode: 'execute' | 'qa' | 'preview';
   /**
    * QA モードで 正解後に表示される markdown 解説。 execute モードでは未使用 (空文字)。
    */
@@ -84,7 +86,7 @@ export interface MasterExerciseWithStatus {
   category: string;
   title: string;
   difficulty: number;
-  mode: 'execute' | 'qa';
+  mode: 'execute' | 'qa' | 'preview';
   isPublished: boolean;
   status: '' | 'solved' | 'in_progress';
   stats: ExerciseSubmissionStats;

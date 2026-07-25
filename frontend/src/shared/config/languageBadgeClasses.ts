@@ -11,6 +11,8 @@ export const LANGUAGE_BADGE_CLASSES: Record<string, string> = {
   go: 'bg-cyan-500/25 text-cyan-700 border-cyan-500/50',
   javascript: 'bg-yellow-500/25 text-yellow-700 border-yellow-500/50',
   typescript: 'bg-blue-500/25 text-blue-700 border-blue-500/50',
+  // HTML の定番オレンジは git と重複するため amber を使う（aws と同色だが演習には出ないため可）。
+  html: 'bg-amber-500/25 text-amber-700 border-amber-500/50',
   git: 'bg-orange-500/25 text-orange-700 border-orange-500/50',
   java: 'bg-red-500/25 text-red-700 border-red-500/50',
   bash: 'bg-slate-500/25 text-slate-700 border-slate-500/50',

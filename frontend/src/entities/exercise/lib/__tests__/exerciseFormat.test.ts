@@ -9,6 +9,7 @@ describe('monacoLanguageOf', () => {
     ['python', 'python'],
     ['javascript', 'javascript'],
     ['typescript', 'typescript'],
+    ['html', 'html'],
     ['bash', 'shell'],
     ['sh', 'shell'],
   ])('%s → Monaco %s', (lang, expected) => {

@@ -543,6 +543,15 @@ definitions:
       updatedAt:
         type: string
     type: object
+  github_com_norman6464_FreStyle_backend_internal_usecase.GetDailyStreakOutput:
+    properties:
+      currentStreak:
+        type: integer
+      longestStreak:
+        type: integer
+      totalAchievedDays:
+        type: integer
+    type: object
   github_com_norman6464_FreStyle_backend_internal_usecase.GetMasterExerciseDetailOutput:
     properties:
       examples:
@@ -2451,6 +2460,29 @@ paths:
       summary: コース内 教材 一覧
       tags:
       - teaching-materials
+  /daily-goals/streak:
+    get:
+      description: 現在 の 連続 学習 日数 / 最長 連続 日数 / 累計 学習 日数 を 返す。 設定 画面 の プロフィール 統計 用。
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_usecase.GetDailyStreakOutput'
+        "401":
+          description: 未認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: 集計失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 連続 学習 日数 統計 取得
+      tags:
+      - daily-goals
   /embeds/oembed:
     get:
       description: ?url= で 指定 した URL の OGP / oEmbed を 解決 し card 形式 で 返す。 allow-list

@@ -32,7 +32,55 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self' data:; connect-src 'self' https://api.normanblog.com https://*.amazoncognito.com wss://api.normanblog.com https://*.s3.amazonaws.com https://*.s3.ap-northeast-1.amazonaws.com; form-action 'self' https://*.amazoncognito.com; base-uri 'self'; object-src 'none'; upgrade-insecure-requests" />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
 
-    <title>FreStyle</title>
+    <!--
+      SEO (FRESTYLE-197):
+        - 検索結果のタイトル/説明文の素材となる title / meta description。
+          description が無いと Google は描画後の本文から自動抽出するため、夜間停止中の
+          クロールでメンテナンス文言がスニペットに使われていた（実際に発生）。
+        - OGP / Twitter Card は SNS・チャットでの共有時のプレビュー用。
+        - JSON-LD (Organization + WebSite) は構造化データ。type="application/ld+json" の
+          データブロックは実行されないため CSP script-src 'self' の対象外（ブロックされない）。
+    -->
+    <title>FreStyle | 新卒ITエンジニア向け研修プラットフォーム</title>
+    <meta
+      name="description"
+      content="FreStyle は新卒ITエンジニアの研修を一つにまとめた企業向け学習プラットフォームです。教材・コーディング演習・AI 学習支援・学習レポートで、新人エンジニアが即戦力になるまでを支援します。"
+    />
+    <link rel="canonical" href="https://normanblog.com/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="FreStyle" />
+    <meta property="og:title" content="FreStyle | 新卒ITエンジニア向け研修プラットフォーム" />
+    <meta
+      property="og:description"
+      content="新卒ITエンジニアの研修を一つにまとめた企業向け学習プラットフォーム。教材・コーディング演習・AI 学習支援・学習レポートを提供します。"
+    />
+    <meta property="og:url" content="https://normanblog.com/" />
+    <meta property="og:image" content="https://normanblog.com/ogp.png" />
+    <meta property="og:locale" content="ja_JP" />
+    <meta name="twitter:card" content="summary" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://normanblog.com/#organization",
+            "name": "FreStyle",
+            "url": "https://normanblog.com/",
+            "logo": "https://normanblog.com/ogp.png"
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://normanblog.com/#website",
+            "url": "https://normanblog.com/",
+            "name": "FreStyle",
+            "description": "新卒ITエンジニア向け研修プラットフォーム。教材・コーディング演習・AI 学習支援・学習レポートを提供する企業向け学習サービス。",
+            "inLanguage": "ja",
+            "publisher": { "@id": "https://normanblog.com/#organization" }
+          }
+        ]
+      }
+    </script>
     <!-- theme 初期化は public/theme-init.js に外出し（CSP: script-src 'self' を満たすため） -->
     <script src="/theme-init.js"></script>
   </head>

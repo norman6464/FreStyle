@@ -21,7 +21,9 @@ export default function MaintenancePage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[var(--color-surface-1)] px-6">
-      <div className="max-w-lg w-full text-center">
+      {/* data-nosnippet: クローラが夜間停止中に巡回してもメンテナンス文言を検索結果の
+          スニペットに採用させない (FRESTYLE-197)。表示・文言・挙動には影響しない属性。 */}
+      <div className="max-w-lg w-full text-center" data-nosnippet="">
         <div className="inline-flex items-center justify-center w-16 h-16 mb-6">
           <img
             src="/favicon.svg"

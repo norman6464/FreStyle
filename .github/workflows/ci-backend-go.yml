@@ -53,8 +53,10 @@ jobs:
             exit 1
           fi
 
-      - name: go vet
-        run: go vet ./...
+      # 注: 独立した `go vet ./...` step は撤去(FRESTYLE-219)。下の golangci-lint が
+      # `govet` linter(go vet と同じ analyzer passes)を実行しており二重だったため。
+      # コンパイルエラーは golangci-lint / go test / go build が引き続き検出する。
+      # ジョブ名 `vet / test / build` は vet を golangci 経由で継続するため据え置き。
 
       # golangci-lint(v2) で複数 linter を一括実行する。default の
       # staticcheck / errcheck / govet / ineffassign / unused に加え、

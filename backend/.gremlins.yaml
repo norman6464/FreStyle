@@ -1,0 +1,15 @@
+# gremlins (ミューテーションテスト) 設定。
+# 目的: カバレッジが緑でも「実際にはバグを検出しないテスト」を、実装を機械的に書き換えて炙り出す。
+# 運用: PR は --diff で変更差分だけを非ブロッキング、nightly はモジュール全体。
+# 閾値(threshold)は既定のまま = gating しない。数値が安定してから別チケットで設定する。
+unleash:
+  # 除外:
+  #  - cmd 配下の自作 lint ツール(本体ロジックではない)
+  #  - sandbox/runner.go は php/go/node/gcc 等の外部プロセスを起動する統合的なテストで、
+  #    ミュータントごとの再実行が重く不安定なため除外(nightly でも安定を優先)。
+  #    採点ロジックの検証はハンドラ/ユースケース層のテストで担保する。
+  exclude-files:
+    - "cmd/archlint/"
+    - "cmd/apispec-lint/"
+    - "cmd/naminglint/"
+    - "internal/infra/sandbox/runner.go"

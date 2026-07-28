@@ -35,12 +35,13 @@ reviews:
     base_branches:
       - "main"
 
-  # 生成物・ロックファイル・ベンダリング資産はレビュー対象から外し、人の書いたコードに集中させる。
+  # ロックファイル・ベンダリング資産はレビュー対象から外し、人の書いたコードに集中させる。
+  # 生成 OpenAPI (frontend/src/generated) は除外しない。契約ドリフト (displayName↔name・
+  # 未登録パス) の照合に CodeRabbit がこの契約ファイルを参照する必要があるため (下の指示 (6) 参照)。
   path_filters:
     - "!**/*.lock"
     - "!**/package-lock.json"
     - "!backend/docs/**"
-    - "!frontend/src/generated/**"
     - "!frontend/public/lang/**"
     - "!**/*.min.js"
     - "!**/*.svg"
@@ -71,7 +72,9 @@ reviews:
     - path: "frontend/src/**"
       instructions: >-
         Feature-Sliced Design (app > pages > widgets > features > entities > shared)。
-        (1) import は下向きの一方通行のみ (app と shared の相互のみ例外)。上位・同層 Slice への import は指摘。
+        (1) import は下向きの一方通行のみ。上位・同層 Slice への import は指摘する。
+        ただし app ↔ shared の相互 import は公式の例外として許可 (typed Redux hooks が RootState を
+        参照するため)。shared/lib/store が app の RootState/store を参照する等は指摘しないこと。
         (2) 各 Slice は Public API (index.ts) 経由で使い、Slice 内部の深いパスを外から import していないか。
         (3) 1 ファイル 1 コンポーネント。1 ファイルに複数コンポーネントが同居していたら分割を提案 (FRESTYLE-208/210 の方針)。
         (4) 単一画面専用のものが features に置かれていないか (page の model/ui に置く)。

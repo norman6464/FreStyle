@@ -562,6 +562,7 @@ func (r *Runner) executeSQL(ctx context.Context, input domain.CodeExecutionInput
 		return nil, fmt.Errorf("sql sandbox の準備に失敗: %w", err)
 	}
 	// 後始末は必ず実行する（ctx が timeout していても別 ctx で DROP する）。
+	//nolint:contextcheck // 親 ctx が timeout 済みでも DROP DATABASE を確実に実行するため、意図的に context.Background() を使う
 	defer func() {
 		dctx, dcancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer dcancel()

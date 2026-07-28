@@ -46,6 +46,7 @@ func (h *ProfileHandler) resolveUserID(c *gin.Context) (uint64, error) {
 	}
 	uid, err := strconv.ParseUint(param, 10, 64)
 	if err != nil {
+		//nolint:nilerr // 数字以外の userId は current user にフォールバックする設計（err は握り潰さず意図的に無視）
 		return cur, nil
 	}
 	if uid == 0 || uid != cur {

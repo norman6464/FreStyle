@@ -72,3 +72,50 @@ jobs:
           VITE_RESPONSE_TYPE: code
           VITE_SCOPE: openid
         run: npm run build
+
+  # 未使用ファイル / 未使用依存 / 未宣言(phantom)依存を knip で検出する。
+  # 非ブロッキング(continue-on-error)。必須チェック(Vitest + Build)とは独立した job にし、
+  # デッドコードの可視化に徹する。件数を使った gating はしない(数値が安定してから別途)。
+  # knip 設定は frontend/knip.json(rules で files/dependencies/unlisted に集中、
+  # FSD の Public API barrel の未使用 export ノイズは当面 off)。
+  knip:
+    name: Dead code (knip)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # この job の失敗(未使用検出=exit 1)で PR をブロックしない。
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # この job は push しないため、GITHUB_TOKEN を作業ツリーに残さない
+          # (後続で PR コードの npm ci / npx knip を走らせるため)。
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # 検出結果を PR の Job Summary に markdown で残す。knip の exit code は
+      # 「dead code 検出 = 非 0」になり得るが、それを握り潰さず保持する
+      # (設定エラー・起動失敗も Summary に出力してから同じ code で終了)。
+      # job は continue-on-error なので、非 0 でも PR はブロックしない。
+      - name: Run knip (report only)
+        run: |
+          set +e
+          npx knip --reporter markdown > /tmp/knip-report.md 2>&1
+          status=$?
+          {
+            echo "## Frontend dead code (knip)"
+            echo ""
+            cat /tmp/knip-report.md
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"

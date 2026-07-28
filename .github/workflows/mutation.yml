@@ -1,0 +1,103 @@
+name: Mutation Testing (non-blocking)
+
+# ミューテーションテスト。カバレッジが緑でも「実際にはバグを検出しないテスト」を、
+# 実装を機械的に書き換えて (>=→> 等) 炙り出し、テストの実質的な質を測る。
+#
+# 運用 (Zenn の定番):
+#   - PR: 変更差分だけを light 実行。全て continue-on-error で、既存 CI を一切ブロックしない。
+#   - nightly: モジュール/src 全体を実行し、レポートを artifact 保存。
+#   - 閾値 (gating) は本ワークフローでは設定しない。数値が安定してから別途。
+on:
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 16 * * *' # 01:00 JST (夜間停止帯と無関係。本番には触れない)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend-mutation:
+    name: Gremlins (Go mutation)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # --diff の比較基準 (origin/main) を得るため全履歴を取得する。
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.26'
+          cache-dependency-path: backend/go.sum
+
+      - name: Install gremlins
+        run: go install github.com/go-gremlins/gremlins/cmd/gremlins@latest
+
+      # PR: 変更差分のパッケージだけを変異させる (高速)。非ブロッキング。
+      - name: Gremlins (PR light — diff)
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        run: |
+          git fetch --no-tags --depth=1 origin "${{ github.base_ref }}" || true
+          "$(go env GOPATH)/bin/gremlins" unleash --diff "origin/${{ github.base_ref }}" -o /tmp/gremlins.json || true
+
+      # nightly / 手動: モジュール全体を変異させる。非ブロッキング。
+      - name: Gremlins (nightly full)
+        if: github.event_name != 'pull_request'
+        continue-on-error: true
+        run: '"$(go env GOPATH)/bin/gremlins" unleash ./... -o /tmp/gremlins-full.json || true'
+
+      - name: Upload gremlins report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gremlins-report
+          path: /tmp/gremlins*.json
+          if-no-files-found: ignore
+
+  frontend-mutation:
+    name: Stryker (JS/TS mutation)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # PR: light 設定 (entities/lib・shared/lib・page の lib) を非ブロッキングで実行。
+      - name: Stryker (PR light)
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        run: npx stryker run
+
+      # nightly / 手動: src 全体 (テスト・生成物を除く) を非ブロッキングで実行。
+      - name: Stryker (nightly full)
+        if: github.event_name != 'pull_request'
+        continue-on-error: true
+        env:
+          STRYKER_FULL: '1'
+        run: npx stryker run
+
+      - name: Upload stryker report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stryker-report
+          path: frontend/reports/mutation
+          if-no-files-found: ignore

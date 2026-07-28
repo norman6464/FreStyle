@@ -34,3 +34,7 @@ coverage
 
 # TypeScript のインクリメンタルビルド成果物（生成物なので管理しない）
 *.tsbuildinfo
+
+# Stryker (mutation testing) の生成物
+.stryker-tmp/
+reports/mutation/

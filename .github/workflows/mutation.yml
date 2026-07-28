@@ -75,6 +75,9 @@ jobs:
 
   frontend-mutation:
     name: Stryker (JS/TS mutation)
+    # 当面 nightly / 手動のみ。PR-light は初期テスト実行が CI で失敗する問題(FRESTYLE-214)を
+    # 解消してから再有効化する。gremlins(backend)は PR でも回す。
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     continue-on-error: true
@@ -86,23 +89,18 @@ jobs:
         with:
           persist-credentials: false
 
+      # 本番 sandbox / ローカル検証と揃えた Node で走らせる (node 20 依存の初期テスト失敗を避ける)。
       - uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
         run: npm ci
 
-      # PR: light 設定 (entities/lib・shared/lib・page の lib) を実行。
-      - name: Stryker (PR light)
-        if: github.event_name == 'pull_request'
-        run: npx stryker run
-
-      # nightly / 手動: src 全体 (テスト・生成物を除く) を実行。
-      - name: Stryker (nightly full)
-        if: github.event_name != 'pull_request'
+      # src 全体 (テスト・生成物を除く) を変異させ、レポートを artifact 保存する。
+      - name: Stryker (full)
         env:
           STRYKER_FULL: '1'
         run: npx stryker run

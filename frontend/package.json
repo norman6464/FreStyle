@@ -16,7 +16,8 @@
     "e2e:install": "playwright install --with-deps chromium",
     "tailwind:init": "tailwindcss init -p",
     "openapi:generate": "swagger2openapi ../backend/docs/swagger.json --outfile src/generated/openapi.json && openapi-typescript src/generated/openapi.json --output src/generated/api.ts",
-    "knip": "knip"
+    "knip": "knip",
+    "size": "npm run build && size-limit"
   },
   "overrides": {
     "form-data": "^4.0.6"
@@ -41,6 +42,7 @@
   "devDependencies": {
     "@eslint/js": "^9.39.4",
     "@playwright/test": "^1.60.0",
+    "@size-limit/file": "~12.1.0",
     "@stryker-mutator/core": "^9.6.1",
     "@stryker-mutator/vitest-runner": "^9.6.1",
     "@tailwindcss/typography": "^0.5.19",
@@ -59,6 +61,7 @@
     "knip": "^6.29.0",
     "openapi-typescript": "^7.13.0",
     "postcss": "^8.5.6",
+    "size-limit": "~12.1.0",
     "swagger2openapi": "^7.0.8",
     "tailwindcss": "^3.4.19",
     "typescript": "^5.9.3",

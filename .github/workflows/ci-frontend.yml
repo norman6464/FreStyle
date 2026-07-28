@@ -74,16 +74,17 @@ jobs:
         run: npm run build
 
   # 未使用ファイル / 未使用依存 / 未宣言(phantom)依存を knip で検出する。
-  # 非ブロッキング(continue-on-error)。必須チェック(Vitest + Build)とは独立した job にし、
-  # デッドコードの可視化に徹する。件数を使った gating はしない(数値が安定してから別途)。
+  # 必須チェック(Vitest + Build)とは独立した job にし、デッドコードの可視化に徹する。
+  # 件数を使った gating はしない(数値が安定してから別途)。
   # knip 設定は frontend/knip.json(rules で files/dependencies/unlisted に集中、
   # FSD の Public API barrel の未使用 export ノイズは当面 off)。
+  # 非ブロッキング化は「knip 実行 step だけ」continue-on-error にする(下記)。
+  # checkout / npm ci の失敗は job を赤くして可視化する(握り潰さない)。本 job は
+  # 必須チェックではないため、赤くなっても PR マージはブロックしない。
   knip:
     name: Dead code (knip)
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # この job の失敗(未使用検出=exit 1)で PR をブロックしない。
-    continue-on-error: true
     defaults:
       run:
         working-directory: frontend
@@ -107,8 +108,10 @@ jobs:
       # 検出結果を PR の Job Summary に markdown で残す。knip の exit code は
       # 「dead code 検出 = 非 0」になり得るが、それを握り潰さず保持する
       # (設定エラー・起動失敗も Summary に出力してから同じ code で終了)。
-      # job は continue-on-error なので、非 0 でも PR はブロックしない。
+      # continue-on-error はこの step だけに付け、非 0 でも job を止めない
+      # (checkout / npm ci の失敗は job を赤くして可視化する)。
       - name: Run knip (report only)
+        continue-on-error: true
         run: |
           set +e
           npx knip --reporter markdown > /tmp/knip-report.md 2>&1
@@ -117,5 +120,66 @@ jobs:
             echo "## Frontend dead code (knip)"
             echo ""
             cat /tmp/knip-report.md
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+
+  # 本番バンドルサイズ(gzip)を size-limit で計測する。必須チェック(Vitest + Build)とは
+  # 独立した job にし、サイズの可視化と回帰検知に徹する。上限(.size-limit.json)は現状 +
+  # ヘッドルームで、超過はシグナルとして扱う。厳密な gating は数値が安定してから別途。
+  # 非ブロッキング化は「size-limit 実行 step だけ」continue-on-error にする(下記)。
+  # npm ci / build の失敗は job を赤くして可視化する(握り潰さない)。本 job は必須チェック
+  # ではないため、赤くなっても PR マージはブロックしない。
+  size-limit:
+    name: Bundle size (size-limit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # この job は push しないため GITHUB_TOKEN を作業ツリーに残さない。
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # size-limit は dist/assets/* の実出力を計測するため、先に本番ビルドする。
+      # VITE_* はサイズ計測が目的なのでダミーで良い(コード量は本番と同じ)。
+      - name: Build
+        env:
+          VITE_API_BASE_URL: https://example.invalid
+          VITE_WEB_SOCKET_URL_AI_CHAT: wss://example.invalid
+          VITE_WEB_SOCKET_URL_CHAT: wss://example.invalid
+          VITE_COGNITO_DOMAIN: https://example.invalid
+          VITE_CLIENT_ID: ci-dummy
+          VITE_REDIRECT_URI: https://example.invalid/callback
+          VITE_RESPONSE_TYPE: code
+          VITE_SCOPE: openid
+        run: npm run build
+
+      # 計測結果を Job Summary に残す。上限超過で size-limit は非 0 を返すが、
+      # continue-on-error はこの step だけに付け、非 0 でも job を止めない
+      # (build / npm ci の失敗はこの step の前段で job を赤くする)。
+      - name: Run size-limit (report only)
+        continue-on-error: true
+        run: |
+          set +e
+          npx size-limit > /tmp/size-report.txt 2>&1
+          status=$?
+          {
+            echo "## Frontend bundle size (size-limit, gzip)"
+            echo ""
+            echo '```'
+            cat /tmp/size-report.txt
+            echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
           exit "$status"

@@ -90,7 +90,7 @@ jobs:
           persist-credentials: false
 
       # 本番 sandbox / ローカル検証と揃えた Node で走らせる (node 20 依存の初期テスト失敗を避ける)。
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
           cache: 'npm'

@@ -1,14 +1,131 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+#
+# FreStyle の CodeRabbit レビュー設定。
+# 方針: トーンは「若手に教える丁寧な日本語」を保ちつつ、指摘は妥協しない (profile: assertive)。
+# path_instructions で CLAUDE.md の規約 (クリーンアーキテクチャ / FSD 境界 / 契約整合 /
+# テスト必須 / セキュリティ / 他社プロダクト名の不使用) を CodeRabbit に守らせる。
 language: "ja-JP"
-tone_instructions: "丁寧な日本語で、若手エンジニアに教えるようなトーンでレビューしてください。"
+tone_instructions: >-
+  丁寧な日本語で、若手エンジニアに教えるように背景と理由まで説明してください。
+  ただし指摘の妥協はしないこと。規約違反・バグ・セキュリティ・契約の不一致は、
+  たとえ小さくても必ず具体的なファイル:行と修正案を添えて指摘してください。
+  「LGTM」で流さず、根拠のある改善提案を優先します。
+
 reviews:
-  profile: "chill"
+  # assertive: より厳格で網羅的なレビュー。chill より多くの潜在問題を指摘する。
+  profile: "assertive"
+  # レビュー未解決でマージを強制ブロックはしない (admin merge 運用 CLAUDE.md §4.2 と両立)。
+  request_changes_workflow: false
   high_level_summary: true
-  poem: false
-  review_status: false
+  changed_files_summary: true
+  sequence_diagrams: true
+  review_status: true
   collapse_walkthrough: false
+  poem: false
+  assess_linked_issues: true
+  related_issues: true
+  related_prs: true
+  suggested_labels: true
+  suggested_reviewers: true
+
   auto_review:
     enabled: true
+    auto_incremental_review: true
     drafts: false
     base_branches:
       - "main"
+
+  # 生成物・ロックファイル・ベンダリング資産はレビュー対象から外し、人の書いたコードに集中させる。
+  path_filters:
+    - "!**/*.lock"
+    - "!**/package-lock.json"
+    - "!backend/docs/**"
+    - "!frontend/src/generated/**"
+    - "!frontend/public/lang/**"
+    - "!**/*.min.js"
+    - "!**/*.svg"
+
+  path_instructions:
+    - path: "backend/internal/handler/**"
+      instructions: >-
+        クリーンアーキテクチャの handler 層。次を必ず確認し違反を指摘すること。
+        (1) handler は usecase 経由でのみ処理する。repository / infra / gorm.DB を handler から直接呼んでいたら指摘。
+        (2) *gin.Context や net/http の型を usecase の引数に渡していないか。
+        (3) request / response 構造体は handler ファイル内 local 定義で、binding タグでバリデーションしているか。
+        (4) 機密フィールド (パスワード hash / token / BlobData 等) が response に露出していないか (domain 側 json:"-" で除外)。
+        (5) 新規 / 変更した HTTP endpoint に swaggo annotation (@Summary/@Router 等、認証必須なら @Security CookieAuth) があるか。無ければ指摘し make openapi の実行も促す。
+        (6) 【最重要・再発防止】response / request の json タグのキー名が、フロントの手書き repository (frontend/src/**/api/*.ts) が送受信するキーや生成 OpenAPI (frontend/src/generated) と一致しているか。displayName↔name のような不一致、フロントが叩くパスと router 登録パスの不一致 (未登録=404) を必ず指摘する。過去に FRESTYLE-198/204/205/206 で本番障害になった箇所。
+    - path: "backend/internal/usecase/**"
+      instructions: >-
+        usecase 層。(1) 1 usecase = 1 struct + Execute の単一責任か (複数操作を詰め込んでいたら分割を提案)。
+        (2) *gin.Context / net/http を参照していないか。(3) トランザクション (db.Begin / Tx) は usecase レベルで、handler に漏れていないか。
+        (4) repository / infra は interface (port) 経由で受け取り、具体実装に依存していないか。
+    - path: "backend/internal/domain/**"
+      instructions: >-
+        domain 層。他層 (handler/usecase/repository/infra) を import していないか (標準ライブラリ + GORM/JSON タグのみ)。
+        機密フィールドに json:"-" が付いているか。EAV (汎用 key-value 属性バッグ) になっていないか (CLAUDE.md §3.6)。
+    - path: "backend/internal/adapter/persistence/**"
+      instructions: >-
+        repository 実装。interface (usecase/repository) を満たしているか。SQL/GORM で N+1・インジェクション・
+        ロック範囲の問題がないか。GORM の Updates は zero value を無視する点に注意 (意図せぬ未更新)。
+    - path: "frontend/src/**"
+      instructions: >-
+        Feature-Sliced Design (app > pages > widgets > features > entities > shared)。
+        (1) import は下向きの一方通行のみ (app と shared の相互のみ例外)。上位・同層 Slice への import は指摘。
+        (2) 各 Slice は Public API (index.ts) 経由で使い、Slice 内部の深いパスを外から import していないか。
+        (3) 1 ファイル 1 コンポーネント。1 ファイルに複数コンポーネントが同居していたら分割を提案 (FRESTYLE-208/210 の方針)。
+        (4) 単一画面専用のものが features に置かれていないか (page の model/ui に置く)。
+        (5) 手書き repository (entities/*/api) のパス・送受信キーが backend の json タグ / 生成 OpenAPI と一致しているか。
+        契約ドリフト (displayName↔name、未登録パスへの fetch=404、送っていない必須フィールド) を厳しく指摘する。
+        (6) 省略名 (s/e/i/m/mid/ok 等) は読み手に分かる名前へ改名を提案。
+    - path: "frontend/src/**/__tests__/**"
+      instructions: >-
+        フロントのテスト。render + getByRole でアクセシビリティ込みで検証しているか。
+        Slice の自己参照 (barrel 経由の import) をしていないか (カバレッジ分母が膨らむため深いパスで mock)。
+    - path: "**/*_test.go"
+      instructions: >-
+        Go のテスト。usecase は testify/mock、repository は sqlite メモリ、handler は httptest + gin.New()、
+        infra は境界で fake/stub。テーブル駆動で境界値・異常系を網羅しているか。assert が意味のある検証になっているか
+        (常に true 等の空テストでないか)。新規コードにテストが伴っているか (カバレッジ目標 80%)。
+    - path: "**/*.{test,spec}.{ts,tsx}"
+      instructions: >-
+        新規コードにテストが伴っているか。assert が意味のある検証か。カバレッジ (branches 80%) を割らないか。
+    - path: ".github/workflows/**"
+      instructions: >-
+        GitHub Actions。secret のハードコードや過剰な権限 (permissions) が無いか。
+        pull_request_target の乱用や、信頼できない入力の shell 展開によるインジェクションが無いか。
+    - path: "**/*.md"
+      instructions: >-
+        ドキュメント / 教材。他社プロダクト・他社サービス名を「〜風」等の比喩で使っていないか (CLAUDE.md §3.1.1)。
+        秘匿情報 (接続情報 / secret 名 / 内部運用の詳細) が公開リポに書かれていないか。
+
+  tools:
+    golangci-lint:
+      enabled: true
+    eslint:
+      enabled: true
+    biome:
+      enabled: true
+    gitleaks:
+      enabled: true
+    semgrep:
+      enabled: true
+    actionlint:
+      enabled: true
+    hadolint:
+      enabled: true
+    shellcheck:
+      enabled: true
+    markdownlint:
+      enabled: true
+    yamllint:
+      enabled: true
+
+chat:
+  auto_reply: true
+
+knowledge_base:
+  learnings:
+    scope: "auto"
+  issues:
+    scope: "auto"

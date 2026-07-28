@@ -236,7 +236,6 @@ export default function CourseDetailPage() {
                 isActive={selectedId === material.id}
                 onSelect={handleSelect}
                 onDelete={canManage ? (materialId) => setDeleteTargetId(materialId) : undefined}
-                completed={progress.completedIds.has(material.id)}
               />
             ))
           )}

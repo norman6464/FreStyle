@@ -7,13 +7,11 @@ export default function MaterialListItem({
   isActive,
   onSelect,
   onDelete,
-  completed = false,
 }: {
   material: TeachingMaterial;
   isActive: boolean;
   onSelect: (id: number) => void;
   onDelete?: (id: number) => void;
-  completed?: boolean;
 }) {
   return (
     <div

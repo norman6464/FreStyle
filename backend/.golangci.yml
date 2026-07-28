@@ -1,11 +1,18 @@
 # golangci-lint v2 設定。
 # 既存 CI の staticcheck / govet / govulncheck を補完し、以下を追加で強制する:
-#   - errorlint : errors.Is/As と %w ラップを強制（エラーの文脈喪失を防ぐ）
-#   - bodyclose : HTTP response body の Close 漏れ（リーク）検出
-#   - gosec     : セキュリティ静的解析（誤検知は下で正当に除外）
-#   - misspell  : コメント/識別子のスペルミス
-#   - unconvert : 不要な型変換
+#   - errorlint     : errors.Is/As と %w ラップを強制（エラーの文脈喪失を防ぐ）
+#   - bodyclose     : HTTP response body の Close 漏れ（リーク）検出
+#   - gosec         : セキュリティ静的解析（誤検知は下で正当に除外）
+#   - misspell      : コメント/識別子のスペルミス
+#   - unconvert     : 不要な型変換
+#   - nilerr        : err != nil なのに return nil する握り潰しバグの検出
+#   - contextcheck  : context の伝播漏れ（親 ctx を渡すべき箇所での取り違え）検出
+#   - wastedassign  : 使われないまま上書きされる代入（デッドな代入）検出
 # default で errcheck / govet / ineffassign / staticcheck / unused も走る。
+#
+# nilerr / contextcheck の現行ヒットはいずれも意図的な設計（IDOR フォールバック /
+# 後始末を別 ctx で必ず実行）で、該当箇所は理由付き nolint で明示している。
+# これらは「将来の実バグ」を検出するために有効化している（FRESTYLE-217）。
 #
 # formatters: gofumpt（gofmt の上位互換。空行・連続宣言の整列など追加ルールを強制）。
 #   `make fmt`（= golangci-lint fmt / gofumpt -w）で自動整形、CI は未整形を fail にする。
@@ -25,6 +32,9 @@ linters:
     - gosec
     - misspell
     - unconvert
+    - nilerr
+    - contextcheck
+    - wastedassign
   exclusions:
     rules:
       # サンドボックス(infra/sandbox)はユーザコードを意図的に exec する。

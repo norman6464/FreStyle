@@ -132,14 +132,14 @@ export default function LandingPage() {
         <section className="mx-auto max-w-6xl px-6 py-16">
           <h2 className="text-2xl font-bold text-center">主な機能</h2>
           <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {FEATURES.map((f) => (
+            {FEATURES.map((feature) => (
               <div
-                key={f.title}
+                key={feature.title}
                 className="rounded-xl border border-[var(--color-surface-3)] bg-[var(--color-surface-1)] p-6"
               >
-                <h3 className="text-lg font-semibold">{f.title}</h3>
+                <h3 className="text-lg font-semibold">{feature.title}</h3>
                 <p className="mt-3 text-sm text-[var(--color-text-secondary)] leading-relaxed">
-                  {f.body}
+                  {feature.body}
                 </p>
               </div>
             ))}
@@ -151,14 +151,14 @@ export default function LandingPage() {
           <div className="mx-auto max-w-6xl px-6 py-16">
             <h2 className="text-2xl font-bold text-center">導入の流れ</h2>
             <ol className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-              {STEPS.map((s) => (
+              {STEPS.map((step) => (
                 <li
-                  key={s.title}
+                  key={step.title}
                   className="rounded-xl border border-[var(--color-surface-3)] bg-[var(--color-surface)] p-6"
                 >
-                  <h3 className="text-base font-semibold text-[var(--color-accent)]">{s.title}</h3>
+                  <h3 className="text-base font-semibold text-[var(--color-accent)]">{step.title}</h3>
                   <p className="mt-2 text-sm text-[var(--color-text-secondary)] leading-relaxed">
-                    {s.body}
+                    {step.body}
                   </p>
                 </li>
               ))}

@@ -47,6 +47,10 @@ export function useDocumentMeta({ title, description, canonical, robots }: Docum
     }
     if (robots) {
       upsertMeta('name', 'robots', robots);
+    } else {
+      // 未指定時は既存タグを削除する。認証画面(noindex)から公開LPへ SPA 遷移したとき
+      // noindex が残留すると公開ページまで noindex になってしまうため。
+      document.head.querySelector('meta[name="robots"]')?.remove();
     }
     const href = canonical ?? `${window.location.origin}${window.location.pathname}`;
     upsertLink('canonical', href);

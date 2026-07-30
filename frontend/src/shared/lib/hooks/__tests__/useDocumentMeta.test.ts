@@ -30,4 +30,13 @@ describe('useDocumentMeta', () => {
     const href = document.head.querySelector('link[rel="canonical"]')?.getAttribute('href');
     expect(href).toBe(`${window.location.origin}${window.location.pathname}`);
   });
+
+  it('robots 未指定時は既存の robots メタを削除する（noindex の残留防止）', () => {
+    // 認証画面が noindex を設定した後、公開LPへ SPA 遷移するシナリオ
+    renderHook(() => useDocumentMeta({ robots: 'noindex, nofollow' }));
+    expect(document.head.querySelector('meta[name="robots"]')).not.toBeNull();
+
+    renderHook(() => useDocumentMeta({ title: '公開ページ' }));
+    expect(document.head.querySelector('meta[name="robots"]')).toBeNull();
+  });
 });

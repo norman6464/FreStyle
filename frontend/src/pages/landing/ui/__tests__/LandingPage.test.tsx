@@ -37,8 +37,17 @@ describe('LandingPage', () => {
     expect(screen.getByRole('heading', { name: 'FreStyle とは' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '主な機能' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'よくある質問' })).toBeInTheDocument();
-    // CTA（複数箇所にあるので存在のみ確認）
-    expect(screen.getAllByRole('link', { name: /利用申請/ }).length).toBeGreaterThan(0);
+    // CTA は遷移先まで検証する（存在確認だけでは誤配線を検知できない）
+    const applyLinks = screen.getAllByRole('link', { name: /利用申請/ });
+    expect(applyLinks.length).toBeGreaterThan(0);
+    for (const link of applyLinks) {
+      expect(link).toHaveAttribute('href', '/company-application');
+    }
+    const loginLinks = screen.getAllByRole('link', { name: /ログイン/ });
+    expect(loginLinks.length).toBeGreaterThan(0);
+    for (const link of loginLinks) {
+      expect(link).toHaveAttribute('href', '/login');
+    }
   });
 
   it('ログイン済みなら /dashboard へリダイレクトする', () => {

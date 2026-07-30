@@ -14,7 +14,7 @@
  */
 import { createServer } from 'node:http';
 import { readFile, writeFile, mkdir, stat } from 'node:fs/promises';
-import { join, extname, dirname } from 'node:path';
+import { join, extname, dirname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
 
@@ -63,14 +63,19 @@ function startServer() {
         return;
       }
       const urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
-      const candidate = join(DIST, urlPath);
-      const filePath = urlPath !== '/' && (await fileExists(candidate)) ? candidate : join(DIST, 'index.html');
+      // path traversal 対策: 解決後のパスが dist/ 配下でなければ index.html にフォールバック。
+      const candidate = resolve(DIST, `.${urlPath}`);
+      const inDist = candidate === DIST || candidate.startsWith(DIST + sep);
+      const filePath =
+        urlPath !== '/' && inDist && (await fileExists(candidate)) ? candidate : join(DIST, 'index.html');
       const body = await readFile(filePath);
       res.writeHead(200, { 'content-type': CONTENT_TYPES[extname(filePath)] || 'application/octet-stream' });
       res.end(body);
-    } catch (err) {
-      res.writeHead(500);
-      res.end(String(err));
+    } catch {
+      // 例外の内容(スタックトレース等)はレスポンスに含めない。ローカル専用サーバだが
+      // CodeQL の stack-trace-exposure / xss-through-exception 指摘に従い固定文言のみ返す。
+      res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
+      res.end('internal error');
     }
   });
   return new Promise((resolve) => {

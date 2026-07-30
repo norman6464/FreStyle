@@ -39,15 +39,22 @@ func NewPresigner(ctx context.Context, region, bucket string) (*Presigner, error
 
 // PresignPut は指定 key への PutObject presigned URL を返す。
 // contentType は presign に焼き込まれるため PUT 時のヘッダと完全一致が必要（不一致だと SignatureDoesNotMatch）。
-func (p *Presigner) PresignPut(ctx context.Context, key, contentType string) (string, time.Duration, error) {
+// sizeBytes > 0 なら Content-Length も署名対象に含める。これによりサーバ側で検証したサイズと
+// 異なる PUT は S3 が署名不一致で拒否するため、申告値だけの検証を迂回した超過アップロードを防げる。
+// sizeBytes <= 0 は Content-Length を署名しない（サイズ検証を持たない呼び出し元向け）。
+func (p *Presigner) PresignPut(ctx context.Context, key, contentType string, sizeBytes int64) (string, time.Duration, error) {
 	if key == "" {
 		return "", 0, fmt.Errorf("s3: key is required")
 	}
-	req, err := p.client.PresignPutObject(ctx, &awss3.PutObjectInput{
+	in := &awss3.PutObjectInput{
 		Bucket:      aws.String(p.bucket),
 		Key:         aws.String(key),
 		ContentType: aws.String(contentType),
-	}, awss3.WithPresignExpires(p.ttl))
+	}
+	if sizeBytes > 0 {
+		in.ContentLength = aws.Int64(sizeBytes)
+	}
+	req, err := p.client.PresignPutObject(ctx, in, awss3.WithPresignExpires(p.ttl))
 	if err != nil {
 		return "", 0, fmt.Errorf("s3: presign put: %w", err)
 	}

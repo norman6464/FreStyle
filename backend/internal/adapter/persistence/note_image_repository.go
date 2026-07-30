@@ -27,7 +27,7 @@ func NewStubNoteImagePresigner(bucket string) repository.NoteImagePresigner {
 	return &noteImagePresigner{pre: &stubPresigner{bucket: bucket}}
 }
 
-func (p *noteImagePresigner) Generate(ctx context.Context, userID uint64, contentType string) (*domain.NoteImageUploadURL, error) {
+func (p *noteImagePresigner) Generate(ctx context.Context, userID uint64, contentType string, sizeBytes int64) (*domain.NoteImageUploadURL, error) {
 	if userID == 0 {
 		return nil, fmt.Errorf("userID is required")
 	}
@@ -35,7 +35,7 @@ func (p *noteImagePresigner) Generate(ctx context.Context, userID uint64, conten
 		contentType = "image/png"
 	}
 	key := fmt.Sprintf("notes/%d/%d.bin", userID, time.Now().UnixNano())
-	url, ttl, err := p.pre.PresignPut(ctx, key, contentType)
+	url, ttl, err := p.pre.PresignPut(ctx, key, contentType, sizeBytes)
 	if err != nil {
 		return nil, err
 	}

@@ -2,7 +2,7 @@ package handler
 
 import (
 	"errors"
-	"io"
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -20,21 +20,22 @@ func NewNoteImageHandler(i *usecase.IssueNoteImageUploadURLUseCase) *NoteImageHa
 
 // issueUploadURLReq は body 受け取り。userId は受け取らず middleware の current user を使う（IDOR 対策）。
 type issueUploadURLReq struct {
-	ContentType string `json:"contentType"`
-	SizeBytes   int64  `json:"sizeBytes"`
+	ContentType string `json:"contentType" binding:"required"`
+	SizeBytes   int64  `json:"sizeBytes" binding:"required,gt=0"`
 }
 
 // @Summary      ノート 画像 PUT 署名 URL
-// @Description  current user 用 の S3 PUT 署名 URL を 発行。 userId は body から 受け取らず middleware の current user を 使う (IDOR 対策、 Phase 3 で 修正)。 contentType は 画像 MIME (png/jpeg/gif/webp) のみ、 sizeBytes は 上限 5MB を 事前 検証。
+// @Description  current user 用 の S3 PUT 署名 URL を 発行。 contentType は 画像 MIME (png/jpeg/jpg/gif/webp) のみ、 sizeBytes は 上限 5MB を 事前 検証。 検証 済み の contentType / sizeBytes は presign の 署名 対象 (Content-Type / Content-Length) に 焼き込む ため、 発行後 に 別 種別 ・ 別 サイズ で PUT する と S3 が 署名 不一致 で 拒否 する。
 // @Tags         notes
 // @Accept       json
 // @Produce      json
 // @Param        body  body      issueUploadURLReq  true  "contentType / sizeBytes"
 // @Success      200   {object}  github_com_norman6464_FreStyle_backend_internal_domain.NoteImageUploadURL
-// @Failure      400   {object}  errorResponse  "発行 失敗"
+// @Failure      400   {object}  errorResponse  "リクエスト 不正 (contentType / sizeBytes が 未 指定 か 不正 な JSON)"
 // @Failure      401   {object}  errorResponse  "未 認証"
-// @Failure      413   {object}  errorResponse  "サイズ 上限 超過"
-// @Failure      415   {object}  errorResponse  "未 サポート MIME"
+// @Failure      413   {object}  errorResponse  "Payload Too Large — sizeBytes が 上限 5MB を 超えて いる"
+// @Failure      415   {object}  errorResponse  "Unsupported Media Type — contentType が 許可 された 画像 MIME で ない"
+// @Failure      500   {object}  errorResponse  "presigned URL の 発行 に 失敗 (S3 / インフラ 側 の 異常)"
 // @Router       /notes/images/upload-url [post]
 // @Security     CookieAuth
 func (h *NoteImageHandler) IssueUploadURL(c *gin.Context) {
@@ -44,17 +45,8 @@ func (h *NoteImageHandler) IssueUploadURL(c *gin.Context) {
 		return
 	}
 	var req issueUploadURLReq
-	// body 無し (EOF) は下の必須チェックで 400 にするが、不正 JSON はここで弾く。
-	if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	if req.ContentType == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "contentType is required"})
-		return
-	}
-	if req.SizeBytes <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "sizeBytes must be positive"})
 		return
 	}
 	got, err := h.issue.Execute(c.Request.Context(), usecase.IssueNoteImageUploadURLInput{
@@ -69,7 +61,10 @@ func (h *NoteImageHandler) IssueUploadURL(c *gin.Context) {
 		case errors.Is(err, usecase.ErrNoteImageTooLarge):
 			c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": err.Error()})
 		default:
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			// presigner のタイムアウト等はサーバ側の異常。400 で返すと監視がクライアント
+			// エラーとして誤分類するため 500 とし、詳細は漏らさず server log にだけ残す。
+			log.Printf("note-image: presigned URL issue failed: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
 		}
 		return
 	}

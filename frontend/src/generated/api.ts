@@ -3773,7 +3773,7 @@ export interface paths {
         put?: never;
         /**
          * ノート 画像 PUT 署名 URL
-         * @description current user 用 の S3 PUT 署名 URL を 発行。 userId は body から 受け取らず middleware の current user を 使う (IDOR 対策、 Phase 3 で 修正)。 contentType は 画像 MIME (png/jpeg/gif/webp) のみ、 sizeBytes は 上限 5MB を 事前 検証。
+         * @description current user 用 の S3 PUT 署名 URL を 発行。 contentType は 画像 MIME (png/jpeg/jpg/gif/webp) のみ、 sizeBytes は 上限 5MB を 事前 検証。 検証 済み の contentType / sizeBytes は presign の 署名 対象 (Content-Type / Content-Length) に 焼き込む ため、 発行後 に 別 種別 ・ 別 サイズ で PUT する と S3 が 署名 不一致 で 拒否 する。
          */
         post: {
             parameters: {
@@ -3798,7 +3798,7 @@ export interface paths {
                         "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.NoteImageUploadURL"];
                     };
                 };
-                /** @description 発行 失敗 */
+                /** @description リクエスト 不正 (contentType / sizeBytes が 未 指定 か 不正 な JSON) */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -3816,7 +3816,7 @@ export interface paths {
                         "application/json": components["schemas"]["internal_handler.errorResponse"];
                     };
                 };
-                /** @description サイズ 上限 超過 */
+                /** @description Payload Too Large — sizeBytes が 上限 5MB を 超えて いる */
                 413: {
                     headers: {
                         [name: string]: unknown;
@@ -3825,8 +3825,17 @@ export interface paths {
                         "application/json": components["schemas"]["internal_handler.errorResponse"];
                     };
                 };
-                /** @description 未 サポート MIME */
+                /** @description Unsupported Media Type — contentType が 許可 された 画像 MIME で ない */
                 415: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description presigned URL の 発行 に 失敗 (S3 / インフラ 側 の 異常) */
+                500: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -5451,8 +5460,8 @@ export interface components {
             fileName?: string;
         };
         "internal_handler.issueUploadURLReq": {
-            contentType?: string;
-            sizeBytes?: number;
+            contentType: string;
+            sizeBytes: number;
         };
         "internal_handler.markLessonCompleteRequest": {
             teachingMaterialId: number;

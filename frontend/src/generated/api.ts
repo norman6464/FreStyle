@@ -3798,7 +3798,7 @@ export interface paths {
                         "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.NoteImageUploadURL"];
                     };
                 };
-                /** @description リクエスト 不正 (contentType / sizeBytes が 未 指定 か 不正 な JSON) */
+                /** @description Bad Request — contentType / sizeBytes が 未 指定、 sizeBytes が 正数 で ない、 または 不正 な JSON */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -3807,7 +3807,7 @@ export interface paths {
                         "application/json": components["schemas"]["internal_handler.errorResponse"];
                     };
                 };
-                /** @description 未 認証 */
+                /** @description Unauthorized — 未 認証 (Cookie の JWT が 無効 か 未 送信) */
                 401: {
                     headers: {
                         [name: string]: unknown;
@@ -3816,7 +3816,7 @@ export interface paths {
                         "application/json": components["schemas"]["internal_handler.errorResponse"];
                     };
                 };
-                /** @description Payload Too Large — sizeBytes が 上限 5MB を 超えて いる */
+                /** @description Payload Too Large — sizeBytes が 上限 5MB (5242880 byte) を 超えて いる。 5MB 以下 の 画像 を 選び直して 再送 する */
                 413: {
                     headers: {
                         [name: string]: unknown;
@@ -3825,7 +3825,7 @@ export interface paths {
                         "application/json": components["schemas"]["internal_handler.errorResponse"];
                     };
                 };
-                /** @description Unsupported Media Type — contentType が 許可 された 画像 MIME で ない */
+                /** @description Unsupported Media Type — contentType が 許可 された 画像 MIME (png/jpeg/jpg/gif/webp) で ない。 画像 以外 の ファイル は アップロード できない */
                 415: {
                     headers: {
                         [name: string]: unknown;

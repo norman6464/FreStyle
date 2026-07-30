@@ -34,8 +34,8 @@ func (p *aiChatAttachmentPresigner) Generate(ctx context.Context, userID uint64,
 	}
 	ext := extensionForContentType(contentType, filename)
 	key := fmt.Sprintf("ai-chat/%d/%s%s", userID, uuid.New().String(), ext)
-	// sizeBytes を受け取らない経路のため Content-Length は署名しない（0 を渡す）。
-	url, ttl, err := p.pre.PresignPut(ctx, key, contentType, 0)
+	// sizeBytes を受け取らない経路のため Content-Length は署名対象に含めない。
+	url, ttl, err := p.pre.PresignPut(ctx, key, contentType, noContentLengthConstraint)
 	if err != nil {
 		return nil, err
 	}

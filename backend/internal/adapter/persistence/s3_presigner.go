@@ -6,9 +6,16 @@ import (
 	"time"
 )
 
+// noContentLengthConstraint は PresignPut に Content-Length を署名させないことを表す。
+// サイズ検証を持たない呼び出し元（AI チャット添付 / プロフィール画像）が渡す。
+const noContentLengthConstraint int64 = 0
+
 // s3Presigner は infra/s3.Presigner と同等の minimal interface（persistence が infra/s3 に
 // 直接依存しないよう依存方向を反転する）。3 つの presigner が共通で使う。
-// sizeBytes > 0 のとき Content-Length が署名対象に入る（超過アップロードを S3 側で拒否させる）。
+//
+// sizeBytes > 0 のとき Content-Length が署名対象に入り、超過アップロードを S3 側で拒否させる。
+// 上限値は呼び出し元が決める（ノート画像は 5MB = 5242880 byte。AI チャット添付とプロフィール画像は
+// noContentLengthConstraint を渡すため、この経路では上限を署名しない）。
 type s3Presigner interface {
 	PresignPut(ctx context.Context, key, contentType string, sizeBytes int64) (url string, ttl time.Duration, err error)
 }

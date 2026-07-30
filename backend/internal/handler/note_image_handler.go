@@ -19,6 +19,8 @@ func NewNoteImageHandler(i *usecase.IssueNoteImageUploadURLUseCase) *NoteImageHa
 }
 
 // issueUploadURLReq は body 受け取り。userId は受け取らず middleware の current user を使う（IDOR 対策）。
+// SizeBytes の上限は 5MB（5242880 byte / usecase.maxNoteImageBytes）。binding は正数であることのみを
+// 保証し、上限超過の判定は usecase が行う（超過は 413）。
 type issueUploadURLReq struct {
 	ContentType string `json:"contentType" binding:"required"`
 	SizeBytes   int64  `json:"sizeBytes" binding:"required,gt=0"`
@@ -31,10 +33,10 @@ type issueUploadURLReq struct {
 // @Produce      json
 // @Param        body  body      issueUploadURLReq  true  "contentType / sizeBytes"
 // @Success      200   {object}  github_com_norman6464_FreStyle_backend_internal_domain.NoteImageUploadURL
-// @Failure      400   {object}  errorResponse  "リクエスト 不正 (contentType / sizeBytes が 未 指定 か 不正 な JSON)"
-// @Failure      401   {object}  errorResponse  "未 認証"
-// @Failure      413   {object}  errorResponse  "Payload Too Large — sizeBytes が 上限 5MB を 超えて いる"
-// @Failure      415   {object}  errorResponse  "Unsupported Media Type — contentType が 許可 された 画像 MIME で ない"
+// @Failure      400   {object}  errorResponse  "Bad Request — contentType / sizeBytes が 未 指定、 sizeBytes が 正数 で ない、 または 不正 な JSON"
+// @Failure      401   {object}  errorResponse  "Unauthorized — 未 認証 (Cookie の JWT が 無効 か 未 送信)"
+// @Failure      413   {object}  errorResponse  "Payload Too Large — sizeBytes が 上限 5MB (5242880 byte) を 超えて いる。 5MB 以下 の 画像 を 選び直して 再送 する"
+// @Failure      415   {object}  errorResponse  "Unsupported Media Type — contentType が 許可 された 画像 MIME (png/jpeg/jpg/gif/webp) で ない。 画像 以外 の ファイル は アップロード できない"
 // @Failure      500   {object}  errorResponse  "presigned URL の 発行 に 失敗 (S3 / インフラ 側 の 異常)"
 // @Router       /notes/images/upload-url [post]
 // @Security     CookieAuth
@@ -58,6 +60,9 @@ func (h *NoteImageHandler) IssueUploadURL(c *gin.Context) {
 		switch {
 		case errors.Is(err, usecase.ErrNoteImageUnsupportedType):
 			c.JSON(http.StatusUnsupportedMediaType, gin.H{"error": err.Error()})
+		case errors.Is(err, usecase.ErrNoteImageInvalidSize):
+			// binding の gt=0 で通常は到達しないが、usecase 単体の契約として 400 に対応付ける。
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		case errors.Is(err, usecase.ErrNoteImageTooLarge):
 			c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": err.Error()})
 		default:

@@ -37,11 +37,9 @@ func NewPresigner(ctx context.Context, region, bucket string) (*Presigner, error
 	}, nil
 }
 
-// PresignPut は指定 key への PutObject presigned URL を返す。
-// contentType は presign に焼き込まれるため PUT 時のヘッダと完全一致が必要（不一致だと SignatureDoesNotMatch）。
-// sizeBytes > 0 なら Content-Length も署名対象に含める。これによりサーバ側で検証したサイズと
-// 異なる PUT は S3 が署名不一致で拒否するため、申告値だけの検証を迂回した超過アップロードを防げる。
-// sizeBytes <= 0 は Content-Length を署名しない（サイズ検証を持たない呼び出し元向け）。
+// PresignPut は指定 key への PutObject presigned URL を返す。contentType と、sizeBytes > 0 の場合は
+// Content-Length が署名に焼き込まれるため PUT 時のヘッダと完全一致が必要で、異なる種別やサイズで
+// 送ると S3 が SignatureDoesNotMatch で拒否する（sizeBytes <= 0 なら Content-Length は署名しない）。
 func (p *Presigner) PresignPut(ctx context.Context, key, contentType string, sizeBytes int64) (string, time.Duration, error) {
 	if key == "" {
 		return "", 0, fmt.Errorf("s3: key is required")

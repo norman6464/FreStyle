@@ -110,8 +110,8 @@ func Test_ノート画像アップロードURL発行_サイズ検証(t *testing.
 		size    int64
 		wantErr error
 	}{
-		{name: "0 は拒否", size: 0, wantErr: ErrNoteImageTooLarge},
-		{name: "負数は拒否", size: -1, wantErr: ErrNoteImageTooLarge},
+		{name: "0 は拒否", size: 0, wantErr: ErrNoteImageInvalidSize},
+		{name: "負数は拒否", size: -1, wantErr: ErrNoteImageInvalidSize},
 		{name: "上限ちょうどは許可", size: maxNoteImageBytes, wantErr: nil},
 		{name: "上限超過は拒否", size: maxNoteImageBytes + 1, wantErr: ErrNoteImageTooLarge},
 	}

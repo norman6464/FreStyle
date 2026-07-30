@@ -247,7 +247,7 @@ export default function NoteMarkdownEditor({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/png,image/jpeg,image/gif,image/webp"
                 className="hidden"
                 onChange={(e) => {
                   const f = e.target.files?.[0];

@@ -2957,7 +2957,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "current user 用 の S3 PUT 署名 URL を 発行。 userId は body から 受け取らず middleware の current user を 使う (IDOR 対策、 Phase 3 で 修正)。",
+                "description": "current user 用 の S3 PUT 署名 URL を 発行。 userId は body から 受け取らず middleware の current user を 使う (IDOR 対策、 Phase 3 で 修正)。 contentType は 画像 MIME (png/jpeg/gif/webp) のみ、 sizeBytes は 上限 5MB を 事前 検証。",
                 "consumes": [
                     "application/json"
                 ],
@@ -2970,9 +2970,10 @@ const docTemplate = `{
                 "summary": "ノート 画像 PUT 署名 URL",
                 "parameters": [
                     {
-                        "description": "contentType (任意)",
+                        "description": "contentType / sizeBytes",
                         "name": "body",
                         "in": "body",
+                        "required": true,
                         "schema": {
                             "$ref": "#/definitions/internal_handler.issueUploadURLReq"
                         }
@@ -2993,6 +2994,18 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "サイズ 上限 超過",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "415": {
+                        "description": "未 サポート MIME",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -5122,6 +5135,9 @@ const docTemplate = `{
             "properties": {
                 "contentType": {
                     "type": "string"
+                },
+                "sizeBytes": {
+                    "type": "integer"
                 }
             }
         },

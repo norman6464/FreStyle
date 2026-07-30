@@ -14,11 +14,13 @@ interface UploadUrlResponse {
  *
  * フロー: presign 発行(current user 名義) → S3 へ直接 PUT → 配信 URL(publicUrl) を返す。
  * userId は送らず backend が context の current user で発行する（IDOR 対策）。
+ * contentType / sizeBytes は backend が画像 MIME・上限サイズで検証する（415 / 413）。
  */
 const ImageUploadRepository = {
   async upload(file: File): Promise<string> {
     const { data } = await apiClient.post<UploadUrlResponse>(IMAGES.uploadUrl, {
       contentType: file.type || 'image/png',
+      sizeBytes: file.size,
     });
     await axios.put(data.url, file, {
       headers: { 'Content-Type': file.type || 'image/png' },

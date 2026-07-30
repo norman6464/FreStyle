@@ -2,59 +2,67 @@ package usecase
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
-type stubPresigner struct {
-	url          *domain.NoteImageUploadURL
-	err          error
-	called       bool
-	gotSizeBytes int64
+// テストで使う固定値。マジックナンバーを避けるため名前を付ける。
+const (
+	testNoteImageUserID    uint64 = 7
+	testNoteImageSizeBytes int64  = 1024
+	testPresignExpiresIn          = 60
+	testPresignedURL              = "https://example"
+	testPresignedKey              = "notes/7/1.bin"
+)
+
+// mockNoteImagePresigner は repository.NoteImagePresigner の testify/mock 実装。
+type mockNoteImagePresigner struct {
+	mock.Mock
 }
 
-func (s *stubPresigner) Generate(_ context.Context, _ uint64, _ string, sizeBytes int64) (*domain.NoteImageUploadURL, error) {
-	s.called = true
-	s.gotSizeBytes = sizeBytes
-	return s.url, s.err
+func (m *mockNoteImagePresigner) Generate(ctx context.Context, userID uint64, contentType string, sizeBytes int64) (*domain.NoteImageUploadURL, error) {
+	args := m.Called(ctx, userID, contentType, sizeBytes)
+	url, _ := args.Get(0).(*domain.NoteImageUploadURL)
+	return url, args.Error(1)
 }
 
-func newStubbedNoteImageUseCase() (*IssueNoteImageUploadURLUseCase, *stubPresigner) {
-	stub := &stubPresigner{
-		url: &domain.NoteImageUploadURL{URL: "https://example", Key: "k", ExpiresIn: 60},
-	}
-	return NewIssueNoteImageUploadURLUseCase(stub), stub
+// newMockedNoteImageUseCase は「呼ばれたら成功 URL を返す」mock を注入した usecase を返す。
+func newMockedNoteImageUseCase() (*IssueNoteImageUploadURLUseCase, *mockNoteImagePresigner) {
+	m := &mockNoteImagePresigner{}
+	m.On("Generate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(&domain.NoteImageUploadURL{
+			URL:       testPresignedURL,
+			Key:       testPresignedKey,
+			ExpiresIn: testPresignExpiresIn,
+		}, nil).Maybe()
+	return NewIssueNoteImageUploadURLUseCase(m), m
 }
 
 func Test_ノート画像アップロードURL発行_ユーザーIDが必須(t *testing.T) {
-	uc, stub := newStubbedNoteImageUseCase()
+	uc, m := newMockedNoteImageUseCase()
 	_, err := uc.Execute(context.Background(), IssueNoteImageUploadURLInput{
-		UserID:      0,
+		UserID:      unsetUserID,
 		ContentType: "image/png",
-		SizeBytes:   1024,
+		SizeBytes:   testNoteImageSizeBytes,
 	})
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	if stub.called {
-		t.Fatal("presigner should not be called")
-	}
+	require.Error(t, err)
+	m.AssertNotCalled(t, "Generate", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 func Test_ノート画像アップロードURL発行_許可MIMEはURLを返す(t *testing.T) {
 	for contentType := range allowedNoteImageContentTypes {
 		t.Run(contentType, func(t *testing.T) {
-			uc, _ := newStubbedNoteImageUseCase()
+			uc, _ := newMockedNoteImageUseCase()
 			got, err := uc.Execute(context.Background(), IssueNoteImageUploadURLInput{
-				UserID:      1,
+				UserID:      testNoteImageUserID,
 				ContentType: contentType,
-				SizeBytes:   1024,
+				SizeBytes:   testNoteImageSizeBytes,
 			})
-			if err != nil || got.URL == "" {
-				t.Fatalf("unexpected: %+v err=%v", got, err)
-			}
+			require.NoError(t, err)
+			require.Equal(t, testPresignedURL, got.URL)
 		})
 	}
 }
@@ -62,17 +70,14 @@ func Test_ノート画像アップロードURL発行_許可MIMEはURLを返す(t
 // 検証済みの sizeBytes が presigner に渡ることを確認する。
 // presign の Content-Length 署名に使われるため、ここが欠けると申告値だけの検証に戻ってしまう。
 func Test_ノート画像アップロードURL発行_検証済みサイズをpresignerに渡す(t *testing.T) {
-	uc, stub := newStubbedNoteImageUseCase()
-	if _, err := uc.Execute(context.Background(), IssueNoteImageUploadURLInput{
-		UserID:      1,
+	uc, m := newMockedNoteImageUseCase()
+	_, err := uc.Execute(context.Background(), IssueNoteImageUploadURLInput{
+		UserID:      testNoteImageUserID,
 		ContentType: "image/png",
-		SizeBytes:   2048,
-	}); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if stub.gotSizeBytes != 2048 {
-		t.Fatalf("presigner に渡った sizeBytes = %d, want 2048", stub.gotSizeBytes)
-	}
+		SizeBytes:   testNoteImageSizeBytes,
+	})
+	require.NoError(t, err)
+	m.AssertCalled(t, "Generate", mock.Anything, testNoteImageUserID, "image/png", testNoteImageSizeBytes)
 }
 
 func Test_ノート画像アップロードURL発行_許可外MIMEは拒否(t *testing.T) {
@@ -88,18 +93,14 @@ func Test_ノート画像アップロードURL発行_許可外MIMEは拒否(t *t
 	}
 	for _, contentType := range cases {
 		t.Run(contentType, func(t *testing.T) {
-			uc, stub := newStubbedNoteImageUseCase()
+			uc, m := newMockedNoteImageUseCase()
 			_, err := uc.Execute(context.Background(), IssueNoteImageUploadURLInput{
-				UserID:      1,
+				UserID:      testNoteImageUserID,
 				ContentType: contentType,
-				SizeBytes:   1024,
+				SizeBytes:   testNoteImageSizeBytes,
 			})
-			if !errors.Is(err, ErrNoteImageUnsupportedType) {
-				t.Fatalf("want ErrNoteImageUnsupportedType, got %v", err)
-			}
-			if stub.called {
-				t.Fatal("presigner should not be called")
-			}
+			require.ErrorIs(t, err, ErrNoteImageUnsupportedType)
+			m.AssertNotCalled(t, "Generate", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 		})
 	}
 }
@@ -117,18 +118,19 @@ func Test_ノート画像アップロードURL発行_サイズ検証(t *testing.
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			uc, stub := newStubbedNoteImageUseCase()
+			uc, m := newMockedNoteImageUseCase()
 			_, err := uc.Execute(context.Background(), IssueNoteImageUploadURLInput{
-				UserID:      1,
+				UserID:      testNoteImageUserID,
 				ContentType: "image/png",
 				SizeBytes:   tc.size,
 			})
-			if !errors.Is(err, tc.wantErr) {
-				t.Fatalf("want %v, got %v", tc.wantErr, err)
+			if tc.wantErr == nil {
+				require.NoError(t, err)
+				m.AssertCalled(t, "Generate", mock.Anything, testNoteImageUserID, "image/png", tc.size)
+				return
 			}
-			if stub.called != (tc.wantErr == nil) {
-				t.Fatalf("presigner called = %v, want %v", stub.called, tc.wantErr == nil)
-			}
+			require.ErrorIs(t, err, tc.wantErr)
+			m.AssertNotCalled(t, "Generate", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 		})
 	}
 }

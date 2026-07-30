@@ -26,7 +26,7 @@ func NewStubAiChatAttachmentPresigner(bucket string) repository.AiChatAttachment
 
 // Generate は PUT presigned URL を返す。filename は拡張子推定にだけ使い key には埋めない（衝突 / インジェクション回避）。
 func (p *aiChatAttachmentPresigner) Generate(ctx context.Context, userID uint64, filename, contentType string) (*repository.AiChatAttachmentUploadURL, error) {
-	if userID == 0 {
+	if userID == unsetUserID {
 		return nil, fmt.Errorf("userID is required")
 	}
 	if contentType == "" {

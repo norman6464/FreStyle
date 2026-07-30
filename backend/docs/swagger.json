@@ -3004,7 +3004,13 @@
                         }
                     },
                     "500": {
-                        "description": "presigned URL の 発行 に 失敗 (S3 / インフラ 側 の 異常)",
+                        "description": "Internal Server Error — presigned URL の 発行 に 失敗 (バケット 未 設定 や IAM 設定 不備 など 恒久的 な サーバ 側 の 異常)",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable — クレデンシャル 解決 の タイムアウト。 一時的 な 障害 の ため Retry-After 秒 後 に 再試行 する",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }

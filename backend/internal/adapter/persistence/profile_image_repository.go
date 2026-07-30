@@ -30,7 +30,7 @@ func NewStubProfileImagePresigner(bucket, cdnURL string) repository.ProfileImage
 }
 
 func (p *profileImagePresigner) Generate(ctx context.Context, userID uint64, fileName, contentType string) (*domain.ProfileImageUploadURL, error) {
-	if userID == 0 {
+	if userID == unsetUserID {
 		return nil, fmt.Errorf("userID is required")
 	}
 	if contentType == "" {

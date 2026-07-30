@@ -57,7 +57,7 @@ describe('useLoginPage', () => {
     });
 
     expect(loginMock).toHaveBeenCalledWith({ email: '', password: '' });
-    expect(assignMock).toHaveBeenCalledWith('/');
+    expect(assignMock).toHaveBeenCalledWith('/dashboard');
   });
 
   it('資格情報誤り（非 403）はエラーメッセージを表示し遷移しない', async () => {

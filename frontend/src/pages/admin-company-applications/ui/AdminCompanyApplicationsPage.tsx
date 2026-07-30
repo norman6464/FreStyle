@@ -39,7 +39,7 @@ export default function AdminCompanyApplicationsPage() {
 
   if (authLoading) return <Loading message="認証情報を確認中..." className="min-h-[50vh]" />;
   // 利用申請は全テナント横断の運営機能なので super_admin のみ。
-  if (!isAdmin || role !== 'super_admin') return <Navigate to="/" replace />;
+  if (!isAdmin || role !== 'super_admin') return <Navigate to="/dashboard" replace />;
 
   const update = async (app: CompanyApplication, status: CompanyApplicationStatus) => {
     const ok = await setStatus(app.id, status);

@@ -60,7 +60,8 @@ test.describe('認証ガード', () => {
   test('認証済みなら保護ルートはログインに飛ばされない', async ({ page }) => {
     await mockAuthenticated(page);
 
-    await page.goto('/');
+    // "/" は公開 LP に変わったため、保護ルート(ダッシュボード)で検証する。
+    await page.goto('/dashboard');
 
     await expect(page).not.toHaveURL(/\/login/);
   });

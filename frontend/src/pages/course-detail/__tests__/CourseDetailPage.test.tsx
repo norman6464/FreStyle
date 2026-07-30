@@ -363,44 +363,41 @@ describe('CourseDetailPage 画像のモーダル拡大表示 (FRESTYLE-191)', ()
     mockRecordView.mockResolvedValue(undefined);
   });
 
+  // モーダルを開く。初期ロード後の再レンダーで取得済みボタンが差し替わると click が
+  // 空振りする(stale node)ため、「click → dialog 出現」を waitFor で丸ごとリトライする。
+  // recordView 待ちだけでは CI の遅い環境で後続の再レンダーと競合してフレークした。
+  async function openImageModal() {
+    await waitFor(() => expect(mockRecordView).toHaveBeenCalled());
+    await waitFor(() => {
+      fireEvent.click(screen.getByRole('button', { name: '構成図を拡大表示' }));
+      expect(screen.getByRole('dialog', { name: '構成図' })).toBeInTheDocument();
+    });
+  }
+
   it('画像クリックでモーダルが開き、拡大画像と alt が引き継がれる', async () => {
     renderPage('trainee');
-    // 初期ロード(閲覧記録まで)が済んでからクリックする。途中の再レンダーで
-    // 取得済みノードが差し替わると click が空振りするため(stale node)。
-    await waitFor(() => expect(mockRecordView).toHaveBeenCalled());
-    fireEvent.click(screen.getByRole('button', { name: '構成図を拡大表示' }));
-    const dialog = screen.getByRole('dialog', { name: '構成図' });
-    expect(dialog).toBeInTheDocument();
+    await openImageModal();
     // モーダル内にも同じ src の img が出る（本文内 + モーダルで 2 枚）
     expect(screen.getAllByRole('img', { name: '構成図' })).toHaveLength(2);
   });
 
   it('閉じるボタンで閉じられる', async () => {
     renderPage('trainee');
-    // 初期ロード(閲覧記録まで)が済んでからクリックする。途中の再レンダーで
-    // 取得済みノードが差し替わると click が空振りするため(stale node)。
-    await waitFor(() => expect(mockRecordView).toHaveBeenCalled());
-    fireEvent.click(screen.getByRole('button', { name: '構成図を拡大表示' }));
+    await openImageModal();
     fireEvent.click(screen.getByRole('button', { name: '閉じる' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('Esc キーで閉じられる', async () => {
     renderPage('trainee');
-    // 初期ロード(閲覧記録まで)が済んでからクリックする。途中の再レンダーで
-    // 取得済みノードが差し替わると click が空振りするため(stale node)。
-    await waitFor(() => expect(mockRecordView).toHaveBeenCalled());
-    fireEvent.click(screen.getByRole('button', { name: '構成図を拡大表示' }));
+    await openImageModal();
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('背景クリックで閉じるが、拡大画像自体のクリックでは閉じない', async () => {
     renderPage('trainee');
-    // 初期ロード(閲覧記録まで)が済んでからクリックする。途中の再レンダーで
-    // 取得済みノードが差し替わると click が空振りするため(stale node)。
-    await waitFor(() => expect(mockRecordView).toHaveBeenCalled());
-    fireEvent.click(screen.getByRole('button', { name: '構成図を拡大表示' }));
+    await openImageModal();
     const dialog = screen.getByRole('dialog', { name: '構成図' });
     // 画像クリック → 閉じない（誤タップ防止）
     const [, modalImg] = screen.getAllByRole('img', { name: '構成図' });

@@ -15,15 +15,15 @@ import { test, expect } from '@playwright/test';
 const API_BASE = 'https://api.normanblog.com';
 
 test.describe('FreStyle smoke', () => {
-  test('SPA がロードされ FreStyle ロゴ / ログイン誘導が見える', async ({ page }) => {
+  test('SPA がロードされ FreStyle ブランドが見える', async ({ page }) => {
     // networkidle は SPA のヘルスポーリング等で「無通信」に到達せず timeout して flake るため使わない。
-    // domcontentloaded で遷移し、描画要素（ログインフォーム）の出現を明示的に待つ。
+    // domcontentloaded で遷移し、描画要素の出現を明示的に待つ。
     await page.goto('/', { waitUntil: 'domcontentloaded' });
     await expect(page).toHaveTitle(/FreStyle/);
-    // 未認証アクセスは /login にリダイレクトされ、ログインフォームが描画される。
-    // 本番のコールドロード + 認証チェックを見込んで余裕を持った timeout で待つ。
+    // 公開ヘッダー(PublicHeader)の FreStyle ブランドは、公開トップ(LP)でもログインページでも
+    // 常に描画される。本番のコールドロードを見込んで余裕を持った timeout で待つ。
     await expect(
-      page.getByRole('form', { name: 'ログインフォーム' })
+      page.getByRole('link', { name: 'FreStyle ホーム' })
     ).toBeVisible({ timeout: 20_000 });
   });
 

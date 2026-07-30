@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAppSelector } from '@/shared/lib/store';
+import { useDocumentMeta } from '@/shared/lib/hooks/useDocumentMeta';
 import { Outlet, useLocation } from 'react-router-dom';
 
 import Header from './Header';
@@ -11,6 +12,9 @@ export default function AppShell() {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const { pathname } = useLocation();
   const role = useAppSelector((s) => s.auth.role);
+
+  // 認証必須ページ（AppShell 配下）はログイン前提なので検索インデックス対象外にする。
+  useDocumentMeta({ robots: 'noindex, nofollow' });
 
   // 受講者の教材閲覧(/courses/:id)はヘッダーごとスクロールで画面外に流す(FRESTYLE-122)。
   // チャット / ノート / コース編集などのパネル型ページは main の固定高さに依存しているため、

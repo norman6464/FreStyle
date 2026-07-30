@@ -1,4 +1,5 @@
 import { ReactNode } from 'react';
+import { useDocumentMeta } from '@/shared/lib/hooks/useDocumentMeta';
 
 interface AuthLayoutProps {
   children: ReactNode;
@@ -9,6 +10,9 @@ interface AuthLayoutProps {
 }
 
 export default function AuthLayout({ children, title, footer, header }: AuthLayoutProps) {
+  // 認証フロー画面(ログイン/パスワード再設定)は検索結果に出す価値がないため noindex。
+  useDocumentMeta({ robots: 'noindex, nofollow' });
+
   return (
     <div className="min-h-screen flex flex-col bg-surface">
       {header}

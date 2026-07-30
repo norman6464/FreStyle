@@ -19,6 +19,8 @@ const ForgotPasswordPage = lazyWithReload(() => import('@/pages/forgot-password'
 const ConfirmForgotPasswordPage = lazyWithReload(() => import('@/pages/confirm-forgot-password').then((m) => ({ default: m.ConfirmForgotPasswordPage })), 'ConfirmForgotPasswordPage');
 const AcceptInvitationPage = lazyWithReload(() => import('@/pages/accept-invitation').then((m) => ({ default: m.AcceptInvitationPage })), 'AcceptInvitationPage');
 const CompanyApplicationPage = lazyWithReload(() => import('@/pages/company-application').then((m) => ({ default: m.CompanyApplicationPage })), 'CompanyApplicationPage');
+// 公開ランディング（SEO 対象・認証不要）。ログイン済みは /dashboard へ送る。
+const LandingPage = lazyWithReload(() => import('@/pages/landing').then((m) => ({ default: m.LandingPage })), 'LandingPage');
 
 // 認証必要ページ
 const MenuPage = lazyWithReload(() => import('@/pages/home').then((m) => ({ default: m.MenuPage })), 'MenuPage');
@@ -85,6 +87,8 @@ export default function App() {
     <Suspense fallback={<Loading fullscreen message="読み込み中..." />}>
     <Routes>
       {/* 誰でもアクセス可能 */}
+      {/* 公開トップ（SEO 対象）。ログイン済みは LandingPage 内で /dashboard へ送る。 */}
+      <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/login/callback" element={<LoginCallback />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -108,7 +112,8 @@ export default function App() {
           </AuthInitializer>
         }
       >
-        <Route path="/" element={<MenuPage />} />
+        {/* ログイン後のダッシュボード。旧 "/" から移設（"/" は公開 LP に）。 */}
+        <Route path="/dashboard" element={<MenuPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         {/* 旧 /profile/me は /settings に統合（後方互換のため redirect 相当として SettingsPage を出す） */}
         <Route path="/profile/me" element={<SettingsPage />} />

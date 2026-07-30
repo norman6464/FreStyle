@@ -45,7 +45,7 @@ jobs:
   deploy:
     name: Build & Deploy
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
     needs: [guard]
     if: always() && (github.event_name == 'push' || needs.guard.result == 'success')
     # 本番反映ジョブは production Environment に紐付け、required reviewers の承認待ちで止める。
@@ -79,6 +79,15 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      # 公開ページを Playwright(headless Chromium)でプリレンダーし、dist/index.html に
+      # 中身入り HTML を焼き込む。検索ボットの初回取得で本文がクロールできるようにする
+      # (CSR の空シェル対策 / FRESTYLE-222)。prerender スクリプトは空シェル/本文欠落を
+      # 検知すると fail するため、壊れた場合は deploy されない(回帰ガード)。
+      - name: Prerender public pages
+        run: |
+          npx playwright install --with-deps chromium
+          npm run prerender
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6

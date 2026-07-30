@@ -39,14 +39,42 @@ func Test_ノート画像ハンドラ_アップロードURL発行(t *testing.T) 
 		}
 	})
 	t.Run("正常系", func(t *testing.T) {
-		w, c := noteCtx(http.MethodPost, `{"contentType":"image/png"}`, 7, "")
+		w, c := noteCtx(http.MethodPost, `{"contentType":"image/png","sizeBytes":1024}`, 7, "")
 		newNoteImageHandler(fakeNoteImagePresigner{url: &domain.NoteImageUploadURL{}}).IssueUploadURL(c)
 		if w.Code != http.StatusOK {
 			t.Fatalf("want 200, got %d", w.Code)
 		}
 	})
-	t.Run("presigner エラー → 400", func(t *testing.T) {
+	t.Run("contentType 無し → 400", func(t *testing.T) {
+		w, c := noteCtx(http.MethodPost, `{"sizeBytes":1024}`, 7, "")
+		newNoteImageHandler(fakeNoteImagePresigner{url: &domain.NoteImageUploadURL{}}).IssueUploadURL(c)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("want 400, got %d", w.Code)
+		}
+	})
+	t.Run("sizeBytes 無し → 400", func(t *testing.T) {
 		w, c := noteCtx(http.MethodPost, `{"contentType":"image/png"}`, 7, "")
+		newNoteImageHandler(fakeNoteImagePresigner{url: &domain.NoteImageUploadURL{}}).IssueUploadURL(c)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("want 400, got %d", w.Code)
+		}
+	})
+	t.Run("許可外 MIME → 415", func(t *testing.T) {
+		w, c := noteCtx(http.MethodPost, `{"contentType":"text/html","sizeBytes":1024}`, 7, "")
+		newNoteImageHandler(fakeNoteImagePresigner{url: &domain.NoteImageUploadURL{}}).IssueUploadURL(c)
+		if w.Code != http.StatusUnsupportedMediaType {
+			t.Fatalf("want 415, got %d", w.Code)
+		}
+	})
+	t.Run("サイズ上限超過 → 413", func(t *testing.T) {
+		w, c := noteCtx(http.MethodPost, `{"contentType":"image/png","sizeBytes":5242881}`, 7, "")
+		newNoteImageHandler(fakeNoteImagePresigner{url: &domain.NoteImageUploadURL{}}).IssueUploadURL(c)
+		if w.Code != http.StatusRequestEntityTooLarge {
+			t.Fatalf("want 413, got %d", w.Code)
+		}
+	})
+	t.Run("presigner エラー → 400", func(t *testing.T) {
+		w, c := noteCtx(http.MethodPost, `{"contentType":"image/png","sizeBytes":1024}`, 7, "")
 		newNoteImageHandler(fakeNoteImagePresigner{err: context.DeadlineExceeded}).IssueUploadURL(c)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("want 400, got %d", w.Code)

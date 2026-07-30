@@ -3773,7 +3773,7 @@ export interface paths {
         put?: never;
         /**
          * ノート 画像 PUT 署名 URL
-         * @description current user 用 の S3 PUT 署名 URL を 発行。 userId は body から 受け取らず middleware の current user を 使う (IDOR 対策、 Phase 3 で 修正)。
+         * @description current user 用 の S3 PUT 署名 URL を 発行。 userId は body から 受け取らず middleware の current user を 使う (IDOR 対策、 Phase 3 で 修正)。 contentType は 画像 MIME (png/jpeg/gif/webp) のみ、 sizeBytes は 上限 5MB を 事前 検証。
          */
         post: {
             parameters: {
@@ -3782,8 +3782,8 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            /** @description contentType (任意) */
-            requestBody?: {
+            /** @description contentType / sizeBytes */
+            requestBody: {
                 content: {
                     "application/json": components["schemas"]["internal_handler.issueUploadURLReq"];
                 };
@@ -3809,6 +3809,24 @@ export interface paths {
                 };
                 /** @description 未 認証 */
                 401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description サイズ 上限 超過 */
+                413: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 サポート MIME */
+                415: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -5434,6 +5452,7 @@ export interface components {
         };
         "internal_handler.issueUploadURLReq": {
             contentType?: string;
+            sizeBytes?: number;
         };
         "internal_handler.markLessonCompleteRequest": {
             teachingMaterialId: number;

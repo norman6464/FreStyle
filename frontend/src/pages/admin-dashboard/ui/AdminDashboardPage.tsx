@@ -50,7 +50,7 @@ export default function AdminDashboardPage() {
 
   if (authLoading) return <Loading message="認証情報を確認中..." className="min-h-[50vh]" />;
   // 運営ダッシュボードは全テナント横断の概況なので super_admin 専用。
-  if (!canView) return <Navigate to="/" replace />;
+  if (!canView) return <Navigate to="/dashboard" replace />;
 
   return (
     <div className="px-4 sm:px-6 pt-6 pb-24 max-w-3xl mx-auto space-y-6">

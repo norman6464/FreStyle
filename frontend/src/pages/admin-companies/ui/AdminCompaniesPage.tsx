@@ -49,7 +49,7 @@ export default function AdminCompaniesPage() {
   };
 
   if (authLoading) return <Loading message="認証情報を確認中..." />;
-  if (!isSuperAdmin) return <Navigate to="/" replace />;
+  if (!isSuperAdmin) return <Navigate to="/dashboard" replace />;
 
   return (
     <div className="px-6 pt-6 pb-24 max-w-3xl mx-auto space-y-6">

@@ -103,7 +103,7 @@ export default function AdminInvitationsPage() {
   }, [isAdmin, fetchAll]);
 
   if (authLoading) return <Loading message="認証情報を確認中..." />;
-  if (!isAdmin) return <Navigate to="/" replace />;
+  if (!isAdmin) return <Navigate to="/dashboard" replace />;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();

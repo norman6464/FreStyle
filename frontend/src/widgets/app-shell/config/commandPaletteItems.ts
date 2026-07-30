@@ -32,7 +32,7 @@ export const COMMAND_ITEMS: CommandItem[] = [
     description: 'ホーム画面に移動',
     icon: HomeIcon,
     category: 'ページ移動',
-    action: { type: 'navigate', path: '/' },
+    action: { type: 'navigate', path: '/dashboard' },
     keywords: ['home', 'メニュー', 'トップ'],
   },
   {

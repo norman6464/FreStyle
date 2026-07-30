@@ -32,7 +32,7 @@ export function useLoginPage() {
 
     try {
       await authRepository.login({ email: form.email, password: form.password });
-      window.location.assign('/');
+      window.location.assign('/dashboard');
     } catch (err) {
       // 招待なしの新規ユーザーは backend が 403 invitation_required を返す。専用文言を出す。
       const { status, serverMessage } = getApiError(err);

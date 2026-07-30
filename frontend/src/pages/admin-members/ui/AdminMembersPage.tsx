@@ -51,7 +51,7 @@ export default function AdminMembersPage() {
   }, [members, query]);
 
   if (authLoading) return <Loading message="読み込み中..." className="min-h-[50vh]" />;
-  if (!isAdmin) return <Navigate to="/" replace />;
+  if (!isAdmin) return <Navigate to="/dashboard" replace />;
 
   return (
     <div className="px-4 sm:px-6 pt-6 pb-24 max-w-4xl mx-auto">

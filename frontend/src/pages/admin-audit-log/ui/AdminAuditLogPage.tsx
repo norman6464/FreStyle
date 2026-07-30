@@ -62,7 +62,7 @@ export default function AdminAuditLogPage() {
 
   if (authLoading) return <Loading message="認証情報を確認中..." className="min-h-[50vh]" />;
   // 監査ログは全テナント横断の運営機能なので super_admin 専用。
-  if (!isSuperAdmin) return <Navigate to="/" replace />;
+  if (!isSuperAdmin) return <Navigate to="/dashboard" replace />;
 
   return (
     <div className="px-4 sm:px-6 pt-6 pb-24 max-w-3xl mx-auto space-y-6">

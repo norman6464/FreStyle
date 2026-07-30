@@ -64,7 +64,7 @@ describe('HelpPage', () => {
 
   it('末尾の CTA がホームに戻るリンクになっている', () => {
     renderHelp();
-    expect(screen.getByRole('link', { name: /ホームに戻って練習を始める/ })).toHaveAttribute('href', '/');
+    expect(screen.getByRole('link', { name: /ホームに戻って練習を始める/ })).toHaveAttribute('href', '/dashboard');
   });
 
   it('5軸評価の 5 つの評価項目が dt として全て描画される', () => {

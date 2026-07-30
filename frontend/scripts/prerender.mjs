@@ -13,8 +13,8 @@
  * 使い方: npm run build && node scripts/prerender.mjs
  */
 import { createServer } from 'node:http';
-import { readFile, writeFile, mkdir, stat } from 'node:fs/promises';
-import { join, extname, dirname, resolve, sep } from 'node:path';
+import { readFile, writeFile, mkdir, readdir, stat } from 'node:fs/promises';
+import { join, extname, dirname, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
 
@@ -52,8 +52,26 @@ async function fileExists(p) {
   }
 }
 
-/** dist/ を配信する静的サーバ。存在しないパスは index.html にフォールバック(SPA)。 */
-function startServer() {
+/**
+ * dist/ 配下の全ファイルを列挙し「URL パス → 絶対パス」の対応表を作る。
+ * リクエスト由来の文字列は fs API に渡さず、この表の値(readdir 由来)だけを使うことで
+ * path traversal を構造的に不可能にする(CodeQL js/path-injection 対策)。
+ */
+async function buildFileMap() {
+  const entries = await readdir(DIST, { recursive: true, withFileTypes: true });
+  const map = new Map();
+  for (const e of entries) {
+    if (!e.isFile()) continue;
+    const abs = join(e.parentPath ?? e.path, e.name);
+    map.set('/' + relative(DIST, abs).split(sep).join('/'), abs);
+  }
+  return map;
+}
+
+/** dist/ を配信する静的サーバ。対応表にないパスは index.html にフォールバック(SPA)。 */
+async function startServer() {
+  const files = await buildFileMap();
+  const indexPath = join(DIST, 'index.html');
   const server = createServer(async (req, res) => {
     try {
       // ヘルスチェックはローカルでは常に OK を返し、メンテナンス表示への誤遷移を防ぐ。
@@ -63,17 +81,12 @@ function startServer() {
         return;
       }
       const urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
-      // path traversal 対策: 解決後のパスが dist/ 配下でなければ index.html にフォールバック。
-      const candidate = resolve(DIST, `.${urlPath}`);
-      const inDist = candidate === DIST || candidate.startsWith(DIST + sep);
-      const filePath =
-        urlPath !== '/' && inDist && (await fileExists(candidate)) ? candidate : join(DIST, 'index.html');
+      const filePath = (urlPath !== '/' && files.get(urlPath)) || indexPath;
       const body = await readFile(filePath);
       res.writeHead(200, { 'content-type': CONTENT_TYPES[extname(filePath)] || 'application/octet-stream' });
       res.end(body);
     } catch {
-      // 例外の内容(スタックトレース等)はレスポンスに含めない。ローカル専用サーバだが
-      // CodeQL の stack-trace-exposure / xss-through-exception 指摘に従い固定文言のみ返す。
+      // 例外の内容(スタックトレース等)はレスポンスに含めない(CodeQL stack-trace-exposure 対策)。
       res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
       res.end('internal error');
     }

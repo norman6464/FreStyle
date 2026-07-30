@@ -9,13 +9,15 @@ import (
 )
 
 type stubPresigner struct {
-	url    *domain.NoteImageUploadURL
-	err    error
-	called bool
+	url          *domain.NoteImageUploadURL
+	err          error
+	called       bool
+	gotSizeBytes int64
 }
 
-func (s *stubPresigner) Generate(_ context.Context, _ uint64, _ string) (*domain.NoteImageUploadURL, error) {
+func (s *stubPresigner) Generate(_ context.Context, _ uint64, _ string, sizeBytes int64) (*domain.NoteImageUploadURL, error) {
 	s.called = true
+	s.gotSizeBytes = sizeBytes
 	return s.url, s.err
 }
 
@@ -42,7 +44,7 @@ func Test_ノート画像アップロードURL発行_ユーザーIDが必須(t *
 }
 
 func Test_ノート画像アップロードURL発行_許可MIMEはURLを返す(t *testing.T) {
-	for contentType := range AllowedNoteImageContentTypes {
+	for contentType := range allowedNoteImageContentTypes {
 		t.Run(contentType, func(t *testing.T) {
 			uc, _ := newStubbedNoteImageUseCase()
 			got, err := uc.Execute(context.Background(), IssueNoteImageUploadURLInput{
@@ -54,6 +56,22 @@ func Test_ノート画像アップロードURL発行_許可MIMEはURLを返す(t
 				t.Fatalf("unexpected: %+v err=%v", got, err)
 			}
 		})
+	}
+}
+
+// 検証済みの sizeBytes が presigner に渡ることを確認する。
+// presign の Content-Length 署名に使われるため、ここが欠けると申告値だけの検証に戻ってしまう。
+func Test_ノート画像アップロードURL発行_検証済みサイズをpresignerに渡す(t *testing.T) {
+	uc, stub := newStubbedNoteImageUseCase()
+	if _, err := uc.Execute(context.Background(), IssueNoteImageUploadURLInput{
+		UserID:      1,
+		ContentType: "image/png",
+		SizeBytes:   2048,
+	}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if stub.gotSizeBytes != 2048 {
+		t.Fatalf("presigner に渡った sizeBytes = %d, want 2048", stub.gotSizeBytes)
 	}
 }
 

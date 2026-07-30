@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
@@ -15,7 +16,7 @@ type fakeNoteImagePresigner struct {
 	err error
 }
 
-func (f fakeNoteImagePresigner) Generate(context.Context, uint64, string) (*domain.NoteImageUploadURL, error) {
+func (f fakeNoteImagePresigner) Generate(context.Context, uint64, string, int64) (*domain.NoteImageUploadURL, error) {
 	return f.url, f.err
 }
 
@@ -73,11 +74,21 @@ func Test_ノート画像ハンドラ_アップロードURL発行(t *testing.T) 
 			t.Fatalf("want 413, got %d", w.Code)
 		}
 	})
-	t.Run("presigner エラー → 400", func(t *testing.T) {
-		w, c := noteCtx(http.MethodPost, `{"contentType":"image/png","sizeBytes":1024}`, 7, "")
-		newNoteImageHandler(fakeNoteImagePresigner{err: context.DeadlineExceeded}).IssueUploadURL(c)
+	t.Run("空 body → 400", func(t *testing.T) {
+		w, c := noteCtx(http.MethodPost, ``, 7, "")
+		newNoteImageHandler(fakeNoteImagePresigner{url: &domain.NoteImageUploadURL{}}).IssueUploadURL(c)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("want 400, got %d", w.Code)
+		}
+	})
+	t.Run("presigner エラー → 500（内部エラーはクライアントエラーにしない）", func(t *testing.T) {
+		w, c := noteCtx(http.MethodPost, `{"contentType":"image/png","sizeBytes":1024}`, 7, "")
+		newNoteImageHandler(fakeNoteImagePresigner{err: context.DeadlineExceeded}).IssueUploadURL(c)
+		if w.Code != http.StatusInternalServerError {
+			t.Fatalf("want 500, got %d", w.Code)
+		}
+		if strings.Contains(w.Body.String(), "context deadline exceeded") {
+			t.Fatalf("内部エラーの詳細が漏れている: %s", w.Body.String())
 		}
 	})
 }

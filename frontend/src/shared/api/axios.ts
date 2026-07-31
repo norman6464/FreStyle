@@ -28,6 +28,18 @@ const apiClient = axios.create({
 });
 
 /**
+ * 公開ページから呼ぶときのリクエスト設定。
+ *
+ * `skipAuthRedirect: true` を付けた呼び出しは、401（かつリフレッシュ失敗）でも
+ * /login へ強制遷移しない。「ログイン済みか確かめる」用途では 401 は正常な答えであり、
+ * 公開ページの訪問者や検索エンジンのクローラをログイン画面へ追い出してはいけないため
+ * （公開 LP の全訪問者が /login に飛ばされた回帰: FRESTYLE-225）。
+ */
+export interface PublicSafeRequestConfig extends AxiosRequestConfig {
+  skipAuthRedirect?: boolean;
+}
+
+/**
  * トークンリフレッシュ中フラグ
  * 複数のリクエストが同時に401を受けた場合、リフレッシュは1回だけ実行
  */
@@ -63,7 +75,10 @@ const processQueue = (error: AxiosError | null = null) => {
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+    const originalRequest = error.config as InternalAxiosRequestConfig & {
+      _retry?: boolean;
+      skipAuthRedirect?: boolean;
+    };
 
     // 401エラーかつ、まだリトライしていない場合
     if (error.response?.status === 401 && !originalRequest._retry) {
@@ -100,8 +115,9 @@ apiClient.interceptors.response.use(
         processQueue(error);
         isRefreshing = false;
 
-        // リフレッシュ失敗 → ログインページへ
-        if (typeof window !== 'undefined') {
+        // リフレッシュ失敗 → ログインページへ。
+        // ただし公開ページの認証確認（skipAuthRedirect）では遷移しない。
+        if (!originalRequest.skipAuthRedirect && typeof window !== 'undefined') {
           window.location.href = '/login';
         }
 

@@ -29,6 +29,20 @@ type CompanyApplication struct {
 	UpdatedAt     time.Time
 }
 
+type Course struct {
+	ID              int64
+	CompanyID       int64
+	CreatedByUserID int64
+	Title           string
+	Description     string
+	Category        string
+	Language        string
+	SortOrder       int32
+	IsPublished     bool
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
 type MasterExerciseExample struct {
 	ID             int64
 	ExerciseID     int64

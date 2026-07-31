@@ -96,3 +96,19 @@ CREATE TABLE company_applications (
     created_at     timestamptz NOT NULL,
     updated_at     timestamptz NOT NULL
 );
+
+-- 教材コース。domain.Course の全フィールドが非ポインタで必ず値を持つため NOT NULL とみなす
+-- 列定義は internal/domain/course.go を正とする。
+CREATE TABLE courses (
+    id                 bigint PRIMARY KEY,
+    company_id         bigint NOT NULL,
+    created_by_user_id bigint NOT NULL,
+    title              text NOT NULL DEFAULT '',
+    description        text NOT NULL DEFAULT '',
+    category           text NOT NULL DEFAULT '',
+    language           varchar(50) NOT NULL DEFAULT '',
+    sort_order         integer NOT NULL DEFAULT 100,
+    is_published       boolean NOT NULL DEFAULT false,
+    created_at         timestamptz NOT NULL,
+    updated_at         timestamptz NOT NULL
+);

@@ -80,6 +80,14 @@ async function startServer() {
         res.end('{"status":"ok"}');
         return;
       }
+      // その他の API は 401(未ログイン)を返す。SPA フォールバックで index.html(200)が
+      // 返ると LP の認証確認が「ログイン済み」と誤判定し、プリレンダーが
+      // ダッシュボードへのリダイレクトを撮ってしまうため。
+      if (req.url && req.url.startsWith('/api/')) {
+        res.writeHead(401, { 'content-type': 'application/json' });
+        res.end('{"error":"unauthorized"}');
+        return;
+      }
       const urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
       const filePath = (urlPath !== '/' && files.get(urlPath)) || indexPath;
       const body = await readFile(filePath);

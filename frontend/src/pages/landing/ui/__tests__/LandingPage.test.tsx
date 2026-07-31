@@ -1,10 +1,18 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import LandingPage from '../LandingPage';
 import authReducer from '@/entities/user/model/authSlice';
+import AuthRepository from '@/entities/user/api/authRepository';
+
+// マウント時の認証確認(ログイン済みなら /dashboard へ送る)をモックする。
+// 既定は 401(未ログイン)扱い。
+vi.mock('@/entities/user/api/authRepository', () => ({
+  default: { getCurrentUser: vi.fn().mockRejectedValue(new Error('unauthorized')) },
+}));
+const mockGetCurrentUser = vi.mocked(AuthRepository.getCurrentUser);
 
 function renderLanding(isAuthenticated: boolean) {
   const store = configureStore({
@@ -53,6 +61,23 @@ describe('LandingPage', () => {
   it('ログイン済みなら /dashboard へリダイレクトする', () => {
     renderLanding(true);
     expect(screen.getByText('ダッシュボード')).toBeInTheDocument();
+  });
+
+  it('初回ロードで認証確認が成功したら /dashboard へ自動遷移する(FRESTYLE-225)', async () => {
+    // Cookie でログイン済みのユーザーが直接 / を開いたケース: store は未認証で始まるが、
+    // マウント時の /auth/me 確認が成功したらダッシュボードへ送られる。
+    mockGetCurrentUser.mockResolvedValueOnce({ isAdmin: false, role: 'trainee' });
+    renderLanding(false);
+    expect(await screen.findByText('ダッシュボード')).toBeInTheDocument();
+  });
+
+  it('未ログイン(401)なら LP を表示し続ける', async () => {
+    renderLanding(false);
+    // 認証確認が reject された後も LP のまま
+    expect(
+      await screen.findByRole('heading', { level: 1, name: /新卒ITエンジニア向け研修プラットフォーム/ }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('ダッシュボード')).not.toBeInTheDocument();
   });
 
   it('LP 自身がスクロールコンテナを持つ（body overflow hidden 下でスクロール不能になった回帰: FRESTYLE-223）', () => {

@@ -54,4 +54,9 @@ describe('LandingPage', () => {
     renderLanding(true);
     expect(screen.getByText('ダッシュボード')).toBeInTheDocument();
   });
+
+  it('LP 自身がスクロールコンテナを持つ（body overflow hidden 下でスクロール不能になった回帰: FRESTYLE-223）', () => {
+    const { container } = renderLanding(false);
+    expect(container.querySelector('.overflow-y-auto')).not.toBeNull();
+  });
 });

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -153,18 +154,48 @@ func (h *AdminInvitationHandler) Create(c *gin.Context) {
 
 // @Summary      招待 取り消し
 // @Description  指定 招待 の status を canceled に 更新。 行 は 物理 削除 せず 監査 用 に 残す。
+// @Description  super_admin は 全社、 company_admin は 自社 の 招待 のみ 取消 できる。
 // @Tags         admin
 // @Produce      json
 // @Param        id  path  int  true  "招待 ID"
 // @Success      204  "成功 (本文 なし)"
-// @Failure      400  {object}  errorResponse  "DB 失敗"
+// @Failure      400  {object}  errorResponse  "不正 な ID / DB 失敗"
+// @Failure      401  {object}  errorResponse  "未 認証"
+// @Failure      403  {object}  errorResponse  "管理者 以外"
+// @Failure      404  {object}  errorResponse  "招待 が 存在 し ない (他社 の 招待 を 含む)"
 // @Router       /admin/invitations/{id} [delete]
 // @Security     CookieAuth
 func (h *AdminInvitationHandler) Cancel(c *gin.Context) {
-	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err := h.cancel.Execute(c.Request.Context(), id); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	user := middleware.CurrentUserFromContext(c)
+	if user == nil {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
-	c.Status(http.StatusNoContent)
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_id"})
+		return
+	}
+
+	// CompanyID は SuperAdmin では nil になり得る（usecase 側で role により無視される）。
+	var actorCompanyID uint64
+	if user.CompanyID != nil {
+		actorCompanyID = *user.CompanyID
+	}
+
+	err = h.cancel.Execute(c.Request.Context(), usecase.CancelAdminInvitationInput{
+		ID:             id,
+		ActorRole:      user.Role,
+		ActorCompanyID: actorCompanyID,
+	})
+	switch {
+	case err == nil:
+		c.Status(http.StatusNoContent)
+	case errors.Is(err, usecase.ErrForbidden):
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+	case errors.Is(err, usecase.ErrInvitationNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	}
 }

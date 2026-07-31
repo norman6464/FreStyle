@@ -16,6 +16,8 @@ type AdminInvitationRepository interface {
 	FindPendingByEmail(ctx context.Context, email string) (*domain.AdminInvitation, error)
 	// FindPendingByToken は token 一致 & pending & 未期限切れのみ返す（該当なしは nil, nil）。
 	FindPendingByToken(ctx context.Context, token string) (*domain.AdminInvitation, error)
+	// FindByID は ID 一致の招待を返す（該当なしは nil, nil）。会社スコープの認可判定に使う。
+	FindByID(ctx context.Context, id uint64) (*domain.AdminInvitation, error)
 	Create(ctx context.Context, inv *domain.AdminInvitation) error
 	UpdateStatus(ctx context.Context, id uint64, status string) error
 }

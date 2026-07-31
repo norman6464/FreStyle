@@ -41,6 +41,15 @@ func (r *fakeAdminInvRepo) FindPendingByToken(_ context.Context, _ string) (*dom
 	return nil, nil
 }
 
+func (r *fakeAdminInvRepo) FindByID(_ context.Context, id uint64) (*domain.AdminInvitation, error) {
+	for i := range r.all {
+		if r.all[i].ID == id {
+			return &r.all[i], nil
+		}
+	}
+	return nil, nil
+}
+
 func init() {
 	gin.SetMode(gin.TestMode)
 }

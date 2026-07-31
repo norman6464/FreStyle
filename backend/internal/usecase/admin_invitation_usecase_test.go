@@ -47,6 +47,18 @@ func (s *stubAdminInvRepo) FindPendingByToken(_ context.Context, _ string) (*dom
 	return nil, s.err
 }
 
+func (s *stubAdminInvRepo) FindByID(_ context.Context, id uint64) (*domain.AdminInvitation, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	for i := range s.rows {
+		if s.rows[i].ID == id {
+			return &s.rows[i], nil
+		}
+	}
+	return nil, nil
+}
+
 // stubMailSender は SES SendEmail の代わり。送信内容をフィールドに記録するだけで実際にネットワークアクセスしない。
 type stubMailSender struct {
 	err     error
@@ -175,8 +187,74 @@ func Test_招待作成_送信者nilはメールをスキップ(t *testing.T) {
 
 func Test_招待取消_IDが必須(t *testing.T) {
 	uc := NewCancelAdminInvitationUseCase(&stubAdminInvRepo{})
-	if err := uc.Execute(context.Background(), 0); err == nil {
+	err := uc.Execute(context.Background(), CancelAdminInvitationInput{
+		ID: 0, ActorRole: domain.RoleSuperAdmin,
+	})
+	if err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+// 招待取消は管理者専用。trainee が他人の招待を取り消せてはならない（認可欠落の回帰防止）。
+func Test_招待取消_管理者以外は拒否(t *testing.T) {
+	repo := &stubAdminInvRepo{rows: []domain.AdminInvitation{{ID: 7, CompanyID: 1}}}
+	uc := NewCancelAdminInvitationUseCase(repo)
+
+	err := uc.Execute(context.Background(), CancelAdminInvitationInput{
+		ID: 7, ActorRole: domain.RoleTrainee, ActorCompanyID: 1,
+	})
+	if !errors.Is(err, ErrForbidden) {
+		t.Fatalf("trainee は拒否されるべき: got %v", err)
+	}
+}
+
+// company_admin は自社の招待だけ取り消せる。他社分は存在を漏らさず not found にする。
+func Test_招待取消_会社管理者は自社のみ(t *testing.T) {
+	rows := []domain.AdminInvitation{{ID: 7, CompanyID: 1}, {ID: 8, CompanyID: 2}}
+
+	t.Run("自社は取消できる", func(t *testing.T) {
+		uc := NewCancelAdminInvitationUseCase(&stubAdminInvRepo{rows: rows})
+		err := uc.Execute(context.Background(), CancelAdminInvitationInput{
+			ID: 7, ActorRole: domain.RoleCompanyAdmin, ActorCompanyID: 1,
+		})
+		if err != nil {
+			t.Fatalf("err: %v", err)
+		}
+	})
+
+	t.Run("他社は not found", func(t *testing.T) {
+		uc := NewCancelAdminInvitationUseCase(&stubAdminInvRepo{rows: rows})
+		err := uc.Execute(context.Background(), CancelAdminInvitationInput{
+			ID: 8, ActorRole: domain.RoleCompanyAdmin, ActorCompanyID: 1,
+		})
+		if !errors.Is(err, ErrInvitationNotFound) {
+			t.Fatalf("他社の招待は not found であるべき: got %v", err)
+		}
+	})
+}
+
+// 認可判定は FindByID の結果に依存するため、取得に失敗したら status を更新せずエラーを返す。
+func Test_招待取消_リポジトリエラーは伝播する(t *testing.T) {
+	wantErr := errors.New("db error")
+	uc := NewCancelAdminInvitationUseCase(&stubAdminInvRepo{err: wantErr})
+
+	err := uc.Execute(context.Background(), CancelAdminInvitationInput{
+		ID: 1, ActorRole: domain.RoleSuperAdmin,
+	})
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("リポジトリのエラーは伝播すべき: got %v", err)
+	}
+}
+
+func Test_招待取消_super_adminは全社取消できる(t *testing.T) {
+	repo := &stubAdminInvRepo{rows: []domain.AdminInvitation{{ID: 8, CompanyID: 2}}}
+	uc := NewCancelAdminInvitationUseCase(repo)
+
+	err := uc.Execute(context.Background(), CancelAdminInvitationInput{
+		ID: 8, ActorRole: domain.RoleSuperAdmin,
+	})
+	if err != nil {
+		t.Fatalf("err: %v", err)
 	}
 }
 

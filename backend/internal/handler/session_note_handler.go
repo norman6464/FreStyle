@@ -22,18 +22,28 @@ func NewSessionNoteHandler(g *usecase.GetSessionNoteUseCase, u *usecase.UpsertSe
 //
 //	@Summary      セッション ノート 取得
 //	@Description  AI チャット セッション に 紐づく ノート (= 学習 者 が セッション ごと に 残した メモ) を 取得。 存在 し ない 場合 は 404。
+//	@Description  所有者 本人 の ノート のみ 返す。 他人 の ノート は 存在 を 漏らさ ない ため 404 と する。
 //	@Tags         session-notes
 //	@Produce      json
 //	@Param        sessionId  path      int  true  "AI チャット セッション ID"
 //	@Success      200        {object}  github_com_norman6464_FreStyle_backend_internal_domain.SessionNote
-//	@Failure      400        {object}  errorResponse  "DB 失敗"
+//	@Failure      400        {object}  errorResponse  "不正 な sessionId / DB 失敗"
 //	@Failure      401        {object}  errorResponse  "未 認証"
 //	@Failure      404        {object}  errorResponse  "未 作成"
 //	@Router       /sessions/{sessionId}/note [get]
 //	@Security     CookieAuth
 func (h *SessionNoteHandler) Get(c *gin.Context) {
-	sid, _ := strconv.ParseUint(c.Param("sessionId"), 10, 64)
-	n, err := h.get.Execute(c.Request.Context(), sid)
+	uid := middleware.CurrentUserIDOrZero(c)
+	if uid == 0 {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	sid, err := strconv.ParseUint(c.Param("sessionId"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_session_id"})
+		return
+	}
+	n, err := h.get.Execute(c.Request.Context(), usecase.GetSessionNoteInput{SessionID: sid, UserID: uid})
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

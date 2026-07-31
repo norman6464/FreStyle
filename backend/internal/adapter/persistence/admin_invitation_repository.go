@@ -49,6 +49,21 @@ func (r *adminInvitationRepository) FindPendingByEmail(ctx context.Context, emai
 	return &row, nil
 }
 
+func (r *adminInvitationRepository) FindByID(ctx context.Context, id uint64) (*domain.AdminInvitation, error) {
+	if id == 0 {
+		return nil, nil
+	}
+	var row domain.AdminInvitation
+	err := r.db.WithContext(ctx).Where("id = ?", id).First(&row).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &row, nil
+}
+
 func (r *adminInvitationRepository) FindPendingByToken(ctx context.Context, token string) (*domain.AdminInvitation, error) {
 	if token == "" {
 		return nil, nil

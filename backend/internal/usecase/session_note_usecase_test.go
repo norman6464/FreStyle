@@ -24,11 +24,38 @@ func (s *stubSessionNoteRepo) Upsert(_ context.Context, n *domain.SessionNote) e
 	return nil
 }
 
-func Test_セッションノート取得_セッションIDが必須(t *testing.T) {
+func Test_セッションノート取得_セッションIDとユーザーIDが必須(t *testing.T) {
 	uc := NewGetSessionNoteUseCase(&stubSessionNoteRepo{})
-	if _, err := uc.Execute(context.Background(), 0); err == nil {
-		t.Fatal("expected error")
+
+	if _, err := uc.Execute(context.Background(), GetSessionNoteInput{UserID: 2}); err == nil {
+		t.Fatal("sessionID 未指定はエラーであるべき")
 	}
+	if _, err := uc.Execute(context.Background(), GetSessionNoteInput{SessionID: 1}); err == nil {
+		t.Fatal("userID 未指定はエラーであるべき")
+	}
+}
+
+// sessionID を総当たりしても他人のノートは読めない（IDOR の回帰防止）。
+func Test_セッションノート取得_他人のノートは返さない(t *testing.T) {
+	repo := &stubSessionNoteRepo{n: &domain.SessionNote{SessionID: 1, UserID: 2, Content: "secret"}}
+	uc := NewGetSessionNoteUseCase(repo)
+
+	t.Run("所有者本人は取得できる", func(t *testing.T) {
+		got, err := uc.Execute(context.Background(), GetSessionNoteInput{SessionID: 1, UserID: 2})
+		if err != nil || got == nil || got.Content != "secret" {
+			t.Fatalf("unexpected: %+v err=%v", got, err)
+		}
+	})
+
+	t.Run("別ユーザーには存在しない扱い", func(t *testing.T) {
+		got, err := uc.Execute(context.Background(), GetSessionNoteInput{SessionID: 1, UserID: 999})
+		if err != nil {
+			t.Fatalf("err: %v", err)
+		}
+		if got != nil {
+			t.Fatalf("他人のノートが漏れている: %+v", got)
+		}
+	})
 }
 
 func Test_セッションノート保存_バリデーション(t *testing.T) {

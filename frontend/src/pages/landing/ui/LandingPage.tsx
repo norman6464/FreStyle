@@ -90,8 +90,8 @@ const FAQS: { q: string; a: string }[] = [
  * ログイン済みで来た場合はダッシュボードへ送る（クライアント遷移時のみ。初回ロードは
  * 認証状態未確定なので LP を表示する = プリレンダーも LP になる）。
  *
- * 配色は tailwind.config.js 定義済みの brand / stone のみを使う（テーマ CSS 変数のうち
- * accent 系は未定義で、参照すると透明背景になる事故が起きた — FRESTYLE-223）。
+ * 配色は Tailwind パレット（brand / stone、正解表示のみ既存画面と同じ emerald）を使う。
+ * テーマ CSS 変数のうち accent 系は未定義で、参照すると透明背景になる事故が起きた（FRESTYLE-223）。
  */
 export default function LandingPage() {
   const isAuthenticated = useAppSelector((state) => state.auth.isAuthenticated);

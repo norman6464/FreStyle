@@ -54,4 +54,10 @@ describe('LandingPage', () => {
     renderLanding(true);
     expect(screen.getByText('ダッシュボード')).toBeInTheDocument();
   });
+
+  it('LP 自身がスクロールコンテナを持つ（body overflow hidden 下でスクロール不能になった回帰: FRESTYLE-223）', () => {
+    const { container } = renderLanding(false);
+    // ルート要素そのものがスクロールコンテナであること（子孫のどこかでは不十分）
+    expect(container.firstElementChild).toHaveClass('h-full', 'overflow-y-auto');
+  });
 });

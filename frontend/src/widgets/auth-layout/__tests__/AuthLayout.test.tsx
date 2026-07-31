@@ -30,9 +30,11 @@ describe('AuthLayout', () => {
 
   it('中央寄せレイアウトが適用される', () => {
     const { container } = render(<AuthLayout><div>テスト</div></AuthLayout>);
-    // 外枠は min-h-screen の縦並び、内側に中央寄せの領域を持つ(header スロット追加に伴う構造)。
+    // 外枠は自身がスクロールコンテナ(body overflow hidden 対策: FRESTYLE-223)、
+    // 直下の内側要素は min-h-full の縦並びで、短いコンテンツは中央寄せされる。
     const root = container.firstElementChild as HTMLElement;
-    expect(root.className).toContain('min-h-screen');
+    expect(root).toHaveClass('h-full', 'overflow-y-auto');
+    expect(root.firstElementChild).toHaveClass('min-h-full', 'flex', 'flex-col');
     const centered = container.querySelector('.items-center.justify-center') as HTMLElement;
     expect(centered).not.toBeNull();
   });

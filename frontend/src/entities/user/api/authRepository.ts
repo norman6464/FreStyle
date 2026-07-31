@@ -52,9 +52,14 @@ export interface UserInfo {
 class AuthRepository {
   /**
    * ログイン
+   *
+   * 401(認証情報が違う)は正常な応答なので、共通インターセプターの
+   * 「401 → トークンリフレッシュ → 失敗ならログイン画面へ強制遷移」を無効にする。
+   * これがないと画面が再読み込みされ、呼び出し側のエラーメッセージが表示されない。
    */
   async login(request: LoginRequest): Promise<UserInfo> {
-    const response = await apiClient.post(AUTH.login, request);
+    const config: PublicSafeRequestConfig = { skipAuthRedirect: true };
+    const response = await apiClient.post(AUTH.login, request, config);
     return response.data;
   }
 
@@ -68,7 +73,9 @@ class AuthRepository {
   async callback(code: string, invitationToken?: string | null): Promise<{ success: string }> {
     const body: { code: string; invitationToken?: string } = { code };
     if (invitationToken) body.invitationToken = invitationToken;
-    const response = await apiClient.post(AUTH.callback, body);
+    // 認可コードの交換失敗(401)も正常な応答として呼び出し側で扱う(login と同じ理由)。
+    const config: PublicSafeRequestConfig = { skipAuthRedirect: true };
+    const response = await apiClient.post(AUTH.callback, body, config);
     return response.data;
   }
 

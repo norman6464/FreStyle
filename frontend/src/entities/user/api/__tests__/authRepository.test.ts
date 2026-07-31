@@ -17,7 +17,12 @@ describe('AuthRepository', () => {
 
     const result = await authRepository.login({ email: 'test@example.com', password: 'password123' });
 
-    expect(mockedApiClient.post).toHaveBeenCalledWith('/api/v2/auth/cognito/login', { email: 'test@example.com', password: 'password123' });
+    // 401(認証情報の誤り)でログイン画面へ強制遷移させないため skipAuthRedirect を付ける
+    expect(mockedApiClient.post).toHaveBeenCalledWith(
+      '/api/v2/auth/cognito/login',
+      { email: 'test@example.com', password: 'password123' },
+      { skipAuthRedirect: true },
+    );
     expect(result).toEqual(mockUser);
   });
 
@@ -27,7 +32,11 @@ describe('AuthRepository', () => {
 
     const result = await authRepository.callback('auth-code-123');
 
-    expect(mockedApiClient.post).toHaveBeenCalledWith('/api/v2/auth/login', { code: 'auth-code-123' });
+    expect(mockedApiClient.post).toHaveBeenCalledWith(
+      '/api/v2/auth/login',
+      { code: 'auth-code-123' },
+      { skipAuthRedirect: true },
+    );
     expect(result).toEqual(mockData);
   });
 

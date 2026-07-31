@@ -19,7 +19,7 @@ type Client struct {
 }
 
 // NewClient は ECS Task Role / 環境変数の認証情報チェーンで SES クライアントを組み立てる。
-// fromAddress は SES で検証済の送信元（例: "FreStyle <noreply@normanblog.com>"）を渡す。
+// fromAddress は SES で検証済の送信元（例: "FreStyle <noreply@frestyle.jp>"）を渡す。
 func NewClient(ctx context.Context, region, fromAddress string) (*Client, error) {
 	cfg, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(region))
 	if err != nil {

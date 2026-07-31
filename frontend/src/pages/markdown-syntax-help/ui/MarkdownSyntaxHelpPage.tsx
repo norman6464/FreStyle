@@ -86,11 +86,11 @@ export default function MarkdownSyntaxHelpPage() {
 
       <Section title="リンク / 画像">
         <Row
-          code={`[FreStyle](https://normanblog.com)\n\n![代替テキスト](https://placehold.jp/120x40.png)`}
+          code={`[FreStyle](https://frestyle.jp)\n\n![代替テキスト](https://placehold.jp/120x40.png)`}
         >
           <p className="m-0">
             <a
-              href="https://normanblog.com"
+              href="https://frestyle.jp"
               target="_blank"
               rel="noopener noreferrer"
               className="text-brand-400 underline-offset-2 hover:underline"
@@ -162,15 +162,15 @@ export default function MarkdownSyntaxHelpPage() {
       </Section>
 
       <Section title="自動リンク (GFM)">
-        <Row code={`https://normanblog.com を直接書くだけでリンクになります`}>
+        <Row code={`https://frestyle.jp を直接書くだけでリンクになります`}>
           <p className="m-0 text-[var(--color-text-primary)]">
             <a
-              href="https://normanblog.com"
+              href="https://frestyle.jp"
               target="_blank"
               rel="noopener noreferrer"
               className="text-brand-400 underline-offset-2 hover:underline"
             >
-              https://normanblog.com
+              https://frestyle.jp
             </a>
             を直接書くだけでリンクになります
           </p>

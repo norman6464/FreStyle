@@ -12,7 +12,7 @@ import { test, expect } from '@playwright/test';
  * 依存するため、別 spec で `storageState` 経由の事前認証パターンを使う想定。
  */
 
-const API_BASE = 'https://api.normanblog.com';
+const API_BASE = 'https://api.frestyle.jp';
 
 test.describe('FreStyle smoke', () => {
   test('SPA がロードされ FreStyle ブランドが見える', async ({ page }) => {

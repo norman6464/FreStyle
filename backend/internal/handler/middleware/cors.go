@@ -7,11 +7,14 @@ import (
 )
 
 // allowedOrigins は CORS で許可するオリジン。
+// frestyle.jp はブランドドメイン移行後の本番(FRESTYLE-225)。normanblog.com は
+// 301 リダイレクトの安定稼働を確認するまで残す(整理は別チケット)。
 var allowedOrigins = map[string]struct{}{
-	"https://normanblog.com":                                          {},
-	"http://normanblog.com":                                           {},
-	"http://localhost:5173":                                           {},
-	"https://dcd3m6lwt0z8u.cloudfront.net":                            {},
+	"https://frestyle.jp":                  {},
+	"https://normanblog.com":               {},
+	"http://normanblog.com":                {},
+	"http://localhost:5173":                {},
+	"https://dcd3m6lwt0z8u.cloudfront.net": {},
 	"http://fre-style-bucket.s3-website-ap-northeast-1.amazonaws.com": {},
 }
 

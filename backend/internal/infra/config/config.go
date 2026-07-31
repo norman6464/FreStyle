@@ -22,7 +22,7 @@ type Config struct {
 	DBSSLMode  string
 
 	// AppBaseURL は招待マジックリンクの組み立てに使う、フロントエンドの絶対 URL。
-	// 例: https://normanblog.com (末尾スラッシュ無し / 有り どちらも可)
+	// 例: https://frestyle.jp (末尾スラッシュ無し / 有り どちらも可)
 	AppBaseURL string
 
 	// CodeRunnerURL はコード実行サイドカー（cmd/coderunner）の baseURL。
@@ -57,7 +57,7 @@ type DynamoDBConfig struct {
 }
 
 // SESConfig は招待マジックリンクメール送信用の SES v2 設定。
-// FromAddress は SES で検証済の送信元（例: "FreStyle <noreply@normanblog.com>"）。
+// FromAddress は SES で検証済の送信元（例: "FreStyle <noreply@frestyle.jp>"）。
 // 未設定（空文字）のときは送信スキップ → token をログに残してフォールバック。
 type SESConfig struct {
 	Region      string

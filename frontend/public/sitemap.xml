@@ -2,11 +2,11 @@
 <!-- 公開ページのみ掲載する（認証必須ページは載せない） -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://normanblog.com/</loc>
+    <loc>https://frestyle.jp/</loc>
     <lastmod>2026-07-25</lastmod>
   </url>
   <url>
-    <loc>https://normanblog.com/company-application</loc>
+    <loc>https://frestyle.jp/company-application</loc>
     <lastmod>2026-07-25</lastmod>
   </url>
 </urlset>

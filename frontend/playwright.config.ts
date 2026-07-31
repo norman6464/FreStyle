@@ -3,7 +3,7 @@ import { defineConfig, devices } from '@playwright/test';
 /**
  * Playwright E2E config
  *
- * - 既定 baseURL は production (https://normanblog.com)。
+ * - 既定 baseURL は production (https://frestyle.jp)。
  *   ローカルや Preview 環境を狙うときは PLAYWRIGHT_BASE_URL を上書きする。
  * - CI では retries=2 + workers=2、ローカルは retries=0 で速く回す。
  * - 失敗時は trace + screenshot + video を artifact として残す。
@@ -27,7 +27,7 @@ export default defineConfig({
   timeout: 30_000,
   expect: { timeout: 10_000 },
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'https://normanblog.com',
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'https://frestyle.jp',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',

@@ -20,7 +20,7 @@ const (
 	maxBodyBytes       = 512 * 1024 // OGP 抽出に必要なのは <head> の一部のみ
 	cacheTTL           = 30 * time.Minute
 	cacheMaxEntries    = 256
-	userAgent          = "FreStyle/1.0 (+https://normanblog.com)"
+	userAgent          = "FreStyle/1.0 (+https://frestyle.jp)"
 )
 
 // Card はフロントエンドに返す統一カード DTO。

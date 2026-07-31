@@ -4,10 +4,10 @@
 // @version         2.0
 // @description     新卒 IT エンジニア 向け 統合 研修 プラットフォーム の REST API。
 // @description     Clean Architecture (port = usecase/repository / adapter = adapter/persistence) で 構築。
-// @termsOfService  https://normanblog.com/terms
+// @termsOfService  https://frestyle.jp/terms
 //
 // @contact.name    FreStyle Engineering
-// @contact.url     https://normanblog.com
+// @contact.url     https://frestyle.jp
 //
 // @BasePath        /api/v2
 //

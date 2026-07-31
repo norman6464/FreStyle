@@ -9,10 +9,10 @@ const docTemplate = `{
     "info": {
         "description": "{{escape .Description}}",
         "title": "{{.Title}}",
-        "termsOfService": "https://normanblog.com/terms",
+        "termsOfService": "https://frestyle.jp/terms",
         "contact": {
             "name": "FreStyle Engineering",
-            "url": "https://normanblog.com"
+            "url": "https://frestyle.jp"
         },
         "version": "{{.Version}}"
     },

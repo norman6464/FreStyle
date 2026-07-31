@@ -7,6 +7,7 @@ func Test_許可オリジン判定(t *testing.T) {
 		origin string
 		want   bool
 	}{
+		{"https://frestyle.jp", true},
 		{"https://normanblog.com", true},
 		{"http://localhost:5173", true},
 		{"https://evil.example.com", false},

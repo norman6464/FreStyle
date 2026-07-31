@@ -3,10 +3,10 @@
     "info": {
         "description": "新卒 IT エンジニア 向け 統合 研修 プラットフォーム の REST API。\nClean Architecture (port = usecase/repository / adapter = adapter/persistence) で 構築。",
         "title": "FreStyle Backend API",
-        "termsOfService": "https://normanblog.com/terms",
+        "termsOfService": "https://frestyle.jp/terms",
         "contact": {
             "name": "FreStyle Engineering",
-            "url": "https://normanblog.com"
+            "url": "https://frestyle.jp"
         },
         "version": "2.0"
     },

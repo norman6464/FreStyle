@@ -13,7 +13,7 @@
         - img-src 'self' data: https: blob:               : avatar / CDN 経由画像 / data URL /
                                                            URL.createObjectURL() プレビュー（添付チップ）
         - font-src 'self' data:                         : ローカルフォント + base64 埋め込み
-        - connect-src 'self' https://api.normanblog.com https://*.amazoncognito.com wss://api.normanblog.com
+        - connect-src 'self' https://api.frestyle.jp https://api.normanblog.com https://*.amazoncognito.com wss://api.frestyle.jp wss://api.normanblog.com
                        https://*.s3.amazonaws.com https://*.s3.ap-northeast-1.amazonaws.com
                                                          : API / WebSocket / Cognito callback /
                                                            プロフィール / Note 画像の S3 presigned PUT
@@ -29,7 +29,7 @@
       `report-uri` / `report-to` / `sandbox` も同様 meta では無視されるので、配信が必要な場合は
       CloudFront 側に追加する。
     -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self' data:; connect-src 'self' https://api.normanblog.com https://*.amazoncognito.com wss://api.normanblog.com https://*.s3.amazonaws.com https://*.s3.ap-northeast-1.amazonaws.com; form-action 'self' https://*.amazoncognito.com; base-uri 'self'; object-src 'none'; upgrade-insecure-requests" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self' data:; connect-src 'self' https://api.frestyle.jp https://api.normanblog.com https://*.amazoncognito.com wss://api.frestyle.jp wss://api.normanblog.com https://*.s3.amazonaws.com https://*.s3.ap-northeast-1.amazonaws.com; form-action 'self' https://*.amazoncognito.com; base-uri 'self'; object-src 'none'; upgrade-insecure-requests" />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
 
     <!--
@@ -46,7 +46,7 @@
       name="description"
       content="FreStyle は新卒ITエンジニアの研修を一つにまとめた企業向け学習プラットフォームです。教材・コーディング演習・AI 学習支援・学習レポートで、新人エンジニアが即戦力になるまでを支援します。"
     />
-    <link rel="canonical" href="https://normanblog.com/" />
+    <link rel="canonical" href="https://frestyle.jp/" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="FreStyle" />
     <meta property="og:title" content="FreStyle | 新卒ITエンジニア向け研修プラットフォーム" />
@@ -54,8 +54,8 @@
       property="og:description"
       content="新卒ITエンジニアの研修を一つにまとめた企業向け学習プラットフォーム。教材・コーディング演習・AI 学習支援・学習レポートを提供します。"
     />
-    <meta property="og:url" content="https://normanblog.com/" />
-    <meta property="og:image" content="https://normanblog.com/ogp.png" />
+    <meta property="og:url" content="https://frestyle.jp/" />
+    <meta property="og:image" content="https://frestyle.jp/ogp.png" />
     <meta property="og:locale" content="ja_JP" />
     <meta name="twitter:card" content="summary" />
     <script type="application/ld+json">
@@ -64,19 +64,19 @@
         "@graph": [
           {
             "@type": "Organization",
-            "@id": "https://normanblog.com/#organization",
+            "@id": "https://frestyle.jp/#organization",
             "name": "FreStyle",
-            "url": "https://normanblog.com/",
-            "logo": "https://normanblog.com/ogp.png"
+            "url": "https://frestyle.jp/",
+            "logo": "https://frestyle.jp/ogp.png"
           },
           {
             "@type": "WebSite",
-            "@id": "https://normanblog.com/#website",
-            "url": "https://normanblog.com/",
+            "@id": "https://frestyle.jp/#website",
+            "url": "https://frestyle.jp/",
             "name": "FreStyle",
             "description": "新卒ITエンジニア向け研修プラットフォーム。教材・コーディング演習・AI 学習支援・学習レポートを提供する企業向け学習サービス。",
             "inLanguage": "ja",
-            "publisher": { "@id": "https://normanblog.com/#organization" }
+            "publisher": { "@id": "https://frestyle.jp/#organization" }
           }
         ]
       }

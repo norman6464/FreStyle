@@ -15,7 +15,7 @@ import PublicHeader from '@/shared/ui/PublicHeader';
 import { useAppSelector } from '@/shared/lib/store';
 import { useDocumentMeta } from '@/shared/lib/hooks/useDocumentMeta';
 
-const SITE_URL = 'https://normanblog.com/';
+const SITE_URL = 'https://frestyle.jp/';
 
 const LANGUAGES = ['PHP', 'Java', 'JavaScript', 'TypeScript', 'Go', 'Ruby', 'C', 'C++', 'SQL'];
 

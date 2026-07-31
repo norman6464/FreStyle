@@ -12,8 +12,9 @@ import {
   UserGroupIcon,
 } from '@heroicons/react/24/outline';
 import PublicHeader from '@/shared/ui/PublicHeader';
-import { useAppSelector } from '@/shared/lib/store';
+import { useAppSelector, useAppDispatch } from '@/shared/lib/store';
 import { useDocumentMeta } from '@/shared/lib/hooks/useDocumentMeta';
+import { AuthRepository, setAuthData } from '@/entities/user';
 
 const SITE_URL = 'https://frestyle.jp/';
 
@@ -95,6 +96,35 @@ const FAQS: { q: string; a: string }[] = [
  */
 export default function LandingPage() {
   const isAuthenticated = useAppSelector((state) => state.auth.isAuthenticated);
+  const dispatch = useAppDispatch();
+
+  // ログイン済みユーザーが直接 / を開いたときダッシュボードへ送るため、マウント時に
+  // 一度だけ認証状態を確認する(Cookie は HttpOnly のため API に聞くしかない)。
+  // 確認中・未ログイン(401)は LP をそのまま表示する(スピナーで隠すと SEO と初訪 UX を損なう)。
+  // プリレンダー時はローカルサーバが /auth/me に 401 を返すので必ず LP が撮れる。
+  useEffect(() => {
+    if (isAuthenticated) return;
+    let cancelled = false;
+    AuthRepository.getCurrentUser()
+      .then((me) => {
+        if (cancelled) return;
+        dispatch(
+          setAuthData({
+            isAdmin: !!me.isAdmin,
+            role: me.role ?? null,
+            aiChatEnabledForTrainees: me.aiChatEnabledForTrainees ?? true,
+          }),
+        );
+      })
+      .catch(() => {
+        // 未ログイン: LP のまま
+      });
+    return () => {
+      cancelled = true;
+    };
+    // マウント時に一度だけ確認する(isAuthenticated が true になったら <Navigate> が発火する)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useDocumentMeta({
     title: 'FreStyle | 新卒ITエンジニア向け研修プラットフォーム',

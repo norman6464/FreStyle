@@ -39,6 +39,8 @@ env:
   AWS_REGION: ap-northeast-1
   CLUSTER: frestyle-prod
   SERVICE: frestyle-prod-svc
+  # ファミリー名のみ指定して最新 ACTIVE リビジョンを採用する(下の deploy ステップ参照)
+  TASK_FAMILY: frestyle-prod-task
   AWS_ROLE_ARN: arn:aws:iam::010928196665:role/frestyle-prod-github-actions-role
 
 # OIDC(id-token: write) は AWS 認証を行うジョブ(build-and-push / deploy)だけに
@@ -167,14 +169,21 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       # タスク定義は infra リポの Terraform(ecs.tf)が :latest / :coderunner-latest を参照して
-      # 管理する。build-and-push が新イメージを push 済みなので、force-new-deployment の
-      # ローリング再起動だけで新イメージが pull される(タスク定義の再登録は不要)。
-      - name: Force new deployment (rolling restart)
+      # 管理する。build-and-push が新イメージを push 済みなので、ローリング再起動で新イメージが
+      # pull される(タスク定義の再登録は不要)。
+      #
+      # --task-definition にファミリー名だけを渡し、**最新の ACTIVE リビジョン**を必ず採用する。
+      # ECS サービスは Terraform 側で lifecycle.ignore_changes = [task_definition] のため、
+      # ecs.tf の環境変数を変えて apply しても新リビジョンが作られるだけでサービスは古い
+      # リビジョンのまま動き続ける。force-new-deployment だけだとその古い設定を再起動して
+      # しまい、環境変数の変更が永久に本番へ反映されない(FRESTYLE-226 でログイン不能の原因)。
+      - name: Deploy latest task definition (rolling restart)
         run: |
           aws ecs update-service --region "$AWS_REGION" \
             --cluster "$CLUSTER" --service "$SERVICE" \
+            --task-definition "$TASK_FAMILY" \
             --force-new-deployment \
-            --query 'service.deployments[0].status' --output text
+            --query 'service.taskDefinition' --output text
 
       - name: Wait for service to stabilize
         run: |

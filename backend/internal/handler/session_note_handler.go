@@ -22,11 +22,12 @@ func NewSessionNoteHandler(g *usecase.GetSessionNoteUseCase, u *usecase.UpsertSe
 //
 //	@Summary      セッション ノート 取得
 //	@Description  AI チャット セッション に 紐づく ノート (= 学習 者 が セッション ごと に 残した メモ) を 取得。 存在 し ない 場合 は 404。
+//	@Description  所有者 本人 の ノート のみ 返す。 他人 の ノート は 存在 を 漏らさ ない ため 404 と する。
 //	@Tags         session-notes
 //	@Produce      json
 //	@Param        sessionId  path      int  true  "AI チャット セッション ID"
 //	@Success      200        {object}  github_com_norman6464_FreStyle_backend_internal_domain.SessionNote
-//	@Failure      400        {object}  errorResponse  "DB 失敗"
+//	@Failure      400        {object}  errorResponse  "不正 な sessionId / DB 失敗"
 //	@Failure      401        {object}  errorResponse  "未 認証"
 //	@Failure      404        {object}  errorResponse  "未 作成"
 //	@Router       /sessions/{sessionId}/note [get]

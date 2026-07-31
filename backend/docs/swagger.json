@@ -449,7 +449,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "指定 招待 の status を canceled に 更新。 行 は 物理 削除 せず 監査 用 に 残す。",
+                "description": "指定 招待 の status を canceled に 更新。 行 は 物理 削除 せず 監査 用 に 残す。\nsuper_admin は 全社、 company_admin は 自社 の 招待 のみ 取消 できる。",
                 "produces": [
                     "application/json"
                 ],
@@ -471,7 +471,25 @@
                         "description": "成功 (本文 なし)"
                     },
                     "400": {
-                        "description": "DB 失敗",
+                        "description": "不正 な ID / DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "管理者 以外",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "招待 が 存在 し ない (他社 の 招待 を 含む)",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -3467,7 +3485,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "AI チャット セッション に 紐づく ノート (= 学習 者 が セッション ごと に 残した メモ) を 取得。 存在 し ない 場合 は 404。",
+                "description": "AI チャット セッション に 紐づく ノート (= 学習 者 が セッション ごと に 残した メモ) を 取得。 存在 し ない 場合 は 404。\n所有者 本人 の ノート のみ 返す。 他人 の ノート は 存在 を 漏らさ ない ため 404 と する。",
                 "produces": [
                     "application/json"
                 ],
@@ -3492,7 +3510,7 @@
                         }
                     },
                     "400": {
-                        "description": "DB 失敗",
+                        "description": "不正 な sessionId / DB 失敗",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }

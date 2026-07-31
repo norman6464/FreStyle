@@ -156,7 +156,7 @@ func (u *CancelAdminInvitationUseCase) Execute(ctx context.Context, in CancelAdm
 
 	inv, err := u.repo.FindByID(ctx, in.ID)
 	if err != nil {
-		return err
+		return fmt.Errorf("find invitation: %w", err)
 	}
 	if inv == nil {
 		return ErrInvitationNotFound

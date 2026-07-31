@@ -233,6 +233,19 @@ func Test_招待取消_会社管理者は自社のみ(t *testing.T) {
 	})
 }
 
+// 認可判定は FindByID の結果に依存するため、取得に失敗したら status を更新せずエラーを返す。
+func Test_招待取消_リポジトリエラーは伝播する(t *testing.T) {
+	wantErr := errors.New("db error")
+	uc := NewCancelAdminInvitationUseCase(&stubAdminInvRepo{err: wantErr})
+
+	err := uc.Execute(context.Background(), CancelAdminInvitationInput{
+		ID: 1, ActorRole: domain.RoleSuperAdmin,
+	})
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("リポジトリのエラーは伝播すべき: got %v", err)
+	}
+}
+
 func Test_招待取消_super_adminは全社取消できる(t *testing.T) {
 	repo := &stubAdminInvRepo{rows: []domain.AdminInvitation{{ID: 8, CompanyID: 2}}}
 	uc := NewCancelAdminInvitationUseCase(repo)

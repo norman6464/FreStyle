@@ -154,11 +154,15 @@ func (h *AdminInvitationHandler) Create(c *gin.Context) {
 
 // @Summary      招待 取り消し
 // @Description  指定 招待 の status を canceled に 更新。 行 は 物理 削除 せず 監査 用 に 残す。
+// @Description  super_admin は 全社、 company_admin は 自社 の 招待 のみ 取消 できる。
 // @Tags         admin
 // @Produce      json
 // @Param        id  path  int  true  "招待 ID"
 // @Success      204  "成功 (本文 なし)"
-// @Failure      400  {object}  errorResponse  "DB 失敗"
+// @Failure      400  {object}  errorResponse  "不正 な ID / DB 失敗"
+// @Failure      401  {object}  errorResponse  "未 認証"
+// @Failure      403  {object}  errorResponse  "管理者 以外"
+// @Failure      404  {object}  errorResponse  "招待 が 存在 し ない (他社 の 招待 を 含む)"
 // @Router       /admin/invitations/{id} [delete]
 // @Security     CookieAuth
 func (h *AdminInvitationHandler) Cancel(c *gin.Context) {

@@ -55,12 +55,14 @@ jobs:
         working-directory: ./frontend
 
     env:
-      VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+      # 公開 URL(公開 JS に焼き込まれる値)は Secret にする必要がないため直接記載する。
+      # frestyle.jp 移行(FRESTYLE-225)で Secrets 更新に依存しない構成に変更。
+      VITE_API_BASE_URL: https://api.frestyle.jp
+      VITE_REDIRECT_URI: https://frestyle.jp/login/callback
       VITE_WEB_SOCKET_URL_AI_CHAT: ${{ secrets.VITE_WEB_SOCKET_URL_AI_CHAT }}
       VITE_WEB_SOCKET_URL_CHAT: ${{ secrets.VITE_WEB_SOCKET_URL_CHAT }}
       VITE_COGNITO_DOMAIN: ${{ secrets.VITE_COGNITO_DOMAIN }}
       VITE_CLIENT_ID: ${{ secrets.VITE_CLIENT_ID }}
-      VITE_REDIRECT_URI: ${{ secrets.VITE_REDIRECT_URI }}
       VITE_RESPONSE_TYPE: ${{ secrets.VITE_RESPONSE_TYPE }}
       VITE_SCOPE: ${{ secrets.VITE_SCOPE }}
 

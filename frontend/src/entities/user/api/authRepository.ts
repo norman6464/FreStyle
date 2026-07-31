@@ -1,4 +1,4 @@
-import apiClient from '@/shared/api/axios';
+import apiClient, { type PublicSafeRequestConfig } from '@/shared/api/axios';
 import { AUTH } from '@/shared/config/apiRoutes';
 
 /**
@@ -100,6 +100,19 @@ class AuthRepository {
    */
   async getCurrentUser(): Promise<UserInfo> {
     const response = await apiClient.get(AUTH.me);
+    return response.data;
+  }
+
+  /**
+   * 公開ページ用の認証確認。
+   *
+   * getCurrentUser との違いは「未ログインでも /login へ飛ばさない」ことだけ。
+   * 公開ページでは 401 が正常な答えなので、訪問者や検索エンジンのクローラを
+   * ログイン画面へ追い出さないためにこちらを使う（FRESTYLE-225）。
+   */
+  async probeCurrentUser(): Promise<UserInfo> {
+    const config: PublicSafeRequestConfig = { skipAuthRedirect: true };
+    const response = await apiClient.get(AUTH.me, config);
     return response.data;
   }
 

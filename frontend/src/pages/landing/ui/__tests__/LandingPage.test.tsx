@@ -8,11 +8,11 @@ import authReducer from '@/entities/user/model/authSlice';
 import AuthRepository from '@/entities/user/api/authRepository';
 
 // マウント時の認証確認(ログイン済みなら /dashboard へ送る)をモックする。
-// 既定は 401(未ログイン)扱い。
+// 既定は 401(未ログイン)扱い。公開ページなので probeCurrentUser を使う(FRESTYLE-225)。
 vi.mock('@/entities/user/api/authRepository', () => ({
-  default: { getCurrentUser: vi.fn().mockRejectedValue(new Error('unauthorized')) },
+  default: { probeCurrentUser: vi.fn().mockRejectedValue(new Error('unauthorized')) },
 }));
-const mockGetCurrentUser = vi.mocked(AuthRepository.getCurrentUser);
+const mockGetCurrentUser = vi.mocked(AuthRepository.probeCurrentUser);
 
 function renderLanding(isAuthenticated: boolean) {
   const store = configureStore({

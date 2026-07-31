@@ -105,7 +105,7 @@ export default function LandingPage() {
   useEffect(() => {
     if (isAuthenticated) return;
     let cancelled = false;
-    AuthRepository.getCurrentUser()
+    AuthRepository.probeCurrentUser()
       .then((me) => {
         if (cancelled) return;
         dispatch(

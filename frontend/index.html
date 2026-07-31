@@ -13,7 +13,7 @@
         - img-src 'self' data: https: blob:               : avatar / CDN 経由画像 / data URL /
                                                            URL.createObjectURL() プレビュー（添付チップ）
         - font-src 'self' data:                         : ローカルフォント + base64 埋め込み
-        - connect-src 'self' https://api.frestyle.jp https://api.normanblog.com https://*.amazoncognito.com wss://api.frestyle.jp wss://api.normanblog.com
+        - connect-src 'self' https://api.frestyle.jp https://*.amazoncognito.com wss://api.frestyle.jp
                        https://*.s3.amazonaws.com https://*.s3.ap-northeast-1.amazonaws.com
                                                          : API / WebSocket / Cognito callback /
                                                            プロフィール / Note 画像の S3 presigned PUT
@@ -29,7 +29,7 @@
       `report-uri` / `report-to` / `sandbox` も同様 meta では無視されるので、配信が必要な場合は
       CloudFront 側に追加する。
     -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self' data:; connect-src 'self' https://api.frestyle.jp https://api.normanblog.com https://*.amazoncognito.com wss://api.frestyle.jp wss://api.normanblog.com https://*.s3.amazonaws.com https://*.s3.ap-northeast-1.amazonaws.com; form-action 'self' https://*.amazoncognito.com; base-uri 'self'; object-src 'none'; upgrade-insecure-requests" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self' data:; connect-src 'self' https://api.frestyle.jp https://*.amazoncognito.com wss://api.frestyle.jp https://*.s3.amazonaws.com https://*.s3.ap-northeast-1.amazonaws.com; form-action 'self' https://*.amazoncognito.com; base-uri 'self'; object-src 'none'; upgrade-insecure-requests" />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
 
     <!--

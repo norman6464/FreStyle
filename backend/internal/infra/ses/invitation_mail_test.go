@@ -6,7 +6,7 @@ import (
 )
 
 func Test_招待メール構築_マジックリンクと表示名を含む(t *testing.T) {
-	link := "https://normanblog.com/invitations/accept?token=abc-123"
+	link := "https://frestyle.jp/invitations/accept?token=abc-123"
 	subject, htmlBody, textBody := BuildInvitationMail(link, "山田太郎", "株式会社FreStyle", "company_admin")
 
 	if subject == "" {
@@ -75,8 +75,8 @@ func Test_招待メール構築_生のroleを露出しない(t *testing.T) {
 }
 
 func Test_マジックリンクURL_末尾スラッシュを除去(t *testing.T) {
-	got := MagicLinkURL("https://normanblog.com/", "abc")
-	want := "https://normanblog.com/invitations/accept?token=abc"
+	got := MagicLinkURL("https://frestyle.jp/", "abc")
+	want := "https://frestyle.jp/invitations/accept?token=abc"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}

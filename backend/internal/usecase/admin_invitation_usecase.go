@@ -133,9 +133,37 @@ func NewCancelAdminInvitationUseCase(r repository.AdminInvitationRepository) *Ca
 	return &CancelAdminInvitationUseCase{repo: r}
 }
 
-func (u *CancelAdminInvitationUseCase) Execute(ctx context.Context, id uint64) error {
-	if id == 0 {
+// CancelAdminInvitationInput は取消対象と、取消を要求している管理者を表す。
+type CancelAdminInvitationInput struct {
+	ID             uint64
+	ActorRole      string
+	ActorCompanyID uint64
+}
+
+// ErrInvitationNotFound は対象の招待が存在しない場合に返す。
+var ErrInvitationNotFound = errors.New("invitation not found")
+
+// Execute は招待を canceled にする。
+// super_admin は全社、company_admin は自社の招待のみ取消できる（それ以外は ErrForbidden）。
+// 他社の招待は存在を漏らさないため ErrInvitationNotFound として扱う。
+func (u *CancelAdminInvitationUseCase) Execute(ctx context.Context, in CancelAdminInvitationInput) error {
+	if in.ID == 0 {
 		return errors.New("id is required")
 	}
-	return u.repo.UpdateStatus(ctx, id, domain.InvitationStatusCanceled)
+	if in.ActorRole != domain.RoleSuperAdmin && in.ActorRole != domain.RoleCompanyAdmin {
+		return ErrForbidden
+	}
+
+	inv, err := u.repo.FindByID(ctx, in.ID)
+	if err != nil {
+		return err
+	}
+	if inv == nil {
+		return ErrInvitationNotFound
+	}
+	if in.ActorRole == domain.RoleCompanyAdmin && inv.CompanyID != in.ActorCompanyID {
+		return ErrInvitationNotFound
+	}
+
+	return u.repo.UpdateStatus(ctx, in.ID, domain.InvitationStatusCanceled)
 }

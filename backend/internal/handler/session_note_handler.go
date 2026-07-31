@@ -32,8 +32,17 @@ func NewSessionNoteHandler(g *usecase.GetSessionNoteUseCase, u *usecase.UpsertSe
 //	@Router       /sessions/{sessionId}/note [get]
 //	@Security     CookieAuth
 func (h *SessionNoteHandler) Get(c *gin.Context) {
-	sid, _ := strconv.ParseUint(c.Param("sessionId"), 10, 64)
-	n, err := h.get.Execute(c.Request.Context(), sid)
+	uid := middleware.CurrentUserIDOrZero(c)
+	if uid == 0 {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	sid, err := strconv.ParseUint(c.Param("sessionId"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_session_id"})
+		return
+	}
+	n, err := h.get.Execute(c.Request.Context(), usecase.GetSessionNoteInput{SessionID: sid, UserID: uid})
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

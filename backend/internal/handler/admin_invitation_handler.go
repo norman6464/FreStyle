@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -161,10 +162,36 @@ func (h *AdminInvitationHandler) Create(c *gin.Context) {
 // @Router       /admin/invitations/{id} [delete]
 // @Security     CookieAuth
 func (h *AdminInvitationHandler) Cancel(c *gin.Context) {
-	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err := h.cancel.Execute(c.Request.Context(), id); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	user := middleware.CurrentUserFromContext(c)
+	if user == nil {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
-	c.Status(http.StatusNoContent)
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_id"})
+		return
+	}
+
+	// CompanyID は SuperAdmin では nil になり得る（usecase 側で role により無視される）。
+	var actorCompanyID uint64
+	if user.CompanyID != nil {
+		actorCompanyID = *user.CompanyID
+	}
+
+	err = h.cancel.Execute(c.Request.Context(), usecase.CancelAdminInvitationInput{
+		ID:             id,
+		ActorRole:      user.Role,
+		ActorCompanyID: actorCompanyID,
+	})
+	switch {
+	case err == nil:
+		c.Status(http.StatusNoContent)
+	case errors.Is(err, usecase.ErrForbidden):
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+	case errors.Is(err, usecase.ErrInvitationNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	}
 }

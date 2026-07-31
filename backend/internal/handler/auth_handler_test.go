@@ -108,6 +108,10 @@ func (r *fakeInvitationRepo) FindPendingByToken(_ context.Context, token string)
 	return nil, nil
 }
 
+func (r *fakeInvitationRepo) FindByID(_ context.Context, _ uint64) (*domain.AdminInvitation, error) {
+	return nil, nil
+}
+
 func (r *fakeInvitationRepo) Create(_ context.Context, _ *domain.AdminInvitation) error { return nil }
 
 func (r *fakeInvitationRepo) UpdateStatus(_ context.Context, id uint64, status string) error {

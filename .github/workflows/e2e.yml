@@ -1,6 +1,6 @@
 name: E2E - Playwright Smoke
 
-# 目的: 本番 (https://normanblog.com / https://api.normanblog.com) に対する
+# 目的: 本番 (https://frestyle.jp / https://api.frestyle.jp) に対する
 # 認証前スモーク E2E を Playwright + Chromium で実行する。
 # 失敗時は html report / trace / screenshot / video を artifact に残す。
 #
@@ -30,9 +30,9 @@ on:
   workflow_dispatch:
     inputs:
       base_url:
-        description: 'PLAYWRIGHT_BASE_URL（既定 https://normanblog.com）'
+        description: 'PLAYWRIGHT_BASE_URL（既定 https://frestyle.jp）'
         required: false
-        default: 'https://normanblog.com'
+        default: 'https://frestyle.jp'
 
 permissions:
   contents: read
@@ -64,7 +64,7 @@ jobs:
 
       - name: Run Playwright smoke
         env:
-          PLAYWRIGHT_BASE_URL: ${{ inputs.base_url || 'https://normanblog.com' }}
+          PLAYWRIGHT_BASE_URL: ${{ inputs.base_url || 'https://frestyle.jp' }}
         run: npx playwright test --project=chromium
 
       - name: Upload Playwright HTML report

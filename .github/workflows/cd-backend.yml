@@ -181,13 +181,13 @@ jobs:
           aws ecs wait services-stable --region "$AWS_REGION" \
             --cluster "$CLUSTER" --services "$SERVICE"
 
-      # normanblog.com/api/* は CloudFront(SPA fallback)が一律 200 を返して誤判定するため、
-      # ALB に直結する api.normanblog.com を叩く。パスは Go/Gin の /api/v2/health
+      # frestyle.jp/api/* は CloudFront(SPA fallback)が一律 200 を返して誤判定するため、
+      # ALB に直結する api.frestyle.jp を叩く。パスは Go/Gin の /api/v2/health
       # (旧 Spring の /actuator/health は撤去済)。
       - name: Verify health
         run: |
           for i in 1 2 3 4 5; do
-            if curl -fsS "https://api.normanblog.com/api/v2/health"; then
+            if curl -fsS "https://api.frestyle.jp/api/v2/health"; then
               echo "✅ Healthy"
               exit 0
             fi

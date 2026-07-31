@@ -19,7 +19,7 @@ func newTestServer(t *testing.T, handler http.HandlerFunc) (*httptest.Server, Co
 	cfg := Config{
 		ClientID:     "client-xyz",
 		ClientSecret: "secret-abc",
-		RedirectURI:  "https://normanblog.com/auth/callback",
+		RedirectURI:  "https://frestyle.jp/auth/callback",
 		TokenURI:     srv.URL,
 	}
 	return srv, cfg

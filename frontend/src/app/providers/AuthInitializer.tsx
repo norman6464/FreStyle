@@ -5,7 +5,7 @@ import { setAuthData, clearAuth, finishLoading } from '@/entities/user';
 
 import { AuthRepository as authRepository } from '@/entities/user';
 import Loading from '@/shared/ui/Loading';
-import { setAuthHint, clearAuthHint } from '@/shared/lib/authHint';
+import { setAuthHint, clearAuthHintIfUnauthenticated } from '@/shared/lib/authHint';
 
 interface AuthInitializerProps {
   children: ReactNode;
@@ -28,10 +28,11 @@ export default function AuthInitializer({ children }: AuthInitializerProps) {
           })
         );
         setAuthHint();
-      } catch {
+      } catch (err) {
         dispatch(clearAuth());
-        // セッションが切れている間は目印も消す（残っているとトップで無駄な転送が起きる）
-        clearAuthHint();
+        // 認証切れが確定した(401/403)ときだけ目印を消す。通信断や 5xx で消すと、
+        // セッションは生きているのに次回トップの振り分けが効かなくなる。
+        clearAuthHintIfUnauthenticated(err);
       } finally {
         dispatch(finishLoading());
       }

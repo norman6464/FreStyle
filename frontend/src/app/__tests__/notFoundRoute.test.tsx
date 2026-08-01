@@ -4,12 +4,13 @@ import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 import { MemoryRouter } from 'react-router-dom';
 import App from '../App';
-import authReducer from '@/entities/user/model/authSlice';
+import { authReducer } from '@/entities/user';
 import { clearAuthHint } from '@/shared/lib/authHint';
 
-// バックエンド死活監視はこのテストの関心事ではない（未応答だとメンテ画面に切り替わる）。
+// バックエンド死活監視はこのテストの関心事ではない（unhealthy だとメンテ画面に切り替わる）。
+// 戻り値は実装と同じ形にする（App は status を読む。形がずれると偶然通るだけになる）。
 vi.mock('@/shared/lib/hooks/useBackendHealth', () => ({
-  useBackendHealth: () => ({ isHealthy: true }),
+  useBackendHealth: () => ({ status: 'healthy', recheck: vi.fn() }),
 }));
 
 function renderAt(path: string) {

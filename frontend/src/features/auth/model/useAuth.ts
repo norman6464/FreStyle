@@ -47,10 +47,11 @@ export const useAuth = () => {
         dispatch(
           setAuthData({
             isAdmin: !!userInfo.isAdmin,
-            // role を渡さないと未確定(null)のまま「読み込み完了」になり、ダッシュボードが
-            // 既定として学習者向けを描画してしまう（FRESTYLE-233）。
-            role: userInfo.role ?? null,
-            aiChatEnabledForTrainees: userInfo.aiChatEnabledForTrainees ?? true,
+            // 値が無いときは undefined のまま渡し、setAuthData に現在値を維持させる
+            // （FRESTYLE-233）。?? で null / true を入れると、ユーザー情報を返さない
+            // 応答（/auth/cognito/login は message のみ）で確定済みのロールを消してしまう。
+            role: userInfo.role,
+            aiChatEnabledForTrainees: userInfo.aiChatEnabledForTrainees,
           }),
         );
         return true;
@@ -135,8 +136,8 @@ export const useAuth = () => {
       dispatch(
         setAuthData({
           isAdmin: !!userInfo.isAdmin,
-          role: userInfo.role ?? null,
-          aiChatEnabledForTrainees: userInfo.aiChatEnabledForTrainees ?? true,
+          role: userInfo.role,
+          aiChatEnabledForTrainees: userInfo.aiChatEnabledForTrainees,
         }),
       );
       return userInfo;

@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, act } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 import { MemoryRouter } from 'react-router-dom';
 import MenuPage from '../ui/MenuPage';
-import authReducer from '@/entities/user/model/authSlice';
+import authReducer, { setAuthData } from '@/entities/user/model/authSlice';
 import { useUserDashboard } from '../model/useUserDashboard';
 import { useCompanyLearningSummary } from '../model/useCompanyLearningSummary';
 import type { UserDashboard } from '@/entities/user';
@@ -42,13 +42,14 @@ function renderMenu(role: string | null, aiChatEnabledForTrainees = true) {
       auth: { role, aiChatEnabledForTrainees } as never,
     },
   });
-  return render(
+  const view = render(
     <Provider store={store}>
       <MemoryRouter>
         <MenuPage />
       </MemoryRouter>
     </Provider>,
   );
+  return { ...view, store };
 }
 
 describe('MenuPage', () => {
@@ -175,18 +176,24 @@ describe('MenuPage', () => {
       expect(screen.queryByText('FreStyle へようこそ')).not.toBeInTheDocument();
     });
 
-    it('読み込み中であることを伝える', () => {
-      const { container } = renderMenu(null);
+    it('読み込み中であることを支援技術に伝える', () => {
+      renderMenu(null);
 
-      expect(container.querySelector('[aria-busy="true"]')).toBeInTheDocument();
+      expect(screen.getByRole('status')).toHaveTextContent('読み込み中');
     });
 
+    // 同じ store を保ったままロールを流し込み、実際の遷移として検証する
+    // （別マウントで比較すると「起動時の状態」を 2 通り見ているだけになる）。
     it('ロールが確定したら本来の画面に切り替わる', () => {
-      const { unmount } = renderMenu(null);
+      const { store } = renderMenu(null);
+      expect(screen.getByRole('status')).toBeInTheDocument();
       expect(screen.queryByText('管理メニュー')).not.toBeInTheDocument();
-      unmount();
 
-      renderMenu('super_admin');
+      act(() => {
+        store.dispatch(setAuthData({ role: 'super_admin', isAdmin: true }));
+      });
+
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
       expect(screen.getByText('管理メニュー')).toBeInTheDocument();
       expect(screen.queryByText('コース')).not.toBeInTheDocument();
     });

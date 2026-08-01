@@ -60,6 +60,10 @@ export default function MenuPage() {
   if (roleUnresolved) {
     return (
       <div className="px-4 sm:px-6 pt-8 pb-24 max-w-6xl mx-auto" aria-busy="true">
+        {/* スケルトンは装飾（aria-hidden）なので、待機中であることは live region で伝える。 */}
+        <span role="status" className="sr-only">
+          読み込み中
+        </span>
         <MenuSkeleton />
       </div>
     );

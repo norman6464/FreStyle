@@ -42,8 +42,8 @@ export function useLoginCallback() {
           dispatch(
             setAuthData({
               isAdmin: !!me.isAdmin,
-              role: me.role ?? null,
-              aiChatEnabledForTrainees: me.aiChatEnabledForTrainees ?? true,
+              role: me.role,
+              aiChatEnabledForTrainees: me.aiChatEnabledForTrainees,
             }),
           );
           setAuthHint();
@@ -53,8 +53,9 @@ export function useLoginCallback() {
           if (exchanged) {
             // ロールを引けなかっただけ。フル読み込みで AuthInitializer に確定させる
             // （SPA 内 navigate では再取得されず、ロール未確定のまま留まるため）。
+            // replace で遷移し、使用済みの認可コードを含む URL を履歴に残さない。
             setAuthHint();
-            window.location.assign('/dashboard');
+            window.location.replace('/dashboard');
             return;
           }
           // backend が PR-OIDC-Gate で返す 403 invitation_required を識別して

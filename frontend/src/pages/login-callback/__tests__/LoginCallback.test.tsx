@@ -145,15 +145,16 @@ describe('LoginCallback', () => {
     // 認可コードの交換は成功しているので認証は成立している。ここでログイン画面へ
     // 戻すと「ログインできたのに戻される」挙動になるため、フル読み込みで復帰する。
     it('ロールの取得だけ失敗したときはログイン画面へ戻さずフル読み込みする', async () => {
-      const assign = vi.fn();
-      vi.stubGlobal('location', { ...window.location, assign });
+      // 使用済みの認可コードを含む URL を履歴に残さないため replace で遷移する。
+      const replace = vi.fn();
+      vi.stubGlobal('location', { ...window.location, replace });
       vi.mocked(authRepository.callback).mockResolvedValue({});
       vi.mocked(authRepository.probeCurrentUser).mockRejectedValue(new Error('一時的な通信エラー'));
 
       renderWithRoute('?code=valid-code');
 
       await waitFor(() => {
-        expect(assign).toHaveBeenCalledWith('/dashboard');
+        expect(replace).toHaveBeenCalledWith('/dashboard');
       });
       expect(mockNavigate).not.toHaveBeenCalledWith('/login', expect.anything());
     });

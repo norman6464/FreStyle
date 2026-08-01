@@ -1,4 +1,5 @@
 import apiClient from '@/shared/api/axios';
+import { toArray } from '@/shared/lib/toArray';
 import { ADMIN } from '@/shared/config/apiRoutes';
 
 export interface Company {
@@ -27,13 +28,13 @@ export interface CompanyStat {
 class CompanyRepository {
   async list(): Promise<Company[]> {
     const res = await apiClient.get<Company[]>(ADMIN.companies);
-    return res.data;
+    return toArray<Company>(res.data);
   }
 
   /** 各社のメンバー集計付きの会社横断ビューを取得する（super_admin 専用）。 */
   async listStats(): Promise<CompanyStat[]> {
     const res = await apiClient.get<CompanyStat[]>(ADMIN.companiesStats);
-    return res.data;
+    return toArray<CompanyStat>(res.data);
   }
 
   /** 会社アカウントの有効/無効を切り替える（super_admin 専用）。 */

@@ -1,4 +1,5 @@
 import api from '@/shared/api/axios';
+import { toArray } from '@/shared/lib/toArray';
 import { COURSES } from '@/shared/config/apiRoutes';
 import type { Course, CourseWithProgress, TeachingMaterial, UserChapterView } from '../model/types';
 
@@ -22,7 +23,7 @@ export interface CoursePayload {
 const CourseRepository = {
   async list(): Promise<CourseWithProgress[]> {
     const res = await api.get<CourseWithProgress[]>(COURSES.list);
-    return res.data;
+    return toArray<CourseWithProgress>(res.data);
   },
 
   async get(id: number): Promise<Course> {
@@ -32,7 +33,7 @@ const CourseRepository = {
 
   async listMaterials(courseId: number): Promise<TeachingMaterial[]> {
     const res = await api.get<TeachingMaterial[]>(COURSES.materials(courseId));
-    return res.data;
+    return toArray<TeachingMaterial>(res.data);
   },
 
   /** コース内で最後に閲覧した章の閲覧記録を返す。履歴なし（204）のときは null。 */

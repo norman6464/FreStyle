@@ -20,7 +20,7 @@ func NewCompanyStatsRepository(db *gorm.DB) repository.CompanyMemberCounter {
 }
 
 func (r *companyStatsRepository) CountMembersByCompany(ctx context.Context) ([]repository.CompanyMemberCount, error) {
-	var rows []repository.CompanyMemberCount
+	rows := make([]repository.CompanyMemberCount, 0)
 	err := r.db.WithContext(ctx).
 		Table("users").
 		Select(

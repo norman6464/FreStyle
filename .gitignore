@@ -26,3 +26,12 @@ supabase/
 # macOS
 .DS_Store
 **/.DS_Store
+
+# go build で backend/ 直下に出る実行ファイル（cmd/* の成果物）。
+# 通常は go run で使うが、ローカル検証で build すると混入するため無視する。
+/backend/apispec-lint
+/backend/archlint
+/backend/coderunner
+/backend/naminglint
+/backend/server
+/backend/slicelint

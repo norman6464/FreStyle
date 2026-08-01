@@ -1,4 +1,5 @@
 import apiClient from '@/shared/api/axios';
+import { toArray } from '@/shared/lib/toArray';
 import { ADMIN } from '@/shared/config/apiRoutes';
 
 export interface AdminInvitation {
@@ -24,7 +25,7 @@ export interface CreateInvitationForm {
 class AdminInvitationRepository {
   async list(): Promise<AdminInvitation[]> {
     const res = await apiClient.get<AdminInvitation[]>(ADMIN.invitations);
-    return res.data;
+    return toArray<AdminInvitation>(res.data);
   }
 
   async create(form: CreateInvitationForm): Promise<AdminInvitation> {

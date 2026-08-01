@@ -1,4 +1,5 @@
 import api from '@/shared/api/axios';
+import { toArray } from '@/shared/lib/toArray';
 import { ADMIN } from '@/shared/config/apiRoutes';
 
 /** 直近アクティブメンバー 1 人分（backend usecase.MemberLearningSummaryItem と 1:1）。 */
@@ -38,7 +39,7 @@ export interface Member {
 const AdminMemberRepository = {
   async listMembers(): Promise<Member[]> {
     const res = await api.get<Member[]>(ADMIN.members);
-    return res.data;
+    return toArray<Member>(res.data);
   },
 
   /**

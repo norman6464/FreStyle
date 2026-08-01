@@ -1,4 +1,5 @@
 import api from '@/shared/api/axios';
+import { toArray } from '@/shared/lib/toArray';
 import { EXERCISES, CODE } from '@/shared/config/apiRoutes';
 import {
   ExercisePage,
@@ -30,7 +31,7 @@ const ExerciseRepository = {
   /** 言語別の問題数 / 正解済み件数を取得する（言語選択カード用・FRESTYLE-152）。 */
   async listLanguageSummary(): Promise<ExerciseLanguageSummary[]> {
     const res = await api.get<ExerciseLanguageSummary[]>(EXERCISES.summary);
-    return Array.isArray(res.data) ? res.data : [];
+    return toArray<ExerciseLanguageSummary>(res.data);
   },
 
   async getDetail(slug: string): Promise<MasterExerciseDetail> {
@@ -58,7 +59,7 @@ const ExerciseRepository = {
 
   async listSubmissions(slug: string): Promise<ExerciseSubmission[]> {
     const res = await api.get<ExerciseSubmission[]>(EXERCISES.submissions(slug));
-    return res.data;
+    return toArray<ExerciseSubmission>(res.data);
   },
 };
 

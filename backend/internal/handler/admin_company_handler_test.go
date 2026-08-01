@@ -77,21 +77,62 @@ func Test_会社管理ハンドラ_横断ビュー_super_admin以外は禁止(t 
 	}
 }
 
-func Test_会社管理ハンドラ_一覧_正常系(t *testing.T) {
+// listCompaniesAs は指定 actor で会社一覧を叩く。actor が nil のときは未認証扱い。
+func listCompaniesAs(t *testing.T, actor *domain.User, repo *fakeCompanyRepo) *httptest.ResponseRecorder {
+	t.Helper()
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/admin/companies", nil)
-	newAdminCompanyHandler(&fakeCompanyRepo{rows: []domain.Company{{ID: 1, Name: "Co"}}}).List(c)
+	if actor != nil {
+		c.Set(middleware.ContextKeyCurrentUser, actor)
+	}
+	newAdminCompanyHandler(repo).List(c)
+	return w
+}
+
+func Test_会社管理ハンドラ_一覧_正常系(t *testing.T) {
+	w := listCompaniesAs(
+		t,
+		&domain.User{ID: 1, Role: domain.RoleSuperAdmin},
+		&fakeCompanyRepo{rows: []domain.Company{{ID: 1, Name: "Co"}}},
+	)
 	if w.Code != http.StatusOK {
 		t.Fatalf("want 200, got %d", w.Code)
 	}
 }
 
+// 顧客企業の一覧は super_admin 専用。trainee / company_admin / 未認証には出さない
+// （認可が抜けており全認証ユーザーが列挙できた回帰の防止: FRESTYLE-76）。
+func Test_会社管理ハンドラ_一覧_super_admin以外は禁止(t *testing.T) {
+	cases := []struct {
+		name  string
+		actor *domain.User
+		want  int
+	}{
+		{"trainee", &domain.User{ID: 2, Role: domain.RoleTrainee}, http.StatusForbidden},
+		{"company_admin", &domain.User{ID: 3, Role: domain.RoleCompanyAdmin}, http.StatusForbidden},
+		{"未認証", nil, http.StatusForbidden},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := &fakeCompanyRepo{rows: []domain.Company{{ID: 1, Name: "Secret Co"}}}
+			w := listCompaniesAs(t, tc.actor, repo)
+			if w.Code != tc.want {
+				t.Fatalf("want %d, got %d", tc.want, w.Code)
+			}
+			if strings.Contains(w.Body.String(), "Secret Co") {
+				t.Fatalf("会社名が漏れている: %s", w.Body.String())
+			}
+		})
+	}
+}
+
 func Test_会社管理ハンドラ_一覧_エラー(t *testing.T) {
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/admin/companies", nil)
-	newAdminCompanyHandler(&fakeCompanyRepo{err: context.DeadlineExceeded}).List(c)
+	w := listCompaniesAs(
+		t,
+		&domain.User{ID: 1, Role: domain.RoleSuperAdmin},
+		&fakeCompanyRepo{err: context.DeadlineExceeded},
+	)
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("want 500, got %d", w.Code)
 	}

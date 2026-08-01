@@ -72,7 +72,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "全 company を 返す。 super_admin 専用 画面 用。 認可 は middleware で 別途 担保。",
+                "description": "全 company を 返す。 super_admin 専用。 顧客 企業 の 一覧 な ので 他 role に は 出さ ない。",
                 "produces": [
                     "application/json"
                 ],
@@ -88,6 +88,18 @@ const docTemplate = `{
                             "items": {
                                 "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.Company"
                             }
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "super_admin 以外",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
                         }
                     },
                     "500": {

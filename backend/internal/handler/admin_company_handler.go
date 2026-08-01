@@ -34,14 +34,20 @@ func NewAdminCompanyHandler(
 }
 
 // @Summary      会社 一覧 (SuperAdmin)
-// @Description  全 company を 返す。 super_admin 専用 画面 用。 認可 は middleware で 別途 担保。
+// @Description  全 company を 返す。 super_admin 専用。 顧客 企業 の 一覧 な ので 他 role に は 出さ ない。
 // @Tags         admin
 // @Produce      json
 // @Success      200  {array}   github_com_norman6464_FreStyle_backend_internal_domain.Company
+// @Failure      401  {object}  errorResponse  "未 認証"
+// @Failure      403  {object}  errorResponse  "super_admin 以外"
 // @Failure      500  {object}  errorResponse  "DB 失敗"
 // @Router       /admin/companies [get]
 // @Security     CookieAuth
 func (h *AdminCompanyHandler) List(c *gin.Context) {
+	if !isSuperAdmin(middleware.CurrentUserFromContext(c)) {
+		c.JSON(http.StatusForbidden, errorResponse{Error: "forbidden"})
+		return
+	}
 	companies, err := h.list.Execute(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})

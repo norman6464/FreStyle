@@ -15,6 +15,7 @@ import PublicHeader from '@/shared/ui/PublicHeader';
 import { useAppSelector, useAppDispatch } from '@/shared/lib/store';
 import { useDocumentMeta } from '@/shared/lib/hooks/useDocumentMeta';
 import { AuthRepository, setAuthData } from '@/entities/user';
+import { clearAuthHintIfUnauthenticated } from '@/shared/lib/authHint';
 
 const SITE_URL = 'https://frestyle.jp/';
 
@@ -116,8 +117,11 @@ export default function LandingPage() {
           }),
         );
       })
-      .catch(() => {
-        // 未ログイン: LP のまま
+      .catch((err) => {
+        if (cancelled) return;
+        // 未ログイン: LP のまま。認証切れが確定した(401/403)ときだけ目印を消す
+        // (通信断で消すと、セッションが生きていても次回の振り分けが効かなくなる)。
+        clearAuthHintIfUnauthenticated(err);
       });
     return () => {
       cancelled = true;

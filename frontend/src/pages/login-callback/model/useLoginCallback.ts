@@ -5,6 +5,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { setAuthData } from '@/entities/user';
 import { AuthRepository as authRepository } from '@/entities/user';
 import { consumeInvitationToken } from '@/shared/lib/invitationToken';
+import { setAuthHint } from '@/shared/lib/authHint';
 import { classifyApiError, getApiError } from '@/shared/lib/classifyApiError';
 
 export function useLoginCallback() {
@@ -28,6 +29,7 @@ export function useLoginCallback() {
         .callback(code, invitationToken)
         .then(() => {
           dispatch(setAuthData());
+          setAuthHint();
           navigate('/dashboard');
         })
         .catch((err) => {

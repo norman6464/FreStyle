@@ -31,9 +31,14 @@ type fakeCompanyRepo struct {
 	activeCalled bool
 	gotActiveID  uint64
 	gotActive    bool
+	// listAllCalls は「拒否時に DB を引いていないこと」を検証するための呼び出し回数。
+	listAllCalls int
 }
 
-func (f *fakeCompanyRepo) ListAll(context.Context) ([]domain.Company, error) { return f.rows, f.err }
+func (f *fakeCompanyRepo) ListAll(context.Context) ([]domain.Company, error) {
+	f.listAllCalls++
+	return f.rows, f.err
+}
 
 func (f *fakeCompanyRepo) FindByID(context.Context, uint64) (*domain.Company, error) {
 	return nil, f.err
@@ -77,21 +82,112 @@ func Test_会社管理ハンドラ_横断ビュー_super_admin以外は禁止(t 
 	}
 }
 
-func Test_会社管理ハンドラ_一覧_正常系(t *testing.T) {
+// listCompaniesAs は指定 actor で会社一覧を叩く。
+// handler を直接呼ぶため middleware.RequireAdmin は通らない点に注意。
+// actor が nil のケースは「currentUser 未設定」を表し、handler 単体では
+// isSuperAdmin(nil) により 403 になる（実運用では入口の middleware が先に 401 を返す）。
+func listCompaniesAs(t *testing.T, actor *domain.User, repo *fakeCompanyRepo) *httptest.ResponseRecorder {
+	t.Helper()
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/admin/companies", nil)
-	newAdminCompanyHandler(&fakeCompanyRepo{rows: []domain.Company{{ID: 1, Name: "Co"}}}).List(c)
+	if actor != nil {
+		c.Set(middleware.ContextKeyCurrentUser, actor)
+	}
+	newAdminCompanyHandler(repo).List(c)
+	return w
+}
+
+func Test_会社管理ハンドラ_一覧_正常系(t *testing.T) {
+	w := listCompaniesAs(
+		t,
+		&domain.User{ID: 1, Role: domain.RoleSuperAdmin},
+		&fakeCompanyRepo{rows: []domain.Company{{ID: 1, Name: "Co"}}},
+	)
 	if w.Code != http.StatusOK {
 		t.Fatalf("want 200, got %d", w.Code)
 	}
 }
 
+// 顧客企業の一覧は super_admin 専用。trainee / company_admin / 未認証には出さない
+// （認可が抜けており全認証ユーザーが列挙できた回帰の防止: FRESTYLE-76）。
+func Test_会社管理ハンドラ_一覧_super_admin以外は禁止(t *testing.T) {
+	cases := []struct {
+		name  string
+		actor *domain.User
+		want  int
+	}{
+		{"trainee", &domain.User{ID: 2, Role: domain.RoleTrainee}, http.StatusForbidden},
+		{"company_admin", &domain.User{ID: 3, Role: domain.RoleCompanyAdmin}, http.StatusForbidden},
+		{"未認証", nil, http.StatusForbidden},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := &fakeCompanyRepo{rows: []domain.Company{{ID: 1, Name: "Secret Co"}}}
+			w := listCompaniesAs(t, tc.actor, repo)
+			if w.Code != tc.want {
+				t.Fatalf("want %d, got %d", tc.want, w.Code)
+			}
+			if strings.Contains(w.Body.String(), "Secret Co") {
+				t.Fatalf("会社名が漏れている: %s", w.Body.String())
+			}
+		})
+	}
+}
+
+// 実ルートと同じ順序（RequireAdmin → List）で認可を検証する。
+// handler 単体テストでは middleware を通らないため、未認証が 401 になることや
+// 非管理者が入口で落ちて DB を引かないことは、この形でしか担保できない。
+func Test_会社一覧_実ルート順序での認可(t *testing.T) {
+	cases := []struct {
+		name      string
+		actor     *domain.User
+		want      int
+		wantCalls int
+	}{
+		{"super_admin は取得できる", &domain.User{ID: 1, Role: domain.RoleSuperAdmin}, http.StatusOK, 1},
+		{"company_admin は 403", &domain.User{ID: 2, Role: domain.RoleCompanyAdmin}, http.StatusForbidden, 0},
+		{"trainee は入口で 403", &domain.User{ID: 3, Role: domain.RoleTrainee}, http.StatusForbidden, 0},
+		{"未認証は入口で 401", nil, http.StatusUnauthorized, 0},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := &fakeCompanyRepo{rows: []domain.Company{{ID: 1, Name: "Secret Co"}}}
+
+			r := gin.New()
+			// CurrentUser middleware の代わりに actor を context へ積む。
+			r.Use(func(c *gin.Context) {
+				if tc.actor != nil {
+					c.Set(middleware.ContextKeyCurrentUser, tc.actor)
+				}
+				c.Next()
+			})
+			r.GET("/admin/companies", middleware.RequireAdmin(), newAdminCompanyHandler(repo).List)
+
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/admin/companies", nil))
+
+			if w.Code != tc.want {
+				t.Fatalf("status: want %d, got %d", tc.want, w.Code)
+			}
+			if repo.listAllCalls != tc.wantCalls {
+				t.Fatalf("ListAll 呼び出し回数: want %d, got %d（拒否時に DB を引いてはならない）",
+					tc.wantCalls, repo.listAllCalls)
+			}
+			if tc.want != http.StatusOK && strings.Contains(w.Body.String(), "Secret Co") {
+				t.Fatalf("会社名が漏れている: %s", w.Body.String())
+			}
+		})
+	}
+}
+
 func Test_会社管理ハンドラ_一覧_エラー(t *testing.T) {
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/admin/companies", nil)
-	newAdminCompanyHandler(&fakeCompanyRepo{err: context.DeadlineExceeded}).List(c)
+	w := listCompaniesAs(
+		t,
+		&domain.User{ID: 1, Role: domain.RoleSuperAdmin},
+		&fakeCompanyRepo{err: context.DeadlineExceeded},
+	)
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("want 500, got %d", w.Code)
 	}

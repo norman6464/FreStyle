@@ -27,10 +27,18 @@ func newAuditMiddleware(db *gorm.DB) gin.HandlerFunc {
 	})
 }
 
-// registerAdminRoutes は管理者向けの招待管理エンドポイントを登録する。
-// 認可（super_admin / company_admin のみ）は handler 層で実施する。
+// registerAdminRoutes は管理者向けエンドポイント（会社 / 会員 / 招待 / 監査ログ）を登録する。
+//
+// 認可は 2 段構え:
+//   - 入口: middleware.RequireAdmin が非管理者（trainee 等）を落とす
+//   - 詳細: super_admin 限定か company_admin も可かは各 handler / usecase が判定する
+//
 // audit は変更操作を監査ログに記録する middleware（router で生成して共有する）。
-func registerAdminRoutes(g *gin.RouterGroup, deps *routeDeps, audit gin.HandlerFunc) {
+func registerAdminRoutes(parent *gin.RouterGroup, deps *routeDeps, audit gin.HandlerFunc) {
+	// 非管理者(trainee 等)は入口で落とす。個々の handler の role 検査は残すが、
+	// 1 箇所書き忘れただけで穴になるため多層防御を敷く（FRESTYLE-76 / FRESTYLE-228）。
+	g := parent.Group("", middleware.RequireAdmin())
+
 	companyRepo := persistence.NewCompanyRepository(deps.db)
 	companyHandler := NewAdminCompanyHandler(
 		usecase.NewListCompaniesUseCase(companyRepo),

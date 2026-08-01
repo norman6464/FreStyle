@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import Avatar from '../Avatar';
 
 describe('Avatar', () => {
@@ -81,5 +81,34 @@ describe('Avatar', () => {
     const { container } = render(<Avatar name="A" src="https://example.com/photo.jpg" />);
     const avatar = container.firstChild as HTMLElement;
     expect(avatar.className).toContain('rounded-full');
+  });
+
+  // 画像が読めないとき（配信先の消滅・削除済みオブジェクト等）にブラウザ既定の
+  // 「壊れた画像」を出さず、頭文字に戻ることを保証する（FRESTYLE-232）。
+  describe('画像の読み込みに失敗したとき', () => {
+    it('頭文字のフォールバックに切り替わる', () => {
+      render(<Avatar name="河野 拓真" src="https://example.com/dead.jpg" />);
+      fireEvent.error(screen.getByRole('img'));
+
+      expect(screen.queryByRole('img')).not.toBeInTheDocument();
+      expect(screen.getByText('河')).toBeInTheDocument();
+    });
+
+    it('src が差し替わると再試行する', () => {
+      const { rerender } = render(<Avatar name="河野" src="https://example.com/dead.jpg" />);
+      fireEvent.error(screen.getByRole('img'));
+      expect(screen.queryByRole('img')).not.toBeInTheDocument();
+
+      rerender(<Avatar name="河野" src="https://example.com/alive.jpg" />);
+
+      const img = screen.getByRole('img');
+      expect(img).toHaveAttribute('src', 'https://example.com/alive.jpg');
+    });
+
+    it('読み込めている間は画像のまま', () => {
+      render(<Avatar name="河野" src="https://example.com/alive.jpg" />);
+      expect(screen.getByRole('img')).toBeInTheDocument();
+      expect(screen.queryByText('河')).not.toBeInTheDocument();
+    });
   });
 });

@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react';
+
 type AvatarSize = 'sm' | 'md' | 'lg' | 'xl';
 
 interface AvatarProps {
@@ -14,13 +16,26 @@ const SIZE_STYLES: Record<AvatarSize, { container: string; text: string }> = {
 };
 
 export default function Avatar({ name, src, size = 'md' }: AvatarProps) {
+  // 画像が読めなかったときは頭文字表示に戻す。フォールバックが無いとブラウザ既定の
+  // 「壊れた画像」マークと代替テキストが出て崩れた見た目になる（FRESTYLE-232）。
+  const [failed, setFailed] = useState(false);
   const initial = name ? name.charAt(0).toUpperCase() : '?';
   const styles = SIZE_STYLES[size];
 
-  if (src) {
+  // src が差し替わったら再試行する（前の URL の失敗を引きずらない）。
+  useEffect(() => {
+    setFailed(false);
+  }, [src]);
+
+  if (src && !failed) {
     return (
       <div className={`${styles.container} rounded-full flex-shrink-0 overflow-hidden`}>
-        <img src={src} alt={name} className="w-full h-full object-cover rounded-full" />
+        <img
+          src={src}
+          alt={name}
+          onError={() => setFailed(true)}
+          className="w-full h-full object-cover rounded-full"
+        />
       </div>
     );
   }

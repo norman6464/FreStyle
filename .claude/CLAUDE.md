@@ -127,7 +127,9 @@ PR / チケット / コミット / コメント / docs に**他社プロダク�
 ### 3.3 テスト
 
 - **TDD を基本**とする。カバレッジ目標: 新規コード **80% 以上**
-- バックエンド: `testing` + `stretchr/testify`（`go test ./...`）— usecase は interface モック（testify/mock）、repository は sqlite メモリ、handler は `httptest` + `gin.New()`、infra は境界で fake / stub 注入
+- **バックエンド（単体）**: `testing` + `stretchr/testify`（`go test ./...`）— usecase は interface モック（testify/mock）、handler は `httptest` + `gin.New()`、infra は境界で fake / stub 注入。**DB を必要としないものだけ**をここに置く
+- **バックエンド（結合）**: repository は **本物の PostgreSQL** で検証する（sqlite は使わない。依存も入れていない）。ファイル先頭に `//go:build integration`、テスト関数名に `Integration` を含める。ローカルは `make test-integration`（docker で postgres 起動 → 実行 → 必ず破棄）、CI は専用ジョブ `integration tests (postgres)` が `-tags=integration` で実行する
+- 結合テストの接続は `internal/testsupport.OpenTestDB`。`TruncateAll` が TRUNCATE CASCADE するため、**DSN が Supabase / 本番 pooler を指す場合は接続前に落とす安全弁**が入っている（誤設定で本番データを消さないため）
 - フロントエンド: Vitest + React Testing Library（`npm test`）— `render` + `screen.getByRole` でアクセシビリティも検証、Hook は `renderHook`
 
 ### 3.4 コメント

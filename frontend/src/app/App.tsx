@@ -48,6 +48,7 @@ const CourseDetailPage = lazyWithReload(() => import('@/pages/course-detail').th
 const MarkdownSyntaxHelpPage = lazyWithReload(() => import('@/pages/markdown-syntax-help').then((m) => ({ default: m.MarkdownSyntaxHelpPage })), 'MarkdownSyntaxHelpPage');
 // inkwell プリミティブの見た目確認用カタログ（認証不要・削除可）。
 const InkwellShowcasePage = lazyWithReload(() => import('@/pages/inkwell-showcase').then((m) => ({ default: m.InkwellShowcasePage })), 'InkwellShowcasePage');
+const NotFoundPage = lazyWithReload(() => import('@/pages/not-found').then((m) => ({ default: m.NotFoundPage })), 'NotFoundPage');
 
 function NavigationToast() {
   const location = useLocation();
@@ -144,6 +145,11 @@ export default function App() {
         <Route path="/admin/audit" element={<AdminAuditLogPage />} />
         <Route path="/admin/invitations" element={<AdminInvitationsPage />} />
       </Route>
+
+      {/* どのルートにも一致しない URL の受け皿（FRESTYLE-86）。
+          認証ブロックの外に置く: 中に入れると未ログイン時に /login へ飛ばされ、
+          タイポや古いリンクで来た訪問者に 404 を見せられない（公開サイトとして不適切）。 */}
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
     </Suspense>
     <NavigationToast />

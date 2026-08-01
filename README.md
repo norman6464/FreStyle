@@ -25,7 +25,7 @@
 
 ## デプロイURL
 
-[https://normanblog.com](https://normanblog.com)
+[https://frestyle.jp](https://frestyle.jp)
 
 
 ## システム構成（全体像）

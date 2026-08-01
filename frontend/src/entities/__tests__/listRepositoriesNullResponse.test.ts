@@ -5,16 +5,17 @@ vi.mock('@/shared/api/axios', () => ({
 }));
 
 import apiClient from '@/shared/api/axios';
-import AiChatRepository from '@/entities/ai-chat/api/aiChatRepository';
-import { AuditRepository } from '@/entities/audit/api/auditRepository';
-import CompanyRepository from '@/entities/company/api/companyRepository';
-import CourseRepository from '@/entities/course/api/courseRepository';
-import LessonProgressRepository from '@/entities/course/api/lessonProgressRepository';
-import ExerciseRepository from '@/entities/exercise/api/exerciseRepository';
-import AdminInvitationRepository from '@/entities/invitation/api/adminInvitationRepository';
-import { LearningReportRepository } from '@/entities/learning-report/api/learningReportRepository';
-import NoteRepository from '@/entities/note/api/noteRepository';
-import { NotificationRepository } from '@/entities/notification/api/notificationRepository';
+// 各 Slice の Public API（index.ts）経由で参照する（FSD の境界ルール / CLAUDE.md §2.5）。
+import { AiChatRepository } from '@/entities/ai-chat';
+import { AuditRepository } from '@/entities/audit';
+import { CompanyRepository, CompanyApplicationRepository } from '@/entities/company';
+import { CourseRepository, LessonProgressRepository } from '@/entities/course';
+import { ExerciseRepository } from '@/entities/exercise';
+import { AdminInvitationRepository } from '@/entities/invitation';
+import { LearningReportRepository } from '@/entities/learning-report';
+import { AdminMemberRepository } from '@/entities/member';
+import { NoteRepository } from '@/entities/note';
+import { NotificationRepository } from '@/entities/notification';
 
 const mockGet = vi.mocked(apiClient.get);
 
@@ -25,6 +26,8 @@ const mockGet = vi.mocked(apiClient.get);
  *
  * backend 側でも空配列を保証しているが、片側だけの対策では
  * 「もう一方が壊れた瞬間にユーザーへ影響が出る」ため両側で守る。
+ *
+ * 正規化している 16 経路をすべて網羅する（1 つでも漏れるとそこだけ無防備になる）。
  */
 describe('一覧 repository は null 応答でも配列を返す', () => {
   beforeEach(() => {
@@ -37,6 +40,7 @@ describe('一覧 repository は null 応答でも配列を返す', () => {
     ['監査ログ一覧', () => AuditRepository.list()],
     ['会社一覧', () => CompanyRepository.list()],
     ['会社の統計一覧', () => CompanyRepository.listStats()],
+    ['利用申請一覧', () => CompanyApplicationRepository.adminList()],
     ['コース一覧', () => CourseRepository.list()],
     ['教材一覧', () => CourseRepository.listMaterials(1)],
     ['章の進捗一覧', () => LessonProgressRepository.list()],
@@ -44,11 +48,16 @@ describe('一覧 repository は null 応答でも配列を返す', () => {
     ['演習の提出履歴', () => ExerciseRepository.listSubmissions(1)],
     ['招待一覧', () => AdminInvitationRepository.list()],
     ['学習レポート一覧', () => LearningReportRepository.getAll()],
+    ['従業員一覧', () => AdminMemberRepository.listMembers()],
     ['ノート一覧', () => NoteRepository.fetchNotes()],
     ['通知一覧', () => NotificationRepository.getAll()],
   ];
 
-  it.each(cases)('%s', async (_name, call) => {
+  it('正規化対象の全経路を網羅している', () => {
+    expect(cases).toHaveLength(16);
+  });
+
+  it.each(cases)('%s は null でも空配列になる', async (_name, call) => {
     mockGet.mockResolvedValue({ data: null });
 
     const rows = await call();
@@ -59,12 +68,22 @@ describe('一覧 repository は null 応答でも配列を返す', () => {
     expect(() => rows.map((r) => r)).not.toThrow();
   });
 
+  it.each(cases)('%s は undefined でも空配列になる', async (_name, call) => {
+    mockGet.mockResolvedValue({ data: undefined });
+
+    const rows = await call();
+
+    expect(rows).toEqual([]);
+  });
+
   it.each(cases)('%s は正常な配列をそのまま通す', async (_name, call) => {
     const payload = [{ id: 1 }, { id: 2 }];
     mockGet.mockResolvedValue({ data: payload });
 
     const rows = await call();
 
-    expect(rows).toHaveLength(2);
+    // 内容も参照も変えずに素通しすること（余計な変換やコピーをしていない）。
+    expect(rows).toBe(payload);
+    expect(rows).toEqual([{ id: 1 }, { id: 2 }]);
   });
 });

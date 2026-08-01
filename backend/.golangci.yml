@@ -44,9 +44,9 @@ linters:
         linters:
           - gosec
         text: 'G204'
-      # 自作 lint ツール(archlint/apispec-lint/naminglint)は自分のソースツリーを
+      # 自作 lint ツール(archlint/apispec-lint/naminglint/slicelint)は自分のソースツリーを
       # WalkDir / os.Open するため Path traversal(G304/G703)は誤検知。
-      - path: cmd/(archlint|apispec-lint|naminglint)/
+      - path: cmd/(archlint|apispec-lint|naminglint|slicelint)/
         linters:
           - gosec
       # persistence の id 境界は DB が bigint(int64)、domain が uint64。値は採番シーケンス

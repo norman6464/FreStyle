@@ -114,21 +114,22 @@ func run(persistenceRoot string) ([]violation, error) {
 // analyzeFile は 1 ファイルからスライス返却メソッドを取り出し、nil 宣言のまま返しているものを集める。
 func analyzeFile(fset *token.FileSet, f *ast.File, path string) []violation {
 	var out []violation
+	allowLines := allowCommentLines(fset, f)
 
 	for _, decl := range f.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
 		if !ok || fn.Body == nil || fn.Recv == nil {
 			continue
 		}
-		if !returnsSlice(fn) {
+		sliceIdx := sliceResultIndex(fn)
+		if sliceIdx < 0 {
 			continue
 		}
+
+		// (1) `var x []T` のまま返している。
 		// 戻り値としてそのまま返される識別子だけを対象にする。
 		// 別スライスへ詰め替える中間変数（`out := make(...)` に append する等）は問題ない。
 		returned := returnedIdents(fn)
-		if len(returned) == 0 {
-			continue
-		}
 		for _, d := range nilSliceDecls(fn) {
 			if !returned[d.name] || d.suppressed {
 				continue
@@ -144,8 +145,83 @@ func analyzeFile(fset *token.FileSet, f *ast.File, path string) []violation {
 				),
 			})
 		}
+
+		// (2) 成功時に nil リテラルをそのまま返している（`return nil, nil`）。
+		// エラーを伴う `return nil, err` は正当なので除外する。
+		for _, ret := range successNilReturns(fn, sliceIdx) {
+			line := fset.Position(ret.Pos()).Line
+			if allowLines[line] {
+				continue
+			}
+			out = append(out, violation{
+				file: path,
+				line: line,
+				msg: fmt.Sprintf(
+					"%s: 成功時に nil スライスを返しています。JSON が null になりフロントが落ちるため "+
+						"`make([]T, 0)` を返してください"+
+						"（FRESTYLE-77。エラー返却時の nil は対象外。正当な例外は //slicelint:allow）",
+					fn.Name.Name,
+				),
+			})
+		}
 	}
 	return out
+}
+
+// sliceResultIndex は戻り値の中でスライス型が現れる位置（0 始まり）を返す。無ければ -1。
+// `(a, b []T)` のように 1 フィールドに複数名がある形も展開して数える。
+func sliceResultIndex(fn *ast.FuncDecl) int {
+	if fn.Type.Results == nil {
+		return -1
+	}
+	idx := 0
+	for _, r := range fn.Type.Results.List {
+		n := 1
+		if len(r.Names) > 0 {
+			n = len(r.Names)
+		}
+		if isSliceType(r.Type) {
+			return idx
+		}
+		idx += n
+	}
+	return -1
+}
+
+// successNilReturns は「スライス位置が nil で、かつ他の戻り値もすべて nil」の return 文を返す。
+// エラーを返している（error 位置が nil でない）return は正当なので含めない。
+func successNilReturns(fn *ast.FuncDecl, sliceIdx int) []ast.Node {
+	var out []ast.Node
+	ast.Inspect(fn.Body, func(n ast.Node) bool {
+		// 内側の関数リテラル（コールバック）は別スコープなので追わない。
+		if _, ok := n.(*ast.FuncLit); ok {
+			return false
+		}
+		ret, ok := n.(*ast.ReturnStmt)
+		if !ok || sliceIdx >= len(ret.Results) {
+			return true
+		}
+		if !isNilIdent(ret.Results[sliceIdx]) {
+			return true
+		}
+		for i, r := range ret.Results {
+			if i == sliceIdx {
+				continue
+			}
+			if !isNilIdent(r) {
+				return true // エラー等を返しているので正当
+			}
+		}
+		out = append(out, ret)
+		return true
+	})
+	return out
+}
+
+// isNilIdent は式が nil リテラルかを返す。
+func isNilIdent(e ast.Expr) bool {
+	id, ok := e.(*ast.Ident)
+	return ok && id.Name == "nil"
 }
 
 // returnsSlice は関数の戻り値にスライス型が含まれるかを返す。
@@ -249,4 +325,21 @@ func commentContains(cg *ast.CommentGroup, needle string) bool {
 		}
 	}
 	return false
+}
+
+// allowCommentLines は //slicelint:allow が書かれた行と、その次の行を集める。
+// 行末コメント（同じ行）と、直前行に書いたコメントの両方を抑制対象にする。
+func allowCommentLines(fset *token.FileSet, f *ast.File) map[int]bool {
+	out := map[int]bool{}
+	for _, cg := range f.Comments {
+		for _, c := range cg.List {
+			if !strings.Contains(c.Text, "//slicelint:allow") {
+				continue
+			}
+			line := fset.Position(c.Pos()).Line
+			out[line] = true
+			out[line+1] = true
+		}
+	}
+	return out
 }

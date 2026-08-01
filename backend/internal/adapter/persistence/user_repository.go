@@ -111,7 +111,9 @@ func (r *userRepository) ListByRole(ctx context.Context, role string) ([]domain.
 func (r *userRepository) ListByCompanyID(ctx context.Context, companyID uint64) ([]domain.User, error) {
 	cid, ok := toInt64ID(companyID)
 	if !ok {
-		return nil, nil
+		// 範囲外の ID は該当なしと同じ扱い。nil を返すと JSON が null になり
+		// フロントの map が落ちるため空スライスにする（FRESTYLE-77）。
+		return make([]domain.User, 0), nil
 	}
 	sqlDB, err := r.db.DB()
 	if err != nil {

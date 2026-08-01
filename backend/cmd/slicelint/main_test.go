@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// writePersistence は一時ディレクトリに internal/adapter/persistence/<name> を作る。
+// writePersistence は一時ディレクトリに internal/adapter/persistence/<name> を作り root を返す。
 func writePersistence(t *testing.T, name, src string) string {
 	t.Helper()
 	root := t.TempDir()
@@ -20,15 +21,19 @@ func writePersistence(t *testing.T, name, src string) string {
 	return root
 }
 
-func runOn(t *testing.T, root string) (code int, stdout string) {
-	t.Helper()
-	var out, errOut bytes.Buffer
-	code = runCLI([]string{root}, &out, &errOut)
-	return code, out.String()
-}
-
-func Test_一覧メソッドがnilスライスのままなら違反(t *testing.T) {
-	root := writePersistence(t, "repo.go", `package persistence
+func Test_slicelint(t *testing.T) {
+	tests := []struct {
+		name           string
+		fileName       string
+		src            string
+		wantCode       int
+		wantContains   []string // 出力に含まれること
+		wantNotContain string   // 出力に含まれないこと
+	}{
+		{
+			name:     "var宣言のまま返すと違反",
+			fileName: "repo.go",
+			src: `package persistence
 
 type r struct{}
 
@@ -36,16 +41,14 @@ func (r *r) ListAll() ([]Item, error) {
 	var rows []Item
 	return rows, nil
 }
-`)
-	code, out := runOn(t, root)
-
-	assert.Equal(t, 1, code)
-	assert.Contains(t, out, "ListAll")
-	assert.Contains(t, out, "make([]T, 0)")
-}
-
-func Test_空スライスで初期化していれば通る(t *testing.T) {
-	root := writePersistence(t, "repo.go", `package persistence
+`,
+			wantCode:     1,
+			wantContains: []string{"ListAll", "make([]T, 0)"},
+		},
+		{
+			name:     "空スライスで初期化していれば通る",
+			fileName: "repo.go",
+			src: `package persistence
 
 type r struct{}
 
@@ -53,16 +56,51 @@ func (r *r) ListAll() ([]Item, error) {
 	rows := make([]Item, 0)
 	return rows, nil
 }
-`)
-	code, out := runOn(t, root)
+`,
+			wantCode:     0,
+			wantContains: []string{"OK"},
+		},
+		{
+			// 早期 return で nil を返すと、この 1 箇所だけで同じ不具合が再発する。
+			name:     "成功時にnilを直接返すと違反",
+			fileName: "repo.go",
+			src: `package persistence
 
-	assert.Equal(t, 0, code)
-	assert.Contains(t, out, "OK")
+type r struct{}
+
+func (r *r) ListAll(enabled bool) ([]Item, error) {
+	if !enabled {
+		return nil, nil
+	}
+	rows := make([]Item, 0)
+	return rows, nil
 }
+`,
+			wantCode:     1,
+			wantContains: []string{"ListAll", "成功時に nil スライス"},
+		},
+		{
+			// エラーを返す経路の nil は正当。ここまで弾くと実装できなくなる。
+			name:     "エラー返却時のnilは違反にしない",
+			fileName: "repo.go",
+			src: `package persistence
 
-// 別スライスへ詰め替える中間変数は、返却値ではないので違反にしない。
-func Test_詰め替え用の中間変数は違反にしない(t *testing.T) {
-	root := writePersistence(t, "repo.go", `package persistence
+type r struct{}
+
+func (r *r) ListAll() ([]Item, error) {
+	rows, err := query()
+	if err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+`,
+			wantCode: 0,
+		},
+		{
+			name:     "詰め替え用の中間変数は違反にしない",
+			fileName: "repo.go",
+			src: `package persistence
 
 type r struct{}
 
@@ -74,15 +112,13 @@ func (r *r) ListAll() ([]Out, error) {
 	}
 	return out, nil
 }
-`)
-	code, _ := runOn(t, root)
-
-	assert.Equal(t, 0, code)
-}
-
-// スライスを返さないメソッド（単一取得・件数集計など）は対象外。
-func Test_スライスを返さないメソッドは対象外(t *testing.T) {
-	root := writePersistence(t, "repo.go", `package persistence
+`,
+			wantCode: 0,
+		},
+		{
+			name:     "スライスを返さないメソッドは対象外",
+			fileName: "repo.go",
+			src: `package persistence
 
 type r struct{}
 
@@ -94,14 +130,29 @@ func (r *r) CountByUser() (map[uint64]int, error) {
 	}
 	return counts, nil
 }
-`)
-	code, _ := runOn(t, root)
+`,
+			wantCode: 0,
+		},
+		{
+			name:     "単一取得のnilは違反にしない",
+			fileName: "repo.go",
+			src: `package persistence
 
-	assert.Equal(t, 0, code)
+type r struct{}
+
+func (r *r) FindByID(id uint64) (*Item, error) {
+	if id == 0 {
+		return nil, nil
+	}
+	return &Item{}, nil
 }
-
-func Test_allowコメントで個別に抑制できる(t *testing.T) {
-	root := writePersistence(t, "repo.go", `package persistence
+`,
+			wantCode: 0,
+		},
+		{
+			name:     "allowコメントで宣言を抑制できる",
+			fileName: "repo.go",
+			src: `package persistence
 
 type r struct{}
 
@@ -110,14 +161,44 @@ func (r *r) ListAll() ([]Item, error) {
 	var rows []Item
 	return rows, nil
 }
-`)
-	code, out := runOn(t, root)
+`,
+			wantCode: 0,
+		},
+		{
+			name:     "allowコメントを行末に書いても抑制できる",
+			fileName: "repo.go",
+			src: `package persistence
 
-	assert.Equal(t, 0, code, "抑制コメントがあれば通ること: %s", out)
+type r struct{}
+
+func (r *r) ListAll() ([]Item, error) {
+	var rows []Item //slicelint:allow 内部専用
+	return rows, nil
 }
+`,
+			wantCode: 0,
+		},
+		{
+			name:     "allowコメントでnil返却も抑制できる",
+			fileName: "repo.go",
+			src: `package persistence
 
-func Test_ignore_fileでファイル全体を除外できる(t *testing.T) {
-	root := writePersistence(t, "repo.go", `//slicelint:ignore-file 生成コードのため対象外
+type r struct{}
+
+func (r *r) ListAll(enabled bool) ([]Item, error) {
+	if !enabled {
+		//slicelint:allow 呼び出し側が未設定を nil で判定する
+		return nil, nil
+	}
+	return make([]Item, 0), nil
+}
+`,
+			wantCode: 0,
+		},
+		{
+			name:     "ignore_fileでファイル全体を除外できる",
+			fileName: "repo.go",
+			src: `//slicelint:ignore-file 生成コードのため対象外
 
 package persistence
 
@@ -127,14 +208,17 @@ func (r *r) ListAll() ([]Item, error) {
 	var rows []Item
 	return rows, nil
 }
-`)
-	code, _ := runOn(t, root)
+`,
+			wantCode: 0,
+		},
+		{
+			// 先頭コメントとしてのみ有効。package 宣言より後ろに書いても効かせない
+			// （ファイル全体の除外を後から紛れ込ませられないようにする）。
+			name:     "ignore_fileはpackage宣言より後ろでは効かない",
+			fileName: "repo.go",
+			src: `package persistence
 
-	assert.Equal(t, 0, code)
-}
-
-func Test_テストファイルは対象外(t *testing.T) {
-	root := writePersistence(t, "repo_test.go", `package persistence
+//slicelint:ignore-file 後から追加された除外
 
 type r struct{}
 
@@ -142,18 +226,64 @@ func (r *r) ListAll() ([]Item, error) {
 	var rows []Item
 	return rows, nil
 }
-`)
-	code, _ := runOn(t, root)
+`,
+			wantCode:     1,
+			wantContains: []string{"ListAll"},
+		},
+		{
+			name:     "テストファイルは対象外",
+			fileName: "repo_test.go",
+			src: `package persistence
 
-	assert.Equal(t, 0, code)
+type r struct{}
+
+func (r *r) ListAll() ([]Item, error) {
+	var rows []Item
+	return rows, nil
+}
+`,
+			wantCode: 0,
+		},
+		{
+			// レシーバの無い純関数（ヘルパ）は repository のメソッドではないため対象外。
+			name:     "レシーバの無い関数は対象外",
+			fileName: "repo.go",
+			src: `package persistence
+
+func listAll() ([]Item, error) {
+	var rows []Item
+	return rows, nil
+}
+`,
+			wantCode: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := writePersistence(t, tt.fileName, tt.src)
+
+			var stdout, stderr bytes.Buffer
+			code := runCLI([]string{root}, &stdout, &stderr)
+
+			assert.Equal(t, tt.wantCode, code, "stdout=%s", stdout.String())
+			for _, want := range tt.wantContains {
+				assert.Contains(t, stdout.String(), want)
+			}
+			if tt.wantNotContain != "" {
+				assert.NotContains(t, stdout.String(), tt.wantNotContain)
+			}
+		})
+	}
 }
 
 func Test_解析できないディレクトリは実行エラー(t *testing.T) {
-	var out, errOut bytes.Buffer
-	code := runCLI([]string{filepath.Join(t.TempDir(), "存在しない")}, &out, &errOut)
+	var stdout, stderr bytes.Buffer
+
+	code := runCLI([]string{filepath.Join(t.TempDir(), "存在しない")}, &stdout, &stderr)
 
 	assert.Equal(t, 2, code)
-	assert.Contains(t, errOut.String(), "slicelint:")
+	assert.Contains(t, stderr.String(), "slicelint:")
 }
 
 func Test_複数の違反を行番号順に並べて報告する(t *testing.T) {
@@ -171,14 +301,12 @@ func (r *r) ListB() ([]Item, error) {
 	return b, nil
 }
 `)
-	code, out := runOn(t, root)
+
+	var stdout, stderr bytes.Buffer
+	code := runCLI([]string{root}, &stdout, &stderr)
+	out := stdout.String()
 
 	assert.Equal(t, 1, code)
-	assert.Contains(t, out, "ListA")
-	assert.Contains(t, out, "ListB")
-	assert.Less(t, indexOf(out, "ListA"), indexOf(out, "ListB"), "行番号順に並ぶこと")
-}
-
-func indexOf(s, sub string) int {
-	return bytes.Index([]byte(s), []byte(sub))
+	assert.Less(t, strings.Index(out, "ListA"), strings.Index(out, "ListB"), "行番号順に並ぶこと")
+	assert.Contains(t, stderr.String(), "2 件")
 }

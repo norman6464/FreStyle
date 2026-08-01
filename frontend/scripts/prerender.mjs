@@ -13,12 +13,14 @@
  * 使い方: npm run build && node scripts/prerender.mjs
  */
 import { createServer } from 'node:http';
-import { readFile, writeFile, mkdir, readdir, stat } from 'node:fs/promises';
+import { copyFile, readFile, writeFile, mkdir, readdir, stat } from 'node:fs/promises';
 import { join, extname, dirname, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
 
 const ROUTES = ['/']; // Phase 1: 公開トップのみ
+// SPA フォールバック用の空シェル。CloudFront のエラー応答がこのファイルを返す（FRESTYLE-230）。
+const SHELL_FILE = 'app.html';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DIST = join(HERE, '..', 'dist');
 const READY_SELECTOR = 'html[data-prerender-ready]';
@@ -108,6 +110,21 @@ async function main() {
   if (!(await fileExists(join(DIST, 'index.html')))) {
     throw new Error('dist/index.html が無い。先に `npm run build` を実行してください。');
   }
+
+  // プリレンダーで index.html を上書きする前に、素の（中身が空の）シェルを app.html として残す。
+  // CloudFront の SPA フォールバックはこちらを返す。index.html を返すと /dashboard 等でも
+  // LP の HTML が先に描画され、「一瞬 LP が映ってから目的の画面に切り替わる」ちらつきになる
+  // （FRESTYLE-230）。トップ(/)だけは既定のルートオブジェクトとして index.html が返るため
+  // SEO 用のプリレンダー結果はそのまま活きる。
+  const shellPath = join(DIST, SHELL_FILE);
+  await copyFile(join(DIST, 'index.html'), shellPath);
+  const shellHtml = await readFile(shellPath, 'utf-8');
+  if (!/<div id="root">\s*<\/div>/.test(shellHtml)) {
+    throw new Error(
+      `prerender: ${SHELL_FILE} が空シェルでない。build 直後の index.html から作る必要がある。`,
+    );
+  }
+  console.log(`shell: ${SHELL_FILE}（SPA フォールバック用・空シェル）`);
 
   const { server, port } = await startServer();
   const base = `http://127.0.0.1:${port}`;

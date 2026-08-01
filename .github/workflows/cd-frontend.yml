@@ -105,15 +105,21 @@ jobs:
         run: |
           aws s3 sync dist/ s3://fre-style-bucket --delete \
             --cache-control "public, max-age=31536000, immutable" \
-            --exclude "index.html"
+            --exclude "index.html" \
+            --exclude "app.html"
 
       # 2) index.html は no-cache。これがないと古い index.html がブラウザにキャッシュされ、
       #    次デプロイの --delete で消えた旧チャンクを参照して 404(MIME text/html)になる。
-      - name: Upload index.html (no-cache)
+      # index.html はトップ用(プリレンダー済み)、app.html は SPA フォールバック用(空シェル)。
+      # どちらも no-cache。古い HTML がキャッシュされると、--delete で消えた旧チャンクを
+      # 参照して 404(MIME text/html)になる。
+      - name: Upload HTML entrypoints (no-cache)
         run: |
-          aws s3 cp dist/index.html s3://fre-style-bucket/index.html \
-            --cache-control "no-cache, must-revalidate" \
-            --content-type "text/html; charset=utf-8"
+          for f in index.html app.html; do
+            aws s3 cp "dist/$f" "s3://fre-style-bucket/$f" \
+              --cache-control "no-cache, must-revalidate" \
+              --content-type "text/html; charset=utf-8"
+          done
 
       - name: Invalidate CloudFront cache
         run: |

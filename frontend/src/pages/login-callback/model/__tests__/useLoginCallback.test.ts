@@ -17,6 +17,8 @@ vi.mock('@/shared/lib/store', () => ({
 vi.mock('@/entities/user/api/authRepository', () => ({
   default: {
     callback: vi.fn(),
+    // 遷移前にロールを確定させるため callback 成功後に呼ばれる（FRESTYLE-233）。
+    probeCurrentUser: vi.fn(),
   },
 }));
 
@@ -32,6 +34,11 @@ describe('useLoginCallback', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSearchParams = '';
+    vi.mocked(authRepository.probeCurrentUser).mockResolvedValue({
+      id: 1,
+      isAdmin: false,
+      role: 'trainee',
+    } as any);
   });
 
   it('codeがある場合にauthRepository.callbackを呼び出す', async () => {

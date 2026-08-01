@@ -32,6 +32,10 @@ import StatsSkeleton from './StatsSkeleton';
  *   統計 API のロード中はメニューを先出しせずスケルトンで待ち、レイアウトシフトと
  *   「メニューだけ先に出てサイドバーが後から差し込まれる」ちらつきを防ぐ。
  *   super_admin は統計を持たないので即時表示。
+ *
+ *   role が null の間はどのロールとしても描画しない（FRESTYLE-233）。null は「未認証」と
+ *   「未確定」の両方を表すため、確定前に描画すると全ての判定が false になり、既定として
+ *   学習者向けが出てしまう。管理者のログイン直後に学習者画面が一瞬映る原因だった。
  */
 export default function MenuPage() {
   const role = useAppSelector((state) => state.auth.role);
@@ -39,6 +43,7 @@ export default function MenuPage() {
   const isSuperAdmin = role === 'super_admin';
   const isTrainee = role === 'trainee';
   const isCompanyAdmin = role === 'company_admin';
+  const roleUnresolved = role === null;
   const showAi = !isTrainee || aiEnabled;
 
   // サイドバーの中身はロールで出し分ける(FRESTYLE-103):
@@ -49,6 +54,16 @@ export default function MenuPage() {
 
   // 学習者/管理者向けはサイドバーのロード完了まで本体を出さず、両カラムを同時に出す。
   const waitingForStats = (isTrainee && dashboardLoading) || (isCompanyAdmin && summaryLoading);
+
+  // ロール未確定のうちは見出しもサイドバーもロールに依存するため、ページ全体を
+  // 読み込み表示にする。ここで役割別の要素を出すと、確定後に差し替わってちらつく。
+  if (roleUnresolved) {
+    return (
+      <div className="px-4 sm:px-6 pt-8 pb-24 max-w-6xl mx-auto" aria-busy="true">
+        <MenuSkeleton />
+      </div>
+    );
+  }
 
   return (
     <div className="px-4 sm:px-6 pt-8 pb-24 max-w-6xl mx-auto">

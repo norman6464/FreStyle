@@ -44,7 +44,15 @@ export const useAuth = () => {
       try {
         const userInfo = await AuthRepository.login(request);
         setUser(userInfo);
-        dispatch(setAuthData({ isAdmin: !!userInfo.isAdmin }));
+        dispatch(
+          setAuthData({
+            isAdmin: !!userInfo.isAdmin,
+            // role を渡さないと未確定(null)のまま「読み込み完了」になり、ダッシュボードが
+            // 既定として学習者向けを描画してしまう（FRESTYLE-233）。
+            role: userInfo.role ?? null,
+            aiChatEnabledForTrainees: userInfo.aiChatEnabledForTrainees ?? true,
+          }),
+        );
         return true;
       } catch (err) {
         setError(classifyApiError(err, 'ログインに失敗しました。'));
@@ -124,7 +132,13 @@ export const useAuth = () => {
     try {
       const userInfo = await AuthRepository.getCurrentUser();
       setUser(userInfo);
-      dispatch(setAuthData({ isAdmin: !!userInfo.isAdmin }));
+      dispatch(
+        setAuthData({
+          isAdmin: !!userInfo.isAdmin,
+          role: userInfo.role ?? null,
+          aiChatEnabledForTrainees: userInfo.aiChatEnabledForTrainees ?? true,
+        }),
+      );
       return userInfo;
     } catch (err) {
       setError(classifyApiError(err, 'ユーザー情報の取得に失敗しました。'));

@@ -224,19 +224,6 @@ func isNilIdent(e ast.Expr) bool {
 	return ok && id.Name == "nil"
 }
 
-// returnsSlice は関数の戻り値にスライス型が含まれるかを返す。
-func returnsSlice(fn *ast.FuncDecl) bool {
-	if fn.Type.Results == nil {
-		return false
-	}
-	for _, r := range fn.Type.Results.List {
-		if isSliceType(r.Type) {
-			return true
-		}
-	}
-	return false
-}
-
 // isSliceType は式がスライス型（配列ではない）かを返す。
 func isSliceType(e ast.Expr) bool {
 	at, ok := e.(*ast.ArrayType)

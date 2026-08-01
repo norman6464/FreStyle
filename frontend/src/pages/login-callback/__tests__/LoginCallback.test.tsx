@@ -22,7 +22,7 @@ vi.mock('@/entities/user/api/authRepository');
 
 function renderWithRoute(search: string) {
   const store = configureStore({ reducer: { auth: authReducer } });
-  return render(
+  const view = render(
     <Provider store={store}>
       <MemoryRouter initialEntries={[`/callback${search}`]}>
         <ToastProvider>
@@ -31,12 +31,20 @@ function renderWithRoute(search: string) {
       </MemoryRouter>
     </Provider>,
   );
+  return { ...view, store };
 }
 
 describe('LoginCallback', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal('alert', vi.fn());
+    // 既定は「認可コード交換に成功し、/auth/me も引ける」状態。
+    vi.mocked(authRepository.probeCurrentUser).mockResolvedValue({
+      id: 1,
+      isAdmin: true,
+      role: 'super_admin',
+      aiChatEnabledForTrainees: true,
+    });
   });
 
   it('ローディング表示がされる', () => {
@@ -83,6 +91,72 @@ describe('LoginCallback', () => {
 
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith('/login', { state: { toast: '認証に失敗しました' } });
+    });
+  });
+
+  // 遷移前にロールを確定させないと、ダッシュボードが「管理者ではない」と誤判定して
+  // 学習者向け画面を一瞬描画してしまう（FRESTYLE-233）。
+  describe('ロールの確定', () => {
+    it('遷移前に /auth/me を引いてロールを反映する', async () => {
+      vi.mocked(authRepository.callback).mockResolvedValue({});
+
+      const { store } = renderWithRoute('?code=valid-code');
+
+      await waitFor(() => {
+        expect(mockNavigate).toHaveBeenCalledWith('/dashboard');
+      });
+      expect(authRepository.probeCurrentUser).toHaveBeenCalled();
+      expect(store.getState().auth.role).toBe('super_admin');
+      expect(store.getState().auth.isAdmin).toBe(true);
+    });
+
+    it('ロールが反映されてから遷移する（順序）', async () => {
+      vi.mocked(authRepository.callback).mockResolvedValue({});
+      let roleAtNavigate: string | null = 'まだ呼ばれていない';
+      const { store } = renderWithRoute('?code=valid-code');
+      mockNavigate.mockImplementation(() => {
+        roleAtNavigate = store.getState().auth.role;
+      });
+
+      await waitFor(() => {
+        expect(mockNavigate).toHaveBeenCalledWith('/dashboard');
+      });
+      expect(roleAtNavigate).toBe('super_admin');
+    });
+
+    it('trainee のロールもそのまま反映される', async () => {
+      vi.mocked(authRepository.callback).mockResolvedValue({});
+      vi.mocked(authRepository.probeCurrentUser).mockResolvedValue({
+        id: 2,
+        isAdmin: false,
+        role: 'trainee',
+        aiChatEnabledForTrainees: false,
+      });
+
+      const { store } = renderWithRoute('?code=valid-code');
+
+      await waitFor(() => {
+        expect(mockNavigate).toHaveBeenCalledWith('/dashboard');
+      });
+      expect(store.getState().auth.role).toBe('trainee');
+      expect(store.getState().auth.aiChatEnabledForTrainees).toBe(false);
+    });
+
+    // 認可コードの交換は成功しているので認証は成立している。ここでログイン画面へ
+    // 戻すと「ログインできたのに戻される」挙動になるため、フル読み込みで復帰する。
+    it('ロールの取得だけ失敗したときはログイン画面へ戻さずフル読み込みする', async () => {
+      // 使用済みの認可コードを含む URL を履歴に残さないため replace で遷移する。
+      const replace = vi.fn();
+      vi.stubGlobal('location', { ...window.location, replace });
+      vi.mocked(authRepository.callback).mockResolvedValue({});
+      vi.mocked(authRepository.probeCurrentUser).mockRejectedValue(new Error('一時的な通信エラー'));
+
+      renderWithRoute('?code=valid-code');
+
+      await waitFor(() => {
+        expect(replace).toHaveBeenCalledWith('/dashboard');
+      });
+      expect(mockNavigate).not.toHaveBeenCalledWith('/login', expect.anything());
     });
   });
 });

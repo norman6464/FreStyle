@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, act } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 import { MemoryRouter } from 'react-router-dom';
 import MenuPage from '../ui/MenuPage';
-import authReducer from '@/entities/user/model/authSlice';
+import authReducer, { setAuthData } from '@/entities/user/model/authSlice';
 import { useUserDashboard } from '../model/useUserDashboard';
 import { useCompanyLearningSummary } from '../model/useCompanyLearningSummary';
 import type { UserDashboard } from '@/entities/user';
@@ -35,20 +35,21 @@ const sampleSummary: CompanyLearningSummary = {
   ],
 };
 
-function renderMenu(role: string, aiChatEnabledForTrainees = true) {
+function renderMenu(role: string | null, aiChatEnabledForTrainees = true) {
   const store = configureStore({
     reducer: { auth: authReducer },
     preloadedState: {
       auth: { role, aiChatEnabledForTrainees } as never,
     },
   });
-  return render(
+  const view = render(
     <Provider store={store}>
       <MemoryRouter>
         <MenuPage />
       </MemoryRouter>
     </Provider>,
   );
+  return { ...view, store };
 }
 
 describe('MenuPage', () => {
@@ -151,5 +152,50 @@ describe('MenuPage', () => {
 
     expect(screen.getByText('コース')).toBeInTheDocument();
     expect(screen.queryByText('連続学習')).not.toBeInTheDocument();
+  });
+
+  // role が null のときは「未認証」と「未確定」を区別できない。確定前に描画すると
+  // すべてのロール判定が false になり、既定として学習者向けが出てしまう。
+  // 管理者のログイン直後に学習者画面が一瞬映る原因だった（FRESTYLE-233）。
+  describe('ロールが未確定のとき', () => {
+    it('学習者向けのカードを一切描画しない', () => {
+      renderMenu(null);
+
+      expect(screen.queryByText('コース')).not.toBeInTheDocument();
+      expect(screen.queryByText('コード演習')).not.toBeInTheDocument();
+      expect(screen.queryByText('ノート')).not.toBeInTheDocument();
+      expect(screen.queryByText('学習レポート')).not.toBeInTheDocument();
+    });
+
+    it('管理者向けのカードも見出しも描画しない', () => {
+      renderMenu(null);
+
+      expect(screen.queryByText('会社一覧')).not.toBeInTheDocument();
+      expect(screen.queryByText('招待管理')).not.toBeInTheDocument();
+      expect(screen.queryByText('管理メニュー')).not.toBeInTheDocument();
+      expect(screen.queryByText('FreStyle へようこそ')).not.toBeInTheDocument();
+    });
+
+    it('読み込み中であることを支援技術に伝える', () => {
+      renderMenu(null);
+
+      expect(screen.getByRole('status')).toHaveTextContent('読み込み中');
+    });
+
+    // 同じ store を保ったままロールを流し込み、実際の遷移として検証する
+    // （別マウントで比較すると「起動時の状態」を 2 通り見ているだけになる）。
+    it('ロールが確定したら本来の画面に切り替わる', () => {
+      const { store } = renderMenu(null);
+      expect(screen.getByRole('status')).toBeInTheDocument();
+      expect(screen.queryByText('管理メニュー')).not.toBeInTheDocument();
+
+      act(() => {
+        store.dispatch(setAuthData({ role: 'super_admin', isAdmin: true }));
+      });
+
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+      expect(screen.getByText('管理メニュー')).toBeInTheDocument();
+      expect(screen.queryByText('コース')).not.toBeInTheDocument();
+    });
   });
 });

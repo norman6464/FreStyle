@@ -44,7 +44,16 @@ export const useAuth = () => {
       try {
         const userInfo = await AuthRepository.login(request);
         setUser(userInfo);
-        dispatch(setAuthData({ isAdmin: !!userInfo.isAdmin }));
+        dispatch(
+          setAuthData({
+            isAdmin: !!userInfo.isAdmin,
+            // 値が無いときは undefined のまま渡し、setAuthData に現在値を維持させる
+            // （FRESTYLE-233）。?? で null / true を入れると、ユーザー情報を返さない
+            // 応答（/auth/cognito/login は message のみ）で確定済みのロールを消してしまう。
+            role: userInfo.role,
+            aiChatEnabledForTrainees: userInfo.aiChatEnabledForTrainees,
+          }),
+        );
         return true;
       } catch (err) {
         setError(classifyApiError(err, 'ログインに失敗しました。'));
@@ -124,7 +133,13 @@ export const useAuth = () => {
     try {
       const userInfo = await AuthRepository.getCurrentUser();
       setUser(userInfo);
-      dispatch(setAuthData({ isAdmin: !!userInfo.isAdmin }));
+      dispatch(
+        setAuthData({
+          isAdmin: !!userInfo.isAdmin,
+          role: userInfo.role,
+          aiChatEnabledForTrainees: userInfo.aiChatEnabledForTrainees,
+        }),
+      );
       return userInfo;
     } catch (err) {
       setError(classifyApiError(err, 'ユーザー情報の取得に失敗しました。'));

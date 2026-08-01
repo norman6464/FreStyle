@@ -3,6 +3,7 @@ import { useAppDispatch } from '@/shared/lib/store';
 
 import { useNavigate } from 'react-router-dom';
 import { clearAuth } from '@/entities/user';
+import { clearAuthHint } from '@/shared/lib/authHint';
 import { AuthRepository } from '@/entities/user';
 
 export function useSidebar() {
@@ -15,6 +16,7 @@ export function useSidebar() {
     try {
       await AuthRepository.logout();
       dispatch(clearAuth());
+      clearAuthHint();
       navigate('/login');
     } catch {
       setLoggingOut(false);

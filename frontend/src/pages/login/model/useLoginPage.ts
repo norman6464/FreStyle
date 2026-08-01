@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { useFormField } from '@/shared/lib/hooks/useFormField';
 import { AuthRepository as authRepository } from '@/entities/user';
 import { getApiError } from '@/shared/lib/classifyApiError';
+import { setAuthHint } from '@/shared/lib/authHint';
 
 interface LoginMessage {
   type: 'success' | 'error';
@@ -32,6 +33,8 @@ export function useLoginPage() {
 
     try {
       await authRepository.login({ email: form.email, password: form.password });
+      // 配信側でトップを振り分けるための目印（FRESTYLE-231）
+      setAuthHint();
       window.location.assign('/dashboard');
     } catch (err) {
       // 招待なしの新規ユーザーは backend が 403 invitation_required を返す。専用文言を出す。

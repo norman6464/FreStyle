@@ -15,6 +15,7 @@ import PublicHeader from '@/shared/ui/PublicHeader';
 import { useAppSelector, useAppDispatch } from '@/shared/lib/store';
 import { useDocumentMeta } from '@/shared/lib/hooks/useDocumentMeta';
 import { AuthRepository, setAuthData } from '@/entities/user';
+import { clearAuthHint } from '@/shared/lib/authHint';
 
 const SITE_URL = 'https://frestyle.jp/';
 
@@ -117,7 +118,8 @@ export default function LandingPage() {
         );
       })
       .catch(() => {
-        // 未ログイン: LP のまま
+        // 未ログイン: LP のまま。目印が残っていると配信側で無駄な転送が起きるので消す。
+        clearAuthHint();
       });
     return () => {
       cancelled = true;

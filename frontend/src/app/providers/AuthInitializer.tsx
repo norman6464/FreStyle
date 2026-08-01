@@ -5,6 +5,7 @@ import { setAuthData, clearAuth, finishLoading } from '@/entities/user';
 
 import { AuthRepository as authRepository } from '@/entities/user';
 import Loading from '@/shared/ui/Loading';
+import { setAuthHint, clearAuthHint } from '@/shared/lib/authHint';
 
 interface AuthInitializerProps {
   children: ReactNode;
@@ -26,8 +27,11 @@ export default function AuthInitializer({ children }: AuthInitializerProps) {
             aiChatEnabledForTrainees: me.aiChatEnabledForTrainees ?? true,
           })
         );
+        setAuthHint();
       } catch {
         dispatch(clearAuth());
+        // セッションが切れている間は目印も消す（残っているとトップで無駄な転送が起きる）
+        clearAuthHint();
       } finally {
         dispatch(finishLoading());
       }

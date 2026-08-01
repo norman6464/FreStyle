@@ -12,6 +12,9 @@ import { useBackendHealth } from '@/shared/lib/hooks/useBackendHealth';
 import ToastContainer from '@/app/providers/ToastContainer';
 import { lazyWithReload, clearLazyReloadFlags } from '@/shared/lib/lazyWithReload';
 
+/* v8 ignore start -- 以下はコード分割のためのルート表。各 `() => import(...)` は
+   中身を持たない読み込み用の関数で、埋めるには全ページを描画するしかなく指標として
+   意味を持たない。実ロジック（NavigationToast / AppRoutes）は計測対象のまま残す。 */
 // 認証不要ページ
 const LoginPage = lazyWithReload(() => import('@/pages/login').then((m) => ({ default: m.LoginPage })), 'LoginPage');
 const LoginCallback = lazyWithReload(() => import('@/pages/login-callback').then((m) => ({ default: m.LoginCallback })), 'LoginCallback');
@@ -49,6 +52,7 @@ const MarkdownSyntaxHelpPage = lazyWithReload(() => import('@/pages/markdown-syn
 // inkwell プリミティブの見た目確認用カタログ（認証不要・削除可）。
 const InkwellShowcasePage = lazyWithReload(() => import('@/pages/inkwell-showcase').then((m) => ({ default: m.InkwellShowcasePage })), 'InkwellShowcasePage');
 const NotFoundPage = lazyWithReload(() => import('@/pages/not-found').then((m) => ({ default: m.NotFoundPage })), 'NotFoundPage');
+/* v8 ignore stop */
 
 function NavigationToast() {
   const location = useLocation();

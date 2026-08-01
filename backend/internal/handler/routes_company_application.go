@@ -24,7 +24,10 @@ func registerCompanyApplicationPublicRoutes(g *gin.RouterGroup, h *CompanyApplic
 	g.POST("/company-applications", middleware.RateLimitPerMinute(5, 5), h.Create)
 }
 
-// registerCompanyApplicationAdminRoutes は super_admin 用の一覧 / status 更新を登録する（認可は handler 層）。
+// registerCompanyApplicationAdminRoutes は super_admin 用の一覧 / status 更新を登録する。
+//
+// 認可は 2 段構え: 入口の middleware.RequireAdmin が非管理者を落とし、
+// super_admin 限定の判定は handler の requireSuperAdmin が行う。
 // audit は status 更新（承認/却下）を監査ログに記録する middleware。
 func registerCompanyApplicationAdminRoutes(parent *gin.RouterGroup, h *CompanyApplicationHandler, audit gin.HandlerFunc) {
 	// 他の /admin/* と同様、非管理者は入口で落とす（多層防御。細かい判定は handler 側）。

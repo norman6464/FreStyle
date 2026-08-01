@@ -1,4 +1,5 @@
 import apiClient from '@/shared/api/axios';
+import { toArray } from '@/shared/lib/toArray';
 import { NOTES } from '@/shared/config/apiRoutes';
 import type { Note } from '../model/types';
 
@@ -9,7 +10,7 @@ import type { Note } from '../model/types';
 const NoteRepository = {
   async fetchNotes(): Promise<Note[]> {
     const res = await apiClient.get<Note[]>(NOTES.list);
-    return Array.isArray(res.data) ? res.data : [];
+    return toArray<Note>(res.data);
   },
 
   async createNote(title: string): Promise<Note> {

@@ -40,7 +40,7 @@ func (r *userChapterViewRepository) ListRecentByUser(
 	userID uint64,
 	limit int,
 ) ([]domain.UserChapterView, error) {
-	var rows []domain.UserChapterView
+	rows := make([]domain.UserChapterView, 0)
 	err := r.db.WithContext(ctx).
 		Where("user_id = ?", userID).
 		Order("last_viewed_at DESC").

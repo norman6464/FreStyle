@@ -1,4 +1,5 @@
 import apiClient from '@/shared/api/axios';
+import { toArray } from '@/shared/lib/toArray';
 import { NOTIFICATIONS } from '@/shared/config/apiRoutes';
 import type { Notification } from '../model/types';
 
@@ -6,7 +7,7 @@ import type { Notification } from '../model/types';
 export const NotificationRepository = {
   async getAll(): Promise<Notification[]> {
     const response = await apiClient.get<Notification[]>(NOTIFICATIONS.list);
-    return response.data;
+    return toArray<Notification>(response.data);
   },
 
   async markAsRead(notificationId: number): Promise<void> {

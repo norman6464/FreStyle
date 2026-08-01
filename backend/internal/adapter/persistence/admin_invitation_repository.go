@@ -19,7 +19,7 @@ func NewAdminInvitationRepository(db *gorm.DB) repository.AdminInvitationReposit
 
 // pending 以外（accepted / canceled）は除外する（行は物理削除せず status のみ更新）。
 func (r *adminInvitationRepository) ListAll(ctx context.Context) ([]domain.AdminInvitation, error) {
-	var rows []domain.AdminInvitation
+	rows := make([]domain.AdminInvitation, 0)
 	err := r.db.WithContext(ctx).
 		Where("status = ?", domain.InvitationStatusPending).
 		Order("created_at DESC").Find(&rows).Error
@@ -27,7 +27,7 @@ func (r *adminInvitationRepository) ListAll(ctx context.Context) ([]domain.Admin
 }
 
 func (r *adminInvitationRepository) ListByCompanyID(ctx context.Context, companyID uint64) ([]domain.AdminInvitation, error) {
-	var rows []domain.AdminInvitation
+	rows := make([]domain.AdminInvitation, 0)
 	err := r.db.WithContext(ctx).
 		Where("company_id = ? AND status = ?", companyID, domain.InvitationStatusPending).
 		Order("created_at DESC").Find(&rows).Error

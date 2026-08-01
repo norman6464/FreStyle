@@ -22,7 +22,7 @@ func (r *exerciseSubmissionRepository) Create(ctx context.Context, submission *d
 }
 
 func (r *exerciseSubmissionRepository) ListByUserAndExercise(ctx context.Context, userID, exerciseID uint64, kind string) ([]domain.ExerciseSubmission, error) {
-	var rows []domain.ExerciseSubmission
+	rows := make([]domain.ExerciseSubmission, 0)
 	if err := r.db.WithContext(ctx).
 		Where("user_id = ? AND exercise_id = ? AND exercise_kind = ?", userID, exerciseID, kind).
 		Order("submitted_at desc, id desc").

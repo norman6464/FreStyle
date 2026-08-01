@@ -69,7 +69,7 @@ GROUP BY tm.course_id`
 }
 
 func (r *lessonProgressRepository) ListByUser(ctx context.Context, userID uint64) ([]domain.UserLessonProgress, error) {
-	var rows []domain.UserLessonProgress
+	rows := make([]domain.UserLessonProgress, 0)
 	err := r.db.WithContext(ctx).
 		Where("user_id = ?", userID).
 		Find(&rows).Error

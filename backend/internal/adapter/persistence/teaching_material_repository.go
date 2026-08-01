@@ -24,7 +24,7 @@ func (r *teachingMaterialRepository) ListByCompany(ctx context.Context, companyI
 SELECT * FROM course_chapters
 WHERE company_id = ? AND (? OR is_published = TRUE)
 ORDER BY updated_at DESC, id DESC`
-	var rows []domain.TeachingMaterial
+	rows := make([]domain.TeachingMaterial, 0)
 	if err := r.db.WithContext(ctx).Raw(q, companyID, includeUnpublished).Scan(&rows).Error; err != nil {
 		return nil, err
 	}
@@ -40,7 +40,7 @@ SELECT id, company_id, course_id, created_by_user_id, title, sort_order, is_publ
 FROM course_chapters
 WHERE course_id = ? AND (? OR is_published = TRUE)
 ORDER BY sort_order ASC, id ASC`
-	var rows []domain.TeachingMaterial
+	rows := make([]domain.TeachingMaterial, 0)
 	if err := r.db.WithContext(ctx).Raw(q, courseID, includeUnpublished).Scan(&rows).Error; err != nil {
 		return nil, err
 	}

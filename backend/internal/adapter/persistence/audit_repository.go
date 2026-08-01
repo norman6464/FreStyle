@@ -25,7 +25,7 @@ func (r *auditRepository) ListRecent(ctx context.Context, limit int) ([]domain.A
 	if limit <= 0 {
 		limit = 200
 	}
-	var rows []domain.AuditEvent
+	rows := make([]domain.AuditEvent, 0)
 	err := r.db.WithContext(ctx).
 		// created_at が同一秒でも順序が安定するよう id を tiebreaker にする。
 		Order("created_at DESC, id DESC").

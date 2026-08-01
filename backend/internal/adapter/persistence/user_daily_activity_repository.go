@@ -56,7 +56,7 @@ func (r *userDailyActivityRepository) ListByUser(
 	userID uint64,
 	from, to time.Time,
 ) ([]domain.UserDailyActivity, error) {
-	var rows []domain.UserDailyActivity
+	rows := make([]domain.UserDailyActivity, 0)
 	fromDate := from.UTC().Truncate(24 * time.Hour)
 	toDate := to.UTC().Truncate(24 * time.Hour)
 	err := r.db.WithContext(ctx).

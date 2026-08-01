@@ -1,4 +1,5 @@
 import api from '@/shared/api/axios';
+import { toArray } from '@/shared/lib/toArray';
 import { LESSON_PROGRESS } from '@/shared/config/apiRoutes';
 import type { UserLessonProgress } from '../model/types';
 
@@ -11,7 +12,7 @@ import type { UserLessonProgress } from '../model/types';
 const LessonProgressRepository = {
   async list(): Promise<UserLessonProgress[]> {
     const res = await api.get<UserLessonProgress[]>(LESSON_PROGRESS.list);
-    return res.data;
+    return toArray<UserLessonProgress>(res.data);
   },
 
   async complete(teachingMaterialId: number): Promise<void> {

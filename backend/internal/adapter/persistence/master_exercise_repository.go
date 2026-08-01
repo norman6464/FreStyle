@@ -18,7 +18,7 @@ func NewMasterExerciseRepository(db *gorm.DB) repository.MasterExerciseRepositor
 }
 
 func (r *masterExerciseRepository) ListByLanguage(ctx context.Context, language string) ([]domain.MasterExercise, error) {
-	var exercises []domain.MasterExercise
+	exercises := make([]domain.MasterExercise, 0)
 	q := r.db.WithContext(ctx).Where("is_published = ?", true)
 	if language != "" {
 		q = q.Where("language = ?", language)
@@ -64,7 +64,7 @@ WHERE e.is_published = TRUE
 GROUP BY e.language
 ORDER BY e.language ASC`
 
-	var rows []repository.ExerciseLanguageSummary
+	rows := make([]repository.ExerciseLanguageSummary, 0)
 	if err := r.db.WithContext(ctx).Raw(q, domain.ExerciseKindMaster, userID).Scan(&rows).Error; err != nil {
 		return nil, err
 	}

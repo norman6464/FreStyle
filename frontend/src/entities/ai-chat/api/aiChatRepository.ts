@@ -1,4 +1,5 @@
 import apiClient from '@/shared/api/axios';
+import { toArray } from '@/shared/lib/toArray';
 import { AI_CHAT } from '@/shared/config/apiRoutes';
 import type { AiSession, AiMessage } from '../model/types';
 
@@ -32,7 +33,7 @@ export interface AttachmentUploadUrlResponse {
 class AiChatRepository {
   async getSessions(): Promise<AiSession[]> {
     const response = await apiClient.get(AI_CHAT.sessions);
-    return response.data;
+    return toArray<AiSession>(response.data);
   }
 
   async getSession(sessionId: number): Promise<AiSession> {
@@ -56,7 +57,7 @@ class AiChatRepository {
 
   async getMessages(sessionId: number): Promise<AiMessage[]> {
     const response = await apiClient.get(AI_CHAT.sessionMessages(sessionId));
-    return response.data;
+    return toArray<AiMessage>(response.data);
   }
 
   /** AI チャット添付ファイル用の S3 PUT presigned URL を取得する。 */

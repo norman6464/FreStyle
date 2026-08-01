@@ -1,4 +1,5 @@
 import apiClient from '@/shared/api/axios';
+import { toArray } from '@/shared/lib/toArray';
 import { LEARNING_REPORTS } from '@/shared/config/apiRoutes';
 import type { LearningReport } from '../model/types';
 
@@ -6,7 +7,7 @@ import type { LearningReport } from '../model/types';
 export const LearningReportRepository = {
   async getAll(): Promise<LearningReport[]> {
     const response = await apiClient.get<LearningReport[]>(LEARNING_REPORTS.list);
-    return response.data;
+    return toArray<LearningReport>(response.data);
   },
 
   async getMonthly(year: number, month: number): Promise<LearningReport | null> {

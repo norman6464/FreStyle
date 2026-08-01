@@ -16,7 +16,7 @@ func NewAiChatSessionRepository(db *gorm.DB) repository.AiChatSessionRepository 
 }
 
 func (r *aiChatSessionRepository) ListByUserID(ctx context.Context, userID uint64) ([]domain.AiChatSession, error) {
-	var rows []domain.AiChatSession
+	rows := make([]domain.AiChatSession, 0)
 	err := r.db.WithContext(ctx).
 		Where("user_id = ?", userID).
 		Order("created_at DESC").

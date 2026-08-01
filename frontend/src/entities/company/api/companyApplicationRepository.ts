@@ -1,4 +1,5 @@
 import apiClient from '@/shared/api/axios';
+import { toArray } from '@/shared/lib/toArray';
 import { COMPANY_APPLICATIONS } from '@/shared/config/apiRoutes';
 
 /** 企業利用申請フォームの送信内容（公開・認証不要）。 */
@@ -33,7 +34,7 @@ export const CompanyApplicationRepository = {
   /** super_admin: 全申請を新しい順で取得する。 */
   async adminList(): Promise<CompanyApplication[]> {
     const { data } = await apiClient.get<CompanyApplication[]>(COMPANY_APPLICATIONS.adminList);
-    return data;
+    return toArray<CompanyApplication>(data);
   },
 
   /** super_admin: 申請の status を更新する（approved / rejected / pending）。 */

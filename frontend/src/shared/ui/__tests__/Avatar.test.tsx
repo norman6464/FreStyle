@@ -103,6 +103,8 @@ describe('Avatar', () => {
 
       const img = screen.getByRole('img');
       expect(img).toHaveAttribute('src', 'https://example.com/alive.jpg');
+      // 画像とフォールバックが同時に出ないこと（排他の契約を固定する）。
+      expect(screen.queryByText('河')).not.toBeInTheDocument();
     });
 
     it('読み込めている間は画像のまま', () => {

@@ -37,10 +37,18 @@ export interface Notification {
  * ここで型エラーになる。backend 側が項目名を変えた場合も `make openapi` 後にここで気づける。
  * 「送る側と受け取る側で名前がずれても誰も気づかない」状態を作らないための歯止め。
  */
+/** backend に存在しない項目を足していないか。 */
 type AssertNoUnknownField = keyof Notification extends keyof NotificationSchema ? true : never;
-type AssertSameFieldTypes = Notification extends Required<Omit<NotificationSchema, 'userId'>>
-  ? true
-  : never;
+
+/**
+ * 双方向で代入可能かを見る。片方向だけだと、backend が `body?: string | null` のように
+ * 型を広げたときに検出できない（狭い側は広い側へ代入できてしまうため）。
+ */
+type SchemaFields = Required<Omit<NotificationSchema, 'userId'>>;
+type AssertNotificationFitsSchema = Notification extends SchemaFields ? true : never;
+type AssertSchemaFitsNotification = SchemaFields extends Notification ? true : never;
 
 // 使用しないと未使用型として lint に落ちるため、値として 1 度だけ参照する。
-export const NOTIFICATION_CONTRACT_OK: AssertNoUnknownField & AssertSameFieldTypes = true;
+export const NOTIFICATION_CONTRACT_OK: AssertNoUnknownField &
+  AssertNotificationFitsSchema &
+  AssertSchemaFitsNotification = true;

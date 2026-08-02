@@ -39,9 +39,8 @@ type Config struct {
 
 // S3Config は profile / note 画像 upload の presign 発行に必要な設定。
 type S3Config struct {
-	Region            string
-	NoteImagesBucket  string
-	NoteImagesCDNBase string // 配信用 CDN URL (CloudFront / virtual-hosted)
+	Region           string
+	NoteImagesBucket string
 }
 
 // BedrockConfig は AWS Bedrock Converse API 呼び出しに必要な設定。
@@ -101,8 +100,6 @@ func Load() (*Config, error) {
 		S3: S3Config{
 			Region:           getEnvOrDefault("AWS_REGION", "ap-northeast-1"),
 			NoteImagesBucket: os.Getenv("NOTE_IMAGES_BUCKET"),
-			// ecs.yml が渡す環境変数名は NOTE_IMAGES_CDN_URL。
-			NoteImagesCDNBase: getEnvOrDefault("NOTE_IMAGES_CDN_URL", ""),
 		},
 		Bedrock: BedrockConfig{
 			Region: getEnvOrDefault("AWS_REGION", "ap-northeast-1"),

@@ -41,7 +41,8 @@ func Test_ログイン_成功_既存ユーザー(t *testing.T) {
 	}}
 	idTok := makeIDToken(t, map[string]any{"sub": "sub-1", "email": "u@example.com"})
 	pw := &fakePasswordAuth{token: &cognito.Token{AccessToken: "AT", IDToken: idTok, RefreshToken: "RT", ExpiresIn: 3600}}
-	h := &AuthHandler{users: users, invitations: &fakeInvitationRepo{}, passwordAuth: pw}
+	h := newTestAuthHandler(users, &fakeInvitationRepo{})
+	h.passwordAuth = pw
 
 	c, rec := postLoginCtx(`{"email":"u@example.com","password":"secret123"}`)
 	h.Login(c)
@@ -58,10 +59,12 @@ func Test_ログイン_成功_既存ユーザー(t *testing.T) {
 }
 
 func Test_ログイン_認証情報不正_401(t *testing.T) {
-	h := &AuthHandler{
-		users:        &fakeUserRepo{},
-		invitations:  &fakeInvitationRepo{},
-		passwordAuth: &fakePasswordAuth{err: cognito.ErrInvalidCredentials},
+	h := newTestAuthHandler(
+		&fakeUserRepo{},
+		&fakeInvitationRepo{},
+	)
+	h.passwordAuth = &fakePasswordAuth{
+		err: cognito.ErrInvalidCredentials,
 	}
 	c, rec := postLoginCtx(`{"email":"u@example.com","password":"wrong"}`)
 	h.Login(c)
@@ -73,10 +76,16 @@ func Test_ログイン_認証情報不正_401(t *testing.T) {
 
 func Test_ログイン_招待なし新規ユーザー_403(t *testing.T) {
 	idTok := makeIDToken(t, map[string]any{"sub": "new-sub", "email": "new@example.com"})
-	h := &AuthHandler{
-		users:        &fakeUserRepo{},       // 既存ユーザーなし
-		invitations:  &fakeInvitationRepo{}, // pending 招待なし
-		passwordAuth: &fakePasswordAuth{token: &cognito.Token{AccessToken: "AT", IDToken: idTok, RefreshToken: "RT"}},
+	h := newTestAuthHandler(
+		&fakeUserRepo{},
+		&fakeInvitationRepo{},
+	)
+	h.passwordAuth = &fakePasswordAuth{
+		token: &cognito.Token{
+			AccessToken:  "AT",
+			IDToken:      idTok,
+			RefreshToken: "RT",
+		},
 	}
 	c, rec := postLoginCtx(`{"email":"new@example.com","password":"secret123"}`)
 	h.Login(c)
@@ -113,10 +122,13 @@ func Test_ログイン_upsert内部エラー_500(t *testing.T) {
 	inv := &fakeInvitationRepo{pendingByEmail: map[string]*domain.AdminInvitation{
 		"u@example.com": {ID: 1, Role: domain.RoleTrainee, CompanyID: 1},
 	}}
-	h := &AuthHandler{
-		users:        users,
-		invitations:  inv,
-		passwordAuth: &fakePasswordAuth{token: &cognito.Token{AccessToken: "AT", IDToken: idTok, RefreshToken: "RT"}},
+	h := newTestAuthHandler(users, inv)
+	h.passwordAuth = &fakePasswordAuth{
+		token: &cognito.Token{
+			AccessToken:  "AT",
+			IDToken:      idTok,
+			RefreshToken: "RT",
+		},
 	}
 	c, rec := postLoginCtx(`{"email":"u@example.com","password":"secret123"}`)
 	h.Login(c)

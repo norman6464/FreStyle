@@ -4,7 +4,8 @@ package domain
 type NoteImageUploadURL struct {
 	URL string `json:"url"`
 	Key string `json:"key"`
-	// PublicURL はアップロード後に img / Markdown から参照する配信用 URL（CDN 経由）。
+	// PublicURL はアップロード後に img / Markdown から参照する表示用パス。
+	// 配信ドメインは含めない（FRESTYLE-234。ドメイン変更で保存済みデータが壊れないように）。
 	PublicURL string `json:"publicUrl"`
 	ExpiresIn int    `json:"expiresIn"`
 }

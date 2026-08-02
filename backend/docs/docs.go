@@ -4413,7 +4413,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "publicUrl": {
-                    "description": "PublicURL はアップロード後に img / Markdown から参照する配信用 URL（CDN 経由）。",
+                    "description": "PublicURL はアップロード後に img / Markdown から参照する表示用パス。\n配信ドメインは含めない（FRESTYLE-234。ドメイン変更で保存済みデータが壊れないように）。",
                     "type": "string"
                 },
                 "url": {

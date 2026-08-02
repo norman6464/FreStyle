@@ -12,21 +12,17 @@ import (
 
 // profileImagePresigner は profile アイコン用の S3 presigner（profiles/{userId}/{epochNs}{ext} キー）。
 type profileImagePresigner struct {
-	pre    s3Presigner
-	cdnURL string
+	pre s3Presigner
 }
 
-// NewProfileImagePresigner は本番経路。cdnURL は配信用ベース URL（CloudFront / S3）。
-func NewProfileImagePresigner(p s3Presigner, cdnURL string) repository.ProfileImagePresigner {
-	return &profileImagePresigner{pre: p, cdnURL: strings.TrimRight(cdnURL, "/")}
+// NewProfileImagePresigner は本番経路。
+func NewProfileImagePresigner(p s3Presigner) repository.ProfileImagePresigner {
+	return &profileImagePresigner{pre: p}
 }
 
 // NewStubProfileImagePresigner は test / dev 用 stub。
-func NewStubProfileImagePresigner(bucket, cdnURL string) repository.ProfileImagePresigner {
-	return &profileImagePresigner{
-		pre:    &stubPresigner{bucket: bucket},
-		cdnURL: strings.TrimRight(cdnURL, "/"),
-	}
+func NewStubProfileImagePresigner(bucket string) repository.ProfileImagePresigner {
+	return &profileImagePresigner{pre: &stubPresigner{bucket: bucket}}
 }
 
 func (p *profileImagePresigner) Generate(ctx context.Context, userID uint64, fileName, contentType string) (*domain.ProfileImageUploadURL, error) {
@@ -44,7 +40,11 @@ func (p *profileImagePresigner) Generate(ctx context.Context, userID uint64, fil
 	}
 	return &domain.ProfileImageUploadURL{
 		UploadURL: url,
-		ImageURL:  fmt.Sprintf("%s/%s", p.cdnURL, key),
+		// 配信ドメインを含めない（FRESTYLE-234）。画像はアプリと同一オリジンで配信され、
+		// ブラウザが現在のドメインを補って解決するため、この形ならドメインを変えても
+		// 保存済みデータを書き換えずに済む。絶対 URL で保存していた頃は、ドメイン移行の
+		// たびに過去の画像が全て参照不能になっていた（FRESTYLE-232 で実害）。
+		ImageURL:  "/" + key,
 		Key:       key,
 		ExpiresIn: int(ttl.Seconds()),
 	}, nil

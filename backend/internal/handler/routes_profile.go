@@ -45,21 +45,18 @@ func registerProfileRoutes(g *gin.RouterGroup, deps *routeDeps) {
 }
 
 // newProfileImagePresignerOrFallback は本番では real な presigner、NOTE_IMAGES_BUCKET 未設定や
-// 初期化失敗時は stub にフォールバックする。CDN ベースは未指定時 virtual-hosted-style で組み立てる。
+// 初期化失敗時は stub にフォールバックする。
+// 表示 URL は配信ドメインを含めないルート相対パスなので CDN ベースは渡さない（FRESTYLE-234）。
 func newProfileImagePresignerOrFallback(deps *routeDeps) repository.ProfileImagePresigner {
 	bucket := deps.cfg.S3.NoteImagesBucket
 	if bucket == "" {
 		log.Printf("[profile] NOTE_IMAGES_BUCKET unset — using stub presigner (DEV)")
-		return persistence.NewStubProfileImagePresigner("stub-bucket", deps.cfg.S3.NoteImagesCDNBase)
+		return persistence.NewStubProfileImagePresigner("stub-bucket")
 	}
 	pre, err := infraS3.NewPresigner(context.Background(), deps.cfg.S3.Region, bucket)
 	if err != nil {
 		log.Printf("[profile] failed to init S3 presigner (%v) — falling back to stub", err)
-		return persistence.NewStubProfileImagePresigner(bucket, deps.cfg.S3.NoteImagesCDNBase)
+		return persistence.NewStubProfileImagePresigner(bucket)
 	}
-	cdnBase := deps.cfg.S3.NoteImagesCDNBase
-	if cdnBase == "" {
-		cdnBase = "https://" + bucket + ".s3." + deps.cfg.S3.Region + ".amazonaws.com"
-	}
-	return persistence.NewProfileImagePresigner(pre, cdnBase)
+	return persistence.NewProfileImagePresigner(pre)
 }

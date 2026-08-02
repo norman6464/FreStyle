@@ -3,7 +3,6 @@ package persistence
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
@@ -11,18 +10,16 @@ import (
 )
 
 // noteImagePresigner は note 画像用の S3 presigner（notes/{userId}/{epochNs}.bin キー）。
-// cdnBase は配信用 CDN URL（NOTE_IMAGES_CDN_URL）。アップロード後の参照 URL 組み立てに使う。
 type noteImagePresigner struct {
-	pre     s3Presigner
-	cdnBase string
+	pre s3Presigner
 }
 
-// NewNoteImagePresigner は本番経路。infra/s3.Presigner と配信 CDN base を渡して使う。
-func NewNoteImagePresigner(p s3Presigner, cdnBase string) repository.NoteImagePresigner {
-	return &noteImagePresigner{pre: p, cdnBase: cdnBase}
+// NewNoteImagePresigner は本番経路。infra/s3.Presigner を渡して使う。
+func NewNoteImagePresigner(p s3Presigner) repository.NoteImagePresigner {
+	return &noteImagePresigner{pre: p}
 }
 
-// NewStubNoteImagePresigner は test / dev 用 stub（CDN 未設定で相対 URL を返す）。
+// NewStubNoteImagePresigner は test / dev 用 stub。
 func NewStubNoteImagePresigner(bucket string) repository.NoteImagePresigner {
 	return &noteImagePresigner{pre: &stubPresigner{bucket: bucket}}
 }
@@ -40,17 +37,12 @@ func (p *noteImagePresigner) Generate(ctx context.Context, userID uint64, conten
 		return nil, err
 	}
 	return &domain.NoteImageUploadURL{
-		URL:       url,
-		Key:       key,
-		PublicURL: p.publicURL(key),
+		URL: url,
+		Key: key,
+		// 配信ドメインを含めない（FRESTYLE-234）。画像はアプリと同一オリジンで配信され、
+		// ブラウザが現在のドメインを補って解決するため、この形ならドメインを変えても
+		// 保存済みデータを書き換えずに済む。
+		PublicURL: "/" + key,
 		ExpiresIn: int(ttl.Seconds()),
 	}, nil
-}
-
-// publicURL は配信用 URL を組み立てる。cdnBase 未設定時は同一オリジンの相対 URL にフォールバック。
-func (p *noteImagePresigner) publicURL(key string) string {
-	if p.cdnBase == "" {
-		return "/" + key
-	}
-	return strings.TrimRight(p.cdnBase, "/") + "/" + key
 }

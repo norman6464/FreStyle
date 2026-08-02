@@ -2,12 +2,16 @@ import { memo } from 'react';
 import { CheckIcon } from '@heroicons/react/24/outline';
 import type { Notification } from '../model/types';
 
+/**
+ * 通知種別のバッジ文言。キーは backend が入れる値と一致させること
+ * （domain.NotificationTypeCompanyApplication = "company_application"）。
+ *
+ * 以前は backend に存在しない 5 種類（NEW_MESSAGE 等）だけが並んでおり、実在する
+ * company_application にラベルが無いため、利用者には生の英字がそのまま見えていた
+ * （FRESTYLE-87）。未知の種別は種別文字列をそのまま出すフォールバックのままにする。
+ */
 const TYPE_LABELS: Record<string, string> = {
-  NEW_MESSAGE: 'メッセージ',
-  GOAL_ACHIEVED: '目標達成',
-  SCORE_IMPROVED: 'スコア向上',
-  PRACTICE_REMINDER: '練習リマインダー',
-  SYSTEM: 'システム',
+  company_application: '利用申請',
 };
 
 interface NotificationItemProps {
@@ -35,7 +39,7 @@ export default memo(function NotificationItem({ notification, onMarkAsRead }: No
             )}
           </div>
           <p className="text-sm font-medium text-[var(--color-text-primary)] mb-0.5">{notification.title}</p>
-          <p className="text-xs text-[var(--color-text-muted)]">{notification.message}</p>
+          <p className="text-xs text-[var(--color-text-muted)]">{notification.body}</p>
           <p className="text-[10px] text-[var(--color-text-faint)] mt-1">
             {new Date(notification.createdAt).toLocaleString('ja-JP')}
           </p>

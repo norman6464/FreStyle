@@ -1,4 +1,5 @@
 import apiClient from '@/shared/api/axios';
+import axios from 'axios';
 import { toArray } from '@/shared/lib/toArray';
 import { AI_CHAT } from '@/shared/config/apiRoutes';
 import type { AiSession, AiMessage } from '../model/types';
@@ -66,6 +67,19 @@ class AiChatRepository {
   ): Promise<AttachmentUploadUrlResponse> {
     const response = await apiClient.post(AI_CHAT.attachmentUploadUrl, request);
     return response.data;
+  }
+
+  /**
+   * 発行済みの presigned URL へファイル本体を直接 PUT する。
+   *
+   * 送信先は S3 で自分の API ではないため、apiClient（認証 Cookie と 401 の
+   * リダイレクトを持つ）ではなく素の axios を使う。ProfileRepository.uploadToS3 と
+   * 同じ方針。通信そのものは画面ではなくこの層に置く（FRESTYLE-22）。
+   */
+  async uploadAttachment(uploadUrl: string, file: File): Promise<void> {
+    await axios.put(uploadUrl, file, {
+      headers: { 'Content-Type': file.type },
+    });
   }
 }
 

@@ -80,6 +80,9 @@ export function useAiChatSse({ endpoint, onEvent, onClose }: UseAiChatSseOptions
       abortRef.current = controller;
 
       try {
+        // ここは意図的に素の fetch を使う（repository 層を経由しない / FRESTYLE-22）。
+        // 応答を最後まで待たず届いた分から順に読む必要があり、ブラウザの axios では
+        // 本文を逐次読み出せない。fetch の ReadableStream が要る。
         const res = await fetch(endpoint, {
           method: 'POST',
           credentials: 'include',

@@ -149,14 +149,8 @@ export default function MessageInput({ onSend, isSending = false }: MessageInput
           contentType: file.type,
           sizeBytes: file.size,
         });
-        const putRes = await fetch(uploadUrl, {
-          method: 'PUT',
-          headers: { 'Content-Type': file.type },
-          body: file,
-        });
-        if (!putRes.ok) {
-          throw new Error(`upload failed: ${putRes.status}`);
-        }
+        // 通信は repository 層に置く（画面から直接 fetch しない / FRESTYLE-22）。
+        await aiChatRepository.uploadAttachment(uploadUrl, file);
         setPending((prev) =>
           prev.map((a) =>
             a.key === tempKey ? { ...a, key, uploading: false } : a

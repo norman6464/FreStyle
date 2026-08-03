@@ -63,6 +63,10 @@ export function useBackendHealth(): UseBackendHealthResult {
     const controller = new AbortController();
     fetchControllerRef.current = controller;
     try {
+      // ここは意図的に素の fetch を使う（repository 層を経由しない / FRESTYLE-22）。
+      // apiClient には「401 ならトークンを更新し、失敗したら /login へ飛ばす」割り込みが
+      // 入っている。死活監視でそれが動くと、サーバーが落ちているだけでログイン画面へ
+      // 飛ばされてしまい監視が成立しない。credentials: 'omit' で認証も送らない。
       const res = await fetch(url, {
         method: 'GET',
         cache: 'no-store',

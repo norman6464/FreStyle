@@ -66,11 +66,11 @@ func Test_メンバー有効化_自分自身_禁止(t *testing.T) {
 	repo.AssertNotCalled(t, "UpdateActive", mock.Anything, mock.Anything, mock.Anything)
 }
 
-func Test_メンバー有効化_運営管理者_自分自身_禁止(t *testing.T){
+func Test_メンバー有効化_運営管理者_自分自身_禁止(t *testing.T) {
 	repo := &fakeManageRepo{target: &domain.User{ID: 1, Role: domain.RoleSuperAdmin, CompanyID: nil}}
 	uc := usecase.NewSetMemberActiveUseCase(repo)
 	actor := &domain.User{ID: 1, Role: domain.RoleSuperAdmin, CompanyID: nil}
-	
+
 	err := uc.Execute(context.Background(), actor, 1, false)
 
 	require.ErrorIs(t, err, usecase.ErrCannotManageSelf)
@@ -135,33 +135,33 @@ func Test_メンバー論理削除_見つからない(t *testing.T) {
 }
 
 func Test_メンバー論理削除_運営管理者_任意の会社_OK(t *testing.T) {
-      repo := &fakeManageRepo{target: &domain.User{ID: 2, Role: domain.RoleTrainee, CompanyID: u64ptr(99)}}
-      uc := usecase.NewSoftDeleteMemberUseCase(repo)
-      actor := &domain.User{ID: 1, Role: domain.RoleSuperAdmin, CompanyID: nil}
+	repo := &fakeManageRepo{target: &domain.User{ID: 2, Role: domain.RoleTrainee, CompanyID: u64ptr(99)}}
+	uc := usecase.NewSoftDeleteMemberUseCase(repo)
+	actor := &domain.User{ID: 1, Role: domain.RoleSuperAdmin, CompanyID: nil}
 
-      err := uc.Execute(context.Background(), actor, 2)
+	err := uc.Execute(context.Background(), actor, 2)
 
-      require.NoError(t, err)
-      assert.True(t, repo.softDeleted, "super_admin は会社を問わず削除できる")
+	require.NoError(t, err)
+	assert.True(t, repo.softDeleted, "super_admin は会社を問わず削除できる")
 }
 
 func Test_メンバー論理削除_運営管理者_自分自身_禁止(t *testing.T) {
-      repo := &fakeManageRepo{target: &domain.User{ID: 1, Role: domain.RoleSuperAdmin, CompanyID: nil}}
-      uc := usecase.NewSoftDeleteMemberUseCase(repo)
-      actor := &domain.User{ID: 1, Role: domain.RoleSuperAdmin, CompanyID: nil}
+	repo := &fakeManageRepo{target: &domain.User{ID: 1, Role: domain.RoleSuperAdmin, CompanyID: nil}}
+	uc := usecase.NewSoftDeleteMemberUseCase(repo)
+	actor := &domain.User{ID: 1, Role: domain.RoleSuperAdmin, CompanyID: nil}
 
-      err := uc.Execute(context.Background(), actor, 1)
+	err := uc.Execute(context.Background(), actor, 1)
 
-      require.ErrorIs(t, err, usecase.ErrCannotManageSelf)
-      assert.False(t, repo.softDeleted, "super_admin でも自分自身は削除できない")
+	require.ErrorIs(t, err, usecase.ErrCannotManageSelf)
+	assert.False(t, repo.softDeleted, "super_admin でも自分自身は削除できない")
 }
 
 func Test_メンバー論理削除_見つからない(t *testing.T) {
-      repo := &fakeManageRepo{target: nil}
-      uc := usecase.NewSoftDeleteMemberUseCase(repo)
-      actor := &domain.User{ID: 1, Role: domain.RoleSuperAdmin}
+	repo := &fakeManageRepo{target: nil}
+	uc := usecase.NewSoftDeleteMemberUseCase(repo)
+	actor := &domain.User{ID: 1, Role: domain.RoleSuperAdmin}
 
-      err := uc.Execute(context.Background(), actor, 999)
+	err := uc.Execute(context.Background(), actor, 999)
 
-      require.ErrorIs(t, err, usecase.ErrMemberNotFound)
+	require.ErrorIs(t, err, usecase.ErrMemberNotFound)
 }

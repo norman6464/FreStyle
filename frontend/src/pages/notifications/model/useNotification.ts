@@ -1,13 +1,16 @@
 import { useState, useCallback, useEffect } from 'react';
 import { NotificationRepository } from '@/entities/notification';
 import type { Notification } from '@/entities/notification';
+import { classifyApiError } from '@/shared/lib/classifyApiError';
 
 export function useNotification() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
+    setLoading(true);
     try {
       const [notifs, count] = await Promise.all([
         NotificationRepository.getAll(),
@@ -15,9 +18,12 @@ export function useNotification() {
       ]);
       setNotifications(notifs);
       setUnreadCount(count);
-    } catch {
-      setNotifications([]);
-      setUnreadCount(0);
+      setError(null);
+    } catch (err) {
+      // 取得できなかったことを空配列で表すと「通知は 0 件」と区別がつかず、
+      // 障害中に「通知はありません」という嘘を見せてしまう（FRESTYLE-94）。
+      // 直前まで表示していた内容は消さずに残し、失敗した事実だけを伝える。
+      setError(classifyApiError(err, '通知の取得に失敗しました。'));
     } finally {
       setLoading(false);
     }
@@ -27,25 +33,36 @@ export function useNotification() {
     fetchData();
   }, [fetchData]);
 
-  const markAsRead = useCallback(async (notificationId: number) => {
-    try {
-      await NotificationRepository.markAsRead(notificationId);
-    } catch {
-      // エラー時もUIを最新状態に更新
-    } finally {
-      await fetchData();
-    }
-  }, [fetchData]);
+  const markAsRead = useCallback(
+    async (notificationId: number) => {
+      try {
+        await NotificationRepository.markAsRead(notificationId);
+      } catch {
+        // 既読化に失敗しても再取得で実際の状態に合わせる（楽観更新はしない）。
+      } finally {
+        await fetchData();
+      }
+    },
+    [fetchData],
+  );
 
   const markAllAsRead = useCallback(async () => {
     try {
       await NotificationRepository.markAllAsRead();
     } catch {
-      // エラー時もUIを最新状態に更新
+      // 同上。
     } finally {
       await fetchData();
     }
   }, [fetchData]);
 
-  return { notifications, unreadCount, loading, markAsRead, markAllAsRead, refresh: fetchData };
+  return {
+    notifications,
+    unreadCount,
+    loading,
+    error,
+    markAsRead,
+    markAllAsRead,
+    refresh: fetchData,
+  };
 }

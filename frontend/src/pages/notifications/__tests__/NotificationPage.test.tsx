@@ -22,6 +22,7 @@ describe('NotificationPage', () => {
       notifications: [],
       unreadCount: 0,
       loading: true,
+      error: null,
       markAsRead: mockMarkAsRead,
       markAllAsRead: mockMarkAllAsRead,
       refresh: vi.fn(),
@@ -36,6 +37,7 @@ describe('NotificationPage', () => {
       notifications: [],
       unreadCount: 0,
       loading: false,
+      error: null,
       markAsRead: mockMarkAsRead,
       markAllAsRead: mockMarkAllAsRead,
       refresh: vi.fn(),
@@ -48,29 +50,32 @@ describe('NotificationPage', () => {
   it('通知一覧が表示される', () => {
     mockedUseNotification.mockReturnValue({
       notifications: [
-        { id: 1, type: 'GOAL_ACHIEVED', title: '月間目標を達成しました', message: 'おめでとう', isRead: false, createdAt: '2024-06-15T10:00:00Z' },
-        { id: 2, type: 'SYSTEM', title: 'システム通知', message: 'メンテナンス', isRead: true, createdAt: '2024-06-14T10:00:00Z' },
+        { id: 1, type: 'company_application', title: '新しい利用申請が届きました', body: '株式会社サンプルから利用申請がありました。', isRead: false, createdAt: '2026-08-02T10:00:00Z' },
+        { id: 2, type: 'company_application', title: '新しい利用申請が届きました', body: '株式会社テストから利用申請がありました。', isRead: true, createdAt: '2026-08-01T10:00:00Z' },
       ],
       unreadCount: 1,
       loading: false,
+      error: null,
       markAsRead: mockMarkAsRead,
       markAllAsRead: mockMarkAllAsRead,
       refresh: vi.fn(),
     });
 
     render(<NotificationPage />);
-    expect(screen.getByText('月間目標を達成しました')).toBeInTheDocument();
-    expect(screen.getByText('システム通知')).toBeInTheDocument();
+    // 同じタイトルが 2 件並ぶため、区別のつく本文で検証する。
+    expect(screen.getByText('株式会社サンプルから利用申請がありました。')).toBeInTheDocument();
+    expect(screen.getByText('株式会社テストから利用申請がありました。')).toBeInTheDocument();
     expect(screen.getByText('1件の未読')).toBeInTheDocument();
   });
 
   it('未読がある場合「すべて既読にする」ボタンが表示される', () => {
     mockedUseNotification.mockReturnValue({
       notifications: [
-        { id: 1, type: 'GOAL_ACHIEVED', title: '目標達成', message: 'テスト', isRead: false, createdAt: '2024-06-15T10:00:00Z' },
+        { id: 1, type: 'company_application', title: '新しい利用申請が届きました', body: 'テスト', isRead: false, createdAt: '2026-08-02T10:00:00Z' },
       ],
       unreadCount: 1,
       loading: false,
+      error: null,
       markAsRead: mockMarkAsRead,
       markAllAsRead: mockMarkAllAsRead,
       refresh: vi.fn(),
@@ -85,10 +90,11 @@ describe('NotificationPage', () => {
   it('未読が0件の場合「すべて既読にする」ボタンが非表示', () => {
     mockedUseNotification.mockReturnValue({
       notifications: [
-        { id: 1, type: 'SYSTEM', title: '通知', message: 'テスト', isRead: true, createdAt: '2024-06-15T10:00:00Z' },
+        { id: 1, type: 'company_application', title: '新しい利用申請が届きました', body: 'テスト', isRead: true, createdAt: '2026-08-02T10:00:00Z' },
       ],
       unreadCount: 0,
       loading: false,
+      error: null,
       markAsRead: mockMarkAsRead,
       markAllAsRead: mockMarkAllAsRead,
       refresh: vi.fn(),
@@ -96,5 +102,74 @@ describe('NotificationPage', () => {
 
     render(<NotificationPage />);
     expect(screen.queryByText('すべて既読にする')).not.toBeInTheDocument();
+  });
+
+  // 取得に失敗したときに「通知はありません」と嘘を見せないことを固定する（FRESTYLE-94）。
+  describe('取得に失敗したとき', () => {
+    const failing = (overrides = {}) => ({
+      notifications: [],
+      unreadCount: 0,
+      loading: false,
+      error: '通知の取得に失敗しました。',
+      markAsRead: mockMarkAsRead,
+      markAllAsRead: mockMarkAllAsRead,
+      refresh: vi.fn(),
+      ...overrides,
+    });
+
+    it('エラーを知らせ、空状態を出さない', () => {
+      mockedUseNotification.mockReturnValue(failing());
+
+      render(<NotificationPage />);
+
+      expect(screen.getByRole('alert')).toHaveTextContent('通知の取得に失敗しました。');
+      expect(screen.queryByText('通知はありません')).not.toBeInTheDocument();
+    });
+
+    it('0 件ではなく読み込めていないことを明示する', () => {
+      mockedUseNotification.mockReturnValue(failing());
+
+      render(<NotificationPage />);
+
+      expect(
+        screen.getByText('通知が無いのではなく、読み込めていない状態です。'),
+      ).toBeInTheDocument();
+    });
+
+    it('再試行ボタンから再取得できる', () => {
+      const refresh = vi.fn();
+      mockedUseNotification.mockReturnValue(failing({ refresh }));
+
+      render(<NotificationPage />);
+      fireEvent.click(screen.getByRole('button', { name: '再試行' }));
+
+      expect(refresh).toHaveBeenCalled();
+    });
+
+    // 直前まで表示していた通知は残す（消すと「消えた」と誤解される）。
+    it('取得済みの通知がある場合はそれを表示したままにする', () => {
+      mockedUseNotification.mockReturnValue(
+        failing({
+          notifications: [
+            {
+              id: 1,
+              type: 'company_application',
+              title: '新しい利用申請が届きました',
+              body: '株式会社サンプルから利用申請がありました。',
+              isRead: false,
+              createdAt: '2026-08-02T10:00:00Z',
+            },
+          ],
+        }),
+      );
+
+      render(<NotificationPage />);
+
+      // エラーの帯と一緒に、取得済みの通知も見えていること。
+      expect(screen.getByRole('alert')).toBeInTheDocument();
+      expect(screen.getByText('新しい利用申請が届きました')).toBeInTheDocument();
+      expect(screen.getByText('株式会社サンプルから利用申請がありました。')).toBeInTheDocument();
+      expect(screen.queryByText('通知はありません')).not.toBeInTheDocument();
+    });
   });
 });

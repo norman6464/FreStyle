@@ -89,15 +89,20 @@ func (u *CreateCompanyApplicationUseCase) notifySuperAdmins(ctx context.Context,
 	}
 	title := "新しい企業申請が届きました"
 	body := fmt.Sprintf("%s（%s / %s）から利用申請がありました。", app.CompanyName, app.ApplicantName, app.Email)
+
+	// 宛先ごとに 1 件ずつ書き込むと、管理者が増えるほど DB との往復が比例して増える。
+	// まとめて 1 回で書き込む（FRESTYLE-17）。
+	notifications := make([]domain.Notification, 0, len(admins))
 	for _, admin := range admins {
-		n := &domain.Notification{
+		notifications = append(notifications, domain.Notification{
 			UserID: admin.ID,
 			Type:   domain.NotificationTypeCompanyApplication,
 			Title:  title,
 			Body:   body,
-		}
-		if err := u.notifications.Create(ctx, n); err != nil {
-			log.Printf("company-application: notify super_admin %d failed: %v", admin.ID, err)
-		}
+		})
+	}
+	if err := u.notifications.CreateMany(ctx, notifications); err != nil {
+		// 通知は申請受付の付随処理。失敗しても申請自体は成立させる（従来と同じ方針）。
+		log.Printf("company-application: notify %d super_admins failed: %v", len(notifications), err)
 	}
 }

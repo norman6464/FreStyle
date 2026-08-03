@@ -15,15 +15,33 @@ CI と CD を **完全に分離** しています。テスト・ビルド検証�
 
 | 種別 | Secret 名 | 用途 |
 |---|---|---|
-| AWS | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | `cd-frontend.yml` の S3 sync / CloudFront invalidation 用（backend は OIDC ロールに移行済） |
 | AWS | `AWS_ECR_API_SERVER_REPOSITORY` | ECR リポジトリ名（例: `fre-style`） |
 | AWS | `CLOUDFRONT_DISTRIBUTION_ID` | CloudFront キャッシュ無効化対象 |
 | Frontend | `VITE_API_BASE_URL` / `VITE_COGNITO_DOMAIN` / `VITE_CLIENT_ID` / `VITE_REDIRECT_URI` / `VITE_RESPONSE_TYPE` / `VITE_SCOPE` | フロントエンドビルド時に注入 |
 
-> **廃止済み Secrets**（FRESTYLE-61 の cd-backend Terraform 前提化で不要になったもの）:
-> `IAC_REPO` / `IAC_REPO_TOKEN`（IaC リポから CFn テンプレートを clone する PAT）、
-> `COGNITO_CLIENT_ID` 等の COGNITO_*（CFn の parameter-overrides 用。タスク定義の env / secrets は
-> infra リポの Terraform `ecs.tf` が持つ）。GitHub Secrets 側に残っていても参照されない。
+AWS 認証はすべて GitHub OIDC で、ワークフローが実行のたびに一時認証情報を引き受ける（長寿命の
+アクセスキーは使わない）。ロールは infra リポの Terraform が管理する。
+
+| ワークフロー | 引き受けるロール | 定義 |
+|---|---|---|
+| `cd-backend.yml` | `frestyle-prod-github-actions-role` | `terraform/github-oidc.tf` |
+| `cd-frontend.yml` | `frestyle-prod-github-actions-frontend-role` | `terraform/github-oidc-frontend.tf` |
+
+> **失効待ち（ワークフローは参照しないが、認証情報としてはまだ有効）**:
+> ワークフローから参照されなくなっても、認証情報そのものは失効させるまで有効なままで、
+> 漏えいすれば悪用できる。次の 2 つは発行元で失効させるまで「廃止済み」とは扱わない。
+>
+> | Secret | 失効手順 |
+> |---|---|
+> | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | OIDC デプロイの成功を確認 → IAM ユーザーのアクセスキーを無効化してから削除 → GitHub Secrets からも削除（FRESTYLE-89） |
+> | `IAC_REPO_TOKEN` | PAT を revoke → GitHub Secrets からも削除（FRESTYLE-61） |
+>
+> 失効まで終えたら、この表から下の「廃止済み」へ移す。
+>
+> **廃止済み Secrets**（認証情報ではない / 参照されない）:
+> `IAC_REPO`、`COGNITO_CLIENT_ID` 等の COGNITO_*（CFn の parameter-overrides 用。タスク定義の
+> env / secrets は infra リポの Terraform `ecs.tf` が持つ）。いずれも FRESTYLE-61 の cd-backend
+> Terraform 前提化で不要になった。GitHub Secrets 側に残っていても参照されない。
 
 ### Secrets 一覧確認
 

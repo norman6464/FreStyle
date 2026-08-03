@@ -19,6 +19,10 @@ on:
 
 env:
   AWS_REGION: ap-northeast-1
+  # GitHub OIDC で引き受けるデプロイ用ロール(FRESTYLE-89)。長寿命の静的キーは廃止。
+  # 権限は配信バケットへのアップロードと CloudFront のキャッシュ無効化のみ。
+  # 定義: frestyle-infrastructure の terraform/github-oidc-frontend.tf
+  AWS_ROLE_ARN: arn:aws:iam::010928196665:role/frestyle-prod-github-actions-frontend-role
 
 permissions:
   contents: read
@@ -42,14 +46,18 @@ jobs:
             exit 1
           fi
 
-  deploy:
-    name: Build & Deploy
+  build:
+    name: Build
     runs-on: ubuntu-latest
     timeout-minutes: 12
     needs: [guard]
     if: always() && (github.event_name == 'push' || needs.guard.result == 'success')
-    # 本番反映ジョブは production Environment に紐付け、required reviewers の承認待ちで止める。
-    environment: production
+    # npm ci / build / prerender は第三者のコードを実行するため、この job には AWS を触れる
+    # 権限を与えない。id-token: write を持たせると、侵害された依存パッケージが
+    # ACTIONS_ID_TOKEN_REQUEST_* 経由でトークンを発行し本番ロールを assume できてしまう。
+    # contents: read は actions/checkout がソースを取得するためだけに必要(FRESTYLE-89)。
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: ./frontend
@@ -90,11 +98,42 @@ jobs:
           npx playwright install --with-deps chromium
           npm run prerender
 
-      - name: Configure AWS credentials
+      # deploy job へはビルド成果物だけを渡す。deploy 側は checkout しないため、
+      # 本番ロールを持つ job にリポジトリのソースやスクリプトが存在しない。
+      - name: Upload built assets
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          retention-days: 1
+          if-no-files-found: error
+
+  deploy:
+    name: Deploy to S3 + CloudFront
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [build]
+    # 本番反映ジョブは production Environment に紐付け、required reviewers の承認待ちで止める。
+    environment: production
+    # OIDC トークンの発行に必要(FRESTYLE-89)。第三者コードを実行しないこの job にだけ与える。
+    # checkout しないので contents は付けない。同一 run の artifact 取得に GITHUB_TOKEN の
+    # 権限は要らない(別 run / 別リポから取るときだけ actions:read 付きの token が要る)。
+    # permissions を明示した時点で、ここに書いていない権限はすべて none になる。
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download built assets
+        uses: actions/download-artifact@v7
+        with:
+          name: frontend-dist
+          path: dist
+
+      # 静的キーではなく OIDC でその実行だけ有効な一時認証情報を得る(FRESTYLE-89)。
+      - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v6
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       # 1) ハッシュ付きアセットは内容不変なので immutable + 長期キャッシュで配信する。

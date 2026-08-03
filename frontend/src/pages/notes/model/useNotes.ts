@@ -40,6 +40,9 @@ export function useNotes() {
       setSelectedNoteId(note.id);
       return note;
     } catch {
+      // 兄弟メソッド（updateNote / deleteNote / togglePin）と同じく理由を画面へ伝える。
+      // 握りつぶすと「押しても何も起きない」状態になり、利用者が原因を判断できない。
+      setError('ノートの作成に失敗しました');
       return null;
     }
   }, []);

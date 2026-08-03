@@ -64,8 +64,6 @@ jobs:
         env:
           # ビルド時の VITE_* は本番値ではなくダミーで OK（型チェック・syntax確認が目的）
           VITE_API_BASE_URL: https://example.invalid
-          VITE_WEB_SOCKET_URL_AI_CHAT: wss://example.invalid
-          VITE_WEB_SOCKET_URL_CHAT: wss://example.invalid
           VITE_COGNITO_DOMAIN: https://example.invalid
           VITE_CLIENT_ID: ci-dummy
           VITE_REDIRECT_URI: https://example.invalid/callback
@@ -157,8 +155,6 @@ jobs:
       - name: Build
         env:
           VITE_API_BASE_URL: https://example.invalid
-          VITE_WEB_SOCKET_URL_AI_CHAT: wss://example.invalid
-          VITE_WEB_SOCKET_URL_CHAT: wss://example.invalid
           VITE_COGNITO_DOMAIN: https://example.invalid
           VITE_CLIENT_ID: ci-dummy
           VITE_REDIRECT_URI: https://example.invalid/callback

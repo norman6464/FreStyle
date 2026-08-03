@@ -61,8 +61,6 @@ jobs:
       VITE_REDIRECT_URI: https://frestyle.jp/login/callback
       # ログイン画面(Cognito ホスト UI)のホスト。auth.normanblog.com から移設(FRESTYLE-226)。
       VITE_COGNITO_DOMAIN: auth.frestyle.jp
-      VITE_WEB_SOCKET_URL_AI_CHAT: ${{ secrets.VITE_WEB_SOCKET_URL_AI_CHAT }}
-      VITE_WEB_SOCKET_URL_CHAT: ${{ secrets.VITE_WEB_SOCKET_URL_CHAT }}
       VITE_CLIENT_ID: ${{ secrets.VITE_CLIENT_ID }}
       VITE_RESPONSE_TYPE: ${{ secrets.VITE_RESPONSE_TYPE }}
       VITE_SCOPE: ${{ secrets.VITE_SCOPE }}

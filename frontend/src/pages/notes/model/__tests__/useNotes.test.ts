@@ -134,6 +134,9 @@ describe('useNotes', () => {
     });
 
     expect(returnValue).toBeNull();
+    // 握りつぶすと「押しても何も起きない」状態になる。兄弟メソッドと同じく理由を伝える
+    // （FRESTYLE-31）。
+    expect(result.current.error).toBe('ノートの作成に失敗しました');
   });
 
   it('createNote成功後にselectedNoteIdが更新される', async () => {

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, KeyboardEvent, ChangeEvent } from 'react';
+import { logger } from '@/shared/lib/logger';
 import { ArrowUpIcon, PlusIcon } from '@heroicons/react/24/solid';
 import { XMarkIcon, PhotoIcon } from '@heroicons/react/24/outline';
 import { useAutoResizeTextarea } from '@/shared/lib/hooks/useAutoResizeTextarea';
@@ -169,7 +170,7 @@ export default function MessageInput({ onSend, isSending = false }: MessageInput
               : a
           )
         );
-        console.error('attachment upload failed', err);
+        logger.error('attachment upload failed', err);
       }
     }
   };

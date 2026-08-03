@@ -5,6 +5,7 @@ import MessageInput from '../MessageInput';
 vi.mock('@/entities/ai-chat/api/aiChatRepository', () => ({
   default: {
     issueAttachmentUploadUrl: vi.fn(),
+    uploadAttachment: vi.fn(),
   },
 }));
 
@@ -16,6 +17,7 @@ describe('MessageInput', () => {
   beforeEach(() => {
     mockOnSend.mockClear();
     vi.mocked(aiChatRepository.issueAttachmentUploadUrl).mockReset();
+    vi.mocked(aiChatRepository.uploadAttachment).mockReset().mockResolvedValue(undefined);
     if (!('createObjectURL' in URL)) {
       // happy-dom fallback: 一部バージョンで未定義
       (URL as unknown as { createObjectURL?: (b: Blob) => string }).createObjectURL = vi.fn(
@@ -146,16 +148,13 @@ describe('MessageInput', () => {
     expect(mockOnSend).toHaveBeenCalledWith('ボタン送信', []);
   });
 
-  it('画像を選択すると presigned URL を取得して S3 へ PUT する', async () => {
+  // 通信は repository 層に置いた（画面から直接 fetch しない / FRESTYLE-22）。
+  it('画像を選択すると presigned URL を取得して repository 経由でアップロードする', async () => {
     vi.mocked(aiChatRepository.issueAttachmentUploadUrl).mockResolvedValue({
       uploadUrl: 'https://s3.example.com/put',
       key: 'ai-chat/7/abc.png',
       expiresIn: 600,
     });
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(null, { status: 200 })
-    );
-
     render(<MessageInput onSend={mockOnSend} />);
 
     const file = new File(['fake-bytes'], 'cat.png', { type: 'image/png' });
@@ -170,9 +169,9 @@ describe('MessageInput', () => {
       });
     });
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
+      expect(aiChatRepository.uploadAttachment).toHaveBeenCalledWith(
         'https://s3.example.com/put',
-        expect.objectContaining({ method: 'PUT' })
+        file,
       );
     });
 
@@ -187,7 +186,6 @@ describe('MessageInput', () => {
       );
     });
 
-    fetchSpy.mockRestore();
   });
 
   it('未対応の MIME はバリデーションエラーで弾かれ presigned URL を呼ばない', async () => {

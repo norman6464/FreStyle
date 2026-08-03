@@ -53,10 +53,20 @@ func (f *fakeUsersForApp) ListByCompanyID(context.Context, uint64) ([]domain.Use
 }
 func (f *fakeUsersForApp) UpdateAiChatEnabled(context.Context, uint64, *bool) error { return nil }
 
-type recordingNotifRepo struct{ created []domain.Notification }
+type recordingNotifRepo struct {
+	created []domain.Notification
+	// createManyCalls は「宛先の人数によらず 1 回で書き込む」ことを検証するための回数。
+	createManyCalls int
+}
 
 func (r *recordingNotifRepo) Create(_ context.Context, n *domain.Notification) error {
 	r.created = append(r.created, *n)
+	return nil
+}
+
+func (r *recordingNotifRepo) CreateMany(_ context.Context, ns []domain.Notification) error {
+	r.created = append(r.created, ns...)
+	r.createManyCalls++
 	return nil
 }
 
@@ -129,4 +139,65 @@ type failingNotifRepo struct{ recordingNotifRepo }
 
 func (r *failingNotifRepo) Create(context.Context, *domain.Notification) error {
 	return errors.New("boom")
+}
+
+func (r *failingNotifRepo) CreateMany(context.Context, []domain.Notification) error {
+	return errors.New("boom")
+}
+
+// 宛先が増えても DB への書き込みは 1 回に保つ（FRESTYLE-17）。
+// 1 件ずつ書き込む実装だと管理者の人数に比例して往復が増え、申請処理が遅くなる。
+func Test_会社申請作成_管理者が何人でも通知の書き込みは1回(t *testing.T) {
+	admins := make([]domain.User, 0, 5)
+	for i := uint64(1); i <= 5; i++ {
+		admins = append(admins, domain.User{ID: i})
+	}
+	notifs := &recordingNotifRepo{}
+	uc := usecase.NewCreateCompanyApplicationUseCase(
+		&fakeAppRepo{}, &fakeUsersForApp{admins: admins}, notifs,
+	)
+
+	if _, err := uc.Execute(context.Background(), usecase.CreateCompanyApplicationInput{
+		CompanyName:   "Example Corp",
+		ApplicantName: "山田太郎",
+		Email:         "yamada@example.com",
+	}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if notifs.createManyCalls != 1 {
+		t.Fatalf("書き込みは 1 回であること（人数分の往復にしない）: got %d", notifs.createManyCalls)
+	}
+	if len(notifs.created) != len(admins) {
+		t.Fatalf("管理者の人数ぶん作られること: want %d, got %d", len(admins), len(notifs.created))
+	}
+	// 宛先が取り違えられていないこと。
+	for i, n := range notifs.created {
+		if n.UserID != admins[i].ID {
+			t.Fatalf("宛先が一致しない: index=%d want=%d got=%d", i, admins[i].ID, n.UserID)
+		}
+	}
+}
+
+// 管理者が 0 人のときに空で呼び出して DB 側でエラーにならないこと。
+func Test_会社申請作成_管理者が0人でも申請は成立する(t *testing.T) {
+	notifs := &recordingNotifRepo{}
+	uc := usecase.NewCreateCompanyApplicationUseCase(
+		&fakeAppRepo{}, &fakeUsersForApp{admins: nil}, notifs,
+	)
+
+	app, err := uc.Execute(context.Background(), usecase.CreateCompanyApplicationInput{
+		CompanyName:   "Example Corp",
+		ApplicantName: "山田太郎",
+		Email:         "yamada@example.com",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if app.Status != domain.CompanyApplicationStatusPending {
+		t.Fatalf("status should be pending, got %q", app.Status)
+	}
+	if len(notifs.created) != 0 {
+		t.Fatalf("通知は作られないこと: got %d", len(notifs.created))
+	}
 }

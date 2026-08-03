@@ -20,7 +20,8 @@ type fakeNotifRepo struct {
 	err   error
 }
 
-func (f *fakeNotifRepo) Create(context.Context, *domain.Notification) error { return f.err }
+func (f *fakeNotifRepo) Create(context.Context, *domain.Notification) error      { return f.err }
+func (f *fakeNotifRepo) CreateMany(context.Context, []domain.Notification) error { return f.err }
 func (f *fakeNotifRepo) ListByUserID(context.Context, uint64) ([]domain.Notification, error) {
 	return f.rows, f.err
 }

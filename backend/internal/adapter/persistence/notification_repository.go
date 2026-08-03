@@ -21,6 +21,17 @@ func (r *notificationRepository) Create(ctx context.Context, n *domain.Notificat
 	return r.db.WithContext(ctx).Create(n).Error
 }
 
+// CreateMany は複数件を 1 回の INSERT でまとめて作成する（FRESTYLE-17）。
+// 宛先が 1 人増えるごとに DB との往復が 1 回増える形だったため、件数に比例して
+// 申請処理が遅くなっていた。
+func (r *notificationRepository) CreateMany(ctx context.Context, ns []domain.Notification) error {
+	if len(ns) == 0 {
+		// GORM は空スライスに対して "empty slice found" を返すため、ここで打ち切る。
+		return nil
+	}
+	return r.db.WithContext(ctx).Create(&ns).Error
+}
+
 func (r *notificationRepository) ListByUserID(ctx context.Context, userID uint64) ([]domain.Notification, error) {
 	uid, ok := toInt64ID(userID)
 	if !ok {

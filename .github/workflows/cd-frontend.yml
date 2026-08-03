@@ -46,17 +46,17 @@ jobs:
             exit 1
           fi
 
-  deploy:
-    name: Build & Deploy
+  build:
+    name: Build
     runs-on: ubuntu-latest
     timeout-minutes: 12
     needs: [guard]
     if: always() && (github.event_name == 'push' || needs.guard.result == 'success')
-    # 本番反映ジョブは production Environment に紐付け、required reviewers の承認待ちで止める。
-    environment: production
-    # OIDC トークンの発行に必要(FRESTYLE-89)。
+    # npm ci / build / prerender は第三者のコードを実行するため、この job には AWS を触れる
+    # 権限を与えない。id-token: write を持たせると、侵害された依存パッケージが
+    # ACTIONS_ID_TOKEN_REQUEST_* 経由でトークンを発行し本番ロールを assume できてしまう。
+    # contents: read は actions/checkout がソースを取得するためだけに必要(FRESTYLE-89)。
     permissions:
-      id-token: write
       contents: read
     defaults:
       run:
@@ -97,6 +97,36 @@ jobs:
         run: |
           npx playwright install --with-deps chromium
           npm run prerender
+
+      # deploy job へはビルド成果物だけを渡す。deploy 側は checkout しないため、
+      # 本番ロールを持つ job にリポジトリのソースやスクリプトが存在しない。
+      - name: Upload built assets
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          retention-days: 1
+          if-no-files-found: error
+
+  deploy:
+    name: Deploy to S3 + CloudFront
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [build]
+    # 本番反映ジョブは production Environment に紐付け、required reviewers の承認待ちで止める。
+    environment: production
+    # OIDC トークンの発行に必要(FRESTYLE-89)。第三者コードを実行しないこの job にだけ与える。
+    # contents: read は checkout しないので実際には使わないが、既定の read 権限を明示して固定する。
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Download built assets
+        uses: actions/download-artifact@v7
+        with:
+          name: frontend-dist
+          path: dist
 
       # 静的キーではなく OIDC でその実行だけ有効な一時認証情報を得る(FRESTYLE-89)。
       - name: Configure AWS credentials (OIDC)

@@ -217,7 +217,8 @@ func collect(repoDir string) (ifaces []iface, aliasToPath map[string]string, ctx
 						// 満たさなくなるので記録して警告する。
 						ctx.markUnsupported(fmt.Sprintf(
 							"%s: 埋め込み interface %s を展開できないためスキップしました",
-							ts.Name.Name, types.ExprString(m.Type)))
+							ts.Name.Name, types.ExprString(m.Type),
+						))
 						continue
 					}
 					mt := method{name: m.Names[0].Name}

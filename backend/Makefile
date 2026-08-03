@@ -51,9 +51,13 @@ GOFUMPT := $(GO_INSTALL_DIR)/gofumpt
 
 # gofumpt を用意する。fmt / fakegen の両方が使うので、バージョン指定が二重管理に
 # ならないようここに集約する。
+#
+# 存在チェックだけでは不十分で、バージョンまで確認して違えば入れ直す。別バージョンが既に
+# 入っている環境だと整形結果が CI とずれるため（CI は v0.10.0 固定。v0.11.0 は多行呼び出しの
+# 閉じ括弧の扱いが変わっており、ローカルで整形済みでも CI の gofumpt check が fail する）。
 .PHONY: ensure-gofumpt
 ensure-gofumpt:
-	@if [ ! -x "$(GOFUMPT)" ]; then \
+	@if ! "$(GOFUMPT)" --version 2>/dev/null | grep -q '^$(GOFUMPT_VERSION) '; then \
 	  echo ">>> installing gofumpt ($(GOFUMPT_VERSION))..."; \
 	  go install mvdan.cc/gofumpt@$(GOFUMPT_VERSION); \
 	fi

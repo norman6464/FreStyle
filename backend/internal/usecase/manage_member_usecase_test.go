@@ -66,6 +66,17 @@ func Test_メンバー有効化_自分自身_禁止(t *testing.T) {
 	repo.AssertNotCalled(t, "UpdateActive", mock.Anything, mock.Anything, mock.Anything)
 }
 
+func Test_メンバー有効化_運営管理者_自分自身_禁止(t *testing.T){
+	repo := &fakeManageRepo{target: &domain.User{ID: 1, Role: domain.RoleSuperAdmin, CompanyID: nil}}
+	uc := usecase.NewSetMemberActiveUseCase(repo)
+	actor := &domain.User{ID: 1, Role: domain.RoleSuperAdmin, CompanyID: nil}
+	
+	err := uc.Execute(context.Background(), actor, 1, false)
+
+	require.ErrorIs(t, err, usecase.ErrCannotManageSelf)
+	assert.Nil(t, repo.updateActiveGot, "super_admin でも自分自身は無効かできない")
+}
+
 func Test_メンバー有効化_見つからない(t *testing.T) {
 	repo := manageMemberRepo(nil)
 	uc := usecase.NewSetMemberActiveUseCase(repo)

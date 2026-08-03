@@ -115,8 +115,6 @@ jobs:
       - name: Build (same-origin / API モック前提)
         env:
           VITE_API_BASE_URL: ''
-          VITE_WEB_SOCKET_URL_AI_CHAT: wss://example.invalid
-          VITE_WEB_SOCKET_URL_CHAT: wss://example.invalid
           VITE_COGNITO_DOMAIN: https://example.invalid
           VITE_CLIENT_ID: ci-dummy
           VITE_REDIRECT_URI: https://example.invalid/callback

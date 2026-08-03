@@ -10,7 +10,10 @@
 //	    },
 //	}
 //	uc := usecase.NewMarkLessonCompletedUseCase(repo, ...)
-//	// ... repo.MarkCompletedCalls で呼び出し回数も検証できる
+//	// ... repo.MarkCompletedCalls.Load() で呼び出し回数も検証できる
+//
+// 呼び出し回数は atomic.Int64。usecase が goroutine から repository を呼ぶことがあり
+// （SendAiMessageStreamUseCase 等）、CI が go test -race で走るため、素の int にはしない。
 //
 // 再生成: make fakegen （= go run ./cmd/fakegen . && gofumpt -w ./internal/usecase/repository/repofakes）
 //

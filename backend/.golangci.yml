@@ -44,12 +44,20 @@ linters:
         linters:
           - gosec
         text: 'G204'
-      # 自作の開発ツール(archlint/apispec-lint/naminglint/slicelint/fakegen)は自分のソース
-      # ツリーを WalkDir / os.Open / os.WriteFile するため、Path traversal(G304/G703)や
-      # 生成物のディレクトリ・ファイル権限(G301/G306)は誤検知。CLI 開発ツールなので除外する。
-      - path: cmd/(archlint|apispec-lint|naminglint|slicelint|fakegen)/
+      # 自作 lint ツール(archlint/apispec-lint/naminglint/slicelint)は自分のソースツリーを
+      # WalkDir / os.Open するため Path traversal(G304/G703)は誤検知。
+      - path: cmd/(archlint|apispec-lint|naminglint|slicelint)/
         linters:
           - gosec
+      # fakegen は自分のソースツリーを読み、生成した Go ソースを書き出す CLI 開発ツール。
+      # 引数で受けた module root 配下の go.mod / port を読み、生成物を書き出す動作そのものが
+      # Path traversal(G304/G703)として検出される。commit 対象の生成物を他のソースと同じ
+      # 0644/0755 で置くこと(G301/G306)も同様。この 4 つだけを除外し、G204(コマンド実行)等は
+      # 検出を維持したいので、他ツールの path 一括除外とは分けている。
+      - path: cmd/fakegen/
+        linters:
+          - gosec
+        text: 'G301|G304|G306|G703'
       # persistence の id 境界は DB が bigint(int64)、domain が uint64。値は採番シーケンス
       # 由来で常に非負・int64 範囲内のため、int64↔uint64 変換の overflow(G115)は誤検知。
       # sqlc 生成コードへの段階移行で各 repository に現れるため persistence 配下で除外する。

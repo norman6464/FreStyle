@@ -49,27 +49,29 @@ openapi:
 GOFUMPT_VERSION := v0.10.0
 GOFUMPT := $(GO_INSTALL_DIR)/gofumpt
 
-# gofumpt(gofmt 上位互換)でコードを自動整形する。CI(gofumpt check)が未整形を fail にするので、
-# commit 前に `make fmt` で整える運用。生成コードは gofumpt clean のため対象外。
-.PHONY: fmt
-fmt:
+# gofumpt を用意する。fmt / fakegen の両方が使うので、バージョン指定が二重管理に
+# ならないようここに集約する。
+.PHONY: ensure-gofumpt
+ensure-gofumpt:
 	@if [ ! -x "$(GOFUMPT)" ]; then \
 	  echo ">>> installing gofumpt ($(GOFUMPT_VERSION))..."; \
 	  go install mvdan.cc/gofumpt@$(GOFUMPT_VERSION); \
 	fi
+
+# gofumpt(gofmt 上位互換)でコードを自動整形する。CI(gofumpt check)が未整形を fail にするので、
+# commit 前に `make fmt` で整える運用。生成コードは gofumpt clean のため対象外。
+.PHONY: fmt
+fmt: ensure-gofumpt
 	@echo ">>> gofumpt -w ."
 	@$(GOFUMPT) -w .
 
 # repository interface(port) から usecase テスト用の fake を生成する(手書き fake の代替)。
 # 生成物 internal/usecase/repository/repofakes/fakes_gen.go はコミット対象。
 # port にメソッドを追加/変更したら必ず `make fakegen` で再生成する。
-# 生成後に gofumpt をかけて CI の整形チェックを通す。
+# gofumpt は生成物(DO NOT EDIT ヘッダ付き)を整形対象外にするため import のグループ分けは
+# fakegen 自身が行う。ここでの gofumpt は同ディレクトリの手書き doc.go を整えるためのもの。
 .PHONY: fakegen
-fakegen:
-	@if [ ! -x "$(GOFUMPT)" ]; then \
-	  echo ">>> installing gofumpt ($(GOFUMPT_VERSION))..."; \
-	  go install mvdan.cc/gofumpt@$(GOFUMPT_VERSION); \
-	fi
+fakegen: ensure-gofumpt
 	@echo ">>> fakegen: repository port から fake を生成"
 	@go run ./cmd/fakegen .
 	@$(GOFUMPT) -w ./internal/usecase/repository/repofakes

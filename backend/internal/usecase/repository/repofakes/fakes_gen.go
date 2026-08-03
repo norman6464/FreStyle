@@ -5,33 +5,35 @@ package repofakes
 
 import (
 	"context"
+	"sync/atomic"
+	"time"
+
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
-	"time"
 )
 
 // FakeAdminInvitationRepository は repository.AdminInvitationRepository の生成済み fake。
 type FakeAdminInvitationRepository struct {
 	ListAllFunc             func(context.Context) ([]domain.AdminInvitation, error)
-	ListAllCalls            int
+	ListAllCalls            atomic.Int64
 	ListByCompanyIDFunc     func(context.Context, uint64) ([]domain.AdminInvitation, error)
-	ListByCompanyIDCalls    int
+	ListByCompanyIDCalls    atomic.Int64
 	FindPendingByEmailFunc  func(context.Context, string) (*domain.AdminInvitation, error)
-	FindPendingByEmailCalls int
+	FindPendingByEmailCalls atomic.Int64
 	FindPendingByTokenFunc  func(context.Context, string) (*domain.AdminInvitation, error)
-	FindPendingByTokenCalls int
+	FindPendingByTokenCalls atomic.Int64
 	FindByIDFunc            func(context.Context, uint64) (*domain.AdminInvitation, error)
-	FindByIDCalls           int
+	FindByIDCalls           atomic.Int64
 	CreateFunc              func(context.Context, *domain.AdminInvitation) error
-	CreateCalls             int
+	CreateCalls             atomic.Int64
 	UpdateStatusFunc        func(context.Context, uint64, string) error
-	UpdateStatusCalls       int
+	UpdateStatusCalls       atomic.Int64
 }
 
 var _ repository.AdminInvitationRepository = (*FakeAdminInvitationRepository)(nil)
 
 func (f *FakeAdminInvitationRepository) ListAll(p0 context.Context) ([]domain.AdminInvitation, error) {
-	f.ListAllCalls++
+	f.ListAllCalls.Add(1)
 	if f.ListAllFunc != nil {
 		return f.ListAllFunc(p0)
 	}
@@ -41,7 +43,7 @@ func (f *FakeAdminInvitationRepository) ListAll(p0 context.Context) ([]domain.Ad
 }
 
 func (f *FakeAdminInvitationRepository) ListByCompanyID(p0 context.Context, p1 uint64) ([]domain.AdminInvitation, error) {
-	f.ListByCompanyIDCalls++
+	f.ListByCompanyIDCalls.Add(1)
 	if f.ListByCompanyIDFunc != nil {
 		return f.ListByCompanyIDFunc(p0, p1)
 	}
@@ -51,7 +53,7 @@ func (f *FakeAdminInvitationRepository) ListByCompanyID(p0 context.Context, p1 u
 }
 
 func (f *FakeAdminInvitationRepository) FindPendingByEmail(p0 context.Context, p1 string) (*domain.AdminInvitation, error) {
-	f.FindPendingByEmailCalls++
+	f.FindPendingByEmailCalls.Add(1)
 	if f.FindPendingByEmailFunc != nil {
 		return f.FindPendingByEmailFunc(p0, p1)
 	}
@@ -61,7 +63,7 @@ func (f *FakeAdminInvitationRepository) FindPendingByEmail(p0 context.Context, p
 }
 
 func (f *FakeAdminInvitationRepository) FindPendingByToken(p0 context.Context, p1 string) (*domain.AdminInvitation, error) {
-	f.FindPendingByTokenCalls++
+	f.FindPendingByTokenCalls.Add(1)
 	if f.FindPendingByTokenFunc != nil {
 		return f.FindPendingByTokenFunc(p0, p1)
 	}
@@ -71,7 +73,7 @@ func (f *FakeAdminInvitationRepository) FindPendingByToken(p0 context.Context, p
 }
 
 func (f *FakeAdminInvitationRepository) FindByID(p0 context.Context, p1 uint64) (*domain.AdminInvitation, error) {
-	f.FindByIDCalls++
+	f.FindByIDCalls.Add(1)
 	if f.FindByIDFunc != nil {
 		return f.FindByIDFunc(p0, p1)
 	}
@@ -81,7 +83,7 @@ func (f *FakeAdminInvitationRepository) FindByID(p0 context.Context, p1 uint64) 
 }
 
 func (f *FakeAdminInvitationRepository) Create(p0 context.Context, p1 *domain.AdminInvitation) error {
-	f.CreateCalls++
+	f.CreateCalls.Add(1)
 	if f.CreateFunc != nil {
 		return f.CreateFunc(p0, p1)
 	}
@@ -90,7 +92,7 @@ func (f *FakeAdminInvitationRepository) Create(p0 context.Context, p1 *domain.Ad
 }
 
 func (f *FakeAdminInvitationRepository) UpdateStatus(p0 context.Context, p1 uint64, p2 string) error {
-	f.UpdateStatusCalls++
+	f.UpdateStatusCalls.Add(1)
 	if f.UpdateStatusFunc != nil {
 		return f.UpdateStatusFunc(p0, p1, p2)
 	}
@@ -101,13 +103,13 @@ func (f *FakeAdminInvitationRepository) UpdateStatus(p0 context.Context, p1 uint
 // FakeAiChatAttachmentPresigner は repository.AiChatAttachmentPresigner の生成済み fake。
 type FakeAiChatAttachmentPresigner struct {
 	GenerateFunc  func(context.Context, uint64, string, string) (*repository.AiChatAttachmentUploadURL, error)
-	GenerateCalls int
+	GenerateCalls atomic.Int64
 }
 
 var _ repository.AiChatAttachmentPresigner = (*FakeAiChatAttachmentPresigner)(nil)
 
 func (f *FakeAiChatAttachmentPresigner) Generate(p0 context.Context, p1 uint64, p2 string, p3 string) (*repository.AiChatAttachmentUploadURL, error) {
-	f.GenerateCalls++
+	f.GenerateCalls.Add(1)
 	if f.GenerateFunc != nil {
 		return f.GenerateFunc(p0, p1, p2, p3)
 	}
@@ -119,15 +121,15 @@ func (f *FakeAiChatAttachmentPresigner) Generate(p0 context.Context, p1 uint64, 
 // FakeAiChatMessageRepository は repository.AiChatMessageRepository の生成済み fake。
 type FakeAiChatMessageRepository struct {
 	SaveFunc             func(context.Context, *domain.AiChatMessage) error
-	SaveCalls            int
+	SaveCalls            atomic.Int64
 	ListBySessionIDFunc  func(context.Context, uint64) ([]domain.AiChatMessage, error)
-	ListBySessionIDCalls int
+	ListBySessionIDCalls atomic.Int64
 }
 
 var _ repository.AiChatMessageRepository = (*FakeAiChatMessageRepository)(nil)
 
 func (f *FakeAiChatMessageRepository) Save(p0 context.Context, p1 *domain.AiChatMessage) error {
-	f.SaveCalls++
+	f.SaveCalls.Add(1)
 	if f.SaveFunc != nil {
 		return f.SaveFunc(p0, p1)
 	}
@@ -136,7 +138,7 @@ func (f *FakeAiChatMessageRepository) Save(p0 context.Context, p1 *domain.AiChat
 }
 
 func (f *FakeAiChatMessageRepository) ListBySessionID(p0 context.Context, p1 uint64) ([]domain.AiChatMessage, error) {
-	f.ListBySessionIDCalls++
+	f.ListBySessionIDCalls.Add(1)
 	if f.ListBySessionIDFunc != nil {
 		return f.ListBySessionIDFunc(p0, p1)
 	}
@@ -148,21 +150,21 @@ func (f *FakeAiChatMessageRepository) ListBySessionID(p0 context.Context, p1 uin
 // FakeAiChatSessionRepository は repository.AiChatSessionRepository の生成済み fake。
 type FakeAiChatSessionRepository struct {
 	ListByUserIDFunc  func(context.Context, uint64) ([]domain.AiChatSession, error)
-	ListByUserIDCalls int
+	ListByUserIDCalls atomic.Int64
 	FindByIDFunc      func(context.Context, uint64) (*domain.AiChatSession, error)
-	FindByIDCalls     int
+	FindByIDCalls     atomic.Int64
 	CreateFunc        func(context.Context, *domain.AiChatSession) error
-	CreateCalls       int
+	CreateCalls       atomic.Int64
 	UpdateTitleFunc   func(context.Context, uint64, string) error
-	UpdateTitleCalls  int
+	UpdateTitleCalls  atomic.Int64
 	DeleteFunc        func(context.Context, uint64) error
-	DeleteCalls       int
+	DeleteCalls       atomic.Int64
 }
 
 var _ repository.AiChatSessionRepository = (*FakeAiChatSessionRepository)(nil)
 
 func (f *FakeAiChatSessionRepository) ListByUserID(p0 context.Context, p1 uint64) ([]domain.AiChatSession, error) {
-	f.ListByUserIDCalls++
+	f.ListByUserIDCalls.Add(1)
 	if f.ListByUserIDFunc != nil {
 		return f.ListByUserIDFunc(p0, p1)
 	}
@@ -172,7 +174,7 @@ func (f *FakeAiChatSessionRepository) ListByUserID(p0 context.Context, p1 uint64
 }
 
 func (f *FakeAiChatSessionRepository) FindByID(p0 context.Context, p1 uint64) (*domain.AiChatSession, error) {
-	f.FindByIDCalls++
+	f.FindByIDCalls.Add(1)
 	if f.FindByIDFunc != nil {
 		return f.FindByIDFunc(p0, p1)
 	}
@@ -182,7 +184,7 @@ func (f *FakeAiChatSessionRepository) FindByID(p0 context.Context, p1 uint64) (*
 }
 
 func (f *FakeAiChatSessionRepository) Create(p0 context.Context, p1 *domain.AiChatSession) error {
-	f.CreateCalls++
+	f.CreateCalls.Add(1)
 	if f.CreateFunc != nil {
 		return f.CreateFunc(p0, p1)
 	}
@@ -191,7 +193,7 @@ func (f *FakeAiChatSessionRepository) Create(p0 context.Context, p1 *domain.AiCh
 }
 
 func (f *FakeAiChatSessionRepository) UpdateTitle(p0 context.Context, p1 uint64, p2 string) error {
-	f.UpdateTitleCalls++
+	f.UpdateTitleCalls.Add(1)
 	if f.UpdateTitleFunc != nil {
 		return f.UpdateTitleFunc(p0, p1, p2)
 	}
@@ -200,7 +202,7 @@ func (f *FakeAiChatSessionRepository) UpdateTitle(p0 context.Context, p1 uint64,
 }
 
 func (f *FakeAiChatSessionRepository) Delete(p0 context.Context, p1 uint64) error {
-	f.DeleteCalls++
+	f.DeleteCalls.Add(1)
 	if f.DeleteFunc != nil {
 		return f.DeleteFunc(p0, p1)
 	}
@@ -211,15 +213,15 @@ func (f *FakeAiChatSessionRepository) Delete(p0 context.Context, p1 uint64) erro
 // FakeAuditRepository は repository.AuditRepository の生成済み fake。
 type FakeAuditRepository struct {
 	RecordFunc      func(context.Context, *domain.AuditEvent) error
-	RecordCalls     int
+	RecordCalls     atomic.Int64
 	ListRecentFunc  func(context.Context, int) ([]domain.AuditEvent, error)
-	ListRecentCalls int
+	ListRecentCalls atomic.Int64
 }
 
 var _ repository.AuditRepository = (*FakeAuditRepository)(nil)
 
 func (f *FakeAuditRepository) Record(p0 context.Context, p1 *domain.AuditEvent) error {
-	f.RecordCalls++
+	f.RecordCalls.Add(1)
 	if f.RecordFunc != nil {
 		return f.RecordFunc(p0, p1)
 	}
@@ -228,7 +230,7 @@ func (f *FakeAuditRepository) Record(p0 context.Context, p1 *domain.AuditEvent) 
 }
 
 func (f *FakeAuditRepository) ListRecent(p0 context.Context, p1 int) ([]domain.AuditEvent, error) {
-	f.ListRecentCalls++
+	f.ListRecentCalls.Add(1)
 	if f.ListRecentFunc != nil {
 		return f.ListRecentFunc(p0, p1)
 	}
@@ -240,19 +242,19 @@ func (f *FakeAuditRepository) ListRecent(p0 context.Context, p1 int) ([]domain.A
 // FakeCompanyRepository は repository.CompanyRepository の生成済み fake。
 type FakeCompanyRepository struct {
 	ListAllFunc              func(context.Context) ([]domain.Company, error)
-	ListAllCalls             int
+	ListAllCalls             atomic.Int64
 	FindByIDFunc             func(context.Context, uint64) (*domain.Company, error)
-	FindByIDCalls            int
+	FindByIDCalls            atomic.Int64
 	UpdateAiChatEnabledFunc  func(context.Context, uint64, bool) error
-	UpdateAiChatEnabledCalls int
+	UpdateAiChatEnabledCalls atomic.Int64
 	UpdateActiveFunc         func(context.Context, uint64, bool) error
-	UpdateActiveCalls        int
+	UpdateActiveCalls        atomic.Int64
 }
 
 var _ repository.CompanyRepository = (*FakeCompanyRepository)(nil)
 
 func (f *FakeCompanyRepository) ListAll(p0 context.Context) ([]domain.Company, error) {
-	f.ListAllCalls++
+	f.ListAllCalls.Add(1)
 	if f.ListAllFunc != nil {
 		return f.ListAllFunc(p0)
 	}
@@ -262,7 +264,7 @@ func (f *FakeCompanyRepository) ListAll(p0 context.Context) ([]domain.Company, e
 }
 
 func (f *FakeCompanyRepository) FindByID(p0 context.Context, p1 uint64) (*domain.Company, error) {
-	f.FindByIDCalls++
+	f.FindByIDCalls.Add(1)
 	if f.FindByIDFunc != nil {
 		return f.FindByIDFunc(p0, p1)
 	}
@@ -272,7 +274,7 @@ func (f *FakeCompanyRepository) FindByID(p0 context.Context, p1 uint64) (*domain
 }
 
 func (f *FakeCompanyRepository) UpdateAiChatEnabled(p0 context.Context, p1 uint64, p2 bool) error {
-	f.UpdateAiChatEnabledCalls++
+	f.UpdateAiChatEnabledCalls.Add(1)
 	if f.UpdateAiChatEnabledFunc != nil {
 		return f.UpdateAiChatEnabledFunc(p0, p1, p2)
 	}
@@ -281,7 +283,7 @@ func (f *FakeCompanyRepository) UpdateAiChatEnabled(p0 context.Context, p1 uint6
 }
 
 func (f *FakeCompanyRepository) UpdateActive(p0 context.Context, p1 uint64, p2 bool) error {
-	f.UpdateActiveCalls++
+	f.UpdateActiveCalls.Add(1)
 	if f.UpdateActiveFunc != nil {
 		return f.UpdateActiveFunc(p0, p1, p2)
 	}
@@ -292,17 +294,17 @@ func (f *FakeCompanyRepository) UpdateActive(p0 context.Context, p1 uint64, p2 b
 // FakeCompanyApplicationRepository は repository.CompanyApplicationRepository の生成済み fake。
 type FakeCompanyApplicationRepository struct {
 	CreateFunc        func(context.Context, *domain.CompanyApplication) error
-	CreateCalls       int
+	CreateCalls       atomic.Int64
 	ListAllFunc       func(context.Context) ([]domain.CompanyApplication, error)
-	ListAllCalls      int
+	ListAllCalls      atomic.Int64
 	UpdateStatusFunc  func(context.Context, uint64, string) error
-	UpdateStatusCalls int
+	UpdateStatusCalls atomic.Int64
 }
 
 var _ repository.CompanyApplicationRepository = (*FakeCompanyApplicationRepository)(nil)
 
 func (f *FakeCompanyApplicationRepository) Create(p0 context.Context, p1 *domain.CompanyApplication) error {
-	f.CreateCalls++
+	f.CreateCalls.Add(1)
 	if f.CreateFunc != nil {
 		return f.CreateFunc(p0, p1)
 	}
@@ -311,7 +313,7 @@ func (f *FakeCompanyApplicationRepository) Create(p0 context.Context, p1 *domain
 }
 
 func (f *FakeCompanyApplicationRepository) ListAll(p0 context.Context) ([]domain.CompanyApplication, error) {
-	f.ListAllCalls++
+	f.ListAllCalls.Add(1)
 	if f.ListAllFunc != nil {
 		return f.ListAllFunc(p0)
 	}
@@ -321,7 +323,7 @@ func (f *FakeCompanyApplicationRepository) ListAll(p0 context.Context) ([]domain
 }
 
 func (f *FakeCompanyApplicationRepository) UpdateStatus(p0 context.Context, p1 uint64, p2 string) error {
-	f.UpdateStatusCalls++
+	f.UpdateStatusCalls.Add(1)
 	if f.UpdateStatusFunc != nil {
 		return f.UpdateStatusFunc(p0, p1, p2)
 	}
@@ -332,13 +334,13 @@ func (f *FakeCompanyApplicationRepository) UpdateStatus(p0 context.Context, p1 u
 // FakeCompanyLearningActivitySummarizer は repository.CompanyLearningActivitySummarizer の生成済み fake。
 type FakeCompanyLearningActivitySummarizer struct {
 	ListMemberActivitiesFunc  func(context.Context, uint64, time.Time) ([]repository.MemberLearningActivity, error)
-	ListMemberActivitiesCalls int
+	ListMemberActivitiesCalls atomic.Int64
 }
 
 var _ repository.CompanyLearningActivitySummarizer = (*FakeCompanyLearningActivitySummarizer)(nil)
 
 func (f *FakeCompanyLearningActivitySummarizer) ListMemberActivities(p0 context.Context, p1 uint64, p2 time.Time) ([]repository.MemberLearningActivity, error) {
-	f.ListMemberActivitiesCalls++
+	f.ListMemberActivitiesCalls.Add(1)
 	if f.ListMemberActivitiesFunc != nil {
 		return f.ListMemberActivitiesFunc(p0, p1, p2)
 	}
@@ -350,13 +352,13 @@ func (f *FakeCompanyLearningActivitySummarizer) ListMemberActivities(p0 context.
 // FakeCompanyMemberCounter は repository.CompanyMemberCounter の生成済み fake。
 type FakeCompanyMemberCounter struct {
 	CountMembersByCompanyFunc  func(context.Context) ([]repository.CompanyMemberCount, error)
-	CountMembersByCompanyCalls int
+	CountMembersByCompanyCalls atomic.Int64
 }
 
 var _ repository.CompanyMemberCounter = (*FakeCompanyMemberCounter)(nil)
 
 func (f *FakeCompanyMemberCounter) CountMembersByCompany(p0 context.Context) ([]repository.CompanyMemberCount, error) {
-	f.CountMembersByCompanyCalls++
+	f.CountMembersByCompanyCalls.Add(1)
 	if f.CountMembersByCompanyFunc != nil {
 		return f.CountMembersByCompanyFunc(p0)
 	}
@@ -368,21 +370,21 @@ func (f *FakeCompanyMemberCounter) CountMembersByCompany(p0 context.Context) ([]
 // FakeCourseRepository は repository.CourseRepository の生成済み fake。
 type FakeCourseRepository struct {
 	ListByCompanyFunc  func(context.Context, uint64, bool) ([]domain.Course, error)
-	ListByCompanyCalls int
+	ListByCompanyCalls atomic.Int64
 	GetByIDFunc        func(context.Context, uint64) (*domain.Course, error)
-	GetByIDCalls       int
+	GetByIDCalls       atomic.Int64
 	CreateFunc         func(context.Context, *domain.Course) error
-	CreateCalls        int
+	CreateCalls        atomic.Int64
 	UpdateFunc         func(context.Context, *domain.Course) error
-	UpdateCalls        int
+	UpdateCalls        atomic.Int64
 	DeleteFunc         func(context.Context, uint64) error
-	DeleteCalls        int
+	DeleteCalls        atomic.Int64
 }
 
 var _ repository.CourseRepository = (*FakeCourseRepository)(nil)
 
 func (f *FakeCourseRepository) ListByCompany(p0 context.Context, p1 uint64, p2 bool) ([]domain.Course, error) {
-	f.ListByCompanyCalls++
+	f.ListByCompanyCalls.Add(1)
 	if f.ListByCompanyFunc != nil {
 		return f.ListByCompanyFunc(p0, p1, p2)
 	}
@@ -392,7 +394,7 @@ func (f *FakeCourseRepository) ListByCompany(p0 context.Context, p1 uint64, p2 b
 }
 
 func (f *FakeCourseRepository) GetByID(p0 context.Context, p1 uint64) (*domain.Course, error) {
-	f.GetByIDCalls++
+	f.GetByIDCalls.Add(1)
 	if f.GetByIDFunc != nil {
 		return f.GetByIDFunc(p0, p1)
 	}
@@ -402,7 +404,7 @@ func (f *FakeCourseRepository) GetByID(p0 context.Context, p1 uint64) (*domain.C
 }
 
 func (f *FakeCourseRepository) Create(p0 context.Context, p1 *domain.Course) error {
-	f.CreateCalls++
+	f.CreateCalls.Add(1)
 	if f.CreateFunc != nil {
 		return f.CreateFunc(p0, p1)
 	}
@@ -411,7 +413,7 @@ func (f *FakeCourseRepository) Create(p0 context.Context, p1 *domain.Course) err
 }
 
 func (f *FakeCourseRepository) Update(p0 context.Context, p1 *domain.Course) error {
-	f.UpdateCalls++
+	f.UpdateCalls.Add(1)
 	if f.UpdateFunc != nil {
 		return f.UpdateFunc(p0, p1)
 	}
@@ -420,7 +422,7 @@ func (f *FakeCourseRepository) Update(p0 context.Context, p1 *domain.Course) err
 }
 
 func (f *FakeCourseRepository) Delete(p0 context.Context, p1 uint64) error {
-	f.DeleteCalls++
+	f.DeleteCalls.Add(1)
 	if f.DeleteFunc != nil {
 		return f.DeleteFunc(p0, p1)
 	}
@@ -431,19 +433,19 @@ func (f *FakeCourseRepository) Delete(p0 context.Context, p1 uint64) error {
 // FakeExerciseSubmissionRepository は repository.ExerciseSubmissionRepository の生成済み fake。
 type FakeExerciseSubmissionRepository struct {
 	CreateFunc                 func(context.Context, *domain.ExerciseSubmission) error
-	CreateCalls                int
+	CreateCalls                atomic.Int64
 	ListByUserAndExerciseFunc  func(context.Context, uint64, uint64, string) ([]domain.ExerciseSubmission, error)
-	ListByUserAndExerciseCalls int
+	ListByUserAndExerciseCalls atomic.Int64
 	HasSolvedFunc              func(context.Context, uint64, uint64, string) (bool, error)
-	HasSolvedCalls             int
+	HasSolvedCalls             atomic.Int64
 	HasAttemptedFunc           func(context.Context, uint64, uint64, string) (bool, error)
-	HasAttemptedCalls          int
+	HasAttemptedCalls          atomic.Int64
 }
 
 var _ repository.ExerciseSubmissionRepository = (*FakeExerciseSubmissionRepository)(nil)
 
 func (f *FakeExerciseSubmissionRepository) Create(p0 context.Context, p1 *domain.ExerciseSubmission) error {
-	f.CreateCalls++
+	f.CreateCalls.Add(1)
 	if f.CreateFunc != nil {
 		return f.CreateFunc(p0, p1)
 	}
@@ -452,7 +454,7 @@ func (f *FakeExerciseSubmissionRepository) Create(p0 context.Context, p1 *domain
 }
 
 func (f *FakeExerciseSubmissionRepository) ListByUserAndExercise(p0 context.Context, p1 uint64, p2 uint64, p3 string) ([]domain.ExerciseSubmission, error) {
-	f.ListByUserAndExerciseCalls++
+	f.ListByUserAndExerciseCalls.Add(1)
 	if f.ListByUserAndExerciseFunc != nil {
 		return f.ListByUserAndExerciseFunc(p0, p1, p2, p3)
 	}
@@ -462,7 +464,7 @@ func (f *FakeExerciseSubmissionRepository) ListByUserAndExercise(p0 context.Cont
 }
 
 func (f *FakeExerciseSubmissionRepository) HasSolved(p0 context.Context, p1 uint64, p2 uint64, p3 string) (bool, error) {
-	f.HasSolvedCalls++
+	f.HasSolvedCalls.Add(1)
 	if f.HasSolvedFunc != nil {
 		return f.HasSolvedFunc(p0, p1, p2, p3)
 	}
@@ -472,7 +474,7 @@ func (f *FakeExerciseSubmissionRepository) HasSolved(p0 context.Context, p1 uint
 }
 
 func (f *FakeExerciseSubmissionRepository) HasAttempted(p0 context.Context, p1 uint64, p2 uint64, p3 string) (bool, error) {
-	f.HasAttemptedCalls++
+	f.HasAttemptedCalls.Add(1)
 	if f.HasAttemptedFunc != nil {
 		return f.HasAttemptedFunc(p0, p1, p2, p3)
 	}
@@ -484,13 +486,13 @@ func (f *FakeExerciseSubmissionRepository) HasAttempted(p0 context.Context, p1 u
 // FakeHealthRepository は repository.HealthRepository の生成済み fake。
 type FakeHealthRepository struct {
 	PingDBFunc  func(context.Context) error
-	PingDBCalls int
+	PingDBCalls atomic.Int64
 }
 
 var _ repository.HealthRepository = (*FakeHealthRepository)(nil)
 
 func (f *FakeHealthRepository) PingDB(p0 context.Context) error {
-	f.PingDBCalls++
+	f.PingDBCalls.Add(1)
 	if f.PingDBFunc != nil {
 		return f.PingDBFunc(p0)
 	}
@@ -501,15 +503,15 @@ func (f *FakeHealthRepository) PingDB(p0 context.Context) error {
 // FakeLearningReportRepository は repository.LearningReportRepository の生成済み fake。
 type FakeLearningReportRepository struct {
 	ListByUserIDFunc  func(context.Context, uint64) ([]domain.LearningReport, error)
-	ListByUserIDCalls int
+	ListByUserIDCalls atomic.Int64
 	CreateFunc        func(context.Context, *domain.LearningReport) error
-	CreateCalls       int
+	CreateCalls       atomic.Int64
 }
 
 var _ repository.LearningReportRepository = (*FakeLearningReportRepository)(nil)
 
 func (f *FakeLearningReportRepository) ListByUserID(p0 context.Context, p1 uint64) ([]domain.LearningReport, error) {
-	f.ListByUserIDCalls++
+	f.ListByUserIDCalls.Add(1)
 	if f.ListByUserIDFunc != nil {
 		return f.ListByUserIDFunc(p0, p1)
 	}
@@ -519,7 +521,7 @@ func (f *FakeLearningReportRepository) ListByUserID(p0 context.Context, p1 uint6
 }
 
 func (f *FakeLearningReportRepository) Create(p0 context.Context, p1 *domain.LearningReport) error {
-	f.CreateCalls++
+	f.CreateCalls.Add(1)
 	if f.CreateFunc != nil {
 		return f.CreateFunc(p0, p1)
 	}
@@ -530,13 +532,13 @@ func (f *FakeLearningReportRepository) Create(p0 context.Context, p1 *domain.Lea
 // FakeSqsEnqueuer は repository.SqsEnqueuer の生成済み fake。
 type FakeSqsEnqueuer struct {
 	EnqueueFunc  func(context.Context, uint64) error
-	EnqueueCalls int
+	EnqueueCalls atomic.Int64
 }
 
 var _ repository.SqsEnqueuer = (*FakeSqsEnqueuer)(nil)
 
 func (f *FakeSqsEnqueuer) Enqueue(p0 context.Context, p1 uint64) error {
-	f.EnqueueCalls++
+	f.EnqueueCalls.Add(1)
 	if f.EnqueueFunc != nil {
 		return f.EnqueueFunc(p0, p1)
 	}
@@ -547,19 +549,19 @@ func (f *FakeSqsEnqueuer) Enqueue(p0 context.Context, p1 uint64) error {
 // FakeLessonProgressRepository は repository.LessonProgressRepository の生成済み fake。
 type FakeLessonProgressRepository struct {
 	MarkCompletedFunc                        func(context.Context, uint64, uint64, uint64) (bool, error)
-	MarkCompletedCalls                       int
+	MarkCompletedCalls                       atomic.Int64
 	MarkIncompleteFunc                       func(context.Context, uint64, uint64) error
-	MarkIncompleteCalls                      int
+	MarkIncompleteCalls                      atomic.Int64
 	ListByUserFunc                           func(context.Context, uint64) ([]domain.UserLessonProgress, error)
-	ListByUserCalls                          int
+	ListByUserCalls                          atomic.Int64
 	CountCompletedByUserGroupedByCourseFunc  func(context.Context, uint64) (map[uint64]int, error)
-	CountCompletedByUserGroupedByCourseCalls int
+	CountCompletedByUserGroupedByCourseCalls atomic.Int64
 }
 
 var _ repository.LessonProgressRepository = (*FakeLessonProgressRepository)(nil)
 
 func (f *FakeLessonProgressRepository) MarkCompleted(p0 context.Context, p1 uint64, p2 uint64, p3 uint64) (bool, error) {
-	f.MarkCompletedCalls++
+	f.MarkCompletedCalls.Add(1)
 	if f.MarkCompletedFunc != nil {
 		return f.MarkCompletedFunc(p0, p1, p2, p3)
 	}
@@ -569,7 +571,7 @@ func (f *FakeLessonProgressRepository) MarkCompleted(p0 context.Context, p1 uint
 }
 
 func (f *FakeLessonProgressRepository) MarkIncomplete(p0 context.Context, p1 uint64, p2 uint64) error {
-	f.MarkIncompleteCalls++
+	f.MarkIncompleteCalls.Add(1)
 	if f.MarkIncompleteFunc != nil {
 		return f.MarkIncompleteFunc(p0, p1, p2)
 	}
@@ -578,7 +580,7 @@ func (f *FakeLessonProgressRepository) MarkIncomplete(p0 context.Context, p1 uin
 }
 
 func (f *FakeLessonProgressRepository) ListByUser(p0 context.Context, p1 uint64) ([]domain.UserLessonProgress, error) {
-	f.ListByUserCalls++
+	f.ListByUserCalls.Add(1)
 	if f.ListByUserFunc != nil {
 		return f.ListByUserFunc(p0, p1)
 	}
@@ -588,7 +590,7 @@ func (f *FakeLessonProgressRepository) ListByUser(p0 context.Context, p1 uint64)
 }
 
 func (f *FakeLessonProgressRepository) CountCompletedByUserGroupedByCourse(p0 context.Context, p1 uint64) (map[uint64]int, error) {
-	f.CountCompletedByUserGroupedByCourseCalls++
+	f.CountCompletedByUserGroupedByCourseCalls.Add(1)
 	if f.CountCompletedByUserGroupedByCourseFunc != nil {
 		return f.CountCompletedByUserGroupedByCourseFunc(p0, p1)
 	}
@@ -600,21 +602,21 @@ func (f *FakeLessonProgressRepository) CountCompletedByUserGroupedByCourse(p0 co
 // FakeMasterExerciseRepository は repository.MasterExerciseRepository の生成済み fake。
 type FakeMasterExerciseRepository struct {
 	ListByLanguageFunc            func(context.Context, string) ([]domain.MasterExercise, error)
-	ListByLanguageCalls           int
+	ListByLanguageCalls           atomic.Int64
 	GetByIDFunc                   func(context.Context, uint64) (*domain.MasterExercise, error)
-	GetByIDCalls                  int
+	GetByIDCalls                  atomic.Int64
 	GetBySlugFunc                 func(context.Context, string) (*domain.MasterExercise, error)
-	GetBySlugCalls                int
+	GetBySlugCalls                atomic.Int64
 	SummaryByLanguageFunc         func(context.Context, uint64) ([]repository.ExerciseLanguageSummary, error)
-	SummaryByLanguageCalls        int
+	SummaryByLanguageCalls        atomic.Int64
 	ListWithStatusByLanguageFunc  func(context.Context, repository.ListWithStatusInput) ([]repository.MasterExerciseWithStatus, error)
-	ListWithStatusByLanguageCalls int
+	ListWithStatusByLanguageCalls atomic.Int64
 }
 
 var _ repository.MasterExerciseRepository = (*FakeMasterExerciseRepository)(nil)
 
 func (f *FakeMasterExerciseRepository) ListByLanguage(p0 context.Context, p1 string) ([]domain.MasterExercise, error) {
-	f.ListByLanguageCalls++
+	f.ListByLanguageCalls.Add(1)
 	if f.ListByLanguageFunc != nil {
 		return f.ListByLanguageFunc(p0, p1)
 	}
@@ -624,7 +626,7 @@ func (f *FakeMasterExerciseRepository) ListByLanguage(p0 context.Context, p1 str
 }
 
 func (f *FakeMasterExerciseRepository) GetByID(p0 context.Context, p1 uint64) (*domain.MasterExercise, error) {
-	f.GetByIDCalls++
+	f.GetByIDCalls.Add(1)
 	if f.GetByIDFunc != nil {
 		return f.GetByIDFunc(p0, p1)
 	}
@@ -634,7 +636,7 @@ func (f *FakeMasterExerciseRepository) GetByID(p0 context.Context, p1 uint64) (*
 }
 
 func (f *FakeMasterExerciseRepository) GetBySlug(p0 context.Context, p1 string) (*domain.MasterExercise, error) {
-	f.GetBySlugCalls++
+	f.GetBySlugCalls.Add(1)
 	if f.GetBySlugFunc != nil {
 		return f.GetBySlugFunc(p0, p1)
 	}
@@ -644,7 +646,7 @@ func (f *FakeMasterExerciseRepository) GetBySlug(p0 context.Context, p1 string) 
 }
 
 func (f *FakeMasterExerciseRepository) SummaryByLanguage(p0 context.Context, p1 uint64) ([]repository.ExerciseLanguageSummary, error) {
-	f.SummaryByLanguageCalls++
+	f.SummaryByLanguageCalls.Add(1)
 	if f.SummaryByLanguageFunc != nil {
 		return f.SummaryByLanguageFunc(p0, p1)
 	}
@@ -654,7 +656,7 @@ func (f *FakeMasterExerciseRepository) SummaryByLanguage(p0 context.Context, p1 
 }
 
 func (f *FakeMasterExerciseRepository) ListWithStatusByLanguage(p0 context.Context, p1 repository.ListWithStatusInput) ([]repository.MasterExerciseWithStatus, error) {
-	f.ListWithStatusByLanguageCalls++
+	f.ListWithStatusByLanguageCalls.Add(1)
 	if f.ListWithStatusByLanguageFunc != nil {
 		return f.ListWithStatusByLanguageFunc(p0, p1)
 	}
@@ -666,15 +668,15 @@ func (f *FakeMasterExerciseRepository) ListWithStatusByLanguage(p0 context.Conte
 // FakeMasterExerciseExampleRepository は repository.MasterExerciseExampleRepository の生成済み fake。
 type FakeMasterExerciseExampleRepository struct {
 	ListByExerciseIDFunc   func(context.Context, uint64) ([]domain.MasterExerciseExample, error)
-	ListByExerciseIDCalls  int
+	ListByExerciseIDCalls  atomic.Int64
 	ListByExerciseIDsFunc  func(context.Context, []uint64) (map[uint64][]domain.MasterExerciseExample, error)
-	ListByExerciseIDsCalls int
+	ListByExerciseIDsCalls atomic.Int64
 }
 
 var _ repository.MasterExerciseExampleRepository = (*FakeMasterExerciseExampleRepository)(nil)
 
 func (f *FakeMasterExerciseExampleRepository) ListByExerciseID(p0 context.Context, p1 uint64) ([]domain.MasterExerciseExample, error) {
-	f.ListByExerciseIDCalls++
+	f.ListByExerciseIDCalls.Add(1)
 	if f.ListByExerciseIDFunc != nil {
 		return f.ListByExerciseIDFunc(p0, p1)
 	}
@@ -684,7 +686,7 @@ func (f *FakeMasterExerciseExampleRepository) ListByExerciseID(p0 context.Contex
 }
 
 func (f *FakeMasterExerciseExampleRepository) ListByExerciseIDs(p0 context.Context, p1 []uint64) (map[uint64][]domain.MasterExerciseExample, error) {
-	f.ListByExerciseIDsCalls++
+	f.ListByExerciseIDsCalls.Add(1)
 	if f.ListByExerciseIDsFunc != nil {
 		return f.ListByExerciseIDsFunc(p0, p1)
 	}
@@ -696,21 +698,21 @@ func (f *FakeMasterExerciseExampleRepository) ListByExerciseIDs(p0 context.Conte
 // FakeNoteRepository は repository.NoteRepository の生成済み fake。
 type FakeNoteRepository struct {
 	ListByUserIDFunc  func(context.Context, uint64) ([]domain.Note, error)
-	ListByUserIDCalls int
+	ListByUserIDCalls atomic.Int64
 	FindByIDFunc      func(context.Context, uint64) (*domain.Note, error)
-	FindByIDCalls     int
+	FindByIDCalls     atomic.Int64
 	CreateFunc        func(context.Context, *domain.Note) error
-	CreateCalls       int
+	CreateCalls       atomic.Int64
 	UpdateFunc        func(context.Context, *domain.Note) error
-	UpdateCalls       int
+	UpdateCalls       atomic.Int64
 	DeleteFunc        func(context.Context, uint64, uint64) error
-	DeleteCalls       int
+	DeleteCalls       atomic.Int64
 }
 
 var _ repository.NoteRepository = (*FakeNoteRepository)(nil)
 
 func (f *FakeNoteRepository) ListByUserID(p0 context.Context, p1 uint64) ([]domain.Note, error) {
-	f.ListByUserIDCalls++
+	f.ListByUserIDCalls.Add(1)
 	if f.ListByUserIDFunc != nil {
 		return f.ListByUserIDFunc(p0, p1)
 	}
@@ -720,7 +722,7 @@ func (f *FakeNoteRepository) ListByUserID(p0 context.Context, p1 uint64) ([]doma
 }
 
 func (f *FakeNoteRepository) FindByID(p0 context.Context, p1 uint64) (*domain.Note, error) {
-	f.FindByIDCalls++
+	f.FindByIDCalls.Add(1)
 	if f.FindByIDFunc != nil {
 		return f.FindByIDFunc(p0, p1)
 	}
@@ -730,7 +732,7 @@ func (f *FakeNoteRepository) FindByID(p0 context.Context, p1 uint64) (*domain.No
 }
 
 func (f *FakeNoteRepository) Create(p0 context.Context, p1 *domain.Note) error {
-	f.CreateCalls++
+	f.CreateCalls.Add(1)
 	if f.CreateFunc != nil {
 		return f.CreateFunc(p0, p1)
 	}
@@ -739,7 +741,7 @@ func (f *FakeNoteRepository) Create(p0 context.Context, p1 *domain.Note) error {
 }
 
 func (f *FakeNoteRepository) Update(p0 context.Context, p1 *domain.Note) error {
-	f.UpdateCalls++
+	f.UpdateCalls.Add(1)
 	if f.UpdateFunc != nil {
 		return f.UpdateFunc(p0, p1)
 	}
@@ -748,7 +750,7 @@ func (f *FakeNoteRepository) Update(p0 context.Context, p1 *domain.Note) error {
 }
 
 func (f *FakeNoteRepository) Delete(p0 context.Context, p1 uint64, p2 uint64) error {
-	f.DeleteCalls++
+	f.DeleteCalls.Add(1)
 	if f.DeleteFunc != nil {
 		return f.DeleteFunc(p0, p1, p2)
 	}
@@ -759,13 +761,13 @@ func (f *FakeNoteRepository) Delete(p0 context.Context, p1 uint64, p2 uint64) er
 // FakeNoteImagePresigner は repository.NoteImagePresigner の生成済み fake。
 type FakeNoteImagePresigner struct {
 	GenerateFunc  func(context.Context, uint64, string) (*domain.NoteImageUploadURL, error)
-	GenerateCalls int
+	GenerateCalls atomic.Int64
 }
 
 var _ repository.NoteImagePresigner = (*FakeNoteImagePresigner)(nil)
 
 func (f *FakeNoteImagePresigner) Generate(p0 context.Context, p1 uint64, p2 string) (*domain.NoteImageUploadURL, error) {
-	f.GenerateCalls++
+	f.GenerateCalls.Add(1)
 	if f.GenerateFunc != nil {
 		return f.GenerateFunc(p0, p1, p2)
 	}
@@ -777,23 +779,23 @@ func (f *FakeNoteImagePresigner) Generate(p0 context.Context, p1 uint64, p2 stri
 // FakeNotificationRepository は repository.NotificationRepository の生成済み fake。
 type FakeNotificationRepository struct {
 	CreateFunc        func(context.Context, *domain.Notification) error
-	CreateCalls       int
+	CreateCalls       atomic.Int64
 	CreateManyFunc    func(context.Context, []domain.Notification) error
-	CreateManyCalls   int
+	CreateManyCalls   atomic.Int64
 	ListByUserIDFunc  func(context.Context, uint64) ([]domain.Notification, error)
-	ListByUserIDCalls int
+	ListByUserIDCalls atomic.Int64
 	MarkReadFunc      func(context.Context, uint64, uint64) error
-	MarkReadCalls     int
+	MarkReadCalls     atomic.Int64
 	MarkAllReadFunc   func(context.Context, uint64) error
-	MarkAllReadCalls  int
+	MarkAllReadCalls  atomic.Int64
 	CountUnreadFunc   func(context.Context, uint64) (int64, error)
-	CountUnreadCalls  int
+	CountUnreadCalls  atomic.Int64
 }
 
 var _ repository.NotificationRepository = (*FakeNotificationRepository)(nil)
 
 func (f *FakeNotificationRepository) Create(p0 context.Context, p1 *domain.Notification) error {
-	f.CreateCalls++
+	f.CreateCalls.Add(1)
 	if f.CreateFunc != nil {
 		return f.CreateFunc(p0, p1)
 	}
@@ -802,7 +804,7 @@ func (f *FakeNotificationRepository) Create(p0 context.Context, p1 *domain.Notif
 }
 
 func (f *FakeNotificationRepository) CreateMany(p0 context.Context, p1 []domain.Notification) error {
-	f.CreateManyCalls++
+	f.CreateManyCalls.Add(1)
 	if f.CreateManyFunc != nil {
 		return f.CreateManyFunc(p0, p1)
 	}
@@ -811,7 +813,7 @@ func (f *FakeNotificationRepository) CreateMany(p0 context.Context, p1 []domain.
 }
 
 func (f *FakeNotificationRepository) ListByUserID(p0 context.Context, p1 uint64) ([]domain.Notification, error) {
-	f.ListByUserIDCalls++
+	f.ListByUserIDCalls.Add(1)
 	if f.ListByUserIDFunc != nil {
 		return f.ListByUserIDFunc(p0, p1)
 	}
@@ -821,7 +823,7 @@ func (f *FakeNotificationRepository) ListByUserID(p0 context.Context, p1 uint64)
 }
 
 func (f *FakeNotificationRepository) MarkRead(p0 context.Context, p1 uint64, p2 uint64) error {
-	f.MarkReadCalls++
+	f.MarkReadCalls.Add(1)
 	if f.MarkReadFunc != nil {
 		return f.MarkReadFunc(p0, p1, p2)
 	}
@@ -830,7 +832,7 @@ func (f *FakeNotificationRepository) MarkRead(p0 context.Context, p1 uint64, p2 
 }
 
 func (f *FakeNotificationRepository) MarkAllRead(p0 context.Context, p1 uint64) error {
-	f.MarkAllReadCalls++
+	f.MarkAllReadCalls.Add(1)
 	if f.MarkAllReadFunc != nil {
 		return f.MarkAllReadFunc(p0, p1)
 	}
@@ -839,7 +841,7 @@ func (f *FakeNotificationRepository) MarkAllRead(p0 context.Context, p1 uint64) 
 }
 
 func (f *FakeNotificationRepository) CountUnread(p0 context.Context, p1 uint64) (int64, error) {
-	f.CountUnreadCalls++
+	f.CountUnreadCalls.Add(1)
 	if f.CountUnreadFunc != nil {
 		return f.CountUnreadFunc(p0, p1)
 	}
@@ -851,13 +853,13 @@ func (f *FakeNotificationRepository) CountUnread(p0 context.Context, p1 uint64) 
 // FakeSnsPublisher は repository.SnsPublisher の生成済み fake。
 type FakeSnsPublisher struct {
 	PublishFunc  func(context.Context, uint64, string, string) error
-	PublishCalls int
+	PublishCalls atomic.Int64
 }
 
 var _ repository.SnsPublisher = (*FakeSnsPublisher)(nil)
 
 func (f *FakeSnsPublisher) Publish(p0 context.Context, p1 uint64, p2 string, p3 string) error {
-	f.PublishCalls++
+	f.PublishCalls.Add(1)
 	if f.PublishFunc != nil {
 		return f.PublishFunc(p0, p1, p2, p3)
 	}
@@ -868,15 +870,15 @@ func (f *FakeSnsPublisher) Publish(p0 context.Context, p1 uint64, p2 string, p3 
 // FakeProfileRepository は repository.ProfileRepository の生成済み fake。
 type FakeProfileRepository struct {
 	FindByUserIDFunc  func(context.Context, uint64) (*domain.Profile, error)
-	FindByUserIDCalls int
+	FindByUserIDCalls atomic.Int64
 	UpsertFunc        func(context.Context, *domain.Profile) error
-	UpsertCalls       int
+	UpsertCalls       atomic.Int64
 }
 
 var _ repository.ProfileRepository = (*FakeProfileRepository)(nil)
 
 func (f *FakeProfileRepository) FindByUserID(p0 context.Context, p1 uint64) (*domain.Profile, error) {
-	f.FindByUserIDCalls++
+	f.FindByUserIDCalls.Add(1)
 	if f.FindByUserIDFunc != nil {
 		return f.FindByUserIDFunc(p0, p1)
 	}
@@ -886,7 +888,7 @@ func (f *FakeProfileRepository) FindByUserID(p0 context.Context, p1 uint64) (*do
 }
 
 func (f *FakeProfileRepository) Upsert(p0 context.Context, p1 *domain.Profile) error {
-	f.UpsertCalls++
+	f.UpsertCalls.Add(1)
 	if f.UpsertFunc != nil {
 		return f.UpsertFunc(p0, p1)
 	}
@@ -897,13 +899,13 @@ func (f *FakeProfileRepository) Upsert(p0 context.Context, p1 *domain.Profile) e
 // FakeProfileImagePresigner は repository.ProfileImagePresigner の生成済み fake。
 type FakeProfileImagePresigner struct {
 	GenerateFunc  func(context.Context, uint64, string, string) (*domain.ProfileImageUploadURL, error)
-	GenerateCalls int
+	GenerateCalls atomic.Int64
 }
 
 var _ repository.ProfileImagePresigner = (*FakeProfileImagePresigner)(nil)
 
 func (f *FakeProfileImagePresigner) Generate(p0 context.Context, p1 uint64, p2 string, p3 string) (*domain.ProfileImageUploadURL, error) {
-	f.GenerateCalls++
+	f.GenerateCalls.Add(1)
 	if f.GenerateFunc != nil {
 		return f.GenerateFunc(p0, p1, p2, p3)
 	}
@@ -915,15 +917,15 @@ func (f *FakeProfileImagePresigner) Generate(p0 context.Context, p1 uint64, p2 s
 // FakeSessionNoteRepository は repository.SessionNoteRepository の生成済み fake。
 type FakeSessionNoteRepository struct {
 	FindBySessionIDFunc  func(context.Context, uint64) (*domain.SessionNote, error)
-	FindBySessionIDCalls int
+	FindBySessionIDCalls atomic.Int64
 	UpsertFunc           func(context.Context, *domain.SessionNote) error
-	UpsertCalls          int
+	UpsertCalls          atomic.Int64
 }
 
 var _ repository.SessionNoteRepository = (*FakeSessionNoteRepository)(nil)
 
 func (f *FakeSessionNoteRepository) FindBySessionID(p0 context.Context, p1 uint64) (*domain.SessionNote, error) {
-	f.FindBySessionIDCalls++
+	f.FindBySessionIDCalls.Add(1)
 	if f.FindBySessionIDFunc != nil {
 		return f.FindBySessionIDFunc(p0, p1)
 	}
@@ -933,7 +935,7 @@ func (f *FakeSessionNoteRepository) FindBySessionID(p0 context.Context, p1 uint6
 }
 
 func (f *FakeSessionNoteRepository) Upsert(p0 context.Context, p1 *domain.SessionNote) error {
-	f.UpsertCalls++
+	f.UpsertCalls.Add(1)
 	if f.UpsertFunc != nil {
 		return f.UpsertFunc(p0, p1)
 	}
@@ -944,27 +946,27 @@ func (f *FakeSessionNoteRepository) Upsert(p0 context.Context, p1 *domain.Sessio
 // FakeTeachingMaterialRepository は repository.TeachingMaterialRepository の生成済み fake。
 type FakeTeachingMaterialRepository struct {
 	ListByCompanyFunc            func(context.Context, uint64, bool) ([]domain.TeachingMaterial, error)
-	ListByCompanyCalls           int
+	ListByCompanyCalls           atomic.Int64
 	ListByCourseFunc             func(context.Context, uint64, bool) ([]domain.TeachingMaterial, error)
-	ListByCourseCalls            int
+	ListByCourseCalls            atomic.Int64
 	GetByIDFunc                  func(context.Context, uint64) (*domain.TeachingMaterial, error)
-	GetByIDCalls                 int
+	GetByIDCalls                 atomic.Int64
 	CountByCourseForCompanyFunc  func(context.Context, uint64, bool) (map[uint64]int, error)
-	CountByCourseForCompanyCalls int
+	CountByCourseForCompanyCalls atomic.Int64
 	CreateFunc                   func(context.Context, *domain.TeachingMaterial) error
-	CreateCalls                  int
+	CreateCalls                  atomic.Int64
 	UpdateFunc                   func(context.Context, *domain.TeachingMaterial) error
-	UpdateCalls                  int
+	UpdateCalls                  atomic.Int64
 	DeleteFunc                   func(context.Context, uint64) error
-	DeleteCalls                  int
+	DeleteCalls                  atomic.Int64
 	DeleteByCourseFunc           func(context.Context, uint64) error
-	DeleteByCourseCalls          int
+	DeleteByCourseCalls          atomic.Int64
 }
 
 var _ repository.TeachingMaterialRepository = (*FakeTeachingMaterialRepository)(nil)
 
 func (f *FakeTeachingMaterialRepository) ListByCompany(p0 context.Context, p1 uint64, p2 bool) ([]domain.TeachingMaterial, error) {
-	f.ListByCompanyCalls++
+	f.ListByCompanyCalls.Add(1)
 	if f.ListByCompanyFunc != nil {
 		return f.ListByCompanyFunc(p0, p1, p2)
 	}
@@ -974,7 +976,7 @@ func (f *FakeTeachingMaterialRepository) ListByCompany(p0 context.Context, p1 ui
 }
 
 func (f *FakeTeachingMaterialRepository) ListByCourse(p0 context.Context, p1 uint64, p2 bool) ([]domain.TeachingMaterial, error) {
-	f.ListByCourseCalls++
+	f.ListByCourseCalls.Add(1)
 	if f.ListByCourseFunc != nil {
 		return f.ListByCourseFunc(p0, p1, p2)
 	}
@@ -984,7 +986,7 @@ func (f *FakeTeachingMaterialRepository) ListByCourse(p0 context.Context, p1 uin
 }
 
 func (f *FakeTeachingMaterialRepository) GetByID(p0 context.Context, p1 uint64) (*domain.TeachingMaterial, error) {
-	f.GetByIDCalls++
+	f.GetByIDCalls.Add(1)
 	if f.GetByIDFunc != nil {
 		return f.GetByIDFunc(p0, p1)
 	}
@@ -994,7 +996,7 @@ func (f *FakeTeachingMaterialRepository) GetByID(p0 context.Context, p1 uint64) 
 }
 
 func (f *FakeTeachingMaterialRepository) CountByCourseForCompany(p0 context.Context, p1 uint64, p2 bool) (map[uint64]int, error) {
-	f.CountByCourseForCompanyCalls++
+	f.CountByCourseForCompanyCalls.Add(1)
 	if f.CountByCourseForCompanyFunc != nil {
 		return f.CountByCourseForCompanyFunc(p0, p1, p2)
 	}
@@ -1004,7 +1006,7 @@ func (f *FakeTeachingMaterialRepository) CountByCourseForCompany(p0 context.Cont
 }
 
 func (f *FakeTeachingMaterialRepository) Create(p0 context.Context, p1 *domain.TeachingMaterial) error {
-	f.CreateCalls++
+	f.CreateCalls.Add(1)
 	if f.CreateFunc != nil {
 		return f.CreateFunc(p0, p1)
 	}
@@ -1013,7 +1015,7 @@ func (f *FakeTeachingMaterialRepository) Create(p0 context.Context, p1 *domain.T
 }
 
 func (f *FakeTeachingMaterialRepository) Update(p0 context.Context, p1 *domain.TeachingMaterial) error {
-	f.UpdateCalls++
+	f.UpdateCalls.Add(1)
 	if f.UpdateFunc != nil {
 		return f.UpdateFunc(p0, p1)
 	}
@@ -1022,7 +1024,7 @@ func (f *FakeTeachingMaterialRepository) Update(p0 context.Context, p1 *domain.T
 }
 
 func (f *FakeTeachingMaterialRepository) Delete(p0 context.Context, p1 uint64) error {
-	f.DeleteCalls++
+	f.DeleteCalls.Add(1)
 	if f.DeleteFunc != nil {
 		return f.DeleteFunc(p0, p1)
 	}
@@ -1031,7 +1033,7 @@ func (f *FakeTeachingMaterialRepository) Delete(p0 context.Context, p1 uint64) e
 }
 
 func (f *FakeTeachingMaterialRepository) DeleteByCourse(p0 context.Context, p1 uint64) error {
-	f.DeleteByCourseCalls++
+	f.DeleteByCourseCalls.Add(1)
 	if f.DeleteByCourseFunc != nil {
 		return f.DeleteByCourseFunc(p0, p1)
 	}
@@ -1042,35 +1044,35 @@ func (f *FakeTeachingMaterialRepository) DeleteByCourse(p0 context.Context, p1 u
 // FakeUserRepository は repository.UserRepository の生成済み fake。
 type FakeUserRepository struct {
 	FindByCognitoSubFunc     func(context.Context, string) (*domain.User, error)
-	FindByCognitoSubCalls    int
+	FindByCognitoSubCalls    atomic.Int64
 	FindByIDFunc             func(context.Context, uint64) (*domain.User, error)
-	FindByIDCalls            int
+	FindByIDCalls            atomic.Int64
 	ListByRoleFunc           func(context.Context, string) ([]domain.User, error)
-	ListByRoleCalls          int
+	ListByRoleCalls          atomic.Int64
 	ListByCompanyIDFunc      func(context.Context, uint64) ([]domain.User, error)
-	ListByCompanyIDCalls     int
+	ListByCompanyIDCalls     atomic.Int64
 	CreateFunc               func(context.Context, *domain.User) error
-	CreateCalls              int
+	CreateCalls              atomic.Int64
 	UpdateAiChatEnabledFunc  func(context.Context, uint64, *bool) error
-	UpdateAiChatEnabledCalls int
+	UpdateAiChatEnabledCalls atomic.Int64
 	UpdateActiveFunc         func(context.Context, uint64, bool) error
-	UpdateActiveCalls        int
+	UpdateActiveCalls        atomic.Int64
 	SoftDeleteFunc           func(context.Context, uint64) error
-	SoftDeleteCalls          int
+	SoftDeleteCalls          atomic.Int64
 	UpdateNameFunc           func(context.Context, uint64, string) error
-	UpdateNameCalls          int
+	UpdateNameCalls          atomic.Int64
 	UpdateRoleFunc           func(context.Context, uint64, string) error
-	UpdateRoleCalls          int
+	UpdateRoleCalls          atomic.Int64
 	UpdateCompanyIDFunc      func(context.Context, uint64, uint64) error
-	UpdateCompanyIDCalls     int
+	UpdateCompanyIDCalls     atomic.Int64
 	MarkOnboardedFunc        func(context.Context, uint64) error
-	MarkOnboardedCalls       int
+	MarkOnboardedCalls       atomic.Int64
 }
 
 var _ repository.UserRepository = (*FakeUserRepository)(nil)
 
 func (f *FakeUserRepository) FindByCognitoSub(p0 context.Context, p1 string) (*domain.User, error) {
-	f.FindByCognitoSubCalls++
+	f.FindByCognitoSubCalls.Add(1)
 	if f.FindByCognitoSubFunc != nil {
 		return f.FindByCognitoSubFunc(p0, p1)
 	}
@@ -1080,7 +1082,7 @@ func (f *FakeUserRepository) FindByCognitoSub(p0 context.Context, p1 string) (*d
 }
 
 func (f *FakeUserRepository) FindByID(p0 context.Context, p1 uint64) (*domain.User, error) {
-	f.FindByIDCalls++
+	f.FindByIDCalls.Add(1)
 	if f.FindByIDFunc != nil {
 		return f.FindByIDFunc(p0, p1)
 	}
@@ -1090,7 +1092,7 @@ func (f *FakeUserRepository) FindByID(p0 context.Context, p1 uint64) (*domain.Us
 }
 
 func (f *FakeUserRepository) ListByRole(p0 context.Context, p1 string) ([]domain.User, error) {
-	f.ListByRoleCalls++
+	f.ListByRoleCalls.Add(1)
 	if f.ListByRoleFunc != nil {
 		return f.ListByRoleFunc(p0, p1)
 	}
@@ -1100,7 +1102,7 @@ func (f *FakeUserRepository) ListByRole(p0 context.Context, p1 string) ([]domain
 }
 
 func (f *FakeUserRepository) ListByCompanyID(p0 context.Context, p1 uint64) ([]domain.User, error) {
-	f.ListByCompanyIDCalls++
+	f.ListByCompanyIDCalls.Add(1)
 	if f.ListByCompanyIDFunc != nil {
 		return f.ListByCompanyIDFunc(p0, p1)
 	}
@@ -1110,7 +1112,7 @@ func (f *FakeUserRepository) ListByCompanyID(p0 context.Context, p1 uint64) ([]d
 }
 
 func (f *FakeUserRepository) Create(p0 context.Context, p1 *domain.User) error {
-	f.CreateCalls++
+	f.CreateCalls.Add(1)
 	if f.CreateFunc != nil {
 		return f.CreateFunc(p0, p1)
 	}
@@ -1119,7 +1121,7 @@ func (f *FakeUserRepository) Create(p0 context.Context, p1 *domain.User) error {
 }
 
 func (f *FakeUserRepository) UpdateAiChatEnabled(p0 context.Context, p1 uint64, p2 *bool) error {
-	f.UpdateAiChatEnabledCalls++
+	f.UpdateAiChatEnabledCalls.Add(1)
 	if f.UpdateAiChatEnabledFunc != nil {
 		return f.UpdateAiChatEnabledFunc(p0, p1, p2)
 	}
@@ -1128,7 +1130,7 @@ func (f *FakeUserRepository) UpdateAiChatEnabled(p0 context.Context, p1 uint64, 
 }
 
 func (f *FakeUserRepository) UpdateActive(p0 context.Context, p1 uint64, p2 bool) error {
-	f.UpdateActiveCalls++
+	f.UpdateActiveCalls.Add(1)
 	if f.UpdateActiveFunc != nil {
 		return f.UpdateActiveFunc(p0, p1, p2)
 	}
@@ -1137,7 +1139,7 @@ func (f *FakeUserRepository) UpdateActive(p0 context.Context, p1 uint64, p2 bool
 }
 
 func (f *FakeUserRepository) SoftDelete(p0 context.Context, p1 uint64) error {
-	f.SoftDeleteCalls++
+	f.SoftDeleteCalls.Add(1)
 	if f.SoftDeleteFunc != nil {
 		return f.SoftDeleteFunc(p0, p1)
 	}
@@ -1146,7 +1148,7 @@ func (f *FakeUserRepository) SoftDelete(p0 context.Context, p1 uint64) error {
 }
 
 func (f *FakeUserRepository) UpdateName(p0 context.Context, p1 uint64, p2 string) error {
-	f.UpdateNameCalls++
+	f.UpdateNameCalls.Add(1)
 	if f.UpdateNameFunc != nil {
 		return f.UpdateNameFunc(p0, p1, p2)
 	}
@@ -1155,7 +1157,7 @@ func (f *FakeUserRepository) UpdateName(p0 context.Context, p1 uint64, p2 string
 }
 
 func (f *FakeUserRepository) UpdateRole(p0 context.Context, p1 uint64, p2 string) error {
-	f.UpdateRoleCalls++
+	f.UpdateRoleCalls.Add(1)
 	if f.UpdateRoleFunc != nil {
 		return f.UpdateRoleFunc(p0, p1, p2)
 	}
@@ -1164,7 +1166,7 @@ func (f *FakeUserRepository) UpdateRole(p0 context.Context, p1 uint64, p2 string
 }
 
 func (f *FakeUserRepository) UpdateCompanyID(p0 context.Context, p1 uint64, p2 uint64) error {
-	f.UpdateCompanyIDCalls++
+	f.UpdateCompanyIDCalls.Add(1)
 	if f.UpdateCompanyIDFunc != nil {
 		return f.UpdateCompanyIDFunc(p0, p1, p2)
 	}
@@ -1173,7 +1175,7 @@ func (f *FakeUserRepository) UpdateCompanyID(p0 context.Context, p1 uint64, p2 u
 }
 
 func (f *FakeUserRepository) MarkOnboarded(p0 context.Context, p1 uint64) error {
-	f.MarkOnboardedCalls++
+	f.MarkOnboardedCalls.Add(1)
 	if f.MarkOnboardedFunc != nil {
 		return f.MarkOnboardedFunc(p0, p1)
 	}
@@ -1184,17 +1186,17 @@ func (f *FakeUserRepository) MarkOnboarded(p0 context.Context, p1 uint64) error 
 // FakeUserChapterViewRepository は repository.UserChapterViewRepository の生成済み fake。
 type FakeUserChapterViewRepository struct {
 	UpsertViewFunc                    func(context.Context, uint64, uint64, uint64) error
-	UpsertViewCalls                   int
+	UpsertViewCalls                   atomic.Int64
 	ListRecentByUserFunc              func(context.Context, uint64, int) ([]domain.UserChapterView, error)
-	ListRecentByUserCalls             int
+	ListRecentByUserCalls             atomic.Int64
 	GetLastViewedByUserAndCourseFunc  func(context.Context, uint64, uint64) (*domain.UserChapterView, error)
-	GetLastViewedByUserAndCourseCalls int
+	GetLastViewedByUserAndCourseCalls atomic.Int64
 }
 
 var _ repository.UserChapterViewRepository = (*FakeUserChapterViewRepository)(nil)
 
 func (f *FakeUserChapterViewRepository) UpsertView(p0 context.Context, p1 uint64, p2 uint64, p3 uint64) error {
-	f.UpsertViewCalls++
+	f.UpsertViewCalls.Add(1)
 	if f.UpsertViewFunc != nil {
 		return f.UpsertViewFunc(p0, p1, p2, p3)
 	}
@@ -1203,7 +1205,7 @@ func (f *FakeUserChapterViewRepository) UpsertView(p0 context.Context, p1 uint64
 }
 
 func (f *FakeUserChapterViewRepository) ListRecentByUser(p0 context.Context, p1 uint64, p2 int) ([]domain.UserChapterView, error) {
-	f.ListRecentByUserCalls++
+	f.ListRecentByUserCalls.Add(1)
 	if f.ListRecentByUserFunc != nil {
 		return f.ListRecentByUserFunc(p0, p1, p2)
 	}
@@ -1213,7 +1215,7 @@ func (f *FakeUserChapterViewRepository) ListRecentByUser(p0 context.Context, p1 
 }
 
 func (f *FakeUserChapterViewRepository) GetLastViewedByUserAndCourse(p0 context.Context, p1 uint64, p2 uint64) (*domain.UserChapterView, error) {
-	f.GetLastViewedByUserAndCourseCalls++
+	f.GetLastViewedByUserAndCourseCalls.Add(1)
 	if f.GetLastViewedByUserAndCourseFunc != nil {
 		return f.GetLastViewedByUserAndCourseFunc(p0, p1, p2)
 	}
@@ -1225,15 +1227,15 @@ func (f *FakeUserChapterViewRepository) GetLastViewedByUserAndCourse(p0 context.
 // FakeUserDailyActivityRepository は repository.UserDailyActivityRepository の生成済み fake。
 type FakeUserDailyActivityRepository struct {
 	IncrementFunc   func(context.Context, uint64, time.Time, repository.UserDailyActivityIncrement) error
-	IncrementCalls  int
+	IncrementCalls  atomic.Int64
 	ListByUserFunc  func(context.Context, uint64, time.Time, time.Time) ([]domain.UserDailyActivity, error)
-	ListByUserCalls int
+	ListByUserCalls atomic.Int64
 }
 
 var _ repository.UserDailyActivityRepository = (*FakeUserDailyActivityRepository)(nil)
 
 func (f *FakeUserDailyActivityRepository) Increment(p0 context.Context, p1 uint64, p2 time.Time, p3 repository.UserDailyActivityIncrement) error {
-	f.IncrementCalls++
+	f.IncrementCalls.Add(1)
 	if f.IncrementFunc != nil {
 		return f.IncrementFunc(p0, p1, p2, p3)
 	}
@@ -1242,7 +1244,7 @@ func (f *FakeUserDailyActivityRepository) Increment(p0 context.Context, p1 uint6
 }
 
 func (f *FakeUserDailyActivityRepository) ListByUser(p0 context.Context, p1 uint64, p2 time.Time, p3 time.Time) ([]domain.UserDailyActivity, error) {
-	f.ListByUserCalls++
+	f.ListByUserCalls.Add(1)
 	if f.ListByUserFunc != nil {
 		return f.ListByUserFunc(p0, p1, p2, p3)
 	}
@@ -1254,13 +1256,13 @@ func (f *FakeUserDailyActivityRepository) ListByUser(p0 context.Context, p1 uint
 // FakeUserStatsRepository は repository.UserStatsRepository の生成済み fake。
 type FakeUserStatsRepository struct {
 	ComputeFunc  func(context.Context, uint64) (*domain.UserStats, error)
-	ComputeCalls int
+	ComputeCalls atomic.Int64
 }
 
 var _ repository.UserStatsRepository = (*FakeUserStatsRepository)(nil)
 
 func (f *FakeUserStatsRepository) Compute(p0 context.Context, p1 uint64) (*domain.UserStats, error) {
-	f.ComputeCalls++
+	f.ComputeCalls.Add(1)
 	if f.ComputeFunc != nil {
 		return f.ComputeFunc(p0, p1)
 	}

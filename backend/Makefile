@@ -60,6 +60,20 @@ fmt:
 	@echo ">>> gofumpt -w ."
 	@$(GOFUMPT) -w .
 
+# repository interface(port) から usecase テスト用の fake を生成する(手書き fake の代替)。
+# 生成物 internal/usecase/repository/repofakes/fakes_gen.go はコミット対象。
+# port にメソッドを追加/変更したら必ず `make fakegen` で再生成する。
+# 生成後に gofumpt をかけて CI の整形チェックを通す。
+.PHONY: fakegen
+fakegen:
+	@if [ ! -x "$(GOFUMPT)" ]; then \
+	  echo ">>> installing gofumpt ($(GOFUMPT_VERSION))..."; \
+	  go install mvdan.cc/gofumpt@$(GOFUMPT_VERSION); \
+	fi
+	@echo ">>> fakegen: repository port から fake を生成"
+	@go run ./cmd/fakegen .
+	@$(GOFUMPT) -w ./internal/usecase/repository/repofakes
+
 .PHONY: verify
 verify:
 	@if [ ! -x "$(GOFUMPT)" ]; then go install mvdan.cc/gofumpt@$(GOFUMPT_VERSION); fi

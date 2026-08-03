@@ -32,6 +32,7 @@ supabase/
 /backend/apispec-lint
 /backend/archlint
 /backend/coderunner
+/backend/fakegen
 /backend/naminglint
 /backend/server
 /backend/slicelint

@@ -15,12 +15,23 @@ CI と CD を **完全に分離** しています。テスト・ビルド検証�
 
 | 種別 | Secret 名 | 用途 |
 |---|---|---|
-| AWS | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | `cd-frontend.yml` の S3 sync / CloudFront invalidation 用（backend は OIDC ロールに移行済） |
 | AWS | `AWS_ECR_API_SERVER_REPOSITORY` | ECR リポジトリ名（例: `fre-style`） |
 | AWS | `CLOUDFRONT_DISTRIBUTION_ID` | CloudFront キャッシュ無効化対象 |
 | Frontend | `VITE_API_BASE_URL` / `VITE_COGNITO_DOMAIN` / `VITE_CLIENT_ID` / `VITE_REDIRECT_URI` / `VITE_RESPONSE_TYPE` / `VITE_SCOPE` | フロントエンドビルド時に注入 |
 
-> **廃止済み Secrets**（FRESTYLE-61 の cd-backend Terraform 前提化で不要になったもの）:
+AWS 認証はすべて GitHub OIDC で、ワークフローが実行のたびに一時認証情報を引き受ける（長寿命の
+アクセスキーは使わない）。ロールは infra リポの Terraform が管理する。
+
+| ワークフロー | 引き受けるロール | 定義 |
+|---|---|---|
+| `cd-backend.yml` | `frestyle-prod-github-actions-role` | `terraform/github-oidc.tf` |
+| `cd-frontend.yml` | `frestyle-prod-github-actions-frontend-role` | `terraform/github-oidc-frontend.tf` |
+
+> **廃止済み Secrets**:
+> `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`（FRESTYLE-89 の cd-frontend OIDC 化で不要になった。
+> 最後まで残っていた長寿命キー）。
+>
+> 以下は FRESTYLE-61 の cd-backend Terraform 前提化で不要になったもの:
 > `IAC_REPO` / `IAC_REPO_TOKEN`（IaC リポから CFn テンプレートを clone する PAT）、
 > `COGNITO_CLIENT_ID` 等の COGNITO_*（CFn の parameter-overrides 用。タスク定義の env / secrets は
 > infra リポの Terraform `ecs.tf` が持つ）。GitHub Secrets 側に残っていても参照されない。

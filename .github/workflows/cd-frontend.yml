@@ -19,6 +19,10 @@ on:
 
 env:
   AWS_REGION: ap-northeast-1
+  # GitHub OIDC で引き受けるデプロイ用ロール(FRESTYLE-89)。長寿命の静的キーは廃止。
+  # 権限は配信バケットへのアップロードと CloudFront のキャッシュ無効化のみ。
+  # 定義: frestyle-infrastructure の terraform/github-oidc-frontend.tf
+  AWS_ROLE_ARN: arn:aws:iam::010928196665:role/frestyle-prod-github-actions-frontend-role
 
 permissions:
   contents: read
@@ -50,6 +54,10 @@ jobs:
     if: always() && (github.event_name == 'push' || needs.guard.result == 'success')
     # 本番反映ジョブは production Environment に紐付け、required reviewers の承認待ちで止める。
     environment: production
+    # OIDC トークンの発行に必要(FRESTYLE-89)。
+    permissions:
+      id-token: write
+      contents: read
     defaults:
       run:
         working-directory: ./frontend
@@ -90,11 +98,11 @@ jobs:
           npx playwright install --with-deps chromium
           npm run prerender
 
-      - name: Configure AWS credentials
+      # 静的キーではなく OIDC でその実行だけ有効な一時認証情報を得る(FRESTYLE-89)。
+      - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v6
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       # 1) ハッシュ付きアセットは内容不変なので immutable + 長期キャッシュで配信する。

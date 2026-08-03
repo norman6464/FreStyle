@@ -116,10 +116,11 @@ jobs:
     # 本番反映ジョブは production Environment に紐付け、required reviewers の承認待ちで止める。
     environment: production
     # OIDC トークンの発行に必要(FRESTYLE-89)。第三者コードを実行しないこの job にだけ与える。
-    # contents: read は checkout しないので実際には使わないが、既定の read 権限を明示して固定する。
+    # checkout しないので contents は付けない。同一 run の artifact 取得に GITHUB_TOKEN の
+    # 権限は要らない(別 run / 別リポから取るときだけ actions:read 付きの token が要る)。
+    # permissions を明示した時点で、ここに書いていない権限はすべて none になる。
     permissions:
       id-token: write
-      contents: read
 
     steps:
       - name: Download built assets

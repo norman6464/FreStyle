@@ -57,9 +57,12 @@ type recordingNotifRepo struct {
 	created []domain.Notification
 	// createManyCalls は「宛先の人数によらず 1 回で書き込む」ことを検証するための回数。
 	createManyCalls int
+	// createCalls は 1 件ずつ書き込む旧経路に戻っていないことの検証用。
+	createCalls int
 }
 
 func (r *recordingNotifRepo) Create(_ context.Context, n *domain.Notification) error {
+	r.createCalls++
 	r.created = append(r.created, *n)
 	return nil
 }
@@ -147,57 +150,66 @@ func (r *failingNotifRepo) CreateMany(context.Context, []domain.Notification) er
 
 // 宛先が増えても DB への書き込みは 1 回に保つ（FRESTYLE-17）。
 // 1 件ずつ書き込む実装だと管理者の人数に比例して往復が増え、申請処理が遅くなる。
-func Test_会社申請作成_管理者が何人でも通知の書き込みは1回(t *testing.T) {
-	admins := make([]domain.User, 0, 5)
-	for i := uint64(1); i <= 5; i++ {
-		admins = append(admins, domain.User{ID: i})
-	}
-	notifs := &recordingNotifRepo{}
-	uc := usecase.NewCreateCompanyApplicationUseCase(
-		&fakeAppRepo{}, &fakeUsersForApp{admins: admins}, notifs,
-	)
-
-	if _, err := uc.Execute(context.Background(), usecase.CreateCompanyApplicationInput{
-		CompanyName:   "Example Corp",
-		ApplicantName: "山田太郎",
-		Email:         "yamada@example.com",
-	}); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if notifs.createManyCalls != 1 {
-		t.Fatalf("書き込みは 1 回であること（人数分の往復にしない）: got %d", notifs.createManyCalls)
-	}
-	if len(notifs.created) != len(admins) {
-		t.Fatalf("管理者の人数ぶん作られること: want %d, got %d", len(admins), len(notifs.created))
-	}
-	// 宛先が取り違えられていないこと。
-	for i, n := range notifs.created {
-		if n.UserID != admins[i].ID {
-			t.Fatalf("宛先が一致しない: index=%d want=%d got=%d", i, admins[i].ID, n.UserID)
+func Test_会社申請作成_通知はまとめて1回で書き込む(t *testing.T) {
+	makeAdmins := func(n int) []domain.User {
+		out := make([]domain.User, 0, n)
+		for i := 1; i <= n; i++ {
+			out = append(out, domain.User{ID: uint64(i)})
 		}
+		return out
 	}
-}
 
-// 管理者が 0 人のときに空で呼び出して DB 側でエラーにならないこと。
-func Test_会社申請作成_管理者が0人でも申請は成立する(t *testing.T) {
-	notifs := &recordingNotifRepo{}
-	uc := usecase.NewCreateCompanyApplicationUseCase(
-		&fakeAppRepo{}, &fakeUsersForApp{admins: nil}, notifs,
-	)
+	tests := []struct {
+		name            string
+		admins          []domain.User
+		wantCreateMany  int // まとめ書き込みの回数
+		wantNotifations int // 作られる通知の件数
+	}{
+		{name: "管理者が0人", admins: nil, wantCreateMany: 1, wantNotifations: 0},
+		{name: "管理者が1人", admins: makeAdmins(1), wantCreateMany: 1, wantNotifations: 1},
+		{name: "管理者が5人", admins: makeAdmins(5), wantCreateMany: 1, wantNotifations: 5},
+		{name: "管理者が20人", admins: makeAdmins(20), wantCreateMany: 1, wantNotifations: 20},
+	}
 
-	app, err := uc.Execute(context.Background(), usecase.CreateCompanyApplicationInput{
-		CompanyName:   "Example Corp",
-		ApplicantName: "山田太郎",
-		Email:         "yamada@example.com",
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if app.Status != domain.CompanyApplicationStatusPending {
-		t.Fatalf("status should be pending, got %q", app.Status)
-	}
-	if len(notifs.created) != 0 {
-		t.Fatalf("通知は作られないこと: got %d", len(notifs.created))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			notifs := &recordingNotifRepo{}
+			uc := usecase.NewCreateCompanyApplicationUseCase(
+				&fakeAppRepo{}, &fakeUsersForApp{admins: tt.admins}, notifs,
+			)
+
+			app, err := uc.Execute(context.Background(), usecase.CreateCompanyApplicationInput{
+				CompanyName:   "Example Corp",
+				ApplicantName: "山田太郎",
+				Email:         "yamada@example.com",
+			})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if app.Status != domain.CompanyApplicationStatusPending {
+				t.Fatalf("status should be pending, got %q", app.Status)
+			}
+
+			// 人数によらず書き込みは 1 回。
+			if notifs.createManyCalls != tt.wantCreateMany {
+				t.Fatalf("まとめ書き込みの回数: want %d, got %d", tt.wantCreateMany, notifs.createManyCalls)
+			}
+			// 1 件ずつ書き込む旧経路に戻っていないこと。
+			if notifs.createCalls != 0 {
+				t.Fatalf("1 件ずつの Create は呼ばないこと: got %d", notifs.createCalls)
+			}
+			if len(notifs.created) != tt.wantNotifations {
+				t.Fatalf("通知の件数: want %d, got %d", tt.wantNotifations, len(notifs.created))
+			}
+			// 宛先が取り違えられていないこと。
+			for i, n := range notifs.created {
+				if n.UserID != tt.admins[i].ID {
+					t.Fatalf("宛先が一致しない: index=%d want=%d got=%d", i, tt.admins[i].ID, n.UserID)
+				}
+				if n.Type != domain.NotificationTypeCompanyApplication {
+					t.Fatalf("種別が一致しない: %q", n.Type)
+				}
+			}
+		})
 	}
 }

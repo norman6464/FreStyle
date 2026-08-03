@@ -157,4 +157,41 @@ describe('useNotification', () => {
       expect(result.current.notifications).toHaveLength(2);
     });
   });
+
+  // 既読化に失敗しても finally で再取得しており、画面はサーバーの実状態に合う。
+  // この再取得が消えると「押したのに変わらない」状態に戻るため契約として固定する。
+  describe('既読化に失敗したとき', () => {
+    it('markAsRead が失敗しても再取得してサーバー状態に合わせる', async () => {
+      const { result } = renderHook(() => useNotification());
+      await waitFor(() => expect(result.current.loading).toBe(false));
+
+      mockMarkAsRead.mockRejectedValue(new Error('API Error'));
+      // 再取得では既読済み・未読 0 が返る（他の経路で既読になった状況）。
+      mockGetAll.mockResolvedValue(mockNotifications.map((n) => ({ ...n, isRead: true })));
+      mockGetUnreadCount.mockResolvedValue(0);
+
+      await act(async () => {
+        await result.current.markAsRead(1);
+      });
+
+      expect(mockGetAll).toHaveBeenCalledTimes(2);
+      expect(result.current.unreadCount).toBe(0);
+      expect(result.current.notifications.every((n) => n.isRead)).toBe(true);
+    });
+
+    it('markAllAsRead が失敗しても再取得する', async () => {
+      const { result } = renderHook(() => useNotification());
+      await waitFor(() => expect(result.current.loading).toBe(false));
+
+      mockMarkAllAsRead.mockRejectedValue(new Error('API Error'));
+      mockGetUnreadCount.mockResolvedValue(0);
+
+      await act(async () => {
+        await result.current.markAllAsRead();
+      });
+
+      expect(mockGetAll).toHaveBeenCalledTimes(2);
+      expect(result.current.unreadCount).toBe(0);
+    });
+  });
 });

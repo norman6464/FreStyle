@@ -14,6 +14,7 @@ import (
 // manageStore は fake が記録する更新内容。対象 ID も控え、別のユーザーに
 // 操作が飛んでいないことまで検証できるようにする。
 type manageStore struct {
+	findByIDUserID     uint64
 	updateActiveGot    *bool
 	updateActiveUserID uint64
 	softDeleted        bool
@@ -25,7 +26,10 @@ type manageStore struct {
 func manageMemberRepo(target *domain.User) (*repofakes.FakeUserRepository, *manageStore) {
 	st := &manageStore{}
 	repo := &repofakes.FakeUserRepository{
-		FindByIDFunc: func(context.Context, uint64) (*domain.User, error) { return target, nil },
+		FindByIDFunc: func(_ context.Context, userID uint64) (*domain.User, error) {
+			st.findByIDUserID = userID
+			return target, nil
+		},
 		UpdateActiveFunc: func(_ context.Context, userID uint64, active bool) error {
 			st.updateActiveGot = &active
 			st.updateActiveUserID = userID
@@ -50,6 +54,7 @@ func Test_メンバー有効化_会社管理者_自社_OK(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, store.updateActiveGot)
 	assert.False(t, *store.updateActiveGot)
+	assert.Equal(t, uint64(2), store.findByIDUserID, "対象の取得は指定した ID で行うこと")
 	assert.Equal(t, uint64(2), store.updateActiveUserID, "指定した対象に対して更新すること")
 }
 
@@ -108,6 +113,7 @@ func Test_メンバー論理削除_会社管理者_自社_OK(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.True(t, store.softDeleted)
+	assert.Equal(t, uint64(2), store.findByIDUserID, "対象の取得は指定した ID で行うこと")
 	assert.Equal(t, uint64(2), store.softDeletedUserID, "指定した対象を削除すること")
 }
 

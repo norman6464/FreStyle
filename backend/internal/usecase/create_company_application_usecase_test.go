@@ -7,51 +7,40 @@ import (
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository/repofakes"
 )
 
-type fakeAppRepo struct {
-	created *domain.CompanyApplication
-	err     error
-}
+// appStore は fake が記録した申請。
+type appStore struct{ created *domain.CompanyApplication }
 
-func (r *fakeAppRepo) Create(_ context.Context, app *domain.CompanyApplication) error {
-	if r.err != nil {
-		return r.err
+// appRepo は Create だけを差し込んだ CompanyApplicationRepository の fake を返す。
+func appRepo(err error) (*repofakes.FakeCompanyApplicationRepository, *appStore) {
+	st := &appStore{}
+	repo := &repofakes.FakeCompanyApplicationRepository{
+		CreateFunc: func(_ context.Context, app *domain.CompanyApplication) error {
+			if err != nil {
+				return err
+			}
+			app.ID = 1
+			st.created = app
+			return nil
+		},
 	}
-	app.ID = 1
-	r.created = app
-	return nil
+	return repo, st
 }
 
-func (r *fakeAppRepo) ListAll(context.Context) ([]domain.CompanyApplication, error) { return nil, nil }
-func (r *fakeAppRepo) UpdateStatus(context.Context, uint64, string) error           { return nil }
-
-// fakeUsersForApp は ListByRole で super_admin を返す最小 UserRepository。
-type fakeUsersForApp struct{ admins []domain.User }
-
-func (f *fakeUsersForApp) FindByCognitoSub(context.Context, string) (*domain.User, error) {
-	return nil, nil
-}
-
-func (f *fakeUsersForApp) FindByID(context.Context, uint64) (*domain.User, error) { return nil, nil }
-
-func (f *fakeUsersForApp) ListByRole(_ context.Context, role string) ([]domain.User, error) {
-	if role == domain.RoleSuperAdmin {
-		return f.admins, nil
+// usersForApp は ListByRole で super_admin だけを返す UserRepository の fake。
+// 残り 11 メソッドは生成 fake がゼロ値を返すので no-op を書かなくてよい。
+func usersForApp(admins []domain.User) *repofakes.FakeUserRepository {
+	return &repofakes.FakeUserRepository{
+		ListByRoleFunc: func(_ context.Context, role string) ([]domain.User, error) {
+			if role == domain.RoleSuperAdmin {
+				return admins, nil
+			}
+			return nil, nil
+		},
 	}
-	return nil, nil
 }
-func (f *fakeUsersForApp) Create(context.Context, *domain.User) error            { return nil }
-func (f *fakeUsersForApp) UpdateName(context.Context, uint64, string) error      { return nil }
-func (f *fakeUsersForApp) UpdateRole(context.Context, uint64, string) error      { return nil }
-func (f *fakeUsersForApp) UpdateCompanyID(context.Context, uint64, uint64) error { return nil }
-func (f *fakeUsersForApp) UpdateActive(context.Context, uint64, bool) error      { return nil }
-func (f *fakeUsersForApp) SoftDelete(context.Context, uint64) error              { return nil }
-func (f *fakeUsersForApp) MarkOnboarded(context.Context, uint64) error           { return nil }
-func (f *fakeUsersForApp) ListByCompanyID(context.Context, uint64) ([]domain.User, error) {
-	return nil, nil
-}
-func (f *fakeUsersForApp) UpdateAiChatEnabled(context.Context, uint64, *bool) error { return nil }
 
 type recordingNotifRepo struct {
 	created []domain.Notification
@@ -83,8 +72,8 @@ func (r *recordingNotifRepo) CountUnread(context.Context, uint64) (int64, error)
 }
 
 func Test_会社申請作成_運営管理者へ通知(t *testing.T) {
-	apps := &fakeAppRepo{}
-	users := &fakeUsersForApp{admins: []domain.User{{ID: 10}, {ID: 11}}}
+	apps, _ := appRepo(nil)
+	users := usersForApp([]domain.User{{ID: 10}, {ID: 11}})
 	notifs := &recordingNotifRepo{}
 	uc := usecase.NewCreateCompanyApplicationUseCase(apps, users, notifs)
 
@@ -109,7 +98,7 @@ func Test_会社申請作成_運営管理者へ通知(t *testing.T) {
 }
 
 func Test_会社申請作成_バリデーション(t *testing.T) {
-	uc := usecase.NewCreateCompanyApplicationUseCase(&fakeAppRepo{}, &fakeUsersForApp{}, &recordingNotifRepo{})
+	uc := usecase.NewCreateCompanyApplicationUseCase(mustAppRepo(), usersForApp(nil), &recordingNotifRepo{})
 	cases := []usecase.CreateCompanyApplicationInput{
 		{CompanyName: "", ApplicantName: "a", Email: "a@b.com"},     // company 欠落
 		{CompanyName: "c", ApplicantName: "", Email: "a@b.com"},     // name 欠落
@@ -125,15 +114,15 @@ func Test_会社申請作成_バリデーション(t *testing.T) {
 
 func Test_会社申請作成_通知失敗でも保存(t *testing.T) {
 	// 通知作成に失敗しても申請保存は成功扱い（best-effort）。
-	apps := &fakeAppRepo{}
-	users := &fakeUsersForApp{admins: []domain.User{{ID: 10}}}
+	apps, appsStore := appRepo(nil)
+	users := usersForApp([]domain.User{{ID: 10}})
 	uc := usecase.NewCreateCompanyApplicationUseCase(apps, users, &failingNotifRepo{})
 	if _, err := uc.Execute(context.Background(), usecase.CreateCompanyApplicationInput{
 		CompanyName: "c", ApplicantName: "a", Email: "a@b.com",
 	}); err != nil {
 		t.Fatalf("application should be created despite notify failure, got %v", err)
 	}
-	if apps.created == nil {
+	if appsStore.created == nil {
 		t.Fatal("application was not saved")
 	}
 }
@@ -175,7 +164,7 @@ func Test_会社申請作成_通知はまとめて1回で書き込む(t *testing
 		t.Run(tt.name, func(t *testing.T) {
 			notifs := &recordingNotifRepo{}
 			uc := usecase.NewCreateCompanyApplicationUseCase(
-				&fakeAppRepo{}, &fakeUsersForApp{admins: tt.admins}, notifs,
+				mustAppRepo(), usersForApp(tt.admins), notifs,
 			)
 
 			app, err := uc.Execute(context.Background(), usecase.CreateCompanyApplicationInput{
@@ -212,4 +201,10 @@ func Test_会社申請作成_通知はまとめて1回で書き込む(t *testing
 			}
 		})
 	}
+}
+
+// mustAppRepo は記録を使わない場面向けに fake だけを返す。
+func mustAppRepo() *repofakes.FakeCompanyApplicationRepository {
+	repo, _ := appRepo(nil)
+	return repo
 }

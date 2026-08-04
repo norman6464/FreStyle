@@ -77,7 +77,11 @@ func Test_メンバーAI利用可否更新ユースケース(t *testing.T) {
 	t.Run("nil で会社設定に従う状態へ戻せる", func(t *testing.T) {
 		err := uc.Execute(context.Background(), actor, 1, nil)
 		require.NoError(t, err)
-		assert.Nil(t, store.updated[1])
+		// updated[1] は「キーが無い」ときも nil になる。単独実行でも「呼ばれたうえで
+		// nil が渡った」ことを見たいので、キーの存在を先に確かめる。
+		got, ok := store.updated[1]
+		require.True(t, ok, "UpdateAiChatEnabled が呼ばれていること")
+		assert.Nil(t, got)
 	})
 	t.Run("別会社の従業員は更新できない(403相当)", func(t *testing.T) {
 		err := uc.Execute(context.Background(), actor, 2, ptrBool(true))

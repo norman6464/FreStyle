@@ -75,14 +75,21 @@ jobs:
 
     steps:
       # サブドメインは ECR タグ・URL・box へ送るコマンドにそのまま使うため、
-      # DNS ラベルとして安全な形式(小文字英数とハイフン・先頭は英数・最大 30 文字)
-      # 以外は何もする前に弾く。
+      # DNS ラベルとして安全な形式(小文字英字始まり + [a-z0-9-]・最大 30 文字)
+      # 以外は何もする前に弾く。box 側 deploy-from-registry と同じ規則に揃える
+      # (ここを通っても box で拒否されるとビルドが無駄になるため)。
       - name: Validate subdomain
         run: |
-          if [[ ! "$SUBDOMAIN" =~ ^[a-z0-9][a-z0-9-]{0,29}$ ]]; then
-            echo "ERROR: subdomain '$SUBDOMAIN' が不正です(^[a-z0-9][a-z0-9-]{0,29}$ に一致しません)。"
+          if [[ ! "$SUBDOMAIN" =~ ^[a-z][a-z0-9-]{0,29}$ ]]; then
+            echo "ERROR: subdomain '$SUBDOMAIN' が不正です(^[a-z][a-z0-9-]{0,29}$ に一致しません)。"
             exit 1
           fi
+          # 予約サブドメイン(エッジが使用)は box 側と同様にここでも拒否する。
+          case "$SUBDOMAIN" in
+            db|www|api)
+              echo "ERROR: '$SUBDOMAIN' は予約済みサブドメインです。"
+              exit 1 ;;
+          esac
           echo "deploy 先: https://$SUBDOMAIN.staging.frestyle.jp"
 
       # workflow_dispatch で選んだ ref(ブランチ)がそのまま checkout される。

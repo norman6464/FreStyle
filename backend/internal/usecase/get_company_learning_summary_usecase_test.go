@@ -9,25 +9,31 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository/repofakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// fakeCompanyLearningActivityRepo は CompanyLearningActivitySummarizer の fake。
-type fakeCompanyLearningActivityRepo struct {
-	rows        []repository.MemberLearningActivity
-	err         error
-	gotCompany  uint64
-	gotFromDate time.Time
+// summarizerArgs は fake が受け取った引数の控え。usecase が「何を渡したか」を検証するために使う。
+type summarizerArgs struct {
+	companyID uint64
+	fromDate  time.Time
 }
 
-func (f *fakeCompanyLearningActivityRepo) ListMemberActivities(_ context.Context, companyID uint64, fromDate time.Time) ([]repository.MemberLearningActivity, error) {
-	f.gotCompany = companyID
-	f.gotFromDate = fromDate
-	if f.err != nil {
-		return nil, f.err
+// learningActivityRepo は指定の結果を返す fake と、渡された引数の控えを返す。
+func learningActivityRepo(rows []repository.MemberLearningActivity, err error) (*repofakes.FakeCompanyLearningActivitySummarizer, *summarizerArgs) {
+	got := &summarizerArgs{}
+	repo := &repofakes.FakeCompanyLearningActivitySummarizer{
+		ListMemberActivitiesFunc: func(_ context.Context, companyID uint64, fromDate time.Time) ([]repository.MemberLearningActivity, error) {
+			got.companyID = companyID
+			got.fromDate = fromDate
+			if err != nil {
+				return nil, err
+			}
+			return rows, nil
+		},
 	}
-	return f.rows, nil
+	return repo, got
 }
 
 func companyAdminActor(companyID uint64) *domain.User {
@@ -40,17 +46,17 @@ func Test_メンバー学習サマリー_集計される(t *testing.T) {
 	today := time.Now().UTC()
 	yesterday := today.AddDate(0, 0, -1)
 	tenDaysAgo := today.AddDate(0, 0, -10)
-	repo := &fakeCompanyLearningActivityRepo{rows: []repository.MemberLearningActivity{
+	repo, got := learningActivityRepo([]repository.MemberLearningActivity{
 		{UserID: 11, Name: "今日学習した人", LastActiveDate: datePtr(today), RecentActivityCount: 3},
 		{UserID: 12, Name: "昨日学習した人", LastActiveDate: datePtr(yesterday), RecentActivityCount: 1},
 		{UserID: 13, Name: "先週以前の人", LastActiveDate: datePtr(tenDaysAgo), RecentActivityCount: 0},
 		{UserID: 14, Name: "未学習の人", LastActiveDate: nil, RecentActivityCount: 0},
-	}}
+	}, nil)
 	uc := usecase.NewGetCompanyLearningSummaryUseCase(repo)
 
 	out, err := uc.Execute(context.Background(), companyAdminActor(10))
 	require.NoError(t, err)
-	assert.Equal(t, uint64(10), repo.gotCompany)
+	assert.Equal(t, uint64(10), got.companyID)
 	assert.Equal(t, 4, out.TraineeCount)
 	assert.Equal(t, 1, out.ActiveToday)
 	assert.Equal(t, 2, out.ActiveThisWeek, "直近 7 日の活動回数 > 0 の 2 名")
@@ -69,7 +75,8 @@ func Test_メンバー学習サマリー_直近リストは5名まで(t *testing
 			LastActiveDate: datePtr(today.AddDate(0, 0, -i)), RecentActivityCount: 1,
 		})
 	}
-	uc := usecase.NewGetCompanyLearningSummaryUseCase(&fakeCompanyLearningActivityRepo{rows: rows})
+	repo, _ := learningActivityRepo(rows, nil)
+	uc := usecase.NewGetCompanyLearningSummaryUseCase(repo)
 
 	out, err := uc.Execute(context.Background(), companyAdminActor(10))
 	require.NoError(t, err)
@@ -78,7 +85,7 @@ func Test_メンバー学習サマリー_直近リストは5名まで(t *testing
 }
 
 func Test_メンバー学習サマリー_会社未所属は空サマリー(t *testing.T) {
-	repo := &fakeCompanyLearningActivityRepo{}
+	repo, _ := learningActivityRepo(nil, nil)
 	uc := usecase.NewGetCompanyLearningSummaryUseCase(repo)
 
 	out, err := uc.Execute(context.Background(), &domain.User{ID: 1, Role: domain.RoleSuperAdmin})
@@ -86,21 +93,24 @@ func Test_メンバー学習サマリー_会社未所属は空サマリー(t *te
 	assert.Equal(t, 0, out.TraineeCount)
 	assert.NotNil(t, out.RecentMembers)
 	assert.Empty(t, out.RecentMembers)
-	assert.Zero(t, repo.gotCompany, "会社未所属では集計クエリを打たない")
+	// companyID は「呼ばれていない」ときも「0 で呼ばれた」ときも 0 になるため、
+	// 呼び出し回数で確かめる。
+	assert.Zero(t, repo.ListMemberActivitiesCalls.Load(), "会社未所属では集計クエリを打たない")
 }
 
 func Test_メンバー学習サマリー_集計ウィンドウは今日を含む7日間(t *testing.T) {
-	repo := &fakeCompanyLearningActivityRepo{}
+	repo, got := learningActivityRepo(nil, nil)
 	uc := usecase.NewGetCompanyLearningSummaryUseCase(repo)
 
 	_, err := uc.Execute(context.Background(), companyAdminActor(10))
 	require.NoError(t, err)
 	wantFrom := time.Now().UTC().AddDate(0, 0, -6).Format("2006-01-02")
-	assert.Equal(t, wantFrom, repo.gotFromDate.Format("2006-01-02"))
+	assert.Equal(t, wantFrom, got.fromDate.Format("2006-01-02"))
 }
 
 func Test_メンバー学習サマリー_集計エラーはそのまま返す(t *testing.T) {
-	uc := usecase.NewGetCompanyLearningSummaryUseCase(&fakeCompanyLearningActivityRepo{err: context.DeadlineExceeded})
+	repo, _ := learningActivityRepo(nil, context.DeadlineExceeded)
+	uc := usecase.NewGetCompanyLearningSummaryUseCase(repo)
 	_, err := uc.Execute(context.Background(), companyAdminActor(10))
-	require.Error(t, err)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
 }

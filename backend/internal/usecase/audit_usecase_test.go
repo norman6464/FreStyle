@@ -7,32 +7,20 @@ import (
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository/repofakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// fakeAuditRepo は AuditRepository の fake。
-type fakeAuditRepo struct {
-	recorded []domain.AuditEvent
-	listRows []domain.AuditEvent
-	recErr   error
-	listErr  error
-}
-
-func (f *fakeAuditRepo) Record(_ context.Context, e *domain.AuditEvent) error {
-	if f.recErr != nil {
-		return f.recErr
-	}
-	f.recorded = append(f.recorded, *e)
-	return nil
-}
-
-func (f *fakeAuditRepo) ListRecent(context.Context, int) ([]domain.AuditEvent, error) {
-	return f.listRows, f.listErr
-}
-
 func Test_監査記録_入力をイベントに詰めて保存する(t *testing.T) {
-	repo := &fakeAuditRepo{}
+	// 保存された内容を検証したいので、fake の中でクロージャに退避する。
+	var recorded []domain.AuditEvent
+	repo := &repofakes.FakeAuditRepository{
+		RecordFunc: func(_ context.Context, e *domain.AuditEvent) error {
+			recorded = append(recorded, *e)
+			return nil
+		},
+	}
 	uc := usecase.NewRecordAuditEventUseCase(repo)
 
 	err := uc.Execute(context.Background(), usecase.RecordAuditEventInput{
@@ -40,23 +28,34 @@ func Test_監査記録_入力をイベントに詰めて保存する(t *testing.
 		Action: "PATCH /admin/companies/:id/active", TargetID: 3,
 	})
 	require.NoError(t, err)
-	require.Len(t, repo.recorded, 1)
-	assert.Equal(t, uint64(9), repo.recorded[0].ActorID)
-	assert.Equal(t, "admin@x", repo.recorded[0].ActorEmail)
-	assert.Equal(t, "PATCH /admin/companies/:id/active", repo.recorded[0].Action)
-	assert.Equal(t, uint64(3), repo.recorded[0].TargetID)
+	require.Len(t, recorded, 1)
+	assert.Equal(t, uint64(9), recorded[0].ActorID)
+	assert.Equal(t, "admin@x", recorded[0].ActorEmail)
+	assert.Equal(t, "PATCH /admin/companies/:id/active", recorded[0].Action)
+	assert.Equal(t, uint64(3), recorded[0].TargetID)
 }
 
 func Test_監査記録_保存失敗を伝播(t *testing.T) {
-	uc := usecase.NewRecordAuditEventUseCase(&fakeAuditRepo{recErr: errors.New("db")})
-	assert.Error(t, uc.Execute(context.Background(), usecase.RecordAuditEventInput{}))
+	// 「何かエラーが出た」ではなく repository のエラーがそのまま伝わることを見る。
+	wantErr := errors.New("db")
+	repo := &repofakes.FakeAuditRepository{
+		RecordFunc: func(context.Context, *domain.AuditEvent) error { return wantErr },
+	}
+	uc := usecase.NewRecordAuditEventUseCase(repo)
+	err := uc.Execute(context.Background(), usecase.RecordAuditEventInput{})
+	require.ErrorIs(t, err, wantErr)
 }
 
 func Test_監査ログ一覧_新しい順で返す(t *testing.T) {
-	repo := &fakeAuditRepo{listRows: []domain.AuditEvent{{ID: 2}, {ID: 1}}}
+	repo := &repofakes.FakeAuditRepository{
+		ListRecentFunc: func(context.Context, int) ([]domain.AuditEvent, error) {
+			return []domain.AuditEvent{{ID: 2}, {ID: 1}}, nil
+		},
+	}
 	uc := usecase.NewListAuditEventsUseCase(repo)
 	rows, err := uc.Execute(context.Background())
 	require.NoError(t, err)
 	require.Len(t, rows, 2)
 	assert.Equal(t, uint64(2), rows[0].ID)
+	assert.Equal(t, int64(1), repo.ListRecentCalls.Load())
 }

@@ -6,21 +6,17 @@ import (
 	"time"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository/repofakes"
 	"github.com/stretchr/testify/assert"
 )
 
-// fakeDailyActivityRepo は UserDailyActivityRepository の in-memory fake。
-type fakeDailyActivityRepo struct {
-	activities []domain.UserDailyActivity
-}
-
-func (f *fakeDailyActivityRepo) Increment(_ context.Context, _ uint64, _ time.Time, _ repository.UserDailyActivityIncrement) error {
-	return nil
-}
-
-func (f *fakeDailyActivityRepo) ListByUser(_ context.Context, _ uint64, _, _ time.Time) ([]domain.UserDailyActivity, error) {
-	return f.activities, nil
+// dailyActivityRepo は指定の活動履歴を返す fake を組み立てる。
+func dailyActivityRepo(activities ...domain.UserDailyActivity) *repofakes.FakeUserDailyActivityRepository {
+	return &repofakes.FakeUserDailyActivityRepository{
+		ListByUserFunc: func(context.Context, uint64, time.Time, time.Time) ([]domain.UserDailyActivity, error) {
+			return activities, nil
+		},
+	}
 }
 
 func day(offset int) time.Time {
@@ -32,9 +28,7 @@ func act(offset, exercises int) domain.UserDailyActivity {
 }
 
 func Test_連続学習統計_今日まで連続していればcurrentStreakに数える(t *testing.T) {
-	uc := NewGetDailyStreakUseCase(&fakeDailyActivityRepo{activities: []domain.UserDailyActivity{
-		act(-2, 1), act(-1, 1), act(0, 1),
-	}})
+	uc := NewGetDailyStreakUseCase(dailyActivityRepo(act(-2, 1), act(-1, 1), act(0, 1)))
 	out, err := uc.Execute(context.Background(), 7)
 	assert.NoError(t, err)
 	assert.Equal(t, 3, out.CurrentStreak)
@@ -44,9 +38,7 @@ func Test_連続学習統計_今日まで連続していればcurrentStreakに�
 
 func Test_連続学習統計_途切れた過去の連続はlongestStreakにだけ残る(t *testing.T) {
 	// 5 日前〜3 日前の 3 連続 + 今日のみ → current=1, longest=3, total=4
-	uc := NewGetDailyStreakUseCase(&fakeDailyActivityRepo{activities: []domain.UserDailyActivity{
-		act(-5, 1), act(-4, 1), act(-3, 1), act(0, 1),
-	}})
+	uc := NewGetDailyStreakUseCase(dailyActivityRepo(act(-5, 1), act(-4, 1), act(-3, 1), act(0, 1)))
 	out, err := uc.Execute(context.Background(), 7)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, out.CurrentStreak)
@@ -55,9 +47,7 @@ func Test_連続学習統計_途切れた過去の連続はlongestStreakにだ�
 }
 
 func Test_連続学習統計_全カウンタ0の行は学習日に数えない(t *testing.T) {
-	uc := NewGetDailyStreakUseCase(&fakeDailyActivityRepo{activities: []domain.UserDailyActivity{
-		act(-1, 0), act(0, 1),
-	}})
+	uc := NewGetDailyStreakUseCase(dailyActivityRepo(act(-1, 0), act(0, 1)))
 	out, err := uc.Execute(context.Background(), 7)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, out.CurrentStreak)
@@ -66,7 +56,7 @@ func Test_連続学習統計_全カウンタ0の行は学習日に数えない(t
 }
 
 func Test_連続学習統計_活動なしは全て0(t *testing.T) {
-	uc := NewGetDailyStreakUseCase(&fakeDailyActivityRepo{})
+	uc := NewGetDailyStreakUseCase(dailyActivityRepo())
 	out, err := uc.Execute(context.Background(), 7)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, out.CurrentStreak)
@@ -75,7 +65,10 @@ func Test_連続学習統計_活動なしは全て0(t *testing.T) {
 }
 
 func Test_連続学習統計_userID必須(t *testing.T) {
-	uc := NewGetDailyStreakUseCase(&fakeDailyActivityRepo{})
+	repo := dailyActivityRepo()
+	uc := NewGetDailyStreakUseCase(repo)
 	_, err := uc.Execute(context.Background(), 0)
 	assert.Error(t, err)
+	// 入口で弾いているので repository には到達しない（呼んだあとに失敗しても Error は立つため）。
+	assert.Zero(t, repo.ListByUserCalls.Load(), "userID 未指定なら集計クエリを打たない")
 }

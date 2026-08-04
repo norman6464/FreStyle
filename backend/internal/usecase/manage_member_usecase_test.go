@@ -11,10 +11,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// manageStore は fake が記録する更新内容。
+// manageStore は fake が記録する更新内容。対象 ID も控え、別のユーザーに
+// 操作が飛んでいないことまで検証できるようにする。
 type manageStore struct {
-	updateActiveGot *bool
-	softDeleted     bool
+	updateActiveGot    *bool
+	updateActiveUserID uint64
+	softDeleted        bool
+	softDeletedUserID  uint64
 }
 
 // manageMemberRepo は UserRepository の fake を、このテストが使う 3 メソッドだけ
@@ -23,12 +26,14 @@ func manageMemberRepo(target *domain.User) (*repofakes.FakeUserRepository, *mana
 	st := &manageStore{}
 	repo := &repofakes.FakeUserRepository{
 		FindByIDFunc: func(context.Context, uint64) (*domain.User, error) { return target, nil },
-		UpdateActiveFunc: func(_ context.Context, _ uint64, active bool) error {
+		UpdateActiveFunc: func(_ context.Context, userID uint64, active bool) error {
 			st.updateActiveGot = &active
+			st.updateActiveUserID = userID
 			return nil
 		},
-		SoftDeleteFunc: func(context.Context, uint64) error {
+		SoftDeleteFunc: func(_ context.Context, userID uint64) error {
 			st.softDeleted = true
+			st.softDeletedUserID = userID
 			return nil
 		},
 	}
@@ -45,6 +50,7 @@ func Test_メンバー有効化_会社管理者_自社_OK(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, store.updateActiveGot)
 	assert.False(t, *store.updateActiveGot)
+	assert.Equal(t, uint64(2), store.updateActiveUserID, "指定した対象に対して更新すること")
 }
 
 func Test_メンバー有効化_会社管理者_別会社_禁止(t *testing.T) {
@@ -67,6 +73,8 @@ func Test_メンバー有効化_運営管理者_任意の会社_OK(t *testing.T)
 
 	require.NoError(t, err)
 	require.NotNil(t, store.updateActiveGot)
+	assert.False(t, *store.updateActiveGot, "実装が true を渡す回帰を検出する")
+	assert.Equal(t, uint64(2), store.updateActiveUserID)
 }
 
 func Test_メンバー有効化_自分自身_禁止(t *testing.T) {
@@ -100,6 +108,7 @@ func Test_メンバー論理削除_会社管理者_自社_OK(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.True(t, store.softDeleted)
+	assert.Equal(t, uint64(2), store.softDeletedUserID, "指定した対象を削除すること")
 }
 
 func Test_メンバー論理削除_自分自身_禁止(t *testing.T) {
@@ -122,4 +131,15 @@ func Test_メンバー論理削除_会社管理者_別会社_禁止(t *testing.T
 
 	require.ErrorIs(t, err, usecase.ErrMemberNotInActorCompany)
 	assert.False(t, store.softDeleted)
+}
+
+func Test_メンバー論理削除_見つからない(t *testing.T) {
+	repo, _ := manageMemberRepo(nil)
+	uc := usecase.NewSoftDeleteMemberUseCase(repo)
+	actor := &domain.User{ID: 1, Role: domain.RoleSuperAdmin}
+
+	err := uc.Execute(context.Background(), actor, 999)
+
+	require.ErrorIs(t, err, usecase.ErrMemberNotFound)
+	assert.Zero(t, repo.SoftDeleteCalls.Load(), "対象が居なければ削除は走らない")
 }

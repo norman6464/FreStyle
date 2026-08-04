@@ -137,32 +137,59 @@ jobs:
       # (URL だけ渡すと OAuth フローや他 URL の設定が消える)。
       # ClientSecret / LastModifiedDate / CreationDate は update の入力に存在しない
       # 読み取り専用フィールドなので del してから渡す。
+      # describe→update は置換型のため、別サブドメインの並行実行と重なると後勝ちで
+      # 追加分が消える(lost update)。全サブドメインを単一 concurrency group に
+      # まとめる案は「待機中の run が新しい dispatch にキャンセルされる」副作用が
+      # あるため採らず、更新後に自分の URL の登録を確認して消えていたら再登録する
+      # リトライで収束させる(並行 deploy の頻度は低く、競合窓は describe→update の
+      # 数秒だけなので 3 回で十分収束する)。
       - name: Register Cognito callback / logout URLs
         run: |
           CALLBACK="https://$SUBDOMAIN.staging.frestyle.jp/login/callback"
           LOGOUT="https://$SUBDOMAIN.staging.frestyle.jp"
-          aws cognito-idp describe-user-pool-client \
-            --user-pool-id "$COGNITO_USER_POOL_ID" \
-            --client-id "$COGNITO_CLIENT_ID" \
-            --query 'UserPoolClient' --output json \
-          | jq --arg cb "$CALLBACK" --arg lo "$LOGOUT" '
-              .CallbackURLs = ((.CallbackURLs // []) + [$cb] | unique)
-              | .LogoutURLs = ((.LogoutURLs // []) + [$lo] | unique)
-              | del(.ClientSecret, .LastModifiedDate, .CreationDate)
-            ' > client.json
-          aws cognito-idp update-user-pool-client --cli-input-json file://client.json \
-            --query 'UserPoolClient.{CallbackURLs: CallbackURLs, LogoutURLs: LogoutURLs}'
-          rm -f client.json
+          register() {
+            aws cognito-idp describe-user-pool-client \
+              --user-pool-id "$COGNITO_USER_POOL_ID" \
+              --client-id "$COGNITO_CLIENT_ID" \
+              --query 'UserPoolClient' --output json \
+            | jq --arg cb "$CALLBACK" --arg lo "$LOGOUT" '
+                .CallbackURLs = ((.CallbackURLs // []) + [$cb] | unique)
+                | .LogoutURLs = ((.LogoutURLs // []) + [$lo] | unique)
+                | del(.ClientSecret, .LastModifiedDate, .CreationDate)
+              ' > client.json
+            aws cognito-idp update-user-pool-client --cli-input-json file://client.json \
+              --query 'UserPoolClient.{CallbackURLs: CallbackURLs, LogoutURLs: LogoutURLs}'
+            rm -f client.json
+          }
+          registered() {
+            aws cognito-idp describe-user-pool-client \
+              --user-pool-id "$COGNITO_USER_POOL_ID" \
+              --client-id "$COGNITO_CLIENT_ID" \
+              --query 'UserPoolClient.CallbackURLs' --output json \
+            | jq -e --arg cb "$CALLBACK" 'index($cb) != null' > /dev/null
+          }
+          for attempt in 1 2 3; do
+            register
+            sleep 10
+            if registered; then
+              echo "callback / logout URL を登録しました(attempt=$attempt)"
+              exit 0
+            fi
+            echo "WARN: 並行実行の更新と競合した可能性があります。再登録します(attempt=$attempt)"
+          done
+          echo "ERROR: callback URL の登録を確認できませんでした。"
+          exit 1
 
       # box に「ECR から pull して起動」を SSM Run Command で指示し、完了まで待つ。
       # 実際の手順(compose 生成・Caddy 設定・起動)は box 上のクローン
       # /srv/frestyle/infra の scripts/staging/deploy-from-registry が持つ。
-      # クローンは毎回 ff-only で最新化してから実行する: 過去に pull 漏れで
-      # 古いスクリプトが旧ドメインへデプロイする事故があったため、ここで必ず揃える。
+      # クローンは毎回 main に切り替えて ff-only で最新化してから実行する: 過去に
+      # pull 漏れで古いスクリプトが旧ドメインへデプロイする事故があったため、また
+      # box 上で別ブランチのまま残っている可能性もあるため、ここで必ず揃える。
       - name: Deploy on staging box via SSM
         run: |
           PARAMS=$(jq -cn --arg sub "$SUBDOMAIN" '{
-            commands: ["cd /srv/frestyle/infra && git fetch origin && git merge --ff-only origin/main && bash scripts/staging/deploy-from-registry -s \($sub)"]
+            commands: ["cd /srv/frestyle/infra && git fetch origin && git checkout main && git merge --ff-only origin/main && bash scripts/staging/deploy-from-registry -s \($sub)"]
           }')
           CMD_ID=$(aws ssm send-command \
             --document-name "AWS-RunShellScript" \

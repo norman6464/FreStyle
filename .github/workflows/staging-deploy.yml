@@ -1,0 +1,205 @@
+name: Staging Deploy
+
+# 目的: メンバーが「ブランチを選び、サブドメイン名を入力するだけ」で
+#       <subdomain>.staging.frestyle.jp に検証環境をデプロイする(FRESTYLE-245)。
+#
+# 仕組み(push 型ではなく pull 型):
+#   1) runner 上で backend / frontend の Docker image をビルドし ECR に push
+#      (タグ = サブドメイン名。frestyle-staging-backend / frestyle-staging-frontend)
+#   2) Cognito クライアントにサブドメインの callback / logout URL を追加
+#   3) staging box(SSM managed instance)に「ECR から pull して起動」を指示するだけ。
+#      box 側の手順は infra リポの scripts/staging/deploy-from-registry が持つ。
+#      ビルドを runner に寄せることで box は非力なままでよく、SSH 鍵の配布も不要。
+#
+# 認証: GitHub OIDC + staging 専用 IAM Role。長寿命キーは使わない。
+#       ロールの信頼ポリシーは repo:norman6464/FreStyle:environment:staging の
+#       sub だけを許可しているため、job の environment: staging 宣言が必須(下記)。
+#       定義: frestyle-infrastructure の Terraform(PR #201)
+#
+# 依存(このワークフロー単体では動かない):
+#   - infra リポの staging 用ロール / ECR リポジトリ
+#   - box 上の /srv/frestyle/infra クローンと scripts/staging/deploy-from-registry
+
+on:
+  workflow_dispatch:
+    inputs:
+      subdomain:
+        description: '例: kinoshita → kinoshita.staging.frestyle.jp'
+        required: true
+        type: string
+
+env:
+  AWS_REGION: ap-northeast-1
+  # GitHub OIDC で引き受ける staging 専用ロール。本番ロールとは分離し、
+  # staging の ECR push / Cognito 更新 / SSM send-command のみ許可。
+  AWS_ROLE_ARN: arn:aws:iam::010928196665:role/frestyle-prod-github-actions-staging-role
+  # inputs はここで env に写し、以降のシェルでは $SUBDOMAIN のみ参照する
+  # (run への ${{ }} 直埋めによる script injection を避ける)。
+  SUBDOMAIN: ${{ inputs.subdomain }}
+  BACKEND_ECR_REPO: frestyle-staging-backend
+  FRONTEND_ECR_REPO: frestyle-staging-frontend
+  # 公開値(公開 JS に焼き込まれる)のため Secrets にしない。cd-frontend.yml と同じ方針。
+  COGNITO_USER_POOL_ID: ap-northeast-1_pPsUfVjBK
+  COGNITO_CLIENT_ID: 1oe90mgiqjeumch0vev9iu6l1k
+  COGNITO_DOMAIN: frestyle-staging.auth.ap-northeast-1.amazoncognito.com
+  # staging box(SSM managed instance)。deploy 指示は SSM Run Command で送る。
+  SSM_INSTANCE_ID: mi-01d2c7bf86c8be8df
+
+permissions:
+  contents: read
+
+# 同一サブドメインへの並行 deploy を直列化する(ECR の同名タグ push と box 上の
+# compose 再起動が競合し、意図しないイメージが反映されるのを防ぐ)。
+# group にサブドメインを含めるため、別サブドメインへの deploy は並行できる。
+concurrency:
+  group: staging-deploy-${{ inputs.subdomain }}
+  cancel-in-progress: false
+
+jobs:
+  # build → push → Cognito 更新 → box 指示は直列依存で、job を分けても
+  # 成果物の受け渡しと OIDC assume のやり直しが増えるだけなので 1 job にまとめる。
+  deploy:
+    name: Build & Deploy to Staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # OIDC トークンの sub claim は environment 宣言があるとき
+    # repo:<owner>/<repo>:environment:<name> になる。staging ロールの信頼ポリシーは
+    # この sub のみを許可しているため、宣言を外すと assume が必ず失敗する。
+    environment:
+      name: staging
+      url: https://${{ inputs.subdomain }}.staging.frestyle.jp
+    # id-token: write は OIDC トークン発行に、contents: read は checkout に必要。
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      # サブドメインは ECR タグ・URL・box へ送るコマンドにそのまま使うため、
+      # DNS ラベルとして安全な形式(小文字英数とハイフン・先頭は英数・最大 30 文字)
+      # 以外は何もする前に弾く。
+      - name: Validate subdomain
+        run: |
+          if [[ ! "$SUBDOMAIN" =~ ^[a-z0-9][a-z0-9-]{0,29}$ ]]; then
+            echo "ERROR: subdomain '$SUBDOMAIN' が不正です(^[a-z0-9][a-z0-9-]{0,29}$ に一致しません)。"
+            exit 1
+          fi
+          echo "deploy 先: https://$SUBDOMAIN.staging.frestyle.jp"
+
+      # workflow_dispatch で選んだ ref(ブランチ)がそのまま checkout される。
+      - uses: actions/checkout@v6
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          role-session-name: frestyle-staging-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # backend はビルド時の環境差分がない(設定は box 側の compose が実行時に渡す)ため
+      # そのままビルドしてサブドメイン名のタグで push する。
+      - name: Build & push backend image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          docker build ./backend -t "$ECR_REGISTRY/$BACKEND_ECR_REPO:$SUBDOMAIN"
+          docker push "$ECR_REGISTRY/$BACKEND_ECR_REPO:$SUBDOMAIN"
+
+      # frontend は VITE_* がビルド時にバンドルへ焼き込まれるため、サブドメインごとに
+      # ビルドが必要(redirect_uri が変わる)。値はすべて公開値なので Secrets にしない。
+      # VITE_API_BASE_URL は空: 同一オリジンの /api/* を box 上の Caddy が backend に
+      # 振るため、相対パスでよい。
+      - name: Build & push frontend image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          docker build ./frontend \
+            --build-arg VITE_API_BASE_URL="" \
+            --build-arg VITE_COGNITO_DOMAIN="$COGNITO_DOMAIN" \
+            --build-arg VITE_CLIENT_ID="$COGNITO_CLIENT_ID" \
+            --build-arg VITE_REDIRECT_URI="https://$SUBDOMAIN.staging.frestyle.jp/login/callback" \
+            -t "$ECR_REGISTRY/$FRONTEND_ECR_REPO:$SUBDOMAIN"
+          docker push "$ECR_REGISTRY/$FRONTEND_ECR_REPO:$SUBDOMAIN"
+
+      # Cognito クライアントにこのサブドメインの callback / logout URL を追加する。
+      # update-user-pool-client は「未指定フィールドを既定値に戻す」置換型 API のため、
+      # describe の結果に URL を追記して全フィールドごと渡す方式が必須
+      # (URL だけ渡すと OAuth フローや他 URL の設定が消える)。
+      # ClientSecret / LastModifiedDate / CreationDate は update の入力に存在しない
+      # 読み取り専用フィールドなので del してから渡す。
+      - name: Register Cognito callback / logout URLs
+        run: |
+          CALLBACK="https://$SUBDOMAIN.staging.frestyle.jp/login/callback"
+          LOGOUT="https://$SUBDOMAIN.staging.frestyle.jp"
+          aws cognito-idp describe-user-pool-client \
+            --user-pool-id "$COGNITO_USER_POOL_ID" \
+            --client-id "$COGNITO_CLIENT_ID" \
+            --query 'UserPoolClient' --output json \
+          | jq --arg cb "$CALLBACK" --arg lo "$LOGOUT" '
+              .CallbackURLs = ((.CallbackURLs // []) + [$cb] | unique)
+              | .LogoutURLs = ((.LogoutURLs // []) + [$lo] | unique)
+              | del(.ClientSecret, .LastModifiedDate, .CreationDate)
+            ' > client.json
+          aws cognito-idp update-user-pool-client --cli-input-json file://client.json \
+            --query 'UserPoolClient.{CallbackURLs: CallbackURLs, LogoutURLs: LogoutURLs}'
+          rm -f client.json
+
+      # box に「ECR から pull して起動」を SSM Run Command で指示し、完了まで待つ。
+      # 実際の手順(compose 生成・Caddy 設定・起動)は box 上のクローン
+      # /srv/frestyle/infra の scripts/staging/deploy-from-registry が持つ。
+      # クローンは毎回 ff-only で最新化してから実行する: 過去に pull 漏れで
+      # 古いスクリプトが旧ドメインへデプロイする事故があったため、ここで必ず揃える。
+      - name: Deploy on staging box via SSM
+        run: |
+          PARAMS=$(jq -cn --arg sub "$SUBDOMAIN" '{
+            commands: ["cd /srv/frestyle/infra && git fetch origin && git merge --ff-only origin/main && bash scripts/staging/deploy-from-registry -s \($sub)"]
+          }')
+          CMD_ID=$(aws ssm send-command \
+            --document-name "AWS-RunShellScript" \
+            --instance-ids "$SSM_INSTANCE_ID" \
+            --comment "staging deploy: $SUBDOMAIN" \
+            --parameters "$PARAMS" \
+            --query 'Command.CommandId' --output text)
+          echo "CommandId: $CMD_ID"
+
+          # 15 秒間隔でポーリングし最大 15 分待つ。直後は invocation が未登録のこと
+          # があるため、取得失敗は Pending 扱いにして待ち続ける。
+          STATUS=Pending
+          for i in $(seq 1 60); do
+            sleep 15
+            STATUS=$(aws ssm get-command-invocation \
+              --command-id "$CMD_ID" --instance-id "$SSM_INSTANCE_ID" \
+              --query 'Status' --output text 2>/dev/null || echo Pending)
+            echo "[$i/60] Status: $STATUS"
+            case "$STATUS" in
+              Success|Failed|Cancelled|TimedOut) break ;;
+            esac
+          done
+
+          echo "--- box 実行ログ(標準出力・末尾 30 行) ---"
+          aws ssm get-command-invocation \
+            --command-id "$CMD_ID" --instance-id "$SSM_INSTANCE_ID" \
+            --query 'StandardOutputContent' --output text | tail -n 30
+
+          if [ "$STATUS" != "Success" ]; then
+            echo "--- box 実行ログ(標準エラー・末尾 30 行) ---"
+            aws ssm get-command-invocation \
+              --command-id "$CMD_ID" --instance-id "$SSM_INSTANCE_ID" \
+              --query 'StandardErrorContent' --output text | tail -n 30
+            echo "ERROR: box でのデプロイが Status=$STATUS で終了しました。"
+            exit 1
+          fi
+
+      - name: Show staging URL
+        run: |
+          URL="https://$SUBDOMAIN.staging.frestyle.jp"
+          echo "デプロイ完了: $URL"
+          {
+            echo "## Staging Deploy 完了"
+            echo ""
+            echo "- URL: $URL"
+            echo "- ref: \`${GITHUB_REF_NAME}\` / commit: \`${GITHUB_SHA}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

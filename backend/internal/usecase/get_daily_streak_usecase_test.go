@@ -65,7 +65,10 @@ func Test_連続学習統計_活動なしは全て0(t *testing.T) {
 }
 
 func Test_連続学習統計_userID必須(t *testing.T) {
-	uc := NewGetDailyStreakUseCase(dailyActivityRepo())
+	repo := dailyActivityRepo()
+	uc := NewGetDailyStreakUseCase(repo)
 	_, err := uc.Execute(context.Background(), 0)
 	assert.Error(t, err)
+	// 入口で弾いているので repository には到達しない（呼んだあとに失敗しても Error は立つため）。
+	assert.Zero(t, repo.ListByUserCalls.Load(), "userID 未指定なら集計クエリを打たない")
 }

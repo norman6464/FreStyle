@@ -36,11 +36,14 @@ func Test_監査記録_入力をイベントに詰めて保存する(t *testing.
 }
 
 func Test_監査記録_保存失敗を伝播(t *testing.T) {
+	// 「何かエラーが出た」ではなく repository のエラーがそのまま伝わることを見る。
+	wantErr := errors.New("db")
 	repo := &repofakes.FakeAuditRepository{
-		RecordFunc: func(context.Context, *domain.AuditEvent) error { return errors.New("db") },
+		RecordFunc: func(context.Context, *domain.AuditEvent) error { return wantErr },
 	}
 	uc := usecase.NewRecordAuditEventUseCase(repo)
-	assert.Error(t, uc.Execute(context.Background(), usecase.RecordAuditEventInput{}))
+	err := uc.Execute(context.Background(), usecase.RecordAuditEventInput{})
+	require.ErrorIs(t, err, wantErr)
 }
 
 func Test_監査ログ一覧_新しい順で返す(t *testing.T) {

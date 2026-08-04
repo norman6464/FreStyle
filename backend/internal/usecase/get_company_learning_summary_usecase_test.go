@@ -85,7 +85,7 @@ func Test_メンバー学習サマリー_直近リストは5名まで(t *testing
 }
 
 func Test_メンバー学習サマリー_会社未所属は空サマリー(t *testing.T) {
-	repo, got := learningActivityRepo(nil, nil)
+	repo, _ := learningActivityRepo(nil, nil)
 	uc := usecase.NewGetCompanyLearningSummaryUseCase(repo)
 
 	out, err := uc.Execute(context.Background(), &domain.User{ID: 1, Role: domain.RoleSuperAdmin})
@@ -93,7 +93,9 @@ func Test_メンバー学習サマリー_会社未所属は空サマリー(t *te
 	assert.Equal(t, 0, out.TraineeCount)
 	assert.NotNil(t, out.RecentMembers)
 	assert.Empty(t, out.RecentMembers)
-	assert.Zero(t, got.companyID, "会社未所属では集計クエリを打たない")
+	// companyID は「呼ばれていない」ときも「0 で呼ばれた」ときも 0 になるため、
+	// 呼び出し回数で確かめる。
+	assert.Zero(t, repo.ListMemberActivitiesCalls.Load(), "会社未所属では集計クエリを打たない")
 }
 
 func Test_メンバー学習サマリー_集計ウィンドウは今日を含む7日間(t *testing.T) {
@@ -110,5 +112,5 @@ func Test_メンバー学習サマリー_集計エラーはそのまま返す(t 
 	repo, _ := learningActivityRepo(nil, context.DeadlineExceeded)
 	uc := usecase.NewGetCompanyLearningSummaryUseCase(repo)
 	_, err := uc.Execute(context.Background(), companyAdminActor(10))
-	require.Error(t, err)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
 }

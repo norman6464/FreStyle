@@ -110,7 +110,7 @@ func Test_コース一覧進捗付き_章数集計エラーはそのまま返す
 	_, err := uc.Execute(context.Background(), usecase.ListCoursesWithProgressInput{
 		ActorUserID: 5, ActorCompanyID: 10, ActorRole: domain.RoleTrainee,
 	})
-	require.Error(t, err)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
 }
 
 func Test_コース一覧進捗付き_完了集計エラーはそのまま返す(t *testing.T) {
@@ -122,5 +122,5 @@ func Test_コース一覧進捗付き_完了集計エラーはそのまま返す
 	_, err := uc.Execute(context.Background(), usecase.ListCoursesWithProgressInput{
 		ActorUserID: 5, ActorCompanyID: 10, ActorRole: domain.RoleTrainee,
 	})
-	require.Error(t, err)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
 }

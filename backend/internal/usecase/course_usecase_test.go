@@ -59,6 +59,10 @@ func Test_コース_作成_会社管理者は成功(t *testing.T) {
 	require.NotNil(t, cstore.created)
 	assert.Equal(t, uint64(7), cstore.created.CreatedByUserID)
 	assert.Equal(t, uint64(10), cstore.created.CompanyID)
+	assert.Equal(t, "Web 基礎", cstore.created.Title)
+	assert.Equal(t, "HTTP / REST", cstore.created.Description)
+	assert.Equal(t, 10, cstore.created.SortOrder)
+	assert.True(t, cstore.created.IsPublished)
 	assert.Equal(t, "Web 基礎", got.Title)
 	assert.Equal(t, 10, got.SortOrder)
 }
@@ -95,7 +99,11 @@ func Test_コース_更新_自社管理者は成功(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "new", got.Title)
-	assert.NotNil(t, cstore.updated)
+	require.NotNil(t, cstore.updated)
+	assert.Equal(t, "new", cstore.updated.Title)
+	assert.Equal(t, "X", cstore.updated.Description)
+	assert.Equal(t, 200, cstore.updated.SortOrder)
+	assert.True(t, cstore.updated.IsPublished)
 }
 
 func Test_コース_削除_traineeは禁止(t *testing.T) {

@@ -199,6 +199,7 @@ func Test_教材_作成_traineeは禁止(t *testing.T) {
 		CourseID: 5, Title: "X", Content: "Y", IsPublished: true,
 	})
 	require.Error(t, err)
+	assert.Zero(t, mrepo.CreateCalls.Load(), "認可拒否時は書き込みを実行しない")
 }
 
 func Test_教材_作成_会社管理者は成功(t *testing.T) {
@@ -214,6 +215,9 @@ func Test_教材_作成_会社管理者は成功(t *testing.T) {
 	assert.Equal(t, uint64(7), mstore.created.CreatedByUserID)
 	assert.Equal(t, uint64(10), mstore.created.CompanyID)
 	assert.Equal(t, uint64(5), mstore.created.CourseID)
+	assert.Equal(t, "Spring 入門", mstore.created.Title)
+	assert.Equal(t, "# Spring", mstore.created.Content)
+	assert.True(t, mstore.created.IsPublished)
 	assert.Equal(t, "Spring 入門", got.Title)
 }
 
@@ -239,6 +243,7 @@ func Test_教材_作成_別会社コースは禁止(t *testing.T) {
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "forbidden")
+	assert.Zero(t, mrepo.CreateCalls.Load(), "別会社コースには書き込みを実行しない")
 }
 
 func Test_教材_作成_会社未所属は禁止(t *testing.T) {
@@ -278,7 +283,11 @@ func Test_教材_更新_自社管理者は成功(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "new", got.Title)
 	assert.Equal(t, 200, got.OrderInCourse)
-	assert.NotNil(t, mstore.updated)
+	require.NotNil(t, mstore.updated)
+	assert.Equal(t, "new", mstore.updated.Title)
+	assert.Equal(t, "X", mstore.updated.Content)
+	assert.Equal(t, 200, mstore.updated.OrderInCourse)
+	assert.True(t, mstore.updated.IsPublished)
 }
 
 func Test_教材_削除_traineeは禁止(t *testing.T) {
@@ -289,6 +298,7 @@ func Test_教材_削除_traineeは禁止(t *testing.T) {
 	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
 	err := uc.Delete(context.Background(), 1, 10, domain.RoleTrainee)
 	require.Error(t, err)
+	assert.Zero(t, mrepo.DeleteCalls.Load(), "認可拒否時は削除を実行しない")
 }
 
 func Test_教材_削除_自社管理者は成功(t *testing.T) {

@@ -119,14 +119,15 @@ func Test_レッスン完了_存在しない教材は404相当(t *testing.T) {
 }
 
 func Test_レッスン完了_記録失敗を伝播(t *testing.T) {
-	progress, _ := progressRepo(progressFakeConfig{completeErr: errors.New("db")})
+	wantErr := errors.New("db")
+	progress, _ := progressRepo(progressFakeConfig{completeErr: wantErr})
 	mat, crs := publishedSetup(5, 10, 1)
 	uc := usecase.NewMarkLessonCompletedUseCase(progress, mat, crs, &nopActivityRepo{})
 
 	err := uc.Execute(context.Background(), usecase.MarkLessonCompletedInput{
 		UserID: 1, ActorCompanyID: 10, ActorRole: domain.RoleTrainee, TeachingMaterialID: 5,
 	})
-	assert.Error(t, err)
+	assert.ErrorIs(t, err, wantErr, "repository のエラーを別のエラーに置き換えず伝播する")
 }
 
 func Test_レッスン完了取消_行を削除する(t *testing.T) {

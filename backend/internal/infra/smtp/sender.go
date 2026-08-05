@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"mime"
+	"net/mail"
 	netsmtp "net/smtp"
 	"strings"
 )
@@ -24,6 +25,16 @@ func NewSender(host, port, from string) *Sender {
 
 // SendInvitationEmail は multipart/alternative(text + html)の 1 通を SMTP で送信する。
 func (s *Sender) SendInvitationEmail(_ context.Context, to, subject, htmlBody, textBody string) error {
+	// ヘッダインジェクション対策: to はリクエスト由来のため、アドレスとして検証してから
+	// パース結果のアドレス部のみをヘッダとエンベロープに使う(改行や追加ヘッダを排除)。
+	parsed, err := mail.ParseAddress(to)
+	if err != nil {
+		return fmt.Errorf("smtp: invalid to address %q: %w", to, err)
+	}
+	to = parsed.Address
+	// 件名も改行を除去してからエンコードする(本文は DATA 部のヘッダ外なのでそのままでよい)。
+	subject = strings.NewReplacer("\r", " ", "\n", " ").Replace(subject)
+
 	const boundary = "frestyle-invitation-boundary"
 	var b strings.Builder
 	b.WriteString("From: " + s.from + "\r\n")

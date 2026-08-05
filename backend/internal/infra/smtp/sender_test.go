@@ -101,6 +101,48 @@ func Test_SMTP送信_宛先と件名と両形式の本文が届く(t *testing.T)
 	}
 }
 
+func Test_SMTP送信_宛先の改行注入は拒否する(t *testing.T) {
+	// ヘッダインジェクション(CRLF で Bcc 等を注入)はアドレス検証で弾く。
+	s := NewSender("127.0.0.1", "1", "noreply@staging.example.jp")
+	err := s.SendInvitationEmail(
+		context.Background(),
+		"a@example.com\r\nBcc: victim@example.com", "s", "h", "t",
+	)
+	if err == nil {
+		t.Fatal("改行入りの宛先が拒否されなかった")
+	}
+}
+
+func Test_SMTP送信_件名の改行は除去される(t *testing.T) {
+	addr, received := fakeSMTPServer(t)
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		t.Fatalf("split addr: %v", err)
+	}
+
+	s := NewSender(host, port, "noreply@staging.example.jp")
+	if err := s.SendInvitationEmail(
+		context.Background(),
+		"invitee@example.com", "subject\r\nBcc: victim@example.com", "h", "t",
+	); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+
+	var got string
+	select {
+	case got = <-received:
+	case <-time.After(3 * time.Second):
+		t.Fatal("fake サーバーに DATA が届かなかった")
+	}
+	// 改行が除去されていれば "Bcc:" は Subject 行の中の無害な文字列として残るだけで、
+	// 独立したヘッダ行(行頭の Bcc:)にはならない。
+	for _, line := range strings.Split(got, "\n") {
+		if strings.HasPrefix(strings.TrimRight(line, "\r"), "Bcc:") {
+			t.Errorf("件名経由でヘッダ行が注入された。got:\n%s", got)
+		}
+	}
+}
+
 func Test_SMTP送信_接続失敗はエラーを返す(t *testing.T) {
 	// 未使用ポートに向けて送ると接続エラーになる。
 	s := NewSender("127.0.0.1", "1", "noreply@staging.example.jp")

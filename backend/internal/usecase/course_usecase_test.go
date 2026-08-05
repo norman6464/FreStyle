@@ -11,8 +11,8 @@ import (
 )
 
 func Test_コース_取得_traineeは下書き不可(t *testing.T) {
-	crepo := &fakeCourseRepo{getResp: &domain.Course{ID: 5, CompanyID: 10, IsPublished: false}}
-	mrepo := &fakeTeachingMaterialRepo{}
+	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, CompanyID: 10, IsPublished: false}})
+	mrepo, _ := materialRepo(materialFakeConfig{})
 	uc := usecase.NewCourseUseCase(crepo, mrepo)
 	_, err := uc.Get(context.Background(), 5, 10, domain.RoleTrainee)
 	require.Error(t, err)
@@ -20,8 +20,8 @@ func Test_コース_取得_traineeは下書き不可(t *testing.T) {
 }
 
 func Test_コース_取得_traineeは自社の公開を読める(t *testing.T) {
-	crepo := &fakeCourseRepo{getResp: &domain.Course{ID: 5, CompanyID: 10, IsPublished: true}}
-	mrepo := &fakeTeachingMaterialRepo{}
+	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, CompanyID: 10, IsPublished: true}})
+	mrepo, _ := materialRepo(materialFakeConfig{})
 	uc := usecase.NewCourseUseCase(crepo, mrepo)
 	got, err := uc.Get(context.Background(), 5, 10, domain.RoleTrainee)
 	require.NoError(t, err)
@@ -29,16 +29,16 @@ func Test_コース_取得_traineeは自社の公開を読める(t *testing.T) {
 }
 
 func Test_コース_取得_別会社は禁止(t *testing.T) {
-	crepo := &fakeCourseRepo{getResp: &domain.Course{ID: 5, CompanyID: 10, IsPublished: true}}
-	mrepo := &fakeTeachingMaterialRepo{}
+	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, CompanyID: 10, IsPublished: true}})
+	mrepo, _ := materialRepo(materialFakeConfig{})
 	uc := usecase.NewCourseUseCase(crepo, mrepo)
 	_, err := uc.Get(context.Background(), 5, 99, domain.RoleCompanyAdmin)
 	require.Error(t, err)
 }
 
 func Test_コース_作成_traineeは禁止(t *testing.T) {
-	crepo := &fakeCourseRepo{}
-	mrepo := &fakeTeachingMaterialRepo{}
+	crepo, _ := courseRepo(courseFakeConfig{})
+	mrepo, _ := materialRepo(materialFakeConfig{})
 	uc := usecase.NewCourseUseCase(crepo, mrepo)
 	_, err := uc.Create(context.Background(), usecase.CreateCourseInput{
 		ActorUserID: 1, ActorCompanyID: 10, ActorRole: domain.RoleTrainee,
@@ -48,24 +48,24 @@ func Test_コース_作成_traineeは禁止(t *testing.T) {
 }
 
 func Test_コース_作成_会社管理者は成功(t *testing.T) {
-	crepo := &fakeCourseRepo{}
-	mrepo := &fakeTeachingMaterialRepo{}
+	crepo, cstore := courseRepo(courseFakeConfig{})
+	mrepo, _ := materialRepo(materialFakeConfig{})
 	uc := usecase.NewCourseUseCase(crepo, mrepo)
 	got, err := uc.Create(context.Background(), usecase.CreateCourseInput{
 		ActorUserID: 7, ActorCompanyID: 10, ActorRole: domain.RoleCompanyAdmin,
 		Title: "Web 基礎", Description: "HTTP / REST", SortOrder: 10, IsPublished: true,
 	})
 	require.NoError(t, err)
-	require.NotNil(t, crepo.created)
-	assert.Equal(t, uint64(7), crepo.created.CreatedByUserID)
-	assert.Equal(t, uint64(10), crepo.created.CompanyID)
+	require.NotNil(t, cstore.created)
+	assert.Equal(t, uint64(7), cstore.created.CreatedByUserID)
+	assert.Equal(t, uint64(10), cstore.created.CompanyID)
 	assert.Equal(t, "Web 基礎", got.Title)
 	assert.Equal(t, 10, got.SortOrder)
 }
 
 func Test_コース_作成_会社未所属は禁止(t *testing.T) {
-	crepo := &fakeCourseRepo{}
-	mrepo := &fakeTeachingMaterialRepo{}
+	crepo, _ := courseRepo(courseFakeConfig{})
+	mrepo, _ := materialRepo(materialFakeConfig{})
 	uc := usecase.NewCourseUseCase(crepo, mrepo)
 	_, err := uc.Create(context.Background(), usecase.CreateCourseInput{
 		ActorUserID: 7, ActorCompanyID: 0, ActorRole: domain.RoleCompanyAdmin,
@@ -75,19 +75,19 @@ func Test_コース_作成_会社未所属は禁止(t *testing.T) {
 }
 
 func Test_コース_更新_別会社は禁止(t *testing.T) {
-	crepo := &fakeCourseRepo{getResp: &domain.Course{ID: 1, CompanyID: 10, Title: "old"}}
-	mrepo := &fakeTeachingMaterialRepo{}
+	crepo, cstore := courseRepo(courseFakeConfig{get: &domain.Course{ID: 1, CompanyID: 10, Title: "old"}})
+	mrepo, _ := materialRepo(materialFakeConfig{})
 	uc := usecase.NewCourseUseCase(crepo, mrepo)
 	_, err := uc.Update(context.Background(), usecase.UpdateCourseInput{
 		ID: 1, ActorCompanyID: 99, ActorRole: domain.RoleCompanyAdmin, Title: "new",
 	})
 	require.Error(t, err)
-	assert.Nil(t, crepo.updated)
+	assert.Nil(t, cstore.updated)
 }
 
 func Test_コース_更新_自社管理者は成功(t *testing.T) {
-	crepo := &fakeCourseRepo{getResp: &domain.Course{ID: 1, CompanyID: 10, Title: "old"}}
-	mrepo := &fakeTeachingMaterialRepo{}
+	crepo, cstore := courseRepo(courseFakeConfig{get: &domain.Course{ID: 1, CompanyID: 10, Title: "old"}})
+	mrepo, _ := materialRepo(materialFakeConfig{})
 	uc := usecase.NewCourseUseCase(crepo, mrepo)
 	got, err := uc.Update(context.Background(), usecase.UpdateCourseInput{
 		ID: 1, ActorCompanyID: 10, ActorRole: domain.RoleCompanyAdmin,
@@ -95,30 +95,30 @@ func Test_コース_更新_自社管理者は成功(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "new", got.Title)
-	assert.NotNil(t, crepo.updated)
+	assert.NotNil(t, cstore.updated)
 }
 
 func Test_コース_削除_traineeは禁止(t *testing.T) {
-	crepo := &fakeCourseRepo{getResp: &domain.Course{ID: 1, CompanyID: 10}}
-	mrepo := &fakeTeachingMaterialRepo{}
+	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 1, CompanyID: 10}})
+	mrepo, _ := materialRepo(materialFakeConfig{})
 	uc := usecase.NewCourseUseCase(crepo, mrepo)
 	err := uc.Delete(context.Background(), 1, 10, domain.RoleTrainee)
 	require.Error(t, err)
 }
 
 func Test_コース_削除_自社管理者は教材も連鎖削除(t *testing.T) {
-	crepo := &fakeCourseRepo{getResp: &domain.Course{ID: 1, CompanyID: 10}}
-	mrepo := &fakeTeachingMaterialRepo{}
+	crepo, cstore := courseRepo(courseFakeConfig{get: &domain.Course{ID: 1, CompanyID: 10}})
+	mrepo, mstore := materialRepo(materialFakeConfig{})
 	uc := usecase.NewCourseUseCase(crepo, mrepo)
 	err := uc.Delete(context.Background(), 1, 10, domain.RoleCompanyAdmin)
 	require.NoError(t, err)
-	assert.Equal(t, uint64(1), crepo.deleted)
-	assert.Equal(t, uint64(1), mrepo.deletedByCo, "コース配下の教材も cascade で削除される")
+	assert.Equal(t, uint64(1), cstore.deleted)
+	assert.Equal(t, uint64(1), mstore.deletedByCourse, "コース配下の教材も cascade で削除される")
 }
 
 func Test_コース_作成_カテゴリ付きで成功(t *testing.T) {
-	crepo := &fakeCourseRepo{}
-	mrepo := &fakeTeachingMaterialRepo{}
+	crepo, _ := courseRepo(courseFakeConfig{})
+	mrepo, _ := materialRepo(materialFakeConfig{})
 	uc := usecase.NewCourseUseCase(crepo, mrepo)
 	got, err := uc.Create(context.Background(), usecase.CreateCourseInput{
 		ActorUserID: 7, ActorCompanyID: 10, ActorRole: domain.RoleCompanyAdmin,
@@ -129,8 +129,8 @@ func Test_コース_作成_カテゴリ付きで成功(t *testing.T) {
 }
 
 func Test_コース_作成_不正なカテゴリは拒否(t *testing.T) {
-	crepo := &fakeCourseRepo{}
-	mrepo := &fakeTeachingMaterialRepo{}
+	crepo, cstore := courseRepo(courseFakeConfig{})
+	mrepo, _ := materialRepo(materialFakeConfig{})
 	uc := usecase.NewCourseUseCase(crepo, mrepo)
 	_, err := uc.Create(context.Background(), usecase.CreateCourseInput{
 		ActorUserID: 7, ActorCompanyID: 10, ActorRole: domain.RoleCompanyAdmin,
@@ -138,12 +138,12 @@ func Test_コース_作成_不正なカテゴリは拒否(t *testing.T) {
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid course category")
-	assert.Nil(t, crepo.created)
+	assert.Nil(t, cstore.created)
 }
 
 func Test_コース_作成_カテゴリ未分類は許可(t *testing.T) {
-	crepo := &fakeCourseRepo{}
-	mrepo := &fakeTeachingMaterialRepo{}
+	crepo, _ := courseRepo(courseFakeConfig{})
+	mrepo, _ := materialRepo(materialFakeConfig{})
 	uc := usecase.NewCourseUseCase(crepo, mrepo)
 	got, err := uc.Create(context.Background(), usecase.CreateCourseInput{
 		ActorUserID: 7, ActorCompanyID: 10, ActorRole: domain.RoleCompanyAdmin,
@@ -154,8 +154,8 @@ func Test_コース_作成_カテゴリ未分類は許可(t *testing.T) {
 }
 
 func Test_コース_更新_カテゴリを変更できる(t *testing.T) {
-	crepo := &fakeCourseRepo{getResp: &domain.Course{ID: 1, CompanyID: 10, Category: domain.CourseCategoryDevBasics}}
-	mrepo := &fakeTeachingMaterialRepo{}
+	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 1, CompanyID: 10, Category: domain.CourseCategoryDevBasics}})
+	mrepo, _ := materialRepo(materialFakeConfig{})
 	uc := usecase.NewCourseUseCase(crepo, mrepo)
 	got, err := uc.Update(context.Background(), usecase.UpdateCourseInput{
 		ID: 1, ActorCompanyID: 10, ActorRole: domain.RoleCompanyAdmin,
@@ -166,8 +166,8 @@ func Test_コース_更新_カテゴリを変更できる(t *testing.T) {
 }
 
 func Test_コース_作成_言語付きで成功(t *testing.T) {
-	crepo := &fakeCourseRepo{}
-	mrepo := &fakeTeachingMaterialRepo{}
+	crepo, cstore := courseRepo(courseFakeConfig{})
+	mrepo, _ := materialRepo(materialFakeConfig{})
 	uc := usecase.NewCourseUseCase(crepo, mrepo)
 	got, err := uc.Create(context.Background(), usecase.CreateCourseInput{
 		ActorUserID: 7, ActorCompanyID: 10, ActorRole: domain.RoleCompanyAdmin,
@@ -175,12 +175,12 @@ func Test_コース_作成_言語付きで成功(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "go", got.Language)
-	assert.Equal(t, "go", crepo.created.Language)
+	assert.Equal(t, "go", cstore.created.Language)
 }
 
 func Test_コース_更新_言語を変更できる(t *testing.T) {
-	crepo := &fakeCourseRepo{getResp: &domain.Course{ID: 1, CompanyID: 10, Language: "go"}}
-	mrepo := &fakeTeachingMaterialRepo{}
+	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 1, CompanyID: 10, Language: "go"}})
+	mrepo, _ := materialRepo(materialFakeConfig{})
 	uc := usecase.NewCourseUseCase(crepo, mrepo)
 	got, err := uc.Update(context.Background(), usecase.UpdateCourseInput{
 		ID: 1, ActorCompanyID: 10, ActorRole: domain.RoleCompanyAdmin,
@@ -191,8 +191,8 @@ func Test_コース_更新_言語を変更できる(t *testing.T) {
 }
 
 func Test_コース_更新_言語は空にもできる(t *testing.T) {
-	crepo := &fakeCourseRepo{getResp: &domain.Course{ID: 1, CompanyID: 10, Language: "go"}}
-	mrepo := &fakeTeachingMaterialRepo{}
+	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 1, CompanyID: 10, Language: "go"}})
+	mrepo, _ := materialRepo(materialFakeConfig{})
 	uc := usecase.NewCourseUseCase(crepo, mrepo)
 	got, err := uc.Update(context.Background(), usecase.UpdateCourseInput{
 		ID: 1, ActorCompanyID: 10, ActorRole: domain.RoleCompanyAdmin,
@@ -203,8 +203,8 @@ func Test_コース_更新_言語は空にもできる(t *testing.T) {
 }
 
 func Test_コース_更新_不正なカテゴリは拒否(t *testing.T) {
-	crepo := &fakeCourseRepo{getResp: &domain.Course{ID: 1, CompanyID: 10}}
-	mrepo := &fakeTeachingMaterialRepo{}
+	crepo, cstore := courseRepo(courseFakeConfig{get: &domain.Course{ID: 1, CompanyID: 10}})
+	mrepo, _ := materialRepo(materialFakeConfig{})
 	uc := usecase.NewCourseUseCase(crepo, mrepo)
 	_, err := uc.Update(context.Background(), usecase.UpdateCourseInput{
 		ID: 1, ActorCompanyID: 10, ActorRole: domain.RoleCompanyAdmin,
@@ -212,5 +212,5 @@ func Test_コース_更新_不正なカテゴリは拒否(t *testing.T) {
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid course category")
-	assert.Nil(t, crepo.updated)
+	assert.Nil(t, cstore.updated)
 }

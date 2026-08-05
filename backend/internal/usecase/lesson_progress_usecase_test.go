@@ -7,122 +7,70 @@ import (
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository/repofakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
 
-// fakeLessonProgressRepo は LessonProgressRepository の fake。
-type fakeLessonProgressRepo struct {
+// progressStore は進捗 fake が記録する状態(course クラスタのテストで共有)。
+type progressStore struct {
 	completed   map[uint64]uint64 // materialID -> courseID
+	countCalled bool
+}
+
+// progressFakeConfig は進捗 fake の応答設定。ゼロ値はすべて「空を返す」。
+type progressFakeConfig struct {
 	listRows    []domain.UserLessonProgress
 	completeErr error
-	// CountCompletedByUserGroupedByCourse 用
-	countsByCourse map[uint64]int
-	countErr       error
-	countCalled    bool
+	counts      map[uint64]int
+	countErr    error
 }
 
-func (f *fakeLessonProgressRepo) CountCompletedByUserGroupedByCourse(context.Context, uint64) (map[uint64]int, error) {
-	f.countCalled = true
-	if f.countErr != nil {
-		return nil, f.countErr
+// progressRepo は LessonProgressRepository の生成 fake に、このクラスタが使う
+// メソッドだけを差し込んで返す。
+func progressRepo(cfg progressFakeConfig) (*repofakes.FakeLessonProgressRepository, *progressStore) {
+	st := &progressStore{completed: map[uint64]uint64{}}
+	repo := &repofakes.FakeLessonProgressRepository{
+		MarkCompletedFunc: func(_ context.Context, _, materialID, courseID uint64) (bool, error) {
+			if cfg.completeErr != nil {
+				return false, cfg.completeErr
+			}
+			_, alreadyDone := st.completed[materialID]
+			st.completed[materialID] = courseID
+			return !alreadyDone, nil
+		},
+		MarkIncompleteFunc: func(_ context.Context, _, materialID uint64) error {
+			delete(st.completed, materialID)
+			return nil
+		},
+		ListByUserFunc: func(context.Context, uint64) ([]domain.UserLessonProgress, error) {
+			return cfg.listRows, nil
+		},
+		CountCompletedByUserGroupedByCourseFunc: func(context.Context, uint64) (map[uint64]int, error) {
+			st.countCalled = true
+			if cfg.countErr != nil {
+				return nil, cfg.countErr
+			}
+			return cfg.counts, nil
+		},
 	}
-	return f.countsByCourse, nil
+	return repo, st
 }
-
-func newFakeLessonProgressRepo() *fakeLessonProgressRepo {
-	return &fakeLessonProgressRepo{completed: map[uint64]uint64{}}
-}
-
-func (f *fakeLessonProgressRepo) MarkCompleted(_ context.Context, _, materialID, courseID uint64) (bool, error) {
-	if f.completeErr != nil {
-		return false, f.completeErr
-	}
-	_, alreadyDone := f.completed[materialID]
-	f.completed[materialID] = courseID
-	return !alreadyDone, nil
-}
-
-func (f *fakeLessonProgressRepo) MarkIncomplete(_ context.Context, _, materialID uint64) error {
-	delete(f.completed, materialID)
-	return nil
-}
-
-func (f *fakeLessonProgressRepo) ListByUser(context.Context, uint64) ([]domain.UserLessonProgress, error) {
-	return f.listRows, nil
-}
-
-// fakeMaterialRepoForProgress は TeachingMaterialRepository の最小 fake（GetByID のみ意味を持つ）。
-type fakeMaterialRepoForProgress struct {
-	material *domain.TeachingMaterial
-	getErr   error
-}
-
-func (f *fakeMaterialRepoForProgress) GetByID(context.Context, uint64) (*domain.TeachingMaterial, error) {
-	if f.getErr != nil {
-		return nil, f.getErr
-	}
-	return f.material, nil
-}
-
-func (f *fakeMaterialRepoForProgress) ListByCompany(context.Context, uint64, bool) ([]domain.TeachingMaterial, error) {
-	return nil, nil
-}
-
-func (f *fakeMaterialRepoForProgress) ListByCourse(context.Context, uint64, bool) ([]domain.TeachingMaterial, error) {
-	return nil, nil
-}
-
-func (f *fakeMaterialRepoForProgress) CountByCourseForCompany(context.Context, uint64, bool) (map[uint64]int, error) {
-	return nil, nil
-}
-
-func (f *fakeMaterialRepoForProgress) Create(context.Context, *domain.TeachingMaterial) error {
-	return nil
-}
-
-func (f *fakeMaterialRepoForProgress) Update(context.Context, *domain.TeachingMaterial) error {
-	return nil
-}
-
-func (f *fakeMaterialRepoForProgress) Delete(context.Context, uint64) error { return nil }
-
-func (f *fakeMaterialRepoForProgress) DeleteByCourse(context.Context, uint64) error { return nil }
-
-// fakeCourseRepoForProgress は CourseRepository の最小 fake（GetByID のみ意味を持つ）。
-type fakeCourseRepoForProgress struct {
-	course *domain.Course
-	getErr error
-}
-
-func (f *fakeCourseRepoForProgress) GetByID(context.Context, uint64) (*domain.Course, error) {
-	if f.getErr != nil {
-		return nil, f.getErr
-	}
-	return f.course, nil
-}
-
-func (f *fakeCourseRepoForProgress) ListByCompany(context.Context, uint64, bool) ([]domain.Course, error) {
-	return nil, nil
-}
-func (f *fakeCourseRepoForProgress) Create(context.Context, *domain.Course) error { return nil }
-func (f *fakeCourseRepoForProgress) Update(context.Context, *domain.Course) error { return nil }
-func (f *fakeCourseRepoForProgress) Delete(context.Context, uint64) error         { return nil }
 
 // publishedSetup は「自社・公開教材・公開コース」の正常に完了できる組み合わせを作る。
-func publishedSetup(materialID, companyID, courseID uint64) (*fakeMaterialRepoForProgress, *fakeCourseRepoForProgress) {
-	mat := &fakeMaterialRepoForProgress{material: &domain.TeachingMaterial{
+func publishedSetup(materialID, companyID, courseID uint64) (*repofakes.FakeTeachingMaterialRepository, *repofakes.FakeCourseRepository) {
+	mat, _ := materialRepo(materialFakeConfig{get: &domain.TeachingMaterial{
 		ID: materialID, CompanyID: companyID, CourseID: courseID, IsPublished: true,
-	}}
-	crs := &fakeCourseRepoForProgress{course: &domain.Course{
+	}})
+	crs, _ := courseRepo(courseFakeConfig{get: &domain.Course{
 		ID: courseID, CompanyID: companyID, IsPublished: true,
-	}}
+	}})
 	return mat, crs
 }
 
 func Test_レッスン完了_自社の公開教材はcourse_idを解決して記録する(t *testing.T) {
-	progress := newFakeLessonProgressRepo()
+	progress, pstore := progressRepo(progressFakeConfig{})
 	mat, crs := publishedSetup(5, 10, 99)
 	uc := usecase.NewMarkLessonCompletedUseCase(progress, mat, crs, &nopActivityRepo{})
 
@@ -130,11 +78,11 @@ func Test_レッスン完了_自社の公開教材はcourse_idを解決して記
 		UserID: 1, ActorCompanyID: 10, ActorRole: domain.RoleTrainee, TeachingMaterialID: 5,
 	})
 	require.NoError(t, err)
-	assert.Equal(t, uint64(99), progress.completed[5]) // 教材の course_id が使われる
+	assert.Equal(t, uint64(99), pstore.completed[5]) // 教材の course_id が使われる
 }
 
 func Test_レッスン完了_他社の教材は403相当で弾く(t *testing.T) {
-	progress := newFakeLessonProgressRepo()
+	progress, pstore := progressRepo(progressFakeConfig{})
 	mat, crs := publishedSetup(5, 10, 99) // company 10 の教材
 	uc := usecase.NewMarkLessonCompletedUseCase(progress, mat, crs, &nopActivityRepo{})
 
@@ -142,15 +90,15 @@ func Test_レッスン完了_他社の教材は403相当で弾く(t *testing.T) 
 		UserID: 1, ActorCompanyID: 20, ActorRole: domain.RoleTrainee, TeachingMaterialID: 5, // 別 company
 	})
 	assert.ErrorIs(t, err, usecase.ErrLessonForbidden)
-	assert.Empty(t, progress.completed)
+	assert.Empty(t, pstore.completed)
 }
 
 func Test_レッスン完了_trainee_に未公開の教材は403相当(t *testing.T) {
-	progress := newFakeLessonProgressRepo()
-	mat := &fakeMaterialRepoForProgress{material: &domain.TeachingMaterial{
+	progress, _ := progressRepo(progressFakeConfig{})
+	mat, _ := materialRepo(materialFakeConfig{get: &domain.TeachingMaterial{
 		ID: 5, CompanyID: 10, CourseID: 99, IsPublished: false, // 下書き
-	}}
-	crs := &fakeCourseRepoForProgress{course: &domain.Course{ID: 99, CompanyID: 10, IsPublished: true}}
+	}})
+	crs, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 99, CompanyID: 10, IsPublished: true}})
 	uc := usecase.NewMarkLessonCompletedUseCase(progress, mat, crs, &nopActivityRepo{})
 
 	err := uc.Execute(context.Background(), usecase.MarkLessonCompletedInput{
@@ -160,12 +108,10 @@ func Test_レッスン完了_trainee_に未公開の教材は403相当(t *testin
 }
 
 func Test_レッスン完了_存在しない教材は404相当(t *testing.T) {
-	uc := usecase.NewMarkLessonCompletedUseCase(
-		newFakeLessonProgressRepo(),
-		&fakeMaterialRepoForProgress{getErr: gorm.ErrRecordNotFound},
-		&fakeCourseRepoForProgress{},
-		&nopActivityRepo{},
-	)
+	progress, _ := progressRepo(progressFakeConfig{})
+	mat, _ := materialRepo(materialFakeConfig{getErr: gorm.ErrRecordNotFound})
+	crs, _ := courseRepo(courseFakeConfig{})
+	uc := usecase.NewMarkLessonCompletedUseCase(progress, mat, crs, &nopActivityRepo{})
 	err := uc.Execute(context.Background(), usecase.MarkLessonCompletedInput{
 		UserID: 1, ActorCompanyID: 10, ActorRole: domain.RoleTrainee, TeachingMaterialID: 404,
 	})
@@ -173,29 +119,30 @@ func Test_レッスン完了_存在しない教材は404相当(t *testing.T) {
 }
 
 func Test_レッスン完了_記録失敗を伝播(t *testing.T) {
-	progress := newFakeLessonProgressRepo()
-	progress.completeErr = errors.New("db")
+	wantErr := errors.New("db")
+	progress, _ := progressRepo(progressFakeConfig{completeErr: wantErr})
 	mat, crs := publishedSetup(5, 10, 1)
 	uc := usecase.NewMarkLessonCompletedUseCase(progress, mat, crs, &nopActivityRepo{})
 
 	err := uc.Execute(context.Background(), usecase.MarkLessonCompletedInput{
 		UserID: 1, ActorCompanyID: 10, ActorRole: domain.RoleTrainee, TeachingMaterialID: 5,
 	})
-	assert.Error(t, err)
+	assert.ErrorIs(t, err, wantErr, "repository のエラーを別のエラーに置き換えず伝播する")
 }
 
 func Test_レッスン完了取消_行を削除する(t *testing.T) {
-	progress := newFakeLessonProgressRepo()
-	progress.completed[5] = 1
+	progress, pstore := progressRepo(progressFakeConfig{})
+	pstore.completed[5] = 1
 	uc := usecase.NewMarkLessonIncompleteUseCase(progress)
 	require.NoError(t, uc.Execute(context.Background(), 1, 5))
-	_, ok := progress.completed[5]
+	_, ok := pstore.completed[5]
 	assert.False(t, ok)
 }
 
 func Test_学習進捗一覧_完了記録を返す(t *testing.T) {
-	progress := newFakeLessonProgressRepo()
-	progress.listRows = []domain.UserLessonProgress{{TeachingMaterialID: 1, CourseID: 9}}
+	progress, _ := progressRepo(progressFakeConfig{
+		listRows: []domain.UserLessonProgress{{TeachingMaterialID: 1, CourseID: 9}},
+	})
 	uc := usecase.NewListLessonProgressUseCase(progress)
 	rows, err := uc.Execute(context.Background(), 1)
 	require.NoError(t, err)

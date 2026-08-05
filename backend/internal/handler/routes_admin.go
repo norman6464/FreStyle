@@ -8,6 +8,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/infra/ses"
+	"github.com/norman6464/FreStyle/backend/internal/infra/smtp"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 	"gorm.io/gorm"
 )
@@ -76,6 +77,15 @@ func registerAdminRoutes(parent *gin.RouterGroup, deps *routeDeps, audit gin.Han
 	var mailBuilder usecase.MailBuilder
 
 	switch {
+	case deps.cfg.SMTP.Host != "" && deps.cfg.SMTP.FromAddress != "" && deps.cfg.AppBaseURL != "":
+		// staging: SES は使わず、box 上のメールキャッチャーへ SMTP で送る。
+		// 実メールは外部へ飛ばず、受信分は mail サブドメインの Web UI で閲覧する。
+		sender = smtp.NewSender(deps.cfg.SMTP.Host, deps.cfg.SMTP.Port, deps.cfg.SMTP.FromAddress)
+		baseURL := deps.cfg.AppBaseURL
+		linkBuilder = func(token string) string {
+			return ses.MagicLinkURL(baseURL, token)
+		}
+		mailBuilder = ses.BuildInvitationMail
 	case deps.cfg.SES.FromAddress == "" || deps.cfg.AppBaseURL == "":
 		// ローカルでは送信をスキップしてフローだけ通す（usecase 側でリンクをログに残す）。
 		log.Printf("WARN: SES_FROM_ADDRESS or APP_BASE_URL not set — invitation emails will NOT be sent (token will be logged instead)")

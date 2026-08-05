@@ -35,6 +35,7 @@ type Config struct {
 	Bedrock  BedrockConfig
 	DynamoDB DynamoDBConfig
 	SES      SESConfig
+	SMTP     SMTPConfig
 }
 
 // S3Config は profile / note 画像 upload の presign 発行に必要な設定。
@@ -60,6 +61,15 @@ type DynamoDBConfig struct {
 // 未設定（空文字）のときは送信スキップ → token をログに残してフォールバック。
 type SESConfig struct {
 	Region      string
+	FromAddress string
+}
+
+// SMTPConfig は SES を使わない環境（staging）向けのメール送信設定。
+// Host が設定されているときは SES より優先して SMTP で送信する
+// （staging の box 上メールキャッチャーが宛先。認証・TLS なしの内部ネットワーク前提）。
+type SMTPConfig struct {
+	Host        string
+	Port        string
 	FromAddress string
 }
 
@@ -115,6 +125,11 @@ func Load() (*Config, error) {
 		SES: SESConfig{
 			Region:      getEnvOrDefault("SES_REGION", getEnvOrDefault("AWS_REGION", "ap-northeast-1")),
 			FromAddress: os.Getenv("SES_FROM_ADDRESS"),
+		},
+		SMTP: SMTPConfig{
+			Host:        os.Getenv("MAIL_SMTP_HOST"),
+			Port:        getEnvOrDefault("MAIL_SMTP_PORT", "1025"),
+			FromAddress: os.Getenv("MAIL_FROM_ADDRESS"),
 		},
 	}
 	// DATABASE_URL か DB_HOST の少なくとも一方は必須。

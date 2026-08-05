@@ -9,30 +9,26 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository/repofakes"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
-// summarizerArgs は fake が受け取った引数の控え。usecase が「何を渡したか」を検証するために使う。
+// summarizerArgs は mock が受け取った引数の控え。usecase が「何を渡したか」を検証するために使う。
 type summarizerArgs struct {
 	companyID uint64
 	fromDate  time.Time
 }
 
-// learningActivityRepo は指定の結果を返す fake と、渡された引数の控えを返す。
-func learningActivityRepo(rows []repository.MemberLearningActivity, err error) (*repofakes.FakeCompanyLearningActivitySummarizer, *summarizerArgs) {
+// learningActivityRepo は指定の結果を返す mock と、渡された引数の控えを返す。
+func learningActivityRepo(rows []repository.MemberLearningActivity, err error) (*mockLearningSummarizer, *summarizerArgs) {
 	got := &summarizerArgs{}
-	repo := &repofakes.FakeCompanyLearningActivitySummarizer{
-		ListMemberActivitiesFunc: func(_ context.Context, companyID uint64, fromDate time.Time) ([]repository.MemberLearningActivity, error) {
-			got.companyID = companyID
-			got.fromDate = fromDate
-			if err != nil {
-				return nil, err
-			}
-			return rows, nil
-		},
-	}
+	repo := &mockLearningSummarizer{}
+	repo.On("ListMemberActivities", mock.Anything, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			got.companyID = args.Get(1).(uint64)
+			got.fromDate = args.Get(2).(time.Time)
+		}).Return(rows, err).Maybe()
 	return repo, got
 }
 
@@ -93,9 +89,7 @@ func Test_メンバー学習サマリー_会社未所属は空サマリー(t *te
 	assert.Equal(t, 0, out.TraineeCount)
 	assert.NotNil(t, out.RecentMembers)
 	assert.Empty(t, out.RecentMembers)
-	// companyID は「呼ばれていない」ときも「0 で呼ばれた」ときも 0 になるため、
-	// 呼び出し回数で確かめる。
-	assert.Zero(t, repo.ListMemberActivitiesCalls.Load(), "会社未所属では集計クエリを打たない")
+	repo.AssertNotCalled(t, "ListMemberActivities", mock.Anything, mock.Anything, mock.Anything)
 }
 
 func Test_メンバー学習サマリー_集計ウィンドウは今日を含む7日間(t *testing.T) {

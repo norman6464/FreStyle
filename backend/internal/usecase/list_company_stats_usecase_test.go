@@ -8,26 +8,23 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository/repofakes"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
-// statsCompanyRepo は ListAll だけを差し込んだ CompanyRepository の fake を返す。
-// 他の 3 メソッドは生成 fake がゼロ値を返すため no-op を書かなくてよい。
-func statsCompanyRepo(rows []domain.Company, err error) *repofakes.FakeCompanyRepository {
-	return &repofakes.FakeCompanyRepository{
-		ListAllFunc: func(context.Context) ([]domain.Company, error) { return rows, err },
-	}
+// statsCompanyRepo は ListAll の応答だけを設定した CompanyRepository の mock を返す。
+func statsCompanyRepo(rows []domain.Company, err error) *mockCompanyRepo {
+	repo := &mockCompanyRepo{}
+	repo.On("ListAll", mock.Anything).Return(rows, err)
+	return repo
 }
 
-// memberCounter は CompanyMemberCounter の fake を返す。
-func memberCounter(rows []repository.CompanyMemberCount, err error) *repofakes.FakeCompanyMemberCounter {
-	return &repofakes.FakeCompanyMemberCounter{
-		CountMembersByCompanyFunc: func(context.Context) ([]repository.CompanyMemberCount, error) {
-			return rows, err
-		},
-	}
+// memberCounter は CompanyMemberCounter の mock を返す。
+func memberCounter(rows []repository.CompanyMemberCount, err error) *mockMemberCounter {
+	repo := &mockMemberCounter{}
+	repo.On("CountMembersByCompany", mock.Anything).Return(rows, err).Maybe()
+	return repo
 }
 
 func Test_会社横断ビュー_会社にメンバー集計をマージして返す(t *testing.T) {

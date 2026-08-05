@@ -6,12 +6,12 @@ import (
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository/repofakes"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
-// materialStore は教材 fake が記録する呼び出し内容(course クラスタのテストで共有)。
+// materialStore は教材 mock が記録する呼び出し内容(course クラスタのテストで共有)。
 type materialStore struct {
 	listCourseID                uint64
 	listIncludeAll              bool
@@ -22,7 +22,7 @@ type materialStore struct {
 	lastCountIncludeUnpublished *bool
 }
 
-// materialFakeConfig は教材 fake の応答設定。ゼロ値はすべて「空を返す」。
+// materialFakeConfig は教材 mock の応答設定。ゼロ値はすべて「空を返す」。
 type materialFakeConfig struct {
 	get      *domain.TeachingMaterial
 	getErr   error
@@ -30,91 +30,77 @@ type materialFakeConfig struct {
 	countErr error
 }
 
-// materialRepo は TeachingMaterialRepository の生成 fake に、このクラスタが使う
-// メソッドだけを差し込んで返す。残りは生成 fake がゼロ値を返すので no-op が要らない。
-func materialRepo(cfg materialFakeConfig) (*repofakes.FakeTeachingMaterialRepository, *materialStore) {
+// materialRepo は TeachingMaterialRepository の mock に、このクラスタが使う応答を
+// 設定して返す(呼ばれないメソッドの期待は .Maybe で任意にする)。
+func materialRepo(cfg materialFakeConfig) (*mockMaterialRepo, *materialStore) {
 	st := &materialStore{}
-	repo := &repofakes.FakeTeachingMaterialRepository{
-		GetByIDFunc: func(context.Context, uint64) (*domain.TeachingMaterial, error) {
-			if cfg.getErr != nil {
-				return nil, cfg.getErr
-			}
-			return cfg.get, nil
-		},
-		ListByCourseFunc: func(_ context.Context, courseID uint64, includeUnpublished bool) ([]domain.TeachingMaterial, error) {
-			st.listCourseID, st.listIncludeAll = courseID, includeUnpublished
-			return nil, nil
-		},
-		CountByCourseForCompanyFunc: func(_ context.Context, _ uint64, includeUnpublished bool) (map[uint64]int, error) {
-			st.lastCountIncludeUnpublished = &includeUnpublished
-			if cfg.countErr != nil {
-				return nil, cfg.countErr
-			}
-			return cfg.counts, nil
-		},
-		CreateFunc: func(_ context.Context, m *domain.TeachingMaterial) error {
+	repo := &mockMaterialRepo{}
+	repo.On("GetByID", mock.Anything, mock.Anything).Return(cfg.get, cfg.getErr).Maybe()
+	repo.On("ListByCourse", mock.Anything, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			st.listCourseID = args.Get(1).(uint64)
+			st.listIncludeAll = args.Get(2).(bool)
+		}).Return(nil, nil).Maybe()
+	repo.On("CountByCourseForCompany", mock.Anything, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			include := args.Get(2).(bool)
+			st.lastCountIncludeUnpublished = &include
+		}).Return(cfg.counts, cfg.countErr).Maybe()
+	repo.On("Create", mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			m := args.Get(1).(*domain.TeachingMaterial)
 			m.ID = 99
 			st.created = m
-			return nil
-		},
-		UpdateFunc: func(_ context.Context, m *domain.TeachingMaterial) error {
-			st.updated = m
-			return nil
-		},
-		DeleteFunc: func(_ context.Context, id uint64) error {
-			st.deleted = id
-			return nil
-		},
-		DeleteByCourseFunc: func(_ context.Context, courseID uint64) error {
-			st.deletedByCourse = courseID
-			return nil
-		},
-	}
+		}).Return(nil).Maybe()
+	repo.On("Update", mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			st.updated = args.Get(1).(*domain.TeachingMaterial)
+		}).Return(nil).Maybe()
+	repo.On("Delete", mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			st.deleted = args.Get(1).(uint64)
+		}).Return(nil).Maybe()
+	repo.On("DeleteByCourse", mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			st.deletedByCourse = args.Get(1).(uint64)
+		}).Return(nil).Maybe()
 	return repo, st
 }
 
-// courseStore はコース fake が記録する更新内容(course クラスタのテストで共有)。
+// courseStore はコース mock が記録する更新内容(course クラスタのテストで共有)。
 type courseStore struct {
 	created *domain.Course
 	updated *domain.Course
 	deleted uint64
 }
 
-// courseFakeConfig はコース fake の応答設定。ゼロ値はすべて「空を返す」。
+// courseFakeConfig はコース mock の応答設定。ゼロ値はすべて「空を返す」。
 type courseFakeConfig struct {
 	rows   []domain.Course
 	get    *domain.Course
 	getErr error
 }
 
-// courseRepo は CourseRepository の生成 fake に、このクラスタが使うメソッドだけを
-// 差し込んで返す。
-func courseRepo(cfg courseFakeConfig) (*repofakes.FakeCourseRepository, *courseStore) {
+// courseRepo は CourseRepository の mock に、このクラスタが使う応答を設定して返す。
+func courseRepo(cfg courseFakeConfig) (*mockCourseRepo, *courseStore) {
 	st := &courseStore{}
-	repo := &repofakes.FakeCourseRepository{
-		ListByCompanyFunc: func(context.Context, uint64, bool) ([]domain.Course, error) {
-			return cfg.rows, nil
-		},
-		GetByIDFunc: func(context.Context, uint64) (*domain.Course, error) {
-			if cfg.getErr != nil {
-				return nil, cfg.getErr
-			}
-			return cfg.get, nil
-		},
-		CreateFunc: func(_ context.Context, c *domain.Course) error {
+	repo := &mockCourseRepo{}
+	repo.On("ListByCompany", mock.Anything, mock.Anything, mock.Anything).Return(cfg.rows, nil).Maybe()
+	repo.On("GetByID", mock.Anything, mock.Anything).Return(cfg.get, cfg.getErr).Maybe()
+	repo.On("Create", mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			c := args.Get(1).(*domain.Course)
 			c.ID = 88
 			st.created = c
-			return nil
-		},
-		UpdateFunc: func(_ context.Context, c *domain.Course) error {
-			st.updated = c
-			return nil
-		},
-		DeleteFunc: func(_ context.Context, id uint64) error {
-			st.deleted = id
-			return nil
-		},
-	}
+		}).Return(nil).Maybe()
+	repo.On("Update", mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			st.updated = args.Get(1).(*domain.Course)
+		}).Return(nil).Maybe()
+	repo.On("Delete", mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			st.deleted = args.Get(1).(uint64)
+		}).Return(nil).Maybe()
 	return repo, st
 }
 
@@ -199,7 +185,7 @@ func Test_教材_作成_traineeは禁止(t *testing.T) {
 		CourseID: 5, Title: "X", Content: "Y", IsPublished: true,
 	})
 	require.Error(t, err)
-	assert.Zero(t, mrepo.CreateCalls.Load(), "認可拒否時は書き込みを実行しない")
+	mrepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
 }
 
 func Test_教材_作成_会社管理者は成功(t *testing.T) {
@@ -243,7 +229,7 @@ func Test_教材_作成_別会社コースは禁止(t *testing.T) {
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "forbidden")
-	assert.Zero(t, mrepo.CreateCalls.Load(), "別会社コースには書き込みを実行しない")
+	mrepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
 }
 
 func Test_教材_作成_会社未所属は禁止(t *testing.T) {
@@ -298,7 +284,7 @@ func Test_教材_削除_traineeは禁止(t *testing.T) {
 	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
 	err := uc.Delete(context.Background(), 1, 10, domain.RoleTrainee)
 	require.Error(t, err)
-	assert.Zero(t, mrepo.DeleteCalls.Load(), "認可拒否時は削除を実行しない")
+	mrepo.AssertNotCalled(t, "Delete", mock.Anything, mock.Anything)
 }
 
 func Test_教材_削除_自社管理者は成功(t *testing.T) {

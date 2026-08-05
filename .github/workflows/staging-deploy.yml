@@ -86,7 +86,7 @@ jobs:
           fi
           # 予約サブドメイン(エッジが使用)は box 側と同様にここでも拒否する。
           case "$SUBDOMAIN" in
-            db|www|api)
+            db|www|api|mail)
               echo "ERROR: '$SUBDOMAIN' は予約済みサブドメインです。"
               exit 1 ;;
           esac

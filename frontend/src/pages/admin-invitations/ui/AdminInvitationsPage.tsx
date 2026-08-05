@@ -68,10 +68,13 @@ export default function AdminInvitationsPage() {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [user, data, cos] = await Promise.all([
-        AuthRepository.getCurrentUser(),
+      // 会社一覧 API は super_admin 専用。company_admin で呼ぶと 403 になり、
+      // Promise.all ごと reject して招待一覧まで巻き込むため、先に自分の role を
+      // 確認してから super_admin のときだけ取得する（company_admin は自社固定で不要）。
+      const user = await AuthRepository.getCurrentUser();
+      const [data, cos] = await Promise.all([
         AdminInvitationRepository.list(),
-        CompanyRepository.list(),
+        user.role === 'super_admin' ? CompanyRepository.list() : Promise.resolve<Company[]>([]),
       ]);
       setMe(user);
       setInvitations(data);
@@ -192,13 +195,12 @@ export default function AdminInvitationsPage() {
         <label className="block text-sm">
           <span className="block mb-1">会社 *</span>
           {isCompanyAdmin ? (
-            // CompanyAdmin は自社にしか招待を出せない仕様。会社名を表示するだけにする。
+            // CompanyAdmin は自社にしか招待を出せない仕様。会社一覧 API は呼ばない
+            // （super_admin 専用）ため、固定文言で自社宛であることを示す。
             <input
               type="text"
               readOnly
-              value={
-                companies.find((c) => c.id === form.companyId)?.name ?? '所属会社'
-              }
+              value="所属会社（自社に固定）"
               className="w-full border rounded px-2 py-1 bg-[var(--color-surface-2)] text-[var(--color-text-muted)]"
             />
           ) : (

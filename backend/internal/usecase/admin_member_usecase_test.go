@@ -76,4 +76,19 @@ func Test_メンバーAI利用可否更新ユースケース(t *testing.T) {
 		err := uc.Execute(context.Background(), &domain.User{ID: 9, Role: domain.RoleSuperAdmin}, 1, ptrBool(true))
 		assert.ErrorIs(t, err, usecase.ErrMemberNotInActorCompany)
 	})
+	t.Run("自分自身のAI利用可否も更新できる(自己編集の禁止は無い)", func(t *testing.T) {
+		updateCalled, lastEnabled = false, nil
+		selfActor := &domain.User{ID: 1, CompanyID: u64ptr(10), Role: domain.RoleCompanyAdmin}
+		err := uc.Execute(context.Background(), selfActor, 1, ptrBool(false))
+		require.NoError(t, err, "UpdateMemberAiAccessUseCase には自己編集を禁止するチェックが無い")
+		require.True(t, updateCalled)
+		require.NotNil(t, lastEnabled)
+		assert.False(t, *lastEnabled)
+	})
+	t.Run("super_admin(会社未所属)はこのusecaseを実行できない", func(t *testing.T) {
+		superActor := &domain.User{ID: 9, Role: domain.RoleSuperAdmin, CompanyID: nil}
+		err := uc.Execute(context.Background(), superActor, 1, ptrBool(true))
+		assert.ErrorIs(t, err, usecase.ErrMemberNotInActorCompany,
+			"super_admin は CompanyID=nil のため actor.CompanyID==nil チェックで弾かれる(現状の既知の制約)")
+	})
 }

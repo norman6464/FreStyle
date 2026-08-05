@@ -7,23 +7,19 @@ import (
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository/repofakes"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
 
-// chapterViewRepo は UserChapterViewRepository の生成 fake に、このテストが使う
-// GetLastViewedByUserAndCourse だけを差し込んで返す。
-func chapterViewRepo(lastViewed *domain.UserChapterView, getErr error) *repofakes.FakeUserChapterViewRepository {
-	return &repofakes.FakeUserChapterViewRepository{
-		GetLastViewedByUserAndCourseFunc: func(context.Context, uint64, uint64) (*domain.UserChapterView, error) {
-			if getErr != nil {
-				return nil, getErr
-			}
-			return lastViewed, nil
-		},
-	}
+// chapterViewRepo は UserChapterViewRepository の mock に、このテストが使う
+// GetLastViewedByUserAndCourse の応答だけを設定して返す。
+func chapterViewRepo(lastViewed *domain.UserChapterView, getErr error) *mockChapterViewRepo {
+	repo := &mockChapterViewRepo{}
+	repo.On("GetLastViewedByUserAndCourse", mock.Anything, mock.Anything, mock.Anything).
+		Return(lastViewed, getErr).Maybe()
+	return repo
 }
 
 func Test_最終閲覧章_履歴があれば返す(t *testing.T) {

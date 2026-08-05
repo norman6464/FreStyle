@@ -7,39 +7,38 @@ import (
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository/repofakes"
+	"github.com/stretchr/testify/mock"
 )
 
-// appStore は fake が記録した申請。
+// appStore は mock が記録した申請。
 type appStore struct{ created *domain.CompanyApplication }
 
-// appRepo は Create だけを差し込んだ CompanyApplicationRepository の fake を返す。
-func appRepo(err error) (*repofakes.FakeCompanyApplicationRepository, *appStore) {
+// appRepo は Create の応答を設定した CompanyApplicationRepository の mock を返す。
+func appRepo(createErr error) (*mockCompanyAppRepo, *appStore) {
 	st := &appStore{}
-	repo := &repofakes.FakeCompanyApplicationRepository{
-		CreateFunc: func(_ context.Context, app *domain.CompanyApplication) error {
-			if err != nil {
-				return err
+	repo := &mockCompanyAppRepo{}
+	repo.On("Create", mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			if createErr == nil {
+				app := args.Get(1).(*domain.CompanyApplication)
+				app.ID = 1
+				st.created = app
 			}
-			app.ID = 1
-			st.created = app
-			return nil
-		},
-	}
+		}).Return(createErr).Maybe()
 	return repo, st
 }
 
-// usersForApp は ListByRole で super_admin だけを返す UserRepository の fake。
-// 残り 11 メソッドは生成 fake がゼロ値を返すので no-op を書かなくてよい。
-func usersForApp(admins []domain.User) *repofakes.FakeUserRepository {
-	return &repofakes.FakeUserRepository{
-		ListByRoleFunc: func(_ context.Context, role string) ([]domain.User, error) {
-			if role == domain.RoleSuperAdmin {
-				return admins, nil
-			}
-			return nil, nil
-		},
-	}
+// usersForApp は ListByRole で super_admin だけを返す UserRepository の mock。
+func usersForApp(admins []domain.User) *mockUserRepo {
+	repo := &mockUserRepo{}
+	repo.On("ListByRole", mock.Anything, domain.RoleSuperAdmin).Return(admins, nil).Maybe()
+	return repo
+}
+
+// mustAppRepo は記録を使わない場面向けに mock だけを返す。
+func mustAppRepo() *mockCompanyAppRepo {
+	repo, _ := appRepo(nil)
+	return repo
 }
 
 type recordingNotifRepo struct {
@@ -201,10 +200,4 @@ func Test_会社申請作成_通知はまとめて1回で書き込む(t *testing
 			}
 		})
 	}
-}
-
-// mustAppRepo は記録を使わない場面向けに fake だけを返す。
-func mustAppRepo() *repofakes.FakeCompanyApplicationRepository {
-	repo, _ := appRepo(nil)
-	return repo
 }

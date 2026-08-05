@@ -7,19 +7,19 @@ import (
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository/repofakes"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
 
-// progressStore は進捗 fake が記録する状態(course クラスタのテストで共有)。
+// progressStore は進捗 mock が記録する状態(course クラスタのテストで共有)。
 type progressStore struct {
 	completed   map[uint64]uint64 // materialID -> courseID
 	countCalled bool
 }
 
-// progressFakeConfig は進捗 fake の応答設定。ゼロ値はすべて「空を返す」。
+// progressFakeConfig は進捗 mock の応答設定。ゼロ値はすべて「空を返す」。
 type progressFakeConfig struct {
 	listRows    []domain.UserLessonProgress
 	completeErr error
@@ -27,39 +27,30 @@ type progressFakeConfig struct {
 	countErr    error
 }
 
-// progressRepo は LessonProgressRepository の生成 fake に、このクラスタが使う
-// メソッドだけを差し込んで返す。
-func progressRepo(cfg progressFakeConfig) (*repofakes.FakeLessonProgressRepository, *progressStore) {
+// progressRepo は LessonProgressRepository の mock に、このクラスタが使う応答を
+// 設定して返す。
+func progressRepo(cfg progressFakeConfig) (*mockProgressRepo, *progressStore) {
 	st := &progressStore{completed: map[uint64]uint64{}}
-	repo := &repofakes.FakeLessonProgressRepository{
-		MarkCompletedFunc: func(_ context.Context, _, materialID, courseID uint64) (bool, error) {
-			if cfg.completeErr != nil {
-				return false, cfg.completeErr
+	repo := &mockProgressRepo{}
+	repo.On("MarkCompleted", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			if cfg.completeErr == nil {
+				st.completed[args.Get(2).(uint64)] = args.Get(3).(uint64)
 			}
-			_, alreadyDone := st.completed[materialID]
-			st.completed[materialID] = courseID
-			return !alreadyDone, nil
-		},
-		MarkIncompleteFunc: func(_ context.Context, _, materialID uint64) error {
-			delete(st.completed, materialID)
-			return nil
-		},
-		ListByUserFunc: func(context.Context, uint64) ([]domain.UserLessonProgress, error) {
-			return cfg.listRows, nil
-		},
-		CountCompletedByUserGroupedByCourseFunc: func(context.Context, uint64) (map[uint64]int, error) {
-			st.countCalled = true
-			if cfg.countErr != nil {
-				return nil, cfg.countErr
-			}
-			return cfg.counts, nil
-		},
-	}
+		}).Return(true, cfg.completeErr).Maybe()
+	repo.On("MarkIncomplete", mock.Anything, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			delete(st.completed, args.Get(2).(uint64))
+		}).Return(nil).Maybe()
+	repo.On("ListByUser", mock.Anything, mock.Anything).Return(cfg.listRows, nil).Maybe()
+	repo.On("CountCompletedByUserGroupedByCourse", mock.Anything, mock.Anything).
+		Run(func(mock.Arguments) { st.countCalled = true }).
+		Return(cfg.counts, cfg.countErr).Maybe()
 	return repo, st
 }
 
 // publishedSetup は「自社・公開教材・公開コース」の正常に完了できる組み合わせを作る。
-func publishedSetup(materialID, companyID, courseID uint64) (*repofakes.FakeTeachingMaterialRepository, *repofakes.FakeCourseRepository) {
+func publishedSetup(materialID, companyID, courseID uint64) (*mockMaterialRepo, *mockCourseRepo) {
 	mat, _ := materialRepo(materialFakeConfig{get: &domain.TeachingMaterial{
 		ID: materialID, CompanyID: companyID, CourseID: courseID, IsPublished: true,
 	}})

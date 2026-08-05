@@ -58,14 +58,36 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 	var inv *domain.AdminInvitation
 	if u.invitations != nil {
 		if invitationToken != "" {
-			inv, _ = u.invitations.FindPendingByToken(ctx, invitationToken)
+			var findErr error
+			inv, findErr = u.invitations.FindPendingByToken(ctx, invitationToken)
+			if findErr != nil {
+				return false, fmt.Errorf(
+					"find pending invitation by token: %w",
+					findErr,
+				)
+			}
 		}
+
 		if inv == nil && email != "" {
-			inv, _ = u.invitations.FindPendingByEmail(ctx, email)
+			var findErr error
+			inv, findErr = u.invitations.FindPendingByEmail(ctx, email)
+			if findErr != nil {
+				return false, fmt.Errorf(
+					"find pending invitation by email: %w",
+					findErr,
+				)
+			}
 		}
 	}
 
-	existing, _ := u.users.FindByCognitoSub(ctx, sub)
+	existing, findErr := u.users.FindByCognitoSub(ctx, sub)
+	if findErr != nil {
+		return false, fmt.Errorf(
+			"find user by cognito sub: %w",
+			findErr,
+		)
+	}
+
 	if existing != nil {
 		if oidcName != "" && existing.Email != "" && existing.Name == existing.Email {
 			if err := u.users.UpdateName(ctx, existing.ID, oidcName); err != nil {
@@ -77,11 +99,25 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 			_ = u.users.UpdateRole(ctx, existing.ID, domain.RoleSuperAdmin)
 		}
 		if inv != nil && existing.Role != domain.RoleSuperAdmin {
-			if existing.Role == domain.RoleTrainee && inv.Role == domain.RoleCompanyAdmin {
-				if err := u.users.UpdateRole(ctx, existing.ID, domain.RoleCompanyAdmin); err != nil {
-					log.Printf("upsertUserFromIDToken: existing user role upgrade failed userID=%d: %v", existing.ID, err)
+			if !isCognitoAdmin &&
+				existing.Role == domain.RoleTrainee &&
+				inv.Role == domain.RoleCompanyAdmin {
+				if err := u.users.UpdateRole(
+					ctx,
+					existing.ID,
+					domain.RoleCompanyAdmin,
+				); err != nil {
+					log.Printf(
+						"upsertUserFromIDToken: existing user role update failed userID=%d: %v",
+						existing.ID,
+						err,
+					)
 				} else {
-					log.Printf("upsertUserFromIDToken: existing user upgraded trainee→company_admin userID=%d email=%s", existing.ID, email)
+					log.Printf(
+						"upsertUserFromIDToken: existing user updated trainee→company_admin userID=%d email=%s",
+						existing.ID,
+						email,
+					)
 				}
 			}
 			if inv.CompanyID != 0 && (existing.CompanyID == nil || *existing.CompanyID != inv.CompanyID) {
@@ -117,9 +153,12 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 		role = domain.RoleSuperAdmin
 	}
 	if inv != nil {
-		if inv.Role == domain.RoleCompanyAdmin || inv.Role == domain.RoleTrainee {
+		if !isCognitoAdmin &&
+			(inv.Role == domain.RoleCompanyAdmin ||
+				inv.Role == domain.RoleTrainee) {
 			role = inv.Role
 		}
+
 		cid := inv.CompanyID
 		companyID = &cid
 		acceptedInvID = inv.ID

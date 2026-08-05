@@ -2,6 +2,8 @@ package usecase
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"testing"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
@@ -18,9 +20,14 @@ type upsertUserRepoSpy struct {
 }
 
 type upsertInvitationRepoSpy struct {
-	pending       *domain.AdminInvitation
-	updatedID     uint64
-	updatedStatus string
+	pending         *domain.AdminInvitation
+	pendingByToken  *domain.AdminInvitation
+	tokenFindErr    error
+	emailFindErr    error
+	tokenFindCalled bool
+	emailFindCalled bool
+	updatedID       uint64
+	updatedStatus   string
 }
 
 func (s *upsertInvitationRepoSpy) ListAll(
@@ -40,12 +47,21 @@ func (s *upsertInvitationRepoSpy) FindPendingByEmail(
 	_ context.Context,
 	_ string,
 ) (*domain.AdminInvitation, error) {
-	return s.pending, nil
+	s.emailFindCalled = true
+	return s.pending, s.emailFindErr
 }
 
 func (s *upsertInvitationRepoSpy) FindPendingByToken(
 	_ context.Context,
 	_ string,
+) (*domain.AdminInvitation, error) {
+	s.tokenFindCalled = true
+	return s.pendingByToken, s.tokenFindErr
+}
+
+func (s *upsertInvitationRepoSpy) FindByID(
+	_ context.Context,
+	_ uint64,
 ) (*domain.AdminInvitation, error) {
 	return nil, nil
 }
@@ -257,5 +273,147 @@ func Test_UpsertUserFromIDToken_CognitoAdminは招待なしでもSuperAdminと�
 	}
 	if users.created.Role != domain.RoleSuperAdmin {
 		t.Fatalf("role = %q, want %q", users.created.Role, domain.RoleSuperAdmin)
+	}
+}
+
+func Test_UpsertUserFromIDToken_検索エラーを返す(t *testing.T) {
+	tokenFindErr := errors.New("token lookup failed")
+	emailFindErr := errors.New("email lookup failed")
+	userFindErr := errors.New("user lookup failed")
+
+	tests := []struct {
+		name        string
+		users       *stubUserRepo
+		invitations *upsertInvitationRepoSpy
+		input       UpsertUserFromIDTokenInput
+		wantErr     error
+		wantMessage string
+	}{
+		{
+			name:  "トークンによる招待検索が失敗する",
+			users: &stubUserRepo{},
+			invitations: &upsertInvitationRepoSpy{
+				tokenFindErr: tokenFindErr,
+			},
+			input: UpsertUserFromIDTokenInput{
+				CognitoSub:      "token-error-sub",
+				InvitationToken: "invitation-token",
+			},
+			wantErr:     tokenFindErr,
+			wantMessage: "find pending invitation by token",
+		},
+		{
+			name:  "メールによる招待検索が失敗する",
+			users: &stubUserRepo{},
+			invitations: &upsertInvitationRepoSpy{
+				emailFindErr: emailFindErr,
+			},
+			input: UpsertUserFromIDTokenInput{
+				CognitoSub: "email-error-sub",
+				Email:      "user@example.com",
+			},
+			wantErr:     emailFindErr,
+			wantMessage: "find pending invitation by email",
+		},
+		{
+			name: "ユーザー検索が失敗する",
+			users: &stubUserRepo{
+				err: userFindErr,
+			},
+			input: UpsertUserFromIDTokenInput{
+				CognitoSub: "user-error-sub",
+			},
+			wantErr:     userFindErr,
+			wantMessage: "find user by cognito sub",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			uc := NewUpsertUserFromIDTokenUseCase(
+				tc.users,
+				tc.invitations,
+			)
+
+			allowed, err := uc.Execute(
+				context.Background(),
+				tc.input,
+			)
+
+			if allowed {
+				t.Fatal("検索エラー時に許可してはいけない")
+			}
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("error = %v, want wrapped %v", err, tc.wantErr)
+			}
+			if !strings.Contains(err.Error(), tc.wantMessage) {
+				t.Fatalf(
+					"error = %q, want message containing %q",
+					err.Error(),
+					tc.wantMessage,
+				)
+			}
+		})
+	}
+}
+
+func Test_UpsertUserFromIDToken_招待トークンをメールより優先する(t *testing.T) {
+	users := &upsertUserRepoSpy{}
+	invitations := &upsertInvitationRepoSpy{
+		pendingByToken: &domain.AdminInvitation{
+			ID:        10,
+			Role:      domain.RoleTrainee,
+			CompanyID: 100,
+			Name:      "Token User",
+			Status:    domain.InvitationStatusPending,
+		},
+		pending: &domain.AdminInvitation{
+			ID:        20,
+			Role:      domain.RoleCompanyAdmin,
+			CompanyID: 200,
+			Name:      "Email User",
+			Status:    domain.InvitationStatusPending,
+		},
+	}
+	uc := NewUpsertUserFromIDTokenUseCase(users, invitations)
+
+	allowed, err := uc.Execute(
+		context.Background(),
+		UpsertUserFromIDTokenInput{
+			CognitoSub:      "invited-sub",
+			Email:           "invited@example.com",
+			InvitationToken: "invitation-token",
+		},
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !allowed {
+		t.Fatal("有効なトークン招待があるユーザーは許可されるべき")
+	}
+	if !invitations.tokenFindCalled {
+		t.Fatal("トークン検索が呼ばれていない")
+	}
+	if invitations.emailFindCalled {
+		t.Fatal("トークンで招待が見つかった場合はメール検索を呼んではいけない")
+	}
+	if users.created == nil {
+		t.Fatal("ユーザーが作成されていない")
+	}
+	if users.created.Role != domain.RoleTrainee {
+		t.Fatalf(
+			"role = %q, want %q",
+			users.created.Role,
+			domain.RoleTrainee,
+		)
+	}
+	if users.created.CompanyID == nil || *users.created.CompanyID != 100 {
+		t.Fatalf("companyID = %v, want 100", users.created.CompanyID)
+	}
+	if users.created.Name != "Token User" {
+		t.Fatalf("name = %q, want %q", users.created.Name, "Token User")
+	}
+	if invitations.updatedID != 10 {
+		t.Fatalf("accepted invitation ID = %d, want 10", invitations.updatedID)
 	}
 }

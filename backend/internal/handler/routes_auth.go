@@ -18,6 +18,7 @@ func registerAuthPublicRoutes(g *gin.RouterGroup, deps *routeDeps) *AuthHandler 
 	getCurrentUser := usecase.NewGetCurrentUserUseCase(deps.userRepo)
 	invitations := persistence.NewAdminInvitationRepository(deps.db)
 	aiAccess := usecase.NewAiChatEnabledForUserUseCase(persistence.NewCompanyRepository(deps.db))
+	upsertUser := usecase.NewUpsertUserFromIDTokenUseCase(deps.userRepo, invitations)
 
 	// USER_PASSWORD_AUTH 用の authenticator。AWS 認証情報の解決に失敗しても起動は止めず、
 	// nil のまま渡して /auth/cognito/login だけ 500 にする（Hosted UI ログインには影響させない）。
@@ -28,7 +29,7 @@ func registerAuthPublicRoutes(g *gin.RouterGroup, deps *routeDeps) *AuthHandler 
 		pwAuth = pa
 	}
 
-	authHandler := NewAuthHandler(getCurrentUser, deps.userRepo, invitations, &deps.cfg.Cognito, pwAuth, aiAccess)
+	authHandler := NewAuthHandler(getCurrentUser, upsertUser, deps.userRepo, &deps.cfg.Cognito, pwAuth, aiAccess)
 
 	g.POST("/auth/logout", authHandler.Logout)
 	// login（認可コード→token 交換）は認証不要のため、総当たり緩和に per-IP 制限を掛ける。

@@ -201,7 +201,7 @@ export default function LandingPage() {
                   </Link>
                 </div>
                 <div className="mt-11">
-                  <p className="text-[11.5px] font-bold tracking-[0.12em] text-slate-400">演習対応言語</p>
+                  <p className="text-[11.5px] font-bold tracking-[0.12em] text-slate-500">演習対応言語</p>
                   <ul className="mt-2.5 flex flex-wrap justify-center gap-1.5 lg:justify-start" aria-label="演習対応言語">
                     {LANGUAGES.map((lang) => (
                       <li
@@ -222,7 +222,7 @@ export default function LandingPage() {
                     <span className="h-2.5 w-2.5 rounded-full bg-slate-200" />
                     <span className="h-2.5 w-2.5 rounded-full bg-slate-200" />
                     <span className="h-2.5 w-2.5 rounded-full bg-slate-200" />
-                    <span className="ml-2.5 font-mono text-xs text-slate-400">コーディング演習 — greet.js</span>
+                    <span className="ml-2.5 font-mono text-xs text-slate-500">コーディング演習 — greet.js</span>
                     <span className="ml-auto rounded-md border border-brand-200 bg-brand-50 px-2.5 py-0.5 text-[11.5px] font-bold text-brand-700">
                       ▶ 実行して採点
                     </span>
@@ -266,7 +266,7 @@ export default function LandingPage() {
                   <span className="block h-1.5 w-24 overflow-hidden rounded-full bg-slate-200">
                     <span className="block h-full w-[68%] rounded-full bg-brand-600" />
                   </span>
-                  <span className="font-mono text-[11.5px] font-bold text-slate-400">Docker 入門 — 68%</span>
+                  <span className="font-mono text-[11.5px] font-bold text-slate-500">Docker 入門 — 68%</span>
                 </div>
               </div>
             </div>
@@ -282,7 +282,7 @@ export default function LandingPage() {
                     index % 2 === 1 ? 'border-l border-slate-200 sm:border-l' : ''
                   } ${index >= 2 ? 'border-t border-slate-200 sm:border-t-0' : ''}`}
                 >
-                  <dt className="order-2 mt-1 text-xs font-semibold text-slate-400">{stat.label}</dt>
+                  <dt className="order-2 mt-1 text-xs font-semibold text-slate-500">{stat.label}</dt>
                   <dd className="order-1 font-mono text-3xl font-extrabold tracking-tight [font-variant-numeric:tabular-nums]">
                     {stat.value}
                     <span className="ml-0.5 text-[15px] font-bold text-slate-600">{stat.unit}</span>
@@ -351,7 +351,7 @@ export default function LandingPage() {
                   ].map((row) => (
                     <div
                       key={row.name}
-                      className="grid grid-cols-[7.5em_1fr_3em] items-center gap-2.5 text-[11.5px] font-semibold text-slate-400"
+                      className="grid grid-cols-[7.5em_1fr_3em] items-center gap-2.5 text-[11.5px] font-semibold text-slate-500"
                     >
                       <span>{row.name}</span>
                       <span className="block h-[7px] overflow-hidden rounded bg-slate-100">

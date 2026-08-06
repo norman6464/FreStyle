@@ -108,6 +108,12 @@ export default {
         'inkwell-draw': 'inkwellDraw 0.22s ease-out forwards',
         // 線形プログレスの indeterminate 帯（左から右へ流れる）。
         'inkwell-bar': 'inkwellBar 1.4s ease-in-out infinite',
+        // LP ヒーローの「タイプ → 採点 → 合格」演出。delay は使用側で
+        // [animation-delay:*] を付けて段差を作る（初期状態は opacity-0 を併用）。
+        'lp-type': 'lpAppear 0.01s linear forwards',
+        'lp-stamp': 'lpStamp 0.4s cubic-bezier(0.2, 0.9, 0.3, 1.2) 2.4s forwards',
+        'lp-blink': 'lpBlink 1s steps(1) infinite',
+        'lp-drift': 'lpDrift 7s ease-in-out infinite',
       },
       keyframes: {
         fadeIn: {
@@ -139,6 +145,18 @@ export default {
           '0%': { transform: 'translateX(-100%) scaleX(0.3)' },
           '50%': { transform: 'translateX(0%) scaleX(0.6)' },
           '100%': { transform: 'translateX(100%) scaleX(0.3)' },
+        },
+        lpAppear: {
+          to: { opacity: '1' },
+        },
+        lpStamp: {
+          to: { opacity: '1', transform: 'none' },
+        },
+        lpBlink: {
+          '50%': { opacity: '0' },
+        },
+        lpDrift: {
+          '50%': { transform: 'translateY(-7px)' },
         },
       },
     },

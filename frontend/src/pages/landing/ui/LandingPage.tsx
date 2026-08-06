@@ -22,14 +22,6 @@ const SITE_URL = 'https://frestyle.jp/';
 
 const LANGUAGES = ['PHP', 'Java', 'JavaScript', 'TypeScript', 'Go', 'Ruby', 'C', 'C++', 'SQL'];
 
-// 提供規模の実数（教材リポの seed 実績に合わせて更新する）。
-const STATS: { value: string; unit: string; label: string }[] = [
-  { value: '19', unit: 'コース', label: '実務直結のカリキュラム' },
-  { value: '225', unit: '章', label: '章立てで途中から再開' },
-  { value: '9', unit: '言語', label: 'ブラウザで書いて即採点' },
-  { value: '4', unit: 'ステップ', label: '申請から研修開始まで' },
-];
-
 const FEATURES: { icon: typeof BookOpenIcon; title: string; body: string }[] = [
   {
     icon: ChatBubbleLeftRightIcon,
@@ -272,25 +264,6 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* 統計バンド(提供規模の実数) */}
-          <div className="relative border-y border-slate-200 bg-slate-50">
-            <dl className="mx-auto grid max-w-6xl grid-cols-2 px-6 sm:grid-cols-4">
-              {STATS.map((stat, index) => (
-                <div
-                  key={stat.label}
-                  className={`px-4 py-7 text-center ${index > 0 ? 'sm:border-l sm:border-slate-200' : ''} ${
-                    index % 2 === 1 ? 'border-l border-slate-200 sm:border-l' : ''
-                  } ${index >= 2 ? 'border-t border-slate-200 sm:border-t-0' : ''}`}
-                >
-                  <dt className="order-2 mt-1 text-xs font-semibold text-slate-500">{stat.label}</dt>
-                  <dd className="order-1 font-mono text-3xl font-extrabold tracking-tight [font-variant-numeric:tabular-nums]">
-                    {stat.value}
-                    <span className="ml-0.5 text-[15px] font-bold text-slate-600">{stat.unit}</span>
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          </div>
         </section>
 
         {/* FreStyle とは */}

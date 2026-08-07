@@ -64,8 +64,13 @@ describe('LandingPage', () => {
 
   it('Before/After 比較表を行見出し付きの table で表示する', () => {
     renderLanding(false);
-    const table = screen.getByRole('table');
-    expect(table).toBeInTheDocument();
+    // getByRole は未検出時に例外を投げるため、取得自体が存在検証になる
+    screen.getByRole('table');
+    // 横スクロールする表はキーボードでも操作できる必要がある(WCAG 2.1.1)
+    expect(screen.getByRole('region', { name: '従来の研修と FreStyle の比較' })).toHaveAttribute(
+      'tabindex',
+      '0',
+    );
     expect(screen.getByRole('rowheader', { name: '従来の研修' })).toBeInTheDocument();
     expect(screen.getByRole('rowheader', { name: 'FreStyle' })).toBeInTheDocument();
     for (const col of ['教材と学び方', '質問対応', '進捗の把握']) {

@@ -19,6 +19,8 @@ import {
   UserPlusIcon,
 } from '@heroicons/react/24/outline';
 import PublicHeader from '@/shared/ui/PublicHeader';
+import SectionHead from './SectionHead';
+import CtaStrip from './CtaStrip';
 import { useAppSelector, useAppDispatch } from '@/shared/lib/store';
 import { useDocumentMeta } from '@/shared/lib/hooks/useDocumentMeta';
 import { AuthRepository, setAuthData } from '@/entities/user';
@@ -126,20 +128,23 @@ const REPORT_ROWS: { name: string; pct: number }[] = [
 ];
 
 // Before/After 比較表。列 = 研修の観点、行 = 従来の研修 / FreStyle。
-const BA_COLUMNS = ['教材と学び方', '質問対応', '進捗の把握'];
-const BA_BEFORE: { t: string; body: string }[] = [
-  { t: '読んで終わり', body: '座学とスライド中心。理解した「つもり」のまま配属日を迎えてしまう。' },
+const COMPARISON_COLUMNS = ['教材と学び方', '質問対応', '進捗の把握'];
+const COMPARISON_BEFORE: { heading: string; body: string }[] = [
+  { heading: '読んで終わり', body: '座学とスライド中心。理解した「つもり」のまま配属日を迎えてしまう。' },
   {
-    t: '先輩の手が空くまで待つ',
+    heading: '先輩の手が空くまで待つ',
     body: '質問のたびに先輩の作業が止まる。聞きづらくて詰まったまま進むことも。',
   },
-  { t: '日報と口頭で確認', body: '誰がどこで詰まっているかが見えず、フォローが後手に回る。' },
+  { heading: '日報と口頭で確認', body: '誰がどこで詰まっているかが見えず、フォローが後手に回る。' },
 ];
-const BA_AFTER: { t: string; body: string }[] = [
-  { t: '書いて、即採点', body: '章を読んだらすぐ演習。ブラウザで書いて採点され、「できる」まで届く。' },
-  { t: 'AI にその場で質問', body: '学習の流れを止めずに疑問を解消。先輩の時間を奪わない。' },
+const COMPARISON_AFTER: { heading: string; body: string }[] = [
   {
-    t: 'レポートと一覧で見える',
+    heading: '書いて、即採点',
+    body: '章を読んだらすぐ演習。ブラウザで書いて採点され、「できる」まで届く。',
+  },
+  { heading: 'AI にその場で質問', body: '学習の流れを止めずに疑問を解消。先輩の時間を奪わない。' },
+  {
+    heading: 'レポートと一覧で見える',
     body: '受講者の伸びとつまずきを研修担当が同じ場所で把握。フォローが先手になる。',
   },
 ];
@@ -212,38 +217,6 @@ const SECURITY: { icon: typeof ShieldCheckIcon; title: string; body: string }[] 
 // 濃紺ヒーロー・最終 CTA で共有する「方眼紙」モチーフ(エンジニアの学習ノート)。
 const GRID_PATTERN_DARK =
   'bg-[linear-gradient(to_right,rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:38px_38px]';
-
-/** セクション見出し(eyebrow + タイトル + リード)。on dark は配色だけ差し替える。 */
-function SectionHead({ eyebrow, title, lede, dark }: { eyebrow: string; title: string; lede?: string; dark?: boolean }) {
-  return (
-    <div className="text-center">
-      <p className={`text-xs font-bold tracking-[0.16em] ${dark ? 'text-[#9db8f5]' : 'text-brand-700'}`}>{eyebrow}</p>
-      <h2
-        className={`mt-3 text-[1.75rem] font-extrabold leading-snug tracking-tight sm:text-[2rem] ${dark ? 'text-white' : ''}`}
-      >
-        {title}
-      </h2>
-      {lede && <p className={`mt-3 ${dark ? 'text-[#c7d5f7]' : 'text-slate-600'}`}>{lede}</p>}
-    </div>
-  );
-}
-
-/** セクション間で繰り返す小型 CTA(白ピル + 申請ボタン)。反復導線で申請への距離を縮める。 */
-function CtaStrip({ text }: { text: string }) {
-  return (
-    <div className="flex justify-center bg-white pb-14">
-      <span className="inline-flex items-center gap-4 rounded-full border border-slate-200 bg-white py-2.5 pl-6 pr-3 text-[13.5px] font-bold text-slate-600 shadow-[0_10px_30px_-18px_rgba(23,36,92,0.35)]">
-        {text}
-        <Link
-          to="/company-application"
-          className="rounded-full bg-brand-600 px-5 py-2 text-[13px] font-bold text-white transition hover:bg-brand-700"
-        >
-          導入・利用申請
-        </Link>
-      </span>
-    </div>
-  );
-}
 
 /**
  * LandingPage は未ログイン/検索ボット向けの公開トップ。SEO のインデックス対象。
@@ -457,7 +430,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <CtaStrip text="研修の立ち上げは 4 ステップで完了" />
+        <CtaStrip text="受講者の学習は 4 ステップで進む" />
 
         {/* 学習の進み方(ダーク): 4 ステップ + 学習レポートのモック */}
         <section id="flow" className="bg-[linear-gradient(180deg,#0e1c47_0%,#16295f_100%)]">
@@ -521,12 +494,18 @@ export default function LandingPage() {
             title="FreStyle で変わる新人研修"
             lede="「教える・答える・把握する」の手間を、プラットフォームに任せる。"
           />
-          <div className="mt-11 overflow-x-auto rounded-[18px] border border-slate-200">
+          {/* 表は狭い画面で横スクロールするため、キーボードでも操作できるようフォーカス可能にする */}
+          <div
+            role="region"
+            aria-label="従来の研修と FreStyle の比較"
+            tabIndex={0}
+            className="mt-11 overflow-x-auto rounded-[18px] border border-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+          >
             <table className="w-full min-w-[640px] border-collapse text-sm">
               <thead>
                 <tr className="bg-slate-50 text-left text-[13px] text-slate-500">
                   <th scope="col" className="w-[9em] border-b border-slate-200 px-5 py-3.5" />
-                  {BA_COLUMNS.map((col) => (
+                  {COMPARISON_COLUMNS.map((col) => (
                     <th
                       key={col}
                       scope="col"
@@ -545,9 +524,9 @@ export default function LandingPage() {
                   >
                     従来の研修
                   </th>
-                  {BA_BEFORE.map((cell) => (
-                    <td key={cell.t} className="border-b border-l border-slate-200 px-5 py-5">
-                      <span className="block text-[15px] font-extrabold text-slate-500">{cell.t}</span>
+                  {COMPARISON_BEFORE.map((cell) => (
+                    <td key={cell.heading} className="border-b border-l border-slate-200 px-5 py-5">
+                      <span className="block text-[15px] font-extrabold text-slate-500">{cell.heading}</span>
                       <p className="mt-1 text-[13px] leading-relaxed text-slate-600">{cell.body}</p>
                     </td>
                   ))}
@@ -559,9 +538,11 @@ export default function LandingPage() {
                   >
                     FreStyle
                   </th>
-                  {BA_AFTER.map((cell) => (
-                    <td key={cell.t} className="border-l border-slate-200 bg-brand-50 px-5 py-5">
-                      <span className="block text-[15px] font-extrabold text-emerald-600">✓ {cell.t}</span>
+                  {COMPARISON_AFTER.map((cell) => (
+                    <td key={cell.heading} className="border-l border-slate-200 bg-brand-50 px-5 py-5">
+                      <span className="block text-[15px] font-extrabold text-emerald-600">
+                        ✓ {cell.heading}
+                      </span>
                       <p className="mt-1 text-[13px] leading-relaxed text-slate-600">{cell.body}</p>
                     </td>
                   ))}

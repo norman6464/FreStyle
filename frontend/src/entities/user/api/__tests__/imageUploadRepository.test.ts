@@ -28,6 +28,7 @@ describe('ImageUploadRepository', () => {
 
     expect(mockedPost).toHaveBeenCalledWith('/api/v2/notes/images/upload-url', {
       contentType: 'image/png',
+      sizeBytes: file.size,
     });
     expect(mockedPut).toHaveBeenCalledWith('https://s3/put?sig', file, {
       headers: { 'Content-Type': 'image/png' },

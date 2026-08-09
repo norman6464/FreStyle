@@ -186,25 +186,23 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	middleware.SetAccessTokenCookie(c, tok.AccessToken, tok.ExpiresIn)
-	middleware.SetRefreshTokenCookie(c, tok.RefreshToken)
-
 	// Callback と同じ招待ゲート。内部エラー(DB/decode)は 500、招待拒否は 403 に切り分ける。
 	allowed, upErr := h.upsertUserFromIDToken(c, tok.IDToken, "")
 	if upErr != nil {
 		log.Printf("cognito password login: upsert failed: %v", upErr)
-		middleware.ClearAuthCookies(c)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
 		return
 	}
 	if !allowed {
-		middleware.ClearAuthCookies(c)
 		c.JSON(http.StatusForbidden, gin.H{
 			"error":   "invitation_required",
 			"message": "FreStyle のご利用には管理者からの招待が必要です。招待メールに記載されたリンクからログインしてください。",
 		})
 		return
 	}
+
+	middleware.SetAccessTokenCookie(c, tok.AccessToken, tok.ExpiresIn)
+	middleware.SetRefreshTokenCookie(c, tok.RefreshToken)
 
 	c.JSON(http.StatusOK, gin.H{"message": "ログインしました。"})
 }
@@ -246,26 +244,24 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 		return
 	}
 
-	middleware.SetAccessTokenCookie(c, tok.AccessToken, tok.ExpiresIn)
-	middleware.SetRefreshTokenCookie(c, tok.RefreshToken)
-
 	// 初回ログインで users 行が無いと /auth/me が 404 になるため upsert する。
-	// 内部エラー(DB/decode)は 500、招待拒否は 403。拒否時は Cookie をクリアしてセッションを残さない。
+	// 内部エラー(DB/decode)は 500、招待拒否は 403 に切り分ける。
 	allowed, upErr := h.upsertUserFromIDToken(c, tok.IDToken, req.InvitationToken)
 	if upErr != nil {
 		log.Printf("cognito callback: upsert failed: %v", upErr)
-		middleware.ClearAuthCookies(c)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
 		return
 	}
 	if !allowed {
-		middleware.ClearAuthCookies(c)
 		c.JSON(http.StatusForbidden, gin.H{
 			"error":   "invitation_required",
 			"message": "FreStyle のご利用には管理者からの招待が必要です。招待メールに記載されたリンクからログインしてください。",
 		})
 		return
 	}
+
+	middleware.SetAccessTokenCookie(c, tok.AccessToken, tok.ExpiresIn)
+	middleware.SetRefreshTokenCookie(c, tok.RefreshToken)
 
 	c.JSON(http.StatusOK, gin.H{"message": "ログインしました。"})
 }

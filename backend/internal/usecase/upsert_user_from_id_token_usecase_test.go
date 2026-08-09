@@ -17,6 +17,8 @@ type upsertUserRepoSpy struct {
 	findByCognitoSubCalls int
 	createCalls           int
 	createErr             error
+	nameUpdateCalls       int
+	nameUpdateErr         error
 	roleUpdateCalls       int
 	roleUpdateErr         error
 	companyUpdateCalls    int
@@ -179,6 +181,15 @@ func (s *upsertUserRepoSpy) Create(
 	return nil
 }
 
+func (s *upsertUserRepoSpy) UpdateName(
+	_ context.Context,
+	_ uint64,
+	_ string,
+) error {
+	s.nameUpdateCalls++
+	return s.nameUpdateErr
+}
+
 func (s *upsertUserRepoSpy) UpdateRole(
 	_ context.Context,
 	userID uint64,
@@ -329,7 +340,7 @@ func Test_UpsertUserFromIDToken_検索エラーを返す(t *testing.T) {
 	tests := []struct {
 		name        string
 		users       *stubUserRepo
-		invitations *upsertInvitationRepoSpy
+		invitations repository.AdminInvitationRepository
 		input       UpsertUserFromIDTokenInput
 		wantErr     error
 		wantMessage string
@@ -668,12 +679,30 @@ func Test_UpsertUserFromIDToken_既存ユーザー更新エラーを返す(
 	tests := []struct {
 		name                  string
 		invitationRole        string
+		existingName          string
+		inputName             string
 		configure             func(*upsertUserRepoSpy, *upsertInvitationRepoSpy)
+		wantUpdateNameCalls   int
 		wantUpdateStatusCalls int
 	}{
 		{
+			name:           "Name補完に失敗する",
+			invitationRole: domain.RoleTrainee,
+			existingName:   "existing@example.com",
+			inputName:      "OIDC User",
+			configure: func(
+				users *upsertUserRepoSpy,
+				_ *upsertInvitationRepoSpy,
+			) {
+				users.nameUpdateErr = mutationErr
+			},
+			wantUpdateNameCalls:   1,
+			wantUpdateStatusCalls: 0,
+		},
+		{
 			name:           "Role更新に失敗する",
 			invitationRole: domain.RoleCompanyAdmin,
+			existingName:   "Existing User",
 			configure: func(
 				users *upsertUserRepoSpy,
 				_ *upsertInvitationRepoSpy,
@@ -685,6 +714,7 @@ func Test_UpsertUserFromIDToken_既存ユーザー更新エラーを返す(
 		{
 			name:           "CompanyID更新に失敗する",
 			invitationRole: domain.RoleTrainee,
+			existingName:   "Existing User",
 			configure: func(
 				users *upsertUserRepoSpy,
 				_ *upsertInvitationRepoSpy,
@@ -696,6 +726,7 @@ func Test_UpsertUserFromIDToken_既存ユーザー更新エラーを返す(
 		{
 			name:           "招待ステータス更新に失敗する",
 			invitationRole: domain.RoleTrainee,
+			existingName:   "Existing User",
 			configure: func(
 				_ *upsertUserRepoSpy,
 				invitations *upsertInvitationRepoSpy,
@@ -714,7 +745,7 @@ func Test_UpsertUserFromIDToken_既存ユーザー更新エラーを返す(
 						ID:         7,
 						CognitoSub: "existing-user",
 						Email:      "existing@example.com",
-						Name:       "Existing User",
+						Name:       tc.existingName,
 						Role:       domain.RoleTrainee,
 					},
 				},
@@ -739,6 +770,7 @@ func Test_UpsertUserFromIDToken_既存ユーザー更新エラーを返す(
 				UpsertUserFromIDTokenInput{
 					CognitoSub: "existing-user",
 					Email:      "existing@example.com",
+					Name:       tc.inputName,
 				},
 			)
 
@@ -752,6 +784,13 @@ func Test_UpsertUserFromIDToken_既存ユーザー更新エラーを返す(
 					mutationErr,
 				)
 			}
+			if users.nameUpdateCalls != tc.wantUpdateNameCalls {
+				t.Fatalf(
+					"UpdateName calls = %d, want %d",
+					users.nameUpdateCalls,
+					tc.wantUpdateNameCalls,
+				)
+			}
 			if invitations.updateCalls !=
 				tc.wantUpdateStatusCalls {
 				t.Fatalf(
@@ -761,6 +800,66 @@ func Test_UpsertUserFromIDToken_既存ユーザー更新エラーを返す(
 				)
 			}
 		})
+	}
+}
+
+func Test_UpsertUserFromIDToken_既存Cognito管理者は招待を適用しない(
+	t *testing.T,
+) {
+	users := &upsertUserRepoSpy{
+		stubUserRepo: stubUserRepo{
+			user: &domain.User{
+				ID:         70,
+				CognitoSub: "existing-admin",
+				Email:      "admin@example.com",
+				Name:       "Existing Admin",
+				Role:       domain.RoleTrainee,
+			},
+		},
+	}
+	invitations := &upsertInvitationRepoSpy{
+		pending: &domain.AdminInvitation{
+			ID:        70,
+			Role:      domain.RoleCompanyAdmin,
+			CompanyID: 42,
+			Status:    domain.InvitationStatusPending,
+		},
+	}
+	uc := newUpsertUserFromIDTokenUseCaseForTest(users, invitations)
+
+	allowed, err := uc.Execute(
+		context.Background(),
+		UpsertUserFromIDTokenInput{
+			CognitoSub:     "existing-admin",
+			Email:          "admin@example.com",
+			IsCognitoAdmin: true,
+		},
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !allowed {
+		t.Fatal("Cognito管理者は許可されるべき")
+	}
+	if users.roleUpdateCalls != 1 ||
+		users.roleUpdateValue != domain.RoleSuperAdmin {
+		t.Fatalf(
+			"UpdateRole calls = %d, role = %q",
+			users.roleUpdateCalls,
+			users.roleUpdateValue,
+		)
+	}
+	if users.companyUpdateCalls != 0 {
+		t.Fatalf(
+			"UpdateCompanyID calls = %d, want 0",
+			users.companyUpdateCalls,
+		)
+	}
+	if invitations.updateCalls != 0 {
+		t.Fatalf(
+			"UpdateStatus calls = %d, want 0",
+			invitations.updateCalls,
+		)
 	}
 }
 

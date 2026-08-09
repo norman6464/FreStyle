@@ -65,6 +65,8 @@ func (u *UpsertUserFromIDTokenUseCase) updateExistingUser(
 	oidcName string,
 	isCognitoAdmin bool,
 ) error {
+	role := existing.Role
+
 	if u.shouldBackfillName(oidcName, existing) {
 		if err := u.users.UpdateName(ctx, existing.ID, oidcName); err != nil {
 			return fmt.Errorf("update existing user name: %w", err)
@@ -79,9 +81,10 @@ func (u *UpsertUserFromIDTokenUseCase) updateExistingUser(
 		); err != nil {
 			return fmt.Errorf("update existing user admin role: %w", err)
 		}
+		role = domain.RoleSuperAdmin
 	}
 
-	if inv == nil || existing.Role == domain.RoleSuperAdmin {
+	if inv == nil || role == domain.RoleSuperAdmin {
 		return nil
 	}
 

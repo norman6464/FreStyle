@@ -130,7 +130,10 @@ func makeIDToken(t *testing.T, claims map[string]any) string {
 }
 
 // newTestAuthHandler はテスト用 AuthHandler を組み立てる。tokens は使わない。
-func newTestAuthHandler(users *fakeUserRepo, invitations *fakeInvitationRepo) *AuthHandler {
+func newTestAuthHandler(
+	users *fakeUserRepo,
+	invitations *fakeInvitationRepo,
+) *AuthHandler {
 	return &AuthHandler{
 		users:      users,
 		upsertUser: usecase.NewUpsertUserFromIDTokenUseCase(users, invitations),
@@ -272,9 +275,6 @@ func Test_IDトークンからユーザー登録_既存運営管理者は招待�
 	}
 }
 
-// dummy: 使用していないが strings import のリンタを満たすために残す（今後 assert で使う）
-var _ = strings.Contains
-
 // 新規ユーザ作成時に id_token の `name` claim が Name に使われる（email にフォールバックしない）。
 func Test_IDトークンからユーザー登録_新規はOIDC名をメールより優先(t *testing.T) {
 	users := &fakeUserRepo{}
@@ -391,5 +391,25 @@ func Test_IDトークンからユーザー登録_表示名カスタム済みは�
 	}
 	if users.updateNameVal != "" {
 		t.Errorf("expected no backfill, but UpdateName called with %q", users.updateNameVal)
+	}
+}
+
+func Test_IDトークンからユーザー登録_デコード失敗を明示する(t *testing.T) {
+	h := &AuthHandler{}
+
+	allowed, err := h.upsertUserFromIDToken(
+		newGinCtx(),
+		"invalid-id-token",
+		"",
+	)
+
+	if allowed {
+		t.Fatal("不正なIDトークンを許可してはいけない")
+	}
+	if err == nil {
+		t.Fatal("デコードエラーが返されていない")
+	}
+	if !strings.Contains(err.Error(), "failed to decode id_token") {
+		t.Fatalf("error = %q", err.Error())
 	}
 }

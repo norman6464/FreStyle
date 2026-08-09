@@ -36,6 +36,92 @@ func NewUpsertUserFromIDTokenUseCase(
 	}
 }
 
+func (u *UpsertUserFromIDTokenUseCase) shouldBackfillName(
+	oidcName string,
+	existing *domain.User,
+) bool {
+	return oidcName != "" &&
+		existing != nil &&
+		existing.Email != "" &&
+		existing.Name == existing.Email
+}
+
+func (u *UpsertUserFromIDTokenUseCase) shouldUpdateRoleFromInvitation(
+	isCognitoAdmin bool,
+	existing *domain.User,
+	inv *domain.AdminInvitation,
+) bool {
+	return !isCognitoAdmin &&
+		existing != nil &&
+		inv != nil &&
+		existing.Role == domain.RoleTrainee &&
+		inv.Role == domain.RoleCompanyAdmin
+}
+
+func (u *UpsertUserFromIDTokenUseCase) updateExistingUser(
+	ctx context.Context,
+	existing *domain.User,
+	inv *domain.AdminInvitation,
+	oidcName string,
+	isCognitoAdmin bool,
+) error {
+	if u.shouldBackfillName(oidcName, existing) {
+		if err := u.users.UpdateName(ctx, existing.ID, oidcName); err != nil {
+			return fmt.Errorf("update existing user name: %w", err)
+		}
+	}
+
+	if isCognitoAdmin && existing.Role != domain.RoleSuperAdmin {
+		if err := u.users.UpdateRole(
+			ctx,
+			existing.ID,
+			domain.RoleSuperAdmin,
+		); err != nil {
+			return fmt.Errorf("update existing user admin role: %w", err)
+		}
+	}
+
+	if inv == nil || existing.Role == domain.RoleSuperAdmin {
+		return nil
+	}
+
+	if u.shouldUpdateRoleFromInvitation(
+		isCognitoAdmin,
+		existing,
+		inv,
+	) {
+		if err := u.users.UpdateRole(
+			ctx,
+			existing.ID,
+			domain.RoleCompanyAdmin,
+		); err != nil {
+			return fmt.Errorf("update existing user invitation role: %w", err)
+		}
+	}
+
+	if inv.CompanyID != 0 &&
+		(existing.CompanyID == nil ||
+			*existing.CompanyID != inv.CompanyID) {
+		if err := u.users.UpdateCompanyID(
+			ctx,
+			existing.ID,
+			inv.CompanyID,
+		); err != nil {
+			return fmt.Errorf("update existing user company: %w", err)
+		}
+	}
+
+	if err := u.invitations.UpdateStatus(
+		ctx,
+		inv.ID,
+		domain.InvitationStatusAccepted,
+	); err != nil {
+		return fmt.Errorf("accept invitation: %w", err)
+	}
+
+	return nil
+}
+
 // Execute はユーザー情報と招待情報を基にユーザーを作成・更新する。
 func (u *UpsertUserFromIDTokenUseCase) Execute(
 	ctx context.Context,
@@ -89,43 +175,14 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 	}
 
 	if existing != nil {
-		if oidcName != "" && existing.Email != "" && existing.Name == existing.Email {
-			if err := u.users.UpdateName(ctx, existing.ID, oidcName); err != nil {
-				log.Printf("upsertUserFromIDToken: backfill name failed userID=%d: %v", existing.ID, err)
-			}
-		}
-
-		if isCognitoAdmin && existing.Role != domain.RoleSuperAdmin {
-			_ = u.users.UpdateRole(ctx, existing.ID, domain.RoleSuperAdmin)
-		}
-		if inv != nil && existing.Role != domain.RoleSuperAdmin {
-			if !isCognitoAdmin &&
-				existing.Role == domain.RoleTrainee &&
-				inv.Role == domain.RoleCompanyAdmin {
-				if err := u.users.UpdateRole(
-					ctx,
-					existing.ID,
-					domain.RoleCompanyAdmin,
-				); err != nil {
-					log.Printf(
-						"upsertUserFromIDToken: existing user role update failed userID=%d: %v",
-						existing.ID,
-						err,
-					)
-				} else {
-					log.Printf(
-						"upsertUserFromIDToken: existing user updated trainee→company_admin userID=%d email=%s",
-						existing.ID,
-						email,
-					)
-				}
-			}
-			if inv.CompanyID != 0 && (existing.CompanyID == nil || *existing.CompanyID != inv.CompanyID) {
-				if err := u.users.UpdateCompanyID(ctx, existing.ID, inv.CompanyID); err != nil {
-					log.Printf("upsertUserFromIDToken: existing user company update failed userID=%d: %v", existing.ID, err)
-				}
-			}
-			_ = u.invitations.UpdateStatus(ctx, inv.ID, domain.InvitationStatusAccepted)
+		if err := u.updateExistingUser(
+			ctx,
+			existing,
+			inv,
+			oidcName,
+			isCognitoAdmin,
+		); err != nil {
+			return false, fmt.Errorf("update existing user: %w", err)
 		}
 		return true, nil
 	}
@@ -142,7 +199,6 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 
 	role := domain.RoleTrainee
 	var companyID *uint64
-	var acceptedInvID uint64
 
 	name := email
 	if oidcName != "" {
@@ -159,26 +215,36 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 			role = inv.Role
 		}
 
-		cid := inv.CompanyID
-		companyID = &cid
-		acceptedInvID = inv.ID
+		if inv.CompanyID != 0 {
+			cid := inv.CompanyID
+			companyID = &cid
+		}
 		if inv.Name != "" {
 			name = inv.Name
 		}
 	}
 
-	if err := u.users.Create(ctx, &domain.User{
+	user := &domain.User{
 		CognitoSub: sub,
 		Email:      email,
 		Name:       name,
 		Role:       role,
 		CompanyID:  companyID,
-	}); err != nil {
-		log.Printf("upsertUserFromIDToken: create user failed sub=%s email=%s err=%v", sub, email, err)
+	}
+
+	if err := u.users.Create(ctx, user); err != nil {
 		return false, fmt.Errorf("create user: %w", err)
 	}
-	if u.invitations != nil && acceptedInvID != 0 {
-		_ = u.invitations.UpdateStatus(ctx, acceptedInvID, domain.InvitationStatusAccepted)
+
+	if inv != nil {
+		if err := u.invitations.UpdateStatus(
+			ctx,
+			inv.ID,
+			domain.InvitationStatusAccepted,
+		); err != nil {
+			return false, fmt.Errorf("accept invitation: %w", err)
+		}
 	}
+
 	return true, nil
 }

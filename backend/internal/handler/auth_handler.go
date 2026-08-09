@@ -376,7 +376,7 @@ func (h *AuthHandler) upsertUserFromIDToken(
 ) (allowed bool, err error) {
 	claims, decodeErr := middleware.DecodeClaims(idToken)
 	if decodeErr != nil {
-		return false, fmt.Errorf("decode id_token: %w", decodeErr)
+		return false, fmt.Errorf("failed to decode id_token: %w", decodeErr)
 	}
 
 	if h.upsertUser == nil {

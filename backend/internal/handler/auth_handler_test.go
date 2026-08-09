@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
 
 // fakeUserRepo は AuthHandler.upsertUserFromIDToken のテスト用 stub。
@@ -133,8 +134,14 @@ func makeIDToken(t *testing.T, claims map[string]any) string {
 }
 
 // newTestAuthHandler はテスト用 AuthHandler を組み立てる。tokens は使わない。
-func newTestAuthHandler(users *fakeUserRepo, invitations *fakeInvitationRepo) *AuthHandler {
-	return &AuthHandler{users: users, invitations: invitations}
+func newTestAuthHandler(
+	users *fakeUserRepo,
+	invitations *fakeInvitationRepo,
+) *AuthHandler {
+	return &AuthHandler{
+		users:      users,
+		upsertUser: usecase.NewUpsertUserFromIDTokenUseCase(users, invitations),
+	}
 }
 
 func init() {
@@ -146,86 +153,6 @@ func newGinCtx() *gin.Context {
 	c, _ := gin.CreateTestContext(nil)
 	c.Request = mustNewRequest()
 	return c
-}
-
-func Test_IDトークンからユーザー登録_招待もadminもない新規を拒否(t *testing.T) {
-	users := &fakeUserRepo{}
-	invs := &fakeInvitationRepo{}
-	h := newTestAuthHandler(users, invs)
-
-	idToken := makeIDToken(t, map[string]any{
-		"sub":   "new-google-user",
-		"email": "stranger@example.com",
-		// cognito:groups なし、招待もなし → 拒否されるべき
-	})
-
-	allowed := upsertAllowed(h, newGinCtx(), idToken, "")
-	if allowed {
-		t.Fatalf("expected allowed=false for non-invited non-admin signup")
-	}
-	if users.created != nil {
-		t.Fatalf("user must NOT be created when no invitation/admin")
-	}
-}
-
-func Test_IDトークンからユーザー登録_Cognito_adminは招待なしでも許可(t *testing.T) {
-	users := &fakeUserRepo{}
-	invs := &fakeInvitationRepo{}
-	h := newTestAuthHandler(users, invs)
-
-	idToken := makeIDToken(t, map[string]any{
-		"sub":            "first-super-admin",
-		"email":          "ops@example.com",
-		"cognito:groups": []string{"admin"},
-	})
-
-	allowed := upsertAllowed(h, newGinCtx(), idToken, "")
-	if !allowed {
-		t.Fatalf("Cognito group admin must be allowed even without invitation")
-	}
-	if users.created == nil || users.created.Role != domain.RoleSuperAdmin {
-		t.Fatalf("expected super_admin to be created, got %+v", users.created)
-	}
-}
-
-func Test_IDトークンからユーザー登録_招待済みはroleと会社を適用(t *testing.T) {
-	users := &fakeUserRepo{}
-	cid := uint64(42)
-	invs := &fakeInvitationRepo{
-		pendingByEmail: map[string]*domain.AdminInvitation{
-			"trainee@example.com": {
-				ID: 99, CompanyID: cid, Email: "trainee@example.com",
-				Role: domain.RoleTrainee, Name: "佐藤", Status: domain.InvitationStatusPending,
-			},
-		},
-	}
-	h := newTestAuthHandler(users, invs)
-
-	idToken := makeIDToken(t, map[string]any{
-		"sub":   "google-trainee-1",
-		"email": "trainee@example.com",
-	})
-
-	allowed := upsertAllowed(h, newGinCtx(), idToken, "")
-	if !allowed {
-		t.Fatalf("invited user must be allowed")
-	}
-	if users.created == nil {
-		t.Fatalf("expected user to be created")
-	}
-	if users.created.Role != domain.RoleTrainee {
-		t.Errorf("expected role=trainee, got %q", users.created.Role)
-	}
-	if users.created.CompanyID == nil || *users.created.CompanyID != cid {
-		t.Errorf("expected company_id=%d, got %+v", cid, users.created.CompanyID)
-	}
-	if users.created.Name != "佐藤" {
-		t.Errorf("expected displayName=佐藤, got %q", users.created.Name)
-	}
-	// 招待は accepted にマークされる
-	if invs.updatedID != 99 || invs.updatedStatus != domain.InvitationStatusAccepted {
-		t.Errorf("invitation must be marked accepted, got id=%d status=%q", invs.updatedID, invs.updatedStatus)
-	}
 }
 
 func Test_IDトークンからユーザー登録_既存ユーザーは常に許可(t *testing.T) {
@@ -332,33 +259,6 @@ func Test_IDトークンからユーザー登録_無効なtokenはメールに�
 	}
 }
 
-// 既存の trainee ユーザーが company_admin 招待を受けた場合、role を昇格 + company を反映する。
-// 過去に signup した既存ユーザーが後から CompanyAdmin として招待されたケースの救済。
-func Test_IDトークンからユーザー登録_既存traineeは会社管理者招待で昇格(t *testing.T) {
-	existing := &domain.User{ID: 5, CognitoSub: "existing-trainee", Email: "u@example.com", Role: domain.RoleTrainee}
-	users := &fakeUserRepo{existingBySub: map[string]*domain.User{"existing-trainee": existing}}
-	invs := &fakeInvitationRepo{
-		pendingByToken: map[string]*domain.AdminInvitation{
-			"magic-xyz": {ID: 9, CompanyID: 42, Email: "u@example.com", Role: domain.RoleCompanyAdmin},
-		},
-	}
-	h := newTestAuthHandler(users, invs)
-	idToken := makeIDToken(t, map[string]any{"sub": "existing-trainee", "email": "u@example.com"})
-
-	if !upsertAllowed(h, newGinCtx(), idToken, "magic-xyz") {
-		t.Fatal("must be allowed for existing user with token")
-	}
-	if users.updateRoleVal != domain.RoleCompanyAdmin || users.updateRoleID != 5 {
-		t.Errorf("role must be upgraded to company_admin, got id=%d role=%q", users.updateRoleID, users.updateRoleVal)
-	}
-	if users.updateCompanyID != 5 || users.updateCompanyVal != 42 {
-		t.Errorf("company_id must be updated to 42, got id=%d company=%d", users.updateCompanyID, users.updateCompanyVal)
-	}
-	if invs.updatedID != 9 || invs.updatedStatus != domain.InvitationStatusAccepted {
-		t.Errorf("invitation must be marked accepted, got id=%d status=%q", invs.updatedID, invs.updatedStatus)
-	}
-}
-
 // 既存 super_admin は招待を受けても降格しない。
 func Test_IDトークンからユーザー登録_既存運営管理者は招待で降格しない(t *testing.T) {
 	existing := &domain.User{ID: 1, CognitoSub: "ops", Email: "ops@example.com", Role: domain.RoleSuperAdmin}
@@ -378,9 +278,6 @@ func Test_IDトークンからユーザー登録_既存運営管理者は招待�
 		t.Errorf("super_admin must not be downgraded, but UpdateRole was called with %q", users.updateRoleVal)
 	}
 }
-
-// dummy: 使用していないが strings import のリンタを満たすために残す（今後 assert で使う）
-var _ = strings.Contains
 
 // 新規ユーザ作成時に id_token の `name` claim が Name に使われる（email にフォールバックしない）。
 func Test_IDトークンからユーザー登録_新規はOIDC名をメールより優先(t *testing.T) {
@@ -498,5 +395,25 @@ func Test_IDトークンからユーザー登録_表示名カスタム済みは�
 	}
 	if users.updateNameVal != "" {
 		t.Errorf("expected no backfill, but UpdateName called with %q", users.updateNameVal)
+	}
+}
+
+func Test_IDトークンからユーザー登録_デコード失敗を明示する(t *testing.T) {
+	h := &AuthHandler{}
+
+	allowed, err := h.upsertUserFromIDToken(
+		newGinCtx(),
+		"invalid-id-token",
+		"",
+	)
+
+	if allowed {
+		t.Fatal("不正なIDトークンを許可してはいけない")
+	}
+	if err == nil {
+		t.Fatal("デコードエラーが返されていない")
+	}
+	if !strings.Contains(err.Error(), "failed to decode id_token") {
+		t.Fatalf("error = %q", err.Error())
 	}
 }

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/infra/cognito"
 )
 
@@ -35,13 +37,30 @@ func postLoginCtx(body string) (*gin.Context, *httptest.ResponseRecorder) {
 	return c, rec
 }
 
+func assertAuthCookiesUnchanged(
+	t *testing.T,
+	rec *httptest.ResponseRecorder,
+) {
+	t.Helper()
+	for _, cookie := range rec.Result().Cookies() {
+		if cookie.Name == middleware.CookieAccessToken ||
+			cookie.Name == middleware.CookieRefreshToken {
+			t.Fatalf(
+				"authentication cookie %q must not be changed on invitation denial",
+				cookie.Name,
+			)
+		}
+	}
+}
+
 func Test_ログイン_成功_既存ユーザー(t *testing.T) {
 	users := &fakeUserRepo{existingBySub: map[string]*domain.User{
 		"sub-1": {ID: 1, CognitoSub: "sub-1", Email: "u@example.com", Role: domain.RoleTrainee},
 	}}
 	idTok := makeIDToken(t, map[string]any{"sub": "sub-1", "email": "u@example.com"})
 	pw := &fakePasswordAuth{token: &cognito.Token{AccessToken: "AT", IDToken: idTok, RefreshToken: "RT", ExpiresIn: 3600}}
-	h := &AuthHandler{users: users, invitations: &fakeInvitationRepo{}, passwordAuth: pw}
+	h := newTestAuthHandler(users, &fakeInvitationRepo{})
+	h.passwordAuth = pw
 
 	c, rec := postLoginCtx(`{"email":"u@example.com","password":"secret123"}`)
 	h.Login(c)
@@ -58,10 +77,12 @@ func Test_ログイン_成功_既存ユーザー(t *testing.T) {
 }
 
 func Test_ログイン_認証情報不正_401(t *testing.T) {
-	h := &AuthHandler{
-		users:        &fakeUserRepo{},
-		invitations:  &fakeInvitationRepo{},
-		passwordAuth: &fakePasswordAuth{err: cognito.ErrInvalidCredentials},
+	h := newTestAuthHandler(
+		&fakeUserRepo{},
+		&fakeInvitationRepo{},
+	)
+	h.passwordAuth = &fakePasswordAuth{
+		err: cognito.ErrInvalidCredentials,
 	}
 	c, rec := postLoginCtx(`{"email":"u@example.com","password":"wrong"}`)
 	h.Login(c)
@@ -73,17 +94,105 @@ func Test_ログイン_認証情報不正_401(t *testing.T) {
 
 func Test_ログイン_招待なし新規ユーザー_403(t *testing.T) {
 	idTok := makeIDToken(t, map[string]any{"sub": "new-sub", "email": "new@example.com"})
-	h := &AuthHandler{
-		users:        &fakeUserRepo{},       // 既存ユーザーなし
-		invitations:  &fakeInvitationRepo{}, // pending 招待なし
-		passwordAuth: &fakePasswordAuth{token: &cognito.Token{AccessToken: "AT", IDToken: idTok, RefreshToken: "RT"}},
+	h := newTestAuthHandler(
+		&fakeUserRepo{},
+		&fakeInvitationRepo{},
+	)
+	h.passwordAuth = &fakePasswordAuth{
+		token: &cognito.Token{
+			AccessToken:  "AT",
+			IDToken:      idTok,
+			RefreshToken: "RT",
+		},
 	}
-	c, rec := postLoginCtx(`{"email":"new@example.com","password":"secret123"}`)
-	h.Login(c)
+	router := gin.New()
+	router.POST("/api/v2/auth/cognito/login", h.Login)
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v2/auth/cognito/login",
+		strings.NewReader(`{"email":"new@example.com","password":"secret123"}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(&http.Cookie{
+		Name:  middleware.CookieAccessToken,
+		Value: "existing-access-token",
+	})
+	req.AddCookie(&http.Cookie{
+		Name:  middleware.CookieRefreshToken,
+		Value: "existing-refresh-token",
+	})
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("want 403, got %d body=%s", rec.Code, rec.Body.String())
 	}
+	if !strings.Contains(rec.Body.String(), `"error":"invitation_required"`) {
+		t.Fatalf("body = %s, want invitation_required", rec.Body.String())
+	}
+	assertAuthCookiesUnchanged(t, rec)
+}
+
+func Test_コールバック_招待なし新規ユーザー_403(t *testing.T) {
+	idToken := makeIDToken(t, map[string]any{
+		"sub":   "new-callback-sub",
+		"email": "new-callback@example.com",
+	})
+	tokenServer := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			if err := json.NewEncoder(w).Encode(cognito.Token{
+				AccessToken:  "new-access-token",
+				IDToken:      idToken,
+				RefreshToken: "new-refresh-token",
+				ExpiresIn:    3600,
+				TokenType:    "Bearer",
+			}); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+		},
+	))
+	defer tokenServer.Close()
+
+	h := newTestAuthHandler(
+		&fakeUserRepo{},
+		&fakeInvitationRepo{},
+	)
+	h.tokens = cognito.NewTokenExchangerWithClient(
+		cognito.Config{
+			ClientID:    "test-client",
+			RedirectURI: "https://example.com/callback",
+			TokenURI:    tokenServer.URL,
+		},
+		tokenServer.Client(),
+	)
+
+	router := gin.New()
+	router.POST("/api/v2/auth/login", h.Callback)
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v2/auth/login",
+		strings.NewReader(`{"code":"authorization-code"}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(&http.Cookie{
+		Name:  middleware.CookieAccessToken,
+		Value: "existing-access-token",
+	})
+	req.AddCookie(&http.Cookie{
+		Name:  middleware.CookieRefreshToken,
+		Value: "existing-refresh-token",
+	})
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("want 403, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"error":"invitation_required"`) {
+		t.Fatalf("body = %s, want invitation_required", rec.Body.String())
+	}
+	assertAuthCookiesUnchanged(t, rec)
 }
 
 func Test_ログイン_パスワード欠落_400(t *testing.T) {
@@ -113,10 +222,13 @@ func Test_ログイン_upsert内部エラー_500(t *testing.T) {
 	inv := &fakeInvitationRepo{pendingByEmail: map[string]*domain.AdminInvitation{
 		"u@example.com": {ID: 1, Role: domain.RoleTrainee, CompanyID: 1},
 	}}
-	h := &AuthHandler{
-		users:        users,
-		invitations:  inv,
-		passwordAuth: &fakePasswordAuth{token: &cognito.Token{AccessToken: "AT", IDToken: idTok, RefreshToken: "RT"}},
+	h := newTestAuthHandler(users, inv)
+	h.passwordAuth = &fakePasswordAuth{
+		token: &cognito.Token{
+			AccessToken:  "AT",
+			IDToken:      idTok,
+			RefreshToken: "RT",
+		},
 	}
 	c, rec := postLoginCtx(`{"email":"u@example.com","password":"secret123"}`)
 	h.Login(c)

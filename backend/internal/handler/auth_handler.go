@@ -26,8 +26,8 @@ type passwordAuthenticator interface {
 // OAuth2 通信は infra/cognito.TokenExchanger に切り出し、ここは HTTP 境界と user upsert だけを持つ。
 type AuthHandler struct {
 	getCurrentUser *usecase.GetCurrentUserUseCase
+	upsertUser     *usecase.UpsertUserFromIDTokenUseCase
 	users          repository.UserRepository
-	invitations    repository.AdminInvitationRepository
 	cognitoCfg     *config.CognitoConfig
 	tokens         *cognito.TokenExchanger
 	passwordAuth   passwordAuthenticator
@@ -35,20 +35,19 @@ type AuthHandler struct {
 }
 
 // NewAuthHandler は本番用に http.Client + 10s timeout の TokenExchanger を組み立てて DI する。
-// invitations は招待受諾フロー（初回ログイン時に invitations から role/companyId を反映）に使う。nil 可。
 // aiChatAccess は /auth/me で aiChatEnabledForTrainees を算出するのに使う。nil 可（その場合は既定 true）。
 func NewAuthHandler(
 	getCurrentUser *usecase.GetCurrentUserUseCase,
+	upsertUser *usecase.UpsertUserFromIDTokenUseCase,
 	users repository.UserRepository,
-	invitations repository.AdminInvitationRepository,
 	cognitoCfg *config.CognitoConfig,
 	passwordAuth passwordAuthenticator,
 	aiChatAccess *usecase.AiChatEnabledForUserUseCase,
 ) *AuthHandler {
 	return &AuthHandler{
 		getCurrentUser: getCurrentUser,
+		upsertUser:     upsertUser,
 		users:          users,
-		invitations:    invitations,
 		cognitoCfg:     cognitoCfg,
 		passwordAuth:   passwordAuth,
 		aiChatAccess:   aiChatAccess,
@@ -187,25 +186,23 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	middleware.SetAccessTokenCookie(c, tok.AccessToken, tok.ExpiresIn)
-	middleware.SetRefreshTokenCookie(c, tok.RefreshToken)
-
 	// Callback と同じ招待ゲート。内部エラー(DB/decode)は 500、招待拒否は 403 に切り分ける。
 	allowed, upErr := h.upsertUserFromIDToken(c, tok.IDToken, "")
 	if upErr != nil {
 		log.Printf("cognito password login: upsert failed: %v", upErr)
-		middleware.ClearAuthCookies(c)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
 		return
 	}
 	if !allowed {
-		middleware.ClearAuthCookies(c)
 		c.JSON(http.StatusForbidden, gin.H{
 			"error":   "invitation_required",
 			"message": "FreStyle のご利用には管理者からの招待が必要です。招待メールに記載されたリンクからログインしてください。",
 		})
 		return
 	}
+
+	middleware.SetAccessTokenCookie(c, tok.AccessToken, tok.ExpiresIn)
+	middleware.SetRefreshTokenCookie(c, tok.RefreshToken)
 
 	c.JSON(http.StatusOK, gin.H{"message": "ログインしました。"})
 }
@@ -247,26 +244,24 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 		return
 	}
 
-	middleware.SetAccessTokenCookie(c, tok.AccessToken, tok.ExpiresIn)
-	middleware.SetRefreshTokenCookie(c, tok.RefreshToken)
-
 	// 初回ログインで users 行が無いと /auth/me が 404 になるため upsert する。
-	// 内部エラー(DB/decode)は 500、招待拒否は 403。拒否時は Cookie をクリアしてセッションを残さない。
+	// 内部エラー(DB/decode)は 500、招待拒否は 403 に切り分ける。
 	allowed, upErr := h.upsertUserFromIDToken(c, tok.IDToken, req.InvitationToken)
 	if upErr != nil {
 		log.Printf("cognito callback: upsert failed: %v", upErr)
-		middleware.ClearAuthCookies(c)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
 		return
 	}
 	if !allowed {
-		middleware.ClearAuthCookies(c)
 		c.JSON(http.StatusForbidden, gin.H{
 			"error":   "invitation_required",
 			"message": "FreStyle のご利用には管理者からの招待が必要です。招待メールに記載されたリンクからログインしてください。",
 		})
 		return
 	}
+
+	middleware.SetAccessTokenCookie(c, tok.AccessToken, tok.ExpiresIn)
+	middleware.SetRefreshTokenCookie(c, tok.RefreshToken)
 
 	c.JSON(http.StatusOK, gin.H{"message": "ログインしました。"})
 }
@@ -369,119 +364,35 @@ func (h *AuthHandler) handleTokenError(c *gin.Context, op string, err error) (in
 	}
 }
 
-// upsertUserFromIDToken は id_token の claim から users 行を新規作成 / role 更新する。
-// 戻り値は (allowed, err)。allowed=false かつ err=nil は「招待なし & Cognito admin でもない」新規
-// ユーザーの **ログイン拒否（403）** を表す。err!=nil は decode 失敗 / DB 失敗等の **内部エラー（500）**で、
-// 招待拒否と切り分けて呼び元がレスポンスを出し分けられるようにする。
-// invitationToken 指定時は email より優先して照合する（同 email 複数 pending での誤一致防止）。
-// 招待ゲートを handler 層に置くのは、Cookie 発行 / 401-403 を返す認可境界が HTTP 層だから。
-func (h *AuthHandler) upsertUserFromIDToken(c *gin.Context, idToken, invitationToken string) (allowed bool, err error) {
-	claims, derr := middleware.DecodeClaims(idToken)
-	if derr != nil {
-		return false, fmt.Errorf("decode id_token: %w", derr)
+// upsertUserFromIDToken はIDトークンから認証情報を取得し、ユーザー更新をusecaseへ委譲する。
+func (h *AuthHandler) upsertUserFromIDToken(
+	c *gin.Context,
+	idToken string,
+	invitationToken string,
+) (allowed bool, err error) {
+	claims, decodeErr := middleware.DecodeClaims(idToken)
+	if decodeErr != nil {
+		return false, fmt.Errorf("failed to decode id_token: %w", decodeErr)
 	}
-	if h.users == nil {
-		return false, errors.New("user repository not configured")
+
+	if h.upsertUser == nil {
+		return false, errors.New("upsert user usecase not configured")
 	}
+
 	sub, _ := claims["sub"].(string)
-	if sub == "" {
-		return false, errors.New("id_token missing sub")
-	}
 	email, _ := claims["email"].(string)
-	// OIDC 経由は id_token に name を含む（Cognito SRP では無いこともあるので空許容）。
-	oidcName, _ := claims["name"].(string)
+	name, _ := claims["name"].(string)
 	groups := middleware.ToStringSliceFromClaim(claims["cognito:groups"])
 	isCognitoAdmin := middleware.IsAdminFromGroups(groups)
 
-	// 招待検索: invitationToken 優先、無ければ email でフォールバック。
-	var inv *domain.AdminInvitation
-	if h.invitations != nil {
-		if invitationToken != "" {
-			inv, _ = h.invitations.FindPendingByToken(c.Request.Context(), invitationToken)
-		}
-		if inv == nil && email != "" {
-			inv, _ = h.invitations.FindPendingByEmail(c.Request.Context(), email)
-		}
-	}
-
-	existing, _ := h.users.FindByCognitoSub(c.Request.Context(), sub)
-	if existing != nil {
-		// Name が email のまま（旧フローの仮値）なら OIDC name で自動補正する。
-		// ユーザーが明示的に書き換えている場合は触らない。
-		if oidcName != "" && existing.Email != "" && existing.Name == existing.Email {
-			if err := h.users.UpdateName(c.Request.Context(), existing.ID, oidcName); err != nil {
-				log.Printf("upsertUserFromIDToken: backfill name failed userID=%d: %v", existing.ID, err)
-			}
-		}
-		// role 更新の制約: super_admin は降格しない / 招待昇格は trainee → company_admin のみ /
-		// Cognito group admin は super_admin に昇格する。
-		if isCognitoAdmin && existing.Role != domain.RoleSuperAdmin {
-			_ = h.users.UpdateRole(c.Request.Context(), existing.ID, domain.RoleSuperAdmin)
-		}
-		if inv != nil && existing.Role != domain.RoleSuperAdmin {
-			// 昇格は trainee → company_admin だけ反映する。
-			if existing.Role == domain.RoleTrainee && inv.Role == domain.RoleCompanyAdmin {
-				if err := h.users.UpdateRole(c.Request.Context(), existing.ID, domain.RoleCompanyAdmin); err != nil {
-					log.Printf("upsertUserFromIDToken: existing user role upgrade failed userID=%d: %v", existing.ID, err)
-				} else {
-					log.Printf("upsertUserFromIDToken: existing user upgraded trainee→company_admin userID=%d email=%s", existing.ID, email)
-				}
-			}
-			// company 紐付け: 招待の company_id と異なる / 未設定なら更新する。
-			if inv.CompanyID != 0 && (existing.CompanyID == nil || *existing.CompanyID != inv.CompanyID) {
-				if err := h.users.UpdateCompanyID(c.Request.Context(), existing.ID, inv.CompanyID); err != nil {
-					log.Printf("upsertUserFromIDToken: existing user company update failed userID=%d: %v", existing.ID, err)
-				}
-			}
-			// 招待を accepted にマーク（再利用防止 + 監査）。
-			_ = h.invitations.UpdateStatus(c.Request.Context(), inv.ID, domain.InvitationStatusAccepted)
-		}
-		return true, nil
-	}
-
-	// 新規ユーザー: 招待 OR Cognito group "admin" のいずれかが必要。両方無ければ拒否（403、内部エラーではない）。
-	if !isCognitoAdmin && inv == nil {
-		log.Printf("upsertUserFromIDToken: signup blocked — no invitation and not Cognito admin sub=%s email=%s token_provided=%t", sub, email, invitationToken != "")
-		return false, nil
-	}
-
-	role := domain.RoleTrainee
-	var companyID *uint64
-	var acceptedInvID uint64
-	// name の優先順位: 招待 name > OIDC name > email（フォールバック）。
-	name := email
-	if oidcName != "" {
-		name = oidcName
-	}
-
-	if isCognitoAdmin {
-		role = domain.RoleSuperAdmin
-	}
-	if inv != nil {
-		if inv.Role == domain.RoleCompanyAdmin || inv.Role == domain.RoleTrainee {
-			role = inv.Role
-		}
-		cid := inv.CompanyID
-		companyID = &cid
-		acceptedInvID = inv.ID
-		if inv.Name != "" {
-			name = inv.Name
-		}
-	}
-
-	if err := h.users.Create(c.Request.Context(), &domain.User{
-		CognitoSub: sub,
-		Email:      email,
-		Name:       name,
-		Role:       role,
-		CompanyID:  companyID,
-	}); err != nil {
-		log.Printf("upsertUserFromIDToken: create user failed sub=%s email=%s err=%v", sub, email, err)
-		return false, fmt.Errorf("create user: %w", err)
-	}
-	// 招待を accepted にマーク（履歴・監査）。
-	if h.invitations != nil && acceptedInvID != 0 {
-		_ = h.invitations.UpdateStatus(c.Request.Context(), acceptedInvID, domain.InvitationStatusAccepted)
-	}
-	return true, nil
+	return h.upsertUser.Execute(
+		c.Request.Context(),
+		usecase.UpsertUserFromIDTokenInput{
+			CognitoSub:      sub,
+			Email:           email,
+			Name:            name,
+			IsCognitoAdmin:  isCognitoAdmin,
+			InvitationToken: invitationToken,
+		},
+	)
 }

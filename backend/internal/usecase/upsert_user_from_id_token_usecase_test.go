@@ -542,7 +542,6 @@ func Test_UpsertUserFromIDToken_Cognito管理者は招待Roleで降格しない(
 					IsCognitoAdmin: true,
 				},
 			)
-
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -598,7 +597,6 @@ func Test_UpsertUserFromIDToken_未対応の招待Roleは適用しない(
 			Email:      "user@example.com",
 		},
 	)
-
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -645,7 +643,6 @@ func Test_UpsertUserFromIDToken_招待のCompanyIDが0なら未所属にする(
 			Email:      "no-company@example.com",
 		},
 	)
-
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -671,135 +671,188 @@ func Test_UpsertUserFromIDToken_招待のCompanyIDが0なら未所属にする(
 	}
 }
 
-func Test_UpsertUserFromIDToken_既存ユーザー更新エラーを返す(
-	t *testing.T,
-) {
+func Test_UpsertUserFromIDToken_名前補完の更新に失敗する(t *testing.T) {
 	mutationErr := errors.New("mutation failed")
-
-	tests := []struct {
-		name                  string
-		invitationRole        string
-		existingName          string
-		inputName             string
-		configure             func(*upsertUserRepoSpy, *upsertInvitationRepoSpy)
-		wantUpdateNameCalls   int
-		wantUpdateStatusCalls int
-	}{
-		{
-			name:           "Name補完に失敗する",
-			invitationRole: domain.RoleTrainee,
-			existingName:   "existing@example.com",
-			inputName:      "OIDC User",
-			configure: func(
-				users *upsertUserRepoSpy,
-				_ *upsertInvitationRepoSpy,
-			) {
-				users.nameUpdateErr = mutationErr
+	users := &upsertUserRepoSpy{
+		stubUserRepo: stubUserRepo{
+			user: &domain.User{
+				ID:         7,
+				CognitoSub: "existing-user",
+				Email:      "existing@example.com",
+				Name:       "existing@example.com",
+				Role:       domain.RoleTrainee,
 			},
-			wantUpdateNameCalls:   1,
-			wantUpdateStatusCalls: 0,
 		},
-		{
-			name:           "Role更新に失敗する",
-			invitationRole: domain.RoleCompanyAdmin,
-			existingName:   "Existing User",
-			configure: func(
-				users *upsertUserRepoSpy,
-				_ *upsertInvitationRepoSpy,
-			) {
-				users.roleUpdateErr = mutationErr
-			},
-			wantUpdateStatusCalls: 0,
-		},
-		{
-			name:           "CompanyID更新に失敗する",
-			invitationRole: domain.RoleTrainee,
-			existingName:   "Existing User",
-			configure: func(
-				users *upsertUserRepoSpy,
-				_ *upsertInvitationRepoSpy,
-			) {
-				users.companyUpdateErr = mutationErr
-			},
-			wantUpdateStatusCalls: 0,
-		},
-		{
-			name:           "招待ステータス更新に失敗する",
-			invitationRole: domain.RoleTrainee,
-			existingName:   "Existing User",
-			configure: func(
-				_ *upsertUserRepoSpy,
-				invitations *upsertInvitationRepoSpy,
-			) {
-				invitations.updateErr = mutationErr
-			},
-			wantUpdateStatusCalls: 1,
+		nameUpdateErr: mutationErr,
+	}
+	invitations := &upsertInvitationRepoSpy{
+		pending: &domain.AdminInvitation{
+			ID:        60,
+			Role:      domain.RoleTrainee,
+			CompanyID: 42,
+			Status:    domain.InvitationStatusPending,
 		},
 	}
+	uc := newUpsertUserFromIDTokenUseCaseForTest(users, invitations)
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			users := &upsertUserRepoSpy{
-				stubUserRepo: stubUserRepo{
-					user: &domain.User{
-						ID:         7,
-						CognitoSub: "existing-user",
-						Email:      "existing@example.com",
-						Name:       tc.existingName,
-						Role:       domain.RoleTrainee,
-					},
-				},
-			}
-			invitations := &upsertInvitationRepoSpy{
-				pending: &domain.AdminInvitation{
-					ID:        60,
-					Role:      tc.invitationRole,
-					CompanyID: 42,
-					Status:    domain.InvitationStatusPending,
-				},
-			}
-			tc.configure(users, invitations)
+	allowed, err := uc.Execute(
+		context.Background(),
+		UpsertUserFromIDTokenInput{
+			CognitoSub: "existing-user",
+			Email:      "existing@example.com",
+			Name:       "OIDC User",
+		},
+	)
 
-			uc := newUpsertUserFromIDTokenUseCaseForTest(
-				users,
-				invitations,
-			)
+	if allowed {
+		t.Fatal("名前補完の更新失敗時にユーザーを許可してはいけない")
+	}
+	if !errors.Is(err, mutationErr) {
+		t.Fatalf("error = %v, want wrapped %v", err, mutationErr)
+	}
+	if users.nameUpdateCalls != 1 {
+		t.Fatalf("UpdateName calls = %d, want 1", users.nameUpdateCalls)
+	}
+	if invitations.updateCalls != 0 {
+		t.Fatalf("UpdateStatus calls = %d, want 0", invitations.updateCalls)
+	}
+}
 
-			allowed, err := uc.Execute(
-				context.Background(),
-				UpsertUserFromIDTokenInput{
-					CognitoSub: "existing-user",
-					Email:      "existing@example.com",
-					Name:       tc.inputName,
-				},
-			)
+func Test_UpsertUserFromIDToken_ロール更新に失敗する(t *testing.T) {
+	mutationErr := errors.New("mutation failed")
+	users := &upsertUserRepoSpy{
+		stubUserRepo: stubUserRepo{
+			user: &domain.User{
+				ID:         7,
+				CognitoSub: "existing-user",
+				Email:      "existing@example.com",
+				Name:       "Existing User",
+				Role:       domain.RoleTrainee,
+			},
+		},
+		roleUpdateErr: mutationErr,
+	}
+	invitations := &upsertInvitationRepoSpy{
+		pending: &domain.AdminInvitation{
+			ID:        60,
+			Role:      domain.RoleCompanyAdmin,
+			CompanyID: 42,
+			Status:    domain.InvitationStatusPending,
+		},
+	}
+	uc := newUpsertUserFromIDTokenUseCaseForTest(users, invitations)
 
-			if allowed {
-				t.Fatal("更新失敗時にユーザーを許可してはいけない")
-			}
-			if !errors.Is(err, mutationErr) {
-				t.Fatalf(
-					"error = %v, want wrapped %v",
-					err,
-					mutationErr,
-				)
-			}
-			if users.nameUpdateCalls != tc.wantUpdateNameCalls {
-				t.Fatalf(
-					"UpdateName calls = %d, want %d",
-					users.nameUpdateCalls,
-					tc.wantUpdateNameCalls,
-				)
-			}
-			if invitations.updateCalls !=
-				tc.wantUpdateStatusCalls {
-				t.Fatalf(
-					"UpdateStatus calls = %d, want %d",
-					invitations.updateCalls,
-					tc.wantUpdateStatusCalls,
-				)
-			}
-		})
+	allowed, err := uc.Execute(
+		context.Background(),
+		UpsertUserFromIDTokenInput{
+			CognitoSub: "existing-user",
+			Email:      "existing@example.com",
+		},
+	)
+
+	if allowed {
+		t.Fatal("ロール更新失敗時にユーザーを許可してはいけない")
+	}
+	if !errors.Is(err, mutationErr) {
+		t.Fatalf("error = %v, want wrapped %v", err, mutationErr)
+	}
+	if users.roleUpdateCalls != 1 {
+		t.Fatalf("UpdateRole calls = %d, want 1", users.roleUpdateCalls)
+	}
+	if invitations.updateCalls != 0 {
+		t.Fatalf("UpdateStatus calls = %d, want 0", invitations.updateCalls)
+	}
+}
+
+func Test_UpsertUserFromIDToken_会社更新に失敗する(t *testing.T) {
+	mutationErr := errors.New("mutation failed")
+	users := &upsertUserRepoSpy{
+		stubUserRepo: stubUserRepo{
+			user: &domain.User{
+				ID:         7,
+				CognitoSub: "existing-user",
+				Email:      "existing@example.com",
+				Name:       "Existing User",
+				Role:       domain.RoleTrainee,
+			},
+		},
+		companyUpdateErr: mutationErr,
+	}
+	invitations := &upsertInvitationRepoSpy{
+		pending: &domain.AdminInvitation{
+			ID:        60,
+			Role:      domain.RoleTrainee,
+			CompanyID: 42,
+			Status:    domain.InvitationStatusPending,
+		},
+	}
+	uc := newUpsertUserFromIDTokenUseCaseForTest(users, invitations)
+
+	allowed, err := uc.Execute(
+		context.Background(),
+		UpsertUserFromIDTokenInput{
+			CognitoSub: "existing-user",
+			Email:      "existing@example.com",
+		},
+	)
+
+	if allowed {
+		t.Fatal("会社更新失敗時にユーザーを許可してはいけない")
+	}
+	if !errors.Is(err, mutationErr) {
+		t.Fatalf("error = %v, want wrapped %v", err, mutationErr)
+	}
+	if users.companyUpdateCalls != 1 {
+		t.Fatalf(
+			"UpdateCompanyID calls = %d, want 1",
+			users.companyUpdateCalls,
+		)
+	}
+	if invitations.updateCalls != 0 {
+		t.Fatalf("UpdateStatus calls = %d, want 0", invitations.updateCalls)
+	}
+}
+
+func Test_UpsertUserFromIDToken_招待ステータス更新に失敗する(t *testing.T) {
+	mutationErr := errors.New("mutation failed")
+	users := &upsertUserRepoSpy{
+		stubUserRepo: stubUserRepo{
+			user: &domain.User{
+				ID:         7,
+				CognitoSub: "existing-user",
+				Email:      "existing@example.com",
+				Name:       "Existing User",
+				Role:       domain.RoleTrainee,
+			},
+		},
+	}
+	invitations := &upsertInvitationRepoSpy{
+		pending: &domain.AdminInvitation{
+			ID:        60,
+			Role:      domain.RoleTrainee,
+			CompanyID: 42,
+			Status:    domain.InvitationStatusPending,
+		},
+		updateErr: mutationErr,
+	}
+	uc := newUpsertUserFromIDTokenUseCaseForTest(users, invitations)
+
+	allowed, err := uc.Execute(
+		context.Background(),
+		UpsertUserFromIDTokenInput{
+			CognitoSub: "existing-user",
+			Email:      "existing@example.com",
+		},
+	)
+
+	if allowed {
+		t.Fatal("招待ステータス更新失敗時にユーザーを許可してはいけない")
+	}
+	if !errors.Is(err, mutationErr) {
+		t.Fatalf("error = %v, want wrapped %v", err, mutationErr)
+	}
+	if invitations.updateCalls != 1 {
+		t.Fatalf("UpdateStatus calls = %d, want 1", invitations.updateCalls)
 	}
 }
 

@@ -154,6 +154,7 @@ jobs:
             --build-arg VITE_COGNITO_DOMAIN="$COGNITO_DOMAIN" \
             --build-arg VITE_CLIENT_ID="$COGNITO_CLIENT_ID" \
             --build-arg VITE_REDIRECT_URI="https://$SUBDOMAIN.$BASE_DOMAIN/login/callback" \
+            --label "frestyle.base-domain=$BASE_DOMAIN" \
             -t "$ECR_REGISTRY/$FRONTEND_ECR_REPO:$SUBDOMAIN"
           docker push "$ECR_REGISTRY/$FRONTEND_ECR_REPO:$SUBDOMAIN"
 

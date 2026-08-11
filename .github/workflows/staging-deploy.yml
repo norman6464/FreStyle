@@ -1,7 +1,7 @@
 name: Staging Deploy
 
 # 目的: メンバーが「ブランチを選び、サブドメイン名を入力するだけ」で
-#       <subdomain>.staging.frestyle.jp に検証環境をデプロイする(FRESTYLE-245)。
+#       <subdomain>.<STAGING_BASE_DOMAIN> に検証環境をデプロイする(FRESTYLE-245)。
 #
 # 仕組み(push 型ではなく pull 型):
 #   1) runner 上で backend / frontend の Docker image をビルドし ECR に push
@@ -24,26 +24,32 @@ on:
   workflow_dispatch:
     inputs:
       subdomain:
-        description: '例: kinoshita → kinoshita.staging.frestyle.jp'
+        description: '例: kinoshita → kinoshita.<STAGING_BASE_DOMAIN>'
         required: true
         type: string
 
+# 環境固有の値はすべて Actions Variables に外出しする(本リポジトリは PUBLIC のため
+# アカウント ID / インスタンス ID をワークフローファイルに直書きしない。Variables は
+# 書き込み権限を持つメンバーにしか見えない)。設定は Settings → Secrets and variables →
+# Actions → Variables。未設定だと空文字で展開され無言で壊れるため、下の Preflight で必ず検証する。
 env:
-  AWS_REGION: ap-northeast-1
+  AWS_REGION: ${{ vars.STAGING_AWS_REGION }}
   # GitHub OIDC で引き受ける staging 専用ロール。本番ロールとは分離し、
   # staging の ECR push / Cognito 更新 / SSM send-command のみ許可。
-  AWS_ROLE_ARN: arn:aws:iam::010928196665:role/frestyle-prod-github-actions-staging-role
+  AWS_ROLE_ARN: ${{ vars.STAGING_AWS_ROLE_ARN }}
   # inputs はここで env に写し、以降のシェルでは $SUBDOMAIN のみ参照する
   # (run への ${{ }} 直埋めによる script injection を避ける)。
   SUBDOMAIN: ${{ inputs.subdomain }}
-  BACKEND_ECR_REPO: frestyle-staging-backend
-  FRONTEND_ECR_REPO: frestyle-staging-frontend
-  # 公開値(公開 JS に焼き込まれる)のため Secrets にしない。cd-frontend.yml と同じ方針。
-  COGNITO_USER_POOL_ID: ap-northeast-1_pPsUfVjBK
-  COGNITO_CLIENT_ID: 1oe90mgiqjeumch0vev9iu6l1k
-  COGNITO_DOMAIN: frestyle-staging.auth.ap-northeast-1.amazoncognito.com
+  # 検証環境のベースドメイン。box 側 scripts/staging/deploy-from-registry の
+  # BASE_DOMAIN と一致させること(不一致だと Caddy が別 FQDN の証明書を取りに行って失敗する)。
+  BASE_DOMAIN: ${{ vars.STAGING_BASE_DOMAIN }}
+  BACKEND_ECR_REPO: ${{ vars.STAGING_BACKEND_ECR_REPO }}
+  FRONTEND_ECR_REPO: ${{ vars.STAGING_FRONTEND_ECR_REPO }}
+  COGNITO_USER_POOL_ID: ${{ vars.STAGING_COGNITO_USER_POOL_ID }}
+  COGNITO_CLIENT_ID: ${{ vars.STAGING_COGNITO_CLIENT_ID }}
+  COGNITO_DOMAIN: ${{ vars.STAGING_COGNITO_DOMAIN }}
   # staging box(SSM managed instance)。deploy 指示は SSM Run Command で送る。
-  SSM_INSTANCE_ID: mi-01d2c7bf86c8be8df
+  SSM_INSTANCE_ID: ${{ vars.STAGING_SSM_INSTANCE_ID }}
 
 permissions:
   contents: read
@@ -67,21 +73,41 @@ jobs:
     # この sub のみを許可しているため、宣言を外すと assume が必ず失敗する。
     environment:
       name: staging
-      url: https://${{ inputs.subdomain }}.staging.frestyle.jp
+      url: https://${{ inputs.subdomain }}.${{ vars.STAGING_BASE_DOMAIN }}
     # id-token: write は OIDC トークン発行に、contents: read は checkout に必要。
     permissions:
       id-token: write
       contents: read
 
     steps:
+      # Variables が 1 つでも未設定だと ${{ vars.X }} は空文字に展開され、
+      # 「ECR に :latest のような別タグを push する」「Cognito を空 ID で更新しようとする」
+      # 「callback URL が https://<sub>./login/callback になる」といった形で
+      # 無言で壊れる。何かを変更する前にここで落とす。
+      - name: Preflight (Variables が揃っているか)
+        run: |
+          missing=0
+          for v in AWS_REGION AWS_ROLE_ARN BASE_DOMAIN BACKEND_ECR_REPO FRONTEND_ECR_REPO \
+                   COGNITO_USER_POOL_ID COGNITO_CLIENT_ID COGNITO_DOMAIN SSM_INSTANCE_ID; do
+            if [ -z "${!v}" ]; then
+              echo "ERROR: Actions Variable STAGING_$v が未設定です。"
+              missing=1
+            fi
+          done
+          [ "$missing" -eq 0 ] || {
+            echo "Settings → Secrets and variables → Actions → Variables で設定してください。"
+            exit 1
+          }
+          echo "Variables OK (BASE_DOMAIN=$BASE_DOMAIN)"
+
       # サブドメインは ECR タグ・URL・box へ送るコマンドにそのまま使うため、
-      # DNS ラベルとして安全な形式(小文字英字始まり + [a-z0-9-]・最大 30 文字)
+      # DNS ラベルとして安全な形式(小文字英字始まり + [a-z0-9-]・最大 31 文字)
       # 以外は何もする前に弾く。box 側 deploy-from-registry と同じ規則に揃える
       # (ここを通っても box で拒否されるとビルドが無駄になるため)。
       - name: Validate subdomain
         run: |
-          if [[ ! "$SUBDOMAIN" =~ ^[a-z][a-z0-9-]{0,29}$ ]]; then
-            echo "ERROR: subdomain '$SUBDOMAIN' が不正です(^[a-z][a-z0-9-]{0,29}$ に一致しません)。"
+          if [[ ! "$SUBDOMAIN" =~ ^[a-z][a-z0-9-]{0,30}$ ]]; then
+            echo "ERROR: subdomain '$SUBDOMAIN' が不正です(^[a-z][a-z0-9-]{0,30}$ に一致しません)。"
             exit 1
           fi
           # 予約サブドメイン(エッジが使用)は box 側と同様にここでも拒否する。
@@ -90,7 +116,7 @@ jobs:
               echo "ERROR: '$SUBDOMAIN' は予約済みサブドメインです。"
               exit 1 ;;
           esac
-          echo "deploy 先: https://$SUBDOMAIN.staging.frestyle.jp"
+          echo "deploy 先: https://$SUBDOMAIN.$BASE_DOMAIN"
 
       # workflow_dispatch で選んだ ref(ブランチ)がそのまま checkout される。
       - uses: actions/checkout@v6
@@ -127,7 +153,8 @@ jobs:
             --build-arg VITE_API_BASE_URL="" \
             --build-arg VITE_COGNITO_DOMAIN="$COGNITO_DOMAIN" \
             --build-arg VITE_CLIENT_ID="$COGNITO_CLIENT_ID" \
-            --build-arg VITE_REDIRECT_URI="https://$SUBDOMAIN.staging.frestyle.jp/login/callback" \
+            --build-arg VITE_REDIRECT_URI="https://$SUBDOMAIN.$BASE_DOMAIN/login/callback" \
+            --label "frestyle.base-domain=$BASE_DOMAIN" \
             -t "$ECR_REGISTRY/$FRONTEND_ECR_REPO:$SUBDOMAIN"
           docker push "$ECR_REGISTRY/$FRONTEND_ECR_REPO:$SUBDOMAIN"
 
@@ -145,8 +172,8 @@ jobs:
       # 数秒だけなので 3 回で十分収束する)。
       - name: Register Cognito callback / logout URLs
         run: |
-          CALLBACK="https://$SUBDOMAIN.staging.frestyle.jp/login/callback"
-          LOGOUT="https://$SUBDOMAIN.staging.frestyle.jp"
+          CALLBACK="https://$SUBDOMAIN.$BASE_DOMAIN/login/callback"
+          LOGOUT="https://$SUBDOMAIN.$BASE_DOMAIN"
           register() {
             aws cognito-idp describe-user-pool-client \
               --user-pool-id "$COGNITO_USER_POOL_ID" \
@@ -229,7 +256,7 @@ jobs:
 
       - name: Show staging URL
         run: |
-          URL="https://$SUBDOMAIN.staging.frestyle.jp"
+          URL="https://$SUBDOMAIN.$BASE_DOMAIN"
           echo "デプロイ完了: $URL"
           {
             echo "## Staging Deploy 完了"

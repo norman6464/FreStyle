@@ -1,12 +1,13 @@
 name: Staging Deploy
 
 # 目的: メンバーが「ブランチを選び、サブドメイン名を入力するだけ」で
-#       <subdomain>-staging.<STAGING_BASE_DOMAIN> に検証環境をデプロイする(FRESTYLE-245)。
+#       <subdomain>.<STAGING_BASE_DOMAIN> に検証環境をデプロイする(FRESTYLE-245)。
 #
-# FQDN が 1 階層(<sub>-staging.example.net)なのは、Cloudflare の Universal SSL が
-# 持つ証明書が <base> と *.<base> だけで、TLS のワイルドカードが 1 階層しか一致しない
-# ため。2 階層(<sub>.staging.<base>)にすると Cloudflare 経由で TLS handshake が
-# 失敗する(FRESTYLE-309)。
+# この FQDN は 2 階層(<sub>.staging.<base>)で、Lightsail へ直接公開し Caddy が
+# Let's Encrypt で証明書を取得する。Cloudflare を経由させていないのは、Universal SSL
+# の証明書が <base> と *.<base> だけで TLS のワイルドカードが 1 階層しか一致せず、
+# 2 階層のままでは proxied にすると handshake が失敗するため(FRESTYLE-309)。
+# 管理 UI(staging-db / staging-mail)は 1 階層なので Cloudflare Access 配下にある。
 #
 # 仕組み(push 型ではなく pull 型):
 #   1) runner 上で backend / frontend の Docker image をビルドし ECR に push
@@ -29,7 +30,7 @@ on:
   workflow_dispatch:
     inputs:
       subdomain:
-        description: '例: kinoshita → kinoshita-staging.<STAGING_BASE_DOMAIN>'
+        description: '例: kinoshita → kinoshita.<STAGING_BASE_DOMAIN>'
         required: true
         type: string
 
@@ -51,7 +52,7 @@ env:
   # 検証環境の FQDN。組み立てを 1 箇所に集約し、以降のシェルはこれだけを参照する
   # (callback / VITE_REDIRECT_URI / 表示 URL がばらばらに組み立てられて
   # ずれるのを防ぐ。3 点が一致していないと OIDC ログインが必ず失敗する)。
-  STAGING_FQDN: ${{ inputs.subdomain }}-staging.${{ vars.STAGING_BASE_DOMAIN }}
+  STAGING_FQDN: ${{ inputs.subdomain }}.${{ vars.STAGING_BASE_DOMAIN }}
   BACKEND_ECR_REPO: ${{ vars.STAGING_BACKEND_ECR_REPO }}
   FRONTEND_ECR_REPO: ${{ vars.STAGING_FRONTEND_ECR_REPO }}
   COGNITO_USER_POOL_ID: ${{ vars.STAGING_COGNITO_USER_POOL_ID }}

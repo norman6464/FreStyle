@@ -1,7 +1,12 @@
 name: Staging Deploy
 
 # 目的: メンバーが「ブランチを選び、サブドメイン名を入力するだけ」で
-#       <subdomain>.<STAGING_BASE_DOMAIN> に検証環境をデプロイする(FRESTYLE-245)。
+#       <subdomain>-staging.<STAGING_BASE_DOMAIN> に検証環境をデプロイする(FRESTYLE-245)。
+#
+# FQDN が 1 階層(<sub>-staging.example.net)なのは、Cloudflare の Universal SSL が
+# 持つ証明書が <base> と *.<base> だけで、TLS のワイルドカードが 1 階層しか一致しない
+# ため。2 階層(<sub>.staging.<base>)にすると Cloudflare 経由で TLS handshake が
+# 失敗する(FRESTYLE-309)。
 #
 # 仕組み(push 型ではなく pull 型):
 #   1) runner 上で backend / frontend の Docker image をビルドし ECR に push
@@ -24,7 +29,7 @@ on:
   workflow_dispatch:
     inputs:
       subdomain:
-        description: '例: kinoshita → kinoshita.<STAGING_BASE_DOMAIN>'
+        description: '例: kinoshita → kinoshita-staging.<STAGING_BASE_DOMAIN>'
         required: true
         type: string
 
@@ -41,8 +46,12 @@ env:
   # (run への ${{ }} 直埋めによる script injection を避ける)。
   SUBDOMAIN: ${{ inputs.subdomain }}
   # 検証環境のベースドメイン。box 側 scripts/staging/deploy-from-registry の
-  # BASE_DOMAIN と一致させること(不一致だと Caddy が別 FQDN の証明書を取りに行って失敗する)。
+  # BASE_DOMAIN と一致させること(不一致だと別ドメイン向けのイメージが配布される)。
   BASE_DOMAIN: ${{ vars.STAGING_BASE_DOMAIN }}
+  # 検証環境の FQDN。組み立てを 1 箇所に集約し、以降のシェルはこれだけを参照する
+  # (callback / VITE_REDIRECT_URI / 表示 URL がばらばらに組み立てられて
+  # ずれるのを防ぐ。3 点が一致していないと OIDC ログインが必ず失敗する)。
+  STAGING_FQDN: ${{ inputs.subdomain }}-staging.${{ vars.STAGING_BASE_DOMAIN }}
   BACKEND_ECR_REPO: ${{ vars.STAGING_BACKEND_ECR_REPO }}
   FRONTEND_ECR_REPO: ${{ vars.STAGING_FRONTEND_ECR_REPO }}
   COGNITO_USER_POOL_ID: ${{ vars.STAGING_COGNITO_USER_POOL_ID }}
@@ -73,7 +82,7 @@ jobs:
     # この sub のみを許可しているため、宣言を外すと assume が必ず失敗する。
     environment:
       name: staging
-      url: https://${{ inputs.subdomain }}.${{ vars.STAGING_BASE_DOMAIN }}
+      url: https://${{ env.STAGING_FQDN }}
     # id-token: write は OIDC トークン発行に、contents: read は checkout に必要。
     permissions:
       id-token: write
@@ -116,7 +125,7 @@ jobs:
               echo "ERROR: '$SUBDOMAIN' は予約済みサブドメインです。"
               exit 1 ;;
           esac
-          echo "deploy 先: https://$SUBDOMAIN.$BASE_DOMAIN"
+          echo "deploy 先: https://$STAGING_FQDN"
 
       # workflow_dispatch で選んだ ref(ブランチ)がそのまま checkout される。
       - uses: actions/checkout@v6
@@ -153,7 +162,7 @@ jobs:
             --build-arg VITE_API_BASE_URL="" \
             --build-arg VITE_COGNITO_DOMAIN="$COGNITO_DOMAIN" \
             --build-arg VITE_CLIENT_ID="$COGNITO_CLIENT_ID" \
-            --build-arg VITE_REDIRECT_URI="https://$SUBDOMAIN.$BASE_DOMAIN/login/callback" \
+            --build-arg VITE_REDIRECT_URI="https://$STAGING_FQDN/login/callback" \
             --label "frestyle.base-domain=$BASE_DOMAIN" \
             -t "$ECR_REGISTRY/$FRONTEND_ECR_REPO:$SUBDOMAIN"
           docker push "$ECR_REGISTRY/$FRONTEND_ECR_REPO:$SUBDOMAIN"
@@ -172,8 +181,8 @@ jobs:
       # 数秒だけなので 3 回で十分収束する)。
       - name: Register Cognito callback / logout URLs
         run: |
-          CALLBACK="https://$SUBDOMAIN.$BASE_DOMAIN/login/callback"
-          LOGOUT="https://$SUBDOMAIN.$BASE_DOMAIN"
+          CALLBACK="https://$STAGING_FQDN/login/callback"
+          LOGOUT="https://$STAGING_FQDN"
           register() {
             aws cognito-idp describe-user-pool-client \
               --user-pool-id "$COGNITO_USER_POOL_ID" \
@@ -256,7 +265,7 @@ jobs:
 
       - name: Show staging URL
         run: |
-          URL="https://$SUBDOMAIN.$BASE_DOMAIN"
+          URL="https://$STAGING_FQDN"
           echo "デプロイ完了: $URL"
           {
             echo "## Staging Deploy 完了"

@@ -267,7 +267,10 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 			return nil
 		},
 	); err != nil {
-		return false, err
+		return false, fmt.Errorf(
+			"create user and accept invitation transaction: %w",
+			err,
+		)
 	}
 
 	return true, nil

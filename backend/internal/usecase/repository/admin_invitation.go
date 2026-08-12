@@ -19,5 +19,7 @@ type AdminInvitationRepository interface {
 	// FindByID は ID 一致の招待を返す（該当なしは nil, nil）。会社スコープの認可判定に使う。
 	FindByID(ctx context.Context, id uint64) (*domain.AdminInvitation, error)
 	Create(ctx context.Context, inv *domain.AdminInvitation) error
+	// UpdateStatus は pending の招待だけを指定statusへ更新する。
+	// 更新対象が1件でなければエラーを返す。
 	UpdateStatus(ctx context.Context, id uint64, status string) error
 }

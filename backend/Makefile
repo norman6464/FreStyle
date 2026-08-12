@@ -128,7 +128,19 @@ run:
 # 結合テスト用(docker-compose.integration.yml / 5433 / tmpfs)とは別物。
 # ---------------------------------------------------------------------------
 LOCAL_COMPOSE := docker-compose.local.yml
-LOCAL_DSN ?= postgres://frestyle:frestyle@localhost:5432/frestyle?sslmode=disable
+
+# 接続設定は docker-compose.local.yml と同じ環境変数で上書きできるようにする。
+# ここを固定値にすると、compose 側だけ LOCAL_DB_PORT 等を変えたときに
+# 各 target が接続できなくなる(既定値も compose と揃えること)。
+LOCAL_DB_USER ?= frestyle
+LOCAL_DB_PASSWORD ?= frestyle
+LOCAL_DB_NAME ?= frestyle
+LOCAL_DB_PORT ?= 5432
+LOCAL_DSN ?= postgres://$(LOCAL_DB_USER):$(LOCAL_DB_PASSWORD)@localhost:$(LOCAL_DB_PORT)/$(LOCAL_DB_NAME)?sslmode=disable
+
+# 各 target が使う psql の共通オプション。
+LOCAL_PSQL := psql -U $(LOCAL_DB_USER) -d $(LOCAL_DB_NAME)
+
 SIZE ?= small
 
 .PHONY: local-up
@@ -157,17 +169,17 @@ local-reset:
 .PHONY: local-seed
 local-seed:
 	@docker compose -f $(LOCAL_COMPOSE) exec -T db \
-	  psql -U frestyle -d frestyle -v ON_ERROR_STOP=1 -v size=$(SIZE) \
+	  $(LOCAL_PSQL) -v ON_ERROR_STOP=1 -v size=$(SIZE) \
 	  < scripts/seed-local.sql
 
 .PHONY: local-psql
 local-psql:
-	@docker compose -f $(LOCAL_COMPOSE) exec db psql -U frestyle -d frestyle
+	@docker compose -f $(LOCAL_COMPOSE) exec db $(LOCAL_PSQL)
 
 # 実測でボトルネックを特定する。体感ではなくここを根拠にする。
 .PHONY: local-slow
 local-slow:
-	@docker compose -f $(LOCAL_COMPOSE) exec -T db psql -U frestyle -d frestyle -c "\
+	@docker compose -f $(LOCAL_COMPOSE) exec -T db $(LOCAL_PSQL) -c "\
 	  SELECT calls, \
 	         round(mean_exec_time::numeric, 2) AS mean_ms, \
 	         round(total_exec_time::numeric, 2) AS total_ms, \
@@ -178,5 +190,5 @@ local-slow:
 
 .PHONY: local-slow-reset
 local-slow-reset:
-	@docker compose -f $(LOCAL_COMPOSE) exec -T db psql -U frestyle -d frestyle \
+	@docker compose -f $(LOCAL_COMPOSE) exec -T db $(LOCAL_PSQL) \
 	  -c "SELECT pg_stat_statements_reset();" >/dev/null && echo "統計をリセットしました。"

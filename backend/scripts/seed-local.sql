@@ -41,6 +41,17 @@ SELECT
   CASE :'size' WHEN 'small' THEN  30 WHEN 'medium' THEN  180 WHEN 'large' THEN   365 END::int  AS activity_days,
   1000000::bigint AS id_base;
 
+-- 許可外の size を弾く。CASE がどれにも一致しないと NULL になり、
+-- generate_series(1, NULL) が 0 行を返すため「DELETE だけが効いて何も入らない」
+-- という最悪の結果になる(既存のシードを消したうえで空になる)。
+-- 破壊的な DELETE が走る前にここで止める。
+DO $$
+BEGIN
+  IF (SELECT n_users FROM _cfg) IS NULL THEN
+    RAISE EXCEPTION 'size は small / medium / large のいずれかを指定してください';
+  END IF;
+END $$;
+
 -- 規模の値を psql 変数へ取り込む(以降 :n_users のように埋め込んで使う)。
 SELECT n_users, n_courses, chapters_per_course, submissions_per_user, notes_per_user, activity_days
   FROM _cfg \gset
@@ -50,16 +61,35 @@ SELECT n_users, n_courses, chapters_per_course, submissions_per_user, notes_per_
 -- 依存の子から消す(FK が無くても順序は揃えておく)。
 BEGIN;
 
-DELETE FROM user_daily_activities  WHERE user_id >= 1000000;
-DELETE FROM user_chapter_views     WHERE user_id >= 1000000;
-DELETE FROM user_chapter_progress  WHERE user_id >= 1000000;
-DELETE FROM exercise_submissions   WHERE user_id >= 1000000;
-DELETE FROM notes                  WHERE user_id >= 1000000;
-DELETE FROM profiles               WHERE user_id >= 1000000;
-DELETE FROM course_chapters        WHERE id      >= 1000000;
-DELETE FROM courses                WHERE id      >= 1000000;
-DELETE FROM master_exercises       WHERE id      >= 1000000;
-DELETE FROM users                  WHERE id      >= 1000000;
+DELETE FROM user_daily_activities
+WHERE user_id >= 1000000;
+
+DELETE FROM user_chapter_views
+WHERE user_id >= 1000000;
+
+DELETE FROM user_chapter_progress
+WHERE user_id >= 1000000;
+
+DELETE FROM exercise_submissions
+WHERE user_id >= 1000000;
+
+DELETE FROM notes
+WHERE user_id >= 1000000;
+
+DELETE FROM profiles
+WHERE user_id >= 1000000;
+
+DELETE FROM course_chapters
+WHERE id >= 1000000;
+
+DELETE FROM courses
+WHERE id >= 1000000;
+
+DELETE FROM master_exercises
+WHERE id >= 1000000;
+
+DELETE FROM users
+WHERE id >= 1000000;
 
 -- 会社は AutoMigrate 後の seedCompanies が id=1 を入れている前提。無ければ作る。
 INSERT INTO companies (id, name)

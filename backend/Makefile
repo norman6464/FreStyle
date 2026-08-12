@@ -9,6 +9,11 @@
 #   make naminglint   … usecase 命名・構造規約 (CLAUDE.md §2.3) を 検証
 #   make test-integration … docker-compose で PostgreSQL を起動し -tags=integration の結合テストを実行
 #   make run          … go run ./cmd/server で ローカル サーバ 起動
+#   make local-up     … ローカル開発用の PostgreSQL + メールキャッチャーを起動
+#   make local-down   … 上を停止(データは残る)。make local-reset で volume ごと破棄
+#   make local-seed   … ダミーデータ投入 (SIZE=small|medium|large)
+#   make local-psql   … ローカル DB に psql で接続
+#   make local-slow   … pg_stat_statements から遅いクエリ上位 20 件を表示
 #
 # swag CLI が PATH に なければ `go install github.com/swaggo/swag/cmd/swag@v1.16.4` を 自動 実行 する。
 # バージョン を 固定 する のは spec 差分 が CLI バージョン で 変わる の を 防ぐ ため。
@@ -114,3 +119,64 @@ test-integration:
 .PHONY: run
 run:
 	go run ./cmd/server
+
+# ---------------------------------------------------------------------------
+# ローカル開発環境 (docker-compose.local.yml)
+#
+# アプリ(Go / Vite)はホストで動かし、DB とメールキャッチャーだけコンテナに置く。
+# Go の再ビルドは数秒・Vite は HMR が効くため、アプリまでコンテナに入れると遅くなる。
+# 結合テスト用(docker-compose.integration.yml / 5433 / tmpfs)とは別物。
+# ---------------------------------------------------------------------------
+LOCAL_COMPOSE := docker-compose.local.yml
+LOCAL_DSN ?= postgres://frestyle:frestyle@localhost:5432/frestyle?sslmode=disable
+SIZE ?= small
+
+.PHONY: local-up
+local-up:
+	docker compose -f $(LOCAL_COMPOSE) up -d --wait
+	@echo ""
+	@echo "DB   : $(LOCAL_DSN)"
+	@echo "Mail : http://localhost:8025"
+	@echo ""
+	@echo "次に .env へ以下を設定して 'make run' でサーバを起動する:"
+	@echo "  DATABASE_URL=$(LOCAL_DSN)"
+	@echo "  MAIL_SMTP_HOST=localhost"
+
+.PHONY: local-down
+local-down:
+	docker compose -f $(LOCAL_COMPOSE) down
+
+# volume ごと破棄してまっさらにする。スキーマは次回起動時の AutoMigrate で再構築される。
+.PHONY: local-reset
+local-reset:
+	docker compose -f $(LOCAL_COMPOSE) down -v
+	@echo "破棄しました。make local-up → make run(AutoMigrate) → make local-seed の順で作り直せます。"
+
+# ダミーデータ投入。スキーマは AutoMigrate 済みが前提(先に make run を一度実行する)。
+# 規模: SIZE=small(既定) | medium | large
+.PHONY: local-seed
+local-seed:
+	@docker compose -f $(LOCAL_COMPOSE) exec -T db \
+	  psql -U frestyle -d frestyle -v ON_ERROR_STOP=1 -v size=$(SIZE) \
+	  < scripts/seed-local.sql
+
+.PHONY: local-psql
+local-psql:
+	@docker compose -f $(LOCAL_COMPOSE) exec db psql -U frestyle -d frestyle
+
+# 実測でボトルネックを特定する。体感ではなくここを根拠にする。
+.PHONY: local-slow
+local-slow:
+	@docker compose -f $(LOCAL_COMPOSE) exec -T db psql -U frestyle -d frestyle -c "\
+	  SELECT calls, \
+	         round(mean_exec_time::numeric, 2) AS mean_ms, \
+	         round(total_exec_time::numeric, 2) AS total_ms, \
+	         left(query, 90) AS query \
+	    FROM pg_stat_statements \
+	   WHERE query NOT LIKE '%pg_stat_statements%' \
+	   ORDER BY total_exec_time DESC LIMIT 20;"
+
+.PHONY: local-slow-reset
+local-slow-reset:
+	@docker compose -f $(LOCAL_COMPOSE) exec -T db psql -U frestyle -d frestyle \
+	  -c "SELECT pg_stat_statements_reset();" >/dev/null && echo "統計をリセットしました。"

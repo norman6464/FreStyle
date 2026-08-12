@@ -154,15 +154,49 @@ go mod download
 make verify
 make fmt                   # gofumpt -w で整形（commit 前）
 
-# 2) ローカル起動
-go run ./cmd/server
-# 本番相当の Supabase に繋ぐ場合は環境変数で注入:
-#   export DATABASE_URL='postgresql://...pooler.supabase.com:6543/postgres?sslmode=require'
-#   go run ./cmd/server
+# 2) DB とメールキャッチャーを起動（PostgreSQL 17.6 / mailpit）
+make local-up
+# リポジトリ直下の .env に接続先を設定:
+#   DATABASE_URL=postgres://frestyle:frestyle@localhost:5432/frestyle?sslmode=disable
+#   MAIL_SMTP_HOST=localhost
 
-# 3) 動作確認
+# 3) ローカル起動（初回は AutoMigrate でスキーマが作られる）
+make run                   # = go run ./cmd/server
+
+# 4) 動作確認
 curl http://localhost:8080/api/v2/health
 ```
+
+DB はコンテナ、アプリはホストで動かす構成です。Go の再ビルドは数秒、Vite は HMR が効くため、アプリまでコンテナに入れるより速く回せます。
+
+**動作確認用のデータを入れる**（規模は 3 段階から選べます）:
+
+```bash
+make local-seed                 # small  : 約 6,800 行 / 2MB
+make local-seed SIZE=medium     # medium : 約 27 万行 / 51MB
+make local-seed SIZE=large      # large  : 約 930 万行 / 2.0GB（性能検証用）
+```
+
+乱数を固定してあるため、誰が何度流しても同じデータになります（実行計画の前後比較に必要）。ID は 1000000 以降を使い、再実行時はその範囲だけ入れ直す冪等な作りです。
+
+**性能を調べる**:
+
+```bash
+make local-psql                 # psql で接続（EXPLAIN (ANALYZE, BUFFERS) など）
+make local-slow                 # 遅いクエリ上位 20 件（pg_stat_statements）
+make local-slow-reset           # 計測をやり直すとき
+```
+
+**片付け**:
+
+```bash
+make local-down                 # 停止（データは残る）
+make local-reset                # volume ごと破棄してまっさらに
+```
+
+> 演習のコード実行（sandbox）は `php` / `java` / `node` / `python` / `initdb` / `pg_ctl` をホストに要求します。これらを入れずに演習機能まで動かしたい場合は `docker compose -f docker-compose.local.yml --profile full up -d` で backend もコンテナで起動してください。
+>
+> 結合テスト用の DB（`make test-integration` / host 5433 / 毎回破棄）とは別物です。
 
 Docker でビルドする場合:
 

@@ -228,12 +228,16 @@ SELECT
   1000000 + u,
   1000000 + ((c - 1) * :chapters_per_course + ch),
   1000000 + c,
-  now() - (random() * 180)::int * interval '1 day',
-  now() - (random() * 30)::int * interval '1 day',
+  v.first_viewed_at,
+  -- 初回閲覧から now() までの間で最終閲覧を決める。両者を独立に生成すると
+  -- last < first の行ができ、閲覧期間を扱う集計が壊れる。
+  v.first_viewed_at
+    + (random() * extract(epoch FROM now() - v.first_viewed_at))::int * interval '1 second',
   1 + (random() * 9)::int
 FROM generate_series(1, :n_users) AS u,
      generate_series(1, LEAST(3, :n_courses)) AS c,
-     generate_series(1, :chapters_per_course) AS ch
+     generate_series(1, :chapters_per_course) AS ch,
+     LATERAL (SELECT now() - (random() * 180)::int * interval '1 day' AS first_viewed_at) AS v
 WHERE random() < 0.7
 ON CONFLICT DO NOTHING;
 
@@ -242,13 +246,16 @@ INSERT INTO user_daily_activities (user_id, activity_date, exercise_count, corre
 SELECT
   1000000 + u,
   (now() - d * interval '1 day')::date,
-  (random() * 10)::int,
-  (random() * 6)::int,
+  e.exercise_count,
+  -- 正答数は提出数を超えさせない。独立に生成すると正答率が 100% を超える行ができ、
+  -- ダッシュボードの集計が破綻する。
+  (random() * e.exercise_count)::int,
   (random() * 3)::int,
   (random() * 5)::int,
   (random() * 2)::int
 FROM generate_series(1, :n_users) AS u,
-     generate_series(0, :activity_days - 1) AS d
+     generate_series(0, :activity_days - 1) AS d,
+     LATERAL (SELECT (random() * 10)::int AS exercise_count) AS e
 WHERE random() < 0.4
 ON CONFLICT DO NOTHING;
 COMMIT;

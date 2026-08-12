@@ -176,17 +176,10 @@ local-seed:
 local-psql:
 	@docker compose -f $(LOCAL_COMPOSE) exec db $(LOCAL_PSQL)
 
-# 実測でボトルネックを特定する。体感ではなくここを根拠にする。
+# 実測でボトルネックを特定する。体感ではなくここを根拠にする(SQL は scripts/local-slow.sql)。
 .PHONY: local-slow
 local-slow:
-	@docker compose -f $(LOCAL_COMPOSE) exec -T db $(LOCAL_PSQL) -c "\
-	  SELECT calls, \
-	         round(mean_exec_time::numeric, 2) AS mean_ms, \
-	         round(total_exec_time::numeric, 2) AS total_ms, \
-	         left(query, 90) AS query \
-	    FROM pg_stat_statements \
-	   WHERE query NOT LIKE '%pg_stat_statements%' \
-	   ORDER BY total_exec_time DESC LIMIT 20;"
+	@docker compose -f $(LOCAL_COMPOSE) exec -T db $(LOCAL_PSQL) < scripts/local-slow.sql
 
 .PHONY: local-slow-reset
 local-slow-reset:

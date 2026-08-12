@@ -156,7 +156,8 @@ make fmt                   # gofumpt -w で整形（commit 前）
 
 # 2) DB とメールキャッチャーを起動（PostgreSQL 17.6 / mailpit）
 make local-up
-# 起動後に接続先が表示される。リポジトリ直下に cp .env.example .env して
+# 起動後に接続先が表示される。設定はリポジトリ直下の .env に書く:
+cp ../.env.example ../.env
 # DATABASE_URL / MAIL_SMTP_HOST を .env.example の記載どおりに設定する。
 
 # 3) ローカル起動（初回は AutoMigrate でスキーマが作られる）

@@ -1,0 +1,92 @@
+# ローカル開発環境。DB とメールキャッチャーをコンテナで常駐させ、アプリ(Go / Vite)は
+# ホストでそのまま動かす。Go の再ビルドは数秒・Vite は HMR が効くため、アプリまで
+# コンテナに入れると開発速度が落ちるのを避ける。
+#
+# 起動:
+#   cd backend && make local-up
+#   # または docker compose -f docker-compose.local.yml up -d --wait
+#
+# .env（リポジトリ直下）に次を設定する:
+#   DATABASE_URL=postgres://frestyle:frestyle@localhost:5432/frestyle?sslmode=disable
+#   MAIL_SMTP_HOST=localhost
+#   MAIL_FROM_ADDRESS=noreply@localhost
+#
+# 受信メールの閲覧: http://localhost:8025
+#
+# 結合テスト用(docker-compose.integration.yml / host 5433 / tmpfs)とは別物。
+# あちらは毎回まっさらにする使い捨てで、こちらは volume でデータを残す。
+#
+# 演習のコード実行(sandbox)は php / java / node / python / initdb / pg_ctl をホストに
+# 要求する。それらを入れずに演習機能まで触りたい場合だけ profile full を使う:
+#   docker compose -f docker-compose.local.yml --profile full up -d
+
+name: frestyle-local
+
+services:
+  db:
+    # 本番(Supabase)と同系統に揃える。Docker Hub のレート制限を避けて ECR Public から取る。
+    image: public.ecr.aws/docker/library/postgres:17.6-alpine
+    container_name: frestyle-local-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${LOCAL_DB_USER:-frestyle}
+      POSTGRES_PASSWORD: ${LOCAL_DB_PASSWORD:-frestyle}
+      POSTGRES_DB: ${LOCAL_DB_NAME:-frestyle}
+      # 日本語データを扱うため初期 DB の照合順序を明示する。
+      POSTGRES_INITDB_ARGS: '--encoding=UTF8 --locale=C'
+    ports:
+      - '${LOCAL_DB_PORT:-5432}:5432'
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      # 起動時に一度だけ流す初期化 SQL(空の DB のときのみ実行される)。
+      - ./scripts/local-db-init:/docker-entrypoint-initdb.d:ro
+    # 性能検証で実行計画を見るため pg_stat_statements を有効にする。
+    command:
+      - postgres
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - pg_stat_statements.track=all
+      # 手元の Mac は本番より潤沢なので、既定値のままだと本番より楽なプランが出る。
+      # 実行計画を比較したいときはここを本番相当に寄せる(既定は開発しやすさ優先)。
+      - -c
+      - shared_buffers=${LOCAL_DB_SHARED_BUFFERS:-128MB}
+    healthcheck:
+      test:
+        ['CMD-SHELL', 'pg_isready -U ${LOCAL_DB_USER:-frestyle} -d ${LOCAL_DB_NAME:-frestyle}']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  mail:
+    # 招待メールの SMTP 送信を手元で確認する。実メールは外部へ飛ばない。
+    image: axllent/mailpit:v1.30
+    container_name: frestyle-local-mail
+    restart: unless-stopped
+    ports:
+      - '1025:1025' # SMTP (backend からの送信先)
+      - '8025:8025' # Web UI (受信メールの閲覧)
+
+  backend:
+    # 演習のコード実行まで手元で動かしたいときだけ使う(profile full)。
+    # このイメージは php / go / jdk / node などのランタイムを同梱している。
+    profiles: ['full']
+    build:
+      context: .
+    container_name: frestyle-local-backend
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      # コンテナから見た DB / メールの宛先はサービス名になる(.env の localhost を上書き)。
+      DATABASE_URL: postgres://${LOCAL_DB_USER:-frestyle}:${LOCAL_DB_PASSWORD:-frestyle}@db:5432/${LOCAL_DB_NAME:-frestyle}?sslmode=disable
+      MAIL_SMTP_HOST: mail
+    ports:
+      - '8080:8080'
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  db_data:
+    name: frestyle-local-db-data

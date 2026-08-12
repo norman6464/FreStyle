@@ -82,7 +82,7 @@ jobs:
     # この sub のみを許可しているため、宣言を外すと assume が必ず失敗する。
     environment:
       name: staging
-      url: https://${{ inputs.subdomain }}-staging.${{ vars.STAGING_BASE_DOMAIN }}
+      url: https://${{ env.STAGING_FQDN }}
     # id-token: write は OIDC トークン発行に、contents: read は checkout に必要。
     permissions:
       id-token: write

@@ -18,8 +18,12 @@ func registerAuthPublicRoutes(g *gin.RouterGroup, deps *routeDeps) *AuthHandler 
 	getCurrentUser := usecase.NewGetCurrentUserUseCase(deps.userRepo)
 	invitations := persistence.NewAdminInvitationRepository(deps.db)
 	aiAccess := usecase.NewAiChatEnabledForUserUseCase(persistence.NewCompanyRepository(deps.db))
-	upsertUser := usecase.NewUpsertUserFromIDTokenUseCase(deps.userRepo, invitations)
-
+	transactionRunner := persistence.NewUserInvitationTransactionRunner(deps.db)
+	upsertUser := usecase.NewUpsertUserFromIDTokenUseCase(
+		deps.userRepo,
+		invitations,
+		transactionRunner,
+	)
 	// USER_PASSWORD_AUTH 用の authenticator。AWS 認証情報の解決に失敗しても起動は止めず、
 	// nil のまま渡して /auth/cognito/login だけ 500 にする（Hosted UI ログインには影響させない）。
 	var pwAuth passwordAuthenticator

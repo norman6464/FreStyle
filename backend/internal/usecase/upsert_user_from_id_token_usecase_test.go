@@ -105,11 +105,45 @@ func (s *upsertInvitationRepoSpy) UpdateStatus(
 	return s.updateErr
 }
 
+type passthroughUserInvitationTransactionRunner struct {
+	users       repository.UserRepository
+	invitations repository.AdminInvitationRepository
+	called      bool
+	committed   bool
+	rolledBack  bool
+}
+
+func (r *passthroughUserInvitationTransactionRunner) WithinTransaction(
+	ctx context.Context,
+	fn func(
+		users repository.UserRepository,
+		invitations repository.AdminInvitationRepository,
+	) error,
+) error {
+	r.called = true
+
+	err := fn(r.users, r.invitations)
+	if err != nil {
+		r.rolledBack = true
+		return err
+	}
+
+	r.committed = true
+	return nil
+}
+
 func newUpsertUserFromIDTokenUseCaseForTest(
 	users repository.UserRepository,
 	invitations repository.AdminInvitationRepository,
 ) *UpsertUserFromIDTokenUseCase {
-	return NewUpsertUserFromIDTokenUseCase(users, invitations)
+	return NewUpsertUserFromIDTokenUseCase(
+		users,
+		invitations,
+		&passthroughUserInvitationTransactionRunner{
+			users:       users,
+			invitations: invitations,
+		},
+	)
 }
 
 func Test_UpsertUserFromIDToken_招待のRoleとCompanyを適用してAcceptedにする(t *testing.T) {
@@ -123,7 +157,15 @@ func Test_UpsertUserFromIDToken_招待のRoleとCompanyを適用してAccepted�
 			Status:    domain.InvitationStatusPending,
 		},
 	}
-	uc := newUpsertUserFromIDTokenUseCaseForTest(users, invitations)
+	runner := &passthroughUserInvitationTransactionRunner{
+		users:       users,
+		invitations: invitations,
+	}
+	uc := NewUpsertUserFromIDTokenUseCase(
+		users,
+		invitations,
+		runner,
+	)
 
 	allowed, err := uc.Execute(
 		context.Background(),
@@ -964,9 +1006,14 @@ func Test_UpsertUserFromIDToken_新規ユーザーのトランザクションエ
 			}
 			tc.configure(users, invitations)
 
-			uc := newUpsertUserFromIDTokenUseCaseForTest(
+			runner := &passthroughUserInvitationTransactionRunner{
+				users:       users,
+				invitations: invitations,
+			}
+			uc := NewUpsertUserFromIDTokenUseCase(
 				users,
 				invitations,
+				runner,
 			)
 
 			allowed, err := uc.Execute(
@@ -1001,6 +1048,15 @@ func Test_UpsertUserFromIDToken_新規ユーザーのトランザクションエ
 					invitations.updateCalls,
 					tc.wantUpdateStatusCalls,
 				)
+			}
+			if !runner.called {
+				t.Fatal("トランザクションが開始されていない")
+			}
+			if !runner.rolledBack {
+				t.Fatal("エラー時にロールバックが選択されていない")
+			}
+			if runner.committed {
+				t.Fatal("エラー時にコミットしてはいけない")
 			}
 		})
 	}

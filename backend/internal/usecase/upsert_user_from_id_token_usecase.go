@@ -21,21 +21,18 @@ type UpsertUserFromIDTokenInput struct {
 
 // UpsertUserFromIDTokenUseCase は認証済みユーザーの作成・更新を行う。
 type UpsertUserFromIDTokenUseCase struct {
-	users             repository.UserRepository
-	invitations       repository.AdminInvitationRepository
-	transactionRunner repository.UserInvitationTransactionRunner
+	users       repository.UserRepository
+	invitations repository.AdminInvitationRepository
 }
 
 // NewUpsertUserFromIDTokenUseCase はUpsertUserFromIDTokenUseCaseを生成する。
 func NewUpsertUserFromIDTokenUseCase(
 	users repository.UserRepository,
 	invitations repository.AdminInvitationRepository,
-	transactionRunner repository.UserInvitationTransactionRunner,
 ) *UpsertUserFromIDTokenUseCase {
 	return &UpsertUserFromIDTokenUseCase{
-		users:             users,
-		invitations:       invitations,
-		transactionRunner: transactionRunner,
+		users:       users,
+		invitations: invitations,
 	}
 }
 
@@ -238,39 +235,18 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 		CompanyID:  companyID,
 	}
 
-	if u.transactionRunner == nil {
-		return false, errors.New(
-			"user invitation transaction runner not configured",
-		)
+	if err := u.users.Create(ctx, user); err != nil {
+		return false, fmt.Errorf("create user: %w", err)
 	}
 
-	if err := u.transactionRunner.WithinTransaction(
-		ctx,
-		func(
-			users repository.UserRepository,
-			invitations repository.AdminInvitationRepository,
-		) error {
-			if err := users.Create(ctx, user); err != nil {
-				return fmt.Errorf("create user: %w", err)
-			}
-
-			if inv != nil {
-				if err := invitations.UpdateStatus(
-					ctx,
-					inv.ID,
-					domain.InvitationStatusAccepted,
-				); err != nil {
-					return fmt.Errorf("accept invitation: %w", err)
-				}
-			}
-
-			return nil
-		},
-	); err != nil {
-		return false, fmt.Errorf(
-			"create user and accept invitation transaction: %w",
-			err,
-		)
+	if inv != nil {
+		if err := u.invitations.UpdateStatus(
+			ctx,
+			inv.ID,
+			domain.InvitationStatusAccepted,
+		); err != nil {
+			return false, fmt.Errorf("accept invitation: %w", err)
+		}
 	}
 
 	return true, nil

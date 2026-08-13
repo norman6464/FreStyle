@@ -262,12 +262,12 @@ func TestUpsertUserFromIDToken_Transaction_Integration(t *testing.T) {
 		}
 
 		results := make(chan executeResult, 2)
-		execute := func(cognitoSub string) {
+		execute := func(cognitoSub string, email string) {
 			allowed, err := uc.Execute(
 				ctx,
 				usecase.UpsertUserFromIDTokenInput{
 					CognitoSub:      cognitoSub,
-					Email:           invitation.Email,
+					Email:           email,
 					InvitationToken: token,
 				},
 			)
@@ -277,8 +277,8 @@ func TestUpsertUserFromIDToken_Transaction_Integration(t *testing.T) {
 			}
 		}
 
-		go execute("concurrent-sub-1")
-		go execute("concurrent-sub-2")
+		go execute("concurrent-sub-1", "concurrent-1@example.com")
+		go execute("concurrent-sub-2", "concurrent-2@example.com")
 
 		for i := 0; i < 2; i++ {
 			select {
@@ -301,6 +301,17 @@ func TestUpsertUserFromIDToken_Transaction_Integration(t *testing.T) {
 				successCount++
 			case !result.allowed && result.err != nil:
 				failureCount++
+				require.ErrorIs(
+					t,
+					result.err,
+					repository.ErrInvitationAlreadyClaimed,
+				)
+			default:
+				t.Fatalf(
+					"想定外の戻り値: allowed=%t err=%v",
+					result.allowed,
+					result.err,
+				)
 			}
 		}
 

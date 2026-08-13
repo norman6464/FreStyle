@@ -105,7 +105,7 @@ func (r *adminInvitationRepository) UpdateStatus(
 		return result.Error
 	}
 	if result.RowsAffected != 1 {
-		return gorm.ErrRecordNotFound
+		return repository.ErrInvitationAlreadyClaimed
 	}
 
 	return nil

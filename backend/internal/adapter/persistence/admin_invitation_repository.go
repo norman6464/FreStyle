@@ -87,6 +87,26 @@ func (r *adminInvitationRepository) Create(ctx context.Context, inv *domain.Admi
 	return r.db.WithContext(ctx).Create(inv).Error
 }
 
-func (r *adminInvitationRepository) UpdateStatus(ctx context.Context, id uint64, status string) error {
-	return r.db.WithContext(ctx).Model(&domain.AdminInvitation{}).Where("id = ?", id).Update("status", status).Error
+func (r *adminInvitationRepository) UpdateStatus(
+	ctx context.Context,
+	id uint64,
+	status string,
+) error {
+	result := r.db.WithContext(ctx).
+		Model(&domain.AdminInvitation{}).
+		Where(
+			"id = ? AND status = ?",
+			id,
+			domain.InvitationStatusPending,
+		).
+		Update("status", status)
+
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return repository.ErrInvitationAlreadyClaimed
+	}
+
+	return nil
 }

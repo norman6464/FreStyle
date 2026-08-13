@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
 // fakeUserRepo は AuthHandler.upsertUserFromIDToken のテスト用 stub。
@@ -133,14 +134,38 @@ func makeIDToken(t *testing.T, claims map[string]any) string {
 	return header + "." + body + "."
 }
 
+type authTestTransactionRunner struct {
+	users       repository.UserRepository
+	invitations repository.AdminInvitationRepository
+}
+
+func (r *authTestTransactionRunner) WithinTransaction(
+	ctx context.Context,
+	fn func(
+		users repository.UserRepository,
+		invitations repository.AdminInvitationRepository,
+	) error,
+) error {
+	return fn(r.users, r.invitations)
+}
+
 // newTestAuthHandler はテスト用 AuthHandler を組み立てる。tokens は使わない。
 func newTestAuthHandler(
 	users *fakeUserRepo,
 	invitations *fakeInvitationRepo,
 ) *AuthHandler {
+	transactionRunner := &authTestTransactionRunner{
+		users:       users,
+		invitations: invitations,
+	}
+
 	return &AuthHandler{
-		users:      users,
-		upsertUser: usecase.NewUpsertUserFromIDTokenUseCase(users, invitations),
+		users: users,
+		upsertUser: usecase.NewUpsertUserFromIDTokenUseCase(
+			users,
+			invitations,
+			transactionRunner,
+		),
 	}
 }
 

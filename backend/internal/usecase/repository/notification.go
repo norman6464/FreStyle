@@ -19,8 +19,3 @@ type NotificationRepository interface {
 	MarkAllRead(ctx context.Context, userID uint64) error
 	CountUnread(ctx context.Context, userID uint64) (int64, error)
 }
-
-// SnsPublisher は通知 push 用（実装は AWS SDK 連携で別 PR）。
-type SnsPublisher interface {
-	Publish(ctx context.Context, userID uint64, title, body string) error
-}

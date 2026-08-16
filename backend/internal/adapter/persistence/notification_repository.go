@@ -85,10 +85,3 @@ func (r *notificationRepository) CountUnread(ctx context.Context, userID uint64)
 	}
 	return sqlcgen.New(sqlDB).CountUnreadNotifications(ctx, uid)
 }
-
-// stubSnsPublisher は [repository.SnsPublisher] の no-op 実装（本番の SNS 実装は別 PR）。
-type stubSnsPublisher struct{}
-
-func NewStubSnsPublisher() repository.SnsPublisher { return &stubSnsPublisher{} }
-
-func (p *stubSnsPublisher) Publish(_ context.Context, _ uint64, _, _ string) error { return nil }

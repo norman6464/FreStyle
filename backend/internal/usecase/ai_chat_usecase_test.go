@@ -2,11 +2,13 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"gorm.io/gorm"
 )
 
 // nopActivityRepo は UserDailyActivityRepository の何もしない stub。
@@ -21,8 +23,10 @@ func (n *nopActivityRepo) ListByUser(_ context.Context, _ uint64, _, _ time.Time
 }
 
 type stubAiChatSessionRepo struct {
-	rows []domain.AiChatSession
-	err  error
+	rows    []domain.AiChatSession
+	found   *domain.AiChatSession
+	findErr error
+	err     error
 }
 
 func (s *stubAiChatSessionRepo) ListByUserID(_ context.Context, _ uint64) ([]domain.AiChatSession, error) {
@@ -30,7 +34,7 @@ func (s *stubAiChatSessionRepo) ListByUserID(_ context.Context, _ uint64) ([]dom
 }
 
 func (s *stubAiChatSessionRepo) FindByID(_ context.Context, _ uint64) (*domain.AiChatSession, error) {
-	return nil, nil
+	return s.found, s.findErr
 }
 
 func (s *stubAiChatSessionRepo) Create(_ context.Context, sess *domain.AiChatSession) error {
@@ -66,6 +70,36 @@ func Test_AIチャットセッション作成_タイトルが必須(t *testing.T
 	_, err := uc.Execute(context.Background(), CreateAiChatSessionInput{UserID: 1})
 	if err == nil {
 		t.Fatal("expected error for empty title")
+	}
+}
+
+func Test_AIチャットセッション取得_所有者本人なら返す(t *testing.T) {
+	repo := &stubAiChatSessionRepo{found: &domain.AiChatSession{ID: 5, UserID: 7}}
+	uc := NewGetAiChatSessionUseCase(repo)
+	got, err := uc.Execute(context.Background(), 5, 7)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if got.ID != 5 {
+		t.Fatalf("want id=5, got %d", got.ID)
+	}
+}
+
+func Test_AIチャットセッション取得_非所有者はErrForbidden(t *testing.T) {
+	repo := &stubAiChatSessionRepo{found: &domain.AiChatSession{ID: 5, UserID: 99}}
+	uc := NewGetAiChatSessionUseCase(repo)
+	_, err := uc.Execute(context.Background(), 5, 7)
+	if !errors.Is(err, ErrForbidden) {
+		t.Fatalf("want ErrForbidden, got %v", err)
+	}
+}
+
+func Test_AIチャットセッション取得_不存在はエラー伝搬(t *testing.T) {
+	repo := &stubAiChatSessionRepo{findErr: gorm.ErrRecordNotFound}
+	uc := NewGetAiChatSessionUseCase(repo)
+	_, err := uc.Execute(context.Background(), 5, 7)
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("want ErrRecordNotFound, got %v", err)
 	}
 }
 

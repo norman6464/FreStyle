@@ -114,23 +114,34 @@ func parseSessionID(c *gin.Context) (uint64, bool) {
 }
 
 // @Summary      AI チャット セッション 詳細
-// @Description  指定 id の セッション を 返す。
+// @Description  指定 id の セッション を 返す。 所有者 検証 込み。
 // @Tags         ai-chat
 // @Produce      json
 // @Param        id  path      int  true  "セッション ID"
 // @Success      200  {object}  github_com_norman6464_FreStyle_backend_internal_domain.AiChatSession
 // @Failure      400  {object}  errorResponse  "id 不正"
+// @Failure      401  {object}  errorResponse  "未 認証"
+// @Failure      403  {object}  errorResponse  "他人 の セッション"
 // @Failure      404  {object}  errorResponse  "セッション が ない"
 // @Failure      500  {object}  errorResponse  "DB 失敗"
 // @Router       /ai-chat/sessions/{id} [get]
 // @Security     CookieAuth
 func (h *AiChatHandler) GetSession(c *gin.Context) {
+	uid := middleware.CurrentUserIDOrZero(c)
+	if uid == 0 {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
 	id, ok := parseSessionID(c)
 	if !ok {
 		return
 	}
-	s, err := h.getSession.Execute(c.Request.Context(), id)
+	s, err := h.getSession.Execute(c.Request.Context(), id, uid)
 	if err != nil {
+		if errors.Is(err, usecase.ErrForbidden) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
 			return
@@ -171,7 +182,7 @@ func (h *AiChatHandler) UpdateSessionTitle(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
 		return
 	}
-	s, _ := h.getSession.Execute(c.Request.Context(), id)
+	s, _ := h.getSession.Execute(c.Request.Context(), id, middleware.CurrentUserIDOrZero(c))
 	c.JSON(http.StatusOK, s)
 }
 

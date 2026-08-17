@@ -77,8 +77,15 @@ func NewGetAiChatSessionUseCase(s repository.AiChatSessionRepository) *GetAiChat
 	return &GetAiChatSessionUseCase{sessions: s}
 }
 
-func (u *GetAiChatSessionUseCase) Execute(ctx context.Context, id uint64) (*domain.AiChatSession, error) {
-	return u.sessions.FindByID(ctx, id)
+func (u *GetAiChatSessionUseCase) Execute(ctx context.Context, id, userID uint64) (*domain.AiChatSession, error) {
+	s, err := u.sessions.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if s.UserID != userID {
+		return nil, ErrForbidden
+	}
+	return s, nil
 }
 
 // UpdateAiChatSessionTitleUseCase はセッションタイトルを更新する。

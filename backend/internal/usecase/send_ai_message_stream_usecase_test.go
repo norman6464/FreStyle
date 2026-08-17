@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 // nopActivityRepo は UserDailyActivityRepository の何もしない stub（SSE テスト用）。
@@ -86,6 +87,10 @@ func Test_AIメッセージ送信ストリーム_既存セッション_トーク
 	sessionRepo := new(mockSessionRepo)
 	msgRepo := new(mockMsgRepo)
 	bc := new(mockStreamBedrock)
+
+	// 所有者検証: 本人所有のセッションを返す
+	sessionRepo.On("FindByID", mock.Anything, uint64(5)).
+		Return(&domain.AiChatSession{ID: 5, UserID: 7}, nil)
 
 	// 履歴: ユーザー発話 1 件
 	history := []domain.AiChatMessage{
@@ -183,6 +188,10 @@ func Test_AIメッセージ送信ストリーム_添付あり_blob取得とメ�
 		},
 	}
 
+	// 所有者検証: 本人所有のセッションを返す
+	sessionRepo.On("FindByID", mock.Anything, uint64(5)).
+		Return(&domain.AiChatSession{ID: 5, UserID: 7}, nil)
+
 	// 履歴: 今回送ったユーザー発話だけ（attachments 付き）
 	saved := &domain.AiChatMessage{
 		SessionID:   5,
@@ -252,6 +261,8 @@ func Test_AIメッセージ送信ストリーム_空応答_保存せずエラー
 	msgRepo := new(mockMsgRepo)
 	bc := new(mockStreamBedrock)
 
+	sessionRepo.On("FindByID", mock.Anything, uint64(8)).
+		Return(&domain.AiChatSession{ID: 8, UserID: 7}, nil)
 	msgRepo.On("Save", mock.Anything, mock.AnythingOfType("*domain.AiChatMessage")).Return(nil)
 	msgRepo.On("ListBySessionID", mock.Anything, uint64(8)).Return([]domain.AiChatMessage{}, nil)
 
@@ -284,12 +295,41 @@ func Test_AIメッセージ送信ストリーム_空応答_保存せずエラー
 	msgRepo.AssertNumberOfCalls(t, "Save", 1)
 }
 
+// 既存セッションが他人のもの: goroutine を起動せず同期的に ErrForbidden を返す（IDOR 対策）。
+func Test_AIメッセージ送信ストリーム_非所有者セッションはErrForbidden(t *testing.T) {
+	sessionRepo := new(mockSessionRepo)
+	sessionRepo.On("FindByID", mock.Anything, uint64(5)).
+		Return(&domain.AiChatSession{ID: 5, UserID: 99}, nil)
+
+	uc := usecase.NewSendAiMessageStreamUseCase(sessionRepo, new(mockMsgRepo), new(mockStreamBedrock), nil, &nopActivityRepo{})
+	_, err := uc.Execute(context.Background(), usecase.SendAiMessageInput{
+		UserID: 7, SessionID: 5, Content: "hi",
+	})
+	require.ErrorIs(t, err, usecase.ErrForbidden)
+	sessionRepo.AssertExpectations(t)
+}
+
+// 既存セッションが存在しない: 同期的にエラーを返し、メッセージ保存には到達しない。
+func Test_AIメッセージ送信ストリーム_不存在セッションはエラー(t *testing.T) {
+	sessionRepo := new(mockSessionRepo)
+	sessionRepo.On("FindByID", mock.Anything, uint64(5)).
+		Return(nil, gorm.ErrRecordNotFound)
+
+	uc := usecase.NewSendAiMessageStreamUseCase(sessionRepo, new(mockMsgRepo), new(mockStreamBedrock), nil, &nopActivityRepo{})
+	_, err := uc.Execute(context.Background(), usecase.SendAiMessageInput{
+		UserID: 7, SessionID: 5, Content: "hi",
+	})
+	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+}
+
 // Bedrock 呼び出しで stream エラー: ev.Err が channel に流れて使い手に伝わる。
 func Test_AIメッセージ送信ストリーム_ストリームエラーを伝播(t *testing.T) {
 	sessionRepo := new(mockSessionRepo)
 	msgRepo := new(mockMsgRepo)
 	bc := new(mockStreamBedrock)
 
+	sessionRepo.On("FindByID", mock.Anything, uint64(3)).
+		Return(&domain.AiChatSession{ID: 3, UserID: 7}, nil)
 	msgRepo.On("Save", mock.Anything, mock.AnythingOfType("*domain.AiChatMessage")).Return(nil)
 	msgRepo.On("ListBySessionID", mock.Anything, uint64(3)).Return([]domain.AiChatMessage{}, nil)
 

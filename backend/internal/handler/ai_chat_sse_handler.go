@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -14,6 +15,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"gorm.io/gorm"
 )
 
 // AiChatSseHandler は AI チャット用の SSE エンドポイント。
@@ -56,6 +58,8 @@ const maxAttachmentsPerMessage = 4
 // @Success      200   {string}  string  "SSE stream (text/event-stream)"
 // @Failure      400   {object}  errorResponse  "バリデーション (application/json)"
 // @Failure      401   {object}  errorResponse  "未 認証 (application/json)"
+// @Failure      403   {object}  errorResponse  "他人 の セッション (application/json)"
+// @Failure      404   {object}  errorResponse  "セッション が ない (application/json)"
 // @Failure      503   {object}  errorResponse  "Bedrock / DynamoDB 未 設定 (dev/stub、 application/json)"
 // @Router       /ai-chat/stream [post]
 // @Security     CookieAuth
@@ -89,18 +93,12 @@ func (h *AiChatSseHandler) Handle(c *gin.Context) {
 		return
 	}
 
-	// SSE ヘッダ
-	c.Writer.Header().Set("Content-Type", "text/event-stream")
-	c.Writer.Header().Set("Cache-Control", "no-cache")
-	c.Writer.Header().Set("Connection", "keep-alive")
-	c.Writer.Header().Set("X-Accel-Buffering", "no")
-	c.Writer.WriteHeader(http.StatusOK)
-	flushOrPanic(c.Writer)
-
 	// client 切断で cancel される ctx を usecase に渡し、goroutine リークを防ぐ。
 	ctx, cancel := context.WithCancel(c.Request.Context())
 	defer cancel()
 
+	// 所有者検証を含む前処理は Execute 内で同期的に走る。SSE ヘッダ送信前なので
+	// 越権・不存在は通常の JSON エラーで返せる（FRESTYLE-8）。
 	stream, err := h.sendStream.Execute(ctx, usecase.SendAiMessageInput{
 		UserID:      uid,
 		SessionID:   body.SessionID,
@@ -111,9 +109,24 @@ func (h *AiChatSseHandler) Handle(c *gin.Context) {
 		Attachments: attachments,
 	})
 	if err != nil {
-		writeSSEEvent(c.Writer, "error", map[string]string{"message": "メッセージの送信に失敗しました"})
+		switch {
+		case errors.Is(err, usecase.ErrForbidden):
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
+		}
 		return
 	}
+
+	// SSE ヘッダ
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Header().Set("X-Accel-Buffering", "no")
+	c.Writer.WriteHeader(http.StatusOK)
+	flushOrPanic(c.Writer)
 
 	// keepalive: 15 秒ごとにコメント行を送り、ALB / CloudFront のアイドルタイムアウトを防ぐ。
 	keep := time.NewTicker(15 * time.Second)

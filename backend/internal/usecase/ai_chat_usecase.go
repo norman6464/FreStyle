@@ -97,9 +97,16 @@ func NewUpdateAiChatSessionTitleUseCase(s repository.AiChatSessionRepository) *U
 	return &UpdateAiChatSessionTitleUseCase{sessions: s}
 }
 
-func (u *UpdateAiChatSessionTitleUseCase) Execute(ctx context.Context, id uint64, title string) error {
+func (u *UpdateAiChatSessionTitleUseCase) Execute(ctx context.Context, id, userID uint64, title string) error {
 	if title == "" {
 		return errors.New("title is required")
+	}
+	s, err := u.sessions.FindByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if s.UserID != userID {
+		return ErrForbidden
 	}
 	return u.sessions.UpdateTitle(ctx, id, title)
 }

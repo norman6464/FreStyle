@@ -97,7 +97,7 @@ func Test_AIチャットハンドラ_セッション取得_本人は200(t *testi
 }
 
 func Test_AIチャットハンドラ_セッションタイトル更新_不正なID(t *testing.T) {
-	w, c := noteCtx(http.MethodPut, `{"title":"X"}`, 0, "abc")
+	w, c := noteCtx(http.MethodPut, `{"title":"X"}`, 7, "abc")
 	(&AiChatHandler{}).UpdateSessionTitle(c)
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("want 400, got %d", w.Code)
@@ -105,10 +105,44 @@ func Test_AIチャットハンドラ_セッションタイトル更新_不正な
 }
 
 func Test_AIチャットハンドラ_セッションタイトル更新_タイトル欠落(t *testing.T) {
-	w, c := noteCtx(http.MethodPut, `{}`, 0, "5")
+	w, c := noteCtx(http.MethodPut, `{}`, 7, "5")
 	(&AiChatHandler{}).UpdateSessionTitle(c)
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("want 400, got %d", w.Code)
+	}
+}
+
+func Test_AIチャットハンドラ_タイトル更新_未認証(t *testing.T) {
+	w, c := noteCtx(http.MethodPut, `{"title":"X"}`, 0, "5")
+	(&AiChatHandler{}).UpdateSessionTitle(c)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("want 401, got %d", w.Code)
+	}
+}
+
+func Test_AIチャットハンドラ_タイトル更新_他人のセッションは403(t *testing.T) {
+	repo := &fakeAiChatSessionRepo{found: &domain.AiChatSession{ID: 5, UserID: 99}}
+	h := &AiChatHandler{
+		updateTitle: usecase.NewUpdateAiChatSessionTitleUseCase(repo),
+		getSession:  usecase.NewGetAiChatSessionUseCase(repo),
+	}
+	w, c := noteCtx(http.MethodPut, `{"title":"X"}`, 7, "5")
+	h.UpdateSessionTitle(c)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("want 403, got %d", w.Code)
+	}
+}
+
+func Test_AIチャットハンドラ_タイトル更新_本人は200(t *testing.T) {
+	repo := &fakeAiChatSessionRepo{found: &domain.AiChatSession{ID: 5, UserID: 7}}
+	h := &AiChatHandler{
+		updateTitle: usecase.NewUpdateAiChatSessionTitleUseCase(repo),
+		getSession:  usecase.NewGetAiChatSessionUseCase(repo),
+	}
+	w, c := noteCtx(http.MethodPut, `{"title":"X"}`, 7, "5")
+	h.UpdateSessionTitle(c)
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d", w.Code)
 	}
 }
 

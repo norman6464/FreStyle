@@ -157,7 +157,7 @@ type updateSessionTitleReq struct {
 }
 
 // @Summary      AI チャット セッション タイトル 更新
-// @Description  指定 id の セッション の title を 更新。
+// @Description  指定 id の セッション の title を 更新。 所有者 検証 込み。
 // @Tags         ai-chat
 // @Accept       json
 // @Produce      json
@@ -165,10 +165,18 @@ type updateSessionTitleReq struct {
 // @Param        body  body      updateSessionTitleReq    true  "title 必須"
 // @Success      200   {object}  github_com_norman6464_FreStyle_backend_internal_domain.AiChatSession
 // @Failure      400   {object}  errorResponse  "バリデーション"
+// @Failure      401   {object}  errorResponse  "未 認証"
+// @Failure      403   {object}  errorResponse  "他人 の セッション"
+// @Failure      404   {object}  errorResponse  "セッション が ない"
 // @Failure      500   {object}  errorResponse  "DB 失敗"
 // @Router       /ai-chat/sessions/{id} [put]
 // @Security     CookieAuth
 func (h *AiChatHandler) UpdateSessionTitle(c *gin.Context) {
+	uid := middleware.CurrentUserIDOrZero(c)
+	if uid == 0 {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
 	id, ok := parseSessionID(c)
 	if !ok {
 		return
@@ -178,11 +186,19 @@ func (h *AiChatHandler) UpdateSessionTitle(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if err := h.updateTitle.Execute(c.Request.Context(), id, req.Title); err != nil {
+	if err := h.updateTitle.Execute(c.Request.Context(), id, uid, req.Title); err != nil {
+		if errors.Is(err, usecase.ErrForbidden) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
 		return
 	}
-	s, _ := h.getSession.Execute(c.Request.Context(), id, middleware.CurrentUserIDOrZero(c))
+	s, _ := h.getSession.Execute(c.Request.Context(), id, uid)
 	c.JSON(http.StatusOK, s)
 }
 

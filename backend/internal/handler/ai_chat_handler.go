@@ -241,22 +241,38 @@ func (h *AiChatHandler) DeleteSession(c *gin.Context) {
 }
 
 // @Summary      AI チャット メッセージ 一覧
-// @Description  指定 セッション の 会話 履歴 (DynamoDB から) を 古い 順 で 返す。
+// @Description  指定 セッション の 会話 履歴 (DynamoDB から) を 古い 順 で 返す。 所有者 検証 込み。
 // @Tags         ai-chat
 // @Produce      json
 // @Param        id  path      int  true  "セッション ID"
 // @Success      200  {array}   github_com_norman6464_FreStyle_backend_internal_domain.AiChatMessage
 // @Failure      400  {object}  errorResponse  "id 不正"
+// @Failure      401  {object}  errorResponse  "未 認証"
+// @Failure      403  {object}  errorResponse  "他人 の セッション"
+// @Failure      404  {object}  errorResponse  "セッション が ない"
 // @Failure      500  {object}  errorResponse  "DynamoDB 失敗"
 // @Router       /ai-chat/sessions/{id}/messages [get]
 // @Security     CookieAuth
 func (h *AiChatHandler) GetMessages(c *gin.Context) {
+	uid := middleware.CurrentUserIDOrZero(c)
+	if uid == 0 {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
 	id, ok := parseSessionID(c)
 	if !ok {
 		return
 	}
-	msgs, err := h.getMessages.Execute(c.Request.Context(), id)
+	msgs, err := h.getMessages.Execute(c.Request.Context(), id, uid)
 	if err != nil {
+		if errors.Is(err, usecase.ErrForbidden) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
 		return
 	}

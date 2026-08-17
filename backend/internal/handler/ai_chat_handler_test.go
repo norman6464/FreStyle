@@ -146,6 +146,46 @@ func Test_AIチャットハンドラ_タイトル更新_本人は200(t *testing.
 	}
 }
 
+// fakeAiChatMessageRepo は AiChatMessageRepository の handler テスト用 fake。
+type fakeAiChatMessageRepo struct{ rows []domain.AiChatMessage }
+
+func (f *fakeAiChatMessageRepo) Save(_ context.Context, _ *domain.AiChatMessage) error { return nil }
+func (f *fakeAiChatMessageRepo) ListBySessionID(_ context.Context, _ uint64) ([]domain.AiChatMessage, error) {
+	return f.rows, nil
+}
+
+func Test_AIチャットハンドラ_メッセージ一覧_未認証(t *testing.T) {
+	w, c := noteCtx(http.MethodGet, "", 0, "5")
+	(&AiChatHandler{}).GetMessages(c)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("want 401, got %d", w.Code)
+	}
+}
+
+func Test_AIチャットハンドラ_メッセージ一覧_他人のセッションは403(t *testing.T) {
+	uc := usecase.NewGetAiChatMessagesUseCase(
+		&fakeAiChatSessionRepo{found: &domain.AiChatSession{ID: 5, UserID: 99}},
+		&fakeAiChatMessageRepo{},
+	)
+	w, c := noteCtx(http.MethodGet, "", 7, "5")
+	(&AiChatHandler{getMessages: uc}).GetMessages(c)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("want 403, got %d", w.Code)
+	}
+}
+
+func Test_AIチャットハンドラ_メッセージ一覧_本人は200(t *testing.T) {
+	uc := usecase.NewGetAiChatMessagesUseCase(
+		&fakeAiChatSessionRepo{found: &domain.AiChatSession{ID: 5, UserID: 7}},
+		&fakeAiChatMessageRepo{rows: []domain.AiChatMessage{{SessionID: 5}}},
+	)
+	w, c := noteCtx(http.MethodGet, "", 7, "5")
+	(&AiChatHandler{getMessages: uc}).GetMessages(c)
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d", w.Code)
+	}
+}
+
 func Test_AIチャットハンドラ_セッション削除_未認証(t *testing.T) {
 	w, c := noteCtx(http.MethodDelete, "", 0, "5")
 	(&AiChatHandler{}).DeleteSession(c)

@@ -103,6 +103,37 @@ func Test_AIチャットセッション取得_不存在はエラー伝搬(t *tes
 	}
 }
 
+// stubAiChatMessageRepo は AiChatMessageRepository の stub。
+type stubAiChatMessageRepo struct {
+	rows []domain.AiChatMessage
+}
+
+func (s *stubAiChatMessageRepo) Save(_ context.Context, _ *domain.AiChatMessage) error { return nil }
+func (s *stubAiChatMessageRepo) ListBySessionID(_ context.Context, _ uint64) ([]domain.AiChatMessage, error) {
+	return s.rows, nil
+}
+
+func Test_AIチャットメッセージ一覧_非所有者はErrForbidden(t *testing.T) {
+	sessions := &stubAiChatSessionRepo{found: &domain.AiChatSession{ID: 5, UserID: 99}}
+	uc := NewGetAiChatMessagesUseCase(sessions, &stubAiChatMessageRepo{})
+	_, err := uc.Execute(context.Background(), 5, 7)
+	if !errors.Is(err, ErrForbidden) {
+		t.Fatalf("want ErrForbidden, got %v", err)
+	}
+}
+
+func Test_AIチャットメッセージ一覧_所有者本人なら返す(t *testing.T) {
+	sessions := &stubAiChatSessionRepo{found: &domain.AiChatSession{ID: 5, UserID: 7}}
+	uc := NewGetAiChatMessagesUseCase(sessions, &stubAiChatMessageRepo{rows: []domain.AiChatMessage{{SessionID: 5}}})
+	got, err := uc.Execute(context.Background(), 5, 7)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("want 1 message, got %d", len(got))
+	}
+}
+
 func Test_AIチャットセッションタイトル更新_非所有者はErrForbidden(t *testing.T) {
 	repo := &stubAiChatSessionRepo{found: &domain.AiChatSession{ID: 5, UserID: 99}}
 	uc := NewUpdateAiChatSessionTitleUseCase(repo)

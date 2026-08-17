@@ -23,7 +23,7 @@ func registerChatRoutes(g *gin.RouterGroup, deps *routeDeps) {
 		usecase.NewGetAiChatSessionUseCase(aiSessionRepo),
 		usecase.NewUpdateAiChatSessionTitleUseCase(aiSessionRepo),
 		usecase.NewDeleteAiChatSessionUseCase(aiSessionRepo),
-		usecase.NewGetAiChatMessagesUseCase(deps.msgRepo),
+		usecase.NewGetAiChatMessagesUseCase(aiSessionRepo, deps.msgRepo),
 	)
 
 	// ai-chat 配下は会社の AI 有効化ゲートを通す（管理者・会社未所属は常に通過）。

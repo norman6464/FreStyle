@@ -226,7 +226,7 @@ func (h *AiChatHandler) DeleteSession(c *gin.Context) {
 		return
 	}
 	if err := h.deleteSession.Execute(c.Request.Context(), id, uid); err != nil {
-		if err.Error() == "forbidden" {
+		if errors.Is(err, usecase.ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 			return
 		}

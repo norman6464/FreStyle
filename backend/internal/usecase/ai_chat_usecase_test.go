@@ -151,6 +151,23 @@ func Test_AIチャットセッションタイトル更新_所有者本人なら�
 	}
 }
 
+func Test_AIチャットセッション削除_非所有者はErrForbidden(t *testing.T) {
+	repo := &stubAiChatSessionRepo{found: &domain.AiChatSession{ID: 5, UserID: 99}}
+	uc := NewDeleteAiChatSessionUseCase(repo)
+	err := uc.Execute(context.Background(), 5, 7)
+	if !errors.Is(err, ErrForbidden) {
+		t.Fatalf("want ErrForbidden, got %v", err)
+	}
+}
+
+func Test_AIチャットセッション削除_所有者本人なら成功(t *testing.T) {
+	repo := &stubAiChatSessionRepo{found: &domain.AiChatSession{ID: 5, UserID: 7}}
+	uc := NewDeleteAiChatSessionUseCase(repo)
+	if err := uc.Execute(context.Background(), 5, 7); err != nil {
+		t.Fatalf("err: %v", err)
+	}
+}
+
 func Test_AIチャットセッション作成_種別は既定でfree(t *testing.T) {
 	uc := NewCreateAiChatSessionUseCase(&stubAiChatSessionRepo{}, &nopActivityRepo{})
 	got, err := uc.Execute(context.Background(), CreateAiChatSessionInput{UserID: 1, Title: "x"})

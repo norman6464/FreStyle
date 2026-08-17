@@ -126,7 +126,7 @@ func (u *DeleteAiChatSessionUseCase) Execute(ctx context.Context, id uint64, use
 		return err
 	}
 	if s.UserID != userID {
-		return errors.New("forbidden")
+		return ErrForbidden
 	}
 	return u.sessions.Delete(ctx, id)
 }

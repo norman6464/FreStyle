@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"testing"
 
@@ -147,6 +148,33 @@ func Test_AIチャットハンドラ_タイトル更新_本人は200(t *testing.
 	h.UpdateSessionTitle(c)
 	if w.Code != http.StatusOK {
 		t.Fatalf("want 200, got %d", w.Code)
+	}
+}
+
+// flakyFindSessionRepo は 2 回目以降の FindByID を失敗させる fake（更新後の再取得失敗ケース用）。
+type flakyFindSessionRepo struct {
+	fakeAiChatSessionRepo
+	calls int
+}
+
+func (f *flakyFindSessionRepo) FindByID(ctx context.Context, id uint64) (*domain.AiChatSession, error) {
+	f.calls++
+	if f.calls > 1 {
+		return nil, errors.New("db down")
+	}
+	return f.fakeAiChatSessionRepo.FindByID(ctx, id)
+}
+
+func Test_AIチャットハンドラ_タイトル更新_再取得失敗は500(t *testing.T) {
+	repo := &flakyFindSessionRepo{fakeAiChatSessionRepo: fakeAiChatSessionRepo{found: &domain.AiChatSession{ID: 5, UserID: 7}}}
+	h := &AiChatHandler{
+		updateTitle: usecase.NewUpdateAiChatSessionTitleUseCase(repo),
+		getSession:  usecase.NewGetAiChatSessionUseCase(repo),
+	}
+	w, c := noteCtx(http.MethodPut, `{"title":"X"}`, 7, "5")
+	h.UpdateSessionTitle(c)
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("want 500, got %d", w.Code)
 	}
 }
 

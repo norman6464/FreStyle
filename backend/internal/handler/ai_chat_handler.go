@@ -198,7 +198,11 @@ func (h *AiChatHandler) UpdateSessionTitle(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
 		return
 	}
-	s, _ := h.getSession.Execute(c.Request.Context(), id, uid)
+	s, err := h.getSession.Execute(c.Request.Context(), id, uid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
+		return
+	}
 	c.JSON(http.StatusOK, s)
 }
 

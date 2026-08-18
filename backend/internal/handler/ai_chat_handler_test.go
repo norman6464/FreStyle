@@ -19,12 +19,16 @@ type fakeAiChatSessionRepo struct {
 func (f *fakeAiChatSessionRepo) ListByUserID(_ context.Context, _ uint64) ([]domain.AiChatSession, error) {
 	return nil, nil
 }
+
 func (f *fakeAiChatSessionRepo) FindByID(_ context.Context, _ uint64) (*domain.AiChatSession, error) {
 	return f.found, f.findErr
 }
+
 func (f *fakeAiChatSessionRepo) Create(_ context.Context, _ *domain.AiChatSession) error { return nil }
+
 func (f *fakeAiChatSessionRepo) UpdateTitle(_ context.Context, _ uint64, _ string) error { return nil }
-func (f *fakeAiChatSessionRepo) Delete(_ context.Context, _ uint64) error                { return nil }
+
+func (f *fakeAiChatSessionRepo) Delete(_ context.Context, _ uint64) error { return nil }
 
 // ai_chat_handler のガード分岐（401 / 400）を zero-value handler で検証する。
 // いずれも usecase 到達前に早期 return するため nil usecase で安全。
@@ -150,6 +154,7 @@ func Test_AIチャットハンドラ_タイトル更新_本人は200(t *testing.
 type fakeAiChatMessageRepo struct{ rows []domain.AiChatMessage }
 
 func (f *fakeAiChatMessageRepo) Save(_ context.Context, _ *domain.AiChatMessage) error { return nil }
+
 func (f *fakeAiChatMessageRepo) ListBySessionID(_ context.Context, _ uint64) ([]domain.AiChatMessage, error) {
 	return f.rows, nil
 }

@@ -109,6 +109,7 @@ type stubAiChatMessageRepo struct {
 }
 
 func (s *stubAiChatMessageRepo) Save(_ context.Context, _ *domain.AiChatMessage) error { return nil }
+
 func (s *stubAiChatMessageRepo) ListBySessionID(_ context.Context, _ uint64) ([]domain.AiChatMessage, error) {
 	return s.rows, nil
 }

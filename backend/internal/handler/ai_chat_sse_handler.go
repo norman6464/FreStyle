@@ -3,7 +3,6 @@ package handler
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -15,7 +14,6 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
-	"gorm.io/gorm"
 )
 
 // AiChatSseHandler は AI チャット用の SSE エンドポイント。
@@ -58,7 +56,6 @@ const maxAttachmentsPerMessage = 4
 // @Success      200   {string}  string  "SSE stream (text/event-stream)"
 // @Failure      400   {object}  errorResponse  "バリデーション (application/json)"
 // @Failure      401   {object}  errorResponse  "未 認証 (application/json)"
-// @Failure      403   {object}  errorResponse  "他人 の セッション (application/json)"
 // @Failure      404   {object}  errorResponse  "セッション が ない (application/json)"
 // @Failure      503   {object}  errorResponse  "Bedrock / DynamoDB 未 設定 (dev/stub、 application/json)"
 // @Router       /ai-chat/stream [post]
@@ -97,8 +94,8 @@ func (h *AiChatSseHandler) Handle(c *gin.Context) {
 	ctx, cancel := context.WithCancel(c.Request.Context())
 	defer cancel()
 
-	// 所有者検証を含む前処理は Execute 内で同期的に走る。SSE ヘッダ送信前なので
-	// 越権・不存在は通常の JSON エラーで返せる（FRESTYLE-8）。
+	// SSE ヘッダ送信後は HTTP ステータスを変えられないため、
+	// 所有者検証を含む前処理はヘッダ送信前に行う。
 	stream, err := h.sendStream.Execute(ctx, usecase.SendAiMessageInput{
 		UserID:      uid,
 		SessionID:   body.SessionID,
@@ -109,14 +106,7 @@ func (h *AiChatSseHandler) Handle(c *gin.Context) {
 		Attachments: attachments,
 	})
 	if err != nil {
-		switch {
-		case errors.Is(err, usecase.ErrForbidden):
-			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-		case errors.Is(err, gorm.ErrRecordNotFound):
-			c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
-		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
-		}
+		respondSessionError(c, err)
 		return
 	}
 

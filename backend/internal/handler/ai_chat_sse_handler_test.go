@@ -9,17 +9,17 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// 他人のセッション ID を指定した送信は SSE を開始せず 403 (application/json) で拒否される。
+// 他人のセッション ID を指定した送信は SSE を開始せず 404 (application/json) で拒否される。
 // 非所有者パスは messages / bedrock に触れる前に同期 return するため nil 注入で安全。
-func Test_SSEハンドラ_他人のセッションは403(t *testing.T) {
+func Test_SSEハンドラ_他人のセッションは404(t *testing.T) {
 	uc := usecase.NewSendAiMessageStreamUseCase(
 		&fakeAiChatSessionRepo{found: &domain.AiChatSession{ID: 5, UserID: 99}},
 		nil, nil, nil, nil,
 	)
 	w, c := noteCtx(http.MethodPost, `{"sessionId":5,"content":"hi"}`, 7, "")
 	NewAiChatSseHandler(uc).Handle(c)
-	if w.Code != http.StatusForbidden {
-		t.Fatalf("want 403, got %d", w.Code)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("want 404, got %d", w.Code)
 	}
 }
 

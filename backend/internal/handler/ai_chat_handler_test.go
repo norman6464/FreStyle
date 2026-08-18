@@ -74,12 +74,12 @@ func Test_AIチャットハンドラ_セッション取得_未認証(t *testing.
 	}
 }
 
-func Test_AIチャットハンドラ_セッション取得_他人のセッションは403(t *testing.T) {
+func Test_AIチャットハンドラ_セッション取得_他人のセッションは404(t *testing.T) {
 	uc := usecase.NewGetAiChatSessionUseCase(&fakeAiChatSessionRepo{found: &domain.AiChatSession{ID: 5, UserID: 99}})
 	w, c := noteCtx(http.MethodGet, "", 7, "5")
 	(&AiChatHandler{getSession: uc}).GetSession(c)
-	if w.Code != http.StatusForbidden {
-		t.Fatalf("want 403, got %d", w.Code)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("want 404, got %d", w.Code)
 	}
 }
 
@@ -125,7 +125,7 @@ func Test_AIチャットハンドラ_タイトル更新_未認証(t *testing.T) 
 	}
 }
 
-func Test_AIチャットハンドラ_タイトル更新_他人のセッションは403(t *testing.T) {
+func Test_AIチャットハンドラ_タイトル更新_他人のセッションは404(t *testing.T) {
 	repo := &fakeAiChatSessionRepo{found: &domain.AiChatSession{ID: 5, UserID: 99}}
 	h := &AiChatHandler{
 		updateTitle: usecase.NewUpdateAiChatSessionTitleUseCase(repo),
@@ -133,8 +133,8 @@ func Test_AIチャットハンドラ_タイトル更新_他人のセッション
 	}
 	w, c := noteCtx(http.MethodPut, `{"title":"X"}`, 7, "5")
 	h.UpdateSessionTitle(c)
-	if w.Code != http.StatusForbidden {
-		t.Fatalf("want 403, got %d", w.Code)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("want 404, got %d", w.Code)
 	}
 }
 
@@ -195,15 +195,15 @@ func Test_AIチャットハンドラ_メッセージ一覧_未認証(t *testing.
 	}
 }
 
-func Test_AIチャットハンドラ_メッセージ一覧_他人のセッションは403(t *testing.T) {
+func Test_AIチャットハンドラ_メッセージ一覧_他人のセッションは404(t *testing.T) {
 	uc := usecase.NewGetAiChatMessagesUseCase(
 		&fakeAiChatSessionRepo{found: &domain.AiChatSession{ID: 5, UserID: 99}},
 		&fakeAiChatMessageRepo{},
 	)
 	w, c := noteCtx(http.MethodGet, "", 7, "5")
 	(&AiChatHandler{getMessages: uc}).GetMessages(c)
-	if w.Code != http.StatusForbidden {
-		t.Fatalf("want 403, got %d", w.Code)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("want 404, got %d", w.Code)
 	}
 }
 

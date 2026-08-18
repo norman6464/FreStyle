@@ -143,15 +143,15 @@ func NewGetAiChatMessagesUseCase(s repository.AiChatSessionRepository, m reposit
 }
 
 func (u *GetAiChatMessagesUseCase) Execute(ctx context.Context, sessionID, userID uint64) ([]domain.AiChatMessage, error) {
-	if u.messages == nil {
-		return nil, errors.New("message repository unavailable")
-	}
 	s, err := u.sessions.FindByID(ctx, sessionID)
 	if err != nil {
 		return nil, err
 	}
 	if s.UserID != userID {
 		return nil, ErrForbidden
+	}
+	if u.messages == nil {
+		return nil, errors.New("message repository unavailable")
 	}
 	return u.messages.ListBySessionID(ctx, sessionID)
 }

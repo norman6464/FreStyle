@@ -977,7 +977,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "指定 id の セッション を 返す。 所有者 検証 込み。",
+                "description": "所有者を検証してから指定 id の セッション を 返す。",
                 "produces": [
                     "application/json"
                 ],
@@ -1013,12 +1013,6 @@ const docTemplate = `{
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
                     },
-                    "403": {
-                        "description": "他人 の セッション",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
                     "404": {
                         "description": "セッション が ない",
                         "schema": {
@@ -1039,7 +1033,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "指定 id の セッション の title を 更新。 所有者 検証 込み。",
+                "description": "所有者を検証してから指定 id の セッション タイトル を 更新。",
                 "consumes": [
                     "application/json"
                 ],
@@ -1087,12 +1081,6 @@ const docTemplate = `{
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
                     },
-                    "403": {
-                        "description": "他人 の セッション",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
                     "404": {
                         "description": "セッション が ない",
                         "schema": {
@@ -1113,7 +1101,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "指定 id の セッション を 削除。 所有者 検証 込み。",
+                "description": "所有者を検証してから指定 id の セッション を 削除。",
                 "produces": [
                     "application/json"
                 ],
@@ -1146,12 +1134,6 @@ const docTemplate = `{
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
                     },
-                    "403": {
-                        "description": "他人 の セッション",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
                     "404": {
                         "description": "セッション が ない",
                         "schema": {
@@ -1174,7 +1156,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "指定 セッション の 会話 履歴 (DynamoDB から) を 古い 順 で 返す。 所有者 検証 込み。",
+                "description": "所有者を検証してから指定セッションの会話履歴(DynamoDB から)を作成日時の昇順(古い 順)で返す。",
                 "produces": [
                     "application/json"
                 ],
@@ -1209,12 +1191,6 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "未 認証",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "他人 の セッション",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -1278,12 +1254,6 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "未 認証 (application/json)",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "他人 の セッション (application/json)",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }

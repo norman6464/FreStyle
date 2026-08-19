@@ -39,12 +39,16 @@ describe('LandingPage', () => {
     expect(
       screen.getByRole('heading', {
         level: 1,
-        name: /新卒ITエンジニア向け研修プラットフォーム/,
+        name: /「わかる」で終わらせない/,
       }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'FreStyle とは' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '主な機能' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'よくある質問' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: /研修をつなぎ、学びの完了まで届ける機能群/ }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /学びっぱなしにさせない/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'FreStyle で変わる新人研修' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '立場ごとに、見える景色を用意' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '企業利用を前提にした設計' })).toBeInTheDocument();
     // CTA は遷移先まで検証する（存在確認だけでは誤配線を検知できない）
     const applyLinks = screen.getAllByRole('link', { name: /利用申請/ });
     expect(applyLinks.length).toBeGreaterThan(0);
@@ -55,6 +59,22 @@ describe('LandingPage', () => {
     expect(loginLinks.length).toBeGreaterThan(0);
     for (const link of loginLinks) {
       expect(link).toHaveAttribute('href', '/login');
+    }
+  });
+
+  it('Before/After 比較表を行見出し付きの table で表示する', () => {
+    renderLanding(false);
+    // getByRole は未検出時に例外を投げるため、取得自体が存在検証になる
+    screen.getByRole('table');
+    // 横スクロールする表はキーボードでも操作できる必要がある(WCAG 2.1.1)
+    expect(screen.getByRole('region', { name: '従来の研修と FreStyle の比較' })).toHaveAttribute(
+      'tabindex',
+      '0',
+    );
+    expect(screen.getByRole('rowheader', { name: '従来の研修' })).toBeInTheDocument();
+    expect(screen.getByRole('rowheader', { name: 'FreStyle' })).toBeInTheDocument();
+    for (const col of ['教材と学び方', '質問対応', '進捗の把握']) {
+      expect(screen.getByRole('columnheader', { name: col })).toBeInTheDocument();
     }
   });
 
@@ -75,7 +95,7 @@ describe('LandingPage', () => {
     renderLanding(false);
     // 認証確認が reject された後も LP のまま
     expect(
-      await screen.findByRole('heading', { level: 1, name: /新卒ITエンジニア向け研修プラットフォーム/ }),
+      await screen.findByRole('heading', { level: 1, name: /「わかる」で終わらせない/ }),
     ).toBeInTheDocument();
     expect(screen.queryByText('ダッシュボード')).not.toBeInTheDocument();
   });

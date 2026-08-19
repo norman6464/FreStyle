@@ -30,14 +30,14 @@ test.describe('公開トップ（未ログイン）', () => {
 
     // ヒーロー見出しが出ていること（LP が描画されている）。
     await expect(
-      page.getByRole('heading', { level: 1, name: /新卒ITエンジニア向け研修プラットフォーム/ })
+      page.getByRole('heading', { level: 1, name: /「わかる」で終わらせない/ })
     ).toBeVisible();
 
     // リダイレクトは非同期に起きるため、猶予を置いてから URL を確認する。
     await page.waitForTimeout(2000);
     await expect(page).not.toHaveURL(/\/login/);
     await expect(
-      page.getByRole('heading', { level: 1, name: /新卒ITエンジニア向け研修プラットフォーム/ })
+      page.getByRole('heading', { level: 1, name: /「わかる」で終わらせない/ })
     ).toBeVisible();
   });
 

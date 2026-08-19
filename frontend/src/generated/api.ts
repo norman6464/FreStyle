@@ -3773,7 +3773,7 @@ export interface paths {
         put?: never;
         /**
          * ノート 画像 PUT 署名 URL
-         * @description current user 用 の S3 PUT 署名 URL を 発行。 userId は body から 受け取らず middleware の current user を 使う (IDOR 対策、 Phase 3 で 修正)。
+         * @description current user 用 の S3 PUT 署名 URL を 発行。 contentType は 画像 MIME (png/jpeg/jpg/gif/webp) のみ、 sizeBytes は 上限 5MB を 事前 検証。 検証 済み の contentType / sizeBytes は presign の 署名 対象 (Content-Type / Content-Length) に 焼き込む ため、 発行後 に 別 種別 ・ 別 サイズ で PUT する と S3 が 署名 不一致 で 拒否 する。
          */
         post: {
             parameters: {
@@ -3782,8 +3782,8 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            /** @description contentType (任意) */
-            requestBody?: {
+            /** @description contentType / sizeBytes */
+            requestBody: {
                 content: {
                     "application/json": components["schemas"]["internal_handler.issueUploadURLReq"];
                 };
@@ -3798,7 +3798,7 @@ export interface paths {
                         "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.NoteImageUploadURL"];
                     };
                 };
-                /** @description 発行 失敗 */
+                /** @description Bad Request — contentType / sizeBytes が 未 指定、 sizeBytes が 正数 で ない、 または 不正 な JSON */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -3807,8 +3807,44 @@ export interface paths {
                         "application/json": components["schemas"]["internal_handler.errorResponse"];
                     };
                 };
-                /** @description 未 認証 */
+                /** @description Unauthorized — 未 認証 (Cookie の JWT が 無効 か 未 送信) */
                 401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description Payload Too Large — sizeBytes が 上限 5MB (5242880 byte) を 超えて いる。 5MB 以下 の 画像 を 選び直して 再送 する */
+                413: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description Unsupported Media Type — contentType が 許可 された 画像 MIME (png/jpeg/jpg/gif/webp) で ない。 画像 以外 の ファイル は アップロード できない */
+                415: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description Internal Server Error — presigned URL の 発行 に 失敗 (バケット 未 設定 や IAM 設定 不備 など 恒久的 な サーバ 側 の 異常) */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description Service Unavailable — クレデンシャル 解決 の タイムアウト。 一時的 な 障害 の ため Retry-After 秒 後 に 再試行 する */
+                503: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -5433,7 +5469,8 @@ export interface components {
             fileName?: string;
         };
         "internal_handler.issueUploadURLReq": {
-            contentType?: string;
+            contentType: string;
+            sizeBytes: number;
         };
         "internal_handler.markLessonCompleteRequest": {
             teachingMaterialId: number;

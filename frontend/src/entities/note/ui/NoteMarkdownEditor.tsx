@@ -12,6 +12,7 @@ import {
 } from '@heroicons/react/24/outline';
 import type { SaveStatus } from '../model/useNoteEditor';
 import { useToast } from '@/shared/lib/hooks/useToast';
+import { ACCEPTED_IMAGE_ACCEPT_ATTR, isAcceptedImageMimeType } from '@/shared/config/imageUpload';
 import { getNoteStats } from '../lib/noteStats';
 import WordCount from '@/shared/ui/WordCount';
 import LineCount from '@/shared/ui/LineCount';
@@ -128,8 +129,8 @@ export default function NoteMarkdownEditor({
   const uploadImage = useCallback(
     async (file: File) => {
       if (!onImageUpload) return;
-      if (!file.type.startsWith('image/')) {
-        showToast('error', '画像ファイルのみアップロードできます');
+      if (!isAcceptedImageMimeType(file.type)) {
+        showToast('error', 'PNG / JPEG / GIF / WebP の画像のみアップロードできます');
         return;
       }
       setUploading(true);
@@ -150,7 +151,7 @@ export default function NoteMarkdownEditor({
   const handleDrop = useCallback(
     (e: React.DragEvent<HTMLTextAreaElement>) => {
       if (!onImageUpload) return;
-      const file = Array.from(e.dataTransfer.files).find((f) => f.type.startsWith('image/'));
+      const file = Array.from(e.dataTransfer.files).find((f) => isAcceptedImageMimeType(f.type));
       if (file) {
         e.preventDefault();
         uploadImage(file);
@@ -163,7 +164,7 @@ export default function NoteMarkdownEditor({
     (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
       if (!onImageUpload) return;
       const file = Array.from(e.clipboardData.items)
-        .find((i) => i.type.startsWith('image/'))
+        .find((i) => isAcceptedImageMimeType(i.type))
         ?.getAsFile();
       if (file) {
         e.preventDefault();
@@ -247,7 +248,7 @@ export default function NoteMarkdownEditor({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept={ACCEPTED_IMAGE_ACCEPT_ATTR}
                 className="hidden"
                 onChange={(e) => {
                   const f = e.target.files?.[0];

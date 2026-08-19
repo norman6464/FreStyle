@@ -26,7 +26,7 @@ func NewStubProfileImagePresigner(bucket string) repository.ProfileImagePresigne
 }
 
 func (p *profileImagePresigner) Generate(ctx context.Context, userID uint64, fileName, contentType string) (*domain.ProfileImageUploadURL, error) {
-	if userID == 0 {
+	if userID == unsetUserID {
 		return nil, fmt.Errorf("userID is required")
 	}
 	if contentType == "" {
@@ -34,7 +34,8 @@ func (p *profileImagePresigner) Generate(ctx context.Context, userID uint64, fil
 	}
 	ext := guessExt(fileName, contentType)
 	key := fmt.Sprintf("profiles/%d/%d%s", userID, time.Now().UnixNano(), ext)
-	url, ttl, err := p.pre.PresignPut(ctx, key, contentType)
+	// sizeBytes を受け取らない経路のため Content-Length は署名対象に含めない。
+	url, ttl, err := p.pre.PresignPut(ctx, key, contentType, noContentLengthConstraint)
 	if err != nil {
 		return nil, err
 	}

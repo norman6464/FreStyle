@@ -31,7 +31,7 @@ func (m *mockUserRepo) FindByID(ctx context.Context, id uint64) (*domain.User, e
 	return u, args.Error(1)
 }
 
-func (m *mockUserRepo) ListByRole(ctx context.Context, role string) ([]domain.User, error) {
+func (m *mockUserRepo) ListByRole(ctx context.Context, role domain.RoleName) ([]domain.User, error) {
 	args := m.Called(ctx, role)
 	rows, _ := args.Get(0).([]domain.User)
 	return rows, args.Error(1)
@@ -67,16 +67,12 @@ func (m *mockUserRepo) UpdateName(ctx context.Context, userID uint64, name strin
 	return m.Called(ctx, userID, name).Error(0)
 }
 
-func (m *mockUserRepo) UpdateRole(ctx context.Context, userID uint64, role string) error {
+func (m *mockUserRepo) UpdateRole(ctx context.Context, userID uint64, role domain.RoleName) error {
 	return m.Called(ctx, userID, role).Error(0)
 }
 
 func (m *mockUserRepo) UpdateCompanyID(ctx context.Context, userID, companyID uint64) error {
 	return m.Called(ctx, userID, companyID).Error(0)
-}
-
-func (m *mockUserRepo) MarkOnboarded(ctx context.Context, userID uint64) error {
-	return m.Called(ctx, userID).Error(0)
 }
 
 // --- mock: CourseRepository ---

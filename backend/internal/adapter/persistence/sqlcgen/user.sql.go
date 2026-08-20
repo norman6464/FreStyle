@@ -13,7 +13,7 @@ import (
 
 const getUserByCognitoSub = `-- name: GetUserByCognitoSub :one
 
-SELECT u.id, u.cognito_sub, u.email, u.name, u.company_id, u.role, u.role_id, u.ai_chat_enabled, u.is_active, u.onboarded_at, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, u.role) AS role_name
+SELECT u.id, u.cognito_sub, u.email, u.name, u.company_id, u.role, u.role_id, u.ai_chat_enabled, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, u.role) AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE u.deleted_at IS NULL
@@ -36,7 +36,6 @@ type GetUserByCognitoSubRow struct {
 	RoleID        sql.NullInt16
 	AiChatEnabled sql.NullBool
 	IsActive      bool
-	OnboardedAt   sql.NullTime
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 	DeletedAt     sql.NullTime
@@ -62,7 +61,6 @@ func (q *Queries) GetUserByCognitoSub(ctx context.Context, subject string) (GetU
 		&i.RoleID,
 		&i.AiChatEnabled,
 		&i.IsActive,
-		&i.OnboardedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
@@ -72,7 +70,7 @@ func (q *Queries) GetUserByCognitoSub(ctx context.Context, subject string) (GetU
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT u.id, u.cognito_sub, u.email, u.name, u.company_id, u.role, u.role_id, u.ai_chat_enabled, u.is_active, u.onboarded_at, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, u.role) AS role_name
+SELECT u.id, u.cognito_sub, u.email, u.name, u.company_id, u.role, u.role_id, u.ai_chat_enabled, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, u.role) AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE u.id = $1 AND u.deleted_at IS NULL
@@ -88,7 +86,6 @@ type GetUserByIDRow struct {
 	RoleID        sql.NullInt16
 	AiChatEnabled sql.NullBool
 	IsActive      bool
-	OnboardedAt   sql.NullTime
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 	DeletedAt     sql.NullTime
@@ -109,7 +106,6 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (GetUserByIDRow, er
 		&i.RoleID,
 		&i.AiChatEnabled,
 		&i.IsActive,
-		&i.OnboardedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
@@ -119,7 +115,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (GetUserByIDRow, er
 }
 
 const listUsersByCompanyID = `-- name: ListUsersByCompanyID :many
-SELECT u.id, u.cognito_sub, u.email, u.name, u.company_id, u.role, u.role_id, u.ai_chat_enabled, u.is_active, u.onboarded_at, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, u.role) AS role_name
+SELECT u.id, u.cognito_sub, u.email, u.name, u.company_id, u.role, u.role_id, u.ai_chat_enabled, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, u.role) AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE u.company_id = $1 AND u.deleted_at IS NULL
@@ -136,7 +132,6 @@ type ListUsersByCompanyIDRow struct {
 	RoleID        sql.NullInt16
 	AiChatEnabled sql.NullBool
 	IsActive      bool
-	OnboardedAt   sql.NullTime
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 	DeletedAt     sql.NullTime
@@ -163,7 +158,6 @@ func (q *Queries) ListUsersByCompanyID(ctx context.Context, companyID sql.NullIn
 			&i.RoleID,
 			&i.AiChatEnabled,
 			&i.IsActive,
-			&i.OnboardedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
@@ -183,7 +177,7 @@ func (q *Queries) ListUsersByCompanyID(ctx context.Context, companyID sql.NullIn
 }
 
 const listUsersByRole = `-- name: ListUsersByRole :many
-SELECT u.id, u.cognito_sub, u.email, u.name, u.company_id, u.role, u.role_id, u.ai_chat_enabled, u.is_active, u.onboarded_at, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, u.role) AS role_name
+SELECT u.id, u.cognito_sub, u.email, u.name, u.company_id, u.role, u.role_id, u.ai_chat_enabled, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, u.role) AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE COALESCE(r.name, u.role) = $1 AND u.deleted_at IS NULL
@@ -200,7 +194,6 @@ type ListUsersByRoleRow struct {
 	RoleID        sql.NullInt16
 	AiChatEnabled sql.NullBool
 	IsActive      bool
-	OnboardedAt   sql.NullTime
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 	DeletedAt     sql.NullTime
@@ -227,7 +220,6 @@ func (q *Queries) ListUsersByRole(ctx context.Context, name string) ([]ListUsers
 			&i.RoleID,
 			&i.AiChatEnabled,
 			&i.IsActive,
-			&i.OnboardedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,

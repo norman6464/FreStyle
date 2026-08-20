@@ -64,7 +64,7 @@ func NewAuthHandler(
 // isAdmin は Cognito groups に "admin" を含むか、DB role が super_admin / company_admin なら true。
 //
 //	@Summary      current user 情報 取得
-//	@Description  Cookie 認証 を 元 に 現在 ログイン 中 の user 情報 (id / email / role / isAdmin / onboarded 等) を 返す。
+//	@Description  Cookie 認証 を 元 に 現在 ログイン 中 の user 情報 (id / email / role / isAdmin 等) を 返す。
 //	@Tags         auth
 //	@Produce      json
 //	@Success      200  {object}  meResponse
@@ -115,7 +115,6 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		"updatedAt":                user.UpdatedAt,
 		"groups":                   groups,
 		"isAdmin":                  isAdmin,
-		"onboarded":                user.OnboardedAt != nil,
 		"aiChatEnabledForTrainees": aiEnabled,
 	}
 	// companyId は nil 時に JSON フィールド自体を省略する（omitempty 相当）。

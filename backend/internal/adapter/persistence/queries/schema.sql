@@ -46,7 +46,6 @@ CREATE TABLE users (
     role_id      smallint,
     ai_chat_enabled boolean,
     is_active    boolean NOT NULL DEFAULT true,
-    onboarded_at timestamptz,
     created_at   timestamptz NOT NULL,
     updated_at   timestamptz NOT NULL,
     deleted_at   timestamptz

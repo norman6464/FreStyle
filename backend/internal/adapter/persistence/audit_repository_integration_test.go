@@ -21,11 +21,11 @@ func TestAuditRepository_Integration(t *testing.T) {
 	testsupport.TruncateAll(t, db, "audit_events")
 
 	require.NoError(t, repo.Record(ctx, &domain.AuditEvent{
-		ActorID: 1, ActorEmail: "a@x", ActorRole: domain.RoleSuperAdmin,
+		ActorID: 1, ActorEmail: "a@x", ActorRole: string(domain.RoleSuperAdmin),
 		Action: "PATCH /admin/companies/:id/active", TargetID: 1,
 	}))
 	require.NoError(t, repo.Record(ctx, &domain.AuditEvent{
-		ActorID: 1, ActorEmail: "a@x", ActorRole: domain.RoleSuperAdmin,
+		ActorID: 1, ActorEmail: "a@x", ActorRole: string(domain.RoleSuperAdmin),
 		Action: "DELETE /admin/members/:userId", TargetID: 2,
 	}))
 

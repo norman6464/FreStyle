@@ -24,7 +24,7 @@ func NewValidateInvitationTokenUseCase(
 
 // ValidatedInvitation は受諾画面に表示する最低限の情報。
 type ValidatedInvitation struct {
-	Role        string
+	Role        domain.RoleName
 	Name        string
 	CompanyID   uint64
 	CompanyName string
@@ -59,7 +59,7 @@ func (u *ValidateInvitationTokenUseCase) Execute(ctx context.Context, token stri
 }
 
 // normalizeInvitationRole は invitation の role を表示用に正規化する（想定外は trainee にフォールバック）。
-func normalizeInvitationRole(role string) string {
+func normalizeInvitationRole(role domain.RoleName) domain.RoleName {
 	switch role {
 	case domain.RoleCompanyAdmin, domain.RoleTrainee:
 		return role

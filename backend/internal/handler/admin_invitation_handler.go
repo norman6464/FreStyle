@@ -80,10 +80,10 @@ func (h *AdminInvitationHandler) List(c *gin.Context) {
 }
 
 type createAdminInvReq struct {
-	CompanyID uint64 `json:"companyId" binding:"required"`
-	Email     string `json:"email" binding:"required"`
-	Role      string `json:"role" binding:"required"`
-	Name      string `json:"name"`
+	CompanyID uint64          `json:"companyId" binding:"required"`
+	Email     string          `json:"email" binding:"required"`
+	Role      domain.RoleName `json:"role" binding:"required"`
+	Name      string          `json:"name"`
 }
 
 // Create は招待を作成する。SoD: SuperAdmin は company_admin のみ、CompanyAdmin は自社の trainee のみ招待可。

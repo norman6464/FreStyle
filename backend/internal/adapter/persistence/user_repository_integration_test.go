@@ -13,8 +13,8 @@ import (
 )
 
 // TestUserRepository_Integration は sqlc 化した読み取り（FindByCognitoSub / FindByID / ListByRole）と
-// GORM の書き込みの round-trip を実 Postgres で検証する。nullable 列（company_id / onboarded_at /
-// deleted_at）の詰め替えと、論理削除除外・not-found 時の (nil, nil) も確認する。
+// GORM の書き込みの round-trip を実 Postgres で検証する。nullable 列（company_id / deleted_at）の
+// 詰め替えと、論理削除除外・not-found 時の (nil, nil) も確認する。
 func TestUserRepository_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
 	repo := persistence.NewUserRepository(db)
@@ -38,7 +38,6 @@ func TestUserRepository_Integration(t *testing.T) {
 		require.Equal(t, domain.RoleTrainee, got.Role)
 		require.NotNil(t, got.CompanyID)
 		require.Equal(t, uint64(42), *got.CompanyID)
-		require.Nil(t, got.OnboardedAt) // 未 onboarding
 		require.False(t, got.CreatedAt.IsZero())
 
 		byID, err := repo.FindByID(ctx, got.ID)
@@ -69,21 +68,6 @@ func TestUserRepository_Integration(t *testing.T) {
 		byID, err := repo.FindByID(ctx, 999999)
 		require.NoError(t, err)
 		require.Nil(t, byID)
-	})
-
-	t.Run("MarkOnboarded 後は OnboardedAt が入る", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "users")
-		require.NoError(t, repo.Create(ctx, &domain.User{
-			CognitoSub: "ob-1", Email: "o@example.com", Name: "ob", Role: domain.RoleTrainee,
-		}))
-
-		u, err := repo.FindByCognitoSub(ctx, "ob-1")
-		require.NoError(t, err)
-		require.NoError(t, repo.MarkOnboarded(ctx, u.ID))
-
-		got, err := repo.FindByID(ctx, u.ID)
-		require.NoError(t, err)
-		require.NotNil(t, got.OnboardedAt)
 	})
 
 	t.Run("ListByRole は role で絞り id 昇順", func(t *testing.T) {

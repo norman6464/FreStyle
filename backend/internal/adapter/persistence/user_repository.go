@@ -7,7 +7,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
@@ -40,7 +39,7 @@ func toDomainUser(row userRow) *domain.User {
 		CognitoSub: row.CognitoSub,
 		Email:      row.Email,
 		Name:       row.Name,
-		Role:       row.RoleName,
+		Role:       domain.RoleName(row.RoleName),
 		IsActive:   row.IsActive,
 		CreatedAt:  row.CreatedAt,
 		UpdatedAt:  row.UpdatedAt,
@@ -55,10 +54,6 @@ func toDomainUser(row userRow) *domain.User {
 	if row.AiChatEnabled.Valid {
 		v := row.AiChatEnabled.Bool
 		u.AiChatEnabled = &v
-	}
-	if row.OnboardedAt.Valid {
-		t := row.OnboardedAt.Time
-		u.OnboardedAt = &t
 	}
 	if row.DeletedAt.Valid {
 		t := row.DeletedAt.Time
@@ -101,12 +96,12 @@ func (r *userRepository) FindByID(ctx context.Context, id uint64) (*domain.User,
 	return toDomainUser(row), nil
 }
 
-func (r *userRepository) ListByRole(ctx context.Context, role string) ([]domain.User, error) {
+func (r *userRepository) ListByRole(ctx context.Context, role domain.RoleName) ([]domain.User, error) {
 	sqlDB, err := r.db.DB()
 	if err != nil {
 		return nil, err
 	}
-	rows, err := sqlcgen.New(sqlDB).ListUsersByRole(ctx, role)
+	rows, err := sqlcgen.New(sqlDB).ListUsersByRole(ctx, string(role))
 	if err != nil {
 		return nil, err
 	}
@@ -140,9 +135,9 @@ func (r *userRepository) ListByCompanyID(ctx context.Context, companyID uint64) 
 }
 
 // resolveRoleID はロール名を roles.id に解決する。未知の名前はエラー（黙って別ロールにしない）。
-func (r *userRepository) resolveRoleID(ctx context.Context, roleName string) (uint16, error) {
+func (r *userRepository) resolveRoleID(ctx context.Context, roleName domain.RoleName) (uint16, error) {
 	var role domain.Role
-	if err := r.db.WithContext(ctx).Where("name = ?", roleName).Take(&role).Error; err != nil {
+	if err := r.db.WithContext(ctx).Where("name = ?", string(roleName)).Take(&role).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return 0, fmt.Errorf("unknown role %q", roleName)
 		}
@@ -223,7 +218,7 @@ func (r *userRepository) UpdateName(ctx context.Context, userID uint64, name str
 		Update("name", name).Error
 }
 
-func (r *userRepository) UpdateRole(ctx context.Context, userID uint64, role string) error {
+func (r *userRepository) UpdateRole(ctx context.Context, userID uint64, role domain.RoleName) error {
 	roleID, err := r.resolveRoleID(ctx, role)
 	if err != nil {
 		return err
@@ -232,7 +227,7 @@ func (r *userRepository) UpdateRole(ctx context.Context, userID uint64, role str
 	return r.db.WithContext(ctx).
 		Model(&domain.User{}).
 		Where("id = ?", userID).
-		Updates(map[string]any{"role": role, "role_id": roleID}).Error
+		Updates(map[string]any{"role": string(role), "role_id": roleID}).Error
 }
 
 func (r *userRepository) UpdateCompanyID(ctx context.Context, userID uint64, companyID uint64) error {
@@ -240,13 +235,4 @@ func (r *userRepository) UpdateCompanyID(ctx context.Context, userID uint64, com
 		Model(&domain.User{}).
 		Where("id = ?", userID).
 		Update("company_id", companyID).Error
-}
-
-func (r *userRepository) MarkOnboarded(ctx context.Context, userID uint64) error {
-	// IS NULL ガードで二度押しでも初回日時を保持する（冪等）。
-	now := time.Now().UTC()
-	return r.db.WithContext(ctx).
-		Model(&domain.User{}).
-		Where("id = ? AND onboarded_at IS NULL", userID).
-		Update("onboarded_at", now).Error
 }

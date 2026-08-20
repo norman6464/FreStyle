@@ -23,7 +23,7 @@ func NewCourseUseCase(courses repository.CourseRepository, materials repository.
 	return &CourseUseCase{courses: courses, materials: materials}
 }
 
-func (uc *CourseUseCase) Get(ctx context.Context, id, actorCompanyID uint64, actorRole string) (*domain.Course, error) {
+func (uc *CourseUseCase) Get(ctx context.Context, id, actorCompanyID uint64, actorRole domain.RoleName) (*domain.Course, error) {
 	c, err := uc.courses.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -34,7 +34,7 @@ func (uc *CourseUseCase) Get(ctx context.Context, id, actorCompanyID uint64, act
 	return c, nil
 }
 
-func canReadCourse(c *domain.Course, actorCompanyID uint64, actorRole string) bool {
+func canReadCourse(c *domain.Course, actorCompanyID uint64, actorRole domain.RoleName) bool {
 	if actorRole == domain.RoleSuperAdmin {
 		return true
 	}
@@ -50,7 +50,7 @@ func canReadCourse(c *domain.Course, actorCompanyID uint64, actorRole string) bo
 type CreateCourseInput struct {
 	ActorUserID    uint64
 	ActorCompanyID uint64
-	ActorRole      string
+	ActorRole      domain.RoleName
 	Title          string
 	Description    string
 	Category       string
@@ -88,7 +88,7 @@ func (uc *CourseUseCase) Create(ctx context.Context, in CreateCourseInput) (*dom
 type UpdateCourseInput struct {
 	ID             uint64
 	ActorCompanyID uint64
-	ActorRole      string
+	ActorRole      domain.RoleName
 	Title          string
 	Description    string
 	Category       string
@@ -124,7 +124,7 @@ func (uc *CourseUseCase) Update(ctx context.Context, in UpdateCourseInput) (*dom
 }
 
 // Delete はコースと配下教材を同時に削除する（cascade 相当）。
-func (uc *CourseUseCase) Delete(ctx context.Context, id, actorCompanyID uint64, actorRole string) error {
+func (uc *CourseUseCase) Delete(ctx context.Context, id, actorCompanyID uint64, actorRole domain.RoleName) error {
 	existing, err := uc.courses.GetByID(ctx, id)
 	if err != nil {
 		return err

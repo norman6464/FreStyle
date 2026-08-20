@@ -109,7 +109,6 @@ type User struct {
 	RoleID        sql.NullInt16
 	AiChatEnabled sql.NullBool
 	IsActive      bool
-	OnboardedAt   sql.NullTime
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 	DeletedAt     sql.NullTime

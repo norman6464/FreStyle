@@ -91,7 +91,7 @@ func TestUserNormalization_Integration(t *testing.T) {
 		// 旧カラムにも併記されている（ロールバック保全・PR3 で撤去）。
 		var legacyRole string
 		require.NoError(t, db.Raw(`SELECT role FROM users WHERE id = ?`, u.ID).Scan(&legacyRole).Error)
-		require.Equal(t, domain.RoleSuperAdmin, legacyRole)
+		require.Equal(t, string(domain.RoleSuperAdmin), legacyRole)
 	})
 
 	t.Run("UpdateRole は未知の role 名を拒否する", func(t *testing.T) {
@@ -138,5 +138,78 @@ func TestUserNormalization_Integration(t *testing.T) {
 		require.NoError(t, db.Model(&domain.UserOidcIdentity{}).
 			Where("subject = ?", "legacy-1").Count(&count).Error)
 		require.Equal(t, int64(1), count)
+	})
+
+	t.Run("DB 制約: 存在しない role_id の INSERT は FK で拒否される", func(t *testing.T) {
+		truncate(t)
+		err := db.Exec(
+			`INSERT INTO users (cognito_sub, email, name, role, role_id, is_active, created_at, updated_at)
+			 VALUES ('fk-x', 'fkx@example.com', 'x', 'trainee', 999, true, NOW(), NOW())`,
+		).Error
+		require.ErrorContains(t, err, "fk_users_role")
+	})
+
+	t.Run("DB 制約: 存在しない user_id の identity は FK で拒否される", func(t *testing.T) {
+		truncate(t)
+		err := db.Exec(
+			`INSERT INTO user_oidc_identities (user_id, provider, subject, created_at, updated_at)
+			 VALUES (424242, 'cognito', 'ghost', NOW(), NOW())`,
+		).Error
+		require.ErrorContains(t, err, "fk_user_oidc_identities_user")
+	})
+
+	t.Run("DB 制約: ユーザーの物理削除で identity が CASCADE 削除される", func(t *testing.T) {
+		truncate(t)
+		u := &domain.User{CognitoSub: "cascade-1", Email: "c1@example.com", Role: domain.RoleTrainee}
+		require.NoError(t, repo.Create(ctx, u))
+		require.NoError(t, repo.EnsureOidcIdentity(ctx, u.ID, domain.OidcProviderCognito, "cascade-1"))
+
+		require.NoError(t, db.Exec(`DELETE FROM users WHERE id = ?`, u.ID).Error)
+
+		var count int64
+		require.NoError(t, db.Model(&domain.UserOidcIdentity{}).
+			Where("user_id = ?", u.ID).Count(&count).Error)
+		require.Equal(t, int64(0), count)
+	})
+
+	t.Run("DB 制約: アクティブ行の email 重複は部分 UNIQUE で拒否・論理削除後の再利用は可", func(t *testing.T) {
+		truncate(t)
+		u1 := &domain.User{CognitoSub: "mail-1", Email: "dup@example.com", Role: domain.RoleTrainee}
+		require.NoError(t, repo.Create(ctx, u1))
+
+		dup := &domain.User{CognitoSub: "mail-2", Email: "dup@example.com", Role: domain.RoleTrainee}
+		require.ErrorContains(t, repo.Create(ctx, dup), "uq_users_email_active")
+
+		// 論理削除すればアクティブ行が消えるので同じ email で再登録できる（再招待のシナリオ）。
+		require.NoError(t, repo.SoftDelete(ctx, u1.ID))
+		dup2 := &domain.User{CognitoSub: "mail-3", Email: "dup@example.com", Role: domain.RoleTrainee}
+		require.NoError(t, repo.Create(ctx, dup2))
+	})
+
+	t.Run("DB 制約: identity の空 subject は CHECK で拒否される", func(t *testing.T) {
+		truncate(t)
+		u := &domain.User{CognitoSub: "chk-1", Email: "chk@example.com", Role: domain.RoleTrainee}
+		require.NoError(t, repo.Create(ctx, u))
+		err := repo.EnsureOidcIdentity(ctx, u.ID, domain.OidcProviderCognito, "")
+		require.ErrorContains(t, err, "ck_user_oidc_identities_not_empty")
+	})
+
+	t.Run("DB 制約: role_id は NOT NULL（省略時は DEFAULT trainee が入る）", func(t *testing.T) {
+		truncate(t)
+		// 旧コード相当の INSERT（role_id 省略）→ DEFAULT trainee で通る（ローリングデプロイ保全）。
+		require.NoError(t, db.Exec(
+			`INSERT INTO users (cognito_sub, email, name, role, is_active, created_at, updated_at)
+			 VALUES ('def-1', 'def@example.com', 'd', 'company_admin', true, NOW(), NOW())`,
+		).Error)
+		got, err := repo.FindByCognitoSub(ctx, "def-1")
+		require.NoError(t, err)
+		require.Equal(t, domain.RoleIDTrainee, got.RoleID)
+
+		// バックフィル（起動時に毎回実行）が role 文字列との不一致を修復する。
+		require.NoError(t, database.BackfillUserNormalization(db))
+		got, err = repo.FindByCognitoSub(ctx, "def-1")
+		require.NoError(t, err)
+		require.Equal(t, domain.RoleIDCompanyAdmin, got.RoleID)
+		require.Equal(t, domain.RoleCompanyAdmin, got.Role)
 	})
 }

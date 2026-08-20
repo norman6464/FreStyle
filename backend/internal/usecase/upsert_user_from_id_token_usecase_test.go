@@ -29,7 +29,7 @@ type upsertUserRepoSpy struct {
 	companyUpdateErr      error
 
 	roleUpdateUserID    uint64
-	roleUpdateValue     string
+	roleUpdateValue     domain.RoleName
 	companyUpdateUserID uint64
 	companyUpdateValue  uint64
 }
@@ -209,7 +209,7 @@ func (s *upsertUserRepoSpy) UpdateName(
 func (s *upsertUserRepoSpy) UpdateRole(
 	_ context.Context,
 	userID uint64,
-	role string,
+	role domain.RoleName,
 ) error {
 	s.roleUpdateCalls++
 	if s.roleUpdateErr != nil {
@@ -540,13 +540,13 @@ func Test_UpsertUserFromIDToken_CognitoSubが空なら処理しない(t *testing
 func Test_UpsertUserFromIDToken_Cognito管理者は招待Roleで降格しない(
 	t *testing.T,
 ) {
-	invitationRoles := []string{
+	invitationRoles := []domain.RoleName{
 		domain.RoleTrainee,
 		domain.RoleCompanyAdmin,
 	}
 
 	for _, invitationRole := range invitationRoles {
-		t.Run(invitationRole, func(t *testing.T) {
+		t.Run(string(invitationRole), func(t *testing.T) {
 			users := &upsertUserRepoSpy{}
 			invitations := &upsertInvitationRepoSpy{
 				pending: &domain.AdminInvitation{

@@ -23,7 +23,7 @@ func Test_監査記録_入力をイベントに詰めて保存する(t *testing.
 	uc := usecase.NewRecordAuditEventUseCase(repo)
 
 	err := uc.Execute(context.Background(), usecase.RecordAuditEventInput{
-		ActorID: 9, ActorEmail: "admin@x", ActorRole: domain.RoleSuperAdmin,
+		ActorID: 9, ActorEmail: "admin@x", ActorRole: string(domain.RoleSuperAdmin),
 		Action: "PATCH /admin/companies/:id/active", TargetID: 3,
 	})
 	require.NoError(t, err)

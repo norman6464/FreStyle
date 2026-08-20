@@ -16,7 +16,7 @@ var (
 	ErrCompanySettingsNoCompany = errors.New("no_company")
 )
 
-func isCompanyAdminRole(role string) bool {
+func isCompanyAdminRole(role domain.RoleName) bool {
 	return role == domain.RoleCompanyAdmin || role == domain.RoleSuperAdmin
 }
 

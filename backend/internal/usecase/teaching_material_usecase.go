@@ -23,12 +23,12 @@ func NewTeachingMaterialUseCase(repo repository.TeachingMaterialRepository, cour
 }
 
 // canManage は教材を作成 / 編集 / 削除できる role 判定。
-func canManage(role string) bool {
+func canManage(role domain.RoleName) bool {
 	return role == domain.RoleCompanyAdmin || role == domain.RoleSuperAdmin
 }
 
 // List は company 内の全教材を返す backward-compat 用（コース対応への移行後に削除予定）。
-func (uc *TeachingMaterialUseCase) List(ctx context.Context, actorCompanyID uint64, actorRole string) ([]domain.TeachingMaterial, error) {
+func (uc *TeachingMaterialUseCase) List(ctx context.Context, actorCompanyID uint64, actorRole domain.RoleName) ([]domain.TeachingMaterial, error) {
 	if actorCompanyID == 0 {
 		return []domain.TeachingMaterial{}, nil
 	}
@@ -37,7 +37,7 @@ func (uc *TeachingMaterialUseCase) List(ctx context.Context, actorCompanyID uint
 }
 
 // ListByCourse は指定コース配下の教材を返す（role / company を検証してから）。
-func (uc *TeachingMaterialUseCase) ListByCourse(ctx context.Context, courseID, actorCompanyID uint64, actorRole string) ([]domain.TeachingMaterial, error) {
+func (uc *TeachingMaterialUseCase) ListByCourse(ctx context.Context, courseID, actorCompanyID uint64, actorRole domain.RoleName) ([]domain.TeachingMaterial, error) {
 	course, err := uc.courses.GetByID(ctx, courseID)
 	if err != nil {
 		return nil, err
@@ -50,7 +50,7 @@ func (uc *TeachingMaterialUseCase) ListByCourse(ctx context.Context, courseID, a
 }
 
 // Get は ID 指定で 1 件取得する（company 不一致 / 非公開コースは閲覧不可）。
-func (uc *TeachingMaterialUseCase) Get(ctx context.Context, id, actorCompanyID uint64, actorRole string) (*domain.TeachingMaterial, error) {
+func (uc *TeachingMaterialUseCase) Get(ctx context.Context, id, actorCompanyID uint64, actorRole domain.RoleName) (*domain.TeachingMaterial, error) {
 	m, err := uc.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -65,7 +65,7 @@ func (uc *TeachingMaterialUseCase) Get(ctx context.Context, id, actorCompanyID u
 	return m, nil
 }
 
-func canRead(m *domain.TeachingMaterial, course *domain.Course, actorCompanyID uint64, actorRole string) bool {
+func canRead(m *domain.TeachingMaterial, course *domain.Course, actorCompanyID uint64, actorRole domain.RoleName) bool {
 	if actorRole == domain.RoleSuperAdmin {
 		return true
 	}
@@ -86,7 +86,7 @@ func canRead(m *domain.TeachingMaterial, course *domain.Course, actorCompanyID u
 type CreateTeachingMaterialInput struct {
 	ActorUserID    uint64
 	ActorCompanyID uint64
-	ActorRole      string
+	ActorRole      domain.RoleName
 	CourseID       uint64
 	Title          string
 	Content        string
@@ -129,7 +129,7 @@ func (uc *TeachingMaterialUseCase) Create(ctx context.Context, in CreateTeaching
 type UpdateTeachingMaterialInput struct {
 	ID             uint64
 	ActorCompanyID uint64
-	ActorRole      string
+	ActorRole      domain.RoleName
 	Title          string
 	Content        string
 	OrderInCourse  int
@@ -157,7 +157,7 @@ func (uc *TeachingMaterialUseCase) Update(ctx context.Context, in UpdateTeaching
 	return existing, nil
 }
 
-func (uc *TeachingMaterialUseCase) Delete(ctx context.Context, id, actorCompanyID uint64, actorRole string) error {
+func (uc *TeachingMaterialUseCase) Delete(ctx context.Context, id, actorCompanyID uint64, actorRole domain.RoleName) error {
 	existing, err := uc.repo.GetByID(ctx, id)
 	if err != nil {
 		return err

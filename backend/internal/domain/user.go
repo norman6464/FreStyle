@@ -14,7 +14,7 @@ type User struct {
 	// Role はロール名（roles.name）。読み出し時は repository が roles を JOIN して解決する。
 	// 旧 users.role カラムへの書き込みは移行期間中のロールバック保全のため継続し、
 	// 旧カラム撤去（FRESTYLE-311 PR3）で本フィールドの column 書き込みも止める。
-	Role string `gorm:"column:role" json:"role"`
+	Role RoleName `gorm:"column:role" json:"role"`
 	// RoleID は roles マスタへの参照（正規化後の正）。repository が Role 名から解決して設定する。
 	RoleID uint16 `gorm:"column:role_id" json:"-"`
 	// AiChatEnabled は AI チャット利用可否の個別上書き。nil = 会社設定に従う、
@@ -22,12 +22,10 @@ type User struct {
 	AiChatEnabled *bool `gorm:"column:ai_chat_enabled" json:"aiChatEnabled,omitempty"`
 	// IsActive はユーザーアカウントの有効/無効。false（無効）にすると、このユーザーは
 	// ログイン/利用不可になる（middleware で弾く）。super_admin / company_admin が個別に停止できる。
-	IsActive bool `gorm:"column:is_active;not null;default:true" json:"isActive"`
-	// OnboardedAt は Welcome 完了日時。NULL なら Welcome を表示する。一度入ったら変えない。
-	OnboardedAt *time.Time `gorm:"column:onboarded_at" json:"onboardedAt,omitempty"`
-	CreatedAt   time.Time  `gorm:"column:created_at" json:"createdAt"`
-	UpdatedAt   time.Time  `gorm:"column:updated_at" json:"updatedAt"`
-	DeletedAt   *time.Time `gorm:"column:deleted_at" json:"deletedAt,omitempty"`
+	IsActive  bool       `gorm:"column:is_active;not null;default:true" json:"isActive"`
+	CreatedAt time.Time  `gorm:"column:created_at" json:"createdAt"`
+	UpdatedAt time.Time  `gorm:"column:updated_at" json:"updatedAt"`
+	DeletedAt *time.Time `gorm:"column:deleted_at" json:"deletedAt,omitempty"`
 }
 
 func (User) TableName() string { return "users" }
@@ -41,8 +39,21 @@ func (u User) CompanyIDValue() uint64 {
 	return *u.CompanyID
 }
 
+// RoleName はユーザーロール名（roles.name）の型。生の string の写経とタイポを
+// コンパイル時に弾くための named type（JSON へは underlying string としてそのまま出る）。
+type RoleName string
+
 const (
-	RoleSuperAdmin   = "super_admin"
-	RoleCompanyAdmin = "company_admin"
-	RoleTrainee      = "trainee"
+	RoleSuperAdmin   RoleName = "super_admin"
+	RoleCompanyAdmin RoleName = "company_admin"
+	RoleTrainee      RoleName = "trainee"
 )
+
+// Valid は既知のロール名かを返す。外部入力（招待作成リクエスト等）の検証に使う。
+func (r RoleName) Valid() bool {
+	switch r {
+	case RoleSuperAdmin, RoleCompanyAdmin, RoleTrainee:
+		return true
+	}
+	return false
+}

@@ -64,6 +64,10 @@ func OpenTestDB(t *testing.T) *gorm.DB {
 	if err := database.SeedRoles(db); err != nil {
 		t.Fatalf("SeedRoles 失敗: %v", err)
 	}
+	// FK / CHECK / 部分 UNIQUE も本番（database.Migrate）と同じに揃える。
+	if err := database.ApplyUserNormalizationConstraints(db); err != nil {
+		t.Fatalf("ApplyUserNormalizationConstraints 失敗: %v", err)
+	}
 	return db
 }
 

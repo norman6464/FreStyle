@@ -20,18 +20,19 @@ func (s *stubUsers) FindByCognitoSub(context.Context, string) (*domain.User, err
 
 func (s *stubUsers) FindByID(context.Context, uint64) (*domain.User, error) { return s.user, nil }
 
-func (s *stubUsers) ListByRole(context.Context, string) ([]domain.User, error) { return nil, nil }
+func (s *stubUsers) ListByRole(context.Context, domain.RoleName) ([]domain.User, error) {
+	return nil, nil
+}
 
 func (s *stubUsers) ListByCompanyID(context.Context, uint64) ([]domain.User, error)   { return nil, nil }
 func (s *stubUsers) Create(context.Context, *domain.User) error                       { return nil }
 func (s *stubUsers) EnsureOidcIdentity(context.Context, uint64, string, string) error { return nil }
 func (s *stubUsers) UpdateAiChatEnabled(context.Context, uint64, *bool) error         { return nil }
 func (s *stubUsers) UpdateName(context.Context, uint64, string) error                 { return nil }
-func (s *stubUsers) UpdateRole(context.Context, uint64, string) error                 { return nil }
+func (s *stubUsers) UpdateRole(context.Context, uint64, domain.RoleName) error        { return nil }
 func (s *stubUsers) UpdateCompanyID(context.Context, uint64, uint64) error            { return nil }
 func (s *stubUsers) UpdateActive(context.Context, uint64, bool) error                 { return nil }
 func (s *stubUsers) SoftDelete(context.Context, uint64) error                         { return nil }
-func (s *stubUsers) MarkOnboarded(context.Context, uint64) error                      { return nil }
 
 // stubCompanies は CompanyRepository の最小 stub。FindByID で company / err を返す。
 type stubCompanies struct {

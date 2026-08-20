@@ -18,7 +18,7 @@ type fakeUserRepo struct {
 	created          *domain.User
 	createErr        error
 	updateRoleID     uint64
-	updateRoleVal    string
+	updateRoleVal    domain.RoleName
 	updateCompanyID  uint64
 	updateCompanyVal uint64
 	updateNameID     uint64
@@ -40,7 +40,7 @@ func (r *fakeUserRepo) FindByID(_ context.Context, _ uint64) (*domain.User, erro
 	return nil, nil
 }
 
-func (r *fakeUserRepo) ListByRole(_ context.Context, _ string) ([]domain.User, error) {
+func (r *fakeUserRepo) ListByRole(_ context.Context, _ domain.RoleName) ([]domain.User, error) {
 	return nil, nil
 }
 
@@ -58,7 +58,7 @@ func (r *fakeUserRepo) UpdateName(_ context.Context, id uint64, name string) err
 	return nil
 }
 
-func (r *fakeUserRepo) UpdateRole(_ context.Context, id uint64, role string) error {
+func (r *fakeUserRepo) UpdateRole(_ context.Context, id uint64, role domain.RoleName) error {
 	r.updateRoleID, r.updateRoleVal = id, role
 	return nil
 }
@@ -70,10 +70,6 @@ func (r *fakeUserRepo) UpdateCompanyID(_ context.Context, id uint64, companyID u
 
 func (r *fakeUserRepo) UpdateActive(context.Context, uint64, bool) error { return nil }
 func (r *fakeUserRepo) SoftDelete(context.Context, uint64) error         { return nil }
-func (r *fakeUserRepo) MarkOnboarded(_ context.Context, _ uint64) error {
-	return nil
-}
-
 func (r *fakeUserRepo) ListByCompanyID(_ context.Context, _ uint64) ([]domain.User, error) {
 	return nil, nil
 }

@@ -35,7 +35,7 @@ func AuditLog(record func(ctx context.Context, e AuditEntry)) gin.HandlerFunc {
 		record(c.Request.Context(), AuditEntry{
 			ActorID:    actor.ID,
 			ActorEmail: actor.Email,
-			ActorRole:  actor.Role,
+			ActorRole:  string(actor.Role),
 			Action:     c.Request.Method + " " + c.FullPath(),
 			TargetID:   targetIDFromParams(c),
 		})

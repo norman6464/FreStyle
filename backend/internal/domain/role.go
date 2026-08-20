@@ -7,7 +7,7 @@ import "time"
 type Role struct {
 	// ID は固定採番（1: super_admin / 2: company_admin / 3: trainee）。migrate の seedRoles が投入する。
 	ID          uint16    `gorm:"primaryKey;autoIncrement:false" json:"id"`
-	Name        string    `gorm:"column:name;uniqueIndex;not null" json:"name"`
+	Name        RoleName  `gorm:"column:name;uniqueIndex;not null" json:"name"`
 	Description string    `gorm:"column:description;not null;default:''" json:"description"`
 	CreatedAt   time.Time `gorm:"column:created_at" json:"createdAt"`
 	UpdatedAt   time.Time `gorm:"column:updated_at" json:"updatedAt"`

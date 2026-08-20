@@ -27,8 +27,8 @@ func (r *companyStatsRepository) CountMembersByCompany(ctx context.Context) ([]r
 			"company_id AS company_id, "+
 				"COUNT(*) AS total, "+
 				"COUNT(*) FILTER (WHERE is_active) AS active, "+
-				"COUNT(*) FILTER (WHERE role = ?) AS trainees",
-			domain.RoleTrainee,
+				"COUNT(*) FILTER (WHERE role_id = ?) AS trainees",
+			domain.RoleIDTrainee,
 		).
 		Where("company_id IS NOT NULL AND deleted_at IS NULL").
 		Group("company_id").

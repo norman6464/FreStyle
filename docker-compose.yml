@@ -1,34 +1,33 @@
-# ローカル開発環境。DB・メールキャッチャー・バックエンド(Go) をまとめて起動する。
+# ローカル開発環境。リポジトリ直下で `docker compose up -d` するだけで
+# PostgreSQL・メールキャッチャー・バックエンド(Go) が揃って起動する。
 #
-# 起動:
-#   cd backend && make local-up
-#   # または docker compose -f docker-compose.local.yml up -d --wait
+#   docker compose up -d          # 起動 (初回は backend イメージのビルドが走る)
+#   docker compose logs -f backend
+#   docker compose down           # 停止 (DB のデータは volume に残る)
 #
 # 起動するもの:
 #   API   http://localhost:8080/api/v2/health
 #   メール http://localhost:8025   (受信メールの閲覧)
 #   DB    postgres://frestyle:frestyle@localhost:5432/frestyle
 #
-# .env（リポジトリ直下）には「ホストから見た」接続先を書く。ホストで動かす Vite や
-# make run はこの値を使う:
-#   DATABASE_URL=postgres://frestyle:frestyle@localhost:5432/frestyle?sslmode=disable
-#   MAIL_SMTP_HOST=localhost
-#   MAIL_FROM_ADDRESS=noreply@localhost
-# backend コンテナにも同じ .env を渡すが、コンテナから見た宛先はサービス名になるため
-# DB とメールの 2 つだけ下の environment で上書きする。
+# .env が無くても DB だけで起動できる(接続情報は下の既定値が使われる)。
+# Cognito / AWS まで使うときはリポジトリ直下に .env を置く(cp .env.example .env)。
+# .env には「ホストから見た」接続先(localhost)を書く。backend コンテナにも同じ .env を
+# 渡すが、コンテナから見た宛先はサービス名になるため DB とメールだけ下で上書きする。
 #
-# backend のコードを直したらイメージを作り直す:
-#   make local-rebuild
+# backend のコードを直したら `docker compose up -d --build backend` で作り直す。
 # 秒単位で回したいときはコンテナを止めてホストで動かす方が速い(8080 は二重に使えない):
-#   make local-stop-backend && make run
+#   docker compose stop backend && cd backend && make run
 #
 # 演習のコード実行(sandbox)は php / java / node / ruby / gcc / initdb を要求するが、
 # backend 本体は distroless でそれらを含まない。本番と同じく code-runner サイドカーへ
 # HTTP 委譲する構成のため、演習まで手元で動かすときは profile full で一緒に起動する:
-#   docker compose -f docker-compose.local.yml --profile full up -d
+#   docker compose --profile full up -d
 # (code-runner のイメージは JDK / PostgreSQL / Node を含むので初回ビルドは数分かかる)
 #
-# 結合テスト用(docker-compose.integration.yml / host 5433 / tmpfs)とは別物。
+# ダミーデータ投入や遅いクエリの計測は backend/Makefile の local-seed / local-psql /
+# local-slow を使う(起動には make は不要)。
+# 結合テスト用(backend/docker-compose.integration.yml / host 5433 / tmpfs)とは別物。
 # あちらは毎回まっさらにする使い捨てで、こちらは volume でデータを残す。
 
 name: frestyle-local
@@ -50,7 +49,7 @@ services:
     volumes:
       - db_data:/var/lib/postgresql/data
       # 起動時に一度だけ流す初期化 SQL(空の DB のときのみ実行される)。
-      - ./scripts/local-db-init:/docker-entrypoint-initdb.d:ro
+      - ./backend/scripts/local-db-init:/docker-entrypoint-initdb.d:ro
     # 性能検証で実行計画を見るため pg_stat_statements を有効にする。
     command:
       - postgres
@@ -82,14 +81,14 @@ services:
     # 本番と同じ Dockerfile(distroless)でビルドする。ローカルだけ別物にすると
     # 「手元では動くのに本番で動かない」を作り込むため、成果物は本番と揃える。
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
     container_name: frestyle-local-backend
     restart: unless-stopped
     env_file:
       # Cognito / AWS 等の設定はリポジトリ直下の .env から渡す。
       # 未作成でも DB だけで起動できるよう required: false にしている。
-      - path: ../.env
+      - path: .env
         required: false
     environment:
       # コンテナから見た DB / メールの宛先はサービス名になる(.env の localhost を上書き)。
@@ -101,13 +100,13 @@ services:
       CODE_RUNNER_URL: ${LOCAL_CODE_RUNNER_URL:-http://code-runner:9000}
     ports:
       # ホストで make run したいときは LOCAL_BACKEND_PORT を変えるか、
-      # make local-stop-backend でコンテナ側を止める(同じ 8080 は二重に使えない)。
+      # docker compose stop backend でコンテナ側を止める(同じ 8080 は二重に使えない)。
       - '${LOCAL_BACKEND_PORT:-8080}:8080'
     depends_on:
       db:
         condition: service_healthy
     # distroless にはシェルも curl も無いためコンテナ内の healthcheck は書けない。
-    # 起動確認(AutoMigrate 完了待ち)は make local-up がホスト側から HTTP で行う。
+    # 起動確認は `curl http://localhost:8080/api/v2/health` で行う。
 
   code-runner:
     # 学習者コードのサンドボックス実行(本番 ECS のサイドカーと同じもの)。
@@ -115,7 +114,7 @@ services:
     # 演習機能を手元で触るときだけ profile full で起動する。
     profiles: ['full']
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile.coderunner
     container_name: frestyle-local-code-runner
     restart: unless-stopped

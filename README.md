@@ -147,25 +147,24 @@ draw.io ソース: [`architecture/aws/freestyle-aws-architecture-current.drawio`
 ### バックエンド (Go / Gin) — `backend/`
 
 ```bash
-cd backend
+# 1) 設定ファイルを用意する（リポジトリ直下。Cognito / AWS などの値を書く。DB だけなら無くても動く）
+cp .env.example .env
 
-# 1) ビルド + 検証（gofumpt 整形 / vet / build / test / archlint 等を一括）
+# 2) DB・メールキャッチャー・バックエンドをまとめて起動
+#    （PostgreSQL 17.6 / mailpit / Go。初回は AutoMigrate でスキーマが作られる）
+docker compose up -d
+
+# 3) 動作確認
+curl http://localhost:8080/api/v2/health
+
+# 4) バックエンドのコードを触るときのビルド + 検証（gofumpt / vet / build / test / archlint 等を一括）
+cd backend
 go mod download
 make verify
 make fmt                   # gofumpt -w で整形（commit 前）
-
-# 2) 設定ファイルを用意する（Cognito / AWS などの値を書く）
-cp ../.env.example ../.env
-
-# 3) DB・メールキャッチャー・バックエンドをまとめて起動
-#    （PostgreSQL 17.6 / mailpit / Go。初回は AutoMigrate でスキーマが作られる）
-make local-up
-
-# 4) 動作確認
-curl http://localhost:8080/api/v2/health
 ```
 
-`make local-up` を実行すると次の 3 つが起動します。
+compose ファイルはリポジトリ直下の `docker-compose.yml` です。`docker compose up -d` だけで次の 3 つが起動します（`make` は不要です）。
 
 | | URL / 接続先 |
 |---|---|
@@ -175,12 +174,13 @@ curl http://localhost:8080/api/v2/health
 
 `.env` には**ホストから見た**接続先（`localhost`）を書きます。backend コンテナにも同じ `.env` を渡しますが、コンテナから見た宛先は異なるため `DATABASE_URL` と `MAIL_SMTP_HOST` の 2 つだけ compose 側でサービス名に上書きしています。
 
-backend のコードを変更したときは `make local-rebuild` でイメージを作り直します。秒単位で回したいときは、コンテナを止めてホストで動かすほうが速いです（8080 は二重に使えないため必ず止めてから起動します）。
+backend のコードを変更したときはイメージを作り直します。秒単位で回したいときは、コンテナを止めてホストで動かすほうが速いです（8080 は二重に使えないため必ず止めてから起動します）。
 
 ```bash
-make local-stop-backend    # コンテナの backend を止めて 8080 を空ける
-make run                   # = go run ./cmd/server（.env の localhost 宛の設定を使う）
-make local-logs            # コンテナの backend のログを追う
+docker compose up -d --build backend   # イメージを作り直して差し替える
+docker compose logs -f backend         # コンテナの backend のログを追う
+docker compose stop backend            # コンテナ側を止めて 8080 を空ける
+cd backend && make run                 # ホストで起動（.env の localhost 宛の設定を使う）
 ```
 
 フロントエンド（Vite）は HMR が効くホスト実行のままです（`cd frontend && npm run dev`）。
@@ -206,11 +206,11 @@ make local-slow-reset           # 計測をやり直すとき
 **片付け**:
 
 ```bash
-make local-down                 # 停止（データは残る）
-make local-reset                # volume ごと破棄してまっさらに
+docker compose down             # 停止（データは残る）
+make local-reset                # volume ごと破棄してまっさらに（backend/ で実行）
 ```
 
-> 演習のコード実行（sandbox）は `php` / `java` / `node` / `ruby` / `gcc` / `initdb` を要求します。backend 本体のイメージ（distroless）はこれらを含まず、本番と同じく code-runner サイドカーへ HTTP 委譲する構成です。演習まで手元で動かす場合は `make local-up-full` で code-runner も起動してください（イメージに JDK / PostgreSQL / Node を含むため初回ビルドは数分かかります）。ホストで `make run` する場合は、ホスト側にこれらのランタイムがあれば同プロセス内で実行されます。
+> 演習のコード実行（sandbox）は `php` / `java` / `node` / `ruby` / `gcc` / `initdb` を要求します。backend 本体のイメージ（distroless）はこれらを含まず、本番と同じく code-runner サイドカーへ HTTP 委譲する構成です。演習まで手元で動かす場合は `docker compose --profile full up -d` で code-runner も起動してください（イメージに JDK / PostgreSQL / Node を含むため初回ビルドは数分かかります）。ホストで `make run` する場合は、ホスト側にこれらのランタイムがあれば同プロセス内で実行されます。
 >
 > 結合テスト用の DB（`make test-integration` / host 5433 / 毎回破棄）とは別物です。
 

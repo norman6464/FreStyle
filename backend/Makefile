@@ -9,14 +9,12 @@
 #   make naminglint   … usecase 命名・構造規約 (CLAUDE.md §2.3) を 検証
 #   make test-integration … docker-compose で PostgreSQL を起動し -tags=integration の結合テストを実行
 #   make run          … go run ./cmd/server で ローカル サーバ 起動
-#   make local-up     … DB + メールキャッチャー + バックエンド(Go) を起動
-#   make local-up-full … 上に加えて code-runner(演習のコード実行)も起動
-#   make local-rebuild … backend のイメージを作り直して差し替える
-#   make local-logs   … backend のログを追う
-#   make local-down   … 上を停止(データは残る)。make local-reset で volume ごと破棄
+#   ローカル環境の起動は make ではなくリポジトリ直下で `docker compose up -d`
+#   (DB + メールキャッチャー + バックエンドが起動する。詳細は /docker-compose.yml)
 #   make local-seed   … ダミーデータ投入 (SIZE=small|medium|large)
 #   make local-psql   … ローカル DB に psql で接続
 #   make local-slow   … pg_stat_statements から遅いクエリ上位 20 件を表示
+#   make local-reset  … ローカル DB を volume ごと破棄してまっさらにする
 #
 # swag CLI が PATH に なければ `go install github.com/swaggo/swag/cmd/swag@v1.16.4` を 自動 実行 する。
 # バージョン を 固定 する のは spec 差分 が CLI バージョン で 変わる の を 防ぐ ため。
@@ -124,91 +122,29 @@ run:
 	go run ./cmd/server
 
 # ---------------------------------------------------------------------------
-# ローカル開発環境 (docker-compose.local.yml)
+# ローカル開発環境の補助 (compose 本体はリポジトリ直下の /docker-compose.yml)
 #
-# make local-up で DB・メールキャッチャー・バックエンド(Go) がまとめて起動する。
-# フロントエンド(Vite)は HMR が効くホスト実行のままにする(cd frontend && npm run dev)。
-# backend を秒単位で作り直したいときは local-stop-backend でコンテナを止め、
-# ホストの make run に切り替える(8080 は二重に使えない)。
+# 起動・停止は make を使わず `docker compose up -d` / `docker compose down`。
+# ここに残すのは DB のデータ操作(seed / psql / 計測 / 破棄)の補助だけ。
 # 結合テスト用(docker-compose.integration.yml / 5433 / tmpfs)とは別物。
 # ---------------------------------------------------------------------------
-LOCAL_COMPOSE := docker-compose.local.yml
+LOCAL_COMPOSE := ../docker-compose.yml
 
-# 接続設定は docker-compose.local.yml と同じ環境変数で上書きできるようにする。
-# ここを固定値にすると、compose 側だけ LOCAL_DB_PORT 等を変えたときに
-# 各 target が接続できなくなる(既定値も compose と揃えること)。
-LOCAL_DB_USER ?= frestyle
-LOCAL_DB_PASSWORD ?= frestyle
-LOCAL_DB_NAME ?= frestyle
-LOCAL_DB_PORT ?= 5432
-LOCAL_BACKEND_PORT ?= 8080
-LOCAL_DSN ?= postgres://$(LOCAL_DB_USER):$(LOCAL_DB_PASSWORD)@localhost:$(LOCAL_DB_PORT)/$(LOCAL_DB_NAME)?sslmode=disable
-LOCAL_HEALTH_URL := http://localhost:$(LOCAL_BACKEND_PORT)/api/v2/health
-
-# 各 target が使う psql の共通オプション。
-LOCAL_PSQL := psql -U $(LOCAL_DB_USER) -d $(LOCAL_DB_NAME)
+# 各 target が使う psql の共通オプション。接続先はコンテナ自身の環境変数
+# (POSTGRES_USER / POSTGRES_DB)に追随させる。Makefile 側に既定値を持つと、
+# root の .env で LOCAL_DB_USER 等を変えたとき compose(補間する)とここ(しない)で
+# 接続先がずれるため、コンテナ内で解決して常に実際の DB と一致させる。
+LOCAL_PSQL := sh -c 'exec psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" "$$@"' --
 
 SIZE ?= small
-
-.PHONY: local-up
-local-up:
-	docker compose -f $(LOCAL_COMPOSE) up -d --wait --build
-	@$(MAKE) --no-print-directory local-health
-	@echo ""
-	@echo "API  : http://localhost:$(LOCAL_BACKEND_PORT)/api/v2/health"
-	@echo "DB   : $(LOCAL_DSN)"
-	@echo "Mail : http://localhost:8025"
-	@echo ""
-	@echo "フロントエンドは 'cd ../frontend && npm run dev' で起動する。"
-	@echo "ホストで backend を動かすときは .env に次を設定し make local-stop-backend → make run:"
-	@echo "  DATABASE_URL=$(LOCAL_DSN)"
-	@echo "  MAIL_SMTP_HOST=localhost"
-
-# 演習のコード実行(sandbox)まで動かす。code-runner のイメージは JDK / PostgreSQL / Node を
-# 含むため初回ビルドに数分かかる。
-.PHONY: local-up-full
-local-up-full:
-	docker compose -f $(LOCAL_COMPOSE) --profile full up -d --wait --build
-
-# backend は distroless でシェルも curl も持たず、コンテナ内 healthcheck を定義できない。
-# AutoMigrate 完了(= /health 応答)はホスト側から HTTP で確認する。
-.PHONY: local-health
-local-health:
-	@for i in $$(seq 1 60); do \
-	  if curl -fsS $(LOCAL_HEALTH_URL) >/dev/null 2>&1; then \
-	    echo "backend OK: $$(curl -fsS $(LOCAL_HEALTH_URL))"; exit 0; \
-	  fi; \
-	  sleep 1; \
-	done; \
-	echo "backend が $(LOCAL_HEALTH_URL) に応答しません。'make local-logs' でログを確認してください。"; \
-	exit 1
-
-# backend のコードを変更したあとにイメージを作り直して差し替える。
-.PHONY: local-rebuild
-local-rebuild:
-	docker compose -f $(LOCAL_COMPOSE) up -d --wait --build backend
-	@$(MAKE) --no-print-directory local-health
-
-# ホストの make run に切り替えるときに 8080 を空ける。
-.PHONY: local-stop-backend
-local-stop-backend:
-	docker compose -f $(LOCAL_COMPOSE) stop backend
-
-.PHONY: local-logs
-local-logs:
-	docker compose -f $(LOCAL_COMPOSE) logs -f backend
-
-.PHONY: local-down
-local-down:
-	docker compose -f $(LOCAL_COMPOSE) down
 
 # volume ごと破棄してまっさらにする。スキーマは次回起動時の AutoMigrate で再構築される。
 .PHONY: local-reset
 local-reset:
 	docker compose -f $(LOCAL_COMPOSE) down -v
-	@echo "破棄しました。make local-up(起動時に AutoMigrate) → make local-seed の順で作り直せます。"
+	@echo "破棄しました。docker compose up -d(起動時に AutoMigrate) → make local-seed で作り直せます。"
 
-# ダミーデータ投入。スキーマは AutoMigrate 済みが前提(make local-up の起動時に適用される)。
+# ダミーデータ投入。スキーマは AutoMigrate 済みが前提(docker compose up の起動時に適用される)。
 # 規模: SIZE=small(既定) | medium | large
 .PHONY: local-seed
 local-seed:

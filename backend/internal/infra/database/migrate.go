@@ -58,6 +58,11 @@ func Migrate(db *gorm.DB) error {
 			return err
 		}
 	}
+	// AutoMigrate が email / role_id へ NOT NULL を張るため、旧スキーマの NULL を先に埋める
+	// （NULL が残っていると SET NOT NULL で起動が落ちるため）。冪等。
+	if err := preRepairUsersForMigrate(db); err != nil {
+		return err
+	}
 	log.Println("migrate: AutoMigrate start")
 	if err := AutoMigrateAll(db); err != nil {
 		return err
@@ -66,22 +71,43 @@ func Migrate(db *gorm.DB) error {
 	// 演習データ(PHP / Go / Docker / Linux / Git など)は問題文・期待出力を公開リポに露出させない
 	// ため本体には埋め込まず、非公開の教材リポ(frestyle-teaching-materials/exercises/<lang>/*.md)を
 	// 唯一の正本とし、seed.py が生成する UPSERT SQL を Supabase に流して投入する。
-	if err := seedCompanies(db); err != nil {
-		return err
-	}
-	if err := SeedRoles(db); err != nil {
-		return err
-	}
-	// users 正規化（FRESTYLE-311）のバックフィル。起動のたびに走るが冪等で、
-	// 埋まっていれば no-op。デプロイと手動 SQL 適用の順序に依存させないためここで行う
-	// （AutoMigrate → バックフィル → listen の順が 1 プロセス内で保証される）。
-	if err := BackfillUserNormalization(db); err != nil {
-		return err
-	}
-	if err := ApplyUserNormalizationConstraints(db); err != nil {
-		return err
-	}
-	return nil
+	// seed / バックフィル / 制約適用は check-then-act を含むため、複数タスクの同時起動でも
+	// 直列化されるよう advisory lock で囲む。pgbouncer(transaction pooler) 前提のため
+	// セッションロックではなくトランザクションロック（コミットで自動解放）を使う。
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec(`SELECT pg_advisory_xact_lock(4915311)`).Error; err != nil {
+			return err
+		}
+		if err := seedCompanies(tx); err != nil {
+			return err
+		}
+		if err := SeedRoles(tx); err != nil {
+			return err
+		}
+		// users 正規化（FRESTYLE-311）のバックフィル。起動のたびに走るが冪等で、
+		// 埋まっていれば no-op。デプロイと手動 SQL 適用の順序に依存させないためここで行う
+		// （AutoMigrate → バックフィル → listen の順が 1 プロセス内で保証される）。
+		if err := BackfillUserNormalization(tx); err != nil {
+			return err
+		}
+		return ApplyUserNormalizationConstraints(tx)
+	})
+}
+
+// preRepairUsersForMigrate は AutoMigrate（NOT NULL 適用）の前提を満たすよう旧データを埋める（冪等）。
+// users テーブル / 対象カラムが未作成の初回起動では no-op。
+func preRepairUsersForMigrate(db *gorm.DB) error {
+	return db.Exec(`DO $$ BEGIN
+		IF to_regclass('users') IS NOT NULL THEN
+			UPDATE users SET email = '' WHERE email IS NULL;
+			IF EXISTS (
+				SELECT 1 FROM information_schema.columns
+				WHERE table_name = 'users' AND column_name = 'role_id'
+			) THEN
+				UPDATE users SET role_id = 3 WHERE role_id IS NULL;
+			END IF;
+		END IF;
+	END $$;`).Error
 }
 
 // SeedRoles はロールマスタを投入する（固定 ID・冪等）。起動時と結合テストのスキーマ構築で使う。
@@ -116,12 +142,21 @@ func BackfillUserNormalization(db *gorm.DB) error {
 	).Error; err != nil {
 		return err
 	}
-	// cognito_sub → user_oidc_identities（既存行はスキップ）。
-	return db.Exec(
+	// cognito_sub → user_oidc_identities（既存行はスキップ）。論理削除済みユーザーは対象外
+	// （identity が subject を占有すると、同じ OIDC アカウントの再招待がログイン不能になる）。
+	if err := db.Exec(
 		`INSERT INTO user_oidc_identities (user_id, provider, subject, created_at, updated_at)
 		 SELECT id, ?, cognito_sub, NOW(), NOW() FROM users
-		 WHERE cognito_sub IS NOT NULL AND cognito_sub <> ''
+		 WHERE cognito_sub IS NOT NULL AND cognito_sub <> '' AND deleted_at IS NULL
 		 ON CONFLICT DO NOTHING`, domain.OidcProviderCognito,
+	).Error; err != nil {
+		return err
+	}
+	// 論理削除済みユーザーに紐付く identity を掃除する（SoftDelete 側でも消すが、
+	// 過去データと削除処理の失敗に対する自己修復として毎起動流す。冪等）。
+	return db.Exec(
+		`DELETE FROM user_oidc_identities oi USING users u
+		 WHERE oi.user_id = u.id AND u.deleted_at IS NOT NULL`,
 	).Error
 }
 
@@ -148,19 +183,8 @@ func ApplyUserNormalizationConstraints(db *gorm.DB) error {
 				ALTER TABLE roles ADD CONSTRAINT ck_roles_name_not_empty CHECK (name <> '');
 			END IF;
 		END $$;`,
-		// users.role_id: 既定値 trainee(3)。移行期間中の旧コード（role_id を書かない INSERT）を
-		// NOT NULL 違反で壊さないための安全弁。既定で入った値は次回起動のバックフィル
-		// （role 文字列との不一致修復）が正しいロールへ補正する。
-		`ALTER TABLE users ALTER COLUMN role_id SET DEFAULT 3;`,
-		// users.role_id: バックフィル済み + DEFAULT ありなので NOT NULL にできる。
-		`DO $$ BEGIN
-			IF EXISTS (
-				SELECT 1 FROM information_schema.columns
-				WHERE table_name = 'users' AND column_name = 'role_id' AND is_nullable = 'YES'
-			) THEN
-				ALTER TABLE users ALTER COLUMN role_id SET NOT NULL;
-			END IF;
-		END $$;`,
+		// users.role_id の NOT NULL / DEFAULT は domain タグ経由で AutoMigrate が管理する
+		// （ここで別途 ALTER すると AutoMigrate が毎起動剥がして貼り直す羽目になる）。
 		// users.role_id → roles.id。ロールマスタの行は参照されている限り消せない（RESTRICT 相当）。
 		`DO $$ BEGIN
 			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_users_role') THEN
@@ -182,23 +206,19 @@ func ApplyUserNormalizationConstraints(db *gorm.DB) error {
 					ADD CONSTRAINT ck_user_oidc_identities_not_empty CHECK (provider <> '' AND subject <> '');
 			END IF;
 		END $$;`,
-		// users.email: アプリは必ず値を入れる（Go の string 非ポインタ）ため NOT NULL にする。
-		// 万一 NULL 行が残っている場合は WARNING に留め、起動は落とさない。
-		`DO $$ BEGIN
-			IF EXISTS (
-				SELECT 1 FROM information_schema.columns
-				WHERE table_name = 'users' AND column_name = 'email' AND is_nullable = 'YES'
-			) THEN
-				IF EXISTS (SELECT 1 FROM users WHERE email IS NULL) THEN
-					RAISE WARNING 'users.email に NULL があるため NOT NULL を適用できません';
-				ELSE
-					ALTER TABLE users ALTER COLUMN email SET NOT NULL;
-				END IF;
-			END IF;
-		END $$;`,
-		// users.email: アクティブ行（未論理削除）に限った部分 UNIQUE。論理削除→同メール再招待と両立する。
+		// users.email の NOT NULL も domain タグ経由で AutoMigrate が管理する
+		// （preRepairUsersForMigrate が NULL を先に埋めるため適用は常に成功する）。
+		// users.email: アクティブ行（未論理削除）かつ非空に限った部分 UNIQUE。
+		// 論理削除→同メール再招待と両立し、email claim の無い OIDC ユーザー（空文字）は対象外にする
+		// （重複ガードと述語を必ず一致させること。ずれると起動失敗が自己修復しなくなる）。
 		// 既存データに重複がある場合は作成せず WARNING を出す（起動を落とさず、修正は運用判断に委ねる）。
 		`DO $$ BEGIN
+			IF EXISTS (
+				SELECT 1 FROM pg_indexes WHERE indexname = 'uq_users_email_active'
+				  AND indexdef NOT LIKE '%email%<>%'
+			) THEN
+				DROP INDEX uq_users_email_active;
+			END IF;
 			IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'uq_users_email_active') THEN
 				IF EXISTS (
 					SELECT email FROM users WHERE deleted_at IS NULL AND email <> ''
@@ -206,7 +226,8 @@ func ApplyUserNormalizationConstraints(db *gorm.DB) error {
 				) THEN
 					RAISE WARNING 'users.email に重複があるため uq_users_email_active を作成できません（重複を解消して再起動してください）';
 				ELSE
-					CREATE UNIQUE INDEX uq_users_email_active ON users (email) WHERE deleted_at IS NULL;
+					CREATE UNIQUE INDEX uq_users_email_active
+						ON users (email) WHERE deleted_at IS NULL AND email <> '';
 				END IF;
 			END IF;
 		END $$;`,

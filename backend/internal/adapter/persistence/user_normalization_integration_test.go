@@ -204,6 +204,9 @@ func TestUserNormalization_Integration(t *testing.T) {
 		got, err := repo.FindByCognitoSub(ctx, "def-1")
 		require.NoError(t, err)
 		require.Equal(t, domain.RoleIDTrainee, got.RoleID)
+		// 読み出しは移行期間中「旧カラムが正」なので、role_id が既定値でも正しいロールが返る
+		// （混在ウィンドウで旧コードが作った company_admin が trainee 扱いにならない）。
+		require.Equal(t, domain.RoleCompanyAdmin, got.Role)
 
 		// バックフィル（起動時に毎回実行）が role 文字列との不一致を修復する。
 		require.NoError(t, database.BackfillUserNormalization(db))
@@ -211,5 +214,95 @@ func TestUserNormalization_Integration(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, domain.RoleIDCompanyAdmin, got.RoleID)
 		require.Equal(t, domain.RoleCompanyAdmin, got.Role)
+	})
+
+	t.Run("EnsureOidcIdentity は別ユーザーの subject 占有をエラーにする", func(t *testing.T) {
+		truncate(t)
+		u1 := &domain.User{CognitoSub: "own-1", Email: "own1@example.com", Role: domain.RoleTrainee}
+		u2 := &domain.User{CognitoSub: "own-2", Email: "own2@example.com", Role: domain.RoleTrainee}
+		require.NoError(t, repo.Create(ctx, u1))
+		require.NoError(t, repo.Create(ctx, u2))
+		require.NoError(t, repo.EnsureOidcIdentity(ctx, u1.ID, domain.OidcProviderCognito, "shared-sub"))
+
+		err := repo.EnsureOidcIdentity(ctx, u2.ID, domain.OidcProviderCognito, "shared-sub")
+		require.ErrorContains(t, err, "oidc identity conflict")
+	})
+
+	t.Run("SoftDelete が identity を解放し、同じ subject で再招待できる", func(t *testing.T) {
+		truncate(t)
+		u1 := &domain.User{CognitoSub: "reinvite-old", Email: "re@example.com", Role: domain.RoleTrainee}
+		require.NoError(t, repo.Create(ctx, u1))
+		require.NoError(t, repo.EnsureOidcIdentity(ctx, u1.ID, domain.OidcProviderCognito, "reinvite-sub"))
+
+		require.NoError(t, repo.SoftDelete(ctx, u1.ID))
+
+		// identity が消え、別ユーザーが同じ subject を取れる（同一 OIDC アカウントの再招待）。
+		u2 := &domain.User{CognitoSub: "reinvite-new", Email: "re@example.com", Role: domain.RoleTrainee}
+		require.NoError(t, repo.Create(ctx, u2))
+		require.NoError(t, repo.EnsureOidcIdentity(ctx, u2.ID, domain.OidcProviderCognito, "reinvite-sub"))
+
+		got, err := repo.FindByCognitoSub(ctx, "reinvite-sub")
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		require.Equal(t, u2.ID, got.ID)
+	})
+
+	t.Run("バックフィルは論理削除ユーザーの identity を作らず、残置も掃除する", func(t *testing.T) {
+		truncate(t)
+		// 旧コード相当: 論理削除済みの行（cognito_sub あり）
+		require.NoError(t, db.Exec(
+			`INSERT INTO users (cognito_sub, email, name, role, is_active, created_at, updated_at, deleted_at)
+			 VALUES ('dead-1', 'dead@example.com', 'dead', 'trainee', true, NOW(), NOW(), NOW())`,
+		).Error)
+		require.NoError(t, database.BackfillUserNormalization(db))
+		var count int64
+		require.NoError(t, db.Model(&domain.UserOidcIdentity{}).
+			Where("subject = ?", "dead-1").Count(&count).Error)
+		require.Equal(t, int64(0), count)
+
+		// 残置 identity（過去データ相当）も掃除される。
+		var deadID uint64
+		require.NoError(t, db.Raw(`SELECT id FROM users WHERE cognito_sub = 'dead-1'`).Scan(&deadID).Error)
+		require.NoError(t, db.Exec(
+			`INSERT INTO user_oidc_identities (user_id, provider, subject, created_at, updated_at)
+			 VALUES (?, 'cognito', 'dead-1', NOW(), NOW())`, deadID,
+		).Error)
+		require.NoError(t, database.BackfillUserNormalization(db))
+		require.NoError(t, db.Model(&domain.UserOidcIdentity{}).
+			Where("subject = ?", "dead-1").Count(&count).Error)
+		require.Equal(t, int64(0), count)
+	})
+
+	t.Run("空 email はアクティブ行でも複数共存できる（部分 UNIQUE の対象外）", func(t *testing.T) {
+		truncate(t)
+		e1 := &domain.User{CognitoSub: "nomail-1", Email: "", Role: domain.RoleTrainee}
+		e2 := &domain.User{CognitoSub: "nomail-2", Email: "", Role: domain.RoleTrainee}
+		require.NoError(t, repo.Create(ctx, e1))
+		require.NoError(t, repo.Create(ctx, e2))
+	})
+
+	t.Run("AutoMigrate を再実行しても NOT_NULL と DEFAULT が剥がれない", func(t *testing.T) {
+		// 回帰テスト: gorm タグと DB 状態が一致していないと、AutoMigrate が毎起動
+		// DROP NOT NULL / DROP DEFAULT を発行し、ローリングデプロイ中に安全弁が消える。
+		require.NoError(t, database.AutoMigrateAll(db))
+
+		var row struct {
+			IsNullable    string
+			ColumnDefault *string
+		}
+		require.NoError(t, db.Raw(
+			`SELECT is_nullable, column_default FROM information_schema.columns
+			 WHERE table_name = 'users' AND column_name = 'role_id'`,
+		).Scan(&row).Error)
+		require.Equal(t, "NO", row.IsNullable, "role_id の NOT NULL が AutoMigrate 再実行で剥がれた")
+		require.NotNil(t, row.ColumnDefault, "role_id の DEFAULT が AutoMigrate 再実行で剥がれた")
+		require.Contains(t, *row.ColumnDefault, "3")
+
+		var emailNullable string
+		require.NoError(t, db.Raw(
+			`SELECT is_nullable FROM information_schema.columns
+			 WHERE table_name = 'users' AND column_name = 'email'`,
+		).Scan(&emailNullable).Error)
+		require.Equal(t, "NO", emailNullable, "email の NOT NULL が AutoMigrate 再実行で剥がれた")
 	})
 }

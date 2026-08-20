@@ -159,12 +159,35 @@ func (r *userRepository) Create(ctx context.Context, user *domain.User) error {
 
 // EnsureOidcIdentity は (provider, subject) の identity を無ければ作る（冪等）。
 // 旧コードが identities 未作成のまま挿入した行のセルフヒールにも使う。
+// subject が別ユーザーに紐付いている場合は黙って成功にせずエラーを返す
+// （無音で放置すると、旧カラム撤去（PR3）後にサイレントなログイン不能を作るため）。
 func (r *userRepository) EnsureOidcIdentity(ctx context.Context, userID uint64, provider, subject string) error {
-	return r.db.WithContext(ctx).Exec(
+	res := r.db.WithContext(ctx).Exec(
 		`INSERT INTO user_oidc_identities (user_id, provider, subject, created_at, updated_at)
 		 VALUES (?, ?, ?, NOW(), NOW())
-		 ON CONFLICT DO NOTHING`, userID, provider, subject,
-	).Error
+		 ON CONFLICT (provider, subject) DO NOTHING`, userID, provider, subject,
+	)
+	if res.Error != nil {
+		// (user_id, provider) の一意制約違反（同一ユーザーが別 subject を保持）はここでエラーになる。
+		return res.Error
+	}
+	if res.RowsAffected == 1 {
+		return nil
+	}
+	// 挿入されなかった = (provider, subject) が既に存在する。所有者が自分なら冪等成功。
+	var identity domain.UserOidcIdentity
+	if err := r.db.WithContext(ctx).
+		Where("provider = ? AND subject = ?", provider, subject).
+		Take(&identity).Error; err != nil {
+		return err
+	}
+	if identity.UserID != userID {
+		return fmt.Errorf(
+			"oidc identity conflict: provider=%s の subject は既に user %d に紐付いています（要求 user %d）",
+			provider, identity.UserID, userID,
+		)
+	}
+	return nil
 }
 
 // UpdateAiChatEnabled は AI チャットの個別上書きを更新する。enabled=nil で NULL（会社設定に従う）に戻す。
@@ -197,6 +220,8 @@ func (r *userRepository) UpdateActive(ctx context.Context, userID uint64, active
 
 // SoftDelete はユーザーを論理削除する（deleted_at = NOW()）。以後 FindByCognitoSub 等で除外され、
 // 認証時にも弾かれる。既に削除済み / 存在しない場合は gorm.ErrRecordNotFound を返す。
+// OIDC identity も削除して subject の占有を解く（同じ OIDC アカウントの再招待を可能にする。
+// ここで消し損ねても起動時バックフィルの掃除が自己修復する）。
 func (r *userRepository) SoftDelete(ctx context.Context, userID uint64) error {
 	res := r.db.WithContext(ctx).
 		Model(&domain.User{}).
@@ -208,7 +233,9 @@ func (r *userRepository) SoftDelete(ctx context.Context, userID uint64) error {
 	if res.RowsAffected == 0 {
 		return gorm.ErrRecordNotFound
 	}
-	return nil
+	return r.db.WithContext(ctx).
+		Where("user_id = ?", userID).
+		Delete(&domain.UserOidcIdentity{}).Error
 }
 
 func (r *userRepository) UpdateName(ctx context.Context, userID uint64, name string) error {

@@ -1,6 +1,7 @@
 # --- Build stage ---
 # code-runner（cmd/coderunner）をビルドする。go/php 実行のため runtime も bookworm に揃える。
-FROM golang:1.26-bookworm AS builder
+# builder はホストのネイティブアーキで動かし、出力だけ TARGETARCH へクロスコンパイルする。
+FROM --platform=$BUILDPLATFORM golang:1.26-bookworm AS builder
 
 WORKDIR /app
 
@@ -9,7 +10,9 @@ RUN go mod download
 
 COPY . .
 
-ENV CGO_ENABLED=0 GOOS=linux GOARCH=amd64
+# GOARCH は runtime stage と揃える必要がある（Dockerfile 本体と同じ理由）。
+ARG TARGETARCH
+ENV CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH}
 RUN go build -trimpath -ldflags="-s -w" -o /out/coderunner ./cmd/coderunner
 
 # --- Runtime stage ---

@@ -1,24 +1,35 @@
-# ローカル開発環境。DB とメールキャッチャーをコンテナで常駐させ、アプリ(Go / Vite)は
-# ホストでそのまま動かす。Go の再ビルドは数秒・Vite は HMR が効くため、アプリまで
-# コンテナに入れると開発速度が落ちるのを避ける。
+# ローカル開発環境。DB・メールキャッチャー・バックエンド(Go) をまとめて起動する。
 #
 # 起動:
 #   cd backend && make local-up
 #   # または docker compose -f docker-compose.local.yml up -d --wait
 #
-# .env（リポジトリ直下）に次を設定する:
+# 起動するもの:
+#   API   http://localhost:8080/api/v2/health
+#   メール http://localhost:8025   (受信メールの閲覧)
+#   DB    postgres://frestyle:frestyle@localhost:5432/frestyle
+#
+# .env（リポジトリ直下）には「ホストから見た」接続先を書く。ホストで動かす Vite や
+# make run はこの値を使う:
 #   DATABASE_URL=postgres://frestyle:frestyle@localhost:5432/frestyle?sslmode=disable
 #   MAIL_SMTP_HOST=localhost
 #   MAIL_FROM_ADDRESS=noreply@localhost
+# backend コンテナにも同じ .env を渡すが、コンテナから見た宛先はサービス名になるため
+# DB とメールの 2 つだけ下の environment で上書きする。
 #
-# 受信メールの閲覧: http://localhost:8025
+# backend のコードを直したらイメージを作り直す:
+#   make local-rebuild
+# 秒単位で回したいときはコンテナを止めてホストで動かす方が速い(8080 は二重に使えない):
+#   make local-stop-backend && make run
+#
+# 演習のコード実行(sandbox)は php / java / node / ruby / gcc / initdb を要求するが、
+# backend 本体は distroless でそれらを含まない。本番と同じく code-runner サイドカーへ
+# HTTP 委譲する構成のため、演習まで手元で動かすときは profile full で一緒に起動する:
+#   docker compose -f docker-compose.local.yml --profile full up -d
+# (code-runner のイメージは JDK / PostgreSQL / Node を含むので初回ビルドは数分かかる)
 #
 # 結合テスト用(docker-compose.integration.yml / host 5433 / tmpfs)とは別物。
 # あちらは毎回まっさらにする使い捨てで、こちらは volume でデータを残す。
-#
-# 演習のコード実行(sandbox)は php / java / node / python / initdb / pg_ctl をホストに
-# 要求する。それらを入れずに演習機能まで触りたい場合だけ profile full を使う:
-#   docker compose -f docker-compose.local.yml --profile full up -d
 
 name: frestyle-local
 
@@ -68,24 +79,56 @@ services:
       - '8025:8025' # Web UI (受信メールの閲覧)
 
   backend:
-    # 演習のコード実行まで手元で動かしたいときだけ使う(profile full)。
-    # このイメージは php / go / jdk / node などのランタイムを同梱している。
-    profiles: ['full']
+    # 本番と同じ Dockerfile(distroless)でビルドする。ローカルだけ別物にすると
+    # 「手元では動くのに本番で動かない」を作り込むため、成果物は本番と揃える。
     build:
       context: .
+      dockerfile: Dockerfile
     container_name: frestyle-local-backend
     restart: unless-stopped
     env_file:
-      - ../.env
+      # Cognito / AWS 等の設定はリポジトリ直下の .env から渡す。
+      # 未作成でも DB だけで起動できるよう required: false にしている。
+      - path: ../.env
+        required: false
     environment:
       # コンテナから見た DB / メールの宛先はサービス名になる(.env の localhost を上書き)。
       DATABASE_URL: postgres://${LOCAL_DB_USER:-frestyle}:${LOCAL_DB_PASSWORD:-frestyle}@db:5432/${LOCAL_DB_NAME:-frestyle}?sslmode=disable
       MAIL_SMTP_HOST: mail
+      MAIL_SMTP_PORT: '1025'
+      # 演習のコード実行は code-runner(profile full)へ委譲する。distroless の backend 本体は
+      # php / java / node 等を持たないため in-process 実行はできない。
+      CODE_RUNNER_URL: ${LOCAL_CODE_RUNNER_URL:-http://code-runner:9000}
     ports:
-      - '8080:8080'
+      # ホストで make run したいときは LOCAL_BACKEND_PORT を変えるか、
+      # make local-stop-backend でコンテナ側を止める(同じ 8080 は二重に使えない)。
+      - '${LOCAL_BACKEND_PORT:-8080}:8080'
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      # distroless にはシェルも curl も無いので、サーバのバイナリ自身に自己チェックさせる
+      # (cmd/server の -healthcheck)。これで up --wait が AutoMigrate 完了まで待てる。
+      test: ['CMD', '/server', '-healthcheck']
+      interval: 3s
+      timeout: 5s
+      retries: 20
+      # 初回起動は AutoMigrate が走るぶん時間がかかるので猶予を取る。
+      start_period: 40s
+
+  code-runner:
+    # 学習者コードのサンドボックス実行(本番 ECS のサイドカーと同じもの)。
+    # JDK / PostgreSQL / Node を同梱するためイメージが大きく初回ビルドが数分かかる。
+    # 演習機能を手元で触るときだけ profile full で起動する。
+    profiles: ['full']
+    build:
+      context: .
+      dockerfile: Dockerfile.coderunner
+    container_name: frestyle-local-code-runner
+    restart: unless-stopped
+    # backend からのみ使う。学習者コードを実行するのでホストには publish しない。
+    expose:
+      - '9000'
 
 volumes:
   db_data:

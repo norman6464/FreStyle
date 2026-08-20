@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
@@ -29,7 +30,7 @@ func NewRecordChapterViewUseCase(
 type RecordChapterViewInput struct {
 	UserID             uint64
 	ActorCompanyID     uint64
-	ActorRole          string
+	ActorRole          domain.RoleName
 	TeachingMaterialID uint64
 }
 

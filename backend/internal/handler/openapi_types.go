@@ -34,7 +34,6 @@ type meResponse struct {
 	UpdatedAt  time.Time `json:"updatedAt"`
 	Groups     []string  `json:"groups"      example:"admin"`
 	IsAdmin    bool      `json:"isAdmin"     example:"false"`
-	Onboarded  bool      `json:"onboarded"   example:"true"`
 }
 
 // invitationValidateResponse は /invitations/accept/{token} の戻り値形（email は含めない）。

@@ -78,7 +78,7 @@ func NewCreateAdminInvitationUseCase(
 type CreateAdminInvitationInput struct {
 	CompanyID uint64
 	Email     string
-	Role      string
+	Role      domain.RoleName
 	Name      string
 }
 
@@ -112,7 +112,7 @@ func (u *CreateAdminInvitationUseCase) Execute(ctx context.Context, in CreateAdm
 	}
 
 	link := u.buildLink(token)
-	subject, htmlBody, textBody := u.buildMail(link, in.Name, u.companyName, in.Role)
+	subject, htmlBody, textBody := u.buildMail(link, in.Name, u.companyName, string(in.Role))
 	if err := u.sender.SendInvitationEmail(ctx, in.Email, subject, htmlBody, textBody); err != nil {
 		// 送信失敗はエラーで返す（invitation は DB に残るので再送に使える）。SES エラー種別を判定できるよう詳細をログに残す。
 		log.Printf("CreateAdminInvitation: SES SendInvitationEmail failed to=%s subject=%q: %v",
@@ -136,7 +136,7 @@ func NewCancelAdminInvitationUseCase(r repository.AdminInvitationRepository) *Ca
 // CancelAdminInvitationInput は取消対象と、取消を要求している管理者を表す。
 type CancelAdminInvitationInput struct {
 	ID             uint64
-	ActorRole      string
+	ActorRole      domain.RoleName
 	ActorCompanyID uint64
 }
 

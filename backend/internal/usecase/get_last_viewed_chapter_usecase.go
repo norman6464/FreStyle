@@ -28,7 +28,7 @@ func NewGetLastViewedChapterUseCase(
 type GetLastViewedChapterInput struct {
 	UserID         uint64
 	ActorCompanyID uint64
-	ActorRole      string
+	ActorRole      domain.RoleName
 	CourseID       uint64
 }
 

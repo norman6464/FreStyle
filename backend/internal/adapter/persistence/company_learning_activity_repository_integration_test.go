@@ -27,7 +27,8 @@ func TestCompanyLearningActivityRepository_Integration(t *testing.T) {
 
 	companyID := uint64(1)
 	otherCompany := uint64(2)
-	mkUser := func(id uint64, name, role string, company uint64, deleted bool) {
+	userRepo := persistence.NewUserRepository(db)
+	mkUser := func(id uint64, name string, role domain.RoleName, company uint64, deleted bool) {
 		u := &domain.User{
 			ID: id, CognitoSub: name, Email: name + "@example.com", Name: name,
 			CompanyID: &company, Role: role, IsActive: true,
@@ -36,7 +37,8 @@ func TestCompanyLearningActivityRepository_Integration(t *testing.T) {
 			now := time.Now().UTC()
 			u.DeletedAt = &now
 		}
-		require.NoError(t, db.Create(u).Error)
+		// role_id の解決（resolveRoleID）を通すため repository 経由で作成する。
+		require.NoError(t, userRepo.Create(ctx, u))
 	}
 
 	mkUser(11, "active-today", domain.RoleTrainee, companyID, false)

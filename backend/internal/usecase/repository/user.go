@@ -13,10 +13,13 @@ type UserRepository interface {
 	FindByCognitoSub(ctx context.Context, sub string) (*domain.User, error)
 	FindByID(ctx context.Context, id uint64) (*domain.User, error)
 	// ListByRole は指定 role のユーザー一覧を返す（super_admin への一斉通知などに使う）。
-	ListByRole(ctx context.Context, role string) ([]domain.User, error)
+	ListByRole(ctx context.Context, role domain.RoleName) ([]domain.User, error)
 	// ListByCompanyID は会社単位の従業員一覧を返す（company_admin の従業員管理画面用）。
 	ListByCompanyID(ctx context.Context, companyID uint64) ([]domain.User, error)
 	Create(ctx context.Context, user *domain.User) error
+	// EnsureOidcIdentity は OIDC identity（provider + subject）を無ければ作る（冪等）。
+	// OIDC ログインでのユーザー作成直後と、既存ユーザーのセルフヒールで呼ばれる。
+	EnsureOidcIdentity(ctx context.Context, userID uint64, provider, subject string) error
 	// UpdateAiChatEnabled は AI チャットの個別上書きを更新する（nil で会社設定に従う）。
 	UpdateAiChatEnabled(ctx context.Context, userID uint64, enabled *bool) error
 	// UpdateActive はユーザーアカウントの有効/無効を更新する（false で無効化 → 利用不可）。
@@ -26,9 +29,7 @@ type UserRepository interface {
 	// UpdateName は氏名変更、および OIDC ログイン時の name 自動補正で呼ばれる。
 	UpdateName(ctx context.Context, userID uint64, name string) error
 	// UpdateRole は Cognito group → DB role 同期、または招待受諾時に呼ばれる。
-	UpdateRole(ctx context.Context, userID uint64, role string) error
+	UpdateRole(ctx context.Context, userID uint64, role domain.RoleName) error
 	// UpdateCompanyID は既存ユーザーが招待を受けて company に紐付くときに呼ばれる。
 	UpdateCompanyID(ctx context.Context, userID uint64, companyID uint64) error
-	// MarkOnboarded は onboarded_at = NOW() に更新する（冪等、既存値は上書きしない）。
-	MarkOnboarded(ctx context.Context, userID uint64) error
 }

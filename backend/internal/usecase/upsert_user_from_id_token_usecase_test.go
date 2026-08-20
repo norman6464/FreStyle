@@ -19,13 +19,17 @@ type upsertUserRepoSpy struct {
 	createErr             error
 	nameUpdateCalls       int
 	nameUpdateErr         error
+	ensureIdentityCalls   int
+	ensuredUserID         uint64
+	ensuredProvider       string
+	ensuredSubject        string
 	roleUpdateCalls       int
 	roleUpdateErr         error
 	companyUpdateCalls    int
 	companyUpdateErr      error
 
 	roleUpdateUserID    uint64
-	roleUpdateValue     string
+	roleUpdateValue     domain.RoleName
 	companyUpdateUserID uint64
 	companyUpdateValue  uint64
 }
@@ -103,6 +107,18 @@ func (s *upsertInvitationRepoSpy) UpdateStatus(
 	s.updatedID = id
 	s.updatedStatus = status
 	return s.updateErr
+}
+
+func (s *upsertUserRepoSpy) EnsureOidcIdentity(
+	_ context.Context,
+	userID uint64,
+	provider, subject string,
+) error {
+	s.ensureIdentityCalls++
+	s.ensuredUserID = userID
+	s.ensuredProvider = provider
+	s.ensuredSubject = subject
+	return nil
 }
 
 func newUpsertUserFromIDTokenUseCaseForTest(
@@ -193,7 +209,7 @@ func (s *upsertUserRepoSpy) UpdateName(
 func (s *upsertUserRepoSpy) UpdateRole(
 	_ context.Context,
 	userID uint64,
-	role string,
+	role domain.RoleName,
 ) error {
 	s.roleUpdateCalls++
 	if s.roleUpdateErr != nil {
@@ -524,13 +540,13 @@ func Test_UpsertUserFromIDToken_CognitoSubが空なら処理しない(t *testing
 func Test_UpsertUserFromIDToken_Cognito管理者は招待Roleで降格しない(
 	t *testing.T,
 ) {
-	invitationRoles := []string{
+	invitationRoles := []domain.RoleName{
 		domain.RoleTrainee,
 		domain.RoleCompanyAdmin,
 	}
 
 	for _, invitationRole := range invitationRoles {
-		t.Run(invitationRole, func(t *testing.T) {
+		t.Run(string(invitationRole), func(t *testing.T) {
 			users := &upsertUserRepoSpy{}
 			invitations := &upsertInvitationRepoSpy{
 				pending: &domain.AdminInvitation{
@@ -1003,5 +1019,69 @@ func Test_UpsertUserFromIDToken_新規ユーザーのトランザクションエ
 				)
 			}
 		})
+	}
+}
+
+func Test_UpsertUserFromIDToken_新規作成でOIDCidentityを対で作る(t *testing.T) {
+	users := &upsertUserRepoSpy{}
+	invitations := &upsertInvitationRepoSpy{
+		pending: &domain.AdminInvitation{
+			ID:     11,
+			Role:   domain.RoleTrainee,
+			Status: domain.InvitationStatusPending,
+		},
+	}
+	uc := newUpsertUserFromIDTokenUseCaseForTest(users, invitations)
+
+	allowed, err := uc.Execute(
+		context.Background(),
+		UpsertUserFromIDTokenInput{
+			CognitoSub: "new-sub-1",
+			Email:      "new@example.com",
+		},
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !allowed {
+		t.Fatal("招待ありの新規ユーザーは許可されるべき")
+	}
+	if users.ensureIdentityCalls != 1 {
+		t.Fatalf("EnsureOidcIdentity calls = %d, want 1", users.ensureIdentityCalls)
+	}
+	if users.ensuredProvider != domain.OidcProviderCognito {
+		t.Fatalf("provider = %q, want %q", users.ensuredProvider, domain.OidcProviderCognito)
+	}
+	if users.ensuredSubject != "new-sub-1" {
+		t.Fatalf("subject = %q, want %q", users.ensuredSubject, "new-sub-1")
+	}
+}
+
+func Test_UpsertUserFromIDToken_既存ユーザーでもidentityをセルフヒールする(t *testing.T) {
+	existing := &domain.User{ID: 77, CognitoSub: "old-sub", Email: "e@example.com", Role: domain.RoleTrainee}
+	users := &upsertUserRepoSpy{stubUserRepo: stubUserRepo{user: existing}}
+	uc := newUpsertUserFromIDTokenUseCaseForTest(users, &upsertInvitationRepoSpy{})
+
+	allowed, err := uc.Execute(
+		context.Background(),
+		UpsertUserFromIDTokenInput{
+			CognitoSub: "old-sub",
+			Email:      "e@example.com",
+		},
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !allowed {
+		t.Fatal("既存ユーザーは許可されるべき")
+	}
+	if users.ensureIdentityCalls != 1 {
+		t.Fatalf("EnsureOidcIdentity calls = %d, want 1（セルフヒールされていない）", users.ensureIdentityCalls)
+	}
+	if users.ensuredUserID != 77 {
+		t.Fatalf("ensured userID = %d, want 77", users.ensuredUserID)
+	}
+	if users.ensuredSubject != "old-sub" {
+		t.Fatalf("subject = %q, want %q", users.ensuredSubject, "old-sub")
 	}
 }

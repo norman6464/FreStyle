@@ -1422,7 +1422,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "Cookie 認証 を 元 に 現在 ログイン 中 の user 情報 (id / email / role / isAdmin / onboarded 等) を 返す。",
+                "description": "Cookie 認証 を 元 に 現在 ログイン 中 の user 情報 (id / email / role / isAdmin 等) を 返す。",
                 "produces": [
                     "application/json"
                 ],
@@ -3289,37 +3289,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/profile/me/onboarding/complete": {
-            "post": {
-                "security": [
-                    {
-                        "CookieAuth": []
-                    }
-                ],
-                "description": "Welcome 画面 「はじめる」 押下 で onboarded_at = NOW() に 更新。 冪等 (再 押下 で も 初回 日時 保持)。",
-                "tags": [
-                    "profile"
-                ],
-                "summary": "オンボーディング 完了 通知",
-                "responses": {
-                    "204": {
-                        "description": "成功 (本文 なし)"
-                    },
-                    "401": {
-                        "description": "未 認証",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "内部 エラー",
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.errorResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/profile/{userId}": {
             "get": {
                 "security": [
@@ -3999,7 +3968,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "role": {
-                    "type": "string"
+                    "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.RoleName"
                 },
                 "status": {
                     "type": "string"
@@ -4489,6 +4458,19 @@ const docTemplate = `{
                     "type": "integer"
                 }
             }
+        },
+        "github_com_norman6464_FreStyle_backend_internal_domain.RoleName": {
+            "type": "string",
+            "enum": [
+                "super_admin",
+                "company_admin",
+                "trainee"
+            ],
+            "x-enum-varnames": [
+                "RoleSuperAdmin",
+                "RoleCompanyAdmin",
+                "RoleTrainee"
+            ]
         },
         "github_com_norman6464_FreStyle_backend_internal_domain.SessionNote": {
             "type": "object",
@@ -5029,7 +5011,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "role": {
-                    "type": "string"
+                    "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.RoleName"
                 }
             }
         },
@@ -5244,10 +5226,6 @@ const docTemplate = `{
                     "type": "string",
                     "example": "山田 太郎"
                 },
-                "onboarded": {
-                    "type": "boolean",
-                    "example": true
-                },
                 "role": {
                     "type": "string",
                     "example": "trainee"
@@ -5278,7 +5256,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "role": {
-                    "type": "string"
+                    "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.RoleName"
                 }
             }
         },

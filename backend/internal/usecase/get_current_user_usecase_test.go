@@ -21,7 +21,7 @@ func (s *stubUserRepo) FindByID(_ context.Context, _ uint64) (*domain.User, erro
 	return s.user, s.err
 }
 
-func (s *stubUserRepo) ListByRole(_ context.Context, _ string) ([]domain.User, error) {
+func (s *stubUserRepo) ListByRole(_ context.Context, _ domain.RoleName) ([]domain.User, error) {
 	return nil, s.err
 }
 
@@ -37,7 +37,7 @@ func (s *stubUserRepo) UpdateName(_ context.Context, _ uint64, _ string) error {
 	return s.err
 }
 
-func (s *stubUserRepo) UpdateRole(_ context.Context, _ uint64, _ string) error {
+func (s *stubUserRepo) UpdateRole(_ context.Context, _ uint64, _ domain.RoleName) error {
 	return s.err
 }
 
@@ -47,8 +47,9 @@ func (s *stubUserRepo) UpdateCompanyID(_ context.Context, _ uint64, _ uint64) er
 
 func (s *stubUserRepo) UpdateActive(context.Context, uint64, bool) error { return nil }
 func (s *stubUserRepo) SoftDelete(context.Context, uint64) error         { return nil }
-func (s *stubUserRepo) MarkOnboarded(_ context.Context, _ uint64) error {
-	return s.err
+
+func (s *stubUserRepo) EnsureOidcIdentity(context.Context, uint64, string, string) error {
+	return nil
 }
 
 func Test_現在ユーザー取得_見つかる(t *testing.T) {

@@ -15,7 +15,7 @@ definitions:
       name:
         type: string
       role:
-        type: string
+        $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.RoleName'
       status:
         type: string
     type: object
@@ -349,6 +349,16 @@ definitions:
       userId:
         type: integer
     type: object
+  github_com_norman6464_FreStyle_backend_internal_domain.RoleName:
+    enum:
+    - super_admin
+    - company_admin
+    - trainee
+    type: string
+    x-enum-varnames:
+    - RoleSuperAdmin
+    - RoleCompanyAdmin
+    - RoleTrainee
   github_com_norman6464_FreStyle_backend_internal_domain.SessionNote:
     properties:
       content:
@@ -721,7 +731,7 @@ definitions:
       name:
         type: string
       role:
-        type: string
+        $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.RoleName'
     required:
     - companyId
     - email
@@ -869,9 +879,6 @@ definitions:
       name:
         example: 山田 太郎
         type: string
-      onboarded:
-        example: true
-        type: boolean
       role:
         example: trainee
         type: string
@@ -893,7 +900,7 @@ definitions:
       name:
         type: string
       role:
-        type: string
+        $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.RoleName'
     type: object
   internal_handler.messageResponse:
     properties:
@@ -2003,7 +2010,7 @@ paths:
   /auth/me:
     get:
       description: Cookie 認証 を 元 に 現在 ログイン 中 の user 情報 (id / email / role / isAdmin
-        / onboarded 等) を 返す。
+        等) を 返す。
       produces:
       - application/json
       responses:
@@ -3325,26 +3332,6 @@ paths:
       security:
       - CookieAuth: []
       summary: プロフィール 画像 PUT 署名 URL
-      tags:
-      - profile
-  /profile/me/onboarding/complete:
-    post:
-      description: Welcome 画面 「はじめる」 押下 で onboarded_at = NOW() に 更新。 冪等 (再 押下 で も
-        初回 日時 保持)。
-      responses:
-        "204":
-          description: 成功 (本文 なし)
-        "401":
-          description: 未 認証
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-        "500":
-          description: 内部 エラー
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
-      security:
-      - CookieAuth: []
-      summary: オンボーディング 完了 通知
       tags:
       - profile
   /sessions/{sessionId}/note:

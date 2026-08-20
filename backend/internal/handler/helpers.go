@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/norman6464/FreStyle/backend/internal/domain"
+
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"gorm.io/gorm"
@@ -13,7 +15,7 @@ import (
 // actorFromContext は middleware が注入した current user から (userID, companyID, role) を取り出す。
 // 未認証なら 401 を書き込んで ok=false を返すので、呼び出し側は ok を見て早期 return する。
 // 各 handler が同じ「user 取得 + companyID 展開 + 401」を書かずに済むための共通小道具。
-func actorFromContext(c *gin.Context) (userID, companyID uint64, role string, ok bool) {
+func actorFromContext(c *gin.Context) (userID, companyID uint64, role domain.RoleName, ok bool) {
 	user := middleware.CurrentUserFromContext(c)
 	if user == nil {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})

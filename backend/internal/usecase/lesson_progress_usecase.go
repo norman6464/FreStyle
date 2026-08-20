@@ -42,7 +42,7 @@ func NewMarkLessonCompletedUseCase(
 type MarkLessonCompletedInput struct {
 	UserID             uint64
 	ActorCompanyID     uint64
-	ActorRole          string
+	ActorRole          domain.RoleName
 	TeachingMaterialID uint64
 }
 

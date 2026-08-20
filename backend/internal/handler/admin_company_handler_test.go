@@ -222,8 +222,8 @@ func Test_会社管理ハンドラ_有効化_運営管理者_正常系(t *testin
 }
 
 func Test_会社管理ハンドラ_有効化_運営管理者以外_禁止(t *testing.T) {
-	for _, role := range []string{domain.RoleCompanyAdmin, domain.RoleTrainee} {
-		t.Run(role, func(t *testing.T) {
+	for _, role := range []domain.RoleName{domain.RoleCompanyAdmin, domain.RoleTrainee} {
+		t.Run(string(role), func(t *testing.T) {
 			repo := &fakeCompanyRepo{}
 			w := patchCompanyActive(t, &domain.User{ID: 2, Role: role}, "5", `{"active":false}`, repo)
 			if w.Code != http.StatusForbidden {

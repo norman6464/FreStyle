@@ -51,7 +51,8 @@ ORDER BY MAX(a.activity_date) DESC NULLS LAST, u.id ASC`
 	// 境界日(fromDate 当日)の活動が漏れるため、日付に丸めてから比較する(ListByUser と同じ流儀)。
 	from := fromDate.UTC().Truncate(24 * time.Hour)
 	if err := r.db.WithContext(ctx).
-		Raw(q, from, companyID, domain.RoleTrainee).
+		// 移行期間中は旧カラム role が正（PR3 の旧カラム撤去で role_id 基準へ切替・FRESTYLE-311）。
+		Raw(q, from, companyID, string(domain.RoleTrainee)).
 		Scan(&rows).Error; err != nil {
 		return nil, err
 	}

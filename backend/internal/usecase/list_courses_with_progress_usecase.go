@@ -40,7 +40,7 @@ func NewListCoursesWithProgressUseCase(
 type ListCoursesWithProgressInput struct {
 	ActorUserID    uint64
 	ActorCompanyID uint64
-	ActorRole      string
+	ActorRole      domain.RoleName
 }
 
 // Execute はコース一覧を返す。ActorCompanyID=0(会社未所属)は空スライス。

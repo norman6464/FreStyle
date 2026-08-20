@@ -263,8 +263,6 @@ PR / チケット / コミット / コメント / docs に**他社プロダク�
 - squash merge 直後のローカルブランチで別タスクを始めない（過去にブランチ名と中身が不一致になる事故あり）
 - マージ後は `git checkout main && git pull origin main && git branch -D <merged-branch>` を実行し、新タスクは必ず main から新規ブランチを切る
 
-### 8-ter. メンテナンスページ / useBackendHealth の設計仕様
+### 8-ter. メンテナンスページ / useBackendHealth は撤去済み（復活させない）
 
-`frontend/src/hooks/useBackendHealth.ts`: `FAILURE_THRESHOLD = 2`（連続 2 回失敗で unhealthy）/ `POLL_INTERVAL_HEALTHY_MS = 60_000` / `POLL_INTERVAL_AFTER_FAILURE_MS = 2_000` / `POLL_INTERVAL_UNHEALTHY_MS = 15_000` / `TIMEOUT_MS = 5_000`。
-
-`MaintenancePage.tsx` はユーザ要望で**ミニマル**構成: 「定期メンテナンス時間帯」カードなし / 「再試行」ボタンなし / 文言は「サーバーにアクセスできない状態です。 自動的に再接続を試みていますので、しばらくお待ちください。」/ 連絡先は `VITE_SUPPORT_EMAIL` セット時のみ表示。**この仕様を変える場合は必ずユーザ確認を取る**（過去にユーザが明示的に「いらない」と指示したもの）。
+フロントの死活監視ポーリング（`useBackendHealth`）とメンテナンスページ（`MaintenancePage`）は、ユーザ指示（2026-08-20 / FRESTYLE-84）で**撤去した**。unhealthy 判定で App ツリー全体が差し替わり、書きかけの演習コード等の未保存 state が全破棄される問題の根本対応。バックエンド障害時は各 API 呼び出しの通常のエラーハンドリングに任せる。**復活させる場合は必ずユーザ確認を取る**。バックエンドの `/api/v2/health` エンドポイントは ALB / デプロイ検証用に存続している（フロントからは呼ばない）。

@@ -19,13 +19,6 @@ test.describe('公開トップ（未ログイン）', () => {
         body: '{"error":"unauthorized"}',
       })
     );
-    // ヘルスチェックだけは 200。ここを 401 にするとバックエンド障害と判定され
-    // メンテナンス画面になり、「未ログイン訪問者」の検証にならないため
-    // （後から登録した route が優先される）。
-    await page.route('**/api/v2/health', (route) =>
-      route.fulfill({ status: 200, contentType: 'application/json', body: '{"status":"ok"}' })
-    );
-
     await page.goto('/');
 
     // ヒーロー見出しが出ていること（LP が描画されている）。

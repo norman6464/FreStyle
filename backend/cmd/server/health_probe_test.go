@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -25,23 +26,33 @@ func TestHealthProbeURL(t *testing.T) {
 }
 
 func TestProbeHealth(t *testing.T) {
-	t.Run("2xx なら nil", func(t *testing.T) {
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(http.StatusOK)
-		}))
-		defer srv.Close()
+	// healthcheck の成否は 2xx かどうかだけで決まる。境界(200-299)を固定しておく。
+	tests := []struct {
+		name    string
+		status  int
+		wantErr bool
+	}{
+		{name: "200 は成功", status: http.StatusOK},
+		{name: "204 は成功", status: http.StatusNoContent},
+		{name: "299 は成功", status: 299},
+		{name: "300 はエラー", status: http.StatusMultipleChoices, wantErr: true},
+		{name: "DB 断の 503 はエラー", status: http.StatusServiceUnavailable, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tt.status)
+			}))
+			defer srv.Close()
 
-		require.NoError(t, probeHealth(context.Background(), srv.URL))
-	})
-
-	t.Run("DB 断の 503 はエラー", func(t *testing.T) {
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(http.StatusServiceUnavailable)
-		}))
-		defer srv.Close()
-
-		assert.ErrorContains(t, probeHealth(context.Background(), srv.URL), "503")
-	})
+			err := probeHealth(context.Background(), srv.URL)
+			if !tt.wantErr {
+				require.NoError(t, err)
+				return
+			}
+			assert.ErrorContains(t, err, strconv.Itoa(tt.status))
+		})
+	}
 
 	t.Run("接続できないときはエラー", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))

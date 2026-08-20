@@ -11,7 +11,7 @@ export default defineConfig(({ mode }) => ({
   // (apply: 'serve' なので npm run build の成果物には影響しない)。
   plugins: [
     react(),
-    devCsp([loadEnv(mode, fileURLToPath(new URL('.', import.meta.url)), '').VITE_API_BASE_URL]),
+    devCsp(loadEnv(mode, fileURLToPath(new URL('.', import.meta.url)), '').VITE_API_BASE_URL),
   ],
   // '@' → src の絶対パス。FSD は層をまたぐ参照を絶対パスで書く前提なので、
   // tsconfig.json の paths と同じ内容をビルド側にも定義する（FRESTYLE-155）。

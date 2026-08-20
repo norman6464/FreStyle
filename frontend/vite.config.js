@@ -1,10 +1,18 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath, URL } from 'node:url';
+import { devCsp } from './vite-plugins/dev-csp';
 
 // 本番ビルドでは console.log/info/debug を除去し、必要最小限のログにする
 export default defineConfig(({ mode }) => ({
-  plugins: [react()],
+  // index.html の CSP は本番の API オリジンしか許可していない。ローカル開発は
+  // VITE_API_BASE_URL(例: http://localhost:8080)が SPA と別オリジンになり fetch が
+  // CSP で遮断されるため、dev のときだけ connect-src にそのオリジンを足す
+  // (apply: 'serve' なので npm run build の成果物には影響しない)。
+  plugins: [
+    react(),
+    devCsp(loadEnv(mode, fileURLToPath(new URL('.', import.meta.url)), '').VITE_API_BASE_URL),
+  ],
   // '@' → src の絶対パス。FSD は層をまたぐ参照を絶対パスで書く前提なので、
   // tsconfig.json の paths と同じ内容をビルド側にも定義する（FRESTYLE-155）。
   // 型チェック・ビルド・テストの 3 か所すべてに無いと、

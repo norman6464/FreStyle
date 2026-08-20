@@ -1,6 +1,8 @@
 # --- Build stage ---
 # 本サービス本体をビルドする stage。Go ツールチェインで純静的バイナリ（CGO 無効）を作る。
-FROM golang:1.26-bookworm AS builder
+# --platform=$BUILDPLATFORM: ビルド自体は常にホストのネイティブアーキで動かし、出力だけ
+# TARGETARCH へクロスコンパイルする（CGO 無効なので追加ツールチェインは要らない）。
+FROM --platform=$BUILDPLATFORM golang:1.26-bookworm AS builder
 
 WORKDIR /app
 
@@ -10,7 +12,11 @@ RUN go mod download
 COPY . .
 
 # 静的バイナリ・最小サイズ（distroless/static で動かすため CGO 無効の純静的にする）。
-ENV CGO_ENABLED=0 GOOS=linux GOARCH=amd64
+# GOARCH は buildx が渡す TARGETARCH に従う。amd64 決め打ちにすると Apple Silicon で
+# ビルドしたとき runtime stage(arm64)に amd64 バイナリが載り exec format error になる。
+# 本番 / staging の CI は --platform linux/amd64 を明示しているので成果物は amd64 のまま。
+ARG TARGETARCH
+ENV CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH}
 RUN go build -trimpath -ldflags="-s -w" -o /out/server ./cmd/server
 
 # --- Runtime stage ---

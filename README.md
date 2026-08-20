@@ -154,20 +154,36 @@ go mod download
 make verify
 make fmt                   # gofumpt -w で整形（commit 前）
 
-# 2) DB とメールキャッチャーを起動（PostgreSQL 17.6 / mailpit）
-make local-up
-# 起動後に接続先が表示される。設定はリポジトリ直下の .env に書く:
+# 2) 設定ファイルを用意する（Cognito / AWS などの値を書く）
 cp ../.env.example ../.env
-# DATABASE_URL / MAIL_SMTP_HOST を .env.example の記載どおりに設定する。
 
-# 3) ローカル起動（初回は AutoMigrate でスキーマが作られる）
-make run                   # = go run ./cmd/server
+# 3) DB・メールキャッチャー・バックエンドをまとめて起動
+#    （PostgreSQL 17.6 / mailpit / Go。初回は AutoMigrate でスキーマが作られる）
+make local-up
 
 # 4) 動作確認
 curl http://localhost:8080/api/v2/health
 ```
 
-DB はコンテナ、アプリはホストで動かす構成です。Go の再ビルドは数秒、Vite は HMR が効くため、アプリまでコンテナに入れるより速く回せます。
+`make local-up` を実行すると次の 3 つが起動します。
+
+| | URL / 接続先 |
+|---|---|
+| API（Go） | http://localhost:8080/api/v2/health |
+| 受信メールの閲覧 | http://localhost:8025 |
+| PostgreSQL | `postgres://frestyle:frestyle@localhost:5432/frestyle` |
+
+`.env` には**ホストから見た**接続先（`localhost`）を書きます。backend コンテナにも同じ `.env` を渡しますが、コンテナから見た宛先は異なるため `DATABASE_URL` と `MAIL_SMTP_HOST` の 2 つだけ compose 側でサービス名に上書きしています。
+
+backend のコードを変更したときは `make local-rebuild` でイメージを作り直します。秒単位で回したいときは、コンテナを止めてホストで動かすほうが速いです（8080 は二重に使えないため必ず止めてから起動します）。
+
+```bash
+make local-stop-backend    # コンテナの backend を止めて 8080 を空ける
+make run                   # = go run ./cmd/server（.env の localhost 宛の設定を使う）
+make local-logs            # コンテナの backend のログを追う
+```
+
+フロントエンド（Vite）は HMR が効くホスト実行のままです（`cd frontend && npm run dev`）。
 
 **動作確認用のデータを入れる**（規模は 3 段階から選べます）:
 
@@ -194,17 +210,9 @@ make local-down                 # 停止（データは残る）
 make local-reset                # volume ごと破棄してまっさらに
 ```
 
-> 演習のコード実行（sandbox）は `php` / `java` / `node` / `python` / `initdb` / `pg_ctl` をホストに要求します。これらを入れずに演習機能まで動かしたい場合は `docker compose -f docker-compose.local.yml --profile full up -d` で backend もコンテナで起動してください。
+> 演習のコード実行（sandbox）は `php` / `java` / `node` / `ruby` / `gcc` / `initdb` を要求します。backend 本体のイメージ（distroless）はこれらを含まず、本番と同じく code-runner サイドカーへ HTTP 委譲する構成です。演習まで手元で動かす場合は `make local-up-full` で code-runner も起動してください（イメージに JDK / PostgreSQL / Node を含むため初回ビルドは数分かかります）。ホストで `make run` する場合は、ホスト側にこれらのランタイムがあれば同プロセス内で実行されます。
 >
 > 結合テスト用の DB（`make test-integration` / host 5433 / 毎回破棄）とは別物です。
-
-Docker でビルドする場合:
-
-```bash
-cd backend
-docker build -t frestyle-backend:dev .   # PHP/Go/JDK 同梱(コード実行サンドボックス用)
-docker run --rm -p 8080:8080 frestyle-backend:dev
-```
 
 > レイヤ構成・コーディング規約・データアクセス方針の詳細は [`backend/README.md`](./backend/README.md) を参照。
 

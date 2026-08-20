@@ -38,7 +38,6 @@ func registerProfileRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	)
 	g.GET("/user-stats/:userId", statsHandler.Get) //apispec:allow 互換用エイリアス（正規は GET /users/:userId/stats）
 	g.GET("/users/:userId/stats", statsHandler.Get)
-
 }
 
 // newProfileImagePresignerOrFallback は本番では real な presigner、NOTE_IMAGES_BUCKET 未設定や

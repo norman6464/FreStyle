@@ -51,6 +51,7 @@ func (s *stubUserRepo) SoftDelete(context.Context, uint64) error         { retur
 func (s *stubUserRepo) EnsureOidcIdentity(context.Context, uint64, string, string) error {
 	return nil
 }
+
 func Test_現在ユーザー取得_見つかる(t *testing.T) {
 	want := &domain.User{ID: 1, CognitoSub: "abc", Email: "u@example.com"}
 	uc := NewGetCurrentUserUseCase(&stubUserRepo{user: want})

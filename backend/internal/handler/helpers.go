@@ -2,9 +2,10 @@ package handler
 
 import (
 	"errors"
-	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"net/http"
 	"strings"
+
+	"github.com/norman6464/FreStyle/backend/internal/domain"
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"

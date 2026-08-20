@@ -234,6 +234,44 @@ npm install -D tailwindcss@バージョン指定
 npx tailwindcss init -p
 ```
 
+## Makefile コマンド一覧（backend/）
+
+`backend/` ディレクトリで実行します。ローカル環境の**起動・停止は make ではなく**リポジトリ直下の `docker compose up -d` / `docker compose down` です。
+
+### 開発・検証
+
+| コマンド | 内容 |
+|---|---|
+| `make run` | `go run ./cmd/server` でサーバをホスト起動（compose の backend を止めてから使う） |
+| `make verify` | gofumpt / vet / build / test / archlint / apispec-lint / naminglint を一括実行 |
+| `make fmt` | gofumpt -w でコードを自動整形（commit 前に実行） |
+| `make test-integration` | docker compose で PostgreSQL（5433・使い捨て）を起動し結合テストを実行 |
+
+### コード生成
+
+| コマンド | 内容 |
+|---|---|
+| `make openapi` | swag init で OpenAPI spec を再生成（`docs/swagger.{json,yaml}`・handler 変更時は必須） |
+| `make sqlc` | `queries/*.sql` から型安全な Go を再生成（クエリ / schema 変更時は必須） |
+
+### 静的検証（verify に含まれる。個別実行も可）
+
+| コマンド | 内容 |
+|---|---|
+| `make archlint` | クリーンアーキテクチャ依存方向ルールの検証 |
+| `make apispec-lint` | Gin ルートと swaggo `@Router` 注釈の整合検証 |
+| `make naminglint` | usecase 命名・構造規約の検証 |
+
+### ローカル DB のデータ操作（compose の DB が起動している前提）
+
+| コマンド | 内容 |
+|---|---|
+| `make local-seed` | ダミーデータ投入（`SIZE=small`（既定）`\|medium\|large`） |
+| `make local-psql` | ローカル DB に psql で接続 |
+| `make local-slow` | pg_stat_statements から遅いクエリ上位 20 件を表示 |
+| `make local-slow-reset` | 遅いクエリ統計をリセット |
+| `make local-reset` | ローカル DB を volume ごと破棄してまっさらにする |
+
 ---
 
 ## ライセンス

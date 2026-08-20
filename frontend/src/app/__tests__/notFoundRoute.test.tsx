@@ -7,12 +7,6 @@ import App from '../App';
 import { authReducer } from '@/entities/user';
 import { clearAuthHint } from '@/shared/lib/authHint';
 
-// バックエンド死活監視はこのテストの関心事ではない（unhealthy だとメンテ画面に切り替わる）。
-// 戻り値は実装と同じ形にする（App は status を読む。形がずれると偶然通るだけになる）。
-vi.mock('@/shared/lib/hooks/useBackendHealth', () => ({
-  useBackendHealth: () => ({ status: 'healthy', recheck: vi.fn() }),
-}));
-
 function renderAt(path: string) {
   const store = configureStore({ reducer: { auth: authReducer } });
   return render(

@@ -143,6 +143,7 @@ LOCAL_DB_NAME ?= frestyle
 LOCAL_DB_PORT ?= 5432
 LOCAL_BACKEND_PORT ?= 8080
 LOCAL_DSN ?= postgres://$(LOCAL_DB_USER):$(LOCAL_DB_PASSWORD)@localhost:$(LOCAL_DB_PORT)/$(LOCAL_DB_NAME)?sslmode=disable
+LOCAL_HEALTH_URL := http://localhost:$(LOCAL_BACKEND_PORT)/api/v2/health
 
 # 各 target が使う psql の共通オプション。
 LOCAL_PSQL := psql -U $(LOCAL_DB_USER) -d $(LOCAL_DB_NAME)
@@ -152,6 +153,7 @@ SIZE ?= small
 .PHONY: local-up
 local-up:
 	docker compose -f $(LOCAL_COMPOSE) up -d --wait --build
+	@$(MAKE) --no-print-directory local-health
 	@echo ""
 	@echo "API  : http://localhost:$(LOCAL_BACKEND_PORT)/api/v2/health"
 	@echo "DB   : $(LOCAL_DSN)"
@@ -168,10 +170,24 @@ local-up:
 local-up-full:
 	docker compose -f $(LOCAL_COMPOSE) --profile full up -d --wait --build
 
+# backend は distroless でシェルも curl も持たず、コンテナ内 healthcheck を定義できない。
+# AutoMigrate 完了(= /health 応答)はホスト側から HTTP で確認する。
+.PHONY: local-health
+local-health:
+	@for i in $$(seq 1 60); do \
+	  if curl -fsS $(LOCAL_HEALTH_URL) >/dev/null 2>&1; then \
+	    echo "backend OK: $$(curl -fsS $(LOCAL_HEALTH_URL))"; exit 0; \
+	  fi; \
+	  sleep 1; \
+	done; \
+	echo "backend が $(LOCAL_HEALTH_URL) に応答しません。'make local-logs' でログを確認してください。"; \
+	exit 1
+
 # backend のコードを変更したあとにイメージを作り直して差し替える。
 .PHONY: local-rebuild
 local-rebuild:
 	docker compose -f $(LOCAL_COMPOSE) up -d --wait --build backend
+	@$(MAKE) --no-print-directory local-health
 
 # ホストの make run に切り替えるときに 8080 を空ける。
 .PHONY: local-stop-backend

@@ -38,12 +38,6 @@ func fatal(msg string, err error) {
 }
 
 func main() {
-	// distroless の healthcheck 用。自分の /health を叩いて終了コードだけ返す
-	// （シェルも curl も無いイメージなので、叩けるコマンドがこのバイナリしかない）。
-	if isHealthProbe(os.Args) {
-		os.Exit(runHealthProbe())
-	}
-
 	cfg, err := config.Load()
 	if err != nil {
 		// logging.Setup 前なので env は分からない。既定(Info/JSON)で出す。

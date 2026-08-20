@@ -106,15 +106,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    healthcheck:
-      # distroless にはシェルも curl も無いので、サーバのバイナリ自身に自己チェックさせる
-      # (cmd/server の -healthcheck)。これで up --wait が AutoMigrate 完了まで待てる。
-      test: ['CMD', '/server', '-healthcheck']
-      interval: 3s
-      timeout: 5s
-      retries: 20
-      # 初回起動は AutoMigrate が走るぶん時間がかかるので猶予を取る。
-      start_period: 40s
+    # distroless にはシェルも curl も無いためコンテナ内の healthcheck は書けない。
+    # 起動確認(AutoMigrate 完了待ち)は make local-up がホスト側から HTTP で行う。
 
   code-runner:
     # 学習者コードのサンドボックス実行(本番 ECS のサイドカーと同じもの)。

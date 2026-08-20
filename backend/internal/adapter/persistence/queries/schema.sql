@@ -17,6 +17,25 @@ CREATE TABLE master_exercise_examples (
 -- cognito_sub / email / name / role はアプリが必ず値を入れるため NOT NULL とみなす
 -- （sqlc が string を生成し domain への詰め替えが綺麗になる）。company_id / onboarded_at /
 -- deleted_at は実際に NULL になり得る（SuperAdmin は company 無し等）ので nullable のまま。
+-- ロールマスタ（FRESTYLE-311）。name はアプリのビジネス定数（super_admin 等）と一致する。
+CREATE TABLE roles (
+    id          smallint PRIMARY KEY,
+    name        text NOT NULL,
+    description text NOT NULL DEFAULT '',
+    created_at  timestamptz NOT NULL,
+    updated_at  timestamptz NOT NULL
+);
+
+-- OIDC プロバイダ由来のユーザー識別子（FRESTYLE-311）。Cognito の sub を users から分離。
+CREATE TABLE user_oidc_identities (
+    id         bigint PRIMARY KEY,
+    user_id    bigint NOT NULL,
+    provider   text NOT NULL DEFAULT 'cognito',
+    subject    text NOT NULL,
+    created_at timestamptz NOT NULL,
+    updated_at timestamptz NOT NULL
+);
+
 CREATE TABLE users (
     id           bigint PRIMARY KEY,
     cognito_sub  text NOT NULL,
@@ -24,6 +43,7 @@ CREATE TABLE users (
     name       text NOT NULL DEFAULT '',
     company_id   bigint,
     role         text NOT NULL,
+    role_id      smallint,
     ai_chat_enabled boolean,
     is_active    boolean NOT NULL DEFAULT true,
     onboarded_at timestamptz,

@@ -187,6 +187,12 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 		); err != nil {
 			return false, fmt.Errorf("update existing user: %w", err)
 		}
+		// 正規化テーブル（user_oidc_identities）のセルフヒール。旧カラム経由で見つかった行にも
+		// identity を張り直す（冪等）。失敗してもログインは旧カラムのフォールバックで継続できる
+		// ため、ここでは致命扱いにしない。
+		if err := u.users.EnsureOidcIdentity(ctx, existing.ID, domain.OidcProviderCognito, sub); err != nil {
+			log.Printf("upsertUserFromIDToken: ensure oidc identity failed (self-heal, non-fatal): user=%d err=%v", existing.ID, err)
+		}
 		return true, nil
 	}
 
@@ -237,6 +243,13 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 
 	if err := u.users.Create(ctx, user); err != nil {
 		return false, fmt.Errorf("create user: %w", err)
+	}
+
+	// OIDC identity を users と対で作る（正規化後のログイン突き合わせの正・FRESTYLE-311）。
+	// 失敗しても旧カラム（users.cognito_sub）のフォールバックで次回ログインでき、
+	// その際に上のセルフヒールで張り直されるため致命扱いにしない。
+	if err := u.users.EnsureOidcIdentity(ctx, user.ID, domain.OidcProviderCognito, sub); err != nil {
+		log.Printf("upsertUserFromIDToken: create oidc identity failed (non-fatal): user=%d err=%v", user.ID, err)
 	}
 
 	if inv != nil {

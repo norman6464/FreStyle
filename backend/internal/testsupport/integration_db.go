@@ -59,6 +59,11 @@ func OpenTestDB(t *testing.T) *gorm.DB {
 	if err := database.AutoMigrateAll(db); err != nil {
 		t.Fatalf("AutoMigrate 失敗: %v", err)
 	}
+	// users.role_id の解決（Create の resolveRoleID）が roles マスタを前提にするため、
+	// 起動時（database.Migrate）と同じくロールを投入しておく。
+	if err := database.SeedRoles(db); err != nil {
+		t.Fatalf("SeedRoles 失敗: %v", err)
+	}
 	return db
 }
 

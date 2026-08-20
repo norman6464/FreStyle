@@ -32,6 +32,10 @@ func (r *fakeUserRepo) FindByCognitoSub(_ context.Context, sub string) (*domain.
 	return nil, nil
 }
 
+func (r *fakeUserRepo) EnsureOidcIdentity(_ context.Context, _ uint64, _, _ string) error {
+	return nil
+}
+
 func (r *fakeUserRepo) FindByID(_ context.Context, _ uint64) (*domain.User, error) {
 	return nil, nil
 }

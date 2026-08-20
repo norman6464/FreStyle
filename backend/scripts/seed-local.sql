@@ -88,6 +88,9 @@ WHERE id >= 1000000;
 DELETE FROM master_exercises
 WHERE id >= 1000000;
 
+DELETE FROM user_oidc_identities
+WHERE user_id >= 1000000;
+
 DELETE FROM users
 WHERE id >= 1000000;
 
@@ -98,7 +101,8 @@ WHERE NOT EXISTS (SELECT 1 FROM companies WHERE id = 1);
 
 -- ---- users ----------------------------------------------------------------
 -- 1% を company_admin にして権限分岐のあるクエリも実データで踏めるようにする。
-INSERT INTO users (id, cognito_sub, email, name, company_id, role, is_active, created_at, updated_at)
+-- role_id が正（FRESTYLE-311）。旧カラム role は移行期間中の併記（PR3 で撤去）。
+INSERT INTO users (id, cognito_sub, email, name, company_id, role, role_id, is_active, created_at, updated_at)
 SELECT
   1000000 + i,
   'seed-sub-' || i,
@@ -106,9 +110,16 @@ SELECT
   'シード利用者' || i,
   1,
   CASE WHEN i % 100 = 0 THEN 'company_admin' ELSE 'trainee' END,
+  (SELECT id FROM roles WHERE name = CASE WHEN i % 100 = 0 THEN 'company_admin' ELSE 'trainee' END),
   true,
   now() - (random() * 365)::int * interval '1 day',
   now()
+FROM generate_series(1, :n_users) AS i;
+
+-- OIDC identity（正規化後のログイン突き合わせの正）。seed の sub はダミーで、
+-- 実際の Cognito ログインには使えない（ローカルのパスワードログイン対応は FRESTYLE-311 PR2）。
+INSERT INTO user_oidc_identities (user_id, provider, subject, created_at, updated_at)
+SELECT 1000000 + i, 'cognito', 'seed-sub-' || i, now(), now()
 FROM generate_series(1, :n_users) AS i;
 
 INSERT INTO profiles (user_id, bio, avatar_url, status_message, updated_at)

@@ -17,6 +17,9 @@ type UserRepository interface {
 	// ListByCompanyID は会社単位の従業員一覧を返す（company_admin の従業員管理画面用）。
 	ListByCompanyID(ctx context.Context, companyID uint64) ([]domain.User, error)
 	Create(ctx context.Context, user *domain.User) error
+	// EnsureOidcIdentity は OIDC identity（provider + subject）を無ければ作る（冪等）。
+	// OIDC ログインでのユーザー作成直後と、既存ユーザーのセルフヒールで呼ばれる。
+	EnsureOidcIdentity(ctx context.Context, userID uint64, provider, subject string) error
 	// UpdateAiChatEnabled は AI チャットの個別上書きを更新する（nil で会社設定に従う）。
 	UpdateAiChatEnabled(ctx context.Context, userID uint64, enabled *bool) error
 	// UpdateActive はユーザーアカウントの有効/無効を更新する（false で無効化 → 利用不可）。

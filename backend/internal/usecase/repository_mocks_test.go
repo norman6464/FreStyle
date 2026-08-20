@@ -47,6 +47,10 @@ func (m *mockUserRepo) Create(ctx context.Context, u *domain.User) error {
 	return m.Called(ctx, u).Error(0)
 }
 
+func (m *mockUserRepo) EnsureOidcIdentity(ctx context.Context, userID uint64, provider, subject string) error {
+	return m.Called(ctx, userID, provider, subject).Error(0)
+}
+
 func (m *mockUserRepo) UpdateAiChatEnabled(ctx context.Context, userID uint64, enabled *bool) error {
 	return m.Called(ctx, userID, enabled).Error(0)
 }

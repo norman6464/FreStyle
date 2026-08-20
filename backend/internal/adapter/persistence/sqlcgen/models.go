@@ -82,6 +82,14 @@ type Profile struct {
 	UpdatedAt     time.Time
 }
 
+type Role struct {
+	ID          int16
+	Name        string
+	Description string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 type SessionNote struct {
 	ID        int64
 	SessionID int64
@@ -98,10 +106,20 @@ type User struct {
 	Name          string
 	CompanyID     sql.NullInt64
 	Role          string
+	RoleID        sql.NullInt16
 	AiChatEnabled sql.NullBool
 	IsActive      bool
 	OnboardedAt   sql.NullTime
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 	DeletedAt     sql.NullTime
+}
+
+type UserOidcIdentity struct {
+	ID        int64
+	UserID    int64
+	Provider  string
+	Subject   string
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }

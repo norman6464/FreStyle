@@ -12,7 +12,9 @@ import (
 // 新しい domain を追加したらここにも追記する。
 func allDomainModels() []any {
 	return []any{
+		&domain.Role{},
 		&domain.User{},
+		&domain.UserOidcIdentity{},
 		&domain.Profile{},
 		&domain.AiChatSession{},
 		&domain.Note{},
@@ -67,7 +69,55 @@ func Migrate(db *gorm.DB) error {
 	if err := seedCompanies(db); err != nil {
 		return err
 	}
+	if err := SeedRoles(db); err != nil {
+		return err
+	}
+	// users 正規化（FRESTYLE-311）のバックフィル。起動のたびに走るが冪等で、
+	// 埋まっていれば no-op。デプロイと手動 SQL 適用の順序に依存させないためここで行う
+	// （AutoMigrate → バックフィル → listen の順が 1 プロセス内で保証される）。
+	if err := BackfillUserNormalization(db); err != nil {
+		return err
+	}
 	return nil
+}
+
+// SeedRoles はロールマスタを投入する（固定 ID・冪等）。起動時と結合テストのスキーマ構築で使う。
+func SeedRoles(db *gorm.DB) error {
+	seeds := []domain.Role{
+		{ID: domain.RoleIDSuperAdmin, Name: domain.RoleSuperAdmin, Description: "運営管理者"},
+		{ID: domain.RoleIDCompanyAdmin, Name: domain.RoleCompanyAdmin, Description: "企業管理者"},
+		{ID: domain.RoleIDTrainee, Name: domain.RoleTrainee, Description: "受講者"},
+	}
+	for _, r := range seeds {
+		if err := db.FirstOrCreate(&r, domain.Role{ID: r.ID}).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// BackfillUserNormalization は旧カラム（users.role / users.cognito_sub）から
+// 正規化テーブル（users.role_id / user_oidc_identities）へ値を埋める（冪等）。
+func BackfillUserNormalization(db *gorm.DB) error {
+	// role 文字列 → role_id。未知の role 文字列は残るが、次の trainee フォールバックで救う。
+	if err := db.Exec(
+		`UPDATE users SET role_id = r.id FROM roles r WHERE users.role_id IS NULL AND r.name = users.role`,
+	).Error; err != nil {
+		return err
+	}
+	// role が空・未知のままの行は最小権限の trainee に倒す（読み出し側の LEFT JOIN で NULL role を作らない）。
+	if err := db.Exec(
+		`UPDATE users SET role_id = ? WHERE role_id IS NULL`, domain.RoleIDTrainee,
+	).Error; err != nil {
+		return err
+	}
+	// cognito_sub → user_oidc_identities（既存行はスキップ）。
+	return db.Exec(
+		`INSERT INTO user_oidc_identities (user_id, provider, subject, created_at, updated_at)
+		 SELECT id, ?, cognito_sub, NOW(), NOW() FROM users
+		 WHERE cognito_sub IS NOT NULL AND cognito_sub <> ''
+		 ON CONFLICT DO NOTHING`, domain.OidcProviderCognito,
+	).Error
 }
 
 func seedCompanies(db *gorm.DB) error {

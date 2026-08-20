@@ -47,6 +47,10 @@ func (s *stubUserRepo) UpdateCompanyID(_ context.Context, _ uint64, _ uint64) er
 
 func (s *stubUserRepo) UpdateActive(context.Context, uint64, bool) error { return nil }
 func (s *stubUserRepo) SoftDelete(context.Context, uint64) error         { return nil }
+
+func (s *stubUserRepo) EnsureOidcIdentity(context.Context, uint64, string, string) error {
+	return nil
+}
 func (s *stubUserRepo) MarkOnboarded(_ context.Context, _ uint64) error {
 	return s.err
 }

@@ -4,12 +4,19 @@ import "time"
 
 // User はアプリケーション利用者のドメインモデル。
 type User struct {
-	ID         uint64  `gorm:"primaryKey" json:"id"`
+	ID uint64 `gorm:"primaryKey" json:"id"`
+	// CognitoSub は旧カラム（正は user_oidc_identities.subject）。移行期間中のロールバック保全のため
+	// 書き込みは継続する。旧カラム撤去（FRESTYLE-311 PR3）でフィールドごと削除する。
 	CognitoSub string  `gorm:"column:cognito_sub;uniqueIndex" json:"cognitoSub"`
 	Email      string  `gorm:"column:email" json:"email"`
 	Name       string  `gorm:"column:name" json:"name"`
 	CompanyID  *uint64 `gorm:"column:company_id" json:"companyId,omitempty"`
-	Role       string  `gorm:"column:role" json:"role"`
+	// Role はロール名（roles.name）。読み出し時は repository が roles を JOIN して解決する。
+	// 旧 users.role カラムへの書き込みは移行期間中のロールバック保全のため継続し、
+	// 旧カラム撤去（FRESTYLE-311 PR3）で本フィールドの column 書き込みも止める。
+	Role string `gorm:"column:role" json:"role"`
+	// RoleID は roles マスタへの参照（正規化後の正）。repository が Role 名から解決して設定する。
+	RoleID uint16 `gorm:"column:role_id" json:"-"`
 	// AiChatEnabled は AI チャット利用可否の個別上書き。nil = 会社設定に従う、
 	// true/false = この user 個別に強制 ON/OFF（company_admin が従業員ごとに設定）。
 	AiChatEnabled *bool `gorm:"column:ai_chat_enabled" json:"aiChatEnabled,omitempty"`

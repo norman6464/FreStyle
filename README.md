@@ -147,22 +147,21 @@ draw.io ソース: [`architecture/aws/freestyle-aws-architecture-current.drawio`
 ### バックエンド (Go / Gin) — `backend/`
 
 ```bash
-cd backend
+# 1) 設定ファイルを用意する（リポジトリ直下。Cognito / AWS などの値を書く。DB だけなら無くても動く）
+cp .env.example .env
 
-# 1) ビルド + 検証（gofumpt 整形 / vet / build / test / archlint 等を一括）
+# 2) DB・メールキャッチャー・バックエンドをまとめて起動
+#    （PostgreSQL 17.6 / mailpit / Go。初回は AutoMigrate でスキーマが作られる）
+docker compose up -d
+
+# 3) 動作確認
+curl http://localhost:8080/api/v2/health
+
+# 4) バックエンドのコードを触るときのビルド + 検証（gofumpt / vet / build / test / archlint 等を一括）
+cd backend
 go mod download
 make verify
 make fmt                   # gofumpt -w で整形（commit 前）
-
-# 2) 設定ファイルを用意する（Cognito / AWS などの値を書く。DB だけなら無くても動く）
-cp ../.env.example ../.env
-
-# 3) DB・メールキャッチャー・バックエンドをまとめて起動
-#    （PostgreSQL 17.6 / mailpit / Go。初回は AutoMigrate でスキーマが作られる）
-cd .. && docker compose up -d
-
-# 4) 動作確認
-curl http://localhost:8080/api/v2/health
 ```
 
 compose ファイルはリポジトリ直下の `docker-compose.yml` です。`docker compose up -d` だけで次の 3 つが起動します（`make` は不要です）。

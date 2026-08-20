@@ -130,17 +130,11 @@ run:
 # ---------------------------------------------------------------------------
 LOCAL_COMPOSE := ../docker-compose.yml
 
-# 接続設定は /docker-compose.yml と同じ環境変数で上書きできるようにする。
-# ここを固定値にすると、compose 側だけ LOCAL_DB_PORT 等を変えたときに
-# 各 target が接続できなくなる(既定値も compose と揃えること)。
-LOCAL_DB_USER ?= frestyle
-LOCAL_DB_PASSWORD ?= frestyle
-LOCAL_DB_NAME ?= frestyle
-LOCAL_DB_PORT ?= 5432
-LOCAL_DSN ?= postgres://$(LOCAL_DB_USER):$(LOCAL_DB_PASSWORD)@localhost:$(LOCAL_DB_PORT)/$(LOCAL_DB_NAME)?sslmode=disable
-
-# 各 target が使う psql の共通オプション。
-LOCAL_PSQL := psql -U $(LOCAL_DB_USER) -d $(LOCAL_DB_NAME)
+# 各 target が使う psql の共通オプション。接続先はコンテナ自身の環境変数
+# (POSTGRES_USER / POSTGRES_DB)に追随させる。Makefile 側に既定値を持つと、
+# root の .env で LOCAL_DB_USER 等を変えたとき compose(補間する)とここ(しない)で
+# 接続先がずれるため、コンテナ内で解決して常に実際の DB と一致させる。
+LOCAL_PSQL := sh -c 'exec psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" "$$@"' --
 
 SIZE ?= small
 

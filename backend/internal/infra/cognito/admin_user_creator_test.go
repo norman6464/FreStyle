@@ -64,14 +64,20 @@ func Test_CreateWithTemporaryPassword_成功(t *testing.T) {
 		t.Error("送信した TemporaryPassword と返り値が一致しない")
 	}
 	// email_verified=true と name が属性に含まれる。
-	var hasVerified, hasName bool
+	var hasEmail, hasVerified, hasName bool
 	for _, at := range in.UserAttributes {
+		if aws.ToString(at.Name) == "email" && aws.ToString(at.Value) == "u@example.com" {
+			hasEmail = true
+		}
 		if aws.ToString(at.Name) == "email_verified" && aws.ToString(at.Value) == "true" {
 			hasVerified = true
 		}
 		if aws.ToString(at.Name) == "name" && aws.ToString(at.Value) == "山田太郎" {
 			hasName = true
 		}
+	}
+	if !hasEmail {
+		t.Error("email 属性が無い")
 	}
 	if !hasVerified {
 		t.Error("email_verified=true が無い")

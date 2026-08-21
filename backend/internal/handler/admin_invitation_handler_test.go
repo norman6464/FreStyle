@@ -338,8 +338,18 @@ func Test_招待ハンドラ_初期パスワード方式_成功で一時パス�
 	if w.Code != http.StatusCreated {
 		t.Fatalf("status = %d body = %s", w.Code, w.Body.String())
 	}
-	if !strings.Contains(w.Body.String(), "temporaryPassword") || !strings.Contains(w.Body.String(), "Temp-Pass-9!") {
-		t.Errorf("temp password not returned: %s", w.Body.String())
+	var got struct {
+		Invitation        *domain.AdminInvitation `json:"invitation"`
+		TemporaryPassword string                  `json:"temporaryPassword"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatalf("応答が期待の JSON 形ではない: %v body = %s", err, w.Body.String())
+	}
+	if got.TemporaryPassword != "Temp-Pass-9!" {
+		t.Errorf("temporaryPassword = %q", got.TemporaryPassword)
+	}
+	if got.Invitation == nil {
+		t.Error("invitation が欠落している")
 	}
 	if creator.gotEmail != "np@b" {
 		t.Errorf("creator got email %q", creator.gotEmail)
@@ -409,7 +419,8 @@ func Test_招待ハンドラ_未知のmethodは400(t *testing.T) {
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d body = %s", w.Code, w.Body.String())
 	}
-	if !strings.Contains(w.Body.String(), "invalid_method") {
+	// binding:"oneof=..." による 400。エラー本文は binding のメッセージ（method フィールドに言及）。
+	if !strings.Contains(w.Body.String(), "Method") && !strings.Contains(w.Body.String(), "method") {
 		t.Errorf("body = %s", w.Body.String())
 	}
 	if repo.createCalls != 0 {

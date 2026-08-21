@@ -66,8 +66,8 @@ func Test_初期パスワード招待_既存ユーザーエラーは伝播(t *te
 	_, err := uc.Execute(context.Background(), CreateAdminInvitationInput{
 		CompanyID: 1, Email: "dup@b", Role: domain.RoleTrainee,
 	})
-	if !errors.Is(err, cognito.ErrUserAlreadyExists) {
-		t.Fatalf("ErrUserAlreadyExists の伝播を期待したが: %v", err)
+	if !errors.Is(err, ErrInvitationUserAlreadyExists) {
+		t.Fatalf("ErrInvitationUserAlreadyExists（usecase 語彙）を期待したが: %v", err)
 	}
 	// 重要: Cognito 失敗時に招待行を作ってはいけない（孤児行→テナント横断の会社付け替えを防ぐ）。
 	if repo.created != nil {
@@ -83,5 +83,25 @@ func Test_初期パスワード招待_必須項目チェック(t *testing.T) {
 	_, err := uc.Execute(context.Background(), CreateAdminInvitationInput{Email: "a@b", Role: domain.RoleTrainee})
 	if err == nil {
 		t.Fatal("companyID=0 はエラーであるべき")
+	}
+}
+
+func Test_初期パスワード招待_Cognito成功後のDB失敗はエラーで招待行を返さない(t *testing.T) {
+	repo := &stubAdminInvRepo{createErr: errors.New("db down")}
+	creator := &stubTempCreator{pw: "Temp-1!"}
+	uc := NewCreateTemporaryPasswordInvitationUseCase(repo, creator)
+
+	out, err := uc.Execute(context.Background(), CreateAdminInvitationInput{
+		CompanyID: 1, Email: "np@example.com", Role: domain.RoleTrainee,
+	})
+	if err == nil {
+		t.Fatal("DB 失敗はエラーであるべき")
+	}
+	if out != nil {
+		t.Errorf("失敗時に部分成功を返してはいけない: %+v", out)
+	}
+	// Cognito は呼ばれている（先に実行）が、招待行は作られない（fail closed）。
+	if creator.calls != 1 {
+		t.Errorf("Cognito calls = %d, want 1", creator.calls)
 	}
 }

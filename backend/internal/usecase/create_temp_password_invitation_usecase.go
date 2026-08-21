@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/FreStyle/backend/internal/infra/cognito"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
@@ -42,8 +43,13 @@ func NewCreateTemporaryPasswordInvitationUseCase(
 	}
 }
 
-// ErrTemporaryPasswordUnavailable は初期パスワード方式が未構成のときに返す（501/400 用）。
+// ErrTemporaryPasswordUnavailable は初期パスワード方式が未構成のときに返す（400 用）。
 var ErrTemporaryPasswordUnavailable = errors.New("temporary password invitation is not configured")
+
+// ErrInvitationUserAlreadyExists は対象 email のユーザーが既に存在するときに返す（409 用）。
+// infra（cognito）の sentinel を usecase 語彙へ翻訳したもの。handler は infra を import せず
+// この usecase エラーだけを見る（依存方向 handler → usecase を保つ）。
+var ErrInvitationUserAlreadyExists = errors.New("invitation: user already exists")
 
 // CreateTemporaryPasswordInvitationOutput は招待行と、1 度だけ返す一時パスワード。
 type CreateTemporaryPasswordInvitationOutput struct {
@@ -51,9 +57,9 @@ type CreateTemporaryPasswordInvitationOutput struct {
 	TemporaryPassword string
 }
 
-// Execute は pending 招待を作成し、Cognito ユーザーを一時パスワード付きで作る。
-// 順序は「招待行 → Cognito」。Cognito が既存 email で失敗した場合は
-// cognito.ErrUserAlreadyExists がそのまま伝播する（handler が 409 に写す）。
+// Execute は Cognito ユーザーを一時パスワード付きで作り、成功したときだけ pending 招待を作成する。
+// 順序は「Cognito → 招待行」（理由は下のインラインコメント参照）。対象 email が既に存在する場合は
+// ErrInvitationUserAlreadyExists を返す（handler が 409 に写す）。
 func (u *CreateTemporaryPasswordInvitationUseCase) Execute(
 	ctx context.Context,
 	in CreateAdminInvitationInput,
@@ -72,7 +78,10 @@ func (u *CreateTemporaryPasswordInvitationUseCase) Execute(
 	// Cognito が失敗すれば招待行は作られないため、この経路自体が成立しない。
 	tempPw, err := u.cognito.CreateWithTemporaryPassword(ctx, in.Email, in.Name)
 	if err != nil {
-		// エラー種別（既存ユーザー等）は handler がステータスへ写せるようそのまま返す。
+		// infra の sentinel を usecase 語彙へ翻訳する（handler が infra に依存しないため）。
+		if errors.Is(err, cognito.ErrUserAlreadyExists) {
+			return nil, ErrInvitationUserAlreadyExists
+		}
 		return nil, fmt.Errorf("create cognito user: %w", err)
 	}
 

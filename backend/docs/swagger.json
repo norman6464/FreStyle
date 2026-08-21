@@ -5065,8 +5065,12 @@
                     "type": "string"
                 },
                 "method": {
-                    "description": "Method は招待方式。\"magic_link\"（既定・受諾リンクをメール）か\n\"temporary_password\"（Cognito 一時パスワードを発行し 1 度だけ返す・FRESTYLE-313）。",
-                    "type": "string"
+                    "description": "Method は招待方式。\"magic_link\"（既定・受諾リンクをメール）か\n\"temporary_password\"（Cognito 一時パスワードを発行し 1 度だけ返す・FRESTYLE-313）。\n未知の値は binding で 400 にする（黙ってマジックリンクにフォールバックさせない）。",
+                    "type": "string",
+                    "enum": [
+                        "magic_link",
+                        "temporary_password"
+                    ]
                 },
                 "name": {
                     "type": "string"

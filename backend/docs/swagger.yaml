@@ -732,6 +732,10 @@ definitions:
         description: |-
           Method は招待方式。"magic_link"（既定・受諾リンクをメール）か
           "temporary_password"（Cognito 一時パスワードを発行し 1 度だけ返す・FRESTYLE-313）。
+          未知の値は binding で 400 にする（黙ってマジックリンクにフォールバックさせない）。
+        enum:
+        - magic_link
+        - temporary_password
         type: string
       name:
         type: string

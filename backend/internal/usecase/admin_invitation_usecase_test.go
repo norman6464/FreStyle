@@ -16,6 +16,8 @@ type stubAdminInvRepo struct {
 	calledWith string
 	// Create で渡された invitation を保持し、token / status を assert に使う。
 	created *domain.AdminInvitation
+	// createErr が非 nil なら Create をそのエラーで失敗させる（成功後 DB 失敗の検証用）。
+	createErr error
 }
 
 func (s *stubAdminInvRepo) ListAll(_ context.Context) ([]domain.AdminInvitation, error) {
@@ -29,6 +31,9 @@ func (s *stubAdminInvRepo) ListByCompanyID(_ context.Context, companyID uint64) 
 }
 
 func (s *stubAdminInvRepo) Create(_ context.Context, inv *domain.AdminInvitation) error {
+	if s.createErr != nil {
+		return s.createErr
+	}
 	if s.err != nil {
 		return s.err
 	}

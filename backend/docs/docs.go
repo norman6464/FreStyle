@@ -411,7 +411,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "SES マジック リンク で 招待 メール を 送る。 SoD: SuperAdmin は company_admin のみ 招待 可、 CompanyAdmin は trainee のみ 自社 に 招待 可。",
+                "description": "招待を作成する。method=magic_link（既定）は受諾リンクをメール送信、method=temporary_password は Cognito 一時パスワードを発行してレスポンスで 1 度だけ返す。SoD: SuperAdmin は company_admin のみ 招待 可、 CompanyAdmin は trainee のみ 自社 に 招待 可。",
                 "consumes": [
                     "application/json"
                 ],
@@ -435,13 +435,13 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "Created",
+                        "description": "magic_link 方式は招待行。temporary_password 方式は {invitation, temporaryPassword} を返し temporaryPassword は 1 度だけ提示される",
                         "schema": {
                             "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation"
                         }
                     },
                     "400": {
-                        "description": "バリデーション",
+                        "description": "バリデーション / 未知の method / 一時パスワード方式が未構成",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -454,6 +454,12 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "ロール 違反",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "一時パスワード方式で対象 email が既に存在",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -5064,6 +5070,14 @@ const docTemplate = `{
                 },
                 "email": {
                     "type": "string"
+                },
+                "method": {
+                    "description": "Method は招待方式。\"magic_link\"（既定・受諾リンクをメール）か\n\"temporary_password\"（Cognito 一時パスワードを発行し 1 度だけ返す・FRESTYLE-313）。\n未知の値は binding で 400 にする（黙ってマジックリンクにフォールバックさせない）。",
+                    "type": "string",
+                    "enum": [
+                        "magic_link",
+                        "temporary_password"
+                    ]
                 },
                 "name": {
                     "type": "string"

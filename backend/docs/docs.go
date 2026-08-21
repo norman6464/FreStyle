@@ -435,13 +435,13 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "Created",
+                        "description": "magic_link 方式は招待行。temporary_password 方式は {invitation, temporaryPassword} を返し temporaryPassword は 1 度だけ提示される",
                         "schema": {
                             "$ref": "#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation"
                         }
                     },
                     "400": {
-                        "description": "バリデーション",
+                        "description": "バリデーション / 未知の method / 一時パスワード方式が未構成",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }

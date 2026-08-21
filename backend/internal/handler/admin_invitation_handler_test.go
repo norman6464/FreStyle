@@ -353,12 +353,12 @@ func Test_招待ハンドラ_初期パスワード方式_成功で一時パス�
 func Test_招待ハンドラ_初期パスワード方式_未構成なら400(t *testing.T) {
 	repo := &fakeAdminInvRepoWithCreate{}
 	cid := uint64(42)
-	// creator=nil → tempCreate usecase が nil → 未構成。
+	// creator=nil → tempCreate usecase が nil → 未構成。usecase の ErrUnavailable と同じ 400。
 	r := newTestCreateHandlerWithTemp(repo, &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, CompanyID: &cid}, nil)
 
 	w := postJSON(t, r, `{"companyId":42,"email":"np@b","role":"trainee","method":"temporary_password"}`)
 
-	if w.Code != http.StatusInternalServerError {
+	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d body = %s", w.Code, w.Body.String())
 	}
 	if !strings.Contains(w.Body.String(), "temporary_password_not_configured") {
@@ -396,5 +396,23 @@ func Test_招待ハンドラ_初期パスワード方式もSoDを守る(t *testi
 	}
 	if creator.gotEmail != "" {
 		t.Error("SoD 違反なのに Cognito ユーザーが作られた")
+	}
+}
+
+func Test_招待ハンドラ_未知のmethodは400(t *testing.T) {
+	repo := &fakeAdminInvRepoWithCreate{}
+	cid := uint64(42)
+	r := newTestCreateHandler(repo, &domain.User{ID: 1, Role: domain.RoleCompanyAdmin, CompanyID: &cid})
+
+	w := postJSON(t, r, `{"companyId":42,"email":"t@b","role":"trainee","method":"bogus"}`)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body = %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "invalid_method") {
+		t.Errorf("body = %s", w.Body.String())
+	}
+	if repo.createCalls != 0 {
+		t.Error("未知 method で招待行が作られた")
 	}
 }

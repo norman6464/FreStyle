@@ -111,8 +111,8 @@ const (
 //	@Accept       json
 //	@Produce      json
 //	@Param        body  body      createAdminInvReq  true  "招待 内容 (CompanyAdmin は companyId が 上書き さ れる)"
-//	@Success      201   {object}  github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation
-//	@Failure      400   {object}  errorResponse  "バリデーション"
+//	@Success      201   {object}  github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation  "magic_link 方式は招待行。temporary_password 方式は {invitation, temporaryPassword} を返し temporaryPassword は 1 度だけ提示される"
+//	@Failure      400   {object}  errorResponse  "バリデーション / 未知の method / 一時パスワード方式が未構成"
 //	@Failure      401   {object}  errorResponse  "未 認証"
 //	@Failure      403   {object}  errorResponse  "ロール 違反"
 //	@Failure      409   {object}  errorResponse  "一時パスワード方式で対象 email が既に存在"
@@ -128,6 +128,13 @@ func (h *AdminInvitationHandler) Create(c *gin.Context) {
 	var req createAdminInvReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	// 未知の method は黙ってマジックリンクにフォールバックさせない（意図しない招待メール送信を防ぐ）。
+	switch req.Method {
+	case "", invMethodMagicLink, invMethodTempPass:
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_method"})
 		return
 	}
 
@@ -181,7 +188,8 @@ func (h *AdminInvitationHandler) Create(c *gin.Context) {
 // 一時パスワードはレスポンスにのみ含め、保存・ログ出力しない（FRESTYLE-313）。
 func (h *AdminInvitationHandler) createWithTemporaryPassword(c *gin.Context, in usecase.CreateAdminInvitationInput) {
 	if h.tempCreate == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "temporary_password_not_configured"})
+		// usecase の ErrTemporaryPasswordUnavailable と同じく 400 に統一（未構成 = 提供していない方式）。
+		c.JSON(http.StatusBadRequest, gin.H{"error": "temporary_password_not_configured"})
 		return
 	}
 	out, err := h.tempCreate.Execute(c.Request.Context(), in)

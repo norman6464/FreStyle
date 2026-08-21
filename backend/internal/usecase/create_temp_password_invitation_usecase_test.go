@@ -69,6 +69,13 @@ func Test_初期パスワード招待_既存ユーザーエラーは伝播(t *te
 	if !errors.Is(err, cognito.ErrUserAlreadyExists) {
 		t.Fatalf("ErrUserAlreadyExists の伝播を期待したが: %v", err)
 	}
+	// 重要: Cognito 失敗時に招待行を作ってはいけない（孤児行→テナント横断の会社付け替えを防ぐ）。
+	if repo.created != nil {
+		t.Fatalf("Cognito 失敗時に招待行が作られている（孤児行の脆弱性）: %+v", repo.created)
+	}
+	if creator.calls != 1 {
+		t.Errorf("Cognito 呼び出し回数 = %d, want 1（招待行より先に呼ぶ）", creator.calls)
+	}
 }
 
 func Test_初期パスワード招待_必須項目チェック(t *testing.T) {

@@ -122,7 +122,9 @@ func registerAdminRoutes(parent *gin.RouterGroup, deps *routeDeps, audit gin.Han
 		usecase.NewCancelAdminInvitationUseCase(adminInvRepo),
 	)
 	g.GET("/admin/invitations", adminInvHandler.List)
-	g.POST("/admin/invitations", audit, adminInvHandler.Create)
+	// 招待作成は Cognito ユーザー作成 / 存在確認オラクルを伴うため、管理者権限でも流量を絞る
+	// （email の総当たり列挙・大量アカウント生成の抑止・FRESTYLE-313）。
+	g.POST("/admin/invitations", middleware.RateLimitPerMinute(20, 10), audit, adminInvHandler.Create)
 	g.DELETE("/admin/invitations/:id", audit, adminInvHandler.Cancel)
 
 	// 監査ログ閲覧（super_admin 専用）。記録は audit middleware が横断的に行う。

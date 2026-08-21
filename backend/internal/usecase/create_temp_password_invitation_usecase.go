@@ -65,6 +65,17 @@ func (u *CreateTemporaryPasswordInvitationUseCase) Execute(
 		return nil, errors.New("companyID, email, role are required")
 	}
 
+	// 順序が重要: 先に Cognito ユーザーを作り、成功したときだけ pending 招待行を作る。
+	// 逆順（招待行→Cognito）にすると、既存 email への 409（UsernameExists）で招待行だけが
+	// 孤児として残り、その行がログイン時の email ゲート（FindPendingByEmail）で拾われて
+	// 被害ユーザーの会社が黙って付け替わる経路を生む（多角レビューで確定した major）。
+	// Cognito が失敗すれば招待行は作られないため、この経路自体が成立しない。
+	tempPw, err := u.cognito.CreateWithTemporaryPassword(ctx, in.Email, in.Name)
+	if err != nil {
+		// エラー種別（既存ユーザー等）は handler がステータスへ写せるようそのまま返す。
+		return nil, fmt.Errorf("create cognito user: %w", err)
+	}
+
 	token := uuid.NewString()
 	inv := &domain.AdminInvitation{
 		CompanyID: in.CompanyID,
@@ -76,14 +87,10 @@ func (u *CreateTemporaryPasswordInvitationUseCase) Execute(
 		ExpiresAt: time.Now().UTC().Add(u.expiresIn),
 	}
 	if err := u.repo.Create(ctx, inv); err != nil {
-		return nil, fmt.Errorf("create invitation: %w", err)
-	}
-
-	tempPw, err := u.cognito.CreateWithTemporaryPassword(ctx, in.Email, in.Name)
-	if err != nil {
-		// Cognito 作成に失敗しても招待行は残す（既存のマジックリンクと同じく再試行に使える）。
-		// エラー種別（既存ユーザー等）は handler がステータスへ写せるようそのまま返す。
-		return nil, fmt.Errorf("create cognito user: %w", err)
+		// ここに来るのは Cognito 成功後の DB 失敗という稀ケース。Cognito ユーザーは残るが、
+		// 招待行が無いためログイン時は招待ゲートで拒否される（fail closed）。管理者は再試行でき、
+		// 再試行時は Cognito が 409 を返すので「既に存在」と分かる。
+		return nil, fmt.Errorf("create invitation after cognito user: %w", err)
 	}
 
 	return &CreateTemporaryPasswordInvitationOutput{Invitation: inv, TemporaryPassword: tempPw}, nil

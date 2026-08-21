@@ -1,6 +1,7 @@
--- users の読み出し（FRESTYLE-311 正規化完了後）。
--- role_name は roles マスタを JOIN して解決する（正は users.role_id → roles.name）。
--- 旧カラム users.role / users.cognito_sub は撤去済みのため参照しない。
+-- users の読み出し（FRESTYLE-311 正規化・expand-contract の読み替えフェーズ）。
+-- role_name は roles マスタを JOIN して解決する（正は users.role_id → roles.name）。旧 role 列は読まない。
+-- cognito_sub は GetUserByCognitoSub の WHERE でフォールバックとしてのみ参照する（ローリングデプロイ中の
+-- 孤児行救済。旧カラムの物理撤去とこのフォールバック除去は後続 PR）。旧カラムを SELECT には含めない。
 --
 -- password_hash はローカルのパスワードログイン専用の GetActiveUserByEmail だけが取得する
 -- （一覧・認証解決の経路で bcrypt ハッシュをアプリメモリに載せない）。

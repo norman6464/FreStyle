@@ -5547,6 +5547,11 @@ export interface components {
             title?: string;
         };
         "internal_handler.meResponse": {
+            /**
+             * @description AiChatEnabledForTrainees は /auth/me が返す実キー（auth_handler の gin.H と一致させる）。
+             * @example true
+             */
+            aiChatEnabledForTrainees?: boolean;
             /** @example 1 */
             companyId?: number;
             createdAt?: string;

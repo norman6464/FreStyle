@@ -14,10 +14,11 @@ import (
 )
 
 // TestUserNormalization_Integration は users 正規化（FRESTYLE-311）の契約を実 Postgres で固定する。
-// 旧カラム（users.role / users.cognito_sub）撤去（PR3）後の world を対象にする:
+// expand-contract の読み替えフェーズ（旧カラムは残し dual-write を維持、物理撤去は後続 PR）を対象にする:
 //   - CreateWithOidcIdentity が users 行と identity を単一トランザクションで作る（片方だけ残らない）
+//   - 旧 role 列 / cognito_sub 列へも併記する（dual-write。ローリング中に旧タスクが読むため必須の契約）
 //   - role 名は roles.id へ解決して role_id に書き、読み出しは roles を JOIN して name を返す
-//   - FindByCognitoSub は user_oidc_identities 経由でのみ解決する
+//   - FindByCognitoSub は user_oidc_identities 経由で解決する（cognito_sub フォールバックは後続 PR で撤去）
 //   - FK / CHECK / 部分 UNIQUE / CASCADE などの DB 制約
 func TestUserNormalization_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)

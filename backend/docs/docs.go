@@ -5262,6 +5262,11 @@ const docTemplate = `{
         "internal_handler.meResponse": {
             "type": "object",
             "properties": {
+                "aiChatEnabledForTrainees": {
+                    "description": "AiChatEnabledForTrainees は /auth/me が返す実キー（auth_handler の gin.H と一致させる）。",
+                    "type": "boolean",
+                    "example": true
+                },
                 "companyId": {
                     "type": "integer",
                     "example": 1

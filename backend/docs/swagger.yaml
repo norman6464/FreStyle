@@ -862,6 +862,11 @@ definitions:
     type: object
   internal_handler.meResponse:
     properties:
+      aiChatEnabledForTrainees:
+        description: AiChatEnabledForTrainees は /auth/me が返す実キー（auth_handler の gin.H
+          と一致させる）。
+        example: true
+        type: boolean
       companyId:
         example: 1
         type: integer

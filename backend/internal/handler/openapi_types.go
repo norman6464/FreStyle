@@ -33,6 +33,8 @@ type meResponse struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 	Groups    []string  `json:"groups"      example:"admin"`
 	IsAdmin   bool      `json:"isAdmin"     example:"false"`
+	// AiChatEnabledForTrainees は /auth/me が返す実キー（auth_handler の gin.H と一致させる）。
+	AiChatEnabledForTrainees bool `json:"aiChatEnabledForTrainees" example:"true"`
 }
 
 // invitationValidateResponse は /invitations/accept/{token} の戻り値形（email は含めない）。

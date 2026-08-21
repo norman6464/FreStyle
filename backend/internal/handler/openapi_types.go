@@ -24,16 +24,17 @@ type messageResponse struct {
 
 // meResponse は /auth/me の戻り値形（OpenAPI 用の型化）。
 type meResponse struct {
-	ID         uint64    `json:"id"          example:"42"`
-	CognitoSub string    `json:"cognitoSub"  example:"abc-123-uuid"`
-	Email      string    `json:"email"       example:"user@example.com"`
-	Name       string    `json:"name"        example:"山田 太郎"`
-	CompanyID  *uint64   `json:"companyId,omitempty" example:"1"`
-	Role       string    `json:"role"        example:"trainee"`
-	CreatedAt  time.Time `json:"createdAt"`
-	UpdatedAt  time.Time `json:"updatedAt"`
-	Groups     []string  `json:"groups"      example:"admin"`
-	IsAdmin    bool      `json:"isAdmin"     example:"false"`
+	ID        uint64    `json:"id"          example:"42"`
+	Email     string    `json:"email"       example:"user@example.com"`
+	Name      string    `json:"name"        example:"山田 太郎"`
+	CompanyID *uint64   `json:"companyId,omitempty" example:"1"`
+	Role      string    `json:"role"        example:"trainee"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+	Groups    []string  `json:"groups"      example:"admin"`
+	IsAdmin   bool      `json:"isAdmin"     example:"false"`
+	// AiChatEnabledForTrainees は /auth/me が返す実キー（auth_handler の gin.H と一致させる）。
+	AiChatEnabledForTrainees bool `json:"aiChatEnabledForTrainees" example:"true"`
 }
 
 // invitationValidateResponse は /invitations/accept/{token} の戻り値形（email は含めない）。

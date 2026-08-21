@@ -5262,9 +5262,10 @@ const docTemplate = `{
         "internal_handler.meResponse": {
             "type": "object",
             "properties": {
-                "cognitoSub": {
-                    "type": "string",
-                    "example": "abc-123-uuid"
+                "aiChatEnabledForTrainees": {
+                    "description": "AiChatEnabledForTrainees は /auth/me が返す実キー（auth_handler の gin.H と一致させる）。",
+                    "type": "boolean",
+                    "example": true
                 },
                 "companyId": {
                     "type": "integer",

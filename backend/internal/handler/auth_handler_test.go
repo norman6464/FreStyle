@@ -52,7 +52,7 @@ func (r *fakeUserRepo) ListByRole(_ context.Context, _ domain.RoleName) ([]domai
 	return nil, nil
 }
 
-func (r *fakeUserRepo) Create(_ context.Context, u *domain.User) error {
+func (r *fakeUserRepo) CreateWithOidcIdentity(_ context.Context, u *domain.User, _, _ string) error {
 	if r.createErr != nil {
 		return r.createErr
 	}
@@ -164,7 +164,7 @@ func newGinCtx() *gin.Context {
 }
 
 func Test_IDトークンからユーザー登録_既存ユーザーは常に許可(t *testing.T) {
-	existing := &domain.User{ID: 5, CognitoSub: "existing", Email: "u@example.com", Role: domain.RoleTrainee}
+	existing := &domain.User{ID: 5, Email: "u@example.com", Role: domain.RoleTrainee}
 	users := &fakeUserRepo{existingBySub: map[string]*domain.User{"existing": existing}}
 	invs := &fakeInvitationRepo{}
 	h := newTestAuthHandler(users, invs)
@@ -184,7 +184,7 @@ func Test_IDトークンからユーザー登録_既存ユーザーは常に許�
 }
 
 func Test_IDトークンからユーザー登録_既存ユーザーはCognito_adminで昇格(t *testing.T) {
-	existing := &domain.User{ID: 5, CognitoSub: "existing", Email: "u@example.com", Role: domain.RoleTrainee}
+	existing := &domain.User{ID: 5, Email: "u@example.com", Role: domain.RoleTrainee}
 	users := &fakeUserRepo{existingBySub: map[string]*domain.User{"existing": existing}}
 	h := newTestAuthHandler(users, &fakeInvitationRepo{})
 
@@ -269,7 +269,7 @@ func Test_IDトークンからユーザー登録_無効なtokenはメールに�
 
 // 既存 super_admin は招待を受けても降格しない。
 func Test_IDトークンからユーザー登録_既存運営管理者は招待で降格しない(t *testing.T) {
-	existing := &domain.User{ID: 1, CognitoSub: "ops", Email: "ops@example.com", Role: domain.RoleSuperAdmin}
+	existing := &domain.User{ID: 1, Email: "ops@example.com", Role: domain.RoleSuperAdmin}
 	users := &fakeUserRepo{existingBySub: map[string]*domain.User{"ops": existing}}
 	invs := &fakeInvitationRepo{
 		pendingByToken: map[string]*domain.AdminInvitation{
@@ -366,7 +366,7 @@ func Test_IDトークンからユーザー登録_新規でOIDC名なしはメー
 // 既存ユーザの Name が email と一致 + id_token に name → name で上書きされる。
 func Test_IDトークンからユーザー登録_既存ユーザーは表示名をOIDCから補完(t *testing.T) {
 	existing := &domain.User{
-		ID: 5, CognitoSub: "exists",
+		ID:    5,
 		Email: "old@example.com", Name: "old@example.com",
 		Role: domain.RoleTrainee,
 	}
@@ -388,7 +388,7 @@ func Test_IDトークンからユーザー登録_既存ユーザーは表示名�
 // 既存ユーザが既にプロフィール編集済（Name != email）なら OIDC name で上書きしない。
 func Test_IDトークンからユーザー登録_表示名カスタム済みは補完しない(t *testing.T) {
 	existing := &domain.User{
-		ID: 5, CognitoSub: "exists",
+		ID:    5,
 		Email: "u@example.com", Name: "ユーザ自身が編集した名前",
 		Role: domain.RoleTrainee,
 	}

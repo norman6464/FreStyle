@@ -43,8 +43,8 @@ func (m *mockUserRepo) ListByCompanyID(ctx context.Context, companyID uint64) ([
 	return rows, args.Error(1)
 }
 
-func (m *mockUserRepo) Create(ctx context.Context, u *domain.User) error {
-	return m.Called(ctx, u).Error(0)
+func (m *mockUserRepo) CreateWithOidcIdentity(ctx context.Context, u *domain.User, provider, subject string) error {
+	return m.Called(ctx, u, provider, subject).Error(0)
 }
 
 func (m *mockUserRepo) EnsureOidcIdentity(ctx context.Context, userID uint64, provider, subject string) error {

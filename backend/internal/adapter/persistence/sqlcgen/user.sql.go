@@ -28,7 +28,7 @@ func (q *Queries) GetCognitoSubjectByUserID(ctx context.Context, userID int64) (
 
 const getUserByCognitoSub = `-- name: GetUserByCognitoSub :one
 
-SELECT u.id, u.cognito_sub, u.email, u.name, u.company_id, u.role, u.role_id, u.ai_chat_enabled, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(NULLIF(u.role, ''), r.name, '') AS role_name
+SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.ai_chat_enabled, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE u.deleted_at IS NULL
@@ -43,11 +43,9 @@ WHERE u.deleted_at IS NULL
 
 type GetUserByCognitoSubRow struct {
 	ID            int64
-	CognitoSub    string
 	Email         string
 	Name          string
 	CompanyID     sql.NullInt64
-	Role          string
 	RoleID        sql.NullInt16
 	AiChatEnabled sql.NullBool
 	IsActive      bool
@@ -57,26 +55,25 @@ type GetUserByCognitoSubRow struct {
 	RoleName      string
 }
 
-// users の読み出し（FRESTYLE-311 移行期間中）。
-// role_name は旧カラム u.role を正とし、空のときだけ roles.name に落とす
-// （移行期間中は旧コードも書くため旧カラムが常に最新。role_id は起動時バックフィルで追随する）。
-// PR3（旧カラム DROP）で r.name 基準へ一斉に切り替える。
+// users の読み出し（FRESTYLE-311 正規化・expand-contract の読み替えフェーズ）。
+// role_name は roles マスタを JOIN して解決する（正は users.role_id → roles.name）。旧 role 列は読まない。
+// cognito_sub は GetUserByCognitoSub の WHERE でフォールバックとしてのみ参照する（ローリングデプロイ中の
+// 孤児行救済。旧カラムの物理撤去とこのフォールバック除去は後続 PR）。旧カラムを SELECT には含めない。
 //
 // password_hash はローカルのパスワードログイン専用の GetActiveUserByEmail だけが取得する
 // （一覧・認証解決の経路で bcrypt ハッシュをアプリメモリに載せない）。
 // OIDC subject で 1 ユーザーを引く（論理削除は除外）。認証時の user 解決に使う。
-// 正は user_oidc_identities。旧コードが identities 未作成のまま挿入した行にも
-// 旧カラム users.cognito_sub のフォールバックで到達できるようにする。
+// 正は user_oidc_identities（provider='cognito' の subject）だが、旧タスクが identity 未作成の
+// まま挿入した孤児行にも旧カラム users.cognito_sub のフォールバックで到達できるようにする
+// （ローリングデプロイ中の可用性保全。このフォールバックは旧カラム撤去の後続 PR で外す）。
 func (q *Queries) GetUserByCognitoSub(ctx context.Context, subject string) (GetUserByCognitoSubRow, error) {
 	row := q.db.QueryRowContext(ctx, getUserByCognitoSub, subject)
 	var i GetUserByCognitoSubRow
 	err := row.Scan(
 		&i.ID,
-		&i.CognitoSub,
 		&i.Email,
 		&i.Name,
 		&i.CompanyID,
-		&i.Role,
 		&i.RoleID,
 		&i.AiChatEnabled,
 		&i.IsActive,
@@ -89,7 +86,7 @@ func (q *Queries) GetUserByCognitoSub(ctx context.Context, subject string) (GetU
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT u.id, u.cognito_sub, u.email, u.name, u.company_id, u.role, u.role_id, u.ai_chat_enabled, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(NULLIF(u.role, ''), r.name, '') AS role_name
+SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.ai_chat_enabled, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE u.id = $1 AND u.deleted_at IS NULL
@@ -97,11 +94,9 @@ WHERE u.id = $1 AND u.deleted_at IS NULL
 
 type GetUserByIDRow struct {
 	ID            int64
-	CognitoSub    string
 	Email         string
 	Name          string
 	CompanyID     sql.NullInt64
-	Role          string
 	RoleID        sql.NullInt16
 	AiChatEnabled sql.NullBool
 	IsActive      bool
@@ -117,11 +112,9 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (GetUserByIDRow, er
 	var i GetUserByIDRow
 	err := row.Scan(
 		&i.ID,
-		&i.CognitoSub,
 		&i.Email,
 		&i.Name,
 		&i.CompanyID,
-		&i.Role,
 		&i.RoleID,
 		&i.AiChatEnabled,
 		&i.IsActive,
@@ -134,7 +127,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (GetUserByIDRow, er
 }
 
 const listActiveUsersByEmail = `-- name: ListActiveUsersByEmail :many
-SELECT u.id, u.cognito_sub, u.email, u.name, u.company_id, u.role, u.role_id, u.ai_chat_enabled, u.is_active, u.created_at, u.updated_at, u.deleted_at, u.password_hash, COALESCE(NULLIF(u.role, ''), r.name, '') AS role_name
+SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.ai_chat_enabled, u.is_active, u.created_at, u.updated_at, u.deleted_at, u.password_hash, COALESCE(r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE u.email = $1 AND u.email <> '' AND u.deleted_at IS NULL AND u.is_active
@@ -142,11 +135,9 @@ WHERE u.email = $1 AND u.email <> '' AND u.deleted_at IS NULL AND u.is_active
 
 type ListActiveUsersByEmailRow struct {
 	ID            int64
-	CognitoSub    string
 	Email         string
 	Name          string
 	CompanyID     sql.NullInt64
-	Role          string
 	RoleID        sql.NullInt16
 	AiChatEnabled sql.NullBool
 	IsActive      bool
@@ -172,11 +163,9 @@ func (q *Queries) ListActiveUsersByEmail(ctx context.Context, email string) ([]L
 		var i ListActiveUsersByEmailRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.CognitoSub,
 			&i.Email,
 			&i.Name,
 			&i.CompanyID,
-			&i.Role,
 			&i.RoleID,
 			&i.AiChatEnabled,
 			&i.IsActive,
@@ -200,7 +189,7 @@ func (q *Queries) ListActiveUsersByEmail(ctx context.Context, email string) ([]L
 }
 
 const listUsersByCompanyID = `-- name: ListUsersByCompanyID :many
-SELECT u.id, u.cognito_sub, u.email, u.name, u.company_id, u.role, u.role_id, u.ai_chat_enabled, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(NULLIF(u.role, ''), r.name, '') AS role_name
+SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.ai_chat_enabled, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE u.company_id = $1 AND u.deleted_at IS NULL
@@ -209,11 +198,9 @@ ORDER BY u.id ASC
 
 type ListUsersByCompanyIDRow struct {
 	ID            int64
-	CognitoSub    string
 	Email         string
 	Name          string
 	CompanyID     sql.NullInt64
-	Role          string
 	RoleID        sql.NullInt16
 	AiChatEnabled sql.NullBool
 	IsActive      bool
@@ -235,11 +222,9 @@ func (q *Queries) ListUsersByCompanyID(ctx context.Context, companyID sql.NullIn
 		var i ListUsersByCompanyIDRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.CognitoSub,
 			&i.Email,
 			&i.Name,
 			&i.CompanyID,
-			&i.Role,
 			&i.RoleID,
 			&i.AiChatEnabled,
 			&i.IsActive,
@@ -262,20 +247,18 @@ func (q *Queries) ListUsersByCompanyID(ctx context.Context, companyID sql.NullIn
 }
 
 const listUsersByRole = `-- name: ListUsersByRole :many
-SELECT u.id, u.cognito_sub, u.email, u.name, u.company_id, u.role, u.role_id, u.ai_chat_enabled, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(NULLIF(u.role, ''), r.name, '') AS role_name
+SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.ai_chat_enabled, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
-WHERE COALESCE(NULLIF(u.role, ''), r.name, '') = $1 AND u.deleted_at IS NULL
+WHERE r.name = $1 AND u.deleted_at IS NULL
 ORDER BY u.id ASC
 `
 
 type ListUsersByRoleRow struct {
 	ID            int64
-	CognitoSub    string
 	Email         string
 	Name          string
 	CompanyID     sql.NullInt64
-	Role          string
 	RoleID        sql.NullInt16
 	AiChatEnabled sql.NullBool
 	IsActive      bool
@@ -286,8 +269,8 @@ type ListUsersByRoleRow struct {
 }
 
 // role 名単位の一覧（論理削除は除外）。super_admin / company_admin の管理画面用。
-func (q *Queries) ListUsersByRole(ctx context.Context, role string) ([]ListUsersByRoleRow, error) {
-	rows, err := q.db.QueryContext(ctx, listUsersByRole, role)
+func (q *Queries) ListUsersByRole(ctx context.Context, name string) ([]ListUsersByRoleRow, error) {
+	rows, err := q.db.QueryContext(ctx, listUsersByRole, name)
 	if err != nil {
 		return nil, err
 	}
@@ -297,11 +280,9 @@ func (q *Queries) ListUsersByRole(ctx context.Context, role string) ([]ListUsers
 		var i ListUsersByRoleRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.CognitoSub,
 			&i.Email,
 			&i.Name,
 			&i.CompanyID,
-			&i.Role,
 			&i.RoleID,
 			&i.AiChatEnabled,
 			&i.IsActive,

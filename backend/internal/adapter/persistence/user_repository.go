@@ -47,6 +47,10 @@ func toDomainUser(row userRow) *domain.User {
 	if row.RoleID.Valid {
 		u.RoleID = uint16(row.RoleID.Int16)
 	}
+	if row.PasswordHash.Valid {
+		v := row.PasswordHash.String
+		u.PasswordHash = &v
+	}
 	if row.CompanyID.Valid {
 		cid := uint64(row.CompanyID.Int64)
 		u.CompanyID = &cid
@@ -75,6 +79,40 @@ func (r *userRepository) FindByCognitoSub(ctx context.Context, sub string) (*dom
 		return nil, err
 	}
 	return toDomainUser(userRow(row)), nil
+}
+
+func (r *userRepository) FindActiveByEmail(ctx context.Context, email string) (*domain.User, error) {
+	sqlDB, err := r.db.DB()
+	if err != nil {
+		return nil, err
+	}
+	row, err := sqlcgen.New(sqlDB).GetActiveUserByEmail(ctx, email)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return toDomainUser(userRow(row)), nil
+}
+
+func (r *userRepository) CognitoSubjectByUserID(ctx context.Context, userID uint64) (string, error) {
+	id64, ok := toInt64ID(userID)
+	if !ok {
+		return "", nil
+	}
+	sqlDB, err := r.db.DB()
+	if err != nil {
+		return "", err
+	}
+	subject, err := sqlcgen.New(sqlDB).GetCognitoSubjectByUserID(ctx, id64)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return subject, nil
 }
 
 func (r *userRepository) FindByID(ctx context.Context, id uint64) (*domain.User, error) {

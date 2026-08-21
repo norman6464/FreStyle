@@ -25,6 +25,10 @@ type Config struct {
 	// 例: https://frestyle.jp (末尾スラッシュ無し / 有り どちらも可)
 	AppBaseURL string
 
+	// LocalPasswordAuth はローカル開発専用のパスワードログイン（infra/localauth）を有効にする。
+	// APP_ENV=local のときのみ効く（それ以外では wiring が拒否する・FRESTYLE-311）。
+	LocalPasswordAuth bool
+
 	// CodeRunnerURL はコード実行サイドカー（cmd/coderunner）の baseURL。
 	// セットされていると backend 本体は os/exec せず HTTP 越しに runner へ委譲する
 	// （例: http://127.0.0.1:9000）。未設定なら in-process サンドボックスで実行する。
@@ -98,6 +102,8 @@ func Load() (*Config, error) {
 		DBSSLMode:     getEnvOrDefault("DB_SSLMODE", "require"),
 		AppBaseURL:    getEnvOrDefault("APP_BASE_URL", ""),
 		CodeRunnerURL: os.Getenv("CODE_RUNNER_URL"),
+		LocalPasswordAuth: os.Getenv("LOCAL_PASSWORD_AUTH") == "1" ||
+			os.Getenv("LOCAL_PASSWORD_AUTH") == "true",
 		Cognito: CognitoConfig{
 			ClientID:     os.Getenv("COGNITO_CLIENT_ID"),
 			ClientSecret: os.Getenv("COGNITO_CLIENT_SECRET"),

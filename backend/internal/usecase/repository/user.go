@@ -11,6 +11,12 @@ import (
 // UserRepository は users テーブルへのアクセスを提供する。
 type UserRepository interface {
 	FindByCognitoSub(ctx context.Context, sub string) (*domain.User, error)
+	// FindActiveByEmail は email で有効ユーザー（未削除・is_active）を引く。
+	// ローカルのパスワードログインが使う。見つからなければ (nil, nil)。
+	FindActiveByEmail(ctx context.Context, email string) (*domain.User, error)
+	// CognitoSubjectByUserID はユーザーの cognito provider の OIDC subject を返す。
+	// 無ければ ("", nil)。ローカルのパスワードログインのトークン発行に使う。
+	CognitoSubjectByUserID(ctx context.Context, userID uint64) (string, error)
 	FindByID(ctx context.Context, id uint64) (*domain.User, error)
 	// ListByRole は指定 role のユーザー一覧を返す（super_admin への一斉通知などに使う）。
 	ListByRole(ctx context.Context, role domain.RoleName) ([]domain.User, error)

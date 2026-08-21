@@ -40,6 +40,7 @@ CREATE TABLE users (
     id           bigint PRIMARY KEY,
     cognito_sub  text NOT NULL,
     email        text NOT NULL DEFAULT '',
+    password_hash text,
     name       text NOT NULL DEFAULT '',
     company_id   bigint,
     role         text NOT NULL,

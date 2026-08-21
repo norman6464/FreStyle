@@ -11,6 +11,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/infra/bedrock"
 	"github.com/norman6464/FreStyle/backend/internal/infra/cognito"
 	"github.com/norman6464/FreStyle/backend/internal/infra/config"
+	"github.com/norman6464/FreStyle/backend/internal/infra/localauth"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	swaggerfiles "github.com/swaggo/files"
@@ -104,6 +105,27 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 //   - JWKS 未設定 & local: 署名未検証の decode にフォールバック（Cognito 無しのローカル開発用）
 //   - JWKS 未設定 & 非 local: fail closed（全リクエストを拒否し、未検証で本番が動くのを防ぐ）
 func buildJWTVerify(cfg *config.Config) middleware.VerifyFunc {
+	base := buildBaseJWTVerify(cfg)
+	// ローカル専用パスワードログイン（infra/localauth）が有効なときは、その発行トークンを
+	// HMAC 署名検証つきで受け付け、それ以外（実 Cognito のトークン等）は通常経路へ落とす。
+	// APP_ENV=local 以外ではフラグを無視する（fail closed・FRESTYLE-311）。
+	if cfg.LocalPasswordAuth && cfg.AppEnv == "local" {
+		return func(ctx context.Context, token string) (map[string]any, error) {
+			claims, err := localauth.VerifyToken(token)
+			if err == nil {
+				return claims, nil
+			}
+			if !errors.Is(err, localauth.ErrNotLocalToken) {
+				return nil, err // localauth 発行だが失効等 → 通常経路には回さない
+			}
+			return base(ctx, token)
+		}
+	}
+	return base
+}
+
+// buildBaseJWTVerify は従来どおりの検証経路（JWKS / local 署名スキップ / fail closed）を返す。
+func buildBaseJWTVerify(cfg *config.Config) middleware.VerifyFunc {
 	if cfg.Cognito.JwkSetURI != "" {
 		v := cognito.NewVerifier(cfg.Cognito.JwkSetURI)
 		return v.Verify

@@ -11,9 +11,71 @@ import (
 	"time"
 )
 
+const getActiveUserByEmail = `-- name: GetActiveUserByEmail :one
+SELECT u.id, u.cognito_sub, u.email, u.password_hash, u.name, u.company_id, u.role, u.role_id, u.ai_chat_enabled, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(NULLIF(u.role, ''), r.name, '') AS role_name
+FROM users u
+LEFT JOIN roles r ON r.id = u.role_id
+WHERE u.email = $1 AND u.email <> '' AND u.deleted_at IS NULL AND u.is_active
+`
+
+type GetActiveUserByEmailRow struct {
+	ID            int64
+	CognitoSub    string
+	Email         string
+	PasswordHash  sql.NullString
+	Name          string
+	CompanyID     sql.NullInt64
+	Role          string
+	RoleID        sql.NullInt16
+	AiChatEnabled sql.NullBool
+	IsActive      bool
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	DeletedAt     sql.NullTime
+	RoleName      string
+}
+
+// email で有効ユーザーを 1 件引く（論理削除・無効化は除外）。ローカルのパスワードログイン用。
+// email は uq_users_email_active（deleted_at IS NULL AND email <> ”）でアクティブ行に対して一意。
+func (q *Queries) GetActiveUserByEmail(ctx context.Context, email string) (GetActiveUserByEmailRow, error) {
+	row := q.db.QueryRowContext(ctx, getActiveUserByEmail, email)
+	var i GetActiveUserByEmailRow
+	err := row.Scan(
+		&i.ID,
+		&i.CognitoSub,
+		&i.Email,
+		&i.PasswordHash,
+		&i.Name,
+		&i.CompanyID,
+		&i.Role,
+		&i.RoleID,
+		&i.AiChatEnabled,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.RoleName,
+	)
+	return i, err
+}
+
+const getCognitoSubjectByUserID = `-- name: GetCognitoSubjectByUserID :one
+SELECT subject FROM user_oidc_identities
+WHERE user_id = $1 AND provider = 'cognito'
+`
+
+// ユーザーの cognito provider の OIDC subject を引く。ローカルのパスワードログインが
+// 発行するトークンの sub に使う（無ければ呼び出し側が生成して EnsureOidcIdentity する）。
+func (q *Queries) GetCognitoSubjectByUserID(ctx context.Context, userID int64) (string, error) {
+	row := q.db.QueryRowContext(ctx, getCognitoSubjectByUserID, userID)
+	var subject string
+	err := row.Scan(&subject)
+	return subject, err
+}
+
 const getUserByCognitoSub = `-- name: GetUserByCognitoSub :one
 
-SELECT u.id, u.cognito_sub, u.email, u.name, u.company_id, u.role, u.role_id, u.ai_chat_enabled, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(NULLIF(u.role, ''), r.name, '') AS role_name
+SELECT u.id, u.cognito_sub, u.email, u.password_hash, u.name, u.company_id, u.role, u.role_id, u.ai_chat_enabled, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(NULLIF(u.role, ''), r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE u.deleted_at IS NULL
@@ -30,6 +92,7 @@ type GetUserByCognitoSubRow struct {
 	ID            int64
 	CognitoSub    string
 	Email         string
+	PasswordHash  sql.NullString
 	Name          string
 	CompanyID     sql.NullInt64
 	Role          string
@@ -56,6 +119,7 @@ func (q *Queries) GetUserByCognitoSub(ctx context.Context, subject string) (GetU
 		&i.ID,
 		&i.CognitoSub,
 		&i.Email,
+		&i.PasswordHash,
 		&i.Name,
 		&i.CompanyID,
 		&i.Role,
@@ -71,7 +135,7 @@ func (q *Queries) GetUserByCognitoSub(ctx context.Context, subject string) (GetU
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT u.id, u.cognito_sub, u.email, u.name, u.company_id, u.role, u.role_id, u.ai_chat_enabled, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(NULLIF(u.role, ''), r.name, '') AS role_name
+SELECT u.id, u.cognito_sub, u.email, u.password_hash, u.name, u.company_id, u.role, u.role_id, u.ai_chat_enabled, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(NULLIF(u.role, ''), r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE u.id = $1 AND u.deleted_at IS NULL
@@ -81,6 +145,7 @@ type GetUserByIDRow struct {
 	ID            int64
 	CognitoSub    string
 	Email         string
+	PasswordHash  sql.NullString
 	Name          string
 	CompanyID     sql.NullInt64
 	Role          string
@@ -101,6 +166,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (GetUserByIDRow, er
 		&i.ID,
 		&i.CognitoSub,
 		&i.Email,
+		&i.PasswordHash,
 		&i.Name,
 		&i.CompanyID,
 		&i.Role,
@@ -116,7 +182,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (GetUserByIDRow, er
 }
 
 const listUsersByCompanyID = `-- name: ListUsersByCompanyID :many
-SELECT u.id, u.cognito_sub, u.email, u.name, u.company_id, u.role, u.role_id, u.ai_chat_enabled, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(NULLIF(u.role, ''), r.name, '') AS role_name
+SELECT u.id, u.cognito_sub, u.email, u.password_hash, u.name, u.company_id, u.role, u.role_id, u.ai_chat_enabled, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(NULLIF(u.role, ''), r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE u.company_id = $1 AND u.deleted_at IS NULL
@@ -127,6 +193,7 @@ type ListUsersByCompanyIDRow struct {
 	ID            int64
 	CognitoSub    string
 	Email         string
+	PasswordHash  sql.NullString
 	Name          string
 	CompanyID     sql.NullInt64
 	Role          string
@@ -153,6 +220,7 @@ func (q *Queries) ListUsersByCompanyID(ctx context.Context, companyID sql.NullIn
 			&i.ID,
 			&i.CognitoSub,
 			&i.Email,
+			&i.PasswordHash,
 			&i.Name,
 			&i.CompanyID,
 			&i.Role,
@@ -178,7 +246,7 @@ func (q *Queries) ListUsersByCompanyID(ctx context.Context, companyID sql.NullIn
 }
 
 const listUsersByRole = `-- name: ListUsersByRole :many
-SELECT u.id, u.cognito_sub, u.email, u.name, u.company_id, u.role, u.role_id, u.ai_chat_enabled, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(NULLIF(u.role, ''), r.name, '') AS role_name
+SELECT u.id, u.cognito_sub, u.email, u.password_hash, u.name, u.company_id, u.role, u.role_id, u.ai_chat_enabled, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(NULLIF(u.role, ''), r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE COALESCE(NULLIF(u.role, ''), r.name, '') = $1 AND u.deleted_at IS NULL
@@ -189,6 +257,7 @@ type ListUsersByRoleRow struct {
 	ID            int64
 	CognitoSub    string
 	Email         string
+	PasswordHash  sql.NullString
 	Name          string
 	CompanyID     sql.NullInt64
 	Role          string
@@ -215,6 +284,7 @@ func (q *Queries) ListUsersByRole(ctx context.Context, role string) ([]ListUsers
 			&i.ID,
 			&i.CognitoSub,
 			&i.Email,
+			&i.PasswordHash,
 			&i.Name,
 			&i.CompanyID,
 			&i.Role,

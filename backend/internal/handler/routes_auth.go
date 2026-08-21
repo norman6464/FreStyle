@@ -8,6 +8,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/infra/cognito"
+	"github.com/norman6464/FreStyle/backend/internal/infra/localauth"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
 
@@ -20,14 +21,7 @@ func registerAuthPublicRoutes(g *gin.RouterGroup, deps *routeDeps) *AuthHandler 
 	aiAccess := usecase.NewAiChatEnabledForUserUseCase(persistence.NewCompanyRepository(deps.db))
 	upsertUser := usecase.NewUpsertUserFromIDTokenUseCase(deps.userRepo, invitations)
 
-	// USER_PASSWORD_AUTH 用の authenticator。AWS 認証情報の解決に失敗しても起動は止めず、
-	// nil のまま渡して /auth/cognito/login だけ 500 にする（Hosted UI ログインには影響させない）。
-	var pwAuth passwordAuthenticator
-	if pa, err := cognito.NewPasswordAuthenticator(context.Background(), deps.cfg.Cognito.Region, deps.cfg.Cognito.ClientID, deps.cfg.Cognito.ClientSecret); err != nil {
-		log.Printf("password authenticator init failed: %v", err)
-	} else {
-		pwAuth = pa
-	}
+	pwAuth := buildPasswordAuthenticator(deps)
 
 	authHandler := NewAuthHandler(getCurrentUser, upsertUser, deps.userRepo, &deps.cfg.Cognito, pwAuth, aiAccess)
 
@@ -40,6 +34,33 @@ func registerAuthPublicRoutes(g *gin.RouterGroup, deps *routeDeps) *AuthHandler 
 	g.POST("/auth/refresh", middleware.RateLimitPerMinute(60, 30), authHandler.Refresh)
 
 	return authHandler
+}
+
+// buildPasswordAuthenticator は /auth/cognito/login のパスワード検証実装を選ぶ。
+//   - LOCAL_PASSWORD_AUTH 有効 + APP_ENV=local: DB の bcrypt ハッシュで検証（infra/localauth）。
+//     Cognito 不要でログインでき、seed ユーザーでもログインできる（FRESTYLE-311）。
+//   - LOCAL_PASSWORD_AUTH 有効 + 非 local: fail closed（ERROR ログを出して Cognito 経路に固定）。
+//   - それ以外: 従来どおり Cognito の USER_PASSWORD_AUTH。
+//
+// AWS 認証情報の解決に失敗しても起動は止めず、nil のまま渡して /auth/cognito/login だけ
+// 500 にする（Hosted UI ログインには影響させない）。
+func buildPasswordAuthenticator(deps *routeDeps) passwordAuthenticator {
+	if deps.cfg.LocalPasswordAuth {
+		if deps.cfg.AppEnv != "local" {
+			log.Printf("ERROR: LOCAL_PASSWORD_AUTH は APP_ENV=local 専用です（現在 %q）。Cognito 経路を使用します", deps.cfg.AppEnv)
+		} else if la, err := localauth.New(deps.userRepo, deps.cfg.AppEnv); err != nil {
+			log.Printf("ERROR: localauth init failed: %v", err)
+		} else {
+			log.Printf("WARN: ローカル専用のパスワードログイン（DB bcrypt 検証）を使用します（本番では設定禁止）")
+			return la
+		}
+	}
+	if pa, err := cognito.NewPasswordAuthenticator(context.Background(), deps.cfg.Cognito.Region, deps.cfg.Cognito.ClientID, deps.cfg.Cognito.ClientSecret); err != nil {
+		log.Printf("password authenticator init failed: %v", err)
+		return nil
+	} else {
+		return pa
+	}
 }
 
 // registerAuthAuthedRoutes は認証必須の自己情報取得 (/auth/me) を登録する。

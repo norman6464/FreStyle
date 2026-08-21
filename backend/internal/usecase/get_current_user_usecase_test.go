@@ -52,6 +52,14 @@ func (s *stubUserRepo) EnsureOidcIdentity(context.Context, uint64, string, strin
 	return nil
 }
 
+func (s *stubUserRepo) FindActiveByEmail(context.Context, string) (*domain.User, error) {
+	return nil, nil
+}
+
+func (s *stubUserRepo) CognitoSubjectByUserID(context.Context, uint64) (string, error) {
+	return "", nil
+}
+
 func Test_現在ユーザー取得_見つかる(t *testing.T) {
 	want := &domain.User{ID: 1, CognitoSub: "abc", Email: "u@example.com"}
 	uc := NewGetCurrentUserUseCase(&stubUserRepo{user: want})

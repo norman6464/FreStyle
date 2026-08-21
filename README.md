@@ -185,6 +185,15 @@ cd backend && make run                 # ホストで起動（.env の localhost
 
 フロントエンド（Vite）は HMR が効くホスト実行のままです（`cd frontend && npm run dev`）。
 
+**ログイン（ローカル）**: `make local-seed` 後、ログイン画面のメール / パスワードフォームからそのまま入れます（Cognito 接続は不要です）。
+
+| ユーザー | パスワード | ロール |
+|---|---|---|
+| `admin@example.test` | `password` | super_admin（管理画面が使える） |
+| `seed1@example.test` 〜 | `password` | trainee（`seed100@example.test` など 100 の倍数は company_admin） |
+
+> これは `LOCAL_PASSWORD_AUTH=1`（compose が既定で注入）による**ローカル専用**のログイン経路で、DB の bcrypt ハッシュを検証します。`APP_ENV=local` 以外ではバックエンドが無視します。本番同等の Cognito で検証したい場合は `.env` で `LOCAL_PASSWORD_AUTH=0` にして `COGNITO_*` を設定してください。
+
 **動作確認用のデータを入れる**（規模は 3 段階から選べます）:
 
 ```bash

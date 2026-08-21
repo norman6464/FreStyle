@@ -41,3 +41,17 @@ FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE u.company_id = $1 AND u.deleted_at IS NULL
 ORDER BY u.id ASC;
+
+-- name: GetActiveUserByEmail :one
+-- email で有効ユーザーを 1 件引く（論理削除・無効化は除外）。ローカルのパスワードログイン用。
+-- email は uq_users_email_active（deleted_at IS NULL AND email <> ''）でアクティブ行に対して一意。
+SELECT u.*, COALESCE(NULLIF(u.role, ''), r.name, '') AS role_name
+FROM users u
+LEFT JOIN roles r ON r.id = u.role_id
+WHERE u.email = $1 AND u.email <> '' AND u.deleted_at IS NULL AND u.is_active;
+
+-- name: GetCognitoSubjectByUserID :one
+-- ユーザーの cognito provider の OIDC subject を引く。ローカルのパスワードログインが
+-- 発行するトークンの sub に使う（無ければ呼び出し側が生成して EnsureOidcIdentity する）。
+SELECT subject FROM user_oidc_identities
+WHERE user_id = $1 AND provider = 'cognito';

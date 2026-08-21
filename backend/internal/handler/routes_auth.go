@@ -30,6 +30,8 @@ func registerAuthPublicRoutes(g *gin.RouterGroup, deps *routeDeps) *AuthHandler 
 	g.POST("/auth/login", middleware.RateLimitPerMinute(30, 10), authHandler.Callback)
 	// cognito/login（メール/パスワード）はパスワード総当たり面なので callback より厳しめに絞る。
 	g.POST("/auth/cognito/login", middleware.RateLimitPerMinute(10, 5), authHandler.Login)
+	// 新パスワード設定（一時パスワードでの初回ログイン）。login と同じくパスワード面なので絞る。
+	g.POST("/auth/cognito/new-password", middleware.RateLimitPerMinute(10, 5), authHandler.NewPassword)
 	// refresh は正規ユーザーが定期的に叩くため、NAT 共有 IP を考慮して緩めに設定する。
 	g.POST("/auth/refresh", middleware.RateLimitPerMinute(60, 30), authHandler.Refresh)
 

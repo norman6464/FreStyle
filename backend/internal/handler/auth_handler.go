@@ -20,6 +20,10 @@ import (
 // infra/cognito.PasswordAuthenticator が実装し、テストでは fake を注入する。
 type passwordAuthenticator interface {
 	Authenticate(ctx context.Context, email, password string) (*cognito.Token, error)
+	// RespondToNewPassword は NEW_PASSWORD_REQUIRED チャレンジに新パスワードで応答する
+	// （一時パスワードでの初回ログイン）。session は Authenticate が返した
+	// *cognito.NewPasswordRequiredError の Session。
+	RespondToNewPassword(ctx context.Context, email, session, newPassword string) (*cognito.Token, error)
 }
 
 // AuthHandler は Cognito 関連の認証エンドポイントを提供する。
@@ -173,6 +177,16 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	tok, err := h.passwordAuth.Authenticate(c.Request.Context(), req.Email, req.Password)
 	if err != nil {
+		// 一時パスワードでの初回ログインはチャレンジが返る。session をフロントへ渡し、
+		// 新パスワード設定（/auth/cognito/new-password）へ誘導する（トークンはまだ発行しない）。
+		var challenge *cognito.NewPasswordRequiredError
+		if errors.As(err, &challenge) {
+			c.JSON(http.StatusOK, gin.H{
+				"challenge": "NEW_PASSWORD_REQUIRED",
+				"session":   challenge.Session,
+			})
+			return
+		}
 		switch {
 		case errors.Is(err, cognito.ErrInvalidCredentials):
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid_credentials"})
@@ -185,6 +199,12 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
+	h.finishPasswordLogin(c, tok)
+}
+
+// finishPasswordLogin は取得済みトークンで招待ゲートを通し、Cookie を発行する。
+// パスワードログイン（Login）と新パスワード設定（NewPassword）で共有する。
+func (h *AuthHandler) finishPasswordLogin(c *gin.Context, tok *cognito.Token) {
 	// Callback と同じ招待ゲート。内部エラー(DB/decode)は 500、招待拒否は 403 に切り分ける。
 	allowed, upErr := h.upsertUserFromIDToken(c, tok.IDToken, "")
 	if upErr != nil {
@@ -204,6 +224,58 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	middleware.SetRefreshTokenCookie(c, tok.RefreshToken)
 
 	c.JSON(http.StatusOK, gin.H{"message": "ログインしました。"})
+}
+
+type newPasswordReq struct {
+	Email       string `json:"email" binding:"required,email" format:"email"`
+	Session     string `json:"session" binding:"required"`
+	NewPassword string `json:"newPassword" binding:"required"`
+}
+
+// NewPassword は NEW_PASSWORD_REQUIRED チャレンジに新パスワードで応答し、
+// 成功したらパスワードログインと同じく Cookie を発行する（一時パスワードでの初回ログイン）。
+//
+//	@Summary      初回パスワード設定（一時パスワードログイン）
+//	@Description  一時パスワードでの初回ログイン時に返る NEW_PASSWORD_REQUIRED チャレンジへ
+//	@Description  新パスワードで応答する。成功で認証 Cookie を発行する。
+//	@Tags         auth
+//	@Accept       json
+//	@Produce      json
+//	@Param        body  body      newPasswordReq  true  "email / session / 新パスワード"
+//	@Success      200   {object}  messageResponse  "設定してログイン"
+//	@Failure      400   {object}  errorResponse    "入力エラー / パスワードポリシー違反"
+//	@Failure      401   {object}  errorResponse    "session 失効等"
+//	@Failure      403   {object}  errorResponse    "招待が必要"
+//	@Failure      429   {object}  errorResponse    "レート制限超過"
+//	@Router       /auth/cognito/new-password [post]
+func (h *AuthHandler) NewPassword(c *gin.Context) {
+	var req newPasswordReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if h.passwordAuth == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "cognito_not_configured"})
+		return
+	}
+
+	tok, err := h.passwordAuth.RespondToNewPassword(c.Request.Context(), req.Email, req.Session, req.NewPassword)
+	if err != nil {
+		switch {
+		case errors.Is(err, cognito.ErrInvalidCredentials):
+			// session 失効・不正など。再ログインを促す。
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid_session"})
+		case errors.Is(err, cognito.ErrNotConfigured):
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "cognito_not_configured"})
+		default:
+			// パスワードポリシー違反などは 400。詳細メッセージはユーザーに出さず code のみ。
+			log.Printf("cognito new password: %v", err)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_new_password"})
+		}
+		return
+	}
+
+	h.finishPasswordLogin(c, tok)
 }
 
 type cognitoCallbackReq struct {

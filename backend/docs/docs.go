@@ -1319,6 +1319,64 @@ const docTemplate = `{
                 }
             }
         },
+        "/auth/cognito/new-password": {
+            "post": {
+                "description": "一時パスワードでの初回ログイン時に返る NEW_PASSWORD_REQUIRED チャレンジへ\n新パスワードで応答する。成功で認証 Cookie を発行する。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "初回パスワード設定（一時パスワードログイン）",
+                "parameters": [
+                    {
+                        "description": "email / session / 新パスワード",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.newPasswordReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "設定してログイン",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.messageResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "入力エラー / パスワードポリシー違反",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "session 失効等",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "招待が必要",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "レート制限超過",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/login": {
             "post": {
                 "description": "Cognito Hosted UI から の callback。 authorization code を access / refresh / id token に 交換 し HttpOnly Cookie で 返す。 新規 user は 招待 or Cognito admin group 必須。",
@@ -5266,6 +5324,26 @@ const docTemplate = `{
                 "message": {
                     "type": "string",
                     "example": "ログインしました。"
+                }
+            }
+        },
+        "internal_handler.newPasswordReq": {
+            "type": "object",
+            "required": [
+                "email",
+                "newPassword",
+                "session"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "format": "email"
+                },
+                "newPassword": {
+                    "type": "string"
+                },
+                "session": {
+                    "type": "string"
                 }
             }
         },

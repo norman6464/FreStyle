@@ -908,6 +908,20 @@ definitions:
         example: ログインしました。
         type: string
     type: object
+  internal_handler.newPasswordReq:
+    properties:
+      email:
+        format: email
+        type: string
+      newPassword:
+        type: string
+      session:
+        type: string
+    required:
+    - email
+    - newPassword
+    - session
+    type: object
   internal_handler.noteCreateReq:
     properties:
       content:
@@ -1939,6 +1953,46 @@ paths:
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
       summary: ログイン (メール / パスワード)
+      tags:
+      - auth
+  /auth/cognito/new-password:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        一時パスワードでの初回ログイン時に返る NEW_PASSWORD_REQUIRED チャレンジへ
+        新パスワードで応答する。成功で認証 Cookie を発行する。
+      parameters:
+      - description: email / session / 新パスワード
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.newPasswordReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 設定してログイン
+          schema:
+            $ref: '#/definitions/internal_handler.messageResponse'
+        "400":
+          description: 入力エラー / パスワードポリシー違反
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: session 失効等
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: 招待が必要
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "429":
+          description: レート制限超過
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      summary: 初回パスワード設定（一時パスワードログイン）
       tags:
       - auth
   /auth/login:

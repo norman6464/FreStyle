@@ -18,11 +18,20 @@ type fakeInitiateAuth struct {
 	out      *cip.InitiateAuthOutput
 	err      error
 	gotInput *cip.InitiateAuthInput
+
+	respondOut   *cip.RespondToAuthChallengeOutput
+	respondErr   error
+	respondInput *cip.RespondToAuthChallengeInput
 }
 
 func (f *fakeInitiateAuth) InitiateAuth(_ context.Context, in *cip.InitiateAuthInput, _ ...func(*cip.Options)) (*cip.InitiateAuthOutput, error) {
 	f.gotInput = in
 	return f.out, f.err
+}
+
+func (f *fakeInitiateAuth) RespondToAuthChallenge(_ context.Context, in *cip.RespondToAuthChallengeInput, _ ...func(*cip.Options)) (*cip.RespondToAuthChallengeOutput, error) {
+	f.respondInput = in
+	return f.respondOut, f.respondErr
 }
 
 func Test_パスワード認証_成功(t *testing.T) {
@@ -100,5 +109,85 @@ func Test_パスワード認証_SecretHash算出(t *testing.T) {
 
 	if got != want {
 		t.Errorf("secretHash = %s, want %s", got, want)
+	}
+}
+
+func Test_パスワード認証_NEW_PASSWORD_REQUIRED_チャレンジを返す(t *testing.T) {
+	fake := &fakeInitiateAuth{out: &cip.InitiateAuthOutput{
+		ChallengeName: types.ChallengeNameTypeNewPasswordRequired,
+		Session:       aws.String("sess-123"),
+	}}
+	a := newPasswordAuthenticatorWithClient(fake, "client-id", "secret")
+
+	_, err := a.Authenticate(context.Background(), "u@example.com", "temp-pw")
+	var chErr *NewPasswordRequiredError
+	if !errors.As(err, &chErr) {
+		t.Fatalf("NewPasswordRequiredError を期待したが: %v", err)
+	}
+	if chErr.Session != "sess-123" {
+		t.Errorf("session = %q, want sess-123", chErr.Session)
+	}
+}
+
+func Test_RespondToNewPassword_成功でトークンを返す(t *testing.T) {
+	fake := &fakeInitiateAuth{respondOut: &cip.RespondToAuthChallengeOutput{
+		AuthenticationResult: &types.AuthenticationResultType{
+			AccessToken:  aws.String("AT2"),
+			IdToken:      aws.String("ID2"),
+			RefreshToken: aws.String("RT2"),
+			ExpiresIn:    3600,
+			TokenType:    aws.String("Bearer"),
+		},
+	}}
+	a := newPasswordAuthenticatorWithClient(fake, "client-id", "secret")
+
+	tok, err := a.RespondToNewPassword(context.Background(), "u@example.com", "sess-123", "New-Pass-1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if tok.AccessToken != "AT2" || tok.IDToken != "ID2" {
+		t.Errorf("unexpected token: %+v", tok)
+	}
+	// 送信内容の検証: challenge 名 / session / USERNAME / NEW_PASSWORD / SECRET_HASH。
+	in := fake.respondInput
+	if in.ChallengeName != types.ChallengeNameTypeNewPasswordRequired {
+		t.Errorf("challenge = %q", in.ChallengeName)
+	}
+	if aws.ToString(in.Session) != "sess-123" {
+		t.Errorf("session = %q", aws.ToString(in.Session))
+	}
+	if in.ChallengeResponses["NEW_PASSWORD"] != "New-Pass-1" {
+		t.Errorf("NEW_PASSWORD = %q", in.ChallengeResponses["NEW_PASSWORD"])
+	}
+	if in.ChallengeResponses["USERNAME"] != "u@example.com" {
+		t.Errorf("USERNAME = %q", in.ChallengeResponses["USERNAME"])
+	}
+	if _, ok := in.ChallengeResponses["SECRET_HASH"]; !ok {
+		t.Error("SECRET_HASH が付いていない（client secret ありのとき必須）")
+	}
+}
+
+func Test_RespondToNewPassword_NotAuthorizedは資格情報エラー(t *testing.T) {
+	fake := &fakeInitiateAuth{respondErr: &types.NotAuthorizedException{}}
+	a := newPasswordAuthenticatorWithClient(fake, "client-id", "secret")
+
+	_, err := a.RespondToNewPassword(context.Background(), "u@example.com", "sess", "New-Pass-1")
+	if !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("ErrInvalidCredentials を期待したが: %v", err)
+	}
+}
+
+func Test_RespondToNewPassword_パスワードポリシー違反はそのまま返す(t *testing.T) {
+	polErr := &types.InvalidPasswordException{}
+	fake := &fakeInitiateAuth{respondErr: polErr}
+	a := newPasswordAuthenticatorWithClient(fake, "client-id", "secret")
+
+	_, err := a.RespondToNewPassword(context.Background(), "u@example.com", "sess", "weak")
+	if errors.Is(err, ErrInvalidCredentials) {
+		t.Fatal("ポリシー違反を資格情報エラーに丸めてはいけない（呼び元が 400 に写す）")
+	}
+	var pol *types.InvalidPasswordException
+	if !errors.As(err, &pol) {
+		t.Fatalf("InvalidPasswordException を期待したが: %v", err)
 	}
 }

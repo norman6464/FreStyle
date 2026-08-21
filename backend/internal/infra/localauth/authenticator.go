@@ -10,6 +10,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"time"
 
@@ -100,6 +101,13 @@ func (a *Authenticator) Authenticate(ctx context.Context, email, password string
 		// 既定 1 時間へ丸め、JWT は生きているのに Cookie だけ切れて 1h で 401 になる。
 		ExpiresIn: int(ttl.Seconds()),
 	}, nil
+}
+
+// RespondToNewPassword はローカル authenticator では発生しない（localauth は
+// NEW_PASSWORD_REQUIRED チャレンジを返さない）。interface を満たすためのスタブで、
+// 呼ばれた場合は資格情報エラーにせず明示的なエラーを返す。
+func (a *Authenticator) RespondToNewPassword(_ context.Context, _, _, _ string) (*cognito.Token, error) {
+	return nil, errors.New("localauth: NEW_PASSWORD_REQUIRED チャレンジはローカルでは発生しません")
 }
 
 // subjectFor はトークンの sub を決める。既存の OIDC identity があればその subject

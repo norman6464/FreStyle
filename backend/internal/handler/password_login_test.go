@@ -21,11 +21,22 @@ type fakePasswordAuth struct {
 	err         error
 	gotEmail    string
 	gotPassword string
+
+	// 新パスワード応答用（NewPassword ハンドラのテストで使う）。
+	respondToken   *cognito.Token
+	respondErr     error
+	gotSession     string
+	gotNewPassword string
 }
 
 func (f *fakePasswordAuth) Authenticate(_ context.Context, email, password string) (*cognito.Token, error) {
 	f.gotEmail, f.gotPassword = email, password
 	return f.token, f.err
+}
+
+func (f *fakePasswordAuth) RespondToNewPassword(_ context.Context, email, session, newPassword string) (*cognito.Token, error) {
+	f.gotEmail, f.gotSession, f.gotNewPassword = email, session, newPassword
+	return f.respondToken, f.respondErr
 }
 
 func postLoginCtx(body string) (*gin.Context, *httptest.ResponseRecorder) {
@@ -235,5 +246,82 @@ func Test_ログイン_upsert内部エラー_500(t *testing.T) {
 
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("want 500, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func postCtx(path, body string) (*gin.Context, *httptest.ResponseRecorder) {
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	c.Request = req
+	return c, rec
+}
+
+func Test_ログイン_NEW_PASSWORD_REQUIRED_はチャレンジを返す(t *testing.T) {
+	h := newTestAuthHandler(&fakeUserRepo{}, &fakeInvitationRepo{})
+	h.passwordAuth = &fakePasswordAuth{err: &cognito.NewPasswordRequiredError{Session: "sess-xyz"}}
+
+	c, rec := postLoginCtx(`{"email":"u@example.com","password":"temp"}`)
+	h.Login(c)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "NEW_PASSWORD_REQUIRED") ||
+		!strings.Contains(rec.Body.String(), "sess-xyz") {
+		t.Errorf("challenge/session not in body: %s", rec.Body.String())
+	}
+	// チャレンジ段階では Cookie を発行しない。
+	assertAuthCookiesUnchanged(t, rec)
+}
+
+func Test_新パスワード設定_成功でCookie発行(t *testing.T) {
+	users := &fakeUserRepo{existingBySub: map[string]*domain.User{
+		"sub-np": {ID: 5, CognitoSub: "sub-np", Email: "np@example.com", Role: domain.RoleTrainee},
+	}}
+	idTok := makeIDToken(t, map[string]any{"sub": "sub-np", "email": "np@example.com"})
+	pw := &fakePasswordAuth{respondToken: &cognito.Token{AccessToken: "AT", IDToken: idTok, RefreshToken: "RT", ExpiresIn: 3600}}
+	h := newTestAuthHandler(users, &fakeInvitationRepo{})
+	h.passwordAuth = pw
+
+	c, rec := postCtx("/api/v2/auth/cognito/new-password",
+		`{"email":"np@example.com","session":"sess-xyz","newPassword":"New-Pass-1"}`)
+	h.NewPassword(c)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if pw.gotSession != "sess-xyz" || pw.gotNewPassword != "New-Pass-1" {
+		t.Errorf("authenticator did not receive challenge response: session=%q newpw=%q", pw.gotSession, pw.gotNewPassword)
+	}
+	if len(rec.Result().Cookies()) == 0 {
+		t.Errorf("expected auth cookies on success")
+	}
+}
+
+func Test_新パスワード設定_session失効は401(t *testing.T) {
+	h := newTestAuthHandler(&fakeUserRepo{}, &fakeInvitationRepo{})
+	h.passwordAuth = &fakePasswordAuth{respondErr: cognito.ErrInvalidCredentials}
+
+	c, rec := postCtx("/api/v2/auth/cognito/new-password",
+		`{"email":"np@example.com","session":"expired","newPassword":"New-Pass-1"}`)
+	h.NewPassword(c)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("want 401, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func Test_新パスワード設定_ポリシー違反は400(t *testing.T) {
+	h := newTestAuthHandler(&fakeUserRepo{}, &fakeInvitationRepo{})
+	h.passwordAuth = &fakePasswordAuth{respondErr: errors.New("InvalidPasswordException")}
+
+	c, rec := postCtx("/api/v2/auth/cognito/new-password",
+		`{"email":"np@example.com","session":"sess","newPassword":"weak"}`)
+	h.NewPassword(c)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d body=%s", rec.Code, rec.Body.String())
 	}
 }

@@ -411,7 +411,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "SES マジック リンク で 招待 メール を 送る。 SoD: SuperAdmin は company_admin のみ 招待 可、 CompanyAdmin は trainee のみ 自社 に 招待 可。",
+                "description": "招待を作成する。method=magic_link（既定）は受諾リンクをメール送信、method=temporary_password は Cognito 一時パスワードを発行してレスポンスで 1 度だけ返す。SoD: SuperAdmin は company_admin のみ 招待 可、 CompanyAdmin は trainee のみ 自社 に 招待 可。",
                 "consumes": [
                     "application/json"
                 ],
@@ -454,6 +454,12 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "ロール 違反",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "一時パスワード方式で対象 email が既に存在",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -5063,6 +5069,10 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "email": {
+                    "type": "string"
+                },
+                "method": {
+                    "description": "Method は招待方式。\"magic_link\"（既定・受諾リンクをメール）か\n\"temporary_password\"（Cognito 一時パスワードを発行し 1 度だけ返す・FRESTYLE-313）。",
                     "type": "string"
                 },
                 "name": {

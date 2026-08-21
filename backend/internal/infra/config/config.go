@@ -95,6 +95,9 @@ type CognitoConfig struct {
 	JwkSetURI    string
 	// Region は USER_PASSWORD_AUTH の InitiateAuth を呼ぶ cognitoidp クライアント用。
 	Region string
+	// UserPoolID は AdminCreateUser（招待の初期パスワード方式・FRESTYLE-313）に使う。
+	// 未設定なら初期パスワード方式は無効（マジックリンクは影響なし）。
+	UserPoolID string
 }
 
 func Load() (*Config, error) {
@@ -117,7 +120,8 @@ func Load() (*Config, error) {
 			TokenURI:     os.Getenv("COGNITO_TOKEN_URI"),
 			JwkSetURI:    os.Getenv("COGNITO_JWK_SET_URI"),
 			// Cognito が別リージョンの構成も表現できるよう COGNITO_REGION を優先し、未設定時のみ AWS_REGION。
-			Region: getEnvOrDefault("COGNITO_REGION", getEnvOrDefault("AWS_REGION", "ap-northeast-1")),
+			Region:     getEnvOrDefault("COGNITO_REGION", getEnvOrDefault("AWS_REGION", "ap-northeast-1")),
+			UserPoolID: os.Getenv("COGNITO_USER_POOL_ID"),
 		},
 		S3: S3Config{
 			Region:           getEnvOrDefault("AWS_REGION", "ap-northeast-1"),

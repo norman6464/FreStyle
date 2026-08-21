@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
+	"github.com/norman6464/FreStyle/backend/internal/infra/cognito"
 	"github.com/norman6464/FreStyle/backend/internal/infra/ses"
 	"github.com/norman6464/FreStyle/backend/internal/infra/smtp"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
@@ -103,9 +104,21 @@ func registerAdminRoutes(parent *gin.RouterGroup, deps *routeDeps, audit gin.Han
 		}
 	}
 
+	// 初期パスワード方式（FRESTYLE-313）。COGNITO_USER_POOL_ID 未設定なら nil を渡し、
+	// handler 側で「未構成」として 400 にする（マジックリンク方式には影響しない）。
+	var tempCreate *usecase.CreateTemporaryPasswordInvitationUseCase
+	if deps.cfg.Cognito.UserPoolID != "" {
+		if creator, err := cognito.NewAdminUserCreator(context.Background(), deps.cfg.Cognito.Region, deps.cfg.Cognito.UserPoolID); err != nil {
+			log.Printf("WARN: admin user creator init failed (temporary password invitations disabled): %v", err)
+		} else {
+			tempCreate = usecase.NewCreateTemporaryPasswordInvitationUseCase(adminInvRepo, creator)
+		}
+	}
+
 	adminInvHandler := NewAdminInvitationHandler(
 		usecase.NewListAdminInvitationsUseCase(adminInvRepo),
 		usecase.NewCreateAdminInvitationUseCase(adminInvRepo, sender, linkBuilder, mailBuilder),
+		tempCreate,
 		usecase.NewCancelAdminInvitationUseCase(adminInvRepo),
 	)
 	g.GET("/admin/invitations", adminInvHandler.List)

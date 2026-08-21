@@ -8,17 +8,24 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
+	"github.com/norman6464/FreStyle/backend/internal/infra/cognito"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
 
 type AdminInvitationHandler struct {
-	list   *usecase.ListAdminInvitationsUseCase
-	create *usecase.CreateAdminInvitationUseCase
-	cancel *usecase.CancelAdminInvitationUseCase
+	list       *usecase.ListAdminInvitationsUseCase
+	create     *usecase.CreateAdminInvitationUseCase
+	tempCreate *usecase.CreateTemporaryPasswordInvitationUseCase
+	cancel     *usecase.CancelAdminInvitationUseCase
 }
 
-func NewAdminInvitationHandler(l *usecase.ListAdminInvitationsUseCase, c *usecase.CreateAdminInvitationUseCase, x *usecase.CancelAdminInvitationUseCase) *AdminInvitationHandler {
-	return &AdminInvitationHandler{list: l, create: c, cancel: x}
+func NewAdminInvitationHandler(
+	l *usecase.ListAdminInvitationsUseCase,
+	c *usecase.CreateAdminInvitationUseCase,
+	t *usecase.CreateTemporaryPasswordInvitationUseCase,
+	x *usecase.CancelAdminInvitationUseCase,
+) *AdminInvitationHandler {
+	return &AdminInvitationHandler{list: l, create: c, tempCreate: t, cancel: x}
 }
 
 // List は招待一覧を返す。SuperAdmin は全社横断（?companyId= で絞り込み可）、
@@ -84,13 +91,22 @@ type createAdminInvReq struct {
 	Email     string          `json:"email" binding:"required"`
 	Role      domain.RoleName `json:"role" binding:"required"`
 	Name      string          `json:"name"`
+	// Method は招待方式。"magic_link"（既定・受諾リンクをメール）か
+	// "temporary_password"（Cognito 一時パスワードを発行し 1 度だけ返す・FRESTYLE-313）。
+	Method string `json:"method"`
 }
+
+// 招待方式の値。
+const (
+	invMethodMagicLink = "magic_link"
+	invMethodTempPass  = "temporary_password"
+)
 
 // Create は招待を作成する。SoD: SuperAdmin は company_admin のみ、CompanyAdmin は自社の trainee のみ招待可。
 // この境界は backend で確実に守り、UI を経由しない呼び出しでも越権招待を防ぐ。
 //
 //	@Summary      招待 作成
-//	@Description  SES マジック リンク で 招待 メール を 送る。 SoD: SuperAdmin は company_admin のみ 招待 可、 CompanyAdmin は trainee のみ 自社 に 招待 可。
+//	@Description  招待を作成する。method=magic_link（既定）は受諾リンクをメール送信、method=temporary_password は Cognito 一時パスワードを発行してレスポンスで 1 度だけ返す。SoD: SuperAdmin は company_admin のみ 招待 可、 CompanyAdmin は trainee のみ 自社 に 招待 可。
 //	@Tags         admin
 //	@Accept       json
 //	@Produce      json
@@ -99,6 +115,7 @@ type createAdminInvReq struct {
 //	@Failure      400   {object}  errorResponse  "バリデーション"
 //	@Failure      401   {object}  errorResponse  "未 認証"
 //	@Failure      403   {object}  errorResponse  "ロール 違反"
+//	@Failure      409   {object}  errorResponse  "一時パスワード方式で対象 email が既に存在"
 //	@Router       /admin/invitations [post]
 //	@Security     CookieAuth
 func (h *AdminInvitationHandler) Create(c *gin.Context) {
@@ -142,14 +159,50 @@ func (h *AdminInvitationHandler) Create(c *gin.Context) {
 		return
 	}
 
-	got, err := h.create.Execute(c.Request.Context(), usecase.CreateAdminInvitationInput{
+	in := usecase.CreateAdminInvitationInput{
 		CompanyID: req.CompanyID, Email: req.Email, Role: req.Role, Name: req.Name,
-	})
+	}
+
+	if req.Method == invMethodTempPass {
+		h.createWithTemporaryPassword(c, in)
+		return
+	}
+
+	// 既定はマジックリンク方式。
+	got, err := h.create.Execute(c.Request.Context(), in)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusCreated, got)
+}
+
+// createWithTemporaryPassword は初期パスワード方式の招待を作り、一時パスワードを 1 度だけ返す。
+// 一時パスワードはレスポンスにのみ含め、保存・ログ出力しない（FRESTYLE-313）。
+func (h *AdminInvitationHandler) createWithTemporaryPassword(c *gin.Context, in usecase.CreateAdminInvitationInput) {
+	if h.tempCreate == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "temporary_password_not_configured"})
+		return
+	}
+	out, err := h.tempCreate.Execute(c.Request.Context(), in)
+	if err != nil {
+		switch {
+		case errors.Is(err, usecase.ErrTemporaryPasswordUnavailable):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "temporary_password_not_configured"})
+		case errors.Is(err, cognito.ErrUserAlreadyExists):
+			c.JSON(http.StatusConflict, gin.H{
+				"error":   "user_already_exists",
+				"message": "この email のユーザーは既に存在します。パスワードの再発行は別途行ってください。",
+			})
+		default:
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		}
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{
+		"invitation":        out.Invitation,
+		"temporaryPassword": out.TemporaryPassword,
+	})
 }
 
 // @Summary      招待 取り消し

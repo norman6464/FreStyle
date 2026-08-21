@@ -123,7 +123,8 @@ FROM generate_series(1, :n_users) AS i;
 INSERT INTO users (id, cognito_sub, email, name, company_id, role, role_id, password_hash, is_active, created_at, updated_at)
 VALUES (
   1000000, 'seed-sub-admin', 'admin@example.test', 'シード運営管理者', NULL,
-  'super_admin', (SELECT id FROM roles WHERE name = 'super_admin'),
+  'super_admin', (SELECT id FROM roles
+                  WHERE name = 'super_admin'),
   '$2a$10$Xgxiol1/CKW0E2qp4P3JOO/fZp3dcDmXxMHk76rHrOLRec8RIaqEm', true, now(), now()
 );
 

@@ -100,7 +100,10 @@ services:
       CODE_RUNNER_URL: ${LOCAL_CODE_RUNNER_URL:-http://code-runner:9000}
       # ローカル専用のパスワードログイン(DB の bcrypt 検証)。Cognito 不要で
       # seed ユーザー(seed1@example.test / password 等)でログインできる。
-      # APP_ENV=local 以外では backend 側が無視する(fail closed・FRESTYLE-311)。
+      # 有効化は「LOCAL_PASSWORD_AUTH=1 かつ 明示的な APP_ENV=local」の両方が必要(FRESTYLE-311)。
+      # APP_ENV を明示注入することで、APP_ENV を設定しない staging 等では有効化しない。
+      # 署名鍵はプロセス毎ランダム(固定鍵の偽造は不可)。
+      APP_ENV: ${APP_ENV:-local}
       LOCAL_PASSWORD_AUTH: ${LOCAL_PASSWORD_AUTH:-1}
     ports:
       # ホストで make run したいときは LOCAL_BACKEND_PORT を変えるか、

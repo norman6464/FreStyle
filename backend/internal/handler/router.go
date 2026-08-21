@@ -108,8 +108,9 @@ func buildJWTVerify(cfg *config.Config) middleware.VerifyFunc {
 	base := buildBaseJWTVerify(cfg)
 	// ローカル専用パスワードログイン（infra/localauth）が有効なときは、その発行トークンを
 	// HMAC 署名検証つきで受け付け、それ以外（実 Cognito のトークン等）は通常経路へ落とす。
-	// APP_ENV=local 以外ではフラグを無視する（fail closed・FRESTYLE-311）。
-	if cfg.LocalPasswordAuth && cfg.AppEnv == "local" {
+	// cfg.LocalPasswordAuth は JWKS 未設定 + 明示 APP_ENV=local を含む解決済み判定なので、
+	// 実 Cognito（JWKS 設定済み）環境ではこの分岐に入らない（fail closed・FRESTYLE-311）。
+	if cfg.LocalPasswordAuth {
 		return func(ctx context.Context, token string) (map[string]any, error) {
 			claims, err := localauth.VerifyToken(token)
 			if err == nil {

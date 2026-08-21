@@ -47,10 +47,6 @@ func toDomainUser(row userRow) *domain.User {
 	if row.RoleID.Valid {
 		u.RoleID = uint16(row.RoleID.Int16)
 	}
-	if row.PasswordHash.Valid {
-		v := row.PasswordHash.String
-		u.PasswordHash = &v
-	}
 	if row.CompanyID.Valid {
 		cid := uint64(row.CompanyID.Int64)
 		u.CompanyID = &cid
@@ -86,14 +82,32 @@ func (r *userRepository) FindActiveByEmail(ctx context.Context, email string) (*
 	if err != nil {
 		return nil, err
 	}
-	row, err := sqlcgen.New(sqlDB).GetActiveUserByEmail(ctx, email)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil
-	}
+	rows, err := sqlcgen.New(sqlDB).ListActiveUsersByEmail(ctx, email)
 	if err != nil {
 		return nil, err
 	}
-	return toDomainUser(userRow(row)), nil
+	if len(rows) == 0 {
+		return nil, nil
+	}
+	// uq_users_email_active があれば最大 1 行。既存データの重複で index 未作成のまま起動して
+	// いる環境では複数行になり得るが、その状態でのログインは別人アカウントへの解決になり得る
+	// ため拒否する（起動時 WARNING の重複解消を促す）。
+	if len(rows) > 1 {
+		return nil, fmt.Errorf("email %q のアクティブユーザーが %d 件あります（uq_users_email_active 未作成。重複を解消してください）", email, len(rows))
+	}
+	row := rows[0]
+	u := toDomainUser(userRow{
+		ID: row.ID, CognitoSub: row.CognitoSub, Email: row.Email, Name: row.Name,
+		CompanyID: row.CompanyID, Role: row.Role, RoleID: row.RoleID,
+		AiChatEnabled: row.AiChatEnabled, IsActive: row.IsActive,
+		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, DeletedAt: row.DeletedAt,
+		RoleName: row.RoleName,
+	})
+	if row.PasswordHash.Valid {
+		v := row.PasswordHash.String
+		u.PasswordHash = &v
+	}
+	return u, nil
 }
 
 func (r *userRepository) CognitoSubjectByUserID(ctx context.Context, userID uint64) (string, error) {

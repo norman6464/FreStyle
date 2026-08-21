@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -21,7 +22,7 @@ type fakeUserSource struct {
 	findErr     error
 	subject     string
 	subjectErr  error
-	ensured     []string // "userID:provider:subject"
+	ensured     []string // "userID:provider:subject" 形式で記録する
 	ensureErr   error
 	ensuredCall int
 }
@@ -36,7 +37,7 @@ func (f *fakeUserSource) CognitoSubjectByUserID(_ context.Context, _ uint64) (st
 
 func (f *fakeUserSource) EnsureOidcIdentity(_ context.Context, userID uint64, provider, subject string) error {
 	f.ensuredCall++
-	f.ensured = append(f.ensured, provider+":"+subject)
+	f.ensured = append(f.ensured, fmt.Sprintf("%d:%s:%s", userID, provider, subject))
 	return f.ensureErr
 }
 
@@ -48,8 +49,8 @@ func hashOf(t *testing.T, password string) *string {
 	return &s
 }
 
-// decodeClaims は発行された JWT の payload を検証用に取り出す（署名検証はしない =
-// router.buildJWTVerify の local 経路と同じ扱い）。
+// decodeClaims はテスト内でクレームを確認するために JWT の payload だけを取り出すヘルパー
+// （署名検証は VerifyToken 側のテストで行う）。
 func decodeClaims(t *testing.T, token string) map[string]any {
 	t.Helper()
 	parts := strings.Split(token, ".")
@@ -87,6 +88,7 @@ func Test_Authenticate_正しいパスワードでCognito互換トークンを�
 	require.NotEmpty(t, tok.AccessToken)
 	require.NotEmpty(t, tok.IDToken)
 	require.True(t, strings.HasPrefix(tok.RefreshToken, "local-"))
+	require.Equal(t, 24*3600, tok.ExpiresIn, "Cookie maxAge が JWT の exp(24h) と一致すること")
 
 	claims := decodeClaims(t, tok.IDToken)
 	assert.Equal(t, "seed-sub-1", claims["sub"], "既存の OIDC identity の subject を sub に使う")
@@ -110,7 +112,7 @@ func Test_Authenticate_identityが無ければ決定的なsubjectを生成して
 
 	claims := decodeClaims(t, tok.IDToken)
 	assert.Equal(t, "local-pw-7", claims["sub"])
-	require.Equal(t, []string{"cognito:local-pw-7"}, users.ensured, "cognito provider として identity を張る")
+	require.Equal(t, []string{"7:cognito:local-pw-7"}, users.ensured, "本人の userID に cognito provider として identity を張る")
 }
 
 func Test_Authenticate_資格情報エラーは詳細を区別しない(t *testing.T) {
@@ -178,6 +180,14 @@ func Test_VerifyToken_署名と失効を検証する(t *testing.T) {
 	t.Run("他所発行の JWT は ErrNotLocalToken", func(t *testing.T) {
 		_, err := VerifyToken("eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ4In0.c2ln")
 		assert.True(t, errors.Is(err, ErrNotLocalToken))
+	})
+
+	t.Run("exp なしはフォールバックさせないエラー", func(t *testing.T) {
+		noExp, err := mintJWT(map[string]any{"sub": "x", "iss": Issuer})
+		require.NoError(t, err)
+		_, err = VerifyToken(noExp)
+		require.Error(t, err)
+		assert.False(t, errors.Is(err, ErrNotLocalToken))
 	})
 
 	t.Run("失効はフォールバックさせないエラー", func(t *testing.T) {

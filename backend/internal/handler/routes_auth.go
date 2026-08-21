@@ -45,22 +45,23 @@ func registerAuthPublicRoutes(g *gin.RouterGroup, deps *routeDeps) *AuthHandler 
 // AWS 認証情報の解決に失敗しても起動は止めず、nil のまま渡して /auth/cognito/login だけ
 // 500 にする（Hosted UI ログインには影響させない）。
 func buildPasswordAuthenticator(deps *routeDeps) passwordAuthenticator {
+	// cfg.LocalPasswordAuth は「LOCAL_PASSWORD_AUTH + 明示 APP_ENV=local + JWKS 未設定」を
+	// すべて満たしたときだけ true（config.Load で解決済み）。localauth.New の appEnv ガードは
+	// 二重の安全弁として残す。
 	if deps.cfg.LocalPasswordAuth {
-		if deps.cfg.AppEnv != "local" {
-			log.Printf("ERROR: LOCAL_PASSWORD_AUTH は APP_ENV=local 専用です（現在 %q）。Cognito 経路を使用します", deps.cfg.AppEnv)
-		} else if la, err := localauth.New(deps.userRepo, deps.cfg.AppEnv); err != nil {
+		if la, err := localauth.New(deps.userRepo, deps.cfg.AppEnv); err != nil {
 			log.Printf("ERROR: localauth init failed: %v", err)
 		} else {
 			log.Printf("WARN: ローカル専用のパスワードログイン（DB bcrypt 検証）を使用します（本番では設定禁止）")
 			return la
 		}
 	}
-	if pa, err := cognito.NewPasswordAuthenticator(context.Background(), deps.cfg.Cognito.Region, deps.cfg.Cognito.ClientID, deps.cfg.Cognito.ClientSecret); err != nil {
+	pa, err := cognito.NewPasswordAuthenticator(context.Background(), deps.cfg.Cognito.Region, deps.cfg.Cognito.ClientID, deps.cfg.Cognito.ClientSecret)
+	if err != nil {
 		log.Printf("password authenticator init failed: %v", err)
 		return nil
-	} else {
-		return pa
 	}
+	return pa
 }
 
 // registerAuthAuthedRoutes は認証必須の自己情報取得 (/auth/me) を登録する。

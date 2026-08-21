@@ -1,8 +1,9 @@
 // Package localauth はローカル開発専用のパスワードログイン実装を提供する。
-// users.password_hash（bcrypt）を検証し、Cognito 互換の JWT（署名は開発用の固定鍵 HMAC）を
-// 発行する。JWT 検証は APP_ENV=local + COGNITO_JWK_SET_URI 未設定のときの署名スキップ経路
-// （router.buildJWTVerify）が前提。**本番では絶対に配線しない**（New が local 以外を拒否し、
-// wiring 側も二重に弾く。FRESTYLE-311 / FRESTYLE-249 の決定）。
+// users.password_hash（bcrypt）を検証し、HMAC 署名付きの JWT を発行する。
+// 検証は本パッケージの VerifyToken が HMAC 署名・iss・exp を確認し（router.buildJWTVerify が
+// 呼ぶ）、localauth 発行でないトークンは従来経路（JWKS 等）へフォールバックされる。
+// **本番では絶対に配線しない**（New が local 以外を拒否し、wiring / verify 側も二重に弾く。
+// FRESTYLE-311 / FRESTYLE-249 の決定）。
 package localauth
 
 import (
@@ -55,12 +56,14 @@ func (a *Authenticator) Authenticate(ctx context.Context, email, password string
 	if err != nil {
 		return nil, fmt.Errorf("localauth: find user: %w", err)
 	}
+	// loginable の否定形とハッシュ選択が同じ述語になるよう 1 か所で判定する。
+	loginable := user != nil && user.PasswordHash != nil && *user.PasswordHash != ""
 	hash := dummyHash
-	if user != nil && user.PasswordHash != nil && *user.PasswordHash != "" {
+	if loginable {
 		hash = *user.PasswordHash
 	}
 	compareErr := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
-	if user == nil || user.PasswordHash == nil || *user.PasswordHash == "" || compareErr != nil {
+	if !loginable || compareErr != nil {
 		return nil, cognito.ErrInvalidCredentials
 	}
 
@@ -70,14 +73,14 @@ func (a *Authenticator) Authenticate(ctx context.Context, email, password string
 	}
 
 	now := a.now()
+	const ttl = 24 * time.Hour // ローカル開発用。refresh は Cognito 前提のため失効後は再ログインする。
 	claims := map[string]any{
 		"sub":   subject,
 		"email": user.Email,
 		"name":  user.Name,
 		"iat":   now.Unix(),
-		// ローカル開発用に 24 時間。refresh は Cognito 前提のため失効後は再ログインする。
-		"exp": now.Add(24 * time.Hour).Unix(),
-		"iss": "frestyle-localauth",
+		"exp":   now.Add(ttl).Unix(),
+		"iss":   Issuer,
 	}
 	token, err := mintJWT(claims)
 	if err != nil {
@@ -93,6 +96,9 @@ func (a *Authenticator) Authenticate(ctx context.Context, email, password string
 		AccessToken:  token,
 		IDToken:      token,
 		RefreshToken: "local-" + hex.EncodeToString(refresh),
+		// access_token Cookie の maxAge を JWT の exp（24h）に合わせる。未設定だと handler 側が
+		// 既定 1 時間へ丸め、JWT は生きているのに Cookie だけ切れて 1h で 401 になる。
+		ExpiresIn: int(ttl.Seconds()),
 	}, nil
 }
 

@@ -305,4 +305,41 @@ func TestUserNormalization_Integration(t *testing.T) {
 		).Scan(&emailNullable).Error)
 		require.Equal(t, "NO", emailNullable, "email の NOT NULL が AutoMigrate 再実行で剥がれた")
 	})
+
+	t.Run("FindActiveByEmail はハッシュ込みで 1 件返し、無効・削除行は除外する", func(t *testing.T) {
+		truncate(t)
+		hash := "$2a$10$Xgxiol1/CKW0E2qp4P3JOO/fZp3dcDmXxMHk76rHrOLRec8RIaqEm"
+		u := &domain.User{CognitoSub: "mail-find-1", Email: "find@example.com", Role: domain.RoleTrainee, PasswordHash: &hash}
+		require.NoError(t, repo.Create(ctx, u))
+
+		got, err := repo.FindActiveByEmail(ctx, "find@example.com")
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		require.NotNil(t, got.PasswordHash)
+		require.Equal(t, hash, *got.PasswordHash)
+
+		// 無効化すると引けない。
+		require.NoError(t, repo.UpdateActive(ctx, u.ID, false))
+		got, err = repo.FindActiveByEmail(ctx, "find@example.com")
+		require.NoError(t, err)
+		require.Nil(t, got)
+	})
+
+	t.Run("FindActiveByEmail は email 重複（index 未作成環境）で曖昧ログインを拒否する", func(t *testing.T) {
+		truncate(t)
+		// uq_users_email_active が作れない既存環境を再現するため一時的に index を落とす。
+		require.NoError(t, db.Exec(`DROP INDEX IF EXISTS uq_users_email_active`).Error)
+		defer func() {
+			require.NoError(t, database.ApplyUserNormalizationConstraints(db))
+		}()
+
+		for _, sub := range []string{"dup-a", "dup-b"} {
+			require.NoError(t, repo.Create(ctx, &domain.User{
+				CognitoSub: sub, Email: "dup2@example.com", Role: domain.RoleTrainee,
+			}))
+		}
+
+		_, err := repo.FindActiveByEmail(ctx, "dup2@example.com")
+		require.ErrorContains(t, err, "重複を解消")
+	})
 }

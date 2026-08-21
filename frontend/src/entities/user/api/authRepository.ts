@@ -22,6 +22,18 @@ export interface LoginRequest {
   password: string;
 }
 
+/** loginWithChallenge の結果。通常成功か、初回パスワード設定が必要か。 */
+export type LoginOutcome =
+  | { kind: 'success' }
+  | { kind: 'new_password_required'; session: string };
+
+/** 一時パスワード初回ログインの新パスワード設定リクエスト。 */
+export interface NewPasswordRequest {
+  email: string;
+  session: string;
+  newPassword: string;
+}
+
 export interface ForgotPasswordRequest {
   email: string;
 }
@@ -61,6 +73,33 @@ class AuthRepository {
     const config: PublicSafeRequestConfig = { skipAuthRedirect: true };
     const response = await apiClient.post(AUTH.login, request, config);
     return response.data;
+  }
+
+  /**
+   * メール / パスワードでログインし、結果を判別して返す。
+   *
+   * 一時パスワードでの初回ログインは backend が 200 で
+   * `{ challenge: 'NEW_PASSWORD_REQUIRED', session }` を返す（トークンはまだ発行されない）。
+   * その場合は session を持ち帰り、submitNewPassword で新パスワードを設定する。
+   * それ以外（通常成功）は Cookie が発行済みなので success を返す。
+   */
+  async loginWithChallenge(request: LoginRequest): Promise<LoginOutcome> {
+    const config: PublicSafeRequestConfig = { skipAuthRedirect: true };
+    const response = await apiClient.post(AUTH.login, request, config);
+    const data = response.data as { challenge?: string; session?: string };
+    if (data?.challenge === 'NEW_PASSWORD_REQUIRED' && data.session) {
+      return { kind: 'new_password_required', session: data.session };
+    }
+    return { kind: 'success' };
+  }
+
+  /**
+   * NEW_PASSWORD_REQUIRED チャレンジに新パスワードで応答する（初回ログインの本人設定）。
+   * 成功で認証 Cookie が発行される。session 失効は 401、パスワードポリシー違反は 400。
+   */
+  async submitNewPassword(request: NewPasswordRequest): Promise<void> {
+    const config: PublicSafeRequestConfig = { skipAuthRedirect: true };
+    await apiClient.post(AUTH.newPassword, request, config);
   }
 
   /**

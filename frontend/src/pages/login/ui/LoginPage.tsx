@@ -9,10 +9,23 @@ import { useLoginPage } from '../model/useLoginPage';
 import { CheckCircleIcon } from '@heroicons/react/24/outline';
 
 export default function LoginPage() {
-  const { form, loginMessage, flashMessage, loading, handleLogin, handleChange } = useLoginPage();
+  const {
+    form,
+    loginMessage,
+    flashMessage,
+    loading,
+    handleLogin,
+    handleChange,
+    newPasswordPhase,
+    newPassword,
+    newPasswordConfirm,
+    setNewPassword,
+    setNewPasswordConfirm,
+    handleNewPassword,
+  } = useLoginPage();
 
   return (
-    <AuthLayout title="ログイン" header={<PublicHeader />}>
+    <AuthLayout title={newPasswordPhase ? '新しいパスワードの設定' : 'ログイン'} header={<PublicHeader />}>
       {/* フラッシュメッセージ（ログアウト後・招待受諾後などの成功通知） */}
       {flashMessage && (
         <p
@@ -33,32 +46,66 @@ export default function LoginPage() {
           {loginMessage.text}
         </p>
       )}
+      {/* 初回ログイン案内など（成功系の通知） */}
+      {loginMessage?.type === 'success' && (
+        <p
+          role="status"
+          className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-center font-medium text-emerald-700"
+        >
+          {loginMessage.text}
+        </p>
+      )}
 
-      {/* メール・パスワードフォーム（Cognito USER_PASSWORD_AUTH） */}
-      <form onSubmit={handleLogin} aria-label="ログインフォーム">
-        <InputField
-          label="メールアドレス"
-          name="email"
-          type="email"
-          value={form.email}
-          onChange={handleChange}
-          disabled={loading}
-        />
-        <InputField
-          label="パスワード"
-          name="password"
-          type="password"
-          value={form.password}
-          onChange={handleChange}
-          disabled={loading}
-        />
-        <Button variant="primary" fullWidth type="submit" loading={loading}>
-          {loading ? 'ログイン中...' : 'ログイン'}
-        </Button>
-      </form>
+      {newPasswordPhase ? (
+        /* 一時パスワード初回ログイン: 新パスワード設定フォーム（FRESTYLE-313） */
+        <form onSubmit={handleNewPassword} aria-label="新しいパスワードの設定フォーム">
+          <InputField
+            label="新しいパスワード"
+            name="newPassword"
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            disabled={loading}
+          />
+          <InputField
+            label="新しいパスワード（確認）"
+            name="newPasswordConfirm"
+            type="password"
+            value={newPasswordConfirm}
+            onChange={(e) => setNewPasswordConfirm(e.target.value)}
+            disabled={loading}
+          />
+          <Button variant="primary" fullWidth type="submit" loading={loading}>
+            {loading ? '設定中...' : 'パスワードを設定してログイン'}
+          </Button>
+        </form>
+      ) : (
+        <>
+          {/* メール・パスワードフォーム（Cognito USER_PASSWORD_AUTH） */}
+          <form onSubmit={handleLogin} aria-label="ログインフォーム">
+            <InputField
+              label="メールアドレス"
+              name="email"
+              type="email"
+              value={form.email}
+              onChange={handleChange}
+              disabled={loading}
+            />
+            <InputField
+              label="パスワード"
+              name="password"
+              type="password"
+              value={form.password}
+              onChange={handleChange}
+              disabled={loading}
+            />
+            <Button variant="primary" fullWidth type="submit" loading={loading}>
+              {loading ? 'ログイン中...' : 'ログイン'}
+            </Button>
+          </form>
 
-      {/* 区切り線 */}
-      <div className="relative my-5">
+          {/* 区切り線 */}
+          <div className="relative my-5">
         <div className="absolute inset-0 flex items-center">
           <div className="w-full border-t border-surface-3"></div>
         </div>
@@ -67,19 +114,21 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* Google で直接ログイン（Hosted UI） */}
-      <SNSSignInButton
-        provider="google"
-        onClick={() => {
-          window.location.href = getCognitoAuthUrl('Google');
-        }}
-      />
+          {/* Google で直接ログイン（Hosted UI） */}
+          <SNSSignInButton
+            provider="google"
+            onClick={() => {
+              window.location.href = getCognitoAuthUrl('Google');
+            }}
+          />
 
-      <p className="mt-5 text-center text-sm text-[var(--color-text-muted)]">
-        招待された方は招待メールのリンクからログインしてください。
-        <br />
-        企業の方は <LinkText to="/company-application">利用申請</LinkText> から。
-      </p>
+          <p className="mt-5 text-center text-sm text-[var(--color-text-muted)]">
+            招待された方は招待メールのリンクからログインしてください。
+            <br />
+            企業の方は <LinkText to="/company-application">利用申請</LinkText> から。
+          </p>
+        </>
+      )}
     </AuthLayout>
   );
 }

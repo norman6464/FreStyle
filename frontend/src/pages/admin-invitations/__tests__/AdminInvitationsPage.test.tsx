@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 // Redux: 管理者としてページを表示できる状態にする。
@@ -15,10 +15,15 @@ vi.mock('@/entities/user', () => ({
 }));
 
 const listInvitations = vi.fn();
+const { createInvitation, createTempPassword } = vi.hoisted(() => ({
+  createInvitation: vi.fn(),
+  createTempPassword: vi.fn(),
+}));
 vi.mock('@/entities/invitation', () => ({
   AdminInvitationRepository: {
     list: () => listInvitations(),
-    create: vi.fn(),
+    create: (form: unknown) => createInvitation(form),
+    createWithTemporaryPassword: (form: unknown) => createTempPassword(form),
     cancel: vi.fn(),
   },
 }));
@@ -97,5 +102,37 @@ describe('AdminInvitationsPage のロール別データ取得', () => {
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent('データの取得に失敗しました');
     });
+  });
+
+  it('初期パスワード方式で発行された一時パスワードを 1 度だけ表示する', async () => {
+    getCurrentUser.mockResolvedValue({ id: 2, role: 'company_admin', companyId: 1 });
+    listInvitations.mockResolvedValue([]);
+    createTempPassword.mockResolvedValue({
+      invitation: { ...pendingInvitation, email: 'new@example.com' },
+      temporaryPassword: 'Temp-Pass-9!',
+    });
+
+    renderPage();
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('所属会社（自社に固定）')).toBeInTheDocument();
+    });
+
+    // 方式を初期パスワードに切り替え、email を入れて送信。
+    fireEvent.change(screen.getByPlaceholderText('newmember@example.com'), {
+      target: { value: 'new@example.com' },
+    });
+    fireEvent.click(screen.getByLabelText(/初期パスワードを発行/));
+    fireEvent.click(screen.getByRole('button', { name: '初期パスワードを発行' }));
+
+    await waitFor(() => {
+      expect(createTempPassword).toHaveBeenCalledTimes(1);
+    });
+    // 一時パスワードが表示される。
+    expect(await screen.findByText('Temp-Pass-9!')).toBeInTheDocument();
+    expect(screen.getByText(/二度と表示できません/)).toBeInTheDocument();
+
+    // 「閉じる」で表示が消える。
+    fireEvent.click(screen.getByRole('button', { name: /閉じる/ }));
+    expect(screen.queryByText('Temp-Pass-9!')).not.toBeInTheDocument();
   });
 });

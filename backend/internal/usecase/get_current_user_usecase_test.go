@@ -32,7 +32,11 @@ func (s *stubUserRepo) ListByCompanyID(_ context.Context, _ uint64) ([]domain.Us
 func (s *stubUserRepo) UpdateAiChatEnabled(_ context.Context, _ uint64, _ *bool) error {
 	return s.err
 }
-func (s *stubUserRepo) Create(_ context.Context, _ *domain.User) error { return s.err }
+
+func (s *stubUserRepo) CreateWithOidcIdentity(_ context.Context, _ *domain.User, _, _ string) error {
+	return s.err
+}
+
 func (s *stubUserRepo) UpdateName(_ context.Context, _ uint64, _ string) error {
 	return s.err
 }
@@ -61,7 +65,7 @@ func (s *stubUserRepo) CognitoSubjectByUserID(context.Context, uint64) (string, 
 }
 
 func Test_現在ユーザー取得_見つかる(t *testing.T) {
-	want := &domain.User{ID: 1, CognitoSub: "abc", Email: "u@example.com"}
+	want := &domain.User{ID: 1, Email: "u@example.com"}
 	uc := NewGetCurrentUserUseCase(&stubUserRepo{user: want})
 	got, err := uc.Execute(context.Background(), "abc")
 	if err != nil {

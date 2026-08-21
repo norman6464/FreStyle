@@ -22,9 +22,12 @@ type UserRepository interface {
 	ListByRole(ctx context.Context, role domain.RoleName) ([]domain.User, error)
 	// ListByCompanyID は会社単位の従業員一覧を返す（company_admin の従業員管理画面用）。
 	ListByCompanyID(ctx context.Context, companyID uint64) ([]domain.User, error)
-	Create(ctx context.Context, user *domain.User) error
+	// CreateWithOidcIdentity は users 行と OIDC identity（provider + subject）を
+	// 単一トランザクションで作成する。正規化後は「識別子を持たないユーザー」は存在し得ない
+	// ため、ユーザー作成は必ず identity 作成と不可分に行う（片方だけ成功する状態を作らない）。
+	CreateWithOidcIdentity(ctx context.Context, user *domain.User, provider, subject string) error
 	// EnsureOidcIdentity は OIDC identity（provider + subject）を無ければ作る（冪等）。
-	// OIDC ログインでのユーザー作成直後と、既存ユーザーのセルフヒールで呼ばれる。
+	// 既存ユーザーのセルフヒール（provider 追加・張り直し）で呼ばれる。
 	EnsureOidcIdentity(ctx context.Context, userID uint64, provider, subject string) error
 	// UpdateAiChatEnabled は AI チャットの個別上書きを更新する（nil で会社設定に従う）。
 	UpdateAiChatEnabled(ctx context.Context, userID uint64, enabled *bool) error

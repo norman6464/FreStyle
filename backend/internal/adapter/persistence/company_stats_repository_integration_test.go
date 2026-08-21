@@ -27,29 +27,31 @@ func TestCompanyStatsRepository_Integration(t *testing.T) {
 
 	c1 := uint64(1)
 	c2 := uint64(2)
-	mk := func(sub string, cid *uint64, role domain.RoleName, active bool) *domain.User {
-		return &domain.User{
-			CognitoSub: sub, Email: sub + "@example.com", Name: sub,
-			Role: role, CompanyID: cid, IsActive: active,
+	// sub をそのまま OIDC subject に使い、users 行と identity を対で作る。
+	create := func(sub string, cid *uint64, role domain.RoleName) {
+		u := &domain.User{
+			Email: sub + "@example.com", Name: sub,
+			Role: role, CompanyID: cid, IsActive: true,
 		}
+		require.NoError(t, userRepo.CreateWithOidcIdentity(ctx, u, domain.OidcProviderCognito, sub))
 	}
 	// 会社1: trainee有効 / trainee無効 / company_admin有効 / trainee(論理削除→除外)
-	require.NoError(t, userRepo.Create(ctx, mk("a", &c1, domain.RoleTrainee, true)))
+	create("a", &c1, domain.RoleTrainee)
 	// b は無効ユーザー。GORM は is_active の default:true 指定によりゼロ値(false)を省略して
-	// DB デフォルト true で挿入するため、Create 後に明示的に UpdateActive(false) で無効化する。
-	require.NoError(t, userRepo.Create(ctx, mk("b", &c1, domain.RoleTrainee, true)))
+	// DB デフォルト true で挿入するため、作成後に明示的に UpdateActive(false) で無効化する。
+	create("b", &c1, domain.RoleTrainee)
 	bUser, err := userRepo.FindByCognitoSub(ctx, "b")
 	require.NoError(t, err)
 	require.NoError(t, userRepo.UpdateActive(ctx, bUser.ID, false))
-	require.NoError(t, userRepo.Create(ctx, mk("c", &c1, domain.RoleCompanyAdmin, true)))
-	require.NoError(t, userRepo.Create(ctx, mk("d", &c1, domain.RoleTrainee, true)))
+	create("c", &c1, domain.RoleCompanyAdmin)
+	create("d", &c1, domain.RoleTrainee)
 	dUser, err := userRepo.FindByCognitoSub(ctx, "d")
 	require.NoError(t, err)
 	require.NoError(t, userRepo.SoftDelete(ctx, dUser.ID))
 	// 会社2: trainee有効 1
-	require.NoError(t, userRepo.Create(ctx, mk("e", &c2, domain.RoleTrainee, true)))
+	create("e", &c2, domain.RoleTrainee)
 	// 会社未所属（super_admin）→ company_id IS NULL で除外
-	require.NoError(t, userRepo.Create(ctx, mk("z", nil, domain.RoleSuperAdmin, true)))
+	create("z", nil, domain.RoleSuperAdmin)
 
 	rows, err := counter.CountMembersByCompany(ctx)
 	require.NoError(t, err)

@@ -12,7 +12,9 @@ import (
 
 type upsertUserRepoSpy struct {
 	stubUserRepo
-	created *domain.User
+	created         *domain.User
+	createdProvider string
+	createdSubject  string
 
 	findByCognitoSubCalls int
 	createCalls           int
@@ -183,9 +185,10 @@ func Test_UpsertUserFromIDToken_招待のRoleとCompanyを適用してAccepted�
 	}
 }
 
-func (s *upsertUserRepoSpy) Create(
+func (s *upsertUserRepoSpy) CreateWithOidcIdentity(
 	_ context.Context,
 	user *domain.User,
+	provider, subject string,
 ) error {
 	s.createCalls++
 	if s.createErr != nil {
@@ -194,6 +197,8 @@ func (s *upsertUserRepoSpy) Create(
 
 	copied := *user
 	s.created = &copied
+	s.createdProvider = provider
+	s.createdSubject = subject
 	return nil
 }
 
@@ -240,11 +245,10 @@ func Test_UpsertUserFromIDToken_既存TraineeをCompanyAdminへ昇格して会�
 	users := &upsertUserRepoSpy{
 		stubUserRepo: stubUserRepo{
 			user: &domain.User{
-				ID:         7,
-				CognitoSub: "existing-sub",
-				Email:      "existing@example.com",
-				Name:       "Existing User",
-				Role:       domain.RoleTrainee,
+				ID:    7,
+				Email: "existing@example.com",
+				Name:  "Existing User",
+				Role:  domain.RoleTrainee,
 			},
 		},
 	}
@@ -692,11 +696,10 @@ func Test_UpsertUserFromIDToken_名前補完の更新に失敗する(t *testing.
 	users := &upsertUserRepoSpy{
 		stubUserRepo: stubUserRepo{
 			user: &domain.User{
-				ID:         7,
-				CognitoSub: "existing-user",
-				Email:      "existing@example.com",
-				Name:       "existing@example.com",
-				Role:       domain.RoleTrainee,
+				ID:    7,
+				Email: "existing@example.com",
+				Name:  "existing@example.com",
+				Role:  domain.RoleTrainee,
 			},
 		},
 		nameUpdateErr: mutationErr,
@@ -739,11 +742,10 @@ func Test_UpsertUserFromIDToken_ロール更新に失敗する(t *testing.T) {
 	users := &upsertUserRepoSpy{
 		stubUserRepo: stubUserRepo{
 			user: &domain.User{
-				ID:         7,
-				CognitoSub: "existing-user",
-				Email:      "existing@example.com",
-				Name:       "Existing User",
-				Role:       domain.RoleTrainee,
+				ID:    7,
+				Email: "existing@example.com",
+				Name:  "Existing User",
+				Role:  domain.RoleTrainee,
 			},
 		},
 		roleUpdateErr: mutationErr,
@@ -785,11 +787,10 @@ func Test_UpsertUserFromIDToken_会社更新に失敗する(t *testing.T) {
 	users := &upsertUserRepoSpy{
 		stubUserRepo: stubUserRepo{
 			user: &domain.User{
-				ID:         7,
-				CognitoSub: "existing-user",
-				Email:      "existing@example.com",
-				Name:       "Existing User",
-				Role:       domain.RoleTrainee,
+				ID:    7,
+				Email: "existing@example.com",
+				Name:  "Existing User",
+				Role:  domain.RoleTrainee,
 			},
 		},
 		companyUpdateErr: mutationErr,
@@ -834,11 +835,10 @@ func Test_UpsertUserFromIDToken_招待ステータス更新に失敗する(t *te
 	users := &upsertUserRepoSpy{
 		stubUserRepo: stubUserRepo{
 			user: &domain.User{
-				ID:         7,
-				CognitoSub: "existing-user",
-				Email:      "existing@example.com",
-				Name:       "Existing User",
-				Role:       domain.RoleTrainee,
+				ID:    7,
+				Email: "existing@example.com",
+				Name:  "Existing User",
+				Role:  domain.RoleTrainee,
 			},
 		},
 	}
@@ -878,11 +878,10 @@ func Test_UpsertUserFromIDToken_既存Cognito管理者は招待を適用しな�
 	users := &upsertUserRepoSpy{
 		stubUserRepo: stubUserRepo{
 			user: &domain.User{
-				ID:         70,
-				CognitoSub: "existing-admin",
-				Email:      "admin@example.com",
-				Name:       "Existing Admin",
-				Role:       domain.RoleTrainee,
+				ID:    70,
+				Email: "admin@example.com",
+				Name:  "Existing Admin",
+				Role:  domain.RoleTrainee,
 			},
 		},
 	}
@@ -1046,19 +1045,20 @@ func Test_UpsertUserFromIDToken_新規作成でOIDCidentityを対で作る(t *te
 	if !allowed {
 		t.Fatal("招待ありの新規ユーザーは許可されるべき")
 	}
-	if users.ensureIdentityCalls != 1 {
-		t.Fatalf("EnsureOidcIdentity calls = %d, want 1", users.ensureIdentityCalls)
+	// 新規ユーザーは users 行と identity を CreateWithOidcIdentity で不可分に作る。
+	if users.createCalls != 1 {
+		t.Fatalf("CreateWithOidcIdentity calls = %d, want 1", users.createCalls)
 	}
-	if users.ensuredProvider != domain.OidcProviderCognito {
-		t.Fatalf("provider = %q, want %q", users.ensuredProvider, domain.OidcProviderCognito)
+	if users.createdProvider != domain.OidcProviderCognito {
+		t.Fatalf("provider = %q, want %q", users.createdProvider, domain.OidcProviderCognito)
 	}
-	if users.ensuredSubject != "new-sub-1" {
-		t.Fatalf("subject = %q, want %q", users.ensuredSubject, "new-sub-1")
+	if users.createdSubject != "new-sub-1" {
+		t.Fatalf("subject = %q, want %q", users.createdSubject, "new-sub-1")
 	}
 }
 
 func Test_UpsertUserFromIDToken_既存ユーザーでもidentityをセルフヒールする(t *testing.T) {
-	existing := &domain.User{ID: 77, CognitoSub: "old-sub", Email: "e@example.com", Role: domain.RoleTrainee}
+	existing := &domain.User{ID: 77, Email: "e@example.com", Role: domain.RoleTrainee}
 	users := &upsertUserRepoSpy{stubUserRepo: stubUserRepo{user: existing}}
 	uc := newUpsertUserFromIDTokenUseCaseForTest(users, &upsertInvitationRepoSpy{})
 

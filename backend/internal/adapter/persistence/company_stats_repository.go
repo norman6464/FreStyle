@@ -27,9 +27,9 @@ func (r *companyStatsRepository) CountMembersByCompany(ctx context.Context) ([]r
 			"company_id AS company_id, "+
 				"COUNT(*) AS total, "+
 				"COUNT(*) FILTER (WHERE is_active) AS active, "+
-				// 移行期間中は旧カラム role が正（PR3 の旧カラム撤去で role_id 基準へ切替・FRESTYLE-311）。
-				"COUNT(*) FILTER (WHERE role = ?) AS trainees",
-			string(domain.RoleTrainee),
+				// trainee 判定は正規化後の正である role_id で行う（FRESTYLE-311）。
+				"COUNT(*) FILTER (WHERE role_id = ?) AS trainees",
+			domain.RoleIDTrainee,
 		).
 		Where("company_id IS NOT NULL AND deleted_at IS NULL").
 		Group("company_id").

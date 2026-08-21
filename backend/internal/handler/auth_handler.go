@@ -111,7 +111,6 @@ func (h *AuthHandler) Me(c *gin.Context) {
 	}
 	resp := gin.H{
 		"id":                       user.ID,
-		"cognitoSub":               user.CognitoSub,
 		"email":                    user.Email,
 		"name":                     user.Name,
 		"role":                     user.Role,

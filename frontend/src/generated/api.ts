@@ -79,7 +79,7 @@ export interface paths {
         };
         /**
          * 会社 一覧 (SuperAdmin)
-         * @description 全 company を 返す。 super_admin 専用 画面 用。 認可 は middleware で 別途 担保。
+         * @description 全 company を 返す。 super_admin 専用。 顧客 企業 の 一覧 な ので 他 role に は 出さ ない。
          */
         get: {
             parameters: {
@@ -97,6 +97,24 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.Company"][];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description super_admin 以外 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
                     };
                 };
                 /** @description DB 失敗 */
@@ -496,7 +514,7 @@ export interface paths {
         put?: never;
         /**
          * 招待 作成
-         * @description SES マジック リンク で 招待 メール を 送る。 SoD: SuperAdmin は company_admin のみ 招待 可、 CompanyAdmin は trainee のみ 自社 に 招待 可。
+         * @description 招待を作成する。method=magic_link（既定）は受諾リンクをメール送信、method=temporary_password は Cognito 一時パスワードを発行してレスポンスで 1 度だけ返す。SoD: SuperAdmin は company_admin のみ 招待 可、 CompanyAdmin は trainee のみ 自社 に 招待 可。
          */
         post: {
             parameters: {
@@ -512,7 +530,7 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Created */
+                /** @description magic_link 方式は招待行。temporary_password 方式は {invitation, temporaryPassword} を返し temporaryPassword は 1 度だけ提示される */
                 201: {
                     headers: {
                         [name: string]: unknown;
@@ -521,7 +539,7 @@ export interface paths {
                         "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.AdminInvitation"];
                     };
                 };
-                /** @description バリデーション */
+                /** @description バリデーション / 未知の method / 一時パスワード方式が未構成 */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -541,6 +559,15 @@ export interface paths {
                 };
                 /** @description ロール 違反 */
                 403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 一時パスワード方式で対象 email が既に存在 */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -569,6 +596,7 @@ export interface paths {
         /**
          * 招待 取り消し
          * @description 指定 招待 の status を canceled に 更新。 行 は 物理 削除 せず 監査 用 に 残す。
+         *     super_admin は 全社、 company_admin は 自社 の 招待 のみ 取消 できる。
          */
         delete: {
             parameters: {
@@ -589,8 +617,35 @@ export interface paths {
                     };
                     content?: never;
                 };
-                /** @description DB 失敗 */
+                /** @description 不正 な ID / DB 失敗 */
                 400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 未 認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 管理者 以外 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 招待 が 存在 し ない (他社 の 招待 を 含む) */
+                404: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -1612,6 +1667,87 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/cognito/new-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 初回パスワード設定（一時パスワードログイン）
+         * @description 一時パスワードでの初回ログイン時に返る NEW_PASSWORD_REQUIRED チャレンジへ
+         *     新パスワードで応答する。成功で認証 Cookie を発行する。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description email / session / 新パスワード */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["internal_handler.newPasswordReq"];
+                };
+            };
+            responses: {
+                /** @description 設定してログイン */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.messageResponse"];
+                    };
+                };
+                /** @description 入力エラー / パスワードポリシー違反 */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description session 失効等 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description 招待が必要 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+                /** @description レート制限超過 */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.errorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/login": {
         parameters: {
             query?: never;
@@ -1760,7 +1896,7 @@ export interface paths {
         };
         /**
          * current user 情報 取得
-         * @description Cookie 認証 を 元 に 現在 ログイン 中 の user 情報 (id / email / role / isAdmin / onboarded 等) を 返す。
+         * @description Cookie 認証 を 元 に 現在 ログイン 中 の user 情報 (id / email / role / isAdmin 等) を 返す。
          */
         get: {
             parameters: {
@@ -4167,61 +4303,6 @@ export interface paths {
         };
         trace?: never;
     };
-    "/profile/me/onboarding/complete": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * オンボーディング 完了 通知
-         * @description Welcome 画面 「はじめる」 押下 で onboarded_at = NOW() に 更新。 冪等 (再 押下 で も 初回 日時 保持)。
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description 成功 (本文 なし) */
-                204: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description 未 認証 */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "*/*": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-                /** @description 内部 エラー */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "*/*": components["schemas"]["internal_handler.errorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/profile/{userId}": {
         parameters: {
             query?: never;
@@ -4433,6 +4514,7 @@ export interface paths {
         /**
          * セッション ノート 取得
          * @description AI チャット セッション に 紐づく ノート (= 学習 者 が セッション ごと に 残した メモ) を 取得。 存在 し ない 場合 は 404。
+         *     所有者 本人 の ノート のみ 返す。 他人 の ノート は 存在 を 漏らさ ない ため 404 と する。
          */
         get: {
             parameters: {
@@ -4455,7 +4537,7 @@ export interface paths {
                         "application/json": components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.SessionNote"];
                     };
                 };
-                /** @description DB 失敗 */
+                /** @description 不正 な sessionId / DB 失敗 */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -4997,7 +5079,7 @@ export interface components {
             expiresAt?: string;
             id?: number;
             name?: string;
-            role?: string;
+            role?: components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.RoleName"];
             status?: string;
         };
         "github_com_norman6464_FreStyle_backend_internal_domain.AiChatMessage": {
@@ -5154,7 +5236,10 @@ export interface components {
         "github_com_norman6464_FreStyle_backend_internal_domain.NoteImageUploadURL": {
             expiresIn?: number;
             key?: string;
-            /** @description PublicURL はアップロード後に img / Markdown から参照する配信用 URL（CDN 経由）。 */
+            /**
+             * @description PublicURL はアップロード後に img / Markdown から参照する表示用パス。
+             *     配信ドメインは含めない（FRESTYLE-234。ドメイン変更で保存済みデータが壊れないように）。
+             */
             publicUrl?: string;
             url?: string;
         };
@@ -5182,6 +5267,8 @@ export interface components {
             updatedAt?: string;
             userId?: number;
         };
+        /** @enum {string} */
+        "github_com_norman6464_FreStyle_backend_internal_domain.RoleName": "super_admin" | "company_admin" | "trainee";
         "github_com_norman6464_FreStyle_backend_internal_domain.SessionNote": {
             content?: string;
             createdAt?: string;
@@ -5389,8 +5476,15 @@ export interface components {
         "internal_handler.createAdminInvReq": {
             companyId: number;
             email: string;
+            /**
+             * @description Method は招待方式。"magic_link"（既定・受諾リンクをメール）か
+             *     "temporary_password"（Cognito 一時パスワードを発行し 1 度だけ返す・FRESTYLE-313）。
+             *     未知の値は binding で 400 にする（黙ってマジックリンクにフォールバックさせない）。
+             * @enum {string}
+             */
+            method?: "magic_link" | "temporary_password";
             name?: string;
-            role: string;
+            role: components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.RoleName"];
         };
         "internal_handler.createCompanyApplicationReq": {
             applicantName: string;
@@ -5453,8 +5547,6 @@ export interface components {
             title?: string;
         };
         "internal_handler.meResponse": {
-            /** @example abc-123-uuid */
-            cognitoSub?: string;
             /** @example 1 */
             companyId?: number;
             createdAt?: string;
@@ -5472,8 +5564,6 @@ export interface components {
             isAdmin?: boolean;
             /** @example 山田 太郎 */
             name?: string;
-            /** @example true */
-            onboarded?: boolean;
             /** @example trainee */
             role?: string;
             updatedAt?: string;
@@ -5486,11 +5576,17 @@ export interface components {
             /** @description IsActive はアカウントの有効/無効。false = 無効（ログイン/利用不可）。 */
             isActive?: boolean;
             name?: string;
-            role?: string;
+            role?: components["schemas"]["github_com_norman6464_FreStyle_backend_internal_domain.RoleName"];
         };
         "internal_handler.messageResponse": {
             /** @example ログインしました。 */
             message?: string;
+        };
+        "internal_handler.newPasswordReq": {
+            /** Format: email */
+            email: string;
+            newPassword: string;
+            session: string;
         };
         "internal_handler.noteCreateReq": {
             content?: string;

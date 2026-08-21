@@ -66,7 +66,7 @@ func assertAuthCookiesUnchanged(
 
 func Test_ログイン_成功_既存ユーザー(t *testing.T) {
 	users := &fakeUserRepo{existingBySub: map[string]*domain.User{
-		"sub-1": {ID: 1, CognitoSub: "sub-1", Email: "u@example.com", Role: domain.RoleTrainee},
+		"sub-1": {ID: 1, Email: "u@example.com", Role: domain.RoleTrainee},
 	}}
 	idTok := makeIDToken(t, map[string]any{"sub": "sub-1", "email": "u@example.com"})
 	pw := &fakePasswordAuth{token: &cognito.Token{AccessToken: "AT", IDToken: idTok, RefreshToken: "RT", ExpiresIn: 3600}}
@@ -278,7 +278,7 @@ func Test_ログイン_NEW_PASSWORD_REQUIRED_はチャレンジを返す(t *test
 
 func Test_新パスワード設定_成功でCookie発行(t *testing.T) {
 	users := &fakeUserRepo{existingBySub: map[string]*domain.User{
-		"sub-np": {ID: 5, CognitoSub: "sub-np", Email: "np@example.com", Role: domain.RoleTrainee},
+		"sub-np": {ID: 5, Email: "np@example.com", Role: domain.RoleTrainee},
 	}}
 	idTok := makeIDToken(t, map[string]any{"sub": "sub-np", "email": "np@example.com"})
 	pw := &fakePasswordAuth{respondToken: &cognito.Token{AccessToken: "AT", IDToken: idTok, RefreshToken: "RT", ExpiresIn: 3600}}

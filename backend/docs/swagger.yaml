@@ -862,9 +862,6 @@ definitions:
     type: object
   internal_handler.meResponse:
     properties:
-      cognitoSub:
-        example: abc-123-uuid
-        type: string
       companyId:
         example: 1
         type: integer

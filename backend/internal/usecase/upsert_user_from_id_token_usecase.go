@@ -187,9 +187,9 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 		); err != nil {
 			return false, fmt.Errorf("update existing user: %w", err)
 		}
-		// 正規化テーブル（user_oidc_identities）のセルフヒール。旧カラム経由で見つかった行にも
-		// identity を張り直す（冪等）。失敗してもログインは旧カラムのフォールバックで継続できる
-		// ため、ここでは致命扱いにしない。
+		// user_oidc_identities への冪等な保険。FindByCognitoSub は identity を突き合わせ条件に
+		// するため通常この時点で identity は既に存在するが、provider ごとの張り直しを冪等に保証して
+		// おく（失敗してもログイン自体は成立しているため致命扱いにしない）。
 		if err := u.users.EnsureOidcIdentity(ctx, existing.ID, domain.OidcProviderCognito, sub); err != nil {
 			log.Printf("upsertUserFromIDToken: ensure oidc identity failed (self-heal, non-fatal): user=%d err=%v", existing.ID, err)
 		}
@@ -234,22 +234,18 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 	}
 
 	user := &domain.User{
-		CognitoSub: sub,
-		Email:      email,
-		Name:       name,
-		Role:       role,
-		CompanyID:  companyID,
+		Email:     email,
+		Name:      name,
+		Role:      role,
+		CompanyID: companyID,
 	}
 
-	if err := u.users.Create(ctx, user); err != nil {
-		return false, fmt.Errorf("create user: %w", err)
-	}
-
-	// OIDC identity を users と対で作る（正規化後のログイン突き合わせの正・FRESTYLE-311）。
-	// 失敗しても旧カラム（users.cognito_sub）のフォールバックで次回ログインでき、
-	// その際に上のセルフヒールで張り直されるため致命扱いにしない。
-	if err := u.users.EnsureOidcIdentity(ctx, user.ID, domain.OidcProviderCognito, sub); err != nil {
-		log.Printf("upsertUserFromIDToken: create oidc identity failed (non-fatal): user=%d err=%v", user.ID, err)
+	// users 行と OIDC identity（正規化後のログイン突き合わせの正）を単一トランザクションで作る。
+	// 旧カラム users.cognito_sub の撤去（FRESTYLE-311 PR3）で「ユーザーと識別子が同一 INSERT で
+	// atomic に書かれる」性質が失われるため、identity 作成を user 作成と不可分にして
+	// 識別子を持たない孤児ユーザー（ログイン不能）が生まれないようにする。
+	if err := u.users.CreateWithOidcIdentity(ctx, user, domain.OidcProviderCognito, sub); err != nil {
+		return false, fmt.Errorf("create user with oidc identity: %w", err)
 	}
 
 	if inv != nil {

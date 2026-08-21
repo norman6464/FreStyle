@@ -24,8 +24,11 @@ func (s *stubUsers) ListByRole(context.Context, domain.RoleName) ([]domain.User,
 	return nil, nil
 }
 
-func (s *stubUsers) ListByCompanyID(context.Context, uint64) ([]domain.User, error)   { return nil, nil }
-func (s *stubUsers) Create(context.Context, *domain.User) error                       { return nil }
+func (s *stubUsers) ListByCompanyID(context.Context, uint64) ([]domain.User, error) { return nil, nil }
+
+func (s *stubUsers) CreateWithOidcIdentity(context.Context, *domain.User, string, string) error {
+	return nil
+}
 func (s *stubUsers) EnsureOidcIdentity(context.Context, uint64, string, string) error { return nil }
 func (s *stubUsers) FindActiveByEmail(context.Context, string) (*domain.User, error)  { return nil, nil }
 

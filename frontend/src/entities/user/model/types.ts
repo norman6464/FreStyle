@@ -28,7 +28,6 @@ export interface Profile {
  */
 export interface User {
   id: number;
-  cognitoSub: string;
   email: string;
   displayName: string;
   companyId?: number | null;

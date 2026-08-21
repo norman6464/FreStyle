@@ -38,7 +38,7 @@ SELECT u.id AS user_id,
        ), 0) AS recent_activity_count
 FROM users u
 LEFT JOIN user_daily_activities a ON a.user_id = u.id
-WHERE u.company_id = ? AND u.role = ? AND u.deleted_at IS NULL
+WHERE u.company_id = ? AND u.role_id = ? AND u.deleted_at IS NULL
 GROUP BY u.id, u.name
 ORDER BY MAX(a.activity_date) DESC NULLS LAST, u.id ASC`
 	var rows []struct {
@@ -51,8 +51,8 @@ ORDER BY MAX(a.activity_date) DESC NULLS LAST, u.id ASC`
 	// 境界日(fromDate 当日)の活動が漏れるため、日付に丸めてから比較する(ListByUser と同じ流儀)。
 	from := fromDate.UTC().Truncate(24 * time.Hour)
 	if err := r.db.WithContext(ctx).
-		// 移行期間中は旧カラム role が正（PR3 の旧カラム撤去で role_id 基準へ切替・FRESTYLE-311）。
-		Raw(q, from, companyID, string(domain.RoleTrainee)).
+		// trainee 判定は正規化後の正である role_id で行う（FRESTYLE-311）。
+		Raw(q, from, companyID, domain.RoleIDTrainee).
 		Scan(&rows).Error; err != nil {
 		return nil, err
 	}

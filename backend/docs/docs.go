@@ -5262,10 +5262,6 @@ const docTemplate = `{
         "internal_handler.meResponse": {
             "type": "object",
             "properties": {
-                "cognitoSub": {
-                    "type": "string",
-                    "example": "abc-123-uuid"
-                },
                 "companyId": {
                     "type": "integer",
                     "example": 1

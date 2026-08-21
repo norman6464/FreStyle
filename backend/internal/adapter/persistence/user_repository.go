@@ -30,19 +30,18 @@ func NewUserRepository(db *gorm.DB) repository.UserRepository {
 type userRow = sqlcgen.GetUserByIDRow
 
 // toDomainUser は sqlc 生成モデル → domain への詰め替え。
-// Role はロールマスタを JOIN した role_name（旧カラムへのフォールバック込み・FRESTYLE-311）。
+// Role はロールマスタ（roles）を JOIN して解決した role_name。
 // id 系は DB が bigint(int64) で domain が uint64。値は採番シーケンス由来で常に非負・int64 範囲内のため
 // 変換は安全（gosec G115 は persistence の id 境界として .golangci.yml で除外）。
 func toDomainUser(row userRow) *domain.User {
 	u := &domain.User{
-		ID:         uint64(row.ID),
-		CognitoSub: row.CognitoSub,
-		Email:      row.Email,
-		Name:       row.Name,
-		Role:       domain.RoleName(row.RoleName),
-		IsActive:   row.IsActive,
-		CreatedAt:  row.CreatedAt,
-		UpdatedAt:  row.UpdatedAt,
+		ID:        uint64(row.ID),
+		Email:     row.Email,
+		Name:      row.Name,
+		Role:      domain.RoleName(row.RoleName),
+		IsActive:  row.IsActive,
+		CreatedAt: row.CreatedAt,
+		UpdatedAt: row.UpdatedAt,
 	}
 	if row.RoleID.Valid {
 		u.RoleID = uint16(row.RoleID.Int16)
@@ -97,8 +96,8 @@ func (r *userRepository) FindActiveByEmail(ctx context.Context, email string) (*
 	}
 	row := rows[0]
 	u := toDomainUser(userRow{
-		ID: row.ID, CognitoSub: row.CognitoSub, Email: row.Email, Name: row.Name,
-		CompanyID: row.CompanyID, Role: row.Role, RoleID: row.RoleID,
+		ID: row.ID, Email: row.Email, Name: row.Name,
+		CompanyID: row.CompanyID, RoleID: row.RoleID,
 		AiChatEnabled: row.AiChatEnabled, IsActive: row.IsActive,
 		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, DeletedAt: row.DeletedAt,
 		RoleName: row.RoleName,
@@ -198,23 +197,41 @@ func (r *userRepository) resolveRoleID(ctx context.Context, roleName domain.Role
 	return role.ID, nil
 }
 
-func (r *userRepository) Create(ctx context.Context, user *domain.User) error {
-	// 正規化後の正は role_id。旧カラム users.role へは移行期間中のロールバック保全のため
-	// GORM がフィールド定義どおり併記で書く（FRESTYLE-311 PR3 で撤去）。
+// CreateWithOidcIdentity は users 行と OIDC identity を単一トランザクションで作成する。
+// 正規化後は識別子（identity）を持たないユーザーは存在し得ないため、両者を不可分にする。
+// identity 側が (provider, subject) 競合などで失敗するとトランザクションごと巻き戻り、
+// users 行だけが残る（＝ログイン不能な孤児）状態を作らない。
+func (r *userRepository) CreateWithOidcIdentity(ctx context.Context, user *domain.User, provider, subject string) error {
 	roleID, err := r.resolveRoleID(ctx, user.Role)
 	if err != nil {
 		return err
 	}
 	user.RoleID = roleID
-	return r.db.WithContext(ctx).Create(user).Error
+	// ローリングデプロイ中に旧タスクが読む旧カラム cognito_sub へ subject を併記する
+	// （撤去は FRESTYLE-311 の後続 PR）。identity（正）とは同一トランザクションで対に作る。
+	if provider == domain.OidcProviderCognito {
+		user.CognitoSub = subject
+	}
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(user).Error; err != nil {
+			return err
+		}
+		return ensureOidcIdentityTx(tx, user.ID, provider, subject)
+	})
 }
 
 // EnsureOidcIdentity は (provider, subject) の identity を無ければ作る（冪等）。
-// 旧コードが identities 未作成のまま挿入した行のセルフヒールにも使う。
+// 既存ユーザーへの provider 追加・張り直し（セルフヒール）に使う。
 // subject が別ユーザーに紐付いている場合は黙って成功にせずエラーを返す
-// （無音で放置すると、旧カラム撤去（PR3）後にサイレントなログイン不能を作るため）。
+// （無音で放置するとサイレントなログイン不能を作るため）。
 func (r *userRepository) EnsureOidcIdentity(ctx context.Context, userID uint64, provider, subject string) error {
-	res := r.db.WithContext(ctx).Exec(
+	return ensureOidcIdentityTx(r.db.WithContext(ctx), userID, provider, subject)
+}
+
+// ensureOidcIdentityTx は identity を冪等に挿入する（db は base 接続でもトランザクションでも良い）。
+// 既存 (provider, subject) が別ユーザー所有ならエラー、自分の所有なら成功にする。
+func ensureOidcIdentityTx(db *gorm.DB, userID uint64, provider, subject string) error {
+	res := db.Exec(
 		`INSERT INTO user_oidc_identities (user_id, provider, subject, created_at, updated_at)
 		 VALUES (?, ?, ?, NOW(), NOW())
 		 ON CONFLICT (provider, subject) DO NOTHING`, userID, provider, subject,
@@ -228,7 +245,7 @@ func (r *userRepository) EnsureOidcIdentity(ctx context.Context, userID uint64, 
 	}
 	// 挿入されなかった = (provider, subject) が既に存在する。所有者が自分なら冪等成功。
 	var identity domain.UserOidcIdentity
-	if err := r.db.WithContext(ctx).
+	if err := db.
 		Where("provider = ? AND subject = ?", provider, subject).
 		Take(&identity).Error; err != nil {
 		return err
@@ -302,7 +319,8 @@ func (r *userRepository) UpdateRole(ctx context.Context, userID uint64, role dom
 	if err != nil {
 		return err
 	}
-	// 旧カラム role への併記は移行期間中のロールバック保全（FRESTYLE-311 PR3 で撤去）。
+	// 正は role_id。ローリングデプロイ中に旧タスクが読む旧 role カラムへも併記する
+	// （撤去は FRESTYLE-311 の後続 PR）。
 	return r.db.WithContext(ctx).
 		Model(&domain.User{}).
 		Where("id = ?", userID).

@@ -4,6 +4,7 @@ import { useAppSelector } from '@/shared/lib/store';
 import { Navigate } from 'react-router-dom';
 import { AdminInvitationRepository, AdminInvitation,
   CreateInvitationForm } from '@/entities/invitation';
+import type { InvitationMethod } from '@/entities/invitation';
 import { CompanyRepository, Company } from '@/entities/company';
 import { AuthRepository, UserInfo } from '@/entities/user';
 
@@ -57,6 +58,10 @@ export default function AdminInvitationsPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [cancelTarget, setCancelTarget] = useState<AdminInvitation | null>(null);
   const [canceling, setCanceling] = useState(false);
+  const [method, setMethod] = useState<InvitationMethod>('magic_link');
+  // 初期パスワード方式で発行された一時パスワード（1 度だけ表示。閉じると二度と取得できない）。
+  const [issuedPassword, setIssuedPassword] = useState<{ email: string; password: string } | null>(null);
+  const [copied, setCopied] = useState(false);
 
   // 認可境界（SoD）に応じて招待 UI を切り替えるため、自分の role / companyId を取得する。
   // backend 側でも同じ境界を強制しているので、フロントは UX 改善目的（不可能な選択肢を見せない）。
@@ -118,10 +123,19 @@ export default function AdminInvitationsPage() {
     setError(null);
     setSuccess(null);
     try {
-      const created = await AdminInvitationRepository.create(form);
-      setSuccess(
-        `${created.email} 宛に招待メールを送信しました。受信者にメール内のリンクを開いてもらい、画面の案内に従ってログインしてもらってください。`
-      );
+      if (method === 'temporary_password') {
+        const { invitation, temporaryPassword } =
+          await AdminInvitationRepository.createWithTemporaryPassword(form);
+        // 一時パスワードは 1 度だけ表示する。保存も再取得もできない。
+        setIssuedPassword({ email: invitation.email, password: temporaryPassword });
+        setCopied(false);
+        setSuccess(null);
+      } else {
+        const created = await AdminInvitationRepository.create(form);
+        setSuccess(
+          `${created.email} 宛に招待メールを送信しました。受信者にメール内のリンクを開いてもらい、画面の案内に従ってログインしてもらってください。`
+        );
+      }
       setForm((f) => ({ ...EMPTY_FORM, companyId: f.companyId }));
       await fetchAll();
     } catch (err: unknown) {
@@ -266,14 +280,81 @@ export default function AdminInvitationsPage() {
           </span>
         </label>
 
+        <fieldset className="block text-sm">
+          <legend className="mb-1">招待方式</legend>
+          <label className="flex items-center gap-2 py-0.5">
+            <input
+              type="radio"
+              name="method"
+              value="magic_link"
+              checked={method === 'magic_link'}
+              onChange={() => setMethod('magic_link')}
+            />
+            <span>招待リンクをメール送信（本人がパスワードを設定）</span>
+          </label>
+          <label className="flex items-center gap-2 py-0.5">
+            <input
+              type="radio"
+              name="method"
+              value="temporary_password"
+              checked={method === 'temporary_password'}
+              onChange={() => setMethod('temporary_password')}
+            />
+            <span>初期パスワードを発行（その場で本人に渡す・初回ログインで変更）</span>
+          </label>
+        </fieldset>
+
         <button
           type="submit"
           disabled={submitting || form.companyId === 0}
           className="px-4 py-2 rounded bg-emerald-600 text-white disabled:opacity-50"
         >
-          {submitting ? '送信中...' : '招待メールを送信'}
+          {submitting
+            ? '送信中...'
+            : method === 'temporary_password'
+              ? '初期パスワードを発行'
+              : '招待メールを送信'}
         </button>
       </form>
+
+      {issuedPassword && (
+        <div
+          role="status"
+          className="p-4 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 space-y-2"
+        >
+          <p className="font-bold">初期パスワードを発行しました</p>
+          <p className="text-sm">
+            {issuedPassword.email} の初期パスワードです。<strong>この画面を閉じると二度と表示できません。</strong>
+            本人に安全に渡してください。初回ログイン時に本人が新しいパスワードへ変更します。
+          </p>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 px-3 py-2 rounded bg-white border font-mono text-base break-all">
+              {issuedPassword.password}
+            </code>
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(issuedPassword.password);
+                  setCopied(true);
+                } catch {
+                  setCopied(false);
+                }
+              }}
+              className="px-3 py-2 rounded border bg-white text-sm whitespace-nowrap"
+            >
+              {copied ? 'コピーしました' : 'コピー'}
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIssuedPassword(null)}
+            className="text-sm underline"
+          >
+            閉じる（表示を消す）
+          </button>
+        </div>
+      )}
 
       <section>
         <h2 className="text-base font-bold mb-3">未承諾の招待 ({invitations.length})</h2>

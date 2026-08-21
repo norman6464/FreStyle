@@ -10,3 +10,5 @@ export type { ValidatedInvitation } from './api/invitationRepository';
 export { default as AdminInvitationRepository } from './api/adminInvitationRepository';
 export type { AdminInvitation } from './api/adminInvitationRepository';
 export type { CreateInvitationForm } from './api/adminInvitationRepository';
+export type { InvitationMethod } from './api/adminInvitationRepository';
+export type { TemporaryPasswordInvitation } from './api/adminInvitationRepository';

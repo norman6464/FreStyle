@@ -98,6 +98,13 @@ services:
       # 演習のコード実行は code-runner(profile full)へ委譲する。distroless の backend 本体は
       # php / java / node 等を持たないため in-process 実行はできない。
       CODE_RUNNER_URL: ${LOCAL_CODE_RUNNER_URL:-http://code-runner:9000}
+      # ローカル専用のパスワードログイン(DB の bcrypt 検証)。Cognito 不要で
+      # seed ユーザー(seed1@example.test / password 等)でログインできる。
+      # 有効化は「LOCAL_PASSWORD_AUTH=1 かつ 明示的な APP_ENV=local」の両方が必要(FRESTYLE-311)。
+      # APP_ENV を明示注入することで、APP_ENV を設定しない staging 等では有効化しない。
+      # 署名鍵はプロセス毎ランダム(固定鍵の偽造は不可)。
+      APP_ENV: ${APP_ENV:-local}
+      LOCAL_PASSWORD_AUTH: ${LOCAL_PASSWORD_AUTH:-1}
     ports:
       # ホストで make run したいときは LOCAL_BACKEND_PORT を変えるか、
       # docker compose stop backend でコンテナ側を止める(同じ 8080 は二重に使えない)。

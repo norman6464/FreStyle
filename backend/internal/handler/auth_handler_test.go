@@ -36,6 +36,14 @@ func (r *fakeUserRepo) EnsureOidcIdentity(_ context.Context, _ uint64, _, _ stri
 	return nil
 }
 
+func (r *fakeUserRepo) FindActiveByEmail(_ context.Context, _ string) (*domain.User, error) {
+	return nil, nil
+}
+
+func (r *fakeUserRepo) CognitoSubjectByUserID(_ context.Context, _ uint64) (string, error) {
+	return "", nil
+}
+
 func (r *fakeUserRepo) FindByID(_ context.Context, _ uint64) (*domain.User, error) {
 	return nil, nil
 }

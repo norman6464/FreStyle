@@ -33,13 +33,17 @@ CREATE TABLE user_oidc_identities (
     provider   text NOT NULL DEFAULT 'cognito',
     subject    text NOT NULL,
     created_at timestamptz NOT NULL,
-    updated_at timestamptz NOT NULL
+    updated_at timestamptz NOT NULL,
+    -- 実制約は AutoMigrate（gorm uniqueIndex タグ）が作る。ここは sqlc の型付け用に同じ内容を明示。
+    UNIQUE (user_id, provider),
+    UNIQUE (provider, subject)
 );
 
 CREATE TABLE users (
     id           bigint PRIMARY KEY,
     cognito_sub  text NOT NULL,
     email        text NOT NULL DEFAULT '',
+    password_hash text,
     name       text NOT NULL DEFAULT '',
     company_id   bigint,
     role         text NOT NULL,

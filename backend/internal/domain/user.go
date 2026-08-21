@@ -7,10 +7,14 @@ type User struct {
 	ID uint64 `gorm:"primaryKey" json:"id"`
 	// CognitoSub は旧カラム（正は user_oidc_identities.subject）。移行期間中のロールバック保全のため
 	// 書き込みは継続する。旧カラム撤去（FRESTYLE-311 PR3）でフィールドごと削除する。
-	CognitoSub string  `gorm:"column:cognito_sub;uniqueIndex" json:"cognitoSub"`
-	Email      string  `gorm:"column:email;not null" json:"email"`
-	Name       string  `gorm:"column:name" json:"name"`
-	CompanyID  *uint64 `gorm:"column:company_id" json:"companyId,omitempty"`
+	CognitoSub string `gorm:"column:cognito_sub;uniqueIndex" json:"cognitoSub"`
+	Email      string `gorm:"column:email;not null" json:"email"`
+	// PasswordHash はパスワードログイン用の bcrypt ハッシュ。NULL = パスワードログイン不可
+	// （OIDC のみ）。API へは絶対に出さない。検証はローカル専用 authenticator（infra/localauth）
+	// が行い、本番のログイン経路（Cognito）はこの列を参照しない。
+	PasswordHash *string `gorm:"column:password_hash" json:"-"`
+	Name         string  `gorm:"column:name" json:"name"`
+	CompanyID    *uint64 `gorm:"column:company_id" json:"companyId,omitempty"`
 	// Role はロール名（roles.name）。読み出し時は repository が roles を JOIN して解決する。
 	// 旧 users.role カラムへの書き込みは移行期間中のロールバック保全のため継続し、
 	// 旧カラム撤去（FRESTYLE-311 PR3）で本フィールドの column 書き込みも止める。

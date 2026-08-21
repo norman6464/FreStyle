@@ -25,6 +25,18 @@ type Config struct {
 	// 例: https://frestyle.jp (末尾スラッシュ無し / 有り どちらも可)
 	AppBaseURL string
 
+	// LocalPasswordAuth はローカル開発専用のパスワードログイン（infra/localauth）が有効かの
+	// 解決済み判定。有効になるのは次の 2 条件を両方満たすときだけ（FRESTYLE-311）:
+	//   1. LOCAL_PASSWORD_AUTH が truthy（利用者の明示 opt-in）
+	//   2. APP_ENV が「明示的に」local（既定値 "local" ではなく生の env を見る。APP_ENV を
+	//      注入しない環境＝staging 等を local 扱いしない）
+	// 以前は「三重ガード」と説明していたが、3 か所とも同じ cfg.AppEnv（既定 local）を見るため
+	// 実質 1 条件に縮退していた（多角レビューで指摘）。生の APP_ENV を明示要求することで
+	// staging（APP_ENV 未設定）では確実に無効化する。加えて localauth の署名鍵はプロセス毎の
+	// ランダム値（token.go）なので、固定鍵による偽造も成立しない。
+	// JWKS 設定の有無は条件に含めない（ローカルで実 Cognito プールと併用したい構成があるため）。
+	LocalPasswordAuth bool
+
 	// CodeRunnerURL はコード実行サイドカー（cmd/coderunner）の baseURL。
 	// セットされていると backend 本体は os/exec せず HTTP 越しに runner へ委譲する
 	// （例: http://127.0.0.1:9000）。未設定なら in-process サンドボックスで実行する。
@@ -136,6 +148,18 @@ func Load() (*Config, error) {
 	if cfg.DatabaseURL == "" && cfg.DBHost == "" {
 		return nil, fmt.Errorf("DATABASE_URL or DB_HOST is required")
 	}
+
+	// ローカル専用パスワードログインの有効化判定（上の LocalPasswordAuth の 2 条件）。
+	// 生の APP_ENV を見る（既定値 "local" に依存しない）ことが staging での誤有効化を防ぐ肝。
+	localPwRequested := os.Getenv("LOCAL_PASSWORD_AUTH") == "1" || os.Getenv("LOCAL_PASSWORD_AUTH") == "true"
+	appEnvExplicitLocal := os.Getenv("APP_ENV") == "local"
+	cfg.LocalPasswordAuth = localPwRequested && appEnvExplicitLocal
+	if localPwRequested && !cfg.LocalPasswordAuth {
+		fmt.Fprintf(os.Stderr,
+			"WARN: LOCAL_PASSWORD_AUTH は無効化されました（APP_ENV を明示的に local にしてください。現在 APP_ENV=%q）\n",
+			os.Getenv("APP_ENV"))
+	}
+
 	return cfg, nil
 }
 

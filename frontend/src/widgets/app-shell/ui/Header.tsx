@@ -14,72 +14,38 @@ import { useSidebar } from '../model/useSidebar';
 import { NotificationRepository } from '@/entities/notification';
 import { ProfileRepository } from '@/entities/user';
 
-interface NavItem {
-  id: string;
-  label: string;
-  to: string;
-  matchExact?: boolean;
-  matchPrefix?: string;
-}
+// ナビ項目・ロール出し分け・アクティブ判定は model/navigation に一元化してある
+// （サイドバー・モバイルメニューと共用の正典）。ここでは描画だけを行う。
+import { navActive, roleLabel, visibleAdminSubs, visibleMainNav } from '../model/navigation';
 
-// ヘッダーのメインナビ（テキストのみ。 アイコンは使わない）。
-// 通知はベル、 管理はドロップダウンに分けるため、 ここには含めない。
-const mainNavItems: NavItem[] = [
-  { id: 'home', label: 'ホーム', to: '/dashboard', matchExact: true },
-  { id: 'ai', label: 'AI', to: '/chat/ask-ai', matchPrefix: '/chat/ask-ai' },
-  { id: 'code', label: '演習', to: '/code-editor', matchPrefix: '/code-editor' },
-  { id: 'courses', label: 'コース', to: '/courses', matchPrefix: '/courses' },
-  { id: 'notes', label: 'ノート', to: '/notes', matchPrefix: '/notes' },
-  { id: 'reports', label: 'レポート', to: '/reports', matchExact: true },
-];
-
-// super_admin は企業管理に専念するロールなので学習系メニューは出さない（ホームのみ）。
-const SUPER_ADMIN_MAIN_NAV_IDS = new Set(['home']);
-
-interface AdminSub {
-  label: string;
-  to: string;
-  matchPrefix: string;
-  allowedRoles?: ReadonlyArray<'super_admin' | 'company_admin'>;
-}
-
-const adminSubItems: AdminSub[] = [
-  { label: '概況', to: '/admin/dashboard', matchPrefix: '/admin/dashboard', allowedRoles: ['super_admin'] },
-  { label: '会社一覧', to: '/admin/companies', matchPrefix: '/admin/companies', allowedRoles: ['super_admin'] },
-  { label: '利用申請', to: '/admin/applications', matchPrefix: '/admin/applications', allowedRoles: ['super_admin'] },
-  { label: '従業員一覧', to: '/admin/members', matchPrefix: '/admin/members' },
-  { label: '招待管理', to: '/admin/invitations', matchPrefix: '/admin/invitations' },
-  { label: '監査ログ', to: '/admin/audit', matchPrefix: '/admin/audit', allowedRoles: ['super_admin'] },
-];
-
-function navActive(item: NavItem, pathname: string): boolean {
-  if (item.matchExact) return pathname === item.to;
-  if (item.matchPrefix) return pathname.startsWith(item.matchPrefix);
-  return pathname === item.to;
-}
-
-function roleLabel(role: string | null): string {
-  switch (role) {
-    case 'super_admin': return '運営管理者';
-    case 'company_admin': return '会社管理者';
-    case 'trainee': return '受講者';
-    default: return '';
-  }
+export interface HeaderProps {
+  /** サイドバーの表示モード。collapsed のときだけ左端に ☰（固定表示トグル）を出す。 */
+  sidebarMode?: 'collapsed' | 'pinned';
+  /** ☰ クリックでサイドバーを固定表示にする。 */
+  onSidebarPin?: () => void;
+  /** ☰ ホバーで一時表示を開く / 離れたら閉じる。 */
+  onSidebarHoverStart?: () => void;
+  onSidebarHoverEnd?: () => void;
 }
 
 /**
  * Header — 上部固定のテキスト横並びナビ。
  *
- * 左: ロゴ ／ 中央左: テキストナビ（アイコンなし） ／ 右: 通知ベル + 管理ドロップダウン(admin) + ユーザーメニュー。
+ * 左: (サイドバー一時表示時のみ)☰ + ロゴ ／ 中央左: テキストナビ（アイコンなし） ／
+ * 右: 通知ベル + 管理ドロップダウン(admin) + ユーザーメニュー。
  * モバイルではハンバーガーで縦メニューを開く。 ロール出し分けはサイドバー時代の仕様を踏襲する。
  */
-export default function Header() {
+export default function Header({
+  sidebarMode,
+  onSidebarPin,
+  onSidebarHoverStart,
+  onSidebarHoverEnd,
+}: HeaderProps = {}) {
   const location = useLocation();
   const { handleLogout, loggingOut } = useSidebar();
   const isAdmin = useAppSelector((s) => s.auth.isAdmin);
   const role = useAppSelector((s) => s.auth.role);
   const aiChatEnabledForTrainees = useAppSelector((s) => s.auth.aiChatEnabledForTrainees);
-  const isSuperAdmin = role === 'super_admin';
 
   const [profile, setProfile] = useState<{ displayName: string; avatarUrl: string | null; email: string } | null>(null);
   const [unread, setUnread] = useState(0);
@@ -119,15 +85,8 @@ export default function Header() {
     return () => document.removeEventListener('mousedown', onDoc);
   }, [adminOpen]);
 
-  const visibleNav = (
-    isSuperAdmin
-      ? mainNavItems.filter((i) => SUPER_ADMIN_MAIN_NAV_IDS.has(i.id))
-      : mainNavItems
-  ).filter((i) => !(i.id === 'ai' && role === 'trainee' && !aiChatEnabledForTrainees));
-
-  const visibleAdminSubs = adminSubItems.filter(
-    (s) => !s.allowedRoles || (role !== null && s.allowedRoles.includes(role as 'super_admin' | 'company_admin')),
-  );
+  const visibleNav = visibleMainNav(role, { aiChatEnabledForTrainees });
+  const adminSubs = visibleAdminSubs(role);
 
   const navLinkClass = (active: boolean) =>
     `px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
@@ -140,6 +99,29 @@ export default function Header() {
     <>
       {loggingOut && <Loading fullscreen message="ログアウト中..." />}
       <header className="flex-shrink-0 h-16 bg-[var(--color-nav)] border-b border-surface-3 flex items-center gap-2 px-3">
+        {/* サイドバーが一時表示モードのとき、固定表示トグル（☰）を先頭に出す。
+            ホバーで一時表示が浮かび、クリックで固定される。デスクトップのみ。 */}
+        {sidebarMode === 'collapsed' && onSidebarPin && (
+          <span className="relative group/sbtip hidden md:inline-flex">
+            <button
+              type="button"
+              onClick={onSidebarPin}
+              onMouseEnter={onSidebarHoverStart}
+              onMouseLeave={onSidebarHoverEnd}
+              aria-label="サイドバーを固定表示する"
+              className="p-2 rounded-md text-[var(--color-text-tertiary)] hover:bg-[var(--color-nav-hover)] hover:text-[var(--color-text-primary)] transition-colors"
+            >
+              <Bars3Icon className="w-5 h-5" />
+            </button>
+            <span
+              role="tooltip"
+              className="pointer-events-none absolute left-0 top-full z-50 mt-1.5 hidden whitespace-pre rounded-md bg-[var(--color-text-primary)] px-2 py-1.5 text-xs font-medium leading-tight text-[var(--color-surface-1)] shadow-lg group-hover/sbtip:block"
+            >
+              {'サイドバーを固定表示する\n⌘\\'}
+            </span>
+          </span>
+        )}
+
         {/* ロゴは favicon と同じ画像（favicon.svg = 三角の飛翔マーク）に揃える。 */}
         <Link to="/dashboard" className="flex items-center gap-2 flex-shrink-0 mr-2" aria-label="FreStyle ホーム">
           <img src="/favicon.svg" alt="" aria-hidden="true" className="w-7 h-7 flex-shrink-0" />
@@ -188,7 +170,7 @@ export default function Header() {
               </button>
               {adminOpen && (
                 <div className="absolute top-full right-0 mt-2 w-44 bg-surface-1 border border-surface-3 rounded-lg shadow-lg overflow-hidden z-50 animate-fade-in">
-                  {visibleAdminSubs.map((sub) => (
+                  {adminSubs.map((sub) => (
                     <Link
                       key={sub.to}
                       to={sub.to}
@@ -239,11 +221,11 @@ export default function Header() {
                 {item.label}
               </Link>
             ))}
-            {isAdmin && visibleAdminSubs.length > 0 && (
+            {isAdmin && adminSubs.length > 0 && (
               <>
                 <div className="my-1 border-t border-surface-3" />
                 <p className="px-3 py-1 text-xs text-[var(--color-text-muted)]">管理</p>
-                {visibleAdminSubs.map((sub) => (
+                {adminSubs.map((sub) => (
                   <Link key={sub.to} to={sub.to} className={`block ${navLinkClass(location.pathname.startsWith(sub.matchPrefix))}`}>
                     {sub.label}
                   </Link>

@@ -209,3 +209,16 @@
   font-size: 0.8rem;
   color: var(--color-text-muted);
 }
+
+/*
+ * ブロック間キャレット（Gapcursor）。水平線や画像の前後にカーソルを置いたとき、
+ * 既定 CSS は横棒（border-top）で描画され通常の縦キャレットと見た目が食い違う。
+ * テキストと同じ縦線（|）へ上書きする。
+ */
+.rte-content .ProseMirror-gapcursor:after {
+  width: 0;
+  height: 1.2em;
+  border-top: none;
+  border-left: 1.5px solid var(--color-text-primary);
+  top: 0;
+}

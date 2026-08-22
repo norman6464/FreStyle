@@ -50,13 +50,9 @@
 }
 
 /* インラインコード。
- * Tailwind Typography（.prose）は code に ` の疑似要素を付け、太字・見出し色を継承しない。
- * エディタでは「入力した文字」だけを見せたいので疑似要素を消し、装飾は自前で与える。 */
-.rte-content .ProseMirror :not(pre) > code::before,
-.rte-content .ProseMirror :not(pre) > code::after {
-  content: none;
-}
-
+ * Typography（.prose）が code に付けるバッククォート疑似要素は、アプリ全体の打ち消し
+ * （app/styles/index.css の `.prose code::before/::after { content: "" !important }`）で
+ * 既に無効化されているため、ここでは重複して打ち消さない。装飾だけ自前で与える。 */
 .rte-content .ProseMirror :not(pre) > code {
   background: var(--color-surface-2);
   border-radius: 0.25rem;
@@ -73,7 +69,10 @@
   overflow-wrap: anywhere;
 }
 
-/* 見出しの中では相対的に小さくしすぎない（大きな行で箱が目立ちすぎるのを避ける）。 */
+/* 見出しの中では相対的に小さくしすぎない（大きな行で箱が目立ちすぎるのを避ける）。
+ * 見出し直下の <h2><code> と、太字併用時の <h2><strong><code> の両形状に当てる
+ * （子孫セレクタ 1 本の `:not(pre) > code` だと直下の code に当たらない）。 */
+.rte-content .ProseMirror :is(h1, h2, h3) > code,
 .rte-content .ProseMirror :is(h1, h2, h3) :not(pre) > code {
   font-size: 0.9em;
   padding: 0.05em 0.25em;
@@ -123,8 +122,9 @@
 
 /*
  * バブルメニュー（選択時に浮かぶ書式メニュー）。
- * BubbleMenu は body 直下の portal（position/visibility はライブラリが制御）へ描画するため、
- * .rte-content の配下ではなくトップレベルの .rte-bubble として見た目を与える。
+ * BubbleMenu の要素は表示時に view.dom.parentElement（＝ .rte-content 配下）へ append される
+ * （position/visibility はライブラリが制御）。.prose の配下に入るため、メニュー内で
+ * 装飾されうるタグを使う場合は打ち消しが要る点に注意（現状は div/button/span のみ）。
  */
 .rte-bubble {
   display: flex;
@@ -136,4 +136,76 @@
   border-radius: 8px;
   box-shadow: 0 4px 16px rgb(0 0 0 / 12%);
   z-index: 50;
+}
+
+/*
+ * スラッシュメニュー（'/' で開くブロック挿入メニュー）。
+ * 要素は Suggestion 内蔵の mount（floating-ui）が body 上に置きキャレットへ追従させる。
+ */
+.rte-slash {
+  z-index: 60;
+  min-width: 220px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-surface-3);
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgb(0 0 0 / 14%);
+  padding: 4px;
+}
+
+.rte-slash-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.rte-slash-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-size: 0.875rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rte-slash-item.is-active {
+  background: var(--color-surface-2);
+}
+
+.rte-slash-glyph {
+  width: 1.75rem;
+  flex: 0 0 1.75rem;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--color-text-secondary, var(--color-text-primary));
+}
+
+.rte-slash-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 英語トリガ（/h1 等）を右端に薄く出し、次からキーボードで呼べるように学習させる。 */
+.rte-slash-trigger {
+  flex-shrink: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+}
+
+.rte-slash-empty {
+  margin: 0;
+  padding: 8px 10px;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
 }

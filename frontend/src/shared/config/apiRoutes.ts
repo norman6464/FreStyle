@@ -63,6 +63,14 @@ export const NOTES = {
     `${API_V2}/notes/${noteId}/images/presigned-url`,
 } as const;
 
+/** リッチ文書（rich_documents・tiptap JSON）。owner スコープ・楽観ロック（revision）。 */
+export const DOCUMENTS = {
+  /** GET(一覧) / POST(作成) — /api/v2/documents。一覧は ?kind= で絞り込み可 */
+  list: `${API_V2}/documents`,
+  /** GET / PUT / DELETE — /api/v2/documents/:id（id は UUID 文字列） */
+  byId: (documentId: string) => `${API_V2}/documents/${documentId}`,
+} as const;
+
 /** 画像アップロード（current user 名義の S3 PUT 署名 URL。ノート/教材で共有）*/
 export const IMAGES = {
   /** POST /api/v2/notes/images/upload-url — {contentType} → {url, key, publicUrl} */

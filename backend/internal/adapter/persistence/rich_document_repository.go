@@ -112,7 +112,8 @@ func (r *richDocumentRepository) ListByOwner(ctx context.Context, ownerID uint64
 	if kind != "" {
 		q = q.Where("kind = ?", kind)
 	}
-	var rows []domain.RichDocument
+	// 0 件でも nil ではなく空スライスを返す（JSON が null にならずフロントの map/for-of が落ちない）。
+	rows := make([]domain.RichDocument, 0)
 	if err := q.Find(&rows).Error; err != nil {
 		return nil, err
 	}

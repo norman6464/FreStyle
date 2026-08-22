@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { type Editor, useEditorState } from '@tiptap/react';
+import { PhotoIcon } from '@heroicons/react/24/outline';
 
 /**
  * ToolbarButton はツールバーの 1 ボタン。
@@ -54,7 +55,14 @@ function Divider() {
  * RichTextEditorToolbar は RichTextEditor の書式ツールバー。editor の現在状態を
  * useEditorState で購読し、選択位置に応じて active / disabled を更新する。
  */
-export default function RichTextEditorToolbar({ editor }: { editor: Editor }) {
+export default function RichTextEditorToolbar({
+  editor,
+  onInsertImage,
+}: {
+  editor: Editor;
+  /** 指定時のみ画像ボタンを出す（画像アップロードが有効なとき）。 */
+  onInsertImage?: () => void;
+}) {
   // 選択・内容の変化で必要な派生状態だけを取り出して再描画する（過剰な再描画を避ける）。
   const editorState = useEditorState({
     editor,
@@ -146,6 +154,15 @@ export default function RichTextEditorToolbar({ editor }: { editor: Editor }) {
       <ToolbarButton label="やり直す" disabled={!editorState.canRedo} onClick={() => chain().redo().run()}>
         ↻
       </ToolbarButton>
+
+      {onInsertImage && (
+        <>
+          <Divider />
+          <ToolbarButton label="画像を挿入" onClick={onInsertImage}>
+            <PhotoIcon className="h-4 w-4" />
+          </ToolbarButton>
+        </>
+      )}
     </div>
   );
 }

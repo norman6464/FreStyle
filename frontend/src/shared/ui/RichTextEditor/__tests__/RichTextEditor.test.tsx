@@ -175,4 +175,35 @@ describe('RichTextEditor', () => {
       expect(container.querySelector('.ProseMirror')).toHaveAttribute('contenteditable', 'false'),
     );
   });
+
+  it('onImageUpload 指定時だけ画像ボタンを出す', () => {
+    const { rerender } = render(<RichTextEditor value={emptyRichDoc()} />);
+    expect(screen.queryByRole('button', { name: '画像を挿入' })).not.toBeInTheDocument();
+    rerender(<RichTextEditor value={emptyRichDoc()} onImageUpload={vi.fn()} />);
+    expect(screen.getByRole('button', { name: '画像を挿入' })).toBeInTheDocument();
+  });
+
+  it('画像ファイル選択で onImageUpload を呼び、doc に image ノードを挿入する', async () => {
+    const onImageUpload = vi.fn().mockResolvedValue('https://cdn.example.com/a.png');
+    const onChange = vi.fn();
+    const { container } = render(
+      <RichTextEditor value={emptyRichDoc()} onImageUpload={onImageUpload} onChange={onChange} />,
+    );
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(['x'], 'a.png', { type: 'image/png' });
+    fireEvent.change(input, { target: { files: [file] } });
+    await waitFor(() => expect(onImageUpload).toHaveBeenCalledWith(file));
+    await waitFor(() => {
+      const last = onChange.mock.calls.at(-1)?.[0] as RichDocContent | undefined;
+      expect(last && collectNodeTypes(last)).toContain('image');
+    });
+  });
+
+  it('画像以外のファイルは onImageUpload を呼ばない', () => {
+    const onImageUpload = vi.fn().mockResolvedValue('x');
+    const { container } = render(<RichTextEditor value={emptyRichDoc()} onImageUpload={onImageUpload} />);
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [new File(['x'], 'a.txt', { type: 'text/plain' })] } });
+    expect(onImageUpload).not.toHaveBeenCalled();
+  });
 });

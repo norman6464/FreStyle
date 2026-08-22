@@ -1,9 +1,35 @@
 package handler
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"testing"
+
+	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"gorm.io/gorm"
 )
+
+// fakeAiChatSessionRepo は AiChatSessionRepository の handler テスト用 fake。
+type fakeAiChatSessionRepo struct {
+	found   *domain.AiChatSession
+	findErr error
+}
+
+func (f *fakeAiChatSessionRepo) ListByUserID(_ context.Context, _ uint64) ([]domain.AiChatSession, error) {
+	return nil, nil
+}
+
+func (f *fakeAiChatSessionRepo) FindByID(_ context.Context, _ uint64) (*domain.AiChatSession, error) {
+	return f.found, f.findErr
+}
+
+func (f *fakeAiChatSessionRepo) Create(_ context.Context, _ *domain.AiChatSession) error { return nil }
+
+func (f *fakeAiChatSessionRepo) UpdateTitle(_ context.Context, _ uint64, _ string) error { return nil }
+
+func (f *fakeAiChatSessionRepo) Delete(_ context.Context, _ uint64) error { return nil }
 
 // ai_chat_handler のガード分岐（401 / 400）を zero-value handler で検証する。
 // いずれも usecase 到達前に早期 return するため nil usecase で安全。
@@ -33,15 +59,50 @@ func Test_AIチャットハンドラ_セッション作成_不正なJSON(t *test
 }
 
 func Test_AIチャットハンドラ_セッション取得_不正なID(t *testing.T) {
-	w, c := noteCtx(http.MethodGet, "", 0, "abc")
+	w, c := noteCtx(http.MethodGet, "", 7, "abc")
 	(&AiChatHandler{}).GetSession(c)
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("want 400, got %d", w.Code)
 	}
 }
 
+func Test_AIチャットハンドラ_セッション取得_未認証(t *testing.T) {
+	w, c := noteCtx(http.MethodGet, "", 0, "5")
+	(&AiChatHandler{}).GetSession(c)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("want 401, got %d", w.Code)
+	}
+}
+
+func Test_AIチャットハンドラ_セッション取得_他人のセッションは404(t *testing.T) {
+	uc := usecase.NewGetAiChatSessionUseCase(&fakeAiChatSessionRepo{found: &domain.AiChatSession{ID: 5, UserID: 99}})
+	w, c := noteCtx(http.MethodGet, "", 7, "5")
+	(&AiChatHandler{getSession: uc}).GetSession(c)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("want 404, got %d", w.Code)
+	}
+}
+
+func Test_AIチャットハンドラ_セッション取得_不存在は404(t *testing.T) {
+	uc := usecase.NewGetAiChatSessionUseCase(&fakeAiChatSessionRepo{findErr: gorm.ErrRecordNotFound})
+	w, c := noteCtx(http.MethodGet, "", 7, "5")
+	(&AiChatHandler{getSession: uc}).GetSession(c)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("want 404, got %d", w.Code)
+	}
+}
+
+func Test_AIチャットハンドラ_セッション取得_本人は200(t *testing.T) {
+	uc := usecase.NewGetAiChatSessionUseCase(&fakeAiChatSessionRepo{found: &domain.AiChatSession{ID: 5, UserID: 7}})
+	w, c := noteCtx(http.MethodGet, "", 7, "5")
+	(&AiChatHandler{getSession: uc}).GetSession(c)
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d", w.Code)
+	}
+}
+
 func Test_AIチャットハンドラ_セッションタイトル更新_不正なID(t *testing.T) {
-	w, c := noteCtx(http.MethodPut, `{"title":"X"}`, 0, "abc")
+	w, c := noteCtx(http.MethodPut, `{"title":"X"}`, 7, "abc")
 	(&AiChatHandler{}).UpdateSessionTitle(c)
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("want 400, got %d", w.Code)
@@ -49,10 +110,112 @@ func Test_AIチャットハンドラ_セッションタイトル更新_不正な
 }
 
 func Test_AIチャットハンドラ_セッションタイトル更新_タイトル欠落(t *testing.T) {
-	w, c := noteCtx(http.MethodPut, `{}`, 0, "5")
+	w, c := noteCtx(http.MethodPut, `{}`, 7, "5")
 	(&AiChatHandler{}).UpdateSessionTitle(c)
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("want 400, got %d", w.Code)
+	}
+}
+
+func Test_AIチャットハンドラ_タイトル更新_未認証(t *testing.T) {
+	w, c := noteCtx(http.MethodPut, `{"title":"X"}`, 0, "5")
+	(&AiChatHandler{}).UpdateSessionTitle(c)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("want 401, got %d", w.Code)
+	}
+}
+
+func Test_AIチャットハンドラ_タイトル更新_他人のセッションは404(t *testing.T) {
+	repo := &fakeAiChatSessionRepo{found: &domain.AiChatSession{ID: 5, UserID: 99}}
+	h := &AiChatHandler{
+		updateTitle: usecase.NewUpdateAiChatSessionTitleUseCase(repo),
+		getSession:  usecase.NewGetAiChatSessionUseCase(repo),
+	}
+	w, c := noteCtx(http.MethodPut, `{"title":"X"}`, 7, "5")
+	h.UpdateSessionTitle(c)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("want 404, got %d", w.Code)
+	}
+}
+
+func Test_AIチャットハンドラ_タイトル更新_本人は200(t *testing.T) {
+	repo := &fakeAiChatSessionRepo{found: &domain.AiChatSession{ID: 5, UserID: 7}}
+	h := &AiChatHandler{
+		updateTitle: usecase.NewUpdateAiChatSessionTitleUseCase(repo),
+		getSession:  usecase.NewGetAiChatSessionUseCase(repo),
+	}
+	w, c := noteCtx(http.MethodPut, `{"title":"X"}`, 7, "5")
+	h.UpdateSessionTitle(c)
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d", w.Code)
+	}
+}
+
+// flakyFindSessionRepo は 2 回目以降の FindByID を失敗させる fake（更新後の再取得失敗ケース用）。
+type flakyFindSessionRepo struct {
+	fakeAiChatSessionRepo
+	calls int
+}
+
+func (f *flakyFindSessionRepo) FindByID(ctx context.Context, id uint64) (*domain.AiChatSession, error) {
+	f.calls++
+	if f.calls > 1 {
+		return nil, errors.New("db down")
+	}
+	return f.fakeAiChatSessionRepo.FindByID(ctx, id)
+}
+
+func Test_AIチャットハンドラ_タイトル更新_再取得失敗は500(t *testing.T) {
+	repo := &flakyFindSessionRepo{fakeAiChatSessionRepo: fakeAiChatSessionRepo{found: &domain.AiChatSession{ID: 5, UserID: 7}}}
+	h := &AiChatHandler{
+		updateTitle: usecase.NewUpdateAiChatSessionTitleUseCase(repo),
+		getSession:  usecase.NewGetAiChatSessionUseCase(repo),
+	}
+	w, c := noteCtx(http.MethodPut, `{"title":"X"}`, 7, "5")
+	h.UpdateSessionTitle(c)
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("want 500, got %d", w.Code)
+	}
+}
+
+// fakeAiChatMessageRepo は AiChatMessageRepository の handler テスト用 fake。
+type fakeAiChatMessageRepo struct{ rows []domain.AiChatMessage }
+
+func (f *fakeAiChatMessageRepo) Save(_ context.Context, _ *domain.AiChatMessage) error { return nil }
+
+func (f *fakeAiChatMessageRepo) ListBySessionID(_ context.Context, _ uint64) ([]domain.AiChatMessage, error) {
+	return f.rows, nil
+}
+
+func Test_AIチャットハンドラ_メッセージ一覧_未認証(t *testing.T) {
+	w, c := noteCtx(http.MethodGet, "", 0, "5")
+	(&AiChatHandler{}).GetMessages(c)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("want 401, got %d", w.Code)
+	}
+}
+
+func Test_AIチャットハンドラ_メッセージ一覧_他人のセッションは404(t *testing.T) {
+	uc := usecase.NewGetAiChatMessagesUseCase(
+		&fakeAiChatSessionRepo{found: &domain.AiChatSession{ID: 5, UserID: 99}},
+		&fakeAiChatMessageRepo{},
+	)
+	w, c := noteCtx(http.MethodGet, "", 7, "5")
+	(&AiChatHandler{getMessages: uc}).GetMessages(c)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("want 404, got %d", w.Code)
+	}
+}
+
+func Test_AIチャットハンドラ_メッセージ一覧_本人は200(t *testing.T) {
+	uc := usecase.NewGetAiChatMessagesUseCase(
+		&fakeAiChatSessionRepo{found: &domain.AiChatSession{ID: 5, UserID: 7}},
+		&fakeAiChatMessageRepo{rows: []domain.AiChatMessage{{SessionID: 5}}},
+	)
+	w, c := noteCtx(http.MethodGet, "", 7, "5")
+	(&AiChatHandler{getMessages: uc}).GetMessages(c)
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d", w.Code)
 	}
 }
 

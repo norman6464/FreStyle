@@ -63,6 +63,17 @@ func NewSendAiMessageStreamUseCase(
 // 新規セッション作成 → ユーザーメッセージ保存 → Bedrock streaming → 返答保存、を goroutine で進める。
 // ctx の cancel で全工程が中断される（クライアント切断時の goroutine リーク防止）。
 func (u *SendAiMessageStreamUseCase) Execute(ctx context.Context, in SendAiMessageInput) (<-chan StreamEvent, error) {
+	// 他人のセッションへの送信を防ぐため、SSE 開始前にここで同期的に所有者を検証する。
+	if in.SessionID != 0 {
+		s, err := u.sessions.FindByID(ctx, in.SessionID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to find session: %w", err)
+		}
+		if s.UserID != in.UserID {
+			return nil, ErrForbidden
+		}
+	}
+
 	out := make(chan StreamEvent, 16)
 
 	go func() {

@@ -56,6 +56,7 @@ const maxAttachmentsPerMessage = 4
 // @Success      200   {string}  string  "SSE stream (text/event-stream)"
 // @Failure      400   {object}  errorResponse  "バリデーション (application/json)"
 // @Failure      401   {object}  errorResponse  "未 認証 (application/json)"
+// @Failure      404   {object}  errorResponse  "セッション が ない (application/json)"
 // @Failure      503   {object}  errorResponse  "Bedrock / DynamoDB 未 設定 (dev/stub、 application/json)"
 // @Router       /ai-chat/stream [post]
 // @Security     CookieAuth
@@ -89,18 +90,12 @@ func (h *AiChatSseHandler) Handle(c *gin.Context) {
 		return
 	}
 
-	// SSE ヘッダ
-	c.Writer.Header().Set("Content-Type", "text/event-stream")
-	c.Writer.Header().Set("Cache-Control", "no-cache")
-	c.Writer.Header().Set("Connection", "keep-alive")
-	c.Writer.Header().Set("X-Accel-Buffering", "no")
-	c.Writer.WriteHeader(http.StatusOK)
-	flushOrPanic(c.Writer)
-
 	// client 切断で cancel される ctx を usecase に渡し、goroutine リークを防ぐ。
 	ctx, cancel := context.WithCancel(c.Request.Context())
 	defer cancel()
 
+	// SSE ヘッダ送信後は HTTP ステータスを変えられないため、
+	// 所有者検証を含む前処理はヘッダ送信前に行う。
 	stream, err := h.sendStream.Execute(ctx, usecase.SendAiMessageInput{
 		UserID:      uid,
 		SessionID:   body.SessionID,
@@ -111,9 +106,17 @@ func (h *AiChatSseHandler) Handle(c *gin.Context) {
 		Attachments: attachments,
 	})
 	if err != nil {
-		writeSSEEvent(c.Writer, "error", map[string]string{"message": "メッセージの送信に失敗しました"})
+		respondSessionError(c, err)
 		return
 	}
+
+	// SSE ヘッダ
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Header().Set("X-Accel-Buffering", "no")
+	c.Writer.WriteHeader(http.StatusOK)
+	flushOrPanic(c.Writer)
 
 	// keepalive: 15 秒ごとにコメント行を送り、ALB / CloudFront のアイドルタイムアウトを防ぐ。
 	keep := time.NewTicker(15 * time.Second)

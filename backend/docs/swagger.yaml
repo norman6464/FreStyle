@@ -1842,7 +1842,7 @@ paths:
       - ai-chat
   /ai-chat/sessions/{id}:
     delete:
-      description: 指定 id の セッション を 削除。 所有者 検証 込み。
+      description: 所有者を検証してから指定 id の セッション を 削除。
       parameters:
       - description: セッション ID
         in: path
@@ -1862,10 +1862,6 @@ paths:
           description: 未 認証
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
-        "403":
-          description: 他人 の セッション
-          schema:
-            $ref: '#/definitions/internal_handler.errorResponse'
         "404":
           description: セッション が ない
           schema:
@@ -1880,7 +1876,7 @@ paths:
       tags:
       - ai-chat
     get:
-      description: 指定 id の セッション を 返す。
+      description: 所有者を検証してから指定 id の セッション を 返す。
       parameters:
       - description: セッション ID
         in: path
@@ -1896,6 +1892,10 @@ paths:
             $ref: '#/definitions/github_com_norman6464_FreStyle_backend_internal_domain.AiChatSession'
         "400":
           description: id 不正
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
         "404":
@@ -1914,7 +1914,7 @@ paths:
     put:
       consumes:
       - application/json
-      description: 指定 id の セッション の title を 更新。
+      description: 所有者を検証してから指定 id の セッション タイトル を 更新。
       parameters:
       - description: セッション ID
         in: path
@@ -1938,6 +1938,14 @@ paths:
           description: バリデーション
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "404":
+          description: セッション が ない
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
         "500":
           description: DB 失敗
           schema:
@@ -1949,7 +1957,7 @@ paths:
       - ai-chat
   /ai-chat/sessions/{id}/messages:
     get:
-      description: 指定 セッション の 会話 履歴 (DynamoDB から) を 古い 順 で 返す。
+      description: 所有者を検証してから指定セッションの会話履歴(DynamoDB から)を作成日時の昇順(古い 順)で返す。
       parameters:
       - description: セッション ID
         in: path
@@ -1967,6 +1975,14 @@ paths:
             type: array
         "400":
           description: id 不正
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "404":
+          description: セッション が ない
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
         "500":
@@ -2007,6 +2023,10 @@ paths:
             $ref: '#/definitions/internal_handler.errorResponse'
         "401":
           description: 未 認証 (application/json)
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "404":
+          description: セッション が ない (application/json)
           schema:
             $ref: '#/definitions/internal_handler.errorResponse'
         "503":

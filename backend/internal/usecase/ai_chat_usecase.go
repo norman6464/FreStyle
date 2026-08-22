@@ -77,8 +77,15 @@ func NewGetAiChatSessionUseCase(s repository.AiChatSessionRepository) *GetAiChat
 	return &GetAiChatSessionUseCase{sessions: s}
 }
 
-func (u *GetAiChatSessionUseCase) Execute(ctx context.Context, id uint64) (*domain.AiChatSession, error) {
-	return u.sessions.FindByID(ctx, id)
+func (u *GetAiChatSessionUseCase) Execute(ctx context.Context, id, userID uint64) (*domain.AiChatSession, error) {
+	s, err := u.sessions.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if s.UserID != userID {
+		return nil, ErrForbidden
+	}
+	return s, nil
 }
 
 // UpdateAiChatSessionTitleUseCase はセッションタイトルを更新する。
@@ -90,9 +97,16 @@ func NewUpdateAiChatSessionTitleUseCase(s repository.AiChatSessionRepository) *U
 	return &UpdateAiChatSessionTitleUseCase{sessions: s}
 }
 
-func (u *UpdateAiChatSessionTitleUseCase) Execute(ctx context.Context, id uint64, title string) error {
+func (u *UpdateAiChatSessionTitleUseCase) Execute(ctx context.Context, id, userID uint64, title string) error {
 	if title == "" {
 		return errors.New("title is required")
+	}
+	s, err := u.sessions.FindByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if s.UserID != userID {
+		return ErrForbidden
 	}
 	return u.sessions.UpdateTitle(ctx, id, title)
 }
@@ -112,21 +126,30 @@ func (u *DeleteAiChatSessionUseCase) Execute(ctx context.Context, id uint64, use
 		return err
 	}
 	if s.UserID != userID {
-		return errors.New("forbidden")
+		return ErrForbidden
 	}
 	return u.sessions.Delete(ctx, id)
 }
 
 // GetAiChatMessagesUseCase は DynamoDB からセッションのメッセージ一覧を返す。
+// メッセージ側に所有者情報がないため、RDB のセッション行で所有者を検証してから読む。
 type GetAiChatMessagesUseCase struct {
+	sessions repository.AiChatSessionRepository
 	messages repository.AiChatMessageRepository
 }
 
-func NewGetAiChatMessagesUseCase(m repository.AiChatMessageRepository) *GetAiChatMessagesUseCase {
-	return &GetAiChatMessagesUseCase{messages: m}
+func NewGetAiChatMessagesUseCase(s repository.AiChatSessionRepository, m repository.AiChatMessageRepository) *GetAiChatMessagesUseCase {
+	return &GetAiChatMessagesUseCase{sessions: s, messages: m}
 }
 
-func (u *GetAiChatMessagesUseCase) Execute(ctx context.Context, sessionID uint64) ([]domain.AiChatMessage, error) {
+func (u *GetAiChatMessagesUseCase) Execute(ctx context.Context, sessionID, userID uint64) ([]domain.AiChatMessage, error) {
+	s, err := u.sessions.FindByID(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	if s.UserID != userID {
+		return nil, ErrForbidden
+	}
 	if u.messages == nil {
 		return nil, errors.New("message repository unavailable")
 	}

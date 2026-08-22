@@ -43,9 +43,7 @@ func toDomainUser(row userRow) *domain.User {
 		CreatedAt: row.CreatedAt,
 		UpdatedAt: row.UpdatedAt,
 	}
-	if row.RoleID.Valid {
-		u.RoleID = uint16(row.RoleID.Int16)
-	}
+	u.RoleID = uint16(row.RoleID)
 	if row.CompanyID.Valid {
 		cid := uint64(row.CompanyID.Int64)
 		u.CompanyID = &cid
@@ -207,11 +205,6 @@ func (r *userRepository) CreateWithOidcIdentity(ctx context.Context, user *domai
 		return err
 	}
 	user.RoleID = roleID
-	// ローリングデプロイ中に旧タスクが読む旧カラム cognito_sub へ subject を併記する
-	// （撤去は FRESTYLE-311 の後続 PR）。identity（正）とは同一トランザクションで対に作る。
-	if provider == domain.OidcProviderCognito {
-		user.CognitoSub = subject
-	}
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(user).Error; err != nil {
 			return err
@@ -319,12 +312,10 @@ func (r *userRepository) UpdateRole(ctx context.Context, userID uint64, role dom
 	if err != nil {
 		return err
 	}
-	// 正は role_id。ローリングデプロイ中に旧タスクが読む旧 role カラムへも併記する
-	// （撤去は FRESTYLE-311 の後続 PR）。
 	return r.db.WithContext(ctx).
 		Model(&domain.User{}).
 		Where("id = ?", userID).
-		Updates(map[string]any{"role": string(role), "role_id": roleID}).Error
+		Update("role_id", roleID).Error
 }
 
 func (r *userRepository) UpdateCompanyID(ctx context.Context, userID uint64, companyID uint64) error {

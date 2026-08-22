@@ -101,17 +101,17 @@ WHERE NOT EXISTS (SELECT 1 FROM companies WHERE id = 1);
 
 -- ---- users ----------------------------------------------------------------
 -- 1% を company_admin にして権限分岐のあるクエリも実データで踏めるようにする。
--- role_id が正（FRESTYLE-311）。旧カラム role は移行期間中の併記（PR3 で撤去）。
+-- ロールは role_id が正（FRESTYLE-311）。OIDC subject は user_oidc_identities に持つ。
 -- password_hash は全員 'password' の bcrypt（ローカルのパスワードログイン用・FRESTYLE-311 PR2）。
-INSERT INTO users (id, cognito_sub, email, name, company_id, role, role_id, password_hash, is_active, created_at, updated_at)
+INSERT INTO users (id, email, name, company_id, role_id, password_hash, is_active, created_at, updated_at)
 SELECT
   1000000 + i,
-  'seed-sub-' || i,
   'seed' || i || '@example.test',
   'シード利用者' || i,
   1,
-  CASE WHEN i % 100 = 0 THEN 'company_admin' ELSE 'trainee' END,
-  (SELECT id FROM roles WHERE name = CASE WHEN i % 100 = 0 THEN 'company_admin' ELSE 'trainee' END),
+  (SELECT id
+   FROM roles
+   WHERE name = CASE WHEN i % 100 = 0 THEN 'company_admin' ELSE 'trainee' END),
   '$2a$10$Xgxiol1/CKW0E2qp4P3JOO/fZp3dcDmXxMHk76rHrOLRec8RIaqEm',
   true,
   now() - (random() * 365)::int * interval '1 day',
@@ -120,16 +120,18 @@ FROM generate_series(1, :n_users) AS i;
 
 -- オフラインで管理画面まで触れるよう、運営管理者を 1 人入れる（admin@example.test / password）。
 -- id 1000000 は連番（1000000 + i, i >= 1）と衝突しない。
-INSERT INTO users (id, cognito_sub, email, name, company_id, role, role_id, password_hash, is_active, created_at, updated_at)
+INSERT INTO users (id, email, name, company_id, role_id, password_hash, is_active, created_at, updated_at)
 VALUES (
-  1000000, 'seed-sub-admin', 'admin@example.test', 'シード運営管理者', NULL,
-  'super_admin', (SELECT id FROM roles
-                  WHERE name = 'super_admin'),
+  1000000, 'admin@example.test', 'シード運営管理者', NULL,
+  (SELECT id
+   FROM roles
+   WHERE name = 'super_admin'),
   '$2a$10$Xgxiol1/CKW0E2qp4P3JOO/fZp3dcDmXxMHk76rHrOLRec8RIaqEm', true, now(), now()
 );
 
 -- OIDC identity（正規化後のログイン突き合わせの正）。seed の sub はダミーで、
 -- Cognito ログインには使えないが、ローカルのパスワードログインが発行するトークンの sub になる。
+-- 運営管理者（id 1000000）も含めて全 seed ユーザーに 1 対 1 で作る。
 INSERT INTO user_oidc_identities (user_id, provider, subject, created_at, updated_at)
 SELECT 1000000 + i, 'cognito', 'seed-sub-' || i, now(), now()
 FROM generate_series(1, :n_users) AS i;

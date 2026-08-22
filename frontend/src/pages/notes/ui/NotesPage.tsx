@@ -95,6 +95,8 @@ export default function NotesPage() {
       <SecondaryPanel
         title="ノート"
         badge={`${documents.length}件`}
+        peekable
+        storageKey="frestyle.panel.notes"
         mobileOpen={mobilePanelOpen}
         onMobileClose={closeMobilePanel}
         headerContent={

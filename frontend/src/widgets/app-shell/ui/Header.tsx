@@ -18,29 +18,13 @@ import { ProfileRepository } from '@/entities/user';
 // （サイドバー・モバイルメニューと共用の正典）。ここでは描画だけを行う。
 import { navActive, roleLabel, visibleAdminSubs, visibleMainNav } from '../model/navigation';
 
-export interface HeaderProps {
-  /** サイドバーの表示モード。collapsed のときだけ左端に ☰（固定表示トグル）を出す。 */
-  sidebarMode?: 'collapsed' | 'pinned';
-  /** ☰ クリックでサイドバーを固定表示にする。 */
-  onSidebarPin?: () => void;
-  /** ☰ ホバーで一時表示を開く / 離れたら閉じる。 */
-  onSidebarHoverStart?: () => void;
-  onSidebarHoverEnd?: () => void;
-}
-
 /**
  * Header — 上部固定のテキスト横並びナビ。
  *
- * 左: (サイドバー一時表示時のみ)☰ + ロゴ ／ 中央左: テキストナビ（アイコンなし） ／
- * 右: 通知ベル + 管理ドロップダウン(admin) + ユーザーメニュー。
+ * 左: ロゴ ／ 中央左: テキストナビ（アイコンなし） ／ 右: 通知ベル + 管理ドロップダウン(admin) + ユーザーメニュー。
  * モバイルではハンバーガーで縦メニューを開く。 ロール出し分けはサイドバー時代の仕様を踏襲する。
  */
-export default function Header({
-  sidebarMode,
-  onSidebarPin,
-  onSidebarHoverStart,
-  onSidebarHoverEnd,
-}: HeaderProps = {}) {
+export default function Header() {
   const location = useLocation();
   const { handleLogout, loggingOut } = useSidebar();
   const isAdmin = useAppSelector((s) => s.auth.isAdmin);
@@ -99,29 +83,6 @@ export default function Header({
     <>
       {loggingOut && <Loading fullscreen message="ログアウト中..." />}
       <header className="flex-shrink-0 h-16 bg-[var(--color-nav)] border-b border-surface-3 flex items-center gap-2 px-3">
-        {/* サイドバーが一時表示モードのとき、固定表示トグル（☰）を先頭に出す。
-            ホバーで一時表示が浮かび、クリックで固定される。デスクトップのみ。 */}
-        {sidebarMode === 'collapsed' && onSidebarPin && (
-          <span className="relative group/sbtip hidden md:inline-flex">
-            <button
-              type="button"
-              onClick={onSidebarPin}
-              onMouseEnter={onSidebarHoverStart}
-              onMouseLeave={onSidebarHoverEnd}
-              aria-label="サイドバーを固定表示する"
-              className="p-2 rounded-md text-[var(--color-text-tertiary)] hover:bg-[var(--color-nav-hover)] hover:text-[var(--color-text-primary)] transition-colors"
-            >
-              <Bars3Icon className="w-5 h-5" />
-            </button>
-            <span
-              role="tooltip"
-              className="pointer-events-none absolute left-0 top-full z-50 mt-1.5 hidden whitespace-pre rounded-md bg-[var(--color-text-primary)] px-2 py-1.5 text-xs font-medium leading-tight text-[var(--color-surface-1)] shadow-lg group-hover/sbtip:block"
-            >
-              {'サイドバーを固定表示する\n⌘\\'}
-            </span>
-          </span>
-        )}
-
         {/* ロゴは favicon と同じ画像（favicon.svg = 三角の飛翔マーク）に揃える。 */}
         <Link to="/dashboard" className="flex items-center gap-2 flex-shrink-0 mr-2" aria-label="FreStyle ホーム">
           <img src="/favicon.svg" alt="" aria-hidden="true" className="w-7 h-7 flex-shrink-0" />

@@ -45,7 +45,7 @@ CREATE TABLE users (
     password_hash text,
     name       text NOT NULL DEFAULT '',
     company_id   bigint,
-    role_id      smallint,
+    role_id      smallint NOT NULL,
     ai_chat_enabled boolean,
     is_active    boolean NOT NULL DEFAULT true,
     created_at   timestamptz NOT NULL,

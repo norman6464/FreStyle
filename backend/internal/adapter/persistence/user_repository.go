@@ -43,9 +43,7 @@ func toDomainUser(row userRow) *domain.User {
 		CreatedAt: row.CreatedAt,
 		UpdatedAt: row.UpdatedAt,
 	}
-	if row.RoleID.Valid {
-		u.RoleID = uint16(row.RoleID.Int16)
-	}
+	u.RoleID = uint16(row.RoleID)
 	if row.CompanyID.Valid {
 		cid := uint64(row.CompanyID.Int64)
 		u.CompanyID = &cid

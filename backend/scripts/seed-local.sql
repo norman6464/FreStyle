@@ -109,7 +109,9 @@ SELECT
   'seed' || i || '@example.test',
   'シード利用者' || i,
   1,
-  (SELECT id FROM roles WHERE name = CASE WHEN i % 100 = 0 THEN 'company_admin' ELSE 'trainee' END),
+  (SELECT id
+   FROM roles
+   WHERE name = CASE WHEN i % 100 = 0 THEN 'company_admin' ELSE 'trainee' END),
   '$2a$10$Xgxiol1/CKW0E2qp4P3JOO/fZp3dcDmXxMHk76rHrOLRec8RIaqEm',
   true,
   now() - (random() * 365)::int * interval '1 day',
@@ -121,7 +123,9 @@ FROM generate_series(1, :n_users) AS i;
 INSERT INTO users (id, email, name, company_id, role_id, password_hash, is_active, created_at, updated_at)
 VALUES (
   1000000, 'admin@example.test', 'シード運営管理者', NULL,
-  (SELECT id FROM roles WHERE name = 'super_admin'),
+  (SELECT id
+   FROM roles
+   WHERE name = 'super_admin'),
   '$2a$10$Xgxiol1/CKW0E2qp4P3JOO/fZp3dcDmXxMHk76rHrOLRec8RIaqEm', true, now(), now()
 );
 

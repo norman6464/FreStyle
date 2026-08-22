@@ -43,7 +43,7 @@ type GetUserByCognitoSubRow struct {
 	Email         string
 	Name          string
 	CompanyID     sql.NullInt64
-	RoleID        sql.NullInt16
+	RoleID        int16
 	AiChatEnabled sql.NullBool
 	IsActive      bool
 	CreatedAt     time.Time
@@ -92,7 +92,7 @@ type GetUserByIDRow struct {
 	Email         string
 	Name          string
 	CompanyID     sql.NullInt64
-	RoleID        sql.NullInt16
+	RoleID        int16
 	AiChatEnabled sql.NullBool
 	IsActive      bool
 	CreatedAt     time.Time
@@ -133,7 +133,7 @@ type ListActiveUsersByEmailRow struct {
 	Email         string
 	Name          string
 	CompanyID     sql.NullInt64
-	RoleID        sql.NullInt16
+	RoleID        int16
 	AiChatEnabled sql.NullBool
 	IsActive      bool
 	CreatedAt     time.Time
@@ -196,7 +196,7 @@ type ListUsersByCompanyIDRow struct {
 	Email         string
 	Name          string
 	CompanyID     sql.NullInt64
-	RoleID        sql.NullInt16
+	RoleID        int16
 	AiChatEnabled sql.NullBool
 	IsActive      bool
 	CreatedAt     time.Time
@@ -254,7 +254,7 @@ type ListUsersByRoleRow struct {
 	Email         string
 	Name          string
 	CompanyID     sql.NullInt64
-	RoleID        sql.NullInt16
+	RoleID        int16
 	AiChatEnabled sql.NullBool
 	IsActive      bool
 	CreatedAt     time.Time

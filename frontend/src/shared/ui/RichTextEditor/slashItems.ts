@@ -18,18 +18,18 @@ export function buildSlashItems(extra: EditorCommand[] = []): EditorCommand[] {
  * 前方一致を優先し、次いで部分一致を並べる（/h → h1,h2,h3 が先頭に来る）。
  */
 export function filterSlashItems(items: EditorCommand[], query: string): EditorCommand[] {
-  const q = query.trim().toLowerCase();
-  if (q === '') return items;
+  const normalizedQuery = query.trim().toLowerCase();
+  if (normalizedQuery === '') return items;
 
   const tokensOf = (item: EditorCommand): string[] =>
-    [item.id.toLowerCase(), ...(item.keywords ?? []).map((k) => k.toLowerCase())];
+    [item.id.toLowerCase(), ...(item.keywords ?? []).map((keyword) => keyword.toLowerCase())];
 
   const prefix: EditorCommand[] = [];
   const partial: EditorCommand[] = [];
   for (const item of items) {
     const tokens = tokensOf(item);
-    if (tokens.some((t) => t.startsWith(q))) prefix.push(item);
-    else if (tokens.some((t) => t.includes(q))) partial.push(item);
+    if (tokens.some((token) => token.startsWith(normalizedQuery))) prefix.push(item);
+    else if (tokens.some((token) => token.includes(normalizedQuery))) partial.push(item);
   }
   return [...prefix, ...partial];
 }

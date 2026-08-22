@@ -10,12 +10,19 @@ export interface SlashCommandOptions {
   items: EditorCommand[];
 }
 
+// 複数エディタが同居しても aria-controls が衝突しないよう、開くたびに一意 id を振る。
+let listboxSeq = 0;
+
 /**
  * SlashCommand は '/' でブロック挿入メニューを開く拡張。
  *
  * '/' に続けて英単語（/h1・/quote・/image …）を打つと絞り込まれ、Enter/クリックで
  * 実行される。確定時は入力中の "/query" を消してからコマンドを実行する。
  * ポップアップの生成は ReactRenderer、位置決めは Suggestion 内蔵の mount（floating-ui）が担う。
+ *
+ * DOM フォーカスは editor（textbox）に残るため、メニュー表示中は textbox に
+ * aria-expanded / aria-controls / aria-activedescendant を付与して、選択中の候補を
+ * スクリーンリーダーへ伝える（WAI-ARIA の listbox + activedescendant パターン）。
  */
 export const SlashCommand = Extension.create<SlashCommandOptions>({
   name: 'slashCommand',
@@ -46,39 +53,63 @@ export const SlashCommand = Extension.create<SlashCommandOptions>({
         render: () => {
           let renderer: ReactRenderer<SlashMenuListHandle, SlashMenuListProps> | null = null;
           let unmount: (() => void) | null = null;
+          let listboxId = '';
+
+          // textbox（ProseMirror の contenteditable）へのメニュー用 aria 属性の付け外し。
+          const setMenuAria = (dom: HTMLElement) => {
+            dom.setAttribute('aria-expanded', 'true');
+            dom.setAttribute('aria-controls', listboxId);
+          };
+          const clearMenuAria = (dom: HTMLElement) => {
+            dom.removeAttribute('aria-expanded');
+            dom.removeAttribute('aria-controls');
+            dom.removeAttribute('aria-activedescendant');
+          };
+
+          const close = (dom: HTMLElement) => {
+            clearMenuAria(dom);
+            unmount?.();
+            unmount = null;
+            renderer?.destroy();
+            renderer = null;
+          };
+
+          const menuProps = (
+            props: SuggestionProps<EditorCommand, EditorCommand>,
+          ): SlashMenuListProps => ({
+            items: props.items,
+            onSelect: (item: EditorCommand) => props.command(item),
+            listboxId,
+            onActiveChange: (optionId: string) => {
+              props.editor.view.dom.setAttribute('aria-activedescendant', optionId);
+            },
+          });
 
           return {
             onStart: (props: SuggestionProps<EditorCommand, EditorCommand>) => {
+              listboxSeq += 1;
+              listboxId = `rte-slash-listbox-${listboxSeq}`;
               renderer = new ReactRenderer(SlashMenuList, {
                 editor: props.editor,
-                props: {
-                  items: props.items,
-                  onSelect: (item: EditorCommand) => props.command(item),
-                },
+                props: menuProps(props),
                 className: 'rte-slash',
               });
+              setMenuAria(props.editor.view.dom);
               // Suggestion 内蔵の mount がキャレット位置への追従（floating-ui）まで面倒を見る。
               unmount = props.mount(renderer.element);
             },
             onUpdate: (props: SuggestionProps<EditorCommand, EditorCommand>) => {
-              renderer?.updateProps({
-                items: props.items,
-                onSelect: (item: EditorCommand) => props.command(item),
-              });
+              renderer?.updateProps(menuProps(props));
             },
             onKeyDown: (props: SuggestionKeyDownProps) => {
               if (props.event.key === 'Escape') {
-                unmount?.();
-                unmount = null;
+                close(editor.view.dom);
                 return true;
               }
               return renderer?.ref?.onKeyDown(props.event) ?? false;
             },
-            onExit: () => {
-              unmount?.();
-              unmount = null;
-              renderer?.destroy();
-              renderer = null;
+            onExit: (props: SuggestionProps<EditorCommand, EditorCommand>) => {
+              close(props.editor.view.dom);
             },
           };
         },

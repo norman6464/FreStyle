@@ -5,11 +5,24 @@ export interface SlashMenuListProps {
   items: EditorCommand[];
   /** 項目確定時に呼ばれる（Enter / クリック）。 */
   onSelect: (item: EditorCommand) => void;
+  /** listbox 要素に付与する id（editor 側の aria-controls と対にする）。 */
+  listboxId?: string;
+  /**
+   * 選択中 option の id が変わるたびに通知する。DOM フォーカスは editor（textbox）に
+   * 残るため、呼び出し側が textbox の aria-activedescendant に反映して
+   * スクリーンリーダーへ選択中項目を伝える。
+   */
+  onActiveChange?: (optionId: string) => void;
 }
 
 /** SlashMenuListHandle は Suggestion の onKeyDown からキー操作を流し込むためのハンドル。 */
 export interface SlashMenuListHandle {
   onKeyDown: (event: KeyboardEvent) => boolean;
+}
+
+/** optionId は listbox 内の各 option の安定 id を作る。 */
+function optionId(listboxId: string | undefined, item: EditorCommand): string {
+  return `${listboxId ?? 'rte-slash'}-option-${item.id}`;
 }
 
 /**
@@ -18,13 +31,19 @@ export interface SlashMenuListHandle {
  * 位置決め・表示切替は呼び出し側（Suggestion の mount）が担う。
  */
 const SlashMenuList = forwardRef<SlashMenuListHandle, SlashMenuListProps>(
-  function SlashMenuList({ items, onSelect }, ref) {
+  function SlashMenuList({ items, onSelect, listboxId, onActiveChange }, ref) {
     const [selectedIndex, setSelectedIndex] = useState(0);
 
     // 絞り込みで件数が変わったら先頭へ戻す（範囲外選択を防ぐ）。
     useEffect(() => {
       setSelectedIndex(0);
     }, [items]);
+
+    // 選択中 option の id を親（editor の aria-activedescendant）へ伝える。
+    useEffect(() => {
+      const item = items[selectedIndex];
+      if (item) onActiveChange?.(optionId(listboxId, item));
+    }, [items, selectedIndex, listboxId, onActiveChange]);
 
     useImperativeHandle(ref, () => ({
       onKeyDown: (event: KeyboardEvent): boolean => {
@@ -51,11 +70,17 @@ const SlashMenuList = forwardRef<SlashMenuListHandle, SlashMenuListProps>(
     }
 
     return (
-      <ul role="listbox" aria-label="ブロックの挿入" className="rte-slash-list">
+      <ul id={listboxId} role="listbox" aria-label="ブロックの挿入" className="rte-slash-list">
         {items.map((item, index) => (
-          <li key={item.id} role="option" aria-selected={index === selectedIndex}>
+          <li
+            key={item.id}
+            id={optionId(listboxId, item)}
+            role="option"
+            aria-selected={index === selectedIndex}
+          >
             <button
               type="button"
+              tabIndex={-1}
               className={`rte-slash-item ${index === selectedIndex ? 'is-active' : ''}`}
               // mousedown での blur によりメニューが先に閉じないようにする。
               onMouseDown={(mouseEvent) => mouseEvent.preventDefault()}

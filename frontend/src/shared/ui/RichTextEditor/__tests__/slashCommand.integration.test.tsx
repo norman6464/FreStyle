@@ -100,7 +100,7 @@ describe('スラッシュコマンド（統合）', () => {
     await waitFor(() => expect(screen.getByText('該当するコマンドがありません')).toBeInTheDocument());
   });
 
-  it('onImageUpload 指定時のみ /image が出て、確定でファイル選択が開く', async () => {
+  it('onImageUpload 指定時のみ /image が出て、確定→ファイル選択→アップロード→画像挿入まで通る', async () => {
     const upload = vi.fn().mockResolvedValue('https://cdn.example.com/a.png');
     const { editor } = await setup({ onImageUpload: upload });
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
@@ -111,6 +111,45 @@ describe('スラッシュコマンド（統合）', () => {
     await waitFor(() => expect(screen.getByText('画像')).toBeInTheDocument());
     fireEvent.click(screen.getByText('画像'));
     expect(clickSpy).toHaveBeenCalled();
+
+    // ファイル選択後、アップロード → 返却 URL の image ノード挿入まで到達すること。
+    const file = new File(['image'], 'a.png', { type: 'image/png' });
+    fireEvent.change(input, { target: { files: [file] } });
+    await waitFor(() => expect(upload).toHaveBeenCalledWith(file));
+    await waitFor(() => {
+      expect(findNode(editor.getJSON(), 'image')?.attrs?.src).toBe('https://cdn.example.com/a.png');
+    });
+  });
+
+  it('メニュー表示中は textbox に aria 属性が付き、矢印キーで aria-activedescendant が追従する', async () => {
+    const { editor } = await setup();
+    const textbox = editor.view.dom;
+    expect(textbox.getAttribute('aria-expanded')).toBeNull();
+
+    await typeSlash(editor);
+    const listboxId = textbox.getAttribute('aria-controls');
+    expect(textbox.getAttribute('aria-expanded')).toBe('true');
+    expect(listboxId).toBeTruthy();
+    expect(document.getElementById(listboxId!)).toHaveAttribute('role', 'listbox');
+    // 初期状態は先頭 option を指す。
+    await waitFor(() =>
+      expect(textbox.getAttribute('aria-activedescendant')).toBe(`${listboxId}-option-heading1`),
+    );
+
+    act(() => {
+      textbox.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    });
+    await waitFor(() =>
+      expect(textbox.getAttribute('aria-activedescendant')).toBe(`${listboxId}-option-heading2`),
+    );
+
+    // Escape で閉じると aria 属性も外れる。
+    act(() => {
+      textbox.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    await waitFor(() => expect(textbox.getAttribute('aria-expanded')).toBeNull());
+    expect(textbox.getAttribute('aria-controls')).toBeNull();
+    expect(textbox.getAttribute('aria-activedescendant')).toBeNull();
   });
 
   it('onImageUpload なしでは /image を出さない', async () => {

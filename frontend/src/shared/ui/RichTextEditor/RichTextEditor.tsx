@@ -1,6 +1,9 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { EditorContent, useEditor, type Editor } from '@tiptap/react';
+import { ACCEPTED_IMAGE_ACCEPT_ATTR } from '@/shared/config/imageUpload';
 import { createEditorExtensions } from './editorExtensions';
+import type { EditorCommand } from './editorCommands';
+import { buildSlashItems } from './slashItems';
 import { acceptedImageFiles, insertUploadedImages } from './imageInsertion';
 import BubbleFormatMenu from './BubbleFormatMenu';
 import SaveStatusIndicator, { type SaveStatus } from './SaveStatusIndicator';
@@ -74,6 +77,8 @@ export default function RichTextEditor({
     onImageUploadRef.current = onImageUpload;
   }, [onImageUpload]);
   const editorRef = useRef<Editor | null>(null);
+  // '/image' から開くファイル選択（キーボード/クリックでも画像を挿入できる経路）。
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // アンマウント（別ノートへ切替）後にアップロードが完了しても挿入しないための番人。
   const mountedRef = useRef(true);
@@ -100,9 +105,29 @@ export default function RichTextEditor({
   // その空振り emit を握りつぶす（読み込み直後に「未保存」へ落ちないようにする）。
   const lastValueRef = useRef(JSON.stringify(value));
 
+  // '/' メニューの項目。ベースはレジストリ（ブロック変換＋挿入）。画像アップロードが
+  // 配線されているときだけ /image（ファイル選択）を足す。onImageUpload の有無だけに依存させ、
+  // 拡張一式が編集のたびに作り直されないようにする。
+  const hasImageUpload = Boolean(onImageUpload);
+  const slashItems = useMemo<EditorCommand[]>(() => {
+    const extra: EditorCommand[] = hasImageUpload
+      ? [
+          {
+            id: 'image',
+            label: '画像',
+            group: 'insert',
+            glyph: '🖼',
+            keywords: ['image', 'img', 'photo', 'picture', 'upload'],
+            run: () => fileInputRef.current?.click(),
+          },
+        ]
+      : [];
+    return buildSlashItems(extra);
+  }, [hasImageUpload]);
+
   const editor = useEditor({
     editable,
-    extensions: createEditorExtensions({ placeholder }),
+    extensions: createEditorExtensions({ placeholder, slashItems }),
     content: value,
     editorProps: {
       attributes: {
@@ -158,6 +183,21 @@ export default function RichTextEditor({
         <EditorContent editor={editor} />
       </div>
       {editable && editor && <BubbleFormatMenu editor={editor} />}
+      {onImageUpload && (
+        // '/image' から開く隠しファイル入力（DnD/貼り付けと同じ挿入経路へ流す）。
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={ACCEPTED_IMAGE_ACCEPT_ATTR}
+          className="hidden"
+          aria-hidden="true"
+          tabIndex={-1}
+          onChange={(e) => {
+            handleImageFiles(e.target.files);
+            e.target.value = '';
+          }}
+        />
+      )}
       {saveStatus && saveStatus !== 'idle' && (
         <div className="mt-2 flex justify-end">
           <SaveStatusIndicator status={saveStatus} />

@@ -3,6 +3,8 @@ import StarterKit from '@tiptap/starter-kit';
 import { Placeholder } from '@tiptap/extensions';
 import Image from '@tiptap/extension-image';
 import Code from '@tiptap/extension-code';
+import type { EditorCommand } from './editorCommands';
+import { SlashCommand } from './slashCommandExtension';
 
 /**
  * CombinableCode は他のマークと共存できるインラインコード。
@@ -19,6 +21,11 @@ export interface CreateEditorExtensionsOptions {
   placeholder?: string;
   /** 画像ノードを有効にするか（既定 true）。アップロードの配線は利用側が別途行う。 */
   image?: boolean;
+  /**
+   * '/' メニューに出すコマンド（英単語トリガ）。未指定ならスラッシュメニュー自体を付けない。
+   * 利用側だけが知る操作（画像アップロード等）もこの配列に差し込める。
+   */
+  slashItems?: EditorCommand[];
 }
 
 /**
@@ -31,7 +38,7 @@ export interface CreateEditorExtensionsOptions {
 export function createEditorExtensions(
   options: CreateEditorExtensionsOptions = {},
 ): Extensions {
-  const { placeholder = '本文を入力…', image = true } = options;
+  const { placeholder = '本文を入力…', image = true, slashItems } = options;
 
   const extensions: Extensions = [
     // StarterKit の code は排他指定があるため無効化し、共存できる CombinableCode を使う。
@@ -42,6 +49,10 @@ export function createEditorExtensions(
 
   if (image) {
     extensions.push(Image.configure({ inline: false, allowBase64: false }));
+  }
+
+  if (slashItems && slashItems.length > 0) {
+    extensions.push(SlashCommand.configure({ items: slashItems }));
   }
 
   return extensions;

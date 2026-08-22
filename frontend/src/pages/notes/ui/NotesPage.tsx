@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { SecondaryPanel } from '@/widgets/secondary-panel';
 import EmptyState from '@/shared/ui/EmptyState';
 import ConfirmModal from '@/shared/ui/ConfirmModal';
@@ -22,6 +23,9 @@ import { useNoteKeyboardShortcuts } from '../model/useNoteKeyboardShortcuts';
 
 export default function NotesPage() {
   const { showToast } = useToast();
+  // URL（/notes/:noteId）と選択状態を双方向に同期する（AI チャットの /chat/ask-ai/:sessionId と同じ流儀）。
+  const { noteId } = useParams<{ noteId: string }>();
+  const navigate = useNavigate();
   const { isOpen: mobilePanelOpen, open: openMobilePanel, close: closeMobilePanel } = useMobilePanelState();
   const {
     documents,
@@ -46,6 +50,25 @@ export default function NotesPage() {
   useEffect(() => {
     fetchDocuments();
   }, [fetchDocuments]);
+
+  // URL → 選択: /notes/:noteId で開いたとき（またはブラウザの戻る/進む）その id を選択する。
+  // 取得前に選択しておくことで、取得後の先頭自動選択に上書きされない。
+  useEffect(() => {
+    if (noteId && noteId !== selectedId) selectDocument(noteId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- selectedId 起因の再実行は URL→選択の一方向性を壊すため noteId のみ
+  }, [noteId, selectDocument]);
+
+  // 選択 → URL: 選択が変わったら URL を追随させる。/notes（id なし）からの自動選択は
+  // 履歴を汚さないよう replace、ユーザー操作による選択替えは push で戻る/進むを効かせる。
+  useEffect(() => {
+    if (selectedId && selectedId !== noteId) {
+      navigate(`/notes/${selectedId}`, { replace: noteId === undefined });
+    } else if (!selectedId && noteId) {
+      // 最後のノートを削除した等で選択が消えたら一覧の素の URL へ戻す。
+      navigate('/notes', { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- noteId 起因の再実行は選択→URL の一方向性を壊すため selectedId のみ
+  }, [selectedId, navigate]);
 
   const {
     editTitle,

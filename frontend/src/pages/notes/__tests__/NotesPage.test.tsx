@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ReactElement } from 'react';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import NotesPage from '../ui/NotesPage';
 import { useDocuments } from '../model/useDocuments';
 import { useDocumentEditor } from '../model/useDocumentEditor';
@@ -86,7 +87,15 @@ function setup(docOverrides: Partial<ReturnType<typeof useDocuments>> = {}, edit
   vi.mocked(useDocumentEditor).mockReturnValue({ ...baseEditor, ...editorOverrides });
 }
 
-const renderPage = (ui: ReactElement = <NotesPage />) => render(ui);
+const renderPage = (ui: ReactElement = <NotesPage />, initialPath = '/notes') =>
+  render(
+    <MemoryRouter initialEntries={[initialPath]}>
+      <Routes>
+        <Route path="/notes" element={ui} />
+        <Route path="/notes/:noteId" element={ui} />
+      </Routes>
+    </MemoryRouter>,
+  );
 
 describe('NotesPage', () => {
   beforeEach(() => {
@@ -223,5 +232,38 @@ describe('NotesPage', () => {
     const onImageUpload = hoisted.rteProps.current?.onImageUpload;
     await expect(onImageUpload!(new File(['x'], 'a.png', { type: 'image/png' }))).rejects.toThrow();
     expect(mockShowToast).toHaveBeenCalledWith('error', '画像のアップロードに失敗しました');
+  });
+});
+
+describe('NotesPage URL 同期（/notes/:noteId）', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setup();
+  });
+
+  it('/notes/:noteId で開くと URL の id を選択する', () => {
+    const selectDocument = vi.fn();
+    setup({ selectDocument, selectedId: null });
+    renderPage(<NotesPage />, '/notes/0198a1b2-0000-7000-8000-000000000abc');
+    expect(selectDocument).toHaveBeenCalledWith('0198a1b2-0000-7000-8000-000000000abc');
+  });
+
+  it('選択済み（自動選択後など）は URL へ反映される（/notes → /notes/:id）', async () => {
+    setup({ selectedId: 'doc-1' });
+    renderPage();
+    // navigate により :noteId ルートで再描画され、useDocumentEditor は選択 id のまま呼ばれ続ける。
+    await waitFor(() => {
+      const call = vi.mocked(useDocumentEditor).mock.calls.at(-1);
+      expect(call?.[0]).toBe('doc-1');
+    });
+    // URL 由来の余計な選択替えが起きない（selectDocument は呼ばれない）。
+    expect(baseDocuments.selectDocument).not.toHaveBeenCalled();
+  });
+
+  it('URL の id と選択が一致していれば何もしない', () => {
+    const selectDocument = vi.fn();
+    setup({ selectDocument, selectedId: 'same-id' });
+    renderPage(<NotesPage />, '/notes/same-id');
+    expect(selectDocument).not.toHaveBeenCalled();
   });
 });

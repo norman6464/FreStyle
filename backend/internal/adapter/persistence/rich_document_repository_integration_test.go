@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
+
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
@@ -40,6 +42,11 @@ func TestRichDocumentRepository_Integration(t *testing.T) {
 		doc := &domain.RichDocument{OwnerID: owner, Kind: domain.DocumentKindNote, Title: "メモ", Doc: rdDoc, Revision: 1}
 		require.NoError(t, repo.Create(ctx, doc))
 		require.NotEmpty(t, doc.ID) // UUID 採番済み
+
+		// 採番は UUIDv7（時系列ソート可能・URL は推測困難のまま）。
+		parsedID, err := uuid.Parse(doc.ID)
+		require.NoError(t, err)
+		require.Equal(t, uuid.Version(7), parsedID.Version())
 
 		got, err := repo.FindByID(ctx, doc.ID)
 		require.NoError(t, err)

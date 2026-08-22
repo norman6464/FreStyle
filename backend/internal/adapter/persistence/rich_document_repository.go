@@ -37,8 +37,15 @@ func NewRichDocumentRepository(db *gorm.DB) repository.RichDocumentRepository {
 
 func (r *richDocumentRepository) Create(ctx context.Context, doc *domain.RichDocument) error {
 	if doc.ID == "" {
-		// 推測不能な UUID を採番する（Notion 風の URL）。
-		doc.ID = uuid.NewString()
+		// UUIDv7 を採番する。時系列で単調に増える（インデックス局所性が良く作成順ソート可能）うえ、
+		// ランダム部 74bit により URL は推測困難のまま。v4 で作られた既存 ID とも同形式で互換。
+		id, err := uuid.NewV7()
+		if err != nil {
+			// エントロピー枯渇など極めて稀な失敗時は v4 に退避する（採番を止めない）。
+			doc.ID = uuid.NewString()
+		} else {
+			doc.ID = id.String()
+		}
 	}
 	return mapPgDataError(r.db.WithContext(ctx).Create(doc).Error)
 }

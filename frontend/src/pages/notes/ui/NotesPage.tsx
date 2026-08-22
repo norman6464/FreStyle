@@ -186,19 +186,22 @@ export default function NotesPage() {
               action={{ label: '再読み込み', onClick: reload }}
             />
           ) : (
+            // 枠のないインライン文書。タイトルと本文を同じ中央カラムに載せて 1 つの文書として見せる。
             <div className="flex flex-1 flex-col min-h-0 overflow-y-auto">
-              <div className="flex items-center gap-3 px-6 pt-6">
-                <input
-                  type="text"
-                  value={editTitle}
-                  onChange={(e) => handleTitleChange(e.target.value)}
-                  placeholder="無題"
-                  aria-label="ノートのタイトル"
-                  className="min-w-0 flex-1 bg-transparent text-2xl font-bold text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none"
-                />
-                <SaveStatusIndicator status={saveStatus} />
-              </div>
-              <div className="px-4 pb-10 pt-2">
+              <div className="mx-auto w-full max-w-3xl px-6 py-10">
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <input
+                    type="text"
+                    value={editTitle}
+                    onChange={(e) => handleTitleChange(e.target.value)}
+                    placeholder="無題"
+                    aria-label="ノートのタイトル"
+                    className="min-w-0 flex-1 bg-transparent text-3xl font-bold text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none md:text-4xl"
+                  />
+                  <div className="shrink-0 pt-2">
+                    <SaveStatusIndicator status={saveStatus} />
+                  </div>
+                </div>
                 <RichTextEditor
                   key={selectedId}
                   value={editDoc}

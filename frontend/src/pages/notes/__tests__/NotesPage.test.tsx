@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ReactElement } from 'react';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import NotesPage from '../ui/NotesPage';
 import { useDocuments } from '../model/useDocuments';
 import { useDocumentEditor } from '../model/useDocumentEditor';
@@ -86,7 +87,22 @@ function setup(docOverrides: Partial<ReturnType<typeof useDocuments>> = {}, edit
   vi.mocked(useDocumentEditor).mockReturnValue({ ...baseEditor, ...editorOverrides });
 }
 
-const renderPage = (ui: ReactElement = <NotesPage />) => render(ui);
+// LocationProbe は現在の URL を DOM へ出し、navigate の実行結果（実 URL）を検証可能にする。
+function LocationProbe() {
+  const location = useLocation();
+  return <span data-testid="location">{location.pathname}</span>;
+}
+
+const renderPage = (ui: ReactElement = <NotesPage />, initialPath = '/notes') =>
+  render(
+    <MemoryRouter initialEntries={[initialPath]}>
+      <LocationProbe />
+      <Routes>
+        <Route path="/notes" element={ui} />
+        <Route path="/notes/:noteId" element={ui} />
+      </Routes>
+    </MemoryRouter>,
+  );
 
 describe('NotesPage', () => {
   beforeEach(() => {
@@ -223,5 +239,75 @@ describe('NotesPage', () => {
     const onImageUpload = hoisted.rteProps.current?.onImageUpload;
     await expect(onImageUpload!(new File(['x'], 'a.png', { type: 'image/png' }))).rejects.toThrow();
     expect(mockShowToast).toHaveBeenCalledWith('error', '画像のアップロードに失敗しました');
+  });
+});
+
+describe('NotesPage URL 同期（/notes/:noteId）', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setup();
+  });
+
+  it('/notes/:noteId で開くと URL の id を選択し、URL はそのまま（書き戻さない）', async () => {
+    const selectDocument = vi.fn();
+    setup({ selectDocument, selectedId: null });
+    renderPage(<NotesPage />, '/notes/0198a1b2-0000-7000-8000-000000000abc');
+    expect(selectDocument).toHaveBeenCalledWith('0198a1b2-0000-7000-8000-000000000abc');
+    await waitFor(() =>
+      expect(screen.getByTestId('location').textContent).toBe('/notes/0198a1b2-0000-7000-8000-000000000abc'),
+    );
+  });
+
+  it('/notes で選択済み（自動選択後）なら URL が /notes/:id へ replace される', async () => {
+    setup({ selectedId: 'doc-1' });
+    renderPage();
+    await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/notes/doc-1'));
+    // URL 由来の余計な選択替えが起きない。
+    expect(baseDocuments.selectDocument).not.toHaveBeenCalled();
+  });
+
+  it('選択替え（別ノートをクリック相当）で URL が新しい id へ遷移する', async () => {
+    const docs = [summary({ id: 'a', title: 'メモA' }), summary({ id: 'b', title: 'メモB' })];
+    // 初期は a を選択して /notes/a で開始 → 選択が b に変わったら URL も /notes/b へ。
+    setup({ documents: docs, filteredDocuments: docs, selectedId: 'a' });
+    const { rerender } = renderPage(<NotesPage />, '/notes/a');
+    await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/notes/a'));
+    setup({ documents: docs, filteredDocuments: docs, selectedId: 'b' });
+    rerender(
+      <MemoryRouter initialEntries={['/notes/a']}>
+        <LocationProbe />
+        <Routes>
+          <Route path="/notes" element={<NotesPage />} />
+          <Route path="/notes/:noteId" element={<NotesPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/notes/b'));
+  });
+
+  it('選択が消えたら（最後のノートを削除等）URL が /notes へ戻る', async () => {
+    // /notes/x で x を選択中 → 削除で選択が null になったら URL も /notes へ（厳密一致で検証）。
+    setup({ selectedId: 'x' });
+    const { rerender } = renderPage(<NotesPage />, '/notes/x');
+    await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/notes/x'));
+    setup({ selectedId: null });
+    rerender(
+      <MemoryRouter initialEntries={['/notes/x']}>
+        <LocationProbe />
+        <Routes>
+          <Route path="/notes" element={<NotesPage />} />
+          <Route path="/notes/:noteId" element={<NotesPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/notes'));
+  });
+
+  it('URL の id と選択が一致していれば何もしない', async () => {
+    const selectDocument = vi.fn();
+    setup({ selectDocument, selectedId: 'same-id' });
+    renderPage(<NotesPage />, '/notes/same-id');
+    expect(selectDocument).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/notes/same-id'));
   });
 });

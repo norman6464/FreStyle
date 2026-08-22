@@ -3,6 +3,7 @@ package persistence
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
@@ -37,8 +38,14 @@ func NewRichDocumentRepository(db *gorm.DB) repository.RichDocumentRepository {
 
 func (r *richDocumentRepository) Create(ctx context.Context, doc *domain.RichDocument) error {
 	if doc.ID == "" {
-		// 推測不能な UUID を採番する（Notion 風の URL）。
-		doc.ID = uuid.NewString()
+		// UUIDv7 を採番する。時系列で単調に増える（インデックス局所性が良く作成順ソート可能）うえ、
+		// ランダム部 74bit により URL は推測困難のまま。v4 で作られた既存 ID とも同形式で互換。
+		// 失敗は乱数源の故障（v4 でも同様に失敗する）なので、退避せずエラーで返す。
+		id, err := uuid.NewV7()
+		if err != nil {
+			return fmt.Errorf("uuid v7 の採番に失敗: %w", err)
+		}
+		doc.ID = id.String()
 	}
 	return mapPgDataError(r.db.WithContext(ctx).Create(doc).Error)
 }

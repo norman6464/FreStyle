@@ -110,7 +110,9 @@ export default function App() {
         <Route path="/chat/ask-ai" element={<AskAiPage />} />
         <Route path="/chat/ask-ai/:sessionId" element={<AskAiPage />} />
         <Route path="/notes" element={<NotesPage />} />
+        {/* 静的ルート（markdown-help）はルータのランキングで :noteId より優先される。 */}
         <Route path="/notes/markdown-help" element={<MarkdownSyntaxHelpPage />} />
+        <Route path="/notes/:noteId" element={<NotesPage />} />
         <Route path="/notifications" element={<NotificationPage />} />
         <Route path="/reports" element={<LearningReportPage />} />
         <Route path="/help" element={<HelpPage />} />

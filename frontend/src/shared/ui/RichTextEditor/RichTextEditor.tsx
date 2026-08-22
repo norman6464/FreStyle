@@ -26,6 +26,11 @@ export interface RichTextEditorProps {
    * 失敗時の通知（トースト等）は呼び出し側の方針に委ねる（ここでは握りつぶす）。
    */
   onImageUpload?: (file: File) => Promise<string>;
+  /**
+   * エディタ生成直後に一度だけ呼ばれるライフサイクルフック。
+   * 生成直後にフォーカスしたい・外部から editor を参照して拡張したい、といった用途の拡張点。
+   */
+  onCreate?: (editor: Editor) => void;
   /** 外枠に付与する追加クラス。 */
   className?: string;
 }
@@ -48,6 +53,7 @@ export default function RichTextEditor({
   ariaLabel = '本文',
   saveStatus,
   onImageUpload,
+  onCreate,
   className = '',
 }: RichTextEditorProps) {
   // onChange は props で差し替わり得るので ref 越しに最新を呼ぶ（onUpdate クロージャの陳腐化を防ぐ）。
@@ -55,6 +61,12 @@ export default function RichTextEditor({
   useEffect(() => {
     onChangeRef.current = onChange;
   }, [onChange]);
+
+  // onCreate も生成時クロージャの陳腐化を避けるため ref 越しに最新を呼ぶ。
+  const onCreateRef = useRef(onCreate);
+  useEffect(() => {
+    onCreateRef.current = onCreate;
+  }, [onCreate]);
 
   // 画像アップロード関数・editor 参照を ref で持ち、editorProps（paste/drop）から最新を参照する。
   const onImageUploadRef = useRef(onImageUpload);
@@ -108,6 +120,9 @@ export default function RichTextEditor({
         }
         return false;
       },
+    },
+    onCreate: ({ editor: currentEditor }) => {
+      onCreateRef.current?.(currentEditor);
     },
     onUpdate: ({ editor: currentEditor }) => {
       const next = currentEditor.getJSON() as RichDocContent;

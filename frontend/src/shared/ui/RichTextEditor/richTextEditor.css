@@ -49,14 +49,50 @@
   color: inherit;
 }
 
-/* インラインコード。 */
+/* インラインコード。
+ * Tailwind Typography（.prose）は code に ` の疑似要素を付け、太字・見出し色を継承しない。
+ * エディタでは「入力した文字」だけを見せたいので疑似要素を消し、装飾は自前で与える。 */
+.rte-content .ProseMirror :not(pre) > code::before,
+.rte-content .ProseMirror :not(pre) > code::after {
+  content: none;
+}
+
 .rte-content .ProseMirror :not(pre) > code {
   background: var(--color-surface-2);
-  border: 1px solid var(--color-surface-3);
   border-radius: 0.25rem;
   padding: 0.1em 0.3em;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.875em;
+  /* 行をまたいだとき、断片ごとに角丸と余白を描く（背景の箱が前後の行へ重なるのを防ぐ）。 */
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  /* 太字・見出しなど他のマークと重ねても字面が浮かないよう、周囲の指定を引き継ぐ。 */
+  font-weight: inherit;
+  color: inherit;
+  /* 長い識別子や URL で横にはみ出さない。 */
+  overflow-wrap: anywhere;
+}
+
+/* 見出しの中では相対的に小さくしすぎない（大きな行で箱が目立ちすぎるのを避ける）。 */
+.rte-content .ProseMirror :is(h1, h2, h3) :not(pre) > code {
+  font-size: 0.9em;
+  padding: 0.05em 0.25em;
+}
+
+/* 引用は Typography が前後に引用符の疑似要素を足すため、エディタでは消す。 */
+.rte-content .ProseMirror blockquote p::before,
+.rte-content .ProseMirror blockquote p::after {
+  content: none;
+}
+
+/* 打ち消し線・下線を重ねても線が消えないようにする（装飾の合成を保つ）。 */
+.rte-content .ProseMirror s,
+.rte-content .ProseMirror u {
+  text-decoration-skip-ink: none;
+}
+.rte-content .ProseMirror s u,
+.rte-content .ProseMirror u s {
+  text-decoration-line: underline line-through;
 }
 
 /* 水平線。 */

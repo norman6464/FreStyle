@@ -100,6 +100,38 @@ describe('ブロック変換コマンド', () => {
   });
 });
 
+describe('マークの混在', () => {
+  // 複数の装飾を重ねたときに後勝ちで消えたりせず、同じテキストへ併存することを保証する。
+  it('太字・斜体・下線・打ち消し・インラインコードを重ねがけできる', () => {
+    const e = makeEditor();
+    e.commands.insertContent('装飾テスト');
+    e.commands.selectAll();
+    for (const id of ['bold', 'italic', 'underline', 'strike', 'code']) {
+      byId(id).run(e);
+    }
+    const text = findNode(e.getJSON(), 'text');
+    const marks = (text?.marks ?? []).map((mark) => mark.type).sort();
+    expect(marks).toEqual(['bold', 'code', 'italic', 'strike', 'underline']);
+    // レジストリの isActive も全て true を返す（UI 表示と doc の状態が一致する）。
+    for (const id of ['bold', 'italic', 'underline', 'strike', 'code']) {
+      expect(byId(id).isActive?.(e)).toBe(true);
+    }
+  });
+
+  it('見出しの中でもマークを重ねられる（ブロック変換とマークが両立する）', () => {
+    const e = makeEditor();
+    e.commands.insertContent('見出しに装飾');
+    e.commands.selectAll();
+    byId('heading2').run(e);
+    byId('bold').run(e);
+    byId('code').run(e);
+    const heading = findNode(e.getJSON(), 'heading');
+    expect(heading?.attrs?.level).toBe(2);
+    const marks = (findNode(e.getJSON(), 'text')?.marks ?? []).map((mark) => mark.type).sort();
+    expect(marks).toEqual(['bold', 'code']);
+  });
+});
+
 describe('挿入・履歴コマンド', () => {
   it('水平線は run で horizontalRule を挿入する（非トグル: isActive なし）', () => {
     const e = makeEditor();

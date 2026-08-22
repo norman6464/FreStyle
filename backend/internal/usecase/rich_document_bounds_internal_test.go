@@ -29,6 +29,9 @@ func (stubRichDocRepo) UpdateWithRevision(context.Context, *domain.RichDocument,
 	return nil
 }
 func (stubRichDocRepo) SoftDelete(context.Context, string, uint64) error { return nil }
+func (stubRichDocRepo) ListByOwner(context.Context, uint64, domain.DocumentKind) ([]domain.RichDocument, error) {
+	return nil, nil
+}
 
 const boundsValidDoc = `{"type":"doc","content":[{"type":"paragraph"}]}`
 

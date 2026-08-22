@@ -336,3 +336,9 @@ func (m *mockRichDocRepo) UpdateWithRevision(ctx context.Context, doc *domain.Ri
 func (m *mockRichDocRepo) SoftDelete(ctx context.Context, id string, ownerID uint64) error {
 	return m.Called(ctx, id, ownerID).Error(0)
 }
+
+func (m *mockRichDocRepo) ListByOwner(ctx context.Context, ownerID uint64, kind domain.DocumentKind) ([]domain.RichDocument, error) {
+	args := m.Called(ctx, ownerID, kind)
+	rows, _ := args.Get(0).([]domain.RichDocument)
+	return rows, args.Error(1)
+}

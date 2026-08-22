@@ -31,4 +31,7 @@ type RichDocumentRepository interface {
 	// SoftDelete は owner を条件に論理削除する（他人の文書は消せない）。
 	// 対象が無ければ ErrRichDocumentNotFound。
 	SoftDelete(ctx context.Context, id string, ownerID uint64) error
+	// ListByOwner は owner の文書を更新日降順で返す（論理削除は除外）。kind が空でなければ
+	// その kind で絞り込む。一覧用途のため doc(jsonb) 本体は読み込まない（軽量サマリ）。
+	ListByOwner(ctx context.Context, ownerID uint64, kind domain.DocumentKind) ([]domain.RichDocument, error)
 }

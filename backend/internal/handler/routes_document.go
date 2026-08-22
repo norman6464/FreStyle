@@ -14,7 +14,9 @@ func registerDocumentRoutes(g *gin.RouterGroup, deps *routeDeps) {
 		usecase.NewCreateRichDocumentUseCase(repo),
 		usecase.NewUpdateRichDocumentUseCase(repo),
 		usecase.NewDeleteRichDocumentUseCase(repo),
+		usecase.NewListRichDocumentsUseCase(repo),
 	)
+	g.GET("/documents", h.List)
 	g.POST("/documents", h.Create)
 	g.GET("/documents/:id", h.Get)
 	g.PUT("/documents/:id", h.Update)

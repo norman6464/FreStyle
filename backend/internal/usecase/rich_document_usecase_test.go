@@ -237,3 +237,46 @@ func Test_DeleteRichDocument(t *testing.T) {
 		repo.AssertExpectations(t)
 	})
 }
+
+func Test_ListRichDocuments_成功(t *testing.T) {
+	repo := &mockRichDocRepo{}
+	rows := []domain.RichDocument{
+		{ID: "a", OwnerID: 7, Kind: domain.DocumentKindNote, Title: "A"},
+		{ID: "b", OwnerID: 7, Kind: domain.DocumentKindNote, Title: "B"},
+	}
+	// kind 未指定は空文字で repo に渡す（全 kind）。
+	repo.On("ListByOwner", mock.Anything, uint64(7), domain.DocumentKind("")).Return(rows, nil).Once()
+	uc := usecase.NewListRichDocumentsUseCase(repo)
+	got, err := uc.Execute(context.Background(), usecase.ListRichDocumentsInput{OwnerID: 7})
+	require.NoError(t, err)
+	assert.Len(t, got, 2)
+	repo.AssertExpectations(t)
+}
+
+func Test_ListRichDocuments_kind指定で絞る(t *testing.T) {
+	repo := &mockRichDocRepo{}
+	repo.On("ListByOwner", mock.Anything, uint64(7), domain.DocumentKindNote).
+		Return([]domain.RichDocument{{ID: "a", OwnerID: 7, Kind: domain.DocumentKindNote}}, nil).Once()
+	uc := usecase.NewListRichDocumentsUseCase(repo)
+	got, err := uc.Execute(context.Background(), usecase.ListRichDocumentsInput{OwnerID: 7, Kind: domain.DocumentKindNote})
+	require.NoError(t, err)
+	assert.Len(t, got, 1)
+	repo.AssertExpectations(t)
+}
+
+func Test_ListRichDocuments_不正入力(t *testing.T) {
+	t.Run("ownerID0は400", func(t *testing.T) {
+		repo := &mockRichDocRepo{}
+		uc := usecase.NewListRichDocumentsUseCase(repo)
+		_, err := uc.Execute(context.Background(), usecase.ListRichDocumentsInput{OwnerID: 0})
+		assert.ErrorIs(t, err, usecase.ErrRichDocumentInvalid)
+		repo.AssertNotCalled(t, "ListByOwner", mock.Anything, mock.Anything, mock.Anything)
+	})
+	t.Run("kind不正は400", func(t *testing.T) {
+		repo := &mockRichDocRepo{}
+		uc := usecase.NewListRichDocumentsUseCase(repo)
+		_, err := uc.Execute(context.Background(), usecase.ListRichDocumentsInput{OwnerID: 7, Kind: "weird"})
+		assert.ErrorIs(t, err, usecase.ErrRichDocumentInvalid)
+		repo.AssertNotCalled(t, "ListByOwner", mock.Anything, mock.Anything, mock.Anything)
+	})
+}

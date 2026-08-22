@@ -822,6 +822,37 @@ definitions:
       updatedAt:
         type: string
     type: object
+  internal_handler.documentSummaryResponse:
+    properties:
+      companyId:
+        example: 1
+        type: integer
+      createdAt:
+        type: string
+      id:
+        example: 31400a07-297e-8057-884b-c05dbdf9fa53
+        type: string
+      isPublic:
+        example: false
+        type: boolean
+      kind:
+        example: note
+        type: string
+      ownerId:
+        example: 42
+        type: integer
+      revision:
+        example: 1
+        type: integer
+      schemaVersion:
+        example: 1
+        type: integer
+      title:
+        example: 学習メモ
+        type: string
+      updatedAt:
+        type: string
+    type: object
   internal_handler.documentUpdateReq:
     properties:
       doc:
@@ -2654,6 +2685,40 @@ paths:
       tags:
       - daily-goals
   /documents:
+    get:
+      description: current user が所有する文書を更新日降順で返す (doc 本体は含まない)。 kind で絞り込み可 (note
+        / course-chapter)。
+      parameters:
+      - description: 用途 で 絞り込み (note / course-chapter)
+        in: query
+        name: kind
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/internal_handler.documentSummaryResponse'
+            type: array
+        "400":
+          description: 不正 な kind
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "500":
+          description: DB 失敗
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 自分 の リッチ 文書 一覧
+      tags:
+      - documents
     post:
       consumes:
       - application/json

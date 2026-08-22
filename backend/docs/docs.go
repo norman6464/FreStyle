@@ -2264,6 +2264,58 @@ const docTemplate = `{
             }
         },
         "/documents": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "current user が所有する文書を更新日降順で返す (doc 本体は含まない)。 kind で絞り込み可 (note / course-chapter)。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "documents"
+                ],
+                "summary": "自分 の リッチ 文書 一覧",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "用途 で 絞り込み (note / course-chapter)",
+                        "name": "kind",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/internal_handler.documentSummaryResponse"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "不正 な kind",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            },
             "post": {
                 "security": [
                     {
@@ -5384,6 +5436,49 @@ const docTemplate = `{
                 },
                 "doc": {
                     "type": "object"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "31400a07-297e-8057-884b-c05dbdf9fa53"
+                },
+                "isPublic": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "kind": {
+                    "type": "string",
+                    "example": "note"
+                },
+                "ownerId": {
+                    "type": "integer",
+                    "example": 42
+                },
+                "revision": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "schemaVersion": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "title": {
+                    "type": "string",
+                    "example": "学習メモ"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.documentSummaryResponse": {
+            "type": "object",
+            "properties": {
+                "companyId": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "createdAt": {
+                    "type": "string"
                 },
                 "id": {
                     "type": "string",

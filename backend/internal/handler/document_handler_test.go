@@ -27,6 +27,8 @@ type fakeDocRepo struct {
 	updateErr error
 	updateDoc *domain.RichDocument
 	deleteErr error
+	listDocs  []domain.RichDocument
+	listErr   error
 }
 
 func (f *fakeDocRepo) Create(_ context.Context, doc *domain.RichDocument) error {
@@ -54,12 +56,17 @@ func (f *fakeDocRepo) UpdateWithRevision(_ context.Context, doc *domain.RichDocu
 }
 func (f *fakeDocRepo) SoftDelete(_ context.Context, _ string, _ uint64) error { return f.deleteErr }
 
+func (f *fakeDocRepo) ListByOwner(_ context.Context, _ uint64, _ domain.DocumentKind) ([]domain.RichDocument, error) {
+	return f.listDocs, f.listErr
+}
+
 func newDocHandler(repo repository.RichDocumentRepository) *DocumentHandler {
 	return NewDocumentHandler(
 		usecase.NewGetRichDocumentUseCase(repo),
 		usecase.NewCreateRichDocumentUseCase(repo),
 		usecase.NewUpdateRichDocumentUseCase(repo),
 		usecase.NewDeleteRichDocumentUseCase(repo),
+		usecase.NewListRichDocumentsUseCase(repo),
 	)
 }
 
@@ -79,6 +86,7 @@ func newDocRouter(repo repository.RichDocumentRepository, uid, companyID uint64)
 			c.Next()
 		})
 	}
+	r.GET("/documents", h.List)
 	r.POST("/documents", h.Create)
 	r.GET("/documents/:id", h.Get)
 	r.PUT("/documents/:id", h.Update)
@@ -257,6 +265,52 @@ func Test_文書ハンドラ_削除(t *testing.T) {
 		w := doDocReq(r, http.MethodDelete, "/documents/"+testDocUUID, "")
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("want 401, got %d", w.Code)
+		}
+	})
+}
+
+func Test_文書ハンドラ_一覧(t *testing.T) {
+	t.Run("所有者は200で配列を返し doc本体を含まない", func(t *testing.T) {
+		repo := &fakeDocRepo{listDocs: []domain.RichDocument{
+			{ID: testDocUUID, OwnerID: 7, Kind: domain.DocumentKindNote, Title: "メモA", Revision: 2, Doc: testDocBody},
+			{ID: "aaaaaaaa-297e-8057-884b-c05dbdf9fa53", OwnerID: 7, Kind: domain.DocumentKindNote, Title: "メモB", Revision: 1, Doc: testDocBody},
+		}}
+		r := newDocRouter(repo, 7, 0)
+		w := doDocReq(r, http.MethodGet, "/documents", "")
+		if w.Code != http.StatusOK {
+			t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+		}
+		body := w.Body.String()
+		if !strings.Contains(body, "メモA") || !strings.Contains(body, "メモB") {
+			t.Fatalf("titles missing: %s", body)
+		}
+		// 一覧サマリは doc 本体を含めない。
+		if strings.Contains(body, `"doc"`) {
+			t.Fatalf("summary should not contain doc body: %s", body)
+		}
+	})
+	t.Run("空でも200で空配列", func(t *testing.T) {
+		r := newDocRouter(&fakeDocRepo{listDocs: nil}, 7, 0)
+		w := doDocReq(r, http.MethodGet, "/documents", "")
+		if w.Code != http.StatusOK {
+			t.Fatalf("want 200, got %d", w.Code)
+		}
+		if strings.TrimSpace(w.Body.String()) != "[]" {
+			t.Fatalf("want empty array, got %s", w.Body.String())
+		}
+	})
+	t.Run("未認証は401", func(t *testing.T) {
+		r := newDocRouter(&fakeDocRepo{}, 0, 0)
+		w := doDocReq(r, http.MethodGet, "/documents", "")
+		if w.Code != http.StatusUnauthorized {
+			t.Fatalf("want 401, got %d", w.Code)
+		}
+	})
+	t.Run("不正なkindは400", func(t *testing.T) {
+		r := newDocRouter(&fakeDocRepo{}, 7, 0)
+		w := doDocReq(r, http.MethodGet, "/documents?kind=weird", "")
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("want 400, got %d", w.Code)
 		}
 	})
 }

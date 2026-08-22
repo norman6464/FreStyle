@@ -1,13 +1,19 @@
 /*
  * RichTextEditor（tiptap）の本文スタイル。
  * 見出し・リスト・引用などの要素スタイルは Tailwind Typography（.prose）に委ね、
- * ここでは ProseMirror 固有の挙動（フォーカス・プレースホルダ・最小高さ・コードブロック地色）だけ整える。
- * デザインは light-only・Notion 風のニュートラルに合わせ、色は既存トークン（--color-*）を使う。
+ * ここでは ProseMirror 固有の挙動（フォーカス・プレースホルダ・最小高さ・コードブロック地色）と、
+ * 枠のないインライン表示・選択時に浮かぶバブルメニューの見た目だけを整える。
+ * デザインは light-only・ニュートラルに合わせ、色は既存トークン（--color-*）を使う。
  */
 
+/* 枠なしのインライン文書。外枠・背景・角丸は持たない（本文がそのまま並ぶ）。 */
+.rte-root {
+  width: 100%;
+}
+
 .rte-content .ProseMirror {
-  min-height: 12rem;
-  padding: 0.75rem 0;
+  /* クリックで本文へフォーカスしやすいよう、十分な高さを確保する。 */
+  min-height: 60vh;
   outline: none;
   color: var(--color-text-primary);
   caret-color: var(--color-brand, #3b82f6);
@@ -77,4 +83,21 @@
 .rte-content .ProseMirror img.ProseMirror-selectednode {
   outline: 2px solid var(--color-brand, #3b82f6);
   outline-offset: 2px;
+}
+
+/*
+ * バブルメニュー（選択時に浮かぶ書式メニュー）。
+ * BubbleMenu は body 直下の portal（position/visibility はライブラリが制御）へ描画するため、
+ * .rte-content の配下ではなくトップレベルの .rte-bubble として見た目を与える。
+ */
+.rte-bubble {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-surface-3);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 12%);
+  z-index: 50;
 }

@@ -35,40 +35,42 @@ function summary(partial: Partial<RichDocumentSummary> & { id: string }): RichDo
   };
 }
 
-const baseDocuments = {
-  documents: [] as RichDocumentSummary[],
-  filteredDocuments: [] as RichDocumentSummary[],
-  selectedId: null as string | null,
+const baseDocuments: ReturnType<typeof useDocuments> = {
+  documents: [],
+  filteredDocuments: [],
+  selectedId: null,
   loading: false,
-  error: null as string | null,
+  error: null,
   searchQuery: '',
   setSearchQuery: vi.fn(),
-  sort: 'default' as const,
+  sort: 'default',
   setSort: vi.fn(),
   fetchDocuments: vi.fn(),
   createDocument: vi.fn(),
   deleteDocument: vi.fn(),
   selectDocument: vi.fn(),
   syncSummary: vi.fn(),
-  deleteTargetId: null as string | null,
+  deleteTargetId: null,
   requestDelete: vi.fn(),
   confirmDelete: vi.fn(),
   cancelDelete: vi.fn(),
 };
 
-const baseEditor = {
+const baseEditor: ReturnType<typeof useDocumentEditor> = {
   editTitle: '',
   editDoc: { type: 'doc', content: [] },
-  saveStatus: 'idle' as const,
+  saveStatus: 'idle',
   loadingDoc: false,
+  loadError: false,
   handleTitleChange: vi.fn(),
   handleDocChange: vi.fn(),
   forceSave: vi.fn(),
+  reload: vi.fn(),
 };
 
-function setup(docOverrides = {}, editorOverrides = {}) {
-  vi.mocked(useDocuments).mockReturnValue({ ...baseDocuments, ...docOverrides } as never);
-  vi.mocked(useDocumentEditor).mockReturnValue({ ...baseEditor, ...editorOverrides } as never);
+function setup(docOverrides: Partial<ReturnType<typeof useDocuments>> = {}, editorOverrides: Partial<ReturnType<typeof useDocumentEditor>> = {}) {
+  vi.mocked(useDocuments).mockReturnValue({ ...baseDocuments, ...docOverrides });
+  vi.mocked(useDocumentEditor).mockReturnValue({ ...baseEditor, ...editorOverrides });
 }
 
 const renderPage = (ui: ReactElement = <NotesPage />) => render(ui);
@@ -86,11 +88,28 @@ describe('NotesPage', () => {
     expect(fetchDocuments).toHaveBeenCalled();
   });
 
-  // SecondaryPanel はモバイル/デスクトップで内容を二重描画するため、パネル内要素は getAllBy で拾う。
+  it('useDocumentEditor に selectedId と onSynced/onConflict を配線する', () => {
+    setup({ selectedId: 'a' });
+    renderPage();
+    const call = vi.mocked(useDocumentEditor).mock.calls.at(-1);
+    expect(call?.[0]).toBe('a');
+    expect(call?.[1]?.onSynced).toBe(baseDocuments.syncSummary);
+    // onConflict を実行すると競合トーストが出る（この PR の主要機能）。
+    call?.[1]?.onConflict?.();
+    expect(mockShowToast).toHaveBeenCalledWith('info', expect.stringContaining('最新版'));
+  });
+
   it('文書が無いとき空表示を出す', () => {
     setup({ documents: [], filteredDocuments: [] });
     renderPage();
     expect(screen.getAllByText('ノートがありません').length).toBeGreaterThan(0);
+  });
+
+  it('取得失敗時は「取得に失敗」を出し、空表示にはしない', () => {
+    setup({ documents: [], filteredDocuments: [], error: 'ノートの取得に失敗しました' });
+    renderPage();
+    expect(screen.getAllByText('ノートの取得に失敗しました').length).toBeGreaterThan(0);
+    expect(screen.queryByText('ノートがありません')).not.toBeInTheDocument();
   });
 
   it('一覧を描画し、選択で selectDocument を呼ぶ', () => {
@@ -99,7 +118,7 @@ describe('NotesPage', () => {
     setup({ documents: docs, filteredDocuments: docs, selectDocument });
     renderPage();
     expect(screen.getAllByText('メモA').length).toBeGreaterThan(0);
-    fireEvent.click(screen.getAllByLabelText('ノート「メモA」を選択')[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: 'ノート「メモA」を選択' })[0]);
     expect(selectDocument).toHaveBeenCalledWith('a');
   });
 
@@ -112,17 +131,25 @@ describe('NotesPage', () => {
     await waitFor(() => expect(mockShowToast).toHaveBeenCalledWith('success', 'ノートを作成しました'));
   });
 
-  it('削除アイコンで requestDelete、確認モーダルで confirmDelete', async () => {
+  it('削除アイコンで requestDelete、確認で成功トースト', async () => {
     const requestDelete = vi.fn();
-    const confirmDelete = vi.fn().mockResolvedValue(undefined);
+    const confirmDelete = vi.fn().mockResolvedValue(true);
     const docs = [summary({ id: 'a', title: 'メモA' })];
     setup({ documents: docs, filteredDocuments: docs, requestDelete, deleteTargetId: 'a', confirmDelete });
     renderPage();
-    fireEvent.click(screen.getAllByLabelText('ノート「メモA」を削除')[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: 'ノート「メモA」を削除' })[0]);
     expect(requestDelete).toHaveBeenCalledWith('a');
-    // deleteTargetId='a' なので確認モーダルが出ている。
     fireEvent.click(screen.getByRole('button', { name: '削除' }));
-    await waitFor(() => expect(confirmDelete).toHaveBeenCalled());
+    await waitFor(() => expect(mockShowToast).toHaveBeenCalledWith('success', 'ノートを削除しました'));
+  });
+
+  it('削除に失敗するとエラートーストを出す', async () => {
+    const confirmDelete = vi.fn().mockResolvedValue(false);
+    const docs = [summary({ id: 'a', title: 'メモA' })];
+    setup({ documents: docs, filteredDocuments: docs, deleteTargetId: 'a', confirmDelete });
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: '削除' }));
+    await waitFor(() => expect(mockShowToast).toHaveBeenCalledWith('error', 'ノートの削除に失敗しました'));
   });
 
   it('選択中はタイトル入力と本文エディタと保存状態を表示する', () => {
@@ -133,10 +160,21 @@ describe('NotesPage', () => {
     expect(screen.getByTestId('save-status')).toHaveTextContent('saved');
   });
 
-  it('doc 読み込み中はローディングを出す', () => {
+  it('doc 読み込み中はローディング(role=status)を出す', () => {
     setup({ selectedId: 'a' }, { loadingDoc: true });
     renderPage();
+    expect(screen.getByRole('status')).toBeInTheDocument();
     expect(screen.queryByLabelText('ノートのタイトル')).not.toBeInTheDocument();
+  });
+
+  it('本文取得に失敗すると再読み込み UI を出し、エディタは出さない', () => {
+    const reload = vi.fn();
+    setup({ selectedId: 'a' }, { loadError: true, reload });
+    renderPage();
+    expect(screen.getByText('本文の取得に失敗しました')).toBeInTheDocument();
+    expect(screen.queryByLabelText('ノートのタイトル')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '再読み込み' }));
+    expect(reload).toHaveBeenCalled();
   });
 
   it('未選択のときは選択を促す空表示', () => {

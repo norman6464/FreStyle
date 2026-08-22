@@ -6,7 +6,13 @@ import Loading from '@/shared/ui/Loading';
 import { RichTextEditor, SaveStatusIndicator } from '@/shared/ui/RichTextEditor';
 import NoteSortMenu from './NoteSortMenu';
 import DocumentListItem from './DocumentListItem';
-import { DocumentTextIcon, PlusIcon, MagnifyingGlassIcon, Bars3Icon } from '@heroicons/react/24/outline';
+import {
+  DocumentTextIcon,
+  PlusIcon,
+  MagnifyingGlassIcon,
+  Bars3Icon,
+  ExclamationTriangleIcon,
+} from '@heroicons/react/24/outline';
 import { useDocuments } from '../model/useDocuments';
 import { useDocumentEditor } from '../model/useDocumentEditor';
 import { useMobilePanelState } from '@/shared/lib/hooks/useMobilePanelState';
@@ -21,6 +27,7 @@ export default function NotesPage() {
     filteredDocuments,
     selectedId,
     loading,
+    error,
     searchQuery,
     setSearchQuery,
     sort,
@@ -39,11 +46,20 @@ export default function NotesPage() {
     fetchDocuments();
   }, [fetchDocuments]);
 
-  const { editTitle, editDoc, saveStatus, loadingDoc, handleTitleChange, handleDocChange, forceSave } =
-    useDocumentEditor(selectedId, {
-      onSynced: syncSummary,
-      onConflict: () => showToast('info', '他の場所で更新されたため、最新版を読み込みました'),
-    });
+  const {
+    editTitle,
+    editDoc,
+    saveStatus,
+    loadingDoc,
+    loadError,
+    handleTitleChange,
+    handleDocChange,
+    forceSave,
+    reload,
+  } = useDocumentEditor(selectedId, {
+    onSynced: syncSummary,
+    onConflict: () => showToast('info', '他の場所で更新されたため、最新版を読み込みました'),
+  });
 
   const handleCreate = async () => {
     const created = await createDocument('無題');
@@ -52,8 +68,8 @@ export default function NotesPage() {
   };
 
   const handleConfirmDelete = async () => {
-    await confirmDelete();
-    showToast('success', 'ノートを削除しました');
+    const ok = await confirmDelete();
+    showToast(ok ? 'success' : 'error', ok ? 'ノートを削除しました' : 'ノートの削除に失敗しました');
   };
 
   useNoteKeyboardShortcuts({ onCreateNote: handleCreate, onForceSave: forceSave });
@@ -97,6 +113,16 @@ export default function NotesPage() {
         <div className="p-2 space-y-0.5">
           {loading && documents.length === 0 ? (
             <Loading className="py-8" />
+          ) : error && documents.length === 0 ? (
+            // 取得失敗を「ノートがありません」と誤表示しない（既存ノートの喪失と誤解させない）。
+            <div className="py-12">
+              <EmptyState
+                icon={ExclamationTriangleIcon}
+                title="ノートの取得に失敗しました"
+                description="時間をおいて再読み込みしてください。"
+                action={{ label: '再読み込み', onClick: fetchDocuments }}
+              />
+            </div>
           ) : filteredDocuments.length === 0 ? (
             <div className="py-12">
               <EmptyState
@@ -107,17 +133,19 @@ export default function NotesPage() {
               />
             </div>
           ) : (
-            filteredDocuments.map((doc) => (
-              <DocumentListItem
-                key={doc.id}
-                id={doc.id}
-                title={doc.title}
-                updatedAt={doc.updatedAt}
-                isActive={selectedId === doc.id}
-                onSelect={handleSelect}
-                onDelete={requestDelete}
-              />
-            ))
+            <ul className="space-y-0.5">
+              {filteredDocuments.map((doc) => (
+                <DocumentListItem
+                  key={doc.id}
+                  id={doc.id}
+                  title={doc.title}
+                  updatedAt={doc.updatedAt}
+                  isActive={selectedId === doc.id}
+                  onSelect={handleSelect}
+                  onDelete={requestDelete}
+                />
+              ))}
+            </ul>
           )}
         </div>
       </SecondaryPanel>
@@ -138,6 +166,14 @@ export default function NotesPage() {
         {selectedId ? (
           loadingDoc ? (
             <Loading className="py-16" />
+          ) : loadError ? (
+            // 本文取得の失敗時は空の編集可能エディタを出さない（誤った 409 を誘発しないため）。
+            <EmptyState
+              icon={ExclamationTriangleIcon}
+              title="本文の取得に失敗しました"
+              description="通信状況を確認して再読み込みしてください。"
+              action={{ label: '再読み込み', onClick: reload }}
+            />
           ) : (
             <div className="flex flex-1 flex-col min-h-0 overflow-y-auto">
               <div className="flex items-center gap-3 px-6 pt-6">

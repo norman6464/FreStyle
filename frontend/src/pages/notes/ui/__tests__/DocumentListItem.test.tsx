@@ -11,32 +11,57 @@ const props = {
   onDelete: vi.fn(),
 };
 
+// li は ul の子であることが前提なので ul で包んで描画する。
+const renderItem = (p = props) =>
+  render(
+    <ul>
+      <DocumentListItem {...p} />
+    </ul>,
+  );
+
 describe('DocumentListItem', () => {
   it('タイトルを表示する（空なら「無題」）', () => {
-    const { rerender } = render(<DocumentListItem {...props} />);
+    const { rerender } = renderItem();
     expect(screen.getByText('メモA')).toBeInTheDocument();
-    rerender(<DocumentListItem {...props} title="" />);
+    rerender(
+      <ul>
+        <DocumentListItem {...props} title="" />
+      </ul>,
+    );
     expect(screen.getByText('無題')).toBeInTheDocument();
   });
 
-  it('クリックで onSelect(id) を呼ぶ', () => {
+  it('選択用と削除用の 2 つの独立したボタンを公開する', () => {
+    renderItem();
+    expect(screen.getByRole('button', { name: 'ノート「メモA」を選択' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'ノート「メモA」を削除' })).toBeInTheDocument();
+  });
+
+  it('更新日を年込みで <time> に表示する', () => {
+    renderItem();
+    const time = screen.getByText(/2026/);
+    expect(time.tagName.toLowerCase()).toBe('time');
+    expect(time).toHaveAttribute('datetime', '2026-08-02T00:00:00Z');
+  });
+
+  it('選択ボタンで onSelect(id) を呼ぶ', () => {
     const onSelect = vi.fn();
-    render(<DocumentListItem {...props} onSelect={onSelect} />);
-    fireEvent.click(screen.getByLabelText('ノート「メモA」を選択'));
+    renderItem({ ...props, onSelect });
+    fireEvent.click(screen.getByRole('button', { name: 'ノート「メモA」を選択' }));
     expect(onSelect).toHaveBeenCalledWith('a');
   });
 
-  it('削除ボタンで onDelete(id) を呼び、選択はしない（stopPropagation）', () => {
+  it('削除ボタンで onDelete(id) を呼び、選択はしない', () => {
     const onSelect = vi.fn();
     const onDelete = vi.fn();
-    render(<DocumentListItem {...props} onSelect={onSelect} onDelete={onDelete} />);
-    fireEvent.click(screen.getByLabelText('ノート「メモA」を削除'));
+    renderItem({ ...props, onSelect, onDelete });
+    fireEvent.click(screen.getByRole('button', { name: 'ノート「メモA」を削除' }));
     expect(onDelete).toHaveBeenCalledWith('a');
     expect(onSelect).not.toHaveBeenCalled();
   });
 
-  it('isActive のとき aria-pressed=true', () => {
-    render(<DocumentListItem {...props} isActive />);
-    expect(screen.getByLabelText('ノート「メモA」を選択')).toHaveAttribute('aria-pressed', 'true');
+  it('isActive のとき選択ボタンに aria-current=true', () => {
+    renderItem({ ...props, isActive: true });
+    expect(screen.getByRole('button', { name: 'ノート「メモA」を選択' })).toHaveAttribute('aria-current', 'true');
   });
 });

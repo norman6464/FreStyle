@@ -1,6 +1,7 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { useDocuments } from '../useDocuments';
+import type { RichDocument, RichDocumentSummary } from '@/entities/document';
 
 const fetchDocuments = vi.fn();
 const createDocument = vi.fn();
@@ -12,13 +13,18 @@ vi.mock('@/entities/document', () => ({
     createDocument: (...a: unknown[]) => createDocument(...a),
     deleteDocument: (...a: unknown[]) => deleteDocument(...a),
   },
+  toRichDocumentSummary: (document: RichDocument): RichDocumentSummary => {
+    const { doc: _doc, ...summary } = document;
+    void _doc;
+    return summary;
+  },
 }));
 
 vi.mock('@/shared/ui/RichTextEditor', () => ({
   emptyRichDoc: () => ({ type: 'doc', content: [{ type: 'paragraph' }] }),
 }));
 
-function summary(id: string, over: Record<string, unknown> = {}) {
+function summary(id: string, over: Partial<RichDocumentSummary> = {}): RichDocumentSummary {
   return {
     id,
     ownerId: 7,
@@ -73,9 +79,11 @@ describe('useDocuments', () => {
       await result.current.fetchDocuments();
     });
     act(() => result.current.selectDocument('a'));
+    let ok: boolean | undefined;
     await act(async () => {
-      await result.current.deleteDocument('a');
+      ok = await result.current.deleteDocument('a');
     });
+    expect(ok).toBe(true);
     expect(result.current.documents.map((d) => d.id)).toEqual(['b']);
     expect(result.current.selectedId).toBeNull();
   });
@@ -90,12 +98,26 @@ describe('useDocuments', () => {
     expect(result.current.filteredDocuments.map((d) => d.id)).toEqual(['a']);
   });
 
-  it('sort=title でタイトル順に並ぶ', async () => {
-    fetchDocuments.mockResolvedValue([summary('a', { title: 'び' }), summary('b', { title: 'あ' })]);
+  it('sort の 4 分岐で並び順が変わる', async () => {
+    // created と updated を別値にして、日付比較の取り違えを検出できるようにする。
+    const a = summary('a', { title: 'び', createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-03-01T00:00:00Z' });
+    const b = summary('b', { title: 'あ', createdAt: '2026-02-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' });
+    fetchDocuments.mockResolvedValue([a, b]);
     const { result } = renderHook(() => useDocuments());
     await act(async () => {
       await result.current.fetchDocuments();
     });
+
+    // default = 更新日降順（a の updated が新しい）。
+    expect(result.current.filteredDocuments.map((d) => d.id)).toEqual(['a', 'b']);
+
+    act(() => result.current.setSort('updated-asc'));
+    expect(result.current.filteredDocuments.map((d) => d.id)).toEqual(['b', 'a']);
+
+    act(() => result.current.setSort('created-desc'));
+    // created は b が新しい。
+    expect(result.current.filteredDocuments.map((d) => d.id)).toEqual(['b', 'a']);
+
     act(() => result.current.setSort('title'));
     expect(result.current.filteredDocuments.map((d) => d.title)).toEqual(['あ', 'び']);
   });
@@ -151,25 +173,49 @@ describe('useDocuments エラー系', () => {
     expect(result.current.error).toBe('ノートの作成に失敗しました');
   });
 
-  it('deleteDocument 失敗で error を設定し一覧は残す', async () => {
+  it('deleteDocument 失敗で false を返し、一覧・選択・error を保持する', async () => {
     fetchDocuments.mockResolvedValue([summary('a')]);
     deleteDocument.mockRejectedValue(new Error('boom'));
     const { result } = renderHook(() => useDocuments());
     await act(async () => {
       await result.current.fetchDocuments();
     });
+    act(() => result.current.selectDocument('a'));
+    let ok: boolean | undefined;
     await act(async () => {
-      await result.current.deleteDocument('a');
+      ok = await result.current.deleteDocument('a');
     });
+    expect(ok).toBe(false);
     expect(result.current.error).toBe('ノートの削除に失敗しました');
     expect(result.current.documents).toHaveLength(1);
+    // 失敗時は選択を保持する。
+    expect(result.current.selectedId).toBe('a');
   });
 
-  it('confirmDelete は対象が無ければ何もしない', async () => {
+  it('confirmDelete 失敗で false を返し選択を保持する', async () => {
+    fetchDocuments.mockResolvedValue([summary('a'), summary('b')]);
+    deleteDocument.mockRejectedValue(new Error('boom'));
     const { result } = renderHook(() => useDocuments());
     await act(async () => {
-      await result.current.confirmDelete();
+      await result.current.fetchDocuments();
     });
+    act(() => result.current.selectDocument('a'));
+    act(() => result.current.requestDelete('a'));
+    let ok: boolean | undefined;
+    await act(async () => {
+      ok = await result.current.confirmDelete();
+    });
+    expect(ok).toBe(false);
+    expect(result.current.selectedId).toBe('a');
+  });
+
+  it('confirmDelete は対象が無ければ false を返し何もしない', async () => {
+    const { result } = renderHook(() => useDocuments());
+    let ok: boolean | undefined;
+    await act(async () => {
+      ok = await result.current.confirmDelete();
+    });
+    expect(ok).toBe(false);
     expect(deleteDocument).not.toHaveBeenCalled();
   });
 });

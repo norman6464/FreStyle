@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
-import { DocumentRepository, type RichDocumentSummary } from '@/entities/document';
+import { DocumentRepository, toRichDocumentSummary, type RichDocumentSummary } from '@/entities/document';
 import { emptyRichDoc } from '@/shared/ui/RichTextEditor';
 import type { NoteSortOption } from '../config/sortOptions';
 
@@ -32,6 +32,7 @@ export function useDocuments() {
   }, []);
 
   const createDocument = useCallback(async (title: string) => {
+    setError(null);
     try {
       const created = await DocumentRepository.createDocument({
         kind: 'note',
@@ -39,9 +40,7 @@ export function useDocuments() {
         doc: emptyRichDoc(),
       });
       // 一覧は doc 本体を持たないサマリなので、作成結果から doc を除いて先頭へ積む。
-      const { doc: _doc, ...summary } = created;
-      void _doc;
-      setDocuments((prev) => [summary, ...prev]);
+      setDocuments((prev) => [toRichDocumentSummary(created), ...prev]);
       setSelectedId(created.id);
       return created;
     } catch {
@@ -50,13 +49,17 @@ export function useDocuments() {
     }
   }, []);
 
+  // deleteDocument は成功時 true / 失敗時 false を返す。失敗時は一覧も選択も変えない。
   const deleteDocument = useCallback(async (id: string) => {
+    setError(null);
     try {
       await DocumentRepository.deleteDocument(id);
       setDocuments((prev) => prev.filter((d) => d.id !== id));
       setSelectedId((prev) => (prev === id ? null : prev));
+      return true;
     } catch {
       setError('ノートの削除に失敗しました');
+      return false;
     }
   }, []);
 
@@ -73,14 +76,14 @@ export function useDocuments() {
     const query = searchQuery.toLowerCase();
     // 一覧は doc 本体を持たないため、検索はタイトルのみを対象にする。
     const filtered = query
-      ? documents.filter((d) => d.title.toLowerCase().includes(query))
+      ? documents.filter((document) => document.title.toLowerCase().includes(query))
       : documents;
-    const ms = (s: string) => Date.parse(s) || 0;
+    const toMillis = (rfc3339: string) => Date.parse(rfc3339) || 0;
     return [...filtered].sort((a, b) => {
-      if (sort === 'updated-asc') return ms(a.updatedAt) - ms(b.updatedAt);
+      if (sort === 'updated-asc') return toMillis(a.updatedAt) - toMillis(b.updatedAt);
       if (sort === 'title') return a.title.localeCompare(b.title, 'ja');
-      if (sort === 'created-desc') return ms(b.createdAt) - ms(a.createdAt);
-      return ms(b.updatedAt) - ms(a.updatedAt);
+      if (sort === 'created-desc') return toMillis(b.createdAt) - toMillis(a.createdAt);
+      return toMillis(b.updatedAt) - toMillis(a.updatedAt);
     });
   }, [documents, searchQuery, sort]);
 
@@ -88,18 +91,20 @@ export function useDocuments() {
     setDeleteTargetId(id);
   }, []);
 
+  // confirmDelete は成功時 true / 失敗時 false を返す。成功したときだけ選択を次候補へ移す。
   const confirmDelete = useCallback(async () => {
-    if (deleteTargetId == null) return;
+    if (deleteTargetId == null) return false;
     // 削除前に次の選択候補を決める（filteredDocuments の順で次→前）。
     const idx = filteredDocuments.findIndex((d) => d.id === deleteTargetId);
     const nextDoc = idx >= 0 ? filteredDocuments[idx + 1] || filteredDocuments[idx - 1] || null : null;
 
     const deletingSelected = selectedId === deleteTargetId;
-    await deleteDocument(deleteTargetId);
-    if (deletingSelected) {
+    const ok = await deleteDocument(deleteTargetId);
+    if (ok && deletingSelected) {
       setSelectedId(nextDoc ? nextDoc.id : null);
     }
     setDeleteTargetId(null);
+    return ok;
   }, [deleteTargetId, deleteDocument, filteredDocuments, selectedId]);
 
   const cancelDelete = useCallback(() => {

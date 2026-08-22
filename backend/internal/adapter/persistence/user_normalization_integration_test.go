@@ -14,11 +14,10 @@ import (
 )
 
 // TestUserNormalization_Integration は users 正規化（FRESTYLE-311）の契約を実 Postgres で固定する。
-// expand-contract の読み替えフェーズ（旧カラムは残し dual-write を維持、物理撤去は後続 PR）を対象にする:
+// 旧カラム（users.role / users.cognito_sub）撤去（migrations/0021）後の world を対象にする:
 //   - CreateWithOidcIdentity が users 行と identity を単一トランザクションで作る（片方だけ残らない）
-//   - 旧 role 列 / cognito_sub 列へも併記する（dual-write。ローリング中に旧タスクが読むため必須の契約）
 //   - role 名は roles.id へ解決して role_id に書き、読み出しは roles を JOIN して name を返す
-//   - FindByCognitoSub は user_oidc_identities 経由で解決する（cognito_sub フォールバックは後続 PR で撤去）
+//   - FindByCognitoSub は user_oidc_identities 経由でのみ解決する
 //   - FK / CHECK / 部分 UNIQUE / CASCADE などの DB 制約
 func TestUserNormalization_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
@@ -46,12 +45,6 @@ func TestUserNormalization_Integration(t *testing.T) {
 		require.NoError(t, db.Model(&domain.UserOidcIdentity{}).
 			Where("user_id = ? AND subject = ?", u.ID, "norm-1").Count(&count).Error)
 		require.Equal(t, int64(1), count)
-
-		// 旧 cognito_sub 列へも subject を併記する（ローリングデプロイ中に旧タスクが NULL を
-		// Scan して 500 になるのを防ぐ dual-write。撤去は後続 PR）。
-		var legacySub string
-		require.NoError(t, db.Raw(`SELECT cognito_sub FROM users WHERE id = ?`, u.ID).Scan(&legacySub).Error)
-		require.Equal(t, "norm-1", legacySub)
 	})
 
 	t.Run("未知の role 名の作成はエラー（黙って別ロールにしない・行も残さない）", func(t *testing.T) {
@@ -94,7 +87,7 @@ func TestUserNormalization_Integration(t *testing.T) {
 		require.Equal(t, int64(1), count)
 	})
 
-	t.Run("UpdateRole は role_id を更新し、旧 role 列へも併記する（dual-write 維持）", func(t *testing.T) {
+	t.Run("UpdateRole は role_id を更新する", func(t *testing.T) {
 		truncate(t)
 		u := &domain.User{Email: "n4@example.com", Role: domain.RoleTrainee}
 		require.NoError(t, repo.CreateWithOidcIdentity(ctx, u, domain.OidcProviderCognito, "norm-4"))
@@ -105,12 +98,6 @@ func TestUserNormalization_Integration(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, domain.RoleSuperAdmin, got.Role)
 		require.Equal(t, domain.RoleIDSuperAdmin, got.RoleID)
-
-		// ローリングデプロイ中に旧タスクが読む旧 role 列への併記を守る（撤去は後続 PR）。
-		// これが欠けると、昇格が role_id だけ更新され旧タスクに trainee と誤認される。
-		var legacyRole string
-		require.NoError(t, db.Raw(`SELECT role FROM users WHERE id = ?`, u.ID).Scan(&legacyRole).Error)
-		require.Equal(t, string(domain.RoleSuperAdmin), legacyRole)
 	})
 
 	t.Run("UpdateRole は未知の role 名を拒否する", func(t *testing.T) {
@@ -234,24 +221,22 @@ func TestUserNormalization_Integration(t *testing.T) {
 		require.Equal(t, int64(0), count)
 	})
 
-	t.Run("SoftDelete は identity を削除して subject の占有を解く", func(t *testing.T) {
+	t.Run("SoftDelete が identity を解放し、同じ subject で再招待できる", func(t *testing.T) {
 		truncate(t)
 		u1 := &domain.User{Email: "re@example.com", Role: domain.RoleTrainee}
 		require.NoError(t, repo.CreateWithOidcIdentity(ctx, u1, domain.OidcProviderCognito, "reinvite-sub"))
 
 		require.NoError(t, repo.SoftDelete(ctx, u1.ID))
 
-		// identity（正規化後の突き合わせの正）は削除され、subject の占有が解ける。
-		// これにより cognito_sub 撤去後（FRESTYLE-311 後続 PR）は同一 OIDC アカウントの再招待が成立する。
-		var idCount int64
-		require.NoError(t, db.Model(&domain.UserOidcIdentity{}).
-			Where("subject = ?", "reinvite-sub").Count(&idCount).Error)
-		require.Equal(t, int64(0), idCount)
+		// 旧 cognito_sub 列が撤去されたので、同じ email / 同じ subject で新ユーザーを作れる
+		// （identity は SoftDelete で解放され、cognito_sub のユニーク衝突も無くなった）。
+		u2 := &domain.User{Email: "re@example.com", Role: domain.RoleTrainee}
+		require.NoError(t, repo.CreateWithOidcIdentity(ctx, u2, domain.OidcProviderCognito, "reinvite-sub"))
 
-		// 論理削除された行は identity 経由の解決から外れる。
 		got, err := repo.FindByCognitoSub(ctx, "reinvite-sub")
 		require.NoError(t, err)
-		require.Nil(t, got)
+		require.NotNil(t, got)
+		require.Equal(t, u2.ID, got.ID)
 	})
 
 	t.Run("バックフィルは論理削除ユーザーの残置 identity を掃除する", func(t *testing.T) {

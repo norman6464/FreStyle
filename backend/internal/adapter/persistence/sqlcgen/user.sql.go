@@ -32,12 +32,9 @@ SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.ai_chat_enabled, u.is_a
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE u.deleted_at IS NULL
-  AND (
-    u.id IN (
-      SELECT oi.user_id FROM user_oidc_identities oi
-      WHERE oi.provider = 'cognito' AND oi.subject = $1
-    )
-    OR u.cognito_sub = $1
+  AND u.id IN (
+    SELECT oi.user_id FROM user_oidc_identities oi
+    WHERE oi.provider = 'cognito' AND oi.subject = $1
   )
 `
 
@@ -55,17 +52,15 @@ type GetUserByCognitoSubRow struct {
 	RoleName      string
 }
 
-// users の読み出し（FRESTYLE-311 正規化・expand-contract の読み替えフェーズ）。
-// role_name は roles マスタを JOIN して解決する（正は users.role_id → roles.name）。旧 role 列は読まない。
-// cognito_sub は GetUserByCognitoSub の WHERE でフォールバックとしてのみ参照する（ローリングデプロイ中の
-// 孤児行救済。旧カラムの物理撤去とこのフォールバック除去は後続 PR）。旧カラムを SELECT には含めない。
+// users の読み出し（FRESTYLE-311 正規化完了）。旧カラム users.role / users.cognito_sub は
+// 撤去済み（migrations/0021）のため参照しない。
+// role_name は roles マスタを JOIN して解決する（正は users.role_id → roles.name）。
+// OIDC subject の突き合わせは user_oidc_identities のみで行う。
 //
 // password_hash はローカルのパスワードログイン専用の GetActiveUserByEmail だけが取得する
 // （一覧・認証解決の経路で bcrypt ハッシュをアプリメモリに載せない）。
 // OIDC subject で 1 ユーザーを引く（論理削除は除外）。認証時の user 解決に使う。
-// 正は user_oidc_identities（provider='cognito' の subject）だが、旧タスクが identity 未作成の
-// まま挿入した孤児行にも旧カラム users.cognito_sub のフォールバックで到達できるようにする
-// （ローリングデプロイ中の可用性保全。このフォールバックは旧カラム撤去の後続 PR で外す）。
+// 正は user_oidc_identities（provider='cognito' の subject）。
 func (q *Queries) GetUserByCognitoSub(ctx context.Context, subject string) (GetUserByCognitoSubRow, error) {
 	row := q.db.QueryRowContext(ctx, getUserByCognitoSub, subject)
 	var i GetUserByCognitoSubRow

@@ -101,12 +101,10 @@ type SessionNote struct {
 
 type User struct {
 	ID            int64
-	CognitoSub    string
 	Email         string
 	PasswordHash  sql.NullString
 	Name          string
 	CompanyID     sql.NullInt64
-	Role          string
 	RoleID        sql.NullInt16
 	AiChatEnabled sql.NullBool
 	IsActive      bool

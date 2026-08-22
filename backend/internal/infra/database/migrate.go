@@ -125,32 +125,34 @@ func SeedRoles(db *gorm.DB) error {
 	return nil
 }
 
-// BackfillUserNormalization は旧カラム（users.role / users.cognito_sub）から
-// 正規化テーブル（users.role_id / user_oidc_identities）へ値を埋める（冪等）。
+// BackfillUserNormalization は正規化テーブル（users.role_id / user_oidc_identities）の
+// 整合を起動時に保つ（冪等）。正規化後は role_id が正で新コードが常に書くため、旧 role 文字列から
+// role_id を「逆算」する同期は行わない（それをやると、role_id だけ更新した昇格を巻き戻す）。
+// 旧カラム users.cognito_sub からの identity 補完だけは、旧カラム撤去（migrations/0021）の前後で
+// 安全に流せるよう、カラムが存在する間のみカラム存在チェックでガードして実行する。
 func BackfillUserNormalization(db *gorm.DB) error {
-	// role 文字列 → role_id。NULL 埋めに加え、移行期間中に旧コード（role 文字列のみ書く）が
-	// 作った行の role_id 不一致も修復する（新コードは両方書くので通常は no-op）。
-	if err := db.Exec(
-		`UPDATE users SET role_id = r.id FROM roles r
-		 WHERE r.name = users.role AND users.role_id IS DISTINCT FROM r.id`,
-	).Error; err != nil {
-		return err
-	}
-	// role が空・未知のままの行は最小権限の trainee に倒す（読み出し側の LEFT JOIN で NULL role を作らない）。
+	// role_id が未設定の行は最小権限の trainee に倒す（読み出し側の LEFT JOIN で NULL role を作らない）。
+	// role_id のみを触るため旧カラム撤去後も有効。
 	if err := db.Exec(
 		`UPDATE users SET role_id = ? WHERE role_id IS NULL`, domain.RoleIDTrainee,
 	).Error; err != nil {
 		return err
 	}
-	// cognito_sub → user_oidc_identities（既存行はスキップ）。論理削除済みユーザーは対象外
-	// （identity が subject を占有すると、同じ OIDC アカウントの再招待がログイン不能になる）。
-	if err := db.Exec(
-		`INSERT INTO user_oidc_identities (user_id, provider, subject, created_at, updated_at)
-		 SELECT id, ?, cognito_sub, NOW(), NOW() FROM users
-		 WHERE cognito_sub IS NOT NULL AND cognito_sub <> '' AND deleted_at IS NULL
-		 ON CONFLICT DO NOTHING`, domain.OidcProviderCognito,
-	).Error; err != nil {
+	// cognito_sub → user_oidc_identities（旧カラムが残っている間のみ・既存行はスキップ）。
+	// 論理削除済みユーザーは対象外（identity が subject を占有すると再招待がログイン不能になる）。
+	hasCognitoSub, err := columnExists(db, "users", "cognito_sub")
+	if err != nil {
 		return err
+	}
+	if hasCognitoSub {
+		if err := db.Exec(
+			`INSERT INTO user_oidc_identities (user_id, provider, subject, created_at, updated_at)
+			 SELECT id, ?, cognito_sub, NOW(), NOW() FROM users
+			 WHERE cognito_sub IS NOT NULL AND cognito_sub <> '' AND deleted_at IS NULL
+			 ON CONFLICT DO NOTHING`, domain.OidcProviderCognito,
+		).Error; err != nil {
+			return err
+		}
 	}
 	// 論理削除済みユーザーに紐付く identity を掃除する（SoftDelete 側でも消すが、
 	// 過去データと削除処理の失敗に対する自己修復として毎起動流す。冪等）。
@@ -158,6 +160,19 @@ func BackfillUserNormalization(db *gorm.DB) error {
 		`DELETE FROM user_oidc_identities oi USING users u
 		 WHERE oi.user_id = u.id AND u.deleted_at IS NOT NULL`,
 	).Error
+}
+
+// columnExists は指定テーブルにカラムが存在するかを返す。旧カラム撤去の前後で
+// バックフィルの分岐に使う（information_schema はトランザクション内でも現在のスキーマを見る）。
+func columnExists(db *gorm.DB, table, column string) (bool, error) {
+	var n int64
+	if err := db.Raw(
+		`SELECT count(*) FROM information_schema.columns
+		 WHERE table_name = ? AND column_name = ?`, table, column,
+	).Scan(&n).Error; err != nil {
+		return false, err
+	}
+	return n > 0, nil
 }
 
 func seedCompanies(db *gorm.DB) error {

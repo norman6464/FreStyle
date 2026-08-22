@@ -3,7 +3,8 @@
   "entry": [
     "src/**/*.{test,spec}.{ts,tsx}",
     "e2e/**/*.{ts,tsx}",
-    "src/shared/ui/RichTextEditor/index.ts"
+    "src/shared/ui/RichTextEditor/index.ts",
+    "src/entities/document/index.ts"
   ],
   "project": ["src/**/*.{ts,tsx}"],
   "ignore": ["src/generated/**"],

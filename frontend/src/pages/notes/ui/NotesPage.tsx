@@ -84,9 +84,9 @@ export default function NotesPage() {
   const handleImageUpload = async (file: File) => {
     try {
       return await ImageUploadRepository.upload(file);
-    } catch (e) {
+    } catch (error) {
       showToast('error', '画像のアップロードに失敗しました');
-      throw e;
+      throw error;
     }
   };
 
@@ -200,6 +200,7 @@ export default function NotesPage() {
               </div>
               <div className="px-4 pb-10 pt-2">
                 <RichTextEditor
+                  key={selectedId}
                   value={editDoc}
                   onChange={handleDocChange}
                   onImageUpload={handleImageUpload}

@@ -21,7 +21,7 @@ const hoisted = vi.hoisted(() => ({
 }));
 
 vi.mock('@/entities/user', () => ({
-  ImageUploadRepository: { upload: (...a: unknown[]) => hoisted.upload(...a) },
+  ImageUploadRepository: { upload: (...args: unknown[]) => hoisted.upload(...args) },
 }));
 
 // tiptap を jsdom に載せないため、エディタは軽量スタブに差し替える（props は捕捉する）。

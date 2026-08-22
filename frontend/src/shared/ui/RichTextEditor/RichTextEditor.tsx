@@ -3,6 +3,10 @@ import { EditorContent, useEditor, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Placeholder } from '@tiptap/extensions';
 import Image from '@tiptap/extension-image';
+import {
+  ACCEPTED_IMAGE_ACCEPT_ATTR,
+  isAcceptedImageMimeType,
+} from '@/shared/config/imageUpload';
 import RichTextEditorToolbar from './RichTextEditorToolbar';
 import SaveStatusIndicator, { type SaveStatus } from './SaveStatusIndicator';
 import type { RichDocContent } from './emptyRichDoc';
@@ -63,28 +67,43 @@ export default function RichTextEditor({
   }, [onImageUpload]);
   const editorRef = useRef<Editor | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // アンマウント（別ノートへ切替）後にアップロードが完了しても挿入しないための番人。
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   // 画像ファイルをアップロードして URL を挿入する。失敗は握りつぶす（通知は呼び出し側）。
-  const insertImageFile = useCallback((file: File) => {
+  // alt にはファイル名を既定で入れる（代替テキストの UI は後続）。
+  const insertImageFile = useCallback(async (file: File) => {
     const upload = onImageUploadRef.current;
     const currentEditor = editorRef.current;
     if (!upload || !currentEditor) return;
-    void upload(file)
-      .then((url) => {
-        currentEditor.chain().focus().setImage({ src: url }).run();
-      })
-      .catch(() => {
-        /* 失敗時の通知は呼び出し側の onImageUpload 内で行う方針。ここでは無視。 */
-      });
+    try {
+      const url = await upload(file);
+      // 別ノートへ切り替えてアンマウント/破棄済みなら、別文書へ誤挿入しない。
+      if (!mountedRef.current || currentEditor.isDestroyed) return;
+      currentEditor.chain().focus().setImage({ src: url, alt: file.name }).run();
+    } catch {
+      /* 失敗時の通知は呼び出し側の onImageUpload 内で行う方針。ここでは無視。 */
+    }
   }, []);
 
-  // dataTransfer / clipboard から画像ファイルだけ取り出してアップロードする。
+  // dataTransfer / clipboard から画像ファイルだけ取り出して、選択順どおりに 1 つずつ挿入する。
   const uploadImageFiles = useCallback(
     (files: FileList | null | undefined): boolean => {
       if (!onImageUploadRef.current) return false;
-      const images = Array.from(files ?? []).filter((f) => f.type.startsWith('image/'));
+      const images = Array.from(files ?? []).filter((file) => isAcceptedImageMimeType(file.type));
       if (images.length === 0) return false;
-      images.forEach(insertImageFile);
+      // 並列にすると URL 取得の早い順に挿入され表示順が乱れるため、順次に await して選択順を保つ。
+      void (async () => {
+        for (const file of images) {
+          await insertImageFile(file);
+        }
+      })();
       return true;
     },
     [insertImageFile],

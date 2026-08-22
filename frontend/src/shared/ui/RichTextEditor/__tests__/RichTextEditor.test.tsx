@@ -183,27 +183,55 @@ describe('RichTextEditor', () => {
     expect(screen.getByRole('button', { name: '画像を挿入' })).toBeInTheDocument();
   });
 
-  it('画像ファイル選択で onImageUpload を呼び、doc に image ノードを挿入する', async () => {
+  it('ファイル選択で onImageUpload を呼び、返却 URL とファイル名を img の src/alt に保存する', async () => {
     const onImageUpload = vi.fn().mockResolvedValue('https://cdn.example.com/a.png');
     const onChange = vi.fn();
-    const { container } = render(
-      <RichTextEditor value={emptyRichDoc()} onImageUpload={onImageUpload} onChange={onChange} />,
-    );
-    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    render(<RichTextEditor value={emptyRichDoc()} onImageUpload={onImageUpload} onChange={onChange} />);
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
     const file = new File(['x'], 'a.png', { type: 'image/png' });
     fireEvent.change(input, { target: { files: [file] } });
     await waitFor(() => expect(onImageUpload).toHaveBeenCalledWith(file));
-    await waitFor(() => {
-      const last = onChange.mock.calls.at(-1)?.[0] as RichDocContent | undefined;
-      expect(last && collectNodeTypes(last)).toContain('image');
-    });
+    // 描画された img の src=返却 URL / alt=ファイル名 を検証する。
+    const img = await screen.findByRole('img', { name: 'a.png' });
+    expect(img).toHaveAttribute('src', 'https://cdn.example.com/a.png');
+    const last = onChange.mock.calls.at(-1)?.[0] as RichDocContent | undefined;
+    expect(last && collectNodeTypes(last)).toContain('image');
   });
+
+  // NOTE: 貼り付け/ドロップは editorProps.handlePaste/handleDrop から同じ uploadImageFiles を呼ぶ。
+  // ProseMirror の paste/drop は jsdom の elementFromPoint 未実装のため実地シミュレーションが不安定なので、
+  // 共有ロジックはファイル選択経路（上のテスト）で src/alt まで固定し、ここでは扱わない。
 
   it('画像以外のファイルは onImageUpload を呼ばない', () => {
     const onImageUpload = vi.fn().mockResolvedValue('x');
-    const { container } = render(<RichTextEditor value={emptyRichDoc()} onImageUpload={onImageUpload} />);
-    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    render(<RichTextEditor value={emptyRichDoc()} onImageUpload={onImageUpload} />);
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
     fireEvent.change(input, { target: { files: [new File(['x'], 'a.txt', { type: 'text/plain' })] } });
     expect(onImageUpload).not.toHaveBeenCalled();
+  });
+
+  it('アップロード完了前にアンマウントされたら画像を挿入しない（別文書への誤挿入防止）', async () => {
+    let resolveUpload: (url: string) => void = () => {};
+    const onImageUpload = vi.fn(
+      () =>
+        new Promise<string>((resolve) => {
+          resolveUpload = resolve;
+        }),
+    );
+    const onChange = vi.fn();
+    const { unmount } = render(
+      <RichTextEditor value={emptyRichDoc()} onImageUpload={onImageUpload} onChange={onChange} />,
+    );
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [new File(['x'], 'a.png', { type: 'image/png' })] } });
+    await waitFor(() => expect(onImageUpload).toHaveBeenCalled());
+    unmount(); // エディタ破棄（別ノートへ切替相当）
+    resolveUpload('https://cdn.example.com/late.png');
+    await Promise.resolve();
+    await Promise.resolve();
+    const insertedImage = onChange.mock.calls.some((call) =>
+      collectNodeTypes(call[0] as RichDocContent).has('image'),
+    );
+    expect(insertedImage).toBe(false);
   });
 });

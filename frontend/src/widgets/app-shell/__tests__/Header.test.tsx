@@ -101,3 +101,52 @@ describe('Header', () => {
     expect(screen.getByRole('button', { name: 'ログアウト' })).toBeInTheDocument();
   });
 });
+
+describe('Header サイドバートグル（☰）', () => {
+  function renderWithSidebar(props: Record<string, unknown>) {
+    const store = configureStore({
+      reducer: { auth: authReducer },
+      preloadedState: {
+        auth: { isAuthenticated: true, loading: false, role: 'trainee', aiChatEnabledForTrainees: true },
+      },
+    });
+    return render(
+      <Provider store={store}>
+        <MemoryRouter initialEntries={['/']}>
+          <Header {...props} />
+        </MemoryRouter>
+      </Provider>,
+    );
+  }
+
+  it('sidebarMode=collapsed のとき固定表示トグルを出し、クリックで onSidebarPin を呼ぶ', () => {
+    const onSidebarPin = vi.fn();
+    renderWithSidebar({ sidebarMode: 'collapsed', onSidebarPin });
+    const btn = screen.getByRole('button', { name: 'サイドバーを固定表示する' });
+    fireEvent.click(btn);
+    expect(onSidebarPin).toHaveBeenCalled();
+  });
+
+  it('☰ のホバーで onSidebarHoverStart / 離脱で onSidebarHoverEnd を呼ぶ', () => {
+    const onSidebarPin = vi.fn();
+    const onSidebarHoverStart = vi.fn();
+    const onSidebarHoverEnd = vi.fn();
+    renderWithSidebar({ sidebarMode: 'collapsed', onSidebarPin, onSidebarHoverStart, onSidebarHoverEnd });
+    const btn = screen.getByRole('button', { name: 'サイドバーを固定表示する' });
+    fireEvent.mouseEnter(btn);
+    expect(onSidebarHoverStart).toHaveBeenCalled();
+    fireEvent.mouseLeave(btn);
+    expect(onSidebarHoverEnd).toHaveBeenCalled();
+  });
+
+  it('sidebarMode=pinned のときはトグルを出さない', () => {
+    renderWithSidebar({ sidebarMode: 'pinned', onSidebarPin: vi.fn() });
+    expect(screen.queryByRole('button', { name: 'サイドバーを固定表示する' })).not.toBeInTheDocument();
+  });
+
+  it('sidebar props 未指定（既存利用）でも壊れない', () => {
+    renderWithSidebar({});
+    expect(screen.queryByRole('button', { name: 'サイドバーを固定表示する' })).not.toBeInTheDocument();
+    expect(screen.getAllByText('ホーム').length).toBeGreaterThanOrEqual(1);
+  });
+});

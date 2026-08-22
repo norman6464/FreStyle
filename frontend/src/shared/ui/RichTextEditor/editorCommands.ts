@@ -16,15 +16,18 @@ export type EditorCommandGroup = 'mark' | 'turn' | 'insert' | 'history';
  * （＝バブルメニューにもスラッシュメニューにも、記述子を 1 つ足すだけで同じ操作が現れる）。
  */
 export interface EditorCommand {
-  /** 一意 id（'bold' 等）。React key・テスト・将来のスラッシュ照合のアンカー。 */
+  /**
+   * 一意 id（'bold' / 'heading1' / 'image' 等）。React key・テストのアンカーであり、
+   * スラッシュコマンドの正規トリガ（英単語）も兼ねる（例: /bold・/heading1・/image）。
+   */
   id: string;
-  /** 日本語ラベル。アクセシブルネーム / tooltip / スラッシュ表示に共用する。 */
+  /** 日本語ラベル。アクセシブルネーム / tooltip / スラッシュメニューの表示名に共用する。 */
   label: string;
   /** 分類。 */
   group: EditorCommandGroup;
   /** ボタンに出す短い字面（B / I / H1 等）。アイコン化するまでの簡易表現。 */
   glyph: string;
-  /** スラッシュ検索用キーワード（後続の '/' メニューで使う）。 */
+  /** スラッシュ検索用キーワード（後続の '/' メニューで使う）。英単語を主とし、日本語読みは補助。 */
   keywords?: string[];
   /** トグル状態（マーク・turn 系）。非トグル（insert/history）は未定義。 */
   isActive?: (editor: Editor) => boolean;

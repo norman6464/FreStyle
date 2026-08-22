@@ -3,6 +3,7 @@ package persistence
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
@@ -39,13 +40,12 @@ func (r *richDocumentRepository) Create(ctx context.Context, doc *domain.RichDoc
 	if doc.ID == "" {
 		// UUIDv7 を採番する。時系列で単調に増える（インデックス局所性が良く作成順ソート可能）うえ、
 		// ランダム部 74bit により URL は推測困難のまま。v4 で作られた既存 ID とも同形式で互換。
+		// 失敗は乱数源の故障（v4 でも同様に失敗する）なので、退避せずエラーで返す。
 		id, err := uuid.NewV7()
 		if err != nil {
-			// エントロピー枯渇など極めて稀な失敗時は v4 に退避する（採番を止めない）。
-			doc.ID = uuid.NewString()
-		} else {
-			doc.ID = id.String()
+			return fmt.Errorf("uuid v7 の採番に失敗: %w", err)
 		}
+		doc.ID = id.String()
 	}
 	return mapPgDataError(r.db.WithContext(ctx).Create(doc).Error)
 }

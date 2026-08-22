@@ -219,3 +219,40 @@ describe('useDocuments エラー系', () => {
     expect(deleteDocument).not.toHaveBeenCalled();
   });
 });
+
+describe('useDocuments 初期自動選択', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('取得後、未選択なら先頭（更新日が最新）のノートを自動選択する', async () => {
+    fetchDocuments.mockResolvedValue([summary('first'), summary('second')]);
+    const { result } = renderHook(() => useDocuments());
+    await act(async () => {
+      await result.current.fetchDocuments();
+    });
+    expect(result.current.selectedId).toBe('first');
+  });
+
+  it('既に選択があるときは再取得しても選択を上書きしない', async () => {
+    fetchDocuments.mockResolvedValue([summary('a'), summary('b')]);
+    const { result } = renderHook(() => useDocuments());
+    await act(async () => {
+      await result.current.fetchDocuments();
+    });
+    act(() => result.current.selectDocument('b'));
+    await act(async () => {
+      await result.current.fetchDocuments();
+    });
+    expect(result.current.selectedId).toBe('b');
+  });
+
+  it('一覧が空なら選択は null のまま', async () => {
+    fetchDocuments.mockResolvedValue([]);
+    const { result } = renderHook(() => useDocuments());
+    await act(async () => {
+      await result.current.fetchDocuments();
+    });
+    expect(result.current.selectedId).toBeNull();
+  });
+});

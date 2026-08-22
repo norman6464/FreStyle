@@ -176,6 +176,8 @@ export default function AskAiPage() {
     <div className="flex h-full">
       {/* セカンダリパネル: セッション一覧 */}
       <SecondaryPanel
+        peekable
+        storageKey="frestyle.panel.ask-ai"
         title="セッション"
         badge={`${sessions.length}件`}
         mobileOpen={mobilePanelOpen}

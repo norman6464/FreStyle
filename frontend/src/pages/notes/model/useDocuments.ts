@@ -24,6 +24,8 @@ export function useDocuments() {
     try {
       const data = await DocumentRepository.fetchDocuments('note');
       setDocuments(data);
+      // 未選択のまま空画面を見せず、先頭（更新日が最新）のノートを自動で開く。
+      setSelectedId((prev) => prev ?? data[0]?.id ?? null);
     } catch {
       setError('ノートの取得に失敗しました');
     } finally {

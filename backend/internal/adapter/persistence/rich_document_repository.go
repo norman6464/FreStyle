@@ -101,3 +101,21 @@ func (r *richDocumentRepository) SoftDelete(ctx context.Context, id string, owne
 	}
 	return nil
 }
+
+func (r *richDocumentRepository) ListByOwner(ctx context.Context, ownerID uint64, kind domain.DocumentKind) ([]domain.RichDocument, error) {
+	q := r.db.WithContext(ctx).
+		Model(&domain.RichDocument{}).
+		Where("owner_id = ? AND deleted_at IS NULL", ownerID).
+		// doc(jsonb) 本体は一覧では要らないので読み込まない（転送量とメモリを抑える）。
+		Select("id, owner_id, company_id, kind, title, is_public, schema_version, revision, created_at, updated_at").
+		Order("updated_at DESC")
+	if kind != "" {
+		q = q.Where("kind = ?", kind)
+	}
+	// 0 件でも nil ではなく空スライスを返す（JSON が null にならずフロントの map/for-of が落ちない）。
+	rows := make([]domain.RichDocument, 0)
+	if err := q.Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	return rows, nil
+}

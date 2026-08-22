@@ -251,6 +251,35 @@ func (u *DeleteRichDocumentUseCase) Execute(ctx context.Context, id string, acto
 	return translateRepoErr(u.repo.SoftDelete(ctx, id, actorID))
 }
 
+// ListRichDocumentsUseCase は owner 本人の文書一覧を返す（軽量サマリ）。
+type ListRichDocumentsUseCase struct {
+	repo repository.RichDocumentRepository
+}
+
+func NewListRichDocumentsUseCase(r repository.RichDocumentRepository) *ListRichDocumentsUseCase {
+	return &ListRichDocumentsUseCase{repo: r}
+}
+
+type ListRichDocumentsInput struct {
+	OwnerID uint64
+	// Kind が空なら全 kind。指定するなら既知の kind であること。
+	Kind domain.DocumentKind
+}
+
+func (u *ListRichDocumentsUseCase) Execute(ctx context.Context, in ListRichDocumentsInput) ([]domain.RichDocument, error) {
+	if in.OwnerID == 0 {
+		return nil, fmt.Errorf("%w: ownerID is required", ErrRichDocumentInvalid)
+	}
+	if in.Kind != "" && !in.Kind.Valid() {
+		return nil, fmt.Errorf("%w: unknown kind %q", ErrRichDocumentInvalid, in.Kind)
+	}
+	rows, err := u.repo.ListByOwner(ctx, in.OwnerID, in.Kind)
+	if err != nil {
+		return nil, translateRepoErr(err)
+	}
+	return rows, nil
+}
+
 // translateRepoErr は repository 層のセンチネルを usecase 層のセンチネルへ翻訳する。
 func translateRepoErr(err error) error {
 	switch {

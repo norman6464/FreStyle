@@ -19,6 +19,7 @@ type DocumentHandler struct {
 	create *usecase.CreateRichDocumentUseCase
 	update *usecase.UpdateRichDocumentUseCase
 	del    *usecase.DeleteRichDocumentUseCase
+	list   *usecase.ListRichDocumentsUseCase
 }
 
 // maxDocumentBodyBytes はリクエストボディの上限。doc 本体の上限（usecase 側 1 MiB）に
@@ -45,8 +46,38 @@ func NewDocumentHandler(
 	c *usecase.CreateRichDocumentUseCase,
 	u *usecase.UpdateRichDocumentUseCase,
 	d *usecase.DeleteRichDocumentUseCase,
+	l *usecase.ListRichDocumentsUseCase,
 ) *DocumentHandler {
-	return &DocumentHandler{get: g, create: c, update: u, del: d}
+	return &DocumentHandler{get: g, create: c, update: u, del: d, list: l}
+}
+
+// documentSummaryResponse は一覧の 1 件。doc 本体は含めない（一覧は軽量に保つ・本文は個別取得）。
+type documentSummaryResponse struct {
+	ID            string    `json:"id"            example:"31400a07-297e-8057-884b-c05dbdf9fa53"`
+	OwnerID       uint64    `json:"ownerId"       example:"42"`
+	CompanyID     *uint64   `json:"companyId,omitempty" example:"1"`
+	Kind          string    `json:"kind"          example:"note"`
+	Title         string    `json:"title"         example:"学習メモ"`
+	IsPublic      bool      `json:"isPublic"      example:"false"`
+	SchemaVersion int       `json:"schemaVersion" example:"1"`
+	Revision      int       `json:"revision"      example:"1"`
+	CreatedAt     time.Time `json:"createdAt"`
+	UpdatedAt     time.Time `json:"updatedAt"`
+}
+
+func toDocumentSummary(d *domain.RichDocument) documentSummaryResponse {
+	return documentSummaryResponse{
+		ID:            d.ID,
+		OwnerID:       d.OwnerID,
+		CompanyID:     d.CompanyID,
+		Kind:          string(d.Kind),
+		Title:         d.Title,
+		IsPublic:      d.IsPublic,
+		SchemaVersion: d.SchemaVersion,
+		Revision:      d.Revision,
+		CreatedAt:     d.CreatedAt,
+		UpdatedAt:     d.UpdatedAt,
+	}
 }
 
 // documentResponse は文書の返却形。doc は正本 JSON をそのまま埋め込む（json.RawMessage）。
@@ -103,6 +134,40 @@ func respondRichDocErr(c *gin.Context, err error) {
 	default:
 		c.JSON(http.StatusInternalServerError, errorResponse{Error: "internal_error"})
 	}
+}
+
+// List は current user 名義の文書一覧を返す（owner スコープ・doc 本体は含まない軽量サマリ）。
+//
+//	@Summary      自分 の リッチ 文書 一覧
+//	@Description  current user が所有する文書を更新日降順で返す (doc 本体は含まない)。 kind で絞り込み可 (note / course-chapter)。
+//	@Tags         documents
+//	@Produce      json
+//	@Param        kind  query     string  false  "用途 で 絞り込み (note / course-chapter)"
+//	@Success      200   {array}   documentSummaryResponse
+//	@Failure      400   {object}  errorResponse  "不正 な kind"
+//	@Failure      401   {object}  errorResponse  "未 認証"
+//	@Failure      500   {object}  errorResponse  "DB 失敗"
+//	@Router       /documents [get]
+//	@Security     CookieAuth
+func (h *DocumentHandler) List(c *gin.Context) {
+	uid := middleware.CurrentUserIDOrZero(c)
+	if uid == 0 {
+		c.JSON(http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
+		return
+	}
+	docs, err := h.list.Execute(c.Request.Context(), usecase.ListRichDocumentsInput{
+		OwnerID: uid,
+		Kind:    domain.DocumentKind(c.Query("kind")),
+	})
+	if err != nil {
+		respondRichDocErr(c, err)
+		return
+	}
+	out := make([]documentSummaryResponse, 0, len(docs))
+	for i := range docs {
+		out = append(out, toDocumentSummary(&docs[i]))
+	}
+	c.JSON(http.StatusOK, out)
 }
 
 type documentCreateReq struct {

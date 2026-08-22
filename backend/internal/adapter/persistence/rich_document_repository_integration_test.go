@@ -164,4 +164,42 @@ func TestRichDocumentRepository_Integration(t *testing.T) {
 		upd := &domain.RichDocument{ID: base.ID, Title: "t", SchemaVersion: 1, Doc: nulDoc}
 		require.ErrorIs(t, repo.UpdateWithRevision(ctx, upd, 1), repository.ErrRichDocumentInvalidData)
 	})
+
+	t.Run("ListByOwner は owner で絞り・論理削除除外・更新日降順・kind フィルタ・doc本体なし", func(t *testing.T) {
+		testsupport.TruncateAll(t, db, "rich_documents", "users", "user_oidc_identities")
+		owner := mkOwner(t, "rd-list", "rdlist@example.com")
+		other := mkOwner(t, "rd-list-other", "rdlistother@example.com")
+
+		// owner の文書: note 2 件 + course-chapter 1 件、他人の文書 1 件、論理削除 1 件。
+		n1 := &domain.RichDocument{OwnerID: owner, Kind: domain.DocumentKindNote, Title: "n1", Doc: rdDoc, Revision: 1}
+		n2 := &domain.RichDocument{OwnerID: owner, Kind: domain.DocumentKindNote, Title: "n2", Doc: rdDoc, Revision: 1}
+		cc := &domain.RichDocument{OwnerID: owner, Kind: domain.DocumentKindCourseChapter, Title: "cc", Doc: rdDoc, Revision: 1}
+		del := &domain.RichDocument{OwnerID: owner, Kind: domain.DocumentKindNote, Title: "del", Doc: rdDoc, Revision: 1}
+		foreign := &domain.RichDocument{OwnerID: other, Kind: domain.DocumentKindNote, Title: "foreign", Doc: rdDoc, Revision: 1}
+		for _, d := range []*domain.RichDocument{n1, n2, cc, del, foreign} {
+			require.NoError(t, repo.Create(ctx, d))
+		}
+		require.NoError(t, repo.SoftDelete(ctx, del.ID, owner))
+
+		// n1 を更新して updated_at を最新にし、降順で先頭に来ることを確認する。
+		require.NoError(t, repo.UpdateWithRevision(ctx, &domain.RichDocument{ID: n1.ID, Title: "n1b", SchemaVersion: 1, Doc: rdDoc}, 1))
+
+		// 全 kind（owner のみ・削除除外）
+		all, err := repo.ListByOwner(ctx, owner, "")
+		require.NoError(t, err)
+		require.Len(t, all, 3) // n1 / n2 / cc（del と foreign は出ない）
+		titles := []string{all[0].Title, all[1].Title, all[2].Title}
+		require.Equal(t, "n1b", titles[0])    // 更新日降順で最新の n1b が先頭
+		require.NotContains(t, titles, "del") // 論理削除は出ない
+		require.NotContains(t, titles, "foreign")
+		require.Empty(t, all[0].Doc) // 一覧は doc 本体を読み込まない（軽量）
+
+		// kind=note フィルタ
+		notes, err := repo.ListByOwner(ctx, owner, domain.DocumentKindNote)
+		require.NoError(t, err)
+		require.Len(t, notes, 2) // n1b / n2（cc は除外）
+		for _, d := range notes {
+			require.Equal(t, domain.DocumentKindNote, d.Kind)
+		}
+	})
 }

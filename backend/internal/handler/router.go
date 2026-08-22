@@ -84,6 +84,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	registerChatRoutes(authed, deps)
 	registerProfileRoutes(authed, deps)
 	registerNoteRoutes(authed, deps)
+	registerDocumentRoutes(authed, deps)
 	registerSocialRoutes(authed, deps)
 	registerAdminRoutes(authed, deps, audit)
 	registerEmbedRoutes(authed)

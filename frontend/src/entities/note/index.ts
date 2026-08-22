@@ -13,8 +13,6 @@ export type {
   SessionNote,
 } from './model/types';
 
-export { default as NoteListItem } from './ui/NoteListItem';
-
 export { getNoteStats } from './lib/noteStats';
 
 // ノート編集（複数画面で共有される model + ui）

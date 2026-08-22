@@ -3,6 +3,24 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import RichTextEditor from '../RichTextEditor';
 import SaveStatusIndicator from '../SaveStatusIndicator';
 import { emptyRichDoc, isRichDoc, type RichDocContent } from '../emptyRichDoc';
+import type { JSONContent } from '@tiptap/react';
+
+/** collectNodeTypes は doc ツリーに現れる全ノード type の集合を返す（書式コマンドの効果検証用）。 */
+function collectNodeTypes(node: JSONContent, acc: Set<string> = new Set()): Set<string> {
+  if (node.type) acc.add(node.type);
+  node.content?.forEach((child) => collectNodeTypes(child, acc));
+  return acc;
+}
+
+/** findNode は doc ツリーを深さ優先で走査し、最初に見つかった指定 type のノードを返す。 */
+function findNode(node: JSONContent, type: string): JSONContent | undefined {
+  if (node.type === type) return node;
+  for (const child of node.content ?? []) {
+    const found = findNode(child, type);
+    if (found) return found;
+  }
+  return undefined;
+}
 
 const headingDoc: RichDocContent = {
   type: 'doc',
@@ -67,57 +85,70 @@ describe('RichTextEditor', () => {
     expect(pm).toHaveAttribute('contenteditable', 'false');
   });
 
-  it('太字ボタンで aria-pressed がトグルする', async () => {
-    render(<RichTextEditor value={emptyRichDoc()} />);
-    const bold = screen.getByRole('button', { name: '太字' });
-    expect(bold).toHaveAttribute('aria-pressed', 'false');
-    fireEvent.click(bold);
-    await waitFor(() => expect(bold).toHaveAttribute('aria-pressed', 'true'));
-  });
-
   it('saveStatus を渡すと保存状態を表示する', () => {
     render(<RichTextEditor value={emptyRichDoc()} saveStatus="saved" />);
     expect(screen.getByText('保存済み')).toBeInTheDocument();
   });
 
-  it('ariaLabel が編集領域に付く', () => {
-    const { container } = render(<RichTextEditor value={emptyRichDoc()} ariaLabel="メモ本文" />);
-    expect(container.querySelector('[aria-label="メモ本文"]')).not.toBeNull();
+  it('ariaLabel が編集領域のアクセシブルネームになる', () => {
+    render(<RichTextEditor value={emptyRichDoc()} ariaLabel="メモ本文" />);
+    // role=textbox とアクセシブルネームの両方を検証する（CSS セレクタでは a11y ツリーを見ない）。
+    expect(screen.getByRole('textbox', { name: 'メモ本文' })).toBeInTheDocument();
   });
 
-  it('onChange は編集で doc JSON を返す（初期描画では呼ばれない）', async () => {
+  it('初期描画では onChange を呼ばない（読み込み直後に未保存へ落ちない）', () => {
     const onChange = vi.fn();
     render(<RichTextEditor value={emptyRichDoc()} onChange={onChange} />);
-    // 初期描画では onUpdate は発火しない。
     expect(onChange).not.toHaveBeenCalled();
-    // ツールバー操作（コマンド）で内容が変わると onChange が doc JSON を返す。
-    fireEvent.click(screen.getByRole('button', { name: '箇条書き' }));
-    await waitFor(() => expect(onChange).toHaveBeenCalled());
-    const last = onChange.mock.calls.at(-1)?.[0];
-    expect(last).toMatchObject({ type: 'doc' });
   });
 
-  it('全ての書式ボタンを操作してもクラッシュしない（各コマンド配線）', () => {
+  // ブロック系コマンドは空段落を変換するので、onChange の doc JSON に対象ノードが現れることを検証する。
+  it.each([
+    ['見出し1', 'heading'],
+    ['見出し2', 'heading'],
+    ['見出し3', 'heading'],
+    ['箇条書き', 'bulletList'],
+    ['番号付きリスト', 'orderedList'],
+    ['引用', 'blockquote'],
+    ['コードブロック', 'codeBlock'],
+    ['水平線', 'horizontalRule'],
+  ])('「%s」操作で doc JSON に %s ノードが現れる', async (buttonName, nodeType) => {
+    const onChange = vi.fn();
+    render(<RichTextEditor value={emptyRichDoc()} onChange={onChange} />);
+    fireEvent.click(screen.getByRole('button', { name: buttonName }));
+    await waitFor(() => expect(onChange).toHaveBeenCalled());
+    const doc = onChange.mock.calls.at(-1)?.[0] as RichDocContent;
+    expect(doc.type).toBe('doc');
+    expect(collectNodeTypes(doc)).toContain(nodeType);
+  });
+
+  it('「見出し1」操作で level:1 の heading になる', async () => {
+    const onChange = vi.fn();
+    render(<RichTextEditor value={emptyRichDoc()} onChange={onChange} />);
+    fireEvent.click(screen.getByRole('button', { name: '見出し1' }));
+    await waitFor(() => expect(onChange).toHaveBeenCalled());
+    const doc = onChange.mock.calls.at(-1)?.[0] as RichDocContent;
+    const heading = findNode(doc, 'heading');
+    expect(heading?.attrs?.level).toBe(1);
+  });
+
+  // マーク系コマンドは（選択が無くても）記憶マークとして有効になり、active（aria-pressed）が立つ。
+  it.each(['太字', '斜体', '下線', '打ち消し線', 'インラインコード'])(
+    '「%s」操作で aria-pressed が true になる',
+    async (buttonName) => {
+      render(<RichTextEditor value={emptyRichDoc()} />);
+      const button = screen.getByRole('button', { name: buttonName });
+      expect(button).toHaveAttribute('aria-pressed', 'false');
+      fireEvent.click(button);
+      await waitFor(() => expect(button).toHaveAttribute('aria-pressed', 'true'));
+    },
+  );
+
+  it('非トグル操作（水平線・元に戻す・やり直す）には aria-pressed を付けない', () => {
     render(<RichTextEditor value={emptyRichDoc()} />);
-    const names = [
-      '太字',
-      '斜体',
-      '下線',
-      '打ち消し線',
-      'インラインコード',
-      '見出し1',
-      '見出し2',
-      '見出し3',
-      '箇条書き',
-      '番号付きリスト',
-      '引用',
-      'コードブロック',
-      '水平線',
-    ];
-    for (const name of names) {
-      fireEvent.click(screen.getByRole('button', { name }));
+    for (const name of ['水平線', '元に戻す', 'やり直す']) {
+      expect(screen.getByRole('button', { name })).not.toHaveAttribute('aria-pressed');
     }
-    expect(screen.getByRole('toolbar')).toBeInTheDocument();
   });
 
   it('undo / redo は初期状態で無効', () => {

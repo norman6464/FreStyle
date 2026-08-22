@@ -67,8 +67,8 @@ export default function RichTextEditor({
         'aria-label': ariaLabel,
       },
     },
-    onUpdate: ({ editor: e }) => {
-      const next = e.getJSON();
+    onUpdate: ({ editor: currentEditor }) => {
+      const next = currentEditor.getJSON() as RichDocContent;
       const nextStr = JSON.stringify(next);
       // 内容が現在値と同じ（マウント時の空振り or 外部同期のエコー）なら通知しない。
       if (nextStr === lastValueRef.current) return;

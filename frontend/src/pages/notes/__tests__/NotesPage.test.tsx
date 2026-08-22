@@ -14,9 +14,22 @@ vi.mock('@/shared/lib/hooks/useToast', () => ({
   useToast: () => ({ showToast: mockShowToast, toasts: [], removeToast: vi.fn() }),
 }));
 
-// tiptap を jsdom に載せないため、エディタは軽量スタブに差し替える。
+// エディタスタブに渡された props（onImageUpload 検証用）と画像アップロード mock を hoist する。
+const hoisted = vi.hoisted(() => ({
+  rteProps: { current: null as { onImageUpload?: (file: File) => Promise<string> } | null },
+  upload: vi.fn(),
+}));
+
+vi.mock('@/entities/user', () => ({
+  ImageUploadRepository: { upload: (...args: unknown[]) => hoisted.upload(...args) },
+}));
+
+// tiptap を jsdom に載せないため、エディタは軽量スタブに差し替える（props は捕捉する）。
 vi.mock('@/shared/ui/RichTextEditor', () => ({
-  RichTextEditor: () => <div data-testid="rich-text-editor" />,
+  RichTextEditor: (props: { onImageUpload?: (file: File) => Promise<string> }) => {
+    hoisted.rteProps.current = props;
+    return <div data-testid="rich-text-editor" />;
+  },
   SaveStatusIndicator: ({ status }: { status: string }) => <span data-testid="save-status">{status}</span>,
   emptyRichDoc: () => ({ type: 'doc', content: [{ type: 'paragraph' }] }),
 }));
@@ -189,5 +202,26 @@ describe('NotesPage', () => {
     renderPage();
     fireEvent.change(screen.getByLabelText('ノートのタイトル'), { target: { value: 'XY' } });
     expect(handleTitleChange).toHaveBeenCalledWith('XY');
+  });
+
+  it('RichTextEditor に画像アップロード（ImageUploadRepository）を配線する', async () => {
+    hoisted.upload.mockResolvedValue('https://cdn.example.com/a.png');
+    setup({ selectedId: 'a' });
+    renderPage();
+    const onImageUpload = hoisted.rteProps.current?.onImageUpload;
+    expect(onImageUpload).toBeTypeOf('function');
+    await expect(onImageUpload!(new File(['x'], 'a.png', { type: 'image/png' }))).resolves.toBe(
+      'https://cdn.example.com/a.png',
+    );
+    expect(hoisted.upload).toHaveBeenCalled();
+  });
+
+  it('画像アップロード失敗でエラートーストを出す', async () => {
+    hoisted.upload.mockRejectedValue(new Error('boom'));
+    setup({ selectedId: 'a' });
+    renderPage();
+    const onImageUpload = hoisted.rteProps.current?.onImageUpload;
+    await expect(onImageUpload!(new File(['x'], 'a.png', { type: 'image/png' }))).rejects.toThrow();
+    expect(mockShowToast).toHaveBeenCalledWith('error', '画像のアップロードに失敗しました');
   });
 });

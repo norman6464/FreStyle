@@ -64,3 +64,17 @@
 .rte-content .ProseMirror[contenteditable='false'] {
   caret-color: transparent;
 }
+
+/* 画像（@tiptap/extension-image）。はみ出さず角丸で表示する。 */
+.rte-content .ProseMirror img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+  margin: 0.5rem 0;
+  display: block;
+}
+
+.rte-content .ProseMirror img.ProseMirror-selectednode {
+  outline: 2px solid var(--color-brand, #3b82f6);
+  outline-offset: 2px;
+}

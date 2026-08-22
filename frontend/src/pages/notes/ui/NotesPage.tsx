@@ -4,6 +4,7 @@ import EmptyState from '@/shared/ui/EmptyState';
 import ConfirmModal from '@/shared/ui/ConfirmModal';
 import Loading from '@/shared/ui/Loading';
 import { RichTextEditor, SaveStatusIndicator } from '@/shared/ui/RichTextEditor';
+import { ImageUploadRepository } from '@/entities/user';
 import NoteSortMenu from './NoteSortMenu';
 import DocumentListItem from './DocumentListItem';
 import {
@@ -77,6 +78,16 @@ export default function NotesPage() {
   const handleSelect = (id: string) => {
     selectDocument(id);
     closeMobilePanel();
+  };
+
+  // 画像は既存の presign 基盤（ノート/教材で共有）で S3 へ上げ、公開 URL を本文へ挿入する。
+  const handleImageUpload = async (file: File) => {
+    try {
+      return await ImageUploadRepository.upload(file);
+    } catch (error) {
+      showToast('error', '画像のアップロードに失敗しました');
+      throw error;
+    }
   };
 
   return (
@@ -189,8 +200,10 @@ export default function NotesPage() {
               </div>
               <div className="px-4 pb-10 pt-2">
                 <RichTextEditor
+                  key={selectedId}
                   value={editDoc}
                   onChange={handleDocChange}
+                  onImageUpload={handleImageUpload}
                   ariaLabel="ノート本文"
                   placeholder="本文を入力…"
                 />

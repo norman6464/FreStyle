@@ -1,0 +1,66 @@
+/*
+ * RichTextEditor（tiptap）の本文スタイル。
+ * 見出し・リスト・引用などの要素スタイルは Tailwind Typography（.prose）に委ね、
+ * ここでは ProseMirror 固有の挙動（フォーカス・プレースホルダ・最小高さ・コードブロック地色）だけ整える。
+ * デザインは light-only・Notion 風のニュートラルに合わせ、色は既存トークン（--color-*）を使う。
+ */
+
+.rte-content .ProseMirror {
+  min-height: 12rem;
+  padding: 0.75rem 0;
+  outline: none;
+  color: var(--color-text-primary);
+  caret-color: var(--color-brand, #3b82f6);
+}
+
+.rte-content .ProseMirror:focus {
+  outline: none;
+}
+
+/* Placeholder（@tiptap/extensions の Placeholder が空段落へ data-placeholder を付与する）。 */
+.rte-content .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: var(--color-text-muted);
+}
+
+/* コードブロックは monospace + surface-2 地色（構文ハイライトは後続 PR）。 */
+.rte-content .ProseMirror pre {
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-surface-3);
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.875em;
+}
+
+.rte-content .ProseMirror pre code {
+  background: none;
+  padding: 0;
+  color: inherit;
+}
+
+/* インラインコード。 */
+.rte-content .ProseMirror :not(pre) > code {
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-surface-3);
+  border-radius: 0.25rem;
+  padding: 0.1em 0.3em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.875em;
+}
+
+/* 水平線。 */
+.rte-content .ProseMirror hr {
+  border: none;
+  border-top: 1px solid var(--color-surface-3);
+  margin: 1rem 0;
+}
+
+/* 読み取り専用時はキャレットを消す。 */
+.rte-content .ProseMirror[contenteditable='false'] {
+  caret-color: transparent;
+}

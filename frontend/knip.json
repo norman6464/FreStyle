@@ -2,7 +2,8 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": [
     "src/**/*.{test,spec}.{ts,tsx}",
-    "e2e/**/*.{ts,tsx}"
+    "e2e/**/*.{ts,tsx}",
+    "src/shared/ui/RichTextEditor/index.ts"
   ],
   "project": ["src/**/*.{ts,tsx}"],
   "ignore": ["src/generated/**"],

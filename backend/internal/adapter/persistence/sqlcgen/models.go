@@ -105,7 +105,7 @@ type User struct {
 	PasswordHash  sql.NullString
 	Name          string
 	CompanyID     sql.NullInt64
-	RoleID        sql.NullInt16
+	RoleID        int16
 	AiChatEnabled sql.NullBool
 	IsActive      bool
 	CreatedAt     time.Time

@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import DocumentListItem from '../DocumentListItem';
 
 const props = {
@@ -20,6 +20,10 @@ const renderItem = (p = props) =>
   );
 
 describe('DocumentListItem', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it('タイトルを表示する（空なら「無題」）', () => {
     const { rerender } = renderItem();
     expect(screen.getByText('メモA')).toBeInTheDocument();

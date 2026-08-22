@@ -11,7 +11,7 @@
 ## 1. プロジェクト基本情報
 
 - **プロジェクト名**: FreStyle — 新卒 IT エンジニア向け統合研修プラットフォーム（B2B SaaS）
-- **本番URL**: https://normanblog.com
+- **本番URL**: https://frestyle.jp
 - **バックエンド**: Go 1.x / Gin / GORM（`backend/`、ECS Fargate）
 - **フロントエンド**: React 19 / TypeScript / Vite / Tailwind CSS（`frontend/`）
 - **RDB**: PostgreSQL 17.6（Supabase / Transaction pooler / GORM AutoMigrate、2026-05 に RDS から移行）
@@ -235,7 +235,7 @@ PR / チケット / コミット / コメント / docs に**他社プロダク�
 教材本文（Markdown）はアプリ本体のリポジトリには置かず、private リポ **`norman6464/frestyle-teaching-materials`** で管理して本番 DB に同期する（FreStyle 直下に clone する運用・gitignore 済）。
 
 - **構成**: `courses/NN-{course-slug}/` に `course.yaml`（**id（本番コース ID・必須）** / title / description / category / sort_order / is_published）+ `001-{slug}.md` 連番の教材。教材は `# タイトル` から始める（先頭 h1 が DB の title になる）
-- **同期フロー**: 教材リポで編集 → `courses/_scripts/seed-courses.py` で章ごとの SQL を生成 → private リポ `frestyle-infrastructure` の `make apply-migration-supabase`（または `make seed-course`）で適用（実引数は同リポ docs 参照）→ `https://normanblog.com/courses` で反映確認
+- **同期フロー**: 教材リポで編集 → `courses/_scripts/seed-courses.py` で章ごとの SQL を生成 → private リポ `frestyle-infrastructure` の `make apply-migration-supabase`（または `make seed-course`）で適用（実引数は同リポ docs 参照）→ `https://frestyle.jp/courses` で反映確認
 - **差分反映 + 章数検証（FRESTYLE-6 で全削除方式から変更・教材リポ PR https://github.com/norman6464/frestyle-teaching-materials/pull/24）**: `{course}__course.sql` は course を UPSERT 後、リポに現存しない order の章だけを DELETE する差分反映設計（course SQL 単独適用でも現存章は消えない）。章 SQL は UPDATE + INSERT ... WHERE NOT EXISTS の upsert で、既存行の id / created_at を保持する。`{course}__999-verify.sql` が適用後の章数を検証し、不一致なら RAISE EXCEPTION で停止する（order 999 は検証用に予約・教材の連番に使うと生成時エラー）
 - **コース ID の解決**: 旧 `SORT_TO_ID`（手書き対応表・未知 sort_order は黙ってスキップ）は撤廃済み（教材リポ PR #19 / FRESTYLE-5）。コース ID は各 `course.yaml` の `id:` 欄で明示し、**未記載はエラーで停止**する（黙って seed 対象から漏れることはなくなった）。新規コース追加時は `id:` に本番のコース ID を書く
 - **最新のコース一覧・id 対応は教材リポの `courses/*/course.yaml`（`id:` 欄）を一次情報として参照する**（このファイルに一覧を複製しない — 陳腐化して誤情報の元になるため）

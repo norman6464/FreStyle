@@ -5,6 +5,7 @@ package persistence_test
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
@@ -129,5 +130,38 @@ func TestRichDocumentRepository_Integration(t *testing.T) {
 			 VALUES (gen_random_uuid(), 424242, 'note', 't', '{"type":"doc"}'::jsonb, 1, now(), now())`,
 		).Error
 		require.ErrorContains(t, err, "fk_rich_documents_owner")
+	})
+
+	t.Run("DB 制約: title は 200 文字まで許可し 201 文字で CHECK 違反", func(t *testing.T) {
+		testsupport.TruncateAll(t, db, "rich_documents", "users", "user_oidc_identities")
+		owner := mkOwner(t, "rd-title", "rdtitle@example.com")
+
+		// char_length ベースなので多バイト文字でも文字数で数える（200 は成功）。
+		ok := &domain.RichDocument{OwnerID: owner, Kind: domain.DocumentKindNote, Title: strings.Repeat("あ", 200), Doc: rdDoc, Revision: 1}
+		require.NoError(t, repo.Create(ctx, ok))
+
+		ng := &domain.RichDocument{OwnerID: owner, Kind: domain.DocumentKindNote, Title: strings.Repeat("あ", 201), Doc: rdDoc, Revision: 1}
+		err := repo.Create(ctx, ng)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "ck_rich_documents_title_len")
+	})
+
+	t.Run("NUL(U+0000)を含む doc は class22 として ErrRichDocumentInvalidData に翻訳される", func(t *testing.T) {
+		testsupport.TruncateAll(t, db, "rich_documents", "users", "user_oidc_identities")
+		owner := mkOwner(t, "rd-nul", "rdnul@example.com")
+
+		// jsonb は U+0000 のエスケープを格納できず 22P05（class 22）を返す。repository が
+		// これを ErrRichDocumentInvalidData に翻訳する（アプリの多層防御の最後の砦）。
+		nulDoc := `{"type":"doc","content":[{"type":"text","text":"\u0000"}]}`
+
+		// Create 経由
+		d := &domain.RichDocument{OwnerID: owner, Kind: domain.DocumentKindNote, Title: "t", Doc: nulDoc, Revision: 1}
+		require.ErrorIs(t, repo.Create(ctx, d), repository.ErrRichDocumentInvalidData)
+
+		// UpdateWithRevision 経由（有効な doc を作ってから NUL で更新する）
+		base := &domain.RichDocument{OwnerID: owner, Kind: domain.DocumentKindNote, Title: "t", Doc: rdDoc, Revision: 1}
+		require.NoError(t, repo.Create(ctx, base))
+		upd := &domain.RichDocument{ID: base.ID, Title: "t", SchemaVersion: 1, Doc: nulDoc}
+		require.ErrorIs(t, repo.UpdateWithRevision(ctx, upd, 1), repository.ErrRichDocumentInvalidData)
 	})
 }

@@ -104,8 +104,10 @@ func Migrate(db *gorm.DB) error {
 func ApplyRichDocumentConstraints(db *gorm.DB) error {
 	stmts := []string{
 		// owner_id → users.id。ユーザーの物理削除で文書も消す（論理削除運用なので通常は発火しない）。
+		// 存在判定は conname だけでなく conrelid（テーブル）でも絞る。制約名は PostgreSQL では
+		// テーブル単位でしか一意でないため、別テーブルに同名制約があっても取り違えないようにする。
 		`DO $$ BEGIN
-			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_rich_documents_owner') THEN
+			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_rich_documents_owner' AND conrelid = 'rich_documents'::regclass) THEN
 				ALTER TABLE rich_documents
 					ADD CONSTRAINT fk_rich_documents_owner
 					FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
@@ -113,7 +115,7 @@ func ApplyRichDocumentConstraints(db *gorm.DB) error {
 		END $$;`,
 		// doc は tiptap のドキュメント JSON（object かつ type='doc'）に限る。
 		`DO $$ BEGIN
-			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_rich_documents_doc') THEN
+			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_rich_documents_doc' AND conrelid = 'rich_documents'::regclass) THEN
 				ALTER TABLE rich_documents
 					ADD CONSTRAINT ck_rich_documents_doc
 					CHECK (jsonb_typeof(doc) = 'object' AND doc->>'type' = 'doc');
@@ -121,7 +123,7 @@ func ApplyRichDocumentConstraints(db *gorm.DB) error {
 		END $$;`,
 		// title 長の上限（アプリ側検証と二重の壁）。
 		`DO $$ BEGIN
-			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_rich_documents_title_len') THEN
+			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_rich_documents_title_len' AND conrelid = 'rich_documents'::regclass) THEN
 				ALTER TABLE rich_documents
 					ADD CONSTRAINT ck_rich_documents_title_len
 					CHECK (char_length(title) <= 200);

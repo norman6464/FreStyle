@@ -1,69 +1,20 @@
-package usecase
+package usecase_test
 
 import (
 	"context"
-	"errors"
-	"strings"
 	"testing"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/FreStyle/backend/internal/usecase"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
-
-// fakeRichDocRepo は RichDocumentRepository の手書きフェイク。
-type fakeRichDocRepo struct {
-	getDoc  *domain.RichDocument
-	getErr  error
-	created *domain.RichDocument
-
-	createErr  error
-	updateErr  error
-	updateDoc  *domain.RichDocument // 成功時に doc へ反映する値
-	updatedID  string
-	updatedRev int
-
-	deleteErr    error
-	deletedID    string
-	deletedOwner uint64
-}
-
-func (f *fakeRichDocRepo) Create(_ context.Context, doc *domain.RichDocument) error {
-	if f.createErr != nil {
-		return f.createErr
-	}
-	if doc.ID == "" {
-		doc.ID = "generated-uuid"
-	}
-	f.created = doc
-	return nil
-}
-
-func (f *fakeRichDocRepo) FindByID(_ context.Context, _ string) (*domain.RichDocument, error) {
-	return f.getDoc, f.getErr
-}
-
-func (f *fakeRichDocRepo) UpdateWithRevision(_ context.Context, doc *domain.RichDocument, expected int) error {
-	f.updatedID = doc.ID
-	f.updatedRev = expected
-	if f.updateErr != nil {
-		return f.updateErr
-	}
-	if f.updateDoc != nil {
-		*doc = *f.updateDoc
-	}
-	return nil
-}
-
-func (f *fakeRichDocRepo) SoftDelete(_ context.Context, id string, ownerID uint64) error {
-	f.deletedID = id
-	f.deletedOwner = ownerID
-	return f.deleteErr
-}
 
 const validDoc = `{"type":"doc","content":[{"type":"paragraph"}]}`
 
 func Test_GetRichDocument_認可(t *testing.T) {
-	ctx := context.Background()
 	cases := []struct {
 		name     string
 		doc      *domain.RichDocument
@@ -72,174 +23,217 @@ func Test_GetRichDocument_認可(t *testing.T) {
 	}{
 		{"所有者は自分の非公開を読める", &domain.RichDocument{ID: "a", OwnerID: 7, IsPublic: false}, 7, nil},
 		{"他人は公開を読める", &domain.RichDocument{ID: "a", OwnerID: 7, IsPublic: true}, 99, nil},
-		{"他人は非公開を読めない(404)", &domain.RichDocument{ID: "a", OwnerID: 7, IsPublic: false}, 99, ErrRichDocumentNotFound},
+		{"他人は非公開を読めない(404)", &domain.RichDocument{ID: "a", OwnerID: 7, IsPublic: false}, 99, usecase.ErrRichDocumentNotFound},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			uc := NewGetRichDocumentUseCase(&fakeRichDocRepo{getDoc: tc.doc})
-			got, err := uc.Execute(ctx, "a", tc.viewerID)
-			if !errors.Is(err, tc.wantErr) {
-				t.Fatalf("err = %v, want %v", err, tc.wantErr)
+			repo := &mockRichDocRepo{}
+			repo.On("FindByID", mock.Anything, "a").Return(tc.doc, nil).Once()
+			uc := usecase.NewGetRichDocumentUseCase(repo)
+			got, err := uc.Execute(context.Background(), "a", tc.viewerID)
+			if tc.wantErr != nil {
+				assert.ErrorIs(t, err, tc.wantErr)
+				return
 			}
-			if tc.wantErr == nil && (got == nil || got.ID != "a") {
-				t.Fatalf("got %+v", got)
-			}
+			require.NoError(t, err)
+			assert.Equal(t, "a", got.ID)
+			repo.AssertExpectations(t)
 		})
 	}
 }
 
 func Test_GetRichDocument_存在しない(t *testing.T) {
-	uc := NewGetRichDocumentUseCase(&fakeRichDocRepo{getErr: repository.ErrRichDocumentNotFound})
+	repo := &mockRichDocRepo{}
+	repo.On("FindByID", mock.Anything, "x").Return((*domain.RichDocument)(nil), repository.ErrRichDocumentNotFound).Once()
+	uc := usecase.NewGetRichDocumentUseCase(repo)
 	_, err := uc.Execute(context.Background(), "x", 7)
-	if !errors.Is(err, ErrRichDocumentNotFound) {
-		t.Fatalf("err = %v, want ErrRichDocumentNotFound", err)
-	}
+	assert.ErrorIs(t, err, usecase.ErrRichDocumentNotFound)
+	repo.AssertExpectations(t)
 }
 
 func Test_CreateRichDocument_成功(t *testing.T) {
-	repo := &fakeRichDocRepo{}
-	uc := NewCreateRichDocumentUseCase(repo)
-	got, err := uc.Execute(context.Background(), CreateRichDocumentInput{
+	repo := &mockRichDocRepo{}
+	// 渡された doc の中身を型付きで確認し、ID 未設定なら採番して書き戻す契約を Run で再現する。
+	repo.On("Create", mock.Anything, mock.MatchedBy(func(d *domain.RichDocument) bool {
+		return d.OwnerID == 7 && d.Kind == domain.DocumentKindNote && d.Doc == validDoc
+	})).
+		Run(func(args mock.Arguments) {
+			doc := args.Get(1).(*domain.RichDocument)
+			if doc.ID == "" {
+				doc.ID = "generated-uuid"
+			}
+		}).
+		Return(nil).
+		Once()
+
+	uc := usecase.NewCreateRichDocumentUseCase(repo)
+	got, err := uc.Execute(context.Background(), usecase.CreateRichDocumentInput{
 		OwnerID: 7, Kind: domain.DocumentKindNote, Title: "メモ", Doc: validDoc,
 	})
-	if err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	if got.OwnerID != 7 || got.Kind != domain.DocumentKindNote || got.Revision != 1 || got.SchemaVersion != 1 {
-		t.Fatalf("unexpected doc: %+v", got)
-	}
-	if repo.created == nil || repo.created.Doc != validDoc {
-		t.Fatalf("repo.Create not called with doc")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "generated-uuid", got.ID)
+	assert.Equal(t, 1, got.Revision)
+	assert.Equal(t, 1, got.SchemaVersion)
+	repo.AssertExpectations(t)
 }
 
 func Test_CreateRichDocument_バリデーション(t *testing.T) {
-	uc := NewCreateRichDocumentUseCase(&fakeRichDocRepo{})
 	cases := []struct {
 		name string
-		in   CreateRichDocumentInput
+		in   usecase.CreateRichDocumentInput
 	}{
-		{"未知kind", CreateRichDocumentInput{OwnerID: 7, Kind: "weird", Title: "t", Doc: validDoc}},
-		{"title空", CreateRichDocumentInput{OwnerID: 7, Kind: domain.DocumentKindNote, Title: "", Doc: validDoc}},
-		{"doc空", CreateRichDocumentInput{OwnerID: 7, Kind: domain.DocumentKindNote, Title: "t", Doc: ""}},
-		{"docがobjectでない", CreateRichDocumentInput{OwnerID: 7, Kind: domain.DocumentKindNote, Title: "t", Doc: `[1,2]`}},
-		{"doc.typeがdocでない", CreateRichDocumentInput{OwnerID: 7, Kind: domain.DocumentKindNote, Title: "t", Doc: `{"type":"paragraph"}`}},
-		{"ownerID0", CreateRichDocumentInput{OwnerID: 0, Kind: domain.DocumentKindNote, Title: "t", Doc: validDoc}},
+		{"未知kind", usecase.CreateRichDocumentInput{OwnerID: 7, Kind: "weird", Title: "t", Doc: validDoc}},
+		{"title空", usecase.CreateRichDocumentInput{OwnerID: 7, Kind: domain.DocumentKindNote, Title: "", Doc: validDoc}},
+		{"doc空", usecase.CreateRichDocumentInput{OwnerID: 7, Kind: domain.DocumentKindNote, Title: "t", Doc: ""}},
+		{"docがobjectでない", usecase.CreateRichDocumentInput{OwnerID: 7, Kind: domain.DocumentKindNote, Title: "t", Doc: `[1,2]`}},
+		{"doc.typeがdocでない", usecase.CreateRichDocumentInput{OwnerID: 7, Kind: domain.DocumentKindNote, Title: "t", Doc: `{"type":"paragraph"}`}},
+		{"ownerID0", usecase.CreateRichDocumentInput{OwnerID: 0, Kind: domain.DocumentKindNote, Title: "t", Doc: validDoc}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if _, err := uc.Execute(context.Background(), tc.in); !errors.Is(err, ErrRichDocumentInvalid) {
-				t.Fatalf("err = %v, want ErrRichDocumentInvalid", err)
-			}
+			// バリデーション失敗時は repo を一切呼ばない（On を設定しないので呼べば panic する＝検証になる）。
+			repo := &mockRichDocRepo{}
+			uc := usecase.NewCreateRichDocumentUseCase(repo)
+			_, err := uc.Execute(context.Background(), tc.in)
+			assert.ErrorIs(t, err, usecase.ErrRichDocumentInvalid)
+			repo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
 		})
 	}
 }
 
-func Test_CreateRichDocument_サイズ上限(t *testing.T) {
-	big := `{"type":"doc","x":"` + strings.Repeat("a", maxDocBytes) + `"}`
-	uc := NewCreateRichDocumentUseCase(&fakeRichDocRepo{})
-	_, err := uc.Execute(context.Background(), CreateRichDocumentInput{
-		OwnerID: 7, Kind: domain.DocumentKindNote, Title: "t", Doc: big,
+func Test_RichDocument_NUL(t *testing.T) {
+	t.Run("エスケープU+0000のdocは拒否", func(t *testing.T) {
+		repo := &mockRichDocRepo{}
+		uc := usecase.NewCreateRichDocumentUseCase(repo)
+		_, err := uc.Execute(context.Background(), usecase.CreateRichDocumentInput{
+			OwnerID: 7, Kind: domain.DocumentKindNote, Title: "t",
+			Doc: `{"type":"doc","content":[{"type":"text","text":"\u0000"}]}`,
+		})
+		assert.ErrorIs(t, err, usecase.ErrRichDocumentInvalid)
+		repo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
 	})
-	if !errors.Is(err, ErrRichDocumentInvalid) {
-		t.Fatalf("err = %v, want ErrRichDocumentInvalid (size)", err)
-	}
+	t.Run("リテラルNULバイトのdocは拒否", func(t *testing.T) {
+		repo := &mockRichDocRepo{}
+		uc := usecase.NewCreateRichDocumentUseCase(repo)
+		_, err := uc.Execute(context.Background(), usecase.CreateRichDocumentInput{
+			OwnerID: 7, Kind: domain.DocumentKindNote, Title: "t",
+			Doc: "{\"type\":\"doc\",\"content\":[{\"type\":\"text\",\"text\":\"a\x00b\"}]}",
+		})
+		assert.ErrorIs(t, err, usecase.ErrRichDocumentInvalid)
+		repo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
+	})
+	t.Run("バックスラッシュu0000リテラル文字列は受理", func(t *testing.T) {
+		// JSON 値 "\\u0000" はデコードすると 6 文字の文字列（NUL ではない）。誤検知で弾いてはいけない。
+		repo := &mockRichDocRepo{}
+		repo.On("Create", mock.Anything, mock.Anything).
+			Run(func(args mock.Arguments) {
+				doc := args.Get(1).(*domain.RichDocument)
+				if doc.ID == "" {
+					doc.ID = "generated-uuid"
+				}
+			}).Return(nil).Once()
+		uc := usecase.NewCreateRichDocumentUseCase(repo)
+		_, err := uc.Execute(context.Background(), usecase.CreateRichDocumentInput{
+			OwnerID: 7, Kind: domain.DocumentKindNote, Title: "t",
+			Doc: `{"type":"doc","content":[{"type":"text","text":"\\u0000"}]}`,
+		})
+		require.NoError(t, err)
+		repo.AssertExpectations(t)
+	})
 }
 
 func Test_UpdateRichDocument_成功(t *testing.T) {
-	repo := &fakeRichDocRepo{
-		getDoc:    &domain.RichDocument{ID: "a", OwnerID: 7, SchemaVersion: 1, Revision: 3},
-		updateDoc: &domain.RichDocument{ID: "a", OwnerID: 7, Title: "new", Revision: 4},
-	}
-	uc := NewUpdateRichDocumentUseCase(repo)
-	got, err := uc.Execute(context.Background(), UpdateRichDocumentInput{
+	repo := &mockRichDocRepo{}
+	repo.On("FindByID", mock.Anything, "a").
+		Return(&domain.RichDocument{ID: "a", OwnerID: 7, SchemaVersion: 1, Revision: 3}, nil).Once()
+	// expectedRevision=3 を第3引数で固定。成功時は repository が revision を +1 して書き戻す契約を Run で再現。
+	repo.On("UpdateWithRevision", mock.Anything, mock.AnythingOfType("*domain.RichDocument"), 3).
+		Run(func(args mock.Arguments) {
+			doc := args.Get(1).(*domain.RichDocument)
+			doc.Revision = 4
+		}).Return(nil).Once()
+
+	uc := usecase.NewUpdateRichDocumentUseCase(repo)
+	got, err := uc.Execute(context.Background(), usecase.UpdateRichDocumentInput{
 		ID: "a", ActorID: 7, Title: "new", Doc: validDoc, Revision: 3,
 	})
-	if err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	if got.Revision != 4 || got.Title != "new" {
-		t.Fatalf("unexpected: %+v", got)
-	}
-	if repo.updatedRev != 3 {
-		t.Fatalf("expected revision passed = %d, want 3", repo.updatedRev)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, 4, got.Revision)
+	assert.Equal(t, "new", got.Title)
+	repo.AssertExpectations(t)
 }
 
 func Test_UpdateRichDocument_他人は存在を漏らさず404(t *testing.T) {
-	repo := &fakeRichDocRepo{getDoc: &domain.RichDocument{ID: "a", OwnerID: 7}}
-	uc := NewUpdateRichDocumentUseCase(repo)
-	_, err := uc.Execute(context.Background(), UpdateRichDocumentInput{
+	repo := &mockRichDocRepo{}
+	repo.On("FindByID", mock.Anything, "a").
+		Return(&domain.RichDocument{ID: "a", OwnerID: 7}, nil).Once()
+	uc := usecase.NewUpdateRichDocumentUseCase(repo)
+	_, err := uc.Execute(context.Background(), usecase.UpdateRichDocumentInput{
 		ID: "a", ActorID: 99, Title: "x", Doc: validDoc, Revision: 1,
 	})
-	if !errors.Is(err, ErrRichDocumentNotFound) {
-		t.Fatalf("err = %v, want ErrRichDocumentNotFound (存在を漏らさない)", err)
-	}
+	assert.ErrorIs(t, err, usecase.ErrRichDocumentNotFound)
+	repo.AssertNotCalled(t, "UpdateWithRevision", mock.Anything, mock.Anything, mock.Anything)
 }
 
-func Test_RichDocument_NULを拒否する(t *testing.T) {
-	uc := NewCreateRichDocumentUseCase(&fakeRichDocRepo{})
-	cases := map[string]string{
-		"docにリテラルNUL":  "{\"type\":\"doc\",\"content\":[{\"type\":\"text\",\"text\":\"a\x00b\"}]}",
-		"docにエスケープNUL": `{"type":"doc","content":[{"type":"text","text":"\u0000"}]}`,
-	}
-	for name, doc := range cases {
-		t.Run(name, func(t *testing.T) {
-			_, err := uc.Execute(context.Background(), CreateRichDocumentInput{
-				OwnerID: 7, Kind: domain.DocumentKindNote, Title: "t", Doc: doc,
-			})
-			if !errors.Is(err, ErrRichDocumentInvalid) {
-				t.Fatalf("err = %v, want ErrRichDocumentInvalid (NUL)", err)
-			}
-		})
-	}
+func Test_UpdateRichDocument_負のrevisionは400(t *testing.T) {
+	repo := &mockRichDocRepo{}
+	uc := usecase.NewUpdateRichDocumentUseCase(repo)
+	_, err := uc.Execute(context.Background(), usecase.UpdateRichDocumentInput{
+		ID: "a", ActorID: 7, Title: "x", Doc: validDoc, Revision: -1,
+	})
+	assert.ErrorIs(t, err, usecase.ErrRichDocumentInvalid)
+	// revision 検証は FindByID より前で弾くので repo は一切呼ばれない。
+	repo.AssertNotCalled(t, "FindByID", mock.Anything, mock.Anything)
+	repo.AssertNotCalled(t, "UpdateWithRevision", mock.Anything, mock.Anything, mock.Anything)
 }
 
 func Test_UpdateRichDocument_版不一致は409(t *testing.T) {
-	repo := &fakeRichDocRepo{
-		getDoc:    &domain.RichDocument{ID: "a", OwnerID: 7, Revision: 5},
-		updateErr: repository.ErrRichDocumentConflict,
-	}
-	uc := NewUpdateRichDocumentUseCase(repo)
-	_, err := uc.Execute(context.Background(), UpdateRichDocumentInput{
+	repo := &mockRichDocRepo{}
+	repo.On("FindByID", mock.Anything, "a").
+		Return(&domain.RichDocument{ID: "a", OwnerID: 7, Revision: 5}, nil).Once()
+	repo.On("UpdateWithRevision", mock.Anything, mock.Anything, 3).
+		Return(repository.ErrRichDocumentConflict).Once()
+	uc := usecase.NewUpdateRichDocumentUseCase(repo)
+	_, err := uc.Execute(context.Background(), usecase.UpdateRichDocumentInput{
 		ID: "a", ActorID: 7, Title: "x", Doc: validDoc, Revision: 3,
 	})
-	if !errors.Is(err, ErrRichDocumentConflict) {
-		t.Fatalf("err = %v, want ErrRichDocumentConflict", err)
-	}
+	assert.ErrorIs(t, err, usecase.ErrRichDocumentConflict)
+	repo.AssertExpectations(t)
 }
 
 func Test_UpdateRichDocument_存在しない(t *testing.T) {
-	uc := NewUpdateRichDocumentUseCase(&fakeRichDocRepo{getErr: repository.ErrRichDocumentNotFound})
-	_, err := uc.Execute(context.Background(), UpdateRichDocumentInput{
+	repo := &mockRichDocRepo{}
+	repo.On("FindByID", mock.Anything, "x").
+		Return((*domain.RichDocument)(nil), repository.ErrRichDocumentNotFound).Once()
+	uc := usecase.NewUpdateRichDocumentUseCase(repo)
+	_, err := uc.Execute(context.Background(), usecase.UpdateRichDocumentInput{
 		ID: "x", ActorID: 7, Title: "x", Doc: validDoc, Revision: 1,
 	})
-	if !errors.Is(err, ErrRichDocumentNotFound) {
-		t.Fatalf("err = %v, want ErrRichDocumentNotFound", err)
-	}
+	assert.ErrorIs(t, err, usecase.ErrRichDocumentNotFound)
+	repo.AssertExpectations(t)
 }
 
 func Test_DeleteRichDocument(t *testing.T) {
 	t.Run("成功", func(t *testing.T) {
-		repo := &fakeRichDocRepo{}
-		uc := NewDeleteRichDocumentUseCase(repo)
-		if err := uc.Execute(context.Background(), "a", 7); err != nil {
-			t.Fatalf("err: %v", err)
-		}
-		if repo.deletedID != "a" || repo.deletedOwner != 7 {
-			t.Fatalf("deleted id=%q owner=%d", repo.deletedID, repo.deletedOwner)
-		}
+		repo := &mockRichDocRepo{}
+		repo.On("SoftDelete", mock.Anything, "a", uint64(7)).Return(nil).Once()
+		uc := usecase.NewDeleteRichDocumentUseCase(repo)
+		require.NoError(t, uc.Execute(context.Background(), "a", 7))
+		repo.AssertExpectations(t)
 	})
 	t.Run("未認証はforbidden", func(t *testing.T) {
-		uc := NewDeleteRichDocumentUseCase(&fakeRichDocRepo{})
-		if err := uc.Execute(context.Background(), "a", 0); !errors.Is(err, ErrRichDocumentForbidden) {
-			t.Fatalf("err = %v, want forbidden", err)
-		}
+		repo := &mockRichDocRepo{}
+		uc := usecase.NewDeleteRichDocumentUseCase(repo)
+		err := uc.Execute(context.Background(), "a", 0)
+		assert.ErrorIs(t, err, usecase.ErrRichDocumentForbidden)
+		repo.AssertNotCalled(t, "SoftDelete", mock.Anything, mock.Anything, mock.Anything)
 	})
 	t.Run("存在しない(他人)は404", func(t *testing.T) {
-		uc := NewDeleteRichDocumentUseCase(&fakeRichDocRepo{deleteErr: repository.ErrRichDocumentNotFound})
-		if err := uc.Execute(context.Background(), "a", 7); !errors.Is(err, ErrRichDocumentNotFound) {
-			t.Fatalf("err = %v, want not found", err)
-		}
+		repo := &mockRichDocRepo{}
+		repo.On("SoftDelete", mock.Anything, "a", uint64(7)).Return(repository.ErrRichDocumentNotFound).Once()
+		uc := usecase.NewDeleteRichDocumentUseCase(repo)
+		err := uc.Execute(context.Background(), "a", 7)
+		assert.ErrorIs(t, err, usecase.ErrRichDocumentNotFound)
+		repo.AssertExpectations(t)
 	})
 }

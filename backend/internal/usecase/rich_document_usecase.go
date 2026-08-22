@@ -39,24 +39,57 @@ func validateDoc(doc string) error {
 	if len(doc) > maxDocBytes {
 		return fmt.Errorf("%w: doc exceeds %d bytes", ErrRichDocumentInvalid, maxDocBytes)
 	}
-	if containsNUL(doc) {
+	// 生の NUL バイト（0x00）は jsonb に入らない。encoding/json も必ず弾くが、明快な 400 を早期に返す。
+	// 生バイトは正当な入力になり得ないので誤検知は起きない。
+	if strings.ContainsRune(doc, 0) {
 		return fmt.Errorf("%w: doc must not contain NUL (U+0000)", ErrRichDocumentInvalid)
 	}
-	var m map[string]json.RawMessage
-	if err := json.Unmarshal([]byte(doc), &m); err != nil {
+	var v any
+	if err := json.Unmarshal([]byte(doc), &v); err != nil {
 		return fmt.Errorf("%w: doc must be a JSON object", ErrRichDocumentInvalid)
 	}
-	var typ string
-	if err := json.Unmarshal(m["type"], &typ); err != nil || typ != "doc" {
+	// エスケープ表記 \u0000 はデコード後に実 NUL ルーンになる。デコード済みの全文字列値を走査して
+	// 実際の NUL のみ弾く（生 JSON への部分一致だと、正当な文字列値 "\\u0000"（6 文字リテラル）を
+	// 誤って弾いてしまうため）。
+	if jsonHasNULRune(v) {
+		return fmt.Errorf("%w: doc must not contain NUL (U+0000)", ErrRichDocumentInvalid)
+	}
+	m, ok := v.(map[string]any)
+	if !ok {
+		return fmt.Errorf("%w: doc must be a JSON object", ErrRichDocumentInvalid)
+	}
+	if typ, _ := m["type"].(string); typ != "doc" {
 		return fmt.Errorf("%w: doc.type must be \"doc\"", ErrRichDocumentInvalid)
 	}
 	return nil
 }
 
-// containsNUL は生の JSON 文字列に NUL が含まれるかを返す。リテラルの NUL バイトと、
-// JSON エスケープ表記の U+0000（バックスラッシュ + u0000）の両方を弾く。jsonb はどちらも格納できない。
+// jsonHasNULRune は json.Unmarshal 済みの値ツリー内の文字列（オブジェクトのキーを含む）に
+// 実 NUL ルーンがあるかを再帰判定する。エスケープ \u0000 はここで実 NUL にデコードされ捕捉され、
+// リテラル "\\u0000"（文字列としての 6 文字）は素通りする。
+func jsonHasNULRune(v any) bool {
+	switch t := v.(type) {
+	case string:
+		return strings.ContainsRune(t, 0)
+	case []any:
+		for _, e := range t {
+			if jsonHasNULRune(e) {
+				return true
+			}
+		}
+	case map[string]any:
+		for k, e := range t {
+			if strings.ContainsRune(k, 0) || jsonHasNULRune(e) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// containsNUL はデコード済みの文字列（title など）に実 NUL ルーンが含まれるかを返す。jsonb は格納できない。
 func containsNUL(s string) bool {
-	return strings.ContainsRune(s, 0) || strings.Contains(s, "\\u0000")
+	return strings.ContainsRune(s, 0)
 }
 
 func validateTitle(title string) error {
@@ -166,6 +199,11 @@ type UpdateRichDocumentInput struct {
 }
 
 func (u *UpdateRichDocumentUseCase) Execute(ctx context.Context, in UpdateRichDocumentInput) (*domain.RichDocument, error) {
+	// revision は 1 始まりで増分のみ。負数/0 は決して一致せず楽観ロックの版不一致（409）に化けるため、
+	// 不正入力として 400 で早期に弾く（handler の binding:"required" は 0 は弾くが負数は通る）。
+	if in.Revision < 1 {
+		return nil, fmt.Errorf("%w: revision must be positive", ErrRichDocumentInvalid)
+	}
 	existing, err := u.repo.FindByID(ctx, in.ID)
 	if err != nil {
 		return nil, translateRepoErr(err)

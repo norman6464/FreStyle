@@ -312,3 +312,27 @@ func (m *mockDailyActivityRepo) ListByUser(ctx context.Context, userID uint64, f
 	rows, _ := args.Get(0).([]domain.UserDailyActivity)
 	return rows, args.Error(1)
 }
+
+// --- mock: RichDocumentRepository ---
+
+type mockRichDocRepo struct{ mock.Mock }
+
+var _ repository.RichDocumentRepository = (*mockRichDocRepo)(nil)
+
+func (m *mockRichDocRepo) Create(ctx context.Context, doc *domain.RichDocument) error {
+	return m.Called(ctx, doc).Error(0)
+}
+
+func (m *mockRichDocRepo) FindByID(ctx context.Context, id string) (*domain.RichDocument, error) {
+	args := m.Called(ctx, id)
+	d, _ := args.Get(0).(*domain.RichDocument)
+	return d, args.Error(1)
+}
+
+func (m *mockRichDocRepo) UpdateWithRevision(ctx context.Context, doc *domain.RichDocument, expectedRevision int) error {
+	return m.Called(ctx, doc, expectedRevision).Error(0)
+}
+
+func (m *mockRichDocRepo) SoftDelete(ctx context.Context, id string, ownerID uint64) error {
+	return m.Called(ctx, id, ownerID).Error(0)
+}

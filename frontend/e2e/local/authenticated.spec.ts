@@ -137,41 +137,57 @@ test.describe('認証済み導線（super_admin）', () => {
 });
 
 test.describe('ノート作成導線（POST モック）', () => {
-  test('「新しいノート」で POST /notes が呼ばれ一覧に追加される', async ({ page }) => {
+  test('「新しいノート」で POST /documents が呼ばれ一覧に追加される', async ({ page }) => {
     await mockAuthenticated(page);
 
     let postCalled = false;
-    // GET /notes（既存 1 件で空状態を回避）と POST /notes（作成）を method で出し分ける。
-    // mockAuthenticated の後に登録するため /notes ではこの handler が優先される。
-    await page.route('**/api/v2/notes', (route) => {
-      if (route.request().method() === 'POST') {
+    // /notes はリッチ文書（/api/v2/documents）ベース。GET 一覧（既存 1 件で空状態を回避）・
+    // POST 作成・GET 個別取得（作成後に選択されエディタが本文を読む）を出し分ける。
+    // mockAuthenticated の後に登録するためこの handler が優先される。
+    const createdDoc = {
+      id: '99999999-9999-9999-9999-999999999999',
+      ownerId: 7,
+      kind: 'note',
+      title: '無題',
+      isPublic: false,
+      schemaVersion: 1,
+      revision: 1,
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+      doc: { type: 'doc', content: [{ type: 'paragraph' }] },
+    };
+    await page.route('**/api/v2/documents**', (route) => {
+      const method = route.request().method();
+      const isById = /\/documents\/[^/?]+/.test(route.request().url());
+      if (method === 'POST') {
         postCalled = true;
         return route.fulfill({
           status: 201,
           contentType: 'application/json',
-          body: JSON.stringify({
-            id: 999,
-            userId: 7,
-            title: '無題',
-            content: '',
-            isPublic: false,
-            isPinned: false,
-            createdAt: '2026-01-01T00:00:00Z',
-            updatedAt: '2026-01-01T00:00:00Z',
-          }),
+          body: JSON.stringify(createdDoc),
         });
       }
+      if (isById && method === 'GET') {
+        // 作成後に選択された文書の本文取得（doc 込み）。
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(createdDoc),
+        });
+      }
+      // GET 一覧（doc 本体なしの軽量サマリ）。
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify([
           {
-            id: 1,
-            userId: 7,
+            id: '11111111-1111-1111-1111-111111111111',
+            ownerId: 7,
+            kind: 'note',
             title: '既存ノート',
-            content: '',
             isPublic: false,
-            isPinned: false,
+            schemaVersion: 1,
+            revision: 1,
             createdAt: '2026-01-01T00:00:00Z',
             updatedAt: '2026-01-01T00:00:00Z',
           },

@@ -24,6 +24,7 @@ func (stubRichDocRepo) Create(context.Context, *domain.RichDocument) error { ret
 func (stubRichDocRepo) FindByID(context.Context, string) (*domain.RichDocument, error) {
 	return nil, nil
 }
+
 func (stubRichDocRepo) UpdateWithRevision(context.Context, *domain.RichDocument, int) error {
 	return nil
 }

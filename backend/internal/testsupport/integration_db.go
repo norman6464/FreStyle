@@ -68,6 +68,10 @@ func OpenTestDB(t *testing.T) *gorm.DB {
 	if err := database.ApplyUserNormalizationConstraints(db); err != nil {
 		t.Fatalf("ApplyUserNormalizationConstraints 失敗: %v", err)
 	}
+	// rich_documents の FK / CHECK も本番（database.Migrate）と同じに揃える。
+	if err := database.ApplyRichDocumentConstraints(db); err != nil {
+		t.Fatalf("ApplyRichDocumentConstraints 失敗: %v", err)
+	}
 	return db
 }
 

@@ -2263,6 +2263,227 @@ const docTemplate = `{
                 }
             }
         },
+        "/documents": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "current user 名義 で 新規 文書 を 作る。 doc は tiptap の JSON (type='doc')。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "documents"
+                ],
+                "summary": "リッチ 文書 の 作成",
+                "parameters": [
+                    {
+                        "description": "作成 内容 (kind/title/doc 必須)",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.documentCreateReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.documentResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "バリデーション エラー",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/documents/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "id の 文書 を 返す。 所有者 か 公開 文書 のみ (非公開 は 存在 を 漏らさ ず 404)。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "documents"
+                ],
+                "summary": "リッチ 文書 の 取得",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "文書 ID (UUID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.documentResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "不正 な ID",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "存在 し ない か 権限 無し",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "所有者 のみ 更新 できる (他人 の 文書 は 存在 を 漏らさ ず 404)。 revision が 現在 値 と 一致 する とき だけ 更新 し +1 する。 不一致 は 409。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "documents"
+                ],
+                "summary": "リッチ 文書 の 更新",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "文書 ID (UUID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新 内容 (title/doc/revision 必須)",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.documentUpdateReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.documentResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "バリデーション エラー",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "存在 し ない か 権限 無し",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "版 不一致 (楽観 ロック)",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "所有者 の 文書 を 論理 削除 する。 他人 の 文書 は 消せ ない (404)。",
+                "tags": [
+                    "documents"
+                ],
+                "summary": "リッチ 文書 の 削除",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "文書 ID (UUID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "削除 成功 (本文 なし)"
+                    },
+                    "400": {
+                        "description": "不正 な ID",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "存在 し ない か 権限 無し",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/embeds/oembed": {
             "get": {
                 "security": [
@@ -5120,6 +5341,102 @@ const docTemplate = `{
                 },
                 "sessionType": {
                     "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.documentCreateReq": {
+            "type": "object",
+            "required": [
+                "doc",
+                "kind",
+                "title"
+            ],
+            "properties": {
+                "doc": {
+                    "type": "object"
+                },
+                "isPublic": {
+                    "type": "boolean"
+                },
+                "kind": {
+                    "type": "string"
+                },
+                "schemaVersion": {
+                    "type": "integer"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.documentResponse": {
+            "type": "object",
+            "properties": {
+                "companyId": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "doc": {
+                    "type": "object"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "31400a07-297e-8057-884b-c05dbdf9fa53"
+                },
+                "isPublic": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "kind": {
+                    "type": "string",
+                    "example": "note"
+                },
+                "ownerId": {
+                    "type": "integer",
+                    "example": 42
+                },
+                "revision": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "schemaVersion": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "title": {
+                    "type": "string",
+                    "example": "学習メモ"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.documentUpdateReq": {
+            "type": "object",
+            "required": [
+                "doc",
+                "revision",
+                "title"
+            ],
+            "properties": {
+                "doc": {
+                    "type": "object"
+                },
+                "isPublic": {
+                    "type": "boolean"
+                },
+                "revision": {
+                    "type": "integer"
+                },
+                "schemaVersion": {
+                    "type": "integer"
                 },
                 "title": {
                     "type": "string"

@@ -37,6 +37,8 @@ func allDomainModels() []any {
 		// ここに載せるのは結合テスト DB のスキーマ構築のため(タグは 0005 と一致させ、本番では no-op)。
 		&domain.UserChapterView{},
 		&domain.UserDailyActivity{},
+		// リッチテキスト文書（tiptap JSON を jsonb で保持）。
+		&domain.RichDocument{},
 	}
 }
 
@@ -90,8 +92,48 @@ func Migrate(db *gorm.DB) error {
 		if err := BackfillUserNormalization(tx); err != nil {
 			return err
 		}
-		return ApplyUserNormalizationConstraints(tx)
+		if err := ApplyUserNormalizationConstraints(tx); err != nil {
+			return err
+		}
+		return ApplyRichDocumentConstraints(tx)
 	})
+}
+
+// ApplyRichDocumentConstraints は rich_documents の整合性制約を適用する（冪等）。
+// GORM の AutoMigrate は FK / CHECK を表現できないため、ここで明示 SQL として管理する。
+func ApplyRichDocumentConstraints(db *gorm.DB) error {
+	stmts := []string{
+		// owner_id → users.id。ユーザーの物理削除で文書も消す（論理削除運用なので通常は発火しない）。
+		`DO $$ BEGIN
+			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_rich_documents_owner') THEN
+				ALTER TABLE rich_documents
+					ADD CONSTRAINT fk_rich_documents_owner
+					FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
+			END IF;
+		END $$;`,
+		// doc は tiptap のドキュメント JSON（object かつ type='doc'）に限る。
+		`DO $$ BEGIN
+			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_rich_documents_doc') THEN
+				ALTER TABLE rich_documents
+					ADD CONSTRAINT ck_rich_documents_doc
+					CHECK (jsonb_typeof(doc) = 'object' AND doc->>'type' = 'doc');
+			END IF;
+		END $$;`,
+		// title 長の上限（アプリ側検証と二重の壁）。
+		`DO $$ BEGIN
+			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_rich_documents_title_len') THEN
+				ALTER TABLE rich_documents
+					ADD CONSTRAINT ck_rich_documents_title_len
+					CHECK (char_length(title) <= 200);
+			END IF;
+		END $$;`,
+	}
+	for _, stmt := range stmts {
+		if err := db.Exec(stmt).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // preRepairUsersForMigrate は AutoMigrate（NOT NULL 適用）の前提を満たすよう旧データを埋める（冪等）。

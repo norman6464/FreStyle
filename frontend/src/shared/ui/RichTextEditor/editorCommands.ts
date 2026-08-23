@@ -157,6 +157,14 @@ export const EDITOR_COMMANDS: EditorCommand[] = [
   },
   // --- カーソル位置への挿入 ---
   {
+    id: 'table',
+    label: '表',
+    group: 'insert',
+    glyph: '⊞',
+    keywords: ['table', 'grid'],
+    run: (editor) => focused(editor).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(),
+  },
+  {
     id: 'horizontalRule',
     label: '水平線',
     group: 'insert',

@@ -44,7 +44,7 @@ export interface CourseWithProgress extends Course {
 
 /**
  * TeachingMaterial は Go backend `domain.TeachingMaterial` と 1:1。
- * 必ず 1 つの Course に所属する Markdown 教材。
+ * 必ず 1 つの Course に所属する教材（本文はリッチ本文 doc が正本）。
  *
  * - company_admin: 自社の draft 含む全件 list / 編集 / 削除可
  * - trainee: 自社の `isPublished=true` 教材かつ所属コース published のみ閲覧可
@@ -55,10 +55,9 @@ export interface TeachingMaterial {
   courseId: number;
   createdByUserId: number;
   title: string;
-  content: string;
   /**
    * リッチ本文（tiptap JSON）。詳細 GET のみが返す（一覧には含まれない）。
-   * 未移行の章は null（過渡期は Markdown の content へフォールバック表示する）。
+   * まだ本文を保存していない新規章は null（空 doc として扱う）。
    */
   doc?: RichDocContent | null;
   /** doc 更新の楽観ロック版数。詳細 GET のみが返す。 */

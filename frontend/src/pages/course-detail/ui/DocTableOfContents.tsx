@@ -5,9 +5,9 @@ import { extractDocHeadings, applyHeadingIds } from '../model/docHeadings';
 /**
  * DocTableOfContents — doc（tiptap JSON）ベースの目次サイドバー。
  *
- * Markdown 版（shared/ui/MarkdownTableOfContents）と同じ見た目・同じ id 規則（github-slugger）で、
- * ソースだけ doc JSON に置き換えたもの。tiptap の表示 DOM は見出しに id を持たないため、
- * articleRef のコンテナへ id を振る役目もここで担う（描画完了が非同期なので MutationObserver で追従）。
+ * doc から見出しを抽出し、github-slugger の id 規則で anchor を組み立てる。
+ * tiptap の表示 DOM は見出しに id を持たないため、articleRef のコンテナへ id を
+ * 振る役目もここで担う（描画完了が非同期なので MutationObserver で追従）。
  */
 export default function DocTableOfContents({
   doc,

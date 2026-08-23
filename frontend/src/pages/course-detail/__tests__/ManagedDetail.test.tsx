@@ -22,7 +22,6 @@ function material(overrides: Partial<TeachingMaterial> = {}): TeachingMaterial {
     courseId: 5,
     createdByUserId: 1,
     title: '章タイトル',
-    content: '',
     doc: richDoc,
     revision: 1,
     orderInCourse: 1,
@@ -50,7 +49,7 @@ function renderDetail(selected: TeachingMaterial) {
   );
 }
 
-describe('ManagedDetail のエディタ分岐 (FRESTYLE-339)', () => {
+describe('ManagedDetail の tiptap 編集 (FRESTYLE-347)', () => {
   it('doc がある章は tiptap エディタ（編集可能）とタイトル入力になる', async () => {
     renderDetail(material());
     expect(screen.getByLabelText('教材のタイトル')).toHaveValue('章タイトル');
@@ -60,18 +59,18 @@ describe('ManagedDetail のエディタ分岐 (FRESTYLE-339)', () => {
     expect(screen.getByText('リッチ本文')).toBeInTheDocument();
     // 編集可能（contenteditable=true）。
     expect(screen.getByRole('textbox', { name: '教材本文' })).toHaveAttribute('contenteditable', 'true');
-    // 旧 Markdown エディタの Edit/Preview タブは出ない。
-    expect(screen.queryByRole('tab', { name: /edit/i })).not.toBeInTheDocument();
   });
 
-  it('doc 未移行で Markdown content を持つ章は従来の Markdown エディタになる', () => {
-    renderDetail(material({ doc: null, content: '# 既存の Markdown 本文' }));
-    expect(screen.queryByRole('textbox', { name: '教材本文' })).not.toBeInTheDocument();
-    // NoteMarkdownEditor のタイトル入力（aria-label はノート用のまま流用）。
-    expect(screen.getByLabelText('ノートのタイトル')).toHaveValue('章タイトル');
+  it('doc が null の章（本文未保存の新規章）も空 doc の tiptap エディタになる', async () => {
+    renderDetail(material({ doc: null }));
+    expect(screen.getByLabelText('教材のタイトル')).toHaveValue('章タイトル');
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', { name: '教材本文' })).toBeInTheDocument();
+    });
+    expect(screen.getByRole('textbox', { name: '教材本文' })).toHaveAttribute('contenteditable', 'true');
   });
 
-  it('「trainee に公開」トグルはどちらのモードでも表示される', () => {
+  it('「trainee に公開」トグルが表示される', () => {
     renderDetail(material());
     expect(screen.getByLabelText('trainee に公開')).not.toBeChecked();
   });

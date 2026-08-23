@@ -10,7 +10,7 @@ export interface DocTocItem {
 
 /**
  * extractDocHeadings は doc（tiptap JSON）から h1〜h3 を文書順に抽出し、
- * Markdown 版の目次（rehype-slug / github-slugger）と同じアルゴリズムで anchor id を付ける。
+ * github-slugger のアルゴリズムで anchor id を付ける。
  * 表示 DOM の見出しへ同じ順序で id を振れば（applyHeadingIds）、目次リンクと対応が取れる。
  */
 export function extractDocHeadings(doc: RichDocContent): DocTocItem[] {

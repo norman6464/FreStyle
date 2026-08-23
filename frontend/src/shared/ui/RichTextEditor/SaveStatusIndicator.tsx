@@ -1,6 +1,6 @@
 /**
- * SaveStatus はエディタ本文の保存状態。既存の Markdown エディタ（NoteMarkdownEditor）と
- * 同じ意味・同じ色に揃える。保存の実処理（debounce・PUT・楽観ロック）は画面側が持ち、
+ * SaveStatus はエディタ本文の保存状態。
+ * 保存の実処理（debounce・PUT・楽観ロック）は画面側が持ち、
  * この部品は状態を受け取って表示するだけ（presentational）。
  */
 export type SaveStatus = 'idle' | 'unsaved' | 'saving' | 'saved';

@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { TeachingMaterialRepository, type TeachingMaterial } from '@/entities/course';
-import type { SaveStatus } from '@/entities/note';
-import { emptyRichDoc, type RichDocContent } from '@/shared/ui/RichTextEditor';
+import { emptyRichDoc, type RichDocContent, type SaveStatus } from '@/shared/ui/RichTextEditor';
 
 const AUTOSAVE_DELAY_MS = 800;
 
@@ -11,7 +10,7 @@ interface Args {
   selected: TeachingMaterial | null;
   update: (
     id: number,
-    payload: { title: string; content: string; orderInCourse: number; isPublished: boolean },
+    payload: { title: string; orderInCourse: number; isPublished: boolean },
   ) => Promise<void>;
   /** doc 保存成功・409 取り直しで、詳細キャッシュへ最新の doc / revision を反映する。 */
   onDocSynced?: (material: TeachingMaterial) => void;
@@ -22,23 +21,19 @@ interface Args {
 /**
  * useTeachingMaterialEditor — 教材詳細の編集 + autosave 制御。
  *
- * 本文はリッチ本文（doc / tiptap JSON）を正本として編集する（docMode）。
- * doc が無く Markdown content だけを持つ章は、従来の textarea 編集に
- * フォールバックする（過渡期互換。フェーズ E で撤去）。新規章（content 空）は
- * 空 doc から docMode で始める。
+ * 本文はリッチ本文（doc / tiptap JSON）を正本として編集する。doc が null の章
+ * （まだ本文を保存していない新規章）は空 doc から始める。
  *
  * - doc の保存は revision の楽観ロック付き PUT。多重実行を防ぎ（in-flight 保留）、
  *   409 はサーバ最新版を取り直してエディタへ反映 + onConflict 通知
  *   （ノートの useDocumentEditor と同じ設計）。
- * - title / isPublished は従来 PUT（content 併送）で保存する（doc とは別タイマー）。
+ * - title / isPublished は従来 PUT で保存する（doc とは別タイマー）。
  */
 export function useTeachingMaterialEditor({ selectedId, selected, update, onDocSynced, onConflict }: Args) {
   const [editTitle, setEditTitle] = useState('');
-  const [editContent, setEditContent] = useState('');
   const [editDoc, setEditDoc] = useState<RichDocContent>(emptyRichDoc);
   const [editIsPublished, setEditIsPublished] = useState(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
-  const [docMode, setDocMode] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const docTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -73,24 +68,18 @@ export function useTeachingMaterialEditor({ selectedId, selected, update, onDocS
     if (selectedId == null) {
       loadedIdRef.current = null;
       setEditTitle('');
-      setEditContent('');
       setEditDoc(emptyRichDoc());
       setEditIsPublished(false);
       setSaveStatus('idle');
-      setDocMode(false);
       return;
     }
     if (loadedIdRef.current === selectedId) return;
     if (selected && selected.id === selectedId) {
       loadedIdRef.current = selectedId;
       setEditTitle(selected.title);
-      setEditContent(selected.content);
       setEditIsPublished(selected.isPublished);
       setSaveStatus('idle');
-      // doc がある章、または新規章（content 空）はリッチ編集。doc 無し + content ありは
-      // 従来の Markdown 編集へフォールバック（フェーズ C 未変換の章を壊さない）。
-      const useDoc = selected.doc != null || selected.content.trim() === '';
-      setDocMode(useDoc);
+      // doc が null の章（まだ本文を保存していない新規章）は空 doc から始める。
       const initialDoc = selected.doc ?? emptyRichDoc();
       setEditDoc(initialDoc);
       docRef.current = initialDoc;
@@ -170,9 +159,9 @@ export function useTeachingMaterialEditor({ selectedId, selected, update, onDocS
     [runDocSave],
   );
 
-  // ---- title / content(旧モード) / isPublished の保存（従来 PUT）。 ----
+  // ---- title / isPublished の保存（従来 PUT）。 ----
   const scheduleSave = useCallback(
-    (title: string, content: string, isPublished: boolean) => {
+    (title: string, isPublished: boolean) => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       setSaveStatus('unsaved');
       saveTimerRef.current = setTimeout(async () => {
@@ -181,7 +170,6 @@ export function useTeachingMaterialEditor({ selectedId, selected, update, onDocS
         try {
           await update(selectedId, {
             title,
-            content,
             orderInCourse: selected.orderInCourse,
             isPublished,
           });
@@ -197,36 +185,25 @@ export function useTeachingMaterialEditor({ selectedId, selected, update, onDocS
   const handleTitleChange = useCallback(
     (title: string) => {
       setEditTitle(title);
-      scheduleSave(title, editContent, editIsPublished);
+      scheduleSave(title, editIsPublished);
     },
-    [scheduleSave, editContent, editIsPublished],
-  );
-
-  const handleContentChange = useCallback(
-    (content: string) => {
-      setEditContent(content);
-      scheduleSave(editTitle, content, editIsPublished);
-    },
-    [scheduleSave, editTitle, editIsPublished],
+    [scheduleSave, editIsPublished],
   );
 
   const handleIsPublishedChange = useCallback(
     (isPublished: boolean) => {
       setEditIsPublished(isPublished);
-      scheduleSave(editTitle, editContent, isPublished);
+      scheduleSave(editTitle, isPublished);
     },
-    [scheduleSave, editTitle, editContent],
+    [scheduleSave, editTitle],
   );
 
   return {
     editTitle,
-    editContent,
     editDoc,
     editIsPublished,
     saveStatus,
-    docMode,
     handleTitleChange,
-    handleContentChange,
     handleDocChange,
     handleIsPublishedChange,
   };

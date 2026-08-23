@@ -11,6 +11,7 @@ import { TeachingMaterialRepository } from '@/entities/course';
 import { LessonProgressRepository } from '@/entities/course';
 import { DashboardRepository } from '@/entities/user';
 import type { Course, CourseWithProgress, TeachingMaterial, UserChapterView } from '@/entities/course';
+import type { RichDocContent } from '@/shared/ui/RichTextEditor';
 
 vi.mock('@/entities/course/api/courseRepository', () => ({
   default: {
@@ -81,18 +82,32 @@ function listedCourse(id: number, title: string): CourseWithProgress {
   };
 }
 
-function material(id: number, content = ''): TeachingMaterial {
+function material(id: number, doc?: RichDocContent | null): TeachingMaterial {
   return {
     id,
     companyId: 10,
     courseId: 5,
     createdByUserId: 1,
     title: `章 ${id}`,
-    content,
+    doc,
+    revision: doc ? 1 : undefined,
     orderInCourse: id,
     isPublished: true,
     createdAt: '2026-07-01T00:00:00Z',
     updatedAt: '2026-07-01T00:00:00Z',
+  };
+}
+
+// 見出し付き doc にすると TOC(DocTableOfContents) の IntersectionObserver(jsdom 未実装)が
+// 動くため、テストの本文は見出しなし（段落 / 画像のみ）で組み立てる。
+function textDoc(text: string): RichDocContent {
+  return { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text }] }] };
+}
+
+function imageDoc(src: string, alt: string): RichDocContent {
+  return {
+    type: 'doc',
+    content: [{ type: 'paragraph', content: [{ type: 'image', attrs: { src, alt } }] }],
   };
 }
 
@@ -134,7 +149,7 @@ describe('CourseDetailPage 続きから表示 + 完了トグル (FRESTYLE-99 / F
     mockCourseList.mockResolvedValue([listedCourse(5, 'Git 入門'), listedCourse(6, 'Docker 入門')]);
     mockListMaterials.mockResolvedValue([material(11), material(12)]);
     mockLastViewed.mockResolvedValue(view(12));
-    mockGetMaterial.mockImplementation(async (id: number) => material(id, '本文テキスト'));
+    mockGetMaterial.mockImplementation(async (id: number) => material(id, textDoc('本文テキスト')));
     mockProgressList.mockResolvedValue([]);
     mockComplete.mockResolvedValue(undefined);
     mockRecordView.mockResolvedValue(undefined);
@@ -279,8 +294,7 @@ describe('CourseDetailPage 左パネルの章一覧 (FRESTYLE-341)', () => {
     mockCourseList.mockResolvedValue([]);
     mockListMaterials.mockResolvedValue([material(11), material(12)]);
     mockLastViewed.mockResolvedValue(view(11));
-    // 見出し付き本文にすると TOC の IntersectionObserver(jsdom 未実装)が動くため見出しなしにする。
-    mockGetMaterial.mockImplementation(async (id: number) => material(id, '本文テキスト'));
+    mockGetMaterial.mockImplementation(async (id: number) => material(id, textDoc('本文テキスト')));
     mockProgressList.mockResolvedValue([
       {
         id: 1,
@@ -334,9 +348,8 @@ describe('CourseDetailPage 本文内の画像 (FRESTYLE-125)', () => {
     mockCourseList.mockResolvedValue([]);
     mockListMaterials.mockResolvedValue([material(11)]);
     mockLastViewed.mockResolvedValue(null);
-    // 見出し付き本文にすると TOC の IntersectionObserver(jsdom 未実装)が動くため画像のみにする。
     mockGetMaterial.mockImplementation(async (id: number) =>
-      material(id, '![構成図](https://example.com/diagram.png)'),
+      material(id, imageDoc('https://example.com/diagram.png', '構成図')),
     );
     mockProgressList.mockResolvedValue([]);
     mockRecordView.mockResolvedValue(undefined);
@@ -346,9 +359,8 @@ describe('CourseDetailPage 本文内の画像 (FRESTYLE-125)', () => {
     renderPage('trainee');
     const img = await screen.findByRole('img', { name: '構成図' });
     expect(img.closest('a')).toBeNull();
-    // キャプション(figcaption)は維持される
-    expect(img.closest('figure')).not.toBeNull();
-    expect(screen.getByText('構成図', { selector: 'figcaption' })).toBeInTheDocument();
+    // tiptap の描画(ProseMirror)内に出る。
+    expect(img.closest('.ProseMirror')).not.toBeNull();
   });
 });
 
@@ -360,19 +372,22 @@ describe('CourseDetailPage 画像のモーダル拡大表示 (FRESTYLE-191)', ()
     mockListMaterials.mockResolvedValue([material(11)]);
     mockLastViewed.mockResolvedValue(null);
     mockGetMaterial.mockImplementation(async (id: number) =>
-      material(id, '![構成図](https://example.com/diagram.png)'),
+      material(id, imageDoc('https://example.com/diagram.png', '構成図')),
     );
     mockProgressList.mockResolvedValue([]);
     mockRecordView.mockResolvedValue(undefined);
   });
 
-  // モーダルを開く。初期ロード後の再レンダーで取得済みボタンが差し替わると click が
-  // 空振りする(stale node)ため、「click → dialog 出現」を waitFor で丸ごとリトライする。
+  // モーダルを開く。tiptap の描画(ProseMirror)内の img へのクリック委譲で開く。
+  // 初期ロード後の再レンダーで取得済みノードが差し替わると click が空振りする(stale node)ため、
+  // 「click → dialog 出現」を waitFor で丸ごとリトライする。
   // recordView 待ちだけでは CI の遅い環境で後続の再レンダーと競合してフレークした。
   async function openImageModal() {
     await waitFor(() => expect(mockRecordView).toHaveBeenCalled());
     await waitFor(() => {
-      fireEvent.click(screen.getByRole('button', { name: '構成図を拡大表示' }));
+      const img = document.querySelector('.ProseMirror img');
+      expect(img).not.toBeNull();
+      fireEvent.click(img!);
       expect(screen.getByRole('dialog', { name: '構成図' })).toBeInTheDocument();
     });
   }
@@ -424,8 +439,7 @@ describe('CourseDetailPage タイトルのカード外配置 (FRESTYLE-131)', ()
   });
 
   it('タイトル h1 は本文カラムの先頭にフラットに置かれる (FRESTYLE-340)', async () => {
-    // 見出し付き本文にすると TOC の IntersectionObserver(jsdom 未実装)が動くため見出しなしにする。
-    mockGetMaterial.mockImplementation(async (id: number) => material(id, '本文テキスト'));
+    mockGetMaterial.mockImplementation(async (id: number) => material(id, textDoc('本文テキスト')));
     renderPage('trainee');
     const heading = await screen.findByRole('heading', { level: 1, name: '章 11' });
     // ノートと同じ「枠のないインライン文書」。カード(article)には入れない(FRESTYLE-340 で
@@ -433,14 +447,20 @@ describe('CourseDetailPage タイトルのカード外配置 (FRESTYLE-131)', ()
     expect(heading.closest('article')).toBeNull();
   });
 
-  it('本文先頭の重複タイトル(# タイトル)はカード内に二重表示しない', async () => {
-    // 本文が material.title と同じ h1 で始まっても、カード内にタイトル h1 を出さない。
+  it('doc 先頭の重複タイトル(h1)は本文に二重表示しない', async () => {
+    // 本文 doc が material.title と同じ h1 で始まっても、本文側の h1 は除去される。
     mockGetMaterial.mockImplementation(async (id: number) =>
-      material(id, '# 章 11\n\n本文テキストです。'),
+      material(id, {
+        type: 'doc',
+        content: [
+          { type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: `章 ${id}` }] },
+          { type: 'paragraph', content: [{ type: 'text', text: '本文テキストです。' }] },
+        ],
+      }),
     );
     renderPage('trainee');
     await screen.findByText('本文テキストです。');
-    // 「章 11」という heading はヘッダーの1つだけ(本文側の重複 h1 は除去済み)。
+    // 「章 11」という heading はヘッダーの1つだけ(本文側の重複 h1 は stripLeadingDocTitle で除去済み)。
     expect(screen.getAllByRole('heading', { name: '章 11' })).toHaveLength(1);
   });
 });

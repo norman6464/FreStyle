@@ -10,11 +10,11 @@ import type { TeachingMaterial } from '@/entities/course';
 /**
  * useTeachingMaterials — 指定コース配下の教材の「一覧(メタデータ) + 選択 + CRUD」の状態管理。
  *
- * 効率化のため一覧は本文(content)を含まない軽量メタデータで取得し、 選択された教材の本文だけ
+ * 効率化のため一覧は本文(doc)を含まない軽量メタデータで取得し、 選択された教材の本文だけ
  * `GetByID` で都度取得してキャッシュする（全章を先読みしない）。autosave は useTeachingMaterialEditor。
  */
 export function useTeachingMaterials(courseId: number | null) {
-  // materials は content を持たないメタデータ一覧。 detailCache は本文込みの取得済み教材。
+  // materials は doc を持たないメタデータ一覧。 detailCache は本文込みの取得済み教材。
   const [materials, setMaterials] = useState<TeachingMaterial[]>([]);
   const [detailCache, setDetailCache] = useState<Record<number, TeachingMaterial>>({});
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -93,7 +93,7 @@ export function useTeachingMaterials(courseId: number | null) {
       }
       try {
         const created = await TeachingMaterialRepository.create({ ...initial, courseId });
-        setMaterials((prev) => [...prev, stripContent(created)].sort(byOrderThenId));
+        setMaterials((prev) => [...prev, stripDoc(created)].sort(byOrderThenId));
         setDetailCache((prev) => ({ ...prev, [created.id]: created }));
         setSelectedId(created.id);
         return created;
@@ -108,7 +108,7 @@ export function useTeachingMaterials(courseId: number | null) {
   const update = useCallback(async (id: number, payload: TeachingMaterialUpdatePayload): Promise<void> => {
     try {
       const updated = await TeachingMaterialRepository.update(id, payload);
-      setMaterials((prev) => prev.map((m) => (m.id === id ? stripContent(updated) : m)).sort(byOrderThenId));
+      setMaterials((prev) => prev.map((m) => (m.id === id ? stripDoc(updated) : m)).sort(byOrderThenId));
       // 既存 PUT の応答にはリッチ本文（doc）と revision が含まれない（domain 側 json:"-"）。
       // そのまま上書きするとキャッシュの doc が消えて閲覧/編集モード判定が壊れるため引き継ぐ。
       setDetailCache((prev) => ({
@@ -124,7 +124,7 @@ export function useTeachingMaterials(courseId: number | null) {
   const syncDetail = useCallback((material: TeachingMaterial) => {
     setDetailCache((prev) => ({ ...prev, [material.id]: material }));
     setMaterials((prev) =>
-      prev.map((m) => (m.id === material.id ? stripContent(material) : m)).sort(byOrderThenId),
+      prev.map((m) => (m.id === material.id ? stripDoc(material) : m)).sort(byOrderThenId),
     );
   }, []);
 
@@ -162,9 +162,9 @@ export function useTeachingMaterials(courseId: number | null) {
   };
 }
 
-// 一覧(メタデータ)に本文を持たせない（先読み抑制 + 一貫性のため content を空にする）。
-function stripContent(m: TeachingMaterial): TeachingMaterial {
-  return { ...m, content: '' };
+// 一覧(メタデータ)に本文を持たせない（一覧 state を軽量に保つ。doc / revision は詳細キャッシュだけが持つ）。
+function stripDoc(m: TeachingMaterial): TeachingMaterial {
+  return { ...m, doc: undefined, revision: undefined };
 }
 
 function byOrderThenId(a: TeachingMaterial, b: TeachingMaterial): number {

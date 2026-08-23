@@ -60,12 +60,9 @@ export default function DocTableOfContents({
   if (items.length === 0) return null;
 
   return (
-    // 親カードが高さを制限したときに見出し(目次)は固定し、リストだけを内側でスクロールさせる。
+    // 見出し（「目次」）はサイドパネル側のヘッダーが持つ（FRESTYLE-340）。ここはリストのみ。
     <nav aria-label="目次" className="flex min-h-0 flex-col text-sm">
-      <h2 className="mb-3 flex-shrink-0 text-xs font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">
-        目次
-      </h2>
-      <ul className="min-h-0 flex-1 space-y-1.5 overflow-y-auto border-l border-surface-3 pr-1">
+      <ul className="min-h-0 flex-1 space-y-1.5 border-l border-surface-3 pr-1">
         {items.map((item) => {
           const isActive = activeId === item.id;
           return (

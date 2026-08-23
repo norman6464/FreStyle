@@ -68,6 +68,34 @@ describe('タスクリスト（TaskList / TaskItem）', () => {
     expect(task!.keywords).toContain('todo');
   });
 
+  it('親が完了でも入れ子の未完了項目は data-checked=false で描画される（取り消し線の継承対象外）', () => {
+    const nestedDoc: JSONContent = {
+      type: 'doc',
+      content: [
+        {
+          type: 'taskList',
+          content: [
+            {
+              type: 'taskItem',
+              attrs: { checked: true },
+              content: [
+                { type: 'paragraph', content: [{ type: 'text', text: '親タスク（完了）' }] },
+                { type: 'taskList', content: [item(false, '子タスク（未完了）')] },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const { container } = render(<RichTextEditor value={nestedDoc as never} editable={false} />);
+    const parent = container.querySelector("li[data-checked='true']");
+    expect(parent).not.toBeNull();
+    const child = parent!.querySelector("li[data-checked='false']");
+    expect(child).not.toBeNull();
+    // textContent はチェックボックスの aria-label を含むため、本文段落だけを見る。
+    expect(child!.querySelector('div > p')!.textContent).toBe('子タスク（未完了）');
+  });
+
   it('読み取り専用（editable=false）でもチェック状態つきで描画される', () => {
     const { container } = render(<RichTextEditor value={taskDoc as never} editable={false} />);
     expect(screen.getByText('domain はフレームワークを import しない')).toBeInTheDocument();

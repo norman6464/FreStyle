@@ -411,7 +411,11 @@
   flex: 1 1 auto;
 }
 
-.rte-content .ProseMirror ul[data-type='taskList'] li[data-checked='true'] > div {
+/*
+ * 完了スタイルは項目直下の段落だけに当てる（> div 全体だと入れ子の未完了項目まで
+ * 取り消し線が継承されてしまう）。
+ */
+.rte-content .ProseMirror ul[data-type='taskList'] li[data-checked='true'] > div > p {
   color: var(--color-text-tertiary);
   text-decoration: line-through;
 }

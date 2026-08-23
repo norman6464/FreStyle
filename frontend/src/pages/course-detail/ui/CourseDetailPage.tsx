@@ -61,10 +61,17 @@ export default function CourseDetailPage() {
     selectMaterial,
     create,
     update,
+    syncDetail,
     remove,
   } = useTeachingMaterials(courseId);
 
-  const editor = useTeachingMaterialEditor({ selectedId, selected, update });
+  const editor = useTeachingMaterialEditor({
+    selectedId,
+    selected,
+    update,
+    onDocSynced: syncDetail,
+    onConflict: () => showToast('error', '他の編集と競合したため、最新の内容を読み込みました'),
+  });
 
   // 受講者がコースを開いたら「最後に閲覧した章(無ければ先頭)」を自動表示する(FRESTYLE-99)。
   useChapterResume({ enabled: !canManage, courseId, materials, loading, selectedId, selectMaterial });

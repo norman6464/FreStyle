@@ -200,6 +200,8 @@ export const COURSES = {
 /** 教材 個別 CRUD（コース配下）*/
 export const TEACHING_MATERIALS = {
   byId: (id: number | string) => `${API_V2}/teaching-materials/${id}`,
+  /** PUT /api/v2/teaching-materials/:id/doc — リッチ本文（tiptap JSON）の楽観ロック保存 */
+  doc: (id: number | string) => `${API_V2}/teaching-materials/${id}/doc`,
   /** POST /api/v2/teaching-materials — body の courseId 必須 */
   create: `${API_V2}/teaching-materials`,
 } as const;

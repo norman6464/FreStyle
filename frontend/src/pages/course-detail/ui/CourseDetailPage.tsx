@@ -14,6 +14,8 @@ import ConfirmModal from '@/shared/ui/ConfirmModal';
 import Loading from '@/shared/ui/Loading';
 import { DashboardRepository } from '@/entities/user';
 import { useMobilePanelState } from '@/shared/lib/hooks/useMobilePanelState';
+import { useAutoHideOnScroll } from '@/shared/lib/hooks/useAutoHideOnScroll';
+import { useHeaderVisibility } from '@/widgets/app-shell';
 import { useToast } from '@/shared/lib/hooks/useToast';
 import { useTeachingMaterials } from '../model/useTeachingMaterials';
 import { useTeachingMaterialEditor } from '../model/useTeachingMaterialEditor';
@@ -46,6 +48,14 @@ export default function CourseDetailPage() {
 
   const { showToast } = useToast();
   const { isOpen: mobilePanelOpen, open: openMobilePanel, close: closeMobilePanel } = useMobilePanelState();
+
+  // ノートと同じヘッダー自動隠し: 下スクロールで隠し、累積 showAfterUp 戻したら出す。
+  const { setHeaderHidden } = useHeaderVisibility();
+  const { hidden: scrollHidden, scrollRef: autoHideScrollRef } = useAutoHideOnScroll();
+  useEffect(() => {
+    setHeaderHidden(scrollHidden && !mobilePanelOpen);
+  }, [scrollHidden, mobilePanelOpen, setHeaderHidden]);
+  useEffect(() => () => setHeaderHidden(false), [setHeaderHidden]);
   // デスクトップの章一覧パネルの開閉。 教材を切り替えても継続するよう localStorage に保持（既定は表示）。
 
   const [course, setCourse] = useState<Course | null>(null);
@@ -297,6 +307,7 @@ export default function CourseDetailPage() {
               material={selected}
               bodyDoc={selectedDoc}
               articleRef={articleRef}
+              scrollContainerRef={autoHideScrollRef}
               completed={progress.completedIds.has(selected.id)}
               onToggleComplete={(done) => handleToggleComplete(selected.id, done)}
               nextMaterial={nextMaterial}

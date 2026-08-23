@@ -31,17 +31,39 @@ describe('useAutoHideOnScroll', () => {
     expect(result.current.hidden).toBe(false);
   });
 
-  it('しきい値を超えて下へスクロールすると hidden になり、上へ戻すと表示に戻る', () => {
+  it('下へスクロールすると hidden になり、上へ累積 showAfterUp 戻したときだけ表示に戻る', () => {
     const el = makeScrollable();
-    const { result } = renderHook(() => useAutoHideOnScroll({ topThreshold: 80, delta: 8 }));
+    const { result } = renderHook(() =>
+      useAutoHideOnScroll({ topThreshold: 80, delta: 8, showAfterUp: 160 }),
+    );
     act(() => result.current.scrollRef(el));
 
-    act(() => scrollTo(el, 200)); // 下へ大きく
+    act(() => scrollTo(el, 600)); // 下へ大きく
     expect(result.current.hidden).toBe(true);
 
     advance(400); // 切替クールダウンを経過させる
-    act(() => scrollTo(el, 150)); // 上へ
+    act(() => scrollTo(el, 550)); // 上へ 50px（累積 50 < 160）: まだ出さない
+    expect(result.current.hidden).toBe(true);
+    act(() => scrollTo(el, 480)); // さらに 70px（累積 120 < 160）: まだ出さない
+    expect(result.current.hidden).toBe(true);
+    act(() => scrollTo(el, 430)); // さらに 50px（累積 170 >= 160）: 表示に戻る
     expect(result.current.hidden).toBe(false);
+  });
+
+  it('上方向の累積は下へ動くとリセットされる', () => {
+    const el = makeScrollable();
+    const { result } = renderHook(() =>
+      useAutoHideOnScroll({ topThreshold: 80, delta: 8, showAfterUp: 160 }),
+    );
+    act(() => result.current.scrollRef(el));
+    act(() => scrollTo(el, 600));
+    expect(result.current.hidden).toBe(true);
+    advance(400);
+    act(() => scrollTo(el, 500)); // 上へ 100（累積 100）
+    act(() => scrollTo(el, 560)); // 下へ 60 → 累積リセット
+    advance(400);
+    act(() => scrollTo(el, 460)); // 上へ 100（累積 100 < 160）: リセット済みなので出ない
+    expect(result.current.hidden).toBe(true);
   });
 
   it('先頭付近（topThreshold 以内）では常に表示', () => {
@@ -77,9 +99,9 @@ describe('useAutoHideOnScroll', () => {
     // クールダウン中は方向判定しない → 隠れたまま（振動しない）。
     expect(result.current.hidden).toBe(true);
 
-    // クールダウン後、ユーザーが本当に上へスクロールすれば表示に戻る。
+    // クールダウン後、ユーザーが本当に大きく（累積 showAfterUp 以上）上へ戻せば表示に戻る。
     advance(400);
-    act(() => scrollTo(el, 900));
+    act(() => scrollTo(el, 700));
     expect(result.current.hidden).toBe(false);
   });
 

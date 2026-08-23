@@ -10,6 +10,7 @@ import { textblockTypeInputRule } from '@tiptap/react';
 import type { EditorCommand } from './editorCommands';
 import { SlashCommand } from './slashCommandExtension';
 import { ListNormalization } from './listNormalization';
+import { MarkdownShortcuts } from './markdownShortcuts';
 import { lowlight } from './codeBlockLanguages';
 import CodeBlockView from './CodeBlockView';
 
@@ -90,6 +91,8 @@ export function createEditorExtensions(
     HighlightedCodeBlock.configure({ lowlight, defaultLanguage: 'plaintext' }),
     // 隣接する同種リストを結合し、番号リストの番号リセットを防ぐ。
     ListNormalization,
+    // IME（日本語入力）確定でも効く ＃ 見出し・``` コードブロック変換。
+    MarkdownShortcuts,
     Placeholder.configure({ placeholder }),
   ];
 

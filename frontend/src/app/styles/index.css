@@ -91,6 +91,54 @@
   margin-top: 1.8em;
   margin-bottom: 1.8em;
 }
+/*
+ * コース教材の tiptap 表示（.course-doc = RichTextEditor の外枠に付与）。
+ * ノート用の prose スケール（h1 36px / h2 24px）では、教材の長い見出し
+ * （ファイルパス入り等・45 文字超が 73 見出し）が折り返して巨大に見えるため、
+ * 旧 Markdown 表示（course-prose）と同等の読み物タイポグラフィに抑える。
+ * ノート / AI チャットの表示には影響しない。
+ */
+.course-doc .rte-content {
+  font-size: 1rem;
+  line-height: 2;
+}
+.course-doc .rte-content .ProseMirror h1 {
+  font-size: 1.5rem;
+  line-height: 1.4;
+  margin-top: 3.2em;
+  margin-bottom: 1em;
+}
+.course-doc .rte-content .ProseMirror h2 {
+  font-size: 1.25rem;
+  line-height: 1.4;
+  margin-top: 2.6em;
+  margin-bottom: 1em;
+  padding-bottom: 0.6em;
+  border-bottom: 1px solid var(--color-surface-3);
+}
+.course-doc .rte-content .ProseMirror h3 {
+  font-size: 1.125rem;
+  line-height: 1.5;
+  margin-top: 2em;
+  margin-bottom: 0.9em;
+}
+.course-doc .rte-content .ProseMirror > :first-child {
+  margin-top: 0;
+}
+.course-doc .rte-content .ProseMirror p {
+  margin-top: 1.4em;
+  margin-bottom: 1.4em;
+}
+.course-doc .rte-content .ProseMirror li {
+  margin-top: 0.6em;
+  margin-bottom: 0.6em;
+}
+.course-doc .rte-content .ProseMirror pre {
+  /* コース本文(16px)より少し小さめのコードサイズ。行間は本文ほど広げない。 */
+  font-size: 0.875rem;
+  line-height: 1.7;
+}
+
 .prose.course-prose img,
 .prose.course-prose table {
   margin-top: 2em;

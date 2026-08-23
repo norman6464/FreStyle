@@ -87,7 +87,7 @@ export default function ReadOnlyDetail({
                 }
               }}
             >
-              <RichTextEditor value={bodyDoc} editable={false} ariaLabel="教材本文" />
+              <RichTextEditor value={bodyDoc} editable={false} ariaLabel="教材本文" className="course-doc" />
             </div>
           ) : (
             <div className="prose prose-sm max-w-none course-prose">

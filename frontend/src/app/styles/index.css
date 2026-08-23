@@ -115,8 +115,8 @@
  *
  * カラー設計（白ボディ + 白カード + border/影。FRESTYLE-147 で FRESTYLE-119 の灰青統一を撤回）:
  *   - body は白 (#FFFFFF)。カードは border 1px + 影で白 body から浮かせる
- *   - 例外: 教材コース閲覧 (/courses/:id) だけは読み物レイアウトのため灰青
- *     (--color-reading-surface) を背景にし、白カードとのコントラストを作る（FRESTYLE-118 の配色を維持）
+ *   - 教材コース閲覧 (/courses/:id) も白 (--color-reading-surface = #FFFFFF)。
+ *     旧灰青は tiptap 表示への切替（FRESTYLE-338）でノートと同じ白に統一した
  *   - サイドバー / ヘッダーは白 (--color-nav) + border 1px で境界を表現
  *   - hover / active は色相を持たない暖色グレー (#F5F5F4 / #EAEAE9) で控えめに
  *   - アクセント色は使用箇所を絞り、視覚ノイズを排除する
@@ -128,9 +128,9 @@
   --color-surface-1: #FFFFFF;
   --color-surface-2: #F5F5F4;
   --color-surface-3: #E7E5E4;
-  /* 教材コース閲覧 (/courses/:id) の読み物背景（無彩色寄りグレー）。白カードとのコントラスト用。
-     この変数はコース閲覧ページでしか使わないため、他ページの白背景には影響しない（FRESTYLE-178）。 */
-  --color-reading-surface: #f5f6f6;
+  /* 教材コース閲覧 (/courses/:id) の読み物背景。tiptap 表示への切替に合わせ、ノートと同じ白へ
+     統一した（旧 #f5f6f6 の灰青は廃止・ユーザー指示 2026-08-23）。変数はコース閲覧ページ専用。 */
+  --color-reading-surface: #FFFFFF;
   /* サイドバー / ヘッダーは body と同じ白で、border 1px のみで境界を表現する */
   --color-nav: #FFFFFF;
   /* nav 上の hover / active 状態。色相を持たないニュートラル寄り暖色グレーで

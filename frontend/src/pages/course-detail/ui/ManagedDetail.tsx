@@ -40,6 +40,7 @@ export default function ManagedDetail({
                 className="text-2xl font-bold text-[var(--color-text-primary)] bg-transparent border-none outline-none w-full mb-4 placeholder:text-[var(--color-text-faint)]"
               />
               <RichTextEditor
+                className="course-doc"
                 value={editor.editDoc}
                 onChange={editor.handleDocChange}
                 saveStatus={editor.saveStatus}

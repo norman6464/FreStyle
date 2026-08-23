@@ -60,8 +60,11 @@ func (f *fakeMaterialRepoH) CountByCourseForCompany(context.Context, uint64, boo
 }
 func (f *fakeMaterialRepoH) Create(context.Context, *domain.TeachingMaterial) error { return nil }
 func (f *fakeMaterialRepoH) Update(context.Context, *domain.TeachingMaterial) error { return nil }
-func (f *fakeMaterialRepoH) Delete(context.Context, uint64) error                   { return nil }
-func (f *fakeMaterialRepoH) DeleteByCourse(context.Context, uint64) error           { return nil }
+func (f *fakeMaterialRepoH) UpdateDocWithRevision(context.Context, uint64, string, int) (*domain.TeachingMaterial, error) {
+	return nil, nil
+}
+func (f *fakeMaterialRepoH) Delete(context.Context, uint64) error         { return nil }
+func (f *fakeMaterialRepoH) DeleteByCourse(context.Context, uint64) error { return nil }
 
 type fakeCourseRepoH struct{ c *domain.Course }
 

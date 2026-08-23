@@ -4186,6 +4186,82 @@ const docTemplate = `{
                 }
             }
         },
+        "/teaching-materials/{id}/doc": {
+            "put": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "tiptap の doc JSON を revision 楽観 ロック で 保存 する。 不一致 は 409。 canManage のみ。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "teaching-materials"
+                ],
+                "summary": "章 リッチ 本文 更新",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "章 ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "doc と expectedRevision",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.updateChapterDocRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.chapterDetailResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "doc が 不正",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "権限 なし",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "章 が 見つからない",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "版 不一致 (他 で 更新 済み)",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/teaching-materials/{id}/view": {
             "post": {
                 "security": [
@@ -4860,6 +4936,14 @@ const docTemplate = `{
                 "orderInCourse": {
                     "type": "integer"
                 },
+                "revision": {
+                    "description": "Revision は doc 更新の楽観ロック用。doc を更新するたびに +1（不一致は 409）。",
+                    "type": "integer"
+                },
+                "schemaVersion": {
+                    "description": "SchemaVersion は doc のエディタスキーマ版。読込時アップキャストの目印（現行 1）。",
+                    "type": "integer"
+                },
                 "title": {
                     "type": "string"
                 },
@@ -5236,6 +5320,56 @@ const docTemplate = `{
                 },
                 "sizeBytes": {
                     "type": "integer"
+                }
+            }
+        },
+        "internal_handler.chapterDetailResponse": {
+            "type": "object",
+            "properties": {
+                "companyId": {
+                    "type": "integer"
+                },
+                "content": {
+                    "type": "string"
+                },
+                "courseId": {
+                    "description": "NOT NULL は migration 0004 で確定するため GORM tag では指定しない（既存行への ADD COLUMN 対策）。",
+                    "type": "integer"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "createdByUserId": {
+                    "type": "integer"
+                },
+                "doc": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "isPublished": {
+                    "type": "boolean"
+                },
+                "orderInCourse": {
+                    "type": "integer"
+                },
+                "revision": {
+                    "description": "Revision は doc 更新の楽観ロック用。doc を更新するたびに +1（不一致は 409）。",
+                    "type": "integer"
+                },
+                "schemaVersion": {
+                    "description": "SchemaVersion は doc のエディタスキーマ版。読込時アップキャストの目印（現行 1）。",
+                    "type": "integer"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
                 }
             }
         },
@@ -5970,6 +6104,25 @@ const docTemplate = `{
                 },
                 "title": {
                     "type": "string"
+                }
+            }
+        },
+        "internal_handler.updateChapterDocRequest": {
+            "type": "object",
+            "required": [
+                "doc",
+                "expectedRevision"
+            ],
+            "properties": {
+                "doc": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "expectedRevision": {
+                    "type": "integer",
+                    "minimum": 1
                 }
             }
         },

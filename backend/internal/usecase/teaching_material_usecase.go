@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
@@ -155,6 +156,41 @@ func (uc *TeachingMaterialUseCase) Update(ctx context.Context, in UpdateTeaching
 		return nil, err
 	}
 	return existing, nil
+}
+
+// UpdateChapterDocInput は章のリッチ本文（tiptap JSON）更新の入力。
+type UpdateChapterDocInput struct {
+	ID               uint64
+	ActorCompanyID   uint64
+	ActorRole        domain.RoleName
+	Doc              string
+	ExpectedRevision int
+}
+
+// ErrChapterDocInvalid は doc がリッチ本文として不正（型不一致・サイズ超過・NUL 含み等）。
+var ErrChapterDocInvalid = errors.New("chapter doc is invalid")
+
+// UpdateDoc は章のリッチ本文を楽観ロックで保存する。canManage（company_admin / super_admin）のみ。
+// doc の検証（object かつ type='doc'・1MiB 上限・NUL 拒否）は rich_documents と同じ基準で行う。
+func (uc *TeachingMaterialUseCase) UpdateDoc(ctx context.Context, in UpdateChapterDocInput) (*domain.TeachingMaterial, error) {
+	existing, err := uc.repo.GetByID(ctx, in.ID)
+	if err != nil {
+		return nil, err
+	}
+	if !canManage(in.ActorRole) {
+		return nil, fmt.Errorf("forbidden")
+	}
+	if in.ActorRole != domain.RoleSuperAdmin && existing.CompanyID != in.ActorCompanyID {
+		return nil, fmt.Errorf("forbidden")
+	}
+	if in.ExpectedRevision < 1 {
+		return nil, fmt.Errorf("%w: expectedRevision must be >= 1", ErrChapterDocInvalid)
+	}
+	if err := validateDoc(in.Doc); err != nil {
+		// rich_documents 用のエラー種別を章用に読み替える（HTTP 400 へ落とすため）。
+		return nil, fmt.Errorf("%w: %v", ErrChapterDocInvalid, err)
+	}
+	return uc.repo.UpdateDocWithRevision(ctx, in.ID, in.Doc, in.ExpectedRevision)
 }
 
 func (uc *TeachingMaterialUseCase) Delete(ctx context.Context, id, actorCompanyID uint64, actorRole domain.RoleName) error {

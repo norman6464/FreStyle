@@ -2,9 +2,16 @@ package repository
 
 import (
 	"context"
+	"errors"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 )
+
+// ErrChapterDocConflict は章のリッチ本文更新で revision が一致しなかった（他所で更新済み）。
+var ErrChapterDocConflict = errors.New("chapter doc revision conflict")
+
+// ErrChapterDocInvalidData は doc が PostgreSQL に格納できない不正データだった（U+0000 等）。
+var ErrChapterDocInvalidData = errors.New("chapter doc contains invalid data")
 
 // TeachingMaterialRepository は教材の永続化を担う（クエリは company_id 指定で他社漏れを防ぐ）。
 type TeachingMaterialRepository interface {
@@ -17,6 +24,10 @@ type TeachingMaterialRepository interface {
 	CountByCourseForCompany(ctx context.Context, companyID uint64, includeUnpublished bool) (map[uint64]int, error)
 	Create(ctx context.Context, m *domain.TeachingMaterial) error
 	Update(ctx context.Context, m *domain.TeachingMaterial) error
+	// UpdateDocWithRevision はリッチ本文（tiptap JSON）を楽観ロックで更新する。
+	// expectedRevision が現在値と一致した場合のみ doc を保存し revision を +1 する。
+	// 不一致は ErrChapterDocConflict、未存在は gorm.ErrRecordNotFound を返す。
+	UpdateDocWithRevision(ctx context.Context, id uint64, doc string, expectedRevision int) (*domain.TeachingMaterial, error)
 	Delete(ctx context.Context, id uint64) error
 	DeleteByCourse(ctx context.Context, courseID uint64) error
 }

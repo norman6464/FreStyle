@@ -56,8 +56,11 @@ func (fakeMaterialRepo) CountByCourseForCompany(context.Context, uint64, bool) (
 }
 func (fakeMaterialRepo) Create(context.Context, *domain.TeachingMaterial) error { return nil }
 func (fakeMaterialRepo) Update(context.Context, *domain.TeachingMaterial) error { return nil }
-func (fakeMaterialRepo) Delete(context.Context, uint64) error                   { return nil }
-func (fakeMaterialRepo) DeleteByCourse(context.Context, uint64) error           { return nil }
+func (fakeMaterialRepo) UpdateDocWithRevision(context.Context, uint64, string, int) (*domain.TeachingMaterial, error) {
+	return nil, nil
+}
+func (fakeMaterialRepo) Delete(context.Context, uint64) error         { return nil }
+func (fakeMaterialRepo) DeleteByCourse(context.Context, uint64) error { return nil }
 
 // fakeChapterViewRepoH は repository.UserChapterViewRepository の最小 fake。
 type fakeChapterViewRepoH struct {

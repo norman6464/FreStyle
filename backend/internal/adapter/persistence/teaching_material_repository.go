@@ -2,7 +2,10 @@ package persistence
 
 import (
 	"context"
+	"errors"
+	"strings"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"gorm.io/gorm"
@@ -93,6 +96,40 @@ func (r *teachingMaterialRepository) Update(ctx context.Context, m *domain.Teach
 		"sort_order":   m.OrderInCourse,
 		"is_published": m.IsPublished,
 	}).Error
+}
+
+// UpdateDocWithRevision はリッチ本文（tiptap JSON）を revision 一致条件の楽観ロックで更新する。
+// rich_documents の UpdateWithRevision と同じパターン（0 行更新は存在確認で 404/409 を切り分け）。
+func (r *teachingMaterialRepository) UpdateDocWithRevision(ctx context.Context, id uint64, doc string, expectedRevision int) (*domain.TeachingMaterial, error) {
+	res := r.db.WithContext(ctx).
+		Model(&domain.TeachingMaterial{}).
+		Where("id = ? AND revision = ?", id, expectedRevision).
+		Updates(map[string]any{
+			"doc":        doc,
+			"revision":   gorm.Expr("revision + 1"),
+			"updated_at": gorm.Expr("now()"),
+		})
+	if res.Error != nil {
+		return nil, mapChapterDocError(res.Error)
+	}
+	if res.RowsAffected == 0 {
+		// 0 行 = 「存在しない」か「版不一致」。存在確認で切り分ける。
+		if _, err := r.GetByID(ctx, id); err != nil {
+			return nil, err // gorm.ErrRecordNotFound
+		}
+		return nil, repository.ErrChapterDocConflict
+	}
+	return r.GetByID(ctx, id)
+}
+
+// mapChapterDocError は PostgreSQL の data exception（SQLSTATE class 22。jsonb に格納できない
+// U+0000 等）を repository.ErrChapterDocInvalidData へ翻訳する（400 として返すため）。
+func mapChapterDocError(err error) error {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && strings.HasPrefix(pgErr.Code, "22") {
+		return repository.ErrChapterDocInvalidData
+	}
+	return err
 }
 
 func (r *teachingMaterialRepository) Delete(ctx context.Context, id uint64) error {

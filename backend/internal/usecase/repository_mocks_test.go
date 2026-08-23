@@ -150,6 +150,12 @@ func (m *mockMaterialRepo) Create(ctx context.Context, tm *domain.TeachingMateri
 	return m.Called(ctx, tm).Error(0)
 }
 
+func (m *mockMaterialRepo) UpdateDocWithRevision(ctx context.Context, id uint64, doc string, expectedRevision int) (*domain.TeachingMaterial, error) {
+	args := m.Called(ctx, id, doc, expectedRevision)
+	tm, _ := args.Get(0).(*domain.TeachingMaterial)
+	return tm, args.Error(1)
+}
+
 func (m *mockMaterialRepo) Update(ctx context.Context, tm *domain.TeachingMaterial) error {
 	return m.Called(ctx, tm).Error(0)
 }

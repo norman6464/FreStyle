@@ -272,7 +272,7 @@ describe('CourseDetailPage 続きから表示 + 完了トグル (FRESTYLE-99 / F
   });
 });
 
-describe('CourseDetailPage 右サイドバーの章一覧 (FRESTYLE-118)', () => {
+describe('CourseDetailPage 左パネルの章一覧 (FRESTYLE-341)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetCourse.mockResolvedValue(course());
@@ -293,34 +293,37 @@ describe('CourseDetailPage 右サイドバーの章一覧 (FRESTYLE-118)', () =>
     mockRecordView.mockResolvedValue(undefined);
   });
 
-  it('受講者ビューでは右サイドバーに章一覧(コース名・章数つき)が表示される', async () => {
+  it('受講者ビューでも左パネル(コース名・章数つき)に章一覧が表示される', async () => {
     renderPage('trainee');
-    await waitFor(() => expect(screen.getByRole('navigation', { name: '章一覧' })).toBeInTheDocument());
-    const nav = screen.getByRole('navigation', { name: '章一覧' });
-    expect(nav).toHaveTextContent('章 11');
-    expect(nav).toHaveTextContent('章 12');
-    // 現在表示中の章が aria-current でハイライトされる
-    const current = nav.querySelector('[aria-current="page"]');
-    expect(current).toHaveTextContent('章 11');
+    // SecondaryPanel のタイトルがコース名。章はリスト項目として並ぶ。
+    await waitFor(() => expect(screen.getAllByText('Git 入門').length).toBeGreaterThan(0));
+    const items = await screen.findAllByRole('button', { name: /章 11/ });
+    expect(items.length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: /章 12/ }).length).toBeGreaterThan(0);
+    // 現在表示中の章が aria-current でハイライトされる。
+    await waitFor(() => {
+      const current = document.querySelector('[aria-current="page"]');
+      expect(current).toHaveTextContent('章 11');
+    });
   });
 
   it('章一覧の章をクリックすると本文が切り替わる', async () => {
     renderPage('trainee');
-    await waitFor(() => expect(screen.getByRole('navigation', { name: '章一覧' })).toBeInTheDocument());
-    const nav = screen.getByRole('navigation', { name: '章一覧' });
-    const target = Array.from(nav.querySelectorAll('button')).find((b) => b.textContent?.includes('章 12'));
-    expect(target).toBeDefined();
-    fireEvent.click(target!);
+    const targets = await screen.findAllByRole('button', { name: /章 12/ });
+    fireEvent.click(targets[0]);
     await waitFor(() => expect(mockGetMaterial).toHaveBeenCalledWith(12));
   });
 
   it('完了済みの章にはチェックアイコン、未完了の章には番号が出る', async () => {
     renderPage('trainee');
-    await waitFor(() => expect(screen.getByRole('navigation', { name: '章一覧' })).toBeInTheDocument());
-    const nav = screen.getByRole('navigation', { name: '章一覧' });
-    // 11 は完了(チェック)、12 は未完了(番号 2)
-    expect(nav.querySelectorAll('[aria-label="完了"]')).toHaveLength(1);
-    expect(nav).toHaveTextContent('2');
+    await screen.findAllByRole('button', { name: /章 12/ });
+    // 11 は完了(チェック)、12 は未完了(番号 2)。デスクトップ + モバイルドロワーで二重描画されるため
+    // 「1 つ以上」を確認する。
+    await waitFor(() => {
+      expect(document.querySelectorAll('[aria-label="完了"]').length).toBeGreaterThan(0);
+    });
+    const numbered = Array.from(document.querySelectorAll('span')).filter((el) => el.textContent === '2');
+    expect(numbered.length).toBeGreaterThan(0);
   });
 });
 

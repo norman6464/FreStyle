@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   PlusIcon,
@@ -14,17 +14,18 @@ import ConfirmModal from '@/shared/ui/ConfirmModal';
 import Loading from '@/shared/ui/Loading';
 import { DashboardRepository } from '@/entities/user';
 import { useMobilePanelState } from '@/shared/lib/hooks/useMobilePanelState';
-import { useLocalStorage } from '@/shared/lib/hooks/useLocalStorage';
 import { useToast } from '@/shared/lib/hooks/useToast';
 import { useTeachingMaterials } from '../model/useTeachingMaterials';
 import { useTeachingMaterialEditor } from '../model/useTeachingMaterialEditor';
 import { useChapterResume } from '../model/useChapterResume';
 import { useNextCourse } from '../model/useNextCourse';
 import { useLessonProgress } from '../model/useLessonProgress';
+import DocTableOfContents from './DocTableOfContents';
 import MaterialListItem from './MaterialListItem';
 import MaterialSkeleton from './MaterialSkeleton';
 import ManagedDetail from './ManagedDetail';
 import ReadOnlyDetail from './ReadOnlyDetail';
+import { stripLeadingDocTitle } from '../lib/stripLeadingDocTitle';
 import type { Course } from '@/entities/course';
 
 /**
@@ -46,7 +47,6 @@ export default function CourseDetailPage() {
   const { showToast } = useToast();
   const { isOpen: mobilePanelOpen, open: openMobilePanel, close: closeMobilePanel } = useMobilePanelState();
   // デスクトップの章一覧パネルの開閉。 教材を切り替えても継続するよう localStorage に保持（既定は表示）。
-  const [panelOpen, setPanelOpen] = useLocalStorage('course-panel-open', true);
 
   const [course, setCourse] = useState<Course | null>(null);
   const [courseLoading, setCourseLoading] = useState(true);
@@ -78,6 +78,14 @@ export default function CourseDetailPage() {
 
   // 最終章の末尾から一覧に戻らず次のコースへ直行できるようにする(FRESTYLE-102)。
   const { nextCourse } = useNextCourse(courseId, !canManage);
+
+  // 選択中の章のリッチ本文（先頭 h1 除去済み）。本文表示(ReadOnlyDetail)と左パネルの目次で共用。
+  const selectedDoc = useMemo(
+    () => (selected?.doc ? stripLeadingDocTitle(selected.doc) : null),
+    [selected?.doc],
+  );
+  // 本文コンテナ。目次(DocTableOfContents)が見出しへ anchor id を振るために参照する。
+  const articleRef = useRef<HTMLDivElement>(null);
 
   // 章を表示したら閲覧を記録する(受講者のみ・ベストエフォート)。
   // レジュームとダッシュボード「続きから」の基盤データになる。
@@ -183,18 +191,16 @@ export default function CourseDetailPage() {
 
   return (
     <div className="flex h-full">
-      {/* 受講者は章一覧を右サイドバーに出すため、デスクトップの左パネルは出さない(FRESTYLE-118)。
-          モバイル(md 未満)は右サイドバーが無いので、従来のドロワーを章切替の導線として残す。
-          canManage は編集導線(作成/削除)があるため従来の左パネルのまま。 */}
-      <div className={canManage ? 'contents' : 'md:hidden'}>
+      {/* 章一覧 + 目次はノート / AI チャットと同じ左パネル(SecondaryPanel)に集約する(FRESTYLE-341)。
+          旧: 受講者はデスクトップで右サイドバーに出していた(FRESTYLE-118)が撤回。
+          peekable(« で隠す / 左端ホバーで一時表示 / ⌘\ 切替)もノートと同じ機構。 */}
       <SecondaryPanel
         title={course.title || '無題のコース'}
         badge={`${materials.length}件`}
         mobileOpen={mobilePanelOpen}
         onMobileClose={closeMobilePanel}
-        collapsible
-        collapsed={!panelOpen}
-        onToggleCollapsed={() => setPanelOpen((isOpen) => !isOpen)}
+        peekable
+        storageKey="frestyle.panel.course"
         headerContent={
           <div className="space-y-2">
             <Link
@@ -220,6 +226,17 @@ export default function CourseDetailPage() {
         }
       >
         <div className="py-2">
+          {/* 選択中の章の目次。リッチ本文(doc)のある章でだけ出す(旧右サイドバーから移設)。 */}
+          {!canManage && selectedDoc && (
+            <div className="px-4 pb-3 mb-2 border-b border-surface-3">
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">
+                目次
+              </h3>
+              <div className="max-h-64 overflow-y-auto">
+                <DocTableOfContents doc={selectedDoc} articleRef={articleRef} />
+              </div>
+            </div>
+          )}
           {loading && materials.length === 0 ? (
             <Loading className="py-8" />
           ) : materials.length === 0 ? (
@@ -236,19 +253,20 @@ export default function CourseDetailPage() {
               />
             </div>
           ) : (
-            materials.map((material) => (
+            materials.map((material, index) => (
               <MaterialListItem
                 key={material.id}
                 material={material}
                 isActive={selectedId === material.id}
                 onSelect={handleSelect}
                 onDelete={canManage ? (materialId) => setDeleteTargetId(materialId) : undefined}
+                completed={canManage ? undefined : progress.completedIds.has(material.id)}
+                index={index + 1}
               />
             ))
           )}
         </div>
       </SecondaryPanel>
-      </div>
 
       <div className="flex-1 flex flex-col min-w-0">
         {/* モバイルヘッダー */}
@@ -277,17 +295,14 @@ export default function CourseDetailPage() {
           ) : (
             <ReadOnlyDetail
               material={selected}
+              bodyDoc={selectedDoc}
+              articleRef={articleRef}
               completed={progress.completedIds.has(selected.id)}
               onToggleComplete={(done) => handleToggleComplete(selected.id, done)}
               nextMaterial={nextMaterial}
               onGoNext={nextMaterial ? () => selectMaterial(nextMaterial.id) : undefined}
               nextCourse={nextCourse}
               onGoNextCourse={nextCourse ? () => navigate(`/courses/${nextCourse.id}`) : undefined}
-              course={course}
-              materials={materials}
-              completedIds={progress.completedIds}
-              onSelectMaterial={selectMaterial}
-              completedCount={completedCount}
             />
           )
         ) : (

@@ -183,7 +183,7 @@ func Test_教材_作成_traineeは禁止(t *testing.T) {
 	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
 	_, err := uc.Create(context.Background(), usecase.CreateTeachingMaterialInput{
 		ActorUserID: 1, ActorCompanyID: 10, ActorRole: domain.RoleTrainee,
-		CourseID: 5, Title: "X", Content: "Y", IsPublished: true,
+		CourseID: 5, Title: "X", IsPublished: true,
 	})
 	require.Error(t, err)
 	mrepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
@@ -195,7 +195,7 @@ func Test_教材_作成_会社管理者は成功(t *testing.T) {
 	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
 	got, err := uc.Create(context.Background(), usecase.CreateTeachingMaterialInput{
 		ActorUserID: 7, ActorCompanyID: 10, ActorRole: domain.RoleCompanyAdmin,
-		CourseID: 5, Title: "Spring 入門", Content: "# Spring", IsPublished: true,
+		CourseID: 5, Title: "Spring 入門", IsPublished: true,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, mstore.created)
@@ -203,7 +203,6 @@ func Test_教材_作成_会社管理者は成功(t *testing.T) {
 	assert.Equal(t, uint64(10), mstore.created.CompanyID)
 	assert.Equal(t, uint64(5), mstore.created.CourseID)
 	assert.Equal(t, "Spring 入門", mstore.created.Title)
-	assert.Equal(t, "# Spring", mstore.created.Content)
 	assert.True(t, mstore.created.IsPublished)
 	assert.Equal(t, "Spring 入門", got.Title)
 }
@@ -265,14 +264,13 @@ func Test_教材_更新_自社管理者は成功(t *testing.T) {
 	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
 	got, err := uc.Update(context.Background(), usecase.UpdateTeachingMaterialInput{
 		ID: 1, ActorCompanyID: 10, ActorRole: domain.RoleCompanyAdmin,
-		Title: "new", Content: "X", OrderInCourse: 200, IsPublished: true,
+		Title: "new", OrderInCourse: 200, IsPublished: true,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "new", got.Title)
 	assert.Equal(t, 200, got.OrderInCourse)
 	require.NotNil(t, mstore.updated)
 	assert.Equal(t, "new", mstore.updated.Title)
-	assert.Equal(t, "X", mstore.updated.Content)
 	assert.Equal(t, 200, mstore.updated.OrderInCourse)
 	assert.True(t, mstore.updated.IsPublished)
 }

@@ -90,7 +90,6 @@ type CreateTeachingMaterialInput struct {
 	ActorRole      domain.RoleName
 	CourseID       uint64
 	Title          string
-	Content        string
 	OrderInCourse  int
 	IsPublished    bool
 }
@@ -117,7 +116,6 @@ func (uc *TeachingMaterialUseCase) Create(ctx context.Context, in CreateTeaching
 		CourseID:        in.CourseID,
 		CreatedByUserID: in.ActorUserID,
 		Title:           in.Title,
-		Content:         in.Content,
 		OrderInCourse:   in.OrderInCourse,
 		IsPublished:     in.IsPublished,
 	}
@@ -132,7 +130,6 @@ type UpdateTeachingMaterialInput struct {
 	ActorCompanyID uint64
 	ActorRole      domain.RoleName
 	Title          string
-	Content        string
 	OrderInCourse  int
 	IsPublished    bool
 }
@@ -149,7 +146,6 @@ func (uc *TeachingMaterialUseCase) Update(ctx context.Context, in UpdateTeaching
 		return nil, fmt.Errorf("forbidden")
 	}
 	existing.Title = in.Title
-	existing.Content = in.Content
 	existing.OrderInCourse = in.OrderInCourse
 	existing.IsPublished = in.IsPublished
 	if err := uc.repo.Update(ctx, existing); err != nil {

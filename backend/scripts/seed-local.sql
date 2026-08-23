@@ -162,7 +162,7 @@ SELECT
   now(), now()
 FROM generate_series(1, :n_courses) AS c;
 
-INSERT INTO course_chapters (id, company_id, course_id, created_by_user_id, title, content,
+INSERT INTO course_chapters (id, company_id, course_id, created_by_user_id, title,
                              sort_order, is_published, created_at, updated_at)
 SELECT
   1000000 + ((c - 1) * :chapters_per_course + ch),
@@ -170,7 +170,6 @@ SELECT
   1000000 + c,
   1000000 + 1,
   '第' || ch || '章',
-  repeat('ダミー本文。', 200),
   ch,
   true,
   now(), now()

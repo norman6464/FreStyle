@@ -36,8 +36,8 @@ ORDER BY updated_at DESC, id DESC`
 
 // ListByCourse はコース内の章を sort_order 昇順で返す。
 func (r *teachingMaterialRepository) ListByCourse(ctx context.Context, courseID uint64, includeUnpublished bool) ([]domain.TeachingMaterial, error) {
-	// 一覧は content(本文 markdown)を返さない（章ごとに重く、 全章を先読みすると非効率）。
-	// 本文は選択時に GetByID で都度取得する。Content は空文字のままになる。
+	// 一覧は本文（doc・jsonb）を返さない（章ごとに重く、全章を先読みすると非効率）。
+	// 本文は選択時に GetByID で都度取得する。Doc は nil のままになる。
 	const q = `
 SELECT id, company_id, course_id, created_by_user_id, title, sort_order, is_published, created_at, updated_at
 FROM course_chapters
@@ -92,7 +92,6 @@ func (r *teachingMaterialRepository) Update(ctx context.Context, m *domain.Teach
 	// CreatedBy / CompanyID / CourseID は不変なので更新対象から外す。
 	return r.db.WithContext(ctx).Model(m).Updates(map[string]any{
 		"title":        m.Title,
-		"content":      m.Content,
 		"sort_order":   m.OrderInCourse,
 		"is_published": m.IsPublished,
 	}).Error

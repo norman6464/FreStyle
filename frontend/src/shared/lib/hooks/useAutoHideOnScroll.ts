@@ -5,6 +5,13 @@ export interface UseAutoHideOnScrollOptions {
   topThreshold?: number;
   /** 方向判定に使う最小移動量（px）。小刻みな揺れでちらつかせない。既定 8。 */
   delta?: number;
+  /**
+   * hidden を切り替えた直後に方向判定を止める時間（ms）。既定 350。
+   * ヘッダーの表示/非表示で本文の表示域が伸縮すると、最下部ではブラウザが scrollTop を
+   * 自動クランプして「逆方向スクロール」の偽イベントが発火し、表示⇔非表示が無限に
+   * 振動する（ヘッダーがガタつく）。切替直後を無視して このフィードバックループを断つ。
+   */
+  cooldownMs?: number;
 }
 
 export interface UseAutoHideOnScrollResult {
@@ -25,10 +32,12 @@ export interface UseAutoHideOnScrollResult {
 export function useAutoHideOnScroll(
   options: UseAutoHideOnScrollOptions = {},
 ): UseAutoHideOnScrollResult {
-  const { topThreshold = 80, delta = 8 } = options;
+  const { topThreshold = 80, delta = 8, cooldownMs = 350 } = options;
   const [hidden, setHidden] = useState(false);
   const [element, setElement] = useState<HTMLElement | null>(null);
   const lastTopRef = useRef(0);
+  // hidden 切替直後の判定停止期限。クランプ由来の偽イベントを飲み込む（基準位置だけ追随させる）。
+  const suppressUntilRef = useRef(0);
 
   const scrollRef = useCallback((node: HTMLElement | null) => {
     setElement(node);
@@ -48,15 +57,24 @@ export function useAutoHideOnScroll(
         lastTopRef.current = top;
         return;
       }
+      // 切替直後はレイアウト変化によるクランプイベントを無視し、基準位置だけ更新する。
+      if (Date.now() < suppressUntilRef.current) {
+        lastTopRef.current = top;
+        return;
+      }
       const diff = top - lastTopRef.current;
       if (Math.abs(diff) < delta) return;
-      setHidden(diff > 0);
+      setHidden((prev) => {
+        const next = diff > 0;
+        if (next !== prev) suppressUntilRef.current = Date.now() + cooldownMs;
+        return next;
+      });
       lastTopRef.current = top;
     };
 
     element.addEventListener('scroll', onScroll, { passive: true });
     return () => element.removeEventListener('scroll', onScroll);
-  }, [element, topThreshold, delta]);
+  }, [element, topThreshold, delta, cooldownMs]);
 
   return { hidden, scrollRef };
 }

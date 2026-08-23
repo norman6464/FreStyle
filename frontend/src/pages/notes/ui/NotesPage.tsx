@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { SecondaryPanel } from '@/widgets/secondary-panel';
+import { useHeaderVisibility } from '@/widgets/app-shell';
 import EmptyState from '@/shared/ui/EmptyState';
 import ConfirmModal from '@/shared/ui/ConfirmModal';
 import Loading from '@/shared/ui/Loading';
@@ -19,6 +20,7 @@ import { useDocuments } from '../model/useDocuments';
 import { useDocumentEditor } from '../model/useDocumentEditor';
 import { useMobilePanelState } from '@/shared/lib/hooks/useMobilePanelState';
 import { useToast } from '@/shared/lib/hooks/useToast';
+import { useAutoHideOnScroll } from '@/shared/lib/hooks/useAutoHideOnScroll';
 import { useNoteKeyboardShortcuts } from '../model/useNoteKeyboardShortcuts';
 
 export default function NotesPage() {
@@ -27,6 +29,15 @@ export default function NotesPage() {
   const { noteId } = useParams<{ noteId: string }>();
   const navigate = useNavigate();
   const { isOpen: mobilePanelOpen, open: openMobilePanel, close: closeMobilePanel } = useMobilePanelState();
+
+  // 本文を下へスクロールしたらアプリ共通ヘッダーを隠し、上へ戻したら出す（本文に集中させる）。
+  // モバイルのノート一覧パネルを開いている間は隠さない。ページを離れたら必ず表示へ戻す。
+  const { setHeaderHidden } = useHeaderVisibility();
+  const { hidden: scrollHidden, scrollRef } = useAutoHideOnScroll();
+  useEffect(() => {
+    setHeaderHidden(scrollHidden && !mobilePanelOpen);
+  }, [scrollHidden, mobilePanelOpen, setHeaderHidden]);
+  useEffect(() => () => setHeaderHidden(false), [setHeaderHidden]);
   const {
     documents,
     filteredDocuments,
@@ -229,7 +240,7 @@ export default function NotesPage() {
             />
           ) : (
             // 枠のないインライン文書。タイトルと本文を同じ中央カラムに載せて 1 つの文書として見せる。
-            <div className="flex flex-1 flex-col min-h-0 overflow-y-auto">
+            <div ref={scrollRef} className="flex flex-1 flex-col min-h-0 overflow-y-auto">
               <div className="mx-auto w-full max-w-3xl px-6 py-10">
                 <div className="mb-3 flex items-start justify-between gap-3">
                   <input

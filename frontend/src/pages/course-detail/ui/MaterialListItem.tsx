@@ -1,22 +1,34 @@
 import { TrashIcon } from '@heroicons/react/24/outline';
+import { CheckCircleIcon as CheckCircleSolidIcon } from '@heroicons/react/24/solid';
 import type { TeachingMaterial } from '@/entities/course';
 
-/** 左パネル(教材リスト)の 1 行。クリック / Enter・Space で選択、管理ロールでは削除ボタンを出す。 */
+/**
+ * 左パネル(教材リスト)の 1 行。クリック / Enter・Space で選択、管理ロールでは削除ボタンを出す。
+ * trainee には completed / index で完了チェック・章番号を出す（旧右サイドバーの章一覧から
+ * 左パネルへ統合。FRESTYLE-341）。
+ */
 export default function MaterialListItem({
   material,
   isActive,
   onSelect,
   onDelete,
+  completed,
+  index,
 }: {
   material: TeachingMaterial;
   isActive: boolean;
   onSelect: (id: number) => void;
   onDelete?: (id: number) => void;
+  /** trainee 用: 完了済みならチェックアイコンを出す。undefined なら進捗表示なし（管理ロール）。 */
+  completed?: boolean;
+  /** trainee 用: 未完了時に出す章番号（1 始まり）。 */
+  index?: number;
 }) {
   return (
     <div
       role="button"
       tabIndex={0}
+      aria-current={isActive ? 'page' : undefined}
       onClick={() => onSelect(material.id)}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
@@ -30,6 +42,14 @@ export default function MaterialListItem({
           : 'border-transparent hover:bg-[var(--color-nav-hover)]'
       }`}
     >
+      {completed !== undefined &&
+        (completed ? (
+          <CheckCircleSolidIcon className="w-4 h-4 mt-0.5 text-emerald-500 flex-shrink-0" aria-label="完了" />
+        ) : (
+          <span className="w-4 h-4 mt-0.5 flex items-center justify-center text-[10px] rounded-full border border-surface-3 text-[var(--color-text-muted)] flex-shrink-0">
+            {index}
+          </span>
+        ))}
       <p className={`flex-1 min-w-0 text-[13px] leading-snug line-clamp-2 ${
         isActive
           ? 'font-medium text-[var(--color-text-primary)]'

@@ -1,74 +1,52 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRightIcon, ListBulletIcon } from '@heroicons/react/24/outline';
-import { useLocalStorage } from '@/shared/lib/hooks/useLocalStorage';
-import MarkdownTableOfContents from '@/shared/ui/MarkdownTableOfContents';
-import { RichTextEditor } from '@/shared/ui/RichTextEditor';
-import type { Course, CourseWithProgress, TeachingMaterial } from '@/entities/course';
+import { useEffect, useMemo, useState, type RefObject } from 'react';
+import { ArrowRightIcon } from '@heroicons/react/24/outline';
+import { RichTextEditor, type RichDocContent } from '@/shared/ui/RichTextEditor';
+import type { CourseWithProgress, TeachingMaterial } from '@/entities/course';
 import CompleteToggleButton from './CompleteToggleButton';
-import ChapterNav from './ChapterNav';
-import DocTableOfContents from './DocTableOfContents';
 import ImageLightbox from './ImageLightbox';
 import ReadOnlyMarkdown from './ReadOnlyMarkdown';
 import { formatDate } from '../lib/formatDate';
 import { stripLeadingTitle } from '../lib/stripLeadingTitle';
-import { stripLeadingDocTitle } from '../lib/stripLeadingDocTitle';
 
 /**
  * trainee 向けの教材閲覧ビュー。
  *
- * レイアウトはノート / AI チャットと同じデザイン言語（FRESTYLE-340）:
- * - 本文はカードに入れないフラットな文書（ノートと同じ max-w-3xl 中央カラム + 内部スクロール）
- * - 右の目次・章一覧は SecondaryPanel と同じサイドバー（nav 色 + border 区切り、カードなし）
+ * レイアウトはノートと同じ「枠のないインライン文書」（max-w-3xl 中央カラム + 内部スクロール。
+ * FRESTYLE-340）。目次・章一覧は左の SecondaryPanel（CourseDetailPage 側）に集約した
+ * （FRESTYLE-341。右サイドバーは廃止）。
  * 本文末尾に「完了にする」と「次の章へ / 次のコースへ」を並べ、読み終えた位置から先へ進める。
  */
 export default function ReadOnlyDetail({
   material,
+  bodyDoc,
+  articleRef,
   completed,
   onToggleComplete,
   nextMaterial,
   onGoNext,
   nextCourse,
   onGoNextCourse,
-  course,
-  materials,
-  completedIds,
-  onSelectMaterial,
-  completedCount,
 }: {
   material: TeachingMaterial;
+  /** 先頭 h1 除去済みのリッチ本文。null なら Markdown content へフォールバック（フェーズ E で撤去）。 */
+  bodyDoc: RichDocContent | null;
+  /** 本文コンテナの ref。左パネルの目次(DocTableOfContents)が anchor id を振るために参照する。 */
+  articleRef: RefObject<HTMLDivElement | null>;
   completed: boolean;
   onToggleComplete: (done: boolean) => void;
   nextMaterial?: TeachingMaterial | null;
   onGoNext?: () => void;
   nextCourse?: CourseWithProgress | null;
   onGoNextCourse?: () => void;
-  course: Course;
-  materials: TeachingMaterial[];
-  completedIds: Set<number>;
-  onSelectMaterial: (id: number) => void;
-  completedCount: number;
 }) {
-  // サイドバー(目次 + 章一覧)の表示状態は localStorage に保持し、 教材を切り替えても選択が続く
-  // ようにする（既定は表示）。横幅が狭いときに本文幅を稼げるよう trainee が出し入れできる。
-  const [tocOpen, setTocOpen] = useLocalStorage('course-toc-open', true);
-
   // 章を切り替えたら本文の先頭までスクロールを戻す（末尾の「次の章へ」から進んでも頭から読める）。
-  const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: 0 });
-  }, [material.id]);
+    articleRef.current?.closest('[data-course-scroll]')?.scrollTo({ top: 0 });
+  }, [material.id, articleRef]);
 
   // 本文先頭の h1(= タイトル)は、上のタイトル見出しで material.title を大きく出すため取り除く。
   // 残すとタイトルが二重に見える(FRESTYLE-131)。
   const bodyContent = useMemo(() => stripLeadingTitle(material.content), [material.content]);
-  // リッチ本文（tiptap JSON）。未移行の章は null で、従来の Markdown 表示へフォールバックする
-  // （content 列の撤去はフェーズ E。それまで両対応を保つ）。
-  const bodyDoc = useMemo(
-    () => (material.doc ? stripLeadingDocTitle(material.doc) : null),
-    [material.doc],
-  );
-  // doc 表示のコンテナ。目次の anchor id 付与（DocTableOfContents）と画像クリック委譲で使う。
-  const articleRef = useRef<HTMLDivElement>(null);
 
   // 本文内の画像クリックでモーダル拡大表示する(FRESTYLE-191)。
   const [lightboxImage, setLightboxImage] = useState<{ src: string; alt: string } | null>(null);
@@ -77,7 +55,7 @@ export default function ReadOnlyDetail({
   return (
     <div className="flex flex-1 min-h-0 bg-[var(--color-surface)]">
       {/* 本文: ノートと同じ「枠のないインライン文書」。中央カラム + 内部スクロール。 */}
-      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto">
+      <div data-course-scroll className="flex-1 min-h-0 overflow-y-auto">
         <div className="mx-auto w-full max-w-3xl px-6 py-10">
           <div className="mb-3 flex items-start justify-between gap-3">
             <h1 className="min-w-0 flex-1 text-3xl font-bold text-[var(--color-text-primary)] md:text-4xl">
@@ -87,26 +65,11 @@ export default function ReadOnlyDetail({
               <CompleteToggleButton completed={completed} onToggle={onToggleComplete} />
             </div>
           </div>
-          {/* メタ行(最終更新 / サイドバートグル)。サイドバーは lg 以上でのみ表示されるため、
-              トグルも lg 未満では隠す。 */}
+          {/* メタ行。目次・章一覧の出し入れは左パネル(SecondaryPanel の «/☰)に統合済み。 */}
           <div className="mb-8 flex flex-wrap items-center gap-3">
             <p className="text-xs text-[var(--color-text-muted)]">
               最終更新: {formatDate(material.updatedAt)}
             </p>
-            <button
-              type="button"
-              onClick={() => setTocOpen((isOpen) => !isOpen)}
-              aria-pressed={tocOpen}
-              title={tocOpen ? '目次を隠す' : '目次を表示'}
-              className={`hidden lg:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
-                tocOpen
-                  ? 'border-taupe-500 text-taupe-400'
-                  : 'border-surface-3 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'
-              }`}
-            >
-              <ListBulletIcon className="w-4 h-4" />
-              目次
-            </button>
           </div>
 
           {bodyDoc ? (
@@ -166,38 +129,6 @@ export default function ReadOnlyDetail({
         )}
       </div>
 
-      {/* 右サイドバー: SecondaryPanel（ノート / AI チャットの左パネル）と同じデザイン言語。
-          nav 色の全高パネル + border 区切りで、カード(rounded/shadow)にはしない(FRESTYLE-340)。 */}
-      {tocOpen && (
-        <aside className="hidden lg:flex w-72 flex-shrink-0 flex-col min-h-0 border-l border-surface-3 bg-[var(--color-nav)]">
-          {bodyDoc ? (
-            <>
-              <div className="px-4 py-3 border-b border-surface-3">
-                <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">目次</h2>
-              </div>
-              <div className="max-h-[45%] min-h-0 overflow-y-auto px-4 py-3 border-b border-surface-3">
-                <DocTableOfContents doc={bodyDoc} articleRef={articleRef} />
-              </div>
-            </>
-          ) : (
-            // フォールバック(Markdown)時は目次コンポーネントが自前の見出しを持つため、
-            // パネルヘッダーは重ねずにそのまま入れる。
-            <div className="max-h-[45%] min-h-0 overflow-y-auto px-4 py-3 border-b border-surface-3">
-              <MarkdownTableOfContents content={bodyContent} />
-            </div>
-          )}
-          <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3">
-            <ChapterNav
-              course={course}
-              materials={materials}
-              selectedId={material.id}
-              completedIds={completedIds}
-              completedCount={completedCount}
-              onSelect={onSelectMaterial}
-            />
-          </div>
-        </aside>
-      )}
     </div>
   );
 }

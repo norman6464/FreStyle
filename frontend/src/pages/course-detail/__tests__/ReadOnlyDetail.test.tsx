@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { createRef } from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { Course, TeachingMaterial } from '@/entities/course';
 import type { RichDocContent } from '@/shared/ui/RichTextEditor';
 import ReadOnlyDetail from '../ui/ReadOnlyDetail';
+import DocTableOfContents from '../ui/DocTableOfContents';
 import { stripLeadingDocTitle } from '../lib/stripLeadingDocTitle';
 import { extractDocHeadings } from '../model/docHeadings';
 
@@ -64,17 +66,15 @@ function material(overrides: Partial<TeachingMaterial> = {}): TeachingMaterial {
 }
 
 function renderDetail(m: TeachingMaterial) {
+  const articleRef = createRef<HTMLDivElement>();
   return render(
     <MemoryRouter>
       <ReadOnlyDetail
         material={m}
+        bodyDoc={m.doc ? stripLeadingDocTitle(m.doc) : null}
+        articleRef={articleRef}
         completed={false}
         onToggleComplete={() => {}}
-        course={course}
-        materials={[m]}
-        completedIds={new Set()}
-        onSelectMaterial={() => {}}
-        completedCount={0}
       />
     </MemoryRouter>,
   );
@@ -102,20 +102,28 @@ describe('ReadOnlyDetail の doc（tiptap）表示 (FRESTYLE-338)', () => {
     expect(document.querySelector('.ProseMirror h2')).not.toBeNull();
   });
 
-  it('目次は doc の見出しから生成され、本文の見出しに anchor id が付く', async () => {
-    renderDetail(material({ doc: richDoc, revision: 1 }));
+  it('目次(DocTableOfContents)は doc の見出しから生成され、本文コンテナの見出しに anchor id を振る', async () => {
+    // 目次は左パネル(CourseDetailPage)に移設済みのため、単体で本文コンテナと組み合わせて検証する。
+    const articleRef = createRef<HTMLDivElement>();
+    const bodyDoc = stripLeadingDocTitle(richDoc);
+    render(
+      <>
+        <div ref={articleRef}>
+          <h2>SELECT の基本</h2>
+          <h2>演習</h2>
+        </div>
+        <DocTableOfContents doc={bodyDoc} articleRef={articleRef} />
+      </>,
+    );
     const toc = await screen.findByRole('navigation', { name: '目次' });
     expect(toc).toHaveTextContent('SELECT の基本');
     expect(toc).toHaveTextContent('演習');
-    // 先頭 h1（章タイトル）は目次に出ない。
+    // 先頭 h1（章タイトル）は除去済みの doc から生成するため目次に出ない。
     expect(toc.textContent).not.toContain('章タイトル');
-    // 本文 DOM の h2 に github-slugger と同じ id が付く（MutationObserver 経由なので待つ）。
     await waitFor(() => {
-      const h2 = document.querySelector('.ProseMirror h2');
-      expect(h2?.id).toBe('select-の基本');
+      expect(articleRef.current?.querySelector('h2')?.id).toBe('select-の基本');
     });
-    const link = toc.querySelector("a[href='#select-の基本']");
-    expect(link).not.toBeNull();
+    expect(toc.querySelector("a[href='#select-の基本']")).not.toBeNull();
   });
 
   it('本文内の画像クリックでモーダル拡大表示が開く', async () => {

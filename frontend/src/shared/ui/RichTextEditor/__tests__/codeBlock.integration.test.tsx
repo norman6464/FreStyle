@@ -3,7 +3,8 @@ import { render, screen, waitFor, act, fireEvent } from '@testing-library/react'
 import type { Editor } from '@tiptap/react';
 import RichTextEditor from '../RichTextEditor';
 import { emptyRichDoc } from '../emptyRichDoc';
-import { filterLanguages, languageLabel, CODE_BLOCK_LANGUAGES, lowlight } from '../codeBlockLanguages';
+import { filterLanguages, languageLabel, CODE_BLOCK_LANGUAGES } from '../codeBlockLanguages';
+import { lowlight } from '../schemaExtensions';
 
 async function setup(codeText = 'SELECT 1;', language: string | null = null) {
   let editor: Editor | null = null;

@@ -1,11 +1,3 @@
-import { common, createLowlight } from 'lowlight';
-
-/**
- * lowlight のインスタンス（highlight.js の common 言語 37 種を登録）。
- * トークンの配色は app 全体に import 済みの Atom One Light テーマ（.hljs-*）が当たる。
- */
-export const lowlight = createLowlight(common);
-
 /** CodeBlockLanguage は言語メニューの 1 項目。id は lowlight（highlight.js）の言語名。 */
 export interface CodeBlockLanguage {
   id: string;

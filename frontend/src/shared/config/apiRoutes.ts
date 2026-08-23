@@ -55,14 +55,6 @@ export const AI_CHAT = {
   attachmentUploadUrl: `${API_V2}/ai-chat/attachments/upload-url`,
 } as const;
 
-/** Note CRUD と画像 presigned upload */
-export const NOTES = {
-  list: `${API_V2}/notes`,
-  byId: (noteId: number | string) => `${API_V2}/notes/${noteId}`,
-  imagesPresignedUrl: (noteId: number | string) =>
-    `${API_V2}/notes/${noteId}/images/presigned-url`,
-} as const;
-
 /** リッチ文書（rich_documents・tiptap JSON）。owner スコープ・楽観ロック（revision）。 */
 export const DOCUMENTS = {
   /** GET(一覧) / POST(作成) — /api/v2/documents。一覧は ?kind= で絞り込み可 */
@@ -75,11 +67,6 @@ export const DOCUMENTS = {
 export const IMAGES = {
   /** POST /api/v2/notes/images/upload-url — {contentType} → {url, key, publicUrl} */
   uploadUrl: `${API_V2}/notes/images/upload-url`,
-} as const;
-
-/** SessionNote (セッション固有ノート) */
-export const SESSION_NOTES = {
-  byId: (sessionId: number | string) => `${API_V2}/session-notes/${sessionId}`,
 } as const;
 
 export const RANKING = `${API_V2}/ranking` as const;

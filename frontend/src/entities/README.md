@@ -10,7 +10,6 @@
 | `course` | コース・教材（章）・章の進捗 |
 | `exercise` | コーディング演習・提出・採点結果 |
 | `user` | ユーザー・プロフィール・認証状態・学習ダッシュボード |
-| `note` | ノート・セッションノート |
 | `ai-chat` | AI チャットのセッションとメッセージ |
 | `notification` | 通知 |
 | `company` | 会社・会社設定・利用申請 |
@@ -37,8 +36,8 @@ entities/<slice>/
 `@/entities/course/api/courseRepository` のような内部パスは使わない。
 `index.ts` は名前付きで re-export する（`export *` は公式が禁止）。
 
-**Slice 内は相対パスで参照する。** `entities/note/api/noteRepository.ts` が同じ Slice の
-型を使うときは `'../model/types'`。自分の barrel（`@/entities/note`）を参照すると
+**Slice 内は相対パスで参照する。** `entities/course/api/courseRepository.ts` が同じ Slice の
+型を使うときは `'../model/types'`。自分の barrel（`@/entities/course`）を参照すると
 循環し、境界 lint も違反として検出する。
 
 **entity 同士は直接 import できない。** 同一レイヤーだから。どうしても必要なら

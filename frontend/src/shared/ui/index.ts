@@ -35,11 +35,6 @@ export { default as GlossaryTerm } from './GlossaryTerm';
 export { default as GuidedHint } from './GuidedHint';
 export { default as HelpTooltip } from './HelpTooltip';
 
-// --- テキスト・Markdown 周り ---
-export { default as LineCount } from './LineCount';
-export { default as WordCount } from './WordCount';
-export { default as ReadingTime } from './ReadingTime';
-
 /*
  * CodeEditor は **意図的にこの barrel から出さない**。
  *

@@ -6,6 +6,12 @@ export interface UseAutoHideOnScrollOptions {
   /** 方向判定に使う最小移動量（px）。小刻みな揺れでちらつかせない。既定 8。 */
   delta?: number;
   /**
+   * 隠す判定に必要な「下方向の残り余地」（px）。既定 88（ヘッダー高 64 + 余裕 24）。
+   * 隠すと表示域がヘッダー分伸びるため、残り余地がそれ未満だと最下部に張り付いて
+   * scrollTop がクランプされ、表示⇔非表示の振動が起きる。余地が足りないときは隠さない。
+   */
+  hideReserve?: number;
+  /**
    * hidden を切り替えた直後に方向判定を止める時間（ms）。既定 350。
    * ヘッダーの表示/非表示で本文の表示域が伸縮すると、最下部ではブラウザが scrollTop を
    * 自動クランプして「逆方向スクロール」の偽イベントが発火し、表示⇔非表示が無限に
@@ -32,7 +38,7 @@ export interface UseAutoHideOnScrollResult {
 export function useAutoHideOnScroll(
   options: UseAutoHideOnScrollOptions = {},
 ): UseAutoHideOnScrollResult {
-  const { topThreshold = 80, delta = 8, cooldownMs = 350 } = options;
+  const { topThreshold = 80, delta = 8, cooldownMs = 350, hideReserve = 88 } = options;
   const [hidden, setHidden] = useState(false);
   const [element, setElement] = useState<HTMLElement | null>(null);
   const lastTopRef = useRef(0);
@@ -64,8 +70,17 @@ export function useAutoHideOnScroll(
       }
       const diff = top - lastTopRef.current;
       if (Math.abs(diff) < delta) return;
+      const next = diff > 0;
+      // 隠す方向のときは「隠しても最下部に張り付かない余地」があるかを確認する。
+      // 余地が無いまま隠すと表示域が伸びて scrollTop がクランプされ、振動の起点になる。
+      if (next) {
+        const room = element.scrollHeight - element.clientHeight - top;
+        if (room < hideReserve) {
+          lastTopRef.current = top;
+          return;
+        }
+      }
       setHidden((prev) => {
-        const next = diff > 0;
         if (next !== prev) suppressUntilRef.current = Date.now() + cooldownMs;
         return next;
       });
@@ -74,7 +89,7 @@ export function useAutoHideOnScroll(
 
     element.addEventListener('scroll', onScroll, { passive: true });
     return () => element.removeEventListener('scroll', onScroll);
-  }, [element, topThreshold, delta, cooldownMs]);
+  }, [element, topThreshold, delta, cooldownMs, hideReserve]);
 
   return { hidden, scrollRef };
 }

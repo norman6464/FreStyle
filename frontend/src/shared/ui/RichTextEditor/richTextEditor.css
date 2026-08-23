@@ -222,3 +222,125 @@
   border-left: 1.5px solid var(--color-text-primary);
   top: 0;
 }
+
+/*
+ * コードブロックの NodeView（右上に言語選択＋コピー）。
+ * pre の基本スタイル（surface-2 地・monospace）は既存の .rte-content .ProseMirror pre を継承する。
+ * トークンの配色は app 全体に import 済みの Atom One Light テーマ（.hljs-*）が当たる。
+ */
+.rte-codeblock {
+  position: relative;
+  margin: 1rem 0;
+}
+
+.rte-codeblock pre {
+  margin: 0;
+}
+
+/* 右上ツールバー。ホバー / ブロック内フォーカスのときだけ出す（本文の邪魔をしない）。 */
+.rte-codeblock-bar {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.rte-codeblock:hover .rte-codeblock-bar,
+.rte-codeblock:focus-within .rte-codeblock-bar {
+  opacity: 1;
+}
+
+.rte-codeblock-lang,
+.rte-codeblock-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 1px solid var(--color-surface-3);
+  border-radius: 6px;
+  background: var(--color-surface-1);
+  color: var(--color-text-tertiary);
+  font-size: 0.72rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.12s ease, background 0.12s ease;
+}
+
+.rte-codeblock-copy {
+  padding: 4px 6px;
+}
+
+.rte-codeblock-lang:hover,
+.rte-codeblock-copy:hover {
+  background: var(--color-surface-2);
+  color: var(--color-text-primary);
+}
+
+/* 言語メニュー（検索付き）。 */
+.rte-codeblock-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 30;
+  width: 200px;
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-surface-3);
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgb(0 0 0 / 14%);
+  padding: 6px;
+}
+
+.rte-codeblock-search {
+  width: 100%;
+  padding: 5px 8px;
+  margin-bottom: 4px;
+  border: 1px solid var(--color-surface-3);
+  border-radius: 6px;
+  background: var(--color-surface-2);
+  font-size: 0.78rem;
+  color: var(--color-text-primary);
+  outline: none;
+}
+
+.rte-codeblock-search:focus {
+  border-color: var(--color-brand, #3b82f6);
+}
+
+.rte-codeblock-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.rte-codeblock-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 5px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-size: 0.8rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rte-codeblock-item:hover,
+.rte-codeblock-item.is-active {
+  background: var(--color-surface-2);
+}
+
+.rte-codeblock-empty {
+  padding: 6px 8px;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}

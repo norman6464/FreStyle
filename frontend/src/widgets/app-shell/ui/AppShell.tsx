@@ -4,6 +4,7 @@ import { useDocumentMeta } from '@/shared/lib/hooks/useDocumentMeta';
 import { Outlet, useLocation } from 'react-router-dom';
 
 import Header from './Header';
+import { HeaderVisibilityContext, useHeaderVisibilityState } from '../model/headerVisibility';
 import SkipLink from './SkipLink';
 import ScrollToTop from './ScrollToTop';
 import CommandPalette from './CommandPalette';
@@ -12,6 +13,8 @@ export default function AppShell() {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const { pathname } = useLocation();
   const role = useAppSelector((s) => s.auth.role);
+  // ヘッダーの自動隠し（ノート本文の下スクロール等）。ページ側が setHeaderHidden で切り替える。
+  const headerVisibility = useHeaderVisibilityState();
 
   // 認証必須ページ（AppShell 配下）はログイン前提なので検索インデックス対象外にする。
   useDocumentMeta({ robots: 'noindex, nofollow' });
@@ -34,7 +37,14 @@ export default function AppShell() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
+  // ページ遷移時はヘッダーを必ず表示へ戻す（前ページの隠し状態を持ち越さない）。
+  const { setHeaderHidden } = headerVisibility;
+  useEffect(() => {
+    setHeaderHidden(false);
+  }, [pathname, setHeaderHidden]);
+
   return (
+    <HeaderVisibilityContext.Provider value={headerVisibility}>
     <div className="h-screen flex flex-col bg-surface overflow-hidden">
       <SkipLink targetId="main-content" />
 
@@ -55,8 +65,15 @@ export default function AppShell() {
         </div>
       ) : (
         <>
-          {/* 上部ヘッダー（テキスト横並びナビ + 右側に通知/管理/ユーザー）。モバイルメニューも Header が持つ。 */}
-          <Header />
+          {/* 上部ヘッダー（テキスト横並びナビ + 右側に通知/管理/ユーザー）。モバイルメニューも Header が持つ。
+              headerHidden のとき margin-top 遷移でスライドして隠れ、本文が全高になる。 */}
+          <div
+            className={`flex-shrink-0 transition-[margin-top] duration-200 ease-out ${
+              headerVisibility.headerHidden ? '-mt-16' : 'mt-0'
+            }`}
+          >
+            <Header />
+          </div>
 
           {/* メインコンテンツ */}
           <main
@@ -75,5 +92,6 @@ export default function AppShell() {
         onClose={() => setCommandPaletteOpen(false)}
       />
     </div>
+    </HeaderVisibilityContext.Provider>
   );
 }

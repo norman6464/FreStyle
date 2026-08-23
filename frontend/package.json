@@ -17,7 +17,7 @@
     "tailwind:init": "tailwindcss init -p",
     "openapi:generate": "swagger2openapi ../backend/docs/swagger.json --outfile src/generated/openapi.json && openapi-typescript src/generated/openapi.json --output src/generated/api.ts",
     "knip": "knip",
-    "md2doc": "node scripts/md2doc.mjs",
+    "md2doc": "tsx scripts/md2doc.mjs",
     "size": "npm run build && size-limit",
     "prerender": "node scripts/prerender.mjs"
   },
@@ -80,6 +80,7 @@
     "size-limit": "~12.1.0",
     "swagger2openapi": "^7.0.8",
     "tailwindcss": "^3.4.19",
+    "tsx": "^4.23.12",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.60.1",
     "vite": "^8.0.16",

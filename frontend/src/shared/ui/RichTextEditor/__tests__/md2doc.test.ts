@@ -1,4 +1,8 @@
 import { describe, it, expect } from 'vitest';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { getSchema } from '@tiptap/core';
 import {
   markdownToDoc,
@@ -22,9 +26,9 @@ interface DocNode {
 /** findNodes は doc を深さ優先で walk して type が一致するノードを集める。 */
 function findNodes(doc: DocNode, type: string): DocNode[] {
   const found: DocNode[] = [];
-  const walk = (n: DocNode) => {
-    if (n.type === type) found.push(n);
-    (n.content ?? []).forEach(walk);
+  const walk = (node: DocNode) => {
+    if (node.type === type) found.push(node);
+    (node.content ?? []).forEach(walk);
   };
   walk(doc);
   return found;
@@ -232,4 +236,91 @@ describe('restoreCodeBlockText', () => {
     const doc: DocNode = { type: 'doc', content: [{ type: 'paragraph' }] };
     expect(() => restoreCodeBlockText('```\nx\n```\n', doc)).toThrow(/一致しない/);
   });
+
+  it('チルダフェンス（~~~）も 1 ブロックとして原文どおり書き戻す', () => {
+    const doc = markdownToDoc('~~~\n  indented body\n~~~\n');
+    const blocks = findNodes(doc, 'codeBlock');
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].content?.[0].text).toBe('  indented body');
+  });
+
+  it('4 連バッククォートの中の ``` は閉じと誤認しない（同文字・同長以上のみ閉じ）', () => {
+    const doc = markdownToDoc('````md\n```\ninner fence\n```\n````\n');
+    const blocks = findNodes(doc, 'codeBlock');
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].content?.[0].text).toBe('```\ninner fence\n```');
+  });
+
+  it('閉じフェンスは開始より長くてもよい（``` を ````` で閉じる）', () => {
+    const doc = markdownToDoc('```\nbody\n`````\n');
+    const blocks = findNodes(doc, 'codeBlock');
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].content?.[0].text).toBe('body');
+  });
+
+  it('インデント形式のコードブロックは書き戻し不能として変換を拒否する', () => {
+    // 空行 + 4 スペースはパーサが codeBlock 化するが原文にフェンスが無い → 件数不一致で throw。
+    expect(() => markdownToDoc('段落\n\n    indented code\n')).toThrow(/フェンス/);
+  });
+});
+
+
+describe('md2doc CLI の実行契約', () => {
+  const cliPath = resolve(process.cwd(), 'scripts/md2doc.mjs');
+  const tsxBin = resolve(process.cwd(), 'node_modules/.bin/tsx');
+
+  /** runCli は CLI を子プロセスで実行し、stdout / stderr / exit code を返す。 */
+  function runCli(args: string[], stdin?: string) {
+    try {
+      const stdout = execFileSync(tsxBin, [cliPath, ...args], {
+        input: stdin,
+        encoding: 'utf8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+      return { stdout, stderr: '', status: 0 };
+    } catch (error) {
+      const failed = error as { stdout?: string; stderr?: string; status?: number };
+      return { stdout: failed.stdout ?? '', stderr: failed.stderr ?? '', status: failed.status ?? 1 };
+    }
+  }
+
+  it('単一ファイル: doc JSON を stdout へ出す / batch 失敗時は stdout を出さず exit 1', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'md2doc-'));
+    try {
+      const ok = join(dir, 'ok.md');
+      writeFileSync(ok, '# 見出し\n\n本文。\n');
+
+      // 単一ファイル: 正常。
+      const single = runCli([ok]);
+      expect(single.status).toBe(0);
+      expect(JSON.parse(single.stdout).type).toBe('doc');
+
+      // batch: 正常（__proto__ を含むパス名でも own property として出力される）。
+      const proto = join(dir, '__proto__');
+      writeFileSync(proto, 'proto という名前のファイル\n');
+      const batch = runCli(['--batch'], JSON.stringify([ok, proto]));
+      expect(batch.status).toBe(0);
+      const map = JSON.parse(batch.stdout) as Record<string, { type: string }>;
+      expect(Object.keys(map)).toHaveLength(2);
+      expect(map[proto].type).toBe('doc');
+
+      // batch: 1 件でも失敗したら map を出さず exit 1 + stderr に対象と理由。
+      const missing = join(dir, 'missing.md');
+      const failed = runCli(['--batch'], JSON.stringify([ok, missing]));
+      expect(failed.status).toBe(1);
+      expect(failed.stdout).toBe('');
+      expect(failed.stderr).toContain('missing.md');
+
+      // stdin が JSON 配列でないときも exit 1。
+      const badInput = runCli(['--batch'], '{"not":"array"}');
+      expect(badInput.status).toBe(1);
+
+      // 引数なしは Usage + exit 1。
+      const usage = runCli([]);
+      expect(usage.status).toBe(1);
+      expect(usage.stderr).toContain('Usage');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60000);
 });

@@ -56,13 +56,13 @@ export function markdownToDoc(markdown) {
  * 定義しており、親テキストの無いぶら下げリスト（md の `- + 子` のような記法）が invalid になるため。
  */
 export function ensureListItemParagraph(doc) {
-  const walk = (n) => {
-    if ((n.type === 'listItem' || n.type === 'taskItem') && Array.isArray(n.content)) {
-      if (n.content.length > 0 && n.content[0].type !== 'paragraph') {
-        n.content.unshift({ type: 'paragraph' });
+  const walk = (node) => {
+    if ((node.type === 'listItem' || node.type === 'taskItem') && Array.isArray(node.content)) {
+      if (node.content.length > 0 && node.content[0].type !== 'paragraph') {
+        node.content.unshift({ type: 'paragraph' });
       }
     }
-    (n.content ?? []).forEach(walk);
+    (node.content ?? []).forEach(walk);
   };
   walk(doc);
 }
@@ -74,17 +74,17 @@ export function ensureListItemParagraph(doc) {
  * 表示は同種マーク 1 つと等価（欠落なし）。attrs が異なる同種マークは別物なので残す。
  */
 export function dedupeMarks(doc) {
-  const walk = (n) => {
-    if (n.type === 'text' && Array.isArray(n.marks) && n.marks.length > 1) {
+  const walk = (node) => {
+    if (node.type === 'text' && Array.isArray(node.marks) && node.marks.length > 1) {
       const seen = new Set();
-      n.marks = n.marks.filter((m) => {
-        const key = JSON.stringify([m.type, m.attrs ?? null]);
+      node.marks = node.marks.filter((mark) => {
+        const key = JSON.stringify([mark.type, mark.attrs ?? null]);
         if (seen.has(key)) return false;
         seen.add(key);
         return true;
       });
     }
-    (n.content ?? []).forEach(walk);
+    (node.content ?? []).forEach(walk);
   };
   walk(doc);
 }
@@ -101,13 +101,19 @@ export function restoreCodeBlockText(markdown, doc) {
   const lines = markdown.split('\n');
   let i = 0;
   while (i < lines.length) {
-    const open = /^(\s*)(> ?)?(`{3}|｀{3})(.*)$/.exec(lines[i]);
+    // フェンスは backtick / tilde / 全角バッククォートの 3 連以上。閉じ判定のため
+    // フェンス文字と開始長を保持する（開始と同じ文字・同長以上だけを閉じとみなす。
+    // 4 連 ```` の中の ``` を閉じと誤認して本文を壊さないため）。
+    const open = /^(\s*)(> ?)?(`{3,}|~{3,}|｀{3,})(.*)$/.exec(lines[i]);
     if (!open) { i++; continue; }
     const indent = open[1].length;
     const quoted = Boolean(open[2]);
+    const marker = open[3][0];
+    const markerLength = open[3].length;
+    const closeRe = new RegExp(`^\\s*(> ?)?\\${marker}{${markerLength},}\\s*$`);
     const body = [];
     i++;
-    while (i < lines.length && !/^\s*(> ?)?(`{3}|｀{3})\s*$/.test(lines[i])) {
+    while (i < lines.length && !closeRe.test(lines[i])) {
       let line = lines[i];
       if (quoted) line = line.replace(/^\s*> ?/, '');
       else if (indent > 0) {
@@ -123,13 +129,19 @@ export function restoreCodeBlockText(markdown, doc) {
   }
 
   const blocks = [];
-  const walk = (n) => {
-    if (n.type === 'codeBlock') blocks.push(n);
-    (n.content ?? []).forEach(walk);
+  const walk = (node) => {
+    if (node.type === 'codeBlock') blocks.push(node);
+    (node.content ?? []).forEach(walk);
   };
   walk(doc);
   if (blocks.length !== fences.length) {
-    throw new Error(`codeBlock 数 (${blocks.length}) とフェンス数 (${fences.length}) が一致しない`);
+    // インデント形式（4 スペース）のコードブロックはパーサが codeBlock 化する一方で
+    // 原文にフェンスが無く、書き戻しの対応が取れない。件数不一致で必ずここに落ちるので、
+    // 黙って壊さず変換を拒否して原文の修正（フェンス化）を促す。
+    throw new Error(
+      `codeBlock 数 (${blocks.length}) とフェンス数 (${fences.length}) が一致しない` +
+        '（インデント形式のコードブロックはフェンス（\`\`\`）に書き換えること）',
+    );
   }
   blocks.forEach((block, idx) => {
     const text = fences[idx];
@@ -151,7 +163,8 @@ function runBatch() {
     process.stderr.write('stdin は ["path.md", ...] の JSON 配列であること\n');
     process.exit(1);
   }
-  const result = {};
+  // 入力パスに "__proto__" 等が来ても prototype を汚染せず own property として持てる map。
+  const result = Object.create(null);
   const errors = [];
   for (const path of paths) {
     try {

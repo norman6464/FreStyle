@@ -128,24 +128,24 @@ function PeekablePanel({
         onMouseLeave={panel.closePeek}
       />
 
-      {/* 本文左上の ☰（ホバーで一時表示・クリックで固定）。 */}
-      {/* fixed の span 自体がツールチップ(absolute)の基準になるため relative は不要。 */}
-      <span
-        className={`group/ptip hidden md:inline-flex fixed left-3 top-[72px] z-30 transition-opacity ${
-          panel.isPeeking ? 'opacity-0 pointer-events-none' : 'opacity-100'
-        }`}
+      {/* ☰ は幅 40px の透明ガター（背景・枠なし）に置き、本文をその分だけ右に寄せる。
+          浮かせる（fixed）とページ側の見出しやボタンに重なるため、レイアウトで場所を確保する。 */}
+      <div
+        onMouseEnter={panel.openPeek}
+        onMouseLeave={panel.closePeek}
+        className="hidden md:flex w-10 flex-shrink-0 flex-col items-center pt-3 h-full"
       >
-        <button
-          onClick={panel.pin}
-          onMouseEnter={panel.openPeek}
-          onMouseLeave={panel.closePeek}
-          aria-label="サイドバーを固定表示する"
-          className="p-2 rounded-md bg-[var(--color-surface-1)] border border-surface-3 text-[var(--color-text-tertiary)] shadow-sm hover:bg-[var(--color-nav-hover)] hover:text-[var(--color-text-primary)] transition-colors"
-        >
-          <Bars3Icon className="w-4 h-4" />
-        </button>
-        <PanelTooltip label="サイドバーを固定表示する" />
-      </span>
+        <span className={`relative group/ptip inline-flex transition-opacity ${panel.isPeeking ? 'opacity-0' : 'opacity-100'}`}>
+          <button
+            onClick={panel.pin}
+            aria-label="サイドバーを固定表示する"
+            className="p-1.5 rounded-md text-[var(--color-text-tertiary)] hover:bg-[var(--color-nav-hover)] hover:text-[var(--color-text-primary)] transition-colors"
+          >
+            <Bars3Icon className="w-5 h-5" />
+          </button>
+          <PanelTooltip label="サイドバーを固定表示する" />
+        </span>
+      </div>
 
       {/* 一時表示のオーバーレイパネル（本文は動かさない）。 */}
       <div

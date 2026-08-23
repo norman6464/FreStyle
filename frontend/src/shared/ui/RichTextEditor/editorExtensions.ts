@@ -4,10 +4,14 @@ import { Placeholder } from '@tiptap/extensions';
 import Image from '@tiptap/extension-image';
 import Code from '@tiptap/extension-code';
 import Heading from '@tiptap/extension-heading';
+import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
+import { ReactNodeViewRenderer } from '@tiptap/react';
 import { textblockTypeInputRule } from '@tiptap/react';
 import type { EditorCommand } from './editorCommands';
 import { SlashCommand } from './slashCommandExtension';
 import { ListNormalization } from './listNormalization';
+import { lowlight } from './codeBlockLanguages';
+import CodeBlockView from './CodeBlockView';
 
 /**
  * CombinableCode は他のマークと共存できるインラインコード。
@@ -25,6 +29,17 @@ const CombinableCode = Code.extend({ excludes: '' });
  * `＃`（全角）や全角スペースになり変換されないため、全角 `＃`（半角と混在も可）＋
  * 半角/全角スペースでも同じ level に変換されるルールを追加する。
  */
+/**
+ * HighlightedCodeBlock は lowlight による構文ハイライトと、右上の言語選択・コピー UI
+ * （CodeBlockView）を備えたコードブロック。ノード名は 'codeBlock' のままなので、
+ * スラッシュ（/codeblock）・バブルメニュー・既存 doc とそのまま互換。
+ */
+const HighlightedCodeBlock = CodeBlockLowlight.extend({
+  addNodeView() {
+    return ReactNodeViewRenderer(CodeBlockView);
+  },
+});
+
 const JapaneseFriendlyHeading = Heading.extend({
   addInputRules() {
     const defaultRules = this.parent?.() ?? [];
@@ -66,10 +81,13 @@ export function createEditorExtensions(
   const { placeholder = '本文を入力…', image = true, slashItems } = options;
 
   const extensions: Extensions = [
-    // StarterKit の code は排他指定、heading は半角 # のみのため無効化し、拡張版へ差し替える。
-    StarterKit.configure({ heading: false, code: false }),
+    // StarterKit の code は排他指定、heading は半角 # のみ、codeBlock はハイライトなしのため
+    // それぞれ無効化し、拡張版へ差し替える。
+    StarterKit.configure({ heading: false, code: false, codeBlock: false }),
     CombinableCode,
     JapaneseFriendlyHeading.configure({ levels: [1, 2, 3] }),
+    // 構文ハイライト付きコードブロック。右上の言語選択/コピーは NodeView（CodeBlockView）が持つ。
+    HighlightedCodeBlock.configure({ lowlight, defaultLanguage: 'plaintext' }),
     // 隣接する同種リストを結合し、番号リストの番号リセットを防ぐ。
     ListNormalization,
     Placeholder.configure({ placeholder }),

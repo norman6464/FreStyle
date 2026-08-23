@@ -122,8 +122,10 @@
  *   - アクセント色は使用箇所を絞り、視覚ノイズを排除する
  */
 :root {
-  /* body は白。カードは border + 影で浮かせる（FRESTYLE-147）。 */
-  --color-surface: #FFFFFF;
+  /* body はテキスト選択風の淡いブルー。白いカード / パネルが border + 影とあわせて
+     地色から浮き、画面の領域構造がひと目で分かる（ユーザー要望 2026-08-23）。
+     濃さの調整・白への巻き戻しはこの 1 行で行える。 */
+  --color-surface: #B7D3EE;
   --color-surface-1: #FFFFFF;
   --color-surface-2: #F5F5F4;
   --color-surface-3: #E7E5E4;
@@ -144,7 +146,8 @@
   --color-text-faint: #D3D3D0;
   --color-text-subtle: #E8E8E6;
   --color-border-hover: #D3D3D0;
-  --scrollbar-track: #FFFFFF;
+  /* スクロールバーの溝は地色に追随させる。 */
+  --scrollbar-track: var(--color-surface);
   --scrollbar-thumb: #D3D3D0;
   --scrollbar-thumb-hover: #A4A4A0;
 

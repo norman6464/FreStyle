@@ -6,6 +6,7 @@ import (
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -296,4 +297,91 @@ func Test_教材_削除_自社管理者は成功(t *testing.T) {
 	err := uc.Delete(context.Background(), 1, 10, domain.RoleCompanyAdmin)
 	require.NoError(t, err)
 	assert.Equal(t, uint64(1), mstore.deleted)
+}
+
+// newIdleCourseRepo は UpdateDoc 系テスト用の「呼ばれない」course repo mock。
+func newIdleCourseRepo() *mockCourseRepo {
+	repo := &mockCourseRepo{}
+	repo.On("GetByID", mock.Anything, mock.Anything).Return(nil, nil).Maybe()
+	return repo
+}
+
+// --- UpdateDoc（リッチ本文の楽観ロック保存） ---
+
+func docUpdateRepo(existing *domain.TeachingMaterial, updated *domain.TeachingMaterial, updateErr error) *mockMaterialRepo {
+	repo := &mockMaterialRepo{}
+	repo.On("GetByID", mock.Anything, mock.Anything).Return(existing, nil).Maybe()
+	repo.On("UpdateDocWithRevision", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(updated, updateErr).Maybe()
+	return repo
+}
+
+func TestTeachingMaterialUseCase_UpdateDoc(t *testing.T) {
+	validDoc := `{"type":"doc","content":[{"type":"paragraph"}]}`
+	existing := &domain.TeachingMaterial{ID: 1, CompanyID: 10, Revision: 3}
+
+	t.Run("company_admin は自社の章を保存でき revision 付きで返る", func(t *testing.T) {
+		updatedDoc := validDoc
+		updated := &domain.TeachingMaterial{ID: 1, CompanyID: 10, Revision: 4, Doc: &updatedDoc}
+		repo := docUpdateRepo(existing, updated, nil)
+		uc := usecase.NewTeachingMaterialUseCase(repo, newIdleCourseRepo())
+		got, err := uc.UpdateDoc(context.Background(), usecase.UpdateChapterDocInput{
+			ID: 1, ActorCompanyID: 10, ActorRole: domain.RoleCompanyAdmin,
+			Doc: validDoc, ExpectedRevision: 3,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, 4, got.Revision)
+		repo.AssertCalled(t, "UpdateDocWithRevision", mock.Anything, uint64(1), validDoc, 3)
+	})
+
+	t.Run("trainee は forbidden", func(t *testing.T) {
+		repo := docUpdateRepo(existing, nil, nil)
+		uc := usecase.NewTeachingMaterialUseCase(repo, newIdleCourseRepo())
+		_, err := uc.UpdateDoc(context.Background(), usecase.UpdateChapterDocInput{
+			ID: 1, ActorCompanyID: 10, ActorRole: domain.RoleTrainee,
+			Doc: validDoc, ExpectedRevision: 3,
+		})
+		require.ErrorContains(t, err, "forbidden")
+		repo.AssertNotCalled(t, "UpdateDocWithRevision", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	})
+
+	t.Run("他社の章は company_admin でも forbidden", func(t *testing.T) {
+		repo := docUpdateRepo(existing, nil, nil)
+		uc := usecase.NewTeachingMaterialUseCase(repo, newIdleCourseRepo())
+		_, err := uc.UpdateDoc(context.Background(), usecase.UpdateChapterDocInput{
+			ID: 1, ActorCompanyID: 99, ActorRole: domain.RoleCompanyAdmin,
+			Doc: validDoc, ExpectedRevision: 3,
+		})
+		require.ErrorContains(t, err, "forbidden")
+	})
+
+	t.Run("doc の型不正（type が doc でない）は ErrChapterDocInvalid", func(t *testing.T) {
+		repo := docUpdateRepo(existing, nil, nil)
+		uc := usecase.NewTeachingMaterialUseCase(repo, newIdleCourseRepo())
+		_, err := uc.UpdateDoc(context.Background(), usecase.UpdateChapterDocInput{
+			ID: 1, ActorCompanyID: 10, ActorRole: domain.RoleCompanyAdmin,
+			Doc: `{"type":"paragraph"}`, ExpectedRevision: 3,
+		})
+		require.ErrorIs(t, err, usecase.ErrChapterDocInvalid)
+	})
+
+	t.Run("expectedRevision が 0 以下は ErrChapterDocInvalid", func(t *testing.T) {
+		repo := docUpdateRepo(existing, nil, nil)
+		uc := usecase.NewTeachingMaterialUseCase(repo, newIdleCourseRepo())
+		_, err := uc.UpdateDoc(context.Background(), usecase.UpdateChapterDocInput{
+			ID: 1, ActorCompanyID: 10, ActorRole: domain.RoleCompanyAdmin,
+			Doc: validDoc, ExpectedRevision: 0,
+		})
+		require.ErrorIs(t, err, usecase.ErrChapterDocInvalid)
+	})
+
+	t.Run("repository の版不一致（ErrChapterDocConflict）は素通しする", func(t *testing.T) {
+		repo := docUpdateRepo(existing, nil, repository.ErrChapterDocConflict)
+		uc := usecase.NewTeachingMaterialUseCase(repo, newIdleCourseRepo())
+		_, err := uc.UpdateDoc(context.Background(), usecase.UpdateChapterDocInput{
+			ID: 1, ActorCompanyID: 10, ActorRole: domain.RoleCompanyAdmin,
+			Doc: validDoc, ExpectedRevision: 2,
+		})
+		require.ErrorIs(t, err, repository.ErrChapterDocConflict)
+	})
 }

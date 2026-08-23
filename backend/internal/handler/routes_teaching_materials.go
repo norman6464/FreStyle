@@ -19,6 +19,7 @@ func registerTeachingMaterialRoutes(g *gin.RouterGroup, deps *routeDeps) {
 	g.GET("/teaching-materials/:id", h.Get)
 	g.POST("/teaching-materials", h.Create)
 	g.PUT("/teaching-materials/:id", h.Update)
+	g.PUT("/teaching-materials/:id/doc", h.UpdateDoc)
 	g.DELETE("/teaching-materials/:id", h.Delete)
 
 	// 章閲覧記録（「続きから」カードの基盤）。ベストエフォートなので失敗しても 204 を返す。

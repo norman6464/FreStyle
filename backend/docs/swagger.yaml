@@ -394,6 +394,12 @@ definitions:
         type: boolean
       orderInCourse:
         type: integer
+      revision:
+        description: Revision は doc 更新の楽観ロック用。doc を更新するたびに +1（不一致は 409）。
+        type: integer
+      schemaVersion:
+        description: SchemaVersion は doc のエディタスキーマ版。読込時アップキャストの目印（現行 1）。
+        type: integer
       title:
         type: string
       updatedAt:
@@ -655,6 +661,41 @@ definitions:
         type: string
       sizeBytes:
         type: integer
+    type: object
+  internal_handler.chapterDetailResponse:
+    properties:
+      companyId:
+        type: integer
+      content:
+        type: string
+      courseId:
+        description: NOT NULL は migration 0004 で確定するため GORM tag では指定しない（既存行への ADD
+          COLUMN 対策）。
+        type: integer
+      createdAt:
+        type: string
+      createdByUserId:
+        type: integer
+      doc:
+        items:
+          type: integer
+        type: array
+      id:
+        type: integer
+      isPublished:
+        type: boolean
+      orderInCourse:
+        type: integer
+      revision:
+        description: Revision は doc 更新の楽観ロック用。doc を更新するたびに +1（不一致は 409）。
+        type: integer
+      schemaVersion:
+        description: SchemaVersion は doc のエディタスキーマ版。読込時アップキャストの目印（現行 1）。
+        type: integer
+      title:
+        type: string
+      updatedAt:
+        type: string
     type: object
   internal_handler.codeExecuteRequest:
     properties:
@@ -1161,6 +1202,19 @@ definitions:
         type: integer
       title:
         type: string
+    type: object
+  internal_handler.updateChapterDocRequest:
+    properties:
+      doc:
+        items:
+          type: integer
+        type: array
+      expectedRevision:
+        minimum: 1
+        type: integer
+    required:
+    - doc
+    - expectedRevision
     type: object
   internal_handler.updateCompanyApplicationStatusReq:
     properties:
@@ -3926,6 +3980,56 @@ paths:
       security:
       - CookieAuth: []
       summary: 教材 更新
+      tags:
+      - teaching-materials
+  /teaching-materials/{id}/doc:
+    put:
+      consumes:
+      - application/json
+      description: tiptap の doc JSON を revision 楽観 ロック で 保存 する。 不一致 は 409。 canManage
+        のみ。
+      parameters:
+      - description: 章 ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: doc と expectedRevision
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.updateChapterDocRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handler.chapterDetailResponse'
+        "400":
+          description: doc が 不正
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "401":
+          description: 未 認証
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "403":
+          description: 権限 なし
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "404":
+          description: 章 が 見つからない
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+        "409":
+          description: 版 不一致 (他 で 更新 済み)
+          schema:
+            $ref: '#/definitions/internal_handler.errorResponse'
+      security:
+      - CookieAuth: []
+      summary: 章 リッチ 本文 更新
       tags:
       - teaching-materials
   /teaching-materials/{id}/view:

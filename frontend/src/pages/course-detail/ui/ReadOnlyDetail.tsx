@@ -2,13 +2,16 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRightIcon, ListBulletIcon } from '@heroicons/react/24/outline';
 import { useLocalStorage } from '@/shared/lib/hooks/useLocalStorage';
 import MarkdownTableOfContents from '@/shared/ui/MarkdownTableOfContents';
+import { RichTextEditor } from '@/shared/ui/RichTextEditor';
 import type { Course, CourseWithProgress, TeachingMaterial } from '@/entities/course';
 import CompleteToggleButton from './CompleteToggleButton';
 import ChapterNav from './ChapterNav';
+import DocTableOfContents from './DocTableOfContents';
 import ImageLightbox from './ImageLightbox';
 import ReadOnlyMarkdown from './ReadOnlyMarkdown';
 import { formatDate } from '../lib/formatDate';
 import { stripLeadingTitle } from '../lib/stripLeadingTitle';
+import { stripLeadingDocTitle } from '../lib/stripLeadingDocTitle';
 
 /**
  * trainee 向けの教材閲覧ビュー。記事風の本文カード + 右サイドバー(目次 + 章一覧)。
@@ -57,6 +60,14 @@ export default function ReadOnlyDetail({
   // 本文先頭の h1(= タイトル)は、下のヘッダーで material.title を大きく出すため取り除く。
   // 残すとカードの外(ヘッダー)とカードの中(本文)でタイトルが二重に見える(FRESTYLE-131)。
   const bodyContent = useMemo(() => stripLeadingTitle(material.content), [material.content]);
+  // リッチ本文（tiptap JSON）。未移行の章は null で、従来の Markdown 表示へフォールバックする
+  // （content 列の撤去はフェーズ E。それまで両対応を保つ）。
+  const bodyDoc = useMemo(
+    () => (material.doc ? stripLeadingDocTitle(material.doc) : null),
+    [material.doc],
+  );
+  // doc 表示のコンテナ。目次の anchor id 付与（DocTableOfContents）と画像クリック委譲で使う。
+  const articleRef = useRef<HTMLDivElement>(null);
 
   // 本文内の画像クリックでモーダル拡大表示する(FRESTYLE-191)。ページを離れずに図の細部を
   // 確認できる(別タブで開くリンクは学習が中断されるため FRESTYLE-125 で除去済み)。
@@ -110,9 +121,25 @@ export default function ReadOnlyDetail({
                 <CompleteToggleButton completed={completed} onToggle={onToggleComplete} />
               </div>
             </header>
-            <div className="prose prose-sm max-w-none course-prose">
-              <ReadOnlyMarkdown content={bodyContent} onImageClick={setLightboxImage} />
-            </div>
+            {bodyDoc ? (
+              // 画像クリックの拡大表示は、tiptap の描画 DOM へのクリック委譲で拾う
+              // （読み取り専用なのでエディタ側のハンドラと競合しない）。
+              <div
+                ref={articleRef}
+                onClick={(e) => {
+                  const target = e.target;
+                  if (target instanceof HTMLImageElement && target.src) {
+                    setLightboxImage({ src: target.src, alt: target.alt });
+                  }
+                }}
+              >
+                <RichTextEditor value={bodyDoc} editable={false} ariaLabel="教材本文" />
+              </div>
+            ) : (
+              <div className="prose prose-sm max-w-none course-prose">
+                <ReadOnlyMarkdown content={bodyContent} onImageClick={setLightboxImage} />
+              </div>
+            )}
 
             {/* 末尾に「完了にする」と「次の章へ」を並べ、 読み終えた位置から次へ進めるようにする。
                 崩れ対策(FRESTYLE-189): 完了ボタンは shrink-0 / whitespace-nowrap で常に 1 行を保ち、
@@ -163,7 +190,11 @@ export default function ReadOnlyDetail({
             <div className="sticky top-6 flex max-h-[calc(100vh-3rem)] flex-col gap-4">
               <div className="flex min-h-0 flex-col rounded-xl border border-surface-3 bg-white p-4 shadow-sm">
                 {/* タイトルはヘッダーで大きく出すため、 目次からも先頭 h1 を除いた本文を渡す。 */}
-                <MarkdownTableOfContents content={bodyContent} />
+                {bodyDoc ? (
+                  <DocTableOfContents doc={bodyDoc} articleRef={articleRef} />
+                ) : (
+                  <MarkdownTableOfContents content={bodyContent} />
+                )}
               </div>
               {/* 章一覧は左パネルから右サイドバー(目次の下)へ移動(FRESTYLE-118)。 */}
               <div className="flex min-h-0 flex-col rounded-xl border border-surface-3 bg-white p-4 shadow-sm">

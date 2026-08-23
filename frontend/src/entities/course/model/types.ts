@@ -1,3 +1,4 @@
+import type { RichDocContent } from '@/shared/ui/RichTextEditor';
 /**
  * コース（course）entity のドメイン型。
  *
@@ -55,6 +56,13 @@ export interface TeachingMaterial {
   createdByUserId: number;
   title: string;
   content: string;
+  /**
+   * リッチ本文（tiptap JSON）。詳細 GET のみが返す（一覧には含まれない）。
+   * 未移行の章は null（過渡期は Markdown の content へフォールバック表示する）。
+   */
+  doc?: RichDocContent | null;
+  /** doc 更新の楽観ロック版数。詳細 GET のみが返す。 */
+  revision?: number;
   orderInCourse: number;
   isPublished: boolean;
   createdAt: string;

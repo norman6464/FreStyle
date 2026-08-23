@@ -157,6 +157,15 @@ export const EDITOR_COMMANDS: EditorCommand[] = [
   },
   // --- カーソル位置への挿入 ---
   {
+    id: 'taskList',
+    label: 'タスクリスト',
+    group: 'turn',
+    glyph: '☑',
+    keywords: ['task', 'tasklist', 'todo', 'check', 'checkbox', 'checklist'],
+    isActive: (editor) => editor.isActive('taskList'),
+    run: (editor) => focused(editor).toggleTaskList().run(),
+  },
+  {
     id: 'table',
     label: '表',
     group: 'insert',

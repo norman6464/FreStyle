@@ -6,6 +6,7 @@ import Code from '@tiptap/extension-code';
 import Heading from '@tiptap/extension-heading';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import { TableKit } from '@tiptap/extension-table';
+import { TaskItem, TaskList } from '@tiptap/extension-list';
 import { ReactNodeViewRenderer } from '@tiptap/react';
 import { textblockTypeInputRule } from '@tiptap/react';
 import type { EditorCommand } from './editorCommands';
@@ -97,6 +98,9 @@ export function createEditorExtensions(
     // 表（GFM テーブル相当）。教材の本文とノートの両方で使う。
     // resizable は列幅ドラッグ UI が必要になるため、まずは固定幅で表現力を優先する。
     TableKit.configure({ table: { resizable: false } }),
+    // タスクリスト（チェックボックス）。教材のチェックリスト章とノートの TODO で使う。
+    TaskList,
+    TaskItem.configure({ nested: true }),
     Placeholder.configure({ placeholder }),
   ];
 

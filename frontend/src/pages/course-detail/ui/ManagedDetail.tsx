@@ -16,7 +16,7 @@ export default function ManagedDetail({
 }) {
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <div className="px-6 pt-4 pb-2 flex items-center justify-end gap-2 border-b border-surface-3">
+      <div className="px-6 pt-4 pb-2 flex items-center justify-end gap-2">
         <label className="flex items-center gap-2 text-xs text-[var(--color-text-secondary)] cursor-pointer">
           <input
             type="checkbox"

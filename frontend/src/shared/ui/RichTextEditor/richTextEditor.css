@@ -344,3 +344,44 @@
   font-size: 0.75rem;
   color: var(--color-text-muted);
 }
+
+/*
+ * 表（TableKit）。Typography の table スタイルを下敷きに、編集時に境界が見えるよう罫線を明示する。
+ * 幅は固定レイアウトで均等割り（列リサイズ UI は導入していない）。
+ */
+.rte-content .ProseMirror table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  margin: 1rem 0;
+  overflow: hidden;
+}
+
+.rte-content .ProseMirror th,
+.rte-content .ProseMirror td {
+  border: 1px solid var(--color-surface-3);
+  padding: 0.4rem 0.6rem;
+  vertical-align: top;
+  position: relative;
+}
+
+.rte-content .ProseMirror th {
+  background: var(--color-surface-2);
+  font-weight: 600;
+  text-align: left;
+}
+
+/* セル内の段落余白は詰める（Typography の p マージンをセル内では無効化）。 */
+.rte-content .ProseMirror th p,
+.rte-content .ProseMirror td p {
+  margin: 0;
+}
+
+/* 選択中セルのハイライト（ProseMirror-tables の selectedCell）。 */
+.rte-content .ProseMirror .selectedCell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgb(59 130 246 / 12%);
+  pointer-events: none;
+}

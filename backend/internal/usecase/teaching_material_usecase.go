@@ -188,7 +188,7 @@ func (uc *TeachingMaterialUseCase) UpdateDoc(ctx context.Context, in UpdateChapt
 	}
 	if err := validateDoc(in.Doc); err != nil {
 		// rich_documents 用のエラー種別を章用に読み替える（HTTP 400 へ落とすため）。
-		return nil, fmt.Errorf("%w: %v", ErrChapterDocInvalid, err)
+		return nil, fmt.Errorf("%w: %w", ErrChapterDocInvalid, err)
 	}
 	return uc.repo.UpdateDocWithRevision(ctx, in.ID, in.Doc, in.ExpectedRevision)
 }

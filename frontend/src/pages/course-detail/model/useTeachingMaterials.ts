@@ -109,10 +109,23 @@ export function useTeachingMaterials(courseId: number | null) {
     try {
       const updated = await TeachingMaterialRepository.update(id, payload);
       setMaterials((prev) => prev.map((m) => (m.id === id ? stripContent(updated) : m)).sort(byOrderThenId));
-      setDetailCache((prev) => ({ ...prev, [id]: updated }));
+      // 既存 PUT の応答にはリッチ本文（doc）と revision が含まれない（domain 側 json:"-"）。
+      // そのまま上書きするとキャッシュの doc が消えて閲覧/編集モード判定が壊れるため引き継ぐ。
+      setDetailCache((prev) => ({
+        ...prev,
+        [id]: { ...updated, doc: prev[id]?.doc ?? null, revision: prev[id]?.revision },
+      }));
     } catch {
       setError('教材の更新に失敗しました');
     }
+  }, []);
+
+  // doc 保存（PUT /doc）の応答で詳細キャッシュを最新化する（doc / revision を含む）。
+  const syncDetail = useCallback((material: TeachingMaterial) => {
+    setDetailCache((prev) => ({ ...prev, [material.id]: material }));
+    setMaterials((prev) =>
+      prev.map((m) => (m.id === material.id ? stripContent(material) : m)).sort(byOrderThenId),
+    );
   }, []);
 
   const remove = useCallback(
@@ -144,6 +157,7 @@ export function useTeachingMaterials(courseId: number | null) {
     fetchAll,
     create,
     update,
+    syncDetail,
     remove,
   };
 }

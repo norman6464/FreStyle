@@ -28,4 +28,5 @@ export type { CourseLanguageDef } from './config/courseLanguages';
 export type {
   TeachingMaterialCreatePayload,
   TeachingMaterialUpdatePayload,
+  TeachingMaterialDocPayload,
 } from './api/teachingMaterialRepository';

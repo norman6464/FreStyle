@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useState, type RefObject } from 'react';
 import { ArrowRightIcon } from '@heroicons/react/24/outline';
-import { RichTextEditor, type RichDocContent } from '@/shared/ui/RichTextEditor';
+import { emptyRichDoc, RichTextEditor, type RichDocContent } from '@/shared/ui/RichTextEditor';
 import type { CourseWithProgress, TeachingMaterial } from '@/entities/course';
 import CompleteToggleButton from './CompleteToggleButton';
 import ImageLightbox from './ImageLightbox';
-import ReadOnlyMarkdown from './ReadOnlyMarkdown';
 import { formatDate } from '../lib/formatDate';
-import { stripLeadingTitle } from '../lib/stripLeadingTitle';
 
 /**
  * trainee 向けの教材閲覧ビュー。
@@ -29,7 +27,7 @@ export default function ReadOnlyDetail({
   onGoNextCourse,
 }: {
   material: TeachingMaterial;
-  /** 先頭 h1 除去済みのリッチ本文。null なら Markdown content へフォールバック（フェーズ E で撤去）。 */
+  /** 先頭 h1 除去済みのリッチ本文。null（まだ本文を保存していない新規章）は空 doc として描画する。 */
   bodyDoc: RichDocContent | null;
   /** 本文コンテナの ref。左パネルの目次(DocTableOfContents)が anchor id を振るために参照する。 */
   articleRef: RefObject<HTMLDivElement | null>;
@@ -47,9 +45,8 @@ export default function ReadOnlyDetail({
     articleRef.current?.closest('[data-course-scroll]')?.scrollTo({ top: 0 });
   }, [material.id, articleRef]);
 
-  // 本文先頭の h1(= タイトル)は、上のタイトル見出しで material.title を大きく出すため取り除く。
-  // 残すとタイトルが二重に見える(FRESTYLE-131)。
-  const bodyContent = useMemo(() => stripLeadingTitle(material.content), [material.content]);
+  // doc が null の章（理論上は本文未保存の新規章のみ）は空 doc として描画する。
+  const displayDoc = useMemo(() => bodyDoc ?? emptyRichDoc(), [bodyDoc]);
 
   // 本文内の画像クリックでモーダル拡大表示する(FRESTYLE-191)。
   const [lightboxImage, setLightboxImage] = useState<{ src: string; alt: string } | null>(null);
@@ -75,25 +72,19 @@ export default function ReadOnlyDetail({
             </p>
           </div>
 
-          {bodyDoc ? (
-            // 画像クリックの拡大表示は、tiptap の描画 DOM へのクリック委譲で拾う
-            // （読み取り専用なのでエディタ側のハンドラと競合しない）。
-            <div
-              ref={articleRef}
-              onClick={(e) => {
-                const target = e.target;
-                if (target instanceof HTMLImageElement && target.src) {
-                  setLightboxImage({ src: target.src, alt: target.alt });
-                }
-              }}
-            >
-              <RichTextEditor value={bodyDoc} editable={false} ariaLabel="教材本文" className="course-doc" />
-            </div>
-          ) : (
-            <div className="prose prose-sm max-w-none course-prose">
-              <ReadOnlyMarkdown content={bodyContent} onImageClick={setLightboxImage} />
-            </div>
-          )}
+          {/* 画像クリックの拡大表示は、tiptap の描画 DOM へのクリック委譲で拾う
+              （読み取り専用なのでエディタ側のハンドラと競合しない）。 */}
+          <div
+            ref={articleRef}
+            onClick={(e) => {
+              const target = e.target;
+              if (target instanceof HTMLImageElement && target.src) {
+                setLightboxImage({ src: target.src, alt: target.alt });
+              }
+            }}
+          >
+            <RichTextEditor value={displayDoc} editable={false} ariaLabel="教材本文" className="course-doc" />
+          </div>
 
           {/* 末尾に「完了にする」と「次の章へ」を並べ、 読み終えた位置から次へ進めるようにする。
               最終章では代わりに「次のコースへ」を出す(FRESTYLE-102)。 */}

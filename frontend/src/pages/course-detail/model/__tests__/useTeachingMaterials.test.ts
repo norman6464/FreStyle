@@ -3,6 +3,7 @@ import { renderHook, waitFor, act } from '@testing-library/react';
 import { useTeachingMaterials } from '../useTeachingMaterials';
 import { CourseRepository } from '@/entities/course';
 import { TeachingMaterialRepository } from '@/entities/course';
+import type { RichDocContent } from '@/shared/ui/RichTextEditor';
 
 vi.mock('@/entities/course/api/courseRepository', () => ({
   default: {
@@ -27,6 +28,11 @@ vi.mock('@/entities/course/api/teachingMaterialRepository', () => ({
 const courseMocks = vi.mocked(CourseRepository);
 const materialMocks = vi.mocked(TeachingMaterialRepository);
 
+const doc = (text: string): RichDocContent => ({
+  type: 'doc',
+  content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
+});
+
 const sample = (
   id: number,
   overrides: Partial<{ title: string; isPublished: boolean; orderInCourse: number }> = {},
@@ -36,7 +42,6 @@ const sample = (
   courseId: 5,
   createdByUserId: 1,
   title: overrides.title ?? `教材${id}`,
-  content: '',
   orderInCourse: overrides.orderInCourse ?? id * 10,
   isPublished: overrides.isPublished ?? true,
   createdAt: '',
@@ -68,16 +73,16 @@ describe('useTeachingMaterials', () => {
     expect(result.current.error).toBe('教材の取得に失敗しました');
   });
 
-  it('選択した教材だけ本文を都度取得して selected に入る（全章は先読みしない）', async () => {
+  it('選択した教材だけ本文(doc)を都度取得して selected に入る（全章は先読みしない）', async () => {
     courseMocks.listMaterials.mockResolvedValue([sample(1), sample(2)]);
-    materialMocks.get.mockResolvedValue({ ...sample(1), content: '# 本文1' });
+    materialMocks.get.mockResolvedValue({ ...sample(1), doc: doc('本文1'), revision: 1 });
     const { result } = renderHook(() => useTeachingMaterials(5));
     await waitFor(() => expect(result.current.loading).toBe(false));
     // 一覧取得だけでは本文取得(get)は呼ばれない。
     expect(materialMocks.get).not.toHaveBeenCalled();
 
     act(() => result.current.selectMaterial(1));
-    await waitFor(() => expect(result.current.selected?.content).toBe('# 本文1'));
+    await waitFor(() => expect(result.current.selected?.doc).toEqual(doc('本文1')));
     expect(materialMocks.get).toHaveBeenCalledWith(1);
     expect(materialMocks.get).toHaveBeenCalledTimes(1);
 
@@ -92,7 +97,7 @@ describe('useTeachingMaterials', () => {
     courseMocks.listMaterials.mockResolvedValue([sample(1), sample(2)]);
     materialMocks.get
       .mockRejectedValueOnce(new Error('boom'))
-      .mockResolvedValueOnce({ ...sample(2), content: '# 本文2' });
+      .mockResolvedValueOnce({ ...sample(2), doc: doc('本文2'), revision: 1 });
     const { result } = renderHook(() => useTeachingMaterials(5));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
@@ -102,14 +107,14 @@ describe('useTeachingMaterials', () => {
     // 別章へ切り替えた瞬間に error はクリアされ、新章の本文取得が走る。
     act(() => result.current.selectMaterial(2));
     expect(result.current.error).toBeNull();
-    await waitFor(() => expect(result.current.selected?.content).toBe('# 本文2'));
+    await waitFor(() => expect(result.current.selected?.doc).toEqual(doc('本文2')));
   });
 
   it('取得失敗後に同じ章を選び直すと再取得が走る（ローディングで固まらない）', async () => {
     courseMocks.listMaterials.mockResolvedValue([sample(1)]);
     materialMocks.get
       .mockRejectedValueOnce(new Error('boom'))
-      .mockResolvedValueOnce({ ...sample(1), content: '# 本文1' });
+      .mockResolvedValueOnce({ ...sample(1), doc: doc('本文1'), revision: 1 });
     const { result } = renderHook(() => useTeachingMaterials(5));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
@@ -119,19 +124,22 @@ describe('useTeachingMaterials', () => {
     // 同じ章を選び直す → selectedId は不変だが selectionSeq が進むので effect が再実行される。
     act(() => result.current.selectMaterial(1));
     expect(result.current.error).toBeNull();
-    await waitFor(() => expect(result.current.selected?.content).toBe('# 本文1'));
+    await waitFor(() => expect(result.current.selected?.doc).toEqual(doc('本文1')));
     expect(materialMocks.get).toHaveBeenCalledTimes(2);
   });
 
-  it('create 成功時にリストに追加され selected になる', async () => {
+  it('create 成功時にリストに追加され selected になる（一覧 state に doc は持たせない）', async () => {
     courseMocks.listMaterials.mockResolvedValue([]);
-    materialMocks.create.mockResolvedValue(sample(99, { orderInCourse: 100 }));
+    materialMocks.create.mockResolvedValue({
+      ...sample(99, { orderInCourse: 100 }),
+      doc: doc('新規章の本文'),
+      revision: 1,
+    });
     const { result } = renderHook(() => useTeachingMaterials(5));
     await waitFor(() => expect(result.current.loading).toBe(false));
     await act(async () => {
       await result.current.create({
         title: '新',
-        content: '',
         orderInCourse: 100,
         isPublished: false,
       });
@@ -139,7 +147,27 @@ describe('useTeachingMaterials', () => {
     expect(materialMocks.create).toHaveBeenCalledWith(expect.objectContaining({ courseId: 5 }));
     expect(result.current.materials).toHaveLength(1);
     expect(result.current.materials[0].id).toBe(99);
+    // 一覧はメタデータのみ（doc / revision は詳細キャッシュ側だけが持つ）。
+    expect(result.current.materials[0].doc).toBeUndefined();
+    expect(result.current.materials[0].revision).toBeUndefined();
     expect(result.current.selectedId).toBe(99);
+    expect(result.current.selected?.doc).toEqual(doc('新規章の本文'));
+  });
+
+  it('syncDetail は詳細キャッシュへ doc を反映しつつ、一覧 state には doc を混ぜない', async () => {
+    courseMocks.listMaterials.mockResolvedValue([sample(1)]);
+    materialMocks.get.mockResolvedValue({ ...sample(1), doc: doc('本文1'), revision: 1 });
+    const { result } = renderHook(() => useTeachingMaterials(5));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    act(() => result.current.selectMaterial(1));
+    await waitFor(() => expect(result.current.selected?.doc).toEqual(doc('本文1')));
+
+    // doc 保存（PUT /doc）の応答で最新化された想定。
+    act(() => result.current.syncDetail({ ...sample(1), doc: doc('保存後の本文'), revision: 2 }));
+    expect(result.current.selected?.doc).toEqual(doc('保存後の本文'));
+    expect(result.current.selected?.revision).toBe(2);
+    expect(result.current.materials[0].doc).toBeUndefined();
+    expect(result.current.materials[0].revision).toBeUndefined();
   });
 
   it('remove 成功時にリストから消え selected もクリア', async () => {

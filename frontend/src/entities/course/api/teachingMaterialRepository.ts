@@ -14,14 +14,12 @@ export interface TeachingMaterialCreatePayload {
   /** 所属コース ID（必須）。 */
   courseId: number;
   title: string;
-  content: string;
   orderInCourse: number;
   isPublished: boolean;
 }
 
 export interface TeachingMaterialUpdatePayload {
   title: string;
-  content: string;
   orderInCourse: number;
   isPublished: boolean;
 }

@@ -39,7 +39,6 @@ export { default as HelpTooltip } from './HelpTooltip';
 export { default as LineCount } from './LineCount';
 export { default as WordCount } from './WordCount';
 export { default as ReadingTime } from './ReadingTime';
-export { default as MarkdownTableOfContents } from './MarkdownTableOfContents';
 
 /*
  * CodeEditor は **意図的にこの barrel から出さない**。

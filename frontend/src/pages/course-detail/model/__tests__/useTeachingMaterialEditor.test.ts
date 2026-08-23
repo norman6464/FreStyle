@@ -3,13 +3,12 @@ import { renderHook, act } from '@testing-library/react';
 import { useTeachingMaterialEditor } from '../useTeachingMaterialEditor';
 import type { TeachingMaterial } from '@/entities/course';
 
-const sample = (id: number, content = ''): TeachingMaterial => ({
+const sample = (id: number, title = `教材${id}`): TeachingMaterial => ({
   id,
   companyId: 1,
   courseId: 5,
   createdByUserId: 1,
-  title: `教材${id}`,
-  content,
+  title,
   orderInCourse: id * 10,
   isPublished: true,
   createdAt: '',
@@ -25,30 +24,30 @@ describe('useTeachingMaterialEditor', () => {
       ({ selectedId, selected }: { selectedId: number | null; selected: TeachingMaterial | null }) =>
         useTeachingMaterialEditor({ selectedId, selected, update }),
       {
-        initialProps: { selectedId: 5 as number | null, selected: sample(5, '初期コンテンツ') as TeachingMaterial | null },
+        initialProps: { selectedId: 5 as number | null, selected: sample(5, '初期タイトル') as TeachingMaterial | null },
       },
     );
 
-    expect(result.current.editContent).toBe('初期コンテンツ');
+    expect(result.current.editTitle).toBe('初期タイトル');
 
-    // ユーザがエディタで入力した想定
-    act(() => result.current.handleContentChange('入力中の差分'));
-    expect(result.current.editContent).toBe('入力中の差分');
+    // ユーザがタイトルを入力した想定
+    act(() => result.current.handleTitleChange('入力中の差分'));
+    expect(result.current.editTitle).toBe('入力中の差分');
 
     // autosave 後の materials 再 fetch で selected が新しい参照に置き換わる。
     // ただし selectedId は同じ 5 なので editor 状態を上書きしてはいけない。
     rerender({
       selectedId: 5,
-      selected: sample(5, '初期コンテンツ'), // 新しい object reference
+      selected: sample(5, '初期タイトル'), // 新しい object reference
     });
-    expect(result.current.editContent).toBe('入力中の差分'); // 上書きされない
+    expect(result.current.editTitle).toBe('入力中の差分'); // 上書きされない
 
     // 別の教材 7 を選択 → 今度は state を入れ替える
     rerender({
       selectedId: 7,
-      selected: sample(7, '別教材のコンテンツ'),
+      selected: sample(7, '別教材のタイトル'),
     });
-    expect(result.current.editContent).toBe('別教材のコンテンツ');
+    expect(result.current.editTitle).toBe('別教材のタイトル');
   });
 
   it('selectedId が null になると editor 状態をクリアする', () => {
@@ -60,10 +59,10 @@ describe('useTeachingMaterialEditor', () => {
         initialProps: { selectedId: 5 as number | null, selected: sample(5, 'X') as TeachingMaterial | null },
       },
     );
-    expect(result.current.editContent).toBe('X');
+    expect(result.current.editTitle).toBe('X');
 
     rerender({ selectedId: null, selected: null });
-    expect(result.current.editContent).toBe('');
     expect(result.current.editTitle).toBe('');
+    expect(result.current.editDoc).toEqual({ type: 'doc', content: [{ type: 'paragraph' }] });
   });
 });

@@ -36,7 +36,7 @@ import type { Course } from '@/entities/course';
  * - company_admin / super_admin: コース内教材を作成 / 編集 / 削除 / 公開状態切替
  * - trainee: published コース + published 教材のみ閲覧
  *
- * 左パネルに教材リスト、 右側に詳細（NoteMarkdownEditor 流用 = Edit/Preview タブ）。
+ * 左パネルに教材リスト、 右側に詳細（RichTextEditor によるリッチ本文 doc の編集 / 閲覧）。
  */
 export default function CourseDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -149,7 +149,6 @@ export default function CourseDetailPage() {
   const handleCreate = async () => {
     const created = await create({
       title: '無題の教材',
-      content: '',
       orderInCourse: nextOrder,
       isPublished: false,
     });

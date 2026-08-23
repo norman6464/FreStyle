@@ -28,7 +28,6 @@ function material(overrides: Partial<TeachingMaterial> = {}): TeachingMaterial {
     courseId: 5,
     createdByUserId: 1,
     title: '章',
-    content: '',
     doc: doc('サーバの本文'),
     revision: 3,
     orderInCourse: 1,
@@ -70,22 +69,15 @@ function renderEditor(selected: TeachingMaterial, extra: { onConflict?: () => vo
   );
 }
 
-describe('useTeachingMaterialEditor の doc モード (FRESTYLE-339)', () => {
-  it('doc がある章は docMode になり、初期値がサーバの doc で始まる', () => {
+describe('useTeachingMaterialEditor の doc 編集 (FRESTYLE-339 / FRESTYLE-347)', () => {
+  it('doc がある章は初期値がサーバの doc で始まる', () => {
     const { result } = renderEditor(material());
-    expect(result.current.docMode).toBe(true);
     expect(result.current.editDoc).toEqual(doc('サーバの本文'));
   });
 
-  it('新規章（doc なし・content 空）も docMode になり、空 doc で始まる', () => {
-    const { result } = renderEditor(material({ doc: null, revision: 1, content: '' }));
-    expect(result.current.docMode).toBe(true);
-    expect(result.current.editDoc.type).toBe('doc');
-  });
-
-  it('doc 未移行で Markdown content を持つ章は docMode にならない（フォールバック）', () => {
-    const { result } = renderEditor(material({ doc: null, revision: 1, content: '# 既存の Markdown' }));
-    expect(result.current.docMode).toBe(false);
+  it('doc が null の章（本文未保存の新規章）は空 doc で始まる', () => {
+    const { result } = renderEditor(material({ doc: null, revision: 1 }));
+    expect(result.current.editDoc).toEqual({ type: 'doc', content: [{ type: 'paragraph' }] });
   });
 
   it('handleDocChange の 800ms 後に expectedRevision 付きで保存され、revision が進む', async () => {

@@ -54,7 +54,16 @@ const material = {
   id: 11,
   courseId: 1,
   title: 'E2E 教材タイトル',
-  content: '# E2E 教材タイトル\n\n本文サンプル。',
+  // 本文はリッチ本文（doc / tiptap JSON）が正本。先頭 h1 はタイトルの二重表示防止で
+  // 本文からは除去される（stripLeadingDocTitle）。
+  doc: {
+    type: 'doc',
+    content: [
+      { type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: 'E2E 教材タイトル' }] },
+      { type: 'paragraph', content: [{ type: 'text', text: '本文サンプル。' }] },
+    ],
+  },
+  revision: 1,
   sortOrder: 10,
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-01T00:00:00Z',
@@ -102,12 +111,12 @@ test.describe('コース学習フロー', () => {
     await page.getByText('E2E 学習コース').click();
 
     await expect(page).toHaveURL(/\/courses\/1/);
-    // 詳細はサイドバーに教材一覧があり、選択すると本文(h1)に表示される。
+    // 詳細はサイドバーに教材一覧があり、選択すると本文が tiptap(ProseMirror)で描画される。
     await page.getByRole('button', { name: /E2E 教材タイトル/ }).click();
-    // 本文ヘッダ h1 と markdown 本文内 h1 の 2 つが出るため first を取る。
-    await expect(
-      page.getByRole('heading', { name: 'E2E 教材タイトル', level: 1 }).first()
-    ).toBeVisible();
+    // ヘッダの h1 はタイトル。本文内の重複 h1 は除去されるため 1 つだけ。
+    await expect(page.getByRole('heading', { name: 'E2E 教材タイトル', level: 1 })).toBeVisible();
+    // 本文は tiptap の読み取り専用描画(.ProseMirror)に出る。
+    await expect(page.locator('.ProseMirror').getByText('本文サンプル。')).toBeVisible();
   });
 });
 

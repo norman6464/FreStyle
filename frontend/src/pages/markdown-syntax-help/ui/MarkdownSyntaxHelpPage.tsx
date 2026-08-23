@@ -9,8 +9,8 @@ import { ArrowLeftIcon, ClipboardDocumentIcon, CheckIcon } from '@heroicons/reac
  *   - 左カラムに記法（コードブロック）/ 右カラムにレンダリング結果
  *   - ノートの編集中に並べて参照できるように、 同じ全幅レイアウト
  *
- * Markdown は GitHub Flavored Markdown (remark-gfm) + remark の拡張記法をサポート。
- * 表示はノート / 教材ページの NoteMarkdownEditor の Preview と同じレンダラーで動く前提。
+ * レンダリング結果の列は静的な JSX の再現表示（実レンダラーは介さない）。
+ * ノート / 教材のエディタ（tiptap）は Markdown 入力ショートカットでこれらの記法を解釈する。
  */
 export default function MarkdownSyntaxHelpPage() {
   return (

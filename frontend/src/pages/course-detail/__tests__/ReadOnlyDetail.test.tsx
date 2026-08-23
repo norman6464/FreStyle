@@ -56,7 +56,6 @@ function material(overrides: Partial<TeachingMaterial> = {}): TeachingMaterial {
     courseId: 5,
     createdByUserId: 1,
     title: '章タイトル',
-    content: '# 章タイトル\n\n## Markdown 版見出し\n\nMarkdown 本文です。',
     orderInCourse: 1,
     isPublished: true,
     createdAt: '2026-07-01T00:00:00Z',
@@ -81,15 +80,15 @@ function renderDetail(m: TeachingMaterial) {
 }
 
 describe('ReadOnlyDetail の doc（tiptap）表示 (FRESTYLE-338)', () => {
-  it('doc がある章は tiptap の読み取り専用表示になり、Markdown 版は使われない', async () => {
+  it('doc がある章は tiptap の読み取り専用表示になる', async () => {
     renderDetail(material({ doc: richDoc, revision: 1 }));
     // tiptap の描画（ProseMirror）で本文が出る。
     await waitFor(() => {
       expect(screen.getByText('リッチ本文の段落です。')).toBeInTheDocument();
     });
     expect(document.querySelector('.ProseMirror')).not.toBeNull();
-    // Markdown 版の本文は描画されない。
-    expect(screen.queryByText('Markdown 本文です。')).not.toBeInTheDocument();
+    // 読み取り専用（contenteditable=false）。
+    expect(document.querySelector('.ProseMirror')).toHaveAttribute('contenteditable', 'false');
   });
 
   it('先頭 h1 は本文から除かれる（ヘッダーのタイトルと二重にならない）', async () => {
@@ -136,10 +135,12 @@ describe('ReadOnlyDetail の doc（tiptap）表示 (FRESTYLE-338)', () => {
     });
   });
 
-  it('doc が無い章は従来の Markdown 表示にフォールバックする', () => {
+  it('doc が無い章（本文未保存の新規章）は空 doc として描画する', async () => {
     renderDetail(material({ doc: null }));
-    expect(screen.getByText('Markdown 本文です。')).toBeInTheDocument();
-    expect(document.querySelector('.ProseMirror')).toBeNull();
+    // ヘッダーのタイトルは出るが、本文は空の tiptap 描画になる。
+    expect(screen.getByRole('heading', { level: 1, name: '章タイトル' })).toBeInTheDocument();
+    await waitFor(() => expect(document.querySelector('.ProseMirror')).not.toBeNull());
+    expect(document.querySelector('.ProseMirror')!.textContent).toBe('');
   });
 });
 

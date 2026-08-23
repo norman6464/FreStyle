@@ -19,7 +19,6 @@ function material(id: number, courseId = 5): TeachingMaterial {
     courseId,
     createdByUserId: 1,
     title: `章 ${id}`,
-    content: '',
     orderInCourse: id,
     isPublished: true,
     createdAt: '2026-07-01T00:00:00Z',

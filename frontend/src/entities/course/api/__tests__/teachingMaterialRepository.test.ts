@@ -32,14 +32,12 @@ describe('TeachingMaterialRepository', () => {
     await TeachingMaterialRepository.create({
       courseId: 5,
       title: 'a',
-      content: 'b',
       orderInCourse: 100,
       isPublished: true,
     });
     expect(mockedPost).toHaveBeenCalledWith('/api/v2/teaching-materials', {
       courseId: 5,
       title: 'a',
-      content: 'b',
       orderInCourse: 100,
       isPublished: true,
     });
@@ -49,13 +47,11 @@ describe('TeachingMaterialRepository', () => {
     mockedPut.mockResolvedValue({ data: { id: 1 } });
     await TeachingMaterialRepository.update(1, {
       title: 'x',
-      content: 'y',
       orderInCourse: 110,
       isPublished: false,
     });
     expect(mockedPut).toHaveBeenCalledWith('/api/v2/teaching-materials/1', {
       title: 'x',
-      content: 'y',
       orderInCourse: 110,
       isPublished: false,
     });

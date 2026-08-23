@@ -5,8 +5,7 @@ import "time"
 // TeachingMaterial はコースを構成する「章」。必ず 1 つの Course に所属する（course 1 : N chapter）。
 // テーブルは course_chapters（FRESTYLE-184 で teaching_materials から改名）。
 //
-// 本文はリッチテキスト（tiptap の ProseMirror JSON）を doc(jsonb) に保持する。
-// content(text・raw Markdown) は移行期間の互換用で、全章の一括変換完了後に撤去する。
+// 本文はリッチテキスト（tiptap の ProseMirror JSON）の doc(jsonb) が正本。
 // コース内の並び順は sort_order 列（同値時 ID 昇順）。
 type TeachingMaterial struct {
 	ID        uint64 `gorm:"primaryKey;autoIncrement" json:"id"`
@@ -15,7 +14,6 @@ type TeachingMaterial struct {
 	CourseID        uint64 `gorm:"column:course_id;index" json:"courseId"`
 	CreatedByUserID uint64 `gorm:"column:created_by_user_id;not null" json:"createdByUserId"`
 	Title           string `gorm:"column:title;not null;default:''" json:"title"`
-	Content         string `gorm:"column:content;type:text;not null;default:''" json:"content"`
 	// Doc はリッチテキスト本文（tiptap JSON）。未移行の章は NULL。
 	// JSON 出力は handler 側で json.RawMessage として制御するため json:"-"。
 	Doc *string `gorm:"column:doc;type:jsonb" json:"-"`

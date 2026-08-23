@@ -24,7 +24,7 @@ func TestTeachingMaterialRepository_CountByCourseForCompany_Integration(t *testi
 	mk := func(companyID, courseID uint64, title string, published bool) *domain.TeachingMaterial {
 		return &domain.TeachingMaterial{
 			CompanyID: companyID, CourseID: courseID, CreatedByUserID: 1,
-			Title: title, Content: "本文", OrderInCourse: 1, IsPublished: published,
+			Title: title, OrderInCourse: 1, IsPublished: published,
 		}
 	}
 
@@ -67,7 +67,7 @@ func TestTeachingMaterialRepository_UpdateDocWithRevision_Integration(t *testing
 	testsupport.TruncateAll(t, db, "course_chapters")
 	m := &domain.TeachingMaterial{
 		CompanyID: 1, CourseID: 10, CreatedByUserID: 1,
-		Title: "章", Content: "旧 Markdown", OrderInCourse: 1, IsPublished: true,
+		Title: "章", OrderInCourse: 1, IsPublished: true,
 	}
 	require.NoError(t, repo.Create(ctx, m))
 	require.Equal(t, 1, m.Revision) // 既定 revision
@@ -80,8 +80,6 @@ func TestTeachingMaterialRepository_UpdateDocWithRevision_Integration(t *testing
 		require.Equal(t, 2, got.Revision)
 		require.NotNil(t, got.Doc)
 		require.Contains(t, *got.Doc, `"heading"`)
-		// content（Markdown）は据え置き（移行期間の互換）。
-		require.Equal(t, "旧 Markdown", got.Content)
 	})
 
 	t.Run("revision 不一致は ErrChapterDocConflict", func(t *testing.T) {

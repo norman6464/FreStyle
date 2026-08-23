@@ -198,14 +198,12 @@ func (h *TeachingMaterialHandler) UpdateDoc(c *gin.Context) {
 type teachingMaterialCreateRequest struct {
 	CourseID      uint64 `json:"courseId" binding:"required"`
 	Title         string `json:"title"`
-	Content       string `json:"content"`
 	OrderInCourse int    `json:"orderInCourse"`
 	IsPublished   bool   `json:"isPublished"`
 }
 
 type teachingMaterialUpdateRequest struct {
 	Title         string `json:"title"`
-	Content       string `json:"content"`
 	OrderInCourse int    `json:"orderInCourse"`
 	IsPublished   bool   `json:"isPublished"`
 }
@@ -238,7 +236,6 @@ func (h *TeachingMaterialHandler) Create(c *gin.Context) {
 		ActorRole:      role,
 		CourseID:       req.CourseID,
 		Title:          req.Title,
-		Content:        req.Content,
 		OrderInCourse:  req.OrderInCourse,
 		IsPublished:    req.IsPublished,
 	})
@@ -283,7 +280,6 @@ func (h *TeachingMaterialHandler) Update(c *gin.Context) {
 		ActorCompanyID: companyID,
 		ActorRole:      role,
 		Title:          req.Title,
-		Content:        req.Content,
 		OrderInCourse:  req.OrderInCourse,
 		IsPublished:    req.IsPublished,
 	})

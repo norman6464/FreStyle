@@ -81,7 +81,7 @@ func TestLessonProgressRepository_CountCompletedByUserGroupedByCourse_Integratio
 	mk := func(courseID uint64, title string, published bool) *domain.TeachingMaterial {
 		m := &domain.TeachingMaterial{
 			CompanyID: 1, CourseID: courseID, CreatedByUserID: 1,
-			Title: title, Content: "本文", OrderInCourse: 1, IsPublished: published,
+			Title: title, OrderInCourse: 1, IsPublished: published,
 		}
 		require.NoError(t, materials.Create(ctx, m))
 		return m

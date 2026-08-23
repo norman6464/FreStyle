@@ -4914,9 +4914,6 @@ const docTemplate = `{
                 "companyId": {
                     "type": "integer"
                 },
-                "content": {
-                    "type": "string"
-                },
                 "courseId": {
                     "description": "NOT NULL は migration 0004 で確定するため GORM tag では指定しない（既存行への ADD COLUMN 対策）。",
                     "type": "integer"
@@ -5328,9 +5325,6 @@ const docTemplate = `{
             "properties": {
                 "companyId": {
                     "type": "integer"
-                },
-                "content": {
-                    "type": "string"
                 },
                 "courseId": {
                     "description": "NOT NULL は migration 0004 で確定するため GORM tag では指定しない（既存行への ADD COLUMN 対策）。",
@@ -6073,9 +6067,6 @@ const docTemplate = `{
                 "courseId"
             ],
             "properties": {
-                "content": {
-                    "type": "string"
-                },
                 "courseId": {
                     "type": "integer"
                 },
@@ -6093,9 +6084,6 @@ const docTemplate = `{
         "internal_handler.teachingMaterialUpdateRequest": {
             "type": "object",
             "properties": {
-                "content": {
-                    "type": "string"
-                },
                 "isPublished": {
                     "type": "boolean"
                 },

@@ -12,6 +12,13 @@ export interface UseAutoHideOnScrollOptions {
    */
   hideReserve?: number;
   /**
+   * 上方向の累積スクロール量がこの値（px）に達したら再表示する。既定 160。
+   * 従来は delta を超える 1 回の上移動で即再表示していたが、読み返しでわずかに戻る
+   * だけでもヘッダーが出てちらつく。意図的に戻ったときだけ出すための累積しきい値。
+   * 下方向へ動くと累積はリセットされる。
+   */
+  showAfterUp?: number;
+  /**
    * hidden を切り替えた直後に方向判定を止める時間（ms）。既定 350。
    * ヘッダーの表示/非表示で本文の表示域が伸縮すると、最下部ではブラウザが scrollTop を
    * 自動クランプして「逆方向スクロール」の偽イベントが発火し、表示⇔非表示が無限に
@@ -31,17 +38,19 @@ export interface UseAutoHideOnScrollResult {
  * useAutoHideOnScroll はスクロール方向で「隠すべきか」を判定する汎用 hook。
  *
  * - 下へスクロール: hidden = true（本文に集中させる）
- * - 上へスクロール: 即座に hidden = false
+ * - 上へスクロール: 累積 showAfterUp（px）戻したら hidden = false（わずかな戻りでは出さない）
  * - 先頭付近（topThreshold 以内）: 常に false
  * - 監視対象が消えた（ノート切替のローディング等）: false に戻す
  */
 export function useAutoHideOnScroll(
   options: UseAutoHideOnScrollOptions = {},
 ): UseAutoHideOnScrollResult {
-  const { topThreshold = 80, delta = 8, cooldownMs = 350, hideReserve = 88 } = options;
+  const { topThreshold = 80, delta = 8, cooldownMs = 350, hideReserve = 88, showAfterUp = 160 } = options;
   const [hidden, setHidden] = useState(false);
   const [element, setElement] = useState<HTMLElement | null>(null);
   const lastTopRef = useRef(0);
+  // 上方向の累積スクロール量。showAfterUp に達したら再表示する（下移動でリセット）。
+  const upAccumRef = useRef(0);
   // hidden 切替直後の判定停止期限。クランプ由来の偽イベントを飲み込む（基準位置だけ追随させる）。
   const suppressUntilRef = useRef(0);
 
@@ -52,6 +61,7 @@ export function useAutoHideOnScroll(
   useEffect(() => {
     if (!element) {
       setHidden(false);
+      upAccumRef.current = 0;
       return;
     }
     lastTopRef.current = element.scrollTop;
@@ -61,6 +71,7 @@ export function useAutoHideOnScroll(
       if (top <= topThreshold) {
         setHidden(false);
         lastTopRef.current = top;
+        upAccumRef.current = 0;
         return;
       }
       // 切替直後はレイアウト変化によるクランプイベントを無視し、基準位置だけ更新する。
@@ -70,26 +81,36 @@ export function useAutoHideOnScroll(
       }
       const diff = top - lastTopRef.current;
       if (Math.abs(diff) < delta) return;
-      const next = diff > 0;
-      // 隠す方向のときは「隠しても最下部に張り付かない余地」があるかを確認する。
-      // 余地が無いまま隠すと表示域が伸びて scrollTop がクランプされ、振動の起点になる。
-      if (next) {
+      if (diff > 0) {
+        // 下方向: 上方向の累積をリセットし、余地があれば隠す。
+        // 余地が無いまま隠すと表示域が伸びて scrollTop がクランプされ、振動の起点になる。
+        upAccumRef.current = 0;
         const room = element.scrollHeight - element.clientHeight - top;
         if (room < hideReserve) {
           lastTopRef.current = top;
           return;
         }
+        setHidden((prev) => {
+          if (!prev) suppressUntilRef.current = Date.now() + cooldownMs;
+          return true;
+        });
+      } else {
+        // 上方向: 累積が showAfterUp に達したときだけ再表示する（わずかな戻りでは出さない）。
+        upAccumRef.current += -diff;
+        if (upAccumRef.current >= showAfterUp) {
+          upAccumRef.current = 0;
+          setHidden((prev) => {
+            if (prev) suppressUntilRef.current = Date.now() + cooldownMs;
+            return false;
+          });
+        }
       }
-      setHidden((prev) => {
-        if (next !== prev) suppressUntilRef.current = Date.now() + cooldownMs;
-        return next;
-      });
       lastTopRef.current = top;
     };
 
     element.addEventListener('scroll', onScroll, { passive: true });
     return () => element.removeEventListener('scroll', onScroll);
-  }, [element, topThreshold, delta, cooldownMs, hideReserve]);
+  }, [element, topThreshold, delta, cooldownMs, hideReserve, showAfterUp]);
 
   return { hidden, scrollRef };
 }

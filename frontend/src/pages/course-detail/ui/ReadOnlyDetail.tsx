@@ -20,6 +20,7 @@ export default function ReadOnlyDetail({
   material,
   bodyDoc,
   articleRef,
+  scrollContainerRef,
   completed,
   onToggleComplete,
   nextMaterial,
@@ -32,6 +33,8 @@ export default function ReadOnlyDetail({
   bodyDoc: RichDocContent | null;
   /** 本文コンテナの ref。左パネルの目次(DocTableOfContents)が anchor id を振るために参照する。 */
   articleRef: RefObject<HTMLDivElement | null>;
+  /** 本文スクロールコンテナを親（ヘッダー自動隠しの監視）へ渡す callback ref。 */
+  scrollContainerRef?: (node: HTMLElement | null) => void;
   completed: boolean;
   onToggleComplete: (done: boolean) => void;
   nextMaterial?: TeachingMaterial | null;
@@ -55,7 +58,7 @@ export default function ReadOnlyDetail({
   return (
     <div className="flex flex-1 min-h-0 bg-[var(--color-surface)]">
       {/* 本文: ノートと同じ「枠のないインライン文書」。中央カラム + 内部スクロール。 */}
-      <div data-course-scroll className="flex-1 min-h-0 overflow-y-auto">
+      <div ref={scrollContainerRef} data-course-scroll className="flex-1 min-h-0 overflow-y-auto">
         <div className="mx-auto w-full max-w-3xl px-6 py-10">
           <div className="mb-3 flex items-start justify-between gap-3">
             <h1 className="min-w-0 flex-1 text-3xl font-bold text-[var(--color-text-primary)] md:text-4xl">

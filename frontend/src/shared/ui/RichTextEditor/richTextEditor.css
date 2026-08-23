@@ -385,3 +385,38 @@
   background: rgb(59 130 246 / 12%);
   pointer-events: none;
 }
+
+/*
+ * タスクリスト（TaskList / TaskItem）。チェックボックスとテキストを横並びにし、
+ * 完了項目は薄色 + 取り消し線で「済み」を示す。読み取り専用ではブラウザ標準の
+ * disabled チェックボックスとして表示される（TaskItem が editable を見て制御）。
+ */
+.rte-content .ProseMirror ul[data-type='taskList'] {
+  list-style: none;
+  padding-left: 0.25rem;
+}
+
+.rte-content .ProseMirror ul[data-type='taskList'] li {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.rte-content .ProseMirror ul[data-type='taskList'] li > label {
+  flex: 0 0 auto;
+  margin-top: 0.3rem;
+  user-select: none;
+}
+
+.rte-content .ProseMirror ul[data-type='taskList'] li > div {
+  flex: 1 1 auto;
+}
+
+.rte-content .ProseMirror ul[data-type='taskList'] li[data-checked='true'] > div {
+  color: var(--color-text-tertiary);
+  text-decoration: line-through;
+}
+
+/* 入れ子のタスクリストは親テキストに揃えてインデント。 */
+.rte-content .ProseMirror ul[data-type='taskList'] ul[data-type='taskList'] {
+  margin: 0.25rem 0 0;
+}

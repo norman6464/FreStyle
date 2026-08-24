@@ -155,9 +155,12 @@ func ApplyRichDocumentConstraints(db *gorm.DB) error {
 //
 // 設計の柱は 2 つ:
 //
-//	(1) テナント越えを DB で塞ぐ。親子の FK は必ず workspace_id を含む複合 FK にし、
-//	    「別ワークスペースの space / page / block を親にする」行を作れなくする。
-//	    そのために参照先へ (workspace_id, id) の複合 UNIQUE を先に張る。
+//	(1) 境界越えを DB で塞ぐ。親子の FK は必ず「入れ物」の列を含む複合 FK にし、
+//	    別のテナント / スペース / ページの行を親にできないようにする。
+//	    木はそれぞれの入れ物の中で閉じる: ページの木はスペースの中、ブロックの木はページの中。
+//	    入れ物をまたぐ親子を許すと、入れ物を消したときに ON DELETE CASCADE が
+//	    別の入れ物に残るはずの行まで道連れにする。
+//	    そのために参照先へ (workspace_id, …, id) の複合 UNIQUE を先に張る。
 //	(2) 並び順は分数インデックス（internal/pkg/fracindex）の文字列キー。
 //	    同じ親の中で position が重複しないことを UNIQUE で守り、既定値は置かない（採番はアプリ側）。
 func ApplyKnowledgeBaseConstraints(db *gorm.DB) error {
@@ -203,7 +206,17 @@ func ApplyKnowledgeBaseConstraints(db *gorm.DB) error {
 		// FK の参照列に (workspace_id, id) を指定できない）。実データ上は id の PK で一意なので、
 		// 冗長に見えても「テナント越えを FK で塞ぐ」ための足場として張る。
 		`CREATE UNIQUE INDEX IF NOT EXISTS uq_spaces_workspace_id ON spaces (workspace_id, id);`,
+		// pages (workspace_id, id) は blocks / page_paths からの複合 FK の参照先。
+		// 親ページの FK は下の uq_pages_workspace_space_id（space_id 込み）を参照先にするが、
+		// こちらは落とせない: fk_blocks_page / fk_page_paths_page / fk_page_paths_ancestor の 3 本が
+		// 参照先として使っている（blocks の親を張り替えたときは旧索引に参照が無かったので落とせた。
+		// pages では事情が違う）。space_id を持たないテーブルからページを参照するには
+		// この (workspace_id, id) の形が要る。
 		`CREATE UNIQUE INDEX IF NOT EXISTS uq_pages_workspace_id ON pages (workspace_id, id);`,
+		// 親ページの FK を「同じスペース」まで絞るための足場。
+		// ページの木はスペースの中で閉じる（スペースはページの入れ物であり、木がスペースを
+		// またぐとパンくず・サブツリー取得・スペース単位の権限がすべて破綻する）。
+		`CREATE UNIQUE INDEX IF NOT EXISTS uq_pages_workspace_space_id ON pages (workspace_id, space_id, id);`,
 		// blocks の自己参照（親ブロック）も複合 FK にするため、blocks にも同じ足場を張る。
 		// ここに page_id まで含めるのは、親ブロックを「同じワークスペース」ではなく
 		// 「同じページ」に限定するため（別ページのブロックを親にできると、そのページを削除したときに
@@ -228,16 +241,41 @@ func ApplyKnowledgeBaseConstraints(db *gorm.DB) error {
 					FOREIGN KEY (workspace_id, space_id) REFERENCES spaces (workspace_id, id) ON DELETE CASCADE;
 			END IF;
 		END $$;`,
-		// pages の親は「同じワークスペースの page」だけ。親の物理削除で子孫も消える。
+		// pages の親は「同じワークスペースの、同じスペースの」page だけ。親の物理削除で子孫も消える。
+		// ページの木はスペースの中で閉じる。スペースはページの入れ物であり、木がスペースをまたぐと
+		// パンくず（祖先をたどると別スペースに出る）・サブツリー一括取得・スペース単位の権限が
+		// すべて破綻するため、space_id まで一致を要求する。
+		// workspace だけの一致だと、スペース A のページがスペース B のページを親に持ててしまい、
+		// スペース B を消したときに fk_pages_space の CASCADE で B のページが消え、続けて
+		// こちらの CASCADE がスペース A に残るはずの子ページまで道連れにする。
 		// parent_id は NULL 可（ルート）。複合 FK は既定の MATCH SIMPLE なので、
 		// 参照列に 1 つでも NULL があれば検査自体が行われない ＝ ルートページは素通りする。
-		// これは意図どおり: ルートの workspace_id は fk_pages_space 側で必ず検査されるため、
-		// テナント越えの抜け道にはならない。
+		// これは意図どおり: ルートの workspace_id / space_id は fk_pages_space 側で必ず検査されるため、
+		// テナント越え・スペース越えの抜け道にはならない。
+		//
+		// 副作用（意図した挙動）: ページを別スペースへ移すときは、子孫の space_id も同じ文で
+		// 更新しないと FK 違反になる。木の一部だけがスペースをまたぐ「中途半端な移動」を DB が防ぐ。
+		//
+		// 旧定義の判定に pg_get_constraintdef の文字列一致は使えない。'workspace_id' が部分文字列として
+		// 'space_id' を含むため、旧定義（workspace_id と parent_id だけ）でも LIKE '%space_id%' が真になり、
+		// 張り替えが起きないまま黙って旧定義が残る。blocks を 'page_id' で判定したときは
+		// この衝突が無かったので文字列一致で足りていた。ここは参照元の列そのものを見て判定する。
 		`DO $$ BEGIN
+			IF EXISTS (
+				SELECT 1 FROM pg_constraint c
+				WHERE c.conname = 'fk_pages_parent' AND c.conrelid = 'pages'::regclass
+				  AND NOT EXISTS (
+					SELECT 1 FROM pg_attribute a
+					WHERE a.attrelid = c.conrelid AND a.attnum = ANY (c.conkey) AND a.attname = 'space_id'
+				  )
+			) THEN
+				ALTER TABLE pages DROP CONSTRAINT fk_pages_parent; -- 旧定義（workspace のみ一致）を張り替える
+			END IF;
 			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_pages_parent' AND conrelid = 'pages'::regclass) THEN
 				ALTER TABLE pages
 					ADD CONSTRAINT fk_pages_parent
-					FOREIGN KEY (workspace_id, parent_id) REFERENCES pages (workspace_id, id) ON DELETE CASCADE;
+					FOREIGN KEY (workspace_id, space_id, parent_id)
+					REFERENCES pages (workspace_id, space_id, id) ON DELETE CASCADE;
 			END IF;
 		END $$;`,
 		// blocks は「同じワークスペースの page」にしか属せない。
@@ -277,6 +315,16 @@ func ApplyKnowledgeBaseConstraints(db *gorm.DB) error {
 		// 別ワークスペースの 2 ページを組にした行が作れてしまう（両方の FK を通ってしまう）。
 		// 行自身の workspace_id を軸にした複合 FK にして、組になる 2 ページが同じワークスペースに
 		// 属することを DB 側で保証する。
+		//
+		// FK で守るのは「組になる 2 ページが実在し、同じワークスペースに属すること」まで。
+		// 1 行だけで判定できる depth の不変条件は下の ck_page_paths_depth で別に塞ぐ。
+		//
+		// 一方「depth が実際の親子の距離と一致するか、祖先の連鎖に抜けや余りが無いか」は DB では守らない。
+		// それは 1 行を見ても判定できず、pages の木をたどって初めて分かる複数行にまたがる不変条件で、
+		// 宣言的な制約（行ごとの CHECK / FK）では表せないため。この表は pages.parent_id から導ける
+		// 派生データなので、正本である pages 側の制約で木の形を守り、closure 全体の整合は行を書く側の
+		// 責務とする。なお page_paths は常に FK の子側で、この表の行が壊れても他の行を CASCADE で
+		// 消すことはない（壊れ方が表示の乱れに閉じ、他のデータを失わない）。
 		`DO $$ BEGIN
 			IF EXISTS (
 				SELECT 1 FROM pg_constraint
@@ -325,6 +373,17 @@ func ApplyKnowledgeBaseConstraints(db *gorm.DB) error {
 			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_blocks_parent_not_self' AND conrelid = 'blocks'::regclass) THEN
 				ALTER TABLE blocks
 					ADD CONSTRAINT ck_blocks_parent_not_self CHECK (parent_id IS NULL OR parent_id <> id);
+			END IF;
+		END $$;`,
+		// closure table の 1 行だけで判定できる不変条件: depth は祖先までの距離なので負にならず、
+		// depth=0 の行は自分自身を指す行「だけ」（逆に自己参照の行は必ず depth=0）。
+		// パンくずは ORDER BY depth で組み立てるため、ここが崩れると pages.parent_id（正本）は
+		// 正しいのに表示だけが壊れ、原因を追いにくい形で顕在化する。
+		`DO $$ BEGIN
+			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_page_paths_depth' AND conrelid = 'page_paths'::regclass) THEN
+				ALTER TABLE page_paths
+					ADD CONSTRAINT ck_page_paths_depth
+					CHECK (depth >= 0 AND (depth = 0) = (page_id = ancestor_id));
 			END IF;
 		END $$;`,
 		// URL に出る識別子は空文字禁止・長さ上限（アプリ側検証と二重の壁）。

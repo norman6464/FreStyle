@@ -9,6 +9,16 @@ import (
 	"time"
 )
 
+type AuditEvent struct {
+	ID         int64
+	ActorID    int64
+	ActorEmail string
+	ActorRole  string
+	Action     string
+	TargetID   int64
+	CreatedAt  time.Time
+}
+
 type Company struct {
 	ID                       int64
 	Name                     string

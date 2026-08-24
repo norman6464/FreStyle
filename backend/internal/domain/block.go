@@ -65,28 +65,27 @@ func (t BlockType) Valid() bool {
 // ページ全体を 1 つの jsonb に持つ rich_documents と違い、ブロックを行に分解して持つ。
 // 部分更新・ブロック単位のリンク / コメント・全文検索の単位を DB 側で扱えるようにするため。
 // 入れ子（リストや表）は ParentID の自己参照で表し、兄弟の並びは Position（分数インデックス）で持つ。
+//
+// Workspace と同じくナレッジ基盤の型なので GORM を通さない（段 1-b で repository が付くまで参照元は無い）。
 type Block struct {
-	ID string `gorm:"type:uuid;primaryKey" json:"id"`
+	ID string `json:"id"`
 	// WorkspaceID はテナント境界。page / 親ブロックとの複合 FK に使う。
-	WorkspaceID string `gorm:"column:workspace_id;type:uuid;not null;index" json:"workspaceId"`
+	WorkspaceID string `json:"workspaceId"`
 	// PageID は所属ページ。(workspace_id, page_id) の複合 FK で pages を参照する。
-	PageID string `gorm:"column:page_id;type:uuid;not null;index" json:"pageId"`
+	PageID string `json:"pageId"`
 	// ParentID は親ブロック。NULL はページ直下（トップレベル）を意味する。
-	ParentID *string `gorm:"column:parent_id;type:uuid;index" json:"parentId,omitempty"`
+	ParentID *string `json:"parentId,omitempty"`
 	// Position は兄弟内の並び順を表す分数インデックス（fracindex.Between で採番する）。
-	Position string `gorm:"column:position;type:text;not null" json:"position"`
+	Position string `json:"position"`
 	// Type は ProseMirror のノード名。
-	Type BlockType `gorm:"column:type;type:varchar(32);not null" json:"type"`
+	Type BlockType `json:"type"`
 	// Attrs は ProseMirror の attrs（見出しの level、コードブロックの language など）を jsonb で持つ。
 	// 属性が無いノードでも空オブジェクト {} を入れる（NULL と {} の二通りを作らない）。
 	// API へは handler の response 型で json.RawMessage に変換して出す。
-	Attrs string `gorm:"column:attrs;type:jsonb;not null;default:'{}'" json:"-"`
+	Attrs string `json:"-"`
 	// Inline は葉ノードのインライン内容（text ノードとマークの配列）。
 	// リストや表のような容器ノードは子をブロック行として持つため NULL にする。
-	Inline    *string   `gorm:"column:inline;type:jsonb" json:"-"`
-	CreatedAt time.Time `gorm:"column:created_at" json:"createdAt"`
-	UpdatedAt time.Time `gorm:"column:updated_at" json:"updatedAt"`
+	Inline    *string   `json:"-"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
-
-// TableName は GORM のテーブル名を固定する。
-func (Block) TableName() string { return "blocks" }

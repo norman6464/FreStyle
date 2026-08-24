@@ -72,9 +72,10 @@ func OpenTestDB(t *testing.T) *gorm.DB {
 	if err := database.ApplyRichDocumentConstraints(db); err != nil {
 		t.Fatalf("ApplyRichDocumentConstraints 失敗: %v", err)
 	}
-	// ナレッジ基盤（workspaces / spaces / pages / blocks / …）の複合 FK / CHECK / 部分 UNIQUE も同様。
-	if err := database.ApplyKnowledgeBaseConstraints(db); err != nil {
-		t.Fatalf("ApplyKnowledgeBaseConstraints 失敗: %v", err)
+	// ナレッジ基盤（workspaces / spaces / pages / blocks / …）は GORM を通さない。
+	// 起動時（database.Migrate）と同じ明示 DDL を、同じ接続プールへ流す。
+	if err := database.ApplyKnowledgeBaseSchema(t.Context(), sqlDB); err != nil {
+		t.Fatalf("ApplyKnowledgeBaseSchema 失敗: %v", err)
 	}
 	return db
 }

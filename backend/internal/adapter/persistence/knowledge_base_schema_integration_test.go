@@ -3,8 +3,8 @@
 package persistence_test
 
 import (
+	"database/sql"
 	"sort"
-	"strings"
 	"testing"
 	"time"
 
@@ -15,7 +15,6 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/pkg/fracindex"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
 	"github.com/stretchr/testify/require"
-	"gorm.io/gorm"
 )
 
 // PostgreSQL の SQLSTATE（制約違反の種別）。どの制約が効いたのかまで固定するために使う。
@@ -28,33 +27,36 @@ const (
 // kbTables はナレッジ基盤のテーブル（TRUNCATE 対象）。子から先に並べる。
 var kbTables = []string{"blocks", "page_paths", "page_snapshots", "pages", "spaces", "workspaces"}
 
-// TestKnowledgeBaseSchema_Integration は ApplyKnowledgeBaseConstraints が張る制約を実 Postgres で固定する。
-// repository はまだ無い（段 1-b で追加する）ため GORM から直接テーブルを操作して検証する。
+// TestKnowledgeBaseSchema_Integration は明示 DDL（infra/database/schema/knowledge_base.sql）が
+// 張る制約を実 Postgres で固定する。
+//
+// このテーブル群は GORM を通さないため、テストも database/sql の生 SQL で書く
+// （repository は段 1-b で追加する）。
 func TestKnowledgeBaseSchema_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
+	gormDB := testsupport.OpenTestDB(t)
+	db, err := gormDB.DB()
+	require.NoError(t, err)
 
 	t.Run("別ワークスペースの space にはページを紐づけられない", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, kbTables...)
+		testsupport.TruncateAll(t, gormDB, kbTables...)
 		wsA := createWorkspace(t, db, "ws-a")
 		wsB := createWorkspace(t, db, "ws-b")
 		spaceB := createSpace(t, db, wsB, "eng")
 
 		// workspace は A なのに space は B のもの → 複合 FK が弾く。
-		page := newPage(wsA.ID, spaceB.ID, nil, "V")
-		err := db.Create(page).Error
+		err := insertPage(db, newID(), wsA, spaceB, nil, "V", nil)
 		requirePgError(t, err, sqlStateForeignKeyViolation, "fk_pages_space")
 	})
 
 	t.Run("別ワークスペースのページは親にできない", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, kbTables...)
+		testsupport.TruncateAll(t, gormDB, kbTables...)
 		wsA := createWorkspace(t, db, "ws-a")
 		wsB := createWorkspace(t, db, "ws-b")
 		spaceA := createSpace(t, db, wsA, "eng")
 		spaceB := createSpace(t, db, wsB, "eng") // key はワークスペース内で一意なので同名で良い
 		parentB := createPage(t, db, wsB, spaceB, nil, "V")
 
-		child := newPage(wsA.ID, spaceA.ID, &parentB.ID, "V")
-		err := db.Create(child).Error
+		err := insertPage(db, newID(), wsA, spaceA, &parentB, "V", nil)
 		requirePgError(t, err, sqlStateForeignKeyViolation, "fk_pages_parent")
 	})
 
@@ -62,45 +64,44 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 	// fk_pages_space の CASCADE で親が消え、続けて親の CASCADE が別スペースに残るはずの
 	// 子ページまで道連れにする。
 	t.Run("同じワークスペースでも別スペースのページは親にできない", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, kbTables...)
+		testsupport.TruncateAll(t, gormDB, kbTables...)
 		ws := createWorkspace(t, db, "ws-a")
 		spaceA := createSpace(t, db, ws, "aaa")
 		spaceB := createSpace(t, db, ws, "bbb")
 		parentInB := createPage(t, db, ws, spaceB, nil, "V")
 
 		// INSERT では作れない。
-		child := newPage(ws.ID, spaceA.ID, &parentInB.ID, "V")
-		err := db.Create(child).Error
+		err := insertPage(db, newID(), ws, spaceA, &parentInB, "V", nil)
 		requirePgError(t, err, sqlStateForeignKeyViolation, "fk_pages_parent")
 
 		// 後から UPDATE で別スペースの親に付け替えることもできない。
 		rootInA := createPage(t, db, ws, spaceA, nil, "a")
-		err = db.Exec(`UPDATE pages SET parent_id = ? WHERE id = ?`, parentInB.ID, rootInA.ID).Error
+		_, err = db.Exec(`UPDATE pages SET parent_id = $1 WHERE id = $2`, parentInB, rootInA)
 		requirePgError(t, err, sqlStateForeignKeyViolation, "fk_pages_parent")
 
 		// 同じスペースの中でなら従来どおり親子にできる（塞ぎすぎていないこと）。
-		createPage(t, db, ws, spaceA, &rootInA.ID, "V")
+		createPage(t, db, ws, spaceA, &rootInA, "V")
 	})
 
 	// スペースの削除で消えるのはそのスペースのページだけ。別スペースの木は残る。
 	t.Run("スペースの削除は別スペースのページを巻き込まない", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, kbTables...)
+		testsupport.TruncateAll(t, gormDB, kbTables...)
 		ws := createWorkspace(t, db, "ws-a")
 		spaceA := createSpace(t, db, ws, "aaa")
 		spaceB := createSpace(t, db, ws, "bbb")
 		rootA := createPage(t, db, ws, spaceA, nil, "V")
-		childA := createPage(t, db, ws, spaceA, &rootA.ID, "V")
+		childA := createPage(t, db, ws, spaceA, &rootA, "V")
 		createPage(t, db, ws, spaceB, nil, "V")
 
-		require.NoError(t, db.Exec(`DELETE FROM spaces WHERE id = ?`, spaceB.ID).Error)
+		_, err := db.Exec(`DELETE FROM spaces WHERE id = $1`, spaceB)
+		require.NoError(t, err)
 
-		var remaining []string
-		require.NoError(t, db.Raw(`SELECT id FROM pages`).Scan(&remaining).Error)
-		require.ElementsMatch(t, []string{rootA.ID, childA.ID}, remaining, "スペース A の木がそのまま残ること")
+		require.ElementsMatch(t, []string{rootA, childA}, queryStrings(t, db, `SELECT id::text FROM pages`),
+			"スペース A の木がそのまま残ること")
 	})
 
 	t.Run("別ワークスペースのブロックは親にできない", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, kbTables...)
+		testsupport.TruncateAll(t, gormDB, kbTables...)
 		wsA := createWorkspace(t, db, "ws-a")
 		wsB := createWorkspace(t, db, "ws-b")
 		spaceA := createSpace(t, db, wsA, "eng")
@@ -109,29 +110,27 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 		pageB := createPage(t, db, wsB, spaceB, nil, "V")
 		parentB := createBlock(t, db, wsB, pageB, nil, "V", domain.BlockTypeBulletList)
 
-		child := newBlock(wsA.ID, pageA.ID, &parentB.ID, "V", domain.BlockTypeListItem)
-		err := db.Create(child).Error
+		err := insertBlock(db, newID(), wsA, pageA, &parentB, "V", domain.BlockTypeListItem, "{}", nil)
 		requirePgError(t, err, sqlStateForeignKeyViolation, "fk_blocks_parent")
 	})
 
 	// ブロックの木は 1 ページの中で閉じる。別ページのブロックを親にできると、そのページを消したときに
 	// 親の ON DELETE CASCADE が別ページの本文まで道連れにする。
 	t.Run("同じワークスペースでも別ページのブロックは親にできない", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, kbTables...)
+		testsupport.TruncateAll(t, gormDB, kbTables...)
 		ws := createWorkspace(t, db, "ws-a")
 		space := createSpace(t, db, ws, "eng")
 		pageA := createPage(t, db, ws, space, nil, "V")
 		pageB := createPage(t, db, ws, space, nil, "a")
 		parentOnA := createBlock(t, db, ws, pageA, nil, "V", domain.BlockTypeBulletList)
 
-		child := newBlock(ws.ID, pageB.ID, &parentOnA.ID, "V", domain.BlockTypeListItem)
-		err := db.Create(child).Error
+		err := insertBlock(db, newID(), ws, pageB, &parentOnA, "V", domain.BlockTypeListItem, "{}", nil)
 		requirePgError(t, err, sqlStateForeignKeyViolation, "fk_blocks_parent")
 	})
 
 	// page_paths は 1 行で 2 ページを組にするため、単独 FK 2 本では別ワークスペースの組を防げない。
 	t.Run("page_paths は別ワークスペースのページを組にできない", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, kbTables...)
+		testsupport.TruncateAll(t, gormDB, kbTables...)
 		wsA := createWorkspace(t, db, "ws-a")
 		wsB := createWorkspace(t, db, "ws-b")
 		spaceA := createSpace(t, db, wsA, "eng")
@@ -140,102 +139,90 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 		pageB := createPage(t, db, wsB, spaceB, nil, "V")
 
 		// 行の workspace は A、祖先は B のページ → 祖先側の複合 FK が弾く。
-		err := db.Create(&domain.PagePath{
-			WorkspaceID: wsA.ID, PageID: pageA.ID, AncestorID: pageB.ID, Depth: 1,
-		}).Error
+		err := insertPagePath(db, wsA, pageA, pageB, 1)
 		requirePgError(t, err, sqlStateForeignKeyViolation, "fk_page_paths_ancestor")
 
 		// 子孫側も同じく弾かれる。
-		err = db.Create(&domain.PagePath{
-			WorkspaceID: wsA.ID, PageID: pageB.ID, AncestorID: pageA.ID, Depth: 1,
-		}).Error
+		err = insertPagePath(db, wsA, pageB, pageA, 1)
 		requirePgError(t, err, sqlStateForeignKeyViolation, "fk_page_paths_page")
 	})
 
 	// closure table の depth は 1 行だけで判定できる範囲を DB で守る
 	// （祖先の連鎖に抜けが無いかといった複数行の整合は行を書く側の責務）。
 	t.Run("page_paths の depth は自己行だけが 0 で負にできない", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, kbTables...)
+		testsupport.TruncateAll(t, gormDB, kbTables...)
 		ws := createWorkspace(t, db, "ws-a")
 		space := createSpace(t, db, ws, "eng")
 		parent := createPage(t, db, ws, space, nil, "V")
-		child := createPage(t, db, ws, space, &parent.ID, "V")
+		child := createPage(t, db, ws, space, &parent, "V")
 
 		// 自分自身を指すのに depth<>0。
-		err := db.Create(&domain.PagePath{
-			WorkspaceID: ws.ID, PageID: child.ID, AncestorID: child.ID, Depth: 1,
-		}).Error
+		err := insertPagePath(db, ws, child, child, 1)
 		requirePgError(t, err, sqlStateCheckViolation, "ck_page_paths_depth")
 
 		// 別のページを指すのに depth=0。
-		err = db.Create(&domain.PagePath{
-			WorkspaceID: ws.ID, PageID: child.ID, AncestorID: parent.ID, Depth: 0,
-		}).Error
+		err = insertPagePath(db, ws, child, parent, 0)
 		requirePgError(t, err, sqlStateCheckViolation, "ck_page_paths_depth")
 
 		// 距離が負。
-		err = db.Create(&domain.PagePath{
-			WorkspaceID: ws.ID, PageID: child.ID, AncestorID: parent.ID, Depth: -1,
-		}).Error
+		err = insertPagePath(db, ws, child, parent, -1)
 		requirePgError(t, err, sqlStateCheckViolation, "ck_page_paths_depth")
 
 		// 正しい形（自己行が depth=0、親への行が depth=1）は通る。
-		createPagePath(t, db, ws.ID, child.ID, child.ID, 0)
-		createPagePath(t, db, ws.ID, child.ID, parent.ID, 1)
+		createPagePath(t, db, ws, child, child, 0)
+		createPagePath(t, db, ws, child, parent, 1)
 	})
 
 	// 壊れた snapshot は読み取りキャッシュとしてそのまま返り、エディタがページを開けなくなる。
 	t.Run("page_snapshots.doc は ProseMirror の doc に限られる", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, kbTables...)
+		testsupport.TruncateAll(t, gormDB, kbTables...)
 		ws := createWorkspace(t, db, "ws-a")
 		space := createSpace(t, db, ws, "eng")
 		page := createPage(t, db, ws, space, nil, "V")
 
 		for _, doc := range []string{`[]`, `{"type":"paragraph"}`, `"doc"`} {
-			err := db.Create(&domain.PageSnapshot{PageID: page.ID, Doc: doc, BuiltAt: time.Now()}).Error
+			err := insertPageSnapshot(db, page, doc)
 			requirePgError(t, err, sqlStateCheckViolation, "ck_page_snapshots_doc")
 		}
 		// 正しい形なら通る。
-		createPageSnapshot(t, db, page.ID)
+		createPageSnapshot(t, db, page)
 	})
 
 	t.Run("自分自身を親にはできない", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, kbTables...)
+		testsupport.TruncateAll(t, gormDB, kbTables...)
 		ws := createWorkspace(t, db, "ws-a")
 		space := createSpace(t, db, ws, "eng")
 		page := createPage(t, db, ws, space, nil, "V")
 
 		t.Run("pages", func(t *testing.T) {
-			selfParent := newPage(ws.ID, space.ID, nil, "a")
-			selfParent.ParentID = &selfParent.ID
-			err := db.Create(selfParent).Error
+			id := newID()
+			err := insertPage(db, id, ws, space, &id, "a", nil)
 			requirePgError(t, err, sqlStateCheckViolation, "ck_pages_parent_not_self")
 		})
 
 		t.Run("blocks", func(t *testing.T) {
-			selfParent := newBlock(ws.ID, page.ID, nil, "a", domain.BlockTypeParagraph)
-			selfParent.ParentID = &selfParent.ID
-			err := db.Create(selfParent).Error
+			id := newID()
+			err := insertBlock(db, id, ws, page, &id, "a", domain.BlockTypeParagraph, "{}", nil)
 			requirePgError(t, err, sqlStateCheckViolation, "ck_blocks_parent_not_self")
 		})
 	})
 
 	t.Run("同じ親の中で position が重複すると弾かれる", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, kbTables...)
+		testsupport.TruncateAll(t, gormDB, kbTables...)
 		ws := createWorkspace(t, db, "ws-a")
 		space := createSpace(t, db, ws, "eng")
 		parent := createPage(t, db, ws, space, nil, "V")
 		parentBlock := createBlock(t, db, ws, parent, nil, "V", domain.BlockTypeBulletList)
 
 		t.Run("子ページ", func(t *testing.T) {
-			createPage(t, db, ws, space, &parent.ID, "a")
-			err := db.Create(newPage(ws.ID, space.ID, &parent.ID, "a")).Error
+			createPage(t, db, ws, space, &parent, "a")
+			err := insertPage(db, newID(), ws, space, &parent, "a", nil)
 			requirePgError(t, err, sqlStateUniqueViolation, "uq_pages_parent_position")
 		})
 
 		t.Run("子ブロック", func(t *testing.T) {
-			createBlock(t, db, ws, parent, &parentBlock.ID, "a", domain.BlockTypeListItem)
-			err := db.Create(newBlock(ws.ID, parent.ID, &parentBlock.ID, "a", domain.BlockTypeListItem)).Error
+			createBlock(t, db, ws, parent, &parentBlock, "a", domain.BlockTypeListItem)
+			err := insertBlock(db, newID(), ws, parent, &parentBlock, "a", domain.BlockTypeListItem, "{}", nil)
 			requirePgError(t, err, sqlStateUniqueViolation, "uq_blocks_parent_position")
 		})
 	})
@@ -243,20 +230,20 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 	// parent_id が NULL の行同士は UNIQUE 索引では衝突しない（NULL は互いに別物として扱われる）ため、
 	// ルート直下はスペース / ページを軸にした部分 UNIQUE で守っている。その効きを固定する。
 	t.Run("ルート直下でも position の重複は弾かれる", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, kbTables...)
+		testsupport.TruncateAll(t, gormDB, kbTables...)
 		ws := createWorkspace(t, db, "ws-a")
 		space := createSpace(t, db, ws, "eng")
 
 		t.Run("スペース直下のページ", func(t *testing.T) {
 			createPage(t, db, ws, space, nil, "V")
-			err := db.Create(newPage(ws.ID, space.ID, nil, "V")).Error
+			err := insertPage(db, newID(), ws, space, nil, "V", nil)
 			requirePgError(t, err, sqlStateUniqueViolation, "uq_pages_space_position")
 		})
 
 		t.Run("ページ直下のブロック", func(t *testing.T) {
 			page := createPage(t, db, ws, space, nil, "a")
 			createBlock(t, db, ws, page, nil, "V", domain.BlockTypeParagraph)
-			err := db.Create(newBlock(ws.ID, page.ID, nil, "V", domain.BlockTypeParagraph)).Error
+			err := insertBlock(db, newID(), ws, page, nil, "V", domain.BlockTypeParagraph, "{}", nil)
 			requirePgError(t, err, sqlStateUniqueViolation, "uq_blocks_page_position")
 		})
 	})
@@ -264,7 +251,7 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 	// 並びは「同じ親の中」でだけ意味を持つ。uq_blocks_page_position はページ直下（parent_id IS NULL）
 	// だけを見る部分索引で、その述語を外すと親の違う子ブロック同士まで position を奪い合う。
 	t.Run("同じページでも親が違えば子ブロックは同じ position を取れる", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, kbTables...)
+		testsupport.TruncateAll(t, gormDB, kbTables...)
 		ws := createWorkspace(t, db, "ws-a")
 		space := createSpace(t, db, ws, "eng")
 		page := createPage(t, db, ws, space, nil, "V")
@@ -272,116 +259,130 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 		listB := createBlock(t, db, ws, page, nil, "a", domain.BlockTypeBulletList)
 
 		// 別々の親を持つ子は、同じページの中でも同じ position を取れる。
-		createBlock(t, db, ws, page, &listA.ID, "V", domain.BlockTypeListItem)
-		createBlock(t, db, ws, page, &listB.ID, "V", domain.BlockTypeListItem)
+		createBlock(t, db, ws, page, &listA, "V", domain.BlockTypeListItem)
+		createBlock(t, db, ws, page, &listB, "V", domain.BlockTypeListItem)
 	})
 
 	t.Run("アーカイブ済みページは position の一意性から外れる", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, kbTables...)
+		testsupport.TruncateAll(t, gormDB, kbTables...)
 		ws := createWorkspace(t, db, "ws-a")
 		space := createSpace(t, db, ws, "eng")
 
-		archived := newPage(ws.ID, space.ID, nil, "V")
 		archivedAt := time.Now()
-		archived.ArchivedAt = &archivedAt
-		require.NoError(t, db.Create(archived).Error)
+		require.NoError(t, insertPage(db, newID(), ws, space, nil, "V", &archivedAt))
 
 		// 現役のページが同じ position を取れる（アーカイブは並びを占有しない）。
-		require.NoError(t, db.Create(newPage(ws.ID, space.ID, nil, "V")).Error)
+		require.NoError(t, insertPage(db, newID(), ws, space, nil, "V", nil))
 	})
 
 	// 上はルート直下（uq_pages_space_position）の話。親ページ配下は別の索引
 	// uq_pages_parent_position が守っており、その WHERE archived_at IS NULL を外すと
 	// アーカイブ済みの子が並びを占有し続けて position を再利用できなくなる。
 	t.Run("親ページ配下でもアーカイブ済みは position の一意性から外れる", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, kbTables...)
+		testsupport.TruncateAll(t, gormDB, kbTables...)
 		ws := createWorkspace(t, db, "ws-a")
 		space := createSpace(t, db, ws, "eng")
 		parent := createPage(t, db, ws, space, nil, "V")
 
-		archived := newPage(ws.ID, space.ID, &parent.ID, "V")
 		archivedAt := time.Now()
-		archived.ArchivedAt = &archivedAt
-		require.NoError(t, db.Create(archived).Error)
+		require.NoError(t, insertPage(db, newID(), ws, space, &parent, "V", &archivedAt))
 
 		// 現役の子ページが同じ position を取れる。
-		require.NoError(t, db.Create(newPage(ws.ID, space.ID, &parent.ID, "V")).Error)
+		require.NoError(t, insertPage(db, newID(), ws, space, &parent, "V", nil))
 	})
 
 	t.Run("親ページの物理削除で子孫と派生テーブルが CASCADE で消える", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, kbTables...)
+		testsupport.TruncateAll(t, gormDB, kbTables...)
 		ws := createWorkspace(t, db, "ws-a")
 		space := createSpace(t, db, ws, "eng")
 		parent := createPage(t, db, ws, space, nil, "V")
-		child := createPage(t, db, ws, space, &parent.ID, "V")
+		child := createPage(t, db, ws, space, &parent, "V")
 		createBlock(t, db, ws, parent, nil, "V", domain.BlockTypeParagraph)
 		createBlock(t, db, ws, child, nil, "V", domain.BlockTypeParagraph)
-		createPagePath(t, db, ws.ID, parent.ID, parent.ID, 0)
-		createPagePath(t, db, ws.ID, child.ID, child.ID, 0)
-		createPagePath(t, db, ws.ID, child.ID, parent.ID, 1)
-		createPageSnapshot(t, db, parent.ID)
-		createPageSnapshot(t, db, child.ID)
+		createPagePath(t, db, ws, parent, parent, 0)
+		createPagePath(t, db, ws, child, child, 0)
+		createPagePath(t, db, ws, child, parent, 1)
+		createPageSnapshot(t, db, parent)
+		createPageSnapshot(t, db, child)
 
-		require.NoError(t, db.Exec(`DELETE FROM pages WHERE id = ?`, parent.ID).Error)
+		_, err := db.Exec(`DELETE FROM pages WHERE id = $1`, parent)
+		require.NoError(t, err)
 
-		require.Zero(t, countRows(t, db, &domain.Page{}), "子ページも消えること")
-		require.Zero(t, countRows(t, db, &domain.Block{}), "両ページのブロックが消えること")
-		require.Zero(t, countRows(t, db, &domain.PagePath{}), "page_paths が消えること（page_id / ancestor_id の両方向）")
-		require.Zero(t, countRows(t, db, &domain.PageSnapshot{}), "page_snapshots が消えること")
+		require.Zero(t, countRows(t, db, "pages"), "子ページも消えること")
+		require.Zero(t, countRows(t, db, "blocks"), "両ページのブロックが消えること")
+		require.Zero(t, countRows(t, db, "page_paths"), "page_paths が消えること（page_id / ancestor_id の両方向）")
+		require.Zero(t, countRows(t, db, "page_snapshots"), "page_snapshots が消えること")
 	})
 
 	t.Run("識別子の一意性と形式", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, kbTables...)
+		testsupport.TruncateAll(t, gormDB, kbTables...)
 		ws := createWorkspace(t, db, "ws-a")
 		createSpace(t, db, ws, "eng")
 
 		t.Run("workspaces.slug は重複できない", func(t *testing.T) {
-			err := db.Create(&domain.Workspace{ID: newID(), Slug: "ws-a", Name: "重複"}).Error
+			err := insertWorkspace(db, newID(), "ws-a")
 			requirePgError(t, err, sqlStateUniqueViolation, "uq_workspaces_slug")
 		})
 
 		t.Run("spaces.key はワークスペース内で重複できない", func(t *testing.T) {
-			err := db.Create(&domain.Space{ID: newID(), WorkspaceID: ws.ID, Key: "eng", Name: "重複"}).Error
+			err := insertSpace(db, newID(), ws, "eng")
 			requirePgError(t, err, sqlStateUniqueViolation, "uq_spaces_workspace_key")
 		})
 
 		t.Run("slug / key は空文字にできない", func(t *testing.T) {
-			err := db.Create(&domain.Workspace{ID: newID(), Slug: "", Name: "空 slug"}).Error
+			err := insertWorkspace(db, newID(), "")
 			requirePgError(t, err, sqlStateCheckViolation, "ck_workspaces_slug_len")
 
-			err = db.Create(&domain.Space{ID: newID(), WorkspaceID: ws.ID, Key: "", Name: "空 key"}).Error
+			err = insertSpace(db, newID(), ws, "")
 			requirePgError(t, err, sqlStateCheckViolation, "ck_spaces_key_len")
 		})
 	})
 
-	t.Run("blocks の attrs は既定 {} で object に限られる", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, kbTables...)
+	// position が空文字だと順序として意味を持たない（fracindex は空文字を返さない）。
+	t.Run("position は空文字にできない", func(t *testing.T) {
+		testsupport.TruncateAll(t, gormDB, kbTables...)
 		ws := createWorkspace(t, db, "ws-a")
 		space := createSpace(t, db, ws, "eng")
 		page := createPage(t, db, ws, space, nil, "V")
 
-		// Attrs 未設定なら DB 既定の {} が入る（NULL と {} の二通りを作らない）。
-		block := createBlock(t, db, ws, page, nil, "V", domain.BlockTypeParagraph)
+		err := insertPage(db, newID(), ws, space, nil, "", nil)
+		requirePgError(t, err, sqlStateCheckViolation, "ck_pages_position_not_empty")
+
+		err = insertBlock(db, newID(), ws, page, nil, "", domain.BlockTypeParagraph, "{}", nil)
+		requirePgError(t, err, sqlStateCheckViolation, "ck_blocks_position_not_empty")
+	})
+
+	t.Run("blocks の attrs は既定 {} で object に限られる", func(t *testing.T) {
+		testsupport.TruncateAll(t, gormDB, kbTables...)
+		ws := createWorkspace(t, db, "ws-a")
+		space := createSpace(t, db, ws, "eng")
+		page := createPage(t, db, ws, space, nil, "V")
+
+		// attrs を指定しなければ DB 既定の {} が入る（NULL と {} の二通りを作らない）。
+		id := newID()
+		_, err := db.Exec(
+			`INSERT INTO blocks (id, workspace_id, page_id, "position", type) VALUES ($1, $2, $3, $4, $5)`,
+			id, ws, page, "V", string(domain.BlockTypeParagraph),
+		)
+		require.NoError(t, err)
 		var attrs string
-		require.NoError(t, db.Raw(`SELECT attrs::text FROM blocks WHERE id = ?`, block.ID).Scan(&attrs).Error)
+		require.NoError(t, db.QueryRow(`SELECT attrs::text FROM blocks WHERE id = $1`, id).Scan(&attrs))
 		require.JSONEq(t, `{}`, attrs)
 
 		// object 以外（配列）は CHECK で弾く。
-		invalid := newBlock(ws.ID, page.ID, nil, "a", domain.BlockTypeParagraph)
-		invalid.Attrs = `[]`
-		requirePgError(t, db.Create(invalid).Error, sqlStateCheckViolation, "ck_blocks_attrs_object")
+		err = insertBlock(db, newID(), ws, page, nil, "a", domain.BlockTypeParagraph, `[]`, nil)
+		requirePgError(t, err, sqlStateCheckViolation, "ck_blocks_attrs_object")
 
 		// inline は容器ノードでは NULL、葉ノードでは content 配列。object は弾く。
-		invalidInline := newBlock(ws.ID, page.ID, nil, "b", domain.BlockTypeParagraph)
 		objectInline := `{"type":"text"}`
-		invalidInline.Inline = &objectInline
-		requirePgError(t, db.Create(invalidInline).Error, sqlStateCheckViolation, "ck_blocks_inline_array")
+		err = insertBlock(db, newID(), ws, page, nil, "b", domain.BlockTypeParagraph, `{}`, &objectInline)
+		requirePgError(t, err, sqlStateCheckViolation, "ck_blocks_inline_array")
 	})
 
 	// 分数インデックスは「文字列の辞書順 = 並び順」が前提。Go はバイト比較で判断するので、
 	// DB の ORDER BY も同じ順序（C コレーション）でなければ並びが食い違う。
 	t.Run("position は Go のバイト順と同じ順序で並ぶ", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, kbTables...)
+		testsupport.TruncateAll(t, gormDB, kbTables...)
 		ws := createWorkspace(t, db, "ws-a")
 		space := createSpace(t, db, ws, "eng")
 		parent := createPage(t, db, ws, space, nil, "V")
@@ -389,13 +390,11 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 		// 大文字・小文字・数字が混ざるキー（ロケール依存のコレーションだと 'a' < 'B' で並んでしまう）。
 		positions := []string{"z", "A", "a", "V", "1", "Zz", "zA"}
 		for _, p := range positions {
-			createPage(t, db, ws, space, &parent.ID, p)
+			createPage(t, db, ws, space, &parent, p)
 		}
 
-		var got []string
-		require.NoError(t, db.Raw(
-			`SELECT "position" FROM pages WHERE parent_id = ? ORDER BY "position"`, parent.ID,
-		).Scan(&got).Error)
+		got := queryStrings(t, db,
+			`SELECT "position" FROM pages WHERE parent_id = $1 ORDER BY "position"`, parent)
 
 		want := append([]string(nil), positions...)
 		sort.Strings(want) // Go のバイト比較
@@ -404,7 +403,7 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 
 	// 実際に fracindex で採番したキーを流し込み、DB の ORDER BY が挿入した論理順と一致することを見る。
 	t.Run("fracindex で採番したキーで並び替えが表現できる", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, kbTables...)
+		testsupport.TruncateAll(t, gormDB, kbTables...)
 		ws := createWorkspace(t, db, "ws-a")
 		space := createSpace(t, db, ws, "eng")
 		page := createPage(t, db, ws, space, nil, "V")
@@ -426,178 +425,201 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 		createBlock(t, db, ws, page, nil, inserted, domain.BlockTypeParagraph)
 		order = append([]string{order[0], inserted}, order[1:]...)
 
-		var got []string
-		require.NoError(t, db.Raw(
-			`SELECT "position" FROM blocks WHERE page_id = ? AND parent_id IS NULL ORDER BY "position"`, page.ID,
-		).Scan(&got).Error)
+		got := queryStrings(t, db,
+			`SELECT "position" FROM blocks WHERE page_id = $1 AND parent_id IS NULL ORDER BY "position"`, page)
 		require.Equal(t, order, got)
 	})
 
-	// 制約を張った後の DB に対して起動時と同じ AutoMigrate が流れても壊れないこと。
-	// UNIQUE を「制約」で張ると、GORM が自分の命名規則の制約名を DROP しようとして
-	// 毎起動 AutoMigrate が落ちる（そのため UNIQUE 索引で張っている）。その回帰を止める。
-	t.Run("制約適用後に AutoMigrate を再実行しても落ちない", func(t *testing.T) {
-		require.NoError(t, database.AutoMigrateAll(db))
-		require.NoError(t, database.ApplyKnowledgeBaseConstraints(db)) // 二重適用しても冪等
+	// TruncateAll がナレッジ基盤 6 テーブルを掃除できていること。
+	// 掃除漏れがあるとサブテスト同士が前のデータを引きずり、UNIQUE 違反として顕在化する。
+	t.Run("TruncateAll がナレッジ基盤のテーブルを掃除する", func(t *testing.T) {
+		testsupport.TruncateAll(t, gormDB, kbTables...)
+		ws := createWorkspace(t, db, "ws-a")
+		space := createSpace(t, db, ws, "eng")
+		page := createPage(t, db, ws, space, nil, "V")
+		createBlock(t, db, ws, page, nil, "V", domain.BlockTypeParagraph)
+		createPagePath(t, db, ws, page, page, 0)
+		createPageSnapshot(t, db, page)
+		for _, table := range kbTables {
+			require.NotZerof(t, countRows(t, db, table), "%s に検証用の行が入っていること", table)
+		}
 
-		// AutoMigrate は position 列のコレーション指定を剥がさない（剥がれると並びが狂う）。
+		testsupport.TruncateAll(t, gormDB, kbTables...)
+
+		for _, table := range kbTables {
+			require.Zerof(t, countRows(t, db, table), "%s が掃除されていません", table)
+		}
+	})
+
+	// DDL は起動のたびに流れる。何度適用しても落ちず、制約が 1 本も欠けないことを固定する
+	// （CREATE ... IF NOT EXISTS だけで冪等にしており、DO ブロックによる張り替えは持ち込まない）。
+	// スキーマそのものを見るので、この DB を使う他のサブテストの後（最後）に置く。
+	t.Run("DDL を繰り返し適用しても落ちない", func(t *testing.T) {
+		testsupport.TruncateAll(t, gormDB, kbTables...)
+		// OpenTestDB で 1 回適用済みなので、ここで 2 回足して計 3 回。
+		require.NoError(t, database.ApplyKnowledgeBaseSchema(t.Context(), db))
+		require.NoError(t, database.ApplyKnowledgeBaseSchema(t.Context(), db))
+
+		// position 列のコレーションが C のままであること（剥がれると並びが狂う）。
 		for _, table := range []string{"pages", "blocks"} {
 			var collation string
-			require.NoError(t, db.Raw(
+			require.NoError(t, db.QueryRow(
 				`SELECT collation_name FROM information_schema.columns
-				 WHERE table_schema = current_schema() AND table_name = ? AND column_name = 'position'`, table,
-			).Scan(&collation).Error)
+				 WHERE table_schema = current_schema() AND table_name = $1 AND column_name = 'position'`, table,
+			).Scan(&collation))
 			require.Equalf(t, "C", collation, "%s.position のコレーションが C ではありません", table)
 		}
-	})
 
-	// 旧定義（テナント列だけを一致させる FK）が既にある DB でも、再適用で新定義へ張り替わること。
-	// 張り替えは順序が意味を持つ（古い索引は、それに依存する FK を差し替えた後でないと落とせない）。
-	// スキーマを直接いじるので、この DB を使う他のサブテストの後（最後）に置く。
-	t.Run("旧定義の制約が残っていても再適用で張り替わる", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, kbTables...)
-		// 旧定義に巻き戻す。
-		for _, stmt := range []string{
-			`ALTER TABLE blocks DROP CONSTRAINT fk_blocks_parent`,
-			`CREATE UNIQUE INDEX IF NOT EXISTS uq_blocks_workspace_id ON blocks (workspace_id, id)`,
-			`ALTER TABLE blocks ADD CONSTRAINT fk_blocks_parent
-				FOREIGN KEY (workspace_id, parent_id) REFERENCES blocks (workspace_id, id) ON DELETE CASCADE`,
-			`ALTER TABLE page_paths DROP CONSTRAINT fk_page_paths_page`,
-			`ALTER TABLE page_paths ADD CONSTRAINT fk_page_paths_page
-				FOREIGN KEY (page_id) REFERENCES pages(id) ON DELETE CASCADE`,
-			`ALTER TABLE page_paths DROP CONSTRAINT fk_page_paths_ancestor`,
-			`ALTER TABLE page_paths ADD CONSTRAINT fk_page_paths_ancestor
-				FOREIGN KEY (ancestor_id) REFERENCES pages(id) ON DELETE CASCADE`,
-			// 親ページの FK も旧定義（スペースを見ない）に戻す。索引は FK を落としてからでないと消せない。
-			`ALTER TABLE pages DROP CONSTRAINT fk_pages_parent`,
-			`DROP INDEX IF EXISTS uq_pages_workspace_space_id`,
-			`ALTER TABLE pages ADD CONSTRAINT fk_pages_parent
-				FOREIGN KEY (workspace_id, parent_id) REFERENCES pages (workspace_id, id) ON DELETE CASCADE`,
+		// FK / CHECK が 1 本も欠けていないこと。
+		for table, constraints := range map[string][]string{
+			"workspaces":     {"ck_workspaces_slug_len", "uq_workspaces_slug"},
+			"spaces":         {"ck_spaces_key_len", "fk_spaces_workspace", "uq_spaces_workspace_id", "uq_spaces_workspace_key"},
+			"pages":          {"ck_pages_parent_not_self", "ck_pages_position_not_empty", "fk_pages_parent", "fk_pages_space", "uq_pages_workspace_id", "uq_pages_workspace_space_id"},
+			"blocks":         {"ck_blocks_attrs_object", "ck_blocks_inline_array", "ck_blocks_parent_not_self", "ck_blocks_position_not_empty", "fk_blocks_page", "fk_blocks_parent", "uq_blocks_workspace_page_id"},
+			"page_paths":     {"ck_page_paths_depth", "fk_page_paths_ancestor", "fk_page_paths_page"},
+			"page_snapshots": {"ck_page_snapshots_doc", "fk_page_snapshots_page"},
 		} {
-			require.NoError(t, db.Exec(stmt).Error)
+			for _, name := range constraints {
+				var n int
+				require.NoError(t, db.QueryRow(
+					`SELECT count(*) FROM pg_constraint WHERE conname = $1 AND conrelid = $2::regclass`,
+					name, table,
+				).Scan(&n))
+				require.Equalf(t, 1, n, "%s.%s が見つかりません", table, name)
+			}
 		}
 
-		require.NoError(t, database.ApplyKnowledgeBaseConstraints(db))
-
-		// 新定義（ページ / ワークスペースまで一致を要求する複合 FK）に置き換わっていること。
-		for _, tc := range []struct{ name, want string }{
-			{"fk_blocks_parent", "page_id"},
-			{"fk_page_paths_page", "workspace_id"},
-			{"fk_page_paths_ancestor", "workspace_id"},
-			// fk_pages_parent だけは列名の部分一致では判定できない。'workspace_id' が
-			// 'space_id' を含むため、旧定義のままでも "space_id" を探すと見つかってしまう。
-			{"fk_pages_parent", "(workspace_id, space_id, parent_id)"},
+		// 部分 UNIQUE 索引も述語込みで残っていること。
+		for name, predicate := range map[string]string{
+			"uq_pages_parent_position":  "WHERE (archived_at IS NULL)",
+			"uq_pages_space_position":   "WHERE ((parent_id IS NULL) AND (archived_at IS NULL))",
+			"uq_blocks_page_position":   "WHERE (parent_id IS NULL)",
+			"uq_blocks_parent_position": "",
 		} {
 			var def string
-			require.NoError(t, db.Raw(
-				`SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = ? AND conrelid = ?::regclass`,
-				tc.name, constraintTable(tc.name),
-			).Scan(&def).Error)
-			require.Containsf(t, def, tc.want, "%s が旧定義のままです: %s", tc.name, def)
+			require.NoError(t, db.QueryRow(
+				`SELECT indexdef FROM pg_indexes WHERE schemaname = current_schema() AND indexname = $1`, name,
+			).Scan(&def))
+			require.Containsf(t, def, "CREATE UNIQUE INDEX", "%s が UNIQUE 索引ではありません: %s", name, def)
+			if predicate != "" {
+				require.Containsf(t, def, predicate, "%s の述語が想定と異なります: %s", name, def)
+			} else {
+				require.NotContainsf(t, def, "WHERE", "%s に想定外の述語が付いています: %s", name, def)
+			}
 		}
-
-		// 旧定義が使っていた索引は落ちていること（張り替え後なので依存は無い）。
-		var n int64
-		require.NoError(t, db.Raw(
-			`SELECT count(*) FROM pg_indexes WHERE indexname = 'uq_blocks_workspace_id'`,
-		).Scan(&n).Error)
-		require.Zero(t, n, "旧索引 uq_blocks_workspace_id が残っています")
-
-		// pages 側の (workspace_id, id) 索引は逆に落としてはいけない。blocks とは違い、
-		// fk_blocks_page / fk_page_paths_page / fk_page_paths_ancestor の 3 本が参照先に使っている。
-		require.NoError(t, db.Raw(
-			`SELECT count(*) FROM pg_indexes WHERE indexname = 'uq_pages_workspace_id'`,
-		).Scan(&n).Error)
-		require.EqualValues(t, 1, n, "uq_pages_workspace_id が落ちています（参照している FK が壊れます）")
 	})
 }
 
-// constraintTable は制約名から対象テーブルを引く（pg_get_constraintdef の絞り込み用）。
-func constraintTable(constraint string) string {
-	switch {
-	case strings.HasPrefix(constraint, "fk_page_paths"):
-		return "page_paths"
-	case strings.HasPrefix(constraint, "fk_pages"):
-		return "pages"
-	default:
-		return "blocks"
-	}
-}
-
-// --- 以下、テスト用のヘルパ（repository が無いので GORM を直接叩く）---
+// --- 以下、テスト用のヘルパ（repository が無いので database/sql の生 SQL を直接叩く）---
 
 // newID はテストデータの ID を採番する。本番の repository（段 1-b で追加）と同じ UUIDv7 に揃える。
 func newID() string { return uuid.Must(uuid.NewV7()).String() }
 
-func createWorkspace(t *testing.T, db *gorm.DB, slug string) *domain.Workspace {
+func insertWorkspace(db *sql.DB, id, slug string) error {
+	_, err := db.Exec(`INSERT INTO workspaces (id, slug, name) VALUES ($1, $2, $3)`, id, slug, slug)
+	return err
+}
+
+func createWorkspace(t *testing.T, db *sql.DB, slug string) string {
 	t.Helper()
-	ws := &domain.Workspace{ID: newID(), Slug: slug, Name: slug}
-	require.NoError(t, db.Create(ws).Error)
-	return ws
+	id := newID()
+	require.NoError(t, insertWorkspace(db, id, slug))
+	return id
 }
 
-func createSpace(t *testing.T, db *gorm.DB, ws *domain.Workspace, key string) *domain.Space {
+func insertSpace(db *sql.DB, id, workspaceID, key string) error {
+	_, err := db.Exec(
+		`INSERT INTO spaces (id, workspace_id, "key", name) VALUES ($1, $2, $3, $4)`,
+		id, workspaceID, key, key,
+	)
+	return err
+}
+
+func createSpace(t *testing.T, db *sql.DB, workspaceID, key string) string {
 	t.Helper()
-	space := &domain.Space{ID: newID(), WorkspaceID: ws.ID, Key: key, Name: key}
-	require.NoError(t, db.Create(space).Error)
-	return space
+	id := newID()
+	require.NoError(t, insertSpace(db, id, workspaceID, key))
+	return id
 }
 
-func newPage(workspaceID, spaceID string, parentID *string, position string) *domain.Page {
-	return &domain.Page{
-		ID:              newID(),
-		WorkspaceID:     workspaceID,
-		SpaceID:         spaceID,
-		ParentID:        parentID,
-		Position:        position,
-		Title:           "ページ",
-		CreatedByUserID: 1, // users への FK は張らない（ナレッジ基盤の骨格に閉じるため）
-	}
+// insertPage は 1 ページを INSERT する。created_by_user_id は users への FK を張っていないため
+// 固定値で良い（ナレッジ基盤の骨格に閉じて検証する）。
+func insertPage(db *sql.DB, id, workspaceID, spaceID string, parentID *string, position string, archivedAt *time.Time) error {
+	_, err := db.Exec(
+		`INSERT INTO pages (id, workspace_id, space_id, parent_id, "position", title, created_by_user_id, archived_at)
+		 VALUES ($1, $2, $3, $4, $5, 'ページ', 1, $6)`,
+		id, workspaceID, spaceID, parentID, position, archivedAt,
+	)
+	return err
 }
 
-func createPage(t *testing.T, db *gorm.DB, ws *domain.Workspace, space *domain.Space, parentID *string, position string) *domain.Page {
+func createPage(t *testing.T, db *sql.DB, workspaceID, spaceID string, parentID *string, position string) string {
 	t.Helper()
-	page := newPage(ws.ID, space.ID, parentID, position)
-	require.NoError(t, db.Create(page).Error)
-	return page
+	id := newID()
+	require.NoError(t, insertPage(db, id, workspaceID, spaceID, parentID, position, nil))
+	return id
 }
 
-func newBlock(workspaceID, pageID string, parentID *string, position string, blockType domain.BlockType) *domain.Block {
-	return &domain.Block{
-		ID:          newID(),
-		WorkspaceID: workspaceID,
-		PageID:      pageID,
-		ParentID:    parentID,
-		Position:    position,
-		Type:        blockType,
-	}
+func insertBlock(db *sql.DB, id, workspaceID, pageID string, parentID *string, position string, blockType domain.BlockType, attrs string, inline *string) error {
+	_, err := db.Exec(
+		`INSERT INTO blocks (id, workspace_id, page_id, parent_id, "position", type, attrs, inline)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		id, workspaceID, pageID, parentID, position, string(blockType), attrs, inline,
+	)
+	return err
 }
 
-func createBlock(t *testing.T, db *gorm.DB, ws *domain.Workspace, page *domain.Page, parentID *string, position string, blockType domain.BlockType) *domain.Block {
+func createBlock(t *testing.T, db *sql.DB, workspaceID, pageID string, parentID *string, position string, blockType domain.BlockType) string {
 	t.Helper()
-	block := newBlock(ws.ID, page.ID, parentID, position, blockType)
-	require.NoError(t, db.Create(block).Error)
-	return block
+	id := newID()
+	require.NoError(t, insertBlock(db, id, workspaceID, pageID, parentID, position, blockType, "{}", nil))
+	return id
 }
 
-func createPagePath(t *testing.T, db *gorm.DB, workspaceID, pageID, ancestorID string, depth int) {
-	t.Helper()
-	require.NoError(t, db.Create(&domain.PagePath{
-		WorkspaceID: workspaceID, PageID: pageID, AncestorID: ancestorID, Depth: depth,
-	}).Error)
+func insertPagePath(db *sql.DB, workspaceID, pageID, ancestorID string, depth int) error {
+	_, err := db.Exec(
+		`INSERT INTO page_paths (workspace_id, page_id, ancestor_id, depth) VALUES ($1, $2, $3, $4)`,
+		workspaceID, pageID, ancestorID, depth,
+	)
+	return err
 }
 
-func createPageSnapshot(t *testing.T, db *gorm.DB, pageID string) {
+func createPagePath(t *testing.T, db *sql.DB, workspaceID, pageID, ancestorID string, depth int) {
 	t.Helper()
-	snapshot := &domain.PageSnapshot{PageID: pageID, Doc: `{"type":"doc","content":[]}`, BuiltAt: time.Now()}
-	require.NoError(t, db.Create(snapshot).Error)
+	require.NoError(t, insertPagePath(db, workspaceID, pageID, ancestorID, depth))
 }
 
-func countRows(t *testing.T, db *gorm.DB, model any) int64 {
+func insertPageSnapshot(db *sql.DB, pageID, doc string) error {
+	_, err := db.Exec(`INSERT INTO page_snapshots (page_id, doc) VALUES ($1, $2)`, pageID, doc)
+	return err
+}
+
+func createPageSnapshot(t *testing.T, db *sql.DB, pageID string) {
 	t.Helper()
-	var n int64
-	require.NoError(t, db.Model(model).Count(&n).Error)
+	require.NoError(t, insertPageSnapshot(db, pageID, `{"type":"doc","content":[]}`))
+}
+
+func countRows(t *testing.T, db *sql.DB, table string) int {
+	t.Helper()
+	var n int
+	require.NoError(t, db.QueryRow(`SELECT count(*) FROM `+table).Scan(&n))
 	return n
+}
+
+func queryStrings(t *testing.T, db *sql.DB, query string, args ...any) []string {
+	t.Helper()
+	rows, err := db.Query(query, args...)
+	require.NoError(t, err)
+	defer func() { _ = rows.Close() }()
+
+	got := []string{}
+	for rows.Next() {
+		var s string
+		require.NoError(t, rows.Scan(&s))
+		got = append(got, s)
+	}
+	require.NoError(t, rows.Err())
+	return got
 }
 
 // requirePgError は err が期待した SQLSTATE の制約違反で、かつ期待した制約名で落ちたことを確かめる。

@@ -6,8 +6,24 @@ package sqlcgen
 
 import (
 	"database/sql"
+	"encoding/json"
 	"time"
+
+	"github.com/google/uuid"
 )
+
+type Block struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	PageID      uuid.UUID
+	ParentID    uuid.NullUUID
+	Position    string
+	Type        string
+	Attrs       json.RawMessage
+	Inline      []byte
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
 
 type Company struct {
 	ID                       int64
@@ -74,6 +90,32 @@ type Notification struct {
 	CreatedAt time.Time
 }
 
+type Page struct {
+	ID              uuid.UUID
+	WorkspaceID     uuid.UUID
+	SpaceID         uuid.UUID
+	ParentID        uuid.NullUUID
+	Position        string
+	Title           string
+	CreatedByUserID int64
+	ArchivedAt      sql.NullTime
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+type PagePath struct {
+	WorkspaceID uuid.UUID
+	PageID      uuid.UUID
+	AncestorID  uuid.UUID
+	Depth       int32
+}
+
+type PageSnapshot struct {
+	PageID  uuid.UUID
+	Doc     json.RawMessage
+	BuiltAt time.Time
+}
+
 type Profile struct {
 	UserID        int64
 	Bio           string
@@ -99,6 +141,15 @@ type SessionNote struct {
 	UpdatedAt time.Time
 }
 
+type Space struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	Key         string
+	Name        string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 type User struct {
 	ID            int64
 	Email         string
@@ -118,6 +169,14 @@ type UserOidcIdentity struct {
 	UserID    int64
 	Provider  string
 	Subject   string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type Workspace struct {
+	ID        uuid.UUID
+	Slug      string
+	Name      string
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }

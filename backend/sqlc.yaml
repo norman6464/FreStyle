@@ -4,14 +4,19 @@
 #   - GORM は接続・AutoMigrate に当面残し、クエリは順次 sqlc に移行する。
 #   - 生成コードは database/sql モード。GORM の *gorm.DB から取り出した *sql.DB を
 #     そのまま DBTX として渡し、接続プールを共有する（別 pool を持たない）。
-#   - schema.sql は sqlc の型付け専用（実スキーマは GORM AutoMigrate が作る）。
+#   - queries/schema.sql は sqlc の型付け専用（実スキーマは GORM AutoMigrate が作る）。
 #     repository を sqlc へ移すたびに対象テーブルの CREATE TABLE をここへ追記する。
+#   - ナレッジ基盤（workspaces / spaces / pages / blocks / …）だけは扱いが違う。GORM を通さず、
+#     infra/database/schema/knowledge_base.sql が実スキーマの正本そのもの（起動時にそのまま流す）。
+#     型付けも同じファイルから行うので、定義が二重化しない。
 #
-# 生成: backend/ で `sqlc generate`
+# 生成: backend/ で `make sqlc`
 version: "2"
 sql:
   - engine: "postgresql"
-    schema: "internal/adapter/persistence/queries/schema.sql"
+    schema:
+      - "internal/adapter/persistence/queries/schema.sql"
+      - "internal/infra/database/schema/knowledge_base.sql"
     queries: "internal/adapter/persistence/queries"
     gen:
       go:
@@ -21,3 +26,15 @@ sql:
         emit_empty_slices: true
         emit_json_tags: false
         emit_interface: false
+        overrides:
+          # NULL 可の jsonb（blocks.inline）は []byte にする。
+          # sqlc の既定は pqtype.NullRawMessage で、そのためだけに外部依存が 1 つ増える。
+          # json.RawMessage は NULL を Scan できない（database/sql が
+          # "unsupported Scan, storing driver.Value type <nil>" で落ちる）が、[]byte なら
+          # NULL は nil、値は生バイトとして受けられる。NOT NULL の jsonb（attrs / doc）は
+          # 既定どおり json.RawMessage のままで良い（NULL が来ないため）。
+          - db_type: "jsonb"
+            nullable: true
+            go_type:
+              type: "byte"
+              slice: true

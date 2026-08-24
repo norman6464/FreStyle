@@ -1,12 +1,18 @@
 package database
 
 import (
+	"context"
 	"log"
 	"os"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"gorm.io/gorm"
 )
+
+// migrateAdvisoryLockKey は起動時マイグレーションを直列化する advisory lock のキー。
+// 複数の ECS タスクが同時に起動しても、seed / バックフィル / 制約適用 / DDL 適用が
+// 同じキーの下で 1 つずつ流れるようにする。
+const migrateAdvisoryLockKey = 4915311
 
 // allDomainModels は AutoMigrate に渡す全 domain 構造体のリスト。
 // 新しい domain を追加したらここにも追記する。
@@ -39,14 +45,8 @@ func allDomainModels() []any {
 		&domain.UserDailyActivity{},
 		// リッチテキスト文書（tiptap JSON を jsonb で保持）。
 		&domain.RichDocument{},
-		// ナレッジ基盤（本文をブロック行に分解して持つ新スキーマ）。
-		// FK / CHECK / 部分 UNIQUE は ApplyKnowledgeBaseConstraints が張る。
-		&domain.Workspace{},
-		&domain.Space{},
-		&domain.Page{},
-		&domain.Block{},
-		&domain.PagePath{},
-		&domain.PageSnapshot{},
+		// ナレッジ基盤（workspaces / spaces / pages / blocks / page_paths / page_snapshots）は
+		// ここに載せない。GORM を通さず ApplyKnowledgeBaseSchema が明示 DDL を流す。
 	}
 }
 
@@ -84,8 +84,8 @@ func Migrate(db *gorm.DB) error {
 	// seed / バックフィル / 制約適用は check-then-act を含むため、複数タスクの同時起動でも
 	// 直列化されるよう advisory lock で囲む。pgbouncer(transaction pooler) 前提のため
 	// セッションロックではなくトランザクションロック（コミットで自動解放）を使う。
-	return db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Exec(`SELECT pg_advisory_xact_lock(4915311)`).Error; err != nil {
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec(`SELECT pg_advisory_xact_lock(?)`, migrateAdvisoryLockKey).Error; err != nil {
 			return err
 		}
 		if err := seedCompanies(tx); err != nil {
@@ -103,11 +103,25 @@ func Migrate(db *gorm.DB) error {
 		if err := ApplyUserNormalizationConstraints(tx); err != nil {
 			return err
 		}
-		if err := ApplyRichDocumentConstraints(tx); err != nil {
-			return err
-		}
-		return ApplyKnowledgeBaseConstraints(tx)
-	})
+		return ApplyRichDocumentConstraints(tx)
+	}); err != nil {
+		return err
+	}
+
+	// ナレッジ基盤は GORM を通さず、明示 DDL（infra/database/schema/knowledge_base.sql）を
+	// そのまま流す。上の GORM トランザクションと同じ advisory lock を取るため、
+	// その中からは呼べない（別コネクションを掴んで自分自身のロック待ちになる）。
+	// コミット後に、素の *sql.DB へ接続プールだけ共有して適用する。
+	sqlDB, err := db.DB()
+	if err != nil {
+		return err
+	}
+	log.Println("migrate: knowledge base schema start")
+	if err := ApplyKnowledgeBaseSchema(context.Background(), sqlDB); err != nil {
+		return err
+	}
+	log.Println("migrate: knowledge base schema done")
+	return nil
 }
 
 // ApplyRichDocumentConstraints は rich_documents の整合性制約を適用する（冪等）。
@@ -140,319 +154,6 @@ func ApplyRichDocumentConstraints(db *gorm.DB) error {
 					CHECK (char_length(title) <= 200);
 			END IF;
 		END $$;`,
-	}
-	for _, stmt := range stmts {
-		if err := db.Exec(stmt).Error; err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// ApplyKnowledgeBaseConstraints はナレッジ基盤（workspaces / spaces / pages / blocks /
-// page_paths / page_snapshots）の整合性制約を適用する（冪等）。
-// GORM の AutoMigrate は複合 FK / CHECK / 部分 UNIQUE を表現できないため、ここで明示 SQL として管理する。
-//
-// 設計の柱は 2 つ:
-//
-//	(1) 境界越えを DB で塞ぐ。親子の FK は必ず「入れ物」の列を含む複合 FK にし、
-//	    別のテナント / スペース / ページの行を親にできないようにする。
-//	    木はそれぞれの入れ物の中で閉じる: ページの木はスペースの中、ブロックの木はページの中。
-//	    入れ物をまたぐ親子を許すと、入れ物を消したときに ON DELETE CASCADE が
-//	    別の入れ物に残るはずの行まで道連れにする。
-//	    そのために参照先へ (workspace_id, …, id) の複合 UNIQUE を先に張る。
-//	(2) 並び順は分数インデックス（internal/pkg/fracindex）の文字列キー。
-//	    同じ親の中で position が重複しないことを UNIQUE で守り、既定値は置かない（採番はアプリ側）。
-func ApplyKnowledgeBaseConstraints(db *gorm.DB) error {
-	stmts := []string{
-		// position 列のコレーションを "C"（バイト順）に固定する。
-		// 分数インデックスは「文字列の辞書順 = 並び順」が前提で、Go 側はバイト比較で判断する。
-		// DB の既定がロケール依存のコレーション（例: en_US.utf8）だと 'a' < 'B' のように並び、
-		// ORDER BY position がアプリの認識とずれる。ここで揃えておく。
-		// 既定コレーションの列は information_schema 上 collation_name が NULL になるため、
-		// 'C' でない（NULL を含む）ときだけ ALTER する。
-		`DO $$ BEGIN
-			IF EXISTS (
-				SELECT 1 FROM information_schema.columns
-				WHERE table_schema = current_schema() AND table_name = 'pages'
-				  AND column_name = 'position' AND collation_name IS DISTINCT FROM 'C'
-			) THEN
-				ALTER TABLE pages ALTER COLUMN "position" TYPE text COLLATE "C";
-			END IF;
-		END $$;`,
-		`DO $$ BEGIN
-			IF EXISTS (
-				SELECT 1 FROM information_schema.columns
-				WHERE table_schema = current_schema() AND table_name = 'blocks'
-				  AND column_name = 'position' AND collation_name IS DISTINCT FROM 'C'
-			) THEN
-				ALTER TABLE blocks ALTER COLUMN "position" TYPE text COLLATE "C";
-			END IF;
-		END $$;`,
-
-		// --- UNIQUE ---
-		// UNIQUE は「制約(ADD CONSTRAINT)」ではなく「UNIQUE 索引」で張る。GORM の AutoMigrate は
-		// information_schema の UNIQUE 制約を見て「タグに unique が無い列に UNIQUE 制約が付いている」と
-		// 判断すると、自分の命名規則の制約名(uni_<table>_<column>)を DROP しようとして毎起動落ちる
-		// （複合 UNIQUE でも構成列それぞれが unique 扱いになるため同じことが起きる）。
-		// UNIQUE 索引は AutoMigrate の関知外なので、この衝突を避けられる。効果は制約と同じで、
-		// 複合 FK の参照先としても使える。CREATE ... IF NOT EXISTS 自体が冪等なので DO ブロックは要らない。
-		//
-		// workspaces.slug は URL に出るグローバル一意の識別子。
-		`CREATE UNIQUE INDEX IF NOT EXISTS uq_workspaces_slug ON workspaces (slug);`,
-		// spaces.key はワークスペース内で一意。
-		`CREATE UNIQUE INDEX IF NOT EXISTS uq_spaces_workspace_key ON spaces (workspace_id, "key");`,
-		// (workspace_id, id) の複合 UNIQUE は複合 FK の参照先として必要（id 単独の PK では
-		// FK の参照列に (workspace_id, id) を指定できない）。実データ上は id の PK で一意なので、
-		// 冗長に見えても「テナント越えを FK で塞ぐ」ための足場として張る。
-		`CREATE UNIQUE INDEX IF NOT EXISTS uq_spaces_workspace_id ON spaces (workspace_id, id);`,
-		// pages (workspace_id, id) は blocks / page_paths からの複合 FK の参照先。
-		// 親ページの FK は下の uq_pages_workspace_space_id（space_id 込み）を参照先にするが、
-		// こちらは落とせない: fk_blocks_page / fk_page_paths_page / fk_page_paths_ancestor の 3 本が
-		// 参照先として使っている（blocks の親を張り替えたときは旧索引に参照が無かったので落とせた。
-		// pages では事情が違う）。space_id を持たないテーブルからページを参照するには
-		// この (workspace_id, id) の形が要る。
-		`CREATE UNIQUE INDEX IF NOT EXISTS uq_pages_workspace_id ON pages (workspace_id, id);`,
-		// 親ページの FK を「同じスペース」まで絞るための足場。
-		// ページの木はスペースの中で閉じる（スペースはページの入れ物であり、木がスペースを
-		// またぐとパンくず・サブツリー取得・スペース単位の権限がすべて破綻する）。
-		`CREATE UNIQUE INDEX IF NOT EXISTS uq_pages_workspace_space_id ON pages (workspace_id, space_id, id);`,
-		// blocks の自己参照（親ブロック）も複合 FK にするため、blocks にも同じ足場を張る。
-		// ここに page_id まで含めるのは、親ブロックを「同じワークスペース」ではなく
-		// 「同じページ」に限定するため（別ページのブロックを親にできると、そのページを削除したときに
-		// 親の ON DELETE CASCADE が別ページの本文まで道連れにする）。
-		`CREATE UNIQUE INDEX IF NOT EXISTS uq_blocks_workspace_page_id ON blocks (workspace_id, page_id, id);`,
-
-		// --- 複合 FK（テナント越えの親子を作れなくする）---
-		// spaces.workspace_id → workspaces.id。ワークスペースの物理削除で配下も消える
-		// （運用ではアーカイブを使う想定で、物理削除は例外的な操作）。
-		`DO $$ BEGIN
-			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_spaces_workspace' AND conrelid = 'spaces'::regclass) THEN
-				ALTER TABLE spaces
-					ADD CONSTRAINT fk_spaces_workspace
-					FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
-			END IF;
-		END $$;`,
-		// pages は「同じワークスペースの space」にしか属せない。
-		`DO $$ BEGIN
-			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_pages_space' AND conrelid = 'pages'::regclass) THEN
-				ALTER TABLE pages
-					ADD CONSTRAINT fk_pages_space
-					FOREIGN KEY (workspace_id, space_id) REFERENCES spaces (workspace_id, id) ON DELETE CASCADE;
-			END IF;
-		END $$;`,
-		// pages の親は「同じワークスペースの、同じスペースの」page だけ。親の物理削除で子孫も消える。
-		// ページの木はスペースの中で閉じる。スペースはページの入れ物であり、木がスペースをまたぐと
-		// パンくず（祖先をたどると別スペースに出る）・サブツリー一括取得・スペース単位の権限が
-		// すべて破綻するため、space_id まで一致を要求する。
-		// workspace だけの一致だと、スペース A のページがスペース B のページを親に持ててしまい、
-		// スペース B を消したときに fk_pages_space の CASCADE で B のページが消え、続けて
-		// こちらの CASCADE がスペース A に残るはずの子ページまで道連れにする。
-		// parent_id は NULL 可（ルート）。複合 FK は既定の MATCH SIMPLE なので、
-		// 参照列に 1 つでも NULL があれば検査自体が行われない ＝ ルートページは素通りする。
-		// これは意図どおり: ルートの workspace_id / space_id は fk_pages_space 側で必ず検査されるため、
-		// テナント越え・スペース越えの抜け道にはならない。
-		//
-		// 副作用（意図した挙動）: ページを別スペースへ移すときは、子孫の space_id も同じ文で
-		// 更新しないと FK 違反になる。木の一部だけがスペースをまたぐ「中途半端な移動」を DB が防ぐ。
-		//
-		// 旧定義の判定に pg_get_constraintdef の文字列一致は使えない。'workspace_id' が部分文字列として
-		// 'space_id' を含むため、旧定義（workspace_id と parent_id だけ）でも LIKE '%space_id%' が真になり、
-		// 張り替えが起きないまま黙って旧定義が残る。blocks を 'page_id' で判定したときは
-		// この衝突が無かったので文字列一致で足りていた。ここは参照元の列そのものを見て判定する。
-		`DO $$ BEGIN
-			IF EXISTS (
-				SELECT 1 FROM pg_constraint c
-				WHERE c.conname = 'fk_pages_parent' AND c.conrelid = 'pages'::regclass
-				  AND NOT EXISTS (
-					SELECT 1 FROM pg_attribute a
-					WHERE a.attrelid = c.conrelid AND a.attnum = ANY (c.conkey) AND a.attname = 'space_id'
-				  )
-			) THEN
-				ALTER TABLE pages DROP CONSTRAINT fk_pages_parent; -- 旧定義（workspace のみ一致）を張り替える
-			END IF;
-			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_pages_parent' AND conrelid = 'pages'::regclass) THEN
-				ALTER TABLE pages
-					ADD CONSTRAINT fk_pages_parent
-					FOREIGN KEY (workspace_id, space_id, parent_id)
-					REFERENCES pages (workspace_id, space_id, id) ON DELETE CASCADE;
-			END IF;
-		END $$;`,
-		// blocks は「同じワークスペースの page」にしか属せない。
-		`DO $$ BEGIN
-			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_blocks_page' AND conrelid = 'blocks'::regclass) THEN
-				ALTER TABLE blocks
-					ADD CONSTRAINT fk_blocks_page
-					FOREIGN KEY (workspace_id, page_id) REFERENCES pages (workspace_id, id) ON DELETE CASCADE;
-			END IF;
-		END $$;`,
-		// blocks の親は「同じワークスペースの、同じページの」block だけ。
-		// ブロックの木は 1 ページの中で閉じるものなので、page_id まで一致を要求する。
-		// workspace だけを一致させると、ページ A のブロックをページ B のブロックの親にでき、
-		// ページ A を消したときに ON DELETE CASCADE がページ B の本文まで消してしまう。
-		// MATCH SIMPLE の扱いは pages と同じで、parent_id が NULL（トップレベル）なら検査されない。
-		// その場合の workspace_id / page_id の正しさは fk_blocks_page 側で担保される。
-		`DO $$ BEGIN
-			IF EXISTS (
-				SELECT 1 FROM pg_constraint
-				WHERE conname = 'fk_blocks_parent' AND conrelid = 'blocks'::regclass
-				  AND pg_get_constraintdef(oid) NOT LIKE '%page_id%'
-			) THEN
-				ALTER TABLE blocks DROP CONSTRAINT fk_blocks_parent; -- 旧定義（workspace のみ一致）を張り替える
-			END IF;
-			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_blocks_parent' AND conrelid = 'blocks'::regclass) THEN
-				ALTER TABLE blocks
-					ADD CONSTRAINT fk_blocks_parent
-					FOREIGN KEY (workspace_id, page_id, parent_id)
-					REFERENCES blocks (workspace_id, page_id, id) ON DELETE CASCADE;
-			END IF;
-		END $$;`,
-		// 旧定義で作られた (workspace_id, id) の索引を落とす。FK を張り替えた「後」でないと、
-		// その索引に依存している制約が残っていて DROP が失敗する（順序が意味を持つ）。
-		`DROP INDEX IF EXISTS uq_blocks_workspace_id;`,
-		// page_paths / page_snapshots は pages から導ける派生データ。ページが消えたら一緒に消す。
-		// page_paths は 1 行で「子孫」と「祖先」の 2 ページを組にするため、単独 FK を 2 本張るだけでは
-		// 別ワークスペースの 2 ページを組にした行が作れてしまう（両方の FK を通ってしまう）。
-		// 行自身の workspace_id を軸にした複合 FK にして、組になる 2 ページが同じワークスペースに
-		// 属することを DB 側で保証する。
-		//
-		// FK で守るのは「組になる 2 ページが実在し、同じワークスペースに属すること」まで。
-		// 1 行だけで判定できる depth の不変条件は下の ck_page_paths_depth で別に塞ぐ。
-		//
-		// 一方「depth が実際の親子の距離と一致するか、祖先の連鎖に抜けや余りが無いか」は DB では守らない。
-		// それは 1 行を見ても判定できず、pages の木をたどって初めて分かる複数行にまたがる不変条件で、
-		// 宣言的な制約（行ごとの CHECK / FK）では表せないため。この表は pages.parent_id から導ける
-		// 派生データなので、正本である pages 側の制約で木の形を守り、closure 全体の整合は行を書く側の
-		// 責務とする。なお page_paths は常に FK の子側で、この表の行が壊れても他の行を CASCADE で
-		// 消すことはない（壊れ方が表示の乱れに閉じ、他のデータを失わない）。
-		`DO $$ BEGIN
-			IF EXISTS (
-				SELECT 1 FROM pg_constraint
-				WHERE conname = 'fk_page_paths_page' AND conrelid = 'page_paths'::regclass
-				  AND pg_get_constraintdef(oid) NOT LIKE '%workspace_id%'
-			) THEN
-				ALTER TABLE page_paths DROP CONSTRAINT fk_page_paths_page; -- 旧定義（単独 FK）を張り替える
-			END IF;
-			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_page_paths_page' AND conrelid = 'page_paths'::regclass) THEN
-				ALTER TABLE page_paths
-					ADD CONSTRAINT fk_page_paths_page
-					FOREIGN KEY (workspace_id, page_id) REFERENCES pages (workspace_id, id) ON DELETE CASCADE;
-			END IF;
-		END $$;`,
-		`DO $$ BEGIN
-			IF EXISTS (
-				SELECT 1 FROM pg_constraint
-				WHERE conname = 'fk_page_paths_ancestor' AND conrelid = 'page_paths'::regclass
-				  AND pg_get_constraintdef(oid) NOT LIKE '%workspace_id%'
-			) THEN
-				ALTER TABLE page_paths DROP CONSTRAINT fk_page_paths_ancestor;
-			END IF;
-			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_page_paths_ancestor' AND conrelid = 'page_paths'::regclass) THEN
-				ALTER TABLE page_paths
-					ADD CONSTRAINT fk_page_paths_ancestor
-					FOREIGN KEY (workspace_id, ancestor_id) REFERENCES pages (workspace_id, id) ON DELETE CASCADE;
-			END IF;
-		END $$;`,
-		`DO $$ BEGIN
-			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_page_snapshots_page' AND conrelid = 'page_snapshots'::regclass) THEN
-				ALTER TABLE page_snapshots
-					ADD CONSTRAINT fk_page_snapshots_page
-					FOREIGN KEY (page_id) REFERENCES pages(id) ON DELETE CASCADE;
-			END IF;
-		END $$;`,
-
-		// --- CHECK ---
-		// 自分自身を親にできない（1 行で閉じた循環を作らせない。多段の循環はアプリ側で検出する）。
-		`DO $$ BEGIN
-			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_pages_parent_not_self' AND conrelid = 'pages'::regclass) THEN
-				ALTER TABLE pages
-					ADD CONSTRAINT ck_pages_parent_not_self CHECK (parent_id IS NULL OR parent_id <> id);
-			END IF;
-		END $$;`,
-		`DO $$ BEGIN
-			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_blocks_parent_not_self' AND conrelid = 'blocks'::regclass) THEN
-				ALTER TABLE blocks
-					ADD CONSTRAINT ck_blocks_parent_not_self CHECK (parent_id IS NULL OR parent_id <> id);
-			END IF;
-		END $$;`,
-		// closure table の 1 行だけで判定できる不変条件: depth は祖先までの距離なので負にならず、
-		// depth=0 の行は自分自身を指す行「だけ」（逆に自己参照の行は必ず depth=0）。
-		// パンくずは ORDER BY depth で組み立てるため、ここが崩れると pages.parent_id（正本）は
-		// 正しいのに表示だけが壊れ、原因を追いにくい形で顕在化する。
-		`DO $$ BEGIN
-			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_page_paths_depth' AND conrelid = 'page_paths'::regclass) THEN
-				ALTER TABLE page_paths
-					ADD CONSTRAINT ck_page_paths_depth
-					CHECK (depth >= 0 AND (depth = 0) = (page_id = ancestor_id));
-			END IF;
-		END $$;`,
-		// URL に出る識別子は空文字禁止・長さ上限（アプリ側検証と二重の壁）。
-		`DO $$ BEGIN
-			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_workspaces_slug_len' AND conrelid = 'workspaces'::regclass) THEN
-				ALTER TABLE workspaces
-					ADD CONSTRAINT ck_workspaces_slug_len CHECK (char_length(slug) BETWEEN 1 AND 64);
-			END IF;
-		END $$;`,
-		`DO $$ BEGIN
-			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_spaces_key_len' AND conrelid = 'spaces'::regclass) THEN
-				ALTER TABLE spaces
-					ADD CONSTRAINT ck_spaces_key_len CHECK (char_length("key") BETWEEN 1 AND 64);
-			END IF;
-		END $$;`,
-		// position は空文字だと順序として意味を持たない（fracindex は空文字を返さない）。
-		`DO $$ BEGIN
-			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_pages_position_not_empty' AND conrelid = 'pages'::regclass) THEN
-				ALTER TABLE pages
-					ADD CONSTRAINT ck_pages_position_not_empty CHECK ("position" <> '');
-			END IF;
-		END $$;`,
-		`DO $$ BEGIN
-			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_blocks_position_not_empty' AND conrelid = 'blocks'::regclass) THEN
-				ALTER TABLE blocks
-					ADD CONSTRAINT ck_blocks_position_not_empty CHECK ("position" <> '');
-			END IF;
-		END $$;`,
-		// page_snapshots.doc は tiptap のドキュメント JSON（object かつ type='doc'）に限る。
-		// 壊れた snapshot は読み取りキャッシュとしてそのまま返り、エディタがページを開けなくなるため、
-		// rich_documents.doc と同じ形で入口を塞ぐ。
-		`DO $$ BEGIN
-			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_page_snapshots_doc' AND conrelid = 'page_snapshots'::regclass) THEN
-				ALTER TABLE page_snapshots
-					ADD CONSTRAINT ck_page_snapshots_doc
-					CHECK (jsonb_typeof(doc) = 'object' AND doc->>'type' = 'doc');
-			END IF;
-		END $$;`,
-		// attrs は ProseMirror の attrs なので必ず object（属性が無いノードでも {}）。
-		// inline は葉ノードの content 配列。容器ノードでは NULL にする。
-		`DO $$ BEGIN
-			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_blocks_attrs_object' AND conrelid = 'blocks'::regclass) THEN
-				ALTER TABLE blocks
-					ADD CONSTRAINT ck_blocks_attrs_object CHECK (jsonb_typeof(attrs) = 'object');
-			END IF;
-		END $$;`,
-		`DO $$ BEGIN
-			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_blocks_inline_array' AND conrelid = 'blocks'::regclass) THEN
-				ALTER TABLE blocks
-					ADD CONSTRAINT ck_blocks_inline_array CHECK (inline IS NULL OR jsonb_typeof(inline) = 'array');
-			END IF;
-		END $$;`,
-
-		// --- 並び順の一意性（部分 UNIQUE は制約にできないので UNIQUE INDEX で張る。
-		// CREATE ... IF NOT EXISTS 自体が冪等なので DO ブロックでは包まない）---
-		// 同じ親の中で position が重複しないこと。ページはアーカイブ済みを除外する
-		// （アーカイブは「一覧から隠す」だけで行は残るため、現役の並びだけを守る）。
-		`CREATE UNIQUE INDEX IF NOT EXISTS uq_pages_parent_position
-			ON pages (parent_id, "position") WHERE archived_at IS NULL;`,
-		// ルート直下（parent_id IS NULL）は上の索引では守れない。UNIQUE 索引は NULL 同士を
-		// 別物として扱うため、parent_id が NULL の行同士は何度でも同じ position を持ててしまう。
-		// ルートの並びはスペース単位なので、スペースを軸にした部分 UNIQUE を別に張る。
-		`CREATE UNIQUE INDEX IF NOT EXISTS uq_pages_space_position
-			ON pages (space_id, "position") WHERE parent_id IS NULL AND archived_at IS NULL;`,
-		`CREATE UNIQUE INDEX IF NOT EXISTS uq_blocks_parent_position
-			ON blocks (parent_id, "position");`,
-		// ブロックも同じ理由で、ページ直下（parent_id IS NULL）はページを軸に守る。
-		`CREATE UNIQUE INDEX IF NOT EXISTS uq_blocks_page_position
-			ON blocks (page_id, "position") WHERE parent_id IS NULL;`,
 	}
 	for _, stmt := range stmts {
 		if err := db.Exec(stmt).Error; err != nil {

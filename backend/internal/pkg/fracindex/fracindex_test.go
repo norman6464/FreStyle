@@ -1,6 +1,7 @@
 package fracindex
 
 import (
+	"errors"
 	"math/rand"
 	"sort"
 	"strings"
@@ -198,10 +199,12 @@ func Test_Between_ランダム挿入で順序が保たれる(t *testing.T) {
 		keys = append(keys, "")
 		copy(keys[at+1:], keys[at:])
 		keys[at] = key
-
-		// 配列の並び（= 論理的な並び）とキーのバイト順が一致し続けること。
-		require.Truef(t, sort.StringsAreSorted(keys), "i=%d でキーのバイト順が配列の並びとずれました", i)
 	}
+
+	// 配列の並び（= 論理的な並び）とキーのバイト順が一致すること。
+	// 挿入位置の左右関係は毎回 requireOrdered が見ているので、全体走査はここで 1 回だけ行う
+	// （ループ内で回すと比較回数が O(n^2) になり、-race 付きの CI で無視できない時間を食う）。
+	require.True(t, sort.StringsAreSorted(keys), "キーのバイト順が配列の並びとずれました")
 
 	// 同じキーが 2 度出ないこと（position は UNIQUE 索引の対象にもなる）。
 	uniq := make(map[string]struct{}, len(keys))
@@ -357,16 +360,7 @@ func FuzzBetween(f *testing.F) {
 
 // errorIsKnown は公開しているエラー値のどちらかであることを確かめる（新種の裸エラーを漏らさない）。
 func errorIsKnown(err error) bool {
-	switch {
-	case err == nil:
-		return false
-	case strings.Contains(err.Error(), ErrInvalidKey.Error()):
-		return true
-	case strings.Contains(err.Error(), ErrOutOfOrder.Error()):
-		return true
-	default:
-		return false
-	}
+	return errors.Is(err, ErrInvalidKey) || errors.Is(err, ErrOutOfOrder)
 }
 
 // requireOrdered は prev < key < next（空文字は「端」の意味）を検証する。

@@ -205,7 +205,10 @@ func ApplyKnowledgeBaseConstraints(db *gorm.DB) error {
 		`CREATE UNIQUE INDEX IF NOT EXISTS uq_spaces_workspace_id ON spaces (workspace_id, id);`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS uq_pages_workspace_id ON pages (workspace_id, id);`,
 		// blocks の自己参照（親ブロック）も複合 FK にするため、blocks にも同じ足場を張る。
-		`CREATE UNIQUE INDEX IF NOT EXISTS uq_blocks_workspace_id ON blocks (workspace_id, id);`,
+		// ここに page_id まで含めるのは、親ブロックを「同じワークスペース」ではなく
+		// 「同じページ」に限定するため（別ページのブロックを親にできると、そのページを削除したときに
+		// 親の ON DELETE CASCADE が別ページの本文まで道連れにする）。
+		`CREATE UNIQUE INDEX IF NOT EXISTS uq_blocks_workspace_page_id ON blocks (workspace_id, page_id, id);`,
 
 		// --- 複合 FK（テナント越えの親子を作れなくする）---
 		// spaces.workspace_id → workspaces.id。ワークスペースの物理削除で配下も消える
@@ -245,28 +248,61 @@ func ApplyKnowledgeBaseConstraints(db *gorm.DB) error {
 					FOREIGN KEY (workspace_id, page_id) REFERENCES pages (workspace_id, id) ON DELETE CASCADE;
 			END IF;
 		END $$;`,
-		// blocks の親も同じワークスペースの block だけ（MATCH SIMPLE の扱いは pages と同じ。
-		// トップレベルブロックの workspace_id は fk_blocks_page 側で検査される）。
+		// blocks の親は「同じワークスペースの、同じページの」block だけ。
+		// ブロックの木は 1 ページの中で閉じるものなので、page_id まで一致を要求する。
+		// workspace だけを一致させると、ページ A のブロックをページ B のブロックの親にでき、
+		// ページ A を消したときに ON DELETE CASCADE がページ B の本文まで消してしまう。
+		// MATCH SIMPLE の扱いは pages と同じで、parent_id が NULL（トップレベル）なら検査されない。
+		// その場合の workspace_id / page_id の正しさは fk_blocks_page 側で担保される。
 		`DO $$ BEGIN
+			IF EXISTS (
+				SELECT 1 FROM pg_constraint
+				WHERE conname = 'fk_blocks_parent' AND conrelid = 'blocks'::regclass
+				  AND pg_get_constraintdef(oid) NOT LIKE '%page_id%'
+			) THEN
+				ALTER TABLE blocks DROP CONSTRAINT fk_blocks_parent; -- 旧定義（workspace のみ一致）を張り替える
+			END IF;
 			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_blocks_parent' AND conrelid = 'blocks'::regclass) THEN
 				ALTER TABLE blocks
 					ADD CONSTRAINT fk_blocks_parent
-					FOREIGN KEY (workspace_id, parent_id) REFERENCES blocks (workspace_id, id) ON DELETE CASCADE;
+					FOREIGN KEY (workspace_id, page_id, parent_id)
+					REFERENCES blocks (workspace_id, page_id, id) ON DELETE CASCADE;
 			END IF;
 		END $$;`,
+		// 旧定義で作られた (workspace_id, id) の索引を落とす。FK を張り替えた「後」でないと、
+		// その索引に依存している制約が残っていて DROP が失敗する（順序が意味を持つ）。
+		`DROP INDEX IF EXISTS uq_blocks_workspace_id;`,
 		// page_paths / page_snapshots は pages から導ける派生データ。ページが消えたら一緒に消す。
+		// page_paths は 1 行で「子孫」と「祖先」の 2 ページを組にするため、単独 FK を 2 本張るだけでは
+		// 別ワークスペースの 2 ページを組にした行が作れてしまう（両方の FK を通ってしまう）。
+		// 行自身の workspace_id を軸にした複合 FK にして、組になる 2 ページが同じワークスペースに
+		// 属することを DB 側で保証する。
 		`DO $$ BEGIN
+			IF EXISTS (
+				SELECT 1 FROM pg_constraint
+				WHERE conname = 'fk_page_paths_page' AND conrelid = 'page_paths'::regclass
+				  AND pg_get_constraintdef(oid) NOT LIKE '%workspace_id%'
+			) THEN
+				ALTER TABLE page_paths DROP CONSTRAINT fk_page_paths_page; -- 旧定義（単独 FK）を張り替える
+			END IF;
 			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_page_paths_page' AND conrelid = 'page_paths'::regclass) THEN
 				ALTER TABLE page_paths
 					ADD CONSTRAINT fk_page_paths_page
-					FOREIGN KEY (page_id) REFERENCES pages(id) ON DELETE CASCADE;
+					FOREIGN KEY (workspace_id, page_id) REFERENCES pages (workspace_id, id) ON DELETE CASCADE;
 			END IF;
 		END $$;`,
 		`DO $$ BEGIN
+			IF EXISTS (
+				SELECT 1 FROM pg_constraint
+				WHERE conname = 'fk_page_paths_ancestor' AND conrelid = 'page_paths'::regclass
+				  AND pg_get_constraintdef(oid) NOT LIKE '%workspace_id%'
+			) THEN
+				ALTER TABLE page_paths DROP CONSTRAINT fk_page_paths_ancestor;
+			END IF;
 			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_page_paths_ancestor' AND conrelid = 'page_paths'::regclass) THEN
 				ALTER TABLE page_paths
 					ADD CONSTRAINT fk_page_paths_ancestor
-					FOREIGN KEY (ancestor_id) REFERENCES pages(id) ON DELETE CASCADE;
+					FOREIGN KEY (workspace_id, ancestor_id) REFERENCES pages (workspace_id, id) ON DELETE CASCADE;
 			END IF;
 		END $$;`,
 		`DO $$ BEGIN
@@ -315,6 +351,16 @@ func ApplyKnowledgeBaseConstraints(db *gorm.DB) error {
 			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_blocks_position_not_empty' AND conrelid = 'blocks'::regclass) THEN
 				ALTER TABLE blocks
 					ADD CONSTRAINT ck_blocks_position_not_empty CHECK ("position" <> '');
+			END IF;
+		END $$;`,
+		// page_snapshots.doc は tiptap のドキュメント JSON（object かつ type='doc'）に限る。
+		// 壊れた snapshot は読み取りキャッシュとしてそのまま返り、エディタがページを開けなくなるため、
+		// rich_documents.doc と同じ形で入口を塞ぐ。
+		`DO $$ BEGIN
+			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_page_snapshots_doc' AND conrelid = 'page_snapshots'::regclass) THEN
+				ALTER TABLE page_snapshots
+					ADD CONSTRAINT ck_page_snapshots_doc
+					CHECK (jsonb_typeof(doc) = 'object' AND doc->>'type' = 'doc');
 			END IF;
 		END $$;`,
 		// attrs は ProseMirror の attrs なので必ず object（属性が無いノードでも {}）。

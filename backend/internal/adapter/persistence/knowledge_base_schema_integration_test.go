@@ -4,6 +4,7 @@ package persistence_test
 
 import (
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -70,6 +71,59 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 		child := newBlock(wsA.ID, pageA.ID, &parentB.ID, "V", domain.BlockTypeListItem)
 		err := db.Create(child).Error
 		requirePgError(t, err, sqlStateForeignKeyViolation, "fk_blocks_parent")
+	})
+
+	// ブロックの木は 1 ページの中で閉じる。別ページのブロックを親にできると、そのページを消したときに
+	// 親の ON DELETE CASCADE が別ページの本文まで道連れにする。
+	t.Run("同じワークスペースでも別ページのブロックは親にできない", func(t *testing.T) {
+		testsupport.TruncateAll(t, db, kbTables...)
+		ws := createWorkspace(t, db, "ws-a")
+		space := createSpace(t, db, ws, "eng")
+		pageA := createPage(t, db, ws, space, nil, "V")
+		pageB := createPage(t, db, ws, space, nil, "a")
+		parentOnA := createBlock(t, db, ws, pageA, nil, "V", domain.BlockTypeBulletList)
+
+		child := newBlock(ws.ID, pageB.ID, &parentOnA.ID, "V", domain.BlockTypeListItem)
+		err := db.Create(child).Error
+		requirePgError(t, err, sqlStateForeignKeyViolation, "fk_blocks_parent")
+	})
+
+	// page_paths は 1 行で 2 ページを組にするため、単独 FK 2 本では別ワークスペースの組を防げない。
+	t.Run("page_paths は別ワークスペースのページを組にできない", func(t *testing.T) {
+		testsupport.TruncateAll(t, db, kbTables...)
+		wsA := createWorkspace(t, db, "ws-a")
+		wsB := createWorkspace(t, db, "ws-b")
+		spaceA := createSpace(t, db, wsA, "eng")
+		spaceB := createSpace(t, db, wsB, "eng")
+		pageA := createPage(t, db, wsA, spaceA, nil, "V")
+		pageB := createPage(t, db, wsB, spaceB, nil, "V")
+
+		// 行の workspace は A、祖先は B のページ → 祖先側の複合 FK が弾く。
+		err := db.Create(&domain.PagePath{
+			WorkspaceID: wsA.ID, PageID: pageA.ID, AncestorID: pageB.ID, Depth: 1,
+		}).Error
+		requirePgError(t, err, sqlStateForeignKeyViolation, "fk_page_paths_ancestor")
+
+		// 子孫側も同じく弾かれる。
+		err = db.Create(&domain.PagePath{
+			WorkspaceID: wsA.ID, PageID: pageB.ID, AncestorID: pageA.ID, Depth: 1,
+		}).Error
+		requirePgError(t, err, sqlStateForeignKeyViolation, "fk_page_paths_page")
+	})
+
+	// 壊れた snapshot は読み取りキャッシュとしてそのまま返り、エディタがページを開けなくなる。
+	t.Run("page_snapshots.doc は ProseMirror の doc に限られる", func(t *testing.T) {
+		testsupport.TruncateAll(t, db, kbTables...)
+		ws := createWorkspace(t, db, "ws-a")
+		space := createSpace(t, db, ws, "eng")
+		page := createPage(t, db, ws, space, nil, "V")
+
+		for _, doc := range []string{`[]`, `{"type":"paragraph"}`, `"doc"`} {
+			err := db.Create(&domain.PageSnapshot{PageID: page.ID, Doc: doc, BuiltAt: time.Now()}).Error
+			requirePgError(t, err, sqlStateCheckViolation, "ck_page_snapshots_doc")
+		}
+		// 正しい形なら通る。
+		createPageSnapshot(t, db, page.ID)
 	})
 
 	t.Run("自分自身を親にはできない", func(t *testing.T) {
@@ -156,9 +210,9 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 		child := createPage(t, db, ws, space, &parent.ID, "V")
 		createBlock(t, db, ws, parent, nil, "V", domain.BlockTypeParagraph)
 		createBlock(t, db, ws, child, nil, "V", domain.BlockTypeParagraph)
-		createPagePath(t, db, parent.ID, parent.ID, 0)
-		createPagePath(t, db, child.ID, child.ID, 0)
-		createPagePath(t, db, child.ID, parent.ID, 1)
+		createPagePath(t, db, ws.ID, parent.ID, parent.ID, 0)
+		createPagePath(t, db, ws.ID, child.ID, child.ID, 0)
+		createPagePath(t, db, ws.ID, child.ID, parent.ID, 1)
 		createPageSnapshot(t, db, parent.ID)
 		createPageSnapshot(t, db, child.ID)
 
@@ -290,6 +344,59 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 			require.Equalf(t, "C", collation, "%s.position のコレーションが C ではありません", table)
 		}
 	})
+
+	// 旧定義（テナント列だけを一致させる FK）が既にある DB でも、再適用で新定義へ張り替わること。
+	// 張り替えは順序が意味を持つ（古い索引は、それに依存する FK を差し替えた後でないと落とせない）。
+	// スキーマを直接いじるので、この DB を使う他のサブテストの後（最後）に置く。
+	t.Run("旧定義の制約が残っていても再適用で張り替わる", func(t *testing.T) {
+		testsupport.TruncateAll(t, db, kbTables...)
+		// 旧定義に巻き戻す。
+		for _, stmt := range []string{
+			`ALTER TABLE blocks DROP CONSTRAINT fk_blocks_parent`,
+			`CREATE UNIQUE INDEX IF NOT EXISTS uq_blocks_workspace_id ON blocks (workspace_id, id)`,
+			`ALTER TABLE blocks ADD CONSTRAINT fk_blocks_parent
+				FOREIGN KEY (workspace_id, parent_id) REFERENCES blocks (workspace_id, id) ON DELETE CASCADE`,
+			`ALTER TABLE page_paths DROP CONSTRAINT fk_page_paths_page`,
+			`ALTER TABLE page_paths ADD CONSTRAINT fk_page_paths_page
+				FOREIGN KEY (page_id) REFERENCES pages(id) ON DELETE CASCADE`,
+			`ALTER TABLE page_paths DROP CONSTRAINT fk_page_paths_ancestor`,
+			`ALTER TABLE page_paths ADD CONSTRAINT fk_page_paths_ancestor
+				FOREIGN KEY (ancestor_id) REFERENCES pages(id) ON DELETE CASCADE`,
+		} {
+			require.NoError(t, db.Exec(stmt).Error)
+		}
+
+		require.NoError(t, database.ApplyKnowledgeBaseConstraints(db))
+
+		// 新定義（ページ / ワークスペースまで一致を要求する複合 FK）に置き換わっていること。
+		for _, tc := range []struct{ name, want string }{
+			{"fk_blocks_parent", "page_id"},
+			{"fk_page_paths_page", "workspace_id"},
+			{"fk_page_paths_ancestor", "workspace_id"},
+		} {
+			var def string
+			require.NoError(t, db.Raw(
+				`SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = ? AND conrelid = ?::regclass`,
+				tc.name, constraintTable(tc.name),
+			).Scan(&def).Error)
+			require.Containsf(t, def, tc.want, "%s が旧定義のままです: %s", tc.name, def)
+		}
+
+		// 旧定義が使っていた索引は落ちていること（張り替え後なので依存は無い）。
+		var n int64
+		require.NoError(t, db.Raw(
+			`SELECT count(*) FROM pg_indexes WHERE indexname = 'uq_blocks_workspace_id'`,
+		).Scan(&n).Error)
+		require.Zero(t, n, "旧索引 uq_blocks_workspace_id が残っています")
+	})
+}
+
+// constraintTable は制約名から対象テーブルを引く（pg_get_constraintdef の絞り込み用）。
+func constraintTable(constraint string) string {
+	if strings.HasPrefix(constraint, "fk_page_paths") {
+		return "page_paths"
+	}
+	return "blocks"
 }
 
 // --- 以下、テスト用のヘルパ（repository が無いので GORM を直接叩く）---
@@ -348,9 +455,11 @@ func createBlock(t *testing.T, db *gorm.DB, ws *domain.Workspace, page *domain.P
 	return block
 }
 
-func createPagePath(t *testing.T, db *gorm.DB, pageID, ancestorID string, depth int) {
+func createPagePath(t *testing.T, db *gorm.DB, workspaceID, pageID, ancestorID string, depth int) {
 	t.Helper()
-	require.NoError(t, db.Create(&domain.PagePath{PageID: pageID, AncestorID: ancestorID, Depth: depth}).Error)
+	require.NoError(t, db.Create(&domain.PagePath{
+		WorkspaceID: workspaceID, PageID: pageID, AncestorID: ancestorID, Depth: depth,
+	}).Error)
 }
 
 func createPageSnapshot(t *testing.T, db *gorm.DB, pageID string) {

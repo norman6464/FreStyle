@@ -7,6 +7,10 @@ package domain
 // 循環検出を再帰クエリなしの 1 回の JOIN で済ませるためにこの索引を別に持つ。
 // あくまで pages から導ける派生データなので、正本は pages.parent_id 側。
 type PagePath struct {
+	// WorkspaceID はテナント境界。page_id / ancestor_id との複合 FK に使い、
+	// 「別ワークスペースの 2 ページを組にした行」を DB が弾けるようにする
+	// （単独 FK を 2 本張るだけでは、どちらの FK も通ってしまい防げない）。
+	WorkspaceID string `gorm:"column:workspace_id;type:uuid;not null;index" json:"workspaceId"`
 	// PageID は子孫側のページ。
 	PageID string `gorm:"column:page_id;type:uuid;primaryKey" json:"pageId"`
 	// AncestorID は祖先側のページ（page_id 自身を含む）。

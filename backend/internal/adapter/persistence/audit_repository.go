@@ -3,12 +3,14 @@ package persistence
 import (
 	"context"
 
+	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"gorm.io/gorm"
 )
 
-// auditRepository は [repository.AuditRepository] の GORM 実装。
+// auditRepository は [repository.AuditRepository] の実装。
+// 読み取り（ListRecent）は sqlc 生成コード、書き込み（Record）は GORM。
 type auditRepository struct {
 	db *gorm.DB
 }
@@ -21,18 +23,33 @@ func (r *auditRepository) Record(ctx context.Context, e *domain.AuditEvent) erro
 	return r.db.WithContext(ctx).Create(e).Error
 }
 
+func toDomainAuditEvent(row sqlcgen.AuditEvent) domain.AuditEvent {
+	return domain.AuditEvent{
+		ID:         uint64(row.ID),
+		ActorID:    uint64(row.ActorID),
+		ActorEmail: row.ActorEmail,
+		ActorRole:  row.ActorRole,
+		Action:     row.Action,
+		TargetID:   uint64(row.TargetID),
+		CreatedAt:  row.CreatedAt,
+	}
+}
+
 func (r *auditRepository) ListRecent(ctx context.Context, limit int) ([]domain.AuditEvent, error) {
 	if limit <= 0 {
 		limit = 200
 	}
-	rows := make([]domain.AuditEvent, 0)
-	err := r.db.WithContext(ctx).
-		// created_at が同一秒でも順序が安定するよう id を tiebreaker にする。
-		Order("created_at DESC, id DESC").
-		Limit(limit).
-		Find(&rows).Error
+	sqlDB, err := r.db.DB()
 	if err != nil {
 		return nil, err
 	}
-	return rows, nil
+	rows, err := sqlcgen.New(sqlDB).ListRecentAuditEvents(ctx, int32(limit))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.AuditEvent, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, toDomainAuditEvent(row))
+	}
+	return out, nil
 }

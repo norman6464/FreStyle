@@ -4,7 +4,7 @@ import { getCognitoAuthUrl } from '../auth';
 const mockEnv = {
   VITE_COGNITO_DOMAIN: 'test.auth.ap-northeast-1.amazoncognito.com',
   VITE_CLIENT_ID: 'test-client-id',
-  VITE_REDIRECT_URI: 'http://localhost:5173/callback',
+  VITE_REDIRECT_URI: 'http://localhost:5173/login/callback',
   VITE_RESPONSE_TYPE: 'code',
   VITE_SCOPE: 'openid email profile',
 };

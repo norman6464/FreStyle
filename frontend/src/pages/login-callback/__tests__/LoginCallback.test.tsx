@@ -24,7 +24,7 @@ function renderWithRoute(search: string) {
   const store = configureStore({ reducer: { auth: authReducer } });
   const view = render(
     <Provider store={store}>
-      <MemoryRouter initialEntries={[`/callback${search}`]}>
+      <MemoryRouter initialEntries={[`/login/callback${search}`]}>
         <ToastProvider>
           <LoginCallback />
         </ToastProvider>

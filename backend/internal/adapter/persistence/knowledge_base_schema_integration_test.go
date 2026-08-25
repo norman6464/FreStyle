@@ -5,6 +5,7 @@ package persistence_test
 import (
 	"database/sql"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,11 +18,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// PostgreSQL の SQLSTATE（制約違反の種別）。どの制約が効いたのかまで固定するために使う。
+// PostgreSQL の SQLSTATE（エラーの種別）。どの制約・列型が効いたのかまで固定するために使う。
 const (
-	sqlStateForeignKeyViolation = "23503"
-	sqlStateUniqueViolation     = "23505"
-	sqlStateCheckViolation      = "23514"
+	sqlStateStringDataRightTruncation = "22001"
+	sqlStateForeignKeyViolation       = "23503"
+	sqlStateUniqueViolation           = "23505"
+	sqlStateCheckViolation            = "23514"
 )
 
 // kbTables はナレッジ基盤のテーブル（TRUNCATE 対象）。子から先に並べる。
@@ -329,12 +331,32 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 			requirePgError(t, err, sqlStateUniqueViolation, "uq_spaces_workspace_key")
 		})
 
-		t.Run("slug / key は空文字にできない", func(t *testing.T) {
-			err := insertWorkspace(db, newID(), "")
-			requirePgError(t, err, sqlStateCheckViolation, "ck_workspaces_slug_len")
-
-			err = insertSpace(db, newID(), ws, "")
-			requirePgError(t, err, sqlStateCheckViolation, "ck_spaces_key_len")
+		// 長さの契約は 2 枚の壁で守られる: 空文字は CHECK（BETWEEN 1 AND 64 の下限）が弾き、
+		// 65 文字以上は CHECK の評価より前に列型 varchar(64) が長さ超過（SQLSTATE 22001）で弾く。
+		// 上限ちょうどの 64 文字は列型にも CHECK の上限にも通ることを併せて固定する。
+		t.Run("slug / key の長さ境界", func(t *testing.T) {
+			for _, tc := range []struct {
+				name       string
+				insert     func(value string) error
+				constraint string
+			}{
+				{
+					name:       "workspaces.slug",
+					insert:     func(value string) error { return insertWorkspace(db, newID(), value) },
+					constraint: "ck_workspaces_slug_len",
+				},
+				{
+					name:       "spaces.key",
+					insert:     func(value string) error { return insertSpace(db, newID(), ws, value) },
+					constraint: "ck_spaces_key_len",
+				},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					requirePgError(t, tc.insert(""), sqlStateCheckViolation, tc.constraint)
+					require.NoError(t, tc.insert(strings.Repeat("a", 64)))
+					requireSQLState(t, tc.insert(strings.Repeat("a", 65)), sqlStateStringDataRightTruncation)
+				})
+			}
 		})
 	})
 
@@ -620,6 +642,16 @@ func queryStrings(t *testing.T, db *sql.DB, query string, args ...any) []string 
 	}
 	require.NoError(t, rows.Err())
 	return got
+}
+
+// requireSQLState は err が期待した SQLSTATE で落ちたことを確かめる
+// （列型の長さ超過のように制約名を持たないエラー向け。制約違反は requirePgError で制約名まで見る）。
+func requireSQLState(t *testing.T, err error, sqlState string) {
+	t.Helper()
+	require.Error(t, err)
+	var pgErr *pgconn.PgError
+	require.ErrorAs(t, err, &pgErr)
+	require.Equalf(t, sqlState, pgErr.Code, "SQLSTATE が想定と異なります: %v", err)
 }
 
 // requirePgError は err が期待した SQLSTATE の制約違反で、かつ期待した制約名で落ちたことを確かめる。

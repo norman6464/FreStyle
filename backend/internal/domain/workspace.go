@@ -2,10 +2,10 @@ package domain
 
 import "time"
 
-// Workspace はナレッジ基盤のテナント境界。配下の space / page / block はすべて
-// workspace_id を持ち、複合 FK で「別テナントの行を親にできない」ことを DB 側で保証する
-// （スキーマの正本は infra/database/schema/knowledge_base.sql）。
+// Workspace はナレッジ基盤のテナント境界。配下の space / page / block はすべて workspace_id を持ち、
+// 複合 FK で「別テナントの行を親にできない」ことを DB 側で保証する。
 //
+// スキーマの正本は infra/database/schema/knowledge_base.sql。
 // ナレッジ基盤の型は GORM を通さない（AutoMigrate の対象外・GORM タグを持たない）。
 // 永続化は sqlc 生成コードから詰め替える。段 1-b で repository が付くまで参照元は無い。
 //

@@ -2,7 +2,8 @@ package domain
 
 import "time"
 
-// BlockType は blocks.type に入るノード名。値は ProseMirror（tiptap）のノード名そのもので、
+// BlockType は blocks.type に入るノード名。値は ProseMirror（tiptap）のノード名そのもの。
+//
 // frontend の createSchemaExtensions()（shared/ui/RichTextEditor/schemaExtensions.ts）が
 // 組み立てるスキーマと 1 対 1 に対応する。片方を増やしたらもう片方も足すこと
 // （スキーマにないノード名を保存すると、読み出したドキュメントがエディタで開けなくなる）。

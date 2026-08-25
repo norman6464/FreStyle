@@ -348,3 +348,86 @@ func (m *mockRichDocRepo) ListByOwner(ctx context.Context, ownerID uint64, kind 
 	rows, _ := args.Get(0).([]domain.RichDocument)
 	return rows, args.Error(1)
 }
+
+// --- mock: KnowledgeBaseRepository ---
+
+type mockKnowledgeBaseRepo struct{ mock.Mock }
+
+var _ repository.KnowledgeBaseRepository = (*mockKnowledgeBaseRepo)(nil)
+
+func (m *mockKnowledgeBaseRepo) FindWorkspaceByID(ctx context.Context, workspaceID string) (*domain.Workspace, error) {
+	args := m.Called(ctx, workspaceID)
+	w, _ := args.Get(0).(*domain.Workspace)
+	return w, args.Error(1)
+}
+
+func (m *mockKnowledgeBaseRepo) FindSpace(ctx context.Context, workspaceID, spaceID string) (*domain.Space, error) {
+	args := m.Called(ctx, workspaceID, spaceID)
+	s, _ := args.Get(0).(*domain.Space)
+	return s, args.Error(1)
+}
+
+func (m *mockKnowledgeBaseRepo) FindPage(ctx context.Context, workspaceID, pageID string) (*domain.Page, error) {
+	args := m.Called(ctx, workspaceID, pageID)
+	p, _ := args.Get(0).(*domain.Page)
+	return p, args.Error(1)
+}
+
+func (m *mockKnowledgeBaseRepo) ListActivePagesBySpace(ctx context.Context, workspaceID, spaceID string) ([]domain.Page, error) {
+	args := m.Called(ctx, workspaceID, spaceID)
+	rows, _ := args.Get(0).([]domain.Page)
+	return rows, args.Error(1)
+}
+
+func (m *mockKnowledgeBaseRepo) LastActiveSiblingPosition(ctx context.Context, workspaceID, spaceID string, parentID *string) (string, error) {
+	args := m.Called(ctx, workspaceID, spaceID, parentID)
+	return args.String(0), args.Error(1)
+}
+
+func (m *mockKnowledgeBaseRepo) HasActiveSiblingPosition(ctx context.Context, workspaceID, spaceID string, parentID *string, position, excludePageID string) (bool, error) {
+	args := m.Called(ctx, workspaceID, spaceID, parentID, position, excludePageID)
+	return args.Bool(0), args.Error(1)
+}
+
+func (m *mockKnowledgeBaseRepo) HasDescendant(ctx context.Context, workspaceID, pageID, candidateID string) (bool, error) {
+	args := m.Called(ctx, workspaceID, pageID, candidateID)
+	return args.Bool(0), args.Error(1)
+}
+
+func (m *mockKnowledgeBaseRepo) CreatePage(ctx context.Context, page *domain.Page) error {
+	return m.Called(ctx, page).Error(0)
+}
+
+func (m *mockKnowledgeBaseRepo) UpdatePageTitle(ctx context.Context, workspaceID, pageID, title string) (*domain.Page, error) {
+	args := m.Called(ctx, workspaceID, pageID, title)
+	p, _ := args.Get(0).(*domain.Page)
+	return p, args.Error(1)
+}
+
+func (m *mockKnowledgeBaseRepo) MovePage(ctx context.Context, workspaceID, pageID string, newParentID *string, newSpaceID, newPosition string) error {
+	return m.Called(ctx, workspaceID, pageID, newParentID, newSpaceID, newPosition).Error(0)
+}
+
+func (m *mockKnowledgeBaseRepo) ArchivePageSubtree(ctx context.Context, workspaceID, pageID string) error {
+	return m.Called(ctx, workspaceID, pageID).Error(0)
+}
+
+func (m *mockKnowledgeBaseRepo) UnarchivePageSubtree(ctx context.Context, workspaceID, pageID string, archivedSince time.Time, newRootPosition *string) error {
+	return m.Called(ctx, workspaceID, pageID, archivedSince, newRootPosition).Error(0)
+}
+
+func (m *mockKnowledgeBaseRepo) ListBlocksByPage(ctx context.Context, workspaceID, pageID string) ([]domain.Block, error) {
+	args := m.Called(ctx, workspaceID, pageID)
+	rows, _ := args.Get(0).([]domain.Block)
+	return rows, args.Error(1)
+}
+
+func (m *mockKnowledgeBaseRepo) ReplacePageBlocks(ctx context.Context, workspaceID, pageID string, blocks []repository.BlockWrite, snapshotDoc string) error {
+	return m.Called(ctx, workspaceID, pageID, blocks, snapshotDoc).Error(0)
+}
+
+func (m *mockKnowledgeBaseRepo) GetPageSnapshot(ctx context.Context, workspaceID, pageID string) (*domain.PageSnapshot, error) {
+	args := m.Called(ctx, workspaceID, pageID)
+	s, _ := args.Get(0).(*domain.PageSnapshot)
+	return s, args.Error(1)
+}

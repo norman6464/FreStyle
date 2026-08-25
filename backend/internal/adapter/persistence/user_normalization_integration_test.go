@@ -324,4 +324,74 @@ func TestUserNormalization_Integration(t *testing.T) {
 		_, err := repo.FindActiveByEmail(ctx, "dup2@example.com")
 		require.ErrorContains(t, err, "重複を解消")
 	})
+
+	// 一意索引のキーは lower(email)。アプリは domain.NormalizeEmail で畳んだ値を保存するが、
+	// 索引が生の byte 一致だと「畳めば同じだがバイトが違う」2 行が両方作れてしまう。
+	t.Run("DB 制約: 大小文字だけ違う email もアクティブ行の重複として拒否する", func(t *testing.T) {
+		truncate(t)
+		// 直前のサブテストが重複行を残したまま index を落としている場合に備えて張り直す。
+		require.NoError(t, database.ApplyUserNormalizationConstraints(db))
+		u1 := &domain.User{Email: "case@example.com", Role: domain.RoleTrainee}
+		require.NoError(t, repo.CreateWithOidcIdentity(ctx, u1, domain.OidcProviderCognito, "case-1"))
+
+		dup := &domain.User{Email: "CASE@Example.com", Role: domain.RoleTrainee}
+		require.ErrorContains(
+			t,
+			repo.CreateWithOidcIdentity(ctx, dup, domain.OidcProviderCognito, "case-2"),
+			"uq_users_email_active",
+		)
+	})
+
+	// FindActiveByEmail の突き合わせも索引と同じ lower()。保存値が正規化される前に作られた
+	// 大文字混じりの既存行も、同じアドレスとして 1 件に解決できる。
+	t.Run("FindActiveByEmail は大小文字を無視して引く", func(t *testing.T) {
+		truncate(t)
+		// 正規化前の既存行を再現するため、アプリを通さず直接 INSERT する。
+		require.NoError(t, db.Exec(
+			`INSERT INTO users (email, name, role_id, is_active, created_at, updated_at)
+			 VALUES ('Legacy@Example.com', 'legacy', 3, true, NOW(), NOW())`,
+		).Error)
+
+		got, err := repo.FindActiveByEmail(ctx, "legacy@example.com")
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		require.Equal(t, "Legacy@Example.com", got.Email)
+	})
+
+	// 既存データへの影響: 畳んだ値に重複がある環境では張り替えを見送り、旧索引（生の email）を
+	// 残す。先に落とすと「新しい索引を作れない かつ 旧索引も無い」= 無防備な状態になるため。
+	t.Run("索引の張り替え: 畳んだ値に重複がある間は旧索引を残し、解消後に張り替える", func(t *testing.T) {
+		truncate(t)
+		// 張り替え前（生の email キー）の環境を再現する。
+		require.NoError(t, db.Exec(`DROP INDEX IF EXISTS uq_users_email_active`).Error)
+		require.NoError(t, db.Exec(
+			`CREATE UNIQUE INDEX uq_users_email_active ON users (email)
+			 WHERE deleted_at IS NULL AND email <> ''`,
+		).Error)
+		// 旧索引だから作れてしまう「畳めば同じ」2 行（既存本番で起こり得る状態）。
+		require.NoError(t, db.Exec(
+			`INSERT INTO users (email, name, role_id, is_active, created_at, updated_at)
+			 VALUES ('mix@example.com', 'a', 3, true, NOW(), NOW()),
+			        ('MIX@Example.com', 'b', 3, true, NOW(), NOW())`,
+		).Error)
+
+		indexdef := func(t *testing.T) string {
+			t.Helper()
+			var def string
+			require.NoError(t, db.Raw(
+				`SELECT indexdef FROM pg_indexes WHERE indexname = 'uq_users_email_active'`,
+			).Scan(&def).Error)
+			return def
+		}
+
+		// 起動時の制約適用は落ちず（WARNING のみ）、旧索引がそのまま残る。
+		require.NoError(t, database.ApplyUserNormalizationConstraints(db))
+		require.NotContains(t, indexdef(t), "lower(email)")
+		require.Contains(t, indexdef(t), "email")
+
+		// 重複を解消すれば、次の起動で lower(email) へ張り替わる。
+		require.NoError(t, db.Exec(`DELETE FROM users WHERE email = 'MIX@Example.com'`).Error)
+		require.NoError(t, database.ApplyUserNormalizationConstraints(db))
+		require.Contains(t, indexdef(t), "lower(email)")
+	})
 }

@@ -26,6 +26,12 @@ type UserRepository interface {
 	// 単一トランザクションで作成する。正規化後は「識別子を持たないユーザー」は存在し得ない
 	// ため、ユーザー作成は必ず identity 作成と不可分に行う（片方だけ成功する状態を作らない）。
 	CreateWithOidcIdentity(ctx context.Context, user *domain.User, provider, subject string) error
+	// CreateFirstSuperAdminWithOidcIdentity は super_admin が 1 人も居ないときに限り、
+	// CreateWithOidcIdentity と同じ内容（users 行 + OIDC identity）を作る。
+	// 「居ないこと」の確認と作成は同一トランザクションで不可分に行い、同時に来た 2 本が
+	// どちらも「0 人」を見て 2 人目を作ることを防ぐ。既に居た場合は作成せず (false, nil)。
+	// user.Role が super_admin でない場合はエラー（この経路は最初の運営管理者専用）。
+	CreateFirstSuperAdminWithOidcIdentity(ctx context.Context, user *domain.User, provider, subject string) (bool, error)
 	// EnsureOidcIdentity は OIDC identity（provider + subject）を無ければ作る（冪等）。
 	// 既存ユーザーのセルフヒール（provider 追加・張り直し）で呼ばれる。
 	EnsureOidcIdentity(ctx context.Context, userID uint64, provider, subject string) error

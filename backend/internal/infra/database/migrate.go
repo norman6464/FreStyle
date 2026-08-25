@@ -307,23 +307,34 @@ func ApplyUserNormalizationConstraints(db *gorm.DB) error {
 		// users.email: アクティブ行（未論理削除）かつ非空に限った部分 UNIQUE。
 		// 論理削除→同メール再招待と両立し、email claim の無い OIDC ユーザー（空文字）は対象外にする
 		// （重複ガードと述語を必ず一致させること。ずれると起動失敗が自己修復しなくなる）。
+		//
+		// キーは email そのものではなく lower(email)。アプリは domain.NormalizeEmail で畳んだ値を
+		// 保存するが、索引が生の byte 一致だと「アプリでは同一・DB では別行」という食い違いが
+		// 残り、大小文字だけ違う 2 行が両方作れてしまう（既存の大文字混じり行も同じ穴になる）。
+		// アプリ側の同一性（NormalizeEmail）と DB 側の一意性（lower）を同じ正規形に揃える。
+		//
 		// 既存データに重複がある場合は作成せず WARNING を出す（起動を落とさず、修正は運用判断に委ねる）。
+		// 旧定義（生の email キー）からの張り替えは、畳んだ値に重複が無いことを確かめてから行う。
+		// 先に落としてしまうと、新しい索引を作れない環境で保護が消えるため。
 		`DO $$ BEGIN
 			IF EXISTS (
 				SELECT 1 FROM pg_indexes WHERE indexname = 'uq_users_email_active'
-				  AND indexdef NOT LIKE '%email%<>%'
+				  AND indexdef NOT LIKE '%lower(email)%'
+			) AND NOT EXISTS (
+				SELECT 1 FROM users WHERE deleted_at IS NULL AND email <> ''
+				GROUP BY lower(email) HAVING count(*) > 1
 			) THEN
 				DROP INDEX uq_users_email_active;
 			END IF;
 			IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'uq_users_email_active') THEN
 				IF EXISTS (
-					SELECT email FROM users WHERE deleted_at IS NULL AND email <> ''
-					GROUP BY email HAVING count(*) > 1
+					SELECT 1 FROM users WHERE deleted_at IS NULL AND email <> ''
+					GROUP BY lower(email) HAVING count(*) > 1
 				) THEN
-					RAISE WARNING 'users.email に重複があるため uq_users_email_active を作成できません（重複を解消して再起動してください）';
+					RAISE WARNING 'users.email に（大小文字を無視した）重複があるため uq_users_email_active を作成できません（重複を解消して再起動してください）';
 				ELSE
 					CREATE UNIQUE INDEX uq_users_email_active
-						ON users (email) WHERE deleted_at IS NULL AND email <> '';
+						ON users (lower(email)) WHERE deleted_at IS NULL AND email <> '';
 				END IF;
 			END IF;
 		END $$;`,

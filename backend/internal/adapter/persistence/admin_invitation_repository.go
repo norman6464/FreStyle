@@ -36,10 +36,14 @@ func (r *adminInvitationRepository) ListByCompanyID(ctx context.Context, company
 	return rows, err
 }
 
+// FindPendingByEmail は保留中の招待を email で引く。
+// 突き合わせは lower() 同士で行う。ユーザー側の email は domain.NormalizeEmail で畳んだ値に
+// 揃えて保存・照会するため、招待作成時に大文字混じりで入力された行を byte 一致で探すと
+// 「招待したのに招待が見つからない」状態になる（同じアドレスの解釈が 2 つある状態を作らない）。
 func (r *adminInvitationRepository) FindPendingByEmail(ctx context.Context, email string) (*domain.AdminInvitation, error) {
 	var row domain.AdminInvitation
 	err := r.db.WithContext(ctx).
-		Where("email = ? AND status = ?", email, domain.InvitationStatusPending).
+		Where("lower(email) = lower(?) AND status = ?", email, domain.InvitationStatusPending).
 		Order("created_at DESC, id DESC").First(&row).Error
 	if err != nil {
 		// 該当なしは招待ユーザーでない通常サインアップなので nil, nil を返す。

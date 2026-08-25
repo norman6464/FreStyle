@@ -68,6 +68,21 @@ func (r *fakeUserRepo) CreateWithOidcIdentity(_ context.Context, u *domain.User,
 	return nil
 }
 
+// CreateFirstSuperAdminWithOidcIdentity は本物の repository と同じく「super_admin が 0 人の
+// ときだけ作る」振る舞いを模す。
+func (r *fakeUserRepo) CreateFirstSuperAdminWithOidcIdentity(
+	ctx context.Context, u *domain.User, provider, subject string,
+) (bool, error) {
+	if len(r.superAdmins) > 0 {
+		return false, nil
+	}
+	if err := r.CreateWithOidcIdentity(ctx, u, provider, subject); err != nil {
+		return false, err
+	}
+	r.superAdmins = append(r.superAdmins, *u)
+	return true, nil
+}
+
 func (r *fakeUserRepo) UpdateName(_ context.Context, id uint64, name string) error {
 	r.updateNameID, r.updateNameVal = id, name
 	return nil

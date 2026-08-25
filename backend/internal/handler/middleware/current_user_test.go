@@ -29,6 +29,12 @@ func (s *stubUsers) ListByCompanyID(context.Context, uint64) ([]domain.User, err
 func (s *stubUsers) CreateWithOidcIdentity(context.Context, *domain.User, string, string) error {
 	return nil
 }
+
+func (s *stubUsers) CreateFirstSuperAdminWithOidcIdentity(
+	context.Context, *domain.User, string, string,
+) (bool, error) {
+	return true, nil
+}
 func (s *stubUsers) EnsureOidcIdentity(context.Context, uint64, string, string) error { return nil }
 func (s *stubUsers) FindActiveByEmail(context.Context, string) (*domain.User, error)  { return nil, nil }
 

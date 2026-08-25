@@ -20,6 +20,19 @@ WHERE id = $1;
 SELECT * FROM workspaces
 WHERE slug = $1;
 
+-- name: InsertWorkspace :one
+-- ワークスペースの作成。slug はグローバルに一意（uq_workspaces_slug）なので、
+-- 重複は一意制約違反として返り、repository が「その slug は使用済み」へ翻訳する。
+INSERT INTO workspaces (id, slug, name)
+VALUES ($1, $2, $3)
+RETURNING *;
+
+-- name: InsertSpace :one
+-- スペースの作成。key はワークスペース内で一意（uq_spaces_workspace_key）。
+INSERT INTO spaces (id, workspace_id, "key", name)
+VALUES ($1, $2, $3, $4)
+RETURNING *;
+
 -- name: GetSpace :one
 -- スペースの存在確認。workspace_id を含めることで別テナントのスペース ID を弾く。
 SELECT * FROM spaces

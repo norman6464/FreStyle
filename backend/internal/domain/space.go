@@ -17,3 +17,15 @@ type Space struct {
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }
+
+// SpaceKeyMaxLen / SpaceNameMaxLen は spaces の列幅（varchar(64) / varchar(200)）。
+const (
+	SpaceKeyMaxLen  = 64
+	SpaceNameMaxLen = 200
+)
+
+// ValidSpaceKey はスペースの key として保存してよい形かを返す。
+// 形は workspaces.slug と同じ（どちらも人が打つ短い識別子で、揺れを持ち込まない）。
+func ValidSpaceKey(key string) bool {
+	return validURLKey(key, SpaceKeyMaxLen)
+}

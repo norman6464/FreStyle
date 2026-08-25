@@ -748,6 +748,74 @@ func (r *knowledgeBasePermissionRepository) ListSpacePageViewFacts(ctx context.C
 	return out, nil
 }
 
+func (r *knowledgeBasePermissionRepository) ListMemberWorkspaces(ctx context.Context, userID uint64) ([]domain.Workspace, error) {
+	rows, err := r.q.ListMemberWorkspaces(ctx, sql.NullInt64{Int64: int64(userID), Valid: true})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.Workspace, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, toDomainWorkspace(row))
+	}
+	return out, nil
+}
+
+func (r *knowledgeBasePermissionRepository) SpacePermissionFactsForUser(
+	ctx context.Context, workspaceID, spaceID string, userID uint64,
+) (*domain.ScopeFacts, error) {
+	wsID, ok := kbParseID(workspaceID)
+	spID, ok2 := kbParseID(spaceID)
+	if !ok || !ok2 {
+		return nil, repository.ErrSpaceNotFound
+	}
+	// 役割を集める前にスペースの実在（と同じワークスペースに属すること）を確かめる。
+	// workspace_grants は配下の全スペースに届くので、確かめずに役割だけを集めると
+	// 存在しないスペースや他テナントのスペースに対しても「自分のワークスペースでの役割」が
+	// そのまま返り、口そのものが緩い側へ倒れる。
+	if _, err := r.q.GetSpace(ctx, sqlcgen.GetSpaceParams{WorkspaceID: wsID, ID: spID}); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, repository.ErrSpaceNotFound
+		}
+		return nil, err
+	}
+	roles, err := r.q.ListSpaceScopeGrantRoles(ctx, sqlcgen.ListSpaceScopeGrantRolesParams{
+		WorkspaceID: wsID,
+		UserID:      sql.NullInt64{Int64: int64(userID), Valid: true},
+		SpaceID:     uuid.NullUUID{UUID: spID, Valid: true},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &domain.ScopeFacts{Roles: toGrantRoles(roles)}, nil
+}
+
+func (r *knowledgeBasePermissionRepository) WorkspacePermissionFactsForUser(
+	ctx context.Context, workspaceID string, userID uint64,
+) (*domain.ScopeFacts, error) {
+	wsID, ok := kbParseID(workspaceID)
+	if !ok {
+		return nil, repository.ErrWorkspaceNotFound
+	}
+	roles, err := r.q.ListWorkspaceScopeGrantRoles(ctx, sqlcgen.ListWorkspaceScopeGrantRolesParams{
+		WorkspaceID: wsID,
+		UserID:      sql.NullInt64{Int64: int64(userID), Valid: true},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &domain.ScopeFacts{Roles: toGrantRoles(roles)}, nil
+}
+
+// toGrantRoles は SQL が返した役割の文字列を domain の型へ移すだけの変換。
+// どれを採るかの規則（最も強いものを採る）はここでは決めず、domain.StrongestGrantRole に任せる。
+func toGrantRoles(rows []string) []domain.GrantRole {
+	roles := make([]domain.GrantRole, 0, len(rows))
+	for _, row := range rows {
+		roles = append(roles, domain.GrantRole(row))
+	}
+	return roles
+}
+
 func (r *knowledgeBasePermissionRepository) ListSubtreePagePermissionFacts(ctx context.Context, workspaceID, pageID string, userID uint64) ([]repository.PageWithPermissionFacts, error) {
 	wsID, ok := kbParseID(workspaceID)
 	pgID, ok2 := kbParseID(pageID)

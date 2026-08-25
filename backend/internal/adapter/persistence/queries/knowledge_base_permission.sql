@@ -559,3 +559,85 @@ LEFT JOIN allow_scope av ON av.page_id = s.page_id AND av.capability = 'view'
 LEFT JOIN exception ee ON ee.page_id = s.page_id AND ee.capability = 'edit'
 LEFT JOIN allow_scope ae ON ae.page_id = s.page_id AND ae.capability = 'edit'
 ORDER BY s.page_id;
+
+-- name: ListMemberWorkspaces :many
+-- そのユーザーが所属するワークスペース一覧。
+--
+-- 所属の正本は principals（kind='user'）の行なので、JOIN の結果がそのまま答えになる。
+-- このファイルの作法（WHERE に workspace_id を必ず含める）に対する唯一の例外で、
+-- テナントを絞る手前の「どのテナントに入れるか」を答えるクエリだから workspace_id を取らない。
+-- 代わりに principals 側で user_id を必ず縛る（ここが緩むと全テナントが漏れる）。
+SELECT w.* FROM workspaces w
+JOIN principals p
+  ON p.workspace_id = w.id AND p.kind = 'user' AND p.user_id = sqlc.arg(user_id)
+ORDER BY w.slug;
+
+-- name: ListSpaceScopeGrantRoles :many
+-- そのスペースの「既定の役割」として自分に届いている役割をすべて返す（事実だけ）。
+--
+-- ページを介さずスペース単位で権限を判定する経路（スペース直下へのページ作成など）の土台。
+-- 返すのは役割の集合であって、どれを採るかの規則は domain.StrongestGrantRole が持つ。
+-- max(rank) を SQL 側で計算すると「最も強いものを採る」という規則が DB へ写り、
+-- ページ 1 枚の解決と食い違ったときにどちらが正か決められなくなる。
+--
+-- ページ単位の例外（page_restrictions / page_allow_lists）はここでは一切見ない。
+-- スペースには例外の層が無く、あるのは grants の既定だけ。この結果を
+-- 「そのスペースのあるページを編集してよいか」に使ってはいけない（ページの deny を
+-- 見ていないため必ず緩い側へ倒れる）。呼び出し側は対象がまだ存在しない操作にだけ使う。
+--
+-- mine（自分に効く主体）の作り方は ResolvePagePermissionFacts と同じ:
+-- 自分自身 + 所属グループ + そのスペースの「全員」。グループの入れ子は DB 側で
+-- 禁じてあるので 1 段の JOIN で足りる。
+WITH me AS (
+    SELECT p.id
+    FROM principals p
+    WHERE p.workspace_id = sqlc.arg(workspace_id)
+      AND p.kind = 'user' AND p.user_id = sqlc.arg(user_id)
+),
+mine AS (
+    SELECT id FROM me
+    UNION
+    SELECT pm.group_principal_id
+    FROM principal_members pm
+    JOIN me ON me.id = pm.member_principal_id
+    WHERE pm.workspace_id = sqlc.arg(workspace_id)
+    UNION
+    SELECT sp.id
+    FROM principals sp
+    WHERE sp.workspace_id = sqlc.arg(workspace_id)
+      AND sp.kind = 'space_all' AND sp.space_id = sqlc.arg(space_id)
+      AND EXISTS (SELECT 1 FROM me)
+)
+-- ワークスペースの grant は配下の全スペースに届くので、スペースの grant と合わせて返す。
+SELECT wg."role" FROM workspace_grants wg
+ WHERE wg.workspace_id = sqlc.arg(workspace_id)
+   AND wg.principal_id IN (SELECT id FROM mine)
+UNION
+SELECT sg."role" FROM space_grants sg
+ WHERE sg.workspace_id = sqlc.arg(workspace_id) AND sg.space_id = sqlc.arg(space_id)
+   AND sg.principal_id IN (SELECT id FROM mine);
+
+-- name: ListWorkspaceScopeGrantRoles :many
+-- ワークスペースそのものに対して自分に届いている役割をすべて返す（事実だけ）。
+-- スペースを作る操作のように、どのスペースにも属さない判定に使う。
+--
+-- kind='space_all' の主体はここでは数えない。あれは「そのスペースの全員」という
+-- スペースの中でだけ意味を持つ主体で、入れ物が決まっていないワークスペース単位の判定に
+-- 混ぜると、どこか 1 つのスペースの space_all に張られた grant がテナント全体の権限に化ける。
+WITH me AS (
+    SELECT p.id
+    FROM principals p
+    WHERE p.workspace_id = sqlc.arg(workspace_id)
+      AND p.kind = 'user' AND p.user_id = sqlc.arg(user_id)
+),
+mine AS (
+    SELECT id FROM me
+    UNION
+    SELECT pm.group_principal_id
+    FROM principal_members pm
+    JOIN me ON me.id = pm.member_principal_id
+    WHERE pm.workspace_id = sqlc.arg(workspace_id)
+)
+SELECT wg."role" FROM workspace_grants wg
+ WHERE wg.workspace_id = sqlc.arg(workspace_id)
+   AND wg.principal_id IN (SELECT id FROM mine);

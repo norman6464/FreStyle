@@ -405,6 +405,68 @@ func (q *Queries) InsertPagePathSelf(ctx context.Context, arg InsertPagePathSelf
 	return err
 }
 
+const insertSpace = `-- name: InsertSpace :one
+INSERT INTO spaces (id, workspace_id, "key", name)
+VALUES ($1, $2, $3, $4)
+RETURNING id, workspace_id, key, name, created_at, updated_at
+`
+
+type InsertSpaceParams struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	Key         string
+	Name        string
+}
+
+// スペースの作成。key はワークスペース内で一意（uq_spaces_workspace_key）。
+func (q *Queries) InsertSpace(ctx context.Context, arg InsertSpaceParams) (Space, error) {
+	row := q.db.QueryRowContext(ctx, insertSpace,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.Key,
+		arg.Name,
+	)
+	var i Space
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Key,
+		&i.Name,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const insertWorkspace = `-- name: InsertWorkspace :one
+INSERT INTO workspaces (id, slug, name)
+VALUES ($1, $2, $3)
+RETURNING id, slug, name, ai_chat_enabled_for_trainees, is_active, created_at, updated_at
+`
+
+type InsertWorkspaceParams struct {
+	ID   uuid.UUID
+	Slug string
+	Name string
+}
+
+// ワークスペースの作成。slug はグローバルに一意（uq_workspaces_slug）なので、
+// 重複は一意制約違反として返り、repository が「その slug は使用済み」へ翻訳する。
+func (q *Queries) InsertWorkspace(ctx context.Context, arg InsertWorkspaceParams) (Workspace, error) {
+	row := q.db.QueryRowContext(ctx, insertWorkspace, arg.ID, arg.Slug, arg.Name)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Name,
+		&i.AiChatEnabledForTrainees,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const listActivePagesBySpace = `-- name: ListActivePagesBySpace :many
 SELECT id, workspace_id, space_id, parent_id, position, title, created_by_user_id, archived_at, created_at, updated_at FROM pages
 WHERE workspace_id = $1 AND space_id = $2 AND archived_at IS NULL

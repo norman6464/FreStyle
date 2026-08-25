@@ -380,6 +380,10 @@ func (m *mockKnowledgeBaseRepo) FindSpace(ctx context.Context, workspaceID, spac
 	return s, args.Error(1)
 }
 
+func (m *mockKnowledgeBaseRepo) CreateSpace(ctx context.Context, space *domain.Space) error {
+	return m.Called(ctx, space).Error(0)
+}
+
 func (m *mockKnowledgeBaseRepo) FindPage(ctx context.Context, workspaceID, pageID string) (*domain.Page, error) {
 	args := m.Called(ctx, workspaceID, pageID)
 	p, _ := args.Get(0).(*domain.Page)
@@ -461,6 +465,24 @@ func (m *mockKBPermissionRepo) EnsureSpaceEveryonePrincipal(ctx context.Context,
 	args := m.Called(ctx, workspaceID, spaceID)
 	p, _ := args.Get(0).(*domain.Principal)
 	return p, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) ListMemberWorkspaces(ctx context.Context, userID uint64) ([]domain.Workspace, error) {
+	args := m.Called(ctx, userID)
+	rows, _ := args.Get(0).([]domain.Workspace)
+	return rows, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) SpacePermissionFactsForUser(ctx context.Context, workspaceID, spaceID string, userID uint64) (*domain.ScopeFacts, error) {
+	args := m.Called(ctx, workspaceID, spaceID, userID)
+	f, _ := args.Get(0).(*domain.ScopeFacts)
+	return f, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) WorkspacePermissionFactsForUser(ctx context.Context, workspaceID string, userID uint64) (*domain.ScopeFacts, error) {
+	args := m.Called(ctx, workspaceID, userID)
+	f, _ := args.Get(0).(*domain.ScopeFacts)
+	return f, args.Error(1)
 }
 
 func (m *mockKBPermissionRepo) CreateGroupPrincipal(ctx context.Context, workspaceID, name string) (*domain.Principal, error) {

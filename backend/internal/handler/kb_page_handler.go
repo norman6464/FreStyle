@@ -19,6 +19,7 @@ import (
 // URL の slug と principals から確定させたものを context から取る。
 type KnowledgeBasePageHandler struct {
 	check          *usecase.CheckPagePermissionUseCase
+	checkSpace     *usecase.CheckSpacePermissionUseCase
 	canEditSubtree *usecase.CanEditPageSubtreeUseCase
 	listViewable   *usecase.ListViewablePagesUseCase
 	get            *usecase.GetPageUseCase
@@ -33,6 +34,7 @@ type KnowledgeBasePageHandler struct {
 // NewKnowledgeBasePageHandler は KnowledgeBasePageHandler を組み立てる。
 func NewKnowledgeBasePageHandler(
 	check *usecase.CheckPagePermissionUseCase,
+	checkSpace *usecase.CheckSpacePermissionUseCase,
 	canEditSubtree *usecase.CanEditPageSubtreeUseCase,
 	listViewable *usecase.ListViewablePagesUseCase,
 	get *usecase.GetPageUseCase,
@@ -45,6 +47,7 @@ func NewKnowledgeBasePageHandler(
 ) *KnowledgeBasePageHandler {
 	return &KnowledgeBasePageHandler{
 		check:          check,
+		checkSpace:     checkSpace,
 		canEditSubtree: canEditSubtree,
 		listViewable:   listViewable,
 		get:            get,
@@ -139,6 +142,14 @@ func respondKnowledgeBaseErr(c *gin.Context, err error) {
 		// 対象の現在の状態と両立しない」）。500 で返すと、クライアントは DB 障害と区別できず
 		// 再試行してよいものと誤解する（何度試しても同じ結果になる）。
 		c.JSON(http.StatusConflict, errorResponse{Error: "space_restriction_voided"})
+	case errors.Is(err, repository.ErrWorkspaceSlugTaken):
+		c.JSON(http.StatusConflict, errorResponse{Error: "slug_taken"})
+	case errors.Is(err, repository.ErrSpaceKeyTaken):
+		c.JSON(http.StatusConflict, errorResponse{Error: "space_key_taken"})
+	case errors.Is(err, usecase.ErrInvalidWorkspaceSlug),
+		errors.Is(err, usecase.ErrInvalidSpaceKey),
+		errors.Is(err, usecase.ErrInvalidName):
+		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
 	case errors.Is(err, usecase.ErrPageParentSpaceMismatch):
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "parent_space_mismatch"})
 	case errors.Is(err, usecase.ErrPageDocInvalid), errors.Is(err, usecase.ErrPageDocUnknownNodeType):
@@ -193,6 +204,38 @@ func (h *KnowledgeBasePageHandler) requirePagePermission(
 	}
 	if !perm.Allows(capability) {
 		// ここに来る相手は閲覧できる = 実在を既に知っているので、403 で理由を返してよい。
+		c.JSON(http.StatusForbidden, errorResponse{Error: "forbidden"})
+		return false
+	}
+	return true
+}
+
+// requireSpacePermission はスペース 1 つの実効権限を確かめる。満たさなければレスポンスを
+// 書いて false を返す。
+//
+// **ページを名指しする経路でこれを使ってはいけない。** スペースの判定はページ単位の例外
+// （page_restrictions）を見ておらず、あるページで deny されている相手にも
+// スペースの既定が editor なら true を返す。使ってよいのは対象がまだ存在しない操作
+// （スペース直下へのページ作成）だけで、親を持つ作成は requirePagePermission を通す。
+func (h *KnowledgeBasePageHandler) requireSpacePermission(
+	c *gin.Context, scope kbRequestScope, spaceID string, capability domain.Capability,
+) bool {
+	perm, err := h.checkSpace.Execute(c.Request.Context(), usecase.CheckSpacePermissionInput{
+		WorkspaceID: scope.workspaceID,
+		SpaceID:     spaceID,
+		UserID:      scope.userID,
+	})
+	if err != nil {
+		respondKnowledgeBaseErr(c, err)
+		return false
+	}
+	if !perm.CanView {
+		// 中身を 1 つも見られない相手にはスペースの実在を教えない
+		// （ツリー取得が「無いスペース」と「空のスペース」を撃ち分けないのと同じ扱い）。
+		c.JSON(http.StatusNotFound, errorResponse{Error: "not_found"})
+		return false
+	}
+	if !perm.Allows(capability) {
 		c.JSON(http.StatusForbidden, errorResponse{Error: "forbidden"})
 		return false
 	}
@@ -270,19 +313,20 @@ func (h *KnowledgeBasePageHandler) Tree(c *gin.Context) {
 
 // kbCreatePageRequest はページ作成の入力。
 //
-// parentId は必須。スペース直下（親なし）への作成は、ページではなくスペースに対する
-// 編集権限で判断する必要があるが、権限モデルはまだスペース単位の実効権限を返す口を持たない。
-// 「メンバーなら誰でも root ページを作れる」という緩い実装で埋めると、あとから締めるのが
-// 難しい穴になるため、確実に判断できる「親ページの編集権限」だけを入口にしている。
+// parentId は任意。省略するとスペース直下（ルート）に作る。どちらで判断するかが変わる:
+// 親を指定したときは「その親ページの編集権限」、省略したときは「そのスペースの編集権限」。
+// ページの例外（page_restrictions）は経路の上から効くので、親を持つ作成をスペースの
+// 判定で通してはいけない（親で deny されている相手がその下に書けてしまう）。
 type kbCreatePageRequest struct {
-	ParentID string `json:"parentId" binding:"required" example:"0198a000-0000-7000-8000-000000000003"`
+	// ParentID が空文字（未指定）ならスペース直下に作る。
+	ParentID string `json:"parentId,omitempty" example:"0198a000-0000-7000-8000-000000000003"`
 	Title    string `json:"title"    binding:"required,max=200" example:"設計メモ"`
 }
 
 // Create は親ページの下に新しいページを作る（親の編集権限が要る）。
 //
 //	@Summary      ナレッジ 基盤 の ページ 作成
-//	@Description  parentId の 下 に ページ を 作る。 親 を 編集 できる 者 だけ が 作れる。 親 が 閲覧 でき ない 場合 は 存在 を 漏らさ ず 404。 スペース 直下 へ の 作成 は 未 対応 (parentId は 必須)。
+//	@Description  parentId の 下 に ページ を 作る。 親 を 編集 できる 者 だけ が 作れる。 親 が 閲覧 でき ない 場合 は 存在 を 漏らさ ず 404。 parentId を 省略 する と スペース 直下 (ルート) に 作り、 この とき は スペース の 編集 権限 で 判断 する (スペース に は ページ 単位 の 例外 が 無い ため。 親 を 指定 し た 作成 は 必ず 親 ページ の 権限 で 判断 する)。
 //	@Tags         knowledge-base
 //	@Accept       json
 //	@Produce      json
@@ -309,13 +353,25 @@ func (h *KnowledgeBasePageHandler) Create(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
 		return
 	}
-	if !h.requirePagePermission(c, scope, req.ParentID, domain.CapabilityEdit) {
-		return
+	spaceID := c.Param("spaceId")
+	// 判定の入口を親の有無で分ける。親があるならページの権限（経路上の例外まで見る）、
+	// 無いならスペースの権限（例外の層が無い）。取り違えると、親で deny されている相手が
+	// その下にページを足せる／スペースの editor がルートを作れない、のどちらかになる。
+	var parentID *string
+	if req.ParentID == "" {
+		if !h.requireSpacePermission(c, scope, spaceID, domain.CapabilityEdit) {
+			return
+		}
+	} else {
+		if !h.requirePagePermission(c, scope, req.ParentID, domain.CapabilityEdit) {
+			return
+		}
+		parentID = &req.ParentID
 	}
 	page, err := h.create.Execute(c.Request.Context(), usecase.CreatePageInput{
 		WorkspaceID:     scope.workspaceID,
-		SpaceID:         c.Param("spaceId"),
-		ParentID:        &req.ParentID,
+		SpaceID:         spaceID,
+		ParentID:        parentID,
 		Title:           req.Title,
 		CreatedByUserID: scope.userID,
 	})

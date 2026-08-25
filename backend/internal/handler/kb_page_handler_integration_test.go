@@ -34,6 +34,7 @@ var kbIntegrationTables = []string{
 type kbEnv struct {
 	pages       repository.KnowledgeBaseRepository
 	permissions repository.KnowledgeBasePermissionRepository
+	provisioner repository.WorkspaceProvisioner
 	workspaceID string
 	slug        string
 	spaceID     string
@@ -47,6 +48,7 @@ func newKbEnv(t *testing.T, gormDB *gorm.DB, sqlDB *sql.DB, slug string) *kbEnv 
 	env := &kbEnv{
 		pages:       persistence.NewKnowledgeBaseRepository(sqlDB),
 		permissions: persistence.NewKnowledgeBasePermissionRepository(sqlDB),
+		provisioner: persistence.NewWorkspaceProvisioner(sqlDB),
 		slug:        slug,
 	}
 	env.workspaceID = kbInsertWorkspace(t, sqlDB, slug)
@@ -63,7 +65,7 @@ func (e *kbEnv) as(userID uint64) *kbEnv {
 		c.Set(middleware.ContextKeyCurrentUserID, userID)
 		c.Next()
 	})
-	registerKnowledgeBaseRoutesWith(g, e.pages, e.permissions)
+	registerKnowledgeBaseRoutesWith(g, e.pages, e.permissions, e.provisioner)
 	clone := *e
 	clone.router = r
 	return &clone

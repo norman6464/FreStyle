@@ -82,6 +82,16 @@ func (f *kbFakePages) FindWorkspaceBySlug(_ context.Context, slug string) (*doma
 	return &c, nil
 }
 
+// hasWorkspaceID は ID でワークスペースの実在を確かめる（マップの鍵は slug なので走査する）。
+func (f *kbFakePages) hasWorkspaceID(workspaceID string) bool {
+	for _, ws := range f.workspaces {
+		if ws.ID == workspaceID {
+			return true
+		}
+	}
+	return false
+}
+
 func (f *kbFakePages) FindSpace(_ context.Context, workspaceID, spaceID string) (*domain.Space, error) {
 	s, ok := f.spaces[spaceID]
 	if !ok || s.WorkspaceID != workspaceID {
@@ -89,6 +99,29 @@ func (f *kbFakePages) FindSpace(_ context.Context, workspaceID, spaceID string) 
 	}
 	c := *s
 	return &c, nil
+}
+
+func (f *kbFakePages) CreateSpace(_ context.Context, space *domain.Space) error {
+	if f.failWith != nil {
+		return f.failWith
+	}
+	// 実在しないワークスペースへの作成は本番だと FK 違反 →「無い」に翻訳される。
+	// fake が黙って保存すると、本番では通らない作成要求で緑になるテストが書ける。
+	if !f.hasWorkspaceID(space.WorkspaceID) {
+		return repository.ErrWorkspaceNotFound
+	}
+	for _, s := range f.spaces {
+		if s.WorkspaceID == space.WorkspaceID && s.Key == space.Key {
+			return repository.ErrSpaceKeyTaken
+		}
+	}
+	f.nextID++
+	space.ID = "space-" + strconv.Itoa(f.nextID)
+	space.CreatedAt = time.Now()
+	space.UpdatedAt = space.CreatedAt
+	stored := *space
+	f.spaces[space.ID] = &stored
+	return nil
 }
 
 func (f *kbFakePages) FindPage(_ context.Context, workspaceID, pageID string) (*domain.Page, error) {
@@ -322,6 +355,20 @@ type kbFakePerms struct {
 	listFactsErr error
 	// subtreeFactsErr はサブツリーの事実収集を失敗させる（アーカイブの 500 経路の確認用）。
 	subtreeFactsErr error
+	// scopeRoles は入れ物（ワークスペース / スペース）ごとの既定の役割。
+	// ページ単位の perPage とは別に持つ（スペースの判定はページの例外を見ないため、
+	// 同じ入れ物にまとめると fake が本番より賢くなってしまう）。
+	scopeRoles map[kbScopeKey]domain.GrantRole
+	// scopeFactsErr は入れ物単位の事実収集を失敗させる（500 経路の確認用）。
+	scopeFactsErr error
+	// listWorkspacesErr は所属ワークスペース一覧を失敗させる（500 経路の確認用）。
+	listWorkspacesErr error
+}
+
+// kbScopeKey は入れ物（ワークスペース ID / スペース ID）と利用者の組。
+type kbScopeKey struct {
+	scopeID string
+	userID  uint64
 }
 
 var _ repository.KnowledgeBasePermissionRepository = (*kbFakePerms)(nil)
@@ -334,6 +381,7 @@ func newKbFakePerms(pages *kbFakePages, fallback domain.PagePermission) *kbFakeP
 		restrictions: map[kbRestrictionKey]domain.RestrictionMode{},
 		allowLists:   map[kbAllowListKey]bool{},
 		perPage:      map[kbPermKey]domain.PagePermission{},
+		scopeRoles:   map[kbScopeKey]domain.GrantRole{},
 		fallback:     fallback,
 	}
 }
@@ -534,6 +582,74 @@ func (f *kbFakePerms) ListSubtreePagePermissionFacts(
 			},
 		})
 	}
+	return out, nil
+}
+
+// SpacePermissionFactsForUser はスペース単位の事実（届いている役割の集合）を返す。
+// 例外（page_restrictions）は見ない — 本番の口と同じで、スペースには例外の層が無い。
+func (f *kbFakePerms) SpacePermissionFactsForUser(
+	_ context.Context, workspaceID, spaceID string, userID uint64,
+) (*domain.ScopeFacts, error) {
+	if f.scopeFactsErr != nil {
+		return nil, f.scopeFactsErr
+	}
+	// 本番は空間の実在を確かめてから役割を集める（確かめないと workspace_grants が
+	// 他テナントのスペースにも届いてしまう）。fake も同じ順で断る。
+	s, ok := f.pages.spaces[spaceID]
+	if !ok || s.WorkspaceID != workspaceID {
+		return nil, repository.ErrSpaceNotFound
+	}
+	if f.userPrincipal(workspaceID, userID) == nil {
+		return &domain.ScopeFacts{}, nil
+	}
+	return &domain.ScopeFacts{Roles: f.rolesAt(kbScopeKey{scopeID: spaceID, userID: userID}, workspaceID, userID)}, nil
+}
+
+// WorkspacePermissionFactsForUser はワークスペース単位の事実を返す。
+func (f *kbFakePerms) WorkspacePermissionFactsForUser(
+	_ context.Context, workspaceID string, userID uint64,
+) (*domain.ScopeFacts, error) {
+	if f.scopeFactsErr != nil {
+		return nil, f.scopeFactsErr
+	}
+	if f.userPrincipal(workspaceID, userID) == nil {
+		return &domain.ScopeFacts{}, nil
+	}
+	return &domain.ScopeFacts{Roles: f.rolesAt(kbScopeKey{scopeID: workspaceID, userID: userID}, workspaceID, userID)}, nil
+}
+
+// rolesAt はその入れ物で自分に届いている役割を返す。scopeRoles に明示があればそれ、
+// 無ければワークスペース全体の役割（workspaceRole）だけ。
+func (f *kbFakePerms) rolesAt(key kbScopeKey, workspaceID string, userID uint64) []domain.GrantRole {
+	roles := make([]domain.GrantRole, 0, 2)
+	if role, ok := f.scopeRoles[key]; ok {
+		roles = append(roles, role)
+	}
+	if key.scopeID != workspaceID {
+		if role, ok := f.scopeRoles[kbScopeKey{scopeID: workspaceID, userID: userID}]; ok {
+			roles = append(roles, role)
+		}
+	}
+	return roles
+}
+
+// setScopeRole は入れ物（ワークスペース ID / スペース ID）ごとの既定の役割を差し替える。
+func (f *kbFakePerms) setScopeRole(scopeID string, userID uint64, role domain.GrantRole) {
+	f.scopeRoles[kbScopeKey{scopeID: scopeID, userID: userID}] = role
+}
+
+// ListMemberWorkspaces は kind='user' の主体があるワークスペースを slug 順で返す。
+func (f *kbFakePerms) ListMemberWorkspaces(_ context.Context, userID uint64) ([]domain.Workspace, error) {
+	if f.listWorkspacesErr != nil {
+		return nil, f.listWorkspacesErr
+	}
+	out := []domain.Workspace{}
+	for _, ws := range f.pages.workspaces {
+		if f.userPrincipal(ws.ID, userID) != nil {
+			out = append(out, *ws)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Slug < out[j].Slug })
 	return out, nil
 }
 
@@ -761,4 +877,48 @@ func (f *kbFakePerms) ListPageShareLinks(context.Context, string, string) ([]dom
 
 func (f *kbFakePerms) PagePermissionFactsForPrincipal(context.Context, string, string, string) (*domain.PagePermissionFacts, error) {
 	return nil, errKbFakeNotModeled
+}
+
+// kbFakeProvisioner は repository.WorkspaceProvisioner の in-memory fake。
+//
+// ワークスペースの行と、作成者の主体・admin の grant を「まとめて」入れる
+// （本番は 1 トランザクション）。ここで主体だけを省くと、作成者が自分の作った
+// ワークスペースに入れないという本番で最も避けたい状態がテストで再現できなくなる。
+type kbFakeProvisioner struct {
+	pages *kbFakePages
+	perms *kbFakePerms
+	// failWith は次の作成を失敗させる（500 経路の確認用）。
+	failWith error
+}
+
+var _ repository.WorkspaceProvisioner = (*kbFakeProvisioner)(nil)
+
+func newKbFakeProvisioner(pages *kbFakePages, perms *kbFakePerms) *kbFakeProvisioner {
+	return &kbFakeProvisioner{pages: pages, perms: perms}
+}
+
+func (f *kbFakeProvisioner) ProvisionWorkspace(
+	ctx context.Context, in repository.WorkspaceProvisionInput,
+) (*domain.Workspace, error) {
+	if f.failWith != nil {
+		return nil, f.failWith
+	}
+	if _, exists := f.pages.workspaces[in.Slug]; exists {
+		return nil, repository.ErrWorkspaceSlugTaken
+	}
+	f.pages.nextID++
+	id := "workspace-" + strconv.Itoa(f.pages.nextID)
+	ws := &domain.Workspace{ID: id, Slug: in.Slug, Name: in.Name, CreatedAt: time.Now()}
+	ws.UpdatedAt = ws.CreatedAt
+	f.pages.workspaces[in.Slug] = ws
+	// 所属（principal）と admin の grant を一緒に入れる。片方だけにすると
+	// 「作ったのに入れない」ワークスペースが再現できてしまう。
+	// この fake では grant を scopeRoles で表す（kbFakePerms の grant 系メソッドは
+	// 権限解決の入口を事実に絞るため未実装にしてある）。
+	if _, err := f.perms.EnsureUserPrincipal(ctx, id, in.OwnerUserID); err != nil {
+		return nil, err
+	}
+	f.perms.setScopeRole(id, in.OwnerUserID, domain.GrantRoleAdmin)
+	c := *ws
+	return &c, nil
 }

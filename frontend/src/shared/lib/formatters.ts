@@ -23,6 +23,12 @@ export function formatDate(dateString: string): string {
   return new Date(dateString).toLocaleDateString('ja-JP');
 }
 
+/** ISO 8601 の日時文字列を ja-JP ロケールの「日付 + 時刻」表記にする（空文字は空文字のまま返す）。 */
+export function formatDateTime(dateString: string): string {
+  if (!dateString) return '';
+  return new Date(dateString).toLocaleString('ja-JP');
+}
+
 export function formatHourMinute(dateString?: string | number): string {
   if (!dateString && dateString !== 0) return '';
   return new Date(dateString).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });

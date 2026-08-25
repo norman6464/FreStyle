@@ -1,47 +1,17 @@
-import { useEffect, useState } from 'react';
-
 import { Link } from 'react-router-dom';
-import { CompanyRepository, CompanyStat } from '@/entities/company';
 
 import Loading from '@/shared/ui/Loading';
 import FormMessage from '@/shared/ui/FormMessage';
 import PageIntro from '@/shared/ui/PageIntro';
-import { logger } from '@/shared/lib/logger';
+import { formatDate } from '@/shared/lib/formatters';
 import { BuildingOffice2Icon, UserPlusIcon } from '@heroicons/react/24/outline';
+
+import { useAdminCompanies } from '../model/useAdminCompanies';
 
 // 会社一覧 / 横断ビュー（/admin/companies/stats）は super_admin 専用エンドポイント。
 // ルート側の RequireRole が super_admin 以外を通さないので、ここでは判定しない。
 export default function AdminCompaniesPage() {
-  const [companies, setCompanies] = useState<CompanyStat[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [updatingId, setUpdatingId] = useState<number | null>(null);
-
-  useEffect(() => {
-    CompanyRepository.listStats()
-      .then(setCompanies)
-      .catch((e) => {
-        setError('会社一覧の取得に失敗しました');
-        logger.error(e);
-      })
-      .finally(() => setLoading(false));
-  }, []);
-
-  // 会社アカウントの有効/無効を切り替える（super_admin 専用）。楽観的更新 + 失敗時ロールバック。
-  const setActive = async (id: number, active: boolean) => {
-    setUpdatingId(id);
-    setError(null);
-    setCompanies((prev) => prev.map((c) => (c.id === id ? { ...c, isActive: active } : c)));
-    try {
-      await CompanyRepository.updateActive(id, active);
-    } catch (e) {
-      logger.error(e);
-      setCompanies((prev) => prev.map((c) => (c.id === id ? { ...c, isActive: !active } : c)));
-      setError('会社状態の更新に失敗しました');
-    } finally {
-      setUpdatingId(null);
-    }
-  };
+  const { companies, loading, error, updatingId, setActive } = useAdminCompanies();
 
   return (
     <div className="px-6 pt-6 pb-24 max-w-3xl mx-auto space-y-6">
@@ -79,7 +49,7 @@ export default function AdminCompaniesPage() {
                     {company.traineeCount}）
                   </p>
                   <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
-                    登録日: {new Date(company.createdAt).toLocaleDateString('ja-JP')}
+                    登録日: {formatDate(company.createdAt)}
                   </p>
                 </div>
               </div>

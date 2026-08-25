@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { formatTime, formatDate, formatHourMinute, formatMonthDay, formatLongDate, truncateMessage } from '../formatters';
+import { formatTime, formatDate, formatDateTime, formatHourMinute, formatMonthDay, formatLongDate, truncateMessage } from '../formatters';
 
 describe('formatTime', () => {
   beforeEach(() => {
@@ -114,5 +114,17 @@ describe('truncateMessage', () => {
   it('maxLengthを指定できる', () => {
     const result = truncateMessage('1234567890', 5);
     expect(result).toBe('12345...');
+  });
+});
+
+describe('formatDateTime', () => {
+  it('空文字の場合は空文字を返す', () => {
+    expect(formatDateTime('')).toBe('');
+  });
+
+  it('日付だけでなく時刻も含めて返す', () => {
+    const result = formatDateTime('2025-06-15T10:30:00');
+    expect(result).toContain(new Date('2025-06-15T10:30:00').toLocaleDateString('ja-JP'));
+    expect(result).toMatch(/10:30/);
   });
 });

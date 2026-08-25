@@ -133,3 +133,13 @@ CREATE TABLE courses (
     created_at         timestamptz NOT NULL,
     updated_at         timestamptz NOT NULL
 );
+
+CREATE TABLE audit_events (
+    id          bigint PRIMARY KEY,
+    actor_id    bigint NOT NULL,
+    actor_email varchar(255) NOT NULL DEFAULT '',
+    actor_role  varchar(32) NOT NULL DEFAULT '',
+    action      varchar(160) NOT NULL DEFAULT '',
+    target_id   bigint NOT NULL,
+    created_at  timestamptz NOT NULL
+);

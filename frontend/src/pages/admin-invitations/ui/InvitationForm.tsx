@@ -81,7 +81,7 @@ export default function InvitationForm({
        * select で誤った選択肢を露出させると backend の 403 で弾かれて UX が悪いので、
        * 一律「役職は固定（変更不可）」と表示する。
        */}
-      <div className="block text-sm">
+      <label className="block text-sm">
         <span className="block mb-1">役職</span>
         <input
           type="text"
@@ -93,7 +93,7 @@ export default function InvitationForm({
           }
           className="w-full border rounded px-2 py-1 bg-[var(--color-surface-2)] text-[var(--color-text-muted)]"
         />
-      </div>
+      </label>
 
       <label className="block text-sm">
         <span className="block mb-1">表示名（任意）</span>

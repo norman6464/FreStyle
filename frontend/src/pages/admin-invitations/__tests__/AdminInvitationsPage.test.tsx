@@ -36,7 +36,13 @@ vi.mock('@/entities/company', () => ({
   CompanyRepository: { list: () => listCompanies() },
 }));
 
+// 失敗系のテストで実 logger が console.error を吐き、出力が読めなくなるのを防ぐ。
+vi.mock('@/shared/lib/logger', () => ({
+  logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
+}));
+
 import AdminInvitationsPage from '../ui/AdminInvitationsPage';
+import { pendingInvitation } from './fixtures';
 
 function renderPage() {
   return render(
@@ -46,21 +52,13 @@ function renderPage() {
   );
 }
 
-const pendingInvitation = {
-  id: 10,
-  email: 'member@example.com',
-  role: 'trainee',
-  createdAt: '2026-08-05T00:00:00Z',
-  expiresAt: '2026-08-12T00:00:00Z',
-};
-
 /** company_admin としてページを開き、初期ロードが終わるまで待つ。 */
 async function renderAsCompanyAdmin(invitations = [pendingInvitation]) {
   getCurrentUser.mockResolvedValue({ id: 2, role: 'company_admin', companyId: 1 });
   listInvitations.mockResolvedValue(invitations);
   const view = renderPage();
   await waitFor(() => {
-    expect(screen.getByDisplayValue('所属会社（自社に固定）')).toBeInTheDocument();
+    expect(screen.getByLabelText('会社 *')).toHaveValue('所属会社（自社に固定）');
   });
   return view;
 }

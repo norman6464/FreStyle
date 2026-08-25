@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 
 // Repository は Public API ごと差し替える（DOM も axios も経由しない）。
@@ -29,14 +29,7 @@ vi.mock('@/entities/company', () => ({
 vi.mock('@/shared/lib/logger', () => ({ logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
 
 import { useAdminInvitations } from '../model/useAdminInvitations';
-
-const pendingInvitation = {
-  id: 10,
-  email: 'member@example.com',
-  role: 'trainee' as const,
-  createdAt: '2026-08-05T00:00:00Z',
-  expiresAt: '2026-08-12T00:00:00Z',
-};
+import { pendingInvitation } from './fixtures';
 
 /** company_admin として hook をマウントし、初期ロードの完了まで待つ。 */
 async function mountAsCompanyAdmin(invitations = [pendingInvitation]) {
@@ -269,6 +262,12 @@ describe('useAdminInvitations の招待取り消し', () => {
 });
 
 describe('useAdminInvitations の初期パスワードのコピー', () => {
+  // stubGlobal の後片付けは afterEach に置く。it の末尾だと expect の失敗で
+  // 到達せず、差し替えた navigator が後続のテストへ漏れる。
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   async function mountWithIssuedPassword() {
     createTempPassword.mockResolvedValue({
       invitation: { ...pendingInvitation, email: 'new@example.com' },
@@ -293,7 +292,6 @@ describe('useAdminInvitations の初期パスワードのコピー', () => {
 
     expect(writeText).toHaveBeenCalledWith('Temp-Pass-9!');
     expect(result.current.copied).toBe(true);
-    vi.unstubAllGlobals();
   });
 
   it('クリップボードが使えなくても落ちず copied は立たない', async () => {
@@ -305,7 +303,6 @@ describe('useAdminInvitations の初期パスワードのコピー', () => {
     });
 
     expect(result.current.copied).toBe(false);
-    vi.unstubAllGlobals();
   });
 
   it('発行前は何も起きない', async () => {
@@ -318,6 +315,5 @@ describe('useAdminInvitations の初期パスワードのコピー', () => {
     });
 
     expect(writeText).not.toHaveBeenCalled();
-    vi.unstubAllGlobals();
   });
 });

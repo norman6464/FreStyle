@@ -6,6 +6,7 @@ import { CompanyRepository, Company } from '@/entities/company';
 import { AuthRepository, UserInfo } from '@/entities/user';
 import { logger } from '@/shared/lib/logger';
 
+import { extractApiErrorMessage } from '../lib/extractApiErrorMessage';
 import { translateInviteError } from '../lib/translateInviteError';
 
 const EMPTY_FORM: CreateInvitationForm = {
@@ -55,13 +56,13 @@ export function useAdminInvitations() {
       // Promise.all ごと reject して招待一覧まで巻き込むため、先に自分の role を
       // 確認してから super_admin のときだけ取得する（company_admin は自社固定で不要）。
       const user = await AuthRepository.getCurrentUser();
-      const [data, cos] = await Promise.all([
+      const [invitationList, companyList] = await Promise.all([
         AdminInvitationRepository.list(),
         user.role === 'super_admin' ? CompanyRepository.list() : Promise.resolve<Company[]>([]),
       ]);
       setMe(user);
-      setInvitations(data);
-      setCompanies(cos);
+      setInvitations(invitationList);
+      setCompanies(companyList);
 
       // 役割に応じてフォームの初期値を上書きする。
       const defaultRole: CreateInvitationForm['role'] =
@@ -69,7 +70,7 @@ export function useAdminInvitations() {
       const defaultCompanyId =
         user.role === 'company_admin' && user.companyId
           ? user.companyId
-          : cos[0]?.id ?? 0;
+          : companyList[0]?.id ?? 0;
       setForm((f) => ({
         ...f,
         role: defaultRole,
@@ -113,12 +114,7 @@ export function useAdminInvitations() {
       setForm((f) => ({ ...EMPTY_FORM, companyId: f.companyId }));
       await fetchAll();
     } catch (err: unknown) {
-      const raw =
-        (err as { response?: { data?: { message?: string; error?: string } } })?.response?.data
-          ?.message ||
-        (err as { response?: { data?: { message?: string; error?: string } } })?.response?.data
-          ?.error ||
-        '招待の作成に失敗しました';
+      const raw = extractApiErrorMessage(err, '招待の作成に失敗しました');
       setError(translateInviteError(raw));
       logger.error(err);
     } finally {

@@ -35,27 +35,23 @@ type tenantSnapshot struct {
 }
 
 // captureTenantSnapshot は会社↔ワークスペースに関わる全行を決定的な順序で読み出す。
-// updated_at まで含める — 値が同じでも UPDATE を空打ちしていれば時刻が動くので、
-// 「一致していれば 0 件更新」という実装の約束をここで検証できる。
+//
+// 列を手で並べず to_jsonb で行ごと写すのは、列挙から漏れた列を書き換える実装を
+// 見逃さないため。手書きの列リストは書いた時点の列しか守らないので、あとから
+// 足された列は誰にも見られないまま素通りする。updated_at も当然含まれる —
+// 値が同じでも UPDATE を空打ちしていれば時刻が動くので、「一致していれば 0 件更新」
+// という実装の約束をここで検証できる。
+//
+// jsonb はキーを正規化した順で持つため、列の追加や順序変更があっても比較は決定的。
 func captureTenantSnapshot(t *testing.T, db *gorm.DB) tenantSnapshot {
 	t.Helper()
 	return tenantSnapshot{
 		workspaces: tenantRowStrings(t, db,
-			`SELECT id || '|' || slug || '|' || name
-			        || '|' || coalesce(ai_chat_enabled_for_trainees::text, 'NULL')
-			        || '|' || coalesce(is_active::text, 'NULL')
-			        || '|' || created_at::text || '|' || updated_at::text
-			 FROM workspaces ORDER BY id`),
+			`SELECT to_jsonb(w)::text FROM workspaces AS w ORDER BY id`),
 		companies: tenantRowStrings(t, db,
-			`SELECT id || '|' || coalesce(workspace_id::text, 'NULL')
-			        || '|' || name || '|' || ai_chat_enabled_for_trainees::text
-			        || '|' || is_active::text || '|' || updated_at::text
-			 FROM companies ORDER BY id`),
+			`SELECT to_jsonb(c)::text FROM companies AS c ORDER BY id`),
 		users: tenantRowStrings(t, db,
-			`SELECT id || '|' || coalesce(company_id::text, 'NULL')
-			        || '|' || coalesce(workspace_id::text, 'NULL')
-			        || '|' || updated_at::text
-			 FROM users ORDER BY id`),
+			`SELECT to_jsonb(u)::text FROM users AS u ORDER BY id`),
 	}
 }
 

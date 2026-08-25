@@ -28,6 +28,10 @@ import (
 // collectAllPages は Limit/Offset を進めて全ページを取得し、出現順の ID 列を返す。
 func collectAllPages(t *testing.T, exRepo repository.MasterExerciseRepository, language string, limit int) []uint64 {
 	t.Helper()
+	// limit <= 0 だと offset が進まず、ListWithStatusByLanguage も LIMIT/OFFSET を付けないため
+	// 毎回全件が返って終了条件（len(rows) < limit）も成立しない。放置するとテストが
+	// タイムアウトまでハングし、原因の分かりにくい CI ハングになるので入口で落とす。
+	require.Positive(t, limit, "collectAllPages は limit > 0 を前提とする")
 	ctx := context.Background()
 	ids := make([]uint64, 0)
 	for offset := 0; ; offset += limit {
@@ -192,9 +196,10 @@ func TestRichDocumentListOrder_TiedUpdatedAt_Integration(t *testing.T) {
 		require.NoError(t, repo.Create(ctx, d))
 		created = append(created, d.ID)
 	}
-	// updated_at を明示的に同値へ揃えて同着を作る。
+	// updated_at を明示的に同値へ揃えて同着を作る。owner_id で絞り、後続でこのテストの前に
+	// 別の前提データが置かれても無関係な行を書き換えないようにする。
 	require.NoError(t, db.WithContext(ctx).
-		Exec(`UPDATE rich_documents SET updated_at = TIMESTAMPTZ '2026-01-01 00:00:00+00'`).Error)
+		Exec(`UPDATE rich_documents SET updated_at = TIMESTAMPTZ '2026-01-01 00:00:00+00' WHERE owner_id = ?`, owner.ID).Error)
 
 	want := make([]string, len(created))
 	copy(want, created)

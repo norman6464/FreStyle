@@ -2947,6 +2947,609 @@ const docTemplate = `{
                 }
             }
         },
+        "/kb/workspaces/{workspaceSlug}/pages/{pageId}": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "ページ の メタ 情報 と 本文 (ProseMirror doc) を 返す。 閲覧 権限 が 無い ページ は 存在 し ない ページ と 同じ 404。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge-base"
+                ],
+                "summary": "ナレッジ 基盤 の ページ 取得",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ワークスペース の slug",
+                        "name": "workspaceSlug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ページ ID (UUID)",
+                        "name": "pageId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.kbPageDocResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "存在 し ない か 閲覧 権限 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "タイトル だけ を 変更 する。 編集 権限 が 要る。 アーカイブ 済み ページ は 変更 でき ない (409)。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge-base"
+                ],
+                "summary": "ナレッジ 基盤 の ページ 改名",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ワークスペース の slug",
+                        "name": "workspaceSlug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ページ ID (UUID)",
+                        "name": "pageId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "新しい タイトル",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.kbRenamePageRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.kbPageResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "バリデーション エラー",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "編集 権限 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "存在 し ない か 閲覧 権限 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "アーカイブ 済み",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/kb/workspaces/{workspaceSlug}/pages/{pageId}/archive": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "ページ と その 子孫 を まとめて ツリー から 隠す。 編集 権限 が 要る。 既に アーカイブ 済み なら 何 も し ない (冪等)。",
+                "tags": [
+                    "knowledge-base"
+                ],
+                "summary": "ナレッジ 基盤 の ページ アーカイブ",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ワークスペース の slug",
+                        "name": "workspaceSlug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ページ ID (UUID)",
+                        "name": "pageId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "アーカイブ 成功 (本文 なし)"
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "編集 権限 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "存在 し ない か 閲覧 権限 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/kb/workspaces/{workspaceSlug}/pages/{pageId}/content": {
+            "put": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "ページ の 本文 (ProseMirror doc) を 丸ごと 置き換える。 編集 権限 が 要る。 保存 さ れる の は 行 スキーマ から 組み立て 直し た 正規 形 で、 レスポンス は その 正規 形 を 返す。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge-base"
+                ],
+                "summary": "ナレッジ 基盤 の ページ 本文 置き換え",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ワークスペース の slug",
+                        "name": "workspaceSlug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ページ ID (UUID)",
+                        "name": "pageId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "本文 (ProseMirror doc)",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.kbReplaceContentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.kbPageContentResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "バリデーション エラー / doc が 壊れ て いる",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "編集 権限 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "存在 し ない か 閲覧 権限 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "アーカイブ 済み",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/kb/workspaces/{workspaceSlug}/pages/{pageId}/move": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "ページ を parentId の 下 へ 移す。 動かす ページ と 移動 先 の 親 の 両方 に 編集 権限 が 要る (片方 だけ で 移せる と 書け ない 場所 へ 書き込め て しまう)。 スペース 直下 へ の 移動 は 未 対応。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge-base"
+                ],
+                "summary": "ナレッジ 基盤 の ページ 移動",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ワークスペース の slug",
+                        "name": "workspaceSlug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ページ ID (UUID)",
+                        "name": "pageId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "移動 先 の 親",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.kbMovePageRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.kbPageResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "バリデーション エラー / スペース 不一致",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "編集 権限 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "存在 し ない か 閲覧 権限 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "アーカイブ 済み / 循環",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/kb/workspaces/{workspaceSlug}/pages/{pageId}/unarchive": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "アーカイブ した ページ を (同時 に アーカイブ さ れ た 子孫 ごと) 現役 へ 戻す。 編集 権限 が 要る。 親 が まだ アーカイブ 中 なら 戻せ ない (409)。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge-base"
+                ],
+                "summary": "ナレッジ 基盤 の ページ 復帰",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ワークスペース の slug",
+                        "name": "workspaceSlug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "ページ ID (UUID)",
+                        "name": "pageId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.kbPageResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "編集 権限 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "存在 し ない か 閲覧 権限 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "親 が アーカイブ 中",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/kb/workspaces/{workspaceSlug}/spaces/{spaceId}/pages": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "スペース 配下 の 現役 ページ の うち 閲覧 できる もの だけ を 木 で 返す。 見え ない 親 の 配下 は (権限 が あっ て も) ツリー に は 現れ ない。 存在 し ない スペース と 中身 が 1 件 も 見え ない スペース は 区別 し ない (どちら も 空 配列)。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge-base"
+                ],
+                "summary": "ナレッジ 基盤 の ページ ツリー",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ワークスペース の slug",
+                        "name": "workspaceSlug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "スペース ID (UUID)",
+                        "name": "spaceId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/internal_handler.kbPageTreeResponse"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "ワークスペース が 無い か 未 所属",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "parentId の 下 に ページ を 作る。 親 を 編集 できる 者 だけ が 作れる。 親 が 閲覧 でき ない 場合 は 存在 を 漏らさ ず 404。 スペース 直下 へ の 作成 は 未 対応 (parentId は 必須)。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge-base"
+                ],
+                "summary": "ナレッジ 基盤 の ページ 作成",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ワークスペース の slug",
+                        "name": "workspaceSlug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "スペース ID (UUID)",
+                        "name": "spaceId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "作成 内容 (parentId/title 必須)",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.kbCreatePageRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.kbPageResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "バリデーション エラー",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "親 を 編集 する 権限 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "スペース / 親 が 無い か 閲覧 権限 が 無い",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "親 が アーカイブ 済み",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/learning-reports": {
             "get": {
                 "security": [
@@ -5746,6 +6349,133 @@ const docTemplate = `{
             "properties": {
                 "contentType": {
                     "type": "string"
+                }
+            }
+        },
+        "internal_handler.kbCreatePageRequest": {
+            "type": "object",
+            "required": [
+                "parentId",
+                "title"
+            ],
+            "properties": {
+                "parentId": {
+                    "type": "string",
+                    "example": "0198a000-0000-7000-8000-000000000003"
+                },
+                "title": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "example": "設計メモ"
+                }
+            }
+        },
+        "internal_handler.kbMovePageRequest": {
+            "type": "object",
+            "required": [
+                "parentId"
+            ],
+            "properties": {
+                "parentId": {
+                    "type": "string",
+                    "example": "0198a000-0000-7000-8000-000000000003"
+                }
+            }
+        },
+        "internal_handler.kbPageContentResponse": {
+            "type": "object",
+            "properties": {
+                "builtAt": {
+                    "type": "string"
+                },
+                "doc": {
+                    "type": "object"
+                }
+            }
+        },
+        "internal_handler.kbPageDocResponse": {
+            "type": "object",
+            "properties": {
+                "doc": {
+                    "type": "object"
+                },
+                "page": {
+                    "$ref": "#/definitions/internal_handler.kbPageResponse"
+                }
+            }
+        },
+        "internal_handler.kbPageResponse": {
+            "type": "object",
+            "properties": {
+                "archivedAt": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "createdByUserId": {
+                    "type": "integer",
+                    "example": 42
+                },
+                "id": {
+                    "type": "string",
+                    "example": "0198a000-0000-7000-8000-000000000003"
+                },
+                "parentId": {
+                    "type": "string"
+                },
+                "position": {
+                    "type": "string",
+                    "example": "a0"
+                },
+                "spaceId": {
+                    "type": "string",
+                    "example": "0198a000-0000-7000-8000-000000000002"
+                },
+                "title": {
+                    "type": "string",
+                    "example": "設計メモ"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.kbPageTreeResponse": {
+            "type": "object",
+            "properties": {
+                "children": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_handler.kbPageTreeResponse"
+                    }
+                },
+                "page": {
+                    "$ref": "#/definitions/internal_handler.kbPageResponse"
+                }
+            }
+        },
+        "internal_handler.kbRenamePageRequest": {
+            "type": "object",
+            "required": [
+                "title"
+            ],
+            "properties": {
+                "title": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "example": "設計メモ (改訂)"
+                }
+            }
+        },
+        "internal_handler.kbReplaceContentRequest": {
+            "type": "object",
+            "required": [
+                "doc"
+            ],
+            "properties": {
+                "doc": {
+                    "type": "object"
                 }
             }
         },

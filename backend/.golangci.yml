@@ -19,6 +19,15 @@
 
 version: "2"
 
+# 結合テスト（//go:build integration）も静的解析の対象に含める。
+# Go は build tag に合致しないファイルをパッケージに含めないため、tag を指定しないと
+# 結合テストは一度も解析されない（実 DB への破壊的操作やテナント境界の主張を含む場所が
+# 網の外にあった）。CLI 引数ではなく設定ファイルに置くことで、ローカルの
+# `golangci-lint run` と CI が常に同じ集合を見る。
+run:
+  build-tags:
+    - integration
+
 formatters:
   enable:
     - gofumpt
@@ -70,6 +79,13 @@ linters:
       - path: _test\.go
         linters:
           - gosec
+      # testsupport は結合テスト専用のヘルパ(build tag integration)。既定 DSN は
+      # ローカル docker の固定値で、本番の資格情報ではないため G101 のみ除外する。
+      # ファイル名が _test.go ではないので上の除外に掛からない。
+      - path: internal/testsupport/
+        linters:
+          - gosec
+        text: 'G101'
       # defer Close() / os.Remove() / CLI の fmt.Fprint は慣例的に戻り値を無視する。
       - linters:
           - errcheck

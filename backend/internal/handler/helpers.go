@@ -12,16 +12,17 @@ import (
 	"gorm.io/gorm"
 )
 
-// actorFromContext は middleware が注入した current user から (userID, companyID, role) を取り出す。
+// actorFromContext は middleware が注入した current user から (userID, company, role) を取り出す。
 // 未認証なら 401 を書き込んで ok=false を返すので、呼び出し側は ok を見て早期 return する。
-// 各 handler が同じ「user 取得 + companyID 展開 + 401」を書かずに済むための共通小道具。
-func actorFromContext(c *gin.Context) (userID, companyID uint64, role domain.RoleName, ok bool) {
+// 各 handler が同じ「user 取得 + 401」を書かずに済むための共通小道具。
+// company は未所属(company_id = NULL)を表せる domain.CompanyRef で、0 には潰さない。
+func actorFromContext(c *gin.Context) (userID uint64, company domain.CompanyRef, role domain.RoleName, ok bool) {
 	user := middleware.CurrentUserFromContext(c)
 	if user == nil {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-		return 0, 0, "", false
+		return 0, domain.NoCompany(), "", false
 	}
-	return user.ID, user.CompanyIDValue(), user.Role, true
+	return user.ID, user.CompanyRef(), user.Role, true
 }
 
 // respondEntityErr は usecase が返したエラーを HTTP ステータスへ振り分ける共通処理。

@@ -29,7 +29,7 @@ func NewRecordChapterViewUseCase(
 // RecordChapterViewInput は章閲覧記録の入力。actor の会社・ロールで可視性を検証する。
 type RecordChapterViewInput struct {
 	UserID             uint64
-	ActorCompanyID     uint64
+	ActorCompany       domain.CompanyRef
 	ActorRole          domain.RoleName
 	TeachingMaterialID uint64
 }
@@ -54,7 +54,7 @@ func (u *RecordChapterViewUseCase) Execute(ctx context.Context, in RecordChapter
 	if course == nil {
 		return ErrLessonNotFound
 	}
-	if !canRead(m, course, in.ActorCompanyID, in.ActorRole) {
+	if !canRead(m, course, in.ActorCompany, in.ActorRole) {
 		return ErrChapterViewForbidden
 	}
 	return u.chapterViews.UpsertView(ctx, in.UserID, in.TeachingMaterialID, m.CourseID)

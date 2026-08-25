@@ -48,9 +48,10 @@ func CurrentUser(users repository.UserRepository, companies repository.CompanyRe
 		}
 
 		// 会社アカウントが無効化されていれば、その会社のユーザーは利用不可。
-		// 会社行が無い（データ不整合）場合は素通り、DB エラーは 500。
-		if user.CompanyID != nil {
-			company, err := companies.FindByID(c.Request.Context(), *user.CompanyID)
+		// 未所属（運営管理者など）は検査対象の会社が無いのでこの検査を素通りする。
+		// 会社行が無い（データ不整合）場合も素通り、DB エラーは 500。
+		if companyID, affiliated := user.CompanyRef().CompanyID(); affiliated {
+			company, err := companies.FindByID(c.Request.Context(), companyID)
 			switch {
 			case errors.Is(err, gorm.ErrRecordNotFound):
 				// 会社行なし: 何もしない（弾かない）。

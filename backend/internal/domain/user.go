@@ -33,13 +33,13 @@ type User struct {
 
 func (User) TableName() string { return "users" }
 
-// CompanyIDValue は CompanyID を非ポインタで返す。未所属(nil)なら 0。
-// handler/usecase で「nil なら 0」の展開を繰り返さないための小道具。
-func (u User) CompanyIDValue() uint64 {
+// CompanyRef は所属会社への参照を返す。未所属(company_id = NULL)は NoCompany。
+// handler / usecase へは常にこの形で渡し、「未所属」を 0 に潰さない。
+func (u User) CompanyRef() CompanyRef {
 	if u.CompanyID == nil {
-		return 0
+		return NoCompany()
 	}
-	return *u.CompanyID
+	return CompanyRefOf(*u.CompanyID)
 }
 
 // RoleName はユーザーロール名（roles.name）の型。生の string の写経とタイポを

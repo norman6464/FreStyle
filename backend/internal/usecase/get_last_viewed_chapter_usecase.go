@@ -26,10 +26,10 @@ func NewGetLastViewedChapterUseCase(
 
 // GetLastViewedChapterInput は取得対象コースと actor 情報(認証 context 由来)。
 type GetLastViewedChapterInput struct {
-	UserID         uint64
-	ActorCompanyID uint64
-	ActorRole      domain.RoleName
-	CourseID       uint64
+	UserID       uint64
+	ActorCompany domain.CompanyRef
+	ActorRole    domain.RoleName
+	CourseID     uint64
 }
 
 // Execute はコースの可視性を検証してから最終閲覧記録を返す。履歴なしは (nil, nil)。
@@ -38,7 +38,7 @@ func (u *GetLastViewedChapterUseCase) Execute(ctx context.Context, in GetLastVie
 	if err != nil {
 		return nil, err
 	}
-	if !canReadCourse(course, in.ActorCompanyID, in.ActorRole) {
+	if !canReadCourse(course, in.ActorCompany, in.ActorRole) {
 		return nil, fmt.Errorf("forbidden")
 	}
 	return u.chapterViews.GetLastViewedByUserAndCourse(ctx, in.UserID, in.CourseID)

@@ -43,11 +43,10 @@ func (h *ChapterViewHandler) RecordView(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_id"})
 		return
 	}
-	companyID := user.CompanyIDValue()
 	// ベストエフォート — 失敗しても 204 で返す。
 	_ = h.record.Execute(c.Request.Context(), usecase.RecordChapterViewInput{
 		UserID:             user.ID,
-		ActorCompanyID:     companyID,
+		ActorCompany:       user.CompanyRef(),
 		ActorRole:          user.Role,
 		TeachingMaterialID: mid,
 	})

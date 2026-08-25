@@ -31,14 +31,16 @@ func (uc *AiChatEnabledForUserUseCase) Execute(ctx context.Context, user *domain
 	if isCompanyAdminRole(user.Role) {
 		return true, nil
 	}
-	if user.CompanyID == nil {
+	// 未所属は従うべき会社設定が無いので許可する。
+	companyID, affiliated := user.CompanyRef().CompanyID()
+	if !affiliated {
 		return true, nil
 	}
 	// 個別上書き(ai_chat_enabled)が設定されていれば会社一括設定より優先する。
 	if user.AiChatEnabled != nil {
 		return *user.AiChatEnabled, nil
 	}
-	company, err := uc.companies.FindByID(ctx, *user.CompanyID)
+	company, err := uc.companies.FindByID(ctx, companyID)
 	if err != nil {
 		// 会社行が無い場合は既定 true（後方互換）。それ以外の DB エラーは伝搬する。
 		if errors.Is(err, gorm.ErrRecordNotFound) {

@@ -1,6 +1,21 @@
--- sqlc の型付け専用スキーマ。実スキーマは GORM AutoMigrate が作る（ここは生成のための定義）。
+-- sqlc の型付け専用スキーマ。ここに書いた CREATE TABLE から Go の型を起こすだけで、
+-- このファイル自体が DB へ流れることは無い（実スキーマはここでは作られない）。
 -- repository を sqlc へ移行するたびに、対象テーブルの CREATE TABLE をここへ追記していく。
--- 列定義は docs/schema.sql（本番の実体）と一致させること。
+--
+-- 実スキーマの正本がどこにあるかはテーブルによって違う。取り違えると片側だけ直して本番とずれる。
+--
+--   1. このファイルに並んでいるテーブル（users / roles / notes / courses など）
+--      正本は domain 構造体の GORM タグ。infra/database/migrate.go の allDomainModels() に
+--      並べた構造体を、起動時に AutoMigrate が適用して実スキーマを作る。AutoMigrate が
+--      表現できない FK / CHECK / 部分 UNIQUE は同ファイルの ApplyXxxConstraints が明示 SQL で足す。
+--      つまりここは正本ではなく写しなので、列を足す・型を変えるときは domain 構造体
+--      （必要なら ApplyXxxConstraints）を先に直し、このファイルを追随させること。
+--
+--   2. ナレッジ基盤（workspaces / spaces / pages / blocks / page_paths / page_snapshots）
+--      GORM を通さない。infra/database/schema/knowledge_base.sql が実スキーマの正本そのもので、
+--      起動時に ApplyKnowledgeBaseSchema が埋め込み DDL をそのまま流す。sqlc へも同じファイルを
+--      入力として渡している（sqlc.yaml の schema 欄）ため定義が二重化しない。
+--      ここへ書き写さないこと（写すと 1. と同じ二重管理に戻る）。
 
 -- created_at / updated_at は GORM の autoCreateTime / autoUpdateTime が常に値を入れるため
 -- NOT NULL とみなす（sqlc が sql.NullTime ではなく time.Time を生成し、domain への詰め替えが綺麗になる）。
@@ -50,7 +65,11 @@ CREATE TABLE users (
     is_active    boolean NOT NULL DEFAULT true,
     created_at   timestamptz NOT NULL,
     updated_at   timestamptz NOT NULL,
-    deleted_at   timestamptz
+    deleted_at   timestamptz,
+    -- workspace_id は AutoMigrate ではなく明示 DDL（infra/database の tenant bridge）が
+    -- 末尾に足す列。実列の並びと合わせるため、ここでも必ず最後に書く（SELECT * の詰め替えが
+    -- 位置ずれで壊れないように）。所属の正本は当面 company_id のままで、この列は写し。
+    workspace_id uuid
 );
 
 -- 学習メモ。全列アプリが必ず値を入れる（user_id / title / content / is_public / is_pinned）ため
@@ -103,7 +122,11 @@ CREATE TABLE companies (
     ai_chat_enabled_for_trainees boolean NOT NULL DEFAULT true,
     is_active                    boolean NOT NULL DEFAULT true,
     created_at                   timestamptz NOT NULL,
-    updated_at                   timestamptz NOT NULL
+    updated_at                   timestamptz NOT NULL,
+    -- 対応する workspaces 行への橋渡し。テナントの正本を workspaces へ移す移行期間だけの列で、
+    -- companies そのものを畳むときに列ごと消える（恒久的な 1:1 の関連として設計していない）。
+    -- 実列は明示 DDL が末尾に足すので、ここでも必ず最後に書く（SELECT * の位置ずれ防止）。
+    workspace_id                 uuid
 );
 
 -- 公開フォームからの利用申請。message は空文字許容（NULL は来ない想定で NOT NULL とみなす）。

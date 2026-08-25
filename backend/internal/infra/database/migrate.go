@@ -121,6 +121,18 @@ func Migrate(db *gorm.DB) error {
 		return err
 	}
 	log.Println("migrate: knowledge base schema done")
+
+	// テナント統合の Expand（companies → workspaces）。workspaces を参照する FK を張るため
+	// ナレッジ基盤スキーマの後に置く。DDL もバックフィルも冪等で、埋まっていれば no-op。
+	// 読み取りは引き続き company_id を見るので、この時点で挙動は何も変わらない。
+	log.Println("migrate: tenant bridge start")
+	if err := ApplyTenantBridgeSchema(context.Background(), sqlDB); err != nil {
+		return err
+	}
+	if err := BackfillWorkspacesFromCompanies(context.Background(), sqlDB); err != nil {
+		return err
+	}
+	log.Println("migrate: tenant bridge done")
 	return nil
 }
 

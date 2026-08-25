@@ -61,6 +61,9 @@ jobs:
       # errorlint(errors.Is/As・%w 強制) / bodyclose(HTTP body リーク) /
       # gosec(セキュリティ) / misspell / unconvert を有効化。設定は backend/.golangci.yml。
       # 従来の単体 staticcheck step を置き換える(staticcheck は golangci に内包)。
+      # 解析対象の build tag は backend/.golangci.yml の run.build-tags で指定する
+      # (integration を含む)。ここに args で足すとローカルの `golangci-lint run` と
+      # CI で見る集合がずれ、「ローカルでは出るが CI では出ない」を再発させるため。
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:

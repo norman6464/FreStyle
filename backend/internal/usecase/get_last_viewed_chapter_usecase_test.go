@@ -28,7 +28,7 @@ func Test_最終閲覧章_履歴があれば返す(t *testing.T) {
 	uc := usecase.NewGetLastViewedChapterUseCase(crepo, chapterViewRepo(view, nil))
 
 	got, err := uc.Execute(context.Background(), usecase.GetLastViewedChapterInput{
-		UserID: 7, ActorCompanyID: 10, ActorRole: domain.RoleTrainee, CourseID: 5,
+		UserID: 7, ActorCompany: domain.CompanyRefOf(10), ActorRole: domain.RoleTrainee, CourseID: 5,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, got)
@@ -40,7 +40,7 @@ func Test_最終閲覧章_履歴なしはnilを返す(t *testing.T) {
 	uc := usecase.NewGetLastViewedChapterUseCase(crepo, chapterViewRepo(nil, nil))
 
 	got, err := uc.Execute(context.Background(), usecase.GetLastViewedChapterInput{
-		UserID: 7, ActorCompanyID: 10, ActorRole: domain.RoleTrainee, CourseID: 5,
+		UserID: 7, ActorCompany: domain.CompanyRefOf(10), ActorRole: domain.RoleTrainee, CourseID: 5,
 	})
 	require.NoError(t, err)
 	assert.Nil(t, got, "初めて開くコースは履歴なし = 正常系")
@@ -51,7 +51,7 @@ func Test_最終閲覧章_他社コースは禁止(t *testing.T) {
 	uc := usecase.NewGetLastViewedChapterUseCase(crepo, chapterViewRepo(nil, nil))
 
 	_, err := uc.Execute(context.Background(), usecase.GetLastViewedChapterInput{
-		UserID: 7, ActorCompanyID: 99, ActorRole: domain.RoleTrainee, CourseID: 5,
+		UserID: 7, ActorCompany: domain.CompanyRefOf(99), ActorRole: domain.RoleTrainee, CourseID: 5,
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "forbidden")
@@ -62,7 +62,7 @@ func Test_最終閲覧章_traineeは未公開コース禁止(t *testing.T) {
 	uc := usecase.NewGetLastViewedChapterUseCase(crepo, chapterViewRepo(nil, nil))
 
 	_, err := uc.Execute(context.Background(), usecase.GetLastViewedChapterInput{
-		UserID: 7, ActorCompanyID: 10, ActorRole: domain.RoleTrainee, CourseID: 5,
+		UserID: 7, ActorCompany: domain.CompanyRefOf(10), ActorRole: domain.RoleTrainee, CourseID: 5,
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "forbidden")
@@ -73,7 +73,7 @@ func Test_最終閲覧章_コースが無ければNotFound(t *testing.T) {
 	uc := usecase.NewGetLastViewedChapterUseCase(crepo, chapterViewRepo(nil, nil))
 
 	_, err := uc.Execute(context.Background(), usecase.GetLastViewedChapterInput{
-		UserID: 7, ActorCompanyID: 10, ActorRole: domain.RoleTrainee, CourseID: 5,
+		UserID: 7, ActorCompany: domain.CompanyRefOf(10), ActorRole: domain.RoleTrainee, CourseID: 5,
 	})
 	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
 }

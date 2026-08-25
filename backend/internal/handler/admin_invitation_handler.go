@@ -70,12 +70,14 @@ func (h *AdminInvitationHandler) List(c *gin.Context) {
 		}
 		c.JSON(http.StatusOK, rows)
 	case domain.RoleCompanyAdmin:
-		// CompanyAdmin は自社のみ。company_id 未設定なら 403 (誤用防止)。
-		if user.CompanyID == nil || *user.CompanyID == 0 {
+		// CompanyAdmin は自社のみ。所属会社が無ければ絞り込み先が決まらないので 403 (誤用防止)。
+		// company_id = 0 は採番上あり得ない値なので、未所属と同じく弾く。
+		companyID, affiliated := user.CompanyRef().CompanyID()
+		if !affiliated || companyID == 0 {
 			c.JSON(http.StatusForbidden, gin.H{"error": "company_admin_without_company"})
 			return
 		}
-		rows, err := h.list.ListByCompanyID(c.Request.Context(), *user.CompanyID)
+		rows, err := h.list.ListByCompanyID(c.Request.Context(), companyID)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
@@ -153,12 +155,15 @@ func (h *AdminInvitationHandler) Create(c *gin.Context) {
 			})
 			return
 		}
-		if user.CompanyID == nil || *user.CompanyID == 0 {
+		// 招待先 company が決まらないので、未所属の CompanyAdmin は招待できない。
+		// company_id = 0 は採番上あり得ない値なので、未所属と同じく弾く。
+		companyID, affiliated := user.CompanyRef().CompanyID()
+		if !affiliated || companyID == 0 {
 			c.JSON(http.StatusForbidden, gin.H{"error": "company_admin_without_company"})
 			return
 		}
 		// CompanyAdmin の招待先 company は常に自社に固定する（リクエスト値を上書き）。
-		req.CompanyID = *user.CompanyID
+		req.CompanyID = companyID
 	default:
 		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 		return
@@ -239,16 +244,11 @@ func (h *AdminInvitationHandler) Cancel(c *gin.Context) {
 		return
 	}
 
-	// CompanyID は SuperAdmin では nil になり得る（usecase 側で role により無視される）。
-	var actorCompanyID uint64
-	if user.CompanyID != nil {
-		actorCompanyID = *user.CompanyID
-	}
-
+	// 所属会社は SuperAdmin では未所属になり得る（usecase 側で role により無視される）。
 	err = h.cancel.Execute(c.Request.Context(), usecase.CancelAdminInvitationInput{
-		ID:             id,
-		ActorRole:      user.Role,
-		ActorCompanyID: actorCompanyID,
+		ID:           id,
+		ActorRole:    user.Role,
+		ActorCompany: user.CompanyRef(),
 	})
 	switch {
 	case err == nil:

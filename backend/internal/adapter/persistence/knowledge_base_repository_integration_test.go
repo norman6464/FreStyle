@@ -44,9 +44,9 @@ func newKbUseCases(repo repository.KnowledgeBaseRepository) kbUseCases {
 }
 
 // mustCreatePage は usecase 経由でページを 1 枚作る（closure も張られる）。
-func mustCreatePage(t *testing.T, uc kbUseCases, ws, space string, parentID *string, title string) *domain.Page {
+func mustCreatePage(ctx context.Context, t *testing.T, uc kbUseCases, ws, space string, parentID *string, title string) *domain.Page {
 	t.Helper()
-	page, err := uc.create.Execute(context.Background(), usecase.CreatePageInput{
+	page, err := uc.create.Execute(ctx, usecase.CreatePageInput{
 		WorkspaceID: ws, SpaceID: space, ParentID: parentID, Title: title, CreatedByUserID: 1,
 	})
 	require.NoError(t, err)
@@ -107,10 +107,10 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 
 	t.Run("作成して取得すると木の形とclosureが正しい", func(t *testing.T) {
 		ws, spaceA, _ := setup(t)
-		root1 := mustCreatePage(t, uc, ws, spaceA, nil, "root1")
-		root2 := mustCreatePage(t, uc, ws, spaceA, nil, "root2")
-		child := mustCreatePage(t, uc, ws, spaceA, &root1.ID, "child")
-		grand := mustCreatePage(t, uc, ws, spaceA, &child.ID, "grand")
+		root1 := mustCreatePage(ctx, t, uc, ws, spaceA, nil, "root1")
+		root2 := mustCreatePage(ctx, t, uc, ws, spaceA, nil, "root2")
+		child := mustCreatePage(ctx, t, uc, ws, spaceA, &root1.ID, "child")
+		grand := mustCreatePage(ctx, t, uc, ws, spaceA, &child.ID, "grand")
 
 		got, err := uc.get.Execute(ctx, usecase.GetPageInput{WorkspaceID: ws, PageID: child.ID})
 		require.NoError(t, err)
@@ -135,10 +135,10 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 
 	t.Run("同一スペース内の移動でclosureが付け替わる", func(t *testing.T) {
 		ws, spaceA, _ := setup(t)
-		root1 := mustCreatePage(t, uc, ws, spaceA, nil, "root1")
-		root2 := mustCreatePage(t, uc, ws, spaceA, nil, "root2")
-		child := mustCreatePage(t, uc, ws, spaceA, &root1.ID, "child")
-		grand := mustCreatePage(t, uc, ws, spaceA, &child.ID, "grand")
+		root1 := mustCreatePage(ctx, t, uc, ws, spaceA, nil, "root1")
+		root2 := mustCreatePage(ctx, t, uc, ws, spaceA, nil, "root2")
+		child := mustCreatePage(ctx, t, uc, ws, spaceA, &root1.ID, "child")
+		grand := mustCreatePage(ctx, t, uc, ws, spaceA, &child.ID, "grand")
 
 		moved, err := uc.move.Execute(ctx, usecase.MovePageInput{
 			WorkspaceID: ws, PageID: child.ID, NewParentID: &root2.ID,
@@ -164,9 +164,9 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 
 	t.Run("自分の子孫への移動は拒否される", func(t *testing.T) {
 		ws, spaceA, _ := setup(t)
-		root := mustCreatePage(t, uc, ws, spaceA, nil, "root")
-		child := mustCreatePage(t, uc, ws, spaceA, &root.ID, "child")
-		grand := mustCreatePage(t, uc, ws, spaceA, &child.ID, "grand")
+		root := mustCreatePage(ctx, t, uc, ws, spaceA, nil, "root")
+		child := mustCreatePage(ctx, t, uc, ws, spaceA, &root.ID, "child")
+		grand := mustCreatePage(ctx, t, uc, ws, spaceA, &child.ID, "grand")
 
 		_, err := uc.move.Execute(ctx, usecase.MovePageInput{
 			WorkspaceID: ws, PageID: root.ID, NewParentID: &grand.ID,
@@ -186,10 +186,10 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 
 	t.Run("スペースをまたぐ移動で子孫のspace_idも変わる", func(t *testing.T) {
 		ws, spaceA, spaceB := setup(t)
-		rootA := mustCreatePage(t, uc, ws, spaceA, nil, "rootA")
-		child := mustCreatePage(t, uc, ws, spaceA, &rootA.ID, "child")
-		grand := mustCreatePage(t, uc, ws, spaceA, &child.ID, "grand")
-		rootB := mustCreatePage(t, uc, ws, spaceB, nil, "rootB")
+		rootA := mustCreatePage(ctx, t, uc, ws, spaceA, nil, "rootA")
+		child := mustCreatePage(ctx, t, uc, ws, spaceA, &rootA.ID, "child")
+		grand := mustCreatePage(ctx, t, uc, ws, spaceA, &child.ID, "grand")
+		rootB := mustCreatePage(ctx, t, uc, ws, spaceB, nil, "rootB")
 
 		// child（+ grand）を spaceB の rootB の下へ。
 		moved, err := uc.move.Execute(ctx, usecase.MovePageInput{
@@ -222,8 +222,8 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 
 	t.Run("別スペースのルートへの移動もできる", func(t *testing.T) {
 		ws, spaceA, spaceB := setup(t)
-		rootA := mustCreatePage(t, uc, ws, spaceA, nil, "rootA")
-		child := mustCreatePage(t, uc, ws, spaceA, &rootA.ID, "child")
+		rootA := mustCreatePage(ctx, t, uc, ws, spaceA, nil, "rootA")
+		child := mustCreatePage(ctx, t, uc, ws, spaceA, &rootA.ID, "child")
 
 		moved, err := uc.move.Execute(ctx, usecase.MovePageInput{
 			WorkspaceID: ws, PageID: child.ID, NewSpaceID: spaceB,
@@ -240,9 +240,9 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 
 	t.Run("アーカイブでツリーから消え復帰で戻る", func(t *testing.T) {
 		ws, spaceA, _ := setup(t)
-		root := mustCreatePage(t, uc, ws, spaceA, nil, "root")
-		child := mustCreatePage(t, uc, ws, spaceA, &root.ID, "child")
-		keep := mustCreatePage(t, uc, ws, spaceA, nil, "keep")
+		root := mustCreatePage(ctx, t, uc, ws, spaceA, nil, "root")
+		child := mustCreatePage(ctx, t, uc, ws, spaceA, &root.ID, "child")
+		keep := mustCreatePage(ctx, t, uc, ws, spaceA, nil, "keep")
 
 		require.NoError(t, uc.archive.Execute(ctx, usecase.ArchivePageInput{WorkspaceID: ws, PageID: root.ID}))
 
@@ -266,11 +266,11 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 
 	t.Run("復帰時にpositionが衝突したら末尾へ再採番される", func(t *testing.T) {
 		ws, spaceA, _ := setup(t)
-		first := mustCreatePage(t, uc, ws, spaceA, nil, "first") // position a0
+		first := mustCreatePage(ctx, t, uc, ws, spaceA, nil, "first") // position a0
 
 		require.NoError(t, uc.archive.Execute(ctx, usecase.ArchivePageInput{WorkspaceID: ws, PageID: first.ID}))
 		// アーカイブ中は現役の兄弟がいないので、新しいページが同じ position a0 を取る。
-		second := mustCreatePage(t, uc, ws, spaceA, nil, "second")
+		second := mustCreatePage(ctx, t, uc, ws, spaceA, nil, "second")
 		assert.Equal(t, first.Position, second.Position, "前提: 部分 UNIQUE は現役だけを守るので同じ position になる")
 
 		restored, err := uc.unarchive.Execute(ctx, usecase.UnarchivePageInput{WorkspaceID: ws, PageID: first.ID})
@@ -285,9 +285,9 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 
 	t.Run("復帰は根と同時にアーカイブされた一括分だけを戻す", func(t *testing.T) {
 		ws, spaceA, _ := setup(t)
-		root := mustCreatePage(t, uc, ws, spaceA, nil, "root")
-		early := mustCreatePage(t, uc, ws, spaceA, &root.ID, "early")
-		late := mustCreatePage(t, uc, ws, spaceA, &root.ID, "late")
+		root := mustCreatePage(ctx, t, uc, ws, spaceA, nil, "root")
+		early := mustCreatePage(ctx, t, uc, ws, spaceA, &root.ID, "early")
+		late := mustCreatePage(ctx, t, uc, ws, spaceA, &root.ID, "late")
 
 		// early を先に単独アーカイブ → その後 root ごとアーカイブ。
 		require.NoError(t, uc.archive.Execute(ctx, usecase.ArchivePageInput{WorkspaceID: ws, PageID: early.ID}))
@@ -304,8 +304,8 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 
 	t.Run("親がアーカイブ中のままでは復帰できない", func(t *testing.T) {
 		ws, spaceA, _ := setup(t)
-		root := mustCreatePage(t, uc, ws, spaceA, nil, "root")
-		child := mustCreatePage(t, uc, ws, spaceA, &root.ID, "child")
+		root := mustCreatePage(ctx, t, uc, ws, spaceA, nil, "root")
+		child := mustCreatePage(ctx, t, uc, ws, spaceA, &root.ID, "child")
 		require.NoError(t, uc.archive.Execute(ctx, usecase.ArchivePageInput{WorkspaceID: ws, PageID: root.ID}))
 
 		_, err := uc.unarchive.Execute(ctx, usecase.UnarchivePageInput{WorkspaceID: ws, PageID: child.ID})
@@ -314,8 +314,8 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 
 	t.Run("アーカイブ済みの親の下には作成も移動もできない", func(t *testing.T) {
 		ws, spaceA, _ := setup(t)
-		root := mustCreatePage(t, uc, ws, spaceA, nil, "root")
-		other := mustCreatePage(t, uc, ws, spaceA, nil, "other")
+		root := mustCreatePage(ctx, t, uc, ws, spaceA, nil, "root")
+		other := mustCreatePage(ctx, t, uc, ws, spaceA, nil, "other")
 		require.NoError(t, uc.archive.Execute(ctx, usecase.ArchivePageInput{WorkspaceID: ws, PageID: root.ID}))
 
 		_, err := uc.create.Execute(ctx, usecase.CreatePageInput{
@@ -331,7 +331,7 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 
 	t.Run("ブロック書き換えと取得の往復とsnapshot更新", func(t *testing.T) {
 		ws, spaceA, _ := setup(t)
-		page := mustCreatePage(t, uc, ws, spaceA, nil, "doc-page")
+		page := mustCreatePage(ctx, t, uc, ws, spaceA, nil, "doc-page")
 
 		doc1 := `{"type":"doc","content":[
 			{"type":"heading","attrs":{"level":1},"content":[{"type":"text","text":"タイトル"}]},
@@ -375,7 +375,7 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 
 	t.Run("改名できる", func(t *testing.T) {
 		ws, spaceA, _ := setup(t)
-		page := mustCreatePage(t, uc, ws, spaceA, nil, "旧名")
+		page := mustCreatePage(ctx, t, uc, ws, spaceA, nil, "旧名")
 		renamed, err := uc.rename.Execute(ctx, usecase.RenamePageInput{WorkspaceID: ws, PageID: page.ID, Title: "新名"})
 		require.NoError(t, err)
 		assert.Equal(t, "新名", renamed.Title)
@@ -386,8 +386,8 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 		ws, spaceA, _ := setup(t)
 		wsOther := createWorkspace(t, sqlDB, "ws-other")
 		spaceOther := createSpace(t, sqlDB, wsOther, "other")
-		victim := mustCreatePage(t, uc, wsOther, spaceOther, nil, "victim")
-		mine := mustCreatePage(t, uc, ws, spaceA, nil, "mine")
+		victim := mustCreatePage(ctx, t, uc, wsOther, spaceOther, nil, "victim")
+		mine := mustCreatePage(ctx, t, uc, ws, spaceA, nil, "mine")
 
 		// 読み: 取得・ツリー。
 		_, err := uc.get.Execute(ctx, usecase.GetPageInput{WorkspaceID: ws, PageID: victim.ID})
@@ -496,7 +496,7 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 
 	t.Run("文書順が壊れたBlockWriteは保存を拒否する", func(t *testing.T) {
 		ws, spaceA, _ := setup(t)
-		page := mustCreatePage(t, uc, ws, spaceA, nil, "broken-rows")
+		page := mustCreatePage(ctx, t, uc, ws, spaceA, nil, "broken-rows")
 		// ParentIndex が自分より後 = 「親が先」の前提違反。
 		err := repo.ReplacePageBlocks(ctx, ws, page.ID, []repository.BlockWrite{
 			{ParentIndex: 1, Position: "a0", Type: domain.BlockTypeListItem, Attrs: "{}"},
@@ -510,13 +510,13 @@ func TestKnowledgeBasePageUseCases_Integration(t *testing.T) {
 
 	t.Run("大きめの木でも作成と取得が破綻しない", func(t *testing.T) {
 		ws, spaceA, _ := setup(t)
-		root := mustCreatePage(t, uc, ws, spaceA, nil, "root")
+		root := mustCreatePage(ctx, t, uc, ws, spaceA, nil, "root")
 		parent := root.ID
 		// 深さ 5 × 各 3 兄弟の木。
 		for depth := 0; depth < 5; depth++ {
 			var next string
 			for i := 0; i < 3; i++ {
-				p := mustCreatePage(t, uc, ws, spaceA, &parent, fmt.Sprintf("d%d-%d", depth, i))
+				p := mustCreatePage(ctx, t, uc, ws, spaceA, &parent, fmt.Sprintf("d%d-%d", depth, i))
 				next = p.ID
 			}
 			parent = next
@@ -551,7 +551,7 @@ func TestKnowledgeBaseSimpleProtocol_Integration(t *testing.T) {
 	testsupport.TruncateAll(t, gormDB, kbTables...)
 	ws := createWorkspace(t, sqlDB, "ws-simple")
 	space := createSpace(t, sqlDB, ws, "eng")
-	page := mustCreatePage(t, uc, ws, space, nil, "simple-protocol")
+	page := mustCreatePage(ctx, t, uc, ws, space, nil, "simple-protocol")
 
 	// inline あり（葉）と inline NULL（容器・区切り線）を両方通す。
 	doc := `{"type":"doc","content":[

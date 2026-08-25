@@ -82,10 +82,9 @@ func (h *LessonProgressHandler) Complete(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_request"})
 		return
 	}
-	companyID := user.CompanyIDValue()
 	err := h.complete.Execute(c.Request.Context(), usecase.MarkLessonCompletedInput{
 		UserID:             user.ID,
-		ActorCompanyID:     companyID,
+		ActorCompany:       user.CompanyRef(),
 		ActorRole:          user.Role,
 		TeachingMaterialID: req.TeachingMaterialID,
 	})

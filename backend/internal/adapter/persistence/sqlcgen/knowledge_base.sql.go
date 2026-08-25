@@ -238,7 +238,7 @@ func (q *Queries) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (Workspace
 }
 
 const getWorkspaceBySlug = `-- name: GetWorkspaceBySlug :one
-SELECT id, slug, name, created_at, updated_at FROM workspaces
+SELECT id, slug, name, ai_chat_enabled_for_trainees, is_active, created_at, updated_at FROM workspaces
 WHERE slug = $1
 `
 
@@ -251,6 +251,8 @@ func (q *Queries) GetWorkspaceBySlug(ctx context.Context, slug string) (Workspac
 		&i.ID,
 		&i.Slug,
 		&i.Name,
+		&i.AiChatEnabledForTrainees,
+		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

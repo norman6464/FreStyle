@@ -65,7 +65,11 @@ CREATE TABLE users (
     is_active    boolean NOT NULL DEFAULT true,
     created_at   timestamptz NOT NULL,
     updated_at   timestamptz NOT NULL,
-    deleted_at   timestamptz
+    deleted_at   timestamptz,
+    -- workspace_id は AutoMigrate ではなく明示 DDL（infra/database の tenant bridge）が
+    -- 末尾に足す列。実列の並びと合わせるため、ここでも必ず最後に書く（SELECT * の詰め替えが
+    -- 位置ずれで壊れないように）。所属の正本は当面 company_id のままで、この列は写し。
+    workspace_id uuid
 );
 
 -- 学習メモ。全列アプリが必ず値を入れる（user_id / title / content / is_public / is_pinned）ため
@@ -118,7 +122,11 @@ CREATE TABLE companies (
     ai_chat_enabled_for_trainees boolean NOT NULL DEFAULT true,
     is_active                    boolean NOT NULL DEFAULT true,
     created_at                   timestamptz NOT NULL,
-    updated_at                   timestamptz NOT NULL
+    updated_at                   timestamptz NOT NULL,
+    -- 対応する workspaces 行への橋渡し。テナントの正本を workspaces へ移す移行期間だけの列で、
+    -- companies そのものを畳むときに列ごと消える（恒久的な 1:1 の関連として設計していない）。
+    -- 実列は明示 DDL が末尾に足すので、ここでも必ず最後に書く（SELECT * の位置ずれ防止）。
+    workspace_id                 uuid
 );
 
 -- 公開フォームからの利用申請。message は空文字許容（NULL は来ない想定で NOT NULL とみなす）。

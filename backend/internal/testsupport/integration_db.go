@@ -97,6 +97,12 @@ func openTestDB(t *testing.T, preferSimpleProtocol bool) *gorm.DB {
 	if err := database.ApplyKnowledgeBaseSchema(t.Context(), sqlDB); err != nil {
 		t.Fatalf("ApplyKnowledgeBaseSchema 失敗: %v", err)
 	}
+	// companies / users の workspace_id 列と FK も本番（database.Migrate）と同じに揃える。
+	// バックフィルは呼ばない（テストが自分でデータを用意する。起動相当の再実行は
+	// バックフィル自身の結合テストが直接呼んで確かめる）。
+	if err := database.ApplyTenantBridgeSchema(t.Context(), sqlDB); err != nil {
+		t.Fatalf("ApplyTenantBridgeSchema 失敗: %v", err)
+	}
 	return db
 }
 

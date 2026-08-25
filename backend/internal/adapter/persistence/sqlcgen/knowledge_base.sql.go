@@ -206,7 +206,7 @@ func (q *Queries) GetSpace(ctx context.Context, arg GetSpaceParams) (Space, erro
 
 const getWorkspaceByID = `-- name: GetWorkspaceByID :one
 
-SELECT id, slug, name, created_at, updated_at FROM workspaces
+SELECT id, slug, name, ai_chat_enabled_for_trainees, is_active, created_at, updated_at FROM workspaces
 WHERE id = $1
 `
 
@@ -229,6 +229,8 @@ func (q *Queries) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (Workspace
 		&i.ID,
 		&i.Slug,
 		&i.Name,
+		&i.AiChatEnabledForTrainees,
+		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

@@ -79,10 +79,15 @@ func newDocRouter(repo repository.RichDocumentRepository, uid, companyID uint64)
 	h := newDocHandler(repo)
 	r := gin.New()
 	if uid != 0 {
-		cid := companyID
+		// companyID==0 は「会社未所属」を表す（0 という会社があるわけではない）。
+		var cid *uint64
+		if companyID != 0 {
+			v := companyID
+			cid = &v
+		}
 		r.Use(func(c *gin.Context) {
 			c.Set(middleware.ContextKeyCurrentUserID, uid)
-			c.Set(middleware.ContextKeyCurrentUser, &domain.User{ID: uid, CompanyID: &cid, Role: domain.RoleTrainee})
+			c.Set(middleware.ContextKeyCurrentUser, &domain.User{ID: uid, CompanyID: cid, Role: domain.RoleTrainee})
 			c.Next()
 		})
 	}
@@ -159,6 +164,41 @@ func Test_文書ハンドラ_取得(t *testing.T) {
 		w := doDocReq(r, http.MethodGet, "/documents/"+testDocUUID, "")
 		if w.Code != http.StatusNotFound {
 			t.Fatalf("want 404, got %d", w.Code)
+		}
+	})
+	t.Run("同一会社の他人は公開を読める(200)", func(t *testing.T) {
+		companyA := uint64(1)
+		repo := &fakeDocRepo{getDoc: &domain.RichDocument{ID: testDocUUID, OwnerID: 7, CompanyID: &companyA, IsPublic: true, Doc: testDocBody}}
+		r := newDocRouter(repo, 99, companyA)
+		w := doDocReq(r, http.MethodGet, "/documents/"+testDocUUID, "")
+		if w.Code != http.StatusOK {
+			t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+	t.Run("別会社の他人は公開でも404", func(t *testing.T) {
+		companyA := uint64(1)
+		repo := &fakeDocRepo{getDoc: &domain.RichDocument{ID: testDocUUID, OwnerID: 7, CompanyID: &companyA, IsPublic: true, Doc: testDocBody}}
+		r := newDocRouter(repo, 99, 2)
+		w := doDocReq(r, http.MethodGet, "/documents/"+testDocUUID, "")
+		if w.Code != http.StatusNotFound {
+			t.Fatalf("want 404, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+	t.Run("会社不明(NULL)の公開は他人から404", func(t *testing.T) {
+		repo := &fakeDocRepo{getDoc: &domain.RichDocument{ID: testDocUUID, OwnerID: 7, IsPublic: true, Doc: testDocBody}}
+		r := newDocRouter(repo, 99, 1)
+		w := doDocReq(r, http.MethodGet, "/documents/"+testDocUUID, "")
+		if w.Code != http.StatusNotFound {
+			t.Fatalf("want 404, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+	t.Run("所有者は会社が食い違っても200", func(t *testing.T) {
+		companyB := uint64(2)
+		repo := &fakeDocRepo{getDoc: &domain.RichDocument{ID: testDocUUID, OwnerID: 7, CompanyID: &companyB, IsPublic: true, Doc: testDocBody}}
+		r := newDocRouter(repo, 7, 1)
+		w := doDocReq(r, http.MethodGet, "/documents/"+testDocUUID, "")
+		if w.Code != http.StatusOK {
+			t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
 		}
 	})
 	t.Run("未認証は401", func(t *testing.T) {

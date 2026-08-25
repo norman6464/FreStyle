@@ -114,14 +114,15 @@ func NewGetRichDocumentUseCase(r repository.RichDocumentRepository) *GetRichDocu
 	return &GetRichDocumentUseCase{repo: r}
 }
 
-// Execute は id の文書を返す。閲覧できない（非公開かつ非所有者）場合は存在を漏らさないため
-// ErrRichDocumentNotFound を返す。viewerID=0 は未認証。
-func (u *GetRichDocumentUseCase) Execute(ctx context.Context, id string, viewerID uint64) (*domain.RichDocument, error) {
+// Execute は id の文書を返す。閲覧可否の規則は domain.RichDocument.CanBeReadBy が唯一持ち、
+// ここでは条件を写経しない（SQL 側にも書かない）。閲覧できない場合は存在を漏らさないため
+// ErrRichDocumentNotFound を返す。viewerID=0 は未認証、viewerCompany は閲覧者の所属会社。
+func (u *GetRichDocumentUseCase) Execute(ctx context.Context, id string, viewerID uint64, viewerCompany domain.CompanyRef) (*domain.RichDocument, error) {
 	doc, err := u.repo.FindByID(ctx, id)
 	if err != nil {
 		return nil, translateRepoErr(err)
 	}
-	if !doc.CanBeReadBy(viewerID) {
+	if !doc.CanBeReadBy(viewerID, viewerCompany) {
 		return nil, ErrRichDocumentNotFound
 	}
 	return doc, nil
@@ -261,7 +262,10 @@ func NewListRichDocumentsUseCase(r repository.RichDocumentRepository) *ListRichD
 }
 
 type ListRichDocumentsInput struct {
+	// OwnerID は一覧の対象であり閲覧者本人でもある（この経路は owner スコープ固定）。
 	OwnerID uint64
+	// ViewerCompany は閲覧者の所属会社。可視性の判定を domain へ渡すために持つ。
+	ViewerCompany domain.CompanyRef
 	// Kind が空なら全 kind。指定するなら既知の kind であること。
 	Kind domain.DocumentKind
 }
@@ -277,7 +281,16 @@ func (u *ListRichDocumentsUseCase) Execute(ctx context.Context, in ListRichDocum
 	if err != nil {
 		return nil, translateRepoErr(err)
 	}
-	return rows, nil
+	// ListByOwner は owner スコープなので、返る行は必ず「閲覧者＝所有者」を満たす。
+	// それでも同じ domain の規則を通しておく。将来この一覧が所有者以外の文書を含むよう
+	// 広がったときに、可視性の判断がここへ写経されるのではなく CanBeReadBy に残るようにするため。
+	visible := rows[:0]
+	for _, row := range rows {
+		if row.CanBeReadBy(in.OwnerID, in.ViewerCompany) {
+			visible = append(visible, row)
+		}
+	}
+	return visible, nil
 }
 
 // translateRepoErr は repository 層のセンチネルを usecase 層のセンチネルへ翻訳する。

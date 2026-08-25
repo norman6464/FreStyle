@@ -18,6 +18,16 @@ var ErrSpaceNotFound = errors.New("space not found")
 // テナント越えのアクセスは「無い」と同じ扱いにする（存在の有無自体を漏らさない）。
 var ErrPageNotFound = errors.New("page not found")
 
+// ErrPageMoveVoidsSpaceRestriction は、移動するサブツリーに「スペース全員」宛ての例外が
+// 残っている状態で、そのスペースの外へ移そうとしたときに返す。
+//
+// space_all の主体は「そのスペースの全員」を意味するため、ページが別スペースへ移ると
+// 行は残ったまま評価の対象から外れる。deny なら誰も外れなくなって（＝ 開いて）しまい、
+// allow なら誰も載っていない許可リストになって全員が締め出される。どちらも
+// 「権限設定画面に見えているものと実効が違う」状態で、移動した本人にも気づけない。
+// 例外を先に整理してから移す運用に倒し、黙って権限が変わる経路を塞ぐ。
+var ErrPageMoveVoidsSpaceRestriction = errors.New("page move would void a space-wide restriction")
+
 // ErrPageSnapshotNotFound は対象ページの snapshot がまだ無いときに返す。
 // snapshot は派生データなので、呼び出し側はこれを受けて blocks から組み立てる。
 var ErrPageSnapshotNotFound = errors.New("page snapshot not found")
@@ -74,6 +84,8 @@ type KnowledgeBaseRepository interface {
 	// MovePage はページを newParentID（nil はスペース直下）の末尾へ移す。
 	// pages の付け替え・スペースが変わる場合のサブツリー space_id 更新・closure の
 	// 付け替えを 1 トランザクションで行う。対象が無ければ ErrPageNotFound。
+	// スペースをまたぐ移動で、サブツリーに移動先以外のスペースの「全員」宛て例外が
+	// 残っている場合は ErrPageMoveVoidsSpaceRestriction を返して移動しない。
 	MovePage(ctx context.Context, workspaceID, pageID string, newParentID *string, newSpaceID, newPosition string) error
 	// ArchivePageSubtree はページとその子孫のうち現役の行に archived_at を設定する。
 	// 既にアーカイブ済みの行は元の archived_at を保つ（触らない）。

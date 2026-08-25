@@ -153,6 +153,28 @@ SELECT * FROM share_links
 WHERE workspace_id = $1 AND page_id = $2
 ORDER BY created_at DESC;
 
+-- name: SubtreeHasForeignSpaceAllRestriction :one
+-- 移動するサブツリー（自分自身 + 子孫）に「移動先スペース以外のスペース全員」宛ての例外が
+-- あるか。KnowledgeBaseRepository.MovePage が同じトランザクションで使う。
+--
+-- space_all の主体は「そのスペースの全員」を表すため、スペースをまたぐ移動で行だけが残り
+-- 評価されなくなる（権限解決は対象ページが今いるスペースの space_all しか主体に取らない）。
+-- 行は権限設定画面に見えているのに実効は違う、という追跡困難なずれになり、
+-- しかも allow は締め出す側・deny は開く側へ倒れるという非対称ができる。
+-- 移動そのものを止めることで、緩む向きにも締まる向きにも黙って変わらないようにする。
+SELECT EXISTS (
+    SELECT 1
+    FROM page_paths pp
+    JOIN page_restrictions r
+      ON r.workspace_id = pp.workspace_id AND r.page_id = pp.page_id
+    JOIN principals pr
+      ON pr.workspace_id = r.workspace_id AND pr.id = r.principal_id
+    WHERE pp.workspace_id = sqlc.arg(workspace_id)
+      AND pp.ancestor_id = sqlc.arg(page_id)
+      AND pr.kind = 'space_all'
+      AND pr.space_id IS DISTINCT FROM sqlc.arg(new_space_id)::uuid
+) AS found;
+
 -- name: ResolvePagePermissionFacts :one
 -- 1 ページの実効権限を決めるのに必要な「事実」を 1 回のクエリで集める。
 -- 判定そのものは domain.ResolvePagePermission が行う（ここには規則を書かない）。

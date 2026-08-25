@@ -466,6 +466,76 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 		assert.False(t, f.permFor(t, child.ID, f.carol).CanEdit, "名指しで外された本人は編集できない")
 	})
 
+	t.Run("スペース全員のdenyは別スペースへの移動で失効しない", func(t *testing.T) {
+		f := setupKBPermission(t, gormDB, sqlDB)
+		parent := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, nil, "親")
+		secret := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, &parent.ID, "社外秘")
+
+		// 移動元・移動先とも全員 editor（移動先でも既定は変わらない）。
+		for _, space := range []string{f.spaceA, f.spaceB} {
+			f.grantSpace(t, space, f.everyoneOf(t, space).ID, domain.GrantRoleEditor)
+		}
+		f.principalFor(t, f.bob)
+		everyoneA := f.everyoneOf(t, f.spaceA)
+		f.restrict(t, secret.ID, everyoneA.ID, domain.CapabilityView, domain.RestrictionModeDeny)
+		require.False(t, f.permFor(t, secret.ID, f.bob).CanView)
+
+		// 例外を持つページの祖先を、別スペースのルートへ動かす（正規の操作）。
+		_, err := f.pageUC.move.Execute(ctx, usecase.MovePageInput{
+			WorkspaceID: f.ws, PageID: parent.ID, NewSpaceID: f.spaceB,
+		})
+		require.Error(t, err, "実効権限が緩む移動は失敗させる")
+		assert.False(t, f.permFor(t, secret.ID, f.bob).CanView, "移動していないので deny は効いたまま")
+
+		require.ErrorIs(t, err, repository.ErrPageMoveVoidsSpaceRestriction)
+		moved, err := f.pages.FindPage(ctx, f.ws, parent.ID)
+		require.NoError(t, err)
+		assert.Equal(t, f.spaceA, moved.SpaceID, "失敗した移動はロールバックされている")
+
+		// allow でも同じく止める（deny だけフェイルオープン、という非対称を残さない）。
+		require.NoError(t, f.perm.DeletePageRestriction(ctx, f.ws, secret.ID, everyoneA.ID, domain.CapabilityView))
+		f.restrict(t, secret.ID, everyoneA.ID, domain.CapabilityView, domain.RestrictionModeAllow)
+		_, err = f.pageUC.move.Execute(ctx, usecase.MovePageInput{
+			WorkspaceID: f.ws, PageID: parent.ID, NewSpaceID: f.spaceB,
+		})
+		require.ErrorIs(t, err, repository.ErrPageMoveVoidsSpaceRestriction, "allow も同じ扱い")
+
+		// 例外を先に整理すれば移せる（止めるのは「意味を失う例外が残っているとき」だけ）。
+		require.NoError(t, f.perm.DeletePageRestriction(ctx, f.ws, secret.ID, everyoneA.ID, domain.CapabilityView))
+		_, err = f.pageUC.move.Execute(ctx, usecase.MovePageInput{
+			WorkspaceID: f.ws, PageID: parent.ID, NewSpaceID: f.spaceB,
+		})
+		require.NoError(t, err)
+		moved, err = f.pages.FindPage(ctx, f.ws, parent.ID)
+		require.NoError(t, err)
+		assert.Equal(t, f.spaceB, moved.SpaceID)
+	})
+
+	t.Run("移動先スペース全員の例外と同一スペース内の移動は止めない", func(t *testing.T) {
+		f := setupKBPermission(t, gormDB, sqlDB)
+
+		// スペースが変わらない移動は、例外の意味も変わらないので止めない。
+		staying := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, nil, "親")
+		newParent := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, nil, "別の親")
+		stayingChild := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, &staying.ID, "社外秘")
+		f.restrict(t, stayingChild.ID, f.everyoneOf(t, f.spaceA).ID,
+			domain.CapabilityView, domain.RestrictionModeDeny)
+		_, err := f.pageUC.move.Execute(ctx, usecase.MovePageInput{
+			WorkspaceID: f.ws, PageID: staying.ID, NewParentID: &newParent.ID,
+		})
+		require.NoError(t, err, "同一スペース内の移動は例外の意味を変えない")
+
+		// 「移動先スペースの全員」宛ての例外は、移動後にこそ意味を持つので止めない。
+		leaving := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, nil, "移すページ")
+		leavingChild := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, &leaving.ID, "移す子")
+		f.restrict(t, leavingChild.ID, f.everyoneOf(t, f.spaceB).ID,
+			domain.CapabilityView, domain.RestrictionModeDeny)
+		_, err = f.pageUC.move.Execute(ctx, usecase.MovePageInput{
+			WorkspaceID: f.ws, PageID: leaving.ID, NewSpaceID: f.spaceB,
+		})
+		require.NoError(t, err, "移動先スペース宛ての例外は移動後に効くので止めない")
+	})
+
 	t.Run("同じ主体とケイパビリティに矛盾する例外は作れない", func(t *testing.T) {
 		f := setupKBPermission(t, gormDB, sqlDB)
 		page := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, nil, "root")

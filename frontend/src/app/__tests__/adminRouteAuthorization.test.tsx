@@ -70,12 +70,13 @@ vi.mock('@/pages/admin-members/model/useAdminMembers', () => ({
   }),
 }));
 
-import AdminDashboardPage from '@/pages/admin-dashboard/ui/AdminDashboardPage';
-import AdminCompaniesPage from '@/pages/admin-companies/ui/AdminCompaniesPage';
-import AdminCompanyApplicationsPage from '@/pages/admin-company-applications/ui/AdminCompanyApplicationsPage';
-import AdminMembersPage from '@/pages/admin-members/ui/AdminMembersPage';
-import AdminAuditLogPage from '@/pages/admin-audit-log/ui/AdminAuditLogPage';
-import AdminInvitationsPage from '@/pages/admin-invitations/ui/AdminInvitationsPage';
+// ページは App.tsx の配線と同じく Slice の Public API から取る。
+import { AdminDashboardPage } from '@/pages/admin-dashboard';
+import { AdminCompaniesPage } from '@/pages/admin-companies';
+import { AdminCompanyApplicationsPage } from '@/pages/admin-company-applications';
+import { AdminMembersPage } from '@/pages/admin-members';
+import { AdminAuditLogPage } from '@/pages/admin-audit-log';
+import { AdminInvitationsPage } from '@/pages/admin-invitations';
 import RequireRole from '../providers/RequireRole';
 
 /**
@@ -139,7 +140,15 @@ const ADMIN_ROUTES: { path: string; title: string; element: ReactElement }[] = [
   },
 ];
 
-const REDIRECT_MARKER = 'ダッシュボード（リダイレクト先）';
+const REDIRECT_NAME = 'ダッシュボード（リダイレクト先）';
+
+/**
+ * 通過・拒否は「どの画面が出たか」で判定する。各 admin ページは PageIntro の h1 を
+ * 持つので、その見出し（role + アクセシブルな名前）で引く。リダイレクト先も
+ * 名前付きランドマークとして置き、同じく role で引く。
+ */
+const pageHeading = (title: string) => screen.queryByRole('heading', { level: 1, name: title });
+const redirectScreen = () => screen.queryByRole('main', { name: REDIRECT_NAME });
 
 function renderRoute(path: string) {
   return render(
@@ -148,7 +157,10 @@ function renderRoute(path: string) {
         {ADMIN_ROUTES.map((r) => (
           <Route key={r.path} path={r.path} element={r.element} />
         ))}
-        <Route path="/dashboard" element={<div>{REDIRECT_MARKER}</div>} />
+        <Route
+          path="/dashboard"
+          element={<main aria-label={REDIRECT_NAME}>ダッシュボードの内容</main>}
+        />
       </Routes>
     </MemoryRouter>,
   );
@@ -219,11 +231,13 @@ describe('admin ルートの認可', () => {
           renderRoute(route.path);
 
           if (shouldPass) {
-            expect(await screen.findByText(route.title)).toBeInTheDocument();
-            expect(screen.queryByText(REDIRECT_MARKER)).not.toBeInTheDocument();
+            expect(
+              await screen.findByRole('heading', { level: 1, name: route.title }),
+            ).toBeInTheDocument();
+            expect(redirectScreen()).not.toBeInTheDocument();
           } else {
-            expect(await screen.findByText(REDIRECT_MARKER)).toBeInTheDocument();
-            expect(screen.queryByText(route.title)).not.toBeInTheDocument();
+            expect(await screen.findByRole('main', { name: REDIRECT_NAME })).toBeInTheDocument();
+            expect(pageHeading(route.title)).not.toBeInTheDocument();
           }
         });
       }
@@ -236,9 +250,9 @@ describe('admin ルートの認可', () => {
         mockState.auth = { isAdmin: false, loading: true, role: null };
         renderRoute(route.path);
 
-        expect(await screen.findByRole('status')).toBeInTheDocument();
-        expect(screen.queryByText(route.title)).not.toBeInTheDocument();
-        expect(screen.queryByText(REDIRECT_MARKER)).not.toBeInTheDocument();
+        expect(await screen.findByRole('status', { name: '読み込み中' })).toBeInTheDocument();
+        expect(pageHeading(route.title)).not.toBeInTheDocument();
+        expect(redirectScreen()).not.toBeInTheDocument();
       });
     }
   });

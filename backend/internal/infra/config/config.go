@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 )
 
 type Config struct {
@@ -36,6 +37,15 @@ type Config struct {
 	// ランダム値（token.go）なので、固定鍵による偽造も成立しない。
 	// JWKS 設定の有無は条件に含めない（ローカルで実 Cognito プールと併用したい構成があるため）。
 	LocalPasswordAuth bool
+
+	// BootstrapSuperAdminEmail は「最初の運営管理者」を招待なしで受け入れるための
+	// ブートストラップ用アドレス（BOOTSTRAP_SUPER_ADMIN_EMAIL）。
+	// 招待は FreStyle 唯一のアカウント発行統制なので、Cognito の admin グループに属している
+	// だけで招待を迂回できてはいけない。一方でその免除は「まだ super_admin が 1 人も居ない
+	// 環境で最初の 1 人を作る」唯一の経路でもある。そこで免除の条件を
+	// 「ここで明示した 1 アドレス」「Cognito admin グループ所属」「super_admin が 0 人」の
+	// 3 つ揃いに絞る（判定は usecase 側）。未設定（既定）なら免除は一切効かない。
+	BootstrapSuperAdminEmail string
 
 	// CodeRunnerURL はコード実行サイドカー（cmd/coderunner）の baseURL。
 	// セットされていると backend 本体は os/exec せず HTTP 越しに runner へ委譲する
@@ -113,6 +123,8 @@ func Load() (*Config, error) {
 		DBSSLMode:     getEnvOrDefault("DB_SSLMODE", "require"),
 		AppBaseURL:    getEnvOrDefault("APP_BASE_URL", ""),
 		CodeRunnerURL: os.Getenv("CODE_RUNNER_URL"),
+		// 前後の空白は運用者の打ち間違いで免除が黙って効かなくなるのを避けるため落とす。
+		BootstrapSuperAdminEmail: strings.TrimSpace(os.Getenv("BOOTSTRAP_SUPER_ADMIN_EMAIL")),
 		Cognito: CognitoConfig{
 			ClientID:     os.Getenv("COGNITO_CLIENT_ID"),
 			ClientSecret: os.Getenv("COGNITO_CLIENT_SECRET"),

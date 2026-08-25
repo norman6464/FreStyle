@@ -15,10 +15,14 @@ import (
 // fakeUserRepo は AuthHandler.upsertUserFromIDToken のテスト用 stub。
 type fakeUserRepo struct {
 	existingBySub    map[string]*domain.User
+	findErr          error
 	created          *domain.User
 	createErr        error
 	updateRoleID     uint64
 	updateRoleVal    domain.RoleName
+	updateRoleErr    error
+	updateRoleCalls  int
+	superAdmins      []domain.User
 	updateCompanyID  uint64
 	updateCompanyVal uint64
 	updateNameID     uint64
@@ -26,6 +30,9 @@ type fakeUserRepo struct {
 }
 
 func (r *fakeUserRepo) FindByCognitoSub(_ context.Context, sub string) (*domain.User, error) {
+	if r.findErr != nil {
+		return nil, r.findErr
+	}
 	if u, ok := r.existingBySub[sub]; ok {
 		return u, nil
 	}
@@ -49,7 +56,7 @@ func (r *fakeUserRepo) FindByID(_ context.Context, _ uint64) (*domain.User, erro
 }
 
 func (r *fakeUserRepo) ListByRole(_ context.Context, _ domain.RoleName) ([]domain.User, error) {
-	return nil, nil
+	return r.superAdmins, nil
 }
 
 func (r *fakeUserRepo) CreateWithOidcIdentity(_ context.Context, u *domain.User, _, _ string) error {
@@ -67,6 +74,10 @@ func (r *fakeUserRepo) UpdateName(_ context.Context, id uint64, name string) err
 }
 
 func (r *fakeUserRepo) UpdateRole(_ context.Context, id uint64, role domain.RoleName) error {
+	r.updateRoleCalls++
+	if r.updateRoleErr != nil {
+		return r.updateRoleErr
+	}
 	r.updateRoleID, r.updateRoleVal = id, role
 	return nil
 }
@@ -142,13 +153,23 @@ func makeIDToken(t *testing.T, claims map[string]any) string {
 }
 
 // newTestAuthHandler はテスト用 AuthHandler を組み立てる。tokens は使わない。
+// ブートストラップ免除は無効（本番の既定）。
 func newTestAuthHandler(
 	users *fakeUserRepo,
 	invitations *fakeInvitationRepo,
 ) *AuthHandler {
+	return newTestAuthHandlerWithBootstrap(users, invitations, "")
+}
+
+// newTestAuthHandlerWithBootstrap はブートストラップ用アドレスを設定したテスト用 AuthHandler を返す。
+func newTestAuthHandlerWithBootstrap(
+	users *fakeUserRepo,
+	invitations *fakeInvitationRepo,
+	bootstrapEmail string,
+) *AuthHandler {
 	return &AuthHandler{
-		users:      users,
-		upsertUser: usecase.NewUpsertUserFromIDTokenUseCase(users, invitations),
+		upsertUser:   usecase.NewUpsertUserFromIDTokenUseCase(users, invitations, bootstrapEmail),
+		promoteAdmin: usecase.NewPromoteCognitoAdminRoleUseCase(users),
 	}
 }
 

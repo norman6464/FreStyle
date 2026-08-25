@@ -4,7 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
+	"strings"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
@@ -23,17 +24,54 @@ type UpsertUserFromIDTokenInput struct {
 type UpsertUserFromIDTokenUseCase struct {
 	users       repository.UserRepository
 	invitations repository.AdminInvitationRepository
+	// bootstrapSuperAdminEmail は招待なしのサインアップを許す唯一の例外アドレス
+	// （空なら例外なし）。詳しくは bootstrapSignupAllowed を参照。
+	bootstrapSuperAdminEmail string
 }
 
 // NewUpsertUserFromIDTokenUseCase はUpsertUserFromIDTokenUseCaseを生成する。
+// bootstrapSuperAdminEmail は「最初の運営管理者」だけに招待を免除するアドレス（通常は空）。
 func NewUpsertUserFromIDTokenUseCase(
 	users repository.UserRepository,
 	invitations repository.AdminInvitationRepository,
+	bootstrapSuperAdminEmail string,
 ) *UpsertUserFromIDTokenUseCase {
 	return &UpsertUserFromIDTokenUseCase{
-		users:       users,
-		invitations: invitations,
+		users:                    users,
+		invitations:              invitations,
+		bootstrapSuperAdminEmail: strings.TrimSpace(bootstrapSuperAdminEmail),
 	}
+}
+
+// bootstrapSignupAllowed は、招待の無い新規サインアップを「最初の運営管理者」に限って許すかを返す。
+//
+// Cognito の admin グループに属しているだけで招待を迂回できると、グループ名 1 つで会社をまたぐ
+// super_admin を、招待（FreStyle 唯一のアカウント発行統制）を通さずに作れてしまう。一方でこの
+// 免除は「まだ super_admin が 1 人も居ない環境で最初の 1 人を作る」唯一の経路でもあり、単純に
+// 消すと新環境で誰もログインできなくなる。そこで次の 3 つが揃ったときだけ通す:
+//
+//  1. 運用者が明示した bootstrapSuperAdminEmail と一致する（未設定なら免除は一切効かない）
+//  2. Cognito の admin グループに属している
+//  3. まだ super_admin が 1 人も居ない
+//
+// 3 により、最初の 1 人ができた瞬間にこの経路は自動的に閉じる。
+func (u *UpsertUserFromIDTokenUseCase) bootstrapSignupAllowed(
+	ctx context.Context,
+	in UpsertUserFromIDTokenInput,
+) (bool, error) {
+	if u.bootstrapSuperAdminEmail == "" || !in.IsCognitoAdmin || in.Email == "" {
+		return false, nil
+	}
+	if !strings.EqualFold(strings.TrimSpace(in.Email), u.bootstrapSuperAdminEmail) {
+		return false, nil
+	}
+	// 既存の運営管理者を数える。取得できないときは「居ないこと」を確認できていないので
+	// 免除しない（fail closed）。
+	admins, err := u.users.ListByRole(ctx, domain.RoleSuperAdmin)
+	if err != nil {
+		return false, fmt.Errorf("list super admins for bootstrap: %w", err)
+	}
+	return len(admins) == 0, nil
 }
 
 func (u *UpsertUserFromIDTokenUseCase) shouldBackfillName(
@@ -191,19 +229,33 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 		// するため通常この時点で identity は既に存在するが、provider ごとの張り直しを冪等に保証して
 		// おく（失敗してもログイン自体は成立しているため致命扱いにしない）。
 		if err := u.users.EnsureOidcIdentity(ctx, existing.ID, domain.OidcProviderCognito, sub); err != nil {
-			log.Printf("upsertUserFromIDToken: ensure oidc identity failed (self-heal, non-fatal): user=%d err=%v", existing.ID, err)
+			slog.WarnContext(ctx, "ensure oidc identity failed (self-heal, non-fatal)", "userID", existing.ID, "err", err)
 		}
 		return true, nil
 	}
 
-	if !isCognitoAdmin && inv == nil {
-		log.Printf(
-			"upsertUserFromIDToken: signup blocked - no invitation and not Cognito admin sub=%s email=%s token_provided=%t",
-			sub,
-			email,
-			invitationToken != "",
+	if inv == nil {
+		bootstrap, bootstrapErr := u.bootstrapSignupAllowed(ctx, in)
+		if bootstrapErr != nil {
+			return false, bootstrapErr
+		}
+		if !bootstrap {
+			slog.WarnContext(
+				ctx,
+				"signup blocked: invitation required",
+				"cognitoSub", sub,
+				"email", email,
+				"tokenProvided", invitationToken != "",
+				"cognitoAdminGroup", isCognitoAdmin,
+			)
+			return false, nil
+		}
+		slog.WarnContext(
+			ctx,
+			"bootstrap signup allowed: creating the first super admin without invitation",
+			"cognitoSub", sub,
+			"email", email,
 		)
-		return false, nil
 	}
 
 	role := domain.RoleTrainee

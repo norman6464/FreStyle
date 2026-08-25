@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -13,7 +14,6 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/infra/cognito"
 	"github.com/norman6464/FreStyle/backend/internal/infra/config"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
-	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
 // passwordAuthenticator は email / password を Cognito で検証して token を返す境界。
@@ -31,7 +31,7 @@ type passwordAuthenticator interface {
 type AuthHandler struct {
 	getCurrentUser *usecase.GetCurrentUserUseCase
 	upsertUser     *usecase.UpsertUserFromIDTokenUseCase
-	users          repository.UserRepository
+	promoteAdmin   *usecase.PromoteCognitoAdminRoleUseCase
 	cognitoCfg     *config.CognitoConfig
 	tokens         *cognito.TokenExchanger
 	passwordAuth   passwordAuthenticator
@@ -43,7 +43,7 @@ type AuthHandler struct {
 func NewAuthHandler(
 	getCurrentUser *usecase.GetCurrentUserUseCase,
 	upsertUser *usecase.UpsertUserFromIDTokenUseCase,
-	users repository.UserRepository,
+	promoteAdmin *usecase.PromoteCognitoAdminRoleUseCase,
 	cognitoCfg *config.CognitoConfig,
 	passwordAuth passwordAuthenticator,
 	aiChatAccess *usecase.AiChatEnabledForUserUseCase,
@@ -51,7 +51,7 @@ func NewAuthHandler(
 	return &AuthHandler{
 		getCurrentUser: getCurrentUser,
 		upsertUser:     upsertUser,
-		users:          users,
+		promoteAdmin:   promoteAdmin,
 		cognitoCfg:     cognitoCfg,
 		passwordAuth:   passwordAuth,
 		aiChatAccess:   aiChatAccess,
@@ -98,9 +98,7 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		user.Role == domain.RoleCompanyAdmin
 	// Cognito group admin だが DB role が未昇格なら同期する（federated ユーザー対策）。
 	if middleware.IsAdminFromGroups(groups) && user.Role != domain.RoleSuperAdmin && user.Role != domain.RoleCompanyAdmin {
-		if h.users != nil {
-			_ = h.users.UpdateRole(c.Request.Context(), user.ID, domain.RoleSuperAdmin)
-		}
+		h.promoteCognitoAdmin(c, sub.(string))
 	}
 	// trainee への AI チャット表示判定。会社設定が無効なら false。算出失敗・未配線時は既定 true。
 	aiEnabled := true
@@ -374,8 +372,11 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 	// id_token があれば DB role を同期する。無ければ access_token の claims から昇格を試みる
 	// （federated ユーザーは id_token に groups が無いことがある）。refresh は既存ユーザー前提。
 	if tok.IDToken != "" {
-		// refresh は既存ユーザー前提。role 同期の best-effort なので結果は無視する。
-		_, _ = h.upsertUserFromIDToken(c, tok.IDToken, "")
+		// refresh は既存ユーザー前提。role 同期の best-effort なのでレスポンスは変えないが、
+		// 失敗は握り潰さずログに残す（恒久的に失敗し続ける状態に気付けるようにする）。
+		if _, err := h.upsertUserFromIDToken(c, tok.IDToken, ""); err != nil {
+			slog.WarnContext(c.Request.Context(), "refresh: user upsert failed", "err", err)
+		}
 	} else {
 		h.syncRoleFromAccessToken(c, tok.AccessToken)
 	}
@@ -385,11 +386,9 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 // syncRoleFromAccessToken は access_token の cognito:groups を見て DB role を super_admin に昇格する。
 // ID token に groups が含まれない Google federated ユーザー向けのフォールバック。
 func (h *AuthHandler) syncRoleFromAccessToken(c *gin.Context, accessToken string) {
-	if h.users == nil {
-		return
-	}
 	claims, err := middleware.DecodeClaims(accessToken)
 	if err != nil {
+		slog.WarnContext(c.Request.Context(), "refresh: access_token decode failed", "err", err)
 		return
 	}
 	sub, _ := claims["sub"].(string)
@@ -400,9 +399,22 @@ func (h *AuthHandler) syncRoleFromAccessToken(c *gin.Context, accessToken string
 	if !middleware.IsAdminFromGroups(groups) {
 		return
 	}
-	existing, _ := h.users.FindByCognitoSub(c.Request.Context(), sub)
-	if existing != nil && existing.Role != domain.RoleSuperAdmin && existing.Role != domain.RoleCompanyAdmin {
-		_ = h.users.UpdateRole(c.Request.Context(), existing.ID, domain.RoleSuperAdmin)
+	h.promoteCognitoAdmin(c, sub)
+}
+
+// promoteCognitoAdmin は Cognito admin グループのユーザーを super_admin へ同期する（昇格のみ）。
+// 失敗してもレスポンスは変えない（本人の閲覧・refresh は妨げない）が、必ずログに残す。
+// role 名の解決失敗のような恒久エラーを握り潰すと、そのユーザーは「UI 上は管理者・API は 403」の
+// 壊れた状態にログすら残さず留まり続けるため。
+func (h *AuthHandler) promoteCognitoAdmin(c *gin.Context, cognitoSub string) {
+	if h.promoteAdmin == nil {
+		return
+	}
+	ctx := c.Request.Context()
+	if _, err := h.promoteAdmin.Execute(ctx, usecase.PromoteCognitoAdminRoleInput{
+		CognitoSub: cognitoSub,
+	}); err != nil {
+		slog.ErrorContext(ctx, "cognito admin role sync failed", "cognitoSub", cognitoSub, "err", err)
 	}
 }
 

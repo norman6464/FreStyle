@@ -27,7 +27,13 @@ const (
 )
 
 // kbTables はナレッジ基盤のテーブル（TRUNCATE 対象）。子から先に並べる。
-var kbTables = []string{"blocks", "page_paths", "page_snapshots", "pages", "spaces", "workspaces"}
+// 権限モデル（principals 以下）も含める。principals は users を親に持つが、
+// users はここで消さない（ほかの結合テストと共有するため。principals 側だけ空にすれば足りる）。
+var kbTables = []string{
+	"share_links", "page_restrictions", "page_allow_lists", "space_grants", "workspace_grants",
+	"principal_members", "principals",
+	"blocks", "page_paths", "page_snapshots", "pages", "spaces", "workspaces",
+}
 
 // TestKnowledgeBaseSchema_Integration は明示 DDL（infra/database/schema/knowledge_base.sql）が
 // 張る制約を実 Postgres で固定する。
@@ -452,7 +458,7 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 		require.Equal(t, order, got)
 	})
 
-	// TruncateAll がナレッジ基盤 6 テーブルを掃除できていること。
+	// TruncateAll がナレッジ基盤の全テーブル（骨格 + 権限）を掃除できていること。
 	// 掃除漏れがあるとサブテスト同士が前のデータを引きずり、UNIQUE 違反として顕在化する。
 	t.Run("TruncateAll がナレッジ基盤のテーブルを掃除する", func(t *testing.T) {
 		testsupport.TruncateAll(t, gormDB, kbTables...)
@@ -462,6 +468,7 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 		createBlock(t, db, ws, page, nil, "V", domain.BlockTypeParagraph)
 		createPagePath(t, db, ws, page, page, 0)
 		createPageSnapshot(t, db, page)
+		seedPermissionRows(t, db, ws, space, page)
 		for _, table := range kbTables {
 			require.NotZerof(t, countRows(t, db, table), "%s に検証用の行が入っていること", table)
 		}
@@ -663,4 +670,72 @@ func requirePgError(t *testing.T, err error, sqlState, constraint string) {
 	require.ErrorAs(t, err, &pgErr)
 	require.Equalf(t, sqlState, pgErr.Code, "SQLSTATE が想定と異なります: %v", err)
 	require.Equalf(t, constraint, pgErr.ConstraintName, "効いた制約が想定と異なります: %v", err)
+}
+
+// seedPermissionRows は権限モデルの各テーブルへ検証用の行を 1 つずつ入れる
+// （TruncateAll の掃除漏れを見つけるため、全テーブルに行がある状態を作る）。
+func seedPermissionRows(t *testing.T, db *sql.DB, workspaceID, spaceID, pageID string) {
+	t.Helper()
+	var userID uint64
+	require.NoError(t, db.QueryRow(
+		`INSERT INTO users (email, name, role_id, is_active, created_at, updated_at)
+		 VALUES ($1, 'truncate', 3, true, now(), now()) RETURNING id`,
+		"truncate+"+newID()+"@example.test",
+	).Scan(&userID))
+
+	userPrincipal, groupPrincipal := newID(), newID()
+	_, err := db.Exec(
+		`INSERT INTO principals (id, workspace_id, kind, user_id) VALUES ($1, $2, 'user', $3)`,
+		userPrincipal, workspaceID, userID,
+	)
+	require.NoError(t, err)
+	_, err = db.Exec(
+		`INSERT INTO principals (id, workspace_id, kind, name) VALUES ($1, $2, 'group', '掃除確認')`,
+		groupPrincipal, workspaceID,
+	)
+	require.NoError(t, err)
+	_, err = db.Exec(
+		`INSERT INTO principals (id, workspace_id, kind, space_id) VALUES ($1, $2, 'space_all', $3)`,
+		newID(), workspaceID, spaceID,
+	)
+	require.NoError(t, err)
+
+	linkPrincipal := newID()
+	_, err = db.Exec(
+		`INSERT INTO principals (id, workspace_id, kind, page_id) VALUES ($1, $2, 'share_link', $3)`,
+		linkPrincipal, workspaceID, pageID,
+	)
+	require.NoError(t, err)
+
+	_, err = db.Exec(
+		`INSERT INTO principal_members (workspace_id, group_principal_id, member_principal_id)
+		 VALUES ($1, $2, $3)`, workspaceID, groupPrincipal, userPrincipal,
+	)
+	require.NoError(t, err)
+	_, err = db.Exec(
+		`INSERT INTO workspace_grants (workspace_id, principal_id, "role") VALUES ($1, $2, 'admin')`,
+		workspaceID, userPrincipal,
+	)
+	require.NoError(t, err)
+	_, err = db.Exec(
+		`INSERT INTO space_grants (workspace_id, space_id, principal_id, "role") VALUES ($1, $2, $3, 'editor')`,
+		workspaceID, spaceID, userPrincipal,
+	)
+	require.NoError(t, err)
+	_, err = db.Exec(
+		`INSERT INTO page_restrictions (workspace_id, page_id, principal_id, capability, mode)
+		 VALUES ($1, $2, $3, 'view', 'deny')`, workspaceID, pageID, userPrincipal,
+	)
+	require.NoError(t, err)
+	_, err = db.Exec(
+		`INSERT INTO page_allow_lists (workspace_id, page_id, capability) VALUES ($1, $2, 'view')`,
+		workspaceID, pageID,
+	)
+	require.NoError(t, err)
+	_, err = db.Exec(
+		`INSERT INTO share_links (id, workspace_id, page_id, principal_id, capability, token_hash, created_by_user_id)
+		 VALUES ($1, $2, $3, $4, 'view', sha256($5::bytea), $6)`,
+		newID(), workspaceID, pageID, linkPrincipal, []byte(newID()), userID,
+	)
+	require.NoError(t, err)
 }

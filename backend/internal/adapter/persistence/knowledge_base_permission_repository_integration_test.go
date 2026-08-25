@@ -25,8 +25,18 @@ import (
 // users は kbTables に含めない（ほかの結合テストと共有するため消さない）。代わりに毎回
 // 一意なアドレスで作る。users には有効なユーザーのメールを一意にする部分索引があり、
 // 固定アドレスを使い回すとサブテストの 2 回目で衝突する。
+//
+// id はシーケンスに任せるが、その前に必ず現在の最大 id へ合わせ直す。同じパッケージには
+// TRUNCATE ... RESTART IDENTITY のあとに id を明示指定して users を作るテストがあり、
+// そちらが通ると行だけが進んでシーケンスは 1 のまま取り残される。ここで採番すると
+// その明示 id にぶつかって users_pkey が重複する。どのテストと組んでも成り立つように、
+// 実行順（-shuffle）に依存しない形で毎回そろえる。
 func createUser(t *testing.T, db *sql.DB, namePrefix string) uint64 {
 	t.Helper()
+	_, err := db.Exec(
+		`SELECT setval('users_id_seq', COALESCE((SELECT max(id) FROM users), 0) + 1, false)`,
+	)
+	require.NoError(t, err)
 	var id uint64
 	require.NoError(t, db.QueryRow(
 		`INSERT INTO users (email, name, role_id, is_active, created_at, updated_at)
@@ -464,6 +474,75 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 			"読み取り専用サブツリーが editor 全員に開いてはいけない（データ破壊になる）")
 		assert.True(t, f.permFor(t, child.ID, f.alice).CanEdit, "許可された本人は編集できるまま")
 		assert.False(t, f.permFor(t, child.ID, f.carol).CanEdit, "名指しで外された本人は編集できない")
+	})
+
+	// 次の 2 件は「閲覧の最も近い許可リストの段」と「編集のそれ」が別の depth にあり、
+	// かつ片方の段の depth に、もう片方で名指しされた人の行が居る配置。
+	// ケイパビリティごとの突き合わせを外すと、その人が相手側の段に載っているものとして
+	// 通ってしまう。深さだけが一致していて意味は別、という取り違えを固定する。
+	t.Run("閲覧の許可リストの段は編集の段と取り違えられない", func(t *testing.T) {
+		f := setupKBPermission(t, gormDB, sqlDB)
+		root := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, nil, "root")
+		child := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, &root.ID, "child")
+
+		f.grantSpace(t, f.spaceA, f.everyoneOf(t, f.spaceA).ID, domain.GrantRoleEditor)
+		alice := f.principalFor(t, f.alice)
+		bob := f.principalFor(t, f.bob)
+		carol := f.principalFor(t, f.carol)
+
+		// child から見た深さは child=0 / root=1。
+		// 閲覧の最も近い許可リストは child（bob だけ）で、alice の閲覧 allow は root にある。
+		// 編集の最も近い許可リストは root（carol だけ）＝ alice の閲覧 allow と同じ深さ。
+		f.restrict(t, root.ID, alice.ID, domain.CapabilityView, domain.RestrictionModeAllow)
+		f.restrict(t, child.ID, bob.ID, domain.CapabilityView, domain.RestrictionModeAllow)
+		f.restrict(t, root.ID, carol.ID, domain.CapabilityEdit, domain.RestrictionModeAllow)
+
+		assert.False(t, f.permFor(t, child.ID, f.alice).CanView,
+			"alice の閲覧 allow は child の許可リストより遠い段にある")
+		assert.True(t, f.permFor(t, child.ID, f.bob).CanView, "最も近い許可リストに載っている本人は見える")
+		assert.True(t, f.permFor(t, root.ID, f.alice).CanView, "root では alice が許可リストに載っている")
+	})
+
+	t.Run("編集の許可リストの段は閲覧の段と取り違えられない", func(t *testing.T) {
+		f := setupKBPermission(t, gormDB, sqlDB)
+		root := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, nil, "root")
+		child := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, &root.ID, "child")
+
+		f.grantSpace(t, f.spaceA, f.everyoneOf(t, f.spaceA).ID, domain.GrantRoleEditor)
+		alice := f.principalFor(t, f.alice)
+		bob := f.principalFor(t, f.bob)
+
+		// 編集の最も近い許可リストは child（bob だけ）で、alice の編集 allow は root にある。
+		// 閲覧の最も近い許可リストは root（alice）＝ alice の編集 allow と同じ深さ。
+		f.restrict(t, root.ID, alice.ID, domain.CapabilityEdit, domain.RestrictionModeAllow)
+		f.restrict(t, child.ID, bob.ID, domain.CapabilityEdit, domain.RestrictionModeAllow)
+		f.restrict(t, root.ID, alice.ID, domain.CapabilityView, domain.RestrictionModeAllow)
+
+		got := f.permFor(t, child.ID, f.alice)
+		assert.True(t, got.CanView, "閲覧は root の許可リストで決まり alice は載っている")
+		assert.False(t, got.CanEdit, "alice の編集 allow は child の許可リストより遠い段にある")
+		assert.False(t, f.permFor(t, child.ID, f.bob).CanView, "bob は閲覧の許可リストに載っていない")
+		assert.False(t, f.permFor(t, child.ID, f.bob).CanEdit, "閲覧できないので編集もできない")
+	})
+
+	t.Run("一覧は別ワークスペースのスペースとアーカイブ済みを返さない", func(t *testing.T) {
+		f := setupKBPermission(t, gormDB, sqlDB)
+		root := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, nil, "root")
+		leaving := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, &root.ID, "アーカイブする子")
+		f.grantSpace(t, f.spaceA, f.principalFor(t, f.alice).ID, domain.GrantRoleEditor)
+		require.ElementsMatch(t, []string{root.ID, leaving.ID}, f.viewablePageIDs(t, f.spaceA, f.alice))
+
+		require.NoError(t, f.pageUC.archive.Execute(ctx, usecase.ArchivePageInput{
+			WorkspaceID: f.ws, PageID: leaving.ID,
+		}))
+		assert.ElementsMatch(t, []string{root.ID}, f.viewablePageIDs(t, f.spaceA, f.alice),
+			"アーカイブ済みは一覧に出ない")
+
+		// 別ワークスペースのスペース ID を渡しても 1 枚も返さない（事実の収集の時点で塞ぐ）。
+		mustCreatePage(t, f.pageUC, f.otherWS, f.otherSpc, nil, "別テナントのページ")
+		foreign, err := f.perm.ListSpacePageViewFacts(ctx, f.ws, f.otherSpc, f.alice)
+		require.NoError(t, err)
+		assert.Empty(t, foreign, "テナント越えの spaceID では 0 件")
 	})
 
 	t.Run("スペース全員のdenyは別スペースへの移動で失効しない", func(t *testing.T) {

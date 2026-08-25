@@ -1,12 +1,18 @@
 package database
 
 import (
+	"context"
 	"log"
 	"os"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"gorm.io/gorm"
 )
+
+// migrateAdvisoryLockKey は起動時マイグレーションを直列化する advisory lock のキー。
+// 複数の ECS タスクが同時に起動しても、seed / バックフィル / 制約適用 / DDL 適用が
+// 同じキーの下で 1 つずつ流れるようにする。
+const migrateAdvisoryLockKey = 4915311
 
 // allDomainModels は AutoMigrate に渡す全 domain 構造体のリスト。
 // 新しい domain を追加したらここにも追記する。
@@ -39,6 +45,8 @@ func allDomainModels() []any {
 		&domain.UserDailyActivity{},
 		// リッチテキスト文書（tiptap JSON を jsonb で保持）。
 		&domain.RichDocument{},
+		// ナレッジ基盤（workspaces / spaces / pages / blocks / page_paths / page_snapshots）は
+		// ここに載せない。GORM を通さず ApplyKnowledgeBaseSchema が明示 DDL を流す。
 	}
 }
 
@@ -76,8 +84,8 @@ func Migrate(db *gorm.DB) error {
 	// seed / バックフィル / 制約適用は check-then-act を含むため、複数タスクの同時起動でも
 	// 直列化されるよう advisory lock で囲む。pgbouncer(transaction pooler) 前提のため
 	// セッションロックではなくトランザクションロック（コミットで自動解放）を使う。
-	return db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Exec(`SELECT pg_advisory_xact_lock(4915311)`).Error; err != nil {
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec(`SELECT pg_advisory_xact_lock(?)`, migrateAdvisoryLockKey).Error; err != nil {
 			return err
 		}
 		if err := seedCompanies(tx); err != nil {
@@ -96,7 +104,24 @@ func Migrate(db *gorm.DB) error {
 			return err
 		}
 		return ApplyRichDocumentConstraints(tx)
-	})
+	}); err != nil {
+		return err
+	}
+
+	// ナレッジ基盤は GORM を通さず、明示 DDL（infra/database/schema/knowledge_base.sql）を
+	// そのまま流す。上の GORM トランザクションと同じ advisory lock を取るため、
+	// その中からは呼べない（別コネクションを掴んで自分自身のロック待ちになる）。
+	// コミット後に、素の *sql.DB へ接続プールだけ共有して適用する。
+	sqlDB, err := db.DB()
+	if err != nil {
+		return err
+	}
+	log.Println("migrate: knowledge base schema start")
+	if err := ApplyKnowledgeBaseSchema(context.Background(), sqlDB); err != nil {
+		return err
+	}
+	log.Println("migrate: knowledge base schema done")
+	return nil
 }
 
 // ApplyRichDocumentConstraints は rich_documents の整合性制約を適用する（冪等）。

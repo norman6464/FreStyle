@@ -4,14 +4,19 @@
 #   - GORM は接続・AutoMigrate に当面残し、クエリは順次 sqlc に移行する。
 #   - 生成コードは database/sql モード。GORM の *gorm.DB から取り出した *sql.DB を
 #     そのまま DBTX として渡し、接続プールを共有する（別 pool を持たない）。
-#   - schema.sql は sqlc の型付け専用（実スキーマは GORM AutoMigrate が作る）。
+#   - queries/schema.sql は sqlc の型付け専用（実スキーマは GORM AutoMigrate が作る）。
 #     repository を sqlc へ移すたびに対象テーブルの CREATE TABLE をここへ追記する。
+#   - ナレッジ基盤（workspaces / spaces / pages / blocks / …）だけは扱いが違う。GORM を通さず、
+#     infra/database/schema/knowledge_base.sql が実スキーマの正本そのもの（起動時にそのまま流す）。
+#     型付けも同じファイルから行うので、定義が二重化しない。
 #
-# 生成: backend/ で `sqlc generate`
+# 生成: backend/ で `make sqlc`
 version: "2"
 sql:
   - engine: "postgresql"
-    schema: "internal/adapter/persistence/queries/schema.sql"
+    schema:
+      - "internal/adapter/persistence/queries/schema.sql"
+      - "internal/infra/database/schema/knowledge_base.sql"
     queries: "internal/adapter/persistence/queries"
     gen:
       go:
@@ -21,3 +26,27 @@ sql:
         emit_empty_slices: true
         emit_json_tags: false
         emit_interface: false
+        overrides:
+          # NULL 可の jsonb（blocks.inline）は *json.RawMessage にする。受信・送信の両方を
+          # 満たせる型がこれしかないため、ポインタは飾りではなく必須。
+          #
+          #   - 受信: json.RawMessage は NULL を Scan できない（database/sql が
+          #     "unsupported Scan, storing driver.Value type <nil>" で落ちる）。ポインタなら nil で受かる。
+          #   - 送信: 本番は transaction pooler 経由なので simple protocol になる
+          #     （infra/database/postgres.go が PreferSimpleProtocol を立て、driver が
+          #     DefaultQueryExecMode をそれに揃える）。simple protocol では pgx がパラメータを
+          #     クライアント側で SQL リテラルへ埋め込むので、Go の型がそのまま構文を決める。
+          #     []byte は bytea の 16 進リテラル（'\x...'）になり jsonb 列で 22P02
+          #     （invalid input syntax for type json）になる。json.RawMessage なら json として埋まる。
+          #
+          # extended protocol（ローカル直結 / CI）はパラメータの OID で jsonb と判るため []byte でも
+          # 通ってしまう。つまりこの取り違えはローカルと CI では緑のままで、本番でだけ落ちる。
+          # sqlc 既定の pqtype.NullRawMessage も Value() が []byte を返すので simple protocol では同じく
+          # 22P02 になり、既定に戻すのは解にならない。
+          # NOT NULL の jsonb（attrs / doc）は NULL が来ないので既定の json.RawMessage のままで良い。
+          - db_type: "jsonb"
+            nullable: true
+            go_type:
+              import: "encoding/json"
+              type: "RawMessage"
+              pointer: true

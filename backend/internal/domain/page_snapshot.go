@@ -1,0 +1,21 @@
+package domain
+
+import "time"
+
+// PageSnapshot はページのブロック行を組み直した ProseMirror ドキュメント（読み取り用のキャッシュ）。
+// PK = page_id（1 ページ 1 行）。
+//
+// 表示のたびにブロック行を木に組み直すと 1 ページで数百行の取得と再帰的な組み立てが要るため、
+// 編集のたびに 1 つの jsonb へ焼き直して読み出しを 1 行の取得に落とす。
+// 正本はあくまで blocks 側で、この行は失っても blocks から再生成できる派生データ。
+//
+// Workspace と同じくナレッジ基盤の型なので GORM を通さない（段 1-b で repository が付くまで参照元は無い）。
+type PageSnapshot struct {
+	// PageID は対象ページ。
+	PageID string `json:"pageId"`
+	// Doc は tiptap の getJSON() 相当（type='doc' の ProseMirror ドキュメント）。
+	// API へは handler の response 型で json.RawMessage に変換して出す。
+	Doc string `json:"-"`
+	// BuiltAt は焼き直した時刻。ブロックの更新時刻より古ければ作り直す判断に使う。
+	BuiltAt time.Time `json:"builtAt"`
+}

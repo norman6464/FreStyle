@@ -28,7 +28,11 @@ type RichDocument struct {
 	ID string `gorm:"type:uuid;primaryKey" json:"id"`
 	// OwnerID は作成者。users.id への FK（制約は ApplyRichDocumentConstraints が張る）。
 	OwnerID uint64 `gorm:"column:owner_id;not null;index" json:"ownerId"`
-	// CompanyID は会社スコープ（テナント境界）。未所属なら nil。
+	// CompanyID は作成時に作成者の所属会社を写し取るだけの列で、テナント境界としては機能していない。
+	// 読み出し（FindByID / ListByOwner）も可視性判定（CanBeReadBy）も owner_id と is_public だけで
+	// 決めており、この値を絞り込み条件に使っている箇所は無い（API 応答に出るだけで、フロントも読まない）。
+	// いま絞り込みに使い始めると、これまで見えていた文書が会社をまたいだ瞬間に見えなくなる。
+	// テナント列そのものを定め直すのはテナント統合の仕事なので、扱いはそこで決める。未所属なら nil。
 	CompanyID *uint64 `gorm:"column:company_id" json:"companyId,omitempty"`
 	// Kind は用途区分（note / course-chapter …）。
 	Kind DocumentKind `gorm:"column:kind;not null" json:"kind"`
@@ -53,6 +57,7 @@ func (RichDocument) TableName() string { return "rich_documents" }
 
 // CanBeReadBy は viewerID が本文書を読めるかを返す。所有者、または公開文書は読める。
 // viewerID=0（未認証）は非公開を読めない。
+// CompanyID は意図的に見ない（現状テナント境界として機能していない。フィールドのコメント参照）。
 func (d *RichDocument) CanBeReadBy(viewerID uint64) bool {
 	if d.IsPublic {
 		return true

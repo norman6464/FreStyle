@@ -1,6 +1,21 @@
--- sqlc の型付け専用スキーマ。実スキーマは GORM AutoMigrate が作る（ここは生成のための定義）。
+-- sqlc の型付け専用スキーマ。ここに書いた CREATE TABLE から Go の型を起こすだけで、
+-- このファイル自体が DB へ流れることは無い（実スキーマはここでは作られない）。
 -- repository を sqlc へ移行するたびに、対象テーブルの CREATE TABLE をここへ追記していく。
--- 列定義は docs/schema.sql（本番の実体）と一致させること。
+--
+-- 実スキーマの正本がどこにあるかはテーブルによって違う。取り違えると片側だけ直して本番とずれる。
+--
+--   1. このファイルに並んでいるテーブル（users / roles / notes / courses など）
+--      正本は domain 構造体の GORM タグ。infra/database/migrate.go の allDomainModels() に
+--      並べた構造体を、起動時に AutoMigrate が適用して実スキーマを作る。AutoMigrate が
+--      表現できない FK / CHECK / 部分 UNIQUE は同ファイルの ApplyXxxConstraints が明示 SQL で足す。
+--      つまりここは正本ではなく写しなので、列を足す・型を変えるときは domain 構造体
+--      （必要なら ApplyXxxConstraints）を先に直し、このファイルを追随させること。
+--
+--   2. ナレッジ基盤（workspaces / spaces / pages / blocks / page_paths / page_snapshots）
+--      GORM を通さない。infra/database/schema/knowledge_base.sql が実スキーマの正本そのもので、
+--      起動時に ApplyKnowledgeBaseSchema が埋め込み DDL をそのまま流す。sqlc へも同じファイルを
+--      入力として渡している（sqlc.yaml の schema 欄）ため定義が二重化しない。
+--      ここへ書き写さないこと（写すと 1. と同じ二重管理に戻る）。
 
 -- created_at / updated_at は GORM の autoCreateTime / autoUpdateTime が常に値を入れるため
 -- NOT NULL とみなす（sqlc が sql.NullTime ではなく time.Time を生成し、domain への詰め替えが綺麗になる）。

@@ -5,6 +5,7 @@ package persistence_test
 import (
 	"context"
 	"database/sql"
+	"slices"
 	"testing"
 	"time"
 
@@ -737,6 +738,53 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.Empty(t, carolPages, "非メンバーには 1 枚も見えない")
+	})
+
+	t.Run("一覧はdenyと所属グループとケイパビリティを1ページ解決と同じに畳む", func(t *testing.T) {
+		// 一覧は 1 ページの解決とは別に書かれた同型の集計で、片方だけ壊れても
+		// もう片方のテストでは気づけない。「見えない根拠が許可リストだけ」の断言では
+		// 一覧側の deny 集計・所属グループ・ケイパビリティの絞り込みを落としても素通りするため、
+		// その 3 つが一覧経路にも効いていることをここで固定する。
+		f := setupKBPermission(t, gormDB, sqlDB)
+		root := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, nil, "root")
+		denied := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, &root.ID, "名指しで外されたページ")
+		deniedChild := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, &denied.ID, "その子")
+		groupDenied := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, &root.ID, "部署ごと外されたページ")
+		editLimited := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, &root.ID, "編集だけ限定のページ")
+
+		f.grantSpace(t, f.spaceA, f.everyoneOf(t, f.spaceA).ID, domain.GrantRoleEditor)
+		alice := f.principalFor(t, f.alice)
+		bob := f.principalFor(t, f.bob)
+		group, err := f.perm.CreateGroupPrincipal(ctx, f.ws, "総務")
+		require.NoError(t, err)
+		require.NoError(t, f.perm.AddGroupMember(ctx, f.ws, group.ID, alice.ID))
+
+		// 本人宛ての deny（不可視の根拠が許可リストではない経路）。
+		f.restrict(t, denied.ID, alice.ID, domain.CapabilityView, domain.RestrictionModeDeny)
+		// 所属グループ宛ての deny（自分の主体だけを見ていると一覧で無視される）。
+		f.restrict(t, groupDenied.ID, group.ID, domain.CapabilityView, domain.RestrictionModeDeny)
+		// 編集だけの許可リスト。閲覧の段として数えると、機密でないページがタイトルごと消える。
+		f.restrict(t, editLimited.ID, bob.ID, domain.CapabilityEdit, domain.RestrictionModeAllow)
+
+		aliceViewable := f.viewablePageIDs(t, f.spaceA, f.alice)
+		assert.ElementsMatch(t, []string{root.ID, editLimited.ID}, aliceViewable,
+			"deny は本人宛てもグループ宛ても一覧に効き、edit の許可リストは閲覧を狭めない")
+
+		// 1 ページずつの解決と一覧が同じ答えになること（別々に書かれた集計なので突き合わせる）。
+		for _, page := range []*domain.Page{root, denied, deniedChild, groupDenied, editLimited} {
+			assert.Equal(t, f.permFor(t, page.ID, f.alice).CanView,
+				slices.Contains(aliceViewable, page.ID), "1 ページ解決と一覧が割れている: "+page.Title)
+		}
+
+		// deny もグループ所属も無い bob からは 5 枚とも見える（edit の限定は閲覧に効かない）。
+		assert.ElementsMatch(t,
+			[]string{root.ID, denied.ID, deniedChild.ID, groupDenied.ID, editLimited.ID},
+			f.viewablePageIDs(t, f.spaceA, f.bob))
+
+		// グループから外すと、グループ宛ての deny は効かなくなる。
+		require.NoError(t, f.perm.RemoveGroupMember(ctx, f.ws, group.ID, alice.ID))
+		assert.ElementsMatch(t, []string{root.ID, groupDenied.ID, editLimited.ID},
+			f.viewablePageIDs(t, f.spaceA, f.alice), "所属が消えればグループ宛ての deny も外れる")
 	})
 
 	t.Run("メンバー削除のusecaseは主体ごと消す", func(t *testing.T) {

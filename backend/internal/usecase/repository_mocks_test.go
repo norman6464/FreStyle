@@ -431,3 +431,144 @@ func (m *mockKnowledgeBaseRepo) GetPageSnapshot(ctx context.Context, workspaceID
 	s, _ := args.Get(0).(*domain.PageSnapshot)
 	return s, args.Error(1)
 }
+
+// --- mock: KnowledgeBasePermissionRepository ---
+
+type mockKBPermissionRepo struct{ mock.Mock }
+
+var _ repository.KnowledgeBasePermissionRepository = (*mockKBPermissionRepo)(nil)
+
+func (m *mockKBPermissionRepo) EnsureUserPrincipal(ctx context.Context, workspaceID string, userID uint64) (*domain.Principal, error) {
+	args := m.Called(ctx, workspaceID, userID)
+	p, _ := args.Get(0).(*domain.Principal)
+	return p, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) EnsureSpaceEveryonePrincipal(ctx context.Context, workspaceID, spaceID string) (*domain.Principal, error) {
+	args := m.Called(ctx, workspaceID, spaceID)
+	p, _ := args.Get(0).(*domain.Principal)
+	return p, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) CreateGroupPrincipal(ctx context.Context, workspaceID, name string) (*domain.Principal, error) {
+	args := m.Called(ctx, workspaceID, name)
+	p, _ := args.Get(0).(*domain.Principal)
+	return p, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) FindPrincipal(ctx context.Context, workspaceID, principalID string) (*domain.Principal, error) {
+	args := m.Called(ctx, workspaceID, principalID)
+	p, _ := args.Get(0).(*domain.Principal)
+	return p, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) FindUserPrincipal(ctx context.Context, workspaceID string, userID uint64) (*domain.Principal, error) {
+	args := m.Called(ctx, workspaceID, userID)
+	p, _ := args.Get(0).(*domain.Principal)
+	return p, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) DeletePrincipal(ctx context.Context, workspaceID, principalID string) error {
+	return m.Called(ctx, workspaceID, principalID).Error(0)
+}
+
+func (m *mockKBPermissionRepo) IsWorkspaceMember(ctx context.Context, workspaceID string, userID uint64) (bool, error) {
+	args := m.Called(ctx, workspaceID, userID)
+	return args.Bool(0), args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) AddGroupMember(ctx context.Context, workspaceID, groupPrincipalID, memberPrincipalID string) error {
+	return m.Called(ctx, workspaceID, groupPrincipalID, memberPrincipalID).Error(0)
+}
+
+func (m *mockKBPermissionRepo) RemoveGroupMember(ctx context.Context, workspaceID, groupPrincipalID, memberPrincipalID string) error {
+	return m.Called(ctx, workspaceID, groupPrincipalID, memberPrincipalID).Error(0)
+}
+
+func (m *mockKBPermissionRepo) UpsertWorkspaceGrant(ctx context.Context, workspaceID, principalID string, role domain.GrantRole) (*domain.WorkspaceGrant, error) {
+	args := m.Called(ctx, workspaceID, principalID, role)
+	g, _ := args.Get(0).(*domain.WorkspaceGrant)
+	return g, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) DeleteWorkspaceGrant(ctx context.Context, workspaceID, principalID string) error {
+	return m.Called(ctx, workspaceID, principalID).Error(0)
+}
+
+func (m *mockKBPermissionRepo) ListWorkspaceGrants(ctx context.Context, workspaceID string) ([]domain.WorkspaceGrant, error) {
+	args := m.Called(ctx, workspaceID)
+	rows, _ := args.Get(0).([]domain.WorkspaceGrant)
+	return rows, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) UpsertSpaceGrant(ctx context.Context, workspaceID, spaceID, principalID string, role domain.GrantRole) (*domain.SpaceGrant, error) {
+	args := m.Called(ctx, workspaceID, spaceID, principalID, role)
+	g, _ := args.Get(0).(*domain.SpaceGrant)
+	return g, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) DeleteSpaceGrant(ctx context.Context, workspaceID, spaceID, principalID string) error {
+	return m.Called(ctx, workspaceID, spaceID, principalID).Error(0)
+}
+
+func (m *mockKBPermissionRepo) ListSpaceGrants(ctx context.Context, workspaceID, spaceID string) ([]domain.SpaceGrant, error) {
+	args := m.Called(ctx, workspaceID, spaceID)
+	rows, _ := args.Get(0).([]domain.SpaceGrant)
+	return rows, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) UpsertPageRestriction(ctx context.Context, workspaceID, pageID, principalID string, capability domain.Capability, mode domain.RestrictionMode) (*domain.PageRestriction, error) {
+	args := m.Called(ctx, workspaceID, pageID, principalID, capability, mode)
+	r, _ := args.Get(0).(*domain.PageRestriction)
+	return r, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) DeletePageRestriction(ctx context.Context, workspaceID, pageID, principalID string, capability domain.Capability) error {
+	return m.Called(ctx, workspaceID, pageID, principalID, capability).Error(0)
+}
+
+func (m *mockKBPermissionRepo) ListPageRestrictions(ctx context.Context, workspaceID, pageID string) ([]domain.PageRestriction, error) {
+	args := m.Called(ctx, workspaceID, pageID)
+	rows, _ := args.Get(0).([]domain.PageRestriction)
+	return rows, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) CreateShareLink(ctx context.Context, in repository.ShareLinkWrite) (*domain.ShareLink, error) {
+	args := m.Called(ctx, in)
+	l, _ := args.Get(0).(*domain.ShareLink)
+	return l, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) RevokeShareLink(ctx context.Context, workspaceID, shareLinkID string) error {
+	return m.Called(ctx, workspaceID, shareLinkID).Error(0)
+}
+
+func (m *mockKBPermissionRepo) FindShareLinkByTokenHash(ctx context.Context, tokenHash []byte) (*domain.ShareLink, error) {
+	args := m.Called(ctx, tokenHash)
+	l, _ := args.Get(0).(*domain.ShareLink)
+	return l, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) ListPageShareLinks(ctx context.Context, workspaceID, pageID string) ([]domain.ShareLink, error) {
+	args := m.Called(ctx, workspaceID, pageID)
+	rows, _ := args.Get(0).([]domain.ShareLink)
+	return rows, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) PagePermissionFactsForUser(ctx context.Context, workspaceID, pageID string, userID uint64) (*domain.PagePermissionFacts, error) {
+	args := m.Called(ctx, workspaceID, pageID, userID)
+	f, _ := args.Get(0).(*domain.PagePermissionFacts)
+	return f, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) PagePermissionFactsForPrincipal(ctx context.Context, workspaceID, pageID, principalID string) (*domain.PagePermissionFacts, error) {
+	args := m.Called(ctx, workspaceID, pageID, principalID)
+	f, _ := args.Get(0).(*domain.PagePermissionFacts)
+	return f, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) ListSpacePageViewFacts(ctx context.Context, workspaceID, spaceID string, userID uint64) ([]repository.PageViewFacts, error) {
+	args := m.Called(ctx, workspaceID, spaceID, userID)
+	rows, _ := args.Get(0).([]repository.PageViewFacts)
+	return rows, args.Error(1)
+}

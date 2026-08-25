@@ -58,7 +58,7 @@ type kbRawNode struct {
 func parsePageDoc(doc string) ([]*kbDocNode, error) {
 	var root kbRawNode
 	if err := json.Unmarshal([]byte(doc), &root); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrPageDocInvalid, err)
+		return nil, fmt.Errorf("%w: %w", ErrPageDocInvalid, err)
 	}
 	if root.Type != "doc" {
 		return nil, fmt.Errorf("%w: ルートは type='doc' が必要（got %q）", ErrPageDocInvalid, root.Type)
@@ -73,7 +73,7 @@ func parseBlockNodes(content json.RawMessage) ([]*kbDocNode, error) {
 	}
 	var items []json.RawMessage
 	if err := json.Unmarshal(content, &items); err != nil {
-		return nil, fmt.Errorf("%w: content が配列ではありません: %v", ErrPageDocInvalid, err)
+		return nil, fmt.Errorf("%w: content が配列ではありません: %w", ErrPageDocInvalid, err)
 	}
 	nodes := make([]*kbDocNode, 0, len(items))
 	for _, item := range items {
@@ -89,7 +89,7 @@ func parseBlockNodes(content json.RawMessage) ([]*kbDocNode, error) {
 func parseBlockNode(raw json.RawMessage) (*kbDocNode, error) {
 	var rn kbRawNode
 	if err := json.Unmarshal(raw, &rn); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrPageDocInvalid, err)
+		return nil, fmt.Errorf("%w: %w", ErrPageDocInvalid, err)
 	}
 	t := domain.BlockType(rn.Type)
 	if !t.Valid() {
@@ -101,7 +101,7 @@ func parseBlockNode(raw json.RawMessage) (*kbDocNode, error) {
 		// attrs は object であること（DDL の CHECK と同じ壁を入口にも置く）。
 		var m map[string]json.RawMessage
 		if err := json.Unmarshal(rn.Attrs, &m); err != nil {
-			return nil, fmt.Errorf("%w: attrs が object ではありません: %v", ErrPageDocInvalid, err)
+			return nil, fmt.Errorf("%w: attrs が object ではありません: %w", ErrPageDocInvalid, err)
 		}
 		if len(m) > 0 {
 			node.Attrs = string(rn.Attrs)
@@ -122,12 +122,12 @@ func parseBlockNode(raw json.RawMessage) (*kbDocNode, error) {
 		// （jsonb は保存時に正規化されるため、入力の空白を残しても意味が無い）。
 		var items []json.RawMessage
 		if err := json.Unmarshal(rn.Content, &items); err != nil {
-			return nil, fmt.Errorf("%w: content が配列ではありません: %v", ErrPageDocInvalid, err)
+			return nil, fmt.Errorf("%w: content が配列ではありません: %w", ErrPageDocInvalid, err)
 		}
 		if len(items) > 0 {
 			compact, err := json.Marshal(items)
 			if err != nil {
-				return nil, fmt.Errorf("%w: %v", ErrPageDocInvalid, err)
+				return nil, fmt.Errorf("%w: %w", ErrPageDocInvalid, err)
 			}
 			s := string(compact)
 			node.Inline = &s

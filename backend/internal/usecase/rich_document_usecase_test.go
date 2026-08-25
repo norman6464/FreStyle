@@ -2,6 +2,8 @@ package usecase_test
 
 import (
 	"context"
+	"reflect"
+	"sort"
 	"testing"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
@@ -15,22 +17,28 @@ import (
 const validDoc = `{"type":"doc","content":[{"type":"paragraph"}]}`
 
 func Test_GetRichDocument_認可(t *testing.T) {
+	companyA := uint64(1)
+	companyB := uint64(2)
 	cases := []struct {
-		name     string
-		doc      *domain.RichDocument
-		viewerID uint64
-		wantErr  error
+		name          string
+		doc           *domain.RichDocument
+		viewerID      uint64
+		viewerCompany domain.CompanyRef
+		wantErr       error
 	}{
-		{"所有者は自分の非公開を読める", &domain.RichDocument{ID: "a", OwnerID: 7, IsPublic: false}, 7, nil},
-		{"他人は公開を読める", &domain.RichDocument{ID: "a", OwnerID: 7, IsPublic: true}, 99, nil},
-		{"他人は非公開を読めない(404)", &domain.RichDocument{ID: "a", OwnerID: 7, IsPublic: false}, 99, usecase.ErrRichDocumentNotFound},
+		{"所有者は自分の非公開を読める", &domain.RichDocument{ID: "a", OwnerID: 7, IsPublic: false}, 7, domain.CompanyRefOf(companyA), nil},
+		{"同一会社の他人は公開を読める", &domain.RichDocument{ID: "a", OwnerID: 7, IsPublic: true, CompanyID: &companyA}, 99, domain.CompanyRefOf(companyA), nil},
+		{"別会社の他人は公開を読めない(404)", &domain.RichDocument{ID: "a", OwnerID: 7, IsPublic: true, CompanyID: &companyA}, 99, domain.CompanyRefOf(companyB), usecase.ErrRichDocumentNotFound},
+		{"会社不明(NULL)の公開は他人から読めない(404)", &domain.RichDocument{ID: "a", OwnerID: 7, IsPublic: true}, 99, domain.CompanyRefOf(companyA), usecase.ErrRichDocumentNotFound},
+		{"所有者は会社が別でも自分の文書を読める", &domain.RichDocument{ID: "a", OwnerID: 7, IsPublic: true, CompanyID: &companyB}, 7, domain.CompanyRefOf(companyA), nil},
+		{"他人は非公開を読めない(404)", &domain.RichDocument{ID: "a", OwnerID: 7, IsPublic: false, CompanyID: &companyA}, 99, domain.CompanyRefOf(companyA), usecase.ErrRichDocumentNotFound},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			repo := &mockRichDocRepo{}
 			repo.On("FindByID", mock.Anything, "a").Return(tc.doc, nil).Once()
 			uc := usecase.NewGetRichDocumentUseCase(repo)
-			got, err := uc.Execute(context.Background(), "a", tc.viewerID)
+			got, err := uc.Execute(context.Background(), "a", tc.viewerID, tc.viewerCompany)
 			if tc.wantErr != nil {
 				assert.ErrorIs(t, err, tc.wantErr)
 				return
@@ -46,7 +54,7 @@ func Test_GetRichDocument_存在しない(t *testing.T) {
 	repo := &mockRichDocRepo{}
 	repo.On("FindByID", mock.Anything, "x").Return((*domain.RichDocument)(nil), repository.ErrRichDocumentNotFound).Once()
 	uc := usecase.NewGetRichDocumentUseCase(repo)
-	_, err := uc.Execute(context.Background(), "x", 7)
+	_, err := uc.Execute(context.Background(), "x", 7, domain.NoCompany())
 	assert.ErrorIs(t, err, usecase.ErrRichDocumentNotFound)
 	repo.AssertExpectations(t)
 }
@@ -279,4 +287,20 @@ func Test_ListRichDocuments_不正入力(t *testing.T) {
 		assert.ErrorIs(t, err, usecase.ErrRichDocumentInvalid)
 		repo.AssertNotCalled(t, "ListByOwner", mock.Anything, mock.Anything, mock.Anything)
 	})
+}
+
+// Test_RichDocumentRepository_読み取り口の一覧を固定する は、rich_documents を読む入口が
+// この port の既知メソッドだけであることを固定する。usecase は必ずこの interface 越しに
+// 読むので、新しい読み取り経路を足すときは必ずここが増えて落ちる。落ちたら
+// 「その経路は domain.RichDocument.CanBeReadBy を通っているか」を確かめてから一覧を更新する。
+func Test_RichDocumentRepository_読み取り口の一覧を固定する(t *testing.T) {
+	want := []string{"Create", "FindByID", "ListByOwner", "SoftDelete", "UpdateWithRevision"}
+	typ := reflect.TypeOf((*repository.RichDocumentRepository)(nil)).Elem()
+	got := make([]string, 0, typ.NumMethod())
+	for i := range typ.NumMethod() {
+		got = append(got, typ.Method(i).Name)
+	}
+	sort.Strings(got)
+	assert.Equal(t, want, got,
+		"rich_documents の読み書き口が変わった。読み取りを足したなら CanBeReadBy を通してから一覧を更新すること")
 }

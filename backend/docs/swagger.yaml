@@ -2916,7 +2916,8 @@ paths:
       tags:
       - documents
     get:
-      description: id の 文書 を 返す。 所有者 か 公開 文書 のみ (非公開 は 存在 を 漏らさ ず 404)。
+      description: id の 文書 を 返す。 所有者 か 同一 会社 の 公開 文書 のみ (他社 の 文書 や 非公開 は 存在 を 漏らさ
+        ず 404)。
       parameters:
       - description: 文書 ID (UUID)
         in: path

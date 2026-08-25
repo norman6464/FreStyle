@@ -32,7 +32,8 @@ func limitBody(c *gin.Context) {
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxDocumentBodyBytes)
 }
 
-// currentCompanyID は current user の会社 ID を返す（未所属/未設定なら nil）。
+// currentCompanyID は current user の会社 ID を返す（未所属/未設定なら nil）。作成時に文書へ写す用。
+// 閲覧側は 0 と未所属を潰さない domain.CompanyRef が要るので actorFromContext を使う。
 func currentCompanyID(c *gin.Context) *uint64 {
 	if u := middleware.CurrentUserFromContext(c); u != nil {
 		return u.CompanyID
@@ -150,14 +151,14 @@ func respondRichDocErr(c *gin.Context, err error) {
 //	@Router       /documents [get]
 //	@Security     CookieAuth
 func (h *DocumentHandler) List(c *gin.Context) {
-	uid := middleware.CurrentUserIDOrZero(c)
-	if uid == 0 {
-		c.JSON(http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
+	uid, company, _, ok := actorFromContext(c)
+	if !ok {
 		return
 	}
 	docs, err := h.list.Execute(c.Request.Context(), usecase.ListRichDocumentsInput{
-		OwnerID: uid,
-		Kind:    domain.DocumentKind(c.Query("kind")),
+		OwnerID:       uid,
+		ViewerCompany: company,
+		Kind:          domain.DocumentKind(c.Query("kind")),
 	})
 	if err != nil {
 		respondRichDocErr(c, err)
@@ -220,10 +221,10 @@ func (h *DocumentHandler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, toDocumentResponse(doc))
 }
 
-// Get は文書を 1 件返す。所有者、または公開文書のみ（非公開は他人に返さない）。
+// Get は文書を 1 件返す。所有者、または同一会社の公開文書のみ（他社・非公開は存在を漏らさず 404）。
 //
 //	@Summary      リッチ 文書 の 取得
-//	@Description  id の 文書 を 返す。 所有者 か 公開 文書 のみ (非公開 は 存在 を 漏らさ ず 404)。
+//	@Description  id の 文書 を 返す。 所有者 か 同一 会社 の 公開 文書 のみ (他社 の 文書 や 非公開 は 存在 を 漏らさ ず 404)。
 //	@Tags         documents
 //	@Produce      json
 //	@Param        id   path      string  true  "文書 ID (UUID)"
@@ -234,9 +235,8 @@ func (h *DocumentHandler) Create(c *gin.Context) {
 //	@Router       /documents/{id} [get]
 //	@Security     CookieAuth
 func (h *DocumentHandler) Get(c *gin.Context) {
-	uid := middleware.CurrentUserIDOrZero(c)
-	if uid == 0 {
-		c.JSON(http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
+	uid, company, _, ok := actorFromContext(c)
+	if !ok {
 		return
 	}
 	id, ok := normalizeDocumentID(c.Param("id"))
@@ -244,7 +244,7 @@ func (h *DocumentHandler) Get(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "invalid_id"})
 		return
 	}
-	doc, err := h.get.Execute(c.Request.Context(), id, uid)
+	doc, err := h.get.Execute(c.Request.Context(), id, uid, company)
 	if err != nil {
 		respondRichDocErr(c, err)
 		return

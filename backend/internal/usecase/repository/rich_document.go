@@ -19,6 +19,10 @@ var ErrRichDocumentConflict = errors.New("rich document revision conflict")
 var ErrRichDocumentInvalidData = errors.New("rich document invalid data")
 
 // RichDocumentRepository は rich_documents テーブルへのアクセスを提供する。
+// 読み取りメソッドが返すのは「その行が存在する」という事実だけで、誰が読めるかは
+// domain.RichDocument.CanBeReadBy が決める。可視性の条件を SQL 側へ写経しないこと
+// （二重化すると片方だけ直したときに食い違う）。読み取り経路を足すときは、必ず
+// CanBeReadBy を通してから公開すること。
 type RichDocumentRepository interface {
 	// Create は新規文書を作成する。ID 未設定なら UUID を採番して doc.ID に反映する。
 	Create(ctx context.Context, doc *domain.RichDocument) error

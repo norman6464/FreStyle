@@ -28,18 +28,12 @@ type RichDocument struct {
 	ID string `gorm:"type:uuid;primaryKey" json:"id"`
 	// OwnerID は作成者。users.id への FK（制約は ApplyRichDocumentConstraints が張る）。
 	OwnerID uint64 `gorm:"column:owner_id;not null;index" json:"ownerId"`
-	// CompanyID は作成時に作成者の所属会社を写し取るだけの列で、テナント境界としては機能していない。
-	// 読み出し（FindByID / ListByOwner）も可視性判定（CanBeReadBy）も owner_id と is_public だけで
-	// 決めており、この値を絞り込み条件に使っている箇所は無い（API 応答に出るだけで、フロントも読まない）。
-	// いま絞り込みに使い始めると、これまで見えていた文書が会社をまたいだ瞬間に見えなくなる。
-	//
-	// テナント統合での扱いは「workspace_id へ置き換えず、列ごと捨てる」。写しているのは
-	// 作成時点の作成者の所属で、その後の異動を追わないため既に事実として古い。指す先の
-	// companies そのものが畳まれて消える以上、置き換えは「無かった境界を新しく作る」ことになり、
-	// 上のとおり見えなくなる文書が出る。文書にテナント境界が要るなら、ナレッジ基盤の
-	// 権限モデルの上で改めて設計する（この列を作り直すのではなく）。
-	// 消す順序は「書き込みと API 応答を外す → 列を落とす」。逆にすると、ローリングデプロイ中の
-	// 旧タスクが存在しない列へ INSERT して落ちる。未所属なら nil。
+	// CompanyID は作成時に作成者の所属会社を写し取る列で、公開文書の閲覧範囲を同一会社内へ
+	// 閉じるためのテナント境界として使う（判定は CanBeReadBy が持つ）。
+	// 写すのは作成時点の所属だけで、その後の異動では更新されない。未所属の作成者
+	// （運営管理者など）や、この列を足す前に作られた行では nil になる。
+	// そのため CanBeReadBy は所有者判定を先に置き、締めるのは「公開文書を他社が読むこと」
+	// だけにしている（詳細は CanBeReadBy のコメント）。
 	CompanyID *uint64 `gorm:"column:company_id" json:"companyId,omitempty"`
 	// Kind は用途区分（note / course-chapter …）。
 	Kind DocumentKind `gorm:"column:kind;not null" json:"kind"`
@@ -62,12 +56,32 @@ type RichDocument struct {
 // TableName は GORM のテーブル名を固定する。
 func (RichDocument) TableName() string { return "rich_documents" }
 
-// CanBeReadBy は viewerID が本文書を読めるかを返す。所有者、または公開文書は読める。
-// viewerID=0（未認証）は非公開を読めない。
-// CompanyID は意図的に見ない（現状テナント境界として機能していない。フィールドのコメント参照）。
-func (d *RichDocument) CanBeReadBy(viewerID uint64) bool {
-	if d.IsPublic {
+// CompanyRef は文書に焼き付いた所属会社を返す。company_id は NULL を取り得る（未所属の
+// 作成者・列を足す前の行）ので、0 という番兵値へ潰さず CompanyRef として表す。
+func (d *RichDocument) CompanyRef() CompanyRef {
+	if d.CompanyID == nil {
+		return NoCompany()
+	}
+	return CompanyRefOf(*d.CompanyID)
+}
+
+// CanBeReadBy は viewerID / viewerCompany の利用者が本文書を読めるかを返す。
+// 所有者は常に読める。公開文書は同一会社の利用者だけが読める（会社をまたいだ閲覧は不可）。
+// viewerID=0（未認証）は所有者になり得ず、未所属の閲覧者はどの会社とも一致しない。
+func (d *RichDocument) CanBeReadBy(viewerID uint64, viewerCompany CompanyRef) bool {
+	// 所有者判定は必ずテナント一致より先に置く。CompanyID は作成時の所属の写しで移管を追わず、
+	// 未所属の作成者や列を足す前の行では NULL のまま残る。所有者にまで会社一致を要求すると、
+	// それらの文書が作成者自身からも見えなくなる。
+	if viewerID != 0 && d.OwnerID == viewerID {
 		return true
 	}
-	return viewerID != 0 && d.OwnerID == viewerID
+	if !d.IsPublic {
+		return false
+	}
+	// 「公開」は同一会社の中での公開に閉じる。会社が分からない文書（company_id が NULL）は
+	// どの会社とも一致しないので、所有者以外からは見えなくなる。会社を特定できないものを
+	// 全社へ開くのではなく見えない側へ倒す（fail-closed）。企業をまたいでノートを見せないという
+	// 要件に対して、NULL を「誰にでも見せる」側へ倒すのは矛盾するため。
+	companyID, known := d.CompanyRef().CompanyID()
+	return known && viewerCompany.Matches(companyID)
 }

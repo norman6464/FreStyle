@@ -23,22 +23,23 @@ func NewCourseUseCase(courses repository.CourseRepository, materials repository.
 	return &CourseUseCase{courses: courses, materials: materials}
 }
 
-func (uc *CourseUseCase) Get(ctx context.Context, id, actorCompanyID uint64, actorRole domain.RoleName) (*domain.Course, error) {
+func (uc *CourseUseCase) Get(ctx context.Context, id uint64, actorCompany domain.CompanyRef, actorRole domain.RoleName) (*domain.Course, error) {
 	c, err := uc.courses.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	if !canReadCourse(c, actorCompanyID, actorRole) {
+	if !canReadCourse(c, actorCompany, actorRole) {
 		return nil, fmt.Errorf("forbidden")
 	}
 	return c, nil
 }
 
-func canReadCourse(c *domain.Course, actorCompanyID uint64, actorRole domain.RoleName) bool {
+func canReadCourse(c *domain.Course, actorCompany domain.CompanyRef, actorRole domain.RoleName) bool {
 	if actorRole == domain.RoleSuperAdmin {
 		return true
 	}
-	if c.CompanyID != actorCompanyID {
+	// 未所属の actor はどの会社のコースとも一致しないため、super_admin 以外は閲覧できない。
+	if !actorCompany.Matches(c.CompanyID) {
 		return false
 	}
 	if !c.IsPublished && !canManage(actorRole) {
@@ -48,29 +49,31 @@ func canReadCourse(c *domain.Course, actorCompanyID uint64, actorRole domain.Rol
 }
 
 type CreateCourseInput struct {
-	ActorUserID    uint64
-	ActorCompanyID uint64
-	ActorRole      domain.RoleName
-	Title          string
-	Description    string
-	Category       string
-	Language       string
-	SortOrder      int
-	IsPublished    bool
+	ActorUserID  uint64
+	ActorCompany domain.CompanyRef
+	ActorRole    domain.RoleName
+	Title        string
+	Description  string
+	Category     string
+	Language     string
+	SortOrder    int
+	IsPublished  bool
 }
 
 func (uc *CourseUseCase) Create(ctx context.Context, in CreateCourseInput) (*domain.Course, error) {
 	if !canManage(in.ActorRole) {
 		return nil, fmt.Errorf("forbidden: only company_admin or super_admin can create courses")
 	}
-	if in.ActorCompanyID == 0 {
+	// 作成したコースの所属先が決まらないため、未所属の actor は super_admin でも作成できない。
+	companyID, affiliated := in.ActorCompany.CompanyID()
+	if !affiliated {
 		return nil, fmt.Errorf("actor must belong to a company")
 	}
 	if !domain.IsValidCourseCategory(in.Category) {
 		return nil, fmt.Errorf("invalid course category: %s", in.Category)
 	}
 	c := &domain.Course{
-		CompanyID:       in.ActorCompanyID,
+		CompanyID:       companyID,
 		CreatedByUserID: in.ActorUserID,
 		Title:           in.Title,
 		Description:     in.Description,
@@ -86,15 +89,15 @@ func (uc *CourseUseCase) Create(ctx context.Context, in CreateCourseInput) (*dom
 }
 
 type UpdateCourseInput struct {
-	ID             uint64
-	ActorCompanyID uint64
-	ActorRole      domain.RoleName
-	Title          string
-	Description    string
-	Category       string
-	Language       string
-	SortOrder      int
-	IsPublished    bool
+	ID           uint64
+	ActorCompany domain.CompanyRef
+	ActorRole    domain.RoleName
+	Title        string
+	Description  string
+	Category     string
+	Language     string
+	SortOrder    int
+	IsPublished  bool
 }
 
 func (uc *CourseUseCase) Update(ctx context.Context, in UpdateCourseInput) (*domain.Course, error) {
@@ -105,7 +108,8 @@ func (uc *CourseUseCase) Update(ctx context.Context, in UpdateCourseInput) (*dom
 	if !canManage(in.ActorRole) {
 		return nil, fmt.Errorf("forbidden")
 	}
-	if in.ActorRole != domain.RoleSuperAdmin && existing.CompanyID != in.ActorCompanyID {
+	// 未所属の actor は Matches が常に false になるため、super_admin 以外は更新できない。
+	if in.ActorRole != domain.RoleSuperAdmin && !in.ActorCompany.Matches(existing.CompanyID) {
 		return nil, fmt.Errorf("forbidden")
 	}
 	if !domain.IsValidCourseCategory(in.Category) {
@@ -124,7 +128,7 @@ func (uc *CourseUseCase) Update(ctx context.Context, in UpdateCourseInput) (*dom
 }
 
 // Delete はコースと配下教材を同時に削除する（cascade 相当）。
-func (uc *CourseUseCase) Delete(ctx context.Context, id, actorCompanyID uint64, actorRole domain.RoleName) error {
+func (uc *CourseUseCase) Delete(ctx context.Context, id uint64, actorCompany domain.CompanyRef, actorRole domain.RoleName) error {
 	existing, err := uc.courses.GetByID(ctx, id)
 	if err != nil {
 		return err
@@ -132,7 +136,8 @@ func (uc *CourseUseCase) Delete(ctx context.Context, id, actorCompanyID uint64, 
 	if !canManage(actorRole) {
 		return fmt.Errorf("forbidden")
 	}
-	if actorRole != domain.RoleSuperAdmin && existing.CompanyID != actorCompanyID {
+	// 未所属の actor は Matches が常に false になるため、super_admin 以外は削除できない。
+	if actorRole != domain.RoleSuperAdmin && !actorCompany.Matches(existing.CompanyID) {
 		return fmt.Errorf("forbidden")
 	}
 	if err := uc.materials.DeleteByCourse(ctx, id); err != nil {

@@ -66,7 +66,7 @@ func Test_レッスン完了_自社の公開教材はcourse_idを解決して記
 	uc := usecase.NewMarkLessonCompletedUseCase(progress, mat, crs, &nopActivityRepo{})
 
 	err := uc.Execute(context.Background(), usecase.MarkLessonCompletedInput{
-		UserID: 1, ActorCompanyID: 10, ActorRole: domain.RoleTrainee, TeachingMaterialID: 5,
+		UserID: 1, ActorCompany: domain.CompanyRefOf(10), ActorRole: domain.RoleTrainee, TeachingMaterialID: 5,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, uint64(99), pstore.completed[5]) // 教材の course_id が使われる
@@ -78,7 +78,7 @@ func Test_レッスン完了_他社の教材は403相当で弾く(t *testing.T) 
 	uc := usecase.NewMarkLessonCompletedUseCase(progress, mat, crs, &nopActivityRepo{})
 
 	err := uc.Execute(context.Background(), usecase.MarkLessonCompletedInput{
-		UserID: 1, ActorCompanyID: 20, ActorRole: domain.RoleTrainee, TeachingMaterialID: 5, // 別 company
+		UserID: 1, ActorCompany: domain.CompanyRefOf(20), ActorRole: domain.RoleTrainee, TeachingMaterialID: 5, // 別 company
 	})
 	assert.ErrorIs(t, err, usecase.ErrLessonForbidden)
 	assert.Empty(t, pstore.completed)
@@ -93,7 +93,7 @@ func Test_レッスン完了_trainee_に未公開の教材は403相当(t *testin
 	uc := usecase.NewMarkLessonCompletedUseCase(progress, mat, crs, &nopActivityRepo{})
 
 	err := uc.Execute(context.Background(), usecase.MarkLessonCompletedInput{
-		UserID: 1, ActorCompanyID: 10, ActorRole: domain.RoleTrainee, TeachingMaterialID: 5,
+		UserID: 1, ActorCompany: domain.CompanyRefOf(10), ActorRole: domain.RoleTrainee, TeachingMaterialID: 5,
 	})
 	assert.ErrorIs(t, err, usecase.ErrLessonForbidden)
 }
@@ -104,7 +104,7 @@ func Test_レッスン完了_存在しない教材は404相当(t *testing.T) {
 	crs, _ := courseRepo(courseFakeConfig{})
 	uc := usecase.NewMarkLessonCompletedUseCase(progress, mat, crs, &nopActivityRepo{})
 	err := uc.Execute(context.Background(), usecase.MarkLessonCompletedInput{
-		UserID: 1, ActorCompanyID: 10, ActorRole: domain.RoleTrainee, TeachingMaterialID: 404,
+		UserID: 1, ActorCompany: domain.CompanyRefOf(10), ActorRole: domain.RoleTrainee, TeachingMaterialID: 404,
 	})
 	assert.ErrorIs(t, err, usecase.ErrLessonNotFound)
 }
@@ -116,7 +116,7 @@ func Test_レッスン完了_記録失敗を伝播(t *testing.T) {
 	uc := usecase.NewMarkLessonCompletedUseCase(progress, mat, crs, &nopActivityRepo{})
 
 	err := uc.Execute(context.Background(), usecase.MarkLessonCompletedInput{
-		UserID: 1, ActorCompanyID: 10, ActorRole: domain.RoleTrainee, TeachingMaterialID: 5,
+		UserID: 1, ActorCompany: domain.CompanyRefOf(10), ActorRole: domain.RoleTrainee, TeachingMaterialID: 5,
 	})
 	assert.ErrorIs(t, err, wantErr, "repository のエラーを別のエラーに置き換えず伝播する")
 }

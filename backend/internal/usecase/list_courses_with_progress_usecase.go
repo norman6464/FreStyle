@@ -38,22 +38,24 @@ func NewListCoursesWithProgressUseCase(
 
 // ListCoursesWithProgressInput は一覧取得の actor 情報(認証 context 由来)。
 type ListCoursesWithProgressInput struct {
-	ActorUserID    uint64
-	ActorCompanyID uint64
-	ActorRole      domain.RoleName
+	ActorUserID  uint64
+	ActorCompany domain.CompanyRef
+	ActorRole    domain.RoleName
 }
 
-// Execute はコース一覧を返す。ActorCompanyID=0(会社未所属)は空スライス。
+// Execute はコース一覧を返す。会社未所属の actor は(super_admin でも)空スライス。
 func (u *ListCoursesWithProgressUseCase) Execute(ctx context.Context, in ListCoursesWithProgressInput) ([]CourseWithProgress, error) {
-	if in.ActorCompanyID == 0 {
+	// 自社のコースを並べる画面なので、所属会社が無ければ数える対象そのものが無い。
+	companyID, affiliated := in.ActorCompany.CompanyID()
+	if !affiliated {
 		return []CourseWithProgress{}, nil
 	}
 	includeUnpublished := canManage(in.ActorRole)
-	rows, err := u.courses.ListByCompany(ctx, in.ActorCompanyID, includeUnpublished)
+	rows, err := u.courses.ListByCompany(ctx, companyID, includeUnpublished)
 	if err != nil {
 		return nil, err
 	}
-	materialCounts, err := u.materials.CountByCourseForCompany(ctx, in.ActorCompanyID, includeUnpublished)
+	materialCounts, err := u.materials.CountByCourseForCompany(ctx, companyID, includeUnpublished)
 	if err != nil {
 		return nil, err
 	}

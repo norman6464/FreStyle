@@ -206,7 +206,7 @@ func Test_招待取消_管理者以外は拒否(t *testing.T) {
 	uc := NewCancelAdminInvitationUseCase(repo)
 
 	err := uc.Execute(context.Background(), CancelAdminInvitationInput{
-		ID: 7, ActorRole: domain.RoleTrainee, ActorCompanyID: 1,
+		ID: 7, ActorRole: domain.RoleTrainee, ActorCompany: domain.CompanyRefOf(1),
 	})
 	if !errors.Is(err, ErrForbidden) {
 		t.Fatalf("trainee は拒否されるべき: got %v", err)
@@ -220,7 +220,7 @@ func Test_招待取消_会社管理者は自社のみ(t *testing.T) {
 	t.Run("自社は取消できる", func(t *testing.T) {
 		uc := NewCancelAdminInvitationUseCase(&stubAdminInvRepo{rows: rows})
 		err := uc.Execute(context.Background(), CancelAdminInvitationInput{
-			ID: 7, ActorRole: domain.RoleCompanyAdmin, ActorCompanyID: 1,
+			ID: 7, ActorRole: domain.RoleCompanyAdmin, ActorCompany: domain.CompanyRefOf(1),
 		})
 		if err != nil {
 			t.Fatalf("err: %v", err)
@@ -230,7 +230,7 @@ func Test_招待取消_会社管理者は自社のみ(t *testing.T) {
 	t.Run("他社は not found", func(t *testing.T) {
 		uc := NewCancelAdminInvitationUseCase(&stubAdminInvRepo{rows: rows})
 		err := uc.Execute(context.Background(), CancelAdminInvitationInput{
-			ID: 8, ActorRole: domain.RoleCompanyAdmin, ActorCompanyID: 1,
+			ID: 8, ActorRole: domain.RoleCompanyAdmin, ActorCompany: domain.CompanyRefOf(1),
 		})
 		if !errors.Is(err, ErrInvitationNotFound) {
 			t.Fatalf("他社の招待は not found であるべき: got %v", err)

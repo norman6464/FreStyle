@@ -109,7 +109,7 @@ func Test_教材_コース別一覧_traineeは公開のみ(t *testing.T) {
 	mrepo, mstore := materialRepo(materialFakeConfig{})
 	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, CompanyID: 10, IsPublished: true}})
 	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
-	_, err := uc.ListByCourse(context.Background(), 5, 10, domain.RoleTrainee)
+	_, err := uc.ListByCourse(context.Background(), 5, domain.CompanyRefOf(10), domain.RoleTrainee)
 	require.NoError(t, err)
 	assert.Equal(t, uint64(5), mstore.listCourseID)
 	assert.False(t, mstore.listIncludeAll, "trainee は draft を含まない")
@@ -119,7 +119,7 @@ func Test_教材_コース別一覧_traineeは非公開コースを見られな�
 	mrepo, _ := materialRepo(materialFakeConfig{})
 	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, CompanyID: 10, IsPublished: false}})
 	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
-	_, err := uc.ListByCourse(context.Background(), 5, 10, domain.RoleTrainee)
+	_, err := uc.ListByCourse(context.Background(), 5, domain.CompanyRefOf(10), domain.RoleTrainee)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "forbidden")
 }
@@ -128,7 +128,7 @@ func Test_教材_コース別一覧_会社管理者は下書きも含む(t *test
 	mrepo, mstore := materialRepo(materialFakeConfig{})
 	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, CompanyID: 10, IsPublished: false}})
 	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
-	_, err := uc.ListByCourse(context.Background(), 5, 10, domain.RoleCompanyAdmin)
+	_, err := uc.ListByCourse(context.Background(), 5, domain.CompanyRefOf(10), domain.RoleCompanyAdmin)
 	require.NoError(t, err)
 	assert.True(t, mstore.listIncludeAll)
 }
@@ -139,7 +139,7 @@ func Test_教材_取得_traineeは下書き不可(t *testing.T) {
 	}})
 	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, CompanyID: 10, IsPublished: true}})
 	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
-	_, err := uc.Get(context.Background(), 1, 10, domain.RoleTrainee)
+	_, err := uc.Get(context.Background(), 1, domain.CompanyRefOf(10), domain.RoleTrainee)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "forbidden")
 }
@@ -150,7 +150,7 @@ func Test_教材_取得_traineeは自社の公開を読める(t *testing.T) {
 	}})
 	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, CompanyID: 10, IsPublished: true}})
 	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
-	got, err := uc.Get(context.Background(), 1, 10, domain.RoleTrainee)
+	got, err := uc.Get(context.Background(), 1, domain.CompanyRefOf(10), domain.RoleTrainee)
 	require.NoError(t, err)
 	assert.Equal(t, uint64(1), got.ID)
 }
@@ -161,7 +161,7 @@ func Test_教材_取得_別会社は禁止(t *testing.T) {
 	}})
 	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, CompanyID: 10, IsPublished: true}})
 	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
-	_, err := uc.Get(context.Background(), 1, 99, domain.RoleCompanyAdmin)
+	_, err := uc.Get(context.Background(), 1, domain.CompanyRefOf(99), domain.RoleCompanyAdmin)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "forbidden")
 }
@@ -172,7 +172,7 @@ func Test_教材_取得_運営は別会社も許可(t *testing.T) {
 	}})
 	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, CompanyID: 10, IsPublished: false}})
 	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
-	got, err := uc.Get(context.Background(), 1, 99, domain.RoleSuperAdmin)
+	got, err := uc.Get(context.Background(), 1, domain.CompanyRefOf(99), domain.RoleSuperAdmin)
 	require.NoError(t, err)
 	assert.Equal(t, uint64(1), got.ID)
 }
@@ -182,7 +182,7 @@ func Test_教材_作成_traineeは禁止(t *testing.T) {
 	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, CompanyID: 10}})
 	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
 	_, err := uc.Create(context.Background(), usecase.CreateTeachingMaterialInput{
-		ActorUserID: 1, ActorCompanyID: 10, ActorRole: domain.RoleTrainee,
+		ActorUserID: 1, ActorCompany: domain.CompanyRefOf(10), ActorRole: domain.RoleTrainee,
 		CourseID: 5, Title: "X", IsPublished: true,
 	})
 	require.Error(t, err)
@@ -194,7 +194,7 @@ func Test_教材_作成_会社管理者は成功(t *testing.T) {
 	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, CompanyID: 10}})
 	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
 	got, err := uc.Create(context.Background(), usecase.CreateTeachingMaterialInput{
-		ActorUserID: 7, ActorCompanyID: 10, ActorRole: domain.RoleCompanyAdmin,
+		ActorUserID: 7, ActorCompany: domain.CompanyRefOf(10), ActorRole: domain.RoleCompanyAdmin,
 		CourseID: 5, Title: "Spring 入門", IsPublished: true,
 	})
 	require.NoError(t, err)
@@ -212,7 +212,7 @@ func Test_教材_作成_コースID欠落は禁止(t *testing.T) {
 	crepo, _ := courseRepo(courseFakeConfig{})
 	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
 	_, err := uc.Create(context.Background(), usecase.CreateTeachingMaterialInput{
-		ActorUserID: 7, ActorCompanyID: 10, ActorRole: domain.RoleCompanyAdmin,
+		ActorUserID: 7, ActorCompany: domain.CompanyRefOf(10), ActorRole: domain.RoleCompanyAdmin,
 		Title: "X",
 	})
 	require.Error(t, err)
@@ -224,7 +224,7 @@ func Test_教材_作成_別会社コースは禁止(t *testing.T) {
 	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, CompanyID: 99}})
 	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
 	_, err := uc.Create(context.Background(), usecase.CreateTeachingMaterialInput{
-		ActorUserID: 7, ActorCompanyID: 10, ActorRole: domain.RoleCompanyAdmin,
+		ActorUserID: 7, ActorCompany: domain.CompanyRefOf(10), ActorRole: domain.RoleCompanyAdmin,
 		CourseID: 5, Title: "X",
 	})
 	require.Error(t, err)
@@ -237,7 +237,7 @@ func Test_教材_作成_会社未所属は禁止(t *testing.T) {
 	crepo, _ := courseRepo(courseFakeConfig{})
 	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
 	_, err := uc.Create(context.Background(), usecase.CreateTeachingMaterialInput{
-		ActorUserID: 7, ActorCompanyID: 0, ActorRole: domain.RoleCompanyAdmin,
+		ActorUserID: 7, ActorCompany: domain.NoCompany(), ActorRole: domain.RoleCompanyAdmin,
 		CourseID: 5, Title: "X",
 	})
 	require.Error(t, err)
@@ -250,7 +250,7 @@ func Test_教材_更新_別会社は禁止(t *testing.T) {
 	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, CompanyID: 10}})
 	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
 	_, err := uc.Update(context.Background(), usecase.UpdateTeachingMaterialInput{
-		ID: 1, ActorCompanyID: 99, ActorRole: domain.RoleCompanyAdmin, Title: "new",
+		ID: 1, ActorCompany: domain.CompanyRefOf(99), ActorRole: domain.RoleCompanyAdmin, Title: "new",
 	})
 	require.Error(t, err)
 	assert.Nil(t, mstore.updated)
@@ -263,7 +263,7 @@ func Test_教材_更新_自社管理者は成功(t *testing.T) {
 	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, CompanyID: 10}})
 	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
 	got, err := uc.Update(context.Background(), usecase.UpdateTeachingMaterialInput{
-		ID: 1, ActorCompanyID: 10, ActorRole: domain.RoleCompanyAdmin,
+		ID: 1, ActorCompany: domain.CompanyRefOf(10), ActorRole: domain.RoleCompanyAdmin,
 		Title: "new", OrderInCourse: 200, IsPublished: true,
 	})
 	require.NoError(t, err)
@@ -281,7 +281,7 @@ func Test_教材_削除_traineeは禁止(t *testing.T) {
 	}})
 	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, CompanyID: 10}})
 	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
-	err := uc.Delete(context.Background(), 1, 10, domain.RoleTrainee)
+	err := uc.Delete(context.Background(), 1, domain.CompanyRefOf(10), domain.RoleTrainee)
 	require.Error(t, err)
 	mrepo.AssertNotCalled(t, "Delete", mock.Anything, mock.Anything)
 }
@@ -292,7 +292,7 @@ func Test_教材_削除_自社管理者は成功(t *testing.T) {
 	}})
 	crepo, _ := courseRepo(courseFakeConfig{get: &domain.Course{ID: 5, CompanyID: 10}})
 	uc := usecase.NewTeachingMaterialUseCase(mrepo, crepo)
-	err := uc.Delete(context.Background(), 1, 10, domain.RoleCompanyAdmin)
+	err := uc.Delete(context.Background(), 1, domain.CompanyRefOf(10), domain.RoleCompanyAdmin)
 	require.NoError(t, err)
 	assert.Equal(t, uint64(1), mstore.deleted)
 }
@@ -324,7 +324,7 @@ func TestTeachingMaterialUseCase_UpdateDoc(t *testing.T) {
 		repo := docUpdateRepo(existing, updated, nil)
 		uc := usecase.NewTeachingMaterialUseCase(repo, newIdleCourseRepo())
 		got, err := uc.UpdateDoc(context.Background(), usecase.UpdateChapterDocInput{
-			ID: 1, ActorCompanyID: 10, ActorRole: domain.RoleCompanyAdmin,
+			ID: 1, ActorCompany: domain.CompanyRefOf(10), ActorRole: domain.RoleCompanyAdmin,
 			Doc: validDoc, ExpectedRevision: 3,
 		})
 		require.NoError(t, err)
@@ -336,18 +336,31 @@ func TestTeachingMaterialUseCase_UpdateDoc(t *testing.T) {
 		repo := docUpdateRepo(existing, nil, nil)
 		uc := usecase.NewTeachingMaterialUseCase(repo, newIdleCourseRepo())
 		_, err := uc.UpdateDoc(context.Background(), usecase.UpdateChapterDocInput{
-			ID: 1, ActorCompanyID: 10, ActorRole: domain.RoleTrainee,
+			ID: 1, ActorCompany: domain.CompanyRefOf(10), ActorRole: domain.RoleTrainee,
 			Doc: validDoc, ExpectedRevision: 3,
 		})
 		require.ErrorContains(t, err, "forbidden")
 		repo.AssertNotCalled(t, "UpdateDocWithRevision", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	})
 
+	t.Run("未所属の super_admin は他社の章も保存できる", func(t *testing.T) {
+		updatedDoc := validDoc
+		updated := &domain.TeachingMaterial{ID: 1, CompanyID: 10, Revision: 4, Doc: &updatedDoc}
+		repo := docUpdateRepo(existing, updated, nil)
+		uc := usecase.NewTeachingMaterialUseCase(repo, newIdleCourseRepo())
+		got, err := uc.UpdateDoc(context.Background(), usecase.UpdateChapterDocInput{
+			ID: 1, ActorCompany: domain.NoCompany(), ActorRole: domain.RoleSuperAdmin,
+			Doc: validDoc, ExpectedRevision: 3,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, 4, got.Revision)
+	})
+
 	t.Run("他社の章は company_admin でも forbidden", func(t *testing.T) {
 		repo := docUpdateRepo(existing, nil, nil)
 		uc := usecase.NewTeachingMaterialUseCase(repo, newIdleCourseRepo())
 		_, err := uc.UpdateDoc(context.Background(), usecase.UpdateChapterDocInput{
-			ID: 1, ActorCompanyID: 99, ActorRole: domain.RoleCompanyAdmin,
+			ID: 1, ActorCompany: domain.CompanyRefOf(99), ActorRole: domain.RoleCompanyAdmin,
 			Doc: validDoc, ExpectedRevision: 3,
 		})
 		require.ErrorContains(t, err, "forbidden")
@@ -357,7 +370,7 @@ func TestTeachingMaterialUseCase_UpdateDoc(t *testing.T) {
 		repo := docUpdateRepo(existing, nil, nil)
 		uc := usecase.NewTeachingMaterialUseCase(repo, newIdleCourseRepo())
 		_, err := uc.UpdateDoc(context.Background(), usecase.UpdateChapterDocInput{
-			ID: 1, ActorCompanyID: 10, ActorRole: domain.RoleCompanyAdmin,
+			ID: 1, ActorCompany: domain.CompanyRefOf(10), ActorRole: domain.RoleCompanyAdmin,
 			Doc: `{"type":"paragraph"}`, ExpectedRevision: 3,
 		})
 		require.ErrorIs(t, err, usecase.ErrChapterDocInvalid)
@@ -367,7 +380,7 @@ func TestTeachingMaterialUseCase_UpdateDoc(t *testing.T) {
 		repo := docUpdateRepo(existing, nil, nil)
 		uc := usecase.NewTeachingMaterialUseCase(repo, newIdleCourseRepo())
 		_, err := uc.UpdateDoc(context.Background(), usecase.UpdateChapterDocInput{
-			ID: 1, ActorCompanyID: 10, ActorRole: domain.RoleCompanyAdmin,
+			ID: 1, ActorCompany: domain.CompanyRefOf(10), ActorRole: domain.RoleCompanyAdmin,
 			Doc: validDoc, ExpectedRevision: 0,
 		})
 		require.ErrorIs(t, err, usecase.ErrChapterDocInvalid)
@@ -377,7 +390,7 @@ func TestTeachingMaterialUseCase_UpdateDoc(t *testing.T) {
 		repo := docUpdateRepo(existing, nil, repository.ErrChapterDocConflict)
 		uc := usecase.NewTeachingMaterialUseCase(repo, newIdleCourseRepo())
 		_, err := uc.UpdateDoc(context.Background(), usecase.UpdateChapterDocInput{
-			ID: 1, ActorCompanyID: 10, ActorRole: domain.RoleCompanyAdmin,
+			ID: 1, ActorCompany: domain.CompanyRefOf(10), ActorRole: domain.RoleCompanyAdmin,
 			Doc: validDoc, ExpectedRevision: 2,
 		})
 		require.ErrorIs(t, err, repository.ErrChapterDocConflict)

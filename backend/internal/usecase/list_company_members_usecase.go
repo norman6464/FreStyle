@@ -18,8 +18,13 @@ func NewListCompanyMembersUseCase(u repository.UserRepository) *ListCompanyMembe
 
 // Execute は actor の所属会社の従業員一覧を返す。会社未所属なら空。
 func (uc *ListCompanyMembersUseCase) Execute(ctx context.Context, actor *domain.User) ([]domain.User, error) {
-	if actor == nil || actor.CompanyID == nil {
+	if actor == nil {
 		return []domain.User{}, nil
 	}
-	return uc.users.ListByCompanyID(ctx, *actor.CompanyID)
+	// 未所属（運営管理者など）は「自社」が無いので空を返す。
+	companyID, affiliated := actor.CompanyRef().CompanyID()
+	if !affiliated {
+		return []domain.User{}, nil
+	}
+	return uc.users.ListByCompanyID(ctx, companyID)
 }

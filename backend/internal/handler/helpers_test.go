@@ -16,29 +16,32 @@ import (
 func init() { gin.SetMode(gin.TestMode) }
 
 func TestActorFromContext(t *testing.T) {
-	t.Run("認証済み user から id/companyID/role を取り出す", func(t *testing.T) {
+	t.Run("認証済み user から id/所属会社/role を取り出す", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 		companyID := uint64(7)
 		c.Set(middleware.ContextKeyCurrentUser, &domain.User{ID: 42, CompanyID: &companyID, Role: domain.RoleCompanyAdmin})
 
-		uid, cid, role, ok := actorFromContext(c)
+		uid, company, role, ok := actorFromContext(c)
 
 		assert.True(t, ok)
 		assert.Equal(t, uint64(42), uid)
-		assert.Equal(t, uint64(7), cid)
+		gotID, affiliated := company.CompanyID()
+		assert.True(t, affiliated)
+		assert.Equal(t, uint64(7), gotID)
 		assert.Equal(t, domain.RoleCompanyAdmin, role)
 	})
 
-	t.Run("会社未所属(nil)なら companyID は 0", func(t *testing.T) {
+	t.Run("会社未所属(nil)なら未所属の CompanyRef", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 		c.Set(middleware.ContextKeyCurrentUser, &domain.User{ID: 1, CompanyID: nil, Role: domain.RoleSuperAdmin})
 
-		_, cid, _, ok := actorFromContext(c)
+		_, company, _, ok := actorFromContext(c)
 
 		assert.True(t, ok)
-		assert.Equal(t, uint64(0), cid)
+		_, affiliated := company.CompanyID()
+		assert.False(t, affiliated)
 	})
 
 	t.Run("未認証なら 401 を書き ok=false", func(t *testing.T) {
@@ -76,8 +79,8 @@ func TestRespondEntityErr(t *testing.T) {
 	}
 }
 
-func TestUserCompanyIDValue(t *testing.T) {
+func TestUserCompanyRef(t *testing.T) {
 	cid := uint64(9)
-	assert.Equal(t, uint64(9), domain.User{CompanyID: &cid}.CompanyIDValue())
-	assert.Equal(t, uint64(0), domain.User{CompanyID: nil}.CompanyIDValue())
+	assert.Equal(t, domain.CompanyRefOf(9), domain.User{CompanyID: &cid}.CompanyRef())
+	assert.Equal(t, domain.NoCompany(), domain.User{CompanyID: nil}.CompanyRef())
 }

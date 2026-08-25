@@ -31,6 +31,11 @@ type upsertUserRepoSpy struct {
 	companyUpdateCalls    int
 	companyUpdateErr      error
 
+	platformAdminUpdateCalls  int
+	platformAdminUpdateErr    error
+	platformAdminUpdateUserID uint64
+	platformAdminUpdateValue  bool
+
 	roleUpdateUserID    uint64
 	roleUpdateValue     domain.RoleName
 	companyUpdateUserID uint64
@@ -280,6 +285,20 @@ func (s *upsertUserRepoSpy) UpdateRole(
 
 	s.roleUpdateUserID = userID
 	s.roleUpdateValue = role
+	return nil
+}
+
+func (s *upsertUserRepoSpy) UpdatePlatformAdmin(
+	_ context.Context,
+	userID uint64,
+	isPlatformAdmin bool,
+) error {
+	s.platformAdminUpdateCalls++
+	if s.platformAdminUpdateErr != nil {
+		return s.platformAdminUpdateErr
+	}
+	s.platformAdminUpdateUserID = userID
+	s.platformAdminUpdateValue = isPlatformAdmin
 	return nil
 }
 

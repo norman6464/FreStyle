@@ -33,15 +33,20 @@ type userRow = sqlcgen.GetUserByIDRow
 // Role はロールマスタ（roles）を JOIN して解決した role_name。
 // id 系は DB が bigint(int64) で domain が uint64。値は採番シーケンス由来で常に非負・int64 範囲内のため
 // 変換は安全（gosec G115 は persistence の id 境界として .golangci.yml で除外）。
+// Role には保存された役割そのものではなく実効役割（domain.ResolveEffectiveRole）を入れる。
+// users.role の実効値を決めるのはこの 1 箇所だけで、認可側は従来どおり Role を見る
+// （役割を見ている箇所は 10 以上あり、各所に「かつ運営権限が在る」を撒くと必ず書き漏らす）。
+// 保存された役割が要る同期処理のために、素の事実は IsPlatformAdmin として別に持たせる。
 func toDomainUser(row userRow) *domain.User {
 	u := &domain.User{
-		ID:        uint64(row.ID),
-		Email:     row.Email,
-		Name:      row.Name,
-		Role:      domain.RoleName(row.RoleName),
-		IsActive:  row.IsActive,
-		CreatedAt: row.CreatedAt,
-		UpdatedAt: row.UpdatedAt,
+		ID:              uint64(row.ID),
+		Email:           row.Email,
+		Name:            row.Name,
+		Role:            domain.ResolveEffectiveRole(domain.RoleName(row.RoleName), row.IsPlatformAdmin),
+		IsActive:        row.IsActive,
+		IsPlatformAdmin: row.IsPlatformAdmin,
+		CreatedAt:       row.CreatedAt,
+		UpdatedAt:       row.UpdatedAt,
 	}
 	u.RoleID = uint16(row.RoleID)
 	if row.CompanyID.Valid {
@@ -97,7 +102,8 @@ func (r *userRepository) FindActiveByEmail(ctx context.Context, email string) (*
 		ID: row.ID, Email: row.Email, Name: row.Name,
 		CompanyID: row.CompanyID, RoleID: row.RoleID,
 		AiChatEnabled: row.AiChatEnabled, IsActive: row.IsActive,
-		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, DeletedAt: row.DeletedAt,
+		IsPlatformAdmin: row.IsPlatformAdmin,
+		CreatedAt:       row.CreatedAt, UpdatedAt: row.UpdatedAt, DeletedAt: row.DeletedAt,
 		RoleName: row.RoleName,
 	})
 	if row.PasswordHash.Valid {
@@ -385,6 +391,23 @@ func (r *userRepository) UpdateName(ctx context.Context, userID uint64, name str
 		Model(&domain.User{}).
 		Where("id = ?", userID).
 		Update("name", name).Error
+}
+
+// UpdatePlatformAdmin は運営権限の在否を更新する。Cognito の admin グループから外れた
+// ユーザーを false にする（オフボーディング）唯一の経路で、role_id には触らない。
+// 対象が存在しなければ gorm.ErrRecordNotFound を返す。
+func (r *userRepository) UpdatePlatformAdmin(ctx context.Context, userID uint64, isPlatformAdmin bool) error {
+	res := r.db.WithContext(ctx).
+		Model(&domain.User{}).
+		Where("id = ?", userID).
+		Update("is_platform_admin", isPlatformAdmin)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 func (r *userRepository) UpdateRole(ctx context.Context, userID uint64, role domain.RoleName) error {

@@ -84,6 +84,11 @@ func openTestDB(t *testing.T, preferSimpleProtocol bool) *gorm.DB {
 
 	serializeIntegration(t, sqlDB)
 
+	// 起動時（database.Migrate）と同じ順序。AutoMigrate より前に置くことで、
+	// 既存 DB を流用したテストでも本番と同じ経路を通る（列があれば no-op）。
+	if err := database.ExpandUsersPlatformAdmin(db); err != nil {
+		t.Fatalf("ExpandUsersPlatformAdmin 失敗: %v", err)
+	}
 	if err := database.AutoMigrateAll(db); err != nil {
 		t.Fatalf("AutoMigrate 失敗: %v", err)
 	}

@@ -32,6 +32,7 @@ type AuthHandler struct {
 	getCurrentUser *usecase.GetCurrentUserUseCase
 	upsertUser     *usecase.UpsertUserFromIDTokenUseCase
 	promoteAdmin   *usecase.PromoteCognitoAdminRoleUseCase
+	platformAdmin  *usecase.SyncPlatformAdminUseCase
 	cognitoCfg     *config.CognitoConfig
 	tokens         *cognito.TokenExchanger
 	passwordAuth   passwordAuthenticator
@@ -39,11 +40,13 @@ type AuthHandler struct {
 }
 
 // NewAuthHandler は本番用に http.Client + 10s timeout の TokenExchanger を組み立てて DI する。
+// platformAdmin は cognito:groups の admin 所属を users.is_platform_admin へ反映する（付与と剥奪）。
 // aiChatAccess は /auth/me で aiChatEnabledForTrainees を算出するのに使う。nil 可（その場合は既定 true）。
 func NewAuthHandler(
 	getCurrentUser *usecase.GetCurrentUserUseCase,
 	upsertUser *usecase.UpsertUserFromIDTokenUseCase,
 	promoteAdmin *usecase.PromoteCognitoAdminRoleUseCase,
+	platformAdmin *usecase.SyncPlatformAdminUseCase,
 	cognitoCfg *config.CognitoConfig,
 	passwordAuth passwordAuthenticator,
 	aiChatAccess *usecase.AiChatEnabledForUserUseCase,
@@ -52,6 +55,7 @@ func NewAuthHandler(
 		getCurrentUser: getCurrentUser,
 		upsertUser:     upsertUser,
 		promoteAdmin:   promoteAdmin,
+		platformAdmin:  platformAdmin,
 		cognitoCfg:     cognitoCfg,
 		passwordAuth:   passwordAuth,
 		aiChatAccess:   aiChatAccess,
@@ -83,6 +87,10 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
+	// 運営権限の付与 / 失効を先に反映してから現在の情報を読む。ここで反映しないと、
+	// Cognito の admin グループから外れた退任者が /auth/me の応答上は管理者のまま残る。
+	// claim が無いときは何も変えない（PlatformAdminClaimAbsent）。
+	h.syncPlatformAdmin(c, sub.(string), middleware.PlatformAdminClaimFromContext(c))
 	user, err := h.getCurrentUser.Execute(c.Request.Context(), sub.(string))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
@@ -388,7 +396,8 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "refreshed"})
 }
 
-// syncRoleFromAccessToken は access_token の cognito:groups を見て DB role を super_admin に昇格する。
+// syncRoleFromAccessToken は access_token の cognito:groups を見て DB role を super_admin に昇格し、
+// 併せて運営権限（users.is_platform_admin）の付与 / 失効を反映する。
 // ID token に groups が含まれない Google federated ユーザー向けのフォールバック。
 func (h *AuthHandler) syncRoleFromAccessToken(c *gin.Context, accessToken string) {
 	claims, err := middleware.DecodeClaims(accessToken)
@@ -400,11 +409,28 @@ func (h *AuthHandler) syncRoleFromAccessToken(c *gin.Context, accessToken string
 	if sub == "" {
 		return
 	}
+	h.syncPlatformAdmin(c, sub, middleware.PlatformAdminClaimFromClaims(claims))
 	groups := middleware.ToStringSliceFromClaim(claims["cognito:groups"])
 	if !middleware.IsAdminFromGroups(groups) {
 		return
 	}
 	h.promoteCognitoAdmin(c, sub)
+}
+
+// syncPlatformAdmin はトークンが示す運営権限の在否を DB へ反映する（オフボーディングの実体）。
+// claim が無いときは usecase 側が何もしない。付与も剥奪もレスポンスは変えないが、
+// 失敗は必ずログに残す — 剥奪し損ねたまま誰も気付かない状態を作らないため。
+func (h *AuthHandler) syncPlatformAdmin(c *gin.Context, cognitoSub string, claim domain.PlatformAdminClaim) {
+	if h.platformAdmin == nil || cognitoSub == "" {
+		return
+	}
+	ctx := c.Request.Context()
+	if _, err := h.platformAdmin.Execute(ctx, usecase.SyncPlatformAdminInput{
+		CognitoSub: cognitoSub,
+		Claim:      claim,
+	}); err != nil {
+		slog.ErrorContext(ctx, "platform admin sync failed", "cognitoSub", cognitoSub, "err", err)
+	}
 }
 
 // promoteCognitoAdmin は Cognito admin グループのユーザーを super_admin へ同期する（昇格のみ）。
@@ -476,7 +502,7 @@ func (h *AuthHandler) upsertUserFromIDToken(
 	groups := middleware.ToStringSliceFromClaim(claims["cognito:groups"])
 	isCognitoAdmin := middleware.IsAdminFromGroups(groups)
 
-	return h.upsertUser.Execute(
+	allowed, err = h.upsertUser.Execute(
 		c.Request.Context(),
 		usecase.UpsertUserFromIDTokenInput{
 			CognitoSub:      sub,
@@ -486,4 +512,10 @@ func (h *AuthHandler) upsertUserFromIDToken(
 			InvitationToken: invitationToken,
 		},
 	)
+	if err != nil || !allowed {
+		return allowed, err
+	}
+	// ログイン成立後に運営権限を同期する。id_token に groups claim が無ければ何も変えない。
+	h.syncPlatformAdmin(c, sub, middleware.PlatformAdminClaimFromClaims(claims))
+	return true, nil
 }

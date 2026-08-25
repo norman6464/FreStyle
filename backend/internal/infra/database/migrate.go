@@ -73,6 +73,12 @@ func Migrate(db *gorm.DB) error {
 	if err := preRepairUsersForMigrate(db); err != nil {
 		return err
 	}
+	// 運営権限の受け皿（users.is_platform_admin）を用意し、既存の super_admin をバックフィルする。
+	// AutoMigrate より前に置く（列の有無が「まだバックフィルしていない」印なので、
+	// AutoMigrate に先に作られるとその印が消え、既存の運営管理者が失権する）。
+	if err := ExpandUsersPlatformAdmin(db); err != nil {
+		return err
+	}
 	log.Println("migrate: AutoMigrate start")
 	if err := AutoMigrateAll(db); err != nil {
 		return err

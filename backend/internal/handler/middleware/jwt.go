@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/norman6464/FreStyle/backend/internal/domain"
 )
 
 // VerifyFunc は access_token を検証して claims を返す関数。
@@ -24,7 +25,8 @@ const (
 )
 
 // AdminGroupName は Cognito User Pool 上の admin グループ名（case-sensitive）。
-const AdminGroupName = "admin"
+// 正本は domain 側（運営権限の規則がそこにあるため）。ここは既存の呼び出しのための別名。
+const AdminGroupName = domain.CognitoAdminGroupName
 
 // JWTAuth は HttpOnly Cookie の access_token を verify で検証する Gin middleware。
 // verify は JWKS 署名検証を行う関数を注入する（偽造トークンを弾く）。
@@ -49,9 +51,10 @@ func JWTAuth(verify VerifyFunc) gin.HandlerFunc {
 		if email, ok := claims["email"].(string); ok {
 			c.Set(ContextKeyEmail, email)
 		}
-		// cognito:groups は admin 判定に使う。
-		if raw, ok := claims["cognito:groups"]; ok {
-			groups := ToStringSliceFromClaim(raw)
+		// cognito:groups は admin 判定に使う。配列として読めたときだけ置く。
+		// 「置いてある」ことが claim の存在の印になり、運営権限の失効判定はそれを見る
+		// （読めない形の claim を「グループに居ない」と誤読して権限を剥がさないため）。
+		if groups := ToStringSliceFromClaim(claims["cognito:groups"]); groups != nil {
 			c.Set(ContextKeyCognitoGroups, groups)
 		}
 		c.Next()
@@ -76,12 +79,35 @@ func ToStringSliceFromClaim(v any) []string {
 // CognitoGroupsFromContext は context にセットされた cognito:groups を返す。
 // 未設定 / 不正型の場合は nil。
 func CognitoGroupsFromContext(c *gin.Context) []string {
+	groups, _ := CognitoGroupsClaimFromContext(c)
+	return groups
+}
+
+// CognitoGroupsClaimFromContext は cognito:groups と、その claim が token に「在ったか」を返す。
+// JWTAuth は claim キーが存在したときだけ context へ置くので、present はキーの有無そのもの。
+// 運営権限の失効判定は present を必ず見ること（claim 欠落を「グループに居ない」と読むと、
+// groups claim が載らない federated ユーザーの権限を誤って剥がす）。
+func CognitoGroupsClaimFromContext(c *gin.Context) (groups []string, present bool) {
 	v, ok := c.Get(ContextKeyCognitoGroups)
 	if !ok {
-		return nil
+		return nil, false
 	}
-	groups, _ := v.([]string)
-	return groups
+	groups, _ = v.([]string)
+	return groups, true
+}
+
+// PlatformAdminClaimFromContext は JWTAuth が置いた cognito:groups を運営権限の事実へ畳む。
+func PlatformAdminClaimFromContext(c *gin.Context) domain.PlatformAdminClaim {
+	groups, present := CognitoGroupsClaimFromContext(c)
+	return domain.PlatformAdminFromGroups(present, groups)
+}
+
+// PlatformAdminClaimFromClaims は decode 済み claim マップを運営権限の事実へ畳む。
+// id_token / access_token のどちらからでも同じ規則で読むための唯一の入口。
+// キーが無い、または配列として読めない場合は Absent（何も判断しない）。
+func PlatformAdminClaimFromClaims(claims map[string]any) domain.PlatformAdminClaim {
+	groups := ToStringSliceFromClaim(claims["cognito:groups"])
+	return domain.PlatformAdminFromGroups(groups != nil, groups)
 }
 
 // IsAdminFromGroups は groups に AdminGroupName が含まれているかを判定する。

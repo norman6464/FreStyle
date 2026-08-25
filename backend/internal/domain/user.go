@@ -25,10 +25,15 @@ type User struct {
 	AiChatEnabled *bool `gorm:"column:ai_chat_enabled" json:"aiChatEnabled,omitempty"`
 	// IsActive はユーザーアカウントの有効/無効。false（無効）にすると、このユーザーは
 	// ログイン/利用不可になる（middleware で弾く）。super_admin / company_admin が個別に停止できる。
-	IsActive  bool       `gorm:"column:is_active;not null;default:true" json:"isActive"`
-	CreatedAt time.Time  `gorm:"column:created_at" json:"createdAt"`
-	UpdatedAt time.Time  `gorm:"column:updated_at" json:"updatedAt"`
-	DeletedAt *time.Time `gorm:"column:deleted_at" json:"deletedAt,omitempty"`
+	IsActive bool `gorm:"column:is_active;not null;default:true" json:"isActive"`
+	// IsPlatformAdmin は運営権限（プラットフォーム全体の管理者）が今も在るかを表す。
+	// Cognito の admin グループから外れた時点で false になり、role が super_admin のままでも
+	// 実効役割は最小権限へ倒れる（domain.ResolveEffectiveRole）。
+	// role_id を下げないのは、下げ先を DB が覚えていないため。
+	IsPlatformAdmin bool       `gorm:"column:is_platform_admin;not null;default:false" json:"isPlatformAdmin"`
+	CreatedAt       time.Time  `gorm:"column:created_at" json:"createdAt"`
+	UpdatedAt       time.Time  `gorm:"column:updated_at" json:"updatedAt"`
+	DeletedAt       *time.Time `gorm:"column:deleted_at" json:"deletedAt,omitempty"`
 }
 
 func (User) TableName() string { return "users" }

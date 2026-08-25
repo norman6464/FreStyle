@@ -9,7 +9,7 @@
 -- name: GetUserByCognitoSub :one
 -- OIDC subject で 1 ユーザーを引く（論理削除は除外）。認証時の user 解決に使う。
 -- 正は user_oidc_identities（provider='cognito' の subject）。
-SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.ai_chat_enabled, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
+SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.ai_chat_enabled, u.is_active, u.is_platform_admin, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE u.deleted_at IS NULL
@@ -20,14 +20,14 @@ WHERE u.deleted_at IS NULL
 
 -- name: GetUserByID :one
 -- 内部 ID で 1 ユーザーを引く（論理削除は除外）。
-SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.ai_chat_enabled, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
+SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.ai_chat_enabled, u.is_active, u.is_platform_admin, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE u.id = $1 AND u.deleted_at IS NULL;
 
 -- name: ListUsersByRole :many
 -- role 名単位の一覧（論理削除は除外）。super_admin / company_admin の管理画面用。
-SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.ai_chat_enabled, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
+SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.ai_chat_enabled, u.is_active, u.is_platform_admin, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE r.name = $1 AND u.deleted_at IS NULL
@@ -35,7 +35,7 @@ ORDER BY u.id ASC;
 
 -- name: ListUsersByCompanyID :many
 -- 会社単位の従業員一覧（論理削除は除外）。company_admin の従業員管理画面用。
-SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.ai_chat_enabled, u.is_active, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
+SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.ai_chat_enabled, u.is_active, u.is_platform_admin, u.created_at, u.updated_at, u.deleted_at, COALESCE(r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE u.company_id = $1 AND u.deleted_at IS NULL
@@ -52,7 +52,7 @@ ORDER BY u.id ASC;
 -- 前後空白付きの既存行も同じアドレスとして 1 つに解決される）。引数側も同じ式で畳むので、
 -- ログインフォームの生入力をそのまま渡してよい（引数は ::text を明示する。btrim には bytea
 -- 版もあり、キャストが無いと sqlc が引数を []byte と推論してしまう）。
-SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.ai_chat_enabled, u.is_active, u.created_at, u.updated_at, u.deleted_at, u.password_hash, COALESCE(r.name, '') AS role_name
+SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.ai_chat_enabled, u.is_active, u.is_platform_admin, u.created_at, u.updated_at, u.deleted_at, u.password_hash, COALESCE(r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
 WHERE lower(btrim(u.email, E'\t\n\x0B\f\r ')) = lower(btrim(sqlc.arg(email)::text, E'\t\n\x0B\f\r '))

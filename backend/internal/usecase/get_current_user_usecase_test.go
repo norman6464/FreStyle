@@ -54,6 +54,10 @@ func (s *stubUserRepo) UpdateRole(_ context.Context, _ uint64, _ domain.RoleName
 	return s.err
 }
 
+func (s *stubUserRepo) UpdatePlatformAdmin(_ context.Context, _ uint64, _ bool) error {
+	return s.err
+}
+
 func (s *stubUserRepo) UpdateCompanyID(_ context.Context, _ uint64, _ uint64) error {
 	return s.err
 }

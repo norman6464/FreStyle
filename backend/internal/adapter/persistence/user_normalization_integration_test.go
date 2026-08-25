@@ -96,8 +96,25 @@ func TestUserNormalization_Integration(t *testing.T) {
 
 		got, err := repo.FindByID(ctx, u.ID)
 		require.NoError(t, err)
+		require.Equal(t, domain.RoleIDSuperAdmin, got.RoleID)
+		// 役割を上げただけでは運営権限は伴わない。Role には実効役割が入るので、
+		// is_platform_admin が false のあいだは super_admin にはならない
+		// （役割の昇格と運営権限の付与は別の事実で、後者の根拠は Cognito のグループ所属）。
+		require.False(t, got.IsPlatformAdmin)
+		require.Equal(t, domain.RoleTrainee, got.Role)
+
+		require.NoError(t, repo.UpdatePlatformAdmin(ctx, u.ID, true))
+		got, err = repo.FindByID(ctx, u.ID)
+		require.NoError(t, err)
 		require.Equal(t, domain.RoleSuperAdmin, got.Role)
 		require.Equal(t, domain.RoleIDSuperAdmin, got.RoleID)
+
+		// 剥奪すると role_id は super_admin のまま、実効役割だけが最小権限へ倒れる。
+		require.NoError(t, repo.UpdatePlatformAdmin(ctx, u.ID, false))
+		got, err = repo.FindByID(ctx, u.ID)
+		require.NoError(t, err)
+		require.Equal(t, domain.RoleIDSuperAdmin, got.RoleID)
+		require.Equal(t, domain.RoleTrainee, got.Role)
 	})
 
 	t.Run("UpdateRole は未知の role 名を拒否する", func(t *testing.T) {

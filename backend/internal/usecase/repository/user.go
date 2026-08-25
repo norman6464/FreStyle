@@ -45,6 +45,9 @@ type UserRepository interface {
 	UpdateName(ctx context.Context, userID uint64, name string) error
 	// UpdateRole は Cognito group → DB role 同期、または招待受諾時に呼ばれる。
 	UpdateRole(ctx context.Context, userID uint64, role domain.RoleName) error
+	// UpdatePlatformAdmin は運営権限（users.is_platform_admin）の在否を更新する。
+	// Cognito の admin グループから外れたら false にする（role_id は下げない）。
+	UpdatePlatformAdmin(ctx context.Context, userID uint64, isPlatformAdmin bool) error
 	// UpdateCompanyID は既存ユーザーが招待を受けて company に紐付くときに呼ばれる。
 	UpdateCompanyID(ctx context.Context, userID uint64, companyID uint64) error
 }

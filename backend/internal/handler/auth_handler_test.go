@@ -28,6 +28,11 @@ type fakeUserRepo struct {
 	updateCompanyVal uint64
 	updateNameID     uint64
 	updateNameVal    string
+
+	updatePlatformAdminID    uint64
+	updatePlatformAdminVal   bool
+	updatePlatformAdminErr   error
+	updatePlatformAdminCalls int
 }
 
 func (r *fakeUserRepo) FindByCognitoSub(_ context.Context, sub string) (*domain.User, error) {
@@ -100,6 +105,15 @@ func (r *fakeUserRepo) UpdateRole(_ context.Context, id uint64, role domain.Role
 		return r.updateRoleErr
 	}
 	r.updateRoleID, r.updateRoleVal = id, role
+	return nil
+}
+
+func (r *fakeUserRepo) UpdatePlatformAdmin(_ context.Context, id uint64, isPlatformAdmin bool) error {
+	r.updatePlatformAdminCalls++
+	if r.updatePlatformAdminErr != nil {
+		return r.updatePlatformAdminErr
+	}
+	r.updatePlatformAdminID, r.updatePlatformAdminVal = id, isPlatformAdmin
 	return nil
 }
 

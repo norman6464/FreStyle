@@ -25,10 +25,11 @@ func registerAuthPublicRoutes(g *gin.RouterGroup, deps *routeDeps) *AuthHandler 
 		deps.cfg.BootstrapSuperAdminEmail,
 	)
 	promoteAdmin := usecase.NewPromoteCognitoAdminRoleUseCase(deps.userRepo)
+	platformAdmin := usecase.NewSyncPlatformAdminUseCase(deps.userRepo)
 
 	pwAuth := buildPasswordAuthenticator(deps)
 
-	authHandler := NewAuthHandler(getCurrentUser, upsertUser, promoteAdmin, &deps.cfg.Cognito, pwAuth, aiAccess)
+	authHandler := NewAuthHandler(getCurrentUser, upsertUser, promoteAdmin, platformAdmin, &deps.cfg.Cognito, pwAuth, aiAccess)
 
 	g.POST("/auth/logout", authHandler.Logout)
 	// login（認可コード→token 交換）は認証不要のため、総当たり緩和に per-IP 制限を掛ける。

@@ -89,6 +89,10 @@ func (m *mockUserRepo) UpdateRole(ctx context.Context, userID uint64, role domai
 	return m.Called(ctx, userID, role).Error(0)
 }
 
+func (m *mockUserRepo) UpdatePlatformAdmin(ctx context.Context, userID uint64, isPlatformAdmin bool) error {
+	return m.Called(ctx, userID, isPlatformAdmin).Error(0)
+}
+
 func (m *mockUserRepo) UpdateCompanyID(ctx context.Context, userID, companyID uint64) error {
 	return m.Called(ctx, userID, companyID).Error(0)
 }

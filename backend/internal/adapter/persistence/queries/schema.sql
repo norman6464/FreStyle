@@ -81,6 +81,10 @@ CREATE TABLE users (
     role_id      smallint NOT NULL,
     ai_chat_enabled boolean,
     is_active    boolean NOT NULL DEFAULT true,
+    -- is_platform_admin は運営権限（プラットフォーム全体の管理者）が今も在るかの受け皿。
+    -- Cognito の admin グループから外れた時点で false になる。列は AutoMigrate が作り、
+    -- 既存 super_admin のバックフィルだけを infra/database の Expand が 1 度だけ行う。
+    is_platform_admin boolean NOT NULL DEFAULT false,
     created_at   timestamptz NOT NULL,
     updated_at   timestamptz NOT NULL,
     deleted_at   timestamptz,

@@ -225,18 +225,19 @@ type SpaceGrant struct {
 }
 
 type User struct {
-	ID            int64
-	Email         string
-	PasswordHash  sql.NullString
-	Name          string
-	CompanyID     sql.NullInt64
-	RoleID        int16
-	AiChatEnabled sql.NullBool
-	IsActive      bool
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	DeletedAt     sql.NullTime
-	WorkspaceID   uuid.NullUUID
+	ID              int64
+	Email           string
+	PasswordHash    sql.NullString
+	Name            string
+	CompanyID       sql.NullInt64
+	RoleID          int16
+	AiChatEnabled   sql.NullBool
+	IsActive        bool
+	IsPlatformAdmin bool
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	DeletedAt       sql.NullTime
+	WorkspaceID     uuid.NullUUID
 }
 
 type UserOidcIdentity struct {

@@ -304,6 +304,10 @@ func (u *UpsertUserFromIDTokenUseCase) Execute(
 		Name:      name,
 		Role:      role,
 		CompanyID: companyID,
+		// 運営権限は Cognito の admin グループ所属がそのまま根拠になる。作成と同じ書き込みで
+		// 立てておく（後追いの同期に頼ると、同期が失敗した新規管理者が role だけ super_admin で
+		// 実効権限を持たない状態になる）。
+		IsPlatformAdmin: isCognitoAdmin,
 	}
 
 	// users 行と OIDC identity（正規化後のログイン突き合わせの正）を単一トランザクションで作る。

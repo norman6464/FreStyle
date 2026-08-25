@@ -42,6 +42,7 @@ func (s *stubUsers) CognitoSubjectByUserID(context.Context, uint64) (string, err
 func (s *stubUsers) UpdateAiChatEnabled(context.Context, uint64, *bool) error       { return nil }
 func (s *stubUsers) UpdateName(context.Context, uint64, string) error               { return nil }
 func (s *stubUsers) UpdateRole(context.Context, uint64, domain.RoleName) error      { return nil }
+func (s *stubUsers) UpdatePlatformAdmin(context.Context, uint64, bool) error        { return nil }
 func (s *stubUsers) UpdateCompanyID(context.Context, uint64, uint64) error          { return nil }
 func (s *stubUsers) UpdateActive(context.Context, uint64, bool) error               { return nil }
 func (s *stubUsers) SoftDelete(context.Context, uint64) error                       { return nil }

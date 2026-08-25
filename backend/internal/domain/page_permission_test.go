@@ -168,7 +168,7 @@ func Test_実効権限_非メンバーは既定を持たない(t *testing.T) {
 	assert.False(t, got.CanEdit)
 }
 
-func Test_閲覧だけの事実は1ページ解決の閲覧とつねに同じ答えを出す(t *testing.T) {
+func Test_実効権限_一覧の閲覧判定は1ページ解決とつねに一致する(t *testing.T) {
 	// 一覧（閲覧の列しか集めない経路）と 1 ページ解決が食い違わないことを、
 	// 役割 × 例外の全組み合わせで固定する。
 	views := []*domain.RestrictionFacts{

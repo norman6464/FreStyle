@@ -88,8 +88,10 @@ func (u *IsWorkspaceMemberUseCase) Execute(ctx context.Context, in IsWorkspaceMe
 }
 
 // ListViewablePagesUseCase はスペース配下の現役ページのうち、そのユーザーが閲覧できるものを返す。
-// ツリー取得の土台。ページ数によらず問い合わせは 1 回で、例外の突き合わせは
-// CheckPagePermissionUseCase と同じ実装を通る（domain.ResolvePageView）。
+// ツリー取得の土台。ページ数によらず問い合わせは 1 回で、一覧の閲覧判定は
+// domain.ResolvePageView に集約する（1 ページ解決の CheckPagePermissionUseCase は
+// domain.ResolvePagePermission を通る。入口の関数は違うが、既定と例外の突き合わせは
+// どちらも同じ 1 つの実装へ落ちる）。
 //
 // 答えられるのは閲覧可否だけ。編集可否が要る画面は CheckPagePermissionUseCase を使う
 // （一覧のクエリは編集の例外を集めていない）。

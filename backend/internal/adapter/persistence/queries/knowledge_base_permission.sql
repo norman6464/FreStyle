@@ -133,6 +133,14 @@ ON CONFLICT (workspace_id, page_id, capability) DO NOTHING;
 -- 呼ぶのは「allow 行を明示的に減らした」操作の直後だけ（解除 / allow → deny の書き換え）。
 -- deny 行の解除など allow に触れない操作から呼ぶと、無関係な 1 行の解除で限定公開が
 -- 解けることになり、印を別テーブルに分けた意味が無くなる。
+--
+-- そのため印だけを直接取り消す操作は用意していない。principals の削除（CASCADE）で
+-- allow 行が全部消えた段には印だけが残り、「誰も載っていない許可リスト」＝ 誰にも見えない
+-- 状態で固定される。これは fail-closed で設計どおり。復旧は allow 行を通常の操作で
+-- 入れ直して行う（残したい主体を allow に載せる。限定公開そのものをやめるなら、
+-- allow 行を 1 行張ってから解除すると最後の allow が消えて印も畳まれる）。
+-- 印だけを消せる操作は「限定公開を 1 手で解除できる」ということでもあるので、
+-- 足すなら誰がそれを実行できるかの設計から別途行う。
 DELETE FROM page_allow_lists a
 WHERE a.workspace_id = $1 AND a.page_id = $2 AND a.capability = $3
   AND NOT EXISTS (

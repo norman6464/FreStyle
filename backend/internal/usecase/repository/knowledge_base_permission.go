@@ -103,7 +103,9 @@ type KnowledgeBasePermissionRepository interface {
 
 	// UpsertPageRestriction はページの例外を設定する（同じ (ページ, 主体, ケイパビリティ) は 1 行）。
 	// allow を張ると、そのページのそのケイパビリティは許可リスト制になる（印も同じ
-	// トランザクションで立つ）。
+	// トランザクションで立つ）。逆に既存の allow 行を deny へ書き換えたときは、その段に
+	// allow 行が 1 行も残らなければ印も同じトランザクションで畳む。つまり印を畳むのは
+	// DeletePageRestriction だけではない。
 	UpsertPageRestriction(ctx context.Context, workspaceID, pageID, principalID string, capability domain.Capability, mode domain.RestrictionMode) (*domain.PageRestriction, error)
 	// DeletePageRestriction はページの例外を解除する（冪等）。消したのが最後の allow 行なら
 	// 許可リスト制も畳み、解決はより遠い祖先 → grant の既定へ戻る。

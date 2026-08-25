@@ -237,6 +237,26 @@ func (q *Queries) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (Workspace
 	return i, err
 }
 
+const getWorkspaceBySlug = `-- name: GetWorkspaceBySlug :one
+SELECT id, slug, name, created_at, updated_at FROM workspaces
+WHERE slug = $1
+`
+
+// URL に出る slug からワークスペースを引く（HTTP 層のテナント解決の入口）。
+// slug はグローバルに一意（uq_workspaces_slug）なので workspace_id での絞り込みは要らない。
+func (q *Queries) GetWorkspaceBySlug(ctx context.Context, slug string) (Workspace, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceBySlug, slug)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Name,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const hasActiveSiblingPosition = `-- name: HasActiveSiblingPosition :one
 SELECT EXISTS (
     SELECT 1 FROM pages

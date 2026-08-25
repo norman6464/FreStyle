@@ -361,6 +361,12 @@ func (m *mockKnowledgeBaseRepo) FindWorkspaceByID(ctx context.Context, workspace
 	return w, args.Error(1)
 }
 
+func (m *mockKnowledgeBaseRepo) FindWorkspaceBySlug(ctx context.Context, slug string) (*domain.Workspace, error) {
+	args := m.Called(ctx, slug)
+	w, _ := args.Get(0).(*domain.Workspace)
+	return w, args.Error(1)
+}
+
 func (m *mockKnowledgeBaseRepo) FindSpace(ctx context.Context, workspaceID, spaceID string) (*domain.Space, error) {
 	args := m.Called(ctx, workspaceID, spaceID)
 	s, _ := args.Get(0).(*domain.Space)

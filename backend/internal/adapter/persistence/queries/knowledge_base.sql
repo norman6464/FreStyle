@@ -14,6 +14,12 @@
 SELECT * FROM workspaces
 WHERE id = $1;
 
+-- name: GetWorkspaceBySlug :one
+-- URL に出る slug からワークスペースを引く（HTTP 層のテナント解決の入口）。
+-- slug はグローバルに一意（uq_workspaces_slug）なので workspace_id での絞り込みは要らない。
+SELECT * FROM workspaces
+WHERE slug = $1;
+
 -- name: GetSpace :one
 -- スペースの存在確認。workspace_id を含めることで別テナントのスペース ID を弾く。
 SELECT * FROM spaces

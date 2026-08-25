@@ -150,6 +150,21 @@ func (r *knowledgeBaseRepository) FindWorkspaceByID(ctx context.Context, workspa
 	return &ws, nil
 }
 
+func (r *knowledgeBaseRepository) FindWorkspaceBySlug(ctx context.Context, slug string) (*domain.Workspace, error) {
+	if slug == "" {
+		return nil, repository.ErrWorkspaceNotFound
+	}
+	row, err := r.q.GetWorkspaceBySlug(ctx, slug)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, repository.ErrWorkspaceNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	ws := toDomainWorkspace(row)
+	return &ws, nil
+}
+
 func (r *knowledgeBaseRepository) FindSpace(ctx context.Context, workspaceID, spaceID string) (*domain.Space, error) {
 	wsID, ok := kbParseID(workspaceID)
 	spID, ok2 := kbParseID(spaceID)

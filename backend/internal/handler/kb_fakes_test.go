@@ -82,6 +82,16 @@ func (f *kbFakePages) FindWorkspaceBySlug(_ context.Context, slug string) (*doma
 	return &c, nil
 }
 
+// hasWorkspaceID は ID でワークスペースの実在を確かめる（マップの鍵は slug なので走査する）。
+func (f *kbFakePages) hasWorkspaceID(workspaceID string) bool {
+	for _, ws := range f.workspaces {
+		if ws.ID == workspaceID {
+			return true
+		}
+	}
+	return false
+}
+
 func (f *kbFakePages) FindSpace(_ context.Context, workspaceID, spaceID string) (*domain.Space, error) {
 	s, ok := f.spaces[spaceID]
 	if !ok || s.WorkspaceID != workspaceID {
@@ -94,6 +104,11 @@ func (f *kbFakePages) FindSpace(_ context.Context, workspaceID, spaceID string) 
 func (f *kbFakePages) CreateSpace(_ context.Context, space *domain.Space) error {
 	if f.failWith != nil {
 		return f.failWith
+	}
+	// 実在しないワークスペースへの作成は本番だと FK 違反 →「無い」に翻訳される。
+	// fake が黙って保存すると、本番では通らない作成要求で緑になるテストが書ける。
+	if !f.hasWorkspaceID(space.WorkspaceID) {
+		return repository.ErrWorkspaceNotFound
 	}
 	for _, s := range f.spaces {
 		if s.WorkspaceID == space.WorkspaceID && s.Key == space.Key {

@@ -2992,7 +2992,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "ワークスペース を 作る。 作成 者 は 同じ トランザクション で メンバー (principal) に なり admin の 権限 を 受け取る (そう し ない と 作成 者 自身 が 入れ ない ワークスペース が でき て しまう)。 slug は 小文字 英数字 と ハイフン だけ で、 全体 で 一意。 認証 済み なら 誰 でも 作れる (中身 が 空 の テナント が 増える だけ で、 既存 の ワークスペース へ の アクセス は 増え ない)。",
+                "description": "ワークスペース を 作る。 作成 者 は 同じ トランザクション で メンバー (principal) に なり admin の 権限 を 受け取る (そう し ない と 作成 者 自身 が 入れ ない ワークスペース が でき て しまう)。 slug は 小文字 英数字 と ハイフン だけ で、 全体 で 一意。 認証 済み なら 誰 でも 作れる (中身 が 空 の テナント が 増える だけ で、 既存 の ワークスペース へ の アクセス は 増え ない) が、 slug の 掴み取り を 抑える ため 作成 だけ は レート 制限 が かかる。",
                 "consumes": [
                     "application/json"
                 ],
@@ -3037,6 +3037,18 @@ const docTemplate = `{
                         "description": "slug が 使用 済み",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "レート制限超過",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        },
+                        "headers": {
+                            "Retry-After": {
+                                "type": "string",
+                                "description": "再試行までの秒数 (例: 60)"
+                            }
                         }
                     },
                     "500": {

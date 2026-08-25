@@ -66,7 +66,10 @@ func registerKnowledgeBaseRoutesWith(
 	// 「どの slug を開けるのか」を知る前・そもそもワークスペースを作る前には使えない。
 	// 認証（CurrentUser）は呼び出し元の group が既に通している。
 	g.GET("/kb/workspaces", wh.List)
-	g.POST("/kb/workspaces", wh.Create)
+	// 作成は認証済みなら誰でも叩けて、slug はテナントをまたいで一意。
+	// 上限が無いと 1 人で短い slug を取り尽くせてしまい、取り返す手段が運用の手作業しか無い。
+	// 保有数の上限までは塞げないが、掴み取りの速度は他の作成系と同じ土俵に落とす。
+	g.POST("/kb/workspaces", middleware.RateLimitPerMinute(10, 5), wh.Create)
 
 	kb := g.Group("", middleware.KnowledgeBaseWorkspace(
 		usecase.NewResolveWorkspaceUseCase(pages, permissions),

@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -94,6 +96,40 @@ func Test_ナレッジ基盤API_ワークスペース作成は未認証なら401
 	w := f.do(t, http.MethodPost, kbWorkspacesPath, `{"slug":"new-team","name":"新チーム"}`)
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func Test_ナレッジ基盤API_ワークスペース作成は連打をレート制限で断る(t *testing.T) {
+	// slug はテナントをまたいで一意で、取られた slug を取り返す口が無い。
+	// 上限が無いと 1 人で短い slug を掴み取れてしまうので、作成だけは流量を絞る。
+	f := newKbFixture(kbCanEdit, kbUserID)
+
+	for i := range 5 {
+		slug := "team-" + strconv.Itoa(i)
+		w := f.do(t, http.MethodPost, kbWorkspacesPath, `{"slug":"`+slug+`","name":"新チーム"}`)
+		require.Equal(t, http.StatusCreated, w.Code, "burst の範囲内: %s", w.Body.String())
+	}
+
+	over := f.do(t, http.MethodPost, kbWorkspacesPath, `{"slug":"team-over","name":"新チーム"}`)
+
+	assert.Equal(t, http.StatusTooManyRequests, over.Code, over.Body.String())
+	assert.Equal(t, "60", over.Header().Get("Retry-After"), "再試行の目安を返す")
+	_, err := f.pages.FindWorkspaceBySlug(t.Context(), "team-over")
+	assert.ErrorIs(t, err, repository.ErrWorkspaceNotFound, "断った要求は slug を取らない")
+
+	// 一覧は絞らない（読みは掴み取りに使えないため）。
+	assert.Equal(t, http.StatusOK, f.do(t, http.MethodGet, kbWorkspacesPath, "").Code)
+}
+
+// fake が本番より緩いと、本番では通らない作成要求で緑になるテストが書けてしまう。
+// 実 PostgreSQL 側の対応する検証は knowledge_base_provision_integration_test.go にある。
+func Test_ナレッジ基盤テスト用fake_存在しないワークスペースへのスペース作成を拒む(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+
+	err := f.pages.CreateSpace(t.Context(), &domain.Space{
+		WorkspaceID: "workspace-missing", Key: "eng", Name: "開発部",
+	})
+
+	assert.ErrorIs(t, err, repository.ErrWorkspaceNotFound)
 }
 
 func Test_ナレッジ基盤API_ワークスペース作成の失敗は500(t *testing.T) {

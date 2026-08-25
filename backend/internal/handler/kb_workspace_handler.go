@@ -102,7 +102,7 @@ type kbCreateWorkspaceRequest struct {
 // Create はワークスペースを作り、作成者をその admin にする。
 //
 //	@Summary      ナレッジ 基盤 の ワークスペース 作成
-//	@Description  ワークスペース を 作る。 作成 者 は 同じ トランザクション で メンバー (principal) に なり admin の 権限 を 受け取る (そう し ない と 作成 者 自身 が 入れ ない ワークスペース が でき て しまう)。 slug は 小文字 英数字 と ハイフン だけ で、 全体 で 一意。 認証 済み なら 誰 でも 作れる (中身 が 空 の テナント が 増える だけ で、 既存 の ワークスペース へ の アクセス は 増え ない)。
+//	@Description  ワークスペース を 作る。 作成 者 は 同じ トランザクション で メンバー (principal) に なり admin の 権限 を 受け取る (そう し ない と 作成 者 自身 が 入れ ない ワークスペース が でき て しまう)。 slug は 小文字 英数字 と ハイフン だけ で、 全体 で 一意。 認証 済み なら 誰 でも 作れる (中身 が 空 の テナント が 増える だけ で、 既存 の ワークスペース へ の アクセス は 増え ない) が、 slug の 掴み取り を 抑える ため 作成 だけ は レート 制限 が かかる。
 //	@Tags         knowledge-base
 //	@Accept       json
 //	@Produce      json
@@ -111,6 +111,8 @@ type kbCreateWorkspaceRequest struct {
 //	@Failure      400   {object}  errorResponse  "バリデーション エラー"
 //	@Failure      401   {object}  errorResponse  "未 認証"
 //	@Failure      409   {object}  errorResponse  "slug が 使用 済み"
+//	@Failure      429   {object}  errorResponse  "レート制限超過"
+//	@Header       429   {string}  Retry-After    "再試行までの秒数 (例: 60)"
 //	@Failure      500   {object}  errorResponse  "DB 失敗"
 //	@Router       /kb/workspaces [post]
 //	@Security     CookieAuth

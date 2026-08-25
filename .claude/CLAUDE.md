@@ -206,11 +206,13 @@ PR / チケット / コミット / コメント / docs に**他社プロダク�
 - **バックエンド**: `gh workflow run "CD - Backend Deploy to ECS" -R norman6464/FreStyle -f confirm=deploy`（ECR build/push + ECS force-update）。ヘルスチェックは本番 API ドメインの `GET /api/v2/health`（CloudFront 配下の SPA パスに叩くと一律 200 になり誤認する）
 - **フロントエンド**: `gh workflow run "CD - Frontend Deploy to S3 + CloudFront" -R norman6464/FreStyle -f confirm=deploy`
 - **DB マイグレーション**: 新規テーブル / 列追加は GORM AutoMigrate が ECS 起動時に自動適用。列削除 / リネーム / 型変更は `backend/migrations/000X_*.sql` に置き、private リポ `frestyle-infrastructure` の `make apply-migration-supabase` で適用（実引数・手順は同リポ docs 参照）。冪等性（`IF NOT EXISTS` 等）を必ず担保する
-- **例外: ナレッジ基盤（骨格の `workspaces` / `spaces` / `pages` / `blocks` / `page_paths` / `page_snapshots` と、権限モデルの `principals` / `principal_members` / `workspace_grants` / `space_grants` / `page_restrictions` / `share_links`）は GORM を使わない**。実スキーマの正本は `backend/internal/infra/database/schema/knowledge_base.sql` と `knowledge_base_permissions.sql`（どちらも `CREATE ... IF NOT EXISTS` だけで冪等）で、ECS 起動時に `ApplyKnowledgeBaseSchema` が埋め込み DDL を `*sql.DB` へ順に流す（AutoMigrate の一覧には載せない）。複合 FK / CHECK / 部分 UNIQUE / 生成列 / `COLLATE "C"` は AutoMigrate では表現できず、構造体タグと明示 SQL に定義が二重化するため。同じファイルが sqlc の型付け入力でもあり（`backend/sqlc.yaml`）、変更したら `make sqlc` で生成物も更新する
+- **例外: ナレッジ基盤（骨格の `workspaces` / `spaces` / `pages` / `blocks` / `page_paths` / `page_snapshots` と、権限モデルの `principals` / `principal_members` / `workspace_grants` / `space_grants` / `page_restrictions` / `page_allow_lists` / `share_links`）は GORM を使わない**。実スキーマの正本は `backend/internal/infra/database/schema/knowledge_base.sql` と `knowledge_base_permissions.sql`（どちらも `CREATE ... IF NOT EXISTS` だけで冪等）で、ECS 起動時に `ApplyKnowledgeBaseSchema` が埋め込み DDL を `*sql.DB` へ順に流す（AutoMigrate の一覧には載せない）。複合 FK / CHECK / 部分 UNIQUE / 生成列 / `COLLATE "C"` は AutoMigrate では表現できず、構造体タグと明示 SQL に定義が二重化するため。同じファイルが sqlc の型付け入力でもあり（`backend/sqlc.yaml`）、変更したら `make sqlc` で生成物も更新する
   - 権限側は `users` へ FK を張るので、適用順は AutoMigrate → 骨格 → 権限で固定（`Migrate()` がこの順に呼ぶ）
   - **ワークスペース所属は `principals`（`kind='user'` の行）が唯一の表現**。`workspace_memberships` のようなメンバーシップ専用テーブルは作らない（2 通りのずれが生まれるため）
   - **実効権限の規則は `domain.ResolvePagePermission` だけが持つ**。SQL が返すのは事実（既定の役割・経路上の制限の集計）だけで、優先規則を SQL 側へ写経しない
   - 例外の集計は「deny は経路全体・allow リストは最も近い段」の 3 つの事実に畳む。**deny を「最も近い段」だけで見てはいけない**（deny 行だけの段が最近段になった瞬間に、より遠い祖先の限定公開が第三者への deny 1 行で解除される）
+  - **限定公開（許可リスト制）かどうかは `page_allow_lists` の印だけが表す**。`page_restrictions` の allow 行の有無で数えてはいけない（allow 行は `principals` への CASCADE で消えるので、載っている主体を 1 人消しただけで限定公開が解ける）。印は主体を参照せず、許可リストが空になった段は「誰も載っていない」＝ 不許可へ倒す
+  - 経路上の集計に相関副問い合わせを使わない。最も近い段の depth は 1 行に畳んだ CTE から JOIN で持ってくる（1 行ごとに集約をやり直すと、計算量が「子孫 × 経路上の制限を持つ祖先」の行数の二乗になる）
 
 ---
 

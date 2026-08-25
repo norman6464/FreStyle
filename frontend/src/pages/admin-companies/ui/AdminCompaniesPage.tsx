@@ -1,28 +1,23 @@
 import { useEffect, useState } from 'react';
-import { useAppSelector } from '@/shared/lib/store';
 
-import { Navigate, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { CompanyRepository, CompanyStat } from '@/entities/company';
 
 import Loading from '@/shared/ui/Loading';
+import FormMessage from '@/shared/ui/FormMessage';
 import PageIntro from '@/shared/ui/PageIntro';
 import { logger } from '@/shared/lib/logger';
 import { BuildingOffice2Icon, UserPlusIcon } from '@heroicons/react/24/outline';
 
+// 会社一覧 / 横断ビュー（/admin/companies/stats）は super_admin 専用エンドポイント。
+// ルート側の RequireRole が super_admin 以外を通さないので、ここでは判定しない。
 export default function AdminCompaniesPage() {
-  const authLoading = useAppSelector((state) => state.auth.loading);
-  const role = useAppSelector((state) => state.auth.role);
-  // 会社一覧 / 横断ビュー（/admin/companies/stats）は super_admin 専用エンドポイント。
-  // company_admin が到達しても 403 を踏ませないよう、判定は super_admin に統一する。
-  const isSuperAdmin = role === 'super_admin';
-
   const [companies, setCompanies] = useState<CompanyStat[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!isSuperAdmin) return;
     CompanyRepository.listStats()
       .then(setCompanies)
       .catch((e) => {
@@ -30,7 +25,7 @@ export default function AdminCompaniesPage() {
         logger.error(e);
       })
       .finally(() => setLoading(false));
-  }, [isSuperAdmin]);
+  }, []);
 
   // 会社アカウントの有効/無効を切り替える（super_admin 専用）。楽観的更新 + 失敗時ロールバック。
   const setActive = async (id: number, active: boolean) => {
@@ -48,9 +43,6 @@ export default function AdminCompaniesPage() {
     }
   };
 
-  if (authLoading) return <Loading message="認証情報を確認中..." />;
-  if (!isSuperAdmin) return <Navigate to="/dashboard" replace />;
-
   return (
     <div className="px-6 pt-6 pb-24 max-w-3xl mx-auto space-y-6">
       <PageIntro
@@ -58,11 +50,7 @@ export default function AdminCompaniesPage() {
         description="登録されている会社の一覧です。各社のアカウントの有効/無効を切り替えたり、招待を管理できます。"
       />
 
-      {error && (
-        <div role="alert" className="p-3 rounded border border-red-300 bg-red-50 text-red-800 text-sm">
-          {error}
-        </div>
-      )}
+      <FormMessage message={error ? { type: 'error', text: error } : null} />
 
       {loading ? (
         <Loading message="読み込み中..." />
@@ -97,20 +85,18 @@ export default function AdminCompaniesPage() {
               </div>
 
               <div className="flex gap-2 flex-shrink-0 items-center">
-                {isSuperAdmin && (
-                  <button
-                    type="button"
-                    onClick={() => setActive(company.id, !company.isActive)}
-                    disabled={updatingId === company.id}
-                    className={`text-xs px-3 py-1.5 rounded border transition-colors disabled:opacity-50 ${
-                      company.isActive
-                        ? 'border-rose-300 text-rose-700 hover:bg-rose-50'
-                        : 'border-emerald-300 text-emerald-700 hover:bg-emerald-50'
-                    }`}
-                  >
-                    {company.isActive ? '無効化' : '有効化'}
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => setActive(company.id, !company.isActive)}
+                  disabled={updatingId === company.id}
+                  className={`text-xs px-3 py-1.5 rounded border transition-colors disabled:opacity-50 ${
+                    company.isActive
+                      ? 'border-rose-300 text-rose-700 hover:bg-rose-50'
+                      : 'border-emerald-300 text-emerald-700 hover:bg-emerald-50'
+                  }`}
+                >
+                  {company.isActive ? '無効化' : '有効化'}
+                </button>
                 <Link
                   to={`/admin/invitations?companyId=${company.id}`}
                   className="flex items-center gap-1 text-xs px-3 py-1.5 border rounded text-[var(--color-text-secondary)] hover:bg-surface-2 transition-colors"

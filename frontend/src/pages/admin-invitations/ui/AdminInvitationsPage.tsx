@@ -1,7 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { useAppSelector } from '@/shared/lib/store';
 
-import { Navigate } from 'react-router-dom';
 import { AdminInvitationRepository, AdminInvitation,
   CreateInvitationForm } from '@/entities/invitation';
 import type { InvitationMethod } from '@/entities/invitation';
@@ -9,6 +7,7 @@ import { CompanyRepository, Company } from '@/entities/company';
 import { AuthRepository, UserInfo } from '@/entities/user';
 
 import Loading from '@/shared/ui/Loading';
+import FormMessage from '@/shared/ui/FormMessage';
 import PageIntro from '@/shared/ui/PageIntro';
 import ConfirmModal from '@/shared/ui/ConfirmModal';
 import { logger } from '@/shared/lib/logger';
@@ -44,10 +43,8 @@ function translateInviteError(raw: string): string {
   return raw;
 }
 
+// 通過条件（管理者かどうか）はルート側の RequireRole が持つ。
 export default function AdminInvitationsPage() {
-  const isAdmin = useAppSelector((state) => state.auth.isAdmin);
-  const authLoading = useAppSelector((state) => state.auth.loading);
-
   const [me, setMe] = useState<UserInfo | null>(null);
   const [invitations, setInvitations] = useState<AdminInvitation[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -107,11 +104,8 @@ export default function AdminInvitationsPage() {
   }, []);
 
   useEffect(() => {
-    if (isAdmin) fetchAll();
-  }, [isAdmin, fetchAll]);
-
-  if (authLoading) return <Loading message="認証情報を確認中..." />;
-  if (!isAdmin) return <Navigate to="/dashboard" replace />;
+    fetchAll();
+  }, [fetchAll]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -192,11 +186,7 @@ export default function AdminInvitationsPage() {
         }
       />
 
-      {error && (
-        <div role="alert" className="p-3 rounded border border-red-300 bg-red-50 text-red-800 text-sm">
-          {error}
-        </div>
-      )}
+      <FormMessage message={error ? { type: 'error', text: error } : null} />
       {success && (
         <div role="status" className="p-3 rounded border border-emerald-300 bg-emerald-50 text-emerald-800 text-sm">
           {success}

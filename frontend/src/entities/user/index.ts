@@ -23,6 +23,7 @@ export type {
   Profile,
   User,
   AuthState,
+  UserRole,
   SnsProvider,
   UserDailyActivity,
   UserDashboard,

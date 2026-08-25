@@ -99,9 +99,6 @@ describe('AdminCompanyApplicationsPage（利用申請の承認）', () => {
     expect(setStatus).not.toHaveBeenCalled();
   });
 
-  it('super_admin 以外はリダイレクトして一覧を表示しない', () => {
-    mockState.auth = { isAdmin: true, loading: false, role: 'company_admin' };
-    renderPage();
-    expect(screen.queryByText('アクメ社')).not.toBeInTheDocument();
-  });
+  // 通過条件（誰が入れて誰が /dashboard へ戻されるか）はルート側の RequireRole が持つ。
+  // その表は src/app/__tests__/adminRouteAuthorization.test.tsx で固定している。
 });

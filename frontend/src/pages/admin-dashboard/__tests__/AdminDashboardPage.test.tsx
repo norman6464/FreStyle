@@ -60,9 +60,6 @@ describe('AdminDashboardPage（運営ダッシュボード）', () => {
     expect(screen.getByText('ベータ社')).toBeInTheDocument();
   });
 
-  it('super_admin 以外はリダイレクトする', () => {
-    mockState.auth = { isAdmin: true, loading: false, role: 'company_admin' };
-    renderPage();
-    expect(screen.queryByText('会社数')).not.toBeInTheDocument();
-  });
+  // 通過条件（誰が入れて誰が /dashboard へ戻されるか）はルート側の RequireRole が持つ。
+  // その表は src/app/__tests__/adminRouteAuthorization.test.tsx で固定している。
 });

@@ -1,9 +1,9 @@
 
-import { Navigate, Link } from 'react-router-dom';
-import { useAppSelector } from '@/shared/lib/store';
+import { Link } from 'react-router-dom';
 import { BuildingOffice2Icon, CheckIcon, XMarkIcon, UserPlusIcon } from '@heroicons/react/24/outline';
 
 import Loading from '@/shared/ui/Loading';
+import FormMessage from '@/shared/ui/FormMessage';
 import PageIntro from '@/shared/ui/PageIntro';
 import { useToast } from '@/shared/lib/hooks/useToast';
 import { useCompanyApplications } from '../model/useCompanyApplications';
@@ -28,18 +28,12 @@ const STATUS_CLASS: Record<CompanyApplicationStatus, string> = {
  * AdminCompanyApplicationsPage — `/admin/applications`。super_admin 専用。
  * 公開フォームから届いた企業の利用申請を一覧し、承認 / 却下する。
  * 承認しても会社は自動作成されないため、承認後は「招待管理」から会社管理者を招待する。
+ * 全テナント横断の運営機能であり、通過条件はルート側の RequireRole が持つ。
  */
 export default function AdminCompanyApplicationsPage() {
-  const isAdmin = useAppSelector((state) => state.auth.isAdmin);
-  const authLoading = useAppSelector((state) => state.auth.loading);
-  const role = useAppSelector((state) => state.auth.role);
   const { applications, pendingCount, loading, error, updatingId, setStatus } =
     useCompanyApplications();
   const { showToast } = useToast();
-
-  if (authLoading) return <Loading message="認証情報を確認中..." className="min-h-[50vh]" />;
-  // 利用申請は全テナント横断の運営機能なので super_admin のみ。
-  if (!isAdmin || role !== 'super_admin') return <Navigate to="/dashboard" replace />;
 
   const update = async (app: CompanyApplication, status: CompanyApplicationStatus) => {
     const ok = await setStatus(app.id, status);
@@ -60,11 +54,7 @@ export default function AdminCompanyApplicationsPage() {
         description="公開フォームから届いた企業の利用申請です。内容を確認して承認または却下します。承認しても会社は自動作成されないため、承認後は「招待管理」から会社管理者を招待してください。"
       />
 
-      {error && (
-        <div role="alert" className="p-3 rounded border border-rose-300 bg-rose-50 text-rose-800 text-sm">
-          {error}
-        </div>
-      )}
+      <FormMessage message={error ? { type: 'error', text: error } : null} />
 
       {loading ? (
         <Loading message="読み込み中..." className="min-h-[30vh]" />

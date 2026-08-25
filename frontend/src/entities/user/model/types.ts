@@ -78,3 +78,9 @@ export interface UserDashboard {
   recentActivity: UserDailyActivity[];
   recentChapterViews: UserChapterView[];
 }
+
+/**
+ * users.role の取りうる値。
+ * ルート側の認可ゲート（RequireRole）が「通過を許す role」の許可リストに使う。
+ */
+export type UserRole = 'super_admin' | 'company_admin' | 'trainee';

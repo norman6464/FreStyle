@@ -2,6 +2,7 @@ import { useEffect, Suspense } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import AuthInitializer from './providers/AuthInitializer';
 import Protected from './providers/Protected';
+import RequireRole from './providers/RequireRole';
 import { AppShell } from '@/widgets/app-shell';
 import ErrorBoundary from './providers/ErrorBoundary';
 import Loading from '@/shared/ui/Loading';
@@ -128,13 +129,57 @@ export default function App() {
         <Route path="/courses/:id" element={<CourseDetailPage />} />
         {/* 旧 /teaching-materials へのアクセスは /courses に redirect */}
         <Route path="/teaching-materials" element={<CourseCategorySelectPage />} />
-        {/* Admin 専用（コンポーネント側で isAdmin チェック → 非 admin は / にリダイレクト） */}
-        <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
-        <Route path="/admin/companies" element={<AdminCompaniesPage />} />
-        <Route path="/admin/applications" element={<AdminCompanyApplicationsPage />} />
-        <Route path="/admin/members" element={<AdminMembersPage />} />
-        <Route path="/admin/audit" element={<AdminAuditLogPage />} />
-        <Route path="/admin/invitations" element={<AdminInvitationsPage />} />
+        {/* Admin 専用。通過条件はここ（RequireRole）に集約する → 満たさなければ /dashboard へ。
+            画面ごとに条件が違うのは現行のまま: 会社一覧 / 監査ログは role のみ、
+            運営ダッシュボード / 利用申請は role + isAdmin、従業員一覧 / 招待は isAdmin のみ。 */}
+        <Route
+          path="/admin/dashboard"
+          element={
+            <RequireRole allow={['super_admin']} requireAdminFlag>
+              <AdminDashboardPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/admin/companies"
+          element={
+            <RequireRole allow={['super_admin']}>
+              <AdminCompaniesPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/admin/applications"
+          element={
+            <RequireRole allow={['super_admin']} requireAdminFlag>
+              <AdminCompanyApplicationsPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/admin/members"
+          element={
+            <RequireRole allow="any" requireAdminFlag>
+              <AdminMembersPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/admin/audit"
+          element={
+            <RequireRole allow={['super_admin']}>
+              <AdminAuditLogPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/admin/invitations"
+          element={
+            <RequireRole allow="any" requireAdminFlag>
+              <AdminInvitationsPage />
+            </RequireRole>
+          }
+        />
       </Route>
 
       {/* どのルートにも一致しない URL の受け皿（FRESTYLE-86）。

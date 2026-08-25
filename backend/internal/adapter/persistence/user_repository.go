@@ -209,8 +209,26 @@ func (r *userRepository) CreateWithOidcIdentity(ctx context.Context, user *domai
 		if err := tx.Create(user).Error; err != nil {
 			return err
 		}
-		return ensureOidcIdentityTx(tx, user.ID, provider, subject)
+		if err := ensureOidcIdentityTx(tx, user.ID, provider, subject); err != nil {
+			return err
+		}
+		return mirrorUserWorkspaceTx(tx, user.ID)
 	})
+}
+
+// mirrorUserWorkspaceTx は users.workspace_id を所属会社のワークスペースに合わせる。
+//
+// テナントの正本を companies から workspaces へ移す移行中は、所属という 1 つの事実を
+// 2 つの列で持つ。どちらを書き忘れてもずれるので、company_id を書く経路では必ずこれを通す。
+// 対応表の正本は companies.workspace_id ただ 1 つで、値をアプリ側で覚えて写経しない。
+// 会社に属さないユーザー（company_id IS NULL）や、対応する会社行が無い場合は 0 件更新で、
+// workspace_id は NULL のまま残る。
+func mirrorUserWorkspaceTx(db *gorm.DB, userID uint64) error {
+	return db.Exec(
+		`UPDATE users u SET workspace_id = c.workspace_id
+		 FROM companies c
+		 WHERE u.id = ? AND u.company_id = c.id`, userID,
+	).Error
 }
 
 // EnsureOidcIdentity は (provider, subject) の identity を無ければ作る（冪等）。
@@ -318,9 +336,13 @@ func (r *userRepository) UpdateRole(ctx context.Context, userID uint64, role dom
 		Update("role_id", roleID).Error
 }
 
+// UpdateCompanyID は所属会社を付け替える。company_id と、その写しである workspace_id を
+// 同じ 1 文で書く（片方だけ書かれた状態を作らない。写す値の出どころは companies.workspace_id）。
+// 読み取りは引き続き company_id を見る。
 func (r *userRepository) UpdateCompanyID(ctx context.Context, userID uint64, companyID uint64) error {
-	return r.db.WithContext(ctx).
-		Model(&domain.User{}).
-		Where("id = ?", userID).
-		Update("company_id", companyID).Error
+	return r.db.WithContext(ctx).Exec(
+		`UPDATE users SET company_id = ?,
+		        workspace_id = (SELECT c.workspace_id FROM companies c WHERE c.id = ?)
+		 WHERE id = ?`, companyID, companyID, userID,
+	).Error
 }

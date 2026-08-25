@@ -42,6 +42,7 @@ type Company struct {
 	IsActive                 bool
 	CreatedAt                time.Time
 	UpdatedAt                time.Time
+	WorkspaceID              uuid.NullUUID
 }
 
 type CompanyApplication struct {
@@ -172,6 +173,7 @@ type User struct {
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 	DeletedAt     sql.NullTime
+	WorkspaceID   uuid.NullUUID
 }
 
 type UserOidcIdentity struct {
@@ -184,9 +186,11 @@ type UserOidcIdentity struct {
 }
 
 type Workspace struct {
-	ID        uuid.UUID
-	Slug      string
-	Name      string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID                       uuid.UUID
+	Slug                     string
+	Name                     string
+	AiChatEnabledForTrainees sql.NullBool
+	IsActive                 sql.NullBool
+	CreatedAt                time.Time
+	UpdatedAt                time.Time
 }

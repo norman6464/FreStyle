@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -624,4 +625,168 @@ func Test_ナレッジ基盤取得_本文が未保存でも空のdocを返す(t 
 	var doc kbPageDocResponse
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &doc))
 	assert.JSONEq(t, `{"type":"doc","content":[]}`, string(doc.Doc))
+}
+
+// --- 権限の例外（page_restrictions）と許可リスト制の印（page_allow_lists）---
+//
+// ここから下は「既定の役割は editor のまま、例外だけで見え方が変わる」経路を API 越しに見る。
+// fake が印を allow 行の有無で代用していると、主体を消したあとの 2 つのテストが緑にならない。
+
+// kbAlice は許可リストに載せる（そして消す）相手。呼び出し元のユーザーとは別人。
+const kbAlice = uint64(43)
+
+func kbPrincipalOf(t *testing.T, f kbFixture, userID uint64) string {
+	t.Helper()
+	p, err := f.perms.EnsureUserPrincipal(context.Background(), kbWorkspaceID, userID)
+	require.NoError(t, err)
+	return p.ID
+}
+
+func kbRestrict(t *testing.T, f kbFixture, pageID, principalID string, c domain.Capability, m domain.RestrictionMode) {
+	t.Helper()
+	_, err := f.perms.UpsertPageRestriction(context.Background(), kbWorkspaceID, pageID, principalID, c, m)
+	require.NoError(t, err)
+}
+
+func kbUnrestrict(t *testing.T, f kbFixture, pageID, principalID string, c domain.Capability) {
+	t.Helper()
+	require.NoError(t, f.perms.DeletePageRestriction(context.Background(), kbWorkspaceID, pageID, principalID, c))
+}
+
+// kbGetStatus はページ取得の HTTP ステータス（見えれば 200、見えなければ 404）。
+func kbGetStatus(t *testing.T, f kbFixture, pageID string) int {
+	t.Helper()
+	return f.do(t, http.MethodGet, "/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+pageID, "").Code
+}
+
+// kbTreeIDs はツリー取得に現れるページ ID を親子まとめて返す。
+func kbTreeIDs(t *testing.T, f kbFixture) []string {
+	t.Helper()
+	w := f.do(t, http.MethodGet, kbFill(kbTreePath, kbWorkspaceSlug, ""), "")
+	require.Equal(t, http.StatusOK, w.Code)
+	var tree []kbPageTreeResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &tree))
+	ids := make([]string, 0, 4)
+	var walk func(nodes []kbPageTreeResponse)
+	walk = func(nodes []kbPageTreeResponse) {
+		for _, n := range nodes {
+			ids = append(ids, n.Page.ID)
+			walk(n.Children)
+		}
+	}
+	walk(tree)
+	return ids
+}
+
+func Test_ナレッジ基盤権限_祖先のdenyは子孫にも効く(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+	kbRestrict(t, f, kbRootPageID, kbPrincipalOf(t, f, kbUserID), domain.CapabilityView, domain.RestrictionModeDeny)
+
+	assert.Equal(t, http.StatusNotFound, kbGetStatus(t, f, kbRootPageID))
+	assert.Equal(t, http.StatusNotFound, kbGetStatus(t, f, kbChildPageID),
+		"deny は経路全体で効くので、名指しされていない子も外れたままになる")
+	assert.Equal(t, []string{kbDestPageID}, kbTreeIDs(t, f),
+		"1 ページの解決と一覧で畳み方が食い違わない")
+}
+
+func Test_ナレッジ基盤権限_許可リストに載っていなければ既定がeditorでも見えない(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+	kbRestrict(t, f, kbRootPageID, kbPrincipalOf(t, f, kbAlice), domain.CapabilityView, domain.RestrictionModeAllow)
+
+	assert.Equal(t, http.StatusNotFound, kbGetStatus(t, f, kbRootPageID))
+	assert.Equal(t, http.StatusNotFound, kbGetStatus(t, f, kbChildPageID),
+		"限定公開は子孫にも効く")
+	assert.Equal(t, []string{kbDestPageID}, kbTreeIDs(t, f))
+}
+
+func Test_ナレッジ基盤権限_より近い許可リストが遠い許可リストを上書きする(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+	kbRestrict(t, f, kbRootPageID, kbPrincipalOf(t, f, kbAlice), domain.CapabilityView, domain.RestrictionModeAllow)
+	kbRestrict(t, f, kbChildPageID, kbPrincipalOf(t, f, kbUserID), domain.CapabilityView, domain.RestrictionModeAllow)
+
+	assert.Equal(t, http.StatusNotFound, kbGetStatus(t, f, kbRootPageID), "root の許可リストには載っていない")
+	assert.Equal(t, http.StatusOK, kbGetStatus(t, f, kbChildPageID),
+		"最も近い許可リスト制の段（child）に載っていれば見える")
+	assert.Equal(t, []string{kbDestPageID}, kbTreeIDs(t, f),
+		"見える child も、見えない root の配下なのでツリーには出ない")
+}
+
+func Test_ナレッジ基盤権限_許可リストの主体を消しても限定公開は解けない(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+	alice := kbPrincipalOf(t, f, kbAlice)
+	kbRestrict(t, f, kbRootPageID, alice, domain.CapabilityView, domain.RestrictionModeAllow)
+	require.Equal(t, http.StatusNotFound, kbGetStatus(t, f, kbRootPageID))
+
+	// 退職者のオフボーディング。allow 行は主体と一緒に消えるが、印は主体を参照しないので残る。
+	require.NoError(t, f.perms.DeletePrincipal(context.Background(), kbWorkspaceID, alice))
+
+	assert.Equal(t, http.StatusNotFound, kbGetStatus(t, f, kbRootPageID),
+		"許可リストが空になった段は「誰も載っていない」＝ 閉じたまま")
+	assert.Equal(t, []string{kbDestPageID}, kbTreeIDs(t, f))
+
+	rows, err := f.perms.ListPageRestrictions(context.Background(), kbWorkspaceID, kbRootPageID)
+	require.NoError(t, err)
+	assert.Empty(t, rows, "例外の一覧からは消えている")
+	caps, err := f.perms.ListPageAllowListCapabilities(context.Background(), kbWorkspaceID, kbRootPageID)
+	require.NoError(t, err)
+	assert.Equal(t, []domain.Capability{domain.CapabilityView}, caps,
+		"限定公開であることは印にしか残らない（権限設定を見せるときは両方を読む）")
+}
+
+func Test_ナレッジ基盤権限_deny行を外しても限定公開は解けない(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+	me := kbPrincipalOf(t, f, kbUserID)
+	alice := kbPrincipalOf(t, f, kbAlice)
+	kbRestrict(t, f, kbRootPageID, alice, domain.CapabilityView, domain.RestrictionModeAllow)
+	kbRestrict(t, f, kbRootPageID, me, domain.CapabilityView, domain.RestrictionModeDeny)
+	// alice が抜けて許可リストは空になり、印だけが残っている状態を作る。
+	require.NoError(t, f.perms.DeletePrincipal(context.Background(), kbWorkspaceID, alice))
+	require.Equal(t, http.StatusNotFound, kbGetStatus(t, f, kbRootPageID))
+
+	kbUnrestrict(t, f, kbRootPageID, me, domain.CapabilityView)
+
+	assert.Equal(t, http.StatusNotFound, kbGetStatus(t, f, kbRootPageID),
+		"deny 行の解除では印を畳まない（自分宛ての deny を 1 行外すだけで限定公開が解けない）")
+	caps, err := f.perms.ListPageAllowListCapabilities(context.Background(), kbWorkspaceID, kbRootPageID)
+	require.NoError(t, err)
+	assert.Equal(t, []domain.Capability{domain.CapabilityView}, caps)
+}
+
+func Test_ナレッジ基盤権限_最後のallowを外すと既定へ戻る(t *testing.T) {
+	t.Run("解除", func(t *testing.T) {
+		f := newKbFixture(kbCanEdit, kbUserID)
+		alice := kbPrincipalOf(t, f, kbAlice)
+		kbRestrict(t, f, kbRootPageID, alice, domain.CapabilityView, domain.RestrictionModeAllow)
+		require.Equal(t, http.StatusNotFound, kbGetStatus(t, f, kbRootPageID))
+
+		kbUnrestrict(t, f, kbRootPageID, alice, domain.CapabilityView)
+
+		assert.Equal(t, http.StatusOK, kbGetStatus(t, f, kbRootPageID))
+		assert.Equal(t, []string{kbRootPageID, kbChildPageID, kbDestPageID}, kbTreeIDs(t, f))
+	})
+
+	t.Run("denyへの書き換え", func(t *testing.T) {
+		f := newKbFixture(kbCanEdit, kbUserID)
+		alice := kbPrincipalOf(t, f, kbAlice)
+		kbRestrict(t, f, kbRootPageID, alice, domain.CapabilityView, domain.RestrictionModeAllow)
+		require.Equal(t, http.StatusNotFound, kbGetStatus(t, f, kbRootPageID))
+
+		kbRestrict(t, f, kbRootPageID, alice, domain.CapabilityView, domain.RestrictionModeDeny)
+
+		assert.Equal(t, http.StatusOK, kbGetStatus(t, f, kbRootPageID),
+			"その段に allow が 1 行も残らなければ印も畳まれる（畳むのは解除だけではない）")
+		caps, err := f.perms.ListPageAllowListCapabilities(context.Background(), kbWorkspaceID, kbRootPageID)
+		require.NoError(t, err)
+		assert.Empty(t, caps)
+	})
+}
+
+func Test_ナレッジ基盤権限_editのdenyは閲覧を残したまま書き込みだけ止める(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+	kbRestrict(t, f, kbRootPageID, kbPrincipalOf(t, f, kbUserID), domain.CapabilityEdit, domain.RestrictionModeDeny)
+
+	assert.Equal(t, http.StatusOK, kbGetStatus(t, f, kbChildPageID))
+	w := f.do(t, http.MethodPatch,
+		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbChildPageID, `{"title":"改訂"}`)
+	assert.Equal(t, http.StatusForbidden, w.Code, "祖先で編集を外された子も書き込めない")
 }

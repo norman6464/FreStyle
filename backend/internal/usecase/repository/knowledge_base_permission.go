@@ -92,6 +92,11 @@ type KnowledgeBasePermissionRepository interface {
 	DeletePrincipal(ctx context.Context, workspaceID, principalID string) error
 	// IsWorkspaceMember はユーザーがワークスペースのメンバーかを返す。
 	IsWorkspaceMember(ctx context.Context, workspaceID string, userID uint64) (bool, error)
+	// ListMemberWorkspaces はそのユーザーが所属するワークスペースを返す（slug 順）。
+	// 所属は principals（kind='user'）の行が唯一の表現なので、その JOIN がそのまま答えになる。
+	// ナレッジ基盤で唯一テナントを跨いで読むメソッド（どのテナントに入れるかを答える口）で、
+	// 絞り込みは user_id だけが行う。
+	ListMemberWorkspaces(ctx context.Context, userID uint64) ([]domain.Workspace, error)
 
 	// AddGroupMember はグループに主体を所属させる（冪等）。member 側は kind='user' でなければ
 	// DB の複合 FK が弾く（グループの入れ子を作らせない）。
@@ -155,6 +160,28 @@ type KnowledgeBasePermissionRepository interface {
 	// 1 回のクエリで返す（ページごとに問い合わせない）。編集の事実は集めないので、
 	// 編集可否をここから出さないこと（返す型がそれを表している）。
 	ListSpacePageViewFacts(ctx context.Context, workspaceID, spaceID string, userID uint64) ([]PageWithViewFacts, error)
+	// SpacePermissionFactsForUser はページを介さず、スペース 1 つの実効権限を決める事実を集める。
+	// 判定は domain.ResolveScopePermission が行う。スペースが無い・別ワークスペースなら
+	// ErrSpaceNotFound。
+	//
+	// 返すのは「その入れ物に届いている役割の集合」だけで、どれを採るかの規則は持たない。
+	// ページ単位の例外（page_restrictions）も見ない — スペースには例外の層が無いため。
+	// したがってこの口の答えを「そのスペースのあるページを編集してよいか」に使ってはいけない
+	// （ページに張られた deny を見ておらず、必ず緩い側へ倒れる）。使ってよいのは
+	// 対象がまだ存在しない操作（スペース直下へのページ作成）だけ。
+	//
+	// スペースの実在をここで確かめるのは、確かめないと fail-open になるため。
+	// workspace_grants は配下の全スペースに届くので、別ワークスペースのスペース ID を
+	// 渡されても「自分のワークスペースでの役割」がそのまま返り、他テナントのスペースに対して
+	// editor と答えてしまう。
+	SpacePermissionFactsForUser(ctx context.Context, workspaceID, spaceID string, userID uint64) (*domain.ScopeFacts, error)
+	// WorkspacePermissionFactsForUser はワークスペースそのものに対する実効権限を決める事実を集める。
+	// スペースを作る操作のように、どのスペースにも属さない判定に使う。
+	//
+	// 実在を確かめないのは、ワークスペースが無ければ grant も 1 行も無く、
+	// 役割 0 個 ＝ 何もできない（fail-closed）に自然と倒れるため。
+	// 呼び出し側は middleware が slug から解決したワークスペースを渡す。
+	WorkspacePermissionFactsForUser(ctx context.Context, workspaceID string, userID uint64) (*domain.ScopeFacts, error)
 	// ListSubtreePagePermissionFacts はサブツリー（対象ページ自身 + 全子孫）の各ページと、
 	// その実効権限を決める事実を 1 回のクエリで返す。アーカイブ済みのページも含む。
 	// ページとその子孫をまとめて書き換える操作が、根 1 枚の権限だけで通らないようにするための口。

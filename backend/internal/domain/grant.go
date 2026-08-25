@@ -84,6 +84,32 @@ func GrantRoleByRank(rank int) *GrantRole {
 	return nil
 }
 
+// StrongestGrantRole は複数の経路で得た役割のうち最も強いものを返す（1 つも無ければ nil）。
+// Rank のコメントにある「採るのは最も強いもの」という合成規則を Go 側で適用する唯一の関数。
+//
+// 事実（どの役割を持っているか）を集めるのは SQL、畳み方を決めるのはここ、と分けている。
+// 規則を SQL へ写すと、片方だけ直したときに「1 ページを開くと編集できるのに、
+// 同じスペースの直下にページを作れない」といった経路ごとのずれになる。
+// 未知の値（Rank が 0）は役割として数えない。
+//
+// ページ 1 枚 / ページ一覧の経路だけは例外で、SQL が役割の集合ではなく強さ（整数）を返す
+// （ResolvePagePermissionFacts のコメント参照。ページごとに集約するため、
+// 役割を集合のまま返すと 1 リクエストで多数のページを扱えない）。強さから役割へは
+// GrantRoleByRank で戻し、両経路の答えが一致することは結合テストで固定する。
+func StrongestGrantRole(roles []GrantRole) *GrantRole {
+	var strongest *GrantRole
+	for _, r := range roles {
+		if r.Rank() == 0 {
+			continue
+		}
+		if strongest == nil || r.Rank() > strongest.Rank() {
+			role := r
+			strongest = &role
+		}
+	}
+	return strongest
+}
+
 // CanView は既定でページを閲覧できる役割かを返す。
 func (r GrantRole) CanView() bool { return r.Rank() >= GrantRoleViewer.Rank() }
 

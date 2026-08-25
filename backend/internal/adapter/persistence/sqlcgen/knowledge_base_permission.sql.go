@@ -442,6 +442,50 @@ func (q *Queries) IsWorkspaceMember(ctx context.Context, arg IsWorkspaceMemberPa
 	return is_member, err
 }
 
+const listMemberWorkspaces = `-- name: ListMemberWorkspaces :many
+SELECT w.id, w.slug, w.name, w.ai_chat_enabled_for_trainees, w.is_active, w.created_at, w.updated_at FROM workspaces w
+JOIN principals p
+  ON p.workspace_id = w.id AND p.kind = 'user' AND p.user_id = $1
+ORDER BY w.slug
+`
+
+// そのユーザーが所属するワークスペース一覧。
+//
+// 所属の正本は principals（kind='user'）の行なので、JOIN の結果がそのまま答えになる。
+// このファイルの作法（WHERE に workspace_id を必ず含める）に対する唯一の例外で、
+// テナントを絞る手前の「どのテナントに入れるか」を答えるクエリだから workspace_id を取らない。
+// 代わりに principals 側で user_id を必ず縛る（ここが緩むと全テナントが漏れる）。
+func (q *Queries) ListMemberWorkspaces(ctx context.Context, userID sql.NullInt64) ([]Workspace, error) {
+	rows, err := q.db.QueryContext(ctx, listMemberWorkspaces, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Workspace{}
+	for rows.Next() {
+		var i Workspace
+		if err := rows.Scan(
+			&i.ID,
+			&i.Slug,
+			&i.Name,
+			&i.AiChatEnabledForTrainees,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPageAllowLists = `-- name: ListPageAllowLists :many
 SELECT capability FROM page_allow_lists
 WHERE workspace_id = $1 AND page_id = $2
@@ -770,6 +814,81 @@ func (q *Queries) ListSpacePageViewFacts(ctx context.Context, arg ListSpacePageV
 	return items, nil
 }
 
+const listSpaceScopeGrantRoles = `-- name: ListSpaceScopeGrantRoles :many
+WITH me AS (
+    SELECT p.id
+    FROM principals p
+    WHERE p.workspace_id = $1
+      AND p.kind = 'user' AND p.user_id = $2
+),
+mine AS (
+    SELECT id FROM me
+    UNION
+    SELECT pm.group_principal_id
+    FROM principal_members pm
+    JOIN me ON me.id = pm.member_principal_id
+    WHERE pm.workspace_id = $1
+    UNION
+    SELECT sp.id
+    FROM principals sp
+    WHERE sp.workspace_id = $1
+      AND sp.kind = 'space_all' AND sp.space_id = $3
+      AND EXISTS (SELECT 1 FROM me)
+)
+SELECT wg."role" FROM workspace_grants wg
+ WHERE wg.workspace_id = $1
+   AND wg.principal_id IN (SELECT id FROM mine)
+UNION
+SELECT sg."role" FROM space_grants sg
+ WHERE sg.workspace_id = $1 AND sg.space_id = $3
+   AND sg.principal_id IN (SELECT id FROM mine)
+`
+
+type ListSpaceScopeGrantRolesParams struct {
+	WorkspaceID uuid.UUID
+	UserID      sql.NullInt64
+	SpaceID     uuid.NullUUID
+}
+
+// そのスペースの「既定の役割」として自分に届いている役割をすべて返す（事実だけ）。
+//
+// ページを介さずスペース単位で権限を判定する経路（スペース直下へのページ作成など）の土台。
+// 返すのは役割の集合であって、どれを採るかの規則は domain.StrongestGrantRole が持つ。
+// max(rank) を SQL 側で計算すると「最も強いものを採る」という規則が DB へ写り、
+// ページ 1 枚の解決と食い違ったときにどちらが正か決められなくなる。
+//
+// ページ単位の例外（page_restrictions / page_allow_lists）はここでは一切見ない。
+// スペースには例外の層が無く、あるのは grants の既定だけ。この結果を
+// 「そのスペースのあるページを編集してよいか」に使ってはいけない（ページの deny を
+// 見ていないため必ず緩い側へ倒れる）。呼び出し側は対象がまだ存在しない操作にだけ使う。
+//
+// mine（自分に効く主体）の作り方は ResolvePagePermissionFacts と同じ:
+// 自分自身 + 所属グループ + そのスペースの「全員」。グループの入れ子は DB 側で
+// 禁じてあるので 1 段の JOIN で足りる。
+// ワークスペースの grant は配下の全スペースに届くので、スペースの grant と合わせて返す。
+func (q *Queries) ListSpaceScopeGrantRoles(ctx context.Context, arg ListSpaceScopeGrantRolesParams) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listSpaceScopeGrantRoles, arg.WorkspaceID, arg.UserID, arg.SpaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var role string
+		if err := rows.Scan(&role); err != nil {
+			return nil, err
+		}
+		items = append(items, role)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSubtreePagePermissionFacts = `-- name: ListSubtreePagePermissionFacts :many
 WITH target AS (
     SELECT p.space_id
@@ -976,6 +1095,60 @@ func (q *Queries) ListWorkspaceGrants(ctx context.Context, workspaceID uuid.UUID
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkspaceScopeGrantRoles = `-- name: ListWorkspaceScopeGrantRoles :many
+WITH me AS (
+    SELECT p.id
+    FROM principals p
+    WHERE p.workspace_id = $1
+      AND p.kind = 'user' AND p.user_id = $2
+),
+mine AS (
+    SELECT id FROM me
+    UNION
+    SELECT pm.group_principal_id
+    FROM principal_members pm
+    JOIN me ON me.id = pm.member_principal_id
+    WHERE pm.workspace_id = $1
+)
+SELECT wg."role" FROM workspace_grants wg
+ WHERE wg.workspace_id = $1
+   AND wg.principal_id IN (SELECT id FROM mine)
+`
+
+type ListWorkspaceScopeGrantRolesParams struct {
+	WorkspaceID uuid.UUID
+	UserID      sql.NullInt64
+}
+
+// ワークスペースそのものに対して自分に届いている役割をすべて返す（事実だけ）。
+// スペースを作る操作のように、どのスペースにも属さない判定に使う。
+//
+// kind='space_all' の主体はここでは数えない。あれは「そのスペースの全員」という
+// スペースの中でだけ意味を持つ主体で、入れ物が決まっていないワークスペース単位の判定に
+// 混ぜると、どこか 1 つのスペースの space_all に張られた grant がテナント全体の権限に化ける。
+func (q *Queries) ListWorkspaceScopeGrantRoles(ctx context.Context, arg ListWorkspaceScopeGrantRolesParams) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listWorkspaceScopeGrantRoles, arg.WorkspaceID, arg.UserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var role string
+		if err := rows.Scan(&role); err != nil {
+			return nil, err
+		}
+		items = append(items, role)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err

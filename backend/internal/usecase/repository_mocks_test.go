@@ -463,6 +463,24 @@ func (m *mockKBPermissionRepo) EnsureSpaceEveryonePrincipal(ctx context.Context,
 	return p, args.Error(1)
 }
 
+func (m *mockKBPermissionRepo) ListMemberWorkspaces(ctx context.Context, userID uint64) ([]domain.Workspace, error) {
+	args := m.Called(ctx, userID)
+	rows, _ := args.Get(0).([]domain.Workspace)
+	return rows, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) SpacePermissionFactsForUser(ctx context.Context, workspaceID, spaceID string, userID uint64) (*domain.ScopeFacts, error) {
+	args := m.Called(ctx, workspaceID, spaceID, userID)
+	f, _ := args.Get(0).(*domain.ScopeFacts)
+	return f, args.Error(1)
+}
+
+func (m *mockKBPermissionRepo) WorkspacePermissionFactsForUser(ctx context.Context, workspaceID string, userID uint64) (*domain.ScopeFacts, error) {
+	args := m.Called(ctx, workspaceID, userID)
+	f, _ := args.Get(0).(*domain.ScopeFacts)
+	return f, args.Error(1)
+}
+
 func (m *mockKBPermissionRepo) CreateGroupPrincipal(ctx context.Context, workspaceID, name string) (*domain.Principal, error) {
 	args := m.Called(ctx, workspaceID, name)
 	p, _ := args.Get(0).(*domain.Principal)

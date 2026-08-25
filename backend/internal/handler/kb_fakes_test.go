@@ -322,6 +322,20 @@ type kbFakePerms struct {
 	listFactsErr error
 	// subtreeFactsErr はサブツリーの事実収集を失敗させる（アーカイブの 500 経路の確認用）。
 	subtreeFactsErr error
+	// scopeRoles は入れ物（ワークスペース / スペース）ごとの既定の役割。
+	// ページ単位の perPage とは別に持つ（スペースの判定はページの例外を見ないため、
+	// 同じ入れ物にまとめると fake が本番より賢くなってしまう）。
+	scopeRoles map[kbScopeKey]domain.GrantRole
+	// scopeFactsErr は入れ物単位の事実収集を失敗させる（500 経路の確認用）。
+	scopeFactsErr error
+	// listWorkspacesErr は所属ワークスペース一覧を失敗させる（500 経路の確認用）。
+	listWorkspacesErr error
+}
+
+// kbScopeKey は入れ物（ワークスペース ID / スペース ID）と利用者の組。
+type kbScopeKey struct {
+	scopeID string
+	userID  uint64
 }
 
 var _ repository.KnowledgeBasePermissionRepository = (*kbFakePerms)(nil)
@@ -334,6 +348,7 @@ func newKbFakePerms(pages *kbFakePages, fallback domain.PagePermission) *kbFakeP
 		restrictions: map[kbRestrictionKey]domain.RestrictionMode{},
 		allowLists:   map[kbAllowListKey]bool{},
 		perPage:      map[kbPermKey]domain.PagePermission{},
+		scopeRoles:   map[kbScopeKey]domain.GrantRole{},
 		fallback:     fallback,
 	}
 }
@@ -534,6 +549,69 @@ func (f *kbFakePerms) ListSubtreePagePermissionFacts(
 			},
 		})
 	}
+	return out, nil
+}
+
+// SpacePermissionFactsForUser はスペース単位の事実（届いている役割の集合）を返す。
+// 例外（page_restrictions）は見ない — 本番の口と同じで、スペースには例外の層が無い。
+func (f *kbFakePerms) SpacePermissionFactsForUser(
+	_ context.Context, workspaceID, spaceID string, userID uint64,
+) (*domain.ScopeFacts, error) {
+	if f.scopeFactsErr != nil {
+		return nil, f.scopeFactsErr
+	}
+	// 本番は空間の実在を確かめてから役割を集める（確かめないと workspace_grants が
+	// 他テナントのスペースにも届いてしまう）。fake も同じ順で断る。
+	s, ok := f.pages.spaces[spaceID]
+	if !ok || s.WorkspaceID != workspaceID {
+		return nil, repository.ErrSpaceNotFound
+	}
+	if f.userPrincipal(workspaceID, userID) == nil {
+		return &domain.ScopeFacts{}, nil
+	}
+	return &domain.ScopeFacts{Roles: f.rolesAt(kbScopeKey{scopeID: spaceID, userID: userID}, workspaceID, userID)}, nil
+}
+
+// WorkspacePermissionFactsForUser はワークスペース単位の事実を返す。
+func (f *kbFakePerms) WorkspacePermissionFactsForUser(
+	_ context.Context, workspaceID string, userID uint64,
+) (*domain.ScopeFacts, error) {
+	if f.scopeFactsErr != nil {
+		return nil, f.scopeFactsErr
+	}
+	if f.userPrincipal(workspaceID, userID) == nil {
+		return &domain.ScopeFacts{}, nil
+	}
+	return &domain.ScopeFacts{Roles: f.rolesAt(kbScopeKey{scopeID: workspaceID, userID: userID}, workspaceID, userID)}, nil
+}
+
+// rolesAt はその入れ物で自分に届いている役割を返す。scopeRoles に明示があればそれ、
+// 無ければワークスペース全体の役割（workspaceRole）だけ。
+func (f *kbFakePerms) rolesAt(key kbScopeKey, workspaceID string, userID uint64) []domain.GrantRole {
+	roles := make([]domain.GrantRole, 0, 2)
+	if role, ok := f.scopeRoles[key]; ok {
+		roles = append(roles, role)
+	}
+	if key.scopeID != workspaceID {
+		if role, ok := f.scopeRoles[kbScopeKey{scopeID: workspaceID, userID: userID}]; ok {
+			roles = append(roles, role)
+		}
+	}
+	return roles
+}
+
+// ListMemberWorkspaces は kind='user' の主体があるワークスペースを slug 順で返す。
+func (f *kbFakePerms) ListMemberWorkspaces(_ context.Context, userID uint64) ([]domain.Workspace, error) {
+	if f.listWorkspacesErr != nil {
+		return nil, f.listWorkspacesErr
+	}
+	out := []domain.Workspace{}
+	for _, ws := range f.pages.workspaces {
+		if f.userPrincipal(ws.ID, userID) != nil {
+			out = append(out, *ws)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Slug < out[j].Slug })
 	return out, nil
 }
 

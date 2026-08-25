@@ -206,8 +206,9 @@ func SeedRoles(db *gorm.DB) error {
 	return nil
 }
 
-// BackfillUserNormalization は正規化テーブル（users.role_id / user_oidc_identities）の
-// 整合を起動時に保つ（冪等）。正規化後は role_id が正で新コードが常に書くため、旧 role 文字列から
+// BackfillUserNormalization は正規化テーブル（users.role_id / user_oidc_identities）と
+// email の正規形（users / invitations）の整合を起動時に保つ（冪等）。
+// 正規化後は role_id が正で新コードが常に書くため、旧 role 文字列から
 // role_id を「逆算」する同期は行わない（それをやると、role_id だけ更新した昇格を巻き戻す）。
 // 旧カラム users.cognito_sub からの identity 補完だけは、旧カラム撤去（migrations/0021）の前後で
 // 安全に流せるよう、カラムが存在する間のみカラム存在チェックでガードして実行する。
@@ -216,6 +217,45 @@ func BackfillUserNormalization(db *gorm.DB) error {
 	// role_id のみを触るため旧カラム撤去後も有効。
 	if err := db.Exec(
 		`UPDATE users SET role_id = ? WHERE role_id IS NULL`, domain.RoleIDTrainee,
+	).Error; err != nil {
+		return err
+	}
+	// email をアプリと同じ正規形（domain.NormalizeEmail = lower + 前後の EmailTrimCutset 除去）へ
+	// 畳む（冪等。畳み済みの行は WHERE で外れるので no-op）。
+	//
+	// 索引と検索を正規形の式にするだけでも「空白付きの既存行が引けない」は解消するが、行の値が
+	// 生のままだと、その環境では正規形の一意性を旧索引が守れない状態が残る（例: ' a@x.com' が
+	// 在るところへアプリが 'a@x.com' を作れてしまい、同じ人の行が 2 つできる）。ここで先に畳んで
+	// おくと、索引を張り替えられない環境でも「行の値 = 正規形」になり、旧索引がそのまま正規形の
+	// 一意性を守る。
+	//
+	// 畳むと他のアクティブ行と衝突する行だけは触らない（別人かもしれない 2 行を勝手に 1 つの
+	// アドレスへ寄せない）。残った衝突は ApplyUserNormalizationConstraints が WARNING で報告し、
+	// FindActiveByEmail は複数件を曖昧としてログインを拒否する（fail closed）ので、
+	// 解消は運用判断に委ねる。
+	if err := db.Exec(
+		`UPDATE users u
+		    SET email = lower(btrim(u.email, E'\t\n\x0B\f\r '))
+		  WHERE u.deleted_at IS NULL
+		    AND u.email <> lower(btrim(u.email, E'\t\n\x0B\f\r '))
+		    AND NOT EXISTS (
+		        SELECT 1 FROM users o
+		         WHERE o.id <> u.id
+		           AND o.deleted_at IS NULL
+		           AND lower(btrim(o.email, E'\t\n\x0B\f\r ')) = lower(btrim(u.email, E'\t\n\x0B\f\r '))
+		    )`,
+	).Error; err != nil {
+		return err
+	}
+	// 招待の email も同じ正規形へ畳む（保留中のみ）。ログイン時の招待ゲートは正規形の OIDC メールで
+	// 引くため、大文字混じり・空白付きのまま残った pending 行は「招待したのに招待が見つからない」に
+	// なる。invitations 側に一意制約は無いので衝突判定は要らない。
+	if err := db.Exec(
+		`UPDATE invitations
+		    SET email = lower(btrim(email, E'\t\n\x0B\f\r '))
+		  WHERE status = ?
+		    AND email <> lower(btrim(email, E'\t\n\x0B\f\r '))`,
+		domain.InvitationStatusPending,
 	).Error; err != nil {
 		return err
 	}
@@ -304,37 +344,45 @@ func ApplyUserNormalizationConstraints(db *gorm.DB) error {
 		END $$;`,
 		// users.email の NOT NULL も domain タグ経由で AutoMigrate が管理する
 		// （preRepairUsersForMigrate が NULL を先に埋めるため適用は常に成功する）。
-		// users.email: アクティブ行（未論理削除）かつ非空に限った部分 UNIQUE。
+		// users.email: アクティブ行（未論理削除）かつ正規形が非空に限った部分 UNIQUE。
 		// 論理削除→同メール再招待と両立し、email claim の無い OIDC ユーザー（空文字）は対象外にする
 		// （重複ガードと述語を必ず一致させること。ずれると起動失敗が自己修復しなくなる）。
 		//
-		// キーは email そのものではなく lower(email)。アプリは domain.NormalizeEmail で畳んだ値を
-		// 保存するが、索引が生の byte 一致だと「アプリでは同一・DB では別行」という食い違いが
-		// 残り、大小文字だけ違う 2 行が両方作れてしまう（既存の大文字混じり行も同じ穴になる）。
-		// アプリ側の同一性（NormalizeEmail）と DB 側の一意性（lower）を同じ正規形に揃える。
+		// キーは email そのものではなく domain.NormalizeEmail と同じ正規形
+		// lower(btrim(email, E'\t\n\x0B\f\r '))。アプリは畳んだ値を保存するが、索引の式が
+		// アプリの正規形より緩いと「アプリでは同一・DB では別行」という食い違いが残り、大小文字
+		// だけ・前後空白だけが違う 2 行が両方作れてしまう（正規化前に入った既存行も同じ穴になる）。
+		// btrim の文字集合は domain.EmailTrimCutset と同じものを明示列挙する（btrim の既定は
+		// 半角スペース 1 文字だけ、Go の strings.TrimSpace は Unicode 空白まで落とすため、
+		// どちらの既定に寄せても両側は一致しない）。
 		//
 		// 既存データに重複がある場合は作成せず WARNING を出す（起動を落とさず、修正は運用判断に委ねる）。
-		// 旧定義（生の email キー）からの張り替えは、畳んだ値に重複が無いことを確かめてから行う。
-		// 先に落としてしまうと、新しい索引を作れない環境で保護が消えるため。
+		// 旧定義（生の email キー / lower(email) キー）からの張り替えは、畳んだ値に重複が
+		// 無いことを確かめてから行う。先に落としてしまうと、新しい索引を作れない環境で保護が消えるため。
+		// 空白だけが違う行は BackfillUserNormalization が先に畳んでいるので、ここに残る重複は
+		// 「畳んでも別人か判断できない」本物の衝突だけになる。
 		`DO $$ BEGIN
 			IF EXISTS (
 				SELECT 1 FROM pg_indexes WHERE indexname = 'uq_users_email_active'
-				  AND indexdef NOT LIKE '%lower(email)%'
+				  AND indexdef NOT LIKE '%btrim%'
 			) AND NOT EXISTS (
-				SELECT 1 FROM users WHERE deleted_at IS NULL AND email <> ''
-				GROUP BY lower(email) HAVING count(*) > 1
+				SELECT 1 FROM users
+				WHERE deleted_at IS NULL AND btrim(email, E'\t\n\x0B\f\r ') <> ''
+				GROUP BY lower(btrim(email, E'\t\n\x0B\f\r ')) HAVING count(*) > 1
 			) THEN
 				DROP INDEX uq_users_email_active;
 			END IF;
 			IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'uq_users_email_active') THEN
 				IF EXISTS (
-					SELECT 1 FROM users WHERE deleted_at IS NULL AND email <> ''
-					GROUP BY lower(email) HAVING count(*) > 1
+					SELECT 1 FROM users
+					WHERE deleted_at IS NULL AND btrim(email, E'\t\n\x0B\f\r ') <> ''
+					GROUP BY lower(btrim(email, E'\t\n\x0B\f\r ')) HAVING count(*) > 1
 				) THEN
-					RAISE WARNING 'users.email に（大小文字を無視した）重複があるため uq_users_email_active を作成できません（重複を解消して再起動してください）';
+					RAISE WARNING 'users.email に（大小文字・前後空白を無視した）重複があるため uq_users_email_active を作成できません（重複を解消して再起動してください）';
 				ELSE
 					CREATE UNIQUE INDEX uq_users_email_active
-						ON users (lower(email)) WHERE deleted_at IS NULL AND email <> '';
+						ON users (lower(btrim(email, E'\t\n\x0B\f\r ')))
+						WHERE deleted_at IS NULL AND btrim(email, E'\t\n\x0B\f\r ') <> '';
 				END IF;
 			END IF;
 		END $$;`,

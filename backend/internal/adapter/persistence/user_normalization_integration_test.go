@@ -325,8 +325,9 @@ func TestUserNormalization_Integration(t *testing.T) {
 		require.ErrorContains(t, err, "重複を解消")
 	})
 
-	// 一意索引のキーは lower(email)。アプリは domain.NormalizeEmail で畳んだ値を保存するが、
-	// 索引が生の byte 一致だと「畳めば同じだがバイトが違う」2 行が両方作れてしまう。
+	// 一意索引のキーは domain.NormalizeEmail と同じ正規形 lower(btrim(email, ...))。アプリは
+	// 畳んだ値を保存するが、索引が生の byte 一致だと「畳めば同じだがバイトが違う」2 行が
+	// 両方作れてしまう。
 	t.Run("DB 制約: 大小文字だけ違う email もアクティブ行の重複として拒否する", func(t *testing.T) {
 		truncate(t)
 		// 直前のサブテストが重複行を残したまま index を落としている場合に備えて張り直す。
@@ -342,7 +343,7 @@ func TestUserNormalization_Integration(t *testing.T) {
 		)
 	})
 
-	// FindActiveByEmail の突き合わせも索引と同じ lower()。保存値が正規化される前に作られた
+	// FindActiveByEmail の突き合わせも索引と同じ正規形の式。保存値が正規化される前に作られた
 	// 大文字混じりの既存行も、同じアドレスとして 1 件に解決できる。
 	t.Run("FindActiveByEmail は大小文字を無視して引く", func(t *testing.T) {
 		truncate(t)
@@ -386,12 +387,12 @@ func TestUserNormalization_Integration(t *testing.T) {
 
 		// 起動時の制約適用は落ちず（WARNING のみ）、旧索引がそのまま残る。
 		require.NoError(t, database.ApplyUserNormalizationConstraints(db))
-		require.NotContains(t, indexdef(t), "lower(email)")
+		require.NotContains(t, indexdef(t), "btrim")
 		require.Contains(t, indexdef(t), "email")
 
-		// 重複を解消すれば、次の起動で lower(email) へ張り替わる。
+		// 重複を解消すれば、次の起動で正規形（lower(btrim(email, ...))）へ張り替わる。
 		require.NoError(t, db.Exec(`DELETE FROM users WHERE email = 'MIX@Example.com'`).Error)
 		require.NoError(t, database.ApplyUserNormalizationConstraints(db))
-		require.Contains(t, indexdef(t), "lower(email)")
+		require.Contains(t, indexdef(t), "btrim")
 	})
 }

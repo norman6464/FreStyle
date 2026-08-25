@@ -166,6 +166,28 @@ func Test_招待作成_正常系_token生成とメール送信(t *testing.T) {
 	}
 }
 
+// 招待の email は正規形（domain.NormalizeEmail）で保存し、送信先も同じ値にする。
+// 生のまま保存すると、ログイン時の招待ゲート（正規形の OIDC メールで引く）と
+// 突き合わせられず、招待したはずの相手が「招待なし」として拒否される。
+func Test_招待作成_emailを正規形に畳んで保存する(t *testing.T) {
+	repo := &stubAdminInvRepo{}
+	sender := &stubMailSender{}
+	uc := NewCreateAdminInvitationUseCase(repo, sender, fakeBuildLink, fakeBuildMail)
+
+	got, err := uc.Execute(context.Background(), CreateAdminInvitationInput{
+		CompanyID: 1, Email: "  U@Example.com\t", Role: domain.RoleTrainee, Name: "山田",
+	})
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if got.Email != "u@example.com" {
+		t.Fatalf("invitation email = %q, want %q", got.Email, "u@example.com")
+	}
+	if sender.to != "u@example.com" {
+		t.Fatalf("送信先 = %q, want %q", sender.to, "u@example.com")
+	}
+}
+
 func Test_招待作成_SESエラーを伝播(t *testing.T) {
 	uc := NewCreateAdminInvitationUseCase(&stubAdminInvRepo{}, &stubMailSender{err: errors.New("ses down")}, fakeBuildLink, fakeBuildMail)
 	if _, err := uc.Execute(context.Background(), CreateAdminInvitationInput{

@@ -90,7 +90,7 @@ func TestBootstrapSuperAdmin_Integration(t *testing.T) {
 		assert.LessOrEqualf(t, len(created), 1,
 			"round %d: 競合で super_admin が %d 人できた（期待: 1 人以下）: %v",
 			round, len(created), created)
-		assert.Equalf(t, len(created), accepted,
+		assert.Equalf(t, accepted, len(created),
 			"round %d: 許可した数と作成された super_admin の数が食い違う: allowed=%d created=%v",
 			round, accepted, created)
 

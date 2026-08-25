@@ -97,8 +97,13 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		user.Role == domain.RoleSuperAdmin ||
 		user.Role == domain.RoleCompanyAdmin
 	// Cognito group admin だが DB role が未昇格なら同期する（federated ユーザー対策）。
+	// 昇格できたらこのレスポンスの role も揃える。捨てると、初回だけ
+	// 「isAdmin=true / role=trainee」という起き得ない組み合わせをフロントへ返してしまう
+	// （次回の /auth/me では直るが、role を見て画面を出し分けている箇所が初回だけ食い違う）。
 	if middleware.IsAdminFromGroups(groups) && user.Role != domain.RoleSuperAdmin && user.Role != domain.RoleCompanyAdmin {
-		h.promoteCognitoAdmin(c, sub.(string))
+		if h.promoteCognitoAdmin(c, sub.(string)) {
+			user.Role = domain.RoleSuperAdmin
+		}
 	}
 	// trainee への AI チャット表示判定。会社設定が無効なら false。算出失敗・未配線時は既定 true。
 	aiEnabled := true
@@ -403,19 +408,23 @@ func (h *AuthHandler) syncRoleFromAccessToken(c *gin.Context, accessToken string
 }
 
 // promoteCognitoAdmin は Cognito admin グループのユーザーを super_admin へ同期する（昇格のみ）。
-// 失敗してもレスポンスは変えない（本人の閲覧・refresh は妨げない）が、必ずログに残す。
+// 戻り値は実際に昇格したか（未配線・失敗・既に管理者なら false）。
+// 失敗してもレスポンスのステータスは変えない（本人の閲覧・refresh は妨げない）が、必ずログに残す。
 // role 名の解決失敗のような恒久エラーを握り潰すと、そのユーザーは「UI 上は管理者・API は 403」の
 // 壊れた状態にログすら残さず留まり続けるため。
-func (h *AuthHandler) promoteCognitoAdmin(c *gin.Context, cognitoSub string) {
+func (h *AuthHandler) promoteCognitoAdmin(c *gin.Context, cognitoSub string) bool {
 	if h.promoteAdmin == nil {
-		return
+		return false
 	}
 	ctx := c.Request.Context()
-	if _, err := h.promoteAdmin.Execute(ctx, usecase.PromoteCognitoAdminRoleInput{
+	promoted, err := h.promoteAdmin.Execute(ctx, usecase.PromoteCognitoAdminRoleInput{
 		CognitoSub: cognitoSub,
-	}); err != nil {
+	})
+	if err != nil {
 		slog.ErrorContext(ctx, "cognito admin role sync failed", "cognitoSub", cognitoSub, "err", err)
+		return false
 	}
+	return promoted
 }
 
 // handleTokenError は cognito.TokenExchanger が返したエラーを HTTP レスポンスに変換する。

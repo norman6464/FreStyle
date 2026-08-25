@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -68,11 +69,16 @@ func (r *fakeUserRepo) CreateWithOidcIdentity(_ context.Context, u *domain.User,
 	return nil
 }
 
-// CreateFirstSuperAdminWithOidcIdentity は本物の repository と同じく「super_admin が 0 人の
-// ときだけ作る」振る舞いを模す。
+// CreateFirstSuperAdminWithOidcIdentity は本物の repository と同じく「渡された role が
+// super_admin でなければ拒否し、super_admin が 0 人のときだけ作る」振る舞いを模す。
 func (r *fakeUserRepo) CreateFirstSuperAdminWithOidcIdentity(
 	ctx context.Context, u *domain.User, provider, subject string,
 ) (bool, error) {
+	// 本物（persistence.userRepository）はこの経路を super_admin 専用として先頭で弾く。
+	// ダブルがこの事前条件を落とすと、bootstrap 経路に trainee が流れる壊れ方を検出できない。
+	if u.Role != domain.RoleSuperAdmin {
+		return false, fmt.Errorf("最初の運営管理者の作成に role %q が渡されました（super_admin 専用の経路です）", u.Role)
+	}
 	if len(r.superAdmins) > 0 {
 		return false, nil
 	}

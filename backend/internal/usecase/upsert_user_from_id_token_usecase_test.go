@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -233,14 +234,21 @@ func (s *upsertUserRepoSpy) CreateWithOidcIdentity(
 	return nil
 }
 
-// CreateFirstSuperAdminWithOidcIdentity は本物の repository と同じく「super_admin が 0 人の
-// ときだけ作る」振る舞いを模す（判定は spy が持つ superAdmins を見る）。
+// CreateFirstSuperAdminWithOidcIdentity は本物の repository と同じく「渡された role が
+// super_admin でなければ拒否し、super_admin が 0 人のときだけ作る」振る舞いを模す
+// （判定は spy が持つ superAdmins を見る）。
 func (s *upsertUserRepoSpy) CreateFirstSuperAdminWithOidcIdentity(
 	ctx context.Context,
 	user *domain.User,
 	provider, subject string,
 ) (bool, error) {
 	s.createFirstSuperAdminCalls++
+	// 本物（persistence.userRepository）はこの経路を super_admin 専用として先頭で弾く。
+	// ダブルがこの事前条件を持たないと、免除の条件が壊れて trainee がこの経路に流れても
+	// テストは緑のままになり、本番でだけ「最初の運営管理者を作れない」状態を出荷してしまう。
+	if user.Role != domain.RoleSuperAdmin {
+		return false, fmt.Errorf("最初の運営管理者の作成に role %q が渡されました（super_admin 専用の経路です）", user.Role)
+	}
 	if len(s.superAdmins) > 0 {
 		return false, nil
 	}

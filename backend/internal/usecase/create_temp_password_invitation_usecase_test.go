@@ -48,6 +48,28 @@ func Test_初期パスワード招待_成功で行と一時パスワードを返
 	}
 }
 
+// 招待の email は正規形（domain.NormalizeEmail）で保存し、Cognito ユーザーも同じ値で作る。
+// 生のまま残すと、ログイン時の招待ゲートは正規形の OIDC メールで引くため突き合わせられず、
+// 招待したはずの相手が「招待なし」として拒否される。
+func Test_初期パスワード招待_emailを正規形に畳んで保存する(t *testing.T) {
+	repo := &stubAdminInvRepo{}
+	creator := &stubTempCreator{pw: "Temp-1!"}
+	uc := NewCreateTemporaryPasswordInvitationUseCase(repo, creator)
+
+	out, err := uc.Execute(context.Background(), CreateAdminInvitationInput{
+		CompanyID: 42, Email: "  NP@Example.com\t", Role: domain.RoleTrainee, Name: "山田",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if out.Invitation.Email != "np@example.com" {
+		t.Errorf("invitation email = %q, want %q", out.Invitation.Email, "np@example.com")
+	}
+	if creator.gotEmail != "np@example.com" {
+		t.Errorf("cognito email = %q, want %q", creator.gotEmail, "np@example.com")
+	}
+}
+
 func Test_初期パスワード招待_cognito未構成はErrUnavailable(t *testing.T) {
 	uc := NewCreateTemporaryPasswordInvitationUseCase(&stubAdminInvRepo{}, nil)
 	_, err := uc.Execute(context.Background(), CreateAdminInvitationInput{

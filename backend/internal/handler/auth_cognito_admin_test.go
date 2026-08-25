@@ -193,6 +193,58 @@ func Test_現在ユーザー取得_Cognito_adminをSuperAdminへ同期(t *testin
 	}
 }
 
+// 昇格したらレスポンスの role も昇格後の値にする。
+// 捨てると、初回だけ「isAdmin=true / role=trainee」という起き得ない組み合わせを返してしまい、
+// role を見て出し分けている画面が初回ログインのときだけ違う挙動になる。
+func Test_現在ユーザー取得_昇格後のroleをレスポンスに反映する(t *testing.T) {
+	users := &fakeUserRepo{existingBySub: map[string]*domain.User{
+		"u1": {ID: 5, Email: "u@example.com", Role: domain.RoleTrainee},
+	}}
+	h := newMeHandler(users)
+	c, rec := newMeCtx("u1", []string{"admin"})
+
+	h.Me(c)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("レスポンスが JSON でない: %v (%s)", err, rec.Body.String())
+	}
+	if body["role"] != string(domain.RoleSuperAdmin) {
+		t.Errorf("role = %v, want %q", body["role"], domain.RoleSuperAdmin)
+	}
+	if body["isAdmin"] != true {
+		t.Errorf("isAdmin = %v, want true", body["isAdmin"])
+	}
+}
+
+// 逆に、昇格できなかったときは role を勝手に書き換えない（DB の実態より強い権限を返さない）。
+func Test_現在ユーザー取得_昇格に失敗したらroleは元のまま(t *testing.T) {
+	users := &fakeUserRepo{
+		existingBySub: map[string]*domain.User{
+			"u1": {ID: 5, Email: "u@example.com", Role: domain.RoleTrainee},
+		},
+		updateRoleErr: errors.New(`unknown role "super_admin"`),
+	}
+	h := newMeHandler(users)
+	c, rec := newMeCtx("u1", []string{"admin"})
+
+	h.Me(c)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("レスポンスが JSON でない: %v (%s)", err, rec.Body.String())
+	}
+	if body["role"] != string(domain.RoleTrainee) {
+		t.Errorf("role = %v, want %q", body["role"], domain.RoleTrainee)
+	}
+}
+
 // 昇格に失敗しても /auth/me は返すが、失敗は必ずログに残す（握り潰さない）。
 // 握り潰すと「UI は管理者・API は 403」の壊れた状態が無言で続く。
 func Test_現在ユーザー取得_ロール同期の失敗をログに残す(t *testing.T) {

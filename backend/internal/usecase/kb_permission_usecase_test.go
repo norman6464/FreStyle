@@ -111,6 +111,85 @@ func Test_閲覧可能ページ一覧_必須項目の検証(t *testing.T) {
 	require.Error(t, err, "userID 必須")
 }
 
+func Test_サブツリー編集可否_必須項目の検証(t *testing.T) {
+	uc := usecase.NewCanEditPageSubtreeUseCase(&mockKBPermissionRepo{})
+	ctx := context.Background()
+
+	_, err := uc.Execute(ctx, usecase.CanEditPageSubtreeInput{PageID: kbPage, UserID: 1})
+	require.Error(t, err, "workspaceID 必須")
+	_, err = uc.Execute(ctx, usecase.CanEditPageSubtreeInput{WorkspaceID: kbWS, UserID: 1})
+	require.Error(t, err, "pageID 必須")
+	_, err = uc.Execute(ctx, usecase.CanEditPageSubtreeInput{WorkspaceID: kbWS, PageID: kbPage})
+	require.Error(t, err, "userID 必須")
+}
+
+func Test_サブツリー編集可否_1枚でも編集できなければ不可(t *testing.T) {
+	editable := domain.PagePermissionFacts{Member: true, Role: kbGrantRole(domain.GrantRoleEditor)}
+	cases := map[string]struct {
+		rows []repository.PageWithPermissionFacts
+		want bool
+	}{
+		"全部編集できる": {
+			rows: []repository.PageWithPermissionFacts{
+				{PageID: kbPage, Facts: editable},
+				{PageID: kbPage + "1", Facts: editable},
+			},
+			want: true,
+		},
+		"子孫の編集が外されている": {
+			rows: []repository.PageWithPermissionFacts{
+				{PageID: kbPage, Facts: editable},
+				{PageID: kbPage + "1", Facts: domain.PagePermissionFacts{
+					Member: true, Role: kbGrantRole(domain.GrantRoleEditor),
+					Edit: &domain.RestrictionFacts{DeniedAnywhere: true},
+				}},
+			},
+			want: false,
+		},
+		"子孫が閲覧すらできない": {
+			rows: []repository.PageWithPermissionFacts{
+				{PageID: kbPage, Facts: editable},
+				{PageID: kbPage + "1", Facts: domain.PagePermissionFacts{
+					Member: true, Role: kbGrantRole(domain.GrantRoleEditor),
+					View: &domain.RestrictionFacts{DeniedAnywhere: true},
+				}},
+			},
+			want: false,
+		},
+		"1 行も返らない（ページが無い）": {
+			rows: []repository.PageWithPermissionFacts{},
+			want: false,
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			repo := &mockKBPermissionRepo{}
+			repo.On("ListSubtreePagePermissionFacts", mock.Anything, kbWS, kbPage, uint64(1)).
+				Return(tc.rows, nil)
+			uc := usecase.NewCanEditPageSubtreeUseCase(repo)
+
+			got, err := uc.Execute(context.Background(), usecase.CanEditPageSubtreeInput{
+				WorkspaceID: kbWS, PageID: kbPage, UserID: 1,
+			})
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func Test_サブツリー編集可否_事実の収集が失敗したら伝える(t *testing.T) {
+	repo := &mockKBPermissionRepo{}
+	repo.On("ListSubtreePagePermissionFacts", mock.Anything, kbWS, kbPage, uint64(1)).
+		Return(nil, repository.ErrPageNotFound)
+	uc := usecase.NewCanEditPageSubtreeUseCase(repo)
+
+	got, err := uc.Execute(context.Background(), usecase.CanEditPageSubtreeInput{
+		WorkspaceID: kbWS, PageID: kbPage, UserID: 1,
+	})
+	require.ErrorIs(t, err, repository.ErrPageNotFound)
+	assert.False(t, got, "確認できないなら許可に倒さない")
+}
+
 func Test_メンバー追加_主体を作る(t *testing.T) {
 	repo := &mockKBPermissionRepo{}
 	repo.On("EnsureUserPrincipal", mock.Anything, kbWS, uint64(7)).

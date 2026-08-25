@@ -61,6 +61,8 @@ type BlockWrite struct {
 type KnowledgeBaseRepository interface {
 	// FindWorkspaceByID はワークスペースを 1 件引く。無ければ ErrWorkspaceNotFound。
 	FindWorkspaceByID(ctx context.Context, workspaceID string) (*domain.Workspace, error)
+	// FindWorkspaceBySlug は URL に出る slug からワークスペースを引く。無ければ ErrWorkspaceNotFound。
+	FindWorkspaceBySlug(ctx context.Context, slug string) (*domain.Workspace, error)
 	// FindSpace はスペースを 1 件引く。無い・別ワークスペースなら ErrSpaceNotFound。
 	FindSpace(ctx context.Context, workspaceID, spaceID string) (*domain.Space, error)
 	// FindPage はページを 1 件引く（アーカイブ済みも返す）。無い・別ワークスペースなら ErrPageNotFound。

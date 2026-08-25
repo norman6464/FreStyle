@@ -164,12 +164,6 @@ type GetPageTreeInput struct {
 	SpaceID     string
 }
 
-// PageTreeNode はページツリーの 1 ノード。
-type PageTreeNode struct {
-	Page     domain.Page     `json:"page"`
-	Children []*PageTreeNode `json:"children"`
-}
-
 func (u *GetPageTreeUseCase) Execute(ctx context.Context, in GetPageTreeInput) ([]*PageTreeNode, error) {
 	if _, err := u.repo.FindSpace(ctx, in.WorkspaceID, in.SpaceID); err != nil {
 		return nil, err
@@ -178,29 +172,10 @@ func (u *GetPageTreeUseCase) Execute(ctx context.Context, in GetPageTreeInput) (
 	if err != nil {
 		return nil, err
 	}
-	nodes := make(map[string]*PageTreeNode, len(pages))
-	for _, p := range pages {
-		nodes[p.ID] = &PageTreeNode{Page: p, Children: make([]*PageTreeNode, 0)}
-	}
-	// pages は position 順なので、この順で親へ append すれば兄弟順が保たれる
-	// （position は同じ親の中でのみ意味を持つが、全体ソートでも親ごとの相対順は崩れない）。
-	roots := make([]*PageTreeNode, 0)
-	for _, p := range pages {
-		node := nodes[p.ID]
-		if p.ParentID == nil {
-			roots = append(roots, node)
-			continue
-		}
-		parent, ok := nodes[*p.ParentID]
-		if !ok {
-			// 親が現役一覧に無い = アーカイブ運用の不変条件（サブツリーごと archive）が
-			// 崩れた行。データを隠さないようルート扱いで見せる（表示が乱れても本文は失わない）。
-			roots = append(roots, node)
-			continue
-		}
-		parent.Children = append(parent.Children, node)
-	}
-	return roots, nil
+	// 一覧はスペースの現役ページ全件で、権限でふるいにかけていない。ここで親が欠けるのは
+	// アーカイブ運用の不変条件（サブツリーごと archive）が崩れた行だけなので、
+	// データを隠さないようルート扱いで見せる（表示が乱れても本文は失わない）。
+	return BuildPageTree(pages, PageTreeOrphanAsRoot), nil
 }
 
 // RenamePageUseCase はページのタイトルを変更する。

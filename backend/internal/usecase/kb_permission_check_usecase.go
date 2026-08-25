@@ -131,3 +131,54 @@ func (u *ListViewablePagesUseCase) Execute(ctx context.Context, in ListViewableP
 	}
 	return pages, nil
 }
+
+// CanEditPageSubtreeUseCase は「このユーザーは、このページと全子孫を編集できるか」に答える。
+// ページを名指しして子孫ごと書き換える操作（アーカイブ / 復帰）の入口で使う。
+//
+// 根 1 枚の CheckPagePermissionUseCase では足りない。子孫には親と違う例外が張られている
+// ことがあり、根だけを見て通すと「その子を直接 rename すると 403 なのに、親のアーカイブ
+// 経由なら書き換えられる」という、同じ編集判定が経路で食い違う状態になる。
+//
+// 問い合わせはページ数によらず 1 回（サブツリーの事実をまとめて集める）。判定は
+// domain.ResolvePagePermission を 1 ページずつ通す — 1 枚解決と同じ規則を使い、
+// ここには写経しない。
+type CanEditPageSubtreeUseCase struct {
+	repo repository.KnowledgeBasePermissionRepository
+}
+
+func NewCanEditPageSubtreeUseCase(r repository.KnowledgeBasePermissionRepository) *CanEditPageSubtreeUseCase {
+	return &CanEditPageSubtreeUseCase{repo: r}
+}
+
+type CanEditPageSubtreeInput struct {
+	WorkspaceID string
+	PageID      string
+	UserID      uint64
+}
+
+func (u *CanEditPageSubtreeUseCase) Execute(ctx context.Context, in CanEditPageSubtreeInput) (bool, error) {
+	if in.WorkspaceID == "" {
+		return false, errors.New("workspaceID is required")
+	}
+	if in.PageID == "" {
+		return false, errors.New("pageID is required")
+	}
+	if in.UserID == 0 {
+		return false, errors.New("userID is required")
+	}
+	rows, err := u.repo.ListSubtreePagePermissionFacts(ctx, in.WorkspaceID, in.PageID, in.UserID)
+	if err != nil {
+		return false, err
+	}
+	if len(rows) == 0 {
+		// closure は自分自身（depth 0）を必ず含むので、0 行は「ページが無い」を意味する。
+		// 許可には倒さない（呼び出し側は先に根の権限を確かめている前提で、ここは安全弁）。
+		return false, nil
+	}
+	for _, row := range rows {
+		if !domain.ResolvePagePermission(row.Facts).CanEdit {
+			return false, nil
+		}
+	}
+	return true, nil
+}

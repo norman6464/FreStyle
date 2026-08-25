@@ -10,6 +10,8 @@
 package testsupport
 
 import (
+	"context"
+	"database/sql"
 	"os"
 	"strings"
 	"testing"
@@ -22,6 +24,10 @@ import (
 
 // defaultTestDSN は TEST_DATABASE_URL 未設定時の既定接続先（docker-compose.integration.yml と一致）。
 const defaultTestDSN = "postgres://frestyle:frestyle@localhost:5433/frestyle_integration?sslmode=disable"
+
+// integrationLockKey は結合テストを直列化する advisory lock のキー。
+// マイグレーション用（database.migrateAdvisoryLockKey）とは別の値にする。
+const integrationLockKey int64 = 907_353_401
 
 // OpenTestDB は結合テスト用 DB に接続し、全 domain モデルを AutoMigrate して返す。
 // TEST_DATABASE_URL が空 かつ 既定 DSN にも繋がらない場合は t.Skip する
@@ -76,6 +82,8 @@ func openTestDB(t *testing.T, preferSimpleProtocol bool) *gorm.DB {
 		t.Skipf("結合テスト用 PostgreSQL に ping 失敗: %v", err)
 	}
 
+	serializeIntegration(t, sqlDB)
+
 	if err := database.AutoMigrateAll(db); err != nil {
 		t.Fatalf("AutoMigrate 失敗: %v", err)
 	}
@@ -104,6 +112,34 @@ func openTestDB(t *testing.T, preferSimpleProtocol bool) *gorm.DB {
 		t.Fatalf("ApplyTenantBridgeSchema 失敗: %v", err)
 	}
 	return db
+}
+
+// serializeIntegration は結合テストをテスト関数の単位で直列化する。
+//
+// 結合テストは 1 台の PostgreSQL を共有し、TruncateAll でテーブルを TRUNCATE CASCADE しながら
+// 使う。go test はパッケージを並列に走らせるので、結合テストを持つパッケージが 2 つ以上になると
+// 互いの行を消し合い、テストの成否が実行順に左右される（デッドロックにもなる）。
+// 接続時に session 単位の advisory lock を取り、テスト終了時に解放することで、
+// パッケージをまたいでも同時に走るのは 1 テスト関数だけになる。
+//
+// ロックは pool 内の 1 本の接続に固定して取る（pool 任せだと解放が別の接続で走り、
+// ロックが残ったままになる）。テストが途中で落ちても、接続が閉じれば PostgreSQL 側で解放される。
+func serializeIntegration(t *testing.T, sqlDB *sql.DB) {
+	t.Helper()
+	ctx := t.Context()
+	conn, err := sqlDB.Conn(ctx)
+	if err != nil {
+		t.Fatalf("結合テスト直列化用の接続を取得できません: %v", err)
+	}
+	if _, err := conn.ExecContext(ctx, `SELECT pg_advisory_lock($1)`, integrationLockKey); err != nil {
+		_ = conn.Close()
+		t.Fatalf("結合テスト直列化用の advisory lock を取得できません: %v", err)
+	}
+	t.Cleanup(func() {
+		//nolint:errcheck // 解放に失敗しても接続を閉じれば PostgreSQL 側で解放される
+		_, _ = conn.ExecContext(context.WithoutCancel(ctx), `SELECT pg_advisory_unlock($1)`, integrationLockKey)
+		_ = conn.Close()
+	})
 }
 
 // looksLikeSupabase は DSN が Supabase / 本番 pooler を指しているかを返す（安全弁用）。

@@ -18,11 +18,13 @@ func NewAdminInvitationRepository(db *gorm.DB) repository.AdminInvitationReposit
 }
 
 // pending 以外（accepted / canceled）は除外する（行は物理削除せず status のみ更新）。
+// created_at は一意でないため、以下の一覧・単一取得はいずれも id をタイブレークに置いて順序を固定する
+// （特に FindPendingByEmail は 1 件しか返さず、順序が揺れると「どの招待が受理されるか」が変わる）。
 func (r *adminInvitationRepository) ListAll(ctx context.Context) ([]domain.AdminInvitation, error) {
 	rows := make([]domain.AdminInvitation, 0)
 	err := r.db.WithContext(ctx).
 		Where("status = ?", domain.InvitationStatusPending).
-		Order("created_at DESC").Find(&rows).Error
+		Order("created_at DESC, id DESC").Find(&rows).Error
 	return rows, err
 }
 
@@ -30,7 +32,7 @@ func (r *adminInvitationRepository) ListByCompanyID(ctx context.Context, company
 	rows := make([]domain.AdminInvitation, 0)
 	err := r.db.WithContext(ctx).
 		Where("company_id = ? AND status = ?", companyID, domain.InvitationStatusPending).
-		Order("created_at DESC").Find(&rows).Error
+		Order("created_at DESC, id DESC").Find(&rows).Error
 	return rows, err
 }
 
@@ -38,7 +40,7 @@ func (r *adminInvitationRepository) FindPendingByEmail(ctx context.Context, emai
 	var row domain.AdminInvitation
 	err := r.db.WithContext(ctx).
 		Where("email = ? AND status = ?", email, domain.InvitationStatusPending).
-		Order("created_at DESC").First(&row).Error
+		Order("created_at DESC, id DESC").First(&row).Error
 	if err != nil {
 		// 該当なしは招待ユーザーでない通常サインアップなので nil, nil を返す。
 		if errors.Is(err, gorm.ErrRecordNotFound) {

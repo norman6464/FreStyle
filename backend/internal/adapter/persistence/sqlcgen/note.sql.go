@@ -34,10 +34,11 @@ func (q *Queries) GetNoteByID(ctx context.Context, id int64) (Note, error) {
 const listNotesByUserID = `-- name: ListNotesByUserID :many
 SELECT id, user_id, title, content, is_public, is_pinned, created_at, updated_at FROM notes
 WHERE user_id = $1
-ORDER BY updated_at DESC
+ORDER BY updated_at DESC, id DESC
 `
 
 // 自分の学習メモ一覧を更新日時の新しい順で返す。
+// updated_at は一意でないため、同時刻の順序を固定する id DESC をタイブレークに付ける。
 func (q *Queries) ListNotesByUserID(ctx context.Context, userID int64) ([]Note, error) {
 	rows, err := q.db.QueryContext(ctx, listNotesByUserID, userID)
 	if err != nil {

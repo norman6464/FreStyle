@@ -11,10 +11,11 @@ import (
 
 const listCompanyApplications = `-- name: ListCompanyApplications :many
 SELECT id, company_name, applicant_name, email, message, status, created_at, updated_at FROM company_applications
-ORDER BY created_at DESC
+ORDER BY created_at DESC, id DESC
 `
 
 // 利用申請一覧（新しい順）。super_admin が確認する。
+// created_at は一意でないため、同時刻の順序を固定する id DESC をタイブレークに付ける。
 func (q *Queries) ListCompanyApplications(ctx context.Context) ([]CompanyApplication, error) {
 	rows, err := q.db.QueryContext(ctx, listCompanyApplications)
 	if err != nil {

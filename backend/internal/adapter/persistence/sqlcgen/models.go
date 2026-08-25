@@ -120,10 +120,41 @@ type PagePath struct {
 	Depth       int32
 }
 
+type PageRestriction struct {
+	WorkspaceID uuid.UUID
+	PageID      uuid.UUID
+	PrincipalID uuid.UUID
+	Capability  string
+	Mode        string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 type PageSnapshot struct {
 	PageID  uuid.UUID
 	Doc     json.RawMessage
 	BuiltAt time.Time
+}
+
+type Principal struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	Kind        string
+	UserID      sql.NullInt64
+	SpaceID     uuid.NullUUID
+	PageID      uuid.NullUUID
+	Name        string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type PrincipalMember struct {
+	WorkspaceID       uuid.UUID
+	GroupPrincipalID  uuid.UUID
+	MemberPrincipalID uuid.UUID
+	GroupKind         sql.NullString
+	MemberKind        sql.NullString
+	CreatedAt         time.Time
 }
 
 type Profile struct {
@@ -151,11 +182,36 @@ type SessionNote struct {
 	UpdatedAt time.Time
 }
 
+type ShareLink struct {
+	ID              uuid.UUID
+	WorkspaceID     uuid.UUID
+	PageID          uuid.UUID
+	PrincipalID     uuid.UUID
+	PrincipalKind   sql.NullString
+	Capability      string
+	TokenHash       []byte
+	PasswordHash    sql.NullString
+	ExpiresAt       sql.NullTime
+	RevokedAt       sql.NullTime
+	CreatedByUserID int64
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
 type Space struct {
 	ID          uuid.UUID
 	WorkspaceID uuid.UUID
 	Key         string
 	Name        string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type SpaceGrant struct {
+	WorkspaceID uuid.UUID
+	SpaceID     uuid.UUID
+	PrincipalID uuid.UUID
+	Role        string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
@@ -189,4 +245,12 @@ type Workspace struct {
 	Name      string
 	CreatedAt time.Time
 	UpdatedAt time.Time
+}
+
+type WorkspaceGrant struct {
+	WorkspaceID uuid.UUID
+	PrincipalID uuid.UUID
+	Role        string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }

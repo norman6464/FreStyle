@@ -19,7 +19,8 @@ func (r *aiChatSessionRepository) ListByUserID(ctx context.Context, userID uint6
 	rows := make([]domain.AiChatSession, 0)
 	err := r.db.WithContext(ctx).
 		Where("user_id = ?", userID).
-		Order("created_at DESC").
+		// created_at は一意でない。同時刻セッションの順序を固定するため id をタイブレークに置く。
+		Order("created_at DESC, id DESC").
 		Find(&rows).Error
 	return rows, err
 }

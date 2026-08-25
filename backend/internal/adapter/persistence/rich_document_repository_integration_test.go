@@ -190,6 +190,17 @@ func TestRichDocumentRepository_Integration(t *testing.T) {
 
 		// n1 を更新して updated_at を最新にし、降順で先頭に来ることを確認する。
 		require.NoError(t, repo.UpdateWithRevision(ctx, &domain.RichDocument{ID: n1.ID, Title: "n1b", SchemaVersion: 1, Doc: rdDoc}, 1))
+		// Create の updated_at は Go(ホスト)の時計、UpdateWithRevision は DB の now() で入る。
+		// 別々の時計なので数 ms のずれで同着・逆転が起こりうる（CI をフレークさせた実績がある）。
+		// ここで検証したいのは「更新日降順」なので、時刻を明示的に置いて時計差を排除する。
+		// owner_id で絞るのは、将来このサブテストの前に別の前提データが置かれても
+		// 無関係な行の updated_at まで書き換えないようにするため。
+		require.NoError(t, db.Exec(
+			`UPDATE rich_documents SET updated_at = TIMESTAMPTZ '2026-01-01 00:00:00+00' WHERE owner_id = ?`, owner,
+		).Error)
+		require.NoError(t, db.Exec(
+			`UPDATE rich_documents SET updated_at = TIMESTAMPTZ '2026-01-02 00:00:00+00' WHERE id = ?`, n1.ID,
+		).Error)
 
 		// 全 kind（owner のみ・削除除外）
 		all, err := repo.ListByOwner(ctx, owner, "")

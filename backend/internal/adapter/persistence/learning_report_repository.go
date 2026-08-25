@@ -17,8 +17,9 @@ func NewLearningReportRepository(db *gorm.DB) repository.LearningReportRepositor
 }
 
 // ListByUserID は自分のレポートを期間末(period_to)降順で返す。
+// period_to は同一期間のレポートが複数あれば同値になるため id をタイブレークに置く。
 func (r *learningReportRepository) ListByUserID(ctx context.Context, userID uint64) ([]domain.LearningReport, error) {
-	const q = `SELECT * FROM learning_reports WHERE user_id = ? ORDER BY period_to DESC`
+	const q = `SELECT * FROM learning_reports WHERE user_id = ? ORDER BY period_to DESC, id DESC`
 	rows := make([]domain.LearningReport, 0)
 	if err := r.db.WithContext(ctx).Raw(q, userID).Scan(&rows).Error; err != nil {
 		return nil, err

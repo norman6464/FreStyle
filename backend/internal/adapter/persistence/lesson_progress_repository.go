@@ -72,6 +72,8 @@ func (r *lessonProgressRepository) ListByUser(ctx context.Context, userID uint64
 	rows := make([]domain.UserLessonProgress, 0)
 	err := r.db.WithContext(ctx).
 		Where("user_id = ?", userID).
+		// ORDER BY 無しだと返却順が実行計画任せになるため PK で固定する。
+		Order("id asc").
 		Find(&rows).Error
 	if err != nil {
 		return nil, err

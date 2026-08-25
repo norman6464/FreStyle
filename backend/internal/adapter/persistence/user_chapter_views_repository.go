@@ -43,7 +43,8 @@ func (r *userChapterViewRepository) ListRecentByUser(
 	rows := make([]domain.UserChapterView, 0)
 	err := r.db.WithContext(ctx).
 		Where("user_id = ?", userID).
-		Order("last_viewed_at DESC").
+		// PK は (user_id, chapter_id)。user_id 固定なので chapter_id が同時刻のタイブレークになる。
+		Order("last_viewed_at DESC, chapter_id DESC").
 		Limit(limit).
 		Find(&rows).Error
 	return rows, err
@@ -58,7 +59,8 @@ func (r *userChapterViewRepository) GetLastViewedByUserAndCourse(
 	var rows []domain.UserChapterView
 	err := r.db.WithContext(ctx).
 		Where("user_id = ? AND course_id = ?", userID, courseID).
-		Order("last_viewed_at DESC").
+		// 同時刻の章が複数あっても返す 1 件がぶれないよう chapter_id をタイブレークに置く。
+		Order("last_viewed_at DESC, chapter_id DESC").
 		Limit(1).
 		Find(&rows).Error
 	if err != nil {

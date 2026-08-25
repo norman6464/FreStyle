@@ -31,10 +31,10 @@ func (q *Queries) GetCompanyByID(ctx context.Context, id int64) (Company, error)
 
 const listCompanies = `-- name: ListCompanies :many
 SELECT id, name, ai_chat_enabled_for_trainees, is_active, created_at, updated_at FROM companies
-ORDER BY name ASC
+ORDER BY name ASC, id ASC
 `
 
-// 企業一覧（名前昇順）。
+// 企業一覧（名前昇順）。name に一意制約は無いので同名企業の順序を固定する id ASC を付ける。
 func (q *Queries) ListCompanies(ctx context.Context) ([]Company, error) {
 	rows, err := q.db.QueryContext(ctx, listCompanies)
 	if err != nil {

@@ -28,6 +28,23 @@ const defaultTestDSN = "postgres://frestyle:frestyle@localhost:5433/frestyle_int
 // （ローカルで docker を上げずに `-tags=integration` を流しても落ちないように）。
 func OpenTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
+	return openTestDB(t, false)
+}
+
+// OpenTestDBSimpleProtocol は simple query protocol を強制した接続で OpenTestDB と同じ初期化を行う。
+//
+// 本番は Supabase transaction pooler 経由で simple protocol になり、pgx がパラメータを
+// クライアント側で SQL リテラルへ埋め込む（Go の型がそのまま SQL の構文を決める）。
+// extended protocol（ローカル / CI の既定）はパラメータの OID で型が伝わるため、
+// []byte と json.RawMessage の取り違えのような欠陥がローカルでは緑のまま本番でだけ落ちる。
+// その系統の回帰テストはこちらの接続で書く。
+func OpenTestDBSimpleProtocol(t *testing.T) *gorm.DB {
+	t.Helper()
+	return openTestDB(t, true)
+}
+
+func openTestDB(t *testing.T, preferSimpleProtocol bool) *gorm.DB {
+	t.Helper()
 
 	dsn := os.Getenv("TEST_DATABASE_URL")
 	if dsn == "" {
@@ -42,7 +59,10 @@ func OpenTestDB(t *testing.T) *gorm.DB {
 			"TEST_DATABASE_URL を解除し、ローカルの postgres-integration-test（make test-integration）を使ってください。")
 	}
 
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+	db, err := gorm.Open(postgres.New(postgres.Config{
+		DSN:                  dsn,
+		PreferSimpleProtocol: preferSimpleProtocol,
+	}), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
 	})
 	if err != nil {

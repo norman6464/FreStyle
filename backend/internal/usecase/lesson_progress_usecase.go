@@ -41,7 +41,7 @@ func NewMarkLessonCompletedUseCase(
 // MarkLessonCompletedInput は完了記録の入力。 actor の company / role で可視性を検証する。
 type MarkLessonCompletedInput struct {
 	UserID             uint64
-	ActorCompanyID     uint64
+	ActorCompany       domain.CompanyRef
 	ActorRole          domain.RoleName
 	TeachingMaterialID uint64
 }
@@ -66,7 +66,7 @@ func (u *MarkLessonCompletedUseCase) Execute(ctx context.Context, in MarkLessonC
 	}
 	// 自社かつ閲覧可能な教材のみ完了にできる（他社教材 / trainee に未公開の教材を弾く）。
 	// 既存の単一教材取得 (TeachingMaterialUseCase.Get) と同じ canRead で判定する。
-	if !canRead(m, course, in.ActorCompanyID, in.ActorRole) {
+	if !canRead(m, course, in.ActorCompany, in.ActorRole) {
 		return ErrLessonForbidden
 	}
 	changed, err := u.progress.MarkCompleted(ctx, in.UserID, in.TeachingMaterialID, m.CourseID)

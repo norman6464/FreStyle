@@ -30,7 +30,7 @@ const (
 // 権限モデル（principals 以下）も含める。principals は users を親に持つが、
 // users はここで消さない（ほかの結合テストと共有するため。principals 側だけ空にすれば足りる）。
 var kbTables = []string{
-	"share_links", "page_restrictions", "space_grants", "workspace_grants",
+	"share_links", "page_restrictions", "page_allow_lists", "space_grants", "workspace_grants",
 	"principal_members", "principals",
 	"blocks", "page_paths", "page_snapshots", "pages", "spaces", "workspaces",
 }
@@ -725,6 +725,11 @@ func seedPermissionRows(t *testing.T, db *sql.DB, workspaceID, spaceID, pageID s
 	_, err = db.Exec(
 		`INSERT INTO page_restrictions (workspace_id, page_id, principal_id, capability, mode)
 		 VALUES ($1, $2, $3, 'view', 'deny')`, workspaceID, pageID, userPrincipal,
+	)
+	require.NoError(t, err)
+	_, err = db.Exec(
+		`INSERT INTO page_allow_lists (workspace_id, page_id, capability) VALUES ($1, $2, 'view')`,
+		workspaceID, pageID,
 	)
 	require.NoError(t, err)
 	_, err = db.Exec(

@@ -453,6 +453,119 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 			f.viewablePageIDs(t, f.spaceA, f.alice), "限定公開は子孫まで効き続ける")
 	})
 
+	t.Run("許可リストに載った主体を消しても限定公開は解除されない", func(t *testing.T) {
+		// 引き金は攻撃ではなく通常運用（退職者のオフボーディング・部署の統廃合）。
+		// 主体を消すと許可リストの行も FK の CASCADE で一緒に消えるので、
+		// 「限定公開かどうか」を allow 行の有無で表していると、その瞬間に
+		// 経路上の制限が 1 つも無い状態になって既定（スペース全員 editor）へ戻ってしまう。
+		f := setupKBPermission(t, gormDB, sqlDB)
+		root := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, nil, "人事・機密")
+		child := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, &root.ID, "査定シート")
+		byGroup := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, nil, "部署だけの棚")
+
+		f.grantSpace(t, f.spaceA, f.everyoneOf(t, f.spaceA).ID, domain.GrantRoleEditor)
+		alice := f.principalFor(t, f.alice)
+		f.principalFor(t, f.bob)
+		f.principalFor(t, f.carol)
+		group, err := f.perm.CreateGroupPrincipal(ctx, f.ws, "人事部")
+		require.NoError(t, err)
+
+		f.restrict(t, root.ID, alice.ID, domain.CapabilityView, domain.RestrictionModeAllow)
+		f.restrict(t, byGroup.ID, group.ID, domain.CapabilityView, domain.RestrictionModeAllow)
+		require.False(t, f.permFor(t, root.ID, f.bob).CanView, "限定公開の時点で bob には見えない")
+		require.False(t, f.permFor(t, byGroup.ID, f.bob).CanView)
+		require.Empty(t, f.viewablePageIDs(t, f.spaceA, f.bob))
+
+		// 退職者を外す（許可リストに載っていた本人）。
+		require.NoError(t, usecase.NewRemoveWorkspaceMemberUseCase(f.perm).Execute(ctx,
+			usecase.RemoveWorkspaceMemberInput{WorkspaceID: f.ws, UserID: f.alice}))
+		// 部署の統廃合でグループを消す（許可リストに載っていた主体）。
+		require.NoError(t, f.perm.DeletePrincipal(ctx, f.ws, group.ID))
+
+		for _, page := range []*domain.Page{root, child, byGroup} {
+			got := f.permFor(t, page.ID, f.bob)
+			assert.False(t, got.CanView, "許可リストの主体が消えても限定公開は続く: "+page.Title)
+			assert.False(t, got.CanEdit, "読めないページを編集できてもいけない: "+page.Title)
+		}
+		assert.Empty(t, f.viewablePageIDs(t, f.spaceA, f.bob), "ツリー一覧にも出ない")
+		assert.Empty(t, f.viewablePageIDs(t, f.spaceA, f.carol))
+
+		// 空になった許可リストは例外の一覧には現れない。権限設定を「制限なし」と
+		// 誤って見せないよう、許可リスト制であること自体を読める経路があること。
+		rows, err := f.perm.ListPageRestrictions(ctx, f.ws, root.ID)
+		require.NoError(t, err)
+		assert.Empty(t, rows, "載っていた主体ごと allow 行は消えている")
+		caps, err := f.perm.ListPageAllowListCapabilities(ctx, f.ws, root.ID)
+		require.NoError(t, err)
+		assert.Equal(t, []domain.Capability{domain.CapabilityView}, caps, "許可リスト制であることは残る")
+
+		// 閉じたままにするのが目的で、開き直せなくなるわけではない。
+		// 許可リストを張り直せば載った人には見え、その最後の 1 行を消せば既定へ戻る。
+		bob, err := f.perm.FindUserPrincipal(ctx, f.ws, f.bob)
+		require.NoError(t, err)
+		f.restrict(t, root.ID, bob.ID, domain.CapabilityView, domain.RestrictionModeAllow)
+		assert.True(t, f.permFor(t, root.ID, f.bob).CanView, "載せ直せば見える")
+		assert.False(t, f.permFor(t, root.ID, f.carol).CanView, "載っていない人は見えないまま")
+		require.NoError(t, f.perm.DeletePageRestriction(ctx, f.ws, root.ID, bob.ID, domain.CapabilityView))
+		assert.True(t, f.permFor(t, root.ID, f.carol).CanView, "許可リストを畳めば既定へ戻る")
+	})
+
+	t.Run("部分上書きの段は主体の削除で上の段だけ全開にならない", func(t *testing.T) {
+		// root = [alice] / child = [alice, bob] のように段ごとに許可リストが違うとき、
+		// alice を消すと child の段には bob が残るのに root の段だけ空になる。
+		// 空になった段が「制限なし」に見えると、root 直下（child 以外）が全開になる。
+		f := setupKBPermission(t, gormDB, sqlDB)
+		root := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, nil, "root")
+		child := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, &root.ID, "広げた枝")
+		sibling := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, &root.ID, "広げていない枝")
+
+		f.grantSpace(t, f.spaceA, f.everyoneOf(t, f.spaceA).ID, domain.GrantRoleEditor)
+		alice := f.principalFor(t, f.alice)
+		bob := f.principalFor(t, f.bob)
+		f.principalFor(t, f.carol)
+
+		f.restrict(t, root.ID, alice.ID, domain.CapabilityView, domain.RestrictionModeAllow)
+		f.restrict(t, child.ID, alice.ID, domain.CapabilityView, domain.RestrictionModeAllow)
+		f.restrict(t, child.ID, bob.ID, domain.CapabilityView, domain.RestrictionModeAllow)
+		require.ElementsMatch(t, []string{child.ID}, f.viewablePageIDs(t, f.spaceA, f.bob))
+
+		require.NoError(t, usecase.NewRemoveWorkspaceMemberUseCase(f.perm).Execute(ctx,
+			usecase.RemoveWorkspaceMemberInput{WorkspaceID: f.ws, UserID: f.alice}))
+
+		assert.False(t, f.permFor(t, root.ID, f.bob).CanView, "空になった段は全開にならない")
+		assert.False(t, f.permFor(t, sibling.ID, f.bob).CanView, "root 直下の別の枝も閉じたまま")
+		assert.True(t, f.permFor(t, child.ID, f.bob).CanView, "近い段に残っている本人はそのまま")
+		assert.ElementsMatch(t, []string{child.ID}, f.viewablePageIDs(t, f.spaceA, f.bob))
+		assert.Empty(t, f.viewablePageIDs(t, f.spaceA, f.carol))
+	})
+
+	t.Run("限定公開が解けるのは許可リストを畳んだときだけ", func(t *testing.T) {
+		f := setupKBPermission(t, gormDB, sqlDB)
+		root := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, nil, "root")
+
+		f.grantSpace(t, f.spaceA, f.everyoneOf(t, f.spaceA).ID, domain.GrantRoleEditor)
+		alice := f.principalFor(t, f.alice)
+		f.principalFor(t, f.bob)
+		carol := f.principalFor(t, f.carol)
+
+		f.restrict(t, root.ID, alice.ID, domain.CapabilityView, domain.RestrictionModeAllow)
+		f.restrict(t, root.ID, carol.ID, domain.CapabilityView, domain.RestrictionModeDeny)
+		require.False(t, f.permFor(t, root.ID, f.bob).CanView)
+
+		// allow に触れない解除では解けない（無関係な 1 行で限定公開が解けると
+		// 主体の削除で解けるのと同じ穴になる）。
+		require.NoError(t, f.perm.DeletePageRestriction(ctx, f.ws, root.ID, carol.ID, domain.CapabilityView))
+		assert.False(t, f.permFor(t, root.ID, f.bob).CanView, "deny の解除で限定公開は解けない")
+
+		// 最後の allow を deny へ書き換えれば、許可リストは畳まれて既定へ戻る。
+		f.restrict(t, root.ID, alice.ID, domain.CapabilityView, domain.RestrictionModeDeny)
+		assert.True(t, f.permFor(t, root.ID, f.bob).CanView, "最後の allow が消えれば既定へ戻る")
+		assert.False(t, f.permFor(t, root.ID, f.alice).CanView, "書き換えた本人は deny で外れる")
+		caps, err := f.perm.ListPageAllowListCapabilities(ctx, f.ws, root.ID)
+		require.NoError(t, err)
+		assert.Empty(t, caps)
+	})
+
 	t.Run("読み取り専用のサブツリーは子のedit_deny1行で崩れない", func(t *testing.T) {
 		f := setupKBPermission(t, gormDB, sqlDB)
 		root := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, nil, "規程集")

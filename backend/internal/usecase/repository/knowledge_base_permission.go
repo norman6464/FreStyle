@@ -68,6 +68,11 @@ type KnowledgeBasePermissionRepository interface {
 	FindUserPrincipal(ctx context.Context, workspaceID string, userID uint64) (*domain.Principal, error)
 	// DeletePrincipal は主体を消す。紐づく grant / restriction / グループ所属も
 	// FK の CASCADE で消える。対象が無ければ ErrPrincipalNotFound。
+	//
+	// 許可リストに載っていた主体でも、その段が許可リスト制であること自体は消えない
+	// （印は page_allow_lists が持ち、主体を参照しない）。載っていた人が居なくなった段は
+	// 「誰も載っていない許可リスト」＝ 誰にも見えない状態になる。閉じる側へ倒すのは、
+	// オフボーディング 1 回で祖先の限定公開が第三者に開くのを避けるため。
 	DeletePrincipal(ctx context.Context, workspaceID, principalID string) error
 	// IsWorkspaceMember はユーザーがワークスペースのメンバーかを返す。
 	IsWorkspaceMember(ctx context.Context, workspaceID string, userID uint64) (bool, error)
@@ -93,12 +98,21 @@ type KnowledgeBasePermissionRepository interface {
 	ListSpaceGrants(ctx context.Context, workspaceID, spaceID string) ([]domain.SpaceGrant, error)
 
 	// UpsertPageRestriction はページの例外を設定する（同じ (ページ, 主体, ケイパビリティ) は 1 行）。
+	// allow を張ると、そのページのそのケイパビリティは許可リスト制になる（印も同じ
+	// トランザクションで立つ）。
 	UpsertPageRestriction(ctx context.Context, workspaceID, pageID, principalID string, capability domain.Capability, mode domain.RestrictionMode) (*domain.PageRestriction, error)
-	// DeletePageRestriction はページの例外を解除する（冪等）。最後の 1 行が消えると
-	// その段の制限が無くなり、解決はより遠い祖先 → grant の既定へ戻る。
+	// DeletePageRestriction はページの例外を解除する（冪等）。消したのが最後の allow 行なら
+	// 許可リスト制も畳み、解決はより遠い祖先 → grant の既定へ戻る。
+	// deny 行の解除では許可リスト制を畳まない（無関係な 1 行で限定公開が解けないように）。
 	DeletePageRestriction(ctx context.Context, workspaceID, pageID, principalID string, capability domain.Capability) error
 	// ListPageRestrictions はそのページ自身に張られた例外の一覧を返す（継承分は含まない）。
 	ListPageRestrictions(ctx context.Context, workspaceID, pageID string) ([]domain.PageRestriction, error)
+	// ListPageAllowListCapabilities はそのページ自身が許可リスト制になっている
+	// ケイパビリティを返す。載っていた主体が消えて allow 行が 0 行になった段は
+	// ListPageRestrictions には現れないため、権限設定を見せるときは両方を読む
+	// （でないと「制限なし」に見えるページが実際には誰にも見えない、という説明できない
+	// 食い違いになる）。
+	ListPageAllowListCapabilities(ctx context.Context, workspaceID, pageID string) ([]domain.Capability, error)
 
 	// CreateShareLink は共有リンクを発行する。kind='share_link' の主体の採番と作成も
 	// 同じトランザクションで行う（主体だけが残る／リンクだけが残る状態を作らない）。

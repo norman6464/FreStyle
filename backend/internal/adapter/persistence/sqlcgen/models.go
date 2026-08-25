@@ -113,6 +113,13 @@ type Page struct {
 	UpdatedAt       time.Time
 }
 
+type PageAllowList struct {
+	WorkspaceID uuid.UUID
+	PageID      uuid.UUID
+	Capability  string
+	CreatedAt   time.Time
+}
+
 type PagePath struct {
 	WorkspaceID uuid.UUID
 	PageID      uuid.UUID

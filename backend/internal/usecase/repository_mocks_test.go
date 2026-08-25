@@ -533,6 +533,12 @@ func (m *mockKBPermissionRepo) ListPageRestrictions(ctx context.Context, workspa
 	return rows, args.Error(1)
 }
 
+func (m *mockKBPermissionRepo) ListPageAllowListCapabilities(ctx context.Context, workspaceID, pageID string) ([]domain.Capability, error) {
+	args := m.Called(ctx, workspaceID, pageID)
+	rows, _ := args.Get(0).([]domain.Capability)
+	return rows, args.Error(1)
+}
+
 func (m *mockKBPermissionRepo) CreateShareLink(ctx context.Context, in repository.ShareLinkWrite) (*domain.ShareLink, error) {
 	args := m.Called(ctx, in)
 	l, _ := args.Get(0).(*domain.ShareLink)

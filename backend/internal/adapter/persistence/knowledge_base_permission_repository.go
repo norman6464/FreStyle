@@ -427,7 +427,26 @@ func (r *knowledgeBasePermissionRepository) UpsertPageRestriction(ctx context.Co
 	if !ok || !ok2 || !ok3 {
 		return nil, repository.ErrPageNotFound
 	}
-	row, err := r.q.UpsertPageRestriction(ctx, sqlcgen.UpsertPageRestrictionParams{
+
+	// 例外 1 行と「その段が許可リスト制か」の印は必ず同じトランザクションで揃える。
+	// 別々に書くと、片方だけ入った瞬間にページが開く / 閉じる中間状態ができる。
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }() // Commit 済みなら no-op
+	qtx := r.q.WithTx(tx)
+
+	prevMode, err := qtx.GetPageRestrictionMode(ctx, sqlcgen.GetPageRestrictionModeParams{
+		WorkspaceID: wsID,
+		PageID:      pgID,
+		PrincipalID: prID,
+		Capability:  string(capability),
+	})
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
+	row, err := qtx.UpsertPageRestriction(ctx, sqlcgen.UpsertPageRestrictionParams{
 		WorkspaceID: wsID,
 		PageID:      pgID,
 		PrincipalID: prID,
@@ -435,6 +454,24 @@ func (r *knowledgeBasePermissionRepository) UpsertPageRestriction(ctx context.Co
 		Mode:        string(mode),
 	})
 	if err != nil {
+		return nil, err
+	}
+	switch {
+	case mode == domain.RestrictionModeAllow:
+		if err := qtx.MarkPageAllowList(ctx, sqlcgen.MarkPageAllowListParams{
+			WorkspaceID: wsID, PageID: pgID, Capability: string(capability),
+		}); err != nil {
+			return nil, err
+		}
+	case prevMode == string(domain.RestrictionModeAllow):
+		// allow を deny へ書き換えた。その段の最後の allow だったなら印も畳む。
+		if err := qtx.UnmarkPageAllowListIfEmpty(ctx, sqlcgen.UnmarkPageAllowListIfEmptyParams{
+			WorkspaceID: wsID, PageID: pgID, Capability: string(capability),
+		}); err != nil {
+			return nil, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 	res := toDomainPageRestriction(row)
@@ -448,13 +485,60 @@ func (r *knowledgeBasePermissionRepository) DeletePageRestriction(ctx context.Co
 	if !ok || !ok2 || !ok3 {
 		return nil
 	}
-	_, err := r.q.DeletePageRestriction(ctx, sqlcgen.DeletePageRestrictionParams{
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }() // Commit 済みなら no-op
+	qtx := r.q.WithTx(tx)
+
+	// 消したのが allow 行だったときだけ印を畳む。deny 行の解除で畳むと、
+	// 無関係な 1 行の解除で限定公開が解けることになる。
+	prevMode, err := qtx.GetPageRestrictionMode(ctx, sqlcgen.GetPageRestrictionModeParams{
 		WorkspaceID: wsID,
 		PageID:      pgID,
 		PrincipalID: prID,
 		Capability:  string(capability),
 	})
-	return err
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil // 元から無い（冪等）
+		}
+		return err
+	}
+	if _, err := qtx.DeletePageRestriction(ctx, sqlcgen.DeletePageRestrictionParams{
+		WorkspaceID: wsID,
+		PageID:      pgID,
+		PrincipalID: prID,
+		Capability:  string(capability),
+	}); err != nil {
+		return err
+	}
+	if prevMode == string(domain.RestrictionModeAllow) {
+		if err := qtx.UnmarkPageAllowListIfEmpty(ctx, sqlcgen.UnmarkPageAllowListIfEmptyParams{
+			WorkspaceID: wsID, PageID: pgID, Capability: string(capability),
+		}); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+func (r *knowledgeBasePermissionRepository) ListPageAllowListCapabilities(ctx context.Context, workspaceID, pageID string) ([]domain.Capability, error) {
+	wsID, ok := kbParseID(workspaceID)
+	pgID, ok2 := kbParseID(pageID)
+	if !ok || !ok2 {
+		return []domain.Capability{}, nil
+	}
+	rows, err := r.q.ListPageAllowLists(ctx, sqlcgen.ListPageAllowListsParams{WorkspaceID: wsID, PageID: pgID})
+	if err != nil {
+		return nil, err
+	}
+	list := make([]domain.Capability, 0, len(rows))
+	for _, c := range rows {
+		list = append(list, domain.Capability(c))
+	}
+	return list, nil
 }
 
 func (r *knowledgeBasePermissionRepository) ListPageRestrictions(ctx context.Context, workspaceID, pageID string) ([]domain.PageRestriction, error) {

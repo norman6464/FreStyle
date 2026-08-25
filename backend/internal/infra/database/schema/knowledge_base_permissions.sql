@@ -1,5 +1,5 @@
 -- ナレッジ基盤の権限モデル（principals / principal_members / workspace_grants /
--- space_grants / page_restrictions / share_links）の DDL。
+-- space_grants / page_restrictions / page_allow_lists / share_links）の DDL。
 --
 -- knowledge_base.sql（骨格 6 テーブル）と同じ扱い: このファイルが実スキーマの正本であり、
 -- 同時に sqlc の型付け入力でもある（backend/sqlc.yaml の schema に登録済み）。
@@ -184,13 +184,13 @@ CREATE TABLE IF NOT EXISTS space_grants (
 -- 実効権限の決め方（domain.ResolvePagePermission が唯一の実装。ここは同じ規則の要約）:
 --   1. 対象ページ自身から根までの経路のどこかに自分宛ての deny があれば不許可。
 --      deny は allow に勝ち、経路全体で効く
---   2. 経路上に allow 行を持つ段があれば、そのうち最も近い段に自分が載っているかで決まる。
---      載っていなければ既定が admin でも不許可（限定公開）
---   3. allow 行を持つ段が経路に無ければ grants の既定に従う。
+--   2. 経路上に許可リスト制の段（page_allow_lists の印）があれば、そのうち最も近い段に
+--      自分の allow 行があるかで決まる。無ければ既定が admin でも不許可（限定公開）
+--   3. 許可リスト制の段が経路に無ければ grants の既定に従う。
 --      deny 行だけの段は「名指しの除外」で、ほかの人の既定は変えない
 --
 -- 2 と 3 の分かれ目が要るのは、allow と deny で意味が逆だから。allow を 1 つ足した瞬間に
--- 「載っていない人は入れない」に切り替わり（限定公開）、deny だけの段は
+-- 「載っていない人は入れない」に切り替わり（限定公開。その印は page_allow_lists）、deny だけの段は
 -- 「その人だけ外す」で他は既定のまま、という 2 つの使い方を 1 つの表で両立させる。
 --
 -- deny を「最も近い段」だけで見てはいけない。deny 行しか無い段が最近段になると 3 が働き、
@@ -218,6 +218,38 @@ CREATE TABLE IF NOT EXISTS page_restrictions (
         REFERENCES principals (workspace_id, id) ON DELETE CASCADE,
     CONSTRAINT ck_page_restrictions_capability CHECK (capability IN ('view', 'edit')),
     CONSTRAINT ck_page_restrictions_mode CHECK (mode IN ('allow', 'deny'))
+);
+
+-- page_allow_lists: 「このページのこのケイパビリティは許可リスト制（限定公開）である」という印。
+--
+-- 限定公開かどうかを page_restrictions の allow 行の有無で表してはいけない。
+-- principal_id は principals へ ON DELETE CASCADE なので、許可リストに載っている主体を
+-- 消すと allow 行も一緒に消える。行の有無が印を兼ねていると、その瞬間にその段の制限が
+-- 0 行になり、解決は「制限が無い」＝ 既定（例: スペース全員 editor）へ戻る。
+-- つまり退職者のオフボーディングや部署の統廃合という通常運用の 1 操作で、
+-- 無関係な第三者に限定公開のページが子孫ごと開く。ページ移動での失効を
+-- ErrPageMoveVoidsSpaceRestriction が経路で止めているのと違い、こちらは
+-- 「思いついた経路を塞ぐ」では足りない（削除の入口は増える）ため構造で断つ。
+--
+-- 印は主体を参照しないので、どの主体が消えても残る。残った結果は
+-- 「許可リストが空 ＝ 誰も載っていない」で、fail-closed（閉じる側）に倒れる。
+-- 権限管理の usecase（GrantWorkspaceRole / GrantSpaceRole / SetPageRestriction）は
+-- ページの閲覧・編集を要求しないので、閉じても管理者は張り直して復旧できる。
+--
+-- 印の増減は「明示的に allow 行を足した / 減らした」操作だけが行う（repository が同じ
+-- トランザクションで揃える）。deny 行の解除など allow に触れない操作では動かさない。
+-- 動かしてしまうと、無関係な 1 行の解除で限定公開が解けるという同じ穴を作ることになる。
+CREATE TABLE IF NOT EXISTS page_allow_lists (
+    workspace_id uuid NOT NULL,
+    page_id      uuid NOT NULL,
+    -- capability の値は domain.Capability が正（view / edit）。
+    capability   varchar(8) NOT NULL,
+    created_at   timestamptz NOT NULL DEFAULT now(),
+
+    CONSTRAINT page_allow_lists_pkey PRIMARY KEY (workspace_id, page_id, capability),
+    CONSTRAINT fk_page_allow_lists_page FOREIGN KEY (workspace_id, page_id)
+        REFERENCES pages (workspace_id, id) ON DELETE CASCADE,
+    CONSTRAINT ck_page_allow_lists_capability CHECK (capability IN ('view', 'edit'))
 );
 
 -- share_links: ログイン不要の公開 URL。

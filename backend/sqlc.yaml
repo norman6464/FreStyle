@@ -17,6 +17,7 @@ sql:
     schema:
       - "internal/adapter/persistence/queries/schema.sql"
       - "internal/infra/database/schema/knowledge_base.sql"
+      - "internal/infra/database/schema/knowledge_base_permissions.sql"
     queries: "internal/adapter/persistence/queries"
     gen:
       go:

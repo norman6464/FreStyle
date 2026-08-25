@@ -62,6 +62,14 @@ func JWTAuth(verify VerifyFunc) gin.HandlerFunc {
 }
 
 // ToStringSliceFromClaim は claim の cognito:groups を []string に変換する。
+//
+// 配列でない、または要素に string 以外が 1 つでも混ざっていれば nil を返す（＝「読めなかった」）。
+// 非 string を黙って捨てると [42] のような壊れた claim が「空の配列」に化け、
+// 呼び出し側からは「グループに居ない」と見分けが付かなくなる。それは運営権限の失効判定を
+// 誤らせ、正当な運営管理者を締め出す。読めない claim は何も語らないものとして扱う。
+//
+// 空配列 []any{} は「読めた上で 1 つも属していない」なので、nil ではなく長さ 0 の
+// 非 nil スライスを返す（失効の根拠になる正当な値）。
 func ToStringSliceFromClaim(v any) []string {
 	arr, ok := v.([]any)
 	if !ok {
@@ -69,9 +77,11 @@ func ToStringSliceFromClaim(v any) []string {
 	}
 	out := make([]string, 0, len(arr))
 	for _, item := range arr {
-		if s, ok := item.(string); ok {
-			out = append(out, s)
+		s, ok := item.(string)
+		if !ok {
+			return nil
 		}
+		out = append(out, s)
 	}
 	return out
 }

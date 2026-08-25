@@ -7,10 +7,12 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/norman6464/FreStyle/backend/internal/domain"
 )
 
 // makeJWT は header.payload.signature 形式のダミー JWT を組み立てる。
@@ -94,18 +96,93 @@ func Test_グループからadmin判定(t *testing.T) {
 }
 
 func Test_クレームから文字列スライス変換(t *testing.T) {
-	got := ToStringSliceFromClaim([]any{"a", "b", 42, "c"})
-	want := []string{"a", "b", "c"}
-	if len(got) != len(want) {
-		t.Fatalf("len mismatch: got %v want %v", got, want)
+	tests := []struct {
+		name string
+		in   any
+		want []string // nil は「読めなかった」。長さ 0 の非 nil は「読めた上で空」。
+	}{
+		{"すべて string", []any{"a", "b", "c"}, []string{"a", "b", "c"}},
+		{"空配列は読めた上で空", []any{}, []string{}},
+		{"非 string が混ざれば読めない", []any{"admin", 42}, nil},
+		{"非 string だけでも読めない", []any{42}, nil},
+		{"配列でなければ読めない", "not-an-array", nil},
+		{"キーが無ければ読めない", nil, nil},
 	}
-	for i := range got {
-		if got[i] != want[i] {
-			t.Fatalf("got %v want %v", got, want)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ToStringSliceFromClaim(tt.in)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("got %#v want %#v", got, tt.want)
+			}
+			if tt.want != nil && got == nil {
+				t.Fatal("読めた配列を nil で返してはならない（欠落と区別が付かなくなる）")
+			}
+		})
 	}
-	if ToStringSliceFromClaim("not-an-array") != nil {
-		t.Fatal("non-array should return nil")
+}
+
+// 壊れた claim を「グループに居ない」と読むと、正当な運営管理者の権限を剥がしてしまう。
+// 読めない形は Absent（何も判断しない）へ倒れることを固定する。
+func Test_運営権限クレーム_読めない形は判断しない(t *testing.T) {
+	tests := []struct {
+		name   string
+		claims map[string]any
+		want   domain.PlatformAdminClaim
+	}{
+		{"キーが無い", map[string]any{}, domain.PlatformAdminClaimAbsent},
+		{"配列でない", map[string]any{"cognito:groups": "admin"}, domain.PlatformAdminClaimAbsent},
+		{"非 string だけ", map[string]any{"cognito:groups": []any{42}}, domain.PlatformAdminClaimAbsent},
+		{"admin と非 string の混在", map[string]any{"cognito:groups": []any{"admin", 42}}, domain.PlatformAdminClaimAbsent},
+		{"空配列は失効", map[string]any{"cognito:groups": []any{}}, domain.PlatformAdminClaimRevoked},
+		{"admin を含まない", map[string]any{"cognito:groups": []any{"users"}}, domain.PlatformAdminClaimRevoked},
+		{"admin を含む", map[string]any{"cognito:groups": []any{"users", "admin"}}, domain.PlatformAdminClaimGranted},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := PlatformAdminClaimFromClaims(tt.claims); got != tt.want {
+				t.Fatalf("got %v want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// JWTAuth 経由でも同じ結論になること（context に置くか否かが claim の存在の印なので、
+// 読めない claim を置いてしまうと失効判定が「グループに居ない」と誤読する）。
+func Test_JWT認証_運営権限クレームの存在判定(t *testing.T) {
+	tests := []struct {
+		name   string
+		groups any
+		want   domain.PlatformAdminClaim
+	}{
+		{"キーが無い", nil, domain.PlatformAdminClaimAbsent},
+		{"非 string だけ", []any{42}, domain.PlatformAdminClaimAbsent},
+		{"admin と非 string の混在", []any{"admin", 42}, domain.PlatformAdminClaimAbsent},
+		{"空配列", []any{}, domain.PlatformAdminClaimRevoked},
+		{"admin を含む", []any{"admin"}, domain.PlatformAdminClaimGranted},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gin.SetMode(gin.TestMode)
+			claims := map[string]any{"sub": "user-9"}
+			if tt.groups != nil {
+				claims["cognito:groups"] = tt.groups
+			}
+			verify := func(context.Context, string) (map[string]any, error) { return claims, nil }
+
+			var got domain.PlatformAdminClaim
+			r := gin.New()
+			r.GET("/x", JWTAuth(verify), func(c *gin.Context) {
+				got = PlatformAdminClaimFromContext(c)
+				c.Status(http.StatusOK)
+			})
+			req := httptest.NewRequest(http.MethodGet, "/x", nil)
+			req.AddCookie(&http.Cookie{Name: CookieAccessToken, Value: "good"})
+			r.ServeHTTP(httptest.NewRecorder(), req)
+
+			if got != tt.want {
+				t.Fatalf("got %v want %v", got, tt.want)
+			}
+		})
 	}
 }
 

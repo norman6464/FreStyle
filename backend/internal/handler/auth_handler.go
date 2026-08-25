@@ -87,10 +87,8 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
-	// 運営権限の付与 / 失効を先に反映してから現在の情報を読む。ここで反映しないと、
-	// Cognito の admin グループから外れた退任者が /auth/me の応答上は管理者のまま残る。
-	// claim が無いときは何も変えない（PlatformAdminClaimAbsent）。
-	h.syncPlatformAdmin(c, sub.(string), middleware.PlatformAdminClaimFromContext(c))
+	// 運営権限の付与 / 失効は認証済み経路の middleware（middleware.SyncPlatformAdmin）が
+	// 認可より前に済ませている。ここで重ねて呼ぶと users を無駄に 1 回多く引くだけなので呼ばない。
 	user, err := h.getCurrentUser.Execute(c.Request.Context(), sub.(string))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})

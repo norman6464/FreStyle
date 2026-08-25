@@ -20,7 +20,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// platformAdminRouter は本番と同じ順序（JWTAuth → CurrentUser → RequireAdmin → handler）で
+// platformAdminRouter は本番と同じ順序（JWTAuth → CurrentUser → SyncPlatformAdmin → RequireAdmin → handler）で
 // ルートを張る。claims は access_token の検証結果として JWTAuth に返させるもので、
 // "cognito:groups" キーを入れる / 入れないで claim の欠落と空を撃ち分けられる。
 func platformAdminRouter(db *gorm.DB, claims map[string]any) *gin.Engine {
@@ -40,10 +40,12 @@ func platformAdminRouter(db *gorm.DB, claims map[string]any) *gin.Engine {
 
 	r := gin.New()
 	g := r.Group("")
-	g.Use(middleware.JWTAuth(func(context.Context, string) (map[string]any, error) {
-		return claims, nil
-	}))
-	g.Use(middleware.CurrentUser(userRepo, companyRepo))
+	// 横断処理は本番と同じ組み立て（authedMiddlewares）をそのまま使う。ここで並べ直すと、
+	// 本番の並びから 1 つ抜け落ちてもこのテストが緑のままになる。
+	g.Use(authedMiddlewares(
+		func(context.Context, string) (map[string]any, error) { return claims, nil },
+		userRepo, companyRepo,
+	)...)
 	registerAuthAuthedRoutes(g, authHandler)
 
 	admin := g.Group("", middleware.RequireAdmin())
@@ -184,7 +186,10 @@ func TestPlatformAdminOffboarding_Integration(t *testing.T) {
 		require.False(t, platformAdminFlag(t, db, u.ID))
 	})
 
-	t.Run("グループから外れたら次のリクエストで失効する", func(t *testing.T) {
+	// 失効は /auth/me ではなく認可の手前で起きなければならない。管理 API は
+	// JWTAuth → CurrentUser → RequireAdmin と進むだけで /auth/me を通らないので、
+	// /auth/me でしか同期しないと退任者は直接 /admin/* を叩けてしまう。
+	t.Run("グループから外れたら_authmeを通らなくても管理APIが通らない", func(t *testing.T) {
 		sub := "platform-admin-offboarded"
 		u := mkSuperAdmin(sub, "offboarded@example.com", true)
 
@@ -194,15 +199,20 @@ func TestPlatformAdminOffboarding_Integration(t *testing.T) {
 		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 
 		// 2) Cognito 側で admin グループから外す（claim はあるが admin を含まない）。
+		//    /auth/me を一度も呼ばずに管理 API を叩く。
 		outOfGroup := platformAdminRouter(db, claimsFor(sub, []string{"users"}, true))
+		w = platformAdminGet(t, outOfGroup, "/admin/companies")
+		require.Equal(t, http.StatusForbidden, w.Code, w.Body.String())
+		require.False(t, platformAdminFlag(t, db, u.ID), "認可の手前で失効していること")
+
+		// 3) /auth/me の応答も管理者ではなくなる。
 		w = platformAdminGet(t, outOfGroup, "/auth/me")
 		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 		role, isAdmin := meRole(t, w)
 		require.Equal(t, string(domain.RoleTrainee), role)
 		require.False(t, isAdmin)
-		require.False(t, platformAdminFlag(t, db, u.ID))
 
-		// 3) 以後は全顧客企業の一覧に触れない。
+		// 4) 以後も全顧客企業の一覧に触れない。
 		w = platformAdminGet(t, outOfGroup, "/admin/companies")
 		require.Equal(t, http.StatusForbidden, w.Code, w.Body.String())
 	})
@@ -212,14 +222,30 @@ func TestPlatformAdminOffboarding_Integration(t *testing.T) {
 		u := mkSuperAdmin(sub, "rejoined@example.com", false)
 		r := platformAdminRouter(db, claimsFor(sub, []string{"admin"}, true))
 
+		// 付与も認可の手前で起きるので、/auth/me を先に呼ぶ必要はない。
 		w := platformAdminGet(t, r, "/admin/companies")
-		require.Equal(t, http.StatusForbidden, w.Code, w.Body.String())
-
-		w = platformAdminGet(t, r, "/auth/me")
 		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 		require.True(t, platformAdminFlag(t, db, u.ID))
 
-		w = platformAdminGet(t, r, "/admin/companies")
+		w = platformAdminGet(t, r, "/auth/me")
 		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+		role, isAdmin := meRole(t, w)
+		require.Equal(t, string(domain.RoleSuperAdmin), role)
+		require.True(t, isAdmin)
+	})
+
+	// 読めない形の claim（配列に非 string が混ざる）は「グループに居ない」ではない。
+	// これを失効と読むと、正当な運営管理者を締め出す。
+	t.Run("読めない形のclaimでは降格しない", func(t *testing.T) {
+		sub := "platform-admin-broken-claim"
+		u := mkSuperAdmin(sub, "broken-claim@example.com", true)
+		r := platformAdminRouter(db, map[string]any{
+			"sub":            sub,
+			"cognito:groups": []any{"admin", 42},
+		})
+
+		w := platformAdminGet(t, r, "/admin/companies")
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+		require.True(t, platformAdminFlag(t, db, u.ID), "読めない claim で剥奪してはならない")
 	})
 }

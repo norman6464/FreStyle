@@ -74,8 +74,9 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	authHandler := registerAuthPublicRoutes(v2, deps)
 
 	authed := v2.Group("")
-	authed.Use(middleware.JWTAuth(buildJWTVerify(cfg)))
-	authed.Use(middleware.CurrentUser(deps.userRepo, persistence.NewCompanyRepository(deps.db)))
+	authed.Use(authedMiddlewares(
+		buildJWTVerify(cfg), deps.userRepo, persistence.NewCompanyRepository(deps.db),
+	)...)
 
 	// 監査ログ記録 middleware（admin の変更操作で共有する）。
 	audit := newAuditMiddleware(deps.db)
@@ -100,6 +101,31 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	registerKnowledgeBaseRoutes(authed, deps)
 	// WebSocket (/ws/ai-chat) は SSE (/ai-chat/stream) への置換で廃止 (PR-D)。
 	return r
+}
+
+// authedMiddlewares は認証済み経路に必ず通す横断処理を、本番と同じ順序で返す。
+//
+// 順序に意味がある:
+//  1. JWTAuth        … access_token を検証し、sub と cognito:groups claim を context へ
+//  2. CurrentUser    … users 行を引いて *domain.User を context へ（無効ユーザー / 無効会社をここで弾く）
+//  3. SyncPlatformAdmin … 2 が読んだ行と 1 が読んだ claim を突き合わせ、運営権限の在否を反映する
+//
+// 3 は認可（RequireAdmin / 各 handler の役割検査）より前でなければならない。/auth/me でしか
+// 同期しないと、admin グループから外れた退任者が /auth/me を通らずに /admin/* を直接叩いた
+// ときだけ、同期前の DB の値で認可されてしまう。
+//
+// 組み立てを 1 箇所に閉じるのは、結合テストが本番と同じ並びを使えるようにするため
+// （テスト側で並べ直すと、ここから 1 つ抜け落ちてもテストが緑のままになる）。
+func authedMiddlewares(
+	verify middleware.VerifyFunc,
+	users repository.UserRepository,
+	companies repository.CompanyRepository,
+) []gin.HandlerFunc {
+	return []gin.HandlerFunc{
+		middleware.JWTAuth(verify),
+		middleware.CurrentUser(users, companies),
+		middleware.SyncPlatformAdmin(usecase.NewSyncPlatformAdminUseCase(users), users),
+	}
 }
 
 // buildJWTVerify は JWTAuth に渡す access_token 検証関数を組み立てる。

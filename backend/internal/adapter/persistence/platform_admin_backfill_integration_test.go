@@ -46,26 +46,44 @@ func TestExpandUsersPlatformAdmin_Integration(t *testing.T) {
 	// 一度落として「列が無い」ところからやり直す。
 	require.NoError(t, db.Exec(`ALTER TABLE users DROP COLUMN IF EXISTS is_platform_admin`).Error)
 
-	superAdmin := insertUserWithRole(t, db, "expand-super@example.com", domain.RoleIDSuperAdmin)
-	companyAdmin := insertUserWithRole(t, db, "expand-company@example.com", domain.RoleIDCompanyAdmin)
-	trainee := insertUserWithRole(t, db, "expand-trainee@example.com", domain.RoleIDTrainee)
+	// ロールを増やしたときに初期データと期待値の更新漏れが起きないよう、1 つの表で持つ。
+	cases := []struct {
+		name   string
+		email  string
+		roleID uint16
+		want   bool
+	}{
+		{"super_admin は運営権限を引き継ぐ", "expand-super@example.com", domain.RoleIDSuperAdmin, true},
+		{"company_admin は対象外", "expand-company@example.com", domain.RoleIDCompanyAdmin, false},
+		{"trainee は対象外", "expand-trainee@example.com", domain.RoleIDTrainee, false},
+	}
+	ids := make([]uint64, len(cases))
+	for i, tc := range cases {
+		ids[i] = insertUserWithRole(t, db, tc.email, tc.roleID)
+	}
 
+	// バックフィルは「列が無かった 1 回だけ」なので、全ロール分の行を作ってから一度だけ流す。
+	// ケースごとに流し直すと 2 回目以降は列が既にあり no-op になり、何も検証できない。
 	require.NoError(t, database.ExpandUsersPlatformAdmin(db))
 
-	t.Run("既存の super_admin だけが true になる", func(t *testing.T) {
-		require.True(t, platformAdminFlagOf(t, db, superAdmin))
-		require.False(t, platformAdminFlagOf(t, db, companyAdmin))
-		require.False(t, platformAdminFlagOf(t, db, trainee))
+	assertAll := func(t *testing.T) {
+		t.Helper()
+		for i, tc := range cases {
+			require.Equal(t, tc.want, platformAdminFlagOf(t, db, ids[i]), tc.name)
+		}
+	}
+
+	t.Run("適用直後はロールどおりの値になる", func(t *testing.T) {
+		assertAll(t)
 	})
 
 	t.Run("再適用しても結果が変わらない", func(t *testing.T) {
 		require.NoError(t, database.ExpandUsersPlatformAdmin(db))
-		require.True(t, platformAdminFlagOf(t, db, superAdmin))
-		require.False(t, platformAdminFlagOf(t, db, companyAdmin))
-		require.False(t, platformAdminFlagOf(t, db, trainee))
+		assertAll(t)
 	})
 
 	t.Run("失効させた運営管理者は再適用で復権しない", func(t *testing.T) {
+		superAdmin := ids[0]
 		require.NoError(t, db.Exec(
 			`UPDATE users SET is_platform_admin = false WHERE id = ?`, superAdmin,
 		).Error)
@@ -73,6 +91,11 @@ func TestExpandUsersPlatformAdmin_Integration(t *testing.T) {
 		require.NoError(t, database.ExpandUsersPlatformAdmin(db))
 		require.False(t, platformAdminFlagOf(t, db, superAdmin),
 			"role_id は下げないので、無条件のバックフィルを毎起動流すと退任者が復権する")
+
+		// 後続のケースに引きずらないよう元へ戻す。
+		require.NoError(t, db.Exec(
+			`UPDATE users SET is_platform_admin = true WHERE id = ?`, superAdmin,
+		).Error)
 	})
 
 	t.Run("バックフィル後に作られた super_admin は対象外", func(t *testing.T) {
@@ -82,5 +105,6 @@ func TestExpandUsersPlatformAdmin_Integration(t *testing.T) {
 
 		require.NoError(t, database.ExpandUsersPlatformAdmin(db))
 		require.False(t, platformAdminFlagOf(t, db, later))
+		assertAll(t)
 	})
 }

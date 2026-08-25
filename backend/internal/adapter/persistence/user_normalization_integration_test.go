@@ -11,6 +11,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/infra/database"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 // TestUserNormalization_Integration は users 正規化（FRESTYLE-311）の契約を実 Postgres で固定する。
@@ -115,6 +116,43 @@ func TestUserNormalization_Integration(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, domain.RoleIDSuperAdmin, got.RoleID)
 		require.Equal(t, domain.RoleTrainee, got.Role)
+	})
+
+	t.Run("UpdatePlatformAdmin は在否を切り替え、対象が無ければ ErrRecordNotFound", func(t *testing.T) {
+		truncate(t)
+		u := &domain.User{Email: "n4b@example.com", Role: domain.RoleSuperAdmin}
+		require.NoError(t, repo.CreateWithOidcIdentity(ctx, u, domain.OidcProviderCognito, "norm-4b"))
+		missingID := u.ID + 1000
+
+		cases := []struct {
+			name     string
+			userID   uint64
+			value    bool
+			wantErr  error
+			wantFlag bool
+			wantRole domain.RoleName
+		}{
+			{"付与すると実効役割が super_admin になる", u.ID, true, nil, true, domain.RoleSuperAdmin},
+			{"剥奪すると実効役割が最小権限へ倒れる", u.ID, false, nil, false, domain.RoleTrainee},
+			// 行が無いのを黙って成功にすると、剥奪したつもりで何も起きていない状態が作れてしまう。
+			{"存在しないユーザーは更新できない", missingID, true, gorm.ErrRecordNotFound, false, ""},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				err := repo.UpdatePlatformAdmin(ctx, tc.userID, tc.value)
+				if tc.wantErr != nil {
+					require.ErrorIs(t, err, tc.wantErr)
+					return
+				}
+				require.NoError(t, err)
+
+				got, err := repo.FindByID(ctx, tc.userID)
+				require.NoError(t, err)
+				require.Equal(t, tc.wantFlag, got.IsPlatformAdmin)
+				require.Equal(t, tc.wantRole, got.Role)
+				require.Equal(t, domain.RoleIDSuperAdmin, got.RoleID, "role_id は下げない")
+			})
+		}
 	})
 
 	t.Run("UpdateRole は未知の role 名を拒否する", func(t *testing.T) {

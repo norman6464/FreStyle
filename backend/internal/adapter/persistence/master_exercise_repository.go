@@ -23,7 +23,8 @@ func (r *masterExerciseRepository) ListByLanguage(ctx context.Context, language 
 	if language != "" {
 		q = q.Where("language = ?", language)
 	}
-	if err := q.Order("sort_order asc").Find(&exercises).Error; err != nil {
+	// sort_order は一意でない（既定値 0）。同値行の相対順序は SQL 上未定義なので id をタイブレークに置く。
+	if err := q.Order("sort_order asc, id asc").Find(&exercises).Error; err != nil {
 		return nil, err
 	}
 	return exercises, nil
@@ -74,6 +75,8 @@ ORDER BY e.language ASC`
 // ListWithStatusByLanguage は公開済み問題を「current user の提出状態 + 全体集計」付きで 1 クエリで返す。
 // in.Limit > 0 のとき LIMIT/OFFSET を適用する。Limit=0 は全件取得。
 // userID=0（未ログイン）は usr サブクエリが空になり status は全て "".
+// sort_order は一意でないため id をタイブレークに置く。これが無いと同値行の順序がページ間で
+// 揺れ、OFFSET ページングで同じ行が重複したり抜け落ちたりする。
 func (r *masterExerciseRepository) ListWithStatusByLanguage(ctx context.Context, in repository.ListWithStatusInput) ([]repository.MasterExerciseWithStatus, error) {
 	type row struct {
 		domain.MasterExercise
@@ -109,7 +112,7 @@ LEFT JOIN (
 ) usr ON usr.exercise_id = e.id
 WHERE e.is_published = TRUE
   AND (? = '' OR e.language = ?)
-ORDER BY e.sort_order ASC`
+ORDER BY e.sort_order ASC, e.id ASC`
 
 	var q string
 	var args []interface{}

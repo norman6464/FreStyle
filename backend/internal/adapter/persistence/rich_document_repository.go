@@ -115,7 +115,9 @@ func (r *richDocumentRepository) ListByOwner(ctx context.Context, ownerID uint64
 		Where("owner_id = ? AND deleted_at IS NULL", ownerID).
 		// doc(jsonb) 本体は一覧では要らないので読み込まない（転送量とメモリを抑える）。
 		Select("id, owner_id, company_id, kind, title, is_public, schema_version, revision, created_at, updated_at").
-		Order("updated_at DESC")
+		// updated_at は同一トランザクション内の複数更新や時刻の解像度で容易に同値になる。
+		// 同値時の順序を固定するため id をタイブレークに置く。
+		Order("updated_at DESC, id DESC")
 	if kind != "" {
 		q = q.Where("kind = ?", kind)
 	}

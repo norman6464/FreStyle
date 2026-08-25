@@ -32,7 +32,14 @@ type RichDocument struct {
 	// 読み出し（FindByID / ListByOwner）も可視性判定（CanBeReadBy）も owner_id と is_public だけで
 	// 決めており、この値を絞り込み条件に使っている箇所は無い（API 応答に出るだけで、フロントも読まない）。
 	// いま絞り込みに使い始めると、これまで見えていた文書が会社をまたいだ瞬間に見えなくなる。
-	// テナント列そのものを定め直すのはテナント統合の仕事なので、扱いはそこで決める。未所属なら nil。
+	//
+	// テナント統合での扱いは「workspace_id へ置き換えず、列ごと捨てる」。写しているのは
+	// 作成時点の作成者の所属で、その後の異動を追わないため既に事実として古い。指す先の
+	// companies そのものが畳まれて消える以上、置き換えは「無かった境界を新しく作る」ことになり、
+	// 上のとおり見えなくなる文書が出る。文書にテナント境界が要るなら、ナレッジ基盤の
+	// 権限モデルの上で改めて設計する（この列を作り直すのではなく）。
+	// 消す順序は「書き込みと API 応答を外す → 列を落とす」。逆にすると、ローリングデプロイ中の
+	// 旧タスクが存在しない列へ INSERT して落ちる。未所属なら nil。
 	CompanyID *uint64 `gorm:"column:company_id" json:"companyId,omitempty"`
 	// Kind は用途区分（note / course-chapter …）。
 	Kind DocumentKind `gorm:"column:kind;not null" json:"kind"`

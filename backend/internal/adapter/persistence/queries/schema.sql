@@ -11,11 +11,29 @@
 --      つまりここは正本ではなく写しなので、列を足す・型を変えるときは domain 構造体
 --      （必要なら ApplyXxxConstraints）を先に直し、このファイルを追随させること。
 --
---   2. ナレッジ基盤（workspaces / spaces / pages / blocks / page_paths / page_snapshots）
---      GORM を通さない。infra/database/schema/knowledge_base.sql が実スキーマの正本そのもので、
---      起動時に ApplyKnowledgeBaseSchema が埋め込み DDL をそのまま流す。sqlc へも同じファイルを
---      入力として渡している（sqlc.yaml の schema 欄）ため定義が二重化しない。
+--   2. ナレッジ基盤（骨格: workspaces / spaces / pages / blocks / page_paths / page_snapshots、
+--      権限モデル: principals / principal_members / workspace_grants / space_grants /
+--      page_restrictions / page_allow_lists / share_links）
+--      GORM を通さない。実スキーマの正本は次の 2 ファイルそのもので、起動時に
+--      ApplyKnowledgeBaseSchema（infra/database/knowledge_base_schema.go）が
+--      埋め込み DDL を 1 トランザクションでこの順に流す。
+--
+--        internal/infra/database/schema/knowledge_base.sql              （骨格）
+--        internal/infra/database/schema/knowledge_base_permissions.sql  （権限モデル）
+--
+--      権限側は骨格の spaces / pages と AutoMigrate が作る users を参照するので、
+--      適用順（AutoMigrate → 骨格 → 権限）は崩せない。
+--      sqlc へはこの 2 ファイルをそのまま入力として渡している（sqlc.yaml の schema 欄に
+--      3 ファイルとも並んでいる）ため、定義が二重化しない。
 --      ここへ書き写さないこと（写すと 1. と同じ二重管理に戻る）。
+--
+--   3. テナント統合の橋渡し列（companies.workspace_id / users.workspace_id）
+--      1. のテーブルに生えているが AutoMigrate は作らない。domain 構造体に持たせず、
+--      infra/database/tenant_bridge.go の tenantBridgeSchemaStatements が明示 DDL で足す
+--      （FK と部分 UNIQUE は GORM タグで表現できず、読み取りも変えたくないため）。
+--      ALTER TABLE ADD COLUMN は必ず列を末尾に付けるので、このファイルでも該当テーブルの
+--      最後に書くこと（並びがずれると SELECT * の詰め替えが位置ずれで壊れる）。
+--      移行期間だけの列で、companies を畳むときに companies 側は消える。
 
 -- created_at / updated_at は GORM の autoCreateTime / autoUpdateTime が常に値を入れるため
 -- NOT NULL とみなす（sqlc が sql.NullTime ではなく time.Time を生成し、domain への詰め替えが綺麗になる）。

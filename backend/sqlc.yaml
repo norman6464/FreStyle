@@ -6,9 +6,10 @@
 #     そのまま DBTX として渡し、接続プールを共有する（別 pool を持たない）。
 #   - queries/schema.sql は sqlc の型付け専用（実スキーマは GORM AutoMigrate が作る）。
 #     repository を sqlc へ移すたびに対象テーブルの CREATE TABLE をここへ追記する。
-#   - ナレッジ基盤（workspaces / spaces / pages / blocks / …）だけは扱いが違う。GORM を通さず、
-#     infra/database/schema/knowledge_base.sql が実スキーマの正本そのもの（起動時にそのまま流す）。
-#     型付けも同じファイルから行うので、定義が二重化しない。
+#   - ナレッジ基盤（骨格の workspaces / spaces / pages / … と権限モデルの principals / grants / …）
+#     だけは扱いが違う。GORM を通さず、infra/database/schema/knowledge_base.sql と
+#     knowledge_base_permissions.sql が実スキーマの正本そのもの（起動時にそのまま流す）。
+#     型付けも同じ 2 ファイルから行う（下の schema 欄）ので、定義が二重化しない。
 #
 # 生成: backend/ で `make sqlc`
 version: "2"

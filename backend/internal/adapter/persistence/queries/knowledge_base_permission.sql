@@ -400,8 +400,9 @@ exception AS (
 )
 SELECT
     p.*,
-    EXISTS (SELECT 1 FROM me) AS is_member,
     -- 既定の役割の強さ。意味と 0 の扱いは ResolvePagePermissionFacts と同じ。
+    -- 所属（is_member）は返さない。役割が 1 つも無ければ強さ 0 で「何もできない」に
+    -- なるため閲覧の判定には要らず、使われない事実を返すと編集可否にも答えられる顔をする。
     COALESCE((
         SELECT max(CASE g."role"
                      WHEN 'admin' THEN 4 WHEN 'editor' THEN 3

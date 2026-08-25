@@ -573,8 +573,8 @@ func (m *mockKBPermissionRepo) PagePermissionFactsForPrincipal(ctx context.Conte
 	return f, args.Error(1)
 }
 
-func (m *mockKBPermissionRepo) ListSpacePageViewFacts(ctx context.Context, workspaceID, spaceID string, userID uint64) ([]repository.PageViewFacts, error) {
+func (m *mockKBPermissionRepo) ListSpacePageViewFacts(ctx context.Context, workspaceID, spaceID string, userID uint64) ([]repository.PageWithViewFacts, error) {
 	args := m.Called(ctx, workspaceID, spaceID, userID)
-	rows, _ := args.Get(0).([]repository.PageViewFacts)
+	rows, _ := args.Get(0).([]repository.PageWithViewFacts)
 	return rows, args.Error(1)
 }

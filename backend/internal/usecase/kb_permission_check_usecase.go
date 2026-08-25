@@ -88,8 +88,11 @@ func (u *IsWorkspaceMemberUseCase) Execute(ctx context.Context, in IsWorkspaceMe
 }
 
 // ListViewablePagesUseCase はスペース配下の現役ページのうち、そのユーザーが閲覧できるものを返す。
-// ツリー取得の土台。ページ数によらず問い合わせは 1 回で、判定は
-// CheckPagePermissionUseCase と同じ domain.ResolvePagePermission を通る。
+// ツリー取得の土台。ページ数によらず問い合わせは 1 回で、例外の突き合わせは
+// CheckPagePermissionUseCase と同じ実装を通る（domain.ResolvePageView）。
+//
+// 答えられるのは閲覧可否だけ。編集可否が要る画面は CheckPagePermissionUseCase を使う
+// （一覧のクエリは編集の例外を集めていない）。
 type ListViewablePagesUseCase struct {
 	repo repository.KnowledgeBasePermissionRepository
 }
@@ -120,7 +123,7 @@ func (u *ListViewablePagesUseCase) Execute(ctx context.Context, in ListViewableP
 	}
 	pages := make([]domain.Page, 0, len(rows))
 	for _, row := range rows {
-		if domain.ResolvePagePermission(row.Facts).CanView {
+		if domain.ResolvePageView(row.Facts) {
 			pages = append(pages, row.Page)
 		}
 	}

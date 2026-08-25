@@ -82,10 +82,10 @@ func Test_閲覧可能ページ一覧_見えないページを落とす(t *testi
 	hidden := domain.Page{ID: "p2", WorkspaceID: kbWS, SpaceID: kbSpace, Title: "隠れる"}
 	repo := &mockKBPermissionRepo{}
 	repo.On("ListSpacePageViewFacts", mock.Anything, kbWS, kbSpace, uint64(1)).
-		Return([]repository.PageViewFacts{
-			{Page: visible, Facts: domain.PagePermissionFacts{Member: true, Role: kbGrantRole(domain.GrantRoleViewer)}},
-			{Page: hidden, Facts: domain.PagePermissionFacts{
-				Member: true, Role: kbGrantRole(domain.GrantRoleViewer),
+		Return([]repository.PageWithViewFacts{
+			{Page: visible, Facts: domain.PageViewFacts{Role: kbGrantRole(domain.GrantRoleViewer)}},
+			{Page: hidden, Facts: domain.PageViewFacts{
+				Role: kbGrantRole(domain.GrantRoleViewer),
 				View: &domain.RestrictionFacts{HasAllowList: true},
 			}},
 		}, nil)

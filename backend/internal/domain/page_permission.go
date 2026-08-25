@@ -62,6 +62,27 @@ type PagePermissionFacts struct {
 	Edit *RestrictionFacts
 }
 
+// PageViewFacts は「閲覧できるか」だけを決める事実。
+//
+// ページ一覧のように閲覧の列しか集めない経路はこの型を使い、PagePermissionFacts を
+// 流用しない。あちらは編集の事実も持つ型で、集めていないときの nil が
+// 「経路に制限が無い」＝ 既定どおりという意味になる。閲覧しか集めていない事実を
+// あの型に載せると、編集の例外を 1 つも見ないまま CanEdit が既定（editor なら true）で
+// 返り、同じページの可否が経路によって食い違う。
+// 「集めていない」と「制限が無い」を型で分ける。
+type PageViewFacts struct {
+	// Role は既定の役割。意味は PagePermissionFacts.Role と同じ。
+	Role *GrantRole
+	// View は閲覧についての経路上の制限の集計。制限が経路のどこにも無ければ nil。
+	View *RestrictionFacts
+}
+
+// ResolvePageView は集めた事実から閲覧できるかを決める。
+// 例外の突き合わせは ResolvePagePermission と同じ 1 つの実装（resolveCapability）を通る。
+func ResolvePageView(f PageViewFacts) bool {
+	return resolveCapability(roleAllows(f.Role, CapabilityView), f.View)
+}
+
 // PagePermission は 1 ページに対する実効権限。
 type PagePermission struct {
 	// CanView はページを閲覧できるか。
@@ -80,13 +101,18 @@ func (f PagePermissionFacts) defaultAllows(c Capability) bool {
 		}
 		return true
 	}
-	if f.Role == nil {
+	return roleAllows(f.Role, c)
+}
+
+// roleAllows は既定の役割が指定のケイパビリティを許すかを返す（grant が無ければ何もできない）。
+func roleAllows(role *GrantRole, c Capability) bool {
+	if role == nil {
 		return false
 	}
 	if c == CapabilityEdit {
-		return f.Role.CanEdit()
+		return role.CanEdit()
 	}
-	return f.Role.CanView()
+	return role.CanView()
 }
 
 // resolveCapability は 1 つのケイパビリティについて既定と例外を突き合わせる。

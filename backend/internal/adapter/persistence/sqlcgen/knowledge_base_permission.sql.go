@@ -666,8 +666,9 @@ exception AS (
 )
 SELECT
     p.id, p.workspace_id, p.space_id, p.parent_id, p.position, p.title, p.created_by_user_id, p.archived_at, p.created_at, p.updated_at,
-    EXISTS (SELECT 1 FROM me) AS is_member,
     -- 既定の役割の強さ。意味と 0 の扱いは ResolvePagePermissionFacts と同じ。
+    -- 所属（is_member）は返さない。役割が 1 つも無ければ強さ 0 で「何もできない」に
+    -- なるため閲覧の判定には要らず、使われない事実を返すと編集可否にも答えられる顔をする。
     COALESCE((
         SELECT max(CASE g."role"
                      WHEN 'admin' THEN 4 WHEN 'editor' THEN 3
@@ -712,7 +713,6 @@ type ListSpacePageViewFactsRow struct {
 	ArchivedAt           sql.NullTime
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
-	IsMember             bool
 	GrantRank            int32
 	ViewRestricted       bool
 	ViewDeniedAnywhere   bool
@@ -751,7 +751,6 @@ func (q *Queries) ListSpacePageViewFacts(ctx context.Context, arg ListSpacePageV
 			&i.ArchivedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.IsMember,
 			&i.GrantRank,
 			&i.ViewRestricted,
 			&i.ViewDeniedAnywhere,

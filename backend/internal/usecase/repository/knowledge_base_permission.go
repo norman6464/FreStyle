@@ -15,11 +15,15 @@ var ErrPrincipalNotFound = errors.New("principal not found")
 // トークンが違う場合もこれを返す（存在の有無自体を漏らさない）。
 var ErrShareLinkNotFound = errors.New("share link not found")
 
-// PageViewFacts は 1 ページと、そのページを閲覧できるかを決める事実の組。
-// ListSpacePageViewFacts が返す（ふるい落としは domain.ResolvePagePermission が行う）。
-type PageViewFacts struct {
+// PageWithViewFacts は 1 ページと、そのページを閲覧できるかを決める事実の組。
+// ListSpacePageViewFacts が返す（ふるい落としは domain.ResolvePageView が行う）。
+//
+// 事実が閲覧専用の型なのは、一覧のクエリが閲覧の列しか集めないため。
+// 1 ページ解決と同じ domain.PagePermissionFacts に載せると、編集の例外を 1 つも
+// 見ないまま CanEdit が既定で返る（domain.PageViewFacts の説明を参照）。
+type PageWithViewFacts struct {
 	Page  domain.Page
-	Facts domain.PagePermissionFacts
+	Facts domain.PageViewFacts
 }
 
 // ShareLinkWrite は共有リンクの発行に渡す値。
@@ -134,6 +138,7 @@ type KnowledgeBasePermissionRepository interface {
 	// 同じ事実を集める。既定（リンクの capability）は呼び出し側が facts に載せる。
 	PagePermissionFactsForPrincipal(ctx context.Context, workspaceID, pageID, principalID string) (*domain.PagePermissionFacts, error)
 	// ListSpacePageViewFacts はスペース配下の現役ページ全件と、その閲覧の事実を
-	// 1 回のクエリで返す（ページごとに問い合わせない）。
-	ListSpacePageViewFacts(ctx context.Context, workspaceID, spaceID string, userID uint64) ([]PageViewFacts, error)
+	// 1 回のクエリで返す（ページごとに問い合わせない）。編集の事実は集めないので、
+	// 編集可否をここから出さないこと（返す型がそれを表している）。
+	ListSpacePageViewFacts(ctx context.Context, workspaceID, spaceID string, userID uint64) ([]PageWithViewFacts, error)
 }

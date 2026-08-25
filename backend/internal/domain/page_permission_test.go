@@ -168,6 +168,32 @@ func Test_実効権限_非メンバーは既定を持たない(t *testing.T) {
 	assert.False(t, got.CanEdit)
 }
 
+func Test_閲覧だけの事実は1ページ解決の閲覧とつねに同じ答えを出す(t *testing.T) {
+	// 一覧（閲覧の列しか集めない経路）と 1 ページ解決が食い違わないことを、
+	// 役割 × 例外の全組み合わせで固定する。
+	views := []*domain.RestrictionFacts{
+		nil,
+		exception(false, false, false),
+		exception(true, false, false),
+		exception(false, true, false),
+		exception(false, true, true),
+		exception(true, true, true),
+	}
+	roles := []*domain.GrantRole{
+		nil,
+		role(domain.GrantRoleViewer),
+		role(domain.GrantRoleCommenter),
+		role(domain.GrantRoleEditor),
+		role(domain.GrantRoleAdmin),
+	}
+	for _, r := range roles {
+		for _, v := range views {
+			want := domain.ResolvePagePermission(domain.PagePermissionFacts{Member: true, Role: r, View: v}).CanView
+			assert.Equal(t, want, domain.ResolvePageView(domain.PageViewFacts{Role: r, View: v}))
+		}
+	}
+}
+
 func Test_実効権限_Allows(t *testing.T) {
 	p := domain.PagePermission{CanView: true, CanEdit: false}
 	assert.True(t, p.Allows(domain.CapabilityView))

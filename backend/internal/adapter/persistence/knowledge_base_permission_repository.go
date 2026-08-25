@@ -709,11 +709,11 @@ func (r *knowledgeBasePermissionRepository) pagePermissionFacts(
 	}, nil
 }
 
-func (r *knowledgeBasePermissionRepository) ListSpacePageViewFacts(ctx context.Context, workspaceID, spaceID string, userID uint64) ([]repository.PageViewFacts, error) {
+func (r *knowledgeBasePermissionRepository) ListSpacePageViewFacts(ctx context.Context, workspaceID, spaceID string, userID uint64) ([]repository.PageWithViewFacts, error) {
 	wsID, ok := kbParseID(workspaceID)
 	spID, ok2 := kbParseID(spaceID)
 	if !ok || !ok2 {
-		return []repository.PageViewFacts{}, nil
+		return []repository.PageWithViewFacts{}, nil
 	}
 	rows, err := r.q.ListSpacePageViewFacts(ctx, sqlcgen.ListSpacePageViewFactsParams{
 		WorkspaceID: wsID,
@@ -723,7 +723,7 @@ func (r *knowledgeBasePermissionRepository) ListSpacePageViewFacts(ctx context.C
 	if err != nil {
 		return nil, err
 	}
-	out := make([]repository.PageViewFacts, 0, len(rows))
+	out := make([]repository.PageWithViewFacts, 0, len(rows))
 	for _, row := range rows {
 		page := toDomainPage(sqlcgen.Page{
 			ID:              row.ID,
@@ -737,12 +737,11 @@ func (r *knowledgeBasePermissionRepository) ListSpacePageViewFacts(ctx context.C
 			CreatedAt:       row.CreatedAt,
 			UpdatedAt:       row.UpdatedAt,
 		})
-		out = append(out, repository.PageViewFacts{
+		out = append(out, repository.PageWithViewFacts{
 			Page: page,
-			Facts: domain.PagePermissionFacts{
-				Member: row.IsMember,
-				Role:   domain.GrantRoleByRank(int(row.GrantRank)),
-				View:   restrictionFacts(row.ViewRestricted, row.ViewDeniedAnywhere, row.ViewHasAllowList, row.ViewAllowedAtNearest),
+			Facts: domain.PageViewFacts{
+				Role: domain.GrantRoleByRank(int(row.GrantRank)),
+				View: restrictionFacts(row.ViewRestricted, row.ViewDeniedAnywhere, row.ViewHasAllowList, row.ViewAllowedAtNearest),
 			},
 		})
 	}

@@ -12,9 +12,13 @@ func role(r domain.GrantRole) *domain.GrantRole { return &r }
 
 func capability(c domain.Capability) *domain.Capability { return &c }
 
-// exception は「最も近い制限の段」の集計を組み立てる小道具。
-func exception(denied, allowed, hasAllowList bool) *domain.RestrictionFacts {
-	return &domain.RestrictionFacts{Denied: denied, Allowed: allowed, HasAllowList: hasAllowList}
+// exception は経路上の制限の集計を組み立てる小道具。
+func exception(deniedAnywhere, hasAllowList, allowedAtNearest bool) *domain.RestrictionFacts {
+	return &domain.RestrictionFacts{
+		DeniedAnywhere:   deniedAnywhere,
+		HasAllowList:     hasAllowList,
+		AllowedAtNearest: allowedAtNearest,
+	}
 }
 
 func Test_実効権限_例外が無ければ既定の役割どおり(t *testing.T) {
@@ -48,12 +52,12 @@ func Test_実効権限_例外の優先規則(t *testing.T) {
 		view    *domain.RestrictionFacts
 		canView bool
 	}{
-		{"制限の段が無ければ既定に従う", nil, true},
-		{"自分が deny されていれば不許可", exception(true, false, false), false},
+		{"制限が経路に無ければ既定に従う", nil, true},
+		{"経路上のどこかで deny されていれば不許可", exception(true, false, false), false},
 		{"deny と allow の両方に当たったら deny が勝つ", exception(true, true, true), false},
-		{"自分が allow されていれば許可", exception(false, true, true), true},
-		{"allow リストがあり自分が載っていなければ不許可", exception(false, false, true), false},
-		{"deny だけの段で名指しされていなければ既定に戻る", exception(false, false, false), true},
+		{"最も近い許可リストに載っていれば許可", exception(false, true, true), true},
+		{"許可リストがあり自分が載っていなければ不許可", exception(false, true, false), false},
+		{"deny 行だけで名指しされていなければ既定に戻る", exception(false, false, false), true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -61,6 +65,26 @@ func Test_実効権限_例外の優先規則(t *testing.T) {
 			assert.Equal(t, tc.canView, got.CanView)
 		})
 	}
+}
+
+func Test_実効権限_第三者へのdenyは祖先の限定公開を解除しない(t *testing.T) {
+	// 祖先が「alice だけ」の限定公開になっているページの子孫に、carol を外す deny が
+	// 1 行付いた状態。名指しされていない bob から見た事実は
+	// 「経路上に自分宛ての deny は無い / 許可リストはある / 最も近い許可リストに自分は載っていない」。
+	bob := domain.ResolvePagePermission(domain.PagePermissionFacts{
+		Member: true, Role: role(domain.GrantRoleEditor),
+		View: exception(false, true, false),
+		Edit: exception(false, true, false),
+	})
+	assert.False(t, bob.CanView, "deny 1 行で祖先の限定公開が解除されてはいけない")
+	assert.False(t, bob.CanEdit)
+
+	// 名指しされた carol 本人は、経路上に自分宛ての deny があるので不許可。
+	carol := domain.ResolvePagePermission(domain.PagePermissionFacts{
+		Member: true, Role: role(domain.GrantRoleEditor),
+		View: exception(true, true, false),
+	})
+	assert.False(t, carol.CanView)
 }
 
 func Test_実効権限_deny_だけの段は既定を弱めない(t *testing.T) {
@@ -88,7 +112,7 @@ func Test_実効権限_allow_を1つ足すと限定公開に切り替わる(t *t
 
 	unlisted := domain.ResolvePagePermission(domain.PagePermissionFacts{
 		Member: true, Role: role(domain.GrantRoleEditor),
-		View: exception(false, false, true),
+		View: exception(false, true, false),
 	})
 	assert.False(t, unlisted.CanView, "載っていない人は既定が editor でも締め出される")
 }
@@ -104,15 +128,15 @@ func Test_実効権限_編集は閲覧を含む(t *testing.T) {
 	assert.False(t, got.CanEdit, "閲覧できないページは編集もできない")
 }
 
-func Test_実効権限_閲覧と編集は別々の段で解決する(t *testing.T) {
-	// 閲覧は allow リストに載って許可、編集はさらに近い段で deny、という組み合わせ。
+func Test_実効権限_閲覧と編集は別々に解決する(t *testing.T) {
+	// 閲覧は許可リストに載って許可、編集は経路上で deny、という組み合わせ。
 	got := domain.ResolvePagePermission(domain.PagePermissionFacts{
 		Member: true, Role: role(domain.GrantRoleEditor),
 		View: exception(false, true, true),
 		Edit: exception(true, false, false),
 	})
 	assert.True(t, got.CanView, "閲覧は許可リストに載っている")
-	assert.False(t, got.CanEdit, "編集は別の段で deny されている")
+	assert.False(t, got.CanEdit, "編集は経路上で deny されている")
 }
 
 func Test_実効権限_共有リンクは既定をリンク自身から得る(t *testing.T) {

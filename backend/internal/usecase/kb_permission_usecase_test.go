@@ -38,7 +38,7 @@ func Test_ページ権限確認_集めた事実を規則にかけて返す(t *te
 		Return(&domain.PagePermissionFacts{
 			Member: true,
 			Role:   kbGrantRole(domain.GrantRoleEditor),
-			View:   &domain.RestrictionFacts{Denied: true},
+			View:   &domain.RestrictionFacts{DeniedAnywhere: true},
 		}, nil)
 	uc := usecase.NewCheckPagePermissionUseCase(repo)
 

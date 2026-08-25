@@ -80,6 +80,48 @@ func (f kbPermFixture) permFor(t *testing.T, pageID string, userID uint64) domai
 	return domain.ResolvePagePermission(*facts)
 }
 
+// principalFor はユーザーの主体を用意して返す（ワークスペースへの所属追加も兼ねる）。
+func (f kbPermFixture) principalFor(t *testing.T, userID uint64) *domain.Principal {
+	t.Helper()
+	p, err := f.perm.EnsureUserPrincipal(context.Background(), f.ws, userID)
+	require.NoError(t, err)
+	return p
+}
+
+// everyoneOf はそのスペースの「全員」の主体を用意して返す。
+func (f kbPermFixture) everyoneOf(t *testing.T, spaceID string) *domain.Principal {
+	t.Helper()
+	p, err := f.perm.EnsureSpaceEveryonePrincipal(context.Background(), f.ws, spaceID)
+	require.NoError(t, err)
+	return p
+}
+
+// grantSpace はスペースの既定の役割を張る。
+func (f kbPermFixture) grantSpace(t *testing.T, spaceID, principalID string, role domain.GrantRole) {
+	t.Helper()
+	_, err := f.perm.UpsertSpaceGrant(context.Background(), f.ws, spaceID, principalID, role)
+	require.NoError(t, err)
+}
+
+// restrict はページに例外を 1 行張る。
+func (f kbPermFixture) restrict(
+	t *testing.T, pageID, principalID string, c domain.Capability, mode domain.RestrictionMode,
+) {
+	t.Helper()
+	_, err := f.perm.UpsertPageRestriction(context.Background(), f.ws, pageID, principalID, c, mode)
+	require.NoError(t, err)
+}
+
+// viewablePageIDs はそのユーザーに見えるページの ID を一覧経路（1 クエリ）で返す。
+// 1 ページずつの解決と答えが割れないことを確かめるのに使う。
+func (f kbPermFixture) viewablePageIDs(t *testing.T, spaceID string, userID uint64) []string {
+	t.Helper()
+	pages, err := usecase.NewListViewablePagesUseCase(f.perm).Execute(context.Background(),
+		usecase.ListViewablePagesInput{WorkspaceID: f.ws, SpaceID: spaceID, UserID: userID})
+	require.NoError(t, err)
+	return pageIDs(pages)
+}
+
 func TestKnowledgeBasePermission_Integration(t *testing.T) {
 	gormDB := testsupport.OpenTestDB(t)
 	sqlDB, err := gormDB.DB()
@@ -317,20 +359,111 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 		assert.False(t, f.permFor(t, grand.ID, f.alice).CanView, "子孫へ継承される")
 		assert.True(t, f.permFor(t, grand.ID, f.bob).CanView, "deny だけの段は他人の既定を変えない")
 
-		// grand 自身に「alice を allow」。より近い段が勝つ。
+		// grand 自身に「alice を allow」を足しても、祖先の deny は覆らない。
+		// deny を近い allow で外せると、自分の子ページを 1 枚作ってそこに自分への allow を
+		// 張るだけで祖先の除外から逃げられてしまう。
 		_, err = f.perm.UpsertPageRestriction(ctx, f.ws, grand.ID, alice.ID, domain.CapabilityView, domain.RestrictionModeAllow)
 		require.NoError(t, err)
-		assert.True(t, f.permFor(t, grand.ID, f.alice).CanView, "最も近い段の allow が祖先の deny に勝つ")
+		assert.False(t, f.permFor(t, grand.ID, f.alice).CanView, "経路上の deny は近い段の allow に勝つ")
 		assert.False(t, f.permFor(t, grand.ID, f.bob).CanView, "allow リストに載っていない人は締め出される")
 
-		// 近い段を消すと、次に近い段（child の deny）へ戻る。
+		// grand の allow を消すと、bob は許可リストから解放されて既定（editor）へ戻る。
 		require.NoError(t, f.perm.DeletePageRestriction(ctx, f.ws, grand.ID, alice.ID, domain.CapabilityView))
-		assert.False(t, f.permFor(t, grand.ID, f.alice).CanView)
+		assert.False(t, f.permFor(t, grand.ID, f.alice).CanView, "child の deny は残っている")
 		assert.True(t, f.permFor(t, grand.ID, f.bob).CanView)
 
 		// すべて消すと既定（editor）に戻る。
 		require.NoError(t, f.perm.DeletePageRestriction(ctx, f.ws, child.ID, alice.ID, domain.CapabilityView))
 		assert.True(t, f.permFor(t, grand.ID, f.alice).CanEdit, "例外が無くなれば既定へ戻る")
+	})
+
+	t.Run("より近い許可リストがより遠い許可リストを上書きする", func(t *testing.T) {
+		f := setupKBPermission(t, gormDB, sqlDB)
+		root := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, nil, "root")
+		child := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, &root.ID, "child")
+		grand := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, &child.ID, "grand")
+
+		f.grantSpace(t, f.spaceA, f.everyoneOf(t, f.spaceA).ID, domain.GrantRoleEditor)
+		alice := f.principalFor(t, f.alice)
+		bob := f.principalFor(t, f.bob)
+
+		// root は alice だけの限定公開。child でその枝だけ bob にも広げる。
+		f.restrict(t, root.ID, alice.ID, domain.CapabilityView, domain.RestrictionModeAllow)
+		f.restrict(t, child.ID, alice.ID, domain.CapabilityView, domain.RestrictionModeAllow)
+		f.restrict(t, child.ID, bob.ID, domain.CapabilityView, domain.RestrictionModeAllow)
+
+		assert.False(t, f.permFor(t, root.ID, f.bob).CanView, "root では bob は許可リストに載っていない")
+		assert.True(t, f.permFor(t, child.ID, f.bob).CanView, "child 以下だけ広げられる")
+		assert.True(t, f.permFor(t, grand.ID, f.bob).CanView, "child の許可リストは子孫にも効く")
+		assert.ElementsMatch(t, []string{child.ID, grand.ID}, f.viewablePageIDs(t, f.spaceA, f.bob))
+		assert.ElementsMatch(t, []string{root.ID, child.ID, grand.ID}, f.viewablePageIDs(t, f.spaceA, f.alice))
+	})
+
+	t.Run("祖先の限定公開は子孫のdeny1行で解除されない", func(t *testing.T) {
+		f := setupKBPermission(t, gormDB, sqlDB)
+		parent := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, nil, "人事・機密")
+		child := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, &parent.ID, "査定シート")
+		grand := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, &child.ID, "評価コメント")
+
+		alice := f.principalFor(t, f.alice)
+		bob := f.principalFor(t, f.bob)
+		carol := f.principalFor(t, f.carol)
+		for _, p := range []*domain.Principal{alice, bob, carol} {
+			f.grantSpace(t, f.spaceA, p.ID, domain.GrantRoleEditor)
+		}
+
+		// parent を alice だけの限定公開にする（閲覧も編集も）。
+		f.restrict(t, parent.ID, alice.ID, domain.CapabilityView, domain.RestrictionModeAllow)
+		f.restrict(t, parent.ID, alice.ID, domain.CapabilityEdit, domain.RestrictionModeAllow)
+		for _, page := range []*domain.Page{parent, child, grand} {
+			got := f.permFor(t, page.ID, f.bob)
+			require.False(t, got.CanView, "限定公開の時点で bob には見えない")
+			require.False(t, got.CanEdit)
+		}
+		require.Empty(t, f.viewablePageIDs(t, f.spaceA, f.bob))
+
+		// 「carol だけ外す」という通常運用の deny を子ページに 1 行ずつ足す。
+		f.restrict(t, child.ID, carol.ID, domain.CapabilityView, domain.RestrictionModeDeny)
+		f.restrict(t, child.ID, carol.ID, domain.CapabilityEdit, domain.RestrictionModeDeny)
+
+		for _, page := range []*domain.Page{child, grand} {
+			got := f.permFor(t, page.ID, f.bob)
+			assert.False(t, got.CanView, "第三者への deny 1 行で祖先の限定公開が解除されてはいけない")
+			assert.False(t, got.CanEdit, "読めないページを編集できてもいけない")
+		}
+		assert.Empty(t, f.viewablePageIDs(t, f.spaceA, f.bob), "ツリー一覧にも露出しない")
+
+		// deny は名指しされた本人にだけ効き、許可された本人の権限は変わらない。
+		aliceOnChild := f.permFor(t, child.ID, f.alice)
+		assert.True(t, aliceOnChild.CanView, "許可リストに載っている本人はそのまま")
+		assert.True(t, aliceOnChild.CanEdit)
+		assert.False(t, f.permFor(t, child.ID, f.carol).CanView, "名指しで外された本人は見えない")
+		assert.ElementsMatch(t, []string{parent.ID, child.ID, grand.ID},
+			f.viewablePageIDs(t, f.spaceA, f.alice), "限定公開は子孫まで効き続ける")
+	})
+
+	t.Run("読み取り専用のサブツリーは子のedit_deny1行で崩れない", func(t *testing.T) {
+		f := setupKBPermission(t, gormDB, sqlDB)
+		root := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, nil, "規程集")
+		child := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, &root.ID, "就業規則")
+
+		f.grantSpace(t, f.spaceA, f.everyoneOf(t, f.spaceA).ID, domain.GrantRoleEditor)
+		alice := f.principalFor(t, f.alice)
+		f.principalFor(t, f.bob)
+		carol := f.principalFor(t, f.carol)
+
+		// root 以下は「alice だけが編集できる」読み取り専用サブツリー。
+		f.restrict(t, root.ID, alice.ID, domain.CapabilityEdit, domain.RestrictionModeAllow)
+		require.True(t, f.permFor(t, child.ID, f.bob).CanView, "閲覧の既定は editor のまま")
+		require.False(t, f.permFor(t, child.ID, f.bob).CanEdit)
+
+		// 「carol にだけは触らせない」つもりの deny を子に 1 行足す。
+		f.restrict(t, child.ID, carol.ID, domain.CapabilityEdit, domain.RestrictionModeDeny)
+
+		assert.False(t, f.permFor(t, child.ID, f.bob).CanEdit,
+			"読み取り専用サブツリーが editor 全員に開いてはいけない（データ破壊になる）")
+		assert.True(t, f.permFor(t, child.ID, f.alice).CanEdit, "許可された本人は編集できるまま")
+		assert.False(t, f.permFor(t, child.ID, f.carol).CanEdit, "名指しで外された本人は編集できない")
 	})
 
 	t.Run("同じ主体とケイパビリティに矛盾する例外は作れない", func(t *testing.T) {
@@ -760,6 +893,70 @@ func TestKnowledgeBaseShareLink_Integration(t *testing.T) {
 		assert.False(t, hiddenPerm.CanView, "リンクの主体を deny した子ページは開けない")
 	})
 
+	t.Run("除外した子ページは無関係なdenyで復活しない", func(t *testing.T) {
+		f := setupKBPermission(t, gormDB, sqlDB)
+		root := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, nil, "公開ルート")
+		hidden := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, &root.ID, "隠す子")
+		grand := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, &hidden.ID, "隠す子の子")
+
+		issueUC := usecase.NewIssueShareLinkUseCase(f.perm)
+		viewLink, err := issueUC.Execute(ctx, usecase.IssueShareLinkInput{
+			WorkspaceID: f.ws, PageID: root.ID, Capability: domain.CapabilityView, CreatedByUserID: f.alice,
+		})
+		require.NoError(t, err)
+		editLink, err := issueUC.Execute(ctx, usecase.IssueShareLinkInput{
+			WorkspaceID: f.ws, PageID: root.ID, Capability: domain.CapabilityEdit, CreatedByUserID: f.alice,
+		})
+		require.NoError(t, err)
+		// どちらのリンクからも「隠す子」以下を除外する（deny 1 行）。
+		f.restrict(t, hidden.ID, viewLink.Link.PrincipalID, domain.CapabilityView, domain.RestrictionModeDeny)
+		f.restrict(t, hidden.ID, editLink.Link.PrincipalID, domain.CapabilityView, domain.RestrictionModeDeny)
+
+		linkPerm := shareLinkPermFunc(t, f)
+		require.False(t, linkPerm(viewLink.Token, hidden.ID).CanView)
+		require.False(t, linkPerm(viewLink.Token, grand.ID).CanView, "除外はサブツリー全体に効く")
+
+		// 除外した子の配下に、リンクとは無関係なメンバーの deny が 1 行付く。
+		carol := f.principalFor(t, f.carol)
+		f.restrict(t, grand.ID, carol.ID, domain.CapabilityView, domain.RestrictionModeDeny)
+
+		assert.False(t, linkPerm(viewLink.Token, hidden.ID).CanView)
+		assert.False(t, linkPerm(viewLink.Token, grand.ID).CanView,
+			"無関係な deny 1 行で未認証の来訪者に露出してはいけない")
+		editPerm := linkPerm(editLink.Token, grand.ID)
+		assert.False(t, editPerm.CanView, "編集リンクでも同じ")
+		assert.False(t, editPerm.CanEdit, "未認証で編集が通ってはいけない")
+	})
+
+	t.Run("一般メンバーの自己denyでは公開リンクに露出しない", func(t *testing.T) {
+		f := setupKBPermission(t, gormDB, sqlDB)
+		root := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, nil, "公開ルート")
+		hidden := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, &root.ID, "社外秘")
+		grand := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, &hidden.ID, "社外秘の子")
+
+		f.grantSpace(t, f.spaceA, f.everyoneOf(t, f.spaceA).ID, domain.GrantRoleEditor)
+		bob := f.principalFor(t, f.bob)
+
+		issued, err := usecase.NewIssueShareLinkUseCase(f.perm).Execute(ctx, usecase.IssueShareLinkInput{
+			WorkspaceID: f.ws, PageID: root.ID, Capability: domain.CapabilityView, CreatedByUserID: f.alice,
+		})
+		require.NoError(t, err)
+		f.restrict(t, hidden.ID, issued.Link.PrincipalID, domain.CapabilityView, domain.RestrictionModeDeny)
+		linkPerm := shareLinkPermFunc(t, f)
+		require.False(t, linkPerm(issued.Token, grand.ID).CanView)
+
+		// 一般メンバーの bob が「自分自身の閲覧を deny」する 1 行を張るだけ。
+		// 共有リンクにも権限設定画面にも触っていない。
+		_, err = usecase.NewSetPageRestrictionUseCase(f.perm).Execute(ctx, usecase.SetPageRestrictionInput{
+			WorkspaceID: f.ws, PageID: grand.ID, PrincipalID: bob.ID,
+			Capability: domain.CapabilityView, Mode: domain.RestrictionModeDeny,
+		})
+		require.NoError(t, err)
+
+		assert.False(t, linkPerm(issued.Token, grand.ID).CanView,
+			"自己 deny 1 行で社外秘ページを公開 URL に載せられてはいけない")
+	})
+
 	t.Run("共有リンクの主体はスペースのgrantを拾わない", func(t *testing.T) {
 		f := setupKBPermission(t, gormDB, sqlDB)
 		page := mustCreatePage(t, f.pageUC, f.ws, f.spaceA, nil, "root")
@@ -849,6 +1046,23 @@ func TestKnowledgeBaseShareLink_Integration(t *testing.T) {
 		)
 		requirePgError(t, err, sqlStateCheckViolation, "ck_principals_page_id")
 	})
+}
+
+// shareLinkPermFunc は「このトークンの来訪者にこのページはどう見えるか」を解く小道具を返す。
+// トークンの検証から権限解決までを毎回通すので、未認証の来訪者が実際に辿る経路と同じになる。
+func shareLinkPermFunc(t *testing.T, f kbPermFixture) func(token, pageID string) domain.PagePermission {
+	t.Helper()
+	verifyUC := usecase.NewVerifyShareLinkUseCase(f.perm)
+	checkUC := usecase.NewCheckShareLinkPermissionUseCase(f.perm, f.pages)
+	return func(token, pageID string) domain.PagePermission {
+		t.Helper()
+		link, err := verifyUC.Execute(context.Background(), usecase.VerifyShareLinkInput{Token: token})
+		require.NoError(t, err)
+		got, err := checkUC.Execute(context.Background(),
+			usecase.CheckShareLinkPermissionInput{Link: link, PageID: pageID})
+		require.NoError(t, err)
+		return *got
+	}
 }
 
 // pageIDs はページの ID だけを取り出す（一覧の比較用）。

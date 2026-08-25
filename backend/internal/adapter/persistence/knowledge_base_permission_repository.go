@@ -108,12 +108,17 @@ func toDomainShareLink(row sqlcgen.ShareLink) domain.ShareLink {
 	return l
 }
 
-// restrictionFacts は「制限のある段が無い」を nil で返す（domain 側が nil を既定へのフォールバックと解釈する）。
-func restrictionFacts(restricted, denied, allowed, hasAllowList bool) *domain.RestrictionFacts {
+// restrictionFacts は「経路上に制限が 1 行も無い」を nil で返す
+// （domain 側が nil を既定へのフォールバックと解釈する）。
+func restrictionFacts(restricted, deniedAnywhere, hasAllowList, allowedAtNearest bool) *domain.RestrictionFacts {
 	if !restricted {
 		return nil
 	}
-	return &domain.RestrictionFacts{Denied: denied, Allowed: allowed, HasAllowList: hasAllowList}
+	return &domain.RestrictionFacts{
+		DeniedAnywhere:   deniedAnywhere,
+		HasAllowList:     hasAllowList,
+		AllowedAtNearest: allowedAtNearest,
+	}
 }
 
 func (r *knowledgeBasePermissionRepository) EnsureUserPrincipal(ctx context.Context, workspaceID string, userID uint64) (*domain.Principal, error) {
@@ -615,8 +620,8 @@ func (r *knowledgeBasePermissionRepository) pagePermissionFacts(
 	return &domain.PagePermissionFacts{
 		Member: row.IsMember,
 		Role:   domain.GrantRoleByRank(int(row.GrantRank)),
-		View:   restrictionFacts(row.ViewRestricted, row.ViewDenied, row.ViewAllowed, row.ViewHasAllowList),
-		Edit:   restrictionFacts(row.EditRestricted, row.EditDenied, row.EditAllowed, row.EditHasAllowList),
+		View:   restrictionFacts(row.ViewRestricted, row.ViewDeniedAnywhere, row.ViewHasAllowList, row.ViewAllowedAtNearest),
+		Edit:   restrictionFacts(row.EditRestricted, row.EditDeniedAnywhere, row.EditHasAllowList, row.EditAllowedAtNearest),
 	}, nil
 }
 
@@ -653,7 +658,7 @@ func (r *knowledgeBasePermissionRepository) ListSpacePageViewFacts(ctx context.C
 			Facts: domain.PagePermissionFacts{
 				Member: row.IsMember,
 				Role:   domain.GrantRoleByRank(int(row.GrantRank)),
-				View:   restrictionFacts(row.ViewRestricted, row.ViewDenied, row.ViewAllowed, row.ViewHasAllowList),
+				View:   restrictionFacts(row.ViewRestricted, row.ViewDeniedAnywhere, row.ViewHasAllowList, row.ViewAllowedAtNearest),
 			},
 		})
 	}

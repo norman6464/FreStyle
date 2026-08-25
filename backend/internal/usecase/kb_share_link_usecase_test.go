@@ -189,7 +189,7 @@ func Test_共有リンク権限_子ページのdenyで隠せる(t *testing.T) {
 	pages.On("HasDescendant", mock.Anything, kbWS, kbPage, child).Return(true, nil)
 	perms := &mockKBPermissionRepo{}
 	perms.On("PagePermissionFactsForPrincipal", mock.Anything, kbWS, child, kbPrincipal).
-		Return(&domain.PagePermissionFacts{View: &domain.RestrictionFacts{Denied: true}}, nil)
+		Return(&domain.PagePermissionFacts{View: &domain.RestrictionFacts{DeniedAnywhere: true}}, nil)
 	uc := usecase.NewCheckShareLinkPermissionUseCase(perms, pages)
 
 	got, err := uc.Execute(context.Background(), usecase.CheckShareLinkPermissionInput{

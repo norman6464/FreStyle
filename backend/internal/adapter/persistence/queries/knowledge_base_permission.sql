@@ -8,12 +8,12 @@
 --   - UPDATE 文には必ず updated_at = now() を明示する（GORM を通さないため自動更新が無い）。
 --
 -- 権限解決の方針:
---   - SQL が返すのは「事実」（既定の役割・最も近い制限の段の集計）だけで、
+--   - SQL が返すのは「事実」（既定の役割・経路上の制限の集計）だけで、
 --     どう組み合わせるかの規則は domain.ResolvePagePermission が持つ。
 --     規則を SQL と Go の 2 か所に書くと、片方だけ直したときに
 --     「1 ページを開くと見えるのに一覧には出ない」という直しにくいずれ方をする。
 --   - 祖先をたどるのに再帰は使わない。page_paths（closure）を 1 回 JOIN して
---     depth が最小の段だけを見る。
+--     経路上の制限をまとめて拾う。
 
 -- name: InsertPrincipal :one
 -- 主体の作成。使う列は kind で決まり、DB の CHECK が「その kind のときだけ非 NULL」を強制する。
@@ -161,13 +161,22 @@ ORDER BY created_at DESC;
 -- 後者は共有リンクの来訪者（kind='share_link'）として解決する。
 --
 -- CTE の役割:
---   target    … 対象ページの所属スペース（space_grants を引くのに要る）
---   me        … 自分自身の主体
---   mine      … 自分に効く主体すべて（自分 + 所属グループ + スペース全員）。
---                グループの入れ子は DB 側で禁じているので 1 段の JOIN で足りる。
---                スペース全員はメンバーにだけ効かせる（共有リンクの来訪者には効かせない）。
---   nearest   … 自分と祖先に張られた制限。ケイパビリティごとに最小 depth を窓関数で求める
---   exception … その最小 depth の段「だけ」を集計する（より遠い祖先は見ない）
+--   target      … 対象ページの所属スペース（space_grants を引くのに要る）
+--   me          … 自分自身の主体
+--   mine        … 自分に効く主体すべて（自分 + 所属グループ + スペース全員）。
+--                  グループの入れ子は DB 側で禁じているので 1 段の JOIN で足りる。
+--                  スペース全員はメンバーにだけ効かせる（共有リンクの来訪者には効かせない）。
+--   onpath      … 対象ページ自身と祖先に張られた制限を depth 付きで集める（0 が自分自身）
+--   allow_level … ケイパビリティごとの「allow 行を持つ最も近い段」の depth
+--   exception   … ケイパビリティごとに 3 つの事実へ畳む:
+--                  (a) 経路上のどこかに自分宛ての deny があるか
+--                  (b) 経路上に allow 行を持つ段があるか
+--                  (c) その最も近い段に自分宛ての allow があるか
+--
+-- deny を経路全体で見るのが肝。最も近い段だけを見ると、deny 行しか無い段が最近段になった
+-- 瞬間に「deny だけの段は既定に戻す」規則が働き、より遠い祖先の許可リストが
+-- 無関係な deny 1 行で解除されてしまう（規則の適用は domain 側だが、
+-- 事実として最近段しか返さない限り domain からは直しようがない）。
 WITH target AS (
     SELECT p.space_id
     FROM pages p
@@ -198,22 +207,33 @@ mine AS (
       AND sp.space_id = t.space_id
       AND EXISTS (SELECT 1 FROM me WHERE me.kind = 'user')
 ),
-nearest AS (
-    SELECT r.capability, r.mode, r.principal_id, pp.depth,
-           MIN(pp.depth) OVER (PARTITION BY r.capability) AS nearest_depth
+onpath AS (
+    SELECT r.capability, r.mode, r.principal_id, pp.depth
     FROM page_paths pp
     JOIN page_restrictions r
       ON r.workspace_id = pp.workspace_id AND r.page_id = pp.ancestor_id
     WHERE pp.workspace_id = sqlc.arg(workspace_id) AND pp.page_id = sqlc.arg(page_id)
 ),
+allow_level AS (
+    SELECT o.capability, MIN(o.depth) AS nearest_allow_depth
+    FROM onpath o
+    WHERE o.mode = 'allow'
+    GROUP BY o.capability
+),
 exception AS (
-    SELECT capability,
-           bool_or(mode = 'deny'  AND principal_id IN (SELECT id FROM mine)) AS denied,
-           bool_or(mode = 'allow' AND principal_id IN (SELECT id FROM mine)) AS allowed,
-           bool_or(mode = 'allow') AS has_allow_list
-    FROM nearest
-    WHERE depth = nearest_depth
-    GROUP BY capability
+    SELECT o.capability,
+           bool_or(o.mode = 'deny' AND o.principal_id IN (SELECT id FROM mine)) AS denied_anywhere,
+           bool_or(o.mode = 'allow') AS has_allow_list,
+           -- 「そのケイパビリティの」最も近い allow の段を相関副問い合わせで引く。
+           -- JOIN + bool_or にすると、ケイパビリティの突き合わせを落としても
+           -- 正しい組が論理和に残るせいで誤りが表に出ない。ここは 1 行に絞れることが
+           -- 意味なので、絞り込みを外したら副問い合わせが複数行でエラーになる形にする。
+           bool_or(o.mode = 'allow'
+                   AND o.depth = (SELECT al.nearest_allow_depth FROM allow_level al
+                                   WHERE al.capability = o.capability)
+                   AND o.principal_id IN (SELECT id FROM mine)) AS allowed_at_nearest
+    FROM onpath o
+    GROUP BY o.capability
 )
 SELECT
     EXISTS (SELECT 1 FROM target) AS page_exists,
@@ -242,13 +262,13 @@ SELECT
         ) g
     ), 0)::integer AS grant_rank,
     EXISTS (SELECT 1 FROM exception e WHERE e.capability = 'view') AS view_restricted,
-    COALESCE((SELECT e.denied FROM exception e WHERE e.capability = 'view'), false)::boolean AS view_denied,
-    COALESCE((SELECT e.allowed FROM exception e WHERE e.capability = 'view'), false)::boolean AS view_allowed,
+    COALESCE((SELECT e.denied_anywhere FROM exception e WHERE e.capability = 'view'), false)::boolean AS view_denied_anywhere,
     COALESCE((SELECT e.has_allow_list FROM exception e WHERE e.capability = 'view'), false)::boolean AS view_has_allow_list,
+    COALESCE((SELECT e.allowed_at_nearest FROM exception e WHERE e.capability = 'view'), false)::boolean AS view_allowed_at_nearest,
     EXISTS (SELECT 1 FROM exception e WHERE e.capability = 'edit') AS edit_restricted,
-    COALESCE((SELECT e.denied FROM exception e WHERE e.capability = 'edit'), false)::boolean AS edit_denied,
-    COALESCE((SELECT e.allowed FROM exception e WHERE e.capability = 'edit'), false)::boolean AS edit_allowed,
-    COALESCE((SELECT e.has_allow_list FROM exception e WHERE e.capability = 'edit'), false)::boolean AS edit_has_allow_list;
+    COALESCE((SELECT e.denied_anywhere FROM exception e WHERE e.capability = 'edit'), false)::boolean AS edit_denied_anywhere,
+    COALESCE((SELECT e.has_allow_list FROM exception e WHERE e.capability = 'edit'), false)::boolean AS edit_has_allow_list,
+    COALESCE((SELECT e.allowed_at_nearest FROM exception e WHERE e.capability = 'edit'), false)::boolean AS edit_allowed_at_nearest;
 
 -- name: ListSpacePageViewFacts :many
 -- スペース配下の現役ページ全件と、それぞれの「閲覧の事実」を 1 回のクエリで返す。
@@ -257,6 +277,10 @@ SELECT
 -- ページごとに権限クエリを投げる（N+1）ことは避ける。ツリー表示は 1 スペースで
 -- 数百〜数千ページを一度に扱うため、1 ページ 1 往復では表示のたびにその回数だけ往復する。
 -- 制限を持つページはごく少数なので、closure との JOIN で拾えるのは実際には数行だけになる。
+--
+-- 集計は ResolvePagePermissionFacts と同じ 3 つの事実（deny は経路全体・許可リストは
+-- 最も近い段）。ケイパビリティは 'view' に絞ってあるので、分けるのはページ単位だけで足りる。
+-- 1 ページの解決と一覧で違う畳み方をすると「開くと見えるのに一覧に出ない」ずれになる。
 WITH me AS (
     SELECT p.id
     FROM principals p
@@ -277,9 +301,8 @@ mine AS (
       AND sp.kind = 'space_all' AND sp.space_id = sqlc.arg(space_id)
       AND EXISTS (SELECT 1 FROM me)
 ),
-nearest AS (
-    SELECT pp.page_id, pp.depth, r.mode, r.principal_id,
-           MIN(pp.depth) OVER (PARTITION BY pp.page_id) AS nearest_depth
+onpath AS (
+    SELECT pp.page_id, pp.depth, r.mode, r.principal_id
     FROM page_paths pp
     JOIN pages tp ON tp.workspace_id = pp.workspace_id AND tp.id = pp.page_id
     JOIN page_restrictions r
@@ -287,14 +310,23 @@ nearest AS (
     WHERE pp.workspace_id = sqlc.arg(workspace_id)
       AND tp.space_id = sqlc.arg(space_id) AND tp.archived_at IS NULL
 ),
+allow_level AS (
+    SELECT o.page_id, MIN(o.depth) AS nearest_allow_depth
+    FROM onpath o
+    WHERE o.mode = 'allow'
+    GROUP BY o.page_id
+),
 exception AS (
-    SELECT page_id,
-           bool_or(mode = 'deny'  AND principal_id IN (SELECT id FROM mine)) AS denied,
-           bool_or(mode = 'allow' AND principal_id IN (SELECT id FROM mine)) AS allowed,
-           bool_or(mode = 'allow') AS has_allow_list
-    FROM nearest
-    WHERE depth = nearest_depth
-    GROUP BY page_id
+    SELECT o.page_id,
+           bool_or(o.mode = 'deny' AND o.principal_id IN (SELECT id FROM mine)) AS denied_anywhere,
+           bool_or(o.mode = 'allow') AS has_allow_list,
+           -- 相関副問い合わせにする理由は ResolvePagePermissionFacts と同じ。
+           bool_or(o.mode = 'allow'
+                   AND o.depth = (SELECT al.nearest_allow_depth FROM allow_level al
+                                   WHERE al.page_id = o.page_id)
+                   AND o.principal_id IN (SELECT id FROM mine)) AS allowed_at_nearest
+    FROM onpath o
+    GROUP BY o.page_id
 )
 SELECT
     p.*,
@@ -315,9 +347,9 @@ SELECT
         ) g
     ), 0)::integer AS grant_rank,
     (e.page_id IS NOT NULL)::boolean AS view_restricted,
-    COALESCE(e.denied, false)::boolean AS view_denied,
-    COALESCE(e.allowed, false)::boolean AS view_allowed,
-    COALESCE(e.has_allow_list, false)::boolean AS view_has_allow_list
+    COALESCE(e.denied_anywhere, false)::boolean AS view_denied_anywhere,
+    COALESCE(e.has_allow_list, false)::boolean AS view_has_allow_list,
+    COALESCE(e.allowed_at_nearest, false)::boolean AS view_allowed_at_nearest
 FROM pages p
 LEFT JOIN exception e ON e.page_id = p.id
 WHERE p.workspace_id = sqlc.arg(workspace_id)

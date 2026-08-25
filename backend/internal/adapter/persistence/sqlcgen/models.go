@@ -20,7 +20,7 @@ type Block struct {
 	Position    string
 	Type        string
 	Attrs       json.RawMessage
-	Inline      []byte
+	Inline      *json.RawMessage
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }

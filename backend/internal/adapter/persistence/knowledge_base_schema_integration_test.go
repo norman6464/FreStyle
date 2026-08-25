@@ -470,14 +470,14 @@ func TestKnowledgeBaseSchema_Integration(t *testing.T) {
 			require.Equalf(t, "C", collation, "%s.position のコレーションが C ではありません", table)
 		}
 
-		// FK / CHECK が 1 本も欠けていないこと。
+		// PK / FK / CHECK / UNIQUE が 1 本も欠けていないこと。
 		for table, constraints := range map[string][]string{
-			"workspaces":     {"ck_workspaces_slug_len", "uq_workspaces_slug"},
-			"spaces":         {"ck_spaces_key_len", "fk_spaces_workspace", "uq_spaces_workspace_id", "uq_spaces_workspace_key"},
-			"pages":          {"ck_pages_parent_not_self", "ck_pages_position_not_empty", "fk_pages_parent", "fk_pages_space", "uq_pages_workspace_id", "uq_pages_workspace_space_id"},
-			"blocks":         {"ck_blocks_attrs_object", "ck_blocks_inline_array", "ck_blocks_parent_not_self", "ck_blocks_position_not_empty", "fk_blocks_page", "fk_blocks_parent", "uq_blocks_workspace_page_id"},
-			"page_paths":     {"ck_page_paths_depth", "fk_page_paths_ancestor", "fk_page_paths_page"},
-			"page_snapshots": {"ck_page_snapshots_doc", "fk_page_snapshots_page"},
+			"workspaces":     {"ck_workspaces_slug_len", "uq_workspaces_slug", "workspaces_pkey"},
+			"spaces":         {"ck_spaces_key_len", "fk_spaces_workspace", "spaces_pkey", "uq_spaces_workspace_id", "uq_spaces_workspace_key"},
+			"pages":          {"ck_pages_parent_not_self", "ck_pages_position_not_empty", "fk_pages_parent", "fk_pages_space", "pages_pkey", "uq_pages_workspace_id", "uq_pages_workspace_space_id"},
+			"blocks":         {"blocks_pkey", "ck_blocks_attrs_object", "ck_blocks_inline_array", "ck_blocks_parent_not_self", "ck_blocks_position_not_empty", "fk_blocks_page", "fk_blocks_parent", "uq_blocks_workspace_page_id"},
+			"page_paths":     {"ck_page_paths_depth", "fk_page_paths_ancestor", "fk_page_paths_page", "page_paths_pkey"},
+			"page_snapshots": {"ck_page_snapshots_doc", "fk_page_snapshots_page", "page_snapshots_pkey"},
 		} {
 			for _, name := range constraints {
 				var n int

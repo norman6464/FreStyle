@@ -27,14 +27,26 @@ sql:
         emit_json_tags: false
         emit_interface: false
         overrides:
-          # NULL 可の jsonb（blocks.inline）は []byte にする。
-          # sqlc の既定は pqtype.NullRawMessage で、そのためだけに外部依存が 1 つ増える。
-          # json.RawMessage は NULL を Scan できない（database/sql が
-          # "unsupported Scan, storing driver.Value type <nil>" で落ちる）が、[]byte なら
-          # NULL は nil、値は生バイトとして受けられる。NOT NULL の jsonb（attrs / doc）は
-          # 既定どおり json.RawMessage のままで良い（NULL が来ないため）。
+          # NULL 可の jsonb（blocks.inline）は *json.RawMessage にする。受信・送信の両方を
+          # 満たせる型がこれしかないため、ポインタは飾りではなく必須。
+          #
+          #   - 受信: json.RawMessage は NULL を Scan できない（database/sql が
+          #     "unsupported Scan, storing driver.Value type <nil>" で落ちる）。ポインタなら nil で受かる。
+          #   - 送信: 本番は transaction pooler 経由なので simple protocol になる
+          #     （infra/database/postgres.go が PreferSimpleProtocol を立て、driver が
+          #     DefaultQueryExecMode をそれに揃える）。simple protocol では pgx がパラメータを
+          #     クライアント側で SQL リテラルへ埋め込むので、Go の型がそのまま構文を決める。
+          #     []byte は bytea の 16 進リテラル（'\x...'）になり jsonb 列で 22P02
+          #     （invalid input syntax for type json）になる。json.RawMessage なら json として埋まる。
+          #
+          # extended protocol（ローカル直結 / CI）はパラメータの OID で jsonb と判るため []byte でも
+          # 通ってしまう。つまりこの取り違えはローカルと CI では緑のままで、本番でだけ落ちる。
+          # sqlc 既定の pqtype.NullRawMessage も Value() が []byte を返すので simple protocol では同じく
+          # 22P02 になり、既定に戻すのは解にならない。
+          # NOT NULL の jsonb（attrs / doc）は NULL が来ないので既定の json.RawMessage のままで良い。
           - db_type: "jsonb"
             nullable: true
             go_type:
-              type: "byte"
-              slice: true
+              import: "encoding/json"
+              type: "RawMessage"
+              pointer: true

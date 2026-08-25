@@ -1,9 +1,7 @@
 import { useState, useMemo } from 'react';
-import { useAppSelector } from '@/shared/lib/store';
-
-import { Navigate } from 'react-router-dom';
 
 import Loading from '@/shared/ui/Loading';
+import FormMessage from '@/shared/ui/FormMessage';
 import PageIntro from '@/shared/ui/PageIntro';
 import { useAdminMembers } from '../model/useAdminMembers';
 import { Member } from '@/entities/member';
@@ -31,10 +29,9 @@ function roleLabel(role: string): string {
  * AdminMembersPage — `/admin/members`。company_admin / super_admin 向けの従業員一覧。
  * 各従業員の AI 利用可否を「会社設定に従う / 有効 / 無効」で個別に設定できる
  * （会社一括設定は従来どおり別途残る。個別設定が会社設定を上書きする）。
+ * 通過条件はルート側の RequireRole が持つ。
  */
 export default function AdminMembersPage() {
-  const isAdmin = useAppSelector((state) => state.auth.isAdmin);
-  const authLoading = useAppSelector((state) => state.auth.loading);
   const { members, loading, error, updatingId, setAiAccess, setActive, remove } = useAdminMembers();
   const [query, setQuery] = useState('');
 
@@ -50,9 +47,6 @@ export default function AdminMembersPage() {
     );
   }, [members, query]);
 
-  if (authLoading) return <Loading message="読み込み中..." className="min-h-[50vh]" />;
-  if (!isAdmin) return <Navigate to="/dashboard" replace />;
-
   return (
     <div className="px-4 sm:px-6 pt-6 pb-24 max-w-4xl mx-auto">
       <PageIntro
@@ -60,11 +54,7 @@ export default function AdminMembersPage() {
         description="自社の従業員の一覧です。AI 利用可否の個別設定に加え、アカウントの有効/無効（停止）と削除ができます。無効化された従業員はログイン/利用不可になります。"
       />
 
-      {error && (
-        <p role="alert" className="mt-4 text-rose-600">
-          {error}
-        </p>
-      )}
+      <FormMessage message={error ? { type: 'error', text: error } : null} />
 
       {loading ? (
         <Loading message="読み込み中..." className="min-h-[30vh]" />

@@ -76,18 +76,67 @@ import AdminCompanyApplicationsPage from '@/pages/admin-company-applications/ui/
 import AdminMembersPage from '@/pages/admin-members/ui/AdminMembersPage';
 import AdminAuditLogPage from '@/pages/admin-audit-log/ui/AdminAuditLogPage';
 import AdminInvitationsPage from '@/pages/admin-invitations/ui/AdminInvitationsPage';
+import RequireRole from '../providers/RequireRole';
 
 /**
  * App.tsx の admin ルート定義と同じ組み立て。
  * 認可ゲートの置き場所を変えたら、変えるのはこの配線だけで、下の表は動かさない。
  */
 const ADMIN_ROUTES: { path: string; title: string; element: ReactElement }[] = [
-  { path: '/admin/dashboard', title: '運営ダッシュボード', element: <AdminDashboardPage /> },
-  { path: '/admin/companies', title: '管理: 会社一覧', element: <AdminCompaniesPage /> },
-  { path: '/admin/applications', title: '管理: 利用申請', element: <AdminCompanyApplicationsPage /> },
-  { path: '/admin/members', title: '管理: 従業員一覧', element: <AdminMembersPage /> },
-  { path: '/admin/audit', title: '監査ログ', element: <AdminAuditLogPage /> },
-  { path: '/admin/invitations', title: '管理: メンバー招待', element: <AdminInvitationsPage /> },
+  {
+    path: '/admin/dashboard',
+    title: '運営ダッシュボード',
+    element: (
+      <RequireRole allow={['super_admin']} requireAdminFlag>
+        <AdminDashboardPage />
+      </RequireRole>
+    ),
+  },
+  {
+    path: '/admin/companies',
+    title: '管理: 会社一覧',
+    element: (
+      <RequireRole allow={['super_admin']}>
+        <AdminCompaniesPage />
+      </RequireRole>
+    ),
+  },
+  {
+    path: '/admin/applications',
+    title: '管理: 利用申請',
+    element: (
+      <RequireRole allow={['super_admin']} requireAdminFlag>
+        <AdminCompanyApplicationsPage />
+      </RequireRole>
+    ),
+  },
+  {
+    path: '/admin/members',
+    title: '管理: 従業員一覧',
+    element: (
+      <RequireRole allow="any" requireAdminFlag>
+        <AdminMembersPage />
+      </RequireRole>
+    ),
+  },
+  {
+    path: '/admin/audit',
+    title: '監査ログ',
+    element: (
+      <RequireRole allow={['super_admin']}>
+        <AdminAuditLogPage />
+      </RequireRole>
+    ),
+  },
+  {
+    path: '/admin/invitations',
+    title: '管理: メンバー招待',
+    element: (
+      <RequireRole allow="any" requireAdminFlag>
+        <AdminInvitationsPage />
+      </RequireRole>
+    ),
+  },
 ];
 
 const REDIRECT_MARKER = 'ダッシュボード（リダイレクト先）';

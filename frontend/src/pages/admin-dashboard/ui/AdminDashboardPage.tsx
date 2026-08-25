@@ -1,9 +1,9 @@
 
-import { Navigate, Link } from 'react-router-dom';
-import { useAppSelector } from '@/shared/lib/store';
+import { Link } from 'react-router-dom';
 import { BuildingOffice2Icon, InboxArrowDownIcon } from '@heroicons/react/24/outline';
 
 import Loading from '@/shared/ui/Loading';
+import FormMessage from '@/shared/ui/FormMessage';
 import PageIntro from '@/shared/ui/PageIntro';
 import { useAdminDashboard } from '../model/useAdminDashboard';
 
@@ -39,18 +39,10 @@ function StatCard(props: {
 /**
  * AdminDashboardPage — `/admin/dashboard`。super_admin 専用の運営概況。
  * 会社数（有効/無効）と承認待ちの利用申請件数を一目で把握し、各管理画面へ導く。
+ * 全テナント横断の概況であり、通過条件はルート側の RequireRole が持つ。
  */
 export default function AdminDashboardPage() {
-  const isAdmin = useAppSelector((state) => state.auth.isAdmin);
-  const authLoading = useAppSelector((state) => state.auth.loading);
-  const role = useAppSelector((state) => state.auth.role);
-  // super_admin のときだけ admin API を取得する（リダイレクト対象に権限外アクセスを試行させない）。
-  const canView = isAdmin && role === 'super_admin';
-  const { summary, loading, error } = useAdminDashboard(canView);
-
-  if (authLoading) return <Loading message="認証情報を確認中..." className="min-h-[50vh]" />;
-  // 運営ダッシュボードは全テナント横断の概況なので super_admin 専用。
-  if (!canView) return <Navigate to="/dashboard" replace />;
+  const { summary, loading, error } = useAdminDashboard();
 
   return (
     <div className="px-4 sm:px-6 pt-6 pb-24 max-w-3xl mx-auto space-y-6">
@@ -59,11 +51,7 @@ export default function AdminDashboardPage() {
         description="全テナントの概況です。会社数と承認待ちの利用申請を確認し、各管理画面へ移動できます。"
       />
 
-      {error && (
-        <div role="alert" className="p-3 rounded border border-rose-300 bg-rose-50 text-rose-800 text-sm">
-          {error}
-        </div>
-      )}
+      <FormMessage message={error ? { type: 'error', text: error } : null} />
 
       {loading ? (
         <Loading message="読み込み中..." className="min-h-[30vh]" />

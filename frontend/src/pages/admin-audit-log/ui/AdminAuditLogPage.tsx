@@ -1,8 +1,6 @@
 
-import { Navigate } from 'react-router-dom';
-import { useAppSelector } from '@/shared/lib/store';
-
 import Loading from '@/shared/ui/Loading';
+import FormMessage from '@/shared/ui/FormMessage';
 import PageIntro from '@/shared/ui/PageIntro';
 import { useAuditLog } from '../model/useAuditLog';
 import type { AuditEvent } from '@/entities/audit';
@@ -53,16 +51,10 @@ function AuditRow({ e }: { e: AuditEvent }) {
 /**
  * AdminAuditLogPage — `/admin/audit`。super_admin 専用の監査ログ。
  * 管理者の重要操作（会社の有効/無効・従業員の停止/削除・招待）を新しい順で確認できる。
+ * 全テナント横断の運営機能であり、通過条件はルート側の RequireRole が持つ。
  */
 export default function AdminAuditLogPage() {
-  const authLoading = useAppSelector((state) => state.auth.loading);
-  const role = useAppSelector((state) => state.auth.role);
-  const isSuperAdmin = role === 'super_admin';
-  const { events, loading, error } = useAuditLog(isSuperAdmin);
-
-  if (authLoading) return <Loading message="認証情報を確認中..." className="min-h-[50vh]" />;
-  // 監査ログは全テナント横断の運営機能なので super_admin 専用。
-  if (!isSuperAdmin) return <Navigate to="/dashboard" replace />;
+  const { events, loading, error } = useAuditLog();
 
   return (
     <div className="px-4 sm:px-6 pt-6 pb-24 max-w-3xl mx-auto space-y-6">
@@ -71,11 +63,7 @@ export default function AdminAuditLogPage() {
         description="管理者の重要操作（会社の有効/無効・従業員の停止/削除・招待の作成/取消）の記録です。新しい順に最大 200 件を表示します。"
       />
 
-      {error && (
-        <div role="alert" className="p-3 rounded border border-rose-300 bg-rose-50 text-rose-800 text-sm">
-          {error}
-        </div>
-      )}
+      <FormMessage message={error ? { type: 'error', text: error } : null} />
 
       {loading ? (
         <Loading message="読み込み中..." className="min-h-[30vh]" />

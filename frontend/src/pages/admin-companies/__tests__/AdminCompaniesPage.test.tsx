@@ -54,10 +54,6 @@ describe('AdminCompaniesPage（会社横断ビュー）', () => {
     expect(listStats).toHaveBeenCalled();
   });
 
-  it('super_admin 以外はリダイレクトし、集計 API を呼ばない', () => {
-    mockState.auth = { isAdmin: true, loading: false, role: 'company_admin' };
-    renderPage();
-    expect(screen.queryByText('アクメ社')).not.toBeInTheDocument();
-    expect(listStats).not.toHaveBeenCalled();
-  });
+  // 通過条件（誰が入れて誰が /dashboard へ戻されるか）はルート側の RequireRole が持つ。
+  // その表は src/app/__tests__/adminRouteAuthorization.test.tsx で固定している。
 });

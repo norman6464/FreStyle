@@ -125,7 +125,8 @@ const listActiveUsersByEmail = `-- name: ListActiveUsersByEmail :many
 SELECT u.id, u.email, u.name, u.company_id, u.role_id, u.ai_chat_enabled, u.is_active, u.created_at, u.updated_at, u.deleted_at, u.password_hash, COALESCE(r.name, '') AS role_name
 FROM users u
 LEFT JOIN roles r ON r.id = u.role_id
-WHERE u.email = $1 AND u.email <> '' AND u.deleted_at IS NULL AND u.is_active
+WHERE lower(btrim(u.email, E'\t\n\x0B\f\r ')) = lower(btrim($1::text, E'\t\n\x0B\f\r '))
+  AND btrim(u.email, E'\t\n\x0B\f\r ') <> '' AND u.deleted_at IS NULL AND u.is_active
 `
 
 type ListActiveUsersByEmailRow struct {
@@ -144,9 +145,15 @@ type ListActiveUsersByEmailRow struct {
 }
 
 // email で有効ユーザーを引く（論理削除・無効化は除外）。ローカルのパスワードログイン専用で、
-// ハッシュを含む唯一のクエリ。email は uq_users_email_active（deleted_at IS NULL AND
-// email <> ”）でアクティブ行に対して一意だが、既存データの重複で index 未作成のまま
-// 起動している環境では複数行になり得るため :many で受け、呼び出し側が曖昧さを拒否する。
+// ハッシュを含む唯一のクエリ。email は uq_users_email_active（lower(btrim(email, ...)) /
+// deleted_at IS NULL AND btrim(email, ...) <> ”）でアクティブ行に対して一意だが、既存データの
+// 重複で index 未作成のまま起動している環境では複数行になり得るため :many で受け、
+// 呼び出し側が曖昧さを拒否する。
+// 突き合わせは domain.NormalizeEmail と同じ正規形 lower(btrim(email, E'\t\n\x0B\f\r ')) で行う
+// （索引・述語と同じ式なのでそのまま部分索引が使われ、正規化される前に入った大文字混じり・
+// 前後空白付きの既存行も同じアドレスとして 1 つに解決される）。引数側も同じ式で畳むので、
+// ログインフォームの生入力をそのまま渡してよい（引数は ::text を明示する。btrim には bytea
+// 版もあり、キャストが無いと sqlc が引数を []byte と推論してしまう）。
 func (q *Queries) ListActiveUsersByEmail(ctx context.Context, email string) ([]ListActiveUsersByEmailRow, error) {
 	rows, err := q.db.QueryContext(ctx, listActiveUsersByEmail, email)
 	if err != nil {

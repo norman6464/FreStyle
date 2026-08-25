@@ -85,6 +85,10 @@ type CreateAdminInvitationInput struct {
 // Execute は token 発行 → invitations を pending で保存 → 受諾リンクメール送信、の順で招待を作る。
 // sender 未設定ならメール送信はスキップ。メール送信失敗はエラーとして返す。
 func (u *CreateAdminInvitationUseCase) Execute(ctx context.Context, in CreateAdminInvitationInput) (*domain.AdminInvitation, error) {
+	// email はここで 1 度だけ正規形へ畳み、保存・照会・送信すべてでこの値を使う。
+	// 生のまま保存すると、ログイン時の招待ゲート（正規形の OIDC メールで引く）と
+	// 突き合わせられず「招待したのに招待が見つからない」状態になる。
+	in.Email = domain.NormalizeEmail(in.Email)
 	if in.CompanyID == 0 || in.Email == "" || in.Role == "" {
 		return nil, errors.New("companyID, email, role are required")
 	}

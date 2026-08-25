@@ -37,6 +37,15 @@ func (s *stubUserRepo) CreateWithOidcIdentity(_ context.Context, _ *domain.User,
 	return s.err
 }
 
+func (s *stubUserRepo) CreateFirstSuperAdminWithOidcIdentity(
+	_ context.Context, _ *domain.User, _, _ string,
+) (bool, error) {
+	if s.err != nil {
+		return false, s.err
+	}
+	return true, nil
+}
+
 func (s *stubUserRepo) UpdateName(_ context.Context, _ uint64, _ string) error {
 	return s.err
 }

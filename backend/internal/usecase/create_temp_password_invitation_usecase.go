@@ -67,6 +67,11 @@ func (u *CreateTemporaryPasswordInvitationUseCase) Execute(
 	if u.cognito == nil {
 		return nil, ErrTemporaryPasswordUnavailable
 	}
+	// email はここで 1 度だけ正規形へ畳み、Cognito ユーザーの作成にも招待行の保存にもこの値を使う。
+	// 招待行だけ生のまま残ると、ログイン時の招待ゲート（正規形の OIDC メールで
+	// FindPendingByEmail する）と突き合わせられず、招待したはずの相手が拒否される。
+	// Cognito 側も同じ値で作り、2 つの表現が並存しないようにする。
+	in.Email = domain.NormalizeEmail(in.Email)
 	if in.CompanyID == 0 || in.Email == "" || in.Role == "" {
 		return nil, errors.New("companyID, email, role are required")
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -15,10 +16,14 @@ import (
 // fakeUserRepo は AuthHandler.upsertUserFromIDToken のテスト用 stub。
 type fakeUserRepo struct {
 	existingBySub    map[string]*domain.User
+	findErr          error
 	created          *domain.User
 	createErr        error
 	updateRoleID     uint64
 	updateRoleVal    domain.RoleName
+	updateRoleErr    error
+	updateRoleCalls  int
+	superAdmins      []domain.User
 	updateCompanyID  uint64
 	updateCompanyVal uint64
 	updateNameID     uint64
@@ -26,6 +31,9 @@ type fakeUserRepo struct {
 }
 
 func (r *fakeUserRepo) FindByCognitoSub(_ context.Context, sub string) (*domain.User, error) {
+	if r.findErr != nil {
+		return nil, r.findErr
+	}
 	if u, ok := r.existingBySub[sub]; ok {
 		return u, nil
 	}
@@ -49,7 +57,7 @@ func (r *fakeUserRepo) FindByID(_ context.Context, _ uint64) (*domain.User, erro
 }
 
 func (r *fakeUserRepo) ListByRole(_ context.Context, _ domain.RoleName) ([]domain.User, error) {
-	return nil, nil
+	return r.superAdmins, nil
 }
 
 func (r *fakeUserRepo) CreateWithOidcIdentity(_ context.Context, u *domain.User, _, _ string) error {
@@ -61,12 +69,36 @@ func (r *fakeUserRepo) CreateWithOidcIdentity(_ context.Context, u *domain.User,
 	return nil
 }
 
+// CreateFirstSuperAdminWithOidcIdentity は本物の repository と同じく「渡された role が
+// super_admin でなければ拒否し、super_admin が 0 人のときだけ作る」振る舞いを模す。
+func (r *fakeUserRepo) CreateFirstSuperAdminWithOidcIdentity(
+	ctx context.Context, u *domain.User, provider, subject string,
+) (bool, error) {
+	// 本物（persistence.userRepository）はこの経路を super_admin 専用として先頭で弾く。
+	// ダブルがこの事前条件を落とすと、bootstrap 経路に trainee が流れる壊れ方を検出できない。
+	if u.Role != domain.RoleSuperAdmin {
+		return false, fmt.Errorf("最初の運営管理者の作成に role %q が渡されました（super_admin 専用の経路です）", u.Role)
+	}
+	if len(r.superAdmins) > 0 {
+		return false, nil
+	}
+	if err := r.CreateWithOidcIdentity(ctx, u, provider, subject); err != nil {
+		return false, err
+	}
+	r.superAdmins = append(r.superAdmins, *u)
+	return true, nil
+}
+
 func (r *fakeUserRepo) UpdateName(_ context.Context, id uint64, name string) error {
 	r.updateNameID, r.updateNameVal = id, name
 	return nil
 }
 
 func (r *fakeUserRepo) UpdateRole(_ context.Context, id uint64, role domain.RoleName) error {
+	r.updateRoleCalls++
+	if r.updateRoleErr != nil {
+		return r.updateRoleErr
+	}
 	r.updateRoleID, r.updateRoleVal = id, role
 	return nil
 }
@@ -142,13 +174,23 @@ func makeIDToken(t *testing.T, claims map[string]any) string {
 }
 
 // newTestAuthHandler はテスト用 AuthHandler を組み立てる。tokens は使わない。
+// ブートストラップ免除は無効（本番の既定）。
 func newTestAuthHandler(
 	users *fakeUserRepo,
 	invitations *fakeInvitationRepo,
 ) *AuthHandler {
+	return newTestAuthHandlerWithBootstrap(users, invitations, "")
+}
+
+// newTestAuthHandlerWithBootstrap はブートストラップ用アドレスを設定したテスト用 AuthHandler を返す。
+func newTestAuthHandlerWithBootstrap(
+	users *fakeUserRepo,
+	invitations *fakeInvitationRepo,
+	bootstrapEmail string,
+) *AuthHandler {
 	return &AuthHandler{
-		users:      users,
-		upsertUser: usecase.NewUpsertUserFromIDTokenUseCase(users, invitations),
+		upsertUser:   usecase.NewUpsertUserFromIDTokenUseCase(users, invitations, bootstrapEmail),
+		promoteAdmin: usecase.NewPromoteCognitoAdminRoleUseCase(users),
 	}
 }
 

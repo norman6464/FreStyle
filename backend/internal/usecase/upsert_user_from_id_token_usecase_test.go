@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -34,6 +35,25 @@ type upsertUserRepoSpy struct {
 	roleUpdateValue     domain.RoleName
 	companyUpdateUserID uint64
 	companyUpdateValue  uint64
+
+	// ブートストラップ判定（既存 super_admin の有無）の制御。
+	createFirstSuperAdminCalls int
+	superAdmins                []domain.User
+	listByRoleErr              error
+	listByRoleCalls            int
+	listByRoleValue            domain.RoleName
+}
+
+func (s *upsertUserRepoSpy) ListByRole(
+	_ context.Context,
+	role domain.RoleName,
+) ([]domain.User, error) {
+	s.listByRoleCalls++
+	s.listByRoleValue = role
+	if s.listByRoleErr != nil {
+		return nil, s.listByRoleErr
+	}
+	return s.superAdmins, nil
 }
 
 func (s *upsertUserRepoSpy) FindByCognitoSub(
@@ -51,6 +71,7 @@ type upsertInvitationRepoSpy struct {
 	emailFindErr    error
 	tokenFindCalled bool
 	emailFindCalled bool
+	emailFindArg    string
 	updateCalls     int
 	updateErr       error
 	updatedID       uint64
@@ -72,9 +93,10 @@ func (s *upsertInvitationRepoSpy) ListByCompanyID(
 
 func (s *upsertInvitationRepoSpy) FindPendingByEmail(
 	_ context.Context,
-	_ string,
+	email string,
 ) (*domain.AdminInvitation, error) {
 	s.emailFindCalled = true
+	s.emailFindArg = email
 	return s.pending, s.emailFindErr
 }
 
@@ -127,7 +149,17 @@ func newUpsertUserFromIDTokenUseCaseForTest(
 	users repository.UserRepository,
 	invitations repository.AdminInvitationRepository,
 ) *UpsertUserFromIDTokenUseCase {
-	return NewUpsertUserFromIDTokenUseCase(users, invitations)
+	// ブートストラップ免除なし（本番の既定）。
+	return NewUpsertUserFromIDTokenUseCase(users, invitations, "")
+}
+
+// newUpsertUserFromIDTokenUseCaseWithBootstrap はブートストラップ用アドレスを設定した usecase を返す。
+func newUpsertUserFromIDTokenUseCaseWithBootstrap(
+	users repository.UserRepository,
+	invitations repository.AdminInvitationRepository,
+	bootstrapEmail string,
+) *UpsertUserFromIDTokenUseCase {
+	return NewUpsertUserFromIDTokenUseCase(users, invitations, bootstrapEmail)
 }
 
 func Test_UpsertUserFromIDToken_招待のRoleとCompanyを適用してAcceptedにする(t *testing.T) {
@@ -200,6 +232,31 @@ func (s *upsertUserRepoSpy) CreateWithOidcIdentity(
 	s.createdProvider = provider
 	s.createdSubject = subject
 	return nil
+}
+
+// CreateFirstSuperAdminWithOidcIdentity は本物の repository と同じく「渡された role が
+// super_admin でなければ拒否し、super_admin が 0 人のときだけ作る」振る舞いを模す
+// （判定は spy が持つ superAdmins を見る）。
+func (s *upsertUserRepoSpy) CreateFirstSuperAdminWithOidcIdentity(
+	ctx context.Context,
+	user *domain.User,
+	provider, subject string,
+) (bool, error) {
+	s.createFirstSuperAdminCalls++
+	// 本物（persistence.userRepository）はこの経路を super_admin 専用として先頭で弾く。
+	// ダブルがこの事前条件を持たないと、免除の条件が壊れて trainee がこの経路に流れても
+	// テストは緑のままになり、本番でだけ「最初の運営管理者を作れない」状態を出荷してしまう。
+	if user.Role != domain.RoleSuperAdmin {
+		return false, fmt.Errorf("最初の運営管理者の作成に role %q が渡されました（super_admin 専用の経路です）", user.Role)
+	}
+	if len(s.superAdmins) > 0 {
+		return false, nil
+	}
+	if err := s.CreateWithOidcIdentity(ctx, user, provider, subject); err != nil {
+		return false, err
+	}
+	s.superAdmins = append(s.superAdmins, *user)
+	return true, nil
 }
 
 func (s *upsertUserRepoSpy) UpdateName(
@@ -325,7 +382,9 @@ func Test_UpsertUserFromIDToken_招待も管理者権限もない新規ユーザ
 	}
 }
 
-func Test_UpsertUserFromIDToken_CognitoAdminは招待なしでもSuperAdminとして作成する(t *testing.T) {
+// Cognito の admin グループに属しているだけでは招待統制を迂回できない（グループ名 1 つで
+// 会社をまたぐ super_admin が作れてしまう穴を塞ぐ）。
+func Test_UpsertUserFromIDToken_CognitoAdminでも招待が無ければ新規作成を拒否(t *testing.T) {
 	users := &upsertUserRepoSpy{}
 	uc := newUpsertUserFromIDTokenUseCaseForTest(users, nil)
 
@@ -341,14 +400,136 @@ func Test_UpsertUserFromIDToken_CognitoAdminは招待なしでもSuperAdminと�
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	if allowed {
+		t.Fatal("招待の無い新規ユーザーは Cognito admin グループでも拒否されるべき")
+	}
+	if users.created != nil {
+		t.Fatalf("ユーザーを作成してはいけない: %+v", users.created)
+	}
+}
+
+// ブートストラップ: 明示したアドレス + Cognito admin グループ + super_admin が 0 人のときだけ、
+// 招待なしで最初の運営管理者を作れる。
+func Test_UpsertUserFromIDToken_ブートストラップ指定アドレスは招待なしでSuperAdminを作る(t *testing.T) {
+	users := &upsertUserRepoSpy{}
+	uc := newUpsertUserFromIDTokenUseCaseWithBootstrap(users, nil, "  Ops@Example.com ")
+
+	allowed, err := uc.Execute(
+		context.Background(),
+		UpsertUserFromIDTokenInput{
+			CognitoSub:     "admin-sub",
+			Email:          "ops@example.com",
+			Name:           "Ops User",
+			IsCognitoAdmin: true,
+		},
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if !allowed {
-		t.Fatal("Cognito adminは招待なしでも許可されるべき")
+		t.Fatal("ブートストラップ指定アドレスは許可されるべき")
 	}
 	if users.created == nil {
 		t.Fatal("ユーザーが作成されていない")
 	}
 	if users.created.Role != domain.RoleSuperAdmin {
 		t.Fatalf("role = %q, want %q", users.created.Role, domain.RoleSuperAdmin)
+	}
+	if users.listByRoleValue != domain.RoleSuperAdmin {
+		t.Fatalf("既存 super_admin の有無を確認していない: %q", users.listByRoleValue)
+	}
+}
+
+// ブートストラップは「最初の 1 人」限定。super_admin が既に居れば経路は閉じる。
+func Test_UpsertUserFromIDToken_ブートストラップはSuperAdmin在籍時に閉じる(t *testing.T) {
+	users := &upsertUserRepoSpy{
+		superAdmins: []domain.User{{ID: 1, Role: domain.RoleSuperAdmin}},
+	}
+	uc := newUpsertUserFromIDTokenUseCaseWithBootstrap(users, nil, "ops@example.com")
+
+	allowed, err := uc.Execute(
+		context.Background(),
+		UpsertUserFromIDTokenInput{
+			CognitoSub:     "admin-sub",
+			Email:          "ops@example.com",
+			IsCognitoAdmin: true,
+		},
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if allowed {
+		t.Fatal("既に super_admin が居るならブートストラップは効いてはいけない")
+	}
+	if users.created != nil {
+		t.Fatalf("ユーザーを作成してはいけない: %+v", users.created)
+	}
+	// 既に居ると分かっている以上、作成の試行まで進まずに拒否する
+	// （作成側の再判定は同時実行のための最後の砦で、事前の照会の代わりではない）。
+	if users.createFirstSuperAdminCalls != 0 {
+		t.Fatalf("作成を試みてはいけない: %d 回呼ばれた", users.createFirstSuperAdminCalls)
+	}
+}
+
+// ブートストラップは指定した 1 アドレスだけ。別アドレスや admin グループ非所属には効かない。
+func Test_UpsertUserFromIDToken_ブートストラップは指定アドレス以外に効かない(t *testing.T) {
+	tests := []struct {
+		name           string
+		email          string
+		isCognitoAdmin bool
+	}{
+		{name: "別アドレス", email: "other@example.com", isCognitoAdmin: true},
+		{name: "adminグループ非所属", email: "ops@example.com", isCognitoAdmin: false},
+		{name: "メール無し", email: "", isCognitoAdmin: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			users := &upsertUserRepoSpy{}
+			uc := newUpsertUserFromIDTokenUseCaseWithBootstrap(users, nil, "ops@example.com")
+
+			allowed, err := uc.Execute(
+				context.Background(),
+				UpsertUserFromIDTokenInput{
+					CognitoSub:     "sub",
+					Email:          tt.email,
+					IsCognitoAdmin: tt.isCognitoAdmin,
+				},
+			)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if allowed {
+				t.Fatal("ブートストラップ対象外は拒否されるべき")
+			}
+			if users.created != nil {
+				t.Fatalf("ユーザーを作成してはいけない: %+v", users.created)
+			}
+		})
+	}
+}
+
+// 既存 super_admin を数えられないときは「居ないこと」を確認できていないので免除しない。
+func Test_UpsertUserFromIDToken_ブートストラップ判定の照会失敗はエラーで止める(t *testing.T) {
+	listErr := errors.New("db down")
+	users := &upsertUserRepoSpy{listByRoleErr: listErr}
+	uc := newUpsertUserFromIDTokenUseCaseWithBootstrap(users, nil, "ops@example.com")
+
+	allowed, err := uc.Execute(
+		context.Background(),
+		UpsertUserFromIDTokenInput{
+			CognitoSub:     "admin-sub",
+			Email:          "ops@example.com",
+			IsCognitoAdmin: true,
+		},
+	)
+	if allowed {
+		t.Fatal("照会に失敗したら許可してはいけない")
+	}
+	if !errors.Is(err, listErr) {
+		t.Fatalf("err = %v, want wrapped %v", err, listErr)
+	}
+	if users.created != nil {
+		t.Fatalf("ユーザーを作成してはいけない: %+v", users.created)
 	}
 }
 
@@ -1083,5 +1264,173 @@ func Test_UpsertUserFromIDToken_既存ユーザーでもidentityをセルフヒ�
 	}
 	if users.ensuredSubject != "old-sub" {
 		t.Fatalf("subject = %q, want %q", users.ensuredSubject, "old-sub")
+	}
+}
+
+// ブートストラップの冒頭ガードは「空文字どうしの一致」を止めている。
+// env 未設定（免除アドレス無し）で、かつ id_token に email claim が無い（federated ID token では
+// 実際に起こる）admin グループのユーザーが来ても、空文字が一致して免除が成立してはいけない。
+// 既存 super_admin の照会まで進まないことも併せて固定する（判定は照会の前に閉じている）。
+func Test_UpsertUserFromIDToken_ブートストラップはenv未設定かつメール空では成立しない(t *testing.T) {
+	users := &upsertUserRepoSpy{}
+	uc := newUpsertUserFromIDTokenUseCaseForTest(users, nil) // 免除アドレス未設定（本番の既定）
+
+	allowed, err := uc.Execute(
+		context.Background(),
+		UpsertUserFromIDTokenInput{
+			CognitoSub:     "admin-sub",
+			Email:          "",
+			IsCognitoAdmin: true,
+		},
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if allowed {
+		t.Fatal("env 未設定 + email 空 + admin グループを免除してはいけない")
+	}
+	if users.created != nil {
+		t.Fatalf("ユーザーを作成してはいけない: %+v", users.created)
+	}
+	if users.listByRoleCalls != 0 {
+		t.Fatalf("免除アドレス未設定なら既存 super_admin の照会まで進んではいけない: %d", users.listByRoleCalls)
+	}
+}
+
+// 免除の突き合わせは正規形どうしの一致で行う。
+// 大小文字・前後空白の違いは同じアドレスとして通し、逆に「畳めば同じだがバイトが違う」
+// 文字（U+017F など strings.EqualFold が畳む文字）は別アドレスとして拒否する。
+func Test_UpsertUserFromIDToken_ブートストラップの突き合わせは正規形で行う(t *testing.T) {
+	tests := []struct {
+		name           string
+		bootstrapEmail string
+		claimEmail     string
+		wantAllowed    bool
+	}{
+		{
+			name:           "大小文字と前後空白の違いは同じアドレス",
+			bootstrapEmail: "ops@example.com",
+			claimEmail:     "  OPS@Example.com ",
+			wantAllowed:    true,
+		},
+		{
+			// strings.EqualFold は U+017F(ſ) を 's' に畳むため、この 2 つを同一と見なしていた。
+			// 正規形（小文字化）では畳まれないので別アドレスとして拒否する。
+			name:           "単純フォールドでのみ一致する別アドレスは拒否",
+			bootstrapEmail: "sops@example.com",
+			claimEmail:     "\u017Fops@example.com",
+			wantAllowed:    false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			users := &upsertUserRepoSpy{}
+			uc := newUpsertUserFromIDTokenUseCaseWithBootstrap(users, nil, tt.bootstrapEmail)
+
+			allowed, err := uc.Execute(
+				context.Background(),
+				UpsertUserFromIDTokenInput{
+					CognitoSub:     "admin-sub",
+					Email:          tt.claimEmail,
+					IsCognitoAdmin: true,
+				},
+			)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if allowed != tt.wantAllowed {
+				t.Fatalf("allowed = %t, want %t", allowed, tt.wantAllowed)
+			}
+			if !tt.wantAllowed {
+				if users.created != nil {
+					t.Fatalf("ユーザーを作成してはいけない: %+v", users.created)
+				}
+				return
+			}
+			if users.created == nil {
+				t.Fatal("ユーザーが作成されていない")
+			}
+			// 保存されるのは生の claim 値ではなく正規形。生値のまま保存すると、以後の
+			// byte 一致検索・一意索引と食い違う。
+			if users.created.Email != "ops@example.com" {
+				t.Fatalf("保存された email = %q, want %q", users.created.Email, "ops@example.com")
+			}
+		})
+	}
+}
+
+// 判定と作成のあいだに別の運営管理者ができたら、作成側で弾いて拒否する
+// （「最初の 1 人ができた瞬間に閉じる」を、判定した事実ではなく作成の可否で決める）。
+func Test_UpsertUserFromIDToken_ブートストラップは作成側で閉じられたら拒否する(t *testing.T) {
+	users := &upsertUserRepoSpyRaceLoser{}
+	uc := newUpsertUserFromIDTokenUseCaseWithBootstrap(users, nil, "ops@example.com")
+
+	allowed, err := uc.Execute(
+		context.Background(),
+		UpsertUserFromIDTokenInput{
+			CognitoSub:     "admin-sub",
+			Email:          "ops@example.com",
+			IsCognitoAdmin: true,
+		},
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if allowed {
+		t.Fatal("作成側が「既に super_admin が居る」と答えたら許可してはいけない")
+	}
+	if users.created != nil {
+		t.Fatalf("ユーザーを作成してはいけない: %+v", users.created)
+	}
+}
+
+// upsertUserRepoSpyRaceLoser は「判定のあとで別の super_admin が確定した」状態の repository。
+// 事前の照会（ListByRole）では 0 人に見えるが、作成側の再判定では既に居る。
+type upsertUserRepoSpyRaceLoser struct{ upsertUserRepoSpy }
+
+func (s *upsertUserRepoSpyRaceLoser) CreateFirstSuperAdminWithOidcIdentity(
+	_ context.Context,
+	_ *domain.User,
+	_, _ string,
+) (bool, error) {
+	s.createFirstSuperAdminCalls++
+	return false, nil
+}
+
+// 招待の照会にも正規形を渡す。生の claim 値で引くと、同じアドレスなのに招待が見つからない
+// （= 招待を通したはずの人が拒否される）ずれが生まれる。
+func Test_UpsertUserFromIDToken_招待の照会と保存に正規形のメールを使う(t *testing.T) {
+	users := &upsertUserRepoSpy{}
+	invitations := &upsertInvitationRepoSpy{
+		pending: &domain.AdminInvitation{
+			ID:        10,
+			Email:     "Member@Example.com",
+			Role:      domain.RoleCompanyAdmin,
+			CompanyID: 3,
+		},
+	}
+	uc := newUpsertUserFromIDTokenUseCaseForTest(users, invitations)
+
+	allowed, err := uc.Execute(
+		context.Background(),
+		UpsertUserFromIDTokenInput{
+			CognitoSub: "member-sub",
+			Email:      " Member@Example.com ",
+		},
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !allowed {
+		t.Fatal("招待があるなら許可されるべき")
+	}
+	if invitations.emailFindArg != "member@example.com" {
+		t.Fatalf("招待の照会に渡した email = %q, want %q", invitations.emailFindArg, "member@example.com")
+	}
+	if users.created == nil {
+		t.Fatal("ユーザーが作成されていない")
+	}
+	if users.created.Email != "member@example.com" {
+		t.Fatalf("保存された email = %q, want %q", users.created.Email, "member@example.com")
 	}
 }

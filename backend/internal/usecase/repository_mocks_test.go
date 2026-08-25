@@ -47,6 +47,13 @@ func (m *mockUserRepo) CreateWithOidcIdentity(ctx context.Context, u *domain.Use
 	return m.Called(ctx, u, provider, subject).Error(0)
 }
 
+func (m *mockUserRepo) CreateFirstSuperAdminWithOidcIdentity(
+	ctx context.Context, u *domain.User, provider, subject string,
+) (bool, error) {
+	args := m.Called(ctx, u, provider, subject)
+	return args.Bool(0), args.Error(1)
+}
+
 func (m *mockUserRepo) EnsureOidcIdentity(ctx context.Context, userID uint64, provider, subject string) error {
 	return m.Called(ctx, userID, provider, subject).Error(0)
 }

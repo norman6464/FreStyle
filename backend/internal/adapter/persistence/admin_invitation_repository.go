@@ -36,10 +36,20 @@ func (r *adminInvitationRepository) ListByCompanyID(ctx context.Context, company
 	return rows, err
 }
 
+// FindPendingByEmail は保留中の招待を email で引く。
+// 突き合わせは domain.NormalizeEmail と同じ正規形どうしで行う。引数は Go 側で畳み、
+// 列は users の一意索引と同じ SQL 式 lower(btrim(email, E'\t\n\x0B\f\r ')) で畳む
+// （btrim の文字集合は domain.EmailTrimCutset と同じもの）。
+// ユーザー側の email は正規形で保存・照会するため、招待作成時に大文字混じり・前後空白付きで
+// 入った行を byte 一致で探すと「招待したのに招待が見つからない」状態になる
+// （同じアドレスの解釈が 2 つある状態を作らない）。
 func (r *adminInvitationRepository) FindPendingByEmail(ctx context.Context, email string) (*domain.AdminInvitation, error) {
 	var row domain.AdminInvitation
 	err := r.db.WithContext(ctx).
-		Where("email = ? AND status = ?", email, domain.InvitationStatusPending).
+		Where(
+			`lower(btrim(email, E'\t\n\x0B\f\r ')) = ? AND status = ?`,
+			domain.NormalizeEmail(email), domain.InvitationStatusPending,
+		).
 		Order("created_at DESC, id DESC").First(&row).Error
 	if err != nil {
 		// 該当なしは招待ユーザーでない通常サインアップなので nil, nil を返す。
@@ -85,7 +95,12 @@ func (r *adminInvitationRepository) FindPendingByToken(ctx context.Context, toke
 	return &row, nil
 }
 
+// Create は招待行を保存する。email は正規形に畳んでから書く。
+// 保存側だけ生のままだと、FindPendingByEmail を正規形の式に揃えても既存行と新規行で
+// 「どちらの表現で入っているか」がばらつき、同じアドレスの解釈が 2 つある状態が続く。
+// 呼び元（usecase）も畳んだ値を渡すが、この経路を通る限り必ず正規形になることをここで保証する。
 func (r *adminInvitationRepository) Create(ctx context.Context, inv *domain.AdminInvitation) error {
+	inv.Email = domain.NormalizeEmail(inv.Email)
 	return r.db.WithContext(ctx).Create(inv).Error
 }
 

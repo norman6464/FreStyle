@@ -216,6 +216,68 @@ func (r *userRepository) CreateWithOidcIdentity(ctx context.Context, user *domai
 	})
 }
 
+// bootstrapSuperAdminLockKey は「最初の運営管理者を作る」経路を直列化する advisory lock のキー。
+// 起動時マイグレーション（database.migrateAdvisoryLockKey）とは別の値にする。
+const bootstrapSuperAdminLockKey int64 = 7_419_063
+
+// CreateFirstSuperAdminWithOidcIdentity は super_admin が 1 人も居ないときに限りユーザーを作る。
+//
+// 「0 人であること」を確かめてから作るまでのあいだに別のトランザクションが 1 人目を作れば、
+// 招待を経ないこの経路が 2 人目・3 人目にも開いたままになる。判定を呼び出し側に置くと
+// READ COMMITTED では互いの未コミット行が見えず、同時に来た 2 本がどちらも「0 人」を見る。
+// そこで判定と INSERT を同じトランザクションに入れ、さらに advisory lock で経路自体を
+// 直列化する（ロックはコミットで解放され、次の 1 本は必ず確定済みの 1 人目を見る）。
+// email の一意索引に頼らないのは、索引が守るのは「同じアドレス」であって
+// 「super_admin が 1 人」ではないため（別アドレスなら索引は素通りする）。
+func (r *userRepository) CreateFirstSuperAdminWithOidcIdentity(
+	ctx context.Context, user *domain.User, provider, subject string,
+) (bool, error) {
+	if user.Role != domain.RoleSuperAdmin {
+		return false, fmt.Errorf("最初の運営管理者の作成に role %q が渡されました（super_admin 専用の経路です）", user.Role)
+	}
+	roleID, err := r.resolveRoleID(ctx, user.Role)
+	if err != nil {
+		return false, err
+	}
+	user.RoleID = roleID
+
+	created := false
+	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// pgbouncer（transaction pooler）前提のため、セッションロックではなく
+		// トランザクションロック（コミット / ロールバックで自動解放）を使う。
+		if err := tx.Exec(`SELECT pg_advisory_xact_lock(?)`, bootstrapSuperAdminLockKey).Error; err != nil {
+			return err
+		}
+		var existing int64
+		if err := tx.Raw(
+			`SELECT count(*) FROM users u
+			 JOIN roles r ON r.id = u.role_id
+			 WHERE r.name = ? AND u.deleted_at IS NULL`,
+			string(domain.RoleSuperAdmin),
+		).Scan(&existing).Error; err != nil {
+			return err
+		}
+		if existing > 0 {
+			return nil // created = false のまま。免除は既に閉じている。
+		}
+		if err := tx.Create(user).Error; err != nil {
+			return err
+		}
+		if err := ensureOidcIdentityTx(tx, user.ID, provider, subject); err != nil {
+			return err
+		}
+		if err := mirrorUserWorkspaceTx(tx, user.ID); err != nil {
+			return err
+		}
+		created = true
+		return nil
+	})
+	if err != nil {
+		return false, err
+	}
+	return created, nil
+}
+
 // mirrorUserWorkspaceTx は users.workspace_id を所属会社のワークスペースに合わせる。
 //
 // テナントの正本を companies から workspaces へ移す移行中は、所属という 1 つの事実を

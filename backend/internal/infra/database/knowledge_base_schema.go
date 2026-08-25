@@ -13,7 +13,7 @@ import (
 //go:embed schema/knowledge_base.sql
 var knowledgeBaseSchemaDDL string
 
-// knowledgeBasePermissionSchemaDDL は権限モデル 6 テーブルの DDL（実スキーマの正本）。
+// knowledgeBasePermissionSchemaDDL は権限モデル 7 テーブルの DDL（実スキーマの正本）。
 // 骨格の DDL より後に流す必要がある（spaces / pages を参照するため）。
 //
 //go:embed schema/knowledge_base_permissions.sql
@@ -21,7 +21,8 @@ var knowledgeBasePermissionSchemaDDL string
 
 // ApplyKnowledgeBaseSchema はナレッジ基盤（workspaces / spaces / pages / blocks /
 // page_paths / page_snapshots と、権限モデルの principals / principal_members /
-// workspace_grants / space_grants / page_restrictions / share_links）のスキーマを適用する（冪等）。
+// workspace_grants / space_grants / page_restrictions / page_allow_lists / share_links）の
+// スキーマを適用する（冪等）。
 //
 // このテーブル群は GORM を一切通さない。AutoMigrate は複合 FK / CHECK / 部分 UNIQUE /
 // コレーション指定を表現できず、構造体タグと明示 SQL に定義が二重化するため、

@@ -3100,7 +3100,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "ページ と その 子孫 を まとめて ツリー から 隠す。 編集 権限 が 要る。 既に アーカイブ 済み なら 何 も し ない (冪等)。",
+                "description": "ページ と その 子孫 を まとめて ツリー から 隠す。 対象 の ページ だけ で なく 子孫 すべて に 編集 権限 が 要る (1 枚 でも 編集 でき ない ページ が 配下 に あれ ば 403 subtree_forbidden で 何 も し ない)。 これ は 意図 し た 設計 で、 同じ ページ を 直接 改名 する 場合 と 判定 を 揃える ため。 既に アーカイブ 済み なら 何 も し ない (冪等)。",
                 "tags": [
                     "knowledge-base"
                 ],
@@ -3132,7 +3132,7 @@ const docTemplate = `{
                         }
                     },
                     "403": {
-                        "description": "編集 権限 が 無い",
+                        "description": "編集 権限 が 無い / 配下 に 編集 でき ない ページ が ある",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -3248,7 +3248,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "ページ を parentId の 下 へ 移す。 動かす ページ と 移動 先 の 親 の 両方 に 編集 権限 が 要る (片方 だけ で 移せる と 書け ない 場所 へ 書き込め て しまう)。 スペース 直下 へ の 移動 は 未 対応。",
+                "description": "ページ を parentId の 下 へ 移す。 動かす ページ と 移動 先 の 親 の 両方 に 編集 権限 が 要る (片方 だけ で 移せる と 書け ない 場所 へ 書き込め て しまう)。 スペース 直下 へ の 移動 は 未 対応。 動かす サブツリー に 「スペース 全員」 宛て の 例外 が 残っ て いる 状態 で 別 スペース へ 移す 操作 は 409 (space_restriction_voided) で 断る。 例外 を 先 に 整理 し て から 移す。",
                 "consumes": [
                     "application/json"
                 ],
@@ -3316,7 +3316,7 @@ const docTemplate = `{
                         }
                     },
                     "409": {
-                        "description": "アーカイブ 済み / 循環",
+                        "description": "アーカイブ 済み / 循環 / スペース 全員 宛て の 例外 が 失効 する 移動",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -3337,7 +3337,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "アーカイブ した ページ を (同時 に アーカイブ さ れ た 子孫 ごと) 現役 へ 戻す。 編集 権限 が 要る。 親 が まだ アーカイブ 中 なら 戻せ ない (409)。",
+                "description": "アーカイブ した ページ を (同時 に アーカイブ さ れ た 子孫 ごと) 現役 へ 戻す。 アーカイブ と 同じ く 子孫 すべて に 編集 権限 が 要る (1 枚 でも 編集 でき ない ページ が 配下 に あれ ば 403 subtree_forbidden)。 親 が まだ アーカイブ 中 なら 戻せ ない (409)。",
                 "produces": [
                     "application/json"
                 ],
@@ -3375,7 +3375,7 @@ const docTemplate = `{
                         }
                     },
                     "403": {
-                        "description": "編集 権限 が 無い",
+                        "description": "編集 権限 が 無い / 配下 に 編集 でき ない ページ が ある",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }

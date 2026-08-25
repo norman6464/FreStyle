@@ -40,6 +40,7 @@ func registerKnowledgeBaseRoutesWith(
 ) {
 	h := NewKnowledgeBasePageHandler(
 		usecase.NewCheckPagePermissionUseCase(permissions),
+		usecase.NewCanEditPageSubtreeUseCase(permissions),
 		usecase.NewListViewablePagesUseCase(permissions),
 		usecase.NewGetPageUseCase(pages),
 		usecase.NewCreatePageUseCase(pages),

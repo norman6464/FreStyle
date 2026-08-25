@@ -748,6 +748,35 @@ func (r *knowledgeBasePermissionRepository) ListSpacePageViewFacts(ctx context.C
 	return out, nil
 }
 
+func (r *knowledgeBasePermissionRepository) ListSubtreePagePermissionFacts(ctx context.Context, workspaceID, pageID string, userID uint64) ([]repository.PageWithPermissionFacts, error) {
+	wsID, ok := kbParseID(workspaceID)
+	pgID, ok2 := kbParseID(pageID)
+	if !ok || !ok2 {
+		return []repository.PageWithPermissionFacts{}, nil
+	}
+	rows, err := r.q.ListSubtreePagePermissionFacts(ctx, sqlcgen.ListSubtreePagePermissionFactsParams{
+		WorkspaceID: wsID,
+		PageID:      pgID,
+		UserID:      sql.NullInt64{Int64: int64(userID), Valid: true},
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]repository.PageWithPermissionFacts, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, repository.PageWithPermissionFacts{
+			PageID: row.PageID.String(),
+			Facts: domain.PagePermissionFacts{
+				Member: row.IsMember,
+				Role:   domain.GrantRoleByRank(int(row.GrantRank)),
+				View:   restrictionFacts(row.ViewRestricted, row.ViewDeniedAnywhere, row.ViewHasAllowList, row.ViewAllowedAtNearest),
+				Edit:   restrictionFacts(row.EditRestricted, row.EditDeniedAnywhere, row.EditHasAllowList, row.EditAllowedAtNearest),
+			},
+		})
+	}
+	return out, nil
+}
+
 // nullString は *string を sql.NullString へ変換する。
 func nullString(s *string) sql.NullString {
 	if s == nil {

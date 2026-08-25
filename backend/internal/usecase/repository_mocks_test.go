@@ -584,3 +584,9 @@ func (m *mockKBPermissionRepo) ListSpacePageViewFacts(ctx context.Context, works
 	rows, _ := args.Get(0).([]repository.PageWithViewFacts)
 	return rows, args.Error(1)
 }
+
+func (m *mockKBPermissionRepo) ListSubtreePagePermissionFacts(ctx context.Context, workspaceID, pageID string, userID uint64) ([]repository.PageWithPermissionFacts, error) {
+	args := m.Called(ctx, workspaceID, pageID, userID)
+	rows, _ := args.Get(0).([]repository.PageWithPermissionFacts)
+	return rows, args.Error(1)
+}

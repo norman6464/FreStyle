@@ -18,20 +18,22 @@ import (
 // ワークスペースはリクエストからは受け取らず、middleware.KnowledgeBaseWorkspace が
 // URL の slug と principals から確定させたものを context から取る。
 type KnowledgeBasePageHandler struct {
-	check         *usecase.CheckPagePermissionUseCase
-	listViewable  *usecase.ListViewablePagesUseCase
-	get           *usecase.GetPageUseCase
-	create        *usecase.CreatePageUseCase
-	rename        *usecase.RenamePageUseCase
-	move          *usecase.MovePageUseCase
-	archive       *usecase.ArchivePageUseCase
-	unarchive     *usecase.UnarchivePageUseCase
-	replaceBlocks *usecase.ReplacePageBlocksUseCase
+	check          *usecase.CheckPagePermissionUseCase
+	canEditSubtree *usecase.CanEditPageSubtreeUseCase
+	listViewable   *usecase.ListViewablePagesUseCase
+	get            *usecase.GetPageUseCase
+	create         *usecase.CreatePageUseCase
+	rename         *usecase.RenamePageUseCase
+	move           *usecase.MovePageUseCase
+	archive        *usecase.ArchivePageUseCase
+	unarchive      *usecase.UnarchivePageUseCase
+	replaceBlocks  *usecase.ReplacePageBlocksUseCase
 }
 
 // NewKnowledgeBasePageHandler は KnowledgeBasePageHandler を組み立てる。
 func NewKnowledgeBasePageHandler(
 	check *usecase.CheckPagePermissionUseCase,
+	canEditSubtree *usecase.CanEditPageSubtreeUseCase,
 	listViewable *usecase.ListViewablePagesUseCase,
 	get *usecase.GetPageUseCase,
 	create *usecase.CreatePageUseCase,
@@ -42,15 +44,16 @@ func NewKnowledgeBasePageHandler(
 	replaceBlocks *usecase.ReplacePageBlocksUseCase,
 ) *KnowledgeBasePageHandler {
 	return &KnowledgeBasePageHandler{
-		check:         check,
-		listViewable:  listViewable,
-		get:           get,
-		create:        create,
-		rename:        rename,
-		move:          move,
-		archive:       archive,
-		unarchive:     unarchive,
-		replaceBlocks: replaceBlocks,
+		check:          check,
+		canEditSubtree: canEditSubtree,
+		listViewable:   listViewable,
+		get:            get,
+		create:         create,
+		rename:         rename,
+		move:           move,
+		archive:        archive,
+		unarchive:      unarchive,
+		replaceBlocks:  replaceBlocks,
 	}
 }
 
@@ -130,6 +133,12 @@ func respondKnowledgeBaseErr(c *gin.Context, err error) {
 		c.JSON(http.StatusConflict, errorResponse{Error: "parent_archived"})
 	case errors.Is(err, usecase.ErrPageCycle):
 		c.JSON(http.StatusConflict, errorResponse{Error: "page_cycle"})
+	case errors.Is(err, repository.ErrPageMoveVoidsSpaceRestriction):
+		// 「今の権限設定のままでは移せない」という業務上の衝突であって、サーバの故障ではない。
+		// 既にアーカイブ済み・循環と同じ 409 に揃える（どれも「リクエスト自体は正しいが、
+		// 対象の現在の状態と両立しない」）。500 で返すと、クライアントは DB 障害と区別できず
+		// 再試行してよいものと誤解する（何度試しても同じ結果になる）。
+		c.JSON(http.StatusConflict, errorResponse{Error: "space_restriction_voided"})
 	case errors.Is(err, usecase.ErrPageParentSpaceMismatch):
 		c.JSON(http.StatusBadRequest, errorResponse{Error: "parent_space_mismatch"})
 	case errors.Is(err, usecase.ErrPageDocInvalid), errors.Is(err, usecase.ErrPageDocUnknownNodeType):
@@ -185,6 +194,38 @@ func (h *KnowledgeBasePageHandler) requirePagePermission(
 	if !perm.Allows(capability) {
 		// ここに来る相手は閲覧できる = 実在を既に知っているので、403 で理由を返してよい。
 		c.JSON(http.StatusForbidden, errorResponse{Error: "forbidden"})
+		return false
+	}
+	return true
+}
+
+// requireSubtreeEditPermission はページと全子孫の編集権限を確かめる。満たさなければ
+// レスポンスを書いて false を返す。子孫ごと書き換える操作（アーカイブ / 復帰）だけが通す。
+//
+// 根 1 枚だけを見ないのは、同じ「編集」の判定が経路で食い違わないようにするため。
+// 子孫には親と違う例外を張れるので、根だけで通すと、直接 rename すれば 403 になる子を
+// 祖先のアーカイブ経由で書き換えられる（管理者のツリーからも消える）。部分的に
+// アーカイブして逃げる手も採れない — アーカイブ済みの親の下に現役の子が残ると
+// ツリーに現れない迷子ページになり、復帰の前提（親から順に戻す）も壊れる。
+// 全部できるか、何もしないかの二択なので、フェイルクローズ側に倒して断る。
+//
+// 引き換えに、断ること自体が「この下に触れないページがある」という粒度の粗い信号になる
+// （どのページかは分からない）。ページの実在を隠す規則との衝突は承知のうえで、
+// 見えないページを黙って書き換えられる方を重く見た。
+func (h *KnowledgeBasePageHandler) requireSubtreeEditPermission(
+	c *gin.Context, scope kbRequestScope, pageID string,
+) bool {
+	ok, err := h.canEditSubtree.Execute(c.Request.Context(), usecase.CanEditPageSubtreeInput{
+		WorkspaceID: scope.workspaceID,
+		PageID:      pageID,
+		UserID:      scope.userID,
+	})
+	if err != nil {
+		respondKnowledgeBaseErr(c, err)
+		return false
+	}
+	if !ok {
+		c.JSON(http.StatusForbidden, errorResponse{Error: "subtree_forbidden"})
 		return false
 	}
 	return true
@@ -383,7 +424,7 @@ type kbMovePageRequest struct {
 // Move はページ（と子孫）を別の親の下へ移す。動かすページと移動先の親の両方に編集権限が要る。
 //
 //	@Summary      ナレッジ 基盤 の ページ 移動
-//	@Description  ページ を parentId の 下 へ 移す。 動かす ページ と 移動 先 の 親 の 両方 に 編集 権限 が 要る (片方 だけ で 移せる と 書け ない 場所 へ 書き込め て しまう)。 スペース 直下 へ の 移動 は 未 対応。
+//	@Description  ページ を parentId の 下 へ 移す。 動かす ページ と 移動 先 の 親 の 両方 に 編集 権限 が 要る (片方 だけ で 移せる と 書け ない 場所 へ 書き込め て しまう)。 スペース 直下 へ の 移動 は 未 対応。 動かす サブツリー に 「スペース 全員」 宛て の 例外 が 残っ て いる 状態 で 別 スペース へ 移す 操作 は 409 (space_restriction_voided) で 断る。 例外 を 先 に 整理 し て から 移す。
 //	@Tags         knowledge-base
 //	@Accept       json
 //	@Produce      json
@@ -395,7 +436,7 @@ type kbMovePageRequest struct {
 //	@Failure      401            {object}  errorResponse  "未 認証"
 //	@Failure      403            {object}  errorResponse  "編集 権限 が 無い"
 //	@Failure      404            {object}  errorResponse  "存在 し ない か 閲覧 権限 が 無い"
-//	@Failure      409            {object}  errorResponse  "アーカイブ 済み / 循環"
+//	@Failure      409            {object}  errorResponse  "アーカイブ 済み / 循環 / スペース 全員 宛て の 例外 が 失効 する 移動"
 //	@Failure      500            {object}  errorResponse  "DB 失敗"
 //	@Router       /kb/workspaces/{workspaceSlug}/pages/{pageId}/move [post]
 //	@Security     CookieAuth
@@ -434,13 +475,13 @@ func (h *KnowledgeBasePageHandler) Move(c *gin.Context) {
 // Archive はページと子孫をまとめてアーカイブする（編集権限が要る）。
 //
 //	@Summary      ナレッジ 基盤 の ページ アーカイブ
-//	@Description  ページ と その 子孫 を まとめて ツリー から 隠す。 編集 権限 が 要る。 既に アーカイブ 済み なら 何 も し ない (冪等)。
+//	@Description  ページ と その 子孫 を まとめて ツリー から 隠す。 対象 の ページ だけ で なく 子孫 すべて に 編集 権限 が 要る (1 枚 でも 編集 でき ない ページ が 配下 に あれ ば 403 subtree_forbidden で 何 も し ない)。 これ は 意図 し た 設計 で、 同じ ページ を 直接 改名 する 場合 と 判定 を 揃える ため。 既に アーカイブ 済み なら 何 も し ない (冪等)。
 //	@Tags         knowledge-base
 //	@Param        workspaceSlug  path  string  true  "ワークスペース の slug"
 //	@Param        pageId         path  string  true  "ページ ID (UUID)"
 //	@Success      204            "アーカイブ 成功 (本文 なし)"
 //	@Failure      401            {object}  errorResponse  "未 認証"
-//	@Failure      403            {object}  errorResponse  "編集 権限 が 無い"
+//	@Failure      403            {object}  errorResponse  "編集 権限 が 無い / 配下 に 編集 でき ない ページ が ある"
 //	@Failure      404            {object}  errorResponse  "存在 し ない か 閲覧 権限 が 無い"
 //	@Failure      500            {object}  errorResponse  "DB 失敗"
 //	@Router       /kb/workspaces/{workspaceSlug}/pages/{pageId}/archive [post]
@@ -452,6 +493,11 @@ func (h *KnowledgeBasePageHandler) Archive(c *gin.Context) {
 	}
 	pageID := c.Param("pageId")
 	if !h.requirePagePermission(c, scope, pageID, domain.CapabilityEdit) {
+		return
+	}
+	// 根の権限を先に見るのは応答を撃ち分けないため（閲覧できない根は 404 のまま）。
+	// そのうえで子孫まで確かめる。
+	if !h.requireSubtreeEditPermission(c, scope, pageID) {
 		return
 	}
 	if err := h.archive.Execute(c.Request.Context(), usecase.ArchivePageInput{
@@ -467,14 +513,14 @@ func (h *KnowledgeBasePageHandler) Archive(c *gin.Context) {
 // Unarchive はアーカイブしたページを現役へ戻す（編集権限が要る）。
 //
 //	@Summary      ナレッジ 基盤 の ページ 復帰
-//	@Description  アーカイブ した ページ を (同時 に アーカイブ さ れ た 子孫 ごと) 現役 へ 戻す。 編集 権限 が 要る。 親 が まだ アーカイブ 中 なら 戻せ ない (409)。
+//	@Description  アーカイブ した ページ を (同時 に アーカイブ さ れ た 子孫 ごと) 現役 へ 戻す。 アーカイブ と 同じ く 子孫 すべて に 編集 権限 が 要る (1 枚 でも 編集 でき ない ページ が 配下 に あれ ば 403 subtree_forbidden)。 親 が まだ アーカイブ 中 なら 戻せ ない (409)。
 //	@Tags         knowledge-base
 //	@Produce      json
 //	@Param        workspaceSlug  path      string  true  "ワークスペース の slug"
 //	@Param        pageId         path      string  true  "ページ ID (UUID)"
 //	@Success      200            {object}  kbPageResponse
 //	@Failure      401            {object}  errorResponse  "未 認証"
-//	@Failure      403            {object}  errorResponse  "編集 権限 が 無い"
+//	@Failure      403            {object}  errorResponse  "編集 権限 が 無い / 配下 に 編集 でき ない ページ が ある"
 //	@Failure      404            {object}  errorResponse  "存在 し ない か 閲覧 権限 が 無い"
 //	@Failure      409            {object}  errorResponse  "親 が アーカイブ 中"
 //	@Failure      500            {object}  errorResponse  "DB 失敗"
@@ -487,6 +533,9 @@ func (h *KnowledgeBasePageHandler) Unarchive(c *gin.Context) {
 	}
 	pageID := c.Param("pageId")
 	if !h.requirePagePermission(c, scope, pageID, domain.CapabilityEdit) {
+		return
+	}
+	if !h.requireSubtreeEditPermission(c, scope, pageID) {
 		return
 	}
 	page, err := h.unarchive.Execute(c.Request.Context(), usecase.UnarchivePageInput{

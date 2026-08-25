@@ -26,6 +26,18 @@ type PageWithViewFacts struct {
 	Facts domain.PageViewFacts
 }
 
+// PageWithPermissionFacts は 1 ページの ID と、その実効権限を決める事実の組。
+// ListSubtreePagePermissionFacts が返す（判定は domain.ResolvePagePermission が行う）。
+//
+// 閲覧専用の PageWithViewFacts と分かれているのは、集めた事実が違うため。
+// 編集可否は閲覧可否を含むので、編集を問う経路は閲覧と編集の両方の事実を集める。
+// ページ本体を持たないのは、この型を使う経路（サブツリー一括操作の入口検査）が
+// 可否だけを必要とし、見えないページの中身を呼び出し側へ渡す必要が無いため。
+type PageWithPermissionFacts struct {
+	PageID string
+	Facts  domain.PagePermissionFacts
+}
+
 // ShareLinkWrite は共有リンクの発行に渡す値。
 //
 // ID と PrincipalID を持たないのは、どちらも採番が repository の責務のため
@@ -143,4 +155,9 @@ type KnowledgeBasePermissionRepository interface {
 	// 1 回のクエリで返す（ページごとに問い合わせない）。編集の事実は集めないので、
 	// 編集可否をここから出さないこと（返す型がそれを表している）。
 	ListSpacePageViewFacts(ctx context.Context, workspaceID, spaceID string, userID uint64) ([]PageWithViewFacts, error)
+	// ListSubtreePagePermissionFacts はサブツリー（対象ページ自身 + 全子孫）の各ページと、
+	// その実効権限を決める事実を 1 回のクエリで返す。アーカイブ済みのページも含む。
+	// ページとその子孫をまとめて書き換える操作が、根 1 枚の権限だけで通らないようにするための口。
+	// ページが無い・別ワークスペースなら空スライス（呼び出し側が先に根の権限を確かめている）。
+	ListSubtreePagePermissionFacts(ctx context.Context, workspaceID, pageID string, userID uint64) ([]PageWithPermissionFacts, error)
 }

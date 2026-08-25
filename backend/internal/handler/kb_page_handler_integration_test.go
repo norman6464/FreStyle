@@ -361,6 +361,120 @@ func TestKnowledgeBasePageAPI_Integration(t *testing.T) {
 		assert.Len(t, nodes[0].Children, 1, "一緒にアーカイブした子も戻る")
 	})
 
+	t.Run("スペース全員宛ての例外が残るサブツリーの別スペースへの移動は409", func(t *testing.T) {
+		env := newKbEnv(t, gormDB, sqlDB, "acme")
+		alice := kbInsertUser(t, sqlDB, "alice")
+		env.joinWorkspace(t, alice, domain.GrantRoleAdmin)
+		parent := kbInsertRootPage(t, sqlDB, env.workspaceID, env.spaceID, alice, "a0", "親")
+		e := env.as(alice)
+
+		created := e.do(t, http.MethodPost, e.pagesPath(), `{"parentId":"`+parent+`","title":"子"}`)
+		require.Equal(t, http.StatusCreated, created.Code, created.Body.String())
+		var child kbPageResponse
+		require.NoError(t, json.Unmarshal(created.Body.Bytes(), &child))
+
+		// 「このスペースの全員」宛ての例外。別スペースへ移ると行だけが残って評価されなくなる。
+		everyone, err := env.permissions.EnsureSpaceEveryonePrincipal(t.Context(), env.workspaceID, env.spaceID)
+		require.NoError(t, err)
+		_, err = env.permissions.UpsertPageRestriction(
+			t.Context(), env.workspaceID, child.ID, everyone.ID,
+			domain.CapabilityView, domain.RestrictionModeDeny,
+		)
+		require.NoError(t, err)
+
+		otherSpace := kbInsertSpace(t, sqlDB, env.workspaceID, "ops")
+		dest := kbInsertRootPage(t, sqlDB, env.workspaceID, otherSpace, alice, "a0", "移動先")
+
+		w := e.do(t, http.MethodPost, e.pagePath(parent)+"/move", `{"parentId":"`+dest+`"}`)
+		require.Equal(t, http.StatusConflict, w.Code, w.Body.String())
+		assert.JSONEq(t, `{"error":"space_restriction_voided"}`, w.Body.String(),
+			"正当な業務エラーであって DB 障害ではない（500 だとクライアントが再試行してよいと誤解する）")
+
+		got := e.do(t, http.MethodGet, e.pagePath(parent), "")
+		require.Equal(t, http.StatusOK, got.Code)
+		var page kbPageDocResponse
+		require.NoError(t, json.Unmarshal(got.Body.Bytes(), &page))
+		assert.Equal(t, env.spaceID, page.Page.SpaceID, "移動はロールバックされている")
+	})
+
+	t.Run("見えない子を持つ親はアーカイブできない", func(t *testing.T) {
+		env := newKbEnv(t, gormDB, sqlDB, "acme")
+		alice := kbInsertUser(t, sqlDB, "alice")
+		bob := kbInsertUser(t, sqlDB, "bob")
+		env.joinWorkspace(t, alice, domain.GrantRoleAdmin)
+		bobPrincipal := env.joinWorkspace(t, bob, domain.GrantRoleEditor)
+		parent := kbInsertRootPage(t, sqlDB, env.workspaceID, env.spaceID, alice, "a0", "親")
+
+		adminEnv := env.as(alice)
+		created := adminEnv.do(t, http.MethodPost, adminEnv.pagesPath(),
+			`{"parentId":"`+parent+`","title":"見えない子"}`)
+		require.Equal(t, http.StatusCreated, created.Code, created.Body.String())
+		var child kbPageResponse
+		require.NoError(t, json.Unmarshal(created.Body.Bytes(), &child))
+
+		_, err := env.permissions.UpsertPageRestriction(
+			t.Context(), env.workspaceID, child.ID, bobPrincipal.ID,
+			domain.CapabilityView, domain.RestrictionModeDeny,
+		)
+		require.NoError(t, err)
+
+		e := env.as(bob)
+		require.Equal(t, http.StatusNotFound, e.do(t, http.MethodGet, e.pagePath(child.ID), "").Code,
+			"bob には子が見えていない")
+
+		w := e.do(t, http.MethodPost, e.pagePath(parent)+"/archive", "")
+		assert.Equal(t, http.StatusForbidden, w.Code, w.Body.String())
+		assert.JSONEq(t, `{"error":"subtree_forbidden"}`, w.Body.String())
+
+		// 管理者のツリーからも消えていない（見えないページを黙って消せない）。
+		tree := adminEnv.do(t, http.MethodGet, adminEnv.pagesPath(), "")
+		require.Equal(t, http.StatusOK, tree.Code)
+		var nodes []kbPageTreeResponse
+		require.NoError(t, json.Unmarshal(tree.Body.Bytes(), &nodes))
+		require.Len(t, nodes, 1)
+		require.Len(t, nodes[0].Children, 1)
+		assert.Equal(t, child.ID, nodes[0].Children[0].Page.ID)
+	})
+
+	t.Run("編集できない子を持つ親はアーカイブできず復帰もできない", func(t *testing.T) {
+		env := newKbEnv(t, gormDB, sqlDB, "acme")
+		alice := kbInsertUser(t, sqlDB, "alice")
+		bob := kbInsertUser(t, sqlDB, "bob")
+		env.joinWorkspace(t, alice, domain.GrantRoleAdmin)
+		bobPrincipal := env.joinWorkspace(t, bob, domain.GrantRoleEditor)
+		parent := kbInsertRootPage(t, sqlDB, env.workspaceID, env.spaceID, alice, "a0", "親")
+
+		adminEnv := env.as(alice)
+		created := adminEnv.do(t, http.MethodPost, adminEnv.pagesPath(),
+			`{"parentId":"`+parent+`","title":"読めるが書けない子"}`)
+		require.Equal(t, http.StatusCreated, created.Code, created.Body.String())
+		var child kbPageResponse
+		require.NoError(t, json.Unmarshal(created.Body.Bytes(), &child))
+
+		_, err := env.permissions.UpsertPageRestriction(
+			t.Context(), env.workspaceID, child.ID, bobPrincipal.ID,
+			domain.CapabilityEdit, domain.RestrictionModeDeny,
+		)
+		require.NoError(t, err)
+
+		e := env.as(bob)
+		require.Equal(t, http.StatusForbidden,
+			e.do(t, http.MethodPatch, e.pagePath(child.ID), `{"title":"改訂"}`).Code,
+			"子を直接改名すると 403")
+		assert.Equal(t, http.StatusForbidden,
+			e.do(t, http.MethodPost, e.pagePath(parent)+"/archive", "").Code,
+			"親のアーカイブ経由でも同じ判定になる")
+
+		// 管理者がアーカイブしたあと、bob は復帰もできない（片側だけ緩くしない）。
+		require.Equal(t, http.StatusNoContent,
+			adminEnv.do(t, http.MethodPost, adminEnv.pagePath(parent)+"/archive", "").Code)
+		assert.Equal(t, http.StatusForbidden,
+			e.do(t, http.MethodPost, e.pagePath(parent)+"/unarchive", "").Code)
+		require.Equal(t, http.StatusOK,
+			adminEnv.do(t, http.MethodPost, adminEnv.pagePath(parent)+"/unarchive", "").Code,
+			"全部編集できる管理者は通る（アーカイブが常に失敗する締め方にはしない）")
+	})
+
 	t.Run("役割が無いメンバーは何も見えない", func(t *testing.T) {
 		env := newKbEnv(t, gormDB, sqlDB, "acme")
 		alice := kbInsertUser(t, sqlDB, "alice")

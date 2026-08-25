@@ -25,6 +25,9 @@ type kbFakePages struct {
 	nextID     int
 	// failWith は次の書き込み系呼び出しを失敗させる（500 経路の確認用）。
 	failWith error
+	// moveErr は MovePage を指定のエラーで失敗させる。移動でしか起きないセンチネル
+	// （スペース全員宛ての例外が失効する移動）を handler 越しに見るために分けてある。
+	moveErr error
 }
 
 var _ repository.KnowledgeBaseRepository = (*kbFakePages)(nil)
@@ -161,6 +164,9 @@ func (f *kbFakePages) UpdatePageTitle(_ context.Context, workspaceID, pageID, ti
 }
 
 func (f *kbFakePages) MovePage(_ context.Context, workspaceID, pageID string, newParentID *string, newSpaceID, newPosition string) error {
+	if f.moveErr != nil {
+		return f.moveErr
+	}
 	p, ok := f.pages[pageID]
 	if !ok || p.WorkspaceID != workspaceID {
 		return repository.ErrPageNotFound
@@ -314,6 +320,8 @@ type kbFakePerms struct {
 	membersErr error
 	// listFactsErr は一覧の事実収集を失敗させる（ツリー取得の 500 経路の確認用）。
 	listFactsErr error
+	// subtreeFactsErr はサブツリーの事実収集を失敗させる（アーカイブの 500 経路の確認用）。
+	subtreeFactsErr error
 }
 
 var _ repository.KnowledgeBasePermissionRepository = (*kbFakePerms)(nil)
@@ -483,6 +491,46 @@ func (f *kbFakePerms) ListSpacePageViewFacts(_ context.Context, workspaceID, spa
 			Facts: domain.PageViewFacts{
 				Role: roleFor(f.permFor(p.ID, userID)),
 				View: f.restrictionFacts(workspaceID, p.ID, domain.CapabilityView, mine),
+			},
+		})
+	}
+	return out, nil
+}
+
+// ListSubtreePagePermissionFacts は対象ページ自身と全子孫の事実を返す（アーカイブ済みも含む）。
+// 本番のクエリと同じく、主体の集合は根のスペースで決める（サブツリーは 1 スペースに収まる）。
+func (f *kbFakePerms) ListSubtreePagePermissionFacts(
+	ctx context.Context, workspaceID, pageID string, userID uint64,
+) ([]repository.PageWithPermissionFacts, error) {
+	if f.subtreeFactsErr != nil {
+		return nil, f.subtreeFactsErr
+	}
+	root, ok := f.pages.pages[pageID]
+	if !ok || root.WorkspaceID != workspaceID {
+		// closure が 1 行も無い状態と同じ（呼び出し側はここを許可に倒さない）。
+		return []repository.PageWithPermissionFacts{}, nil
+	}
+	mine := f.mine(workspaceID, root.SpaceID, userID)
+	member := f.userPrincipal(workspaceID, userID) != nil
+	ids := make([]string, 0, len(f.pages.pages))
+	for id, p := range f.pages.pages {
+		if p.WorkspaceID != workspaceID {
+			continue
+		}
+		if desc, _ := f.pages.HasDescendant(ctx, workspaceID, pageID, id); desc {
+			ids = append(ids, id)
+		}
+	}
+	sort.Strings(ids)
+	out := make([]repository.PageWithPermissionFacts, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, repository.PageWithPermissionFacts{
+			PageID: id,
+			Facts: domain.PagePermissionFacts{
+				Member: member,
+				Role:   roleFor(f.permFor(id, userID)),
+				View:   f.restrictionFacts(workspaceID, id, domain.CapabilityView, mine),
+				Edit:   f.restrictionFacts(workspaceID, id, domain.CapabilityEdit, mine),
 			},
 		})
 	}

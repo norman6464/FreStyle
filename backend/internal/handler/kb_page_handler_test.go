@@ -14,6 +14,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
+	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -529,12 +530,58 @@ func Test_ナレッジ基盤API_repositoryの失敗は500(t *testing.T) {
 
 // ワークスペース解決 middleware を通さずにルートを生やす配線ミスを想定した安全網。
 // テナント未確定のまま handler が動くと全テナントに触れてしまうので、必ず落ちること。
-func Test_ナレッジ基盤API_middlewareを通らないルートは500で止まる(t *testing.T) {
+// kbScope のワークスペース未確定ガードそのものを見る。
+//
+// handler 越しに「middleware を通らないルート」を叩く形だと、ガードを消しても
+// usecase 側の必須チェック（workspaceID is required）で同じ 500 になり、
+// ガードが在るか無いかを区別できない。ここでは kbScope を直接呼び、
+// ガードを外したときに後続へ進んでしまうことまで見る。
+func Test_ナレッジ基盤API_ワークスペース未確定ならkbScopeが止める(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	run := func(t *testing.T, withWorkspace bool) (*httptest.ResponseRecorder, bool) {
+		t.Helper()
+		reached := false
+		r := gin.New()
+		r.GET("/scope", func(c *gin.Context) {
+			c.Set(middleware.ContextKeyCurrentUserID, kbUserID)
+			if withWorkspace {
+				c.Set(middleware.ContextKeyKnowledgeBaseWorkspace, &domain.Workspace{ID: kbWorkspaceID})
+			}
+			if _, ok := kbScope(c); !ok {
+				return
+			}
+			reached = true
+			c.Status(http.StatusOK)
+		})
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/scope", nil))
+		return w, reached
+	}
+
+	t.Run("未確定なら止まる", func(t *testing.T) {
+		w, reached := run(t, false)
+		assert.False(t, reached, "テナント未確定のまま後続へ進んではいけない")
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+		assert.JSONEq(t, `{"error":"internal_error"}`, w.Body.String())
+	})
+
+	t.Run("確定していれば通る", func(t *testing.T) {
+		w, reached := run(t, true)
+		assert.True(t, reached, "middleware を通っていれば素通しする（常に止めるガードではない）")
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+}
+
+// 配線のミス（middleware を通さない group への登録）が「成功する経路」にならないことを
+// 端から端まで見る。どの層で止まるかまでは固定しない（kbScope のガード自体は上のテスト）。
+func Test_ナレッジ基盤API_middlewareを通らないルートは成功しない(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	pages := newKbFakePages()
 	perms := newKbFakePerms(pages, kbCanEdit)
 	h := NewKnowledgeBasePageHandler(
 		usecase.NewCheckPagePermissionUseCase(perms),
+		usecase.NewCanEditPageSubtreeUseCase(perms),
 		usecase.NewListViewablePagesUseCase(perms),
 		usecase.NewGetPageUseCase(pages),
 		usecase.NewCreatePageUseCase(pages),
@@ -574,6 +621,82 @@ func Test_ナレッジ基盤アーカイブ_repositoryの失敗は500(t *testing
 		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbChildPageID+"/archive", "")
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func Test_ナレッジ基盤移動_スペース全員宛ての例外が失効する移動は409(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+	// 移動先スペース以外の「全員」宛て例外がサブツリーに残っている状態を repository が
+	// 同一トランザクションで検出して中止する経路。move handler は NewSpaceID を渡さないので、
+	// 別スペースのページを親に指定するだけでここへ来る。
+	f.pages.moveErr = repository.ErrPageMoveVoidsSpaceRestriction
+
+	w := f.do(t, http.MethodPost,
+		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbChildPageID+"/move",
+		`{"parentId":"`+kbDestPageID+`"}`)
+
+	assert.Equal(t, http.StatusConflict, w.Code,
+		"権限設定と両立しないという業務上の衝突であって、DB 障害ではない")
+	assert.JSONEq(t, `{"error":"space_restriction_voided"}`, w.Body.String())
+}
+
+func Test_ナレッジ基盤アーカイブ_配下に編集できないページがあれば何もせず403(t *testing.T) {
+	// 子を直接 rename すれば 403 になる相手が、親のアーカイブ経由なら書き換えられる
+	// （見えない子まで巻き込む）状態を塞ぐ。edit を外した場合と view ごと外した場合の両方。
+	cases := map[string]domain.Capability{
+		"編集だけ外した子": domain.CapabilityEdit,
+		"閲覧ごと外した子": domain.CapabilityView,
+	}
+	for name, capability := range cases {
+		t.Run(name, func(t *testing.T) {
+			f := newKbFixture(kbCanEdit, kbUserID)
+			kbRestrict(t, f, kbChildPageID, kbPrincipalOf(t, f, kbUserID), capability, domain.RestrictionModeDeny)
+
+			w := f.do(t, http.MethodPost,
+				"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbRootPageID+"/archive", "")
+
+			assert.Equal(t, http.StatusForbidden, w.Code)
+			assert.JSONEq(t, `{"error":"subtree_forbidden"}`, w.Body.String())
+			assert.Nil(t, f.pages.pages[kbRootPageID].ArchivedAt, "根は書き換わらない")
+			assert.Nil(t, f.pages.pages[kbChildPageID].ArchivedAt, "触れない子も書き換わらない")
+		})
+	}
+}
+
+func Test_ナレッジ基盤アーカイブ_子孫まで編集できるなら通る(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+
+	w := f.do(t, http.MethodPost,
+		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbRootPageID+"/archive", "")
+
+	require.Equal(t, http.StatusNoContent, w.Code, "例外が無いのが普通なので、通常の運用は止めない")
+	assert.NotNil(t, f.pages.pages[kbRootPageID].ArchivedAt)
+	assert.NotNil(t, f.pages.pages[kbChildPageID].ArchivedAt)
+}
+
+func Test_ナレッジ基盤復帰_配下に編集できないページがあれば何もせず403(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+	at := time.Date(2026, 8, 2, 0, 0, 0, 0, time.UTC)
+	f.pages.pages[kbRootPageID].ArchivedAt = &at
+	f.pages.pages[kbChildPageID].ArchivedAt = &at
+	kbRestrict(t, f, kbChildPageID, kbPrincipalOf(t, f, kbUserID), domain.CapabilityEdit, domain.RestrictionModeDeny)
+
+	w := f.do(t, http.MethodPost,
+		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbRootPageID+"/unarchive", "")
+
+	assert.Equal(t, http.StatusForbidden, w.Code, "戻す側も同じ判定にする（片側だけ緩いと結局動かせる）")
+	assert.JSONEq(t, `{"error":"subtree_forbidden"}`, w.Body.String())
+	assert.NotNil(t, f.pages.pages[kbRootPageID].ArchivedAt, "アーカイブ済みのまま")
+}
+
+func Test_ナレッジ基盤アーカイブ_サブツリーの権限確認が失敗したら500(t *testing.T) {
+	f := newKbFixture(kbCanEdit, kbUserID)
+	f.perms.subtreeFactsErr = errors.New("db down")
+
+	w := f.do(t, http.MethodPost,
+		"/api/v2/kb/workspaces/"+kbWorkspaceSlug+"/pages/"+kbRootPageID+"/archive", "")
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Nil(t, f.pages.pages[kbRootPageID].ArchivedAt, "確認できないなら書き換えない")
 }
 
 func Test_ナレッジ基盤作成_アーカイブ済みの親の下には作れない(t *testing.T) {

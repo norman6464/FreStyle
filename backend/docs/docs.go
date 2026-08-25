@@ -2947,6 +2947,107 @@ const docTemplate = `{
                 }
             }
         },
+        "/kb/workspaces": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "ログイン 中 の ユーザー が 所属 する ワークスペース を 返す。 所属 は principals (kind='user') の 行 が 唯一 の 表現 で、 所属 し て い ない ワークスペース は 1 件 も 含ま ない。 ほか の ナレッジ 基盤 API が URL に 使う slug を 知る ため の 入口。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge-base"
+                ],
+                "summary": "ナレッジ 基盤 の 所属 ワークスペース 一覧",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/internal_handler.kbWorkspaceResponse"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "ワークスペース を 作る。 作成 者 は 同じ トランザクション で メンバー (principal) に なり admin の 権限 を 受け取る (そう し ない と 作成 者 自身 が 入れ ない ワークスペース が でき て しまう)。 slug は 小文字 英数字 と ハイフン だけ で、 全体 で 一意。 認証 済み なら 誰 でも 作れる (中身 が 空 の テナント が 増える だけ で、 既存 の ワークスペース へ の アクセス は 増え ない)。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge-base"
+                ],
+                "summary": "ナレッジ 基盤 の ワークスペース 作成",
+                "parameters": [
+                    {
+                        "description": "作成 内容 (slug/name 必須)",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.kbCreateWorkspaceRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.kbWorkspaceResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "バリデーション エラー",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "slug が 使用 済み",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/kb/workspaces/{workspaceSlug}/pages/{pageId}": {
             "get": {
                 "security": [
@@ -3401,6 +3502,88 @@ const docTemplate = `{
                 }
             }
         },
+        "/kb/workspaces/{workspaceSlug}/spaces": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "ワークスペース 配下 に スペース を 作る。 ワークスペース 全体 で admin の 者 だけ が 作れる。 スペース は 権限 の 既定 を 持つ 入れ物 な の で、 作れる 相手 を 締め た 側 から 始める (あと から 緩める の は 安全 だ が、 緩い まま 出し て から 締める と 既に 作ら れ た スペース を どう 扱う か 決め られ なく なる)。 key は ワークスペース 内 で 一意。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "knowledge-base"
+                ],
+                "summary": "ナレッジ 基盤 の スペース 作成",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ワークスペース の slug",
+                        "name": "workspaceSlug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "作成 内容 (key/name 必須)",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.kbCreateSpaceRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.kbSpaceResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "バリデーション エラー",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "ワークスペース の admin で は ない",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "ワークスペース が 無い か 未 所属",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "key が 使用 済み",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "DB 失敗",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/kb/workspaces/{workspaceSlug}/spaces/{spaceId}/pages": {
             "get": {
                 "security": [
@@ -3468,7 +3651,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "parentId の 下 に ページ を 作る。 親 を 編集 できる 者 だけ が 作れる。 親 が 閲覧 でき ない 場合 は 存在 を 漏らさ ず 404。 スペース 直下 へ の 作成 は 未 対応 (parentId は 必須)。",
+                "description": "parentId の 下 に ページ を 作る。 親 を 編集 できる 者 だけ が 作れる。 親 が 閲覧 でき ない 場合 は 存在 を 漏らさ ず 404。 parentId を 省略 する と スペース 直下 (ルート) に 作り、 この とき は スペース の 編集 権限 で 判断 する (スペース に は ページ 単位 の 例外 が 無い ため。 親 を 指定 し た 作成 は 必ず 親 ページ の 権限 で 判断 する)。",
                 "consumes": [
                     "application/json"
                 ],
@@ -6355,11 +6538,11 @@ const docTemplate = `{
         "internal_handler.kbCreatePageRequest": {
             "type": "object",
             "required": [
-                "parentId",
                 "title"
             ],
             "properties": {
                 "parentId": {
+                    "description": "ParentID が空文字（未指定）ならスペース直下に作る。",
                     "type": "string",
                     "example": "0198a000-0000-7000-8000-000000000003"
                 },
@@ -6367,6 +6550,42 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 200,
                     "example": "設計メモ"
+                }
+            }
+        },
+        "internal_handler.kbCreateSpaceRequest": {
+            "type": "object",
+            "required": [
+                "key",
+                "name"
+            ],
+            "properties": {
+                "key": {
+                    "type": "string",
+                    "example": "eng"
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "example": "開発部"
+                }
+            }
+        },
+        "internal_handler.kbCreateWorkspaceRequest": {
+            "type": "object",
+            "required": [
+                "name",
+                "slug"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "example": "Acme 社"
+                },
+                "slug": {
+                    "type": "string",
+                    "example": "acme"
                 }
             }
         },
@@ -6476,6 +6695,42 @@ const docTemplate = `{
             "properties": {
                 "doc": {
                     "type": "object"
+                }
+            }
+        },
+        "internal_handler.kbSpaceResponse": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "0198a000-0000-7000-8000-000000000002"
+                },
+                "key": {
+                    "type": "string",
+                    "example": "eng"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "開発部"
+                }
+            }
+        },
+        "internal_handler.kbWorkspaceResponse": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Acme 社"
+                },
+                "slug": {
+                    "type": "string",
+                    "example": "acme"
                 }
             }
         },

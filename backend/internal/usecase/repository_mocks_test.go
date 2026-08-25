@@ -380,6 +380,10 @@ func (m *mockKnowledgeBaseRepo) FindSpace(ctx context.Context, workspaceID, spac
 	return s, args.Error(1)
 }
 
+func (m *mockKnowledgeBaseRepo) CreateSpace(ctx context.Context, space *domain.Space) error {
+	return m.Called(ctx, space).Error(0)
+}
+
 func (m *mockKnowledgeBaseRepo) FindPage(ctx context.Context, workspaceID, pageID string) (*domain.Page, error) {
 	args := m.Called(ctx, workspaceID, pageID)
 	p, _ := args.Get(0).(*domain.Page)

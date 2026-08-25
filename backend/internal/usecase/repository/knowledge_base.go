@@ -14,6 +14,14 @@ var ErrWorkspaceNotFound = errors.New("workspace not found")
 // ErrSpaceNotFound は対象スペースが存在しない（または別ワークスペースのもの）ときに返す。
 var ErrSpaceNotFound = errors.New("space not found")
 
+// ErrWorkspaceSlugTaken は作成しようとした slug が既に使われているときに返す。
+// slug はグローバルに一意なので、他テナントが使っている場合もこれになる
+// （どのテナントが使っているかは返さない）。
+var ErrWorkspaceSlugTaken = errors.New("workspace slug is already taken")
+
+// ErrSpaceKeyTaken は作成しようとした key が同じワークスペースで既に使われているときに返す。
+var ErrSpaceKeyTaken = errors.New("space key is already taken")
+
 // ErrPageNotFound は対象ページが存在しない（または別ワークスペースのもの）ときに返す。
 // テナント越えのアクセスは「無い」と同じ扱いにする（存在の有無自体を漏らさない）。
 var ErrPageNotFound = errors.New("page not found")
@@ -65,6 +73,15 @@ type KnowledgeBaseRepository interface {
 	FindWorkspaceBySlug(ctx context.Context, slug string) (*domain.Workspace, error)
 	// FindSpace はスペースを 1 件引く。無い・別ワークスペースなら ErrSpaceNotFound。
 	FindSpace(ctx context.Context, workspaceID, spaceID string) (*domain.Space, error)
+	// CreateSpace はスペースを作成する。ID は UUIDv7 を採番して space.ID に反映し、
+	// 呼び出し後の space は DB で確定した行（created_at 等）で上書きされる。
+	// key が同じワークスペースで使用済みなら ErrSpaceKeyTaken。
+	//
+	// 「全員」の主体（kind='space_all'）はここでは作らない。あれは grant を張るときに
+	// 初めて要る主体で、EnsureSpaceEveryonePrincipal が必要な時点で作る
+	// （どのスペースにも必ず 1 つ、という不変条件を持たせると、消えたときに
+	// 直す責任の所在が分からなくなる）。
+	CreateSpace(ctx context.Context, space *domain.Space) error
 	// FindPage はページを 1 件引く（アーカイブ済みも返す）。無い・別ワークスペースなら ErrPageNotFound。
 	FindPage(ctx context.Context, workspaceID, pageID string) (*domain.Page, error)
 	// ListActivePagesBySpace はスペース配下の現役ページ全件を position 順で返す（ツリー構築用）。

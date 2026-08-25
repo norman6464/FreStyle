@@ -27,6 +27,7 @@ func registerKnowledgeBaseRoutes(g *gin.RouterGroup, deps *routeDeps) {
 		g,
 		persistence.NewKnowledgeBaseRepository(sqlDB),
 		persistence.NewKnowledgeBasePermissionRepository(sqlDB),
+		persistence.NewWorkspaceProvisioner(sqlDB),
 	)
 }
 
@@ -37,9 +38,11 @@ func registerKnowledgeBaseRoutesWith(
 	g *gin.RouterGroup,
 	pages repository.KnowledgeBaseRepository,
 	permissions repository.KnowledgeBasePermissionRepository,
+	provisioner repository.WorkspaceProvisioner,
 ) {
 	h := NewKnowledgeBasePageHandler(
 		usecase.NewCheckPagePermissionUseCase(permissions),
+		usecase.NewCheckSpacePermissionUseCase(permissions),
 		usecase.NewCanEditPageSubtreeUseCase(permissions),
 		usecase.NewListViewablePagesUseCase(permissions),
 		usecase.NewGetPageUseCase(pages),
@@ -51,9 +54,24 @@ func registerKnowledgeBaseRoutesWith(
 		usecase.NewReplacePageBlocksUseCase(pages),
 	)
 
+	wh := NewKnowledgeBaseWorkspaceHandler(
+		usecase.NewListMemberWorkspacesUseCase(permissions),
+		usecase.NewCreateWorkspaceUseCase(provisioner),
+		usecase.NewCheckWorkspacePermissionUseCase(permissions),
+		usecase.NewCreateSpaceUseCase(pages),
+	)
+
+	// 所属ワークスペースの一覧と作成だけは middleware.KnowledgeBaseWorkspace を通さない。
+	// あれは URL の slug から所属済みのワークスペースを確定させる middleware で、
+	// 「どの slug を開けるのか」を知る前・そもそもワークスペースを作る前には使えない。
+	// 認証（CurrentUser）は呼び出し元の group が既に通している。
+	g.GET("/kb/workspaces", wh.List)
+	g.POST("/kb/workspaces", wh.Create)
+
 	kb := g.Group("", middleware.KnowledgeBaseWorkspace(
 		usecase.NewResolveWorkspaceUseCase(pages, permissions),
 	))
+	kb.POST("/kb/workspaces/:workspaceSlug/spaces", wh.CreateSpace)
 	kb.GET("/kb/workspaces/:workspaceSlug/spaces/:spaceId/pages", h.Tree)
 	kb.POST("/kb/workspaces/:workspaceSlug/spaces/:spaceId/pages", h.Create)
 	kb.GET("/kb/workspaces/:workspaceSlug/pages/:pageId", h.Get)

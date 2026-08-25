@@ -41,9 +41,10 @@ var (
 
 // kbFixture は fake repository と、本番と同じ wiring で組んだルータの組。
 type kbFixture struct {
-	pages  *kbFakePages
-	perms  *kbFakePerms
-	router *gin.Engine
+	pages       *kbFakePages
+	perms       *kbFakePerms
+	provisioner *kbFakeProvisioner
+	router      *gin.Engine
 }
 
 // newKbFixture はワークスペース 2 つ・スペース 1 つ・ページ 3 つ（root / child / dest）の
@@ -82,8 +83,9 @@ func newKbFixture(fallback domain.PagePermission, uid uint64) kbFixture {
 			c.Next()
 		})
 	}
-	registerKnowledgeBaseRoutesWith(g, pages, perms)
-	return kbFixture{pages: pages, perms: perms, router: r}
+	provisioner := newKbFakeProvisioner(pages, perms)
+	registerKnowledgeBaseRoutesWith(g, pages, perms, provisioner)
+	return kbFixture{pages: pages, perms: perms, provisioner: provisioner, router: r}
 }
 
 func (f kbFixture) do(t *testing.T, method, path, body string) *httptest.ResponseRecorder {
@@ -162,6 +164,15 @@ var kbEndpoints = []kbEndpoint{
 // kbTreePath はツリー取得のパス（単一ページを名指ししないので kbEndpoints とは別扱い）。
 const kbTreePath = "/api/v2/kb/workspaces/{slug}/spaces/" + kbSpaceID + "/pages"
 
+// ページを名指ししない（＝ 判定対象がページではない）エンドポイント。
+// kbEndpoints の表はページ 1 枚の権限を軸に回すので、こちらは別に持って個別に検証する。
+const (
+	// kbWorkspacesPath は所属ワークスペースの一覧と作成。テナントを URL に持たない。
+	kbWorkspacesPath = "/api/v2/kb/workspaces"
+	// kbSpacesPath はスペース作成。判定はワークスペース単位。
+	kbSpacesPath = "/api/v2/kb/workspaces/{slug}/spaces"
+)
+
 func kbFill(s, slug, pageID string) string {
 	return strings.NewReplacer("{slug}", slug, "{page}", pageID).Replace(s)
 }
@@ -183,7 +194,12 @@ func kbRoutePattern(p string) string {
 // 認可テストの表に載っていないルートが増えていないかを見る。
 // 表に足し忘れたエンドポイントは認可の検証をすり抜けてしまうので、ここで機械的に塞ぐ。
 func Test_ナレッジ基盤API_登録済みルートは全て認可テストの対象になっている(t *testing.T) {
-	covered := map[string]bool{http.MethodGet + " " + kbRoutePattern(kbTreePath): true}
+	covered := map[string]bool{
+		http.MethodGet + " " + kbRoutePattern(kbTreePath):    true,
+		http.MethodGet + " " + kbWorkspacesPath:              true,
+		http.MethodPost + " " + kbWorkspacesPath:             true,
+		http.MethodPost + " " + kbRoutePattern(kbSpacesPath): true,
+	}
 	for _, e := range kbEndpoints {
 		covered[e.method+" "+kbRoutePattern(e.path)] = true
 	}
@@ -439,9 +455,15 @@ func Test_ナレッジ基盤API_入力の検証(t *testing.T) {
 		status int
 	}{
 		{
-			name: "作成にparentIdが無ければ400", method: http.MethodPost,
+			name: "作成にtitleが無ければ400", method: http.MethodPost,
 			path:   "/api/v2/kb/workspaces/" + kbWorkspaceSlug + "/spaces/" + kbSpaceID + "/pages",
-			body:   `{"title":"親なし"}`,
+			body:   `{"parentId":"` + kbRootPageID + `"}`,
+			status: http.StatusBadRequest,
+		},
+		{
+			name: "ワークスペース作成のslugが不正なら400", method: http.MethodPost,
+			path:   kbWorkspacesPath,
+			body:   `{"slug":"Acme Inc","name":"Acme"}`,
 			status: http.StatusBadRequest,
 		},
 		{
@@ -581,6 +603,7 @@ func Test_ナレッジ基盤API_middlewareを通らないルートは成功し�
 	perms := newKbFakePerms(pages, kbCanEdit)
 	h := NewKnowledgeBasePageHandler(
 		usecase.NewCheckPagePermissionUseCase(perms),
+		usecase.NewCheckSpacePermissionUseCase(perms),
 		usecase.NewCanEditPageSubtreeUseCase(perms),
 		usecase.NewListViewablePagesUseCase(perms),
 		usecase.NewGetPageUseCase(pages),

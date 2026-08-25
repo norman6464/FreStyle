@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
@@ -49,6 +50,24 @@ func kbNullID(id *string) (uuid.NullUUID, bool) {
 		return uuid.NullUUID{}, false
 	}
 	return uuid.NullUUID{UUID: u, Valid: true}, true
+}
+
+// PostgreSQL の SQLSTATE。制約違反を「業務上の衝突」へ翻訳するのに使う。
+const (
+	sqlStateUniqueViolation     = "23505"
+	sqlStateForeignKeyViolation = "23503"
+)
+
+// isUniqueViolation は一意制約違反（重複）かを返す。
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == sqlStateUniqueViolation
+}
+
+// isForeignKeyViolation は外部キー違反（参照先が無い）かを返す。
+func isForeignKeyViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == sqlStateForeignKeyViolation
 }
 
 // kbNewID は UUIDv7 を採番する。時系列で単調に増える（インデックス局所性が良い）うえ、
@@ -180,6 +199,40 @@ func (r *knowledgeBaseRepository) FindSpace(ctx context.Context, workspaceID, sp
 	}
 	sp := toDomainSpace(row)
 	return &sp, nil
+}
+
+func (r *knowledgeBaseRepository) CreateSpace(ctx context.Context, space *domain.Space) error {
+	wsID, ok := kbParseID(space.WorkspaceID)
+	if !ok {
+		return repository.ErrWorkspaceNotFound
+	}
+	id, err := kbNewID()
+	if err != nil {
+		return err
+	}
+	row, err := r.q.InsertSpace(ctx, sqlcgen.InsertSpaceParams{
+		ID:          id,
+		WorkspaceID: wsID,
+		Key:         space.Key,
+		Name:        space.Name,
+	})
+	if err != nil {
+		// key の重複（uq_spaces_workspace_key）は入口の検証では防げない
+		// （検査してから INSERT するまでの間に別の要求が同じ key を取り得る）。
+		// 一意制約を唯一の判定にして、業務上の衝突として返す。
+		if isUniqueViolation(err) {
+			return repository.ErrSpaceKeyTaken
+		}
+		// ワークスペースが実在しなければ FK 違反になる。存在しないテナントへの
+		// 作成要求なので「無い」に翻訳する（FK 違反を 500 で返すと、
+		// クライアントは再試行してよいものと誤解する）。
+		if isForeignKeyViolation(err) {
+			return repository.ErrWorkspaceNotFound
+		}
+		return err
+	}
+	*space = toDomainSpace(row)
+	return nil
 }
 
 func (r *knowledgeBaseRepository) FindPage(ctx context.Context, workspaceID, pageID string) (*domain.Page, error) {

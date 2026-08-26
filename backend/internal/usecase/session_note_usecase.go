@@ -60,6 +60,15 @@ func (u *UpsertSessionNoteUseCase) Execute(ctx context.Context, in UpsertSession
 	if in.SessionID == 0 || in.UserID == 0 {
 		return nil, errors.New("sessionID and userID are required")
 	}
+	// 所有者検証は repository のクエリ側（ON CONFLICT の WHERE）でも行っている。
+	// ここで先に弾くのは多層防御で、SQL を書き換えたときに守りが 1 枚も残らない状態を避ける。
+	// 既存メモが他人のものなら「無い」ものとして扱い、そのセッションにメモがあること自体を
+	// 漏らさない（読み出し側の Execute と同じ方針）。
+	if existing, err := u.repo.FindBySessionID(ctx, in.SessionID); err != nil {
+		return nil, err
+	} else if existing != nil && existing.UserID != in.UserID {
+		return nil, domain.ErrNotFound
+	}
 	n := &domain.SessionNote{SessionID: in.SessionID, UserID: in.UserID, Content: in.Content}
 	if err := u.repo.Upsert(ctx, n); err != nil {
 		return nil, err

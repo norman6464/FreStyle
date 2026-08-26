@@ -1,10 +1,12 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
@@ -13,6 +15,10 @@ type SessionNoteHandler struct {
 	get    *usecase.GetSessionNoteUseCase
 	upsert *usecase.UpsertSessionNoteUseCase
 }
+
+// sessionNoteNotFoundMsg は「そのセッションのメモは無い」ときの応答本文。
+// 読み出しと書き込みで同じ値を使うことで、他人のメモの存在を応答差から推測されないようにする。
+const sessionNoteNotFoundMsg = "not_found"
 
 func NewSessionNoteHandler(g *usecase.GetSessionNoteUseCase, u *usecase.UpsertSessionNoteUseCase) *SessionNoteHandler {
 	return &SessionNoteHandler{get: g, upsert: u}
@@ -49,7 +55,7 @@ func (h *SessionNoteHandler) Get(c *gin.Context) {
 		return
 	}
 	if n == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": sessionNoteNotFoundMsg})
 		return
 	}
 	c.JSON(http.StatusOK, n)
@@ -89,6 +95,13 @@ func (h *SessionNoteHandler) Upsert(c *gin.Context) {
 	got, err := h.upsert.Execute(c.Request.Context(), usecase.UpsertSessionNoteInput{
 		SessionID: sid, UserID: uid, Content: req.Content,
 	})
+	// 他人のセッションへ書こうとした場合と、そもそもセッションが無い場合は同じ応答にする。
+	// 片方だけ 403 や別の本文にすると、応答の違いから「そのセッションにメモがあるか」を
+	// 総当たりで判別できてしまう（読み出し側と同じ定数を使って本文まで一致させる）。
+	if errors.Is(err, domain.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": sessionNoteNotFoundMsg})
+		return
+	}
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

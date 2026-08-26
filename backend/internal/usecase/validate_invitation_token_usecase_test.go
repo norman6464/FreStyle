@@ -84,7 +84,10 @@ func Test_招待token検証_正常系_会社名を付与(t *testing.T) {
 		t.Fatalf("err: %v", err)
 	}
 	if got == nil {
+		// return を明示するのは、静的解析が t.Fatalf の非復帰を追えない環境でも
+		// 以降の参照が到達不能だと分かるようにするため。
 		t.Fatalf("expected non-nil result")
+		return
 	}
 	if got.Role != domain.RoleCompanyAdmin {
 		t.Errorf("Role = %q, want company_admin", got.Role)

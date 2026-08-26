@@ -4658,7 +4658,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "指定 セッション の ノート を upsert。 userId は body で 受け取らず current user 固定 (IDOR 対策)。",
+                "description": "指定 セッション の ノート を upsert。 userId は body で 受け取らず current user 固定 (IDOR 対策)。\n書き込め る の は 自分 が 所有 する セッション だけ。 他人 の セッション と 存在 し ない セッション は 同じ 404 に 揃える (応答 差 で セッション の 実在 を 判別 さ せ ない)。",
                 "consumes": [
                     "application/json"
                 ],
@@ -4702,6 +4702,12 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "セッション が 無い / 自分 の セッション で ない",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }

@@ -38,6 +38,7 @@ VALUES ($1, $2, $3, now(), now())
 ON CONFLICT (session_id) DO UPDATE SET
     content = EXCLUDED.content,
     updated_at = now()
+WHERE session_notes.user_id = EXCLUDED.user_id
 RETURNING id, created_at, updated_at
 `
 

@@ -58,6 +58,12 @@ func (r *sessionNoteRepository) Upsert(ctx context.Context, n *domain.SessionNot
 		UserID:    uid,
 		Content:   n.Content,
 	})
+	// 他人が所有するセッションへ書こうとすると、クエリ側の WHERE で DO UPDATE が発火せず
+	// 0 行になる（＝相手のメモは無傷のまま）。読み出し側が他人のメモを「無い」ものとして
+	// 扱うのと同じ見え方に揃えるため、not-found に翻訳する。
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.ErrNotFound
+	}
 	if err != nil {
 		return err
 	}

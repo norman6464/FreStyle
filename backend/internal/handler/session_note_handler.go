@@ -1,10 +1,12 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
@@ -13,6 +15,10 @@ type SessionNoteHandler struct {
 	get    *usecase.GetSessionNoteUseCase
 	upsert *usecase.UpsertSessionNoteUseCase
 }
+
+// sessionNoteNotFoundMsg は「そのセッションのメモは無い」ときの応答本文。
+// 読み出しと書き込みで同じ値を使うことで、他人のメモの存在を応答差から推測されないようにする。
+const sessionNoteNotFoundMsg = "not_found"
 
 func NewSessionNoteHandler(g *usecase.GetSessionNoteUseCase, u *usecase.UpsertSessionNoteUseCase) *SessionNoteHandler {
 	return &SessionNoteHandler{get: g, upsert: u}
@@ -49,7 +55,7 @@ func (h *SessionNoteHandler) Get(c *gin.Context) {
 		return
 	}
 	if n == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": sessionNoteNotFoundMsg})
 		return
 	}
 	c.JSON(http.StatusOK, n)
@@ -64,6 +70,7 @@ type sessionNoteUpsertReq struct {
 //
 //	@Summary      セッション ノート 作成 / 更新
 //	@Description  指定 セッション の ノート を upsert。 userId は body で 受け取らず current user 固定 (IDOR 対策)。
+//	@Description  書き込め る の は 自分 が 所有 する セッション だけ。 他人 の セッション と 存在 し ない セッション は 同じ 404 に 揃える (応答 差 で セッション の 実在 を 判別 さ せ ない)。
 //	@Tags         session-notes
 //	@Accept       json
 //	@Produce      json
@@ -72,6 +79,7 @@ type sessionNoteUpsertReq struct {
 //	@Success      200        {object}  github_com_norman6464_FreStyle_backend_internal_domain.SessionNote
 //	@Failure      400        {object}  errorResponse  "バリデーション or DB 失敗"
 //	@Failure      401        {object}  errorResponse  "未 認証"
+//	@Failure      404        {object}  errorResponse  "セッション が 無い / 自分 の セッション で ない"
 //	@Router       /sessions/{sessionId}/note [put]
 //	@Security     CookieAuth
 func (h *SessionNoteHandler) Upsert(c *gin.Context) {
@@ -89,6 +97,13 @@ func (h *SessionNoteHandler) Upsert(c *gin.Context) {
 	got, err := h.upsert.Execute(c.Request.Context(), usecase.UpsertSessionNoteInput{
 		SessionID: sid, UserID: uid, Content: req.Content,
 	})
+	// 他人のセッションへ書こうとした場合と、そもそもセッションが無い場合は同じ応答にする。
+	// 片方だけ 403 や別の本文にすると、応答の違いから「そのセッションにメモがあるか」を
+	// 総当たりで判別できてしまう（読み出し側と同じ定数を使って本文まで一致させる）。
+	if errors.Is(err, domain.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": sessionNoteNotFoundMsg})
+		return
+	}
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

@@ -58,8 +58,36 @@ func Test_セッションノート取得_他人のノートは返さない(t *te
 	})
 }
 
+// stubSessionOwnerRepo は所有者検証だけを目的にした AiChatSessionRepository の stub。
+// FindByID は本物（persistence 実装）と同じく、未存在を domain.ErrNotFound で返す契約にする。
+type stubSessionOwnerRepo struct {
+	session *domain.AiChatSession
+}
+
+func (s *stubSessionOwnerRepo) ListByUserID(_ context.Context, _ uint64) ([]domain.AiChatSession, error) {
+	return nil, nil
+}
+
+func (s *stubSessionOwnerRepo) FindByID(_ context.Context, _ uint64) (*domain.AiChatSession, error) {
+	if s.session == nil {
+		return nil, domain.ErrNotFound
+	}
+	return s.session, nil
+}
+
+func (s *stubSessionOwnerRepo) Create(_ context.Context, _ *domain.AiChatSession) error { return nil }
+
+func (s *stubSessionOwnerRepo) UpdateTitle(_ context.Context, _ uint64, _ string) error { return nil }
+
+func (s *stubSessionOwnerRepo) Delete(_ context.Context, _ uint64) error { return nil }
+
+// ownedSession は userID が所有する sessionID のセッションを返すヘルパ。
+func ownedSession(sessionID, userID uint64) *stubSessionOwnerRepo {
+	return &stubSessionOwnerRepo{session: &domain.AiChatSession{ID: sessionID, UserID: userID}}
+}
+
 func Test_セッションノート保存_バリデーション(t *testing.T) {
-	uc := NewUpsertSessionNoteUseCase(&stubSessionNoteRepo{})
+	uc := NewUpsertSessionNoteUseCase(&stubSessionNoteRepo{}, ownedSession(1, 2))
 	if _, err := uc.Execute(context.Background(), UpsertSessionNoteInput{}); err == nil {
 		t.Fatal("expected error")
 	}
@@ -67,7 +95,7 @@ func Test_セッションノート保存_バリデーション(t *testing.T) {
 
 func Test_セッションノート保存_永続化する(t *testing.T) {
 	repo := &stubSessionNoteRepo{}
-	uc := NewUpsertSessionNoteUseCase(repo)
+	uc := NewUpsertSessionNoteUseCase(repo, ownedSession(1, 2))
 	got, err := uc.Execute(context.Background(), UpsertSessionNoteInput{SessionID: 1, UserID: 2, Content: "hello"})
 	if err != nil || got.Content != "hello" {
 		t.Fatalf("unexpected: %+v err=%v", got, err)

@@ -12,7 +12,7 @@ import (
 )
 
 // sessionNoteRepository は [repository.SessionNoteRepository] の実装。
-// 読み取り（FindBySessionID）は sqlc 生成コード（生 SQL）、書き込み（Upsert）は GORM。
+// 読み書きとも sqlc 生成コード（生 SQL）。書き込みは session_id の一意制約に当てた upsert。
 type sessionNoteRepository struct{ db *gorm.DB }
 
 func NewSessionNoteRepository(db *gorm.DB) repository.SessionNoteRepository {
@@ -58,9 +58,9 @@ func (r *sessionNoteRepository) Upsert(ctx context.Context, n *domain.SessionNot
 	if err != nil {
 		return err
 	}
-	// session_id に一意制約が無いため ON CONFLICT は張れない。現行 Save(ID=0) と同じく
-	// 常に INSERT し、採番 id と時刻を書き戻す。
-	row, err := sqlcgen.New(sqlDB).InsertSessionNote(ctx, sqlcgen.InsertSessionNoteParams{
+	// session_id の一意制約に当てて upsert する。初回は INSERT、以降は content /
+	// updated_at のみ UPDATE。採番 id と時刻（作成時刻は保持・更新時刻は now()）を書き戻す。
+	row, err := sqlcgen.New(sqlDB).UpsertSessionNote(ctx, sqlcgen.UpsertSessionNoteParams{
 		SessionID: sid,
 		UserID:    uid,
 		Content:   n.Content,

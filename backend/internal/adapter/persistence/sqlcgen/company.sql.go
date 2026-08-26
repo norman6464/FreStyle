@@ -106,7 +106,7 @@ func (q *Queries) UpdateCompanyActive(ctx context.Context, arg UpdateCompanyActi
 	return result.RowsAffected()
 }
 
-const updateCompanyAiChatEnabled = `-- name: UpdateCompanyAiChatEnabled :exec
+const updateCompanyAiChatEnabled = `-- name: UpdateCompanyAiChatEnabled :execrows
 UPDATE companies SET ai_chat_enabled_for_trainees = $2, updated_at = now() WHERE id = $1
 `
 
@@ -115,8 +115,19 @@ type UpdateCompanyAiChatEnabledParams struct {
 	AiChatEnabledForTrainees bool
 }
 
-// trainee への AI チャット許可を更新する。件数は見ない（従来から not-found を判定していない）。
-func (q *Queries) UpdateCompanyAiChatEnabled(ctx context.Context, arg UpdateCompanyAiChatEnabledParams) error {
-	_, err := q.db.ExecContext(ctx, updateCompanyAiChatEnabled, arg.ID, arg.AiChatEnabledForTrainees)
-	return err
+// trainee への AI チャット許可を更新する。0 件なら対象の会社が存在しない
+// （呼び出し側が not-found にする）。判定は UpdateCompanyActive と同じく companies 側の
+// 件数で行う（写し先の workspaces の件数を見ると、まだ紐付いていない会社が not-found に化ける）。
+//
+// :exec ではなく :execrows にしている理由:
+//
+//	:exec は「SQL がエラーなく流れたか」しか返さない。UPDATE は 1 行も一致しなくても
+//	成功なので、存在しない会社の設定を書こうとしても呼び出し側には成功として見え、
+//	画面には切り替えたはずの設定が反映されたように表示される。
+func (q *Queries) UpdateCompanyAiChatEnabled(ctx context.Context, arg UpdateCompanyAiChatEnabledParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateCompanyAiChatEnabled, arg.ID, arg.AiChatEnabledForTrainees)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

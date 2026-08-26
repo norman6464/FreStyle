@@ -105,6 +105,13 @@ func (u *UpsertUserFromIDTokenUseCase) shouldUpdateRoleFromInvitation(
 		inv.Role == domain.RoleCompanyAdmin
 }
 
+// updateExistingUser は既存 user へ OIDC / 招待の内容を反映する（氏名・役割・所属・招待の受諾）。
+//
+// ここで呼ぶ repository の書き込みは、対象行が 1 行も無いと domain.ErrNotFound を返す。
+// existing / inv はどちらも直前に読み出したものなので、実際に not-found になるのは
+// 「読み出しと書き込みのあいだに user / 招待が消えた」競合だけ。その場合はエラーを
+// そのまま返してログインを失敗させる。握り潰して先へ進めると、昇格や所属の付け替えが
+// 1 行も当たっていないのに反映済みのものとしてセッションを張ることになる。
 func (u *UpsertUserFromIDTokenUseCase) updateExistingUser(
 	ctx context.Context,
 	existing *domain.User,

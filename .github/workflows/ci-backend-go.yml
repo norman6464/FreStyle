@@ -110,8 +110,23 @@ jobs:
 
       # race detector + カバレッジ計測。rate limiter / JWT キャッシュ等の並行コードの
       # データ競合を CI で検出する。
+      #
+      # ここは build tag 無し = 単体テストだけの計測で、これ単独では総カバレッジにならない。
+      # 実 PostgreSQL が要るコード（repository のクエリ）は 1 行も通らないため、
+      # 結合側の計測（integration ジョブ）と合算する。合算と floor 判定は coverage ジョブが行う。
       - name: go test (race + coverage)
-        run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
+        run: go test -race -covermode=atomic -coverprofile=coverage-unit.out ./...
+
+      # 単体側のプロファイルを coverage ジョブへ渡す。ジョブごとに runner（ファイルシステム）が
+      # 別なので、ジョブをまたぐファイルの受け渡しは artifact 経由でしかできない。
+      - name: Upload unit coverage profile
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-unit
+          # path はジョブの working-directory ではなくワークスペース起点で解決される。
+          path: backend/coverage-unit.out
+          if-no-files-found: error
+          retention-days: 7
 
       # 総カバレッジを PR の Checks サマリに表示しつつ、floor を下回ったら fail させる。
       # COVERAGE_MIN は回帰防止の floor（domain / docs / cmd / 薄い infra など 0% 群を含む総計のため低め）。
@@ -127,7 +142,7 @@ jobs:
           # 計測へ切り替えて引き上げ直す前提で、実態に合わせて一時的に 45→42 へ下げる。
           COVERAGE_MIN: '42'
         run: |
-          total=$(go tool cover -func=coverage.out | tail -1 | awk '{print $3}')
+          total=$(go tool cover -func=coverage-unit.out | tail -1 | awk '{print $3}')
           echo "## Backend test coverage: ${total} (min ${COVERAGE_MIN}%)" >> "$GITHUB_STEP_SUMMARY"
           echo "total coverage: ${total} (min ${COVERAGE_MIN}%)"
           num=${total%\%}

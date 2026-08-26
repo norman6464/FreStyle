@@ -11,6 +11,7 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 // TestMasterExerciseRepository_ListWithStatusByLanguage_Integration は、3 クエリを 1 本の
@@ -92,5 +93,151 @@ func TestMasterExerciseRepository_ListWithStatusByLanguage_Integration(t *testin
 		require.Len(t, rows2, 1, "3 件目（残り 1 件）")
 
 		require.NotEqual(t, rows1[0].Slug, rows2[0].Slug, "ページが重複しない")
+	})
+}
+
+// seedMasterExercisesForContract は単純取得系（ListByLanguage / GetByID / GetBySlug /
+// SummaryByLanguage）の検証データを用意し、slug → id の対応を返す。
+// is_published は GORM タグ `default:true` のため bool ゼロ値では非公開にならない。
+// 非公開にしたい行は Create 後に明示 UPDATE する（既存テストと同じ手当て）。
+func seedMasterExercisesForContract(t *testing.T, db *gorm.DB, ctx context.Context) map[string]uint64 {
+	t.Helper()
+	rows := []domain.MasterExercise{
+		// sort_order 同値（10）で 2 件置き、id 昇順のタイブレークが効くことを見る。
+		{Slug: "php-b", Language: "php", Title: "PHP B", SortOrder: 10, IsPublished: true, Difficulty: 2, Mode: domain.ExerciseModeExecute},
+		{Slug: "php-a", Language: "php", Title: "PHP A", SortOrder: 10, IsPublished: true, Difficulty: 3, Mode: domain.ExerciseModeQA},
+		{Slug: "php-z", Language: "php", Title: "PHP Z", SortOrder: 5, IsPublished: true},
+		{Slug: "go-a", Language: "go", Title: "Go A", SortOrder: 1, IsPublished: true},
+		{Slug: "php-draft", Language: "php", Title: "PHP Draft", SortOrder: 1, IsPublished: false},
+	}
+	ids := make(map[string]uint64, len(rows))
+	for i := range rows {
+		require.NoError(t, db.WithContext(ctx).Create(&rows[i]).Error)
+		ids[rows[i].Slug] = rows[i].ID
+	}
+	require.NoError(t, db.WithContext(ctx).Model(&domain.MasterExercise{}).
+		Where("slug = ?", "php-draft").Update("is_published", false).Error)
+	return ids
+}
+
+// TestMasterExerciseRepository_ReadContract_Integration は単純取得系の契約
+// （言語フィルタ / 非公開除外 / 並び順とタイブレーク / 未存在の not found）を実 Postgres で固定する。
+func TestMasterExerciseRepository_ReadContract_Integration(t *testing.T) {
+	db := testsupport.OpenTestDB(t)
+	repo := persistence.NewMasterExerciseRepository(db)
+	ctx := context.Background()
+	testsupport.TruncateAll(t, db, "master_exercises", "exercise_submissions")
+	ids := seedMasterExercisesForContract(t, db, ctx)
+
+	t.Run("ListByLanguage は言語で絞り非公開を除く", func(t *testing.T) {
+		rows, err := repo.ListByLanguage(ctx, "php")
+		require.NoError(t, err)
+		slugs := make([]string, 0, len(rows))
+		for _, r := range rows {
+			slugs = append(slugs, r.Slug)
+		}
+		// sort_order 昇順 → 同値(10)は id 昇順で php-b(先に作成) → php-a。
+		require.Equal(t, []string{"php-z", "php-b", "php-a"}, slugs)
+	})
+
+	t.Run("ListByLanguage(空文字)は全言語の公開分", func(t *testing.T) {
+		rows, err := repo.ListByLanguage(ctx, "")
+		require.NoError(t, err)
+		slugs := make([]string, 0, len(rows))
+		for _, r := range rows {
+			slugs = append(slugs, r.Slug)
+		}
+		// 言語をまたいで sort_order 昇順 → 同値は id 昇順。
+		require.Equal(t, []string{"go-a", "php-z", "php-b", "php-a"}, slugs)
+	})
+
+	t.Run("ListByLanguage は該当なしで空スライス（nil ではない）", func(t *testing.T) {
+		rows, err := repo.ListByLanguage(ctx, "no-such-language")
+		require.NoError(t, err)
+		require.NotNil(t, rows)
+		require.Empty(t, rows)
+	})
+
+	t.Run("GetByID は全列を詰めて返す", func(t *testing.T) {
+		got, err := repo.GetByID(ctx, ids["php-a"])
+		require.NoError(t, err)
+		require.Equal(t, "php-a", got.Slug)
+		require.Equal(t, "php", got.Language)
+		require.Equal(t, "PHP A", got.Title)
+		require.Equal(t, 10, got.SortOrder)
+		require.Equal(t, int16(3), got.Difficulty)
+		require.Equal(t, domain.ExerciseModeQA, got.Mode)
+		require.True(t, got.IsPublished)
+		require.Nil(t, got.ChapterID)
+		require.False(t, got.CreatedAt.IsZero())
+		require.False(t, got.UpdatedAt.IsZero())
+	})
+
+	t.Run("GetByID は非公開でも取得できる", func(t *testing.T) {
+		got, err := repo.GetByID(ctx, ids["php-draft"])
+		require.NoError(t, err)
+		require.False(t, got.IsPublished)
+	})
+
+	t.Run("GetByID の未存在は gorm.ErrRecordNotFound", func(t *testing.T) {
+		_, err := repo.GetByID(ctx, noSuchID)
+		require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+	})
+
+	t.Run("GetBySlug は slug で 1 件返す", func(t *testing.T) {
+		got, err := repo.GetBySlug(ctx, "go-a")
+		require.NoError(t, err)
+		require.Equal(t, ids["go-a"], got.ID)
+		require.Equal(t, "go", got.Language)
+	})
+
+	t.Run("GetBySlug の未存在は gorm.ErrRecordNotFound", func(t *testing.T) {
+		_, err := repo.GetBySlug(ctx, "no-such-slug")
+		require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+	})
+}
+
+// TestMasterExerciseRepository_SummaryByLanguage_Integration は言語別集計の契約
+// （公開分だけ数える / 正解済みは問題単位で 1 / 他人の提出は数えない / 言語昇順）を固定する。
+func TestMasterExerciseRepository_SummaryByLanguage_Integration(t *testing.T) {
+	db := testsupport.OpenTestDB(t)
+	repo := persistence.NewMasterExerciseRepository(db)
+	subRepo := persistence.NewExerciseSubmissionRepository(db)
+	ctx := context.Background()
+	testsupport.TruncateAll(t, db, "master_exercises", "exercise_submissions")
+	ids := seedMasterExercisesForContract(t, db, ctx)
+
+	// user7: php-a を 2 回正解（問題単位では 1 件）+ php-b を不正解のみ。
+	// user8: php-z を正解（user7 の集計には出ない）。
+	// company 種別の提出は master の集計に混ぜない。
+	subs := []domain.ExerciseSubmission{
+		{UserID: 7, ExerciseID: ids["php-a"], ExerciseKind: domain.ExerciseKindMaster, IsCorrect: true},
+		{UserID: 7, ExerciseID: ids["php-a"], ExerciseKind: domain.ExerciseKindMaster, IsCorrect: true},
+		{UserID: 7, ExerciseID: ids["php-b"], ExerciseKind: domain.ExerciseKindMaster, IsCorrect: false},
+		{UserID: 8, ExerciseID: ids["php-z"], ExerciseKind: domain.ExerciseKindMaster, IsCorrect: true},
+		{UserID: 7, ExerciseID: ids["go-a"], ExerciseKind: domain.ExerciseKindCompany, IsCorrect: true},
+	}
+	for i := range subs {
+		require.NoError(t, subRepo.Create(ctx, &subs[i]))
+	}
+
+	t.Run("ログインユーザの正解数が言語ごとに付く", func(t *testing.T) {
+		rows, err := repo.SummaryByLanguage(ctx, 7)
+		require.NoError(t, err)
+		require.Equal(t, []repository.ExerciseLanguageSummary{
+			// language 昇順。go は公開 1 件・user7 の master 正解なし（company 種別は数えない）。
+			{Language: "go", Total: 1, Solved: 0},
+			// php は公開 3 件（draft 除外）。user7 の正解は php-a のみ。
+			{Language: "php", Total: 3, Solved: 1},
+		}, rows)
+	})
+
+	t.Run("未ログイン(userID=0)は solved が全て 0", func(t *testing.T) {
+		rows, err := repo.SummaryByLanguage(ctx, 0)
+		require.NoError(t, err)
+		require.Equal(t, []repository.ExerciseLanguageSummary{
+			{Language: "go", Total: 1, Solved: 0},
+			{Language: "php", Total: 3, Solved: 0},
+		}, rows)
 	})
 }

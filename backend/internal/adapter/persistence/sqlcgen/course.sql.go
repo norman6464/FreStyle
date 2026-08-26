@@ -11,7 +11,8 @@ import (
 )
 
 const deleteCourse = `-- name: DeleteCourse :exec
-DELETE FROM courses WHERE id = $1
+DELETE FROM courses
+WHERE id = $1
 `
 
 // コースを物理削除する（courses は soft delete 列を持たない）。

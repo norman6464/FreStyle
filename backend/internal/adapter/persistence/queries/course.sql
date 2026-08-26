@@ -46,4 +46,5 @@ RETURNING updated_at;
 
 -- name: DeleteCourse :exec
 -- コースを物理削除する（courses は soft delete 列を持たない）。
-DELETE FROM courses WHERE id = sqlc.arg(id);
+DELETE FROM courses
+WHERE id = sqlc.arg(id);

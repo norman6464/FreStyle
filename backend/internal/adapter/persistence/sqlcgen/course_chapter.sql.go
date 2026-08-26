@@ -55,7 +55,8 @@ func (q *Queries) CountChaptersByCourseForCompany(ctx context.Context, arg Count
 }
 
 const deleteChapter = `-- name: DeleteChapter :exec
-DELETE FROM course_chapters WHERE id = $1
+DELETE FROM course_chapters
+WHERE id = $1
 `
 
 // 教材を物理削除する（course_chapters は soft delete 列を持たない）。
@@ -65,7 +66,8 @@ func (q *Queries) DeleteChapter(ctx context.Context, id int64) error {
 }
 
 const deleteChaptersByCourse = `-- name: DeleteChaptersByCourse :exec
-DELETE FROM course_chapters WHERE course_id = $1
+DELETE FROM course_chapters
+WHERE course_id = $1
 `
 
 // コース削除時の cascade 用に配下教材を全削除する（FK に頼らず明示削除）。

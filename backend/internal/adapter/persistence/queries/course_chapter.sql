@@ -77,8 +77,10 @@ RETURNING id, company_id, course_id, created_by_user_id, title, doc, revision, s
 
 -- name: DeleteChapter :exec
 -- 教材を物理削除する（course_chapters は soft delete 列を持たない）。
-DELETE FROM course_chapters WHERE id = sqlc.arg(id);
+DELETE FROM course_chapters
+WHERE id = sqlc.arg(id);
 
 -- name: DeleteChaptersByCourse :exec
 -- コース削除時の cascade 用に配下教材を全削除する（FK に頼らず明示削除）。
-DELETE FROM course_chapters WHERE course_id = sqlc.arg(course_id);
+DELETE FROM course_chapters
+WHERE course_id = sqlc.arg(course_id);

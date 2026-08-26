@@ -15,6 +15,27 @@
 #     適用順序（core → 骨格 → 権限）は FK の依存で決まっており崩せない。
 #
 # 生成: backend/ で `make sqlc`
+#
+# ---------------------------------------------------------------------------
+# この設定を触る人へ: 「ローカルと CI では通るが本番でだけ落ちる」項目がある
+#
+# 接続経路が環境で違い、しかも *プロトコルが違う*。
+#
+#   ローカル直結 / CI     … PostgreSQL へ直結。extended protocol。
+#                           パラメータは型 OID を付けて本文と別に送られ、
+#                           prepared statement はその接続が生きているあいだ残り続ける。
+#
+#   本番                  … Supabase の transaction pooler（pgbouncer）越し。
+#                           infra/database/postgres.go が DSN を見て simple query protocol を
+#                           強制する。パラメータはクライアント側で SQL リテラルへ埋め込まれ、
+#                           pooler は文と文のあいだで裏の PostgreSQL 接続を別クライアントへ
+#                           回すため、prepared statement はセッションをまたいで残らない。
+#
+# つまり「prepared statement を作って後で使い回す」（emit_prepared_queries）も
+# 「Go の型がそのまま SQL の構文になる」（下の jsonb override）も、直結では顕在化しない。
+# テストが全部緑でも本番でだけ落ちる、という壊れ方をする。設定を変えるときは
+# 直結で動いたことを根拠にしないこと。
+# ---------------------------------------------------------------------------
 version: "2"
 sql:
   - engine: "postgresql"
@@ -28,6 +49,34 @@ sql:
         package: "sqlcgen"
         out: "internal/adapter/persistence/sqlcgen"
         sql_package: "database/sql"
+        # emit_prepared_queries は「意図的に書かない」（＝既定の false のまま）。
+        #
+        # true にすると sqlc は Prepare(ctx, db) を生成し、起動時に全クエリを
+        # db.PrepareContext して *sql.Stmt を Queries に抱え込み、以後はその Stmt を
+        # 使い回すコードを出す（実測: このリポジトリのクエリ数だけ、162 箇所の
+        # PrepareContext 呼び出しが db.go に並ぶ）。ローカルの直結 PostgreSQL では
+        # 往復が減って正しく速い。だが本番は transaction pooler（pgbouncer）越しで、
+        # pooler は文と文のあいだで裏の接続を別クライアントへ回す。準備したときの接続と
+        # 実行するときの接続が同じである保証がないので、実行時に
+        # "prepared statement does not exist"（SQLSTATE 26000）で落ちる。
+        # infra/database/postgres.go が pooler の DSN を見て simple query protocol を
+        # 強制しているのも同じ理由。
+        #
+        # 質が悪いのは、この壊れ方がローカルでも CI でも再現しないこと。どちらも直結で、
+        # 接続が生きているあいだ prepared statement は残るので全テストが緑のまま通る。
+        # 壊れるのはデプロイして pooler 越しに叩いた瞬間だけになる。
+        #
+        # 歯止めは設定の文字列ではなく「生成結果」を見る:
+        #   internal/adapter/persistence/sqlcgen_prepared_statements_test.go が
+        #   sqlcgen/*.go を構文解析し、PrepareContext の *呼び出し* が 0 件であることを
+        #   確かめる。設定の書き方（キー名の変更・別ファイルへの分割）が変わっても、
+        #   結果を見ているので効き続ける。
+        # 宣言と呼び出しを取り違えないこと:
+        #   DBTX interface の PrepareContext(...) は emit_prepared_queries の値に関係なく
+        #   sqlc が必ず「宣言」する。宣言を違反として数えると検査は永久に落ち、
+        #   呼び出しではなく宣言の有無を見ると永久に通る。上のテストは宣言を違反にせず、
+        #   同時に「宣言が確かにあること」も確認して、正しい生成物を見ていることを担保する。
+
         emit_empty_slices: true
         emit_json_tags: false
         emit_interface: false

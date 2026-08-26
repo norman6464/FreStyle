@@ -69,9 +69,13 @@ func TestSessionNoteRepository_CrossUserOverwrite_Integration(t *testing.T) {
 	t.Run("他人が書いても行は増えない", func(t *testing.T) {
 		setup(t)
 
-		_ = repo.Upsert(ctx, &domain.SessionNote{
+		// 戻り値を捨てない。拒否されたこと（not-found）まで確かめないと、実装が変わって
+		// 書き込みが通るようになっても「行数 1」だけは満たされ、このテストは緑のまま通る
+		// （＝上書きに戻った回帰を見逃す）。
+		err := repo.Upsert(ctx, &domain.SessionNote{
 			SessionID: sessionID, UserID: attacker, Content: "攻撃者が上書き",
 		})
+		require.ErrorIs(t, err, domain.ErrNotFound)
 
 		sqlDB := db
 		var n int

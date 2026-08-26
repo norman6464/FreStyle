@@ -100,6 +100,10 @@ func openTestDB(t *testing.T, preferSimpleProtocol bool) *gorm.DB {
 	if err := database.ApplyRichDocumentConstraints(db); err != nil {
 		t.Fatalf("ApplyRichDocumentConstraints 失敗: %v", err)
 	}
+	// session_notes の 1 セッション 1 ノート一意制約も本番（database.Migrate）と同じに揃える。
+	if err := database.ApplySessionNoteConstraints(db); err != nil {
+		t.Fatalf("ApplySessionNoteConstraints 失敗: %v", err)
+	}
 	// ナレッジ基盤（workspaces / spaces / pages / blocks / …）は GORM を通さない。
 	// 起動時（database.Migrate）と同じ明示 DDL を、同じ接続プールへ流す。
 	if err := database.ApplyKnowledgeBaseSchema(t.Context(), sqlDB); err != nil {

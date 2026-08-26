@@ -103,7 +103,10 @@ func Migrate(db *gorm.DB) error {
 		if err := ApplyUserNormalizationConstraints(tx); err != nil {
 			return err
 		}
-		return ApplyRichDocumentConstraints(tx)
+		if err := ApplyRichDocumentConstraints(tx); err != nil {
+			return err
+		}
+		return ApplySessionNoteConstraints(tx)
 	}); err != nil {
 		return err
 	}
@@ -173,6 +176,17 @@ func ApplyRichDocumentConstraints(db *gorm.DB) error {
 		}
 	}
 	return nil
+}
+
+// ApplySessionNoteConstraints は session_notes に 1 セッション 1 ノートの一意制約を張る（冪等）。
+// session_id は domain タグでも uniqueIndex にしているが、既存 DB では AutoMigrate が
+// 既存の非一意インデックスを一意へ張り替えないため、別名の一意インデックスを明示 SQL で必ず作る。
+// CREATE UNIQUE INDEX IF NOT EXISTS 自体が冪等。既存に session_id 重複があると作成に失敗するので、
+// 適用前に重複が無いことを確認すること。
+func ApplySessionNoteConstraints(db *gorm.DB) error {
+	return db.Exec(
+		`CREATE UNIQUE INDEX IF NOT EXISTS uq_session_notes_session_id ON session_notes (session_id)`,
+	).Error
 }
 
 // preRepairUsersForMigrate は AutoMigrate（NOT NULL 適用）の前提を満たすよう旧データを埋める（冪等）。

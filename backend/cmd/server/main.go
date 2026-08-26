@@ -54,17 +54,18 @@ func main() {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	db, err := database.NewPostgres(cfg)
+	gormDB, sqlDB, err := database.NewPostgres(cfg)
 	if err != nil {
 		fatal("database connect failed", err)
 	}
 
-	// Go domain を「正」とする AutoMigrate。
-	if err := database.Migrate(db); err != nil {
+	// Go domain を「正」とする AutoMigrate。GORM が要るのはここだけ。
+	if err := database.Migrate(gormDB); err != nil {
 		fatal("migrate failed", err)
 	}
 
-	r := handler.NewRouter(db, cfg)
+	// アプリケーションのクエリは sqlc 生成コード（*sql.DB）で実行する。
+	r := handler.NewRouter(sqlDB, cfg)
 	addr := ":" + cfg.ServerPort
 	slog.Info("FreStyle Go backend listening", slog.String("addr", addr), slog.String("env", cfg.AppEnv))
 	if err := r.Run(addr); err != nil {

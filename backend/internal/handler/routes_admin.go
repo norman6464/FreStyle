@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"database/sql"
 	"log"
 
 	"github.com/gin-gonic/gin"
@@ -11,12 +12,11 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/infra/ses"
 	"github.com/norman6464/FreStyle/backend/internal/infra/smtp"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
-	"gorm.io/gorm"
 )
 
 // newAuditMiddleware は管理者の変更操作（会社の有効/無効・従業員の停止/削除・招待・利用申請の承認/却下）
 // を監査ログに記録する middleware を作る。記録は best-effort（監査記録の失敗で本処理は壊さない）。
-func newAuditMiddleware(db *gorm.DB) gin.HandlerFunc {
+func newAuditMiddleware(db *sql.DB) gin.HandlerFunc {
 	recorder := usecase.NewRecordAuditEventUseCase(persistence.NewAuditRepository(db))
 	return middleware.AuditLog(func(ctx context.Context, e middleware.AuditEntry) {
 		_ = recorder.Execute(ctx, usecase.RecordAuditEventInput{

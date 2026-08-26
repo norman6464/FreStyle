@@ -1,8 +1,6 @@
 package handler
 
 import (
-	"log"
-
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
@@ -16,18 +14,11 @@ import (
 // /kb/workspaces/:workspaceSlug 以下に置き、その middleware を通す group に登録する
 // （通し忘れたルートはテナント未確定のまま handler に入るため、group をここ 1 箇所に閉じる）。
 func registerKnowledgeBaseRoutes(g *gin.RouterGroup, deps *routeDeps) {
-	// ナレッジ基盤は GORM を通さない（スキーマの正本が明示 SQL）ため、
-	// GORM が持つ接続プールから *sql.DB を借りて sqlc 実装へ渡す。
-	sqlDB, err := deps.db.DB()
-	if err != nil {
-		log.Printf("WARN: *sql.DB を取得できないためナレッジ基盤の API を登録しません: %v", err)
-		return
-	}
 	registerKnowledgeBaseRoutesWith(
 		g,
-		persistence.NewKnowledgeBaseRepository(sqlDB),
-		persistence.NewKnowledgeBasePermissionRepository(sqlDB),
-		persistence.NewWorkspaceProvisioner(sqlDB),
+		persistence.NewKnowledgeBaseRepository(deps.db),
+		persistence.NewKnowledgeBasePermissionRepository(deps.db),
+		persistence.NewWorkspaceProvisioner(deps.db),
 	)
 }
 

@@ -6,9 +6,19 @@ WHERE user_id = $1
 ORDER BY updated_at DESC, id DESC;
 
 -- name: GetNoteByID :one
--- 内部 ID で 1 件取得（所有者検証は usecase 側で user_id を突き合わせる）。
+-- 内部 ID で 1 件取得する。id だけでなく所有者（user_id）でも必ず絞る。
+--
+-- user_id を条件に入れる理由（多層防御）:
+--   notes.id は連番（bigserial）なので、ログインさえしていれば 1, 2, 3 … と ID を順に叩ける。
+--   id だけで引くと他人の行がそのまま 1 行返り、(1) 呼び出し側が所有者の突き合わせを
+--   忘れた瞬間に他人のメモ本文が外へ出る、(2) 突き合わせて弾いたとしても「行が有った／
+--   無かった」の違いが応答の差になり、どの ID が実在するかを総当たりで数え上げられる
+--   （存在オラクル）— という 2 つの穴が開く。
+--   ここで user_id を含めておけば、他人のメモは DB の時点で 0 行になり
+--   「存在しない ID」と完全に同じ結果になるので、上位層（usecase / handler）の判定が
+--   将来壊れても存在は漏れない。認可を 1 か所だけに置かないための保険。
 SELECT * FROM notes
-WHERE id = $1;
+WHERE id = $1 AND user_id = $2;
 
 -- name: InsertNote :one
 -- 学習メモを 1 件作成する。created_at / updated_at は DB 既定値が無いため呼び出し側が
@@ -19,15 +29,22 @@ VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING id, created_at, updated_at;
 
 -- name: UpdateNote :one
--- メモ本文を更新する（所有者検証は usecase 側で済ませてから呼ぶ）。updated_at は now() へ
--- 進める（GORM autoUpdateTime 相当）。created_at は触らない。RETURNING で updated_at を書き戻す。
+-- メモ本文を更新する。updated_at は now() へ進める（GORM autoUpdateTime 相当）。
+-- created_at は触らない。RETURNING で updated_at を書き戻す。
+--
+-- WHERE に user_id を含める理由（多層防御・書き込み側）:
+--   読み取り（GetNoteByID）を絞っても、更新文が id だけで当たるままだと、
+--   所有者検証を通さない呼び出しが 1 つ増えた時点で他人のメモを上書きできてしまう。
+--   ここでも user_id で絞れば、他人のメモは 0 行更新 = RETURNING が 1 行も返らず
+--   sql.ErrNoRows になり、repository が domain.ErrNotFound へ変換する。
+--   結果として「他人のメモ」と「存在しないメモ」は書き込み側でも同じ結末になる。
 UPDATE notes SET
-  title     = $2,
-  content   = $3,
-  is_public = $4,
-  is_pinned = $5,
+  title     = $3,
+  content   = $4,
+  is_public = $5,
+  is_pinned = $6,
   updated_at = now()
-WHERE id = $1
+WHERE id = $1 AND user_id = $2
 RETURNING updated_at;
 
 -- name: DeleteNote :exec

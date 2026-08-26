@@ -4172,7 +4172,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "指定 note を 更新。 所有者 検証 を usecase 層 で 行い、 他人 の note は 403。",
+                "description": "指定 note を 更新。 更新 できる の は current user 所有 の note だけ。\n他人 の note と 存在 し ない note は 撃ち 分け ず、 どちら も 同じ 404 (同一 本文) を 返す。\n応答 の 差 で ID の 実在 を 数え 上げ られる (存在 オラクル) の を 防ぐ ため。",
                 "consumes": [
                     "application/json"
                 ],
@@ -4220,8 +4220,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
                     },
-                    "403": {
-                        "description": "他人 の note",
+                    "404": {
+                        "description": "他人 の note or 存在 し ない note (区別 し ない)",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -4234,7 +4234,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "current user 所有 の note を 削除。 WHERE user_id 絞り込み で 他人 の note は そもそも 影響 を 受け ない。",
+                "description": "current user 所有 の note を 削除。 WHERE user_id 絞り込み で 他人 の note は そもそも 影響 を 受け ない。\n他人 の note・存在 し ない note・自分 の note の いずれ に 対して も 同じ 204 (本文 なし) を 返し、\n応答 から ID の 実在 が 分から ない よう に する。",
                 "produces": [
                     "application/json"
                 ],
@@ -4253,7 +4253,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "204": {
-                        "description": "成功 (本文 なし)"
+                        "description": "成功 (本文 なし。 対象 が 無く て も 同じ)"
                     },
                     "400": {
                         "description": "DB 失敗",

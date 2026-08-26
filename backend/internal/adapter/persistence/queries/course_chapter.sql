@@ -1,7 +1,8 @@
 -- name: ListChaptersByCompany :many
 -- 会社内の全教材（章）を更新日降順で返す backward-compat 用。
 -- include_unpublished=false なら公開済み（is_published=true）のみに絞る。
-SELECT id, company_id, course_id, created_by_user_id, title, doc, revision, schema_version, sort_order, is_published, created_at, updated_at
+-- 一覧は本文（doc・jsonb）を返さない（ListChaptersByCourse と同じ列構成）。
+SELECT id, company_id, course_id, created_by_user_id, title, sort_order, is_published, created_at, updated_at
 FROM course_chapters
 WHERE company_id = sqlc.arg(company_id)
   AND (sqlc.arg(include_unpublished)::bool OR is_published = TRUE)

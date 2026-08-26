@@ -53,6 +53,9 @@ func toDomainChapter(row sqlcgen.CourseChapter) domain.TeachingMaterial {
 }
 
 // toDomainChapterSummary は一覧用の軽量行（本文 doc を含まない）を domain へ写す。Doc は nil のまま。
+//
+// sqlc は SELECT ごとに別の行型を生成するため、company 別の一覧は
+// [toDomainChapterCompanySummary] が同じ列構成であることを型変換で確かめてからここへ渡す。
 func toDomainChapterSummary(row sqlcgen.ListChaptersByCourseRow) domain.TeachingMaterial {
 	return domain.TeachingMaterial{
 		ID:              uint64(row.ID),
@@ -67,6 +70,12 @@ func toDomainChapterSummary(row sqlcgen.ListChaptersByCourseRow) domain.Teaching
 	}
 }
 
+// toDomainChapterCompanySummary は company 別一覧の軽量行を domain へ写す。
+// 列構成が course 別一覧とずれたらこの型変換がコンパイルエラーになる。
+func toDomainChapterCompanySummary(row sqlcgen.ListChaptersByCompanyRow) domain.TeachingMaterial {
+	return toDomainChapterSummary(sqlcgen.ListChaptersByCourseRow(row))
+}
+
 // ListByCompany は backward-compat 用（コース対応完了後に削除予定）。
 func (r *teachingMaterialRepository) ListByCompany(ctx context.Context, companyID uint64, includeUnpublished bool) ([]domain.TeachingMaterial, error) {
 	cid, ok := toInt64ID(companyID)
@@ -77,6 +86,8 @@ func (r *teachingMaterialRepository) ListByCompany(ctx context.Context, companyI
 	if err != nil {
 		return nil, err
 	}
+	// 一覧は本文（doc・jsonb）を返さない（domain の Doc は json:"-" で応答に出ないため、
+	// 全章分を読み出しても転送するだけ無駄になる）。ListByCourse と同じ軽量な列構成。
 	rows, err := sqlcgen.New(sqlDB).ListChaptersByCompany(ctx, sqlcgen.ListChaptersByCompanyParams{
 		CompanyID:          cid,
 		IncludeUnpublished: includeUnpublished,
@@ -86,7 +97,7 @@ func (r *teachingMaterialRepository) ListByCompany(ctx context.Context, companyI
 	}
 	materials := make([]domain.TeachingMaterial, 0, len(rows))
 	for _, row := range rows {
-		materials = append(materials, toDomainChapter(row))
+		materials = append(materials, toDomainChapterCompanySummary(row))
 	}
 	return materials, nil
 }

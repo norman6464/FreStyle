@@ -173,7 +173,7 @@ func (q *Queries) InsertChapter(ctx context.Context, arg InsertChapterParams) (I
 }
 
 const listChaptersByCompany = `-- name: ListChaptersByCompany :many
-SELECT id, company_id, course_id, created_by_user_id, title, doc, revision, schema_version, sort_order, is_published, created_at, updated_at
+SELECT id, company_id, course_id, created_by_user_id, title, sort_order, is_published, created_at, updated_at
 FROM course_chapters
 WHERE company_id = $1
   AND ($2::bool OR is_published = TRUE)
@@ -185,26 +185,36 @@ type ListChaptersByCompanyParams struct {
 	IncludeUnpublished bool
 }
 
+type ListChaptersByCompanyRow struct {
+	ID              int64
+	CompanyID       int64
+	CourseID        int64
+	CreatedByUserID int64
+	Title           string
+	SortOrder       int64
+	IsPublished     bool
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
 // 会社内の全教材（章）を更新日降順で返す backward-compat 用。
 // include_unpublished=false なら公開済み（is_published=true）のみに絞る。
-func (q *Queries) ListChaptersByCompany(ctx context.Context, arg ListChaptersByCompanyParams) ([]CourseChapter, error) {
+// 一覧は本文（doc・jsonb）を返さない（ListChaptersByCourse と同じ列構成）。
+func (q *Queries) ListChaptersByCompany(ctx context.Context, arg ListChaptersByCompanyParams) ([]ListChaptersByCompanyRow, error) {
 	rows, err := q.db.QueryContext(ctx, listChaptersByCompany, arg.CompanyID, arg.IncludeUnpublished)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []CourseChapter{}
+	items := []ListChaptersByCompanyRow{}
 	for rows.Next() {
-		var i CourseChapter
+		var i ListChaptersByCompanyRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.CompanyID,
 			&i.CourseID,
 			&i.CreatedByUserID,
 			&i.Title,
-			&i.Doc,
-			&i.Revision,
-			&i.SchemaVersion,
 			&i.SortOrder,
 			&i.IsPublished,
 			&i.CreatedAt,

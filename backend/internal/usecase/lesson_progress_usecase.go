@@ -8,7 +8,6 @@ import (
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
-	"gorm.io/gorm"
 )
 
 var (
@@ -49,7 +48,7 @@ type MarkLessonCompletedInput struct {
 func (u *MarkLessonCompletedUseCase) Execute(ctx context.Context, in MarkLessonCompletedInput) error {
 	m, err := u.materials.GetByID(ctx, in.TeachingMaterialID)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if errors.Is(err, domain.ErrNotFound) {
 			return ErrLessonNotFound
 		}
 		return err
@@ -59,7 +58,7 @@ func (u *MarkLessonCompletedUseCase) Execute(ctx context.Context, in MarkLessonC
 	}
 	course, err := u.courses.GetByID(ctx, m.CourseID)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if errors.Is(err, domain.ErrNotFound) {
 			return ErrLessonNotFound
 		}
 		return err

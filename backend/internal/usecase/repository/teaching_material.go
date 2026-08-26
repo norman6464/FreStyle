@@ -24,11 +24,11 @@ type TeachingMaterialRepository interface {
 	CountByCourseForCompany(ctx context.Context, companyID uint64, includeUnpublished bool) (map[uint64]int, error)
 	Create(ctx context.Context, m *domain.TeachingMaterial) error
 	// Update は title / sort_order / is_published を書き換える。対象行が無ければ
-	// gorm.ErrRecordNotFound（黙って成功にすると失われた編集を保存済みに見せるため）。
+	// domain.ErrNotFound（黙って成功にすると失われた編集を保存済みに見せるため）。
 	Update(ctx context.Context, m *domain.TeachingMaterial) error
 	// UpdateDocWithRevision はリッチ本文（tiptap JSON）を楽観ロックで更新する。
 	// expectedRevision が現在値と一致した場合のみ doc を保存し revision を +1 する。
-	// 不一致は ErrChapterDocConflict、未存在は gorm.ErrRecordNotFound を返す。
+	// 不一致は ErrChapterDocConflict、未存在は domain.ErrNotFound を返す。
 	UpdateDocWithRevision(ctx context.Context, id uint64, doc string, expectedRevision int) (*domain.TeachingMaterial, error)
 	Delete(ctx context.Context, id uint64) error
 	DeleteByCourse(ctx context.Context, courseID uint64) error

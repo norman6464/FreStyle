@@ -6,7 +6,6 @@ import (
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
-	"gorm.io/gorm"
 )
 
 // AiChatEnabledForUserUseCase は「この user が AI チャットを使ってよいか」を判定する認可ポリシー。
@@ -43,7 +42,7 @@ func (uc *AiChatEnabledForUserUseCase) Execute(ctx context.Context, user *domain
 	company, err := uc.companies.FindByID(ctx, companyID)
 	if err != nil {
 		// 会社行が無い場合は既定 true（後方互換）。それ以外の DB エラーは伝搬する。
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if errors.Is(err, domain.ErrNotFound) {
 			return true, nil
 		}
 		return false, err

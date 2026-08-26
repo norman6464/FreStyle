@@ -12,6 +12,16 @@ import (
 	"github.com/google/uuid"
 )
 
+type AiChatSession struct {
+	ID          int64
+	UserID      int64
+	Title       string
+	SessionType string
+	ScenarioID  sql.NullInt64
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 type AuditEvent struct {
 	ID         int64
 	ActorID    int64
@@ -56,6 +66,24 @@ type CompanyApplication struct {
 	UpdatedAt     time.Time
 }
 
+type CompanyExercise struct {
+	ID             int64
+	CompanyID      int64
+	Language       string
+	Title          string
+	Description    string
+	StarterCode    string
+	HintText       sql.NullString
+	ExpectedOutput sql.NullString
+	Difficulty     int16
+	IsPublished    bool
+	ChapterID      sql.NullInt64
+	CreatedBy      int64
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	DeletedAt      sql.NullTime
+}
+
 type Course struct {
 	ID              int64
 	CompanyID       int64
@@ -68,6 +96,76 @@ type Course struct {
 	IsPublished     bool
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
+}
+
+type CourseChapter struct {
+	ID              int64
+	CompanyID       int64
+	CourseID        int64
+	CreatedByUserID int64
+	Title           string
+	Doc             *json.RawMessage
+	Revision        int64
+	SchemaVersion   int64
+	SortOrder       int64
+	IsPublished     bool
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+type ExerciseSubmission struct {
+	ID            int64
+	UserID        int64
+	ExerciseKind  string
+	ExerciseID    int64
+	SubmittedCode string
+	Stdout        sql.NullString
+	Stderr        sql.NullString
+	ExitCode      int64
+	IsCorrect     bool
+	SubmittedAt   time.Time
+}
+
+type Invitation struct {
+	ID        int64
+	CompanyID int64
+	Email     string
+	Role      string
+	Name      string
+	Status    string
+	Token     sql.NullString
+	ExpiresAt time.Time
+	CreatedAt time.Time
+}
+
+type LearningReport struct {
+	ID         int64
+	UserID     int64
+	PeriodFrom time.Time
+	PeriodTo   time.Time
+	Status     string
+	S3Key      string
+	CreatedAt  time.Time
+}
+
+type MasterExercise struct {
+	ID             int64
+	Slug           string
+	Language       string
+	SortOrder      int32
+	Category       string
+	Title          string
+	Description    string
+	StarterCode    string
+	HintText       sql.NullString
+	ExpectedOutput sql.NullString
+	Mode           string
+	Explanation    string
+	Difficulty     int16
+	IsPublished    bool
+	ChapterID      sql.NullInt64
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 type MasterExerciseExample struct {
@@ -173,12 +271,41 @@ type Profile struct {
 	UpdatedAt     time.Time
 }
 
+type RichDocument struct {
+	ID            uuid.UUID
+	OwnerID       int64
+	CompanyID     sql.NullInt64
+	Kind          string
+	Title         string
+	IsPublic      bool
+	SchemaVersion int64
+	Doc           json.RawMessage
+	Revision      int64
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	DeletedAt     sql.NullTime
+}
+
 type Role struct {
 	ID          int16
 	Name        string
 	Description string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+}
+
+type ScoreCard struct {
+	ID                 int64
+	UserID             sql.NullInt64
+	SessionID          sql.NullInt64
+	OverallScore       sql.NullString
+	LogicalScore       sql.NullString
+	ConsiderationScore sql.NullString
+	SummaryScore       sql.NullString
+	ProposalScore      sql.NullString
+	ListeningScore     sql.NullString
+	Feedback           sql.NullString
+	CreatedAt          sql.NullTime
 }
 
 type SessionNote struct {
@@ -237,6 +364,34 @@ type User struct {
 	UpdatedAt     time.Time
 	DeletedAt     sql.NullTime
 	WorkspaceID   uuid.NullUUID
+}
+
+type UserChapterProgress struct {
+	ID          int64
+	UserID      int64
+	ChapterID   int64
+	CourseID    int64
+	CompletedAt time.Time
+	CreatedAt   time.Time
+}
+
+type UserChapterView struct {
+	UserID        int64
+	ChapterID     int64
+	CourseID      int64
+	FirstViewedAt time.Time
+	LastViewedAt  time.Time
+	ViewCount     int32
+}
+
+type UserDailyActivity struct {
+	UserID        int64
+	ActivityDate  time.Time
+	ExerciseCount int32
+	CorrectCount  int32
+	ChapterCount  int32
+	AiChatCount   int32
+	NoteCount     int32
 }
 
 type UserOidcIdentity struct {

@@ -7,6 +7,8 @@ package sqlcgen
 
 import (
 	"context"
+	"encoding/json"
+	"time"
 )
 
 const countUnreadNotifications = `-- name: CountUnreadNotifications :one
@@ -20,6 +22,58 @@ func (q *Queries) CountUnreadNotifications(ctx context.Context, userID int64) (i
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const createNotifications = `-- name: CreateNotifications :exec
+INSERT INTO notifications (user_id, type, title, body, is_read, created_at)
+SELECT x.user_id, x.type, x.title, x.body, x.is_read, now()
+FROM json_to_recordset($1::json)
+  AS x(user_id bigint, type text, title text, body text, is_read boolean)
+`
+
+// 複数の通知を 1 回の INSERT でまとめて作成する（宛先が増えても往復を増やさない）。
+// database/sql モードで配列を渡すと lib/pq 依存が増えるため、items は 1 個の json 配列で
+// 渡し、json_to_recordset で行へ展開する。created_at は DB 既定値が無いので now() を明示する。
+func (q *Queries) CreateNotifications(ctx context.Context, items json.RawMessage) error {
+	_, err := q.db.ExecContext(ctx, createNotifications, items)
+	return err
+}
+
+const insertNotification = `-- name: InsertNotification :one
+INSERT INTO notifications (user_id, type, title, body, is_read, created_at)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, created_at
+`
+
+type InsertNotificationParams struct {
+	UserID    int64
+	Type      string
+	Title     string
+	Body      string
+	IsRead    bool
+	CreatedAt time.Time
+}
+
+type InsertNotificationRow struct {
+	ID        int64
+	CreatedAt time.Time
+}
+
+// 通知を 1 件作成する。created_at は DB 既定値が無いため呼び出し側が値を渡す
+// （GORM autoCreateTime 相当。ゼロなら呼び出し側で now() を入れる）。RETURNING で
+// id / created_at を書き戻す。
+func (q *Queries) InsertNotification(ctx context.Context, arg InsertNotificationParams) (InsertNotificationRow, error) {
+	row := q.db.QueryRowContext(ctx, insertNotification,
+		arg.UserID,
+		arg.Type,
+		arg.Title,
+		arg.Body,
+		arg.IsRead,
+		arg.CreatedAt,
+	)
+	var i InsertNotificationRow
+	err := row.Scan(&i.ID, &i.CreatedAt)
+	return i, err
 }
 
 const listNotificationsByUserID = `-- name: ListNotificationsByUserID :many
@@ -58,4 +112,31 @@ func (q *Queries) ListNotificationsByUserID(ctx context.Context, userID int64) (
 		return nil, err
 	}
 	return items, nil
+}
+
+const markAllNotificationsRead = `-- name: MarkAllNotificationsRead :exec
+UPDATE notifications SET is_read = true
+WHERE user_id = $1 AND is_read = false
+`
+
+// 対象 user の未読通知をすべて既読化する。
+func (q *Queries) MarkAllNotificationsRead(ctx context.Context, userID int64) error {
+	_, err := q.db.ExecContext(ctx, markAllNotificationsRead, userID)
+	return err
+}
+
+const markNotificationRead = `-- name: MarkNotificationRead :exec
+UPDATE notifications SET is_read = true
+WHERE id = $1 AND user_id = $2
+`
+
+type MarkNotificationReadParams struct {
+	ID     int64
+	UserID int64
+}
+
+// 単一通知を既読化する。WHERE で user_id を絞り、他人の通知を既読化できないようにする。
+func (q *Queries) MarkNotificationRead(ctx context.Context, arg MarkNotificationReadParams) error {
+	_, err := q.db.ExecContext(ctx, markNotificationRead, arg.ID, arg.UserID)
+	return err
 }

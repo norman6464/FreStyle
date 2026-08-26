@@ -222,3 +222,63 @@ CREATE TABLE invitations (
     -- 実制約は AutoMigrate（gorm uniqueIndex タグ）が作る。ここは sqlc の型付け用に同じ内容を明示。
     UNIQUE (token)
 );
+
+-- 運営が用意した練習問題マスタ。domain.MasterExercise の GORM タグを正とする。
+-- sort_order は plain int（type:integer 指定なし）なので AutoMigrate 既定の bigint。
+-- hint_text / expected_output は not null 指定が無く nullable。chapter_id は *uint64 で nullable。
+CREATE TABLE master_exercises (
+    id              bigint PRIMARY KEY,
+    slug            varchar(64) NOT NULL,
+    language        varchar(32) NOT NULL,
+    sort_order      bigint NOT NULL DEFAULT 0,
+    category        varchar(64) NOT NULL,
+    title           varchar(200) NOT NULL,
+    description     text NOT NULL,
+    starter_code    text NOT NULL,
+    hint_text       text,
+    expected_output text,
+    mode            varchar(16) NOT NULL DEFAULT 'execute',
+    explanation     text NOT NULL DEFAULT '',
+    difficulty      smallint NOT NULL DEFAULT 1,
+    is_published    boolean NOT NULL DEFAULT true,
+    chapter_id      bigint,
+    created_at      timestamptz NOT NULL,
+    updated_at      timestamptz NOT NULL,
+    -- 実制約は AutoMigrate（gorm uniqueIndex タグ）が作る。ここは sqlc の型付け用に同じ内容を明示。
+    UNIQUE (slug)
+);
+
+-- 会社独自の演習。domain.CompanyExercise の GORM タグを正とする。
+-- hint_text / expected_output は nullable。deleted_at は *time.Time で nullable。
+CREATE TABLE company_exercises (
+    id              bigint PRIMARY KEY,
+    company_id      bigint NOT NULL,
+    language        varchar(32) NOT NULL,
+    title           varchar(200) NOT NULL,
+    description     text NOT NULL,
+    starter_code    text NOT NULL,
+    hint_text       text,
+    expected_output text,
+    difficulty      smallint NOT NULL DEFAULT 1,
+    is_published    boolean NOT NULL DEFAULT false,
+    chapter_id      bigint,
+    created_by      bigint NOT NULL,
+    created_at      timestamptz NOT NULL,
+    updated_at      timestamptz NOT NULL,
+    deleted_at      timestamptz
+);
+
+-- コード演習の提出履歴（append-only）。domain.ExerciseSubmission の GORM タグを正とする。
+-- stdout / stderr は nullable。exit_code は plain int なので bigint。
+CREATE TABLE exercise_submissions (
+    id             bigint PRIMARY KEY,
+    user_id        bigint NOT NULL,
+    exercise_kind  varchar(16) NOT NULL,
+    exercise_id    bigint NOT NULL,
+    submitted_code text NOT NULL,
+    stdout         text,
+    stderr         text,
+    exit_code      bigint NOT NULL DEFAULT 0,
+    is_correct     boolean NOT NULL DEFAULT false,
+    submitted_at   timestamptz NOT NULL
+);

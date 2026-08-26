@@ -66,6 +66,24 @@ type CompanyApplication struct {
 	UpdatedAt     time.Time
 }
 
+type CompanyExercise struct {
+	ID             int64
+	CompanyID      int64
+	Language       string
+	Title          string
+	Description    string
+	StarterCode    string
+	HintText       sql.NullString
+	ExpectedOutput sql.NullString
+	Difficulty     int16
+	IsPublished    bool
+	ChapterID      sql.NullInt64
+	CreatedBy      int64
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	DeletedAt      sql.NullTime
+}
+
 type Course struct {
 	ID              int64
 	CompanyID       int64
@@ -80,6 +98,19 @@ type Course struct {
 	UpdatedAt       time.Time
 }
 
+type ExerciseSubmission struct {
+	ID            int64
+	UserID        int64
+	ExerciseKind  string
+	ExerciseID    int64
+	SubmittedCode string
+	Stdout        sql.NullString
+	Stderr        sql.NullString
+	ExitCode      int64
+	IsCorrect     bool
+	SubmittedAt   time.Time
+}
+
 type Invitation struct {
 	ID        int64
 	CompanyID int64
@@ -90,6 +121,26 @@ type Invitation struct {
 	Token     sql.NullString
 	ExpiresAt time.Time
 	CreatedAt time.Time
+}
+
+type MasterExercise struct {
+	ID             int64
+	Slug           string
+	Language       string
+	SortOrder      int64
+	Category       string
+	Title          string
+	Description    string
+	StarterCode    string
+	HintText       sql.NullString
+	ExpectedOutput sql.NullString
+	Mode           string
+	Explanation    string
+	Difficulty     int16
+	IsPublished    bool
+	ChapterID      sql.NullInt64
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 type MasterExerciseExample struct {

@@ -2,8 +2,10 @@
 #
 # 主要 target:
 #   make openapi      … swag init で OpenAPI spec を 再 生成 (docs/swagger.{json,yaml})
+#   make sqlc         … queries/*.sql + schema/*.sql から型安全な Go を再生成
+#   make sqlc-vet     … sqlc.yaml の rules を全クエリに当てて危険な SQL を弾く
 #   make fmt          … gofumpt -w でコードを自動整形（commit 前に実行）
-#   make verify       … gofumpt / vet / build / test / archlint / apispec-lint / naminglint を 一括 実行
+#   make verify       … gofumpt / vet / build / test / archlint / apispec-lint / naminglint / sqlc-vet を 一括 実行
 #   make archlint     … クリーンアーキテクチャ依存方向ルール (CLAUDE.md §2) を 静的 検証
 #   make apispec-lint … Gin ルート ↔ swaggo @Router 注釈 の 整合 (CLAUDE.md §2.7) を 検証
 #   make naminglint   … usecase 命名・構造規約 (CLAUDE.md §2.3) を 検証
@@ -42,6 +44,19 @@ sqlc:
 	fi
 	@echo ">>> sqlc generate"
 	@$(SQLC) generate
+
+# sqlc vet: 生成とは別に、クエリ 1 本ずつへ sqlc.yaml 末尾の rules を当てる静的検査。
+# `sqlc generate` はスキーマとの型の突き合わせしか見ないので、「SQL としては正しいが
+# 実行すると事故る」書き方（WHERE の無い UPDATE / DELETE 等）はここで弾く。
+# ORM を廃して生 SQL に統一した以上、ORM が暗黙に持っていた安全弁はこれしかない。CI でも走る。
+.PHONY: sqlc-vet
+sqlc-vet:
+	@if [ ! -x "$(SQLC)" ]; then \
+	  echo ">>> installing sqlc CLI ($(SQLC_VERSION))..."; \
+	  go install github.com/sqlc-dev/sqlc/cmd/sqlc@$(SQLC_VERSION); \
+	fi
+	@echo ">>> sqlc vet"
+	@$(SQLC) vet
 
 .PHONY: openapi
 openapi:
@@ -87,6 +102,7 @@ verify:
 	$(MAKE) archlint
 	$(MAKE) apispec-lint
 	$(MAKE) naminglint
+	$(MAKE) sqlc-vet
 
 # クリーンアーキテクチャ依存方向ルール（CLAUDE.md §2）を静的に検証する。
 .PHONY: archlint

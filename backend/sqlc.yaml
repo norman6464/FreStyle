@@ -15,6 +15,28 @@
 #     適用順序（core → 骨格 → 権限）は FK の依存で決まっており崩せない。
 #
 # 生成: backend/ で `make sqlc`
+# 検査: backend/ で `make sqlc-vet`（このファイル末尾の rules を全クエリに当てる。CI でも走る）
+#
+# ---------------------------------------------------------------------------
+# この設定を触る人へ: 「ローカルと CI では通るが本番でだけ落ちる」項目がある
+#
+# 接続経路が環境で違い、しかも *プロトコルが違う*。
+#
+#   ローカル直結 / CI     … PostgreSQL へ直結。extended protocol。
+#                           パラメータは型 OID を付けて本文と別に送られ、
+#                           prepared statement はその接続が生きているあいだ残り続ける。
+#
+#   本番                  … Supabase の transaction pooler（pgbouncer）越し。
+#                           infra/database/postgres.go が DSN を見て simple query protocol を
+#                           強制する。パラメータはクライアント側で SQL リテラルへ埋め込まれ、
+#                           pooler は文と文のあいだで裏の PostgreSQL 接続を別クライアントへ
+#                           回すため、prepared statement はセッションをまたいで残らない。
+#
+# つまり「prepared statement を作って後で使い回す」（emit_prepared_queries）も
+# 「Go の型がそのまま SQL の構文になる」（下の jsonb override）も、直結では顕在化しない。
+# テストが全部緑でも本番でだけ落ちる、という壊れ方をする。設定を変えるときは
+# 直結で動いたことを根拠にしないこと。
+# ---------------------------------------------------------------------------
 version: "2"
 sql:
   - engine: "postgresql"
@@ -23,11 +45,90 @@ sql:
       - "internal/infra/database/schema/knowledge_base.sql"
       - "internal/infra/database/schema/knowledge_base_permissions.sql"
     queries: "internal/adapter/persistence/queries"
+
+    # このブロックのクエリすべてに当てる vet ルール。実体はファイル末尾の rules: に定義する。
+    # ここに名前を並べない限りルールは 1 本も走らない（rules: を書いただけでは無反応）。
+    rules:
+      - mutation-requires-where
+
     gen:
       go:
         package: "sqlcgen"
         out: "internal/adapter/persistence/sqlcgen"
         sql_package: "database/sql"
+        # sql_package を "pgx/v5" にはしない（2026-08 に検討したうえで見送った）。
+        # 同じ検討を誰かが一から繰り返さないよう、判断と再検討の条件をここに残す。
+        #
+        # pgx/v5 ネイティブにしたときの利点:
+        #   - NULL 可の列を sql.NullXxx ではなく pgtype で扱える。いまの生成物には
+        #     sql.NullBool / NullInt64 / NullString / NullTime が合計 89 箇所あり
+        #     （実測: NullInt64 30 / NullString 29 / NullTime 19 / NullBool 11）、
+        #     repository はそのたびに .Valid を見て domain 型へ詰め替えている。
+        #   - 配列・jsonb を pgtype がそのまま持てる。下の jsonb override のような
+        #     「simple protocol での埋め込み構文を合わせるために Go の型を手で指定する」
+        #     回避が、型の側で素直に解ける見込みがある。
+        #
+        # 見送った理由:
+        #   - 生成される型が総入れ替えになり、adapter/persistence の全 repository が
+        #     同時に壊れる。ORM（GORM）を全廃した直後に、データアクセス層をもう一度
+        #     全面的に書き換えるリスクは取らない。
+        #   - simple protocol（本番の pooler 経路）での jsonb・配列の埋め込み挙動を
+        #     全件検証し直す必要がある。ここはファイル冒頭に書いたとおり
+        #     「ローカルと CI では緑のまま本番でだけ落ちる」領域で、机上のレビューでは
+        #     担保できない。検証コストが移行本体より大きい。
+        #
+        # 再検討の条件（どれかを満たしたら、調べ直さずここから始める）:
+        #   - sql.NullXxx の詰め替えが原因の欠陥を実際に踏んだとき
+        #   - pgtype でしか素直に表現できない型（配列・range・複合型など）が必要になったとき
+        #   - 本番の接続経路が transaction pooler ではなくなり、simple protocol での
+        #     検証が不要になったとき
+        #   - 移行を repository 単位で刻める見通しが立ったとき
+        #     （一括でしか切り替えられないうちは着手しない）
+
+        # emit_prepared_queries は「意図的に書かない」（＝既定の false のまま）。
+        #
+        # true にすると sqlc は Prepare(ctx, db) を生成し、起動時に全クエリを
+        # db.PrepareContext して *sql.Stmt を Queries に抱え込み、以後はその Stmt を
+        # 使い回すコードを出す（実測: このリポジトリのクエリ数だけ、162 箇所の
+        # PrepareContext 呼び出しが db.go に並ぶ）。ローカルの直結 PostgreSQL では
+        # 往復が減って正しく速い。だが本番は transaction pooler（pgbouncer）越しで、
+        # pooler は文と文のあいだで裏の接続を別クライアントへ回す。準備したときの接続と
+        # 実行するときの接続が同じである保証がないので、実行時に
+        # "prepared statement does not exist"（SQLSTATE 26000）で落ちる。
+        # infra/database/postgres.go が pooler の DSN を見て simple query protocol を
+        # 強制しているのも同じ理由。
+        #
+        # 質が悪いのは、この壊れ方がローカルでも CI でも再現しないこと。どちらも直結で、
+        # 接続が生きているあいだ prepared statement は残るので全テストが緑のまま通る。
+        # 壊れるのはデプロイして pooler 越しに叩いた瞬間だけになる。
+        #
+        # 歯止めは設定の文字列ではなく「生成結果」を見る:
+        #   internal/adapter/persistence/sqlcgen_prepared_statements_test.go が
+        #   sqlcgen/*.go を構文解析し、PrepareContext の *呼び出し* が 0 件であることを
+        #   確かめる。設定の書き方（キー名の変更・別ファイルへの分割）が変わっても、
+        #   結果を見ているので効き続ける。
+        #
+        # 宣言と呼び出しを取り違えないこと:
+        #   DBTX interface の PrepareContext(...) は emit_prepared_queries の値に関係なく
+        #   sqlc が必ず「宣言」する。宣言を違反として数えると検査は永久に落ち、
+        #   呼び出しではなく宣言の有無を見ると永久に通る。上のテストは宣言を違反にせず、
+        #   同時に「宣言が確かにあること」も確認して、正しい生成物を見ていることを担保する。
+
+        # :many のクエリが 0 件のとき nil ではなく空スライス（[]T{}）を返させる。
+        #
+        # nil スライスは encoding/json で null になり、handler がそのまま返すと
+        # フロントの .map / .filter / for-of が TypeError で落ちる。データがまだ無い
+        # 新規ユーザー・新規コース・未提出の演習など「使い始めの動線」を直撃する。
+        # 実際に staging で観測され、そのあと機械化された経緯がある。
+        #
+        # ★ この不変条件は二段で守っている。片方だけ外すと穴が開く ★
+        #   1. ここ（emit_empty_slices: true） … sqlc 生成物が空スライスを返す
+        #   2. cmd/slicelint                   … 生成物を使う手書きの repository が
+        #                                        nil を返していないかを CI で検査する
+        # JSON まで届くには両方を通る必要があるので、どちらか一方だけでは守れない。
+        # 1 を false にすると生成物が nil を返し始め、2 は手書き側しか見ていないので気づけない。
+        # 2 を消すと repository の詰め替えで nil に戻る書き方が復活する。
+        # 外すときは必ずもう片方も一緒に見直すこと（cmd/slicelint/main.go にも同じ注意書きがある）。
         emit_empty_slices: true
         emit_json_tags: false
         emit_interface: false
@@ -55,3 +156,73 @@ sql:
               import: "encoding/json"
               type: "RawMessage"
               pointer: true
+
+# ---------------------------------------------------------------------------
+# sqlc vet の静的ルール（backend/ で `make sqlc-vet`。CI の backend ジョブでも走る）
+#
+# `sqlc generate` はスキーマとクエリを突き合わせて Go を出すが、「SQL として書けてしまう
+# 危険」までは見ない。vet は生成とは別に、クエリ 1 本ずつへ下のルールを当てて落とす。
+# ORM をやめて生 SQL に統一したので、ORM が暗黙に付けてくれていた安全弁はもう無い。
+# ここが最後の機械的な網になる。
+#
+# vet の CEL 式から見えるもの（sqlc v1.31.1 で実際に確かめた）:
+#   query.sql    … SQL 本文。`-- name:` 行は含まれない。ただしファイル先頭の見出しコメントは
+#                  そのファイルの「最初のクエリ」の本文に付いてくる（実測 6 ファイル）。
+#                  下のルールがコメント行を落としてから見ているのはこのため。
+#   query.name   … クエリ名（GetUserByID 等）
+#   query.cmd    … one / many / exec / execrows のいずれか（`:` は付かない）
+#   query.params … $1..$n の「番号」だけ。列名も型も入っていない
+#   config       … このファイルの version / engine / schema / queries
+#   postgresql.explain … 実 DB への接続設定があるときだけ。今は設定していないので使えない
+#   文字列関数（split / filter / trim / startsWith / join / matches …）は使える。
+#   matches は RE2 で、部分一致（アンカーは自分で書く）。(?i) / (?m) のインラインフラグは効く。
+#
+# 表現できないこと（できないと分かったうえで諦めている）:
+#   列の型が CEL から一切見えない。したがって「bigint の列に ::int を掛けていて 32bit へ
+#   縮む」のような型に踏み込んだ検査は vet では書けない。ここで書けるのは実質
+#   「SQL 本文への正規表現」まで。型の食い違いは `sqlc generate`（スキーマとの突き合わせ）と、
+#   本物の PostgreSQL に対する結合テスト（*_integration_test.go）で拾う。
+#
+# 組み込みルール sqlc/db-prepare は入れていない:
+#   実 DB へ繋いで全クエリを PREPARE してみるルールで、生きた PostgreSQL への接続設定が要る。
+#   一方このリポジトリでは、列名・型の食い違いは `sqlc generate` がスキーマと突き合わせて
+#   先に落とすし、repository は本物の PostgreSQL に対する結合ジョブで実際に実行している。
+#   db-prepare が追加で拾えるのは「generate は通るが PREPARE では落ちる」狭い差分だけで、
+#   その代わりに CI の静的検査ジョブへ DB 依存を 1 つ増やすことになる。割に合わないと判断した。
+#
+# 個別に外したいとき: そのクエリのコメントに /* @sqlc-vet-disable <ルール名> */ を書く
+# （ルール名を省くとそのクエリの vet が丸ごと止まる）。外すなら必ず理由も併記すること。
+# ---------------------------------------------------------------------------
+rules:
+  # UPDATE / DELETE に WHERE が無いクエリを弾く。
+  #
+  # WHERE の無い UPDATE / DELETE は構文として正しく、`sqlc generate` も素通りし、
+  # 実行するとテーブルの全行を書き換える / 消す。取り返しのつかない側の事故なので、
+  # 実行時ではなく書いた時点で落とす。
+  #
+  # 判定の作り（正規表現しか書けないという制約の中でどうやっているか）:
+  #   1. SQL 本文を行に割り、行頭が `--` のコメント行を落とす。理由は 2 つ。
+  #      (a) ファイル先頭の見出しコメントが最初のクエリの本文に付いてくるので、
+  #          落とさないと「文の先頭が UPDATE か」を見誤る。
+  #      (b) 説明文に「WHERE」と書いてあるだけで WHERE 有りと誤判定するのを防ぐ。
+  #   2. 残った行に「行頭（前後の空白を除く）が UPDATE / DELETE の行」があれば更新系とみなす。
+  #      (?m) を付けているので CTE の中（WITH x AS ( UPDATE ... )）も拾う。
+  #      `\b` があるので updated_at / deleted_at では誤爆しない。
+  #      INSERT ... ON CONFLICT DO UPDATE は UPDATE が行頭に来ないので拾わない。
+  #   3. その本文に WHERE が 1 つも無ければ違反。
+  #
+  # 既知の限界（誤検知より見逃し側に倒してある）:
+  #   sqlc の 1 クエリ = 1 文なので「本文のどこかに WHERE があるか」で概ね足りるが、
+  #   副問い合わせ側にだけ WHERE がある UPDATE（本体は全行更新）は見逃す。
+  #   行末に付けた `--` コメントの中の WHERE も数えてしまう。
+  #   厳密にするには SQL の構文解析が要り、CEL では書けない。
+  #   導入時点（クエリ 162 本 / うち UPDATE・DELETE 43 本）で誤検知 0・違反 0 を実測している。
+  - name: mutation-requires-where
+    message: >-
+      UPDATE / DELETE に WHERE がありません。実行するとテーブルの全行が対象になります。
+      絞り込み条件を書いてください。全件が本当に意図なら、そのクエリのコメントに
+      /* @sqlc-vet-disable mutation-requires-where */ と理由を書いて明示的に外してください。
+    rule: >-
+      query.sql.split("\n").filter(line, !line.trim().startsWith("--")).join("\n").matches("(?im)^[ \\t]*(update|delete)\\b")
+      &&
+      !query.sql.split("\n").filter(line, !line.trim().startsWith("--")).join("\n").matches("(?i)\\bwhere\\b")

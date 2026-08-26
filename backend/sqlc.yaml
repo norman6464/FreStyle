@@ -55,6 +55,34 @@ sql:
         package: "sqlcgen"
         out: "internal/adapter/persistence/sqlcgen"
         sql_package: "database/sql"
+        # sql_package を "pgx/v5" にはしない（2026-08 に検討したうえで見送った）。
+        # 同じ検討を誰かが一から繰り返さないよう、判断と再検討の条件をここに残す。
+        #
+        # pgx/v5 ネイティブにしたときの利点:
+        #   - NULL 可の列を sql.NullXxx ではなく pgtype で扱える。いまの生成物には
+        #     sql.NullBool / NullInt64 / NullString / NullTime が合計 89 箇所あり
+        #     （実測: NullInt64 30 / NullString 29 / NullTime 19 / NullBool 11）、
+        #     repository はそのたびに .Valid を見て domain 型へ詰め替えている。
+        #   - 配列・jsonb を pgtype がそのまま持てる。下の jsonb override のような
+        #     「simple protocol での埋め込み構文を合わせるために Go の型を手で指定する」
+        #     回避が、型の側で素直に解ける見込みがある。
+        #
+        # 見送った理由:
+        #   - 生成される型が総入れ替えになり、adapter/persistence の全 repository が
+        #     同時に壊れる。ORM（GORM）を全廃した直後に、データアクセス層をもう一度
+        #     全面的に書き換えるリスクは取らない。
+        #   - simple protocol（本番の pooler 経路）での jsonb・配列の埋め込み挙動を
+        #     全件検証し直す必要がある。ここはファイル冒頭に書いたとおり
+        #     「ローカルと CI では緑のまま本番でだけ落ちる」領域で、机上のレビューでは
+        #     担保できない。検証コストが移行本体より大きい。
+        #
+        # 再検討の条件（どれかを満たしたら、調べ直さずここから始める）:
+        #   - sql.NullXxx の詰め替えが原因の欠陥を実際に踏んだとき
+        #   - pgtype でしか素直に表現できない型（配列・range・複合型など）が必要になったとき
+        #   - 本番の接続経路が transaction pooler ではなくなり、simple protocol での
+        #     検証が不要になったとき
+        #   - 移行を repository 単位で刻める見通しが立ったとき
+        #     （一括でしか切り替えられないうちは着手しない）
         # emit_prepared_queries は「意図的に書かない」（＝既定の false のまま）。
         #
         # true にすると sqlc は Prepare(ctx, db) を生成し、起動時に全クエリを

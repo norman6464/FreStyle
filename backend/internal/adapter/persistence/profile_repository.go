@@ -12,7 +12,7 @@ import (
 )
 
 // profileRepository は [repository.ProfileRepository] の実装。
-// 読み取りは sqlc 生成コード（生 SQL）、書き込み（Upsert）は GORM。
+// クエリは sqlc 生成コード（生 SQL）で、GORM からは接続プール（*sql.DB）だけを借りる。
 type profileRepository struct{ db *gorm.DB }
 
 func NewProfileRepository(db *gorm.DB) repository.ProfileRepository {

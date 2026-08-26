@@ -7,7 +7,8 @@ import (
 	"gorm.io/gorm"
 )
 
-// healthRepository は [repository.HealthRepository] の GORM 実装。
+// healthRepository は [repository.HealthRepository] の実装。
+// GORM からは接続プール（*sql.DB）だけを借り、その PingContext で疎通を確かめる。
 type healthRepository struct {
 	db *gorm.DB
 }

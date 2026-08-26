@@ -4,6 +4,7 @@ package usecase_test
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"sync"
 	"testing"
@@ -25,8 +26,7 @@ import (
 // ここでは「畳めば同じだが byte 列は全て違う」12 通りを同時に流し、
 // できあがる super_admin が 1 人以下であることを確かめる。
 func TestBootstrapSuperAdmin_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	users := persistence.NewUserRepository(sqlDB)
 	ctx := context.Background()
 
@@ -50,7 +50,7 @@ func TestBootstrapSuperAdmin_Integration(t *testing.T) {
 	// 1 回で必ず競合が起きるとは限らないので複数回まわす。
 	const rounds = 5
 	for round := range rounds {
-		testsupport.TruncateAll(t, db, "users", "user_oidc_identities")
+		testsupport.TruncateAll(t, sqlDB, "users", "user_oidc_identities")
 		uc := usecase.NewUpsertUserFromIDTokenUseCase(users, nil, bootstrapEmail)
 
 		allowed := make([]bool, len(variants))
@@ -80,13 +80,11 @@ func TestBootstrapSuperAdmin_Integration(t *testing.T) {
 			}
 		}
 
-		var created []string
-		require.NoError(t, db.Raw(
+		created := queryStrings(t, sqlDB,
 			`SELECT u.email FROM users u
 			 JOIN roles r ON r.id = u.role_id
 			 WHERE r.name = 'super_admin' AND u.deleted_at IS NULL
-			 ORDER BY u.id`,
-		).Scan(&created).Error)
+			 ORDER BY u.id`)
 		// 不変条件の検証は assert（1 回落ちても後続の round を最後まで回して全体像を出す）。
 		assert.LessOrEqualf(t, len(created), 1,
 			"round %d: 競合で super_admin が %d 人できた（期待: 1 人以下）: %v",
@@ -96,7 +94,7 @@ func TestBootstrapSuperAdmin_Integration(t *testing.T) {
 			round, accepted, created)
 
 		var total int64
-		require.NoError(t, db.Raw(`SELECT count(*) FROM users WHERE deleted_at IS NULL`).Scan(&total).Error)
+		require.NoError(t, sqlDB.QueryRow(`SELECT count(*) FROM users WHERE deleted_at IS NULL`).Scan(&total))
 		assert.LessOrEqualf(t, total, int64(1), "round %d: users 行が %d 件できた（期待: 1 件以下）", round, total)
 
 		if len(created) == 1 {
@@ -104,4 +102,20 @@ func TestBootstrapSuperAdmin_Integration(t *testing.T) {
 			assert.Equalf(t, bootstrapEmail, created[0], "round %d: 保存された email が正規形でない", round)
 		}
 	}
+}
+
+// queryStrings は 1 列の文字列を全行読み出す。
+func queryStrings(t *testing.T, db *sql.DB, query string, args ...any) []string {
+	t.Helper()
+	rows, err := db.Query(query, args...)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, rows.Close()) }()
+	out := make([]string, 0)
+	for rows.Next() {
+		var v string
+		require.NoError(t, rows.Scan(&v))
+		out = append(out, v)
+	}
+	require.NoError(t, rows.Err())
+	return out
 }

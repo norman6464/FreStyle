@@ -213,10 +213,12 @@ func (r *teachingMaterialRepository) Create(ctx context.Context, m *domain.Teach
 	return nil
 }
 
+// Update は title / sort_order / is_published を書き換える。対象行が無ければ
+// gorm.ErrRecordNotFound（handler が 404 に分岐）。
 func (r *teachingMaterialRepository) Update(ctx context.Context, m *domain.TeachingMaterial) error {
 	id64, ok := toInt64ID(m.ID)
 	if !ok {
-		return nil // 存在し得ない id = 対象なし
+		return gorm.ErrRecordNotFound // 存在し得ない id = not found
 	}
 	sqlDB, err := r.db.DB()
 	if err != nil {
@@ -231,6 +233,10 @@ func (r *teachingMaterialRepository) Update(ctx context.Context, m *domain.Teach
 		IsPublished: m.IsPublished,
 	})
 	if err != nil {
+		// 0 行 = 取得と更新の間に章が消えた。黙って nil を返すと失われた編集を保存済みに見せるので 404 を返す。
+		if errors.Is(err, sql.ErrNoRows) {
+			return gorm.ErrRecordNotFound
+		}
 		return err
 	}
 	m.UpdatedAt = updatedAt // GORM Save 相当の書き戻し

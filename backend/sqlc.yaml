@@ -51,6 +51,7 @@ sql:
     rules:
       - mutation-requires-where
       - narrowing-cast-on-param
+      - no-array-param
 
     gen:
       go:
@@ -299,4 +300,44 @@ rules:
       /* @sqlc-vet-disable narrowing-cast-on-param */ と理由をクエリのコメントに書いてください。
     rule: >-
       query.sql.split("\n").filter(line, !line.trim().startsWith("--")).join("\n").matches("(?i)[$][0-9]+[ \\t]*::[ \\t]*(int|integer|int4|smallint|int2)\\b")
+
+  # パラメータを配列型にキャストするのを弾く（IN 句をまとめて渡したいとき用）。
+  #
+  # 何が起きるか:
+  #   `= ANY($1::bigint[])` や `<> ALL($1::text[])` のように配列型のパラメータを作ると、
+  #   database/sql モードの sqlc は引数を pq.Array() で包むコードを生成し、生成物に
+  #   github.com/lib/pq の import を足す（実測で確認）。このリポジトリの driver は pgx で、
+  #   lib/pq は go.mod に入っていない。
+  #
+  # なぜ止めるのか（ビルドが壊れるだけなら放っておけばいい、ではない理由）:
+  #   壊れ方が「直し方を間違えやすい」形で出る。`make sqlc` の直後に出るのは
+  #   「github.com/lib/pq を提供するモジュールがありません」というビルドエラーで、
+  #   素直に読むと `go get github.com/lib/pq` が正解に見える。そうすると、避けている
+  #   はずの driver がもう 1 つ依存に入り、以後この生成が「通ってしまう」ようになる。
+  #   書いた時点で理由ごと止めれば、その分岐に入らない。
+  #
+  # 代わりにどう書くか:
+  #   id の集まりは json 配列 1 個のパラメータで渡し、SQL 側で展開する。
+  #   実例は master_exercise_example.sql の ListMasterExerciseExamplesByExerciseIDs
+  #   （json_array_elements_text で展開してから bigint へ落としている）。
+  #
+  # 何を弾かないか:
+  #   見るのは「プレースホルダ $N の直後の配列キャスト」だけ。
+  #   `= ANY(SELECT ...)` の副問い合わせ形は配列パラメータを作らない（実測: 生成物に
+  #   pq.Array は出ず、素の $1 のまま）ので対象外。式の結果に対する配列キャストも同様。
+  #
+  # 免除してよい場合:
+  #   lib/pq を依存に入れる判断そのものを別途したうえで使うとき。
+  #   /* @sqlc-vet-disable no-array-param */ に理由を書くこと。
+  - name: no-array-param
+    message: >-
+      パラメータを配列型にキャストしています。database/sql モードの sqlc はこれを
+      pq.Array() で包む生成にし、github.com/lib/pq を import します。このリポジトリの
+      driver は pgx で lib/pq は go.mod に入っていないため、生成物がビルドできなくなります
+      （そして「lib/pq を足す」という誤った直し方に誘導されます）。
+      id の集まりは json 配列 1 個のパラメータで渡し、json_array_elements_text で
+      展開してください（実例: master_exercise_example.sql の
+      ListMasterExerciseExamplesByExerciseIDs）。
+    rule: >-
+      query.sql.split("\n").filter(line, !line.trim().startsWith("--")).join("\n").matches("(?i)[$][0-9]+[ \\t]*::[ \\t]*[a-z_][a-z0-9_]*[ \\t]*\\[[ \\t]*\\]")
 

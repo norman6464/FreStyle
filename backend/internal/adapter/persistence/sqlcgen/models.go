@@ -370,6 +370,16 @@ type UserChapterView struct {
 	ViewCount     int32
 }
 
+type UserDailyActivity struct {
+	UserID        int64
+	ActivityDate  time.Time
+	ExerciseCount int32
+	CorrectCount  int32
+	ChapterCount  int32
+	AiChatCount   int32
+	NoteCount     int32
+}
+
 type UserOidcIdentity struct {
 	ID        int64
 	UserID    int64

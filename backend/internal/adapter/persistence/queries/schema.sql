@@ -361,3 +361,17 @@ CREATE TABLE rich_documents (
     CONSTRAINT ck_rich_documents_doc CHECK (jsonb_typeof(doc) = 'object' AND doc->>'type' = 'doc'),
     CONSTRAINT ck_rich_documents_title_len CHECK (char_length(title) <= 200)
 );
+
+-- 日次の学習活動サマリー。domain.UserDailyActivity の GORM タグを正とする。
+-- activity_date は date 型（PK の一部）。各 *_count は type:integer 指定のため integer。
+-- chapter_count は改名後の列名（旧 lesson_count）。
+CREATE TABLE user_daily_activities (
+    user_id        bigint NOT NULL,
+    activity_date  date NOT NULL,
+    exercise_count integer NOT NULL DEFAULT 0,
+    correct_count  integer NOT NULL DEFAULT 0,
+    chapter_count  integer NOT NULL DEFAULT 0,
+    ai_chat_count  integer NOT NULL DEFAULT 0,
+    note_count     integer NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, activity_date)
+);

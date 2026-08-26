@@ -20,9 +20,9 @@ import (
 //	あとの姿で、(a) スキーマは一切見えず、(b) -- name: 行から最初の SQL キーワードまでの
 //	コメントは落ちており、(c) sqlc.arg / sqlc.slice は既に $1, $2 … へ書き換わっている
 //	（いずれも sqlc v1.31.1 で実測。sqlc.yaml 冒頭に同じ記載がある）。
-//	下の検査は表にどんな列があるかを知る必要があるので、vet では原理的に書けない。
-//	書けないものを無理に近似すると、正当なクエリを弾くか、危ないクエリを見逃すかの
-//	どちらかになる。
+//	下の 2 つはそれぞれ「表の列を知る必要がある」「sqlc.slice という文字列を見る必要がある」
+//	ため、vet では原理的に書けない。書けないものを無理に近似すると、正当なクエリを
+//	弾くか、危ないクエリを見逃すかのどちらかになる。
 //
 // なぜ cmd/ の linter ではなくテストなのか:
 //
@@ -67,6 +67,7 @@ var (
 	whereRe       = regexp.MustCompile(`(?is)\bwhere\b`)
 	identRe       = regexp.MustCompile(`[a-z_][a-z0-9_]*`)
 	exemptionRe   = regexp.MustCompile(`(?im)^[ \t]*--[ \t]*upsert-owner-scope:[ \t]*(\S.*?)[ \t]*$`)
+	sqlcSliceRe   = regexp.MustCompile(`(?i)sqlc\.slice[ \t]*\(`)
 	columnDeclRe  = regexp.MustCompile(`^"?([a-z_][a-z0-9_]*)"?\s+\S`)
 )
 
@@ -518,4 +519,62 @@ SELECT id FROM session_notes WHERE session_id = $1 AND user_id = $2;`,
 			require.Empty(t, got, "正当な書き方ですが弾かれました:\n%s", strings.Join(got, "\n"))
 		})
 	}
+}
+
+// Test_クエリがsqlcSliceを使っていないこと は、IN 句のスライス展開 sqlc.slice を禁じる。
+//
+// 何が起きるか（engine postgresql + sql_package database/sql + sqlc v1.31.1 で実測）:
+//
+//	sqlc.slice は本来「実行時に ? を要素数ぶんへ展開する」仕組みで、生成コードには
+//	strings.Replace(query, "/*SLICE:ids*/?", ...) という書き換えが出る。ところが
+//	PostgreSQL 向けの生成では SQL 定数を出したあとにプレースホルダを ? から $N へ
+//	振り直す工程が入り、目印の "/*SLICE:ids*/?" ごと消えて IN ($1) になる。
+//	実測した生成物がまさにそれで、定数の中に目印が無い。つまり上の Replace は何にも
+//	一致せず、書き換えは起きない。結果、SQL のプレースホルダは 1 個のままで、渡す値だけが
+//	要素数ぶんになる。
+//
+// なぜテストでもローカルでも気づけないか:
+//
+//	生成物は正しい Go なのでビルドも go vet も通り、DB を触らない単体テストでも起きない。
+//	さらに要素が 1 個のときだけ IN ($1) と値 1 個で数が偶然合って正しく動くため、手元の
+//	動作確認をすり抜けやすい。実際に落ちるのは 2 個以上（または 0 個）を渡して
+//	PostgreSQL に実行させたときだけになる。
+//
+// なぜ sqlc vet に書けないか:
+//
+//	vet に渡る query.sql では sqlc.slice は既に $N へ書き換わっており、CEL からは
+//	sqlc.slice という文字列が見えない（実測。sqlc.yaml 冒頭に記載）。
+//
+// 代わりの書き方:
+//
+//	id の集まりは json 配列 1 個のパラメータで渡し、json_array_elements_text で展開する。
+//	実例は master_exercise_example.sql の ListMasterExerciseExamplesByExerciseIDs。
+func Test_クエリがsqlcSliceを使っていないこと(t *testing.T) {
+	var found []string
+	for path, src := range readSQLFiles(t, queriesDir) {
+		for _, m := range sqlcSliceRe.FindAllStringIndex(stripSQLComments(src), -1) {
+			found = append(found, fmt.Sprintf("%s:%d", path, lineOf(src, m[0])))
+		}
+	}
+	sort.Strings(found)
+	require.Empty(t, found,
+		"sqlc.slice はこの設定（postgresql + database/sql）では展開されず、"+
+			"プレースホルダ 1 個に対して要素数ぶんの値を渡す生成になります。"+
+			"json 配列 1 個のパラメータで渡し json_array_elements_text で展開してください"+
+			"（実例: master_exercise_example.sql の ListMasterExerciseExamplesByExerciseIDs）:\n%s",
+		strings.Join(found, "\n"))
+}
+
+// Test_sqlcSlice検査がコメントと本文を区別すること は、上の検査が本文だけを見ていることを確かめる。
+func Test_sqlcSlice検査がコメントと本文を区別すること(t *testing.T) {
+	body := `-- name: Q :many
+-- sqlc.slice は使わない（この行はコメント）
+SELECT 1;`
+	require.Empty(t, sqlcSliceRe.FindAllStringIndex(stripSQLComments(body), -1),
+		"コメント内の記述を拾ってしまっています")
+
+	real := `-- name: Q :many
+SELECT * FROM t WHERE id IN (sqlc.slice(ids));`
+	require.Len(t, sqlcSliceRe.FindAllStringIndex(stripSQLComments(real), -1), 1,
+		"本文の sqlc.slice を拾えていません")
 }

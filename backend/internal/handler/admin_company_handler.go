@@ -9,7 +9,6 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
-	"gorm.io/gorm"
 )
 
 // isSuperAdmin は actor が super_admin（運営管理者）かを判定する。
@@ -127,7 +126,7 @@ func (h *AdminCompanyHandler) SetActive(c *gin.Context) {
 		Active:    *body.Active,
 	})
 	switch {
-	case errors.Is(err, gorm.ErrRecordNotFound):
+	case errors.Is(err, domain.ErrNotFound):
 		c.JSON(http.StatusNotFound, errorResponse{Error: "company_not_found"})
 		return
 	case err != nil:

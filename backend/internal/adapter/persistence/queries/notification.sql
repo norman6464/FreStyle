@@ -26,12 +26,29 @@ SELECT x.user_id, x.type, x.title, x.body, x.is_read, now()
 FROM json_to_recordset(sqlc.arg(items)::json)
   AS x(user_id bigint, type text, title text, body text, is_read boolean);
 
--- name: MarkNotificationRead :exec
+-- name: MarkNotificationRead :execrows
 -- 単一通知を既読化する。WHERE で user_id を絞り、他人の通知を既読化できないようにする。
+--
+-- :exec ではなく :execrows にしている理由:
+--   :exec は「SQL がエラーなく流れたか」しか返さない。UPDATE は 1 行も一致しなくても
+--   成功なので、存在しない id・他人の通知を渡しても呼び出し側には成功として見える。
+--   :execrows は実際に書き換わった行数（RowsAffected）を返すので 0 行を not-found にできる。
+--
+-- 存在オラクルとの関係:
+--   WHERE に user_id が入っているので「他人の通知」も「存在しない id」もどちらも 0 行になり、
+--   同じ 404 に畳まれる。応答が分かれるのは自分の通知を既読化できたかどうかだけ。
+--
+-- 既読の通知をもう一度既読化した場合は 1 行に当たる（is_read の条件を WHERE に入れていない）。
+-- 二重既読は not-found にならない。
 UPDATE notifications SET is_read = true
 WHERE id = $1 AND user_id = $2;
 
 -- name: MarkAllNotificationsRead :exec
 -- 対象 user の未読通知をすべて既読化する。
+--
+-- ここは :exec のままで良い（件数を見ない）。単一行を狙う MarkNotificationRead と違い、
+-- これは「その user の未読を全部畳む」一括操作で、0 件は「未読が 1 件も無かった」という
+-- 正常な結果でしかない。0 件を not-found にすると、未読が無い状態で
+-- 「すべて既読にする」を押しただけで 404 が返ることになる。
 UPDATE notifications SET is_read = true
 WHERE user_id = $1 AND is_read = false;

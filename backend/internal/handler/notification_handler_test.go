@@ -99,6 +99,15 @@ func Test_通知ハンドラ_既読化(t *testing.T) {
 			t.Fatalf("want 400, got %d", w.Code)
 		}
 	})
+	// 0 行更新（他人の通知 / 存在しない id）は repository が domain.ErrNotFound を返す。
+	// 以前はここでも 204 を返しており、既読化できていないのに呼び出し側は成功と判断していた。
+	t.Run("対象なし（domain.ErrNotFound） → 404", func(t *testing.T) {
+		w, c := notifCtx(7, "1")
+		newNotifHandler(&fakeNotifRepo{err: domain.ErrNotFound}).MarkRead(c)
+		if w.Code != http.StatusNotFound {
+			t.Fatalf("want 404, got %d", w.Code)
+		}
+	})
 }
 
 func Test_通知ハンドラ_全既読化(t *testing.T) {

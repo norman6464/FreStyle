@@ -2,19 +2,36 @@ package persistence
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 
+	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"gorm.io/gorm"
 )
 
+// userChapterViewRepository は [repository.UserChapterViewRepository] の実装。
+// クエリは sqlc 生成コード（生 SQL）で、GORM からは接続プール（*sql.DB）だけを借りる。
 type userChapterViewRepository struct {
 	db *gorm.DB
 }
 
-// NewUserChapterViewRepository は UserChapterViewRepository の GORM 実装を返す。
+// NewUserChapterViewRepository は UserChapterViewRepository の実装を返す。
 func NewUserChapterViewRepository(db *gorm.DB) repository.UserChapterViewRepository {
 	return &userChapterViewRepository{db: db}
+}
+
+func toDomainUserChapterView(row sqlcgen.UserChapterView) domain.UserChapterView {
+	return domain.UserChapterView{
+		UserID: uint64(row.UserID),
+		// TeachingMaterialID は列 chapter_id に対応する（JSON は互換のため teachingMaterialId）。
+		TeachingMaterialID: uint64(row.ChapterID),
+		CourseID:           uint64(row.CourseID),
+		FirstViewedAt:      row.FirstViewedAt,
+		LastViewedAt:       row.LastViewedAt,
+		ViewCount:          int(row.ViewCount),
+	}
 }
 
 // UpsertView は章閲覧を記録する。初回 INSERT、2 回目以降は last_viewed_at と view_count を更新する。
@@ -22,17 +39,27 @@ func (r *userChapterViewRepository) UpsertView(
 	ctx context.Context,
 	userID, teachingMaterialID, courseID uint64,
 ) error {
-	sql := `
-INSERT INTO user_chapter_views
-  (user_id, chapter_id, course_id, first_viewed_at, last_viewed_at, view_count)
-VALUES
-  (?, ?, ?, NOW(), NOW(), 1)
-ON CONFLICT (user_id, chapter_id) DO UPDATE SET
-  course_id      = EXCLUDED.course_id,
-  last_viewed_at = NOW(),
-  view_count     = user_chapter_views.view_count + 1
-`
-	return r.db.WithContext(ctx).Exec(sql, userID, teachingMaterialID, courseID).Error
+	uid, ok := toInt64ID(userID)
+	if !ok {
+		return nil // 存在し得ない user_id は書き込まない
+	}
+	cid, ok := toInt64ID(teachingMaterialID)
+	if !ok {
+		return nil
+	}
+	coid, ok := toInt64ID(courseID)
+	if !ok {
+		return nil
+	}
+	sqlDB, err := r.db.DB()
+	if err != nil {
+		return err
+	}
+	return sqlcgen.New(sqlDB).UpsertUserChapterView(ctx, sqlcgen.UpsertUserChapterViewParams{
+		UserID:    uid,
+		ChapterID: cid,
+		CourseID:  coid,
+	})
 }
 
 func (r *userChapterViewRepository) ListRecentByUser(
@@ -40,14 +67,26 @@ func (r *userChapterViewRepository) ListRecentByUser(
 	userID uint64,
 	limit int,
 ) ([]domain.UserChapterView, error) {
-	rows := make([]domain.UserChapterView, 0)
-	err := r.db.WithContext(ctx).
-		Where("user_id = ?", userID).
-		// PK は (user_id, chapter_id)。user_id 固定なので chapter_id が同時刻のタイブレークになる。
-		Order("last_viewed_at DESC, chapter_id DESC").
-		Limit(limit).
-		Find(&rows).Error
-	return rows, err
+	uid, ok := toInt64ID(userID)
+	if !ok {
+		return []domain.UserChapterView{}, nil // 存在し得ない user_id = 0 件
+	}
+	sqlDB, err := r.db.DB()
+	if err != nil {
+		return nil, err
+	}
+	rows, err := sqlcgen.New(sqlDB).ListRecentUserChapterViewsByUser(ctx, sqlcgen.ListRecentUserChapterViewsByUserParams{
+		UserID:   uid,
+		RowLimit: int32(limit),
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.UserChapterView, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, toDomainUserChapterView(row))
+	}
+	return out, nil
 }
 
 // GetLastViewedByUserAndCourse は (user, course) の閲覧記録から last_viewed_at 最大の 1 件を返す。
@@ -56,18 +95,28 @@ func (r *userChapterViewRepository) GetLastViewedByUserAndCourse(
 	ctx context.Context,
 	userID, courseID uint64,
 ) (*domain.UserChapterView, error) {
-	var rows []domain.UserChapterView
-	err := r.db.WithContext(ctx).
-		Where("user_id = ? AND course_id = ?", userID, courseID).
-		// 同時刻の章が複数あっても返す 1 件がぶれないよう chapter_id をタイブレークに置く。
-		Order("last_viewed_at DESC, chapter_id DESC").
-		Limit(1).
-		Find(&rows).Error
+	uid, ok := toInt64ID(userID)
+	if !ok {
+		return nil, nil
+	}
+	coid, ok := toInt64ID(courseID)
+	if !ok {
+		return nil, nil
+	}
+	sqlDB, err := r.db.DB()
 	if err != nil {
 		return nil, err
 	}
-	if len(rows) == 0 {
-		return nil, nil
+	row, err := sqlcgen.New(sqlDB).GetLastViewedUserChapterViewByCourse(ctx, sqlcgen.GetLastViewedUserChapterViewByCourseParams{
+		UserID:   uid,
+		CourseID: coid,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil // 履歴なしは正常系
 	}
-	return &rows[0], nil
+	if err != nil {
+		return nil, err
+	}
+	v := toDomainUserChapterView(row)
+	return &v, nil
 }

@@ -20,9 +20,9 @@ VALUES (
   sqlc.arg(kind),
   sqlc.arg(title),
   sqlc.arg(is_public),
-  COALESCE(NULLIF(sqlc.arg(schema_version)::int, 0), 1),
+  COALESCE(NULLIF(sqlc.arg(schema_version)::bigint, 0), 1),
   sqlc.arg(doc),
-  COALESCE(NULLIF(sqlc.arg(revision)::int, 0), 1),
+  COALESCE(NULLIF(sqlc.arg(revision)::bigint, 0), 1),
   sqlc.arg(created_at),
   sqlc.arg(updated_at)
 )

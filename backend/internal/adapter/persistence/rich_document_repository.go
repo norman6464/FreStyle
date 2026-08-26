@@ -144,9 +144,9 @@ func (r *richDocumentRepository) Create(ctx context.Context, doc *domain.RichDoc
 		Kind:          string(doc.Kind),
 		Title:         doc.Title,
 		IsPublic:      doc.IsPublic,
-		SchemaVersion: int32(doc.SchemaVersion), // 0 は SQL 側の COALESCE で既定 1 に倒す
+		SchemaVersion: int64(doc.SchemaVersion), // 0 は SQL 側の COALESCE で既定 1 に倒す
 		Doc:           json.RawMessage(doc.Doc),
-		Revision:      int32(doc.Revision), // 0 は SQL 側の COALESCE で既定 1 に倒す
+		Revision:      int64(doc.Revision), // 0 は SQL 側の COALESCE で既定 1 に倒す
 		CreatedAt:     createdAt,
 		UpdatedAt:     updatedAt,
 	})

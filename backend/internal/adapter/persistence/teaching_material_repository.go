@@ -197,9 +197,9 @@ func (r *teachingMaterialRepository) Create(ctx context.Context, m *domain.Teach
 		CourseID:        courseID,
 		CreatedByUserID: createdBy,
 		Title:           m.Title,
-		Revision:        int32(m.Revision),      // 0 は SQL 側の COALESCE で既定 1 に倒す
-		SchemaVersion:   int32(m.SchemaVersion), // 0 は SQL 側の COALESCE で既定 1 に倒す
-		SortOrder:       int32(m.OrderInCourse), // 0 は SQL 側の COALESCE で既定 100 に倒す
+		Revision:        int64(m.Revision),      // 0 は SQL 側の COALESCE で既定 1 に倒す
+		SchemaVersion:   int64(m.SchemaVersion), // 0 は SQL 側の COALESCE で既定 1 に倒す
+		SortOrder:       int64(m.OrderInCourse), // 0 は SQL 側の COALESCE で既定 100 に倒す
 		IsPublished:     m.IsPublished,
 		CreatedAt:       createdAt,
 		UpdatedAt:       updatedAt,

@@ -43,9 +43,9 @@ VALUES (
   sqlc.arg(course_id),
   sqlc.arg(created_by_user_id),
   sqlc.arg(title),
-  COALESCE(NULLIF(sqlc.arg(revision)::int, 0), 1),
-  COALESCE(NULLIF(sqlc.arg(schema_version)::int, 0), 1),
-  COALESCE(NULLIF(sqlc.arg(sort_order)::int, 0), 100),
+  COALESCE(NULLIF(sqlc.arg(revision)::bigint, 0), 1),
+  COALESCE(NULLIF(sqlc.arg(schema_version)::bigint, 0), 1),
+  COALESCE(NULLIF(sqlc.arg(sort_order)::bigint, 0), 100),
   sqlc.arg(is_published),
   sqlc.arg(created_at),
   sqlc.arg(updated_at)

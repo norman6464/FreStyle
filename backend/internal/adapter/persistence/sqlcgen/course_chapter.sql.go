@@ -109,9 +109,9 @@ VALUES (
   $2,
   $3,
   $4,
-  COALESCE(NULLIF($5::int, 0), 1),
-  COALESCE(NULLIF($6::int, 0), 1),
-  COALESCE(NULLIF($7::int, 0), 100),
+  COALESCE(NULLIF($5::bigint, 0), 1),
+  COALESCE(NULLIF($6::bigint, 0), 1),
+  COALESCE(NULLIF($7::bigint, 0), 100),
   $8,
   $9,
   $10
@@ -124,9 +124,9 @@ type InsertChapterParams struct {
 	CourseID        int64
 	CreatedByUserID int64
 	Title           string
-	Revision        int32
-	SchemaVersion   int32
-	SortOrder       int32
+	Revision        int64
+	SchemaVersion   int64
+	SortOrder       int64
 	IsPublished     bool
 	CreatedAt       time.Time
 	UpdatedAt       time.Time

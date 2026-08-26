@@ -53,9 +53,9 @@ VALUES (
   $4,
   $5,
   $6,
-  COALESCE(NULLIF($7::int, 0), 1),
+  COALESCE(NULLIF($7::bigint, 0), 1),
   $8,
-  COALESCE(NULLIF($9::int, 0), 1),
+  COALESCE(NULLIF($9::bigint, 0), 1),
   $10,
   $11
 )
@@ -69,9 +69,9 @@ type InsertRichDocumentParams struct {
 	Kind          string
 	Title         string
 	IsPublic      bool
-	SchemaVersion int32
+	SchemaVersion int64
 	Doc           json.RawMessage
-	Revision      int32
+	Revision      int64
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 }

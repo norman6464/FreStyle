@@ -337,3 +337,27 @@ CREATE TABLE user_chapter_views (
     view_count      integer NOT NULL DEFAULT 1,
     PRIMARY KEY (user_id, chapter_id)
 );
+
+-- リッチテキスト文書（tiptap JSON を jsonb で保持）。domain.RichDocument の GORM タグを正とし、
+-- FK / CHECK は ApplyRichDocumentConstraints（infra/database/migrate.go）を写す。
+--   - id は uuid（アプリ採番。bigint ではない）
+--   - doc は jsonb NOT NULL、object かつ type='doc' に限る CHECK
+--   - owner_id → users(id) ON DELETE CASCADE
+--   - company_id は *uint64 で nullable、deleted_at も nullable
+CREATE TABLE rich_documents (
+    id             uuid PRIMARY KEY,
+    owner_id       bigint NOT NULL,
+    company_id     bigint,
+    kind           text NOT NULL,
+    title          text NOT NULL,
+    is_public      boolean NOT NULL DEFAULT false,
+    schema_version bigint NOT NULL DEFAULT 1,
+    doc            jsonb NOT NULL,
+    revision       bigint NOT NULL DEFAULT 1,
+    created_at     timestamptz NOT NULL,
+    updated_at     timestamptz NOT NULL,
+    deleted_at     timestamptz,
+    CONSTRAINT fk_rich_documents_owner FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT ck_rich_documents_doc CHECK (jsonb_typeof(doc) = 'object' AND doc->>'type' = 'doc'),
+    CONSTRAINT ck_rich_documents_title_len CHECK (char_length(title) <= 200)
+);

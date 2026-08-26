@@ -271,6 +271,21 @@ type Profile struct {
 	UpdatedAt     time.Time
 }
 
+type RichDocument struct {
+	ID            uuid.UUID
+	OwnerID       int64
+	CompanyID     sql.NullInt64
+	Kind          string
+	Title         string
+	IsPublic      bool
+	SchemaVersion int64
+	Doc           json.RawMessage
+	Revision      int64
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	DeletedAt     sql.NullTime
+}
+
 type Role struct {
 	ID          int16
 	Name        string

@@ -56,14 +56,22 @@ func (r *lessonProgressRepository) MarkCompleted(ctx context.Context, userID, ma
 	return n > 0, nil
 }
 
+// MarkIncomplete は章の完了記録を取り消す（行を消す）。
+//
+// ここは 0 行削除を成功のままにする（not-found にしない）。この操作が表しているのは
+// 「その (user, chapter) の完了記録が無い状態」で、まだ完了していない章のチェックを外す
+// 要求は最初からその事後条件を満たしている。MarkCompleted 側も ON CONFLICT DO NOTHING の
+// 冪等な INSERT なので、完了トグルは往復のどちらでも「今の状態に揃える」意味になる。
+// 未完了の章を外しただけで 404 が返ると、フロントの楽観更新がロールバックされて
+// チェックが勝手に戻る（利用者から見れば操作が拒否されたのと区別が付かない）。
 func (r *lessonProgressRepository) MarkIncomplete(ctx context.Context, userID, materialID uint64) error {
 	uid, ok := toInt64ID(userID)
 	if !ok {
-		return nil
+		return nil // 存在し得ない user_id = 消す記録がない（冪等に成功）
 	}
 	cid, ok := toInt64ID(materialID)
 	if !ok {
-		return nil
+		return nil // 存在し得ない chapter_id = 消す記録がない（冪等に成功）
 	}
 	return sqlcgen.New(r.db).DeleteUserChapterProgress(ctx, sqlcgen.DeleteUserChapterProgressParams{
 		UserID:    uid,

@@ -306,6 +306,13 @@ func (r *knowledgeBasePermissionRepository) AddGroupMember(ctx context.Context, 
 	})
 }
 
+// RemoveGroupMember はグループから 1 人外す。
+//
+// ここは 0 行削除を成功のままにする（not-found にしない）。求められているのは
+// 「その主体がこのグループに載っていない状態」であって、今回の呼び出しで実際に 1 行
+// 消えたかどうかではない。元から載っていない主体を外す要求は、その事後条件を既に
+// 満たしているので冪等に成功で良い。Update 系と違い、成功を返しても「保存したはずの値が
+// 保存されていない」という取り違えは起きない。
 func (r *knowledgeBasePermissionRepository) RemoveGroupMember(ctx context.Context, workspaceID, groupPrincipalID, memberPrincipalID string) error {
 	wsID, ok := kbParseID(workspaceID)
 	gID, ok2 := kbParseID(groupPrincipalID)
@@ -339,6 +346,9 @@ func (r *knowledgeBasePermissionRepository) UpsertWorkspaceGrant(ctx context.Con
 	return &g, nil
 }
 
+// DeleteWorkspaceGrant はワークスペース権限を 1 件取り消す。
+// RemoveGroupMember と同じ理由で 0 行削除は成功のまま（「権限が無い状態」が事後条件で、
+// 元から無ければ既に満たされている）。取り消しの再実行を 404 にしない。
 func (r *knowledgeBasePermissionRepository) DeleteWorkspaceGrant(ctx context.Context, workspaceID, principalID string) error {
 	wsID, ok := kbParseID(workspaceID)
 	prID, ok2 := kbParseID(principalID)
@@ -388,6 +398,8 @@ func (r *knowledgeBasePermissionRepository) UpsertSpaceGrant(ctx context.Context
 	return &g, nil
 }
 
+// DeleteSpaceGrant はスペース権限を 1 件取り消す。
+// DeleteWorkspaceGrant と同じ理由で 0 行削除は成功のまま（取り消しは冪等）。
 func (r *knowledgeBasePermissionRepository) DeleteSpaceGrant(ctx context.Context, workspaceID, spaceID, principalID string) error {
 	wsID, ok := kbParseID(workspaceID)
 	spID, ok2 := kbParseID(spaceID)
@@ -478,6 +490,12 @@ func (r *knowledgeBasePermissionRepository) UpsertPageRestriction(ctx context.Co
 	return &res, nil
 }
 
+// DeletePageRestriction はページの例外（allow / deny 1 行）を取り消す。
+//
+// ここも 0 行削除は成功のまま。そもそも直前の GetPageRestrictionMode が sql.ErrNoRows なら
+// 「元から無い（冪等）」として早期 return しており、DELETE まで来て 0 行になるのは
+// その 2 文のあいだに他の管理操作が同じ行を消した競合だけ。求められている事後条件
+// （その例外が無い状態）はどちらにせよ満たされているので、取り消しは冪等に成功させる。
 func (r *knowledgeBasePermissionRepository) DeletePageRestriction(ctx context.Context, workspaceID, pageID, principalID string, capability domain.Capability) error {
 	wsID, ok := kbParseID(workspaceID)
 	pgID, ok2 := kbParseID(pageID)

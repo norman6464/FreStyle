@@ -477,6 +477,17 @@ func (r *knowledgeBaseRepository) MovePage(ctx context.Context, workspaceID, pag
 	return tx.Commit()
 }
 
+// ArchivePageSubtree は根とその子孫をまとめてアーカイブする。
+// 1 行も畳めなかった場合は repository.ErrPageNotFound を返す（handler が 404 にマップ）。
+//
+// 0 行更新を成功にしてはいけない理由:
+//
+//	UPDATE は 1 行も一致しなくても SQL としては成功する。ここで件数を捨てて nil を返すと
+//	handler は 204 を返し、ツリーから消えたはずのページがそのまま残る。
+//	この文は根も含めて畳むので、成功したなら必ず 1 行以上（= 根の分）に当たる。
+//	0 行は「そのページがワークスペースに無い」ことしか意味しない。
+//	呼び出し側（ArchivePageUseCase）は FindPage で存在を先に確かめているので、
+//	ここに落ちるのは「確認とアーカイブのあいだにページが消えた」競合のときだけ。
 func (r *knowledgeBaseRepository) ArchivePageSubtree(ctx context.Context, workspaceID, pageID string) error {
 	wsID, ok := kbParseID(workspaceID)
 	pgID, ok2 := kbParseID(pageID)
@@ -484,8 +495,15 @@ func (r *knowledgeBaseRepository) ArchivePageSubtree(ctx context.Context, worksp
 		return repository.ErrPageNotFound
 	}
 	// 1 文で完結する（サブツリー全行に同じ now() が入る）ためトランザクション不要。
-	_, err := r.q.ArchivePageSubtree(ctx, sqlcgen.ArchivePageSubtreeParams{WorkspaceID: wsID, AncestorID: pgID})
-	return err
+	// :execrows なので実際に畳んだ行数が返る（捨てると 0 行でも成功と区別が付かない）。
+	n, err := r.q.ArchivePageSubtree(ctx, sqlcgen.ArchivePageSubtreeParams{WorkspaceID: wsID, AncestorID: pgID})
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return repository.ErrPageNotFound
+	}
+	return nil
 }
 
 func (r *knowledgeBaseRepository) UnarchivePageSubtree(ctx context.Context, workspaceID, pageID string, archivedSince time.Time, newRootPosition *string) error {
@@ -504,21 +522,35 @@ func (r *knowledgeBaseRepository) UnarchivePageSubtree(ctx context.Context, work
 	qtx := r.q.WithTx(tx)
 	// 現役の兄弟と position が衝突する場合は、まだアーカイブ済み（部分 UNIQUE の対象外）の
 	// うちに根の position を振り直してから現役へ戻す。
+	//
+	// ここも件数を見る。振り直しが 0 行なら根のページが無いということで、そのまま
+	// UnarchivePageSubtree へ進むと「元の position のまま復帰させようとして UNIQUE で落ちる」か
+	// 「何も起きないまま成功を返す」かのどちらかになり、どちらも原因が分からない形で表に出る。
 	if newRootPosition != nil {
-		if _, err := qtx.SetPagePosition(ctx, sqlcgen.SetPagePositionParams{
+		n, err := qtx.SetPagePosition(ctx, sqlcgen.SetPagePositionParams{
 			WorkspaceID: wsID,
 			ID:          pgID,
 			Position:    *newRootPosition,
-		}); err != nil {
+		})
+		if err != nil {
 			return err
 		}
+		if n == 0 {
+			return repository.ErrPageNotFound
+		}
 	}
-	if _, err := qtx.UnarchivePageSubtree(ctx, sqlcgen.UnarchivePageSubtreeParams{
+	// 根も含めて戻す文なので、成功したなら必ず 1 行以上に当たる。0 行のまま成功を返すと
+	// handler が 200 を返し、アーカイブされたままのページを復帰済みとして描画してしまう。
+	n, err := qtx.UnarchivePageSubtree(ctx, sqlcgen.UnarchivePageSubtreeParams{
 		WorkspaceID:   wsID,
 		ArchivedSince: sql.NullTime{Time: archivedSince, Valid: true},
 		PageID:        pgID,
-	}); err != nil {
+	})
+	if err != nil {
 		return err
+	}
+	if n == 0 {
+		return repository.ErrPageNotFound
 	}
 	return tx.Commit()
 }

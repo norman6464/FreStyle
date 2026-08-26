@@ -29,34 +29,19 @@ const defaultTestDSN = "postgres://frestyle:frestyle@localhost:5433/frestyle_int
 // マイグレーション用（database.migrateAdvisoryLockKey）とは別の値にする。
 const integrationLockKey int64 = 907_353_401
 
-// OpenTestDB は結合テスト用 DB に接続し、全 domain モデルを AutoMigrate して返す。
+// OpenTestDB は結合テスト用 DB に接続し、全 domain モデルを AutoMigrate して
+// 接続プール（*sql.DB）を返す。repository は sqlc 生成コード（*sql.DB）で実装されているので、
+// テストが受け取るのも同じ *sql.DB にする。
+//
+// 返すのは初期化に使った接続プールそのもの。別に接続を開くと advisory lock による直列化も
+// TRUNCATE も別セッションになり、テストが自分で用意したデータを repository 側から見られなくなる。
+//
 // TEST_DATABASE_URL が空 かつ 既定 DSN にも繋がらない場合は t.Skip する
 // （ローカルで docker を上げずに `-tags=integration` を流しても落ちないように）。
 // TEST_DATABASE_URL が設定されている場合は skip せず t.Fatal で落とす（unreachableDB を参照）。
-func OpenTestDB(t *testing.T) *gorm.DB {
+func OpenTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 	return openTestDB(t, false)
-}
-
-// OpenTestSQLDB は OpenTestDB と同じ初期化を行い、接続プール（*sql.DB）だけを返す。
-// repository は sqlc 生成コード（*sql.DB）で実装されているので、GORM API を使わない
-// テストはこちらを入り口にする。
-func OpenTestSQLDB(t *testing.T) *sql.DB {
-	t.Helper()
-	return SQLDB(t, OpenTestDB(t))
-}
-
-// SQLDB は OpenTestDB 系が返した *gorm.DB から、同じ接続プールを指す *sql.DB を取り出す。
-//
-// 別に接続を開くと advisory lock による直列化も TRUNCATE も別セッションになり、
-// テストが自分で用意したデータを repository 側から見られなくなる。同じプールを渡すこと。
-func SQLDB(t *testing.T, db *gorm.DB) *sql.DB {
-	t.Helper()
-	sqlDB, err := db.DB()
-	if err != nil {
-		t.Fatalf("sql.DB 取得失敗: %v", err)
-	}
-	return sqlDB
 }
 
 // OpenTestDBSimpleProtocol は simple query protocol を強制した接続で OpenTestDB と同じ初期化を行う。
@@ -66,12 +51,14 @@ func SQLDB(t *testing.T, db *gorm.DB) *sql.DB {
 // extended protocol（ローカル / CI の既定）はパラメータの OID で型が伝わるため、
 // []byte と json.RawMessage の取り違えのような欠陥がローカルでは緑のまま本番でだけ落ちる。
 // その系統の回帰テストはこちらの接続で書く。
-func OpenTestDBSimpleProtocol(t *testing.T) *gorm.DB {
+func OpenTestDBSimpleProtocol(t *testing.T) *sql.DB {
 	t.Helper()
 	return openTestDB(t, true)
 }
 
-func openTestDB(t *testing.T, preferSimpleProtocol bool) *gorm.DB {
+// openTestDB はスキーマ初期化までを済ませた接続プールを返す。
+// AutoMigrate 系はまだ *gorm.DB を要求するため、GORM のハンドルはこの関数の中に閉じる。
+func openTestDB(t *testing.T, preferSimpleProtocol bool) *sql.DB {
 	t.Helper()
 
 	dsn, dsnExplicit := resolveTestDSN(os.Getenv("TEST_DATABASE_URL"))
@@ -147,7 +134,7 @@ func openTestDB(t *testing.T, preferSimpleProtocol bool) *gorm.DB {
 	if err := database.ApplyTenantBridgeSchema(t.Context(), sqlDB); err != nil {
 		t.Fatalf("ApplyTenantBridgeSchema 失敗: %v", err)
 	}
-	return db
+	return sqlDB
 }
 
 // serializeIntegration は結合テストをテスト関数の単位で直列化する。
@@ -225,11 +212,47 @@ func looksLikeSupabase(dsn string) bool {
 
 // TruncateAll はテーブルを TRUNCATE して連番をリセットする。テスト間の独立性確保用。
 // 列挙したテーブルは結合テストが触る範囲に限定する（必要に応じて足す）。
-func TruncateAll(t *testing.T, db *gorm.DB, tables ...string) {
+func TruncateAll(t *testing.T, db *sql.DB, tables ...string) {
 	t.Helper()
 	for _, table := range tables {
-		if err := db.Exec("TRUNCATE TABLE " + table + " RESTART IDENTITY CASCADE").Error; err != nil {
+		if _, err := db.Exec("TRUNCATE TABLE " + table + " RESTART IDENTITY CASCADE"); err != nil {
 			t.Fatalf("TRUNCATE %s 失敗: %v", table, err)
 		}
 	}
+}
+
+// gormOn は既に開いている接続プールの上に GORM のハンドルを被せる。
+//
+// 起動時マイグレーションの入口（database.AutoMigrateAll など）はまだ *gorm.DB を要求する。
+// テストが受け取るのは *sql.DB だけにしておきたいので、GORM への変換はここに閉じる。
+// 新しく接続は開かない（同じプールの上に載せる）ため、advisory lock による直列化も
+// TRUNCATE も、テスト本体と同じセッションの上で効く。
+func gormOn(t *testing.T, db *sql.DB) *gorm.DB {
+	t.Helper()
+	g, err := gorm.Open(postgres.New(postgres.Config{Conn: db}), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
+	if err != nil {
+		t.Fatalf("GORM ハンドルの作成に失敗: %v", err)
+	}
+	return g
+}
+
+// AutoMigrateAll は起動時と同じ AutoMigrate を、テストが持っている接続プールへ流す。
+func AutoMigrateAll(t *testing.T, db *sql.DB) error {
+	t.Helper()
+	return database.AutoMigrateAll(gormOn(t, db))
+}
+
+// BackfillUserNormalization は users 正規化のバックフィルを、テストが持っている接続プールへ流す。
+func BackfillUserNormalization(t *testing.T, db *sql.DB) error {
+	t.Helper()
+	return database.BackfillUserNormalization(gormOn(t, db))
+}
+
+// ApplyUserNormalizationConstraints は users の FK / CHECK / 部分 UNIQUE を、
+// テストが持っている接続プールへ流す。
+func ApplyUserNormalizationConstraints(t *testing.T, db *sql.DB) error {
+	t.Helper()
+	return database.ApplyUserNormalizationConstraints(gormOn(t, db))
 }

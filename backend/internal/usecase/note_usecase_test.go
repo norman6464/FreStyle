@@ -21,7 +21,9 @@ func (s *stubNoteRepo) ListByUserID(_ context.Context, _ uint64) ([]domain.Note,
 	return s.rows, s.err
 }
 
-func (s *stubNoteRepo) FindByID(_ context.Context, _ uint64) (*domain.Note, error) {
+// FindByID は引数を無視して固定の 1 件を返す。本物は WHERE user_id で絞るが、
+// ここでは「SQL が絞り損ねた場合でも usecase 層が畳むか」を見たいので、あえて他人の note も返す。
+func (s *stubNoteRepo) FindByID(_ context.Context, _, _ uint64) (*domain.Note, error) {
 	return s.one, s.err
 }
 

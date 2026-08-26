@@ -25,7 +25,7 @@ func (f *fakeNoteRepo) ListByUserID(context.Context, uint64) ([]domain.Note, err
 	return f.rows, f.err
 }
 
-func (f *fakeNoteRepo) FindByID(context.Context, uint64) (*domain.Note, error) {
+func (f *fakeNoteRepo) FindByID(context.Context, uint64, uint64) (*domain.Note, error) {
 	return f.one, f.err
 }
 

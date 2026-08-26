@@ -106,7 +106,9 @@ func (u *UpdateNoteUseCase) Execute(ctx context.Context, in UpdateNoteInput) (*d
 	if in.ID == 0 {
 		return nil, errors.New("id is required")
 	}
-	existing, err := u.repo.FindByID(ctx, in.ID)
+	// repository は WHERE user_id で絞るので、他人の note はここで domain.ErrNotFound になる
+	// （SQL・usecase・handler の 3 層で同じ結末に寄せる。どれか 1 つが将来外れても漏れない）。
+	existing, err := u.repo.FindByID(ctx, in.UserID, in.ID)
 	if err != nil {
 		return nil, err
 	}

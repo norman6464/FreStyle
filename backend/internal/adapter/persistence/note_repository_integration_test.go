@@ -46,14 +46,37 @@ func TestNoteRepository_Integration(t *testing.T) {
 
 		// user 7 が user 8 の note を消そうとしても WHERE user_id=7 で no-op。
 		require.NoError(t, repo.Delete(ctx, 7, theirs.ID))
-		got, err := repo.FindByID(ctx, theirs.ID)
+		got, err := repo.FindByID(ctx, 8, theirs.ID)
 		require.NoError(t, err, "他人の note は残る")
 		require.Equal(t, "theirs", got.Title)
 
 		// 自分の note は消せる。
 		require.NoError(t, repo.Delete(ctx, 7, mine.ID))
-		_, err = repo.FindByID(ctx, mine.ID)
+		_, err = repo.FindByID(ctx, 7, mine.ID)
 		require.Error(t, err, "自分の note は削除済み")
+	})
+
+	// SQL 側の多層防御を直接固定する。usecase の所有者判定を通さず repository を叩き、
+	// 「他人の note」と「存在しない id」が同じ domain.ErrNotFound になることを見る。
+	// WHERE の user_id 述語を外すと、他人の note が 1 行返ってこのテストが落ちる。
+	t.Run("FindByID は他人の note を存在しない id と同じ扱いにする", func(t *testing.T) {
+		testsupport.TruncateAll(t, sqlDB, "notes")
+
+		theirs := &domain.Note{UserID: 8, Title: "theirs", Content: "secret"}
+		require.NoError(t, repo.Create(ctx, theirs))
+
+		_, foreignErr := repo.FindByID(ctx, 7, theirs.ID)
+		require.ErrorIs(t, foreignErr, domain.ErrNotFound, "他人の note は SQL の時点で 0 行")
+
+		// 実在しない id（採番済み最大値より先）を引いたときと同じエラーであること。
+		_, missingErr := repo.FindByID(ctx, 7, theirs.ID+1_000_000)
+		require.ErrorIs(t, missingErr, domain.ErrNotFound)
+		require.Equal(t, missingErr.Error(), foreignErr.Error(), "他人と不在でエラーが撃ち分けられている")
+
+		// 所有者本人からは当然読める（述語が効きすぎていないことの裏取り）。
+		got, err := repo.FindByID(ctx, 8, theirs.ID)
+		require.NoError(t, err)
+		require.Equal(t, "theirs", got.Title)
 	})
 
 	t.Run("Update は内容を保存する", func(t *testing.T) {
@@ -64,9 +87,27 @@ func TestNoteRepository_Integration(t *testing.T) {
 		n.Title = "after"
 		require.NoError(t, repo.Update(ctx, n))
 
-		got, err := repo.FindByID(ctx, n.ID)
+		got, err := repo.FindByID(ctx, 7, n.ID)
 		require.NoError(t, err)
 		require.Equal(t, "after", got.Title)
+	})
+
+	// 書き込み側の多層防御。UPDATE 文の user_id 述語を外すと、他人の note が
+	// 上書きされてこのテストが落ちる。
+	t.Run("Update は他人の note を書き換えない", func(t *testing.T) {
+		testsupport.TruncateAll(t, sqlDB, "notes")
+
+		theirs := &domain.Note{UserID: 8, Title: "theirs", Content: "original"}
+		require.NoError(t, repo.Create(ctx, theirs))
+
+		// 所有者を偽って（user 7 として）他人の note を更新しようとする。
+		forged := &domain.Note{ID: theirs.ID, UserID: 7, Title: "hijacked", Content: "overwritten"}
+		require.ErrorIs(t, repo.Update(ctx, forged), domain.ErrNotFound, "0 行更新は not found")
+
+		got, err := repo.FindByID(ctx, 8, theirs.ID)
+		require.NoError(t, err)
+		require.Equal(t, "theirs", got.Title, "他人の note は書き換わらない")
+		require.Equal(t, "original", got.Content)
 	})
 }
 
@@ -90,7 +131,7 @@ func TestNoteRepository_Timestamps_Integration(t *testing.T) {
 	n.Title = "after"
 	require.NoError(t, repo.Update(ctx, n))
 
-	got, err := repo.FindByID(ctx, n.ID)
+	got, err := repo.FindByID(ctx, 7, n.ID)
 	require.NoError(t, err)
 	require.Equal(t, "after", got.Title)
 	require.WithinDuration(t, createdAt, got.CreatedAt, time.Millisecond, "created_at は更新で変わらない")

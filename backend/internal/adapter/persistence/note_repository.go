@@ -46,14 +46,21 @@ func (r *noteRepository) ListByUserID(ctx context.Context, userID uint64) ([]dom
 	return notes, nil
 }
 
-func (r *noteRepository) FindByID(ctx context.Context, id uint64) (*domain.Note, error) {
+// FindByID は id と user_id の両方で絞って 1 件返す。
+// 他人の note はクエリが 0 行を返すので、存在しない id と同じ domain.ErrNotFound になる
+// （「行は有るが持ち主が違う」という中間状態を呼び出し側へ渡さない）。
+func (r *noteRepository) FindByID(ctx context.Context, userID, id uint64) (*domain.Note, error) {
 	id64, ok := toInt64ID(id)
 	if !ok {
 		return nil, domain.ErrNotFound // 存在し得ない id = not found
 	}
-	row, err := sqlcgen.New(r.db).GetNoteByID(ctx, id64)
+	uid, ok := toInt64ID(userID)
+	if !ok {
+		return nil, domain.ErrNotFound // 存在し得ない user_id = 該当なし
+	}
+	row, err := sqlcgen.New(r.db).GetNoteByID(ctx, sqlcgen.GetNoteByIDParams{ID: id64, UserID: uid})
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, domain.ErrNotFound // 404 シグナルを維持
+		return nil, domain.ErrNotFound // 404 シグナルを維持（他人の note もここに落ちる）
 	}
 	if err != nil {
 		return nil, err
@@ -95,18 +102,29 @@ func (r *noteRepository) Create(ctx context.Context, n *domain.Note) error {
 	return nil
 }
 
+// Update は id と user_id の両方で絞って更新する。
+// 0 行更新（他人の note / 存在しない id）は sql.ErrNoRows になるので domain.ErrNotFound へ寄せ、
+// 「更新できたのか何も起きなかったのか」を呼び出し側が取り違えないようにする。
 func (r *noteRepository) Update(ctx context.Context, n *domain.Note) error {
 	id64, ok := toInt64ID(n.ID)
 	if !ok {
-		return nil // 存在し得ない id = 対象なし
+		return domain.ErrNotFound // 存在し得ない id = 対象なし
+	}
+	uid, ok := toInt64ID(n.UserID)
+	if !ok {
+		return domain.ErrNotFound // 存在し得ない user_id = 対象なし
 	}
 	updatedAt, err := sqlcgen.New(r.db).UpdateNote(ctx, sqlcgen.UpdateNoteParams{
 		ID:       id64,
+		UserID:   uid,
 		Title:    n.Title,
 		Content:  n.Content,
 		IsPublic: n.IsPublic,
 		IsPinned: n.IsPinned,
 	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.ErrNotFound // 他人の note もここに落ちる（存在しない id と同じ結末）
+	}
 	if err != nil {
 		return err
 	}

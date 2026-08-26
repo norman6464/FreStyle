@@ -46,5 +46,30 @@ func (r *sessionNoteRepository) FindBySessionID(ctx context.Context, sessionID u
 }
 
 func (r *sessionNoteRepository) Upsert(ctx context.Context, n *domain.SessionNote) error {
-	return r.db.WithContext(ctx).Save(n).Error
+	sid, ok := toInt64ID(n.SessionID)
+	if !ok {
+		return nil // 存在し得ない session_id は書き込まない
+	}
+	uid, ok := toInt64ID(n.UserID)
+	if !ok {
+		return nil // 存在し得ない user_id は書き込まない
+	}
+	sqlDB, err := r.db.DB()
+	if err != nil {
+		return err
+	}
+	// session_id に一意制約が無いため ON CONFLICT は張れない。現行 Save(ID=0) と同じく
+	// 常に INSERT し、採番 id と時刻を書き戻す。
+	row, err := sqlcgen.New(sqlDB).InsertSessionNote(ctx, sqlcgen.InsertSessionNoteParams{
+		SessionID: sid,
+		UserID:    uid,
+		Content:   n.Content,
+	})
+	if err != nil {
+		return err
+	}
+	n.ID = uint64(row.ID)
+	n.CreatedAt = row.CreatedAt
+	n.UpdatedAt = row.UpdatedAt
+	return nil
 }

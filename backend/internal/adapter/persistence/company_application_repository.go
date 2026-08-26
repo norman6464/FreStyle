@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"context"
+	"time"
 
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
@@ -18,7 +19,35 @@ func NewCompanyApplicationRepository(db *gorm.DB) repository.CompanyApplicationR
 }
 
 func (r *companyApplicationRepository) Create(ctx context.Context, app *domain.CompanyApplication) error {
-	return r.db.WithContext(ctx).Create(app).Error
+	sqlDB, err := r.db.DB()
+	if err != nil {
+		return err
+	}
+	now := time.Now()
+	createdAt := app.CreatedAt
+	if createdAt.IsZero() {
+		createdAt = now // GORM autoCreateTime 相当（ゼロのときだけ now）
+	}
+	updatedAt := app.UpdatedAt
+	if updatedAt.IsZero() {
+		updatedAt = now // GORM autoUpdateTime 相当（ゼロのときだけ now）
+	}
+	row, err := sqlcgen.New(sqlDB).InsertCompanyApplication(ctx, sqlcgen.InsertCompanyApplicationParams{
+		CompanyName:   app.CompanyName,
+		ApplicantName: app.ApplicantName,
+		Email:         app.Email,
+		Message:       app.Message,
+		Status:        app.Status,
+		CreatedAt:     createdAt,
+		UpdatedAt:     updatedAt,
+	})
+	if err != nil {
+		return err
+	}
+	app.ID = uint64(row.ID)
+	app.CreatedAt = row.CreatedAt
+	app.UpdatedAt = row.UpdatedAt
+	return nil
 }
 
 func (r *companyApplicationRepository) ListAll(ctx context.Context) ([]domain.CompanyApplication, error) {
@@ -47,8 +76,16 @@ func (r *companyApplicationRepository) ListAll(ctx context.Context) ([]domain.Co
 }
 
 func (r *companyApplicationRepository) UpdateStatus(ctx context.Context, id uint64, status string) error {
-	return r.db.WithContext(ctx).
-		Model(&domain.CompanyApplication{}).
-		Where("id = ?", id).
-		Update("status", status).Error
+	id64, ok := toInt64ID(id)
+	if !ok {
+		return nil // 存在し得ない id = 対象なし
+	}
+	sqlDB, err := r.db.DB()
+	if err != nil {
+		return err
+	}
+	return sqlcgen.New(sqlDB).UpdateCompanyApplicationStatus(ctx, sqlcgen.UpdateCompanyApplicationStatusParams{
+		ID:     id64,
+		Status: status,
+	})
 }

@@ -4,13 +4,8 @@ package persistence_test
 
 import (
 	"context"
-	"strings"
-	"sync"
 	"testing"
 	"time"
-
-	"gorm.io/gorm"
-	gormlogger "gorm.io/gorm/logger"
 
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
@@ -94,40 +89,16 @@ func TestNotificationRepository_CreateMany_Integration(t *testing.T) {
 	})
 }
 
-// countingLogger は実行された SQL のうち INSERT の回数を数える GORM ロガー。
-// 「まとめて 1 回で書き込む」ことを、保存結果ではなく実際に発行された SQL で確かめる。
-type countingLogger struct {
-	gormlogger.Interface
-	mu     sync.Mutex
-	insert int
-}
-
-func (l *countingLogger) Trace(
-	ctx context.Context,
-	begin time.Time,
-	fc func() (string, int64),
-	err error,
-) {
-	sql, _ := fc()
-	if strings.Contains(strings.ToUpper(sql), "INSERT INTO") {
-		l.mu.Lock()
-		l.insert++
-		l.mu.Unlock()
-	}
-	l.Interface.Trace(ctx, begin, fc, err)
-}
-
 // TestNotificationRepository_CreateManyIssuesSingleInsert_Integration は、宛先が増えても
-// 発行される INSERT が 1 回であることを実 Postgres で検証する（FRESTYLE-17）。
+// 1 回の INSERT でまとめて書き込む契約を実 Postgres で固定する。
 //
-// 保存結果の件数だけを見ていると、GORM の CreateBatchSize が有効な環境で複数回に
-// 分割されても気づけない。実際に流れた SQL を数えて契約を固定する。
+// sqlc 化後は GORM のロガーに乗らない（*sql.DB を直接叩く）ため、発行 SQL 数ではなく
+// PostgreSQL のシステム列 xmin（挿入したトランザクション ID）で確かめる。1 回の INSERT なら
+// 全行の xmin が一致し、宛先ごとの個別 INSERT へ退行すると xmin が宛先数だけ分かれる。
 func TestNotificationRepository_CreateManyIssuesSingleInsert_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
 	testsupport.TruncateAll(t, db, "notifications")
-
-	counter := &countingLogger{Interface: db.Logger}
-	repo := persistence.NewNotificationRepository(db.Session(&gorm.Session{Logger: counter}))
+	repo := persistence.NewNotificationRepository(db)
 
 	ns := make([]domain.Notification, 0, 10)
 	for i := uint64(1); i <= 10; i++ {
@@ -137,5 +108,30 @@ func TestNotificationRepository_CreateManyIssuesSingleInsert_Integration(t *test
 	}
 	require.NoError(t, repo.CreateMany(context.Background(), ns))
 
-	require.Equal(t, 1, counter.insert, "宛先 10 件でも INSERT は 1 回であること")
+	var distinctTx int64
+	require.NoError(t, db.Raw("SELECT COUNT(DISTINCT xmin::text) FROM notifications").Scan(&distinctTx).Error)
+	require.Equal(t, int64(1), distinctTx, "宛先 10 件でも 1 トランザクション（1 回の INSERT）でまとめて書く")
+}
+
+// TestNotificationRepository_MarkAllRead_Integration は MarkAllRead が対象 user の未読だけを
+// 既読化し、他 user に触れないことを実 Postgres で固定する。
+func TestNotificationRepository_MarkAllRead_Integration(t *testing.T) {
+	db := testsupport.OpenTestDB(t)
+	repo := persistence.NewNotificationRepository(db)
+	ctx := context.Background()
+	testsupport.TruncateAll(t, db, "notifications")
+
+	require.NoError(t, repo.Create(ctx, &domain.Notification{UserID: 5, Title: "a"}))
+	require.NoError(t, repo.Create(ctx, &domain.Notification{UserID: 5, Title: "b"}))
+	require.NoError(t, repo.Create(ctx, &domain.Notification{UserID: 6, Title: "c"}))
+
+	require.NoError(t, repo.MarkAllRead(ctx, 5))
+
+	u5, err := repo.CountUnread(ctx, 5)
+	require.NoError(t, err)
+	require.Equal(t, int64(0), u5, "user 5 の未読は 0 になる")
+
+	u6, err := repo.CountUnread(ctx, 6)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), u6, "他 user の通知には触れない")
 }

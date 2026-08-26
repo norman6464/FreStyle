@@ -7,7 +7,24 @@ package sqlcgen
 
 import (
 	"context"
+	"time"
 )
+
+const deleteNote = `-- name: DeleteNote :exec
+DELETE FROM notes
+WHERE id = $1 AND user_id = $2
+`
+
+type DeleteNoteParams struct {
+	ID     int64
+	UserID int64
+}
+
+// メモを削除する。user_id で絞り、他人のメモを消せないようにする（notes に論理削除列は無い）。
+func (q *Queries) DeleteNote(ctx context.Context, arg DeleteNoteParams) error {
+	_, err := q.db.ExecContext(ctx, deleteNote, arg.ID, arg.UserID)
+	return err
+}
 
 const getNoteByID = `-- name: GetNoteByID :one
 SELECT id, user_id, title, content, is_public, is_pinned, created_at, updated_at FROM notes
@@ -28,6 +45,46 @@ func (q *Queries) GetNoteByID(ctx context.Context, id int64) (Note, error) {
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
+	return i, err
+}
+
+const insertNote = `-- name: InsertNote :one
+INSERT INTO notes (user_id, title, content, is_public, is_pinned, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING id, created_at, updated_at
+`
+
+type InsertNoteParams struct {
+	UserID    int64
+	Title     string
+	Content   string
+	IsPublic  bool
+	IsPinned  bool
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type InsertNoteRow struct {
+	ID        int64
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+// 学習メモを 1 件作成する。created_at / updated_at は DB 既定値が無いため呼び出し側が
+// 値を渡す（GORM autoCreateTime/autoUpdateTime 相当。ゼロなら呼び出し側で now() を入れる）。
+// RETURNING で id / created_at / updated_at を書き戻す。
+func (q *Queries) InsertNote(ctx context.Context, arg InsertNoteParams) (InsertNoteRow, error) {
+	row := q.db.QueryRowContext(ctx, insertNote,
+		arg.UserID,
+		arg.Title,
+		arg.Content,
+		arg.IsPublic,
+		arg.IsPinned,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	var i InsertNoteRow
+	err := row.Scan(&i.ID, &i.CreatedAt, &i.UpdatedAt)
 	return i, err
 }
 
@@ -69,4 +126,38 @@ func (q *Queries) ListNotesByUserID(ctx context.Context, userID int64) ([]Note, 
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateNote = `-- name: UpdateNote :one
+UPDATE notes SET
+  title     = $2,
+  content   = $3,
+  is_public = $4,
+  is_pinned = $5,
+  updated_at = now()
+WHERE id = $1
+RETURNING updated_at
+`
+
+type UpdateNoteParams struct {
+	ID       int64
+	Title    string
+	Content  string
+	IsPublic bool
+	IsPinned bool
+}
+
+// メモ本文を更新する（所有者検証は usecase 側で済ませてから呼ぶ）。updated_at は now() へ
+// 進める（GORM autoUpdateTime 相当）。created_at は触らない。RETURNING で updated_at を書き戻す。
+func (q *Queries) UpdateNote(ctx context.Context, arg UpdateNoteParams) (time.Time, error) {
+	row := q.db.QueryRowContext(ctx, updateNote,
+		arg.ID,
+		arg.Title,
+		arg.Content,
+		arg.IsPublic,
+		arg.IsPinned,
+	)
+	var updated_at time.Time
+	err := row.Scan(&updated_at)
+	return updated_at, err
 }

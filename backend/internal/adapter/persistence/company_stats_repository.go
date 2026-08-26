@@ -3,6 +3,7 @@ package persistence
 import (
 	"context"
 
+	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"gorm.io/gorm"
@@ -10,6 +11,7 @@ import (
 
 // companyStatsRepository は [repository.CompanyMemberCounter] の実装。
 // users テーブルを company_id で GROUP BY し、会社ごとのメンバー集計を 1 クエリで返す。
+// クエリは sqlc 生成コード（生 SQL）で、GORM からは接続プール（*sql.DB）だけを借りる。
 type companyStatsRepository struct {
 	db *gorm.DB
 }
@@ -20,22 +22,22 @@ func NewCompanyStatsRepository(db *gorm.DB) repository.CompanyMemberCounter {
 }
 
 func (r *companyStatsRepository) CountMembersByCompany(ctx context.Context) ([]repository.CompanyMemberCount, error) {
-	rows := make([]repository.CompanyMemberCount, 0)
-	err := r.db.WithContext(ctx).
-		Table("users").
-		Select(
-			"company_id AS company_id, "+
-				"COUNT(*) AS total, "+
-				"COUNT(*) FILTER (WHERE is_active) AS active, "+
-				// trainee 判定は正規化後の正である role_id で行う（FRESTYLE-311）。
-				"COUNT(*) FILTER (WHERE role_id = ?) AS trainees",
-			domain.RoleIDTrainee,
-		).
-		Where("company_id IS NOT NULL AND deleted_at IS NULL").
-		Group("company_id").
-		Scan(&rows).Error
+	sqlDB, err := r.db.DB()
 	if err != nil {
 		return nil, err
 	}
-	return rows, nil
+	rows, err := sqlcgen.New(sqlDB).CountMembersByCompany(ctx, int16(domain.RoleIDTrainee))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]repository.CompanyMemberCount, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, repository.CompanyMemberCount{
+			CompanyID: uint64(row.CompanyID),
+			Total:     int(row.Total),
+			Active:    int(row.Active),
+			Trainees:  int(row.Trainees),
+		})
+	}
+	return out, nil
 }

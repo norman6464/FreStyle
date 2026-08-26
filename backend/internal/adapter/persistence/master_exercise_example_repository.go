@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
@@ -57,14 +58,29 @@ func (r *masterExerciseExampleRepository) ListByExerciseIDs(ctx context.Context,
 	if len(exerciseIDs) == 0 {
 		return result, nil
 	}
-	var examples []domain.MasterExerciseExample
-	if err := r.db.WithContext(ctx).
-		Where("exercise_id IN ?", exerciseIDs).
-		Order("exercise_id asc, order_index asc, id asc").
-		Find(&examples).Error; err != nil {
+	ids := make([]int64, 0, len(exerciseIDs))
+	for _, id := range exerciseIDs {
+		if v, ok := toInt64ID(id); ok {
+			ids = append(ids, v)
+		}
+	}
+	if len(ids) == 0 {
+		return result, nil // 存在し得ない id しか無い = 0 件
+	}
+	idsJSON, err := json.Marshal(ids)
+	if err != nil {
 		return nil, err
 	}
-	for _, ex := range examples {
+	sqlDB, err := r.db.DB()
+	if err != nil {
+		return nil, err
+	}
+	rows, err := sqlcgen.New(sqlDB).ListMasterExerciseExamplesByExerciseIDs(ctx, idsJSON)
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		ex := toDomainExample(row)
 		result[ex.ExerciseID] = append(result[ex.ExerciseID], ex)
 	}
 	return result, nil

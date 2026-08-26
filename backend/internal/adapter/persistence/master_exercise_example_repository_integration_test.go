@@ -38,3 +38,45 @@ func TestMasterExerciseExampleRepository_ListByExerciseID_Integration(t *testing
 	require.Equal(t, int16(2), rows[1].OrderIndex)
 	require.Equal(t, uint64(10), rows[0].ExerciseID)
 }
+
+// TestMasterExerciseExampleRepository_ListByExerciseIDs_Integration は、複数 exercise_id を
+// まとめて取得する ListByExerciseIDs（N+1 回避）を実 Postgres で検証する。
+// exercise_id ごとに map 化され、各スライスは (order_index, id) 昇順に並ぶことを固定する。
+func TestMasterExerciseExampleRepository_ListByExerciseIDs_Integration(t *testing.T) {
+	db := testsupport.OpenTestDB(t)
+	repo := persistence.NewMasterExerciseExampleRepository(db)
+	ctx := context.Background()
+	testsupport.TruncateAll(t, db, "master_exercise_examples")
+
+	seed := []domain.MasterExerciseExample{
+		{ExerciseID: 10, OrderIndex: 2, InputText: "b", ExpectedOutput: "B"},
+		{ExerciseID: 10, OrderIndex: 1, InputText: "a", ExpectedOutput: "A"},
+		{ExerciseID: 20, OrderIndex: 1, InputText: "x", ExpectedOutput: "X"},
+		{ExerciseID: 99, OrderIndex: 1, InputText: "z", ExpectedOutput: "Z"}, // 要求しない問題
+	}
+	for i := range seed {
+		require.NoError(t, db.WithContext(ctx).Create(&seed[i]).Error)
+	}
+
+	got, err := repo.ListByExerciseIDs(ctx, []uint64{10, 20})
+	require.NoError(t, err)
+	require.Len(t, got, 2, "要求した 2 問だけが map に入る（99 は含まれない）")
+
+	require.Len(t, got[10], 2)
+	require.Equal(t, int16(1), got[10][0].OrderIndex, "order_index 昇順")
+	require.Equal(t, "a", got[10][0].InputText)
+	require.Equal(t, int16(2), got[10][1].OrderIndex)
+	require.Equal(t, uint64(10), got[10][0].ExerciseID)
+
+	require.Len(t, got[20], 1)
+	require.Equal(t, "x", got[20][0].InputText)
+
+	_, ok := got[99]
+	require.False(t, ok, "要求していない exercise_id は map に現れない")
+
+	t.Run("空スライスは空 map を返しクエリを打たない", func(t *testing.T) {
+		empty, err := repo.ListByExerciseIDs(ctx, nil)
+		require.NoError(t, err)
+		require.Empty(t, empty)
+	})
+}

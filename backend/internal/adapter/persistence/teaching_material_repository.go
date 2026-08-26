@@ -166,15 +166,18 @@ func (r *teachingMaterialRepository) CountByCourseForCompany(ctx context.Context
 func (r *teachingMaterialRepository) Create(ctx context.Context, m *domain.TeachingMaterial) error {
 	companyID, ok := toInt64ID(m.CompanyID)
 	if !ok {
-		return nil // 存在し得ない company_id は書き込まない
+		// 1 行も書けていないので nil を返さない（呼び出し側が作成できたと誤認する）。
+		return outOfRangeIDError("company_id", m.CompanyID)
 	}
 	courseID, ok := toInt64ID(m.CourseID)
 	if !ok {
-		return nil // 存在し得ない course_id は書き込まない
+		// 1 行も書けていないので nil を返さない（呼び出し側が作成できたと誤認する）。
+		return outOfRangeIDError("course_id", m.CourseID)
 	}
 	createdBy, ok := toInt64ID(m.CreatedByUserID)
 	if !ok {
-		return nil // 存在し得ない created_by は書き込まない
+		// 1 行も書けていないので nil を返さない（呼び出し側が作成できたと誤認する）。
+		return outOfRangeIDError("created_by", m.CreatedByUserID)
 	}
 	sqlDB, err := r.db.DB()
 	if err != nil {

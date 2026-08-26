@@ -115,11 +115,14 @@ func (r *richDocumentRepository) Create(ctx context.Context, doc *domain.RichDoc
 	}
 	ownerID, ok := toInt64ID(doc.OwnerID)
 	if !ok {
-		return nil // 存在し得ない owner_id は書き込まない
+		// 1 行も書けていないので nil を返さない（呼び出し側が作成できたと誤認する）。
+		return outOfRangeIDError("owner_id", doc.OwnerID)
 	}
 	companyID, ok := nullCompanyID(doc.CompanyID)
 	if !ok {
-		return nil // 存在し得ない company_id は書き込まない
+		// 1 行も書けていないので nil を返さない（呼び出し側が作成できたと誤認する）。
+		// nullCompanyID は nil のとき必ず ok=true なので、ここでは非 nil が保証される。
+		return outOfRangeIDError("company_id", *doc.CompanyID)
 	}
 	sqlDB, err := r.db.DB()
 	if err != nil {

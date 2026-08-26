@@ -86,11 +86,13 @@ func (r *courseRepository) GetByID(ctx context.Context, id uint64) (*domain.Cour
 func (r *courseRepository) Create(ctx context.Context, c *domain.Course) error {
 	cid, ok := toInt64ID(c.CompanyID)
 	if !ok {
-		return nil // 存在し得ない company_id は書き込まない
+		// 1 行も書けていないので nil を返さない（呼び出し側が作成できたと誤認する）。
+		return outOfRangeIDError("company_id", c.CompanyID)
 	}
 	createdBy, ok := toInt64ID(c.CreatedByUserID)
 	if !ok {
-		return nil // 存在し得ない created_by は書き込まない
+		// 1 行も書けていないので nil を返さない（呼び出し側が作成できたと誤認する）。
+		return outOfRangeIDError("created_by", c.CreatedByUserID)
 	}
 	sqlDB, err := r.db.DB()
 	if err != nil {

@@ -2,13 +2,17 @@ package persistence
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 
+	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"gorm.io/gorm"
 )
 
-// masterExerciseRepository は [repository.MasterExerciseRepository] の GORM 実装。
+// masterExerciseRepository は [repository.MasterExerciseRepository] の実装。
+// クエリは sqlc 生成コード（生 SQL）で、GORM からは接続プール（*sql.DB）だけを借りる。
 type masterExerciseRepository struct {
 	db *gorm.DB
 }
@@ -17,59 +21,123 @@ func NewMasterExerciseRepository(db *gorm.DB) repository.MasterExerciseRepositor
 	return &masterExerciseRepository{db: db}
 }
 
-func (r *masterExerciseRepository) ListByLanguage(ctx context.Context, language string) ([]domain.MasterExercise, error) {
-	exercises := make([]domain.MasterExercise, 0)
-	q := r.db.WithContext(ctx).Where("is_published = ?", true)
-	if language != "" {
-		q = q.Where("language = ?", language)
+// nullableChapterID は NULL 可の chapter_id を domain の *uint64 へ写す（未紐付けは nil）。
+func nullableChapterID(v sql.NullInt64) *uint64 {
+	if !v.Valid {
+		return nil
 	}
-	// sort_order は一意でない（既定値 0）。同値行の相対順序は SQL 上未定義なので id をタイブレークに置く。
-	if err := q.Order("sort_order asc, id asc").Find(&exercises).Error; err != nil {
+	id := uint64(v.Int64)
+	return &id
+}
+
+// toDomainMasterExercise は sqlc 生成モデル → domain への詰め替え。
+// hint_text / expected_output は NULL 可の列で domain は plain string。NULL は空文字に倒す
+// （GORM が NULL を string へ Scan したときと同じ）。
+func toDomainMasterExercise(row sqlcgen.MasterExercise) domain.MasterExercise {
+	return domain.MasterExercise{
+		ID:             uint64(row.ID),
+		Slug:           row.Slug,
+		Language:       row.Language,
+		SortOrder:      int(row.SortOrder),
+		Category:       row.Category,
+		Title:          row.Title,
+		Description:    row.Description,
+		StarterCode:    row.StarterCode,
+		HintText:       row.HintText.String,
+		ExpectedOutput: row.ExpectedOutput.String,
+		Mode:           row.Mode,
+		Explanation:    row.Explanation,
+		Difficulty:     row.Difficulty,
+		IsPublished:    row.IsPublished,
+		ChapterID:      nullableChapterID(row.ChapterID),
+		CreatedAt:      row.CreatedAt,
+		UpdatedAt:      row.UpdatedAt,
+	}
+}
+
+// ListByLanguage は公開済み問題を返す。language が空文字なら全言語。
+func (r *masterExerciseRepository) ListByLanguage(ctx context.Context, language string) ([]domain.MasterExercise, error) {
+	sqlDB, err := r.db.DB()
+	if err != nil {
 		return nil, err
+	}
+	rows, err := sqlcgen.New(sqlDB).ListMasterExercisesByLanguage(ctx, language)
+	if err != nil {
+		return nil, err
+	}
+	exercises := make([]domain.MasterExercise, 0, len(rows))
+	for _, row := range rows {
+		exercises = append(exercises, toDomainMasterExercise(row))
 	}
 	return exercises, nil
 }
 
+// GetByID は単一問題を返す。未存在は gorm.ErrRecordNotFound（handler が 404 に分岐）。
 func (r *masterExerciseRepository) GetByID(ctx context.Context, id uint64) (*domain.MasterExercise, error) {
-	var exercise domain.MasterExercise
-	if err := r.db.WithContext(ctx).First(&exercise, id).Error; err != nil {
+	id64, ok := toInt64ID(id)
+	if !ok {
+		return nil, gorm.ErrRecordNotFound // 存在し得ない id = not found
+	}
+	sqlDB, err := r.db.DB()
+	if err != nil {
 		return nil, err
 	}
-	return &exercise, nil
+	row, err := sqlcgen.New(sqlDB).GetMasterExerciseByID(ctx, id64)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, gorm.ErrRecordNotFound // 404 シグナルを維持
+	}
+	if err != nil {
+		return nil, err
+	}
+	e := toDomainMasterExercise(row)
+	return &e, nil
 }
 
+// GetBySlug は slug で単一問題を返す。未存在は gorm.ErrRecordNotFound（handler が 404 に分岐）。
 func (r *masterExerciseRepository) GetBySlug(ctx context.Context, slug string) (*domain.MasterExercise, error) {
-	var exercise domain.MasterExercise
-	if err := r.db.WithContext(ctx).Where("slug = ?", slug).First(&exercise).Error; err != nil {
+	sqlDB, err := r.db.DB()
+	if err != nil {
 		return nil, err
 	}
-	return &exercise, nil
+	row, err := sqlcgen.New(sqlDB).GetMasterExerciseBySlug(ctx, slug)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, gorm.ErrRecordNotFound // 404 シグナルを維持
+	}
+	if err != nil {
+		return nil, err
+	}
+	e := toDomainMasterExercise(row)
+	return &e, nil
 }
 
 // SummaryByLanguage は公開済み問題を言語ごとに集計し、問題数と current user の正解済み件数を返す。
-// 言語選択カード（FRESTYLE-152）用。問題本文を返さないので一覧 API より軽い。
+// 言語選択カード用。問題本文を返さないので一覧 API より軽い。
 // userID=0（未ログイン）は usr サブクエリが空になり solved は全て 0。
 func (r *masterExerciseRepository) SummaryByLanguage(ctx context.Context, userID uint64) ([]repository.ExerciseLanguageSummary, error) {
-	const q = `
-SELECT e.language                                   AS language,
-       COUNT(*)                                     AS total,
-       COUNT(*) FILTER (WHERE usr.any_solved IS TRUE) AS solved
-FROM master_exercises e
-LEFT JOIN (
-    SELECT exercise_id, BOOL_OR(is_correct) AS any_solved
-    FROM exercise_submissions
-    WHERE exercise_kind = ? AND user_id = ?
-    GROUP BY exercise_id
-) usr ON usr.exercise_id = e.id
-WHERE e.is_published = TRUE
-GROUP BY e.language
-ORDER BY e.language ASC`
-
-	rows := make([]repository.ExerciseLanguageSummary, 0)
-	if err := r.db.WithContext(ctx).Raw(q, domain.ExerciseKindMaster, userID).Scan(&rows).Error; err != nil {
+	uid, ok := toInt64ID(userID)
+	if !ok {
+		uid = 0 // 存在し得ない user_id = どの提出にも一致しない（未ログインと同じ集計）
+	}
+	sqlDB, err := r.db.DB()
+	if err != nil {
 		return nil, err
 	}
-	return rows, nil
+	rows, err := sqlcgen.New(sqlDB).SummarizeMasterExercisesByLanguage(ctx, sqlcgen.SummarizeMasterExercisesByLanguageParams{
+		ExerciseKind: domain.ExerciseKindMaster,
+		ViewerID:     uid,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]repository.ExerciseLanguageSummary, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, repository.ExerciseLanguageSummary{
+			Language: row.Language,
+			Total:    row.Total,
+			Solved:   row.Solved,
+		})
+	}
+	return out, nil
 }
 
 // ListWithStatusByLanguage は公開済み問題を「current user の提出状態 + 全体集計」付きで 1 クエリで返す。
@@ -78,63 +146,57 @@ ORDER BY e.language ASC`
 // sort_order は一意でないため id をタイブレークに置く。これが無いと同値行の順序がページ間で
 // 揺れ、OFFSET ページングで同じ行が重複したり抜け落ちたりする。
 func (r *masterExerciseRepository) ListWithStatusByLanguage(ctx context.Context, in repository.ListWithStatusInput) ([]repository.MasterExerciseWithStatus, error) {
-	type row struct {
-		domain.MasterExercise
-
-		UserStatus       string `gorm:"column:user_status"`
-		TotalSubmissions int64  `gorm:"column:total_submissions"`
-		SolvedUsers      int64  `gorm:"column:solved_users"`
+	uid, ok := toInt64ID(in.UserID)
+	if !ok {
+		uid = 0 // 存在し得ない user_id = どの提出にも一致しない（未ログインと同じ状態）
 	}
-
-	const baseQ = `
-SELECT e.*,
-       COALESCE(agg.total_submissions, 0) AS total_submissions,
-       COALESCE(agg.solved_users, 0)      AS solved_users,
-       CASE
-           WHEN usr.any_solved IS TRUE  THEN 'solved'
-           WHEN usr.any_solved IS FALSE THEN 'in_progress'
-           ELSE ''
-       END AS user_status
-FROM master_exercises e
-LEFT JOIN (
-    SELECT exercise_id,
-           COUNT(*)                                          AS total_submissions,
-           COUNT(DISTINCT user_id) FILTER (WHERE is_correct) AS solved_users
-    FROM exercise_submissions
-    WHERE exercise_kind = ?
-    GROUP BY exercise_id
-) agg ON agg.exercise_id = e.id
-LEFT JOIN (
-    SELECT exercise_id, BOOL_OR(is_correct) AS any_solved
-    FROM exercise_submissions
-    WHERE exercise_kind = ? AND user_id = ?
-    GROUP BY exercise_id
-) usr ON usr.exercise_id = e.id
-WHERE e.is_published = TRUE
-  AND (? = '' OR e.language = ?)
-ORDER BY e.sort_order ASC, e.id ASC`
-
-	var q string
-	var args []interface{}
-	args = []interface{}{domain.ExerciseKindMaster, domain.ExerciseKindMaster, in.UserID, in.Language, in.Language}
-
+	// Limit<=0 は「全件」。SQL 側は 0 を NULL（無制限）へ倒すので 0 に正規化する。
+	// 負値をそのまま渡すと LIMIT -1 で SQL エラーになるためここで潰す。
+	// Offset は Limit が無いときには意味を持たない（GORM 版も Limit>0 のときだけ適用していた）。
+	limit, offset := int64(0), int64(0)
 	if in.Limit > 0 {
-		q = baseQ + "\nLIMIT ? OFFSET ?"
-		args = append(args, in.Limit, in.Offset)
-	} else {
-		q = baseQ
+		limit = int64(in.Limit)
+		if in.Offset > 0 {
+			offset = int64(in.Offset)
+		}
 	}
-
-	var rows []row
-	if err := r.db.WithContext(ctx).Raw(q, args...).Scan(&rows).Error; err != nil {
+	sqlDB, err := r.db.DB()
+	if err != nil {
 		return nil, err
 	}
-
+	rows, err := sqlcgen.New(sqlDB).ListMasterExercisesWithStatusByLanguage(ctx, sqlcgen.ListMasterExercisesWithStatusByLanguageParams{
+		ExerciseKind: domain.ExerciseKindMaster,
+		ViewerID:     uid,
+		Language:     in.Language,
+		RowLimit:     limit,
+		RowOffset:    offset,
+	})
+	if err != nil {
+		return nil, err
+	}
 	out := make([]repository.MasterExerciseWithStatus, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, repository.MasterExerciseWithStatus{
-			MasterExercise: row.MasterExercise,
-			Status:         row.UserStatus,
+			MasterExercise: toDomainMasterExercise(sqlcgen.MasterExercise{
+				ID:             row.ID,
+				Slug:           row.Slug,
+				Language:       row.Language,
+				SortOrder:      row.SortOrder,
+				Category:       row.Category,
+				Title:          row.Title,
+				Description:    row.Description,
+				StarterCode:    row.StarterCode,
+				HintText:       row.HintText,
+				ExpectedOutput: row.ExpectedOutput,
+				Mode:           row.Mode,
+				Explanation:    row.Explanation,
+				Difficulty:     row.Difficulty,
+				IsPublished:    row.IsPublished,
+				ChapterID:      row.ChapterID,
+				CreatedAt:      row.CreatedAt,
+				UpdatedAt:      row.UpdatedAt,
+			}),
+			Status: row.UserStatus,
 			Stats: repository.ExerciseSubmissionStats{
 				TotalSubmissions: row.TotalSubmissions,
 				SolvedUsers:      row.SolvedUsers,

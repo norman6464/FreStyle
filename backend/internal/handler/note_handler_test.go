@@ -132,6 +132,22 @@ func Test_ノートハンドラ_更新(t *testing.T) {
 			t.Fatalf("want 200, got %d", w.Code)
 		}
 	})
+	// 他人の note と存在しない note は、ステータスも本文もバイト単位で同一でなければならない。
+	// 片方でも違えば、応答の差から「その ID が実在する」ことを外から判定できてしまう。
+	t.Run("他人の note と存在しない note が同じ 404 + 同じ本文", func(t *testing.T) {
+		wForeign, cForeign := noteCtx(http.MethodPut, `{"title":"X"}`, 7, "5")
+		newNoteHandler(&fakeNoteRepo{one: &domain.Note{ID: 5, UserID: 99}}).Update(cForeign)
+
+		wMissing, cMissing := noteCtx(http.MethodPut, `{"title":"X"}`, 7, "5")
+		newNoteHandler(&fakeNoteRepo{err: domain.ErrNotFound}).Update(cMissing)
+
+		if wForeign.Code != http.StatusNotFound || wMissing.Code != http.StatusNotFound {
+			t.Fatalf("want 404/404, got %d/%d", wForeign.Code, wMissing.Code)
+		}
+		if wForeign.Body.String() != wMissing.Body.String() {
+			t.Fatalf("本文が撃ち分けられている: 他人=%q 不在=%q", wForeign.Body.String(), wMissing.Body.String())
+		}
+	})
 }
 
 func Test_ノートハンドラ_削除(t *testing.T) {

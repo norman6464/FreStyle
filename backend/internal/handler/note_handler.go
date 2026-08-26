@@ -6,9 +6,19 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
+
+// noteNotFoundMsg は「そのノートは取得できない」ことを表す唯一の応答本文。
+//
+// 他人のノートでも存在しないノートでも、必ずこの 1 つの文言を 404 で返す。
+// ステータスだけ 404 に揃えても本文が違えば、呼び出し元は本文の差で
+// 「実在するが自分のものではない」と「そもそも無い」を見分けられてしまい、
+// 存在オラクル（ID 空間を総当たりして実在 ID を全数把握できる状態）が残る。
+// 定数を 1 つだけ置き、両方の経路がこれを共有することでバイト単位で同一にする。
+const noteNotFoundMsg = "note not found"
 
 type NoteHandler struct {
 	list   *usecase.ListNotesByUserIDUseCase
@@ -100,10 +110,17 @@ type noteUpdateReq struct {
 	IsPinned bool   `json:"isPinned"`
 }
 
-// Update は current user 所有の note のみ更新可能。usecase 側で所有者検証する。
+// Update は current user 所有の note のみ更新可能。
+//
+// 他人の note と存在しない note は撃ち分けない。usecase が両方を domain.ErrNotFound へ
+// 畳んで返すので、handler はその 1 本の分岐で 404 + noteNotFoundMsg を返す。
+// 分岐が 1 つしか無いこと自体が「ステータスも本文も一致する」ことの担保になる
+// （403 と 404 のように分けて書くと、片方を直し忘れた瞬間に存在オラクルが復活する）。
 //
 //	@Summary      ノート 更新
-//	@Description  指定 note を 更新。 所有者 検証 を usecase 層 で 行い、 他人 の note は 403。
+//	@Description  指定 note を 更新。 更新 できる の は current user 所有 の note だけ。
+//	@Description  他人 の note と 存在 し ない note は 撃ち 分け ず、 どちら も 同じ 404 (同一 本文) を 返す。
+//	@Description  応答 の 差 で ID の 実在 を 数え 上げ られる (存在 オラクル) の を 防ぐ ため。
 //	@Tags         notes
 //	@Accept       json
 //	@Produce      json
@@ -112,7 +129,7 @@ type noteUpdateReq struct {
 //	@Success      200   {object}  github_com_norman6464_FreStyle_backend_internal_domain.Note
 //	@Failure      400   {object}  errorResponse  "バリデーション or DB 失敗"
 //	@Failure      401   {object}  errorResponse  "未 認証"
-//	@Failure      403   {object}  errorResponse  "他人 の note"
+//	@Failure      404   {object}  errorResponse  "他人 の note or 存在 し ない note (区別 し ない)"
 //	@Router       /notes/{id} [put]
 //	@Security     CookieAuth
 func (h *NoteHandler) Update(c *gin.Context) {
@@ -132,10 +149,12 @@ func (h *NoteHandler) Update(c *gin.Context) {
 		IsPublic: req.IsPublic, IsPinned: req.IsPinned,
 	})
 	if err != nil {
-		if errors.Is(err, usecase.ErrNoteForbidden) {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": noteNotFoundMsg})
 			return
 		}
+		// 他人 / 不在 以外の失敗（バリデーション・DB 障害）。err.Error() をそのまま返すが、
+		// ここに来るのは note の実在に依存しないエラーだけなので存在は漏れない。
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -144,12 +163,18 @@ func (h *NoteHandler) Update(c *gin.Context) {
 
 // Delete は WHERE で user_id を絞るため他人の note は消せない。
 //
+// 削除は「消えた」「元から無い」「他人のものだった」を区別せず、いずれも 204（本文なし）を返す。
+// DELETE 文が 0 行に当たっただけではエラーにならないので、これは分岐を足さない限り自然にそうなる。
+// 逆に「対象なしだから 404」のような分岐を足すと、そこが存在オラクルになるので入れてはいけない。
+//
 //	@Summary      ノート 削除
 //	@Description  current user 所有 の note を 削除。 WHERE user_id 絞り込み で 他人 の note は そもそも 影響 を 受け ない。
+//	@Description  他人 の note・存在 し ない note・自分 の note の いずれ に 対して も 同じ 204 (本文 なし) を 返し、
+//	@Description  応答 から ID の 実在 が 分から ない よう に する。
 //	@Tags         notes
 //	@Produce      json
 //	@Param        id  path  int  true  "ノート ID"
-//	@Success      204  "成功 (本文 なし)"
+//	@Success      204  "成功 (本文 なし。 対象 が 無く て も 同じ)"
 //	@Failure      400  {object}  errorResponse  "DB 失敗"
 //	@Failure      401  {object}  errorResponse  "未 認証"
 //	@Router       /notes/{id} [delete]

@@ -10,10 +10,6 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
-// ErrNoteForbidden は旧「他人の note」シグナル。撃ち分けを止めたので usecase からは返さない
-// （handler 側の分岐撤去とあわせて次で削除する）。
-var ErrNoteForbidden = errors.New("forbidden")
-
 // ListNotesByUserIDUseCase は current user のノート一覧を返す。
 type ListNotesByUserIDUseCase struct {
 	repo repository.NoteRepository

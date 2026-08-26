@@ -166,9 +166,16 @@ sql:
 # ここが最後の機械的な網になる。
 #
 # vet の CEL 式から見えるもの（sqlc v1.31.1 で実際に確かめた）:
-#   query.sql    … SQL 本文。`-- name:` 行は含まれない。ただしファイル先頭の見出しコメントは
-#                  そのファイルの「最初のクエリ」の本文に付いてくる（実測 6 ファイル）。
-#                  下のルールがコメント行を落としてから見ているのはこのため。
+#   query.sql    … SQL 本文。ただし「書いたとおりの文字列」ではなく、sqlc が処理したあとの
+#                  SQL であることに注意する（sqlc v1.31.1 で実測）:
+#                    - `-- name:` 行と、そのあと最初の SQL キーワードまでの説明コメントは
+#                      落ちている。文の途中に置いたコメント行は残る
+#                      （実測: 162 本中 3 本。knowledge_base_permission.sql の大きな CTE 群）。
+#                      下のルールがコメント行を落としてから見ているのは、この「文中コメント」で
+#                      誤判定しないため。
+#                    - sqlc.arg(x) / sqlc.narg(x) / sqlc.slice(x) は既に $1, $2 … へ
+#                      書き換わっている。つまり CEL からは `sqlc.` で始まる文字列は一切見えず、
+#                      `sqlc.slice を使うな` のようなルールはここには書けない。
 #   query.name   … クエリ名（GetUserByID 等）
 #   query.cmd    … one / many / exec / execrows のいずれか（`:` は付かない）
 #   query.params … $1..$n の「番号」だけ。列名も型も入っていない
@@ -178,10 +185,20 @@ sql:
 #   matches は RE2 で、部分一致（アンカーは自分で書く）。(?i) / (?m) のインラインフラグは効く。
 #
 # 表現できないこと（できないと分かったうえで諦めている）:
-#   列の型が CEL から一切見えない。したがって「bigint の列に ::int を掛けていて 32bit へ
-#   縮む」のような型に踏み込んだ検査は vet では書けない。ここで書けるのは実質
-#   「SQL 本文への正規表現」まで。型の食い違いは `sqlc generate`（スキーマとの突き合わせ）と、
-#   本物の PostgreSQL に対する結合テスト（*_integration_test.go）で拾う。
+#   スキーマが CEL から一切見えない。列の型も、その表にどんな列があるのかも分からない。
+#   ここで書けるのは実質「処理後の SQL 本文への正規表現」までになる。
+#
+#   このため、下の narrowing-cast-on-param は「bigint の列に ::int を掛けている」という
+#   照合はしていない。列の型を見ずに済むよう、そもそも「パラメータを 32bit へ絞ること自体」を
+#   禁じる形にしてある（理由はルール本体のコメント）。
+#
+#   スキーマも、クエリに添えたコメントも要る検査は、ここには書けない。実例が 2 つあり
+#   どちらも Go のテストに置いた（internal/adapter/persistence/queries_static_check_test.go）:
+#     - upsert-owner-scope … ON CONFLICT の衝突キーと「その表の所有者列」を突き合わせる。
+#                            表の列が分からないと判定できない
+#     - no-sqlc-slice      … sqlc.slice の使用禁止。上のとおり CEL には $N しか届かない
+#   型の食い違いそのものは `sqlc generate`（スキーマとの突き合わせ）と、本物の PostgreSQL に
+#   対する結合テスト（*_integration_test.go）で拾う。
 #
 # 組み込みルール sqlc/db-prepare は入れていない:
 #   実 DB へ繋いで全クエリを PREPARE してみるルールで、生きた PostgreSQL への接続設定が要る。
@@ -226,3 +243,4 @@ rules:
       query.sql.split("\n").filter(line, !line.trim().startsWith("--")).join("\n").matches("(?im)^[ \\t]*(update|delete)\\b")
       &&
       !query.sql.split("\n").filter(line, !line.trim().startsWith("--")).join("\n").matches("(?i)\\bwhere\\b")
+

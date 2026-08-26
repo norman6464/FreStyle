@@ -4,10 +4,9 @@ FreStyle のバックエンド（Go / Gin / sqlc / PostgreSQL）。クリーン�
 `archlint` で強制）。一時的に進めた Java/Spring Boot 版は性能面（極小 Fargate + 夜間 teardown）の
 理由で取りやめ、Go へ差し戻した（2026-06-09 に機能パリティ回復）。
 
-**データアクセス方針**: クエリは読み取り・書き込みとも **sqlc 生成コード（生 SQL）** で書く。
-ORM は使わず、アプリ全体で 1 つの `*sql.DB` を共有する。スキーマの正本は
-`internal/infra/database/schema/*.sql`（起動時に冪等な明示 DDL として流し、同じファイルから
-sqlc が型を起こす）。テストは古典学派（実 DB・実ルータ + 手書き fake で状態検証）を採用する。
+データアクセスは ORM を使わず **sqlc 生成コード（生 SQL）**。スキーマの正本は
+`internal/infra/database/schema/*.sql` で、起動時に冪等な明示 DDL として流し、同じファイルから
+sqlc が型を起こす。
 
 ## ディレクトリ構造（クリーンアーキテクチャ）
 

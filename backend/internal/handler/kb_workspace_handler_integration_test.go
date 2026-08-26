@@ -19,12 +19,10 @@ import (
 // このチケットの主眼は「API が一周すること」なので、途中を fake で埋めずに
 // 作成 → 発見 → スペース作成 → 空のスペースへの最初のページ作成 まで通しで回す。
 func TestKnowledgeBaseWorkspaceAPI_Integration(t *testing.T) {
-	gormDB := testsupport.OpenTestDB(t)
-	sqlDB, err := gormDB.DB()
-	require.NoError(t, err)
+	sqlDB := testsupport.OpenTestDB(t)
 
 	t.Run("作成から空のスペースへの最初のページ作成までAPIだけで一周する", func(t *testing.T) {
-		env := newKbEnv(t, gormDB, sqlDB, "acme")
+		env := newKbEnv(t, sqlDB, "acme")
 		alice := kbInsertUser(t, sqlDB, "alice")
 		e := env.as(alice)
 
@@ -67,7 +65,7 @@ func TestKnowledgeBaseWorkspaceAPI_Integration(t *testing.T) {
 	})
 
 	t.Run("所属していないワークスペースは一覧に漏れない", func(t *testing.T) {
-		env := newKbEnv(t, gormDB, sqlDB, "acme")
+		env := newKbEnv(t, sqlDB, "acme")
 		alice := kbInsertUser(t, sqlDB, "alice")
 		bob := kbInsertUser(t, sqlDB, "bob")
 		env.joinWorkspace(t, alice, domain.GrantRoleAdmin)
@@ -84,7 +82,7 @@ func TestKnowledgeBaseWorkspaceAPI_Integration(t *testing.T) {
 	})
 
 	t.Run("スペース作成はワークスペースのadminだけが通る", func(t *testing.T) {
-		env := newKbEnv(t, gormDB, sqlDB, "acme")
+		env := newKbEnv(t, sqlDB, "acme")
 		alice := kbInsertUser(t, sqlDB, "alice")
 		bob := kbInsertUser(t, sqlDB, "bob")
 		carol := kbInsertUser(t, sqlDB, "carol")
@@ -105,7 +103,7 @@ func TestKnowledgeBaseWorkspaceAPI_Integration(t *testing.T) {
 	t.Run("スペースのeditorでも親ページで外されていればその下には作れない", func(t *testing.T) {
 		// この経路が「スペースの権限」で判断されると、ページに張った deny が素通りする。
 		// 親を指定した作成は必ずページ単位の判定（経路上の例外まで見る）を通ること。
-		env := newKbEnv(t, gormDB, sqlDB, "acme")
+		env := newKbEnv(t, sqlDB, "acme")
 		alice := kbInsertUser(t, sqlDB, "alice")
 		bob := kbInsertUser(t, sqlDB, "bob")
 		env.joinWorkspace(t, alice, domain.GrantRoleAdmin)
@@ -134,7 +132,7 @@ func TestKnowledgeBaseWorkspaceAPI_Integration(t *testing.T) {
 	})
 
 	t.Run("スペースの編集権限が無ければルートページを作れない", func(t *testing.T) {
-		env := newKbEnv(t, gormDB, sqlDB, "acme")
+		env := newKbEnv(t, sqlDB, "acme")
 		viewer := kbInsertUser(t, sqlDB, "viewer")
 		stranger := kbInsertUser(t, sqlDB, "stranger")
 		env.joinWorkspace(t, viewer, domain.GrantRoleViewer)
@@ -154,7 +152,7 @@ func TestKnowledgeBaseWorkspaceAPI_Integration(t *testing.T) {
 	})
 
 	t.Run("役割の無いメンバーにはスペースの実在を漏らさない", func(t *testing.T) {
-		env := newKbEnv(t, gormDB, sqlDB, "acme")
+		env := newKbEnv(t, sqlDB, "acme")
 		nobody := kbInsertUser(t, sqlDB, "nobody")
 		// 所属だけさせて grant は張らない（middleware は通るが中身は何も見えない）。
 		_, err := env.permissions.EnsureUserPrincipal(t.Context(), env.workspaceID, nobody)

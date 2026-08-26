@@ -4,6 +4,7 @@ package persistence_test
 
 import (
 	"context"
+	"math"
 	"testing"
 	"time"
 
@@ -131,6 +132,23 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 		m := mk(1, 10, "章", 0, true)
 		require.NoError(t, repo.Create(ctx, m))
 		require.Equal(t, 100, m.OrderInCourse) // GORM default:100 相当
+	})
+
+	t.Run("Create は int32 を超える revision / schema_version / sort_order を切り詰めず保存する", func(t *testing.T) {
+		testsupport.TruncateAll(t, db, "course_chapters")
+		// revision / schema_version / sort_order はいずれも bigint 列。パラメータを int4 に
+		// 落とすとこの値は負数へ巻き戻り、エラーも出ないまま別の値が保存される。
+		const beyondInt32 = math.MaxInt32 + 1
+		m := mk(1, 10, "章", beyondInt32, true)
+		m.Revision = beyondInt32
+		m.SchemaVersion = beyondInt32
+		require.NoError(t, repo.Create(ctx, m))
+
+		got, err := repo.GetByID(ctx, m.ID)
+		require.NoError(t, err)
+		require.Equal(t, beyondInt32, got.Revision)
+		require.Equal(t, beyondInt32, got.SchemaVersion)
+		require.Equal(t, beyondInt32, got.OrderInCourse)
 	})
 
 	t.Run("GetByID は本文 doc を含めて返し、未存在は gorm.ErrRecordNotFound", func(t *testing.T) {

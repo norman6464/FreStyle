@@ -179,9 +179,9 @@ func TestMasterExerciseRepository_ReadContract_Integration(t *testing.T) {
 		require.False(t, got.IsPublished)
 	})
 
-	t.Run("GetByID の未存在は gorm.ErrRecordNotFound", func(t *testing.T) {
+	t.Run("GetByID の未存在は domain.ErrNotFound", func(t *testing.T) {
 		_, err := repo.GetByID(ctx, noSuchID)
-		require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+		require.ErrorIs(t, err, domain.ErrNotFound)
 	})
 
 	t.Run("GetBySlug は slug で 1 件返す", func(t *testing.T) {
@@ -191,9 +191,9 @@ func TestMasterExerciseRepository_ReadContract_Integration(t *testing.T) {
 		require.Equal(t, "go", got.Language)
 	})
 
-	t.Run("GetBySlug の未存在は gorm.ErrRecordNotFound", func(t *testing.T) {
+	t.Run("GetBySlug の未存在は domain.ErrNotFound", func(t *testing.T) {
 		_, err := repo.GetBySlug(ctx, "no-such-slug")
-		require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+		require.ErrorIs(t, err, domain.ErrNotFound)
 	})
 }
 

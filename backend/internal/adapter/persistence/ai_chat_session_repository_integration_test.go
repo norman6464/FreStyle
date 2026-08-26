@@ -142,9 +142,9 @@ func TestAiChatSessionRepository_Read_Integration(t *testing.T) {
 		require.WithinDuration(t, newer, got.UpdatedAt, time.Second)
 	})
 
-	t.Run("FindByID の未存在は gorm.ErrRecordNotFound", func(t *testing.T) {
+	t.Run("FindByID の未存在は domain.ErrNotFound", func(t *testing.T) {
 		got, err := repo.FindByID(ctx, noSuchID)
-		require.ErrorIs(t, err, gorm.ErrRecordNotFound, "handler が 404 に分岐するシグナル")
+		require.ErrorIs(t, err, domain.ErrNotFound, "handler が 404 に分岐するシグナル")
 		require.Nil(t, got)
 	})
 }
@@ -225,7 +225,7 @@ func TestAiChatSessionRepository_Delete_Integration(t *testing.T) {
 		require.Equal(t, int64(0), cnt, "物理削除なので行が残らない")
 
 		_, err := repo.FindByID(ctx, target.ID)
-		require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+		require.ErrorIs(t, err, domain.ErrNotFound)
 	})
 
 	t.Run("対象外の行は残る", func(t *testing.T) {

@@ -10,11 +10,10 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
 	"github.com/stretchr/testify/require"
-	"gorm.io/gorm"
 )
 
 // TestCompanyRepository_Integration は sqlc 化した ListAll（name 昇順）/ FindByID（round-trip /
-// not-found で ErrRecordNotFound）と、生 SQL の UpdateAiChatEnabled を実 Postgres で検証する。
+// not-found で domain.ErrNotFound）と、生 SQL の UpdateAiChatEnabled を実 Postgres で検証する。
 func TestCompanyRepository_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
 	repo := persistence.NewCompanyRepository(db)
@@ -45,10 +44,10 @@ func TestCompanyRepository_Integration(t *testing.T) {
 		require.False(t, got.AiChatEnabledForTrainees) // UpdateAiChatEnabled(false) が効いている
 	})
 
-	t.Run("FindByID は not-found で ErrRecordNotFound", func(t *testing.T) {
+	t.Run("FindByID は not-found で domain.ErrNotFound", func(t *testing.T) {
 		testsupport.TruncateAll(t, db, "companies")
 		_, err := repo.FindByID(ctx, 999)
-		require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+		require.ErrorIs(t, err, domain.ErrNotFound)
 	})
 
 	t.Run("UpdateAiChatEnabled で切替できる", func(t *testing.T) {

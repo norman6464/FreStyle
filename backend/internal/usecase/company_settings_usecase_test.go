@@ -6,7 +6,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gorm.io/gorm"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
@@ -98,7 +97,7 @@ func Test_ユーザーのAIチャット利用可否(t *testing.T) {
 	})
 
 	t.Run("会社行が無い(RecordNotFound)なら既定 true", func(t *testing.T) {
-		repo := &settingsCompanyRepo{findErr: gorm.ErrRecordNotFound}
+		repo := &settingsCompanyRepo{findErr: domain.ErrNotFound}
 		uc := usecase.NewAiChatEnabledForUserUseCase(repo)
 		got, err := uc.Execute(context.Background(), &domain.User{Role: domain.RoleTrainee, CompanyID: u64p(99)})
 		require.NoError(t, err)

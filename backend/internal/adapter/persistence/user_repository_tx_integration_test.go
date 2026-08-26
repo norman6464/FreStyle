@@ -254,12 +254,12 @@ func TestUserRepositoryWrites_Integration(t *testing.T) {
 		require.NotNil(t, byEmail)
 	})
 
-	t.Run("UpdateActive は存在しないユーザーで ErrRecordNotFound", func(t *testing.T) {
+	t.Run("UpdateActive は存在しないユーザーで domain.ErrNotFound", func(t *testing.T) {
 		testsupport.TruncateAll(t, db, userTxTables...)
-		require.ErrorIs(t, repo.UpdateActive(ctx, 999999, false), gorm.ErrRecordNotFound)
+		require.ErrorIs(t, repo.UpdateActive(ctx, 999999, false), domain.ErrNotFound)
 	})
 
-	t.Run("SoftDelete は identity を解放し、二度目は ErrRecordNotFound", func(t *testing.T) {
+	t.Run("SoftDelete は identity を解放し、二度目は domain.ErrNotFound", func(t *testing.T) {
 		testsupport.TruncateAll(t, db, userTxTables...)
 		u := newTrainee(t, "bye@example.com", "bye-1")
 
@@ -275,8 +275,8 @@ func TestUserRepositoryWrites_Integration(t *testing.T) {
 		require.NoError(t, db.Raw(`SELECT count(*) FROM user_oidc_identities WHERE user_id = ?`, u.ID).Scan(&n).Error)
 		require.Equal(t, int64(0), n, "identity は解放される")
 
-		require.ErrorIs(t, repo.SoftDelete(ctx, u.ID), gorm.ErrRecordNotFound)
-		require.ErrorIs(t, repo.SoftDelete(ctx, 999999), gorm.ErrRecordNotFound)
+		require.ErrorIs(t, repo.SoftDelete(ctx, u.ID), domain.ErrNotFound)
+		require.ErrorIs(t, repo.SoftDelete(ctx, 999999), domain.ErrNotFound)
 	})
 
 	t.Run("UpdateName / UpdateRole は指定列だけを更新する", func(t *testing.T) {

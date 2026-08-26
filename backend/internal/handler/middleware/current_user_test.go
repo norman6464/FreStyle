@@ -8,7 +8,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"gorm.io/gorm"
 )
 
 // stubUsers は UserRepository の最小 stub。FindByCognitoSub だけ返す。
@@ -102,7 +101,7 @@ func Test_カレントユーザー_有効な会社は許可(t *testing.T) {
 func Test_カレントユーザー_運営管理者は会社なしでも許可(t *testing.T) {
 	// super_admin は company_id なし → 会社チェックをスキップして通す。
 	users := &stubUsers{user: &domain.User{ID: 1, Role: domain.RoleSuperAdmin, IsActive: true, CompanyID: nil}}
-	companies := &stubCompanies{err: gorm.ErrRecordNotFound}
+	companies := &stubCompanies{err: domain.ErrNotFound}
 
 	_, c := runCurrentUser(t, users, companies)
 
@@ -114,7 +113,7 @@ func Test_カレントユーザー_運営管理者は会社なしでも許可(t 
 func Test_カレントユーザー_会社が見つからなくても許可(t *testing.T) {
 	// company_id はあるが会社行が無い（データ不整合）→ 弾かない。
 	users := &stubUsers{user: &domain.User{ID: 1, Role: domain.RoleTrainee, IsActive: true, CompanyID: uintPtr(99)}}
-	companies := &stubCompanies{err: gorm.ErrRecordNotFound}
+	companies := &stubCompanies{err: domain.ErrNotFound}
 
 	_, c := runCurrentUser(t, users, companies)
 

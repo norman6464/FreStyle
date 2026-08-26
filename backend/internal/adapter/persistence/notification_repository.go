@@ -2,20 +2,20 @@ package persistence
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"time"
 
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
-	"gorm.io/gorm"
 )
 
 // notificationRepository は [repository.NotificationRepository] の実装。
-// クエリは sqlc 生成コード（生 SQL）で、GORM からは接続プール（*sql.DB）だけを借りる。
-type notificationRepository struct{ db *gorm.DB }
+// クエリは sqlc 生成コード（生 SQL）で、接続プール（*sql.DB）をそのまま受け取る。
+type notificationRepository struct{ db *sql.DB }
 
-func NewNotificationRepository(db *gorm.DB) repository.NotificationRepository {
+func NewNotificationRepository(db *sql.DB) repository.NotificationRepository {
 	return &notificationRepository{db: db}
 }
 
@@ -25,15 +25,11 @@ func (r *notificationRepository) Create(ctx context.Context, n *domain.Notificat
 		// 1 行も書けていないので nil を返さない（呼び出し側が作成できたと誤認する）。
 		return outOfRangeIDError("user_id", n.UserID)
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return err
-	}
 	createdAt := n.CreatedAt
 	if createdAt.IsZero() {
 		createdAt = time.Now() // GORM autoCreateTime 相当（ゼロのときだけ now）
 	}
-	row, err := sqlcgen.New(sqlDB).InsertNotification(ctx, sqlcgen.InsertNotificationParams{
+	row, err := sqlcgen.New(r.db).InsertNotification(ctx, sqlcgen.InsertNotificationParams{
 		UserID:    uid,
 		Type:      n.Type,
 		Title:     n.Title,
@@ -79,11 +75,7 @@ func (r *notificationRepository) CreateMany(ctx context.Context, ns []domain.Not
 	if err != nil {
 		return err
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return err
-	}
-	return sqlcgen.New(sqlDB).CreateNotifications(ctx, itemsJSON)
+	return sqlcgen.New(r.db).CreateNotifications(ctx, itemsJSON)
 }
 
 func (r *notificationRepository) ListByUserID(ctx context.Context, userID uint64) ([]domain.Notification, error) {
@@ -91,11 +83,7 @@ func (r *notificationRepository) ListByUserID(ctx context.Context, userID uint64
 	if !ok {
 		return []domain.Notification{}, nil // 存在し得ない user_id = 0 件
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return nil, err
-	}
-	rows, err := sqlcgen.New(sqlDB).ListNotificationsByUserID(ctx, uid)
+	rows, err := sqlcgen.New(r.db).ListNotificationsByUserID(ctx, uid)
 	if err != nil {
 		return nil, err
 	}
@@ -123,11 +111,7 @@ func (r *notificationRepository) MarkRead(ctx context.Context, userID, id uint64
 	if !ok {
 		return nil // 存在し得ない id = 対象なし
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return err
-	}
-	return sqlcgen.New(sqlDB).MarkNotificationRead(ctx, sqlcgen.MarkNotificationReadParams{
+	return sqlcgen.New(r.db).MarkNotificationRead(ctx, sqlcgen.MarkNotificationReadParams{
 		ID:     nid,
 		UserID: uid,
 	})
@@ -138,11 +122,7 @@ func (r *notificationRepository) MarkAllRead(ctx context.Context, userID uint64)
 	if !ok {
 		return nil // 存在し得ない user_id = 対象なし
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return err
-	}
-	return sqlcgen.New(sqlDB).MarkAllNotificationsRead(ctx, uid)
+	return sqlcgen.New(r.db).MarkAllNotificationsRead(ctx, uid)
 }
 
 func (r *notificationRepository) CountUnread(ctx context.Context, userID uint64) (int64, error) {
@@ -150,11 +130,7 @@ func (r *notificationRepository) CountUnread(ctx context.Context, userID uint64)
 	if !ok {
 		return 0, nil
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return 0, err
-	}
-	return sqlcgen.New(sqlDB).CountUnreadNotifications(ctx, uid)
+	return sqlcgen.New(r.db).CountUnreadNotifications(ctx, uid)
 }
 
 // stubSnsPublisher は [repository.SnsPublisher] の no-op 実装（本番の SNS 実装は別 PR）。

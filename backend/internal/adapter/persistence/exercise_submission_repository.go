@@ -7,16 +7,15 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
-	"gorm.io/gorm"
 )
 
 // exerciseSubmissionRepository は [repository.ExerciseSubmissionRepository] の実装。
-// クエリは sqlc 生成コード（生 SQL）で、GORM からは接続プール（*sql.DB）だけを借りる。
+// クエリは sqlc 生成コード（生 SQL）で、接続プール（*sql.DB）をそのまま受け取る。
 type exerciseSubmissionRepository struct {
-	db *gorm.DB
+	db *sql.DB
 }
 
-func NewExerciseSubmissionRepository(db *gorm.DB) repository.ExerciseSubmissionRepository {
+func NewExerciseSubmissionRepository(db *sql.DB) repository.ExerciseSubmissionRepository {
 	return &exerciseSubmissionRepository{db: db}
 }
 
@@ -46,11 +45,7 @@ func (r *exerciseSubmissionRepository) Create(ctx context.Context, submission *d
 		// 1 行も書けていないので nil を返さない（呼び出し側が作成できたと誤認する）。
 		return outOfRangeIDError("exercise_id", submission.ExerciseID)
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return err
-	}
-	id, err := sqlcgen.New(sqlDB).InsertExerciseSubmission(ctx, sqlcgen.InsertExerciseSubmissionParams{
+	id, err := sqlcgen.New(r.db).InsertExerciseSubmission(ctx, sqlcgen.InsertExerciseSubmissionParams{
 		UserID:        uid,
 		ExerciseKind:  submission.ExerciseKind,
 		ExerciseID:    exID,
@@ -78,11 +73,7 @@ func (r *exerciseSubmissionRepository) ListByUserAndExercise(ctx context.Context
 	if !ok {
 		return []domain.ExerciseSubmission{}, nil
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return nil, err
-	}
-	rows, err := sqlcgen.New(sqlDB).ListSubmissionsByUserAndExercise(ctx, sqlcgen.ListSubmissionsByUserAndExerciseParams{
+	rows, err := sqlcgen.New(r.db).ListSubmissionsByUserAndExercise(ctx, sqlcgen.ListSubmissionsByUserAndExerciseParams{
 		UserID:       uid,
 		ExerciseID:   exID,
 		ExerciseKind: kind,
@@ -106,11 +97,7 @@ func (r *exerciseSubmissionRepository) HasSolved(ctx context.Context, userID, ex
 	if !ok {
 		return false, nil
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return false, err
-	}
-	return sqlcgen.New(sqlDB).ExistsCorrectSubmission(ctx, sqlcgen.ExistsCorrectSubmissionParams{
+	return sqlcgen.New(r.db).ExistsCorrectSubmission(ctx, sqlcgen.ExistsCorrectSubmissionParams{
 		UserID:       uid,
 		ExerciseID:   exID,
 		ExerciseKind: kind,
@@ -126,11 +113,7 @@ func (r *exerciseSubmissionRepository) HasAttempted(ctx context.Context, userID,
 	if !ok {
 		return false, nil
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return false, err
-	}
-	return sqlcgen.New(sqlDB).ExistsSubmission(ctx, sqlcgen.ExistsSubmissionParams{
+	return sqlcgen.New(r.db).ExistsSubmission(ctx, sqlcgen.ExistsSubmissionParams{
 		UserID:       uid,
 		ExerciseID:   exID,
 		ExerciseKind: kind,

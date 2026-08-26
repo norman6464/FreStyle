@@ -2,22 +2,22 @@ package persistence
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
-	"gorm.io/gorm"
 )
 
 // auditRepository は [repository.AuditRepository] の実装。
-// 読み書きとも sqlc 生成コード（生 SQL）で、GORM からは接続プール（*sql.DB）だけを借りる。
+// 読み書きとも sqlc 生成コード（生 SQL）で、接続プール（*sql.DB）をそのまま受け取る。
 type auditRepository struct {
-	db *gorm.DB
+	db *sql.DB
 }
 
-func NewAuditRepository(db *gorm.DB) repository.AuditRepository {
+func NewAuditRepository(db *sql.DB) repository.AuditRepository {
 	return &auditRepository{db: db}
 }
 
@@ -32,15 +32,11 @@ func (r *auditRepository) Record(ctx context.Context, e *domain.AuditEvent) erro
 	if !ok {
 		return fmt.Errorf("target id %d が int64 の範囲外です", e.TargetID)
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return err
-	}
 	createdAt := e.CreatedAt
 	if createdAt.IsZero() {
 		createdAt = time.Now() // GORM autoCreateTime 相当（ゼロのときだけ now）
 	}
-	row, err := sqlcgen.New(sqlDB).InsertAuditEvent(ctx, sqlcgen.InsertAuditEventParams{
+	row, err := sqlcgen.New(r.db).InsertAuditEvent(ctx, sqlcgen.InsertAuditEventParams{
 		ActorID:    actorID,
 		ActorEmail: e.ActorEmail,
 		ActorRole:  e.ActorRole,
@@ -72,11 +68,7 @@ func (r *auditRepository) ListRecent(ctx context.Context, limit int) ([]domain.A
 	if limit <= 0 {
 		limit = 200
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return nil, err
-	}
-	rows, err := sqlcgen.New(sqlDB).ListRecentAuditEvents(ctx, int64(limit))
+	rows, err := sqlcgen.New(r.db).ListRecentAuditEvents(ctx, int64(limit))
 	if err != nil {
 		return nil, err
 	}

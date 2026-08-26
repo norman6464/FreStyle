@@ -2,25 +2,21 @@ package persistence
 
 import (
 	"context"
+	"database/sql"
 
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
-	"gorm.io/gorm"
 )
 
 // healthRepository は [repository.HealthRepository] の実装。
-// GORM からは接続プール（*sql.DB）だけを借り、その PingContext で疎通を確かめる。
+// 接続プール（*sql.DB）の PingContext で疎通を確かめる。
 type healthRepository struct {
-	db *gorm.DB
+	db *sql.DB
 }
 
-func NewHealthRepository(db *gorm.DB) repository.HealthRepository {
+func NewHealthRepository(db *sql.DB) repository.HealthRepository {
 	return &healthRepository{db: db}
 }
 
 func (r *healthRepository) PingDB(ctx context.Context) error {
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return err
-	}
-	return sqlDB.PingContext(ctx)
+	return r.db.PingContext(ctx)
 }

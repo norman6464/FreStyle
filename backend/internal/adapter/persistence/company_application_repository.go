@@ -2,27 +2,23 @@ package persistence
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
-	"gorm.io/gorm"
 )
 
 // companyApplicationRepository は [repository.CompanyApplicationRepository] の実装。
-// クエリは sqlc 生成コード（生 SQL）で、GORM からは接続プール（*sql.DB）だけを借りる。
-type companyApplicationRepository struct{ db *gorm.DB }
+// クエリは sqlc 生成コード（生 SQL）で、接続プール（*sql.DB）をそのまま受け取る。
+type companyApplicationRepository struct{ db *sql.DB }
 
-func NewCompanyApplicationRepository(db *gorm.DB) repository.CompanyApplicationRepository {
+func NewCompanyApplicationRepository(db *sql.DB) repository.CompanyApplicationRepository {
 	return &companyApplicationRepository{db: db}
 }
 
 func (r *companyApplicationRepository) Create(ctx context.Context, app *domain.CompanyApplication) error {
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return err
-	}
 	now := time.Now()
 	createdAt := app.CreatedAt
 	if createdAt.IsZero() {
@@ -32,7 +28,7 @@ func (r *companyApplicationRepository) Create(ctx context.Context, app *domain.C
 	if updatedAt.IsZero() {
 		updatedAt = now // GORM autoUpdateTime 相当（ゼロのときだけ now）
 	}
-	row, err := sqlcgen.New(sqlDB).InsertCompanyApplication(ctx, sqlcgen.InsertCompanyApplicationParams{
+	row, err := sqlcgen.New(r.db).InsertCompanyApplication(ctx, sqlcgen.InsertCompanyApplicationParams{
 		CompanyName:   app.CompanyName,
 		ApplicantName: app.ApplicantName,
 		Email:         app.Email,
@@ -51,11 +47,7 @@ func (r *companyApplicationRepository) Create(ctx context.Context, app *domain.C
 }
 
 func (r *companyApplicationRepository) ListAll(ctx context.Context) ([]domain.CompanyApplication, error) {
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return nil, err
-	}
-	rows, err := sqlcgen.New(sqlDB).ListCompanyApplications(ctx)
+	rows, err := sqlcgen.New(r.db).ListCompanyApplications(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -80,11 +72,7 @@ func (r *companyApplicationRepository) UpdateStatus(ctx context.Context, id uint
 	if !ok {
 		return nil // 存在し得ない id = 対象なし
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return err
-	}
-	return sqlcgen.New(sqlDB).UpdateCompanyApplicationStatus(ctx, sqlcgen.UpdateCompanyApplicationStatusParams{
+	return sqlcgen.New(r.db).UpdateCompanyApplicationStatus(ctx, sqlcgen.UpdateCompanyApplicationStatusParams{
 		ID:     id64,
 		Status: status,
 	})

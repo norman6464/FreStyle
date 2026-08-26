@@ -9,16 +9,15 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
-	"gorm.io/gorm"
 )
 
 // courseRepository は [repository.CourseRepository] の実装。
-// クエリは sqlc 生成コード（生 SQL）で、GORM からは接続プール（*sql.DB）だけを借りる。
+// クエリは sqlc 生成コード（生 SQL）で、接続プール（*sql.DB）をそのまま受け取る。
 type courseRepository struct {
-	db *gorm.DB
+	db *sql.DB
 }
 
-func NewCourseRepository(db *gorm.DB) repository.CourseRepository {
+func NewCourseRepository(db *sql.DB) repository.CourseRepository {
 	return &courseRepository{db: db}
 }
 
@@ -44,11 +43,7 @@ func (r *courseRepository) ListByCompany(ctx context.Context, companyID uint64, 
 	if !ok {
 		return []domain.Course{}, nil // 存在し得ない company_id = 0 件
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return nil, err
-	}
-	rows, err := sqlcgen.New(sqlDB).ListCoursesByCompany(ctx, sqlcgen.ListCoursesByCompanyParams{
+	rows, err := sqlcgen.New(r.db).ListCoursesByCompany(ctx, sqlcgen.ListCoursesByCompanyParams{
 		CompanyID:          cid,
 		IncludeUnpublished: includeUnpublished,
 	})
@@ -68,11 +63,7 @@ func (r *courseRepository) GetByID(ctx context.Context, id uint64) (*domain.Cour
 	if !ok {
 		return nil, domain.ErrNotFound // 存在し得ない id = not found
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return nil, err
-	}
-	row, err := sqlcgen.New(sqlDB).GetCourseByID(ctx, id64)
+	row, err := sqlcgen.New(r.db).GetCourseByID(ctx, id64)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, domain.ErrNotFound // 404 シグナルを維持
 	}
@@ -94,10 +85,6 @@ func (r *courseRepository) Create(ctx context.Context, c *domain.Course) error {
 		// 1 行も書けていないので nil を返さない（呼び出し側が作成できたと誤認する）。
 		return outOfRangeIDError("created_by", c.CreatedByUserID)
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return err
-	}
 	now := time.Now()
 	createdAt := c.CreatedAt
 	if createdAt.IsZero() {
@@ -107,7 +94,7 @@ func (r *courseRepository) Create(ctx context.Context, c *domain.Course) error {
 	if updatedAt.IsZero() {
 		updatedAt = now // GORM autoUpdateTime 相当（ゼロのときだけ now）
 	}
-	row, err := sqlcgen.New(sqlDB).InsertCourse(ctx, sqlcgen.InsertCourseParams{
+	row, err := sqlcgen.New(r.db).InsertCourse(ctx, sqlcgen.InsertCourseParams{
 		CompanyID:       cid,
 		CreatedByUserID: createdBy,
 		Title:           c.Title,
@@ -134,12 +121,8 @@ func (r *courseRepository) Update(ctx context.Context, c *domain.Course) error {
 	if !ok {
 		return nil // 存在し得ない id = 対象なし
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return err
-	}
 	// CreatedBy / CompanyID / Category / Language は更新対象外（GORM の Updates(map) と同じ 4 列のみ）。
-	updatedAt, err := sqlcgen.New(sqlDB).UpdateCourse(ctx, sqlcgen.UpdateCourseParams{
+	updatedAt, err := sqlcgen.New(r.db).UpdateCourse(ctx, sqlcgen.UpdateCourseParams{
 		ID:          id64,
 		Title:       c.Title,
 		Description: c.Description,
@@ -158,9 +141,5 @@ func (r *courseRepository) Delete(ctx context.Context, id uint64) error {
 	if !ok {
 		return nil // 存在し得ない id = 対象なし
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return err
-	}
-	return sqlcgen.New(sqlDB).DeleteCourse(ctx, id64)
+	return sqlcgen.New(r.db).DeleteCourse(ctx, id64)
 }

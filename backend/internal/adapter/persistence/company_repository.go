@@ -8,39 +8,30 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
-	"gorm.io/gorm"
 )
 
 // companyRepository は [repository.CompanyRepository] の実装。
-// クエリは sqlc 生成コード（生 SQL）で、GORM からは接続プール（*sql.DB）だけを借りる。
-type companyRepository struct{ db *gorm.DB }
+// クエリは sqlc 生成コード（生 SQL）で、接続プール（*sql.DB）をそのまま受け取る。
+type companyRepository struct{ db *sql.DB }
 
-func NewCompanyRepository(db *gorm.DB) repository.CompanyRepository {
+func NewCompanyRepository(db *sql.DB) repository.CompanyRepository {
 	return &companyRepository{db: db}
 }
 
-// queries は GORM が持つ接続プールを借りて sqlc の Queries を作る（別 pool を持たない）。
-func (r *companyRepository) queries() (*sqlcgen.Queries, error) {
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return nil, err
-	}
-	return sqlcgen.New(sqlDB), nil
+// queries は保持している接続プールで sqlc の Queries を作る（別 pool を持たない）。
+func (r *companyRepository) queries() *sqlcgen.Queries {
+	return sqlcgen.New(r.db)
 }
 
 // withTx は 1 つのトランザクションを開き、その中でだけ有効な Queries を fn に渡す。
 // fn がエラーを返せば（あるいは Commit に失敗すれば）書き込みはすべて巻き戻る。
 func (r *companyRepository) withTx(ctx context.Context, fn func(qtx *sqlcgen.Queries) error) error {
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return err
-	}
-	tx, err := sqlDB.BeginTx(ctx, nil)
+	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }() // Commit 済みなら no-op
-	if err := fn(sqlcgen.New(sqlDB).WithTx(tx)); err != nil {
+	if err := fn(sqlcgen.New(r.db).WithTx(tx)); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -58,10 +49,7 @@ func toDomainCompany(row sqlcgen.Company) domain.Company {
 }
 
 func (r *companyRepository) ListAll(ctx context.Context) ([]domain.Company, error) {
-	q, err := r.queries()
-	if err != nil {
-		return nil, err
-	}
+	q := r.queries()
 	rows, err := q.ListCompanies(ctx)
 	if err != nil {
 		return nil, err
@@ -78,10 +66,7 @@ func (r *companyRepository) FindByID(ctx context.Context, id uint64) (*domain.Co
 	if !ok {
 		return nil, domain.ErrNotFound // 存在し得ない id = not found
 	}
-	q, err := r.queries()
-	if err != nil {
-		return nil, err
-	}
+	q := r.queries()
 	row, err := q.GetCompanyByID(ctx, id64)
 	if errors.Is(err, sql.ErrNoRows) {
 		// AiChatEnabledForUserUseCase が domain.ErrNotFound を見て「会社行なし = 既定 true」にする契約を維持。

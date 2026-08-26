@@ -10,14 +10,13 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
-	"gorm.io/gorm"
 )
 
 // aiChatSessionRepository は [repository.AiChatSessionRepository] の実装。
-// 読み書きとも sqlc 生成コード（生 SQL）で、GORM からは接続プール（*sql.DB）だけを借りる。
-type aiChatSessionRepository struct{ db *gorm.DB }
+// 読み書きとも sqlc 生成コード（生 SQL）で、接続プール（*sql.DB）をそのまま受け取る。
+type aiChatSessionRepository struct{ db *sql.DB }
 
-func NewAiChatSessionRepository(db *gorm.DB) repository.AiChatSessionRepository {
+func NewAiChatSessionRepository(db *sql.DB) repository.AiChatSessionRepository {
 	return &aiChatSessionRepository{db: db}
 }
 
@@ -44,11 +43,7 @@ func (r *aiChatSessionRepository) ListByUserID(ctx context.Context, userID uint6
 	if !ok {
 		return make([]domain.AiChatSession, 0), nil // 存在し得ない user_id = 0 件
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return nil, err
-	}
-	rows, err := sqlcgen.New(sqlDB).ListAiChatSessionsByUserID(ctx, uid)
+	rows, err := sqlcgen.New(r.db).ListAiChatSessionsByUserID(ctx, uid)
 	if err != nil {
 		return nil, err
 	}
@@ -65,11 +60,7 @@ func (r *aiChatSessionRepository) FindByID(ctx context.Context, id uint64) (*dom
 	if !ok {
 		return nil, domain.ErrNotFound // 存在し得ない id = not found
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return nil, err
-	}
-	row, err := sqlcgen.New(sqlDB).GetAiChatSessionByID(ctx, id64)
+	row, err := sqlcgen.New(r.db).GetAiChatSessionByID(ctx, id64)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, domain.ErrNotFound // 404 シグナルを維持
 	}
@@ -95,10 +86,6 @@ func (r *aiChatSessionRepository) Create(ctx context.Context, s *domain.AiChatSe
 		}
 		scenario = sql.NullInt64{Int64: sid, Valid: true}
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return err
-	}
 	now := time.Now()
 	createdAt := s.CreatedAt
 	if createdAt.IsZero() {
@@ -108,7 +95,7 @@ func (r *aiChatSessionRepository) Create(ctx context.Context, s *domain.AiChatSe
 	if updatedAt.IsZero() {
 		updatedAt = now // GORM autoUpdateTime 相当（ゼロのときだけ now）
 	}
-	row, err := sqlcgen.New(sqlDB).InsertAiChatSession(ctx, sqlcgen.InsertAiChatSessionParams{
+	row, err := sqlcgen.New(r.db).InsertAiChatSession(ctx, sqlcgen.InsertAiChatSessionParams{
 		UserID:      uid,
 		Title:       s.Title,
 		SessionType: s.SessionType,
@@ -133,11 +120,7 @@ func (r *aiChatSessionRepository) UpdateTitle(ctx context.Context, id uint64, ti
 		// 0 行更新（該当なし）と区別が付かない nil を返さず、書けないことをエラーで伝える。
 		return fmt.Errorf("session id %d が int64 の範囲外です", id)
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return err
-	}
-	return sqlcgen.New(sqlDB).UpdateAiChatSessionTitle(ctx, sqlcgen.UpdateAiChatSessionTitleParams{
+	return sqlcgen.New(r.db).UpdateAiChatSessionTitle(ctx, sqlcgen.UpdateAiChatSessionTitleParams{
 		ID:    id64,
 		Title: title,
 	})
@@ -150,9 +133,5 @@ func (r *aiChatSessionRepository) Delete(ctx context.Context, id uint64) error {
 		// 0 行削除（該当なし）と区別が付かない nil を返さず、消せないことをエラーで伝える。
 		return fmt.Errorf("session id %d が int64 の範囲外です", id)
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return err
-	}
-	return sqlcgen.New(sqlDB).DeleteAiChatSession(ctx, id64)
+	return sqlcgen.New(r.db).DeleteAiChatSession(ctx, id64)
 }

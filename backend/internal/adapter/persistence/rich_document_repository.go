@@ -14,7 +14,6 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
-	"gorm.io/gorm"
 )
 
 // mapPgDataError は PostgreSQL の data exception（SQLSTATE class 22。jsonb/text に格納できない
@@ -33,11 +32,11 @@ func mapPgDataError(err error) error {
 
 // richDocumentRepository は [repository.RichDocumentRepository] の実装。
 // doc は jsonb 列に保存し、更新は revision 一致を条件にした楽観ロックで行う。
-// クエリは sqlc 生成コード（生 SQL）で、GORM からは接続プール（*sql.DB）だけを借りる。
-type richDocumentRepository struct{ db *gorm.DB }
+// クエリは sqlc 生成コード（生 SQL）で、接続プール（*sql.DB）をそのまま受け取る。
+type richDocumentRepository struct{ db *sql.DB }
 
 // NewRichDocumentRepository は rich_documents の repository を組み立てる。
-func NewRichDocumentRepository(db *gorm.DB) repository.RichDocumentRepository {
+func NewRichDocumentRepository(db *sql.DB) repository.RichDocumentRepository {
 	return &richDocumentRepository{db: db}
 }
 
@@ -124,10 +123,6 @@ func (r *richDocumentRepository) Create(ctx context.Context, doc *domain.RichDoc
 		// nullCompanyID は nil のとき必ず ok=true なので、ここでは非 nil が保証される。
 		return outOfRangeIDError("company_id", *doc.CompanyID)
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return err
-	}
 	now := time.Now()
 	createdAt := doc.CreatedAt
 	if createdAt.IsZero() {
@@ -137,7 +132,7 @@ func (r *richDocumentRepository) Create(ctx context.Context, doc *domain.RichDoc
 	if updatedAt.IsZero() {
 		updatedAt = now // GORM autoUpdateTime 相当（ゼロのときだけ now）
 	}
-	row, err := sqlcgen.New(sqlDB).InsertRichDocument(ctx, sqlcgen.InsertRichDocumentParams{
+	row, err := sqlcgen.New(r.db).InsertRichDocument(ctx, sqlcgen.InsertRichDocumentParams{
 		ID:            id,
 		OwnerID:       ownerID,
 		CompanyID:     companyID,
@@ -165,11 +160,7 @@ func (r *richDocumentRepository) FindByID(ctx context.Context, id string) (*doma
 	if err != nil {
 		return nil, repository.ErrRichDocumentNotFound // uuid でない ID は存在し得ない
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return nil, err
-	}
-	row, err := sqlcgen.New(sqlDB).GetRichDocumentByID(ctx, uid)
+	row, err := sqlcgen.New(r.db).GetRichDocumentByID(ctx, uid)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, repository.ErrRichDocumentNotFound
 	}
@@ -185,11 +176,7 @@ func (r *richDocumentRepository) UpdateWithRevision(ctx context.Context, doc *do
 	if err != nil {
 		return repository.ErrRichDocumentNotFound // uuid でない ID は存在し得ない
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return err
-	}
-	row, err := sqlcgen.New(sqlDB).UpdateRichDocumentWithRevision(ctx, sqlcgen.UpdateRichDocumentWithRevisionParams{
+	row, err := sqlcgen.New(r.db).UpdateRichDocumentWithRevision(ctx, sqlcgen.UpdateRichDocumentWithRevisionParams{
 		Title:            doc.Title,
 		IsPublic:         doc.IsPublic,
 		SchemaVersion:    int64(doc.SchemaVersion),
@@ -221,11 +208,7 @@ func (r *richDocumentRepository) SoftDelete(ctx context.Context, id string, owne
 	if !ok {
 		return repository.ErrRichDocumentNotFound // 存在し得ない owner_id は対象なし
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return err
-	}
-	affected, err := sqlcgen.New(sqlDB).SoftDeleteRichDocument(ctx, sqlcgen.SoftDeleteRichDocumentParams{
+	affected, err := sqlcgen.New(r.db).SoftDeleteRichDocument(ctx, sqlcgen.SoftDeleteRichDocumentParams{
 		ID:      uid,
 		OwnerID: oid,
 	})
@@ -243,11 +226,7 @@ func (r *richDocumentRepository) ListByOwner(ctx context.Context, ownerID uint64
 	if !ok {
 		return []domain.RichDocument{}, nil // 存在し得ない owner_id = 0 件
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return nil, err
-	}
-	rows, err := sqlcgen.New(sqlDB).ListRichDocumentsByOwner(ctx, sqlcgen.ListRichDocumentsByOwnerParams{
+	rows, err := sqlcgen.New(r.db).ListRichDocumentsByOwner(ctx, sqlcgen.ListRichDocumentsByOwnerParams{
 		OwnerID: oid,
 		Kind:    string(kind), // 空文字なら SQL 側で絞り込まない
 	})

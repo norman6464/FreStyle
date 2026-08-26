@@ -8,16 +8,15 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
-	"gorm.io/gorm"
 )
 
 // masterExerciseRepository は [repository.MasterExerciseRepository] の実装。
-// クエリは sqlc 生成コード（生 SQL）で、GORM からは接続プール（*sql.DB）だけを借りる。
+// クエリは sqlc 生成コード（生 SQL）で、接続プール（*sql.DB）をそのまま受け取る。
 type masterExerciseRepository struct {
-	db *gorm.DB
+	db *sql.DB
 }
 
-func NewMasterExerciseRepository(db *gorm.DB) repository.MasterExerciseRepository {
+func NewMasterExerciseRepository(db *sql.DB) repository.MasterExerciseRepository {
 	return &masterExerciseRepository{db: db}
 }
 
@@ -57,11 +56,7 @@ func toDomainMasterExercise(row sqlcgen.MasterExercise) domain.MasterExercise {
 
 // ListByLanguage は公開済み問題を返す。language が空文字なら全言語。
 func (r *masterExerciseRepository) ListByLanguage(ctx context.Context, language string) ([]domain.MasterExercise, error) {
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return nil, err
-	}
-	rows, err := sqlcgen.New(sqlDB).ListMasterExercisesByLanguage(ctx, language)
+	rows, err := sqlcgen.New(r.db).ListMasterExercisesByLanguage(ctx, language)
 	if err != nil {
 		return nil, err
 	}
@@ -78,11 +73,7 @@ func (r *masterExerciseRepository) GetByID(ctx context.Context, id uint64) (*dom
 	if !ok {
 		return nil, domain.ErrNotFound // 存在し得ない id = not found
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return nil, err
-	}
-	row, err := sqlcgen.New(sqlDB).GetMasterExerciseByID(ctx, id64)
+	row, err := sqlcgen.New(r.db).GetMasterExerciseByID(ctx, id64)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, domain.ErrNotFound // 404 シグナルを維持
 	}
@@ -95,11 +86,7 @@ func (r *masterExerciseRepository) GetByID(ctx context.Context, id uint64) (*dom
 
 // GetBySlug は slug で単一問題を返す。未存在は domain.ErrNotFound（handler が 404 に分岐）。
 func (r *masterExerciseRepository) GetBySlug(ctx context.Context, slug string) (*domain.MasterExercise, error) {
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return nil, err
-	}
-	row, err := sqlcgen.New(sqlDB).GetMasterExerciseBySlug(ctx, slug)
+	row, err := sqlcgen.New(r.db).GetMasterExerciseBySlug(ctx, slug)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, domain.ErrNotFound // 404 シグナルを維持
 	}
@@ -118,11 +105,7 @@ func (r *masterExerciseRepository) SummaryByLanguage(ctx context.Context, userID
 	if !ok {
 		uid = 0 // 存在し得ない user_id = どの提出にも一致しない（未ログインと同じ集計）
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return nil, err
-	}
-	rows, err := sqlcgen.New(sqlDB).SummarizeMasterExercisesByLanguage(ctx, sqlcgen.SummarizeMasterExercisesByLanguageParams{
+	rows, err := sqlcgen.New(r.db).SummarizeMasterExercisesByLanguage(ctx, sqlcgen.SummarizeMasterExercisesByLanguageParams{
 		ExerciseKind: domain.ExerciseKindMaster,
 		ViewerID:     uid,
 	})
@@ -160,11 +143,7 @@ func (r *masterExerciseRepository) ListWithStatusByLanguage(ctx context.Context,
 			offset = int64(in.Offset)
 		}
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return nil, err
-	}
-	rows, err := sqlcgen.New(sqlDB).ListMasterExercisesWithStatusByLanguage(ctx, sqlcgen.ListMasterExercisesWithStatusByLanguageParams{
+	rows, err := sqlcgen.New(r.db).ListMasterExercisesWithStatusByLanguage(ctx, sqlcgen.ListMasterExercisesWithStatusByLanguageParams{
 		ExerciseKind: domain.ExerciseKindMaster,
 		ViewerID:     uid,
 		Language:     in.Language,

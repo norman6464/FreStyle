@@ -9,14 +9,13 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
-	"gorm.io/gorm"
 )
 
 // adminInvitationRepository は [repository.AdminInvitationRepository] の実装。
-// クエリは sqlc 生成コード（生 SQL）で、GORM からは接続プール（*sql.DB）だけを借りる。
-type adminInvitationRepository struct{ db *gorm.DB }
+// クエリは sqlc 生成コード（生 SQL）で、接続プール（*sql.DB）をそのまま受け取る。
+type adminInvitationRepository struct{ db *sql.DB }
 
-func NewAdminInvitationRepository(db *gorm.DB) repository.AdminInvitationRepository {
+func NewAdminInvitationRepository(db *sql.DB) repository.AdminInvitationRepository {
 	return &adminInvitationRepository{db: db}
 }
 
@@ -43,11 +42,7 @@ func toDomainAdminInvitation(row sqlcgen.Invitation) domain.AdminInvitation {
 // created_at は一意でないため、以下の一覧・単一取得はいずれも id をタイブレークに置いて順序を固定する
 // （特に FindPendingByEmail は 1 件しか返さず、順序が揺れると「どの招待が受理されるか」が変わる）。
 func (r *adminInvitationRepository) ListAll(ctx context.Context) ([]domain.AdminInvitation, error) {
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return nil, err
-	}
-	rows, err := sqlcgen.New(sqlDB).ListPendingInvitations(ctx, domain.InvitationStatusPending)
+	rows, err := sqlcgen.New(r.db).ListPendingInvitations(ctx, domain.InvitationStatusPending)
 	if err != nil {
 		return nil, err
 	}
@@ -59,11 +54,7 @@ func (r *adminInvitationRepository) ListByCompanyID(ctx context.Context, company
 	if !ok {
 		return []domain.AdminInvitation{}, nil // 存在し得ない company_id = 0 件
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return nil, err
-	}
-	rows, err := sqlcgen.New(sqlDB).ListPendingInvitationsByCompany(ctx, sqlcgen.ListPendingInvitationsByCompanyParams{
+	rows, err := sqlcgen.New(r.db).ListPendingInvitationsByCompany(ctx, sqlcgen.ListPendingInvitationsByCompanyParams{
 		CompanyID: cid,
 		Status:    domain.InvitationStatusPending,
 	})
@@ -89,11 +80,7 @@ func toDomainAdminInvitations(rows []sqlcgen.Invitation) []domain.AdminInvitatio
 // 入った行を byte 一致で探すと「招待したのに招待が見つからない」状態になる
 // （同じアドレスの解釈が 2 つある状態を作らない）。
 func (r *adminInvitationRepository) FindPendingByEmail(ctx context.Context, email string) (*domain.AdminInvitation, error) {
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return nil, err
-	}
-	row, err := sqlcgen.New(sqlDB).FindPendingInvitationByEmail(ctx, sqlcgen.FindPendingInvitationByEmailParams{
+	row, err := sqlcgen.New(r.db).FindPendingInvitationByEmail(ctx, sqlcgen.FindPendingInvitationByEmailParams{
 		EmailNormal: domain.NormalizeEmail(email),
 		Status:      domain.InvitationStatusPending,
 	})
@@ -116,11 +103,7 @@ func (r *adminInvitationRepository) FindByID(ctx context.Context, id uint64) (*d
 	if !ok {
 		return nil, nil // 存在し得ない id = 該当なし
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return nil, err
-	}
-	row, err := sqlcgen.New(sqlDB).FindInvitationByID(ctx, id64)
+	row, err := sqlcgen.New(r.db).FindInvitationByID(ctx, id64)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -135,13 +118,9 @@ func (r *adminInvitationRepository) FindPendingByToken(ctx context.Context, toke
 	if token == "" {
 		return nil, nil
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return nil, err
-	}
 	// 期限切れは DB 側で弾く。比較は DB 関数でなく Go の UTC 現在時刻をバインドする
 	// （DB エンジン非依存 / ローカル TZ 設定に左右されない）。
-	row, err := sqlcgen.New(sqlDB).FindPendingInvitationByToken(ctx, sqlcgen.FindPendingInvitationByTokenParams{
+	row, err := sqlcgen.New(r.db).FindPendingInvitationByToken(ctx, sqlcgen.FindPendingInvitationByTokenParams{
 		Token:  sql.NullString{String: token, Valid: true},
 		Status: domain.InvitationStatusPending,
 		Now:    time.Now().UTC(),
@@ -166,10 +145,6 @@ func (r *adminInvitationRepository) Create(ctx context.Context, inv *domain.Admi
 		// 1 行も書けていないので nil を返さない（呼び出し側が作成できたと誤認する）。
 		return outOfRangeIDError("company_id", inv.CompanyID)
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return err
-	}
 	inv.Email = domain.NormalizeEmail(inv.Email)
 	createdAt := inv.CreatedAt
 	if createdAt.IsZero() {
@@ -179,7 +154,7 @@ func (r *adminInvitationRepository) Create(ctx context.Context, inv *domain.Admi
 	if inv.Token != nil {
 		token = sql.NullString{String: *inv.Token, Valid: true}
 	}
-	row, err := sqlcgen.New(sqlDB).InsertInvitation(ctx, sqlcgen.InsertInvitationParams{
+	row, err := sqlcgen.New(r.db).InsertInvitation(ctx, sqlcgen.InsertInvitationParams{
 		CompanyID: cid,
 		Email:     inv.Email,
 		Role:      string(inv.Role),
@@ -202,11 +177,7 @@ func (r *adminInvitationRepository) UpdateStatus(ctx context.Context, id uint64,
 	if !ok {
 		return nil // 存在し得ない id = 対象なし
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return err
-	}
-	return sqlcgen.New(sqlDB).UpdateInvitationStatus(ctx, sqlcgen.UpdateInvitationStatusParams{
+	return sqlcgen.New(r.db).UpdateInvitationStatus(ctx, sqlcgen.UpdateInvitationStatusParams{
 		ID:     id64,
 		Status: status,
 	})

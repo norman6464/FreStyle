@@ -2,22 +2,22 @@ package persistence
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
-	"gorm.io/gorm"
 )
 
 // userDailyActivityRepository は [repository.UserDailyActivityRepository] の実装。
-// クエリは sqlc 生成コード（生 SQL）で、GORM からは接続プール（*sql.DB）だけを借りる。
+// クエリは sqlc 生成コード（生 SQL）で、接続プール（*sql.DB）をそのまま受け取る。
 type userDailyActivityRepository struct {
-	db *gorm.DB
+	db *sql.DB
 }
 
 // NewUserDailyActivityRepository は UserDailyActivityRepository の実装を返す。
-func NewUserDailyActivityRepository(db *gorm.DB) repository.UserDailyActivityRepository {
+func NewUserDailyActivityRepository(db *sql.DB) repository.UserDailyActivityRepository {
 	return &userDailyActivityRepository{db: db}
 }
 
@@ -49,11 +49,7 @@ func (r *userDailyActivityRepository) Increment(
 	}
 	// date を DATE 型へ切り詰め（時刻成分を捨てる）。
 	d := date.UTC().Truncate(24 * time.Hour)
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return err
-	}
-	return sqlcgen.New(sqlDB).IncrementUserDailyActivity(ctx, sqlcgen.IncrementUserDailyActivityParams{
+	return sqlcgen.New(r.db).IncrementUserDailyActivity(ctx, sqlcgen.IncrementUserDailyActivityParams{
 		UserID:        uid,
 		ActivityDate:  d,
 		ExerciseCount: int32(delta.ExerciseCount),
@@ -75,11 +71,7 @@ func (r *userDailyActivityRepository) ListByUser(
 	}
 	fromDate := from.UTC().Truncate(24 * time.Hour)
 	toDate := to.UTC().Truncate(24 * time.Hour)
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return nil, err
-	}
-	rows, err := sqlcgen.New(sqlDB).ListUserDailyActivitiesByUser(ctx, sqlcgen.ListUserDailyActivitiesByUserParams{
+	rows, err := sqlcgen.New(r.db).ListUserDailyActivitiesByUser(ctx, sqlcgen.ListUserDailyActivitiesByUserParams{
 		UserID:   uid,
 		FromDate: fromDate,
 		ToDate:   toDate,

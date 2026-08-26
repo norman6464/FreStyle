@@ -2,22 +2,22 @@ package persistence
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
-	"gorm.io/gorm"
 )
 
 // companyLearningActivityRepository は [repository.CompanyLearningActivitySummarizer] の実装。
-// クエリは sqlc 生成コード（生 SQL）で、GORM からは接続プール（*sql.DB）だけを借りる。
+// クエリは sqlc 生成コード（生 SQL）で、接続プール（*sql.DB）をそのまま受け取る。
 type companyLearningActivityRepository struct {
-	db *gorm.DB
+	db *sql.DB
 }
 
 // NewCompanyLearningActivityRepository は CompanyLearningActivitySummarizer の実装を返す。
-func NewCompanyLearningActivityRepository(db *gorm.DB) repository.CompanyLearningActivitySummarizer {
+func NewCompanyLearningActivityRepository(db *sql.DB) repository.CompanyLearningActivitySummarizer {
 	return &companyLearningActivityRepository{db: db}
 }
 
@@ -32,14 +32,10 @@ func (r *companyLearningActivityRepository) ListMemberActivities(
 	if !ok {
 		return []repository.MemberLearningActivity{}, nil // 存在し得ない company_id = 0 件
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return nil, err
-	}
 	// activity_date は DATE 列。時刻成分が残っていると比較が timestamp に昇格して
 	// 境界日(fromDate 当日)の活動が漏れるため、日付に丸めてから比較する(ListByUser と同じ流儀)。
 	from := fromDate.UTC().Truncate(24 * time.Hour)
-	rows, err := sqlcgen.New(sqlDB).ListCompanyMemberActivities(ctx, sqlcgen.ListCompanyMemberActivitiesParams{
+	rows, err := sqlcgen.New(r.db).ListCompanyMemberActivities(ctx, sqlcgen.ListCompanyMemberActivitiesParams{
 		FromDate:  from,
 		CompanyID: cid,
 		// trainee 判定は正規化後の正である role_id で行う（FRESTYLE-311）。

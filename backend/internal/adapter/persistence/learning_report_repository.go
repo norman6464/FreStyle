@@ -2,19 +2,19 @@ package persistence
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
-	"gorm.io/gorm"
 )
 
 // learningReportRepository は [repository.LearningReportRepository] の実装。
-// クエリは sqlc 生成コード（生 SQL）で、GORM からは接続プール（*sql.DB）だけを借りる。
-type learningReportRepository struct{ db *gorm.DB }
+// クエリは sqlc 生成コード（生 SQL）で、接続プール（*sql.DB）をそのまま受け取る。
+type learningReportRepository struct{ db *sql.DB }
 
-func NewLearningReportRepository(db *gorm.DB) repository.LearningReportRepository {
+func NewLearningReportRepository(db *sql.DB) repository.LearningReportRepository {
 	return &learningReportRepository{db: db}
 }
 
@@ -37,11 +37,7 @@ func (r *learningReportRepository) ListByUserID(ctx context.Context, userID uint
 	if !ok {
 		return []domain.LearningReport{}, nil // 存在し得ない user_id = 0 件
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return nil, err
-	}
-	rows, err := sqlcgen.New(sqlDB).ListLearningReportsByUserID(ctx, uid)
+	rows, err := sqlcgen.New(r.db).ListLearningReportsByUserID(ctx, uid)
 	if err != nil {
 		return nil, err
 	}
@@ -58,15 +54,11 @@ func (r *learningReportRepository) Create(ctx context.Context, lr *domain.Learni
 		// 1 行も書けていないので nil を返さない（呼び出し側が作成できたと誤認する）。
 		return outOfRangeIDError("user_id", lr.UserID)
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return err
-	}
 	createdAt := lr.CreatedAt
 	if createdAt.IsZero() {
 		createdAt = time.Now() // GORM autoCreateTime 相当（ゼロのときだけ now）
 	}
-	row, err := sqlcgen.New(sqlDB).InsertLearningReport(ctx, sqlcgen.InsertLearningReportParams{
+	row, err := sqlcgen.New(r.db).InsertLearningReport(ctx, sqlcgen.InsertLearningReportParams{
 		UserID:     uid,
 		PeriodFrom: lr.PeriodFrom,
 		PeriodTo:   lr.PeriodTo,

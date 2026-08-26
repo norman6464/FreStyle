@@ -8,17 +8,16 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
-	"gorm.io/gorm"
 )
 
 // userChapterViewRepository は [repository.UserChapterViewRepository] の実装。
-// クエリは sqlc 生成コード（生 SQL）で、GORM からは接続プール（*sql.DB）だけを借りる。
+// クエリは sqlc 生成コード（生 SQL）で、接続プール（*sql.DB）をそのまま受け取る。
 type userChapterViewRepository struct {
-	db *gorm.DB
+	db *sql.DB
 }
 
 // NewUserChapterViewRepository は UserChapterViewRepository の実装を返す。
-func NewUserChapterViewRepository(db *gorm.DB) repository.UserChapterViewRepository {
+func NewUserChapterViewRepository(db *sql.DB) repository.UserChapterViewRepository {
 	return &userChapterViewRepository{db: db}
 }
 
@@ -52,11 +51,7 @@ func (r *userChapterViewRepository) UpsertView(
 	if !ok {
 		return nil
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return err
-	}
-	return sqlcgen.New(sqlDB).UpsertUserChapterView(ctx, sqlcgen.UpsertUserChapterViewParams{
+	return sqlcgen.New(r.db).UpsertUserChapterView(ctx, sqlcgen.UpsertUserChapterViewParams{
 		UserID:    uid,
 		ChapterID: cid,
 		CourseID:  coid,
@@ -72,11 +67,7 @@ func (r *userChapterViewRepository) ListRecentByUser(
 	if !ok {
 		return []domain.UserChapterView{}, nil // 存在し得ない user_id = 0 件
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return nil, err
-	}
-	rows, err := sqlcgen.New(sqlDB).ListRecentUserChapterViewsByUser(ctx, sqlcgen.ListRecentUserChapterViewsByUserParams{
+	rows, err := sqlcgen.New(r.db).ListRecentUserChapterViewsByUser(ctx, sqlcgen.ListRecentUserChapterViewsByUserParams{
 		UserID:   uid,
 		RowLimit: int32(limit),
 	})
@@ -104,11 +95,7 @@ func (r *userChapterViewRepository) GetLastViewedByUserAndCourse(
 	if !ok {
 		return nil, nil
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return nil, err
-	}
-	row, err := sqlcgen.New(sqlDB).GetLastViewedUserChapterViewByCourse(ctx, sqlcgen.GetLastViewedUserChapterViewByCourseParams{
+	row, err := sqlcgen.New(r.db).GetLastViewedUserChapterViewByCourse(ctx, sqlcgen.GetLastViewedUserChapterViewByCourseParams{
 		UserID:   uid,
 		CourseID: coid,
 	})

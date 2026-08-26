@@ -224,13 +224,15 @@ CREATE TABLE invitations (
 );
 
 -- 運営が用意した練習問題マスタ。domain.MasterExercise の GORM タグを正とする。
--- sort_order は plain int（type:integer 指定なし）なので AutoMigrate 既定の bigint。
+-- sort_order は migration 0011 が ALTER ADD COLUMN で integer として作った列。
+-- domain タグは plain int だが、この列は AutoMigrate ではなく明示 migration が作るため
+-- 既定の bigint にはならない。本番 information_schema でも integer であることを確認済み。
 -- hint_text / expected_output は not null 指定が無く nullable。chapter_id は *uint64 で nullable。
 CREATE TABLE master_exercises (
     id              bigint PRIMARY KEY,
     slug            varchar(64) NOT NULL,
     language        varchar(32) NOT NULL,
-    sort_order      bigint NOT NULL DEFAULT 0,
+    sort_order      integer NOT NULL DEFAULT 0,
     category        varchar(64) NOT NULL,
     title           varchar(200) NOT NULL,
     description     text NOT NULL,

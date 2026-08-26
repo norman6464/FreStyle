@@ -152,7 +152,7 @@ type MasterExercise struct {
 	ID             int64
 	Slug           string
 	Language       string
-	SortOrder      int64
+	SortOrder      int32
 	Category       string
 	Title          string
 	Description    string

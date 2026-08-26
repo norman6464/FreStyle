@@ -85,6 +85,10 @@ func newKbFixture(fallback domain.PagePermission, uid uint64) kbFixture {
 	}
 	provisioner := newKbFakeProvisioner(pages, perms)
 	registerKnowledgeBaseRoutesWith(g, pages, perms, provisioner)
+	// 認証不要のルート（共有リンクの検証）は current user を注入しない group に張る。
+	// 本番の NewRouter と同じく認証 middleware の外側なので、ここでも外側に置かないと
+	// 「未認証でも通ること」を検証できない。
+	registerKnowledgeBasePublicRoutesWith(r.Group("/api/v2"), pages, perms)
 	return kbFixture{pages: pages, perms: perms, provisioner: provisioner, router: r}
 }
 
@@ -203,6 +207,12 @@ func Test_ナレッジ基盤API_登録済みルートは全て認可テストの
 	for _, e := range kbEndpoints {
 		covered[e.method+" "+kbRoutePattern(e.path)] = true
 	}
+	// 権限操作 API は判定の軸が違う（ページ 1 枚のケイパビリティではなく admin か）ので
+	// 表を分けてある。足したら kbPermissionEndpoints 側に足す。
+	for _, e := range kbPermissionEndpoints {
+		covered[e.method+" "+e.pattern] = true
+	}
+	covered[http.MethodPost+" "+kbShareLinkVerifyPath] = true
 
 	f := newKbFixture(kbCanEdit, kbUserID)
 	registered := map[string]bool{}

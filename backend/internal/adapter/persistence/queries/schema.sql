@@ -171,7 +171,7 @@ CREATE TABLE courses (
     description        text NOT NULL DEFAULT '',
     category           text NOT NULL DEFAULT '',
     language           varchar(50) NOT NULL DEFAULT '',
-    sort_order         integer NOT NULL DEFAULT 100,
+    sort_order         bigint NOT NULL DEFAULT 100,
     is_published       boolean NOT NULL DEFAULT false,
     created_at         timestamptz NOT NULL,
     updated_at         timestamptz NOT NULL

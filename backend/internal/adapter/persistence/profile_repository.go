@@ -12,7 +12,7 @@ import (
 )
 
 // profileRepository は [repository.ProfileRepository] の実装。
-// 読み取りは sqlc 生成コード（生 SQL）、書き込み（Upsert）は GORM。
+// クエリは sqlc 生成コード（生 SQL）で、GORM からは接続プール（*sql.DB）だけを借りる。
 type profileRepository struct{ db *gorm.DB }
 
 func NewProfileRepository(db *gorm.DB) repository.ProfileRepository {
@@ -47,7 +47,8 @@ func (r *profileRepository) FindByUserID(ctx context.Context, userID uint64) (*d
 func (r *profileRepository) Upsert(ctx context.Context, p *domain.Profile) error {
 	uid, ok := toInt64ID(p.UserID)
 	if !ok {
-		return nil // 存在し得ない user_id は書き込まない
+		// 1 行も書けていないので nil を返さない（呼び出し側が作成できたと誤認する）。
+		return outOfRangeIDError("user_id", p.UserID)
 	}
 	sqlDB, err := r.db.DB()
 	if err != nil {

@@ -74,7 +74,8 @@ func (r *noteRepository) FindByID(ctx context.Context, id uint64) (*domain.Note,
 func (r *noteRepository) Create(ctx context.Context, n *domain.Note) error {
 	uid, ok := toInt64ID(n.UserID)
 	if !ok {
-		return nil // 存在し得ない user_id は書き込まない
+		// 1 行も書けていないので nil を返さない（呼び出し側が作成できたと誤認する）。
+		return outOfRangeIDError("user_id", n.UserID)
 	}
 	sqlDB, err := r.db.DB()
 	if err != nil {

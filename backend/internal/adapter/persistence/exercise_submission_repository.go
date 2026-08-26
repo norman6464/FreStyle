@@ -38,11 +38,13 @@ func toDomainExerciseSubmission(row sqlcgen.ExerciseSubmission) domain.ExerciseS
 func (r *exerciseSubmissionRepository) Create(ctx context.Context, submission *domain.ExerciseSubmission) error {
 	uid, ok := toInt64ID(submission.UserID)
 	if !ok {
-		return nil // 存在し得ない user_id は書き込まない
+		// 1 行も書けていないので nil を返さない（呼び出し側が作成できたと誤認する）。
+		return outOfRangeIDError("user_id", submission.UserID)
 	}
 	exID, ok := toInt64ID(submission.ExerciseID)
 	if !ok {
-		return nil // 存在し得ない exercise_id は書き込まない
+		// 1 行も書けていないので nil を返さない（呼び出し側が作成できたと誤認する）。
+		return outOfRangeIDError("exercise_id", submission.ExerciseID)
 	}
 	sqlDB, err := r.db.DB()
 	if err != nil {

@@ -99,8 +99,8 @@
 |---|---|
 | ECS Fargate スペック | 0.25 vCPU / 0.5 GB（最小） |
 | ランタイム | Go（静的バイナリ）/ Gin |
-| スキーマ管理 | GORM AutoMigrate（破壊系は手動 SQL）|
-| 永続化 | 読み取り=生 SQL 直書き（`db.Raw` / sqlc）・書き込み=GORM（PostgreSQL）/ AWS SDK v2（DynamoDB・S3・Bedrock・SQS）|
+| スキーマ管理 | GORM AutoMigrate（破壊系は手動 SQL・ナレッジ基盤は明示 DDL）|
+| 永続化 | クエリは読み書きとも sqlc 生成コード（生 SQL）が主体・GORM は接続と AutoMigrate に残る（PostgreSQL）/ AWS SDK v2（DynamoDB・S3・Bedrock・SQS）|
 
 ## AWSアーキテクチャ構成図
 
@@ -121,7 +121,7 @@ draw.io ソース: [`architecture/aws/freestyle-aws-architecture-current.drawio`
 | **handler** | `internal/handler` | Gin で HTTP / SSE を受け、認証情報を取得して usecase を呼び、JSON を返す | usecase / domain |
 | **usecase** | `internal/usecase` | 1 ユースケース = 1 struct。`Execute(ctx, in)` でビジネスロジックを実行 | domain / repository（**interface のみ**）|
 | **repository(port)** | `internal/usecase/repository` | usecase が依存する永続化の**抽象（interface）** | domain |
-| **repository(impl)** | `internal/adapter/persistence` | GORM 書き込み / sqlc 読み取り / DynamoDB / S3 など | domain |
+| **repository(impl)** | `internal/adapter/persistence` | sqlc 生成コード（生 SQL）で読み書き / DynamoDB / S3 など | domain |
 | **infra** | `internal/infra/*` | 外部 SDK ラッパ（bedrock / ses / cognito / database） | domain |
 | **domain** | `internal/domain` | エンティティ + ビジネスルール定数。**どの層にも依存しない** | （なし）|
 

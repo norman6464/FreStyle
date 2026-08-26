@@ -48,11 +48,13 @@ func (r *sessionNoteRepository) FindBySessionID(ctx context.Context, sessionID u
 func (r *sessionNoteRepository) Upsert(ctx context.Context, n *domain.SessionNote) error {
 	sid, ok := toInt64ID(n.SessionID)
 	if !ok {
-		return nil // 存在し得ない session_id は書き込まない
+		// 1 行も書けていないので nil を返さない（呼び出し側が作成できたと誤認する）。
+		return outOfRangeIDError("session_id", n.SessionID)
 	}
 	uid, ok := toInt64ID(n.UserID)
 	if !ok {
-		return nil // 存在し得ない user_id は書き込まない
+		// 1 行も書けていないので nil を返さない（呼び出し側が作成できたと誤認する）。
+		return outOfRangeIDError("user_id", n.UserID)
 	}
 	sqlDB, err := r.db.DB()
 	if err != nil {

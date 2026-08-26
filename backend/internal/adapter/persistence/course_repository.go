@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
@@ -12,8 +13,7 @@ import (
 )
 
 // courseRepository は [repository.CourseRepository] の実装。
-// 読み取りは sqlc 生成コード（生 SQL）、書き込み(Create/Update/Delete)は採番 ID・autoTime の
-// 利便のため GORM を使う(ハイブリッド方針)。
+// クエリは sqlc 生成コード（生 SQL）で、GORM からは接続プール（*sql.DB）だけを借りる。
 type courseRepository struct {
 	db *gorm.DB
 }
@@ -84,19 +84,81 @@ func (r *courseRepository) GetByID(ctx context.Context, id uint64) (*domain.Cour
 }
 
 func (r *courseRepository) Create(ctx context.Context, c *domain.Course) error {
-	return r.db.WithContext(ctx).Create(c).Error
+	cid, ok := toInt64ID(c.CompanyID)
+	if !ok {
+		return nil // 存在し得ない company_id は書き込まない
+	}
+	createdBy, ok := toInt64ID(c.CreatedByUserID)
+	if !ok {
+		return nil // 存在し得ない created_by は書き込まない
+	}
+	sqlDB, err := r.db.DB()
+	if err != nil {
+		return err
+	}
+	now := time.Now()
+	createdAt := c.CreatedAt
+	if createdAt.IsZero() {
+		createdAt = now // GORM autoCreateTime 相当（ゼロのときだけ now）
+	}
+	updatedAt := c.UpdatedAt
+	if updatedAt.IsZero() {
+		updatedAt = now // GORM autoUpdateTime 相当（ゼロのときだけ now）
+	}
+	row, err := sqlcgen.New(sqlDB).InsertCourse(ctx, sqlcgen.InsertCourseParams{
+		CompanyID:       cid,
+		CreatedByUserID: createdBy,
+		Title:           c.Title,
+		Description:     c.Description,
+		Category:        c.Category,
+		Language:        c.Language,
+		SortOrder:       int32(c.SortOrder), // 0 は SQL 側の COALESCE で既定 100 に倒す
+		IsPublished:     c.IsPublished,
+		CreatedAt:       createdAt,
+		UpdatedAt:       updatedAt,
+	})
+	if err != nil {
+		return err
+	}
+	c.ID = uint64(row.ID)
+	c.SortOrder = int(row.SortOrder) // 既定 100 が当たった場合を書き戻す（GORM の default タグ相当）
+	c.CreatedAt = row.CreatedAt
+	c.UpdatedAt = row.UpdatedAt
+	return nil
 }
 
 func (r *courseRepository) Update(ctx context.Context, c *domain.Course) error {
-	// CreatedBy / CompanyID は不変なので更新対象から外す。
-	return r.db.WithContext(ctx).Model(c).Updates(map[string]any{
-		"title":        c.Title,
-		"description":  c.Description,
-		"sort_order":   c.SortOrder,
-		"is_published": c.IsPublished,
-	}).Error
+	id64, ok := toInt64ID(c.ID)
+	if !ok {
+		return nil // 存在し得ない id = 対象なし
+	}
+	sqlDB, err := r.db.DB()
+	if err != nil {
+		return err
+	}
+	// CreatedBy / CompanyID / Category / Language は更新対象外（GORM の Updates(map) と同じ 4 列のみ）。
+	updatedAt, err := sqlcgen.New(sqlDB).UpdateCourse(ctx, sqlcgen.UpdateCourseParams{
+		ID:          id64,
+		Title:       c.Title,
+		Description: c.Description,
+		SortOrder:   int32(c.SortOrder),
+		IsPublished: c.IsPublished,
+	})
+	if err != nil {
+		return err
+	}
+	c.UpdatedAt = updatedAt // GORM Save 相当の書き戻し
+	return nil
 }
 
 func (r *courseRepository) Delete(ctx context.Context, id uint64) error {
-	return r.db.WithContext(ctx).Delete(&domain.Course{}, id).Error
+	id64, ok := toInt64ID(id)
+	if !ok {
+		return nil // 存在し得ない id = 対象なし
+	}
+	sqlDB, err := r.db.DB()
+	if err != nil {
+		return err
+	}
+	return sqlcgen.New(sqlDB).DeleteCourse(ctx, id64)
 }

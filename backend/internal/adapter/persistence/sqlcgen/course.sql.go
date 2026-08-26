@@ -7,7 +7,18 @@ package sqlcgen
 
 import (
 	"context"
+	"time"
 )
+
+const deleteCourse = `-- name: DeleteCourse :exec
+DELETE FROM courses WHERE id = $1
+`
+
+// コースを物理削除する（courses は soft delete 列を持たない）。
+func (q *Queries) DeleteCourse(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, deleteCourse, id)
+	return err
+}
 
 const getCourseByID = `-- name: GetCourseByID :one
 SELECT id, company_id, created_by_user_id, title, description, category, language, sort_order, is_published, created_at, updated_at FROM courses
@@ -28,6 +39,71 @@ func (q *Queries) GetCourseByID(ctx context.Context, id int64) (Course, error) {
 		&i.Language,
 		&i.SortOrder,
 		&i.IsPublished,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const insertCourse = `-- name: InsertCourse :one
+INSERT INTO courses
+  (company_id, created_by_user_id, title, description, category, language, sort_order, is_published, created_at, updated_at)
+VALUES (
+  $1,
+  $2,
+  $3,
+  $4,
+  $5,
+  $6,
+  COALESCE(NULLIF($7::int, 0), 100),
+  $8,
+  $9,
+  $10
+)
+RETURNING id, sort_order, created_at, updated_at
+`
+
+type InsertCourseParams struct {
+	CompanyID       int64
+	CreatedByUserID int64
+	Title           string
+	Description     string
+	Category        string
+	Language        string
+	SortOrder       int32
+	IsPublished     bool
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+type InsertCourseRow struct {
+	ID        int64
+	SortOrder int32
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+// コースを 1 件作成する。id は採番列なので省き RETURNING で id / sort_order / created_at / updated_at を
+// 書き戻す。created_at / updated_at は DB 既定値が無いため呼び出し側が値を渡す（autoTime 相当。
+// ゼロなら呼び出し側で now() を入れる）。sort_order は 0 のとき既定 100 を当てる
+// （GORM の `default:100` タグと同じ挙動。RETURNING で確定値を書き戻す）。
+func (q *Queries) InsertCourse(ctx context.Context, arg InsertCourseParams) (InsertCourseRow, error) {
+	row := q.db.QueryRowContext(ctx, insertCourse,
+		arg.CompanyID,
+		arg.CreatedByUserID,
+		arg.Title,
+		arg.Description,
+		arg.Category,
+		arg.Language,
+		arg.SortOrder,
+		arg.IsPublished,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	var i InsertCourseRow
+	err := row.Scan(
+		&i.ID,
+		&i.SortOrder,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -81,4 +157,39 @@ func (q *Queries) ListCoursesByCompany(ctx context.Context, arg ListCoursesByCom
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateCourse = `-- name: UpdateCourse :one
+UPDATE courses SET
+  title        = $1,
+  description  = $2,
+  sort_order   = $3,
+  is_published = $4,
+  updated_at   = now()
+WHERE id = $5
+RETURNING updated_at
+`
+
+type UpdateCourseParams struct {
+	Title       string
+	Description string
+	SortOrder   int32
+	IsPublished bool
+	ID          int64
+}
+
+// コースを部分更新する。書くのは title / description / sort_order / is_published の 4 列だけで、
+// created_by_user_id / company_id / category / language / created_at は不変（GORM の Updates(map) と同じ）。
+// updated_at は now() へ進めて RETURNING で書き戻す（autoUpdateTime 相当）。
+func (q *Queries) UpdateCourse(ctx context.Context, arg UpdateCourseParams) (time.Time, error) {
+	row := q.db.QueryRowContext(ctx, updateCourse,
+		arg.Title,
+		arg.Description,
+		arg.SortOrder,
+		arg.IsPublished,
+		arg.ID,
+	)
+	var updated_at time.Time
+	err := row.Scan(&updated_at)
+	return updated_at, err
 }

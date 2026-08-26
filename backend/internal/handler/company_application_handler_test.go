@@ -157,6 +157,18 @@ func Test_会社申請ハンドラ_ステータス更新_リポジトリエラ�
 	}
 }
 
+// 0 行更新（その申請が無い）は repository が domain.ErrNotFound を返す。
+// 以前はここでも 204 を返しており、承認/却下が記録されていないのに管理画面では
+// 処理済みに見えていた。
+func Test_会社申請ハンドラ_ステータス更新_対象なしは404(t *testing.T) {
+	h := newCompanyAppHandler(&fakeCompanyAppRepo{updateErr: domain.ErrNotFound})
+	w, c := ctxJSON(http.MethodPatch, `{"status":"approved"}`, idParam("1"), superAdmin())
+	h.UpdateStatus(c)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("want 404, got %d", w.Code)
+	}
+}
+
 // --- Create（公開 / 入力検証のみ）---
 
 func Test_会社申請ハンドラ_作成_不正なJSON(t *testing.T) {

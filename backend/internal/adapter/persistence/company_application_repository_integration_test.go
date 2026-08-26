@@ -17,9 +17,10 @@ import (
 // CompanyApplicationRepository の Create / ListAll / UpdateStatus を検証する結合テスト。
 func TestCompanyApplicationRepository_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
+	sqlDB := testsupport.SQLDB(t, db)
 	testsupport.TruncateAll(t, db, "company_applications")
 
-	repo := persistence.NewCompanyApplicationRepository(db)
+	repo := persistence.NewCompanyApplicationRepository(sqlDB)
 	ctx := context.Background()
 
 	t.Run("Create で保存し ListAll で取得できる", func(t *testing.T) {

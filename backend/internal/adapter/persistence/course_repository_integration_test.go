@@ -17,7 +17,8 @@ import (
 // 並び順を実 Postgres で検証する。
 func TestCourseRepository_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewCourseRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewCourseRepository(sqlDB)
 	ctx := context.Background()
 
 	mk := func(companyID uint64, title string, published bool, sortOrder int) *domain.Course {
@@ -76,7 +77,8 @@ func TestCourseRepository_Integration(t *testing.T) {
 // （created_by_user_id / company_id / category / language / created_at）を壊さないことを固定する。
 func TestCourseRepository_PartialUpdate_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewCourseRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewCourseRepository(sqlDB)
 	ctx := context.Background()
 	testsupport.TruncateAll(t, db, "courses")
 
@@ -124,7 +126,8 @@ func TestCourseRepository_PartialUpdate_Integration(t *testing.T) {
 // sortOrder は API で required でないため 0 が入り得る動線で、並び順に効くため保つ。
 func TestCourseRepository_CreateDefaults_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewCourseRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewCourseRepository(sqlDB)
 	ctx := context.Background()
 	testsupport.TruncateAll(t, db, "courses")
 
@@ -144,7 +147,8 @@ func TestCourseRepository_CreateDefaults_Integration(t *testing.T) {
 // 返すこと（handler が 404 に分岐する契約）を固定する。sql.ErrNoRows を素通しすると 404 判定が壊れる。
 func TestCourseRepository_GetByIDNotFound_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewCourseRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewCourseRepository(sqlDB)
 	ctx := context.Background()
 	testsupport.TruncateAll(t, db, "courses")
 
@@ -157,7 +161,8 @@ func TestCourseRepository_GetByIDNotFound_Integration(t *testing.T) {
 // エラーも出ないまま別の値が保存される。
 func TestCourseRepository_SortOrderBigint_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewCourseRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewCourseRepository(sqlDB)
 	ctx := context.Background()
 
 	testsupport.TruncateAll(t, db, "courses")

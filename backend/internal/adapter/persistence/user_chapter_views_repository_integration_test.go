@@ -15,7 +15,8 @@ import (
 // (user, course) 内の last_viewed_at 最大 1 件の取得を実 Postgres で検証する。
 func TestUserChapterViewRepository_GetLastViewedByUserAndCourse_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewUserChapterViewRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewUserChapterViewRepository(sqlDB)
 	ctx := context.Background()
 
 	testsupport.TruncateAll(t, db, "user_chapter_views")

@@ -29,7 +29,8 @@ func fetchChapterView(ctx context.Context, t *testing.T, db *gorm.DB, userID, ch
 // first_viewed_at は保持、course_id は最新に更新されることを主張する。
 func TestUserChapterViewRepository_UpsertView_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewUserChapterViewRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewUserChapterViewRepository(sqlDB)
 	ctx := context.Background()
 
 	testsupport.TruncateAll(t, db, "user_chapter_views")

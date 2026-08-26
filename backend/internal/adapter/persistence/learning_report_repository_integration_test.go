@@ -17,7 +17,8 @@ import (
 // ListByUserID の user 絞り込みを実 Postgres で固定する（並び順は list_order_stability が担当）。
 func TestLearningReportRepository_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewLearningReportRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewLearningReportRepository(sqlDB)
 	ctx := context.Background()
 	testsupport.TruncateAll(t, db, "learning_reports")
 

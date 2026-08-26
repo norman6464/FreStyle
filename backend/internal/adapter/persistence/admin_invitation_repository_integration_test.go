@@ -20,7 +20,8 @@ import (
 // 実 Postgres で固定する。移行で認可判定が緩まないことの根拠にする。
 func TestAdminInvitationRepository_Auth_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewAdminInvitationRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewAdminInvitationRepository(sqlDB)
 	ctx := context.Background()
 	testsupport.TruncateAll(t, db, "invitations")
 

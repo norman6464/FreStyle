@@ -15,7 +15,8 @@ import (
 // TestProfileRepository_Integration は sqlc 化した FindByUserID（round-trip / not-found）を実 Postgres で検証する。
 func TestProfileRepository_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewProfileRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewProfileRepository(sqlDB)
 	ctx := context.Background()
 
 	t.Run("FindByUserID は profile を返す", func(t *testing.T) {
@@ -46,7 +47,8 @@ func TestProfileRepository_Integration(t *testing.T) {
 // updated_at が書き戻されることも確認する（GORM Save 相当）。
 func TestProfileRepository_Upsert_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewProfileRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewProfileRepository(sqlDB)
 	ctx := context.Background()
 	testsupport.TruncateAll(t, db, "profiles")
 

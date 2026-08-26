@@ -21,7 +21,8 @@ import (
 //   - FK / CHECK / 部分 UNIQUE / CASCADE などの DB 制約
 func TestUserNormalization_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewUserRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewUserRepository(sqlDB)
 	ctx := context.Background()
 
 	truncate := func(t *testing.T) {

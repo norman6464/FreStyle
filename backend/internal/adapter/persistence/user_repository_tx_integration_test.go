@@ -56,7 +56,8 @@ func countActiveSuperAdmins(t *testing.T, db *gorm.DB) int64 {
 // 「同時に来ても 1 人しか作られない」ことを実際に走らせて確かめる。
 func TestUserRepositoryBootstrapSuperAdmin_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewUserRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewUserRepository(sqlDB)
 	ctx := context.Background()
 
 	t.Run("同時に来ても作られる運営管理者は 1 人だけ", func(t *testing.T) {
@@ -99,8 +100,6 @@ func TestUserRepositoryBootstrapSuperAdmin_Integration(t *testing.T) {
 	t.Run("ロックを外から握っているあいだ作成は待たされる", func(t *testing.T) {
 		testsupport.TruncateAll(t, db, userTxTables...)
 
-		sqlDB, err := db.DB()
-		require.NoError(t, err)
 		blocker, err := sqlDB.BeginTx(ctx, nil)
 		require.NoError(t, err)
 		_, err = blocker.ExecContext(ctx, `SELECT pg_advisory_xact_lock($1)`, bootstrapSuperAdminLockKeyForTest)
@@ -210,7 +209,8 @@ func TestUserRepositoryBootstrapSuperAdmin_Integration(t *testing.T) {
 // UpdateActive / SoftDelete を含む）の契約を実 PostgreSQL で固定する。
 func TestUserRepositoryWrites_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewUserRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewUserRepository(sqlDB)
 	ctx := context.Background()
 
 	// newTrainee は研修生を 1 人作って返す。

@@ -18,8 +18,9 @@ import (
 // (会社/ロール絞り込み・論理削除除外・最終活動日・期間内活動回数・並び順)を実 Postgres で検証する。
 func TestCompanyLearningActivityRepository_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewCompanyLearningActivityRepository(db)
-	activities := persistence.NewUserDailyActivityRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewCompanyLearningActivityRepository(sqlDB)
+	activities := persistence.NewUserDailyActivityRepository(sqlDB)
 	ctx := context.Background()
 
 	testsupport.TruncateAll(t, db, "user_daily_activities")
@@ -27,7 +28,7 @@ func TestCompanyLearningActivityRepository_Integration(t *testing.T) {
 
 	companyID := uint64(1)
 	otherCompany := uint64(2)
-	userRepo := persistence.NewUserRepository(db)
+	userRepo := persistence.NewUserRepository(sqlDB)
 	mkUser := func(id uint64, name string, role domain.RoleName, company uint64, deleted bool) {
 		u := &domain.User{
 			ID: id, Email: name + "@example.com", Name: name,

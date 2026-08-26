@@ -17,7 +17,8 @@ import (
 // 詰め替えと、論理削除除外・not-found 時の (nil, nil) も確認する。
 func TestUserRepository_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewUserRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewUserRepository(sqlDB)
 	ctx := context.Background()
 
 	t.Run("CreateWithOidcIdentity → FindByCognitoSub / FindByID で round-trip（company_id 含む）", func(t *testing.T) {

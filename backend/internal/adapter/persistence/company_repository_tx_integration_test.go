@@ -49,7 +49,8 @@ func blockWorkspaceWrites(t *testing.T, db *gorm.DB) {
 // ことが安全弁の本体で、mirror をトランザクションの外へ出すとここが破れる。
 func TestCompanyRepositoryMirrorAtomicity_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewCompanyRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewCompanyRepository(sqlDB)
 	ctx := context.Background()
 
 	t.Run("UpdateActive: 写しに失敗したら会社の更新も巻き戻る", func(t *testing.T) {

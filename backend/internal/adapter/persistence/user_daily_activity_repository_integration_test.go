@@ -17,7 +17,8 @@ import (
 // 実 Postgres で固定する。初回は delta で INSERT、2 回目以降は各カウンタへ加算する。
 func TestUserDailyActivityRepository_Increment_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewUserDailyActivityRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewUserDailyActivityRepository(sqlDB)
 	ctx := context.Background()
 
 	testsupport.TruncateAll(t, db, "user_daily_activities")
@@ -73,7 +74,8 @@ func TestUserDailyActivityRepository_Increment_Integration(t *testing.T) {
 // TestUserDailyActivityRepository_ListByUser_Integration は範囲取得の境界と昇順を固定する。
 func TestUserDailyActivityRepository_ListByUser_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewUserDailyActivityRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewUserDailyActivityRepository(sqlDB)
 	ctx := context.Background()
 
 	testsupport.TruncateAll(t, db, "user_daily_activities")

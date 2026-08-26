@@ -98,8 +98,8 @@ func TestCourseRepository_PartialUpdate_Integration(t *testing.T) {
 	created.Language = "rust"
 	created.SortOrder = 99
 	created.IsPublished = true
-	created.CompanyID = 777         // これは書かれてはいけない
-	created.CreatedByUserID = 888   // これも書かれてはいけない
+	created.CompanyID = 777       // これは書かれてはいけない
+	created.CreatedByUserID = 888 // これも書かれてはいけない
 	require.NoError(t, repo.Update(ctx, created))
 
 	got, err := repo.GetByID(ctx, orig.ID)

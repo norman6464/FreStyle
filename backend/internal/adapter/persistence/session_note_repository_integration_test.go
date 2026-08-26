@@ -116,8 +116,9 @@ func TestSessionNoteRepository_UniqueConstraint_Integration(t *testing.T) {
 	requireSQLState(t, err, sqlStateUniqueViolation)
 }
 
-// TestSessionNoteRepository_UniqueIndexesPresent_Integration は AutoMigrate 経路（domain タグの
-// uniqueIndex）と Apply 経路（ApplySessionNoteConstraints の明示 SQL）の両方で、テスト DB の
+// TestSessionNoteRepository_UniqueIndexesPresent_Integration はスキーマ DDL 経路
+// （schema/core.sql の idx_session_notes_session_id）と Apply 経路
+// （ApplySessionNoteConstraints の明示 SQL）の両方で、テスト DB の
 // session_notes(session_id) に一意インデックスが張られていることを固定する。
 func TestSessionNoteRepository_UniqueIndexesPresent_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
@@ -127,14 +128,14 @@ func TestSessionNoteRepository_UniqueIndexesPresent_Integration(t *testing.T) {
 	// Apply 経路: 明示 SQL が張る名前付きインデックス。
 	require.Contains(t, names, "uq_session_notes_session_id", "明示 SQL の一意インデックスが無い（Apply 経路）")
 
-	// AutoMigrate 経路: uniqueIndex タグが張る別名（GORM 生成名）の一意インデックス。
-	autoMigrate := false
+	// スキーマ DDL 経路: CREATE TABLE と一緒に張る別名の一意インデックス。
+	fromSchemaDDL := false
 	for _, n := range names {
 		if n != "uq_session_notes_session_id" {
-			autoMigrate = true
+			fromSchemaDDL = true
 		}
 	}
-	require.Truef(t, autoMigrate, "AutoMigrate 経路の一意インデックスが無い（見つかった索引: %v）", names)
+	require.Truef(t, fromSchemaDDL, "スキーマ DDL 経路の一意インデックスが無い（見つかった索引: %v）", names)
 }
 
 // sessionIDUniqueIndexNames は session_notes(session_id) を覆う一意インデックスの名前を返す。

@@ -138,13 +138,13 @@ LOCAL_PSQL := sh -c 'exec psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" "$$@"' --
 
 SIZE ?= small
 
-# volume ごと破棄してまっさらにする。スキーマは次回起動時の AutoMigrate で再構築される。
+# volume ごと破棄してまっさらにする。スキーマは次回起動時のマイグレーションで再構築される。
 .PHONY: local-reset
 local-reset:
 	docker compose -f $(LOCAL_COMPOSE) down -v
-	@echo "破棄しました。docker compose up -d(起動時に AutoMigrate) → make local-seed で作り直せます。"
+	@echo "破棄しました。docker compose up -d(起動時にスキーマ適用) → make local-seed で作り直せます。"
 
-# ダミーデータ投入。スキーマは AutoMigrate 済みが前提(docker compose up の起動時に適用される)。
+# ダミーデータ投入。スキーマ適用済みが前提(docker compose up の起動時に適用される)。
 # 規模: SIZE=small(既定) | medium | large
 .PHONY: local-seed
 local-seed:

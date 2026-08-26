@@ -1,0 +1,32 @@
+package database
+
+import (
+	"context"
+	"database/sql"
+	_ "embed"
+	"fmt"
+)
+
+// coreSchemaDDL はアプリケーション中核テーブルの DDL（実スキーマの正本）。
+// バイナリに埋め込んで起動時に流すため、デプロイ物とスキーマ定義が必ず同じ版になる。
+// 同じファイルが sqlc の型付け入力でもあるので、宣言と実体がずれない。
+//
+//go:embed schema/core.sql
+var coreSchemaDDL string
+
+// ApplyCoreSchema はアプリケーション中核テーブル（users / roles / courses / exercises …）の
+// スキーマを適用する（冪等）。ナレッジ基盤（[ApplyKnowledgeBaseSchema]）より先に呼ぶこと
+// （権限モデルが users を参照するため）。
+//
+// DDL は CREATE TABLE / CREATE INDEX の IF NOT EXISTS だけで冪等になっており、複数文を
+// まとめて 1 度に実行する。CREATE TABLE IF NOT EXISTS は既に在るテーブルへ列を足さないので、
+// 既存 DB の列追加・型変更は migrations/000X_*.sql（明示 SQL）が担う。
+// 失敗したらエラーを返して起動を止める（スキーマが半端なまま listen を始めない）。
+func ApplyCoreSchema(ctx context.Context, db *sql.DB) error {
+	return withMigrateTx(ctx, db, "中核スキーマ", func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, coreSchemaDDL); err != nil {
+			return fmt.Errorf("DDL の適用に失敗: %w", err)
+		}
+		return nil
+	})
+}

@@ -9,6 +9,7 @@ import (
 
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/FreStyle/backend/internal/infra/database"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
 	"github.com/stretchr/testify/require"
 )
@@ -82,7 +83,7 @@ func TestEmailNormalForm_Integration(t *testing.T) {
 	// 一意索引のキーも同じ正規形。空白だけ違う 2 行を別キーとして通してはいけない。
 	t.Run("DB 制約: 前後空白だけ違う email もアクティブ行の重複として拒否する", func(t *testing.T) {
 		truncate(t)
-		require.NoError(t, testsupport.ApplyUserNormalizationConstraints(t, sqlDB))
+		require.NoError(t, database.ApplyUserNormalizationConstraints(ctx, sqlDB))
 		_, err := sqlDB.Exec(
 			`INSERT INTO users (email, name, role_id, is_active, created_at, updated_at)
 			 VALUES ('  space@example.com  ', 'space', 3, true, NOW(), NOW())`,
@@ -107,7 +108,7 @@ func TestEmailNormalForm_Integration(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		require.NoError(t, testsupport.BackfillUserNormalization(t, sqlDB))
+		require.NoError(t, database.BackfillUserNormalization(ctx, sqlDB))
 
 		var email string
 		require.NoError(t, sqlDB.QueryRow(`SELECT email FROM users WHERE name = 'fold'`).Scan(&email))
@@ -124,7 +125,7 @@ func TestEmailNormalForm_Integration(t *testing.T) {
 		defer func() {
 			_, err := sqlDB.Exec(`DELETE FROM users`)
 			require.NoError(t, err)
-			require.NoError(t, testsupport.ApplyUserNormalizationConstraints(t, sqlDB))
+			require.NoError(t, database.ApplyUserNormalizationConstraints(ctx, sqlDB))
 		}()
 		_, err = sqlDB.Exec(
 			`INSERT INTO users (email, name, role_id, is_active, created_at, updated_at)
@@ -133,7 +134,7 @@ func TestEmailNormalForm_Integration(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		require.NoError(t, testsupport.BackfillUserNormalization(t, sqlDB))
+		require.NoError(t, database.BackfillUserNormalization(ctx, sqlDB))
 
 		emails := make([]string, 0, 2)
 		rows, err := sqlDB.Query(`SELECT email FROM users ORDER BY name`)
@@ -148,7 +149,7 @@ func TestEmailNormalForm_Integration(t *testing.T) {
 		require.Equal(t, []string{" clash@example.com ", "Clash@Example.com"}, emails)
 
 		// 衝突が残っている間は索引を作らない（起動は落とさず WARNING）。
-		require.NoError(t, testsupport.ApplyUserNormalizationConstraints(t, sqlDB))
+		require.NoError(t, database.ApplyUserNormalizationConstraints(ctx, sqlDB))
 		var indexdef string
 		require.NoError(t, sqlDB.QueryRow(
 			`SELECT COALESCE(max(indexdef), '') FROM pg_indexes WHERE indexname = 'uq_users_email_active'`,
@@ -158,11 +159,11 @@ func TestEmailNormalForm_Integration(t *testing.T) {
 		// 衝突を解消すれば畳めるようになり、索引も張れる。
 		_, err = sqlDB.Exec(`DELETE FROM users WHERE name = 'b'`)
 		require.NoError(t, err)
-		require.NoError(t, testsupport.BackfillUserNormalization(t, sqlDB))
+		require.NoError(t, database.BackfillUserNormalization(ctx, sqlDB))
 		var email string
 		require.NoError(t, sqlDB.QueryRow(`SELECT email FROM users WHERE name = 'a'`).Scan(&email))
 		require.Equal(t, "clash@example.com", email)
-		require.NoError(t, testsupport.ApplyUserNormalizationConstraints(t, sqlDB))
+		require.NoError(t, database.ApplyUserNormalizationConstraints(ctx, sqlDB))
 		require.NoError(t, sqlDB.QueryRow(
 			`SELECT COALESCE(max(indexdef), '') FROM pg_indexes WHERE indexname = 'uq_users_email_active'`,
 		).Scan(&indexdef))
@@ -220,7 +221,7 @@ func TestEmailNormalForm_Integration(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		require.NoError(t, testsupport.BackfillUserNormalization(t, sqlDB))
+		require.NoError(t, database.BackfillUserNormalization(ctx, sqlDB))
 
 		var pending string
 		require.NoError(t, sqlDB.QueryRow(`SELECT email FROM invitations WHERE token = 'tok-legacy'`).Scan(&pending))

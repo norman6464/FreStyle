@@ -2,125 +2,86 @@ package database
 
 import (
 	"context"
+	"database/sql"
+	"fmt"
 	"log"
 	"os"
 
 	"github.com/norman6464/FreStyle/backend/internal/domain"
-	"gorm.io/gorm"
 )
 
 // migrateAdvisoryLockKey は起動時マイグレーションを直列化する advisory lock のキー。
-// 複数の ECS タスクが同時に起動しても、seed / バックフィル / 制約適用 / DDL 適用が
+// 複数の ECS タスクが同時に起動しても、DDL / seed / バックフィル / 制約適用が
 // 同じキーの下で 1 つずつ流れるようにする。
 const migrateAdvisoryLockKey = 4915311
 
-// allDomainModels は AutoMigrate に渡す全 domain 構造体のリスト。
-// 新しい domain を追加したらここにも追記する。
-func allDomainModels() []any {
-	return []any{
-		&domain.Role{},
-		&domain.User{},
-		&domain.UserOidcIdentity{},
-		&domain.Profile{},
-		&domain.AiChatSession{},
-		&domain.Note{},
-		&domain.SessionNote{},
-		&domain.Notification{},
-		&domain.AdminInvitation{},
-		&domain.MasterExercise{},
-		&domain.MasterExerciseExample{},
-		&domain.CompanyExercise{},
-		&domain.ExerciseSubmission{},
-		&domain.Company{},
-		&domain.CompanyApplication{},
-		&domain.Course{},
-		&domain.TeachingMaterial{},
-		&domain.LearningReport{},
-		&domain.AuditEvent{},
-		// UserLessonProgress のテーブルは user_chapter_progress(FRESTYLE-186 で移行完了)。
-		&domain.UserLessonProgress{},
-		// user_chapter_views / user_daily_activities の実テーブルは migration 0005 で作成済。
-		// ここに載せるのは結合テスト DB のスキーマ構築のため(タグは 0005 と一致させ、本番では no-op)。
-		&domain.UserChapterView{},
-		&domain.UserDailyActivity{},
-		// リッチテキスト文書（tiptap JSON を jsonb で保持）。
-		&domain.RichDocument{},
-		// ナレッジ基盤（workspaces / spaces / pages / blocks / page_paths / page_snapshots）は
-		// ここに載せない。GORM を通さず ApplyKnowledgeBaseSchema が明示 DDL を流す。
-	}
+// Executor は *sql.DB と *sql.Tx が共通で満たす実行インターフェース。
+// 起動時は 1 つのトランザクションへまとめて流し、結合テストは接続プールへ直接流すため、
+// seed / バックフィル / 制約適用はどちらでも呼べるようにこの形で受ける。
+type Executor interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }
 
-// AutoMigrateAll は全 domain モデルを AutoMigrate する（seed なし）。
-// 起動時の Migrate と、結合テストのスキーマ初期化の両方から使う（モデル一覧の単一情報源）。
-func AutoMigrateAll(db *gorm.DB) error {
-	return db.AutoMigrate(allDomainModels()...)
-}
-
-// Migrate は起動時にスキーマを AutoMigrate する。
+// Migrate は起動時にスキーマを適用し、seed / バックフィル / 制約適用まで済ませる。
 // RESET_DB=true のときは public schema を完全 wipe してから再構築する（一回限りの初期構築用）。
-func Migrate(db *gorm.DB) error {
+//
+// 適用順序は依存関係で決まっており崩せない:
+//
+//	中核スキーマ → seed / バックフィル / 明示制約 → ナレッジ基盤 → 権限モデル → テナント橋渡し
+//
+// 権限モデルは users を、テナント橋渡しは workspaces を参照する。
+func Migrate(ctx context.Context, db *sql.DB) error {
 	if os.Getenv("RESET_DB") == "true" {
 		log.Println("⚠️ RESET_DB=true: dropping public schema and recreating")
-		if err := db.Exec("DROP SCHEMA public CASCADE").Error; err != nil {
+		if _, err := db.ExecContext(ctx, "DROP SCHEMA public CASCADE"); err != nil {
 			return err
 		}
-		if err := db.Exec("CREATE SCHEMA public").Error; err != nil {
+		if _, err := db.ExecContext(ctx, "CREATE SCHEMA public"); err != nil {
 			return err
 		}
 	}
-	// AutoMigrate が email / role_id へ NOT NULL を張るため、旧スキーマの NULL を先に埋める
-	// （NULL が残っていると SET NOT NULL で起動が落ちるため）。冪等。
-	if err := preRepairUsersForMigrate(db); err != nil {
+	// 旧スキーマの NULL を先に埋める。正規化前の行が残っている環境でも、後段のバックフィルと
+	// 部分 UNIQUE が素直に通るようにするための下ごしらえ。冪等。
+	if err := preRepairUsersForMigrate(ctx, db); err != nil {
 		return err
 	}
-	log.Println("migrate: AutoMigrate start")
-	if err := AutoMigrateAll(db); err != nil {
+	log.Println("migrate: core schema start")
+	if err := ApplyCoreSchema(ctx, db); err != nil {
 		return err
 	}
-	log.Println("migrate: AutoMigrate done")
+	log.Println("migrate: core schema done")
 	// 演習データ(PHP / Go / Docker / Linux / Git など)は問題文・期待出力を公開リポに露出させない
 	// ため本体には埋め込まず、非公開の教材リポ(frestyle-teaching-materials/exercises/<lang>/*.md)を
 	// 唯一の正本とし、seed.py が生成する UPSERT SQL を Supabase に流して投入する。
 	// seed / バックフィル / 制約適用は check-then-act を含むため、複数タスクの同時起動でも
-	// 直列化されるよう advisory lock で囲む。pgbouncer(transaction pooler) 前提のため
-	// セッションロックではなくトランザクションロック（コミットで自動解放）を使う。
-	if err := db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Exec(`SELECT pg_advisory_xact_lock(?)`, migrateAdvisoryLockKey).Error; err != nil {
+	// 直列化されるよう advisory lock で囲む。
+	if err := withMigrateTx(ctx, db, "seed とバックフィル", func(tx *sql.Tx) error {
+		if err := seedCompanies(ctx, tx); err != nil {
 			return err
 		}
-		if err := seedCompanies(tx); err != nil {
+		if err := SeedRoles(ctx, tx); err != nil {
 			return err
 		}
-		if err := SeedRoles(tx); err != nil {
+		// users 正規化のバックフィル。起動のたびに走るが冪等で、埋まっていれば no-op。
+		// デプロイと手動 SQL 適用の順序に依存させないためここで行う
+		// （DDL → バックフィル → listen の順が 1 プロセス内で保証される）。
+		if err := BackfillUserNormalization(ctx, tx); err != nil {
 			return err
 		}
-		// users 正規化（FRESTYLE-311）のバックフィル。起動のたびに走るが冪等で、
-		// 埋まっていれば no-op。デプロイと手動 SQL 適用の順序に依存させないためここで行う
-		// （AutoMigrate → バックフィル → listen の順が 1 プロセス内で保証される）。
-		if err := BackfillUserNormalization(tx); err != nil {
+		if err := ApplyUserNormalizationConstraints(ctx, tx); err != nil {
 			return err
 		}
-		if err := ApplyUserNormalizationConstraints(tx); err != nil {
+		if err := ApplyRichDocumentConstraints(ctx, tx); err != nil {
 			return err
 		}
-		if err := ApplyRichDocumentConstraints(tx); err != nil {
-			return err
-		}
-		return ApplySessionNoteConstraints(tx)
+		return ApplySessionNoteConstraints(ctx, tx)
 	}); err != nil {
 		return err
 	}
 
-	// ナレッジ基盤は GORM を通さず、明示 DDL（infra/database/schema/knowledge_base.sql）を
-	// そのまま流す。上の GORM トランザクションと同じ advisory lock を取るため、
-	// その中からは呼べない（別コネクションを掴んで自分自身のロック待ちになる）。
-	// コミット後に、素の *sql.DB へ接続プールだけ共有して適用する。
-	sqlDB, err := db.DB()
-	if err != nil {
-		return err
-	}
 	log.Println("migrate: knowledge base schema start")
-	if err := ApplyKnowledgeBaseSchema(context.Background(), sqlDB); err != nil {
+	if err := ApplyKnowledgeBaseSchema(ctx, db); err != nil {
 		return err
 	}
 	log.Println("migrate: knowledge base schema done")
@@ -129,19 +90,43 @@ func Migrate(db *gorm.DB) error {
 	// ナレッジ基盤スキーマの後に置く。DDL もバックフィルも冪等で、埋まっていれば no-op。
 	// 読み取りは引き続き company_id を見るので、この時点で挙動は何も変わらない。
 	log.Println("migrate: tenant bridge start")
-	if err := ApplyTenantBridgeSchema(context.Background(), sqlDB); err != nil {
+	if err := ApplyTenantBridgeSchema(ctx, db); err != nil {
 		return err
 	}
-	if err := BackfillWorkspacesFromCompanies(context.Background(), sqlDB); err != nil {
+	if err := BackfillWorkspacesFromCompanies(ctx, db); err != nil {
 		return err
 	}
 	log.Println("migrate: tenant bridge done")
 	return nil
 }
 
+// withMigrateTx は advisory lock 付きの単一トランザクションで fn を実行する。
+// 複数の ECS タスクが同時に起動しても DDL / seed / バックフィルが 1 つずつ流れるよう、
+// 起動時マイグレーション共通のキーでトランザクションロックを取る
+// （pgbouncer(transaction pooler) 前提のため、コミットで自動解放されないセッションロックは使わない）。
+func withMigrateTx(ctx context.Context, db *sql.DB, label string, fn func(tx *sql.Tx) error) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("%s: トランザクション開始に失敗: %w", label, err)
+	}
+	defer func() { _ = tx.Rollback() }() // Commit 済みなら no-op
+
+	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock($1)`, migrateAdvisoryLockKey); err != nil {
+		return fmt.Errorf("%s: advisory lock の取得に失敗: %w", label, err)
+	}
+	if err := fn(tx); err != nil {
+		return fmt.Errorf("%s: %w", label, err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("%s: コミットに失敗: %w", label, err)
+	}
+	return nil
+}
+
 // ApplyRichDocumentConstraints は rich_documents の整合性制約を適用する（冪等）。
-// GORM の AutoMigrate は FK / CHECK を表現できないため、ここで明示 SQL として管理する。
-func ApplyRichDocumentConstraints(db *gorm.DB) error {
+// schema/core.sql の CREATE TABLE にも同じ制約を書いてあるが、CREATE TABLE IF NOT EXISTS は
+// 既に在るテーブルへ制約を足さないため、既存 DB に後から張る経路としてここを残す。
+func ApplyRichDocumentConstraints(ctx context.Context, db Executor) error {
 	stmts := []string{
 		// owner_id → users.id。ユーザーの物理削除で文書も消す（論理削除運用なので通常は発火しない）。
 		// 存在判定は conname だけでなく conrelid（テーブル）でも絞る。制約名は PostgreSQL では
@@ -171,7 +156,7 @@ func ApplyRichDocumentConstraints(db *gorm.DB) error {
 		END $$;`,
 	}
 	for _, stmt := range stmts {
-		if err := db.Exec(stmt).Error; err != nil {
+		if _, err := db.ExecContext(ctx, stmt); err != nil {
 			return err
 		}
 	}
@@ -179,20 +164,22 @@ func ApplyRichDocumentConstraints(db *gorm.DB) error {
 }
 
 // ApplySessionNoteConstraints は session_notes に 1 セッション 1 ノートの一意制約を張る（冪等）。
-// session_id は domain タグでも uniqueIndex にしているが、既存 DB では AutoMigrate が
-// 既存の非一意インデックスを一意へ張り替えないため、別名の一意インデックスを明示 SQL で必ず作る。
+// session_id には schema/core.sql が一意索引を張っているが、既存 DB では非一意のまま残っている
+// ことがあるため、別名の一意インデックスを明示 SQL で必ず作る。
 // CREATE UNIQUE INDEX IF NOT EXISTS 自体が冪等。既存に session_id 重複があると作成に失敗するので、
 // 適用前に重複が無いことを確認すること。
-func ApplySessionNoteConstraints(db *gorm.DB) error {
-	return db.Exec(
+func ApplySessionNoteConstraints(ctx context.Context, db Executor) error {
+	_, err := db.ExecContext(
+		ctx,
 		`CREATE UNIQUE INDEX IF NOT EXISTS uq_session_notes_session_id ON session_notes (session_id)`,
-	).Error
+	)
+	return err
 }
 
-// preRepairUsersForMigrate は AutoMigrate（NOT NULL 適用）の前提を満たすよう旧データを埋める（冪等）。
+// preRepairUsersForMigrate は正規化バックフィルの前提を満たすよう旧データを埋める（冪等）。
 // users テーブル / 対象カラムが未作成の初回起動では no-op。
-func preRepairUsersForMigrate(db *gorm.DB) error {
-	return db.Exec(`DO $$ BEGIN
+func preRepairUsersForMigrate(ctx context.Context, db Executor) error {
+	_, err := db.ExecContext(ctx, `DO $$ BEGIN
 		IF to_regclass('users') IS NOT NULL THEN
 			UPDATE users SET email = '' WHERE email IS NULL;
 			IF EXISTS (
@@ -202,18 +189,26 @@ func preRepairUsersForMigrate(db *gorm.DB) error {
 				UPDATE users SET role_id = 3 WHERE role_id IS NULL;
 			END IF;
 		END IF;
-	END $$;`).Error
+	END $$;`)
+	return err
 }
 
 // SeedRoles はロールマスタを投入する（固定 ID・冪等）。起動時と結合テストのスキーマ構築で使う。
-func SeedRoles(db *gorm.DB) error {
+// 既存行は書き換えない（運用で説明文を直しても起動のたびに戻さない）。
+func SeedRoles(ctx context.Context, db Executor) error {
 	seeds := []domain.Role{
 		{ID: domain.RoleIDSuperAdmin, Name: domain.RoleSuperAdmin, Description: "運営管理者"},
 		{ID: domain.RoleIDCompanyAdmin, Name: domain.RoleCompanyAdmin, Description: "企業管理者"},
 		{ID: domain.RoleIDTrainee, Name: domain.RoleTrainee, Description: "受講者"},
 	}
 	for _, r := range seeds {
-		if err := db.FirstOrCreate(&r, domain.Role{ID: r.ID}).Error; err != nil {
+		if _, err := db.ExecContext(
+			ctx,
+			`INSERT INTO roles (id, name, description, created_at, updated_at)
+			 VALUES ($1, $2, $3, NOW(), NOW())
+			 ON CONFLICT (id) DO NOTHING`,
+			int32(r.ID), string(r.Name), r.Description,
+		); err != nil {
 			return err
 		}
 	}
@@ -226,12 +221,13 @@ func SeedRoles(db *gorm.DB) error {
 // role_id を「逆算」する同期は行わない（それをやると、role_id だけ更新した昇格を巻き戻す）。
 // 旧カラム users.cognito_sub からの identity 補完だけは、旧カラム撤去（migrations/0021）の前後で
 // 安全に流せるよう、カラムが存在する間のみカラム存在チェックでガードして実行する。
-func BackfillUserNormalization(db *gorm.DB) error {
+func BackfillUserNormalization(ctx context.Context, db Executor) error {
 	// role_id が未設定の行は最小権限の trainee に倒す（読み出し側の LEFT JOIN で NULL role を作らない）。
 	// role_id のみを触るため旧カラム撤去後も有効。
-	if err := db.Exec(
-		`UPDATE users SET role_id = ? WHERE role_id IS NULL`, domain.RoleIDTrainee,
-	).Error; err != nil {
+	if _, err := db.ExecContext(
+		ctx,
+		`UPDATE users SET role_id = $1 WHERE role_id IS NULL`, int32(domain.RoleIDTrainee),
+	); err != nil {
 		return err
 	}
 	// email をアプリと同じ正規形（domain.NormalizeEmail = lower + 前後の EmailTrimCutset 除去）へ
@@ -247,7 +243,8 @@ func BackfillUserNormalization(db *gorm.DB) error {
 	// アドレスへ寄せない）。残った衝突は ApplyUserNormalizationConstraints が WARNING で報告し、
 	// FindActiveByEmail は複数件を曖昧としてログインを拒否する（fail closed）ので、
 	// 解消は運用判断に委ねる。
-	if err := db.Exec(
+	if _, err := db.ExecContext(
+		ctx,
 		`UPDATE users u
 		    SET email = lower(btrim(u.email, E'\t\n\x0B\f\r '))
 		  WHERE u.deleted_at IS NULL
@@ -258,74 +255,79 @@ func BackfillUserNormalization(db *gorm.DB) error {
 		           AND o.deleted_at IS NULL
 		           AND lower(btrim(o.email, E'\t\n\x0B\f\r ')) = lower(btrim(u.email, E'\t\n\x0B\f\r '))
 		    )`,
-	).Error; err != nil {
+	); err != nil {
 		return err
 	}
 	// 招待の email も同じ正規形へ畳む（保留中のみ）。ログイン時の招待ゲートは正規形の OIDC メールで
 	// 引くため、大文字混じり・空白付きのまま残った pending 行は「招待したのに招待が見つからない」に
 	// なる。invitations 側に一意制約は無いので衝突判定は要らない。
-	if err := db.Exec(
+	if _, err := db.ExecContext(
+		ctx,
 		`UPDATE invitations
 		    SET email = lower(btrim(email, E'\t\n\x0B\f\r '))
-		  WHERE status = ?
+		  WHERE status = $1
 		    AND email <> lower(btrim(email, E'\t\n\x0B\f\r '))`,
 		domain.InvitationStatusPending,
-	).Error; err != nil {
+	); err != nil {
 		return err
 	}
 	// cognito_sub → user_oidc_identities（旧カラムが残っている間のみ・既存行はスキップ）。
 	// 論理削除済みユーザーは対象外（identity が subject を占有すると再招待がログイン不能になる）。
-	hasCognitoSub, err := columnExists(db, "users", "cognito_sub")
+	hasCognitoSub, err := columnExists(ctx, db, "users", "cognito_sub")
 	if err != nil {
 		return err
 	}
 	if hasCognitoSub {
-		if err := db.Exec(
+		if _, err := db.ExecContext(
+			ctx,
 			`INSERT INTO user_oidc_identities (user_id, provider, subject, created_at, updated_at)
-			 SELECT id, ?, cognito_sub, NOW(), NOW() FROM users
+			 SELECT id, $1, cognito_sub, NOW(), NOW() FROM users
 			 WHERE cognito_sub IS NOT NULL AND cognito_sub <> '' AND deleted_at IS NULL
 			 ON CONFLICT DO NOTHING`, domain.OidcProviderCognito,
-		).Error; err != nil {
+		); err != nil {
 			return err
 		}
 	}
 	// 論理削除済みユーザーに紐付く identity を掃除する（SoftDelete 側でも消すが、
 	// 過去データと削除処理の失敗に対する自己修復として毎起動流す。冪等）。
-	return db.Exec(
+	_, err = db.ExecContext(
+		ctx,
 		`DELETE FROM user_oidc_identities oi USING users u
 		 WHERE oi.user_id = u.id AND u.deleted_at IS NOT NULL`,
-	).Error
+	)
+	return err
 }
 
 // columnExists は指定テーブルにカラムが存在するかを返す。旧カラム撤去の前後で
 // バックフィルの分岐に使う（information_schema はトランザクション内でも現在のスキーマを見る）。
-func columnExists(db *gorm.DB, table, column string) (bool, error) {
+func columnExists(ctx context.Context, db Executor, table, column string) (bool, error) {
 	var n int64
-	if err := db.Raw(
+	if err := db.QueryRowContext(
+		ctx,
 		`SELECT count(*) FROM information_schema.columns
-		 WHERE table_name = ? AND column_name = ?`, table, column,
-	).Scan(&n).Error; err != nil {
+		 WHERE table_name = $1 AND column_name = $2`, table, column,
+	).Scan(&n); err != nil {
 		return false, err
 	}
 	return n > 0, nil
 }
 
-func seedCompanies(db *gorm.DB) error {
-	seeds := []domain.Company{
-		{ID: 1, Name: "株式会社FreStyle"},
-	}
-	for _, c := range seeds {
-		if err := db.FirstOrCreate(&c, domain.Company{ID: c.ID}).Error; err != nil {
-			return err
-		}
-	}
-	return nil
+// seedCompanies は既定の会社（自社）を投入する（固定 ID・冪等）。
+func seedCompanies(ctx context.Context, db Executor) error {
+	_, err := db.ExecContext(
+		ctx,
+		`INSERT INTO companies (id, name, created_at, updated_at)
+		 VALUES ($1, $2, NOW(), NOW())
+		 ON CONFLICT (id) DO NOTHING`,
+		1, "株式会社FreStyle",
+	)
+	return err
 }
 
-// ApplyUserNormalizationConstraints は正規化テーブルの整合性制約を適用する（冪等・FRESTYLE-311）。
-// バックフィル後に呼ぶ前提（既存行が制約を満たしてから付ける）。GORM の AutoMigrate は
-// FK / CHECK / 部分 UNIQUE を表現できないため、ここで明示 SQL として管理する。
-func ApplyUserNormalizationConstraints(db *gorm.DB) error {
+// ApplyUserNormalizationConstraints は正規化テーブルの整合性制約を適用する（冪等）。
+// バックフィル後に呼ぶ前提（既存行が制約を満たしてから付ける）。FK / CHECK / 部分 UNIQUE は
+// 既存データの状態に依存するため、CREATE TABLE ではなくここで明示 SQL として管理する。
+func ApplyUserNormalizationConstraints(ctx context.Context, db Executor) error {
 	stmts := []string{
 		// roles.name: 空文字禁止。
 		`DO $$ BEGIN
@@ -333,8 +335,6 @@ func ApplyUserNormalizationConstraints(db *gorm.DB) error {
 				ALTER TABLE roles ADD CONSTRAINT ck_roles_name_not_empty CHECK (name <> '');
 			END IF;
 		END $$;`,
-		// users.role_id の NOT NULL / DEFAULT は domain タグ経由で AutoMigrate が管理する
-		// （ここで別途 ALTER すると AutoMigrate が毎起動剥がして貼り直す羽目になる）。
 		// users.role_id → roles.id。ロールマスタの行は参照されている限り消せない（RESTRICT 相当）。
 		`DO $$ BEGIN
 			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_users_role') THEN
@@ -356,8 +356,6 @@ func ApplyUserNormalizationConstraints(db *gorm.DB) error {
 					ADD CONSTRAINT ck_user_oidc_identities_not_empty CHECK (provider <> '' AND subject <> '');
 			END IF;
 		END $$;`,
-		// users.email の NOT NULL も domain タグ経由で AutoMigrate が管理する
-		// （preRepairUsersForMigrate が NULL を先に埋めるため適用は常に成功する）。
 		// users.email: アクティブ行（未論理削除）かつ正規形が非空に限った部分 UNIQUE。
 		// 論理削除→同メール再招待と両立し、email claim の無い OIDC ユーザー（空文字）は対象外にする
 		// （重複ガードと述語を必ず一致させること。ずれると起動失敗が自己修復しなくなる）。
@@ -402,7 +400,7 @@ func ApplyUserNormalizationConstraints(db *gorm.DB) error {
 		END $$;`,
 	}
 	for _, stmt := range stmts {
-		if err := db.Exec(stmt).Error; err != nil {
+		if _, err := db.ExecContext(ctx, stmt); err != nil {
 			return err
 		}
 	}

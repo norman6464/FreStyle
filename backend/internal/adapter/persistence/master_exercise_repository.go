@@ -72,11 +72,11 @@ func (r *masterExerciseRepository) ListByLanguage(ctx context.Context, language 
 	return exercises, nil
 }
 
-// GetByID は単一問題を返す。未存在は gorm.ErrRecordNotFound（handler が 404 に分岐）。
+// GetByID は単一問題を返す。未存在は domain.ErrNotFound（handler が 404 に分岐）。
 func (r *masterExerciseRepository) GetByID(ctx context.Context, id uint64) (*domain.MasterExercise, error) {
 	id64, ok := toInt64ID(id)
 	if !ok {
-		return nil, gorm.ErrRecordNotFound // 存在し得ない id = not found
+		return nil, domain.ErrNotFound // 存在し得ない id = not found
 	}
 	sqlDB, err := r.db.DB()
 	if err != nil {
@@ -84,7 +84,7 @@ func (r *masterExerciseRepository) GetByID(ctx context.Context, id uint64) (*dom
 	}
 	row, err := sqlcgen.New(sqlDB).GetMasterExerciseByID(ctx, id64)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, gorm.ErrRecordNotFound // 404 シグナルを維持
+		return nil, domain.ErrNotFound // 404 シグナルを維持
 	}
 	if err != nil {
 		return nil, err
@@ -93,7 +93,7 @@ func (r *masterExerciseRepository) GetByID(ctx context.Context, id uint64) (*dom
 	return &e, nil
 }
 
-// GetBySlug は slug で単一問題を返す。未存在は gorm.ErrRecordNotFound（handler が 404 に分岐）。
+// GetBySlug は slug で単一問題を返す。未存在は domain.ErrNotFound（handler が 404 に分岐）。
 func (r *masterExerciseRepository) GetBySlug(ctx context.Context, slug string) (*domain.MasterExercise, error) {
 	sqlDB, err := r.db.DB()
 	if err != nil {
@@ -101,7 +101,7 @@ func (r *masterExerciseRepository) GetBySlug(ctx context.Context, slug string) (
 	}
 	row, err := sqlcgen.New(sqlDB).GetMasterExerciseBySlug(ctx, slug)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, gorm.ErrRecordNotFound // 404 シグナルを維持
+		return nil, domain.ErrNotFound // 404 シグナルを維持
 	}
 	if err != nil {
 		return nil, err

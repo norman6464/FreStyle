@@ -439,7 +439,7 @@ func ensureOidcIdentityTx(ctx context.Context, q *sqlcgen.Queries, userID uint64
 		Subject:  subject,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		return gorm.ErrRecordNotFound // 直後に消えた（従来の Take と同じシグナル）
+		return domain.ErrNotFound // 直後に消えた（従来の Take と同じシグナル）
 	}
 	if err != nil {
 		return err
@@ -474,11 +474,11 @@ func (r *userRepository) UpdateAiChatEnabled(ctx context.Context, userID uint64,
 }
 
 // UpdateActive はユーザーアカウントの有効/無効を更新する（false で無効化 → ログイン/利用不可）。
-// 対象が存在しなければ gorm.ErrRecordNotFound を返す（handler が 404 にマップ）。
+// 対象が存在しなければ domain.ErrNotFound を返す（handler が 404 にマップ）。
 func (r *userRepository) UpdateActive(ctx context.Context, userID uint64, active bool) error {
 	id64, ok := toInt64ID(userID)
 	if !ok {
-		return gorm.ErrRecordNotFound // 存在し得ない id = not found
+		return domain.ErrNotFound // 存在し得ない id = not found
 	}
 	q, err := r.queries()
 	if err != nil {
@@ -489,13 +489,13 @@ func (r *userRepository) UpdateActive(ctx context.Context, userID uint64, active
 		return err
 	}
 	if affected == 0 {
-		return gorm.ErrRecordNotFound
+		return domain.ErrNotFound
 	}
 	return nil
 }
 
 // SoftDelete はユーザーを論理削除する（deleted_at = now()）。以後 FindByCognitoSub 等で除外され、
-// 認証時にも弾かれる。既に削除済み / 存在しない場合は gorm.ErrRecordNotFound を返す。
+// 認証時にも弾かれる。既に削除済み / 存在しない場合は domain.ErrNotFound を返す。
 // OIDC identity も削除して subject の占有を解く（同じ OIDC アカウントの再招待を可能にする。
 // ここで消し損ねても起動時バックフィルの掃除が自己修復する）。
 //
@@ -504,7 +504,7 @@ func (r *userRepository) UpdateActive(ctx context.Context, userID uint64, active
 func (r *userRepository) SoftDelete(ctx context.Context, userID uint64) error {
 	id64, ok := toInt64ID(userID)
 	if !ok {
-		return gorm.ErrRecordNotFound // 存在し得ない id = not found
+		return domain.ErrNotFound // 存在し得ない id = not found
 	}
 	q, err := r.queries()
 	if err != nil {
@@ -515,7 +515,7 @@ func (r *userRepository) SoftDelete(ctx context.Context, userID uint64) error {
 		return err
 	}
 	if affected == 0 {
-		return gorm.ErrRecordNotFound
+		return domain.ErrNotFound
 	}
 	return q.DeleteOidcIdentitiesByUserID(ctx, id64)
 }

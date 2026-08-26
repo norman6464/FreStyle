@@ -59,11 +59,11 @@ func (r *aiChatSessionRepository) ListByUserID(ctx context.Context, userID uint6
 	return out, nil
 }
 
-// FindByID は単一セッションを返す。未存在は gorm.ErrRecordNotFound（handler が 404 に分岐）。
+// FindByID は単一セッションを返す。未存在は domain.ErrNotFound（handler が 404 に分岐）。
 func (r *aiChatSessionRepository) FindByID(ctx context.Context, id uint64) (*domain.AiChatSession, error) {
 	id64, ok := toInt64ID(id)
 	if !ok {
-		return nil, gorm.ErrRecordNotFound // 存在し得ない id = not found
+		return nil, domain.ErrNotFound // 存在し得ない id = not found
 	}
 	sqlDB, err := r.db.DB()
 	if err != nil {
@@ -71,7 +71,7 @@ func (r *aiChatSessionRepository) FindByID(ctx context.Context, id uint64) (*dom
 	}
 	row, err := sqlcgen.New(sqlDB).GetAiChatSessionByID(ctx, id64)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, gorm.ErrRecordNotFound // 404 シグナルを維持
+		return nil, domain.ErrNotFound // 404 シグナルを維持
 	}
 	if err != nil {
 		return nil, err

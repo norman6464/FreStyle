@@ -275,8 +275,10 @@ jobs:
           go-version: '1.26'
           cache-dependency-path: backend/go.sum
 
-      # go tool cover -func はプロファイル中のブロックを関数へ対応づけるためにソースを読む。
-      # そのファイル解決に go list を使うので、依存が落ちていないと解決に失敗し得る。
+      # go tool cover -func は「どのブロックがどの関数か」を出すためにリポジトリのソースを
+      # 読む（プロファイルに入っているのはファイルパスと行範囲だけ）。読むファイルは
+      # モジュール経由で解決されるため、解決が依存の有無に左右されないよう先に揃えておく。
+      # setup-go のキャッシュが効くので通常は数秒で終わる。
       - name: go mod download
         run: go mod download
 

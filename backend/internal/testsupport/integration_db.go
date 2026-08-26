@@ -72,12 +72,25 @@ func openTestDB(t *testing.T, preferSimpleProtocol bool) *gorm.DB {
 		Logger: logger.Default.LogMode(logger.Silent),
 	})
 	if err != nil {
+		// gorm.Open は Initialize 後の自動 Ping で失敗しても *gorm.DB を返す
+		// （プールは開いたまま）。掴めた分だけ閉じてから打ち切る。
+		closeGormPool(db)
 		t.Skipf("結合テスト用 PostgreSQL に接続できません（docker compose -f docker-compose.integration.yml up -d 済か確認）: %v", err)
 	}
 	sqlDB, err := db.DB()
 	if err != nil {
 		t.Fatalf("sql.DB 取得失敗: %v", err)
 	}
+	// 接続プールはテスト関数ごとに開かれる。閉じないと MaxIdleConns 分の接続が
+	// テストの数だけ積み上がり、PostgreSQL の max_connections を超えた時点で
+	// 以降のテストが接続できなくなる。
+	//
+	// serializeIntegration の Cleanup より先に登録する。t.Cleanup は LIFO なので
+	// 「advisory lock を解放して pin した接続をプールへ返す」→「プールを閉じる」の順になる。
+	t.Cleanup(func() {
+		//nolint:errcheck // テスト終了時のプール解放。閉じられなくても報告する先がない
+		_ = sqlDB.Close()
+	})
 	if err := sqlDB.Ping(); err != nil {
 		t.Skipf("結合テスト用 PostgreSQL に ping 失敗: %v", err)
 	}
@@ -144,6 +157,19 @@ func serializeIntegration(t *testing.T, sqlDB *sql.DB) {
 		_, _ = conn.ExecContext(context.WithoutCancel(ctx), `SELECT pg_advisory_unlock($1)`, integrationLockKey)
 		_ = conn.Close()
 	})
+}
+
+// closeGormPool は *gorm.DB が抱える接続プールを閉じる（nil / 取得失敗は無視する）。
+func closeGormPool(db *gorm.DB) {
+	if db == nil {
+		return
+	}
+	sqlDB, err := db.DB()
+	if err != nil || sqlDB == nil {
+		return
+	}
+	//nolint:errcheck // 打ち切り経路の後始末。閉じられなくても報告する先がない
+	_ = sqlDB.Close()
 }
 
 // looksLikeSupabase は DSN が Supabase / 本番 pooler を指しているかを返す（安全弁用）。

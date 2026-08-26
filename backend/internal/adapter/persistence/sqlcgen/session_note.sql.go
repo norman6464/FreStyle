@@ -17,8 +17,7 @@ ORDER BY id ASC
 `
 
 // セッション ID でメモを 1 件取得（所有者検証は usecase 側）。
-// session_id に一意制約は無い（domain は index）。万一同一 session_id が複数あっても結果が
-// 決定的になるよう id ASC で最古を返す（GORM First の既定挙動と一致）。
+// session_id は一意（uq_session_notes_session_id）なので最大 1 行。id ASC は保険。
 func (q *Queries) GetSessionNoteBySessionID(ctx context.Context, sessionID int64) (SessionNote, error) {
 	row := q.db.QueryRowContext(ctx, getSessionNoteBySessionID, sessionID)
 	var i SessionNote
@@ -33,34 +32,36 @@ func (q *Queries) GetSessionNoteBySessionID(ctx context.Context, sessionID int64
 	return i, err
 }
 
-const insertSessionNote = `-- name: InsertSessionNote :one
+const upsertSessionNote = `-- name: UpsertSessionNote :one
 INSERT INTO session_notes (session_id, user_id, content, created_at, updated_at)
 VALUES ($1, $2, $3, now(), now())
+ON CONFLICT (session_id) DO UPDATE SET
+    content = EXCLUDED.content,
+    updated_at = now()
 RETURNING id, created_at, updated_at
 `
 
-type InsertSessionNoteParams struct {
+type UpsertSessionNoteParams struct {
 	SessionID int64
 	UserID    int64
 	Content   string
 }
 
-type InsertSessionNoteRow struct {
+type UpsertSessionNoteRow struct {
 	ID        int64
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
 
-// セッションメモを 1 件作成する。id は採番列（bigserial）に任せ、created_at / updated_at は
-// DB 既定値が無いため now() を明示する。RETURNING で id / created_at / updated_at を書き戻す。
+// セッションメモを 1 セッション 1 件で upsert する。session_id の一意制約に当てて
+// ON CONFLICT DO UPDATE し、既存行があれば content と updated_at だけを更新する。
 //
-// 注意: repository の口は Upsert だが、session_id には一意制約が無いため ON CONFLICT
-// (session_id) は張れない（GORM Save(ID=0) も常に INSERT する現行挙動）。ここでは現行の
-// 振る舞いを厳密に保つため INSERT のみとする。session_id 単位の真の upsert にするには
-// session_id への一意制約と既存重複行の解消が別途必要（本移行の対象外）。
-func (q *Queries) InsertSessionNote(ctx context.Context, arg InsertSessionNoteParams) (InsertSessionNoteRow, error) {
-	row := q.db.QueryRowContext(ctx, insertSessionNote, arg.SessionID, arg.UserID, arg.Content)
-	var i InsertSessionNoteRow
+// 保持列: created_at は初回作成時刻を保つため上書きしない。user_id も同じセッションの
+// 所有者は不変なので触らない（DO UPDATE の SET に含めない列は既存値のまま残る）。
+// 時刻列は DB 既定値が無いため、INSERT では now() を明示し、UPDATE では updated_at に now() を入れる。
+func (q *Queries) UpsertSessionNote(ctx context.Context, arg UpsertSessionNoteParams) (UpsertSessionNoteRow, error) {
+	row := q.db.QueryRowContext(ctx, upsertSessionNote, arg.SessionID, arg.UserID, arg.Content)
+	var i UpsertSessionNoteRow
 	err := row.Scan(&i.ID, &i.CreatedAt, &i.UpdatedAt)
 	return i, err
 }

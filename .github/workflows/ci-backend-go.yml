@@ -285,13 +285,13 @@ jobs:
       # 2 本のプロファイルを backend/ 直下へ取り出す（後続の go tool cover が
       # モジュール内から相対解決できる場所に置く）。
       - name: Download unit coverage profile
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: coverage-unit
           path: backend
 
       - name: Download integration coverage profile
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: coverage-integration
           path: backend

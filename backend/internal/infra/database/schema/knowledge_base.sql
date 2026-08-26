@@ -4,21 +4,17 @@
 -- （backend/sqlc.yaml の schema に登録済み。列を足したら `make sqlc` で生成物を作り直す）。
 -- 起動時に database.ApplyKnowledgeBaseSchema がこの内容をそのまま流す（冪等）。
 --
--- 既存テーブル（users / notes / courses / rich_documents …）とは扱いが違う。
--- あちらは GORM の AutoMigrate が実体を作り、queries/schema.sql はそれを写した型付け専用の定義でしかない。
--- ナレッジ基盤は GORM を一切通さない: domain 構造体に GORM タグを持たず、AutoMigrate の一覧にも入れない。
--- 複合 FK / CHECK / 部分 UNIQUE / コレーション指定は AutoMigrate では表現できず、
--- 「タグに書いた定義」と「明示 SQL に書いた定義」へ二重化して食い違うのが分かっているため、
--- 最初からこの 1 枚に集約して正本を 1 つにする。
+-- アプリ中核テーブル（users / notes / courses / rich_documents …）の schema/core.sql と同じ扱いで、
+-- 「宣言（sqlc）と実体（DDL）を 1 ファイルに集約して正本を 1 つにする」という方針を共有する。
+-- 適用順は core → 骨格 → 権限（権限側が users を参照するため崩せない）。
 --
 -- 冪等性は CREATE ... IF NOT EXISTS だけで成り立たせ、DO ブロックは書かない。
 -- sqlc がこのファイルをパースして型を作るので、素の DDL に保つ必要がある
 -- （手続き型の DO ブロックが混ざると sqlc がパースできない）。
 --
 -- 注意（開発者のローカル DB）: CREATE TABLE IF NOT EXISTS は「テーブルが無いときだけ作る」ので、
--- 既に別定義のテーブルがある DB では何もしない。過去のコミット（AutoMigrate 版）でこれらの
--- テーブルを作ったローカル DB には古い定義が残る。このテーブル群は未リリースで本番にはまだ存在せず、
--- ローカル / 結合テストの DB は使い捨てにできるため、`docker compose down -v` で作り直す運用とする。
+-- 既に別定義のテーブルがある DB では何もしない。古い定義が残ったローカル DB は
+-- `docker compose down -v` で作り直す（このテーブル群は未リリースで本番にはまだ存在しない）。
 --
 -- 設計の柱は 2 つ:
 --

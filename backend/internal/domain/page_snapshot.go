@@ -8,8 +8,6 @@ import "time"
 // 表示のたびにブロック行を木に組み直すと 1 ページで数百行の取得と再帰的な組み立てが要るため、
 // 編集のたびに 1 つの jsonb へ焼き直して読み出しを 1 行の取得に落とす。
 // 正本はあくまで blocks 側で、この行は失っても blocks から再生成できる派生データ。
-//
-// Workspace と同じくナレッジ基盤の型なので GORM を通さない（段 1-b で repository が付くまで参照元は無い）。
 type PageSnapshot struct {
 	// PageID は対象ページ。
 	PageID string `json:"pageId"`

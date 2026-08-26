@@ -12,29 +12,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// score_cards は AI 評価スコアの旧テーブルで AutoMigrate 管理ではない（対応 domain 構造体は撤去済）。
-// user_stats_repository は集計元としてこのテーブルを読むため、結合テストでは queries/schema.sql と
-// 同じ列で用意する（本番には存在する）。
-const createScoreCardsDDL = `
-CREATE TABLE IF NOT EXISTS score_cards (
-    id                  bigserial PRIMARY KEY,
-    user_id             bigint,
-    session_id          bigint,
-    overall_score       numeric,
-    logical_score       numeric,
-    consideration_score numeric,
-    summary_score       numeric,
-    proposal_score      numeric,
-    listening_score     numeric,
-    feedback            text,
-    created_at          timestamptz
-)`
-
+// score_cards は AI 評価スコアの旧テーブル（対応 domain 構造体は撤去済）。テーブル自体は
+// 起動時と同じ DDL（infra/database/schema/core.sql）が作るので、ここでは中身だけ空にする。
 func ensureScoreCards(t *testing.T, db *sql.DB) {
 	t.Helper()
-	_, err := db.Exec(createScoreCardsDDL)
-	require.NoError(t, err)
-	_, err = db.Exec(`TRUNCATE score_cards RESTART IDENTITY`)
+	_, err := db.Exec(`TRUNCATE score_cards RESTART IDENTITY`)
 	require.NoError(t, err)
 }
 

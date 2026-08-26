@@ -39,7 +39,7 @@ ORDER BY agg.last_active_date DESC NULLS LAST, u.id ASC
 
 type ListCompanyMemberActivitiesParams struct {
 	CompanyID     int64
-	TraineeRoleID int16
+	TraineeRoleID int32
 	FromDate      time.Time
 }
 

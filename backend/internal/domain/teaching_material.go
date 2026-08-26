@@ -8,23 +8,20 @@ import "time"
 // 本文はリッチテキスト（tiptap の ProseMirror JSON）の doc(jsonb) が正本。
 // コース内の並び順は sort_order 列（同値時 ID 昇順）。
 type TeachingMaterial struct {
-	ID        uint64 `gorm:"primaryKey;autoIncrement" json:"id"`
-	CompanyID uint64 `gorm:"column:company_id;not null;index" json:"companyId"`
-	// NOT NULL は migration 0004 で確定するため GORM tag では指定しない（既存行への ADD COLUMN 対策）。
-	CourseID        uint64 `gorm:"column:course_id;index" json:"courseId"`
-	CreatedByUserID uint64 `gorm:"column:created_by_user_id;not null" json:"createdByUserId"`
-	Title           string `gorm:"column:title;not null;default:''" json:"title"`
+	ID              uint64 `json:"id"`
+	CompanyID       uint64 `json:"companyId"`
+	CourseID        uint64 `json:"courseId"`
+	CreatedByUserID uint64 `json:"createdByUserId"`
+	Title           string `json:"title"`
 	// Doc はリッチテキスト本文（tiptap JSON）。未移行の章は NULL。
 	// JSON 出力は handler 側で json.RawMessage として制御するため json:"-"。
-	Doc *string `gorm:"column:doc;type:jsonb" json:"-"`
+	Doc *string `json:"-"`
 	// Revision は doc 更新の楽観ロック用。doc を更新するたびに +1（不一致は 409）。
-	Revision int `gorm:"column:revision;not null;default:1" json:"revision"`
+	Revision int `json:"revision"`
 	// SchemaVersion は doc のエディタスキーマ版。読込時アップキャストの目印（現行 1）。
-	SchemaVersion int       `gorm:"column:schema_version;not null;default:1" json:"schemaVersion"`
-	OrderInCourse int       `gorm:"column:sort_order;not null;default:100" json:"orderInCourse"`
-	IsPublished   bool      `gorm:"column:is_published;not null;default:false" json:"isPublished"`
-	CreatedAt     time.Time `gorm:"column:created_at" json:"createdAt"`
-	UpdatedAt     time.Time `gorm:"column:updated_at" json:"updatedAt"`
+	SchemaVersion int       `json:"schemaVersion"`
+	OrderInCourse int       `json:"orderInCourse"`
+	IsPublished   bool      `json:"isPublished"`
+	CreatedAt     time.Time `json:"createdAt"`
+	UpdatedAt     time.Time `json:"updatedAt"`
 }
-
-func (TeachingMaterial) TableName() string { return "course_chapters" }

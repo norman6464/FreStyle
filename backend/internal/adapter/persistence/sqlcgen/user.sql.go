@@ -89,9 +89,9 @@ SELECT id FROM roles WHERE name = $1
 
 // ロール名を roles.id に解決する。未知の名前は 0 件で返り、呼び出し側がエラーにする
 // （黙って別ロールへ倒さない）。
-func (q *Queries) GetRoleIDByName(ctx context.Context, name string) (int16, error) {
+func (q *Queries) GetRoleIDByName(ctx context.Context, name string) (int32, error) {
 	row := q.db.QueryRowContext(ctx, getRoleIDByName, name)
-	var id int16
+	var id int32
 	err := row.Scan(&id)
 	return id, err
 }
@@ -113,7 +113,7 @@ type GetUserByCognitoSubRow struct {
 	Email         string
 	Name          string
 	CompanyID     sql.NullInt64
-	RoleID        int16
+	RoleID        int32
 	AiChatEnabled sql.NullBool
 	IsActive      bool
 	CreatedAt     time.Time
@@ -162,7 +162,7 @@ type GetUserByIDRow struct {
 	Email         string
 	Name          string
 	CompanyID     sql.NullInt64
-	RoleID        int16
+	RoleID        int32
 	AiChatEnabled sql.NullBool
 	IsActive      bool
 	CreatedAt     time.Time
@@ -227,7 +227,7 @@ type InsertUserParams struct {
 	PasswordHash  sql.NullString
 	Name          string
 	CompanyID     sql.NullInt64
-	RoleID        int16
+	RoleID        int32
 	AiChatEnabled sql.NullBool
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
@@ -275,7 +275,7 @@ type InsertUserWithIDParams struct {
 	PasswordHash  sql.NullString
 	Name          string
 	CompanyID     sql.NullInt64
-	RoleID        int16
+	RoleID        int32
 	AiChatEnabled sql.NullBool
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
@@ -321,7 +321,7 @@ type ListActiveUsersByEmailRow struct {
 	Email         string
 	Name          string
 	CompanyID     sql.NullInt64
-	RoleID        int16
+	RoleID        int32
 	AiChatEnabled sql.NullBool
 	IsActive      bool
 	CreatedAt     time.Time
@@ -390,7 +390,7 @@ type ListUsersByCompanyIDRow struct {
 	Email         string
 	Name          string
 	CompanyID     sql.NullInt64
-	RoleID        int16
+	RoleID        int32
 	AiChatEnabled sql.NullBool
 	IsActive      bool
 	CreatedAt     time.Time
@@ -448,7 +448,7 @@ type ListUsersByRoleRow struct {
 	Email         string
 	Name          string
 	CompanyID     sql.NullInt64
-	RoleID        int16
+	RoleID        int32
 	AiChatEnabled sql.NullBool
 	IsActive      bool
 	CreatedAt     time.Time
@@ -593,7 +593,7 @@ UPDATE users SET role_id = $2, updated_at = now() WHERE id = $1
 
 type UpdateUserRoleIDParams struct {
 	ID     int64
-	RoleID int16
+	RoleID int32
 }
 
 // 役割だけを更新する（誰がどの役割になれるかの判定は usecase 側の仕事）。

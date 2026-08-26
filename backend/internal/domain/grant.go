@@ -127,8 +127,6 @@ func (r GrantRole) CanManage() bool { return r.Rank() >= GrantRoleAdmin.Rank() }
 // スペース単位の grant だけでは「テナント全体の管理者」を表すのにスペースの数だけ
 // grant を張って回ることになり、スペースが増えるたびに漏れる。入れ物の階層が
 // ワークスペース ⊃ スペース である以上、既定も 2 段で持つ。
-//
-// Workspace と同じくナレッジ基盤の型なので GORM を通さない。
 type WorkspaceGrant struct {
 	// WorkspaceID は対象ワークスペース。
 	WorkspaceID string `json:"workspaceId"`
@@ -142,8 +140,6 @@ type WorkspaceGrant struct {
 
 // SpaceGrant はスペースでの既定の権限（誰が何をできるか）。
 // 同じ主体がひとつのスペースで持つ役割は 1 つだけ（DB の PK が (workspace_id, space_id, principal_id)）。
-//
-// Workspace と同じくナレッジ基盤の型なので GORM を通さない。
 type SpaceGrant struct {
 	// WorkspaceID はテナント境界。principal との複合 FK に使う。
 	WorkspaceID string `json:"workspaceId"`

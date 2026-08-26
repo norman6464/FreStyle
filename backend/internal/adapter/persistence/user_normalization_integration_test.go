@@ -8,6 +8,7 @@ import (
 
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
+	"github.com/norman6464/FreStyle/backend/internal/infra/database"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
 	"github.com/stretchr/testify/require"
 )
@@ -115,8 +116,8 @@ func TestUserNormalization_Integration(t *testing.T) {
 		require.NoError(t, repo.CreateWithOidcIdentity(ctx, u, domain.OidcProviderCognito, "bf-1"))
 
 		// 何度流しても role_id / identity を壊さない（role_id を旧 role 基準で巻き戻さない）。
-		require.NoError(t, testsupport.BackfillUserNormalization(t, sqlDB))
-		require.NoError(t, testsupport.BackfillUserNormalization(t, sqlDB))
+		require.NoError(t, database.BackfillUserNormalization(ctx, sqlDB))
+		require.NoError(t, database.BackfillUserNormalization(ctx, sqlDB))
 
 		got, err := repo.FindByID(ctx, u.ID)
 		require.NoError(t, err)
@@ -261,7 +262,7 @@ func TestUserNormalization_Integration(t *testing.T) {
 		_, err := sqlDB.Exec(`UPDATE users SET deleted_at = NOW() WHERE id = $1`, u.ID)
 		require.NoError(t, err)
 
-		require.NoError(t, testsupport.BackfillUserNormalization(t, sqlDB))
+		require.NoError(t, database.BackfillUserNormalization(ctx, sqlDB))
 
 		var count int64
 		require.NoError(t, sqlDB.QueryRow(
@@ -278,10 +279,10 @@ func TestUserNormalization_Integration(t *testing.T) {
 		require.NoError(t, repo.CreateWithOidcIdentity(ctx, e2, domain.OidcProviderCognito, "nomail-2"))
 	})
 
-	t.Run("AutoMigrate を再実行しても NOT_NULL と DEFAULT が剥がれない", func(t *testing.T) {
-		// 回帰テスト: gorm タグと DB 状態が一致していないと、AutoMigrate が毎起動
-		// DROP NOT NULL / DROP DEFAULT を発行し、ローリングデプロイ中に安全弁が消える。
-		require.NoError(t, testsupport.AutoMigrateAll(t, sqlDB))
+	t.Run("スキーマ DDL を再適用しても NOT_NULL と DEFAULT が剥がれない", func(t *testing.T) {
+		// 回帰テスト: 起動のたびに流れる DDL が既存列を作り直したり緩めたりすると、
+		// ローリングデプロイ中に安全弁（role_id の NOT NULL / DEFAULT）が消える。
+		require.NoError(t, database.ApplyCoreSchema(ctx, sqlDB))
 
 		var isNullable string
 		var columnDefault *string
@@ -289,8 +290,8 @@ func TestUserNormalization_Integration(t *testing.T) {
 			`SELECT is_nullable, column_default FROM information_schema.columns
 			 WHERE table_name = 'users' AND column_name = 'role_id'`,
 		).Scan(&isNullable, &columnDefault))
-		require.Equal(t, "NO", isNullable, "role_id の NOT NULL が AutoMigrate 再実行で剥がれた")
-		require.NotNil(t, columnDefault, "role_id の DEFAULT が AutoMigrate 再実行で剥がれた")
+		require.Equal(t, "NO", isNullable, "role_id の NOT NULL が DDL 再適用で剥がれた")
+		require.NotNil(t, columnDefault, "role_id の DEFAULT が DDL 再適用で剥がれた")
 		require.Contains(t, *columnDefault, "3")
 
 		var emailNullable string
@@ -298,7 +299,7 @@ func TestUserNormalization_Integration(t *testing.T) {
 			`SELECT is_nullable FROM information_schema.columns
 			 WHERE table_name = 'users' AND column_name = 'email'`,
 		).Scan(&emailNullable))
-		require.Equal(t, "NO", emailNullable, "email の NOT NULL が AutoMigrate 再実行で剥がれた")
+		require.Equal(t, "NO", emailNullable, "email の NOT NULL が DDL 再適用で剥がれた")
 	})
 
 	t.Run("FindActiveByEmail はハッシュ込みで 1 件返し、無効・削除行は除外する", func(t *testing.T) {
@@ -326,7 +327,7 @@ func TestUserNormalization_Integration(t *testing.T) {
 		_, err := sqlDB.Exec(`DROP INDEX IF EXISTS uq_users_email_active`)
 		require.NoError(t, err)
 		defer func() {
-			require.NoError(t, testsupport.ApplyUserNormalizationConstraints(t, sqlDB))
+			require.NoError(t, database.ApplyUserNormalizationConstraints(ctx, sqlDB))
 		}()
 
 		for _, sub := range []string{"dup-a", "dup-b"} {
@@ -344,7 +345,7 @@ func TestUserNormalization_Integration(t *testing.T) {
 	t.Run("DB 制約: 大小文字だけ違う email もアクティブ行の重複として拒否する", func(t *testing.T) {
 		truncate(t)
 		// 直前のサブテストが重複行を残したまま index を落としている場合に備えて張り直す。
-		require.NoError(t, testsupport.ApplyUserNormalizationConstraints(t, sqlDB))
+		require.NoError(t, database.ApplyUserNormalizationConstraints(ctx, sqlDB))
 		u1 := &domain.User{Email: "case@example.com", Role: domain.RoleTrainee}
 		require.NoError(t, repo.CreateWithOidcIdentity(ctx, u1, domain.OidcProviderCognito, "case-1"))
 
@@ -403,14 +404,14 @@ func TestUserNormalization_Integration(t *testing.T) {
 		}
 
 		// 起動時の制約適用は落ちず（WARNING のみ）、旧索引がそのまま残る。
-		require.NoError(t, testsupport.ApplyUserNormalizationConstraints(t, sqlDB))
+		require.NoError(t, database.ApplyUserNormalizationConstraints(ctx, sqlDB))
 		require.NotContains(t, indexdef(t), "btrim")
 		require.Contains(t, indexdef(t), "email")
 
 		// 重複を解消すれば、次の起動で正規形（lower(btrim(email, ...))）へ張り替わる。
 		_, err = sqlDB.Exec(`DELETE FROM users WHERE email = 'MIX@Example.com'`)
 		require.NoError(t, err)
-		require.NoError(t, testsupport.ApplyUserNormalizationConstraints(t, sqlDB))
+		require.NoError(t, database.ApplyUserNormalizationConstraints(ctx, sqlDB))
 		require.Contains(t, indexdef(t), "btrim")
 	})
 }

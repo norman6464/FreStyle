@@ -1,4 +1,4 @@
-// FreStyle backend (Go / Gin / GORM).
+// FreStyle backend (Go / Gin / sqlc).
 //
 // @title           FreStyle Backend API
 // @version         2.0
@@ -20,6 +20,7 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"os"
 
@@ -54,13 +55,13 @@ func main() {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	gormDB, sqlDB, err := database.NewPostgres(cfg)
+	sqlDB, err := database.NewPostgres(cfg)
 	if err != nil {
 		fatal("database connect failed", err)
 	}
 
-	// Go domain を「正」とする AutoMigrate。GORM が要るのはここだけ。
-	if err := database.Migrate(gormDB); err != nil {
+	// スキーマの正本は infra/database/schema/*.sql（起動時に冪等な明示 DDL として流す）。
+	if err := database.Migrate(context.Background(), sqlDB); err != nil {
 		fatal("migrate failed", err)
 	}
 

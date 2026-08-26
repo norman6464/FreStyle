@@ -61,7 +61,7 @@ func toDomainUser(row userRow) *domain.User {
 		CreatedAt: row.CreatedAt,
 		UpdatedAt: row.UpdatedAt,
 	}
-	u.RoleID = uint16(row.RoleID)
+	u.RoleID = row.RoleID
 	if row.CompanyID.Valid {
 		cid := uint64(row.CompanyID.Int64)
 		u.CompanyID = &cid
@@ -184,7 +184,7 @@ func (r *userRepository) ListByCompanyID(ctx context.Context, companyID uint64) 
 }
 
 // resolveRoleID はロール名を roles.id に解決する。未知の名前はエラー（黙って別ロールにしない）。
-func resolveRoleID(ctx context.Context, q *sqlcgen.Queries, roleName domain.RoleName) (uint16, error) {
+func resolveRoleID(ctx context.Context, q *sqlcgen.Queries, roleName domain.RoleName) (int32, error) {
 	id, err := q.GetRoleIDByName(ctx, string(roleName))
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, fmt.Errorf("unknown role %q", roleName)
@@ -192,7 +192,7 @@ func resolveRoleID(ctx context.Context, q *sqlcgen.Queries, roleName domain.Role
 	if err != nil {
 		return 0, err
 	}
-	return uint16(id), nil
+	return id, nil
 }
 
 // insertUserTx は users 行を 1 件作り、採番結果を user へ書き戻す。
@@ -210,7 +210,7 @@ func insertUserTx(ctx context.Context, q *sqlcgen.Queries, user *domain.User) er
 	params := sqlcgen.InsertUserParams{
 		Email:     user.Email,
 		Name:      user.Name,
-		RoleID:    int16(user.RoleID),
+		RoleID:    user.RoleID,
 		CreatedAt: createdAt,
 		UpdatedAt: updatedAt,
 	}
@@ -494,7 +494,7 @@ func (r *userRepository) UpdateRole(ctx context.Context, userID uint64, role dom
 	if err != nil {
 		return err
 	}
-	return q.UpdateUserRoleID(ctx, sqlcgen.UpdateUserRoleIDParams{ID: id64, RoleID: int16(roleID)})
+	return q.UpdateUserRoleID(ctx, sqlcgen.UpdateUserRoleIDParams{ID: id64, RoleID: roleID})
 }
 
 // UpdateCompanyID は所属会社を付け替える。company_id と、その写しである workspace_id を

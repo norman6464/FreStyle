@@ -30,17 +30,20 @@ const workspaceSlugPrefix = "ws-"
 
 // tenantBridgeSchemaStatements は Expand で足す列と制約（冪等）。
 //
-// companies / users は GORM が AutoMigrate で作るテーブルだが、この 2 列は domain 構造体に
-// 持たせず明示 DDL で足す。理由は 2 つ:
-//   - 読み取りを 1 つも変えないため。domain に列を生やすと、まだ誰も埋めていない値が
-//     ドメインモデルに現れて読み出し側から見えてしまう。
-//   - FK / UNIQUE は GORM タグでは表現できず、どのみち明示 SQL が要る。
+// companies / users は schema/core.sql が作るテーブルだが、この 2 列だけは CREATE TABLE ではなく
+// ALTER TABLE ADD COLUMN IF NOT EXISTS で足す。CREATE TABLE IF NOT EXISTS は既に在るテーブルへ
+// 列を追加しないため、既に本番にあるテーブルへ列を届ける経路がこれしかないから。
 //
-// 列は必ずテーブルの末尾に付く（ALTER TABLE ADD COLUMN の挙動）。sqlc の型付け入力
-// （queries/schema.sql）でも最後に書いてあることが前提で、ずれると SELECT * の詰め替えが壊れる。
+// 列は必ずテーブルの末尾に付く（ALTER TABLE ADD COLUMN の挙動）。schema/core.sql でも
+// 最後に書いてあることが前提で、ずれると SELECT * の詰め替えが位置ずれで壊れる。
+//
+// ADD COLUMN IF NOT EXISTS を素で流さず、カタログを見て未作成のときだけ ALTER する。
+// ALTER TABLE は列が既に在ってスキップする場合でも先に AccessExclusiveLock を取り、
+// トランザクションが終わるまで手放さない（読み取りまで止まる）。列が出揃っている通常の起動で
+// companies / users を掴まないよう、事前チェックで ALTER 自体を出さない。
 var tenantBridgeSchemaStatements = []string{
-	`ALTER TABLE companies ADD COLUMN IF NOT EXISTS workspace_id uuid`,
-	`ALTER TABLE users ADD COLUMN IF NOT EXISTS workspace_id uuid`,
+	addWorkspaceIDColumnStatement("companies"),
+	addWorkspaceIDColumnStatement("users"),
 	// 会社とワークスペースは 1:1。移行中に 2 つの会社が同じワークスペースを指す状態を作らない。
 	`DO $$ BEGIN
 		IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'uq_companies_workspace_id') THEN
@@ -67,10 +70,24 @@ var tenantBridgeSchemaStatements = []string{
 	END $$;`,
 }
 
+// addWorkspaceIDColumnStatement は workspace_id 列を「無ければ足す」DO ブロックを組み立てる。
+// テーブル名は呼び出し側のリテラルだけを渡す（外部入力は来ない）。
+func addWorkspaceIDColumnStatement(table string) string {
+	return `DO $$ BEGIN
+		IF NOT EXISTS (
+			SELECT 1 FROM information_schema.columns
+			 WHERE table_schema = current_schema()
+			   AND table_name = '` + table + `' AND column_name = 'workspace_id'
+		) THEN
+			ALTER TABLE ` + table + ` ADD COLUMN workspace_id uuid;
+		END IF;
+	END $$;`
+}
+
 // ApplyTenantBridgeSchema は companies / users に workspace_id 列と制約を足す（冪等）。
 // workspaces を参照する FK を張るため、ApplyKnowledgeBaseSchema の後に呼ぶこと。
 func ApplyTenantBridgeSchema(ctx context.Context, db *sql.DB) error {
-	return withTenantBridgeTx(ctx, db, "テナント橋渡しスキーマ", func(tx *sql.Tx) error {
+	return withMigrateTx(ctx, db, "テナント橋渡しスキーマ", func(tx *sql.Tx) error {
 		for _, stmt := range tenantBridgeSchemaStatements {
 			if _, err := tx.ExecContext(ctx, stmt); err != nil {
 				return fmt.Errorf("DDL の適用に失敗: %w", err)
@@ -87,7 +104,7 @@ func ApplyTenantBridgeSchema(ctx context.Context, db *sql.DB) error {
 // 途中まで進んだ状態から再開しても矛盾しないよう、各段階の WHERE を
 // 「まだ埋まっていない行だけ」に絞ってある。
 func BackfillWorkspacesFromCompanies(ctx context.Context, db *sql.DB) error {
-	return withTenantBridgeTx(ctx, db, "会社→ワークスペースのバックフィル", func(tx *sql.Tx) error {
+	return withMigrateTx(ctx, db, "会社→ワークスペースのバックフィル", func(tx *sql.Tx) error {
 		if err := createWorkspacesForCompanies(ctx, tx); err != nil {
 			return err
 		}
@@ -221,27 +238,4 @@ func truncateRunes(s string, limit int) string {
 		return s
 	}
 	return string(r[:limit])
-}
-
-// withTenantBridgeTx は advisory lock 付きの単一トランザクションで fn を実行する。
-// 複数の ECS タスクが同時に起動しても DDL / バックフィルが 1 つずつ流れるよう、
-// 起動時マイグレーションと同じキーのトランザクションロックを取る
-// （pgbouncer 経由でも安全なようセッションロックは使わない）。
-func withTenantBridgeTx(ctx context.Context, db *sql.DB, label string, fn func(tx *sql.Tx) error) error {
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("%s: トランザクション開始に失敗: %w", label, err)
-	}
-	defer func() { _ = tx.Rollback() }() // Commit 済みなら no-op
-
-	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock($1)`, migrateAdvisoryLockKey); err != nil {
-		return fmt.Errorf("%s: advisory lock の取得に失敗: %w", label, err)
-	}
-	if err := fn(tx); err != nil {
-		return fmt.Errorf("%s: %w", label, err)
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("%s: コミットに失敗: %w", label, err)
-	}
-	return nil
 }

@@ -9,9 +9,9 @@
 -- 骨格と別ファイルにする理由は 2 つ:
 --   (1) 骨格 6 テーブルは「ページの木そのもの」で、権限は「誰がそれを触れるか」という別の関心。
 --       1 枚に混ぜると、どちらを読みたいときも全部を読むことになる。
---   (2) こちらは users（GORM AutoMigrate が作る既存テーブル）へ FK を張る。骨格側は
+--   (2) こちらは users（schema/core.sql が作るテーブル）へ FK を張る。骨格側は
 --       ナレッジ基盤だけで閉じており、その依存の有無をファイル境界で見えるようにする。
---       適用順は database.Migrate が AutoMigrate → ApplyKnowledgeBaseSchema なので users は必ず先にある。
+--       適用順は database.Migrate が core → 骨格 → 権限なので users は必ず先にある。
 --
 -- 設計の柱（骨格の 2 つに加えて）:
 --

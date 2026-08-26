@@ -61,9 +61,3 @@ func TestResolveTestDSN_Integration(t *testing.T) {
 		})
 	}
 }
-
-// TestCloseGormPool_Integration は接続プールの解放が nil でも落ちないことを検証する（DB 不要）。
-// 実際に開いたプールを閉じる経路は、結合テストごとの t.Cleanup が毎回通る。
-func TestCloseGormPool_Integration(t *testing.T) {
-	closeGormPool(nil) // panic しなければよい
-}

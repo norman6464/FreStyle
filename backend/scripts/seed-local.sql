@@ -8,8 +8,8 @@
 -- 直接流す場合:
 --   psql "$DSN" -v size=medium -f scripts/seed-local.sql
 --
--- 前提: backend を一度起動して AutoMigrate 済みであること(このスクリプトは
--- テーブルを作らない。スキーマの正本はあくまで AutoMigrate + migrations/*.sql)。
+-- 前提: backend を一度起動してスキーマ適用済みであること(このスクリプトは
+-- テーブルを作らない。スキーマの正本は infra/database/schema/*.sql + migrations/*.sql)。
 --
 -- 設計方針:
 --   - ORM のループ INSERT ではなく generate_series で一括生成する(桁違いに速い)
@@ -94,7 +94,7 @@ WHERE user_id >= 1000000;
 DELETE FROM users
 WHERE id >= 1000000;
 
--- 会社は AutoMigrate 後の seedCompanies が id=1 を入れている前提。無ければ作る。
+-- 会社は起動時マイグレーションの seedCompanies が id=1 を入れている前提。無ければ作る。
 INSERT INTO companies (id, name)
 SELECT 1, '株式会社FreStyle'
 WHERE NOT EXISTS (SELECT 1 FROM companies WHERE id = 1);

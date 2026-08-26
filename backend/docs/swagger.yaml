@@ -101,7 +101,7 @@ definitions:
       aiChatEnabledForTrainees:
         description: |-
           AiChatEnabledForTrainees は自社 trainee に AI チャットを許可するか（既定 true）。
-          company_admin / super_admin が /company/settings で切り替える。AutoMigrate が列を追加する。
+          company_admin / super_admin が /company/settings で切り替える。
         type: boolean
       createdAt:
         type: string
@@ -379,8 +379,6 @@ definitions:
       companyId:
         type: integer
       courseId:
-        description: NOT NULL は migration 0004 で確定するため GORM tag では指定しない（既存行への ADD
-          COLUMN 対策）。
         type: integer
       createdAt:
         type: string
@@ -665,8 +663,6 @@ definitions:
       companyId:
         type: integer
       courseId:
-        description: NOT NULL は migration 0004 で確定するため GORM tag では指定しない（既存行への ADD
-          COLUMN 対策）。
         type: integer
       createdAt:
         type: string

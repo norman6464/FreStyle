@@ -17,9 +17,6 @@ import (
 	"testing"
 
 	"github.com/norman6464/FreStyle/backend/internal/infra/database"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 // defaultTestDSN は TEST_DATABASE_URL 未設定時の既定接続先（docker-compose.integration.yml と一致）。
@@ -29,7 +26,7 @@ const defaultTestDSN = "postgres://frestyle:frestyle@localhost:5433/frestyle_int
 // マイグレーション用（database.migrateAdvisoryLockKey）とは別の値にする。
 const integrationLockKey int64 = 907_353_401
 
-// OpenTestDB は結合テスト用 DB に接続し、全 domain モデルを AutoMigrate して
+// OpenTestDB は結合テスト用 DB に接続し、起動時と同じ明示 DDL でスキーマを構築して
 // 接続プール（*sql.DB）を返す。repository は sqlc 生成コード（*sql.DB）で実装されているので、
 // テストが受け取るのも同じ *sql.DB にする。
 //
@@ -57,7 +54,6 @@ func OpenTestDBSimpleProtocol(t *testing.T) *sql.DB {
 }
 
 // openTestDB はスキーマ初期化までを済ませた接続プールを返す。
-// AutoMigrate 系はまだ *gorm.DB を要求するため、GORM のハンドルはこの関数の中に閉じる。
 func openTestDB(t *testing.T, preferSimpleProtocol bool) *sql.DB {
 	t.Helper()
 
@@ -71,21 +67,9 @@ func openTestDB(t *testing.T, preferSimpleProtocol bool) *sql.DB {
 			"TEST_DATABASE_URL を解除し、ローカルの postgres-integration-test（make test-integration）を使ってください。")
 	}
 
-	db, err := gorm.Open(postgres.New(postgres.Config{
-		DSN:                  dsn,
-		PreferSimpleProtocol: preferSimpleProtocol,
-	}), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Silent),
-	})
+	sqlDB, err := database.OpenSQLDB(dsn, preferSimpleProtocol)
 	if err != nil {
-		// gorm.Open は Initialize 後の自動 Ping で失敗しても *gorm.DB を返す
-		// （プールは開いたまま）。掴めた分だけ閉じてから打ち切る。
-		closeGormPool(db)
 		unreachableDB(t, dsnExplicit, "結合テスト用 PostgreSQL に接続できません", err)
-	}
-	sqlDB, err := db.DB()
-	if err != nil {
-		t.Fatalf("sql.DB 取得失敗: %v", err)
 	}
 	// 接続プールはテスト関数ごとに開かれる。閉じないと MaxIdleConns 分の接続が
 	// テストの数だけ積み上がり、PostgreSQL の max_connections を超えた時点で
@@ -103,28 +87,28 @@ func openTestDB(t *testing.T, preferSimpleProtocol bool) *sql.DB {
 
 	serializeIntegration(t, sqlDB)
 
-	if err := database.AutoMigrateAll(db); err != nil {
-		t.Fatalf("AutoMigrate 失敗: %v", err)
+	// 中核テーブル（users / roles / courses / …）は起動時（database.Migrate）と同じ明示 DDL で作る。
+	if err := database.ApplyCoreSchema(t.Context(), sqlDB); err != nil {
+		t.Fatalf("ApplyCoreSchema 失敗: %v", err)
 	}
 	// users.role_id の解決（Create の resolveRoleID）が roles マスタを前提にするため、
 	// 起動時（database.Migrate）と同じくロールを投入しておく。
-	if err := database.SeedRoles(db); err != nil {
+	if err := database.SeedRoles(t.Context(), sqlDB); err != nil {
 		t.Fatalf("SeedRoles 失敗: %v", err)
 	}
 	// FK / CHECK / 部分 UNIQUE も本番（database.Migrate）と同じに揃える。
-	if err := database.ApplyUserNormalizationConstraints(db); err != nil {
+	if err := database.ApplyUserNormalizationConstraints(t.Context(), sqlDB); err != nil {
 		t.Fatalf("ApplyUserNormalizationConstraints 失敗: %v", err)
 	}
 	// rich_documents の FK / CHECK も本番（database.Migrate）と同じに揃える。
-	if err := database.ApplyRichDocumentConstraints(db); err != nil {
+	if err := database.ApplyRichDocumentConstraints(t.Context(), sqlDB); err != nil {
 		t.Fatalf("ApplyRichDocumentConstraints 失敗: %v", err)
 	}
 	// session_notes の 1 セッション 1 ノート一意制約も本番（database.Migrate）と同じに揃える。
-	if err := database.ApplySessionNoteConstraints(db); err != nil {
+	if err := database.ApplySessionNoteConstraints(t.Context(), sqlDB); err != nil {
 		t.Fatalf("ApplySessionNoteConstraints 失敗: %v", err)
 	}
-	// ナレッジ基盤（workspaces / spaces / pages / blocks / …）は GORM を通さない。
-	// 起動時（database.Migrate）と同じ明示 DDL を、同じ接続プールへ流す。
+	// ナレッジ基盤（workspaces / spaces / pages / blocks / …）も同じ明示 DDL を流す。
 	if err := database.ApplyKnowledgeBaseSchema(t.Context(), sqlDB); err != nil {
 		t.Fatalf("ApplyKnowledgeBaseSchema 失敗: %v", err)
 	}
@@ -191,19 +175,6 @@ func unreachableDB(t *testing.T, dsnExplicit bool, msg string, err error) {
 	t.Skipf("%s（docker compose -f docker-compose.integration.yml up -d 済か確認）: %v", msg, err)
 }
 
-// closeGormPool は *gorm.DB が抱える接続プールを閉じる（nil / 取得失敗は無視する）。
-func closeGormPool(db *gorm.DB) {
-	if db == nil {
-		return
-	}
-	sqlDB, err := db.DB()
-	if err != nil || sqlDB == nil {
-		return
-	}
-	//nolint:errcheck // 打ち切り経路の後始末。閉じられなくても報告する先がない
-	_ = sqlDB.Close()
-}
-
 // looksLikeSupabase は DSN が Supabase / 本番 pooler を指しているかを返す（安全弁用）。
 func looksLikeSupabase(dsn string) bool {
 	l := strings.ToLower(dsn)
@@ -219,40 +190,4 @@ func TruncateAll(t *testing.T, db *sql.DB, tables ...string) {
 			t.Fatalf("TRUNCATE %s 失敗: %v", table, err)
 		}
 	}
-}
-
-// gormOn は既に開いている接続プールの上に GORM のハンドルを被せる。
-//
-// 起動時マイグレーションの入口（database.AutoMigrateAll など）はまだ *gorm.DB を要求する。
-// テストが受け取るのは *sql.DB だけにしておきたいので、GORM への変換はここに閉じる。
-// 新しく接続は開かない（同じプールの上に載せる）ため、advisory lock による直列化も
-// TRUNCATE も、テスト本体と同じセッションの上で効く。
-func gormOn(t *testing.T, db *sql.DB) *gorm.DB {
-	t.Helper()
-	g, err := gorm.Open(postgres.New(postgres.Config{Conn: db}), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Silent),
-	})
-	if err != nil {
-		t.Fatalf("GORM ハンドルの作成に失敗: %v", err)
-	}
-	return g
-}
-
-// AutoMigrateAll は起動時と同じ AutoMigrate を、テストが持っている接続プールへ流す。
-func AutoMigrateAll(t *testing.T, db *sql.DB) error {
-	t.Helper()
-	return database.AutoMigrateAll(gormOn(t, db))
-}
-
-// BackfillUserNormalization は users 正規化のバックフィルを、テストが持っている接続プールへ流す。
-func BackfillUserNormalization(t *testing.T, db *sql.DB) error {
-	t.Helper()
-	return database.BackfillUserNormalization(gormOn(t, db))
-}
-
-// ApplyUserNormalizationConstraints は users の FK / CHECK / 部分 UNIQUE を、
-// テストが持っている接続プールへ流す。
-func ApplyUserNormalizationConstraints(t *testing.T, db *sql.DB) error {
-	t.Helper()
-	return database.ApplyUserNormalizationConstraints(gormOn(t, db))
 }

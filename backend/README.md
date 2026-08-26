@@ -1,13 +1,12 @@
 # FreStyle backend (Go)
 
-FreStyle のバックエンド（Go / Gin / GORM / PostgreSQL）。クリーンアーキテクチャ（依存方向を
+FreStyle のバックエンド（Go / Gin / sqlc / PostgreSQL）。クリーンアーキテクチャ（依存方向を
 `archlint` で強制）。一時的に進めた Java/Spring Boot 版は性能面（極小 Fargate + 夜間 teardown）の
 理由で取りやめ、Go へ差し戻した（2026-06-09 に機能パリティ回復）。
 
-**データアクセス方針**: クエリは読み取り・書き込みとも **sqlc 生成コード（生 SQL）** に寄せており、
-大半の repository は GORM から接続プール（`*sql.DB`）だけを借りる。未移行の repository には
-まだ GORM のクエリが残る。GORM 自体は接続と AutoMigrate に当面残す。テストは
-古典学派（実 DB・実ルータ + 手書き fake で状態検証）を採用する。
+データアクセスは ORM を使わず **sqlc 生成コード（生 SQL）**。スキーマの正本は
+`internal/infra/database/schema/*.sql` で、起動時に冪等な明示 DDL として流し、同じファイルから
+sqlc が型を起こす。
 
 ## ディレクトリ構造（クリーンアーキテクチャ）
 
@@ -21,7 +20,8 @@ backend/
 │   ├── domain/          ドメインモデル (Spring Boot Entity 相当)
 │   └── infra/
 │       ├── config/      環境変数ロード
-│       └── database/    DB 接続 / AutoMigrate / ナレッジ基盤の明示 DDL 適用
+│       ├── database/    DB 接続 / 起動時マイグレーション
+│       │   └── schema/  スキーマの正本（明示 DDL・sqlc の型付け入力を兼ねる）
 ├── Dockerfile           multi-stage / distroless / static binary
 └── go.mod
 ```
@@ -50,7 +50,7 @@ make archlint        # = go run ./cmd/archlint .
 
 | ソース層 | 禁止する import |
 |---|---|
-| `domain` | 他の内部層すべて / `gin` / `net/http`（標準ライブラリ + GORM tag のみ） |
+| `domain` | 他の内部層すべて / `gin` / `net/http`（標準ライブラリのみ） |
 | `usecase/repository`（port） | `domain` 以外の内部層 / `gin` / `net/http` |
 | `usecase` | `handler` / `adapter/persistence`（DIP: port に依存）/ `gin` / `net/http` |
 | `adapter/persistence` | `handler` / `usecase` 本体（依存先は port のみ）/ `gin` |
@@ -153,7 +153,7 @@ make test-integration
 - **DB コンテナ**: `docker-compose.integration.yml` の `postgres-integration-test`（`postgres:17.6-alpine`、host 側 5433、`tmpfs` で毎回まっさら）。
 - **接続先**: `TEST_DATABASE_URL`（既定 `postgres://frestyle:frestyle@localhost:5433/frestyle_integration?sslmode=disable`）。未設定 / 未起動なら結合テストは `t.Skip`。本番が使う `DATABASE_URL` とは**別の env**で、Supabase / 本番には**接続しない**。
 - **安全弁（本番 Supabase 保護）**: `OpenTestDB` は接続先が `supabase.com` / `pooler.supabase` を含む場合、接続前に `t.Fatal` で**必ず落とす**。結合テストは `TruncateAll`（`TRUNCATE ... CASCADE`）でテーブルを破壊するため、誤って `TEST_DATABASE_URL` に本番を入れてもデータを消さない。
-- **スキーマ**: `testsupport.OpenTestDB(t)` が `database.AutoMigrateAll(db)`（seed なしの全 domain AutoMigrate）でスキーマを構築。テスト間は `testsupport.TruncateAll(t, db, ...)` で独立性を確保。
+- **スキーマ**: `testsupport.OpenTestDB(t)` が起動時（`database.Migrate`）と同じ明示 DDL（`internal/infra/database/schema/*.sql`）でスキーマを構築し、seed と制約適用まで揃える。テスト間は `testsupport.TruncateAll(t, db, ...)` で独立性を確保。
 - **命名規約**: 結合テストの関数名には `Integration` を含める（CI / make は `-run Integration` で選別実行する。`TEST_DATABASE_URL` を env に持つこのジョブで env 依存の単体テストを巻き込まないため）。
 - **CI**: `ci-backend-go.yml` の `integration` ジョブが docker compose で Postgres を起動して実行する（単体 `test` ジョブとは別ジョブ）。
 - 新しい repository を足したら `internal/adapter/persistence/{entity}_repository_integration_test.go` を追加する。

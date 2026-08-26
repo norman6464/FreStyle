@@ -66,8 +66,6 @@ func (t BlockType) Valid() bool {
 // ページ全体を 1 つの jsonb に持つ rich_documents と違い、ブロックを行に分解して持つ。
 // 部分更新・ブロック単位のリンク / コメント・全文検索の単位を DB 側で扱えるようにするため。
 // 入れ子（リストや表）は ParentID の自己参照で表し、兄弟の並びは Position（分数インデックス）で持つ。
-//
-// Workspace と同じくナレッジ基盤の型なので GORM を通さない（段 1-b で repository が付くまで参照元は無い）。
 type Block struct {
 	ID string `json:"id"`
 	// WorkspaceID はテナント境界。page / 親ブロックとの複合 FK に使う。

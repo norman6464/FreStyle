@@ -287,7 +287,7 @@ type RichDocument struct {
 }
 
 type Role struct {
-	ID          int16
+	ID          int32
 	Name        string
 	Description string
 	CreatedAt   time.Time
@@ -357,7 +357,7 @@ type User struct {
 	PasswordHash  sql.NullString
 	Name          string
 	CompanyID     sql.NullInt64
-	RoleID        int16
+	RoleID        int32
 	AiChatEnabled sql.NullBool
 	IsActive      bool
 	CreatedAt     time.Time

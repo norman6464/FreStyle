@@ -51,8 +51,8 @@ var rules = map[string]map[string]string{
 		layerUsecaseRepo: "domain は usecase/repository を import できません（domain は他層に依存しない）",
 		layerPersistence: "domain は adapter/persistence を import できません（domain は他層に依存しない）",
 		layerInfra:       "domain は infra を import できません（domain は他層に依存しない）",
-		targetGin:        "domain は gin を import できません（domain は標準ライブラリ + GORM tag のみ）",
-		targetNetHTTP:    "domain は net/http を import できません（domain は標準ライブラリ + GORM tag のみ）",
+		targetGin:        "domain は gin を import できません（domain は標準ライブラリのみ）",
+		targetNetHTTP:    "domain は net/http を import できません（domain は標準ライブラリのみ）",
 	},
 	layerUsecaseRepo: {
 		layerHandler:     "usecase/repository(port) は handler を import できません",

@@ -149,6 +149,22 @@ jobs:
             exit 1
           fi
 
+      # sqlc 生成物 (internal/adapter/persistence/sqlcgen/) がスキーマ・クエリと一致しているかを
+      # 検証する。schema/*.sql は起動時に流す実 DDL そのものなので、列の型を変えたのに
+      # `make sqlc` を忘れると「実スキーマと Go の型が食い違ったまま」マージされる。
+      # sqlc の版は backend/Makefile の SQLC_VERSION 固定（生成物は版で差分が出るため
+      # ここでは版を書かず Makefile を唯一の出どころにする）。
+      - name: sqlc drift check
+        run: |
+          make sqlc
+          # 変更だけでなく未追跡の新規生成ファイルも検知するため porcelain で判定する。
+          if [ -n "$(git status --porcelain -- internal/adapter/persistence/sqlcgen/)" ]; then
+            echo "::error::sqlc generated code is out of date. Run 'make sqlc' in backend/ and commit internal/adapter/persistence/sqlcgen/."
+            git status --porcelain -- internal/adapter/persistence/sqlcgen/
+            git diff -- internal/adapter/persistence/sqlcgen/
+            exit 1
+          fi
+
       - name: go build
         run: go build -trimpath -ldflags="-s -w" -o /tmp/frestyle-backend ./cmd/server
 

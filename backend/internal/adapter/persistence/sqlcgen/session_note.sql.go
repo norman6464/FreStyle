@@ -7,6 +7,7 @@ package sqlcgen
 
 import (
 	"context"
+	"time"
 )
 
 const getSessionNoteBySessionID = `-- name: GetSessionNoteBySessionID :one
@@ -29,5 +30,37 @@ func (q *Queries) GetSessionNoteBySessionID(ctx context.Context, sessionID int64
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
+	return i, err
+}
+
+const insertSessionNote = `-- name: InsertSessionNote :one
+INSERT INTO session_notes (session_id, user_id, content, created_at, updated_at)
+VALUES ($1, $2, $3, now(), now())
+RETURNING id, created_at, updated_at
+`
+
+type InsertSessionNoteParams struct {
+	SessionID int64
+	UserID    int64
+	Content   string
+}
+
+type InsertSessionNoteRow struct {
+	ID        int64
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+// セッションメモを 1 件作成する。id は採番列（bigserial）に任せ、created_at / updated_at は
+// DB 既定値が無いため now() を明示する。RETURNING で id / created_at / updated_at を書き戻す。
+//
+// 注意: repository の口は Upsert だが、session_id には一意制約が無いため ON CONFLICT
+// (session_id) は張れない（GORM Save(ID=0) も常に INSERT する現行挙動）。ここでは現行の
+// 振る舞いを厳密に保つため INSERT のみとする。session_id 単位の真の upsert にするには
+// session_id への一意制約と既存重複行の解消が別途必要（本移行の対象外）。
+func (q *Queries) InsertSessionNote(ctx context.Context, arg InsertSessionNoteParams) (InsertSessionNoteRow, error) {
+	row := q.db.QueryRowContext(ctx, insertSessionNote, arg.SessionID, arg.UserID, arg.Content)
+	var i InsertSessionNoteRow
+	err := row.Scan(&i.ID, &i.CreatedAt, &i.UpdatedAt)
 	return i, err
 }

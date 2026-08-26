@@ -50,6 +50,8 @@ sql:
     # ここに名前を並べない限りルールは 1 本も走らない（rules: を書いただけでは無反応）。
     rules:
       - mutation-requires-where
+      - narrowing-cast-on-param
+      - no-array-param
 
     gen:
       go:
@@ -166,9 +168,16 @@ sql:
 # ここが最後の機械的な網になる。
 #
 # vet の CEL 式から見えるもの（sqlc v1.31.1 で実際に確かめた）:
-#   query.sql    … SQL 本文。`-- name:` 行は含まれない。ただしファイル先頭の見出しコメントは
-#                  そのファイルの「最初のクエリ」の本文に付いてくる（実測 6 ファイル）。
-#                  下のルールがコメント行を落としてから見ているのはこのため。
+#   query.sql    … SQL 本文。ただし「書いたとおりの文字列」ではなく、sqlc が処理したあとの
+#                  SQL であることに注意する（sqlc v1.31.1 で実測）:
+#                    - `-- name:` 行と、そのあと最初の SQL キーワードまでの説明コメントは
+#                      落ちている。文の途中に置いたコメント行は残る
+#                      （実測: 162 本中 3 本。knowledge_base_permission.sql の大きな CTE 群）。
+#                      下のルールがコメント行を落としてから見ているのは、この「文中コメント」で
+#                      誤判定しないため。
+#                    - sqlc.arg(x) / sqlc.narg(x) / sqlc.slice(x) は既に $1, $2 … へ
+#                      書き換わっている。つまり CEL からは `sqlc.` で始まる文字列は一切見えず、
+#                      `sqlc.slice を使うな` のようなルールはここには書けない。
 #   query.name   … クエリ名（GetUserByID 等）
 #   query.cmd    … one / many / exec / execrows のいずれか（`:` は付かない）
 #   query.params … $1..$n の「番号」だけ。列名も型も入っていない
@@ -178,10 +187,20 @@ sql:
 #   matches は RE2 で、部分一致（アンカーは自分で書く）。(?i) / (?m) のインラインフラグは効く。
 #
 # 表現できないこと（できないと分かったうえで諦めている）:
-#   列の型が CEL から一切見えない。したがって「bigint の列に ::int を掛けていて 32bit へ
-#   縮む」のような型に踏み込んだ検査は vet では書けない。ここで書けるのは実質
-#   「SQL 本文への正規表現」まで。型の食い違いは `sqlc generate`（スキーマとの突き合わせ）と、
-#   本物の PostgreSQL に対する結合テスト（*_integration_test.go）で拾う。
+#   スキーマが CEL から一切見えない。列の型も、その表にどんな列があるのかも分からない。
+#   ここで書けるのは実質「処理後の SQL 本文への正規表現」までになる。
+#
+#   このため、下の narrowing-cast-on-param は「bigint の列に ::int を掛けている」という
+#   照合はしていない。列の型を見ずに済むよう、そもそも「パラメータを 32bit へ絞ること自体」を
+#   禁じる形にしてある（理由はルール本体のコメント）。
+#
+#   スキーマも、クエリに添えたコメントも要る検査は、ここには書けない。実例が 2 つあり
+#   どちらも Go のテストに置いた（internal/adapter/persistence/queries_static_check_test.go）:
+#     - upsert-owner-scope … ON CONFLICT の衝突キーと「その表の所有者列」を突き合わせる。
+#                            表の列が分からないと判定できない
+#     - no-sqlc-slice      … sqlc.slice の使用禁止。上のとおり CEL には $N しか届かない
+#   型の食い違いそのものは `sqlc generate`（スキーマとの突き合わせ）と、本物の PostgreSQL に
+#   対する結合テスト（*_integration_test.go）で拾う。
 #
 # 組み込みルール sqlc/db-prepare は入れていない:
 #   実 DB へ繋いで全クエリを PREPARE してみるルールで、生きた PostgreSQL への接続設定が要る。
@@ -226,3 +245,99 @@ rules:
       query.sql.split("\n").filter(line, !line.trim().startsWith("--")).join("\n").matches("(?im)^[ \\t]*(update|delete)\\b")
       &&
       !query.sql.split("\n").filter(line, !line.trim().startsWith("--")).join("\n").matches("(?i)\\bwhere\\b")
+
+  # パラメータを int / integer / smallint へキャストするのを弾く。
+  #
+  # 何が起きたか（このルールの出どころ）:
+  #   bigint 列へ渡すパラメータに `sqlc.arg(x)::int` と書いていた箇所が 6 つあった
+  #   （course_chapters の revision / schema_version / sort_order、rich_documents の
+  #   schema_version / revision、courses の sort_order）。
+  #   キャストは「SQL 側でこの式を int4 として扱う」という宣言なので、sqlc はそれを信じて
+  #   パラメータを int32 で生成する。repository は int64 の値を int32() で詰め替えることに
+  #   なり、Go の整数変換は上位ビットを黙って捨てる。実測で 2147483648 を渡すと
+  #   -2147483648 が保存された（int32(2147483648) == -2147483648）。
+  #
+  # なぜテストでもローカルでも気づけないか:
+  #   どこにもエラーが出ない。SQL としては正しく、`sqlc generate` も通る（型を決めているのは
+  #   まさにこのキャストなので、生成側から見れば食い違いは無い）。PostgreSQL も気づけない。
+  #   Go の側で既に値が折り返してから送られるので、DB には「小さな負の数」が正常値として届く。
+  #   さらにテストもローカルも id やリビジョンが 2^31 に届かないので、条件そのものが起きない。
+  #   壊れるのは値が 21 億を超えたときだけで、そのときも例外ではなくデータの化けとして現れる。
+  #
+  # なぜ「列の型と照らす」のではなく「絞ること自体」を禁じるのか:
+  #   CEL からはスキーマが見えないので「この列は bigint なのに ::int だ」という照合はできない
+  #   （ファイル冒頭の「表現できないこと」）。だが列の型を知らなくても、パラメータ側を広く
+  #   取るのは常に安全側になる。宣言が integer の列でも、パラメータが bigint なら Go は
+  #   int64 のまま値を運び、範囲外なら PostgreSQL が "integer out of range" で弾く
+  #   ＝ 事故が例外として表に出る。::int にすると同じ値が Go の中で静かに折り返し、DB は
+  #   何も知らないまま受け取る。「宣言と実型がずれていた」実例もあり（courses.sort_order は
+  #   schema 上 integer、実型は bigint だった）、パラメータ側を広く取れば食い違っても壊れない。
+  #
+  # 何を見ているか / 何を弾かないか:
+  #   vet に届く時点で sqlc.arg(x) は $1 へ書き換わっている（ファイル冒頭に実測を記載）。
+  #   そこで「プレースホルダ $N の直後のキャスト」だけを見る。ソースに sqlc.arg(x)::int と
+  #   書いてあれば $1::int として一致する。
+  #   式の結果に対するキャストは直前が `)` などになるので一致しない
+  #   （`COALESCE(..., 0)::integer AS grant_rank` など・knowledge_base_permission.sql に 3 箇所）。
+  #   ::int8 / ::bigint は「int」で始まるが単語境界が合わないので一致しない。::interval も同様。
+  #
+  # 既知の限界:
+  #   `CAST($1 AS int)` という書き方は見ていない。このリポジトリのクエリはキャストをすべて
+  #   `::` で書いており（CAST( の使用は実測 0 件）、正規表現を倍に伸ばして読みにくくする割に
+  #   拾えるものが無いため。CAST( を使い始めるならここも直すこと。
+  #
+  # 免除してよい場合:
+  #   そのパラメータが本当に 32bit であるべきとき（int4 を要求する関数へ直接渡す等）。
+  #   そのクエリのコメントに /* @sqlc-vet-disable narrowing-cast-on-param */ と理由を書く。
+  #   「今の値は小さいから大丈夫」は理由にならない（大きくなった日に静かに壊れるのが問題なので）。
+  - name: narrowing-cast-on-param
+    message: >-
+      パラメータを int / integer / smallint へキャストしています。sqlc がこのパラメータを
+      int32 で生成するため、2^31 以上の値は Go 側で黙って負数へ折り返します
+      （実測: 2147483648 → -2147483648）。エラーは出ず、化けた値がそのまま保存されます。
+      ::bigint にしてください（列の宣言が integer でも、範囲外なら PostgreSQL が
+      "integer out of range" で弾いてくれるぶん安全です）。本当に 32bit が必要なら
+      /* @sqlc-vet-disable narrowing-cast-on-param */ と理由をクエリのコメントに書いてください。
+    rule: >-
+      query.sql.split("\n").filter(line, !line.trim().startsWith("--")).join("\n").matches("(?i)[$][0-9]+[ \\t]*::[ \\t]*(int|integer|int4|smallint|int2)\\b")
+
+  # パラメータを配列型にキャストするのを弾く（IN 句をまとめて渡したいとき用）。
+  #
+  # 何が起きるか:
+  #   `= ANY($1::bigint[])` や `<> ALL($1::text[])` のように配列型のパラメータを作ると、
+  #   database/sql モードの sqlc は引数を pq.Array() で包むコードを生成し、生成物に
+  #   github.com/lib/pq の import を足す（実測で確認）。このリポジトリの driver は pgx で、
+  #   lib/pq は go.mod に入っていない。
+  #
+  # なぜ止めるのか（ビルドが壊れるだけなら放っておけばいい、ではない理由）:
+  #   壊れ方が「直し方を間違えやすい」形で出る。`make sqlc` の直後に出るのは
+  #   「github.com/lib/pq を提供するモジュールがありません」というビルドエラーで、
+  #   素直に読むと `go get github.com/lib/pq` が正解に見える。そうすると、避けている
+  #   はずの driver がもう 1 つ依存に入り、以後この生成が「通ってしまう」ようになる。
+  #   書いた時点で理由ごと止めれば、その分岐に入らない。
+  #
+  # 代わりにどう書くか:
+  #   id の集まりは json 配列 1 個のパラメータで渡し、SQL 側で展開する。
+  #   実例は master_exercise_example.sql の ListMasterExerciseExamplesByExerciseIDs
+  #   （json_array_elements_text で展開してから bigint へ落としている）。
+  #
+  # 何を弾かないか:
+  #   見るのは「プレースホルダ $N の直後の配列キャスト」だけ。
+  #   `= ANY(SELECT ...)` の副問い合わせ形は配列パラメータを作らない（実測: 生成物に
+  #   pq.Array は出ず、素の $1 のまま）ので対象外。式の結果に対する配列キャストも同様。
+  #
+  # 免除してよい場合:
+  #   lib/pq を依存に入れる判断そのものを別途したうえで使うとき。
+  #   /* @sqlc-vet-disable no-array-param */ に理由を書くこと。
+  - name: no-array-param
+    message: >-
+      パラメータを配列型にキャストしています。database/sql モードの sqlc はこれを
+      pq.Array() で包む生成にし、github.com/lib/pq を import します。このリポジトリの
+      driver は pgx で lib/pq は go.mod に入っていないため、生成物がビルドできなくなります
+      （そして「lib/pq を足す」という誤った直し方に誘導されます）。
+      id の集まりは json 配列 1 個のパラメータで渡し、json_array_elements_text で
+      展開してください（実例: master_exercise_example.sql の
+      ListMasterExerciseExamplesByExerciseIDs）。
+    rule: >-
+      query.sql.split("\n").filter(line, !line.trim().startsWith("--")).join("\n").matches("(?i)[$][0-9]+[ \\t]*::[ \\t]*[a-z_][a-z0-9_]*[ \\t]*\\[[ \\t]*\\]")
+

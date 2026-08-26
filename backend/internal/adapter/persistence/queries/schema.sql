@@ -184,3 +184,41 @@ CREATE TABLE audit_events (
     target_id   bigint NOT NULL,
     created_at  timestamptz NOT NULL
 );
+
+-- ---------------------------------------------------------------------
+-- ここから下は AutoMigrate 管理なのに未定義だったテーブル群。上と同じく
+-- domain 構造体の GORM タグを正本として写す（型付け専用・DB へは流れない）。
+-- 型の対応: uint64→bigint / uint16→smallint / plain int→bigint /
+--   type:integer→integer / int16(type:smallint)→smallint / string(size:N)→varchar(N) /
+--   string(type:text)→text / bare string→text / type:jsonb→jsonb / type:uuid→uuid /
+--   *T→nullable。created_at / updated_at は autoTime が必ず値を入れるので NOT NULL とみなし
+--   DB DEFAULT は付けない（既存テーブルと同じ方針）。
+-- ---------------------------------------------------------------------
+
+-- AI チャットの 1 セッション。domain.AiChatSession の GORM タグを正とする。
+-- title / session_type はアプリが必ず値を入れるため NOT NULL とみなす。scenario_id は *uint64 で nullable。
+CREATE TABLE ai_chat_sessions (
+    id           bigint PRIMARY KEY,
+    user_id      bigint NOT NULL,
+    title        text NOT NULL DEFAULT '',
+    session_type text NOT NULL DEFAULT '',
+    scenario_id  bigint,
+    created_at   timestamptz NOT NULL,
+    updated_at   timestamptz NOT NULL
+);
+
+-- 招待（マジックリンク）。domain.AdminInvitation（TableName = invitations）の GORM タグを正とする。
+-- token は *string（未設定を NULL にして UNIQUE を避けるため）なので nullable。updated_at は持たない。
+CREATE TABLE invitations (
+    id         bigint PRIMARY KEY,
+    company_id bigint NOT NULL,
+    email      text NOT NULL DEFAULT '',
+    role       text NOT NULL DEFAULT '',
+    name       text NOT NULL DEFAULT '',
+    status     text NOT NULL DEFAULT '',
+    token      varchar(64),
+    expires_at timestamptz NOT NULL,
+    created_at timestamptz NOT NULL,
+    -- 実制約は AutoMigrate（gorm uniqueIndex タグ）が作る。ここは sqlc の型付け用に同じ内容を明示。
+    UNIQUE (token)
+);

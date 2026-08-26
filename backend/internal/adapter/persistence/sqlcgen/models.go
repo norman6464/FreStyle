@@ -12,6 +12,16 @@ import (
 	"github.com/google/uuid"
 )
 
+type AiChatSession struct {
+	ID          int64
+	UserID      int64
+	Title       string
+	SessionType string
+	ScenarioID  sql.NullInt64
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 type AuditEvent struct {
 	ID         int64
 	ActorID    int64
@@ -68,6 +78,18 @@ type Course struct {
 	IsPublished     bool
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
+}
+
+type Invitation struct {
+	ID        int64
+	CompanyID int64
+	Email     string
+	Role      string
+	Name      string
+	Status    string
+	Token     sql.NullString
+	ExpiresAt time.Time
+	CreatedAt time.Time
 }
 
 type MasterExerciseExample struct {

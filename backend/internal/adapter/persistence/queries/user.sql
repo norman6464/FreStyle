@@ -64,3 +64,96 @@ WHERE lower(btrim(u.email, E'\t\n\x0B\f\r ')) = lower(btrim(sqlc.arg(email)::tex
 -- (user_id, provider) は uq_user_oidc_user_provider で一意（最大 1 行）。
 SELECT subject FROM user_oidc_identities
 WHERE user_id = $1 AND provider = 'cognito';
+
+-- name: GetRoleIDByName :one
+-- ロール名を roles.id に解決する。未知の名前は 0 件で返り、呼び出し側がエラーにする
+-- （黙って別ロールへ倒さない）。
+SELECT id FROM roles WHERE name = $1;
+
+-- name: AcquireBootstrapSuperAdminLock :exec
+-- 「最初の運営管理者を作る」経路を直列化するロックを取る。
+--
+-- トランザクションスコープのロック（pg_advisory_xact_lock）なので、必ず判定と INSERT と
+-- 同じトランザクション（Queries.WithTx）で発行すること。別接続で取ると、ロックが取れた
+-- 直後に解放され「0 人か確かめて作る」の間を守れない。pgbouncer（transaction pooler）が
+-- 接続を貸し借りする本番でセッションロックが使えないのも同じ理由。
+SELECT pg_advisory_xact_lock(sqlc.arg(lock_key)::bigint);
+
+-- name: CountActiveSuperAdmins :one
+-- 論理削除されていない運営管理者の人数。免除経路（招待なしの作成）が既に閉じているかの判定に使う。
+SELECT count(*) FROM users u
+JOIN roles r ON r.id = u.role_id
+WHERE r.name = $1 AND u.deleted_at IS NULL;
+
+-- name: InsertUser :one
+-- ユーザーを 1 件作る（id は採番シーケンスに任せる）。created_at / updated_at は DB 既定値が
+-- 無いため呼び出し側が値を渡す。is_active は常に true（作成直後のアカウントは有効。無効化は
+-- UpdateUserActive の仕事）。RETURNING で id / created_at / updated_at を書き戻す。
+INSERT INTO users (
+  email, password_hash, name, company_id, role_id, ai_chat_enabled,
+  is_active, created_at, updated_at, deleted_at
+)
+VALUES ($1, $2, $3, $4, $5, $6, true, $7, $8, $9)
+RETURNING id, created_at, updated_at;
+
+-- name: InsertUserWithID :one
+-- id を呼び出し側が決める場合の InsertUser。列と既定の扱いは InsertUser と同じにすること
+-- （片方だけ列を足すと、id を指定する経路だけ値が入らない）。
+INSERT INTO users (
+  id, email, password_hash, name, company_id, role_id, ai_chat_enabled,
+  is_active, created_at, updated_at, deleted_at
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8, $9, $10)
+RETURNING id, created_at, updated_at;
+
+-- name: InsertOidcIdentityIfAbsent :execrows
+-- OIDC identity を冪等に挿入する。既に同じ (provider, subject) があれば 0 行で、
+-- 呼び出し側が持ち主を確かめる。(user_id, provider) の一意制約違反はそのままエラーになる。
+INSERT INTO user_oidc_identities (user_id, provider, subject, created_at, updated_at)
+VALUES ($1, $2, $3, now(), now())
+ON CONFLICT (provider, subject) DO NOTHING;
+
+-- name: GetOidcIdentityOwner :one
+-- (provider, subject) を持っているユーザーの id。挿入されなかったときの持ち主判定に使う。
+SELECT user_id FROM user_oidc_identities
+WHERE provider = $1 AND subject = $2;
+
+-- name: DeleteOidcIdentitiesByUserID :exec
+-- ユーザーの OIDC identity をすべて消し、subject の占有を解く（同じアカウントの再招待を可能にする）。
+DELETE FROM user_oidc_identities WHERE user_id = $1;
+
+-- name: MirrorUserWorkspace :exec
+-- users.workspace_id を所属会社のワークスペースに合わせる。対応表の正本は companies.workspace_id
+-- ただ 1 つで、値をアプリ側で覚えて写経しない。未所属や対応する会社行が無い場合は 0 件更新。
+UPDATE users SET workspace_id = c.workspace_id
+FROM companies c
+WHERE users.id = $1 AND users.company_id = c.id;
+
+-- name: UpdateUserAiChatEnabled :exec
+-- AI チャットの個別上書きを更新する（NULL で会社設定に従う）。他の列は触らない。
+UPDATE users SET ai_chat_enabled = $2, updated_at = now() WHERE id = $1;
+
+-- name: UpdateUserActive :execrows
+-- アカウントの有効/無効を更新する。0 件なら対象が存在しない（呼び出し側が not-found にする）。
+UPDATE users SET is_active = $2, updated_at = now() WHERE id = $1;
+
+-- name: UpdateUserName :exec
+-- 氏名だけを更新する。
+UPDATE users SET name = $2, updated_at = now() WHERE id = $1;
+
+-- name: UpdateUserRoleID :exec
+-- 役割だけを更新する（誰がどの役割になれるかの判定は usecase 側の仕事）。
+UPDATE users SET role_id = $2, updated_at = now() WHERE id = $1;
+
+-- name: UpdateUserCompanyID :exec
+-- 所属会社を付け替える。company_id と、その写しである workspace_id を同じ 1 文で書く
+-- （片方だけ書かれた状態を作らない。写す値の出どころは companies.workspace_id）。
+UPDATE users SET
+  company_id = $2,
+  workspace_id = (SELECT c.workspace_id FROM companies c WHERE c.id = $2)
+WHERE users.id = $1;
+
+-- name: SoftDeleteUser :execrows
+-- ユーザーを論理削除する。既に削除済み / 存在しない場合は 0 件（呼び出し側が not-found にする）。
+UPDATE users SET deleted_at = now(), updated_at = now()
+WHERE id = $1 AND deleted_at IS NULL;

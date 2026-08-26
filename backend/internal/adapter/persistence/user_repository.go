@@ -1,5 +1,5 @@
 // Package persistence は usecase 層が定義した port の永続化実装
-// （GORM / DynamoDB / S3 presigner 等）を集約する。wiring は router.go で行う。
+// （sqlc 生成コード / DynamoDB / S3 presigner 等）を集約する。wiring は router.go で行う。
 package persistence
 
 import (
@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
@@ -15,14 +16,40 @@ import (
 )
 
 // userRepository は [repository.UserRepository] の実装。
-// 読み取りは sqlc 生成コード（生 SQL 直書き）、書き込みは GORM（autoTime / 採番）を使う。
-// 接続は GORM の *sql.DB を sqlc に共有する（別 pool を持たない）。
+// クエリは sqlc 生成コード（生 SQL）で、GORM からは接続プール（*sql.DB）だけを借りる。
 type userRepository struct {
 	db *gorm.DB
 }
 
 func NewUserRepository(db *gorm.DB) repository.UserRepository {
 	return &userRepository{db: db}
+}
+
+// queries は GORM が持つ接続プールを借りて sqlc の Queries を作る（別 pool を持たない）。
+func (r *userRepository) queries() (*sqlcgen.Queries, error) {
+	sqlDB, err := r.db.DB()
+	if err != nil {
+		return nil, err
+	}
+	return sqlcgen.New(sqlDB), nil
+}
+
+// withTx は 1 つのトランザクションを開き、その中でだけ有効な Queries を fn に渡す。
+// fn がエラーを返せば（あるいは Commit に失敗すれば）書き込みはすべて巻き戻る。
+func (r *userRepository) withTx(ctx context.Context, fn func(qtx *sqlcgen.Queries) error) error {
+	sqlDB, err := r.db.DB()
+	if err != nil {
+		return err
+	}
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }() // Commit 済みなら no-op
+	if err := fn(sqlcgen.New(sqlDB).WithTx(tx)); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // userRow は user 系クエリが返す共通の行形（users 全列 + JOIN で解決した role_name）。
@@ -60,11 +87,11 @@ func toDomainUser(row userRow) *domain.User {
 }
 
 func (r *userRepository) FindByCognitoSub(ctx context.Context, sub string) (*domain.User, error) {
-	sqlDB, err := r.db.DB()
+	q, err := r.queries()
 	if err != nil {
 		return nil, err
 	}
-	row, err := sqlcgen.New(sqlDB).GetUserByCognitoSub(ctx, sub)
+	row, err := q.GetUserByCognitoSub(ctx, sub)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -75,11 +102,11 @@ func (r *userRepository) FindByCognitoSub(ctx context.Context, sub string) (*dom
 }
 
 func (r *userRepository) FindActiveByEmail(ctx context.Context, email string) (*domain.User, error) {
-	sqlDB, err := r.db.DB()
+	q, err := r.queries()
 	if err != nil {
 		return nil, err
 	}
-	rows, err := sqlcgen.New(sqlDB).ListActiveUsersByEmail(ctx, email)
+	rows, err := q.ListActiveUsersByEmail(ctx, email)
 	if err != nil {
 		return nil, err
 	}
@@ -112,11 +139,11 @@ func (r *userRepository) CognitoSubjectByUserID(ctx context.Context, userID uint
 	if !ok {
 		return "", nil
 	}
-	sqlDB, err := r.db.DB()
+	q, err := r.queries()
 	if err != nil {
 		return "", err
 	}
-	subject, err := sqlcgen.New(sqlDB).GetCognitoSubjectByUserID(ctx, id64)
+	subject, err := q.GetCognitoSubjectByUserID(ctx, id64)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", nil
 	}
@@ -131,11 +158,11 @@ func (r *userRepository) FindByID(ctx context.Context, id uint64) (*domain.User,
 	if !ok {
 		return nil, nil // int64 範囲外 = 存在し得ない id
 	}
-	sqlDB, err := r.db.DB()
+	q, err := r.queries()
 	if err != nil {
 		return nil, err
 	}
-	row, err := sqlcgen.New(sqlDB).GetUserByID(ctx, id64)
+	row, err := q.GetUserByID(ctx, id64)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -146,11 +173,11 @@ func (r *userRepository) FindByID(ctx context.Context, id uint64) (*domain.User,
 }
 
 func (r *userRepository) ListByRole(ctx context.Context, role domain.RoleName) ([]domain.User, error) {
-	sqlDB, err := r.db.DB()
+	q, err := r.queries()
 	if err != nil {
 		return nil, err
 	}
-	rows, err := sqlcgen.New(sqlDB).ListUsersByRole(ctx, string(role))
+	rows, err := q.ListUsersByRole(ctx, string(role))
 	if err != nil {
 		return nil, err
 	}
@@ -168,11 +195,11 @@ func (r *userRepository) ListByCompanyID(ctx context.Context, companyID uint64) 
 		// フロントの map が落ちるため空スライスにする（FRESTYLE-77）。
 		return make([]domain.User, 0), nil
 	}
-	sqlDB, err := r.db.DB()
+	q, err := r.queries()
 	if err != nil {
 		return nil, err
 	}
-	rows, err := sqlcgen.New(sqlDB).ListUsersByCompanyID(ctx, sql.NullInt64{Int64: cid, Valid: true})
+	rows, err := q.ListUsersByCompanyID(ctx, sql.NullInt64{Int64: cid, Valid: true})
 	if err != nil {
 		return nil, err
 	}
@@ -184,15 +211,92 @@ func (r *userRepository) ListByCompanyID(ctx context.Context, companyID uint64) 
 }
 
 // resolveRoleID はロール名を roles.id に解決する。未知の名前はエラー（黙って別ロールにしない）。
-func (r *userRepository) resolveRoleID(ctx context.Context, roleName domain.RoleName) (uint16, error) {
-	var role domain.Role
-	if err := r.db.WithContext(ctx).Where("name = ?", string(roleName)).Take(&role).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return 0, fmt.Errorf("unknown role %q", roleName)
-		}
+func resolveRoleID(ctx context.Context, q *sqlcgen.Queries, roleName domain.RoleName) (uint16, error) {
+	id, err := q.GetRoleIDByName(ctx, string(roleName))
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, fmt.Errorf("unknown role %q", roleName)
+	}
+	if err != nil {
 		return 0, err
 	}
-	return role.ID, nil
+	return uint16(id), nil
+}
+
+// insertUserTx は users 行を 1 件作り、採番結果を user へ書き戻す。
+// created_at / updated_at に DB 既定値は無いのでここで値を決める（ゼロのときだけ now）。
+func insertUserTx(ctx context.Context, q *sqlcgen.Queries, user *domain.User) error {
+	now := time.Now()
+	createdAt := user.CreatedAt
+	if createdAt.IsZero() {
+		createdAt = now
+	}
+	updatedAt := user.UpdatedAt
+	if updatedAt.IsZero() {
+		updatedAt = now
+	}
+	params := sqlcgen.InsertUserParams{
+		Email:     user.Email,
+		Name:      user.Name,
+		RoleID:    int16(user.RoleID),
+		CreatedAt: createdAt,
+		UpdatedAt: updatedAt,
+	}
+	if user.PasswordHash != nil {
+		params.PasswordHash = sql.NullString{String: *user.PasswordHash, Valid: true}
+	}
+	if user.CompanyID != nil {
+		cid, ok := toInt64ID(*user.CompanyID)
+		if !ok {
+			return fmt.Errorf("company id %d が int64 の範囲外です", *user.CompanyID)
+		}
+		params.CompanyID = sql.NullInt64{Int64: cid, Valid: true}
+	}
+	if user.AiChatEnabled != nil {
+		params.AiChatEnabled = sql.NullBool{Bool: *user.AiChatEnabled, Valid: true}
+	}
+	if user.DeletedAt != nil {
+		params.DeletedAt = sql.NullTime{Time: *user.DeletedAt, Valid: true}
+	}
+	var (
+		newID        int64
+		newCreatedAt time.Time
+		newUpdatedAt time.Time
+	)
+	if user.ID == 0 {
+		row, err := q.InsertUser(ctx, params)
+		if err != nil {
+			return err
+		}
+		newID, newCreatedAt, newUpdatedAt = row.ID, row.CreatedAt, row.UpdatedAt
+	} else {
+		// 呼び出し側が id を決めた場合はそれを使う（採番シーケンスは進めない）。
+		fixedID, ok := toInt64ID(user.ID)
+		if !ok {
+			return fmt.Errorf("user id %d が int64 の範囲外です", user.ID)
+		}
+		row, err := q.InsertUserWithID(ctx, sqlcgen.InsertUserWithIDParams{
+			ID:            fixedID,
+			Email:         params.Email,
+			PasswordHash:  params.PasswordHash,
+			Name:          params.Name,
+			CompanyID:     params.CompanyID,
+			RoleID:        params.RoleID,
+			AiChatEnabled: params.AiChatEnabled,
+			CreatedAt:     params.CreatedAt,
+			UpdatedAt:     params.UpdatedAt,
+			DeletedAt:     params.DeletedAt,
+		})
+		if err != nil {
+			return err
+		}
+		newID, newCreatedAt, newUpdatedAt = row.ID, row.CreatedAt, row.UpdatedAt
+	}
+	user.ID = uint64(newID)
+	user.CreatedAt = newCreatedAt
+	user.UpdatedAt = newUpdatedAt
+	// is_active は常に true で作る（作成直後のアカウントは有効。停止は UpdateActive の仕事）。
+	user.IsActive = true
+	return nil
 }
 
 // CreateWithOidcIdentity は users 行と OIDC identity を単一トランザクションで作成する。
@@ -200,19 +304,23 @@ func (r *userRepository) resolveRoleID(ctx context.Context, roleName domain.Role
 // identity 側が (provider, subject) 競合などで失敗するとトランザクションごと巻き戻り、
 // users 行だけが残る（＝ログイン不能な孤児）状態を作らない。
 func (r *userRepository) CreateWithOidcIdentity(ctx context.Context, user *domain.User, provider, subject string) error {
-	roleID, err := r.resolveRoleID(ctx, user.Role)
+	q, err := r.queries()
+	if err != nil {
+		return err
+	}
+	roleID, err := resolveRoleID(ctx, q, user.Role)
 	if err != nil {
 		return err
 	}
 	user.RoleID = roleID
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(user).Error; err != nil {
+	return r.withTx(ctx, func(qtx *sqlcgen.Queries) error {
+		if err := insertUserTx(ctx, qtx, user); err != nil {
 			return err
 		}
-		if err := ensureOidcIdentityTx(tx, user.ID, provider, subject); err != nil {
+		if err := ensureOidcIdentityTx(ctx, qtx, user.ID, provider, subject); err != nil {
 			return err
 		}
-		return mirrorUserWorkspaceTx(tx, user.ID)
+		return mirrorUserWorkspaceTx(ctx, qtx, user.ID)
 	})
 }
 
@@ -235,38 +343,39 @@ func (r *userRepository) CreateFirstSuperAdminWithOidcIdentity(
 	if user.Role != domain.RoleSuperAdmin {
 		return false, fmt.Errorf("最初の運営管理者の作成に role %q が渡されました（super_admin 専用の経路です）", user.Role)
 	}
-	roleID, err := r.resolveRoleID(ctx, user.Role)
+	q, err := r.queries()
+	if err != nil {
+		return false, err
+	}
+	roleID, err := resolveRoleID(ctx, q, user.Role)
 	if err != nil {
 		return false, err
 	}
 	user.RoleID = roleID
 
 	created := false
-	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// pgbouncer（transaction pooler）前提のため、セッションロックではなく
-		// トランザクションロック（コミット / ロールバックで自動解放）を使う。
-		if err := tx.Exec(`SELECT pg_advisory_xact_lock(?)`, bootstrapSuperAdminLockKey).Error; err != nil {
+	err = r.withTx(ctx, func(qtx *sqlcgen.Queries) error {
+		// ロックは必ずこのトランザクション（qtx）で取る。pg_advisory_xact_lock は
+		// トランザクションスコープなので、別の接続で発行すると取った直後に解放され、
+		// 「0 人か確かめて作る」のあいだを誰も守らなくなる。
+		// pgbouncer（transaction pooler）前提のため、セッションロックは使えない。
+		if err := qtx.AcquireBootstrapSuperAdminLock(ctx, bootstrapSuperAdminLockKey); err != nil {
 			return err
 		}
-		var existing int64
-		if err := tx.Raw(
-			`SELECT count(*) FROM users u
-			 JOIN roles r ON r.id = u.role_id
-			 WHERE r.name = ? AND u.deleted_at IS NULL`,
-			string(domain.RoleSuperAdmin),
-		).Scan(&existing).Error; err != nil {
+		existing, err := qtx.CountActiveSuperAdmins(ctx, string(domain.RoleSuperAdmin))
+		if err != nil {
 			return err
 		}
 		if existing > 0 {
 			return nil // created = false のまま。免除は既に閉じている。
 		}
-		if err := tx.Create(user).Error; err != nil {
+		if err := insertUserTx(ctx, qtx, user); err != nil {
 			return err
 		}
-		if err := ensureOidcIdentityTx(tx, user.ID, provider, subject); err != nil {
+		if err := ensureOidcIdentityTx(ctx, qtx, user.ID, provider, subject); err != nil {
 			return err
 		}
-		if err := mirrorUserWorkspaceTx(tx, user.ID); err != nil {
+		if err := mirrorUserWorkspaceTx(ctx, qtx, user.ID); err != nil {
 			return err
 		}
 		created = true
@@ -285,12 +394,12 @@ func (r *userRepository) CreateFirstSuperAdminWithOidcIdentity(
 // 対応表の正本は companies.workspace_id ただ 1 つで、値をアプリ側で覚えて写経しない。
 // 会社に属さないユーザー（company_id IS NULL）や、対応する会社行が無い場合は 0 件更新で、
 // workspace_id は NULL のまま残る。
-func mirrorUserWorkspaceTx(db *gorm.DB, userID uint64) error {
-	return db.Exec(
-		`UPDATE users u SET workspace_id = c.workspace_id
-		 FROM companies c
-		 WHERE u.id = ? AND u.company_id = c.id`, userID,
-	).Error
+func mirrorUserWorkspaceTx(ctx context.Context, q *sqlcgen.Queries, userID uint64) error {
+	id64, ok := toInt64ID(userID)
+	if !ok {
+		return nil // 存在し得ない id = 写す相手がいない
+	}
+	return q.MirrorUserWorkspace(ctx, id64)
 }
 
 // EnsureOidcIdentity は (provider, subject) の identity を無ければ作る（冪等）。
@@ -298,35 +407,47 @@ func mirrorUserWorkspaceTx(db *gorm.DB, userID uint64) error {
 // subject が別ユーザーに紐付いている場合は黙って成功にせずエラーを返す
 // （無音で放置するとサイレントなログイン不能を作るため）。
 func (r *userRepository) EnsureOidcIdentity(ctx context.Context, userID uint64, provider, subject string) error {
-	return ensureOidcIdentityTx(r.db.WithContext(ctx), userID, provider, subject)
+	q, err := r.queries()
+	if err != nil {
+		return err
+	}
+	return ensureOidcIdentityTx(ctx, q, userID, provider, subject)
 }
 
-// ensureOidcIdentityTx は identity を冪等に挿入する（db は base 接続でもトランザクションでも良い）。
+// ensureOidcIdentityTx は identity を冪等に挿入する（q は base 接続でもトランザクションでも良い）。
 // 既存 (provider, subject) が別ユーザー所有ならエラー、自分の所有なら成功にする。
-func ensureOidcIdentityTx(db *gorm.DB, userID uint64, provider, subject string) error {
-	res := db.Exec(
-		`INSERT INTO user_oidc_identities (user_id, provider, subject, created_at, updated_at)
-		 VALUES (?, ?, ?, NOW(), NOW())
-		 ON CONFLICT (provider, subject) DO NOTHING`, userID, provider, subject,
-	)
-	if res.Error != nil {
-		// (user_id, provider) の一意制約違反（同一ユーザーが別 subject を保持）はここでエラーになる。
-		return res.Error
+func ensureOidcIdentityTx(ctx context.Context, q *sqlcgen.Queries, userID uint64, provider, subject string) error {
+	id64, ok := toInt64ID(userID)
+	if !ok {
+		return fmt.Errorf("user id %d が int64 の範囲外です", userID)
 	}
-	if res.RowsAffected == 1 {
+	inserted, err := q.InsertOidcIdentityIfAbsent(ctx, sqlcgen.InsertOidcIdentityIfAbsentParams{
+		UserID:   id64,
+		Provider: provider,
+		Subject:  subject,
+	})
+	if err != nil {
+		// (user_id, provider) の一意制約違反（同一ユーザーが別 subject を保持）はここでエラーになる。
+		return err
+	}
+	if inserted == 1 {
 		return nil
 	}
 	// 挿入されなかった = (provider, subject) が既に存在する。所有者が自分なら冪等成功。
-	var identity domain.UserOidcIdentity
-	if err := db.
-		Where("provider = ? AND subject = ?", provider, subject).
-		Take(&identity).Error; err != nil {
+	ownerID, err := q.GetOidcIdentityOwner(ctx, sqlcgen.GetOidcIdentityOwnerParams{
+		Provider: provider,
+		Subject:  subject,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return gorm.ErrRecordNotFound // 直後に消えた（従来の Take と同じシグナル）
+	}
+	if err != nil {
 		return err
 	}
-	if identity.UserID != userID {
+	if ownerID != id64 {
 		return fmt.Errorf(
 			"oidc identity conflict: provider=%s の subject は既に user %d に紐付いています（要求 user %d）",
-			provider, identity.UserID, userID,
+			provider, ownerID, userID,
 		)
 	}
 	return nil
@@ -334,77 +455,117 @@ func ensureOidcIdentityTx(db *gorm.DB, userID uint64, provider, subject string) 
 
 // UpdateAiChatEnabled は AI チャットの個別上書きを更新する。enabled=nil で NULL（会社設定に従う）に戻す。
 func (r *userRepository) UpdateAiChatEnabled(ctx context.Context, userID uint64, enabled *bool) error {
-	var value any = gorm.Expr("NULL")
-	if enabled != nil {
-		value = *enabled
+	id64, ok := toInt64ID(userID)
+	if !ok {
+		return nil // 存在し得ない id = 対象なし
 	}
-	return r.db.WithContext(ctx).
-		Model(&domain.User{}).
-		Where("id = ?", userID).
-		Update("ai_chat_enabled", value).Error
+	q, err := r.queries()
+	if err != nil {
+		return err
+	}
+	value := sql.NullBool{}
+	if enabled != nil {
+		value = sql.NullBool{Bool: *enabled, Valid: true}
+	}
+	return q.UpdateUserAiChatEnabled(ctx, sqlcgen.UpdateUserAiChatEnabledParams{
+		ID:            id64,
+		AiChatEnabled: value,
+	})
 }
 
 // UpdateActive はユーザーアカウントの有効/無効を更新する（false で無効化 → ログイン/利用不可）。
 // 対象が存在しなければ gorm.ErrRecordNotFound を返す（handler が 404 にマップ）。
 func (r *userRepository) UpdateActive(ctx context.Context, userID uint64, active bool) error {
-	res := r.db.WithContext(ctx).
-		Model(&domain.User{}).
-		Where("id = ?", userID).
-		Update("is_active", active)
-	if res.Error != nil {
-		return res.Error
+	id64, ok := toInt64ID(userID)
+	if !ok {
+		return gorm.ErrRecordNotFound // 存在し得ない id = not found
 	}
-	if res.RowsAffected == 0 {
+	q, err := r.queries()
+	if err != nil {
+		return err
+	}
+	affected, err := q.UpdateUserActive(ctx, sqlcgen.UpdateUserActiveParams{ID: id64, IsActive: active})
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
 		return gorm.ErrRecordNotFound
 	}
 	return nil
 }
 
-// SoftDelete はユーザーを論理削除する（deleted_at = NOW()）。以後 FindByCognitoSub 等で除外され、
+// SoftDelete はユーザーを論理削除する（deleted_at = now()）。以後 FindByCognitoSub 等で除外され、
 // 認証時にも弾かれる。既に削除済み / 存在しない場合は gorm.ErrRecordNotFound を返す。
 // OIDC identity も削除して subject の占有を解く（同じ OIDC アカウントの再招待を可能にする。
 // ここで消し損ねても起動時バックフィルの掃除が自己修復する）。
+//
+// 2 文を 1 トランザクションにまとめないのは、無効化を必ず残すため。identity の掃除が失敗した
+// ときに巻き戻すと、消したはずの利用者が有効なまま戻ってしまう（掃除漏れはバックフィルが直す）。
 func (r *userRepository) SoftDelete(ctx context.Context, userID uint64) error {
-	res := r.db.WithContext(ctx).
-		Model(&domain.User{}).
-		Where("id = ? AND deleted_at IS NULL", userID).
-		Update("deleted_at", gorm.Expr("NOW()"))
-	if res.Error != nil {
-		return res.Error
+	id64, ok := toInt64ID(userID)
+	if !ok {
+		return gorm.ErrRecordNotFound // 存在し得ない id = not found
 	}
-	if res.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
-	}
-	return r.db.WithContext(ctx).
-		Where("user_id = ?", userID).
-		Delete(&domain.UserOidcIdentity{}).Error
-}
-
-func (r *userRepository) UpdateName(ctx context.Context, userID uint64, name string) error {
-	return r.db.WithContext(ctx).
-		Model(&domain.User{}).
-		Where("id = ?", userID).
-		Update("name", name).Error
-}
-
-func (r *userRepository) UpdateRole(ctx context.Context, userID uint64, role domain.RoleName) error {
-	roleID, err := r.resolveRoleID(ctx, role)
+	q, err := r.queries()
 	if err != nil {
 		return err
 	}
-	return r.db.WithContext(ctx).
-		Model(&domain.User{}).
-		Where("id = ?", userID).
-		Update("role_id", roleID).Error
+	affected, err := q.SoftDeleteUser(ctx, id64)
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return q.DeleteOidcIdentitiesByUserID(ctx, id64)
+}
+
+func (r *userRepository) UpdateName(ctx context.Context, userID uint64, name string) error {
+	id64, ok := toInt64ID(userID)
+	if !ok {
+		return nil // 存在し得ない id = 対象なし
+	}
+	q, err := r.queries()
+	if err != nil {
+		return err
+	}
+	return q.UpdateUserName(ctx, sqlcgen.UpdateUserNameParams{ID: id64, Name: name})
+}
+
+func (r *userRepository) UpdateRole(ctx context.Context, userID uint64, role domain.RoleName) error {
+	id64, ok := toInt64ID(userID)
+	if !ok {
+		return nil // 存在し得ない id = 対象なし
+	}
+	q, err := r.queries()
+	if err != nil {
+		return err
+	}
+	roleID, err := resolveRoleID(ctx, q, role)
+	if err != nil {
+		return err
+	}
+	return q.UpdateUserRoleID(ctx, sqlcgen.UpdateUserRoleIDParams{ID: id64, RoleID: int16(roleID)})
 }
 
 // UpdateCompanyID は所属会社を付け替える。company_id と、その写しである workspace_id を
 // 同じ 1 文で書く（片方だけ書かれた状態を作らない。写す値の出どころは companies.workspace_id）。
 // 読み取りは引き続き company_id を見る。
 func (r *userRepository) UpdateCompanyID(ctx context.Context, userID uint64, companyID uint64) error {
-	return r.db.WithContext(ctx).Exec(
-		`UPDATE users SET company_id = ?,
-		        workspace_id = (SELECT c.workspace_id FROM companies c WHERE c.id = ?)
-		 WHERE id = ?`, companyID, companyID, userID,
-	).Error
+	id64, ok := toInt64ID(userID)
+	if !ok {
+		return nil // 存在し得ない id = 対象なし
+	}
+	cid, ok := toInt64ID(companyID)
+	if !ok {
+		return nil // 存在し得ない company id = 付け替え先なし
+	}
+	q, err := r.queries()
+	if err != nil {
+		return err
+	}
+	return q.UpdateUserCompanyID(ctx, sqlcgen.UpdateUserCompanyIDParams{
+		ID:        id64,
+		CompanyID: sql.NullInt64{Int64: cid, Valid: true},
+	})
 }

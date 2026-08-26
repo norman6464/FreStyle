@@ -66,3 +66,57 @@ func (q *Queries) ListCompanies(ctx context.Context) ([]Company, error) {
 	}
 	return items, nil
 }
+
+const mirrorCompanySettingsToWorkspace = `-- name: MirrorCompanySettingsToWorkspace :exec
+UPDATE workspaces w
+SET ai_chat_enabled_for_trainees = c.ai_chat_enabled_for_trainees,
+    is_active = c.is_active,
+    updated_at = now()
+FROM companies c
+WHERE c.id = $1 AND c.workspace_id = w.id
+`
+
+// 会社のテナント設定を、対応する workspaces 行へ写す。
+// ai_chat_enabled_for_trainees / is_active は最終的に workspaces の列になる。今は companies が
+// 正本で、workspaces 側はその写し。設定を書く経路が増えても写し忘れないよう、2 列まとめて
+// companies から写すこの 1 か所に集約する。まだワークスペースに紐付いていない会社
+// （workspace_id IS NULL）は 0 件更新で、写す先が無い。
+func (q *Queries) MirrorCompanySettingsToWorkspace(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, mirrorCompanySettingsToWorkspace, id)
+	return err
+}
+
+const updateCompanyActive = `-- name: UpdateCompanyActive :execrows
+UPDATE companies SET is_active = $2, updated_at = now() WHERE id = $1
+`
+
+type UpdateCompanyActiveParams struct {
+	ID       int64
+	IsActive bool
+}
+
+// 会社アカウントの有効/無効を更新する。0 件なら対象が存在しない（呼び出し側が not-found にする）。
+// 判定は companies 側の件数で行う。写し先（workspaces）の件数を見ると、まだ紐付いていない
+// 会社が not-found に化ける。
+func (q *Queries) UpdateCompanyActive(ctx context.Context, arg UpdateCompanyActiveParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateCompanyActive, arg.ID, arg.IsActive)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const updateCompanyAiChatEnabled = `-- name: UpdateCompanyAiChatEnabled :exec
+UPDATE companies SET ai_chat_enabled_for_trainees = $2, updated_at = now() WHERE id = $1
+`
+
+type UpdateCompanyAiChatEnabledParams struct {
+	ID                       int64
+	AiChatEnabledForTrainees bool
+}
+
+// trainee への AI チャット許可を更新する。件数は見ない（従来から not-found を判定していない）。
+func (q *Queries) UpdateCompanyAiChatEnabled(ctx context.Context, arg UpdateCompanyAiChatEnabledParams) error {
+	_, err := q.db.ExecContext(ctx, updateCompanyAiChatEnabled, arg.ID, arg.AiChatEnabledForTrainees)
+	return err
+}

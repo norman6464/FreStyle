@@ -11,6 +11,45 @@ import (
 	"time"
 )
 
+const acquireBootstrapSuperAdminLock = `-- name: AcquireBootstrapSuperAdminLock :exec
+SELECT pg_advisory_xact_lock($1::bigint)
+`
+
+// 「最初の運営管理者を作る」経路を直列化するロックを取る。
+//
+// トランザクションスコープのロック（pg_advisory_xact_lock）なので、必ず判定と INSERT と
+// 同じトランザクション（Queries.WithTx）で発行すること。別接続で取ると、ロックが取れた
+// 直後に解放され「0 人か確かめて作る」の間を守れない。pgbouncer（transaction pooler）が
+// 接続を貸し借りする本番でセッションロックが使えないのも同じ理由。
+func (q *Queries) AcquireBootstrapSuperAdminLock(ctx context.Context, lockKey int64) error {
+	_, err := q.db.ExecContext(ctx, acquireBootstrapSuperAdminLock, lockKey)
+	return err
+}
+
+const countActiveSuperAdmins = `-- name: CountActiveSuperAdmins :one
+SELECT count(*) FROM users u
+JOIN roles r ON r.id = u.role_id
+WHERE r.name = $1 AND u.deleted_at IS NULL
+`
+
+// 論理削除されていない運営管理者の人数。免除経路（招待なしの作成）が既に閉じているかの判定に使う。
+func (q *Queries) CountActiveSuperAdmins(ctx context.Context, name string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countActiveSuperAdmins, name)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const deleteOidcIdentitiesByUserID = `-- name: DeleteOidcIdentitiesByUserID :exec
+DELETE FROM user_oidc_identities WHERE user_id = $1
+`
+
+// ユーザーの OIDC identity をすべて消し、subject の占有を解く（同じアカウントの再招待を可能にする）。
+func (q *Queries) DeleteOidcIdentitiesByUserID(ctx context.Context, userID int64) error {
+	_, err := q.db.ExecContext(ctx, deleteOidcIdentitiesByUserID, userID)
+	return err
+}
+
 const getCognitoSubjectByUserID = `-- name: GetCognitoSubjectByUserID :one
 SELECT subject FROM user_oidc_identities
 WHERE user_id = $1 AND provider = 'cognito'
@@ -24,6 +63,37 @@ func (q *Queries) GetCognitoSubjectByUserID(ctx context.Context, userID int64) (
 	var subject string
 	err := row.Scan(&subject)
 	return subject, err
+}
+
+const getOidcIdentityOwner = `-- name: GetOidcIdentityOwner :one
+SELECT user_id FROM user_oidc_identities
+WHERE provider = $1 AND subject = $2
+`
+
+type GetOidcIdentityOwnerParams struct {
+	Provider string
+	Subject  string
+}
+
+// (provider, subject) を持っているユーザーの id。挿入されなかったときの持ち主判定に使う。
+func (q *Queries) GetOidcIdentityOwner(ctx context.Context, arg GetOidcIdentityOwnerParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getOidcIdentityOwner, arg.Provider, arg.Subject)
+	var user_id int64
+	err := row.Scan(&user_id)
+	return user_id, err
+}
+
+const getRoleIDByName = `-- name: GetRoleIDByName :one
+SELECT id FROM roles WHERE name = $1
+`
+
+// ロール名を roles.id に解決する。未知の名前は 0 件で返り、呼び出し側がエラーにする
+// （黙って別ロールへ倒さない）。
+func (q *Queries) GetRoleIDByName(ctx context.Context, name string) (int16, error) {
+	row := q.db.QueryRowContext(ctx, getRoleIDByName, name)
+	var id int16
+	err := row.Scan(&id)
+	return id, err
 }
 
 const getUserByCognitoSub = `-- name: GetUserByCognitoSub :one
@@ -118,6 +188,123 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (GetUserByIDRow, er
 		&i.DeletedAt,
 		&i.RoleName,
 	)
+	return i, err
+}
+
+const insertOidcIdentityIfAbsent = `-- name: InsertOidcIdentityIfAbsent :execrows
+INSERT INTO user_oidc_identities (user_id, provider, subject, created_at, updated_at)
+VALUES ($1, $2, $3, now(), now())
+ON CONFLICT (provider, subject) DO NOTHING
+`
+
+type InsertOidcIdentityIfAbsentParams struct {
+	UserID   int64
+	Provider string
+	Subject  string
+}
+
+// OIDC identity を冪等に挿入する。既に同じ (provider, subject) があれば 0 行で、
+// 呼び出し側が持ち主を確かめる。(user_id, provider) の一意制約違反はそのままエラーになる。
+func (q *Queries) InsertOidcIdentityIfAbsent(ctx context.Context, arg InsertOidcIdentityIfAbsentParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, insertOidcIdentityIfAbsent, arg.UserID, arg.Provider, arg.Subject)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const insertUser = `-- name: InsertUser :one
+INSERT INTO users (
+  email, password_hash, name, company_id, role_id, ai_chat_enabled,
+  is_active, created_at, updated_at, deleted_at
+)
+VALUES ($1, $2, $3, $4, $5, $6, true, $7, $8, $9)
+RETURNING id, created_at, updated_at
+`
+
+type InsertUserParams struct {
+	Email         string
+	PasswordHash  sql.NullString
+	Name          string
+	CompanyID     sql.NullInt64
+	RoleID        int16
+	AiChatEnabled sql.NullBool
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	DeletedAt     sql.NullTime
+}
+
+type InsertUserRow struct {
+	ID        int64
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+// ユーザーを 1 件作る（id は採番シーケンスに任せる）。created_at / updated_at は DB 既定値が
+// 無いため呼び出し側が値を渡す。is_active は常に true（作成直後のアカウントは有効。無効化は
+// UpdateUserActive の仕事）。RETURNING で id / created_at / updated_at を書き戻す。
+func (q *Queries) InsertUser(ctx context.Context, arg InsertUserParams) (InsertUserRow, error) {
+	row := q.db.QueryRowContext(ctx, insertUser,
+		arg.Email,
+		arg.PasswordHash,
+		arg.Name,
+		arg.CompanyID,
+		arg.RoleID,
+		arg.AiChatEnabled,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.DeletedAt,
+	)
+	var i InsertUserRow
+	err := row.Scan(&i.ID, &i.CreatedAt, &i.UpdatedAt)
+	return i, err
+}
+
+const insertUserWithID = `-- name: InsertUserWithID :one
+INSERT INTO users (
+  id, email, password_hash, name, company_id, role_id, ai_chat_enabled,
+  is_active, created_at, updated_at, deleted_at
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8, $9, $10)
+RETURNING id, created_at, updated_at
+`
+
+type InsertUserWithIDParams struct {
+	ID            int64
+	Email         string
+	PasswordHash  sql.NullString
+	Name          string
+	CompanyID     sql.NullInt64
+	RoleID        int16
+	AiChatEnabled sql.NullBool
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	DeletedAt     sql.NullTime
+}
+
+type InsertUserWithIDRow struct {
+	ID        int64
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+// id を呼び出し側が決める場合の InsertUser。列と既定の扱いは InsertUser と同じにすること
+// （片方だけ列を足すと、id を指定する経路だけ値が入らない）。
+func (q *Queries) InsertUserWithID(ctx context.Context, arg InsertUserWithIDParams) (InsertUserWithIDRow, error) {
+	row := q.db.QueryRowContext(ctx, insertUserWithID,
+		arg.ID,
+		arg.Email,
+		arg.PasswordHash,
+		arg.Name,
+		arg.CompanyID,
+		arg.RoleID,
+		arg.AiChatEnabled,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.DeletedAt,
+	)
+	var i InsertUserWithIDRow
+	err := row.Scan(&i.ID, &i.CreatedAt, &i.UpdatedAt)
 	return i, err
 }
 
@@ -304,4 +491,113 @@ func (q *Queries) ListUsersByRole(ctx context.Context, name string) ([]ListUsers
 		return nil, err
 	}
 	return items, nil
+}
+
+const mirrorUserWorkspace = `-- name: MirrorUserWorkspace :exec
+UPDATE users SET workspace_id = c.workspace_id
+FROM companies c
+WHERE users.id = $1 AND users.company_id = c.id
+`
+
+// users.workspace_id を所属会社のワークスペースに合わせる。対応表の正本は companies.workspace_id
+// ただ 1 つで、値をアプリ側で覚えて写経しない。未所属や対応する会社行が無い場合は 0 件更新。
+func (q *Queries) MirrorUserWorkspace(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, mirrorUserWorkspace, id)
+	return err
+}
+
+const softDeleteUser = `-- name: SoftDeleteUser :execrows
+UPDATE users SET deleted_at = now(), updated_at = now()
+WHERE id = $1 AND deleted_at IS NULL
+`
+
+// ユーザーを論理削除する。既に削除済み / 存在しない場合は 0 件（呼び出し側が not-found にする）。
+func (q *Queries) SoftDeleteUser(ctx context.Context, id int64) (int64, error) {
+	result, err := q.db.ExecContext(ctx, softDeleteUser, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const updateUserActive = `-- name: UpdateUserActive :execrows
+UPDATE users SET is_active = $2, updated_at = now() WHERE id = $1
+`
+
+type UpdateUserActiveParams struct {
+	ID       int64
+	IsActive bool
+}
+
+// アカウントの有効/無効を更新する。0 件なら対象が存在しない（呼び出し側が not-found にする）。
+func (q *Queries) UpdateUserActive(ctx context.Context, arg UpdateUserActiveParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateUserActive, arg.ID, arg.IsActive)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const updateUserAiChatEnabled = `-- name: UpdateUserAiChatEnabled :exec
+UPDATE users SET ai_chat_enabled = $2, updated_at = now() WHERE id = $1
+`
+
+type UpdateUserAiChatEnabledParams struct {
+	ID            int64
+	AiChatEnabled sql.NullBool
+}
+
+// AI チャットの個別上書きを更新する（NULL で会社設定に従う）。他の列は触らない。
+func (q *Queries) UpdateUserAiChatEnabled(ctx context.Context, arg UpdateUserAiChatEnabledParams) error {
+	_, err := q.db.ExecContext(ctx, updateUserAiChatEnabled, arg.ID, arg.AiChatEnabled)
+	return err
+}
+
+const updateUserCompanyID = `-- name: UpdateUserCompanyID :exec
+UPDATE users SET
+  company_id = $2,
+  workspace_id = (SELECT c.workspace_id FROM companies c WHERE c.id = $2)
+WHERE users.id = $1
+`
+
+type UpdateUserCompanyIDParams struct {
+	ID        int64
+	CompanyID sql.NullInt64
+}
+
+// 所属会社を付け替える。company_id と、その写しである workspace_id を同じ 1 文で書く
+// （片方だけ書かれた状態を作らない。写す値の出どころは companies.workspace_id）。
+func (q *Queries) UpdateUserCompanyID(ctx context.Context, arg UpdateUserCompanyIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateUserCompanyID, arg.ID, arg.CompanyID)
+	return err
+}
+
+const updateUserName = `-- name: UpdateUserName :exec
+UPDATE users SET name = $2, updated_at = now() WHERE id = $1
+`
+
+type UpdateUserNameParams struct {
+	ID   int64
+	Name string
+}
+
+// 氏名だけを更新する。
+func (q *Queries) UpdateUserName(ctx context.Context, arg UpdateUserNameParams) error {
+	_, err := q.db.ExecContext(ctx, updateUserName, arg.ID, arg.Name)
+	return err
+}
+
+const updateUserRoleID = `-- name: UpdateUserRoleID :exec
+UPDATE users SET role_id = $2, updated_at = now() WHERE id = $1
+`
+
+type UpdateUserRoleIDParams struct {
+	ID     int64
+	RoleID int16
+}
+
+// 役割だけを更新する（誰がどの役割になれるかの判定は usecase 側の仕事）。
+func (q *Queries) UpdateUserRoleID(ctx context.Context, arg UpdateUserRoleIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateUserRoleID, arg.ID, arg.RoleID)
+	return err
 }

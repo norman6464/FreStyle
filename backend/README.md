@@ -4,8 +4,9 @@ FreStyle のバックエンド（Go / Gin / GORM / PostgreSQL）。クリーン�
 `archlint` で強制）。一時的に進めた Java/Spring Boot 版は性能面（極小 Fargate + 夜間 teardown）の
 理由で取りやめ、Go へ差し戻した（2026-06-09 に機能パリティ回復）。
 
-**データアクセス方針**: クエリは「読み取り＝生 SQL 直書き（`db.Raw` / 段階的に sqlc）/ 書き込み＝
-GORM（採番 ID・autoTime の利便）」のハイブリッド。GORM は接続・AutoMigrate にも使う。テストは
+**データアクセス方針**: クエリは読み取り・書き込みとも **sqlc 生成コード（生 SQL）** に寄せており、
+大半の repository は GORM から接続プール（`*sql.DB`）だけを借りる。未移行の repository には
+まだ GORM のクエリが残る。GORM 自体は接続と AutoMigrate に当面残す。テストは
 古典学派（実 DB・実ルータ + 手書き fake で状態検証）を採用する。
 
 ## ディレクトリ構造（クリーンアーキテクチャ）
@@ -20,7 +21,7 @@ backend/
 │   ├── domain/          ドメインモデル (Spring Boot Entity 相当)
 │   └── infra/
 │       ├── config/      環境変数ロード
-│       └── database/    GORM セットアップ
+│       └── database/    DB 接続 / AutoMigrate / ナレッジ基盤の明示 DDL 適用
 ├── Dockerfile           multi-stage / distroless / static binary
 └── go.mod
 ```
@@ -140,7 +141,7 @@ make verify        # gofumpt / vet / build / test / 3 linter を一括実行
 
 ### 結合テスト（本物の PostgreSQL）
 
-`adapter/persistence` 層は、GORM の実 SQL を **本物の PostgreSQL** に対して検証する結合テストを持つ。単体テスト（usecase の mock）とは独立し、`//go:build integration` タグで隔離しているため通常の `go test ./...` には含まれない。
+`adapter/persistence` 層は、repository が実際に発行する SQL を **本物の PostgreSQL** に対して検証する結合テストを持つ。単体テスト（usecase の mock）とは独立し、`//go:build integration` タグで隔離しているため通常の `go test ./...` には含まれない。
 
 ```bash
 make test-integration

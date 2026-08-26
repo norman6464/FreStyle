@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	_ "embed"
-	"fmt"
 )
 
 // knowledgeBaseSchemaDDL はナレッジ基盤の骨格 6 テーブルの DDL（実スキーマの正本）。
@@ -27,16 +26,12 @@ var knowledgeBasePermissionSchemaDDL string
 // 2 つの DDL は 1 つのトランザクションで順に流す。権限側は骨格側の spaces / pages と
 // 中核スキーマの users を参照するため、順序（中核 → 骨格 → 権限）を崩せない。
 //
-// DDL は CREATE ... IF NOT EXISTS だけで冪等になっており、複数文をまとめて 1 度に実行する。
+// DDL は CREATE ... IF NOT EXISTS だけで冪等になっており、1 文ずつ順に実行する。
+// 既に在る索引の CREATE INDEX は発行しない（理由は [applyEmbeddedSchema]）。
 // 失敗したらエラーを返して起動を止める（スキーマが半端なまま listen を始めない）。
 func ApplyKnowledgeBaseSchema(ctx context.Context, db *sql.DB) error {
-	return withMigrateTx(ctx, db, "ナレッジ基盤スキーマ", func(tx *sql.Tx) error {
-		if _, err := tx.ExecContext(ctx, knowledgeBaseSchemaDDL); err != nil {
-			return fmt.Errorf("DDL の適用に失敗: %w", err)
-		}
-		if _, err := tx.ExecContext(ctx, knowledgeBasePermissionSchemaDDL); err != nil {
-			return fmt.Errorf("権限モデル DDL の適用に失敗: %w", err)
-		}
-		return nil
-	})
+	return applyEmbeddedSchema(
+		ctx, db, "ナレッジ基盤スキーマ",
+		knowledgeBaseSchemaDDL, knowledgeBasePermissionSchemaDDL,
+	)
 }

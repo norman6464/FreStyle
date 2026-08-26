@@ -3,10 +3,13 @@ package database
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"os"
+	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 )
 
@@ -14,6 +17,24 @@ import (
 // 複数の ECS タスクが同時に起動しても、DDL / seed / バックフィル / 制約適用が
 // 同じキーの下で 1 つずつ流れるようにする。
 const migrateAdvisoryLockKey = 4915311
+
+const (
+	// migrateLockTimeout は起動時マイグレーションがテーブル等のロック取得を待つ上限。
+	// 未設定（PostgreSQL の既定は無制限）だと、長い書き込みトランザクションが 1 本あるだけで
+	// マイグレーションが永久に待ち、その後ろに全ライターが積み上がる。
+	migrateLockTimeout = "3s"
+
+	// migrateAdvisoryLockTimeout は先行タスクの起動時マイグレーション完了を待つ上限。
+	// 待つ相手がアプリのライターではなく自分たちの前段なので、テーブルロックより長く取る
+	// （ローリングデプロイでは先行タスクの DDL が終わるまで待つのが正しい振る舞い）。
+	migrateAdvisoryLockTimeout = "30s"
+
+	// migrateLockRetries はロック待ちがタイムアウトしたときに同じ段をやり直す回数。
+	migrateLockRetries = 4
+
+	// lockNotAvailableCode は lock_timeout 超過を表す PostgreSQL の SQLSTATE（55P03）。
+	lockNotAvailableCode = "55P03"
+)
 
 // Executor は *sql.DB と *sql.Tx が共通で満たす実行インターフェース。
 // 起動時は 1 つのトランザクションへまとめて流し、結合テストは接続プールへ直接流すため、
@@ -49,7 +70,11 @@ func Migrate(ctx context.Context, db *sql.DB) error {
 	}
 	// 旧スキーマの NULL を先に埋める。正規化前の行が残っている環境でも、後段のバックフィルと
 	// 部分 UNIQUE が素直に通るようにするための下ごしらえ。冪等。
-	if err := preRepairUsersForMigrate(ctx, db); err != nil {
+	// lock_timeout と直列化を効かせるため、この UPDATE も withMigrateTx の中で流す
+	// （素の autocommit だと、ロック待ちが無制限のまま users を掴みに行く）。
+	if err := withMigrateTx(ctx, db, "旧データの下ごしらえ", func(tx *sql.Tx) error {
+		return preRepairUsersForMigrate(ctx, tx)
+	}); err != nil {
 		return err
 	}
 	log.Println("migrate: core schema start")
@@ -110,15 +135,61 @@ func Migrate(ctx context.Context, db *sql.DB) error {
 // 複数の ECS タスクが同時に起動しても DDL / seed / バックフィルが 1 つずつ流れるよう、
 // 起動時マイグレーション共通のキーでトランザクションロックを取る
 // （pgbouncer(transaction pooler) 前提のため、コミットで自動解放されないセッションロックは使わない）。
+//
+// ロック待ちは lock_timeout で必ず有限にし、超過したら指数バックオフで数回だけやり直してから
+// 起動を失敗させる。
+//
+//   - やり直す理由: 長い書き込みトランザクションやローリングデプロイ中の先行タスクは、ふつう
+//     数秒から十数秒で終わる一過性のもの。そこで即座に諦めるとデプロイが無駄に落ちる。
+//     各段は冪等で、タイムアウトした試行はロールバック済みなので二重適用にならない。
+//   - 最後は失敗させる理由: スキーマが半端なまま listen を始めるより、起動を落として ECS に
+//     タスクを作り直させる方が安全。ローリングデプロイなら旧タスクが serving を続けるので、
+//     外形的な停止にもならない。いちばん悪いのは無限に待って全ライターを詰まらせることなので、
+//     待ち時間は必ず有限にする。
 func withMigrateTx(ctx context.Context, db *sql.DB, label string, fn func(tx *sql.Tx) error) error {
+	var lastErr error
+	for attempt := 0; attempt <= migrateLockRetries; attempt++ {
+		if attempt > 0 {
+			wait := time.Duration(1<<(attempt-1)) * time.Second
+			log.Printf("migrate: %s のロック待ちがタイムアウトしました。%s 後に再試行します（%d/%d）",
+				label, wait, attempt, migrateLockRetries)
+			if err := sleepCtx(ctx, wait); err != nil {
+				return fmt.Errorf("%s: 再試行の待機が中断されました: %w", label, err)
+			}
+		}
+		err := runMigrateTx(ctx, db, label, fn)
+		if err == nil {
+			return nil
+		}
+		if !isLockTimeout(err) {
+			return err
+		}
+		lastErr = err
+	}
+	return fmt.Errorf(
+		"%s: ロック待ちのタイムアウトが %d 回続いたため中断しました（長時間の書き込みトランザクションが残っていないか確認してください）: %w",
+		label, migrateLockRetries+1, lastErr,
+	)
+}
+
+// runMigrateTx は withMigrateTx の 1 回分の試行。
+func runMigrateTx(ctx context.Context, db *sql.DB, label string, fn func(tx *sql.Tx) error) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("%s: トランザクション開始に失敗: %w", label, err)
 	}
 	defer func() { _ = tx.Rollback() }() // Commit 済みなら no-op
 
+	// SET LOCAL はこのトランザクションの中だけに効く（接続をプールへ返しても残らない）。
+	// パラメータプレースホルダを取れないので定数を埋め込む。
+	if _, err := tx.ExecContext(ctx, `SET LOCAL lock_timeout = '`+migrateAdvisoryLockTimeout+`'`); err != nil {
+		return fmt.Errorf("%s: lock_timeout の設定に失敗: %w", label, err)
+	}
 	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock($1)`, migrateAdvisoryLockKey); err != nil {
 		return fmt.Errorf("%s: advisory lock の取得に失敗: %w", label, err)
+	}
+	if _, err := tx.ExecContext(ctx, `SET LOCAL lock_timeout = '`+migrateLockTimeout+`'`); err != nil {
+		return fmt.Errorf("%s: lock_timeout の設定に失敗: %w", label, err)
 	}
 	if err := fn(tx); err != nil {
 		return fmt.Errorf("%s: %w", label, err)
@@ -127,6 +198,24 @@ func withMigrateTx(ctx context.Context, db *sql.DB, label string, fn func(tx *sq
 		return fmt.Errorf("%s: コミットに失敗: %w", label, err)
 	}
 	return nil
+}
+
+// isLockTimeout は lock_timeout 超過（SQLSTATE 55P03）かを判定する。
+func isLockTimeout(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == lockNotAvailableCode
+}
+
+// sleepCtx は ctx のキャンセルで打ち切れる待機。
+func sleepCtx(ctx context.Context, d time.Duration) error {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 // ApplyRichDocumentConstraints は rich_documents の整合性制約を適用する（冪等）。
@@ -172,10 +261,20 @@ func ApplyRichDocumentConstraints(ctx context.Context, db Executor) error {
 // ApplySessionNoteConstraints は session_notes に 1 セッション 1 ノートの一意制約を張る（冪等）。
 // session_id には schema/core.sql が一意索引を張っているが、既存 DB では非一意のまま残っている
 // ことがあるため、別名の一意インデックスを明示 SQL で必ず作る。
-// CREATE UNIQUE INDEX IF NOT EXISTS 自体が冪等。既存に session_id 重複があると作成に失敗するので、
-// 適用前に重複が無いことを確認すること。
+// 既存に session_id 重複があると作成に失敗するので、適用前に重複が無いことを確認すること。
+//
+// CREATE UNIQUE INDEX IF NOT EXISTS は索引が既に在ってスキップする場合でも session_notes の
+// ShareLock を取り、トランザクションが終わるまで手放さない。起動のたびにノートの書き込みを
+// 止めないよう、先にカタログを引いて未作成のときだけ発行する。
 func ApplySessionNoteConstraints(ctx context.Context, db Executor) error {
-	_, err := db.ExecContext(
+	exists, err := indexExists(ctx, db, "uq_session_notes_session_id")
+	if err != nil {
+		return err
+	}
+	if exists {
+		return nil
+	}
+	_, err = db.ExecContext(
 		ctx,
 		`CREATE UNIQUE INDEX IF NOT EXISTS uq_session_notes_session_id ON session_notes (session_id)`,
 	)

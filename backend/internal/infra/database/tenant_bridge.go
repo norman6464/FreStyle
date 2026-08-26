@@ -36,9 +36,14 @@ const workspaceSlugPrefix = "ws-"
 //
 // 列は必ずテーブルの末尾に付く（ALTER TABLE ADD COLUMN の挙動）。schema/core.sql でも
 // 最後に書いてあることが前提で、ずれると SELECT * の詰め替えが位置ずれで壊れる。
+//
+// ADD COLUMN IF NOT EXISTS を素で流さず、カタログを見て未作成のときだけ ALTER する。
+// ALTER TABLE は列が既に在ってスキップする場合でも先に AccessExclusiveLock を取り、
+// トランザクションが終わるまで手放さない（読み取りまで止まる）。列が出揃っている通常の起動で
+// companies / users を掴まないよう、事前チェックで ALTER 自体を出さない。
 var tenantBridgeSchemaStatements = []string{
-	`ALTER TABLE companies ADD COLUMN IF NOT EXISTS workspace_id uuid`,
-	`ALTER TABLE users ADD COLUMN IF NOT EXISTS workspace_id uuid`,
+	addWorkspaceIDColumnStatement("companies"),
+	addWorkspaceIDColumnStatement("users"),
 	// 会社とワークスペースは 1:1。移行中に 2 つの会社が同じワークスペースを指す状態を作らない。
 	`DO $$ BEGIN
 		IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'uq_companies_workspace_id') THEN
@@ -63,6 +68,20 @@ var tenantBridgeSchemaStatements = []string{
 				FOREIGN KEY (workspace_id) REFERENCES workspaces (id);
 		END IF;
 	END $$;`,
+}
+
+// addWorkspaceIDColumnStatement は workspace_id 列を「無ければ足す」DO ブロックを組み立てる。
+// テーブル名は呼び出し側のリテラルだけを渡す（外部入力は来ない）。
+func addWorkspaceIDColumnStatement(table string) string {
+	return `DO $$ BEGIN
+		IF NOT EXISTS (
+			SELECT 1 FROM information_schema.columns
+			 WHERE table_schema = current_schema()
+			   AND table_name = '` + table + `' AND column_name = 'workspace_id'
+		) THEN
+			ALTER TABLE ` + table + ` ADD COLUMN workspace_id uuid;
+		END IF;
+	END $$;`
 }
 
 // ApplyTenantBridgeSchema は companies / users に workspace_id 列と制約を足す（冪等）。

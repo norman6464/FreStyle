@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	_ "embed"
-	"fmt"
 )
 
 // coreSchemaDDL はアプリケーション中核テーブルの DDL（実スキーマの正本）。
@@ -18,15 +17,11 @@ var coreSchemaDDL string
 // スキーマを適用する（冪等）。ナレッジ基盤（[ApplyKnowledgeBaseSchema]）より先に呼ぶこと
 // （権限モデルが users を参照するため）。
 //
-// DDL は CREATE TABLE / CREATE INDEX の IF NOT EXISTS だけで冪等になっており、複数文を
-// まとめて 1 度に実行する。CREATE TABLE IF NOT EXISTS は既に在るテーブルへ列を足さないので、
+// DDL は CREATE TABLE / CREATE INDEX の IF NOT EXISTS だけで冪等になっており、1 文ずつ
+// 順に実行する。CREATE TABLE IF NOT EXISTS は既に在るテーブルへ列を足さないので、
 // 既存 DB の列追加・型変更は migrations/000X_*.sql（明示 SQL）が担う。
+// 既に在る索引の CREATE INDEX は発行しない（理由は [applyEmbeddedSchema]）。
 // 失敗したらエラーを返して起動を止める（スキーマが半端なまま listen を始めない）。
 func ApplyCoreSchema(ctx context.Context, db *sql.DB) error {
-	return withMigrateTx(ctx, db, "中核スキーマ", func(tx *sql.Tx) error {
-		if _, err := tx.ExecContext(ctx, coreSchemaDDL); err != nil {
-			return fmt.Errorf("DDL の適用に失敗: %w", err)
-		}
-		return nil
-	})
+	return applyEmbeddedSchema(ctx, db, "中核スキーマ", coreSchemaDDL)
 }

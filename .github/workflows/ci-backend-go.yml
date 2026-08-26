@@ -157,6 +157,15 @@ jobs:
             exit 1
           fi
 
+      # sqlc vet: sqlc.yaml 末尾の rules をクエリ 1 本ずつに当てる静的検査。
+      # drift check（上）は「生成物がクエリと一致しているか」しか見ない。vet は
+      # 「SQL としては正しいが実行すると事故る」書き方 — 例えば WHERE の無い
+      # UPDATE / DELETE — を弾く。ORM を廃して生 SQL に統一した以上、ORM が
+      # 暗黙に持っていた安全弁の代わりはここしかない。
+      # 実 DB は要らない（sqlc/db-prepare は使っていない。理由は sqlc.yaml に記載）。
+      - name: sqlc vet (dangerous SQL)
+        run: make sqlc-vet
+
       - name: go build
         run: go build -trimpath -ldflags="-s -w" -o /tmp/frestyle-backend ./cmd/server
 

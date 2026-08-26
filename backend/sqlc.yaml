@@ -44,6 +44,12 @@ sql:
       - "internal/infra/database/schema/knowledge_base.sql"
       - "internal/infra/database/schema/knowledge_base_permissions.sql"
     queries: "internal/adapter/persistence/queries"
+
+    # このブロックのクエリすべてに当てる vet ルール。実体はファイル末尾の rules: に定義する。
+    # ここに名前を並べない限りルールは 1 本も走らない（rules: を書いただけでは無反応）。
+    rules:
+      - mutation-requires-where
+
     gen:
       go:
         package: "sqlcgen"
@@ -104,3 +110,73 @@ sql:
               import: "encoding/json"
               type: "RawMessage"
               pointer: true
+
+# ---------------------------------------------------------------------------
+# sqlc vet の静的ルール（backend/ で `make sqlc-vet`。CI の backend ジョブでも走る）
+#
+# `sqlc generate` はスキーマとクエリを突き合わせて Go を出すが、「SQL として書けてしまう
+# 危険」までは見ない。vet は生成とは別に、クエリ 1 本ずつへ下のルールを当てて落とす。
+# ORM をやめて生 SQL に統一したので、ORM が暗黙に付けてくれていた安全弁はもう無い。
+# ここが最後の機械的な網になる。
+#
+# vet の CEL 式から見えるもの（sqlc v1.31.1 で実際に確かめた）:
+#   query.sql    … SQL 本文。`-- name:` 行は含まれない。ただしファイル先頭の見出しコメントは
+#                  そのファイルの「最初のクエリ」の本文に付いてくる（実測 6 ファイル）。
+#                  下のルールがコメント行を落としてから見ているのはこのため。
+#   query.name   … クエリ名（GetUserByID 等）
+#   query.cmd    … one / many / exec / execrows のいずれか（`:` は付かない）
+#   query.params … $1..$n の「番号」だけ。列名も型も入っていない
+#   config       … このファイルの version / engine / schema / queries
+#   postgresql.explain … 実 DB への接続設定があるときだけ。今は設定していないので使えない
+#   文字列関数（split / filter / trim / startsWith / join / matches …）は使える。
+#   matches は RE2 で、部分一致（アンカーは自分で書く）。(?i) / (?m) のインラインフラグは効く。
+#
+# 表現できないこと（できないと分かったうえで諦めている）:
+#   列の型が CEL から一切見えない。したがって「bigint の列に ::int を掛けていて 32bit へ
+#   縮む」のような型に踏み込んだ検査は vet では書けない。ここで書けるのは実質
+#   「SQL 本文への正規表現」まで。型の食い違いは `sqlc generate`（スキーマとの突き合わせ）と、
+#   本物の PostgreSQL に対する結合テスト（*_integration_test.go）で拾う。
+#
+# 組み込みルール sqlc/db-prepare は入れていない:
+#   実 DB へ繋いで全クエリを PREPARE してみるルールで、生きた PostgreSQL への接続設定が要る。
+#   一方このリポジトリでは、列名・型の食い違いは `sqlc generate` がスキーマと突き合わせて
+#   先に落とすし、repository は本物の PostgreSQL に対する結合ジョブで実際に実行している。
+#   db-prepare が追加で拾えるのは「generate は通るが PREPARE では落ちる」狭い差分だけで、
+#   その代わりに CI の静的検査ジョブへ DB 依存を 1 つ増やすことになる。割に合わないと判断した。
+#
+# 個別に外したいとき: そのクエリのコメントに /* @sqlc-vet-disable <ルール名> */ を書く
+# （ルール名を省くとそのクエリの vet が丸ごと止まる）。外すなら必ず理由も併記すること。
+# ---------------------------------------------------------------------------
+rules:
+  # UPDATE / DELETE に WHERE が無いクエリを弾く。
+  #
+  # WHERE の無い UPDATE / DELETE は構文として正しく、`sqlc generate` も素通りし、
+  # 実行するとテーブルの全行を書き換える / 消す。取り返しのつかない側の事故なので、
+  # 実行時ではなく書いた時点で落とす。
+  #
+  # 判定の作り（正規表現しか書けないという制約の中でどうやっているか）:
+  #   1. SQL 本文を行に割り、行頭が `--` のコメント行を落とす。理由は 2 つ。
+  #      (a) ファイル先頭の見出しコメントが最初のクエリの本文に付いてくるので、
+  #          落とさないと「文の先頭が UPDATE か」を見誤る。
+  #      (b) 説明文に「WHERE」と書いてあるだけで WHERE 有りと誤判定するのを防ぐ。
+  #   2. 残った行に「行頭（前後の空白を除く）が UPDATE / DELETE の行」があれば更新系とみなす。
+  #      (?m) を付けているので CTE の中（WITH x AS ( UPDATE ... )）も拾う。
+  #      `\b` があるので updated_at / deleted_at では誤爆しない。
+  #      INSERT ... ON CONFLICT DO UPDATE は UPDATE が行頭に来ないので拾わない。
+  #   3. その本文に WHERE が 1 つも無ければ違反。
+  #
+  # 既知の限界（誤検知より見逃し側に倒してある）:
+  #   sqlc の 1 クエリ = 1 文なので「本文のどこかに WHERE があるか」で概ね足りるが、
+  #   副問い合わせ側にだけ WHERE がある UPDATE（本体は全行更新）は見逃す。
+  #   行末に付けた `--` コメントの中の WHERE も数えてしまう。
+  #   厳密にするには SQL の構文解析が要り、CEL では書けない。
+  #   導入時点（クエリ 162 本 / うち UPDATE・DELETE 43 本）で誤検知 0・違反 0 を実測している。
+  - name: mutation-requires-where
+    message: >-
+      UPDATE / DELETE に WHERE がありません。実行するとテーブルの全行が対象になります。
+      絞り込み条件を書いてください。全件が本当に意図なら、そのクエリのコメントに
+      /* @sqlc-vet-disable mutation-requires-where */ と理由を書いて明示的に外してください。
+    rule: >-
+      query.sql.split("\n").filter(line, !line.trim().startsWith("--")).join("\n").matches("(?im)^[ \\t]*(update|delete)\\b")
+      &&
+      !query.sql.split("\n").filter(line, !line.trim().startsWith("--")).join("\n").matches("(?i)\\bwhere\\b")

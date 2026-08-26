@@ -5,6 +5,18 @@
 // 未提出演習など、使い始めの動線を直撃する（FRESTYLE-70 で staging 実機で観測、
 // FRESTYLE-77 で 14 メソッドの残存が判明）。
 //
+// この linter は単独では不変条件を守れない。sqlc の emit_empty_slices と二段構えになっている。
+//
+//  1. backend/sqlc.yaml の emit_empty_slices: true … sqlc 生成物（sqlcgen）の :many が
+//     0 件のとき nil ではなく空スライスを返す
+//  2. この linter                                   … 生成物を使う手書きの repository が
+//     nil を返していないかを CI で検査する
+//
+// JSON までは 1 と 2 の両方を通る。片方だけ外すと穴が開く: emit_empty_slices を false に
+// すると生成物が nil を返し始めるが、この linter は手書き側しか見ていないので気づけない。
+// 逆にこの linter を外すと、生成物から domain 型へ詰め替えるところで nil に戻る書き方が復活する。
+// どちらかを外すときは必ずもう片方も一緒に見直すこと（sqlc.yaml 側にも同じ注意書きがある）。
+//
 // 検査対象は internal/adapter/persistence 直下。スライスを返すメソッドの中で
 // 戻り値になる変数が `var x []T`（nil）のまま宣言されているものを違反とする。
 // `x := make([]T, 0)` のように空スライスで初期化すれば通る。

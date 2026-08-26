@@ -12,7 +12,6 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
-	"gorm.io/gorm"
 )
 
 // fakeMasterExerciseRepo は MasterExerciseRepository の最小スタブ。
@@ -235,9 +234,9 @@ func Test_演習問題ハンドラ_slug取得_成功(t *testing.T) {
 	}
 }
 
-// 存在しない slug → 404 (`gorm.ErrRecordNotFound` のケース)。
+// 存在しない slug → 404 (`domain.ErrNotFound` のケース)。
 func Test_演習問題ハンドラ_slug取得_見つからない(t *testing.T) {
-	repo := &fakeMasterExerciseRepo{getErr: gorm.ErrRecordNotFound}
+	repo := &fakeMasterExerciseRepo{getErr: domain.ErrNotFound}
 	r := newMasterExerciseTestHandler(repo, nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/exercises/missing", nil))
@@ -246,7 +245,7 @@ func Test_演習問題ハンドラ_slug取得_見つからない(t *testing.T) {
 	}
 }
 
-// `gorm.ErrRecordNotFound` 以外の DB エラーは 500 として返す（404 と区別する）。
+// `domain.ErrNotFound` 以外の DB エラーは 500 として返す（404 と区別する）。
 func Test_演習問題ハンドラ_slug取得_内部エラー(t *testing.T) {
 	repo := &fakeMasterExerciseRepo{getErr: errors.New("connection refused")}
 	r := newMasterExerciseTestHandler(repo, nil)

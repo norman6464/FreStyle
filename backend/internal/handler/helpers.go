@@ -9,7 +9,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
-	"gorm.io/gorm"
 )
 
 // actorFromContext は middleware が注入した current user から (userID, company, role) を取り出す。
@@ -29,7 +28,7 @@ func actorFromContext(c *gin.Context) (userID uint64, company domain.CompanyRef,
 // レコード未検出は 404(notFoundMsg)、認可エラー(forbidden* / 会社未所属)は 403、
 // それ以外は 500(fallback) を返す。エンティティ別の文言は notFoundMsg / fallback で渡す。
 func respondEntityErr(c *gin.Context, err error, notFoundMsg, fallback string) {
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+	if errors.Is(err, domain.ErrNotFound) {
 		c.JSON(http.StatusNotFound, gin.H{"error": notFoundMsg})
 		return
 	}

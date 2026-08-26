@@ -54,7 +54,7 @@ func (r *noteRepository) ListByUserID(ctx context.Context, userID uint64) ([]dom
 func (r *noteRepository) FindByID(ctx context.Context, id uint64) (*domain.Note, error) {
 	id64, ok := toInt64ID(id)
 	if !ok {
-		return nil, gorm.ErrRecordNotFound // 存在し得ない id = not found
+		return nil, domain.ErrNotFound // 存在し得ない id = not found
 	}
 	sqlDB, err := r.db.DB()
 	if err != nil {
@@ -62,7 +62,7 @@ func (r *noteRepository) FindByID(ctx context.Context, id uint64) (*domain.Note,
 	}
 	row, err := sqlcgen.New(sqlDB).GetNoteByID(ctx, id64)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, gorm.ErrRecordNotFound // 404 シグナルを維持
+		return nil, domain.ErrNotFound // 404 シグナルを維持
 	}
 	if err != nil {
 		return nil, err

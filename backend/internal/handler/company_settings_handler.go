@@ -5,8 +5,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 
+	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
@@ -91,7 +91,7 @@ func (h *CompanySettingsHandler) writeErr(c *gin.Context, err error) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 	case errors.Is(err, usecase.ErrCompanySettingsNoCompany):
 		c.JSON(http.StatusBadRequest, gin.H{"error": "no_company"})
-	case errors.Is(err, gorm.ErrRecordNotFound):
+	case errors.Is(err, domain.ErrNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "company_not_found"})
 	default:
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})

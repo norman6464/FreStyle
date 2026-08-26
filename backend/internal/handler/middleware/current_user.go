@@ -7,7 +7,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
-	"gorm.io/gorm"
 )
 
 const (
@@ -53,7 +52,7 @@ func CurrentUser(users repository.UserRepository, companies repository.CompanyRe
 		if companyID, affiliated := user.CompanyRef().CompanyID(); affiliated {
 			company, err := companies.FindByID(c.Request.Context(), companyID)
 			switch {
-			case errors.Is(err, gorm.ErrRecordNotFound):
+			case errors.Is(err, domain.ErrNotFound):
 				// 会社行なし: 何もしない（弾かない）。
 			case err != nil:
 				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "company_lookup_failed"})

@@ -11,7 +11,6 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
-	"gorm.io/gorm"
 )
 
 // fakeProgressRepoH / fakeMaterialRepoH / fakeCourseRepoH は handler テスト用の最小 fake。
@@ -70,7 +69,7 @@ type fakeCourseRepoH struct{ c *domain.Course }
 
 func (f *fakeCourseRepoH) GetByID(context.Context, uint64) (*domain.Course, error) {
 	if f.c == nil {
-		return nil, gorm.ErrRecordNotFound
+		return nil, domain.ErrNotFound
 	}
 	return f.c, nil
 }
@@ -173,7 +172,7 @@ func Test_進捗ハンドラ_完了_他社教材は403(t *testing.T) {
 }
 
 func Test_進捗ハンドラ_完了_存在しない教材は404(t *testing.T) {
-	mat := &fakeMaterialRepoH{getErr: gorm.ErrRecordNotFound}
+	mat := &fakeMaterialRepoH{getErr: domain.ErrNotFound}
 	r := newLessonProgressEngine(engineOpts{material: mat, withUser: true, companyID: 10})
 	w := doLessonProgressReq(r, http.MethodPost, "/lesson-progress", `{"teachingMaterialId":5}`)
 	if w.Code != http.StatusNotFound {

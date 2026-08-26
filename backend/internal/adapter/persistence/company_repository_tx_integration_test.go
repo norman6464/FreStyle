@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
+	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -103,6 +104,6 @@ func TestCompanyRepositoryMirrorAtomicity_Integration(t *testing.T) {
 		// 件数を見ていない）。移行でこの非対称を変えない。
 		testsupport.TruncateAll(t, db, tenantBridgeTables...)
 		require.NoError(t, repo.UpdateAiChatEnabled(ctx, 999, false))
-		require.ErrorIs(t, repo.UpdateActive(ctx, 999, false), gorm.ErrRecordNotFound)
+		require.ErrorIs(t, repo.UpdateActive(ctx, 999, false), domain.ErrNotFound)
 	})
 }

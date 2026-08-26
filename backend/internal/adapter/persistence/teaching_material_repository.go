@@ -128,11 +128,11 @@ func (r *teachingMaterialRepository) ListByCourse(ctx context.Context, courseID 
 	return materials, nil
 }
 
-// GetByID は単一教材を返す。未存在は gorm.ErrRecordNotFound（handler が 404 に分岐）。
+// GetByID は単一教材を返す。未存在は domain.ErrNotFound（handler が 404 に分岐）。
 func (r *teachingMaterialRepository) GetByID(ctx context.Context, id uint64) (*domain.TeachingMaterial, error) {
 	id64, ok := toInt64ID(id)
 	if !ok {
-		return nil, gorm.ErrRecordNotFound // 存在し得ない id = not found
+		return nil, domain.ErrNotFound // 存在し得ない id = not found
 	}
 	sqlDB, err := r.db.DB()
 	if err != nil {
@@ -140,7 +140,7 @@ func (r *teachingMaterialRepository) GetByID(ctx context.Context, id uint64) (*d
 	}
 	row, err := sqlcgen.New(sqlDB).GetChapterByID(ctx, id64)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, gorm.ErrRecordNotFound // 404 シグナルを維持
+		return nil, domain.ErrNotFound // 404 シグナルを維持
 	}
 	if err != nil {
 		return nil, err
@@ -228,11 +228,11 @@ func (r *teachingMaterialRepository) Create(ctx context.Context, m *domain.Teach
 }
 
 // Update は title / sort_order / is_published を書き換える。対象行が無ければ
-// gorm.ErrRecordNotFound（handler が 404 に分岐）。
+// domain.ErrNotFound（handler が 404 に分岐）。
 func (r *teachingMaterialRepository) Update(ctx context.Context, m *domain.TeachingMaterial) error {
 	id64, ok := toInt64ID(m.ID)
 	if !ok {
-		return gorm.ErrRecordNotFound // 存在し得ない id = not found
+		return domain.ErrNotFound // 存在し得ない id = not found
 	}
 	sqlDB, err := r.db.DB()
 	if err != nil {
@@ -249,7 +249,7 @@ func (r *teachingMaterialRepository) Update(ctx context.Context, m *domain.Teach
 	if err != nil {
 		// 0 行 = 取得と更新の間に章が消えた。黙って nil を返すと失われた編集を保存済みに見せるので 404 を返す。
 		if errors.Is(err, sql.ErrNoRows) {
-			return gorm.ErrRecordNotFound
+			return domain.ErrNotFound
 		}
 		return err
 	}
@@ -262,7 +262,7 @@ func (r *teachingMaterialRepository) Update(ctx context.Context, m *domain.Teach
 func (r *teachingMaterialRepository) UpdateDocWithRevision(ctx context.Context, id uint64, doc string, expectedRevision int) (*domain.TeachingMaterial, error) {
 	id64, ok := toInt64ID(id)
 	if !ok {
-		return nil, gorm.ErrRecordNotFound // 存在し得ない id = not found
+		return nil, domain.ErrNotFound // 存在し得ない id = not found
 	}
 	sqlDB, err := r.db.DB()
 	if err != nil {
@@ -278,7 +278,7 @@ func (r *teachingMaterialRepository) UpdateDocWithRevision(ctx context.Context, 
 		if errors.Is(err, sql.ErrNoRows) {
 			// 0 行 = 「存在しない」か「版不一致」。存在確認で切り分ける。
 			if _, gerr := r.GetByID(ctx, id); gerr != nil {
-				return nil, gerr // gorm.ErrRecordNotFound
+				return nil, gerr // domain.ErrNotFound
 			}
 			return nil, repository.ErrChapterDocConflict
 		}

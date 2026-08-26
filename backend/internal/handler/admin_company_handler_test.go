@@ -12,7 +12,6 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
-	"gorm.io/gorm"
 )
 
 // fakeCompanyCounter は CompanyMemberCounter の最小 fake。
@@ -246,8 +245,8 @@ func Test_会社管理ハンドラ_有効化_不正なボディ_400(t *testing.T
 }
 
 func Test_会社管理ハンドラ_有効化_見つからない(t *testing.T) {
-	// 存在しない会社 ID（0 件更新）は repository が ErrRecordNotFound を返し、handler が 404 にマップ。
-	repo := &fakeCompanyRepo{err: gorm.ErrRecordNotFound}
+	// 存在しない会社 ID（0 件更新）は repository が domain.ErrNotFound を返し、handler が 404 にマップ。
+	repo := &fakeCompanyRepo{err: domain.ErrNotFound}
 	actor := &domain.User{ID: 1, Role: domain.RoleSuperAdmin}
 	w := patchCompanyActive(t, actor, "999", `{"active":false}`, repo)
 	if w.Code != http.StatusNotFound {

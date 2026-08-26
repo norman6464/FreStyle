@@ -76,7 +76,7 @@ func (r *companyRepository) ListAll(ctx context.Context) ([]domain.Company, erro
 func (r *companyRepository) FindByID(ctx context.Context, id uint64) (*domain.Company, error) {
 	id64, ok := toInt64ID(id)
 	if !ok {
-		return nil, gorm.ErrRecordNotFound // 存在し得ない id = not found
+		return nil, domain.ErrNotFound // 存在し得ない id = not found
 	}
 	q, err := r.queries()
 	if err != nil {
@@ -84,8 +84,8 @@ func (r *companyRepository) FindByID(ctx context.Context, id uint64) (*domain.Co
 	}
 	row, err := q.GetCompanyByID(ctx, id64)
 	if errors.Is(err, sql.ErrNoRows) {
-		// AiChatEnabledForUserUseCase が ErrRecordNotFound を見て「会社行なし = 既定 true」にする契約を維持。
-		return nil, gorm.ErrRecordNotFound
+		// AiChatEnabledForUserUseCase が domain.ErrNotFound を見て「会社行なし = 既定 true」にする契約を維持。
+		return nil, domain.ErrNotFound
 	}
 	if err != nil {
 		return nil, err
@@ -114,12 +114,12 @@ func (r *companyRepository) UpdateAiChatEnabled(ctx context.Context, companyID u
 }
 
 // UpdateActive は会社アカウントの有効/無効を更新する。false で無効化（その会社の全ユーザーが利用不可）。
-// 対象会社が存在せず 0 件更新だった場合は gorm.ErrRecordNotFound を返す（handler が 404 にマップ）。
+// 対象会社が存在せず 0 件更新だった場合は domain.ErrNotFound を返す（handler が 404 にマップ）。
 // 対応する workspaces 行にも同じ値を写す。会社の更新と写しは同じトランザクションで行う。
 func (r *companyRepository) UpdateActive(ctx context.Context, companyID uint64, active bool) error {
 	id64, ok := toInt64ID(companyID)
 	if !ok {
-		return gorm.ErrRecordNotFound // 存在し得ない id = not found
+		return domain.ErrNotFound // 存在し得ない id = not found
 	}
 	return r.withTx(ctx, func(qtx *sqlcgen.Queries) error {
 		affected, err := qtx.UpdateCompanyActive(ctx, sqlcgen.UpdateCompanyActiveParams{
@@ -132,7 +132,7 @@ func (r *companyRepository) UpdateActive(ctx context.Context, companyID uint64, 
 		// 「見つからない」の判定は companies 側の更新件数で行う。写し先（workspaces）の
 		// 件数を見ると、まだ紐付いていない会社が 404 に化ける。
 		if affected == 0 {
-			return gorm.ErrRecordNotFound
+			return domain.ErrNotFound
 		}
 		return qtx.MirrorCompanySettingsToWorkspace(ctx, id64)
 	})

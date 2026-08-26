@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"gorm.io/gorm"
 )
 
 // chapterViewRepo は UserChapterViewRepository の mock に、このテストが使う
@@ -69,11 +68,11 @@ func Test_最終閲覧章_traineeは未公開コース禁止(t *testing.T) {
 }
 
 func Test_最終閲覧章_コースが無ければNotFound(t *testing.T) {
-	crepo, _ := courseRepo(courseFakeConfig{getErr: gorm.ErrRecordNotFound})
+	crepo, _ := courseRepo(courseFakeConfig{getErr: domain.ErrNotFound})
 	uc := usecase.NewGetLastViewedChapterUseCase(crepo, chapterViewRepo(nil, nil))
 
 	_, err := uc.Execute(context.Background(), usecase.GetLastViewedChapterInput{
 		UserID: 7, ActorCompany: domain.CompanyRefOf(10), ActorRole: domain.RoleTrainee, CourseID: 5,
 	})
-	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+	require.ErrorIs(t, err, domain.ErrNotFound)
 }

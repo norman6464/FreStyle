@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"gorm.io/gorm"
 )
 
 // progressStore は進捗 mock が記録する状態(course クラスタのテストで共有)。
@@ -100,7 +99,7 @@ func Test_レッスン完了_trainee_に未公開の教材は403相当(t *testin
 
 func Test_レッスン完了_存在しない教材は404相当(t *testing.T) {
 	progress, _ := progressRepo(progressFakeConfig{})
-	mat, _ := materialRepo(materialFakeConfig{getErr: gorm.ErrRecordNotFound})
+	mat, _ := materialRepo(materialFakeConfig{getErr: domain.ErrNotFound})
 	crs, _ := courseRepo(courseFakeConfig{})
 	uc := usecase.NewMarkLessonCompletedUseCase(progress, mat, crs, &nopActivityRepo{})
 	err := uc.Execute(context.Background(), usecase.MarkLessonCompletedInput{

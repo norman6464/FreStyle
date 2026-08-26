@@ -266,7 +266,7 @@ func TestTenantBridgeDualWrite_Integration(t *testing.T) {
 	t.Run("存在しない会社の有効/無効更新は not found のまま", func(t *testing.T) {
 		testsupport.TruncateAll(t, db, tenantBridgeTables...)
 		companies := persistence.NewCompanyRepository(db)
-		require.ErrorIs(t, companies.UpdateActive(ctx, 999, false), gorm.ErrRecordNotFound)
+		require.ErrorIs(t, companies.UpdateActive(ctx, 999, false), domain.ErrNotFound)
 	})
 
 	t.Run("ワークスペース未紐付けの会社でも設定更新は成功する", func(t *testing.T) {

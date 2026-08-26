@@ -13,7 +13,6 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/stretchr/testify/require"
-	"gorm.io/gorm"
 )
 
 // TestTeachingMaterialRepository_CountByCourseForCompany_Integration は
@@ -89,9 +88,9 @@ func TestTeachingMaterialRepository_UpdateDocWithRevision_Integration(t *testing
 		require.ErrorIs(t, err, repository.ErrChapterDocConflict)
 	})
 
-	t.Run("存在しない章は gorm.ErrRecordNotFound", func(t *testing.T) {
+	t.Run("存在しない章は domain.ErrNotFound", func(t *testing.T) {
 		_, err := repo.UpdateDocWithRevision(ctx, 99999, doc, 1)
-		require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+		require.ErrorIs(t, err, domain.ErrNotFound)
 	})
 
 	t.Run("NUL(U+0000) を含む doc は ErrChapterDocInvalidData", func(t *testing.T) {
@@ -151,7 +150,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 		require.Equal(t, beyondInt32, got.OrderInCourse)
 	})
 
-	t.Run("GetByID は本文 doc を含めて返し、未存在は gorm.ErrRecordNotFound", func(t *testing.T) {
+	t.Run("GetByID は本文 doc を含めて返し、未存在は domain.ErrNotFound", func(t *testing.T) {
 		testsupport.TruncateAll(t, db, "course_chapters")
 		m := mk(1, 10, "章", 1, true)
 		require.NoError(t, repo.Create(ctx, m))
@@ -167,7 +166,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 		require.Contains(t, *got.Doc, "paragraph")
 
 		_, err = repo.GetByID(ctx, 999999)
-		require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+		require.ErrorIs(t, err, domain.ErrNotFound)
 	})
 
 	t.Run("ListByCourse は sort_order 昇順・published フィルタ・doc 本体なし", func(t *testing.T) {
@@ -257,7 +256,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 		require.WithinDuration(t, time.Now(), got.UpdatedAt, time.Minute) // now() に進んだ
 	})
 
-	t.Run("Update は存在しない id で gorm.ErrRecordNotFound を返す（黙って成功にしない）", func(t *testing.T) {
+	t.Run("Update は存在しない id で domain.ErrNotFound を返す（黙って成功にしない）", func(t *testing.T) {
 		testsupport.TruncateAll(t, db, "course_chapters")
 		// 巻き添えで他の行が書き換わらないことも同時に見るため 1 件だけ残しておく。
 		keep := mk(1, 10, "残す", 1, true)
@@ -265,14 +264,14 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 
 		ghost := mk(1, 10, "消えた章", 1, true)
 		ghost.ID = 999999
-		require.ErrorIs(t, repo.Update(ctx, ghost), gorm.ErrRecordNotFound)
+		require.ErrorIs(t, repo.Update(ctx, ghost), domain.ErrNotFound)
 
 		got, err := repo.GetByID(ctx, keep.ID)
 		require.NoError(t, err)
 		require.Equal(t, "残す", got.Title) // 別の行は触られていない
 	})
 
-	t.Run("Update は取得後に消えた章でも gorm.ErrRecordNotFound を返す", func(t *testing.T) {
+	t.Run("Update は取得後に消えた章でも domain.ErrNotFound を返す", func(t *testing.T) {
 		testsupport.TruncateAll(t, db, "course_chapters")
 		m := mk(1, 10, "章", 1, true)
 		require.NoError(t, repo.Create(ctx, m))
@@ -280,7 +279,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 		require.NoError(t, repo.Delete(ctx, m.ID))
 
 		m.Title = "編集後"
-		require.ErrorIs(t, repo.Update(ctx, m), gorm.ErrRecordNotFound)
+		require.ErrorIs(t, repo.Update(ctx, m), domain.ErrNotFound)
 	})
 
 	t.Run("Delete / DeleteByCourse は存在しない id でも冪等に nil（後条件は満たされている）", func(t *testing.T) {
@@ -304,7 +303,7 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 		require.NoError(t, repo.Create(ctx, m))
 		require.NoError(t, repo.Delete(ctx, m.ID))
 		_, err := repo.GetByID(ctx, m.ID)
-		require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+		require.ErrorIs(t, err, domain.ErrNotFound)
 	})
 
 	t.Run("DeleteByCourse はコース配下を全削除し他コースは残す", func(t *testing.T) {

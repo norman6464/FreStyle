@@ -10,7 +10,6 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/stretchr/testify/assert"
-	"gorm.io/gorm"
 )
 
 func init() { gin.SetMode(gin.TestMode) }
@@ -61,7 +60,7 @@ func TestRespondEntityErr(t *testing.T) {
 		err      error
 		wantCode int
 	}{
-		{"レコード未検出は 404", gorm.ErrRecordNotFound, http.StatusNotFound},
+		{"レコード未検出は 404", domain.ErrNotFound, http.StatusNotFound},
 		{"forbidden は 403", errors.New("forbidden"), http.StatusForbidden},
 		{"forbidden 詳細付きも 403", errors.New("forbidden: only company_admin or super_admin can create materials"), http.StatusForbidden},
 		{"会社未所属は 403", errors.New("actor must belong to a company"), http.StatusForbidden},

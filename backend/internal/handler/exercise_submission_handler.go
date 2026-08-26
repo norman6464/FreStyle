@@ -5,9 +5,9 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
-	"gorm.io/gorm"
 )
 
 // ExerciseSubmissionHandler は master_exercises に対する提出 / 履歴 API を扱う。
@@ -63,7 +63,7 @@ func (h *ExerciseSubmissionHandler) Submit(c *gin.Context) {
 		Code:   req.Code,
 	})
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if errors.Is(err, domain.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "演習問題が見つかりません"})
 			return
 		}
@@ -98,7 +98,7 @@ func (h *ExerciseSubmissionHandler) List(c *gin.Context) {
 	}
 	rows, err := h.list.Execute(c.Request.Context(), usecase.ListUserMasterSubmissionsInput{UserID: uid, Slug: slug})
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if errors.Is(err, domain.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "演習問題が見つかりません"})
 			return
 		}

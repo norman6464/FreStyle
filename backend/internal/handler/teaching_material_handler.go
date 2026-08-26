@@ -10,7 +10,6 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
-	"gorm.io/gorm"
 )
 
 // TeachingMaterialHandler は教材の CRUD + コース内一覧 API を扱う。
@@ -103,7 +102,7 @@ func (h *TeachingMaterialHandler) Get(c *gin.Context) {
 	}
 	m, err := h.uc.Get(c.Request.Context(), id, actorCompany, role)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if errors.Is(err, domain.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "教材が見つかりません"})
 			return
 		}
@@ -179,7 +178,7 @@ func (h *TeachingMaterialHandler) UpdateDoc(c *gin.Context) {
 	})
 	if err != nil {
 		switch {
-		case errors.Is(err, gorm.ErrRecordNotFound):
+		case errors.Is(err, domain.ErrNotFound):
 			c.JSON(http.StatusNotFound, gin.H{"error": "教材が見つかりません"})
 		case errors.Is(err, repository.ErrChapterDocConflict):
 			c.JSON(http.StatusConflict, gin.H{"error": "他の場所で更新されています。最新版を読み込み直してください"})

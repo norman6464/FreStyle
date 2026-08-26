@@ -11,7 +11,6 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
 	"github.com/stretchr/testify/require"
-	"gorm.io/gorm"
 )
 
 // TestCourseRepository_Integration は ListByCompany の company 絞り込み / published フィルタ /
@@ -141,7 +140,7 @@ func TestCourseRepository_CreateDefaults_Integration(t *testing.T) {
 	require.False(t, got.IsPublished, "既定は非公開")
 }
 
-// TestCourseRepository_GetByIDNotFound_Integration は未存在の GetByID が gorm.ErrRecordNotFound を
+// TestCourseRepository_GetByIDNotFound_Integration は未存在の GetByID が domain.ErrNotFound を
 // 返すこと（handler が 404 に分岐する契約）を固定する。sql.ErrNoRows を素通しすると 404 判定が壊れる。
 func TestCourseRepository_GetByIDNotFound_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
@@ -150,7 +149,7 @@ func TestCourseRepository_GetByIDNotFound_Integration(t *testing.T) {
 	testsupport.TruncateAll(t, db, "courses")
 
 	_, err := repo.GetByID(ctx, 999_999)
-	require.ErrorIs(t, err, gorm.ErrRecordNotFound, "未存在は gorm.ErrRecordNotFound（404 シグナル）")
+	require.ErrorIs(t, err, domain.ErrNotFound, "未存在は domain.ErrNotFound（404 シグナル）")
 }
 
 // TestCourseRepository_SortOrderBigint_Integration は sort_order が bigint 列であることを

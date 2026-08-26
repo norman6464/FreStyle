@@ -16,11 +16,10 @@ import (
 
 // TestAuditRepository_Integration は Record の保存と ListRecent の新しい順 / limit を実 Postgres で検証する。
 func TestAuditRepository_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewAuditRepository(sqlDB)
 	ctx := context.Background()
-	testsupport.TruncateAll(t, db, "audit_events")
+	testsupport.TruncateAll(t, sqlDB, "audit_events")
 
 	require.NoError(t, repo.Record(ctx, &domain.AuditEvent{
 		ActorID: 1, ActorEmail: "a@x", ActorRole: string(domain.RoleSuperAdmin),
@@ -48,11 +47,10 @@ func TestAuditRepository_Integration(t *testing.T) {
 // TestAuditRepository_Record_Integration は Record の契約
 // （採番 id と created_at の書き戻し / 全列の保存 / 明示した created_at は保持）を固定する。
 func TestAuditRepository_Record_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewAuditRepository(sqlDB)
 	ctx := context.Background()
-	testsupport.TruncateAll(t, db, "audit_events")
+	testsupport.TruncateAll(t, sqlDB, "audit_events")
 
 	type auditRow struct {
 		ID         uint64
@@ -65,10 +63,10 @@ func TestAuditRepository_Record_Integration(t *testing.T) {
 	}
 	read := func(id uint64) auditRow {
 		var row auditRow
-		require.NoError(t, db.Raw(
-			"SELECT id, actor_id, actor_email, actor_role, action, target_id, created_at FROM audit_events WHERE id = ?",
+		require.NoError(t, sqlDB.QueryRow(
+			"SELECT id, actor_id, actor_email, actor_role, action, target_id, created_at FROM audit_events WHERE id = $1",
 			id,
-		).Scan(&row).Error)
+		).Scan(&row.ID, &row.ActorID, &row.ActorEmail, &row.ActorRole, &row.Action, &row.TargetID, &row.CreatedAt))
 		return row
 	}
 

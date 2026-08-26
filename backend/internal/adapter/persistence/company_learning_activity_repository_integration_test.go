@@ -17,14 +17,13 @@ import (
 // TestCompanyLearningActivityRepository_Integration は自社 trainee の学習アクティビティ集計
 // (会社/ロール絞り込み・論理削除除外・最終活動日・期間内活動回数・並び順)を実 Postgres で検証する。
 func TestCompanyLearningActivityRepository_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewCompanyLearningActivityRepository(sqlDB)
 	activities := persistence.NewUserDailyActivityRepository(sqlDB)
 	ctx := context.Background()
 
-	testsupport.TruncateAll(t, db, "user_daily_activities")
-	testsupport.TruncateAll(t, db, "users")
+	testsupport.TruncateAll(t, sqlDB, "user_daily_activities")
+	testsupport.TruncateAll(t, sqlDB, "users")
 
 	companyID := uint64(1)
 	otherCompany := uint64(2)

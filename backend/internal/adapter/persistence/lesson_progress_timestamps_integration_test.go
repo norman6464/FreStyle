@@ -14,12 +14,11 @@ import (
 // TestLessonProgressRepository_Timestamps_Integration は完了記録の作成時に
 // completed_at / created_at が非ゼロで書かれることを固定する（NOT NULL 列に時刻が入る）。
 func TestLessonProgressRepository_Timestamps_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewLessonProgressRepository(sqlDB)
 	ctx := context.Background()
 
-	testsupport.TruncateAll(t, db, "user_chapter_progress")
+	testsupport.TruncateAll(t, sqlDB, "user_chapter_progress")
 
 	changed, err := repo.MarkCompleted(ctx, 1, 10, 100)
 	require.NoError(t, err)

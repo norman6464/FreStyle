@@ -139,14 +139,13 @@ func listCases() []listCase {
 // TypeError で落ちる（FRESTYLE-70 で staging 実機で観測）。新規ユーザー・新規コース・
 // 未提出演習という、新メンバーが最初に踏む動線で発生するため影響が大きい（FRESTYLE-77）。
 func TestPersistence_一覧が0件でもnullではなく空配列を返すこと_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	ctx := context.Background()
 
 	for _, tc := range listCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			if len(tc.truncate) > 0 {
-				testsupport.TruncateAll(t, db, tc.truncate...)
+				testsupport.TruncateAll(t, sqlDB, tc.truncate...)
 			}
 
 			got, err := tc.call(ctx, sqlDB)
@@ -166,8 +165,7 @@ func TestPersistence_一覧が0件でもnullではなく空配列を返すこと
 // 取得できなかったことを空配列として返すと、利用者には「0 件」と区別がつかず
 // 障害に気づけなくなる。context を中断した状態で必ずエラーが返ることを確認する。
 func TestPersistence_一覧取得の失敗はエラーとして返ること_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel() // 実行前に中断しておく
 

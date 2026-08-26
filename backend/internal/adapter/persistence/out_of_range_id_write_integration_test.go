@@ -187,8 +187,7 @@ func outOfRangeWriteCases() []writeCase {
 // （usecase はそのまま 201 / 200 を返し、次の取得で「無い」ことに初めて気づく）。
 // 読み取り系が「存在し得ない id = 0 件 / not found」を返すのとは扱いが異なる。
 func TestPersistence_書き込みは範囲外idを成功として返さないこと_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	ctx := context.Background()
 
 	for _, tc := range outOfRangeWriteCases() {

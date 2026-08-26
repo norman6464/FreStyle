@@ -14,12 +14,11 @@ import (
 // TestUserChapterViewRepository_GetLastViewedByUserAndCourse_Integration は
 // (user, course) 内の last_viewed_at 最大 1 件の取得を実 Postgres で検証する。
 func TestUserChapterViewRepository_GetLastViewedByUserAndCourse_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewUserChapterViewRepository(sqlDB)
 	ctx := context.Background()
 
-	testsupport.TruncateAll(t, db, "user_chapter_views")
+	testsupport.TruncateAll(t, sqlDB, "user_chapter_views")
 
 	// user 1 が course 10 の章 101 → 102 の順に閲覧(102 が最後)。course 20 は章 201 のみ。
 	require.NoError(t, repo.UpsertView(ctx, 1, 101, 10))

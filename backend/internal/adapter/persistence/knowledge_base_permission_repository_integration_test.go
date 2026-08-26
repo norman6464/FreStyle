@@ -16,7 +16,6 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gorm.io/gorm"
 )
 
 // createUser は users に 1 行入れて id を返す。principals / share_links は users へ FK を持つため、
@@ -63,9 +62,9 @@ type kbPermFixture struct {
 	carol    uint64
 }
 
-func setupKBPermission(t *testing.T, gormDB *gorm.DB, sqlDB *sql.DB) kbPermFixture {
+func setupKBPermission(t *testing.T, sqlDB *sql.DB) kbPermFixture {
 	t.Helper()
-	testsupport.TruncateAll(t, gormDB, kbTables...)
+	testsupport.TruncateAll(t, sqlDB, kbTables...)
 	f := kbPermFixture{
 		db:     sqlDB,
 		perm:   persistence.NewKnowledgeBasePermissionRepository(sqlDB),
@@ -134,13 +133,11 @@ func (f kbPermFixture) viewablePageIDs(ctx context.Context, t *testing.T, spaceI
 }
 
 func TestKnowledgeBasePermission_Integration(t *testing.T) {
-	gormDB := testsupport.OpenTestDB(t)
-	sqlDB, err := gormDB.DB()
-	require.NoError(t, err)
+	sqlDB := testsupport.OpenTestDB(t)
 	ctx := context.Background()
 
 	t.Run("メンバー追加は冪等で所属判定に効く", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 
 		member, err := f.perm.IsWorkspaceMember(ctx, f.ws, f.alice)
 		require.NoError(t, err)
@@ -163,7 +160,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 	})
 
 	t.Run("別ワークスペースのprincipalにgrantを張れない", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		// alice を「別ワークスペース」のメンバーにして、その主体 ID を本命ワークスペースで使う。
 		foreign, err := f.perm.EnsureUserPrincipal(ctx, f.otherWS, f.alice)
 		require.NoError(t, err)
@@ -180,13 +177,13 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 	})
 
 	t.Run("存在しないユーザーのprincipalは作れない", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		_, err := f.perm.EnsureUserPrincipal(ctx, f.ws, 999999999)
 		requirePgError(t, err, sqlStateForeignKeyViolation, "fk_principals_user")
 	})
 
 	t.Run("ユーザーを消すと権限も消える", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		principal, err := f.perm.EnsureUserPrincipal(ctx, f.ws, f.bob)
 		require.NoError(t, err)
 		_, err = f.perm.UpsertSpaceGrant(ctx, f.ws, f.spaceA, principal.ID, domain.GrantRoleEditor)
@@ -201,7 +198,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 	})
 
 	t.Run("グループの入れ子はDBが弾く", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		outer, err := f.perm.CreateGroupPrincipal(ctx, f.ws, "外側")
 		require.NoError(t, err)
 		inner, err := f.perm.CreateGroupPrincipal(ctx, f.ws, "内側")
@@ -217,7 +214,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 	})
 
 	t.Run("kindごとに使う列がCHECKで固定されている", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 
 		// kind='user' なのに user_id が無い。
 		_, err := f.db.Exec(
@@ -258,7 +255,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 	})
 
 	t.Run("スペース全員のprincipalは別テナントのスペースを指せない", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		_, err := f.db.Exec(
 			`INSERT INTO principals (id, workspace_id, kind, space_id)
 			 VALUES (gen_random_uuid(), $1, 'space_all', $2)`, f.ws, f.otherSpc,
@@ -267,7 +264,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 	})
 
 	t.Run("既定はスペースのgrantで決まる", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
 		alice, err := f.perm.EnsureUserPrincipal(ctx, f.ws, f.alice)
 		require.NoError(t, err)
@@ -293,7 +290,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 	})
 
 	t.Run("ワークスペースのgrantは全スペースに効きスペースのgrantで降格しない", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		pageA := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "A ルート")
 		pageB := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceB, nil, "B ルート")
 		alice, err := f.perm.EnsureUserPrincipal(ctx, f.ws, f.alice)
@@ -317,7 +314,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 	})
 
 	t.Run("グループ経由とスペース全員の権限が効く", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
 		_, err := f.perm.EnsureUserPrincipal(ctx, f.ws, f.alice)
 		require.NoError(t, err)
@@ -347,7 +344,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 	})
 
 	t.Run("祖先の例外が効き近い段が優先され解除で既定に戻る", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		root := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
 		child := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &root.ID, "child")
 		grand := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &child.ID, "grand")
@@ -389,7 +386,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 	})
 
 	t.Run("より近い許可リストがより遠い許可リストを上書きする", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		root := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
 		child := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &root.ID, "child")
 		grand := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &child.ID, "grand")
@@ -411,7 +408,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 	})
 
 	t.Run("祖先の限定公開は子孫のdeny1行で解除されない", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		parent := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "人事・機密")
 		child := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &parent.ID, "査定シート")
 		grand := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &child.ID, "評価コメント")
@@ -458,7 +455,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 		// 主体を消すと許可リストの行も FK の CASCADE で一緒に消えるので、
 		// 「限定公開かどうか」を allow 行の有無で表していると、その瞬間に
 		// 経路上の制限が 1 つも無い状態になって既定（スペース全員 editor）へ戻ってしまう。
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		root := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "人事・機密")
 		child := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &root.ID, "査定シート")
 		byGroup := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "部署だけの棚")
@@ -514,7 +511,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 		// root = [alice] / child = [alice, bob] のように段ごとに許可リストが違うとき、
 		// alice を消すと child の段には bob が残るのに root の段だけ空になる。
 		// 空になった段が「制限なし」に見えると、root 直下（child 以外）が全開になる。
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		root := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
 		child := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &root.ID, "広げた枝")
 		sibling := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &root.ID, "広げていない枝")
@@ -540,7 +537,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 	})
 
 	t.Run("限定公開が解けるのは許可リストを畳んだときだけ", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		root := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
 
 		f.grantSpace(ctx, t, f.spaceA, f.everyoneOf(ctx, t, f.spaceA).ID, domain.GrantRoleEditor)
@@ -567,7 +564,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 	})
 
 	t.Run("読み取り専用のサブツリーは子のedit_deny1行で崩れない", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		root := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "規程集")
 		child := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &root.ID, "就業規則")
 
@@ -595,7 +592,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 	// ケイパビリティごとの突き合わせを外すと、その人が相手側の段に載っているものとして
 	// 通ってしまう。深さだけが一致していて意味は別、という取り違えを固定する。
 	t.Run("閲覧の許可リストの段は編集の段と取り違えられない", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		root := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
 		child := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &root.ID, "child")
 
@@ -618,7 +615,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 	})
 
 	t.Run("編集の許可リストの段は閲覧の段と取り違えられない", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		root := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
 		child := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &root.ID, "child")
 
@@ -640,7 +637,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 	})
 
 	t.Run("一覧は別ワークスペースのスペースとアーカイブ済みを返さない", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		root := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
 		leaving := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &root.ID, "アーカイブする子")
 		f.grantSpace(ctx, t, f.spaceA, f.principalFor(ctx, t, f.alice).ID, domain.GrantRoleEditor)
@@ -660,7 +657,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 	})
 
 	t.Run("スペース全員のdenyは別スペースへの移動で失効しない", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		parent := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "親")
 		secret := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &parent.ID, "社外秘")
 
@@ -705,7 +702,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 	})
 
 	t.Run("移動先スペース全員の例外と同一スペース内の移動は止めない", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 
 		// スペースが変わらない移動は、例外の意味も変わらないので止めない。
 		staying := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "親")
@@ -730,7 +727,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 	})
 
 	t.Run("同じ主体とケイパビリティに矛盾する例外は作れない", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
 		alice, err := f.perm.EnsureUserPrincipal(ctx, f.ws, f.alice)
 		require.NoError(t, err)
@@ -747,7 +744,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 	})
 
 	t.Run("祖先をたどる解決が別スペースへ漏れない", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		// スペース A と B に、それぞれ独立した木を作る。
 		aRoot := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "A ルート")
 		aChild := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &aRoot.ID, "A 子")
@@ -780,7 +777,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 	})
 
 	t.Run("ページを動かすと実効権限が変わる", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		open := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "公開の親")
 		secret := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "秘密の親")
 		moving := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &open.ID, "動くページ")
@@ -814,7 +811,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 	})
 
 	t.Run("閲覧可能ページ一覧は見えないページを落とす", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		root := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
 		open := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &root.ID, "公開")
 		secret := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &root.ID, "秘密")
@@ -858,7 +855,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 		// もう片方のテストでは気づけない。「見えない根拠が許可リストだけ」の断言では
 		// 一覧側の deny 集計・所属グループ・ケイパビリティの絞り込みを落としても素通りするため、
 		// その 3 つが一覧経路にも効いていることをここで固定する。
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		root := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
 		denied := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &root.ID, "名指しで外されたページ")
 		deniedChild := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &denied.ID, "その子")
@@ -901,7 +898,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 	})
 
 	t.Run("メンバー削除のusecaseは主体ごと消す", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
 		alice, err := f.perm.EnsureUserPrincipal(ctx, f.ws, f.alice)
 		require.NoError(t, err)
@@ -919,7 +916,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 	})
 
 	t.Run("grantと例外の一覧を引ける", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
 		alice, err := f.perm.EnsureUserPrincipal(ctx, f.ws, f.alice)
 		require.NoError(t, err)
@@ -958,7 +955,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 	})
 
 	t.Run("グループ操作のusecaseが権限に効く", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
 		_, err := usecase.NewAddWorkspaceMemberUseCase(f.perm).Execute(ctx,
 			usecase.AddWorkspaceMemberInput{WorkspaceID: f.ws, UserID: f.bob})
@@ -996,7 +993,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 	})
 
 	t.Run("形式が不正なIDは存在しないものとして扱う", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		const bad = "not-a-uuid"
 
 		_, err := f.perm.FindPrincipal(ctx, bad, bad)
@@ -1053,7 +1050,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 	})
 
 	t.Run("別テナントの所属は解決に持ち込まれない", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
 		// alice は「別ワークスペース」だけのメンバーで、そちらでは admin。
 		foreign, err := f.perm.EnsureUserPrincipal(ctx, f.otherWS, f.alice)
@@ -1075,7 +1072,7 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 	})
 
 	t.Run("別ワークスペースのページは解決できない", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		foreignPage := mustCreatePage(ctx, t, f.pageUC, f.otherWS, f.otherSpc, nil, "別テナントのページ")
 
 		_, err := f.perm.PagePermissionFactsForUser(ctx, f.ws, foreignPage.ID, f.alice)
@@ -1084,13 +1081,11 @@ func TestKnowledgeBasePermission_Integration(t *testing.T) {
 }
 
 func TestKnowledgeBaseShareLink_Integration(t *testing.T) {
-	gormDB := testsupport.OpenTestDB(t)
-	sqlDB, err := gormDB.DB()
-	require.NoError(t, err)
+	sqlDB := testsupport.OpenTestDB(t)
 	ctx := context.Background()
 
 	t.Run("発行したリンクで対象ページと子孫を開ける", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		root := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "公開ルート")
 		child := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &root.ID, "子")
 		outside := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "対象外")
@@ -1115,7 +1110,7 @@ func TestKnowledgeBaseShareLink_Integration(t *testing.T) {
 	})
 
 	t.Run("平文トークンはDBに残らない", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
 		issued, err := usecase.NewIssueShareLinkUseCase(f.perm).Execute(ctx, usecase.IssueShareLinkInput{
 			WorkspaceID: f.ws, PageID: page.ID, Capability: domain.CapabilityView,
@@ -1138,7 +1133,7 @@ func TestKnowledgeBaseShareLink_Integration(t *testing.T) {
 	})
 
 	t.Run("期限切れと失効は開けない", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
 		issueUC := usecase.NewIssueShareLinkUseCase(f.perm)
 		verifyUC := usecase.NewVerifyShareLinkUseCase(f.perm)
@@ -1177,7 +1172,7 @@ func TestKnowledgeBaseShareLink_Integration(t *testing.T) {
 	})
 
 	t.Run("公開しつつ子ページだけdenyで隠せる", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		root := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "公開ルート")
 		hidden := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &root.ID, "隠す子")
 
@@ -1204,7 +1199,7 @@ func TestKnowledgeBaseShareLink_Integration(t *testing.T) {
 	})
 
 	t.Run("除外した子ページは無関係なdenyで復活しない", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		root := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "公開ルート")
 		hidden := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &root.ID, "隠す子")
 		grand := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &hidden.ID, "隠す子の子")
@@ -1239,7 +1234,7 @@ func TestKnowledgeBaseShareLink_Integration(t *testing.T) {
 	})
 
 	t.Run("一般メンバーの自己denyでは公開リンクに露出しない", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		root := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "公開ルート")
 		hidden := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &root.ID, "社外秘")
 		grand := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, &hidden.ID, "社外秘の子")
@@ -1268,7 +1263,7 @@ func TestKnowledgeBaseShareLink_Integration(t *testing.T) {
 	})
 
 	t.Run("共有リンクの主体はスペースのgrantを拾わない", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
 		everyone, err := f.perm.EnsureSpaceEveryonePrincipal(ctx, f.ws, f.spaceA)
 		require.NoError(t, err)
@@ -1287,7 +1282,7 @@ func TestKnowledgeBaseShareLink_Integration(t *testing.T) {
 	})
 
 	t.Run("リンクを消すと主体も消える", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
 		issued, err := usecase.NewIssueShareLinkUseCase(f.perm).Execute(ctx, usecase.IssueShareLinkInput{
 			WorkspaceID: f.ws, PageID: page.ID, Capability: domain.CapabilityView, CreatedByUserID: f.alice,
@@ -1306,7 +1301,7 @@ func TestKnowledgeBaseShareLink_Integration(t *testing.T) {
 	})
 
 	t.Run("ページの共有リンク一覧は失効済みも返す", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
 		issueUC := usecase.NewIssueShareLinkUseCase(f.perm)
 		alive, err := issueUC.Execute(ctx, usecase.IssueShareLinkInput{
@@ -1332,7 +1327,7 @@ func TestKnowledgeBaseShareLink_Integration(t *testing.T) {
 	})
 
 	t.Run("共有リンクの主体は対象ページに結び付く", func(t *testing.T) {
-		f := setupKBPermission(t, gormDB, sqlDB)
+		f := setupKBPermission(t, sqlDB)
 		page := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "root")
 		other := mustCreatePage(ctx, t, f.pageUC, f.ws, f.spaceA, nil, "別ページ")
 		issued, err := usecase.NewIssueShareLinkUseCase(f.perm).Execute(ctx, usecase.IssueShareLinkInput{

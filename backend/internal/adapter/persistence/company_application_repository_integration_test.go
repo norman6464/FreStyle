@@ -16,9 +16,8 @@ import (
 // TestCompanyApplicationRepository_Integration は本物の PostgreSQL に対して
 // CompanyApplicationRepository の Create / ListAll / UpdateStatus を検証する結合テスト。
 func TestCompanyApplicationRepository_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
-	testsupport.TruncateAll(t, db, "company_applications")
+	sqlDB := testsupport.OpenTestDB(t)
+	testsupport.TruncateAll(t, sqlDB, "company_applications")
 
 	repo := persistence.NewCompanyApplicationRepository(sqlDB)
 	ctx := context.Background()
@@ -42,7 +41,7 @@ func TestCompanyApplicationRepository_Integration(t *testing.T) {
 	})
 
 	t.Run("ListAll は created_at 降順で返す", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "company_applications")
+		testsupport.TruncateAll(t, sqlDB, "company_applications")
 
 		older := &domain.CompanyApplication{
 			CompanyName: "古い申請", ApplicantName: "A", Email: "a@example.com",
@@ -66,7 +65,7 @@ func TestCompanyApplicationRepository_Integration(t *testing.T) {
 	})
 
 	t.Run("UpdateStatus で status を更新できる", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "company_applications")
+		testsupport.TruncateAll(t, sqlDB, "company_applications")
 
 		app := &domain.CompanyApplication{
 			CompanyName: "承認される会社", ApplicantName: "C", Email: "c@example.com",

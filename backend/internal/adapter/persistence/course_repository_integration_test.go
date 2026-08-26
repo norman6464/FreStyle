@@ -16,8 +16,7 @@ import (
 // TestCourseRepository_Integration は ListByCompany の company 絞り込み / published フィルタ /
 // 並び順を実 Postgres で検証する。
 func TestCourseRepository_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewCourseRepository(sqlDB)
 	ctx := context.Background()
 
@@ -29,7 +28,7 @@ func TestCourseRepository_Integration(t *testing.T) {
 	}
 
 	t.Run("ListByCompany は company で絞り published フィルタ + sort_order 昇順", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "courses")
+		testsupport.TruncateAll(t, sqlDB, "courses")
 
 		require.NoError(t, repo.Create(ctx, mk(1, "published", true, 20)))
 		require.NoError(t, repo.Create(ctx, mk(1, "draft", false, 10)))
@@ -50,7 +49,7 @@ func TestCourseRepository_Integration(t *testing.T) {
 	})
 
 	t.Run("Create→GetByID→Update→Delete の一連", func(t *testing.T) {
-		testsupport.TruncateAll(t, db, "courses")
+		testsupport.TruncateAll(t, sqlDB, "courses")
 
 		c := mk(1, "lifecycle", true, 1)
 		require.NoError(t, repo.Create(ctx, c))
@@ -76,11 +75,10 @@ func TestCourseRepository_Integration(t *testing.T) {
 // sort_order/is_published のみ）であること、すなわち更新対象外の列
 // （created_by_user_id / company_id / category / language / created_at）を壊さないことを固定する。
 func TestCourseRepository_PartialUpdate_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewCourseRepository(sqlDB)
 	ctx := context.Background()
-	testsupport.TruncateAll(t, db, "courses")
+	testsupport.TruncateAll(t, sqlDB, "courses")
 
 	orig := &domain.Course{
 		CompanyID: 1, CreatedByUserID: 42,
@@ -125,11 +123,10 @@ func TestCourseRepository_PartialUpdate_Integration(t *testing.T) {
 // GORM の `default:100` タグ相当で 100 になり、その値が in-memory にも書き戻ることを固定する。
 // sortOrder は API で required でないため 0 が入り得る動線で、並び順に効くため保つ。
 func TestCourseRepository_CreateDefaults_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewCourseRepository(sqlDB)
 	ctx := context.Background()
-	testsupport.TruncateAll(t, db, "courses")
+	testsupport.TruncateAll(t, sqlDB, "courses")
 
 	c := &domain.Course{CompanyID: 1, CreatedByUserID: 42, Title: "no-sort-order"} // SortOrder=0
 	require.NoError(t, repo.Create(ctx, c))
@@ -146,11 +143,10 @@ func TestCourseRepository_CreateDefaults_Integration(t *testing.T) {
 // TestCourseRepository_GetByIDNotFound_Integration は未存在の GetByID が domain.ErrNotFound を
 // 返すこと（handler が 404 に分岐する契約）を固定する。sql.ErrNoRows を素通しすると 404 判定が壊れる。
 func TestCourseRepository_GetByIDNotFound_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewCourseRepository(sqlDB)
 	ctx := context.Background()
-	testsupport.TruncateAll(t, db, "courses")
+	testsupport.TruncateAll(t, sqlDB, "courses")
 
 	_, err := repo.GetByID(ctx, 999_999)
 	require.ErrorIs(t, err, domain.ErrNotFound, "未存在は domain.ErrNotFound（404 シグナル）")
@@ -160,12 +156,11 @@ func TestCourseRepository_GetByIDNotFound_Integration(t *testing.T) {
 // 往復で固定する。パラメータを int4 に落とすとこの値は負数へ巻き戻り、
 // エラーも出ないまま別の値が保存される。
 func TestCourseRepository_SortOrderBigint_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewCourseRepository(sqlDB)
 	ctx := context.Background()
 
-	testsupport.TruncateAll(t, db, "courses")
+	testsupport.TruncateAll(t, sqlDB, "courses")
 	const beyondInt32 = math.MaxInt32 + 1
 	c := &domain.Course{
 		CompanyID: 1, CreatedByUserID: 1, Title: "並び順が int32 を超えるコース",

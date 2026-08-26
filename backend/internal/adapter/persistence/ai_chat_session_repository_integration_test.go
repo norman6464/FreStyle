@@ -4,6 +4,7 @@ package persistence_test
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
@@ -11,7 +12,6 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/testsupport"
 	"github.com/stretchr/testify/require"
-	"gorm.io/gorm"
 )
 
 // aiChatSessionRow は ai_chat_sessions の 1 行を repository を通さず直に読むための型。
@@ -26,24 +26,23 @@ type aiChatSessionRow struct {
 	UpdatedAt   time.Time
 }
 
-func readAiChatSessionRow(t *testing.T, db *gorm.DB, id uint64) aiChatSessionRow {
+func readAiChatSessionRow(t *testing.T, db *sql.DB, id uint64) aiChatSessionRow {
 	t.Helper()
 	var row aiChatSessionRow
-	require.NoError(t, db.Raw(
-		"SELECT id, user_id, title, session_type, scenario_id, created_at, updated_at FROM ai_chat_sessions WHERE id = ?",
+	require.NoError(t, db.QueryRow(
+		"SELECT id, user_id, title, session_type, scenario_id, created_at, updated_at FROM ai_chat_sessions WHERE id = $1",
 		id,
-	).Scan(&row).Error)
+	).Scan(&row.ID, &row.UserID, &row.Title, &row.SessionType, &row.ScenarioID, &row.CreatedAt, &row.UpdatedAt))
 	return row
 }
 
 // TestAiChatSessionRepository_Create_Integration は Create の契約
 // （採番 id と時刻の書き戻し / NULL 可の scenario_id / 明示した時刻は保持）を固定する。
 func TestAiChatSessionRepository_Create_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewAiChatSessionRepository(sqlDB)
 	ctx := context.Background()
-	testsupport.TruncateAll(t, db, "ai_chat_sessions")
+	testsupport.TruncateAll(t, sqlDB, "ai_chat_sessions")
 
 	t.Run("採番 id と created_at / updated_at を書き戻す", func(t *testing.T) {
 		scenario := uint64(42)
@@ -60,7 +59,7 @@ func TestAiChatSessionRepository_Create_Integration(t *testing.T) {
 		require.False(t, s.UpdatedAt.IsZero(), "updated_at が入る（DB 既定値は無い）")
 		require.False(t, s.CreatedAt.Before(before.Add(-time.Minute)), "created_at は現在時刻")
 
-		row := readAiChatSessionRow(t, db, s.ID)
+		row := readAiChatSessionRow(t, sqlDB, s.ID)
 		require.Equal(t, uint64(7), row.UserID)
 		require.Equal(t, "はじめてのチャット", row.Title)
 		require.Equal(t, domain.AiChatSessionTypePractice, row.SessionType)
@@ -73,7 +72,7 @@ func TestAiChatSessionRepository_Create_Integration(t *testing.T) {
 	t.Run("scenario_id 未指定は NULL で入る", func(t *testing.T) {
 		s := &domain.AiChatSession{UserID: 8, Title: "free", SessionType: domain.AiChatSessionTypeFree}
 		require.NoError(t, repo.Create(ctx, s))
-		row := readAiChatSessionRow(t, db, s.ID)
+		row := readAiChatSessionRow(t, sqlDB, s.ID)
 		require.Nil(t, row.ScenarioID)
 	})
 
@@ -84,7 +83,7 @@ func TestAiChatSessionRepository_Create_Integration(t *testing.T) {
 			CreatedAt: fixed, UpdatedAt: fixed,
 		}
 		require.NoError(t, repo.Create(ctx, s))
-		row := readAiChatSessionRow(t, db, s.ID)
+		row := readAiChatSessionRow(t, sqlDB, s.ID)
 		require.WithinDuration(t, fixed, row.CreatedAt, time.Second)
 		require.WithinDuration(t, fixed, row.UpdatedAt, time.Second)
 	})
@@ -93,11 +92,10 @@ func TestAiChatSessionRepository_Create_Integration(t *testing.T) {
 // TestAiChatSessionRepository_Read_Integration は ListByUserID / FindByID の契約
 // （user_id の絞り / created_at DESC, id DESC のタイブレーク / 未存在の not found）を固定する。
 func TestAiChatSessionRepository_Read_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewAiChatSessionRepository(sqlDB)
 	ctx := context.Background()
-	testsupport.TruncateAll(t, db, "ai_chat_sessions")
+	testsupport.TruncateAll(t, sqlDB, "ai_chat_sessions")
 
 	// 同一 created_at の 3 件（タイブレーク検証用）+ より新しい 1 件 + 他人の 1 件。
 	same := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -154,11 +152,10 @@ func TestAiChatSessionRepository_Read_Integration(t *testing.T) {
 // TestAiChatSessionRepository_UpdateTitle_Integration は UpdateTitle の契約
 // （書くのは title と updated_at だけ / 他行は触らない / 存在しない id はエラーにしない）を固定する。
 func TestAiChatSessionRepository_UpdateTitle_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewAiChatSessionRepository(sqlDB)
 	ctx := context.Background()
-	testsupport.TruncateAll(t, db, "ai_chat_sessions")
+	testsupport.TruncateAll(t, sqlDB, "ai_chat_sessions")
 
 	scenario := uint64(99)
 	old := time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC)
@@ -173,14 +170,14 @@ func TestAiChatSessionRepository_UpdateTitle_Integration(t *testing.T) {
 	require.NoError(t, repo.UpdateTitle(ctx, target.ID, "after"))
 
 	t.Run("title を書き updated_at を進める", func(t *testing.T) {
-		row := readAiChatSessionRow(t, db, target.ID)
+		row := readAiChatSessionRow(t, sqlDB, target.ID)
 		require.Equal(t, "after", row.Title)
 		require.True(t, row.UpdatedAt.After(old), "updated_at は現在時刻へ進む")
 		require.WithinDuration(t, time.Now(), row.UpdatedAt, time.Minute)
 	})
 
 	t.Run("title / updated_at 以外の列は変えない", func(t *testing.T) {
-		row := readAiChatSessionRow(t, db, target.ID)
+		row := readAiChatSessionRow(t, sqlDB, target.ID)
 		require.Equal(t, uint64(7), row.UserID)
 		require.Equal(t, domain.AiChatSessionTypePractice, row.SessionType)
 		require.NotNil(t, row.ScenarioID)
@@ -189,7 +186,7 @@ func TestAiChatSessionRepository_UpdateTitle_Integration(t *testing.T) {
 	})
 
 	t.Run("対象外の行は触らない", func(t *testing.T) {
-		row := readAiChatSessionRow(t, db, bystander.ID)
+		row := readAiChatSessionRow(t, sqlDB, bystander.ID)
 		require.Equal(t, "bystander", row.Title)
 		require.WithinDuration(t, old, row.UpdatedAt, time.Second)
 	})
@@ -202,17 +199,24 @@ func TestAiChatSessionRepository_UpdateTitle_Integration(t *testing.T) {
 // TestAiChatSessionRepository_Delete_Integration は Delete の契約
 // （物理削除であること / 対象外の行を消さない / 存在しない id はエラーにしない）を固定する。
 func TestAiChatSessionRepository_Delete_Integration(t *testing.T) {
-	db := testsupport.OpenTestDB(t)
-	sqlDB := testsupport.SQLDB(t, db)
+	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewAiChatSessionRepository(sqlDB)
 	ctx := context.Background()
-	testsupport.TruncateAll(t, db, "ai_chat_sessions")
+	testsupport.TruncateAll(t, sqlDB, "ai_chat_sessions")
 
 	t.Run("ai_chat_sessions は soft delete 列を持たない", func(t *testing.T) {
-		var cols []string
-		require.NoError(t, db.Raw(
+		cols := make([]string, 0)
+		rows, err := sqlDB.Query(
 			"SELECT column_name FROM information_schema.columns WHERE table_name = 'ai_chat_sessions'",
-		).Scan(&cols).Error)
+		)
+		require.NoError(t, err)
+		for rows.Next() {
+			var c string
+			require.NoError(t, rows.Scan(&c))
+			cols = append(cols, c)
+		}
+		require.NoError(t, rows.Err())
+		require.NoError(t, rows.Close())
 		require.NotContains(t, cols, "deleted_at", "deleted_at が無い = Delete は物理削除")
 	})
 
@@ -225,7 +229,7 @@ func TestAiChatSessionRepository_Delete_Integration(t *testing.T) {
 
 	t.Run("行そのものが消える（論理削除ではない）", func(t *testing.T) {
 		var cnt int64
-		require.NoError(t, db.Raw("SELECT count(*) FROM ai_chat_sessions WHERE id = ?", target.ID).Scan(&cnt).Error)
+		require.NoError(t, sqlDB.QueryRow("SELECT count(*) FROM ai_chat_sessions WHERE id = $1", target.ID).Scan(&cnt))
 		require.Equal(t, int64(0), cnt, "物理削除なので行が残らない")
 
 		_, err := repo.FindByID(ctx, target.ID)

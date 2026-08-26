@@ -172,4 +172,14 @@ func Test_ノートハンドラ_削除(t *testing.T) {
 			t.Fatalf("want 400, got %d", w.Code)
 		}
 	})
+	// 0 行削除（他人の note / 存在しない id）は repository が domain.ErrNotFound を返す。
+	// 以前はここでも 204 を返しており、消せていないのに呼び出し側は成功と判断していた。
+	// 他人の note と存在しない id はどちらもこの 1 本に畳まれるので存在オラクルは開かない。
+	t.Run("対象なし（domain.ErrNotFound） → 404", func(t *testing.T) {
+		w, c := noteCtx(http.MethodDelete, "", 7, "5")
+		newNoteHandler(&fakeNoteRepo{err: domain.ErrNotFound}).Delete(c)
+		if w.Code != http.StatusNotFound {
+			t.Fatalf("want 404, got %d", w.Code)
+		}
+	})
 }

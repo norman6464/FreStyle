@@ -44,8 +44,13 @@ func TestNoteRepository_Integration(t *testing.T) {
 		require.NoError(t, repo.Create(ctx, mine))
 		require.NoError(t, repo.Create(ctx, theirs))
 
-		// user 7 が user 8 の note を消そうとしても WHERE user_id=7 で no-op。
-		require.NoError(t, repo.Delete(ctx, 7, theirs.ID))
+		// user 7 が user 8 の note を消そうとしても WHERE user_id=7 で 0 行になる。
+		// 期待値を nil から domain.ErrNotFound へ更新した理由:
+		//   0 行削除まで成功にしていると、呼び出し側は「1 件消した」と「何も起きなかった」を
+		//   区別できず、削除が効いていないのに画面から行が消える。
+		//   「他人の note」と「存在しない id」はどちらも 0 行 = 同じ domain.ErrNotFound に畳まれるので、
+		//   存在オラクル（FRESTYLE-367 / 376 で塞いだ穴）は開かない。
+		require.ErrorIs(t, repo.Delete(ctx, 7, theirs.ID), domain.ErrNotFound)
 		got, err := repo.FindByID(ctx, 8, theirs.ID)
 		require.NoError(t, err, "他人の note は残る")
 		require.Equal(t, "theirs", got.Title)

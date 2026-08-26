@@ -206,3 +206,37 @@ func (u *RenamePageUseCase) Execute(ctx context.Context, in RenamePageInput) (*d
 	}
 	return u.repo.UpdatePageTitle(ctx, in.WorkspaceID, in.PageID, in.Title)
 }
+
+// FindPageUseCase はページ 1 件のメタ情報だけを引く（本文は読まない）。
+//
+// GetPageUseCase と分けているのは、読む量と目的が違うため。あちらは snapshot か blocks から
+// ProseMirror doc を組み立てて返す「本文を画面に出すための口」で、こちらが要るのは
+// ページが属するスペースと現在の状態だけ。権限操作 API（ページの例外・共有リンク）の
+// 認可がこれを使う — ページに対する権限を変えてよいかは「そのページが属するスペースの
+// admin か」で決まるので、まずページからスペースを知る必要がある。
+//
+// 本文を読まないことには意味がある。この口は認可より前に呼ばれる（スペースが分からないと
+// 認可判定ができない）ため、通れば必ず中身が見えるのでは困る。返すのはメタ情報だけで、
+// 呼び出し側は認可に落ちた場合それすら応答に出さない。
+type FindPageUseCase struct {
+	repo repository.KnowledgeBaseRepository
+}
+
+func NewFindPageUseCase(r repository.KnowledgeBaseRepository) *FindPageUseCase {
+	return &FindPageUseCase{repo: r}
+}
+
+type FindPageInput struct {
+	WorkspaceID string
+	PageID      string
+}
+
+func (u *FindPageUseCase) Execute(ctx context.Context, in FindPageInput) (*domain.Page, error) {
+	if in.WorkspaceID == "" {
+		return nil, errors.New("workspaceID is required")
+	}
+	if in.PageID == "" {
+		return nil, repository.ErrPageNotFound
+	}
+	return u.repo.FindPage(ctx, in.WorkspaceID, in.PageID)
+}

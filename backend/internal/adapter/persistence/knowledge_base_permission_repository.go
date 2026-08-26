@@ -150,6 +150,11 @@ func (r *knowledgeBasePermissionRepository) EnsureUserPrincipal(ctx context.Cont
 		UserID:      sql.NullInt64{Int64: int64(userID), Valid: true},
 	})
 	if err != nil {
+		// 実在しないユーザー ID を渡された場合は users への FK で落ちる。入力の誤りなので
+		// 制約違反のまま上へ流さず、「そのユーザーは居ない」として返す（500 にしない）。
+		if isForeignKeyViolation(err) {
+			return nil, repository.ErrUserNotFound
+		}
 		// 同時に同じユーザーを追加したときは一意制約で落ちる。既存を返して冪等にする。
 		existing, getErr := r.q.GetUserPrincipal(ctx, sqlcgen.GetUserPrincipalParams{
 			WorkspaceID: wsID,
@@ -223,6 +228,12 @@ func (r *knowledgeBasePermissionRepository) CreateGroupPrincipal(ctx context.Con
 		Name:        name,
 	})
 	if err != nil {
+		// 名前はワークスペース内で一意（uq_principals_group_name）。検査してから INSERT する
+		// までの間に別の要求が同じ名前を取り得るので、一意制約を唯一の判定にする
+		// （ワークスペース作成の slug と同じ考え方）。
+		if isUniqueViolation(err) {
+			return nil, repository.ErrPrincipalGroupNameTaken
+		}
 		return nil, err
 	}
 	p := toDomainPrincipal(row)

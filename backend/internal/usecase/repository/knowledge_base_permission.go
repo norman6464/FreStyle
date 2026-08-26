@@ -15,6 +15,19 @@ var ErrPrincipalNotFound = errors.New("principal not found")
 // トークンが違う場合もこれを返す（存在の有無自体を漏らさない）。
 var ErrShareLinkNotFound = errors.New("share link not found")
 
+// ErrUserNotFound は主体を作ろうとしたユーザーが users に存在しないときに返す。
+//
+// principals.user_id は users への FK なので、実在しないユーザー ID で
+// EnsureUserPrincipal を呼ぶと制約違反になる。それをそのまま上へ流すと
+// 「ユーザー ID を間違えた」という入力の誤りが 500 になり、呼び出し側は
+// DB 障害と区別できない（再試行すべきだと誤解する）。
+var ErrUserNotFound = errors.New("user not found")
+
+// ErrPrincipalGroupNameTaken はグループ名が同じワークスペースで使用済みのときに返す。
+// 名前はワークスペース内で一意（uq_principals_group_name）で、同名が 2 つあると
+// 権限を張る先を人が選べなくなる。
+var ErrPrincipalGroupNameTaken = errors.New("principal group name is already taken")
+
 // PageWithViewFacts は 1 ページと、そのページを閲覧できるかを決める事実の組。
 // ListSpacePageViewFacts が返す（ふるい落としは domain.ResolvePageView が行う）。
 //

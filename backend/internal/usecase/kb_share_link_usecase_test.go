@@ -208,3 +208,30 @@ func Test_共有リンク権限_必須項目の検証(t *testing.T) {
 	_, err = uc.Execute(ctx, usecase.CheckShareLinkPermissionInput{Link: kbShareLinkFor("tok")})
 	require.Error(t, err, "pageID 必須")
 }
+
+func Test_共有リンク一覧_失効済みも含めて返す(t *testing.T) {
+	revoked := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
+	repo := &mockKBPermissionRepo{}
+	repo.On("ListPageShareLinks", mock.Anything, kbWS, kbPage).
+		Return([]domain.ShareLink{
+			{ID: "l1", WorkspaceID: kbWS, PageID: kbPage, Capability: domain.CapabilityView},
+			{ID: "l2", WorkspaceID: kbWS, PageID: kbPage, Capability: domain.CapabilityView, RevokedAt: &revoked},
+		}, nil)
+	uc := usecase.NewListPageShareLinksUseCase(repo)
+
+	links, err := uc.Execute(context.Background(), usecase.ListPageShareLinksInput{
+		WorkspaceID: kbWS, PageID: kbPage,
+	})
+	require.NoError(t, err)
+	require.Len(t, links, 2, "止めたことの確認ができるよう失効済みも返す")
+}
+
+func Test_共有リンク一覧_必須項目の検証(t *testing.T) {
+	uc := usecase.NewListPageShareLinksUseCase(&mockKBPermissionRepo{})
+	ctx := context.Background()
+
+	_, err := uc.Execute(ctx, usecase.ListPageShareLinksInput{PageID: kbPage})
+	require.Error(t, err, "workspaceID 必須")
+	_, err = uc.Execute(ctx, usecase.ListPageShareLinksInput{WorkspaceID: kbWS})
+	require.Error(t, err, "pageID 必須")
+}

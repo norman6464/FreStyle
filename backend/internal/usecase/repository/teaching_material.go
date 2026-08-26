@@ -23,6 +23,8 @@ type TeachingMaterialRepository interface {
 	// (コース一覧に章数を出すための集計。コースごとの個別クエリだと N+1 になるため)。
 	CountByCourseForCompany(ctx context.Context, companyID uint64, includeUnpublished bool) (map[uint64]int, error)
 	Create(ctx context.Context, m *domain.TeachingMaterial) error
+	// Update は title / sort_order / is_published を書き換える。対象行が無ければ
+	// gorm.ErrRecordNotFound（黙って成功にすると失われた編集を保存済みに見せるため）。
 	Update(ctx context.Context, m *domain.TeachingMaterial) error
 	// UpdateDocWithRevision はリッチ本文（tiptap JSON）を楽観ロックで更新する。
 	// expectedRevision が現在値と一致した場合のみ doc を保存し revision を +1 する。

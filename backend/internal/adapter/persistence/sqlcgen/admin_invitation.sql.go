@@ -239,7 +239,9 @@ func (q *Queries) ListPendingInvitationsByCompany(ctx context.Context, arg ListP
 }
 
 const updateInvitationStatus = `-- name: UpdateInvitationStatus :exec
-UPDATE invitations SET status = $1 WHERE id = $2
+UPDATE invitations SET
+  status = $1
+WHERE id = $2
 `
 
 type UpdateInvitationStatusParams struct {

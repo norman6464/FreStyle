@@ -5,6 +5,7 @@ package persistence_test
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"strings"
 	"testing"
 
@@ -66,6 +67,25 @@ func TestRichDocumentRepository_Integration(t *testing.T) {
 		require.Equal(t, "doc", parsed.Type)
 		require.Equal(t, "heading", parsed.Content[0].Type)
 		require.Equal(t, 2, parsed.Content[0].Attrs["level"])
+	})
+
+	t.Run("Create は int32 を超える revision / schema_version を切り詰めず保存する", func(t *testing.T) {
+		testsupport.TruncateAll(t, db, "rich_documents", "users", "user_oidc_identities")
+		owner := mkOwner(t, "rd-bigint", "rdbigint@example.com")
+
+		// revision / schema_version は bigint 列。パラメータを int4 に落とすと
+		// この値は負数へ巻き戻り、エラーも出ないまま別の値が保存される。
+		const beyondInt32 = math.MaxInt32 + 1
+		doc := &domain.RichDocument{
+			OwnerID: owner, Kind: domain.DocumentKindNote, Title: "大きい版", Doc: rdDoc,
+			Revision: beyondInt32, SchemaVersion: beyondInt32,
+		}
+		require.NoError(t, repo.Create(ctx, doc))
+
+		got, err := repo.FindByID(ctx, doc.ID)
+		require.NoError(t, err)
+		require.Equal(t, beyondInt32, got.Revision)
+		require.Equal(t, beyondInt32, got.SchemaVersion)
 	})
 
 	t.Run("UpdateWithRevision は版一致時のみ更新し revision を +1 する", func(t *testing.T) {

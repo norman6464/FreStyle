@@ -4,6 +4,7 @@ package persistence_test
 
 import (
 	"context"
+	"math"
 	"testing"
 
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence"
@@ -150,4 +151,25 @@ func TestCourseRepository_GetByIDNotFound_Integration(t *testing.T) {
 
 	_, err := repo.GetByID(ctx, 999_999)
 	require.ErrorIs(t, err, gorm.ErrRecordNotFound, "未存在は gorm.ErrRecordNotFound（404 シグナル）")
+}
+
+// TestCourseRepository_SortOrderBigint_Integration は sort_order が bigint 列であることを
+// 往復で固定する。パラメータを int4 に落とすとこの値は負数へ巻き戻り、
+// エラーも出ないまま別の値が保存される。
+func TestCourseRepository_SortOrderBigint_Integration(t *testing.T) {
+	db := testsupport.OpenTestDB(t)
+	repo := persistence.NewCourseRepository(db)
+	ctx := context.Background()
+
+	testsupport.TruncateAll(t, db, "courses")
+	const beyondInt32 = math.MaxInt32 + 1
+	c := &domain.Course{
+		CompanyID: 1, CreatedByUserID: 1, Title: "並び順が int32 を超えるコース",
+		IsPublished: true, SortOrder: beyondInt32,
+	}
+	require.NoError(t, repo.Create(ctx, c))
+
+	got, err := repo.GetByID(ctx, c.ID)
+	require.NoError(t, err)
+	require.Equal(t, beyondInt32, got.SortOrder)
 }

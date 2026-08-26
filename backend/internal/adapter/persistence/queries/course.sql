@@ -24,7 +24,7 @@ VALUES (
   sqlc.arg(description),
   sqlc.arg(category),
   sqlc.arg(language),
-  COALESCE(NULLIF(sqlc.arg(sort_order)::int, 0), 100),
+  COALESCE(NULLIF(sqlc.arg(sort_order)::bigint, 0), 100),
   sqlc.arg(is_published),
   sqlc.arg(created_at),
   sqlc.arg(updated_at)
@@ -46,4 +46,5 @@ RETURNING updated_at;
 
 -- name: DeleteCourse :exec
 -- コースを物理削除する（courses は soft delete 列を持たない）。
-DELETE FROM courses WHERE id = sqlc.arg(id);
+DELETE FROM courses
+WHERE id = sqlc.arg(id);

@@ -92,7 +92,7 @@ type Course struct {
 	Description     string
 	Category        string
 	Language        string
-	SortOrder       int32
+	SortOrder       int64
 	IsPublished     bool
 	CreatedAt       time.Time
 	UpdatedAt       time.Time

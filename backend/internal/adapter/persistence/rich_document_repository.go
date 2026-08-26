@@ -2,12 +2,16 @@ package persistence
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"gorm.io/gorm"
@@ -27,13 +31,71 @@ func mapPgDataError(err error) error {
 	return err
 }
 
-// richDocumentRepository は [repository.RichDocumentRepository] の GORM 実装。
+// richDocumentRepository は [repository.RichDocumentRepository] の実装。
 // doc は jsonb 列に保存し、更新は revision 一致を条件にした楽観ロックで行う。
+// クエリは sqlc 生成コード（生 SQL）で、GORM からは接続プール（*sql.DB）だけを借りる。
 type richDocumentRepository struct{ db *gorm.DB }
 
 // NewRichDocumentRepository は rich_documents の repository を組み立てる。
 func NewRichDocumentRepository(db *gorm.DB) repository.RichDocumentRepository {
 	return &richDocumentRepository{db: db}
+}
+
+// toDomainRichDocument は行全体（doc / deleted_at 含む）を domain へ写す。
+func toDomainRichDocument(row sqlcgen.RichDocument) domain.RichDocument {
+	d := domain.RichDocument{
+		ID:            row.ID.String(),
+		OwnerID:       uint64(row.OwnerID),
+		Kind:          domain.DocumentKind(row.Kind),
+		Title:         row.Title,
+		IsPublic:      row.IsPublic,
+		SchemaVersion: int(row.SchemaVersion),
+		Doc:           string(row.Doc),
+		Revision:      int(row.Revision),
+		CreatedAt:     row.CreatedAt,
+		UpdatedAt:     row.UpdatedAt,
+	}
+	if row.CompanyID.Valid {
+		c := uint64(row.CompanyID.Int64)
+		d.CompanyID = &c
+	}
+	if row.DeletedAt.Valid {
+		t := row.DeletedAt.Time
+		d.DeletedAt = &t
+	}
+	return d
+}
+
+// toDomainRichDocumentSummary は一覧用の軽量行（doc / deleted_at を含まない）を domain へ写す。
+func toDomainRichDocumentSummary(row sqlcgen.ListRichDocumentsByOwnerRow) domain.RichDocument {
+	d := domain.RichDocument{
+		ID:            row.ID.String(),
+		OwnerID:       uint64(row.OwnerID),
+		Kind:          domain.DocumentKind(row.Kind),
+		Title:         row.Title,
+		IsPublic:      row.IsPublic,
+		SchemaVersion: int(row.SchemaVersion),
+		Revision:      int(row.Revision),
+		CreatedAt:     row.CreatedAt,
+		UpdatedAt:     row.UpdatedAt,
+	}
+	if row.CompanyID.Valid {
+		c := uint64(row.CompanyID.Int64)
+		d.CompanyID = &c
+	}
+	return d
+}
+
+// nullCompanyID は *uint64 の会社 ID を sql.NullInt64 へ変換する（NULL 可）。
+func nullCompanyID(companyID *uint64) (sql.NullInt64, bool) {
+	if companyID == nil {
+		return sql.NullInt64{}, true
+	}
+	cid, ok := toInt64ID(*companyID)
+	if !ok {
+		return sql.NullInt64{}, false
+	}
+	return sql.NullInt64{Int64: cid, Valid: true}, true
 }
 
 func (r *richDocumentRepository) Create(ctx context.Context, doc *domain.RichDocument) error {
@@ -47,84 +109,155 @@ func (r *richDocumentRepository) Create(ctx context.Context, doc *domain.RichDoc
 		}
 		doc.ID = id.String()
 	}
-	return mapPgDataError(r.db.WithContext(ctx).Create(doc).Error)
+	id, err := uuid.Parse(doc.ID)
+	if err != nil {
+		return fmt.Errorf("rich document id が uuid ではない: %w", err)
+	}
+	ownerID, ok := toInt64ID(doc.OwnerID)
+	if !ok {
+		// 1 行も書けていないので nil を返さない（呼び出し側が作成できたと誤認する）。
+		return outOfRangeIDError("owner_id", doc.OwnerID)
+	}
+	companyID, ok := nullCompanyID(doc.CompanyID)
+	if !ok {
+		// 1 行も書けていないので nil を返さない（呼び出し側が作成できたと誤認する）。
+		// nullCompanyID は nil のとき必ず ok=true なので、ここでは非 nil が保証される。
+		return outOfRangeIDError("company_id", *doc.CompanyID)
+	}
+	sqlDB, err := r.db.DB()
+	if err != nil {
+		return err
+	}
+	now := time.Now()
+	createdAt := doc.CreatedAt
+	if createdAt.IsZero() {
+		createdAt = now // GORM autoCreateTime 相当（ゼロのときだけ now）
+	}
+	updatedAt := doc.UpdatedAt
+	if updatedAt.IsZero() {
+		updatedAt = now // GORM autoUpdateTime 相当（ゼロのときだけ now）
+	}
+	row, err := sqlcgen.New(sqlDB).InsertRichDocument(ctx, sqlcgen.InsertRichDocumentParams{
+		ID:            id,
+		OwnerID:       ownerID,
+		CompanyID:     companyID,
+		Kind:          string(doc.Kind),
+		Title:         doc.Title,
+		IsPublic:      doc.IsPublic,
+		SchemaVersion: int64(doc.SchemaVersion), // 0 は SQL 側の COALESCE で既定 1 に倒す
+		Doc:           json.RawMessage(doc.Doc),
+		Revision:      int64(doc.Revision), // 0 は SQL 側の COALESCE で既定 1 に倒す
+		CreatedAt:     createdAt,
+		UpdatedAt:     updatedAt,
+	})
+	if err != nil {
+		return mapPgDataError(err)
+	}
+	doc.SchemaVersion = int(row.SchemaVersion) // 既定 1 が当たった場合を書き戻す
+	doc.Revision = int(row.Revision)           // 既定 1 が当たった場合を書き戻す
+	doc.CreatedAt = row.CreatedAt
+	doc.UpdatedAt = row.UpdatedAt
+	return nil
 }
 
 func (r *richDocumentRepository) FindByID(ctx context.Context, id string) (*domain.RichDocument, error) {
-	var doc domain.RichDocument
-	err := r.db.WithContext(ctx).
-		Where("id = ? AND deleted_at IS NULL", id).
-		Take(&doc).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		return nil, repository.ErrRichDocumentNotFound // uuid でない ID は存在し得ない
+	}
+	sqlDB, err := r.db.DB()
+	if err != nil {
+		return nil, err
+	}
+	row, err := sqlcgen.New(sqlDB).GetRichDocumentByID(ctx, uid)
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, repository.ErrRichDocumentNotFound
 	}
 	if err != nil {
 		return nil, err
 	}
-	return &doc, nil
+	d := toDomainRichDocument(row)
+	return &d, nil
 }
 
 func (r *richDocumentRepository) UpdateWithRevision(ctx context.Context, doc *domain.RichDocument, expectedRevision int) error {
-	res := r.db.WithContext(ctx).
-		Model(&domain.RichDocument{}).
-		Where("id = ? AND revision = ? AND deleted_at IS NULL", doc.ID, expectedRevision).
-		Updates(map[string]any{
-			"title":          doc.Title,
-			"is_public":      doc.IsPublic,
-			"schema_version": doc.SchemaVersion,
-			"doc":            doc.Doc,
-			"revision":       gorm.Expr("revision + 1"),
-			"updated_at":     gorm.Expr("now()"),
-		})
-	if res.Error != nil {
-		return mapPgDataError(res.Error)
+	uid, err := uuid.Parse(doc.ID)
+	if err != nil {
+		return repository.ErrRichDocumentNotFound // uuid でない ID は存在し得ない
 	}
-	if res.RowsAffected == 0 {
-		// 0 行 = 「存在しない/論理削除済み」か「版不一致」。存在確認で切り分ける。
-		if _, err := r.FindByID(ctx, doc.ID); err != nil {
-			return err // ErrRichDocumentNotFound
-		}
-		return repository.ErrRichDocumentConflict
-	}
-	// 更新後の正確な行（revision / updated_at など）を読み直して doc に反映する。
-	fresh, err := r.FindByID(ctx, doc.ID)
+	sqlDB, err := r.db.DB()
 	if err != nil {
 		return err
 	}
-	*doc = *fresh
+	row, err := sqlcgen.New(sqlDB).UpdateRichDocumentWithRevision(ctx, sqlcgen.UpdateRichDocumentWithRevisionParams{
+		Title:            doc.Title,
+		IsPublic:         doc.IsPublic,
+		SchemaVersion:    int64(doc.SchemaVersion),
+		Doc:              json.RawMessage(doc.Doc),
+		ID:               uid,
+		ExpectedRevision: int64(expectedRevision),
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// 0 行 = 「存在しない/論理削除済み」か「版不一致」。存在確認で切り分ける。
+			if _, ferr := r.FindByID(ctx, doc.ID); ferr != nil {
+				return ferr // ErrRichDocumentNotFound
+			}
+			return repository.ErrRichDocumentConflict
+		}
+		return mapPgDataError(err)
+	}
+	// 更新後の正確な行（revision / updated_at など）を doc に反映する。
+	*doc = toDomainRichDocument(row)
 	return nil
 }
 
 func (r *richDocumentRepository) SoftDelete(ctx context.Context, id string, ownerID uint64) error {
-	res := r.db.WithContext(ctx).
-		Model(&domain.RichDocument{}).
-		Where("id = ? AND owner_id = ? AND deleted_at IS NULL", id, ownerID).
-		Update("deleted_at", gorm.Expr("now()"))
-	if res.Error != nil {
-		return res.Error
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		return repository.ErrRichDocumentNotFound // uuid でない ID は存在し得ない
 	}
-	if res.RowsAffected == 0 {
+	oid, ok := toInt64ID(ownerID)
+	if !ok {
+		return repository.ErrRichDocumentNotFound // 存在し得ない owner_id は対象なし
+	}
+	sqlDB, err := r.db.DB()
+	if err != nil {
+		return err
+	}
+	affected, err := sqlcgen.New(sqlDB).SoftDeleteRichDocument(ctx, sqlcgen.SoftDeleteRichDocumentParams{
+		ID:      uid,
+		OwnerID: oid,
+	})
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
 		return repository.ErrRichDocumentNotFound
 	}
 	return nil
 }
 
 func (r *richDocumentRepository) ListByOwner(ctx context.Context, ownerID uint64, kind domain.DocumentKind) ([]domain.RichDocument, error) {
-	q := r.db.WithContext(ctx).
-		Model(&domain.RichDocument{}).
-		Where("owner_id = ? AND deleted_at IS NULL", ownerID).
-		// doc(jsonb) 本体は一覧では要らないので読み込まない（転送量とメモリを抑える）。
-		Select("id, owner_id, company_id, kind, title, is_public, schema_version, revision, created_at, updated_at").
-		// updated_at は同一トランザクション内の複数更新や時刻の解像度で容易に同値になる。
-		// 同値時の順序を固定するため id をタイブレークに置く。
-		Order("updated_at DESC, id DESC")
-	if kind != "" {
-		q = q.Where("kind = ?", kind)
+	oid, ok := toInt64ID(ownerID)
+	if !ok {
+		return []domain.RichDocument{}, nil // 存在し得ない owner_id = 0 件
 	}
-	// 0 件でも nil ではなく空スライスを返す（JSON が null にならずフロントの map/for-of が落ちない）。
-	rows := make([]domain.RichDocument, 0)
-	if err := q.Find(&rows).Error; err != nil {
+	sqlDB, err := r.db.DB()
+	if err != nil {
 		return nil, err
 	}
-	return rows, nil
+	rows, err := sqlcgen.New(sqlDB).ListRichDocumentsByOwner(ctx, sqlcgen.ListRichDocumentsByOwnerParams{
+		OwnerID: oid,
+		Kind:    string(kind), // 空文字なら SQL 側で絞り込まない
+	})
+	if err != nil {
+		return nil, err
+	}
+	// 0 件でも nil ではなく空スライスを返す（JSON が null にならずフロントの map/for-of が落ちない）。
+	docs := make([]domain.RichDocument, 0, len(rows))
+	for _, row := range rows {
+		docs = append(docs, toDomainRichDocumentSummary(row))
+	}
+	return docs, nil
 }

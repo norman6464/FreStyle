@@ -47,7 +47,8 @@ func (r *profileRepository) FindByUserID(ctx context.Context, userID uint64) (*d
 func (r *profileRepository) Upsert(ctx context.Context, p *domain.Profile) error {
 	uid, ok := toInt64ID(p.UserID)
 	if !ok {
-		return nil // 存在し得ない user_id は書き込まない
+		// 1 行も書けていないので nil を返さない（呼び出し側が作成できたと誤認する）。
+		return outOfRangeIDError("user_id", p.UserID)
 	}
 	sqlDB, err := r.db.DB()
 	if err != nil {

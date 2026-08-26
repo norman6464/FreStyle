@@ -163,7 +163,8 @@ func (r *adminInvitationRepository) FindPendingByToken(ctx context.Context, toke
 func (r *adminInvitationRepository) Create(ctx context.Context, inv *domain.AdminInvitation) error {
 	cid, ok := toInt64ID(inv.CompanyID)
 	if !ok {
-		return nil // 存在し得ない company_id は書き込まない
+		// 1 行も書けていないので nil を返さない（呼び出し側が作成できたと誤認する）。
+		return outOfRangeIDError("company_id", inv.CompanyID)
 	}
 	sqlDB, err := r.db.DB()
 	if err != nil {

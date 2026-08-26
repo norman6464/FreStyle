@@ -4,18 +4,34 @@ import (
 	"context"
 	"time"
 
+	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	"gorm.io/gorm"
 )
 
+// userDailyActivityRepository は [repository.UserDailyActivityRepository] の実装。
+// クエリは sqlc 生成コード（生 SQL）で、GORM からは接続プール（*sql.DB）だけを借りる。
 type userDailyActivityRepository struct {
 	db *gorm.DB
 }
 
-// NewUserDailyActivityRepository は UserDailyActivityRepository の GORM 実装を返す。
+// NewUserDailyActivityRepository は UserDailyActivityRepository の実装を返す。
 func NewUserDailyActivityRepository(db *gorm.DB) repository.UserDailyActivityRepository {
 	return &userDailyActivityRepository{db: db}
+}
+
+func toDomainUserDailyActivity(row sqlcgen.UserDailyActivity) domain.UserDailyActivity {
+	return domain.UserDailyActivity{
+		UserID:        uint64(row.UserID),
+		ActivityDate:  row.ActivityDate,
+		ExerciseCount: int(row.ExerciseCount),
+		CorrectCount:  int(row.CorrectCount),
+		// LessonCount は列 chapter_count に対応する（JSON は互換のため lessonCount）。
+		LessonCount: int(row.ChapterCount),
+		AiChatCount: int(row.AiChatCount),
+		NoteCount:   int(row.NoteCount),
+	}
 }
 
 // Increment は user_daily_activities を upsert し各カウンタを delta 分だけ加算する。
@@ -26,29 +42,25 @@ func (r *userDailyActivityRepository) Increment(
 	date time.Time,
 	delta repository.UserDailyActivityIncrement,
 ) error {
+	uid, ok := toInt64ID(userID)
+	if !ok {
+		return nil // 存在し得ない user_id は書き込まない
+	}
 	// date を DATE 型へ切り詰め（時刻成分を捨てる）。
 	d := date.UTC().Truncate(24 * time.Hour)
-	sql := `
-INSERT INTO user_daily_activities
-  (user_id, activity_date, exercise_count, correct_count, chapter_count, ai_chat_count, note_count)
-VALUES
-  (?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT (user_id, activity_date) DO UPDATE SET
-  exercise_count = user_daily_activities.exercise_count + EXCLUDED.exercise_count,
-  correct_count  = user_daily_activities.correct_count  + EXCLUDED.correct_count,
-  chapter_count  = user_daily_activities.chapter_count  + EXCLUDED.chapter_count,
-  ai_chat_count  = user_daily_activities.ai_chat_count  + EXCLUDED.ai_chat_count,
-  note_count     = user_daily_activities.note_count     + EXCLUDED.note_count
-`
-	return r.db.WithContext(ctx).Exec(
-		sql,
-		userID, d,
-		delta.ExerciseCount,
-		delta.CorrectCount,
-		delta.LessonCount,
-		delta.AiChatCount,
-		delta.NoteCount,
-	).Error
+	sqlDB, err := r.db.DB()
+	if err != nil {
+		return err
+	}
+	return sqlcgen.New(sqlDB).IncrementUserDailyActivity(ctx, sqlcgen.IncrementUserDailyActivityParams{
+		UserID:        uid,
+		ActivityDate:  d,
+		ExerciseCount: int32(delta.ExerciseCount),
+		CorrectCount:  int32(delta.CorrectCount),
+		ChapterCount:  int32(delta.LessonCount),
+		AiChatCount:   int32(delta.AiChatCount),
+		NoteCount:     int32(delta.NoteCount),
+	})
 }
 
 func (r *userDailyActivityRepository) ListByUser(
@@ -56,12 +68,27 @@ func (r *userDailyActivityRepository) ListByUser(
 	userID uint64,
 	from, to time.Time,
 ) ([]domain.UserDailyActivity, error) {
-	rows := make([]domain.UserDailyActivity, 0)
+	uid, ok := toInt64ID(userID)
+	if !ok {
+		return []domain.UserDailyActivity{}, nil // 存在し得ない user_id = 0 件
+	}
 	fromDate := from.UTC().Truncate(24 * time.Hour)
 	toDate := to.UTC().Truncate(24 * time.Hour)
-	err := r.db.WithContext(ctx).
-		Where("user_id = ? AND activity_date BETWEEN ? AND ?", userID, fromDate, toDate).
-		Order("activity_date ASC").
-		Find(&rows).Error
-	return rows, err
+	sqlDB, err := r.db.DB()
+	if err != nil {
+		return nil, err
+	}
+	rows, err := sqlcgen.New(sqlDB).ListUserDailyActivitiesByUser(ctx, sqlcgen.ListUserDailyActivitiesByUserParams{
+		UserID:   uid,
+		FromDate: fromDate,
+		ToDate:   toDate,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.UserDailyActivity, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, toDomainUserDailyActivity(row))
+	}
+	return out, nil
 }

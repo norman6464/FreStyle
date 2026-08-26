@@ -234,6 +234,47 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 		require.WithinDuration(t, time.Now(), got.UpdatedAt, time.Minute) // now() に進んだ
 	})
 
+	t.Run("Update は存在しない id で gorm.ErrRecordNotFound を返す（黙って成功にしない）", func(t *testing.T) {
+		testsupport.TruncateAll(t, db, "course_chapters")
+		// 巻き添えで他の行が書き換わらないことも同時に見るため 1 件だけ残しておく。
+		keep := mk(1, 10, "残す", 1, true)
+		require.NoError(t, repo.Create(ctx, keep))
+
+		ghost := mk(1, 10, "消えた章", 1, true)
+		ghost.ID = 999999
+		require.ErrorIs(t, repo.Update(ctx, ghost), gorm.ErrRecordNotFound)
+
+		got, err := repo.GetByID(ctx, keep.ID)
+		require.NoError(t, err)
+		require.Equal(t, "残す", got.Title) // 別の行は触られていない
+	})
+
+	t.Run("Update は取得後に消えた章でも gorm.ErrRecordNotFound を返す", func(t *testing.T) {
+		testsupport.TruncateAll(t, db, "course_chapters")
+		m := mk(1, 10, "章", 1, true)
+		require.NoError(t, repo.Create(ctx, m))
+		// usecase は Update の前に GetByID する。その隙に行が消える競合を再現する。
+		require.NoError(t, repo.Delete(ctx, m.ID))
+
+		m.Title = "編集後"
+		require.ErrorIs(t, repo.Update(ctx, m), gorm.ErrRecordNotFound)
+	})
+
+	t.Run("Delete / DeleteByCourse は存在しない id でも冪等に nil（後条件は満たされている）", func(t *testing.T) {
+		testsupport.TruncateAll(t, db, "course_chapters")
+		keep := mk(1, 20, "keep", 1, true)
+		require.NoError(t, repo.Create(ctx, keep))
+
+		// 「行が無い」という後条件は既に満たされているため 0 行削除はエラーにしない
+		// （移行前の GORM 版も 0 行で nil を返していた。Update と違い失われた書き込みが無い）。
+		require.NoError(t, repo.Delete(ctx, 999999))
+		require.NoError(t, repo.DeleteByCourse(ctx, 999999))
+
+		survived, err := repo.ListByCourse(ctx, 20, true)
+		require.NoError(t, err)
+		require.Len(t, survived, 1) // 巻き添え削除が起きていない
+	})
+
 	t.Run("Delete は 1 件を物理削除する", func(t *testing.T) {
 		testsupport.TruncateAll(t, db, "course_chapters")
 		m := mk(1, 10, "章", 1, true)

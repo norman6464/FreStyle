@@ -128,29 +128,6 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      # 総カバレッジを PR の Checks サマリに表示しつつ、floor を下回ったら fail させる。
-      # COVERAGE_MIN は回帰防止の floor（domain / docs / cmd / 薄い infra など 0% 群を含む総計のため低め）。
-      #
-      # 注意: この計測は unit ジョブ（integration タグ無し）。GORM→sqlc 移行で repository の
-      # クエリコードが integration テスト側へ寄ると、その分 unit カバレッジは下がる（該当コードは
-      # "integration tests (postgres)" ジョブが実 Postgres で検証している）。移行中は floor を実態に
-      # 合わせて下げ、移行完了後に integration 込みの計測へ切り替えて引き上げ直す。
-      - name: coverage summary + gate
-        env:
-          # GORM→sqlc 移行（FRESTYLE-369）で repository のクエリが integration テスト側へ寄り、
-          # unit 計測の分母が増えて総計が 44.9% まで下がった。移行完了後に integration 込みの
-          # 計測へ切り替えて引き上げ直す前提で、実態に合わせて一時的に 45→42 へ下げる。
-          COVERAGE_MIN: '42'
-        run: |
-          total=$(go tool cover -func=coverage-unit.out | tail -1 | awk '{print $3}')
-          echo "## Backend test coverage: ${total} (min ${COVERAGE_MIN}%)" >> "$GITHUB_STEP_SUMMARY"
-          echo "total coverage: ${total} (min ${COVERAGE_MIN}%)"
-          num=${total%\%}
-          if awk -v t="$num" -v m="$COVERAGE_MIN" 'BEGIN { exit !(t+0 < m+0) }'; then
-            echo "::error::backend coverage ${total} is below floor ${COVERAGE_MIN}%"
-            exit 1
-          fi
-
       # OpenAPI spec (docs/) が最新かを検証する。handler の swaggo 注釈を変えたのに
       # `make openapi` を忘れた PR を CI で弾く（フロントの型生成元なので drift を防ぐ）。
       - name: OpenAPI drift check

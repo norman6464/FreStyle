@@ -294,6 +294,20 @@ type Role struct {
 	UpdatedAt   time.Time
 }
 
+type ScoreCard struct {
+	ID                 int64
+	UserID             sql.NullInt64
+	SessionID          sql.NullInt64
+	OverallScore       sql.NullString
+	LogicalScore       sql.NullString
+	ConsiderationScore sql.NullString
+	SummaryScore       sql.NullString
+	ProposalScore      sql.NullString
+	ListeningScore     sql.NullString
+	Feedback           sql.NullString
+	CreatedAt          sql.NullTime
+}
+
 type SessionNote struct {
 	ID        int64
 	SessionID int64

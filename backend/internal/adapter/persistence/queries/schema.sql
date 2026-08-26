@@ -375,3 +375,21 @@ CREATE TABLE user_daily_activities (
     note_count     integer NOT NULL DEFAULT 0,
     PRIMARY KEY (user_id, activity_date)
 );
+
+-- score_cards は AI 評価スコアの旧テーブル。対応する domain 構造体は撤去済で AutoMigrate 管理でも
+-- ないが、user_stats_repository が集計元として user_id / overall_score を読むため、その型付けに
+-- 必要な列を明示する。列定義は撤去前の domain.ScoreCard と本番 pg_dump（いずれも git 履歴）から
+-- 復元したもので、id 以外は当時の実列に合わせ nullable。
+CREATE TABLE score_cards (
+    id                  bigint PRIMARY KEY,
+    user_id             bigint,
+    session_id          bigint,
+    overall_score       numeric,
+    logical_score       numeric,
+    consideration_score numeric,
+    summary_score       numeric,
+    proposal_score      numeric,
+    listening_score     numeric,
+    feedback            text,
+    created_at          timestamptz
+);

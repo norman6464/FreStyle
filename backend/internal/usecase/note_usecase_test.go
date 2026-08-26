@@ -83,15 +83,26 @@ func Test_ノート更新_IDが必須(t *testing.T) {
 	}
 }
 
-func Test_ノート更新_他人の所有を拒否(t *testing.T) {
+// 他人の note と存在しない note で別のエラーを返すと、呼び出し元が
+// 「この ID は実在する」と読み取れてしまう（存在オラクル）。同じ番兵に畳まれることを固定する。
+func Test_ノート更新_他人の所有は存在しないと同じ番兵(t *testing.T) {
 	repo := &stubNoteRepo{one: &domain.Note{ID: 1, UserID: 99}}
 	uc := NewUpdateNoteUseCase(repo)
-	_, err := uc.Execute(context.Background(), UpdateNoteInput{UserID: 1, ID: 1, Title: "x"})
-	if !errors.Is(err, ErrNoteForbidden) {
-		t.Fatalf("expected ErrNoteForbidden, got %v", err)
+	_, foreignErr := uc.Execute(context.Background(), UpdateNoteInput{UserID: 1, ID: 1, Title: "x"})
+	if !errors.Is(foreignErr, domain.ErrNotFound) {
+		t.Fatalf("expected domain.ErrNotFound, got %v", foreignErr)
 	}
 	if repo.updatedNote != nil {
 		t.Fatal("must not call repo.Update when foreign owner")
+	}
+
+	// 存在しない note（repository が domain.ErrNotFound を返す）と同じエラーであること。
+	missing := &stubNoteRepo{err: domain.ErrNotFound}
+	_, missingErr := NewUpdateNoteUseCase(missing).Execute(
+		context.Background(), UpdateNoteInput{UserID: 1, ID: 1, Title: "x"},
+	)
+	if foreignErr.Error() != missingErr.Error() {
+		t.Fatalf("エラー文言が撃ち分けられている: 他人=%q 不在=%q", foreignErr, missingErr)
 	}
 }
 

@@ -10,6 +10,8 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 )
 
+// ErrNoteForbidden は旧「他人の note」シグナル。撃ち分けを止めたので usecase からは返さない
+// （handler 側の分岐撤去とあわせて次で削除する）。
 var ErrNoteForbidden = errors.New("forbidden")
 
 // ListNotesByUserIDUseCase は current user のノート一覧を返す。
@@ -90,7 +92,17 @@ type UpdateNoteInput struct {
 	IsPinned bool
 }
 
-// Execute は所有者でなければ ErrNoteForbidden を返し、そうでなければ note を更新する。
+// Execute は current user 所有の note だけを更新する。
+//
+// 「他人の note」と「存在しない note」はどちらも domain.ErrNotFound に畳んで返す。
+// ここを撃ち分けると、存在オラクル（どの ID が実在するかを外から数え上げられる状態）になるため。
+// notes.id は連番（bigserial）なので、ログイン済みなら誰でも 1, 2, 3 … と ID を順に叩ける。
+// このとき「他人の note なので拒否」と「そんな note は無い」を別のエラーで返すと、
+// 呼び出し元はレスポンスの違いだけで「この ID は実在する（＝誰かが書いた）」と判定でき、
+// 本文を一切読めなくても、社内に何件の note があり ID 空間のどこが埋まっているかを全数把握できる。
+// 存在の有無そのものが他人の情報なので、区別できないように 1 本の番兵へ寄せる。
+//
+// 同じ畳み方は session_notes（GetSessionNoteUseCase）が既に採っており、notes もそれに揃える。
 func (u *UpdateNoteUseCase) Execute(ctx context.Context, in UpdateNoteInput) (*domain.Note, error) {
 	if in.UserID == 0 {
 		return nil, errors.New("userID is required")
@@ -103,7 +115,9 @@ func (u *UpdateNoteUseCase) Execute(ctx context.Context, in UpdateNoteInput) (*d
 		return nil, err
 	}
 	if existing.UserID != in.UserID {
-		return nil, ErrNoteForbidden
+		// 「無い」と同じ番兵にする。errors.New("forbidden") のような別エラーにすると、
+		// handler がそれを 403 へ振り分けた時点で上記の撃ち分けが復活する。
+		return nil, domain.ErrNotFound
 	}
 	existing.Title = in.Title
 	existing.Content = in.Content

@@ -18,6 +18,8 @@ type stubAdminInvRepo struct {
 	created *domain.AdminInvitation
 	// createErr が非 nil なら Create をそのエラーで失敗させる（成功後 DB 失敗の検証用）。
 	createErr error
+	// updateStatusErr が非 nil なら UpdateStatus だけを失敗させる（0 行更新の検証用）。
+	updateStatusErr error
 }
 
 func (s *stubAdminInvRepo) ListAll(_ context.Context) ([]domain.AdminInvitation, error) {
@@ -42,7 +44,14 @@ func (s *stubAdminInvRepo) Create(_ context.Context, inv *domain.AdminInvitation
 	return nil
 }
 
-func (s *stubAdminInvRepo) UpdateStatus(_ context.Context, _ uint64, _ string) error { return s.err }
+// updateStatusErr が非 nil なら UpdateStatus だけをそのエラーで失敗させる
+// （FindByID は成功させたまま「更新のときだけ行が消えていた」競合を再現する）。
+func (s *stubAdminInvRepo) UpdateStatus(_ context.Context, _ uint64, _ string) error {
+	if s.updateStatusErr != nil {
+		return s.updateStatusErr
+	}
+	return s.err
+}
 
 func (s *stubAdminInvRepo) FindPendingByEmail(_ context.Context, _ string) (*domain.AdminInvitation, error) {
 	return nil, s.err
@@ -282,6 +291,24 @@ func Test_招待取消_super_adminは全社取消できる(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("err: %v", err)
+	}
+}
+
+// 0 行更新（FindByID と UpdateStatus のあいだに招待が消えた競合）は repository が
+// domain.ErrNotFound を返す。以前は 0 行でも成功だったため、取り消せていないのに
+// handler は 204 を返していた。usecase が handler 用の番兵へ翻訳して 404 に落とす。
+func Test_招待取消_0行更新はErrInvitationNotFoundに翻訳する(t *testing.T) {
+	repo := &stubAdminInvRepo{
+		rows:            []domain.AdminInvitation{{ID: 8, CompanyID: 2}},
+		updateStatusErr: domain.ErrNotFound,
+	}
+	uc := NewCancelAdminInvitationUseCase(repo)
+
+	err := uc.Execute(context.Background(), CancelAdminInvitationInput{
+		ID: 8, ActorRole: domain.RoleSuperAdmin,
+	})
+	if !errors.Is(err, ErrInvitationNotFound) {
+		t.Fatalf("ErrInvitationNotFound を期待: got %v", err)
 	}
 }
 

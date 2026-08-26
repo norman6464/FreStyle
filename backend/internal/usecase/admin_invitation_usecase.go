@@ -170,5 +170,14 @@ func (u *CancelAdminInvitationUseCase) Execute(ctx context.Context, in CancelAdm
 		return ErrInvitationNotFound
 	}
 
-	return u.repo.UpdateStatus(ctx, in.ID, domain.InvitationStatusCanceled)
+	// 0 行更新（= FindByID と UpdateStatus のあいだに招待が消えた）は repository が
+	// domain.ErrNotFound で返す。ここで handler 用の番兵へ翻訳し、「取り消せていないのに 204」
+	// にならないようにする。
+	if err := u.repo.UpdateStatus(ctx, in.ID, domain.InvitationStatusCanceled); err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			return ErrInvitationNotFound
+		}
+		return err
+	}
+	return nil
 }

@@ -54,9 +54,16 @@ INSERT INTO invitations
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING id, created_at;
 
--- name: UpdateInvitationStatus :exec
+-- name: UpdateInvitationStatus :execrows
 -- 招待の status のみ更新する（accepted / canceled への遷移。物理削除はしない）。
 -- 対象は id 一致の 1 行だけで、他の列は触らない。
+--
+-- :exec ではなく :execrows にしている理由:
+--   :exec は「SQL がエラーなく流れたか」しか返さない。UPDATE は 1 行も一致しなくても
+--   成功なので、存在しない id を渡しても呼び出し側には成功として見える。招待の取り消しは
+--   「もう使えない状態にした」ことが結果のすべてなので、1 行も変えられていないのに
+--   成功を返すと、取り消したつもりの招待が生きたまま残る事故に気付けない。
+--   :execrows は実際に書き換わった行数（RowsAffected）を返すので 0 行を not-found にできる。
 UPDATE invitations SET
   status = sqlc.arg(status)
 WHERE id = sqlc.arg(id);

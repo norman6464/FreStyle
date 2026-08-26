@@ -12,8 +12,6 @@ import "time"
 // 公開のために allow の PageRestriction を足す設計にすると、その瞬間にそのページが
 // 「許可リスト」状態へ切り替わり（ResolvePagePermission の規則 3）、それまで見えていた
 // チーム全員が締め出される。既定の出どころだけを分け、例外の層は共有する。
-//
-// Workspace と同じくナレッジ基盤の型なので GORM を通さない。
 type ShareLink struct {
 	ID string `json:"id"`
 	// WorkspaceID はテナント境界。

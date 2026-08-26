@@ -6,8 +6,6 @@ package domain
 // pages.parent_id の連鎖だけでも木は表せるが、パンくず・サブツリー一括取得・移動時の
 // 循環検出を再帰クエリなしの 1 回の JOIN で済ませるためにこの索引を別に持つ。
 // あくまで pages から導ける派生データなので、正本は pages.parent_id 側。
-//
-// Workspace と同じくナレッジ基盤の型なので GORM を通さない（段 1-b で repository が付くまで参照元は無い）。
 type PagePath struct {
 	// WorkspaceID はテナント境界。page_id / ancestor_id との複合 FK に使い、
 	// 「別ワークスペースの 2 ページを組にした行」を DB が弾けるようにする

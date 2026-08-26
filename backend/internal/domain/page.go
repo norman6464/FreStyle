@@ -7,8 +7,6 @@ import "time"
 // 兄弟の並び順は整数の連番ではなく分数インデックス（internal/pkg/fracindex が採番する文字列キー）で
 // 持つ。1 行動かすたびに後続を振り直す UPDATE を避けるため。順序の比較は「同じ親の中」でのみ意味を持つ。
 // DB 側は position 列を COLLATE "C" に固定し、Go のバイト比較と ORDER BY を一致させる。
-//
-// Workspace と同じくナレッジ基盤の型なので GORM を通さない（段 1-b で repository が付くまで参照元は無い）。
 type Page struct {
 	ID string `json:"id"`
 	// WorkspaceID はテナント境界。space / 親ページとの複合 FK に使い、テナント越えの親子を DB が弾く。

@@ -5307,7 +5307,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "aiChatEnabledForTrainees": {
-                    "description": "AiChatEnabledForTrainees は自社 trainee に AI チャットを許可するか（既定 true）。\ncompany_admin / super_admin が /company/settings で切り替える。AutoMigrate が列を追加する。",
+                    "description": "AiChatEnabledForTrainees は自社 trainee に AI チャットを許可するか（既定 true）。\ncompany_admin / super_admin が /company/settings で切り替える。",
                     "type": "boolean"
                 },
                 "createdAt": {
@@ -5713,7 +5713,6 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "courseId": {
-                    "description": "NOT NULL は migration 0004 で確定するため GORM tag では指定しない（既存行への ADD COLUMN 対策）。",
                     "type": "integer"
                 },
                 "createdAt": {
@@ -6125,7 +6124,6 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "courseId": {
-                    "description": "NOT NULL は migration 0004 で確定するため GORM tag では指定しない（既存行への ADD COLUMN 対策）。",
                     "type": "integer"
                 },
                 "createdAt": {

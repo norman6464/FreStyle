@@ -60,8 +60,6 @@ func (m RestrictionMode) Valid() bool {
 //
 // 同じ (ページ, 主体, ケイパビリティ) に allow と deny の 2 行は作れない
 // （DB の PK が (workspace_id, page_id, principal_id, capability)）。
-//
-// Workspace と同じくナレッジ基盤の型なので GORM を通さない。
 type PageRestriction struct {
 	// WorkspaceID はテナント境界。page / principal との複合 FK に使う。
 	WorkspaceID string `json:"workspaceId"`

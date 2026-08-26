@@ -25,36 +25,33 @@ func (k DocumentKind) Valid() bool {
 // doc は ProseMirror ドキュメント（tiptap の getJSON() 結果）を jsonb でそのまま持つ。
 type RichDocument struct {
 	// ID は推測不能な UUID（Notion 風の URL）。作成時に repository が採番する。
-	ID string `gorm:"type:uuid;primaryKey" json:"id"`
+	ID string `json:"id"`
 	// OwnerID は作成者。users.id への FK（制約は ApplyRichDocumentConstraints が張る）。
-	OwnerID uint64 `gorm:"column:owner_id;not null;index" json:"ownerId"`
+	OwnerID uint64 `json:"ownerId"`
 	// CompanyID は作成時に作成者の所属会社を写し取る列で、公開文書の閲覧範囲を同一会社内へ
 	// 閉じるためのテナント境界として使う（判定は CanBeReadBy が持つ）。
 	// 写すのは作成時点の所属だけで、その後の異動では更新されない。未所属の作成者
 	// （運営管理者など）や、この列を足す前に作られた行では nil になる。
 	// そのため CanBeReadBy は所有者判定を先に置き、締めるのは「公開文書を他社が読むこと」
 	// だけにしている（詳細は CanBeReadBy のコメント）。
-	CompanyID *uint64 `gorm:"column:company_id" json:"companyId,omitempty"`
+	CompanyID *uint64 `json:"companyId,omitempty"`
 	// Kind は用途区分（note / course-chapter …）。
-	Kind DocumentKind `gorm:"column:kind;not null" json:"kind"`
+	Kind DocumentKind `json:"kind"`
 	// Title は一覧・検索用のタイトル。
-	Title string `gorm:"column:title;not null" json:"title"`
+	Title string `json:"title"`
 	// IsPublic は公開可否（既定 false）。
-	IsPublic bool `gorm:"column:is_public;not null;default:false" json:"isPublic"`
+	IsPublic bool `json:"isPublic"`
 	// SchemaVersion はエディタ拡張の版。読込時アップキャストの目印。
-	SchemaVersion int `gorm:"column:schema_version;not null;default:1" json:"schemaVersion"`
+	SchemaVersion int `json:"schemaVersion"`
 	// Doc は tiptap JSON を jsonb で保持する正本。API へは response 型で json.RawMessage に変換して出す。
-	Doc string `gorm:"column:doc;type:jsonb;not null" json:"-"`
+	Doc string `json:"-"`
 	// Revision は楽観ロック用の版番号。更新のたびに +1 する。
-	Revision int `gorm:"column:revision;not null;default:1" json:"revision"`
+	Revision int `json:"revision"`
 	// PlainText / 保存履歴は初期スコープ外（後追い）。
-	CreatedAt time.Time  `gorm:"column:created_at" json:"createdAt"`
-	UpdatedAt time.Time  `gorm:"column:updated_at" json:"updatedAt"`
-	DeletedAt *time.Time `gorm:"column:deleted_at" json:"deletedAt,omitempty"`
+	CreatedAt time.Time  `json:"createdAt"`
+	UpdatedAt time.Time  `json:"updatedAt"`
+	DeletedAt *time.Time `json:"deletedAt,omitempty"`
 }
-
-// TableName は GORM のテーブル名を固定する。
-func (RichDocument) TableName() string { return "rich_documents" }
 
 // CompanyRef は文書に焼き付いた所属会社を返す。company_id は NULL を取り得る（未所属の
 // 作成者・列を足す前の行）ので、0 という番兵値へ潰さず CompanyRef として表す。

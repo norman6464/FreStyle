@@ -45,8 +45,6 @@ func (k PrincipalKind) Valid() bool {
 // 使うフィールドは Kind で決まり、DB 側も CHECK で「その kind のときだけ非 NULL」を強制する
 // （kind='user' なら UserID だけ、kind='space_all' なら SpaceID だけ、
 // kind='group' なら Name だけが埋まる）。任意の key/value に逃がす形（EAV）は取らない。
-//
-// Workspace と同じくナレッジ基盤の型なので GORM を通さない。
 type Principal struct {
 	ID string `json:"id"`
 	// WorkspaceID はテナント境界。grant / restriction からの複合 FK の参照先にもなり、

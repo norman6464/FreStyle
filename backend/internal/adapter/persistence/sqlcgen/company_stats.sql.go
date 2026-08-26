@@ -32,7 +32,7 @@ type CountMembersByCompanyRow struct {
 // trainee 判定は正規化後の正である role_id で行う（パラメータで渡す）。
 // WHERE で company_id IS NOT NULL に絞っているので COALESCE は NULL を返さない
 // （型を非 NULL の bigint に確定させ、詰め替えを綺麗にするための cast）。
-func (q *Queries) CountMembersByCompany(ctx context.Context, traineeRoleID int16) ([]CountMembersByCompanyRow, error) {
+func (q *Queries) CountMembersByCompany(ctx context.Context, traineeRoleID int32) ([]CountMembersByCompanyRow, error) {
 	rows, err := q.db.QueryContext(ctx, countMembersByCompany, traineeRoleID)
 	if err != nil {
 		return nil, err

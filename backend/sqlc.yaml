@@ -1,22 +1,25 @@
 # sqlc 設定（生 SQL 直書き → 型安全な Go を生成）。
 #
 # 方針（データアクセスの生 SQL 化）:
-#   - GORM は接続・AutoMigrate に当面残し、クエリは順次 sqlc に移行する。
-#   - 生成コードは database/sql モード。GORM の *gorm.DB から取り出した *sql.DB を
-#     そのまま DBTX として渡し、接続プールを共有する（別 pool を持たない）。
-#   - queries/schema.sql は sqlc の型付け専用（実スキーマは GORM AutoMigrate が作る）。
-#     repository を sqlc へ移すたびに対象テーブルの CREATE TABLE をここへ追記する。
-#   - ナレッジ基盤（骨格の workspaces / spaces / pages / … と権限モデルの principals / grants / …）
-#     だけは扱いが違う。GORM を通さず、infra/database/schema/knowledge_base.sql と
-#     knowledge_base_permissions.sql が実スキーマの正本そのもの（起動時にそのまま流す）。
-#     型付けも同じ 2 ファイルから行う（下の schema 欄）ので、定義が二重化しない。
+#   - 生成コードは database/sql モード。アプリ全体で 1 つの *sql.DB を DBTX として渡し、
+#     接続プールを共有する（別 pool を持たない）。
+#   - 下の schema 欄に並ぶ 3 ファイルは、いずれも実スキーマの正本そのもの。
+#     起動時に infra/database の Apply*Schema が go:embed した本文をそのまま流し、
+#     sqlc はその同じファイルから型を起こす。宣言と実体が同じ 1 ファイルなので、
+#     片方だけ直してずれることが原理的に起きない。
+#
+#       schema/core.sql                        … アプリ中核（users / courses / exercises …）
+#       schema/knowledge_base.sql              … ナレッジ基盤の骨格
+#       schema/knowledge_base_permissions.sql  … ナレッジ基盤の権限モデル
+#
+#     適用順序（core → 骨格 → 権限）は FK の依存で決まっており崩せない。
 #
 # 生成: backend/ で `make sqlc`
 version: "2"
 sql:
   - engine: "postgresql"
     schema:
-      - "internal/adapter/persistence/queries/schema.sql"
+      - "internal/infra/database/schema/core.sql"
       - "internal/infra/database/schema/knowledge_base.sql"
       - "internal/infra/database/schema/knowledge_base_permissions.sql"
     queries: "internal/adapter/persistence/queries"
@@ -35,8 +38,8 @@ sql:
           #   - 受信: json.RawMessage は NULL を Scan できない（database/sql が
           #     "unsupported Scan, storing driver.Value type <nil>" で落ちる）。ポインタなら nil で受かる。
           #   - 送信: 本番は transaction pooler 経由なので simple protocol になる
-          #     （infra/database/postgres.go が PreferSimpleProtocol を立て、driver が
-          #     DefaultQueryExecMode をそれに揃える）。simple protocol では pgx がパラメータを
+          #     （infra/database/postgres.go が DefaultQueryExecMode を simple protocol に
+          #     切り替える）。simple protocol では pgx がパラメータを
           #     クライアント側で SQL リテラルへ埋め込むので、Go の型がそのまま構文を決める。
           #     []byte は bytea の 16 進リテラル（'\x...'）になり jsonb 列で 22P02
           #     （invalid input syntax for type json）になる。json.RawMessage なら json として埋まる。

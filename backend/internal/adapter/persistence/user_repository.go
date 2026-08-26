@@ -210,7 +210,7 @@ func insertUserTx(ctx context.Context, q *sqlcgen.Queries, user *domain.User) er
 	params := sqlcgen.InsertUserParams{
 		Email:     user.Email,
 		Name:      user.Name,
-		RoleID:    int16(user.RoleID),
+		RoleID:    int32(user.RoleID),
 		CreatedAt: createdAt,
 		UpdatedAt: updatedAt,
 	}
@@ -494,7 +494,7 @@ func (r *userRepository) UpdateRole(ctx context.Context, userID uint64, role dom
 	if err != nil {
 		return err
 	}
-	return q.UpdateUserRoleID(ctx, sqlcgen.UpdateUserRoleIDParams{ID: id64, RoleID: int16(roleID)})
+	return q.UpdateUserRoleID(ctx, sqlcgen.UpdateUserRoleIDParams{ID: id64, RoleID: int32(roleID)})
 }
 
 // UpdateCompanyID は所属会社を付け替える。company_id と、その写しである workspace_id を

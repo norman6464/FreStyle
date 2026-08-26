@@ -94,6 +94,12 @@ func Migrate(ctx context.Context, db *sql.DB) error {
 		if err := SeedRoles(ctx, tx); err != nil {
 			return err
 		}
+		// seed は固定 id で INSERT するため採番列（シーケンス）が進まない。そのままだと
+		// 次の「id を書かない INSERT」が既存 id を引き当てて主キー衝突で落ちる。
+		// seed の直後に実際の最大 id へ合わせておく（詳細は syncSeededSequences のコメント）。
+		if err := syncSeededSequences(ctx, tx); err != nil {
+			return err
+		}
 		// users 正規化のバックフィル。起動のたびに走るが冪等で、埋まっていれば no-op。
 		// デプロイと手動 SQL 適用の順序に依存させないためここで行う
 		// （DDL → バックフィル → listen の順が 1 プロセス内で保証される）。
@@ -427,6 +433,62 @@ func seedCompanies(ctx context.Context, db Executor) error {
 		1, "株式会社FreStyle",
 	)
 	return err
+}
+
+// syncSeededSequences は seed 済みの表の採番列（シーケンス）を、実際に入っている最大 id へ合わせる。
+//
+// # なぜ必要か
+//
+// bigserial のような採番列は「INSERT で id を書かなければ nextval() が呼ばれ、シーケンスが
+// 1 つ進む」という仕組みで動く。裏を返すと、id を明示して INSERT すると nextval() を通らず、
+// シーケンスは 1 ミリも進まない。
+//
+// seedCompanies は固定 id（会社 1）を書いて投入する。そのため作られた直後の DB は
+// 「行は入っているのにシーケンスは初期値のまま」になる。この状態で普通の新規作成
+// （id を書かない INSERT）が来ると、nextval() が既に使われている id を返し、主キー衝突
+// （SQLSTATE 23505）で落ちる。1 回落ちるとシーケンスは進むので 2 回目は成功する ——
+// 「最初の 1 回だけ失敗する」という分かりにくい壊れ方になる。
+//
+// 実際、本番の companies_id_seq は last_value=1 / is_called=false のまま companies に
+// id=1 が存在しており、会社を新規作成すると必ず初回が失敗する状態だった。
+//
+// # なぜ安全か
+//
+// setval は「次に配る番号」を動かすだけで、既存の行には一切触れない。同じ値を何度セットしても
+// 結果は同じなので冪等で、起動のたびに走らせてよい。
+//
+// # roles を対象にしない理由
+//
+// roles.id は採番列ではない（core.sql で integer PRIMARY KEY・既定値なし。本番も同じ）。
+// ロールは 1〜3 の固定マスタで、アプリから新規作成することが無いため採番列を持たせていない。
+// 採番列が無い表に対して pg_get_serial_sequence は NULL を返し、setval(NULL, ...) は
+// 何もせず NULL を返すだけなので害は無いが、意味の無い文は置かない。
+//
+// # 対象を増やすとき
+//
+// 「固定 id で seed していて、かつ採番列を持つ」表が増えたらここに 1 つ足す。テーブル名を
+// 変数で組み立てず SQL に直接書くのは、識別子（テーブル名・列名）が $1 のような
+// プレースホルダで渡せないため。値と違って識別子は SQL の構文そのものなので、
+// 外部入力が混ざらない形に保つ。
+func syncSeededSequences(ctx context.Context, db Executor) error {
+	seeded := []struct {
+		table string
+		query string
+	}{
+		{
+			table: "companies",
+			// COALESCE の 1 は「行が 1 つも無いとき」の既定値。setval の第 2 引数は 1 以上で
+			// なければならず、max(id) が NULL のまま渡すとエラーになるため。
+			query: `SELECT setval(pg_get_serial_sequence('companies', 'id'), COALESCE((SELECT max(id) FROM companies), 1))`,
+		},
+	}
+	for _, s := range seeded {
+		// setval は値を返す関数なので SELECT で呼ぶ。返り値は使わない。
+		if _, err := db.ExecContext(ctx, s.query); err != nil {
+			return fmt.Errorf("%s の採番列の同期に失敗: %w", s.table, err)
+		}
+	}
+	return nil
 }
 
 // ApplyUserNormalizationConstraints は正規化テーブルの整合性制約を適用する（冪等）。

@@ -130,7 +130,9 @@ CREATE TABLE session_notes (
     user_id    bigint NOT NULL,
     content    text NOT NULL DEFAULT '',
     created_at timestamptz NOT NULL,
-    updated_at timestamptz NOT NULL
+    updated_at timestamptz NOT NULL,
+    -- 1 セッション = 1 ノート。ON CONFLICT (session_id) の推論先になる一意制約。
+    UNIQUE (session_id)
 );
 
 -- 企業。ai_chat_enabled_for_trainees は AutoMigrate が追加する列（domain と 1:1）。

@@ -50,6 +50,7 @@ sql:
     # ここに名前を並べない限りルールは 1 本も走らない（rules: を書いただけでは無反応）。
     rules:
       - mutation-requires-where
+      - narrowing-cast-on-param
 
     gen:
       go:
@@ -243,4 +244,59 @@ rules:
       query.sql.split("\n").filter(line, !line.trim().startsWith("--")).join("\n").matches("(?im)^[ \\t]*(update|delete)\\b")
       &&
       !query.sql.split("\n").filter(line, !line.trim().startsWith("--")).join("\n").matches("(?i)\\bwhere\\b")
+
+  # パラメータを int / integer / smallint へキャストするのを弾く。
+  #
+  # 何が起きたか（このルールの出どころ）:
+  #   bigint 列へ渡すパラメータに `sqlc.arg(x)::int` と書いていた箇所が 6 つあった
+  #   （course_chapters の revision / schema_version / sort_order、rich_documents の
+  #   schema_version / revision、courses の sort_order）。
+  #   キャストは「SQL 側でこの式を int4 として扱う」という宣言なので、sqlc はそれを信じて
+  #   パラメータを int32 で生成する。repository は int64 の値を int32() で詰め替えることに
+  #   なり、Go の整数変換は上位ビットを黙って捨てる。実測で 2147483648 を渡すと
+  #   -2147483648 が保存された（int32(2147483648) == -2147483648）。
+  #
+  # なぜテストでもローカルでも気づけないか:
+  #   どこにもエラーが出ない。SQL としては正しく、`sqlc generate` も通る（型を決めているのは
+  #   まさにこのキャストなので、生成側から見れば食い違いは無い）。PostgreSQL も気づけない。
+  #   Go の側で既に値が折り返してから送られるので、DB には「小さな負の数」が正常値として届く。
+  #   さらにテストもローカルも id やリビジョンが 2^31 に届かないので、条件そのものが起きない。
+  #   壊れるのは値が 21 億を超えたときだけで、そのときも例外ではなくデータの化けとして現れる。
+  #
+  # なぜ「列の型と照らす」のではなく「絞ること自体」を禁じるのか:
+  #   CEL からはスキーマが見えないので「この列は bigint なのに ::int だ」という照合はできない
+  #   （ファイル冒頭の「表現できないこと」）。だが列の型を知らなくても、パラメータ側を広く
+  #   取るのは常に安全側になる。宣言が integer の列でも、パラメータが bigint なら Go は
+  #   int64 のまま値を運び、範囲外なら PostgreSQL が "integer out of range" で弾く
+  #   ＝ 事故が例外として表に出る。::int にすると同じ値が Go の中で静かに折り返し、DB は
+  #   何も知らないまま受け取る。「宣言と実型がずれていた」実例もあり（courses.sort_order は
+  #   schema 上 integer、実型は bigint だった）、パラメータ側を広く取れば食い違っても壊れない。
+  #
+  # 何を見ているか / 何を弾かないか:
+  #   vet に届く時点で sqlc.arg(x) は $1 へ書き換わっている（ファイル冒頭に実測を記載）。
+  #   そこで「プレースホルダ $N の直後のキャスト」だけを見る。ソースに sqlc.arg(x)::int と
+  #   書いてあれば $1::int として一致する。
+  #   式の結果に対するキャストは直前が `)` などになるので一致しない
+  #   （`COALESCE(..., 0)::integer AS grant_rank` など・knowledge_base_permission.sql に 3 箇所）。
+  #   ::int8 / ::bigint は「int」で始まるが単語境界が合わないので一致しない。::interval も同様。
+  #
+  # 既知の限界:
+  #   `CAST($1 AS int)` という書き方は見ていない。このリポジトリのクエリはキャストをすべて
+  #   `::` で書いており（CAST( の使用は実測 0 件）、正規表現を倍に伸ばして読みにくくする割に
+  #   拾えるものが無いため。CAST( を使い始めるならここも直すこと。
+  #
+  # 免除してよい場合:
+  #   そのパラメータが本当に 32bit であるべきとき（int4 を要求する関数へ直接渡す等）。
+  #   そのクエリのコメントに /* @sqlc-vet-disable narrowing-cast-on-param */ と理由を書く。
+  #   「今の値は小さいから大丈夫」は理由にならない（大きくなった日に静かに壊れるのが問題なので）。
+  - name: narrowing-cast-on-param
+    message: >-
+      パラメータを int / integer / smallint へキャストしています。sqlc がこのパラメータを
+      int32 で生成するため、2^31 以上の値は Go 側で黙って負数へ折り返します
+      （実測: 2147483648 → -2147483648）。エラーは出ず、化けた値がそのまま保存されます。
+      ::bigint にしてください（列の宣言が integer でも、範囲外なら PostgreSQL が
+      "integer out of range" で弾いてくれるぶん安全です）。本当に 32bit が必要なら
+      /* @sqlc-vet-disable narrowing-cast-on-param */ と理由をクエリのコメントに書いてください。
+    rule: >-
+      query.sql.split("\n").filter(line, !line.trim().startsWith("--")).join("\n").matches("(?i)[$][0-9]+[ \\t]*::[ \\t]*(int|integer|int4|smallint|int2)\\b")
 

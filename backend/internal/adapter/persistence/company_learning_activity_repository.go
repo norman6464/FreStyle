@@ -39,7 +39,7 @@ func (r *companyLearningActivityRepository) ListMemberActivities(
 		FromDate:  from,
 		CompanyID: cid,
 		// trainee 判定は正規化後の正である role_id で行う（FRESTYLE-311）。
-		TraineeRoleID: int32(domain.RoleIDTrainee),
+		TraineeRoleID: domain.RoleIDTrainee,
 	})
 	if err != nil {
 		return nil, err

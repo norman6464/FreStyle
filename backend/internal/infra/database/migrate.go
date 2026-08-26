@@ -32,12 +32,18 @@ type Executor interface {
 //
 // 権限モデルは users を、テナント橋渡しは workspaces を参照する。
 func Migrate(ctx context.Context, db *sql.DB) error {
+	// スキーマの作り直しは他タスクの DDL 適用と重なると壊れるため、後段と同じ advisory lock で
+	// 直列化する。ロックを取らずに DROP すると、先行タスクが CREATE 中のオブジェクトを
+	// 消してしまう。
 	if os.Getenv("RESET_DB") == "true" {
-		log.Println("⚠️ RESET_DB=true: dropping public schema and recreating")
-		if _, err := db.ExecContext(ctx, "DROP SCHEMA public CASCADE"); err != nil {
+		if err := withMigrateTx(ctx, db, "スキーマの作り直し", func(tx *sql.Tx) error {
+			log.Println("⚠️ RESET_DB=true: dropping public schema and recreating")
+			if _, err := tx.ExecContext(ctx, "DROP SCHEMA public CASCADE"); err != nil {
+				return err
+			}
+			_, err := tx.ExecContext(ctx, "CREATE SCHEMA public")
 			return err
-		}
-		if _, err := db.ExecContext(ctx, "CREATE SCHEMA public"); err != nil {
+		}); err != nil {
 			return err
 		}
 	}
@@ -207,7 +213,7 @@ func SeedRoles(ctx context.Context, db Executor) error {
 			`INSERT INTO roles (id, name, description, created_at, updated_at)
 			 VALUES ($1, $2, $3, NOW(), NOW())
 			 ON CONFLICT (id) DO NOTHING`,
-			int32(r.ID), string(r.Name), r.Description,
+			r.ID, string(r.Name), r.Description,
 		); err != nil {
 			return err
 		}
@@ -226,7 +232,7 @@ func BackfillUserNormalization(ctx context.Context, db Executor) error {
 	// role_id のみを触るため旧カラム撤去後も有効。
 	if _, err := db.ExecContext(
 		ctx,
-		`UPDATE users SET role_id = $1 WHERE role_id IS NULL`, int32(domain.RoleIDTrainee),
+		`UPDATE users SET role_id = $1 WHERE role_id IS NULL`, domain.RoleIDTrainee,
 	); err != nil {
 		return err
 	}

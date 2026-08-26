@@ -22,7 +22,7 @@ func NewCompanyStatsRepository(db *sql.DB) repository.CompanyMemberCounter {
 }
 
 func (r *companyStatsRepository) CountMembersByCompany(ctx context.Context) ([]repository.CompanyMemberCount, error) {
-	rows, err := sqlcgen.New(r.db).CountMembersByCompany(ctx, int32(domain.RoleIDTrainee))
+	rows, err := sqlcgen.New(r.db).CountMembersByCompany(ctx, domain.RoleIDTrainee)
 	if err != nil {
 		return nil, err
 	}

@@ -19,7 +19,7 @@ type User struct {
 	// 列の NOT NULL / DEFAULT 3（= RoleIDTrainee）は schema/core.sql が持つ。
 	// この既定値は、ローリングデプロイ中の旧コード（role_id を書かない INSERT）を
 	// NOT NULL 違反で壊さないための安全弁で、起動時バックフィルが role 文字列と同期する。
-	RoleID uint16 `json:"-"`
+	RoleID int32 `json:"-"`
 	// AiChatEnabled は AI チャット利用可否の個別上書き。nil = 会社設定に従う、
 	// true/false = この user 個別に強制 ON/OFF（company_admin が従業員ごとに設定）。
 	AiChatEnabled *bool `json:"aiChatEnabled,omitempty"`

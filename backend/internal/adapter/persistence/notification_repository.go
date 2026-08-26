@@ -12,7 +12,7 @@ import (
 )
 
 // notificationRepository は [repository.NotificationRepository] の実装。
-// 読み取り（ListByUserID / CountUnread）は sqlc 生成コード（生 SQL）、書き込みは GORM。
+// クエリは sqlc 生成コード（生 SQL）で、GORM からは接続プール（*sql.DB）だけを借りる。
 type notificationRepository struct{ db *gorm.DB }
 
 func NewNotificationRepository(db *gorm.DB) repository.NotificationRepository {
@@ -22,7 +22,8 @@ func NewNotificationRepository(db *gorm.DB) repository.NotificationRepository {
 func (r *notificationRepository) Create(ctx context.Context, n *domain.Notification) error {
 	uid, ok := toInt64ID(n.UserID)
 	if !ok {
-		return nil // 存在し得ない user_id は書き込まない
+		// 1 行も書けていないので nil を返さない（呼び出し側が作成できたと誤認する）。
+		return outOfRangeIDError("user_id", n.UserID)
 	}
 	sqlDB, err := r.db.DB()
 	if err != nil {

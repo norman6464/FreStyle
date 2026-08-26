@@ -57,4 +57,6 @@ RETURNING id, created_at;
 -- name: UpdateInvitationStatus :exec
 -- 招待の status のみ更新する（accepted / canceled への遷移。物理削除はしない）。
 -- 対象は id 一致の 1 行だけで、他の列は触らない。
-UPDATE invitations SET status = sqlc.arg(status) WHERE id = sqlc.arg(id);
+UPDATE invitations SET
+  status = sqlc.arg(status)
+WHERE id = sqlc.arg(id);

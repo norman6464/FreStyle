@@ -44,7 +44,8 @@ func (r *userDailyActivityRepository) Increment(
 ) error {
 	uid, ok := toInt64ID(userID)
 	if !ok {
-		return nil // 存在し得ない user_id は書き込まない
+		// 1 行も書けていないので nil を返さない（呼び出し側が作成できたと誤認する）。
+		return outOfRangeIDError("user_id", userID)
 	}
 	// date を DATE 型へ切り詰め（時刻成分を捨てる）。
 	d := date.UTC().Truncate(24 * time.Hour)

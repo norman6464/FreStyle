@@ -11,7 +11,7 @@ import (
 )
 
 // companyApplicationRepository は [repository.CompanyApplicationRepository] の実装。
-// 読み取り（ListAll）は sqlc 生成コード（生 SQL）、書き込みは GORM。
+// クエリは sqlc 生成コード（生 SQL）で、GORM からは接続プール（*sql.DB）だけを借りる。
 type companyApplicationRepository struct{ db *gorm.DB }
 
 func NewCompanyApplicationRepository(db *gorm.DB) repository.CompanyApplicationRepository {

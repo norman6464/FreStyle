@@ -11,7 +11,7 @@ import (
 )
 
 // masterExerciseExampleRepository は [repository.MasterExerciseExampleRepository] の実装。
-// クエリは sqlc 生成コード（生 SQL 直書き）へ段階移行中。接続は GORM の *sql.DB を共有する。
+// クエリは sqlc 生成コード（生 SQL）で、GORM からは接続プール（*sql.DB）だけを借りる。
 type masterExerciseExampleRepository struct {
 	db *gorm.DB
 }

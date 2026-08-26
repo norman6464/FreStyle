@@ -798,6 +798,16 @@ type UpsertPageSnapshotParams struct {
 
 // snapshot の焼き直し。blocks の全入れ替えと同じトランザクションで呼び、
 // 「snapshot は常に blocks と同期している」を保つ。
+//
+// 衝突キー (page_id) に所有者列が入っていないが、この表に限っては安全。page_snapshots は
+// page_id / doc / built_at しか持たない導出キャッシュで、持ち主という概念がそもそも無い
+// （中身はいつでも blocks から焼き直せる）。誰のページなのかを決めるのは pages 側で、
+// 認可もそちらで行う。
+//
+// そのため機械向けの免除コメント（-- upsert-owner-scope: …）は付けていない。付けてしまうと、
+// 将来この表に所有者列が入ったときに検査が黙って素通りする。検査は「所有者列を 1 つも
+// 持たない表には何も要求しない」という作りなので、この形のままで通る
+// （検査の実体は internal/adapter/persistence/queries_static_check_test.go）。
 func (q *Queries) UpsertPageSnapshot(ctx context.Context, arg UpsertPageSnapshotParams) error {
 	_, err := q.db.ExecContext(ctx, upsertPageSnapshot, arg.PageID, arg.Doc)
 	return err

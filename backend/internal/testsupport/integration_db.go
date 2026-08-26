@@ -32,6 +32,7 @@ const integrationLockKey int64 = 907_353_401
 // OpenTestDB は結合テスト用 DB に接続し、全 domain モデルを AutoMigrate して返す。
 // TEST_DATABASE_URL が空 かつ 既定 DSN にも繋がらない場合は t.Skip する
 // （ローカルで docker を上げずに `-tags=integration` を流しても落ちないように）。
+// TEST_DATABASE_URL が設定されている場合は skip せず t.Fatal で落とす（unreachableDB を参照）。
 func OpenTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	return openTestDB(t, false)
@@ -52,10 +53,7 @@ func OpenTestDBSimpleProtocol(t *testing.T) *gorm.DB {
 func openTestDB(t *testing.T, preferSimpleProtocol bool) *gorm.DB {
 	t.Helper()
 
-	dsn := os.Getenv("TEST_DATABASE_URL")
-	if dsn == "" {
-		dsn = defaultTestDSN
-	}
+	dsn, dsnExplicit := resolveTestDSN(os.Getenv("TEST_DATABASE_URL"))
 
 	// 安全弁: 接続先が Supabase / 本番 pooler の場合は接続前に必ず落とす。
 	// 結合テストは TruncateAll（TRUNCATE ... CASCADE）でテーブルを破壊するため、
@@ -75,7 +73,7 @@ func openTestDB(t *testing.T, preferSimpleProtocol bool) *gorm.DB {
 		// gorm.Open は Initialize 後の自動 Ping で失敗しても *gorm.DB を返す
 		// （プールは開いたまま）。掴めた分だけ閉じてから打ち切る。
 		closeGormPool(db)
-		t.Skipf("結合テスト用 PostgreSQL に接続できません（docker compose -f docker-compose.integration.yml up -d 済か確認）: %v", err)
+		unreachableDB(t, dsnExplicit, "結合テスト用 PostgreSQL に接続できません", err)
 	}
 	sqlDB, err := db.DB()
 	if err != nil {
@@ -92,7 +90,7 @@ func openTestDB(t *testing.T, preferSimpleProtocol bool) *gorm.DB {
 		_ = sqlDB.Close()
 	})
 	if err := sqlDB.Ping(); err != nil {
-		t.Skipf("結合テスト用 PostgreSQL に ping 失敗: %v", err)
+		unreachableDB(t, dsnExplicit, "結合テスト用 PostgreSQL に ping 失敗", err)
 	}
 
 	serializeIntegration(t, sqlDB)
@@ -157,6 +155,32 @@ func serializeIntegration(t *testing.T, sqlDB *sql.DB) {
 		_, _ = conn.ExecContext(context.WithoutCancel(ctx), `SELECT pg_advisory_unlock($1)`, integrationLockKey)
 		_ = conn.Close()
 	})
+}
+
+// resolveTestDSN は環境変数 TEST_DATABASE_URL から接続先と「明示指定されたか」を返す。
+// 明示指定の有無が到達不能時の扱い（fail か skip か）を決める（unreachableDB を参照）。
+func resolveTestDSN(env string) (dsn string, explicit bool) {
+	if env == "" {
+		return defaultTestDSN, false
+	}
+	return env, true
+}
+
+// unreachableDB は結合テスト用 DB に到達できないときの打ち切り方を決める。
+//
+// TEST_DATABASE_URL が設定されている＝DB を用意した上で回している（CI もこれ）。
+// この状況で接続できないのは環境の異常なので skip せず失敗させる。skip にすると
+// 接続枯渇のような障害がパッケージの exit 0 に紛れ、`-v` を付けない CI ログでは
+// テストが実行されなくなったことに誰も気付けない。
+//
+// 未設定のときは DB を用意していないローカル実行なので、従来どおり skip して
+// `go test -tags=integration ./...` が落ちないようにする。
+func unreachableDB(t *testing.T, dsnExplicit bool, msg string, err error) {
+	t.Helper()
+	if dsnExplicit {
+		t.Fatalf("%s（TEST_DATABASE_URL の接続先を確認してください）: %v", msg, err)
+	}
+	t.Skipf("%s（docker compose -f docker-compose.integration.yml up -d 済か確認）: %v", msg, err)
 }
 
 // closeGormPool は *gorm.DB が抱える接続プールを閉じる（nil / 取得失敗は無視する）。

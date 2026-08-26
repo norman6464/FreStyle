@@ -12,41 +12,32 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
-	"gorm.io/gorm"
 )
 
 // userRepository は [repository.UserRepository] の実装。
-// クエリは sqlc 生成コード（生 SQL）で、GORM からは接続プール（*sql.DB）だけを借りる。
+// クエリは sqlc 生成コード（生 SQL）で、接続プール（*sql.DB）をそのまま受け取る。
 type userRepository struct {
-	db *gorm.DB
+	db *sql.DB
 }
 
-func NewUserRepository(db *gorm.DB) repository.UserRepository {
+func NewUserRepository(db *sql.DB) repository.UserRepository {
 	return &userRepository{db: db}
 }
 
-// queries は GORM が持つ接続プールを借りて sqlc の Queries を作る（別 pool を持たない）。
-func (r *userRepository) queries() (*sqlcgen.Queries, error) {
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return nil, err
-	}
-	return sqlcgen.New(sqlDB), nil
+// queries は保持している接続プールで sqlc の Queries を作る（別 pool を持たない）。
+func (r *userRepository) queries() *sqlcgen.Queries {
+	return sqlcgen.New(r.db)
 }
 
 // withTx は 1 つのトランザクションを開き、その中でだけ有効な Queries を fn に渡す。
 // fn がエラーを返せば（あるいは Commit に失敗すれば）書き込みはすべて巻き戻る。
 func (r *userRepository) withTx(ctx context.Context, fn func(qtx *sqlcgen.Queries) error) error {
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return err
-	}
-	tx, err := sqlDB.BeginTx(ctx, nil)
+	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }() // Commit 済みなら no-op
-	if err := fn(sqlcgen.New(sqlDB).WithTx(tx)); err != nil {
+	if err := fn(sqlcgen.New(r.db).WithTx(tx)); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -87,10 +78,7 @@ func toDomainUser(row userRow) *domain.User {
 }
 
 func (r *userRepository) FindByCognitoSub(ctx context.Context, sub string) (*domain.User, error) {
-	q, err := r.queries()
-	if err != nil {
-		return nil, err
-	}
+	q := r.queries()
 	row, err := q.GetUserByCognitoSub(ctx, sub)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -102,10 +90,7 @@ func (r *userRepository) FindByCognitoSub(ctx context.Context, sub string) (*dom
 }
 
 func (r *userRepository) FindActiveByEmail(ctx context.Context, email string) (*domain.User, error) {
-	q, err := r.queries()
-	if err != nil {
-		return nil, err
-	}
+	q := r.queries()
 	rows, err := q.ListActiveUsersByEmail(ctx, email)
 	if err != nil {
 		return nil, err
@@ -139,10 +124,7 @@ func (r *userRepository) CognitoSubjectByUserID(ctx context.Context, userID uint
 	if !ok {
 		return "", nil
 	}
-	q, err := r.queries()
-	if err != nil {
-		return "", err
-	}
+	q := r.queries()
 	subject, err := q.GetCognitoSubjectByUserID(ctx, id64)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", nil
@@ -158,10 +140,7 @@ func (r *userRepository) FindByID(ctx context.Context, id uint64) (*domain.User,
 	if !ok {
 		return nil, nil // int64 範囲外 = 存在し得ない id
 	}
-	q, err := r.queries()
-	if err != nil {
-		return nil, err
-	}
+	q := r.queries()
 	row, err := q.GetUserByID(ctx, id64)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -173,10 +152,7 @@ func (r *userRepository) FindByID(ctx context.Context, id uint64) (*domain.User,
 }
 
 func (r *userRepository) ListByRole(ctx context.Context, role domain.RoleName) ([]domain.User, error) {
-	q, err := r.queries()
-	if err != nil {
-		return nil, err
-	}
+	q := r.queries()
 	rows, err := q.ListUsersByRole(ctx, string(role))
 	if err != nil {
 		return nil, err
@@ -195,10 +171,7 @@ func (r *userRepository) ListByCompanyID(ctx context.Context, companyID uint64) 
 		// フロントの map が落ちるため空スライスにする（FRESTYLE-77）。
 		return make([]domain.User, 0), nil
 	}
-	q, err := r.queries()
-	if err != nil {
-		return nil, err
-	}
+	q := r.queries()
 	rows, err := q.ListUsersByCompanyID(ctx, sql.NullInt64{Int64: cid, Valid: true})
 	if err != nil {
 		return nil, err
@@ -304,10 +277,7 @@ func insertUserTx(ctx context.Context, q *sqlcgen.Queries, user *domain.User) er
 // identity 側が (provider, subject) 競合などで失敗するとトランザクションごと巻き戻り、
 // users 行だけが残る（＝ログイン不能な孤児）状態を作らない。
 func (r *userRepository) CreateWithOidcIdentity(ctx context.Context, user *domain.User, provider, subject string) error {
-	q, err := r.queries()
-	if err != nil {
-		return err
-	}
+	q := r.queries()
 	roleID, err := resolveRoleID(ctx, q, user.Role)
 	if err != nil {
 		return err
@@ -343,10 +313,7 @@ func (r *userRepository) CreateFirstSuperAdminWithOidcIdentity(
 	if user.Role != domain.RoleSuperAdmin {
 		return false, fmt.Errorf("最初の運営管理者の作成に role %q が渡されました（super_admin 専用の経路です）", user.Role)
 	}
-	q, err := r.queries()
-	if err != nil {
-		return false, err
-	}
+	q := r.queries()
 	roleID, err := resolveRoleID(ctx, q, user.Role)
 	if err != nil {
 		return false, err
@@ -407,10 +374,7 @@ func mirrorUserWorkspaceTx(ctx context.Context, q *sqlcgen.Queries, userID uint6
 // subject が別ユーザーに紐付いている場合は黙って成功にせずエラーを返す
 // （無音で放置するとサイレントなログイン不能を作るため）。
 func (r *userRepository) EnsureOidcIdentity(ctx context.Context, userID uint64, provider, subject string) error {
-	q, err := r.queries()
-	if err != nil {
-		return err
-	}
+	q := r.queries()
 	return ensureOidcIdentityTx(ctx, q, userID, provider, subject)
 }
 
@@ -459,10 +423,7 @@ func (r *userRepository) UpdateAiChatEnabled(ctx context.Context, userID uint64,
 	if !ok {
 		return nil // 存在し得ない id = 対象なし
 	}
-	q, err := r.queries()
-	if err != nil {
-		return err
-	}
+	q := r.queries()
 	value := sql.NullBool{}
 	if enabled != nil {
 		value = sql.NullBool{Bool: *enabled, Valid: true}
@@ -480,10 +441,7 @@ func (r *userRepository) UpdateActive(ctx context.Context, userID uint64, active
 	if !ok {
 		return domain.ErrNotFound // 存在し得ない id = not found
 	}
-	q, err := r.queries()
-	if err != nil {
-		return err
-	}
+	q := r.queries()
 	affected, err := q.UpdateUserActive(ctx, sqlcgen.UpdateUserActiveParams{ID: id64, IsActive: active})
 	if err != nil {
 		return err
@@ -506,10 +464,7 @@ func (r *userRepository) SoftDelete(ctx context.Context, userID uint64) error {
 	if !ok {
 		return domain.ErrNotFound // 存在し得ない id = not found
 	}
-	q, err := r.queries()
-	if err != nil {
-		return err
-	}
+	q := r.queries()
 	affected, err := q.SoftDeleteUser(ctx, id64)
 	if err != nil {
 		return err
@@ -525,10 +480,7 @@ func (r *userRepository) UpdateName(ctx context.Context, userID uint64, name str
 	if !ok {
 		return nil // 存在し得ない id = 対象なし
 	}
-	q, err := r.queries()
-	if err != nil {
-		return err
-	}
+	q := r.queries()
 	return q.UpdateUserName(ctx, sqlcgen.UpdateUserNameParams{ID: id64, Name: name})
 }
 
@@ -537,10 +489,7 @@ func (r *userRepository) UpdateRole(ctx context.Context, userID uint64, role dom
 	if !ok {
 		return nil // 存在し得ない id = 対象なし
 	}
-	q, err := r.queries()
-	if err != nil {
-		return err
-	}
+	q := r.queries()
 	roleID, err := resolveRoleID(ctx, q, role)
 	if err != nil {
 		return err
@@ -560,10 +509,7 @@ func (r *userRepository) UpdateCompanyID(ctx context.Context, userID uint64, com
 	if !ok {
 		return nil // 存在し得ない company id = 付け替え先なし
 	}
-	q, err := r.queries()
-	if err != nil {
-		return err
-	}
+	q := r.queries()
 	return q.UpdateUserCompanyID(ctx, sqlcgen.UpdateUserCompanyIDParams{
 		ID:        id64,
 		CompanyID: sql.NullInt64{Int64: cid, Valid: true},

@@ -15,7 +15,8 @@ import (
 // completed_at / created_at が非ゼロで書かれることを固定する（NOT NULL 列に時刻が入る）。
 func TestLessonProgressRepository_Timestamps_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewLessonProgressRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewLessonProgressRepository(sqlDB)
 	ctx := context.Background()
 
 	testsupport.TruncateAll(t, db, "user_chapter_progress")

@@ -17,7 +17,8 @@ import (
 // CountUnread を実 Postgres で検証する。MarkRead で未読数が減ることも確認する。
 func TestNotificationRepository_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewNotificationRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewNotificationRepository(sqlDB)
 	ctx := context.Background()
 
 	t.Run("ListByUserID は created_at DESC / CountUnread / MarkRead", func(t *testing.T) {
@@ -50,7 +51,8 @@ func TestNotificationRepository_Integration(t *testing.T) {
 // 宛先が増えるたびに DB との往復が増えないよう 1 回の INSERT にまとめている（FRESTYLE-17）。
 func TestNotificationRepository_CreateMany_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewNotificationRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewNotificationRepository(sqlDB)
 	ctx := context.Background()
 
 	t.Run("複数件をまとめて作成できる", func(t *testing.T) {
@@ -97,8 +99,9 @@ func TestNotificationRepository_CreateMany_Integration(t *testing.T) {
 // 全行の xmin が一致し、宛先ごとの個別 INSERT へ退行すると xmin が宛先数だけ分かれる。
 func TestNotificationRepository_CreateManyIssuesSingleInsert_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
+	sqlDB := testsupport.SQLDB(t, db)
 	testsupport.TruncateAll(t, db, "notifications")
-	repo := persistence.NewNotificationRepository(db)
+	repo := persistence.NewNotificationRepository(sqlDB)
 
 	ns := make([]domain.Notification, 0, 10)
 	for i := uint64(1); i <= 10; i++ {
@@ -117,7 +120,8 @@ func TestNotificationRepository_CreateManyIssuesSingleInsert_Integration(t *test
 // 既読化し、他 user に触れないことを実 Postgres で固定する。
 func TestNotificationRepository_MarkAllRead_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewNotificationRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewNotificationRepository(sqlDB)
 	ctx := context.Background()
 	testsupport.TruncateAll(t, db, "notifications")
 

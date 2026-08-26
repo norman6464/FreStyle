@@ -40,7 +40,8 @@ func ensureScoreCards(t *testing.T, db *gorm.DB) {
 // 実 Postgres で固定する。user_id での絞り込み・NULL スコアの扱い・0 件時の COALESCE を検証する。
 func TestUserStatsRepository_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewUserStatsRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewUserStatsRepository(sqlDB)
 	ctx := context.Background()
 	ensureScoreCards(t, db)
 

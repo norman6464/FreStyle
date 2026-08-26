@@ -2,20 +2,20 @@ package persistence
 
 import (
 	"context"
+	"database/sql"
 
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
-	"gorm.io/gorm"
 )
 
 // lessonProgressRepository は [repository.LessonProgressRepository] の実装。
-// クエリは sqlc 生成コード（生 SQL）で、GORM からは接続プール（*sql.DB）だけを借りる。
+// クエリは sqlc 生成コード（生 SQL）で、接続プール（*sql.DB）をそのまま受け取る。
 type lessonProgressRepository struct {
-	db *gorm.DB
+	db *sql.DB
 }
 
-func NewLessonProgressRepository(db *gorm.DB) repository.LessonProgressRepository {
+func NewLessonProgressRepository(db *sql.DB) repository.LessonProgressRepository {
 	return &lessonProgressRepository{db: db}
 }
 
@@ -44,12 +44,8 @@ func (r *lessonProgressRepository) MarkCompleted(ctx context.Context, userID, ma
 	if !ok {
 		return false, nil
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return false, err
-	}
 	// (user_id, chapter_id) が衝突したら何もしない（冪等）。RowsAffected>0 で初回かを判定する。
-	n, err := sqlcgen.New(sqlDB).InsertUserChapterProgressIfAbsent(ctx, sqlcgen.InsertUserChapterProgressIfAbsentParams{
+	n, err := sqlcgen.New(r.db).InsertUserChapterProgressIfAbsent(ctx, sqlcgen.InsertUserChapterProgressIfAbsentParams{
 		UserID:    uid,
 		ChapterID: cid,
 		CourseID:  coid,
@@ -69,11 +65,7 @@ func (r *lessonProgressRepository) MarkIncomplete(ctx context.Context, userID, m
 	if !ok {
 		return nil
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return err
-	}
-	return sqlcgen.New(sqlDB).DeleteUserChapterProgress(ctx, sqlcgen.DeleteUserChapterProgressParams{
+	return sqlcgen.New(r.db).DeleteUserChapterProgress(ctx, sqlcgen.DeleteUserChapterProgressParams{
 		UserID:    uid,
 		ChapterID: cid,
 	})
@@ -87,11 +79,7 @@ func (r *lessonProgressRepository) CountCompletedByUserGroupedByCourse(ctx conte
 	if !ok {
 		return map[uint64]int{}, nil // 存在し得ない user_id = 0 件
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return nil, err
-	}
-	rows, err := sqlcgen.New(sqlDB).CountCompletedChaptersByCourseForUser(ctx, uid)
+	rows, err := sqlcgen.New(r.db).CountCompletedChaptersByCourseForUser(ctx, uid)
 	if err != nil {
 		return nil, err
 	}
@@ -107,11 +95,7 @@ func (r *lessonProgressRepository) ListByUser(ctx context.Context, userID uint64
 	if !ok {
 		return []domain.UserLessonProgress{}, nil // 存在し得ない user_id = 0 件
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return nil, err
-	}
-	rows, err := sqlcgen.New(sqlDB).ListUserChapterProgressByUser(ctx, uid)
+	rows, err := sqlcgen.New(r.db).ListUserChapterProgressByUser(ctx, uid)
 	if err != nil {
 		return nil, err
 	}

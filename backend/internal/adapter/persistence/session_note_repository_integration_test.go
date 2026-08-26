@@ -17,7 +17,8 @@ import (
 // TestSessionNoteRepository_Integration は FindBySessionID（round-trip / not-found）を実 Postgres で検証する。
 func TestSessionNoteRepository_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewSessionNoteRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewSessionNoteRepository(sqlDB)
 	ctx := context.Background()
 
 	t.Run("Upsert → FindBySessionID で round-trip（1 行を返す）", func(t *testing.T) {
@@ -44,7 +45,8 @@ func TestSessionNoteRepository_Integration(t *testing.T) {
 // updated_at を呼び出し元の struct へ書き戻すことを実 Postgres で固定する。
 func TestSessionNoteRepository_Upsert_WriteBack_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewSessionNoteRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewSessionNoteRepository(sqlDB)
 	ctx := context.Background()
 	testsupport.TruncateAll(t, db, "session_notes")
 
@@ -66,10 +68,9 @@ func TestSessionNoteRepository_Upsert_WriteBack_Integration(t *testing.T) {
 // content は新しい値・created_at は初回のまま・updated_at は進む・id も変わらない。
 func TestSessionNoteRepository_Upsert_SecondSaveUpdates_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewSessionNoteRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewSessionNoteRepository(sqlDB)
 	ctx := context.Background()
-	sqlDB, err := db.DB()
-	require.NoError(t, err)
 	testsupport.TruncateAll(t, db, "session_notes")
 
 	require.NoError(t, repo.Upsert(ctx, &domain.SessionNote{SessionID: 88, UserID: 5, Content: "初回"}))
@@ -103,16 +104,15 @@ func TestSessionNoteRepository_Upsert_SecondSaveUpdates_Integration(t *testing.T
 // 効いていること（ON CONFLICT を経由しない直接 INSERT の 2 行目が 23505 で弾かれること）を固定する。
 func TestSessionNoteRepository_UniqueConstraint_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewSessionNoteRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewSessionNoteRepository(sqlDB)
 	ctx := context.Background()
-	sqlDB, err := db.DB()
-	require.NoError(t, err)
 	testsupport.TruncateAll(t, db, "session_notes")
 
 	require.NoError(t, repo.Upsert(ctx, &domain.SessionNote{SessionID: 91, UserID: 5, Content: "1 行目"}))
 
 	// upsert を経由せず生 INSERT で同じ session_id の 2 行目を作ろうとすると一意制約が弾く。
-	_, err = sqlDB.Exec(
+	_, err := sqlDB.Exec(
 		`INSERT INTO session_notes (session_id, user_id, content, created_at, updated_at)
 		 VALUES ($1, $2, $3, now(), now())`,
 		91, 5, "2 行目",
@@ -125,8 +125,7 @@ func TestSessionNoteRepository_UniqueConstraint_Integration(t *testing.T) {
 // session_notes(session_id) に一意インデックスが張られていることを固定する。
 func TestSessionNoteRepository_UniqueIndexesPresent_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	sqlDB, err := db.DB()
-	require.NoError(t, err)
+	sqlDB := testsupport.SQLDB(t, db)
 
 	names := sessionIDUniqueIndexNames(t, sqlDB)
 

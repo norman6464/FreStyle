@@ -17,7 +17,8 @@ import (
 // TestAuditRepository_Integration は Record の保存と ListRecent の新しい順 / limit を実 Postgres で検証する。
 func TestAuditRepository_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewAuditRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewAuditRepository(sqlDB)
 	ctx := context.Background()
 	testsupport.TruncateAll(t, db, "audit_events")
 
@@ -48,7 +49,8 @@ func TestAuditRepository_Integration(t *testing.T) {
 // （採番 id と created_at の書き戻し / 全列の保存 / 明示した created_at は保持）を固定する。
 func TestAuditRepository_Record_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewAuditRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewAuditRepository(sqlDB)
 	ctx := context.Background()
 	testsupport.TruncateAll(t, db, "audit_events")
 

@@ -16,7 +16,8 @@ import (
 // not-found で domain.ErrNotFound）と、生 SQL の UpdateAiChatEnabled を実 Postgres で検証する。
 func TestCompanyRepository_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewCompanyRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewCompanyRepository(sqlDB)
 	ctx := context.Background()
 
 	t.Run("ListAll は name 昇順 / FindByID で round-trip", func(t *testing.T) {

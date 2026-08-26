@@ -24,8 +24,9 @@ const rdDoc = `{"type":"doc","content":[{"type":"heading","attrs":{"level":2},"c
 // 実 Postgres で固定する。
 func TestRichDocumentRepository_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	userRepo := persistence.NewUserRepository(db)
-	repo := persistence.NewRichDocumentRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	userRepo := persistence.NewUserRepository(sqlDB)
+	repo := persistence.NewRichDocumentRepository(sqlDB)
 	ctx := context.Background()
 
 	// FK（owner_id → users.id）を満たすため作成者を用意する。

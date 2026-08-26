@@ -4,6 +4,7 @@ package persistence_test
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 
 	"github.com/google/uuid"
@@ -113,7 +114,7 @@ func requireTenantInvariants(t *testing.T, db *gorm.DB) {
 }
 
 // insertTraineeIn は会社に属する研修生を 1 人作る（作成経路の二重書きもここで通る）。
-func insertTraineeIn(ctx context.Context, t *testing.T, db *gorm.DB, companyID uint64, sub string) uint64 {
+func insertTraineeIn(ctx context.Context, t *testing.T, db *sql.DB, companyID uint64, sub string) uint64 {
 	t.Helper()
 	repo := persistence.NewUserRepository(db)
 	require.NoError(t, repo.CreateWithOidcIdentity(ctx, &domain.User{
@@ -128,6 +129,7 @@ func insertTraineeIn(ctx context.Context, t *testing.T, db *gorm.DB, companyID u
 // 常に正しい値を持つ）の不変条件を実 PostgreSQL で固定する。
 func TestTenantBridgeInvariants_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
+	sqlDB := testsupport.SQLDB(t, db)
 	ctx := context.Background()
 
 	t.Run("再実行しても DB の状態が 1 列も変わらない", func(t *testing.T) {
@@ -135,8 +137,8 @@ func TestTenantBridgeInvariants_Integration(t *testing.T) {
 		insertCompany(t, db, 1, "会社 A", true, true)
 		insertCompany(t, db, 2, "会社 B", false, false)
 		// バックフィル前に作られたユーザー（workspace_id がまだ空の状態）を混ぜる。
-		insertTraineeIn(ctx, t, db, 1, "sub-a")
-		insertTraineeIn(ctx, t, db, 2, "sub-b")
+		insertTraineeIn(ctx, t, sqlDB, 1, "sub-a")
+		insertTraineeIn(ctx, t, sqlDB, 2, "sub-b")
 		require.NoError(t, db.Exec(`UPDATE users SET workspace_id = NULL`).Error)
 
 		runStartupBackfill(ctx, t, db)
@@ -188,7 +190,7 @@ func TestTenantBridgeInvariants_Integration(t *testing.T) {
 
 		// 起動後に新しい会社と、その所属ユーザーが増える。
 		insertCompany(t, db, 2, "後から増えた会社", false, true)
-		newUser := insertTraineeIn(ctx, t, db, 2, "sub-late")
+		newUser := insertTraineeIn(ctx, t, sqlDB, 2, "sub-late")
 
 		runStartupBackfill(ctx, t, db)
 
@@ -206,8 +208,8 @@ func TestTenantBridgeInvariants_Integration(t *testing.T) {
 		testsupport.TruncateAll(t, db, tenantBridgeTables...)
 		insertCompany(t, db, 1, "会社 A", true, true)
 		insertCompany(t, db, 2, "会社 B", true, true)
-		userA := insertTraineeIn(ctx, t, db, 1, "sub-drift-a")
-		userB := insertTraineeIn(ctx, t, db, 2, "sub-drift-b")
+		userA := insertTraineeIn(ctx, t, sqlDB, 1, "sub-drift-a")
+		userB := insertTraineeIn(ctx, t, sqlDB, 2, "sub-drift-b")
 		runStartupBackfill(ctx, t, db)
 		ws1 := companyWorkspaceID(t, db, 1)
 		ws2 := companyWorkspaceID(t, db, 2)
@@ -236,7 +238,7 @@ func TestTenantBridgeInvariants_Integration(t *testing.T) {
 	t.Run("未所属ユーザーはワークスペースへ流し込まれない", func(t *testing.T) {
 		testsupport.TruncateAll(t, db, tenantBridgeTables...)
 		insertCompany(t, db, 1, "唯一の会社", true, true)
-		root := insertTraineeIn(ctx, t, db, 1, "sub-root")
+		root := insertTraineeIn(ctx, t, sqlDB, 1, "sub-root")
 		// 会社から外れた（未所属になった）ユーザー。既定のテナントへ寄せてはいけない。
 		require.NoError(t, db.Exec(
 			`UPDATE users SET company_id = NULL, workspace_id = NULL WHERE id = ?`, root,

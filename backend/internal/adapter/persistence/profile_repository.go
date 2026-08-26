@@ -8,14 +8,13 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
-	"gorm.io/gorm"
 )
 
 // profileRepository は [repository.ProfileRepository] の実装。
-// クエリは sqlc 生成コード（生 SQL）で、GORM からは接続プール（*sql.DB）だけを借りる。
-type profileRepository struct{ db *gorm.DB }
+// クエリは sqlc 生成コード（生 SQL）で、接続プール（*sql.DB）をそのまま受け取る。
+type profileRepository struct{ db *sql.DB }
 
-func NewProfileRepository(db *gorm.DB) repository.ProfileRepository {
+func NewProfileRepository(db *sql.DB) repository.ProfileRepository {
 	return &profileRepository{db: db}
 }
 
@@ -24,11 +23,7 @@ func (r *profileRepository) FindByUserID(ctx context.Context, userID uint64) (*d
 	if !ok {
 		return nil, nil // 存在し得ない user_id = 未作成扱い
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return nil, err
-	}
-	row, err := sqlcgen.New(sqlDB).GetProfileByUserID(ctx, uid)
+	row, err := sqlcgen.New(r.db).GetProfileByUserID(ctx, uid)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil // 未作成は (nil, nil)。usecase が空表示にフォールバックする
 	}
@@ -50,11 +45,7 @@ func (r *profileRepository) Upsert(ctx context.Context, p *domain.Profile) error
 		// 1 行も書けていないので nil を返さない（呼び出し側が作成できたと誤認する）。
 		return outOfRangeIDError("user_id", p.UserID)
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return err
-	}
-	updatedAt, err := sqlcgen.New(sqlDB).UpsertProfile(ctx, sqlcgen.UpsertProfileParams{
+	updatedAt, err := sqlcgen.New(r.db).UpsertProfile(ctx, sqlcgen.UpsertProfileParams{
 		UserID:        uid,
 		Bio:           p.Bio,
 		AvatarUrl:     p.AvatarURL,

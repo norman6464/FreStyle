@@ -19,7 +19,8 @@ import (
 // course_id ごとの件数集計 (company 絞り込み / published フィルタ) を実 Postgres で検証する。
 func TestTeachingMaterialRepository_CountByCourseForCompany_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewTeachingMaterialRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewTeachingMaterialRepository(sqlDB)
 	ctx := context.Background()
 
 	mk := func(companyID, courseID uint64, title string, published bool) *domain.TeachingMaterial {
@@ -62,7 +63,8 @@ func TestTeachingMaterialRepository_CountByCourseForCompany_Integration(t *testi
 // リッチ本文（tiptap JSON）の jsonb 往復と revision 楽観ロックを実 Postgres で検証する。
 func TestTeachingMaterialRepository_UpdateDocWithRevision_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewTeachingMaterialRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewTeachingMaterialRepository(sqlDB)
 	ctx := context.Background()
 
 	testsupport.TruncateAll(t, db, "course_chapters")
@@ -105,7 +107,8 @@ func TestTeachingMaterialRepository_UpdateDocWithRevision_Integration(t *testing
 // 物理削除）を実 Postgres で固定する。GORM→sqlc 移行の前後で同一であることを保証する土台。
 func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewTeachingMaterialRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewTeachingMaterialRepository(sqlDB)
 	ctx := context.Background()
 
 	mk := func(companyID, courseID uint64, title string, order int, published bool) *domain.TeachingMaterial {

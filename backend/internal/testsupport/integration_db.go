@@ -38,6 +38,27 @@ func OpenTestDB(t *testing.T) *gorm.DB {
 	return openTestDB(t, false)
 }
 
+// OpenTestSQLDB は OpenTestDB と同じ初期化を行い、接続プール（*sql.DB）だけを返す。
+// repository は sqlc 生成コード（*sql.DB）で実装されているので、GORM API を使わない
+// テストはこちらを入り口にする。
+func OpenTestSQLDB(t *testing.T) *sql.DB {
+	t.Helper()
+	return SQLDB(t, OpenTestDB(t))
+}
+
+// SQLDB は OpenTestDB 系が返した *gorm.DB から、同じ接続プールを指す *sql.DB を取り出す。
+//
+// 別に接続を開くと advisory lock による直列化も TRUNCATE も別セッションになり、
+// テストが自分で用意したデータを repository 側から見られなくなる。同じプールを渡すこと。
+func SQLDB(t *testing.T, db *gorm.DB) *sql.DB {
+	t.Helper()
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("sql.DB 取得失敗: %v", err)
+	}
+	return sqlDB
+}
+
 // OpenTestDBSimpleProtocol は simple query protocol を強制した接続で OpenTestDB と同じ初期化を行う。
 //
 // 本番は Supabase transaction pooler 経由で simple protocol になり、pgx がパラメータを

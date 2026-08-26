@@ -40,7 +40,8 @@ func readAiChatSessionRow(t *testing.T, db *gorm.DB, id uint64) aiChatSessionRow
 // （採番 id と時刻の書き戻し / NULL 可の scenario_id / 明示した時刻は保持）を固定する。
 func TestAiChatSessionRepository_Create_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewAiChatSessionRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewAiChatSessionRepository(sqlDB)
 	ctx := context.Background()
 	testsupport.TruncateAll(t, db, "ai_chat_sessions")
 
@@ -93,7 +94,8 @@ func TestAiChatSessionRepository_Create_Integration(t *testing.T) {
 // （user_id の絞り / created_at DESC, id DESC のタイブレーク / 未存在の not found）を固定する。
 func TestAiChatSessionRepository_Read_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewAiChatSessionRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewAiChatSessionRepository(sqlDB)
 	ctx := context.Background()
 	testsupport.TruncateAll(t, db, "ai_chat_sessions")
 
@@ -153,7 +155,8 @@ func TestAiChatSessionRepository_Read_Integration(t *testing.T) {
 // （書くのは title と updated_at だけ / 他行は触らない / 存在しない id はエラーにしない）を固定する。
 func TestAiChatSessionRepository_UpdateTitle_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewAiChatSessionRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewAiChatSessionRepository(sqlDB)
 	ctx := context.Background()
 	testsupport.TruncateAll(t, db, "ai_chat_sessions")
 
@@ -200,7 +203,8 @@ func TestAiChatSessionRepository_UpdateTitle_Integration(t *testing.T) {
 // （物理削除であること / 対象外の行を消さない / 存在しない id はエラーにしない）を固定する。
 func TestAiChatSessionRepository_Delete_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewAiChatSessionRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewAiChatSessionRepository(sqlDB)
 	ctx := context.Background()
 	testsupport.TruncateAll(t, db, "ai_chat_sessions")
 

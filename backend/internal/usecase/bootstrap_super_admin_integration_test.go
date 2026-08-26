@@ -26,7 +26,8 @@ import (
 // できあがる super_admin が 1 人以下であることを確かめる。
 func TestBootstrapSuperAdmin_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	users := persistence.NewUserRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	users := persistence.NewUserRepository(sqlDB)
 	ctx := context.Background()
 
 	const bootstrapEmail = "ops@example.com"

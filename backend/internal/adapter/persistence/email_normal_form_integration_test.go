@@ -28,8 +28,9 @@ const emailNormalExprSQL = `SELECT lower(btrim(?::text, E'\t\n\x0B\f\r '))`
 // 既存行のバックフィルも同じ形に揃っている必要がある。
 func TestEmailNormalForm_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewUserRepository(db)
-	invRepo := persistence.NewAdminInvitationRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewUserRepository(sqlDB)
+	invRepo := persistence.NewAdminInvitationRepository(sqlDB)
 	ctx := context.Background()
 
 	truncate := func(t *testing.T) {

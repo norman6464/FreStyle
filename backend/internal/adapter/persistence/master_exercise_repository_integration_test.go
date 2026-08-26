@@ -18,8 +18,9 @@ import (
 // LEFT JOIN + FILTER に統合した一覧クエリを実 Postgres で検証する。
 func TestMasterExerciseRepository_ListWithStatusByLanguage_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	exRepo := persistence.NewMasterExerciseRepository(db)
-	subRepo := persistence.NewExerciseSubmissionRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	exRepo := persistence.NewMasterExerciseRepository(sqlDB)
+	subRepo := persistence.NewExerciseSubmissionRepository(sqlDB)
 	ctx := context.Background()
 	testsupport.TruncateAll(t, db, "master_exercises", "exercise_submissions")
 
@@ -124,7 +125,8 @@ func seedMasterExercisesForContract(t *testing.T, db *gorm.DB, ctx context.Conte
 // （言語フィルタ / 非公開除外 / 並び順とタイブレーク / 未存在の not found）を実 Postgres で固定する。
 func TestMasterExerciseRepository_ReadContract_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewMasterExerciseRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewMasterExerciseRepository(sqlDB)
 	ctx := context.Background()
 	testsupport.TruncateAll(t, db, "master_exercises", "exercise_submissions")
 	ids := seedMasterExercisesForContract(t, db, ctx)
@@ -201,8 +203,9 @@ func TestMasterExerciseRepository_ReadContract_Integration(t *testing.T) {
 // （公開分だけ数える / 正解済みは問題単位で 1 / 他人の提出は数えない / 言語昇順）を固定する。
 func TestMasterExerciseRepository_SummaryByLanguage_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewMasterExerciseRepository(db)
-	subRepo := persistence.NewExerciseSubmissionRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewMasterExerciseRepository(sqlDB)
+	subRepo := persistence.NewExerciseSubmissionRepository(sqlDB)
 	ctx := context.Background()
 	testsupport.TruncateAll(t, db, "master_exercises", "exercise_submissions")
 	ids := seedMasterExercisesForContract(t, db, ctx)

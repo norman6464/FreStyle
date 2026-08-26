@@ -17,7 +17,8 @@ import (
 // 正解/提出の有無判定を実 Postgres で固定する。
 func TestExerciseSubmissionRepository_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewExerciseSubmissionRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewExerciseSubmissionRepository(sqlDB)
 	ctx := context.Background()
 	testsupport.TruncateAll(t, db, "exercise_submissions")
 

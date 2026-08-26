@@ -8,14 +8,13 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
-	"gorm.io/gorm"
 )
 
 // sessionNoteRepository は [repository.SessionNoteRepository] の実装。
 // 読み書きとも sqlc 生成コード（生 SQL）。書き込みは session_id の一意制約に当てた upsert。
-type sessionNoteRepository struct{ db *gorm.DB }
+type sessionNoteRepository struct{ db *sql.DB }
 
-func NewSessionNoteRepository(db *gorm.DB) repository.SessionNoteRepository {
+func NewSessionNoteRepository(db *sql.DB) repository.SessionNoteRepository {
 	return &sessionNoteRepository{db: db}
 }
 
@@ -24,11 +23,7 @@ func (r *sessionNoteRepository) FindBySessionID(ctx context.Context, sessionID u
 	if !ok {
 		return nil, nil // 存在し得ない session_id = 未作成扱い
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return nil, err
-	}
-	row, err := sqlcgen.New(sqlDB).GetSessionNoteBySessionID(ctx, sid)
+	row, err := sqlcgen.New(r.db).GetSessionNoteBySessionID(ctx, sid)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -56,13 +51,9 @@ func (r *sessionNoteRepository) Upsert(ctx context.Context, n *domain.SessionNot
 		// 1 行も書けていないので nil を返さない（呼び出し側が作成できたと誤認する）。
 		return outOfRangeIDError("user_id", n.UserID)
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return err
-	}
 	// session_id の一意制約に当てて upsert する。初回は INSERT、以降は content /
 	// updated_at のみ UPDATE。採番 id と時刻（作成時刻は保持・更新時刻は now()）を書き戻す。
-	row, err := sqlcgen.New(sqlDB).UpsertSessionNote(ctx, sqlcgen.UpsertSessionNoteParams{
+	row, err := sqlcgen.New(r.db).UpsertSessionNote(ctx, sqlcgen.UpsertSessionNoteParams{
 		SessionID: sid,
 		UserID:    uid,
 		Content:   n.Content,

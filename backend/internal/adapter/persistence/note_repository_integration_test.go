@@ -16,7 +16,8 @@ import (
 // TestNoteRepository_Integration は NoteRepository の所有権スコープと並び順を実 Postgres で検証する。
 func TestNoteRepository_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewNoteRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewNoteRepository(sqlDB)
 	ctx := context.Background()
 
 	t.Run("ListByUserID は自分の note だけを updated_at DESC で返す", func(t *testing.T) {
@@ -74,7 +75,8 @@ func TestNoteRepository_Integration(t *testing.T) {
 // Update が updated_at を進めつつ created_at を保つこと（GORM autoTime 相当）を固定する。
 func TestNoteRepository_Timestamps_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewNoteRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewNoteRepository(sqlDB)
 	ctx := context.Background()
 	testsupport.TruncateAll(t, db, "notes")
 

@@ -1,6 +1,7 @@
 package database
 
 import (
+	"database/sql"
 	"fmt"
 	"net/url"
 	"strings"
@@ -11,10 +12,13 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-// NewPostgres は GORM で PostgreSQL に接続する。
+// NewPostgres は PostgreSQL に接続し、同じ接続プールを指す *gorm.DB と *sql.DB を返す。
 // pgbouncer 経由（Supabase transaction pooler）の場合は prepared statement を無効化し
 // simple query protocol を強制する（"prepared statement does not exist" 対策）。
-func NewPostgres(cfg *config.Config) (*gorm.DB, error) {
+//
+// アプリケーションのクエリは sqlc 生成コード（*sql.DB）で書く。*gorm.DB を返すのは
+// 起動時の AutoMigrate（[Migrate]）が GORM のモデル定義を必要とするためだけ。
+func NewPostgres(cfg *config.Config) (*gorm.DB, *sql.DB, error) {
 	gormCfg := &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Warn),
 	}
@@ -30,17 +34,17 @@ func NewPostgres(cfg *config.Config) (*gorm.DB, error) {
 
 	db, err := gorm.Open(postgres.New(pgCfg), gormCfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open postgres: %w", err)
+		return nil, nil, fmt.Errorf("failed to open postgres: %w", err)
 	}
 
 	sqlDB, err := db.DB()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get sql.DB: %w", err)
+		return nil, nil, fmt.Errorf("failed to get sql.DB: %w", err)
 	}
 	sqlDB.SetMaxIdleConns(2)
 	sqlDB.SetMaxOpenConns(10)
 
-	return db, nil
+	return db, sqlDB, nil
 }
 
 // isPgBouncerDSN は DSN が pgbouncer 経由かを判定する。

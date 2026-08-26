@@ -12,16 +12,15 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
-	"gorm.io/gorm"
 )
 
 // teachingMaterialRepository は [repository.TeachingMaterialRepository] の実装。
-// クエリは sqlc 生成コード（生 SQL）で、GORM からは接続プール（*sql.DB）だけを借りる。
+// クエリは sqlc 生成コード（生 SQL）で、接続プール（*sql.DB）をそのまま受け取る。
 type teachingMaterialRepository struct {
-	db *gorm.DB
+	db *sql.DB
 }
 
-func NewTeachingMaterialRepository(db *gorm.DB) repository.TeachingMaterialRepository {
+func NewTeachingMaterialRepository(db *sql.DB) repository.TeachingMaterialRepository {
 	return &teachingMaterialRepository{db: db}
 }
 
@@ -82,13 +81,9 @@ func (r *teachingMaterialRepository) ListByCompany(ctx context.Context, companyI
 	if !ok {
 		return []domain.TeachingMaterial{}, nil // 存在し得ない company_id = 0 件
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return nil, err
-	}
 	// 一覧は本文（doc・jsonb）を返さない（domain の Doc は json:"-" で応答に出ないため、
 	// 全章分を読み出しても転送するだけ無駄になる）。ListByCourse と同じ軽量な列構成。
-	rows, err := sqlcgen.New(sqlDB).ListChaptersByCompany(ctx, sqlcgen.ListChaptersByCompanyParams{
+	rows, err := sqlcgen.New(r.db).ListChaptersByCompany(ctx, sqlcgen.ListChaptersByCompanyParams{
 		CompanyID:          cid,
 		IncludeUnpublished: includeUnpublished,
 	})
@@ -108,13 +103,9 @@ func (r *teachingMaterialRepository) ListByCourse(ctx context.Context, courseID 
 	if !ok {
 		return []domain.TeachingMaterial{}, nil // 存在し得ない course_id = 0 件
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return nil, err
-	}
 	// 一覧は本文（doc・jsonb）を返さない（章ごとに重く、全章を先読みすると非効率）。
 	// 本文は選択時に GetByID で都度取得する。Doc は nil のままになる。
-	rows, err := sqlcgen.New(sqlDB).ListChaptersByCourse(ctx, sqlcgen.ListChaptersByCourseParams{
+	rows, err := sqlcgen.New(r.db).ListChaptersByCourse(ctx, sqlcgen.ListChaptersByCourseParams{
 		CourseID:           cid,
 		IncludeUnpublished: includeUnpublished,
 	})
@@ -134,11 +125,7 @@ func (r *teachingMaterialRepository) GetByID(ctx context.Context, id uint64) (*d
 	if !ok {
 		return nil, domain.ErrNotFound // 存在し得ない id = not found
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return nil, err
-	}
-	row, err := sqlcgen.New(sqlDB).GetChapterByID(ctx, id64)
+	row, err := sqlcgen.New(r.db).GetChapterByID(ctx, id64)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, domain.ErrNotFound // 404 シグナルを維持
 	}
@@ -156,11 +143,7 @@ func (r *teachingMaterialRepository) CountByCourseForCompany(ctx context.Context
 	if !ok {
 		return map[uint64]int{}, nil // 存在し得ない company_id = 空
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return nil, err
-	}
-	rows, err := sqlcgen.New(sqlDB).CountChaptersByCourseForCompany(ctx, sqlcgen.CountChaptersByCourseForCompanyParams{
+	rows, err := sqlcgen.New(r.db).CountChaptersByCourseForCompany(ctx, sqlcgen.CountChaptersByCourseForCompanyParams{
 		CompanyID:          cid,
 		IncludeUnpublished: includeUnpublished,
 	})
@@ -190,10 +173,6 @@ func (r *teachingMaterialRepository) Create(ctx context.Context, m *domain.Teach
 		// 1 行も書けていないので nil を返さない（呼び出し側が作成できたと誤認する）。
 		return outOfRangeIDError("created_by", m.CreatedByUserID)
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return err
-	}
 	now := time.Now()
 	createdAt := m.CreatedAt
 	if createdAt.IsZero() {
@@ -203,7 +182,7 @@ func (r *teachingMaterialRepository) Create(ctx context.Context, m *domain.Teach
 	if updatedAt.IsZero() {
 		updatedAt = now // GORM autoUpdateTime 相当（ゼロのときだけ now）
 	}
-	row, err := sqlcgen.New(sqlDB).InsertChapter(ctx, sqlcgen.InsertChapterParams{
+	row, err := sqlcgen.New(r.db).InsertChapter(ctx, sqlcgen.InsertChapterParams{
 		CompanyID:       companyID,
 		CourseID:        courseID,
 		CreatedByUserID: createdBy,
@@ -234,13 +213,9 @@ func (r *teachingMaterialRepository) Update(ctx context.Context, m *domain.Teach
 	if !ok {
 		return domain.ErrNotFound // 存在し得ない id = not found
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return err
-	}
 	// CreatedBy / CompanyID / CourseID / Doc / Revision は不変（GORM の Updates(map) と同じ 3 列のみ）。
 	// updated_at は now() へ進めて RETURNING で書き戻す（autoUpdateTime 相当）。
-	updatedAt, err := sqlcgen.New(sqlDB).UpdateChapter(ctx, sqlcgen.UpdateChapterParams{
+	updatedAt, err := sqlcgen.New(r.db).UpdateChapter(ctx, sqlcgen.UpdateChapterParams{
 		ID:          id64,
 		Title:       m.Title,
 		SortOrder:   int64(m.OrderInCourse),
@@ -264,12 +239,8 @@ func (r *teachingMaterialRepository) UpdateDocWithRevision(ctx context.Context, 
 	if !ok {
 		return nil, domain.ErrNotFound // 存在し得ない id = not found
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return nil, err
-	}
 	raw := json.RawMessage(doc)
-	row, err := sqlcgen.New(sqlDB).UpdateChapterDocWithRevision(ctx, sqlcgen.UpdateChapterDocWithRevisionParams{
+	row, err := sqlcgen.New(r.db).UpdateChapterDocWithRevision(ctx, sqlcgen.UpdateChapterDocWithRevisionParams{
 		ID:               id64,
 		Doc:              &raw,
 		ExpectedRevision: int64(expectedRevision),
@@ -303,11 +274,7 @@ func (r *teachingMaterialRepository) Delete(ctx context.Context, id uint64) erro
 	if !ok {
 		return nil // 存在し得ない id = 対象なし
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return err
-	}
-	return sqlcgen.New(sqlDB).DeleteChapter(ctx, id64)
+	return sqlcgen.New(r.db).DeleteChapter(ctx, id64)
 }
 
 // DeleteByCourse はコース削除時の cascade 用に配下教材を全削除する（FK に頼らず明示削除）。
@@ -316,9 +283,5 @@ func (r *teachingMaterialRepository) DeleteByCourse(ctx context.Context, courseI
 	if !ok {
 		return nil // 存在し得ない course_id = 対象なし
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return err
-	}
-	return sqlcgen.New(sqlDB).DeleteChaptersByCourse(ctx, cid)
+	return sqlcgen.New(r.db).DeleteChaptersByCourse(ctx, cid)
 }

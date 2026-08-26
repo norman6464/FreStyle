@@ -63,6 +63,7 @@ func runStartupBackfill(ctx context.Context, t *testing.T, db *gorm.DB) {
 // 読み取りは何も変えていない段なので、ここで確かめるのは新しい列の中身だけ。
 func TestTenantBridgeBackfill_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
+	sqlDB := testsupport.SQLDB(t, db)
 	ctx := context.Background()
 
 	t.Run("会社ごとにワークスペースが 1 つでき、所属ユーザーへ写る", func(t *testing.T) {
@@ -70,7 +71,7 @@ func TestTenantBridgeBackfill_Integration(t *testing.T) {
 		insertCompany(t, db, 1, "株式会社ふれすたいる", true, true)
 		insertCompany(t, db, 2, "Second Corp", false, false)
 
-		repo := persistence.NewUserRepository(db)
+		repo := persistence.NewUserRepository(sqlDB)
 		c1, c2 := uint64(1), uint64(2)
 		require.NoError(t, repo.CreateWithOidcIdentity(ctx, &domain.User{
 			Email: "a@example.com", Name: "A", Role: domain.RoleTrainee, CompanyID: &c1,
@@ -181,6 +182,7 @@ func TestTenantBridgeBackfill_Integration(t *testing.T) {
 // 両方を埋めることを固定する。読み取りは company_id のままで変えていない。
 func TestTenantBridgeDualWrite_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
+	sqlDB := testsupport.SQLDB(t, db)
 	ctx := context.Background()
 
 	t.Run("招待からのユーザー作成で両方の列が埋まる", func(t *testing.T) {
@@ -189,7 +191,7 @@ func TestTenantBridgeDualWrite_Integration(t *testing.T) {
 		runStartupBackfill(ctx, t, db)
 		ws1 := companyWorkspaceID(t, db, 1)
 
-		repo := persistence.NewUserRepository(db)
+		repo := persistence.NewUserRepository(sqlDB)
 		cid := uint64(1)
 		require.NoError(t, repo.CreateWithOidcIdentity(ctx, &domain.User{
 			Email: "new@example.com", Name: "新入社員", Role: domain.RoleTrainee, CompanyID: &cid,
@@ -203,7 +205,7 @@ func TestTenantBridgeDualWrite_Integration(t *testing.T) {
 
 	t.Run("未所属のまま作られたユーザーは workspace_id も NULL", func(t *testing.T) {
 		testsupport.TruncateAll(t, db, tenantBridgeTables...)
-		repo := persistence.NewUserRepository(db)
+		repo := persistence.NewUserRepository(sqlDB)
 		require.NoError(t, repo.CreateWithOidcIdentity(ctx, &domain.User{
 			Email: "root@example.com", Name: "運営", Role: domain.RoleSuperAdmin,
 		}, domain.OidcProviderCognito, "sub-root"))
@@ -222,7 +224,7 @@ func TestTenantBridgeDualWrite_Integration(t *testing.T) {
 		ws1 := companyWorkspaceID(t, db, 1)
 		ws2 := companyWorkspaceID(t, db, 2)
 
-		repo := persistence.NewUserRepository(db)
+		repo := persistence.NewUserRepository(sqlDB)
 		cid := uint64(1)
 		require.NoError(t, repo.CreateWithOidcIdentity(ctx, &domain.User{
 			Email: "move@example.com", Name: "異動", Role: domain.RoleTrainee, CompanyID: &cid,
@@ -245,7 +247,7 @@ func TestTenantBridgeDualWrite_Integration(t *testing.T) {
 		runStartupBackfill(ctx, t, db)
 		ws1 := companyWorkspaceID(t, db, 1)
 
-		companies := persistence.NewCompanyRepository(db)
+		companies := persistence.NewCompanyRepository(sqlDB)
 		require.NoError(t, companies.UpdateAiChatEnabled(ctx, 1, false))
 		require.NoError(t, companies.UpdateActive(ctx, 1, false))
 
@@ -265,14 +267,14 @@ func TestTenantBridgeDualWrite_Integration(t *testing.T) {
 
 	t.Run("存在しない会社の有効/無効更新は not found のまま", func(t *testing.T) {
 		testsupport.TruncateAll(t, db, tenantBridgeTables...)
-		companies := persistence.NewCompanyRepository(db)
+		companies := persistence.NewCompanyRepository(sqlDB)
 		require.ErrorIs(t, companies.UpdateActive(ctx, 999, false), domain.ErrNotFound)
 	})
 
 	t.Run("ワークスペース未紐付けの会社でも設定更新は成功する", func(t *testing.T) {
 		testsupport.TruncateAll(t, db, tenantBridgeTables...)
 		insertCompany(t, db, 1, "未紐付けの会社", true, true) // バックフィル前
-		companies := persistence.NewCompanyRepository(db)
+		companies := persistence.NewCompanyRepository(sqlDB)
 		require.NoError(t, companies.UpdateActive(ctx, 1, false))
 		require.NoError(t, companies.UpdateAiChatEnabled(ctx, 1, false))
 		require.False(t, companyWorkspaceID(t, db, 1).Valid)

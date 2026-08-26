@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"log"
 
@@ -16,12 +17,11 @@ import (
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
 	swaggerfiles "github.com/swaggo/files"
 	ginswagger "github.com/swaggo/gin-swagger"
-	"gorm.io/gorm"
 )
 
 // routeDeps はドメインごとの register*Routes 関数に渡す共通依存。
 type routeDeps struct {
-	db            *gorm.DB
+	db            *sql.DB
 	cfg           *config.Config
 	userRepo      repository.UserRepository
 	bedrockClient *bedrock.Client
@@ -29,7 +29,7 @@ type routeDeps struct {
 }
 
 // NewRouter は API ルーティングを組み立てる。
-func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
+func NewRouter(db *sql.DB, cfg *config.Config) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Recovery())
 	// 構造化アクセスログ(slog/JSON)。request_id 採番 + status 別レベルで出力する。

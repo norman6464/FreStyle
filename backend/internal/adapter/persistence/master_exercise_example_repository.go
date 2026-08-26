@@ -2,21 +2,21 @@ package persistence
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 
 	"github.com/norman6464/FreStyle/backend/internal/adapter/persistence/sqlcgen"
 	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/usecase/repository"
-	"gorm.io/gorm"
 )
 
 // masterExerciseExampleRepository は [repository.MasterExerciseExampleRepository] の実装。
-// クエリは sqlc 生成コード（生 SQL）で、GORM からは接続プール（*sql.DB）だけを借りる。
+// クエリは sqlc 生成コード（生 SQL）で、接続プール（*sql.DB）をそのまま受け取る。
 type masterExerciseExampleRepository struct {
-	db *gorm.DB
+	db *sql.DB
 }
 
-func NewMasterExerciseExampleRepository(db *gorm.DB) repository.MasterExerciseExampleRepository {
+func NewMasterExerciseExampleRepository(db *sql.DB) repository.MasterExerciseExampleRepository {
 	return &masterExerciseExampleRepository{db: db}
 }
 
@@ -36,12 +36,7 @@ func toDomainExample(row sqlcgen.MasterExerciseExample) domain.MasterExerciseExa
 }
 
 func (r *masterExerciseExampleRepository) ListByExerciseID(ctx context.Context, exerciseID uint64) ([]domain.MasterExerciseExample, error) {
-	// GORM の接続プールを共有して sqlc 生成クエリ（生 SQL）を実行する。
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return nil, err
-	}
-	rows, err := sqlcgen.New(sqlDB).ListMasterExerciseExamplesByExerciseID(ctx, int64(exerciseID))
+	rows, err := sqlcgen.New(r.db).ListMasterExerciseExamplesByExerciseID(ctx, int64(exerciseID))
 	if err != nil {
 		return nil, err
 	}
@@ -71,11 +66,7 @@ func (r *masterExerciseExampleRepository) ListByExerciseIDs(ctx context.Context,
 	if err != nil {
 		return nil, err
 	}
-	sqlDB, err := r.db.DB()
-	if err != nil {
-		return nil, err
-	}
-	rows, err := sqlcgen.New(sqlDB).ListMasterExerciseExamplesByExerciseIDs(ctx, idsJSON)
+	rows, err := sqlcgen.New(r.db).ListMasterExerciseExamplesByExerciseIDs(ctx, idsJSON)
 	if err != nil {
 		return nil, err
 	}

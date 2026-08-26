@@ -17,8 +17,9 @@ import (
 // 論理削除済み / 会社未所属の除外を実 Postgres で検証する。
 func TestCompanyStatsRepository_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	counter := persistence.NewCompanyStatsRepository(db)
-	userRepo := persistence.NewUserRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	counter := persistence.NewCompanyStatsRepository(sqlDB)
+	userRepo := persistence.NewUserRepository(sqlDB)
 	ctx := context.Background()
 	testsupport.TruncateAll(t, db, "users", "companies")
 

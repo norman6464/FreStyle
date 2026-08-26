@@ -16,7 +16,8 @@ import (
 // 実 Postgres で検証する。
 func TestLessonProgressRepository_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewLessonProgressRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewLessonProgressRepository(sqlDB)
 	ctx := context.Background()
 
 	t.Run("MarkCompleted は冪等（二重実行でも 1 件）", func(t *testing.T) {
@@ -71,8 +72,9 @@ func TestLessonProgressRepository_Integration(t *testing.T) {
 // 完了章数のコース別集計が「現存する published 教材」のみを数えることを実 Postgres で検証する。
 func TestLessonProgressRepository_CountCompletedByUserGroupedByCourse_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	progress := persistence.NewLessonProgressRepository(db)
-	materials := persistence.NewTeachingMaterialRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	progress := persistence.NewLessonProgressRepository(sqlDB)
+	materials := persistence.NewTeachingMaterialRepository(sqlDB)
 	ctx := context.Background()
 
 	testsupport.TruncateAll(t, db, "user_chapter_progress")

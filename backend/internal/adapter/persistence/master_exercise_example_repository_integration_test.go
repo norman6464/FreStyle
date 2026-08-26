@@ -16,7 +16,8 @@ import (
 // 置き換えた ListByExerciseID を実 Postgres で検証する。GORM の *sql.DB を共有して動くことの担保。
 func TestMasterExerciseExampleRepository_ListByExerciseID_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewMasterExerciseExampleRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewMasterExerciseExampleRepository(sqlDB)
 	ctx := context.Background()
 	testsupport.TruncateAll(t, db, "master_exercise_examples")
 
@@ -44,7 +45,8 @@ func TestMasterExerciseExampleRepository_ListByExerciseID_Integration(t *testing
 // exercise_id ごとに map 化され、各スライスは (order_index, id) 昇順に並ぶことを固定する。
 func TestMasterExerciseExampleRepository_ListByExerciseIDs_Integration(t *testing.T) {
 	db := testsupport.OpenTestDB(t)
-	repo := persistence.NewMasterExerciseExampleRepository(db)
+	sqlDB := testsupport.SQLDB(t, db)
+	repo := persistence.NewMasterExerciseExampleRepository(sqlDB)
 	ctx := context.Background()
 	testsupport.TruncateAll(t, db, "master_exercise_examples")
 

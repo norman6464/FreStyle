@@ -56,7 +56,7 @@ VALUES (
   $4,
   $5,
   $6,
-  COALESCE(NULLIF($7::int, 0), 100),
+  COALESCE(NULLIF($7::bigint, 0), 100),
   $8,
   $9,
   $10
@@ -71,7 +71,7 @@ type InsertCourseParams struct {
 	Description     string
 	Category        string
 	Language        string
-	SortOrder       int32
+	SortOrder       int64
 	IsPublished     bool
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
@@ -79,7 +79,7 @@ type InsertCourseParams struct {
 
 type InsertCourseRow struct {
 	ID        int64
-	SortOrder int32
+	SortOrder int64
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
@@ -174,7 +174,7 @@ RETURNING updated_at
 type UpdateCourseParams struct {
 	Title       string
 	Description string
-	SortOrder   int32
+	SortOrder   int64
 	IsPublished bool
 	ID          int64
 }

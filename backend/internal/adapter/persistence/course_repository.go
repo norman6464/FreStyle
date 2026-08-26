@@ -114,7 +114,7 @@ func (r *courseRepository) Create(ctx context.Context, c *domain.Course) error {
 		Description:     c.Description,
 		Category:        c.Category,
 		Language:        c.Language,
-		SortOrder:       int32(c.SortOrder), // 0 は SQL 側の COALESCE で既定 100 に倒す
+		SortOrder:       int64(c.SortOrder), // 0 は SQL 側の COALESCE で既定 100 に倒す
 		IsPublished:     c.IsPublished,
 		CreatedAt:       createdAt,
 		UpdatedAt:       updatedAt,
@@ -143,7 +143,7 @@ func (r *courseRepository) Update(ctx context.Context, c *domain.Course) error {
 		ID:          id64,
 		Title:       c.Title,
 		Description: c.Description,
-		SortOrder:   int32(c.SortOrder),
+		SortOrder:   int64(c.SortOrder),
 		IsPublished: c.IsPublished,
 	})
 	if err != nil {

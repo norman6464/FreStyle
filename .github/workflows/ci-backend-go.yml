@@ -204,8 +204,8 @@ jobs:
       #
       # -covermode=atomic は test ジョブ（-race のため atomic）と mode を揃えるため。
       # 既定は set で、mode の違うプロファイル同士は連結できない。
-      # -race はここでは付けない: 実 DB 相手の I/O 待ちが主で並行バグの検出価値が薄い一方、
-      # 実行時間だけが数倍に伸びるため（並行コードの検査は test ジョブが担う）。
+      # -race は従来どおり付けない。ここは実 DB 相手の I/O 待ちが主で、並行コードの
+      # データ競合検査は test ジョブが担っているため。
       - name: Run integration tests (-tags=integration)
         env:
           TEST_DATABASE_URL: postgres://frestyle:frestyle@localhost:5433/frestyle_integration?sslmode=disable
@@ -231,7 +231,7 @@ jobs:
   # なぜ計測が 2 つのジョブに分かれているのか:
   #   - test ジョブ … -race（データ競合検出）付きで単体テストを回す。DB は要らない。
   #   - integration ジョブ … 本物の PostgreSQL を起動して -tags=integration のテストを回す。
-  #     -race は付けない（実 DB 相手の I/O 待ちが主で並行バグの検出価値が薄く、時間だけ伸びる）。
+  #     -race は付けない（データ競合の検査は test ジョブが担う）。
   #   前提（-race の要否 / 実 DB の要否）が違うので 1 コマンドにまとめられず、並列に走らせている。
   #   その代わり、カバレッジは 2 本のプロファイルに分かれる。
   #

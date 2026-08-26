@@ -191,13 +191,17 @@ func TestAiChatSessionRepository_UpdateTitle_Integration(t *testing.T) {
 		require.WithinDuration(t, old, row.UpdatedAt, time.Second)
 	})
 
-	t.Run("存在しない id への UpdateTitle はエラーにしない（0 行更新）", func(t *testing.T) {
-		require.NoError(t, repo.UpdateTitle(ctx, noSuchID, "ghost"))
+	// 期待値を「エラーにしない」から not-found へ更新した理由:
+	//   0 行更新まで成功にしていると、handler は 200 とタイトル変更後のつもりの JSON を返す。
+	//   利用者の画面には新しいタイトルが出るのに DB には何も書かれていない。
+	//   「対象が無い」は「保存できた」ではないので domain.ErrNotFound に畳む。
+	t.Run("存在しない id への UpdateTitle は not-found（0 行更新を成功にしない）", func(t *testing.T) {
+		require.ErrorIs(t, repo.UpdateTitle(ctx, noSuchID, "ghost"), domain.ErrNotFound)
 	})
 }
 
 // TestAiChatSessionRepository_Delete_Integration は Delete の契約
-// （物理削除であること / 対象外の行を消さない / 存在しない id はエラーにしない）を固定する。
+// （物理削除であること / 対象外の行を消さない / 存在しない id は not-found）を固定する。
 func TestAiChatSessionRepository_Delete_Integration(t *testing.T) {
 	sqlDB := testsupport.OpenTestDB(t)
 	repo := persistence.NewAiChatSessionRepository(sqlDB)
@@ -242,7 +246,11 @@ func TestAiChatSessionRepository_Delete_Integration(t *testing.T) {
 		require.Equal(t, "survivor", got.Title)
 	})
 
-	t.Run("存在しない id への Delete はエラーにしない（0 行削除）", func(t *testing.T) {
-		require.NoError(t, repo.Delete(ctx, noSuchID))
+	// 期待値を「エラーにしない」から not-found へ更新した理由:
+	//   呼び出し側（DeleteAiChatSessionUseCase）は FindByID で所有者を確かめてから消すので、
+	//   0 行削除は「確認と削除のあいだに消えた」競合を意味する。成功で返すと、消したのが
+	//   自分の操作なのか競合相手なのかを呼び出し側が区別できない。
+	t.Run("存在しない id への Delete は not-found（0 行削除を成功にしない）", func(t *testing.T) {
+		require.ErrorIs(t, repo.Delete(ctx, noSuchID), domain.ErrNotFound)
 	})
 }

@@ -76,12 +76,22 @@ UPDATE course_chapters SET
 WHERE id = sqlc.arg(id) AND revision = sqlc.arg(expected_revision)
 RETURNING id, company_id, course_id, created_by_user_id, title, doc, revision, schema_version, sort_order, is_published, created_at, updated_at;
 
--- name: DeleteChapter :exec
+-- name: DeleteChapter :execrows
 -- 教材を物理削除する（course_chapters は soft delete 列を持たない）。
+--
+-- :exec ではなく :execrows にしている理由:
+--   :exec は「SQL がエラーなく流れたか」しか返さない。DELETE は 1 行も一致しなくても
+--   成功なので、存在しない id を渡しても呼び出し側には成功として見える。
+--   :execrows は実際に消えた行数（RowsAffected）を返すので、repository が 0 行を
+--   「対象なし」として domain.ErrNotFound に翻訳できる。
 DELETE FROM course_chapters
 WHERE id = sqlc.arg(id);
 
 -- name: DeleteChaptersByCourse :exec
 -- コース削除時の cascade 用に配下教材を全削除する（FK に頼らず明示削除）。
+--
+-- ここは :exec のままで良い（件数を見ない）。単一行の DELETE と違い、これは「course_id に
+-- ぶら下がる行を全部消す」一括操作で、0 行は「そのコースに教材が 1 つも無かった」という
+-- 正常な結果でしかない。0 行を not-found にすると、章が 1 つも無いコースを削除できなくなる。
 DELETE FROM course_chapters
 WHERE course_id = sqlc.arg(course_id);

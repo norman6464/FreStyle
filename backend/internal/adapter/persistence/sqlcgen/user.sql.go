@@ -538,7 +538,7 @@ func (q *Queries) UpdateUserActive(ctx context.Context, arg UpdateUserActivePara
 	return result.RowsAffected()
 }
 
-const updateUserAiChatEnabled = `-- name: UpdateUserAiChatEnabled :exec
+const updateUserAiChatEnabled = `-- name: UpdateUserAiChatEnabled :execrows
 UPDATE users SET ai_chat_enabled = $2, updated_at = now() WHERE id = $1
 `
 
@@ -548,12 +548,23 @@ type UpdateUserAiChatEnabledParams struct {
 }
 
 // AI チャットの個別上書きを更新する（NULL で会社設定に従う）。他の列は触らない。
-func (q *Queries) UpdateUserAiChatEnabled(ctx context.Context, arg UpdateUserAiChatEnabledParams) error {
-	_, err := q.db.ExecContext(ctx, updateUserAiChatEnabled, arg.ID, arg.AiChatEnabled)
-	return err
+// 0 件なら対象の user が存在しない（呼び出し側が not-found にする）。
+//
+// :exec ではなく :execrows にしている理由（この下の 3 つも同じ）:
+//
+//	:exec は「SQL がエラーなく流れたか」しか返さない。UPDATE は 1 行も一致しなくても
+//	成功なので、存在しない user を更新しようとしても呼び出し側には成功として見え、
+//	handler は 200 / 204 を返す。利用者には保存済みと見えて実際は保存されていない。
+//	:execrows は実際に書き換わった行数（RowsAffected）を返すので 0 件を not-found にできる。
+func (q *Queries) UpdateUserAiChatEnabled(ctx context.Context, arg UpdateUserAiChatEnabledParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateUserAiChatEnabled, arg.ID, arg.AiChatEnabled)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
-const updateUserCompanyID = `-- name: UpdateUserCompanyID :exec
+const updateUserCompanyID = `-- name: UpdateUserCompanyID :execrows
 UPDATE users SET
   company_id = $2,
   workspace_id = (SELECT c.workspace_id FROM companies c WHERE c.id = $2)
@@ -567,12 +578,16 @@ type UpdateUserCompanyIDParams struct {
 
 // 所属会社を付け替える。company_id と、その写しである workspace_id を同じ 1 文で書く
 // （片方だけ書かれた状態を作らない。写す値の出どころは companies.workspace_id）。
-func (q *Queries) UpdateUserCompanyID(ctx context.Context, arg UpdateUserCompanyIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateUserCompanyID, arg.ID, arg.CompanyID)
-	return err
+// 0 件なら対象の user が存在しない（呼び出し側が not-found にする）。
+func (q *Queries) UpdateUserCompanyID(ctx context.Context, arg UpdateUserCompanyIDParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateUserCompanyID, arg.ID, arg.CompanyID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
-const updateUserName = `-- name: UpdateUserName :exec
+const updateUserName = `-- name: UpdateUserName :execrows
 UPDATE users SET name = $2, updated_at = now() WHERE id = $1
 `
 
@@ -581,13 +596,16 @@ type UpdateUserNameParams struct {
 	Name string
 }
 
-// 氏名だけを更新する。
-func (q *Queries) UpdateUserName(ctx context.Context, arg UpdateUserNameParams) error {
-	_, err := q.db.ExecContext(ctx, updateUserName, arg.ID, arg.Name)
-	return err
+// 氏名だけを更新する。0 件なら対象の user が存在しない（呼び出し側が not-found にする）。
+func (q *Queries) UpdateUserName(ctx context.Context, arg UpdateUserNameParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateUserName, arg.ID, arg.Name)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
-const updateUserRoleID = `-- name: UpdateUserRoleID :exec
+const updateUserRoleID = `-- name: UpdateUserRoleID :execrows
 UPDATE users SET role_id = $2, updated_at = now() WHERE id = $1
 `
 
@@ -597,7 +615,12 @@ type UpdateUserRoleIDParams struct {
 }
 
 // 役割だけを更新する（誰がどの役割になれるかの判定は usecase 側の仕事）。
-func (q *Queries) UpdateUserRoleID(ctx context.Context, arg UpdateUserRoleIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateUserRoleID, arg.ID, arg.RoleID)
-	return err
+// 0 件なら対象の user が存在しない（呼び出し側が not-found にする）。昇格が 1 行も
+// 当たっていないのに成功を返すと、権限が上がったつもりの利用者が生まれる。
+func (q *Queries) UpdateUserRoleID(ctx context.Context, arg UpdateUserRoleIDParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateUserRoleID, arg.ID, arg.RoleID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

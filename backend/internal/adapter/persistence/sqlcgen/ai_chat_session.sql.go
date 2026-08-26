@@ -11,15 +11,18 @@ import (
 	"time"
 )
 
-const deleteAiChatSession = `-- name: DeleteAiChatSession :exec
+const deleteAiChatSession = `-- name: DeleteAiChatSession :execrows
 DELETE FROM ai_chat_sessions WHERE id = $1
 `
 
 // セッションを物理削除する（ai_chat_sessions は soft delete 列を持たない）。
-// 該当行が無い場合は 0 行削除でエラーにしない（GORM 版と同じ契約）。
-func (q *Queries) DeleteAiChatSession(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, deleteAiChatSession, id)
-	return err
+// UpdateAiChatSessionTitle と同じ理由で :execrows（0 行削除を成功と区別するため）。
+func (q *Queries) DeleteAiChatSession(ctx context.Context, id int64) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteAiChatSession, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const getAiChatSessionByID = `-- name: GetAiChatSessionByID :one
@@ -129,7 +132,7 @@ func (q *Queries) ListAiChatSessionsByUserID(ctx context.Context, userID int64) 
 	return items, nil
 }
 
-const updateAiChatSessionTitle = `-- name: UpdateAiChatSessionTitle :exec
+const updateAiChatSessionTitle = `-- name: UpdateAiChatSessionTitle :execrows
 UPDATE ai_chat_sessions SET
   title      = $1,
   updated_at = now()
@@ -142,10 +145,19 @@ type UpdateAiChatSessionTitleParams struct {
 }
 
 // セッションのタイトルを更新する。書くのは title と updated_at の 2 列だけで、
-// user_id / session_type / scenario_id / created_at は不変（GORM の Update("title", ...) と同じ）。
+// user_id / session_type / scenario_id / created_at は不変。
 // updated_at は DB 既定値が無いため now() を明示する（autoUpdateTime 相当）。
-// 該当行が無い場合は 0 行更新でエラーにしない（GORM 版と同じ契約）。
-func (q *Queries) UpdateAiChatSessionTitle(ctx context.Context, arg UpdateAiChatSessionTitleParams) error {
-	_, err := q.db.ExecContext(ctx, updateAiChatSessionTitle, arg.Title, arg.ID)
-	return err
+//
+// :exec ではなく :execrows にしている理由:
+//
+//	:exec は「SQL がエラーなく流れたか」しか返さない。UPDATE は 1 行も一致しなくても
+//	成功なので、存在しない id を渡しても呼び出し側には成功として見える。
+//	:execrows は実際に書き換わった行数（RowsAffected）を返すので、repository が 0 行を
+//	「対象なし」として domain.ErrNotFound に翻訳できる。
+func (q *Queries) UpdateAiChatSessionTitle(ctx context.Context, arg UpdateAiChatSessionTitleParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateAiChatSessionTitle, arg.Title, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

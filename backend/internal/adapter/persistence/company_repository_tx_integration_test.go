@@ -100,11 +100,14 @@ func TestCompanyRepositoryMirrorAtomicity_Integration(t *testing.T) {
 		require.Equal(t, sql.NullBool{Bool: false, Valid: true}, active)
 	})
 
-	t.Run("存在しない会社への UpdateAiChatEnabled は 0 件更新で成功する", func(t *testing.T) {
-		// UpdateActive だけが not-found をエラーにする（UpdateAiChatEnabled は従来から
-		// 件数を見ていない）。移行でこの非対称を変えない。
+	// 期待値を「0 件更新で成功」から not-found へ更新した理由:
+	//   UpdateActive だけが件数を見て、UpdateAiChatEnabled は見ないという非対称を残していた。
+	//   件数を見ない側は、会社行が無くても handler が 200 と要求どおりの値を返すため、
+	//   管理者の画面では設定が切り替わったように見えて実際は何も保存されていない
+	//   （次に開いたときだけ元へ戻り、どこで失われたのか分からない）。2 つの更新で結末を揃える。
+	t.Run("存在しない会社への設定更新はどちらも not-found", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, tenantBridgeTables...)
-		require.NoError(t, repo.UpdateAiChatEnabled(ctx, 999, false))
+		require.ErrorIs(t, repo.UpdateAiChatEnabled(ctx, 999, false), domain.ErrNotFound)
 		require.ErrorIs(t, repo.UpdateActive(ctx, 999, false), domain.ErrNotFound)
 	})
 }

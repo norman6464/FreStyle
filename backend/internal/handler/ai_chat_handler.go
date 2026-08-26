@@ -154,6 +154,7 @@ type updateSessionTitleReq struct {
 // @Param        body  body      updateSessionTitleReq    true  "title 必須"
 // @Success      200   {object}  github_com_norman6464_FreStyle_backend_internal_domain.AiChatSession
 // @Failure      400   {object}  errorResponse  "バリデーション"
+// @Failure      404   {object}  errorResponse  "セッション が ない"
 // @Failure      500   {object}  errorResponse  "DB 失敗"
 // @Router       /ai-chat/sessions/{id} [put]
 // @Security     CookieAuth
@@ -168,10 +169,25 @@ func (h *AiChatHandler) UpdateSessionTitle(c *gin.Context) {
 		return
 	}
 	if err := h.updateTitle.Execute(c.Request.Context(), id, req.Title); err != nil {
+		// 1 行も更新できなかった（= セッションが無い）。以前は 200 を返していたが、
+		// 保存されていないものを保存済みとして返すことになるので 404 に揃える。
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
 		return
 	}
-	s, _ := h.getSession.Execute(c.Request.Context(), id)
+	// 更新直後の読み直し。ここで消えていた場合も本文 null の 200 ではなく 404 を返す。
+	s, err := h.getSession.Execute(c.Request.Context(), id)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
+		return
+	}
 	c.JSON(http.StatusOK, s)
 }
 

@@ -1,10 +1,12 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/norman6464/FreStyle/backend/internal/domain"
 	"github.com/norman6464/FreStyle/backend/internal/handler/middleware"
 	"github.com/norman6464/FreStyle/backend/internal/usecase"
 )
@@ -53,13 +55,14 @@ func (h *NotificationHandler) List(c *gin.Context) {
 // MarkRead は所有者検証つきで通知を既読化する。
 //
 //	@Summary      通知 単一 既読 化
-//	@Description  指定 通知 を 既読 に する (所有者 検証 込み)。 同 ハンドラ は 旧 クライアント 互換 で PUT も 同じ パス で 受け付ける が、 OpenAPI で は PATCH を 標準 と して 1 つ だけ 表現 する。
+//	@Description  指定 通知 を 既読 に する (所有者 検証 込み)。 1 行 も 既読 化 でき なかっ た 場合 は 404 (他人 の 通知 と 存在 し ない id は 同じ 応答)。 同 ハンドラ は 旧 クライアント 互換 で PUT も 同じ パス で 受け付ける が、 OpenAPI で は PATCH を 標準 と して 1 つ だけ 表現 する。
 //	@Tags         notifications
 //	@Produce      json
 //	@Param        id  path  int  true  "通知 ID"
 //	@Success      204  "成功 (本文 なし)"
 //	@Failure      400  {object}  errorResponse  "DB 失敗"
 //	@Failure      401  {object}  errorResponse  "未 認証"
+//	@Failure      404  {object}  errorResponse  "自分 の 通知 が 無い (他人 の 通知・存在 し ない id も 同じ 応答)"
 //	@Router       /notifications/{id}/read [patch]
 //	@Security     CookieAuth
 func (h *NotificationHandler) MarkRead(c *gin.Context) {
@@ -70,6 +73,12 @@ func (h *NotificationHandler) MarkRead(c *gin.Context) {
 	}
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err := h.markRead.Execute(c.Request.Context(), uid, id); err != nil {
+		// 1 行も更新できなかった。以前は 204 を返しており、既読化できていないのに
+		// 呼び出し側は成功と判断していた。他人の通知と存在しない id は同じ応答に畳む。
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
+			return
+		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}

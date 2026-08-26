@@ -111,6 +111,7 @@ type updateCompanyApplicationStatusReq struct {
 //	@Failure      400   {object}  errorResponse  "id / status 不正"
 //	@Failure      401   {object}  errorResponse  "未認証"
 //	@Failure      403   {object}  errorResponse  "super_admin 以外"
+//	@Failure      404   {object}  errorResponse  "申請が存在しない"
 //	@Failure      500   {object}  errorResponse  "DB 更新失敗"
 //	@Router       /admin/company-applications/{id}/status [patch]
 //	@Security     CookieAuth
@@ -132,6 +133,12 @@ func (h *CompanyApplicationHandler) UpdateStatus(c *gin.Context) {
 		// status 不正のみ 400。DB 更新失敗等の内部エラーは詳細を漏らさず 500。
 		if errors.Is(err, usecase.ErrCompanyApplicationBadStatus) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		// 1 行も更新できなかった（= その申請が無い）。以前は 204 を返していたため、
+		// 実際には何も記録されていないのに承認/却下が済んだように見えていた。
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})

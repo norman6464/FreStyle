@@ -102,25 +102,51 @@ func (r *notificationRepository) ListByUserID(ctx context.Context, userID uint64
 	return out, nil
 }
 
+// MarkRead は id と user_id の両方で絞って 1 件を既読化する。
+// 0 行更新（他人の通知 / 存在しない id）は domain.ErrNotFound を返す。
+//
+// 0 行更新を成功にしてはいけない理由:
+//
+//	UPDATE は 1 行も一致しなくても SQL としては成功する。ここで nil を返すと handler は
+//	204 を返し、呼び出し側は既読化できたと判断する。実際には何も書かれていないので、
+//	一覧を読み直すと未読のまま戻る（「押したのに既読にならない」の原因が握り潰される）。
+//
+// 存在オラクルとの関係:
+//
+//	WHERE に user_id が入っているので「他人の通知」も「存在しない id」もどちらも 0 行 =
+//	同じ domain.ErrNotFound になり、handler は同じ 404・同じ本文を返す。
 func (r *notificationRepository) MarkRead(ctx context.Context, userID, id uint64) error {
 	uid, ok := toInt64ID(userID)
 	if !ok {
-		return nil // 存在し得ない user_id = 対象なし
+		return domain.ErrNotFound // 存在し得ない user_id = 対象なし
 	}
 	nid, ok := toInt64ID(id)
 	if !ok {
-		return nil // 存在し得ない id = 対象なし
+		return domain.ErrNotFound // 存在し得ない id = 対象なし
 	}
-	return sqlcgen.New(r.db).MarkNotificationRead(ctx, sqlcgen.MarkNotificationReadParams{
+	// :execrows なので実際に書き換わった行数が返る（:exec だと 0 行でも成功と区別が付かない）。
+	affected, err := sqlcgen.New(r.db).MarkNotificationRead(ctx, sqlcgen.MarkNotificationReadParams{
 		ID:     nid,
 		UserID: uid,
 	})
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return domain.ErrNotFound // 他人の通知もここに落ちる（存在しない id と同じ結末）
+	}
+	return nil
 }
 
+// MarkAllRead は current user の未読通知をまとめて既読化する。
+//
+// ここだけは 0 件を not-found にしない。単一行を狙う MarkRead と違い、これは
+// 「その user の未読を全部畳む」一括操作で、0 件は「未読が 1 件も無かった」という正常な結果。
+// not-found にすると、未読が無い状態で「すべて既読にする」を押しただけで 404 が返る。
 func (r *notificationRepository) MarkAllRead(ctx context.Context, userID uint64) error {
 	uid, ok := toInt64ID(userID)
 	if !ok {
-		return nil // 存在し得ない user_id = 対象なし
+		return nil // 存在し得ない user_id = 未読 0 件と同じ（一括操作なので 0 件で正常）
 	}
 	return sqlcgen.New(r.db).MarkAllNotificationsRead(ctx, uid)
 }

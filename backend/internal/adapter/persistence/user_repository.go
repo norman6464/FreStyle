@@ -418,20 +418,35 @@ func ensureOidcIdentityTx(ctx context.Context, q *sqlcgen.Queries, userID uint64
 }
 
 // UpdateAiChatEnabled は AI チャットの個別上書きを更新する。enabled=nil で NULL（会社設定に従う）に戻す。
+// 対象が存在しなければ domain.ErrNotFound を返す（handler が 404 にマップ）。
+//
+// 0 件更新を成功にしてはいけない理由（この下の Update 系も同じ）:
+//
+//	UPDATE は 1 行も一致しなくても SQL としては成功する。ここで nil を返すと handler は
+//	204 を返し、管理画面には切り替えた値が表示されるのに DB には何も書かれていない。
+//	行が無いことは「保存できた」ではなく「対象が無い」なので 404 として伝える。
 func (r *userRepository) UpdateAiChatEnabled(ctx context.Context, userID uint64, enabled *bool) error {
 	id64, ok := toInt64ID(userID)
 	if !ok {
-		return nil // 存在し得ない id = 対象なし
+		return domain.ErrNotFound // 存在し得ない id = not found
 	}
 	q := r.queries()
 	value := sql.NullBool{}
 	if enabled != nil {
 		value = sql.NullBool{Bool: *enabled, Valid: true}
 	}
-	return q.UpdateUserAiChatEnabled(ctx, sqlcgen.UpdateUserAiChatEnabledParams{
+	// :execrows なので実際に書き換わった行数が返る（:exec だと 0 件でも成功と区別が付かない）。
+	affected, err := q.UpdateUserAiChatEnabled(ctx, sqlcgen.UpdateUserAiChatEnabledParams{
 		ID:            id64,
 		AiChatEnabled: value,
 	})
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
 }
 
 // UpdateActive はユーザーアカウントの有効/無効を更新する（false で無効化 → ログイン/利用不可）。
@@ -475,26 +490,44 @@ func (r *userRepository) SoftDelete(ctx context.Context, userID uint64) error {
 	return q.DeleteOidcIdentitiesByUserID(ctx, id64)
 }
 
+// UpdateName は氏名だけを更新する。対象が存在しなければ domain.ErrNotFound を返す。
 func (r *userRepository) UpdateName(ctx context.Context, userID uint64, name string) error {
 	id64, ok := toInt64ID(userID)
 	if !ok {
-		return nil // 存在し得ない id = 対象なし
+		return domain.ErrNotFound // 存在し得ない id = not found
 	}
 	q := r.queries()
-	return q.UpdateUserName(ctx, sqlcgen.UpdateUserNameParams{ID: id64, Name: name})
+	affected, err := q.UpdateUserName(ctx, sqlcgen.UpdateUserNameParams{ID: id64, Name: name})
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
 }
 
+// UpdateRole は役割だけを更新する。対象が存在しなければ domain.ErrNotFound を返す。
+// 昇格が 1 行も当たっていないのに成功を返すと、権限が上がったつもりの利用者が生まれるため、
+// ここは特に 0 件を握り潰してはいけない。
 func (r *userRepository) UpdateRole(ctx context.Context, userID uint64, role domain.RoleName) error {
 	id64, ok := toInt64ID(userID)
 	if !ok {
-		return nil // 存在し得ない id = 対象なし
+		return domain.ErrNotFound // 存在し得ない id = not found
 	}
 	q := r.queries()
 	roleID, err := resolveRoleID(ctx, q, role)
 	if err != nil {
 		return err
 	}
-	return q.UpdateUserRoleID(ctx, sqlcgen.UpdateUserRoleIDParams{ID: id64, RoleID: roleID})
+	affected, err := q.UpdateUserRoleID(ctx, sqlcgen.UpdateUserRoleIDParams{ID: id64, RoleID: roleID})
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
 }
 
 // UpdateCompanyID は所属会社を付け替える。company_id と、その写しである workspace_id を
@@ -503,15 +536,24 @@ func (r *userRepository) UpdateRole(ctx context.Context, userID uint64, role dom
 func (r *userRepository) UpdateCompanyID(ctx context.Context, userID uint64, companyID uint64) error {
 	id64, ok := toInt64ID(userID)
 	if !ok {
-		return nil // 存在し得ない id = 対象なし
+		return domain.ErrNotFound // 存在し得ない id = not found
 	}
 	cid, ok := toInt64ID(companyID)
 	if !ok {
-		return nil // 存在し得ない company id = 付け替え先なし
+		// 付け替え先が存在し得ない。1 行も書けないので成功を返さない
+		// （nil を返すと呼び出し側が所属を付け替えられたと誤認する）。
+		return outOfRangeIDError("company_id", companyID)
 	}
 	q := r.queries()
-	return q.UpdateUserCompanyID(ctx, sqlcgen.UpdateUserCompanyIDParams{
+	affected, err := q.UpdateUserCompanyID(ctx, sqlcgen.UpdateUserCompanyIDParams{
 		ID:        id64,
 		CompanyID: sql.NullInt64{Int64: cid, Valid: true},
 	})
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
 }

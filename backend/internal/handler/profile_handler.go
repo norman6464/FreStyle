@@ -105,6 +105,7 @@ type updateProfileReq struct {
 //	@Failure      400     {object}  errorResponse  "バリデーション エラー"
 //	@Failure      401     {object}  errorResponse  "未 認証"
 //	@Failure      403     {object}  errorResponse  "他 user 指定"
+//	@Failure      404     {object}  errorResponse  "対象 user が 存在 し ない"
 //	@Router       /profile/{userId} [put]
 //	@Security     CookieAuth
 func (h *ProfileHandler) Update(c *gin.Context) {
@@ -125,6 +126,12 @@ func (h *ProfileHandler) Update(c *gin.Context) {
 	}
 	if name != "" {
 		if err := h.users.UpdateName(c.Request.Context(), uid, name); err != nil {
+			// 1 行も更新できなかった（= リクエスト中に user 行が消えた）。以前は 0 件でも
+			// 成功扱いで 200 を返しており、氏名が保存されていないのに保存済みに見えていた。
+			if errors.Is(err, domain.ErrNotFound) {
+				c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
+				return
+			}
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}

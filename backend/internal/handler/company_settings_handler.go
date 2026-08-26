@@ -68,6 +68,7 @@ func (h *CompanySettingsHandler) Get(c *gin.Context) {
 //	@Failure      400   {object}  errorResponse  "バリデーション / 会社未所属"
 //	@Failure      401   {object}  errorResponse  "未認証"
 //	@Failure      403   {object}  errorResponse  "管理者以外"
+//	@Failure      404   {object}  errorResponse  "会社が存在しない"
 //	@Router       /company/settings [put]
 //	@Security     CookieAuth
 func (h *CompanySettingsHandler) Update(c *gin.Context) {

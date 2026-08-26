@@ -67,13 +67,30 @@ func (r *companyApplicationRepository) ListAll(ctx context.Context) ([]domain.Co
 	return out, nil
 }
 
+// UpdateStatus は申請の status を更新する。対象行が無ければ domain.ErrNotFound を返す。
+//
+// 0 行更新を成功にしてはいけない理由:
+//
+//	UPDATE は 1 行も一致しなくても SQL としては成功する。ここで nil を返すと handler は
+//	204 を返し、管理者の画面では承認/却下が済んだように見えるのに DB には何も書かれていない。
+//	この経路には上位での存在確認が無いため、他の管理者が先に消した申請・存在しない id を
+//	叩いた場合が実際に 0 行になる。行が無いことは「更新できた」ではなく「対象が無い」なので
+//	404 として返す。
 func (r *companyApplicationRepository) UpdateStatus(ctx context.Context, id uint64, status string) error {
 	id64, ok := toInt64ID(id)
 	if !ok {
-		return nil // 存在し得ない id = 対象なし
+		return domain.ErrNotFound // 存在し得ない id = 対象なし
 	}
-	return sqlcgen.New(r.db).UpdateCompanyApplicationStatus(ctx, sqlcgen.UpdateCompanyApplicationStatusParams{
+	// :execrows なので実際に書き換わった行数が返る（:exec だと 0 行でも成功と区別が付かない）。
+	affected, err := sqlcgen.New(r.db).UpdateCompanyApplicationStatus(ctx, sqlcgen.UpdateCompanyApplicationStatusParams{
 		ID:     id64,
 		Status: status,
 	})
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
 }

@@ -163,20 +163,27 @@ func (h *NoteHandler) Update(c *gin.Context) {
 
 // Delete は WHERE で user_id を絞るため他人の note は消せない。
 //
-// 削除は「消えた」「元から無い」「他人のものだった」を区別せず、いずれも 204（本文なし）を返す。
-// DELETE 文が 0 行に当たっただけではエラーにならないので、これは分岐を足さない限り自然にそうなる。
-// 逆に「対象なしだから 404」のような分岐を足すと、そこが存在オラクルになるので入れてはいけない。
+// 1 行も消えなかった場合は 404 を返す（以前はすべて 204 だった）。
+// 0 行削除を 204 にしていると、呼び出し側は「自分の note を 1 件消した」と「何も起きなかった」を
+// 区別できず、削除が効いていないのに画面からは行が消える。
+//
+// 存在オラクルとの関係（Update と同じ）:
+//
+//	DELETE 文の WHERE に user_id が入っているので、「他人の note」も「存在しない id」も
+//	どちらも 0 行 = 同じ domain.ErrNotFound になり、ここから返る応答は
+//	ステータス（404）も本文（noteNotFoundMsg）もバイト単位で同一になる。
+//	応答が分かれるのは「自分の note を実際に消せたか」だけで、他人の note の実在は漏れない。
 //
 //	@Summary      ノート 削除
 //	@Description  current user 所有 の note を 削除。 WHERE user_id 絞り込み で 他人 の note は そもそも 影響 を 受け ない。
-//	@Description  他人 の note・存在 し ない note・自分 の note の いずれ に 対して も 同じ 204 (本文 なし) を 返し、
-//	@Description  応答 から ID の 実在 が 分から ない よう に する。
+//	@Description  他人 の note と 存在 し ない note に は 同じ 404 (同じ 本文) を 返し、 応答 から ID の 実在 が 分から ない よう に する。
 //	@Tags         notes
 //	@Produce      json
 //	@Param        id  path  int  true  "ノート ID"
-//	@Success      204  "成功 (本文 なし。 対象 が 無く て も 同じ)"
+//	@Success      204  "成功 (本文 なし)"
 //	@Failure      400  {object}  errorResponse  "DB 失敗"
 //	@Failure      401  {object}  errorResponse  "未 認証"
+//	@Failure      404  {object}  errorResponse  "自分 の note が 無い (他人 の note・存在 し ない id も 同じ 応答)"
 //	@Router       /notes/{id} [delete]
 //	@Security     CookieAuth
 func (h *NoteHandler) Delete(c *gin.Context) {
@@ -187,6 +194,12 @@ func (h *NoteHandler) Delete(c *gin.Context) {
 	}
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err := h.del.Execute(c.Request.Context(), uid, id); err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			// 他人の note と存在しない id はどちらもここに来る（本文も同一）。
+			c.JSON(http.StatusNotFound, gin.H{"error": noteNotFoundMsg})
+			return
+		}
+		// 不在以外の失敗（バリデーション・DB 障害）。note の実在に依存しないエラーだけ。
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}

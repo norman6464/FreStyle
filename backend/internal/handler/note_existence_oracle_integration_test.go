@@ -76,7 +76,7 @@ func noteOracleCall(t *testing.T, r *gin.Engine, method, path, body string) (int
 //	GET    /notes                    … ID を受け取らない（列挙対象なし）。他人のノートが混ざらないことだけ見る
 //	POST   /notes                    … ID を受け取らない（列挙対象なし）。current user 名義で作られることだけ見る
 //	PUT    /notes/:id                … ★ID を受け取る。撃ち分けを潰した本命
-//	DELETE /notes/:id                … ★ID を受け取る。SQL で user_id 固定。応答が常に 204 で揃うことを見る
+//	DELETE /notes/:id                … ★ID を受け取る。SQL で user_id 固定。他人と不在が同じ 404 で揃うことを見る
 //	POST   /notes/images/upload-url  … ノート ID を受け取らない（列挙対象なし）
 //	GET    /sessions/:sessionId/note … ★ID を受け取る。session_notes 側。既に 404 へ畳まれていることを見る
 //	PUT    /sessions/:sessionId/note … ★ID を受け取る。session_notes 側。ここでは固定しない（下記の注記を参照）
@@ -145,28 +145,43 @@ func TestNoteExistenceOracle_Integration(t *testing.T) {
 		require.Equal(t, "更新後の本文", persisted.Content, "DB にも反映されている")
 	})
 
-	t.Run("DELETE /notes/:id は他人・不在・自分で同じ応答を返す", func(t *testing.T) {
+	// 期待値を 204 から 404 へ更新した理由:
+	//   以前は「他人・不在・自分」のすべてで 204 を返していた。0 行削除まで成功にしていると、
+	//   呼び出し側は「自分のノートを 1 件消せた」と「1 行も消えなかった」を区別できず、
+	//   削除できていないのに画面からは行が消える（保存されていないものを保存済みに見せるのと同じ）。
+	//   そこで 0 行削除を domain.ErrNotFound へ翻訳し、handler が 404 を返すようにした。
+	//   存在オラクルは開かない: DELETE の WHERE に user_id が入っているため「他人のノート」も
+	//   「存在しない id」もどちらも 0 行 = 同じ 404・同じ本文になる。応答が分かれるのは
+	//   「自分のノートを実際に消せたか」だけで、それは自分の情報。PUT /notes/:id が
+	//   既にこの畳み方（他人も不在も 404）になっており、更新と削除で結末が揃う。
+	t.Run("DELETE /notes/:id は他人と不在で同じ 404 を返し、自分のノートだけ消える", func(t *testing.T) {
 		foreignCode, foreignBody := noteOracleCall(t, attacker, http.MethodDelete, theirPath, "")
 		missingCode, missingBody := noteOracleCall(t, attacker, http.MethodDelete, missingPath, "")
 
-		require.Equal(t, http.StatusNoContent, foreignCode)
-		require.Equal(t, http.StatusNoContent, missingCode)
-		require.Equal(t, missingBody, foreignBody, "204 はどちらも本文なし")
-		require.Empty(t, foreignBody)
+		require.Equal(t, http.StatusNotFound, foreignCode, "他人のノートは 404（204 だと消せたと誤認する）")
+		require.Equal(t, http.StatusNotFound, missingCode, "存在しないノートも 404")
+		// ステータスが同じでも本文が違えば、本文の差だけで実在を判定できる。
+		// 文字列ではなくバイト列で比較して、空白 1 つの差も見逃さない。
+		require.Equal(t, missingBody, foreignBody,
+			"本文が撃ち分けられている: 他人=%q 不在=%q", foreignBody, missingBody)
 
-		// 他人のノートは 204 を返すだけで、実際には消えていない（SQL の WHERE user_id が効いている）。
+		// 404 を返すだけでなく、他人のノートが実際に消えていないことも見る（WHERE user_id が効いている）。
 		survivor, err := noteRepo.FindByID(ctx, other, theirNote.ID)
 		require.NoError(t, err, "他人のノートは残る")
 		require.Equal(t, "他人のノート", survivor.Title)
 
-		// 自分のノートを消したときも応答は同じ 204 / 本文なし。
-		// 「消せた／消せなかった」が応答から分からないので、ここも列挙に使えない。
+		// 自分のノートは 204 で消える。ここだけ応答が分かれるが、分かるのは自分の情報だけ。
 		myPath := "/notes/" + strconv.FormatUint(myNote.ID, 10)
 		mineCode, mineBody := noteOracleCall(t, attacker, http.MethodDelete, myPath, "")
 		require.Equal(t, http.StatusNoContent, mineCode)
-		require.Equal(t, missingBody, mineBody)
+		require.Empty(t, mineBody, "204 は本文なし")
 		_, err = noteRepo.FindByID(ctx, me, myNote.ID)
 		require.ErrorIs(t, err, domain.ErrNotFound, "自分のノートは実際に消えている")
+
+		// 同じノートをもう一度消すと、既に無いので不在と同じ 404 に畳まれる。
+		againCode, againBody := noteOracleCall(t, attacker, http.MethodDelete, myPath, "")
+		require.Equal(t, http.StatusNotFound, againCode)
+		require.Equal(t, missingBody, againBody)
 	})
 
 	t.Run("GET /notes は他人のノートを一切返さない", func(t *testing.T) {

@@ -140,6 +140,7 @@ type updateMemberAiRequest struct {
 //	@Failure      400  {object}  errorResponse  "バリデーション失敗"
 //	@Failure      401  {object}  errorResponse  "未認証"
 //	@Failure      403  {object}  errorResponse  "管理者以外 / 別会社の従業員"
+//	@Failure      404  {object}  errorResponse  "対象の従業員が存在しない"
 //	@Failure      500  {object}  errorResponse  "内部エラー"
 //	@Router       /admin/members/{userId}/ai-access [patch]
 //	@Security     CookieAuth
@@ -162,6 +163,12 @@ func (h *AdminMemberHandler) UpdateAiAccess(c *gin.Context) {
 	if err := h.update.Execute(c.Request.Context(), actor, userID, req.Enabled); err != nil {
 		if errors.Is(err, usecase.ErrMemberNotInActorCompany) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+		// 1 行も更新できなかった（= 確認と更新のあいだに従業員が消えた）。
+		// 以前は 0 件でも 204 を返しており、設定が保存されていないのに保存済みに見えていた。
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "member_not_found"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})

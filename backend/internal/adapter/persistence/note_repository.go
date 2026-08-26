@@ -132,17 +132,41 @@ func (r *noteRepository) Update(ctx context.Context, n *domain.Note) error {
 	return nil
 }
 
+// Delete は id と user_id の両方で絞って削除する。
+// 0 行削除（他人の note / 存在しない id）は domain.ErrNotFound を返す。
+//
+// DELETE でも 0 行を成功にしない理由:
+//
+//	「消えている」という事後条件だけを見れば 0 行削除も満たしている。それでも not-found を
+//	返すのは、この経路には上位での存在確認が無く、呼び出し側が「自分のメモを 1 件消した」と
+//	「何も起きなかった」を区別できないから。0 行を成功として返すと、削除が効いていないのに
+//	画面からは行が消え、次に開いたときだけ復活して見える。
+//
+// 存在オラクルとの関係（FRESTYLE-367 / 376 で塞いだ穴を開け直さないこと）:
+//
+//	WHERE に user_id が入っているので「他人の note」も「存在しない id」もどちらも 0 行 =
+//	同じ domain.ErrNotFound になり、handler は同じ 404・同じ本文を返す。応答が分かれるのは
+//	「自分の note を実際に消せたか」だけなので、他人の note の実在は依然として漏れない。
+//	Update も同じ畳み方をしており、更新と削除で結末が揃う。
 func (r *noteRepository) Delete(ctx context.Context, userID, id uint64) error {
 	id64, ok := toInt64ID(id)
 	if !ok {
-		return nil // 存在し得ない id = 対象なし
+		return domain.ErrNotFound // 存在し得ない id = 対象なし
 	}
 	uid, ok := toInt64ID(userID)
 	if !ok {
-		return nil // 存在し得ない user_id = 対象なし
+		return domain.ErrNotFound // 存在し得ない user_id = 対象なし
 	}
-	return sqlcgen.New(r.db).DeleteNote(ctx, sqlcgen.DeleteNoteParams{
+	// :execrows なので実際に消えた行数が返る（:exec だと 0 行でも成功と区別が付かない）。
+	affected, err := sqlcgen.New(r.db).DeleteNote(ctx, sqlcgen.DeleteNoteParams{
 		ID:     id64,
 		UserID: uid,
 	})
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return domain.ErrNotFound // 他人の note もここに落ちる（存在しない id と同じ結末）
+	}
+	return nil
 }

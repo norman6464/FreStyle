@@ -90,7 +90,7 @@ func (q *Queries) ListCompanyApplications(ctx context.Context) ([]CompanyApplica
 	return items, nil
 }
 
-const updateCompanyApplicationStatus = `-- name: UpdateCompanyApplicationStatus :exec
+const updateCompanyApplicationStatus = `-- name: UpdateCompanyApplicationStatus :execrows
 UPDATE company_applications SET
   status     = $2,
   updated_at = now()
@@ -102,9 +102,18 @@ type UpdateCompanyApplicationStatusParams struct {
 	Status string
 }
 
-// 申請の status を更新する（super_admin 専用）。updated_at は now() へ進める
-// （GORM の Update が autoUpdateTime を発火させるのと同じ）。
-func (q *Queries) UpdateCompanyApplicationStatus(ctx context.Context, arg UpdateCompanyApplicationStatusParams) error {
-	_, err := q.db.ExecContext(ctx, updateCompanyApplicationStatus, arg.ID, arg.Status)
-	return err
+// 申請の status を更新する（super_admin 専用）。updated_at は now() へ進める。
+//
+// :exec ではなく :execrows にしている理由:
+//
+//	:exec は「SQL がエラーなく流れたか」しか返さない。UPDATE は 1 行も一致しなくても
+//	成功なので、存在しない id を渡しても呼び出し側には成功として見える。承認/却下の記録が
+//	どこにも残っていないのに管理画面では処理済みに見える、という取り違えが起きる。
+//	:execrows は実際に書き換わった行数（RowsAffected）を返すので 0 行を not-found にできる。
+func (q *Queries) UpdateCompanyApplicationStatus(ctx context.Context, arg UpdateCompanyApplicationStatusParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateCompanyApplicationStatus, arg.ID, arg.Status)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

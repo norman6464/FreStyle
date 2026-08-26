@@ -44,7 +44,13 @@ UPDATE courses SET
 WHERE id = sqlc.arg(id)
 RETURNING updated_at;
 
--- name: DeleteCourse :exec
+-- name: DeleteCourse :execrows
 -- コースを物理削除する（courses は soft delete 列を持たない）。
+--
+-- :exec ではなく :execrows にしている理由:
+--   :exec は「SQL がエラーなく流れたか」しか返さない。DELETE は 1 行も一致しなくても
+--   成功なので、存在しない id を渡しても呼び出し側には成功として見える。
+--   :execrows は実際に消えた行数（RowsAffected）を返すので、repository が 0 行を
+--   「対象なし」として domain.ErrNotFound に翻訳できる。
 DELETE FROM courses
 WHERE id = sqlc.arg(id);

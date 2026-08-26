@@ -269,19 +269,43 @@ func mapChapterDocError(err error) error {
 	return err
 }
 
+// Delete は教材を物理削除する。対象行が無ければ domain.ErrNotFound を返す。
+//
+// DELETE でも 0 行を成功にしない理由:
+//
+//	「消えている」という事後条件だけなら 0 行削除も満たしている。それでも not-found を
+//	返すのは、この経路が「管理者が一覧から 1 件選んで消す」操作だから。0 行を 204 で
+//	返すと、既に他の管理者が消した行・別会社の行を消したつもりになり、消えていないものを
+//	消したと誤認したまま画面から消える。
+//	usecase（TeachingMaterialUseCase.Delete）は GetByID で存在と会社を先に確かめるので、
+//	ここに落ちるのは「確認と削除のあいだに章が消えた」競合のときだけ。
+//	同じ判断を UpdateMeta 側（0 行 = sql.ErrNoRows を domain.ErrNotFound へ）で既に取っており、
+//	更新と削除で結末を揃える。
 func (r *teachingMaterialRepository) Delete(ctx context.Context, id uint64) error {
 	id64, ok := toInt64ID(id)
 	if !ok {
-		return nil // 存在し得ない id = 対象なし
+		return domain.ErrNotFound // 存在し得ない id = 対象なし
 	}
-	return sqlcgen.New(r.db).DeleteChapter(ctx, id64)
+	// :execrows なので実際に消えた行数が返る（:exec だと 0 行でも成功と区別が付かない）。
+	affected, err := sqlcgen.New(r.db).DeleteChapter(ctx, id64)
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
 }
 
 // DeleteByCourse はコース削除時の cascade 用に配下教材を全削除する（FK に頼らず明示削除）。
+//
+// ここだけは 0 行を not-found にしない（件数を見ない）。単一行を狙う Delete と違い、
+// これは「course_id にぶら下がる行を全部消す」一括操作で、0 行は「教材が 1 つも無い
+// コースだった」という正常な結果でしかない。not-found にすると空のコースが削除できなくなる。
 func (r *teachingMaterialRepository) DeleteByCourse(ctx context.Context, courseID uint64) error {
 	cid, ok := toInt64ID(courseID)
 	if !ok {
-		return nil // 存在し得ない course_id = 対象なし
+		return nil // 存在し得ない course_id = 消す相手がいない（一括削除なので 0 件で正常）
 	}
 	return sqlcgen.New(r.db).DeleteChaptersByCourse(ctx, cid)
 }

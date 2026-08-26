@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const deleteNote = `-- name: DeleteNote :exec
+const deleteNote = `-- name: DeleteNote :execrows
 DELETE FROM notes
 WHERE id = $1 AND user_id = $2
 `
@@ -21,9 +21,25 @@ type DeleteNoteParams struct {
 }
 
 // メモを削除する。user_id で絞り、他人のメモを消せないようにする（notes に論理削除列は無い）。
-func (q *Queries) DeleteNote(ctx context.Context, arg DeleteNoteParams) error {
-	_, err := q.db.ExecContext(ctx, deleteNote, arg.ID, arg.UserID)
-	return err
+//
+// :exec ではなく :execrows にしている理由:
+//
+//	:exec は「SQL がエラーなく流れたか」しか返さない。DELETE は 1 行も一致しなくても
+//	成功なので、存在しない id・他人のメモを渡しても呼び出し側には成功として見える。
+//	:execrows は実際に消えた行数（RowsAffected）を返すので、repository が 0 行を
+//	「対象なし」として domain.ErrNotFound に翻訳できる。
+//
+// 存在オラクルとの関係:
+//
+//	WHERE に user_id が入っているので「他人のメモ」も「存在しない id」もどちらも 0 行になり、
+//	まったく同じ 404 に畳まれる。応答が分かれるのは「自分のメモを実際に消せた（204）」か
+//	どうかだけで、これは自分の情報なので他人の実在は漏れない（UpdateNote と同じ形）。
+func (q *Queries) DeleteNote(ctx context.Context, arg DeleteNoteParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteNote, arg.ID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const getNoteByID = `-- name: GetNoteByID :one

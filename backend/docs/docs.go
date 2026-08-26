@@ -337,6 +337,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
                     },
+                    "404": {
+                        "description": "申請が存在しない",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
                     "500": {
                         "description": "DB 更新失敗",
                         "schema": {
@@ -803,6 +809,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
                     },
+                    "404": {
+                        "description": "対象の従業員が存在しない",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
                     "500": {
                         "description": "内部エラー",
                         "schema": {
@@ -1071,6 +1083,12 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "バリデーション",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "セッション が ない",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -1823,6 +1841,12 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "管理者以外",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "会社が存在しない",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -4234,7 +4258,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "current user 所有 の note を 削除。 WHERE user_id 絞り込み で 他人 の note は そもそも 影響 を 受け ない。\n他人 の note・存在 し ない note・自分 の note の いずれ に 対して も 同じ 204 (本文 なし) を 返し、\n応答 から ID の 実在 が 分から ない よう に する。",
+                "description": "current user 所有 の note を 削除。 WHERE user_id 絞り込み で 他人 の note は そもそも 影響 を 受け ない。\n他人 の note と 存在 し ない note に は 同じ 404 (同じ 本文) を 返し、 応答 から ID の 実在 が 分から ない よう に する。",
                 "produces": [
                     "application/json"
                 ],
@@ -4253,7 +4277,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "204": {
-                        "description": "成功 (本文 なし。 対象 が 無く て も 同じ)"
+                        "description": "成功 (本文 なし)"
                     },
                     "400": {
                         "description": "DB 失敗",
@@ -4263,6 +4287,12 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "自分 の note が 無い (他人 の note・存在 し ない id も 同じ 応答)",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -4388,7 +4418,7 @@ const docTemplate = `{
                         "CookieAuth": []
                     }
                 ],
-                "description": "指定 通知 を 既読 に する (所有者 検証 込み)。 同 ハンドラ は 旧 クライアント 互換 で PUT も 同じ パス で 受け付ける が、 OpenAPI で は PATCH を 標準 と して 1 つ だけ 表現 する。",
+                "description": "指定 通知 を 既読 に する (所有者 検証 込み)。 1 行 も 既読 化 でき なかっ た 場合 は 404 (他人 の 通知 と 存在 し ない id は 同じ 応答)。 同 ハンドラ は 旧 クライアント 互換 で PUT も 同じ パス で 受け付ける が、 OpenAPI で は PATCH を 標準 と して 1 つ だけ 表現 する。",
                 "produces": [
                     "application/json"
                 ],
@@ -4417,6 +4447,12 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "未 認証",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "自分 の 通知 が 無い (他人 の 通知・存在 し ない id も 同じ 応答)",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }
@@ -4531,6 +4567,12 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "他 user 指定",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "対象 user が 存在 し ない",
                         "schema": {
                             "$ref": "#/definitions/internal_handler.errorResponse"
                         }

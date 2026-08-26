@@ -113,25 +113,52 @@ func (r *aiChatSessionRepository) Create(ctx context.Context, s *domain.AiChatSe
 }
 
 // UpdateTitle はタイトルだけを更新する（updated_at は now() へ進む）。
-// 該当行が無くてもエラーにしない（GORM 版と同じ契約）。
+// 対象行が無ければ domain.ErrNotFound を返す（handler が 404 にマップ）。
+//
+// 0 行更新を成功にしてはいけない理由:
+//
+//	UPDATE は 1 行も一致しなくても SQL としては成功する。ここで nil を返すと handler は
+//	そのまま 200 を返し、利用者にはタイトルが変わったように見えるのに DB には何も
+//	書かれていない。行が無いことは「保存できた」ではなく「対象が無い」なので 404 で伝える。
 func (r *aiChatSessionRepository) UpdateTitle(ctx context.Context, id uint64, title string) error {
 	id64, ok := toInt64ID(id)
 	if !ok {
-		// 0 行更新（該当なし）と区別が付かない nil を返さず、書けないことをエラーで伝える。
-		return fmt.Errorf("session id %d が int64 の範囲外です", id)
+		return domain.ErrNotFound // 存在し得ない id = 対象なし
 	}
-	return sqlcgen.New(r.db).UpdateAiChatSessionTitle(ctx, sqlcgen.UpdateAiChatSessionTitleParams{
+	// :execrows なので実際に書き換わった行数が返る（:exec だと 0 行でも成功と区別が付かない）。
+	affected, err := sqlcgen.New(r.db).UpdateAiChatSessionTitle(ctx, sqlcgen.UpdateAiChatSessionTitleParams{
 		ID:    id64,
 		Title: title,
 	})
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
 }
 
-// Delete はセッションを物理削除する。該当行が無くてもエラーにしない（GORM 版と同じ契約）。
+// Delete はセッションを物理削除する。対象行が無ければ domain.ErrNotFound を返す。
+//
+// DELETE でも 0 行を成功にしない理由:
+//
+//	「消えている」という事後条件だけなら 0 行削除も満たしている。それでも not-found を
+//	返すのは、この経路が「自分の履歴一覧から 1 件選んで消す」操作で、呼び出し側
+//	（DeleteAiChatSessionUseCase）が FindByID で所有者を先に確かめているから。
+//	所有者確認を通ったのに 0 行というのは「確認と削除のあいだにセッションが消えた」競合で、
+//	成功として返すと消したのが自分の操作なのか競合相手なのかが区別できなくなる。
 func (r *aiChatSessionRepository) Delete(ctx context.Context, id uint64) error {
 	id64, ok := toInt64ID(id)
 	if !ok {
-		// 0 行削除（該当なし）と区別が付かない nil を返さず、消せないことをエラーで伝える。
-		return fmt.Errorf("session id %d が int64 の範囲外です", id)
+		return domain.ErrNotFound // 存在し得ない id = 対象なし
 	}
-	return sqlcgen.New(r.db).DeleteAiChatSession(ctx, id64)
+	affected, err := sqlcgen.New(r.db).DeleteAiChatSession(ctx, id64)
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
 }

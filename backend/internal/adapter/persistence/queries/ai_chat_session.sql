@@ -27,17 +27,22 @@ VALUES (
 )
 RETURNING id, created_at, updated_at;
 
--- name: UpdateAiChatSessionTitle :exec
+-- name: UpdateAiChatSessionTitle :execrows
 -- セッションのタイトルを更新する。書くのは title と updated_at の 2 列だけで、
--- user_id / session_type / scenario_id / created_at は不変（GORM の Update("title", ...) と同じ）。
+-- user_id / session_type / scenario_id / created_at は不変。
 -- updated_at は DB 既定値が無いため now() を明示する（autoUpdateTime 相当）。
--- 該当行が無い場合は 0 行更新でエラーにしない（GORM 版と同じ契約）。
+--
+-- :exec ではなく :execrows にしている理由:
+--   :exec は「SQL がエラーなく流れたか」しか返さない。UPDATE は 1 行も一致しなくても
+--   成功なので、存在しない id を渡しても呼び出し側には成功として見える。
+--   :execrows は実際に書き換わった行数（RowsAffected）を返すので、repository が 0 行を
+--   「対象なし」として domain.ErrNotFound に翻訳できる。
 UPDATE ai_chat_sessions SET
   title      = sqlc.arg(title),
   updated_at = now()
 WHERE id = sqlc.arg(id);
 
--- name: DeleteAiChatSession :exec
+-- name: DeleteAiChatSession :execrows
 -- セッションを物理削除する（ai_chat_sessions は soft delete 列を持たない）。
--- 該当行が無い場合は 0 行削除でエラーにしない（GORM 版と同じ契約）。
+-- UpdateAiChatSessionTitle と同じ理由で :execrows（0 行削除を成功と区別するため）。
 DELETE FROM ai_chat_sessions WHERE id = sqlc.arg(id);

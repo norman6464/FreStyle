@@ -172,13 +172,30 @@ func (r *adminInvitationRepository) Create(ctx context.Context, inv *domain.Admi
 	return nil
 }
 
+// UpdateStatus は招待の status を更新する。対象行が無ければ domain.ErrNotFound を返す。
+//
+// 0 行更新を成功にしてはいけない理由:
+//
+//	この更新は「招待を取り消した」「招待を消費した」という事実そのものを表す。
+//	0 行のまま成功を返すと、取り消したはずの招待が pending のまま残っているのに
+//	画面上は取り消し済みに見える、という食い違いが起きる。
+//	呼び出し側（Cancel / ログイン時の受諾）はどちらも直前に招待を読み出しているので、
+//	ここに落ちるのは「読み出しと更新のあいだに招待が消えた」競合のときだけ。
 func (r *adminInvitationRepository) UpdateStatus(ctx context.Context, id uint64, status string) error {
 	id64, ok := toInt64ID(id)
 	if !ok {
-		return nil // 存在し得ない id = 対象なし
+		return domain.ErrNotFound // 存在し得ない id = 対象なし
 	}
-	return sqlcgen.New(r.db).UpdateInvitationStatus(ctx, sqlcgen.UpdateInvitationStatusParams{
+	// :execrows なので実際に書き換わった行数が返る（:exec だと 0 行でも成功と区別が付かない）。
+	affected, err := sqlcgen.New(r.db).UpdateInvitationStatus(ctx, sqlcgen.UpdateInvitationStatusParams{
 		ID:     id64,
 		Status: status,
 	})
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
 }

@@ -98,6 +98,21 @@ type Course struct {
 	UpdatedAt       time.Time
 }
 
+type CourseChapter struct {
+	ID              int64
+	CompanyID       int64
+	CourseID        int64
+	CreatedByUserID int64
+	Title           string
+	Doc             *json.RawMessage
+	Revision        int64
+	SchemaVersion   int64
+	SortOrder       int64
+	IsPublished     bool
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
 type ExerciseSubmission struct {
 	ID            int64
 	UserID        int64
@@ -121,6 +136,16 @@ type Invitation struct {
 	Token     sql.NullString
 	ExpiresAt time.Time
 	CreatedAt time.Time
+}
+
+type LearningReport struct {
+	ID         int64
+	UserID     int64
+	PeriodFrom time.Time
+	PeriodTo   time.Time
+	Status     string
+	S3Key      string
+	CreatedAt  time.Time
 }
 
 type MasterExercise struct {
@@ -310,6 +335,24 @@ type User struct {
 	UpdatedAt     time.Time
 	DeletedAt     sql.NullTime
 	WorkspaceID   uuid.NullUUID
+}
+
+type UserChapterProgress struct {
+	ID          int64
+	UserID      int64
+	ChapterID   int64
+	CourseID    int64
+	CompletedAt time.Time
+	CreatedAt   time.Time
+}
+
+type UserChapterView struct {
+	UserID        int64
+	ChapterID     int64
+	CourseID      int64
+	FirstViewedAt time.Time
+	LastViewedAt  time.Time
+	ViewCount     int32
 }
 
 type UserOidcIdentity struct {

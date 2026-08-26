@@ -282,3 +282,58 @@ CREATE TABLE exercise_submissions (
     is_correct     boolean NOT NULL DEFAULT false,
     submitted_at   timestamptz NOT NULL
 );
+
+-- コースを構成する章。domain.TeachingMaterial（TableName = course_chapters）の GORM タグを正とする。
+-- doc は *string type:jsonb（未移行の章は NULL）なので nullable jsonb。旧 content 列は撤去済で持たない。
+-- revision / schema_version / sort_order は plain int なので bigint。
+CREATE TABLE course_chapters (
+    id                 bigint PRIMARY KEY,
+    company_id         bigint NOT NULL,
+    course_id          bigint NOT NULL,
+    created_by_user_id bigint NOT NULL,
+    title              text NOT NULL DEFAULT '',
+    doc                jsonb,
+    revision           bigint NOT NULL DEFAULT 1,
+    schema_version     bigint NOT NULL DEFAULT 1,
+    sort_order         bigint NOT NULL DEFAULT 100,
+    is_published       boolean NOT NULL DEFAULT false,
+    created_at         timestamptz NOT NULL,
+    updated_at         timestamptz NOT NULL
+);
+
+-- 学習レポート（週次・月次集計を非同期生成）。domain.LearningReport の GORM タグを正とする。
+-- updated_at は持たない。
+CREATE TABLE learning_reports (
+    id          bigint PRIMARY KEY,
+    user_id     bigint NOT NULL,
+    period_from timestamptz NOT NULL,
+    period_to   timestamptz NOT NULL,
+    status      text NOT NULL DEFAULT '',
+    s3_key      text NOT NULL DEFAULT '',
+    created_at  timestamptz NOT NULL
+);
+
+-- 章の完了記録。domain.UserLessonProgress（TableName = user_chapter_progress）の GORM タグを正とする。
+-- 列名は改名後（chapter_id）。(user_id, chapter_id) は複合 UNIQUE。
+CREATE TABLE user_chapter_progress (
+    id           bigint PRIMARY KEY,
+    user_id      bigint NOT NULL,
+    chapter_id   bigint NOT NULL,
+    course_id    bigint NOT NULL,
+    completed_at timestamptz NOT NULL,
+    created_at   timestamptz NOT NULL,
+    -- 実制約は AutoMigrate（gorm uniqueIndex タグ）が作る。ここは sqlc の型付け用に同じ内容を明示。
+    UNIQUE (user_id, chapter_id)
+);
+
+-- 章の閲覧記録。domain.UserChapterView の GORM タグを正とする。PK = (user_id, chapter_id)。
+-- 列名は改名後（chapter_id）。view_count は type:integer 指定のため integer（bigint にしない）。
+CREATE TABLE user_chapter_views (
+    user_id         bigint NOT NULL,
+    chapter_id      bigint NOT NULL,
+    course_id       bigint NOT NULL,
+    first_viewed_at timestamptz NOT NULL,
+    last_viewed_at  timestamptz NOT NULL,
+    view_count      integer NOT NULL DEFAULT 1,
+    PRIMARY KEY (user_id, chapter_id)
+);

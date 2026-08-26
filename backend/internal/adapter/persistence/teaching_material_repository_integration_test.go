@@ -285,14 +285,23 @@ func TestTeachingMaterialRepository_CRUD_Integration(t *testing.T) {
 		require.ErrorIs(t, repo.Update(ctx, m), domain.ErrNotFound)
 	})
 
-	t.Run("Delete / DeleteByCourse は存在しない id でも冪等に nil（後条件は満たされている）", func(t *testing.T) {
+	// Delete の期待値を「冪等に nil」から not-found へ更新した理由:
+	//   「行が無い」という後条件だけを見れば 0 行削除も満たしている、というのが以前の判断だった。
+	//   ただしこの経路は「管理者が一覧から 1 件選んで消す」操作で、呼び出し側
+	//   （TeachingMaterialUseCase.Delete）は GetByID で存在と会社を確かめてから消す。
+	//   0 行を 204 で返すと、既に他の管理者が消した行を自分が消したものと誤認したまま
+	//   画面から行が消える。Update 側は既に 0 行を domain.ErrNotFound に畳んでおり、
+	//   更新と削除で結末が食い違っていた。ここで揃える。
+	//
+	//   DeleteByCourse だけは 0 件のまま成功にする。こちらは「course_id にぶら下がる行を
+	//   全部消す」一括操作で、0 件は「章が 1 つも無いコースだった」という正常な結果。
+	//   not-found にすると空のコースを削除できなくなる。
+	t.Run("存在しない id への Delete は not-found / DeleteByCourse は 0 件でも成功", func(t *testing.T) {
 		testsupport.TruncateAll(t, sqlDB, "course_chapters")
 		keep := mk(1, 20, "keep", 1, true)
 		require.NoError(t, repo.Create(ctx, keep))
 
-		// 「行が無い」という後条件は既に満たされているため 0 行削除はエラーにしない
-		// （移行前の GORM 版も 0 行で nil を返していた。Update と違い失われた書き込みが無い）。
-		require.NoError(t, repo.Delete(ctx, 999999))
+		require.ErrorIs(t, repo.Delete(ctx, 999999), domain.ErrNotFound)
 		require.NoError(t, repo.DeleteByCourse(ctx, 999999))
 
 		survived, err := repo.ListByCourse(ctx, 20, true)

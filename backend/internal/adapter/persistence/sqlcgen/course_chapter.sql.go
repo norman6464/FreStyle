@@ -54,15 +54,25 @@ func (q *Queries) CountChaptersByCourseForCompany(ctx context.Context, arg Count
 	return items, nil
 }
 
-const deleteChapter = `-- name: DeleteChapter :exec
+const deleteChapter = `-- name: DeleteChapter :execrows
 DELETE FROM course_chapters
 WHERE id = $1
 `
 
 // 教材を物理削除する（course_chapters は soft delete 列を持たない）。
-func (q *Queries) DeleteChapter(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, deleteChapter, id)
-	return err
+//
+// :exec ではなく :execrows にしている理由:
+//
+//	:exec は「SQL がエラーなく流れたか」しか返さない。DELETE は 1 行も一致しなくても
+//	成功なので、存在しない id を渡しても呼び出し側には成功として見える。
+//	:execrows は実際に消えた行数（RowsAffected）を返すので、repository が 0 行を
+//	「対象なし」として domain.ErrNotFound に翻訳できる。
+func (q *Queries) DeleteChapter(ctx context.Context, id int64) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteChapter, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const deleteChaptersByCourse = `-- name: DeleteChaptersByCourse :exec
@@ -71,6 +81,10 @@ WHERE course_id = $1
 `
 
 // コース削除時の cascade 用に配下教材を全削除する（FK に頼らず明示削除）。
+//
+// ここは :exec のままで良い（件数を見ない）。単一行の DELETE と違い、これは「course_id に
+// ぶら下がる行を全部消す」一括操作で、0 行は「そのコースに教材が 1 つも無かった」という
+// 正常な結果でしかない。0 行を not-found にすると、章が 1 つも無いコースを削除できなくなる。
 func (q *Queries) DeleteChaptersByCourse(ctx context.Context, courseID int64) error {
 	_, err := q.db.ExecContext(ctx, deleteChaptersByCourse, courseID)
 	return err

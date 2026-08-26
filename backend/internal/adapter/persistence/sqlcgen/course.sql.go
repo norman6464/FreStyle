@@ -10,15 +10,25 @@ import (
 	"time"
 )
 
-const deleteCourse = `-- name: DeleteCourse :exec
+const deleteCourse = `-- name: DeleteCourse :execrows
 DELETE FROM courses
 WHERE id = $1
 `
 
 // コースを物理削除する（courses は soft delete 列を持たない）。
-func (q *Queries) DeleteCourse(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, deleteCourse, id)
-	return err
+//
+// :exec ではなく :execrows にしている理由:
+//
+//	:exec は「SQL がエラーなく流れたか」しか返さない。DELETE は 1 行も一致しなくても
+//	成功なので、存在しない id を渡しても呼び出し側には成功として見える。
+//	:execrows は実際に消えた行数（RowsAffected）を返すので、repository が 0 行を
+//	「対象なし」として domain.ErrNotFound に翻訳できる。
+func (q *Queries) DeleteCourse(ctx context.Context, id int64) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteCourse, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const getCourseByID = `-- name: GetCourseByID :one

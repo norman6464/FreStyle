@@ -7,7 +7,49 @@ package sqlcgen
 
 import (
 	"context"
+	"time"
 )
+
+const insertCompanyApplication = `-- name: InsertCompanyApplication :one
+INSERT INTO company_applications
+  (company_name, applicant_name, email, message, status, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING id, created_at, updated_at
+`
+
+type InsertCompanyApplicationParams struct {
+	CompanyName   string
+	ApplicantName string
+	Email         string
+	Message       string
+	Status        string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+type InsertCompanyApplicationRow struct {
+	ID        int64
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+// 利用申請を 1 件作成する。created_at / updated_at は DB 既定値が無いため呼び出し側が
+// 値を渡す（GORM autoCreateTime/autoUpdateTime 相当。ゼロなら呼び出し側で now() を入れる）。
+// RETURNING で id / created_at / updated_at を書き戻す。
+func (q *Queries) InsertCompanyApplication(ctx context.Context, arg InsertCompanyApplicationParams) (InsertCompanyApplicationRow, error) {
+	row := q.db.QueryRowContext(ctx, insertCompanyApplication,
+		arg.CompanyName,
+		arg.ApplicantName,
+		arg.Email,
+		arg.Message,
+		arg.Status,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	var i InsertCompanyApplicationRow
+	err := row.Scan(&i.ID, &i.CreatedAt, &i.UpdatedAt)
+	return i, err
+}
 
 const listCompanyApplications = `-- name: ListCompanyApplications :many
 SELECT id, company_name, applicant_name, email, message, status, created_at, updated_at FROM company_applications
@@ -46,4 +88,23 @@ func (q *Queries) ListCompanyApplications(ctx context.Context) ([]CompanyApplica
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateCompanyApplicationStatus = `-- name: UpdateCompanyApplicationStatus :exec
+UPDATE company_applications SET
+  status     = $2,
+  updated_at = now()
+WHERE id = $1
+`
+
+type UpdateCompanyApplicationStatusParams struct {
+	ID     int64
+	Status string
+}
+
+// 申請の status を更新する（super_admin 専用）。updated_at は now() へ進める
+// （GORM の Update が autoUpdateTime を発火させるのと同じ）。
+func (q *Queries) UpdateCompanyApplicationStatus(ctx context.Context, arg UpdateCompanyApplicationStatusParams) error {
+	_, err := q.db.ExecContext(ctx, updateCompanyApplicationStatus, arg.ID, arg.Status)
+	return err
 }

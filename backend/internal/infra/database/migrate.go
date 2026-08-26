@@ -411,12 +411,24 @@ func BackfillUserNormalization(ctx context.Context, db Executor) error {
 
 // columnExists は指定テーブルにカラムが存在するかを返す。旧カラム撤去の前後で
 // バックフィルの分岐に使う（information_schema はトランザクション内でも現在のスキーマを見る）。
+// columnExists は public スキーマの指定した表に、その列があるかを返す。
+//
+// table_schema = 'public' の絞りが要る理由:
+//
+//	この DB には Supabase 自身が持つ auth スキーマが同居していて、そこにも users という
+//	表がある（auth.users・35 列）。スキーマを絞らずに information_schema を数えると、
+//	アプリの public.users から列を消した後でも auth.users 側の同名列を拾って
+//	「まだある」と誤判定する。実際 auth.users には role 列があり、これは
+//	migrations/0021 が public.users から消す列と同じ名前。
+//
+//	誤判定すると「列があるはず」という前提で SQL を流し、実際には無いので
+//	起動時マイグレーションが落ちる。アプリが上がらなくなるため、ここは必ず絞る。
 func columnExists(ctx context.Context, db Executor, table, column string) (bool, error) {
 	var n int64
 	if err := db.QueryRowContext(
 		ctx,
 		`SELECT count(*) FROM information_schema.columns
-		 WHERE table_name = $1 AND column_name = $2`, table, column,
+		 WHERE table_schema = 'public' AND table_name = $1 AND column_name = $2`, table, column,
 	).Scan(&n); err != nil {
 		return false, err
 	}

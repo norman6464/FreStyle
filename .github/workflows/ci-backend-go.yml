@@ -110,31 +110,23 @@ jobs:
 
       # race detector + カバレッジ計測。rate limiter / JWT キャッシュ等の並行コードの
       # データ競合を CI で検出する。
-      - name: go test (race + coverage)
-        run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
-
-      # 総カバレッジを PR の Checks サマリに表示しつつ、floor を下回ったら fail させる。
-      # COVERAGE_MIN は回帰防止の floor（domain / docs / cmd / 薄い infra など 0% 群を含む総計のため低め）。
       #
-      # 注意: この計測は unit ジョブ（integration タグ無し）。GORM→sqlc 移行で repository の
-      # クエリコードが integration テスト側へ寄ると、その分 unit カバレッジは下がる（該当コードは
-      # "integration tests (postgres)" ジョブが実 Postgres で検証している）。移行中は floor を実態に
-      # 合わせて下げ、移行完了後に integration 込みの計測へ切り替えて引き上げ直す。
-      - name: coverage summary + gate
-        env:
-          # GORM→sqlc 移行（FRESTYLE-369）で repository のクエリが integration テスト側へ寄り、
-          # unit 計測の分母が増えて総計が 44.9% まで下がった。移行完了後に integration 込みの
-          # 計測へ切り替えて引き上げ直す前提で、実態に合わせて一時的に 45→42 へ下げる。
-          COVERAGE_MIN: '42'
-        run: |
-          total=$(go tool cover -func=coverage.out | tail -1 | awk '{print $3}')
-          echo "## Backend test coverage: ${total} (min ${COVERAGE_MIN}%)" >> "$GITHUB_STEP_SUMMARY"
-          echo "total coverage: ${total} (min ${COVERAGE_MIN}%)"
-          num=${total%\%}
-          if awk -v t="$num" -v m="$COVERAGE_MIN" 'BEGIN { exit !(t+0 < m+0) }'; then
-            echo "::error::backend coverage ${total} is below floor ${COVERAGE_MIN}%"
-            exit 1
-          fi
+      # ここは build tag 無し = 単体テストだけの計測で、これ単独では総カバレッジにならない。
+      # 実 PostgreSQL が要るコード（repository のクエリ）は 1 行も通らないため、
+      # 結合側の計測（integration ジョブ）と合算する。合算と floor 判定は coverage ジョブが行う。
+      - name: go test (race + coverage)
+        run: go test -race -covermode=atomic -coverprofile=coverage-unit.out ./...
+
+      # 単体側のプロファイルを coverage ジョブへ渡す。ジョブごとに runner（ファイルシステム）が
+      # 別なので、ジョブをまたぐファイルの受け渡しは artifact 経由でしかできない。
+      - name: Upload unit coverage profile
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-unit
+          # path はジョブの working-directory ではなくワークスペース起点で解決される。
+          path: backend/coverage-unit.out
+          if-no-files-found: error
+          retention-days: 7
 
       # OpenAPI spec (docs/) が最新かを検証する。handler の swaggo 注釈を変えたのに
       # `make openapi` を忘れた PR を CI で弾く（フロントの型生成元なので drift を防ぐ）。
@@ -205,11 +197,156 @@ jobs:
       # -run Integration で結合テスト（命名規約: テスト名に Integration を含む）だけを回す。
       # 単体テストは test ジョブで実行済みで、TEST_DATABASE_URL を env に持つこのジョブで
       # 再実行すると env 依存の単体テストが誤検知し得るため。
+      #
+      # カバレッジも取る。repository(internal/adapter/persistence) のクエリは実 DB を叩いて
+      # 初めて通るので、この計測がないと「結合テストで毎回検証しているコードが 0%」として
+      # 総カバレッジに乗ってしまう。合算と floor 判定は coverage ジョブが行う。
+      #
+      # -covermode=atomic は test ジョブ（-race のため atomic）と mode を揃えるため。
+      # 既定は set で、mode の違うプロファイル同士は連結できない。
+      # -race は従来どおり付けない。ここは実 DB 相手の I/O 待ちが主で、並行コードの
+      # データ競合検査は test ジョブが担っているため。
       - name: Run integration tests (-tags=integration)
         env:
           TEST_DATABASE_URL: postgres://frestyle:frestyle@localhost:5433/frestyle_integration?sslmode=disable
-        run: go test -tags=integration -run Integration ./...
+        run: go test -tags=integration -run Integration -covermode=atomic -coverprofile=coverage-integration.out ./...
+
+      # 結合側のプロファイルを coverage ジョブへ渡す。ジョブごとに runner（ファイルシステム）が
+      # 別なので、ジョブをまたぐファイルの受け渡しは artifact 経由でしかできない。
+      - name: Upload integration coverage profile
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-integration
+          # path はジョブの working-directory ではなくワークスペース起点で解決される。
+          path: backend/coverage-integration.out
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Stop PostgreSQL
         if: always()
         run: docker compose -f docker-compose.integration.yml down -v
+
+  # 単体（test ジョブ）と結合（integration ジョブ）のカバレッジを合算し、floor 判定を 1 回だけ行う。
+  #
+  # なぜ計測が 2 つのジョブに分かれているのか:
+  #   - test ジョブ … -race（データ競合検出）付きで単体テストを回す。DB は要らない。
+  #   - integration ジョブ … 本物の PostgreSQL を起動して -tags=integration のテストを回す。
+  #     -race は付けない（データ競合の検査は test ジョブが担う）。
+  #   前提（-race の要否 / 実 DB の要否）が違うので 1 コマンドにまとめられず、並列に走らせている。
+  #   その代わり、カバレッジは 2 本のプロファイルに分かれる。
+  #
+  # なぜ合算が必要なのか:
+  #   repository（internal/adapter/persistence）のクエリは sqlc 生成コードを実 DB に対して
+  #   叩いて初めて実行される。単体側のプロファイルには 1 行も現れないので、単体だけを数えると
+  #   「結合テストが毎回検証しているコードがテストされていない」ように見え、総カバレッジが
+  #   実態よりかなり低く出る（2026-08-26 実測: 単体のみ 45.0% → 合算 64.0%）。
+  #
+  # どう合算しているのか（外部ツールは使わない）:
+  #   Go の coverprofile は 1 行目が "mode: <set|count|atomic>"、以降が
+  #   「<ファイル>:<開始>,<終了> <実行文数> <実行回数>」の行の集まり。
+  #   mode 行を 1 本だけ残して残りを単純に連結すれば、go tool cover が読み込み時に
+  #   同じ位置のブロックを見つけて実行回数を足し合わせ、1 ブロックへ畳んでくれる
+  #   （golang.org/x/tools/cover ParseProfiles の挙動）。つまり「どちらかで実行されたら実行済み」
+  #   の合算になる。gocovmerge のような外部ツールは要らない。条件は mode が揃っていることだけで、
+  #   両ジョブとも -covermode=atomic を明示しているのはこのため。
+  coverage:
+    name: coverage floor (unit + integration)
+    runs-on: ubuntu-latest
+    needs: [test, integration]
+    # needs のどちらかが失敗すると、既定ではこのジョブは実行されず skip になる。
+    # skip された check は branch protection 上「成功」と同じ扱いなので、
+    # 落ちているはずの PR がマージ可能に見えてしまう。always() で必ず起動し、
+    # 前段の結果は下の step で自分で確かめて落とす。
+    if: always()
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: 前段ジョブの結果を確認
+        if: needs.test.result != 'success' || needs.integration.result != 'success'
+        run: |
+          echo "::error::前段ジョブが成功していないためカバレッジを合算できません (test=${{ needs.test.result }}, integration=${{ needs.integration.result }})"
+          exit 1
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.26'
+          cache-dependency-path: backend/go.sum
+
+      # go tool cover -func は「どのブロックがどの関数か」を出すためにリポジトリのソースを
+      # 読む（プロファイルに入っているのはファイルパスと行範囲だけ）。読むファイルは
+      # モジュール経由で解決されるため、解決が依存の有無に左右されないよう先に揃えておく。
+      # setup-go のキャッシュが効くので通常は数秒で終わる。
+      - name: go mod download
+        run: go mod download
+
+      # 2 本のプロファイルを backend/ 直下へ取り出す（後続の go tool cover が
+      # モジュール内から相対解決できる場所に置く）。
+      - name: Download unit coverage profile
+        uses: actions/download-artifact@v7
+        with:
+          name: coverage-unit
+          path: backend
+
+      - name: Download integration coverage profile
+        uses: actions/download-artifact@v7
+        with:
+          name: coverage-integration
+          path: backend
+
+      # 合算した総カバレッジを PR の Checks サマリに出し、floor を下回ったら fail させる。
+      #
+      # COVERAGE_MIN は回帰防止のための下限。domain の定数群 / docs（生成物）/ cmd /
+      # 薄い infra ラッパなど 0% のパッケージも分母に入る総計なので、個々のパッケージの
+      # 水準よりは低い値になる。
+      #
+      # 根拠（この値をどう決めたか）: 2026-08-26 に main (16092a46) をローカルで CI と同じ手順
+      # （-race 付き単体 + 専用 postgres コンテナに対する -tags=integration -run Integration）
+      # で計測した実測値。単体のみ 45.4% / 結合のみ 24.7% / 合算 64.4%（macOS）。
+      # このうち internal/infra/sandbox だけは言語ランタイムの有無でローカル 89.0% に対し
+      # CI 74.4% と差が出るため、CI 側の値に換算し直すと合算は約 64.0%。
+      # 実測 64.0% に対して 2pt ほどの余裕を見て 62 とする。テストを消す・減らす変更が
+      # 引っかかる程度には高く、環境差で誤検知しない程度には低い値。
+      - name: merge profiles + coverage gate
+        env:
+          COVERAGE_MIN: '62'
+        run: |
+          # mode が食い違うプロファイルは連結できない（go tool cover が読めない、
+          # あるいは実行回数の意味がずれる）。どちらかの -covermode 指定が消えたら
+          # 黙って壊れるのではなく、ここで理由付きで落とす。
+          for f in coverage-unit.out coverage-integration.out; do
+            if ! head -1 "$f" | grep -qx 'mode: atomic'; then
+              echo "::error::${f} の 1 行目が 'mode: atomic' ではありません（両ジョブの -covermode=atomic を確認してください）: $(head -1 "$f")"
+              exit 1
+            fi
+          done
+
+          # mode 行を 1 本だけ書き、残りは両方のプロファイルをそのまま連結する。
+          # 同じブロックが 2 回現れても go tool cover 側で実行回数が合算される。
+          {
+            echo 'mode: atomic'
+            grep -h -v '^mode:' coverage-unit.out coverage-integration.out
+          } > coverage-merged.out
+
+          unit=$(go tool cover -func=coverage-unit.out | tail -1 | awk '{print $3}')
+          integration=$(go tool cover -func=coverage-integration.out | tail -1 | awk '{print $3}')
+          total=$(go tool cover -func=coverage-merged.out | tail -1 | awk '{print $3}')
+
+          {
+            echo "## Backend test coverage: ${total} (min ${COVERAGE_MIN}%)"
+            echo ""
+            echo "| 計測 | カバレッジ |"
+            echo "| --- | --- |"
+            echo "| 単体のみ (race) | ${unit} |"
+            echo "| 結合のみ (postgres) | ${integration} |"
+            echo "| **合算（判定対象）** | **${total}** |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "unit: ${unit} / integration: ${integration} / merged: ${total} (min ${COVERAGE_MIN}%)"
+
+          num=${total%\%}
+          if awk -v t="$num" -v m="$COVERAGE_MIN" 'BEGIN { exit !(t+0 < m+0) }'; then
+            echo "::error::backend coverage ${total} is below floor ${COVERAGE_MIN}%"
+            exit 1
+          fi

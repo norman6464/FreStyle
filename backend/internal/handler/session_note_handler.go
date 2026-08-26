@@ -70,6 +70,7 @@ type sessionNoteUpsertReq struct {
 //
 //	@Summary      セッション ノート 作成 / 更新
 //	@Description  指定 セッション の ノート を upsert。 userId は body で 受け取らず current user 固定 (IDOR 対策)。
+//	@Description  書き込め る の は 自分 が 所有 する セッション だけ。 他人 の セッション と 存在 し ない セッション は 同じ 404 に 揃える (応答 差 で セッション の 実在 を 判別 さ せ ない)。
 //	@Tags         session-notes
 //	@Accept       json
 //	@Produce      json
@@ -78,6 +79,7 @@ type sessionNoteUpsertReq struct {
 //	@Success      200        {object}  github_com_norman6464_FreStyle_backend_internal_domain.SessionNote
 //	@Failure      400        {object}  errorResponse  "バリデーション or DB 失敗"
 //	@Failure      401        {object}  errorResponse  "未 認証"
+//	@Failure      404        {object}  errorResponse  "セッション が 無い / 自分 の セッション で ない"
 //	@Router       /sessions/{sessionId}/note [put]
 //	@Security     CookieAuth
 func (h *SessionNoteHandler) Upsert(c *gin.Context) {

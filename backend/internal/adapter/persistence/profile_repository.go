@@ -45,5 +45,23 @@ func (r *profileRepository) FindByUserID(ctx context.Context, userID uint64) (*d
 }
 
 func (r *profileRepository) Upsert(ctx context.Context, p *domain.Profile) error {
-	return r.db.WithContext(ctx).Save(p).Error
+	uid, ok := toInt64ID(p.UserID)
+	if !ok {
+		return nil // 存在し得ない user_id は書き込まない
+	}
+	sqlDB, err := r.db.DB()
+	if err != nil {
+		return err
+	}
+	updatedAt, err := sqlcgen.New(sqlDB).UpsertProfile(ctx, sqlcgen.UpsertProfileParams{
+		UserID:        uid,
+		Bio:           p.Bio,
+		AvatarUrl:     p.AvatarURL,
+		StatusMessage: p.StatusMessage,
+	})
+	if err != nil {
+		return err
+	}
+	p.UpdatedAt = updatedAt // GORM Save 相当の書き戻し
+	return nil
 }
